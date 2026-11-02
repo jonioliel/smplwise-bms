@@ -34,7 +34,7 @@ import { ticketsLang } from '../tickets/text';
 import { dlt } from '../tickets/delete-text';
 import { openOverlay, menuKey } from '../tickets/overlay-menu';
 import { can, isApi } from '../api/session';
-import { setCostColumns, monthlyParams, type MonthlyGroup } from '../tickets/table-model';
+import { setCostColumns, monthlyParams, type MonthlyGroup, fitColumns, tableMinWidth, COLUMN_WIDTH_PX, SELECT_COL_PX } from '../tickets/table-model';
 import { costCell, costStatusTone } from '../tickets/cost-model';
 import { ct, type CostTextKey } from '../tickets/cost-text';
 
@@ -67,13 +67,18 @@ export class TicketsTable extends LitElement {
   @property({ attribute: false }) hrefOf: (id: string) => string = (id) => `#/tickets/${id}`;
   @property() picked = '';
   @property({ reflect: true, attribute: 'data-density' }) density: 'comfortable' | 'compact' = 'comfortable';
+  /** TICKETS-POLISH-2331: the host gives the table a fixed region (tablet / desktop): the card fills it and its rows scroll under the sticky head */
+  @property({ type: Boolean, reflect: true }) fill = false;
   @state() private rows: TableRow[] | null = null;
   @state() private next: string | null = null;
   @state() private screen: Screen = 'loading';
   @state() private failed = '';
   @state() private loadingMore = false;
   @state() private layout: TableLayout = layoutFromPrefs(null);
-  @state() private extra: ExtraFilters = { ...NO_TABLE_FILTERS };
+  /** POLISH-LEFTOVERS-2341: the table's own filters, owned by the host when it sets `hostFilters` (its "סינון" panel edits them and
+   * hands them back here); every change the table makes itself (a saved view, the empty state's clear) is told with `table-extra` */
+  @property({ attribute: false }) extra: ExtraFilters = { ...NO_TABLE_FILTERS };
+  @property({ type: Boolean }) hostFilters = false;
   @state() private selected: Set<string> = new Set();
   @state() private focusIdx = -1;
   @state() private menu: CellMenu = null;
@@ -100,11 +105,36 @@ export class TicketsTable extends LitElement {
     this.phone = this.phoneMq.matches;
     if (this.phone) this.menu = null; // the phone shows the compact list: no cell menus
   };
+  /** SMALL-UI-BUGS-2343: the width the table has (px, the card's inside); the default columns fit it (tickets/table-model.ts fitColumns) */
+  @state() private fitWidth = 0;
+  private fitObs = new ResizeObserver(([e]) => {
+    const w = Math.floor(e?.contentRect.width ?? 0) - 2; // the card's 1px border on both sides
+    if (Math.abs(w - this.fitWidth) >= 1) this.fitWidth = w;
+  });
   private live = new LiveRefresh(() => this.tick()); // 2.5.4: the one shared poller (20 s, visible, focus)
   private toastTimer = 0;
   private offNames: (() => void) | null = null;
 
   static styles = [bubbleChrome, ...automationsStyles, ticketDetailStyles, ticketFormStyles, ticketTableStyles, css`
+    :host {
+      display: block;
+    }
+    :host([fill]) {
+      display: flex;
+      flex-direction: column;
+      min-block-size: 0;
+    }
+    :host([fill]) > [data-screen] {
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-block-size: 0;
+    }
+    :host([fill]) .tw {
+      flex: 0 1 auto;
+      min-block-size: 0;
+      max-block-size: none;
+    }
     sw-dialog {
       --sw-surface: var(--dv-surface-solid);
       --sw-glass-blur: none;
@@ -130,6 +160,7 @@ export class TicketsTable extends LitElement {
     window.addEventListener('pointerdown', this.onOutside, true);
     window.addEventListener('resize', this.placeMenu);
     window.addEventListener('scroll', this.placeMenu, true);
+    this.fitObs.observe(this);
     this.live.start();
     // CR-038 slice 9 (11A.9): the cost columns, sort and filter only for tickets.costs.view at the installation (the server's 403 rule)
     setCostColumns(!isApi() || can('tickets.costs.view'));
@@ -143,13 +174,15 @@ export class TicketsTable extends LitElement {
     window.removeEventListener('pointerdown', this.onOutside, true);
     window.removeEventListener('resize', this.placeMenu);
     window.removeEventListener('scroll', this.placeMenu, true);
+    this.fitObs.disconnect();
     this.live.stop();
     window.clearTimeout(this.toastTimer);
   }
 
   /** 2.5.5: the open cell menu lives in the top layer, outside the table's scroll box: put it next to its trigger after every render. */
-  protected updated(): void {
+  protected updated(changed: PropertyValues<this>): void {
     this.placeMenu();
+    if ((changed as Map<PropertyKey, unknown>).has('rows')) this.tellHolders();
   }
 
   private placeMenu = (): void => {
@@ -175,7 +208,21 @@ export class TicketsTable extends LitElement {
   };
 
   protected willUpdate(changed: PropertyValues<this>): void {
-    if (this.booted && (changed.has('scope') || changed.has('base'))) this.reloadIfNeeded();
+    if (this.booted && (changed.has('scope') || changed.has('base') || changed.has('extra'))) this.reloadIfNeeded();
+  }
+
+  /** POLISH-LEFTOVERS-2341: the handler filter's people (whoever holds a loaded row) for the host's panel, when they change */
+  private holdersKey = '';
+  private tellHolders(): void {
+    const holders = holdersOf(this.rows ?? []);
+    const key = holders.map((h) => `${h.key}=${h.name}`).join('|');
+    if (key === this.holdersKey) return;
+    this.holdersKey = key;
+    this.dispatchEvent(new CustomEvent('table-holders', { detail: { holders }, bubbles: true, composed: true }));
+  }
+
+  private tellExtra(): void {
+    this.dispatchEvent(new CustomEvent('table-extra', { detail: { extra: this.extra }, bubbles: true, composed: true }));
   }
 
   // ---------------------------------------------------------------- data
@@ -298,12 +345,14 @@ export class TicketsTable extends LitElement {
 
   private setExtra(extra: ExtraFilters): void {
     this.extra = extra;
+    this.tellExtra();
     this.reloadIfNeeded();
   }
 
   private applySaved(v: SavedView): void {
     const next = applyView(v.view, this.layout);
     this.extra = next.extra;
+    this.tellExtra();
     this.setLayout(next.layout);
     this.dispatchEvent(new CustomEvent('table-filters', { detail: next.base, bubbles: true, composed: true }));
     this.reloadIfNeeded(true);
@@ -525,7 +574,7 @@ export class TicketsTable extends LitElement {
 
   private statusChip(s: TicketStatus): TemplateResult {
     const c = chipOf({ status: s });
-    return html`<span class=${`chip ${c.tone}`} aria-label=${c.text}><i class=${`dot ${c.tone === 'ok' ? 'ok' : c.tone === 'info' ? 'run' : ''}`}></i>${c.label}${c.sub ? html`<span class="subst"> · ${c.sub}</span>` : nothing}</span>`;
+    return html`<span class=${`chip ${c.tone}`} aria-label=${c.text} title=${c.text}><i class=${`dot ${c.tone === 'ok' ? 'ok' : c.tone === 'info' ? 'run' : ''}`}></i>${c.label}${c.sub ? html`<span class="subst"> · ${c.sub}</span>` : nothing}</span>`;
   }
 
   /** TKUI4: the sentence cell - the drawer's own words for this row, resolved for the reader (the role of the row's department). */
@@ -535,11 +584,24 @@ export class TicketsTable extends LitElement {
 
   /** The shown columns: the sentence follows the title when it is on (a client-only column - the server knows nothing about it). */
   private shownColumns(): (ColumnKey | 'sentence')[] {
-    if (!this.sentenceOn || this.phone) return this.layout.columns;
-    const i = this.layout.columns.indexOf('title');
-    const cols: (ColumnKey | 'sentence')[] = [...this.layout.columns];
+    const fitted = this.fittedColumns();
+    if (!this.sentenceOn || this.phone) return fitted;
+    const i = fitted.indexOf('title');
+    const cols: (ColumnKey | 'sentence')[] = [...fitted];
     cols.splice(i < 0 ? 0 : i + 1, 0, 'sentence');
     return cols;
+  }
+
+  /** SMALL-UI-BUGS-2343: the user's columns, less the low-priority default ones that do not fit the table's width (only while the user
+   * keeps the default set; the chooser shows these, so a column added there always shows and the table scrolls sideways instead). */
+  private fittedColumns(): ColumnKey[] {
+    if (this.phone) return this.layout.columns;
+    return fitColumns(this.layout.columns, this.fitWidth, this.canSelect(), this.sentenceOn ? ['sentence'] : []);
+  }
+
+  /** The fixed widths of the shown columns (table-layout: fixed): the title takes the rest. */
+  private colgroup(cols: readonly (ColumnKey | 'sentence')[], select: boolean): TemplateResult {
+    return html`<colgroup>${select ? html`<col style=${`width:${SELECT_COL_PX}px`} />` : nothing}${cols.map((c) => (c === 'title' ? html`<col data-colw="title" />` : html`<col data-colw=${c} style=${`width:${COLUMN_WIDTH_PX[c]}px`} />`))}</colgroup>`;
   }
 
   private onSentenceToggle = (e: CustomEvent<{ on: boolean }>) => {
@@ -552,12 +614,12 @@ export class TicketsTable extends LitElement {
       case 'number':
         return html`<td class="c-number">#${r.number}</td>`;
       case 'title':
-        return html`<td class="c-title"><span class="cv" title=${r.title}>${r.title}</span>${r.category ? html`<span class="sub">${bidi(r.category.name)}</span>` : nothing}</td>`;
+        return html`<td class="c-title"><span class="cv" title=${r.title}>${r.title}</span>${r.category ? html`<span class="sub" title=${r.category.name}>${bidi(r.category.name)}</span>` : nothing}</td>`;
       case 'department':
-        return html`<td><span class="cv">${r.department ? bidi(r.department.name) : ''}</span></td>`;
+        return html`<td><span class="cv" title=${r.department?.name || nothing}>${r.department ? bidi(r.department.name) : ''}</span></td>`;
       case 'priority': {
         const tone = priorityTone(r.priority);
-        return html`<td>${r.priority ? html`<span class=${`chip ${tone}`}><i class=${`dot ${tone === 'bad' ? 'bad' : tone === 'info' ? 'run' : ''}`}></i>${r.priority.name}</span>` : nothing}</td>`;
+        return html`<td>${r.priority ? html`<span class=${`chip ${tone}`} title=${r.priority.name}><i class=${`dot ${tone === 'bad' ? 'bad' : tone === 'info' ? 'run' : ''}`}></i>${r.priority.name}</span>` : nothing}</td>`;
       }
       case 'status': {
         const open = this.menu?.id === r.id && this.menu.kind === 'status';
@@ -568,7 +630,7 @@ export class TicketsTable extends LitElement {
       }
       case 'assignee': {
         const name = r.assignee?.name || '';
-        const who = html`<span class=${`who${name ? '' : ' none'}`}>${name ? bidi(name) : tbt('unassigned')}</span>`;
+        const who = html`<span class=${`who${name ? '' : ' none'}`} title=${name || nothing}>${name ? bidi(name) : tbt('unassigned')}</span>`;
         if (!r.can.assign) return html`<td>${who}</td>`;
         const open = this.menu?.id === r.id && this.menu.kind === 'assignee';
         return html`<td class="cellmenu"><button type="button" class="cbtn" aria-haspopup="menu" aria-expanded=${String(open)} data-menu-for=${`assignee:${r.id}`}
@@ -576,15 +638,17 @@ export class TicketsTable extends LitElement {
           </td>`;
       }
       case 'place':
-        return html`<td><span class="cv">${r.place_text ? bidi(r.place_text) : ''}</span></td>`;
+        return html`<td><span class="cv" title=${r.place_text || nothing}>${r.place_text ? bidi(r.place_text) : ''}</span></td>`;
       case 'device':
-        return html`<td><span class="cv">${r.device_name ? bidi(r.device_name) : ''}</span></td>`;
+        return html`<td><span class="cv" title=${r.device_name || nothing}>${r.device_name ? bidi(r.device_name) : ''}</span></td>`;
       case 'created':
         return html`<td class="c-created"><ticket-elapsed .item=${r} data-row-elapsed></ticket-elapsed></td>`;
       case 'activity':
         return html`<td class="c-activity">${relTime(r.last_activity_at, this.now)}</td>`;
-      case 'stuck':
-        return html`<td><span class=${`cv${r.stuck ? ' warn' : ''}`}>${stuckText(r.stuck, this.now)}</span></td>`;
+      case 'stuck': {
+        const t = stuckText(r.stuck, this.now);
+        return html`<td><span class=${`cv${r.stuck ? ' warn' : ''}`} title=${t || nothing}>${t}</span></td>`;
+      }
       case 'sla': {
         const s = slaText(r.sla, this.now);
         return html`<td class="c-sla"><span class=${s.tone}>${s.text}</span></td>`;
@@ -636,8 +700,10 @@ export class TicketsTable extends LitElement {
 
   private table(rows: TableRow[]): TemplateResult {
     const select = this.canSelect();
+    const cols = this.shownColumns();
     return html`<div class="tw" data-table-wrap>
-      <table class="tt" role="grid" aria-label=${tbt('tableLabel')} aria-rowcount=${rows.length + 1} aria-multiselectable=${String(select)} aria-describedby="kbhelp" data-tickets-table @keydown=${this.onKey}>
+      <table class="tt" style=${`min-inline-size:${tableMinWidth(cols, select)}px`} data-min-width=${tableMinWidth(cols, select)} role="grid" aria-label=${tbt('tableLabel')} aria-rowcount=${rows.length + 1} aria-multiselectable=${String(select)} aria-describedby="kbhelp" data-tickets-table @keydown=${this.onKey}>
+        ${this.colgroup(cols, select)}
         ${this.header()}
         <tbody>${repeat(rows, (r) => r.id, (r, i) => {
           const sel = this.selected.has(r.id);
@@ -668,8 +734,8 @@ export class TicketsTable extends LitElement {
   }
 
   private skeleton(): TemplateResult {
-    const cols = this.layout.columns;
-    return html`<div class="tw" aria-busy="true" data-table-state="loading"><table class="tt"><thead><tr>${cols.map((c) => html`<th scope="col">${columnLabel(c)}</th>`)}</tr></thead>
+    const cols = this.phone ? this.layout.columns : this.fittedColumns();
+    return html`<div class="tw" aria-busy="true" data-table-state="loading"><table class="tt" style=${`min-inline-size:${tableMinWidth(cols, false)}px`}>${this.colgroup(cols, false)}<thead><tr>${cols.map((c) => html`<th scope="col">${columnLabel(c)}</th>`)}</tr></thead>
       <tbody>${Array.from({ length: this.phone ? 4 : 8 }, () => html`<tr class="sk">${cols.map(() => html`<td><span class="skl"></span></td>`)}</tr>`)}</tbody></table></div>`;
   }
 
@@ -694,7 +760,7 @@ export class TicketsTable extends LitElement {
     const showBulk = this.canSelect() && picked.length > 0;
     return html`<div data-screen="tickets-table" data-view="table">
       ${html`<tickets-table-toolbar .layout=${this.layout} .extra=${this.extra} .meta=${this.meta} .holders=${holdersOf(rows)} .current=${viewDoc({ scope: this.scope, ...this.base }, this.extra, this.layout)}
-            .count=${this.screen === 'ready' ? rows.length : null} ?more=${!!this.next} ?phone=${this.phone} ?canExport=${!!this.meta?.can.manage} ?exporting=${this.exporting} .defaultView=${this.defaultView}
+            .count=${this.screen === 'ready' ? rows.length : null} ?more=${!!this.next} ?phone=${this.phone} ?canExport=${!!this.meta?.can.manage} ?exporting=${this.exporting} .defaultView=${this.defaultView} ?hostFilters=${this.hostFilters} .fitted=${this.fittedColumns()}
             @layout-change=${(e: CustomEvent<{ layout: TableLayout }>) => this.setLayout(e.detail.layout)} @extra-change=${(e: CustomEvent<{ extra: ExtraFilters }>) => this.setExtra(e.detail.extra)}
             @view-apply=${(e: CustomEvent<{ view: SavedView }>) => this.applySaved(e.detail.view)} @default-view=${(e: CustomEvent<{ id: string | null }>) => (this.defaultView = e.detail.id ?? '')}
             .sentence=${this.sentenceOn} @sentence-change=${this.onSentenceToggle}

@@ -6,6 +6,7 @@ import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/media-remote';
 import '../components/media-player-card';
+import '../components/media-screen-card'; // PERF-HOME-DEVICES-2342: rendered here; was defined only through the shell's eager multimedia screens
 import '../components/media-group-dialog';
 import type { MediaGroupDialog } from '../components/media-group-dialog';
 import { describeError } from '../api/client';

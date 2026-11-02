@@ -14,6 +14,10 @@ export interface DeviceCounts {
   lights_on: number;
   switches: number;
   switches_on: number;
+  /** SWITCH-LIGHT-DIMMER-2331: the switch.* entities among `switches` (no input_boolean helper). The synoptic option
+   * "מפסקים בעמודת התאורה = כל המפסקים" (ui.xs syn_switches=all) adds them to its lights column. Absent from an older server. */
+  switch_entities?: number;
+  switch_entities_on?: number;
   covers: number;
   covers_open: number;
   climate: number;
@@ -139,6 +143,9 @@ export interface DeviceRow {
   // lighting
   brightness_pct?: number | null;
   color_mode?: string | null;
+  /** SWITCH-LIGHT-DIMMER-2331: the server's verdict (services/devices.is_dimmable) - a light.* that really takes a brightness. False
+   * for an on/off-only light and for a switch typed as a light. Read only through `isDimmable`. */
+  dimmable?: boolean;
   // climate (climate.*) and fan / humidifier
   hvac_mode?: string | null;
   hvac_action?: string | null;
@@ -258,9 +265,10 @@ export interface DeviceItems {
 }
 
 /** `GET /devices/items`: every entity of one tile kind in the building / one HA floor / one HA area, floor › area. */
-export function getDeviceItems(kind: TileKind, scope: ItemsScope = 'building', id = '') {
+export function getDeviceItems(kind: TileKind, scope: ItemsScope = 'building', id = '', switches: 'typed' | 'all' = 'typed') {
   const q = new URLSearchParams({ kind, scope });
   if (scope !== 'building') q.set('id', id);
+  if (kind === 'lights' && switches === 'all') q.set('switches', 'all'); // SWITCH-LIGHT-DIMMER-2331: every switch.* with the lights
   return get<DeviceItems>(`devices/items?${q.toString()}`);
 }
 
@@ -330,6 +338,34 @@ export function climateRange(r: Pick<DeviceRow, 'min_temp' | 'max_temp' | 'targe
 }
 
 export const HVAC_HE: Record<string, string> = { heat: 'חימום', cool: 'קירור', heat_cool: 'חימום/קירור', auto: 'אוטומטי', dry: 'ייבוש', fan_only: 'מאוורר', off: 'כבוי' };
+/** POLISH-LEFTOVERS-2341: the common climate fan_mode values (HA's FAN_* constants plus the usual vendor words) in Hebrew. */
+export const FAN_HE: Record<string, string> = {
+  auto: 'אוטומטי', on: 'פועל', off: 'כבוי', low: 'נמוך', medium: 'בינוני', middle: 'בינוני', mid: 'בינוני', high: 'גבוה', top: 'מרבי',
+  focus: 'ממוקד', diffuse: 'מפוזר', quiet: 'שקט', silent: 'שקט', turbo: 'טורבו', strong: 'חזק', powerful: 'חזק', max: 'מרבי', min: 'מזערי',
+  low_medium: 'נמוך-בינוני', medium_low: 'בינוני-נמוך', medium_high: 'בינוני-גבוה', high_medium: 'גבוה-בינוני', very_low: 'נמוך מאוד', very_high: 'גבוה מאוד',
+  level1: 'דרגה 1', level2: 'דרגה 2', level3: 'דרגה 3', level4: 'דרגה 4', level5: 'דרגה 5',
+};
+/** The common climate swing_mode values (HA's SWING_* constants plus the usual vendor words) in Hebrew. */
+export const SWING_HE: Record<string, string> = {
+  off: 'כבוי', on: 'פועל', both: 'אנכי ואופקי', vertical: 'אנכי', horizontal: 'אופקי', auto: 'אוטומטי', swing: 'נדנוד', stop: 'עצור', fixed: 'קבוע',
+  top: 'למעלה', upper: 'למעלה', high: 'למעלה', middle: 'באמצע', center: 'באמצע', mid: 'באמצע', bottom: 'למטה', lower: 'למטה', low: 'למטה',
+  left: 'שמאלה', right: 'ימינה', wide: 'רחב', '1': 'מיקום 1', '2': 'מיקום 2', '3': 'מיקום 3', '4': 'מיקום 4', '5': 'מיקום 5',
+};
+/** P6 item 7 (moved here from devices-controls.ts): the common preset names, plus a humidifier's usual modes, in Hebrew. */
+export const PRESET_HE: Record<string, string> = {
+  home: 'בבית', away: 'מחוץ לבית', eco: 'חיסכון', comfort: 'נוחות', sleep: 'שינה', boost: 'מוגבר', none: 'ללא', auto: 'אוטומטי', off: 'כבוי', activity: 'פעילות',
+  normal: 'רגיל', baby: 'תינוק', night: 'לילה', quiet: 'שקט', manual: 'ידני', smart: 'חכם', turbo: 'טורבו', vacation: 'חופשה', frost_protection: 'הגנה מקיפאון',
+};
+export type ClimateChoice = 'hvac' | 'fan' | 'swing' | 'preset' | 'hmode';
+/** A climate / humidifier mode value in words for the screen - display only (the device always receives the raw value).
+ * Case-insensitive; an unknown value is shown as the device reports it. */
+export function climateWord(kind: ClimateChoice, value: string | null | undefined): string {
+  const v = value ?? '';
+  if (!v) return '';
+  const map = kind === 'hvac' ? HVAC_HE : kind === 'fan' ? FAN_HE : kind === 'swing' ? SWING_HE : PRESET_HE;
+  const k = v.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  return map[v] ?? map[k] ?? v;
+}
 export const HVAC_ACTION_HE: Record<string, string> = { heating: 'מחמם', cooling: 'מקרר', drying: 'מייבש', fan: 'מאוורר', idle: 'ממתין', off: 'כבוי', preheating: 'מחמם מראש', defrosting: 'מפשיר' };
 export const ALARM_HE: Record<string, string> = {
   disarmed: 'מנוטרלת',
@@ -345,3 +381,16 @@ export const ALARM_HE: Record<string, string> = {
   unavailable: 'לא זמינה',
   unknown: 'לא ידוע',
 };
+
+/**
+ * SWITCH-LIGHT-DIMMER-2331 (owner 2026-11-01): the ONE gate of every brightness slider (area tiles and rows, the lights panel, the quick
+ * sheet, the bubble pill and its sheet, every skin and the phone). A brightness control only for a light.* entity that really takes a
+ * brightness: never a switch / input_boolean an administrator typed as a light (it keeps the light's look, it is on/off only), never a
+ * light that reports only the "onoff" colour mode (a relay shown as a light). The server's `dimmable` decides; a row from an older
+ * server or a demo row (no field) is dimmable unless its colour mode says "onoff" (the behaviour before 2.33.1).
+ */
+export function isDimmable(r: { domain: string; dimmable?: boolean; color_mode?: string | null }): boolean {
+  if (r.domain !== 'light') return false;
+  if (typeof r.dimmable === 'boolean') return r.dimmable;
+  return r.color_mode !== 'onoff';
+}

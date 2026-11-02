@@ -30,6 +30,7 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { dayTimeText } from '../api/day-format';
+import { agoText } from './investigate-time';
 
 const STATUS_KIND: Record<CaseStatus, StateKind> = { open: 'stale', in_review: 'recorded', closed: 'neutral' };
 const PRES_KIND: Record<Preservation, StateKind> = { preserved: 'recorded', preserving: 'partial', nvr_only: 'stale', missing: 'error', unknown: 'unknown', not_in_bundle: 'neutral', none: 'neutral' };
@@ -42,14 +43,42 @@ function signatureText(s?: SignatureVerdict | null): string {
   return `חתימה תקינה · Ed25519 · מפתח ${s.kid}${s.trust === 'installation' ? (s.retired ? ' · מפתח שהוחלף, מוכר למתקן זה' : ' · המפתח הפעיל של מתקן זה') : ' · מפתח שאינו מוכר למתקן זה — שלמות בלבד, לא אמון'}`;
 }
 const fmtWhen = (iso: string, tz?: string) => dayTimeText(new Date(iso), { timeZone: tz });
+/** The cells render inside sw-table's shadow root, so the screen's stylesheet does not reach them: the few cell styles are inline. */
+const C_TITLE = 'font-size:var(--sw-fs-md);font-weight:var(--sw-fw-semibold);color:var(--sw-heading);text-decoration:none;border-radius:var(--sw-r-2xs);outline-offset:2px';
+const C_SUB = 'font-size:var(--sw-fs-xs);color:var(--sw-text-3);line-height:1.4';
+const C_NUM = 'font-variant-numeric:tabular-nums';
+const caseTitle = (r: Record<string, unknown>) =>
+  html`<a href=${`#/investigate/cases/${String(r.id)}`} style=${C_TITLE} data-case-link @click=${(e: Event) => e.stopPropagation()}>${String(r.title)}</a>${r.imported ? html` <sw-badge kind="historic" label="מיובא" data-case-imported></sw-badge>` : nothing}`;
+const updatedCell = (r: Record<string, unknown>) => {
+  const iso = String(r.updated);
+  const rel = agoText(iso);
+  return html`<div style=${`${C_NUM};color:var(--sw-heading)`}>${rel ?? fmtWhen(iso)}</div>${rel ? html`<div style=${`${C_SUB};${C_NUM}`}><span style="direction:ltr;unicode-bidi:isolate">${fmtWhen(iso)}</span></div>` : nothing}`;
+};
+const preservedCell = (r: Record<string, unknown>) => {
+  const p = Number(r.preserved);
+  const c = Number(r.clips);
+  return html`<span style=${`${C_NUM};font-weight:var(--sw-fw-semibold);color:var(--sw-heading)`}>${p}</span><span style=${`${C_NUM};color:var(--sw-text-3)`}> / ${c}</span>`;
+};
 const API_COLUMNS: TableColumn[] = [
-  { key: 'title', label: 'תיק', render: (r) => html`<strong style="font-size:var(--sw-fs-md);color:var(--sw-heading)">${String(r.title)}</strong>${r.imported ? html` <sw-badge kind="historic" label="מיובא" data-case-imported></sw-badge>` : nothing}${r.tags ? html`<div style="font-size:11px;color:var(--sw-text-3)">${String(r.tags)}</div>` : nothing}` },
-  { key: 'status', label: 'סטטוס', render: (r) => html`<sw-badge filled kind=${STATUS_KIND[r.status as CaseStatus]} label=${CASE_STATUS_LABEL[r.status as CaseStatus]}></sw-badge>` },
-  { key: 'owner', label: 'בעלים' },
-  { key: 'items', label: 'פריטים' },
-  { key: 'preserved', label: 'עותקים שמורים', render: (r) => html`${String(r.preserved)} מתוך ${String(r.clips)}` },
-  { key: 'updated', label: 'עודכן', ltr: true, render: (r) => fmtWhen(String(r.updated)) },
+  { key: 'title', label: 'תיק', render: (r) => html`${caseTitle(r)}${r.tags ? html`<div style=${C_SUB}>${String(r.tags)}</div>` : nothing}` },
+  { key: 'status', label: 'סטטוס', width: '120px', render: (r) => html`<sw-badge filled kind=${STATUS_KIND[r.status as CaseStatus]} label=${CASE_STATUS_LABEL[r.status as CaseStatus]}></sw-badge>` },
+  { key: 'owner', label: 'בעלים', width: '120px' },
+  { key: 'items', label: 'פריטים', width: '90px', render: (r) => html`<span style=${C_NUM}>${String(r.items)}</span>` },
+  { key: 'preserved', label: 'עותקים שמורים', width: '130px', render: preservedCell },
+  { key: 'updated', label: 'עודכן', width: '170px', render: updatedCell },
 ];
+/** A phone: one card per case - the title with its status, then one line of who / how many / when (the stacked six captions filled
+ * a screen per case). */
+const NARROW_COLUMNS: TableColumn[] = [
+  {
+    key: 'title',
+    label: 'תיק',
+    render: (r) => html`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${caseTitle(r)}<sw-badge filled kind=${STATUS_KIND[r.status as CaseStatus]} label=${CASE_STATUS_LABEL[r.status as CaseStatus]}></sw-badge></div>
+      <div style=${`${C_SUB};${C_NUM};margin-block-start:2px`}>${String(r.owner)} · ${String(r.items)} פריטים · ${String(r.preserved)}/${String(r.clips)} שמורים · ${agoText(String(r.updated)) ?? fmtWhen(String(r.updated))}</div>
+      ${r.tags ? html`<div style=${C_SUB}>${String(r.tags)}</div>` : nothing}`,
+  },
+];
+const NARROW = '(max-width: 767px)';
 
 const columns: TableColumn[] = [
   { key: 'title', label: 'תיק', render: (r) => html`<strong style="font-size:var(--sw-fs-md);color:var(--sw-heading)">${String(r.title)}</strong>` },
@@ -83,21 +112,66 @@ export class InvestigateCases extends LitElement {
   @state() private importReport: BundleVerification | null = null;
   @state() private importBusy = false;
   @state() private importError = '';
+  @state() private forbidden = false;
+  /** INVREST-POLISH-2331: a phone gets one card per case (NARROW_COLUMNS). */
+  @state() private narrow = typeof window !== 'undefined' && window.matchMedia(NARROW).matches;
+  private mq?: MediaQueryList;
+  private onMq = () => (this.narrow = !!this.mq?.matches);
   private qTimer = 0;
 
   static styles = [css`
+    /* INVREST-POLISH-2331: from a tablet up the screen takes the height the shell leaves it and never scrolls; the list scrolls in its
+       own box under a sticky header. A phone keeps the page scroll (the rows are cards there). */
+    :host {
+      display: flex;
+      flex-direction: column;
+      min-block-size: 0;
+      min-inline-size: 0;
+    }
+    sw-page {
+      flex: 1;
+      min-block-size: 0;
+    }
+    sw-table {
+      flex: 0 1 auto;
+      min-block-size: 0;
+      --sw-table-cell-pad: 10px 14px;
+    }
+    @media (min-width: 768px) {
+      sw-page {
+        block-size: 100%;
+      }
+    }
     .bar {
       display: flex;
       align-items: center;
       gap: 6px;
       flex-wrap: wrap;
-      margin-block-end: 10px;
+      flex: none;
+    }
+    .bar sw-field {
+      inline-size: 280px;
+    }
+    .count {
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-3);
+      font-variant-numeric: tabular-nums;
+      margin-inline-start: 6px;
     }
     .grow {
       flex: 1;
     }
+    @media (max-width: 767px) {
+      .bar sw-field {
+        inline-size: 100%;
+        order: 3;
+      }
+      .bar .grow {
+        display: none;
+      }
+    }
     .err {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-sm);
       margin-block-end: 8px;
     }
@@ -166,7 +240,16 @@ export class InvestigateCases extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    this.mq = window.matchMedia(NARROW);
+    this.mq.addEventListener('change', this.onMq);
+    this.narrow = this.mq.matches;
     if (isApi()) void this.load();
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.mq?.removeEventListener('change', this.onMq);
+    window.clearTimeout(this.qTimer);
   }
 
   private async load() {
@@ -177,7 +260,9 @@ export class InvestigateCases extends LitElement {
       this.cases = r.cases;
       this.canManage = r.can_manage;
       this.canImport = Boolean(r.can_import);
+      this.forbidden = false;
     } catch (err) {
+      this.forbidden = err instanceof ApiError && err.status === 403;
       this.error = describeError(err);
     } finally {
       this.loading = false;
@@ -263,7 +348,7 @@ export class InvestigateCases extends LitElement {
     const dup = v?.already_imported;
     return html`<sw-dialog open heading="ייבוא חבילת ראיות" subheading=${f ? `${f.name} · ${formatBytes(f.size)}` : ''} data-bundle-import-dialog @close=${() => (this.importOpen = false)}>
       ${this.importBusy && !v ? html`<sw-state-panel state="loading" heading="מאמת את החבילה…" hint="כל קובץ מגובב מחדש ומושווה ל־manifest; שום דבר עוד לא יובא"></sw-state-panel>` : nothing}
-      ${this.importError ? html`<div class="err" data-import-error>${this.importError}</div>` : nothing}
+      ${this.importError ? html`<div class="err" data-import-error role="alert">${this.importError}</div>` : nothing}
       ${v
         ? html`<div class="verdict" data-import-summary data-ok=${String(v.ok)}>${v.summary ?? (v.ok ? 'החבילה אומתה.' : 'האימות נכשל.')}</div>
             <div class="kv" data-import-origin>
@@ -291,24 +376,33 @@ export class InvestigateCases extends LitElement {
     </sw-dialog>`;
   }
 
+  /** The list, or the state that stands in for it: loading, forbidden, a failed load (with a retry), no case matching the filter
+   * (with a reset), and no case at all. */
+  private renderList(rows: Record<string, unknown>[]) {
+    if (this.loading && !this.cases.length) return html`<sw-state-panel state="loading"></sw-state-panel>`;
+    if (this.forbidden && !this.cases.length) return html`<sw-state-panel state="forbidden" hint="רשימת התיקים דורשת הרשאת קריאת תיקים."></sw-state-panel>`;
+    if (this.error && !this.cases.length) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>`;
+    if (!this.cases.length && (this.q || this.status !== 'all'))
+      return html`<sw-state-panel icon="case" state="empty" heading="לא נמצאו תיקים" hint=${this.q ? `אין תיק שמתאים ל„${this.q}”${this.status !== 'all' ? ` בסטטוס ${CASE_STATUS_LABEL[this.status]}` : ''}.` : `אין תיקים בסטטוס ${CASE_STATUS_LABEL[this.status as CaseStatus]}.`} actionLabel="הצג את כל התיקים" data-cases-no-match @action=${() => { this.q = ''; this.setStatus('all'); }}></sw-state-panel>`;
+    if (!this.cases.length) return html`<sw-state-panel icon="case" state="empty" heading="אין תיקים עדיין" hint="פתח תיק מדף אירוע, מהנגן או מהמפה ההיסטורית (הוסף לתיק), או כאן."></sw-state-panel>`;
+    return html`<sw-table data-cases-table .columns=${this.narrow ? NARROW_COLUMNS : API_COLUMNS} .rows=${rows} @row-select=${(e: CustomEvent<{ id: string }>) => navigate(`/investigate/cases/${e.detail.id}`)}></sw-table>`;
+  }
+
   private renderApi() {
-    const rows = this.cases.map((c) => ({ id: c.id, title: c.title, status: c.status, owner: c.owner_username, items: c.counts.items, clips: c.counts.events + c.counts.clips, preserved: c.counts.preserved, updated: c.updated_at, tags: c.tags.join(' · '), imported: c.origin === 'imported' }));
+    const rows =this.cases.map((c) => ({ id: c.id, title: c.title, status: c.status, owner: c.owner_username, items: c.counts.items, clips: c.counts.events + c.counts.clips, preserved: c.counts.preserved, updated: c.updated_at, tags: c.tags.join(' · '), imported: c.origin === 'imported' }));
     return html`
       <sw-page heading="תיקים" subheading="קישור להקלטה אינו שימור: ראיה נחשבת שמורה רק אחרי העתקה מאומתת מה־NVR">
         <sw-button slot="actions" icon="upload" data-bundle-import @click=${() => this.pickImport()}>ייבוא חבילת ראיות</sw-button>
         ${this.canManage ? html`<sw-button slot="actions" variant="primary" icon="plus" data-case-new @click=${() => (this.creating = true)}>תיק חדש</sw-button>` : nothing}
         <input type="file" accept=".zip,application/zip" hidden data-bundle-import-file @change=${(e: Event) => void this.onImportFile((e.target as HTMLInputElement).files?.[0])} />
-        <div class="bar">
-          ${(['all', 'open', 'in_review', 'closed'] as const).map((s) => html`<sw-chip ?selected=${this.status === s} @click=${() => this.setStatus(s)}>${s === 'all' ? 'הכל' : CASE_STATUS_LABEL[s]}</sw-chip>`)}
+        <div class="bar" role="toolbar" aria-label="סינון תיקים">
+          ${(['all', 'open', 'in_review', 'closed'] as const).map((s) => html`<sw-chip ?selected=${this.status === s} aria-pressed=${String(this.status === s)} data-case-status-filter=${s} @click=${() => this.setStatus(s)}>${s === 'all' ? 'הכל' : CASE_STATUS_LABEL[s]}</sw-chip>`)}
+          ${this.cases.length && !this.loading ? html`<span class="count" data-case-count aria-live="polite">${this.cases.length} תיקים</span>` : nothing}
           <span class="grow"></span>
-          <sw-field><input type="search" placeholder="חיפוש בכותרת, תיאור ותגיות" aria-label="חיפוש תיקים" .value=${this.q} @input=${(e: Event) => this.onQuery((e.target as HTMLInputElement).value)} /></sw-field>
+          <sw-field><input type="search" placeholder="חיפוש בכותרת, תיאור ותגיות" aria-label="חיפוש תיקים" .value=${this.q} @input=${(e: Event) => this.onQuery((e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Escape' && this.q) { e.stopPropagation(); this.onQuery(''); } }} /></sw-field>
         </div>
-        ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
-        ${this.loading && !this.cases.length
-          ? html`<sw-state-panel state="loading"></sw-state-panel>`
-          : !this.cases.length
-            ? html`<sw-state-panel icon="case" state="empty" heading="אין תיקים עדיין" hint="פתח תיק מדף אירוע, מהנגן או מהמפה ההיסטורית (הוסף לתיק), או כאן."></sw-state-panel>`
-            : html`<sw-table data-cases-table .columns=${API_COLUMNS} .rows=${rows} @row-select=${(e: CustomEvent<{ id: string }>) => navigate(`/investigate/cases/${e.detail.id}`)}></sw-table>`}
+        ${this.error && this.cases.length ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
+        ${this.renderList(rows)}
         ${this.creating
           ? html`<sw-dialog open heading="תיק חדש" subheading="כותרת קצרה; פריטים נוספים מדפי האירוע, הנגן והמפה" data-case-create @close=${() => (this.creating = false)}>
               <sw-field label="כותרת"><input data-case-title .value=${this.newTitle} @input=${(e: Event) => (this.newTitle = (e.target as HTMLInputElement).value)} /></sw-field>
@@ -361,6 +455,79 @@ export class InvestigateCaseDetail extends LitElement {
   private pollTimer = 0;
 
   static styles = [css`
+    /* INVREST-POLISH-2331: the case page (server mode) is two columns from 1000 px up - the evidence list at the start, the case's
+       own panel (description, adding a note or a picture, the evidence bundle) at the end - and takes exactly the height the shell
+       leaves it: each column scrolls in its own box, the header actions never leave the screen. Narrower: one column, the page
+       scrolls (a phone). */
+    :host {
+      display: flex;
+      flex-direction: column;
+      min-block-size: 0;
+      min-inline-size: 0;
+    }
+    sw-page {
+      flex: 1;
+      min-block-size: 0;
+    }
+    .cols {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .cols > .col {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-inline-size: 0;
+    }
+    @media (min-width: 1000px) {
+      sw-page.api {
+        block-size: 100%;
+      }
+      .cols {
+        flex: 1;
+        min-block-size: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) clamp(320px, 30vw, 420px);
+        align-items: stretch;
+      }
+      .cols > .col {
+        min-block-size: 0;
+        overflow: auto;
+        overscroll-behavior: contain;
+        /* room for the cards' shadows inside the scroll box */
+        padding: 2px 4px 8px;
+        margin: -2px -4px 0;
+      }
+    }
+    .stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-block-end: 10px;
+    }
+    .stats .r5-well {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 6px;
+      min-block-size: 0;
+      padding: 6px 10px;
+    }
+    .stats .r5-num {
+      font-size: var(--sw-fs-lg);
+    }
+    details.more > summary {
+      cursor: pointer;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      margin-block-start: 8px;
+      list-style-position: inside;
+    }
+    details.more > summary:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset);
+      border-radius: var(--sw-r-2xs);
+    }
     /* R5-INVESTIGATE-297 loop 2: the stage is bounded by the viewport height, so the clip row, the tabs and the form stay on
        screen at 1440x900 (the form used to scroll under the fold); the column centres when the height is the limit */
     .wrap {
@@ -595,6 +762,15 @@ export class InvestigateCaseDetail extends LitElement {
     }
     .composer sw-field {
       flex: 1;
+      min-inline-size: 0;
+    }
+    /* the side panel is narrow: a composer's field above its button */
+    .side .composer {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .side .composer sw-button {
+      align-self: flex-end;
     }
     .desc {
       white-space: pre-wrap;
@@ -607,7 +783,7 @@ export class InvestigateCaseDetail extends LitElement {
       margin-block-start: 6px;
     }
     .err {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-sm);
     }
     .ok {
@@ -763,7 +939,7 @@ export class InvestigateCaseDetail extends LitElement {
             ${v.authenticity ? html`<div class="hint" style="margin-block-start:4px">${v.authenticity}</div>` : nothing}
           </div>`
         : nothing}
-      <div class="hint" style="margin-block-start:6px">SHA-256 מוכיח שכל קובץ לא השתנה מאז יצירת החבילה; חתימת Ed25519 על ה־manifest מוכיחה שהחבילה לא שונתה מאז הייצוא על ידי מחזיק המפתח של המתקן (integrity-at-export). אף אחד מהם אינו מוכיח את אמיתות הצילום במקור (capture authenticity), ואין כאן הצהרה על קבילות משפטית. אימות מחוץ למערכת: scripts/verify_bundle.py.</div>
+      <details class="more" data-bundle-proof><summary>מה החבילה מוכיחה</summary><div class="hint" style="margin-block-start:6px">SHA-256 מוכיח שכל קובץ לא השתנה מאז יצירת החבילה; חתימת Ed25519 על ה־manifest מוכיחה שהחבילה לא שונתה מאז הייצוא על ידי מחזיק המפתח של המתקן (integrity-at-export). אף אחד מהם אינו מוכיח את אמיתות הצילום במקור (capture authenticity), ואין כאן הצהרה על קבילות משפטית. אימות מחוץ למערכת: scripts/verify_bundle.py.</div></details>
     </sw-card>`;
   }
 
@@ -848,31 +1024,49 @@ export class InvestigateCaseDetail extends LitElement {
     const d = this.data;
     if (!d) return html`<sw-page heading="תיק"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     const c = d.counts;
+    const missing = d.items.filter((i) => i.preservation === 'missing').length;
+    const copying = d.items.filter((i) => i.preservation === 'preserving').length;
+    const linkOnly = d.items.filter((i) => i.preservation === 'nvr_only' || i.preservation === 'unknown').length;
+    const updated = agoText(d.updated_at) ?? this.fmt(d.updated_at);
+    const composer = d.can_manage && d.status !== 'closed';
     return html`
-      <sw-page heading=${d.title} subheading=${`${CASE_STATUS_LABEL[d.status]} · בעלים: ${d.owner_username} · ${c.items} פריטים · ${c.preserved} עותקים שמורים · עודכן ${this.fmt(d.updated_at)}`} crumbs="חקירה | תיקים" wide>
+      <sw-page class="api" heading=${d.title} subheading=${`${CASE_STATUS_LABEL[d.status]} · בעלים: ${d.owner_username} · עודכן ${updated}`} crumbs="חקירה | תיקים" wide>
         ${d.can_manage
           ? html`<sw-field slot="actions"><select aria-label="סטטוס" data-case-status ?disabled=${this.busy} @change=${(e: Event) => this.patchCase({ status: (e.target as HTMLSelectElement).value as CaseStatus })}>${(Object.keys(CASE_STATUS_LABEL) as CaseStatus[]).map((s) => html`<option value=${s} ?selected=${s === d.status}>${CASE_STATUS_LABEL[s]}</option>`)}</select></sw-field>
               <sw-button slot="actions" icon="edit" data-case-edit @click=${() => { this.editTitle = d.title; this.editDesc = d.description; this.editTags = d.tags.join(', '); this.editing = true; }}>עריכה</sw-button>
               <sw-button slot="actions" variant="ghost" icon="trash" data-case-delete @click=${() => (this.confirmDelete = true)}>מחיקה</sw-button>`
           : nothing}
         <sw-button slot="actions" variant="ghost" icon="list" @click=${() => navigate('/investigate/cases')}>לרשימת התיקים</sw-button>
-        <div class="wrap">
-          ${this.error ? html`<div class="err" data-case-error>${this.error}</div>` : nothing}
-          ${this.info ? html`<div class="ok" data-case-info>${this.info}</div>` : nothing}
-          ${this.renderProvenance(d)}
-          ${d.description || d.tags.length
-            ? html`<sw-card>${d.description ? html`<div class="desc" data-case-description>${d.description}</div>` : nothing}${d.tags.length ? html`<div class="tags">${d.tags.map((t) => html`<sw-chip>${t}</sw-chip>`)}</div>` : nothing}</sw-card>`
-            : nothing}
-          <sw-card heading="ראיות והערות" subheading=${d.checked ? 'מצב השימור נבדק מול ה־NVR עכשיו' : 'מצב השימור לא נבדק מול ה־NVR'}>
-            ${d.items.length ? html`<div class="items" data-case-items>${d.items.map((it) => this.renderItem(it, d))}</div>` : html`<div class="hint">עדיין אין פריטים בתיק. הוסף מאירוע, מהנגן או מהמפה ההיסטורית (הוסף לתיק).</div>`}
-            ${d.hidden_items ? html`<div class="hint">${d.hidden_items} פריטים ממצלמות שאינן בהרשאתך אינם מוצגים.</div>` : nothing}
-            ${d.can_manage && d.status !== 'closed'
-              ? html`<div class="composer"><sw-field label="הערה חדשה"><textarea rows="2" data-note-text .value=${this.noteText} @input=${(e: Event) => (this.noteText = (e.target as HTMLTextAreaElement).value)}></textarea></sw-field><sw-button size="sm" icon="plus" data-note-add ?disabled=${this.busy || !this.noteText.trim()} @click=${() => void this.run(async () => { await addCaseItem(d.id, { kind: 'note', note: this.noteText.trim() }); this.noteText = ''; })}>הוסף הערה</sw-button></div>
-                  <div class="composer"><sw-field label="תמונה ממצלמה לתיק (עותק שמור מיידי)"><select aria-label="מצלמה לצילום" data-snapshot-camera @change=${(e: Event) => (this.snapCam = (e.target as HTMLSelectElement).value)}>${this.cams.map((c) => html`<option value=${c.id} ?selected=${c.id === this.snapCam}>${c.name}</option>`)}</select></sw-field><sw-button size="sm" icon="camera" data-snapshot-add ?disabled=${this.busy || !this.snapCam} @click=${() => void this.run(async () => { await addCaseItem(d.id, { kind: 'snapshot', camera_id: this.snapCam }); }, 'התמונה נשמרה בתיק עם ה־hash שלה')}>צלם תמונה לתיק</sw-button></div>`
+        ${this.error ? html`<div class="err" role="alert" data-case-error>${this.error}</div>` : nothing}
+        ${this.info ? html`<div class="ok" role="status" data-case-info>${this.info}</div>` : nothing}
+        <div class="cols">
+          <div class="col main">
+            ${this.renderProvenance(d)}
+            <sw-card heading="ראיות והערות" subheading=${d.checked ? 'מצב השימור נבדק מול ה־NVR עכשיו' : 'מצב השימור לא נבדק מול ה־NVR'}>
+              <div class="stats" data-case-stats>
+                <span class="r5-well"><span class="r5-num">${c.items}</span><span class="r5-sub">פריטים</span></span>
+                <span class="r5-well" data-tone=${c.preserved ? 'ok' : nothing}><span class="r5-num">${c.preserved}</span><span class="r5-sub">עותקים שמורים</span></span>
+                ${copying ? html`<span class="r5-well"><span class="r5-num">${copying}</span><span class="r5-sub">בהעתקה</span></span>` : nothing}
+                ${linkOnly ? html`<span class="r5-well" data-tone="warn"><span class="r5-num">${linkOnly}</span><span class="r5-sub">סימנייה בלבד</span></span>` : nothing}
+                ${missing ? html`<span class="r5-well" data-tone="bad"><span class="r5-num">${missing}</span><span class="r5-sub">חסרים</span></span>` : nothing}
+              </div>
+              ${d.items.length ? html`<div class="items" data-case-items>${d.items.map((it) => this.renderItem(it, d))}</div>` : html`<div class="hint">עדיין אין פריטים בתיק. הוסף מאירוע, מהנגן או מהמפה ההיסטורית (הוסף לתיק).</div>`}
+              ${d.hidden_items ? html`<div class="hint">${d.hidden_items} פריטים ממצלמות שאינן בהרשאתך אינם מוצגים.</div>` : nothing}
+              <div class="hint" style="margin-block-start:10px">סימנייה מצביעה על ההקלטה ב־NVR ואינה שימור: קטע נחשב שמור רק אחרי שעבודת ייצוא העתיקה אותו (sha256 ב־manifest). קטע שה־NVR כבר מחק מוצג כחסר ולעולם לא כשמור.</div>
+            </sw-card>
+          </div>
+          <div class="col side">
+            ${d.description || d.tags.length
+              ? html`<sw-card heading="תיאור">${d.description ? html`<div class="desc" data-case-description>${d.description}</div>` : nothing}${d.tags.length ? html`<div class="tags">${d.tags.map((t) => html`<sw-chip>${t}</sw-chip>`)}</div>` : nothing}</sw-card>`
               : nothing}
-          </sw-card>
-          ${this.renderBundleCard(d)}
-          <div class="hint">סימנייה מצביעה על ההקלטה ב־NVR ואינה שימור: קטע נחשב שמור רק אחרי שעבודת ייצוא העתיקה אותו (sha256 ב־manifest). קטע שה־NVR כבר מחק מוצג כחסר ולעולם לא כשמור.</div>
+            ${composer
+              ? html`<sw-card heading="הוספה לתיק" data-case-composer>
+                  <div class="composer" style="margin-block-start:0"><sw-field label="הערה חדשה"><textarea rows="2" data-note-text .value=${this.noteText} @input=${(e: Event) => (this.noteText = (e.target as HTMLTextAreaElement).value)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && this.noteText.trim() && !this.busy) void this.run(async () => { await addCaseItem(d.id, { kind: 'note', note: this.noteText.trim() }); this.noteText = ''; }); }}></textarea></sw-field><sw-button size="sm" icon="plus" data-note-add ?disabled=${this.busy || !this.noteText.trim()} @click=${() => void this.run(async () => { await addCaseItem(d.id, { kind: 'note', note: this.noteText.trim() }); this.noteText = ''; })}>הוסף הערה</sw-button></div>
+                  <div class="composer"><sw-field label="תמונה ממצלמה לתיק (עותק שמור מיידי)"><select aria-label="מצלמה לצילום" data-snapshot-camera @change=${(e: Event) => (this.snapCam = (e.target as HTMLSelectElement).value)}>${this.cams.map((c) => html`<option value=${c.id} ?selected=${c.id === this.snapCam}>${c.name}</option>`)}</select></sw-field><sw-button size="sm" icon="camera" data-snapshot-add ?disabled=${this.busy || !this.snapCam} @click=${() => void this.run(async () => { await addCaseItem(d.id, { kind: 'snapshot', camera_id: this.snapCam }); }, 'התמונה נשמרה בתיק עם ה־hash שלה')}>צלם תמונה לתיק</sw-button></div>
+                </sw-card>`
+              : nothing}
+            ${this.renderBundleCard(d)}
+          </div>
         </div>
         ${this.editing
           ? html`<sw-dialog open heading="עריכת תיק" data-case-edit-dialog @close=${() => (this.editing = false)}>

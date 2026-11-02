@@ -3,6 +3,7 @@ import { customElement, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { LiveRefresh } from '../tickets/live-refresh';
 import '../components/sw-card';
+import '../components/sw-icon';
 import '../components/sw-toggle';
 import '../components/sw-button';
 import '../components/sw-state-panel';
@@ -40,6 +41,7 @@ import { applyAutomationsGlass } from '../api/automations-demo';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { bidi } from '../i18n/bidi';
+import { t } from '../i18n/he';
 import {
   ticketsApi, type AdminDepartment, type DeletedDepartment, type DetailMode, type HoldersResponse, type InstallationDefaults, type NameEntries, type NewTicketMode, type SettingsDoc,
   type SettingsPatch, type RfqVendorUploadSettings,
@@ -251,11 +253,86 @@ export class SystemTickets extends LitElement {
     .stack {
       max-inline-size: none;
     }
-    @container (max-width: 900px) {
+    /* TKSET-POLISH-2331: the tab body is its own size container - the two card columns need ~1000 px of the PAGE (not of the shell
+       around it): at 1024 the shell container was still above 900 px while each column was ~420 px, and a row's label broke one word
+       per line beside its segmented control. Below 1000 px of the body the cards take one column. */
+    .tbody {
+      container: tkset / inline-size;
+      min-inline-size: 0;
+    }
+    @container tkset (max-width: 999px) {
       .sgrid,
       .sgrid.one {
         grid-template-columns: minmax(0, 1fr);
       }
+    }
+    /* a number field keeps its unit on its own line ("24 שעות", never the unit under the field) */
+    .unit {
+      flex-wrap: nowrap;
+    }
+    /* the card's own actions in its header (the holders' person / permission switch) instead of a row with an empty label */
+    sw-card .seg[slot='actions'] {
+      flex: none;
+    }
+    sw-card[data-card='holders'] {
+      --sw-card-head-wrap: wrap;
+    }
+    /* the permissions matrix: drawn marks instead of text glyphs; "no" is quiet, "yes" carries the success tone */
+    .matrix td.yes sw-icon {
+      color: var(--sw-success-text);
+    }
+    .matrix td.no sw-icon {
+      color: var(--sw-text-3);
+    }
+    [data-grant] {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    [data-grant] sw-icon {
+      flex: none;
+    }
+    /* the save receipt and the error of any card: a toast at the bottom of the viewport (the card that was saved may be far below the
+       title, where the old inline line sat out of sight). The error stays until it is dismissed or the next action starts. */
+    .toast sw-icon {
+      flex: none;
+      color: var(--sw-success);
+    }
+    /* A11Y-POLISHED-2342: the bare danger red read 2.8-3.0:1 on the light scheme's toast pill (domus, tesla); the shared failure icon
+       recipe of styles/media-page.ts (the danger ink mixed toward the toast's own ink) holds >= 4.3:1 light and >= 3.3:1 dark */
+    .toast.bad .ic,
+    .toast.bad sw-icon {
+      color: color-mix(in srgb, var(--sw-danger) 70%, var(--sw-toast-text));
+    }
+    .toast .tx {
+      min-inline-size: 0;
+      overflow-wrap: anywhere;
+    }
+    .toast .x {
+      display: inline-grid;
+      place-items: center;
+      flex: none;
+      inline-size: 32px;
+      block-size: 32px;
+      margin-inline: 4px -8px;
+      border: 0;
+      border-radius: var(--sw-r-pill);
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      position: relative;
+    }
+    .toast .x::after {
+      content: '';
+      position: absolute;
+      inset: -6px;
+    }
+    .toast .x:hover {
+      background: color-mix(in srgb, currentColor 12%, transparent);
+    }
+    .toast .x:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: 1px;
     }
     /* TKNOTIFMATRIX: the picked users / roles of a department's digest (tickets/notify-matrix.ts, light DOM) */
     .nm-chips {
@@ -539,6 +616,7 @@ export class SystemTickets extends LitElement {
     if (!d || this.busy) return;
     for (const lang of TICKET_LANGS) if (this.nameError(lang, 'one') || this.nameError(lang, 'many') || this.nameError(lang, 'module')) return;
     this.busy = true;
+    this.error = '';
     try {
       const doc = await ticketsApi().saveName(this.names?.revision ?? 0, d);
       this.names = doc;
@@ -560,6 +638,7 @@ export class SystemTickets extends LitElement {
   private async saveDoc(p: SettingsPatch, after?: () => void): Promise<void> {
     if (!this.doc || this.busy) return;
     this.busy = true;
+    this.error = ''; // TKSET-POLISH-2331: a new save clears the previous failure's toast
     const isPublic = p.public !== undefined;
     if (isPublic) this.publicError = '';
     try {
@@ -639,13 +718,14 @@ export class SystemTickets extends LitElement {
       <div class="row"><span class="lbl">${tt('setHoursRow')}<span class="muted">${tt('setHoursRowSub')}</span></span>
         <span class="end"><input class="in time" type="time" lang=${dateInputLang()} data-inst-hours="from" aria-label=${tt('setHoursRow')} aria-invalid=${String(!!err)} .value=${from} @input=${(e: Event) => (this.instDraft = { ...this.instDraft, from: (e.target as HTMLInputElement).value })} />
           <span class="muted">${tt('hoursTo')}</span>
-          <input class="in time" type="time" lang=${dateInputLang()} data-inst-hours="to" aria-label=${`${tt('setHoursRow')} · ${tt('hoursTo')}`} aria-invalid=${String(!!err)} .value=${to} @input=${(e: Event) => (this.instDraft = { ...this.instDraft, to: (e.target as HTMLInputElement).value })} />
-          <sw-button size="sm" variant="primary" data-inst-hours-save ?disabled=${!dirty || !!err || this.busy}
-            @click=${() => void this.saveDoc({ send_hours: { from, to } }, () => (this.instDraft = { ...this.instDraft, from: undefined, to: undefined }))}>${tt('save')}</sw-button></span></div>
-      ${err ? html`<div class="row"><span class="field-error">${tt(`err_${err}` as TicketTextKey)}</span></div>` : nothing}
+          <input class="in time" type="time" lang=${dateInputLang()} data-inst-hours="to" aria-label=${`${tt('setHoursRow')} · ${tt('hoursTo')}`} aria-invalid=${String(!!err)} .value=${to} @input=${(e: Event) => (this.instDraft = { ...this.instDraft, to: (e.target as HTMLInputElement).value })} /></span></div>
       <div class="row"><span class="lbl">${tt('setUrgent')}<span class="muted">${tt('setUrgentSub')}</span></span>
         <sw-toggle label=${tt('setUrgent')} labelHidden .checked=${doc.urgent_is_critical ?? true} ?disabled=${this.busy} data-inst-urgent
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveDoc({ urgent_is_critical: e.detail.checked })}></sw-toggle></div>
+      <!-- TKSET-POLISH-2331: the hours' save sits in the card's footer like the link card's (it saves the two time fields only; the switch saves at once) -->
+      <div class="foot"><sw-button size="sm" variant="primary" data-inst-hours-save ?disabled=${!dirty || !!err || this.busy}
+          @click=${() => void this.saveDoc({ send_hours: { from, to } }, () => (this.instDraft = { ...this.instDraft, from: undefined, to: undefined }))}>${tt('save')}</sw-button>
+        ${err ? html`<span class="field-error">${tt(`err_${err}` as TicketTextKey)}</span>` : nothing}</div>
     </sw-card>`;
   }
 
@@ -790,9 +870,9 @@ export class SystemTickets extends LitElement {
       ${fields.map((f) => html`<div class="row"><span class="lbl">${rt(f.label)}<span class="muted">${rt('stVuMax', { n: f.max })}</span></span>
         <span class="unit"><input class="in num" type="number" min="1" max=${f.max} data-inst-vu=${f.key} aria-label=${rt(f.label)} aria-invalid=${String(Number.isNaN(f.n))}
           .value=${f.raw} @input=${(e: Event) => (this.vuDraft = { ...this.vuDraft, [f.key]: (e.target as HTMLInputElement).value })} />${f.mb ? html`<span class="muted">MB</span>` : nothing}</span></div>`)}
-      ${fields[1].n < fields[0].n ? html`<div class="row"><span class="field-error">${rt('stVuUploadsBelow')}</span></div>` : nothing}
-      <div class="row"><span class="end"><sw-button size="sm" variant="primary" data-inst-vu-save ?disabled=${bad || !dirty || this.busy}
-        @click=${() => void this.saveDoc({ rfq: { vendor_uploads: patch } }, () => (this.vuDraft = {}))}>${tt('save')}</sw-button></span></div>
+      <div class="foot"><sw-button size="sm" variant="primary" data-inst-vu-save ?disabled=${bad || !dirty || this.busy}
+        @click=${() => void this.saveDoc({ rfq: { vendor_uploads: patch } }, () => (this.vuDraft = {}))}>${tt('save')}</sw-button>
+        ${fields[1].n < fields[0].n ? html`<span class="field-error">${rt('stVuUploadsBelow')}</span>` : nothing}</div>
     </sw-card>`;
   }
 
@@ -973,7 +1053,7 @@ export class SystemTickets extends LitElement {
         <table class="matrix">
           <thead><tr><th>${tt('permMatrixRole')}</th>${PERMS.map((p) => html`<th>${tt(`p_${p}` as TicketTextKey)}${SENSITIVE_PERMS.includes(p) ? html`<br /><span class="tag warn">${tt('sensitive')}</span>` : nothing}</th>`)}</tr></thead>
           <tbody>${roles.map((r) => html`<tr data-role=${r.id}><td>${bidi(r.name ?? r.id)}${r.builtin ? nothing : html` <span class="tag">${tt('permCustom')}</span>`}</td>
-            ${PERMS.map((p) => r.permissions.includes(`tickets.${p}`) ? html`<td class="yes" aria-label=${tt('yes')}>✓</td>` : html`<td class="no" aria-label=${tt('no')}>–</td>`)}</tr>`)}</tbody>
+            ${PERMS.map((p) => r.permissions.includes(`tickets.${p}`) ? html`<td class="yes" aria-label=${tt('yes')}><sw-icon name="check" size="18"></sw-icon></td>` : html`<td class="no" aria-label=${tt('no')}><sw-icon name="minus" size="16"></sw-icon></td>`)}</tr>`)}</tbody>
         </table>
       </div>
       <div class="pcards">${roles.map((r) => html`<div class="pcard" data-role-card=${r.id}><h4>${bidi(r.name ?? r.id)}</h4>
@@ -995,8 +1075,8 @@ export class SystemTickets extends LitElement {
         <span class="chipsrow">${who.length ? who.map((u) => html`<span class="tag">${bidi(u.name ?? u.id)}</span>`) : html`<span class="muted">${tt('permNobody')}</span>`}</span></div>`;
     })}</div>`;
     return html`<sw-card heading=${tt('permPeople')} data-card="holders">
-      <div class="row"><span class="lbl"></span><span class="seg" role="radiogroup" aria-label=${tt('permPeople')}>
-        ${(['person', 'perm'] as const).map((v) => html`<button type="button" role="radio" aria-pressed=${String(this.holdersBy === v)} aria-checked=${String(this.holdersBy === v)} data-holders-by=${v} @click=${() => (this.holdersBy = v)}>${v === 'person' ? tt('permByPerson') : tt('permByPerm')}</button>`)}</span></div>
+      <span class="seg sm" slot="actions" role="radiogroup" aria-label=${tt('permPeople')}>
+        ${(['person', 'perm'] as const).map((v) => html`<button type="button" role="radio" aria-pressed=${String(this.holdersBy === v)} aria-checked=${String(this.holdersBy === v)} data-holders-by=${v} @click=${() => (this.holdersBy = v)}>${v === 'person' ? tt('permByPerson') : tt('permByPerm')}</button>`)}</span>
       ${this.holdersBy === 'person' ? byPerson : byPerm}
       <div class="foot"><a href="#/system/access" data-to-users>${tt('permToUsers')}</a></div>
     </sw-card>`;
@@ -1021,7 +1101,7 @@ export class SystemTickets extends LitElement {
             <input class="in" type="date" lang=${dateInputLang()} min=${today} data-grant-until aria-label=${tt('permGrantUntil')} .value=${this.grantUntil} @input=${(e: Event) => (this.grantUntil = (e.target as HTMLInputElement).value)} /></div>
           <div class="chipsrow" data-grant-perms>${PERMS.map((p) => {
             const g = this.grantOf(this.grantUser, p);
-            return html`<button type="button" class="rc" aria-pressed=${String(!!g)} data-grant=${p} ?disabled=${this.busy} title=${g ? this.viaText(g) : ''} @click=${() => void this.toggleGrant(p, !g)}>${g ? '✓ ' : '+ '}${tt(`p_${p}` as TicketTextKey)}${SENSITIVE_PERMS.includes(p) ? ` · ${tt('sensitive')}` : ''}</button>`;
+            return html`<button type="button" class="rc" aria-pressed=${String(!!g)} data-grant=${p} ?disabled=${this.busy} title=${g ? this.viaText(g) : ''} @click=${() => void this.toggleGrant(p, !g)}><sw-icon name=${g ? 'check' : 'plus'} size="16"></sw-icon>${tt(`p_${p}` as TicketTextKey)}${SENSITIVE_PERMS.includes(p) ? ` · ${tt('sensitive')}` : ''}</button>`;
           })}</div>` : nothing}`
         : html`<div class="row"><span class="muted">${tt('permGrantNoAssign')}</span><a href="#/system/access">${tt('permToUsers')}</a></div>`}
     </sw-card>`;
@@ -1065,9 +1145,10 @@ export class SystemTickets extends LitElement {
     return html`<div class="page" data-tickets-settings data-tab=${this.tab}>
       ${tabs}
       <div class="ttl lead-head"><div class="crumbs">הגדרות</div><h1>${heading}</h1><div class="sub">${tt('setSub')}</div></div>
-      ${this.error ? html`<div class="msg err" role="alert" data-tickets-settings-error>${this.error}</div>` : nothing}
-      ${this.ok ? html`<div class="msg ok" role="status" data-tickets-settings-ok>${this.ok}</div>` : nothing}
-      ${body}
+      <div class="tbody">${body}</div>
+      ${this.error ? html`<div class="toast bad" role="alert" data-tickets-settings-error><sw-icon name="warning" size="18"></sw-icon><span class="tx">${this.error}</span>
+        <button type="button" class="x" aria-label=${t('actions.close')} data-tickets-settings-error-close @click=${() => (this.error = '')}><sw-icon name="close" size="16"></sw-icon></button></div>`
+        : this.ok ? html`<div class="toast" role="status" data-tickets-settings-ok><sw-icon name="check" size="18"></sw-icon><span class="tx">${this.ok}</span></div>` : nothing}
     </div>`;
   }
 }

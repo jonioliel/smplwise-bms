@@ -17,6 +17,7 @@ import type { NvrCameraBatch, CameraInfo } from './nvr-camera-batch';
 import type { NvrEncodingBatch } from './nvr-encoding-batch';
 import { encodingStreams } from './nvr-encoding-logic';
 import { batchCandidates, doneToast, tally } from './nvr-batch-logic';
+import { undoLabel } from './nvr-h264-preset';
 import { onRemote } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import { nvrSettings, type CameraDetail, type CameraList, type EncodingChanges, type NvrCamera, type Recorder, type StreamEncoding } from '../api/nvr-settings';
@@ -50,7 +51,9 @@ import {
   type StreamRow,
   type SvcFilter,
   type VerdictFilter,
+  isH265,
 } from './nvr-cameras-logic';
+import { H265_ADMIN_HINT } from '../api/h265-support';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
@@ -63,6 +66,8 @@ interface Toast {
   undo?: { changeId: string; cameraId: string; ref: string };
   /** CR-020 S2C: the "בטל" of a finished multi-camera change: the id of the batch to undo (the press IS the confirmation). */
   batchUndo?: string;
+  /** NVR-H264-BULK-2341: the batch's mode - an encoding batch's undo reads "החזר לערכים הקודמים" (undoLabel). */
+  batchMode?: string;
   reboot?: boolean;
   busy?: boolean;
 }
@@ -239,6 +244,17 @@ export class SystemSecurityCameras extends LitElement {
     .muted {
       color: var(--sw-text-3);
     }
+    /* LIVE-H265-2341: the H.265 badge (its title carries the Hebrew hint) */
+    .h265 {
+      display: inline-block;
+      padding: 0 6px;
+      border-radius: 999px;
+      background: var(--sw-warning-soft);
+      color: var(--sw-text);
+      font-size: var(--sw-fs-2xs);
+      font-weight: 600;
+      cursor: help;
+    }
     .repeat .cam {
       color: var(--sw-text-3);
     }
@@ -262,11 +278,11 @@ export class SystemSecurityCameras extends LitElement {
       border-radius: 50%;
     }
     .v.ok {
-      color: var(--sw-success);
+      color: var(--sw-success-text);
       background: var(--sw-success-soft);
     }
     .v.no {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       background: var(--sw-danger-soft);
     }
     .v.unknown {
@@ -940,7 +956,7 @@ export class SystemSecurityCameras extends LitElement {
 
   private onBatchFinished(b: Batch) {
     const t = doneToast(b);
-    this.showToast(t.message, t.undo ? { batchUndo: b.batch_id } : {});
+    this.showToast(t.message, t.undo ? { batchUndo: b.batch_id, batchMode: b.mode } : {});
   }
 
   private async confirmed() {
@@ -1011,7 +1027,7 @@ export class SystemSecurityCameras extends LitElement {
   private renderToast() {
     const t = this.toast;
     if (!t) return nothing;
-    return keyed(t.n, html`<nvr-undo-toast message=${t.message} actionLabel=${t.undo || t.batchUndo ? 'בטל' : ''} linkLabel=${t.reboot ? 'ל־NVR' : ''} linkHref=${t.reboot ? '#/system/security/nvr' : ''} ?busy=${!!t.busy}
+    return keyed(t.n, html`<nvr-undo-toast message=${t.message} actionLabel=${t.batchUndo ? (t.batchMode === 'encoding' ? undoLabel('encoding') : 'בטל') : t.undo ? 'בטל' : ''} linkLabel=${t.reboot ? 'ל־NVR' : ''} linkHref=${t.reboot ? '#/system/security/nvr' : ''} ?busy=${!!t.busy}
       @undo=${() => void this.undoToast()} @dismiss=${() => !t.busy && (this.toast = null)}></nvr-undo-toast>`);
   }
 
@@ -1071,7 +1087,7 @@ export class SystemSecurityCameras extends LitElement {
       <td class="muted c-chan" data-col="channel"><span class="ltr">${r.channel}</span></td>
       <td data-col="camera"><span class="cam">${r.online === false ? html`<span class="dot" title="לא מקוונת" data-offline></span>` : nothing}${r.cameraName}</span>${this.multiRecorder ? html`<span class="muted" data-nvr-recorder> · ${this.recorderName(r.recorderId)}</span>` : nothing}<span class="chan muted"> ערוץ <span class="ltr">${r.channel}</span></span></td>
       <td data-col="role">${s ? ROLE_HE[s.role] : html`<span class="muted" data-unread>לא נקרא</span>`}</td>
-      <td data-col="codec"><span class="ltr"><bdi>${codecLabel(s)}</bdi>${s?.profile ? html` <bdi class="muted">${s.profile}</bdi>` : nothing}</span></td>
+      <td data-col="codec"><span class="ltr">${this.codecCell(s)}${s?.profile ? html` <bdi class="muted">${s.profile}</bdi>` : nothing}</span></td>
       <td data-col="svc">${this.renderSvc(r)}</td>
       <td data-col="resolution"><bdi class="ltr">${resolutionLabel(s)}</bdi></td>
       <td data-col="fps"><span class="ltr">${fpsLabel(s)}</span></td>
@@ -1082,12 +1098,19 @@ export class SystemSecurityCameras extends LitElement {
     </tr>${line ? html`<tr class="msg" data-row-line-row><td colspan=${COLUMNS.length + 1} data-nvr-line role="status">${line}</td></tr>` : nothing}`;
   }
 
+  /** LIVE-H265-2341: an H.265 stream is a small badge; its hint says what a browser that cannot decode H.265 gets. */
+  private codecCell(s: StreamRow['stream']) {
+    return isH265(s)
+      ? html`<bdi class="h265" data-h265-badge title=${H265_ADMIN_HINT} aria-label=${`${codecLabel(s)} · ${H265_ADMIN_HINT}`}>${codecLabel(s)}</bdi>`
+      : html`<bdi>${codecLabel(s)}</bdi>`;
+  }
+
   private renderCard(r: StreamRow) {
     const s = r.stream;
     return html`<div class="card ${r.enabledInArx ? '' : 'off'} ${r.online === false ? 'down' : ''}" data-stream-card data-camera=${r.cameraKey} data-stream=${s?.stream_ref ?? ''}>
       <div class="head"><span class="cam">${r.online === false ? html`<span class="dot" title="לא מקוונת"></span>` : nothing}${r.cameraName}</span>${this.multiRecorder ? html`<span class="muted" data-nvr-recorder>${this.recorderName(r.recorderId)}</span>` : nothing}<span class="muted">ערוץ <span class="ltr">${r.channel}</span></span><span style="margin-inline-start:auto;display:inline-flex;align-items:center;gap:6px">${this.verdict(r)}${this.renderPen(r)}</span></div>
       ${s
-        ? html`<div class="line"><span>${ROLE_HE[s.role]}</span><bdi class="ltr">${codecLabel(s)}</bdi><bdi class="ltr">${resolutionLabel(s)}</bdi><span class="ltr">${fpsLabel(s)}</span></div>
+        ? html`<div class="line"><span>${ROLE_HE[s.role]}</span><span class="ltr">${this.codecCell(s)}</span><bdi class="ltr">${resolutionLabel(s)}</bdi><span class="ltr">${fpsLabel(s)}</span></div>
           <div class="line facts"><span class="svcline">SVC ${this.renderSvc(r)}</span><bdi class="ltr">${bitrateLabel(s)}${s.bitrate_mode && s.bitrate_kbps ? ` ${s.bitrate_mode}` : ''}</bdi><span>GOP <span class="ltr">${numberLabel(s.gop)}</span></span>${s.profile ? html`<bdi class="ltr muted">${s.profile}</bdi>` : nothing}</div>`
         : html`<div class="line muted" data-unread>לא נקרא</div>`}
       ${this.lines.get(r.key) ? html`<div class="msgline" data-nvr-line role="status">${this.lines.get(r.key)}</div>` : nothing}

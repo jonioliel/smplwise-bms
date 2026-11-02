@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Request
 from .. import __version__
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..capabilities import installation_block, may_see_recorders, resolve as resolve_capabilities
-from ..db import database_of, lock_stats, permission_revision, unlocked
+from ..db import database_of, lock_stats, permission_revision, pool_stats, unlocked
 from ..mode import describe as describe_mode
 from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, require
 from ..services import autosync, connection_store, events_cache, events_derive, events_ingest, ha_client, ha_sync, stream_codecs
@@ -27,6 +27,7 @@ def _write_lock_view(conn: sqlite3.Connection, principal: Principal) -> dict[str
     db = database_of(conn)
     if db is not None:
         stats["gate"] = db.gate.state()  # held / waiting right now
+    stats["conn_pool"] = pool_stats()  # DB-CONN-POOL-2343: connections opened / reused
     if not authorize(conn, principal, "system.configure", INSTALLATION).allowed:
         stats.pop("max_hold_by", None)
         stats.pop("max_wait_by", None)

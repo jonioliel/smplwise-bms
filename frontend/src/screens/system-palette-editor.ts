@@ -105,10 +105,10 @@ export class SystemPaletteEditor extends LitElement {
       cursor: pointer;
     }
     .seg button[aria-pressed='true'] {
-      background: var(--sw-surface);
+      background: var(--sw-seg-thumb, var(--sw-surface));
       color: var(--sw-accent-text);
       font-weight: var(--sw-fw-semibold);
-      box-shadow: var(--sw-shadow-1);
+      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
     }
     .seg button:focus-visible,
     select:focus-visible,
@@ -155,11 +155,51 @@ export class SystemPaletteEditor extends LitElement {
     .chip {
       all: unset;
       box-sizing: border-box;
-      inline-size: 26px;
-      block-size: 26px;
+      inline-size: 28px;
+      block-size: 28px;
       border-radius: 50%;
       cursor: pointer;
       box-shadow: 0 0 0 1px rgba(128, 128, 128, 0.5);
+      transition: transform var(--sw-t-press) var(--sw-ease), box-shadow var(--sw-t-hover) var(--sw-ease-color);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .chip:active {
+      transform: scale(var(--sw-press-scale));
+    }
+    .seg button {
+      transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-hover) var(--sw-ease-color);
+    }
+    .seg button:active {
+      transform: scale(var(--sw-press-scale));
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .chip,
+      .seg button {
+        transition-duration: 0ms;
+      }
+    }
+    /* LOOK-POLISH-2331: the open editor is a well of its own under the palette row (it was an unmarked run of controls) */
+    .editor {
+      display: grid;
+      gap: 4px;
+      margin-block: 10px;
+      padding: 14px;
+      border-radius: var(--sw-r-lg);
+      background: var(--sw-surface-2);
+      box-shadow: inset 0 0 0 1px var(--sw-border);
+    }
+    .editor > h4 {
+      margin: 0;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+    }
+    .editor .ci {
+      background: var(--sw-surface);
+    }
+    .cn {
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-text);
     }
     .chip[aria-pressed='true'] {
       box-shadow: 0 0 0 2px var(--sw-surface-2), 0 0 0 4px var(--sw-accent);
@@ -382,7 +422,7 @@ export class SystemPaletteEditor extends LitElement {
           ${list.map(
             (p) => html`<span class="btns" data-palette-custom=${p.id}>
               <sw-button variant="ghost" size="sm" data-palette-edit=${p.id} ?disabled=${this.busy} @click=${() => this.startEdit(p)}>${p.name.he}</sw-button>
-              <sw-button variant="ghost" size="sm" icon="trash" data-palette-delete=${p.id} ?disabled=${this.busy} label="מחק" @click=${() => void this.removeCustom(p.id)}>${this.confirmDelete === p.id ? 'לאשר מחיקה' : ''}</sw-button>
+              <sw-button variant=${this.confirmDelete === p.id ? 'danger' : 'ghost'} size="sm" icon="trash" data-palette-delete=${p.id} ?disabled=${this.busy} ?iconOnly=${this.confirmDelete !== p.id} label=${`מחיקת ${p.name.he}`} @click=${() => void this.removeCustom(p.id)}>${this.confirmDelete === p.id ? 'לאשר מחיקה' : nothing}</sw-button>
             </span>`,
           )}
           <sw-button variant="primary" size="sm" icon="plus" data-palette-new ?disabled=${this.busy || list.length >= MAX_CUSTOM} @click=${() => this.startNew()}>ערכה חדשה</sw-button>
@@ -397,7 +437,8 @@ export class SystemPaletteEditor extends LitElement {
     const lifted = this.scheme === 'dark' && effectiveScheme(d, 'dark').accent.toLowerCase() !== d.schemes.dark.accent.toLowerCase();
     const existing = customPalettes().some((p) => p.id === d.id);
     const s = d.schemes[this.scheme];
-    return html`<div data-palette-editor style="border-block-end: 1px solid var(--sw-border); padding-block-end: 10px">
+    return html`<div class="editor" data-palette-editor>
+      <h4>${existing ? `עריכת ערכה: ${d.name.he}` : 'ערכה חדשה'}</h4>
       <div class="fields">
         <input type="text" data-palette-name maxlength="40" placeholder="שם הערכה" aria-label="שם הערכה" .value=${d.name.he} @input=${(e: Event) => (this.draft = { ...d, name: { ...d.name, he: (e.target as HTMLInputElement).value } })} />
         ${existing

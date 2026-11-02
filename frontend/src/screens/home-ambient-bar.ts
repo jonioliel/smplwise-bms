@@ -57,7 +57,7 @@ export class HomeAmbientBar extends LitElement {
     .part {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: var(--sw-s-1h);
       min-inline-size: 0;
     }
     .part + .part {
@@ -93,9 +93,18 @@ export class HomeAmbientBar extends LitElement {
     .alarm[data-tone='ok'] sw-icon {
       color: inherit;
     }
+    /* HOMEEDIT-POLISH-2331: a triggered alarm is the one thing in the strip that must not be missed - a filled danger chip, not a red word */
     .alarm[data-tone='err'] {
       color: var(--sw-danger-text);
       font-weight: var(--sw-fw-semibold);
+      min-block-size: var(--sw-ctl-h-sm);
+      padding-inline: var(--sw-s-2);
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-danger-soft);
+    }
+    .part.alarm[data-tone='err'] {
+      border-inline-start: 0;
+      margin-inline-start: var(--sw-s-1);
     }
     .alarm[data-tone='err'] sw-icon {
       color: inherit;
@@ -122,9 +131,13 @@ export class HomeAmbientBar extends LitElement {
       }
       building-presence-chip,
       .shabbat,
-      .alarm,
-      .part sw-icon,
+      .alarm:not([data-tone='err']),
+      .part:not(.alarm) sw-icon,
       .part svg {
+        display: none;
+      }
+      /* the phone keeps a triggered alarm (was hidden with the rest): the chip with its icon, the word "אזעקה" dropped for width */
+      .alarm[data-tone='err'] .al-l {
         display: none;
       }
     }
@@ -149,7 +162,7 @@ export class HomeAmbientBar extends LitElement {
     const parts = [this.clockPart(), this.weatherPart(), this.shabbatPart(), this.alarmPart()].filter((p) => p !== nothing);
     if (!parts.length) return nothing;
     // BUILDING-PRESENCE-2271: one more quiet part, last; it renders nothing at all unless sensors are tagged and the caller may see them
-    return html`<div class="bar" role="group" data-home-ambient>${parts}<building-presence-chip></building-presence-chip></div>`;
+    return html`<div class="bar" role="group" aria-label="מידע כללי" data-home-ambient>${parts}<building-presence-chip></building-presence-chip></div>`;
   }
 
   private clockPart() {
@@ -186,7 +199,7 @@ export class HomeAmbientBar extends LitElement {
     const a = this.data.alarm;
     const state = a.available ? a.state ?? '' : 'unavailable';
     const tone = state === 'triggered' ? 'err' : state === 'disarmed' || state === 'unavailable' || state === 'unknown' || state === '' ? 'neutral' : 'ok';
-    return html`<span class="part alarm" data-ambient="alarm" data-tone=${tone}><sw-icon name="shield" size=${15}></sw-icon>${pl('alarm')} · <span data-home-alarm-state>${ALARM_HE[state] ?? state}</span></span>`;
+    return html`<span class="part alarm" data-ambient="alarm" data-tone=${tone}><sw-icon name="shield" size=${15}></sw-icon><span class="al-l">${pl('alarm')} · </span><span data-home-alarm-state>${ALARM_HE[state] ?? state}</span></span>`;
   }
 }
 

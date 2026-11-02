@@ -5,10 +5,10 @@ import '../components/sw-state-panel';
 import { ApiError, describeError } from '../api/client';
 import { listRoles, listUsers } from '../api/access';
 import { isApi } from '../api/session';
-import { CAL_COLORS, CAL_ROLES, CAL_TYPES, type ApprovalMode, type CalColor, type CalRole, type CalType, type Calendar, type Member, type OverlapMode } from '../api/calendars';
+import { CAL_COLORS, CAL_ROLES, CAL_TYPES, type ApprovalMode, type ApprovedMove, type CalColor, type CalRole, type CalType, type Calendar, type Member, type OverlapMode } from '../api/calendars';
 import { CAL_EVENTS, emit, type CalCtx } from './ctx';
 import { calCss } from './styles';
-import { APPROVAL_LABEL, colorVar, OVERLAP_SHORT, pageOf, PROVIDER_LABEL, ROLE_HINT, ROLE_LABEL, rowsThatFit, STRICTNESS, TYPE_LABEL } from './model';
+import { APPROVAL_LABEL, APPROVED_MOVE_LABEL, colorVar, OVERLAP_SHORT, pageOf, PROVIDER_LABEL, ROLE_HINT, ROLE_LABEL, rowsThatFit, STRICTNESS, TYPE_LABEL } from './model';
 
 const TYPE_ICON: Record<CalType, 'door' | 'users' | 'wrench' | 'calendar'> = { room: 'door', team: 'users', maintenance: 'wrench', event: 'calendar' };
 const KIND_LABEL: Record<Member['subject_kind'], string> = { user: 'משתמש', role: 'תפקיד', department: 'מחלקה', everyone: 'כולם' };
@@ -17,7 +17,7 @@ const MAX_MEMBERS = 300;
 const HUES: CalColor[] = CAL_COLORS.filter((c) => c !== 'slate');
 const OVERLAPS: OverlapMode[] = ['first_holds', 'override_notify', 'block', 'ask'];
 
-interface Draft { name: string; type: CalType; color: CalColor; capacity: string; approval: ApprovalMode; override: OverlapMode | ''; owner: string; buffer: string; horizon: string }
+interface Draft { name: string; type: CalType; color: CalColor; capacity: string; approval: ApprovalMode; override: OverlapMode | ''; owner: string; buffer: string; horizon: string; approvedMove: ApprovedMove }
 
 /**
  * CALENDARS-UI-2310 slice B: ניהול יומנים. Three screens behind one tab:
@@ -475,14 +475,14 @@ export class CalViewManage extends LitElement {
   // ---------------------------------------------------------------- new calendar / its rules
 
   private blank(): Draft {
-    return { name: '', type: 'room', color: 'blue', capacity: '', approval: 'none', override: '', owner: '', buffer: '', horizon: '' };
+    return { name: '', type: 'room', color: 'blue', capacity: '', approval: 'none', override: '', owner: '', buffer: '', horizon: '', approvedMove: 'reapproval' };
   }
 
   private openEdit(c: Calendar): void {
     this.editing = c;
     this.formErr = '';
     this.draft = { name: c.name, type: c.type, color: c.color, capacity: c.capacity ? String(c.capacity) : '', approval: c.approval_mode, override: c.overlap_override ?? '', owner: c.owner?.id ?? '',
-      buffer: c.buffer_after_min !== undefined ? String(c.buffer_after_min) : '', horizon: c.horizon_days !== undefined ? String(c.horizon_days) : '' };
+      buffer: c.buffer_after_min !== undefined ? String(c.buffer_after_min) : '', horizon: c.horizon_days !== undefined ? String(c.horizon_days) : '', approvedMove: c.approved_move ?? 'reapproval' };
     void this.loadPeople();
   }
 
@@ -516,6 +516,8 @@ export class CalViewManage extends LitElement {
           @input=${(e: Event) => set({ capacity: (e.target as HTMLInputElement).value })}></div>` : nothing}
         <div class="fld"><label for="ca">אישור</label><select id="ca" class="inp" @change=${(e: Event) => set({ approval: (e.target as HTMLSelectElement).value as ApprovalMode })} data-f-approval>
           ${(Object.keys(APPROVAL_LABEL) as ApprovalMode[]).map((m) => html`<option value=${m} ?selected=${d.approval === m}>${APPROVAL_LABEL[m]}</option>`)}</select></div>
+        ${d.approval !== 'none' ? html`<div class="fld"><span class="lbl">הזזת הזמנה מאושרת</span><div class="seg" role="group" aria-label="הזזת הזמנה מאושרת" data-f-approved-move>
+          ${(Object.keys(APPROVED_MOVE_LABEL) as ApprovedMove[]).map((m) => html`<button type="button" aria-pressed=${String(d.approvedMove === m)} data-f-approved-move-opt=${m} @click=${() => set({ approvedMove: m })}>${APPROVED_MOVE_LABEL[m]}</button>`)}</div></div>` : nothing}
         ${room ? html`<div class="fld"><label for="cv">חפיפת תחזוקה</label>${overrides.length
           ? html`<select id="cv" class="inp" @change=${(e: Event) => set({ override: (e.target as HTMLSelectElement).value as OverlapMode | '' })} data-f-override>
               <option value="" ?selected=${!d.override}>לפי ההתקנה (${OVERLAP_SHORT[this.instOverlap]})</option>
@@ -538,7 +540,7 @@ export class CalViewManage extends LitElement {
     if (!this.ctx || !d) return;
     const num = (v: string) => (v.trim() === '' ? undefined : Number(v));
     const room = d.type === 'room';
-    const body: Record<string, unknown> = { name: d.name.trim(), color: d.color, approval_mode: d.approval, overlap_override: room ? d.override || null : null };
+    const body: Record<string, unknown> = { name: d.name.trim(), color: d.color, approval_mode: d.approval, overlap_override: room ? d.override || null : null, approved_move: d.approvedMove };
     if (room && num(d.capacity) !== undefined) body.capacity = num(d.capacity);
     if (room && num(d.buffer) !== undefined) body.buffer_after_min = num(d.buffer);
     if (num(d.horizon) !== undefined) body.horizon_days = num(d.horizon);

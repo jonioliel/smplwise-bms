@@ -44,11 +44,11 @@ export class InsightsWaste extends InsightList<WasteAnswer> {
     if (!a.energy.available || !a.energy.items.length) return nothing;
     const items = [...a.energy.items].reverse();
     const max = Math.max(...items.map((i) => Math.max(i.kwh, i.baseline_kwh))) * 1.08 || 1;
-    return html`<div class="card pad" data-night><div class="row" style="justify-content:space-between;margin-block-end:10px"><h2>${ix('nightUse')}</h2><span class="muted num">${a.night.from}-${a.night.to}</span></div>
+    return html`<div class="card pad" data-night><div class="ch-top"><h2>${ix('nightUse')}</h2><span class="muted num">${a.night.from}-${a.night.to}</span></div>
       <div class="bars" dir="ltr" aria-label=${ix('nightChartLabel')}>${items.map((i) => html`<div class="col" title="${i.name} ${fmtNum(i.kwh, 1)}"><i style="block-size:${((i.kwh / max) * 100).toFixed(1)}%"></i><u style="inset-block-end:${((i.baseline_kwh / max) * 100).toFixed(1)}%"></u></div>`)}</div>
       <div class="axis" dir="ltr">${items.map((i) => html`<span>${i.night.slice(8)}.${i.night.slice(5, 7)}</span>`)}</div>
-      <div class="legend"><span><i style="inline-size:10px;block-size:10px;border-radius:2px;background:var(--sw-warning);display:inline-block"></i>${ix('nightLegend')}</span>
-        <span><i style="inline-size:14px;border-block-start:1.5px dashed var(--sw-text-3);display:inline-block"></i>${ix('medianLegend')}</span></div></div>`;
+      <div class="legend"><span><i class="sw-bar" aria-hidden="true"></i>${ix('nightLegend')}</span>
+        <span><i class="sw-med" aria-hidden="true"></i>${ix('medianLegend')}</span></div></div>`;
   }
 
   private content(a: WasteAnswer) {
@@ -60,11 +60,11 @@ export class InsightsWaste extends InsightList<WasteAnswer> {
     return html`<div class="kpis" role="group" aria-label=${ix('kind')} data-kpis>
         ${pill('all', 'all', 'unk')}${pill('empty_room', 'kEmpty', 'warn')}${pill('after_hours', 'kAfter', 'warn')}${pill('night', 'kNight', 'bad')}</div>
       <div class="layout">${this.tree(nodes)}
-        <div style="display:grid;gap:14px;min-inline-size:0"><div class="card"><div class="toolbar">${this.placeSelect(nodes)}${this.rangeBar()}</div>
+        <div class="stack"><div class="card"><div class="toolbar">${this.placeSelect(nodes)}${this.rangeBar()}</div>
           ${this.filter === 'night' ? nothing : empty
-            ? html`<div class="blank" data-state="empty"><sw-icon name="check" style="color:var(--sw-success-text)"></sw-icon><b>${ix('emptyWasteTitle')}</b><span class="muted">${ix('emptyDoorsBody', { range: this.rangeText(), place: placeLabel(nodes, this.place) })}</span></div>`
+            ? html`<div class="blank" data-state="empty"><sw-icon class="ok" name="check"></sw-icon><b>${ix('emptyWasteTitle')}</b><span class="muted">${ix('emptyDoorsBody', { range: this.rangeText(), place: placeLabel(nodes, this.place) })}</span></div>`
             : rows}
-          ${a.devices.items_more ? html`<div class="pad muted">${ix('moreItems', { n: a.devices.items_more })}</div>` : nothing}</div>
+          ${a.devices.items_more ? html`<div class="pad muted more">${ix('moreItems', { n: a.devices.items_more })}</div>` : nothing}</div>
           ${this.filter === 'all' || this.filter === 'night' ? this.night(a) : nothing}</div></div>`;
   }
 

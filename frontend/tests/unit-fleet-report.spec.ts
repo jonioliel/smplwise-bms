@@ -153,6 +153,7 @@ test('the shell: one settings tab, system.configure only, installation scope onl
   const index = readFileSync(path.join(SRC, 'screens/system-index.ts'), 'utf8');
   expect(index).toContain("href: '#/system/fleet-report'");
   const app = readFileSync(path.join(SRC, 'shell/sw-app.ts'), 'utf8');
-  expect(app).toContain("import '../screens/system-fleet-report'");
+  // PERF-HOME-DEVICES-2342: the shell loads its route screens as lazy chunks (shell/lazy-screens.ts)
+  expect(readFileSync(path.join(SRC, 'shell/lazy-screens.ts'), 'utf8')).toContain("import('../screens/system-fleet-report')");
   expect(app).toContain("s[1] === 'fleet-report'");
 });

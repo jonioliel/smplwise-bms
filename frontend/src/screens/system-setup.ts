@@ -100,6 +100,18 @@ export class SystemSetup extends LitElement {
   @state() private wiskeyClear: IntercomStationCredentials | null = null;
   @state() private wiskeyMsg = '';
   @state() private wiskeyBusy = false;
+  /** SETUPPLAN-POLISH-2331: the tone of the three result lines (sysMsg, notifyResult, wiskeyMsg) - set with the text, never guessed from it. */
+  @state() private sysOk = true;
+  @state() private notifyOk = true;
+  @state() private wiskeyOk = true;
+
+  /** A result line in the settings vocabulary (.msg: a tinted pill with its icon; styles/settings.ts), the screen's hook kept. */
+  private static statusLine(text: string, ok: boolean, hook: 'data-nvr-system-msg' | 'data-nvr-result' | 'data-wiskey-cred-msg') {
+    const icon = html`<sw-icon name=${ok ? 'check' : 'warning'} size=${13}></sw-icon>`;
+    if (hook === 'data-nvr-system-msg') return html`<div class=${`msg ${ok ? 'ok' : 'err'}`} role=${ok ? 'status' : 'alert'} data-nvr-system-msg>${icon}${text}</div>`;
+    if (hook === 'data-nvr-result') return html`<div class=${`msg ${ok ? 'ok' : 'err'}`} role=${ok ? 'status' : 'alert'} data-nvr-result>${icon}${text}</div>`;
+    return html`<div class=${`msg ${ok ? 'ok' : 'err'}`} role=${ok ? 'status' : 'alert'} data-wiskey-cred-msg>${icon}${text}</div>`;
+  }
 
   connectedCallback() {
     super.connectedCallback();
@@ -186,8 +198,10 @@ export class SystemSetup extends LitElement {
     try {
       await run();
       await Promise.all([this.loadSystem(), listNvrChanges(10).then((c) => (this.changes = c.changes))]);
+      this.sysOk = true;
       this.sysMsg = `${label}: בוצע ונרשם באודיט.`; // after the refresh, so the next button is already enabled
     } catch (err) {
+      this.sysOk = false;
       this.sysMsg = `${label}: ${describeError(err)}`;
     } finally {
       this.sysBusy = false;
@@ -209,7 +223,7 @@ export class SystemSetup extends LitElement {
         ? html`<frigate-summary recorder-id=${this.sysRecorder} data-nvr-system-frigate></frigate-summary>`
         : s && s.supported === false
         ? html`<div class="hint" data-nvr-system-unsupported>פרטי השעון, הדיסקים והיציאות אינם זמינים עבור מקליט מסוג זה.</div>`
-        : html`${this.sysError ? html`<div class="hint" data-nvr-system-error>${this.sysError}</div>` : nothing}
+        : html`${this.sysError ? html`<div class="msg err" role="alert" data-nvr-system-error><sw-icon name="warning" size=${13}></sw-icon>${this.sysError}</div>` : nothing}
       ${!s
         ? this.sysError ? nothing : html`<div class="hint">קורא את מצב המערכת מה־NVR…</div>`
         : html`
@@ -254,10 +268,10 @@ export class SystemSetup extends LitElement {
           ${s.can.reboot
             ? html`<div class="actions"><sw-button size="sm" variant="danger" icon="refresh" ?disabled=${this.sysBusy} data-nvr-reboot @click=${() => { this.rebootWord = ''; this.rebootOpen = true; }}>הפעל מחדש את ה־NVR…</sw-button><span class="hint">1–2 דקות בלי לייב ובלי הקלטה</span></div>`
             : html`<div class="hint">הפעלה מחדש: הרשאה nvr.system.reboot (תפקיד מותאם).</div>`}
-          ${this.sysMsg ? html`<div class="hint" data-nvr-system-msg>${this.sysMsg}</div>` : nothing}`}`}
+          ${this.sysMsg ? SystemSetup.statusLine(this.sysMsg, this.sysOk, 'data-nvr-system-msg') : nothing}`}`}
       ${this.rebootOpen
         ? html`<sw-dialog open heading="הפעלה מחדש של ה־NVR" subheading="במשך 1–2 דקות אין לייב ואין הקלטה" data-nvr-reboot-dialog @close=${() => (this.rebootOpen = false)}>
-            <div style="font-size:var(--sw-fs-sm);line-height:1.6">הקלד <b>RESTART</b> כדי לאשר. הפעולה נרשמת באודיט עם שם המשתמש.</div>
+            <div class="dlgtext">הקלד <b>RESTART</b> כדי לאשר. הפעולה נרשמת באודיט עם שם המשתמש.</div>
             <sw-field label="אישור"><input data-ltr data-nvr-reboot-word .value=${this.rebootWord} @input=${(e: Event) => (this.rebootWord = (e.target as HTMLInputElement).value)} /></sw-field>
             <div slot="footer"><sw-button variant="danger" ?disabled=${this.sysBusy || this.rebootWord.trim().toUpperCase() !== 'RESTART'} data-nvr-reboot-run @click=${() => { const w = this.rebootWord; this.rebootOpen = false; void this.sysAction('הפעלה מחדש', () => this.sysApi.rebootNvr(w)); }}>הפעל מחדש</sw-button><sw-button variant="ghost" @click=${() => (this.rebootOpen = false)}>ביטול</sw-button></div>
           </sw-dialog>`
@@ -293,9 +307,11 @@ export class SystemSetup extends LitElement {
     try {
       await setIntercomCredentials(f.station_id, { username: f.username.trim(), password: f.password });
       this.wiskeyForm = null;
+      this.wiskeyOk = true;
       this.wiskeyMsg = `החשבון של ${this.wiskeyName(f.station_id)} נשמר; התמונה מהמצלמה תילקח מחדש איתו.`;
       await this.loadWiskey();
     } catch (err) {
+      this.wiskeyOk = false;
       this.wiskeyMsg = SystemSetup.wiskeyFailure('לא נשמר', err);
     } finally {
       this.wiskeyBusy = false;
@@ -310,9 +326,11 @@ export class SystemSetup extends LitElement {
     try {
       await clearIntercomCredentials(s.station_id);
       this.wiskeyClear = null;
+      this.wiskeyOk = true;
       this.wiskeyMsg = s.known ? `החשבון של ${s.name || s.station_id} הוסר; העמדה חוזרת לחשבון המשותף.` : `הרשומה של ${s.station_id} הוסרה.`;
       await this.loadWiskey();
     } catch (err) {
+      this.wiskeyOk = false;
       this.wiskeyMsg = SystemSetup.wiskeyFailure('לא הוסר', err);
     } finally {
       this.wiskeyBusy = false;
@@ -351,16 +369,16 @@ export class SystemSetup extends LitElement {
     const w = this.wiskey;
     const c = this.wiskeyClear;
     return html`<sw-card heading="מצלמות עמדות WisKey" subheading="חשבון ה־RTSP שאיתו go2rtc מושך את מצלמת כל עמדה: המשותף שהוגדר בתשתית המערכת, או חשבון משלה לעמדה שצריכה אחר · הערכים עצמם אינם מוצגים" data-wiskey-credentials>
-      ${this.wiskeyError ? html`<div class="hint" data-wiskey-cred-error>${this.wiskeyError}</div>` : nothing}
+      ${this.wiskeyError ? html`<div class="msg err" role="alert" data-wiskey-cred-error><sw-icon name="warning" size=${13}></sw-icon>${this.wiskeyError}</div>` : nothing}
       ${!w
         ? this.wiskeyError ? nothing : html`<div class="hint">קורא את רשימת העמדות…</div>`
         : html`${this.row('חשבון משותף (wiskey_username, הסיסמה בכרטיס סודות)', w.default_configured ? 'מוגדר' : 'לא מוגדר', w.default_configured ? 'ok' : 'warn')}
           ${w.state !== 'ready' ? html`<div class="hint" data-wiskey-cred-feed=${w.state}>WisKey אינו מחובר כרגע (מצב: <span class="ltr">${w.state}</span>); מוצג מה שידוע ל־Arx.</div>` : nothing}
           ${w.stations.length ? w.stations.map((s) => this.renderWiskeyStation(s, w)) : html`<div class="hint" data-wiskey-cred-empty>אין עמדות ברשימה.</div>`}
-          ${this.wiskeyMsg ? html`<div class="hint" data-wiskey-cred-msg>${this.wiskeyMsg}</div>` : nothing}`}
+          ${this.wiskeyMsg ? SystemSetup.statusLine(this.wiskeyMsg, this.wiskeyOk, 'data-wiskey-cred-msg') : nothing}`}
       ${c
         ? html`<sw-dialog open heading="הסרת החשבון של העמדה" subheading=${c.name || c.station_id} data-wiskey-cred-confirm @close=${() => (this.wiskeyClear = null)}>
-            <div style="font-size:var(--sw-fs-sm);line-height:1.5">${!c.known ? 'הרשומה תימחק מבסיס הנתונים של Arx.' : w?.default_configured ? 'העמדה תחזור לחשבון המשותף, והתמונה מהמצלמה תילקח מחדש איתו.' : 'לעמדה לא יישאר חשבון, ולא תהיה ממנה תמונה עד שיוגדר אחד.'} ההסרה נרשמת באודיט.</div>
+            <div class="dlgtext">${!c.known ? 'הרשומה תימחק מבסיס הנתונים של Arx.' : w?.default_configured ? 'העמדה תחזור לחשבון המשותף, והתמונה מהמצלמה תילקח מחדש איתו.' : 'לעמדה לא יישאר חשבון, ולא תהיה ממנה תמונה עד שיוגדר אחד.'} ההסרה נרשמת באודיט.</div>
             <div slot="footer"><sw-button variant="danger" ?disabled=${this.wiskeyBusy} data-wiskey-cred-confirm-run @click=${() => this.clearWiskey()}>${this.wiskeyBusy ? 'מסיר…' : 'הסר'}</sw-button><sw-button variant="ghost" @click=${() => (this.wiskeyClear = null)}>ביטול</sw-button></div>
           </sw-dialog>`
         : nothing}
@@ -387,10 +405,12 @@ export class SystemSetup extends LitElement {
     this.notifyBusy = true;
     try {
       const r = await setNotify({ channels: p.channels, smart: p.smart, enabled: p.enabled });
+      this.notifyOk = !r.failed;
       this.notifyResult = `בוצע: ${r.applied} שינויים · ${r.unchanged} כבר היו כך · ${r.skipped} דולגו (סוג אירוע שלא מוגדר בערוץ) · ${r.failed} נכשלו`;
       this.notifyPlan = null;
       await this.loadNvr();
     } catch (err) {
+      this.notifyOk = false;
       this.notifyResult = describeError(err);
     } finally {
       this.notifyBusy = false;
@@ -402,9 +422,11 @@ export class SystemSetup extends LitElement {
     this.notifyBusy = true;
     try {
       await rollbackNvrChange(c.id);
+      this.notifyOk = true;
       this.notifyResult = `השינוי ${c.target} הוחזר למצב הקודם.`;
       await this.loadNvr();
     } catch (err) {
+      this.notifyOk = false;
       this.notifyResult = describeError(err);
     } finally {
       this.notifyBusy = false;
@@ -413,34 +435,39 @@ export class SystemSetup extends LitElement {
 
   private renderNotifyCard() {
     const n = this.notify;
-    const yes = (v: boolean | null) => (v === null ? '—' : v ? '✓' : '✗');
+    // SETUPPLAN-POLISH-2331: the matrix said yes / no with the glyphs ✓ / ✗ (a font's guess, not the icon set); a drawn mark in a tinted
+    // chip reads the same in every skin, and the label stays for a screen reader
+    const yes = (v: boolean | null) =>
+      v === null
+        ? '—'
+        : html`<span class=${`yn ${v ? 'on' : 'off'}`} role="img" aria-label=${v ? 'נשלחת' : 'לא נשלחת'}><sw-icon name=${v ? 'check' : 'close'} size=${12}></sw-icon></span>`;
     return html`<sw-card heading="התראות מה־NVR (Notify Surveillance Center)" subheading="אילו ערוצים מודיעים ל־Arx על תנועה ועל אירועים חכמים · כתיבה מאושרת ל־NVR, עם החזר" data-nvr-notify>
-      ${this.notifyError ? html`<div class="hint" data-nvr-notify-error>${this.notifyError}</div>` : nothing}
+      ${this.notifyError ? html`<div class="msg err" role="alert" data-nvr-notify-error><sw-icon name="warning" size=${13}></sw-icon>${this.notifyError}</div>` : nothing}
       ${!n
         ? this.notifyError ? nothing : html`<div class="hint">קורא את הגדרות ה־NVR…</div>`
-        : html`<table class="matrix" data-nvr-matrix>
-            <thead><tr><th>ערוץ</th><th>מצלמה</th><th>תנועה</th><th>אירועים חכמים</th><th></th></tr></thead>
+        : html`<div class="tablewrap"><table class="matrix" data-nvr-matrix>
+            <thead><tr><th scope="col">ערוץ</th><th scope="col">מצלמה</th><th scope="col">תנועה</th><th scope="col">אירועים חכמים</th><th scope="col"><span class="sr">פעולה</span></th></tr></thead>
             <tbody>${n.channels.map((c) => html`<tr data-nvr-channel=${c.channel}>
-              <td class="ltr">${c.channel}</td><td>${c.name}</td>
-              <td data-nvr-motion=${c.motion.supported ? String(c.motion.center) : 'none'}>${c.motion.supported ? yes(c.motion.center) : 'לא מוגדר'}</td>
-              <td>${c.smart_supported ? `${c.smart_center}/${c.smart_supported}` : 'אין'}</td>
-              <td>${n.can_write && c.motion.supported && !c.motion.center ? html`<sw-button size="sm" data-nvr-enable-one=${c.channel} @click=${() => this.planNotify([c.channel], false, true)}>הפעל</sw-button>` : nothing}</td>
+              <td class="ltr num">${c.channel}</td><td>${c.name}</td>
+              <td data-nvr-motion=${c.motion.supported ? String(c.motion.center) : 'none'}>${c.motion.supported ? yes(c.motion.center) : html`<span class="dim">לא מוגדר</span>`}</td>
+              <td class="num">${c.smart_supported ? html`<span class="ltr">${c.smart_center}/${c.smart_supported}</span>` : html`<span class="dim">אין</span>`}</td>
+              <td class="act">${n.can_write && c.motion.supported && !c.motion.center ? html`<sw-button size="sm" data-nvr-enable-one=${c.channel} @click=${() => this.planNotify([c.channel], false, true)}>הפעל</sw-button>` : nothing}</td>
             </tr>`)}</tbody>
-          </table>
-          <div class="hint">✓ = ההתראה נשלחת ל־Arx · ✗ = הערוץ מקליט אבל לא מודיע · אירועים חכמים = חציית קו, פריצה לאזור, כניסה ויציאה מאזור (רק במצלמות שמגדירות אותם).</div>
+          </table></div>
+          <div class="hint legend"><span class="yn on"><sw-icon name="check" size=${12}></sw-icon></span> ההתראה נשלחת ל־Arx · <span class="yn off"><sw-icon name="close" size=${12}></sw-icon></span> הערוץ מקליט אבל לא מודיע · אירועים חכמים = חציית קו, פריצה לאזור, כניסה ויציאה מאזור (רק במצלמות שמגדירות אותם).</div>
           ${n.can_write
             ? html`<div class="actions">
                 <sw-button variant="primary" size="sm" icon="bell" ?disabled=${this.notifyBusy} data-nvr-enable-all @click=${() => this.planNotify(null, false, true)}>הפעל תנועה בכל הערוצים</sw-button>
                 <sw-button size="sm" icon="bell" ?disabled=${this.notifyBusy} data-nvr-enable-smart @click=${() => this.planNotify(null, true, true)}>הפעל גם אירועים חכמים</sw-button>
               </div>`
             : html`<div class="hint" data-nvr-no-permission>לכתיבה ל־NVR נדרשת ההרשאה "${n.permission}" — מוקנית למנהל המערכת, ולאחרים דרך תפקיד מותאם (הגדרות ‹ משתמשים והרשאות ‹ תפקידים), גם למנהל מערכת.</div>`}
-          ${this.notifyResult ? html`<div class="hint" data-nvr-result>${this.notifyResult}</div>` : nothing}
-          ${this.changes.length ? html`<div class="hint" style="margin-block-start:8px"><b>שינויים אחרונים ב־NVR</b></div>
+          ${this.notifyResult ? SystemSetup.statusLine(this.notifyResult, this.notifyOk, 'data-nvr-result') : nothing}
+          ${this.changes.length ? html`<div class="syshead"><sw-icon name="history" size=${15}></sw-icon>שינויים אחרונים ב־NVR</div>
             <ul class="changes" data-nvr-changes>${this.changes.map((c) => html`<li><span class="ltr">${c.created_at.slice(0, 16).replace('T', ' ')}</span> · ${c.target} · ${c.note || c.kind} · ${c.status === 'applied' ? 'בוצע' : c.status === 'unchanged' ? 'ללא שינוי' : c.status === 'rolled_back' ? 'הוחזר' : 'נכשל'}${c.actor_username ? ` · ${c.actor_username}` : ''}
               ${c.status === 'applied' && n.can_write ? html`<sw-button variant="ghost" size="sm" ?disabled=${this.notifyBusy} data-nvr-rollback=${c.id} @click=${() => this.rollback(c)}>החזר</sw-button>` : nothing}</li>`)}</ul>` : nothing}`}
       ${this.notifyPlan
         ? html`<sw-dialog open heading="כתיבה ל־NVR" subheading=${this.notifyPlan.label} data-nvr-confirm @close=${() => (this.notifyPlan = null)}>
-            <div style="font-size:var(--sw-fs-sm);line-height:1.5">השינוי נכתב להגדרות ה־NVR בזהות המשתמש של חיבור ה־NVR, נרשם באודיט עם המסמך לפני ואחרי, וניתן להחזרה מרשימת השינויים. הקלטות אינן מושפעות.</div>
+            <div class="dlgtext">השינוי נכתב להגדרות ה־NVR בזהות המשתמש של חיבור ה־NVR, נרשם באודיט עם המסמך לפני ואחרי, וניתן להחזרה מרשימת השינויים. הקלטות אינן מושפעות.</div>
             <div slot="footer"><sw-button variant="primary" ?disabled=${this.notifyBusy} data-nvr-confirm-run @click=${() => this.runNotify()}>${this.notifyBusy ? 'כותב…' : 'כתוב ל־NVR'}</sw-button><sw-button variant="ghost" @click=${() => (this.notifyPlan = null)}>ביטול</sw-button></div>
           </sw-dialog>`
         : nothing}
@@ -515,38 +542,111 @@ export class SystemSetup extends LitElement {
               <div class="opts" data-connection-options>
                 ${OPTIONS.map((o) => html`<div class="check"><span>${o.label}</span><span class="val ltr">${o.key}</span></div>`)}
               </div>
-              <div class="hint">משתמש ה־NVR צריך הרשאות צפייה והקלטות בלבד; Arx לא כותב ל־NVR.</div>
+              <div class="hint">משתמש ה־NVR צריך הרשאות צפייה והקלטות; Arx כותב ל־NVR רק דרך הפעולות המאושרות בעמוד הזה, ורק עם הרשאה רגישה.</div>
             </sw-card>`}
       </sw-page>
     `;
   }
 
   static styles = [settingsStyles, css`
+    /* SETUPPLAN-POLISH-2331: the channel matrix is a dense data table (ui-ux-pro-max: tabular numerals, a quiet header, a row
+       hover under a pointer that hovers, a scroll box of its own so a 16-channel recorder never widens the page on a phone) */
+    .tablewrap {
+      overflow-x: auto;
+      margin-block: var(--sw-s-2);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-well, var(--sw-surface-2));
+      -webkit-overflow-scrolling: touch;
+    }
     .matrix {
       inline-size: 100%;
       border-collapse: collapse;
       font-size: var(--sw-fs-sm);
-      margin-block: 6px;
     }
     .matrix th,
     .matrix td {
       text-align: start;
-      padding: 4px 8px;
+      padding: 8px 12px;
       border-block-end: 1px solid var(--sw-border);
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+    .matrix td:nth-child(2) {
+      white-space: normal;
+      min-inline-size: 120px;
+    }
+    .matrix tbody tr:last-child td {
+      border-block-end: 0;
     }
     .matrix th {
-      color: var(--sw-text-3);
-      font-weight: 500;
+      color: var(--sw-text-2);
+      font-weight: var(--sw-fw-semibold);
       font-size: var(--sw-fs-xs);
     }
+    .matrix .num {
+      font-variant-numeric: tabular-nums;
+    }
+    .matrix .act {
+      text-align: end;
+    }
+    .matrix .dim {
+      color: var(--sw-text-3);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .matrix tbody tr:hover td {
+        background: var(--sw-hover-wash);
+      }
+    }
+    /* a yes / no mark: a drawn check or cross in a small tinted chip (the success / neutral tones of the fact rows) */
+    .yn {
+      display: inline-grid;
+      place-items: center;
+      inline-size: 22px;
+      block-size: 22px;
+      border-radius: var(--sw-r-pill);
+      vertical-align: middle;
+    }
+    .yn.on {
+      background: var(--sw-success-soft);
+      color: var(--sw-success-text);
+    }
+    .yn.off {
+      background: var(--sw-surface-3);
+      color: var(--sw-text-2);
+    }
+    .legend .yn {
+      inline-size: 18px;
+      block-size: 18px;
+    }
+    .msg {
+      margin-block-start: var(--sw-s-2);
+    }
+    .dlgtext {
+      font-size: var(--sw-fs-sm);
+      line-height: 1.6;
+      color: var(--sw-text);
+    }
     ul.changes {
-      margin: 4px 0 0;
-      padding-inline-start: 18px;
-      font-size: var(--sw-fs-xs);
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
     }
     ul.changes li {
-      margin-block: 2px;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 4px var(--sw-s-2);
+      padding-block: 6px;
+      border-block-end: 1px solid var(--sw-border);
+    }
+    ul.changes li:last-child {
+      border-block-end: 0;
+    }
+    ul.changes li .ltr {
+      font-variant-numeric: tabular-nums;
+      color: var(--sw-text-3);
     }
     /* owner round 4 (1.1): the system card packed clock/disks/outputs/reboot behind bare bold text with no
        separation - a wall of controls. A real section head (icon, label, rule) makes it scannable. */
@@ -580,6 +680,12 @@ export class SystemSetup extends LitElement {
       .opts {
         columns: 1;
       }
+      .check {
+        flex-wrap: wrap;
+      }
+      .val {
+        max-inline-size: 100%;
+      }
     }
   `, bubbleChrome];
 
@@ -587,7 +693,7 @@ export class SystemSetup extends LitElement {
     if (isApi()) return this.renderApi();
     // T071: the demo onboarding wizard that lived here became the real wizard (system-wizard.ts, #/system/wizard);
     // this page lists live connection facts, which a design preview without a backend does not have.
-    return html`<sw-page crumbs="הגדרות" heading="חיבורים" subheading="מצב החיבורים של המערכת: NVR, go2rtc, תשתית המערכת ואחסון · קריאה בלבד">
+    return html`<sw-page crumbs="הגדרות" heading="חיבורים" subheading="מצב החיבורים של המערכת: NVR, go2rtc, תשתית המערכת ואחסון · כתיבה ל־NVR רק בפעולות המאושרות, עם הרשאה רגישה">
       <sw-state-panel icon="link" state="empty" heading="החיבורים מוצגים מול שרת אמיתי" hint="במצב הדגמה אין חיבורים לקרוא. שלבי ההתקנה עם נתוני הדגמה נמצאים באשף ההתקנה." actionLabel="לאשף ההתקנה" @action=${() => (window.location.hash = '#/system/wizard')}></sw-state-panel>
     </sw-page>`;
   }

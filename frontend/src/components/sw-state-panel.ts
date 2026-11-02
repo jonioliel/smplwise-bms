@@ -79,6 +79,10 @@ export class SwStatePanel extends LitElement {
       text-align: inherit;
       gap: var(--sw-s-3);
       inline-size: min(100%, 560px);
+      /* SHARED-POLISH-2342 (INSIGHTS-POLISH-2331 proposal): centred in the host even when a page's sheet turns the host into a block
+         (the water / electricity shells set ".body > * { display: block }", so the flex centring above did nothing and the tile sat
+         against the start edge of an empty page); in the compact row the box is display: contents and the margins do not apply */
+      margin-inline: auto;
       box-sizing: border-box;
       padding: 32px 36px;
       border-radius: var(--sw-r-xl, var(--sw-r-lg));

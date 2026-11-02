@@ -26,6 +26,7 @@ function at(dayOffset: number, hhmm: string): string {
   return d.toISOString();
 }
 const P = (id: string, name: string) => ({ id, name });
+const OPEN = (start: string, end: string) => ({ weekdays: [1, 2, 3, 4, 5, 6, 7], start, end });
 /** CALCONNECT-2330: the credential flags of a demo connection (the server never answers a value either). */
 const SETUP = (o: Partial<ConnSetup>): ConnSetup => ({ client_id_set: false, client_secret_set: false, authorized: false, feed_url_set: false, tenant: null, ready: false,
   pending_flow: null, ...o, ...(o.ready === undefined ? { ready: !!(o.authorized || o.feed_url_set) } : {}) });
@@ -102,6 +103,8 @@ function build(mode: string): Store {
     approval_timeout_h: 2, capacity: s.cap, equipment: s.equip as Calendar['equipment'], floor_id: s.floor ? (s.floor === 'קומה 1' ? 'f1' : 'f0') : null, floor_name: s.floor || undefined,
     area_ref: null, conflict_policy: s.type === 'room' || s.type === 'maintenance' ? 'exclusive' : 'overlap', buffer_after_min: s.type === 'room' ? 10 : 0, slot_step_min: 15,
     min_minutes: 15, max_minutes: 720, horizon_days: 180, overlap_override: s.override ?? null, sync: s.sync, pending_count: 0, archived: false, revision: 1,
+    // CAL-GRID-EDIT-2343: the open hours the grid shades (the same windows roomsDay answers) and the per-calendar move rule
+    approved_move: 'reapproval', open_hours: s.id === 'quiet' ? OPEN('07:00', '19:00') : s.id === 'kitchen' ? OPEN('07:00', '16:00') : null,
   }));
   let n = 0;
   const occ: Occurrence[] = ROWS.map(([day, cal, from, to, title, k = 'ok', who]) => {
@@ -228,6 +231,18 @@ function st(): Store {
 }
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** CAL-GRID-EDIT-2343: the state an entry had before a cancel (the demo's "בטל"), revisions, and putting a change back on its approved slot. */
+const prevState: Record<string, EntryState> = {};
+const heads: Record<string, number> = {};
+function bump(o: Occurrence): void {
+  o.revision = (o.revision ?? 1) + 1;
+}
+function backToHeld(s: Store, o: Occurrence): void {
+  if (!o.held) return;
+  Object.assign(o, { calendar_id: o.held.calendar_id, start: o.held.start, end: o.held.end, state: 'confirmed', contested: false, held: null });
+  s.occ = s.occ.filter((x) => !(x.held_slot && x.event_id === o.event_id));
+  bump(o);
+}
 async function read<T>(fn: (s: Store) => T): Promise<T> {
   const m = dataMode();
   if (m === 'slow') await wait(1200);
@@ -244,11 +259,25 @@ function role(): ModuleState['can'] {
   return all;
 }
 
+/** CAL-GRID-EDIT-2343: may the demo's viewer drag it (the server's rule: his own booking with book+, anything with edit+), and its revision. */
+function gridFields(s: Store, o: Occurrence): Occurrence {
+  if (o.held_slot) return { ...o, can_edit: false };
+  const cal = s.cals.find((c) => c.id === o.calendar_id);
+  const r = roleMode();
+  const role = ['operator', 'resident'].includes(r) ? (cal?.type === 'room' && cal.my_role !== 'view' ? 'book' : 'view') : cal?.my_role ?? null;
+  const me = r === 'resident' ? 'u-res' : 'u-me';
+  const own = o.organizer?.id === me;
+  const kindOk = o.kind === 'booking' || o.kind === 'event';
+  const can = kindOk && ['pending', 'confirmed'].includes(o.state) && !!role && (role === 'edit' || role === 'manage' || (own && role === 'book'));
+  return { ...o, can_edit: can, revision: o.revision ?? 1 };
+}
+
 function eventOf(o: Occurrence): CalEvent {
   return {
     id: o.event_id, calendar_id: o.calendar_id, kind: o.kind, title: o.title, notes: null, start: o.start, end: o.end, all_day: !!o.all_day, tz: 'Asia/Jerusalem', rrule: o.recurring ? 'FREQ=WEEKLY' : null,
-    state: o.state, contested: !!o.contested, on_behalf_label: o.on_behalf_label, on_behalf_kind: o.on_behalf_label ? 'class' : 'self', headcount: null, organizer: o.organizer, revision: 1, recurring: o.recurring,
-    source: 'arx', sync_flag: o.sync_flag ?? null, can: { edit: true, cancel: true, approve: roleMode() !== 'operator' }, rooms: o.room_calendar_ids.map((r) => ({ room_calendar_id: r, state: o.state, contested: !!o.contested })),
+    state: o.state, contested: !!o.contested, on_behalf_label: o.on_behalf_label, on_behalf_kind: o.on_behalf_label ? 'class' : 'self', headcount: heads[o.event_id] ?? null, organizer: o.organizer, revision: o.revision ?? 1, recurring: o.recurring,
+    source: 'arx', sync_flag: o.sync_flag ?? null, can: { edit: true, cancel: true, approve: roleMode() !== 'operator', restore: ['cancelled', 'withdrawn'].includes(o.state) },
+    rooms: o.room_calendar_ids.map((r) => ({ room_calendar_id: r, state: o.state, contested: !!o.contested })), held: o.held ?? null,
   };
 }
 
@@ -298,7 +327,7 @@ export const demoCalendars: CalendarsApi = {
     st().members[id] = clone(members);
     return { members: clone(members) };
   },
-  occurrences: (from, to, cals) => read((s) => ({ occurrences: clone(s.occ.filter((o) => o.start < to && o.end > from && (!cals || cals.includes(o.calendar_id)))), truncated: false })),
+  occurrences: (from, to, cals) => read((s) => ({ occurrences: clone(s.occ.filter((o) => o.start < to && o.end > from && (!cals || cals.includes(o.calendar_id)))).map((o) => gridFields(s, o)), truncated: false })),
   roomsDay: (date) => read((s) => {
     const day = new Date(`${date}T00:00:00`);
     const from = day.toISOString();
@@ -316,8 +345,10 @@ export const demoCalendars: CalendarsApi = {
     const clash = overlaps(s, body.calendar_id, body.start, body.end).some((o) => o.state === 'confirmed');
     const state: EntryState = clash || (cal?.approval_mode === 'always' && cal.my_role !== 'manage') ? 'pending' : 'confirmed';
     const o: Occurrence = { occurrence_id: `n${s.seq}`, event_id: `n${s.seq}`, calendar_id: body.calendar_id, room_calendar_ids: cal?.type === 'room' ? [cal.id] : [], start: body.start, end: body.end,
-      title: body.title, state, kind: 'booking', on_behalf_label: body.on_behalf?.label ?? null, organizer: roleMode() === 'resident' ? RES : ME, recurring: !!body.rrule, contested: clash };
+      title: body.title, state, kind: 'booking', on_behalf_label: body.on_behalf?.label ?? null, organizer: roleMode() === 'resident' ? RES : ME, recurring: !!body.rrule, contested: clash, revision: 1 };
+    
     s.occ.push(o);
+    if (body.headcount) heads[o.event_id] = body.headcount;
     return { event: eventOf(o), state };
   },
   previewEvent: async (body) => {
@@ -332,19 +363,100 @@ export const demoCalendars: CalendarsApi = {
     return { event: eventOf(o) };
   }),
   cancelEvent: async (id) => {
-    const o = st().occ.find((x) => x.event_id === id);
-    if (o) o.state = 'cancelled';
+    const s = st();
+    const o = s.occ.find((x) => x.event_id === id && !x.held_slot);
+    if (o) {
+      prevState[id] = o.state;
+      o.state = 'cancelled';
+      bump(o);
+      s.occ = s.occ.filter((x) => !(x.held_slot && x.event_id === id));
+    }
     return { event: eventOf(o as Occurrence) };
   },
   withdrawEvent: async (id) => {
-    const o = st().occ.find((x) => x.event_id === id);
-    if (o) o.state = 'withdrawn';
+    const s = st();
+    const o = s.occ.find((x) => x.event_id === id && !x.held_slot);
+    if (o?.held) {
+      backToHeld(s, o);
+      return { event: eventOf(o), change_withdrawn: true };
+    }
+    if (o) {
+      prevState[id] = o.state;
+      o.state = 'withdrawn';
+      bump(o);
+    }
     return { event: eventOf(o as Occurrence) };
+  },
+  // CAL-GRID-EDIT-2343: a move / resize / edit as the server does it (stale revision, permission, past, a change that needs approval keeps the
+  // approved slot held; back onto the held slot restores the booking) and "בטל" after a delete
+  patchEvent: async (id, body) => {
+    const s = st();
+    const o = s.occ.find((x) => x.event_id === id && !x.held_slot);
+    if (!o) throw demoErr(404, 'not_found', 'האירוע לא נמצא.');
+    if ((o.revision ?? 1) !== body.revision) throw demoErr(409, 'stale', 'האירוע עודכן בינתיים. רענן ונסה שוב.');
+    if (!gridFields(s, o).can_edit) throw demoErr(403, 'forbidden', 'אין הרשאה לפעולה הזו ביומן.');
+    if (body.title !== undefined) o.title = body.title;
+    if (body.headcount !== undefined) heads[o.event_id] = body.headcount ?? 0;
+    if (body.start === undefined && body.end === undefined && body.calendar_id === undefined) {
+      bump(o);
+      return { event: eventOf(o) };
+    }
+    const calId = body.calendar_id ?? o.calendar_id;
+    const start = body.start ?? o.start;
+    const end = body.end ?? o.end;
+    if (new Date(start) < new Date() && start !== o.start) throw demoErr(422, 'past_start', 'אי אפשר להזיז אירוע לזמן שכבר עבר.');
+    if (o.held && o.held.calendar_id === calId && o.held.start === start && o.held.end === end) {
+      backToHeld(s, o);
+      return { event: eventOf(o), change_withdrawn: true };
+    }
+    const cal = s.cals.find((c) => c.id === calId);
+    const clash = overlaps(s, calId, start, end).some((x) => x.event_id !== id && x.state === 'confirmed');
+    const strong = cal?.my_role === 'manage' || cal?.my_role === 'edit';
+    const needs = clash || (cal?.approval_mode === 'always' && !strong);
+    if (needs && o.state === 'confirmed') {
+      if (cal?.approved_move === 'managers' && !strong) throw demoErr(409, 'change_needs_manager', 'הזמנה מאושרת בחדר הזה משתנה רק דרך מנהל החדר.');
+      o.held = { calendar_id: o.calendar_id, start: o.start, end: o.end };
+      s.occ.push({ ...o, occurrence_id: `${id}@held`, held: null, held_slot: true, state: 'confirmed', contested: false, can_edit: false });
+    }
+    o.state = needs ? 'pending' : 'confirmed';
+    o.contested = clash;
+    if (!needs) {
+      o.held = null;
+      s.occ = s.occ.filter((x) => !(x.held_slot && x.event_id === id));
+    }
+    Object.assign(o, { calendar_id: calId, start, end, room_calendar_ids: cal?.type === 'room' ? [calId] : [] });
+    bump(o);
+    return { event: eventOf(o) };
+  },
+  restoreEvent: async (id) => {
+    const o = st().occ.find((x) => x.event_id === id && !x.held_slot);
+    if (!o || !['cancelled', 'withdrawn'].includes(o.state)) throw demoErr(409, 'bad_state', 'אין מה לשחזר.');
+    o.state = prevState[id] ?? 'confirmed';
+    bump(o);
+    return { event: eventOf(o), state: o.state };
   },
   mine: () => read((s) => ({ occurrences: clone(s.occ.filter((o) => o.organizer?.id === (roleMode() === 'resident' ? 'u-res' : 'u-me') && o.end > new Date().toISOString() && o.state !== 'cancelled')) })),
   requests: () => read((s) => ({ requests: clone(s.requests) })),
   decide: async (id, body) => {
     const s = st();
+    const change = s.occ.find((x) => x.event_id === id && !x.held_slot && x.held && x.state === 'pending');
+    if (change) {
+      if (body.decision === 'reject') {
+        backToHeld(s, change);
+        return { state: 'confirmed' as EntryState, change_rejected: true };
+      }
+      change.state = 'confirmed';
+      change.held = null;
+      s.occ = s.occ.filter((x) => !(x.held_slot && x.event_id === id));
+      bump(change);
+      return { state: 'confirmed' as EntryState };
+    }
+    const grid = s.occ.find((x) => x.event_id === id && x.state === 'pending' && !s.requests.some((r) => r.event_id === id));
+    if (grid) {
+      grid.state = body.decision === 'approve' ? 'confirmed' : 'rejected';
+      bump(grid);
+      return { state: grid.state };
+    }
     const r = s.requests.find((x) => x.event_id === id);
     if (r && body.decision === 'approve' && r.conflicts_now && !body.displace_existing) {
       throw new ApiError(409, { code: 'slot_held', user_message: 'החלון כבר תפוס על ידי אירוע שאושר קודם.', retryable: false, correlation_id: 'demo', details: {} });

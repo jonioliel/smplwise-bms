@@ -56,6 +56,8 @@ export const CHOICES = {
   // MULTIBUILDING-HOME-2330: a site of several buildings only - where the home opens, and whether "כבה הכל באתר" checks the shared building
   site_entry: ['site', 'last', 'fixed'],
   site_off_shared: ['exclude', 'include'],
+  // TREE-HIDE-UNASSIGNED-2331: whether the building tree draws the "ללא שיוך" bucket - always / only in the screen editor / never
+  tree_unassigned: ['always', 'editing', 'never'],
 } as const;
 export type ChoiceKey = keyof typeof CHOICES;
 export const CHOICE_KEYS = Object.keys(CHOICES) as ChoiceKey[];
@@ -76,6 +78,7 @@ export const CHOICE_DEFAULTS = {
   popup_alert: 'show',
   site_entry: 'site',
   site_off_shared: 'exclude',
+  tree_unassigned: 'always',
 } as const;
 
 export interface HomeScreenOptions {
@@ -105,9 +108,29 @@ export interface HomeScreenOptions {
   site_entry: SiteEntry;
   site_entry_building: string;
   site_off_shared: SiteOffShared;
+  /** TREE-HIDE-UNASSIGNED-2331: the tree's "ללא שיוך" row - always (default), only while the screen editor is open, or never. */
+  tree_unassigned: TreeUnassigned;
 }
 export type SiteEntry = 'site' | 'last' | 'fixed';
 export type SiteOffShared = 'exclude' | 'include';
+export type TreeUnassigned = 'always' | 'editing' | 'never';
+
+/** TREE-HIDE-UNASSIGNED-2331: does the building tree draw its "ללא שיוך" row? Presentation only - the bucket, its screen and the
+ * "כל המבנה" counts (which include it) never change. `editing` = the screen editor is open (only a system.configure holder opens it). */
+export function treeUnassignedShown(mode: TreeUnassigned, editing: boolean): boolean {
+  return mode === 'always' || (mode === 'editing' && editing);
+}
+
+/** OWNER-R12-2341 (owner 01.11, 6A): the same choice governs the tiles view's "ללא שיוך" section, with the same semantics - always /
+ * only while the screen editor is open / never. Presentation only, like the tree row. */
+export function tilesUnassignedShown(mode: TreeUnassigned, editing: boolean): boolean {
+  return treeUnassignedShown(mode, editing);
+}
+
+/** What the screen editor tells about a hidden row (null = nothing to say: it is always shown). */
+export function treeUnassignedHint(mode: TreeUnassigned): 'editing' | 'never' | null {
+  return mode === 'always' ? null : mode;
+}
 
 export const HOME_SCREEN_DEFAULT: HomeScreenOptions = { summary_tiles: null, area_quick: {}, ...CHOICE_DEFAULTS, popup: { version: 0, site: null, areas: {} }, site_entry_building: '' };
 

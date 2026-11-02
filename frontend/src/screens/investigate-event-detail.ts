@@ -18,6 +18,7 @@ import { CERTAINTY_LABEL, EVENT_LABEL, ackEvent, confirmEventRoute, getCorrelati
 import type { StateKind } from '../components/sw-badge';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { techDetailsStyles } from '../styles/tech-details';
 import { INVESTIGATE_R5 } from './investigate-r5-css';
 
 const CERTAINTY_KIND: Record<Certainty, StateKind> = { measured: 'recorded', inferred: 'unknown', command: 'partial', availability: 'stale' };
@@ -44,8 +45,17 @@ import { incidentsModuleOn } from '../shell/nav'; // CR-LIVEEVENT100 (T2): "פת
 import { mayOpenFromEvent } from './investigate-incidents';
 import { openIncident } from '../api/incidents';
 import { it as incText } from '../i18n/incidents';
+import { describeDeviceText, precisionLabel, rawCodeLabel, spanText } from '../i18n/event-codes';
+import { agoText } from './investigate-time';
 
-const SOURCE_LABEL = { alertstream: 'אירוע NVR', recording: 'נגזר מהקלטה', system: 'מערכת', ha: 'חיישן התקן' } as const;
+const SEVERITY_LABEL: Record<VmsEvent['severity'], string> = { info: 'מידע', alert: 'התראה', critical: 'קריטי' };
+const SEVERITY_KIND: Record<VmsEvent['severity'], StateKind> = { info: 'neutral', alert: 'stale', critical: 'error' };
+/** INVREST-POLISH-2331: the event's name in the operator's words - the device code in Hebrew when known (as in the events list),
+ * otherwise the product kind. */
+const eventName = (e: VmsEvent) => rawCodeLabel(e.raw_type) ?? EVENT_LABEL[e.type] ?? e.type;
+
+/** Where an event came from, in the words of the events list (EVENTS-POLISH-2331); the raw source key is in the technical details. */
+const SOURCE_LABEL = { alertstream: 'התראה מה־NVR', recording: 'נגזר מקובץ הקלטה', system: 'מערכת', ha: 'חיישן התקן' } as const;
 const NEARBY_MS = 10 * 60 * 1000;
 
 /**
@@ -109,17 +119,81 @@ export class InvestigateEventDetail extends LitElement {
   /** `refs`: what the scene getter reads, by identity (a hit skips the anchor list and its JSON key); `keys`: the signature. */
   private sceneMemo: { refs: unknown[]; keys: unknown[]; desc: SceneDescription; labels: Record<string, string> } | null = null;
 
-  static styles = [css`
+  static styles = [techDetailsStyles, css`
+    /* INVREST-POLISH-2331: from 900 px up the page takes exactly the height the shell leaves it and never scrolls - the player stays
+       in view at the start, the context column (facts, map, correlation, route, nearby events) scrolls in its own box at the end, the
+       header actions are always on screen. Narrower (a phone): one column, the page scrolls as before. */
     :host {
       display: flex;
       flex-direction: column;
-      min-block-size: 100%;
+      min-block-size: 0;
+      min-inline-size: 0;
+    }
+    sw-page {
+      flex: 1;
+      min-block-size: 0;
     }
     .layout {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 340px;
+      grid-template-columns: minmax(0, 1fr) clamp(340px, 27vw, 440px);
       gap: 16px;
       align-items: start;
+    }
+    @media (min-width: 901px) {
+      sw-page {
+        block-size: 100%;
+      }
+      .layout {
+        flex: 1;
+        min-block-size: 0;
+        grid-template-rows: minmax(0, 1fr);
+        align-items: stretch;
+      }
+      .side {
+        min-block-size: 0;
+        overflow: auto;
+        overscroll-behavior: contain;
+        /* room for the cards' shadows inside the scroll box */
+        padding: 2px 4px 8px;
+        margin: -2px -4px 0;
+      }
+      /* the player keeps its 16:9 but never pushes the page past the screen: bounded by the room under the header */
+      .player {
+        max-block-size: calc(100dvh - 300px);
+      }
+    }
+    .side {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-inline-size: 0;
+    }
+    .rel {
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
+      font-weight: var(--sw-fw-medium);
+    }
+    /* SHARED-POLISH-2342: the disclosure is the shared techDetailsStyles (styles/tech-details.ts, the events list's look); only its
+       place under the facts and the semibold summary stay here */
+    details.tech {
+      margin-block-start: 10px;
+    }
+    details.tech > summary {
+      font-weight: var(--sw-fw-semibold);
+    }
+    .kv {
+      display: grid;
+      grid-template-columns: max-content minmax(0, 1fr);
+      gap: 3px 12px;
+      margin-block-start: 6px;
+    }
+    .kv > span {
+      color: var(--sw-text-3);
+    }
+    .kv > b {
+      font-weight: var(--sw-fw-medium);
+      color: var(--sw-text);
+      overflow-wrap: anywhere;
     }
     .player {
       position: relative;
@@ -280,7 +354,7 @@ export class InvestigateEventDetail extends LitElement {
     }
     .corr .link {
       display: grid;
-      grid-template-columns: 56px minmax(0, 1fr) auto;
+      grid-template-columns: 68px minmax(0, 1fr) auto;
       gap: 8px;
       align-items: center;
       padding: 6px 0;
@@ -339,7 +413,7 @@ export class InvestigateEventDetail extends LitElement {
       max-inline-size: 220px;
     }
     .routeconfirm .ok {
-      color: var(--sw-success);
+      color: var(--sw-success-text);
       font-size: var(--sw-fs-sm);
     }
     .nearby {
@@ -393,7 +467,7 @@ export class InvestigateEventDetail extends LitElement {
       margin-block-start: 8px;
     }
     .err {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-xs);
     }
     .ltr {
@@ -503,7 +577,7 @@ export class InvestigateEventDetail extends LitElement {
     if (!r || !r.spatial) return nothing;
     const picks = new Set(this.routePicks());
     const kind = (rel: string): StateKind => (rel === 'same_zone' ? 'recorded' : rel === 'adjacent_zone' ? 'partial' : rel === 'via_connector' ? 'stale' : 'neutral');
-    return html`<sw-card heading="המשך מסלול מוצע" subheading="השערה לפי טופולוגיית המפה · ±${Math.round((new Date(r.window.to).getTime() - new Date(r.window.from).getTime()) / 1000)} שניות" style="margin-block-start:12px" data-route>
+    return html`<sw-card heading="המשך מסלול מוצע" subheading="השערה לפי טופולוגיית המפה · ±${Math.round((new Date(r.window.to).getTime() - new Date(r.window.from).getTime()) / 1000)} שניות" data-route>
       ${r.suggestions.length
         ? html`<div class="corr" data-route-list>${r.suggestions.map((s) => html`<div class="link route" data-route-item data-relation=${s.relation} data-camera=${s.camera_id}>
               <span class="rel"><input type="checkbox" aria-label=${`כלול את ${s.name} במסלול`} data-route-tick=${s.camera_id} .checked=${picks.has(s.camera_id)} @change=${(e: Event) => this.tickRoute(s.camera_id, (e.target as HTMLInputElement).checked)} />${s.via ? html`<sw-icon name=${s.via.kind === 'elevator' ? 'elevator' : 'stairs'} size=${14}></sw-icon>` : nothing}<sw-badge kind=${kind(s.relation)} label=${s.relation_label}></sw-badge></span>
@@ -517,7 +591,7 @@ export class InvestigateEventDetail extends LitElement {
                   ${(this.routeCases ?? []).map((c) => html`<option value=${c.id} ?selected=${c.id === this.routeCase}>${c.title}</option>`)}
                 </select>
                 <sw-button variant="primary" size="sm" icon="case" ?disabled=${!picks.size || this.routeBusy} data-route-confirm-button @click=${() => this.confirmRoute()}>${this.routeBusy ? 'מוסיף…' : `אשר מסלול לתיק (${picks.size})`}</sw-button>
-                ${this.routeDone ? html`<span class="ok" data-route-done>נוסף לתיק „${this.routeDone.title}”${this.routeDone.skipped.length ? ` · ${this.routeDone.skipped.length} דולגו` : ''} · <a href=${`#/investigate/cases/${this.routeDone.case_id}`}>פתח</a></span>` : nothing}
+                ${this.routeDone ? html`<span class="ok" data-route-done role="status">נוסף לתיק „${this.routeDone.title}”${this.routeDone.skipped.length ? ` · ${this.routeDone.skipped.length} דולגו` : ''} · <a href=${`#/investigate/cases/${this.routeDone.case_id}`}>פתח</a></span>` : nothing}
                 ${this.routeError ? html`<span class="err" role="alert" data-route-error>${this.routeError}</span>` : nothing}
               </div>`
             : nothing}`
@@ -667,14 +741,14 @@ export class InvestigateEventDetail extends LitElement {
   private renderCorrelation() {
     const c = this.corr;
     const sub = c ? `±${c.window_s} שניות · ${c.spatial ? `סביבת ${c.location?.zone ?? 'המיקום על התוכנית'} (${c.location?.floor_name ?? ''})` : 'לפי זמן בלבד'}` : this.corrError ? 'לא נטען' : 'טוען…';
-    return html`<sw-card heading="קורלציה דלת–מצלמה–חיישן" subheading=${sub} style="margin-block-start:12px" data-correlation>
+    return html`<sw-card heading="קורלציה דלת–מצלמה–חיישן" subheading=${sub} data-correlation>
       ${c
         ? html`${c.entities.length
               ? html`<div class="note" style="margin:0 0 6px" data-correlation-entities>בסביבה: ${c.entities.map((e) => `${e.name}${e.state_missing ? ' (ללא מצב)' : e.state ? ` · ${e.state}` : ''}`).join(' · ')}</div>`
               : html`<div class="note" style="margin:0 0 6px" data-correlation-entities>אין חיישנים או מנעולים מוצבים בסביבה.</div>`}
             ${c.links.length
               ? html`<div class="corr" data-correlation-links>${c.links.map((l) => html`<div class="link" data-correlation-link data-certainty=${l.certainty}>
-                    <span class="ltr num">${l.delta_s > 0 ? '+' : ''}${l.delta_s}s</span>
+                    <span class="ltr num">${l.delta_s > 0 ? '+' : ''}${l.delta_s} שנ׳</span>
                     <span>${l.kind === 'camera' && l.event_id ? html`<a href=${`#/investigate/events/${l.event_id}`}>${l.label}</a>` : l.kind === 'sensor' && l.event_id ? html`<a href=${`#/investigate/events/${l.event_id}`}>${l.label}</a>` : l.label}<small>${l.note}</small></span>
                     <sw-badge kind=${CERTAINTY_KIND[l.certainty]} label=${CERTAINTY_LABEL[l.certainty]}></sw-badge>
                   </div>`)}</div>`
@@ -689,8 +763,28 @@ export class InvestigateEventDetail extends LitElement {
 
   private duration(ev: VmsEvent): string {
     if (!ev.ended_at) return typeof ev.details.seconds === 'number' ? `${ev.details.seconds} שנ׳ (הקלטה)` : '—';
-    const s = Math.max(0, Math.round((new Date(ev.ended_at).getTime() - new Date(ev.occurred_at).getTime()) / 1000));
-    return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+    return spanText(ev.occurred_at, ev.ended_at) ?? 'פחות משנייה';
+  }
+
+  /** The device-side lines an operator rarely needs, behind "פרטים טכניים" (the raw code used to sit in the source fact). */
+  private renderTech(ev: EventDetail) {
+    const d = ev.details;
+    const text = typeof d.description === 'string' ? d.description : '';
+    const prec = typeof d.time_precision === 'string' ? d.time_precision : '';
+    const devTime = typeof d.device_time === 'string' ? d.device_time : '';
+    return html`<details class="tech" data-tech-details>
+      <summary><sw-icon name="info" size=${14}></sw-icon><span>פרטים טכניים</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
+      <div class="kv">
+        <span>קוד המכשיר</span><b><span class="ltr">${ev.raw_type || '—'}</span></b>
+        ${text ? html`<span>טקסט המכשיר</span><b>${describeDeviceText(text) ?? html`<span class="ltr">${text}</span>`}</b>` : nothing}
+        ${prec ? html`<span>דיוק הזמן</span><b>${precisionLabel(prec) ?? prec} <span class="ltr" style="color:var(--sw-text-3)">${prec}</span></b>` : nothing}
+        ${devTime ? html`<span>שעון המכשיר</span><b><span class="ltr">${this.fmt(devTime, true)}</span></b>` : nothing}
+        <span>נקלט</span><b><span class="ltr">${this.fmt(ev.received_at, true)}</span></b>
+        <span>מקור · ודאות</span><b><span class="ltr">${ev.source} · ${ev.confidence}</span></b>
+        ${ev.recorder_id || ev.channel ? html`<span>מקליט · ערוץ</span><b><span class="ltr">${ev.recorder_id ?? '—'} · ${ev.channel ?? '—'}</span></b>` : nothing}
+        <span>מזהה האירוע</span><b><span class="ltr">${ev.id}</span></b>
+      </div>
+    </details>`;
   }
 
   private get markers(): PlanMarker[] {
@@ -817,18 +911,19 @@ export class InvestigateEventDetail extends LitElement {
     if (this.error && !this.ev) return html`<sw-page heading="אירוע"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel></sw-page>`;
     const ev = this.ev;
     if (!ev) return html`<sw-page heading="אירוע"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
-    const label = EVENT_LABEL[ev.type] ?? ev.type;
+    const label = eventName(ev);
+    const ago = agoText(ev.occurred_at);
     const camera = ev.camera_name ?? (ev.channel ? `ערוץ ${ev.channel}` : 'מערכת');
     const loc = ev.location;
     const where = loc ? `${loc.building_name} · ${loc.floor_name}${loc.zone ? ` / ${loc.zone}` : ''}` : null;
     const acked = !!ev.acked_at;
     return html`
-      <sw-page heading=${`${label} · ${camera}`} subheading=${`${SOURCE_LABEL[ev.source] ?? ev.source} · ${this.fmt(ev.occurred_at, true)}`} crumbs=${`חקירה | אירועים | ${label}`} wide>
-        <sw-button slot="actions" variant=${acked ? 'ghost' : 'primary'} icon="check" ?disabled=${acked || this.busy} @click=${() => this.ack()}>${acked ? 'טופל' : 'סמן כטופל'}</sw-button>
+      <sw-page heading=${`${label} · ${camera}`} subheading=${`${this.fmt(ev.occurred_at, true)}${ago ? ` · ${ago}` : ''} · ${SOURCE_LABEL[ev.source] ?? ev.source}`} crumbs=${`חקירה | אירועים | ${label}`} wide>
+        <sw-button slot="actions" variant=${acked ? 'ghost' : 'primary'} icon="check" data-ack ?disabled=${acked || this.busy} @click=${() => this.ack()}>${acked ? 'טופל' : 'סמן כטופל'}</sw-button>
         <sw-button slot="actions" icon="case" data-add-to-case @click=${() => (this.casePick = { kind: 'event', event_id: ev.id })}>הוסף לתיק</sw-button>
         ${mayOpenFromEvent(incidentsModuleOn()) ? html`<sw-button slot="actions" icon="warning" data-open-incident ?disabled=${this.busy} @click=${() => void this.openLive(ev.id)}>${incText('fromEvent')}</sw-button>` : nothing}
         <sw-button slot="actions" variant="ghost" icon="list" @click=${() => navigate('/investigate/events')}>למרכז האירועים</sw-button>
-        ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
+        ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
         <div class="layout">
           <div>
             <div class="player" data-player>
@@ -838,7 +933,7 @@ export class InvestigateEventDetail extends LitElement {
                   ? html`<img src=${thumbnailUrl(ev.id, this.thumbVersion)} alt="תמונת האירוע מההקלטה" />`
                   : html`<div class="hint">${!ev.camera_id ? 'אירוע ללא מצלמה — אין וידאו' : this.playerError ? `ההקלטה לא נפתחה: ${this.playerError}` : ev.thumbnail === 'unavailable' ? 'אין הקלטה זמינה בזמן האירוע' : 'פותח את ההקלטה…'}</div>`}
               <span class="chip"><sw-icon name="clock" size=${12}></sw-icon>${this.session ? 'הקלטה' : ev.thumbnail === 'ready' && !this.session ? 'תמונה מההקלטה' : 'אירוע'}</span>
-              <div class="caption">${camera}<small>זמן האירוע <span class="ltr">${this.fmt(ev.occurred_at)}</span>${this.session?.actual_start_at ? html` · הנגן מתחיל <span class="ltr">${this.fmt(this.session.actual_start_at)}</span>${this.session.time_precision !== 'verified' ? ` (${this.session.time_precision === 'keyframe_limited' ? 'לפי keyframe' : 'משוער'})` : ''}` : nothing}</small></div>
+              <div class="caption">${camera}<small>זמן האירוע <span class="ltr">${this.fmt(ev.occurred_at)}</span>${this.session?.actual_start_at ? html` · הנגן מתחיל <span class="ltr">${this.fmt(this.session.actual_start_at)}</span>${this.session.time_precision !== 'verified' ? ` (${this.session.time_precision === 'keyframe_limited' ? precisionLabel('keyframe_limited') : 'משוער'})` : ''}` : nothing}</small></div>
             </div>
             <div class="bar">
               <span>${this.session ? 'הנגן פותח את ההקלטה שתי שניות לפני זמן האירוע; זמן האירוע וזמן הפריים המנוגן מוצגים בנפרד.' : ev.playerHint ?? ''}</span>
@@ -847,16 +942,18 @@ export class InvestigateEventDetail extends LitElement {
               ${ev.camera_id ? html`<sw-button size="sm" variant="ghost" icon="play" @click=${() => (this.session ? this.stopPlayer() : this.play(ev))}>${this.session ? 'עצור' : 'נגן שוב'}</sw-button>` : nothing}
             </div>
           </div>
-          <div>
+          <div class="side">
             <sw-card heading="הקשר האירוע" data-context>
               <dl class="meta">
                 <div><dt>מצב</dt><dd data-status>${acked ? html`<sw-badge filled kind="live" label=${`טופל · ${ev.acked_by_username ?? ''}`}></sw-badge> <span class="note" style="margin:0">${this.fmt(ev.acked_at!, true)}</span>` : html`<sw-badge filled kind="stale" label="טרם טופל"></sw-badge>`}</dd></div>
-                <div><dt>זמן התחלה</dt><dd><span class="ltr">${this.fmt(ev.occurred_at, true)}</span></dd></div>
-                <div><dt>סוג</dt><dd>${label}${ev.confidence === 'inferred' ? ' · נגזר (inferred)' : ''}</dd></div>
-                <div><dt>משך החלון</dt><dd>${this.duration(ev)}${ev.count > 1 ? ` · ${ev.count} חזרות` : ''}</dd></div>
+                <div><dt>חומרה</dt><dd data-severity><sw-badge ?filled=${ev.severity !== 'info'} kind=${SEVERITY_KIND[ev.severity] ?? 'neutral'} label=${SEVERITY_LABEL[ev.severity] ?? ev.severity}></sw-badge></dd></div>
+                <div class="wide"><dt>זמן</dt><dd><span class="ltr">${this.fmt(ev.occurred_at, true)}</span>${ago ? html` <span class="rel">· ${ago}</span>` : nothing}</dd></div>
+                <div><dt>סוג</dt><dd>${label}${ev.confidence === 'inferred' ? ' · נגזר' : ''}</dd></div>
+                <div><dt>משך</dt><dd>${this.duration(ev)}${ev.count > 1 ? ` · ${ev.count} חזרות` : ''}</dd></div>
                 <div class="wide"><dt>מיקום</dt><dd data-where>${where ?? (ev.camera_id ? 'המצלמה עדיין לא מוצבת על תוכנית' : '—')}</dd></div>
-                <div class="wide"><dt>מקור</dt><dd>${SOURCE_LABEL[ev.source] ?? ev.source}${ev.camera_id ? html` / ${camera}` : nothing} <span class="note" style="margin:0">raw <span class="ltr">${ev.raw_type}</span></span></dd></div>
+                <div class="wide"><dt>מקור</dt><dd>${SOURCE_LABEL[ev.source] ?? ev.source}${ev.camera_id ? html` · ${camera}` : nothing}</dd></div>
               </dl>
+              ${this.renderTech(ev)}
               ${loc && loc.has_plan && this.bundle
                 ? html`<div class="map" style=${this.view3d ? 'block-size:320px' : ''}>
                     <div class="floorchip"><sw-icon name="building" size=${12}></sw-icon>${loc.floor_name}</div>
@@ -891,9 +988,12 @@ export class InvestigateEventDetail extends LitElement {
             </sw-card>
             ${this.renderCorrelation()}
             ${this.renderRoute()}
-            <sw-card heading="אירועים קרובים" subheading="±10 דקות סביב האירוע" style="margin-block-start:12px">
+            <sw-card heading="אירועים קרובים" subheading="±10 דקות סביב האירוע">
               ${this.nearby.length
-                ? html`<div class="nearby">${this.nearby.map((n) => html`<a href=${`#/investigate/events/${n.id}`}><span>${EVENT_LABEL[n.type] ?? n.type} · ${n.camera_name ?? (n.channel ? `ערוץ ${n.channel}` : 'מערכת')}</span><span class="ltr">${this.fmt(n.occurred_at)}</span></a>`)}</div>`
+                ? html`<div class="nearby" data-nearby>${this.nearby.map((n) => {
+                    const dt = Math.round((new Date(n.occurred_at).getTime() - new Date(ev.occurred_at).getTime()) / 60000);
+                    return html`<a href=${`#/investigate/events/${n.id}`}><span>${eventName(n)} · ${n.camera_name ?? (n.channel ? `ערוץ ${n.channel}` : 'מערכת')}</span><span class="ltr" title=${dt === 0 ? 'באותה דקה' : dt > 0 ? `${dt} דק׳ אחרי` : `${-dt} דק׳ לפני`}>${this.fmt(n.occurred_at)}</span></a>`;
+                  })}</div>`
                 : html`<div class="note" style="margin:0">אין אירועים נוספים בחלון הזה.</div>`}
             </sw-card>
           </div>

@@ -848,7 +848,7 @@ export class ExploreFloorMap extends LitElement {
       color: var(--sw-text-3);
     }
     .saveform .err {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
     }
     .banner {
       position: absolute;
@@ -919,7 +919,7 @@ export class ExploreFloorMap extends LitElement {
       color: var(--sw-text-3);
     }
     .warn {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-xs);
     }
     .actrow {
@@ -2605,7 +2605,7 @@ export class ExploreFloorMap extends LitElement {
       <sw-button size="sm" icon="layers" ?disabled=${!this.saveableCameraIds().length} data-pick-save @click=${() => this.openSave()}>שמור כתצוגה</sw-button>
       <sw-button variant="ghost" size="sm" @click=${() => (this.picked = [])}>נקה</sw-button>
       <sw-button variant="ghost" size="sm" icon="close" @click=${() => this.setMulti(false)}>סיום</sw-button>
-      ${this.savedView ? html`<span class="saved" data-view-saved>התצוגה „${this.savedView.name}” נשמרה (${this.savedView.cameras.length} מצלמות) · <a href="#/live/views" data-view-saved-open>תצוגות שמורות</a> · <a href=${wallHref(this.savedView)}>פתח בקיר</a></span>` : nothing}
+      ${this.savedView ? html`<span class="saved" data-view-saved role="status">התצוגה „${this.savedView.name}” נשמרה (${this.savedView.cameras.length} מצלמות) · <a href="#/live/views" data-view-saved-open>תצוגות שמורות</a> · <a href=${wallHref(this.savedView)}>פתח בקיר</a></span>` : nothing}
     </div>`;
   }
 
@@ -2733,7 +2733,7 @@ export class ExploreFloorMap extends LitElement {
       <div class="ecard" data-entity-card>
         <div class="estate ${tone}"><sw-badge kind=${tone} label=${stateLabel(e)}></sw-badge><span class="esub">${domainLabel(e.domain)}${e.area_name ? ` · ${e.area_name}` : ''} · ${floorName}</span>${deviceTicketsOn() ? html`<ticket-count-chip entity-id=${e.entity_id}></ticket-count-chip>` : nothing}</div>
         ${a.label && e.name && a.label !== e.name ? html`<div class="note">שם מקורי: ${e.name}</div>` : nothing}
-        ${this.notice ? html`<div class="note" data-notice>${this.notice}</div>` : nothing}
+        ${this.notice ? html`<div class="note" data-notice role="status">${this.notice}</div>` : nothing}
         ${renaming
           ? html`<div class="rename" data-rename-form><input .value=${renaming.value} placeholder=${e.name ?? a.resource_id} aria-label="שם במפה" @input=${(ev: Event) => (this.renaming = { id: a.id, value: (ev.target as HTMLInputElement).value })} @keydown=${(ev: KeyboardEvent) => { if (ev.key === 'Enter') void this.saveRename(a); if (ev.key === 'Escape') this.renaming = null; }} />
               <sw-button size="sm" variant="primary" icon="check" data-rename-save ?disabled=${renaming.busy} @click=${() => this.saveRename(a)}>שמור</sw-button>
@@ -3136,7 +3136,7 @@ export class ExploreFloorMap extends LitElement {
         </button>`;
       })}
       ${act && ids.some((id) => states[id].entity_id === act.entityId)
-        ? html`<span class="cstatus" data-circuit-status>${act.error ? html`<span class="err" data-circuit-error>${act.error}</span>` : act.record ? ACTION_STATUS_LABEL[act.record.status] + (act.record.error ? ` · ${ACTION_ERROR_LABEL[act.record.error] ?? act.record.error}` : '') : act.busy ? 'שולח…' : ''}</span>`
+        ? html`<span class="cstatus" data-circuit-status>${act.error ? html`<span class="err" data-circuit-error role="alert">${act.error}</span>` : act.record ? ACTION_STATUS_LABEL[act.record.status] + (act.record.error ? ` · ${ACTION_ERROR_LABEL[act.record.error] ?? act.record.error}` : '') : act.busy ? 'שולח…' : ''}</span>`
         : nothing}
     </div>`;
   }

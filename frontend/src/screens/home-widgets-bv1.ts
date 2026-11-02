@@ -53,8 +53,8 @@ export const BV1_STYLES = css`
   /* ---- the tiles (Bubble, style: tile): a hue surface, a big glyph / number, the facts under it ---- */
   :host([data-skin='bubble']) .wg.tile {
     justify-content: flex-start;
-    gap: 8px;
-    padding: 16px 18px;
+    gap: var(--sw-s-2);
+    padding: var(--sw-s-4) var(--sw-s-4h);
     background: var(--tile-bg, var(--sw-surface));
     color: var(--tile-fg, var(--sw-text));
   }
@@ -79,7 +79,7 @@ export const BV1_STYLES = css`
   :host([layout='row'][data-skin='bubble']) .wg.tile {
     flex-direction: row;
     align-items: center;
-    gap: 14px;
+    gap: var(--sw-s-3h);
   }
   .t-ic {
     inline-size: var(--tic, 48px);
@@ -92,6 +92,8 @@ export const BV1_STYLES = css`
     font-weight: 300;
     letter-spacing: -0.03em;
     line-height: 1;
+    /* HOMEEDIT-POLISH-2331: the minute changes under the eye - fixed-width figures so the time does not shuffle sideways */
+    font-variant-numeric: tabular-nums;
     direction: ltr;
     unicode-bidi: isolate;
     display: inline-block;
@@ -110,7 +112,7 @@ export const BV1_STYLES = css`
   .t-main {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: var(--sw-s-3);
     min-inline-size: 0;
   }
   .t-main > div {
@@ -122,18 +124,19 @@ export const BV1_STYLES = css`
   .t-facts {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px 12px;
+    gap: var(--sw-s-1) var(--sw-s-3);
     font-size: var(--sw-fs-sm);
     opacity: 0.92;
   }
   .t-facts span {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--sw-s-1);
     white-space: nowrap;
   }
   .t-facts b {
     font-weight: var(--sw-fw-semibold);
+    font-variant-numeric: tabular-nums;
     direction: ltr;
     unicode-bidi: isolate;
   }
@@ -141,8 +144,8 @@ export const BV1_STYLES = css`
     align-self: flex-start;
     display: inline-flex;
     align-items: center;
-    min-block-size: 24px;
-    padding: 0 10px;
+    min-block-size: var(--sw-ctl-h-sm);
+    padding: 0 var(--sw-s-2);
     border-radius: var(--sw-r-pill);
     background: rgba(0, 0, 0, 0.14);
     font-size: var(--sw-fs-sm);
@@ -155,7 +158,7 @@ export const BV1_STYLES = css`
   .wg.tile[data-size='s'] {
     --tic: 32px;
     --tbig: 30px;
-    gap: 4px;
+    gap: var(--sw-s-1);
   }
   .wg.tile[data-size='l'] {
     --tic: 56px;
@@ -165,13 +168,13 @@ export const BV1_STYLES = css`
   .ag {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--sw-s-1h);
     min-inline-size: 0;
   }
   .ag-ev {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
-    column-gap: 10px;
+    column-gap: var(--sw-s-2);
     align-items: start;
     min-inline-size: 0;
   }
@@ -212,6 +215,9 @@ export const BV1_STYLES = css`
     flex: none;
   }
   .ag-empty {
+    display: flex;
+    align-items: center;
+    min-block-size: var(--sw-ctl-h-lg);
     font-size: var(--sw-fs-sm);
     color: var(--sw-text-3);
   }
@@ -227,20 +233,20 @@ export const BV1_STYLES = css`
     color: var(--sw-accent-text);
   }
   :host([data-skin='bubble']) .wg-agenda .ag-ev {
-    padding: 6px 10px;
+    padding: var(--sw-s-1h) var(--sw-s-2);
     border-radius: var(--sw-r-md);
     background: var(--sw-layer);
   }
   :host([layout='row']) .wg-agenda .ag {
     flex-direction: row;
     flex-wrap: wrap;
-    gap: 6px 18px;
+    gap: var(--sw-s-1h) var(--sw-s-4h);
   }
   /* ---- the launcher grid: round buttons, icon above a short label ---- */
   .lg {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(var(--lgc, 76px), 1fr));
-    gap: 8px 6px;
+    gap: var(--sw-s-2) var(--sw-s-1h);
     min-inline-size: 0;
   }
   .wg-launcher[data-size='s'] .lg {
@@ -255,7 +261,7 @@ export const BV1_STYLES = css`
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
+    gap: var(--sw-s-1);
     min-inline-size: 0;
     padding: 2px 0;
     border: 0;
@@ -264,6 +270,10 @@ export const BV1_STYLES = css`
     font: inherit;
     font-size: var(--sw-fs-xs);
     cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
   }
   .lb .lr {
     inline-size: var(--lgb, 52px);
@@ -275,14 +285,18 @@ export const BV1_STYLES = css`
     place-items: center;
     background: var(--sw-surface-2);
     border: 1px solid var(--sw-border-strong);
-    color: var(--sw-accent);
+    color: var(--sw-accent-text);
     transition: transform var(--sw-t-fast) var(--sw-ease-thumb), background var(--sw-t-fast) var(--sw-ease);
   }
-  .lb:hover .lr {
-    background: var(--sw-surface-3);
+  /* HOMEEDIT-POLISH-2331: hover only under a pointer that hovers (a tap left the ring grey on a phone); the press is the one press
+     model of the system (owner 2026-10-30, answer 5A: scale(var(--sw-press-scale))), not a private 0.94 */
+  @media (hover: hover) and (pointer: fine) {
+    .lb:hover:not(:disabled) .lr {
+      background: var(--sw-surface-3);
+    }
   }
-  .lb:active .lr {
-    transform: scale(0.94);
+  .lb:active:not(:disabled) .lr {
+    transform: scale(var(--sw-press-scale));
   }
   .lb:disabled {
     opacity: 0.5;
@@ -296,7 +310,7 @@ export const BV1_STYLES = css`
     color: var(--sw-success-text);
   }
   .lb.danger .lr {
-    color: var(--sw-danger);
+    color: var(--sw-danger-text);
   }
   .lb:focus-visible {
     outline: none;

@@ -109,12 +109,14 @@ export const devicesLayoutCss = [
     :host([data-lay-editing]) {
       --lay-panel: 300px;
     }
-    @media (min-width: 768px) {
+    /* OWNER-R12-2341 (owner 01.11, 8B): the side panel only from 1200 px; a phone AND a tablet (768-1199) get the bottom sheet,
+       so the 12-column preview keeps the page's full width (the 300 px panel left it ~560 px at 1024) */
+    @media (min-width: 1200px) {
       :host([data-lay-editing]) sw-page {
         padding-inline-end: calc(var(--lay-panel) + 32px);
       }
     }
-    @media (max-width: 767px) {
+    @media (max-width: 1199px) {
       :host([data-lay-editing]) sw-page {
         padding-block-end: 52vh;
       }
@@ -193,10 +195,10 @@ export const devicesLayoutCss = [
       min-block-size: 30px;
     }
     .lay-seg button[aria-pressed='true'] {
-      background: var(--sw-surface);
+      background: var(--sw-seg-thumb, var(--sw-surface));
       color: var(--sw-accent-text, var(--sw-accent));
       font-weight: var(--sw-fw-semibold);
-      box-shadow: var(--sw-shadow-1);
+      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
     }
     .lay-seg button:disabled {
       cursor: default;
@@ -207,7 +209,7 @@ export const devicesLayoutCss = [
       color: var(--sw-text-2);
     }
     .lay-msg.err {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
     }
     .lay-live {
       position: absolute;
@@ -304,7 +306,7 @@ export const devicesLayoutCss = [
       }
     }
 
-    /* the side panel of the selected card (a bottom sheet on a phone) */
+    /* the side panel of the selected card (a bottom sheet on a phone and a tablet, below 1200 px - OWNER-R12-2341) */
     .lay-panel {
       position: fixed;
       z-index: 30;
@@ -332,7 +334,7 @@ export const devicesLayoutCss = [
         background: var(--dv-surface-solid, var(--sw-surface));
       }
     }
-    @media (max-width: 767px) {
+    @media (max-width: 1199px) {
       .lay-panel {
         inset-block-start: auto;
         inset-block-end: calc(8px + env(safe-area-inset-bottom, 0px));
@@ -382,10 +384,28 @@ export const devicesLayoutCss = [
       color: var(--sw-text);
       font: inherit;
     }
+    /* DEVICES-POLISH-2331: the two number fields share one baseline even when one label wraps to two lines */
     .lay-row2 {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
+      align-items: end;
+      gap: var(--sw-s-2);
+    }
+    /* DEVICES-POLISH-2331: the panel's groups (look / size and place / content / card actions), a hairline between them */
+    .lay-grp {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sw-s-3);
+    }
+    .lay-grp + .lay-grp {
+      padding-block-start: var(--sw-s-3);
+      border-block-start: 1px solid var(--sw-border);
+    }
+    /* a dialog's action row (the confirmations, the library, the camera picker) */
+    .lay-dlg-acts {
+      display: flex;
+      gap: var(--sw-s-2);
+      justify-content: flex-end;
     }
     .lay-swatches {
       display: flex;
@@ -413,6 +433,11 @@ export const devicesLayoutCss = [
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 6px;
+    }
+    .lay-nudge button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
     .lay-nudge button,
     .lay-panel .btn {
@@ -493,7 +518,7 @@ export const devicesLayoutCss = [
       font-variant-numeric: tabular-nums;
     }
     .lay-panel .lay-del {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       border-color: var(--sw-danger);
     }
     .lay-undo {
@@ -502,7 +527,7 @@ export const devicesLayoutCss = [
       border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-xs);
       background: var(--sw-surface);
-      color: var(--sw-accent);
+      color: var(--sw-accent-text);
       font: inherit;
       font-weight: var(--sw-fw-semibold);
       cursor: pointer;
@@ -758,6 +783,9 @@ export const devicesLayoutCss = [
       color: var(--sw-text-2);
     }
     .lay-crumb button {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sw-s-1);
       border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-sm);
       background: var(--sw-surface);
@@ -776,8 +804,12 @@ export const devicesLayoutCss = [
       flex-wrap: wrap;
       gap: 6px;
     }
+    .lay-crumb .sep {
+      color: var(--sw-text-3);
+    }
     .lay-tacts .btn,
-    .lay-panel > .btn {
+    .lay-panel > .btn,
+    .lay-grp > .btn {
       padding-inline: 12px;
     }
     .lay-panel .btn:disabled,

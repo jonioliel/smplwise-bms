@@ -54,15 +54,16 @@ export class InsightsDoors extends InsightList<DoorsAnswer> {
   private rows(a: DoorsAnswer) {
     const lines = doorLines(a, this.place).filter((l) => this.filter === 'all' || l.verdict === this.filter);
     if (!lines.length) return nothing;
-    return html`<div class="tw"><table><thead><tr><th>${ix('when')}</th><th>${ix('door')}</th><th class="n hide-m">${ix('duration')}</th><th>${ix('result')}</th></tr></thead>
+    return html`<div class="tw"><table><thead><tr><th>${ix('when')}</th><th>${ix('door')}</th><th class="n hide-m">${ix('duration')}</th><th>${ix('result')}</th><th class="ic" aria-hidden="true"></th></tr></thead>
       <tbody class="click">${lines.map((l) => {
         const open = this.open === l.id;
         return html`<tr class="hit" data-door-row=${l.verdict} tabindex="0" aria-expanded=${open} @click=${() => (this.open = open ? '' : l.id)}
             @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.open = open ? '' : l.id; } }}>
           <td class="date">${fmtWhen(l.at)}</td><td class="title">${l.door}${l.area ? html` <span class="muted">· ${l.area}</span>` : nothing}</td>
           <td class="n hide-m">${fmtMS(l.duration_s)}</td>
-          <td><span class="state ${l.verdict === 'unexplained' ? 's-bad' : 's-unk'}">${ix(l.verdict === 'unexplained' ? 'vUnexplained' : 'vUnverifiable')}</span></td></tr>
-          ${open ? html`<tr class="det"><td colspan="4">${this.timeline(l, a)}</td></tr>` : nothing}`;
+          <td><span class="state ${l.verdict === 'unexplained' ? 's-bad' : 's-unk'}">${ix(l.verdict === 'unexplained' ? 'vUnexplained' : 'vUnverifiable')}</span></td>
+          <td class="ic"><sw-icon class="chev" name="chevron" size="16"></sw-icon></td></tr>
+          ${open ? html`<tr class="det"><td colspan="5">${this.timeline(l, a)}</td></tr>` : nothing}`;
       })}</tbody></table></div>`;
   }
 
@@ -76,8 +77,8 @@ export class InsightsDoors extends InsightList<DoorsAnswer> {
 
   private content(a: DoorsAnswer) {
     if (!doorsConfigured(a)) {
-      return html`<div class="blank" data-state="empty"><sw-icon name="door"></sw-icon><b>${ix('noDoorsConfigured')}</b>
-        ${this.access.manage ? html`<a class="btn" href="#/system/infra/insights">${ix('toSettings')}</a>` : nothing}</div>`;
+      return html`<div class="card"><div class="blank" data-state="empty"><sw-icon name="door"></sw-icon><b>${ix('noDoorsConfigured')}</b>
+        ${this.access.manage ? html`<a class="btn pri" href="#/system/infra/insights">${ix('toSettings')}</a>` : nothing}</div></div>`;
     }
     const nodes = this.treeNodes();
     const c = doorCounts(a, this.place);
@@ -90,10 +91,10 @@ export class InsightsDoors extends InsightList<DoorsAnswer> {
       <div class="layout">${this.tree(nodes)}
         <div class="card"><div class="toolbar">${this.placeSelect(nodes)}${this.rangeBar()}</div>
           ${none
-            ? html`<div class="blank" data-state="empty"><sw-icon name="check" style="color:var(--sw-success-text)"></sw-icon><b>${ix('emptyDoorsTitle')}</b>
+            ? html`<div class="blank" data-state="empty"><sw-icon class="ok" name="check"></sw-icon><b>${ix('emptyDoorsTitle')}</b>
                 <span class="muted">${ix('emptyDoorsBody', { range: this.rangeText(), place: placeLabel(nodes, this.place) })}</span></div>`
             : shown}
-          ${a.doors.some((d) => d.items_more > 0) ? html`<div class="pad muted">${ix('moreItems', { n: a.doors.reduce((n, d) => n + d.items_more, 0) })}</div>` : nothing}</div></div>`;
+          ${a.doors.some((d) => d.items_more > 0) ? html`<div class="pad muted more">${ix('moreItems', { n: a.doors.reduce((n, d) => n + d.items_more, 0) })}</div>` : nothing}</div></div>`;
   }
 
   render() {

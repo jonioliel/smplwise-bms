@@ -93,7 +93,7 @@ test.describe('home assistant bridge evidence', () => {
 
   test('settings: bridge tab shows sync and pairing state', async ({ page }, testInfo) => {
     await open(page, '/system/diagnostics');
-    await page.locator('system-diagnostics sw-tabs').getByText('גשר Home Assistant').click();
+    await page.locator('system-diagnostics sw-tabs').getByText('גשר Arx').click();
     await page.waitForTimeout(1500);
     const sd = page.locator('system-diagnostics');
     await expect(sd.getByText('סנכרון מצבים (WebSocket)')).toBeVisible();

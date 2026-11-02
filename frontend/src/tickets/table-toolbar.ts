@@ -33,6 +33,9 @@ type Pop = 'columns' | 'views' | 'filters' | 'report' | null;
 export class TicketsTableToolbar extends LitElement {
   readonly bubbleSkin = new SkinController(this);
   @property({ attribute: false }) layout!: TableLayout;
+  /** SMALL-UI-BUGS-2343: the columns the table really shows (the default set less the ones its width cannot hold); the chooser lists
+   * and edits these, so ticking a hidden one shows it (an explicit choice is never auto-hidden). Null = the layout's own. */
+  @property({ attribute: false }) fitted: ColumnKey[] | null = null;
   @property({ attribute: false }) extra: ExtraFilters = { ...NO_TABLE_FILTERS };
   @property({ attribute: false }) meta: Meta | null = null;
   /** TKSTAFF2: the handler filter's people - whoever holds a loaded row (account holders and staff contacts alike; assignee-model.ts) */
@@ -47,6 +50,8 @@ export class TicketsTableToolbar extends LitElement {
   /** TKUI4: the "what is happening" column is shown (a client-only choice the host keeps) */
   @property({ type: Boolean }) sentence = true;
   @property() defaultView = '';
+  /** POLISH-LEFTOVERS-2341: the page's own "סינון" panel hosts the table filters (tickets/table-filter-panel.ts) - no second "סינון" here */
+  @property({ type: Boolean }) hostFilters = false;
   @state() private pop: Pop = null;
   @state() private views: SavedView[] | null = null;
   @state() private naming = false;
@@ -171,10 +176,12 @@ export class TicketsTableToolbar extends LitElement {
   // ---------------------------------------------------------------- render
 
   private columnsPop(): TemplateResult {
-    const list = chooserOrder(this.layout.columns);
-    const shown = this.layout.columns;
+    const shown = this.fitted ?? this.layout.columns;
+    const list = chooserOrder(shown);
+    const narrowed = shown.length < this.layout.columns.length;
     return html`<div class="pop lst" role="dialog" aria-label=${tbt('columns')} data-pop="columns">
       <div class="hd">${tbt('columns')}</div>
+      ${narrowed ? html`<p class="note" data-cols-fitted>${tbt('columnsFitted')}</p>` : nothing}
       <div class="plist"><div class="crow" data-col="sentence">
           <label class="opt"><input type="checkbox" .checked=${this.sentence} data-col-sentence
             @change=${(e: Event) => this.emit('sentence-change', { on: (e.target as HTMLInputElement).checked })} />${lt('ltSentence')}</label>
@@ -282,10 +289,10 @@ export class TicketsTableToolbar extends LitElement {
         <button type="button" class="btn sm" aria-haspopup="dialog" aria-expanded=${String(this.pop === 'views')} data-open="views" @click=${() => this.open('views')}>${tbIcon('bookmark')}${tbt('savedViews')}${tbIcon('chevron')}</button>
         ${this.pop === 'views' ? this.viewsPop() : nothing}
       </span>
-      <span class="anchor">
+      ${this.hostFilters ? nothing : html`<span class="anchor">
         <button type="button" class="btn sm" aria-haspopup="dialog" aria-expanded=${String(this.pop === 'filters')} data-open="filters" @click=${() => this.open('filters')}>${tbIcon('filter')}${n ? tbt('filtersCount', { n }) : tbt('filters')}</button>
         ${this.pop === 'filters' ? this.filtersPop() : nothing}
-      </span>
+      </span>`}
       <button type="button" class="btn sm" aria-pressed=${String(compact)} data-density=${this.layout.density} aria-label=${`${tbt('density')}: ${tbt(compact ? 'density_compact' : 'density_comfortable')}`}
         @click=${() => this.setLayout({ density: compact ? 'comfortable' : 'compact' })}>${tbIcon('density')}${tbt(compact ? 'density_compact' : 'density_comfortable')}</button>
       <span class="grow"></span>

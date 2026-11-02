@@ -87,21 +87,47 @@ export class SystemSecurityPrivacyMasks extends LitElement {
   @state() private switchAsk = false;
   @state() private switchBusy = false;
   @state() private switchErr = false;
+  /** The height (px) from the layout's top to the bottom of the window: the wide layout fits into it (0 = not measured yet). */
+  @state() private avail = 0;
   private drag: { kind: 'move' | 'corner' | 'draw'; key: string; px: number; py: number; rect: Rect | null; corner?: Corner } | null = null;
 
   static styles = css`
     :host {
       display: contents;
     }
+    /* CAMADMIN-POLISH-2331: the editor is one container. Narrow (a phone, a narrow pane): one column - the cameras as a strip, the toolbar
+       and the picture, the regions and the history, the review button in a footer that sticks to the bottom of the view. Wide (760 px of
+       content and a window at least 560 px tall): the cameras and the inspector (regions, history) share the start column and the review
+       button closes it; the picture column fits the window, so nothing - the primary action least of all - lies below the fold */
+    .pm {
+      container: pm / inline-size;
+    }
     .layout {
       display: grid;
-      grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
-      gap: var(--sw-s-4, 16px);
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-areas: 'cams' 'main' 'insp' 'foot';
+      gap: var(--sw-s-4);
       align-items: start;
     }
-    @media (max-width: 767px) {
+    .layout > .cams {
+      grid-area: cams;
+    }
+    .layout > .main {
+      grid-area: main;
+    }
+    .layout > .insp {
+      grid-area: insp;
+    }
+    .layout > .edit-foot {
+      grid-area: foot;
+    }
+    @container pm (min-width: 760px) {
       .layout {
-        grid-template-columns: minmax(0, 1fr);
+        grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+        grid-template-areas: 'cams main' 'insp main' 'foot main';
+        grid-template-rows: auto minmax(0, 1fr) auto;
+        column-gap: var(--sw-s-5);
+        row-gap: var(--sw-s-3);
       }
     }
     .banner {
@@ -121,16 +147,18 @@ export class SystemSecurityPrivacyMasks extends LitElement {
       padding: 0;
       list-style: none;
     }
-    @media (max-width: 767px) {
+    @container pm (max-width: 759.98px) {
       .cams {
         flex-direction: row;
         overflow-x: auto;
         padding-block-end: 4px;
         scroll-snap-type: x proximity;
+        scrollbar-width: thin;
       }
       .cams li {
         flex: 0 0 auto;
         max-inline-size: 85%;
+        scroll-snap-align: start;
       }
     }
     .cam {
@@ -246,7 +274,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
       font-size: var(--sw-fs-sm);
     }
     .swrow .err {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-sm);
     }
     @media (max-width: 767px) {
@@ -374,7 +402,6 @@ export class SystemSecurityPrivacyMasks extends LitElement {
     .ghost {
       position: absolute;
       border: 2px dashed var(--sw-accent);
-      background: rgba(59, 130, 246, 0.2);
       pointer-events: none;
     }
     .regions {
@@ -416,7 +443,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
       white-space: nowrap;
     }
     .err {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-sm);
       margin: 0;
     }
@@ -465,7 +492,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
       color: var(--sw-text-2);
     }
     .results .st.bad {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
     }
     .review {
       display: grid;
@@ -544,13 +571,13 @@ export class SystemSecurityPrivacyMasks extends LitElement {
     }
     .st-chip.ready {
       background: var(--sw-success-soft);
-      color: var(--sw-success);
+      color: var(--sw-success-text);
       border-color: transparent;
     }
     .st-chip.invalid,
     .st-chip.skipped {
       background: var(--sw-danger-soft);
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       border-color: transparent;
     }
     .foot {
@@ -577,12 +604,401 @@ export class SystemSecurityPrivacyMasks extends LitElement {
       color: var(--sw-text);
       font-weight: var(--sw-fw-medium);
     }
+
+    /* CAMADMIN-POLISH-2331 - the R5-LIVE-297 camera-settings language on this screen (wells instead of outlined boxes, a chosen row as a
+       filled accent field with a bar at its start edge, names bold in the heading ink, counts as bold numerals, hovers only under a fine
+       pointer, presses that give), and the fit of the wide layout */
+    .banner {
+      border-color: transparent;
+      border-radius: var(--sw-r-lg);
+      background: color-mix(in srgb, var(--sw-warning) 14%, var(--sw-surface));
+      color: var(--sw-heading);
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+      padding: 12px 16px;
+    }
+    .cams {
+      gap: 2px;
+      padding: 4px;
+      border-radius: var(--sw-r-lg);
+      background: var(--sw-surface-2);
+    }
+    .cam {
+      gap: 10px;
+      padding: 0 14px;
+      border: 0;
+      border-radius: var(--sw-r-md);
+      background: transparent;
+      color: var(--sw-heading);
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      transition: background-color var(--sw-t-fast) var(--sw-ease);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .cam:hover:not([disabled]):not([aria-current='true']) {
+        background: var(--sw-surface-3);
+      }
+    }
+    .cam:active:not([disabled]) {
+      background: var(--sw-pressed-wash);
+    }
+    .cam[aria-current='true'] {
+      background: color-mix(in srgb, var(--sw-accent) 22%, var(--sw-surface));
+      box-shadow: inset -4px 0 0 var(--sw-accent); /* the start edge in RTL (offsets are physical) */
+      font-weight: var(--sw-fw-bold);
+    }
+    :host-context([dir='ltr']) .cam[aria-current='true'] {
+      box-shadow: inset 4px 0 0 var(--sw-accent);
+    }
+    .cam[disabled] {
+      cursor: default;
+      color: var(--sw-text-2);
+    }
+    .cam[disabled][aria-current='true'] {
+      color: var(--sw-heading);
+    }
+    .cam bdi {
+      margin-inline-start: auto;
+      min-inline-size: 22px;
+      padding: 1px 7px;
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-surface);
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      text-align: center;
+    }
+    .cam .dot {
+      inline-size: 9px;
+      block-size: 9px;
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--sw-accent) 25%, transparent);
+    }
+    .bar {
+      gap: 8px;
+      padding: 6px;
+      border-radius: var(--sw-r-lg);
+      background: var(--sw-surface-2);
+    }
+    .bar .count {
+      padding-inline: 8px;
+      color: var(--sw-heading);
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      font-variant-numeric: tabular-nums;
+    }
+    .bar .sw-switch {
+      padding-inline: 8px 12px;
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+    }
+    .frame {
+      border-color: transparent;
+      border-radius: var(--sw-r-media);
+      box-shadow: var(--sw-shadow-2);
+      background: var(--sw-video-bg);
+    }
+    .frame .nopic {
+      color: var(--sw-on-video-2);
+    }
+    .ghost {
+      background: color-mix(in srgb, var(--sw-accent) 20%, transparent);
+      border-radius: var(--sw-r-2xs);
+    }
+    .insp {
+      display: grid;
+      align-content: start;
+      gap: var(--sw-s-4);
+      min-inline-size: 0;
+    }
+    .regions:empty {
+      display: none;
+    }
+    .regions {
+      gap: 2px;
+      padding: 4px;
+      border-radius: var(--sw-r-lg);
+      background: var(--sw-surface-2);
+    }
+    .regions li {
+      gap: 4px;
+    }
+    .regions .pick {
+      border: 0;
+      border-radius: var(--sw-r-md);
+      background: transparent;
+      padding: 0 14px;
+      color: var(--sw-heading);
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+      -webkit-tap-highlight-color: transparent;
+      transition: background-color var(--sw-t-fast) var(--sw-ease);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .regions .pick:hover:not([aria-pressed='true']) {
+        background: var(--sw-surface-3);
+      }
+    }
+    .regions .pick:active {
+      background: var(--sw-pressed-wash);
+    }
+    .regions .pick[aria-pressed='true'] {
+      background: color-mix(in srgb, var(--sw-accent) 22%, var(--sw-surface));
+      box-shadow: inset -4px 0 0 var(--sw-accent);
+      font-weight: var(--sw-fw-bold);
+    }
+    :host-context([dir='ltr']) .regions .pick[aria-pressed='true'] {
+      box-shadow: inset 4px 0 0 var(--sw-accent);
+    }
+    h3 {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+      margin-block-end: 6px;
+    }
+    .history ul {
+      margin: 0;
+      gap: 2px;
+      padding: 4px;
+      border-radius: var(--sw-r-lg);
+      background: var(--sw-surface-2);
+    }
+    .history li,
+    .results li {
+      border: 0;
+      border-radius: var(--sw-r-md);
+      padding-block: 4px;
+      padding-inline: 14px 6px;
+      background: transparent;
+      color: var(--sw-heading);
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .history li .when {
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
+    }
+    .history li sw-button,
+    .results li sw-button {
+      margin-inline-start: auto;
+    }
+    .history li[data-status='failed'],
+    .history li[data-status='diverged'] {
+      background: color-mix(in srgb, var(--sw-danger) 10%, var(--sw-surface-2));
+    }
+    .history .muted {
+      padding: 12px 14px;
+      border-radius: var(--sw-r-lg);
+      background: var(--sw-surface-2);
+    }
+    .results {
+      margin: 0;
+      gap: 2px;
+      padding: 4px;
+      border-radius: var(--sw-r-lg);
+      background: var(--sw-surface-2);
+    }
+    .results .name {
+      font-weight: var(--sw-fw-bold);
+    }
+    .results .st {
+      font-weight: var(--sw-fw-medium);
+    }
+    .results .st.bad {
+      color: var(--sw-danger-text);
+    }
+    .err {
+      color: var(--sw-danger-text);
+      font-size: var(--sw-fs-md);
+    }
+    p.err[role='alert'] {
+      padding: 8px 12px;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-danger-soft);
+    }
+    .review h3 {
+      font-size: var(--sw-fs-lg);
+    }
+    .rv-card {
+      border-color: transparent;
+      border-radius: var(--sw-r-lg);
+      box-shadow: var(--sw-shadow-2);
+      padding: 14px;
+      gap: 10px;
+    }
+    .rv-card .name {
+      font-size: var(--sw-fs-lg);
+      font-weight: 800;
+      color: var(--sw-heading);
+      letter-spacing: -0.01em;
+    }
+    .rv-card[data-status='invalid'],
+    .rv-card[data-status='skipped'] {
+      background: color-mix(in srgb, var(--sw-danger) 8%, var(--sw-surface));
+    }
+    .pair figcaption {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-text-2);
+    }
+    .thumb {
+      border-color: transparent;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-video-bg);
+    }
+    .st-chip {
+      display: inline-flex;
+      align-items: center;
+      min-block-size: 24px;
+      padding: 0 10px;
+      border: 0;
+      background: var(--sw-surface-3);
+      color: var(--sw-heading);
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-bold);
+    }
+    .st-chip.ready {
+      color: var(--sw-success-text);
+    }
+    .st-chip.invalid,
+    .st-chip.skipped {
+      color: var(--sw-danger-text);
+    }
+    .foot {
+      gap: 8px 12px;
+    }
+    /* the review button's footer: on a phone it sticks to the bottom of the view (on the page surface, a soft lift) so the action is
+       always in reach; in the wide layout it closes the start column */
+    .edit-foot {
+      display: grid;
+      gap: 8px;
+      position: sticky;
+      inset-block-end: 0;
+      z-index: 2;
+      padding-block: var(--sw-s-2);
+      background: var(--sw-bg);
+    }
+    .edit-foot sw-button {
+      justify-self: stretch;
+    }
+    sw-dialog p {
+      font-size: var(--sw-fs-md);
+      color: var(--sw-text);
+    }
+    sw-dialog .count {
+      padding: 12px 16px;
+      border-radius: var(--sw-r-lg);
+      background: color-mix(in srgb, var(--sw-accent) 14%, var(--sw-surface));
+      box-shadow: inset -4px 0 0 var(--sw-accent);
+      color: var(--sw-heading);
+      font-size: var(--sw-fs-xl);
+      font-weight: 800;
+      letter-spacing: -0.01em;
+    }
+    :host-context([dir='ltr']) sw-dialog .count {
+      box-shadow: inset 4px 0 0 var(--sw-accent);
+    }
+    sw-dialog ul li {
+      padding: 7px 12px;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface-2);
+      color: var(--sw-heading);
+      font-weight: var(--sw-fw-semibold);
+    }
+    @container pm (min-width: 760px) {
+      @media (min-height: 560px) {
+        .layout {
+          block-size: max(420px, var(--pm-avail, 640px));
+          align-items: stretch;
+        }
+        .layout > .cams {
+          max-block-size: calc(var(--pm-avail, 640px) * 0.4);
+          overflow-y: auto;
+          overscroll-behavior: contain;
+        }
+        .layout > .insp {
+          min-block-size: 0;
+          overflow-y: auto;
+          overscroll-behavior: contain;
+          scrollbar-width: thin;
+        }
+        .layout > .edit-foot {
+          position: static;
+          margin: 0;
+          padding: 0;
+          background: none;
+        }
+        .main {
+          min-block-size: 0;
+          grid-template-rows: auto minmax(0, 1fr) auto;
+          align-content: stretch;
+        }
+        .main[data-pm-step='review'],
+        .main[data-pm-step='done'] {
+          display: block;
+          overflow-y: auto;
+          overscroll-behavior: contain;
+          scrollbar-width: thin;
+        }
+        .stage {
+          container-type: size;
+          min-block-size: 200px;
+        }
+        .stage .frame {
+          inline-size: min(100cqw, 100cqh * var(--pm-w) / var(--pm-h));
+          max-inline-size: none;
+        }
+        .review .foot {
+          position: sticky;
+          inset-block-end: 0;
+          padding-block: var(--sw-s-2);
+          background: var(--sw-bg);
+        }
+      }
+    }
   `;
 
   connectedCallback() {
     super.connectedCallback();
+    window.addEventListener('resize', this.onResize);
     void this.loadCameras();
     void this.loadSwitch();
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    window.removeEventListener('resize', this.onResize);
+  }
+
+  // ------------------------------------------------------------------------------------------------ fit to the viewport
+
+  private onResize = () => this.measure();
+
+  protected updated() {
+    this.measure();
+  }
+
+  /** CAMADMIN-POLISH-2331 (owner rule: no page scroll on a control screen): the height the editor may take - from the layout's top (in the
+   * page, not the scrolled view) to the bottom of the window. The wide layout (CSS) uses it to fit the picture and the inspector; a phone
+   * keeps the page flow. Measured after every render and on resize; a change under 2 px is ignored (no render loop). */
+  private measure() {
+    const el = this.shadowRoot?.querySelector<HTMLElement>('[data-pm-layout]');
+    if (!el) return;
+    let scroller: Element | null = null;
+    for (let n: Node | null = el.parentNode; n; n = n instanceof ShadowRoot ? n.host : n.parentNode) {
+      if (n instanceof Element) {
+        const o = getComputedStyle(n).overflowY;
+        if ((o === 'auto' || o === 'scroll') && n.scrollHeight > n.clientHeight) {
+          scroller = n;
+          break;
+        }
+      }
+    }
+    const top = el.getBoundingClientRect().top + (scroller ? scroller.scrollTop : window.scrollY);
+    const avail = Math.round(window.innerHeight - top - 24);
+    if (Math.abs(avail - this.avail) > 2) this.avail = avail;
   }
 
   /** The switch row is for `system.configure` (installation scope); anyone else never sees it and the page follows the server's own `write_enabled`. */
@@ -1010,16 +1426,18 @@ export class SystemSecurityPrivacyMasks extends LitElement {
     </ul>`;
   }
 
-  private renderEditor() {
+  /** CAMADMIN-POLISH-2331: the edit step in three parts - the toolbar and the picture (the main column), the region list and the change
+   * history (the inspector, beside the cameras on a wide screen), and the review button (a footer that is always in view). */
+  private renderEditor(): { main: unknown; insp: unknown; foot: unknown } {
     const l = this.cur;
     const entry = this.loaded.get(this.selected);
-    if (entry === 'error') return html`<sw-state-panel state="error" heading=${pm('err_mask')} actionLabel=${pm('retry')} data-pm-mask-error @action=${() => void this.loadMask(this.selected, true)}></sw-state-panel>`;
-    if (!l) return html`<sw-state-panel state="loading" heading=${pm('loading')} data-pm-mask-loading></sw-state-panel>`;
+    if (entry === 'error') return { main: html`<sw-state-panel state="error" heading=${pm('err_mask')} actionLabel=${pm('retry')} data-pm-mask-error @action=${() => void this.loadMask(this.selected, true)}></sw-state-panel>`, insp: nothing, foot: nothing };
+    if (!l) return { main: html`<sw-state-panel state="loading" heading=${pm('loading')} data-pm-mask-loading></sw-state-panel>`, insp: nothing, foot: nothing };
     const d = this.draftFor(this.selected) as Draft;
     const lock = this.lock;
     const inv = this.invalidFor(this.selected);
     const sel = d.regions.find((r) => r.key === this.regionKey) ?? null;
-    return html`
+    const main = html`
       <div class="bar">
         <button type="button" class="sw-switch" role="switch" aria-checked=${d.enabled ? 'true' : 'false'} data-pm-enabled ?disabled=${!!lock} @click=${this.toggleMask}><span class="track" aria-hidden="true"></span>${pm('mask_on')}</button>
         <sw-button size="lg" data-pm-add ?disabled=${!!lock || d.regions.length >= l.view.max_regions} @click=${this.addRegion}>${pm('add_region')}</sw-button>
@@ -1027,6 +1445,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
         <sw-button size="lg" variant="ghost" data-pm-discard ?disabled=${!this.drafts.has(this.selected)} @click=${this.discard}>${pm('discard')}</sw-button>
         <span class="count" data-pm-count>${pm('regions_count', { n: d.regions.length, max: l.view.max_regions })}</span>
       </div>
+      <div class="stage" style=${`--pm-w:${l.frame.width};--pm-h:${l.frame.height}`}>
       <div class="frame ${lock ? 'ro' : ''}" data-pm-frame style=${`aspect-ratio:${l.frame.width} / ${l.frame.height}`}
         @pointerdown=${(e: PointerEvent) => this.onFrameDown(e)} @pointermove=${(e: PointerEvent) => this.onPointerMove(e)} @pointerup=${(e: PointerEvent) => this.onPointerUp(e)} @pointercancel=${() => ((this.drag = null), (this.ghost = null))}>
         ${this.renderPicture(this.selected, l.shot)}
@@ -1036,21 +1455,27 @@ export class SystemSecurityPrivacyMasks extends LitElement {
         ${repeat(d.regions, (r) => r.key, (r, i) => this.renderRegion(r.key, i, r.rect, r.points, l.frame, !!lock))}
         ${this.ghost ? html`<div class="ghost" style=${this.styleOf(percentBox(this.ghost, l.frame))}></div>` : nothing}
       </div>
+      </div>
       <span id="pm-keys" class="vh">${pm('region_keys')}</span>
-      ${inv || this.invalidCameras.length ? html`<p class="err" data-pm-invalid role="alert">${this.invalidCameras.map((id) => `${this.nameOf(id)}: ${this.invalidText(this.invalidFor(id), (this.loaded.get(id) as Loaded).view.max_regions)}`).join(' · ')}</p>` : nothing}
-      <ul class="regions" data-pm-regions>
-        ${d.regions.map(
-          (r, i) => html`<li>
-            <button type="button" class="pick" data-pm-pick=${r.key} aria-pressed=${r.key === this.regionKey ? 'true' : 'false'} @click=${() => (this.regionKey = r.key)}>${this.regionLabel(i, r.rect)}</button>
-            <sw-button size="lg" variant="ghost" iconOnly icon="close" label=${`${pm('delete_region')}: ${this.regionLabel(i, r.rect)}`} data-pm-remove=${r.key} ?disabled=${!!lock} @click=${() => this.deleteRegion(r.key)}></sw-button>
-          </li>`,
-        )}
-      </ul>
+      ${inv || this.invalidCameras.length ? html`<p class="err" data-pm-invalid role="alert">${this.invalidCameras.map((id) => `${this.nameOf(id)}: ${this.invalidText(this.invalidFor(id), (this.loaded.get(id) as Loaded).view.max_regions)}`).join(' · ')}</p>` : nothing}`;
+    const insp = html`<div class="insp" data-pm-inspector>
+      ${d.regions.length
+        ? html`<ul class="regions" data-pm-regions aria-label=${pm('regions_count', { n: d.regions.length, max: l.view.max_regions })}>
+            ${d.regions.map(
+              (r, i) => html`<li>
+                <button type="button" class="pick" data-pm-pick=${r.key} aria-pressed=${r.key === this.regionKey ? 'true' : 'false'} @click=${() => (this.regionKey = r.key)}>${this.regionLabel(i, r.rect)}</button>
+                <sw-button size="lg" variant="ghost" iconOnly icon="close" label=${`${pm('delete_region')}: ${this.regionLabel(i, r.rect)}`} data-pm-remove=${r.key} ?disabled=${!!lock} @click=${() => this.deleteRegion(r.key)}></sw-button>
+              </li>`,
+            )}
+          </ul>`
+        : html`<ul class="regions" data-pm-regions></ul>`}
       ${this.renderHistory()}
+    </div>`;
+    const foot = html`<div class="foot edit-foot">
       ${this.line ? html`<p class="err" data-pm-line role="alert">${this.line}</p>` : nothing}
-      <div class="foot">
-        <sw-button size="lg" variant="primary" data-pm-review ?disabled=${!this.canReview} @click=${() => void this.review()}>${this.previewing ? pm('reviewing') : pm('review', { n: this.drafts.size })}</sw-button>
-      </div>`;
+      <sw-button size="lg" variant="primary" data-pm-review ?disabled=${!this.canReview} @click=${() => void this.review()}>${this.previewing ? pm('reviewing') : pm('review', { n: this.drafts.size })}</sw-button>
+    </div>`;
+    return { main, insp, foot };
   }
 
   private styleOf(b: { left: string; top: string; width: string; height: string }) {
@@ -1193,10 +1618,14 @@ export class SystemSecurityPrivacyMasks extends LitElement {
     else if (!this.cameras?.length) content = html`<sw-state-panel icon="camera" state="empty" heading=${pm('empty_cameras')} quiet data-pm-empty></sw-state-panel>`;
     else {
       const lock = this.step === 'edit' ? this.lock : '';
+      const ed = this.step === 'edit' ? this.renderEditor() : null;
       content = html`${this.renderSwitch()}${lock ? html`<p class="banner" data-pm-lock=${lock} role="status">${pm(lock)}</p>` : nothing}
-        <div class="layout">
-          ${this.renderCameras()}
-          <div class="main" data-pm-step=${this.step}>${this.step === 'edit' ? this.renderEditor() : this.step === 'review' ? this.renderReview() : this.renderDone()}</div>
+        <div class="pm">
+          <div class="layout" data-pm-layout style=${this.avail ? `--pm-avail:${this.avail}px` : ''}>
+            ${this.renderCameras()}
+            <div class="main" data-pm-step=${this.step}>${ed ? ed.main : this.step === 'review' ? this.renderReview() : this.renderDone()}</div>
+            ${ed ? html`${ed.insp}${ed.foot}` : nothing}
+          </div>
         </div>`;
     }
     return html`<sw-page crumbs=${pm('crumbs')} heading=${pm('heading')}><div data-pm-screen data-state=${this.loading && !this.cameras ? 'loading' : this.failure ? 'error' : 'ready'} style="display:contents">${content}</div></sw-page>${this.renderConfirm()}`;

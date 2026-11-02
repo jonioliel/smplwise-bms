@@ -26,17 +26,23 @@ Four textual conflicts, resolved by hand:
 | `smplwise_vms/backend/smplwise/main.py` | both router imports (`home_mapping` from main, `wiskey_relay_map` from the chain) |
 | `smplwise_vms/backend/smplwise/services/backup.py` | both `SETTINGS_KEEP` additions (WisKey installation keys + main's restore-scope keys) |
 
-Migrations renumbered after main's last migration (`0189_home_mapping`), contiguous 0001-0192, content unchanged (a header line
+Migrations renumbered after main's last migration (`0189_home_mapping`), contiguous 0001-0192 at that merge, content unchanged (a header line
 records the renumbering):
 
-| On the chain | Now |
-|---|---|
-| `0186_wiskey_installed_features.sql` | `0190_wiskey_installed_features.sql` |
-| `0187_wiskey_relay_map_stations.sql` | `0191_wiskey_relay_map_stations.sql` |
-| `0188_wiskey_relay_map_exports.sql` | `0192_wiskey_relay_map_exports.sql` |
+| On the chain | At the main merge | Now (after the 2.35.0 train merge) |
+|---|---|---|
+| `0186_wiskey_installed_features.sql` | `0190_wiskey_installed_features.sql` | `0192_wiskey_installed_features.sql` |
+| `0187_wiskey_relay_map_stations.sql` | `0191_wiskey_relay_map_stations.sql` | `0193_wiskey_relay_map_stations.sql` |
+| `0188_wiskey_relay_map_exports.sql` | `0192_wiskey_relay_map_exports.sql` | `0194_wiskey_relay_map_exports.sql` |
+
+Second renumbering (02.11): `origin/release/2350-train` was merged in (one textual conflict, `smplwise_vms/CHANGELOG.md`: the
+WisKey DRAFT section kept above the train's sections; versions and the API inventory from the train, plus the WisKey route rows).
+The train took 0190 / 0191 (`0190_calendar_attendees.sql`, `0191_calendar_grid_edit.sql`), so the three WisKey files follow it at
+0192 / 0193 / 0194, contiguous 0001-0194, content unchanged (one more header line each). `wiskey.auto_install` stays OFF (decision B,
+re-confirmed 02.11); the merge does not touch it.
 
 References updated: `wiskey_installed_features.MIGRATION`, the docstrings of `wiskey_relay_map.py` / `wiskey_relay_map_export.py`,
-`tests/test_wiskey_adopt_2272_review.py::test_l3_the_tables_come_from_migration_0190_and_the_consumers_run_no_ddl` and the docstring
+`tests/test_wiskey_adopt_2272_review.py::test_l3_the_tables_come_from_migration_0192_and_the_consumers_run_no_ddl` and the docstring
 of `tests/test_wiskey_relay_map_writer_2310.py`. None of the three was ever released, so no installed database recorded the old
 numbers. The earlier change docs (WISKEY-RC4-2310, WISKEY-RELAYMAP-2310, WISKEY-RELAYEXPORT-2320) keep their historical numbers.
 
@@ -56,7 +62,7 @@ numbers. The earlier change docs (WISKEY-RC4-2310, WISKEY-RELAYMAP-2310, WISKEY-
 Closed fixes kept and re-run (not reopened): the deadline (`tests/test_wiskey_rc4_deadline_2310.py`), the door relay is the physical
 relay (`e584d1533`, `tests/test_wiskey_rc5_relay_binding_2310.py`), the generation journal (CAS, I/O outside the lock -
 `tests/test_wiskey_r2_align_2272_generation.py`, `tests/test_alignment_controller.py`, `tests/test_alignment_lock_order.py`),
-non-CAS -> UNKNOWN without replay, tombstones and a row revision that only rises (migration 0192,
+non-CAS -> UNKNOWN without replay, tombstones and a row revision that only rises (migration 0194,
 `tests/test_wiskey_relay_map_export_2320.py`, `tests/test_wiskey_relay_map_writer_2310.py`).
 
 Not built here (design only, awaiting WisKey's answer): `maintenance_v1` (section 3), `relay-export-incarnation.v1` (section 4),
@@ -118,15 +124,15 @@ run2 per file (passed / skipped / failed):
 | test_wiskey_rc5_relay_binding_2310 (closed: physical relay) | 9 | 0 | 0 |
 | test_wiskey_r2_align_2272_generation (closed: generation journal, non-CAS -> UNKNOWN) | 6 | 0 | 0 |
 | test_wiskey_r2_align_2272_contracts | 9 | 1 | 0 |
-| test_wiskey_relay_map_export_2320 (closed: tombstones, row revision, migration 0192) | 32 | 0 | 0 |
-| test_wiskey_relay_map_writer_2310 (migration 0191) | 20 | 0 | 0 |
+| test_wiskey_relay_map_export_2320 (closed: tombstones, row revision, migration 0194) | 32 | 0 | 0 |
+| test_wiskey_relay_map_writer_2310 (migration 0193) | 20 | 0 | 0 |
 | test_alignment_controller | 6 | 1 | 0 |
 | test_alignment_lock_order | 1 | 0 | 0 |
 | test_alignment_staging | 4 | 2 | 0 |
 | test_bridge_install | 5 | 0 | 0 |
 | test_wiskey_adopt_2272_installer | 6 | 3 | 0 |
 | test_wiskey_adopt_2272_install | 39 | 2 | 0 |
-| test_wiskey_adopt_2272_review (migration 0190) | 38 | 3 | 0 |
+| test_wiskey_adopt_2272_review (migration 0192) | 38 | 3 | 0 |
 | test_wiskey_adopt_2272_contrib | 39 | 0 | 0 |
 | test_wiskey_adopt_2272_features | 38 | 0 | 0 |
 | test_wiskey_native_bundle_2272 | 7 | 0 | 0 |
@@ -154,7 +160,7 @@ Skipped on Windows in run2 - must run on the runner before this branch boards a 
   `test_wiskey_adopt_2272_review::test_h3_the_installer_stores_the_staged_digest_and_refuses_a_newer_tree`,
   `::test_m8_installer_step_on_a_database_error[request_component_restart]`.
 - missing dependency on the workstation: `test_wiskey_r2_align_2272_contracts` (jsonschema).
-- not run at all: the full backend suite, `scripts/release_check.py` (migration contiguity checked by hand: 0001-0192, 192 files),
+- not run at all: the full backend suite, `scripts/release_check.py` (migration contiguity checked by test_migrations / test_calendar_attendees_2343: 0001-0194, 194 files),
   `scripts/api_inventory.py`, frontend / tsc / Playwright, the runner entry check, any live or B03 measurement
   (cross-container flock, HA backup/restore of `wiskey_lineage/*`).
 

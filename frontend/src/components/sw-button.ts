@@ -147,22 +147,29 @@ export class SwButton extends LitElement {
       border-radius: 50%;
     }
     /* touch targets (mobile audit 2026-09-30): a finger on a phone needs 40-44 px, not the desktop's 26-36 px. SHAREDUI-295: never
-       below the host's own control height, so a screen that asks for 44 px targets (--sw-ctl-h-*) keeps them on a phone too */
+       below the host's own control height, so a screen that asks for 44 px targets (--sw-ctl-h-*) keeps them on a phone too.
+       PHONE-BUTTONS-44-2342 (owner 02.11, answer 2A): the small and the default button are DRAWN 44 px on a phone (they were 36 / 40
+       px with an invisible hit slop), with the inline padding grown in proportion (md 12 -> 13 px, sm 9 -> 11 px). The same rules sit
+       in the phone layer (design/mobile-polish-css.ts), adopted after the skin sheet, so a skin's own resting height (crystal 34 / 30,
+       bubble's touch dial) does not win on a phone. Desktop and tablet (fine pointer or wider than 767 px) are unchanged. */
     @media (max-width: 767px) and (pointer: coarse) {
       button {
-        min-block-size: max(40px, var(--sw-ctl-h-md));
+        min-block-size: max(44px, var(--sw-ctl-h-md));
+        padding-inline: 13px;
       }
       :host([size='sm']) button {
-        min-block-size: max(36px, var(--sw-ctl-h-sm));
+        min-block-size: max(44px, var(--sw-ctl-h-sm));
+        padding-inline: 11px;
       }
       :host([size='lg']) button {
         min-block-size: max(44px, var(--sw-ctl-h-lg));
       }
       :host([icononly]) button {
-        inline-size: max(40px, var(--sw-ctl-h-md));
+        inline-size: max(44px, var(--sw-ctl-h-md));
+        padding-inline: 0;
       }
       :host([icononly][size='sm']) button {
-        inline-size: max(36px, var(--sw-ctl-h-sm));
+        inline-size: max(44px, var(--sw-ctl-h-sm));
       }
       :host([icononly][size='lg']) button {
         inline-size: max(44px, var(--sw-ctl-h-lg));

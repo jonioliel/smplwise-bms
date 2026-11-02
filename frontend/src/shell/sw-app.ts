@@ -24,113 +24,28 @@ import { parseDoorConfirmLink, type NotifySummary } from '../api/notifications';
 import { notifyStore } from '../components/notify-store';
 import { badgeLabel, badgeOf, parseNotificationLink } from '../components/notify-logic';
 import { inAndroidShell } from '../arx/android-app';
-import '../screens/explore-floor-map';
-import '../screens/explore-sites';
-import '../screens/explore-presence'; // WHOIN034-295: "מי במבנה"
-import '../screens/explore-floors';
-import '../screens/explore-plan-import';
-import '../screens/explore-plan-editor';
 import { DESKTOP_ONLY, STRUCTURE_DESKTOP_ONLY, phoneRestricted, routeGuardKind, onMobileOptions, setInstallationMobileOptions, type MobileKind } from './phone';
-import '../screens/explore-entities';
-import '../screens/wiskey-overview';
-import '../screens/wiskey-events';
-import '../screens/wiskey-people';
-import '../screens/wiskey-stations';
-import '../screens/wiskey-schedules';
-import '../screens/wiskey-embed';
-import '../screens/access-external'; // SHAREDID-293: "גישת חוץ" (#/wiskey/external, #/tickets/external)
-import '../screens/door-windows'; // CR-039 DOORWIN-295: "חלונות פתיחה" + the emergency controls (#/wiskey/door-windows)
 import '../screens/devices-building';
-import '../screens/devices-area';
-import '../screens/devices-schedules';
-import '../screens/system-schedules';
-import '../screens/devices-automations'; // CR-017: אוטומציות · סצנות · סקריפטים (the third tab of the home area)
-import '../screens/system-automations'; // CR-017: הגדרות › אוטומציות
-import '../screens/automation-editors'; // CR-017 S4: <automation-builder>, <script-editor>, <scene-editor> (S3's lists mount them by tag)
-import '../screens/multimedia-screens'; // CR-015: the screens page (the remote, <media-remote>, is S3's and registers itself where it is imported)
-import '../screens/multimedia-players'; // CR-016: "נגנים ורמקולים" (the player panel, <media-player-panel>, is S3's)
-import '../screens/multimedia-groups'; // CR-016: "קבוצות"
+import { loadPendingScreens, pendingScreens, warmHomeDrillDown } from './lazy-screens'; // PERF-HOME-DEVICES-2342: the route screens are lazy chunks (the home screen stays in the entry chunk)
+// CR-017 S4's editors (<automation-builder>, <script-editor>, <scene-editor>) come with the list that mounts them (devices-automations imports them: PERF-HOME-DEVICES-2342)
 import '../screens/system-cast'; // CR-028: <system-cast>, <cast-my-screens> (#/multimedia/cast)
-import '../screens/system-multimedia';
-import '../screens/infra-generator'; // CR-031: תשתיות › גנרטור (live, charts, alerts, history)
-import '../screens/infra-elevators'; // CR-INFRA-ELEVATORS: תשתיות › מעליות (live list)
-import '../screens/infra-temperature'; // CR-INFRA-TEMPERATURE 2.9.1: תשתיות › טמפרטורות
-import '../screens/infra-report'; // CR-INSIGHT215: סקירה ודוחות › דוחות בניין
-import '../screens/insights-doors'; // CR-INSIGHT215: drill-down
-import '../screens/insights-waste'; // CR-INSIGHT215: drill-down
 import { refreshInsightsVisibility } from '../insights/access'; // CR-INSIGHT215
-import '../screens/infra-electricity'; // CR-023: תשתיות › מוני חשמל (the shell; its pages register themselves)
-import '../screens/infra-water'; // CR-WATER78: תשתיות › מים (the shell; its pages register themselves)
-import '../screens/system-infra'; // CR-023: הגדרות › תשתיות
-import '../screens/tickets-list'; // CR-038: the tickets area (the list, the drawer, the create sheet)
-import '../screens/tickets-detail'; // CR-038 D18: a ticket on the full screen (#/tickets/<id>)
-import '../screens/tickets-board'; // CR-038 slice 6: the manager board (#/tickets/board)
-import '../screens/tickets-handlers'; // owner 2026-10-14: "מטפלים וספקים" (#/tickets/handlers)
-import '../screens/tickets-rfqs'; // TKRFQ2 (2.6.1): requests for quotation (#/tickets/rfqs)
-import '../screens/tickets-maintenance'; // CR-MAINT215 slice 2: the maintenance section (#/tickets/maintenance/<page>)
 import '../maintenance/close-prompt'; // MAINT215B: asks the closer whether to mark the plan done when a request a plan opened is closed
 import { refreshMaintenance } from '../maintenance/access'; // CR-MAINT215 slice 2: the section's switch for the navigation
 import { refreshCalendars, wireCalendars } from '../calendars/access'; // CALENDARS-UI-2310: the module's switch and placement for the navigation
-import '../calendars/cal-page'; // CALENDARS-UI-2310: יומנים (#/calendars/... and #/devices/calendars/...)
-import '../screens/system-calendars'; // CALENDARS-UI-2310: הגדרות › יומנים
-import '../screens/system-calendar-sync'; // CALENDARS-UI-2310: הגדרות › חיבורי יומן
 import { startRfqQuestions } from '../tickets/rfq-questions-store'; // RFQQUESTIONS: the nav badge of vendor questions
 import { rt } from '../tickets/rfq-text';
-import '../tickets/vendor-accounts'; // TK258: "חשבון ספקים" (#/tickets/accounts)
-import '../screens/system-tickets'; // CR-038: the tickets module's settings
-import '../screens/system-fleet-report'; // CR-FLEET215: הגדרות › דיווח בריאות (the daily health report to SmplWise)
-import '../screens/system-messaging-accounts'; // CR-038 S5a: הגדרות › ערוץ ההודעות (WhatsApp accounts per use)
-import '../screens/security-alarm';
-import '../screens/schedule-editor';
-import '../screens/live-overview';
-import '../screens/live-wall';
-import '../screens/live-camera';
-import '../screens/live-views';
-import '../screens/kiosk-wall';
-import '../screens/devices-synoptic'; // 2.29.0
 import '../xsection/sw-fire-bar'; // 2.29.0: the alarm bar (off unless the option fire_ui is on)
 import { setXsOptions, xsOptions } from '../xsection/xs-model';
-import '../screens/system-wall';
-import '../screens/system-notices'; // CR-NOTICE106: הגדרות › לוח הודעות
-import '../screens/system-transit'; // BUSTIMES-295: הגדרות › תחבורה ציבורית
-import '../screens/devices-notices'; // CR-NOTICE106: ראשי › לוח הודעות
-import '../screens/devices-announce'; // ANNOUNCE-295: ראשי › הכרזות
-import '../screens/system-access-control'; // CR-036 S10: הגדרות › בקרת כניסה
 import { classifyDevice, readDeviceEnv, wallModeFor } from '../wall/device-class';
-import '../screens/investigate-playback';
-import '../screens/investigate-sync';
-import '../screens/investigate-history-map';
-import '../screens/investigate-events';
-import '../screens/investigate-ha-events';
-import '../screens/investigate-event-detail';
-import '../screens/investigate-incidents'; // CR-LIVEEVENT100: אירוע חי
 import { incidentState, onIncidentState, startIncidents } from '../incidents/store';
 import { it as incText } from '../i18n/incidents';
-import '../screens/investigate-reviews';
-import '../screens/investigate-cases';
-import '../screens/investigate-exports';
-import '../screens/investigate-search';
-import '../screens/investigate-rules';
-import '../screens/system-access';
-import '../screens/system-audit';
-import '../screens/system-setup';
 import '../screens/system-nav'; // SET-polish: the settings' own navigation column and search
-import '../screens/system-wizard';
-import '../screens/system-readiness';
 import { setReadinessChip } from '../api/readiness';
 import '../components/sw-demo-banner';
-import '../screens/system-devices';
-import '../screens/system-diagnostics';
-import '../screens/system-security';
-import '../screens/system-storage';
-import '../screens/system-update';
 import '../pwa/notifications-settings';
-import '../screens/system-notifications'; // CR-018: הגדרות › התראות (the administrator's eight sections; everyone else keeps the device registration)
 import '../components/device-activity'; // CR-032: the device activity popup (long press on an electrical device)
 import '../components/notify-center'; // CR-018: the notification center, opened from the user menu's bell
-import '../screens/screens-index';
-import '../screens/styleguide-screen';
-import '../screens/bubble-demo'; // Bubble foundation (2026-10-02): #/styleguide/bubble
 import '../components/media-remote';
 import { navigate, onRouteChange, type RouteState, parseRoute } from '../router';
 import { KIND_ICON, KIND_LABEL, routeFor, search as apiSearch, type SearchResult } from '../api/search';
@@ -2313,7 +2228,11 @@ export class SwApp extends LitElement {
   protected updated() {
     // The first load is over: the session is known and, with a backend, the product settings (ui.tabs, the start screen, the
     // hidden areas) are applied. Nothing in the UI reads this; specs wait for it instead of sleeping.
-    this.toggleAttribute('data-shell-ready', this.session.mode !== 'loading' && (this.session.mode !== 'api' || this.startResolved));
+    // PERF-HOME-DEVICES-2342: a route screen rendered before its lazy chunk arrived starts the chunk here; the shell is not "ready"
+    // while one is in flight (the screen's element upgrades when it lands, and the re-render after it settles sets the flag)
+    loadPendingScreens(this.renderRoot, () => this.requestUpdate());
+    this.toggleAttribute('data-shell-ready', this.session.mode !== 'loading' && (this.session.mode !== 'api' || this.startResolved) && pendingScreens() === 0);
+    if (this.hasAttribute('data-shell-ready') && isHomeRoute(this.route)) warmHomeDrillDown();
     this.syncSearchOutside();
     this.applyNavSize();
     this.syncBrandStrip();

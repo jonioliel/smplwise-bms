@@ -1061,6 +1061,7 @@ export const he = {
     previewNote: 'מופיע גם בכניסה, בלוחות המודעות, בדוחות PDF ובדוא"ל. בטלפון: ראש מסך הבית והאפליקציה בלבד.',
     save: 'שמירה',
     saved: 'נשמר',
+    unsaved: 'שינויים שעוד לא נשמרו',
     stays: 'הלוגו של SmplWise נשאר בכל מקום',
     companyAlt: 'לוגו החברה',
     productAlt: 'SmplWise Arx',

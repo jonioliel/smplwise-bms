@@ -116,7 +116,7 @@ export class EmergencyContactsPanel extends LitElement {
             <div class="mut num">${c.phone ?? ''} ${c.email ?? ''}</div></div><span class="sp"></span>
           <span class="chip" data-look=${c.verified_ok ? 'ok' : 'warn'}>${c.last_verified_at ? `${em('cVerified')} ${fmtInstant(c.last_verified_at, false)}` : em('cNever')}</span>
           <button type="button" class="btn sm" data-emerg-contact-verify @click=${() => void this.act(() => emergencyApi.verifyContact(c.id))}>${em('cVerify')}</button>
-          <button type="button" class="btn sm" @click=${() => this.edit(c)}><sw-icon name="edit" size="14"></sw-icon></button>
+          <button type="button" class="btn sm" aria-label=${em('cEdit')} title=${em('cEdit')} @click=${() => this.edit(c)}><sw-icon name="edit" size="14"></sw-icon></button>
           <button type="button" class="btn sm dng" data-emerg-contact-delete @click=${() => { if (confirm(em('cDeleteConfirm'))) void this.act(() => emergencyApi.deleteContact(c.id)); }}><sw-icon name="trash" size="14"></sw-icon>${em('cDelete')}</button>
         </div>`) : html`<div class="nomatch">${em('cEmpty')}</div>`}
     </div></div>`;

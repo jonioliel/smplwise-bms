@@ -71,7 +71,7 @@ def run_once(db: Database, settings: Settings, tz_name: str, day: dt.date | None
     day = day or dt.datetime.now(zone(tz_name)).date()
     total = 0
     errors: list[str] = []
-    with db.connection() as conn:
+    with db.connection(mode="read") as conn:  # a read: the cameras list never takes the write gate
         cams = conn.execute("SELECT * FROM cameras WHERE enabled = 1 AND main_track IS NOT NULL ORDER BY channel").fetchall()
     for cam in cams:
         if not ready(camera_settings(settings, cam)):

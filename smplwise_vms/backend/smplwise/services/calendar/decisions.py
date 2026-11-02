@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 
 from ...errors import ApiError
 from ..tickets.hours import _local_instant
-from . import events, guests, model, occ
+from . import events, guests, model, notices, occ
 from .access import Ctx, Denied, get_visible
 from .calendars import new_id, user_label
 from .events import _422, _insert_event, _log, _touch
@@ -33,6 +33,11 @@ def displace(conn: sqlite3.Connection, settings: dict[str, Any], blocks: list[di
     for b in blocks:
         ev = conn.execute("SELECT * FROM cal_events WHERE id = ?", (b["event_id"],)).fetchone()
         if ev is None:
+            continue
+        if b.get("held"):  # CAL-GRID-EDIT-2343: the approved slot a change request kept is given up; the request itself stays pending
+            _touch(conn, ev["id"], actor, stamp, held_json=None)
+            _log(conn, ev["id"], "displace", actor, f"{note}:held"[:300], None, stamp)
+            touched[ev["id"]] = None
             continue
         holder, home = b["calendar_id"], ev["calendar_id"]
         base = ev["override_of"] or ev["id"]
@@ -108,14 +113,17 @@ def requests(ctx: Ctx, *, calendars: list[str] | None = None, state: str = "pend
                 """SELECT COUNT(DISTINCT o2.event_id) FROM cal_occurrences o1 JOIN cal_occurrences o2
                      ON o2.holder_calendar_id = o1.holder_calendar_id AND o2.state = 'pending' AND o2.occ_start < o1.occ_end AND o2.occ_end > o1.occ_start
                    WHERE o1.event_id = ? AND o1.holder_calendar_id = ?""", (e["id"], cal["id"])).fetchone()[0]
-            held = conn.execute(
+            held_n = conn.execute(
                 """SELECT COUNT(DISTINCT o2.event_id) FROM cal_occurrences o1 JOIN cal_occurrences o2
                      ON o2.holder_calendar_id = o1.holder_calendar_id AND o2.state = 'confirmed' AND o2.occ_start < o1.occ_end AND o2.occ_end > o1.occ_start
-                   WHERE o1.event_id = ? AND o1.holder_calendar_id = ? AND o2.event_id <> o1.event_id""", (e["id"], cal["id"])).fetchone()[0]
+                   WHERE o1.event_id = ? AND o1.holder_calendar_id = ? AND o2.event_id <> o1.event_id AND o2.event_id <> o1.event_id || '#held'""", (e["id"], cal["id"])).fetchone()[0]
+            held = occ.held_of(e)
             out.append({"event_id": e["id"], "room_calendar_id": e["room_id"], "calendar": {"id": cal["id"], "name": cal["name"], "color": cal["color"]}, "title": e["title"],
                         "kind": e["kind"], "start": e["starts_at"], "end": e["ends_at"], "recurring": bool(e["rrule"]), "organizer": user_label(conn, e["organizer_user_id"]),
                         "on_behalf_label": e["on_behalf_label"], "headcount": e["headcount"], "contested": bool(e["contested"]), "competing_count": comp,
-                        "conflicts_now": held, "requested_at": e["created_at"], "revision": e["revision"], "_behalf": e["on_behalf_kind"], "_seq": e["seq"]})
+                        "conflicts_now": held_n, "requested_at": e["created_at"], "revision": e["revision"], "_behalf": e["on_behalf_kind"], "_seq": e["seq"],
+                        # CAL-GRID-EDIT-2343: a change of an approved booking - the slot it keeps until the decision (reject puts it back there)
+                        "change_of": {"calendar_id": held["calendar_id"], "start": held["starts_at"], "end": held["ends_at"]} if held and not e["room_id"] else None})
     _rank_queue(out, order)
     return out
 
@@ -186,6 +194,13 @@ def decide(ctx: Ctx, settings: dict[str, Any], eid: str, body: dict[str, Any], n
     if cur != "pending":
         raise ApiError(409, "bad_state", "הבקשה כבר הוכרעה.", details={"state": cur})
     stamp = model.iso(now)
+    change = occ.held_of(ev) if holder["id"] == ev["calendar_id"] else None
+    if decision == "reject" and change:  # CAL-GRID-EDIT-2343: a rejected change - the booking stays on its approved slot
+        events._restore_held(conn, ev, change, p.user_id, stamp)
+        _log(conn, eid, "reject", p.user_id, note or "change", None, stamp)
+        notices.withdraw_for(conn, eid, now)
+        occ.rebuild(conn, eid, settings, now)
+        return {"event": _out(ctx, eid, holder), "state": "confirmed", "change_rejected": True}
     if decision == "reject":
         _set_half(conn, ev, holder["id"], "rejected", p.user_id, stamp, note)
         _log(conn, eid, "reject", p.user_id, note, None if holder["id"] == ev["calendar_id"] else holder["id"], stamp)
@@ -212,6 +227,8 @@ def decide(ctx: Ctx, settings: dict[str, Any], eid: str, body: dict[str, Any], n
         _touch(conn, eid, p.user_id, stamp, exdates_json=json.dumps(sorted(set(json.loads(ev["exdates_json"] or "[]")) | set(excepts))))
         ev = conn.execute("SELECT * FROM cal_events WHERE id = ?", (eid,)).fetchone()
     _set_half(conn, ev, holder["id"], "confirmed", p.user_id, stamp, note)
+    if change:  # an approved change releases the slot the booking kept
+        conn.execute("UPDATE cal_events SET held_json = NULL WHERE id = ?", (eid,))
     _log(conn, eid, "approve", p.user_id, note, None if holder["id"] == ev["calendar_id"] else holder["id"], stamp)
     if excepts:
         _log(conn, eid, "approve", p.user_id, f"except:{len(excepts)}", None, stamp)
@@ -368,7 +385,10 @@ def expire_and_finish(conn: sqlite3.Connection, settings: dict[str, Any], now: d
         if not due:
             continue
         ev = conn.execute("SELECT * FROM cal_events WHERE id = ?", (r["id"],)).fetchone()
-        if r["half"] == "home":
+        change = occ.held_of(ev) if r["half"] == "home" else None
+        if change:  # CAL-GRID-EDIT-2343: an undecided change expires back onto the approved slot it kept
+            events._restore_held(conn, ev, change, "system", stamp)
+        elif r["half"] == "home":
             _touch(conn, ev["id"], "system", stamp, state="expired")
         else:
             conn.execute("UPDATE cal_event_rooms SET state = 'expired', decided_at = ? WHERE event_id = ? AND room_calendar_id = ?", (stamp, ev["id"], r["cid"]))

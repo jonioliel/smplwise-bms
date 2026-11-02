@@ -1,0 +1,127 @@
+{
+ "access-users-390": {
+  "mainScroll": 1399,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-user-drawer-390": {
+  "mainScroll": 1399,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-user-wizard-390": {
+  "mainScroll": 1399,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-forbidden-390": {
+  "mainScroll": 0,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-users-empty-390": {
+  "mainScroll": 37,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-groups-390": {
+  "mainScroll": 455,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-group-drawer-390": {
+  "mainScroll": 455,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-roles-390": {
+  "mainScroll": 1276,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "ac-status-390": {
+  "mainScroll": 1639,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "ac-health-390": {
+  "mainScroll": 1639,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "ac-audit-390": {
+  "mainScroll": 680,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "ac-groups-390": {
+  "mainScroll": 1045,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "ac-policy-390": {
+  "mainScroll": 0,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "ac-messaging-390": {
+  "mainScroll": 2326,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "diag-parity-display-390": {
+  "mainScroll": 3496,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "external-390": {
+  "mainScroll": 3924,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "external-empty-390": {
+  "mainScroll": 1553,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "presence-places-390": {
+  "mainScroll": 87,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-role-dialog-390": {
+  "mainScroll": 1336,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-effective-idle-390": {
+  "mainScroll": 0,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-effective-390": {
+  "mainScroll": 388,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "access-audit-390": {
+  "mainScroll": 8687,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "local-users-390": {
+  "mainScroll": 849,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "local-user-detail-390": {
+  "mainScroll": 1317,
+  "docScroll": 0,
+  "sideways": 0
+ },
+ "local-user-add-390": {
+  "mainScroll": 1937,
+  "docScroll": 0,
+  "sideways": 0
+ }
+}

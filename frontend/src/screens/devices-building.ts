@@ -40,7 +40,7 @@ import { ALARM_HE, getDevicesTree, refreshDevicesFromHa, type DeviceArea, type D
 import { mapHrefForArea } from '../api/plan-links';
 import { loadTree as loadCatalogTree } from '../api/catalog';
 import type { Floor as PlanFloor } from '../api/types';
-import './explore-floor-map';
+// PERF-HOME-DEVICES-2342: the plan view's map (<explore-floor-map>, with the plan canvas) is a lazy chunk, fetched only when the plan view renders (renderPlanView)
 import type { DevicesBulkMenu } from './devices-bulk';
 import { bidi, ltrNum } from '../i18n/bidi';
 import type { BulkKind } from '../api/device-bulk';
@@ -60,8 +60,10 @@ import { AMBIENT_WIDGETS } from './home-ambient-bar';
 import { infoStyleFor, loadScreenDisplay, BULK_IDLE_DEFAULT, FLOOR_TITLE_LINES_DEFAULT, INFO_STYLE_DEFAULT, type BulkIdle, type FloorTitleLines, type InfoStyle } from '../api/screen-display';
 import {
   areaQuick, climateQuick, effectiveScreen, floorCardsMax, floorCardsSplit, HOME_SCREEN_DEFAULT, homeAlerts, isTabletLandscape, loadHomeScreen, rowQuickMax,
-  screenFormBody, showRoomTemp, summaryKindsShown, tileQuickMax, type HomeScreenForm, type HomeScreenOptions, type PersonalScreen, type QuickKind, type SummaryKind,
+  saveHomeScreen, screenFormBody, showRoomTemp, summaryKindsShown, tileQuickMax, tilesUnassignedShown, treeUnassignedShown,
+  type HomeScreenForm, type HomeScreenOptions, type PersonalScreen, type QuickKind, type SummaryKind, type TreeUnassigned,
 } from '../api/home-screen';
+import { looseHint, looseNotice, looseRow, TREE_UNASSIGNED_CSS, type LooseNotice } from './tree-unassigned';
 import { hs } from '../i18n/home-screen';
 import { HOME_SCREEN_CSS } from './home-screen-css';
 import './home-screen-options'; // (the phone's area sheet draws <devices-area>, defined by the shell's route table - no import here: it imports this module)
@@ -88,6 +90,7 @@ import { media } from '../api/media-screens';
 import { hueOf, SkinController } from '../design/skin';
 import { areaIndicators, effectiveRows, floorKinds, loadPersonalRow, ROW_MAX_PHONE, ROW_MAX_WIDE, splitRow, type AreaRowPersonal, type FloorItem, type Indicator } from '../api/area-row';
 import { dayTimeText, timeText } from '../api/day-format';
+import { modalKeydown } from '../components/a11y-keys';
 
 /** Owner notes 2026-09-30: the home route's edit mode is entered by the address (`#/devices/building?edit=1`, from the
  * user menu's "עריכת המסך הראשי"), not by a button on the screen. */
@@ -1302,6 +1305,10 @@ export class DevicesBuilding extends LitElement {
   private screenBase: HomeScreenForm | null = null;
   /** Phone: the floor tree in a bottom sheet. */
   @state() private treeSheet = false;
+  /** A11Y-POLISHED-2342: the phone tree sheet as last rendered, and whether its close came from the keyboard (focus goes back to
+   * the tree button then; after a tap it is left alone, as in the quick-control sheet). */
+  private treeSheetShown = false;
+  private treeSheetByKey = false;
   /** AREAPOPUP-297: the area quick-control pop-up - the pressed area, its shape (home.screen.desktop_area / phone_area) and where it grows from. */
   @state() private quick: { area: DeviceArea; floorName: string; mode: QuickMode; origin: Box | null } | null = null;
   /** The alert rows the viewer confirmed ("אישור"): hidden until the alarm clears and triggers again. */
@@ -1310,6 +1317,10 @@ export class DevicesBuilding extends LitElement {
   @state() private coverMenu = '';
   /** The tree's "more floors" list is open (many_floors = more). */
   @state() private treeMore = false;
+  /** TREE-HIDE-UNASSIGNED-2331: the "ללא שיוך" row's "⋯" menu is open, and the undo notice after "הסתר מהעץ". */
+  @state() private looseMenu = false;
+  @state() private looseNote: LooseNotice | null = null;
+  private looseTimer = 0;
   /** Demo only (`?hs_state=alarm|offline|empty|many`): the states of the approved mockup without a backend, for the evidence specs. */
   private demoState = '';
 
@@ -1518,7 +1529,8 @@ export class DevicesBuilding extends LitElement {
       if (this.selected !== 'all' && !this.lay.editing) return [];
       return [{ id: 'fcards', keys: [...t.floors.map((f) => `floor:${f.floor_id}`), ...(loose ? ['floor:unassigned'] : [])] }];
     }
-    return [...t.floors.map((f) => ({ id: `areas:${f.floor_id}`, keys: f.areas.map((a) => `area:${a.area_id}`) })), ...(loose ? [{ id: 'areas:unassigned', keys: ['area:unassigned'] }] : [])];
+    const tilesLoose = loose && tilesUnassignedShown(this.screen.tree_unassigned, this.lay.editing); // OWNER-R12-2341: a hidden section is not laid out
+    return [...t.floors.map((f) => ({ id: `areas:${f.floor_id}`, keys: f.areas.map((a) => `area:${a.area_id}`) })), ...(tilesLoose ? [{ id: 'areas:unassigned', keys: ['area:unassigned'] }] : [])];
   }
 
   private gridAttrs(id: string) {
@@ -2077,6 +2089,13 @@ export class DevicesBuilding extends LitElement {
   }
 
   protected updated() {
+    if (this.treeSheet !== this.treeSheetShown) {
+      this.treeSheetShown = this.treeSheet;
+      const byKey = this.treeSheetByKey;
+      this.treeSheetByKey = false;
+      if (this.treeSheet) requestAnimationFrame(() => this.renderRoot.querySelector<HTMLElement>('[data-tree-sheet] .sh .x')?.focus({ preventScroll: true }));
+      else if (byKey) requestAnimationFrame(() => this.renderRoot.querySelector<HTMLElement>('[data-phone-tree]')?.focus({ preventScroll: true }));
+    }
     this.syncEditFromRoute();
     // HOME-295: no connection greys the last values (CSS keys on the host); the scrolling tree takes exactly the height that is left
     this.toggleAttribute('data-offline', this.offline);
@@ -3062,7 +3081,7 @@ export class DevicesBuilding extends LitElement {
         padding-inline: 10px;
       }
     }
-  `, BUILDING_GLASS, TILE_LAYOUT, HOME_LAYOUT, BUILDING_BUBBLE, HOME_SCREEN_CSS];
+  `, BUILDING_GLASS, TILE_LAYOUT, HOME_LAYOUT, BUILDING_BUBBLE, HOME_SCREEN_CSS, TREE_UNASSIGNED_CSS];
 
   connectedCallback() {
     super.connectedCallback();
@@ -3173,6 +3192,7 @@ export class DevicesBuilding extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    window.clearTimeout(this.looseTimer);
     window.removeEventListener('sw-multi-building', this.onMulti);
     this.offRoute?.();
     this.offRoute = null;
@@ -3359,6 +3379,7 @@ export class DevicesBuilding extends LitElement {
       ${this.lay.renderPanel()}
       ${this.renderSheets(t)}
       ${this.renderQuickSheet()}
+      ${looseNotice(this.looseNote, this.undoLoose, () => this.showLooseNote(null))}
       <devices-tiles-panel ?open=${!!this.panel} .kind=${this.panel?.kind ?? 'lights'} .scope=${this.panel?.scope ?? 'building'} .scopeId=${this.panel?.id ?? ''} .scopeName=${this.panel?.name || this.scopeName(this.panel?.scope ?? 'building', this.panel?.id ?? '')} .filter=${this.panel?.filter ?? 'all'} @panel-close=${this.closePanel} @panel-filter=${this.onPanelFilter} @panel-changed=${() => this.scheduleReload()} @panel-navigate=${this.onPanelNavigate}></devices-tiles-panel>
     </sw-page>`;
   }
@@ -3438,7 +3459,8 @@ export class DevicesBuilding extends LitElement {
     const shown = this.selected === 'all' ? all : all.filter((f) => f.floor_id === this.selected);
     const phoneOne = this.isPhone && !this.lay.editing && !this.phoneAll && this.selected !== 'all'; // HOME-295: a phone shows one floor at a time once a floor is picked; the first, default choice is every floor (owner 2026-10-29)
     const floors = phoneOne ? [this.phoneFloorOf(all)].filter((f): f is DeviceFloor => !!f) : shown.length ? shown : all; // a floor that vanished from the tree: back to everything
-    const loose = !phoneOne && (this.selected === 'all' || !shown.length) && (t.unassigned.counts.entities || !t.scoped);
+    // OWNER-R12-2341 (6A): the tiles view's "ללא שיוך" section follows home.screen.tree_unassigned exactly like the tree row
+    const loose = !phoneOne && (this.selected === 'all' || !shown.length) && (t.unassigned.counts.entities || !t.scoped) && tilesUnassignedShown(this.screen.tree_unassigned, this.lay.editing);
     return html`<div class="split" data-layout-view="tiles" data-fit=${this.fit} ?data-no-tree=${noTree}>
       ${noTree ? nothing : this.renderTreePanel(t)}
       <div class="floors" data-floors>
@@ -3471,7 +3493,8 @@ export class DevicesBuilding extends LitElement {
       cols = String(Math.max(1, Math.min(all.length, max)));
     }
     // HOME-295: "ללא שיוך" sits at the foot of the tree (the mockup); its own card only where no tree is drawn (a portrait tablet)
-    const loose = (this.selected === 'all' || !shown.length) && !this.isPhone && window.innerWidth < 900 && (t.unassigned.counts.entities || !t.scoped) && !cols;
+    // TREE-HIDE-UNASSIGNED-2331: that card stands in for the tree's row, so it follows the same choice (the layout editor still lays it out)
+    const loose = (this.selected === 'all' || !shown.length) && !this.isPhone && window.innerWidth < 900 && (t.unassigned.counts.entities || !t.scoped) && !cols && treeUnassignedShown(this.screen.tree_unassigned, false);
     return html`<div class="split" data-layout-view="cards" data-fit=${this.fit} ?data-no-tree=${noTree}>
       ${noTree ? nothing : this.renderTreePanel(t)}
       <div class=${classMap({ fcards: true, 'lay-grid': this.gridAttrs('fcards').on })} data-lay-grid="fcards" data-lay-cols=${this.gridAttrs('fcards').cols} ?data-lay-phone-preview=${this.gridAttrs('fcards').phone} data-cols=${cols || nothing} data-floor-count=${all.length}>
@@ -3520,7 +3543,7 @@ export class DevicesBuilding extends LitElement {
             </div>`
           : nothing}
         ${floorId
-          ? html`<explore-floor-map embedded data-plan-map .floorId=${floorId} @area-open=${(e: CustomEvent<{ zone_id: string; zone_name: string; area_id: string | null; x: number; y: number }>) => this.onAreaOpen(t, e)}></explore-floor-map>`
+          ? (void import('./explore-floor-map'), html`<explore-floor-map embedded data-plan-map .floorId=${floorId} @area-open=${(e: CustomEvent<{ zone_id: string; zone_name: string; area_id: string | null; x: number; y: number }>) => this.onAreaOpen(t, e)}></explore-floor-map>`)
           : this.planFloorsLoaded && this.planFloors.length
             ? html`<sw-state-panel icon="building" state="empty" heading="אין תוכנית קומה" hint="העלו תוכנית לקומה במפה כדי לראות אותה כאן."></sw-state-panel>`
             : html`<sw-state-panel state="loading"></sw-state-panel>`}
@@ -3582,7 +3605,11 @@ export class DevicesBuilding extends LitElement {
     const hideRest = many && !scrollTree && !this.treeMore && !this.treeSheet;
     const rest = hideRest ? floors.slice(max).filter((f) => f.floor_id !== this.selected) : [];
     const listed = hideRest ? floors.filter((f) => !rest.includes(f)) : floors;
-    const loose = t.unassigned.counts.entities > 0 && (this.layout === 'cards' || this.treeSheet);
+    // TREE-HIDE-UNASSIGNED-2331: the row follows home.screen.tree_unassigned (always / only in the screen editor / never); the editor
+    // says when it is hidden outside it and how to bring it back
+    const looseHas = t.unassigned.counts.entities > 0 && (this.layout === 'cards' || this.treeSheet);
+    const looseMode = this.screen.tree_unassigned;
+    const loose = looseHas && treeUnassignedShown(looseMode, this.lay.editing);
     return html`<nav class="tree" aria-label="עץ המבנה" data-devices-tree ?data-tree-scroll=${scrollTree}>
       <div class="tree-floor tree-all">
         ${foldable.length > 1
@@ -3615,9 +3642,57 @@ export class DevicesBuilding extends LitElement {
       )}
       ${rest.length ? html`<button type="button" class="tree-more" data-tree-more=${rest.length} aria-expanded="false" @click=${() => (this.treeMore = true)}><sw-icon name="floor" size=${14}></sw-icon>${hs('moreFloors', { n: rest.length })}</button>` : nothing}
       ${loose
-        ? html`<a class="tree-row tree-loose" data-tree-unassigned href="#/devices/areas/unassigned" @click=${(e: MouseEvent) => this.onAreaLink(e, 'unassigned', t.unassigned.name)}><sw-icon name="help" size=${15}></sw-icon><span class="nm">${t.unassigned.name}</span><span class="lit">${ltrNum(t.unassigned.counts.entities)}</span></a>`
+        ? looseRow({
+            name: t.unassigned.name,
+            count: t.unassigned.counts.entities,
+            menu: this.infoCanEdit && !this.lay.editing && looseMode === 'always',
+            menuOpen: this.looseMenu,
+            onOpen: (e: MouseEvent) => this.onAreaLink(e, 'unassigned', t.unassigned.name),
+            onMenu: (open) => (this.looseMenu = open),
+            onHide: () => void this.setTreeUnassigned('editing', true),
+          })
         : nothing}
+      ${looseHas && this.lay.editing ? looseHint(looseMode, this.screenDraft ? () => this.draftTreeUnassigned('always') : null) : nothing}
     </nav>`;
+  }
+
+  /** TREE-HIDE-UNASSIGNED-2331: "הסתר מהעץ" on the row (undoable) and its "בטל": one key of home.screen, saved at once (PATCH /settings,
+   * system.configure, audited; the demo keeps it in memory). Shown at once; a refused save puts the previous choice back. */
+  private async setTreeUnassigned(mode: TreeUnassigned, undoable: boolean): Promise<void> {
+    this.looseMenu = false;
+    const from = this.screenSite;
+    const prev = from.tree_unassigned;
+    if (mode === prev) return;
+    const to: HomeScreenOptions = { ...from, tree_unassigned: mode };
+    this.screenSite = to;
+    try {
+      if (isApi()) this.screenSite = await saveHomeScreen(from, to);
+      this.showLooseNote(undoable ? { kind: 'hidden', prev } : null);
+      if (undoable) {
+        await this.updateComplete;
+        this.renderRoot.querySelector<HTMLElement>('[data-tree-unassigned-undo]')?.focus(); // the row it was on is gone
+      }
+    } catch {
+      this.screenSite = from;
+      this.showLooseNote({ kind: 'failed', prev });
+    }
+  }
+
+  private showLooseNote(n: LooseNotice | null) {
+    window.clearTimeout(this.looseTimer);
+    this.looseNote = n;
+    if (n) this.looseTimer = window.setTimeout(() => (this.looseNote = null), 8000);
+  }
+
+  private undoLoose = () => {
+    const n = this.looseNote;
+    this.showLooseNote(null);
+    if (n?.kind === 'hidden') void this.setTreeUnassigned(n.prev, false);
+  };
+
+  /** The screen editor's "הצג תמיד": the draft only (saved with "שמור", like every option of the editor). */
+  private draftTreeUnassigned(mode: TreeUnassigned) {
+    if (this.screenDraft) this.screenDraft = { ...this.screenDraft, screen: { ...this.screenDraft.screen, tree_unassigned: mode } };
   }
 
   private renderFloorCard(f: DeviceFloor) {
@@ -3936,9 +4011,10 @@ export class DevicesBuilding extends LitElement {
     if (this.treeSheet) {
       return html`<div class="scrim" @click=${() => (this.treeSheet = false)}></div>
         <div class="hsheet" role="dialog" aria-modal="true" aria-label=${hs('treeTitle')} data-tree-sheet
+          @keydown=${(e: KeyboardEvent) => modalKeydown(e, e.currentTarget as Element, () => ((this.treeSheetByKey = true), (this.treeSheet = false)))}
           @click=${(e: Event) => { if ((e.composedPath() as Element[]).some((n) => n instanceof HTMLElement && n.dataset?.treeSelect !== undefined)) this.treeSheet = false; }}>
           <div class="grab" aria-hidden="true"></div>
-          <div class="sh"><b>${hs('treeTitle')}</b><button type="button" class="x" aria-label=${hs('close')} @click=${() => (this.treeSheet = false)}><sw-icon name="close" size=${15}></sw-icon></button></div>
+          <div class="sh"><b>${hs('treeTitle')}</b><button type="button" class="x" aria-label=${hs('close')} @click=${(e: MouseEvent) => ((this.treeSheetByKey = e.detail === 0), (this.treeSheet = false))}><sw-icon name="close" size=${15}></sw-icon></button></div>
           ${this.renderTreePanel(t)}
         </div>`;
     }

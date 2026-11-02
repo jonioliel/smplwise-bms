@@ -65,6 +65,10 @@ export interface ProductSettings {
   'media.wall_profile': 'sub' | 'main';
   /** Owner 2026-10-01: 'true' shows the live player's notes about how it plays (banner, remote-policy hint, "מנגן דרך" line); default 'false'. */
   'media.video_notices'?: 'true' | 'false';
+  /** LIVE-H265-2341: an H.265 stream this browser cannot decode - auto (the other profile, else transcoded) | sub | transcode | off. */
+  'media.h265_policy'?: 'auto' | 'sub' | 'transcode' | 'off';
+  /** LIVE-H265-2341: distinct transcoded streams at once (0 = never). */
+  'media.h265_max_transcodes'?: number;
   /** NVRMASK-295: privacy-mask preview / write to the NVR; off by default. */
   'nvr.privacy_mask_write'?: 'true' | 'false';
   'snapshots.max_age_s': number;
@@ -110,6 +114,8 @@ export interface ProductSettings {
   'playback.auto_resume_attempts'?: number;
   /** CR-024: EXPERIMENTAL synchronized playback of cameras of different recorders ('true' | 'false', default 'false'). */
   'playback.cross_recorder_sync'?: string;
+  /** ASYNCIO-DEFAULT-2342: "שרת: רכיב תקשורת מהיר" - uvloop + httptools instead of asyncio + h11 ('true' | 'false', default 'false'; applies after a restart). */
+  'server.fast_network'?: string;
   'exports.max_mb'?: number;
   /** BACKUP-HASH-ENC: the minimum length of the backup password (8-64, default 12; 8 is the server's hard floor). */
   'backup.password_min'?: number;
@@ -275,6 +281,9 @@ export interface LiveInfo {
   max_live_sessions: number;
   active_sessions: number;
   media_configured: boolean;
+  /** LIVE-H265-2341: the codec family of each profile as the registry knows it */
+  codecs?: { main: string | null; sub: string | null };
+  h265?: { policy: 'auto' | 'sub' | 'transcode' | 'off'; max_transcodes: number; active_transcodes: number };
 }
 
 export const liveInfo = (cameraId: string, profile: 'sub' | 'main') => get<LiveInfo>(`media/live/${cameraId}?profile=${profile}`);
@@ -288,8 +297,10 @@ export function snapshotUrl(cameraId: string, bust?: number): string {
 }
 
 /** ws(s):// URL of the live relay for a camera, relative to the page (works under Ingress). */
-export function liveWsUrl(cameraId: string, profile: 'sub' | 'main'): string {
-  const u = new URL(apiUrl(`media/live/${cameraId}/ws?profile=${profile}`));
+/** `h265` (LIVE-H265-2341): whether this browser decodes H.265 over the transport of this attempt (api/h265-support.ts);
+ * '' = not said (the server plays the stream as it is). */
+export function liveWsUrl(cameraId: string, profile: 'sub' | 'main', h265: '' | '0' | '1' = ''): string {
+  const u = new URL(apiUrl(`media/live/${cameraId}/ws?profile=${profile}${h265 ? `&h265=${h265}` : ''}`));
   u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
   return u.toString();
 }

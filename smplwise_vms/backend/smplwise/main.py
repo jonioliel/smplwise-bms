@@ -308,6 +308,18 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         calendar_jobs.sync_tick(db, settings.data_dir)
     except Exception:  # noqa: BLE001
         log.warning("calendar sync tick failed", exc_info=True)
+    try:  # CAL-GRID-EDIT-2343: held-back cancel / move notices whose undo window passed
+        from .services.calendar import jobs as calendar_jobs
+
+        calendar_jobs.notice_tick(db)
+    except Exception:  # noqa: BLE001
+        log.warning("calendar notice tick failed", exc_info=True)
+    try:  # CAL-ATTENDEES-2343: due attendee notices (in-app / the guests' messaging channel; a cancel waits the undo window); guest-contact retention hourly
+        from .services.calendar import attendee_notices
+
+        attendee_notices.tick(db, settings.data_dir)
+    except Exception:  # noqa: BLE001
+        log.warning("calendar attendee notices tick failed", exc_info=True)
     try:  # CR-038 S5a: the shared WhatsApp send ledger keeps 2 days (hourly inside)
         from .services import messaging_runtime
 
@@ -390,7 +402,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .services import demo_mode as _demo_mode
 
     _demo_mode.clear_on_boot(settings)  # CR-READY96: a restart exits demo mode - the handle below always starts on the real file
-    app.state.db = Database(settings.db_path)
+    app.state.db = Database(settings.db_path, pool=True)  # DB-CONN-POOL-2343: the one long-lived handle reuses its connections
     from .services import energy_billing_adapter
 
     energy_billing_adapter.configure(settings)  # CR-023: the readings store answers the billing branch's provider seam
@@ -400,6 +412,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     db_mod.WRITE_GATE = settings.db_write_gate and os.environ.get("SW_DB_WRITE_GATE", "1") != "0"
     if not db_mod.WRITE_GATE:
         log.warning("database write gate is OFF (db_write_gate / SW_DB_WRITE_GATE=0): writers rely on SQLite's busy handler alone")
+    # DB-CONN-POOL-2343: the add-on option db_conn_pool (default on); SW_DB_CONN_POOL=0 always wins (the kill switch)
+    db_mod.CONN_POOL = settings.db_conn_pool and os.environ.get("SW_DB_CONN_POOL", "1") != "0"
+    if not db_mod.CONN_POOL:
+        log.warning("database connection reuse is OFF (db_conn_pool / SW_DB_CONN_POOL=0): every request opens its own connection")
     from .services import backup as backup_svc
 
     pre = backup_svc.pre_upgrade(settings)  # rollback safety: a copy of the data before a new version touches it
@@ -487,6 +503,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     wiskey_camera.apply_at_startup(app.state.db, settings)  # TKWISECRYPT: seal any plaintext per-station WisKey camera password
     settings, legacy_differ = connection_store.apply_at_startup(app.state.db, settings)
+    try:  # NVR-H264-BULK-2341: the per-recorder switch "אפשר שינויי הגדרות ב־NVR" into the process (recorder_scope.WRITES)
+        from .services import nvr_write_switch
+
+        with app.state.db.connection(mode="read", label="nvr writes switch") as _conn:
+            nvr_write_switch.load_all(_conn)
+    except Exception:  # noqa: BLE001 - a failure leaves every recorder at its vendor default (Provision-ISR: off)
+        log.warning("nvr writes switch load failed", exc_info=True)
     # 2.6.3 transitional (delta review S-1): empty the deprecated secret options whose values the stores now hold (names-only logs)
     secrets_store.clear_lingering_options(app.state.db, settings)
     app.state.settings = settings
@@ -870,6 +893,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(calendar_router.open_router, prefix=api, tags=["calendar"])  # module state, settings, guest purge: answer while the module is off
     app.include_router(calendar_router.router, prefix=api, tags=["calendar"])
+    from .routers import calendar_attendees as calendar_attendees_router  # CAL-ATTENDEES-2343: named attendees, their policy and notices
+
+    app.include_router(calendar_attendees_router.router, prefix=api, tags=["calendar"])
     from .routers import calendar_sync as calendar_sync_router  # CALENDARS-298 phase 2: external calendar connections, bindings, manual sync
 
     app.include_router(calendar_sync_router.router, prefix=api, tags=["calendar"])
@@ -1239,6 +1265,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .routers import plan_geometry as plan_geometry_router
 
         plan_geometry_router.shutdown_detect_pool()
+        app.state.db.close_pool()  # DB-CONN-POOL-2343: last, after every worker stopped - no idle connection keeps the files open
 
     @app.get("/healthz", include_in_schema=False)
     async def healthz():

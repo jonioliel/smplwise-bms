@@ -33,6 +33,10 @@ present). Every choice the owner answered is only the DEFAULT; each one is a key
                     fixed (site_entry_building). A user may choose his own (home.personal.screen.site_entry / site_entry_building)
   site_entry_building  "" (default) | a building id - the fixed building of site_entry = fixed (one that is gone opens the site)
   site_off_shared   exclude (default: "כבה הכל באתר" leaves the shared building unchecked) | include (checked like every building)
+  TREE-HIDE-UNASSIGNED-2331 (owner 01.11): whether the building tree draws the "ללא שיוך" bucket (devices without an area)
+  tree_unassigned   always (default: as before) | editing (only while the screen editor is open - which only a system.configure
+                    holder can open) | never. Presentation only: no entity, area or count changes; "כל המבנה" keeps counting them
+                    OWNER-R12-2341 (owner 01.11, 6A): the same choice also governs the tiles view's "ללא שיוך" section
   Per user only (home.personal.screen): hide_shared (true = the shared building is not shown to this viewer; default false)
 
 The view (cards / tiles) stays `devices.default_view` (default cards), the info row `home.info_style` (auto: cards in cards mode,
@@ -66,6 +70,7 @@ CHOICES: dict[str, tuple[str, ...]] = {
     "popup_alert": ("show", "hide"),
     "site_entry": ("site", "last", "fixed"),
     "site_off_shared": ("exclude", "include"),
+    "tree_unassigned": ("always", "editing", "never"),
 }
 BUILDING_ID_MAX = 120
 
@@ -88,6 +93,7 @@ DEFAULT: dict[str, Any] = {
     "site_entry": "site",
     "site_entry_building": "",
     "site_off_shared": "exclude",
+    "tree_unassigned": "always",
 }
 KEYS: tuple[str, ...] = tuple(DEFAULT)
 

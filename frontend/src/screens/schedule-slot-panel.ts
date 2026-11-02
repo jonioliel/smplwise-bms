@@ -80,9 +80,24 @@ export class ScheduleSlotPanel extends LitElement {
     .panel {
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 14px;
     }
+    /* SCHED-POLISH-2331: the header reads like the editor's side panel (R5-DEVICES-297): a heading in the heading ink, the summary
+       under it, the slot's actions grouped at the end (they wrap below the title on a narrow card instead of crowding it) */
     header {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px 12px;
+      flex-wrap: wrap;
+    }
+    .ttl {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      flex: 1 1 260px;
+      min-inline-size: 0;
+    }
+    .ttl .top {
       display: flex;
       align-items: center;
       gap: 8px;
@@ -90,38 +105,21 @@ export class ScheduleSlotPanel extends LitElement {
     }
     h3 {
       margin: 0;
-      font-size: var(--sw-fs-md);
-      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-lg);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading, var(--sw-text));
+      letter-spacing: -0.01em;
     }
     .sum {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-sm);
-    }
-    .sp {
-      flex: 1;
-    }
-    .marks {
-      display: inline-flex;
-      gap: 6px;
-    }
-    .chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      padding: 1px 8px;
-      border-radius: var(--sw-r-pill);
-      font-size: var(--sw-fs-xs);
-      font-weight: var(--sw-fw-medium);
-      background: var(--sw-surface-3);
       color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
+      overflow-wrap: anywhere;
     }
-    .chip.warn {
-      background: var(--sw-danger-soft);
-      color: var(--sw-danger);
-    }
-    .chip.sens {
-      background: rgba(139, 92, 246, 0.14);
-      color: var(--sw-purple);
+    .tools {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
     }
     .fields {
       display: grid;
@@ -136,10 +134,11 @@ export class ScheduleSlotPanel extends LitElement {
       min-inline-size: 0;
     }
     .f > label,
-    .lbl {
-      font-size: var(--sw-fs-xs);
+    .lbl,
+    .arg > label {
+      font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
-      font-weight: var(--sw-fw-medium);
+      font-weight: var(--sw-fw-semibold);
     }
     .pair {
       display: flex;
@@ -157,7 +156,7 @@ export class ScheduleSlotPanel extends LitElement {
     select {
       inline-size: 100%;
       box-sizing: border-box;
-      min-block-size: 32px;
+      min-block-size: 36px;
       padding: 4px 10px;
       border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-sm);
@@ -171,6 +170,15 @@ export class ScheduleSlotPanel extends LitElement {
       outline: none;
       border-color: var(--sw-accent);
       box-shadow: 0 0 0 3px var(--sw-accent-soft);
+    }
+    input[type='checkbox'] {
+      inline-size: auto;
+      min-block-size: 0;
+      accent-color: var(--sw-accent);
+    }
+    input[type='time'],
+    input[type='number'] {
+      font-variant-numeric: tabular-nums;
     }
     input[type='range'] {
       padding: 0;
@@ -195,8 +203,8 @@ export class ScheduleSlotPanel extends LitElement {
     }
     .group {
       border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-md);
-      padding: 10px;
+      border-radius: var(--sw-r-lg);
+      padding: 12px 14px;
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
       gap: 10px;
@@ -212,7 +220,10 @@ export class ScheduleSlotPanel extends LitElement {
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      padding: 2px 4px 2px 10px;
+      min-block-size: 28px;
+      padding-block: 2px;
+      padding-inline: 10px 4px;
+      font-weight: var(--sw-fw-medium);
       border-radius: var(--sw-r-pill);
       background: var(--sw-surface);
       border: 1px solid var(--sw-border-strong);
@@ -221,17 +232,23 @@ export class ScheduleSlotPanel extends LitElement {
     .ent button {
       display: grid;
       place-items: center;
-      inline-size: 20px;
-      block-size: 20px;
+      inline-size: 24px;
+      block-size: 24px;
       border: 0;
       border-radius: 50%;
       background: transparent;
       color: var(--sw-text-3);
       cursor: pointer;
     }
-    .ent button:hover {
-      background: var(--sw-surface-3);
-      color: var(--sw-text);
+    @media (hover: hover) and (pointer: fine) {
+      .ent button:hover {
+        background: var(--sw-surface-3);
+        color: var(--sw-text);
+      }
+    }
+    .ent button:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: 1px;
     }
     .arg {
       display: flex;
@@ -276,20 +293,33 @@ export class ScheduleSlotPanel extends LitElement {
     }
     .errs {
       margin: 0;
-      padding: 0;
+      padding: 10px 12px;
       list-style: none;
       display: flex;
       flex-direction: column;
       gap: 4px;
-      color: var(--sw-danger);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-danger-soft);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
+    }
+    .errs li {
+      display: flex;
+      gap: 6px;
+      align-items: flex-start;
+    }
+    .errs sw-icon {
+      flex: none;
+      margin-block-start: 2px;
     }
     .off {
       display: flex;
       align-items: center;
       gap: 10px;
+      flex-wrap: wrap;
       border-block-start: 1px solid var(--sw-border);
-      padding-block-start: 10px;
+      padding-block-start: 12px;
       font-size: var(--sw-fs-sm);
     }
     .off b {
@@ -299,8 +329,36 @@ export class ScheduleSlotPanel extends LitElement {
       max-inline-size: 260px;
     }
     .empty {
-      color: var(--sw-text-3);
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 12px 14px;
+      border: 1px dashed var(--sw-border-strong);
+      border-radius: var(--sw-r-lg);
+      color: var(--sw-text-2);
       font-size: var(--sw-fs-sm);
+    }
+    /* mobile-native: a finger needs 44 px; the mouse keeps the denser 36 */
+    @media (pointer: coarse) {
+      input:not([type='range']):not([type='checkbox']),
+      select {
+        min-block-size: 44px;
+      }
+      .ent button {
+        inline-size: 32px;
+        block-size: 32px;
+      }
+    }
+    @media (max-width: 640px) {
+      .tools {
+        inline-size: 100%;
+      }
+      .add-ent {
+        max-inline-size: none;
+      }
+      .pair input {
+        flex: 1;
+      }
     }
   `;
 
@@ -422,7 +480,7 @@ export class ScheduleSlotPanel extends LitElement {
         const key = `${group.key}:var:${f.name}`;
         const label = `${f.label ?? f.name}${f.required ? ' *' : ''}`;
         if (f.type === 'bool') {
-          return html`<label class="pair" data-var=${f.name}><input type="checkbox" style="inline-size:auto;min-block-size:0" ?disabled=${ro} .checked=${v === true} @change=${(e: Event) => this.setVar(group, f.name, (e.target as HTMLInputElement).checked)} />${label}</label>`;
+          return html`<label class="pair" data-var=${f.name}><input type="checkbox" ?disabled=${ro} .checked=${v === true} @change=${(e: Event) => this.setVar(group, f.name, (e.target as HTMLInputElement).checked)} />${label}</label>`;
         }
         if (f.choices && f.choices.length) {
           return html`<div class="arg" data-var=${f.name}><label for=${key}>${label}</label>
@@ -479,7 +537,7 @@ export class ScheduleSlotPanel extends LitElement {
     }
     if (spec.type === 'bool') {
       return html`<div class="arg" data-arg=${spec.name}>
-        <label class="pair"><input type="checkbox" style="inline-size:auto;min-block-size:0" ?disabled=${ro} .checked=${v === true} @change=${(e: Event) => this.setArg(group, spec.name, (e.target as HTMLInputElement).checked)} />${label}</label>
+        <label class="pair"><input type="checkbox" ?disabled=${ro} .checked=${v === true} @change=${(e: Event) => this.setArg(group, spec.name, (e.target as HTMLInputElement).checked)} />${label}</label>
       </div>`;
     }
     if (spec.type === 'int' && spec.min !== undefined && spec.max !== undefined) {
@@ -556,18 +614,20 @@ export class ScheduleSlotPanel extends LitElement {
     const onlyOff = (s.stop ?? '') !== '' && s.stop !== '00:00:00';
     return html`<section class="panel" aria-label="עריכת משבצת" data-slot-panel>
       <header>
-        <h3>משבצת ${this.index + 1} מתוך ${this.count}</h3>
-        <span class="sum">${slotSummary(s, this.meta)}</span>
-        <sw-schedule-markers .sensitive=${sensitive} .lowering=${lowering}></sw-schedule-markers>
-        <span class="sp"></span>
-        ${this.readOnly
-          ? nothing
-          : html`
-              ${this.canCopyDays ? html`<sw-button size="sm" icon="calendar" data-slot-copy-days @click=${() => this.fire('slot-copy-days')}>העתקה לימים…</sw-button>` : nothing}
-              <sw-button size="sm" icon="layers" data-slot-duplicate @click=${() => this.fire('slot-duplicate')}>שכפול</sw-button>
-              <sw-button size="sm" variant="danger" icon="trash" data-slot-delete @click=${() => this.fire('slot-delete')}>מחיקה</sw-button>
-            `}
-        <sw-button size="sm" variant="ghost" iconOnly icon="close" label="סגירת העריכה" @click=${() => this.fire('slot-close')}></sw-button>
+        <div class="ttl">
+          <span class="top"><h3>משבצת ${this.index + 1} מתוך ${this.count}</h3><sw-schedule-markers .sensitive=${sensitive} .lowering=${lowering}></sw-schedule-markers></span>
+          <span class="sum">${slotSummary(s, this.meta)}</span>
+        </div>
+        <div class="tools">
+          ${this.readOnly
+            ? nothing
+            : html`
+                ${this.canCopyDays ? html`<sw-button size="sm" icon="calendar" data-slot-copy-days @click=${() => this.fire('slot-copy-days')}>העתקה לימים…</sw-button>` : nothing}
+                <sw-button size="sm" icon="layers" data-slot-duplicate @click=${() => this.fire('slot-duplicate')}>שכפול</sw-button>
+                <sw-button size="sm" variant="danger" icon="trash" data-slot-delete @click=${() => this.fire('slot-delete')}>מחיקה</sw-button>
+              `}
+          <sw-button size="sm" variant="ghost" iconOnly icon="close" label="סגירת העריכה" @click=${() => this.fire('slot-close')}></sw-button>
+        </div>
       </header>
       ${this.locked.length
         ? html`<div class="lockmsg" data-slot-locked><sw-icon name="lock" size="16"></sw-icon><div>${this.locked.map((p) => html`<div>${p.message}</div>`)}<div><b>לעריכה:</b> ברכיב התזמונים המקורי.</div></div></div>`
@@ -575,7 +635,7 @@ export class ScheduleSlotPanel extends LitElement {
             <div class="fields">
               ${this.timeField('start')} ${this.timeField('stop')}
               <div class="groups">
-                ${groups.length ? groups.map((g, i) => this.renderGroup(g, i)) : html`<div class="empty" data-slot-empty>בחרו פעולה: הוסיפו התקנים לתזמון בכפתור "בחירת התקנים".</div>`}
+                ${groups.length ? groups.map((g, i) => this.renderGroup(g, i)) : html`<div class="empty" data-slot-empty><sw-icon name="info" size="16"></sw-icon>בחרו פעולה: הוסיפו התקנים לתזמון בכפתור "בחירת התקנים".</div>`}
                 ${!this.readOnly && addable.length
                   ? html`<select class="add-ent" aria-label="הוספת התקן לפעולה" data-add-entity @change=${(e: Event) => {
                       const el = e.target as HTMLSelectElement;
@@ -588,7 +648,7 @@ export class ScheduleSlotPanel extends LitElement {
                   : nothing}
               </div>
             </div>
-            ${this.errors.length ? html`<ul class="errs" data-slot-errors>${this.errors.map((e) => html`<li>${e.message}</li>`)}</ul>` : nothing}
+            ${this.errors.length ? html`<ul class="errs" role="status" data-slot-errors>${this.errors.map((e) => html`<li><sw-icon name="warning" size="14"></sw-icon><span>${e.message}</span></li>`)}</ul>` : nothing}
             ${this.canPair || this.paired
               ? html`<div class="off">
                   <sw-toggle .checked=${this.paired} ?disabled=${this.readOnly || (!this.paired && !onlyOff)} label="כיבוי בסיום החלון" @change=${(e: CustomEvent<{ checked: boolean }>) => this.fire('pair-off', { on: e.detail.checked })}></sw-toggle>

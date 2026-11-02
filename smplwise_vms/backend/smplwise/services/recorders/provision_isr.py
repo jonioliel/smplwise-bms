@@ -85,6 +85,12 @@ _SUPPORT: dict[str, tuple[float, frozenset[str] | None]] = {}
 SUPPORT_TTL_S = 600.0
 _WRITE_REFUSED: dict[str, dict[int, float]] = {}  # device_key -> {channel: refused until (monotonic)}
 WRITE_REFUSED_TTL_S = 600.0
+# AZIA-LIVE-2331: the stream capabilities a live source path is read from, per device_key and channel, across requests. A live
+# socket and the stream sync each build a fresh adapter, so without this every viewer opening a camera was one GetStreamCaps
+# call to the NVR's small HTTP server (a 16-tile wall: 16 at once, 8 s timeout each) and one failed read refused that tile.
+# Not secret (no address, no credentials); write validation keeps reading the device itself.
+_LIVE_CAPS: dict[tuple[str, int], tuple[float, dict[str, Any]]] = {}
+LIVE_CAPS_TTL_S = 600.0
 # device error codes that mean "this device / channel does not take this write" (not "this value is wrong"): 1 unsupported,
 # 4 permission denied (the NVR's account may not configure that camera), 11 / 12 (see ERROR_CODES)
 CHANNEL_REFUSAL_CODES = frozenset({1, 4, 11, 12})
@@ -137,6 +143,7 @@ def clear_auth_cache() -> None:
         _CERTS.clear()
         _SUPPORT.clear()
         _WRITE_REFUSED.clear()
+        _LIVE_CAPS.clear()
 
 
 AUTH_FLOOR_NAME = "provision_auth_floor.json"  # device_key -> strongest scheme seen in auto mode (no address, no secret)
@@ -453,7 +460,13 @@ class ProvisionIsrAdapter:
     @property
     def writes_enabled(self) -> bool:
         """Device writes are off unless the recorder's connection says `writes_enabled: true` (set only after the owner's
-        approval for that unit). With it off every write method refuses before a request is built."""
+        approval for that unit). With it off every write method refuses before a request is built. NVR-H264-BULK-2341: the
+        per-recorder switch of the connection settings ("אפשר שינויי הגדרות ב־NVR", recorder_scope.WRITES) wins when set."""
+        from ...recorder_scope import writes_override
+
+        override = writes_override(self.recorder_id)
+        if override is not None:
+            return override
         return self._extra.get("writes_enabled") is True
 
     def event_mode(self) -> str:
@@ -558,6 +571,20 @@ class ProvisionIsrAdapter:
         if refresh or ch not in self._caps:
             self._caps[ch] = self._xml("GetStreamCaps", ch, px.parse_stream_caps)
         return self._caps[ch]
+
+    def _live_caps(self, ch: int) -> dict[str, Any]:
+        """`stream_caps` for the live source path, shared across adapters for LIVE_CAPS_TTL_S (AZIA-LIVE-2331): the stream
+        names an NVR gives its channels do not change between two viewers. A failed read is not cached."""
+        key = (self.device_key, int(ch))
+        with _AUTH_LOCK:
+            hit = _LIVE_CAPS.get(key)
+        if hit is not None and hit[0] > _monotonic():
+            self._caps.setdefault(int(ch), hit[1])
+            return hit[1]
+        caps = self.stream_caps(ch)
+        with _AUTH_LOCK:
+            _LIVE_CAPS[key] = (_monotonic() + LIVE_CAPS_TTL_S, caps)
+        return caps
 
     def stream_options(self, stream_ref: str, codec: str | None = None) -> StreamOptions:
         """API 3.3 options for one stream, in the shape `nvr_settings.validate_changes` reads: codec families, profiles and
@@ -843,7 +870,7 @@ class ProvisionIsrAdapter:
                 raise ApiError(409, "nvr_not_supported", "ה־NVR מספק זרם ראשי ומשני בלבד.", details={"role": role})
             query = f"chID={ch}&streamType={role}"
             return f"{base}/{query}" if style == "path" else f"{base}?{query}"
-        stream = self.stream_caps(ch).get("streams", {}).get(no or 0, {}) if no else {}
+        stream = self._live_caps(ch).get("streams", {}).get(no or 0, {}) if no else {}
         # live 2026-10-04: the NVR names each stream by its own RTSP URL (`/chID=1&streamType=main`, sub = `sub1`); the
         # path is taken from the device, the host / port / credentials are always the connection's
         if stream.get("url_path"):

@@ -23,6 +23,10 @@ import { demoHealth, demoJobs } from '../fixtures/catalog';
 import { can, isApi, nvrLess, onRemote, LOCAL_ONLY_GENERIC } from '../api/session';
 import { getSettings, listSessions, listStreams, patchSettings, syncStreams, type ProductSettings } from '../api/media';
 import { invalidateSettings, TRANSPORT_DEFAULT, transportLabel } from '../api/prefs';
+import { normalizePolicy, type H265Policy } from '../api/h265-support';
+
+/** LIVE-H265-2341: הגדרות › וידאו ומדיה › "קידוד H.265 בדפדפן" (media.h265_policy). */
+const H265_POLICY_OPTIONS: [H265Policy, string][] = [['auto', 'אוטומטי — ברירת המחדל'], ['sub', 'תמיד זרם משני'], ['transcode', 'תמיד תרגום'], ['off', 'כבוי (הזרם כמו שהוא)']];
 import { ApiError, describeError, get } from '../api/client';
 import { navigate, parseRoute, replaceRoute } from '../router';
 import { settingsStyles } from '../styles/settings';
@@ -125,7 +129,7 @@ const TABS = [
   { id: 'media', label: 'וידאו ומדיה' },
   { id: 'map', label: 'מפה' },
   { id: 'buildings', label: 'בניינים ומיפוי' }, // MAPPING-ASSIST-2330: the multi-building switch and the mapping assistant
-  { id: 'ha', label: 'גשר Home Assistant' },
+  { id: 'ha', label: 'גשר Arx' },
   { id: 'access-control', label: 'מתגי מסכי כניסה' },
   { id: 'devices', label: 'חשמל והתקנים' },
   { id: 'remote', label: 'גישה מרחוק' },
@@ -672,7 +676,7 @@ export class SystemDiagnostics extends LitElement {
 
   private renderHa() {
     if (!isApi()) {
-      return html`<div class="sections"><sw-card heading="גשר Home Assistant"><div class="muted">נתוני הדגמה — הסטטוס והצימוד זמינים מול השרת.</div></sw-card></div>`;
+      return html`<div class="sections"><sw-card heading="גשר Arx"><div class="muted">נתוני הדגמה — הסטטוס והצימוד זמינים מול השרת.</div></sw-card></div>`;
     }
     const h = this.ha;
     const s = h?.sync;
@@ -849,7 +853,7 @@ export class SystemDiagnostics extends LitElement {
       </sw-card>`}
       <sw-card heading="אינטגרציות">
         <div class="row"><span class="lbl">go2rtc (חיצוני)<span class="muted">זרמים בשם smplwise_* בלבד · זרמים זרים לא ייגעו</span></span><span class="end"><sw-toggle checked label="מופעל"></sw-toggle><sw-button size="sm" @click=${() => this.openTab('media')}>הגדרה</sw-button></span></div>
-        <div class="row"><span class="lbl">גשר Home Assistant<span class="muted">קטלוג ישויות, פעולות בשם המשתמש וספריית המשתמשים</span></span><sw-button size="sm" @click=${() => this.openTab('ha')}>הגדרה</sw-button></div>
+        <div class="row"><span class="lbl">גשר Arx<span class="muted">קטלוג ישויות, פעולות בשם המשתמש וספריית המשתמשים</span></span><sw-button size="sm" @click=${() => this.openTab('ha')}>הגדרה</sw-button></div>
       </sw-card>
       <sw-card heading="בריאות המערכת">
         <div class="row"><span class="health"><i class="dot"></i><span class="lbl">מצב חלקי<span class="muted">גשר HA טרם חובר · שאר הרכיבים תקינים</span></span></span><sw-button size="sm" icon="activity">הרצת דיאגנוסטיקה</sw-button></div>
@@ -873,6 +877,14 @@ export class SystemDiagnostics extends LitElement {
         <div class="row"><span class="lbl">הודעות על אופן ההזרמה<span class="muted">הודעה על הנגן כשהווידאו עובר ב־MSE במקום WebRTC, ושורות ההסבר מתחת למצלמה. כבוי (ברירת מחדל): המסך נקי, והתג על הנגן ממשיך להראות מה מתנגן ומסביר בריחוף. הפעלה מתאימה למי שבודק בעיית תעבורה</span></span>
           <sw-field class="ctl"><select data-set-video-notices ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('media.video_notices', (e.target as HTMLSelectElement).value as 'true' | 'false')}>
             <option value="false" ?selected=${String(this.value('media.video_notices') ?? 'false') !== 'true'}>מוסתרות</option><option value="true" ?selected=${String(this.value('media.video_notices') ?? 'false') === 'true'}>מוצגות</option>
+          </select></sw-field></div>
+        <div class="row"><span class="lbl">קידוד H.265 בדפדפן<span class="muted">מצלמה שהזרם שלה H.265 ודפדפן שלא מפענח אותו (Chrome ו־Edge ב־WebRTC). אוטומטי (ברירת מחדל): הזרם האחר של המצלמה כשהוא H.264, אחרת תרגום ל־H.264 בשרת הווידאו, אחרת הודעה על האריח · תמיד זרם משני: רק הזרם האחר · תמיד תרגום: רק תרגום · כבוי: הזרם כמו שהוא. קידוד ה־NVR לא משתנה</span></span>
+          <sw-field class="ctl"><select data-set-h265-policy ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('media.h265_policy', (e.target as HTMLSelectElement).value as H265Policy)}>
+            ${H265_POLICY_OPTIONS.map(([v, l]) => html`<option value=${v} ?selected=${normalizePolicy(this.value('media.h265_policy')) === v}>${l}</option>`)}
+          </select></sw-field></div>
+        <div class="row"><span class="lbl">תרגומים במקביל<span class="muted">כמה מצלמות שונות מתורגמות ל־H.264 בו־זמנית (התרגום כבד על המעבד של שרת הווידאו). מעבר למכסה האריח מציג תמונה מתעדכנת עם הודעה. 0 = בלי תרגום</span></span>
+          <sw-field class="ctl"><select data-set-h265-transcodes ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('media.h265_max_transcodes', Number((e.target as HTMLSelectElement).value))}>
+            ${[0, 1, 2, 3, 4, 6, 8].map((n) => html`<option value=${n} ?selected=${Number(this.value('media.h265_max_transcodes') ?? 2) === n}>${n === 2 ? `${n} — ברירת המחדל` : n === 0 ? '0 — בלי תרגום' : n}</option>`)}
           </select></sw-field></div>
         <div class="row"><span class="lbl">פרופיל לקיר המצלמות<span class="muted">משני חוסך CPU ורוחב פס; ראשי לתצוגה בודדת</span></span>
           <sw-field class="ctl"><select ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('media.wall_profile', (e.target as HTMLSelectElement).value as 'sub' | 'main')}>
@@ -1010,6 +1022,10 @@ export class SystemDiagnostics extends LitElement {
         <div class="row"><span class="lbl">שמירת אודיט (ימים)<span class="muted">מי עשה מה ומתי — כתיבות ל־NVR, שינויי הרשאות, ייצוא; שורות ישנות יותר נמחקות</span></span><sw-field class="ctl"><input type="number" min="30" max="3650" data-ltr data-set-audit-retention ?disabled=${!api || !this.canEdit} .value=${String(this.value('audit.retention_days') ?? 365)} @change=${(e: Event) => this.set('audit.retention_days', Number((e.target as HTMLInputElement).value))} /></sw-field></div>
         ${NVR ? nothing : html`<div class="row"><span class="lbl">גודל מרבי לחבילת ראיות (MB)<span class="muted">אימות וייבוא של חבילה מהתקנה אחרת; הקובץ נכתב לקובץ זמני ונמחק</span></span><sw-field class="ctl"><input type="number" min="16" max="4096" data-ltr data-set-import-max ?disabled=${!api || !this.canEdit} .value=${String(this.value('cases.import_max_mb') ?? 512)} @change=${(e: Event) => this.set('cases.import_max_mb', Number((e.target as HTMLInputElement).value))} /></sw-field></div>`}
         <div class="row"><span class="lbl">אזור זמן של האתר וה־NVR<span class="muted">IANA · חיפוש והקלטות מתורגמים לשעון הקיר של ה־NVR לפי הכלל הזה (כולל שעון קיץ)</span></span><sw-field class="ctl"><input type="text" data-ltr ?disabled=${!api || !this.canEdit} .value=${String(this.value('time.zone') ?? 'Asia/Jerusalem')} @change=${(e: Event) => this.set('time.zone', (e.target as HTMLInputElement).value.trim())} /></sw-field></div>
+        <div class="row" data-set-fast-network-row><span class="lbl">שרת: רכיב תקשורת מהיר<span class="muted">רכיבי התקשורת המהירים (uvloop ו־httptools) במקום הרגילים. כבוי (ברירת המחדל) יציב יותר. השינוי חל אחרי הפעלה מחדש של התוסף</span></span>
+          <sw-field class="ctl"><select data-set-fast-network ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('server.fast_network', (e.target as HTMLSelectElement).value)}>
+            <option value="false" ?selected=${String(this.value('server.fast_network') ?? 'false') !== 'true'}>כבוי</option><option value="true" ?selected=${String(this.value('server.fast_network') ?? 'false') === 'true'}>פעיל</option>
+          </select></sw-field></div>
         <div class="foot"><sw-button variant="primary" icon="check" ?disabled=${!dirty || this.busy || !api} @click=${() => this.save()}>שמור</sw-button>${this.message ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}${this.error ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}</div>
         ${!api ? html`<div class="muted">נתוני הדגמה: ההגדרות נשמרות רק מול השרת.</div>` : nothing}
       </sw-card>

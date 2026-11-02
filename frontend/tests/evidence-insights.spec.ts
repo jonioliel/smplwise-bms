@@ -345,12 +345,18 @@ test.describe('insights - settings', () => {
 test('shots', async ({ page }) => {
   const dir = process.env.SW_SHOTS_DIR;
   test.skip(!dir, 'SW_SHOTS_DIR not set');
+  test.setTimeout(240_000);
   await install(page);
-  for (const [w, scheme, route, name] of [[1366, 'light', '/tickets/reports/building', 'report'], [1366, 'light', '/tickets/reports/doors', 'doors'], [375, 'dark', '/tickets/reports/building', 'report-m'], [1366, 'light', '/system/infra/insights', 'settings']] as const) {
-    await page.setViewportSize({ width: w, height: 900 });
-    await page.goto(url(route, scheme));
-    await page.waitForTimeout(1500);
-    await page.screenshot({ path: `${dir}/shot-${name}.png` });
+  // INSIGHTS-POLISH-2331: every screen at the review widths (desktop 1920 / 1440, tablet 1180 / 1024 light; phone 390 light and dark)
+  const routes = [['/tickets/reports/building', 'report'], ['/tickets/reports/doors', 'doors'], ['/tickets/reports/waste', 'waste'], ['/system/infra/insights', 'settings']] as const;
+  const views = [[1920, 'light'], [1440, 'light'], [1180, 'light'], [1024, 'light'], [390, 'light'], [390, 'dark']] as const;
+  for (const [w, scheme] of views) {
+    await page.setViewportSize({ width: w, height: w < 600 ? 844 : w <= 1180 ? 768 : 900 });
+    for (const [route, name] of routes) {
+      await page.goto(url(route, scheme));
+      await page.waitForTimeout(1500);
+      await page.screenshot({ path: `${dir}/${name}-${w}-${scheme}.png` });
+    }
   }
 });
 

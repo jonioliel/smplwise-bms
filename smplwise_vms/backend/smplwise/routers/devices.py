@@ -47,14 +47,38 @@ router = APIRouter()
 READ = "devices.read"
 
 
-def _visible_entities(conn: sqlite3.Connection, principal: Principal) -> tuple[list[dict[str, Any]], bool]:
+class _RequestReads:
+    """PERF-HOME-DEVICES-2342: what several steps of ONE request read - every entity (services/devices.load_entities, the
+    costliest read of these routes: one parsed row per entity) and the alarm-managed set (alarm.managed_controls, which
+    fingerprints the alarm-relevant rows on every call). The tree / area / items routes asked for each two to four times
+    within the same read transaction (the same snapshot, so the same answer); this reads each once per request and is
+    never kept past it. Nothing below mutates the entity dicts (scoped_rows and build_* only filter and project them)."""
+
+    def __init__(self, conn: sqlite3.Connection) -> None:
+        self.conn = conn
+        self._entities: list[dict[str, Any]] | None = None
+        self._managed: set[str] | None = None
+
+    def entities(self) -> list[dict[str, Any]]:
+        if self._entities is None:
+            self._entities = svc.load_entities(self.conn)
+        return self._entities
+
+    def managed(self) -> set[str]:
+        if self._managed is None:
+            from ..services import alarm as alarm_svc
+
+            self._managed = alarm_svc.managed_controls(self.conn)
+        return self._managed
+
+
+def _visible_entities(conn: sqlite3.Connection, principal: Principal, reads: _RequestReads | None = None) -> tuple[list[dict[str, Any]], bool]:
     """The caller's entity set and whether it is a floor-scoped (narrowed) view. 403 without any grant."""
-    rows, scoped = ha_scope.scoped_rows(conn, principal, READ, svc.load_entities(conn))
+    reads = reads or _RequestReads(conn)
+    rows, scoped = ha_scope.scoped_rows(conn, principal, READ, reads.entities())
     # review L2: the alarm's own rows (each panel, each zone's bypass control) also need alarm.view at the entity's floor
     # scope - devices.read alone shows the building's devices, not its alarm system
-    from ..services import alarm as alarm_svc
-
-    owned = {r["entity_id"] for r in rows if r["domain"] == "alarm_control_panel"} | (alarm_svc.managed_controls(conn) & {r["entity_id"] for r in rows if r["domain"] in ("switch", "select")})
+    owned = {r["entity_id"] for r in rows if r["domain"] == "alarm_control_panel"} | (reads.managed() & {r["entity_id"] for r in rows if r["domain"] in ("switch", "select")})
     if owned:
         wide, floors = ha_scope.visible_floors(conn, principal, "alarm.view")
         if not wide:
@@ -65,8 +89,8 @@ def _visible_entities(conn: sqlite3.Connection, principal: Principal) -> tuple[l
     return rows, scoped
 
 
-def _bulk_flags(conn: sqlite3.Connection, principal: Principal) -> dict[str, Any]:
-    return bulk.scope_flags(conn, principal, svc.load_entities(conn))
+def _bulk_flags(conn: sqlite3.Connection, principal: Principal, reads: _RequestReads | None = None) -> dict[str, Any]:
+    return bulk.scope_flags(conn, principal, (reads or _RequestReads(conn)).entities())
 
 
 async def _raw_body(request: Request) -> bytes:
@@ -93,12 +117,13 @@ def _is_json(content_type: str | None) -> bool:
 
 @router.get("/devices/tree")
 def tree(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    entities, scoped = _visible_entities(conn, principal)
+    reads = _RequestReads(conn)
+    entities, scoped = _visible_entities(conn, principal, reads)
     body = svc.build_tree(conn, entities, scoped=scoped)
     # CR-007 slice 3: where this caller may start a bulk action (devices.control_bulk at the entities' own floors;
     # the building only installation-wide). The screens render the floor menu / area popover / building buttons
     # only where this is true; the server checks it again on every request.
-    flags = _bulk_flags(conn, principal)
+    flags = _bulk_flags(conn, principal, reads)
     body["can_bulk"] = flags["building"]
     for f in body["floors"]:
         f["can_bulk"] = flags["all"] or f["floor_id"] in flags["floors"]
@@ -219,7 +244,8 @@ def building(principal: Principal = Depends(current_principal_ro), conn: sqlite3
 @router.get("/devices/areas/{area_id}")
 def area(area_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """`area_id` is an HA area id, or `unassigned` for the entities that belong to no area."""
-    entities, scoped = _visible_entities(conn, principal)
+    reads = _RequestReads(conn)
+    entities, scoped = _visible_entities(conn, principal, reads)
     control_of = ha_scope.control_checker(conn, principal)
     body = svc.build_area(conn, entities, area_id, scoped=scoped, control_of=control_of)
     if body is None:
@@ -227,7 +253,7 @@ def area(area_id: str, principal: Principal = Depends(current_principal_ro), con
     # CR-010 review B1: what the alarm section owns (the panel, a zone's bypass control) is listed read-only here
     from ..services import alarm as alarm_svc
 
-    managed = alarm_svc.managed_controls(conn)
+    managed = reads.managed()
     from ..services import media_store
 
     media_managed = media_store.managed_entities(conn)  # CR-015: the endpoints of an approved screen are operated from "מולטימדיה" only
@@ -240,13 +266,13 @@ def area(area_id: str, principal: Principal = Depends(current_principal_ro), con
             if r["entity_id"] in media_managed:
                 r["media_managed"] = True
                 r["can_control"] = False
-    flags = _bulk_flags(conn, principal)
+    flags = _bulk_flags(conn, principal, reads)
     body["can_bulk"] = area_id != svc.UNASSIGNED and (flags["all"] or area_id in flags["areas"])
     # CR-019: whether each switch is protected from group actions and why it would or would not be included (protected,
     # not judged yet, the door layer, alarm-managed) - shown to bulk holders, editable with system.configure
     # (PUT /devices/entities/{id}/bulk-protected)
     if flags["building"] or flags["areas"]:
-        policy = bulk.SwitchPolicy(conn)
+        policy = bulk.SwitchPolicy(conn, managed=reads.managed())
         body["can_mark_bulk_protected"] = authorize(conn, principal, "system.configure", INSTALLATION).allowed
         for r in body["cards"]["switches"]["entities"]:
             if r["domain"] == "switch":
@@ -268,6 +294,7 @@ def items(
     kind: ItemKind = Query(...),
     scope: Literal["building", "floor", "area"] = Query("building"),
     id: str | None = Query(None, min_length=1, max_length=255),  # noqa: A002 - the scope's id, as in the bulk routes
+    switches: Literal["typed", "all"] = Query("typed"),
 ) -> dict[str, Any]:
     """CR-007 overview tiles (owner 2026-09-29): every entity of one kind in the building, one HA floor or one HA area,
     grouped by floor › area, each with the area card's own fields and `can_control` - what the panel behind a summary
@@ -275,15 +302,19 @@ def items(
     (single entity) and `POST /devices/actions` (bulk, `can_bulk` says where); a lock row also says whether this caller
     may unlock it (`can_unlock`: `door.unlock` at the lock's own scope - the action route checks it again). Same
     visibility as the tree (`devices.read`, a floor-scoped reader sees only what is placed on their floors); a scope
-    this caller cannot see is a 404. Read-only: nothing here calls Home Assistant."""
+    this caller cannot see is a 404. Read-only: nothing here calls Home Assistant. SWITCH-LIGHT-DIMMER-2331: `switches=all` (kind lights
+    only - the synoptic floor lights popup under "מפסקים בעמודת התאורה = כל המפסקים") lists every switch.* with the lights."""
+    if switches == "all" and kind != "lights":
+        raise ApiError(422, "validation", "\"כל המפסקים\" חל רק על רשימת התאורה.", details={"fields": ["switches"]})
     if scope != "building" and not id:
         raise ApiError(422, "validation", "נדרש מזהה קומה או אזור (id).", details={"fields": ["id"]})
-    entities, scoped = _visible_entities(conn, principal)
+    reads = _RequestReads(conn)
+    entities, scoped = _visible_entities(conn, principal, reads)
     control_of = ha_scope.control_checker(conn, principal)
-    body = svc.build_items(conn, entities, kind, scope, id or "*", scoped=scoped, control_of=control_of)
+    body = svc.build_items(conn, entities, kind, scope, id or "*", scoped=scoped, control_of=control_of, switches=switches)
     if body is None:
         raise ApiError(404, "not_found", "הקומה או האזור לא נמצאו.")
-    flags = _bulk_flags(conn, principal)
+    flags = _bulk_flags(conn, principal, reads)
     if scope == "building":
         body["can_bulk"] = bool(flags["building"])
     elif scope == "floor":
@@ -292,7 +323,7 @@ def items(
         body["can_bulk"] = body["id"] != svc.UNASSIGNED and bool(flags["all"] or body["id"] in flags["areas"])
     # re-review M1: which rows a bulk action would reach (the same SwitchPolicy the bulk resolves with - CR-019's switch
     # protection, the door layer, door covers, alarm-managed), so the master control counts only those
-    policy = bulk.SwitchPolicy(conn)
+    policy = bulk.SwitchPolicy(conn, managed=reads.managed())
     from ..services import media_store
 
     media_managed = media_store.managed_entities(conn) if kind == "media" else set()
@@ -774,6 +805,8 @@ class BulkBody(BaseModel):
     # owner 2026-09-29 (the tiles' panel): the entity ids the panel shows (its filter / search) - narrows the set, never
     # widens it (services/device_bulk.resolve)
     only: list[str] | None = Field(None, max_length=500)
+    # SWITCH-LIGHT-DIMMER-2331: "all" = the lights kinds reach every switch.* too (the synoptic floor lights popup); typed when absent
+    switches: Literal["typed", "all"] | None = None
 
 
 def _bulk_holder(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
@@ -867,11 +900,12 @@ def bulk_preview(
     kind: Kind = Query(...),
     position: int | None = Query(None, ge=0, le=100),
     only: str | None = Query(None, max_length=20000),
+    switches: Literal["typed", "all"] = Query("typed"),
 ) -> dict[str, Any]:
     """Exactly what `POST /devices/actions` would send for this scope and kind, per entity - the confirmation dialog
     states it (count by domain, what is skipped as already off / unavailable, what is never included). Sends nothing."""
     try:
-        return bulk.resolve(conn, principal, scope, id, kind, position, _only(only))
+        return bulk.resolve(conn, principal, scope, id, kind, position, _only(only), switches)
     except ApiError as exc:
         if exc.status == 403:
             audit(conn, actor=principal, action=bulk.AUDIT_ACTION, decision="denied", resource_type=f"devices_{scope}", resource_id=id, reason=exc.code,
@@ -895,11 +929,13 @@ def bulk_run(request: Request, principal: Principal = Depends(_bulk_holder_ro), 
     body = _parse(act, raw)
     act.resource_type, act.resource_id = f"devices_{body.scope}", body.id
     act.details.update(scope=body.scope, id=body.id, kind=body.kind, client_request_id=body.client_request_id, expires_at=body.expires_at)
+    if body.switches == "all":
+        act.details["switches"] = "all"  # SWITCH-LIGHT-DIMMER-2331: the lights kinds reached every switch
     not_after = _envelope(act, body)
     if body.confirmed is not True:
         raise act.refuse(ApiError(409, "confirmation_required", "פעולה מרוכזת דורשת אישור מפורש בחלון האישור."))
     try:
-        plan = bulk.resolve(conn, principal, body.scope, body.id, body.kind, body.position, set(body.only) if body.only is not None else None)
+        plan = bulk.resolve(conn, principal, body.scope, body.id, body.kind, body.position, set(body.only) if body.only is not None else None, body.switches or "typed")
     except ApiError as exc:
         raise act.refuse(exc) from None
     if body.preview_digest is not None and body.preview_digest != plan["digest"]:

@@ -154,14 +154,14 @@ test.describe('tickets weekly calendar evidence', () => {
     await goCal(page);
     await page.waitForSelector(`${C} [data-cal-week]`);
     const all = await page.locator(`${C} [data-cal-event]`).count();
+    await page.locator(`${L} [data-filter-toggle]`).click(); // TICKETS-POLISH-2331: the state and the departments live in the "סינון" panel
     await page.locator(`${L} [data-dept="dept-cleaning"]`).click();
     await expect(page.locator(`${C} [data-cal-event]`)).not.toHaveCount(all);
     const cleaning = await page.locator(`${C} [data-cal-event]`).count();
     expect(cleaning).toBeLessThan(all);
     await page.locator(`${L} [data-dept=""]`).click();
     await expect(page.locator(`${C} [data-cal-event]`)).toHaveCount(all);
-    // the filter row is offered in the calendar mode and narrows by handler
-    await page.locator(`${L} [data-filter-toggle]`).click();
+    // the filter row is offered in the calendar mode (the same open panel) and narrows by handler
     await page.locator(`${L} [data-f-handler]`).selectOption({ index: 2 });
     expect(await page.locator(`${C} [data-cal-event]`).count()).toBeLessThan(all);
     await page.locator(`${L} [data-f-clear]`).click();

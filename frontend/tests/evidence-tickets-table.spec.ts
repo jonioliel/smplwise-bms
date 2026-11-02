@@ -133,14 +133,18 @@ test.describe('tickets table evidence', () => {
   test('the table filters: priority, handler, waiting - one request with them', async ({ page }) => {
     const mock = await go(page, '/tickets/mine');
     await page.waitForSelector(isPhone(page) ? `${T} [data-compact-list]` : `${T} tbody tr`);
-    const tb = page.locator(`${T} tickets-table-toolbar`);
-    await tb.locator('[data-open="filters"]').click();
-    await tb.locator('[data-f-priority="urgent"]').click();
-    await tb.locator('[data-f-assignee="none"]').click();
+    // POLISH-LEFTOVERS-2341: ONE "סינון" - the page's panel hosts the table's filters; the table toolbar has none of its own
+    const L = 'sw-app tickets-list';
+    await expect(page.locator(`${T} tickets-table-toolbar [data-open="filters"]`)).toHaveCount(0);
+    const panel = page.locator(`${L} [data-filter-panel]`);
+    await page.locator(`${L} [data-filter-toggle]`).click();
+    await panel.locator('[data-f-priority="urgent"]').click();
+    await panel.locator('[data-f-assignee="none"]').click();
     await shot(page, 'filters');
     await expect.poll(() => { const s = new URLSearchParams(lastCall(mock, 'tickets/table')?.search); return [s.get('priority'), s.get('assignee')]; }).toEqual(['urgent', 'none']);
-    await expect(tb.locator('[data-open="filters"]')).toContainText('2');
-    await tb.locator('[data-f-clear]').click();
+    await expect(page.locator(`${L} [data-filter-toggle]`)).toContainText('2');
+    await expect(page.locator(`${L} [data-active-chip="priority"]`)).toBeVisible();
+    await panel.locator('[data-f-clear]').click();
     await expect.poll(() => new URLSearchParams(lastCall(mock, 'tickets/table')?.search).get('priority')).toBeNull();
   });
 

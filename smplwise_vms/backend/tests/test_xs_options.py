@@ -28,6 +28,8 @@ DEFAULT = {
     "syn_custom": ["light", "temp", "presence", "cameras", "doors", "alerts", "fire"],
     "syn_hide_empty": True,
     "syn_events": True,
+    "syn_switches": "typed",
+    "syn_phone_view": "table",
     "fire_column": "hidden",
     "fire_ui": False,
     "ack": "hold",
@@ -49,6 +51,8 @@ CHANGED = {
     "syn_custom": ["temp", "doors"],
     "syn_hide_empty": False,
     "syn_events": False,
+    "syn_switches": "all",
+    "syn_phone_view": "section",
     "fire_column": "dashed",
     "fire_ui": True,
     "ack": "confirm",
@@ -78,6 +82,12 @@ BAD = [
     {"syn_custom": ["light", "kitchen"]},  # not a column
     {"syn_custom": ["temp", "temp"]},  # each column once
     {"syn_custom": [1]},
+    {"syn_switches": "some"},  # SWITCH-LIGHT-DIMMER-2331: typed | all only
+    {"syn_switches": True},
+    {"syn_phone_view": "tiles"},  # SYNOPTIC-MOBILE-2342: table | cards | section only
+    {"syn_phone_view": "Table"},  # exact values, no case folding
+    {"syn_phone_view": None},
+    {"syn_phone_view": 2},
 ]
 
 
@@ -102,6 +112,30 @@ def test_syn_custom_is_kept_in_the_board_order_and_may_be_empty():
     # the defaults are not shared between calls (a caller that edits the list does not change the next answer)
     xs_options.normalize({})["syn_custom"].append("x")
     assert xs_options.normalize({})["syn_custom"] == DEFAULT["syn_custom"]
+
+
+def test_switches_in_the_lights_column_default_to_the_typed_ones(client):
+    """SWITCH-LIGHT-DIMMER-2331: "מפסקים בעמודת התאורה" - only the switches typed as a light (default), or every switch."""
+    assert client.get(URL).json()["settings"]["ui.xs"]["syn_switches"] == "typed"
+    assert xs_options.normalize({"syn_switches": "all"})["syn_switches"] == "all"
+    # a value stored before the option existed reads with the default
+    assert xs_options.normalize({"syn_hide_empty": False})["syn_switches"] == "typed"
+
+
+def test_phone_view_defaults_to_the_compact_table_and_takes_the_three_layouts(settings):
+    """SYNOPTIC-MOBILE-2342 (owner round 13, answer 1A + note): "תצוגת המפה הסינופטית בטלפון" - the compact table (default), floor cards,
+    or the building cross-section first. Stored with the rest of ui.xs; a value stored before the option existed reads as the table."""
+    assert xs_options.DEFAULT["syn_phone_view"] == "table"
+    assert xs_options.normalize({"syn_hide_empty": False})["syn_phone_view"] == "table"
+    app = create_app(settings)
+    with TestClient(app) as c:
+        assert c.get(URL).json()["settings"]["ui.xs"]["syn_phone_view"] == "table"
+        for v in ("cards", "section", "table"):
+            r = c.patch(URL, json={"ui.xs": {**DEFAULT, "syn_phone_view": v}})
+            assert r.status_code == 200, r.text
+            assert c.get(URL).json()["settings"]["ui.xs"]["syn_phone_view"] == v
+        assert c.patch(URL, json={"ui.xs": {**DEFAULT, "syn_phone_view": "grid"}}).status_code == 422
+        assert c.get(URL).json()["settings"]["ui.xs"]["syn_phone_view"] == "table", "a refused value changes nothing"
 
 
 def test_hiding_empty_columns_is_on_by_default(client):

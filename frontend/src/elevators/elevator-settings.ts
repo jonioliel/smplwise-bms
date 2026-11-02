@@ -60,7 +60,7 @@ export class ElevatorSettings extends LitElement {
     .drow > span:first-child { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
     .seg { display: inline-flex; flex-wrap: wrap; background: var(--sw-surface-3); padding: 2px; border-radius: 999px; gap: 1px; }
     .seg button { border: 0; background: transparent; padding: 3px 12px; min-block-size: 30px; font: inherit; font-size: var(--sw-fs-xs); color: var(--sw-text-2); border-radius: 999px; cursor: pointer; }
-    .seg button[aria-pressed='true'] { background: var(--sw-surface); color: var(--sw-text); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1); }
+    .seg button[aria-pressed='true'] { background: var(--sw-seg-thumb, var(--sw-surface)); color: var(--sw-text); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
     .seg button:focus-visible, .lnk:focus-visible { outline: var(--sw-focus-w, 2px) solid var(--sw-focus, var(--sw-accent)); outline-offset: 1px; }
     .incl { display: flex; flex-wrap: wrap; gap: 6px 14px; }
     .lnk { color: var(--sw-accent-text, var(--sw-accent)); font-size: var(--sw-fs-sm); }
@@ -197,7 +197,7 @@ export class ElevatorSettings extends LitElement {
               <button type="button" class="btn sm" aria-label=${elt('up')} ?disabled=${this.busy || i === 0} @click=${() => void this.run(() => reorderElevators(moved(ids, e.id, -1)))}><sw-icon name="arrowUp" size="16"></sw-icon></button>
               <button type="button" class="btn sm" aria-label=${elt('down')} ?disabled=${this.busy || i === ids.length - 1} @click=${() => void this.run(() => reorderElevators(moved(ids, e.id, 1)))}><sw-icon name="arrowDown" size="16"></sw-icon></button>
               <button type="button" class="btn sm" data-elevator-edit @click=${() => void this.open(draftOf(e))}>${elt('edit')}</button>
-              <button type="button" class="btn sm dng" data-elevator-remove @click=${() => (this.confirmDelete = e)}><sw-icon name="trash" size="16"></sw-icon></button>
+              <button type="button" class="btn sm dng" data-elevator-remove aria-label=${elt('remove')} title=${elt('remove')} @click=${() => (this.confirmDelete = e)}><sw-icon name="trash" size="16"></sw-icon></button>
             </div>`;
           })}</div>`}
       ${this.list.length ? this.display() : nothing}

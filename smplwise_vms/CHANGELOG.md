@@ -23,6 +23,122 @@
 - **English:** Installation at the owner and live behaviour are NOT_MEASURED; no automatic installation without the setting (owner decision); template send, people messaging and the send permit stay owner steps; the component digest WisKey quotes could not be reproduced from the delivered archive (the per-file pin matches); the cloud template export remains blocked on WisKey's side.
 - **עברית:** ההתקנה אצל הבעלים וההתנהגות החיה לא נמדדו; אין התקנה אוטומטית בלי ההגדרה (החלטת הבעלים); שליחת תבניות, הודעות לאנשים והיתר השליחה נשארים צעדי בעלים; תקליטור הרכיב ש-WisKey מצטטת לא שוחזר מהארכיון שנמסר (הנעילה קובץ-קובץ תואמת); ייצוא התבניות מהענן עדיין חסום בצד של WisKey.
 
+## 2.34.1 (pilot) - Smooth recorded playback, a steadier server, quieter logs, a release check for the add-on build
+**After installing:** no database migration. Going back to 2.34.0 is safe. The server now runs on the standard network components by default; the fast ones can be turned back on in Diagnostics ("שרת: רכיב תקשורת מהיר"), after a restart.
+- **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. חזרה ל-2.34.0 בטוחה. השרת עובד כעת כברירת מחדל על רכיבי התקשורת הרגילים; את הרכיב המהיר אפשר להחזיר באבחון ("שרת: רכיב תקשורת מהיר"), אחרי הפעלה מחדש.
+
+### What was fixed - מה תוקן
+- **English:** Recorded playback: rapid seeks are merged (only the last one is sent), each seek closes the old stream before opening the new one, and a per-minute seek cap (setting, default 30) shows a Hebrew notice instead of opening more. Timeline previews show the nearest available picture within 30 seconds instead of a gap, and the last good picture stays while the next one loads. The native network libraries are pinned to proven versions.
+- **עברית:** צפייה בהקלטות: דילוגים מהירים מאוחדים (נשלח רק האחרון), כל דילוג סוגר את הזרם הקודם לפני שפותח חדש, ומגבלת דילוגים לדקה (הגדרה, ברירת מחדל 30) מציגה הודעה בעברית במקום לפתוח עוד. תצוגת ציר הזמן מציגה את התמונה הקרובה ביותר בטווח 30 שניות במקום חור, והתמונה האחרונה נשארת עד שהבאה נטענת. ספריות התקשורת נעולות לגרסאות מוכחות.
+- **English:** The server runs on asyncio and h11 by default (a suspected native crash source is off); a setting turns the fast components back on.
+- **עברית:** השרת עובד כברירת מחדל על asyncio ו-h11 (מקור קריסה חשוד כבוי); הגדרה מחזירה את הרכיבים המהירים.
+- **English:** The false "write gate held ... outside a transaction" log alarm is gone, and a camera-list read no longer takes the write lock.
+- **עברית:** אזעקת השווא ביומן "write gate held ... outside a transaction" נעלמה, וקריאת רשימת המצלמות כבר לא תופסת את נעילת הכתיבה.
+- **English:** Frigate: refused credentials no longer flood the log; Arx backs off up to 30 minutes, logs once per change and shows the exact fix step in Hebrew on the recorder health card.
+- **עברית:** Frigate: פרטי גישה שנדחו כבר לא מציפים את היומן; Arx מאט עד 30 דקות בין ניסיונות, רושם שורה אחת לכל שינוי ומציג בכרטיס הבריאות את צעד התיקון המדויק בעברית.
+- **English:** Release checks now validate the add-on's build files (base image by tag, Dockerfile syntax, arch and labels), so a broken build like 2.31.0 or 2.33.2 is caught before release.
+- **עברית:** בדיקות השחרור בודקות עכשיו את קבצי הבנייה של התוסף (בסיס לפי תגית, תחביר Dockerfile, ארכיטקטורות ותוויות), כך שבנייה שבורה כמו ב-2.31.0 או 2.33.2 נתפסת לפני שחרור.
+
+## 2.34.0 (pilot) - Design polish round, H.265 live fallback, NVR writes switch and one-click H.264, owner round-12 answers
+**After installing:** no database migration. New settings ("קידוד H.265 בדפדפן", "תרגומים במקביל", and the per-recorder "אפשר שינויי הגדרות ב־NVR") start with defaults; for a Provision-ISR recorder setting changes are off until the switch is turned on, a Hikvision recorder keeps today's behaviour. Every feature, setting and text that was there before is still there. Going back to 2.33.1 is safe; the new settings are then ignored.
+- **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. ההגדרות החדשות ("קידוד H.265 בדפדפן", "תרגומים במקביל", והמתג לכל מקליט "אפשר שינויי הגדרות ב־NVR") מתחילות בברירת מחדל; במקליט Provision-ISR שינויי ההגדרות כבויים עד שמדליקים את המתג, מקליט Hikvision ממשיך כמו היום. כל יכולת, הגדרה וטקסט שהיו קודם נשארו. חזרה ל-2.33.1 בטוחה; ההגדרות החדשות פשוט לא ייקראו.
+
+### What was added - מה נוסף
+- **English:** Live video from H.265 cameras in browsers that cannot decode H.265: the server picks a fallback - the camera's other stream when it is H.264, else an H.264 copy transcoded on demand (only while someone watches, viewers share it, with a cap on how many run at once). The tile shows a small tag for the stream it got, and a clear Hebrew message instead of a black picture when there is no fallback. New settings in Settings › Video and media: "קידוד H.265 בדפדפן" (automatic / always the sub stream / always transcode / off) and "תרגומים במקביל" (default 2). The recorder's encoding is never changed by this.
+- **עברית:** וידאו חי ממצלמות H.265 בדפדפנים שלא מפענחים H.265: השרת בוחר חלופה - הזרם השני של המצלמה כשהוא H.264, אחרת עותק H.264 שמתורגם לפי דרישה (רק כשמישהו צופה, הצופים חולקים אותו, ועם תקרה למספר התרגומים בו-זמנית). האריח מציג תגית קטנה של הזרם שהתקבל, והודעה ברורה בעברית במקום תמונה שחורה כשאין חלופה. הגדרות חדשות בהגדרות › וידאו ומדיה: "קידוד H.265 בדפדפן" (אוטומטי / תמיד זרם משני / תמיד תרגום / כבוי) ו"תרגומים במקביל" (ברירת מחדל 2). קידוד המקליט לא משתנה מזה.
+- **English:** Per-recorder switch "אפשר שינויי הגדרות ב־NVR" in the recorder's connection form (with a confirmation before turning it on): Provision-ISR recorders are off by default, Hikvision recorders keep today's behaviour. While it is off, no encoding or other setting is written to that recorder. The bulk encoding dialog gains a one-click "convert every stream to H.264" preset (all cameras or the ticked ones; main, sub or both) that goes through the usual preview and confirmation, and its undo reads "החזר לערכים הקודמים".
+- **עברית:** מתג לכל מקליט "אפשר שינויי הגדרות ב־NVR" בטופס החיבור של המקליט (עם אישור לפני ההדלקה): במקליטי Provision-ISR הוא כבוי כברירת מחדל, מקליטי Hikvision ממשיכים כמו היום. כשהוא כבוי לא נכתבים למקליט קידוד או הגדרות אחרות. חלון שינוי הקידוד לכמה מצלמות מקבל פעולה בלחיצה אחת "המר את כל הזרמים ל-H.264" (כל המצלמות או המסומנות; ראשי, משני או שניהם) שעוברת דרך התצוגה המקדימה והאישור הרגילים, והביטול שלה נקרא "החזר לערכים הקודמים".
+
+### What was fixed - מה תוקן
+- **English:** Owner round-12 answers: the connections page and the setup and migration guides no longer say Arx never writes to the recorder - writes happen only through the approved actions and need the sensitive permission; the "ללא שיוך" choice (always / while editing / never) now also governs the unassigned section of the tiles view; the layout editor's side panel is a bottom sheet on tablets as well as phones (below 1200 px).
+- **עברית:** תשובות הבעלים לסבב 12: דף החיבורים ומדריכי ההתקנה וההעברה כבר לא אומרים ש-Arx אף פעם לא כותב למקליט - כתיבה מתבצעת רק דרך הפעולות המאושרות ודורשת את ההרשאה הרגישה; הבחירה "ללא שיוך" (תמיד / בזמן עריכה / אף פעם) קובעת עכשיו גם את אזור הלא-משויכים בתצוגת האריחים; חלונית הצד של עורך הפריסה נפתחת מלמטה גם בטאבלט ולא רק בטלפון (מתחת ל-1200 פיקסלים).
+- **English:** Automations on a phone: each row gives the automation's name the whole first line.
+- **עברית:** אוטומציות בטלפון: כל שורה נותנת לשם האוטומציה את כל השורה הראשונה.
+- **English:** Climate devices: fan, swing, preset and humidifier modes are shown in Hebrew in the mode menus, the command status line and the area row (the device still receives its own values).
+- **עברית:** מכשירי מיזוג: מצבי מאוורר, תנודה, פריסט ולחות מוצגים בעברית בתפריטי המצב, בשורת מצב הפקודה ובשורת האזור (המכשיר עדיין מקבל את הערכים שלו).
+- **English:** Service requests table view: one "Filter" button instead of two - the page's filter panel now holds the table's filters too (priority, handler, waiting, stuck, cost state, dates), with one chip per active filter and one reset.
+- **עברית:** תצוגת הטבלה של קריאות השירות: כפתור "סינון" אחד במקום שניים - חלונית הסינון של הדף מחזיקה עכשיו גם את מסנני הטבלה (עדיפות, מטפל, ממתין, תקוע, מצב עלות, תאריכים), עם שבב אחד לכל מסנן פעיל ואיפוס אחד.
+
+### What was improved - מה שופר
+- **English:** Service requests: the list and the manager board share one compact toolbar - one "Filter" panel (state, departments, floors tree, priority) with removable chips for active filters, the view switch and "new" on the title row, a compact "my numbers" row, and the table fills its card with a sticky header. Portrait tablets no longer scroll the whole page; on a phone the filter panel is a bottom sheet.
+- **עברית:** קריאות שירות: הרשימה ולוח המנהל חולקים סרגל כלים קומפקטי אחד - חלונית "סינון" אחת (מצב, מחלקות, עץ קומות, עדיפות) עם שבבים להסרת מסננים פעילים, מעבר תצוגה ו"חדשה" בשורת הכותרת, שורת "המספרים שלי" קומפקטית, והטבלה ממלאת את הכרטיס עם כותרת נעוצה. בטאבלט לאורך הדף כבר לא נגלל כולו; בטלפון חלונית הסינון נפתחת מלמטה.
+- **English:** Service request settings and side screens: one column below 1000 px, one save pattern per card, the save result as a message at the bottom of the window, the "new request for quote" button in the title row, and clearer loading and switched-off states for maintenance.
+- **עברית:** הגדרות קריאות השירות ומסכי הצד: עמודה אחת מתחת ל-1000 פיקסלים, דפוס שמירה אחד לכל כרטיס, תוצאת השמירה כהודעה בתחתית החלון, כפתור "בקשה חדשה להצעת מחיר" בשורת הכותרת, ומצבי טעינה וכיבוי ברורים יותר בתחזוקה.
+- **English:** Devices: the layout editor's panel is grouped (look, size and place, content, actions), device controls share one control look, a cover's tilt sits apart from its position, the confirming tap is highlighted, and the automations screen loads with the shape of its list.
+- **עברית:** מכשירים: חלונית עורך הפריסה מקובצת (מראה, גודל ומיקום, תוכן, פעולות), פקדי המכשירים חולקים מראה אחד, ההטיה של תריס מופרדת מהמיקום שלו, הלחיצה המאשרת מודגשת, ומסך האוטומציות נטען בצורת הרשימה שלו.
+- **English:** People and access: user and group drawers are proper side panels (a bottom sheet on a phone), deny rules are marked in the tables, the phone table keeps the essential columns, and loading, error and empty states are consistent.
+- **עברית:** אנשים והרשאות: חלוניות המשתמש והקבוצה הן חלוניות צד אמיתיות (חלון תחתון בטלפון), כללי חסימה מסומנים בטבלאות, הטבלה בטלפון שומרת את העמודות החיוניות, ומצבי טעינה, שגיאה וריק אחידים.
+- **English:** Calendars, calendar connections and the messaging channel settings: no cut-off table rows, behaviour settings grouped by topic, card actions at the foot of each card, department rows indented under their account.
+- **עברית:** יומנים, חיבורי יומן והגדרות ערוץ ההודעות: אין שורות טבלה חתוכות, הגדרות ההתנהגות מקובצות לפי נושא, פעולות הכרטיס בתחתית כל כרטיס, ושורות המחלקות מוזחות תחת החשבון שלהן.
+- **English:** Media and doors: the players page fits the window with only its cards scrolling, the casting table lines up, door cards name each switch, and the remote editor keeps save / cancel always on screen.
+- **עברית:** מדיה ודלתות: דף הנגנים מתאים לחלון וגוללים רק הכרטיסים, טבלת השידור מיושרת, כרטיסי הדלתות נותנים שם לכל מתג, ועורך השלט משאיר את שמירה / ביטול תמיד על המסך.
+- **English:** WisKey stations and water: the stations screen fits the window on a desktop; the water meters, usage and alerts pages take the height under the tabs, the chart follows its box width, and form actions stay at the foot of the sheet. The bills list now loads on a direct visit.
+- **עברית:** עמדות WisKey ומים: מסך העמדות מתאים לחלון במחשב; דפי מוני המים, הצריכה וההתראות תופסים את הגובה שמתחת ללשוניות, הגרף עוקב אחרי רוחב המסגרת, ופעולות הטופס נשארות בתחתית החלון. רשימת החשבונות נטענת עכשיו גם בכניסה ישירה.
+- **English:** Look and branding: the logo settings have keyboard-friendly tabs and an "unsaved changes" mark; the wall-screen users list, empty state and drawer are reorganised into clear sections, with the camera choice as ordered rows.
+- **עברית:** מראה ומיתוג: הגדרות הלוגו עם לשוניות נוחות למקלדת וסימון "שינויים שעוד לא נשמרו"; רשימת משתמשי מסך הקיר, המצב הריק והחלונית סודרו לאזורים ברורים, ובחירת המצלמות היא שורות ממוספרות.
+- **English:** Camera administration: the privacy masks editor fits the window on a wide screen (picture, regions and review side by side), and the multi-camera batch list and its progress rows are clearer.
+- **עברית:** ניהול מצלמות: עורך מסכות הפרטיות מתאים לחלון במסך רחב (תמונה, אזורים וסקירה זה לצד זה), ורשימת הפעולה על כמה מצלמות ושורות ההתקדמות שלה ברורות יותר.
+- **English:** Automations and schedules settings: rows stack instead of squeezing in a narrow column, the slot panel and table view are tidier, and the create dialog keeps its actions on screen while only the body scrolls.
+- **עברית:** הגדרות אוטומציות ולוחות זמנים: שורות נערמות במקום להידחס בעמודה צרה, חלונית המשבצת ותצוגת הטבלה מסודרות יותר, וחלון היצירה משאיר את הפעולות על המסך כשרק התוכן נגלל.
+- **English:** Investigation: the cases list fits the window with status filters and a count, a case page has two scrolling columns and a preservation summary, exports are grouped into active and finished with a summary row, and the event page shows Hebrew event names with technical details on request.
+- **עברית:** חקירה: רשימת התיקים מתאימה לחלון עם מסנני מצב וספירה, דף תיק עם שתי עמודות נגללות וסיכום שימור, הייצואים מקובצים לפעילים ולשהסתיימו עם שורת סיכום, ודף האירוע מציג שמות אירועים בעברית ופרטים טכניים לפי בקשה.
+- **English:** Insights and infrastructure reports: calmer counters, one segment track for range and language, openable door rows with a chevron, larger touch targets on tablets and phones, and consistent empty and error marks.
+- **עברית:** תובנות ודוחות תשתית: מונים שקטים יותר, מסילת בחירה אחת לטווח ולשפה, שורות דלת נפתחות עם חץ, אזורי מגע גדולים יותר בטאבלט ובטלפון, וסימוני ריק ושגיאה אחידים.
+- **English:** Home editing: the edit panel is grouped (screen, widgets with a shown count, order), widget rows are wells, keys and fields are 44 px on a phone, a triggered alarm now shows on the phone's ambient bar, and the clock uses even-width figures.
+- **עברית:** עריכת הבית: חלונית העריכה מקובצת (המסך, ווידג'טים עם ספירת המוצגים, סדר), שורות הווידג'טים בולטות פחות, מקשים ושדות בגובה 44 פיקסלים בטלפון, אזעקה פעילה מוצגת עכשיו בסרגל העליון בטלפון, והשעון משתמש בספרות ברוחב קבוע.
+- **English:** Setup and plan administration: connection results show as status lines with an icon, the map settings and area-links pages use the common settings look with tinted counts, and the plan editor's cards answer a press.
+- **עברית:** הגדרות התקנה ומפה: תוצאות החיבור מוצגות כשורות מצב עם סמל, דפי הגדרות המפה וקישורי האזורים משתמשים במראה ההגדרות המשותף עם מונים צבעוניים, וכרטיסי עורך המפה מגיבים ללחיצה.
+- **English:** Tabs display settings: two headed groups (display, the tabs of each area), owner columns with a head, choices as tiles, one save / error line, and a retry panel if the settings do not load.
+- **עברית:** הגדרות תצוגת הלשוניות: שתי קבוצות עם כותרת (תצוגה, הלשוניות של כל אזור), עמודות לפי בעלים עם כותרת, בחירות כאריחים, שורת שמירה / שגיאה אחת, וחלונית "נסה שוב" אם ההגדרות לא נטענות.
+- **English:** Shared building blocks: one "technical details" disclosure for the events list and the event page, a common settings kit (narrow-column stacking, choice tiles, toggle chips, selects, the role matrix, a footer kept in view on a phone), centred empty states, a failure tone for media-page messages, and opt-in content-sized dialogs and keyboard-focusable table rows.
+- **עברית:** רכיבים משותפים: אזור "פרטים טכניים" אחד לרשימת האירועים ולדף האירוע, ערכת הגדרות משותפת (שורות שנערמות בעמודה צרה, אריחי בחירה, שבבי הפעלה, רשימות בחירה, טבלת התפקידים, תחתית שנשארת על המסך בטלפון), מצבים ריקים ממורכזים, גוון כישלון להודעות בדפי המדיה, ובחירה בחלונות בגודל התוכן ובשורות טבלה שאפשר להגיע אליהן במקלדת.
+
+## 2.33.3 (pilot) - Fix: the 2.33.2 add-on image could not be built
+**After installing:** no database migration. Same content as 2.33.2. Going back to 2.33.1 is safe.
+- **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. אותו תוכן כמו 2.33.2. חזרה ל-2.33.1 בטוחה.
+
+### What was fixed - מה תוקן
+- **English:** 2.33.2 had a broken line in the add-on's build file (Dockerfile), so Home Assistant failed to build or update it. 2.33.3 fixes that line; everything else (the crash guard) is unchanged. If the update to 2.33.2 failed, update to 2.33.3.
+- **עברית:** ב-2.33.2 הייתה שורה שבורה בקובץ הבנייה של התוסף (Dockerfile), ולכן Home Assistant נכשל בבנייה או בעדכון. 2.33.3 מתקנת את השורה; כל השאר (שומר הקריסות) ללא שינוי. אם העדכון ל-2.33.2 נכשל, יש לעדכן ל-2.33.3.
+
+## 2.33.2 (pilot) - The add-on recovers by itself after a crash
+**After installing:** no database migration. Going back to 2.33.1 is safe.
+- **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. חזרה ל-2.33.1 בטוחה.
+
+### What was fixed - מה תוקן
+- **English:** If the add-on's server process crashes (for example the crash seen during fast scrubbing in recorded playback), it now restarts by itself within seconds instead of the add-on stopping. Each crash is recorded and shown in Diagnostics ("restarts after a crash"), with a warning in the top bar for 24 hours.
+- **עברית:** אם תהליך השרת של התוסף קורס (למשל הקריסה שנראתה בדילוגים מהירים בצפייה בהקלטות), הוא עולה מחדש לבד תוך שניות במקום שהתוסף ייעצר. כל קריסה נרשמת ומוצגת באבחון ("הפעלות מחדש אחרי קריסה"), עם אזהרה בשורה העליונה למשך 24 שעות.
+- **English:** A crash now leaves a full technical trace in the add-on log, so its cause can be found and fixed.
+- **עברית:** קריסה משאירה עכשיו פירוט טכני מלא ביומן התוסף, כדי שאפשר יהיה למצוא את הסיבה ולתקן אותה.
+- **English:** Safe mode: after two crashes within six hours the server restarts on slower but steadier networking components, and returns to normal after six quiet hours.
+- **עברית:** מצב בטוח: אחרי שתי קריסות בתוך שש שעות השרת עולה מחדש על רכיבי תקשורת איטיים מעט אך יציבים יותר, וחוזר למצב הרגיל אחרי שש שעות שקטות.
+- **English:** Recommended: turn on the add-on's Watchdog in Home Assistant as a second safety net.
+- **עברית:** מומלץ: להדליק את Watchdog של התוסף ב-Home Assistant כרשת ביטחון נוספת.
+
+## 2.33.1 (pilot) - On/off lights without a dimmer, floor lights popup, tidier tree, event centre polish, scrolling tab strips
+**After installing:** no database migration. New settings keep today's behaviour by default. Going back to 2.33.0 is safe; before going back, set "show 'ללא שיוך' in the tree" to "always" if it was changed, so the other home-screen options are kept.
+- **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. ההגדרות החדשות שומרות על ההתנהגות הקיימת כברירת מחדל. חזרה ל-2.33.0 בטוחה; לפני החזרה, אם שונתה ההגדרה "הצג 'ללא שיוך' בעץ", יש להחזיר אותה ל"תמיד" כדי ששאר אפשרויות המסך הראשי יישמרו.
+
+### What was fixed - מה תוקן
+- **English:** Switches typed as a light (and lights that are on/off only) no longer show a brightness slider - on the area tiles, the quick sheet, the lights panel and the bubbles. They keep the light look; only the slider goes.
+- **עברית:** מפסקים שהוגדר להם הסוג "תאורה" (וגופי תאורה של הדלקה / כיבוי בלבד) כבר לא מציגים פס עמעום - באריחי האזור, בחלון המהיר, בחלונית התאורה ובבועות. המראה של תאורה נשמר; רק פס העמעום יורד.
+- **English:** Event centre (Security › Investigate › Events, and the sensor events list): the side panel's actions are always in view, the list scrolls in its own box instead of the page, event names are in Hebrew (motion detection, line crossing, ...), and the device codes and other technical details sit in a collapsible "technical details" section. Up / Down move between events and Esc closes the panel; on a phone the panel is a full-screen sheet.
+- **עברית:** מרכז האירועים (אבטחה › חקירה › אירועים, וגם רשימת אירועי החיישנים): פעולות החלונית הצדדית תמיד גלויות, הרשימה נגללת בתוך המסגרת שלה במקום כל הדף, שמות האירועים בעברית (זיהוי תנועה, חציית קו ועוד), וקודי ההתקן ושאר הפרטים הטכניים נמצאים באזור "פרטים טכניים" שנפתח לפי בקשה. חיצי מעלה / מטה עוברים בין אירועים ו-Esc סוגר את החלונית; בטלפון החלונית נפתחת על כל המסך.
+- **English:** Provision-ISR live video is steadier on a full wall of cameras: the stream capabilities read from the recorder are kept for ten minutes and shared, and when the recorder is briefly busy a tile opens on the stream the add-on already has instead of failing.
+- **עברית:** השידור החי מ-Provision-ISR יציב יותר בקיר מלא של מצלמות: יכולות הזרם שנקראות מהמקליט נשמרות לעשר דקות ומשותפות, וכשהמקליט עמוס לרגע האריח נפתח על הזרם שכבר קיים בתוסף במקום להיכשל.
+- **English:** The settings page for the bridge is named "גשר Arx" instead of naming the home platform.
+- **עברית:** דף ההגדרות של הגשר נקרא עכשיו "גשר Arx" במקום שם הפלטפורמה של הבית.
+
+### What was added - מה נוסף
+- **English:** Synoptic map setting "מפסקים בעמודת התאורה" (Settings › General › Building section and synoptic map): only switches typed as a light (default) or every switch in the lights column.
+- **עברית:** הגדרה במפה הסינופטית "מפסקים בעמודת התאורה" (הגדרות › כללי › חתך הבניין והמפה הסינופטית): רק מפסקים שהוגדרו כתאורה (ברירת מחדל) או כל המפסקים בעמודת התאורה.
+- **English:** Floor lights popup: pressing a floor's lights on the synoptic board or the building section opens that floor's lights, grouped by area, with "turn all on" / "turn all off" through the usual confirmation.
+- **עברית:** חלון תאורת קומה: לחיצה על התאורה של קומה במפה הסינופטית או בחתך הבניין פותחת את גופי התאורה של הקומה, מקובצים לפי אזור, עם "הדלק הכל" / "כבה הכל" דרך אישור רגיל.
+- **English:** The "ללא שיוך" row of the building tree can be hidden - always shown (default), only while editing, or never - from the home-screen options or with "hide from the tree" on the row itself (with undo). Counts do not change.
+- **עברית:** אפשר להסתיר את השורה "ללא שיוך" בעץ המבנה - תמיד מוצגת (ברירת מחדל), רק בזמן עריכה, או אף פעם - מאפשרויות המסך הראשי או דרך "הסתר מהעץ" בשורה עצמה (עם ביטול). המספרים לא משתנים.
+- **English:** Long tab strips (Settings and every other tab row) scroll with arrows at their ends, the mouse wheel, a swipe, and the keyboard (arrow keys, Home / End). A strip that fits looks as before.
+- **עברית:** שורות לשוניות ארוכות (בהגדרות ובכל שורת לשוניות אחרת) נגללות עם חיצים בקצוות, גלגלת העכבר, החלקה והמקלדת (חצים, Home / End). שורה שנכנסת במלואה נראית כמו קודם.
+
 ## 2.33.0 (pilot) - Multi-building home and the mapping assistant, external calendar connections
 **After installing:** two database migrations (0188: a "shared building" flag on buildings; 0189: the mapping assistant's tables). Both only add; nothing changes until you switch the new features on. Going back to 2.32.1 needs the database backup taken before the update.
 - **עברית:** אחרי ההתקנה: שתי מיגרציות של מסד הנתונים (0188: סימון "בניין משותף" לבניינים; 0189: הטבלאות של אשף המיפוי). שתיהן מוסיפות בלבד; דבר לא משתנה עד שמפעילים את היכולות החדשות. חזרה ל-2.32.1 דורשת את גיבוי מסד הנתונים שנלקח לפני העדכון.

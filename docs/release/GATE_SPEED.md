@@ -302,3 +302,18 @@ counts as a clean gate for it.
     - frontend element, spec-helper and nav rules;
     - the nightly audit and the engine filters;
     - the baseline "selection" state, the quarantine streak rules, the gate history, and the shadow comparison.
+
+## 7. Supervisor build stage (SUPERVISOR-BUILD-GATE-2341)
+Why: 2.31.0 passed the gate and failed on the lab's Supervisor build (`pip install ... exit code: 127`; BUILD_FROM pinned by digest).
+- Static rules in `release_check.py` (milliseconds, every machine, part of the `release_check` category): base image by tag, the HA
+  python base per arch, pip/python steps on a python stage, config.yaml arch = build.yaml, image labels = config.yaml.
+- Real build: `scripts/gate/addon_build_check.sh` (branch under test), started in the background after `release_check`, collected
+  before `backend-wait` (phases `addon-build-start` / `addon-build-wait`). It overlaps the Playwright pool, so it adds wall time only
+  when it outlasts the pool (it cannot: budget `GATE_ADDON_BUILD_SECS` 600 s, the pool runs far longer). Estimate with a warm layer
+  cache: about 1-2 min (the pip layer is reused while `backend/requirements.txt` is unchanged; the COPY layers rebuild); cold
+  (first run, or a requirements change): about 4-8 min on the runner, mostly the pip install. NOT MEASURED: no docker on the runner yet.
+- No docker: NOT_RUN in seconds (`docker version` probe, 20 s at most), a skipped item with the reason; `GATE_ADDON_BUILD=require`
+  makes it a failure, `=off` skips the start. Steps: `scripts/gate/INSTALL_ON_RUNNER.md`.
+- Tests: `tests/test_supervisor_build_check.py` (each static rule + the 2.31.0 inputs), `tests/test_gate_addon_build.py` (settle
+  rules, off / missing script / lane / require, the report section, the wiring order, and with a fake `docker` on POSIX the real
+  script: build args, cached context, `--network none`, the 127 failure, NOT_RUN), `selftest_gate.py` addon-build cases.

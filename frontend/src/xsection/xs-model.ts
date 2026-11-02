@@ -24,6 +24,10 @@ export const XS_ACK = ['hold', 'confirm', 'tap'] as const; // A: long press 1.2 
 export const XS_ACK_WHO = ['separate', 'viewers', 'admin'] as const; // A: anyone who sees the board, B: a new separate permission (default), C: administrators
 export const XS_ALARM_BAR = ['everywhere', 'home'] as const; // A: a red bar on every screen (default), B: only Home and the synoptic map
 export const XS_FIRE_COLUMN = ['hidden', 'dashed'] as const; // B: hidden until connected (default), A: a dashed "not connected" column
+/** SWITCH-LIGHT-DIMMER-2331 "מפסקים בעמודת התאורה": only the switches typed as a light (default) / every switch.* entity. */
+export const XS_SYN_SWITCHES = ['typed', 'all'] as const;
+/** SYNOPTIC-MOBILE-2342 "תצוגת המפה הסינופטית בטלפון" (under 768 px): A compact table (default), B one card per floor, C the cross-section first. */
+export const XS_SYN_PHONE_VIEW = ['table', 'cards', 'section'] as const;
 export const XS_SYN_COLUMNS = ['all', 'few', 'custom'] as const; // A: seven columns (default), B: temperature, light, alerts, fire, C: the columns ticked in syn_custom
 /** SYN-COLUMNS-2321: every column of the board in its fixed order (the custom choice ticks any of them; the order never changes). */
 export const SYN_COLUMN_ORDER = ['light', 'temp', 'presence', 'cameras', 'doors', 'alerts', 'fire'] as const;
@@ -46,6 +50,10 @@ export interface XsOptions {
   /** SYN-COLUMNS-2321: a column with no source on any floor of the building (no temperature sensors, no lights) is not drawn. Default ON. */
   syn_hide_empty: boolean;
   syn_events: boolean; // the event strip beside the board on wide screens
+  /** SWITCH-LIGHT-DIMMER-2331: the lights column counts the switches typed as a light (typed, default) or every switch.* (all). */
+  syn_switches: (typeof XS_SYN_SWITCHES)[number];
+  /** SYNOPTIC-MOBILE-2342: the phone layout of the board (table, default / cards / section); tablet and desktop keep the table. */
+  syn_phone_view: (typeof XS_SYN_PHONE_VIEW)[number];
   fire_column: (typeof XS_FIRE_COLUMN)[number];
   fire_ui: boolean; // MASTER SWITCH of the alarm UI (off: no bar, no acknowledge, nothing about fire anywhere)
   ack: (typeof XS_ACK)[number];
@@ -68,6 +76,8 @@ export const XS_DEFAULT: Readonly<XsOptions> = {
   syn_custom: [...SYN_COLUMN_ORDER],
   syn_hide_empty: true,
   syn_events: true,
+  syn_switches: 'typed',
+  syn_phone_view: 'table',
   fire_column: 'hidden',
   fire_ui: false,
   ack: 'hold',
@@ -102,6 +112,8 @@ export function normalizeXs(raw: unknown): XsOptions {
   out.syn_custom = Array.isArray(r.syn_custom) ? SYN_COLUMN_ORDER.filter((c) => (r.syn_custom as unknown[]).includes(c)) : [...XS_DEFAULT.syn_custom];
   out.syn_hide_empty = bool(r.syn_hide_empty, XS_DEFAULT.syn_hide_empty);
   out.syn_events = bool(r.syn_events, XS_DEFAULT.syn_events);
+  out.syn_switches = pick(r.syn_switches, XS_SYN_SWITCHES, XS_DEFAULT.syn_switches);
+  out.syn_phone_view = pick(r.syn_phone_view, XS_SYN_PHONE_VIEW, XS_DEFAULT.syn_phone_view);
   out.fire_column = pick(r.fire_column, XS_FIRE_COLUMN, XS_DEFAULT.fire_column);
   out.fire_ui = bool(r.fire_ui, XS_DEFAULT.fire_ui);
   out.ack = pick(r.ack, XS_ACK, XS_DEFAULT.ack);
@@ -346,13 +358,29 @@ function climateTargetsOf(areas: DeviceArea[], tree: DeviceTree): number[] {
 }
 
 /** One floor's signals from the catalogue floor, its match (building-wide, from signalsOf), the device tree and the presence answer. */
-export function signalOf(floor: Floor, tree: DeviceTree | null, people: PeopleResponse | null, match?: FloorMatchInfo | null): FloorSignal {
+/** SWITCH-LIGHT-DIMMER-2331: what the lights column counts. `typed` (default): the server's lights (light.* and the switches an administrator
+ * typed as a light); `all`: every other switch.* entity too (the tree's switch_entities - never an input_boolean helper). */
+export interface LightCountOptions {
+  switches?: (typeof XS_SYN_SWITCHES)[number];
+}
+
+/** One area's lights and lights on as the lights column counts them. */
+export function areaLights(a: Pick<DeviceArea, 'counts'>, opts: LightCountOptions = {}): { lights: number; lit: number } {
+  const c = a.counts;
+  const all = opts.switches === 'all';
+  return {
+    lights: (c?.lights ?? 0) + (all ? (c?.switch_entities ?? 0) : 0),
+    lit: (c?.lights_on ?? 0) + (all ? (c?.switch_entities_on ?? 0) : 0),
+  };
+}
+
+export function signalOf(floor: Floor, tree: DeviceTree | null, people: PeopleResponse | null, match?: FloorMatchInfo | null, opts: LightCountOptions = {}): FloorSignal {
   const m = match === undefined ? matchFloors([floor], tree).get(floor.id) ?? null : match;
   const areas = m?.areas.map((x) => x.area) ?? [];
   const climateTargets = tree ? climateTargetsOf(areas, tree) : [];
   const connected = !!tree && tree.sync?.connected !== false;
-  const lights = areas.reduce((n, a) => n + (a.counts?.lights ?? 0), 0);
-  const lit = areas.reduce((n, a) => n + (a.counts?.lights_on ?? 0), 0);
+  const lights = areas.reduce((n, a) => n + areaLights(a, opts).lights, 0);
+  const lit = areas.reduce((n, a) => n + areaLights(a, opts).lit, 0);
   const temps = areas.map((a) => nz(a.temperature)).filter((t): t is number => t !== null);
   const opens = areas.map((a) => a.open_count).filter((v): v is number => typeof v === 'number');
   const known = connected && areas.length > 0;
@@ -377,9 +405,9 @@ export function signalOf(floor: Floor, tree: DeviceTree | null, people: PeopleRe
   };
 }
 
-export function signalsOf(floors: Floor[], tree: DeviceTree | null, people: PeopleResponse | null, ctx: MatchContext = {}): FloorSignal[] {
+export function signalsOf(floors: Floor[], tree: DeviceTree | null, people: PeopleResponse | null, ctx: MatchContext = {}, opts: LightCountOptions = {}): FloorSignal[] {
   const matches = matchFloors(floors, tree, ctx);
-  return [...floors].sort((a, b) => b.level - a.level || b.sort_order - a.sort_order).map((f) => signalOf(f, tree, people, matches.get(f.id) ?? null));
+  return [...floors].sort((a, b) => b.level - a.level || b.sort_order - a.sort_order).map((f) => signalOf(f, tree, people, matches.get(f.id) ?? null, opts));
 }
 
 /** hot / cold / null: only with both a reading and a target (no target = no verdict, not a guess). */
@@ -499,6 +527,67 @@ export function phoneColumns(cols: readonly SynColumn[]): SynColumn[] {
   return cols.filter((c) => keep.has(c));
 }
 
+/* ---------------------------------------------------------------- the phone board (SYNOPTIC-MOBILE-2342) */
+
+/** Below this width the phone board never draws a column of "-" (the hide-empty option off), whatever the option says (mock-up round 12). */
+export const PHONE_DASHED_MIN_WIDTH = 360;
+/** At most this many columns on the phone board, the dashed ones included. */
+export const PHONE_MAX_COLUMNS = 5;
+/** The fixed width (px) of each column of the phone table: the number column never shrinks under its content, so nothing spills into the next. */
+export const PHONE_COL_PX: Readonly<Record<SynColumn, number>> = { light: 56, temp: 38, presence: 34, cameras: 42, doors: 34, alerts: 32, fire: 36 };
+/** Above this many floors the phone rows drop to the 44 px touch minimum (table, section) and the cards turn into one row each. */
+export const PHONE_DENSE_FLOORS = 6;
+
+/**
+ * SYNOPTIC-MOBILE-2342: the phone board's columns. The columns WITH a source come first (at most three, lighting / temperature / alerts /
+ * doors / presence / cameras by rank, shown in the board order), then - only when the hide-empty option let them through and the screen is at
+ * least 360 px - the chosen columns that have no source, drawn dashed ("-"), up to five in all. Fire follows its own option, as on the desktop.
+ * The old phone rule (phoneColumns) took the first three by rank even when they had no source, and dropped cameras and doors that had data.
+ */
+export function phoneBoardColumns(cols: readonly SynColumn[], fl: readonly FloorSignal[], width: number): { cols: SynColumn[]; dashed: SynColumn[] } {
+  const empty = new Set<SynColumn>(emptyColumns(fl));
+  const rank: SynColumn[] = ['light', 'temp', 'alerts', 'doors', 'presence', 'cameras'];
+  const live = new Set(rank.filter((c) => cols.includes(c) && !empty.has(c)).slice(0, 3));
+  const dashed = width >= PHONE_DASHED_MIN_WIDTH ? cols.filter((c) => c !== 'fire' && empty.has(c)).slice(0, Math.max(0, PHONE_MAX_COLUMNS - live.size)) : [];
+  return { cols: [...cols.filter((c) => live.has(c) || c === 'fire'), ...dashed], dashed };
+}
+
+/** The grid template of the phone table: the name takes what is left (and may shrink to nothing but its ellipsis), every number column is fixed. */
+export function phoneGridTemplate(cols: readonly SynColumn[]): string {
+  return ['minmax(0, 1fr)', ...cols.map((c) => `${PHONE_COL_PX[c]}px`)].join(' ');
+}
+
+/** The share of a floor's lights that are on, 0-100 (the small bar under "2/10", the warm fill of the section slab); 0 with no lights. */
+export function litPercent(f: Pick<FloorSignal, 'lit' | 'lights'>): number {
+  return f.lights && f.lit !== null ? Math.max(0, Math.min(100, Math.round((f.lit / f.lights) * 100))) : 0;
+}
+
+/**
+ * SYNOPTIC-MOBILE-2342 (the owner's "11/17 דולקות" against rows that seemed to add up to 4/17): the head chip is totalsOf() of the very rows
+ * the board draws, so the two cannot disagree; lights that sit on no floor are NOT in the chip. They are counted here, for the board's info
+ * sheet ("ללא קומה"): the areas of the home system's "no floor" bucket that nothing moves onto a floor (no map placement, no per-area row to a
+ * floor, not taken by one of `sigs`), and the devices that have no area at all (tree.unassigned). null when there are none.
+ */
+export function unassignedLights(tree: DeviceTree | null, sigs: readonly FloorSignal[], ctx: MatchContext = {}, opts: LightCountOptions = {}): { lit: number; lights: number } | null {
+  if (!tree) return null;
+  const taken = new Set(sigs.flatMap((s) => (s.match?.areas ?? []).map((x) => x.area.area_id)));
+  const rows = new Map((ctx.links?.areas ?? []).map((r) => [r.area_id, r.floor_id]));
+  let lit = 0;
+  let lights = 0;
+  const add = (a: Pick<DeviceArea, 'counts'>) => {
+    const l = areaLights(a, opts);
+    lit += l.lit;
+    lights += l.lights;
+  };
+  for (const x of treeAreas(tree)) {
+    const id = x.area.area_id;
+    if (x.haFloorId !== null || taken.has(id) || x.area.map?.floor_id || (rows.has(id) && rows.get(id) !== null)) continue;
+    add(x.area);
+  }
+  if (tree.unassigned) add(tree.unassigned);
+  return lights ? { lit, lights } : null;
+}
+
 /** SYN-COLUMNS-2321, the cross-section (rows, tiles, compact card): which of its two metrics it draws - the same hide-empty rule as the board. */
 export function xsMetrics(fl: readonly FloorSignal[], o: Partial<Pick<XsOptions, 'syn_hide_empty'>>): { temp: boolean; light: boolean } {
   const empty = o.syn_hide_empty === false ? [] : emptyColumns(fl);
@@ -538,3 +627,22 @@ export function mayAcknowledge(who: (typeof XS_ACK_WHO)[number], can: (p: string
   return can('fire.acknowledge');
 }
 export const FIRE_PERMISSION = 'fire.acknowledge';
+
+/* ---------------------------------------------------------------- the floor lights popup (SWITCH-LIGHT-DIMMER-2331) */
+
+/** Where the floor lights popup reads and acts: one of our floors stands for a set of home-system areas (its match). All on one home-system
+ * floor -> that floor's scope (a floor-scoped caller may act there); spread over several -> the building, narrowed to the areas. A floor
+ * with no match (no data) has no popup: null. The areas list is the filter of the rows and of every bulk action (`only`). */
+export interface FloorLightsTarget {
+  scope: 'floor' | 'building';
+  scopeId: string;
+  areaIds: string[];
+}
+
+export function floorLightsTarget(f: Pick<FloorSignal, 'match' | 'nodata' | 'lights'>): FloorLightsTarget | null {
+  const areas = f.match?.areas ?? [];
+  if (f.nodata || !areas.length || f.lights === null) return null;
+  const floors = [...new Set(areas.map((x) => x.haFloorId ?? 'none'))];
+  const areaIds = [...new Set(areas.map((x) => x.area.area_id))];
+  return floors.length === 1 ? { scope: 'floor', scopeId: floors[0], areaIds } : { scope: 'building', scopeId: '', areaIds };
+}

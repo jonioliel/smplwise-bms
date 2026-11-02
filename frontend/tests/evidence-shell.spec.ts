@@ -342,7 +342,7 @@ test.describe('CR-013 shell on the demo data', () => {
     await expect(tabs).toHaveAttribute('data-variant', 'underline-compact');
     for (const a of await tabs.locator('a').all()) expect((await a.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     // wider than the phone: it scrolls, and the hidden side fades
-    expect(await tabs.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+    expect(await tabs.evaluate((el) => { const vp = el.shadowRoot!.querySelector('[data-tabs-viewport]') ?? el; return vp.scrollWidth > vp.clientWidth; })).toBe(true); // 2.33.1: the viewport inside sw-tabs scrolls
     await expect(tabs).toHaveAttribute('data-fade', /left|both/);
     await shot(page, 'shell-phone-security');
     // the last tab scrolls fully into view

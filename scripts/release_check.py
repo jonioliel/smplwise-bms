@@ -4,7 +4,8 @@
 Verifies what a release must get right before the owner signs it: one version everywhere (config.yaml, Dockerfile
 label, backend __version__, CHANGELOG head, API inventory), the bridge integration's two copies identical and
 their version consistent (manifest + const), a contiguous migration sequence, the built UI present in the add-on,
-the release package document and the known-limits sources present, and whether a git tag already exists for the
+the release package document and the known-limits sources present, the Supervisor build inputs (base image by tag,
+the HA python base per arch, pip/python steps on a python stage, arch lists, image labels), and whether a git tag already exists for the
 version. Prints a checklist; exits 1 when a check fails. With --tag it prints the tag commands to run after the
 owner's approval (it never creates the tag itself).
 
@@ -59,6 +60,269 @@ def dir_identical(a: Path, b: Path) -> tuple[bool, list[str]]:
         return False, ["missing copy"]
     walk(a, b, "")
     return not diffs, diffs
+
+
+# SUPERVISOR-BUILD-GATE-2341: the add-on image must build the way the HA Supervisor builds it. 2.31.0 pinned BUILD_FROM /
+# build.yaml to name:tag@sha256:... and the Supervisor build ran on an image without Python ("pip install ... exit code 127").
+HA_PY_BASE = re.compile(r"^ghcr\.io/home-assistant/(?P<arch>[a-z0-9]+)-base-python:(?P<tag>\d+\.\d+-alpine\d+\.\d+)$")
+PY_CMD = re.compile(r"(?<![\w./-])(pip3?|python3?(\.\d+)?)(?![\w-])")
+PY_INSTALL = re.compile(r"\b(apk\s+add|apt-get\s+install)\b[^&;|]*\b(python3|py3-pip)\b")
+
+
+def parse_build_from(text: str) -> dict[str, str]:
+    """build.yaml `build_from:` mapping {arch: image} (stdlib only: the gate runs this without PyYAML)."""
+    out: dict[str, str] = {}
+    inside = False
+    for raw in text.splitlines():
+        line = raw.split("#", 1)[0].rstrip() if not raw.lstrip().startswith("#") else ""
+        if not line:
+            continue
+        if not line.startswith((" ", "\t")):
+            inside = line.strip() == "build_from:"
+            continue
+        m = re.match(r"^\s+([A-Za-z0-9_]+):\s*['\"]?([^'\"\s]+)['\"]?\s*$", line) if inside else None
+        if m:
+            out[m.group(1)] = m.group(2)
+    return out
+
+
+def parse_arch_list(text: str) -> list[str]:
+    """config.yaml `arch:` list (block form `- amd64` or flow form `[amd64, aarch64]`)."""
+    lines = text.splitlines()
+    for i, raw in enumerate(lines):
+        m = re.match(r"^arch:\s*(.*)$", raw)
+        if not m:
+            continue
+        rest = m.group(1).split("#", 1)[0].strip()
+        if rest.startswith("["):
+            return [a.strip().strip("'\"") for a in rest.strip("[]").split(",") if a.strip()]
+        out = []
+        for nxt in lines[i + 1:]:
+            mm = re.match(r"^\s*-\s*['\"]?([A-Za-z0-9_]+)['\"]?\s*(#.*)?$", nxt)
+            if mm:
+                out.append(mm.group(1))
+            elif nxt.strip() and not nxt.lstrip().startswith("#"):
+                break
+        return out
+    return []
+
+
+def dockerfile_instructions(text: str) -> list[tuple[str, str]]:
+    """[(INSTRUCTION, arguments)] with comments dropped and backslash continuations joined."""
+    out: list[tuple[str, str]] = []
+    buf = ""
+    for raw in text.splitlines():
+        s = raw.strip()
+        if not buf and (not s or s.startswith("#")):
+            continue
+        if buf and s.startswith("#"):
+            continue
+        if s.endswith("\\"):
+            buf += s[:-1] + " "
+            continue
+        buf += s
+        if buf.strip():
+            parts = buf.strip().split(None, 1)
+            out.append((parts[0].upper(), parts[1] if len(parts) > 1 else ""))
+        buf = ""
+    if buf.strip():
+        parts = buf.strip().split(None, 1)
+        out.append((parts[0].upper(), parts[1] if len(parts) > 1 else ""))
+    return out
+
+
+KV_KEY = re.compile(r"^[A-Za-z_][A-Za-z0-9_.\-]*$")
+ARG_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _split_words(text: str) -> tuple[list[str], list[str]]:
+    """Split an instruction's arguments on unquoted whitespace (quotes kept in the words). Returns (words, escapes): `escapes`
+    lists every backslash escape found OUTSIDE quotes (e.g. a literal "\n" that the author meant as a newline)."""
+    words: list[str] = []
+    escapes: list[str] = []
+    cur, quote, i = "", "", 0
+    while i < len(text):
+        c = text[i]
+        if quote:
+            cur += c
+            if c == "\\" and quote == '"' and i + 1 < len(text):
+                cur += text[i + 1]
+                i += 1
+            elif c == quote:
+                quote = ""
+        elif c in "\"'":
+            quote = c
+            cur += c
+        elif c == "\\" and i + 1 < len(text):
+            escapes.append("\\" + text[i + 1])
+            cur += c + text[i + 1]
+            i += 1
+        elif c.isspace():
+            if cur:
+                words.append(cur)
+            cur = ""
+        else:
+            cur += c
+        i += 1
+    if cur:
+        words.append(cur)
+    return words, escapes
+
+
+def dockerfile_syntax_problems(text: str) -> list[str]:
+    """Static Dockerfile syntax rules the Supervisor's builder enforces (SUPERVISOR-BUILD-GATE-2341, the 2.33.2 incident: an ENV
+    block with a literal backslash-n, `Syntax error - can't find = in "\\n"`):
+    - a continuation backslash is the last character of its line (no spaces or tabs after it), and a lone backslash in the
+      middle of a line is not a continuation;
+    - ENV / LABEL / ARG: no backslash escape sequences (backslash-n, backslash-t, ...) outside quotes;
+    - ENV / LABEL: every word is key=value, except the legacy `ENV key value` form (first word without '=': exactly one key);
+      ARG: every word is NAME or NAME=default."""
+    probs: list[str] = []
+    lines = text.splitlines()
+    for n, raw in enumerate(lines, 1):
+        if raw.lstrip().startswith("#"):
+            continue
+        if re.search(r"\\[ \t]+$", raw):
+            probs.append(f"line {n}: spaces after the continuation backslash")
+        if re.search(r"(?<=\s)\\(?=[ \t]+\S)", raw):
+            probs.append(f"line {n}: a backslash in the middle of the line (a continuation must be the line's last character)")
+    # instructions with their first line number; continuations joined (a trailing backslash with spaces still joins, as above)
+    buf, start = "", 0
+    instrs: list[tuple[int, str]] = []
+    for n, raw in enumerate(lines, 1):
+        st = raw.strip()
+        if not buf and (not st or st.startswith("#")):
+            continue
+        if buf and st.startswith("#"):
+            continue
+        if not buf:
+            start = n
+        if re.search(r"\\[ \t]*$", raw):
+            buf += re.sub(r"\\[ \t]*$", "", raw.rstrip()) + " "
+            continue
+        buf += raw
+        instrs.append((start, buf.strip()))
+        buf = ""
+    if buf.strip():
+        instrs.append((start, buf.strip()))
+        probs.append(f"line {start}: the file ends inside a continuation")
+    for n, ins in instrs:
+        parts = ins.split(None, 1)
+        kw, rest = parts[0].upper(), (parts[1] if len(parts) > 1 else "")
+        if kw not in ("ENV", "LABEL", "ARG"):
+            continue
+        words, escapes = _split_words(rest)
+        if escapes:
+            probs.append(f"line {n}: {kw} has escape sequence(s) outside quotes: {' '.join(sorted(set(escapes)))}")
+        if not words:
+            probs.append(f"line {n}: {kw} without arguments")
+            continue
+        if kw == "ENV" and "=" not in words[0]:
+            if not KV_KEY.match(words[0]) or len(words) < 2:
+                probs.append(f"line {n}: legacy `ENV key value` needs one valid key and a value: {ins[:80]}")
+            continue
+        for w in words:
+            if kw == "ARG":
+                ok = ARG_NAME.match(w.split("=", 1)[0]) is not None
+            else:
+                key = w.split("=", 1)[0].strip("\"'")
+                ok = "=" in w and KV_KEY.match(key) is not None
+            if not ok:
+                probs.append(f"line {n}: {kw} word {w!r} is not {'NAME[=default]' if kw == 'ARG' else 'key=value'}")
+    return probs
+
+
+def supervisor_build_checks(addon: Path) -> list[tuple[str, bool, str]]:
+    """Static rules for the Supervisor build (fast, no Docker): the base image by tag, the HA python base per arch, the
+    pip/python steps on a stage with Python, config.yaml arch = build.yaml, image labels = config.yaml."""
+    res: list[tuple[str, bool, str]] = []
+    df_text, by_text, cfg_text = read(addon / "Dockerfile"), read(addon / "build.yaml"), read(addon / "config.yaml")
+    ins = dockerfile_instructions(df_text)
+    build_from = parse_build_from(by_text)
+    archs = parse_arch_list(cfg_text)
+    cfg_v = find(r'^version:\s*"([^"]+)"', cfg_text)
+    args: dict[str, str] = {}
+    for k, a in ins:
+        if k == "FROM":
+            break
+        if k == "ARG":
+            m = re.match(r"^([A-Za-z_][A-Za-z0-9_]*)=(\S+)", a)
+            if m:
+                args[m.group(1)] = m.group(2).strip("'\"")
+    df_default = args.get("BUILD_FROM")
+
+    # 1. tag form everywhere: no @sha256 digest pin (the 2.31.0 failure)
+    refs = ([("Dockerfile ARG BUILD_FROM", df_default)] if df_default else []) + [(f"build.yaml {k}", v) for k, v in build_from.items()]
+    refs += [("Dockerfile FROM", a.split()[0]) for k, a in ins if k == "FROM" and "@" in a]
+    pinned = [f"{n}={v}" for n, v in refs if v and "@" in v]
+    res.append(("add-on base image by tag (no @sha256 digest pin)", bool(refs) and not pinned,
+                "; ".join(pinned) + " - the Supervisor build broke on this in 2.31.0 (pip exit 127); use name:tag" if pinned
+                else (", ".join(f"{n}={v}" for n, v in refs) if refs else "no BUILD_FROM in the Dockerfile and no build.yaml build_from")))
+
+    # 2. the HA python base for each arch; the Dockerfile default is build.yaml's amd64 (newer Supervisors read the Dockerfile)
+    bad = []
+    for a, img in build_from.items():
+        m = HA_PY_BASE.match(img)
+        if not m or m.group("arch") != a:
+            bad.append(f"{a}: {img} (expected ghcr.io/home-assistant/{a}-base-python:<py>-alpine<ver>)")
+    tags = {HA_PY_BASE.match(i).group("tag") for i in build_from.values() if HA_PY_BASE.match(i)}
+    if len(tags) > 1:
+        bad.append(f"arches use different python/alpine tags: {sorted(tags)}")
+    if df_default is None or df_default != build_from.get("amd64"):
+        bad.append(f"Dockerfile ARG BUILD_FROM={df_default} != build.yaml amd64={build_from.get('amd64')}")
+    res.append(("add-on base image is the HA python base for each arch", bool(build_from) and not bad,
+                "; ".join(bad) if bad else ", ".join(f"{a}={i}" for a, i in build_from.items())))
+
+    # 3. every RUN that calls pip/python runs on a stage that has Python (the HA python base, a stage built on one, or an install step)
+    stages: dict[str, bool] = {}
+    has_py = False
+    cur: str | None = None
+    offenders: list[str] = []
+    nrun = 0
+    for k, a in ins:
+        if k == "FROM":
+            words = a.split()
+            img = words[0] if words else ""
+            m = re.fullmatch(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?", img)
+            img = args.get(m.group(1), "") if m else img
+            has_py = bool(HA_PY_BASE.match(img)) or stages.get(img.lower(), False)
+            if len(words) >= 3 and words[1].upper() == "AS":
+                stages[words[2].lower()] = has_py   # updated below as the stage installs python
+                cur = words[2].lower()
+            else:
+                cur = None
+            continue
+        if k == "RUN":
+            if PY_INSTALL.search(a):
+                has_py = True
+                if cur:
+                    stages[cur] = True
+            if PY_CMD.search(a):
+                nrun += 1
+                if not has_py:
+                    offenders.append(a[:90])
+    res.append(("pip/python RUN steps run on a stage with Python", not offenders and any(k == "FROM" for k, _ in ins),
+                "; ".join(offenders) + " - the stage's base is not a tag-form HA python base" if offenders
+                else f"{nrun} pip/python RUN step(s), each on a python stage"))
+
+    # 4. config.yaml arch list = build.yaml build_from keys
+    same = bool(archs) and sorted(archs) == sorted(build_from)
+    res.append(("config.yaml arch list = build.yaml build_from", same, f"config.yaml={archs}, build.yaml={sorted(build_from)}"))
+
+    # 6. Dockerfile syntax (the 2.33.2 incident: a literal \n in the ENV block)
+    probs = dockerfile_syntax_problems(df_text) if df_text else ["no Dockerfile"]
+    res.append(("Dockerfile syntax (ENV/LABEL/ARG key=value, continuations)", not probs,
+                "; ".join(probs[:6]) + (f" (+{len(probs) - 6} more)" if len(probs) > 6 else "") if probs
+                else f"{len(ins)} instructions; ENV/LABEL/ARG words are key=value, continuations end their lines"))
+
+    # 5. the image labels: io.hass.version = config.yaml version, io.hass.arch = config.yaml arch list
+    labels = " ".join(a for k, a in ins if k == "LABEL")
+    lv = find(r'io\.hass\.version="([^"]+)"', labels)
+    la = find(r'io\.hass\.arch="([^"]+)"', labels)
+    larch = sorted(la.split("|")) if la else []
+    ok = cfg_v is not None and lv == cfg_v and (la is None or larch == sorted(archs))
+    res.append(("image LABEL version and arch = config.yaml", ok, f"LABEL io.hass.version={lv} io.hass.arch={la}; config.yaml version={cfg_v} arch={archs}"))
+    return res
 
 
 def git_tags(root: Path) -> list[str]:
@@ -138,6 +402,9 @@ def run_checks(root: Path) -> dict[str, Any]:
         tracked = []
     bad = [t for t in tracked if not t.endswith("downloads/README.txt")]
     check("no APK or signing key tracked in git", not bad, ", ".join(bad) if bad else "none")
+
+    for name, ok, detail in supervisor_build_checks(addon):   # SUPERVISOR-BUILD-GATE-2341 (the 2.31.0 digest pin)
+        check(name, ok, detail)
 
     pkg = root / "docs" / "release" / "RELEASE_PACKAGE_V1.md"
     check("release package document present", pkg.exists(), str(pkg))

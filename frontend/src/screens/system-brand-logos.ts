@@ -102,13 +102,25 @@ export class SystemBrandLogos extends LitElement {
       cursor: pointer;
       display: inline-flex;
       align-items: center;
-      min-block-size: 28px;
-      padding: 0 12px;
+      min-block-size: 36px;
+      padding: 0 14px;
       border-radius: var(--sw-r-sm);
       color: var(--sw-text-2);
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-md);
       font-weight: var(--sw-fw-medium);
       white-space: nowrap;
+      transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .tabs button:active {
+      transform: scale(var(--sw-press-scale));
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .tabs button:hover:not([aria-selected='true']),
+      .seg button:hover:not([aria-pressed='true']):not(:disabled) {
+        color: var(--sw-text);
+        background: var(--sw-hover-wash);
+      }
     }
     .tabs button[aria-selected='true'] {
       background: var(--sw-surface);
@@ -221,25 +233,74 @@ export class SystemBrandLogos extends LitElement {
       border-radius: var(--sw-r-sm);
       align-self: flex-start;
     }
+    /* LOOK-POLISH-2331: the key of the skin card above it on the same page (system-design): 36 px, 14 px, the selected key in the
+       accent ink on a lifted thumb (it was 28 px / 12.5 px with a plain-text selected key) */
     .seg button {
       all: unset;
       box-sizing: border-box;
       cursor: pointer;
-      padding: 5px 12px;
-      min-block-size: 28px;
-      border-radius: calc(var(--sw-r-sm) - 2px);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 14px;
+      min-block-size: 36px;
+      border-radius: var(--sw-r-sm);
       color: var(--sw-text-2);
-      font-size: var(--sw-fs-sm);
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-medium);
       white-space: nowrap;
     }
     .seg button[aria-pressed='true'] {
-      background: var(--sw-surface);
-      color: var(--sw-text);
+      background: var(--sw-seg-thumb, var(--sw-surface));
+      color: var(--sw-accent-text);
       font-weight: var(--sw-fw-semibold);
-      box-shadow: var(--sw-shadow-1);
+      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
     }
     .seg button[disabled] {
       cursor: default;
+    }
+    .seg button[disabled]:not([aria-pressed='true']) {
+      opacity: 0.6;
+    }
+    .ctlrow {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .px {
+      font-variant-numeric: tabular-nums;
+    }
+    .bhead {
+      font-size: var(--sw-fs-2xl);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+      letter-spacing: -0.005em;
+    }
+    .top .grow {
+      flex: 1;
+    }
+    .grid > .main {
+      min-inline-size: 0;
+    }
+    /* the browser-tab demo sits in the preview column on a wide screen; in the names panel only where that column is a tab */
+    .pnl .tabdemo {
+      display: none;
+    }
+    @media (max-width: 899px) {
+      .pnl .tabdemo {
+        display: flex;
+      }
+    }
+    /* a phone: a wrapped key row fills its lines evenly instead of leaving a ragged track */
+    @media (max-width: 599px) {
+      .seg {
+        display: flex;
+        align-self: stretch;
+      }
+      .seg button {
+        flex: 1 1 auto;
+      }
     }
     .lbox {
       display: flex;
@@ -335,9 +396,25 @@ export class SystemBrandLogos extends LitElement {
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 10px;
     }
+    /* a phone: each dark-background option is a compact row (the swatch beside its text); the three tall cards made the panel three
+       screens long */
     @media (max-width: 599px) {
       .opts {
         grid-template-columns: minmax(0, 1fr);
+        gap: 8px;
+      }
+      .opt {
+        display: grid;
+        grid-template-columns: 112px minmax(0, 1fr);
+        grid-template-rows: auto 1fr;
+        column-gap: 10px;
+        row-gap: 2px;
+        align-items: start;
+      }
+      .opt .tile {
+        grid-row: 1 / span 2;
+        min-block-size: 52px;
+        align-self: stretch;
       }
     }
     .opt {
@@ -586,6 +663,24 @@ export class SystemBrandLogos extends LitElement {
     }
   }
 
+  /** LOOK-POLISH-2331: the tab strip is a real tablist - the arrows move along it (RTL: left = next), Home / End jump to the ends; the
+   *  preview tab counts only where it is shown (a narrow card). */
+  private onTabKey(e: KeyboardEvent) {
+    const order: Tab[] = ['files', 'look', 'title', 'preview'];
+    const shown = order.filter((id) => this.renderRoot.querySelector<HTMLElement>(`[data-logo-tab="${id}"]`)?.offsetParent !== null);
+    const i = shown.indexOf(this.tab);
+    const rtl = getComputedStyle(this).direction === 'rtl';
+    let next: number;
+    if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = shown.length - 1;
+    else if (e.key === 'ArrowLeft') next = rtl ? i + 1 : i - 1;
+    else if (e.key === 'ArrowRight') next = rtl ? i - 1 : i + 1;
+    else return;
+    e.preventDefault();
+    this.tab = shown[(next + shown.length) % shown.length];
+    void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>(`[data-logo-tab="${this.tab}"]`)?.focus());
+  }
+
   private pickFile(variant: LogoVariant) {
     this.renderRoot.querySelector<HTMLInputElement>(`input[data-file="${variant}"]`)?.click();
   }
@@ -633,18 +728,18 @@ export class SystemBrandLogos extends LitElement {
     const csc = LOGO_SCALE[d.companySize === 'same' ? d.size : d.companySize];
     const noDark = d.darkMode === 'file' && !this.saved.files.dark;
     return html`<div class="fld"><span class="lbl">${t('brandLogos.sizeLabel')}<span class="muted">${t('brandLogos.sizeHint')}</span></span>
-        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div class="ctlrow">
           <span class="seg" role="group" aria-label=${t('brandLogos.sizeLabel')} data-logo-size>
             ${LOGO_SIZES.map((s) => html`<button type="button" aria-pressed=${d.size === s ? 'true' : 'false'} data-size=${s} ?disabled=${!this.canEdit} @click=${() => this.set('size', s)}>${t(`brandLogos.size_${s}` as I18nKey)}</button>`)}
           </span>
-          <span class="muted ltr" data-logo-size-px>${Math.round(36 * sc)}px · ${Math.round(28 * sc)}px</span>
+          <span class="muted ltr px" data-logo-size-px>${Math.round(36 * sc)}px · ${Math.round(28 * sc)}px</span>
         </div></div>
       <div class="fld"><span class="lbl">${t('brandLogos.companySizeLabel')}<span class="muted">${t('brandLogos.companySizeHint')}</span></span>
-        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div class="ctlrow">
           <span class="seg" role="group" aria-label=${t('brandLogos.companySizeLabel')} data-logo-company-size>
             ${COMPANY_SIZES.map((s) => html`<button type="button" aria-pressed=${d.companySize === s ? 'true' : 'false'} data-company-size=${s} ?disabled=${!this.canEdit} @click=${() => this.set('companySize', s)}>${t(s === 'same' ? 'brandLogos.csize_same' : (`brandLogos.size_${s}` as I18nKey))}</button>`)}
           </span>
-          <span class="muted ltr" data-logo-company-size-px>${Math.round(34 * csc)}px</span>
+          <span class="muted ltr px" data-logo-company-size-px>${Math.round(34 * csc)}px</span>
         </div></div>
       <div class="fld"><span class="lbl">${t('brandLogos.sideLabel')}<span class="muted">${t('brandLogos.sideHint')}</span></span>
         <span class="seg" role="group" aria-label=${t('brandLogos.sideLabel')} data-logo-side>
@@ -700,19 +795,19 @@ export class SystemBrandLogos extends LitElement {
     const tabs: [Tab, I18nKey][] = [['files', 'brandLogos.tabFiles'], ['look', 'brandLogos.tabLook'], ['title', 'brandLogos.tabTitle'], ['preview', 'brandLogos.tabPreview']];
     return html`<sw-card data-brand-logos-card>
       <div class="bcard">
-        <div class="top"><div><div style="font-size:var(--sw-fs-lg);font-weight:var(--sw-fw-semibold);color:var(--sw-heading)">${t('brandLogos.heading')}</div>
+        <div class="top"><div><div class="bhead">${t('brandLogos.heading')}</div>
           <div class="muted">${t('brandLogos.subheading')}</div></div>
-          <span style="flex:1"></span>${this.canEdit ? nothing : html`<span class="msg" data-logo-readonly><sw-icon name="lock" size=${13}></sw-icon>${t('brandLogos.readOnly')}</span>`}</div>
-        <div class="tabs" role="tablist" aria-label=${t('brandLogos.tabs')}>
-          ${tabs.map(([id, key]) => html`<button type="button" role="tab" class=${id === 'preview' ? 'ptab' : ''} aria-selected=${this.tab === id ? 'true' : 'false'} data-logo-tab=${id} @click=${() => (this.tab = id)}>${t(key)}</button>`)}
+          <span class="grow"></span>${this.canEdit ? nothing : html`<span class="msg" data-logo-readonly><sw-icon name="lock" size=${13}></sw-icon>${t('brandLogos.readOnly')}</span>`}</div>
+        <div class="tabs" role="tablist" aria-label=${t('brandLogos.tabs')} @keydown=${(e: KeyboardEvent) => this.onTabKey(e)}>
+          ${tabs.map(([id, key]) => html`<button type="button" role="tab" id=${`blt-${id}`} aria-controls=${`blp-${id}`} tabindex=${this.tab === id ? 0 : -1} class=${id === 'preview' ? 'ptab' : ''} aria-selected=${this.tab === id ? 'true' : 'false'} data-logo-tab=${id} @click=${() => (this.tab = id)}>${t(key)}</button>`)}
         </div>
         <div class="grid">
-          <div style="min-inline-size:0">
-            <section class=${`pnl ${this.tab === 'files' ? 'on' : ''}`} data-logo-panel="files">${this.renderFiles()}</section>
-            <section class=${`pnl ${this.tab === 'look' ? 'on' : ''}`} data-logo-panel="look">${this.renderLook()}</section>
-            <section class=${`pnl ${this.tab === 'title' ? 'on' : ''}`} data-logo-panel="title">${this.renderTitle()}</section>
+          <div class="main">
+            <section class=${`pnl ${this.tab === 'files' ? 'on' : ''}`} role="tabpanel" id="blp-files" aria-labelledby="blt-files" data-logo-panel="files">${this.renderFiles()}</section>
+            <section class=${`pnl ${this.tab === 'look' ? 'on' : ''}`} role="tabpanel" id="blp-look" aria-labelledby="blt-look" data-logo-panel="look">${this.renderLook()}</section>
+            <section class=${`pnl ${this.tab === 'title' ? 'on' : ''}`} role="tabpanel" id="blp-title" aria-labelledby="blt-title" data-logo-panel="title">${this.renderTitle()}</section>
           </div>
-          <aside class=${`side ${this.tab === 'preview' ? 'on' : ''}`} data-logo-panel="preview" aria-label=${t('brandLogos.previewTitle')}>
+          <aside class=${`side ${this.tab === 'preview' ? 'on' : ''}`} id="blp-preview" data-logo-panel="preview" aria-label=${t('brandLogos.previewTitle')}>
             <b>${t('brandLogos.previewTitle')}</b>
             ${this.renderMini('light')}${this.renderMini('dark')}
             ${this.renderTabDemo()}
@@ -721,6 +816,7 @@ export class SystemBrandLogos extends LitElement {
         </div>
         <div class="foot">
           ${this.canEdit ? html`<sw-button variant="primary" size="sm" icon="check" data-logo-save ?disabled=${!this.dirty || this.busy === 'save'} @click=${() => void this.save()}>${t('brandLogos.save')}</sw-button>` : nothing}
+          ${this.canEdit && this.dirty && !this.message && !this.error ? html`<span class="msg warn" role="status" data-logo-dirty>${t('brandLogos.unsaved')}</span>` : nothing}
           ${this.message ? html`<span class="msg ok" role="status" data-logo-message><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}
           ${this.error ? html`<span class="msg err" role="alert" data-logo-error><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}
           <span class="grow"></span><span class="muted">${t('brandLogos.stays')}</span>

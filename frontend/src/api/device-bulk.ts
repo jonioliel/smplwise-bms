@@ -142,10 +142,12 @@ function commandId(): string {
 
 /** `only` (owner 2026-09-29, the tiles' panel filter / search): narrow the set to these entity ids - the server never
  * adds one. */
-export async function previewBulk(scope: BulkScope, id: string, kind: BulkKind, position?: number, only?: string[]) {
+/** SWITCH-LIGHT-DIMMER-2331: `switches: 'all'` (lights kinds only) - the set takes every switch.* too (the synoptic floor lights popup). */
+export async function previewBulk(scope: BulkScope, id: string, kind: BulkKind, position?: number, only?: string[], switches?: 'typed' | 'all') {
   const q = new URLSearchParams({ scope, id, kind });
   if (position !== undefined) q.set('position', String(position));
   if (only) q.set('only', only.join(','));
+  if (switches === 'all') q.set('switches', 'all');
   const sentAt = Date.now();
   const p = await get<BulkPreview>(`devices/actions/preview?${q.toString()}`);
   const receivedAt = Date.now();
@@ -156,7 +158,7 @@ export async function previewBulk(scope: BulkScope, id: string, kind: BulkKind, 
 
 /** The physical request. `confirmed: true` is stated here and nowhere else: only the dialog's confirm button calls
  * it. `position` (CR-007 slice 4): covers_position's own argument, the "כל התריסים" group control. */
-export function runBulk(scope: BulkScope, id: string, kind: BulkKind, previewDigest: string, position?: number, only?: string[]) {
+export function runBulk(scope: BulkScope, id: string, kind: BulkKind, previewDigest: string, position?: number, only?: string[], switches?: 'typed' | 'all') {
   return post<BulkRecord>('devices/actions', {
     scope,
     id,
@@ -167,6 +169,7 @@ export function runBulk(scope: BulkScope, id: string, kind: BulkKind, previewDig
     preview_digest: previewDigest,
     ...(position !== undefined ? { position } : {}),
     ...(only ? { only } : {}),
+    ...(switches === 'all' ? { switches } : {}),
   });
 }
 

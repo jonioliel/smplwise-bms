@@ -135,6 +135,9 @@ SEGMENT_MAX_BYTES = 24_000_000
 READ_TIMEOUT_S = 8.0
 LOGIN_TIMEOUT_S = 8.0
 REFUSED_BACKOFF_S = 300.0     # after Frigate refuses the credentials no further login for this long (Frigate rate-limits logins)
+# FRIGATE-FORBIDDEN-2341 (owner's home install, 2026-11-01): a recorder whose saved password Frigate refuses (401 on /api/login) was retried
+# every 5 minutes for days. Each further refusal of the SAME credentials doubles the wait, up to this; new credentials are tried at once.
+REFUSED_BACKOFF_MAX_S = 1800.0
 TOKEN_TTL_S = 20 * 3600.0     # the cookie is valid 24 h; the adapter renews before that (and on any 401)
 
 # FRIGLIVE-295 (live 0.18.0, 2026-10-21): Frigate's nginx keeps a ~5 s micro-cache of `/api/*` answers (`X-Cache-Status: HIT`). A read made
@@ -145,7 +148,7 @@ TOKEN_TTL_S = 20 * 3600.0     # the cookie is valid 24 h; the adapter renews bef
 CACHE_BYPASS = {"X-Cache-Bypass": "1"}
 
 _TOKENS: dict[str, tuple[str, float]] = {}   # device_key -> (JWT, obtained at monotonic)
-_REFUSED: dict[str, float] = {}              # device_key -> no login before this (monotonic)
+_REFUSED: dict[tuple[str, str], "Refusal"] = {}  # (device_key, credential fingerprint) -> the standing refusal of those credentials
 _LOCK = threading.Lock()
 _LOGIN_LOCKS: dict[str, threading.Lock] = {}
 _monotonic = time.monotonic
@@ -158,6 +161,21 @@ def clear_cache() -> None:
     with _LOCK:
         _TOKENS.clear()
         _REFUSED.clear()
+
+
+@dataclass(frozen=True)
+class Refusal:
+    """Frigate refused one device's credentials (keyed by a fingerprint of user + password, never the password itself): no login with
+    them before `until` (monotonic). `strikes` counts their refusals in a row; `status` is Frigate's answer (401 / 403). Other
+    credentials for the same device (a connection test of a corrected password) are not held back by it."""
+    until: float
+    strikes: int
+    status: int
+
+
+def refused_delay(strikes: int) -> float:
+    """5, 10, 20, 30, 30 ... minutes: the wait after the n-th refusal in a row of the same credentials."""
+    return min(REFUSED_BACKOFF_MAX_S, REFUSED_BACKOFF_S * 2 ** max(0, strikes - 1))
 
 
 @dataclass(frozen=True)
@@ -403,12 +421,38 @@ class FrigateHttp:
         with _LOCK:
             _TOKENS.pop(self.device_key, None)
 
+    def _cred_fp(self) -> str:
+        s = self._settings
+        return hashlib.sha256(f"{s.nvr_user or ''}\n{s.nvr_password or ''}".encode("utf-8")).hexdigest()[:16]
+
+    def _refusal_key(self) -> tuple[str, str]:
+        return (self.device_key, self._cred_fp())
+
+    def _note_refused(self, status: int) -> Refusal:
+        """Record one more refusal of the current credentials (the backoff doubles while they stay the same)."""
+        key = self._refusal_key()
+        with _LOCK:
+            prev = _REFUSED.get(key)
+            strikes = prev.strikes + 1 if prev is not None else 1
+            hit = _REFUSED[key] = Refusal(_monotonic() + refused_delay(strikes), strikes, status)
+        return hit
+
+    def refusal(self) -> dict[str, Any] | None:
+        """The standing refusal of THIS adapter's credentials, or None (never refused, or accepted since): `status` (401 / 403),
+        `strikes` and `retry_in_s` (0 once the next login is allowed). For the event loop's wait and the health text."""
+        with _LOCK:
+            hit = _REFUSED.get(self._refusal_key())
+        if hit is None:
+            return None
+        return {"status": hit.status, "strikes": hit.strikes, "retry_in_s": max(0.0, round(hit.until - _monotonic(), 1))}
+
     def _check_refused(self) -> None:
         with _LOCK:
-            until = _REFUSED.get(self.device_key)
-        if until is not None and until > _monotonic():
+            hit = _REFUSED.get(self._refusal_key())
+        if hit is not None and hit.until > _monotonic():
             raise ApiError(503, "source_forbidden", "Frigate דחה את פרטי הגישה. ניסיון נוסף יתאפשר בעוד כמה דקות.",
-                           details={"op": "login", "reason": "credentials_refused_backoff"})
+                           details={"op": "login", "reason": "credentials_refused_backoff", "status": hit.status,
+                                    "retry_in_s": round(hit.until - _monotonic())})
 
     def login(self) -> str:
         """The ONE non-GET request of this adapter: POST /api/login. One login at a time per device; a refusal starts a
@@ -432,8 +476,7 @@ class FrigateHttp:
                         raise ApiError(503, "tls_pin_mismatch", "תעודת Frigate השתנתה. יש לאשר את התעודה החדשה בהגדרות החיבור.", details={"op": "login"}) from exc
                     raise unavailable("login", exc) from exc
             if r.status_code in (401, 403):
-                with _LOCK:
-                    _REFUSED[self.device_key] = _monotonic() + REFUSED_BACKOFF_S
+                self._note_refused(r.status_code)
                 raise forbidden("login", r.status_code, "credentials")
             if r.status_code == 429:
                 raise ApiError(503, "source_unavailable", "Frigate הגביל ניסיונות כניסה. נסו שוב בעוד דקה.", retryable=True, details={"op": "login", "status": 429})
@@ -450,7 +493,7 @@ class FrigateHttp:
                 raise ApiError(503, "source_invalid", "Frigate לא החזיר אסימון כניסה.", details={"op": "login"})
             with _LOCK:
                 _TOKENS[self.device_key] = (token, _monotonic())
-                _REFUSED.pop(self.device_key, None)
+                _REFUSED.pop(self._refusal_key(), None)
             return token
 
     # ------------------------------------------------------------------------------------------ one GET
@@ -470,8 +513,7 @@ class FrigateHttp:
                 continue
             break
         if reply.status == 401:
-            with _LOCK:
-                _REFUSED[self.device_key] = _monotonic() + REFUSED_BACKOFF_S
+            self._note_refused(401)
             self.forget_token()
         if reply.status != 200:
             raise map_status(_op(path), reply.status, optional)

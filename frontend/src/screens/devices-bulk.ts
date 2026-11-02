@@ -35,6 +35,8 @@ export interface BulkRequest {
   position?: number;
   /** Owner 2026-09-29: the entity ids the tiles' panel shows (its filter / search) - narrows the set. */
   only?: string[];
+  /** SWITCH-LIGHT-DIMMER-2331: lights kinds reach every switch.* too ("מפסקים בעמודת התאורה = כל המפסקים"). */
+  switches?: 'typed' | 'all';
 }
 
 /** How many entities a kind would reach according to the tree's counts (a hint for the menu only - the server's
@@ -266,7 +268,7 @@ export class DevicesBulkMenu extends LitElement {
       border-start-start-radius: 0;
       border-start-end-radius: 0;
       font-weight: var(--sw-fw-semibold);
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       margin-block-start: 2px;
     }
     button.item.all:disabled {
@@ -289,7 +291,7 @@ export class DevicesBulkMenu extends LitElement {
       justify-content: space-between;
       padding: 8px 10px;
       border-radius: var(--sw-r-sm);
-      color: var(--sw-accent);
+      color: var(--sw-accent-text);
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-medium);
       text-decoration: none;
@@ -638,7 +640,7 @@ export class DevicesBulkDialog extends LitElement {
     this.error = '';
     this.phase = 'loading';
     try {
-      const p = await previewBulk(req.scope, req.id, req.kind, req.position, req.only);
+      const p = await previewBulk(req.scope, req.id, req.kind, req.position, req.only, req.switches);
       if (this.req !== req) return;
       this.preview = p;
       this.phase = p.count ? 'confirm' : 'nothing';
@@ -664,7 +666,7 @@ export class DevicesBulkDialog extends LitElement {
     if (!req || !p || this.phase !== 'confirm') return;
     this.phase = 'sending';
     try {
-      const first = await runBulk(req.scope, req.id, req.kind, p.digest, req.position, req.only);
+      const first = await runBulk(req.scope, req.id, req.kind, p.digest, req.position, req.only, req.switches);
       this.phase = 'running';
       this.follow = { stopped: false };
       const done = await followBulk(first, (r) => (this.record = r), this.follow);
@@ -708,7 +710,7 @@ export class DevicesBulkDialog extends LitElement {
   private renderBody() {
     const cancel = (label = 'ביטול') => html`<sw-button data-bulk-cancel autofocus @click=${this.close}>${label}</sw-button>`;
     if (this.phase === 'loading') return html`<div class="muted">בודק מה יישלח…</div><div class="actions">${cancel()}</div>`;
-    if (this.phase === 'error') return html`<div class="err" data-bulk-error>${this.error}</div><div class="actions">${cancel('סגור')}</div>`;
+    if (this.phase === 'error') return html`<div class="err" data-bulk-error role="alert">${this.error}</div><div class="actions">${cancel('סגור')}</div>`;
     const p = this.preview;
     if (this.phase === 'nothing' && p) {
       return html`<div class="what" data-bulk-nothing>

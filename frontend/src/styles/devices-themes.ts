@@ -149,6 +149,10 @@ export const devicesThemes = css`
 
   /* ---- 1. the bridge: glass knobs -> the v2 tokens every nested component reads ---- */
   :host([data-devices-style='glass']) {
+    /* DARK-REVIEW-2342: the dark segment thumb (--sw-seg-thumb) follows the SHELL's scheme; a glass screen has its own (devices.scheme),
+       so inside it the segments keep their own fill in both of its schemes (initial = guaranteed-invalid: every user's fallback) */
+    --sw-seg-thumb: initial;
+    --sw-seg-thumb-shadow: initial;
     --sw-glass-blur: var(--dv-surface-blur);
     --sw-bg: transparent;
     --sw-surface: var(--dv-surface);

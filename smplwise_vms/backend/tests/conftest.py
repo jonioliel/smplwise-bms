@@ -266,8 +266,10 @@ def _recorders_disabled_set_is_per_test():
     from smplwise import recorder_scope
 
     recorder_scope.DISABLED.clear()
+    recorder_scope.WRITES.clear()  # NVR-H264-BULK-2341: the per-recorder writes switch is process state too
     yield
     recorder_scope.DISABLED.clear()
+    recorder_scope.WRITES.clear()
 
 
 @pytest.fixture(autouse=True)

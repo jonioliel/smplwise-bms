@@ -1,7 +1,7 @@
 import { html, css, nothing, type ReactiveController, type ReactiveControllerHost } from 'lit';
 import '../components/sw-toggle';
 import '../components/sw-button';
-import { ALARM_HE, climateRange, HVAC_HE, type DeviceRow } from '../api/devices';
+import { ALARM_HE, climateRange, climateWord, HVAC_HE, isDimmable, type DeviceRow } from '../api/devices';
 import { stateLabel } from '../api/ha';
 import { debouncedCommand, pendingVisible, PENDING_VISIBLE_MS, powerReached, runCommand, supersede, warmCommandChannel, type CommandState } from '../api/device-commands';
 import { bidi, ltrNum } from '../i18n/bidi';
@@ -20,8 +20,8 @@ import { bidi, ltrNum } from '../i18n/bidi';
 /** The modes the add-on's allow-list accepts (services/ha_bridge.HVAC_MODES); the menu shows the entity's own
  * hvac_modes that are among them - never a mode the entity does not report. */
 const HVAC_SELECTABLE = ['off', 'heat', 'cool', 'heat_cool', 'auto', 'dry', 'fan_only'];
-/** P6 item 7: the common preset names in Hebrew (an unknown preset keeps its own name). */
-const PRESET_HE: Record<string, string> = { home: 'בבית', away: 'מחוץ לבית', eco: 'חיסכון', comfort: 'נוחות', sleep: 'שינה', boost: 'מוגבר', none: 'ללא', auto: 'אוטומטי', off: 'כבוי', activity: 'פעילות' };
+// P6 item 7's PRESET_HE moved to api/devices.ts with the fan / swing maps (POLISH-LEFTOVERS-2341): climateWord() is display only -
+// every option's value and every command below still carries the device's raw value.
 /** How long a "one gesture to arm, one tap to confirm" control stays armed (cover open / close / position: attention
  * risk in the allow-list, services/ha_bridge.py - a confirmation is required, but a modal is overkill for a card). */
 export const ARM_MS = 4000;
@@ -82,24 +82,47 @@ export const deviceControlStyles = css`
     grid-column: 1 / -1;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--sw-s-1h);
     flex-wrap: wrap;
+  }
+  /* DEVICES-POLISH-2331: a cover's tilt is a second movement of the same device - its row reads as its own group */
+  .ctl-row[data-control='cover-tilt'] {
+    padding-block-start: var(--sw-s-2);
+    border-block-start: 1px dashed var(--sw-border);
   }
   .ctl-val {
     font-size: var(--sw-fs-sm);
     font-weight: var(--sw-fw-medium);
-    min-inline-size: 34px;
+    min-inline-size: 4ch;
     text-align: center;
     font-variant-numeric: tabular-nums;
   }
+  /* DEVICES-POLISH-2331: a mode menu is one of the row's controls - the small button's height, radius, border, lift and type
+     (sw-button size sm), so minus / value / plus, the menus and the buttons sit on one line as one family */
   .ctl-select {
     font: inherit;
     font-size: var(--sw-fs-xs);
-    border-radius: var(--sw-r-sm);
-    border: 1px solid var(--sw-border);
+    font-weight: var(--sw-fw-medium);
+    min-block-size: var(--sw-ctl-h-sm);
+    max-inline-size: 100%;
+    border-radius: var(--sw-r-xs);
+    border: 1px solid var(--sw-border-strong);
     background: var(--sw-surface);
     color: var(--sw-text);
-    padding: 3px 6px;
+    box-shadow: var(--sw-shadow-1);
+    padding-block: 0;
+    padding-inline: var(--sw-s-2) var(--sw-s-1);
+    cursor: pointer;
+    transition: background var(--sw-t-hover) var(--sw-ease-color), border-color var(--sw-t-hover) var(--sw-ease-color);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .ctl-select:hover:not(:disabled) {
+      background: var(--sw-surface-2);
+    }
+  }
+  .ctl-select:disabled {
+    opacity: 0.55;
+    cursor: default;
   }
   .rollback-note,
   .cmd-status {
@@ -107,16 +130,16 @@ export const deviceControlStyles = css`
     font-size: var(--sw-fs-xs);
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--sw-s-1h);
   }
   .rollback-note {
-    color: var(--sw-danger);
+    color: var(--sw-danger-text);
   }
   .cmd-status.pending {
     color: var(--sw-text);
     background: var(--sw-warning-soft);
     border-radius: var(--sw-r-sm);
-    padding: 2px 6px;
+    padding: 2px var(--sw-s-1h);
     font-weight: var(--sw-fw-medium);
   }
   .cmd-status.pending .dot {
@@ -314,6 +337,7 @@ export class DeviceControls implements ReactiveController {
   }
 
   renderBrightnessSlider(r: DeviceRow) {
+    if (!isDimmable(r)) return nothing; // SWITCH-LIGHT-DIMMER-2331: the one gate, also behind every caller's own check
     const key = `${r.entity_id}:brightness`;
     const value = this.live<number>(r.entity_id, 'brightness') ?? r.brightness_pct ?? 100;
     const onInput = (ev: Event) => {
@@ -402,9 +426,9 @@ export class DeviceControls implements ReactiveController {
       moveTilt(tiltPosKey, 'cover.set_cover_tilt_position', { tilt_position: pct }, pct, `מיקום הטיה ${pct}%`);
     };
     return html`<div class="ctl-row" data-control="cover">
-        <sw-button size="sm" ?disabled=${moving} data-control="open" @click=${doOpen}>${this.isArmed(openKey) ? 'לאשר פתיחה?' : 'פתיחה'}</sw-button>
+        <sw-button size="sm" variant=${this.isArmed(openKey) ? 'primary' : 'secondary'} ?disabled=${moving} data-control="open" @click=${doOpen}>${this.isArmed(openKey) ? 'לאשר פתיחה?' : 'פתיחה'}</sw-button>
         <sw-button size="sm" data-control="stop" @click=${doStop}>עצירה</sw-button>
-        <sw-button size="sm" ?disabled=${moving} data-control="close" @click=${doClose}>${this.isArmed(closeKey) ? 'לאשר סגירה?' : 'סגירה'}</sw-button>
+        <sw-button size="sm" variant=${this.isArmed(closeKey) ? 'primary' : 'secondary'} ?disabled=${moving} data-control="close" @click=${doClose}>${this.isArmed(closeKey) ? 'לאשר סגירה?' : 'סגירה'}</sw-button>
         ${r.position !== null && r.position !== undefined
           ? html`<input type="range" class="ctl-range" data-control="position" min="0" max="100" ?disabled=${moving} .value=${String(posValue)} @input=${onPosInput} @change=${onPosRelease} aria-label="מיקום התריס" />
               ${armedPos ? html`<sw-button size="sm" variant="primary" data-control="position-confirm" @click=${confirmPos}>${`לאשר מיקום ${draft}%?`}</sw-button>` : nothing}`
@@ -412,9 +436,9 @@ export class DeviceControls implements ReactiveController {
       </div>
       ${r.tilt !== null && r.tilt !== undefined
         ? html`<div class="ctl-row" data-control="cover-tilt">
-            <sw-button size="sm" ?disabled=${tiltMoving} data-control="open-tilt" @click=${doOpenTilt}>${this.isArmed(openTiltKey) ? 'לאשר פתיחת הטיה?' : 'פתיחת הטיה'}</sw-button>
+            <sw-button size="sm" variant=${this.isArmed(openTiltKey) ? 'primary' : 'secondary'} ?disabled=${tiltMoving} data-control="open-tilt" @click=${doOpenTilt}>${this.isArmed(openTiltKey) ? 'לאשר פתיחת הטיה?' : 'פתיחת הטיה'}</sw-button>
             <sw-button size="sm" data-control="stop-tilt" @click=${doStopTilt}>עצירת הטיה</sw-button>
-            <sw-button size="sm" ?disabled=${tiltMoving} data-control="close-tilt" @click=${doCloseTilt}>${this.isArmed(closeTiltKey) ? 'לאשר סגירת הטיה?' : 'סגירת הטיה'}</sw-button>
+            <sw-button size="sm" variant=${this.isArmed(closeTiltKey) ? 'primary' : 'secondary'} ?disabled=${tiltMoving} data-control="close-tilt" @click=${doCloseTilt}>${this.isArmed(closeTiltKey) ? 'לאשר סגירת הטיה?' : 'סגירת הטיה'}</sw-button>
             <input type="range" class="ctl-range" data-control="tilt-position" min="0" max="100" ?disabled=${tiltMoving} .value=${String(tiltValue)} @input=${onTiltInput} @change=${onTiltRelease} aria-label="מיקום הטיה" />
             ${armedTiltPos ? html`<sw-button size="sm" variant="primary" data-control="tilt-position-confirm" @click=${confirmTiltPos}>${`לאשר הטיה ${tiltDraft}%?`}</sw-button>` : nothing}
           </div>`
@@ -446,7 +470,7 @@ export class DeviceControls implements ReactiveController {
       const fan = this.live<string>(entityId, 'fan') ?? r.fan_mode ?? '';
       const changeFan = (ev: Event) => {
         const v = (ev.target as HTMLSelectElement).value;
-        if (v) void runCommand(fanKey, 'climate', entityId, 'climate.set_fan_mode', { fan_mode: v }, v, (s) => this.setCmd(fanKey, s), { label: `מאוורר ${v}` });
+        if (v) void runCommand(fanKey, 'climate', entityId, 'climate.set_fan_mode', { fan_mode: v }, v, (s) => this.setCmd(fanKey, s), { label: `מאוורר ${climateWord('fan', v)}` });
       };
       // CR-007 slice 4: preset / swing - only the modes this entity itself reports
       const presetKey = `${entityId}:preset`;
@@ -455,7 +479,7 @@ export class DeviceControls implements ReactiveController {
       const preset = this.live<string>(entityId, 'preset') ?? r.preset_mode ?? '';
       const changePreset = (ev: Event) => {
         const v = (ev.target as HTMLSelectElement).value;
-        if (v) void runCommand(presetKey, 'climate', entityId, 'climate.set_preset_mode', { preset_mode: v }, v, (s) => this.setCmd(presetKey, s), { label: `מצב מוגדר ${v}` });
+        if (v) void runCommand(presetKey, 'climate', entityId, 'climate.set_preset_mode', { preset_mode: v }, v, (s) => this.setCmd(presetKey, s), { label: `מצב מוגדר ${climateWord('preset', v)}` });
       };
       const swingKey = `${entityId}:swing`;
       const swingPending = this.commands[swingKey]?.phase === 'pending';
@@ -463,7 +487,7 @@ export class DeviceControls implements ReactiveController {
       const swing = this.live<string>(entityId, 'swing') ?? r.swing_mode ?? '';
       const changeSwing = (ev: Event) => {
         const v = (ev.target as HTMLSelectElement).value;
-        if (v) void runCommand(swingKey, 'climate', entityId, 'climate.set_swing_mode', { swing_mode: v }, v, (s) => this.setCmd(swingKey, s), { label: `נדנוד ${v}` });
+        if (v) void runCommand(swingKey, 'climate', entityId, 'climate.set_swing_mode', { swing_mode: v }, v, (s) => this.setCmd(swingKey, s), { label: `נדנוד ${climateWord('swing', v)}` });
       };
       // CR-007 slice 4: a climate entity's own target humidity (separate from a humidifier's) - only when it reports one
       const humKey = `${entityId}:humidity`;
@@ -485,20 +509,20 @@ export class DeviceControls implements ReactiveController {
           : nothing}
         ${fanModes.length
           ? html`<select class="ctl-select" data-control="fan-mode" aria-label="מצב מאוורר" ?disabled=${fanPending} @change=${changeFan}>
-              ${fanModes.includes(fan) ? nothing : html`<option value="" selected disabled>${fan || 'מאוורר'}</option>`}
-              ${fanModes.map((m) => html`<option value=${m} ?selected=${m === fan}>${m}</option>`)}
+              ${fanModes.includes(fan) ? nothing : html`<option value="" selected disabled>${climateWord('fan', fan) || 'מאוורר'}</option>`}
+              ${fanModes.map((m) => html`<option value=${m} ?selected=${m === fan}>${climateWord('fan', m)}</option>`)}
             </select>`
           : nothing}
         ${presetModes.length
           ? html`<select class="ctl-select" data-control="preset-mode" aria-label="מצב מוגדר מראש" ?disabled=${presetPending} @change=${changePreset}>
-              ${presetModes.includes(preset) ? nothing : html`<option value="" selected disabled>${(preset && PRESET_HE[preset]) || preset || 'מצב מוגדר'}</option>`}
-              ${presetModes.map((m) => html`<option value=${m} ?selected=${m === preset}>${PRESET_HE[m] ?? m}</option>`)}
+              ${presetModes.includes(preset) ? nothing : html`<option value="" selected disabled>${climateWord('preset', preset) || 'מצב מוגדר'}</option>`}
+              ${presetModes.map((m) => html`<option value=${m} ?selected=${m === preset}>${climateWord('preset', m)}</option>`)}
             </select>`
           : nothing}
         ${swingModes.length
           ? html`<select class="ctl-select" data-control="swing-mode" aria-label="מצב נדנוד" ?disabled=${swingPending} @change=${changeSwing}>
-              ${swingModes.includes(swing) ? nothing : html`<option value="" selected disabled>${swing || 'נדנוד'}</option>`}
-              ${swingModes.map((m) => html`<option value=${m} ?selected=${m === swing}>${m}</option>`)}
+              ${swingModes.includes(swing) ? nothing : html`<option value="" selected disabled>${climateWord('swing', swing) || 'נדנוד'}</option>`}
+              ${swingModes.map((m) => html`<option value=${m} ?selected=${m === swing}>${climateWord('swing', m)}</option>`)}
             </select>`
           : nothing}
         ${humidity !== null && humidity !== undefined
@@ -528,7 +552,7 @@ export class DeviceControls implements ReactiveController {
     const modeH = this.live<string>(entityId, 'mode') ?? r.mode ?? '';
     const changeModeH = (ev: Event) => {
       const v = (ev.target as HTMLSelectElement).value;
-      if (v) void runCommand(modeKeyH, 'humidifier', entityId, 'humidifier.set_mode', { mode: v }, v, (s) => this.setCmd(modeKeyH, s), { label: `מצב ${v}` });
+      if (v) void runCommand(modeKeyH, 'humidifier', entityId, 'humidifier.set_mode', { mode: v }, v, (s) => this.setCmd(modeKeyH, s), { label: `מצב ${climateWord('hmode', v)}` });
     };
     const humKeyH = `${entityId}:humidity`;
     const humMinH = r.min_humidity ?? 0;
@@ -538,8 +562,8 @@ export class DeviceControls implements ReactiveController {
     return html`<div class="ctl-row" data-control="humidifier">
       ${modesH.length
         ? html`<select class="ctl-select" data-control="mode" aria-label="מצב לחות" ?disabled=${modePendingH} @change=${changeModeH}>
-            ${modesH.includes(modeH) ? nothing : html`<option value="" selected disabled>${modeH || 'מצב'}</option>`}
-            ${modesH.map((m) => html`<option value=${m} ?selected=${m === modeH}>${m}</option>`)}
+            ${modesH.includes(modeH) ? nothing : html`<option value="" selected disabled>${climateWord('hmode', modeH) || 'מצב'}</option>`}
+            ${modesH.map((m) => html`<option value=${m} ?selected=${m === modeH}>${climateWord('hmode', m)}</option>`)}
           </select>`
         : nothing}
       ${humidityH !== null && humidityH !== undefined
@@ -622,6 +646,7 @@ export class DeviceControls implements ReactiveController {
   brightness(r: DeviceRow, pct: number) {
     const v = Math.max(0, Math.min(100, Math.round(pct)));
     if (v === 0) return this.power(r, false);
+    if (!isDimmable(r)) return this.power(r, true); // SWITCH-LIGHT-DIMMER-2331: an on/off device never gets light.turn_on with a brightness
     const key = `${r.entity_id}:brightness`;
     this.debouncedRange(key, 'light', r.entity_id, 'light.turn_on', { brightness_pct: v }, v, (s) => this.setCmd(key, s), { label: `בהירות ${v}%` });
   }
@@ -706,7 +731,7 @@ export class DeviceControls implements ReactiveController {
   climateChoice(r: DeviceRow, which: 'fan' | 'preset' | 'swing' | 'hmode', value: string) {
     const key = `${r.entity_id}:${which === 'hmode' ? 'mode' : which}`;
     const spec = which === 'fan' ? ['climate.set_fan_mode', 'fan_mode', 'מאוורר'] : which === 'preset' ? ['climate.set_preset_mode', 'preset_mode', 'מצב מוגדר'] : which === 'swing' ? ['climate.set_swing_mode', 'swing_mode', 'נדנוד'] : ['humidifier.set_mode', 'mode', 'מצב'];
-    void runCommand(key, which === 'hmode' ? 'humidifier' : 'climate', r.entity_id, spec[0], { [spec[1]]: value }, value, (s) => this.setCmd(key, s), { label: `${spec[2]} ${value}` });
+    void runCommand(key, which === 'hmode' ? 'humidifier' : 'climate', r.entity_id, spec[0], { [spec[1]]: value }, value, (s) => this.setCmd(key, s), { label: `${spec[2]} ${climateWord(which, value)}` });
   }
 
   humidity(r: DeviceRow, next: number) {

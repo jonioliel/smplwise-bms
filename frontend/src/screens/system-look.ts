@@ -93,10 +93,10 @@ export class SystemLook extends LitElement {
       cursor: pointer;
     }
     .seg button[aria-pressed='true'] {
-      background: var(--sw-surface);
+      background: var(--sw-seg-thumb, var(--sw-surface));
       color: var(--sw-accent-text);
       font-weight: var(--sw-fw-semibold);
-      box-shadow: var(--sw-shadow-1);
+      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
     }
     .seg button[disabled] {
       cursor: default;
@@ -105,6 +105,44 @@ export class SystemLook extends LitElement {
     .seg button:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
+    }
+    /* LOOK-POLISH-2331: every key gives on pointer-down and washes on hover only under a pointer that hovers */
+    .seg button,
+    .range button,
+    .pal button {
+      transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .seg button:active:not(:disabled),
+    .range button:active:not(:disabled),
+    .pal button:active:not(:disabled) {
+      transform: scale(var(--sw-press-scale));
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .seg button:hover:not([aria-pressed='true']):not(:disabled),
+      .pal button:hover:not([aria-pressed='true']):not(:disabled) {
+        color: var(--sw-text);
+        background: var(--sw-hover-wash);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .seg button,
+      .range button,
+      .pal button {
+        transition-duration: 0ms;
+      }
+    }
+    /* the thirteen dials in four headed groups (they were one unbroken list) */
+    .group {
+      margin: 0;
+      padding-block: 18px 2px;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+      letter-spacing: -0.005em;
     }
     .range {
       display: inline-flex;
@@ -239,7 +277,7 @@ export class SystemLook extends LitElement {
       inset: -20px -30px auto auto;
       inline-size: 140px;
       block-size: 90px;
-      border-radius: 30px;
+      border-radius: var(--sw-r-xl);
       background: linear-gradient(120deg, var(--sw-lit), var(--sw-hue-2));
       z-index: -1;
       opacity: 0.9;
@@ -290,8 +328,16 @@ export class SystemLook extends LitElement {
       font-size: var(--sw-fs-sm);
     }
     .note {
-      font-size: var(--sw-fs-xs);
-      color: var(--sw-text-3);
+      font-size: var(--sw-fs-sm);
+      color: var(--sw-text-2);
+    }
+    .skinnote {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-surface-3);
     }
   `, bubbleChrome];
 
@@ -523,20 +569,25 @@ export class SystemLook extends LitElement {
           <button type="button" data-look-target="installation" aria-pressed=${this.target === 'installation' ? 'true' : 'false'} @click=${() => (this.target = 'installation')}>ברירת המחדל של ההתקנה</button>
         </span>
       </div>
-      ${this.skin !== 'bubble' ? html`<div class="row"><span class="note" data-look-skin-note>הסגנון הנוכחי הוא ${this.skin}; האפשרויות כאן מצוירות על ידי סגנון Bubble.</span></div>` : nothing}
+      ${this.skin !== 'bubble' ? html`<div class="row"><span class="note skinnote" data-look-skin-note><sw-icon name="info" size=${14}></sw-icon>הסגנון הנוכחי הוא ${this.skin}; האפשרויות כאן מצוירות על ידי סגנון Bubble.</span></div>` : nothing}
+      <h4 class="group">פריסה</h4>
       ${this.choiceRow('density')}
       ${this.choiceRow('surface')}
       ${this.choiceRow('popup')}
       ${this.choiceRow('radius')}
       ${this.choiceRow('slider')}
+      <h4 class="group">שקיפות, גודל ומגע</h4>
       ${this.rangeRow('transparency')}
       ${this.rangeRow('scale')}
       ${this.choiceRow('touch')}
       ${this.choiceRow('performance')}
+      <h4 class="group">חומר ועומק</h4>
       ${this.choiceRow('material')}
       ${this.choiceRow('depth')}
       ${this.choiceRow('tint')}
+      ${this.target === 'installation' && this.canEdit ? html`<h4 class="group">צבעים</h4>` : nothing}
       ${this.paletteRow()}
+      <h4 class="group">תצוגה מקדימה</h4>
       <div class="preview" data-look-preview=${`${l.density}/${l.surface}/${l.popup}/${l.radius}/${l.transparency}/${l.scale}/${l.touch}/${l.material}/${l.depth}/${l.tint}`} aria-label="תצוגה מקדימה" style=${styleMap(this.previewStyle(l))}
         data-bubble-density=${attrs['data-bubble-density']} data-bubble-surface=${attrs['data-bubble-surface']} data-bubble-radius=${attrs['data-bubble-radius']} data-bubble-touch=${attrs['data-bubble-touch']} data-bubble-performance=${attrs['data-bubble-performance']}
         data-bubble-material=${attrs['data-bubble-material']} data-bubble-depth=${attrs['data-bubble-depth']} data-bubble-tint=${attrs['data-bubble-tint']}>

@@ -207,8 +207,12 @@ export const ticketTableStyles = css`
     max-block-size: max(420px, calc(100dvh - 300px));
     overscroll-behavior: contain;
   }
+  /* SMALL-UI-BUGS-2343: fixed column widths (the <colgroup> of screens/tickets-table.ts; tickets/table-model.ts COLUMN_WIDTH_PX), the
+     title takes the rest; the table's min-inline-size is their sum, so the default set fits 1280 / 1440 and only columns the user adds
+     can make it scroll sideways. Long text in a cell ends with an ellipsis, the full text is its tooltip. */
   table.tt {
     inline-size: 100%;
+    table-layout: fixed;
     border-collapse: separate;
     border-spacing: 0;
     font-size: var(--sw-fs-md);
@@ -225,6 +229,8 @@ export const ticketTableStyles = css`
     padding: 8px 12px;
     border-block-end: 1px solid var(--dv-border-strong);
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   table.tt th button.sh {
     display: inline-flex;
@@ -250,6 +256,8 @@ export const ticketTableStyles = css`
     font-variant-numeric: tabular-nums;
   }
   table.tt td {
+    min-inline-size: 0;
+    overflow: hidden;
     padding: 12px;
     border-block-end: 1px solid var(--dv-border);
     vertical-align: middle;
@@ -304,34 +312,41 @@ export const ticketTableStyles = css`
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-inline-size: 240px;
+    max-inline-size: 100%;
   }
   td.c-title .cv {
     font-weight: 600;
-    max-inline-size: 320px;
+  }
+  /* a chip never widens its cell: the sub-state is cut first */
+  table.tt td .chip {
+    max-inline-size: 100%;
+    min-inline-size: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+  table.tt td .chip .subst {
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   td .sub {
     display: block;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-inline-size: 320px;
+    max-inline-size: 100%;
     font-size: var(--sw-fs-sm);
     color: var(--dv-text-3);
     margin-block-start: 2px;
   }
   /* TKUI4: the sentence column - what is happening, in the drawer's words; two lines at most */
-  th.c-sentence,
-  td.c-sentence {
-    min-inline-size: 240px;
-  }
   td.c-sentence .cv {
     display: -webkit-box;
     -webkit-line-clamp: 2;
     line-clamp: 2;
     -webkit-box-orient: vertical;
     white-space: normal;
-    max-inline-size: 360px;
+    max-inline-size: 100%;
     color: var(--dv-text);
   }
   :host([data-density='compact']) td.c-sentence .cv {
@@ -381,6 +396,7 @@ export const ticketTableStyles = css`
     align-items: center;
     gap: 4px;
     max-inline-size: 100%;
+    min-inline-size: 0;
     min-block-size: 32px;
     padding: 0;
     border: 0;
@@ -390,6 +406,7 @@ export const ticketTableStyles = css`
     cursor: pointer;
   }
   button.cbtn .ic.chev {
+    flex: none;
     font-size: var(--sw-fs-sm);
     color: var(--dv-text-3);
   }
@@ -397,7 +414,7 @@ export const ticketTableStyles = css`
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-inline-size: 180px;
+    min-inline-size: 0;
   }
   .who.none {
     color: var(--dv-text-3);

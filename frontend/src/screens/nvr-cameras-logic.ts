@@ -50,6 +50,9 @@ export function codecLabel(s: StreamEncoding | null): string {
   return s.codec_plus && (s.codec === 'H.264' || s.codec === 'H.265') ? `${s.codec}+` : s.codec;
 }
 
+/** LIVE-H265-2341: an H.265 stream (the table marks it: Chrome / Edge do not decode it over WebRTC). */
+export const isH265 = (s: StreamEncoding | null): boolean => s?.codec === 'H.265';
+
 export function resolutionLabel(s: StreamEncoding | null): string {
   return s?.resolution ? s.resolution.replace(/x/i, '×') : DASH;
 }

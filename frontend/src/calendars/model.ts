@@ -3,7 +3,7 @@
  * timeline geometry, the paging that keeps every control screen free of a page scroll (owner rule 2026-10-24), labels of the module's words.
  * No DOM, no network: unit-tested in Node (tests/unit-calendars-ui.spec.ts).
  */
-import type { CalColor, CalRole, CalType, Calendar, EntryState, Occurrence, OverlapMode } from '../api/calendars';
+import type { ApprovedMove, CalColor, CalRole, CalType, Calendar, EntryState, Occurrence, OverlapMode } from '../api/calendars';
 
 export const TYPE_LABEL: Record<CalType, string> = { room: 'חדר', team: 'צוות', maintenance: 'אחזקה', event: 'אירועים' };
 export const TYPE_GROUP: Record<CalType, string> = { room: 'חדרים', team: 'צוותים', maintenance: 'אחזקה', event: 'אירועים' };
@@ -19,6 +19,8 @@ export const OVERLAP_LABEL: Record<OverlapMode, string> = {
 };
 export const OVERLAP_SHORT: Record<OverlapMode, string> = { first_holds: 'הראשון מחזיק', override_notify: 'התחזוקה גוברת', block: 'אי אפשר להציב', ask: 'לשאול בכל חלון' };
 export const APPROVAL_LABEL: Record<Calendar['approval_mode'], string> = { none: 'ללא אישור', always: 'כל בקשה באישור', outside_hours: 'באישור מחוץ לשעות', on_behalf: 'באישור כשמזמינים בשם אחרים' };
+/** CAL-GRID-EDIT-2343 (owner answer 3C): what happens when an approved booking in a room that needs approval is moved. */
+export const APPROVED_MOVE_LABEL: Record<ApprovedMove, string> = { reapproval: 'באישור מחדש', managers: 'רק מנהל החדר' };
 export const PROVIDER_LABEL: Record<string, string> = { ical: 'iCal', ics_in: 'iCal', ics_out: 'iCal', google: 'Google', microsoft: 'Microsoft' };
 /** Order of the strictness of the maintenance-overlap modes (stricter protects an existing entry more). */
 export const STRICTNESS: Record<OverlapMode, number> = { override_notify: 0, first_holds: 1, ask: 2, block: 3 };

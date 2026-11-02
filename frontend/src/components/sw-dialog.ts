@@ -3,6 +3,10 @@ import { customElement, property, state } from 'lit/decorators.js';
 import './sw-button';
 import { deepFocusables } from './sw-drawer';
 
+/** A11Y-POLISHED-2342: the open dialogs, oldest first. Every dialog listens for Escape on the window, so a confirmation opened over
+ * another dialog closed BOTH on one press; now only the top one answers the key. */
+const OPEN_STACK: SwDialog[] = [];
+
 /** Small centred modal for short forms and confirmations. Closes on Escape, backdrop click or the ✕. */
 @customElement('sw-dialog')
 export class SwDialog extends LitElement {
@@ -15,6 +19,9 @@ export class SwDialog extends LitElement {
   @property({ type: Boolean, reflect: true }) wide = false;
   /** ACCESSREQ-293: an extra-wide box (up to 1120px) for a two-column form; the body scrolls, the footer stays. */
   @property({ type: Boolean, reflect: true }) xl = false;
+  /** SHARED-POLISH-2342 (CAMADMIN-POLISH-2331 proposal): the box takes the width its content asks for - never narrower than the
+   * default 440 px box, never wider than the xl one; for a list or a table whose width the screen does not know ahead. Opt-in. */
+  @property({ type: Boolean, reflect: true }) fit = false;
   /** The footer only when something is slotted into it (re-review low). */
   @state() private hasFooter = false;
 
@@ -70,6 +77,11 @@ export class SwDialog extends LitElement {
     }
     :host([xl]) .box {
       inline-size: min(1120px, 100%);
+    }
+    :host([fit]) .box {
+      inline-size: fit-content;
+      min-inline-size: min(440px, 100%);
+      max-inline-size: min(1120px, 100%);
     }
     :host([xl]) .body {
       padding-inline: 20px;
@@ -133,8 +145,11 @@ export class SwDialog extends LitElement {
 
   private onKey = (e: KeyboardEvent) => {
     if (!this.open) return;
-    if (e.key === 'Escape') this.close();
-    else if (e.key === 'Tab') this.trapTab(e);
+    if (e.key === 'Escape') {
+      const top = OPEN_STACK[OPEN_STACK.length - 1];
+      if (top && top !== this) return; // a dialog above this one takes the key
+      this.close();
+    } else if (e.key === 'Tab') this.trapTab(e);
   };
 
   /** A11Y-2310: aria-modal promises the page behind is out of reach, so Tab / Shift+Tab wrap inside the box
@@ -166,6 +181,7 @@ export class SwDialog extends LitElement {
   /** Keyboard focus moves into the dialog when it opens (the first field, else the first button, else the box):
    * until 0.1.80 it stayed on the page behind, so a keyboard user had to tab through the whole page. */
   updated(changed: Map<string, unknown>) {
+    if (changed.has('open')) this.track(this.open);
     if (changed.has('open') && !this.open && changed.get('open') === true) this.restoreFocus();
     if (!changed.has('open') || !this.open) return;
     let a: Element | null = document.activeElement;
@@ -192,13 +208,21 @@ export class SwDialog extends LitElement {
     });
   }
 
+  private track(open: boolean) {
+    const at = OPEN_STACK.indexOf(this);
+    if (at >= 0) OPEN_STACK.splice(at, 1);
+    if (open) OPEN_STACK.push(this);
+  }
+
   connectedCallback() {
     super.connectedCallback();
     window.addEventListener('keydown', this.onKey);
+    if (this.open && this.hasUpdated) this.track(true);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    this.track(false);
     if (this.open) this.restoreFocus();
     window.removeEventListener('keydown', this.onKey);
   }

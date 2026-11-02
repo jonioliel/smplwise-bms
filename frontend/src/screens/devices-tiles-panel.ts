@@ -13,7 +13,7 @@ import type { DevicesBulkDialog } from './devices-bulk';
 import { canAnywhere, isApi } from '../api/session';
 import { ApiError, describeError } from '../api/client';
 import { subscribeHa, type HaEntity } from '../api/ha';
-import { ALARM_HE, getDeviceItems, type DeviceItem, type DeviceItems, type DeviceRow, type ItemsScope, type TileKind } from '../api/devices';
+import { ALARM_HE, getDeviceItems, isDimmable, type DeviceItem, type DeviceItems, type DeviceRow, type ItemsScope, type TileKind } from '../api/devices';
 import type { BulkKind } from '../api/device-bulk';
 import { bidi, ltrNum } from '../i18n/bidi';
 import { activityTag, ActivityPress } from '../components/device-activity-press';
@@ -116,8 +116,10 @@ const DEMO_ROWS: Record<TileKind, DeviceItem[]> = {
   alarm: [demoRow('alarm_control_panel.house', 'אזעקת הבניין', LOBBY, 'armed_home', { kind: 'alarm', armed: true })],
 };
 
-function demoItems(kind: TileKind, scope: ItemsScope, id: string, name: string): DeviceItems {
-  const rows = DEMO_ROWS[kind].filter((r) => scope === 'building' || (scope === 'floor' ? r.floor_id === id : r.area_id === id));
+function demoItems(kind: TileKind, scope: ItemsScope, id: string, name: string, switches: 'typed' | 'all' = 'typed'): DeviceItems {
+  // SWITCH-LIGHT-DIMMER-2331: "כל המפסקים" lists the switch.* rows with the lights (on/off only - no brightness control)
+  const base = kind === 'lights' && switches === 'all' ? [...DEMO_ROWS.lights, ...DEMO_ROWS.switches.filter((r) => r.domain === 'switch')] : DEMO_ROWS[kind];
+  const rows = base.filter((r) => scope === 'building' || (scope === 'floor' ? r.floor_id === id : r.area_id === id));
   const floors: DeviceItems['floors'] = [];
   for (const r of rows) {
     let f = floors.find((x) => x.floor_id === r.floor_id);
@@ -199,6 +201,15 @@ export class DevicesTilesPanel extends LitElement {
   @property() scopeId = '';
   @property() scopeName = 'המבנה';
   @property() filter: ItemsFilter = 'all';
+  /** SWITCH-LIGHT-DIMMER-2331 (the synoptic floor lights popup): only these home-system areas of the scope (one of our floors stands for a
+   * set of areas, services/xs-model matchFloors) - the rows, the counts and every bulk action (`only`) keep to them. null = the whole scope. */
+  @property({ attribute: false }) areaFilter: string[] | null = null;
+  /** "מפסקים בעמודת התאורה" (ui.xs syn_switches): `all` lists every switch.* with the lights and the lights actions reach them too. */
+  @property() switches: 'typed' | 'all' = 'typed';
+  /** Two labelled actions "הדלק הכל" / "כבה הכל" instead of the one smart master button (the floor lights popup). */
+  @property({ type: Boolean }) pairedMaster = false;
+  /** A heading of the opener's own (the floor lights popup: "תאורה · <floor>"); '' = the kind and the scope. */
+  @property() headingText = '';
   @state() private data: DeviceItems | null = null;
   @state() private error = '';
   @state() private notFound = false;
@@ -535,8 +546,8 @@ export class DevicesTilesPanel extends LitElement {
   ];
 
   protected willUpdate(changed: PropertyValues<this>) {
-    if ((changed.has('open') || changed.has('kind') || changed.has('scope') || changed.has('scopeId')) && this.open) {
-      if (changed.has('kind') || changed.has('scope') || changed.has('scopeId') || !this.data) {
+    if ((changed.has('open') || changed.has('kind') || changed.has('scope') || changed.has('scopeId') || changed.has('switches')) && this.open) {
+      if (changed.has('kind') || changed.has('scope') || changed.has('scopeId') || changed.has('switches') || !this.data) {
         this.data = null;
         this.q = '';
         this.why = null;
@@ -598,7 +609,7 @@ export class DevicesTilesPanel extends LitElement {
   }
 
   private domains(): string[] {
-    return { lights: ['light'], switches: ['switch', 'input_boolean'], covers: ['cover'], climate: ['climate', 'fan', 'humidifier'], heating: ['climate'], media: ['media_player'], locks: ['lock'], alarm: ['alarm_control_panel'] }[this.kind];
+    return { lights: this.switches === 'all' ? ['light', 'switch'] : ['light'], switches: ['switch', 'input_boolean'], covers: ['cover'], climate: ['climate', 'fan', 'humidifier'], heating: ['climate'], media: ['media_player'], locks: ['lock'], alarm: ['alarm_control_panel'] }[this.kind];
   }
 
   /** Throttled like the building screen: one refetch per window while pushes keep coming, one more after. */
@@ -612,7 +623,7 @@ export class DevicesTilesPanel extends LitElement {
 
   private async load() {
     if (!isApi()) {
-      this.data = demoItems(this.kind, this.scope, this.scopeId, this.scopeName);
+      this.data = demoItems(this.kind, this.scope, this.scopeId, this.scopeName, this.switches);
       return;
     }
     if (this.loading) {
@@ -620,10 +631,10 @@ export class DevicesTilesPanel extends LitElement {
       return;
     }
     this.loading = true;
-    const want = `${this.kind}|${this.scope}|${this.scopeId}`;
+    const want = `${this.kind}|${this.scope}|${this.scopeId}|${this.switches}`;
     try {
-      const d = await getDeviceItems(this.kind, this.scope, this.scopeId);
-      if (want !== `${this.kind}|${this.scope}|${this.scopeId}`) return;
+      const d = await getDeviceItems(this.kind, this.scope, this.scopeId, this.switches);
+      if (want !== `${this.kind}|${this.scope}|${this.scopeId}|${this.switches}`) return;
       this.data = d;
       this.ids = new Set(d.floors.flatMap((f) => f.areas.flatMap((a) => a.items.map((r) => r.entity_id))));
       this.error = '';
@@ -661,14 +672,26 @@ export class DevicesTilesPanel extends LitElement {
     return this.renderRoot.querySelector('devices-bulk-dialog');
   }
 
+  /** The data as the panel shows it: with an area filter, only those areas, and the counts of what is left. */
+  private view(): DeviceItems | null {
+    const d = this.data;
+    if (!d || !this.areaFilter) return d;
+    const keep = new Set(this.areaFilter);
+    const floors = d.floors.map((f) => ({ ...f, areas: f.areas.filter((a) => keep.has(a.area_id)) })).filter((f) => f.areas.length);
+    const rows = floors.flatMap((f) => f.areas.flatMap((a) => a.items));
+    const count = (st: Exclude<ItemsFilter, 'all'>) => rows.filter((x) => rowState(x) === st).length;
+    return { ...d, floors, counts: { total: rows.length, active: count('active'), inactive: count('inactive'), unavailable: count('unavailable') } };
+  }
+
   private heading(): string {
+    if (this.headingText) return this.headingText;
     const m = KIND_META[this.kind];
     const where = this.scope === 'building' ? 'במבנה' : `${SCOPE_WORD[this.scope]} ${this.data?.name ?? this.scopeName}`;
     return `${m.noun} ${where}`;
   }
 
   private subheading(): string {
-    const d = this.data;
+    const d = this.view();
     if (!d) return '';
     const m = KIND_META[this.kind];
     const c = d.counts;
@@ -689,7 +712,7 @@ export class DevicesTilesPanel extends LitElement {
         ? html`<sw-state-panel data-panel-state="error" state="error" heading="לא ניתן לטעון את הרשימה" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel>`
         : html`<sw-state-panel state="loading"></sw-state-panel>`;
     }
-    const d = this.data;
+    const d = this.view()!;
     const c = d.counts;
     const n: Record<ItemsFilter, number> = { all: c.total, active: c.active, inactive: c.inactive, unavailable: c.unavailable };
     const label: Record<ItemsFilter, string> = { all: 'הכול', active: m.active, inactive: m.inactive, unavailable: m.unavailable };
@@ -700,14 +723,14 @@ export class DevicesTilesPanel extends LitElement {
       .filter((f) => f.areas.length);
     const bulkOk = isApi() && !!m.master && d.can_bulk === true && canAnywhere('devices.control_bulk');
     const shown = floors.flatMap((f) => f.areas.flatMap((a) => a.items));
-    const narrowed = this.filter !== 'all' || !!q;
+    const narrowed = this.filter !== 'all' || !!q || !!this.areaFilter;
     return html`<div class="top">
         ${this.kind === 'alarm' ? html`<a class="alarm-link" href="#/security/alarm" data-alarm-link @click=${(e: Event) => this.navigateAway(e, '/security/alarm')}><sw-icon name="shield" size=${15}></sw-icon>פתח במסך האזעקה ‹</a>` : nothing}
         <div class="ctlbar">
           <div class="seg" role="group" aria-label="סינון">
             ${m.order.map((f) => html`<button type="button" data-filter=${f} aria-pressed=${String(this.filter === f)} @click=${() => this.setFilter(f)}>${label[f]} <span>(${ltrNum(n[f])})</span></button>`)}
           </div>
-          ${bulkOk ? this.renderMaster(shown, narrowed, d.name) : nothing}
+          ${bulkOk ? this.renderMaster(shown, narrowed, this.headingText ? this.scopeName : d.name) : this.pairedMaster && m.master && 'on' in m.master ? this.renderPairedOff() : nothing}
           ${this.kind === 'locks' ? this.renderLockAllButton(shown) : nothing}
         </div>
         <label class="search"><sw-icon name="search" size=${14}></sw-icon><input type="search" data-panel-search placeholder=${`חיפוש ב${m.noun}…`} aria-label=${`חיפוש ב${m.noun}`} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /></label>
@@ -750,11 +773,19 @@ export class DevicesTilesPanel extends LitElement {
     const on = avail.filter((r) => rowState(r) === 'active').length;
     // owner 2026-09-30: nothing about eligibility on the screen - the reason lives in the disabled button's tooltip only
     const none = this.kind === 'switches' ? 'כל המתגים כאן מוגנים מפעולה קבוצתית - הגדרות ‹ חשמל והתקנים' : 'אין כאן התקנים שאושרו לפעולה קבוצתית - הגדרות ‹ חשמל';
-    const ask = (kind: BulkKind) => void this.bulkDialog?.show({ scope: this.scope, id: this.scope === 'building' ? '*' : this.scopeId, name, kind, only });
+    const ask = (kind: BulkKind) => void this.bulkDialog?.show({ scope: this.scope, id: this.scope === 'building' ? '*' : this.scopeId, name, kind, only, ...(this.kind === 'lights' && this.switches === 'all' ? { switches: 'all' as const } : {}) });
     if ('open' in master) {
       return html`<div class="master-group" data-panel-master="covers">
         <button type="button" class="master" data-master=${master.open} aria-label=${avail.length ? master.openLabel : none} title=${avail.length ? master.openLabel : none} ?disabled=${!avail.length} @click=${() => ask(master.open)}><sw-icon name="coverOpen" size=${20}></sw-icon></button>
         <button type="button" class="master" data-master=${master.close} aria-label=${avail.length ? master.closeLabel : none} title=${avail.length ? master.closeLabel : none} ?disabled=${!avail.length} @click=${() => ask(master.close)}><sw-icon name="coverClose" size=${20}></sw-icon></button>
+      </div>`;
+    }
+    if (this.pairedMaster) {
+      // SWITCH-LIGHT-DIMMER-2331: the floor lights popup - two labelled actions; each opens the same confirmation (the count, then the result per device)
+      const off = avail.length - on;
+      return html`<div class="master-group paired" data-panel-master=${this.kind} data-paired>
+        <sw-button size="sm" icon="power" data-master=${master.on} ?disabled=${!avail.length || !off} title=${avail.length ? master.onLabel : none} @click=${() => ask(master.on)}>הדלק הכל</sw-button>
+        <sw-button size="sm" icon="power" variant="ghost" data-master=${master.off} ?disabled=${!avail.length || !on} title=${avail.length ? master.offLabel : none} @click=${() => ask(master.off)}>כבה הכל</sw-button>
       </div>`;
     }
     const state = on === 0 ? 'off' : on === avail.length ? 'on' : 'mixed';
@@ -763,6 +794,16 @@ export class DevicesTilesPanel extends LitElement {
       aria-label=${state === 'mixed' ? `${words} (${on} מתוך ${avail.length} פעילים)` : words} title=${words} ?disabled=${!avail.length} @click=${() => ask(on ? master.off : master.on)}>
       <sw-icon name="power" size=${20}></sw-icon>${state === 'mixed' ? html`<span class="badge" data-master-badge aria-hidden="true">${ltrNum(on)}</span>` : nothing}
     </button>`;
+  }
+
+  /** SWITCH-LIGHT-DIMMER-2331: the two labelled actions without bulk control here (the demo, or no devices.control_bulk in this scope):
+   * shown disabled, the reason in the tooltip - the popup looks the same for everyone, nothing is offered that the server would refuse. */
+  private renderPairedOff() {
+    const why = !isApi() ? 'נתוני הדגמה - אין שליטה בהתקנים' : 'אין לך הרשאה לפעולות מרוכזות בהיקף הזה';
+    return html`<div class="master-group paired" data-panel-master=${this.kind} data-paired data-paired-off>
+      <sw-button size="sm" icon="power" disabled title=${why} data-master="lights_on">הדלק הכל</sw-button>
+      <sw-button size="sm" icon="power" variant="ghost" disabled title=${why} data-master="lights_off">כבה הכל</sw-button>
+    </div>`;
   }
 
   /** Re-review M3: leave the panel for another screen - the building screen replaces the panel's own history entry
@@ -834,7 +875,7 @@ export class DevicesTilesPanel extends LitElement {
     const icon: IconName = this.kind === 'locks' ? (r.locked ? 'lock' : 'unlock') : m.icon;
     const stateText = this.kind === 'alarm' ? (st === 'unavailable' ? 'לא זמין' : (ALARM_HE[r.state ?? ''] ?? r.state ?? 'לא ידוע')) : this.kind === 'locks' ? (st === 'unavailable' ? 'לא זמין' : r.locked ? 'נעול' : r.state === 'unlocked' ? 'לא נעול' : (r.state ?? 'לא ידוע')) : (this.kind === 'climate' || this.kind === 'heating') && r.domain === 'climate' && st !== 'unavailable' ? `${rowLabel(r)}${r.current_temperature !== null && r.current_temperature !== undefined ? ` · ${ltrNum(r.current_temperature)}°` : ''}${r.target_temperature !== null && r.target_temperature !== undefined ? ` · יעד ${ltrNum(r.target_temperature)}°` : ''}` : rowLabel(r);
     const toggleKinds = this.kind === 'lights' || this.kind === 'switches';
-    const dimmable = this.kind === 'lights' && r.color_mode !== 'onoff' && (on || this.ctl.live<boolean>(r.entity_id, 'power') === true);
+    const dimmable = this.kind === 'lights' && isDimmable(r) && (on || this.ctl.live<boolean>(r.entity_id, 'power') === true);
     return html`<div class=${classMap({ row: true, on, unavailable: st === 'unavailable', pending: controllable && this.ctl.rowPendingVisible(r.entity_id) })}
       data-entity=${r.entity_id} data-activity=${ifDefined(activityTag(r, stateText))} data-state=${st} ?data-can-control=${controllable}>
       <sw-icon .name=${icon} size=${16}></sw-icon>

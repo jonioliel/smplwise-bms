@@ -5,7 +5,9 @@ import { liveWsUrl, relayWsUrl, type Transport } from '../api/media';
 import { can, cap, isApi } from '../api/session';
 import { productSettings } from '../api/prefs';
 import { LIVE_ICE_SERVERS } from '../api/video-conn-test';
-import { badgeLabel, decodeLadder, lanLadder, mseFirst, noteWebrtcUnreachable, orderLadder, rememberStep, rememberedStep, sameStep, undecodableMessage, webrtcUnreachable, type Profile, type VideoStep } from '../api/video-policy';
+import { badgeLabel, decodeLadder, lanLadder, mseFirst, noteWebrtcUnreachable, orderLadder, rememberStep, rememberedStep, sameStep, undecodableMessage, webrtcUnreachable, type Profile, type StepTransport, type VideoStep } from '../api/video-policy';
+import { H265_ALTERNATE_HE, H265_REFUSAL_CLOSE, H265_UNSUPPORTED_HE, h265Param, h265Reaction, h265Support, normalizePolicy, orderForH265, parseServed, servedTag, streamCodec, transcodeCapHe, type H265Policy, type H265Refusal, type ServedStream } from '../api/h265-support';
+import type { CameraEncoding } from '../api/types';
 
 /**
  * Live player over the add-on's WebSocket relay (go2rtc signalling behind it).
@@ -64,6 +66,9 @@ export const liveCapTitle = (max: number) => `הגעת למכסת הזרמים �
 export const LIVE_CAP_HINT_ADMIN = 'אפשר להגדיל בהגדרות ‹ מערכת ‹ גישה מרחוק';
 export const LIVE_CAP_HINT_OTHER = 'פנה למנהל המערכת';
 
+/** LIVE-H265-2341: how often the snapshot behind the "transcode cap full" notice refreshes. */
+const STILL_REFRESH_MS = 10000;
+
 /** Recorded playback: how much media may wait ahead of a paused or slowed playhead before fragments are dropped. */
 const MAX_AHEAD_S = 25;
 
@@ -106,6 +111,17 @@ export class SwLivePlayer extends LitElement {
   /** LAN / Ingress: the profile is not the viewer's own choice (the wall's default quality) - a stream proven
    * undecodable may fall back to the other profile. Never set where the viewer picked the profile. */
   @property({ type: Boolean }) autoProfile = false;
+  /** LIVE-H265-2341: the camera's stream encodings (the registry). An H.265 stream that this browser decodes over MSE only
+   * starts on MSE (api/h265-support `orderForH265`); the server picks the fallback stream per attempt either way. */
+  @property({ attribute: false }) encoding: CameraEncoding | null = null;
+  /** LIVE-H265-2341: the installation's `media.h265_policy` (read with the product settings) */
+  private h265Policy: H265Policy = 'auto';
+  /** what the server chose for the current socket (its `arx/stream` frame); a fallback shows a tag on the picture */
+  @state() served: ServedStream | null = null;
+  /** the transcode cap is full: the refreshing snapshot's notice (the live socket is retried meanwhile) */
+  @state() stillNotice = '';
+  @state() private posterTick = 0;
+  private stillTimer: number | undefined;
   /** LAN / Ingress fallback chain of a live camera (no plan) and the step being tried */
   private chain: VideoStep[] = [];
   private chainIndex = 0;
@@ -332,6 +348,39 @@ export class SwLivePlayer extends LitElement {
     :host([compact]) .vnotice {
       display: none;
     }
+    /* LIVE-H265-2341: the server played a fallback of an H.265 stream (another profile, or the transcoded H.264 variant) */
+    .h265tag {
+      position: absolute;
+      inset-inline-end: 8px;
+      inset-block-start: 8px;
+      font-size: var(--sw-fs-2xs);
+      font-weight: 600;
+      color: var(--sw-on-video);
+      background: var(--sw-video-scrim);
+      border-radius: 999px;
+      padding: 2px 8px;
+      backdrop-filter: var(--sw-perf-blur, blur(6px));
+    }
+    /* under a remote plan its own badge sits there: the tag goes below it */
+    .h265tag.below {
+      inset-block-start: 34px;
+    }
+    /* the transcode cap is full: the snapshot refreshes behind this notice (no black tile, no spinner loop) */
+    .stillnote {
+      position: absolute;
+      inset-inline: 8px;
+      inset-block-end: 34px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: var(--sw-fs-2xs);
+      line-height: 1.4;
+      color: var(--sw-on-video);
+      background: var(--sw-video-scrim-strong);
+      border-radius: var(--sw-r-sm);
+      padding: 4px 8px;
+      text-align: start;
+    }
   `;
 
   /** Owner 2026-10-01: the notes about how the stream plays (media.video_notices, default off); the badge keeps the same text as its tooltip. */
@@ -339,7 +388,16 @@ export class SwLivePlayer extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    void productSettings().then((s) => (this.showNotices = s['media.video_notices'] === 'true')).catch(() => undefined);
+    void productSettings()
+      .then((s) => {
+        this.showNotices = s['media.video_notices'] === 'true';
+        const policy = normalizePolicy(s['media.h265_policy']);
+        if (policy === this.h265Policy) return;
+        this.h265Policy = policy;
+        // the chain of an H.265 camera depends on the policy: open it again under the installation's choice
+        if (this.active && this.cameraId && !this.wsUrl && (streamCodec(this.encoding, 'main') === 'h265' || streamCodec(this.encoding, 'sub') === 'h265')) this.reconnect();
+      })
+      .catch(() => undefined);
   }
 
   disconnectedCallback() {
@@ -350,6 +408,7 @@ export class SwLivePlayer extends LitElement {
   /** The first render (properties set) and every later change of camera/profile/mode/active (re)connects. */
   protected updated(changed: Map<string, unknown>) {
     if (changed.has('active') || changed.has('cameraId') || changed.has('livePath') || changed.has('profile') || changed.has('mode') || changed.has('wsUrl') || changed.has('plan') || changed.has('preferred') || changed.has('autoProfile')) {
+      this.endStill();
       if (!this.active || (!this.cameraId && !this.wsUrl && !this.livePath)) this.disconnect();
       else this.reconnect();
     }
@@ -439,6 +498,8 @@ export class SwLivePlayer extends LitElement {
     // WebRTC known unreachable from this tab (owner 2026-10-05): an `auto` chain starts on MSE without its own wait
     this.chainWebrtcDown = this.mode === 'auto' && !remembered && webrtcUnreachable();
     if (this.chainWebrtcDown) this.chain = mseFirst(natural);
+    // LIVE-H265-2341: an H.265 stream this browser decodes over MSE only starts there (no WebRTC wait that cannot succeed)
+    else if (!remembered) this.chain = orderForH265(natural, this.encoding, h265Support(), this.mode, this.h265Policy);
   }
 
   /** A LAN / Ingress chain is in force (live catalogue camera, no remote plan). */
@@ -494,7 +555,7 @@ export class SwLivePlayer extends LitElement {
     if (!this.laddered) return [];
     const steps = decodeLadder(this.plan);
     // an explicit WebRTC choice never plays MSE, whatever plan a screen handed over (owner bug 2026-10-01)
-    return this.mode === 'webrtc' ? steps.filter((s) => s.transport === 'webrtc') : steps;
+    return this.mode === 'webrtc' ? steps.filter((s) => s.transport === 'webrtc') : orderForH265(steps, this.encoding, h265Support(), this.mode, this.h265Policy);
   }
 
   /** The step being played or tried (null outside a plan, or when the plan has none left). */
@@ -525,6 +586,7 @@ export class SwLivePlayer extends LitElement {
     this.error = '';
     this.capped = false;
     this.transport = '';
+    this.served = null;
     const step = this.currentStep ?? this.lanStep;
     // a chain-less `auto` live source (a Home Assistant camera on its own relay path) starts on MSE while this tab
     // remembers WebRTC as unreachable (owner 2026-10-05), like a chained camera does
@@ -533,7 +595,7 @@ export class SwLivePlayer extends LitElement {
     this.lastPreferMse = mseNow;
     let ws: WebSocket;
     try {
-      ws = new WebSocket(this.wsUrl || (this.livePath && !this.cameraId ? relayWsUrl(this.livePath) : liveWsUrl(this.cameraId, this.effectiveProfile)));
+      ws = new WebSocket(this.wsUrl || (this.livePath && !this.cameraId ? relayWsUrl(this.livePath) : liveWsUrl(this.cameraId, this.effectiveProfile, this.h265Flag(step?.transport ?? (mseNow || this.mode === 'mse' ? 'mse' : 'webrtc')))));
     } catch (err) {
       this.fail('לא ניתן לפתוח חיבור');
       return;
@@ -559,6 +621,10 @@ export class SwLivePlayer extends LitElement {
     ws.onclose = (ev) => {
       if (gen !== this.generation) return;
       if (this.status === 'error') return;
+      if (H265_REFUSAL_CLOSE[ev.code] && this.cameraId && !this.wsUrl) {
+        this.h265Refused(H265_REFUSAL_CLOSE[ev.code]); // the close without its message (a proxy dropped it): the same reaction
+        return;
+      }
       if (ev.code === 4429 && this.laddered) {
         this.capRefused(); // the close without its message (a proxy dropped it): still a cap, still no ladder and no retry
         return;
@@ -581,6 +647,7 @@ export class SwLivePlayer extends LitElement {
   }
 
   disconnect() {
+    this.endStill();
     this.teardown();
     window.clearTimeout(this.retryTimer);
     this.attempts = 0;
@@ -635,6 +702,54 @@ export class SwLivePlayer extends LitElement {
     this.status = 'error';
     this.error = liveCapTitle(this.capMax);
     this.dispatchEvent(new CustomEvent('player-status', { detail: { status: 'error', error: this.error, code: 'remote_live_cap', max: this.capMax }, bubbles: true, composed: true }));
+  }
+
+  /** LIVE-H265-2341: the live socket's `h265` parameter for an attempt over `transport` - only for a catalogue camera
+   * (a playback session or a Home Assistant camera's relay path never carries it) and never under the policy `off`. */
+  private h265Flag(transport: StepTransport): '' | '0' | '1' {
+    if (!this.cameraId || this.wsUrl || this.h265Policy === 'off') return '';
+    return h265Param(h265Support(), transport);
+  }
+
+  /** LIVE-H265-2341: the server refused this socket for its codec (`h265_unsupported`) or the transcode cap (`transcode_cap`).
+   * Another step of the chain / plan may still play (MSE when the browser decodes H.265 there); otherwise the reason stays on
+   * the tile (no retry), or - the cap - a refreshing snapshot with the notice while the live socket is retried later. */
+  private h265Refused(refusal: H265Refusal, max?: number, message?: string) {
+    const next = this.laddered ? this.step + 1 < this.steps().length : this.hasChainStep();
+    const reaction = h265Reaction(refusal, next && this.status !== 'playing');
+    if (reaction === 'next') {
+      if (this.laddered) this.nextStep(message || H265_UNSUPPORTED_HE, true);
+      else this.chainNext(message || H265_UNSUPPORTED_HE, true); // "undecodable": the other profile's steps are allowed
+      return;
+    }
+    if (reaction === 'message') {
+      this.fail(message || H265_UNSUPPORTED_HE, false, refusal);
+      return;
+    }
+    this.stillNotice = message || transcodeCapHe(Number(max) || 0);
+    if (this.stillTimer === undefined) this.stillTimer = window.setInterval(() => (this.posterTick += 1), STILL_REFRESH_MS);
+    this.fail(this.stillNotice, true, refusal);
+  }
+
+  private endStill() {
+    if (this.stillTimer !== undefined) window.clearInterval(this.stillTimer);
+    this.stillTimer = undefined;
+    this.stillNotice = '';
+  }
+
+  /** The poster, re-fetched every STILL_REFRESH_MS while the transcode cap keeps the tile on its snapshot. */
+  private posterSrc(): string {
+    if (!this.stillNotice || !this.posterTick || !this.poster) return this.poster;
+    return `${this.poster}${this.poster.includes('?') ? '&' : '?'}r=${this.posterTick}`;
+  }
+
+  /** The tag of a fallback the server chose (another profile, the transcoded H.264 variant); the full sentence as its tooltip. */
+  private renderServed() {
+    const s = this.served;
+    if (!s || s.kind === 'native' || this.status === 'error') return nothing;
+    const text = s.message || H265_ALTERNATE_HE;
+    return html`<span class="h265tag ${this.laddered ? 'below' : ''}" data-h265-fallback=${s.kind} title=${text} aria-label=${text}>${servedTag(s)}</span>
+      ${this.showNotices && !this.compact && !this.laddered ? html`<div class="vnotice" data-h265-notice role="status">${text}</div>` : nothing}`;
   }
 
   /** `code`: the socket's close code, or the relay's error value - carried in the event so a recording screen can tell a lost
@@ -971,7 +1086,7 @@ export class SwLivePlayer extends LitElement {
   }
 
   private onSignal(text: string) {
-    let msg: { type?: string; value?: string; max?: number };
+    let msg: { type?: string; value?: string; max?: number; message?: string };
     try {
       msg = JSON.parse(text);
     } catch {
@@ -979,6 +1094,14 @@ export class SwLivePlayer extends LitElement {
     }
     if (msg.type === 'error' && msg.value === 'remote_live_cap') {
       this.capRefused(msg.max);
+      return;
+    }
+    if (msg.type === 'arx/stream') {
+      this.served = parseServed(msg.value); // LIVE-H265-2341: the stream the server chose for this socket
+      return;
+    }
+    if (msg.type === 'error' && (msg.value === 'h265_unsupported' || msg.value === 'transcode_cap')) {
+      this.h265Refused(msg.value, msg.max, msg.message);
       return;
     }
     switch (msg.type) {
@@ -1067,6 +1190,7 @@ export class SwLivePlayer extends LitElement {
   }
 
   private onPlaying() {
+    this.endStill();
     window.clearTimeout(this.timer);
     this.stopFirstFrameWatch?.();
     this.needsTap = false;
@@ -1082,7 +1206,7 @@ export class SwLivePlayer extends LitElement {
       rememberStep(this.cameraId, this.profile, this.mode, step && !network && !sameStep(step, first) ? step : null);
       if (step?.transport === 'webrtc' && this.mode === 'auto') noteWebrtcUnreachable(false); // WebRTC works again: forget
     }
-    this.dispatchEvent(new CustomEvent('player-status', { detail: { status: 'playing', transport: this.transport, profile: this.effectiveProfile }, bubbles: true, composed: true }));
+    this.dispatchEvent(new CustomEvent('player-status', { detail: { status: 'playing', transport: this.transport, profile: this.served?.profile ?? this.effectiveProfile, ...(this.served && this.served.kind !== 'native' ? { fallback: this.served.kind } : {}) }, bubbles: true, composed: true }));
   }
 
   /** CR-008 D7: the announcement when the plan fell back (another profile, or MSE through the tunnel). */
@@ -1115,10 +1239,12 @@ export class SwLivePlayer extends LitElement {
   render() {
     const showPoster = this.status !== 'playing';
     return html`
-      ${this.poster && showPoster ? html`<img class="poster" src=${this.poster} alt="" />` : nothing}
+      ${this.poster && showPoster ? html`<img class="poster" src=${this.posterSrc()} alt="" />` : nothing}
       <video class=${showPoster ? 'hidden' : ''} autoplay playsinline muted @playing=${this.onPlaying} @timeupdate=${this.onTimeUpdate}></video>
-      ${this.status === 'connecting' ? html`<div class="center"><div><span class="spin"></span><span>מתחבר${this.transport ? ` · ${this.transport === 'webrtc' ? 'WebRTC' : 'MSE'}` : ''}…</span></div></div>` : nothing}
-      ${this.status === 'error' && this.capped
+      ${this.stillNotice && this.status !== 'playing'
+        ? html`<div class="stillnote" data-h265-still role="status"><sw-icon name="camera" size=${12}></sw-icon><span data-player-error>${this.stillNotice}</span></div>`
+        : this.status === 'connecting' ? html`<div class="center"><div><span class="spin"></span><span>מתחבר${this.transport ? ` · ${this.transport === 'webrtc' ? 'WebRTC' : 'MSE'}` : ''}…</span></div></div>` : nothing}
+      ${this.stillNotice ? nothing : this.status === 'error' && this.capped
         ? html`<div class="center" data-live-cap><div><sw-icon name="lock" size=${this.compact ? 16 : 22}></sw-icon><span data-player-error>${this.error}</span><span class="hint" data-live-cap-hint>${can('system.configure') ? LIVE_CAP_HINT_ADMIN : LIVE_CAP_HINT_OTHER}</span></div></div>`
         : this.status === 'error'
           ? html`<div class="center"><div><sw-icon name="offline" size=${22}></sw-icon><span data-player-error>${this.error}</span></div></div>`
@@ -1127,6 +1253,7 @@ export class SwLivePlayer extends LitElement {
       ${this.status === 'idle' && !this.poster ? html`<div class="center"><div><sw-icon name="camera" size=${22}></sw-icon><span>לא מחובר</span></div></div>` : nothing}
       <span class="status ${this.status}"><i></i><span class="t">${this.status === 'playing' ? `${this.wsUrl ? 'הקלטה' : 'חי'} · ${this.transport === 'webrtc' ? 'WebRTC' : 'MSE'}` : this.status === 'connecting' ? 'מתחבר' : this.status === 'error' ? (this.capped ? 'מכסה' : 'לא זמין') : this.status === 'ended' ? 'הסתיים' : 'תמונה'}</span></span>
       ${this.laddered ? this.renderPlan() : nothing}
+      ${this.renderServed()}
       ${this.needsTap && this.status !== 'playing' ? html`<button class="tap" data-tap-to-play @click=${this.tapToPlay}><sw-icon name="live" size=${18}></sw-icon>הקש להפעלה</button>` : nothing}
       ${this.status === 'playing' ? html`<button class="mute" title=${this.muted ? 'הפעל שמע' : 'השתק'} aria-label=${this.muted ? 'הפעל שמע' : 'השתק'} @click=${this.toggleMute}><sw-icon name=${this.muted ? 'volume' : 'mic'} size=${13}></sw-icon></button>` : nothing}
     `;

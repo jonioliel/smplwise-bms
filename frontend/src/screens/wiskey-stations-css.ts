@@ -730,9 +730,85 @@ export const stationsCss = css`
     line-height: 1.5;
   }
 
+  /* WKWATER-POLISH-2331: one rhythm between the toolbar and the columns (they touched before) */
+  [data-wk-stations] {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sw-s-3);
+    min-inline-size: 0;
+  }
+  /* a list row answers the pointer like the cards: a tone step under a fine pointer, the press scale on the station part */
+  .rowmain {
+    transition: transform var(--sw-t-press) var(--sw-ease-out);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .row {
+    transition: background-color var(--sw-t-fast) var(--sw-ease);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .row:not([data-status='ringing']):hover {
+      background: var(--sw-surface-2);
+    }
+  }
+  .card .tech {
+    margin-block-start: auto;
+  }
+
   @media (max-width: 1100px) {
     .layout {
       --wk-tree: 208px;
+    }
+  }
+  /* WKWATER-POLISH-2331 (NOSCROLL-297, owner rule: a control screen fits the viewport on a desktop): above 1100 px the screen takes the
+     shell's height; the title, the toolbar and the filter chips stay in place and the stations (cards, list or table) scroll inside their
+     own box, the places tree inside its column. A short window keeps 240 px for the stations and lets the page scroll below that. On a
+     tablet and a phone the page scrolls as before. */
+  @media (min-width: 1101px) {
+    :host {
+      display: flex;
+      flex-direction: column;
+      min-block-size: 0;
+    }
+    sw-page {
+      flex: 1 1 auto;
+      min-block-size: 0;
+    }
+    [data-wk-stations][data-wk-state='ready'] {
+      flex: 1 1 auto;
+      min-block-size: 0;
+    }
+    [data-wk-stations][data-wk-state='ready'] > .layout {
+      flex: 1 1 auto;
+      min-block-size: 240px;
+      grid-template-rows: minmax(0, 1fr);
+      align-items: stretch;
+    }
+    .treecol {
+      position: static;
+      max-block-size: 100%;
+      min-block-size: 0;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      align-self: start;
+    }
+    .main {
+      min-block-size: 0;
+    }
+    .main > .grid,
+    .main > .rows-card,
+    .main > sw-table {
+      flex: 1 1 auto;
+      min-block-size: 0;
+      overflow-y: auto;
+      scrollbar-width: thin;
+    }
+    /* the ringing card's pulse (5 px) and the cards' shadows stay inside the scrolling box: the box keeps that much room around them */
+    .main > .grid {
+      grid-auto-rows: max-content;
+      align-content: start;
+      margin: -6px;
+      padding: 6px;
     }
   }
   @media (max-width: 767px) {
@@ -761,6 +837,10 @@ export const stationsCss = css`
       flex-basis: 160px;
     }
     .seen {
+      display: none;
+    }
+    /* WKWATER-POLISH-2331: on a phone the whole row opens the drawer; its chevron took a line of its own under a row's buttons */
+    .rowside > sw-icon {
       display: none;
     }
   }

@@ -147,6 +147,11 @@ export class SystemAccess extends LitElement {
   /** CR-008 P2: turning a user's remote flag off while they have active remote sign-ins - the impact, awaiting a yes. */
   @state() private remoteOff: { userId: string; count: number } | null = null;
   private roleImpactTimer = 0;
+  /** ACCESS-POLISH-2331: a phone shows the users list as stacked cards - only name, role and state there; groups, sync and remote access
+   * (all of them in the user's drawer) would make every card a screen tall. */
+  @state() private narrow = false;
+  private narrowMq: MediaQueryList | null = null;
+  private onNarrow = () => (this.narrow = !!this.narrowMq?.matches);
 
   static styles = [settingsStyles, css`
     .notice {
@@ -159,14 +164,37 @@ export class SystemAccess extends LitElement {
       border-radius: var(--sw-r-sm);
       font-size: var(--sw-fs-xs);
     }
+    /* ACCESS-POLISH-2331: the user and group drawers are modal (fixed to the viewport, actions always in view), so the stage no longer
+       reserves a fixed 420 / 620 px height for an absolutely placed panel - a short list ends where its rows end */
     .stage {
       position: relative;
-      min-block-size: 420px;
     }
-    /* the group drawer holds a rename field, the bindings and the member list: a taller stage (T082) */
     .groups-stage {
-      min-block-size: 620px;
       margin-block-start: 12px;
+    }
+    /* a section label inside a drawer, a dialog or a result card (was an inline style repeated a dozen times) */
+    .sec {
+      margin-block: 12px 4px;
+      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+    }
+    .sec:first-child {
+      margin-block-start: 0;
+    }
+    .msg {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: var(--sw-r-sm);
+      font-size: var(--sw-fs-sm);
+    }
+    .msg.ok {
+      background: var(--sw-success-soft);
+    }
+    .msg.err {
+      background: var(--sw-danger-soft);
     }
     .who {
       display: flex;
@@ -220,7 +248,7 @@ export class SystemAccess extends LitElement {
       font-size: var(--sw-fs-sm);
     }
     .chk.sens {
-      color: var(--sw-warning);
+      color: var(--sw-warning-text);
     }
     .chips {
       display: flex;
@@ -235,7 +263,7 @@ export class SystemAccess extends LitElement {
       font-size: var(--sw-fs-sm);
     }
     .err {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-sm);
     }
     .err.banner {
@@ -280,8 +308,28 @@ export class SystemAccess extends LitElement {
       font-size: var(--sw-fs-xs);
     }
     .role .d {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-xs);
+    }
+    /* a custom role's own description is plain text, not a warning (it used the red "not included" style) */
+    .role .desc {
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
+      margin-block-end: 4px;
+    }
+    .role .pol {
+      margin-block-start: 6px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+    }
+    .role .acts {
+      display: flex;
+      gap: 6px;
+      margin-block-start: 10px;
+    }
+    .role .a,
+    .role .d {
+      line-height: 1.5;
     }
     dl {
       display: grid;
@@ -355,6 +403,11 @@ export class SystemAccess extends LitElement {
       overflow: auto;
       font-size: var(--sw-fs-sm);
     }
+    /* inside a drawer the panel body is the one scroll container: no second, nested scroll for the member list */
+    .members.in-drawer {
+      max-block-size: none;
+      overflow: visible;
+    }
     .members label {
       display: flex;
       align-items: center;
@@ -372,7 +425,17 @@ export class SystemAccess extends LitElement {
       color: var(--sw-success-text);
     }
     .err {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
+    }
+    /* the drawer footer's actions: one row with a gap; a destructive action sits apart at the far end */
+    .dfoot {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      inline-size: 100%;
+    }
+    .dfoot .end {
+      margin-inline-start: auto;
     }
     .ltr {
       direction: ltr;
@@ -390,12 +453,16 @@ export class SystemAccess extends LitElement {
     super.connectedCallback();
     this.readTab();
     window.addEventListener('hashchange', this.onHash);
+    this.narrowMq = window.matchMedia('(max-width: 767px)');
+    this.narrowMq.addEventListener('change', this.onNarrow);
+    this.onNarrow();
     if (isApi()) void this.load();
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener('hashchange', this.onHash);
+    this.narrowMq?.removeEventListener('change', this.onNarrow);
   }
 
   /** SET-polish: the tab is a deep link (`#/system/access?tab=roles`) - read on arrival and on a hash change while mounted, written back
@@ -734,17 +801,17 @@ export class SystemAccess extends LitElement {
       ${role
         ? deny
           ? html`<div class="eff">
-              <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">ייחסמו ב־${scope?.name ?? 'ההיקף'}</div>${role.permissions.map((p) => html`<div class="row"><span>${this.label(p)}</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div>`)}</div>
+              <div><div class="sec">ייחסמו ב־${scope?.name ?? 'ההיקף'}</div>${role.permissions.map((p) => html`<div class="row"><span>${this.label(p)}</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div>`)}</div>
               <div class="hint" style="align-self:start">חסימה פועלת רק על ההרשאות שהתפקיד הזה מקנה, ורק בהיקף שנבחר. היא גוברת על כל שיוך "הרשאה" אחר לאותו משתמש באותה הרשאה ובאותו היקף (או היקף שמכיל אותו) — לא על שיוכים בהיקפים לא קשורים.</div>
             </div>`
           : onCamera
             ? html`<div class="eff" data-camera-effect>
-                <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">מותר ב־${scope?.name ?? 'המצלמה'}</div>${role.permissions.filter((p) => CAMERA_PERMISSIONS.has(p)).map((p) => html`<div class="row"><span>${this.label(p)}</span><sw-icon name="check" size=${14} style="color:var(--sw-live)"></sw-icon></div>`)}</div>
-                <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">ללא השפעה בהיקף מצלמה</div>${role.permissions.filter((p) => !CAMERA_PERMISSIONS.has(p)).map((p) => html`<div class="row"><span>${this.label(p)}</span><sw-icon name="close" size=${14} style="color:var(--sw-text-3)"></sw-icon></div>`)}<div class="row"><span>כל מצלמה אחרת</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div></div>
+                <div><div class="sec">מותר ב־${scope?.name ?? 'המצלמה'}</div>${role.permissions.filter((p) => CAMERA_PERMISSIONS.has(p)).map((p) => html`<div class="row"><span>${this.label(p)}</span><sw-icon name="check" size=${14} style="color:var(--sw-live)"></sw-icon></div>`)}</div>
+                <div><div class="sec">ללא השפעה בהיקף מצלמה</div>${role.permissions.filter((p) => !CAMERA_PERMISSIONS.has(p)).map((p) => html`<div class="row"><span>${this.label(p)}</span><sw-icon name="close" size=${14} style="color:var(--sw-text-3)"></sw-icon></div>`)}<div class="row"><span>כל מצלמה אחרת</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div></div>
               </div>`
           : html`<div class="eff">
-              <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">מותר ב־${scope?.name ?? 'ההיקף'}</div>${role.permissions.map((p) => html`<div class="row"><span>${this.label(p)}</span><sw-icon name="check" size=${14} style="color:var(--sw-live)"></sw-icon></div>`)}</div>
-              <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">לא כלול / מחוץ להיקף</div>${role.sensitive_missing.map((p) => html`<div class="row"><span>${this.label(p)}</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div>`)}<div class="row"><span>כל היקף אחר</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div></div>
+              <div><div class="sec">מותר ב־${scope?.name ?? 'ההיקף'}</div>${role.permissions.map((p) => html`<div class="row"><span>${this.label(p)}</span><sw-icon name="check" size=${14} style="color:var(--sw-live)"></sw-icon></div>`)}</div>
+              <div><div class="sec">לא כלול / מחוץ להיקף</div>${role.sensitive_missing.map((p) => html`<div class="row"><span>${this.label(p)}</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div>`)}<div class="row"><span>כל היקף אחר</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div></div>
             </div>`
         : nothing}
       ${systemRole ? html`<div class="hint">תפקיד עם הרשאות מערכת מוקצה רק ברמת ההתקנה כולה.</div>` : nothing}
@@ -770,7 +837,7 @@ export class SystemAccess extends LitElement {
     this.remoteOff = null;
     try {
       const r = await setRemoteAccess(userId, enabled);
-      this.message = enabled ? 'הגישה מרחוק הופעלה' : r.sessions_ended ? `הגישה מרחוק כובתה · ${r.sessions_ended} כניסות נסגרו` : 'הגישה מרחוק כובתה';
+      this.flash(enabled ? 'הגישה מרחוק הופעלה' : r.sessions_ended ? `הגישה מרחוק כובתה · ${r.sessions_ended} כניסות נסגרו` : 'הגישה מרחוק כובתה');
       await this.load();
     } catch (err) {
       this.error = describeError(err);
@@ -793,9 +860,9 @@ export class SystemAccess extends LitElement {
     const remoteColumn: TableColumn[] = dir.delegated
       ? []
       : [{ key: 'remote_access', label: 'מרחוק', render: (r) => { const u = r as unknown as DirectoryUser; const n = u.remote_sessions ?? 0; return html`<span data-remote-col style="font-size:var(--sw-fs-xs)">${u.remote_access_basis === 'admin_default' ? 'ברירת מחדל (מנהל)' : u.remote_access ? 'מופעלת' : 'כבויה'}${n ? html` · <sw-badge kind="live" label=${n === 1 ? 'מחובר' : `${n} חיבורים`}></sw-badge>` : nothing}</span><div style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">${u.remote_last_sign_in ? `אחרונה ${fmtWhen(u.remote_last_sign_in)}` : 'טרם נכנס'}</div>`; } }];
-    const columns: TableColumn[] = [
+    const allColumns: TableColumn[] = [
       { key: 'name', label: 'שם', render: (r) => html`<div style="display:flex;align-items:center;gap:10px"><sw-avatar name=${String(r.name)} size=${30}></sw-avatar><div style="min-inline-size:0;white-space:normal;overflow-wrap:anywhere"><strong>${String(r.name)}</strong>${r.is_admin ? html` <sw-badge kind="neutral" label="מנהל HA · מידע בלבד"></sw-badge>` : nothing}${r.is_self ? html` <sw-badge kind="recorded" label="אני"></sw-badge>` : nothing}${secondaryIdentity(String(r.name), String(r.username ?? ''), String(r.id ?? '')) ? html`<div style="font-size:var(--sw-fs-xs);color:var(--sw-text-3);direction:ltr;text-align:start">${secondaryIdentity(String(r.name), String(r.username ?? ''), String(r.id ?? ''))}</div>` : nothing}</div></div>` },
-      { key: 'bindings', label: 'תפקיד · היקף', render: (r) => { const bs = r.bindings as AccessBinding[]; return bs.length ? html`${bs.slice(0, 2).map((b) => html`<div style="font-size:var(--sw-fs-xs);white-space:normal;overflow-wrap:anywhere;min-inline-size:16ch"><strong>${b.role_name}</strong> · ${b.scope_name}${b.via_group ? ` (קבוצה)` : ''}</div>`)}${bs.length > 2 ? html`<div style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">+${bs.length - 2}</div>` : nothing}` : html`<span style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">ללא שיוך · אין גישה לתוכן</span>`; } },
+      { key: 'bindings', label: 'תפקיד · היקף', render: (r) => { const bs = r.bindings as AccessBinding[]; return bs.length ? html`${bs.slice(0, 2).map((b) => html`<div style="font-size:var(--sw-fs-xs);white-space:normal;overflow-wrap:anywhere;min-inline-size:16ch"><strong>${b.role_name}</strong> · ${b.scope_name}${b.via_group ? ` (קבוצה)` : ''}${b.effect === 'deny' ? html` <span data-binding-deny style="color:var(--sw-danger-text);font-weight:var(--sw-fw-semibold)">· חסימה</span>` : nothing}</div>`)}${bs.length > 2 ? html`<div style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">+${bs.length - 2}</div>` : nothing}` : html`<span style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">ללא שיוך · אין גישה לתוכן</span>`; } },
       // BREAKUI-297: a user in many groups with long names kept the cell on one line and pushed the status column out of the card
       // (the table scrolled sideways at 1440 px): at most two lines, the full list as the tooltip
       { key: 'groups', label: 'קבוצות', render: (r) => { const t = (r.groups as { name: string }[]).map((g) => g.name).join(', '); return html`<span title=${t} style="font-size:var(--sw-fs-xs);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;white-space:normal;overflow-wrap:anywhere;min-inline-size:12ch;max-inline-size:32ch">${t || '—'}</span>`; } },
@@ -803,6 +870,7 @@ export class SystemAccess extends LitElement {
       { key: 'sync_status', label: 'סנכרון', render: (r) => html`<span style="font-size:var(--sw-fs-xs)">${SYNC_LABEL[r.sync_status as DirectoryUser['sync_status']]}</span><div style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">${r.last_seen_at ? `נראה ${fmtWhen(String(r.last_seen_at))}` : 'טרם נכנס'}</div>` },
       ...remoteColumn,
     ];
+    const columns = allColumns.filter((col) => !this.narrow || !['groups', 'sync_status', 'remote_access'].includes(col.key));
     const u = dir.users.find((x) => x.id === this.selected) ?? null;
     return html`
       <div class="stage">
@@ -810,7 +878,7 @@ export class SystemAccess extends LitElement {
           ? html`<sw-table .columns=${columns} .rows=${dir.users as unknown as Record<string, unknown>[]} .selected=${this.selected} @row-select=${(e: CustomEvent<{ id: string }>) => { this.selected = e.detail.id; this.wizard = null; }}></sw-table>`
           : html`<sw-state-panel icon="users" state="empty" heading="אין משתמשים עדיין" hint=${dir.directory.paired ? 'הספרייה תגיע מהגשר תוך דקה.' : 'צמד את גשר Arx ב־Home Assistant כדי לקבל את רשימת המשתמשים.'}></sw-state-panel>`}
         ${u
-          ? html`<sw-drawer open heading=${u.name} subheading=${`Home Assistant · ${u.username || u.id} · ${u.active ? 'פעיל' : 'ללא גישה'}`} @close=${() => { this.selected = null; this.wizard = null; }}>
+          ? html`<sw-drawer open modal heading=${u.name} subheading=${`Home Assistant · ${u.username || u.id} · ${u.active ? 'פעיל' : 'ללא גישה'}`} data-user-drawer @close=${() => { this.selected = null; this.wizard = null; }}>
               ${this.wizard && this.wizard.subjectKind === 'user'
                 ? this.renderWizard()
                 : html`<dl>
@@ -835,14 +903,14 @@ export class SystemAccess extends LitElement {
                     ${!dir.delegated && can('system.configure') ? html`<dt>${t('secondFactor.overrideLabel')}</dt><dd data-second-factor-policy-user><sw-second-factor-policy kind="user" .subjectId=${u.id}></sw-second-factor-policy></dd>` : nothing}
                     ${!dir.delegated && can('system.configure') ? html`<dt>אזעקה</dt><dd data-alarm-user-policy><system-alarm-user .userId=${u.id} ?canEdit=${!this.busy}></system-alarm-user></dd>` : nothing}
                   </dl>
-                  <div style="margin-block-start:10px;font-weight:600;font-size:var(--sw-fs-xs)">שיוכים</div>
+                  <div class="sec">שיוכים</div>
                   ${u.bindings.length ? u.bindings.map((b) => this.renderBindingRow(b, canAssign)) : html`<div class="hint">ללא שיוך: אין גישה לתוכן.</div>`}
-                  <div class="hint" style="margin-block-start:8px">אין כפתור לשינוי סיסמת HA או להפיכה למנהל HA. מנהל HA אינו מקבל תפקיד במערכת אוטומטית.</div>`}
-              <div slot="footer">
+                  <div class="hint">אין כפתור לשינוי סיסמת HA או להפיכה למנהל HA. מנהל HA אינו מקבל תפקיד במערכת אוטומטית.</div>`}
+              <div slot="footer" class="dfoot">
                 ${this.wizard
                   ? html`<sw-button variant="primary" size="sm" icon="check" data-wizard-save ?disabled=${this.busy} @click=${() => this.saveWizard()}>שמור שיוך</sw-button><sw-button variant="ghost" size="sm" @click=${() => (this.wizard = null)}>ביטול</sw-button>`
                   : html`${canAssign && !(dir.delegated && u.is_self) ? html`<sw-button variant="primary" size="sm" icon="plus" data-assign @click=${() => this.startWizard('user', u.id, u.name)}>שיוך תפקיד</sw-button>` : nothing}
-                    <sw-button variant="ghost" size="sm" icon="shield" @click=${() => { this.previewUser = u.id; this.tab = 'effective'; void this.runPreview(); }}>הרשאות אפקטיביות</sw-button>`}
+                    <sw-button variant="ghost" size="sm" icon="shield" data-user-effective @click=${() => { this.previewUser = u.id; this.selected = null; this.setTab('effective'); void this.runPreview(); }}>הרשאות אפקטיביות</sw-button>`}
               </div>
             </sw-drawer>`
           : nothing}
@@ -857,7 +925,7 @@ export class SystemAccess extends LitElement {
     const columns: TableColumn[] = [
       { key: 'name', label: 'קבוצה', render: (r) => html`<strong>${String(r.name)}</strong>` },
       { key: 'members', label: 'חברים', render: (r) => html`${(r.members as { name: string }[]).length}` },
-      { key: 'bindings', label: 'שיוכים (תפקיד · היקף)', render: (r) => html`${(r.bindings as AccessBinding[]).map((b) => html`<div style="font-size:var(--sw-fs-xs)">${b.role_name} · ${b.scope_name}</div>`)}` },
+      { key: 'bindings', label: 'שיוכים (תפקיד · היקף)', render: (r) => html`${(r.bindings as AccessBinding[]).map((b) => html`<div style="font-size:var(--sw-fs-xs)">${b.role_name} · ${b.scope_name}${b.effect === 'deny' ? html` <span data-binding-deny style="color:var(--sw-danger-text);font-weight:var(--sw-fw-semibold)">· חסימה</span>` : nothing}</div>`)}` },
     ];
     const g = groups.find((x) => x.id === this.selectedGroup) ?? null;
     const memberSet = this.members ?? new Set(g?.members.map((m) => m.id) ?? []);
@@ -879,31 +947,32 @@ export class SystemAccess extends LitElement {
             ? html`<sw-table .columns=${columns} .rows=${groups as unknown as Record<string, unknown>[]} .selected=${this.selectedGroup} @row-select=${(e: CustomEvent<{ id: string }>) => { this.selectedGroup = e.detail.id; this.members = null; this.wizard = null; this.renameDraft = null; }}></sw-table>`
             : html`<sw-state-panel icon="users" state="empty" heading="אין קבוצות" hint=${delegated ? 'אין קבוצה שכל השיוכים שלה בתוך ההיקף שלך.' : 'קבוצה מקבלת תפקיד בהיקף, וכל חבריה יורשים אותו. קבוצות Arx בלבד, לא קבוצות HA.'}></sw-state-panel>`}
           ${g
-            ? html`<sw-drawer open heading=${g.name} subheading=${`${g.members.length} חברים · ${g.bindings.length} שיוכים · רוויזיה ${g.revision}`} data-group-drawer @close=${() => { this.selectedGroup = null; this.members = null; this.wizard = null; this.renameDraft = null; }}>
+            ? html`<sw-drawer open modal heading=${g.name} subheading=${`${g.members.length} חברים · ${g.bindings.length} שיוכים · רוויזיה ${g.revision}`} data-group-drawer @close=${() => { this.selectedGroup = null; this.members = null; this.wizard = null; this.renameDraft = null; }}>
                 ${this.wizard && this.wizard.subjectKind === 'group'
                   ? this.renderWizard()
                   : html`${canManage
                       ? html`<div class="toolbar" style="margin-block-end:8px"><sw-field label="שם הקבוצה"><input data-group-rename .value=${this.renameDraft ?? g.name} @input=${(e: Event) => (this.renameDraft = (e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') void this.saveRename(g); }} /></sw-field><sw-button size="sm" data-group-rename-save ?disabled=${this.busy || this.renameDraft === null || !this.renameDraft.trim() || this.renameDraft.trim() === g.name} @click=${() => this.saveRename(g)}>שינוי שם</sw-button></div>`
                       : nothing}
-                    <div style="font-weight:600;font-size:var(--sw-fs-xs);margin-block-end:4px">שיוכים של הקבוצה</div>
+                    <div class="sec">שיוכים של הקבוצה</div>
                     ${g.bindings.length ? g.bindings.map((b) => this.renderBindingRow(b, canAssign)) : html`<div class="hint">ללא שיוך: החברים אינם מקבלים דבר דרך הקבוצה.</div>`}
-                    <div style="font-weight:600;font-size:var(--sw-fs-xs);margin-block:10px 4px">חברים</div>
-                    <div class="members">${dir.users.map((u) => html`<label><input type="checkbox" data-member=${u.id} ?disabled=${!canAssign || (delegated && u.id === me)} .checked=${memberSet.has(u.id)} @change=${(e: Event) => { const next = new Set(memberSet); if ((e.target as HTMLInputElement).checked) next.add(u.id); else next.delete(u.id); this.members = next; }} /> ${u.name}<span class="hint">${u.active ? '' : ' · ללא גישה'}${delegated && u.id === me ? ' · לא ניתן לצרף את עצמך' : ''}</span></label>`)}${hidden.map((m) => html`<label><input type="checkbox" checked disabled /> ${m.name}<span class="hint"> · מחוץ לרשימה שלך</span></label>`)}</div>
-                    <div class="hint" style="margin-block-start:8px">שינוי חברות ושיוך נבדקים מול כל השיוכים של הקבוצה, מוצגים לפני השמירה עם ההשפעה על כל משתמש, ונרשמים באודיט.</div>
+                    <div class="sec">חברים · ${memberSet.size}</div>
+                    <div class="members in-drawer">${dir.users.map((u) => html`<label><input type="checkbox" data-member=${u.id} ?disabled=${!canAssign || (delegated && u.id === me)} .checked=${memberSet.has(u.id)} @change=${(e: Event) => { const next = new Set(memberSet); if ((e.target as HTMLInputElement).checked) next.add(u.id); else next.delete(u.id); this.members = next; }} /> ${u.name}<span class="hint">${u.active ? '' : ' · ללא גישה'}${delegated && u.id === me ? ' · לא ניתן לצרף את עצמך' : ''}</span></label>`)}${hidden.map((m) => html`<label><input type="checkbox" checked disabled /> ${m.name}<span class="hint"> · מחוץ לרשימה שלך</span></label>`)}</div>
+                    <div class="hint">שינוי חברות ושיוך נבדקים מול כל השיוכים של הקבוצה, מוצגים לפני השמירה עם ההשפעה על כל משתמש, ונרשמים באודיט.</div>
                     ${canManage && inUse ? html`<div class="hint" data-group-in-use>מחיקה אפשרית רק לקבוצה ללא חברים וללא שיוכים — הסר אותם קודם.</div>` : nothing}`}
-                <div slot="footer">
+                <div slot="footer" class="dfoot">
                   ${this.wizard
                     ? html`<sw-button variant="primary" size="sm" icon="check" data-wizard-save ?disabled=${this.busy} @click=${() => this.saveWizard()}>שמור שיוך</sw-button><sw-button variant="ghost" size="sm" @click=${() => (this.wizard = null)}>ביטול</sw-button>`
                     : html`${canAssign
                         ? html`<sw-button variant="primary" size="sm" icon="check" data-group-save-members ?disabled=${this.busy || !this.members} @click=${() => this.saveMembers(g)}>שמור חברים</sw-button>
                           <sw-button size="sm" icon="plus" data-group-bind ?disabled=${this.busy} @click=${() => this.startWizard('group', g.id, g.name)}>שיוך תפקיד</sw-button>`
                         : nothing}
-                      ${canManage ? html`<sw-button variant="danger" size="sm" icon="trash" data-group-delete ?disabled=${this.busy || inUse} @click=${() => this.removeGroup(g)}>מחיקה</sw-button>` : nothing}`}
+                      ${canManage ? html`<sw-button variant="danger" size="sm" icon="trash" class="end" data-group-delete ?disabled=${this.busy || inUse} @click=${() => this.removeGroup(g)}>מחיקה</sw-button>` : nothing}`}
                 </div>
+                ${this.renderGroupChange() /* the modal drawer makes the page behind inert: its confirmation lives inside it */}
               </sw-drawer>`
             : nothing}
         </div>
-      ${this.renderGroupChange()}
+      ${g ? nothing : this.renderGroupChange()}
     `;
   }
 
@@ -1087,7 +1156,7 @@ export class SystemAccess extends LitElement {
 
   private renderRolesApi() {
     const roles = this.roles!;
-    return html`<div class="roles">${roles.roles.map((r) => html`<sw-card class="role" data-role-card=${r.id}><h4><span class="ic"><sw-icon name=${r.custom ? 'user' : r.id === 'viewer' ? 'eye' : r.id === 'operator' ? 'play' : r.id === 'editor' ? 'edit' : r.id === 'site_admin' ? 'building' : r.id === 'kiosk' ? 'grid' : 'shield'} size=${14}></sw-icon></span>${r.name}${r.custom ? html` <sw-badge kind="recorded" label="מותאם"></sw-badge>` : nothing}${r.system_role ? html` <sw-badge kind="neutral" label="הרשאות מערכת"></sw-badge>` : nothing}${r.delegable ? html` <sw-badge kind="historic" label="ניתן להאצלה"></sw-badge>` : nothing}</h4>${r.description ? html`<div class="d">${r.description}</div>` : nothing}<div class="a">מותר: ${r.permissions.map((p) => this.label(p)).join(', ')}</div><div class="d">לא כלול אוטומטית: ${r.sensitive_missing.map((p) => this.label(p)).join(', ') || '—'}</div>${can('system.configure') ? html`<div class="d" data-second-factor-policy-role>${t('secondFactor.overrideLabel')}<sw-second-factor-policy kind="role" .subjectId=${r.id}></sw-second-factor-policy></div>` : nothing}${r.custom && roles.can_manage_roles ? html`<div style="display:flex;gap:6px;margin-block-start:8px"><sw-button size="sm" data-role-edit @click=${() => this.openRole(r)}>עריכה</sw-button><sw-button size="sm" variant="ghost" icon="trash" data-role-delete @click=${() => (this.roleDelete = r)}>מחיקה</sw-button></div>` : nothing}</sw-card>`)}</div>
+    return html`<div class="roles">${roles.roles.map((r) => html`<sw-card class="role" data-role-card=${r.id}><h4><span class="ic"><sw-icon name=${r.custom ? 'user' : r.id === 'viewer' ? 'eye' : r.id === 'operator' ? 'play' : r.id === 'editor' ? 'edit' : r.id === 'site_admin' ? 'building' : r.id === 'kiosk' ? 'grid' : 'shield'} size=${14}></sw-icon></span>${r.name}${r.custom ? html` <sw-badge kind="recorded" label="מותאם"></sw-badge>` : nothing}${r.system_role ? html` <sw-badge kind="neutral" label="הרשאות מערכת"></sw-badge>` : nothing}${r.delegable ? html` <sw-badge kind="historic" label="ניתן להאצלה"></sw-badge>` : nothing}</h4>${r.description ? html`<div class="desc">${r.description}</div>` : nothing}<div class="a">מותר: ${r.permissions.map((p) => this.label(p)).join(', ')}</div><div class="d">לא כלול אוטומטית: ${r.sensitive_missing.map((p) => this.label(p)).join(', ') || '—'}</div>${can('system.configure') ? html`<div class="pol" data-second-factor-policy-role>${t('secondFactor.overrideLabel')}<sw-second-factor-policy kind="role" .subjectId=${r.id}></sw-second-factor-policy></div>` : nothing}${r.custom && roles.can_manage_roles ? html`<div class="acts"><sw-button size="sm" data-role-edit @click=${() => this.openRole(r)}>עריכה</sw-button><sw-button size="sm" variant="ghost" icon="trash" data-role-delete @click=${() => (this.roleDelete = r)}>מחיקה</sw-button></div>` : nothing}</sw-card>`)}</div>
       ${roles.can_manage_roles
         ? html`<div style="margin-block-start:10px"><sw-button variant="primary" icon="plus" data-role-new @click=${() => this.openRole()}>תפקיד מותאם חדש</sw-button></div>
             <sw-card heading="האצלת שיוך תפקידים למנהלי אתר" subheading="מנהל אתר משייך רק תפקידים מהרשימה הזו, רק הרשאות שהוא מחזיק בעצמו, רק בתוך ההיקף שלו, ולעולם לא לעצמו; קבוצה — רק כשכל השיוכים שלה בהיקף שלו" style="margin-block-start:12px" data-delegation>
@@ -1116,18 +1185,18 @@ export class SystemAccess extends LitElement {
       <div class="toolbar">
         <sw-field label="משתמש"><select @change=${(e: Event) => (this.previewUser = (e.target as HTMLSelectElement).value)}>${dir.users.map((u) => html`<option value=${u.id} ?selected=${u.id === this.previewUser}>${u.name}</option>`)}</select></sw-field>
         <sw-field label="היקף"><select @change=${(e: Event) => (this.previewScope = (e.target as HTMLSelectElement).value)}>${this.scopeOptions.map((s) => html`<option value=${`${s.type}:${s.id}`} ?selected=${`${s.type}:${s.id}` === this.previewScope}>${s.name}</option>`)}</select></sw-field>
-        <sw-button size="sm" icon="shield" ?disabled=${this.busy || !this.previewUser} @click=${() => this.runPreview()}>חשב</sw-button>
+        <sw-button variant="primary" icon="shield" data-effective-run ?disabled=${this.busy || !this.previewUser} @click=${() => this.runPreview()}>חשב</sw-button>
       </div>
       ${p
         ? html`<sw-card heading=${`${this.userName(p.user_id)} · ${p.scope_name}`} subheading=${p.active ? `רוויזיה ${p.revision}` : 'המשתמש ללא גישה (מושבת או נמחק ב־HA)'}>
             <div class="eff">
-              <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">מותר בהיקף</div>${p.allowed.length ? p.allowed.map((x) => html`<div class="row"><span>${this.label(x)}</span><sw-icon name="check" size=${14} style="color:var(--sw-live)"></sw-icon></div>`) : html`<div class="row"><span>כלום</span></div>`}</div>
-              <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">מחוץ להיקף / לא מוקנה</div>${p.denied.map((x) => html`<div class="row"><span>${this.label(x)}</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div>`)}</div>
+              <div><div class="sec">מותר בהיקף</div>${p.allowed.length ? p.allowed.map((x) => html`<div class="row"><span>${this.label(x)}</span><sw-icon name="check" size=${14} style="color:var(--sw-live)"></sw-icon></div>`) : html`<div class="row"><span>כלום</span></div>`}</div>
+              <div><div class="sec">מחוץ להיקף / לא מוקנה</div>${p.denied.map((x) => html`<div class="row"><span>${this.label(x)}</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div>`)}</div>
             </div>
-            ${p.bindings.length ? html`<div style="margin-block-start:10px;font-weight:600;font-size:var(--sw-fs-xs)">שיוכים שנלקחו בחשבון</div>${p.bindings.map((b) => html`<div class="bind"><div>${b.role_name} · ${b.scope_name}${b.via_group ? ` (קבוצה "${b.via_group}")` : ''}</div></div>`)}` : nothing}
-            <div class="hint" style="margin-block-start:8px">תצוגה זו אינה מתחזה למשתמש ואינה מאפשרת לעקוף את הגישה שלו; החישוב נעשה בצד השרת.</div>
+            ${p.bindings.length ? html`<div class="sec">שיוכים שנלקחו בחשבון</div>${p.bindings.map((b) => html`<div class="bind"><div>${b.role_name} · ${b.scope_name}${b.via_group ? ` (קבוצה "${b.via_group}")` : ''}</div></div>`)}` : nothing}
+            <div class="hint" style="margin-block-start:12px">תצוגה זו אינה מתחזה למשתמש ואינה מאפשרת לעקוף את הגישה שלו; החישוב נעשה בצד השרת.</div>
           </sw-card>`
-        : html`<div class="hint">בחר משתמש והיקף כדי לראות מה מותר ומה לא.</div>`}
+        : html`<sw-state-panel icon="shield" state="empty" heading="בחר משתמש והיקף" hint="החישוב מראה מה מותר ומה לא למשתמש בהיקף שנבחר, לפי השיוכים האישיים ושיוכי הקבוצות." data-effective-idle></sw-state-panel>`}
     `;
   }
 
@@ -1206,8 +1275,8 @@ export class SystemAccess extends LitElement {
                     <sw-field label="קבוצה או תפקיד"><select><option>עורך מפות ותצוגות</option><option>מפעיל</option><option>צופה</option><option>מנהל אתר/מבנה/קומה</option></select></sw-field>
                     <sw-field label="היקף"><select><option>מבנה א · קומה 2</option><option>מבנה א</option><option>אתר הדגמה</option></select></sw-field>
                     <div class="eff">
-                      <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">מותר בהיקף</div><div class="row"><span>עריכת תוכנית קומה 2</span><sw-icon name="check" size=${14} style="color:var(--sw-live)"></sw-icon></div><div class="row"><span>הצבת ציוד מורשה</span><sw-icon name="check" size=${14} style="color:var(--sw-live)"></sw-icon></div></div>
-                      <div><div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">לא ניתן</div><div class="row"><span>עריכת קומה 3</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div><div class="row"><span>ניהול משתמשים / NVR</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div><div class="row"><span>פתיחת מנעול</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div></div>
+                      <div><div class="sec">מותר בהיקף</div><div class="row"><span>עריכת תוכנית קומה 2</span><sw-icon name="check" size=${14} style="color:var(--sw-live)"></sw-icon></div><div class="row"><span>הצבת ציוד מורשה</span><sw-icon name="check" size=${14} style="color:var(--sw-live)"></sw-icon></div></div>
+                      <div><div class="sec">לא ניתן</div><div class="row"><span>עריכת קומה 3</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div><div class="row"><span>ניהול משתמשים / NVR</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div><div class="row"><span>פתיחת מנעול</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div></div>
                     </div>
                     <div class="hint">הרשאות בתוך Arx בלבד. שום דבר לא נכתב ל־HA. השינוי ירשם באודיט עם diff לפני/אחרי.</div>
                   </div>`
@@ -1218,7 +1287,7 @@ export class SystemAccess extends LitElement {
                     <dt>שיוכים</dt><dd>${u.bindings.length ? u.bindings.map((b) => html`<div>${b.role} · ${b.scope}</div>`) : 'ללא: אין גישה לתוכן'}</dd>
                   </dl>
                   <div class="hint">אין כפתור לשינוי סיסמת HA או להפיכה למנהל HA. מנהל HA אינו מקבל תפקיד במערכת אוטומטית.</div>`}
-              <div slot="footer">
+              <div slot="footer" class="dfoot">
                 ${this.assigning
                   ? html`<sw-button variant="primary" size="sm" icon="check">שמור שיוך</sw-button><sw-button variant="ghost" size="sm" @click=${() => (this.assigning = false)}>ביטול</sw-button>`
                   : html`<sw-button variant="primary" size="sm" icon="plus" @click=${() => { this.assigning = true; this.step = 2; }}>שיוך תפקיד</sw-button><sw-button variant="ghost" size="sm" icon="shield">הרשאות אפקטיביות</sw-button>`}
@@ -1248,11 +1317,11 @@ export class SystemAccess extends LitElement {
       <sw-card heading="דנה · עורכת קומה 2">
         <div class="eff">
           <div>
-            <div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">מבנה א · קומה 2</div>
+            <div class="sec">מבנה א · קומה 2</div>
             ${['מפה: קריאה', 'תוכנית: יבוא/עריכה/פרסום', 'מיקומים ותצוגות: עריכה', 'שידור חי: מצלמות מורשות'].map((x) => html`<div class="row"><span>${x}</span><sw-icon name="check" size=${14} style="color:var(--sw-live)"></sw-icon></div>`)}
           </div>
           <div>
-            <div style="font-weight:600;margin-block-end:4px;font-size:var(--sw-fs-xs)">מחוץ להיקף / לא מוקנה</div>
+            <div class="sec">מחוץ להיקף / לא מוקנה</div>
             ${['קומה 3: הכל', 'Playback וייצוא', 'ניהול משתמשים', 'הגדרות NVR / go2rtc', 'פתיחת מנעול'].map((x) => html`<div class="row"><span>${x}</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div>`)}
           </div>
         </div>

@@ -88,6 +88,27 @@ export class InfraWater extends LitElement {
     .body > * {
       display: block;
     }
+    /* WKWATER-POLISH-2331 (NOSCROLL-297, as infra-electricity.ts): the control pages - meters, usage, alerts - take the height left under
+       the tab rows; their table (or cards) and the areas tree scroll inside their own boxes (screens/water/page-*.ts, water/styles.ts
+       .page.fit). The documents (accounts, bills, customers, settings) keep the page scroll. */
+    @media (min-width: 900px) {
+      .body[data-page='meters'],
+      .body[data-page='usage'],
+      .body[data-page='alerts'] {
+        flex: 1 1 auto;
+        min-block-size: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      .body[data-page='meters'] > *,
+      .body[data-page='usage'] > *,
+      .body[data-page='alerts'] > * {
+        flex: 1 1 auto;
+        min-block-size: 0;
+        display: flex;
+        flex-direction: column;
+      }
+    }
   `, bubbleChrome];
 
   connectedCallback() {

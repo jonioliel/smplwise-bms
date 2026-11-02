@@ -94,6 +94,7 @@ test.describe('tickets list v5 evidence', () => {
     await expect(page.locator(`${L} [data-scope-seg] [data-scope="all"]`)).toHaveCount(0);
     await expect(page.locator(`${L} [data-scope-seg] [data-scope="mine"]`)).toHaveAttribute('aria-checked', 'true');
     await expect(page.locator(`${L} [data-scope-seg] [data-scope="department"] small`)).toBeVisible();
+    await page.locator(`${L} [data-filter-toggle]`).click(); // TICKETS-POLISH-2331: the state and the departments live in the "סינון" panel
     const open = await page.locator(`${L} [data-status-filter="open"] small`).textContent();
     expect(Number(open)).toBe(await page.locator(`${L} ticket-card`).count()); // the segment's count IS what the list shows
     await expect(page.locator(`${L} [data-status-filter="all"] small`)).toBeVisible();
@@ -112,11 +113,19 @@ test.describe('tickets list v5 evidence', () => {
     const header = page.locator(`${L} [data-tickets-header]`);
     await expect(header).not.toHaveClass(/compact/);
     const before = (await header.boundingBox())?.height ?? 0;
-    // NOSCROLL-297: on a desktop the cards scroll in their own region (.scr) and the page stays put; on a phone the page scrolls
-    await page.locator(L).evaluate((h) => {
+    // NOSCROLL-297 / TICKETS-POLISH-2331: from a tablet up the cards scroll in their own region (.scr) under a header that never compacts
+    // (the toolbar stays usable); on a phone the page scrolls and the title compacts
+    const inner = await page.locator(L).evaluate((h) => {
       const region = h.shadowRoot?.querySelector<HTMLElement>('.scr');
-      ((region && getComputedStyle(region).display !== 'contents' ? region : h) as HTMLElement).scrollTop = 400;
+      const own = !!region && getComputedStyle(region).display !== 'contents';
+      ((own ? region : h) as HTMLElement).scrollTop = 400;
+      return own;
     });
+    if (inner) {
+      await page.waitForTimeout(200);
+      await expect(header).not.toHaveClass(/compact/);
+      return;
+    }
     await expect(header).toHaveClass(/compact/);
     expect(Math.abs(((await header.boundingBox())?.height ?? 0) - before), 'compacting never changes the header height').toBeLessThanOrEqual(1);
   });
@@ -199,7 +208,10 @@ test.describe('tickets list v5 evidence', () => {
     for (let i = 0; i < (await cells.count()); i++) await expect(cells.nth(i)).not.toHaveText('');
     await expect(page.locator(`${T} th[data-col="sentence"] button`), 'the sentence column is not sortable (the server knows nothing of it)').toHaveCount(0);
     // columns, saved filters, density and the CSV stay
-    for (const sel of ['[data-open="columns"]', '[data-open="views"]', '[data-open="filters"]', '[data-density]', '[data-export]']) await expect(page.locator(`${T} tickets-table-toolbar ${sel}`)).toBeVisible();
+    for (const sel of ['[data-open="columns"]', '[data-open="views"]', '[data-density]', '[data-export]']) await expect(page.locator(`${T} tickets-table-toolbar ${sel}`)).toBeVisible();
+    // POLISH-LEFTOVERS-2341: the table's filters moved into the page's one "סינון" panel
+    await expect(page.locator(`${T} tickets-table-toolbar [data-open="filters"]`)).toHaveCount(0);
+    await expect(page.locator('sw-app tickets-list [data-filter-toggle]')).toHaveCount(1);
     // the bulk bar floats (sticky) after the table once rows are selected
     await page.locator(`${T} [data-select-page]`).check();
     const bar = page.locator(`${T} tickets-table-bulk`);

@@ -518,7 +518,7 @@ export class SwCameraTile extends LitElement {
     const plan = real === 'live' ? playerPlan(this.profile, this.encoding, this.transport) : { plan: '', preferred: '' as const, gop: '' };
     return html`
       ${real === 'live'
-        ? html`<sw-live-player .cameraId=${this.cameraId} .livePath=${this.livePath} .profile=${this.profile} .mode=${this.transport} .plan=${plan.plan} .preferred=${plan.preferred} .gop=${plan.gop || encodeGop(this.encoding)} .autoProfile=${this.autoProfile} .poster=${this.poster} .fit=${this.fit} compact></sw-live-player>`
+        ? html`<sw-live-player .cameraId=${this.cameraId} .livePath=${this.livePath} .profile=${this.profile} .mode=${this.transport} .plan=${plan.plan} .preferred=${plan.preferred} .gop=${plan.gop || encodeGop(this.encoding)} .encoding=${this.encoding} .autoProfile=${this.autoProfile} .poster=${this.poster} .fit=${this.fit} compact></sw-live-player>`
         : real === 'poster'
           ? html`<img class="poster" src=${this.stillRefresh > 0 ? this.stillBlob || withBust(this.poster, this.stillBust) : this.poster} alt="" loading="lazy" />`
           : html`<sw-scene kind=${this.scene}></sw-scene>`}

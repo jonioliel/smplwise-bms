@@ -58,6 +58,24 @@ export const testRecorderConnection = (id: string, body: ConnectionBody & { use_
   post<TestResult>(`recorders/${enc(id)}/connection/test`, body);
 export const saveRecorderConnection = (id: string, body: ConnectionBody & { save_untested?: boolean; confirm_text?: string; if_revision: number }) =>
   put<SaveResult>(`recorders/${enc(id)}/connection`, body);
+/** NVR-H264-BULK-2341: the per-recorder switch "אפשר שינויי הגדרות ב־NVR". Reading needs `system.configure`; changing it needs
+ * `system.configure` AND `nvr.configure` (`can_change`). Turning it on needs `confirm: true` (the dialog); turning it off never does.
+ * Applies at once (no restart); every change is audited. Local channel only. */
+export interface RecorderWrites {
+  recorder_id: string;
+  vendor: string | null;
+  /** false: the vendor has no encoding writes through Arx (Frigate, "no NVR") - the switch is not shown. */
+  supported: boolean;
+  enabled: boolean;
+  /** false = never switched: the vendor default applies (`default`). */
+  explicit: boolean;
+  default: boolean;
+  last_change: { at: string; by: string | null; enabled: boolean } | null;
+  can_change: boolean;
+}
+export const recorderWrites = (id: string) => get<RecorderWrites>(`recorders/${enc(id)}/writes`);
+export const setRecorderWrites = (id: string, enabled: boolean, confirm = false) =>
+  patch<RecorderWrites>(`recorders/${enc(id)}/writes`, enabled ? { enabled, confirm } : { enabled });
 export const recorderHealth = (id: string) => get<{ recorder_id: string; online: boolean; model: string | null; firmware: string | null; error: string | null }>(`recorders/${enc(id)}/health`);
 
 /** Operator wording of a recorder's state (one short word or phrase; no infrastructure names). */

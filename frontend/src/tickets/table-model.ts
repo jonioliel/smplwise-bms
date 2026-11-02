@@ -77,6 +77,43 @@ export function chooserOrder(cols: readonly ColumnKey[]): { key: ColumnKey; show
   return [...cols, ...knownColumns().filter((c) => !cols.includes(c))].map((key) => ({ key, shown: cols.includes(key), required: REQUIRED_COLUMNS.includes(key) }));
 }
 
+// ---------------------------------------------------------------- widths (SMALL-UI-BUGS-2343)
+
+/** The table lays out with fixed column widths (table-layout: fixed): every column but the title has this width in px, the title
+ * takes the rest (never less than TITLE_MIN_PX). Long text in a cell is cut with an ellipsis and its full text is the cell's tooltip. */
+export const COLUMN_WIDTH_PX: Readonly<Record<ColumnKey | 'sentence', number>> = {
+  number: 76, title: 0, department: 128, priority: 104, status: 148, assignee: 148, place: 156, device: 148, created: 104, activity: 112,
+  stuck: 140, sla: 120, cost: 104, cost_status: 128, sentence: 260,
+};
+export const TITLE_MIN_PX = 220;
+/** the selection checkbox column */
+export const SELECT_COL_PX = 52;
+/** The default columns hidden first when the table is narrower than their widths (lowest priority first). Only while the user keeps
+ * the default set: a column the user adds with the chooser always shows (the table then scrolls sideways rather than drop it). */
+export const AUTO_HIDE_ORDER: readonly ColumnKey[] = ['department', 'place', 'priority'];
+
+/** The narrowest the table can be with these columns (px): the fixed widths, the title's minimum, the checkbox column. */
+export function tableMinWidth(cols: readonly (ColumnKey | 'sentence')[], select: boolean): number {
+  return cols.reduce((sum, c) => sum + (c === 'title' ? TITLE_MIN_PX : COLUMN_WIDTH_PX[c] ?? 120), select ? SELECT_COL_PX : 0);
+}
+
+export function isDefaultColumns(cols: readonly ColumnKey[]): boolean {
+  return cols.length === DEFAULT_COLUMNS.length && cols.every((c, i) => c === DEFAULT_COLUMNS[i]);
+}
+
+/** The columns that fit `width` px: the user's own choice as it is; the default set loses AUTO_HIDE_ORDER columns, one by one, until
+ * it fits (width <= 0 = not measured yet: nothing hidden). `extra` = client-only columns shown too (the sentence). */
+export function fitColumns(cols: readonly ColumnKey[], width: number, select: boolean, extra: readonly 'sentence'[] = []): ColumnKey[] {
+  const out = [...cols];
+  if (width <= 0 || !isDefaultColumns(cols)) return out;
+  for (const c of AUTO_HIDE_ORDER) {
+    if (tableMinWidth([...out, ...extra], select) <= width) break;
+    const i = out.indexOf(c);
+    if (i >= 0) out.splice(i, 1);
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------- sort
 
 export function parseSort(text: unknown): SortKey[] {

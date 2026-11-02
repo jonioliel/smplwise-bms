@@ -6,11 +6,13 @@ import '../components/sw-dialog';
 import '../components/sw-state-panel';
 import { describeError } from '../api/client';
 import { calendarsApi, type CalSettings, type Calendar, type CalendarsApi, type OverlapMode } from '../api/calendars';
+import { attendeesApi, type AttendeePolicy, type AttendeeSettings } from '../api/calendar-attendees';
 import type { RouteState } from '../router';
 import { refreshCalendars } from '../calendars/access';
 import { APPROVAL_LABEL, OVERLAP_LABEL, OVERLAP_SHORT, ROLE_HINT, ROLE_LABEL, STRICTNESS, TYPE_LABEL, colorVar, pageOf, rowsThatFit } from '../calendars/model';
 import { calCss } from '../calendars/styles';
 import { leadReserveStyles } from '../styles/lead-reserve';
+import { tablistKeydown } from '../components/a11y-keys';
 
 type Tab = 'overlap' | 'behavior' | 'approval' | 'perm' | 'retention';
 const TABS: [Tab, string, string][] = [['overlap', 'חפיפת תחזוקה', 'חפיפה'], ['behavior', 'התנהגות', 'התנהגות'], ['approval', 'אישור לכל יומן', 'אישור'], ['perm', 'הרשאות', 'הרשאות'], ['retention', 'פרטי אורחים', 'אורחים']];
@@ -22,35 +24,50 @@ export const CAL_DEFAULTS: Partial<CalSettings> = {
   contested_order: 'first_come', allow_displace: true, displace_approver: 'calendar_manager', override_scope: 'both', phone_time_picker: 'grid', reauth_mode: 'reauth_and_continue',
   sync_conflict_display: 'side_by_side', tablet_panels: 'collapse', resident_pending_display: 'count', resident_cancel_until: 'start', resident_rooms: 'bookable',
   purge_confirm: 'type_word', loading_style: 'skeleton', default_approval_timeout_h: 2, reopen_days: 7, sync_external_delete: 'cancel',
+  grid_edit: 'drag', cancel_notice_delay_s: 6, undo_window_s: 120,
 };
 
 type Opt = [value: string | boolean, label: string];
-export interface SettingRow { key: keyof CalSettings | 'displaced'; label: string; kind: 'seg' | 'tog' | 'step'; opts?: Opt[]; min?: number; max?: number; step?: number; unit?: string; hint?: string; static?: boolean }
+/** CALMSG-POLISH-2331: the topic of a behaviour row - the tab filters by it (22 rows were one unsorted list of 2 pages, 8 on a phone). */
+export type BehaviorGroup = 'display' | 'requests' | 'booking' | 'residents' | 'sync' | 'attendees';
+export interface SettingRow { key: keyof CalSettings | 'displaced'; label: string; kind: 'seg' | 'tog' | 'step'; opts?: Opt[]; min?: number; max?: number; step?: number; unit?: string; hint?: string; static?: boolean; group?: BehaviorGroup }
 
-/** Every behaviour of the module is a setting (owner rule); the rows of the "התנהגות" tab, in the mock-up's order, then the answers of 30.10. */
+export const BEHAVIOR_GROUPS: [BehaviorGroup | 'all', string][] = [['all', 'הכל'], ['display', 'תצוגה'], ['requests', 'בקשות ואישורים'], ['booking', 'הזמנות'], ['residents', 'דיירים'], ['sync', 'סנכרון ופרטיות'], ['attendees', 'משתתפים']];
+
+/** CAL-ATTENDEES-2343 follow-up: the attendee rows ("משתתפים" topic) - the installation document and one calendar's policy (server defaults). */
+const ATT_DEFAULTS: AttendeeSettings = { enabled: true, cancel_notice_delay_s: 6, guest_channel_order: ['whatsapp', 'sms', 'email'], notify_users_inapp: true, notify_guests: true };
+const POLICY_DEFAULTS: Omit<AttendeePolicy, 'revision'> = { guests_mode: 'organizer', self_join: false, max_attendees: 50, notify_on_change: true, list_visibility: 'organizer' };
+const GUESTS_OPTS: Opt[] = [['off', 'אף אחד'], ['organizer', 'מארגן ומנהלים'], ['anyone', 'כל משתתף']];
+const VISIBILITY_OPTS: Opt[] = [['organizer', 'מארגן ומנהלים'], ['attendees', 'המשתתפים'], ['viewers', 'כל מי שרואה']];
+
+/** Every behaviour of the module is a setting (owner rule); the rows of the "התנהגות" tab, by topic (the placement first, as in the mock-up). */
 export const BEHAVIOR_ROWS: SettingRow[] = [
-  { key: 'menu_position', label: 'מיקום "יומנים" בתפריט', kind: 'seg', opts: [['rail', 'סרגל צד'], ['home_tab', 'לשונית בראשי'], ['both', 'שניהם']], hint: 'דייר עם יומנים בלבד מקבל תמיד כפתור משלו' },
-  { key: 'holiday_eve_as_holiday', label: 'ערב חג', kind: 'seg', opts: [[false, 'יום רגיל'], [true, 'כמו חג']] },
-  { key: 'editors_bypass_approval', label: 'מנהלים ועורכים לא צריכים אישור ביומן שלהם', kind: 'tog' },
-  { key: 'notify_confirmations', label: 'הודעת אישור למארגן כשאין צורך באישור', kind: 'tog' },
-  { key: 'default_room_buffer_after_min', label: 'הפסקה אחרי הזמנת חדר', kind: 'step', min: 0, max: 240, step: 5, unit: 'דק׳' },
-  { key: 'default_approval_timeout_h', label: 'בקשה שלא הוחלטה פגה לפני ההתחלה', kind: 'step', min: 0, max: 720, step: 1, unit: 'שע׳', hint: 'ליומן חדש' },
-  { key: 'reopen_days', label: 'פתיחה מחדש של בקשה שנדחתה', kind: 'step', min: 0, max: 60, step: 1, unit: 'ימים' },
-  { key: 'resident_cancel_until', label: 'דייר יכול לבטל עד', kind: 'seg', opts: [['start', 'תחילה'], ['1h', 'שעה לפני'], ['24h', '24 שע׳']] },
-  { key: 'displaced', label: 'הזמנה שנדחקה', kind: 'seg', opts: [['organizer', 'המארגן בוחר'], ['auto', 'הזזה אוטומטית']], static: true, hint: 'הזזה אוטומטית לא נבנתה' },
-  { key: 'series_horizon_days', label: 'טווח פריסת סדרות', kind: 'step', min: 30, max: 800, step: 10, unit: 'יום' },
-  { key: 'max_calendars', label: 'מספר יומנים מרבי', kind: 'step', min: 1, max: 2000, step: 10 },
-  { key: 'contested_order', label: 'עדיפות כשבקשות מתחרות', kind: 'seg', opts: [['first_come', 'סדר הגעה'], ['manual', 'מנהל מחליט'], ['by_kind', 'לפי סוג']] },
-  { key: 'allow_displace', label: 'אישור בקשה מעל הזמנה מאושרת (דחיקה)', kind: 'tog', hint: 'כבוי: רק לדחות את הבקשות' },
-  { key: 'displace_approver', label: 'מי רשאי לדחוק הזמנה מאושרת', kind: 'seg', opts: [['calendar_manager', 'מנהל היומן'], ['any_manager', 'כל מנהל']] },
-  { key: 'resident_pending_display', label: 'שעה עם בקשות ממתינות, אצל הדייר', kind: 'seg', opts: [['count', '"2 מבקשים"'], ['free', 'רק "פנוי"'], ['blocked', 'חסומה']] },
-  { key: 'resident_rooms', label: 'חדרים במסך ההזמנה של הדייר', kind: 'seg', opts: [['bookable', 'רק שמותר לו'], ['all_busy', 'כולם, השאר "תפוס"']] },
-  { key: 'phone_time_picker', label: 'בחירת שעה בטלפון', kind: 'seg', opts: [['grid', 'רשת שעות'], ['timeline', 'פס זמן']] },
-  { key: 'tablet_panels', label: 'טאבלט 1024: לוחות צד', kind: 'seg', opts: [['collapse', 'נפתחים בלחיצה'], ['shrink', 'מוקטנים']] },
-  { key: 'sync_conflict_display', label: 'התנגשות מסנכרון בתצוגת השבוע', kind: 'seg', opts: [['side_by_side', 'זו לצד זו'], ['list_only', 'רק ברשימה']] },
-  { key: 'reauth_mode', label: 'חיבור שדורש הרשאה מחדש', kind: 'seg', opts: [['reauth_and_continue', 'הרשאה + "המשך"'], ['reauth_only', 'הרשאה בלבד']] },
-  { key: 'purge_confirm', label: 'אישור "מחיקת כל פרטי האורחים"', kind: 'seg', opts: [['type_word', 'הקלדת "מחיקה"'], ['one_click', 'לחיצה בחלון']] },
-  { key: 'loading_style', label: 'טעינה', kind: 'seg', opts: [['skeleton', 'שלד'], ['spinner', 'סמל מסתובב']] },
+  { group: 'display', key: 'menu_position', label: 'מיקום "יומנים" בתפריט', kind: 'seg', opts: [['rail', 'סרגל צד'], ['home_tab', 'לשונית בראשי'], ['both', 'שניהם']], hint: 'דייר עם יומנים בלבד מקבל תמיד כפתור משלו' },
+  { group: 'display', key: 'phone_time_picker', label: 'בחירת שעה בטלפון', kind: 'seg', opts: [['grid', 'רשת שעות'], ['timeline', 'פס זמן']] },
+  { group: 'display', key: 'tablet_panels', label: 'טאבלט 1024: לוחות צד', kind: 'seg', opts: [['collapse', 'נפתחים בלחיצה'], ['shrink', 'מוקטנים']] },
+  { group: 'display', key: 'loading_style', label: 'טעינה', kind: 'seg', opts: [['skeleton', 'שלד'], ['spinner', 'סמל מסתובב']] },
+  { group: 'requests', key: 'editors_bypass_approval', label: 'מנהלים ועורכים לא צריכים אישור ביומן שלהם', kind: 'tog' },
+  { group: 'requests', key: 'notify_confirmations', label: 'הודעת אישור למארגן כשאין צורך באישור', kind: 'tog' },
+  { group: 'requests', key: 'default_approval_timeout_h', label: 'בקשה שלא הוחלטה פגה לפני ההתחלה', kind: 'step', min: 0, max: 720, step: 1, unit: 'שע׳', hint: 'ליומן חדש' },
+  { group: 'requests', key: 'reopen_days', label: 'פתיחה מחדש של בקשה שנדחתה', kind: 'step', min: 0, max: 60, step: 1, unit: 'ימים' },
+  { group: 'requests', key: 'contested_order', label: 'עדיפות כשבקשות מתחרות', kind: 'seg', opts: [['first_come', 'סדר הגעה'], ['manual', 'מנהל מחליט'], ['by_kind', 'לפי סוג']] },
+  { group: 'requests', key: 'allow_displace', label: 'אישור בקשה מעל הזמנה מאושרת (דחיקה)', kind: 'tog', hint: 'כבוי: רק לדחות את הבקשות' },
+  { group: 'requests', key: 'displace_approver', label: 'מי רשאי לדחוק הזמנה מאושרת', kind: 'seg', opts: [['calendar_manager', 'מנהל היומן'], ['any_manager', 'כל מנהל']] },
+  { group: 'requests', key: 'displaced', label: 'הזמנה שנדחקה', kind: 'seg', opts: [['organizer', 'המארגן בוחר'], ['auto', 'הזזה אוטומטית']], static: true, hint: 'הזזה אוטומטית לא נבנתה' },
+  { group: 'booking', key: 'holiday_eve_as_holiday', label: 'ערב חג', kind: 'seg', opts: [[false, 'יום רגיל'], [true, 'כמו חג']] },
+  { group: 'booking', key: 'default_room_buffer_after_min', label: 'הפסקה אחרי הזמנת חדר', kind: 'step', min: 0, max: 240, step: 5, unit: 'דק׳' },
+  // CAL-GRID-EDIT-2343 (owner answers 02.11): editing on the grid, and how long "בטל" waits before the organizer is told
+  { group: 'booking', key: 'grid_edit', label: 'עבודה על לוח היומן', kind: 'seg', opts: [['drag', 'יצירה, הזזה ושינוי אורך'], ['create_only', 'יצירה בלבד']], hint: 'בלי הזזה: משנים שעה מהעריכה' },
+  { group: 'requests', key: 'cancel_notice_delay_s', label: 'הודעה למארגן על ביטול או הזזה אחרי', kind: 'step', min: 0, max: 60, step: 1, unit: 'שנ׳', hint: 'כדי ש"בטל" לא ישלח "בוטל" ואז "נקבע שוב"' },
+  { group: 'requests', key: 'undo_window_s', label: 'אפשר לשחזר מחיקה עד', kind: 'step', min: 10, max: 600, step: 10, unit: 'שנ׳' },
+  { group: 'booking', key: 'series_horizon_days', label: 'טווח פריסת סדרות', kind: 'step', min: 30, max: 800, step: 10, unit: 'יום' },
+  { group: 'booking', key: 'max_calendars', label: 'מספר יומנים מרבי', kind: 'step', min: 1, max: 2000, step: 10 },
+  { group: 'residents', key: 'resident_cancel_until', label: 'דייר יכול לבטל עד', kind: 'seg', opts: [['start', 'תחילה'], ['1h', 'שעה לפני'], ['24h', '24 שע׳']] },
+  { group: 'residents', key: 'resident_pending_display', label: 'שעה עם בקשות ממתינות, אצל הדייר', kind: 'seg', opts: [['count', '"2 מבקשים"'], ['free', 'רק "פנוי"'], ['blocked', 'חסומה']] },
+  { group: 'residents', key: 'resident_rooms', label: 'חדרים במסך ההזמנה של הדייר', kind: 'seg', opts: [['bookable', 'רק שמותר לו'], ['all_busy', 'כולם, השאר "תפוס"']] },
+  { group: 'sync', key: 'sync_conflict_display', label: 'התנגשות מסנכרון בתצוגת השבוע', kind: 'seg', opts: [['side_by_side', 'זו לצד זו'], ['list_only', 'רק ברשימה']] },
+  { group: 'sync', key: 'reauth_mode', label: 'חיבור שדורש הרשאה מחדש', kind: 'seg', opts: [['reauth_and_continue', 'הרשאה + "המשך"'], ['reauth_only', 'הרשאה בלבד']] },
+  { group: 'sync', key: 'purge_confirm', label: 'אישור "מחיקת כל פרטי האורחים"', kind: 'seg', opts: [['type_word', 'הקלדת "מחיקה"'], ['one_click', 'לחיצה בחלון']] },
 ];
 
 /** The label of a row's default value ("ברירת מחדל: ..."). */
@@ -80,8 +97,40 @@ const OVERLAP_HINT: Record<OverlapMode, string> = {
 export class SystemCalendars extends LitElement {
   static styles = [calCss, leadReserveStyles, css`
     :host { display: flex; flex-direction: column; min-block-size: 0; flex: 1; padding: 14px var(--sw-page-pad) 20px; gap: 12px; overflow: hidden; }
-    h1 { margin: 0; font-size: var(--sw-fs-2xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading); }
-    .head { display: flex; align-items: center; gap: 10px 16px; flex-wrap: wrap; padding-inline-end: var(--sw-float-reserve, 0px); }
+    /* CALMSG-POLISH-2331: the page title reads like every settings page (sw-page): the "הגדרות" crumb, the skin's h1 scale */
+    h1 { margin: 0; font-family: var(--sw-font-heading, var(--sw-font)); font-size: var(--sw-h1, var(--sw-fs-2xl)); font-weight: var(--sw-h1-weight, var(--sw-fw-bold));
+      letter-spacing: var(--sw-h1-tracking, -0.01em); line-height: 1.2; color: var(--sw-heading); }
+    .ttl { display: flex; flex-direction: column; gap: 2px; min-inline-size: 0; }
+    .crumb { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
+    .head { display: flex; align-items: flex-end; gap: 10px 16px; flex-wrap: wrap; padding-inline-end: var(--sw-float-reserve, 0px); }
+    .tabhead { display: flex; align-items: flex-end; gap: 8px 16px; flex-wrap: wrap; min-inline-size: 0; }
+    .tabhead h2 + .lead { margin-block-start: 4px; }
+    .groups { flex-wrap: wrap; }
+    .groups .mod { display: inline-grid; place-items: center; min-inline-size: 18px; block-size: 18px; padding: 0 5px; margin-inline-start: 6px; border-radius: var(--sw-r-pill);
+      background: var(--sw-accent-soft); color: var(--sw-accent-text); font-size: var(--sw-fs-2xs); font-weight: var(--sw-fw-bold); }
+    .groupsel { inline-size: 100%; }
+    /* focus and hover on every control the screen draws itself (the shared .btn / .seg have theirs in calCss) */
+    .opt, .reset, .linkrow, .seg button, .selw select { transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-hover) var(--sw-ease-color), border-color var(--sw-t-hover) var(--sw-ease-color); }
+    @media (prefers-reduced-motion: reduce) { .opt, .stepper button, .opt:active, .stepper button:active { transition: none; transform: none; } }
+    .opt:focus-visible, .stepper button:focus-visible, .reset:focus-visible, .linkrow:focus-visible, .seg button:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: var(--sw-focus-offset); }
+    .stepper input:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 1px; border-radius: var(--sw-r-sm); }
+    .stepper button:not([disabled]):active, .opt:not([disabled]):active { transform: scale(0.97); }
+    .stepper button { transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-hover) var(--sw-ease-color); }
+    @media (hover: hover) {
+      .opt:not([disabled]):not([aria-checked='true']):hover { background: var(--sw-hover-wash); }
+      .stepper button:not([disabled]):hover { background: var(--sw-hover-wash); }
+      .linkrow:hover { background: var(--sw-hover-wash); }
+      .linkrow:hover .chip.acc { background: var(--sw-accent); color: var(--sw-text-inverse); }
+      .reset:hover { text-decoration: underline; text-underline-offset: 2px; }
+    }
+    /* a select reads as a select: the chevron at its end (appearance: none hid the native arrow) */
+    .selw { position: relative; display: inline-flex; align-items: center; max-inline-size: 100%; }
+    .selw select { padding-inline-end: 30px; }
+    .selw sw-icon { position: absolute; inset-inline-end: 10px; pointer-events: none; color: var(--sw-text-3); }
+    .selw select[disabled] + sw-icon { opacity: var(--sw-disabled-opacity); }
+    table.t tbody tr { transition: background var(--sw-t-hover) var(--sw-ease-color); }
+    @media (hover: hover) { table.t tbody tr:hover td { background: var(--sw-hover-wash); } }
     .modsw { display: inline-flex; align-items: center; gap: 10px; font-size: var(--sw-fs-md); color: var(--sw-text-2); }
     .panel { flex: 1; }
     .tabs { align-self: flex-start; flex: none; }
@@ -149,6 +198,8 @@ export class SystemCalendars extends LitElement {
       .row .ctl { inline-size: 100%; }
       .row .seg { flex-wrap: wrap; border-radius: var(--sw-r-lg); }
       .lead { display: none; }
+      .crumb { display: none; }
+      .tabhead { flex-direction: column; align-items: stretch; }
       .toast { inset-block-end: calc(var(--sw-bottomnav-h) + 16px + env(safe-area-inset-bottom)); }
     }
   `];
@@ -166,7 +217,16 @@ export class SystemCalendars extends LitElement {
   @state() private typed = '';
   @state() private toastText = '';
   @state() private phone = window.innerWidth < 700;
+  /** CALMSG-POLISH-2331: the topic shown on the behaviour tab ("הכל" by default; every row stays reachable) */
+  @state() private group: BehaviorGroup | 'all' = 'all';
+  /** CAL-ATTENDEES-2343 follow-up: the attendee settings (loaded when the "משתתפים" topic opens) and the chosen calendar's policy */
+  @state() private att: AttendeeSettings | null = null;
+  @state() private attCanEdit = false;
+  @state() private attCal = '';
+  @state() private policy: AttendeePolicy | null = null;
+  @state() private policyCanEdit = false;
   private api: CalendarsApi | null = null;
+  private attTimer = 0;
   private ro: ResizeObserver | null = null;
   private stepTimer = 0;
   /** The tallest row met on this tab so far: rows per page only shrink while paging, so turning a page never skips a row. */
@@ -186,6 +246,123 @@ export class SystemCalendars extends LitElement {
     this.ro?.disconnect();
     clearTimeout(this.stepTimer);
     clearTimeout(this.toastTimer);
+    clearTimeout(this.attTimer);
+  }
+
+  // ---------------------------------------------------------------- attendees (CAL-ATTENDEES-2343 follow-up)
+
+  private async loadAttendees(): Promise<void> {
+    try {
+      const r = await attendeesApi().settings();
+      this.att = r.settings;
+      this.attCanEdit = r.can_configure;
+      const first = this.attCals()[0]?.id ?? '';
+      if (!this.attCal && first) await this.pickPolicyCal(first);
+    } catch (e) {
+      this.saveError = describeError(e);
+    }
+  }
+
+  private attCals(): Calendar[] {
+    return this.cals.filter((c) => c.type !== 'maintenance');
+  }
+
+  private async pickPolicyCal(cid: string): Promise<void> {
+    this.attCal = cid;
+    this.policy = null;
+    if (!cid) return;
+    try {
+      const r = await attendeesApi().policy(cid);
+      if (this.attCal !== cid) return;
+      this.policy = r.policy;
+      this.policyCanEdit = r.can_edit;
+    } catch (e) {
+      this.saveError = describeError(e);
+    }
+  }
+
+  /** Saves the whole installation document with one change (the server validates; a refusal restores the old value). */
+  private async saveAtt(patch: Partial<AttendeeSettings>): Promise<void> {
+    if (!this.att || !this.attCanEdit) return;
+    const before = this.att;
+    this.att = { ...this.att, ...patch };
+    this.saveError = '';
+    try {
+      this.att = (await attendeesApi().saveSettings(this.att)).settings;
+    } catch (e) {
+      this.att = before;
+      this.saveError = describeError(e);
+    }
+  }
+
+  private async savePolicy(patch: Partial<AttendeePolicy>): Promise<void> {
+    if (!this.policy || !this.policyCanEdit) return;
+    const before = this.policy;
+    const cid = this.attCal;
+    this.policy = { ...this.policy, ...patch };
+    this.saveError = '';
+    try {
+      const r = await attendeesApi().savePolicy(cid, { ...patch, revision: before.revision });
+      if (this.attCal === cid) this.policy = r.policy;
+    } catch (e) {
+      if (this.attCal === cid) this.policy = before;
+      this.saveError = describeError(e);
+    }
+  }
+
+  /** One attendee row in the shared look of settingRow: name, default (+ reset), control. */
+  private attRow(key: string, label: string, hint: string, off: boolean, cur: unknown, def: unknown, kind: 'seg' | 'tog' | 'step', save: (v: unknown) => void,
+    o: { opts?: Opt[]; min?: number; max?: number; unit?: string } = {}) {
+    let ctl;
+    if (kind === 'tog') {
+      ctl = html`<sw-toggle label=${label} labelHidden ?checked=${!!cur} ?disabled=${off} @change=${(e: CustomEvent<{ checked: boolean }>) => save(e.detail.checked)}></sw-toggle>`;
+    } else if (kind === 'step') {
+      const n = Number(cur);
+      const lo = o.min ?? 0;
+      const hi = o.max ?? 9999;
+      const set = (x: number) => {
+        const v = Math.min(hi, Math.max(lo, Math.round(x || 0)));
+        clearTimeout(this.attTimer);
+        this.attTimer = window.setTimeout(() => save(v), 500);
+        if (key.startsWith('policy.') && this.policy) this.policy = { ...this.policy, [key.slice(7)]: v };
+        else if (this.att) this.att = { ...this.att, [key.slice(4)]: v };
+      };
+      ctl = html`<span class="stepper"><button type="button" aria-label="פחות" ?disabled=${off || n <= lo} @click=${() => set(n - 1)}>−</button>
+        <input type="number" inputmode="numeric" aria-label=${label} .value=${String(n)} ?disabled=${off} min=${lo} max=${hi} @change=${(e: Event) => set(Number((e.target as HTMLInputElement).value))}><button type="button" aria-label="יותר" ?disabled=${off || n >= hi} @click=${() => set(n + 1)}>+</button></span>`;
+    } else {
+      ctl = html`<div class="seg" role="radiogroup" aria-label=${label}>${(o.opts ?? []).map(([val, lab]) => html`<button type="button" role="radio" aria-pressed=${String(cur === val)} aria-checked=${String(cur === val)}
+        ?disabled=${off} data-opt=${String(val)} @click=${() => { if (cur !== val) save(val); }}>${lab}</button>`)}</div>`;
+    }
+    const defText = kind === 'tog' ? (def ? 'דולק' : 'כבוי') : kind === 'step' ? `${def}${o.unit ? ` ${o.unit}` : ''}` : o.opts?.find((x) => x[0] === def)?.[1] ?? String(def);
+    return html`<div class="row" data-setting=${key}><div class="grow"><div class="name ell" title=${label}>${label}</div>
+      <div class="sub">ברירת מחדל: ${defText}${hint ? html` · ${hint}` : nothing}${cur !== def && !off ? html` <button type="button" class="reset" data-reset=${key} @click=${() => save(def)}>איפוס</button>` : nothing}</div></div><div class="ctl">${ctl}</div></div>`;
+  }
+
+  /** The "משתתפים" topic of the behaviour tab: the installation rows, then the policy of the calendar picked in the head. */
+  private attendeeRows(): unknown[] {
+    const a = this.att;
+    if (!a) return [html`<div class="skel" style="block-size:56px"></div>`];
+    const offA = !this.attCanEdit;
+    const sa = (k: keyof AttendeeSettings) => (v: unknown) => void this.saveAtt({ [k]: v } as Partial<AttendeeSettings>);
+    const rows: unknown[] = [
+      this.attRow('att.enabled', 'משתתפים בשמם באירועים', 'כבוי: אין רשימת משתתפים ואין הודעות', offA, a.enabled, ATT_DEFAULTS.enabled, 'tog', sa('enabled')),
+      this.attRow('att.notify_users_inapp', 'הודעה במערכת למשתמשים ולדיירים', '', offA, a.notify_users_inapp, ATT_DEFAULTS.notify_users_inapp, 'tog', sa('notify_users_inapp')),
+      this.attRow('att.notify_guests', 'הודעה לאורחים בערוץ ההודעות', 'וואטסאפ היום', offA, a.notify_guests, ATT_DEFAULTS.notify_guests, 'tog', sa('notify_guests')),
+      this.attRow('att.cancel_notice_delay_s', 'הודעת ביטול למשתתפים אחרי', 'כדי ש"בטל" יעצור אותה', offA, a.cancel_notice_delay_s, ATT_DEFAULTS.cancel_notice_delay_s, 'step', sa('cancel_notice_delay_s'), { min: 0, max: 120, unit: 'שנ׳' }),
+    ];
+    const p = this.policy;
+    if (!this.attCal) return rows;
+    if (!p) return [...rows, html`<div class="skel" style="block-size:56px"></div>`];
+    const offP = !this.policyCanEdit;
+    const sp = (k: keyof AttendeePolicy) => (v: unknown) => void this.savePolicy({ [k]: v } as Partial<AttendeePolicy>);
+    const D = POLICY_DEFAULTS;
+    return [...rows,
+      this.attRow('policy.guests_mode', 'מי מזמין אורחים מבחוץ', 'ביומן הנבחר', offP, p.guests_mode, D.guests_mode, 'seg', sp('guests_mode'), { opts: GUESTS_OPTS }),
+      this.attRow('policy.self_join', 'מי שרואה את האירוע מצטרף בעצמו', 'ביומן הנבחר', offP, p.self_join, D.self_join, 'tog', sp('self_join')),
+      this.attRow('policy.list_visibility', 'מי רואה את רשימת המשתתפים', 'ביומן הנבחר · השאר רואים רק את המספר', offP, p.list_visibility, D.list_visibility, 'seg', sp('list_visibility'), { opts: VISIBILITY_OPTS }),
+      this.attRow('policy.max_attendees', 'מספר משתתפים מרבי', 'ביומן הנבחר', offP, p.max_attendees, D.max_attendees, 'step', sp('max_attendees'), { min: 1, max: 500 }),
+      this.attRow('policy.notify_on_change', 'הודעה למשתתפים על שינוי', 'ביומן הנבחר', offP, p.notify_on_change, D.notify_on_change, 'tog', sp('notify_on_change')),
+    ];
   }
 
   protected willUpdate(changed: PropertyValues): void {
@@ -214,11 +391,14 @@ export class SystemCalendars extends LitElement {
     if (!box) return;
     const cols = getComputedStyle(box).gridTemplateColumns.split(' ').filter(Boolean).length || 1;
     // the tallest row drawn decides (a row wraps its control under the name on the phone), never less than the declared height
-    const rows = box.querySelector('tbody') ? [...box.querySelectorAll('tbody tr')] : [...box.children];
-    const tallest = Math.max(0, ...rows.map((c) => (c as HTMLElement).offsetHeight + (box.querySelector('tbody') ? 0 : 8)));
+    const table = !!box.querySelector('tbody');
+    const rows = table ? [...box.querySelectorAll('tbody tr')] : [...box.children];
+    const tallest = Math.max(0, ...rows.map((c) => (c as HTMLElement).offsetHeight + (table ? 0 : 8)));
     const rowH = Math.max(Number(box.dataset.fit) || 66, tallest, this.fitRowH);
     this.fitRowH = rowH;
-    const per = cols * rowsThatFit(box.clientHeight + 8, rowH);
+    // CALMSG-POLISH-2331: a table's header row takes its share of the box - counted, the last body row was drawn half cut off
+    const avail = table ? box.clientHeight - (box.querySelector<HTMLElement>('thead')?.offsetHeight ?? 0) : box.clientHeight + 8;
+    const per = cols * rowsThatFit(avail, rowH);
     if (per !== this.per) {
       // keep the first row of the page in view when the measure changes, so a page is never skipped
       this.page = Math.floor(((this.page - 1) * this.per) / Math.max(1, per)) + 1;
@@ -281,14 +461,14 @@ export class SystemCalendars extends LitElement {
     const tab = this.tab;
     return html`
       <div class="head lead-head">
-        <h1>יומנים</h1><span class="sp"></span>
+        <div class="ttl"><span class="crumb">הגדרות</span><h1>יומנים</h1></div><span class="sp"></span>
         <label class="modsw"><span>מודול היומנים</span><sw-toggle data-calset="enabled" label="מודול היומנים פעיל" labelHidden ?checked=${this.s.enabled} ?disabled=${!this.canEdit}
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ enabled: e.detail.checked })}></sw-toggle><b>${this.s.enabled ? 'פעיל' : 'כבוי'}</b></label>
       </div>
       ${this.canEdit ? nothing : html`<div class="ro" data-calset-ro>צפייה בלבד: שינוי ההגדרות דורש את ההרשאה "יומנים: הגדרות".</div>`}
       ${this.saveError ? html`<div class="err" role="alert" data-calset-error>${this.saveError}</div>` : nothing}
       <section class="panel" data-calset-tab=${tab}>
-        <div class="seg tabs" role="tablist" aria-label="הגדרות היומנים">${TABS.map(([id, he, short]) => html`<button type="button" role="tab" aria-pressed=${String(tab === id)} aria-selected=${String(tab === id)}
+        <div class="seg tabs" role="tablist" aria-label="הגדרות היומנים" @keydown=${tablistKeydown}>${TABS.map(([id, he, short]) => html`<button type="button" role="tab" aria-pressed=${String(tab === id)} aria-selected=${String(tab === id)}
           data-calset-tabbtn=${id} @click=${() => (location.hash = `#/system/calendars?tab=${id}`)}>${this.phone ? short : he}</button>`)}</div>
         ${tab === 'overlap' ? this.overlapTab() : tab === 'behavior' ? this.behaviorTab() : tab === 'approval' ? this.approvalTab() : tab === 'perm' ? this.permTab() : this.retentionTab()}
       </section>
@@ -324,9 +504,29 @@ export class SystemCalendars extends LitElement {
   // ---------------------------------------------------------------- tab: behaviour (owner rule: every behaviour is a setting)
 
   private behaviorTab() {
-    const p = pageOf(BEHAVIOR_ROWS, this.page, this.per);
-    return html`<h2>התנהגות המודול</h2><p class="lead">כל התנהגות היא הגדרה. ברירת המחדל כתובה מתחת לכל שורה; "איפוס" מחזיר אותה.</p>
-      <div class="fitbox"><div class="grid rows2" data-fit="66" data-calset-rows>${p.items.map((r) => this.settingRow(r))}</div></div>
+    const attendees = this.group === 'attendees';
+    const rows: unknown[] = attendees ? this.attendeeRows() : (this.group === 'all' ? BEHAVIOR_ROWS : BEHAVIOR_ROWS.filter((r) => r.group === this.group)).map((r) => this.settingRow(r));
+    const p = pageOf(rows, this.page, this.per);
+    const changed = (g: BehaviorGroup | 'all') => BEHAVIOR_ROWS.filter((r) => (g === 'all' || r.group === g) && !r.static && this.s?.[r.key as keyof CalSettings] !== CAL_DEFAULTS[r.key as keyof CalSettings]).length;
+    const pick = (g: BehaviorGroup | 'all') => {
+      if (g === this.group) return;
+      this.group = g;
+      this.page = 1;
+      this.fitRowH = 0;
+      if (g === 'attendees' && !this.att) void this.loadAttendees();
+    };
+    // the calendar whose attendee policy the lower rows show (a calendar manager edits his own; the server decides)
+    const calPick = attendees && this.attCals().length ? html`<span class="selw"><select class="inp" aria-label="יומן" data-calset-attcal .value=${this.attCal}
+        @change=${(e: Event) => { this.page = 1; void this.pickPolicyCal((e.target as HTMLSelectElement).value); }}>
+        ${this.attCals().map((c) => html`<option value=${c.id} ?selected=${c.id === this.attCal}>${c.name}</option>`)}</select><sw-icon name="chevronDown" size="14"></sw-icon></span>` : nothing;
+    return html`<div class="tabhead"><div class="grow"><h2>התנהגות המודול</h2><p class="lead">כל התנהגות היא הגדרה. ברירת המחדל כתובה מתחת לכל שורה; "איפוס" מחזיר אותה.</p></div>
+        ${this.phone ? html`<select class="inp groupsel" aria-label="נושא" data-calset-group .value=${this.group} @change=${(e: Event) => pick((e.target as HTMLSelectElement).value as BehaviorGroup | 'all')}>
+            ${BEHAVIOR_GROUPS.map(([g, he]) => html`<option value=${g} ?selected=${g === this.group}>${he}</option>`)}</select>`
+          : html`<div class="seg groups" role="radiogroup" aria-label="נושא" data-calset-groups>${BEHAVIOR_GROUPS.map(([g, he]) => {
+            const n = g === 'all' ? 0 : changed(g);
+            return html`<button type="button" role="radio" aria-pressed=${String(g === this.group)} aria-checked=${String(g === this.group)} data-calset-group=${g} @click=${() => pick(g)}>${he}${n ? html`<span class="mod num" title="שונו מברירת המחדל">${n}</span>` : nothing}</button>`;
+          })}</div>`}${calPick}</div>
+      <div class="fitbox"><div class="grid rows2" data-fit="66" data-calset-rows>${p.items}</div></div>
       ${this.pager(p.page, p.pages)}`;
   }
 
@@ -383,14 +583,14 @@ export class SystemCalendars extends LitElement {
       <div class="fitbox"><div class="grid" data-fit="51" data-calset-rows><table class="t"><thead><tr><th>יומן</th><th>מנהל</th><th>מתי צריך אישור</th><th>מבטל אם לא הוחלט</th><th>תחזוקה מעל הזמנה</th></tr></thead><tbody>
       ${p.items.map((c) => html`<tr data-approval=${c.id}><td><span class="cname"><span class="dot" style=${`--h:${colorVar(c.color)}`}></span><span class="n ell" title=${c.name}>${c.name}</span></span></td>
         <td>${c.owner.name ? html`<span class="ell">${c.owner.name}</span>` : html`<span class="chip warn">חסר</span>`}</td>
-        <td><select class="inp" aria-label=${`מתי צריך אישור ב${c.name}`} ?disabled=${!canRow(c)} data-approval-mode @change=${(e: Event) => void this.patchCal(c, { approval_mode: (e.target as HTMLSelectElement).value })}>
-          ${(Object.keys(APPROVAL_LABEL) as Calendar['approval_mode'][]).map((m) => html`<option value=${m} ?selected=${c.approval_mode === m}>${APPROVAL_LABEL[m]}</option>`)}</select></td>
-        <td>${c.approval_mode === 'none' ? html`<span class="muted">—</span>` : html`<select class="inp num" aria-label=${`זמן ההחלטה ב${c.name}`} ?disabled=${!canRow(c)}
+        <td><span class="selw"><select class="inp" aria-label=${`מתי צריך אישור ב${c.name}`} ?disabled=${!canRow(c)} data-approval-mode @change=${(e: Event) => void this.patchCal(c, { approval_mode: (e.target as HTMLSelectElement).value })}>
+          ${(Object.keys(APPROVAL_LABEL) as Calendar['approval_mode'][]).map((m) => html`<option value=${m} ?selected=${c.approval_mode === m}>${APPROVAL_LABEL[m]}</option>`)}</select><sw-icon name="chevronDown" size="14"></sw-icon></span></td>
+        <td>${c.approval_mode === 'none' ? html`<span class="muted">—</span>` : html`<span class="selw"><select class="inp num" aria-label=${`זמן ההחלטה ב${c.name}`} ?disabled=${!canRow(c)}
           @change=${(e: Event) => void this.patchCal(c, { approval_timeout_h: Number((e.target as HTMLSelectElement).value) })}>
-          ${[0, 1, 2, 4, 12, 24, 48].map((h) => html`<option value=${h} ?selected=${(c.approval_timeout_h ?? 0) === h}>${h ? `${h} שע׳ לפני` : 'בתחילת המועד'}</option>`)}</select>`}</td>
-        <td>${c.type !== 'room' ? html`<span class="muted">—</span>` : scope === 'none' ? html`<span class="muted">לפי ההתקנה</span>` : html`<select class="inp" aria-label=${`תחזוקה מעל הזמנה ב${c.name}`} ?disabled=${!canRow(c)}
+          ${[0, 1, 2, 4, 12, 24, 48].map((h) => html`<option value=${h} ?selected=${(c.approval_timeout_h ?? 0) === h}>${h ? `${h} שע׳ לפני` : 'בתחילת המועד'}</option>`)}</select><sw-icon name="chevronDown" size="14"></sw-icon></span>`}</td>
+        <td>${c.type !== 'room' ? html`<span class="muted">—</span>` : scope === 'none' ? html`<span class="muted">לפי ההתקנה</span>` : html`<span class="selw"><select class="inp" aria-label=${`תחזוקה מעל הזמנה ב${c.name}`} ?disabled=${!canRow(c)}
           @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; void this.patchCal(c, { overlap_override: v || null }); }}>
-          <option value="" ?selected=${!c.overlap_override}>לפי ההתקנה</option>${modes.map((m) => html`<option value=${m} ?selected=${c.overlap_override === m}>${OVERLAP_SHORT[m]}</option>`)}</select>`}</td></tr>`)}
+          <option value="" ?selected=${!c.overlap_override}>לפי ההתקנה</option>${modes.map((m) => html`<option value=${m} ?selected=${c.overlap_override === m}>${OVERLAP_SHORT[m]}</option>`)}</select><sw-icon name="chevronDown" size="14"></sw-icon></span>`}</td></tr>`)}
       </tbody></table></div></div>${this.pager(p.page, p.pages)}`;
   }
 

@@ -5,7 +5,7 @@ physical relay, `door_windows._sync_doors`; WisKey grants carry both, `wiskey_fe
 ONLY by an explicit approval of an authorised person, one station at a time:
 
 - the save names every api relay of the station (1 and 2, the values the table allows) with a physical relay or None ("disabled");
-- one station revision (`wiskey_relay_map_stations`, migration 0191) is compared and set: a stale revision writes nothing;
+- one station revision (`wiskey_relay_map_stations`, migration 0193) is compared and set: a stale revision writes nothing;
 - one active row per (station, api_relay) (the primary key) and per (station, physical_relay) (checked here, over the result);
 - a physical relay must be one of the station's relays in the served WisKey copy;
 - no row is invented: an api relay that has no row and stays disabled gets none; an unchanged row is not rewritten (its row revision,

@@ -130,7 +130,7 @@ test.describe('NN1 P2: the shell follows the installation capabilities', () => {
           await expect(panel).toHaveAttribute('data-capability-panel', outcome);
           if (tag) await expect(page.locator(`sw-app ${tag}`), `${combo} ${hash} must not mount ${tag}`).toHaveCount(0);
           // 2.4.6: a settings route (/system/...) carries the settings navigation column, which lists every settings page
-          // ("גשר Home Assistant" included); settings screens are exempt from the branding rule, so that one subtree is left
+          // (the bridge page included); settings screens are exempt from the branding rule, so that one subtree is left
           // out - the neutral panel and the rest of the shell are still read in full
           const words = await deepText(page, 'sw-app', ['system-nav']);
           expect(words, `${combo} ${hash}: no infrastructure branding`).not.toMatch(BRAND);

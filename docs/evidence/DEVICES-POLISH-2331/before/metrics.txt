@@ -1,0 +1,50 @@
+area-390-light: {"page":0,"hscroll":0,"scrollers":["main. +1457"]}
+area-1024-light: {"page":0,"hscroll":0,"scrollers":["main. +511"]}
+area-1180-light: {"page":0,"hscroll":0,"scrollers":["main. +459"]}
+area-1440-light: {"page":0,"hscroll":0,"scrollers":["main. +201"]}
+area-1920-light: {"page":0,"hscroll":0,"scrollers":[]}
+area-edit-390-light: {"page":0,"hscroll":0,"scrollers":["main. +2490"]}
+area-edit-1024-light: {"page":0,"hscroll":0,"scrollers":["main. +1212"]}
+area-edit-1180-light: {"page":0,"hscroll":0,"scrollers":["main. +925"]}
+area-edit-1440-light: {"page":0,"hscroll":0,"scrollers":["main. +627"]}
+area-edit-1920-light: {"page":0,"hscroll":0,"scrollers":["main. +65"]}
+area-edit-card-390-light: {"page":0,"hscroll":0,"scrollers":["main. +2490","aside.lay-panel +579"]}
+area-edit-card-1024-light: {"page":0,"hscroll":0,"scrollers":["main. +1212","aside.lay-panel +609"]}
+area-edit-card-1180-light: {"page":0,"hscroll":0,"scrollers":["main. +925","aside.lay-panel +557"]}
+area-edit-card-1440-light: {"page":0,"hscroll":0,"scrollers":["main. +627","aside.lay-panel +477"]}
+area-edit-card-1920-light: {"page":0,"hscroll":0,"scrollers":["main. +65","aside.lay-panel +297"]}
+area-edit-picker-390-light: {"page":0,"hscroll":0,"scrollers":["main. +2490","aside.lay-panel +623"]}
+area-edit-picker-1024-light: {"page":0,"hscroll":0,"scrollers":["main. +1212","aside.lay-panel +653"]}
+area-edit-picker-1180-light: {"page":0,"hscroll":0,"scrollers":["main. +925","aside.lay-panel +601"]}
+area-edit-picker-1440-light: {"page":0,"hscroll":0,"scrollers":["main. +627","aside.lay-panel +521"]}
+area-edit-picker-1920-light: {"page":0,"hscroll":0,"scrollers":["main. +65","aside.lay-panel +341"]}
+tiles-covers-390-light: {"page":0,"hscroll":0,"scrollers":["main. +1457"]}
+tiles-covers-1024-light: {"page":0,"hscroll":0,"scrollers":["main. +511"]}
+tiles-covers-1180-light: {"page":0,"hscroll":0,"scrollers":["main. +459"]}
+tiles-covers-1440-light: {"page":0,"hscroll":0,"scrollers":["main. +201"]}
+tiles-covers-1920-light: {"page":0,"hscroll":0,"scrollers":[]}
+auto-rows-390-light: {"page":0,"hscroll":0,"scrollers":[]}
+auto-rows-1024-light: {"page":0,"hscroll":0,"scrollers":[]}
+auto-rows-1180-light: {"page":0,"hscroll":0,"scrollers":[]}
+auto-rows-1440-light: {"page":0,"hscroll":0,"scrollers":[]}
+auto-rows-1920-light: {"page":0,"hscroll":0,"scrollers":[]}
+auto-cards-390-light: {"page":0,"hscroll":0,"scrollers":[]}
+auto-cards-1024-light: {"page":0,"hscroll":0,"scrollers":[]}
+auto-cards-1180-light: {"page":0,"hscroll":0,"scrollers":[]}
+auto-cards-1440-light: {"page":0,"hscroll":0,"scrollers":[]}
+auto-cards-1920-light: {"page":0,"hscroll":0,"scrollers":[]}
+auto-empty-390-light: {"page":0,"hscroll":0,"scrollers":[]}
+auto-empty-1024-light: {"page":0,"hscroll":0,"scrollers":[]}
+auto-empty-1180-light: {"page":0,"hscroll":0,"scrollers":[]}
+auto-empty-1440-light: {"page":0,"hscroll":0,"scrollers":[]}
+auto-empty-1920-light: {"page":0,"hscroll":0,"scrollers":[]}
+auto-offline-390-light: {"page":0,"hscroll":0,"scrollers":[]}
+auto-offline-1024-light: {"page":0,"hscroll":0,"scrollers":[]}
+auto-offline-1180-light: {"page":0,"hscroll":0,"scrollers":[]}
+auto-offline-1440-light: {"page":0,"hscroll":0,"scrollers":[]}
+auto-offline-1920-light: {"page":0,"hscroll":0,"scrollers":[]}
+auto-loading-390-light: {"page":0,"hscroll":0,"scrollers":[]}
+auto-loading-1024-light: {"page":0,"hscroll":0,"scrollers":[]}
+auto-loading-1180-light: {"page":0,"hscroll":0,"scrollers":[]}
+auto-loading-1440-light: {"page":0,"hscroll":0,"scrollers":[]}
+auto-loading-1920-light: {"page":0,"hscroll":0,"scrollers":[]}

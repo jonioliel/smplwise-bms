@@ -22,6 +22,10 @@ export class SwTable extends LitElement {
   @property() selected: string | null = null;
   @property() emptyText = 'אין שורות להצגה';
   @property({ type: Boolean, reflect: true }) dense = false;
+  /** SHARED-POLISH-2342 (INVREST-POLISH-2331 proposal): every row is a tab stop and Enter / Space on it fires the same `row-select` a
+   * click does - for a list whose rows open something and that has no link of its own in a cell. Opt-in, so the tab order of every
+   * existing table is unchanged; a key pressed on a control inside a cell is left to that control. */
+  @property({ type: Boolean, reflect: true, attribute: 'focus-rows' }) focusRows = false;
 
   static styles = css`
     :host {
@@ -136,6 +140,11 @@ export class SwTable extends LitElement {
     tr.clickable {
       cursor: pointer;
     }
+    /* SHARED-POLISH-2342: the focused row draws the focus ring inside its own box (a table cell clips an outer outline) */
+    tbody tr:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: calc(-1 * var(--sw-focus-w));
+    }
     /* UXFIX-RTL: a span.ltr inside any cell (a raw JSON payload, a code, an id) is its own left-to-right isolate; the braces no longer
        mirror and a "{" never lands at the line end of an RTL row. */
     td .ltr {
@@ -163,6 +172,12 @@ export class SwTable extends LitElement {
     this.dispatchEvent(new CustomEvent('row-select', { detail: { id, row }, bubbles: true, composed: true }));
   }
 
+  private onRowKey(e: KeyboardEvent, row: Record<string, unknown>) {
+    if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault();
+    this.pick(row);
+  }
+
   render() {
     if (!this.rows.length) return html`<div class="empty">${this.emptyText}</div>`;
     return html`
@@ -173,6 +188,7 @@ export class SwTable extends LitElement {
         <tbody>
           ${this.rows.map(
             (row) => html`<tr class="clickable ${this.selected === String(row[this.rowKey]) ? 'selected' : ''}" data-row-id=${String(row[this.rowKey] ?? '')} @click=${() => this.pick(row)}
+              tabindex=${this.focusRows ? '0' : nothing} @keydown=${this.focusRows ? (e: KeyboardEvent) => this.onRowKey(e, row) : nothing}
               @pointerenter=${(e: PointerEvent) => this.dispatchEvent(new CustomEvent('row-hover', { detail: { id: String(row[this.rowKey] ?? ''), row, clientX: e.clientX, clientY: e.clientY, pointerType: e.pointerType }, bubbles: true, composed: true }))}
               @pointerleave=${() => this.dispatchEvent(new CustomEvent('row-leave', { detail: { id: String(row[this.rowKey] ?? '') }, bubbles: true, composed: true }))}>
               ${this.columns.map((c) => html`<td class=${c.ltr ? 'ltr' : ''} data-label=${c.label}>${c.render ? c.render(row) : String(row[c.key] ?? '')}</td>`)}

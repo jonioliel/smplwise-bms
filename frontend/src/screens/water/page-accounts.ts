@@ -21,7 +21,7 @@ const BASE = '/infra/water/accounts';
 const chip = (c: { label: string; cls: string }) => html`<span class="chip ${c.cls}">${c.label}</span>`;
 export const billChipW = (b: Pick<BillSummary, 'state'>) => html`<span class="chip ${BILL_STATE[b.state].cls}" data-bill-state=${b.state}>${BILL_STATE[b.state].label}</span>`;
 const range = (p: { from: string; to: string } | null) => (p ? `${fmtDate(p.from)} - ${fmtDate(p.to)}` : '-');
-const skeletonCard = (n = 6) => html`<div class="card" aria-busy="true">${Array.from({ length: n }, () => html`<div class="row" style="padding:10px 0"><div class="skl" style="inline-size:30%"></div><span class="sp"></span><div class="skl" style="inline-size:14%"></div><div class="skl" style="inline-size:10%"></div></div>`)}</div>`;
+const skeletonCard = (n = 6) => html`<div class="card" aria-busy="true">${Array.from({ length: n }, () => html`<div class="row skrow"><div class="skl" style="inline-size:30%"></div><span class="sp"></span><div class="skl" style="inline-size:14%"></div><div class="skl" style="inline-size:10%"></div></div>`)}</div>`;
 
 interface Form {
   name: string;
@@ -294,7 +294,7 @@ export class WaterAccountsPage extends LitElement {
             <button type="button" aria-pressed=${f.status === 'paused' ? 'true' : 'false'} @click=${() => this.setF('status', 'paused')}>${wt('accPaused')}</button></div></div>` : nothing}
         </div>
         ${this.error ? html`<div class="alert err" role="alert">${this.error}</div>` : nothing}
-        <div class="row"><button type="button" class="btn pri" data-save ?disabled=${this.busy} @click=${() => void this.save(id)}>${wt('save')}</button>
+        <div class="row formacts"><button type="button" class="btn pri" data-save ?disabled=${this.busy} @click=${() => void this.save(id)}>${wt('save')}</button>
           <button type="button" class="btn" @click=${() => navigate(id ? `${BASE}/${id}` : BASE)}>${wt('cancel')}</button><span class="sp"></span>
           ${id ? html`<button type="button" class="btn dng" data-delete @click=${() => (this.confirmDel = true)}>${wt('accDelete')}</button>` : nothing}</div>
       </div>
@@ -448,7 +448,7 @@ export function billsTable(list: BillSummary[], phone: boolean): TemplateResult 
         <td class="num" style="text-align:start">${b.due_date ? fmtDate(b.due_date) : '-'}</td><td>${billChipW(b)}</td></tr>`)}</tbody></table></div>
     ${phone ? nothing : html`<div class="list phone-only" style="flex-direction:column" data-bill-rows>${list.map((b) => html`<a class="li" href=${`#/infra/water/bills/${b.id}`} data-bill-row=${b.id}>
       <div class="grow"><div class="t1"><span class="num">${b.number ?? wt('tBillDrafts')}</span> · ${b.customer.name ?? ''}</div><div class="t2">${b.account_name} · <span class="num">${range(b.period)}</span> · <span class="num">${fmtM3(b.m3)}</span> ${wt('m3')}</div></div>
-      <div style="text-align:end">${billChipW(b)}<div class="t2 num" style="margin-block-start:4px">${b.total !== undefined ? fmtIls(b.total) : ''}</div></div></a>`)}</div>`}`;
+      <div class="rowend">${billChipW(b)}<div class="t2 num">${b.total !== undefined ? fmtIls(b.total) : ''}</div></div></a>`)}</div>`}`;
 }
 
 declare global {

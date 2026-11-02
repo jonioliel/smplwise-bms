@@ -78,8 +78,12 @@ export class WaterUsagePage extends LitElement {
   @state() private phase: 'loading' | 'ready' | 'error' = 'loading';
   @state() private error = '';
   @state() private access: WaterAccess = waterAccess();
+  /** the chart box's width in CSS pixels (the chart is drawn at it); 640 until measured */
+  @state() private chartW = 640;
   private stop?: () => void;
   private seq = 0;
+  private ro: ResizeObserver | null = null;
+  private observed: Element | null = null;
 
   static styles = [waterCss, bubbleChrome];
 
@@ -91,7 +95,24 @@ export class WaterUsagePage extends LitElement {
 
   disconnectedCallback() {
     this.stop?.();
+    this.ro?.disconnect();
+    this.ro = null;
+    this.observed = null;
     super.disconnectedCallback();
+  }
+
+  /** Watch the chart box (it is drawn again on every load): the chart follows its width. */
+  protected updated() {
+    const box = this.renderRoot.querySelector('[data-usage-chart]');
+    if (box === this.observed) return;
+    this.ro?.disconnect();
+    this.observed = box;
+    if (!box || typeof ResizeObserver !== 'function') return;
+    this.ro ??= new ResizeObserver((entries) => {
+      const w = Math.floor(entries[entries.length - 1].contentRect.width);
+      if (w > 0 && Math.abs(w - this.chartW) > 1) this.chartW = w;
+    });
+    this.ro.observe(box);
   }
 
   private async load() {
@@ -144,7 +165,7 @@ export class WaterUsagePage extends LitElement {
   render() {
     if (!this.access.view) return html`<sw-state-panel state="forbidden" data-water="usage" data-state="forbidden"></sw-state-panel>`;
     if (this.phase === 'loading') {
-      return html`<div class="page" data-water="usage" data-state="loading" aria-busy="true">${this.renderHead()}<div class="card">${Array.from({ length: 7 }, () => html`<div class="row" style="padding:10px 0"><div class="skl" style="inline-size:30%"></div><span class="sp"></span><div class="skl" style="inline-size:14%"></div><div class="skl" style="inline-size:10%"></div></div>`)}</div></div>`;
+      return html`<div class="page" data-water="usage" data-state="loading" aria-busy="true">${this.renderHead()}<div class="card">${Array.from({ length: 7 }, () => html`<div class="row skrow"><div class="skl" style="inline-size:30%"></div><span class="sp"></span><div class="skl" style="inline-size:14%"></div><div class="skl" style="inline-size:10%"></div></div>`)}</div></div>`;
     }
     if (this.phase === 'error' || !this.data) {
       return html`<div class="page" data-water="usage" data-state="error">${this.renderHead()}<sw-state-panel state="error" heading=${wt('loadUsageError')} hint=${this.error} actionLabel=${wt('retry')} @action=${() => void this.load()}></sw-state-panel></div>`;
@@ -172,7 +193,7 @@ export class WaterUsagePage extends LitElement {
     const change = (l: number | null, p: number | null) => (l === null || !p ? null : Math.round(((l - p) / p) * 100));
     const sign = (v: number | null) => (v === null ? '-' : `${v > 0 ? '+' : ''}${v}%`);
     const cls = (v: number | null) => (v === null || v === 0 ? '' : v > 0 ? 'up' : 'down');
-    return html`<div class="page" data-water="usage" data-state="ready">
+    return html`<div class="page fit" data-water="usage" data-state="ready">
       ${this.renderHead()}
       <div class="tiles" data-tiles>
         <div class="tile"><div class="k">${wt('tTotal')}</div><div class="v"><span class="num" data-t="total">${fmtM3(total === null ? null : total / 1000)}</span><span class="u">${wt('m3')}</span></div></div>
@@ -183,9 +204,9 @@ export class WaterUsagePage extends LitElement {
       <div class="card">
         <div class="hd"><h3 class="sec">${this.range === 'today' ? wt('hourlyUsage') : wt('dailyUsage')}</h3><span class="sp"></span>
           <div class="legend"><span><i style="background:var(--sw-accent)"></i>${wt('legendDay')}</span><span><i style="background:color-mix(in srgb, var(--sw-heading, var(--sw-text)) 55%, var(--sw-surface-3))"></i>${wt('legendNight', { w })}</span><span><i style="background:var(--sw-danger)"></i>${wt('legendLeak')}</span></div></div>
-        <div class="usage-chart" data-usage-chart>${waterBarChart(bars, `${wt('dailyUsage')} · ${wt(RANGE_KEY[this.range])}`, (v) => v.toFixed(v < 10 ? 2 : 1))}</div>
+        <div class="usage-chart" data-usage-chart>${waterBarChart(bars, `${wt('dailyUsage')} · ${wt(RANGE_KEY[this.range])}`, (v) => v.toFixed(v < 10 ? 2 : 1), this.chartW)}</div>
       </div>
-      <div class="card flush scrollx desk-only"><table class="t" data-usage-table>
+      <div class="card flush scrollx desk-only fitbox"><table class="t" data-usage-table>
         <thead><tr><th>${wt('colName')}</th><th>${wt('colArea')}</th><th class="n">${wt('colUsage')}</th><th>${wt('colShare')}</th><th class="n">${wt('colVsPrev')}</th><th class="n">${wt('colNight')}</th></tr></thead>
         <tbody>${items.map((i) => {
           const ch = change(i.litres, i.previous_litres);
@@ -198,7 +219,7 @@ export class WaterUsagePage extends LitElement {
       <div class="list phone-only" style="flex-direction:column" data-usage-rows>${items.map((i) => {
         const ch = change(i.litres, i.previous_litres);
         return html`<div class="li"><div class="grow"><div class="t1">${i.display_name}</div><div class="t2">${i.area_name ?? ''} · <span class="num">${i.share === null ? 0 : Math.round(i.share * 100)}%</span> · ${wt('vsPrevShort')} <span class="num ${cls(ch)}">${sign(ch)}</span> · ${wt('night')} ${nightText(this.night[i.meter_id])}</div></div>
-          <div class="t2 num" style="text-align:end;font-size:var(--sw-fs-md);font-weight:var(--sw-fw-semibold);color:var(--sw-heading)">${fmtM3(i.litres === null ? null : i.litres / 1000)} ${wt('m3')}</div></div>`;
+          <div class="amt num">${fmtM3(i.litres === null ? null : i.litres / 1000)} ${wt('m3')}</div></div>`;
       })}</div>
     </div>`;
   }

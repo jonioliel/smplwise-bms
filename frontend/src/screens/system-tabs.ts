@@ -53,15 +53,37 @@ export class SystemTabsConfig extends LitElement {
   @state() private busy = false;
   @state() private message = '';
   @state() private error = '';
+  /** The settings could not be read: the section editor is replaced by an error panel with a retry. */
+  @state() private loadError = '';
   @state() private announce = '';
   @state() private dragging: { section: string; id: string } | null = null;
 
   static styles = [settingsStyles, css`
+    /* TABSMODE-POLISH-2331: the page reads as two groups - how tabs look (saved at once) and which tabs each area shows (saved
+       with the bar below) - each with its group heading and a line that says how it saves */
     .intro {
       margin: 0;
-      color: var(--sw-text-3);
+      max-inline-size: 72ch;
+      color: var(--sw-text-2);
       font-size: var(--sw-fs-sm);
-      line-height: 1.5;
+      line-height: 1.55;
+    }
+    .group {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      margin-block-start: var(--sw-s-2);
+    }
+    .group .grouplabel {
+      margin: 0;
+    }
+    .group .muted {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .note {
+      margin-block-start: var(--sw-s-2);
     }
     ol {
       list-style: none;
@@ -89,9 +111,18 @@ export class SystemTabsConfig extends LitElement {
       position: relative;
       z-index: 1;
     }
+    li.off {
+      border-style: dashed;
+      background: transparent;
+    }
     li.off .name {
       color: var(--sw-text-3);
       text-decoration: line-through;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      li:hover:not(.dragging) {
+        border-color: var(--sw-border-strong);
+      }
     }
     .handle,
     .mv {
@@ -114,10 +145,32 @@ export class SystemTabsConfig extends LitElement {
     .mv {
       color: var(--sw-text-2);
       cursor: pointer;
+      transition: transform var(--sw-t-press) var(--sw-ease), background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
     }
-    .mv:hover:not([aria-disabled='true']) {
-      background: var(--sw-surface-3);
-      color: var(--sw-text);
+    .mv:active:not([aria-disabled='true']) {
+      transform: scale(var(--sw-press-scale));
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .mv:hover:not([aria-disabled='true']) {
+        background: var(--sw-surface-3);
+        color: var(--sw-text);
+      }
+    }
+    /* a finger gets the full touch target on the reorder keys (TOUCH_TARGET_PX) */
+    @media (pointer: coarse) {
+      .handle,
+      .mv {
+        inline-size: 44px;
+        block-size: 44px;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      li,
+      .mv {
+        transition-duration: 0ms;
+      }
     }
     .mv[aria-disabled='true'] {
       opacity: 0.3;
@@ -140,20 +193,35 @@ export class SystemTabsConfig extends LitElement {
       vertical-align: middle;
       margin-inline-start: 6px;
     }
+    /* a setting row of a section card is a well (the settings ladder), like every .row of the settings pages */
     .srow {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 12px;
-      padding: 8px 0;
-      border-block-end: 1px solid var(--sw-border);
-      margin-block-end: 8px;
+      gap: var(--sw-s-3);
+      padding: 12px 14px;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-well, var(--sw-surface-2));
+      margin-block-end: var(--sw-s-2);
       font-size: var(--sw-fs-sm);
     }
     .srow .lbl {
       display: flex;
       flex-direction: column;
       gap: 2px;
+      min-inline-size: 0;
+      font-size: var(--sw-fs-base);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading, var(--sw-text));
+    }
+    .srow + ol {
+      margin-block-start: var(--sw-s-3);
+    }
+    :host([data-skin='bubble']) .srow {
+      padding: 8px 0;
+      border-radius: 0;
+      background: transparent;
+      border-block-end: 1px solid var(--sw-border);
     }
     .srow .ctl {
       display: flex;
@@ -166,12 +234,26 @@ export class SystemTabsConfig extends LitElement {
     .srow select {
       min-block-size: 40px;
       max-inline-size: 100%;
-      padding: 0 8px;
-      border: 1px solid var(--sw-border);
+      padding: 0 10px;
+      border: 1px solid var(--sw-border-strong);
       border-radius: var(--sw-r-md);
       background: var(--sw-surface);
       color: var(--sw-text);
       font: inherit;
+      cursor: pointer;
+    }
+    .srow select:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: 1px;
+    }
+    .srow select:disabled {
+      opacity: var(--sw-disabled-opacity);
+      cursor: default;
+    }
+    @media (pointer: coarse) {
+      .srow select {
+        min-block-size: 44px;
+      }
     }
     @media (max-width: 767px) {
       .srow {
@@ -242,8 +324,10 @@ export class SystemTabsConfig extends LitElement {
       this.draftSectionRow = this.savedSectionRow;
       this.canEdit = r.can_edit && can('system.configure');
       this.error = '';
+      this.loadError = '';
     } catch (err) {
-      this.error = describeError(err);
+      // TABSMODE-POLISH-2331: without the stored value the editor would show the defaults as if they were saved - say so instead
+      this.loadError = describeError(err);
     } finally {
       this.loaded = true;
     }
@@ -513,8 +597,8 @@ export class SystemTabsConfig extends LitElement {
           },
         )}
       </ol>
-      ${def.id === 'wiskey' ? html`<div class="muted" style="margin-block-start:8px">רשימת הלשוניות נלקחת מ־WisKey; לשונית שעוד לא נטענה בדפדפן הזה שומרת את ההגדרה שלה.</div>` : nothing}
-      ${def.offered ? html`<div class="muted" style="margin-block-start:8px" data-tabs-offered=${def.id}>${tst('noteOffered')}</div>` : nothing}
+      ${def.id === 'wiskey' ? html`<div class="muted note">רשימת הלשוניות נלקחת מ־WisKey; לשונית שעוד לא נטענה בדפדפן הזה שומרת את ההגדרה שלה.</div>` : nothing}
+      ${def.offered ? html`<div class="muted note" data-tabs-offered=${def.id}>${tst('noteOffered')}</div>` : nothing}
       <div class="foot">
         <button type="button" class="link" data-tabs-reset=${def.id} ?disabled=${!this.canEdit || !configured} @click=${() => this.resetSection(def)}>אפס לברירת המחדל</button>
       </div>
@@ -526,17 +610,21 @@ export class SystemTabsConfig extends LitElement {
     const api = isApi();
     return html`<div class="sections" data-tabs-config>
       <p class="intro">בחרו אילו לשוניות מוצגות בכל אזור ובאיזה סדר. השינוי חל על כל המשתמשים והלשונית הראשונה המוצגת היא זו שהאזור נפתח עליה. הסדר של הניווט הראשי הוא ברירת המחדל: כל משתמש יכול לסדר אותו לעצמו. הסתרת לשונית אינה מבטלת הרשאות והכתובת שלה ממשיכה לעבוד למי שמורשה; בכל אזור נשארת לפחות לשונית אחת.</p>
+      <div class="group" data-tabs-group="display"><h3 class="grouplabel">תצוגה</h3><span class="muted"><sw-icon name="check" size=${13}></sw-icon>כל בחירה כאן נשמרת מיד</span></div>
       <system-tabs-mode></system-tabs-mode>
-      ${this.renderStyleDefaults()}
-      ${TAB_SECTIONS.filter((def) => !def.available || def.available()).map((def) => this.renderSection(def))}
-      <div class="savebar">
+      <div class="group" data-tabs-group="sections"><h3 class="grouplabel">הלשוניות של כל אזור</h3><span class="muted">השינויים כאן נשמרים בכפתור "שמור" שבתחתית</span></div>
+      ${this.loadError
+        ? html`<sw-state-panel state="error" heading="לא ניתן לטעון את הגדרות הלשוניות" hint=${this.loadError} actionLabel="נסה שוב" data-tabs-load-error @action=${() => void this.load()}></sw-state-panel>`
+        : html`${this.renderStyleDefaults()}
+      ${TAB_SECTIONS.filter((def) => !def.available || def.available()).map((def) => this.renderSection(def))}`}
+      ${this.loadError ? nothing : html`<div class="savebar">
         ${this.message ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}
         ${this.error ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}
         ${!api ? html`<span class="muted">נתוני הדגמה: ההגדרות נשמרות רק מול השרת.</span>` : !this.canEdit ? html`<span class="muted">נדרשת הרשאת מנהל מערכת.</span>` : !this.message && !this.error ? html`<span class="dirty">${this.dirty ? 'יש שינויים שלא נשמרו.' : 'הכול שמור.'}</span>` : nothing}
         <span class="grow"></span>
         <sw-button variant="ghost" data-tabs-discard ?disabled=${!this.dirty || this.busy} @click=${() => this.discard()}>בטל שינויים</sw-button>
         <sw-button variant="primary" icon="check" data-tabs-save ?disabled=${!this.canEdit || !this.dirty || this.busy || !api} @click=${() => void this.save()}>שמור</sw-button>
-      </div>
+      </div>`}
       <span class="sr" role="status" aria-live="polite" data-tabs-announce>${this.announce}</span>
     </div>`;
   }

@@ -31,6 +31,7 @@ from ..services import autosync
 from ..services import camera_cards as cc
 from ..services import ha_camera_streams as hls
 from ..services import go2rtc as g2
+from ..services import live_codec as lc
 from ..services.access import camera_decision, require_camera
 from ..services.leases import CameraLease
 from ..services.relay import relay_ws
@@ -156,9 +157,76 @@ def ensure_camera_stream(settings: Settings, cam: sqlite3.Row, profile: str) -> 
             raise ApiError(409, "live_not_available", "למצלמה הזו אין כרגע וידאו חי; מוצגת תמונה מתעדכנת.", details={"fallback": "still", "recorder_id": cam["recorder_id"]})
         client.ensure_stream(name, found[1], check=frigate_restream.refuse_foreign(found[0]))
         return name
-    src = vendor_io.LiveSources().url(rs, cam["recorder_id"], cam["channel"], profile) if vendor_io.handles(rs) else g2.hikvision_rtsp_url(rs, cam["channel"], profile)
+    if not vendor_io.handles(rs):
+        client.ensure_stream(name, g2.hikvision_rtsp_url(rs, cam["channel"], profile))
+        return name
+    try:
+        src = vendor_io.LiveSources().url(rs, cam["recorder_id"], cam["channel"], profile)
+    except ApiError as exc:
+        if not _keep_existing_stream(client, name, exc):
+            raise
+        return name
     client.ensure_stream(name, src)
     return name
+
+
+def live_choice(settings: Settings, cam: sqlite3.Row, profile: str, can_h265: bool | None, policy: str, max_transcodes: int) -> lc.Choice:
+    """LIVE-H265-2341: which stream this viewer gets (services/live_codec.py). The registry's codecs first; a profile the
+    registry does not know is looked up in what go2rtc's producer reported (read-only `GET /api/streams`) - only when the
+    browser said it cannot decode H.265, so an ordinary open costs nothing extra."""
+    codecs = lc.registry_codecs(cam)
+    if can_h265 is False and lc.normalize_policy(policy) != "off" and (codecs.get(profile) is None or codecs.get(lc.other_profile(profile)) is None):
+        try:
+            listed = g2.Go2rtc(settings).list_streams()
+            observed = {p: getattr(listed.get(g2.stream_name(cam["recorder_id"], cam["channel"], p)), "video_codec", None) for p in lc.PROFILES}
+            codecs = lc.merge_observed(codecs, observed)
+        except (ApiError, ValueError):
+            pass  # go2rtc not reachable for the listing: the registry alone decides (the socket's own open reports an outage)
+    return lc.choose(policy, profile, codecs, can_h265, max_transcodes=max_transcodes)
+
+
+def ensure_live_stream(settings: Settings, cam: sqlite3.Row, choice: lc.Choice) -> str:
+    """The go2rtc stream for a choice: the camera's own stream of the chosen profile, or (transcode) that stream plus its
+    H.264 variant in our namespace (`smplwise_<recorder>_ch<n>_<profile>_h264`, source `ffmpeg:<our stream>#video=h264`)."""
+    base = ensure_camera_stream(settings, cam, choice.profile)
+    if choice.kind != "transcode":
+        return base
+    name = lc.transcode_stream_name(cam["recorder_id"], cam["channel"], choice.profile)
+    g2.Go2rtc(settings).ensure_stream(name, lc.transcode_source(base))
+    return name
+
+
+async def _refuse_choice(websocket: WebSocket, value: str, message: str, code: int, **extra: Any) -> None:
+    """LIVE-H265-2341: a live socket refused for its codec (`h265_unsupported`, close 4415) or the transcode cap
+    (`transcode_cap`, close 4430): accepted first so the player sees the reason and its Hebrew text."""
+    import json as _json
+
+    with contextlib.suppress(Exception):
+        if websocket.client_state.name == "CONNECTING":
+            await websocket.accept()
+        await websocket.send_text(_json.dumps({"type": "error", "value": value, "message": message, **extra}, ensure_ascii=False))
+        await websocket.close(code=code)
+
+
+# AZIA-LIVE-2331: device reads that fail for a moment (the NVR's HTTP server busy or slow while many tiles open). A disabled
+# recorder, a missing connection, a refused login or a changed TLS certificate are not here: those still refuse the socket.
+LIVE_SOURCE_TRANSIENT = frozenset({"source_unavailable", "source_timeout", "deadline_exceeded", "nvr_busy", "source_invalid", "source_too_large"})
+
+
+def _keep_existing_stream(client: g2.Go2rtc, name: str, exc: ApiError) -> bool:
+    """A Provision live source could not be rebuilt from the device (transient read failure): when go2rtc already holds our
+    stream with a source (written by the stream sync or an earlier viewer), the viewer gets that stream instead of a refused
+    socket. Nothing is written to go2rtc here."""
+    if exc.code not in LIVE_SOURCE_TRANSIENT:
+        return False
+    try:
+        existing = client.list_streams().get(name)
+    except ApiError:
+        return False
+    if existing is None or not existing.sources:
+        return False
+    log.warning("live source for %s not re-read from the recorder (%s); the existing go2rtc stream is used", name, exc.code)
+    return True
 
 
 @router.post("/media/streams/sync")
@@ -218,6 +286,9 @@ def live_info(camera_id: str, request: Request, principal: Principal = Depends(c
         "max_live_sessions": s["media.max_live_sessions"],
         "active_sessions": REGISTRY.count(),
         "media_configured": bool(settings_of(request).go2rtc_url),
+        # LIVE-H265-2341: the codec of each profile as the registry knows it, and how an H.265 stream is handled
+        "codecs": lc.registry_codecs(cam),
+        "h265": {"policy": lc.normalize_policy(s["media.h265_policy"]), "max_transcodes": s["media.h265_max_transcodes"], "active_transcodes": len(lc.BUDGET.active())},
         **({"remote_live": {"max": s["remote.max_live_streams"], "active": remote_live_by_chain().get(chain, 0)}} if chain else {}),
     }
 
@@ -324,6 +395,7 @@ async def _live_relay(
     remote_cap: int,
     on_text: Callable[[str], str | None] | None = None,
     on_end: Callable[[str, float], None] | None = None,
+    hello: dict[str, Any] | None = None,
 ) -> None:
     """The part of a live socket that is the same for every source, once the viewer is authorized and both caps passed:
     make the go2rtc stream (sync, thread pool), register the session in the shared budget, relay, audit start / stop.
@@ -358,6 +430,13 @@ async def _live_relay(
         await _refuse_remote_cap(websocket, db, principal, resource_id, refusal, chain, resource_type)
         return
     REGISTRY.sessions[session.id] = session
+    if hello is not None:
+        # LIVE-H265-2341: which stream the server chose (`arx/stream`), before go2rtc's own signalling; a player that does not
+        # know the frame ignores it (an unknown `type`)
+        import json as _json
+
+        with contextlib.suppress(Exception):
+            await websocket.send_text(_json.dumps({"type": "arx/stream", "value": hello}, ensure_ascii=False))
 
     def on_down(n: int) -> None:
         session.bytes_down += n
@@ -390,7 +469,10 @@ async def _live_relay(
 
 
 @router.websocket("/media/live/{camera_id}/ws")
-async def live_ws(websocket: WebSocket, camera_id: str, profile: str = Query("sub", pattern="^(sub|main)$")) -> None:
+async def live_ws(websocket: WebSocket, camera_id: str, profile: str = Query("sub", pattern="^(sub|main)$"),
+                  h265: str | None = Query(None, pattern="^(0|1)$")) -> None:
+    """`h265` (LIVE-H265-2341): whether this browser decodes H.265 over the transport the player is about to use; absent =
+    an older player, the stream as it is."""
     settings: Settings = websocket.app.state.settings
     db: Database = websocket.app.state.db
 
@@ -398,6 +480,8 @@ async def live_ws(websocket: WebSocket, camera_id: str, profile: str = Query("su
     if principal is None:
         await websocket.close(code=4401)
         return
+
+    h265_conf: dict[str, Any] = {}
 
     def _authorize() -> tuple[Decision | None, sqlite3.Row | None, int, int]:
         with db.connection() as conn:
@@ -408,6 +492,7 @@ async def live_ws(websocket: WebSocket, camera_id: str, profile: str = Query("su
             if not decision.allowed:
                 audit(conn, actor=principal, action="video.live", decision="denied", resource_type="camera", resource_id=camera_id, reason=decision.reason, under=decision)
             s = read_settings(conn)
+            h265_conf.update(policy=s["media.h265_policy"], max=int(s["media.h265_max_transcodes"]))
             return decision, cam, s["media.max_live_sessions"], s["remote.max_live_streams"]
 
     decision, cam, cap, remote_cap = await run_in_threadpool(_authorize)
@@ -424,13 +509,33 @@ async def live_ws(websocket: WebSocket, camera_id: str, profile: str = Query("su
         await _refuse_remote_cap(websocket, db, principal, camera_id, refusal, chain)
         return
 
-    await _live_relay(
-        websocket, settings=settings, db=db, principal=principal, decision=decision, resource_type="camera", resource_id=camera_id,
-        make_stream=lambda: ensure_camera_stream(settings, cam, profile),
-        # T055: the relay keeps the camera only while the viewer still holds video.live on it (re-checked on every access
-        # change of the user and every leases.RECHECK_S) - a revoke of an unrelated camera no longer ends this stream
-        lease=CameraLease(db, principal, camera_id, "video.live"), chain=chain, remote_cap=remote_cap,
-    )
+    can_h265 = None if h265 is None else h265 == "1"
+    choice = await run_in_threadpool(live_choice, settings, cam, profile, can_h265, h265_conf.get("policy", lc.DEFAULT_POLICY),
+                                     h265_conf.get("max", lc.DEFAULT_MAX_TRANSCODES))
+    if choice.kind == "unsupported":
+        log.info("live stream for camera %s (%s): H.265 the browser cannot decode, no alternative under the policy", camera_id, profile)
+        await _refuse_choice(websocket, "h265_unsupported", choice.message, 4415)
+        return
+    token = uuid.uuid4().hex
+    if choice.kind == "transcode":
+        tname = lc.transcode_stream_name(cam["recorder_id"], cam["channel"], choice.profile)
+        max_tc = h265_conf.get("max", lc.DEFAULT_MAX_TRANSCODES)
+        if not lc.BUDGET.acquire(token, tname, max_tc):
+            log.info("live stream for camera %s (%s): transcode cap %s reached", camera_id, profile, max_tc)
+            await _refuse_choice(websocket, "transcode_cap", lc.TRANSCODE_CAP_HE.format(cap=max_tc), 4430, max=max_tc)
+            return
+    hello = {"requested": profile, "profile": choice.profile, "variant": choice.variant, "kind": choice.kind, "codec": choice.codec,
+             **({"message": choice.message} if choice.fallback else {})} if can_h265 is not None else None
+    try:
+        await _live_relay(
+            websocket, settings=settings, db=db, principal=principal, decision=decision, resource_type="camera", resource_id=camera_id,
+            make_stream=lambda: ensure_live_stream(settings, cam, choice),
+            # T055: the relay keeps the camera only while the viewer still holds video.live on it (re-checked on every access
+            # change of the user and every leases.RECHECK_S) - a revoke of an unrelated camera no longer ends this stream
+            lease=CameraLease(db, principal, camera_id, "video.live"), chain=chain, remote_cap=remote_cap, hello=hello,
+        )
+    finally:
+        lc.BUDGET.release(token)
 
 
 @router.websocket("/media/live-ha/{entity_id}/ws")

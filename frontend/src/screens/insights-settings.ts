@@ -163,10 +163,11 @@ export class InsightsSettings extends LitElement {
         <button class="btn" data-pair-new @click=${() => (this.editing = { index: -1, pair: { sensor_entity_id: '', lock_entity_id: null, rex_entity_ids: [], invert: false } })}><sw-icon name="plus"></sw-icon>${ix('newPair')}</button></div>
       ${err ? html`<div class="pad ferr">${ix('fieldInvalid')}</div>` : nothing}
       ${f.pairs.length ? html`<div class="tw"><table><thead><tr><th>${ix('pairDoor')}</th><th>${ix('pairLock')}</th><th class="hide-m">${ix('pairRex')}</th><th></th></tr></thead>
-        <tbody class="click">${f.pairs.map((p, i) => html`<tr class="hit" data-pair-row @click=${() => (this.editing = { index: i, pair: { ...p, rex_entity_ids: [...p.rex_entity_ids] } })}>
+        <tbody class="click">${f.pairs.map((p, i) => html`<tr class="hit" data-pair-row tabindex="0" aria-label=${ix('pairEdit')} @click=${() => (this.editing = { index: i, pair: { ...p, rex_entity_ids: [...p.rex_entity_ids] } })}
+          @keydown=${(e: KeyboardEvent) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === e.currentTarget) { e.preventDefault(); this.editing = { index: i, pair: { ...p, rex_entity_ids: [...p.rex_entity_ids] } }; } }}>
           <td class="title">${label(this.byId(p.sensor_entity_id))}</td><td>${p.lock_entity_id ? label(this.byId(p.lock_entity_id)) : html`<span class="muted">-</span>`}</td>
           <td class="hide-m">${p.rex_entity_ids.length ? p.rex_entity_ids.map((r) => label(this.byId(r))).join(', ') : html`<span class="muted">-</span>`}</td>
-          <td class="n"><button class="btn icon" data-pair-remove aria-label=${ix('pairRemove')} @click=${(e: Event) => { e.stopPropagation(); this.form = { ...f, pairs: f.pairs.filter((_, j) => j !== i) }; }}>×</button></td></tr>`)}</tbody></table></div>` : nothing}</div>`;
+          <td class="n"><button class="btn icon" data-pair-remove aria-label=${ix('pairRemove')} title=${ix('pairRemove')} @click=${(e: Event) => { e.stopPropagation(); this.form = { ...f, pairs: f.pairs.filter((_, j) => j !== i) }; }}><sw-icon name="trash" size="16"></sw-icon></button></td></tr>`)}</tbody></table></div>` : nothing}</div>`;
   }
 
   private thresholds() {
@@ -202,12 +203,12 @@ export class InsightsSettings extends LitElement {
     const set = (patch: Partial<DoorPair>) => (this.editing = { ...ed, pair: { ...ed.pair, ...patch } });
     const ok = !!ed.pair.sensor_entity_id;
     return html`<sw-dialog open heading=${ix('pairEdit')} @close=${() => (this.editing = null)}>
-      ${this.entitiesError ? html`<div class="banner bad">${ix('pairsLoadError')}</div>` : nothing}
-      <div class="formrow">${ix('pairDoor')}<select class="inp" data-pair-door @change=${(e: Event) => set({ sensor_entity_id: (e.target as HTMLSelectElement).value })}>
+      ${this.entitiesError ? html`<div class="banner bad" role="alert">${ix('pairsLoadError')}</div>` : nothing}
+      <div class="formrow">${ix('pairDoor')}<select class="inp" data-pair-door aria-label=${ix('pairDoor')} @change=${(e: Event) => set({ sensor_entity_id: (e.target as HTMLSelectElement).value })}>
         <option value="" ?selected=${!ed.pair.sensor_entity_id}></option>${doors.map((d) => html`<option value=${d.entity_id} ?selected=${d.entity_id === ed.pair.sensor_entity_id}>${label(d)}</option>`)}</select></div>
-      <div class="formrow">${ix('pairLock')}<select class="inp" data-pair-lock @change=${(e: Event) => set({ lock_entity_id: (e.target as HTMLSelectElement).value || null })}>
+      <div class="formrow">${ix('pairLock')}<select class="inp" data-pair-lock aria-label=${ix('pairLock')} @change=${(e: Event) => set({ lock_entity_id: (e.target as HTMLSelectElement).value || null })}>
         <option value="" ?selected=${!ed.pair.lock_entity_id}>${ix('pairNoLock')}</option>${locks.map((d) => html`<option value=${d.entity_id} ?selected=${d.entity_id === ed.pair.lock_entity_id}>${label(d)}</option>`)}</select></div>
-      <div class="formrow">${ix('pairRex')}<div class="checks" style="max-block-size:180px;overflow:auto">${rex.map((d) => html`<label><input type="checkbox" data-pair-rex .checked=${ed.pair.rex_entity_ids.includes(d.entity_id)}
+      <div class="formrow">${ix('pairRex')}<div class="checks scrollbox">${rex.map((d) => html`<label><input type="checkbox" data-pair-rex .checked=${ed.pair.rex_entity_ids.includes(d.entity_id)}
         ?disabled=${!ed.pair.rex_entity_ids.includes(d.entity_id) && ed.pair.rex_entity_ids.length >= 4}
         @change=${() => set({ rex_entity_ids: this.toggleIn(ed.pair.rex_entity_ids, d.entity_id) })} />${label(d)}</label>`)}</div></div>
       <label class="checks"><span><input type="checkbox" data-pair-invert .checked=${ed.pair.invert} @change=${(e: Event) => set({ invert: (e.target as HTMLInputElement).checked })} /> ${ix('pairInvert')}</span></label>
@@ -262,7 +263,7 @@ export class InsightsSettings extends LitElement {
           <sw-toggle data-delivery-switch .checked=${on} ?disabled=${!d.can_enable || this.delBusy || dirty || (!on && d.problems.length > 0)} label=${ix('deliveryEnable')} labelHidden
             @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveDelivery(e.detail.checked)}></sw-toggle></span></div>
       <div class="pad muted">${ix('deliveryMonthly')}</div>
-      ${this.delNote ? html`<div class="banner ${this.delNote.tone}" data-delivery-note style="margin:0 14px 10px">${this.delNote.text}${this.delNote.tone === 'bad' && this.delBad.length ? ` ${this.delBad.map((p) => this.problemText(p)).join(' · ')}` : ''}</div>` : nothing}
+      ${this.delNote ? html`<div class="banner ${this.delNote.tone}" data-delivery-note role=${this.delNote.tone === 'bad' ? 'alert' : 'status'} style="margin:0 14px 10px">${this.delNote.text}${this.delNote.tone === 'bad' && this.delBad.length ? ` ${this.delBad.map((p) => this.problemText(p)).join(' · ')}` : ''}</div>` : nothing}
       ${!on && d.problems.length ? html`<div class="pad ferr" data-delivery-problems>${ix('deliverySetupMissing')} ${d.problems.map((p) => this.problemText(p)).join(' · ')}</div>` : nothing}
       ${!d.can_enable && !on ? html`<div class="pad muted">${ix('deliveryNeedsAdmin')}</div>` : nothing}
       <div class="fields">
@@ -277,21 +278,24 @@ export class InsightsSettings extends LitElement {
           ${this.dv('email') ? html`<span class="muted">${ix('deliveryEmailHint')}</span>` : nothing}</label>
       </div>
       ${wa ? html`<div class="pad" data-delivery-recipients><div class="muted" style="margin-block-end:6px">${ix('deliveryRecipients')}</div>
-        <div class="checks" style="max-block-size:150px;overflow:auto">${d.recipients.map((u) => {
+        <div class="checks scrollbox">${d.recipients.map((u) => {
           const picked = this.dv('users').includes(u.id);
           return html`<label><input type="checkbox" data-delivery-user=${u.id} .checked=${picked} ?disabled=${u.reach === 'no_permission' && !picked}
             @change=${() => this.setDel({ users: this.toggleIn(this.dv('users'), u.id) })} />${u.name} <span class="muted">· ${ix(`reach_${u.reach}` as IxKey)}</span></label>`;
         })}</div></div>` : nothing}
-      <div class="pad row" style="justify-content:space-between"><span class="muted" data-delivery-last>${last}</span>
+      <div class="pad set-foot"><span class="muted" data-delivery-last>${last}</span>
         <button class="btn pri" data-delivery-save ?disabled=${!dirty || this.delBusy} @click=${() => void this.saveDelivery()}>${ix('deliverySave')}</button></div></div>`;
   }
 
   render() {
-    if (this.phase === 'loading') return html`<div class="card" aria-busy="true" data-state="loading"><div class="rs"><div class="skel" style="block-size:120px"></div></div></div>`;
+    if (this.phase === 'loading') {
+      return html`<div class="head lead-head"><div class="skel" style="block-size:30px;inline-size:min(260px, 70%)"></div></div>
+        <div class="set" aria-busy="true" data-state="loading">${[96, 150, 220].map((h) => html`<div class="card"><div class="rs"><div class="skel" style="block-size:14px;inline-size:min(160px, 60%);margin-block-end:12px"></div><div class="skel" style="block-size:${h}px"></div></div></div>`)}</div>`;
+    }
     if (this.phase === 'forbidden') return html`<sw-state-panel state="forbidden" data-state="forbidden"></sw-state-panel>`;
-    if (this.phase === 'error' || !this.ans || !this.form) return html`<div class="card"><div class="blank" data-state="error"><sw-icon name="warning"></sw-icon><b>${ix('errorTitle')}</b><button class="btn pri" @click=${() => void this.load()}>${ix('retry')}</button></div></div>`;
-    return html`<div class="head lead-head"><h1>${ix('setTitle')}</h1><button class="btn pri" data-save ?disabled=${this.busy} @click=${() => void this.save()}>${ix('save')}</button></div>
-      ${this.note ? html`<div class="banner ${this.note.tone}" data-note style="margin-block-end:14px">${this.note.text}</div>` : nothing}
+    if (this.phase === 'error' || !this.ans || !this.form) return html`<div class="card"><div class="blank" data-state="error"><sw-icon class="bad" name="warning"></sw-icon><b>${ix('errorTitle')}</b><span class="muted">${ix('errorBody')}</span><button class="btn pri" data-retry @click=${() => void this.load()}>${ix('retry')}</button></div></div>`;
+    return html`<div class="head lead-head"><h1>${ix('setTitle')}</h1><button class="btn pri" data-save ?disabled=${this.busy} aria-busy=${this.busy ? 'true' : 'false'} @click=${() => void this.save()}><sw-icon name="check" size="16"></sw-icon>${ix('save')}</button></div>
+      ${this.note ? html`<div class="banner ${this.note.tone}" data-note role=${this.note.tone === 'bad' ? 'alert' : 'status'} style="margin-block-end:14px">${this.note.text}</div>` : nothing}
       <div class="set">${this.switchesCard()}${this.pairsCard()}${this.thresholds()}${this.sectionsCard()}${this.deliveryCard()}
         <div class="card"><div class="ch-h"><h2>${ix('protectedTitle')}</h2><a class="btn" href="#/system?tab=devices">${ix('protectedOpen')}</a></div></div></div>
       ${this.pairDialog()}`;

@@ -32,6 +32,7 @@ import { FOLLOW_PLAN, type WallPlanSetting } from '../map/wall-plan-mode';
 import { RUNG_HE } from '../map/quality-ladder';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { settingsLadderStyles } from '../styles/settings';
 import { dateInputLang } from '../api/day-format';
 
 type CamLite = { id: string; name: string };
@@ -77,30 +78,68 @@ export class SystemWall extends LitElement {
   private poll = 0;
 
   static styles = [
+    settingsLadderStyles,
     css`
-      .toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-block-end: 12px; }
-      .toolbar .count { color: var(--sw-text-3); font-size: var(--sw-fs-sm); }
-      table { inline-size: 100%; border-collapse: collapse; font-size: var(--sw-fs-sm); }
-      th { text-align: start; color: var(--sw-text-3); font-weight: var(--sw-fw-medium); padding: 8px 10px; }
-      td { padding: 10px; border-block-start: 1px solid var(--sw-border); vertical-align: middle; }
-      .who b { display: block; }
-      .who span, .muted { color: var(--sw-text-3); direction: ltr; unicode-bidi: isolate; font-size: var(--sw-fs-xs); }
+      /* LOOK-POLISH-2331: the settings ladder (page > card > well) on the wall users page - the list sits in a card, the drawer's
+         sections are headed groups, every toggle chip is a real keyboard control with its full name, and the hover stays with a
+         pointer that hovers. Tokens only. */
+      .toolbar { display: flex; gap: var(--sw-s-2) var(--sw-s-3); align-items: center; flex-wrap: wrap; margin-block-end: var(--sw-s-3); }
+      .toolbar .grow { flex: 1; }
+      .count { display: inline-flex; align-items: center; gap: 6px; min-block-size: 28px; padding: 2px 12px; border-radius: var(--sw-r-pill); background: var(--sw-surface-3); color: var(--sw-text-2); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); font-variant-numeric: tabular-nums; }
+      .count.full { background: var(--sw-warning-soft); color: var(--sw-warning-text); }
+      .msg { display: inline-flex; align-items: center; gap: 6px; min-block-size: 28px; padding: 2px 12px; border-radius: var(--sw-r-pill); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); max-inline-size: 100%; overflow-wrap: anywhere; }
+      .msg.err { background: var(--sw-danger-soft); color: var(--sw-danger-text); }
+      .msg sw-icon { flex: none; }
+      /* the list: a card with a quiet header row; the row is the unit (hover wash), the name leads */
+      table { inline-size: 100%; border-collapse: collapse; font-size: var(--sw-fs-base); }
+      th { text-align: start; color: var(--sw-text-2); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); padding: 12px 16px; border-block-end: 1px solid var(--sw-border); white-space: nowrap; }
+      td { padding: 12px 16px; border-block-start: 1px solid var(--sw-border); vertical-align: middle; }
+      tbody tr:first-child td { border-block-start: 0; }
+      tbody tr { transition: background var(--sw-t-hover) var(--sw-ease-color); }
+      @media (hover: hover) and (pointer: fine) { tbody tr:hover { background: var(--sw-hover-wash); } }
+      .who { min-inline-size: 0; }
+      .who b { display: block; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); overflow-wrap: anywhere; }
+      .who span, .muted { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
+      .who span { direction: ltr; unicode-bidi: isolate; }
+      .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .seen { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
       .acts { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
-      .cards { display: none; gap: 10px; }
-      .card { padding: 12px; display: grid; gap: 8px; }
-      .card .row { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
-      @media (max-width: 720px) { table { display: none; } .cards { display: grid; } }
-      .sec { display: grid; gap: 10px; margin-block-end: 18px; }
-      .sec h3 { margin: 0; font-size: var(--sw-fs-md); }
-      .line { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
-      .cam { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; padding: 4px 0; }
-      .win { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 6px 0; }
-      .days { display: flex; gap: 4px; }
-      .days label { display: inline-flex; align-items: center; justify-content: center; inline-size: 30px; block-size: 30px; border-radius: 50%; background: var(--sw-surface-3); cursor: pointer; font-size: var(--sw-fs-xs); }
-      .days input { display: none; }
-      .days input:checked + span { color: var(--sw-accent-text); font-weight: 700; }
-      .days label:has(input:checked) { background: var(--sw-accent-soft); }
-      .warn { color: var(--sw-stale-text); font-size: var(--sw-fs-xs); }
+      .sr { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+      .cards { display: none; gap: var(--sw-s-3); }
+      .card { display: grid; gap: var(--sw-s-2); }
+      .card .row { display: flex; justify-content: space-between; gap: var(--sw-s-2); align-items: center; min-inline-size: 0; }
+      .card .acts { justify-content: flex-start; padding-block-start: var(--sw-s-2); border-block-start: 1px solid var(--sw-border); }
+      @media (max-width: 720px) { .table-card { display: none; } .cards { display: grid; } }
+      /* the drawer: headed groups divided by a hairline; a setting line wraps its control under the label on a narrow drawer */
+      .sec { display: grid; gap: var(--sw-s-2); padding-block: var(--sw-s-4); border-block-start: 1px solid var(--sw-border); }
+      .sec:first-child { padding-block-start: 0; border-block-start: 0; }
+      .sec h3 { margin: 0 0 2px; font-size: var(--sw-fs-lg); font-weight: var(--sw-fw-bold); color: var(--sw-heading); letter-spacing: -0.005em; }
+      .line { display: flex; justify-content: space-between; gap: var(--sw-s-2) var(--sw-s-3); align-items: center; flex-wrap: wrap; min-block-size: 40px; }
+      .line > span:first-child { flex: 1 1 160px; min-inline-size: 0; color: var(--sw-text); }
+      .line sw-field { flex: 0 1 220px; min-inline-size: 160px; }
+      .sub { font-weight: var(--sw-fw-semibold); color: var(--sw-text); padding-block-start: var(--sw-s-1); }
+      .cams { display: grid; gap: 4px; }
+      .cam { display: grid; grid-template-columns: auto auto 1fr auto; gap: var(--sw-s-2); align-items: center; min-block-size: 40px; padding: 2px 10px; border-radius: var(--sw-r-sm); background: var(--sw-well, var(--sw-surface-2)); }
+      .cam.on { background: var(--sw-accent-soft); }
+      .cam input { inline-size: 18px; block-size: 18px; margin: 0; accent-color: var(--sw-accent); }
+      .cam .ord { min-inline-size: 22px; text-align: center; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-bold); color: var(--sw-accent-text); font-variant-numeric: tabular-nums; }
+      .cam label { min-inline-size: 0; overflow-wrap: anywhere; cursor: pointer; }
+      .cam .acts { gap: 2px; }
+      .win { display: flex; gap: var(--sw-s-2); align-items: center; flex-wrap: wrap; padding: 8px 10px; border-radius: var(--sw-r-sm); background: var(--sw-well, var(--sw-surface-2)); }
+      .win sw-field { inline-size: 120px; }
+      /* a toggle chip: the checkbox stays in the tab order (visually hidden), the chip carries its focus ring and its full name */
+      .days, .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+      .days label, .chips label { position: relative; display: inline-flex; align-items: center; justify-content: center; min-block-size: 36px; border-radius: var(--sw-r-pill); background: var(--sw-surface-3); color: var(--sw-text-2); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; transition: background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease); }
+      .days label { inline-size: 36px; }
+      .chips label { padding: 0 14px; }
+      .days input, .chips input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+      .days label:has(input:checked), .chips label:has(input:checked) { background: var(--sw-accent-soft); color: var(--sw-accent-text); box-shadow: inset 0 0 0 1px var(--sw-accent); }
+      .days label:has(input:focus-visible), .chips label:has(input:focus-visible) { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: var(--sw-focus-offset); }
+      .days label:active, .chips label:active { transform: scale(var(--sw-press-scale)); }
+      @media (hover: hover) and (pointer: fine) { .days label:hover:not(:has(input:checked)), .chips label:hover:not(:has(input:checked)) { background: var(--sw-hover-wash); color: var(--sw-text); } }
+      @media (prefers-reduced-motion: reduce) { .days label, .chips label, tbody tr { transition-duration: 0ms; } }
+      .warn { display: flex; align-items: center; gap: 6px; color: var(--sw-warning-text); font-size: var(--sw-fs-sm); }
+      .confirm { margin: 0; line-height: 1.5; }
       input[type='text'], input[type='time'], input[type='search'] { font: inherit; color: inherit; background: transparent; border: 0; outline: 0; inline-size: 100%; }
     `,
     bubbleChrome,
@@ -244,34 +283,43 @@ export class SystemWall extends LitElement {
 
   private actions(p: WallProfile) {
     return html`<span class="acts">
-      <sw-button size="sm" data-wall-edit=${p.user_id} @click=${() => void this.openDrawer(p)}>עריכה</sw-button>
+      <sw-button size="sm" icon="edit" data-wall-edit=${p.user_id} @click=${() => void this.openDrawer(p)}>עריכה</sw-button>
       <sw-button size="sm" variant="ghost" data-wall-toggle=${p.user_id} @click=${() => void this.toggleEnabled(p)}>${p.enabled ? 'השבתה' : 'הפעלה'}</sw-button>
-      <sw-button size="sm" variant="ghost" data-wall-remove=${p.user_id} @click=${() => (this.removing = p)}>הסרה</sw-button>
+      <sw-button size="sm" variant="ghost" icon="trash" data-wall-remove=${p.user_id} @click=${() => (this.removing = p)}>הסרה</sw-button>
     </span>`;
+  }
+
+  private seen(p: WallProfile) {
+    return html`<span class="seen"><span class="num">${this.rel(p.last_seen_at)}</span>${p.last_channel === 'remote' ? html`<sw-badge kind="neutral" label="מרחוק"></sw-badge>` : nothing}</span>`;
   }
 
   private renderList() {
     const rows = this.profiles ?? [];
     if (!rows.length) {
-      return html`<sw-card data-wall-empty><sw-state-panel icon="grid" state="empty" heading="אין מסכי קיר" hint="משתמש מסך קיר הוא משתמש רגיל שמתחבר מטאבלט קבוע ורואה רק את המצלמות שנבחרו."></sw-state-panel></sw-card>`;
+      // LOOK-POLISH-2331: the empty state carries the first step itself (the toolbar button stays for the full list)
+      // (the state panel is its own hero card since R5-SYSTEM-297: no sw-card around it, or the card would sit in a card)
+      return html`<sw-state-panel icon="grid" data-wall-empty state="empty" heading="אין מסכי קיר" hint="משתמש מסך קיר הוא משתמש רגיל שמתחבר מטאבלט קבוע ורואה רק את המצלמות שנבחרו."
+        actionLabel=${this.max > 0 ? 'הוספת משתמש מסך' : ''} @action=${() => void this.openAdd()}></sw-state-panel>`;
     }
-    return html`<table data-wall-table>
-        <thead><tr><th>משתמש</th><th>מצב</th><th>נראה לאחרונה</th><th>מצלמות</th><th>התראות</th><th></th></tr></thead>
+    const overload = (p: WallProfile) => (p.config.cameras.length > MAX_PER_PAGE ? html`<div class="warn"><sw-icon name="warning" size=${14}></sw-icon>מעל ${MAX_PER_PAGE} זרמים - בדוק שהמקליט עומד בעומס</div>` : nothing);
+    return html`<sw-card flush class="table-card"><table data-wall-table>
+        <thead><tr><th scope="col">משתמש</th><th scope="col">מצב</th><th scope="col">נראה לאחרונה</th><th scope="col">מצלמות</th><th scope="col">התראות</th><th scope="col"><span class="sr">פעולות</span></th></tr></thead>
         <tbody>${rows.map(
           (p) => html`<tr data-wall-row=${p.user_id}>
             <td class="who"><b>${p.title}</b><span>${p.username}</span></td>
             <td>${this.statusBadge(p)}</td>
-            <td>${this.rel(p.last_seen_at)}${p.last_channel === 'remote' ? html` <sw-badge kind="neutral" label="מרחוק"></sw-badge>` : nothing}</td>
-            <td>${this.cams(p)}${p.config.cameras.length > MAX_PER_PAGE ? html`<div class="warn">מעל ${MAX_PER_PAGE} זרמים - בדוק שהמקליט עומד בעומס</div>` : nothing}</td>
-            <td>${p.config.alerts.enabled ? 'פעילות' : 'כבויות'}</td>
+            <td>${this.seen(p)}</td>
+            <td><span class="num">${this.cams(p)}</span>${overload(p)}</td>
+            <td>${p.config.alerts.enabled ? 'פעילות' : html`<span class="muted">כבויות</span>`}</td>
             <td>${this.actions(p)}</td>
           </tr>`,
         )}</tbody>
-      </table>
+      </table></sw-card>
       <div class="cards">${rows.map(
         (p) => html`<sw-card class="card" data-wall-card=${p.user_id}>
           <div class="row"><span class="who"><b>${p.title}</b><span>${p.username}</span></span>${this.statusBadge(p)}</div>
-          <div class="row"><span class="muted">${this.rel(p.last_seen_at)}</span><span>${this.cams(p)}</span></div>
+          <div class="row"><span class="muted">${this.seen(p)}</span><span class="muted num">מצלמות: ${this.cams(p)}</span></div>
+          ${overload(p)}
           ${this.actions(p)}
         </sw-card>`,
       )}</div>`;
@@ -325,13 +373,13 @@ export class SystemWall extends LitElement {
     };
     return html`${w.map(
       (x, i) => html`<div class="win" data-wall-window=${i}>
-        <span class="days">${DAYS.map((d, n) => html`<label><input type="checkbox" .checked=${x.days.includes(n)} @change=${(e: Event) => set(i, { days: (e.target as HTMLInputElement).checked ? [...x.days, n].sort() : x.days.filter((v) => v !== n) })} /><span>${d}</span></label>`)}</span>
+        <span class="days" role="group" aria-label="ימים">${DAYS.map((d, n) => html`<label><input type="checkbox" aria-label=${`יום ${d}`} .checked=${x.days.includes(n)} @change=${(e: Event) => set(i, { days: (e.target as HTMLInputElement).checked ? [...x.days, n].sort() : x.days.filter((v) => v !== n) })} /><span aria-hidden="true">${d}</span></label>`)}</span>
         <sw-field><input type="time" lang=${dateInputLang()} aria-label="משעה" .value=${x.from} @change=${(e: Event) => set(i, { from: (e.target as HTMLInputElement).value })} /></sw-field>
         <sw-field><input type="time" lang=${dateInputLang()} aria-label="עד שעה" .value=${x.to} @change=${(e: Event) => set(i, { to: (e.target as HTMLInputElement).value })} /></sw-field>
-        <sw-button size="sm" variant="ghost" @click=${() => { this.cfg().schedule.windows = w.filter((_, k) => k !== i); this.requestUpdate(); }}>הסרה</sw-button>
+        <sw-button size="sm" variant="ghost" icon="trash" iconOnly label="הסרת חלון הערות" @click=${() => { this.cfg().schedule.windows = w.filter((_, k) => k !== i); this.requestUpdate(); }}></sw-button>
       </div>`,
     )}
-    <sw-button size="sm" data-wall-add-window @click=${() => { this.cfg().schedule.windows = [...w, { days: [0, 1, 2, 3, 4], from: '07:00', to: '20:00' }]; this.requestUpdate(); }}>הוספת חלון ערות</sw-button>`;
+    <span><sw-button size="sm" icon="plus" data-wall-add-window @click=${() => { this.cfg().schedule.windows = [...w, { days: [0, 1, 2, 3, 4], from: '07:00', to: '20:00' }]; this.requestUpdate(); }}>הוספת חלון ערות</sw-button></span>`;
   }
 
   private renderDrawer() {
@@ -363,27 +411,31 @@ export class SystemWall extends LitElement {
         <div class="muted">תפקיד: קיוסק (מפה ווידאו חי בלבד)</div>
       </div>
       <div class="sec"><h3>מצלמות ופריסה</h3>
-        ${this.cameras.map((cam) => {
+        <div class="muted">${c.cameras.length ? `נבחרו ${c.cameras.length} מצלמות (עד 12); המספר הוא הסדר במסך` : 'לא נבחרו מצלמות'}</div>
+        <div class="cams">${this.cameras.map((cam) => {
           const on = c.cameras.includes(cam.id);
           const i = c.cameras.indexOf(cam.id);
-          return html`<div class="cam" data-wall-cam=${cam.id}>
-            <input type="checkbox" aria-label=${cam.name} .checked=${on} @change=${(e: Event) => this.toggleCam(cam.id, (e.target as HTMLInputElement).checked)} />
-            <span>${cam.name}</span>
-            <span class="acts">${on ? html`<sw-button size="sm" variant="ghost" aria-label="הקדמה" ?disabled=${i === 0} @click=${() => this.moveCam(cam.id, -1)}>▲</sw-button><sw-button size="sm" variant="ghost" aria-label="דחייה" ?disabled=${i === c.cameras.length - 1} @click=${() => this.moveCam(cam.id, 1)}>▼</sw-button>` : nothing}</span>
+          const id = `wc-${cam.id}`;
+          return html`<div class=${on ? 'cam on' : 'cam'} data-wall-cam=${cam.id}>
+            <input type="checkbox" id=${id} aria-label=${cam.name} .checked=${on} @change=${(e: Event) => this.toggleCam(cam.id, (e.target as HTMLInputElement).checked)} />
+            <span class="ord" aria-hidden="true">${on ? i + 1 : ''}</span>
+            <label for=${id}>${cam.name}</label>
+            <span class="acts">${on ? html`<sw-button size="sm" variant="ghost" icon="arrowUp" iconOnly label=${`הקדמה: ${cam.name}`} ?disabled=${i === 0} @click=${() => this.moveCam(cam.id, -1)}></sw-button><sw-button size="sm" variant="ghost" icon="arrowDown" iconOnly label=${`דחייה: ${cam.name}`} ?disabled=${i === c.cameras.length - 1} @click=${() => this.moveCam(cam.id, 1)}></sw-button>` : nothing}</span>
           </div>`;
-        })}
-        ${c.cameras.length > MAX_PER_PAGE ? html`<div class="warn">מעל ${MAX_PER_PAGE} זרמים - בדוק שהמקליט עומד בעומס</div>` : nothing}
+        })}</div>
+        ${c.cameras.length > MAX_PER_PAGE ? html`<div class="warn"><sw-icon name="warning" size=${14}></sw-icon>מעל ${MAX_PER_PAGE} זרמים - בדוק שהמקליט עומד בעומס</div>` : nothing}
         ${sel('פריסה', c.layout, [['auto', 'אוטומטית'], ['tablet-landscape', 'טאבלט לרוחב'], ['tablet-portrait', 'טאבלט לאורך'], ['single', 'מצלמה אחת']], (v) => (c.layout = v as WallConfig['layout']), 'layout')}
         ${sel('דפדוף', c.rotate_s, [[0, 'אוטומטי'], [15, '15 שנ׳'], [30, '30 שנ׳'], [60, 'דקה'], [120, '2 דקות']], (v) => (c.rotate_s = Number(v) as WallConfig['rotate_s']), 'rotate')}
         ${sel('ערכה', c.theme, [['dark', 'כהה'], ['light', 'בהירה'], ['follow', 'כמו המערכת']], (v) => (c.theme = v as WallConfig['theme']), 'theme')}
-        <div class="line"><span>שורת מצב</span><span class="days">${STRIP_CHIPS.map((s) => html`<label title=${s.label}><input type="checkbox" .checked=${c.strip.includes(s.id)} @change=${(e: Event) => { c.strip = (e.target as HTMLInputElement).checked ? [...c.strip, s.id] : c.strip.filter((x) => x !== s.id); this.requestUpdate(); }} /><span>${s.label.slice(0, 2)}</span></label>`)}</span></div>
+        <div class="line"><span>שורת מצב</span><span class="chips" role="group" aria-label="שורת מצב">${STRIP_CHIPS.map((s) => html`<label><input type="checkbox" data-wall-strip=${s.id} .checked=${c.strip.includes(s.id)} @change=${(e: Event) => { c.strip = (e.target as HTMLInputElement).checked ? [...c.strip, s.id] : c.strip.filter((x) => x !== s.id); this.requestUpdate(); }} /><span>${s.label}</span></label>`)}</span></div>
         <sw-field label="ישויות בשורת המצב (עד 8, מופרדות בפסיק)"><input type="text" dir="ltr" data-wall-field="entities" .value=${c.state_entities.join(', ')} @change=${(e: Event) => { c.state_entities = (e.target as HTMLInputElement).value.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 8); this.requestUpdate(); }} /></sw-field>
       </div>
       ${mapSection}
       <div class="sec" data-wall-section="alerts"><h3>התראות במסך</h3>
         ${tog('להציג התראות', c.alerts.enabled, (v) => (c.alerts.enabled = v), 'alerts-enabled')}
-        <div class="line"><span>קטגוריות</span><span class="days">${ALERT_CATEGORIES.map((k) => html`<label title=${k.label}><input type="checkbox" data-wall-alert-cat=${k.id} .checked=${c.alerts.categories.includes(k.id)} @change=${(e: Event) => { c.alerts.categories = (e.target as HTMLInputElement).checked ? [...c.alerts.categories, k.id] : c.alerts.categories.filter((x) => x !== k.id); this.requestUpdate(); }} /><span>${k.label.slice(0, 2)}</span></label>`)}</span></div>
-        <div class="muted">${ALERT_CATEGORIES.filter((k) => c.alerts.categories.includes(k.id)).map((k) => k.label).join(' · ') || 'לא נבחרה קטגוריה'}</div>
+        <div class="sub">קטגוריות</div>
+        <span class="chips" role="group" aria-label="קטגוריות">${ALERT_CATEGORIES.map((k) => html`<label><input type="checkbox" data-wall-alert-cat=${k.id} .checked=${c.alerts.categories.includes(k.id)} @change=${(e: Event) => { c.alerts.categories = (e.target as HTMLInputElement).checked ? [...c.alerts.categories, k.id] : c.alerts.categories.filter((x) => x !== k.id); this.requestUpdate(); }} /><span>${k.label}</span></label>`)}</span>
+        ${c.alerts.categories.length ? nothing : html`<div class="muted" data-wall-no-cat>לא נבחרה קטגוריה</div>`}
         ${sel('חומרה מינימלית', c.alerts.min_severity, [['info', 'מידע ומעלה'], ['alert', 'התראה ומעלה'], ['critical', 'קריטי בלבד']], (v) => (c.alerts.min_severity = v), 'alerts-min')}
         ${sel('התראה מתקפלת לשורת המצב אחרי', c.alerts.takeover_timeout_s, [[60, 'דקה'], [120, '2 דקות'], [300, '5 דקות'], [600, '10 דקות']], (v) => (c.alerts.takeover_timeout_s = Number(v)), 'alerts-timeout')}
         ${tog('אישור התראה מהמסך (לחיצה ארוכה)', c.alerts.ack_allowed, (v) => (c.alerts.ack_allowed = v), 'alerts-ack')}
@@ -392,8 +444,8 @@ export class SystemWall extends LitElement {
       <div class="sec" data-wall-section="frame"><h3>מסגרת תמונות</h3>
         ${tog('מסגרת תמונות כשהמסך במנוחה', c.frame.enabled, (v) => (c.frame.enabled = v), 'frame-enabled')}
         ${sel('תיקיית תמונות', c.frame.folder ?? '', [['', 'ללא'], ...this.photoSets.map((x): [string, string] => [x.id, `${x.name} (${x.count})`])], (v) => (c.frame.folder = v || null), 'frame-folder')}
-        ${c.frame.enabled && !c.frame.folder ? html`<div class="warn">בחרו תיקייה כדי להפעיל את המסגרת</div>` : nothing}
-        <sw-button size="sm" data-wall-photos-open @click=${() => (this.managingPhotos = true)}>ניהול התמונות</sw-button>
+        ${c.frame.enabled && !c.frame.folder ? html`<div class="warn"><sw-icon name="warning" size=${14}></sw-icon>בחרו תיקייה כדי להפעיל את המסגרת</div>` : nothing}
+        <span><sw-button size="sm" icon="image" data-wall-photos-open @click=${() => (this.managingPhotos = true)}>ניהול התמונות</sw-button></span>
         ${sel('מופיעה אחרי', c.frame.idle_min, [[5, '5 דק׳'], [10, '10 דק׳'], [30, '30 דק׳'], [60, 'שעה']], (v) => (c.frame.idle_min = Number(v)), 'frame-idle')}
         ${sel('החלפת תמונה כל', c.frame.interval_s, [[15, '15 שנ׳'], [30, '30 שנ׳'], [60, 'דקה'], [300, '5 דק׳']], (v) => (c.frame.interval_s = Number(v)), 'frame-interval')}
         ${sel('התאמה', c.frame.fit, [['contain', 'כל התמונה'], ['cover', 'מילוי המסך']], (v) => (c.frame.fit = v), 'frame-fit')}
@@ -406,7 +458,7 @@ export class SystemWall extends LitElement {
         ${sel('ערבוב סדר כל', c.burn_in.shuffle_h, [[0, 'כבוי'], [1, 'שעה'], [6, '6 שעות']], (v) => (c.burn_in.shuffle_h = Number(v)), 'shuffle')}
         ${sel('וידאו תקוע - להציג כבוי אחרי', c.offline.show_last_frame_s, [[30, '30 שנ׳'], [60, 'דקה'], [120, '2 דקות']], (v) => (c.offline.show_last_frame_s = Number(v)), 'offline')}
         ${tog('נוגעים במסך מעירים אותו', c.schedule.wake_on_touch, (v) => (c.schedule.wake_on_touch = v), 'wake')}
-        <div>חלונות ערות (בלי חלון = תמיד פעיל)</div>${this.renderWindows()}
+        <div class="sub">חלונות ערות <span class="muted">(בלי חלון = תמיד פעיל)</span></div>${this.renderWindows()}
       </div>
       <sw-button slot="footer" variant="ghost" @click=${() => { this.editing = null; this.draft = null; }}>ביטול</sw-button>
       <sw-button slot="footer" variant="primary" data-wall-save ?disabled=${this.busy} @click=${() => void this.save()}>שמירה</sw-button>
@@ -417,7 +469,7 @@ export class SystemWall extends LitElement {
     const p = this.removing;
     if (!p) return nothing;
     return html`<sw-dialog open heading="להסיר את מסך הקיר?" data-wall-remove-dialog @close=${() => (this.removing = null)}>
-      <p style="margin:0">הגישה של המשתמש ${p.username} תוסר והמסך יחזור למסך הכניסה.</p>
+      <p class="confirm">הגישה של המשתמש ${p.username} תוסר והמסך יחזור למסך הכניסה.</p>
       <sw-button slot="footer" variant="ghost" @click=${() => (this.removing = null)}>ביטול</sw-button>
       <sw-button slot="footer" variant="danger" data-wall-remove-confirm ?disabled=${this.busy} @click=${() => void this.doRemove()}>הסרה</sw-button>
     </sw-dialog>`;
@@ -428,12 +480,14 @@ export class SystemWall extends LitElement {
       return html`<sw-page crumbs="הגדרות" heading="מסכי קיר"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
     }
     const n = this.profiles?.length ?? 0;
+    const full = n >= this.max;
     return html`<sw-page crumbs="הגדרות" heading="מסכי קיר">
       <div class="toolbar">
-        <sw-button variant="primary" icon="plus" data-wall-add-open ?disabled=${n >= this.max} @click=${() => void this.openAdd()}>הוספת משתמש מסך</sw-button>
-        <sw-button data-wall-photos-manage @click=${() => (this.managingPhotos = true)}>תמונות למסכי קיר</sw-button>
-        <span class="count" data-wall-count>${n} מסכים</span>
-        ${this.error ? html`<span class="warn" role="alert">${this.error}</span>` : nothing}
+        <sw-button variant="primary" icon="plus" data-wall-add-open ?disabled=${full} @click=${() => void this.openAdd()}>הוספת משתמש מסך</sw-button>
+        <sw-button icon="image" data-wall-photos-manage @click=${() => (this.managingPhotos = true)}>תמונות למסכי קיר</sw-button>
+        <span class="grow"></span>
+        ${this.error ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}
+        <span class=${full ? 'count full' : 'count'} data-wall-count title=${full ? 'הגעתם למספר המסכים המרבי' : ''}>${n} / ${this.max} מסכים</span>
       </div>
       ${this.profiles ? this.renderList() : html`<sw-state-panel state="loading"></sw-state-panel>`}
       ${this.renderAdd()}${this.renderDrawer()}${this.renderRemove()}

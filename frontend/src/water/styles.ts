@@ -75,8 +75,10 @@ export const waterExtraCss = css`
   svg.chart text.val {
     fill: var(--sw-text-2);
   }
+  /* WKWATER-POLISH-2331: the chart is drawn at the card's own width (page-usage.ts measures it), so it fills the card instead of a
+     560 px island beside an empty half */
   .usage-chart {
-    max-inline-size: 560px;
+    min-inline-size: 0;
   }
   .legend {
     display: flex;
@@ -194,6 +196,77 @@ export const waterExtraCss = css`
   }
   .sect-nav {
     align-self: flex-start;
+  }
+  /* WKWATER-POLISH-2331: the page rules that were inline styles - a tile whose figure is an alarm, the end column of a phone row (the
+     chip over the reading), its amount line, the skeleton rows, the bill log rows */
+  /* a time window (01:00-05:00) is one LTR unit: it never breaks at its dash, never reads backwards in RTL */
+  .tile .v .nw {
+    white-space: nowrap;
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+  .tile .v.alarm {
+    color: var(--sw-danger-text);
+  }
+  .rowend {
+    flex: none;
+    text-align: end;
+  }
+  .rowend .t2 {
+    margin-block-start: var(--sw-s-1);
+  }
+  .li .amt {
+    flex: none;
+    text-align: end;
+    font-size: var(--sw-fs-md);
+    font-weight: var(--sw-fw-semibold);
+    color: var(--sw-heading, var(--sw-text));
+  }
+  .skrow {
+    padding-block: 10px;
+  }
+  .li.pick:focus-visible,
+  table.t tr.pick:focus-visible td,
+  table.t tr.go:focus-visible td {
+    outline: var(--sw-focus-w) solid var(--sw-focus);
+    outline-offset: calc(var(--sw-focus-w) * -1);
+  }
+  /* NOSCROLL-297 on the usage and alerts pages (infra-water.ts gives them the height under the tab rows): the list's card shrinks to the
+     room left and scrolls inside, its header row in place; it never grows past its rows */
+  @media (min-width: 900px) {
+    .page.fit {
+      flex: 1 1 auto;
+      min-block-size: 0;
+    }
+    .page.fit > .fitbox {
+      flex: 0 1 auto;
+      min-block-size: 160px;
+      overflow: auto;
+      scrollbar-width: thin;
+    }
+    .page.fit > .fitbox table.t thead th {
+      position: sticky;
+      inset-block-start: 0;
+      z-index: 1;
+    }
+  }
+  /* a sheet's form keeps its save / cancel row in view: the row sticks to the foot of the scrolling sheet body */
+  .formacts {
+    position: sticky;
+    inset-block-end: 0;
+    z-index: 2;
+    margin-block-end: calc(var(--sw-s-3) * -1);
+    padding-block: var(--sw-s-3);
+    background: var(--sw-surface-solid, var(--sw-surface));
+    box-shadow: 0 -1px 0 var(--sw-border);
+  }
+  /* the bills page's state filter: on a narrow window the segments scroll sideways inside their own row, the search takes the next line */
+  @media (max-width: 1099px) {
+    .seg.scroll-seg {
+      max-inline-size: 100%;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
   }
   .phone-only {
     display: none;

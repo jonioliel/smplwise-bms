@@ -161,6 +161,9 @@ def empty_counts() -> dict[str, Any]:
         "entities": 0,
         "lights": 0, "lights_on": 0,
         "switches": 0, "switches_on": 0,
+        # SWITCH-LIGHT-DIMMER-2331: the switch.* entities among `switches` (no input_boolean helper) - the synoptic map's option
+        # "מפסקים בעמודת התאורה = כל המפסקים" (ui.xs syn_switches=all) adds them to its lights column
+        "switch_entities": 0, "switch_entities_on": 0,
         "covers": 0, "covers_open": 0,
         "climate": 0, "climate_active": 0,
         "heating": 0, "heating_active": 0,
@@ -206,6 +209,34 @@ def is_light(e: dict[str, Any]) -> bool:
     return e["domain"] == "light" or (e["domain"] in LIGHT_TYPED_DOMAINS and e.get("device_type_set") == "light")
 
 
+# SWITCH-LIGHT-DIMMER-2331 (owner 2026-11-01): a brightness slider only for a light that really takes a brightness. A switch typed as a
+# light (is_light) keeps the light's look but is on/off only; a light.* that reports only the "onoff" colour mode (Home Assistant's
+# "show as light" wrapper of a relay) is on/off only too. The card row carries the verdict (`dimmable`), the frontend draws the slider
+# from it alone (frontend/src/api/devices.ts isDimmable).
+LIGHT_SUPPORT_BRIGHTNESS = 1  # the legacy light feature bit (before colour modes); some integrations still report only this
+
+
+def is_dimmable(e: dict[str, Any]) -> bool:
+    """A light.* entity whose supported colour modes include one other than "onoff" (or, when the entity reports no colour modes, a
+    current colour mode other than "onoff", a brightness, or the legacy brightness feature bit). Never a switch / input_boolean."""
+    if e.get("domain") != "light":
+        return False
+    a = e.get("attributes") or {}
+    modes = a.get("supported_color_modes")
+    if isinstance(modes, list) and any(isinstance(m, str) for m in modes):
+        return any(isinstance(m, str) and m not in ("onoff", "unknown") for m in modes)
+    mode = a.get("color_mode")
+    if isinstance(mode, str) and mode not in ("", "unknown"):
+        return mode != "onoff"
+    if _num(a.get("brightness")) is not None:
+        return True
+    try:
+        feats = int(e.get("supported_features") or a.get("supported_features") or 0)
+    except (TypeError, ValueError):
+        feats = 0
+    return bool(feats & LIGHT_SUPPORT_BRIGHTNESS)
+
+
 def count_into(counts: dict[str, Any], e: dict[str, Any]) -> None:
     domain, state = e["domain"], e.get("state")
     counts["entities"] += 1
@@ -215,6 +246,9 @@ def count_into(counts: dict[str, Any], e: dict[str, Any]) -> None:
     elif domain in ("switch", "input_boolean"):
         counts["switches"] += 1
         counts["switches_on"] += is_active(domain, state)
+        if domain == "switch":
+            counts["switch_entities"] += 1
+            counts["switch_entities_on"] += is_active(domain, state)
     elif domain == "cover":
         counts["covers"] += 1
         counts["covers_open"] += is_active(domain, state)
@@ -435,6 +469,9 @@ def card_row(e: dict[str, Any], can_control: bool) -> dict[str, Any]:
     if card == "lighting":
         row["brightness_pct"] = _pct(a.get("brightness"), 100 / 255) if row["state"] == "on" else None
         row["color_mode"] = a.get("color_mode") if isinstance(a.get("color_mode"), str) else None
+        row["dimmable"] = is_dimmable(e)  # SWITCH-LIGHT-DIMMER-2331: the brightness slider's only source
+    elif is_light(e):
+        row["dimmable"] = False  # SWITCH-LIGHT-DIMMER-2331: a switch typed as a light (listed with the lights) is on/off only
     elif card == "switches" and e["domain"] in ("vacuum", "valve", "water_heater"):
         # CARD1: what the equipment card shows at a glance - picked by name, never the whole attribute bag
         if e["domain"] == "vacuum":
@@ -567,7 +604,7 @@ def _unavailable(row: dict[str, Any]) -> bool:
     return not row["available"] or row["state"] in ("unavailable", None)
 
 
-def build_items(conn: sqlite3.Connection, entities: list[dict[str, Any]], kind: str, scope: str, scope_id: str, *, scoped: bool, control_of: ControlChecker) -> dict[str, Any] | None:
+def build_items(conn: sqlite3.Connection, entities: list[dict[str, Any]], kind: str, scope: str, scope_id: str, *, scoped: bool, control_of: ControlChecker, switches: str = "typed") -> dict[str, Any] | None:
     """Every entity of `kind` in the scope (the building, one floor - `none` for the areas on no floor - or one area,
     `unassigned` for the entities in no area), as card rows grouped by floor › area in the tree's own order, with the
     counts the panel's header and filter need. None when the scope is unknown to this caller (404). Pure projection
@@ -599,8 +636,8 @@ def build_items(conn: sqlite3.Connection, entities: list[dict[str, Any]], kind: 
             floor_name = hit[0]["name"] if hit[0]["floor_id"] != NO_FLOOR else None
     by_area: dict[str | None, list[dict[str, Any]]] = {}
     for e in entities:
-        if kind == "lights" and is_light(e):
-            pass  # SWITCH-AS-LIGHT: a switch typed as a light is listed with the lights
+        if kind == "lights" and (is_light(e) or (switches == "all" and e["domain"] == "switch")):
+            pass  # SWITCH-AS-LIGHT: a switch typed as a light is listed with the lights (SWITCH-LIGHT-DIMMER-2331: with switches=all, every switch)
         elif e["domain"] not in domains or (e["domain"] == "climate" and kind in ("climate", "heating") and (e.get("climate_kind") == "heating") != (kind == "heating")):
             continue
         elif kind == "switches" and is_light(e):

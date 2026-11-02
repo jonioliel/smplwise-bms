@@ -123,30 +123,69 @@ export class SystemCast extends LitElement {
       font-size: var(--sw-fs-sm);
     }
     .bad {
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-sm);
     }
+    /* MEDIA-POLISH-2331: the error stays in view at the top while the person scrolls (a save that failed far down the screens list
+       used to report above the first card, out of sight); the "נשמר" note floats at the bottom of the window, where it is seen
+       whichever row was changed */
     .err {
+      position: sticky;
+      inset-block-start: var(--sw-s-2);
+      z-index: 5;
       padding: 10px 12px;
       border-radius: var(--sw-r-md);
       background: color-mix(in srgb, var(--sw-danger) 10%, var(--sw-surface));
-      color: var(--sw-danger);
+      border: 1px solid color-mix(in srgb, var(--sw-danger) 30%, transparent);
+      box-shadow: var(--sw-shadow-1);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-sm);
     }
     .toast {
-      padding: 8px 12px;
-      border-radius: var(--sw-r-md);
-      background: color-mix(in srgb, var(--sw-live) 12%, var(--sw-surface));
+      position: fixed;
+      z-index: 60;
+      inset-inline: 0;
+      inset-block-end: var(--sw-s-6);
+      margin-inline: auto;
+      inline-size: max-content;
+      max-inline-size: calc(100% - var(--sw-s-6));
+      padding: var(--sw-s-2) var(--sw-s-4);
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-toast-bg);
+      color: var(--sw-toast-text);
+      box-shadow: var(--sw-shadow-3);
       font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
+    }
+    input:focus-visible,
+    select:focus-visible {
+      outline: 2px solid var(--sw-focus);
+      outline-offset: 1px;
+    }
+    /* the screens table: ONE grid; the header and every row share its columns (subgrid). Each row used to be a grid of its own with
+       auto columns, so the header labels and the controls under them never lined up. */
+    .sgrid {
+      display: grid;
+      grid-template-columns: minmax(150px, 1.4fr) repeat(6, auto);
+      column-gap: 14px;
+      margin-block-start: var(--sw-s-2);
     }
     .scr {
+      grid-column: 1 / -1;
       display: grid;
-      grid-template-columns: minmax(150px, 1.4fr) auto auto auto auto auto auto;
-      gap: 8px 14px;
+      grid-template-columns: subgrid;
+      row-gap: 8px;
       align-items: center;
       padding: 10px 0;
       border-block-end: 1px solid var(--sw-border);
       font-size: var(--sw-fs-sm);
+    }
+    .scr:last-child {
+      border-block-end: 0;
+    }
+    .scr .wide {
+      grid-column: 1 / -1;
+      justify-self: start;
     }
     .scr.head {
       font-size: var(--sw-fs-xs);
@@ -181,11 +220,23 @@ export class SystemCast extends LitElement {
       border: 1px dashed var(--sw-border-strong);
       border-radius: var(--sw-r-md);
     }
+    @media (pointer: coarse) {
+      input[type='text'],
+      input[type='number'],
+      select {
+        min-block-size: 44px;
+      }
+    }
+    @media (max-width: 767px) {
+      .toast {
+        inset-block-end: calc(var(--sw-bottomnav-h, 0px) + var(--sw-s-3));
+      }
+    }
     @media (max-width: 860px) {
       .scr.head {
         display: none;
       }
-      .scr {
+      .sgrid {
         grid-template-columns: 1fr 1fr;
       }
       .scr .nm {
@@ -319,22 +370,22 @@ export class SystemCast extends LitElement {
       <div class="row"><span class="lbl">מצב<span class="muted" data-cast-ready>${c.ready ? 'מוכן לשידור' : reason}</span></span>
         <sw-badge kind=${c.ready ? 'live' : 'stale'} label=${c.ready ? 'מוכן' : 'לא מוכן'}></sw-badge></div>
       <div class="row"><span class="lbl">כתובת המקור (ה־relay ברשת הביתית)<span class="muted">http://כתובת-IP:פורט של שרת Home Assistant; המסך מושך משם את התמונה. שם מארח לא מתקבל.</span></span>
-        <span class="inl"><input type="text" data-cast-origin dir="ltr" placeholder="http://192.168.x.x:18092" .value=${this.origin} @input=${(e: Event) => (this.origin = (e.target as HTMLInputElement).value)} />
+        <span class="inl"><input type="text" data-cast-origin dir="ltr" aria-label="כתובת המקור" placeholder="http://192.168.x.x:18092" .value=${this.origin} @input=${(e: Event) => (this.origin = (e.target as HTMLInputElement).value)} />
           <sw-button size="sm" data-cast-origin-save ?disabled=${this.origin.trim() === (cf.origin ?? '')} @click=${() => void this.saveCfg({ origin: this.origin.trim() })}>שמור</sw-button>
           <sw-button size="sm" variant="primary" data-cast-origin-check ?disabled=${this.originBusy || !cf.origin} @click=${() => void this.checkOrigin()}>${this.originBusy ? 'בודק…' : 'בדוק'}</sw-button>
           ${cf.origin_verified_at && !this.originMsg ? html`<span class="ok" data-cast-origin-verified>נבדקה</span>` : nothing}
           ${this.originMsg ? html`<span class=${this.originMsg.ok ? 'ok' : 'bad'} data-cast-origin-result role="status">${this.originMsg.text}</span>` : nothing}</span></div>
       <div class="row"><span class="lbl">מקסימום שידורים בו־זמנית<span class="muted">1-8</span></span>
-        <input type="number" min="1" max="8" data-cast-max .value=${String(cf.max_sessions)} @change=${(e: Event) => void this.saveCfg({ max_sessions: Number((e.target as HTMLInputElement).value) })} /></div>
+        <input type="number" min="1" max="8" data-cast-max aria-label="מקסימום שידורים בו־זמנית" .value=${String(cf.max_sessions)} @change=${(e: Event) => void this.saveCfg({ max_sessions: Number((e.target as HTMLInputElement).value) })} /></div>
       <div class="row"><span class="lbl">משך שידור ברירת מחדל<span class="muted">דקות; אפשר להאריך עד ${cf.max_extensions} פעמים</span></span>
-        <select data-cast-minutes .value=${String(cf.minutes)} @change=${(e: Event) => void this.saveCfg({ minutes: Number((e.target as HTMLSelectElement).value) })}>
+        <select data-cast-minutes aria-label="משך שידור ברירת מחדל" .value=${String(cf.minutes)} @change=${(e: Event) => void this.saveCfg({ minutes: Number((e.target as HTMLSelectElement).value) })}>
           ${[...new Set([...CAST_MINUTES, cf.minutes])].sort((a, b) => a - b).map((m) => html`<option value=${m} ?selected=${m === cf.minutes}>${m} דקות</option>`)}</select></div>
       <div class="row"><span class="lbl">זרם ראשי (איכות גבוהה)<span class="muted">רק למצלמה ב־H.264 ולמסך שאישר. כבוי = תמיד הזרם המשני.</span></span>
         <sw-toggle label="זרם ראשי" labelHidden .checked=${cf.allow_main} data-cast-allow-main @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveCfg({ allow_main: e.detail.checked })}></sw-toggle></div>
       <div class="row"><span class="lbl">כיבוי המסך אחרי העצירה<span class="muted">רק כשהמסך היה כבוי לפני השידור; המשתמש יכול לבטל בעצירה</span></span>
         <sw-toggle label="כיבוי אחרי עצירה" labelHidden .checked=${cf.power_off_after} data-cast-power-off @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveCfg({ power_off_after: e.detail.checked })}></sw-toggle></div>
       <div class="row"><span class="lbl">מסכים חסומים בבורר<span class="muted">מסך שהמשתמש לא יכול לשדר אליו</span></span>
-        <select data-cast-blocked-display @change=${(e: Event) => void this.saveCfg({ blocked_display: (e.target as HTMLSelectElement).value as CastConfigPatch['blocked_display'] })}>
+        <select data-cast-blocked-display aria-label="מסכים חסומים בבורר" @change=${(e: Event) => void this.saveCfg({ blocked_display: (e.target as HTMLSelectElement).value as CastConfigPatch['blocked_display'] })}>
           ${Object.entries(BLOCKED_DISPLAY_LABEL).map(([k, v]) => html`<option value=${k} ?selected=${k === cf.blocked_display}>${v}</option>`)}</select></div>
       <div class="row"><span class="lbl">רכיבים<span class="muted" data-cast-parts>relay: ${c.relay.option ? (c.relay.listening ? `מאזין (פורט ${c.relay.container_port})` : `מופעל, לא מאזין${c.relay.error ? ` · ${c.relay.error}` : ''}`) : 'כבוי (cast_relay)'} · גשר Arx: ${c.bridge.paired ? `גרסה ${c.bridge.version ?? '?'}${c.bridge.ready ? '' : ` · נדרש ${c.bridge.required}+`}` : 'לא מצומד'}</span></span></div>
     </sw-card>`;
@@ -356,7 +407,7 @@ export class SystemCast extends LitElement {
       <div class="cl"><span class="lb">שידור קבוע</span><sw-toggle label=${`שידור קבוע: ${s.name}`} labelHidden .checked=${st.permanent} data-cast-permanent=${s.key} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveScreen(s, { permanent: e.detail.checked })}></sw-toggle></div>
       <div class="cl"><span class="lb">זרם ראשי</span><select aria-label=${`זרם ראשי: ${s.name}`} data-cast-screen-main=${s.key} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; void this.saveScreen(s, { allow_main: v === '' ? null : v === 'yes' }); }}>
         <option value="" ?selected=${st.allow_main == null}>לפי ההתקנה</option><option value="yes" ?selected=${st.allow_main === true}>מותר</option><option value="no" ?selected=${st.allow_main === false}>אסור</option></select></div>
-      ${testable ? html`<div class="cl" style="grid-column:1/-1"><sw-button size="sm" data-cast-test-open=${s.key} @click=${() => void this.openTest(s.key)}>בדיקת שידור (60 שניות)</sw-button></div>` : nothing}
+      ${testable ? html`<div class="cl wide"><sw-button size="sm" data-cast-test-open=${s.key} @click=${() => void this.openTest(s.key)}>בדיקת שידור (60 שניות)</sw-button></div>` : nothing}
       ${this.testFor === s.key
         ? html`<div class="test" data-cast-test-panel=${s.key}>
             <label class="inl">מצלמה <select data-cast-test-camera .value=${this.testCam} @change=${(e: Event) => (this.testCam = (e.target as HTMLSelectElement).value)}>${this.cams.map((c) => html`<option value=${c.id} ?selected=${c.id === this.testCam}>${c.alias || c.name}</option>`)}</select></label>
@@ -381,8 +432,10 @@ export class SystemCast extends LitElement {
       ${this.general(this.cfg)}
       <sw-card heading="מסכים לשידור" data-cast-screens>
         <div class="muted">ברירת המחדל: כל מסך כבוי עד שמנהל מפעיל אותו. בדיקת שידור עובדת גם לפני ההפעלה, 60 שניות, על המסך שנבחר בלבד.</div>
-        <div class="scr head" aria-hidden="true"><span>מסך</span><span>זיהוי</span><span>מותר</span><span>שיטה</span><span>משך</span><span>קבוע</span><span>זרם ראשי</span></div>
-        ${this.screens.length ? this.screens.map((s) => this.screenRow(s)) : html`<div class="muted">לא זוהו מסכים לשידור</div>`}
+        ${this.screens.length
+          ? html`<div class="sgrid"><div class="scr head" aria-hidden="true"><span>מסך</span><span>זיהוי</span><span>מותר</span><span>שיטה</span><span>משך</span><span>קבוע</span><span>זרם ראשי</span></div>
+            ${this.screens.map((s) => this.screenRow(s))}</div>`
+          : html`<sw-state-panel icon="cast" state="empty" heading="לא זוהו מסכים לשידור"></sw-state-panel>`}
       </sw-card>
       ${this.saved ? html`<div class="toast" role="status" data-cast-saved>${this.saved}</div>` : nothing}
     </div>`);
