@@ -73,8 +73,15 @@ devices-schedules (synoptic), map-floor (plan editor area), anything showing the
 
 ## 5. Quarantine (runner `~/gate2/gate2_quarantine.json`; the repo copy `scripts/gate/gate2_quarantine.json` has no entries)
 
-See the verification results in section 6.
+| Entry | Ticket | Verdict |
+|---|---|---|
+| `vm settings-diagnostics ready` | NIGHTLY-VM-DIAG-2342 (expires 2026-11-05) | **Can be removed** once this branch is in the train (and, for the nightly, on main): all six settings-diagnostics cases (desktop / tablet / mobile x light / dark) pass with the refreshed baselines. |
+| `pixel-wiskey-stations.spec.ts:87` | WKWATER-POLISH-2331-pixel (expires 2026-11-09) | **Keep.** Passes 1 / 1 at workers 1, but with `--repeat-each=4 --workers=4` the mobile case failed 1 of 4 (19,033 px, `stations-classic-settings-390`): the sheet is identical, the page BEHIND the scrim is at a different scroll (station toolbar vs a station's camera picture). A baseline cannot fix that; the spec needs to pin the page scroll before opening the sheet or mask the area above the sheet. The gate's desktop failure of the same test (20,872 px under load, passes alone) is most likely the same mechanism. |
 
-## 6. Verification
+## 6. Verification (runner, fc95f24b6, no `-u`)
 
-See below.
+- The 13 pixel specs + `visual-matrix.spec.ts`, projects desktop / tablet / mobile, workers 1: **264 passed, 0 failed, 132 skipped**
+  (the pixel specs skip the tablet project; by-design skips as in the gate). No "snapshot doesn't exist".
+- `pixel-wiskey-stations.spec.ts -g "list, table"` desktop + mobile, `--repeat-each=4 --workers=4`: 7 passed, 1 failed (mobile,
+  the background drift above).
+- NOT_RUN: a full gate; the functional fixes of the other agents are not in this branch.
