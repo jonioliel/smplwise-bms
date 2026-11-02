@@ -292,7 +292,7 @@ test.describe('the camera card in an area screen (real backend, fake media stack
     console.log('DIAG socks', JSON.stringify(await socks(page)));
     console.log('DIAG page', JSON.stringify(await page.evaluate(() => {
       const area = document.querySelector('sw-app')?.shadowRoot?.querySelector('devices-area') ?? document.querySelector('devices-area');
-      const cards = [...(area?.shadowRoot?.querySelectorAll('devices-camera-card') ?? [])] as (HTMLElement & Record<string, unknown>)[];
+      const cards = [...(area?.shadowRoot?.querySelectorAll('devices-camera-card') ?? [])] as unknown as (HTMLElement & Record<string, unknown>)[];
       return {
         vh: window.innerHeight, vw: window.innerWidth, hidden: document.hidden,
         cards: cards.map((c) => { const r = c.getBoundingClientRect(); const res = c.resolved as { state?: string; status?: string } | null; return { key: c.closest('sw-card')?.getAttribute('data-camera-card'), top: Math.round(r.top), h: Math.round(r.height), inView: c.inView, expanded: c.expanded, state: res?.state, status: res?.status, quality: c.quality ?? c.profile, html: c.shadowRoot?.innerHTML.replace(/<!--[^>]*-->/g, '').slice(0, 300) }; }),
