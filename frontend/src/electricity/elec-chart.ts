@@ -158,7 +158,7 @@ export class ElecChart extends LitElement {
       display: inline-block;
       inline-size: 12px;
       block-size: 12px;
-      border-radius: 3px;
+      border-radius: var(--sw-r-2xs);
       margin-inline-end: 5px;
       vertical-align: -1px;
     }

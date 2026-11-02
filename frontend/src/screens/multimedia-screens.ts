@@ -142,7 +142,7 @@ export class MultimediaScreens extends LitElement {
       -webkit-backdrop-filter: var(--dv-surface-blur);
       backdrop-filter: var(--dv-surface-blur);
       border-block-end: 1px solid var(--dv-border);
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+      box-shadow: var(--dv-shadow-1);
       transition: opacity var(--mm-motion) var(--mm-ease);
     }
     .dh.compact {
@@ -322,6 +322,7 @@ export class MultimediaScreens extends LitElement {
       gap: 2px;
       border-radius: var(--sw-r-sm);
       min-block-size: 28px;
+      transition: transform var(--sw-t-press, 120ms) var(--sw-ease-out, ease-out);
     }
     .shlink .ic {
       font-size: var(--sw-fs-2xl);
@@ -331,11 +332,16 @@ export class MultimediaScreens extends LitElement {
     @media (hover: hover) and (pointer: fine) {
       .shlink:hover .ic {
         transform: translateX(-3px);
+        color: var(--dv-text-2);
       }
     }
     .shlink:focus-visible {
       outline: 2px solid var(--dv-focus);
       outline-offset: 2px;
+    }
+    /* POLISH4-WP5: the floor link sinks on pointer-down like the chips and keys do */
+    .shlink:active {
+      transform: scale(var(--sw-press-scale, 0.97));
     }
     .sh small {
       display: block;
@@ -365,7 +371,7 @@ export class MultimediaScreens extends LitElement {
       display: flex;
       gap: 2px;
       padding: 3px;
-      border-radius: 999px;
+      border-radius: var(--sw-r-pill);
       background: var(--sw-perf-glass-bg, var(--mm-sheet-surface));
       -webkit-backdrop-filter: var(--sw-perf-blur, blur(16px));
       backdrop-filter: var(--sw-perf-blur, blur(16px));
@@ -454,7 +460,7 @@ export class MultimediaScreens extends LitElement {
       backdrop-filter: var(--sw-perf-blur, blur(20px));
       color: var(--sw-toast-text);
       padding: 11px 20px 11px 16px;
-      border-radius: 999px;
+      border-radius: var(--sw-r-pill);
       border: 1px solid color-mix(in srgb, var(--sw-toast-text) 12%, transparent);
       font-size: var(--sw-fs-base);
       font-weight: 500;
@@ -476,6 +482,18 @@ export class MultimediaScreens extends LitElement {
       .ecard button {
         inline-size: 44px;
         block-size: 44px;
+      }
+      .shlink {
+        min-block-size: 44px;
+        margin-block: -8px; /* the hit area grows, the heading row does not */
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .dh::before,
+      h1,
+      .shlink .ic,
+      .dh-det {
+        transition: none;
       }
     }
     @media (max-width: 767px) {
@@ -977,7 +995,7 @@ export class MultimediaScreens extends LitElement {
   };
 
   private skeleton(): TemplateResult {
-    const card = html`<div class="glass" style="padding:10px 10px 14px;display:flex;flex-direction:column;gap:12px"><span class="skl" style="aspect-ratio:16/6.3;border-radius:14px"></span><div style="display:flex;align-items:center;gap:12px;padding-inline:6px"><div style="flex:1;display:flex;flex-direction:column;gap:8px"><span class="skl" style="block-size:16px;inline-size:55%"></span><span class="skl" style="block-size:12px;inline-size:35%"></span></div><span class="skl" style="inline-size:44px;block-size:44px;border-radius:50%"></span></div><span class="skl" style="block-size:40px;border-radius:999px;margin-inline:6px"></span></div>`;
+    const card = html`<div class="glass" style="padding:10px 10px 14px;display:flex;flex-direction:column;gap:12px"><span class="skl" style="aspect-ratio:16/6.3;border-radius:var(--sw-r-lg)"></span><div style="display:flex;align-items:center;gap:12px;padding-inline:6px"><div style="flex:1;display:flex;flex-direction:column;gap:8px"><span class="skl" style="block-size:16px;inline-size:55%"></span><span class="skl" style="block-size:12px;inline-size:35%"></span></div><span class="skl" style="inline-size:44px;block-size:44px;border-radius:50%"></span></div><span class="skl" style="block-size:40px;border-radius:var(--sw-r-pill);margin-inline:6px"></span></div>`;
     return html`<div data-mm-state="loading" aria-busy="true"><div class="sgrid">${Array.from({ length: this.phone ? 3 : 6 }, () => card)}</div></div>`;
   }
 

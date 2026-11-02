@@ -120,7 +120,7 @@ export class GenAlertsPage extends LitElement {
   }
 
   private card(a: GenAlert) {
-    return html`<div class="al ${a.severity}" role="button" tabindex="0" data-alert=${a.id} @click=${() => this.open(a.id)} @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && this.open(a.id)}>
+    return html`<div class="al ${a.severity}" role="button" tabindex="0" data-alert=${a.id} @click=${() => this.open(a.id)} @keydown=${(e: KeyboardEvent) => { if (e.target !== e.currentTarget) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.open(a.id); } }}>
       <div class="ic"><sw-icon name="warning" size="20"></sw-icon></div>
       <div class="grow"><div class="t1">${a.title} ${sev(a.severity)}${a.acknowledged ? html`<span class="sev mut">${G.alerts.ackedBy}</span>` : nothing}${a.count > 1 ? html`<span class="sev mut">${fill(G.alerts.repeated, { n: a.count })}</span>` : nothing}</div>
         <div class="t2"><span><sw-icon name="clock" size="12"></sw-icon> <span class="num">${fmtDateTime(a.raised_at)}</span> · ${durText(a)}</span></div></div>
@@ -188,8 +188,8 @@ export class GenAlertsPage extends LitElement {
   }
 
   render() {
-    if (this.phase === 'loading' && !this.rows.length) return html`<div class="col" data-state="loading"><div class="skl" style="inline-size:200px"></div><div class="skl" style="block-size:72px"></div><div class="skl" style="block-size:72px"></div></div>`;
-    if (this.phase === 'error' && !this.rows.length) return html`<sw-state-panel state="error" heading=${G.loadError} hint=${this.error} data-state="error"></sw-state-panel>`;
+    if (this.phase === 'loading' && !this.rows.length) return html`<div class="col" data-state="loading" aria-busy="true"><div class="skl" style="inline-size:200px"></div><div class="skl" style="block-size:72px"></div><div class="skl" style="block-size:72px"></div></div>`;
+    if (this.phase === 'error' && !this.rows.length) return html`<sw-state-panel state="error" heading=${G.loadError} hint=${this.error} actionLabel=${G.retry} @action=${() => void this.load()} data-state="error"></sw-state-panel>`;
     return html`<div class="col" data-gen-alerts=${this.mode}>${this.mode === 'alerts' ? this.activeView() : this.historyView()}</div>${this.drawer()}`;
   }
 }
