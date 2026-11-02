@@ -11,11 +11,21 @@ trash (PATCH trashed), multipart upload, resumable upload (session, 256 KiB-alig
 Failure knobs: `quota_limit` (bytes; uploads beyond it answer 403 storageQuotaExceeded), `fail_chunk` (answer 503 to these chunk
 numbers once each), `expire_session_after_chunk` (the session forgets itself after that chunk: 404), `expire_access_once` (the next
 API call answers 401 although the token is valid), `rate_limit_once` (the next API call answers 403 userRateLimitExceeded),
-`revoked` (the refresh token no longer works)."""
+`revoked` (the refresh token no longer works).
+
+GDRIVE-READY-2351 (the first real connection's failure modes, answered the way Google answers them): `client_kind` ("tv" | "web" |
+"desktop": a web / desktop client cannot start the device flow - `invalid_client` "Invalid client type."), `client_deleted`,
+`consent_configured` (False: `restricted_client`), `api_disabled` (Drive answers 403 accessNotConfigured / SERVICE_DISABLED),
+`date_skew_s` (the `Date` header every answer carries is that far from the wall clock), `refresh_scope` (the scope a refresh grants),
+`account_email` (about.user), `test_user` (False: the device approval ends in `access_denied`, as when the account is not on the consent
+screen's test-user list). An unknown client id is `invalid_client` "The OAuth client was not found.", a wrong secret `invalid_client`
+"Unauthorized"."""
 from __future__ import annotations
 
+import email.utils
 import json
 import re
+import time
 import secrets
 import urllib.parse
 from dataclasses import dataclass, field
@@ -75,6 +85,17 @@ class FakeDrive:
         self.granted_scope = SCOPE
         self.foreign: list[str] = []
         self._clock = 0
+        # GDRIVE-READY-2351
+        self.client_kind = "tv"
+        self.client_deleted = False
+        self.consent_configured = True
+        self.api_disabled = False
+        self.date_skew_s = 0.0
+        self.send_date = True
+        self.refresh_scope = SCOPE
+        self.account_email = "owner@example.com"
+        self.test_user = True
+        self.wall = time.time
 
     # ---- helpers
 
@@ -105,6 +126,12 @@ class FakeDrive:
     # ---- the transport
 
     def handler(self, request: httpx.Request) -> httpx.Response:
+        resp = self._handle(request)
+        if self.send_date:
+            resp.headers["Date"] = email.utils.formatdate(self.wall() + self.date_skew_s, usegmt=True)
+        return resp
+
+    def _handle(self, request: httpx.Request) -> httpx.Response:
         url = request.url
         host = url.host
         self.calls.append((request.method, url.path))
@@ -120,6 +147,12 @@ class FakeDrive:
             self.expire_access_once = False
             self.tokens.discard(auth[7:])
             return self._err(401, "authError", "Invalid Credentials")
+        if self.api_disabled:
+            msg = "Google Drive API has not been used in project 000000000000 before or it is disabled."
+            return httpx.Response(403, json={"error": {"code": 403, "message": msg, "status": "PERMISSION_DENIED",
+                                                       "errors": [{"message": msg, "domain": "usageLimits", "reason": "accessNotConfigured"}],
+                                                       "details": [{"@type": "type.googleapis.com/google.rpc.ErrorInfo", "reason": "SERVICE_DISABLED",
+                                                                    "domain": "googleapis.com"}]}})
         if self.rate_limit_always:
             return self._err(429, "rateLimitExceeded")
         if self.rate_limit_once:
@@ -130,7 +163,10 @@ class FakeDrive:
             q: dict[str, Any] = {"usage": str(self.usage())}
             if self.quota_limit is not None and self.report_limit:
                 q["limit"] = str(self.quota_limit)
-            return httpx.Response(200, json={"storageQuota": q})
+            about: dict[str, Any] = {"storageQuota": q}
+            if "user" in (url.params.get("fields") or ""):
+                about["user"] = {"emailAddress": self.account_email}
+            return httpx.Response(200, json=about)
         if path == "/drive/v3/files" and request.method == "GET":
             return self._list(request)
         if path == "/drive/v3/files" and request.method == "POST":
@@ -161,7 +197,13 @@ class FakeDrive:
         if request.url.path == "/device/code":
             self.device_starts.append(form)
             if form.get("client_id") != CLIENT_ID:
-                return httpx.Response(401, json={"error": "invalid_client"})
+                return httpx.Response(401, json={"error": "invalid_client", "error_description": "The OAuth client was not found."})
+            if self.client_deleted:
+                return httpx.Response(401, json={"error": "deleted_client", "error_description": "The OAuth client was deleted."})
+            if self.client_kind != "tv":
+                return httpx.Response(401, json={"error": "invalid_client", "error_description": "Invalid client type."})
+            if not self.consent_configured:
+                return httpx.Response(400, json={"error": "restricted_client", "error_description": "Unregistered scope(s) in the request: drive.file"})
             if form.get("scope") != SCOPE:
                 return httpx.Response(400, json={"error": "invalid_scope"})
             return httpx.Response(200, json={"device_code": DEVICE_CODE, "user_code": USER_CODE, "verification_url": "https://www.google.com/device",
@@ -169,8 +211,10 @@ class FakeDrive:
         if request.url.path != "/token":
             return self._err(404)
         self.refresh_calls += 1
-        if form.get("client_id") != CLIENT_ID or form.get("client_secret") != CLIENT_SECRET:
-            return httpx.Response(401, json={"error": "invalid_client"})
+        if form.get("client_id") != CLIENT_ID or self.client_deleted:
+            return httpx.Response(401, json={"error": "invalid_client", "error_description": "The OAuth client was not found."})
+        if form.get("client_secret") != CLIENT_SECRET:
+            return httpx.Response(401, json={"error": "invalid_client", "error_description": "Unauthorized"})
         if form.get("grant_type") == DEVICE_GRANT:
             if form.get("device_code") != DEVICE_CODE:
                 return httpx.Response(400, json={"error": "invalid_grant"})
@@ -179,8 +223,8 @@ class FakeDrive:
                 return httpx.Response(428, json={"error": "authorization_pending"})
             if step == "slow_down":
                 return httpx.Response(403, json={"error": "slow_down"})
-            if step == "deny":
-                return httpx.Response(403, json={"error": "access_denied"})
+            if step == "deny" or (step == "approve" and not self.test_user):
+                return httpx.Response(403, json={"error": "access_denied", "error_description": "Forbidden"})
             if step == "expire":
                 return httpx.Response(400, json={"error": "expired_token"})
             self.revoked = False
@@ -192,7 +236,7 @@ class FakeDrive:
             return httpx.Response(400, json={"error": "invalid_grant", "error_description": "Token has been expired or revoked."})
         tok = "ya29.fake-" + secrets.token_hex(8)
         self.tokens.add(tok)
-        return httpx.Response(200, json={"access_token": tok, "expires_in": 3599, "scope": SCOPE, "token_type": "Bearer"})
+        return httpx.Response(200, json={"access_token": tok, "expires_in": 3599, "scope": self.refresh_scope, "token_type": "Bearer"})
 
     def _list(self, request: httpx.Request) -> httpx.Response:
         q = request.url.params.get("q") or ""

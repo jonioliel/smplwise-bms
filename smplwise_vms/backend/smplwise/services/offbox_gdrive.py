@@ -54,6 +54,34 @@ DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
 VERIFY_URL_RE = re.compile(r"^https://(www\.)?google\.com/device$")
 DEFAULT_FOLDER = "SmplWise Arx backups"
 QUOTA_REASONS = {"storageQuotaExceeded", "quotaExceeded", "teamDriveFileLimitExceeded"}
+# GDRIVE-READY-2351: the first real connection's most likely refusals, each with its own code (and Hebrew text) instead of a generic
+# "permission denied": the Drive API not enabled in the Cloud project, a token without the drive.file scope, the project's daily quota
+API_DISABLED_REASONS = {"accessNotConfigured", "SERVICE_DISABLED"}
+SCOPE_REASONS = {"insufficientPermissions", "ACCESS_TOKEN_SCOPE_INSUFFICIENT", "insufficientScopes"}
+DAILY_REASONS = {"dailyLimitExceeded", "dailyLimitExceededUnreg"}
+DENIED_ERRORS = {"access_denied", "admin_policy_enforced", "org_internal"}
+
+
+def oauth_error(resp: httpx.Response) -> tuple[str, str]:
+    """(error, error_description) of an OAuth endpoint's refusal; the description is cut short and lower-cased (only ever matched)."""
+    body = _json(resp)
+    err, desc = body.get("error"), body.get("error_description")
+    return (err if isinstance(err, str) else "")[:60], (desc if isinstance(desc, str) else "")[:200].lower()
+
+
+def client_error_code(err: str, desc: str) -> str | None:
+    """The code of a refusal of the CLIENT itself (shared by the device flow, the token refresh and the connection check)."""
+    if err in ("invalid_client", "unauthorized_client") and "type" in desc:
+        return "gdrive_client_type"  # a 'Web application' / 'Desktop app' client: the device flow needs 'TVs and Limited Input devices'
+    if err == "deleted_client" or (err == "invalid_client" and ("not found" in desc or "deleted" in desc)):
+        return "gdrive_client_not_found"
+    if err == "unauthorized_client":
+        return "gdrive_client_type"
+    if err == "invalid_client":
+        return "gdrive_client_invalid"
+    if err == "restricted_client":
+        return "gdrive_consent_not_configured"
+    return None
 
 
 # ---------------------------------------------------------------- tokens
@@ -109,11 +137,12 @@ class RefreshTokenSource:
             raise OffboxError("destination_unavailable", f"the token service did not answer ({type(exc).__name__})") from None
         self.refreshes += 1
         if resp.status_code >= 400:
-            err = _json(resp).get("error")
+            err, desc = oauth_error(resp)
             if err == "invalid_grant":
                 raise OffboxError("gdrive_reconnect_required", "the Google connection was revoked or expired; connect again")
-            if err in ("invalid_client", "unauthorized_client"):
-                raise OffboxError("gdrive_client_invalid", "Google refused the client id / secret")
+            code = client_error_code(err, desc)
+            if code:
+                raise OffboxError(code, "Google refused the client id / secret")
             if resp.status_code >= 500 or resp.status_code == 429:
                 raise OffboxError("destination_unavailable", f"the token service answered HTTP {resp.status_code}")
             raise OffboxError("auth_failed", f"the token service refused the request (HTTP {resp.status_code})")
@@ -187,10 +216,11 @@ class DeviceCodeFlow:
         resp = self._post(self._device_url, {"client_id": client_id, "scope": scope})
         body = _json(resp)
         if resp.status_code >= 400:
-            err = body.get("error")
-            if err in ("invalid_client", "unauthorized_client", "deleted_client"):
-                raise OffboxError("gdrive_client_invalid", "Google refused the client id (it must be a 'TVs and Limited Input devices' client)")
-            if err in ("invalid_scope", "restricted_client"):
+            err, desc = oauth_error(resp)
+            code = client_error_code(err, desc)
+            if code:
+                raise OffboxError(code, "Google refused the client (it must be a 'TVs and Limited Input devices' client)")
+            if err == "invalid_scope":
                 raise OffboxError("gdrive_scope_refused", "Google refused the drive.file scope for this client")
             if resp.status_code == 429:
                 raise OffboxError("rate_limited", "Google is limiting the requests")
@@ -210,26 +240,30 @@ class DeviceCodeFlow:
                                             "grant_type": DEVICE_GRANT})
         body = _json(resp)
         if resp.status_code >= 400:
-            err = body.get("error")
+            err, desc = oauth_error(resp)
             if err == "authorization_pending":
                 return PollResult("pending")
             if err == "slow_down":
                 return PollResult("slow_down")
-            if err == "access_denied":
+            if err in DENIED_ERRORS:  # the administrator pressed Cancel, or Google blocked the account (not a test user / org only)
                 return PollResult("denied")
             if err in ("expired_token", "invalid_grant"):
                 return PollResult("expired")
-            if err in ("invalid_client", "unauthorized_client", "deleted_client"):
-                raise OffboxError("gdrive_client_invalid", "Google refused the client id / secret")
+            code = client_error_code(err, desc)
+            if code:
+                raise OffboxError(code, "Google refused the client id / secret")
             if resp.status_code == 429:
                 return PollResult("slow_down")
             if resp.status_code >= 500:
                 raise OffboxError("destination_unavailable", f"Google answered HTTP {resp.status_code}")
             raise OffboxError("auth_failed", f"Google refused the request (HTTP {resp.status_code})")
         granted = str(body.get("scope") or "").split()
-        if SCOPE not in granted:
-            raise OffboxError("gdrive_scope_refused", "the approval did not grant the drive.file scope")
         token = body.get("refresh_token")
+        if SCOPE not in granted:
+            # the granular consent screen lets the account owner untick the Drive box: give back what Google did grant, keep nothing
+            if isinstance(token, str) and token:
+                revoke(self._http, token)
+            raise OffboxError("gdrive_scope_refused", "the approval did not grant the drive.file scope")
         if not isinstance(token, str) or not token or len(token) > 4096:
             raise OffboxError("remote_error", "Google's answer had no refresh token")
         return PollResult("connected", token)
@@ -255,6 +289,23 @@ def _json(resp: httpx.Response) -> dict[str, Any]:
     except (ValueError, UnicodeDecodeError):
         return {}
     return body if isinstance(body, dict) else {}
+
+
+def _reasons(resp: httpx.Response) -> set[str]:
+    """Every reason a Google API error names: errors[].reason, the status and the ErrorInfo details' reason."""
+    err = _json(resp).get("error")
+    out: set[str] = set()
+    if not isinstance(err, dict):
+        return out
+    for e in err.get("errors") or []:
+        if isinstance(e, dict) and isinstance(e.get("reason"), str):
+            out.add(e["reason"][:60])
+    for d in err.get("details") or []:
+        if isinstance(d, dict) and isinstance(d.get("reason"), str):
+            out.add(d["reason"][:60])
+    if isinstance(err.get("status"), str):
+        out.add(err["status"][:60])
+    return out
 
 
 def _reason(resp: httpx.Response) -> str:
@@ -346,8 +397,15 @@ class GDriveDestination:
             if resp.status_code == 401:
                 raise OffboxError("auth_failed", "Google Drive refused the access token")
             reason = _reason(resp)
+            reasons = _reasons(resp)
             if reason in QUOTA_REASONS and resp.status_code == 403:
                 raise OffboxError("quota_exceeded", "the Google Drive storage is full")
+            if resp.status_code == 403 and reasons & API_DISABLED_REASONS:
+                raise OffboxError("gdrive_api_disabled", "the Google Drive API is not enabled in the Google Cloud project")
+            if resp.status_code == 403 and reasons & SCOPE_REASONS:
+                raise OffboxError("gdrive_scope_refused", "the access token does not carry the drive.file scope")
+            if resp.status_code == 403 and reasons & DAILY_REASONS:
+                raise OffboxError("rate_limited", "the Google Cloud project's daily Drive quota is used up; the next run tries again")
             transient = resp.status_code in (429, 500, 502, 503, 504) or (resp.status_code == 403 and reason in RETRY_REASONS)
             if transient and retry and attempt < self.retry.max_retries:
                 self._sleep(self.retry.delay_s(attempt))
@@ -370,7 +428,9 @@ class GDriveDestination:
 
     def ensure_folder(self) -> str:
         """The folder id: the remembered one if it still exists and is not trashed, else the app's folder of that name, else a new one.
-        The runtime persists the id (settings `backup.gdrive.state`)."""
+        The id is remembered for this destination's life only; the next run finds the folder again by name (`drive.file` shows only
+        what this app created, so another folder of the same name in the owner's Drive is never picked up). Moving the folder inside
+        Drive is fine; renaming it makes the next run create a new one."""
         if self.folder_id:
             try:
                 meta = _json(self._send("GET", self._files_url(self.folder_id), params={"fields": "id,trashed,mimeType"}))
