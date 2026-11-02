@@ -770,31 +770,70 @@ def _audit_refusal(db: Any, conn: Any, reason: str, code: str | None, source: Pa
         log.warning("wiskey native refusal audit unavailable (%s)", type(exc).__name__)
 
 
+CORE_REASON_FALLBACK = "core_runtime_unavailable"
+
+
+def preflight_managed_runtime(db: Any, settings: Any, config_root: Path, bridge_source: Path | None, *, conn: Any = None) -> bool:
+    """WisKey M12 policy B (contribution M12-POLICY-B.20261102.01), adopted semantically as slice S2: the gate in front of the NATIVE
+    writer (`stage_native_bundle`, via `installer_step`). It writes no setting (never the switch) - audit rows only. In order:
+
+    1. the guards (`preflight_native`: manual / foreign / source / pin), whatever the switch says; a refusal is audited and the state is
+       the honest `refused` / `error` with its code (also with the switch off - M12 policy B);
+    2. the owner's switch: OFF (missing, null, unreadable, anything but `on`) refuses HERE - before any Core read and before the native
+       writer; one `auto_install_off` audit row per new refusal, state `off`;
+    3. only with the owner's ON and a managed-profile pin: the Core runtime READ gate (`wiskey_core_runtime_gate.read_core`, the
+       add-on's existing authenticated connection, bounded, read only, outside the request's write lock). Anything but `supported`
+       refuses (state `blocked`, the gate's closed code, audited). Arx has no image verifier, so today it never passes. A legacy pin
+       without a profile keeps the earlier rule (`stage_native_bundle`): it is not silently upgraded into managed.
+
+    Returns True only when the native writer may run. Arx deviation (owner default D2=a): this is NOT called before Arx's own bridge
+    copy (`bridge_install._copy_tree`) - the bridge keeps updating with the WisKey switch off; the manual profile still blocks both."""
+    source = native_source(bridge_source)
+    if source is None:
+        return True  # nothing to stage: installer_step reports source_missing / off by itself
+    enabled = switch_on(conn) if conn is not None else switch_on_db(db)
+    refusal = preflight_native(db, conn, config_root, source)
+    if refusal is not None:
+        reason, code = refusal
+        _audit_refusal(db, conn, reason, code, source, enabled)
+        NATIVE.update(state="refused" if code == _FOREIGN else "error", code=code, restart=None)
+        return False
+    if not enabled:
+        _audit_refusal(db, conn, "auto_install_off", None, source, False)
+        NATIVE.update(state="off", code=None, restart=None)
+        return False
+    if verify_pin(source).get("profile") != MANAGED_PROFILE:
+        return True
+    from ..db import unlocked
+    from .wiskey_core_runtime_gate import read_core
+
+    if conn is None:
+        result = read_core(settings)
+    else:
+        with unlocked(conn):  # the HA read runs without the request's write lock; nothing is written here
+            result = read_core(settings)
+    if not isinstance(result, dict) or result.get("state") != "supported":
+        code = result.get("code") if isinstance(result, dict) and isinstance(result.get("code"), str) else CORE_REASON_FALLBACK
+        _audit_refusal(db, conn, code, code, source, True)
+        NATIVE.update(state="blocked", code=code, restart=None)
+        return False
+    return True
+
+
 def installer_step(db: Any, settings: Any, config_root: Path, bridge_source: Path | None, *, conn: Any = None, restart: bool) -> dict[str, Any]:
     """Called by `bridge_install.install` after the bridge copy. Never raises; never blocks the bridge's own install / discovery.
 
-    WISKEY-RC7-ADOPT-2331, owner decision 1B: the guards (`preflight_native`) run first, read-only, whatever the switch says; a refusal
-    is audited and nothing is written to the component directory. Switch off: nothing else (state `off`, one `auto_install_off`
-    refusal row) - an exact managed-profile bundle does NOT turn the switch on. Switch on (an explicit owner step): stage the native
-    bundle, and - when the copy changed something and `restart` is asked - one restart per digest."""
+    WISKEY-RC7-ADOPT-2331, owner decision 1B + WisKey M12 policy B (S2): `preflight_managed_runtime` decides first - the guards, then
+    the owner's switch (OFF: nothing else, no Core read, no native write - an exact managed-profile bundle does NOT turn the switch on),
+    then, for a managed pin, the Core runtime READ gate. Only when it passes: stage the native bundle, and - when the copy changed
+    something and `restart` is asked - one restart per digest."""
     enabled = switch_on(conn) if conn is not None else switch_on_db(db)
     source = native_source(bridge_source)
     if source is None:
         NATIVE.update(state="source_missing" if enabled else "off", code="native_bundle_missing" if enabled else None, restart=None)
         return dict(NATIVE)
     try:
-        refusal = preflight_native(db, conn, config_root, source)
-        if refusal is not None:
-            reason, code = refusal
-            _audit_refusal(db, conn, reason, code, source, enabled)
-            if enabled:
-                NATIVE.update(state="refused" if code == _FOREIGN else "error", code=code, restart=None)
-            else:
-                NATIVE.update(state="off", code=None, restart=None)
-            return dict(NATIVE)
-        if not enabled:
-            _audit_refusal(db, conn, "auto_install_off", None, source, enabled)
-            NATIVE.update(state="off", code=None, restart=None)
+        if not preflight_managed_runtime(db, settings, config_root, bridge_source, conn=conn):
             return dict(NATIVE)
         NATIVE["version"] = json.loads((source / "manifest.json").read_text(encoding="utf-8")).get("version")
         staged = stage_native_bundle(config_root, source, _staged_digest(db, conn))

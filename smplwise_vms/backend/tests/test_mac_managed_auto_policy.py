@@ -5,6 +5,10 @@ does NOT, and that after the owner's own switch the managed path works.
 
 Real SQLite and the original installer/file I/O, synthetic bundle only. No HA process, grant or restart is exercised by these units.
 Symlinks need POSIX (Windows without developer mode cannot create them): those tests skip there and run on the runner.
+
+WisKey M12 policy B (S2): a managed pin now passes the Core runtime READ gate after the owner's ON. Arx has no image verifier, so the
+tests that show the managed path working after the owner's switch use a SYNTHETIC `supported` verdict (`core_supported`); the refusal
+without it is pinned in tests/test_wiskey_m12_policy_b_native_gate.py.
 """
 import hashlib
 import json
@@ -50,6 +54,13 @@ def database(tmp_path):
     return db
 
 
+@pytest.fixture
+def core_supported(monkeypatch):
+    from smplwise.services import wiskey_core_runtime_gate as gate
+
+    monkeypatch.setattr(gate, 'read_core', lambda settings, **_: {'state': 'supported', 'code': None})
+
+
 def setting(db):
     with db.connection(mode='read') as c:
         return get_setting(c, install.SWITCH_KEY)
@@ -61,7 +72,7 @@ def owner_switch_on(db):
         set_setting(c, install.SWITCH_KEY, 'on')
 
 
-def test_approved_managed_fresh_install_does_not_activate_without_owner_switch(tmp_path, source, database):
+def test_approved_managed_fresh_install_does_not_activate_without_owner_switch(tmp_path, source, database, core_supported):
     # 1B: was `..._activates_without_owner_switch` in the contribution
     cfg = tmp_path / 'ha'
     cfg.mkdir()
@@ -105,7 +116,7 @@ def test_unmarked_foreign_equal_tree_is_not_new_managed_authority(tmp_path, sour
         assert get_setting(c, install.STAGED_DIGEST_KEY) is None  # an identical tree Arx did not stage is never adopted
 
 
-def test_existing_owned_managed_tree_is_not_activated_by_the_installer(tmp_path, source, database):
+def test_existing_owned_managed_tree_is_not_activated_by_the_installer(tmp_path, source, database, core_supported):
     # 1B: was `..._can_activate_internal_setting` in the contribution
     cfg = tmp_path / 'ha'
     target = cfg / 'custom_components/hikvision_intercom'

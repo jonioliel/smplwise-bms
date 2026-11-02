@@ -197,10 +197,8 @@ def test_8a_existing_install_is_never_overwritten_and_the_refusal_is_audited(tmp
     assert install._staged_digest(database, None) == staged_before
     assert switch(database) == ("on" if switch_on else None)  # never turned on by the installer
     assert answer["restart"] is None
-    if switch_on:
-        assert answer["code"] == code and answer["state"] in ("refused", "error"), answer
-    else:
-        assert answer == {"state": "off", "code": None, "version": None, "restart": None}
+    # WisKey M12 policy B (S2): the honest refused / error state with its code, also with the switch off (was `off` before)
+    assert answer["code"] == code and answer["state"] in ("refused", "error"), answer
     (row,) = refusals(database)
     details = json.loads(row["details_json"])
     assert row["decision"] == "denied" and row["reason"] == reason and row["resource_id"] == "hikvision_intercom"
@@ -260,8 +258,13 @@ def test_8a_d_valid_managed_bundle_with_the_switch_off_writes_nothing(tmp_path, 
     assert not (cfg / "custom_components").exists() and switch(database) is None
 
 
-def test_8a_d_after_the_owner_switch_the_owned_tree_is_replaced_with_one_backup(tmp_path, bundle, database):
-    # the positive control of (d): with the owner's switch on, an Arx-owned older tree IS replaced and kept as the one backup
+def test_8a_d_after_the_owner_switch_the_owned_tree_is_replaced_with_one_backup(tmp_path, bundle, database, monkeypatch):
+    # the positive control of (d): with the owner's switch on, an Arx-owned older tree IS replaced and kept as the one backup.
+    # M12 policy B (S2): a managed pin now passes the Core runtime READ gate first; Arx has no image verifier, so the verdict is
+    # SYNTHETIC here (tests/test_wiskey_m12_policy_b_native_gate.py proves it is never `supported` without one)
+    from smplwise.services import wiskey_core_runtime_gate as gate
+
+    monkeypatch.setattr(gate, "read_core", lambda settings, **_: {"state": "supported", "code": None})
     cfg = tmp_path / "ha"
     cfg.mkdir()
     target = _owned_previous_tree(tmp_path, cfg, database)

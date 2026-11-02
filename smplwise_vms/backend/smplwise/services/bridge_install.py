@@ -219,7 +219,9 @@ def install(db: Database, settings: Settings, force: bool = False, announce: boo
             log.warning("bridge integration copy failed: %s", type(exc).__name__)
             return status(db, conn)
     # WISKEY-ADOPT-2272: the pinned WisKey native bundle next to the bridge (staging, one restart per digest) - only with the
-    # `wiskey.auto_install` switch on; it never blocks the bridge's own copy or its announcement
+    # `wiskey.auto_install` switch on; it never blocks the bridge's own copy or its announcement. WisKey M12 policy B (S2): the gate
+    # (`preflight_managed_runtime`: guards, OFF before any Core read, the Core runtime READ gate) runs inside installer_step, in front of
+    # the native writer only - Arx deviation, owner default D2=a: the contribution's call before the bridge copy above is not adopted.
     from . import wiskey_auto_install as wai
 
     wai.installer_step(db, settings, cfg, src, conn=conn, restart=announce)
