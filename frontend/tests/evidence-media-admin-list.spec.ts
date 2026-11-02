@@ -80,6 +80,8 @@ test.describe('settings lists: filter, sort, group, copy, remember (mocked backe
     expect(await chips.count()).toBeGreaterThan(1);
     const first = chips.first();
     await first.click();
+    // GATE2360-B: count() does not wait for the redraw a click starts; the toolbar's own "n מתוך total" is the signal it landed
+    await expect(list.locator('[data-mm-shown]')).toHaveText(new RegExp(`^\d+ מתוך ${total}$`));
     const n1 = await shown(list).count();
     expect(n1).toBeLessThan(total);
     await expect(list.locator('[data-mm-shown]')).toHaveText(`${n1} מתוך ${total}`);
@@ -93,8 +95,7 @@ test.describe('settings lists: filter, sort, group, copy, remember (mocked backe
     await list.locator('[data-mm-clear]').click();
     await list.locator('[data-mm-f-avail]').click();
     await page.getByRole('option', { name: 'לא זמינים' }).click();
-    const unav = await shown(list).count();
-    expect(unav).toBeLessThan(total);
+    await expect.poll(() => shown(list).count()).toBeLessThan(total);
   });
 
   test('free text finds a device by its entity id, its device id and its integration; no match says so', async ({ page }) => {
@@ -123,7 +124,7 @@ test.describe('settings lists: filter, sort, group, copy, remember (mocked backe
     await expect.poll(() => list.locator('[data-mm-row-name]').count()).toBeGreaterThan(0); // the list draws after its fetch: read it once it is there
     const a = await names();
     await list.locator('[data-mm-dir]').click();
-    expect(await names()).toEqual([...a].reverse());
+    await expect.poll(names).toEqual([...a].reverse()); // GATE2360-B: the redraw after the click, not the list before it
     if (!phone(page)) {
       await list.locator('[data-mm-th="id"]').click();
       await expect(list.locator('[role="columnheader"][aria-sort="ascending"]')).toContainText('מזהה');
@@ -133,7 +134,7 @@ test.describe('settings lists: filter, sort, group, copy, remember (mocked backe
     await list.locator('[data-mm-group]').click();
     await page.getByRole('option', { name: 'לפי אינטגרציה' }).click();
     const heads = list.locator('[data-mm-group-head]');
-    expect(await heads.count()).toBeGreaterThan(1);
+    await expect.poll(() => heads.count()).toBeGreaterThan(1); // GATE2360-B: the grouped redraw, not the flat list before it
     const counts = (await list.locator('[data-mm-group-count]').allInnerTexts()).map(Number);
     expect(counts.reduce((x, y) => x + y, 0)).toBe(await shown(list).count());
     const h = heads.first();
