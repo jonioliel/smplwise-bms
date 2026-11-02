@@ -9,16 +9,16 @@ from smplwise.services import home_config
 
 
 def test_media_is_a_known_widget_appended_last_with_the_common_defaults():
-    assert home_config.WIDGET_IDS[5] == "media" and home_config.WIDGET_IDS[-8:] == ("agenda", "launcher", "elevators", "temperature", "generators", "doors", "notices", "presence")  # BV1 appended two after it
+    assert home_config.WIDGET_IDS[5] == "media" and home_config.WIDGET_IDS[-9:] == ("agenda", "launcher", "elevators", "temperature", "generators", "doors", "notices", "presence", "xsection")  # BV1 appended two after it
     cfg = home_config.default_config()
-    assert cfg["order"] == ["clock", "weather", "shabbat", "alarm", "quick", "media", "agenda", "launcher", "elevators", "temperature", "generators", "doors", "notices", "presence"]
+    assert cfg["order"] == ["clock", "weather", "shabbat", "alarm", "quick", "media", "agenda", "launcher", "elevators", "temperature", "generators", "doors", "notices", "presence", "xsection"]
     assert cfg["media"] == {"on": True, "sizes": {"a": "m", "b": "s", "c": "m"}, "label": "", "phone_on": None, "phone_size": None}
 
 
 def test_a_config_saved_before_the_widget_existed_gains_it_last_and_keeps_its_order():
     old = {"order": ["quick", "clock", "weather", "shabbat", "alarm"], "clock": {"on": False}}
     cfg = home_config.normalise(old)
-    assert cfg["order"] == ["quick", "clock", "weather", "shabbat", "alarm", "media", "agenda", "launcher", "elevators", "temperature", "generators", "doors", "notices", "presence"]
+    assert cfg["order"] == ["quick", "clock", "weather", "shabbat", "alarm", "media", "agenda", "launcher", "elevators", "temperature", "generators", "doors", "notices", "presence", "xsection"]
     assert cfg["clock"]["on"] is False and cfg["media"]["on"] is True
 
 
@@ -32,7 +32,7 @@ def test_media_accepts_the_common_keys_and_nothing_else():
 
 def test_order_may_move_media_and_an_unknown_widget_is_still_refused():
     cfg = home_config.normalise({"order": ["media", "clock"]})
-    assert cfg["order"] == ["media", "clock", "weather", "shabbat", "alarm", "quick", "agenda", "launcher", "elevators", "temperature", "generators", "doors", "notices", "presence"]
+    assert cfg["order"] == ["media", "clock", "weather", "shabbat", "alarm", "quick", "agenda", "launcher", "elevators", "temperature", "generators", "doors", "notices", "presence", "xsection"]
     with pytest.raises(ValueError):
         home_config.normalise({"order": ["media", "tv"]})
 
@@ -51,14 +51,14 @@ def test_suggestions_and_the_legacy_keys_leave_the_media_widget_untouched():
     cfg = home_config.with_suggestions(home_config.default_config(), ["weather.home"], [])
     assert cfg["media"] == home_config.default_config()["media"]
     legacy = home_config.from_legacy(lambda k, d: {"home.clock": "time"}.get(k, d))
-    assert legacy is not None and legacy["media"]["on"] is True and legacy["order"][5] == "media" and legacy["order"][-8:] == ["agenda", "launcher", "elevators", "temperature", "generators", "doors", "notices", "presence"]
+    assert legacy is not None and legacy["media"]["on"] is True and legacy["order"][5] == "media" and legacy["order"][-9:] == ["agenda", "launcher", "elevators", "temperature", "generators", "doors", "notices", "presence", "xsection"]
 
 
 # ---------------------------------------------------------------- CR-INFRA-ELEVATORS 2.8.0: the elevators widget (owner decision 10b + feedback 2026-10-18)
 
 def test_elevators_widget_defaults_and_validation():
     cfg = home_config.default_config()
-    assert cfg["order"][-6:] == ["elevators", "temperature", "generators", "doors", "notices", "presence"]
+    assert cfg["order"][-7:] == ["elevators", "temperature", "generators", "doors", "notices", "presence", "xsection"]
     assert cfg["elevators"] == {"on": True, "sizes": {"a": "m", "b": "s", "c": "m"}, "label": "", "phone_on": None, "phone_size": None, "mode": "combined", "hidden": [], "filter": "all"}
     ok = home_config.normalise({"elevators": {"mode": "both", "hidden": ["e1", "e1", "e-2"], "filter": "alerts", "sizes": {"a": "l"}}})["elevators"]
     assert (ok["mode"], ok["hidden"], ok["filter"], ok["sizes"]["a"]) == ("both", ["e1", "e-2"], "alerts", "l")
@@ -82,3 +82,21 @@ def test_elevators_personal_override_mode_and_hidden():
     # review L5: the user's own list ADDS to the installation's
     assert (out["elevators"]["mode"], out["elevators"]["hidden"], out["elevators"]["sizes"]["a"]) == ("cards", ["e1", "e2"], "l")
     assert cfg["elevators"]["hidden"] == ["e1"]  # the installation config is untouched
+
+def test_xsection_widget_is_off_by_default_and_round_trips():
+    """XS-MINI-WIDGET-2351: the mini cross-section is appended last and is the one widget a fresh (or older) config has switched off."""
+    cfg = home_config.default_config()
+    assert cfg["order"][-1] == "xsection" and cfg["xsection"] == {"on": False, "sizes": {"a": "m", "b": "s", "c": "m"}, "label": "", "phone_on": None, "phone_size": None}
+    assert all(cfg[w]["on"] for w in home_config.WIDGET_IDS if w != "xsection")
+    old = home_config.normalise({"order": ["clock"], "clock": {"on": True}})
+    assert old["xsection"]["on"] is False and old["order"][-1] == "xsection"
+    on = home_config.normalise({"xsection": {"on": True, "sizes": {"a": "l"}, "label": "החתך"}})
+    assert on["xsection"]["on"] is True and on["xsection"]["sizes"]["a"] == "l" and on["xsection"]["label"] == "החתך"
+    try:
+        home_config.normalise({"xsection": {"on": True, "mode": "cards"}})
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("an option the widget does not have is refused")
+    mine, _ = home_config.apply_personal(cfg, "a", home_config.normalise_personal({"widgets": {"xsection": {"on": True}}}))
+    assert mine["xsection"]["on"] is True

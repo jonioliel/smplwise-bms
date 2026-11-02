@@ -60,6 +60,8 @@ export class SwHomePersonal extends LitElement {
   @state() private notices = false;
   /** PRESENCE-2280: whether this user is offered the building presence widget. */
   @state() private presence = false;
+  /** XS-MINI-WIDGET-2351: the mini cross-section is offered to a viewer who may read the devices (the home screen hides it while no building has floors). */
+  @state() private xsection = false;
   /** HOME-295: the installation's home screen options (whether users may choose their own summary tiles). */
   @state() private screenSite: HomeScreenOptions = HOME_SCREEN_DEFAULT;
   /** MULTIBUILDING-HOME-2330: the buildings this user sees (the site choices show only with two or more). */
@@ -185,7 +187,11 @@ export class SwHomePersonal extends LitElement {
     if (temperatureAccess().view) void listUnits(false).then((r) => (this.tempUnits = r.home_widget === false ? 0 : r.units.length)).catch(() => (this.tempUnits = 0));
     void loadHomeGenerators().then((g) => (this.generators = generatorsAvailable(g)));
     // MAPPING-ASSIST-2330: the site choices only while the multi-building view is switched on (owner 31.10: off by default)
-    void Promise.all([multiBuildingOn(), loadCatalogTree()]).then(([on, c]) => (this.buildings = on ? c.sites.flatMap((s) => (s.buildings ?? []).map((b) => ({ id: b.id, name: b.name, shared: !!b.is_shared }))) : [])).catch(() => (this.buildings = []));
+    void Promise.all([multiBuildingOn(), loadCatalogTree()]).then(([on, c]) => {
+      this.buildings = on ? c.sites.flatMap((s) => (s.buildings ?? []).map((b) => ({ id: b.id, name: b.name, shared: !!b.is_shared }))) : [];
+      // XS-MINI-WIDGET-2351: the mini cross-section needs the devices and a building with floors
+      this.xsection = (!isApi() || canAnywhere('devices.read')) && c.sites.some((s) => (s.buildings ?? []).some((x) => (x.floors?.length ?? 0) > 0));
+    }).catch(() => (this.buildings = []));
     void loadHomeDoors().then((d) => (this.doors = doorsWidgetAvailable(d, doorWindowsTabOn())));
     if (isApi() && canAnywhere('presence.building.view')) void getBuildingPresence().then((s) => (this.presence = presenceWidgetAvailable(s))).catch(() => (this.presence = false));
     void loadHomeNoticesChecked().then((d) => (this.notices = !!d && noticesWidgetOffered(d, noticesModuleOn())));
@@ -366,7 +372,7 @@ export class SwHomePersonal extends LitElement {
 
   /** The widgets offered here: the elevators / generators widget only to a user who sees one (no such device = the module is never named). */
   private get offered(): WidgetId[] {
-    return this.order.filter((id) => (id !== 'elevators' || this.elevators.length > 0) && (id !== 'temperature' || this.tempUnits > 0) && (id !== 'generators' || this.generators) && (id !== 'doors' || this.doors) && (id !== 'notices' || this.notices) && (id !== 'presence' || this.presence));
+    return this.order.filter((id) => (id !== 'elevators' || this.elevators.length > 0) && (id !== 'temperature' || this.tempUnits > 0) && (id !== 'generators' || this.generators) && (id !== 'doors' || this.doors) && (id !== 'notices' || this.notices) && (id !== 'presence' || this.presence) && (id !== 'xsection' || this.xsection));
   }
 
   /** `to` is a place among the OFFERED widgets (review L6, GENWIDGET 2.9.3: a widget left out of the list is skipped, like the home editor). */

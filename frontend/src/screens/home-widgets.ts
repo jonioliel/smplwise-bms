@@ -31,6 +31,8 @@ import type { DoorsWidgetData } from '../door-windows/home-widget-model';
 import { NOTICES_WIDGET_STYLES, renderNotices, type NoticesWidgetData } from '../notices/home-widget'; // NOTICEPAGE-295
 import { PRESENCE_WIDGET_STYLES, renderPresence } from './building-presence-widget'; // PRESENCE-2280
 import type { BuildingSnapshot } from '../api/building-presence';
+import { XS_MINI_WIDGET_STYLES, renderXsMini } from '../xsection/xs-mini-widget'; // XS-MINI-WIDGET-2351
+import type { MiniFloor, MiniModel } from '../xsection/xs-mini-model';
 import '../door-windows/emergency';
 
 /** The Bubble skin (phase C, 2026-10-02; the approved board docs/design/mockups/bubble-taste/home.html): the status widgets are
@@ -231,6 +233,10 @@ export class HomeWidgetsView extends LitElement {
   @property({ attribute: false }) notices: NoticesWidgetData = { notices: null, emptyMode: 'hide' };
   /** PRESENCE-2280: the building presence answer (the home screen reads and polls it; null = none to show). */
   @property({ attribute: false }) presence: BuildingSnapshot | null = null;
+  /** XS-MINI-WIDGET-2351: the mini cross-section's model (the home screen builds it from the catalogue building and the tree; null = not read yet)
+   * and which floors open their lights popup. Events: home-xs-floor {id}, home-xs-lights {id}, home-xs-all. */
+  @property({ attribute: false }) xsMini: MiniModel | null = null;
+  @property({ attribute: false }) xsLightsOk: (f: MiniFloor) => boolean = () => false;
   /** UXREST2-295: the widgets whose own read failed (the screen reads elevators / temperature / generators); each draws a failure panel with a
    * retry (`home-widget-retry {id}`) in its own slot and the other widgets are untouched. */
   @property({ attribute: false }) failed: WidgetId[] = [];
@@ -1615,7 +1621,7 @@ export class HomeWidgetsView extends LitElement {
         scroll-behavior: auto;
       }
     }
-  `, HOME_WIDGETS_BUBBLE, BV1_STYLES, ELEVATOR_WIDGET_STYLES, TEMPERATURE_WIDGET_STYLES, GENERATOR_WIDGET_STYLES, DOORS_WIDGET_STYLES, NOTICES_WIDGET_STYLES, PRESENCE_WIDGET_STYLES];
+  `, HOME_WIDGETS_BUBBLE, BV1_STYLES, ELEVATOR_WIDGET_STYLES, TEMPERATURE_WIDGET_STYLES, GENERATOR_WIDGET_STYLES, DOORS_WIDGET_STYLES, NOTICES_WIDGET_STYLES, PRESENCE_WIDGET_STYLES, XS_MINI_WIDGET_STYLES];
 
   connectedCallback() {
     super.connectedCallback();
@@ -1821,6 +1827,10 @@ export class HomeWidgetsView extends LitElement {
         return html`${renderDoors({ data: this.doors, editing: this.editing, now: this.now, openEmergency: () => (this.doorSheet = true), shell: (i, cls, extra, body) => this.shell(i, cls, extra, body) }, it)}<span style="display:contents"><door-emergency-sheet .open=${this.doorSheet} .data=${this.doors.emergency} @close=${() => (this.doorSheet = false)} @changed=${() => this.emit('home-widget-retry', { id: 'doors' })}></door-emergency-sheet></span>`;
       case 'presence':
         return renderPresence({ snap: this.presence, editing: this.editing, compact: this.layout === 'row', shell: (i, cls, extra, body) => this.shell(i, cls, extra, body) }, it);
+      case 'xsection':
+        return renderXsMini({ model: this.xsMini, editing: this.editing, multi: !!this.scopeTag, compact: this.layout === 'row', lightsOk: this.xsLightsOk,
+          onFloor: (id) => this.emit('home-xs-floor', { id }), onLights: (id) => this.emit('home-xs-lights', { id }), onAll: () => this.emit('home-xs-all', {}),
+          shell: (i, cls, extra, body) => this.shell(i, cls, extra, body) }, it);
       case 'notices':
         return renderNotices({ data: this.notices, editing: this.editing, shell: (i, cls, extra, body) => this.shell(i, cls, extra, body) }, it);
       default:
