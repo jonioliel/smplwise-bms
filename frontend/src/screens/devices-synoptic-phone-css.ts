@@ -12,6 +12,10 @@ export const synPhoneStyles = css`
   .pboard { display: grid; gap: 8px; block-size: 100%; min-block-size: 0; box-sizing: border-box; }
   .pboard.card { padding: 10px 12px; }
   .pboard.pa { grid-template-rows: auto auto auto minmax(0, 1fr); }
+  /* SYNOPTIC-PHONE-SETTINGS-2360: "שורת סיכום בטלפון" = line adds one auto row under the list (the list stays the only part that scrolls) */
+  .pboard.pa[data-sum='line'] { grid-template-rows: auto auto auto minmax(0, 1fr) auto; }
+  .pboard.pb[data-sum='line'] { grid-template-rows: auto auto minmax(0, 1fr) auto; }
+  .pboard.pc[data-sum='line'] { grid-template-rows: auto auto minmax(0, 1fr) auto auto; padding-block-end: 8px; }
   .pboard.pb { grid-template-rows: auto auto minmax(0, 1fr); }
   .pboard.pc { grid-template-rows: auto auto minmax(0, 1fr) auto; padding-block-end: 0; }
   .phead { display: flex; align-items: center; gap: 6px; min-inline-size: 0; min-block-size: 36px; }
@@ -35,6 +39,11 @@ export const synPhoneStyles = css`
   .pv .xi, .pval .xi { inline-size: 16px; block-size: 16px; vertical-align: -3px; }
   .mb { display: block; inline-size: 34px; block-size: 4px; border-radius: 2px; background: var(--sw-surface-3); overflow: hidden; }
   .mb i { display: block; block-size: 100%; border-radius: 2px; background: var(--sw-lit); }
+  /* SYNOPTIC-PHONE-SETTINGS-2360 "תאורה בטלפון": the segment strip takes the bar's own width (one segment a light, eight at most) and grows 2 px taller to read */
+  .mb.seg { display: flex; gap: 1px; block-size: 6px; background: none; overflow: visible; }
+  .mb.seg i { flex: 1 1 0; min-inline-size: 0; border-radius: 1px; background: var(--sw-border-strong); }
+  .mb.seg i.on { background: var(--sw-lit); }
+  .pmt.lit .mb.seg { background: none; }
   .pgl { flex: none; display: flex; align-items: center; gap: 8px; padding: 0 4px; font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
   .pgl::before, .pgl::after { content: ''; flex: 1; block-size: 2px; border-radius: 2px; background: var(--sw-border-strong); }
 
@@ -124,6 +133,13 @@ export const synPhoneStyles = css`
   .dstrip .tx b { display: block; font-size: var(--sw-fs-md); color: var(--sw-heading); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   /* the info sheet (sub-answer 3B: the board's summary behind the info button) */
+  /* the summary as a line under the board (syn_phone_summary=line): small, wraps, the links keep a 44 px touch target without growing the line */
+  .psum { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; padding-block-start: 6px; border-block-start: 1px solid var(--sw-border); font-size: var(--sw-fs-xs); line-height: 1.45; color: var(--sw-text-2); }
+  .psum .st b { color: var(--sw-heading); }
+  .psum .hidnote { margin-inline-start: 0; white-space: normal; overflow: visible; }
+  .psum .lnk { position: relative; font-size: inherit; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  .psum .lnk::after { content: ''; position: absolute; inset: -14px -6px; }
+
   .pinfo .sub { margin: 0 0 10px; font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
   .pinfo dl { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 12px; font-size: var(--sw-fs-base); }
   .pinfo dt { color: var(--sw-text-3); }

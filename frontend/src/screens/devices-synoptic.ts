@@ -12,7 +12,7 @@ import { xt } from '../i18n/xsection';
 import { describeError } from '../api/client';
 import { loadTree, type CatalogTree } from '../api/catalog';
 import { listEvents, type VmsEvent } from '../api/events';
-import { canAnywhere, isApi } from '../api/session';
+import { can, canAnywhere, isApi } from '../api/session';
 import type { Building, Floor } from '../api/types';
 import { navigate, parseRoute } from '../router';
 import { demoBuilding, demoSignals, loadXsData, matchContext, type XsData } from '../xsection/xs-data';
@@ -23,7 +23,7 @@ import { matchLine, unlinkedFloors } from '../xsection/sw-xsection';
 import { phoneRestricted } from '../shell/phone';
 import { multiBuildingOn } from '../api/mapping';
 import { floorScreenBuilding } from '../api/home-site';
-import { alarmFloors, floorLightsTarget, litPercent, onXsOptions, phoneBoardColumns, phoneColumns, phoneGridTemplate, PHONE_DENSE_FLOORS, signalsOf, synBoardColumns, tempState, totalsOf, unassignedLights, xsFromParams, xsOptions, type FloorSignal, type SynColumn, type XsColumn, type XsOptions } from '../xsection/xs-model';
+import { alarmFloors, floorLightsTarget, litPercent, onXsOptions, phoneBoardColumns, phoneColumns, phoneGridTemplate, phoneLightGauge, phoneSummaryParts, PHONE_DENSE_FLOORS, signalsOf, synBoardColumns, tempState, totalsOf, unassignedLights, xsFromParams, xsOptions, type FloorSignal, type SynColumn, type XsColumn, type XsOptions } from '../xsection/xs-model';
 import type { XtKey } from '../i18n/xsection';
 
 const REFRESH_MS = 30_000;
@@ -426,6 +426,11 @@ export class DevicesSynoptic extends LitElement {
     return html`<span class="grow" data-syn-hint>${text}</span>${this.canLink() ? html`<button class="lnk" data-syn-link=${un[0].id} @click=${() => this.linkFloor(b, un[0].id)}>${xt('matchHintAction')}</button>` : nothing}`;
   }
 
+  /** SYNOPTIC-PHONE-SETTINGS-2360: who may open הגדרות › כללי (the route's own permission, nav.ts: system.configure). The demo has no sign-in. */
+  private canOpenMapSettings(): boolean {
+    return !this.wall && (!isApi() || can('system.configure'));
+  }
+
   private canLink(): boolean {
     // the editor lives with the floors' structure tools, which a phone hides by the installation's option (ui.mobile hide_structure)
     return !this.wall && !phoneRestricted('structure') && (!isApi() || canAnywhere('site.content.configure'));
@@ -483,8 +488,12 @@ export class DevicesSynoptic extends LitElement {
     const dash = new Set<SynColumn>(dashed);
     const dense = sigs.length > PHONE_DENSE_FLOORS;
     const view = o.syn_phone_view;
+    // SYNOPTIC-PHONE-SETTINGS-2360: "שורת סיכום בטלפון" - the info button and its sheet (default), a line under the board, or neither
+    const sum = phoneSummaryParts(o.syn_phone_summary, this.canOpenMapSettings());
+    const sumLine = sum.line ? this.summaryLine(b, sigs, hiddenEmpty, noFloor, view !== 'section') : nothing;
     const head = html`<div class="phead">${chips}<span class="live"><i></i>${this.now}</span>
-      <button class="ib" data-syn-info aria-haspopup="dialog" aria-label=${xt('synInfo')} title=${xt('synInfo')} @click=${() => (this.info = true)}>${xi('info')}</button></div>`;
+      ${sum.button ? html`<button class="ib" data-syn-info aria-haspopup="dialog" aria-label=${xt('synInfo')} title=${xt('synInfo')} @click=${() => (this.info = true)}>${xi('info')}</button>` : nothing}
+      ${sum.settings ? html`<button class="ib" data-syn-map-settings aria-label=${xt('synInfoSettings')} title=${xt('synInfoSettings')} @click=${() => navigate('/system/diagnostics', { focus: 'xs' })}>${xi('wrench')}</button>` : nothing}</div>`;
     const alarm = alarmF ? this.alarmPanel(alarmF, rep) : html`<span></span>`;
     const isBelow = (f: FloorSignal, i: number) => hasBelow && f.level < 0 && (i === 0 || sigs[i - 1].level >= 0);
     const rowAria = (f: FloorSignal) => `${f.name}${f.nodata ? `, ${xt('noData')}` : ''}${this.detailText(f, (c) => pc.includes(c)) ? `: ${this.detailText(f, (c) => pc.includes(c))}` : ''}`;
@@ -507,7 +516,7 @@ export class DevicesSynoptic extends LitElement {
               ${pc.length ? html`<div class="pfm">${pc.map((c) => this.phoneMetric(c, f, o, rep, dash.has(c)))}</div>` : nothing}
             </div>`);
       });
-      body = html`<section class="pboard pb" aria-label=${xt('synTitle')} data-syn-board data-syn-phone="cards">${head}${alarm}<div class="pbl" ?data-dense=${dense}>${items}</div></section>`;
+      body = html`<section class="pboard pb" aria-label=${xt('synTitle')} data-syn-board data-syn-phone="cards" data-sum=${o.syn_phone_summary}>${head}${alarm}<div class="pbl" ?data-dense=${dense}>${items}</div>${sumLine}</section>`;
     } else if (view === 'section') {
       const slab = w < 360 ? 52 : w > 410 ? 72 : 64;
       const showSub = w >= 360 && !dense;
@@ -528,9 +537,9 @@ export class DevicesSynoptic extends LitElement {
         ? html`<span class="tx"><b title=${sf.name}>${bidi(sf.name)}</b>${this.subLine(sf)}${pc.includes('light') ? lightsText(sf.lit, sf.lights) : ''}</span>
             <sw-button size="sm" variant="primary" data-syn-open @click=${() => this.openFloor(sf)}>${xt('synOpenFloor')}</sw-button>`
         : html`<span class="tx"><b>${xt('synAll')}</b>${xt('synFloorsN', { n: sigs.length })}${pc.includes('light') && t.litKnown ? lightsText(t.lit, t.lights) : ''}</span>
-            <sw-button size="sm" variant="ghost" data-syn-details @click=${() => (this.info = true)}>${xt('synDetails')}</sw-button>`;
-      body = html`<section class="card pboard pc" aria-label=${xt('synTitle')} data-syn-board data-syn-phone="section" style="--slab:${slab}px">${head}${alarm}
-        <div class="cl" ?data-dense=${dense}>${out}</div><div class="dstrip" data-syn-strip>${strip}</div></section>`;
+            ${sum.button ? html`<sw-button size="sm" variant="ghost" data-syn-details @click=${() => (this.info = true)}>${xt('synDetails')}</sw-button>` : nothing}`;
+      body = html`<section class="card pboard pc" aria-label=${xt('synTitle')} data-syn-board data-syn-phone="section" data-sum=${o.syn_phone_summary} style="--slab:${slab}px">${head}${alarm}
+        <div class="cl" ?data-dense=${dense}>${out}</div><div class="dstrip" data-syn-strip>${strip}</div>${sumLine}</section>`;
     } else {
       const rows: TemplateResult[] = [];
       sigs.forEach((f, i) => {
@@ -543,11 +552,11 @@ export class DevicesSynoptic extends LitElement {
           ${pc.map((c) => this.phoneCell(c, f, o, rep, dash.has(c)))}
         </div>`);
       });
-      body = html`<section class="card pboard pa" aria-label=${xt('synTitle')} data-syn-board data-syn-phone="table" style="--pgrid:${grid}">${head}${alarm}
+      body = html`<section class="card pboard pa" aria-label=${xt('synTitle')} data-syn-board data-syn-phone="table" data-sum=${o.syn_phone_summary} style="--pgrid:${grid}">${head}${alarm}
         <div class="pah" aria-hidden="true"><span>${xt('synFloor')}</span>${pc.map((c) => html`<span data-syn-col=${c} title=${xt(COL_LABEL[c])}>${xi(PH_ICON[c])}</span>`)}</div>
-        <div class="plist" ?data-dense=${dense}>${rows}</div></section>`;
+        <div class="plist" ?data-dense=${dense}>${rows}</div>${sumLine}</section>`;
     }
-    return html`${body}${this.renderInfo(b, sigs, cols, pc, hiddenEmpty, noFloor)}`;
+    return html`${body}${sum.button ? this.renderInfo(b, sigs, cols, pc, hiddenEmpty, noFloor) : nothing}`;
   }
 
   /** What one phone cell / metric / pill draws for a column: the value (null = no source, drawn "-"), whether it is quiet, a warning, a tone. */
@@ -578,11 +587,39 @@ export class DevicesSynoptic extends LitElement {
     return xt('synLightsAria', { name: f.name, lit: f.lit ?? 0, lights: f.lights ?? 0 });
   }
 
+  /**
+   * SYNOPTIC-PHONE-SETTINGS-2360 "תאורה בטלפון" (ui.xs syn_phone_light): what sits under "2/10" in the table cell and the card tile - the small bar
+   * (default, as 2.34.2), the segment strip (one segment a light, at most eight, in the same width) or nothing (the number only).
+   */
+  private lightGauge(f: FloorSignal, o: XsOptions) {
+    const g = phoneLightGauge(o.syn_phone_light, f);
+    if (g.kind === 'none') return nothing;
+    if (g.kind === 'segments') return html`<span class="mb seg" aria-hidden="true" data-syn-gauge="segments">${Array.from({ length: g.total }, (_, i) => html`<i class=${i < g.on ? 'on' : ''}></i>`)}</span>`;
+    return html`<span class="mb" aria-hidden="true" data-syn-gauge="bar"><i style="inline-size:${g.percent}%"></i></span>`;
+  }
+
+  /**
+   * SYNOPTIC-PHONE-SETTINGS-2360: the summary as one line under the board (syn_phone_summary=line) - the wide board's detail line: the building and
+   * its floors, the columns the hide-empty rule left out (with the way to the setting), the lights on no floor, the floors no rule links. With
+   * `title` off (the cross-section, whose bottom strip already says "כל המבנה · N קומות") only the notes appear, and nothing at all when there are none.
+   */
+  private summaryLine(b: Building, sigs: FloorSignal[], hiddenEmpty: readonly XsColumn[], noFloor: { lit: number; lights: number } | null, title: boolean) {
+    const un = unlinkedFloors(sigs);
+    const hint = un.length ? (un.length === 1 ? xt('matchHintOne', { name: un[0].name }) : xt('matchHintMany', { n: un.length })) : '';
+    if (!title && !hiddenEmpty.length && !noFloor && !hint) return nothing;
+    return html`<div class="psum" data-syn-summary="line">
+      ${title ? html`<span class="st"><b>${xt('synAll')}</b> · ${xt('synFloorsN', { n: sigs.length })}</span>` : nothing}
+      ${this.hiddenNote(hiddenEmpty)}
+      ${noFloor ? html`<span data-syn-summary-nofloor>${xt('synInfoNoFloor')}: ${xt('synInfoNoFloorVal', noFloor)}</span>` : nothing}
+      ${hint ? html`<span data-syn-hint>${hint}${this.canLink() ? html` · <button class="lnk" data-syn-link=${un[0].id} @click=${() => this.linkFloor(b, un[0].id)}>${xt('matchHintAction')}</button>` : nothing}</span>` : nothing}
+    </div>`;
+  }
+
   /** A - a table cell (B's dense row too): the number centred in its fixed column; lighting is "2/10" over a small bar and opens the popup. */
   private phoneCell(c: SynColumn, f: FloorSignal, o: XsOptions, rep: ReturnType<typeof fireReport>, dashed: boolean) {
     const p = this.phoneValue(c, f, o, rep);
     if (c === 'light' && p.v && !dashed) {
-      const inner = html`<span class="pv ${p.mut ? 'mut' : ''}"><span class="n">${f.lit}/${f.lights}</span></span><span class="mb" aria-hidden="true"><i style="inline-size:${litPercent(f)}%"></i></span>`;
+      const inner = html`<span class="pv ${p.mut ? 'mut' : ''}"><span class="n">${f.lit}/${f.lights}</span></span>${this.lightGauge(f, o)}`;
       return this.lightsAllowed(f)
         ? html`<button class="plc" data-syn-lights=${f.id} aria-label=${this.lightsAria(f)} title=${xt('floorLightsOpen', { name: f.name })} @click=${(e: Event) => this.openLights(e, f)}>${inner}</button>`
         : html`<span class="plc">${inner}</span>`;
@@ -597,7 +634,7 @@ export class DevicesSynoptic extends LitElement {
     const none = dashed || !p.v;
     const k = html`<span class="k">${xi(PH_ICON[c])}${xt(PH_WORD[c])}</span>`;
     if (c === 'light' && !none) {
-      const inner = html`${k}<span class="pval">${p.v}</span><span class="mb" aria-hidden="true"><i style="inline-size:${litPercent(f)}%"></i></span>`;
+      const inner = html`${k}<span class="pval">${p.v}</span>${this.lightGauge(f, o)}`;
       return this.lightsAllowed(f)
         ? html`<button class="pmt lit" data-syn-lights=${f.id} aria-label=${this.lightsAria(f)} @click=${(e: Event) => this.openLights(e, f)}>${inner}</button>`
         : html`<div class="pmt lit">${inner}</div>`;

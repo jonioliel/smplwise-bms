@@ -103,6 +103,7 @@ class UiPatch(BaseModel):
     detail_tab: Literal["overview", "conv", "costs", "history"] | None = None  # TKUI1 (2.6.0)
     drawer_size: Literal["drawer", "wide", "full"] | None = None  # TKUI1
     phone_sheet: Literal["full", "half"] | None = None  # TKUI1
+    table_mid_width: Literal["sentence", "department"] | None = None  # TICKETS-1440-COLUMN-SETTING-2360: the column the default table keeps at a medium width
     handled_days: StrictInt | None = None  # HANDLERLOAD: the default period of the "handled" number (days)
     camera_viewfinder: StrictBool | None = None  # CR-CAMVF-295: the live in-page camera viewfinder (default off)
     # MGRDASH phase 1: the manager overview's display choices (settings_doc validates every value again)
