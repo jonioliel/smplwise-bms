@@ -1,5 +1,13 @@
 # MOBILE214: sensor value keys the presence contract could fix (PROPOSALS ONLY)
 
+> **Resolved by contract v2.2 (MOBILE-CONTRACT-V22-2380, 2026-11-02).** The normative shapes are now
+> `docs/api/mobile-presence-contract.md` section 4.1 (values), 4.2 (status object) and 2.2 (`intervals_s` defaults), with the server's
+> optional check `presence.value_check` (default `off`). Differences from this proposal: `network` keeps an explicit `other`;
+> `network_ssid` is not in the contract; `beacon` keeps `beacon_id` / `uuid` / `major` / `minor` (read by the "who is in the building"
+> screen); battery level unknown = `level_percent: null` (key always present; an app with nothing to report may skip the event);
+> `status.sensors` `unavailable` was already adopted by PRESUNAVAIL-295. See `docs/changes/MOBILE-CONTRACT-V22-2380.md`. The text below is
+> kept as the historical proposal.
+
 Status: proposal for the owner and the contract editor. Nothing here is normative. Contract section 0.2 (the 2FA
 amendment) stays "proposed" and is not touched. No server code changed.
 

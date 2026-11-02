@@ -565,6 +565,8 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor_user_i
     if unknown:
         raise PresenceError(422, "validation", "שדה לא מוכר: " + ", ".join(sorted(unknown)), details={"fields": sorted(unknown)})
     places = _validate_places(conn, body, current)  # WHOIN034-295: all validated BEFORE anything is written (a refusal still commits)
+    if "value_check" in body and body["value_check"] not in pv.VALUE_CHECK_MODES:  # v2.2: also before any write
+        raise PresenceError(422, "validation", "בדיקת ערכי החיישנים: כבויה, ניקוי או קפדנית.", details={"field": "value_check", "known": list(pv.VALUE_CHECK_MODES)})
     bump = False
     if "enabled" in body:
         if not isinstance(body["enabled"], bool):
@@ -624,9 +626,7 @@ def update_settings(conn: sqlite3.Connection, body: dict[str, Any], actor_user_i
             raise PresenceError(422, "validation", "מצב התאמת Wi-Fi: בטלפון או בשרת.", details={"field": "wifi_match_mode", "known": list(WIFI_MATCH_MODES)})
         set_setting(conn, "presence.wifi_match_mode", body["wifi_match_mode"])
         changes["wifi_match_mode"] = body["wifi_match_mode"]
-    if "value_check" in body:
-        if body["value_check"] not in pv.VALUE_CHECK_MODES:
-            raise PresenceError(422, "validation", "בדיקת ערכי החיישנים: כבויה, ניקוי או קפדנית.", details={"field": "value_check", "known": list(pv.VALUE_CHECK_MODES)})
+    if "value_check" in body:  # validated above, before any write
         set_setting(conn, "presence.value_check", body["value_check"])
         changes["value_check"] = body["value_check"]
     if "required_sensors" in body:

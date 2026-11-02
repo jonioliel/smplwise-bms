@@ -118,6 +118,9 @@ def test_value_check_defaults_off_is_validated_audited_and_reaches_the_config(wo
     assert c.get(f"{API}/presence/settings").json()["settings"]["value_check"] == "off"
     assert c.put(f"{API}/presence/settings", json={"value_check": "lenient"}).status_code == 422
     assert c.put(f"{API}/presence/settings", json={"value_check": True}).status_code == 422
+    # a bad value refuses the whole update before anything is written (the master switch stays off)
+    assert c.put(f"{API}/presence/settings", json={"enabled": True, "value_check": "lenient"}).status_code == 422
+    assert c.get(f"{API}/presence/settings").json()["settings"]["enabled"] is False
     assert c.put(f"{API}/presence/settings", json={"value_check": "strict"}, headers=as_user("dana")).status_code == 403
     r = c.put(f"{API}/presence/settings", json={"value_check": "strict"})
     assert r.status_code == 200 and r.json()["settings"]["value_check"] == "strict"
