@@ -72,7 +72,42 @@ people) and answers `line: false`. The switch is `system.configure`, audited wit
   row in "זמנים ותצוגה"). `evidence-presence-2280-layout.spec.ts` settings shots likewise. Devices-area evidence is unchanged unless a fixture
   turns `area_line` on.
 
-## Open for the owner
+## Owner decisions 02.11 (round 14)
+
+Both answered "yes". No migration and no new setting key: both follow the existing switch `presence.building.config.area_line` (still OFF
+by default).
+
+1. **An anonymous count for `presence.building.view` without `presence.view` - enforced on the server.**
+   - `services/area_presence.py` `area_line`: with `presence.view` the people part is as before (names under `show_names`); otherwise, with
+     `presence.building.view`, `people_part(..., anonymous=True)` answers `{count, names: null, more: 0, anonymous: true}` whatever
+     `show_names` says. With `presence.view` the part carries `anonymous: false`.
+   - The count reuses `presence_people.people_view` (same placement, same opt-out rule: an opted-out person is never placed in an area),
+     with two new keyword arguments: `perm` - the permission whose installation / floor scope decides which floors count (here
+     `presence.building.view`, so a floor-scoped holder counts only his floors) - and `with_names=False`, which never builds the
+     per-person list. No name, user id, source, time, site, floor or zone of a person can reach that answer.
+   - The read is audited like the named one (`presence.people.view`, resource `area`, once per viewer per 10 minutes, counts only), with
+     `anonymous: true|false` in the details.
+   - The permission's description (`routers/access.py`) now says it includes the anonymous people count of the area line.
+2. **The same line in the area quick pop-up** (`screens/area-quick-sheet.ts`, `data-qc-area-presence`), only while `area_line` is on (the
+   server's `line`). It sits under the pop-up's title (sub-line), one fixed-height (24 px) non-wrapping row with an ellipsis and the full
+   list in the tooltip, the same words as the area screen (`areaLineView`). While it is drawn, the sub-line's own room word
+   (PRESENCE-COMPACT-2310) is left out (`quickSheetPresence` in `api/building-presence-logic.ts`) - it is the line's first part; with the
+   switch off the pop-up is exactly as before. The line is read together with the area (`Promise.all` in `load()`), so it lands in the
+   same render as the pop-up's body; entity pushes reload it with the area, and a 30 s poll runs while the pop-up is open, the line is on
+   and the page is visible. Nothing is asked without `presence.building.view` or `presence.view`; not shown while editing the pop-up.
+   Works for both hosts (the building screen and a neighbour area opened from the area screen's plan card).
+   The settings hint now says the line shows on the area screen and in the area quick window.
+
+### Tests (round 14)
+
+| Check | Result |
+|---|---|
+| pytest `test_area_presence_line_2351` (12, 3 new: building.view-only -> anonymous count, `people_view` asked with `perm=presence.building.view, with_names=False`, no person field in the body, names-off and module-off; floor scope + opt-out for the anonymous count; presence.view keeps names, both combinations audited with the `anonymous` flag and without names), `test_whoin034_295`, `test_building_presence_2271`, `test_building_presence_cockpit_2271`, `test_presence`, `test_presence_history_2280`, `test_presence_compact_2310` | **93 passed / 93** |
+| `npx tsc --noEmit` | **0 errors** |
+| `playwright -c playwright.unit.config.ts --workers=1`: `unit-area-presence-line-2351` (4 new: anonymous count, pop-up line on / off, pop-up source contract), `unit-a11y-polished-lint`, `unit-area-popup-edit-2290`, `unit-building-presence-logic`, `unit-presence-compact-2310`, `unit-token-lint`, `unit-menu-lint` | **77 passed / 77** |
+| Browser evidence of the pop-up line | see the runner line in the round-14 report |
+
+## Open for the owner (answered 02.11, round 14 - kept for the record)
 
 1. Should a holder of `presence.building.view` without `presence.view` see an anonymous people **count** in the area line? Today: no
    (conservative - the people data stays with `presence.view`).
