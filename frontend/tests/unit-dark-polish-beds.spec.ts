@@ -290,7 +290,7 @@ test('the modelled values are the ones in the screens', () => {
   const has = (f: string, needle: string) => expect(read(f), `${f} should contain: ${needle}`).toContain(needle);
   const lacks = (f: string, rx: RegExp) => expect(read(f), `${f} should not match ${rx}`).not.toMatch(rx);
   for (const f of ['screens/nvr-camera-batch.ts', 'screens/nvr-encoding-batch.ts']) {
-    has(f, `.sel:not([aria-checked='true']) .box { border-color: light-dark(var(--sw-border-strong), ${BOX_EDGE_DARK}); }`);
+    has(f, `.sel:not([aria-checked='true']) .box { border-color: light-dark(var(--sw-text-3), ${BOX_EDGE_DARK}); }`);
   }
   has('screens/nvr-camera-batch.ts', 'light-dark(color-mix(in srgb, var(--sw-accent) 32%, var(--sw-surface)), color-mix(in srgb, var(--sw-accent) 28%, var(--sw-surface)))');
   lacks('screens/water/page-meters.ts', /\.tree button\[aria-current='true'\] \.cnt \{[^}]*opacity/);
