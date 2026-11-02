@@ -73,6 +73,14 @@ def _entity_targets(conn: sqlite3.Connection, entity_id: str) -> tuple[list[tupl
     placed = ha_scope.placements(conn).get(entity_id, [])
     targets = [INSTALLATION] + [("floor", p["floor_id"]) for p in placed if not p.get("shared_from")]
     deny_only = [("floor", p["floor_id"]) for p in placed if p.get("shared_from")] + [("floor", f) for p in placed for f in p.get("share_floors") or ()]
+    from . import building_scope
+
+    if building_scope.mapping_reach_on(conn):  # round 14 (owner 02.11): a building binding also reaches through the home mapping
+        mapped = building_scope.entity_targets(conn).get(entity_id)
+        if mapped is not None:
+            targets.append(("building", mapped[0]))
+            if mapped[1] is not None:
+                deny_only.append(("floor", mapped[1]))
     return targets, deny_only
 
 

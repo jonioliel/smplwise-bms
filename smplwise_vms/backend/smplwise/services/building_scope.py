@@ -38,8 +38,9 @@ def _rows(conn: sqlite3.Connection, sql: str) -> list[sqlite3.Row]:
         return []
 
 
-def area_buildings(conn: sqlite3.Connection, areas: list[dict[str, Any]] | None = None) -> dict[str, str]:
-    """area id -> building id for every platform area that resolves to one of our live buildings (an unresolved area is absent)."""
+def area_targets(conn: sqlite3.Connection, areas: list[dict[str, Any]] | None = None) -> dict[str, tuple[str, str | None]]:
+    """area id -> (building id, our floor id or None) for every platform area that resolves to one of our live buildings (an unresolved
+    area is absent). The floor is None for an area that belongs to a building only through its area -> building row (second pass)."""
     if areas is None:
         _floors, areas = dsvc.load_structure(conn, dsvc.load_entities(conn))
     ha_floor_ids = {r[0] for r in conn.execute("SELECT floor_id FROM ha_floors").fetchall()} | {a.get("floor_id") for a in areas if a.get("floor_id")}
@@ -47,7 +48,7 @@ def area_buildings(conn: sqlite3.Connection, areas: list[dict[str, Any]] | None 
     floor_rows = {r[0]: r[1] for r in _rows(conn, "SELECT ha_floor_id, floor_id FROM home_floor_links")}
     area_rows = {r[0]: r[1] for r in _rows(conn, "SELECT area_id, floor_id FROM home_area_links")}
     on_map = plan_area_links.area_to_zone(conn)
-    out: dict[str, str] = {}
+    out: dict[str, tuple[str, str | None]] = {}
     for a in areas:
         aid = a["area_id"]
         hfid = a.get("floor_id") if a.get("floor_id") in ha_floor_ids else None
@@ -61,12 +62,109 @@ def area_buildings(conn: sqlite3.Connection, areas: list[dict[str, Any]] | None 
         else:
             to = None
         if to and to in building_of:
-            out[aid] = building_of[to]
+            out[aid] = (building_of[to], to)
     live_buildings = set(building_of.values()) | {r[0] for r in conn.execute("SELECT id FROM buildings WHERE deleted_at IS NULL").fetchall()}
     for r in _rows(conn, "SELECT area_id, building_id FROM home_area_buildings"):
         if r[0] not in out and r[1] in live_buildings:
-            out[r[0]] = r[1]
+            out[r[0]] = (r[1], None)
     return out
+
+
+def area_buildings(conn: sqlite3.Connection, areas: list[dict[str, Any]] | None = None) -> dict[str, str]:
+    """area id -> building id for every platform area that resolves to one of our live buildings (an unresolved area is absent)."""
+    return {aid: t[0] for aid, t in area_targets(conn, areas).items()}
+
+
+# ---------------------------------------------------------------------------------------------------------- permission reach (round 14)
+# Owner decision 02.11 (round 14, answer B): a building-scoped role binding reaches a device placed on that building's floor maps (as
+# always, services/ha_scope) OR whose area the home mapping puts in that building - a union; an unmapped area adds nothing. The
+# installation setting "הרשאת בניין לפי" chooses: "map" = map placement only (the rule before), "map_and_mapping" = placement + the
+# area mapping (the owner's default). It applies only while the multi-building switch is on: off = exactly the rule before.
+REACH_KEY = "security.building_reach"
+REACH_CHOICES: tuple[str, ...] = ("map_and_mapping", "map")
+REACH_DEFAULT = "map_and_mapping"
+REACH_LABELS = {"map": "מיקום במפה", "map_and_mapping": "מפה + מיפוי אזורים"}
+MULTI_KEY = "home.multi_building.enabled"  # routers/home_mapping.MULTI_KEY (read here without importing the router)
+
+
+def reach_mode(conn: sqlite3.Connection) -> str:
+    row = conn.execute("SELECT value FROM settings WHERE key = ?", (REACH_KEY,)).fetchone()
+    value = row[0] if row else None
+    return value if value in REACH_CHOICES else REACH_DEFAULT
+
+
+def mapping_reach_on(conn: sqlite3.Connection) -> bool:
+    """Whether the home mapping adds to a building binding's reach right now: the multi-building switch on AND the setting allows it."""
+    row = conn.execute("SELECT value FROM settings WHERE key = ?", (MULTI_KEY,)).fetchone()
+    return bool(row) and row[0] == "on" and reach_mode(conn) == "map_and_mapping"
+
+
+def _light(conn: sqlite3.Connection) -> tuple[list[dict[str, Any]], list[sqlite3.Row]]:
+    """The registry's areas plus any area an entity names that the mirror has not got yet, and the entity -> area rows: the light rows
+    a permission check resolves from (it never loads the whole catalogue)."""
+    areas = [{"area_id": r[0], "floor_id": r[1]} for r in conn.execute("SELECT area_id, floor_id FROM ha_areas").fetchall()]
+    known = {a["area_id"] for a in areas}
+    ents = conn.execute("SELECT entity_id, area_id, ha_floor_id FROM ha_entities WHERE area_id IS NOT NULL AND area_id != ''").fetchall()
+    for r in ents:
+        if r[1] not in known:
+            areas.append({"area_id": r[1], "floor_id": r[2]})
+            known.add(r[1])
+    return areas, ents
+
+
+def entity_targets(conn: sqlite3.Connection) -> dict[str, tuple[str, str | None]]:
+    """entity id -> (building id, our floor id or None) through its area, for every entity whose area the home mapping resolves - the
+    same resolution as the building cut above."""
+    areas, ents = _light(conn)
+    by_area = area_targets(conn, areas)
+    return {r[0]: by_area[r[1]] for r in ents if r[1] in by_area}
+
+
+def mapping_changed(conn: sqlite3.Connection) -> None:
+    """A write to the mapping rows (or to the switch / the setting) can widen or narrow reach: every open socket re-scopes now (the REST
+    routes need nothing - reach is worked out on every request, never cached across requests). The anchors precedent (routers/anchors.py).
+    Called only while the mapping counts for reach (or the switch / setting just stopped it counting): off = nothing moves, as before."""
+    from . import revocation
+
+    revocation.mark([r[0] for r in conn.execute("SELECT id FROM users").fetchall()])
+
+
+class RemapGuard:
+    """Round 14 security rule for every mapping write (the floor's home links, the mapping assistant's apply / restore, a plan room's area
+    link): while the mapping counts for reach, moving an area OUT of the building it resolves to now (to another building, or to none)
+    also edits that building - the writer must hold the route's own permission where the area is now (its floor, else its building), the
+    rule a camera moved between floors follows (HA_IDENTITY_RBAC_HE §5: source and target). Otherwise a floor editor of building A could
+    pull building B's areas - and with them B's devices - into the reach of A's holders. Usage: create it after the route's own permission
+    check and before any write (it opens a savepoint), call `check()` after the writes and before the route's own audit row: a refused
+    move rolls the writes back and raises the audited 403 of `require`. While the mapping does not count (switch off / "מיקום במפה") it
+    does nothing at all - the route behaves exactly as before."""
+
+    def __init__(self, conn: sqlite3.Connection, principal: Any, permission: str) -> None:
+        self.conn, self.principal, self.permission = conn, principal, permission
+        self.on = mapping_reach_on(conn)
+        self.before: dict[str, tuple[str, str | None]] = {}
+        if self.on:
+            self.before = area_targets(conn, _light(conn)[0])
+            conn.execute("SAVEPOINT building_remap")
+
+    def check(self) -> None:
+        if not self.on:
+            return
+        from ..rbac import authorize, require
+
+        after = area_targets(self.conn, _light(self.conn)[0])
+        for aid, (old_b, old_f) in sorted(self.before.items()):
+            new = after.get(aid)
+            if new is not None and new[0] == old_b:
+                continue
+            target = ("floor", old_f) if old_f else ("building", old_b)
+            if not authorize(self.conn, self.principal, self.permission, target).allowed:
+                self.conn.execute("ROLLBACK TO building_remap")
+                self.conn.execute("RELEASE building_remap")
+                require(self.conn, self.principal, self.permission, target)  # the audited 403 (raises)
+        self.conn.execute("RELEASE building_remap")
+        if after != self.before:
+            mapping_changed(self.conn)
 
 
 def building_areas(conn: sqlite3.Connection, building_id: str, areas: list[dict[str, Any]] | None = None) -> set[str]:

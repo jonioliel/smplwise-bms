@@ -496,6 +496,9 @@ def put_home_link(floor_id: str, body: HomeLinkIn, request: Request, principal: 
     answer 422, except ids already in a row (a dangling row never blocks a save). Audited as floor.home_link."""
     get_floor(conn, floor_id)
     require(conn, principal, P_CONTENT, ("floor", floor_id))
+    from ..services import building_scope
+
+    guard = building_scope.RemapGuard(conn, principal, P_CONTENT)  # round 14: an area leaving its building needs that building's edit too
     live = _live_floor_ids(conn)
     now = now_iso()
     details: dict[str, Any] = {}
@@ -548,5 +551,6 @@ def put_home_link(floor_id: str, body: HomeLinkIn, request: Request, principal: 
                 conn.execute("DELETE FROM home_area_links WHERE area_id = ?", (aid,))
             changes[aid] = mode
         details["areas"] = changes
+    guard.check()
     audit(conn, actor=principal, action="floor.home_link", decision="allowed", resource_type="floor", resource_id=floor_id, request_id=_rid(request), details=details)
     return list_home_links(principal, conn)
