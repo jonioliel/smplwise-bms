@@ -118,7 +118,9 @@ picking a floor card on the building screen shows its panel (`evidence-devices` 
 | `playwright -c playwright.unit.config.ts --workers=1`: `unit-home-edit-drawer` (8, one new), `unit-home-screen-295`, `unit-tree-unassigned-2331`, `unit-owner-r12-2341`, `unit-a11y-polished-lint`, `unit-token-lint`, `unit-area-popup-edit-2290`, `unit-menu-lint`, `unit-lead-reserve`, `unit-uxfix-rtl`, `unit-entity-id-sweep`, `unit-dark-polish-beds` | **92 passed / 92** |
 | pytest `test_home_screen_options_295` (new `test_edit_drawer_space_round_trip`: default, round trip, 422 on bad values, 403 for a viewer), `test_tree_unassigned_2331`, `test_multibuilding_home_2330`, `test_mobile_options`, `test_home_screen`, `test_polish_display_settings` | **68 passed / 68** |
 | pytest `test_popup_layout_2290` (writes `home.screen.popup`) | **4 passed / 4** |
-| Browser evidence (drawer closed at 1440: the preview widens; with `keep` it does not) | see the runner line in the round-14 report |
+| Runner `preview` @ 0234a4158 (`unit-home-screen`, `unit-home-screen-295`; the name filters also matched `evidence-home-screen`, `evidence-devices*`, which skip without a fixture backend) | **49 passed, 0 failed** (257 skipped) |
+| Runner `fixture` `evidence-devices --project=desktop` @ 0234a4158 | 35 passed, **7 failed** - the SAME 7 fail on the base `release/2350-train` @ 908c2e142 (pre-existing drift of a non-gate spec: refresh label, area rows, glass alpha, indicators, bulk popover, tile arrange subheading); none touches the drawer |
+| Browser check of the new behaviour itself (drawer closed at 1440: the preview widens; with `keep` it does not) | NOT_RUN: no spec drives it yet |
 
 ## Owner questions (answered 02.11, round 14 - kept for the record)
 
