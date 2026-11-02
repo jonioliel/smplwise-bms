@@ -66,6 +66,8 @@ export class HomeEditPanel extends LitElement {
   @property({ type: Boolean }) presence = false;
   /** The widget whose settings are open (a card's "הגדרות" button sets it). */
   @property() open: WidgetId | '' = '';
+  /** HOME-EDIT-DRAWER-2351: drawn inside the edit drawer - no card of its own (the drawer is the card). */
+  @property({ type: Boolean, reflect: true }) flat = false;
   @state() private dragFloor = '';
 
   /* HOMEEDIT-POLISH-2331: the settings ladder of R5-SYSTEM-297 / HOMEFABLE-297 - the panel is the card (radius lg, shadow 2 + the light
@@ -79,6 +81,17 @@ export class HomeEditPanel extends LitElement {
         display: block;
         --he-well: color-mix(in srgb, var(--sw-surface-2) 76%, var(--sw-border));
         --sw-seg-h: var(--sw-ctl-h-md);
+        /* HOME-EDIT-DRAWER-2351: the panel lays itself out by its OWN width (the drawer is ~340-420 px on a wide screen) */
+        container-type: inline-size;
+      }
+      :host([flat]) .home-edit {
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: none;
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        box-shadow: none;
       }
       .home-edit {
         display: grid;
@@ -421,6 +434,28 @@ export class HomeEditPanel extends LitElement {
       @media (max-width: 899px) {
         .home-edit {
           grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      /* HOME-EDIT-DRAWER-2351: narrow by its own width (the drawer): one column, the field label over its picker, the extra
+         calendar field's title under its sensor - the phone's arrangement without the phone's 44 px targets */
+      @container (max-width: 640px) {
+        .home-edit {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+      @container (max-width: 460px) {
+        .w-name {
+          min-inline-size: 0;
+        }
+        .frow {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .extra {
+          grid-template-columns: minmax(0, 1fr) auto;
+        }
+        .extra input {
+          grid-column: 1 / -1;
+          grid-row: 2;
         }
       }
       /* a phone: one column of controls, 44 px targets, the extra calendar field's title under its sensor */

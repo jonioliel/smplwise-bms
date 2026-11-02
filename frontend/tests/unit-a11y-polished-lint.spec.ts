@@ -43,7 +43,7 @@ const POLISHED = [
   'screens/devices-building.ts', 'screens/devices-bulk.ts', 'screens/devices-controls.ts', 'screens/devices-layout-css.ts', 'screens/devices-layout.ts',
   'screens/devices-notices-css.ts', 'screens/devices-notices.ts', 'screens/devices-schedules.ts', 'screens/devices-synoptic.ts',
   'screens/devices-tiles-panel.ts', 'screens/explore-floor-map.ts', 'screens/explore-floors.ts', 'screens/home-ambient-bar.ts',
-  'screens/home-edit-panel.ts', 'screens/home-screen-options.ts', 'screens/home-widgets-bv1.ts', 'screens/infra-generator.ts',
+  'screens/home-edit-drawer.ts', 'screens/home-edit-panel.ts', 'screens/home-screen-options.ts', 'screens/home-widgets-bv1.ts', 'screens/infra-generator.ts',
   'screens/infra-report.ts', 'screens/infra-water.ts', 'screens/insights-doors.ts', 'screens/insights-settings.ts', 'screens/insights-waste.ts',
   'screens/investigate-cases.ts', 'screens/investigate-event-detail.ts', 'screens/investigate-events.ts', 'screens/investigate-exports.ts',
   'screens/investigate-ha-events.ts', 'screens/investigate-time.ts', 'screens/multimedia-players.ts', 'screens/multimedia-remote-editor.ts',
