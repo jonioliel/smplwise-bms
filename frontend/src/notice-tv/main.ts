@@ -36,6 +36,8 @@ import { effective, hasPanel, refreshMs, slideWanted, transitOf, transitTick, ts
 import { sidePanel, slidePanel, stripPanel, type TransitCtx } from './transit-view';
 import { v2Panel, v2Slide, v2Strip, type V2TransitCtx } from './v2-transit';
 import { createSkinBoard, type SkinBoard, type SkinInput } from './skin-board';
+import { chipFitOf, dropOrder, logoArea, safeInset, safeMarginOf, type ChipFit } from './tv-fit'; // TV-FIT-2380
+import { hebrewDate } from './heb-date'; // TV-FIT-2380: the Hebrew date on browsers without the Hebrew calendar
 import { isSkin, type Skin } from './skin-logic';
 
 const Q = new URLSearchParams(location.search);
@@ -52,6 +54,7 @@ if (FIXED) body.classList.add('frozen');
 if (EMBED) body.classList.add('embed'); // inside the Settings preview iframe (no other difference: the preview IS the TV)
 
 const cv = document.getElementById('cv') as HTMLElement;
+const host = document.getElementById('host') as HTMLElement; // TV-FIT-2380: inset by the safe-area margin; the canvas fits inside it
 const shift = cv.querySelector('.shift') as HTMLElement;
 const pg = cv.querySelector('.pg') as HTMLElement;
 const take = cv.querySelector('.take') as HTMLElement;
@@ -65,6 +68,7 @@ let companyUrl: Record<'light' | 'dark', string> = { light: '', dark: '' };
 let companySrc: Record<'light' | 'dark', string> = { light: '', dark: '' }; // blob URLs of the loaded logo files (CR-LOGOS295)
 const hasCompany = (): boolean => !!(companySrc.light || companySrc.dark);
 let companyAlpha = false; // TVOPT-295: the light file has a transparent background (an invert then reads as a logo, not a dark box)
+let companyRatio = 0; // TV-FIT-2380 (H7): width / height of the light file (0 = unknown / none): the logo box is sized by area
 // NOTICESLIDES-295: the slide pictures and the building photo are read with the board token like the logo, so they live as blob URLs
 const slideSrc = new Map<string, string>(); // feed image URL -> blob URL
 let photoUrl = '';
@@ -195,12 +199,8 @@ function dateStr(): string {
 }
 
 function hebDate(): string {
-  let h = '';
-  try {
-    h = new Intl.DateTimeFormat('he-IL-u-ca-hebrew', { day: 'numeric', month: 'long', year: 'numeric', timeZone: feed?.board.tz || 'Asia/Jerusalem' }).format(nowDate());
-  } catch {
-    h = '';
-  }
+  // TV-FIT-2380: the browser's Hebrew calendar when it has one, else the computed date (a TV browser without it used to show no line)
+  const h = hebrewDate(feed?.board.tz || 'Asia/Jerusalem', nowDate());
   const c = feed?.sun?.candles;
   return [h, c ? str(lang(), 'candles', { t: c }) : ''].filter(Boolean).join(' · ');
 }
@@ -382,8 +382,10 @@ function liveHtml(u: UpdatedLine, one = false): string {
   // TVNOTICE2-297: place = "updated · <place> <time>" (the approved preview, the default); full = "updated <time> · <board name>"
   const p = updatedLineParts(u === 'place' ? 'place' : 'full', { label: str(lang(), 'updated'), place: display().place || '', board: feed?.board.name || '' });
   const full = esc(p.before) + t + esc(p.after);
-  // TVNOTICE-297: in the one-row header the full line is one box that can end in an ellipsis (a long board name never widens the row)
-  return '<span class="live"><i></i>' + (u === 'time' ? t : one ? '<span class="lt">' + full + '</span>' : full) + '</span>';
+  // TVNOTICE-297: in the one-row header the line is capped and its words end in an ellipsis (a long name never widens the row).
+  // TV-FIT-2380: only the words - the time always stays visible (the place wording puts it at the end of the line).
+  const capped = u === 'place' ? '<span class="lt">' + esc(p.before) + '</span>' + t : esc(p.before) + t + (p.after ? '<span class="lt">' + esc(p.after) + '</span>' : '');
+  return '<span class="live"><i></i>' + (u === 'time' ? t : one ? capped : full) + '</span>';
 }
 
 /** The network state notes and the "updated" line (the bottom row of the header as before, the header row of a / b). */
@@ -424,6 +426,33 @@ function portraitNow(): boolean {
   return innerHeight > innerWidth;
 }
 
+/** TV-FIT-2380: the chips behaviour in force (the board's `portrait_chips`, or the `?chips=` test hook). */
+function chipFitNow(): ChipFit {
+  return chipFitOf(display(), Q.get('chips'));
+}
+
+/** TV-FIT-2380: the safe-area (overscan) margin. The host (the canvas' frame) is inset by the margin on every side and the canvas fits
+ * the host, so every design (classic, V2, the lobby styles, Ink / Sign) keeps its whole layout inside the area the TV really shows. */
+function applySafe(): void {
+  const pct = safeMarginOf(display(), Q.get('safe'));
+  const r = safeInset(innerWidth || 1920, innerHeight || 1080, pct);
+  host.style.inset = pct ? r.y + 'px ' + r.x + 'px' : '';
+  if (pct) body.dataset.safe = String(pct);
+  else delete body.dataset.safe;
+}
+
+/** TV-FIT-2380 (H7): the company logo sized by area. The factors go on the document root, so the classic canvas and the styles' root
+ * (#nbk) both read them; an ordinary logo keeps factor 1 (nothing moves). */
+function applyLogoArea(): void {
+  const a = logoArea(hasCompany() ? companyRatio : 0);
+  const st = root.style;
+  if (a.h !== 1) st.setProperty('--coa', String(a.h));
+  else st.removeProperty('--coa');
+  if (a.w !== 1) st.setProperty('--cow', String(a.w));
+  else st.removeProperty('--cow');
+  root.dataset.coShape = a.shape;
+}
+
 function currentTheme(): 'day' | 'night' {
   if (forceTheme === 'day' || forceTheme === 'night') return forceTheme;
   return themeOf(display(), clock(), feed?.sun);
@@ -431,6 +460,8 @@ function currentTheme(): 'day' | 'night' {
 
 function render(): void {
   if (!feed) return;
+  applySafe();
+  applyLogoArea();
   const d = display();
   const notices = feed.notices;
   const theme = currentTheme();
@@ -448,6 +479,7 @@ function render(): void {
   leaveSkin();
   const band = bandNotice(notices, d);
   cv.classList.toggle('portrait', portrait);
+  cv.dataset.chips = chipFitNow(); // TV-FIT-2380: the footer's chips - rows (portrait: always two rows) / drop
   cv.dataset.tpl = String(tpl);
   cv.dataset.mode = d.mode;
   cv.dataset.urgent = urgentNow ? 'full' : band ? 'band' : d.urgent;
@@ -593,10 +625,13 @@ function v2StatusHtml(u: UpdatedLine): string {
 /** The tenant logo's height: the board's co_size, else (auto) the system logo setting's scale of the 96 px header (88 px portrait). */
 function v2LogoHeight(portrait: boolean): string {
   const s = tv2Of(display(), 'co_size');
-  if (s !== 'auto') return CO_SIZE_PX[s] * (portrait ? 88 / 96 : 1) + 'px';
+  // TV-FIT-2380 (H7): a tall crest grows by area, never past the largest box (xl): the header row stays the row it was
+  const a = logoArea(hasCompany() ? companyRatio : 0).h;
+  const grow = (px: number): string => (a === 1 ? px : Math.round(Math.min(Math.max(px, CO_SIZE_PX.xl * (portrait ? 88 / 96 : 1)), px * a))) + 'px';
+  if (s !== 'auto') return grow(CO_SIZE_PX[s] * (portrait ? 88 / 96 : 1));
   const b = feed?.board.brand;
   const k = LOGO_SCALE[b?.company_size ?? b?.size ?? 'm'] ?? 1;
-  return Math.round((portrait ? 88 : 96) * k) + 'px';
+  return grow(Math.round((portrait ? 88 : 96) * k));
 }
 
 function renderV2(d: Display, portrait: boolean, L: { co: string; sw: string }, band: FeedNotice | null, flags: Record<string, boolean>): void {
@@ -753,6 +788,7 @@ function renderSkin(skin: Skin, theme: 'day' | 'night', urgentNow: FeedNotice | 
     company: skinCompany(dark),
     idleCompany: idleLogoOf(d) === 'both',
     drift: !!d.burn_in?.shift,
+    chips: chipFitNow(),
     night: dim,
     nightB: dimBrightness(d.night?.dim ?? 0.5),
   });
@@ -800,8 +836,9 @@ function fitCanvas(): void {
   const portrait = cv.classList.contains('portrait') || cv.classList.contains('v2p');
   const W0 = portrait ? 1080 : 1920;
   const H0 = portrait ? 1920 : 1080;
-  const vw = innerWidth || W0;
-  const vh = innerHeight || H0;
+  // TV-FIT-2380: the host's box (the viewport less the safe-area margin), not the whole viewport
+  const vw = host.clientWidth || innerWidth || W0;
+  const vh = host.clientHeight || innerHeight || H0;
   const s = Math.min(vw / W0, vh / H0);
   let W = W0;
   let H = H0;
@@ -843,6 +880,7 @@ function layoutAfter(): void {
     side.classList.remove('c1', 'c2', 'c3');
     for (const c of ['c1', 'c2', 'c3']) if (side.scrollHeight > side.clientHeight + 1) side.classList.add(c);
   }
+  fitFooter();
   cv.querySelectorAll<HTMLElement>('.stage .it:not(.transit)').forEach((c) => fit(c, 0.6));
   fitBus();
   cv.querySelectorAll<HTMLElement>('.stage .cell').forEach((c) => fit(c, 0.6));
@@ -859,6 +897,42 @@ function layoutAfter(): void {
     tr.querySelectorAll('img').forEach((im) => {
       if (!im.complete) im.addEventListener('load', () => tr.style.setProperty('--dur', Math.max(20, Math.round((ww + tr.scrollWidth) / speed)) + 's'), { once: true });
     });
+  }
+}
+
+// ---------------------------------------------------------------- TV-FIT-2380: the footer's building chips never fall off
+
+/** A chip the chips box cuts off (the box has a fixed height and hides what wraps past it). */
+function chipCut(box: HTMLElement, ch: HTMLElement): boolean {
+  if (ch.hidden) return false;
+  // rectangles, not offsets: the chips box is not positioned, and both rectangles carry the canvas zoom alike
+  const b = box.getBoundingClientRect();
+  const c = ch.getBoundingClientRect();
+  return c.bottom > b.bottom + 1 || c.top < b.top - 1 || c.left < b.left - 1 || c.right > b.right + 1;
+}
+
+/**
+ * The bottom row's chips (template 1). `rows`: portrait always draws two rows (the chips over the status line, by CSS); landscape keeps
+ * the one row while everything fits and turns to two rows (`.ft.two`) the moment a chip would be cut. `drop` (and, as the last resort, a
+ * two-row footer that still cannot hold them): the healthy chips leave first, an alarm last - never simply the last chip.
+ */
+function fitFooter(): void {
+  const ft = cv.querySelector<HTMLElement>('.pg > .ft');
+  const box = ft?.querySelector<HTMLElement>('.chips');
+  if (!ft || !box) return;
+  const chips = [...box.querySelectorAll<HTMLElement>('.ch')];
+  chips.forEach((c) => (c.hidden = false));
+  ft.classList.remove('two');
+  if (!box.getClientRects().length) return; // no chips drawn (offline, none configured)
+  const anyCut = (): boolean => chips.some((c) => chipCut(box, c));
+  if (!chips.length || !anyCut()) return;
+  if (chipFitNow() === 'rows') {
+    ft.classList.add('two');
+    if (!anyCut()) return;
+  }
+  for (const i of dropOrder(chips.map((c) => c.dataset.look || 'ok'))) {
+    if (!anyCut() || chips.filter((c) => !c.hidden).length <= 1) break;
+    chips[i].hidden = true;
   }
 }
 
@@ -1175,7 +1249,10 @@ async function loadCompanyLogo(variant: 'light' | 'dark', url: string | undefine
     if (companySrc[variant]) URL.revokeObjectURL(companySrc[variant]);
     companySrc[variant] = '';
     companyUrl[variant] = '';
-    if (variant === 'light') companyAlpha = false;
+    if (variant === 'light') {
+      companyAlpha = false;
+      companyRatio = 0;
+    }
     return;
   }
   if (url === companyUrl[variant] && companySrc[variant]) return;
@@ -1186,9 +1263,24 @@ async function loadCompanyLogo(variant: 'light' | 'dark', url: string | undefine
     if (companySrc[variant]) URL.revokeObjectURL(companySrc[variant]);
     companySrc[variant] = URL.createObjectURL(blob);
     companyUrl[variant] = url;
-    if (variant === 'light') companyAlpha = await transparentEdge(companySrc.light);
+    if (variant === 'light') {
+      companyAlpha = await transparentEdge(companySrc.light);
+      companyRatio = await imageRatio(companySrc.light);
+    }
   } catch {
     /* the logo is optional: the header keeps its place */
+  }
+}
+
+/** TV-FIT-2380 (H7): width / height of a logo file (an SVG without a size reads its viewBox through the decoded image); 0 when unknown. */
+async function imageRatio(src: string): Promise<number> {
+  try {
+    const img = new Image();
+    img.src = src;
+    await img.decode();
+    return img.naturalWidth > 0 && img.naturalHeight > 0 ? img.naturalWidth / img.naturalHeight : 0;
+  } catch {
+    return 0;
   }
 }
 

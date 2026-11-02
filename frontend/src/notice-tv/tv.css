@@ -746,3 +746,26 @@ svg.defs { position: absolute; inline-size: 0; block-size: 0; overflow: hidden; 
 .bus .bcard.cmore { flex: 0 0 150px; min-inline-size: 150px; }
 #cv.portrait .bus .bcard { flex: none; min-inline-size: 0; max-inline-size: none; }
 #cv:not(.portrait)[data-bus="side"] .side { gap: 14px; }
+
+/* ===== TV-FIT-2380 =====
+   1. The bottom row's building chips (template 1) never fall off for the "updated" line. `rows` (the default, display.portrait_chips):
+      portrait always draws two rows - the chips over the status line - so the longer "עודכן · <place>" wording costs no chip; landscape keeps
+      its one row while everything fits and main.ts (fitFooter) adds `.two` the moment a chip would be cut. Each piece keeps its side of
+      the one-row footer (the chips at the inline start, the status and the mark at the end), so nothing jumps across the screen.
+      `drop`: one row as before; fitFooter hides the healthy chips first, an alarm last.
+   2. The company logo sized by area (gap H7): --coa (a tall crest, up to 1.4x the box height, never past the cap) and --cow (a long banner,
+      up to 1.4x the width cap) are set on the document root by main.ts; an ordinary logo has neither, so every value below equals the old one.
+   3. The safe-area (overscan) margin: main.ts insets #host; the margin is drawn black, as the bars of a screen of another shape. */
+#cv.portrait[data-chips="rows"] .pg > .ft, #cv .pg > .ft.two { flex-wrap: wrap; row-gap: 14px; }
+#cv.portrait[data-chips="rows"] .pg > .ft > .chips, #cv .pg > .ft.two > .chips { flex: 1 0 100%; block-size: auto; max-block-size: calc(100px * var(--fs)); }
+#cv .pg > .ft .ch[hidden] { display: none; }
+.lg.company { block-size: min(calc(72px * var(--lgco, var(--lg, 1)) * var(--coa, 1)), max(calc(72px * var(--lgco, var(--lg, 1))), 128px)); }
+.ft .lg.company { block-size: min(calc(48px * var(--lgco, var(--lg, 1)) * var(--coa, 1)), max(calc(48px * var(--lgco, var(--lg, 1))), 72px)); }
+.ft .lg.company img { max-inline-size: calc(210px * var(--cow, 1)); }
+#cv .empty .idl .lg.company { block-size: min(calc(96px * var(--lgco, var(--lg, 1)) * var(--coa, 1)), max(calc(96px * var(--lgco, var(--lg, 1))), 160px)); }
+#cv.portrait .lg.company { block-size: min(calc(64px * var(--lgco, var(--lg, 1)) * var(--coa, 1)), max(calc(64px * var(--lgco, var(--lg, 1))), 120px)); }
+.take .top .lg.company { block-size: min(calc(72px * var(--lgco, var(--lg, 1)) * var(--coa, 1)), max(calc(72px * var(--lgco, var(--lg, 1))), 128px)); }
+.lg.company img { max-inline-size: calc(315px * var(--cow, 1)); }
+#cv.portrait .lg.company img { max-inline-size: calc(280px * var(--cow, 1)); }
+.take .top .lg.company img { max-inline-size: calc(300px * var(--cow, 1)); }
+body[data-safe], body[data-safe] #host { background: #000; }

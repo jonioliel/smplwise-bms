@@ -82,7 +82,7 @@
 #nbk[data-skin="ink"] .nb-msg.nb-idle .nb-big { font-size: 168px; font-weight: 800; line-height: .95; letter-spacing: -0.04em; }
 #nbk[data-skin="ink"] .nb-msg.nb-idle .nb-sub { font-size: 52px; font-weight: 400; }
 #nbk[data-skin="ink"] .nb-msg.nb-idle .nb-line { font-size: 40px; font-weight: 700; padding: 12px 26px; background: var(--ink); color: var(--g); margin-block-start: 26px; display: inline-flex; gap: 16px; align-items: center; }
-#nbk[data-skin="ink"] .nb-msg.nb-idle .nb-co { block-size: 64px; margin-block-start: 30px; }
+#nbk[data-skin="ink"] .nb-msg.nb-idle .nb-co { block-size: min(calc(64px * var(--coa, 1)), 96px); margin-block-start: 30px; }
 /* the refresh sweep (signature) and its ghost */
 #nbk[data-skin="ink"] .nb-sweep { position: absolute; inset-inline: 0; inset-block-start: 0; block-size: 26px; background: var(--ink); z-index: 4; pointer-events: none; }
 #nbk[data-skin="ink"] .nb-sweep.nb-red { background: var(--red); block-size: 40px; }
@@ -125,8 +125,8 @@
 #nbk .nb-sw { display: flex; align-items: center; flex: none; }
 #nbk .nb-sw svg { block-size: 100%; inline-size: auto; overflow: visible; }
 #nbk .nb-live .nb-sw { block-size: 30px; }
-#nbk .nb-co { display: flex; align-items: center; flex: none; block-size: 34px; }
-#nbk .nb-co img { block-size: 100%; inline-size: auto; max-inline-size: 200px; object-fit: contain; }
+#nbk .nb-co { display: flex; align-items: center; flex: none; block-size: min(calc(34px * var(--coa, 1)), 44px); }
+#nbk .nb-co img { block-size: 100%; inline-size: auto; max-inline-size: calc(200px * var(--cow, 1)); object-fit: contain; }
 #nbk .nb-co[data-tr="plate"], #nbk .nb-co[data-tr="darkplate"] { box-sizing: border-box; padding: 3px 10px; border-radius: 8px; background: #ffffff; }
 #nbk .nb-co[data-tr="darkplate"] { background: #0d1220; }
 #nbk .nb-co[data-tr="invert"] img { filter: invert(1) hue-rotate(180deg); }
@@ -355,3 +355,16 @@
 #nbk[data-night="1"] { filter: brightness(var(--night-b, .58)) saturate(.9); }
 /* the board sits in the page's host next to the classic canvas; only one of the two is shown */
 #nbk[hidden] { display: none; }
+
+/* ===== TV-FIT-2380: the "updated" line in every style (Ink, Sign and the lobby styles) =====
+   The words around the time may end in an ellipsis, the time never does: the place wording ("עודכן · <place> 09:12") puts the time last.
+   Portrait gives the line the footer's whole width (it has a row of its own in every style), so the place reads in full where it fits;
+   with the building entries on their own rows, the longer wording costs no entry. */
+#nbk .nb-st8 .nb-lw { display: inline-flex; align-items: baseline; gap: .28em; min-inline-size: 0; }
+#nbk .nb-st8 .nb-lw .nb-lt { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#nbk .nb-st8 .nb-lw .nb-num { flex: none; }
+#nbk[data-orient="p"] .nb-ft .nb-live { min-inline-size: 0; max-inline-size: 100%; }
+#nbk[data-orient="p"] .nb-ft .nb-st8 { min-inline-size: 0; max-inline-size: none; overflow: hidden; flex: 0 1 auto; }
+/* Gallery in portrait (rows): the entries take the first line, the "updated" line and the logos the next, the news the last */
+#nbk[data-skin="gallery"][data-orient="p"][data-chips="rows"] .nb-ft .nb-info { flex: 1 0 100%; }
+#nbk[data-skin="gallery"][data-orient="p"][data-chips="rows"] .nb-ft .nb-live { flex: 1 0 100%; justify-content: space-between; }
