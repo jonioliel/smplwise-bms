@@ -965,6 +965,10 @@ class HaSync:
             log.info("registry refresh (%s) in %.0f ms: %s", reason, (time.monotonic() - started) * 1000, "changed" if changed else "no change")
             if changed:
                 STATE.last_structure_at = STATE.last_registry_at
+                # MAPPING-IMPROVE-2351: auto-insert of new home-system names (setting 3A on) - its own short transactions, off the loop
+                from . import mapping_auto
+
+                asyncio.get_running_loop().run_in_executor(None, mapping_auto.run_safe, self.db, "registry")
             if notify and (changed or force_notice):
                 publish({"type": "structure_changed", "reason": reason, "changed": changed, "last_registry_at": STATE.last_registry_at})
             return changed

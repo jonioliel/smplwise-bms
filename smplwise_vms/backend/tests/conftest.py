@@ -19,6 +19,7 @@ os.environ.setdefault("SW_TEMPERATURE", "0")  # CR-INFRA-TEMPERATURE 2.9.1: test
 os.environ.setdefault("SW_SCENARIOS", "0")  # XSCENARIO109-295: tests call scenarios.step / tick with explicit instants
 # CR-023: the bill PDF engine self-check (one child render per app start) stays off; tests call bill_pdf.self_check() directly
 os.environ.setdefault("SW_BILL_PDF_SELFCHECK", "0")
+os.environ.setdefault("SW_MAPPING_AUTO_STARTUP", "0")  # MAPPING-IMPROVE-2351: tests call mapping_auto.run directly
 # CR-026: the recorder health poller stays off; tests call recorder_health.probe / poll_once / tick with explicit instants
 os.environ.setdefault("SW_RECORDER_HEALTH", "0")
 # CAMHEALTH091: the camera image health poller stays off; tests call camera_image_health.record / sample / poll_once / tick directly
