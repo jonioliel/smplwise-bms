@@ -89,8 +89,9 @@ test('the Google connection check: running status, summary, one row per check, t
   const card = await open(page);
 
   await card.locator('[data-offbox-gdrive-diagnose]').click();
+  // sw-dialog's host has no box of its own (its shadow draws the card): read its open attribute and its content instead
   const dlg = card.locator('[data-offbox-gdrive-diag]');
-  await expect(dlg).toBeVisible();
+  await expect(dlg).toHaveAttribute('open', '');
   await expect(dlg.getByRole('status').filter({ hasText: 'בודק מול Google' })).toBeVisible();
 
   const summary = dlg.locator('[data-offbox-gdrive-diag-summary]');
@@ -106,6 +107,9 @@ test('the Google connection check: running status, summary, one row per check, t
   await expect(dlg.locator('li[data-check="account"] .fix')).toHaveCount(1);
   await expect(dlg.locator('li[data-check="clock"] .fix')).toHaveCount(0);
   await expect(dlg).toContainText('הבדיקה לא משנה דבר');
+  // four checks with their fixes fit the dialog without a scroll, also at 390 px
+  const overflow = await dlg.evaluate((el) => { const b = el.shadowRoot?.querySelector('.body') as HTMLElement | null; return b ? b.scrollHeight - b.clientHeight : -1; });
+  expect(overflow, 'the check dialog body does not scroll').toBeLessThanOrEqual(1);
 
   await dlg.locator('[data-offbox-gdrive-diag-again]').click();
   await expect(summary).toHaveAttribute('data-offbox-gdrive-diag-summary', 'ok');
