@@ -4,9 +4,9 @@ import '../components/sw-button';
 import '../components/sw-icon';
 import { describeError } from '../api/client';
 import {
-  buildPlan, detect, exceptionOrder, manualImpact, mergeTokens, newBuildingName, POSITIONS, questions,
+  buildPlan, detect, exceptionOrder, levelQuestions, manualImpact, mergeTokens, newBuildingName, POSITIONS, questions,
   resolve, SEP_CHIPS, suggestSpec, summarize, tableRows, TABLE_RULE, tokenize,
-  type BuildingRef, type Detection, type MappingState, type MarkSpec, type Position, type Question, type Res,
+  type BuildingRef, type Detection, type LevelAnswer, type LevelQuestion, type MappingState, type MarkSpec, type Position, type Question, type Res,
   type RuleKind, type Summary, type TableRow, type Target, type TokenKind,
 } from '../api/mapping-engine';
 import { applyMapping, saveState, setMultiBuilding, type MappingData } from '../api/mapping';
@@ -18,13 +18,17 @@ import { applyMapping, saveState, setMultiBuilding, type MappingData } from '../
  * names. Full-screen sheet: the lists scroll inside their own panels, the page itself never scrolls (owner rule 24.10).
  * Fires `close` and `applied` ({ version, multi }).
  */
-type Step = 'mark' | 'table' | 'decide' | 'summary' | 'done';
+type Step = 'mark' | 'table' | 'decide' | 'levels' | 'summary' | 'done';
 const STEPS: { id: Exclude<Step, 'done'>; label: string }[] = [
   { id: 'mark', label: 'צורת הסימון' },
   { id: 'table', label: 'סימון ← בניין' },
   { id: 'decide', label: 'החלטות' },
+  // MAPPING-IMPROVE-2351: only when a floor has no level anywhere (none in the home system, none in its name)
+  { id: 'levels', label: 'קומות ללא מפלס' },
   { id: 'summary', label: 'סיכום' },
 ];
+/** The level picker's range (an answer outside it is still listed). */
+const LEVEL_PICK = Array.from({ length: 66 }, (_x, i) => i - 5);
 
 export const POS_TEXT: Record<Position | 'advanced', { title: string; ex: TemplateResult[] }> = {
   start: { title: 'בתחילת השם', ex: [html`<b>א</b> · לובי`, html`<b>1</b> · לובי`, html`<b>B2</b>-לובי`] },
@@ -67,7 +71,7 @@ export class MappingAssistant extends LitElement {
   private revision = 0;
   private seeded = false;
   private sugg: ReturnType<typeof suggestSpec> | null = null;
-  private memo: { st: MappingState; det: Detection; rows: TableRow[]; res: Map<string, Res>; qs: Question[]; sum: Summary } | null = null;
+  private memo: { st: MappingState; det: Detection; rows: TableRow[]; res: Map<string, Res>; qs: Question[]; sum: Summary; lq: LevelQuestion[] } | null = null;
 
   static styles = css`
     :host {
@@ -360,6 +364,41 @@ export class MappingAssistant extends LitElement {
     }
     input.tx.short {
       inline-size: 6em;
+    }
+    .lv {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(180px, 280px) auto;
+      gap: 12px;
+      align-items: center;
+      padding: 10px 14px;
+      border-block-end: 1px solid color-mix(in srgb, var(--sw-border) 55%, transparent);
+      font-size: var(--sw-fs-sm);
+    }
+    .lv .t {
+      display: flex;
+      flex-direction: column;
+      min-inline-size: 0;
+    }
+    .lv .t small {
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-xs);
+    }
+    .lv .tag.wn {
+      background: var(--sw-warning-soft);
+      color: var(--sw-warning-text);
+    }
+    .lv .tag.ok {
+      background: var(--sw-success-soft, var(--sw-surface-2));
+      color: var(--sw-success-text, var(--sw-text-2));
+    }
+    @media (max-width: 760px) {
+      .lv {
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+      .lv select {
+        grid-column: 1 / -1;
+        grid-row: 2;
+      }
     }
     .live {
       display: grid;
@@ -1194,7 +1233,8 @@ export class MappingAssistant extends LitElement {
     const res = resolve(items, this.st, { buildings: this.refs, settings: this.data.settings });
     const qs = questions(items, res);
     const sum = summarize(items, res, this.refs, rows);
-    this.memo = { st: this.st, det, rows, res, qs, sum };
+    const lq = levelQuestions(items, res, this.refs, this.data.ourFloors, this.data.links, this.st.levels);
+    this.memo = { st: this.st, det, rows, res, qs, sum, lq };
     return this.memo;
   }
 
@@ -1240,8 +1280,36 @@ export class MappingAssistant extends LitElement {
     } catch {
       return;
     }
-    if (step === 'decide' && !this.withDecisions) step = 'summary';
+    if (step === 'decide' && !this.withDecisions) step = this.afterDecide;
+    if (step === 'levels' && !this.model().lq.length) step = 'summary';
     this.step = step;
+  }
+
+  /** After the decisions: "קומות ללא מפלס" when a floor waits for its level, else the summary. */
+  private get afterDecide(): Step {
+    return this.model().lq.length ? 'levels' : 'summary';
+  }
+
+  /** Back from the summary / the levels step: the step before it that is shown. */
+  private backFrom(step: 'levels' | 'summary'): { to: Step; label: string } {
+    const m = this.model();
+    if (step === 'summary' && m.lq.length) return { to: 'levels', label: 'קומות ללא מפלס' };
+    return this.withDecisions && (m.qs.length || Object.keys(this.st.decisions).length) ? { to: 'decide', label: 'ההחלטות' } : { to: 'table', label: 'הטבלה' };
+  }
+
+  /** One "קומות ללא מפלס" answer (undefined = unanswered again). */
+  setLevel(id: string, a: LevelAnswer | undefined) {
+    const levels = { ...this.st.levels };
+    if (a) levels[id] = a;
+    else delete levels[id];
+    this.setState({ ...this.st, levels });
+  }
+
+  /** "דלג": every unanswered floor keeps the behaviour before - a new floor of level 0. */
+  skipLevels() {
+    const levels = { ...this.st.levels };
+    for (const q of this.model().lq) if (!q.answer) levels[q.id] = { t: 'skip' };
+    this.setState({ ...this.st, levels });
   }
 
   private async apply() {
@@ -1250,7 +1318,7 @@ export class MappingAssistant extends LitElement {
     this.error = '';
     try {
       const m = this.model();
-      const plan = buildPlan(this.data.mapItems, m.res, this.refs, this.data.ourFloors, this.data.links);
+      const plan = buildPlan(this.data.mapItems, m.res, this.refs, this.data.ourFloors, this.data.links, this.st.levels);
       const r = await applyMapping(this.data.site.id, {
         state: this.st,
         revision: this.revision,
@@ -1298,7 +1366,8 @@ export class MappingAssistant extends LitElement {
 
   render() {
     if (!this.data || !this.st) return nothing;
-    const steps = STEPS.filter((s) => s.id !== 'decide' || this.withDecisions);
+    const lqn = this.model().lq.length;
+    const steps = STEPS.filter((s) => (s.id !== 'decide' || this.withDecisions) && (s.id !== 'levels' || lqn));
     const idx = steps.findIndex((s) => s.id === this.step);
     const head = this.headText();
     return html`<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="ma-h" data-mapping-assistant data-step=${this.step}>
@@ -1315,7 +1384,7 @@ export class MappingAssistant extends LitElement {
       </header>
       <main>
         ${this.notice ? html`<div class="notice" role="status" data-ma-manual-impact><sw-icon name="info" size=${15}></sw-icon>${this.notice}</div>` : nothing}
-        ${this.step === 'mark' ? this.renderMark() : this.step === 'table' ? this.renderTable() : this.step === 'decide' ? MappingAssistant.decideView?.(this) : this.step === 'summary' ? this.renderSummary() : this.renderDone()}
+        ${this.step === 'mark' ? this.renderMark() : this.step === 'table' ? this.renderTable() : this.step === 'decide' ? MappingAssistant.decideView?.(this) : this.step === 'levels' ? this.renderLevels() : this.step === 'summary' ? this.renderSummary() : this.renderDone()}
         ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
       </main>
       ${this.renderFoot()}
@@ -1332,6 +1401,10 @@ export class MappingAssistant extends LitElement {
         return { title: 'סימון בשם ← בניין', q: `${m.rows.length} סימונים נמצאו. לכל אחד - איזה בניין? שני סימונים לאותו בניין מתאחדים (בחירה או גרירה), סימון בלי בניין - בניין חדש, קיים או "לא משויך".` };
       case 'decide':
         return { title: 'מה צריך את ההחלטה שלכם', q: `רק החריגים. כל השאר (${d.total - m.qs.reduce((n, q) => n + q.count, 0)} פריטים) כבר במקום. הכפתור המודגש הוא מה שהמערכת הייתה בוחרת.` };
+      case 'levels': {
+        const n = m.lq.length;
+        return { title: 'קומות ללא מפלס', q: `${n === 1 ? 'קומה אחת' : `${n} קומות`} במערכת הבית בלי מפלס ובלי מספר בשם. באיזה מפלס ${n === 1 ? 'היא' : 'כל אחת'} - או "זהה לקומה קיימת"? דילוג = קומה חדשה במפלס 0, כמו היום.` };
+      }
       case 'summary':
         return { title: 'סיכום ואישור', q: 'מה יקרה כשתלחצו "החל". אפשר לחזור ולשנות אחר כך.' };
       default:
@@ -1349,12 +1422,21 @@ export class MappingAssistant extends LitElement {
           <sw-button variant="primary" data-ma-next ?disabled=${this.busy} @click=${() => void this.go('table')}>נכון, המשך</sw-button></footer>`;
       case 'table':
         return html`<footer>${back('mark', 'צורת הסימון')}<span class="ln">שום דבר לא משתנה עד "החל" בסיכום</span><span class="sp"></span>
-          <sw-button variant="primary" data-ma-next @click=${() => void this.go(this.withDecisions && open ? 'decide' : 'summary')}>${this.withDecisions && open ? `המשך - ${open} ${open === 1 ? 'החלטה מחכה' : 'החלטות מחכות'}` : 'המשך לסיכום'}</sw-button></footer>`;
+          <sw-button variant="primary" data-ma-next @click=${() => void this.go(this.withDecisions && open ? 'decide' : this.afterDecide)}>${this.withDecisions && open ? `המשך - ${open} ${open === 1 ? 'החלטה מחכה' : 'החלטות מחכות'}` : m.lq.length ? `המשך - ${m.lq.length === 1 ? 'קומה אחת ללא מפלס' : `${m.lq.length} קומות ללא מפלס`}` : 'המשך לסיכום'}</sw-button></footer>`;
       case 'decide':
         return html`<footer>${back('table', 'הטבלה')}<span class="ln">אפשר להמשיך גם עם החלטות פתוחות - הפריטים יישארו כמו שהם, עם אזהרה</span><span class="sp"></span>
-          <sw-button variant="primary" data-ma-next @click=${() => void this.go('summary')}>המשך לסיכום</sw-button></footer>`;
-      case 'summary':
-        return html`<footer>${back(this.withDecisions && (open || Object.keys(this.st.decisions).length) ? 'decide' : 'table', this.withDecisions && (open || Object.keys(this.st.decisions).length) ? 'ההחלטות' : 'הטבלה')}<span class="ln">${m.sum.manual} החלטות שלכם · ${m.sum.byFloor} לפי הקומה · השאר לפי הסימון</span><span class="sp"></span></footer>`;
+          <sw-button variant="primary" data-ma-next @click=${() => void this.go(this.afterDecide)}>${m.lq.length ? 'המשך - קומות ללא מפלס' : 'המשך לסיכום'}</sw-button></footer>`;
+      case 'levels': {
+        const b = this.backFrom('levels');
+        const left = m.lq.filter((q) => !q.answer).length;
+        return html`<footer>${back(b.to, b.label)}<span class="ln">${left ? `${left} ${left === 1 ? 'קומה מחכה' : 'קומות מחכות'} למפלס` : 'לכל הקומות יש מפלס'}</span><span class="sp"></span>
+          ${left ? html`<sw-button variant="secondary" data-ma-levels-skip @click=${() => { this.skipLevels(); void this.go('summary'); }}>${left === 1 ? 'דלג - מפלס 0' : 'דלג - מפלס 0 לכולן'}</sw-button>` : nothing}
+          <sw-button variant="primary" data-ma-next ?disabled=${left > 0} @click=${() => void this.go('summary')}>המשך לסיכום</sw-button></footer>`;
+      }
+      case 'summary': {
+        const b = this.backFrom('summary');
+        return html`<footer>${back(b.to, b.label)}<span class="ln">${m.sum.manual} החלטות שלכם · ${m.sum.byFloor} לפי הקומה · השאר לפי הסימון</span><span class="sp"></span></footer>`;
+      }
       default:
         return html`<footer><span class="sp"></span><sw-button variant="primary" data-ma-finish @click=${() => this.close()}>סיום</sw-button></footer>`;
     }
@@ -1500,6 +1582,44 @@ export class MappingAssistant extends LitElement {
     return html`<div class="two"><div class="panel"><div class="scroll" data-ma-table>
         <div class="tk hdr"><span></span><span>סימון בשם</span><span>בניין אצלנו</span><span>כמה</span><span>דוגמאות</span></div>
         ${rows}${unRow}${add}</div></div>${side}</div>`;
+  }
+
+  // ---------------------------------------------------------------------------------------------------------------------- levels
+
+  /** MAPPING-IMPROVE-2351 "קומות ללא מפלס": one row per floor with no level anywhere - a level picker, or "זהה לקומה קיימת". */
+  private renderLevels() {
+    const m = this.model();
+    const value = (a: LevelAnswer | undefined) => (!a ? '' : a.t === 'skip' ? 'skip' : a.t === 'floor' ? `f:${a.id}` : `l:${a.level}`);
+    const parse = (v: string): LevelAnswer | undefined => {
+      if (v === 'skip') return { t: 'skip' };
+      if (v.startsWith('f:')) return { t: 'floor', id: v.slice(2) };
+      if (v.startsWith('l:')) return { t: 'level', level: Number(v.slice(2)) };
+      return undefined;
+    };
+    const rows = m.lq.map((q) => {
+      const it = this.data.mapItems.find((x) => x.kind === 'floor' && x.id === q.id);
+      const to = m.res.get(`f:${q.id}`)?.to;
+      const existing = q.building.startsWith('new:') ? [] : this.data.ourFloors.filter((f) => f.building_id === q.building).sort((a, b) => b.level - a.level);
+      const cur = value(q.answer);
+      const levels = q.answer?.t === 'level' && !LEVEL_PICK.includes(q.answer.level) ? [...LEVEL_PICK, q.answer.level].sort((a, b) => a - b) : LEVEL_PICK;
+      const tag = !q.answer
+        ? html`<span class="tag wn">מחכה</span>`
+        : q.answer.t === 'skip'
+          ? html`<span class="tag">מפלס 0</span>`
+          : html`<span class="tag ok"><sw-icon name="check" size=${12}></sw-icon>נקבע</span>`;
+      return html`<div class="lv" data-ma-level=${q.id}>
+        <span class="t"><b><bdi>${it?.name ?? q.rest}</bdi></b><small>${this.bName(to)} · ${q.answer?.t === 'floor' ? 'לקומה קיימת' : `קומה "${q.rest}"`}</small></span>
+        <select data-ma-level-pick=${q.id} aria-label=${`המפלס של "${it?.name ?? q.rest}"`} @change=${(e: Event) => this.setLevel(q.id, parse((e.target as HTMLSelectElement).value))}>
+          <option value="" ?selected=${!cur}>בחרו מפלס</option>
+          ${existing.length ? html`<optgroup label="זהה לקומה קיימת">${existing.map((f) => html`<option value=${`f:${f.id}`} ?selected=${cur === `f:${f.id}`}>${f.name} (מפלס ${f.level})</option>`)}</optgroup>` : nothing}
+          <optgroup label="מפלס לקומה חדשה">${levels.map((n) => html`<option value=${`l:${n}`} ?selected=${cur === `l:${n}`}>מפלס ${n}</option>`)}</optgroup>
+          <option value="skip" ?selected=${cur === 'skip'}>דלג - מפלס 0, כמו היום</option>
+        </select>
+        ${tag}
+      </div>`;
+    });
+    return html`<div class="panel" style="flex:1 1 auto"><h3><sw-icon name="building" size=${16}></sw-icon>קומות בלי מפלס<span class="sp"></span><span class="ct">${m.lq.length}</span></h3>
+      <div class="scroll" data-ma-levels>${rows}</div></div>`;
   }
 
   // ---------------------------------------------------------------------------------------------------------------------- summary

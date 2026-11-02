@@ -96,8 +96,15 @@ export interface MappingState {
   rules: Rule[];
   /** itemKey -> the user's answer. Beats every rule, forever. */
   decisions: Record<string, Target>;
+  /** MAPPING-IMPROVE-2351 "קומות ללא מפלס": platform floor id -> the answer for a floor with no level (none in the home system, none in
+   * its name). Without an answer such a floor would land on a new floor of level 0; "skip" keeps exactly that. */
+  levels: Record<string, LevelAnswer>;
 }
-export const emptyState = (spec: MarkSpec = DEFAULT_SPEC): MappingState => ({ v: 1, spec: { ...spec, seps: [...spec.seps] }, tokens: {}, manual_tokens: [], advanced: false, rules: [{ ...TABLE_RULE }], decisions: {} });
+/** A level answer: a level for the new floor, the same as one of our existing floors, or skipped (level 0, the behaviour before). */
+export type LevelAnswer = { t: 'level'; level: number } | { t: 'floor'; id: string } | { t: 'skip' };
+export const LEVEL_MIN = -50;
+export const LEVEL_MAX = 300;
+export const emptyState = (spec: MarkSpec = DEFAULT_SPEC): MappingState => ({ v: 1, spec: { ...spec, seps: [...spec.seps] }, tokens: {}, manual_tokens: [], advanced: false, rules: [{ ...TABLE_RULE }], decisions: {}, levels: {} });
 
 /** Our building, as the engine needs it. */
 export interface BuildingRef {
@@ -703,10 +710,22 @@ export function levelFromName(s: string): number | null {
   return m ? Number(m[1]) : null;
 }
 
+/** A floor of "קומות ללא מפלס" (MAPPING-IMPROVE-2351): a platform floor with no level of its own nor in its name that would otherwise land on
+ * a NEW floor of level 0 in `building` (an id, or `new:<key>` of a building the same apply creates). */
+export interface LevelQuestion {
+  id: string;
+  /** The building reference of the plan. */
+  building: Ref;
+  /** The floor's name without the building mark ("א · גלריה" -> "גלריה"). */
+  rest: string;
+  answer: LevelAnswer | undefined;
+}
+
 /** The rows of an apply: our floor of every platform floor resolved to a building (the existing row when it is already in the building, else
  * the building's floor of the same level, else of the same name, else a new floor), and per area the override / site-level row when it does
- * not simply follow its platform floor. Open items and unresolved items are left as they are. */
-export function buildPlan(items: MapItem[], res: Map<string, Res>, buildings: BuildingRef[], ourFloors: OurFloor[], links: CurrentLinks): Plan {
+ * not simply follow its platform floor. Open items and unresolved items are left as they are. A floor with no level anywhere follows its
+ * answer in `levels` ("קומות ללא מפלס"); without one it gets a new floor of level 0. `asked` (optional) collects those floors. */
+export function buildPlan(items: MapItem[], res: Map<string, Res>, buildings: BuildingRef[], ourFloors: OurFloor[], links: CurrentLinks, levels: Record<string, LevelAnswer> = {}, asked?: LevelQuestion[]): Plan {
   const plan: Plan = { new_buildings: [], new_floors: [], floors: [], areas: [], items: items.map(itemKey) };
   const newB = new Map<string, string>();
   const ref = (t: Target): Ref | null => {
@@ -743,7 +762,15 @@ export function buildPlan(items: MapItem[], res: Map<string, Res>, buildings: Bu
     if (cur && floorBuilding.get(cur) === b) return cur;
     const mine = b.startsWith('new:') ? [] : floorsOf(b);
     const rest = tokenRest(name, res.get(`f:${hid}`));
-    const lv = level ?? levelFromName(rest);
+    let lv = level ?? levelFromName(rest);
+    if (lv === null) {
+      const a = levels[hid];
+      const sameName = mine.filter((f) => norm(f.name) === norm(rest));
+      if (!a && sameName.length === 1) return sameName[0].id; // the building already has this floor by name: nothing to ask
+      asked?.push({ id: hid, building: b, rest: rest || name, answer: a });
+      if (a?.t === 'floor' && floorBuilding.get(a.id) === b) return a.id;
+      if (a?.t === 'level') lv = a.level;
+    }
     const sameLevel = lv === null ? [] : mine.filter((f) => f.level === lv);
     if (sameLevel.length === 1) return sameLevel[0].id;
     const sameName = mine.filter((f) => norm(f.name) === norm(rest));
@@ -821,7 +848,7 @@ export interface Health {
 }
 
 /** Slice 2's health card: what is new in the home system since the last apply (3A: waits for "אשר" unless auto-insert is on). */
-export function health(items: MapItem[], res: Map<string, Res>, seen: Iterable<string> | null): Health {
+export function health(items: MapItem[], res: Map<string, Res>, seen: Iterable<string> | null, waiting: ReadonlySet<string> = new Set()): Health {
   if (!seen) return { fresh: [], ready: [], open: [] };
   const s = new Set(seen);
   const fresh = items.filter((it) => !s.has(itemKey(it)));
@@ -829,19 +856,70 @@ export function health(items: MapItem[], res: Map<string, Res>, seen: Iterable<s
   const open: MapItem[] = [];
   for (const it of fresh) {
     const r = res.get(itemKey(it));
-    if (r && !r.open && r.to && r.to.t !== 'none') ready.push(it);
+    // `waiting`: a floor still without its level ("קומות ללא מפלס") needs the assistant, not "אשר"
+    if (r && !r.open && r.to && r.to.t !== 'none' && !waiting.has(itemKey(it))) ready.push(it);
     else open.push(it);
   }
   return { fresh, ready, open };
 }
 
-/** The items of the health card's "אשר": only those, so the apply touches nothing else. */
+/** The items of the health card's "אשר": only those, so the apply touches nothing else - and only the new buildings / floors their rows
+ * still name (MAPPING-IMPROVE-2351: before, every new building / floor of the whole plan went along). */
 export function subsetPlan(plan: Plan, keys: Set<string>): Plan {
-  return {
-    ...plan,
-    floors: plan.floors.filter((f) => keys.has(`f:${f.ha_floor_id}`)),
-    areas: plan.areas.filter((a) => keys.has(`a:${a.area_id}`)),
-  };
+  const floors = plan.floors.filter((f) => keys.has(`f:${f.ha_floor_id}`));
+  const areas = plan.areas.filter((a) => keys.has(`a:${a.area_id}`));
+  const usedF = new Set<string>([...floors.map((f) => f.floor), ...areas.map((a) => a.floor)].filter((x): x is string => typeof x === 'string'));
+  const new_floors = plan.new_floors.filter((f) => usedF.has(`new:${f.key}`));
+  const usedB = new Set<string>([...new_floors.map((f) => f.building), ...areas.map((a) => a.building).filter((x): x is string => !!x)]);
+  const new_buildings = plan.new_buildings.filter((b) => usedB.has(`new:${b.key}`));
+  return { ...plan, floors, areas, new_floors, new_buildings };
+}
+
+/** "קומות ללא מפלס" (MAPPING-IMPROVE-2351): every floor the plan would place with no level to go by, with its current answer. */
+export function levelQuestions(items: MapItem[], res: Map<string, Res>, buildings: BuildingRef[], ourFloors: OurFloor[], links: CurrentLinks, levels: Record<string, LevelAnswer>): LevelQuestion[] {
+  const asked: LevelQuestion[] = [];
+  buildPlan(items, res, buildings, ourFloors, links, levels, asked);
+  return asked;
+}
+
+/** The floor keys (`f:<id>`) still waiting for their level: the health card sends them to the assistant instead of "אשר". */
+export function levelWaiting(items: MapItem[], res: Map<string, Res>, buildings: BuildingRef[], ourFloors: OurFloor[], links: CurrentLinks, levels: Record<string, LevelAnswer>): Set<string> {
+  return new Set(levelQuestions(items, res, buildings, ourFloors, links, levels).filter((q) => !q.answer).map((q) => `f:${q.id}`));
+}
+
+/** The health card's notice (MAPPING-IMPROVE-2351): what the background auto-insert placed since the last version made by a person - the
+ * `auto` versions at the head of the list. */
+export function autoAdded(versions: { kind: string; summary: Record<string, unknown> }[]): { areas: number; floors: number } {
+  let areas = 0;
+  let floors = 0;
+  for (const v of versions) {
+    if (v.kind !== 'auto') break;
+    const n = (k: string) => (typeof v.summary[k] === 'number' ? (v.summary[k] as number) : 0);
+    // a client-side auto version (before 2351) carries only `confirmed`
+    areas += v.summary.auto_added === undefined ? n('confirmed') : n('auto_areas');
+    floors += n('auto_floors');
+  }
+  return { areas, floors };
+}
+
+/** "נוספו אוטומטית N אזורים" - what the background auto-insert placed since the last version made by a person. */
+export function autoNoticeText(d: { versions: { kind: string; summary: Record<string, unknown> }[] }): string {
+  const a = autoAdded(d.versions);
+  if (!a.areas && !a.floors) return '';
+  const areas = a.areas === 1 ? 'אזור אחד' : `${a.areas} אזורים`;
+  const floors = a.floors === 1 ? 'קומה אחת' : `${a.floors} קומות`;
+  const what = a.areas && a.floors ? `${areas} ${a.floors === 1 ? 'וקומה אחת' : `ו-${a.floors} קומות`}` : a.areas ? areas : floors;
+  return `${a.areas + a.floors > 1 ? 'נוספו' : a.areas ? 'נוסף' : 'נוספה'} אוטומטית ${what}`;
+}
+
+/** A stored level answer read back (null = junk). */
+export function levelAnswerOf(x: unknown): LevelAnswer | null {
+  if (!x || typeof x !== 'object') return null;
+  const o = x as Record<string, unknown>;
+  if (o.t === 'level' && Number.isInteger(o.level) && (o.level as number) >= LEVEL_MIN && (o.level as number) <= LEVEL_MAX) return { t: 'level', level: o.level as number };
+  if (o.t === 'floor' && typeof o.id === 'string' && o.id) return { t: 'floor', id: o.id };
+  if (o.t === 'skip') return { t: 'skip' };
+  return null;
 }
 
 // ------------------------------------------------------------------------------------------------------------------------------- normalize
@@ -873,6 +951,10 @@ export function stateOf(raw: unknown): MappingState {
   for (const [k, v] of Object.entries(o.decisions ?? {})) {
     const t = tgt(v);
     if (t && /^[fa]:/.test(k)) s.decisions[k] = t;
+  }
+  for (const [k, v] of Object.entries((o as { levels?: Record<string, unknown> }).levels ?? {})) {
+    const a = levelAnswerOf(v);
+    if (a) s.levels[k] = a;
   }
   s.manual_tokens = Array.isArray(o.manual_tokens) ? o.manual_tokens.filter((x): x is string => typeof x === 'string' && !!x.trim()).slice(0, 200) : [];
   s.advanced = o.advanced === true;
