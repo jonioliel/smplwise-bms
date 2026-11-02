@@ -30,6 +30,7 @@ const EXEMPT: Record<string, string> = {
   'components/sw-drawer.ts | .panel': 'a drawer is a modal layer (translucency bounded by the contrast floor over a dimmed scrim), not a menu',
   'screens/system-security-privacy-masks.ts | .results': 'the in-flow result list of the apply review (no position), a well on the page like the history list - it floats over nothing',
   'screens/devices-layout-css.ts | .lay-panel': 'the layout editor\'s docked side panel: a panel on the page, not a menu',
+  'screens/home-edit-drawer.ts | .he-drawer': 'the home editor\'s docked side panel (a bottom sheet below 1200 px) that took over the .lay-panel slot (HOME-EDIT-DRAWER-2351): a panel on the page, not a menu',
   'screens/wiskey-people.ts | .colmenu': 'WisKey code (other engineers merge it); already opaque through --sw-surface-solid - migrate with the WisKey merge',
 };
 
