@@ -73,7 +73,6 @@ test.describe('settings lists: filter, sort, group, copy, remember (mocked backe
   test('integration (multi-select), type, approval and availability filter; the count says how many are shown; "נקה סינון" resets', async ({ page }) => {
     await go(page);
     const list = players(page);
-    await expect.poll(() => shown(list).count()).toBeGreaterThan(0); // the list draws after its fetch: count once it is there
     const total = await shown(list).count();
     expect(total).toBeGreaterThan(5);
     const chips = list.locator('[data-mm-f-int] [data-mm-int]');
@@ -120,7 +119,6 @@ test.describe('settings lists: filter, sort, group, copy, remember (mocked backe
     await go(page);
     const list = players(page);
     const names = async () => list.locator('[data-mm-row-name]').allInnerTexts();
-    await expect.poll(() => list.locator('[data-mm-row-name]').count()).toBeGreaterThan(0); // the list draws after its fetch: read it once it is there
     const a = await names();
     await list.locator('[data-mm-dir]').click();
     expect(await names()).toEqual([...a].reverse());
