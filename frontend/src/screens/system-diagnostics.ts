@@ -14,6 +14,7 @@ import '../components/sw-icon';
 import '../components/sw-state-panel';
 import '../components/sw-remote-sessions';
 import '../components/sw-csp-reports';
+import './system-app-signin'; // release/2380-train: the phone app's two sign-in switches (auth/app/settings), system administrators
 import '../components/recorder-health-panel'; // CR-026: per-recorder health cards and thresholds (בריאות ועבודות)
 import '../components/camera-image-health-settings'; // CAMHEALTH091: the camera picture check (off by default), its thresholds and recipients
 import '../components/sw-search-access';
@@ -1312,6 +1313,7 @@ export class SystemDiagnostics extends LitElement {
             <sw-remote-sessions scope=${this.canEdit ? 'all' : 'own'} @remote-signed-out=${() => void arxLogout('logout')}></sw-remote-sessions>
           </sw-card>`
         : nothing}
+      ${api && can('system.configure') ? html`<system-app-signin></system-app-signin>` : nothing}
       ${api && this.canEdit
         ? html`<sw-card heading="מדיניות אבטחת תוכן (CSP)" subheading="מדיניות מחמירה יותר לגישה מרחוק: בלי תגיות עיצוב מוטמעות בדף. היא רצה קודם במצב דיווח בלבד; אחרי שעוברים על הדיווחים כאן אפשר לאכוף אותה." data-card="remote.csp" data-csp-card>
             <sw-csp-reports .canEdit=${this.canEdit}></sw-csp-reports>
