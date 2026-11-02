@@ -1,5 +1,21 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.34.1 (pilot) - Smooth recorded playback, a steadier server, quieter logs, a release check for the add-on build
+**After installing:** no database migration. Going back to 2.34.0 is safe. The server now runs on the standard network components by default; the fast ones can be turned back on in Diagnostics ("שרת: רכיב תקשורת מהיר"), after a restart.
+- **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. חזרה ל-2.34.0 בטוחה. השרת עובד כעת כברירת מחדל על רכיבי התקשורת הרגילים; את הרכיב המהיר אפשר להחזיר באבחון ("שרת: רכיב תקשורת מהיר"), אחרי הפעלה מחדש.
+
+### What was fixed - מה תוקן
+- **English:** Recorded playback: rapid seeks are merged (only the last one is sent), each seek closes the old stream before opening the new one, and a per-minute seek cap (setting, default 30) shows a Hebrew notice instead of opening more. Timeline previews show the nearest available picture within 30 seconds instead of a gap, and the last good picture stays while the next one loads. The native network libraries are pinned to proven versions.
+- **עברית:** צפייה בהקלטות: דילוגים מהירים מאוחדים (נשלח רק האחרון), כל דילוג סוגר את הזרם הקודם לפני שפותח חדש, ומגבלת דילוגים לדקה (הגדרה, ברירת מחדל 30) מציגה הודעה בעברית במקום לפתוח עוד. תצוגת ציר הזמן מציגה את התמונה הקרובה ביותר בטווח 30 שניות במקום חור, והתמונה האחרונה נשארת עד שהבאה נטענת. ספריות התקשורת נעולות לגרסאות מוכחות.
+- **English:** The server runs on asyncio and h11 by default (a suspected native crash source is off); a setting turns the fast components back on.
+- **עברית:** השרת עובד כברירת מחדל על asyncio ו-h11 (מקור קריסה חשוד כבוי); הגדרה מחזירה את הרכיבים המהירים.
+- **English:** The false "write gate held ... outside a transaction" log alarm is gone, and a camera-list read no longer takes the write lock.
+- **עברית:** אזעקת השווא ביומן "write gate held ... outside a transaction" נעלמה, וקריאת רשימת המצלמות כבר לא תופסת את נעילת הכתיבה.
+- **English:** Frigate: refused credentials no longer flood the log; Arx backs off up to 30 minutes, logs once per change and shows the exact fix step in Hebrew on the recorder health card.
+- **עברית:** Frigate: פרטי גישה שנדחו כבר לא מציפים את היומן; Arx מאט עד 30 דקות בין ניסיונות, רושם שורה אחת לכל שינוי ומציג בכרטיס הבריאות את צעד התיקון המדויק בעברית.
+- **English:** Release checks now validate the add-on's build files (base image by tag, Dockerfile syntax, arch and labels), so a broken build like 2.31.0 or 2.33.2 is caught before release.
+- **עברית:** בדיקות השחרור בודקות עכשיו את קבצי הבנייה של התוסף (בסיס לפי תגית, תחביר Dockerfile, ארכיטקטורות ותוויות), כך שבנייה שבורה כמו ב-2.31.0 או 2.33.2 נתפסת לפני שחרור.
+
 ## 2.34.0 (pilot) - Design polish round, H.265 live fallback, NVR writes switch and one-click H.264, owner round-12 answers
 **After installing:** no database migration. New settings ("קידוד H.265 בדפדפן", "תרגומים במקביל", and the per-recorder "אפשר שינויי הגדרות ב־NVR") start with defaults; for a Provision-ISR recorder setting changes are off until the switch is turned on, a Hikvision recorder keeps today's behaviour. Every feature, setting and text that was there before is still there. Going back to 2.33.1 is safe; the new settings are then ignored.
 - **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. ההגדרות החדשות ("קידוד H.265 בדפדפן", "תרגומים במקביל", והמתג לכל מקליט "אפשר שינויי הגדרות ב־NVR") מתחילות בברירת מחדל; במקליט Provision-ISR שינויי ההגדרות כבויים עד שמדליקים את המתג, מקליט Hikvision ממשיך כמו היום. כל יכולת, הגדרה וטקסט שהיו קודם נשארו. חזרה ל-2.33.1 בטוחה; ההגדרות החדשות פשוט לא ייקראו.
