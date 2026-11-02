@@ -154,5 +154,5 @@ Frontend: `tsc --noEmit` clean; unit specs (`--workers=1`): `tests/unit-nvr-veri
 
 1. The settle wait (10 s) and the gap between probes (1 s) are constants, not settings. Make them settings after the lab measurement?
 2. The report's worklist does not include "המקליט קיבל" (not checked at the camera) streams; the re-check does include them. Keep it so?
-3. The skip policy also applies to the undo of an encoding batch (a refused undo is skipped and can be retried). Keep, or should the
-   undo always stop?
+3. ANSWERED (owner 2B, 2026-11-02): the undo follows the same skip/stop setting, as built - kept. (Question was: the skip policy also
+   applies to the undo of an encoding batch, a refused undo is skipped and can be retried; keep, or should the undo always stop?)
