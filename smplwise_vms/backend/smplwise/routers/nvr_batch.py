@@ -11,6 +11,8 @@ Four routes, `nvr.configure` (a SYSTEM permission: built-in system_admin only) a
   channel only).
 Phase D (bulk encoding, API 3.8, local channel only): `POST /nvr/encoding-batches/preview` (the read-only plan) and
 `POST /nvr/encoding-batches` (start exactly the previewed plan, 202); status, stop and undo are the routes above.
+CAM-H264-VERIFY-2361: the start takes an optional `on_refusal` ("skip" | "stop"); `POST /nvr/stream-batches/{batch_id}/verify` re-checks an
+encoding batch's worklist read-only (nvr.configure, every camera it re-checks; local channel only, 202).
 No route returns a device address, a device user name, a password, a serial number or a MAC."""
 from __future__ import annotations
 
@@ -26,7 +28,7 @@ from ..errors import ApiError
 from ..mode import ensure_nvr
 from ..rbac import INSTALLATION, Principal, require
 from ..remote_channel import is_remote
-from ..services import nvr_batch, nvr_encoding_batch
+from ..services import nvr_batch, nvr_encoding_batch, nvr_verify
 from .nvr_write import _raw_body, json_body
 
 router = APIRouter()
@@ -60,6 +62,8 @@ ENC_CREATE_OPENAPI: dict[str, Any] = {"requestBody": {"required": True, "content
     "type": "object", "required": ["confirm", "settings", "targets"], "additionalProperties": False,
     "properties": {"confirm": {"type": "boolean", "enum": [True]}, "settings": _SETTINGS_SCHEMA,
                    "recorder_id": {"type": "string", "pattern": r"^[A-Za-z0-9_.-]{1,40}$"},
+                   "on_refusal": {"type": "string", "enum": list(nvr_batch.REFUSAL_POLICIES),
+                                  "description": "a stream the NVR refuses: skip it and continue, or stop (default: the setting nvr.batch_on_refusal)"},
                    "targets": {"type": "array", "minItems": nvr_encoding_batch.MIN_TARGETS, "maxItems": nvr_encoding_batch.MAX_TARGETS, "items": {
                        "type": "object", "required": ["camera_id", "stream_ref", "if_match", "changes"], "additionalProperties": False,
                        "properties": {**_STREAM_TARGET, "if_match": {"type": "string", "pattern": "^[0-9a-f]{16}$"},
@@ -161,12 +165,29 @@ def preview_encoding_batch(request: Request, principal: Principal = Depends(_gat
 def create_encoding_batch(request: Request, principal: Principal = Depends(_gate_ro), raw: bytes = Depends(_raw_body),
                           conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
     """CR-020 phase D: start one encoding change on many streams ({confirm: true, settings, targets with the preview's changes}); 202 batch status."""
+    body = json_body(raw)
     try:
-        target, targets, rid = nvr_encoding_batch.parse_start_body(json_body(raw))
+        target, targets, rid = nvr_encoding_batch.parse_start_body(body)
+        policy = nvr_encoding_batch.parse_on_refusal(body)
     except ApiError as exc:
         raise nvr_batch.refuse(conn, principal, exc, _rid(request), mode=nvr_encoding_batch.MODE) from None
     nvr_batch.authorize_targets(conn, principal, sorted({t.camera_id for t in targets}))
     settings = settings_of(request)
     ensure_nvr(settings)
-    out = nvr_encoding_batch.create_encoding_batch(conn, request.app.state.db, settings, principal, target, targets, rid, request_id=_rid(request))
+    out = nvr_encoding_batch.create_encoding_batch(conn, request.app.state.db, settings, principal, target, targets, rid, request_id=_rid(request),
+                                                   on_refusal=policy)
+    return JSONResponse(status_code=202, content=out)
+
+
+@router.post("/nvr/stream-batches/{batch_id}/verify", status_code=202)
+def verify_batch(request: Request, batch_id: str, principal: Principal = Depends(_gate_ro), conn: sqlite3.Connection = Depends(get_conn)) -> JSONResponse:
+    """CAM-H264-VERIFY-2361: re-check, read-only, the streams of an encoding batch that did not change (or were not verified): the NVR's
+    stream list once and go2rtc's probe per stream, in the background; nvr.configure + every camera re-checked; 202 batch status."""
+    if not BATCH_ID_RE.fullmatch(batch_id):  # never audit an id that did not pass the format check
+        raise ApiError(404, "not_found", "השינוי המרובה לא נמצא.")
+    if is_remote(request):  # an encoding batch is a local-channel feature (its start / undo are local only)
+        raise ApiError(404, "not_found", "Not found")
+    settings = settings_of(request)
+    ensure_nvr(settings)
+    out = nvr_verify.start_recheck(conn, request.app.state.db, settings, principal, batch_id, request_id=_rid(request))
     return JSONResponse(status_code=202, content=out)
