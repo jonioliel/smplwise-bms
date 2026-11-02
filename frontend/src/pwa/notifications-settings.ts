@@ -7,6 +7,7 @@ import '../components/sw-button';
 import '../components/sw-field';
 import '../components/sw-toggle';
 import '../components/sw-icon';
+import '../components/sw-state-panel';
 import { describeError } from '../api/client';
 import { isApi, session } from '../api/session';
 import { isFramed } from './register';
@@ -33,13 +34,13 @@ import '../screens/presence-opt-out'; // WHOIN034-295: the person's own "do not 
 
 const CATEGORIES: { id: PushCategory; label: string; detail: string }[] = [
   { id: 'alerts', label: 'התראות מחוקים', detail: 'כל התראה שחוק ב"חוקים והתראות" מעלה: תנועה, חציית קו, אדם, רכב' },
-  { id: 'doors', label: 'דלתות וכניסה', detail: 'פתיחה, נעילה ושחרור של דלתות ומנעולים מ־Home Assistant (אירועי WisKey כשיהיו זמינים)' },
+  { id: 'doors', label: 'דלתות וכניסה', detail: 'פתיחה, נעילה ושחרור של דלתות ומנעולים במבנה' },
   { id: 'device_faults', label: 'תקלות בהתקנים', detail: 'מצלמה שאיבדה וידאו, חבלה, דיסק, חיישן שנעלם' },
   { id: 'system', label: 'בריאות המערכת', detail: 'אירועי מערכת של ה־NVR (רשת, התנגשות כתובות, גישה לא חוקית)' },
 ];
 
 const SUPPORT_TEXT: Record<Exclude<PushSupport, 'ok'>, string> = {
-  insecure: 'התראות Push דורשות חיבור מאובטח (https). פתחו את Arx בכתובת https או דרך Home Assistant בכתובת https.',
+  insecure: 'התראות Push דורשות חיבור מאובטח (https). פתחו את Arx בכתובת שמתחילה ב־https.',
   unsupported: 'הדפדפן הזה אינו תומך בהתראות Push.',
   ios_install: 'באייפון ובאייפד ההתראות מגיעות רק לאפליקציה שהותקנה: ב־Safari הקישו שיתוף ← "הוספה למסך הבית", פתחו את Arx מהמסך הבית וחזרו לכאן.',
   denied: 'ההתראות חסומות בדפדפן לאתר הזה. שחררו אותן בהגדרות האתר (סמל המנעול ליד הכתובת) ורעננו.',
@@ -64,6 +65,8 @@ export class ArxNotificationsSettings extends LitElement {
   @state() private message = '';
   @state() private error = '';
   @state() private loaded = false;
+  /** POLISH4-WP8: the first read failed (the list and the preferences are unknown): an error panel with a retry instead of an empty "off" card */
+  @state() private loadFailed = false;
   @state() private rotateArmed = false;
 
   static styles = css`
@@ -116,12 +119,26 @@ export class ArxNotificationsSettings extends LitElement {
       align-items: center;
       padding-block-start: 10px;
     }
+    /* POLISH4-WP8 (owner Q7): the preferences save row stays in view on a phone while the long page scrolls under it - the same look as
+       the settings kit's .foot.sticky (styles/settings.ts), kept local because this element does not load the kit */
+    @media (max-width: 767px) {
+      .foot.sticky {
+        position: sticky;
+        inset-block-end: var(--sw-s-2);
+        z-index: 3;
+        padding: 10px var(--sw-s-2);
+        border: 1px solid var(--sw-border-strong);
+        border-radius: var(--sw-r-lg);
+        background: var(--sw-surface-solid);
+        box-shadow: var(--sw-shadow-3);
+      }
+    }
     .ok {
       color: var(--sw-success-text);
       font-size: var(--sw-fs-sm);
     }
     .err {
-      color: var(--sw-error);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-sm);
     }
     .dev {
@@ -162,8 +179,10 @@ export class ArxNotificationsSettings extends LitElement {
       const sub = this.support === 'ok' ? await currentSubscription().catch(() => null) : null;
       this.thisHash = sub ? await endpointHash(sub.endpoint) : null;
       this.error = '';
+      this.loadFailed = false;
     } catch (err) {
       this.error = describeError(err);
+      this.loadFailed = !this.loaded || this.loadFailed;
     }
     this.loaded = true;
   }
@@ -250,7 +269,7 @@ export class ArxNotificationsSettings extends LitElement {
   private renderKey() {
     if (!isApi() || !(session.me?.permissions_installation ?? []).includes('system.configure')) return nothing;
     return html`<sw-card heading="מפתח ההתראות של ההתקנה">
-      <div class="note">מפתח ה־VAPID חותם על כל ההתראות של ההתקנה. החלפה מוחקת את כל ההרשמות של כל המשתמשים; כל מכשיר שמאשר התראות נרשם מחדש בפתיחה הבאה של Arx. רק אם המפתח נחשף (למשל גיבוי Home Assistant שיצא מהשליטה).</div>
+      <div class="note">מפתח ה־VAPID חותם על כל ההתראות של ההתקנה. החלפה מוחקת את כל ההרשמות של כל המשתמשים; כל מכשיר שמאשר התראות נרשם מחדש בפתיחה הבאה של Arx. רק אם המפתח נחשף (למשל גיבוי של המערכת שיצא מהשליטה).</div>
       <div class="foot"><sw-button variant=${this.rotateArmed ? 'danger' : 'secondary'} icon="refresh" data-push-rotate ?disabled=${this.busy} @click=${() => this.rotate()}>${this.rotateArmed ? 'לחצו שוב לאישור ההחלפה' : 'החלפת המפתח'}</sw-button></div>
     </sw-card>`;
   }
@@ -280,7 +299,7 @@ export class ArxNotificationsSettings extends LitElement {
     const supported = this.support === 'ok';
     return html`<sw-card heading="המכשיר הזה">
       ${supported ? nothing : html`<div class="note" data-push-support=${this.support}>${SUPPORT_TEXT[this.support as Exclude<PushSupport, 'ok'>]}</div>`}
-      ${isFramed() ? html`<div class="note">Arx פתוח כאן בתוך Home Assistant. ההרשמה נרשמת על אותו משתמש גם בגישה מרחוק; לחיצה על התראה פותחת את Arx ב־Home Assistant.</div>` : nothing}
+      ${isFramed() ? html`<div class="note">Arx פתוח כאן בתוך אפליקציית הבית. ההרשמה נרשמת על אותו משתמש גם בגישה מרחוק; לחיצה על התראה פותחת את Arx באותה אפליקציה.</div>` : nothing}
       <div class="row">
         <span class="lbl">התראות Push במכשיר הזה<span class="muted">${here ? 'פעיל: התראות יגיעו גם כשהאפליקציה סגורה' : 'כבוי'}</span></span>
         <span data-push-state=${here ? 'on' : 'off'}><sw-badge kind=${here ? 'live' : 'neutral'} label=${here ? 'פעיל' : 'כבוי'}></sw-badge></span>
@@ -345,12 +364,17 @@ export class ArxNotificationsSettings extends LitElement {
 
   render() {
     const dirty = JSON.stringify(this.draft?.categories) !== JSON.stringify(this.prefs?.categories) || JSON.stringify(this.draft?.quiet) !== JSON.stringify(this.prefs?.quiet);
+    const state = !this.loaded
+      ? html`<sw-state-panel compact state="loading" data-push-loading></sw-state-panel>`
+      : this.loadFailed
+        ? html`<sw-state-panel compact state="error" heading="לא הצלחנו לקרוא את ההרשמות" hint=${this.error} actionLabel="נסו שוב" data-push-load-error @action=${() => void this.load()}></sw-state-panel>`
+        : null;
     const body = html`<div class="sections" data-push-settings data-loaded=${this.loaded ? '1' : '0'}>
-        ${this.renderDevice()}
-        ${this.devicesOnly
+        ${state ?? this.renderDevice()}
+        ${this.devicesOnly || state
           ? nothing
           : html`${this.renderCategories()} ${this.renderQuiet()}
-            <div class="foot"><sw-button variant="primary" icon="check" data-push-save ?disabled=${!dirty || this.busy || !isApi()} @click=${() => this.save()}>שמירת ההעדפות</sw-button></div>`}
+            <div class="foot sticky"><sw-button variant="primary" icon="check" data-push-save ?disabled=${!dirty || this.busy || !isApi()} @click=${() => this.save()}>שמירת ההעדפות</sw-button></div>`}
         ${this.renderDevices()} <presence-opt-out></presence-opt-out> ${this.renderKey()}
       </div>`;
     if (this.embedded) return body;
