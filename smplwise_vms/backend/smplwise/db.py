@@ -45,7 +45,7 @@ import time
 from collections import deque
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Iterator, TypeVar
+from typing import Any, Callable, Iterable, Iterator, TypeVar
 
 MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 GUARDED_MIGRATIONS = ("0036", "0037")  # verified by their objects at start-up, whatever schema_migrations says (Database.ensure_migration_objects)
@@ -631,6 +631,18 @@ def rollback_and_restart(conn: sqlite3.Connection) -> None:
 def get_setting(conn: sqlite3.Connection, key: str, default: str | None = None) -> str | None:
     row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
     return row[0] if row else default
+
+
+def get_settings_many(conn: sqlite3.Connection, keys: Iterable[str]) -> dict[str, str | None]:
+    """The stored rows of `keys` in a few statements instead of one per key (PERF-HOME-DEVICES-2342: GET /settings read its
+    ~520 keys one SELECT each). A key without a row is absent from the result, so `out.get(key, default)` answers exactly as
+    get_setting(conn, key, default) does - a row holding NULL included (None either way)."""
+    want = list(dict.fromkeys(keys))
+    out: dict[str, str | None] = {}
+    for i in range(0, len(want), 400):  # well under SQLite's bound-parameter limit of any supported build
+        part = want[i : i + 400]
+        out.update(conn.execute(f"SELECT key, value FROM settings WHERE key IN ({','.join('?' * len(part))})", part).fetchall())
+    return out
 
 
 def set_setting(conn: sqlite3.Connection, key: str, value: str) -> None:

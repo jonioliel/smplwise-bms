@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from ..audit import audit
 from ..auth import current_principal, get_conn
-from ..db import get_setting, set_setting
+from ..db import get_setting, get_settings_many, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from . import ui_background
@@ -536,8 +536,9 @@ def read_settings(conn: sqlite3.Connection, *, private: bool = False) -> dict[st
     holds system.configure (the settings screen); every other listing (GET /settings of a viewer, GET /cameras `media`,
     internal readers) leaves the site position out. The sun reads its location from /plan-view/prefs (map.read), rounded."""
     out: dict[str, Any] = {}
+    stored = get_settings_many(conn, DEFAULTS)  # PERF-HOME-DEVICES-2342: one read for every key, not one SELECT per key
     for key, default in DEFAULTS.items():
-        value = get_setting(conn, key, default) or default
+        value = stored.get(key, default) or default
         out[key] = int(value) if key in INT_KEYS else value
     if out.get("access.external.placement") not in ("access", "tickets", "both"):  # SHAREDID-293: a corrupt value never moves the screen
         out["access.external.placement"] = "access"

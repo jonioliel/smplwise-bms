@@ -42,13 +42,51 @@ export function setUnauthorizedHandler(fn: (() => Promise<boolean>) | null): voi
   onUnauthorized = fn;
 }
 
-export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+/** One HTTP answer, read to its text (a 204 carries none). */
+interface RawReply {
+  status: number;
+  ok: boolean;
+  statusText: string;
+  text: string;
+}
+
+async function send(path: string, init: RequestInit): Promise<RawReply> {
   const headers = new Headers(init.headers);
   if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
   let res = await fetch(apiUrl(path), { ...init, headers, credentials: 'same-origin' });
   if (res.status === 401 && onUnauthorized && (await onUnauthorized())) res = await fetch(apiUrl(path), { ...init, headers, credentials: 'same-origin' });
+  return { status: res.status, ok: res.ok, statusText: res.statusText, text: res.status === 204 ? '' : await res.text() };
+}
+
+/** PERF-HOME-DEVICES-2342: plain GETs of the same address that are in flight at the same time share ONE request (the home screen's
+ * first render asked for /settings, /me and the devices tree from several components at once). Only while the request is open -
+ * nothing is cached past its answer, so a later call always asks the server again - and every caller parses its own copy of the
+ * body (no caller sees another's mutations). A GET with headers, a signal or any other option is never shared. */
+const inflightGets = new Map<string, Promise<RawReply>>();
+
+function shareable(init: RequestInit): boolean {
+  return Object.keys(init).length === 0;
+}
+
+export function inflightGetCount(): number {
+  return inflightGets.size;
+}
+
+export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+  let res: RawReply;
+  if (shareable(init)) {
+    const key = apiUrl(path);
+    let pending = inflightGets.get(key);
+    if (!pending) {
+      pending = send(path, init).finally(() => inflightGets.delete(key));
+      inflightGets.set(key, pending);
+    }
+    res = await pending;
+  } else {
+    res = await send(path, init);
+  }
   if (res.status === 204) return undefined as T;
-  const text = await res.text();
+  const text = res.text;
   let data: unknown = null;
   try {
     data = text ? JSON.parse(text) : null;

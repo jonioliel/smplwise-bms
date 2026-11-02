@@ -254,14 +254,16 @@ class SwitchPolicy:
     switch protection - the switches an administrator protected (a classifier suggestion that nobody approved is not
     one of them) - read once per request."""
 
-    def __init__(self, conn: Any) -> None:
+    def __init__(self, conn: Any, managed: set[str] | None = None) -> None:
+        """`managed`: the request's alarm_svc.managed_controls(conn), when the caller already read it (PERF-HOME-DEVICES-2342:
+        the area / items routes need it three times) - the same set, read once."""
         self.door_layer = _door_layer_entities(conn)
         # a protection row always applies, also while its entity is away from HA (gone_at): keeping it is the safe side.
         # Only an administrator's protection counts: a manual row, or an automatic suggestion the administrator approved.
         self.protected = {r[0] for r in conn.execute("SELECT entity_id FROM device_bulk_protected WHERE source = 'manual' OR reviewed = 1").fetchall()}
         from . import alarm as alarm_svc
 
-        self.alarm_managed = alarm_svc.managed_controls(conn)  # CR-010 review B1: a zone's bypass control, never in bulk
+        self.alarm_managed = alarm_svc.managed_controls(conn) if managed is None else managed  # CR-010 review B1: a zone's bypass control, never in bulk
         from . import device_types
 
         # SEC246 L2 (owner 2026-10-11): fixed valves / water heaters an administrator has not included - out of `switches_on` only
@@ -334,15 +336,27 @@ def excluded_label(reason: str, kind: str) -> str:
 COVER_SUPPORT_SET_POSITION = 4  # HA cover.CoverEntityFeature.SET_POSITION
 
 
-def bulk_scope(conn: Any, principal: Principal) -> tuple[bool, Any, Any]:
-    """(installation-wide, in_scope, permitted) for devices.control_bulk: `in_scope(entity_id)` - the entity lies
-    within the caller's grant (installation-wide, or placed on one of their floors); `permitted(entity_id)` - it
-    does AND its domain is one a bulk action may ever reach."""
+def _held_scope(conn: Any, principal: Principal) -> tuple[bool, Any]:
+    """(installation-wide, in_scope) for devices.control_bulk - the scope half of bulk_scope, without the per-entity
+    exclusions `permitted` needs (scope_flags asks only where the caller may act: PERF-HOME-DEVICES-2342)."""
     wide, floors = ha_scope.visible_floors(conn, principal, PERMISSION)
     placed = ha_scope.placements(conn) if floors and not wide else {}
+
+    def in_scope(entity_id: str) -> bool:
+        return ha_scope.entity_visible(wide, floors, placed, entity_id)
+
+    return wide, in_scope
+
+
+def bulk_scope(conn: Any, principal: Principal, managed: set[str] | None = None) -> tuple[bool, Any, Any]:
+    """(installation-wide, in_scope, permitted) for devices.control_bulk: `in_scope(entity_id)` - the entity lies
+    within the caller's grant (installation-wide, or placed on one of their floors); `permitted(entity_id)` - it
+    does AND its domain is one a bulk action may ever reach. `managed`: the request's alarm-managed set when already read."""
+    wide, in_scope = _held_scope(conn, principal)
     from . import alarm as alarm_svc
 
-    managed = alarm_svc.managed_controls(conn)  # CR-010 review B1
+    if managed is None:
+        managed = alarm_svc.managed_controls(conn)  # CR-010 review B1
     from . import media_store as _ms
 
     # CR-016 review M4: the switches, numbers, selects and buttons of an approved screen / speaker / player / receiver are operated from "מולטימדיה" only - the
@@ -350,9 +364,6 @@ def bulk_scope(conn: Any, principal: Principal) -> tuple[bool, Any, Any]:
     media_managed = {e for e in _ms.managed_entities(conn) if not e.startswith("media_player.")}
     # CR-014: the Scheduler component's switches are not devices - never reached by a bulk action, whatever a request names
     schedulers = {r[0] for r in conn.execute("SELECT entity_id FROM ha_entities WHERE " + dsvc.IS_SCHEDULER_SQL).fetchall()}
-
-    def in_scope(entity_id: str) -> bool:
-        return ha_scope.entity_visible(wide, floors, placed, entity_id)
 
     def permitted(entity_id: str) -> bool:
         # domain only here (not ha_scope.devices_control_reaches's door-class/door-layer refusal, added for the
@@ -380,7 +391,7 @@ def scope_flags(conn: Any, principal: Principal, entities: list[dict[str, Any]])
     """Where the caller may start a bulk action, for the tree / area screens: {building, floors: set, areas: set,
     all}. A floor-scoped holder may act on the HA floors / areas that hold at least one entity placed on their floors;
     only an installation-wide holder may act on the building."""
-    wide, in_scope, _permitted = bulk_scope(conn, principal)
+    wide, in_scope = _held_scope(conn, principal)  # PERF-HOME-DEVICES-2342: `permitted` (alarm / media / scheduler sets) is not used here
     if wide:
         return {"building": True, "all": True, "floors": set(), "areas": set()}
     areas = {e["area_id"] for e in entities if e.get("area_id") and in_scope(e["entity_id"])}
