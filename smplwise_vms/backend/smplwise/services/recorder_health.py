@@ -88,6 +88,21 @@ def error_text(code: str | None) -> str:
     return ERROR_TEXT.get(code or "", "אין תשובה")
 
 
+# FRIGATE-FORBIDDEN-2341: an error a person has to fix carries the exact step (the health card and the one notification say it; the
+# reader itself only backs off). Only codes with a known, single fix are listed.
+_FORBIDDEN_FIX = ("פתחו הגדרות › חיבורים, בחרו את המקליט, הזינו מחדש את שם המשתמש והסיסמה של משתמש קיים ב־{dev}, "
+                  "לחצו על „בדיקת חיבור” ושמרו. אחרי השמירה יש להפעיל את המערכת מחדש.")
+NOTIFY_DETAIL = {"source_forbidden": "פרטי הגישה נדחו - יש לעדכן שם משתמש וסיסמה בהגדרות › חיבורים"}
+
+
+def error_action(code: str | None, vendor: str | None = None) -> str | None:
+    """The fix step for an API error, or None when there is no single step to name."""
+    if code == "source_forbidden":
+        dev = "Frigate" if vendor == "frigate" else "המקליט"
+        return f"{dev} דוחה את שם המשתמש או הסיסמה השמורים. " + _FORBIDDEN_FIX.format(dev=dev)
+    return None
+
+
 # ---------------------------------------------------------------- thresholds (Settings)
 
 def thresholds_defaults() -> dict[str, Any]:
@@ -330,7 +345,7 @@ def evaluate(state: RecState, th: dict[str, Any], now_ts: float, cameras: dict[i
     sys = dict(subject_kind="system", subject_id=rid, link=LINK, origin={"recorder_id": rid})
     if not fresh(state, th["interval_s"], now_ts):
         return conds, set(SOURCES)
-    conds.append(Cond("recorder.unreachable", f"recorder.unreachable:{rid}:api", params={"name": name, "detail": error_text(state.error)},
+    conds.append(Cond("recorder.unreachable", f"recorder.unreachable:{rid}:api", params={"name": name, "detail": NOTIFY_DETAIL.get(state.error or "", error_text(state.error))},
                       active=state.reachable is False, **sys))
     if state.reachable is False:
         return conds, set(DETAIL_SOURCES) | {"recorder.slow"}
@@ -635,7 +650,8 @@ def _recorder_view(st: RecState, th: dict[str, Any], now_ts: float, cams: dict[i
     if not is_fresh:
         api = _section("unknown", latency_ms=None, error=None)
     elif st.reachable is False:
-        api = _section("error", latency_ms=None, error=st.error, text=error_text(st.error))
+        api = _section("error", latency_ms=None, error=st.error, text=error_text(st.error),
+                       **({"action": act} if (act := error_action(st.error, st.vendor)) else {}))
     else:
         slow = (st.latency_ms or 0) > th["latency_ms"]
         api = _section("warn" if slow else "ok", latency_ms=st.latency_ms, error=None)

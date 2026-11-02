@@ -35,6 +35,8 @@ import { cameraEvents, markerKind, EVENT_LABEL, type VmsEvent } from '../api/eve
 import type { TimelineBookmark, TimelineEvent } from '../components/sw-timeline';
 import type { Camera } from '../api/types';
 import { StallWatch, stallOptionsFromSettings, type StallPhase } from '../api/playback-stall';
+import { FramePreviewLoader, fetchFrameHttp, frameBucket, type PreviewState } from '../api/frame-preview';
+import { SeekCoalescer } from '../api/seek-coalescer';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { INVESTIGATE_R5 } from './investigate-r5-css';
@@ -46,6 +48,8 @@ const FINISHED = ['closed', 'expired', 'failed'];
  * the session now) or a quota refusal. Anything else (a network close, go2rtc down, an expired session, no video) may be resumed. */
 const FINAL_CODES: (number | string)[] = [4401, 4403, 4410, 4429, 'access_lost', 'remote_live_cap'];
 type PlayerDetail = { status: string; transport?: string; error?: string; code?: number | string };
+/** PLAYBACK-SCRUB-2341: how long the pointer rests on the timeline before its picture is asked for (requests are de-duplicated). */
+const PREVIEW_REST_MS = 120;
 
 function hms(minute: number): string {
   return secondLabel(Math.max(0, Math.min(1439.983, minute)));
@@ -108,8 +112,20 @@ export class InvestigatePlayback extends LitElement {
   @state() private extra: string[] = [];
   @state() private casePick: NewCaseItem | null = null;
   /** Hover preview over the timeline (T044): a frame from the recording at the hovered instant. */
-  @state() private preview: { minute: number; x: number; width: number; url: string; failed: boolean } | null = null;
+  @state() private preview: { minute: number; x: number; width: number; frame: PreviewState } | null = null;
   private previewTimer = 0;
+  /** PLAYBACK-SCRUB-2341: hover pictures - de-duplicated, stale requests cancelled, the last good picture kept while one loads. */
+  private frames = new FramePreviewLoader({
+    fetchFrame: fetchFrameHttp,
+    onChange: (frame) => {
+      if (this.preview) this.preview = { ...this.preview, frame };
+    },
+  });
+  /** PLAYBACK-SCRUB-2341: only the last seek within 250 ms is sent; one seek in flight and at most one pending (api/seek-coalescer.ts). */
+  private seeker = new SeekCoalescer<Date>(async (at) => {
+    const r = await this.startAt(at);
+    return r === 'skipped' && this.busy ? 'busy' : 'done';
+  });
   @state() private busy = false;
   @state() private error = '';
   @state() private notice = '';
@@ -509,6 +525,10 @@ export class InvestigatePlayback extends LitElement {
       border-radius: var(--sw-r-sm);
       background: var(--sw-surface-3);
     }
+    .tlpreview img.stale {
+      /* PLAYBACK-SCRUB-2341: the last good picture while the one under the pointer loads */
+      opacity: 0.72;
+    }
     .tlpreview .none {
       display: grid;
       place-items: center;
@@ -591,6 +611,8 @@ export class InvestigatePlayback extends LitElement {
     super.disconnectedCallback();
     this.stopDisplay?.();
     window.clearInterval(this.ticker);
+    window.clearTimeout(this.previewTimer);
+    this.frames.dispose();
     void this.endSession();
   }
 
@@ -653,14 +675,19 @@ export class InvestigatePlayback extends LitElement {
     if (!this.cameraId || !isApi()) return;
     window.clearTimeout(this.previewTimer);
     const d = e.detail;
+    // PLAYBACK-SCRUB-2341: the popover follows the pointer at once and keeps the last good picture; the picture request itself waits
+    // for the pointer to rest briefly, is de-duplicated per 10-second bucket and a stale one is cancelled (api/frame-preview.ts)
+    if (this.preview) this.preview = { ...this.preview, minute: d.minute, x: d.x, width: d.width };
     this.previewTimer = window.setTimeout(() => {
-      const at = instantInZone(this.date, d.minute, this.tz).toISOString().replace(/\.\d{3}Z$/, 'Z');
-      this.preview = { minute: d.minute, x: d.x, width: d.width, url: frameUrl(this.cameraId, at), failed: false };
-    }, 250);
+      const { key, atIso } = frameBucket(this.cameraId, instantInZone(this.date, d.minute, this.tz));
+      if (!this.preview) this.preview = { minute: d.minute, x: d.x, width: d.width, frame: this.frames.state };
+      this.frames.want(key, frameUrl(this.cameraId, atIso));
+    }, PREVIEW_REST_MS);
   };
 
   private onTlHoverEnd = () => {
     window.clearTimeout(this.previewTimer);
+    this.frames.clear();
     this.preview = null;
   };
 
@@ -668,6 +695,7 @@ export class InvestigatePlayback extends LitElement {
     if (!id || (!fromRoute && id === this.cameraId)) return;
     this.clearStall();
     await this.endSession();
+    this.frames.dispose();
     this.cameraId = id;
     this.extra = this.extra.filter((c) => c !== id);
     this.error = '';
@@ -823,6 +851,12 @@ export class InvestigatePlayback extends LitElement {
         this.notice = 'אין הקלטה בזמן הזה ובשש השעות שאחריו: פער בכיסוי, לא מדלגים ל־Live.';
         this.position = at;
         return 'no_recording';
+      } else if (err instanceof ApiError && (err.body.code === 'seek_rate' || err.body.code === 'seek_busy')) {
+        // PLAYBACK-SCRUB-2341: the server's per-session seek cap - the current picture keeps playing, the notice says when to retry
+        this.notice = err.body.user_message || 'יותר מדי קפיצות בזמן; המתן מעט ונסה שוב.';
+        const cur = this.currentInstant();
+        if (cur) this.cursor = minuteInZone(cur, this.tz); // the cursor goes back to what is actually playing
+        return 'error';
       } else if (err instanceof ApiError && (err.body.code === 'session_over' || err.body.code === 'not_found')) {
         this.session = null;
         this.group = null;
@@ -911,6 +945,7 @@ export class InvestigatePlayback extends LitElement {
   }
 
   private async endSession() {
+    this.seeker.cancel(); // PLAYBACK-SCRUB-2341: a pending seek belongs to the session that is going away
     const s = this.session;
     const g = this.group;
     this.session = null;
@@ -1149,7 +1184,7 @@ export class InvestigatePlayback extends LitElement {
     }
     this.cursor = minute;
     if (e.detail.alt) this.bookmarkAt(minute);
-    await this.startAt(at);
+    this.seeker.request(at); // PLAYBACK-SCRUB-2341: coalesced - the cursor moves now, the last position within 250 ms is played
   }
 
   private onScrub(e: CustomEvent<{ minute: number }>) {
@@ -1161,7 +1196,7 @@ export class InvestigatePlayback extends LitElement {
   private async nudge(seconds: number) {
     const cur = this.currentInstant();
     if (!cur) return;
-    await this.startAt(new Date(cur.getTime() + seconds * 1000));
+    this.seeker.request(new Date(cur.getTime() + seconds * 1000)); // PLAYBACK-SCRUB-2341: repeated nudges coalesce like timeline seeks
   }
 
   /** T066: a rate the source can honour — slow motion consumes the real-time buffer slower, so the rendered time
@@ -1439,7 +1474,11 @@ export class InvestigatePlayback extends LitElement {
         <sw-timeline .segments=${this.segmentsMin} .events=${this.markers} .bookmarks=${this.bookmarkMarkers} .cursor=${this.cursor} .limit=${this.limitMinute} precision=${precision} @seek=${this.onSeek} @bookmark-click=${(e: CustomEvent<{ id: string }>) => (this.activeBookmark = this.bookmarks.find((b) => b.id === e.detail.id) ?? null)} @scrub=${this.onScrub} @hover=${this.onTlHover} @hover-end=${this.onTlHoverEnd}></sw-timeline>
         ${this.preview
           ? html`<div class="tlpreview" data-tl-preview style="left:${Math.max(104, Math.min(this.preview.width - 104, this.preview.x))}px">
-              ${this.preview.failed ? html`<div class="none">אין פריים בזמן זה</div>` : html`<img src=${this.preview.url} alt="" @error=${() => { if (this.preview) this.preview = { ...this.preview, failed: true }; }} />`}
+              ${this.preview.frame.none
+                ? html`<div class="none">אין הקלטה בזמן זה</div>`
+                : this.preview.frame.url
+                  ? html`<img src=${this.preview.frame.url} alt="" class=${this.preview.frame.loading ? 'stale' : ''} />`
+                  : html`<div class="none">${this.preview.frame.loading ? 'טוען תמונה…' : 'אין פריים בזמן זה'}</div>`}
               <span>${secondLabel(this.preview.minute)}</span>
             </div>`
           : nothing}

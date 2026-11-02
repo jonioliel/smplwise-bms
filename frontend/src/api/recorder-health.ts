@@ -16,7 +16,8 @@ export interface RecorderHealthCard {
   checked_at: string | null;
   detail_supported: boolean;
   model?: string | null;
-  api: Section & { latency_ms?: number | null; text?: string };
+  /** `action`: the exact fix step when the error is one a person fixes (FRIGATE-FORBIDDEN-2341: refused credentials). */
+  api: Section & { latency_ms?: number | null; text?: string; action?: string };
   disks: (Section & { items?: { ref: string; state: string; text: string; total_mb: number | null; free_mb: number | null }[]; free_pct?: number | null; full?: boolean; fill_days?: number | null; alarms?: string[] }) | null;
   recording: (Section & { recording?: number; watched?: number; continuous?: boolean; expected?: number; stopped?: { channel: number; name: string }[]; exception?: { channel: number; name: string }[] }) | null;
   channels: (Section & { total?: number; connected?: number; disconnected?: { channel: number; name: string }[] }) | null;

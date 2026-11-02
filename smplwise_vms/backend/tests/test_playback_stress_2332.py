@@ -30,6 +30,10 @@ from smplwise.routers import frames
 GARBAGE_JPEGS = [b"\xff\xd8\xff\xe0\x00\x10JFIF\x00", b"\xff\xd8" + b"\x00" * 64, b"not a jpeg at all", b"\xff\xd8\xff\xdb\x00\x43" + b"\xff" * 300]
 
 
+def _search_unavailable(*a, **k):
+    raise OSError("no recorder in this test")
+
+
 def test_frame_burst_with_broken_pictures_never_decodes_in_process(settings, monkeypatch):
     import PIL.Image
 
@@ -62,6 +66,8 @@ def test_frame_burst_with_broken_pictures_never_decodes_in_process(settings, mon
                 live[0] -= 1
 
     monkeypatch.setattr(frames, "GRAB", fake_grab)
+    monkeypatch.setattr(frames, "SEARCH", _search_unavailable)  # PLAYBACK-SCRUB-2341: the recorder search is not reachable here -> the asked second, as before
+    frames.MEMO.clear()
     ats = [f"2026-10-31T2{m % 4}:{m:02d}:{s:02d}Z" for m in range(0, 15) for s in (0, 10, 20, 30, 40, 50)]
 
     def one(at):

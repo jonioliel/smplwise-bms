@@ -3183,10 +3183,9 @@
         }
       ],
       "current": {
-        "version": null,
-        "source": "smplwise_vms/backend/requirements.txt (range, no exact pin; resolved at image build)",
-        "verify": true,
-        "constraint": ">=13,<16"
+        "version": "15.0.1",
+        "source": "smplwise_vms/backend/requirements.txt (exact pin since PLAYBACK-SCRUB-2341)",
+        "verify": false
       },
       "dependents": [
         "smplwise_vms/backend/smplwise/services/ha_client.py",
@@ -3205,7 +3204,7 @@
         "connect",
         "proxy"
       ],
-      "note": "HA WebSocket client and the go2rtc relay. Constraint >=13,<16: a 16 release needs an explicit review.",
+      "note": "HA WebSocket client and the go2rtc relay. Exact pin 15.0.1 (PLAYBACK-SCRUB-2341, docs/changes/PLAYBACK-SCRUB-2341.md): a newer release needs a review of the relay socket close path and the HA client.",
       "last_checked": "2026-10-21",
       "last_seen_version": "17.3",
       "latest_seen": {
@@ -3213,6 +3212,83 @@
         "read_on": "2026-10-11"
       },
       "impact_he": "17.2 \u05de\u05d7\u05d5\u05e5 \u05dc\u05d8\u05d5\u05d5\u05d7 \u05e9\u05d1\u05d3\u05e8\u05d9\u05e9\u05d5\u05ea (<16). \u05dc\u05d4\u05e8\u05d7\u05d9\u05d1 \u05d0\u05ea \u05d4\u05d8\u05d5\u05d5\u05d7 \u05e8\u05e7 \u05dc\u05d0\u05d7\u05e8 \u05d1\u05d3\u05d9\u05e7\u05ea \u05d7\u05d9\u05d1\u05d5\u05e8 \u05d4-WebSocket \u05de\u05d5\u05dc HA."
+    },
+    {
+      "id": "py-uvloop",
+      "name": "uvloop",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P1",
+      "owner": "Arx platform lead",
+      "urls": {
+        "pypi": "https://pypi.org/project/uvloop/",
+        "releases": "https://pypi.org/project/uvloop/#history"
+      },
+      "feeds": [
+        {
+          "type": "pypi",
+          "package": "uvloop"
+        }
+      ],
+      "current": {
+        "version": "0.22.1",
+        "source": "smplwise_vms/backend/requirements.txt (exact pin since PLAYBACK-SCRUB-2341)",
+        "verify": false
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/__main__.py",
+        "smplwise_vms/backend/smplwise/services/relay.py",
+        "smplwise_vms/backend/requirements.txt"
+      ],
+      "watch_keywords": [
+        "segfault",
+        "crash",
+        "close",
+        "transport",
+        "libuv",
+        "breaking"
+      ],
+      "note": "Native event loop (libuv) under uvicorn in the add-on image; exact pin (PLAYBACK-SCRUB-2341). Upstream issue #706 (segfault in __uv_close_handle_cb, Python 3.12) is open: review its status before any upgrade; safe mode (SEGFAULT-PLAYBACK-2332) runs without uvloop.",
+      "last_checked": "2026-11-01",
+      "last_seen_version": "0.22.1"
+    },
+    {
+      "id": "py-httptools",
+      "name": "httptools",
+      "kind": "library",
+      "status": "in-use",
+      "priority": "P1",
+      "owner": "Arx platform lead",
+      "urls": {
+        "pypi": "https://pypi.org/project/httptools/",
+        "releases": "https://pypi.org/project/httptools/#history"
+      },
+      "feeds": [
+        {
+          "type": "pypi",
+          "package": "httptools"
+        }
+      ],
+      "current": {
+        "version": "0.8.0",
+        "source": "smplwise_vms/backend/requirements.txt (exact pin since PLAYBACK-SCRUB-2341)",
+        "verify": false
+      },
+      "dependents": [
+        "smplwise_vms/backend/smplwise/__main__.py",
+        "smplwise_vms/backend/smplwise/services/relay.py",
+        "smplwise_vms/backend/requirements.txt"
+      ],
+      "watch_keywords": [
+        "llhttp",
+        "security",
+        "CVE",
+        "crash",
+        "breaking"
+      ],
+      "note": "Native HTTP parser (llhttp) under uvicorn; exact pin (PLAYBACK-SCRUB-2341). 0.9.0 (2026-10-09, llhttp 9.4.3) not taken yet.",
+      "last_checked": "2026-11-01",
+      "last_seen_version": "0.8.0"
     },
     {
       "id": "py-tzdata",

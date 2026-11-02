@@ -17,6 +17,9 @@ THE SUPERVISOR (`python3 -m smplwise.crashguard`, started by run.sh in place of 
 - SAFE MODE: SAFE_MODE_CRASHES native crashes within SAFE_MODE_WINDOW_S start the server with the pure-Python event loop and HTTP
   parser (`SW_UVICORN_LOOP=asyncio`, `SW_UVICORN_HTTP=h11`) instead of uvloop / httptools, the only native code that drives the
   playback relay sockets. It ends by itself once the window holds fewer crashes (checked at every start).
+  ASYNCIO-DEFAULT-2342: asyncio + h11 are now the server's DEFAULT (`__main__.server_impl`); uvloop + httptools run only when the
+  `server.fast_network` setting or SW_FAST_NETWORK opts in. Safe mode keeps its meaning: it forces asyncio + h11 over that opt-in, and
+  crashes are recorded and restarted exactly as before whichever loop / parser the crashed run used.
 
 THE FAULT HANDLER (`enable_faulthandler`, called by `python -m smplwise` at start-up)
 - `faulthandler` writes the Python stack of every thread on SIGSEGV / SIGFPE / SIGABRT / SIGBUS / SIGILL to
@@ -279,7 +282,8 @@ class Supervisor:
             env = child_env(self.base_env, safe)
             env["SW_SUPERVISED"] = "1"
             if safe:
-                self.log("safe mode: repeated native crashes - this run uses the asyncio event loop and the h11 HTTP parser")
+                self.log("safe mode: repeated native crashes - this run uses the asyncio event loop and the h11 HTTP parser "
+                         "(the default; it also overrides a fast-network opt-in)")
             started = self.clock()
             self.child = self.spawn(env)
             if self.stop_event.is_set():  # a stop arrived while the child was being started

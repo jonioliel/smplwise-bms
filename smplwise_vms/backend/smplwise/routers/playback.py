@@ -4,6 +4,7 @@ The browser receives a scoped media handle (the relay path), never a source URL.
 superseded generation is closed with 4410 so a late seek result cannot show an old frame."""
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import datetime as dt
 import logging
@@ -126,7 +127,7 @@ def seek_session(session_id: str, body: SeekBody, request: Request, principal: P
     s = read_settings(conn)
     actual_start, seg_end = _segment_for(settings, conn, cam, start, s["time.zone"])
     with unlocked(conn):
-        pb.seek(settings, session, actual_start, seg_end)
+        pb.seek(settings, session, actual_start, seg_end, max_per_min=int(s.get("playback.max_seeks_per_min", pb.DEFAULT_MAX_SEEKS_PER_MIN)))
     audit(conn, actor=principal, action="video.playback.seek", decision="allowed", resource_type="camera", resource_id=session.camera_id,
           request_id=getattr(request.state, "correlation_id", None), details={"session": session.id, "generation": session.generation, "start_at": iso_utc(actual_start)}, under=decision)
     out = pb.to_dict(session, s["playback.lease_s"])
@@ -202,8 +203,20 @@ async def playback_ws(websocket: WebSocket, session_id: str, generation: int = Q
     # an administrator watching someone else's session is checked as themselves
     lease = CameraLease(db, principal, session.camera_id, "video.playback", extra_stop=superseded)
     reason = "ended"
+    # PLAYBACK-SCRUB-2341: a seek (or close) stops this socket from its own thread and waits until the upstream socket is closed
+    loop = asyncio.get_running_loop()
+    stop_evt = asyncio.Event()
+    handle = pb.register_relay(session, my_gen)
+    handle.bind_stop(lambda: loop.call_soon_threadsafe(stop_evt.set))
     try:
-        reason = await relay_ws(websocket, client.ws_url(session.stream), client.ws_headers(), on_down, should_stop=lease.should_stop)
+        try:
+            if superseded():  # a seek landed between the accept and here: never open an upstream socket for an old generation
+                reason = "superseded"
+            else:
+                reason = await relay_ws(websocket, client.ws_url(session.stream), client.ws_headers(), on_down, should_stop=lease.should_stop, stop_event=stop_evt,
+                                        close_timeout=pb.UPSTREAM_CLOSE_TIMEOUT_S)
+        finally:
+            pb.release_relay(session, my_gen, handle)  # the upstream socket is closed now (relay_ws's `async with` has exited)
         if lease.lost:
             reason = "access_lost"
             session.state = "closed"
