@@ -62,6 +62,11 @@ const he = {
 
   // ---- the table
   ltSentence: 'מה קורה',
+  // TICKETS-1440-COLUMN-SETTING-2360: Settings > the module > display
+  setTableMid: 'בטבלה ברוחב בינוני הצג',
+  setTableMidSub: 'בכ-1440 פיקסלים אין מקום גם לעמודת המשפט "מה קורה" וגם לעמודת המחלקה. העמודה השנייה נשארת זמינה בבורר העמודות, ובחירה אישית של המשתמש גוברת.',
+  tmSentence: 'משפט',
+  tmDepartment: 'מחלקה',
 
   // ---- the manager board
   bdTodayGroup: 'מה קורה היום',
@@ -133,6 +138,10 @@ const en: Partial<Record<ListTextKey, string>> = {
   lcWhoOwner: 'Owner: {name}',
   lcSentence: 'Status: {text}',
   ltSentence: 'What is happening',
+  setTableMid: 'In a medium-width table show',
+  setTableMidSub: 'At about 1440 px there is no room for both the "What is happening" sentence column and the department column. The other column stays in the column chooser, and the viewer own choice wins.',
+  tmSentence: 'Sentence',
+  tmDepartment: 'Department',
   bdTodayGroup: 'What is happening today',
   bdToday: 'Today',
   bdVisit: 'Visit',

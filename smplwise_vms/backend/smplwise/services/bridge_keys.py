@@ -295,8 +295,7 @@ def scrub(db: Any) -> None:
     """H-07: after a retire / discard has committed, push the old pages out of the write-ahead log (a TRUNCATE checkpoint) so the sealed
     blob of a wiped key is not left in the WAL file. Best effort: a busy database simply keeps the blob until its next checkpoint."""
     try:
-        with db.connection() as conn:
-            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        db.scrub_wal(label="bridge_keys.scrub")  # outside any transaction: inside one SQLite refuses the checkpoint (DB-CONN-POOL-2343)
     except Exception:  # noqa: BLE001 - never fails a rotation
         pass
 

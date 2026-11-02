@@ -8,6 +8,7 @@ import '../components/sw-toggle';
 import '../components/sw-button';
 import '../components/sw-state-panel';
 import { drawerSettingsRows } from '../tickets/settings-drawer'; // TKUI1: the request drawer's display rows
+import { tableMidRow } from '../tickets/settings-table'; // TICKETS-1440-COLUMN-SETTING-2360: the table's medium-width column
 import '../tickets/settings-dept';
 import '../tickets/public-settings';
 import '../tickets/work-calendar-card'; // SLACAL: the working-hours calendar of the ticket timers
@@ -44,7 +45,7 @@ import { bidi } from '../i18n/bidi';
 import { t } from '../i18n/he';
 import {
   ticketsApi, type AdminDepartment, type DeletedDepartment, type DetailMode, type HoldersResponse, type InstallationDefaults, type NameEntries, type NewTicketMode, type SettingsDoc,
-  type SettingsPatch, type RfqVendorUploadSettings,
+  type SettingsPatch, type RfqVendorUploadSettings, type UiSettings,
 } from '../api/tickets';
 import type { RfqTextKey } from '../tickets/rfq-text';
 
@@ -915,7 +916,8 @@ export class SystemTickets extends LitElement {
   private requestDrawerRows(doc: SettingsDoc): TemplateResult | typeof nothing {
     // integration: TKUI1 owns the rows (tab, size, phone sheet); TKUI6 only places them in the display tab
     if ((doc.ui as unknown as Record<string, string | undefined>).detail_tab === undefined) return nothing;
-    return drawerSettingsRows(doc.ui as never, this.busy, (ui) => void this.saveDoc({ ui }));
+    const save = (ui: Partial<UiSettings>) => void this.saveDoc({ ui });
+    return html`${drawerSettingsRows(doc.ui as never, this.busy, save)}${tableMidRow(doc.ui as never, this.busy, save)}`;
   }
 
   // ---------------------------------------------------------------- departments (slice 2: list + editor)

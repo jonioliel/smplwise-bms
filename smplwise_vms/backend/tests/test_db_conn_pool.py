@@ -336,6 +336,45 @@ def test_concurrent_readers_and_writers_lose_nothing(db):
     assert stats["enabled"] is True and stats["reused"] > 0
 
 
+def _files(db: Database) -> bytes:
+    return b"".join(p.read_bytes() for p in (db.path, db.path.with_name(db.path.name + "-wal")) if p.exists())
+
+
+SECRET = "GATE2350A-wiped-secret-value-0123456789"
+
+
+def _wipe(db: Database) -> None:
+    with db.connection() as conn:
+        set_setting(conn, "secret.x", SECRET)
+    with db.connection() as conn:
+        conn.execute("PRAGMA secure_delete=ON")
+        conn.execute("DELETE FROM settings WHERE key = 'secret.x'")
+
+
+def test_scrub_wal_leaves_no_wiped_value_while_pooled_connections_stay_open(db):
+    """GATE2350-A: a TRUNCATE checkpoint inside connection() is refused by SQLite ("database table is locked"); before the
+    pool, closing the last connection removed the WAL anyway. With idle pooled connections the file stays open, so the
+    wipe's scrub must really run - outside any transaction."""
+    _wipe(db)
+    assert _idle(db) >= 1 and SECRET.encode() in _files(db), "precondition: the old page images are still in the WAL"
+    assert db.scrub_wal(label="test") is True
+    assert _idle(db) >= 1 and SECRET.encode() not in _files(db)
+    assert db.gate.scrub_path is None and db.gate.state() == {"held": False, "waiting": 0}
+
+
+def test_a_scrub_kept_busy_by_a_reader_is_finished_when_the_reader_ends(db):
+    """The wipe runs while a read request holds its snapshot (the bridge-key GET ticks the engine inside the request): the
+    checkpoint is busy, the scrub stays pending on the file, and the end of that read transaction finishes it."""
+    with db.connection(mode="read") as reader:
+        reader.execute("SELECT COUNT(*) FROM settings").fetchone()  # the snapshot is taken
+        _wipe(db)
+        assert db.scrub_wal(label="test", reader_wait_s=0.0) is False
+        assert db.gate.scrub_path == db.path and SECRET.encode() in _files(db)
+        release(reader)  # CommitBeforeSend: the request's transaction ends before its response is sent
+        assert db.gate.scrub_path is None and SECRET.encode() not in _files(db)
+    assert db.gate.state() == {"held": False, "waiting": 0}
+
+
 def test_requests_reuse_connections_and_health_reports_it(settings):
     from fastapi.testclient import TestClient
 
