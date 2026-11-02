@@ -1,0 +1,251 @@
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./index-FTIMe59U.css"])))=>i.map(i=>d[i]);
+import{a as f,_ as h,rP as g,e as s,aR as n,A as c,qB as b,E as u,G as x,H as y}from"./index-DzjkD5gF.js";import"./sw-chip-CbgQ6Ans.js";import"./sw-floor-iso-GdbBDRpE.js";import"./sw-steps-CKLfuJ2Z.js";import"./sw-timeline-CynCWjmI.js";import{d as p,a as $}from"./demo-3d-sFQS7iK9.js";import{b as w}from"./scene-builder-CGzZYD7n.js";import{w as m,W as k}from"./webgl-U1M5Oj-F.js";import"./sw-logo-art-Va6y_cIM.js";import"./shared-space-BS7-pU3w.js";import"./zones-8vvGUJgU.js";import"./material-resolve-BJO0umZI.js";var z=Object.defineProperty,S=Object.getOwnPropertyDescriptor,v=(e,a,o,i)=>{for(var r=i>1?void 0:i?S(a,o):a,l=e.length-1,d;l>=0;l--)(d=e[l])&&(r=(i?d(a,o,r):d(r))||r);return i&&r&&z(a,o,r),r};const _=[["--sw-bg","רקע"],["--sw-surface","משטח"],["--sw-surface-3","משטח 3"],["--sw-border","גבול"],["--sw-text","טקסט"],["--sw-text-2","טקסט משני"],["--sw-text-3","טקסט שלישי"],["--sw-accent","כחול"],["--sw-accent-soft","כחול רך"],["--sw-live","חי"],["--sw-offline","מנותק"],["--sw-stale","מיושן"],["--sw-danger","שגיאה"],["--sw-purple","סגול (דלת)"]],E=["live","recorded","historic","offline","stale","partial","unknown","forbidden","error"],R=["loading","empty","error","forbidden","stale","partial"],L=["entrance","lobby","corridor","hall","parking","warehouse","backyard","driveway","night","building","house"],O=["dashboard","building","camera","bell","history","system","search","user","play","pause","back10","forward10","aperture","volume","mic","expand","close","chevron","chevronDown","warning","info","lock","unlock","offline","refresh","layers","floor","plus","minus","fit","door","light","sensor","check","clock","download","pin","more","map","upload","list","target","filter","users","shield","storage","edit","case","rule","link","grid","home","star","calendar","trash","eye","cpu","activity","image","wifi","signal","move","bookmark","route"];let t=class extends f{constructor(){super(...arguments),this.demo3d={loading:!1,error:"",desc:null,selected:null},this.demoRealistic=!1}async load3d(){if(!(this.demo3d.loading||this.demo3d.desc)){this.demo3d={...this.demo3d,loading:!0,error:""};try{await h(()=>import("./sw-plan-3d-Cv3SgG8Y.js"),__vite__mapDeps([0]),import.meta.url);const e=p("f0");this.demo3d={loading:!1,error:"",desc:e?w(e):null,selected:null}}catch(e){this.demo3d={loading:!1,error:e instanceof Error?e.message:String(e),desc:null,selected:null}}}}onRealistic(e){if(e===this.demoRealistic||!this.demo3d.desc)return;this.demoRealistic=e;const a=p("f0");a&&(this.demo3d={...this.demo3d,desc:w({...a,realistic:e})})}render(){return s`
+      <h2>ספריית רכיבים ו־tokens (v3)</h2>
+      <p class="lead">מקור השפה החזותית: שלושת לוחות ההדמיה ב־docs/design/reference. ממשק קומפקטי (12px), משטחים לבנים על רקע קריר, מחיצות דקות, כחול אחד במשורה, ירוק רק ל"מחובר", צל שקט, סצנות מאוירות עד חיבור זרמים.</p>
+
+      <h3>צבעים</h3>
+      <div class="swatches">
+        ${_.map(([e,a])=>s`<div class="swatch"><div class="c" style="background:var(${e})"></div><div class="n"><span>${a}</span><span class="ltr">${e}</span></div></div>`)}
+      </div>
+
+      <h3>טיפוגרפיה (Heebo, מארח מקומית)</h3>
+      <div class="type">
+        <p style="font-size:32px;font-weight:var(--sw-fw-bold);letter-spacing:-0.03em;color:var(--sw-heading)">ספרת תצוגה 32 · 1.3 TB</p>
+        <p style="font-size:var(--sw-h1);font-weight:var(--sw-h1-weight);letter-spacing:var(--sw-h1-tracking);color:var(--sw-heading)">כותרת עמוד 26</p>
+        <p style="font-size:var(--sw-fs-2xl);font-weight:var(--sw-fw-bold);color:var(--sw-heading)">כותרת מצב / Hero 20</p>
+        <p style="font-size:var(--sw-fs-xl);font-weight:var(--sw-fw-bold);color:var(--sw-heading)">כותרת כרטיס 17</p>
+        <p style="font-size:var(--sw-fs-md);font-weight:var(--sw-fw-semibold);color:var(--sw-heading)">תווית שורה 14</p>
+        <p>טקסט גוף 13: מפה של אתר, מבנה וקומה היא משטח העבודה המרכזי.</p>
+        <p style="font-size:var(--sw-fs-sm);color:var(--sw-text-2)">הסבר משני 12.5</p>
+        <p style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">תווית 11 · <span class="ltr">2026-09-14T08:05:38Z</span> נשאר LTR</p>
+      </div>
+
+      <h3>מדרגות המשטח (עמוד · Hero · כרטיס · באר)</h3>
+      <div class="ladder">
+        <div class="hero"><b>Hero: העצם הראשי</b><span class="big">84</span><small>רדיוס גדול, צל 2 וקו אור עליון; אחד למסך.</small></div>
+        <div class="card"><b>כרטיס</b><small>משטח, צל 1, כותרת 17/700. כל sw-card במסכי ההגדרות.</small></div>
+        <div class="well"><b>באר</b><small>surface-2, בלי מתאר; שורת הגדרה, אריח התקן, מונה.</small></div>
+      </div>
+
+      <h3>כרטיסי KPI</h3>
+      <div class="kpis">
+        <sw-kpi icon="camera" tone="live" value="24" label="מצלמות" detail="מחוברות"></sw-kpi>
+        <sw-kpi icon="building" value="3" label="אתרים" detail="פעילים" tone="neutral"></sw-kpi>
+        <sw-kpi icon="bell" value="12" label="אירועים" detail="ב־24 השעות" tone="neutral" badge="3 חדשים"></sw-kpi>
+        <sw-kpi icon="shield" tone="stale" value="חלקי" label="מצב מערכת" detail="גשר לא רענן"></sw-kpi>
+      </div>
+
+      <h3>סצנות מאוירות (מצייני מקום, לא פריימים)</h3>
+      <div class="scenes">${L.map(e=>s`<div><sw-scene kind=${e}></sw-scene><span>${e}</span></div>`)}</div>
+
+      <h3>אריחי מצלמה</h3>
+      <div class="grid">
+        <sw-camera-tile name="כניסה ראשית" state="live" scene="entrance"></sw-camera-tile>
+        <sw-camera-tile name="חדר מדרגות" state="stale" scene="corridor"></sw-camera-tile>
+        <sw-camera-tile name="מסדרון מזרחי" state="offline"></sw-camera-tile>
+        <sw-camera-tile name="חניה" state="forbidden"></sw-camera-tile>
+      </div>
+
+      <h3>כפתורים, צ׳יפים, טאבים</h3>
+      <div class="row">
+        <sw-button variant="primary" icon="play">ראשי</sw-button>
+        <sw-button icon="history">משני</sw-button>
+        <sw-button variant="ghost" icon="pin">שקוף</sw-button>
+        <sw-button variant="danger">מסוכן</sw-button>
+        <sw-button variant="primary" disabled>מושבת</sw-button>
+        <sw-button size="sm">קטן</sw-button>
+        <sw-button iconOnly icon="refresh" label="רענון"></sw-button>
+        <sw-chip selected>הכל</sw-chip><sw-chip dot="#ef4444">תנועה</sw-chip><sw-chip dot="#2f6bff">אדם</sw-chip><sw-chip dot="#22c55e">רכב</sw-chip>
+        <sw-tabs .items=${[{id:"a",label:"כל האתרים",count:3},{id:"b",label:"מבנים"},{id:"c",label:"מפה"}]} active="a"></sw-tabs>
+        <sw-toggle checked label="מופעל"></sw-toggle>
+        <sw-avatar name="יוני"></sw-avatar>
+      </div>
+
+      <h3>תגי מצב (צורה + טקסט, לא צבע בלבד)</h3>
+      <div class="row">${E.map(e=>s`<sw-badge kind=${e}></sw-badge>`)}</div>
+
+      <h3>ציר זמן, שלבים, קומות איזומטריות</h3>
+      <sw-timeline .segments=${g} .events=${[{minute:614,kind:"person",label:"אדם"},{minute:582,kind:"vehicle",label:"רכב"}]} .cursor=${615}></sw-timeline>
+      <div class="row" style="margin-block-start:10px">
+        <sw-card style="flex:1;min-inline-size:280px"><sw-steps .steps=${["גילוי","הגדרה","בדיקה","סיום"]} .current=${1}></sw-steps></sw-card>
+        <sw-floor-iso .rooms=${n("f0")} selected></sw-floor-iso>
+        <sw-floor-iso .rooms=${n("f-1")}></sw-floor-iso>
+        <sw-floor-iso empty></sw-floor-iso>
+      </div>
+
+      <h3>מצבי מסך</h3>
+      <div class="grid">
+        ${R.map(e=>s`<div class="panel"><sw-state-panel state=${e} actionLabel=${e==="error"?"נסה שוב":""}></sw-state-panel></div>`)}
+      </div>
+
+      <h3>תלת-ממד סכמטי (T087)</h3>
+      <div data-3d-demo style="display:flex;flex-direction:column;gap:8px;max-inline-size:720px">
+        ${this.demo3d.desc?s`<sw-plan-3d style="block-size:360px;border:1px solid var(--sw-border);border-radius:var(--sw-r-md)" .description=${this.demo3d.desc} .selectedId=${this.demo3d.selected} .labels=${$("f0")}
+                .cameras=${[{id:"cam-1",label:"כניסה ראשית"},{id:"cam-2",label:"לובי"}]} exportName="demo-floor"
+                @part-select=${e=>this.demo3d={...this.demo3d,selected:e.detail.id}}
+                @realistic-change=${e=>this.onRealistic(e.detail.on)}></sw-plan-3d>
+              <div style="font-size:var(--sw-fs-xs);color:var(--sw-text-2)">נבחר: <span class="ltr" data-3d-demo-selected>${this.demo3d.selected??""}</span></div>`:s`<div><sw-button icon="cube" data-3d-demo-load ?disabled=${!m()||this.demo3d.loading} @click=${()=>this.load3d()}>${this.demo3d.loading?"טוען…":"טען תצוגת 3D"}</sw-button>
+              ${m()?c:s`<span data-3d-unavailable style="margin-inline-start:8px">${k}</span>`}
+              ${this.demo3d.error?s`<span style="color:var(--sw-danger);margin-inline-start:8px">${this.demo3d.error}</span>`:c}</div>`}
+      </div>
+
+      <h3>אייקונים</h3>
+      <div class="icons">${O.map(e=>s`<div class="icon"><sw-icon .name=${e} size=${18}></sw-icon><span class="ltr">${e}</span></div>`)}</div>
+    `}};t.styles=[b,u`
+    :host {
+      display: block;
+      padding: 14px 24px 24px;
+      max-inline-size: var(--sw-content-max);
+    }
+    /* R5-SYSTEM-297: the guide reads in the product's own scale - the page heading, 17/700 section titles, a body-sized lead */
+    h2 {
+      font-family: var(--sw-font-heading, var(--sw-font));
+      font-size: var(--sw-h1, var(--sw-fs-2xl));
+      font-weight: var(--sw-h1-weight, var(--sw-fw-bold));
+      letter-spacing: var(--sw-h1-tracking, -0.01em);
+      color: var(--sw-heading, var(--sw-text));
+      margin: 0 0 4px;
+    }
+    h3 {
+      font-size: var(--sw-fs-xl);
+      margin: 26px 0 10px;
+      font-weight: var(--sw-fw-bold);
+      letter-spacing: -0.01em;
+      color: var(--sw-heading, var(--sw-text));
+    }
+    .lead {
+      color: var(--sw-text-2);
+      margin: 0 0 12px;
+      font-size: var(--sw-fs-md);
+      max-inline-size: 90ch;
+    }
+    /* the surface ladder of HOMEFABLE / R5: the page, a hero (large radius, shadow 2 + light line), a card (shadow 1), a well (surface-2) */
+    .ladder {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .ladder > div {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+    }
+    .ladder .hero {
+      border-radius: var(--sw-r-lg);
+      box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
+    }
+    .ladder .card {
+      border-radius: var(--sw-r-md);
+      box-shadow: var(--sw-shadow-1);
+    }
+    .ladder .well {
+      border-radius: var(--sw-r-md);
+      border-color: transparent;
+      background: var(--sw-surface-2);
+    }
+    .ladder b {
+      font-size: var(--sw-fs-xl);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading, var(--sw-text));
+    }
+    .ladder .big {
+      font-size: var(--sw-fs-3xl);
+      font-weight: var(--sw-fw-bold);
+      letter-spacing: -0.03em;
+      font-variant-numeric: tabular-nums;
+      color: var(--sw-heading, var(--sw-text));
+    }
+    .ladder small {
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
+    }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .swatches {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 8px;
+    }
+    .swatch {
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-sm);
+      overflow: hidden;
+      background: var(--sw-surface);
+      font-size: var(--sw-fs-xs);
+    }
+    .swatch .c {
+      block-size: 36px;
+    }
+    .swatch .n {
+      padding: 5px 8px;
+      display: flex;
+      justify-content: space-between;
+      gap: 4px;
+    }
+    .type p {
+      margin: 0 0 4px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 12px;
+    }
+    .scenes {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 10px;
+    }
+    .scenes div {
+      aspect-ratio: 16 / 9;
+      border-radius: var(--sw-r-sm);
+      overflow: hidden;
+      position: relative;
+      font-size: var(--sw-fs-2xs);
+    }
+    .scenes span {
+      position: absolute;
+      inset-inline-start: 6px;
+      inset-block-end: 5px;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      direction: ltr;
+    }
+    .icons {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+      gap: 6px;
+    }
+    .icon {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      padding: 8px 4px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-surface);
+      font-size: var(--sw-fs-2xs);
+      color: var(--sw-text-2);
+    }
+    .panel {
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-lg);
+      background: var(--sw-surface);
+      box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight);
+    }
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 10px;
+    }
+  `];v([x()],t.prototype,"demo3d",2);t=v([y("styleguide-screen")],t);export{t as StyleguideScreen};
+//# sourceMappingURL=styleguide-screen-m6dzpDw7.js.map
