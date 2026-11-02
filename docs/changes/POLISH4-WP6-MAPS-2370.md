@@ -64,4 +64,9 @@ phone floor map. The legend, where the swatch changed, is hidden below 768 px, a
   baselines for these screens, and the workstation is low on memory (no local vite or Playwright browser runs). Covered by source
   guards and tsc only.
 - The impeccable detector on sources returned `[]`: it reads pages, not TS. No page-level design-skill loop was run.
-- The rebase or merge onto a train that contains v2.34.2: the train did not contain it at push time (see the final report).
+- Base: `origin/release/2360-train` @ eb9525d9b (2.36.0, contains v2.34.2) was merged in at 5fc0f090c, with no conflicts. On the
+  merged tree, `tsc` gives 0 errors and the package's unit specs give 58 passed (the WP6 guards, token / a11y / menu / HUD lints,
+  phone-297, rtl, floor-map-3d). The full unit suite (3657 / 0 / 1) ran on the pre-merge tip 32fe757a6.
+- The visual matrix (map-floor, sites) on the merged tree: the runner had a 2.36.0 gate running, then `~/.gate-pending`, for the
+  whole 30-minute window, so it was not used. Expected result: the two map-floor mobile differences clear (the train now carries the
+  2.34.2 baselines) and the other 10 cases stay green.
