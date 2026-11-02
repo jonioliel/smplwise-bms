@@ -497,17 +497,33 @@ export class CastMyScreens extends LitElement {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
     }
-    .it.no {
-      opacity: 0.65;
+    /* POLISH4-WP5: a screen that cannot be cast to is shown quieter by its ink, not by a see-through row (opacity took the name below AA) */
+    .it.no .nm {
+      color: var(--sw-text-2);
+    }
+    .nm,
+    .ln {
+      overflow-wrap: anywhere;
     }
     h4 {
-      margin: 12px 0 4px;
+      margin-block: 16px 4px;
+      margin-inline: 0;
       font-size: var(--sw-fs-sm);
       color: var(--sw-text-2);
     }
     .muted {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
+    }
+    /* a phone: the allowed duration drops under the name instead of squeezing it */
+    @media (max-width: 767px) {
+      .it {
+        flex-wrap: wrap;
+      }
+      .it > .muted {
+        flex: 1 0 100%;
+        padding-inline-start: 48px;
+      }
     }
   `];
 

@@ -109,7 +109,7 @@ export class MultimediaGroups extends LitElement {
       transition: box-shadow var(--mm-motion) var(--mm-ease), transform var(--mm-motion) var(--mm-ease), border-color var(--mm-motion);
     }
     .gcard.lit {
-      border-color: rgb(var(--art) / 0.34);
+      border-color: color-mix(in srgb, rgb(var(--art)) 34%, transparent);
       box-shadow: 0 22px 56px rgb(var(--art) / var(--mm-art-halo-alpha)), var(--dv-shadow-1);
     }
     .gcard > :not(.gbox):not(.ecard) {
@@ -208,7 +208,7 @@ export class MultimediaGroups extends LitElement {
       border-radius: var(--sw-r-md);
       overflow: hidden;
       color: var(--sw-on-video);
-      box-shadow: 0 8px 18px rgb(var(--art, 20 24 34) / 0.32);
+      box-shadow: 0 8px 18px color-mix(in srgb, rgb(var(--art, 20 24 34)) 32%, transparent);
     }
     .gnp .t {
       display: flex;
@@ -241,8 +241,8 @@ export class MultimediaGroups extends LitElement {
       place-items: center;
       background: var(--dv-text);
       color: var(--mm-text-inverse);
-      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
-      transition: transform 120ms var(--mm-ease);
+      box-shadow: var(--dv-shadow-control);
+      transition: transform var(--sw-t-press, 120ms) var(--mm-ease);
     }
     .pk .ic {
       font-size: var(--sw-fs-2xl);
@@ -290,17 +290,17 @@ export class MultimediaGroups extends LitElement {
     }
     .rng::-webkit-slider-runnable-track {
       block-size: 8px;
-      border-radius: 999px;
+      border-radius: var(--sw-r-pill);
       background: linear-gradient(to left, var(--dv-accent) var(--v, 50%), var(--dv-surface-3) var(--v, 50%));
     }
     .rng::-moz-range-track {
       block-size: 8px;
-      border-radius: 999px;
+      border-radius: var(--sw-r-pill);
       background: var(--dv-surface-3);
     }
     .rng::-moz-range-progress {
       block-size: 8px;
-      border-radius: 999px;
+      border-radius: var(--sw-r-pill);
       background: var(--dv-accent);
     }
     .rng::-webkit-slider-thumb {
@@ -310,7 +310,7 @@ export class MultimediaGroups extends LitElement {
       border-radius: 50%;
       background: var(--sw-toggle-thumb);
       margin-block-start: -9px;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28), 0 0 0 0.5px rgba(0, 0, 0, 0.08);
+      box-shadow: var(--dv-shadow-control);
     }
     .rng::-moz-range-thumb {
       inline-size: 26px;
@@ -318,7 +318,7 @@ export class MultimediaGroups extends LitElement {
       border: 0;
       border-radius: 50%;
       background: var(--sw-toggle-thumb);
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
+      box-shadow: var(--dv-shadow-control);
     }
     .rng[disabled] {
       opacity: 0.4;
@@ -492,14 +492,50 @@ export class MultimediaGroups extends LitElement {
     .gfoot .btn.pend .ic {
       animation: mm-spin 0.8s linear infinite;
     }
+    /* POLISH4-WP5: the edit chips sit at the card's end (the shared place) and the title row keeps clear of them while editing, so
+       a long group name ends in an ellipsis before the chips instead of running under them (they covered the icon and the first
+       words at the start edge) */
     .gcard > .ecard {
       z-index: 6;
-      inset-block-start: 14px;
-      inset-inline-end: auto;
-      inset-inline-start: 14px;
+    }
+    .gcard.editing .gh {
+      padding-inline-end: 84px;
     }
     .qbtn {
       color: var(--dv-text-2);
+    }
+    /* POLISH4-WP5 (emil-design-eng): a link answers the press like the keys do, the slider's thumb lifts while it is held, and hover
+       is for a pointer that hovers (a touch never leaves it lit) */
+    .lnk {
+      transition: transform var(--sw-t-press, 120ms) var(--mm-ease), color var(--mm-motion);
+    }
+    .lnk:active {
+      transform: scale(var(--sw-press-scale, 0.97));
+    }
+    .rng:active:not([disabled])::-webkit-slider-thumb {
+      transform: scale(1.12);
+    }
+    .rng:active:not([disabled])::-moz-range-thumb {
+      transform: scale(1.12);
+    }
+    .rng:focus-visible {
+      outline: 2px solid var(--dv-focus);
+      outline-offset: 2px;
+      border-radius: var(--sw-r-pill);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .lnk:hover {
+        text-decoration: underline;
+      }
+    }
+    @media (min-width: 768px) and (max-width: 1099px) {
+      .ggrid {
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+      }
+      .mrow {
+        grid-template-columns: minmax(0, 1fr) minmax(80px, 120px) 32px auto;
+        gap: 8px;
+      }
     }
     @media (max-width: 767px) {
       .ggrid {
@@ -509,6 +545,21 @@ export class MultimediaGroups extends LitElement {
         grid-template-columns: minmax(0, 1fr) minmax(70px, 110px) 30px auto;
         padding-inline: 10px;
         gap: 8px;
+      }
+    }
+    @media (pointer: coarse), (max-width: 767px) {
+      .gcard.editing .gh {
+        padding-inline-end: 112px;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .gfoot .btn.pend .ic {
+        animation-duration: 3s;
+      }
+      .gcard,
+      .pk,
+      .lnk {
+        transition: none;
       }
     }
   `];
@@ -973,7 +1024,7 @@ export class MultimediaGroups extends LitElement {
   }
 
   private skeleton(): TemplateResult {
-    const card = html`<div class="glass gcard" style="padding:16px 18px"><div style="display:flex;gap:12px;align-items:center"><span class="skl" style="inline-size:44px;block-size:44px;border-radius:14px"></span><div style="flex:1;display:flex;flex-direction:column;gap:8px"><span class="skl" style="block-size:16px;inline-size:55%"></span><span class="skl" style="block-size:12px;inline-size:35%"></span></div></div><span class="skl" style="block-size:44px;border-radius:999px"></span><span class="skl" style="block-size:36px;border-radius:12px"></span></div>`;
+    const card = html`<div class="glass gcard" style="padding:16px 18px"><div style="display:flex;gap:12px;align-items:center"><span class="skl" style="inline-size:44px;block-size:44px;border-radius:var(--sw-r-lg)"></span><div style="flex:1;display:flex;flex-direction:column;gap:8px"><span class="skl" style="block-size:16px;inline-size:55%"></span><span class="skl" style="block-size:12px;inline-size:35%"></span></div></div><span class="skl" style="block-size:44px;border-radius:var(--sw-r-pill)"></span><span class="skl" style="block-size:36px;border-radius:var(--sw-r-md)"></span></div>`;
     return html`<div data-mm-state="loading" aria-busy="true"><div class="ggrid">${Array.from({ length: this.phone ? 2 : 3 }, () => card)}</div></div>`;
   }
 
