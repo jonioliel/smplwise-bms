@@ -25,14 +25,31 @@ system-security, system-security-public, system-wiskey-diagnostics; `frontend/sr
 `system-diagnostics.ts` and `system-update.ts`, went stale because their literals are gone; the spec requires removing them).
 Looked at and left alone (already tokenised, phone-ready, states in place): system-security-wiskey, system-video-conn-test.
 
-## Tests
+## Tests (real totals)
 
-See the section at the end (filled in from the real runs).
+- `tsc --noEmit` (frontend, workstation): 0 errors, run after the last source edit.
+- Node unit specs (`playwright.unit.config.ts --workers=1`): unit-readiness-96 + unit-backup-offbox + unit-backup-offbox-restore: 21 passed;
+  unit-token-lint (after dropping the two stale `ALLOW_HEX` entries): 7 passed; unit-a11y-polished-lint, unit-designtokens-297, unit-menu-lint,
+  unit-backup-password, unit-entity-id-sweep, unit-dark-polish-beds: 41 passed (47 + 1 of the 48 first run was the stale-ALLOW_HEX failure fixed above).
+- Runner, `preview` job, branch @ 706fb0601, desktop project, `--workers=1`: evidence-backup, evidence-health, evidence-storage,
+  evidence-readiness-96, evidence-alarm, evidence-system-update (+ -apply), evidence-security-polish, evidence-setup-wizard:
+  **124 passed, 17 skipped, 0 failed** (5.1 min). The skipped ones are the fixture-backend cases (they need a live fixture backend).
+- Runner, `visual-matrix -g settings-diagnostics` (6 pictures: desktop / tablet / mobile x light / dark): on the train tip the six fail
+  at ~0.01 ratio, because the train does not contain 2.34.2 yet and those baselines were re-taken in 2.34.2 (same failure with no change of
+  mine). On `probe/POLISH4-WP7-with2342` (this branch + `v2.34.2`, only conflict the generated `contracts/API_INVENTORY.md`, train side
+  kept) the six **pass (6 of 6)**: no baseline refresh is needed for this package.
+- Tablet + mobile projects of the same evidence specs: see NOT_RUN / the report (filled in at the end of the run).
+
+## NOT_RUN
+
+- The `fixture` specs of these screens (live fixture backend): not run here.
+- Light / dark, RTL and the 1920 / 1440 / 1180 / 1024 / 390 look of each changed screen was not captured as pictures (no evidence-capture
+  run: workstation low on memory, runner time shared). The layout specs above check "no page scroll" at 1024 / 768 / 390 / 320 for readiness.
+- The phone sticky save row and the phone alarm / audit layouts were not seen in a picture; they are covered by CSS only.
 
 ## Baselines
 
-Expected to move (the lead refreshes them on the train unless a runner window opened, see NOT_RUN):
-- `visual-matrix` `settings-diagnostics-ready-{light,dark}-mobile`: the General tab's design card save row is the sticky phone row
-  (`.foot.sticky`). Desktop and tablet should not change (the sticky rules are phone-only). 2.34.2 just re-took all six.
-- No pixel-spec baseline covers storage, readiness, update, wizard, audit or the alarm settings page (only the security-alarm *screen*, WP9,
-  and the WisKey access specs, WP8, have baselines).
+None expected to move: the six `visual-matrix` `settings-diagnostics` pictures pass unchanged against the 2.34.2 baselines (the matrix signs in
+without the edit right, so the General tab shows no save row, and its pictures do not contain the previews). No pixel-spec baseline covers
+storage, readiness, update, wizard, audit or the alarm settings page (only the security-alarm *screen*, WP9, and the WisKey access specs, WP8,
+have baselines).
