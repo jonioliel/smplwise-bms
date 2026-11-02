@@ -1,0 +1,32 @@
+# GATE2350-A — Release gate of 2.35.0: the six backend failures
+
+> Generated card. Edit management/tasks.json, then run this script with --write.
+
+**Phase:** V1 | **Priority:** P1 | **Status:** REVIEW
+
+**Owner role:** engineering | **Hardware:** False
+
+**Dependencies:** None
+
+**Chapters:** 
+
+**Screens:** N/A
+
+## Model policy — not a live model switch
+```json
+{
+  "implementation": "balanced",
+  "review": "balanced",
+  "effort": "medium",
+  "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+}
+```
+
+## Acceptance
+- **R-GATE2350-A-1 / AT-GATE2350-A-1:** The six backend failures of the 2.35.0 gate are fixed (WAL scrub on its own connection with the pool, attendee module name, upload counters wait).
+
+## Deliverables
+- Change record docs/changes/GATE2350-A.md
+
+## Guardrails
+Read AGENTS.md and the linked master chapters. Inspect legacy code before replacement. No production configuration writes, physical commands, spending, or claims of passing unrun tests. Record commit, environment, commands and evidence.
