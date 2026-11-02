@@ -201,7 +201,7 @@ def test_token_refresh_failures(drive, tmp_path):
     drive.revoked = False
     with pytest.raises(ob.OffboxError) as e:
         make(drive, client_id="999-other.apps.googleusercontent.com")[0].list()
-    assert e.value.code == "gdrive_client_invalid"
+    assert e.value.code == "gdrive_client_not_found"  # GDRIVE-READY-2351: Google's "client was not found" is named
     with pytest.raises(ob.OffboxError) as e:
         make(drive, client_id="not-a-client")
     assert e.value.code == "gdrive_client_missing"
@@ -248,7 +248,7 @@ def test_device_flow_start_and_poll_states(drive):
     assert e.value.code == "gdrive_client_invalid"
     with pytest.raises(ob.OffboxError) as e:
         flow.start("999-other.apps.googleusercontent.com", CLIENT_SECRET)
-    assert e.value.code == "gdrive_client_invalid"
+    assert e.value.code == "gdrive_client_not_found"
     with pytest.raises(ob.OffboxError) as e:
         flow.start(CLIENT_ID, CLIENT_SECRET, scope="https://www.googleapis.com/auth/drive")
     assert e.value.code == "gdrive_scope_refused"

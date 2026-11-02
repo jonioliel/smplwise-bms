@@ -1,5 +1,8 @@
 # Google Drive off-box backup: the owner's setup (GDRIVEBK-2310)
 
+> GDRIVE-READY-2351: for the first connection follow `GDRIVE_CONNECT_SETUP.md` (exact screen names, the Testing-mode test user,
+> the "Check Google connection" step and a troubleshooting table). This page stays as the short reference.
+
 Hebrew short version: `GDRIVE_BACKUP_SETUP_HE.md`. Design: `docs/design/GDRIVE_BACKUP.md`.
 
 Arx never creates a Google Cloud project, an OAuth client or a login for you. You do steps 1-5 once in your own Google account; Arx
