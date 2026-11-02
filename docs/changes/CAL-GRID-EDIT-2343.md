@@ -90,13 +90,15 @@ approval, `approved_move`). **They are hints only**: every change is a server ca
 
 ## Not in this phase (phase 2 candidates)
 
+Assembly with pilot/CAL-ATTENDEES-2343: append `calendar_attendees.on_restore` to `services/calendar/events.ON_EVENT_RESTORED`; register the picker in `calHooks.attendees`.
+
 Dragging a series occurrence (needs scope "this occurrence" on the grid and a held slot for override rows), dragging in the month view,
 moving an event that holds rooms, an animated return of a refused drop (it returns at once), the calendars notification channels (push /
 inbox) for the delayed notices, named attendees (the other branch plugs into `calHooks.attendees`).
 
 ## Tests and baselines
 
-- Backend: `smplwise_vms/backend/tests/test_calendar_grid_edit_2343.py` - 17 tests (move / resize rules and permissions, calendar move,
+- Backend: `smplwise_vms/backend/tests/test_calendar_grid_edit_2343.py` - 18 tests (incl. the `ON_EVENT_RESTORED` hook) (move / resize rules and permissions, calendar move,
   re-approval hold / reject restore / approve release / undo / withdraw / expiry, `approved_move = managers`, restore + delayed notice,
   maintenance overlap). The existing calendar suites (engine, recurrence, sync, connect: 133) pass unchanged.
 - Frontend unit: `frontend/tests/unit-calendars-grid-edit-2343.spec.ts` - 18 (snap, click / drag / move / resize geometry, the press state

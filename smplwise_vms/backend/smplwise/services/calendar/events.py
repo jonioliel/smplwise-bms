@@ -10,7 +10,7 @@ import datetime as dt
 import json
 import sqlite3
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 from zoneinfo import ZoneInfo
 
 from ...db import now_iso
@@ -712,6 +712,11 @@ def _restore_held(conn: sqlite3.Connection, ev: sqlite3.Row, held: dict[str, Any
     _touch(conn, ev["id"], who, stamp, **keep)
 
 
+# CAL-GRID-EDIT-2343: other parts of the module that keep per-entry data (the named attendees of pilot/CAL-ATTENDEES-2343) restore it
+# together with the entry: each callback is called as fn(conn, event_id, now) inside the same transaction, after the entry is restored.
+ON_EVENT_RESTORED: list[Callable[[sqlite3.Connection, str, dt.datetime], None]] = []
+
+
 def restore(ctx: Ctx, settings: dict[str, Any], eid: str, body: dict[str, Any], now: dt.datetime) -> dict[str, Any]:
     """CAL-GRID-EDIT-2343: "׳‘׳˜׳" after a delete. A single entry cancelled (or a request withdrawn) within `undo_window_s` returns to the state it
     had, provided its time is still free of a confirmed entry (409 conflict otherwise); a held-back cancel notice is withdrawn."""
@@ -739,6 +744,8 @@ def restore(ctx: Ctx, settings: dict[str, Any], eid: str, body: dict[str, Any], 
     guests.reset_erase_after(conn, eid, settings, now)
     notices.withdraw_for(conn, eid, now)
     occ.rebuild(conn, eid, settings, now)
+    for hook in ON_EVENT_RESTORED:
+        hook(conn, eid, now)
     return {"event": get(ctx, eid), "state": prev}
 
 

@@ -354,3 +354,16 @@ def test_a_booking_onto_a_maintenance_window_follows_the_overlap_mode(cc):
     r = move(cc, e2["id"], T(3, 13, 30), T(3, 14, 30))
     assert r.status_code == 409 and r.json()["code"] == "maintenance_window"
     assert book(cc, a, T(3, 13), T(3, 13, 30)).status_code == 409  # the same rule for a new booking
+
+
+def test_restore_calls_the_registered_hooks_in_the_same_transaction(cc, monkeypatch):
+    """The extension point other per-entry data (the named attendees branch) restores itself through."""
+    from smplwise.services.calendar import events
+
+    seen = []
+    monkeypatch.setattr(events, "ON_EVENT_RESTORED", [lambda conn, eid, now: seen.append((eid, conn.execute("SELECT state FROM cal_events WHERE id = ?", (eid,)).fetchone()[0]))])
+    a = room(cc)
+    ev = ok(book(cc, a, T(3, 10), T(3, 11)), 201)["event"]
+    ok(cc.post(f"{API}/calendar/events/{ev['id']}/cancel", json={"revision": ev["revision"]}))
+    ok(cc.post(f"{API}/calendar/events/{ev['id']}/restore", json={"revision": get(cc, ev["id"])["revision"]}))
+    assert seen == [(ev["id"], "confirmed")]
