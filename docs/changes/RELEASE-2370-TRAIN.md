@@ -1,9 +1,8 @@
 # RELEASE-2370-TRAIN: assembly of the 2.37.0 polish train (round 4)
 
 Branch `release/2370-train`, cut from `origin/release/2360-train` (eb9525d9b, 2.36.0 with v2.34.2). No version bump, no changelog entry,
-no runner, no UI build, no tag: this document is the input for the version commit and the runner gate. WP4 (home), WP8 and the
-WP5 capture branches are NOT on this train; the lead merges WP4 / WP8 when they land (`pilot/POLISH4-WP5-EVID-BEFORE` / `-AFTER` are
-throwaway capture branches and never merge).
+no runner, no UI build, no tag: this document is the input for the version commit and the runner gate. All eight packages are on
+the train. `pilot/POLISH4-WP5-EVID-BEFORE` / `-AFTER` and `probe/POLISH4-WP8-before` are throwaway capture branches and were not merged.
 
 ## Merged (one `--no-ff` merge commit each, in this order)
 
@@ -15,6 +14,13 @@ throwaway capture branches and never merge).
 | 4 | `pilot/POLISH4-WP2-LIVEINV-2370` (live, investigate, video-domain tokens) | 872a89c2a | `frontend/tests/unit-token-lint.spec.ts` |
 | 5 | `pilot/POLISH4-WP5-MEDIA-2370` (multimedia groups / screens, cast, generator, electricity) | 8f2d6339c | none |
 | 6 | `pilot/POLISH4-WP3-SERVICE-2370` (tickets, handlers, vendor accounts, maintenance pages) | d09708d21 | none |
+| 7 | `pilot/POLISH4-WP8-SETMOD-2370` (settings modules: access / external access, announcements, notices, notifications, presence, transit incl. the new "check now" route, elevators, generator) | a30c0810a | none |
+| 8 | `pilot/POLISH4-WP4-HOME-2370` (home edit bar, widgets, automations, announce, layout editor) | d82199646 | none |
+
+Order note: WP4 is merged after WP1 (it removed a local notices hover cancel that relies on WP1's shared hover gate).
+
+After the merges, `contracts/API_INVENTORY.md` was regenerated with `scripts/api_inventory.py` (1711 routes, adding
+`POST /api/v1/transit/check` from WP8; the Version line still says 2.36.0 - no bump yet).
 
 ## Conflicts
 
@@ -78,10 +84,16 @@ dark, focus rings, names of new buttons, reduced-motion, 44 px phone targets, ho
 | WP6 maps | `map-floor` dark desktop / tablet when camera dots show (`--sw-success` / `--sw-danger` dark values) and the device legend swatch in dark (`--sw-menu-surface`): small, dark only; map-floor mobile differences are the stale 2.36.0 baselines. `pixel-walk-touch`, `pixel-wall-plan` 14 passed on the branch. Editor / studio phone / touch captures will show the 70dvh canvas |
 | WP7 settings system | None expected: the six `settings-diagnostics` matrix shots pass against the 2.34.2 baselines (the matrix signs in without the edit right, so the previews and the save row are not in them). Pre-existing readiness mobile failure noted in the branch doc |
 
-Not yet on this train: WP4 (home) and WP8 - add their rows when they land.
+| WP8 settings modules | `pixel-access-status` (desktop 1440 + mobile 390, classic / bubble / domus): every picture with a card subtitle (the text changed; on 390 the card heads stack). `pixel-access-s12`: `s12-classic-audit-person-*` (action-log subtitle) only. `visual-matrix` `settings-notifications`: expected unchanged in classic (a skin with other `--sw-r-pill` / `--sw-r-sm` values would move). No pixel spec covers transit, announcements, presence, retention, elevator / generator settings or external access |
+| WP4 home | `visual-matrix` `devices-home` (ready / dialog), `devices-building`, `devices-schedules`: no change expected (if `devices-home` differs it would be the media-chip hover gate under a hovering pointer only - review before accepting). Evidence shots only (not baselines): home edit mode (the bar's height is kept free, 44 px controls on touch), automations at 820 / 1024 / 1180 (two-row header, three-column cards), announcements (focus ring, shadow) |
 
 ## Runner work still needed (NOT_RUN here)
 
 `visual-matrix --all`; `evidence-shell` (status dot note, desktop / tablet / mobile); `layout-a11y-295`; the unit page specs that need the
 built app; `evidence-polish4-wp3-service`; `evidence-media-players` / `layout-bubble-screens` (WP5 edit chips); the WP2 specs that need
-`SW_LIVE=1`. Hover gates, aria and role changes of this pass need no baseline.
+`SW_LIVE=1`. WP4: `layout-home-edit-bar-wp4.spec.ts` (dev-server `spec` job), `evidence-automations-list`, `layout-home-widgets-wide-298`, `visual-matrix`
+devices-home / devices-building / devices-schedules. WP8: `pixel-access-status`, `pixel-access-s12`, `visual-matrix` settings-notifications,
+`evidence-polish4-wp8`. Hover gates, aria and role changes of this pass need no baseline.
+
+Note (WP8, not changed): `system-access-polish-css.ts` cancels the hover of `button.row` / `.sw` under `@media not ((hover: hover) and
+(pointer: fine))` (an undo pair instead of a gate at the source); it works, and the rows are WP8's only such pair.
