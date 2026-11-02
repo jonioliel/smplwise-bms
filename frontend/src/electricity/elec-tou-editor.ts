@@ -55,7 +55,7 @@ export class ElecTouEditor extends ElecBase {
         display: inline-block;
         inline-size: 12px;
         block-size: 12px;
-        border-radius: 3px;
+        border-radius: var(--sw-r-2xs);
         vertical-align: -1px;
         margin-inline-end: 6px;
         border: 1px solid var(--sw-border-strong);

@@ -254,7 +254,7 @@ export const elecCss = css`
     background: var(--sw-accent);
     border-color: var(--sw-accent);
     color: var(--sw-text-inverse);
-    box-shadow: var(--sw-shadow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    box-shadow: var(--sw-shadow-primary), inset 0 1px 0 color-mix(in srgb, var(--sw-text-inverse) 20%, transparent);
   }
   .btn.pri:active:not([disabled]) {
     background: var(--sw-accent);
@@ -582,8 +582,10 @@ export const elecCss = css`
     font-weight: var(--sw-fw-semibold);
     text-decoration: none;
   }
-  .rowlink:hover {
-    text-decoration: underline;
+  @media (hover: hover) and (pointer: fine) {
+    .rowlink:hover {
+      text-decoration: underline;
+    }
   }
   a.lnk {
     display: inline-flex;
@@ -594,8 +596,10 @@ export const elecCss = css`
     text-decoration: none;
     cursor: pointer;
   }
-  a.lnk:hover {
-    text-decoration: underline;
+  @media (hover: hover) and (pointer: fine) {
+    a.lnk:hover {
+      text-decoration: underline;
+    }
   }
   .list {
     display: flex;
@@ -843,7 +847,7 @@ export const elecCss = css`
   .pstep .bar {
     flex: 1;
     block-size: 4px;
-    border-radius: 2px;
+    border-radius: var(--sw-r-pill);
     background: var(--sw-surface-3);
     overflow: hidden;
   }
@@ -996,8 +1000,10 @@ export const elecCss = css`
     min-block-size: max(36px, var(--elec-touch));
     align-items: center;
   }
-  .menu button:hover {
-    background: var(--sw-surface-2);
+  @media (hover: hover) and (pointer: fine) {
+    .menu button:hover {
+      background: var(--sw-surface-2);
+    }
   }
   .code {
     font-family: var(--sw-font-mono);
@@ -1045,7 +1051,7 @@ export const elecCss = css`
     display: inline-block;
     inline-size: 12px;
     block-size: 12px;
-    border-radius: 3px;
+    border-radius: var(--sw-r-2xs);
     margin-inline-end: 5px;
     vertical-align: -1px;
   }
@@ -1060,11 +1066,77 @@ export const elecCss = css`
     overflow: hidden;
   }
 
+  /* POLISH4-WP5 (emil-design-eng): the interactive primitives that had no answer to a touch. Press sinks them (transform only, the token
+     duration - none under reduced motion), hover is for a pointer that hovers, the keyboard gets the product's ring. */
+  .seg button,
+  .steps button,
+  .preset,
+  .tok,
+  button.li,
+  a.li,
+  .menu button {
+    transition: background-color var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .seg button:active:not([disabled]),
+  .steps button:active:not([disabled]),
+  .preset:active,
+  .tok:active,
+  button.li:active,
+  a.li:active,
+  .menu button:active {
+    transform: scale(var(--sw-press-scale));
+  }
+  .seg button:focus-visible,
+  .steps button:focus-visible,
+  .preset:focus-visible,
+  .tok:focus-visible,
+  button.li:focus-visible,
+  a.li:focus-visible,
+  .menu button:focus-visible {
+    outline: var(--sw-focus-w) solid var(--sw-focus);
+    outline-offset: -2px;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .seg button:not([aria-pressed='true']):not([disabled]):hover {
+      color: var(--sw-text);
+      background: color-mix(in srgb, var(--sw-text) 6%, transparent);
+    }
+    .steps button:not(.on):not([disabled]):hover {
+      background: var(--sw-surface-2);
+    }
+    .preset:not([aria-pressed='true']):hover {
+      border-color: var(--sw-accent);
+    }
+    .tok:not(.swatch):hover {
+      background: var(--sw-surface-3);
+    }
+    button.li:hover,
+    a.li:hover,
+    .li.pick:hover {
+      background: var(--sw-surface-3);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .seg button,
+    .steps button,
+    .preset,
+    .tok,
+    button.li,
+    a.li,
+    .menu button,
+    .btn {
+      transition: none;
+    }
+  }
+
   @media (max-width: 1100px) {
     :host,
     :host([data-skin='bubble']) {
       --elec-touch: 44px;
     }
+
     .page {
       padding-inline: var(--sw-page-pad);
     }
@@ -1086,6 +1158,12 @@ export const elecCss = css`
     }
     label.li {
       min-block-size: 44px;
+    }
+  }
+  /* POLISH4-WP5: four number tiles stay four down to a small tablet, then two by two (a 3 + 1 split between 800 and 900 px looked broken) */
+  @media (max-width: 900px) {
+    .tiles {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
   @media (max-width: 767px) {
