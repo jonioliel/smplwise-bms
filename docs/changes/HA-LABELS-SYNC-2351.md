@@ -40,7 +40,8 @@ No new route, no new permission (the GET route keeps `site.content.configure`), 
   floors, and HA floors carry no labels.
 - A label deleted in HA is removed from its areas by HA's own area registry; until that refresh the stale id stays in `ha_area_labels` and
   is skipped on read.
-- Auto-insert still runs only when a configurer opens the settings page (unchanged).
+- ~~Auto-insert still runs only when a configurer opens the settings page (unchanged).~~ 2.36.0 train: MAPPING-IMPROVE-2351 moved it to a
+  server background job, which reads these labels too.
 
 ## Rollback
 Revert the branch commits. Migration 0192 only adds tables; an older build ignores them (no column of an existing table changes).

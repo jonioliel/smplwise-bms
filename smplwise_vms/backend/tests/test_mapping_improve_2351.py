@@ -241,3 +241,23 @@ def test_job_writes_nothing_from_a_stale_snapshot(client, settings):
     with _db(settings).connection() as conn:
         assert mapping_auto._write(conn, snap, work, "test") is None
     assert _sql(settings, "SELECT 1 FROM home_area_buildings WHERE area_id = 'fresh'") == []
+
+
+def test_job_reads_the_synced_labels_like_the_browser(client, settings):
+    """2360 train (HA-LABELS-SYNC-2351 x MAPPING-IMPROVE-2351): the job reads the label mirror, so a label that points to another building
+    leaves the name open (a "label" conflict, as the assistant shows it) instead of placing it by its mark."""
+    ids = _applied_site(client, settings)
+    b2 = client.post(f"{API}/sites/{ids['site']}/buildings", json={"name": "ב"}).json()
+    _area(settings, "clash", "א · מחסן", None)  # the mark says א, the label says ב
+    _area(settings, "agree", "א · ארכיון", None)  # the label agrees with the mark
+    _sql(settings, "INSERT INTO ha_labels(label_id, name, color, icon, description, position, updated_at) VALUES ('lb', 'ב', NULL, NULL, NULL, 0, 'x'), ('la', 'א', NULL, NULL, NULL, 1, 'x')")
+    _sql(settings, "INSERT INTO ha_area_labels(area_id, label_id, position) VALUES ('clash', 'lb', 0), ('agree', 'la', 0)")
+    with _db(settings).connection(mode="read") as conn:
+        r = conn.execute("SELECT site_id, state_json, settings_json FROM home_mapping_state WHERE site_id = ?", (ids["site"],)).fetchone()
+        snap = mapping_auto._snapshot(conn, r["site_id"], r["state_json"], r["settings_json"])
+    by_id = {it.id: it for it in snap.items}
+    assert by_id["clash"].labels == ["ב"] and by_id["agree"].labels == ["א"] and by_id["lobby"].labels == []
+    assert mapping_auto.run(_db(settings), "test") == {ids["site"]: 2}
+    assert _audits(settings, "home.mapping.apply")[-1]["added"] == ["a:agree"]
+    assert _sql(settings, "SELECT 1 FROM home_area_buildings WHERE area_id = 'clash'") == []
+    assert b2["id"]

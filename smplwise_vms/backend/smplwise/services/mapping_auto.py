@@ -62,7 +62,7 @@ def _settings(raw: str | None) -> dict[str, str]:
 
 
 def _snapshot(conn: sqlite3.Connection, site_id: str, state_json: str, settings_json: str) -> _Snap | None:
-    from ..routers.home_mapping import _site_buildings, _site_floors
+    from ..routers.home_mapping import _labels, _site_buildings, _site_floors
 
     if not conn.execute("SELECT 1 FROM sites WHERE id = ? AND deleted_at IS NULL", (site_id,)).fetchone():
         return None
@@ -75,7 +75,10 @@ def _snapshot(conn: sqlite3.Connection, site_id: str, state_json: str, settings_
     except ValueError:
         return None
     items = [eng.Item(id=r["floor_id"], kind="floor", name=r["name"], level=r["level"]) for r in conn.execute("SELECT floor_id, name, level FROM ha_floors ORDER BY position, name")]
-    items += [eng.Item(id=r["area_id"], kind="area", name=r["name"], floor_id=r["floor_id"]) for r in conn.execute("SELECT area_id, name, floor_id FROM ha_areas ORDER BY position, name")]
+    # 2360 train: the labels the sync mirrors (HA-LABELS-SYNC-2351), read exactly as the assistant's read route serves them, so the job
+    # and the browser reach the same answer ("בתווית" rules, label conflicts left open)
+    area_labels = _labels(conn)[0]
+    items += [eng.Item(id=r["area_id"], kind="area", name=r["name"], floor_id=r["floor_id"], labels=area_labels.get(r["area_id"], [])) for r in conn.execute("SELECT area_id, name, floor_id FROM ha_areas ORDER BY position, name")]
     buildings = [{"id": b["id"], "name": b["name"]} for b in _site_buildings(conn, site_id)]
     floors = [{"id": f["id"], "building_id": f["building_id"], "name": f["name"], "level": f["level"]} for f in _site_floors(conn, site_id)]
     all_links = {

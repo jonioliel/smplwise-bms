@@ -63,4 +63,7 @@ Rules:
 
 ## Limits
 - Turning `auto_insert` on does not run the job by itself; it runs at the next structure refresh or restart.
-- Labels are still not synced from the home system (unchanged; the server port ignores label rules exactly like the browser on a real site).
+- ~~Labels are still not synced from the home system (unchanged; the server port ignores label rules exactly like the browser on a real site).~~
+  2.36.0 train: with HA-LABELS-SYNC-2351 merged, the job reads the label mirror (`mapping_auto._snapshot` through
+  `home_mapping._labels`), so label rules and label conflicts give the same answer as the browser
+  (`test_job_reads_the_synced_labels_like_the_browser`).

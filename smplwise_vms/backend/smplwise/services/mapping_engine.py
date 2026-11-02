@@ -6,8 +6,8 @@ refresh and at startup, so the server needs the same answer the browser would gi
 decide WHERE a name goes - the tokenizer, the token table, the ordered rules, the manual decisions, the floor inheritance, the plan and the
 level answers ("קומות ללא מפלס") - and nothing else (no detection statistics, no suggestions, no questions). Pure: no database, no I/O.
 
-Kept in step with the TypeScript by tests/test_mapping_improve_2351.py (the same cases as the frontend unit spec). Labels are not synced from
-the home system (ha_areas has none), so label rules never match here, exactly as on a real site in the browser.
+Kept in step with the TypeScript by tests/test_mapping_improve_2351.py (the same cases as the frontend unit spec). Area labels come from the
+label mirror (HA-LABELS-SYNC-2351, read by services/mapping_auto through routers/home_mapping._labels), the same names the browser reads.
 """
 from __future__ import annotations
 
