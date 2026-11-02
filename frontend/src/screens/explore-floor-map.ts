@@ -25,7 +25,8 @@ import { PhoneWidth, phoneRestricted } from '../shell/phone';
 import { cameraState, entityName, loadMap, updateAnchor, type MapBundle } from '../api/maps';
 import { snapshotUrl, type Transport } from '../api/media';
 import { entryFloor, findFloor, loadTree, type CatalogTree } from '../api/catalog';
-import { canAnywhere, isApi, nvrLess } from '../api/session';
+import { can, canAnywhere, isApi, nvrLess } from '../api/session';
+import { dimmedActionTitle, mapCardGrantNote } from './lock-reason';
 import { getBuildingPresence, type BuildingSnapshot } from '../api/building-presence';
 import { POLL_MS as PRESENCE_POLL_MS, zoneChip, zoneTone } from '../api/building-presence-logic';
 import { bidi } from '../i18n/bidi';
@@ -917,6 +918,11 @@ export class ExploreFloorMap extends LitElement {
     .note {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
+    }
+    .note a[data-grant-note-link] {
+      color: var(--sw-accent-text, var(--sw-accent));
+      text-decoration: underline;
+      text-underline-offset: 2px;
     }
     .warn {
       color: var(--sw-danger-text);
@@ -2751,7 +2757,7 @@ export class ExploreFloorMap extends LitElement {
       </div>
       ${!fresh ? html`<div class="warn">${e.state === 'unavailable' ? 'ההתקן אינו זמין.' : 'הסנכרון מול תשתית המערכת מנותק — המצב עלול להיות מיושן.'}</div>` : nothing}
       ${e.actions === undefined ? html`<div class="note">${t('entity.noControl')}</div>` : e.actions.length === 0 ? html`<div class="note">קריאה בלבד — אין פעולות מותרות ל־${domainLabel(e.domain)}.</div>` : nothing}
-      ${e.actions?.some((s) => s.granted === false) ? html`<div class="note" data-grant-note>פעולה מעומעמת דורשת הרשאה נפרדת (למשל פתיחת דלת) שאינה חלק משליטה כללית בישויות.</div>` : nothing}
+      ${this.grantNote(e.actions)}
       ${act
         ? html`<div class=${act.error || act.record?.status === 'failed' || act.record?.status === 'denied' ? 'warn' : 'note'}>${act.spec.label}: ${act.error ? act.error : act.record ? `${ACTION_STATUS_LABEL[act.record.status]}${act.record.error ? ` — ${ACTION_ERROR_LABEL[act.record.error] ?? act.record.error}` : ''}` : 'שולח…'}</div>`
         : nothing}
@@ -2803,6 +2809,14 @@ export class ExploreFloorMap extends LitElement {
     }
   }
 
+  /** UNLOCK-REASON-2370: the note under a dimmed action - for the open action of a lock, WHY it is dimmed (door not mapped, no door permission,
+   * floor-scoped grant, alarm-managed), with the door-map link for a system administrator; other dimmed actions keep the generic sentence. */
+  private grantNote(actions: HaActionSpec[] | undefined) {
+    const n = mapCardGrantNote(actions, can('system.configure'));
+    if (!n) return nothing;
+    return html`<div class="note" data-grant-note data-grant-reason=${actions?.find((s) => s.id === 'lock.unlock')?.reason ?? ''}>${n.text}${n.link ? html` <a data-grant-note-link href=${n.link.href}>${n.link.label}</a>` : nothing}</div>`;
+  }
+
   /** The actions as big buttons inside the card (R3) - the footer keeps only edit / rename. */
   private entityActions(a: Anchor) {
     const e = a.entity;
@@ -2817,7 +2831,7 @@ export class ExploreFloorMap extends LitElement {
     const e = a.entity;
     const busy = Boolean(this.action && e && this.action.entityId === e.entity_id && this.action.busy);
     const specs = e?.actions ?? [];
-    return html`${specs.map((s) => html`<span class="actrow" data-action-row=${s.id}>${e && s.argument_specs?.length ? s.argument_specs.map((a) => this.renderArg(e, s, a)) : nothing}<sw-button block variant=${s.risk === 'sensitive' ? 'danger' : s.sensitive ? 'danger' : 'primary'} ?disabled=${busy || this.screenState === 'stale' || e?.state === 'unavailable' || s.granted === false} title=${s.granted === false ? `נדרשת הרשאה נפרדת: ${s.grant ?? ''}` : s.risk_label ? `פעולה ${s.risk_label}` : ''} data-action=${s.id} data-risk=${s.risk ?? (s.sensitive ? 'attention' : 'routine')} data-granted=${s.granted === false ? 'no' : 'yes'} @click=${() => e && this.trigger(e.entity_id, s)}>${s.label}</sw-button></span>`)}`;
+    return html`${specs.map((s) => html`<span class="actrow" data-action-row=${s.id}>${e && s.argument_specs?.length ? s.argument_specs.map((a) => this.renderArg(e, s, a)) : nothing}<sw-button block variant=${s.risk === 'sensitive' ? 'danger' : s.sensitive ? 'danger' : 'primary'} ?disabled=${busy || this.screenState === 'stale' || e?.state === 'unavailable' || s.granted === false} title=${s.granted === false ? dimmedActionTitle(s, can('system.configure')) : s.risk_label ? `פעולה ${s.risk_label}` : ''} data-action=${s.id} data-risk=${s.risk ?? (s.sensitive ? 'attention' : 'routine')} data-granted=${s.granted === false ? 'no' : 'yes'} @click=${() => e && this.trigger(e.entity_id, s)}>${s.label}</sw-button></span>`)}`;
   }
 
   private renderConfirm() {

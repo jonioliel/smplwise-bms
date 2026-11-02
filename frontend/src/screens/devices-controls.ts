@@ -5,6 +5,8 @@ import { ALARM_HE, climateRange, climateWord, HVAC_HE, isDimmable, type DeviceRo
 import { stateLabel } from '../api/ha';
 import { debouncedCommand, pendingVisible, PENDING_VISIBLE_MS, powerReached, runCommand, supersede, warmCommandChannel, type CommandOptions, type CommandState } from '../api/device-commands';
 import { bidi, ltrNum } from '../i18n/bidi';
+import { can } from '../api/session';
+import { deniedNote } from './lock-reason';
 
 /**
  * CR-007 single-entity controls, shared by the area screen (devices-area.ts) and the overview tiles' panel
@@ -181,6 +183,23 @@ export const deviceControlStyles = css`
   .ctl-note {
     font-size: var(--sw-fs-xs);
     color: var(--sw-text-3);
+    white-space: normal;
+    max-inline-size: 26em;
+  }
+  /* UNLOCK-REASON-2370: the door-map link beside a "door not mapped" note (system administrators only) */
+  .ctl-link {
+    color: var(--sw-accent-text, var(--sw-accent));
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 24px;
+  }
+  @media (pointer: coarse) {
+    .ctl-link {
+      min-block-size: 44px;
+    }
   }
 `;
 
@@ -612,7 +631,7 @@ export class DeviceControls implements ReactiveController {
    * the screen to confirm (`onUnlock`, the screen's own dialog), and only `runUnlock` - called from that dialog's
    * confirm button - sends lock.unlock with the confirmation grant. Unlock is offered only when the server said this
    * caller holds door.unlock at the lock's scope (`can_unlock`); the action route checks both again. */
-  renderLockControls(r: DeviceRow & { can_unlock?: boolean }, onUnlock: (r: DeviceRow) => void) {
+  renderLockControls(r: DeviceRow & { can_unlock?: boolean; unlock_reason?: string }, onUnlock: (r: DeviceRow) => void) {
     const key = `${r.entity_id}:lock`;
     const pending = this.commands[key]?.phase === 'pending';
     const locked = this.live<string>(r.entity_id, 'lock') ?? (r.locked ? 'locked' : r.state);
@@ -621,10 +640,17 @@ export class DeviceControls implements ReactiveController {
       ${locked === 'locked'
         ? r.can_unlock
           ? html`<sw-button size="sm" icon="unlock" data-control="unlock" ?disabled=${pending} @click=${() => onUnlock(r)}>פתיחה…</sw-button>`
-          : html`<span class="ctl-note" data-control="unlock-denied" title="פתיחת מנעול דורשת הרשאה נפרדת (פתיחת דלת)">פתיחה דורשת הרשאה נפרדת</span>`
+          : this.renderUnlockDenied(r)
         : html`<sw-button size="sm" icon="lock" data-control="lock" ?disabled=${pending} @click=${doLock}>נעילה</sw-button>
             ${r.can_unlock && locked !== 'unlocked' ? html`<sw-button size="sm" icon="unlock" data-control="unlock" ?disabled=${pending} @click=${() => onUnlock(r)}>פתיחה…</sw-button>` : nothing}`}
     </div>`;
+  }
+
+  /** UNLOCK-REASON-2370: the note shown instead of the open button - the server's reason in words (never "needs a separate permission" for
+   * every refusal), with the door-map link only for a holder of system.configure. An older server (no reason) keeps the generic sentence. */
+  private renderUnlockDenied(r: { can_unlock?: boolean; unlock_reason?: string }) {
+    const n = deniedNote(r, can('system.configure'));
+    return html`<span class="ctl-note" data-control="unlock-denied" data-unlock-reason=${r.unlock_reason ?? 'unknown'} title=${n.title}>${n.text}${n.link ? html` <a class="ctl-link" data-control="unlock-denied-link" href=${n.link.href}>${n.link.label}</a>` : nothing}</span>`;
   }
 
   /** The confirmed unlock: sent only from the screen's confirmation dialog, with the confirmation grant. */

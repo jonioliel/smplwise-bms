@@ -36,6 +36,8 @@ export interface DoorGrants {
   can_manage_roles: boolean;
   can_manage_subjects: boolean;
   delegated: boolean;
+  /** UNLOCK-REASON-2370: intercom doors with no working door mapping (counts only; `with_suggestion` = a clear one-to-one suggestion waits). */
+  unmapped_doors?: { count: number; with_suggestion: number };
 }
 
 export const getDoorGrants = () => get<DoorGrants>('access/door-grants');
