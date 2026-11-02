@@ -5,9 +5,9 @@ import { open as elOpen, screen as elScreen, EL } from './electricity-ui';
 // POLISH4-WP5 capture (temporary, never merged): screenshots of the multimedia groups / screens pages, the generator pages and the
 // electricity account / bill pages at the owner's five widths, through toHaveScreenshot so `run_smart.py ... -u` copies the PNGs back.
 const SIZES: [number, number][] = [[1920, 1080], [1440, 900], [1180, 820], [1024, 768], [390, 844]];
-const ONLY = (process.env.WP5_W || '').split(',').filter(Boolean).map(Number);
+const ONLY = (process.env.WP5_W || '390').split(',').filter(Boolean).map(Number);
 const sizes = ONLY.length ? SIZES.filter(([w]) => ONLY.includes(w)) : SIZES;
-const SCHEMES = (process.env.WP5_S || 'light,dark').split(',') as ('light' | 'dark')[];
+const SCHEMES = (process.env.WP5_S || 'light').split(',') as ('light' | 'dark')[];
 const S = 'sw-app infra-generator';
 
 async function snap(page: Page, name: string) {
