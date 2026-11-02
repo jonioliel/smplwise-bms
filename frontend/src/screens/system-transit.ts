@@ -8,9 +8,10 @@ import '../components/sw-toggle';
 import '../components/sw-state-panel';
 import { ApiError, describeError } from '../api/client';
 import {
-  putTransitSettings, refreshTransitCatalogue, searchTransitStops, transitCities, transitSettings, transitStatus, type CatalogueStop, type TransitSettings,
+  checkTransit, putTransitSettings, refreshTransitCatalogue, searchTransitStops, transitCities, transitSettings, transitStatus, type CatalogueStop, type TransitCheck,
+  type TransitSettings,
 } from '../api/transit';
-import { tr, type TrKey } from '../i18n/transit';
+import { tr, trLang, type TrKey } from '../i18n/transit';
 import { canAdd, clampInt, moveStop, stopsBody } from '../transit/model';
 import { noticesCss } from '../notices/styles';
 
@@ -38,6 +39,11 @@ export class SystemTransit extends LitElement {
       .res .row span { font-size: var(--sw-fs-xs); color: var(--sw-text-2); }
       .state { display: inline-flex; align-items: center; gap: 6px; }
       .alert { display: flex; gap: 8px; align-items: flex-start; margin-block-start: 8px; padding: 8px 10px; border-radius: var(--sw-r-md); background: var(--sw-warning-soft); color: var(--sw-warning-text); font-size: var(--sw-fs-sm); }
+      .note { margin: 0 0 8px; padding: 8px 10px; border-radius: var(--sw-r-md); background: var(--sw-surface-2); color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
+      .res-line { margin: 8px 0 0; font-size: var(--sw-fs-sm); }
+      .res-line[data-look='ok'] { color: var(--sw-success-text); }
+      .res-line[data-look='warn'] { color: var(--sw-warning-text); }
+      .res-line[data-look='alarm'] { color: var(--sw-danger-text); }
       /* POLISH4-WP8 (D16): the two-card rows never force a card wider than a narrow screen; a long source error or time wraps in its cell */
       .two { grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); }
       .kv dd { min-inline-size: 0; overflow-wrap: anywhere; }
@@ -70,6 +76,10 @@ export class SystemTransit extends LitElement {
   @state() private results: CatalogueStop[] | null = null;
   @state() private busy = false;
   @state() private refreshing = false;
+  /** POLISH4-WP8: the manual source check - pending, and its last answer (or the refusal text) */
+  @state() private checking = false;
+  @state() private check: TransitCheck | null = null;
+  @state() private checkError = '';
   private toastTimer = 0;
   private pollTimer = 0;
 
@@ -291,17 +301,93 @@ export class SystemTransit extends LitElement {
       ${c.error ? html`<div class="alert">${tr('catalogueError', { e: c.error })}</div>` : nothing}</div>`;
   }
 
+  /** POLISH4-WP8: ask the source once now (the server rate-limits to one check per 30 s and answers the new health). */
+  private async runCheck(): Promise<void> {
+    this.checking = true;
+    this.checkError = '';
+    try {
+      const r = await checkTransit();
+      this.check = r.check;
+      if (this.s) this.s = { ...this.s, health: r.health };
+    } catch (e) {
+      this.check = null;
+      this.checkError = describeError(e);
+    } finally {
+      this.checking = false;
+    }
+  }
+
   private healthCard() {
     const h = this.s!.health;
-    const look = h.state === 'ok' ? 'ok' : h.state === 'off' ? 'off' : h.state === 'stale' ? 'warn' : 'alarm';
+    const edit = this.s!.can.configure;
+    const look = h.state === 'ok' ? 'ok' : h.state === 'off' ? 'off' : h.state === 'stale' || h.state === 'source_down' ? 'warn' : 'alarm';
     const age = h.age_s === null ? tr('never') : tr('ageMin', { n: Math.floor(h.age_s / 60) });
-    return html`<div class="panel" data-transit-health><div class="hd"><h2>${tr('healthCard')}</h2><span class="badge state" data-look=${look} data-health=${h.state}>${tr(('st_' + h.state) as TrKey)}</span></div>
-      <dl class="kv"><dt>${tr('lastOk')}</dt><dd class=${h.last_ok_at ? 'num ltr' : ''}>${h.last_ok_at ? h.last_ok_at.replace('T', ' ').replace('Z', '') : tr('never')}</dd>
-        <dt>${tr('dataAge')}</dt><dd>${age}</dd><dt>${tr('codesInUse')}</dt><dd class="num">${h.codes_in_use}</dd>
+    // POLISH4-WP8: with nothing in use the loop does not ask the source, so the last error is history, not the state now: say so, and
+    // show the error with its age and the last success as times (the "now" of the card is the check button)
+    const idle = h.state === 'off' || h.codes_in_use === 0;
+    const good = h.last_good_at ?? h.last_ok_at;
+    const c = this.check;
+    const result = this.checkError
+      ? html`<p class="res-line" data-look="alarm" role="alert" data-transit-check-result="refused">${this.checkError}</p>`
+      : c
+        ? html`<p class="res-line" role="status" data-transit-check-result=${c.skipped ?? (c.ok ? 'ok' : 'failed')}
+            data-look=${c.ok ? 'ok' : c.skipped === 'no_stops' ? 'off' : c.skipped ? 'warn' : 'alarm'}>${c.skipped === 'no_stops'
+              ? tr('checkNoStops')
+              : c.skipped === 'retry_after'
+                ? tr('checkWait', { ago: agoText(c.retry_after_s ?? 60) })
+                : c.ok
+                  ? tr('checkOk', { n: c.fetched })
+                  : tr('checkFail', { e: errorText(c.error) })} <span class="mut">${tr('checkedAt', { t: clock(c.at) })}</span></p>`
+        : nothing;
+    return html`<div class="panel" data-transit-health><div class="hd"><h2>${tr('healthCard')}</h2><span class="badge state" data-look=${look} data-health=${h.state}>${tr(('st_' + h.state) as TrKey)}</span>
+        <span class="sp"></span>
+        ${edit ? html`<sw-button size="sm" icon="refresh" data-transit-check ?disabled=${this.checking} @click=${() => void this.runCheck()}>${this.checking ? tr('checking') : tr('checkNow')}</sw-button>` : nothing}</div>
+      ${idle ? html`<p class="note" data-transit-idle>${tr('idleNote')}</p>` : nothing}
+      <dl class="kv"><dt>${tr('lastGood')}</dt><dd class=${good ? 'num' : ''} data-transit-last-good>${good ? `${stamp(good)} · ${tr('agoOnly', { ago: agoText(ageS(good)) })}` : tr('never')}</dd>
+        ${idle ? nothing : html`<dt>${tr('dataAge')}</dt><dd>${age}</dd>`}<dt>${tr('codesInUse')}</dt><dd class="num">${h.codes_in_use}</dd>
         <dt>${tr('errorsCount')}</dt><dd class="num">${h.errors}</dd>
-        ${h.last_error ? html`<dt>${tr('lastError')}</dt><dd class="ltr">${h.last_error}</dd>` : nothing}
-        ${h.backoff_until ? html`<dt></dt><dd class="mut">${tr('backoff')}</dd>` : nothing}</dl></div>`;
+        ${h.last_error ? html`<dt>${tr('lastError')}</dt><dd data-transit-last-error>${h.last_error_at ? tr('errorAgo', { ago: agoText(ageS(h.last_error_at)), e: errorText(h.last_error) }) : errorText(h.last_error)}</dd>` : nothing}
+        ${h.backoff_until && !idle ? html`<dt></dt><dd class="mut">${tr('backoff')}</dd>` : nothing}</dl>
+      ${result}</div>`;
   }
+}
+
+/** Seconds since an ISO time (0 when it is in the future or unreadable). */
+function ageS(iso: string): number {
+  const t = Date.parse(iso);
+  return Number.isFinite(t) ? Math.max(0, Math.round((Date.now() - t) / 1000)) : 0;
+}
+
+/** "15 שעות" / "דקה" / "3 ימים": a duration in the largest whole unit (minutes, hours, days). */
+function agoText(s: number): string {
+  const m = Math.max(1, Math.round(s / 60));
+  if (m < 60) return m === 1 ? tr('agoMinute') : tr('agoMinutes', { n: m });
+  const h = Math.round(m / 60);
+  if (h < 48) return h === 1 ? tr('agoHour') : tr('agoHours', { n: h });
+  const d = Math.round(h / 24);
+  return d === 1 ? tr('agoDay') : tr('agoDays', { n: d });
+}
+
+/** A source error code in words: http_503 "המקור לא זמין (503)", other http codes, a timeout; anything else keeps its code. */
+function errorText(code: string | null | undefined): string {
+  if (!code) return '';
+  if (code === 'http_503') return tr('err_http_503');
+  const m = /^http_(\d{3})$/.exec(code);
+  if (m) return tr('err_http', { c: m[1] });
+  if (code === 'unreachable') return tr('err_unreachable');
+  return tr('err_other', { c: code });
+}
+
+/** A UTC ISO time as the local day and time (the installation's browser clock). */
+function stamp(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString(trLang() === 'en' ? 'en-GB' : 'he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function clock(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleTimeString(trLang() === 'en' ? 'en-GB' : 'he-IL', { hour: '2-digit', minute: '2-digit' });
 }
 
 declare global {

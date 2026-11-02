@@ -165,6 +165,10 @@ test.describe('settings, package 8 (POLISH4-WP8)', () => {
       if (p === 'settings') return json(route, SETTINGS);
       if (p.startsWith('cities')) return json(route, { cities: ['עיר לדוגמה', 'עיר אחרת'] });
       if (p.startsWith('stops')) return json(route, { stops: [], catalogue: SETTINGS.catalogue });
+      if (p === 'check' && route.request().method() === 'POST') {
+        return json(route, { check: { codes: 3, fetched: 3, ok: true, error: null, skipped: null, retry_after_s: null, at: '2026-10-31T09:00:00Z' },
+          health: { ...SETTINGS.health, state: 'off', codes_in_use: 0, consecutive_errors: 0, last_ok_at: '2026-10-31T09:00:00Z', backoff_until: null } });
+      }
       return json(route, {});
     });
     await page.clock.setFixedTime(NOW);
@@ -175,7 +179,14 @@ test.describe('settings, package 8 (POLISH4-WP8)', () => {
     const nameField = async (p: Page) => ({ nameWidth: Math.round((await p.locator('sw-app system-transit [data-stop="21345"] .inp').boundingBox())?.width ?? 0) });
     const res = await atViews(page, 'transit', nameField);
     for (const r of res) expect(r.m.sideways, `transit sideways at ${r.view}`).toBeLessThanOrEqual(1);
-    if (AFTER) expect((await nameField(page)).nameWidth).toBeGreaterThanOrEqual(160);
+    if (AFTER) {
+      expect((await nameField(page)).nameWidth).toBeGreaterThanOrEqual(160);
+      // the owner-approved "check now" (POST /transit/check): the answer line, and the idle note once no screen uses the stops
+      await host.locator('[data-transit-check]').click();
+      await expect(host.locator('[data-transit-check-result="ok"]')).toBeVisible();
+      await expect(host.locator('[data-transit-idle]')).toBeVisible();
+      await expect(host.locator('[data-transit-last-error]')).toContainText('לפני');
+    }
   });
 
   test('voice announcements tab: no sideways scroll', async ({ page }) => {
