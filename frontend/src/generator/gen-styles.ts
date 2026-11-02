@@ -10,22 +10,13 @@ export const genCss = css`
     --gen-flow: var(--sw-accent);
     --gen-gen: var(--sw-success);
     --gen-grid: var(--sw-accent);
-    --gen-load: #6b5bd6;
-    --gen-shadow: #1e2e47;
-    --gen-base: rgba(60, 75, 105, 0.18);
+    /* POLISH4-WP5: the diagram's three private colours are tokens now (each scheme has its own value in the token sheet, so the
+       per-scheme overrides are gone): the load is the product's purple, the wire's base a tint of the ink, the node shadow the
+       overlay ink */
+    --gen-load: var(--sw-purple);
+    --gen-shadow: var(--sw-overlay);
+    --gen-base: color-mix(in srgb, var(--sw-text) 18%, transparent);
     --gen-surface: var(--sw-surface-solid, var(--sw-surface));
-  }
-  @media (prefers-color-scheme: dark) {
-    :host-context(:root:not([data-theme='light'])) {
-      --gen-load: #a99bff;
-      --gen-shadow: #000;
-      --gen-base: rgba(255, 255, 255, 0.14);
-    }
-  }
-  :host-context([data-theme='dark']) {
-    --gen-load: #a99bff;
-    --gen-shadow: #000;
-    --gen-base: rgba(255, 255, 255, 0.14);
   }
   .hero {
     display: grid;
@@ -149,7 +140,7 @@ export const genCss = css`
     stroke-linecap: round;
   }
   .flow .w-dot {
-    fill: #fff;
+    fill: var(--sw-text-inverse);
     stroke-width: 1.5;
   }
   .flow .w-dot.gen {
@@ -370,7 +361,7 @@ export const genCss = css`
   }
   .pbar {
     block-size: 6px;
-    border-radius: 3px;
+    border-radius: var(--sw-r-pill);
     background: var(--sw-surface-3);
     overflow: hidden;
     min-inline-size: 70px;
@@ -472,6 +463,14 @@ export const genCss = css`
   }
   .chartcard.clickable {
     cursor: pointer;
+    transition: transform var(--sw-t-press) var(--sw-ease-out);
+  }
+  .chartcard.clickable:active {
+    transform: scale(var(--sw-press-scale));
+  }
+  .chartcard.clickable:focus-visible {
+    outline: var(--sw-focus-w) solid var(--sw-focus);
+    outline-offset: var(--sw-focus-offset);
   }
   .chartcard .cur {
     font-weight: 700;
@@ -536,6 +535,18 @@ export const genCss = css`
     color: inherit;
   }
   /* round 2 (impeccable detector: no side-tab stripe): an alert row is a flat tinted field of its severity with its icon tile */
+  .al {
+    transition: background-color var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .al:active {
+    transform: scale(var(--sw-press-scale));
+  }
+  .al:focus-visible {
+    outline: var(--sw-focus-w) solid var(--sw-focus);
+    outline-offset: var(--sw-focus-offset);
+  }
   .al.critical {
     background: color-mix(in srgb, var(--sw-danger) 7%, var(--sw-surface));
     border-color: color-mix(in srgb, var(--sw-danger) 35%, transparent);
@@ -546,6 +557,17 @@ export const genCss = css`
   }
   .al.info {
     background: color-mix(in srgb, var(--sw-accent) 5%, var(--sw-surface));
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .al.info:hover {
+      border-color: var(--sw-border-strong);
+    }
+    .al.critical:hover {
+      border-color: var(--sw-danger);
+    }
+    .al.alert:hover {
+      border-color: var(--sw-warning);
+    }
   }
   .al .ic {
     inline-size: 36px;
@@ -872,19 +894,38 @@ export const genCss = css`
     .al {
       flex-wrap: wrap;
     }
+    .al .grow {
+      flex-basis: calc(100% - 50px);
+    }
+    .al > .btn {
+      margin-inline-start: auto;
+    }
     .chooser {
       grid-template-columns: minmax(0, 1fr);
     }
     .det {
       grid-template-columns: auto 1fr;
     }
+    /* POLISH4-WP5: the history filters were a sideways-scrolling strip of full-width fields on a phone (each select took the whole row's
+       width); they are a two-column grid now - the search and the window switch take the full row, the selects pair up - so every
+       filter is in view without a sideways scroll */
     .filters {
-      overflow-x: auto;
-      flex-wrap: nowrap;
-      scrollbar-width: none;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
     }
-    .filters > * {
-      flex: none;
+    .filters > input[type='search'],
+    .filters > .seg,
+    .filters > .btn {
+      grid-column: 1 / -1;
+    }
+    .filters > .seg {
+      display: flex;
+      flex-wrap: nowrap;
+    }
+    .filters > .seg > button {
+      flex: 1 1 0;
+      min-inline-size: 0;
     }
     .map-row {
       grid-template-columns: minmax(0, 1fr);
