@@ -396,7 +396,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .services import demo_mode as _demo_mode
 
     _demo_mode.clear_on_boot(settings)  # CR-READY96: a restart exits demo mode - the handle below always starts on the real file
-    app.state.db = Database(settings.db_path)
+    app.state.db = Database(settings.db_path, pool=True)  # DB-CONN-POOL-2343: the one long-lived handle reuses its connections
     from .services import energy_billing_adapter
 
     energy_billing_adapter.configure(settings)  # CR-023: the readings store answers the billing branch's provider seam
@@ -406,6 +406,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     db_mod.WRITE_GATE = settings.db_write_gate and os.environ.get("SW_DB_WRITE_GATE", "1") != "0"
     if not db_mod.WRITE_GATE:
         log.warning("database write gate is OFF (db_write_gate / SW_DB_WRITE_GATE=0): writers rely on SQLite's busy handler alone")
+    # DB-CONN-POOL-2343: the add-on option db_conn_pool (default on); SW_DB_CONN_POOL=0 always wins (the kill switch)
+    db_mod.CONN_POOL = settings.db_conn_pool and os.environ.get("SW_DB_CONN_POOL", "1") != "0"
+    if not db_mod.CONN_POOL:
+        log.warning("database connection reuse is OFF (db_conn_pool / SW_DB_CONN_POOL=0): every request opens its own connection")
     from .services import backup as backup_svc
 
     pre = backup_svc.pre_upgrade(settings)  # rollback safety: a copy of the data before a new version touches it
@@ -1237,6 +1241,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .routers import plan_geometry as plan_geometry_router
 
         plan_geometry_router.shutdown_detect_pool()
+        app.state.db.close_pool()  # DB-CONN-POOL-2343: last, after every worker stopped - no idle connection keeps the files open
 
     @app.get("/healthz", include_in_schema=False)
     async def healthz():

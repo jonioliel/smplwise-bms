@@ -90,6 +90,8 @@ options:
   # NN5/CR-029: makes the Frigate recorder type selectable in Settings (otherwise listed "coming soon"). Off by default; run.sh maps it to SW_FRIGATE.
   frigate_enabled: false
   db_write_gate: true
+  # reuse database connections between requests (DB-CONN-POOL-2343); turn off only if support asks
+  db_conn_pool: true
   log_level: info
 schema:
   bootstrap_admin_username: str
@@ -109,6 +111,7 @@ schema:
   notice_boards: bool?
   frigate_enabled: bool?
   db_write_gate: bool?
+  db_conn_pool: bool?
   log_level: list(debug|info|warning|error)
   nvr_password: password?
   go2rtc_api_password: password?

@@ -135,9 +135,14 @@ def test_a_patched_migrations_dir_takes_the_real_path(tmp_path, monkeypatch, set
 
 
 def test_no_product_code_reads_the_schema_cookie():
+    """Its VALUE never matters to the product. The one exception, db.py's connection pool (DB-CONN-POOL-2343), only compares
+    two reads of the same file in one process (did the schema change since?), so a template copy's different counter is
+    irrelevant there."""
     src = Path(__file__).resolve().parents[1] / "smplwise"
     hits = [p.name for p in src.rglob("*.py") if re.search(r"pragma\s+schema_version", p.read_text(encoding="utf-8", errors="replace"), re.I)]
-    assert hits == []
+    assert hits == ["db.py"]
+    db_src = (src / "db.py").read_text(encoding="utf-8")
+    assert len(re.findall(r"pragma\s+schema_version", db_src, re.I)) == 1 and "schema != seen" in db_src
 
 
 def test_fresh_detection(tmp_path):
