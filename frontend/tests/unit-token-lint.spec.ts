@@ -23,7 +23,6 @@ const ALLOW_HEX: Record<string, string> = {
   'screens/live-camera.ts': 'zone / line editor overlays on video',
   'screens/automation-editor-css.ts': 'the automation builder knobs (--ab-*) carry their own light / dark blocks on the --dv-* layer',
   'screens/automation-editor-base.ts': 'the builder sheet (--ab-*)',
-  'screens/devices-layout-css.ts': 'the layout editor grid lines',
   'screens/investigate-cases.ts': 'evidence thumbnails HUD',
   'screens/explore-plan-editor.ts': 'the plan editor canvas HUD',
   'screens/explore-plan-import.ts': 'the import preview canvas',
