@@ -77,13 +77,26 @@ def test_four_hung_doors_do_not_hold_back_the_other_four(em, monkeypatch):
     keys = [d.key for d in pw.doors]
     engine = Hanging(set(keys[:4]), gate)
     monkeypatch.setattr(dwe, "EMERGENCY_ENGINE_FACTORY", lambda s: engine)
+    # GATE2360-B: which dispatcher worker claimed (and then sent) each door. "Behind the hung four" means a worker that sent a hung
+    # door - blocked in it until the 0.5 s per-call deadline - sent one of doors 5-8 afterwards. The earlier wall-clock check (all
+    # first calls within 0.5 s) measured the same thing indirectly and failed on the loaded gate machine, where the eight claim
+    # writes before the sends alone spread over 1.3 s with every door on its own worker.
+    workers: list[tuple[str, str]] = []
+    real_claim = de._claim  # noqa: SLF001
+
+    def claim(db, incident_id, phase, station_id, relay):
+        workers.append((f"{station_id}:{relay}", threading.current_thread().name))
+        return real_claim(db, incident_id, phase, station_id, relay)
+
+    monkeypatch.setattr(de, "_claim", claim)
     started = time.monotonic()
     iid = pw.press().json()["incident"]["id"]
     inc = _wait_settled(pw, iid)
     elapsed = time.monotonic() - started
     first_calls = {k: t for _, k, t in engine.calls}
     assert set(first_calls) == set(keys), "all eight doors were sent"
-    assert max(first_calls.values()) - min(first_calls.values()) < 0.5, "doors 5-8 went out at once, not behind the hung four"
+    hung_workers = {t for k, t in workers if k in keys[:4]}
+    assert len(hung_workers) == 4 and not [k for k, t in workers if k in keys[4:] and t in hung_workers],         "doors 5-8 went out at once, not behind the hung four"
     rows = _apply_rows(pw, iid)
     assert all((rows[k]["state"], rows[k]["code"]) == ("unknown", "deadline") for k in keys[:4])
     assert all(rows[k]["state"] == "acknowledged" for k in keys[4:])

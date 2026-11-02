@@ -83,6 +83,26 @@ async function install(page: Page, st: St) {
 type Tag = 'automation-builder' | 'script-editor' | 'scene-editor';
 interface Mount { itemId?: string; mode?: 'edit' | 'create'; scheme?: 'light' | 'dark'; draft0?: unknown }
 
+/** PERF-HOME-DEVICES-2342 (2.34.2): the route screens are lazy chunks, and the three editors come with the automations list's chunk
+ * (screens/devices-automations imports screens/automation-editors), no longer with every address. Opens the list's address first so
+ * the shell loads that chunk, then goes on to the quiet style guide page as before; what the list fetched or recorded meanwhile is
+ * dropped (GATE2360-A: mounted on the style guide alone, the editors were never defined and all 150 tests timed out). */
+async function openStyleguideWithEditors(page: Page, st: St) {
+  await page.goto('about:blank');
+  await page.goto('/?design=a#/devices/automations');
+  await page.waitForFunction(() => ['automation-builder', 'script-editor', 'scene-editor'].every((t) => !!customElements.get(t)), undefined, { timeout: 20_000 });
+  await page.evaluate(() => (location.hash = '#/system/styleguide'));
+  await expect(page.locator('sw-app devices-automations')).toHaveCount(0, { timeout: 10_000 });
+  await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => undefined); // the shell polls: a busy machine may never go idle
+  st.calls.length = 0;
+  await page.evaluate(() => {
+    const w = window as unknown as { __ev?: unknown[]; __setItems?: Array<[string, string]> };
+    if (w.__ev) w.__ev = [];
+    if (w.__setItems) w.__setItems = [];
+    try { sessionStorage.clear(); } catch { /* no storage */ }
+  });
+}
+
 /** Boots the static app with the mocked backend and mounts an editor the way S3's lists do. */
 async function mount(page: Page, st: St, tag: Tag, o: Mount = {}, size: Size = '1440') {
   await page.setViewportSize(SIZES[size]);
@@ -95,9 +115,8 @@ async function mount(page: Page, st: St, tag: Tag, o: Mount = {}, size: Size = '
     try { sessionStorage.clear(); } catch { /* about:blank */ }
     try { const orig = Storage.prototype.setItem; Storage.prototype.setItem = function (k: string, v: string) { w.__setItems.push([k, v]); return orig.call(this, k, v); }; } catch { /* no storage */ }
   });
-  await page.goto('about:blank');
-  await page.goto('/?design=a#/system/styleguide');
-  await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => undefined); // the shell polls: a busy machine may never go idle
+  await openStyleguideWithEditors(page, st);
+  errors.length = 0;
   await page.evaluate(({ tag, o }) => {
     for (const name of ['saved', 'cancel', 'deleted', 'item-changed']) document.addEventListener(name, (e) => (window as unknown as { __ev: unknown[] }).__ev.push({ name, detail: (e as CustomEvent).detail }));
     const el = document.createElement(tag) as unknown as HTMLElement & Record<string, unknown>;
@@ -177,9 +196,7 @@ test.describe('automation builder: the installer', () => {
     const entities = ['entry_sunset', 'hall_motion', 'all_left', 'door_open', 'bed_ac_clock', 'salon_buttons', 'light_by_lux', 'vacation_freeze', 'boiler_morning', 'alarm_morning', 'leak_alert'];
     await install(page, st);
     await page.setViewportSize(SIZES['1440']);
-    await page.goto('about:blank');
-    await page.goto('/?design=a#/system/styleguide');
-    await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => undefined); // the shell polls: a busy machine may never go idle
+    await openStyleguideWithEditors(page, st);
     for (const e of entities) {
       const id = idOf(st, `automation.${e}`);
       const before = JSON.stringify(st.store.storedConfig('automation', id));

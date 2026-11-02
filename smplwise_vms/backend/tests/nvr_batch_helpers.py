@@ -50,6 +50,31 @@ def quiet_alert_stream(timeout: float = 15.0) -> None:
         t.join(timeout)
 
 
+def startup_builds() -> int:
+    """The storage warm-up builds so far (process-wide); read BEFORE the app starts, handed to `quiet_startup_reads`."""
+    from smplwise.services import storage
+
+    return storage._warm_state["builds"]  # noqa: SLF001
+
+
+def quiet_startup_reads(builds_before: int, timeout: float = 30.0) -> None:
+    """GATE2360-B: the start-up discovery does not end with the camera rows `ready()` waits for - the same background task then runs
+    the recording-derived events (`POST /ISAPI/ContentMgmt/search` per camera) and starts the storage warm-up thread
+    (`GET /ISAPI/ContentMgmt/Storage`, the record tracks, a search per camera). A test that counts the device reads of one request
+    ("zero device reads") saw those reads land in its window whenever the loaded gate machine was still finishing them (2.36.0 gate:
+    four searches and the storage read). The warm-up is the last step, so a finished build after `builds_before` means the whole
+    start-up read chain is over; nothing else reads the NVR on its own afterwards (the alert stream is stopped by quiet_alert_stream)."""
+    from smplwise.services import storage
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        with storage._warm_lock:  # noqa: SLF001
+            if storage._warm_state["builds"] > builds_before and not storage._warm_state["running"]:  # noqa: SLF001
+                return
+        time.sleep(0.05)
+    raise AssertionError("the start-up discovery's storage warm-up did not finish")
+
+
 def make_app(settings, channels: int = CHANNELS):
     return create_app(with_nvr(settings))
 
