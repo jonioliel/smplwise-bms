@@ -44,6 +44,7 @@ def world(settings):
     bind(c, settings, "vera", "viewer", "installation", "*")
     bind(c, settings, "sam", "site_admin", "installation", "*")  # presence.building.view, not presence.view
     bind(c, settings, "fay", "system_admin", "floor", ids["floor3"])  # presence.view on floor 3 only
+    bind(c, settings, "sol", "site_admin", "floor", ids["floor3"])  # presence.building.view on floor 3 only, no presence.view
     with app.state.db.connection() as conn:
         conn.execute("UPDATE spatial_zones SET ha_area_id = ? WHERE id = ?", (AREA, lobby))  # the plan room of the area
         conn.execute(
@@ -126,16 +127,16 @@ def test_people_with_names_count_only_and_scope(world):
     switch_on(c)
     dana_in_the_lobby(c, ids)
     out = line(c).json()
-    assert out["people"] == {"count": 1, "names": ["dana"], "more": 0}
-    # a site_admin holds presence.building.view but not presence.view: never the people part
+    assert out["people"] == {"count": 1, "names": ["dana"], "more": 0, "anonymous": False}
+    # a site_admin holds presence.building.view but not presence.view: the anonymous count only (owner 02.11, round 14)
     sam = line(c, "sam").json()
-    assert sam["people"] is None and "dana" not in json.dumps(sam)
+    assert sam["people"] == {"count": 1, "names": None, "more": 0, "anonymous": True} and "dana" not in json.dumps(sam)
     # a presence.view holder on another floor does not see the lobby's people
-    assert line(c, "fay").json()["people"] == {"count": 0, "names": [], "more": 0}
+    assert line(c, "fay").json()["people"] == {"count": 0, "names": [], "more": 0, "anonymous": False}
     # counts only
     assert c.put(f"{API}/presence/settings", json={"people": {"show_names": False}}).status_code == 200
     out = line(c).json()
-    assert out["people"] == {"count": 1, "names": None, "more": 0} and "dana" not in json.dumps(out)
+    assert out["people"] == {"count": 1, "names": None, "more": 0, "anonymous": False} and "dana" not in json.dumps(out)
 
 
 def test_an_opted_out_person_is_neither_named_nor_counted_in_the_area(world):
@@ -144,7 +145,7 @@ def test_an_opted_out_person_is_neither_named_nor_counted_in_the_area(world):
     dana_in_the_lobby(c, ids)
     assert c.put(f"{API}/presence/people/me", json={"opted_out": True}, headers=as_user("dana")).status_code == 200
     out = line(c).json()
-    assert out["people"] == {"count": 0, "names": [], "more": 0}
+    assert out["people"] == {"count": 0, "names": [], "more": 0, "anonymous": False}
 
 
 def test_an_area_without_a_linked_plan_room_has_no_people_part(world):
@@ -174,4 +175,68 @@ def test_the_line_never_counts_a_wifi_or_geofence_placement(world):
     d, tok = phone(c, "dana", "dana0000-0000-0000-0000-000000000000")
     ack(c, d, tok)
     send(c, d, tok, [{"client_event_id": "g1", "type": "enter", "site_id": "site_main", "at": svc.iso(svc.now_utc() - dt.timedelta(minutes=1)), "source": "region"}])
-    assert line(c).json()["people"] == {"count": 0, "names": [], "more": 0}
+    assert line(c).json()["people"] == {"count": 0, "names": [], "more": 0, "anonymous": False}
+
+
+PERSON_KEYS = ("user_id", "name", "source", "at", "site_id", "site_name", "floor_id", "floor_name", "zone_id", "zone_name")
+
+
+def _no_person_data(body: dict) -> None:
+    """Nothing of a person in an anonymous answer: no name / username, no user id, no per-person field."""
+    raw = json.dumps(body, ensure_ascii=False)
+    assert "dana" not in raw
+    for key in PERSON_KEYS:
+        assert f'"{key}"' not in raw, key
+
+
+def test_owner_r14_building_view_without_people_view_gets_an_anonymous_count_only(world, monkeypatch):
+    """Owner 02.11 (round 14), permission combination 1: presence.building.view WITHOUT presence.view - the server answers the people
+    part as a count only, whatever show_names says, and people_view is asked for no names at all."""
+    app, c, ids = world
+    switch_on(c)
+    dana_in_the_lobby(c, ids)
+    asked = []
+    real = people_svc.people_view
+    monkeypatch.setattr(people_svc, "people_view", lambda conn, principal, **kw: asked.append(kw) or real(conn, principal, **kw))
+    r = line(c, "sam")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["people"] == {"count": 1, "names": None, "more": 0, "anonymous": True}
+    assert asked == [{"perm": bp.VIEW, "with_names": False}]
+    _no_person_data(body)
+    # names switched off changes nothing for him (still the count, still anonymous)
+    assert c.put(f"{API}/presence/settings", json={"people": {"show_names": False}}).status_code == 200
+    body = line(c, "sam").json()
+    assert body["people"] == {"count": 1, "names": None, "more": 0, "anonymous": True}
+    _no_person_data(body)
+    # the people module off: no people part at all
+    assert c.put(f"{API}/presence/settings", json={"enabled": False}).status_code == 200
+    assert line(c, "sam").json()["people"] is None
+
+
+def test_owner_r14_the_anonymous_count_keeps_the_floor_scope_and_the_opt_out(world):
+    app, c, ids = world
+    switch_on(c)
+    dana_in_the_lobby(c, ids)
+    # presence.building.view on another floor only: the lobby's people are not counted for him
+    sol = line(c, "sol").json()
+    assert sol["people"] == {"count": 0, "names": None, "more": 0, "anonymous": True}
+    _no_person_data(sol)
+    # an opted-out person is not counted in the area for the anonymous viewer either
+    assert c.put(f"{API}/presence/people/me", json={"opted_out": True}, headers=as_user("dana")).status_code == 200
+    assert line(c, "sam").json()["people"] == {"count": 0, "names": None, "more": 0, "anonymous": True}
+
+
+def test_owner_r14_people_view_holder_keeps_names_and_both_combinations_are_audited_without_names(world):
+    """Permission combination 2: presence.view (the system administrator, who also holds presence.building.view) - names under
+    show_names, `anonymous: false`. Both reads are audited once per viewer, counts only, flagged anonymous or not."""
+    app, c, ids = world
+    switch_on(c)
+    dana_in_the_lobby(c, ids)
+    assert line(c).json()["people"] == {"count": 1, "names": ["dana"], "more": 0, "anonymous": False}
+    assert line(c, "sam").json()["people"]["anonymous"] is True
+    with app.state.db.connection(mode="read") as conn:
+        rows = conn.execute("SELECT actor_user_id, details_json FROM audit_log WHERE action = 'presence.people.view' AND resource_type = 'area' ORDER BY rowid").fetchall()
+    flags = [json.loads(r["details_json"])["anonymous"] for r in rows]
+    assert flags == [False, True]
+    assert all("dana" not in r["details_json"] for r in rows)
