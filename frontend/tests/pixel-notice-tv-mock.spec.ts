@@ -63,8 +63,10 @@ for (const c of CASES) {
     const a = await mock.screenshot();
     const page = await ctx.newPage();
     const base = (test.info().project.use.baseURL as string | undefined) || process.env.SW_BASE_URL || 'http://127.0.0.1:4173/';
-    // TVNOTICE2-297: the v4 mock-up's footer reads "updated <time> · <board name>" (the full wording); the default is now the preview wording
-    await serveFeed(page, lobbyFeed({ updated: 'full', ...c.product, blocks: { clock: true, hebdate: false, welcome: true, weather: true, info: [], promo: false, news: true, company_logo: false } }));
+    // The parity check draws the v4 mock-up's OWN footer: its wording "updated <time> · <board name>" (full) and its one-row chips (drop).
+    // That is the mock-up's content, not the product default: the default footer (the place wording, the chips on a row of their own) is
+    // checked in the test below and pixel by pixel in pixel-notice-tv-portrait-chips.spec.ts / pixel-bustimes-295.spec.ts (TV-FIT-2380).
+    await serveFeed(page, lobbyFeed({ updated: 'full', portrait_chips: 'drop', ...c.product, blocks: { clock: true, hebdate: false, welcome: true, weather: true, info: [], promo: false, news: true, company_logo: false } }));
     await page.goto(new URL(tvUrl(), base).toString());
     await settled(page);
     const b = await page.screenshot();
@@ -76,6 +78,39 @@ for (const c of CASES) {
     fs.appendFileSync(path.join(OUT, 'report.txt'), `${c.name}: ${(r.share * 100).toFixed(3)} % different (${r.w}x${r.h})\n`);
     expect(r.w).toBe(c.w);
     expect(r.share, `${c.name}: ${(r.share * 100).toFixed(3)} % of the pixels differ from the approved mock-up`).toBeLessThan(MAX_SHARE);
+    await ctx.close();
+  });
+
+  // TV-FIT-2380: the same screen with the product DEFAULT footer (no wording or chips pinned): every building chip is drawn whole and the
+  // time of the "updated" line too - the gap the pinned parity check above used to hide (the parking chip fell off in portrait).
+  test(`the default footer keeps every chip and the time: ${c.name}`, async ({ browser }) => {
+    const ctx = await browser.newContext({ viewport: { width: c.w, height: c.h }, deviceScaleFactor: 1, locale: 'he-IL', timezoneId: 'Asia/Jerusalem' });
+    const page = await ctx.newPage();
+    const base = (test.info().project.use.baseURL as string | undefined) || process.env.SW_BASE_URL || 'http://127.0.0.1:4173/';
+    await serveFeed(page, lobbyFeed({ ...c.product, blocks: { clock: true, hebdate: false, welcome: true, weather: true, info: [], promo: false, news: true, company_logo: false } }));
+    await page.goto(new URL(tvUrl(), base).toString());
+    await settled(page);
+    const r = await page.evaluate(() => {
+      const bad: string[] = [];
+      const inside = (el: Element, what: string): void => {
+        const b = el.getBoundingClientRect();
+        if (!b.width || !b.height) { bad.push(what + ' not drawn'); return; }
+        for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
+          const cs = getComputedStyle(a);
+          if (cs.overflowX === 'visible' && cs.overflowY === 'visible') continue;
+          const p = a.getBoundingClientRect();
+          if (b.left < p.left - 1 || b.right > p.right + 1 || b.top < p.top - 1 || b.bottom > p.bottom + 1) { bad.push(what + ' cut'); return; }
+        }
+      };
+      const chips = [...document.querySelectorAll('#cv .chips .ch')];
+      chips.forEach((ch) => inside(ch, (ch.textContent || '').trim()));
+      const t = document.querySelector('#cv [data-updated]');
+      if (t) inside(t, 'time');
+      return { bad, n: chips.length, live: (t?.closest('.live')?.textContent || '').trim() };
+    });
+    expect(r.bad, c.name).toEqual([]);
+    expect(r.n).toBe(4);
+    expect(r.live).toBe('עודכן · הכניסה הראשית 09:12');
     await ctx.close();
   });
 }
