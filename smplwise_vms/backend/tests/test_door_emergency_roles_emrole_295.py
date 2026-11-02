@@ -26,6 +26,17 @@ PAST = "2000-01-01T00:00:00Z"
 @pytest.fixture()
 def pw(settings, monkeypatch):
     w = ProductWorld(settings, monkeypatch, go_live=True)
+    # one clock for the whole world: the grant's expiry is resolved against the routes' clock (the world's fixed 2026-11-02 morning), so the
+    # "is this binding still active" checks (rbac's binding query, the holders list) must read the same clock, not the wall clock - otherwise
+    # every grant expires for real once the wall clock passes world+N hours (gate 2.34.2 ran at 14:00 UTC and lost the 5 h / 6 h grants)
+    from smplwise import rbac
+    from smplwise.services import door_emergency_grants as deg
+
+    def world_now_iso() -> str:
+        return w.now().astimezone(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+    monkeypatch.setattr(rbac, "now_iso", world_now_iso)
+    monkeypatch.setattr(deg, "now_iso", world_now_iso)
     w.emergency_on()
     monkeypatch.setattr(dwe.WiskeyEmergencyEngine, "open_supported", True)
     assert w.post("/doors/emergency/attestation", version=de.ATTESTATION_VERSION, accepted=True, confirmed=True).status_code == 200
@@ -152,7 +163,7 @@ def test_the_confirmation_flag_is_required(pw):
 # ---------------------------------------------------------------- expiry at use time, revoke, listing
 
 def test_an_expired_assignment_is_refused_at_use_time(pw):
-    assert grant(pw, None, "temp", expires_at=at(pw, 1)).status_code == 201
+    assert grant(pw, None, "temp", expires_at=at(pw, 1)).status_code == 201  # binding expiry reads the world clock (the fixture)
     assert can_open(pw, "temp")
     with pw.db.connection() as conn:  # the hour passes
         conn.execute("UPDATE bindings SET expires_at = ? WHERE subject_id = 'dev-temp' AND role_id = 'emergency_open'", (PAST,))

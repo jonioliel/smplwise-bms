@@ -90,17 +90,57 @@ test.describe('tickets table evidence', () => {
     const bg = await pop.evaluate((e) => getComputedStyle(e).backgroundColor);
     expect(bg, 'an OPAQUE menu surface').not.toMatch(/rgba\([^)]*,\s*0(\.\d+)?\)/);
     await shot(page, 'columns');
-    await pop.locator('[data-col-toggle="department"]').uncheck();
-    await expect(page.locator(`${T} th[data-col="department"]`)).toHaveCount(0);
+    // SMALL-UI-BUGS-2343: at 1440 with the sentence column (on by default) the default set steps the department column aside to fit
+    // the card (tickets/table-model.ts fitColumns; its unit spec: "the sentence column counts in the budget"), so the hide / reset
+    // round trip uses the handler column, which the fitting never hides
+    await expect(page.locator(`${T} th[data-col="assignee"]`)).toHaveCount(1);
+    await pop.locator('[data-col-toggle="assignee"]').uncheck();
+    await expect(page.locator(`${T} th[data-col="assignee"]`)).toHaveCount(0);
     await pop.locator('[data-col-toggle="sla"]').check();
     await expect(page.locator(`${T} th[data-col="sla"]`)).toHaveCount(1);
     await expect(pop.locator('[data-col-toggle="title"]')).toBeDisabled();
     await pop.locator('[data-col-up="sla"]').click();
     await expect.poll(() => (mock.prefs()?.columns as string[] | undefined)?.slice(-2)).toEqual(['sla', 'activity']);
     await pop.locator('[data-col-reset]').click();
-    await expect(page.locator(`${T} th[data-col="department"]`)).toHaveCount(1);
+    await expect(page.locator(`${T} th[data-col="assignee"]`)).toHaveCount(1);
+    await expect(page.locator(`${T} th[data-col="sla"]`)).toHaveCount(0);
     await page.keyboard.press('Escape');
     await expect(pop).toHaveCount(0);
+  });
+
+  // TICKETS-1440-COLUMN-SETTING-2360: `ui.table_mid_width` - which of the sentence / department columns the default table keeps at 1440
+  test('1440: the setting picks the sentence (default) or the department column; the chooser brings the other back; the viewer wins', async ({ page }) => {
+    test.skip(isPhone(page) || (page.viewportSize()?.width ?? 0) !== 1440, 'desktop 1440');
+    const noOverflow = async () => expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+    // default = today: the sentence column, no department
+    await go(page, '/tickets/mine');
+    await page.locator(`${T} tbody tr`).first().waitFor();
+    await expect(page.locator(`${T} th[data-col="sentence"]`)).toHaveCount(1);
+    await expect(page.locator(`${T} th[data-col="department"]`)).toHaveCount(0);
+    await noOverflow();
+    // "department": the department stays, the sentence steps aside and the chooser says columns were fitted
+    await go(page, '/tickets/mine', { ...TABLE, ui: { table_mid_width: 'department' } });
+    await page.locator(`${T} tbody tr`).first().waitFor();
+    await expect(page.locator(`${T} th[data-col="department"]`)).toHaveCount(1);
+    await expect(page.locator(`${T} th[data-col="sentence"]`)).toHaveCount(0);
+    await noOverflow();
+    await shot(page, 'mid-width-department');
+    const tb = page.locator(`${T} tickets-table-toolbar`);
+    await tb.locator('[data-open="columns"]').click();
+    const pop = tb.locator('[data-pop="columns"]');
+    await expect(pop.locator('[data-cols-fitted]')).toHaveCount(1);
+    await expect(pop.locator('[data-col-sentence]')).not.toBeChecked();
+    // the viewer ticks the sentence: that choice wins, the department steps aside as it always did
+    await pop.locator('[data-col-sentence]').check();
+    await expect(page.locator(`${T} th[data-col="sentence"]`)).toHaveCount(1);
+    await expect(page.locator(`${T} th[data-col="department"]`)).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await noOverflow();
+    // and it is remembered: a reload keeps the sentence although the setting says "department"
+    await go(page, '/tickets/mine', { ...TABLE, ui: { table_mid_width: 'department' } });
+    await page.locator(`${T} tbody tr`).first().waitFor();
+    await expect(page.locator(`${T} th[data-col="sentence"]`)).toHaveCount(1);
+    await page.evaluate(() => window.localStorage.removeItem('sw.tickets.table.sentence'));
   });
 
   test('saved filters: save the current view, apply one (its filters reach the server), mark the default', async ({ page }) => {

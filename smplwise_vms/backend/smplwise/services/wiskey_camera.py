@@ -148,10 +148,12 @@ def apply_at_startup(db: Any, settings: Settings) -> None:
         return
     if done:
         log.info("encrypted the stored WisKey camera password of %d station(s): %s", len(done), ", ".join(done))
+        # outside any transaction (inside one SQLite refuses the checkpoint; with pooled connections nothing else removes the WAL)
         try:
-            with db.connection(label="wiskey_camera.checkpoint") as conn:
-                conn.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchall()
+            ok = db.scrub_wal(label="wiskey_camera.checkpoint")
         except Exception:  # noqa: BLE001
+            ok = False
+        if not ok:
             log.warning("could not checkpoint the database after encrypting the WisKey station passwords")
     if failed:
         log.warning("the WisKey camera password of station(s) %s could not be encrypted (key not available); it stays as it is until the next start", ", ".join(failed))

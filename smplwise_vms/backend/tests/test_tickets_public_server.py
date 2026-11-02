@@ -716,8 +716,10 @@ def test_one_upload_in_flight_per_link_at_the_socket(serve):
         stop.set()
         first.close()
     assert world.app.gate.limiter.count("p:" + key, 3600) == 1
-    snap = world.app.stats.snapshot()
-    assert snap["counters"].get("body_idle_timeouts") == 1 and snap["links"][link.link_id[:12]].get("wasted") == 1
+    # the counters are bumped by the server after the 408 went out (GATE2350-A: on a loaded runner the client read the answer
+    # before the server thread counted it) - wait for them instead of reading them at once
+    assert wait_until(lambda: world.app.stats.snapshot()["counters"].get("body_idle_timeouts") == 1
+                      and world.app.stats.snapshot()["links"][link.link_id[:12]].get("wasted") == 1, timeout=5)
 
 
 def test_lookups_stay_answered_while_uploads_wait_for_a_held_decoder(tmp_path):
