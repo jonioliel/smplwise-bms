@@ -17,6 +17,7 @@ picker in. This branch owns the attendee data model, the API, the notices and a 
 
 0190 is the next number after the highest on the base (0189, `0189_home_mapping.sql`); the sequence stays contiguous (pinned by
 `test_migration_0190_tables_constraints_and_sequence`). If another branch with a 0190 departs first, the lead re-sequences at assembly.
+2.35.0 train: kept at 0190; grid edit follows at 0191. WisKey (0190-0192 on pilot/WISKEY-RC7-ADOPT-2331, not merged) must resequence after 0191.
 Additive only; rollback = drop the three tables.
 
 - `cal_attendees` - one row per attendee of the ROOT entry (the series id of a recurring entry; an override row's attendees are its

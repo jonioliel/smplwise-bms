@@ -4,6 +4,7 @@ import '../components/sw-icon';
 import { describeError } from '../api/client';
 import { attendeesApi, type AttendeesApi, type AttendeesView, type InviteStatus } from '../api/calendar-attendees';
 import { calCss } from './styles';
+import { calHooks } from './ctx';
 import './attendee-picker';
 import type { PickerAdd, PickerRemove, PickerRole } from './attendee-picker';
 import { RESPONSE_LABEL, addHit, countText, draftOfAttendee, payloadOf, statusSummary, type AttendeeDraft } from './attendee-logic';
@@ -149,3 +150,6 @@ declare global {
     'cal-attendees-section': CalAttendeesSection;
   }
 }
+
+// 2.35.0 train: the picker fills the grid branch's attendee slot in the booking drawer (new: a local list read by the drawer's payload; edit: live).
+calHooks.attendees = (p) => (p.surface === 'drawer' ? html`<cal-attendees-section .eventId=${p.eventId ?? ''}></cal-attendees-section>` : null);

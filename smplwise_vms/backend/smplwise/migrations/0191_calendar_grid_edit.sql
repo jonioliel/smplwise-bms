@@ -1,4 +1,5 @@
 -- CAL-GRID-EDIT-2343: Outlook-style editing on the calendar grid (owner answers 02.11, round 13).
+-- Number 0191 (built as 0205; resequenced at the 2.35.0 train assembly after 0190_calendar_attendees.sql, no gaps).
 --
 -- * cal_calendars.approved_move (owner answer 3C, a per-calendar setting): moving or resizing an APPROVED booking in a calendar that would
 --   need an approval for the new time: 'reapproval' (default, contract section 7: the change becomes a request, the old slot stays held

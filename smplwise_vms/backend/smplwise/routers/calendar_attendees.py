@@ -18,6 +18,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, permissions_anywhere, require
 from ..services.calendar import attendee_notices as notices
 from ..services.calendar import attendees as att
+from ..services.calendar import events as cal_events
 from ..services.calendar import model
 from ..services.calendar.access import Ctx, Denied, get_visible
 from . import calendar as cal_router
@@ -165,6 +166,12 @@ def on_restore(conn: sqlite3.Connection, eid: str, now: dt.datetime) -> int:
     """THE UNDO HOOK for the delete-with-undo flow (pilot/CAL-GRID-EDIT-2343): a restored entry drops its queued cancel notices."""
     ev = conn.execute("SELECT id, override_of FROM cal_events WHERE id = ?", (eid,)).fetchone()
     return notices.retract_cancel(conn, (ev["override_of"] or ev["id"]) if ev else eid, now)
+
+
+# 2.35.0 train: the grid's undo restores the entry, then this drops its queued cancel notices (registered here, not in the service: the
+# service importing a router would be circular). Idempotent for module reloads.
+if on_restore not in cal_events.ON_EVENT_RESTORED:
+    cal_events.ON_EVENT_RESTORED.append(on_restore)
 
 
 # ---------------------------------------------------------------- the attendee routes

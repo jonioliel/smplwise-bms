@@ -105,6 +105,10 @@ inbox) for the delayed notices, named attendees (the other branch plugs into `ca
   machine incl. long press, keyboard, every hint rule, undo stack, popover placement, the drawer's edit rule).
 - Evidence: `frontend/tests/evidence-calendars-grid-edit-2343.spec.ts` (demo mode; desktop / tablet / phone; screenshots to
   `private/design-system-2026-10-27/round13/calendar-outlook/shots`). No pixel baseline covers the calendars screens, so none changes.
-- Migration `0205_calendar_grid_edit.sql` (two columns on `cal_events`, one on `cal_calendars`, the `cal_notices` table). Numbered with a
-  gap after the 019x numbers other branches already use.
+- Migration `0191_calendar_grid_edit.sql` (two columns on `cal_events`, one on `cal_calendars`, the `cal_notices` table). Built as 0205;
+  resequenced to 0191 at the 2.35.0 train assembly (release/2350-train), right after `0190_calendar_attendees.sql`, so the sequence stays
+  contiguous. WisKey's migrations (0190-0192 on pilot/WISKEY-RC7-ADOPT-2331, not merged) must resequence after 0191 when that branch boards.
+- 2.35.0 train wiring: `routers/calendar_attendees.on_restore` is appended to `events.ON_EVENT_RESTORED` (registered in the router module,
+  since the service importing a router would be circular); `attendees-section.ts` registers `calHooks.attendees` for the drawer surface
+  (the quick-create popover stays without a picker: its draft does not carry attendees yet).
 - `contracts/API_INVENTORY.md` gains `POST /calendar/events/{eid}/restore` when the release regenerates it (`scripts/api_inventory.py`).

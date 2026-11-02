@@ -87,7 +87,10 @@ test('picker markup: combobox + listbox, labelled controls, a live region, 44 px
 
 test('the drawer carries exactly one attendees section per mode and sends `attendees` with a new entry', () => {
   const d = src('calendars/event-drawer.ts');
-  expect((d.match(/<cal-attendees-section/g) ?? []).length).toBe(2); // the new-entry form and the existing-entry view
+  // 2.35.0 train: the existing-entry view draws the section itself; the form draws it through the grid branch's attendee slot
+  expect((d.match(/<cal-attendees-section/g) ?? []).length).toBe(1);
+  expect((d.match(/attendeeSlot\(\{ surface: 'drawer'/g) ?? []).length).toBe(1);
+  expect(src('calendars/attendees-section.ts')).toMatch(/calHooks\.attendees = \(p\) => \(p\.surface === 'drawer' \? html`<cal-attendees-section/);
   expect(d).toContain("querySelector('cal-attendees-section')");
   expect(d).toContain('Object.assign(out, { attendees })');
 });
