@@ -1,6 +1,10 @@
 """Constants for the SMPLWISE bridge."""
 DOMAIN = "smplwise_bridge"
-VERSION = "0.10.1"
+VERSION = "0.10.2"
+# 0.10.2 (WisKey M12 policy B, slice S4 - pilot/WISKEY-S4-OBSERVER): the READ-ONLY WebSocket command `smplwise_bridge/core_runtime_v1`
+# (core_runtime_observation.py, adopted byte-identical from WisKey contribution M12-POLICY-B.20261102.01, MIT notice in
+# LICENSE-WISKEY-core-runtime-observation.txt). HA administrators only; no grant, service, signature or write. Nothing else changes.
+# Needs one Home Assistant restart (by the owner) to load; until then the add-on's Core gate reads `unknown_command` and refuses.
 # 0.10.1 (WISKEY-ADOPT-2272 review M6): the native intercom setup only for an automatic-install entry, started as a task (review H4) -
 # bumped so an existing installation's copy is refreshed (bridge_install.install copies when the installed version differs).
 # 0.9.6 (EXTID-295, Fable security review 4 of 2026-10-21): V-01 - the impact check refuses a step that carries more than one type key

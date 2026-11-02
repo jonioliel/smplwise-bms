@@ -57,6 +57,12 @@ It does two things and nothing else:
 15. The capture lease (0.9.6, LEASEBR-295; docs/contracts/wiskey-capture-lease/): `smplwise_bridge.lease_event` and `smplwise_bridge.lease_request` (final names, const.py). Signed, closed, `supports_response: ONLY`, data exactly `{signed_message_json}`. The contract's stages 1-7 run in lease_contract.py with
    the key set (`KeySet.verify`); the immutable DTO goes to the WisKey consumer that registered itself (lease_service.py) and only a closed answer comes back
    (lease_answers.py). No consumer = the call fails and nothing is acknowledged. Nothing here decides about a card, a person or a door.
+16. The Core runtime observer (0.10.2, WisKey M12 policy B slice S4; core_runtime_observation.py, WisKey's MIT code byte-identical, notice in
+   LICENSE-WISKEY-core-runtime-observation.txt): the READ-ONLY WebSocket command `smplwise_bridge/core_runtime_v1` {challenge} - an active
+   HA administrator only, answered from the executor, re-checked after it. It reports what the running Core process has loaded (code hashes),
+   its metadata (versions), disk evidence (file hashes, names only) and - always - `native_image_attestation: unavailable` /
+   `image_provenance: unavailable`. No grant, no signature, no key set, no service, no installer or repository access, nothing written.
+   The add-on's reader (wiskey_core_runtime_gate) treats it as observation only: without an image verifier it is never `supported`.
 """
 from __future__ import annotations
 
@@ -352,6 +358,16 @@ async def _async_register_card(hass: HomeAssistant) -> None:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    # 0.10.2 (WisKey M12 policy B, slice S4): the bootstrap Core runtime observer, registered before anything else of the entry so it is
+    # there without the WisKey native component loaded. Read only, HA-administrator only, no grant (core_runtime_observation.py). Arx
+    # deviation from the contribution: a registration failure is logged and never stops the bridge - the add-on's gate then gets
+    # `unknown_command` and refuses (`core_runtime_bootstrap_unavailable`), which is the safe side.
+    try:
+        from .core_runtime_observation import register as register_core_observation
+
+        register_core_observation(hass, namespace=DOMAIN)
+    except Exception as exc:  # noqa: BLE001
+        _LOGGER.warning("Core runtime observation not registered (%s); the add-on treats Core provenance as unavailable", type(exc).__name__)
     await _async_register_card(hass)
     url = entry.data[CONF_ADDON_URL].rstrip("/")
     # 0.9.5 (HMACACT-295): the key set replaces the bare pairing secret. Its persisted part lives in a Store of its own (a config-entry update
