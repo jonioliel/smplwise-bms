@@ -33,6 +33,10 @@ export interface MappingRead {
   settings: MappingSettings;
   multi_building: boolean;
   can_toggle: boolean;
+  /** Round 14 (owner 02.11): "הרשאת בניין לפי" - what a building-scoped role binding reaches while the multi-building switch is on. */
+  building_reach?: BuildingReach;
+  /** Only an administrator of roles (rbac.roles.manage across the installation) changes it. */
+  can_set_reach?: boolean;
   versions: MappingVersion[];
   seen: string[] | null;
   items: { floors: { id: string; name: string; level: number | null }[]; areas: { id: string; name: string; floor_id: string | null; labels?: string[] }[] };
@@ -76,6 +80,8 @@ function demoStore(): DemoStore {
     settings: { ...MAPPING_SETTINGS_DEFAULT },
     multi_building: !!p.get('mb') && p.get('mb') !== 'off',
     can_toggle: true,
+    building_reach: 'map_and_mapping',
+    can_set_reach: true,
     versions: [],
     seen: null,
     items: {
@@ -130,6 +136,19 @@ export async function saveSettings(siteId: string, change: Partial<MappingSettin
     return { settings: s.read.settings };
   }
   return put<{ settings: MappingSettings }>(`sites/${encodeURIComponent(siteId)}/mapping/settings`, change);
+}
+
+/** Round 14 (owner 02.11): map placement only, or map placement + the home's area mapping (the default). */
+export type BuildingReach = 'map_and_mapping' | 'map';
+export const BUILDING_REACH_CHOICES: readonly BuildingReach[] = ['map_and_mapping', 'map'];
+export const BUILDING_REACH_TEXT: Record<BuildingReach, string> = { map_and_mapping: 'מפה + מיפוי אזורים', map: 'מיקום במפה' };
+
+export async function setBuildingReach(mode: BuildingReach): Promise<{ mode: BuildingReach }> {
+  if (!isApi()) {
+    demoStore().read.building_reach = mode;
+    return { mode };
+  }
+  return put<{ mode: BuildingReach }>('home/building-reach', { mode });
 }
 
 export async function setMultiBuilding(enabled: boolean): Promise<{ enabled: boolean }> {

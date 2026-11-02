@@ -12,7 +12,7 @@ import { loadTree, type HomeLinks } from '../api/catalog';
 import type { Floor } from '../api/types';
 import { loadXsData, type XsData } from '../xsection/xs-data';
 import { detect, health, itemKey, MAPPING_SETTING_CHOICES, resolve, summarize, tableRows, type MappingSettings, type Target } from '../api/mapping-engine';
-import { loadMapping, restoreVersion, saveSettings, setMultiBuilding, type MappingData, type MappingVersion } from '../api/mapping';
+import { BUILDING_REACH_CHOICES, BUILDING_REACH_TEXT, loadMapping, restoreVersion, saveSettings, setBuildingReach, setMultiBuilding, type BuildingReach, type MappingData, type MappingVersion } from '../api/mapping';
 import { MappingAssistant } from './mapping-assistant';
 
 const SETTING_TEXT: { [K in keyof MappingSettings]: { label: string; hint: string; options: Record<MappingSettings[K], string> } } = {
@@ -495,7 +495,35 @@ export class SystemMapping extends LitElement {
       <span class="l">${SETTING_TEXT[k].label}</span><span class="h">${SETTING_TEXT[k].hint}</span>
       <span class="seg" role="group" aria-label=${SETTING_TEXT[k].label}>${(MAPPING_SETTING_CHOICES[k] as readonly MappingSettings[K][]).map((v) => html`<button type="button" aria-pressed=${String(d.settings[k] === v)} data-mapping-option=${v}
         @click=${() => void this.setSetting(k, v)}>${(SETTING_TEXT[k].options as Record<string, string>)[v as string]}</button>`)}</span></div>`;
-    return html`<sw-card heading="איך המיפוי מתנהג" data-mapping-settings>${row('floor_inherit')}${row('auto_insert')}${row('new_token')}</sw-card>`;
+    return html`<sw-card heading="איך המיפוי מתנהג" data-mapping-settings>${row('floor_inherit')}${row('auto_insert')}${row('new_token')}${this.renderReach()}</sw-card>`;
+  }
+
+  /** Round 14 (owner 02.11): what a building-scoped role binding reaches while the multi-building switch is on - an installation setting,
+   * changed only by an administrator of roles (the server checks it again and audits it). */
+  private renderReach() {
+    const d = this.data!;
+    const cur: BuildingReach = d.building_reach ?? 'map_and_mapping';
+    const can = d.can_set_reach === true && !this.busy;
+    return html`<div class="set" data-mapping-setting="building_reach">
+      <span class="l">הרשאת בניין לפי</span>
+      <span class="h">מי שקיבל הרשאה לבניין שולט בהתקנים שמוצבים במפות הקומות שלו${cur === 'map_and_mapping' ? ', וגם בהתקנים שהאזור שלהם ממופה לבניין' : ' בלבד'}. חל רק כשריבוי בניינים פעיל.${d.can_set_reach ? '' : ' רק מנהל הרשאות יכול לשנות.'}</span>
+      <span class="seg" role="group" aria-label="הרשאת בניין לפי">${BUILDING_REACH_CHOICES.map((v) => html`<button type="button" aria-pressed=${String(cur === v)} data-mapping-option=${v} ?disabled=${!can}
+        @click=${() => void this.setReach(v)}>${BUILDING_REACH_TEXT[v]}</button>`)}</span></div>`;
+  }
+
+  private async setReach(mode: BuildingReach) {
+    if (!this.data || this.busy || this.data.building_reach === mode) return;
+    this.busy = true;
+    this.message = '';
+    try {
+      const r = await setBuildingReach(mode);
+      this.data = { ...this.data, building_reach: r.mode };
+      this.message = 'הרשאת הבניין עודכנה.';
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
   }
 
   private renderRestoreDialog() {
