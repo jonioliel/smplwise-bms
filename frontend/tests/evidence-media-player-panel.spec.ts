@@ -14,6 +14,7 @@ const SHOTS = process.env.SW_SHOTS ?? '';
 const PM_URL = '/src/api/media-players-mock.ts';
 const MM_URL = '/src/api/media-screens-mock.ts';
 const HOME_CFG_URL = '/src/api/home-config.ts';
+const AREA_CARD_URL = '/src/screens/devices-media-card.ts'; // <media-area-card>: the area screen's chunk since PERF-HOME-DEVICES-2342 (2.34.2)
 const STUB = fileURLToPath(new URL('./fixtures/media-player-card-stub.js', import.meta.url));
 const SIZES = [
   { w: 1440, h: 900 },
@@ -665,6 +666,9 @@ test.describe('routing from <media-remote>, the area card and the home widget', 
       k.floor_id = 'g';
       k.live.confirmed = false;
     }, MM_URL);
+    await page.evaluate(async (url) => {
+      await import(/* @vite-ignore */ url); // the area screen is a lazy chunk: the dev server loads the card's module itself
+    }, AREA_CARD_URL);
     await page.evaluate(() => {
       const st = document.querySelector('#pn-stage') as HTMLElement;
       const wrap = document.createElement('div');
