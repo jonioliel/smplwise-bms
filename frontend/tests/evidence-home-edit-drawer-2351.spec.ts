@@ -63,11 +63,13 @@ test('the home edit drawer at 1920 / 1440 / 1280 / 1180 / 1024 / 390: placement,
       expect(box.y + box.height, `${w}: bottom edge`).toBeLessThanOrEqual(h - 12);
       expect(box.height, `${w}: drawer height`).toBeGreaterThan(h * 0.6);
     } else {
-      // a bottom sheet: full width less 8 px, at most half the viewport, on the bottom edge
+      // a bottom sheet: full width less 8 px, at most half the viewport, 8 px over the bottom edge (a phone: over its bottom bar)
       expect(Math.abs(box.x - 8), `${w}: sheet inset`).toBeLessThanOrEqual(2);
       expect(Math.abs(box.x + box.width - (w - 8)), `${w}: sheet inset`).toBeLessThanOrEqual(2);
       expect(box.height, `${w}: sheet height`).toBeLessThanOrEqual(h * 0.5 + 1);
-      expect(Math.abs(box.y + box.height - (h - 8)), `${w}: on the bottom edge`).toBeLessThanOrEqual(3);
+      const bar = w < 768 ? await page.evaluate(() => parseFloat(getComputedStyle(document.querySelector('sw-app')!).getPropertyValue('--sw-bottomnav-h')) || 0) : 0;
+      if (w < 768) expect(bar, `${w}: the phone has its bottom bar`).toBeGreaterThan(0);
+      expect(Math.abs(box.y + box.height - (h - 8 - bar)), `${w}: on the bottom edge / over the bottom bar`).toBeLessThanOrEqual(3);
     }
     // the footer (state, cancel, save) is inside the drawer and the viewport
     const save = drawer.locator('[data-home-drawer-save]');
@@ -77,6 +79,22 @@ test('the home edit drawer at 1920 / 1440 / 1280 / 1180 / 1024 / 390: placement,
     const f0 = (await save.boundingBox())!;
     expect(f0.y + f0.height, `${w}: save inside the viewport`).toBeLessThanOrEqual(h);
     expect(f0.y + f0.height, `${w}: save inside the drawer`).toBeLessThanOrEqual(box.y + box.height);
+    // nothing covers the footer keys (2.36.0 train: at 390 px the phone's bottom bar covered save / cancel): the topmost element at
+    // each key's centre, through the shadow roots, is that key
+    for (const key of ['data-home-drawer-save', 'data-home-drawer-cancel']) {
+      const b = (await drawer.locator(`[${key}]`).boundingBox())!;
+      const hit = await page.evaluate(([x, y, k]) => {
+        let el: Element | null = document.elementFromPoint(x as number, y as number);
+        while (el?.shadowRoot) {
+          const inner = el.shadowRoot.elementFromPoint(x as number, y as number);
+          if (!inner || inner === el) break;
+          el = inner;
+        }
+        for (let n: Node | null = el; n; n = n.parentNode ?? (n as ShadowRoot).host ?? null) if (n instanceof Element && n.hasAttribute(k as string)) return true;
+        return false;
+      }, [b.x + b.width / 2, b.y + b.height / 2, key] as const);
+      expect(hit, `${w}: ${key} is not covered`).toBe(true);
+    }
     // the body is the drawer's one scroll container; scrolling it moves nothing else
     const body = drawer.locator('[data-home-drawer-body]');
     const ov = await body.evaluate((el) => getComputedStyle(el).overflowY);
