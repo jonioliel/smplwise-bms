@@ -49,6 +49,8 @@ export class TicketsTableToolbar extends LitElement {
   @property({ type: Boolean }) exporting = false;
   /** TKUI4: the "what is happening" column is shown (a client-only choice the host keeps) */
   @property({ type: Boolean }) sentence = true;
+  /** TICKETS-1440-COLUMN-SETTING-2360: the sentence column is on but the table's width left it out (the note says so, the tick is how to bring it back) */
+  @property({ type: Boolean }) sentenceFitted = false;
   @property() defaultView = '';
   /** POLISH-LEFTOVERS-2341: the page's own "סינון" panel hosts the table filters (tickets/table-filter-panel.ts) - no second "סינון" here */
   @property({ type: Boolean }) hostFilters = false;
@@ -178,7 +180,7 @@ export class TicketsTableToolbar extends LitElement {
   private columnsPop(): TemplateResult {
     const shown = this.fitted ?? this.layout.columns;
     const list = chooserOrder(shown);
-    const narrowed = shown.length < this.layout.columns.length;
+    const narrowed = shown.length < this.layout.columns.length || this.sentenceFitted;
     return html`<div class="pop lst" role="dialog" aria-label=${tbt('columns')} data-pop="columns">
       <div class="hd">${tbt('columns')}</div>
       ${narrowed ? html`<p class="note" data-cols-fitted>${tbt('columnsFitted')}</p>` : nothing}

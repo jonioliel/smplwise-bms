@@ -24,7 +24,7 @@ export interface TicketsMockOptions {
   /** D33: the configured Hebrew name */
   name?: { one: string; many: string; gender: string };
   /** D18 / D22 */
-  ui?: { detail?: 'drawer' | 'fullscreen' | 'drawer_fullscreen'; new_ticket?: 'sheet' | 'dialog'; /* TKUI1 */ detail_tab?: string; drawer_size?: string; phone_sheet?: string; /* CR-CAMVF-295 */ camera_viewfinder?: boolean };
+  ui?: { detail?: 'drawer' | 'fullscreen' | 'drawer_fullscreen'; new_ticket?: 'sheet' | 'dialog'; /* TKUI1 */ detail_tab?: string; drawer_size?: string; phone_sheet?: string; /* TICKETS-1440-COLUMN-SETTING-2360 */ table_mid_width?: string; /* CR-CAMVF-295 */ camera_viewfinder?: boolean };
   /** the list answers 500 */
   failList?: boolean;
   /** TKCAL: visit times and SLA targets on the list items (the weekly calendar); the mock clock is Tue 13.10.2026 10:42 UTC */

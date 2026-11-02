@@ -108,6 +108,41 @@ test.describe('tickets table evidence', () => {
     await expect(pop).toHaveCount(0);
   });
 
+  // TICKETS-1440-COLUMN-SETTING-2360: `ui.table_mid_width` - which of the sentence / department columns the default table keeps at 1440
+  test('1440: the setting picks the sentence (default) or the department column; the chooser brings the other back; the viewer wins', async ({ page }) => {
+    test.skip(isPhone(page) || (page.viewportSize()?.width ?? 0) !== 1440, 'desktop 1440');
+    const noOverflow = async () => expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+    // default = today: the sentence column, no department
+    await go(page, '/tickets/mine');
+    await page.locator(`${T} tbody tr`).first().waitFor();
+    await expect(page.locator(`${T} th[data-col="sentence"]`)).toHaveCount(1);
+    await expect(page.locator(`${T} th[data-col="department"]`)).toHaveCount(0);
+    await noOverflow();
+    // "department": the department stays, the sentence steps aside and the chooser says columns were fitted
+    await go(page, '/tickets/mine', { ...TABLE, ui: { table_mid_width: 'department' } });
+    await page.locator(`${T} tbody tr`).first().waitFor();
+    await expect(page.locator(`${T} th[data-col="department"]`)).toHaveCount(1);
+    await expect(page.locator(`${T} th[data-col="sentence"]`)).toHaveCount(0);
+    await noOverflow();
+    await shot(page, 'mid-width-department');
+    const tb = page.locator(`${T} tickets-table-toolbar`);
+    await tb.locator('[data-open="columns"]').click();
+    const pop = tb.locator('[data-pop="columns"]');
+    await expect(pop.locator('[data-cols-fitted]')).toHaveCount(1);
+    await expect(pop.locator('[data-col-sentence]')).not.toBeChecked();
+    // the viewer ticks the sentence: that choice wins, the department steps aside as it always did
+    await pop.locator('[data-col-sentence]').check();
+    await expect(page.locator(`${T} th[data-col="sentence"]`)).toHaveCount(1);
+    await expect(page.locator(`${T} th[data-col="department"]`)).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await noOverflow();
+    // and it is remembered: a reload keeps the sentence although the setting says "department"
+    await go(page, '/tickets/mine', { ...TABLE, ui: { table_mid_width: 'department' } });
+    await page.locator(`${T} tbody tr`).first().waitFor();
+    await expect(page.locator(`${T} th[data-col="sentence"]`)).toHaveCount(1);
+    await page.evaluate(() => window.localStorage.removeItem('sw.tickets.table.sentence'));
+  });
+
   test('saved filters: save the current view, apply one (its filters reach the server), mark the default', async ({ page }) => {
     test.skip(isPhone(page), 'desktop');
     const mock = await go(page, '/tickets/mine', { ...TABLE, views: [{ id: 'v1', name: 'דחופות שלי', view: { view: 'table', filters: { scope: 'mine', status: 'open', priority: ['urgent'] }, sort: 'sla:asc', columns: ['number', 'title', 'status', 'sla'], density: 'compact' } }] });
