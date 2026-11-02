@@ -91,7 +91,7 @@ export class TicketsDetailPage extends LitElement {
 
   render() {
     if (this.off) {
-      return html`<div class="page"><sw-state-panel state="empty" icon="ticket" quiet heading=${tt('moduleOff')} data-tickets-state="off"></sw-state-panel></div>`;
+      return html`<div class="page"><sw-state-panel icon="ticket" state="empty" quiet heading=${tt('moduleOff')} data-tickets-state="off"></sw-state-panel></div>`;
     }
     if (this.failed) {
       return html`<div class="page"><sw-state-panel state="error" hint=${this.failed} actionLabel=${tt('retry')} data-tickets-state="error" @action=${this.retry}></sw-state-panel></div>`;

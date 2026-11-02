@@ -1206,7 +1206,7 @@ export class TicketDetailView extends LitElement {
     // WP3 (POLISH-4): the full screen is a page of its own, so its "gone" and "failed" states are the shared panel (with "try again");
     // the drawer keeps the small box it always had (a panel card inside a drawer card is the card-in-card the shared bare variant will fix)
     if (this.mode === 'page') {
-      if (this.gone) return html`<sw-state-panel state="empty" icon="ticket" quiet heading=${tt('notFound')} data-ticket-state="gone"></sw-state-panel>`;
+      if (this.gone) return html`<sw-state-panel icon="ticket" state="empty" quiet heading=${tt('notFound')} data-ticket-state="gone"></sw-state-panel>`;
       if (this.failed) {
         return html`<sw-state-panel state="error" hint=${this.failed} actionLabel=${tt('retry')} data-ticket-state="error"
           @action=${() => { this.failed = ''; void this.load(); }}></sw-state-panel>`;

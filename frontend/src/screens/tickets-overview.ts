@@ -1148,7 +1148,7 @@ export class TicketsOverview extends LitElement {
         @action=${() => { this.screen = 'loading'; this.data = null; void this.boot(); }}></sw-state-panel>`;
     }
     if (kind === 'forbidden') return html`<sw-state-panel state="forbidden" quiet heading=${title} data-overview-state="forbidden"></sw-state-panel>`;
-    return html`<sw-state-panel state="empty" icon="ticket" quiet heading=${title} data-overview-state=${kind}>${slot ?? nothing}</sw-state-panel>`;
+    return html`<sw-state-panel icon="ticket" state="empty" quiet heading=${title} data-overview-state=${kind}>${slot ?? nothing}</sw-state-panel>`;
   }
 
   private loadingGrid(): TemplateResult {

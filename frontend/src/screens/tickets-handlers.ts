@@ -140,7 +140,7 @@ export class TicketsHandlersPage extends LitElement {
       position: relative;
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
-      transition: transform var(--sw-t-press, 120ms) var(--sw-ease-out, ease-out);
+      transition: transform var(--sw-t-press) var(--sw-ease-out);
     }
     .toast .x::after {
       content: '';
@@ -148,7 +148,7 @@ export class TicketsHandlersPage extends LitElement {
       inset: -6px;
     }
     .toast .x:active {
-      transform: scale(var(--sw-press-scale, 0.97));
+      transform: scale(var(--sw-press-scale));
     }
     .toast .x:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
