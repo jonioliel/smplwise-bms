@@ -45,6 +45,14 @@ async function shots(page: Page, name: string, widths: readonly number[] = [1440
 async function stage(page: Page, opts: { scheme?: 'light' | 'dark'; house?: House } = {}) {
   await page.goto('./');
   await page.waitForFunction(() => !!customElements.get('media-player-panel') && !!customElements.get('media-remote') && !!customElements.get('sw-drawer'));
+  // PERF-HOME-DEVICES-2342 (2.34.2): the real <media-player-card> and <media-area-card> come with the area screen's chunk, no longer
+  // with every address. Open an area address first so the shell loads that chunk, then go back: the stub below stays a no-op as
+  // before (defined first, it made the chunk's own definition throw and the app reloaded under the stage).
+  const home = await page.evaluate(() => location.hash);
+  await page.evaluate(() => (location.hash = '#/devices/areas/living'));
+  await page.waitForFunction(() => !!customElements.get('media-area-card') && !!customElements.get('media-player-card'));
+  await page.evaluate((h) => (location.hash = h), home);
+  await expect(page.locator('sw-app devices-area')).toHaveCount(0);
   await page.addScriptTag({ path: STUB });
   await page.evaluate(
     async ([scheme, url, house]) => {
@@ -665,13 +673,6 @@ test.describe('routing from <media-remote>, the area card and the home widget', 
       k.floor_id = 'g';
       k.live.confirmed = false;
     }, MM_URL);
-    // <media-area-card> is in the area screen's chunk (PERF-HOME-DEVICES-2342): the shell loads it on an area address, under the
-    // stage, and goes back to the address it had (importing the module from the spec evaluated a second copy of its imports)
-    const home = await page.evaluate(() => location.hash);
-    await page.evaluate(() => (location.hash = '#/devices/areas/living'));
-    await page.waitForFunction(() => !!customElements.get('media-area-card'));
-    await page.evaluate((h) => (location.hash = h), home);
-    await expect(page.locator('sw-app devices-area')).toHaveCount(0);
     await page.evaluate(() => {
       const st = document.querySelector('#pn-stage') as HTMLElement;
       const wrap = document.createElement('div');
