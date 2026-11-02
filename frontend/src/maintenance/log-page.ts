@@ -37,7 +37,7 @@ export class MaintLogPage extends LitElement {
     [data-look='alarm'] { --c: var(--sw-danger); }
     [data-look='acc'] { --c: var(--sw-accent); }
     a.task { color: var(--sw-accent-text); text-decoration: none; font-weight: var(--sw-fw-semibold); }
-    a.task:hover { text-decoration: underline; }
+    @media (hover: hover) and (pointer: fine) { a.task:hover { text-decoration: underline; } }
     .note { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-block-end: 1px solid var(--sw-border); background: var(--sw-warning-soft); }
   `];
 

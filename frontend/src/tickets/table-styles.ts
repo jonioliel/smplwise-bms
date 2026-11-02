@@ -71,8 +71,10 @@ export const ticketTableStyles = css`
     font-size: var(--sw-fs-base);
     cursor: pointer;
   }
-  .pop label.opt:hover {
-    background: var(--dv-surface-3);
+  @media (hover: hover) and (pointer: fine) {
+    .pop label.opt:hover {
+      background: var(--dv-surface-3);
+    }
   }
   .pop .crow {
     display: flex;
@@ -173,7 +175,7 @@ export const ticketTableStyles = css`
     gap: 6px;
     min-block-size: 38px;
     padding-inline: 14px;
-    border-radius: 999px;
+    border-radius: var(--sw-r-pill);
     border: 1px solid var(--dv-border);
     background: var(--dv-surface-2);
     color: var(--dv-text);
@@ -181,8 +183,10 @@ export const ticketTableStyles = css`
     font-weight: 600;
     white-space: nowrap;
   }
-  .pop button.rc:hover {
-    background: var(--dv-surface-3);
+  @media (hover: hover) and (pointer: fine) {
+    .pop button.rc:hover {
+      background: var(--dv-surface-3);
+    }
   }
   .rc[aria-pressed='true'],
   .pop button.rc[aria-pressed='true'],
@@ -270,8 +274,10 @@ export const ticketTableStyles = css`
     cursor: pointer;
     outline: none;
   }
-  table.tt tbody tr:hover td {
-    background: var(--dv-surface-2);
+  @media (hover: hover) and (pointer: fine) {
+    table.tt tbody tr:hover td {
+      background: var(--dv-surface-2);
+    }
   }
   table.tt tbody tr[aria-selected='true'] td {
     background: var(--dv-accent-soft);

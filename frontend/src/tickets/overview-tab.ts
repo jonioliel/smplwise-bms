@@ -252,7 +252,7 @@ export const overviewStyles = css`
     gap: 5px;
     min-block-size: 26px;
     padding-inline: 9px;
-    border-radius: 999px;
+    border-radius: var(--sw-r-pill);
     font-size: var(--sw-fs-xs);
     font-weight: 600;
     background: var(--dv-surface-3);
