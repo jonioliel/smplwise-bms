@@ -16,6 +16,9 @@ import '../components/sw-steps';
 import '../components/sw-toggle';
 import '../components/sw-timeline';
 import '../components/sw-state-panel';
+// GATE2342-A: the style guide hosts the shared components' browser checks (tests/a11y-polished-2342.spec.ts mounts a popover on it);
+// since the screens are lazy chunks (PERF-HOME-DEVICES-2342) only the floor map's chunk defined <sw-popover>
+import '../components/sw-popover';
 import type { StateKind } from '../components/sw-badge';
 import type { PanelState } from '../components/sw-state-panel';
 import type { IconName } from '../components/sw-icon';

@@ -26,7 +26,7 @@ import { badgeLabel, badgeOf, parseNotificationLink } from '../components/notify
 import { inAndroidShell } from '../arx/android-app';
 import { DESKTOP_ONLY, STRUCTURE_DESKTOP_ONLY, phoneRestricted, routeGuardKind, onMobileOptions, setInstallationMobileOptions, type MobileKind } from './phone';
 import '../screens/devices-building';
-import { loadPendingScreens, pendingScreens, warmHomeDrillDown } from './lazy-screens'; // PERF-HOME-DEVICES-2342: the route screens are lazy chunks (the home screen stays in the entry chunk)
+import { loadPendingScreens, loadScreen, pendingScreens, waitingScreenTags, warmHomeDrillDown } from './lazy-screens'; // PERF-HOME-DEVICES-2342: the route screens are lazy chunks (the home screen stays in the entry chunk)
 // CR-017 S4's editors (<automation-builder>, <script-editor>, <scene-editor>) come with the list that mounts them (devices-automations imports them: PERF-HOME-DEVICES-2342)
 import '../screens/system-cast'; // CR-028: <system-cast>, <cast-my-screens> (#/multimedia/cast)
 import { refreshInsightsVisibility } from '../insights/access'; // CR-INSIGHT215
@@ -2331,7 +2331,11 @@ export class SwApp extends LitElement {
 
   private async pollSummary() {
     try {
-      this.sys = await healthSummary();
+      const s = await healthSummary();
+      // GATE2342-C: a summary without its items list (a partial or older backend, a test's catch-all route answering {}) is not
+      // a state: sysWords / the banner read s.items, and a throw there aborts the WHOLE shell render - since the lazy route screens
+      // (GATE2342-B) the screen then never appears. Keep the last known state, as for a failed read.
+      if (s && typeof s === 'object' && Array.isArray(s.items)) this.sys = s;
     } catch {
       /* keep the last known state; the pill shows what we last knew */
     }
@@ -2671,7 +2675,16 @@ export class SwApp extends LitElement {
   }
 
   private renderScreen() {
-    return html`${keyed(this.permEpoch, this.renderRoute())}${this.renderPermToast()}`;
+    const view = this.renderRoute();
+    // GATE2342-B: a lazy screen whose chunk is still on its way is not rendered yet (an element upgraded in place reads its properties
+    // only after connectedCallback - lazy-screens.ts waitingScreenTags); nothing is drawn in its place until it lands (as the
+    // unupgraded element drew nothing), and data-shell-ready stays off meanwhile (pendingScreens)
+    const waiting = waitingScreenTags(view);
+    if (waiting.length) {
+      for (const tag of waiting) loadScreen(tag, () => this.requestUpdate());
+      return html`${this.renderPermToast()}`;
+    }
+    return html`${keyed(this.permEpoch, view)}${this.renderPermToast()}`;
   }
 
   private renderRoute() {

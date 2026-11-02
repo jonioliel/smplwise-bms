@@ -362,6 +362,11 @@ export const ticketTableStyles = css`
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
+  /* GATE2342-B: the fixed column (SMALL-UI-BUGS-2343) cut the running clock ("פתוחה 20 ימים 2 ש׳") mid-word without an ellipsis; the
+     clock (<ticket-elapsed>, its own shadow root) wraps to a second line instead of being cut */
+  td.c-created {
+    --sw-elapsed-wrap: normal;
+  }
   td.c-created,
   td.c-activity,
   td.c-sla {

@@ -135,11 +135,28 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
   test.beforeEach(async ({ page }) => {
     await useLayout(page, 'tiles');
   });
+  // PRE-GATE-2350: a test that picked the area screen / the indicators row (screenAndIndicators) never leaves it to the next one
+  test.afterEach(async ({ request }) => {
+    await homeScreenDefaults(request);
+  });
 
   async function open(page: Page, hash: string, design: 'a' | 'b' = 'a') {
     await page.goto(`/?design=${design}#${hash}`);
     await page.waitForSelector('sw-app');
     await page.waitForTimeout(1200);
+  }
+
+  /** PRE-GATE-2350: since HOME-295 / AREAPOPUP-297 a press on an area opens the quick-control drawer (home.screen.desktop_area =
+   * drawer) and a cards-mode area row carries the quick actions (row_actions = quick). The tests below were written for the
+   * area's own screen and the indicators row - both still a choice of home.screen - so they pick those options explicitly
+   * (`screenAndIndicators`) and put the defaults back (`homeScreenDefaults`). The new defaults have their own specs
+   * (evidence-home-295, evidence-area-row, the area pop-up specs). */
+  async function screenAndIndicators(request: APIRequestContext) {
+    const r = await request.patch('/api/v1/settings', { data: { 'home.screen': { desktop_area: 'screen', row_actions: 'indicators' } } });
+    expect(r.status(), 'home.screen PATCH (the dev default identity holds system.configure)').toBe(200);
+  }
+  async function homeScreenDefaults(request: APIRequestContext) {
+    await request.patch('/api/v1/settings', { data: { 'home.screen': { desktop_area: 'drawer', row_actions: 'quick' } } }).catch(() => {});
   }
 
   /** The area screen's switcher (devices-area-nav.ts): the area crumb's list on a wide screen, chips on a phone - both carry
@@ -184,6 +201,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
 
   test('the building tree: floors in level order, area tiles with counts, building KPIs and the unassigned bucket', async ({ page, request }) => {
     await seed(request);
+    await screenAndIndicators(request); // the tile's press opens the area's own screen (home.screen.desktop_area = screen)
     const tree = await (await request.get('/api/v1/devices/tree')).json();
     const ids = (tree.floors as { floor_id: string }[]).map((f) => f.floor_id);
     expect(ids.indexOf('cr007_ground')).toBeLessThan(ids.indexOf('cr007_upper')); // level 0 before level 1
@@ -432,7 +450,8 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
     // owner notes 2026-09-30: one small icon-only button - its accessible name / tooltip carries "רענן" and when the
     // structure was last read; no standing text line and no "מסונכרן" chip while the state is fine
     await expect(button).toHaveAttribute('icononly', '');
-    await expect(button).toHaveAttribute('label', /^רענן · המבנה/);
+    // (since the live-state work the tooltip also says when the values were last confirmed: "רענן · עודכן 17:22 · המבנה ...")
+    await expect(button).toHaveAttribute('label', /^רענן · (עודכן \S+ · )?המבנה/);
     await expect(button.locator('button')).toHaveAttribute('aria-label', /המבנה/);
     await expect(page.locator('devices-building [data-devices-refreshed], devices-building [data-devices-checked], devices-building [data-devices-sync]')).toHaveCount(0);
     if (!FIXTURE) {
@@ -1087,6 +1106,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
   test('the building screen opens on the mockup layout (tree panel + floor cards), keeps the tiles as a second view remembered per viewer, and floor stats sit next to the title', async ({ browser, request }, testInfo) => {
     test.skip(testInfo.project.name === 'mobile', 'the tree panel folds away below 900 px (the floor cards carry the same rows and actions; the bulk tests cover them there)');
     await seed(request);
+    await screenAndIndicators(request); // the floor card's rows with their indicators ("אין התקנים"), not the quick actions
     const ctx = await browser.newContext(); // a fresh viewer (the dev default identity, the admin): no stored layout
     const p = await ctx.newPage();
     try {
@@ -1113,7 +1133,9 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await expect(ground.locator('devices-bulk-menu[data-floor-menu="cr007_ground"]')).toHaveCount(1);
       await expect(ground.locator('a[data-area-row="cr007_lobby"]')).toHaveAttribute('data-counts', /lights:1\/2/);
       await expect(ground.locator('a[data-area-row="cr007_storage"]')).toContainText('אין התקנים');
-      await expect(scr.locator('section[data-floor-card]')).toHaveCount(await scr.locator('nav[data-devices-tree] [data-tree-floor]').count() + 1); // + ללא שיוך
+      // HOME-295: "ללא שיוך" is the tree's last row; its own floor card is drawn only where no tree is (below 900 px)
+      await expect(scr.locator('section[data-floor-card]')).toHaveCount(await scr.locator('nav[data-devices-tree] [data-tree-floor]').count());
+      await expect(scr.locator('section[data-floor-card="unassigned"]')).toHaveCount(0);
       // "פתח קומה" (or the floor in the tree) narrows the cards to that floor; "כל המבנה" brings everything back
       await ground.locator('sw-button[data-open-floor="cr007_ground"]').click();
       await expect(scr.locator('section[data-floor-card]')).toHaveCount(1);
@@ -1344,7 +1366,17 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       const cs = getComputedStyle(e);
       const m = /rgba?\(([^)]+)\)/.exec(cs.backgroundColor);
       const parts = m ? m[1].split(/[\s,/]+/).filter(Boolean) : [];
-      return { filter: cs.backdropFilter || 'none', alpha: parts.length === 4 ? Number(parts[3]) : 1 };
+      let alpha = parts.length === 4 ? Number(parts[3]) : 1;
+      // PRE-GATE-2350: the classic skin paints cards with a gradient (skins/classic.ts: surface -> 96 % surface mixed with the page
+      // background) over a transparent background colour - the material is then the gradient's least opaque stop
+      if (alpha === 0 && /gradient\(/.test(cs.backgroundImage)) {
+        const stops = [...cs.backgroundImage.matchAll(/rgba?\(([^)]+)\)|color\(srgb ([^)]+)\)/g)].map((s) => {
+          const v = (s[1] ?? s[2]).split(/[\s,/]+/).filter(Boolean);
+          return v.length === 4 ? Number(v[3]) : 1;
+        });
+        if (stops.length) alpha = Math.min(...stops);
+      }
+      return { filter: cs.backdropFilter || 'none', alpha };
     });
   }
 
@@ -1491,8 +1523,13 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await cdp.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-transparency', value: 'reduce' }] });
       if (await page.evaluate(() => matchMedia('(prefers-reduced-transparency: reduce)').matches)) {
         const solid = await material(lighting);
-        expect(solid.filter).toBe('none');
-        expect(solid.alpha).toBe(1);
+        const why = await lighting.evaluate((e) => {
+          const cs = getComputedStyle(e);
+          return `bg=${cs.backgroundColor} img=${cs.backgroundImage.slice(0, 120)} --sw-surface=${cs.getPropertyValue('--sw-surface').trim()} --sw-card-bg=${cs.getPropertyValue('--sw-card-bg').trim()} skin=${document.querySelector('sw-app')?.getAttribute('data-skin') ?? document.documentElement.getAttribute('data-skin')}`;
+        });
+        expect(solid.filter, why).toBe('none');
+        // solid: no blur and an opaque surface (the classic skin's gradient ends at 96 % of the surface over the glass page)
+        expect(solid.alpha, why).toBeGreaterThanOrEqual(0.95);
       } else {
         testInfo.annotations.push({ type: 'note', description: 'this engine cannot emulate prefers-reduced-transparency; the solid fallback was not exercised' });
       }
@@ -1506,6 +1543,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
   test('6a: devices.default_view opens a new viewer on that view (their own toggle wins after), devices.density tightens the screens, and the sensors card / climate strip can be hidden', async ({ browser, request }) => {
     await seed(request);
     await devicesSettings(request, DEVICES_DEFAULTS);
+    await screenAndIndicators(request); // the cards-mode rows carry the indicators (home.screen.row_actions = indicators)
     // (a tall window: the home screen drops the climate strips first when it has to fit a shorter one - home redesign)
     let ctx = await browser.newContext({ viewport: { width: 1920, height: 1700 } }); // a fresh viewer (the dev default identity): no stored layout
     try {
@@ -1536,7 +1574,9 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await expect(b2).toHaveAttribute('data-devices-density', 'compact');
       expect(await lobby.evaluate((e) => parseFloat(getComputedStyle(e).paddingTop))).toBeLessThan(padComfortable);
       await expect(b2.locator('[data-climate-strip]')).toHaveCount(0);
-      await expect(lobby.locator('[data-ind="lights"]')).toHaveCount(1); // only the sensors count goes
+      // only the sensors count goes (HOME-295: a tile with quick actions shows them instead of the indicator line, so the
+      // counts are read from data-counts, which follows the shown pills)
+      await expect(lobby).toHaveAttribute('data-counts', /lights:1\/2/);
       await expect(lobby).not.toHaveAttribute('data-counts', /sensors:/);
       // the viewer's own toggle wins from then on (remembered in this browser)
       await setView(b2.page(), 'cards');
@@ -1978,7 +2018,8 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       if (!mobile) await a.locator('[data-layout-variant="phone"]').click();
       await a.locator('sw-button[data-layout-phone-auto]').click();
       await expect.poll(async () => (await (await request.get('/api/v1/devices/layouts/area/cr007_lobby')).json()).phone).toBeNull();
-      expect(await pos(a.locator('.lay-item[data-lay-key="card:lighting"]'))).toMatchObject({ x: 0, w: 4 });
+      // (the screen re-derives after the server answered: poll the grid, not one read right after the record went)
+      await expect.poll(() => pos(a.locator('.lay-item[data-lay-key="card:lighting"]'))).toMatchObject({ x: 0, w: 4 });
       await a.locator('sw-button[data-layout-cancel]').click();
     } finally {
       await resetLayouts(request);
@@ -2229,6 +2270,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
   test('owner 2026-09-29: a click on an area row enters the area; hover and keyboard focus show its summary, the row\'s "⋯" opens it on touch; the popover stays in the viewport near the bottom edge, closes on Escape and on scroll; the floor title enters the floor', async ({ page, request }, testInfo) => {
     test.setTimeout(120_000);
     await seed(request);
+    await screenAndIndicators(request); // a click on the row enters the area's own screen (home.screen.desktop_area = screen)
     await useLayout(page, 'cards');
     const mobile = testInfo.project.name === 'mobile';
     await open(page, '/devices/building', 'a');
@@ -2291,7 +2333,15 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       expect(box.y + box.height).toBeLessThanOrEqual(rowBox.y + 1);
     }
     await scr.locator('.kpis').evaluate((el) => el.scrollIntoView({ block: 'start' })); // the page scrolls: the row moves away
-    await expect(lowPanel).toHaveCount(0);
+    // PRE-GATE-2350: the control screens fit the window (owner rule 2026-10-24, no page scroll), so the row may not move at all;
+    // the popover closes when its trigger moves, which is only checkable when something did scroll
+    const moved = Math.abs(((await low.boundingBox())?.y ?? rowBox.y) - rowBox.y) > 2;
+    if (moved) await expect(lowPanel).toHaveCount(0);
+    else {
+      testInfo.annotations.push({ type: 'note', description: 'nothing scrolled at this size; the close-on-scroll check did not apply' });
+      await page.keyboard.press('Escape');
+      await expect(lowPanel).toHaveCount(0);
+    }
     if (!mobile) await page.setViewportSize(size);
 
     // a click on the row enters the area
@@ -2394,7 +2444,8 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       const a = page.locator('devices-area');
       const lightingCard = a.locator('sw-card[data-card="lighting"]');
       await expect(lightingCard).toBeVisible({ timeout: 30000 });
-      await expect(lightingCard).toHaveAttribute('subheading', /^2 התקנים · 1 פעילים/);
+      // POLISH-CONTROL-297 item 6 (2.27.0): one is a word - "אחד פעיל", not "1 פעילים"
+      await expect(lightingCard).toHaveAttribute('subheading', /^2 התקנים · אחד פעיל/);
       const areaCount = async () => {
         const o = await areaOption(page, 'cr007_lobby');
         const n = await o.opt.getAttribute('data-count');
@@ -2492,7 +2543,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await expect(card.locator('.lay-tile[data-lay-tile="light.cr007_lobby"]')).toHaveAttribute('data-tile-size', 'l');
       await expect(card.locator('.lay-tile[data-lay-tile="light.cr007_lobby"]')).toHaveAttribute('style', /span 2/);
       await expect(card.locator('.tile[data-entity="light.cr007_lobby"]')).toContainText('תאורה <b>ראשית</b>');
-      await expect(card).toHaveAttribute('subheading', /^2 התקנים · 1 פעילים/);
+      await expect(card).toHaveAttribute('subheading', /^2 התקנים · אחד פעיל/); // POLISH-CONTROL-297 item 6
       expect(await areaCount()).toBe(chipCount);
       // the tile's controls work again outside the editor
       await expect(card.locator('.tile[data-entity="light.cr007_lobby"] sw-toggle[data-control="power"]')).toBeVisible();

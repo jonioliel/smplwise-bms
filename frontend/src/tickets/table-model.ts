@@ -80,9 +80,11 @@ export function chooserOrder(cols: readonly ColumnKey[]): { key: ColumnKey; show
 // ---------------------------------------------------------------- widths (SMALL-UI-BUGS-2343)
 
 /** The table lays out with fixed column widths (table-layout: fixed): every column but the title has this width in px, the title
- * takes the rest (never less than TITLE_MIN_PX). Long text in a cell is cut with an ellipsis and its full text is the cell's tooltip. */
+ * takes the rest (never less than TITLE_MIN_PX). Long text in a cell is cut with an ellipsis and its full text is the cell's tooltip.
+ * GATE2342-B: `created` (the running clock, "פתוחה 20 ימים 2 ש׳") was 104 px and cut its text without an ellipsis; it is 148 px
+ * and the clock wraps to a second line when it is longer still (table-styles.ts td.c-created). */
 export const COLUMN_WIDTH_PX: Readonly<Record<ColumnKey | 'sentence', number>> = {
-  number: 76, title: 0, department: 128, priority: 104, status: 148, assignee: 148, place: 156, device: 148, created: 104, activity: 112,
+  number: 76, title: 0, department: 128, priority: 104, status: 148, assignee: 148, place: 156, device: 148, created: 148, activity: 112,
   stuck: 140, sla: 120, cost: 104, cost_status: 128, sentence: 260,
 };
 export const TITLE_MIN_PX = 220;
