@@ -253,15 +253,131 @@ controls (a synthetic `supported` Core verdict).
 - `scripts/release_check.py`, `scripts/api_inventory.py` (the route's GET answer gained `auto_install_permitted`; inventory at S5);
 - any Core read against a real Home Assistant, any device, HA, runner install or live action.
 
+## WisKey M12 policy B: slice S3 - Q1 maintenance, DORMANT (03.11)
+
+Input: the same contribution `M12-POLICY-B.20261102.01` (WisKey `51a058e7`, `M12-01/Arx-source-patch/after/`: `wiskey_install_generation.py`,
+`wiskey_native_projection.py`, `wiskey_relay_map_native.py`, `tests/test_m12_controller_and_gate.py`; their `before/` files are byte-equal
+to this branch except one docstring line), WisKey `docs/contracts/relay-maintenance-v1/` (`6049821d`, shapes of intent / witness /
+request / result / journal.v2) and `history/rc10/M12-02/LIFECYCLE_ORDER_CLARIFICATION_HE.txt`, which wins over the shortened sentence of
+the old `CONTRACT_HE` (witness before intent): the intent is committed and published with `witness = null` first, the witness provider
+is called only afterwards, outside DB / JOURNAL_LOCK / fence. All read with `git show` only; no patch applied. Q2 (the witness producer)
+stays BLOCKED, so the path is dormant.
+
+| Slice | Commit | What |
+|---|---|---|
+| S3a | `ea6203200` | `db.on_transaction_end` (new, generic): a release that runs once right after the COMMIT / ROLLBACK of a write transaction (or when the lease closes), before the write gate is handed on. `wiskey_native_projection`: `MAINTENANCE_RELATIVE` (`maintenance.v1.json` next to `controller.v1.json`), `publish_maintenance` (DB -> JOURNAL_LOCK -> fence; writes the committed intent exactly as stored; `stale` without a published `installed` + `restart_requested` controller of the same generation; never writes or removes the controller), `invalidate` also withdraws `maintenance.v1`, and the fence may be re-entered by the thread that holds it (depth count; other threads / processes wait as before). `wiskey_install_generation`: the fenced `_store` - every writer that changes generation / digest / claim withdraws `controller.v1` + `maintenance.v1` under the fence BEFORE the row changes and keeps the fence until its transaction ENDS (also inside the add-on start-up transaction; `unlocked()` commits release it); no projection directory = nothing withdrawn, nothing created; without fcntl the writer refuses typed (`generation_fence_unsupported`, nothing written); journal.v2 (`format` / `schema_version` 2 / `maintenance_v1` / `maintenance_proof` / `maintenance_history`) in the SAME setting; `begin_maintenance`, `bind_maintenance_witness`, `maintenance_transition`, `_archive_maintenance`, `intent_sha256`; `begin` carries the history into the next generation. |
+| S3b | `eb1c42733` | `wiskey_relay_map_native`: `PREPARE_V3` (sixth catalog command), `maintain` (the prepare_v3 caller), catalog comment; `test_alignment_controller` count 297/301 -> 298/302, `test_wiskey_rc7_adopt_2331` six commands. |
+| S3c | `7afac5908` | `tests/test_wiskey_m12_s3_maintenance.py` (new). |
+| S3d | `66a825c9e` | `test_wiskey_mac_adopt_298::test_e_the_runtime_catalog_is_the_final_one`: file + 8 runtime extras (was + 7), found by run 4. |
+
+Order in `maintain` (all outside calls inside ONE `budget.scope`): switch OFF -> `switch_off`, nothing else; no provider ->
+`blocked / relay_witness_unavailable`, nothing else; source + signed readiness (ready, same generation, `pair_digest(loaded)` = journal
+digest) + current export; intent COMMITTED (`begin_maintenance`, witness null, `deadline_unix_ms` = the budget's end) and PUBLISHED; the
+provider (outside every lock); witness bound by CAS; re-published; CAS `invalidated` + publication; CAS `dispatched` (refused past the
+intent's deadline) + publication; ONE `prepare_v3` (request.v1 with `intent_sha256` of the exact stored intent); the answer verified
+(result.v1 + the ACK of the same export) and kept as `maintenance_proof`. Before dispatch any failure cancels / refuses the intent;
+after dispatch every failure - a lost answer, a transport `not_sent`, a signed error, a wrong hash or ACK, the end passing during the
+call - is UNKNOWN; a second `maintain` is `stale` (UNKNOWN is never replayed, prepare_v3 is never sent twice).
+
+Deviations / strengthenings against the contribution (to tell WisKey):
+
+1. The fence is held until the caller's transaction ENDS, not released before the commit (`db.on_transaction_end`); the start-up
+   transaction keeps it across its commit. Re-entry by the holding thread avoids a self-deadlock (flock is per open file description).
+2. The withdrawing set is generation / digest / claim (as the contribution), plus the very first journal row; a state-only change
+   (`finish_restart`, a proof, any maintenance CAS) does not withdraw `controller.v1` (Native's start-up may still be reading it; the
+   caller re-publishes right after). `invalidate` also withdraws `maintenance.v1`.
+3. Policy B inside the journal: `begin_maintenance` and the forward steps (`invalidated`, `dispatched`) refuse while the switch is OFF;
+   settling (`cancelled`, `refused`, `unknown`, `prepared`) is always possible.
+4. Closed shapes: the intent must be intent.v1 exactly with `witness = null` and a deadline still ahead; the witness must be witness.v1
+   exactly, `status = current` and bound to the intent's generation / token / seq / content digest / repository / bridge entry / query
+   owner; `invalidated` / `dispatched` need a bound witness; a token is never reused (also not from the history).
+5. Local bookkeeping after the end has passed (cancel, UNKNOWN, the verified proof) runs outside the call budget: the database layer
+   refuses every write inside an expired budget (`db._begin_immediate`), so the contribution's caller would have lost the UNKNOWN
+   record of a timed-out prepare_v3. Pinned by `test_after_dispatch_every_failure_is_unknown_and_never_replayed[deadline]` and
+   `test_a_verified_answer_at_the_very_end_of_the_budget_is_still_recorded`.
+6. The loaded pair of the signed readiness must equal the journal's pair digest (the contribution checked state and generation only).
+7. A failing provider is recorded `refused` and answered `refused / relay_witness_failed` (the contribution re-raised).
+8. `prepare_quiesced` (v1 / v2) still has no caller; `maintain` sends prepare_v3 directly.
+
+Dormancy proof (policy B, Q2 blocked): `test_dormant_switch_off_the_journal_writer_refuses_and_writes_nothing`,
+`test_dormant_maintain_with_the_switch_off_does_nothing_at_all` (no port call, no provider call, journal unchanged),
+`test_dormant_maintain_without_a_witness_provider_is_blocked_before_any_io`, and the static
+`test_static_no_production_caller_no_witness_provider_and_prepare_v3_only_in_the_adapter` (no production module calls `maintain`, names
+`witness_provider`, calls the maintenance writers outside the three S3 modules, or names prepare_v3). `wiskey.auto_install` is still
+OFF by default, its one writer refuses ON in this build (S1), and nothing in S3 writes it.
+
+### Test run 4 (S3)
+
+Workstation (Windows 11, Python 3.12 venv), one pytest process, the 25 run3 files plus `test_wiskey_m12_s3_maintenance.py` and four
+DB suites (db.py gained `on_transaction_end`). HEAD `7afac59085590bcd909f1142233defcd29863355`. Exit 1: **582 passed, 1 failed,
+26 skipped** (3151 s). Receipt `receipts/WISKEY-RC7-ADOPT-2331/run4.junit.xml`. The one failure was a stale count pin
+(`test_wiskey_mac_adopt_298::test_e_the_runtime_catalog_is_the_final_one`, + 7 -> + 8 for prepare_v3), fixed in `66a825c9e`; that file
+re-run alone at `66a825c9e`: exit 0, **45 passed, 0 failed, 0 skipped** (receipt `run4b.junit.xml`). The other 29 files were NOT re-run
+after that test-only commit. Run 4 skips = run3's 21 + the 5 POSIX-only fence cases of the new file.
+
+| File | P | S | F |
+|---|---|---|---|
+| test_wiskey_rc7_adopt_2331 | 27 | 5 | 0 |
+| test_mac_managed_auto_policy | 5 | 3 | 0 |
+| test_wiskey_relay_map_native_mac | 4 | 1 | 0 |
+| test_wiskey_rc4_deadline_2310 | 5 | 0 | 0 |
+| test_wiskey_rc5_relay_binding_2310 | 9 | 0 | 0 |
+| test_wiskey_r2_align_2272_generation | 6 | 0 | 0 |
+| test_wiskey_r2_align_2272_contracts | 9 | 1 | 0 |
+| test_wiskey_relay_map_export_2320 | 32 | 0 | 0 |
+| test_wiskey_relay_map_writer_2310 | 20 | 0 | 0 |
+| test_alignment_controller | 6 | 1 | 0 |
+| test_alignment_lock_order | 1 | 0 | 0 |
+| test_alignment_staging | 4 | 2 | 0 |
+| test_bridge_install | 5 | 0 | 0 |
+| test_wiskey_adopt_2272_installer | 6 | 3 | 0 |
+| test_wiskey_adopt_2272_install | 39 | 2 | 0 |
+| test_wiskey_adopt_2272_review | 38 | 3 | 0 |
+| test_wiskey_adopt_2272_contrib | 39 | 0 | 0 |
+| test_wiskey_adopt_2272_features | 38 | 0 | 0 |
+| test_wiskey_native_bundle_2272 | 7 | 0 | 0 |
+| test_wiskey_r3_2272_owner_switch | 10 | 0 | 0 |
+| test_migrations | 4 | 0 | 0 |
+| test_wiskey_mac_adopt_298 | 44 | 0 | 1 (stale pin; run4b 45 / 0 / 0) |
+| test_wiskey_m12_policy_b_owner_switch | 34 | 0 | 0 |
+| test_wiskey_m12_policy_b_native_gate | 31 | 0 | 0 |
+| test_smallfixa_wiskey_switches_295 | 28 | 0 | 0 |
+| test_wiskey_m12_s3_maintenance (new, S3) | 47 | 5 | 0 |
+| test_db_gate | 31 | 0 | 0 |
+| test_db_conn_pool | 26 | 0 | 0 |
+| test_db_gate_stray_detector | 6 | 0 | 0 |
+| test_db_locking | 21 | 0 | 0 |
+| **Total** | **582** | **26** | **1** |
+
+### NOT_RUN (S3, runner only - Linux, between release gates)
+
+- the five real-fence cases of `test_wiskey_m12_s3_maintenance.py` (fcntl): `test_an_arx_decision_writer_waits_for_natives_commit_fence`,
+  `test_the_fence_is_held_across_the_callers_start_up_commit[commit|rollback]`,
+  `test_publish_maintenance_writes_the_exact_committed_intent_and_never_the_controller`, `test_the_caller_end_to_end_on_the_real_fence`;
+- every run3 POSIX / fcntl skip again, now ALSO exercising the fenced `_store` (every generation / claim write with a projection
+  directory takes the fence): `test_alignment_controller::test_projection_is_derived_from_only_current_sqlite_journal`,
+  `test_alignment_staging` (2), `test_wiskey_adopt_2272_installer` (3), `test_wiskey_adopt_2272_review` (h3, m8),
+  `test_wiskey_rc7_adopt_2331::test_fence_is_exclusive_and_busy_is_typed`, plus the symlink / mode-bit / jsonschema skips listed above;
+- the full backend suite (db.py changed: only the four DB suites above ran here);
+- not applicable on Windows by design: `test_without_fcntl_a_decision_writer_refuses_typed_and_changes_nothing` runs ONLY without
+  fcntl (it passed here; it is skipped on the runner);
+- cross-container flock between the add-on and HA (B03), any device / HA / runner / install / live action.
+
+Open points (S3): the maintenance path stays dormant until (1) a Q2 witness producer exists (lineage outside Core and Arx restore,
+advancing checkpoint per intent - BLOCKED, B03) and (2) a caller is wired (none); a crash between the intent commit and dispatch leaves an
+active `intent` / `invalidated` row that blocks the next intent until the next generation (conservative, no janitor cancels it - for
+WisKey to confirm); the fence's hold across the start-up commit and the thread re-entry are Arx additions to tell WisKey.
+
 ## State
 
 - Arx artifact: NOT_BUILT. No version bump, no merge to main, not in any train.
 - Owner installation: NOT_PERFORMED. `wiskey.auto_install`: off by default, never turned on by code; its one writer is the owner's
   `PUT /wiskey/switches`, and ON is refused in this build (`OWNER_ON_PERMITTED = False`, D1=b).
-- M12 policy B: S1 + S2 done on this branch (above). Open: S3 (maintenance journal v2, dormant), S4 (bridge Core observer),
-  S5 (merge main after 2.36.0 + migration renumbering - NOT done here), S6 (runner receipts + build).
+- M12 policy B: S1 + S2 + S3 done on this branch (above; S3 dormant: switch OFF and no witness provider). Open: S4 (bridge Core
+  observer), S5 (merge main after 2.36.0 + migration renumbering - NOT done here; S3 added no migration), S6 (runner receipts incl. the
+  S3 fence cases + build).
 - Open for WisKey (section 8a of the plan): the full list of Native's manual / foreign markers and profiles (Arx detects
   `hikvision_intercom_manual_upgrade.json` at the config root and `_manual_upgrade_profile.json` in the component, link included);
   confirmation that Native never writes the component directory under a manual install (update, repair, recovery); a real rc.7
-  manual-ZIP fixture if it differs. Section 3: the ABI of `maintenance_v1` (previous state `restart_requested`, the typed refusal of
-  `prepare_v2`) before `prepare_quiesced` gets a caller. Section 4: the `incarnation` contract delta.
+  manual-ZIP fixture if it differs. Section 3: `maintenance_v1` / prepare_v3 adopted dormant in S3 (previous state `restart_requested`);
+  `prepare_quiesced` (v1 / v2) still has no caller. Section 4: the `incarnation` contract delta.
