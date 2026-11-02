@@ -1143,7 +1143,8 @@ export class CalViewCalendar extends LitElement {
     const d = this.draft;
     if (!d) return;
     emit(this, CAL_EVENTS.newEvent, { calendarId: d.calId, start: instantAt(d.day, d.s).toISOString(), end: instantAt(d.day, Math.min(d.e, 1440)).toISOString(), title: d.title,
-      repeat: d.repeat, count: d.count, behalf: d.behalf, behalfLabel: d.behalfLabel, headcount: d.headcount || undefined });
+      repeat: d.repeat, count: d.count, behalf: d.behalf, behalfLabel: d.behalfLabel, headcount: d.headcount || undefined,
+      attendees: Array.isArray(d.attendees) && d.attendees.length ? [...d.attendees] : undefined }); // CAL-ATTENDEES-2343: the picked list carries over
     this.closeOverlay();
   }
 

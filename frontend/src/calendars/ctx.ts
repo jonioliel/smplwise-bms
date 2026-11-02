@@ -45,6 +45,8 @@ export const CAL_EVENTS = {
 export interface NewEventDetail {
   calendarId?: string; start?: string; end?: string; eventId?: string;
   title?: string; repeat?: 'none' | 'daily' | 'weekly'; count?: number; behalf?: string; behalfLabel?: string; headcount?: number;
+  /** CAL-ATTENDEES-2343 follow-up: the quick create's picked attendees (AttendeeDraft[]), seeded into the drawer's new-entry list */
+  attendees?: unknown;
 }
 
 /**

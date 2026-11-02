@@ -106,3 +106,20 @@ test('follow-up: the quick create carries a collapsed attendee row and sends the
   expect(s).toContain("['attendees', 'משתתפים']");
   expect(src('api/calendar-attendees.ts')).toContain("saveSettings: (body) => put('/calendar/attendee-settings', body)");
 });
+
+test('follow-up: "פרטים נוספים" carries the quick create attendees into the drawer new-entry section (and so into its create body)', () => {
+  // the popover hands its list to the drawer event
+  const v = src('calendars/view-calendar.ts');
+  const more = v.slice(v.indexOf('private moreQuick('), v.indexOf('// ---------- the peek card'));
+  expect(more).toMatch(/attendees: Array\.isArray\(d\.attendees\) && d\.attendees\.length \? \[\.\.\.d\.attendees\] : undefined/);
+  expect(src('calendars/ctx.ts')).toMatch(/interface NewEventDetail \{[^}]*attendees\?: unknown;/);
+  // the drawer seeds its slot value from the detail
+  const d = src('calendars/event-drawer.ts');
+  expect(d).toContain('if (Array.isArray(d.attendees) && d.attendees.length) this.attendees = [...d.attendees];');
+  expect(d).toMatch(/attendeeSlot\(\{ surface: 'drawer'[^}]*value: this\.attendees/);
+  // the section starts from that list once (new entry only); payload() then reads it into `attendees`
+  const a = src('calendars/attendees-section.ts');
+  expect(a).toContain('@property({ attribute: false }) initial: AttendeeDraft[] = [];');
+  expect(a).toContain('if (!this.seeded && !this.eventId && this.initial.length) this.drafts = [...this.initial];');
+  expect(a).toMatch(/\.initial=\$\{!p\.eventId && Array\.isArray\(p\.value\)/);
+});

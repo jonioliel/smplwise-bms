@@ -149,6 +149,7 @@ export class CalEventDrawer extends LitElement {
     if (d.behalf && d.behalf in BEHALF_LABEL) this.behalf = d.behalf as OnBehalfKind;
     if (d.behalfLabel) this.behalfLabel = d.behalfLabel;
     if (d.headcount) this.headcount = String(d.headcount);
+    if (Array.isArray(d.attendees) && d.attendees.length) this.attendees = [...d.attendees]; // CAL-ATTENDEES-2343: the quick create's attendees
     void this.loadSettings();
   }
 
