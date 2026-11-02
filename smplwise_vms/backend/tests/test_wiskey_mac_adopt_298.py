@@ -444,8 +444,8 @@ def test_e_the_runtime_catalog_is_the_final_one() -> None:
     # WISKEY-RC4-2310: the pins below are the catalog FILE's; the rc.4 runtime `load()` adds exactly the two emergency event commands
     c = wdc.parse(wdc.CATALOG_PATH.read_text(encoding="utf-8"))
     runtime = wdc.load()
-    # WISKEY-RC7-ADOPT-2331: + the five installation/relay_map_* transfer commands
-    assert runtime.registered_count == c.registered_count + 7 and runtime.command_count == c.command_count + 7
+    # WISKEY-RC7-ADOPT-2331: + the five installation/relay_map_* transfer commands; WisKey M12 S3: + relay_map_prepare_v3
+    assert runtime.registered_count == c.registered_count + 8 and runtime.command_count == c.command_count + 8
     assert runtime.get("features/emergency_event_status_v1") is not None and runtime.get("features/emergency_secure_v1") is not None
     # WISKEY-ADOPT-2272 supersedes the 27.10 catalog with the owner28 one (CODE 0a099c53): a superset of every command checked here
     assert (c.source_sha256, c.code) == ("3123d20d086856f981f22c0604a4e951350482587d530a6e9a2c054898a4642e",
