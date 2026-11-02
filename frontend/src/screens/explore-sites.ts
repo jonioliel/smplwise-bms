@@ -64,8 +64,8 @@ export class ExploreSites extends LitElement {
       inset-block-start: 8px;
       font-size: var(--sw-fs-2xs);
       letter-spacing: 0.04em;
-      background: rgba(17, 24, 39, 0.5);
-      color: #fff;
+      background: var(--sw-video-scrim);
+      color: var(--sw-on-video);
       border-radius: var(--sw-r-2xs);
       padding: 1px 6px;
     }
@@ -122,11 +122,6 @@ export class ExploreSites extends LitElement {
       font-size: var(--sw-fs-sm);
       background: transparent;
       font-family: inherit;
-    }
-    .add:hover {
-      border-color: var(--sw-accent);
-      background: var(--sw-accent-soft);
-      color: var(--sw-accent-text);
     }
     .add .ic {
       display: grid;
@@ -289,11 +284,12 @@ export class ExploreSites extends LitElement {
     .add:active {
       transform: scale(var(--sw-press-scale));
     }
-    @media (hover: none) {
+    /* POLISH4 WP6 (D12): hover only under a fine pointer (a tap on a touch tablet leaves no sticky accent wash) */
+    @media (hover: hover) and (pointer: fine) {
       .add:hover {
-        border-color: var(--sw-border-strong);
-        background: var(--sw-surface-2);
-        color: var(--sw-text-2);
+        border-color: var(--sw-accent);
+        background: var(--sw-accent-soft);
+        color: var(--sw-accent-text);
       }
     }
     .brow b {

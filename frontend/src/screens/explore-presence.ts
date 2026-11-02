@@ -71,7 +71,6 @@ export class ExplorePresence extends LitElement {
       display: inline-flex; align-items: center; gap: 6px; block-size: 34px; padding: 0 12px; border-radius: var(--sw-r-sm); border: 1px solid var(--sw-border);
       background: var(--sw-surface); color: var(--sw-text); font: inherit; font-size: var(--sw-fs-sm); cursor: pointer; text-decoration: none;
     }
-    .btn:hover { background: var(--sw-surface-2); }
     .btn:focus-visible, .kpi:focus-visible, .chips button:focus-visible, .seg button:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
     .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; flex: none; }
     .kpi {
@@ -170,7 +169,8 @@ export class ExplorePresence extends LitElement {
     @media (hover: hover) and (pointer: fine) { .kpi:not([aria-pressed='true']):not([data-k='hidden']):hover { background: var(--sw-surface-3); } }
     .kpi:active:not([data-k='hidden']), .chips button:active, .btn:active, .seg button:active { transform: scale(var(--sw-press-scale)); }
     .chips button, .btn, .seg button { transition: background var(--sw-t-hover) var(--sw-ease-color), color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease); -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
-    @media (hover: none) { .btn:hover { background: var(--sw-surface); } }
+    /* POLISH4 WP6 (D12): the button hover joins the fine-pointer gate (it was ungated with a (hover: none) undo) */
+    @media (hover: hover) and (pointer: fine) { .btn:hover { background: var(--sw-surface-2); } }
     .panel { border-radius: var(--sw-r-lg); }
     .body > .panel:first-child { box-shadow: var(--sw-shadow-2); }
     .lhead h2 { font-size: var(--sw-fs-xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading); }

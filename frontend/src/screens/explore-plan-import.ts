@@ -134,8 +134,7 @@ export class ExplorePlanImport extends LitElement {
       cursor: pointer;
       transition: background var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease);
     }
-    .drop.over,
-    .drop:hover {
+    .drop.over {
       border-color: var(--sw-accent);
       background: var(--sw-accent-soft);
     }
@@ -181,7 +180,7 @@ export class ExplorePlanImport extends LitElement {
       inline-size: 100%;
       aspect-ratio: 1;
       object-fit: contain;
-      background: #f3f5f9;
+      background: var(--sw-surface-2);
       border-radius: var(--sw-r-2xs);
       display: block;
       margin-block-end: 4px;
@@ -190,7 +189,7 @@ export class ExplorePlanImport extends LitElement {
       position: relative;
       flex: 1;
       min-block-size: 320px;
-      background: #f3f5f9;
+      background: var(--sw-surface-2);
       border-radius: var(--sw-r-md);
       overflow: hidden;
       display: grid;
@@ -214,7 +213,7 @@ export class ExplorePlanImport extends LitElement {
     .preview .cropbox {
       position: absolute;
       border: 2px dashed var(--sw-accent);
-      box-shadow: 0 0 0 9999px rgba(17, 24, 39, 0.28);
+      box-shadow: 0 0 0 9999px color-mix(in srgb, var(--sw-overlay) 60%, transparent);
       pointer-events: none;
       box-sizing: border-box;
     }
@@ -351,14 +350,15 @@ export class ExplorePlanImport extends LitElement {
       border: 1.5px dashed var(--sw-border-strong);
       color: var(--sw-text-2);
     }
-    .drop.over,
-    .drop:hover {
+    .drop.over {
       color: var(--sw-text);
     }
-    @media (hover: none) {
-      .drop:hover:not(.over) {
-        border-color: var(--sw-border-strong);
-        background: var(--sw-surface-2);
+    /* POLISH4 WP6 (D12): the drop zone answers a hovering mouse only (fine pointer); a tap on a tablet opens the picker with no sticky wash */
+    @media (hover: hover) and (pointer: fine) {
+      .drop:hover {
+        border-color: var(--sw-accent);
+        background: var(--sw-accent-soft);
+        color: var(--sw-text);
       }
     }
     .pg {

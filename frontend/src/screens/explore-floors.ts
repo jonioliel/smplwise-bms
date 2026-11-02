@@ -162,9 +162,11 @@ export class ExploreFloors extends LitElement {
       stroke: var(--sw-border-strong);
       stroke-width: 0.8;
     }
+    /* POLISH4 WP6 (D13): the floor name was a 6px literal in viewBox units (120 units drawn at 180 px = 9 px on screen, in text-3).
+       It is now the type scale's smallest step on screen: 2xs divided by the 1.5 draw scale, in the secondary ink (4.5:1 on the plate). */
     svg.stack .pname {
-      font-size: 6px;
-      fill: var(--sw-text-3);
+      font-size: calc(var(--sw-fs-2xs) * 2 / 3);
+      fill: var(--sw-text-2);
     }
     svg.stack .lk {
       stroke: var(--sw-accent);
@@ -213,10 +215,6 @@ export class ExploreFloors extends LitElement {
       cursor: pointer;
       box-shadow: var(--sw-shadow-1);
       transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
-    }
-    .floor:hover {
-      border-color: var(--sw-border-strong);
-      box-shadow: var(--sw-shadow-2);
     }
     .floor.on {
       border-color: var(--sw-accent);
@@ -310,16 +308,8 @@ export class ExploreFloors extends LitElement {
       border-color: var(--sw-accent);
       box-shadow: var(--sw-shadow-2);
     }
-    @media (hover: none) {
-      .floor:hover {
-        border-color: transparent;
-        box-shadow: var(--sw-shadow-1);
-      }
-      .floor.on:hover {
-        border-color: var(--sw-accent);
-        box-shadow: var(--sw-shadow-2);
-      }
-    }
+    /* POLISH4 WP6 (D12): the floor rows have one hover, the fine-pointer one below; the ungated :hover and its (hover: none) undo are gone,
+       so a tap on a tablet never leaves a row raised */
     .title {
       font-size: var(--sw-fs-xl);
       font-weight: var(--sw-fw-bold);
