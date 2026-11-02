@@ -164,10 +164,102 @@ Skipped on Windows in run2 - must run on the runner before this branch boards a 
   `scripts/api_inventory.py`, frontend / tsc / Playwright, the runner entry check, any live or B03 measurement
   (cross-container flock, HA backup/restore of `wiskey_lineage/*`).
 
+## WisKey M12 policy B: slices S1 and S2 (02.11)
+
+Input: WisKey contribution `M12-POLICY-B.20261102.01` (`docs/owner-development-2026-11-02/mac-policy-policy-b-completion/M12-01/Arx-source-patch/`
+at WisKey `51a058e7`; intake verified at `f6c4b8fe`). Plan: `private/planning/WISKEY_M12_INTAKE_AND_ADOPTION_PLAN_2026-11-02.md`.
+Neither `M12_POLICY_B_COMBINED.patch` nor `POLICY_B_FROM_RC10_CANDIDATE.patch` applies to this branch (`routers/settings.py` and
+`wiskey_relay_map_native.py` moved on); adopted semantically by hand, no patch applied or committed. Policy B (owner, binding):
+`wiskey.auto_install` OFF by default, no code path turns it on, only the owner's explicit verified action. Owner defaults applied
+(recommendations, the owner may override): D1=b, D2=a, D3=a.
+
+| Slice | Commit | What |
+|---|---|---|
+| S1 | `ed78a6a0e` | `wiskey.auto_install` is a separate closed entry (`wiskey_switches.INSTALL_SWITCH`) on the owner's EXISTING writer `PUT /wiskey/switches` (system.configure + system administrator, all or nothing, audited `settings.changed` before / after). D1=b: ON is refused 409 `auto_install_not_permitted` with a Hebrew reason while the build constant `wiskey_auto_install.OWNER_ON_PERMITTED` is False; OFF is always allowed; GET reports `auto_install_permitted`. Missing / null / unreadable / any value but the exact `on` is OFF; a null or non-string value is refused 422. Settings > Security > "קריאות בקרת כניסה": a separate "התקנה אוטומטית" group with the row, its confirmation wording and the refusal line (he / en / ar / ru; ar / ru initial translation). |
+| S2 | `03b833626` | new `wiskey_auto_install.preflight_managed_runtime`, called by `installer_step` before the native writer: guards first (honest `refused` / `error` state also with the switch off - changed from `off`), then OFF refuses before any Core read and before the native writer (`auto_install_off`), then - owner ON + managed pin only - the Core runtime READ gate; anything but `supported` is `blocked` with the gate's closed code, audited. New `services/wiskey_core_runtime_gate.py` (contribution logic unchanged). No setting is written by the gate. A legacy pin keeps the earlier rule (no Core read). |
+
+Not adopted / deviations (to tell WisKey):
+
+1. The contribution's `SettingsPatch` field `wiskey.auto_install` (`PATCH /api/v1/settings`) is NOT adopted: it would be a second
+   writer next to Arx's existing owner path. Pinned by `test_wiskey_rc7_adopt_2331::test_1b_exactly_one_writer_is_the_owners_switch_route`
+   and `test_wiskey_m12_policy_b_owner_switch::test_the_generic_settings_route_is_not_a_second_writer`. The audit action is the
+   route's existing `settings.changed` (key, before, after), not the contribution's `wiskey.auto_install.owner_action`.
+2. D2=a (Arx deviation): the contribution's `preflight_managed_runtime` call in `bridge_install.install` BEFORE the bridge copy is not
+   adopted - Arx's own `smplwise_bridge` keeps updating while the WisKey switch is OFF (the contribution's protection test asserts the
+   opposite). The gate sits inside `installer_step`, in front of the native writer only. The manual profile still blocks both writers
+   (unchanged). A foreign native tree does not block the bridge copy.
+3. D1=b: the owner sees the switch but cannot turn it ON in this build. The build constant gates the writer only; the effects keep
+   reading the stored value (a stored `on` can come only from a later permitting build or a direct database edit).
+4. D3=a: the bundled native pin stays the rc.39 legacy pin; the rc.10 managed bundle is not shipped. The Core gate therefore has no
+   production effect today (legacy pin = no Core read), and the switch cannot be turned ON anyway.
+5. The Core gate has no image verifier in Arx: it is never `supported`. The positive controls in the tests use a SYNTHETIC
+   `supported` verdict (labelled) to prove only the order (gate, then the original writer) - no Core support is claimed.
+   `read_core` inside a running event loop refuses (`core_runtime_observation_thread_required`); the add-on start-up runs it in a
+   worker thread. The bridge observer (`smplwise_bridge/core_runtime_v1`) is slice S4, not on this branch.
+
+### Test run 3 (S1 + S2)
+
+Workstation (Windows 11, Python 3.12 venv), one pytest process, the 22 run2 files plus the two new M12 files and the switches route
+file. HEAD `03b833626808447b2d689b10f0c49df9e6554e21`. Exit 0: **452 passed, 0 failed, 21 skipped** (2143 s). Receipt
+`receipts/WISKEY-RC7-ADOPT-2331/run3.junit.xml`. The 21 skips are the same POSIX / fcntl / jsonschema cases as run2.
+
+| File | P | S | F |
+|---|---|---|---|
+| test_wiskey_rc7_adopt_2331 | 27 | 5 | 0 |
+| test_mac_managed_auto_policy | 5 | 3 | 0 |
+| test_wiskey_relay_map_native_mac | 4 | 1 | 0 |
+| test_wiskey_rc4_deadline_2310 | 5 | 0 | 0 |
+| test_wiskey_rc5_relay_binding_2310 | 9 | 0 | 0 |
+| test_wiskey_r2_align_2272_generation | 6 | 0 | 0 |
+| test_wiskey_r2_align_2272_contracts | 9 | 1 | 0 |
+| test_wiskey_relay_map_export_2320 | 32 | 0 | 0 |
+| test_wiskey_relay_map_writer_2310 | 20 | 0 | 0 |
+| test_alignment_controller | 6 | 1 | 0 |
+| test_alignment_lock_order | 1 | 0 | 0 |
+| test_alignment_staging | 4 | 2 | 0 |
+| test_bridge_install | 5 | 0 | 0 |
+| test_wiskey_adopt_2272_installer | 6 | 3 | 0 |
+| test_wiskey_adopt_2272_install | 39 | 2 | 0 |
+| test_wiskey_adopt_2272_review | 38 | 3 | 0 |
+| test_wiskey_adopt_2272_contrib | 39 | 0 | 0 |
+| test_wiskey_adopt_2272_features | 38 | 0 | 0 |
+| test_wiskey_native_bundle_2272 | 7 | 0 | 0 |
+| test_wiskey_r3_2272_owner_switch | 10 | 0 | 0 |
+| test_migrations | 4 | 0 | 0 |
+| test_wiskey_mac_adopt_298 | 45 | 0 | 0 |
+| test_wiskey_m12_policy_b_owner_switch (new, S1) | 34 | 0 | 0 |
+| test_wiskey_m12_policy_b_native_gate (new, S2) | 31 | 0 | 0 |
+| test_smallfixa_wiskey_switches_295 | 28 | 0 | 0 |
+| **Total** | **452** | **21** | **0** |
+
+Frontend (workstation, Node 24): `npx tsc --noEmit -p .` exit 0; `npx playwright test -c playwright.unit.config.ts
+tests/unit-wiskey-switches.spec.ts --workers=1`: 9 passed.
+
+Existing tests changed on purpose: `test_smallfixa_wiskey_switches_295` (the view has five keys and `auto_install_permitted`);
+`test_wiskey_rc7_adopt_2331::test_8a_existing_install_is_never_overwritten_and_the_refusal_is_audited[*-switch_off]` (the honest
+`refused` / `error` state instead of `off`); `::test_8a_d_after_the_owner_switch...` and two `test_mac_managed_auto_policy` positive
+controls (a synthetic `supported` Core verdict).
+
+### NOT_RUN (S1 + S2)
+
+- the runner (Linux): the 21 POSIX / fcntl / jsonschema skips above, and the full backend suite;
+- browser checks: `frontend/tests/evidence-switchui-295.spec.ts` (two new install-row cases, counts updated) and
+  `frontend/tests/r5-security-shoot.spec.ts` (mock carries the install row) - updated, not run (no local vite / Playwright browser);
+  no screenshots of the new row (desktop / phone / RTL) yet;
+- the contribution's `test_m12_existing_install_protection.py` with the real rc.7 manual / rc.10 managed ZIP fixtures (not adopted
+  as a file: its bridge-copy assertion contradicts D2; the same four refusals are covered synthetically in
+  `test_wiskey_m12_policy_b_native_gate.py` and `test_wiskey_rc7_adopt_2331.py`) and `test_m12_controller_and_gate.py` (maintenance
+  part is S3; the gate part is covered synthetically);
+- `scripts/release_check.py`, `scripts/api_inventory.py` (the route's GET answer gained `auto_install_permitted`; inventory at S5);
+- any Core read against a real Home Assistant, any device, HA, runner install or live action.
+
 ## State
 
 - Arx artifact: NOT_BUILT. No version bump, no merge to main, not in any train.
-- Owner installation: NOT_PERFORMED. `wiskey.auto_install`: off by default, never turned on by code.
+- Owner installation: NOT_PERFORMED. `wiskey.auto_install`: off by default, never turned on by code; its one writer is the owner's
+  `PUT /wiskey/switches`, and ON is refused in this build (`OWNER_ON_PERMITTED = False`, D1=b).
+- M12 policy B: S1 + S2 done on this branch (above). Open: S3 (maintenance journal v2, dormant), S4 (bridge Core observer),
+  S5 (merge main after 2.36.0 + migration renumbering - NOT done here), S6 (runner receipts + build).
 - Open for WisKey (section 8a of the plan): the full list of Native's manual / foreign markers and profiles (Arx detects
   `hikvision_intercom_manual_upgrade.json` at the config root and `_manual_upgrade_profile.json` in the component, link included);
   confirmation that Native never writes the component directory under a manual install (update, repair, recovery); a real rc.7
