@@ -20,6 +20,18 @@ component directory, read-only, with one `wiskey.installation.native_refused` au
   (`native_foreign_installed` / `native_newer_installed`); a tree Arx staged and then replaces is kept as `.smplwise-backup`.
 Arx journal decides generation/claim/restart; Native executes the signed claim and reports readiness. Setup / restart / reconcile never
 open a door, never start a microphone session and never send a message by themselves.
+
+WisKey M12 policy B (owner, 02.11, binding), adopted semantically on this branch (slices S1 + S2, docs/changes/WISKEY-RC7-ADOPT-2331.md):
+- the ONE writer of the switch is the owner's existing authorized path `PUT /wiskey/switches` (services/wiskey_switches.apply:
+  system.configure + system administrator, audited before / after). The contribution's `SettingsPatch` field is NOT adopted (it would
+  be a second writer). A missing, null or unreadable value is OFF; only the exact string `on` is ON.
+- `OWNER_ON_PERMITTED` (a build constant, False in this build - owner default D1=b): the owner sees the switch, but turning it ON is
+  refused with a closed reason until the Core runtime check can pass and the isolated lab (B03) is done.
+- `preflight_managed_runtime` runs in front of the native writer: guards first, then OFF (before any Core read and before the native
+  writer), then - only with the owner's ON and a managed-profile bundle - the Core runtime READ gate (wiskey_core_runtime_gate; no
+  image verifier exists, so it is never `supported` and managed staging stays refused).
+- Arx deviation (owner default D2=a): Arx's own bridge copy (`bridge_install._copy_tree`) is NOT gated by this switch; the
+  contribution's call before the bridge copy is not adopted. The manual profile still blocks both writers (bridge_install).
 """
 from __future__ import annotations
 
@@ -46,6 +58,15 @@ MANIFEST_MAX_BYTES = 1048576
 
 SWITCH_KEY = "wiskey.auto_install"  # "on" enables every installation EFFECT below; anything else (default) is off
 RESTART_DIGEST_KEY = "wiskey.installation.restart_digest"
+
+# WisKey M12 policy B, owner default D1=b (02.11): whether the owner's writer (services/wiskey_switches) may turn the switch ON in this
+# build. A code constant that only the owner's reviewed commit changes - never a setting, never a request field. False until the Core
+# runtime check (wiskey_core_runtime_gate) can pass and the isolated lab (B03) is done. Turning the switch OFF is always allowed.
+OWNER_ON_PERMITTED = False
+
+
+def owner_on_permitted() -> bool:
+    return OWNER_ON_PERMITTED is True
 
 
 class InstallationError(ValueError):

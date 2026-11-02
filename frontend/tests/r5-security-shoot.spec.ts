@@ -86,7 +86,8 @@ const switches: Boot = async (page, skin, scheme) => {
   const KEYS = ['wiskey.acr5_access_state', 'wiskey.acr5_normalize_user', 'wiskey.acr5_presence', 'wiskey.acr5_feature_plans'];
   const state: Record<string, string> = Object.fromEntries(KEYS.map((k) => [k, 'off']));
   state['wiskey.acr5_presence'] = 'on';
-  await page.route('**/api/v1/wiskey/switches', (r) => json(r, { switches: state, go_live_permitted: true }));
+  state['wiskey.auto_install'] = 'off'; // WISKEY-RC7-ADOPT-2331 S1: the owner's automatic-installation row (refused in this build)
+  await page.route('**/api/v1/wiskey/switches', (r) => json(r, { switches: state, go_live_permitted: true, auto_install_permitted: false }));
   await page.clock.setFixedTime(XNOW);
   await go(page, '/system/security/wiskey', skin, scheme);
   await page.locator('system-security-wiskey [data-wiskey-switches]').waitFor({ timeout: 20_000 }).catch(() => undefined);

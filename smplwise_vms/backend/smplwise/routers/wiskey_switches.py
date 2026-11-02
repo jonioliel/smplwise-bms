@@ -5,7 +5,11 @@
 
 Both need `system.configure` at the installation AND a system administrator (like the access-grants settings). Every refusal after the
 permission check is audited (`settings.changed` denied, closed reason, the number of keys only - never the caller's key text); every
-written switch is audited with its before / after. A go-live permit is never a setting: a key naming one is refused."""
+written switch is audited with its before / after. A go-live permit is never a setting: a key naming one is refused.
+
+WISKEY-RC7-ADOPT-2331 S1 (WisKey M12 policy B): the same route is the owner's ONE writer of `wiskey.auto_install` (the automatic WisKey
+installation, default OFF) - same authentication, same permission, same audit. `on` is refused 409 `auto_install_not_permitted` with a
+Hebrew reason while the build constant `wiskey_auto_install.OWNER_ON_PERMITTED` is False; GET says so (`auto_install_permitted`)."""
 from __future__ import annotations
 
 import sqlite3
@@ -27,6 +31,8 @@ _TEXT = {
     "unknown_switch": "מתג לא מוכר.",
     "permit_not_writable": "אישור הפעלה אינו הגדרה ואי אפשר לשנות אותו מכאן.",
     "wiskey_not_permitted": "גרסה זו אינה כוללת אישור הפעלה לקריאה הזו.",
+    "auto_install_not_permitted": "אי אפשר להפעיל עדיין את ההתקנה האוטומטית של רכיב בקרת הכניסה: בדיקת התאימות של סביבת ההתקנה "
+                                  "עדיין אינה יכולה לעבור, ובדיקת המעבדה המבודדת טרם הושלמה. המתג נשאר כבוי.",
 }
 
 
@@ -49,8 +55,8 @@ def _admin_or_403(conn: sqlite3.Connection, principal: Principal, request: Reque
 
 @router.get(BASE)
 def get_switches(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    """SMALLFIXA-295 (review 3 G-01): the four wiskey.acr5_* switches and the consumer's go-live permit (system administrator)."""
-    _admin_or_403(conn, principal, request, "settings.read", len(ws.SWITCHES))
+    """SMALLFIXA-295 (review 3 G-01): the four wiskey.acr5_* switches and the consumer's go-live permit, plus (S1) wiskey.auto_install and its build permit (system administrator)."""
+    _admin_or_403(conn, principal, request, "settings.read", len(ws.ALL_SWITCHES))
     return ws.view(conn)
 
 

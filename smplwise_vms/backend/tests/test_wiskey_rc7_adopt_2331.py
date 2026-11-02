@@ -300,9 +300,10 @@ def test_8a_bridge_install_under_a_manual_profile_writes_neither_component_and_a
 # ---------------------------------------------------------------- 2. decision 1B: nothing turns the switch on
 
 def test_1b_no_production_code_turns_the_auto_install_switch_on():
-    """Static: no module writes the WisKey switch. Inside wiskey_auto_install.py no set_setting names SWITCH_KEY at all; elsewhere no
-    set_setting names `wai.SWITCH_KEY` / `wiskey_auto_install.SWITCH_KEY` / the literal key (other modules have their own SWITCH_KEY).
-    The owner's generic settings screen writes keys it is given; it never names this one."""
+    """Static: no module writes the WisKey switch by name. Inside wiskey_auto_install.py no set_setting names SWITCH_KEY at all; elsewhere
+    no set_setting names `wai.SWITCH_KEY` / `wiskey_auto_install.SWITCH_KEY` / the literal key (other modules have their own SWITCH_KEY).
+    The owner's generic settings screen writes keys it is given; it never names this one. M12 policy B S1: the owner's ONE writer is
+    `wiskey_switches.apply` (closed list, all or nothing) - pinned by test_1b_exactly_one_writer_is_the_owners_switch_route."""
     call = re.compile(r"set_setting\(([^()]|\([^()]*\))*\)", re.S)
     offenders = []
     for path in PACKAGE.rglob("*.py"):
@@ -315,6 +316,24 @@ def test_1b_no_production_code_turns_the_auto_install_switch_on():
                 offenders.append(f"{path.relative_to(BACKEND).as_posix()}: {args[:80]}")
     assert offenders == []
     assert "_approve_managed_bundle" not in (PACKAGE / "services" / "wiskey_auto_install.py").read_text(encoding="utf-8")
+
+
+def test_1b_exactly_one_writer_is_the_owners_switch_route():
+    """M12 policy B S1: the key is referenced as a writable key by exactly one module (services/wiskey_switches.py: INSTALL_SWITCH =
+    wai.SWITCH_KEY), whose only set_setting sits in `apply` behind `check`. Backup's keep list and docstrings only name it. The
+    contribution's `SettingsPatch` field is not adopted (a second writer)."""
+    ref = re.compile(r"\b(wai|wiskey_auto_install|install)\.SWITCH_KEY\b")
+    users = sorted(p.relative_to(BACKEND).as_posix() for p in PACKAGE.rglob("*.py")
+                   if p.name != "wiskey_auto_install.py" and ref.search(p.read_text(encoding="utf-8")))
+    assert users == ["smplwise/services/wiskey_switches.py"]
+    text = (PACKAGE / "services" / "wiskey_switches.py").read_text(encoding="utf-8")
+    assert text.count("set_setting(") == 1  # the import line names it without a call
+    body = text[text.index("def apply("):]
+    assert "set_setting(conn, key, changes[key])" in body and body.index("check(changes)") < body.index("set_setting(")
+    from smplwise.routers import settings as settings_router
+
+    fields = settings_router.SettingsPatch.model_fields
+    assert not any(f.alias == install.SWITCH_KEY or name == "wiskey_auto_install" for name, f in fields.items())
 
 
 def test_1b_the_switch_is_off_by_default_on_a_fresh_database(database):
