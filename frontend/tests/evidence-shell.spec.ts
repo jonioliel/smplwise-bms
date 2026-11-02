@@ -573,7 +573,7 @@ test.describe('CR-013 shell with a (mocked) backend', () => {
     // the rule-alert inbox stays where it was: the alerts tab of the rules (the rule alerts also arrive in the center as the source "התראות מחוקים")
     await open(page, '/investigate/rules?tab=alerts');
     const rules = page.locator('sw-app investigate-rules');
-    await expect(rules.locator('sw-tabs button[aria-pressed="true"]')).toContainText('התראות');
+    await expect(rules.locator('sw-tabs button[role="tab"][aria-selected="true"]')).toContainText('התראות');
     await expect(rules.locator('[data-alert-row]')).toHaveCount(3);
     await expect(rules.locator('[data-alert-ack]')).toHaveCount(0); // the admin mock holds no events.ack
     // a single open alert reads in the singular

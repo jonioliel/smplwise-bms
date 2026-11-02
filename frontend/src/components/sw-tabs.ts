@@ -1,10 +1,10 @@
-import { LitElement, html, css } from 'lit';
+import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import './sw-dropdown';
 import './sw-icon';
 import type { DdPanel, DdRing, DdSize, DdStyle } from './sw-dropdown';
 import { motionReduced } from '../design/apply';
-import { fadeOf, moreSides, nextIndex, pageDelta, revealDelta, wheelDelta, wheelPixels, type Extent, type Side } from './tab-strip';
+import { fadeOf, moreSides, nextIndex, pageDelta, rovingStop, revealDelta, wheelDelta, wheelPixels, type Extent, type Side } from './tab-strip';
 import type { IconName } from './sw-icon';
 
 export interface TabItem {
@@ -68,6 +68,10 @@ export class SwTabs extends LitElement {
   @property({ type: Boolean }) tall = false;
   /** SERVICEIA1-295: the bar forms show each item's `short` label when it has one (the shell's phone rows). */
   @property({ type: Boolean, attribute: 'short-labels' }) shortLabels = false;
+  /** A11Y-R4-LEFTOVERS-2380: the id of the element (in the same tree as this strip) that holds the content of the selected tab. The strip
+   * marks it `role="tabpanel"` and names it by the selected tab's label (an id reference cannot cross the shadow root, so the name is the
+   * label text, not `aria-labelledby`). Leave empty for tabs that navigate (links): the page itself is the panel. */
+  @property() panel = '';
 
   static styles = css`
     :host {
@@ -478,6 +482,12 @@ export class SwTabs extends LitElement {
     const focused = (this.renderRoot as ShadowRoot).activeElement as HTMLElement | null;
     const at = focused ? tabs.indexOf(focused) : -1;
     if (at < 0) return; // the focus is not on a tab of this strip
+    // a link takes Enter by itself; a tab (ARIA) is also opened by Space
+    if (ev.key === ' ' && focused?.tagName === 'A') {
+      ev.preventDefault();
+      focused.click();
+      return;
+    }
     const next = nextIndex(ev.key, at, tabs.length, this.rtl);
     if (next === null) return;
     ev.preventDefault();
@@ -506,6 +516,7 @@ export class SwTabs extends LitElement {
     }
     if (changed.has('active') || changed.has('items') || changed.has('variant') || changed.has('underline') || changed.has('adaptive')) this.revealActive();
     this.updateFade();
+    this.markPanel();
   }
 
   /** Which physical edges hide tabs (`data-fade`, direction-agnostic: compares the tabs' boxes with the viewport's box) and which
@@ -519,6 +530,17 @@ export class SwTabs extends LitElement {
     else this.removeAttribute('data-fade');
     if (more) this.setAttribute('data-more', more);
     else this.removeAttribute('data-more');
+  }
+
+  /** A11Y-R4-LEFTOVERS-2380: `panel` names the content element of the selected tab: it becomes a tabpanel named by that tab's label. */
+  private markPanel() {
+    if (!this.panel || this.mode === 'dropdown') return;
+    const root = this.getRootNode() as Document | ShadowRoot;
+    const el = root.querySelector?.<HTMLElement>(`#${CSS.escape(this.panel)}`) ?? null;
+    if (!el) return;
+    const on = this.items.find((i) => i.id === this.active && !i.divider);
+    if (el.getAttribute('role') !== 'tabpanel') el.setAttribute('role', 'tabpanel');
+    if (on) el.setAttribute('aria-label', on.label);
   }
 
   /** Bring one tab fully into view inside the row, clear of the fade and the arrow (never scrolls the page). */
@@ -557,13 +579,18 @@ export class SwTabs extends LitElement {
       return html`<sw-dropdown ?block=${this.block} ?tall=${this.tall} dd-style=${this.ddStyle} dd-size=${this.ddSize} dd-ring=${this.ddRing} dd-panel=${this.ddPanel} .items=${this.items} .value=${this.active} .label=${this.groupLabel} @change=${this.onPick}></sw-dropdown>`;
     }
     const label = (it: TabItem) => html`<span class="lbl">${this.shortLabels && it.short ? it.short : it.label}${it.count !== undefined ? html`<span class="count">(${it.count})</span>` : ''}${it.badge ? html`<span class="tbadge" data-tab-badge=${it.id}>${it.badge}</span>` : ''}${it.dot && !it.badge ? html`<span class="tdot" data-tab-dot=${it.id} aria-hidden="true"></span>` : ''}</span>`;
-    const row = html`<div class="row">${this.items.filter((it) => !it.divider).map((it) =>
+    // A11Y-R4-LEFTOVERS-2380: a real tablist. Every entry is a tab (a link keeps its href and aria-current, a button takes aria-selected in
+    // place of the old pressed state); only the selected tab is in the Tab order (roving tabindex) - the arrow keys, Home and End walk
+    // the others (onKey). A strip with no selected tab keeps its first tab reachable.
+    const shown = this.items.filter((it) => !it.divider);
+    const stop = rovingStop(shown.map((it) => it.id), this.active);
+    const row = html`<div class="row" role="tablist" aria-label=${this.groupLabel || nothing} aria-orientation="horizontal" @keydown=${this.onKey}>${shown.map((it, i) =>
       it.href
-        ? html`<a href=${it.href} class=${it.id === this.active ? 'on' : ''} aria-current=${it.id === this.active ? 'page' : 'false'}>${label(it)}</a>`
-        : html`<button type="button" class=${it.id === this.active ? 'on' : ''} aria-pressed=${it.id === this.active} @click=${() => this.choose(it)}>${label(it)}</button>`,
+        ? html`<a href=${it.href} role="tab" class=${it.id === this.active ? 'on' : ''} aria-selected=${it.id === this.active} tabindex=${i === stop ? 0 : -1} aria-current=${it.id === this.active ? 'page' : 'false'}>${label(it)}</a>`
+        : html`<button type="button" role="tab" class=${it.id === this.active ? 'on' : ''} aria-selected=${it.id === this.active} tabindex=${i === stop ? 0 : -1} @click=${() => this.choose(it)}>${label(it)}</button>`,
     )}</div>`;
     // SETTINGS-TABS-SCROLL-2331: the viewport scrolls (swipe, wheel, the arrows, the arrow keys); the two arrows sit over its ends
-    return html`<div class="vp" part="viewport" data-tabs-viewport @scroll=${this.onScroll} @wheel=${{ handleEvent: this.onWheel, passive: false }} @keydown=${this.onKey}>${row}</div><div class="arr start" data-tabs-arrow="start" aria-hidden="true" @click=${() => this.step('start')}><span class="knob"><sw-icon name="chevronBack" size=${14}></sw-icon></span></div><div class="arr end" data-tabs-arrow="end" aria-hidden="true" @click=${() => this.step('end')}><span class="knob"><sw-icon name="chevron" size=${14}></sw-icon></span></div>`;
+    return html`<div class="vp" part="viewport" data-tabs-viewport @scroll=${this.onScroll} @wheel=${{ handleEvent: this.onWheel, passive: false }}>${row}</div><div class="arr start" data-tabs-arrow="start" aria-hidden="true" @click=${() => this.step('start')}><span class="knob"><sw-icon name="chevronBack" size=${14}></sw-icon></span></div><div class="arr end" data-tabs-arrow="end" aria-hidden="true" @click=${() => this.step('end')}><span class="knob"><sw-icon name="chevron" size=${14}></sw-icon></span></div>`;
   }
 }
 
