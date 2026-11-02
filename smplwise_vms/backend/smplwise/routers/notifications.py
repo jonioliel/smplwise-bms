@@ -462,7 +462,8 @@ def all_deliveries(principal: Principal = Depends(current_principal_ro), conn: s
 def stats(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Per-channel counters for the last 24 hours - `channels[<channel>] = {sent, failed, skipped: {<reason>: n}}` (failed counts failed and gone) -
     the push worker's own counters as `worker` (no endpoints, no ids), plus the notification volume `by_source` (what the settings tab's volume
-    column shows) and the number of registered push devices."""
+    column shows), the number of registered push devices and `app_relay`, the phone-app relay's health (state ok / unconfigured / url_invalid / config_error with the
+    Hebrew message; no URL, no key)."""
     _manager(conn, principal)
     since = iso_utc(dt.datetime.now(dt.timezone.utc) - dt.timedelta(hours=24))
     channels: dict[str, dict[str, Any]] = {}
@@ -476,4 +477,7 @@ def stats(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Co
             c["skipped"][r["reason"] or "other"] = c["skipped"].get(r["reason"] or "other", 0) + r["n"]
     by_source = {r["source"]: r["n"] for r in conn.execute("SELECT source, COUNT(*) AS n FROM notifications WHERE created_at >= ? GROUP BY source ORDER BY n DESC", (since,)).fetchall()}
     worker = {k: push_svc.STATS[k] for k in ("queued", "sent", "retried", "gone", "failed", "refused", "retry_skipped", "rate_limited", "dropped_queue")}
-    return {"since": since, "channels": channels, "worker": worker, "by_source": by_source, "push_devices": conn.execute("SELECT COUNT(*) FROM push_subscriptions").fetchone()[0]}
+    from ..services import mobile_push  # RELAY-SAFE-2380: the phone-app relay's health (a wrong address is shown here, never hidden as dropped devices)
+
+    return {"since": since, "channels": channels, "worker": worker, "by_source": by_source, "push_devices": conn.execute("SELECT COUNT(*) FROM push_subscriptions").fetchone()[0],
+            "app_relay": mobile_push.relay_health()}

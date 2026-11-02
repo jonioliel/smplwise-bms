@@ -8,7 +8,10 @@ How it works (docs/api/mobile-presence-contract.md section 7, CR-027 section 6):
   the real title / body at the administrator's lock-screen level, and calls the relay with `{relay_token, category,
   notification_id (= the message id), priority, server}` only;
 - the app's notification extension fetches `GET notifications/app/{message_id}` with its device token (24 h expiry) and shows
-  the text; if that fails the generic text stays. A 404 / 410 from the relay drops the device's push registration; 429 / 5xx /
+  the text; if that fails the generic text stays. A 404 / 410 from the relay drops the device's push registration ONLY when the answer
+  carries the relay contract's token error body (`relay_token_unknown` / `push_token_gone`, section 8); a plain 404 / 410 (a wrong
+  base URL with an extra path, an HTML page, a proxy) is a relay CONFIGURATION error: the registration stays, the health state says
+  "כתובת הממסר שגויה" and the relay is not called again until a growing backoff has passed (RELAY-SAFE-2380). 429 / 5xx /
   network errors retry on the notifier's heap with the same re-checks as every channel.
 
 Configuration: `SW_PUSH_RELAY_URL` (e.g. https://push.smplwise.com) and `SW_PUSH_RELAY_KEY` (this server's key at the relay),
@@ -31,6 +34,7 @@ import httpx
 
 from ..db import Database, get_setting, new_id, now_iso, set_setting
 from ..errors import ApiError
+from ..relay_url import check_relay_url
 from . import notify, notify_channels, notify_settings, push
 from .notify_policy import CATEGORIES
 from .notify_visibility import Reach, principal_of
@@ -48,15 +52,37 @@ MAX_RETRY_AFTER_S = 300.0
 DROP_AFTER_FAILURES = 10
 TEST_BURST, TEST_PER_MIN = 3, 3.0
 TRANSPORT: httpx.BaseTransport | None = None
-STATS: dict[str, Any] = {"sent": 0, "gone": 0, "failed": 0, "retried": 0, "skipped_unconfigured": 0, "last_error": None, "last_sent_at": None}
+STATS: dict[str, Any] = {"sent": 0, "gone": 0, "failed": 0, "retried": 0, "skipped_unconfigured": 0, "config_errors": 0, "last_error": None, "last_sent_at": None}
+# the relay answers that prove a 404 / 410 is about the phone's TOKEN (docs/api/mobile-presence-contract.md section 8)
+TOKEN_GONE_CODES: dict[int, str] = {404: "relay_token_unknown", 410: "push_token_gone"}
+RELAY_URL_WRONG = "relay_url_wrong"  # device `push_last_error` / delivery reason of a configuration error
+RELAY_URL_WRONG_HE = "כתובת הממסר שגויה"
+CONFIG_BACKOFF_S: tuple[float, ...] = (60.0, 300.0, 900.0, 3600.0)  # after the n-th consecutive configuration error the relay is left alone this long
+CLOCK = time.time  # a seam for the tests
+HEALTH: dict[str, Any] = {"config_errors_in_a_row": 0, "last_config_error_at": None, "last_config_error_status": None, "backoff_until": 0.0, "last_ok_at": None}
+_URL_LOGGED: set[str] = set()
 
 CATEGORY_NAMES_HE: dict[str, str] = {"safety": "בטיחות", "alerts": "התראות", "doors": "דלתות וחלונות", "device_faults": "תקלות בהתקנים", "automations": "אוטומציות", "system": "מערכת", "security": "אבטחה וכניסות", "maintenance": "תחזוקה ובקרה", "building": "הודעות לבניין"}  # building: NOTICEPUSH-295 (the notice board)
 CRITICAL_CATEGORIES = ("safety",)
 
 
+def _checked_relay_url() -> tuple[str | None, str | None]:
+    raw = os.environ.get("SW_PUSH_RELAY_URL") or ""
+    ok, err = check_relay_url(raw, allow_http=TRANSPORT is not None)
+    if err and raw not in _URL_LOGGED:
+        _URL_LOGGED.add(raw)
+        log.warning("the push relay URL is refused: %s", err)  # the value itself is not logged
+    return ok, err
+
+
 def relay_url() -> str | None:
-    u = (os.environ.get("SW_PUSH_RELAY_URL") or "").strip().rstrip("/")
-    return u if u.startswith("https://") or (u.startswith("http://") and TRANSPORT is not None) else None
+    """The validated base URL (https, no path / query / fragment), else None: a malformed value never reaches a request."""
+    return _checked_relay_url()[0]
+
+
+def relay_url_error() -> str | None:
+    """The Hebrew reason the configured URL is refused, None when it is fine or not set."""
+    return _checked_relay_url()[1]
 
 
 def relay_key() -> str | None:
@@ -161,6 +187,7 @@ class Outcome:
     status: int  # HTTP status from the relay; 0 = no answer
     retry_after: float | None = None
     error: str | None = None
+    kind: str | None = None  # "token_gone" (the contract body says the phone's token is unknown) | "relay_config" (a 404 / 410 without it, or skipped by the backoff) | None
 
 
 def send_relay(relay_token: str, category: str, message_id: str, priority: str, server: str, collapse: str | None = None, critical_alert: bool = False, resolved_tone: bool = False) -> Outcome:
@@ -174,6 +201,8 @@ def send_relay(relay_token: str, category: str, message_id: str, priority: str, 
         body["critical_alert"] = True
     elif resolved_tone:  # CRITSERVER217-295: the calming tone of a resolved update (FCM data key `resolved_tone`; iOS ignores it); never together with critical_alert, absent otherwise
         body["resolved_tone"] = True
+    if CLOCK() < HEALTH["backoff_until"]:  # a configuration error was seen a moment ago: do not hammer a wrong address
+        return Outcome(0, error=RELAY_URL_WRONG, kind="relay_config")
     try:
         with httpx.Client(timeout=SEND_TIMEOUT_S, transport=TRANSPORT, follow_redirects=False) as client:
             r = client.post(f"{url}/v1/push", json=body, headers={"Authorization": f"Bearer {key}", "User-Agent": "SmplWiseArx-server"})
@@ -186,7 +215,61 @@ def send_relay(relay_token: str, category: str, message_id: str, priority: str, 
             retry_after = min(MAX_RETRY_AFTER_S, max(0.0, float(ra)))
         except ValueError:
             retry_after = None
-    return Outcome(r.status_code, retry_after, None if r.is_success else f"http_{r.status_code}")
+    kind = None
+    if r.status_code in TOKEN_GONE_CODES:
+        kind = "token_gone" if _answer_code(r) in TOKEN_GONE_CODES.values() else "relay_config"
+    if kind == "relay_config":
+        _note_config_error(r.status_code)
+    elif r.status_code < 500 and r.status_code != 429 and not 300 <= r.status_code < 400:  # a real relay answered (2xx, its own 4xx): the address is right
+        _note_relay_reached(success=r.is_success)
+    return Outcome(r.status_code, retry_after, None if r.is_success else (RELAY_URL_WRONG if kind == "relay_config" else f"http_{r.status_code}"), kind)
+
+
+def _answer_code(r: httpx.Response) -> str | None:
+    """The relay's JSON error `code`, only from a JSON answer; HTML, an empty body or anything else is None."""
+    if "json" not in (r.headers.get("content-type") or "").lower():
+        return None
+    try:
+        body = r.json()
+    except ValueError:
+        return None
+    code = body.get("code") if isinstance(body, dict) else None
+    return code if isinstance(code, str) else None
+
+
+def _note_config_error(status: int) -> None:
+    n = HEALTH["config_errors_in_a_row"] + 1
+    wait = CONFIG_BACKOFF_S[min(n, len(CONFIG_BACKOFF_S)) - 1]
+    HEALTH.update(config_errors_in_a_row=n, last_config_error_at=now_iso(), last_config_error_status=status, backoff_until=CLOCK() + wait)
+    log.warning("the push relay answered %s without its contract body: the relay address is wrong; registrations are kept (backoff %ss)", status, wait)
+
+
+def _note_relay_reached(*, success: bool) -> None:
+    HEALTH.update(config_errors_in_a_row=0, backoff_until=0.0)
+    if success:
+        HEALTH["last_ok_at"] = now_iso()
+
+
+def reset_health() -> None:
+    HEALTH.update(config_errors_in_a_row=0, last_config_error_at=None, last_config_error_status=None, backoff_until=0.0, last_ok_at=None)
+    _URL_LOGGED.clear()
+
+
+def relay_health() -> dict[str, Any]:
+    """The push health state for the administrator (`GET notify/stats`, member `app_relay`): `state` is ok | unconfigured | url_invalid | config_error,
+    with the Hebrew message of the problem; never the URL itself or the key."""
+    url_err = relay_url_error()
+    if url_err:
+        state, message = "url_invalid", url_err
+    elif HEALTH["config_errors_in_a_row"]:
+        state, message = "config_error", RELAY_URL_WRONG_HE
+    elif not configured():
+        state, message = "unconfigured", None
+    else:
+        state, message = "ok", None
+    left = max(0.0, HEALTH["backoff_until"] - CLOCK())
+    return {"configured": configured(), "state": state, "message": message, "config_errors_in_a_row": HEALTH["config_errors_in_a_row"], "last_config_error_at": HEALTH["last_config_error_at"],
+            "last_config_error_status": HEALTH["last_config_error_status"], "backoff_seconds_left": int(left), "last_ok_at": HEALTH["last_ok_at"]}
 
 
 def retryable(status: int) -> bool:
@@ -194,7 +277,8 @@ def retryable(status: int) -> bool:
 
 
 def record(db: Database, device_id: str, outcome: Outcome, final: bool, *, delivery_id: str | None, notification_id: str | None, attempt: int) -> str:
-    """Store the relay's answer on the device row and the delivery log: sent / gone (push dropped) / retry / failed (dropped after DROP_AFTER_FAILURES)."""
+    """Store the relay's answer on the device row and the delivery log: sent / gone (push dropped; only on the contract's token error body) / retry /
+    failed (dropped after DROP_AFTER_FAILURES) / config_error (the relay address is wrong: registration kept, no failure counted)."""
     st = outcome.status
     with db.connection(label="mobile_push.record") as conn:
         if 200 <= st < 300:
@@ -202,6 +286,13 @@ def record(db: Database, device_id: str, outcome: Outcome, final: bool, *, deliv
             STATS["sent"] += 1
             STATS["last_sent_at"] = now_iso()
             result = "sent"
+        elif outcome.kind == "relay_config" or (st in (404, 410) and outcome.kind != "token_gone"):
+            # a 404 / 410 that is not the contract's token error, or a call skipped by the backoff: the relay ADDRESS is wrong, not the phone's
+            # token. Keep the registration, count no device failure (ten of them would drop it), do not retry this message.
+            conn.execute("UPDATE mobile_devices SET push_last_error = ? WHERE id = ?", (RELAY_URL_WRONG, device_id))
+            STATS["config_errors"] += 1
+            STATS["last_error"] = RELAY_URL_WRONG
+            result = "config_error"
         elif st in (404, 410):
             unregister(conn, device_id)
             conn.execute("UPDATE mobile_devices SET push_last_error = ? WHERE id = ?", (f"relay_{st}", device_id))
@@ -222,8 +313,8 @@ def record(db: Database, device_id: str, outcome: Outcome, final: bool, *, deliv
                 unregister(conn, device_id)
             result = "failed"
         if delivery_id:
-            status = {"sent": "sent", "gone": "gone", "retry": "retry", "failed": "failed"}[result]
-            notify_channels.set_delivery(conn, [delivery_id], status, None if status == "sent" else (outcome.error or f"http_{st}"), attempt)
+            status = {"sent": "sent", "gone": "gone", "retry": "retry", "failed": "failed", "config_error": "failed"}[result]
+            notify_channels.set_delivery(conn, [delivery_id], status, None if status == "sent" else (RELAY_URL_WRONG if result == "config_error" else (outcome.error or f"http_{st}")), attempt)
             if status in ("failed", "gone") and notification_id:
                 conn.execute("INSERT INTO notification_events(notification_id, at, kind, channel) VALUES (?,?,?,?)", (notification_id, now_iso(), "delivery_failed", CHANNEL))
     return result
@@ -377,4 +468,4 @@ def send_test(db: Database, device_id: str) -> dict[str, Any]:
 
 
 def janitor_stats() -> dict[str, Any]:
-    return {**STATS, "configured": configured(), "checked_at": time.time()}
+    return {**STATS, "configured": configured(), "relay": relay_health(), "checked_at": time.time()}

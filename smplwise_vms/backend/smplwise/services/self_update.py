@@ -45,6 +45,7 @@ from typing import Any
 from .. import __version__
 from ..config import Settings
 from ..db import get_setting, set_setting
+from ..relay_url import check_relay_url
 from .timeutil import iso_utc
 
 DEFAULT_BASE = "http://supervisor"
@@ -95,7 +96,7 @@ OPTION_TYPES: dict[str, str] = {
     "go2rtc_url": "str?", "go2rtc_api_username": "str?", "wiskey_username": "str?",
     "remote_access": "bool", "remote_path": "remote_path", "db_write_gate": "bool?", "db_conn_pool": "bool?",
     "log_level": "log_level",
-    "push_relay_url": "str?",  # CR-027: the SmplWise push relay's URL (config.py reads it into the environment; the key is in the secrets store)
+    "push_relay_url": "relay_url",  # CR-027 (RELAY-SAFE-2380: https base only, validated by relay_url.check_relay_url): the SmplWise push relay's URL (config.py reads it into the environment; the key is in the secrets store)
     "fleet_report_url": "str?",  # CR-FLEET215: the SmplWise fleet receiver's URL (config.py reads it into the environment; the Arx switch is the other key)
     "frigate_enabled": "bool?",  # CR-029: the Frigate recorder type is selectable (run.sh maps it to SW_FRIGATE)
     "cast_relay": "bool?",  # CR-028: the cast relay's listener (18092/tcp, unmapped by default)
@@ -155,6 +156,8 @@ def _option_ok(kind: str, value: Any) -> bool:
         if not isinstance(value, str) or len(value) > OPTION_STR_MAX:
             return False
         return kind != "remote_path" or bool(REMOTE_PATH_RE.fullmatch(value))
+    if kind == "relay_url":  # a push relay base URL or empty; the same rule as services/mobile_push (RELAY-SAFE-2380)
+        return value is None or (isinstance(value, str) and len(value) <= OPTION_STR_MAX and check_relay_url(value)[1] is None)
     if kind == "port":
         return isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 65535
     if kind in ("bool", "bool?"):
