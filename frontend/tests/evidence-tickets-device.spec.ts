@@ -255,6 +255,9 @@ test.describe('tickets on a device (CR-038 slice 3)', () => {
     fs.mkdirSync(EVIDENCE_COPY, { recursive: true });
     const shot = async (name: string) => {
       const buf = await page.screenshot({ path: path.join(EVIDENCE, `${name}-${tag}.png`) });
+      // GATE2360-A: test-results/ is the output folder of every Playwright run in this checkout, and a run that starts empties it - in the
+      // gate's parallel pool another run did so in the middle of this 8-minute test (ENOENT in the 2.35.0 and 2.36.0 gates)
+      fs.mkdirSync(EVIDENCE_COPY, { recursive: true });
       fs.writeFileSync(path.join(EVIDENCE_COPY, `${name}-${tag}.png`), buf);
     };
     for (const skin of ['classic', 'domus'] as const) {
