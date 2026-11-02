@@ -443,19 +443,16 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
         fid = area_floor.get(scope_id)
         floor_name = (floors[fid]["name"] if fid in floors else dsvc.NO_FLOOR_NAME) if fid else None
     if building is not None:
-        keep = building_scope.building_areas(conn, building, list(areas.values()))
-        if scope == "area" and scope_id not in keep:
-            raise building_scope.outside({"building_id": building, "scope": scope, "id": scope_id})
-        if scope == "floor" and not any(fid == scope_id and aid in keep for aid, fid in area_floor.items()):
-            raise building_scope.outside({"building_id": building, "scope": scope, "id": scope_id})
+        bcut = building_scope.cut(conn, building, list(areas.values()))
+        if (scope == "area" and not bcut.area_in(scope_id)) or (scope == "floor" and not bcut.floor_in(scope_id, area_floor)):
+            raise bcut.refuse(scope=scope, id=scope_id)
         if only is not None:
-            stray = sorted(e["entity_id"] for e in in_scope if e["entity_id"] in only and e.get("area_id") not in keep)
+            stray = bcut.strays(e for e in in_scope if e["entity_id"] in only)
             if stray:
-                raise building_scope.outside({"building_id": building, "scope": scope, "id": scope_id, "entity_count": len(stray)})
-        in_scope = [e for e in in_scope if e.get("area_id") in keep]
+                raise bcut.refuse(scope=scope, id=scope_id, entity_count=len(stray))
+        in_scope = bcut.keep(in_scope)
         if scope == "building":
-            row = conn.execute("SELECT name FROM buildings WHERE id = ?", (building,)).fetchone()
-            name = row[0] if row else name
+            name = bcut.name(conn) or name
     if only is not None:
         if len(only) > ONLY_MAX:
             raise ApiError(422, "validation", f"ניתן לצמצם לכל היותר {ONLY_MAX} התקנים.", details={"fields": ["only"]})

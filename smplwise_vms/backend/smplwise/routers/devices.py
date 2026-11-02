@@ -312,14 +312,14 @@ def items(
         raise ApiError(422, "validation", "נדרש מזהה קומה או אזור (id).", details={"fields": ["id"]})
     reads = _RequestReads(conn)
     entities, scoped = _visible_entities(conn, principal, reads)
+    bcut: building_scope.Cut | None = None
     if building is not None:
         _fl, all_areas = svc.load_structure(conn, entities)
-        keep = building_scope.building_areas(conn, building, all_areas)
-        if scope == "area" and id not in keep:
+        bcut = building_scope.cut(conn, building, all_areas)
+        area_floor = {a["area_id"]: a.get("floor_id") or svc.NO_FLOOR for a in all_areas}
+        if (scope == "area" and not bcut.area_in(id)) or (scope == "floor" and not bcut.floor_in(id or "", area_floor)):
             raise ApiError(404, "not_found", "הקומה או האזור לא נמצאו.")
-        if scope == "floor" and not any(a["area_id"] in keep and (a.get("floor_id") or svc.NO_FLOOR) == id for a in all_areas):
-            raise ApiError(404, "not_found", "הקומה או האזור לא נמצאו.")
-        entities = [e for e in entities if e.get("area_id") in keep]
+        entities = bcut.keep(entities)
     control_of = ha_scope.control_checker(conn, principal)
     body = svc.build_items(conn, entities, kind, scope, id or "*", scoped=scoped, control_of=control_of, switches=switches)
     if body is None:
@@ -370,11 +370,10 @@ def items(
                         r["wiskey_door"] = True
                         r["can_unlock"] = not r.get("alarm_managed") and _wiskey_open_allowed(conn, principal, r["entity_id"])
     body["sync"] = ha_sync.STATE.as_dict()
-    if building is not None:
+    if bcut is not None:
         body["building_id"] = building
         if scope == "building":
-            row = conn.execute("SELECT name FROM buildings WHERE id = ?", (building,)).fetchone()
-            body["name"] = row[0] if row else body["name"]
+            body["name"] = bcut.name(conn) or body["name"]
     return body
 
 

@@ -71,15 +71,64 @@ def area_buildings(conn: sqlite3.Connection, areas: list[dict[str, Any]] | None 
 
 def building_areas(conn: sqlite3.Connection, building_id: str, areas: list[dict[str, Any]] | None = None) -> set[str]:
     """The platform areas of one live building; 404 `building_not_found` for an unknown or deleted building."""
-    row = conn.execute("SELECT 1 FROM buildings WHERE id = ? AND deleted_at IS NULL", (building_id,)).fetchone()
-    if not row:
-        raise ApiError(404, "building_not_found", "הבניין לא נמצא.", details={"building_id": building_id})
-    return {aid for aid, bid in area_buildings(conn, areas).items() if bid == building_id}
+    return set(cut(conn, building_id, areas).areas)
 
 
 OUTSIDE_MESSAGE = "ההיקף שנבחר אינו שייך לבניין הזה, ולכן לא נשלח דבר. פעולה בבניין אחד לעולם אינה נוגעת בבניין אחר."
+REFUSAL_CODES = frozenset({"outside_building", "building_not_found"})  # the two refusals a building-scoped request can get from here
 
 
 def outside(details: dict[str, Any]) -> ApiError:
     """The refusal of a scope / entity outside the building the request names (audited by the caller)."""
     return ApiError(403, "outside_building", OUTSIDE_MESSAGE, details=details)
+
+
+class Cut:
+    """One building's cut of a request - the ONE check every route that accepts `building` runs (the bulk preview / run, the tiles list,
+    the single-entity action route): which areas are the building's, whether a floor / area / entity is inside it, and the refusal when
+    it is not. It only ever narrows: the permission rules of each route run as before on what is left."""
+
+    __slots__ = ("building_id", "areas")
+
+    def __init__(self, building_id: str, areas: set[str]) -> None:
+        self.building_id = building_id
+        self.areas = frozenset(areas)
+
+    def area_in(self, area_id: str | None) -> bool:
+        return bool(area_id) and area_id in self.areas
+
+    def floor_in(self, floor_id: str, area_floor: dict[str, Any]) -> bool:
+        """A platform floor is in the building when at least one of its areas is (a floor split between buildings is cut by `keep`)."""
+        return any(fid == floor_id and aid in self.areas for aid, fid in area_floor.items())
+
+    def strays(self, entities: Any) -> list[str]:
+        """The entity ids (rows with `entity_id` / `area_id`) whose area is not the building's - sorted, for the refusal's count."""
+        return sorted(e["entity_id"] for e in entities if not self.area_in(e.get("area_id")))
+
+    def keep(self, entities: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [e for e in entities if self.area_in(e.get("area_id"))]
+
+    def name(self, conn: sqlite3.Connection) -> str | None:
+        row = conn.execute("SELECT name FROM buildings WHERE id = ?", (self.building_id,)).fetchone()
+        return row[0] if row else None
+
+    def refuse(self, **details: Any) -> ApiError:
+        return outside({"building_id": self.building_id, **details})
+
+
+def cut(conn: sqlite3.Connection, building_id: str, areas: list[dict[str, Any]] | None = None) -> Cut:
+    """The cut of one live building; 404 `building_not_found` for an unknown or deleted building."""
+    row = conn.execute("SELECT 1 FROM buildings WHERE id = ? AND deleted_at IS NULL", (building_id,)).fetchone()
+    if not row:
+        raise ApiError(404, "building_not_found", "הבניין לא נמצא.", details={"building_id": building_id})
+    return Cut(building_id, {aid for aid, bid in area_buildings(conn, areas).items() if bid == building_id})
+
+
+def require_entity(conn: sqlite3.Connection, building_id: str, entity: dict[str, Any]) -> Cut:
+    """A single-entity request inside a building (`POST /ha/entities/{id}/actions` with `building`): the entity's own area (an entity
+    row of ha_sync.entity_row - its area, else its device's) must be one of the building's areas; an entity without an area belongs to
+    no building. 403 `outside_building` / 404 `building_not_found`, audited by the caller."""
+    c = cut(conn, building_id, dsvc.load_structure(conn, [entity])[1])
+    if not c.area_in(entity.get("area_id")):
+        raise c.refuse(entity_id=entity["entity_id"])
+    return c
