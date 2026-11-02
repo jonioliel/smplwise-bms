@@ -375,6 +375,10 @@ export class SwApp extends LitElement {
          whole shell (and, installed, the whole app); the screens refresh themselves from the live channel */
       main {
         overscroll-behavior-y: contain;
+        /* A11Y-R4-LEFTOVERS-2380 (WCAG 2.4.11): the settings save row (.foot.sticky: 44 px key + 2 x 10 px padding + the border = 66 px, 8 px above the
+           bottom edge) is pinned over the page's lower edge; a field that takes focus or is scrolled to is kept clear of it, never left under it.
+           The row sits in the flow (sticky), so at the end of a page it is in its own place and covers nothing: no bottom padding is needed. */
+        scroll-padding-block-end: calc(var(--sw-s-2) + 66px);
       }
       nav.rail {
         display: none;
@@ -838,6 +842,14 @@ export class SwApp extends LitElement {
       color: var(--sw-text);
       font-size: var(--sw-fs-sm);
       line-height: 1.45;
+    }
+    /* A11Y-R4-LEFTOVERS-2380: a keyboard open puts the focus on the note itself */
+    .float .syspop:focus {
+      outline: none;
+    }
+    .float .syspop:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: 2px;
     }
     .float .syspop b {
       display: block;
@@ -2402,7 +2414,7 @@ export class SwApp extends LitElement {
     // POLISH4-WP1 D1: for them the dot is a key that opens a read-only note (the state in words + the components), not a bare dot
     if (!this.canOpenHealth())
       return html`<button type="button" class="sysdot ${status}" data-sys-pill data-sys-static data-status=${status} title=${`${text}\n${title}`.trim()} aria-label=${`מצב המערכת: ${text}`}
-        aria-haspopup="dialog" aria-expanded=${this.sysPop ? 'true' : 'false'} aria-controls=${this.sysPop ? 'sys-pop' : nothing} @click=${() => (this.sysPop = !this.sysPop)}><i></i></button>`;
+        aria-haspopup="dialog" aria-expanded=${this.sysPop ? 'true' : 'false'} aria-controls=${this.sysPop ? 'sys-pop' : nothing} @click=${this.onSysDotClick}><i></i></button>`;
     return html`<button type="button" class="sysdot ${status}" data-sys-pill data-status=${status} title=${`${text}\n${title}`.trim()} aria-label=${`מצב המערכת: ${text}`} @click=${() => (window.location.hash = '#/system/diagnostics?tab=health')}><i></i></button>`;
   }
 
@@ -2413,7 +2425,7 @@ export class SwApp extends LitElement {
     const s = this.sys;
     const { text } = s ? this.sysWords(s) : { text: 'מערכת מקומית' };
     const items = s?.items ?? [];
-    return html`<div class="syspop" id="sys-pop" data-sys-pop role="dialog" aria-label="מצב המערכת">
+    return html`<div class="syspop" id="sys-pop" data-sys-pop role="dialog" aria-label="מצב המערכת" tabindex="-1" @focusout=${this.onSysPopFocusOut}>
       <b>${`מצב המערכת: ${text}`}</b>
       <ul>${items.length ? items.map((i) => html`<li>${i.label}</li>`) : html`<li>כל הרכיבים שהמערכת רואה עובדים</li>`}</ul>
     </div>`;
@@ -2431,6 +2443,24 @@ export class SwApp extends LitElement {
   private onSysPopOutside = (e: PointerEvent) => {
     const path = e.composedPath();
     if (path.some((n) => n instanceof HTMLElement && (n.hasAttribute('data-sys-pop') || n.hasAttribute('data-sys-static')))) return;
+    this.sysPop = false;
+  };
+
+  /** A11Y-R4-LEFTOVERS-2380: a press on the key toggles the note; opened from the KEYBOARD (Enter / Space: a click with `detail` 0) the focus moves into
+   * the note, so a screen reader reads it and Escape (onGlobalKey) gives the focus back to the key. A pointer or touch open leaves the focus alone. */
+  private onSysDotClick = (e: MouseEvent) => {
+    this.sysPop = !this.sysPop;
+    if (!this.sysPop || e.detail !== 0) return;
+    void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>('[data-sys-pop]')?.focus({ preventScroll: true }));
+  };
+
+  /** The note is not modal: Tab leaves it for the next control, and it closes behind the focus (focus is not pulled back; a focus that leaves the window
+   * - relatedTarget null - keeps it open). */
+  private onSysPopFocusOut = (e: FocusEvent) => {
+    const to = e.relatedTarget as Element | null;
+    if (!to) return;
+    const note = this.renderRoot.querySelector('[data-sys-pop]');
+    if (note?.contains(to) || to.closest?.('[data-sys-static]')) return;
     this.sysPop = false;
   };
 
