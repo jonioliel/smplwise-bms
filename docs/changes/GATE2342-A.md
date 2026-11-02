@@ -61,6 +61,20 @@ PERF-HOME-DEVICES-2342 intends that the shell no longer defines every screen eag
 - `evidence-calendars-settings-2310.spec.ts:193` (desktop + tablet): read the providers right after the page's load event; the
   screen is now drawn after its chunk lands, so the spec waits for the three providers first (its sibling test already waited).
 
+## 2a. Merged with fix/GATE2342-B
+
+GATE2342-B (`0d31eee2b`) found the same product root cause as section A and fixed it at the route: the shell does not render a
+lazy route tag before its chunk landed (`waitingScreenTags`, a shared in-flight `loadScreen` with a 3 s retry). This branch merges
+`origin/fix/GATE2342-B` (`88ad61aea`) and keeps B's loader; section A's park / upgrade-detached / restore now runs on top of it in
+`loadPendingScreens`, the safety net for lazy tags the route template does not show (the shell's embedded floor map, the home
+screen's plan view - B does not cover `devices-building`). A tag whose chunk landed without defining it is never parked again.
+The branch merges cleanly with `origin/fix/GATE2342-B` and `origin/fix/GATE2342-PIXEL` (`git merge-tree`).
+
+Sections B and C do NOT share that cause: there the element is never defined on the address at all (`<sw-popover>`,
+`<devices-protected-switches>` and `<media-area-card>` are mounted by the spec, not rendered by a route), so the route wait
+cannot help; the changes there are a product import (style guide) and specs that follow the intended lazy behaviour. The calendars
+wait is for the screen, which is drawn after the load event with either loader - not a mask for the shell bug.
+
 ## 2. Files
 
 | File | Change |
@@ -87,6 +101,8 @@ Runner (`run_smart.py ... --workers=1 --machine runner`, desktop / tablet / mobi
 | 2 | `evidence-protected-switches`, `evidence-media-player-panel` | `spec` (dev server) | `954a57ef5` | 126 passed, **3 failed** (`:657` x 3, the stub collision above), 3 did not run (`:711`) |
 | 3 | `evidence-media-player-panel` | `spec` | `1f19b1b50` | 93 passed, 3 failed, 3 did not run (the stage was gone: the failed chunk reloaded the page) |
 | 4 | `evidence-media-player-panel`, `evidence-protected-switches` | `spec` | `9c1cdf60a` | **132 passed, 0 failed** |
+| 5 | as run 1 | `preview` | `88ad61aea` (merged with GATE2342-B) | **172 passed, 0 failed, 44 skipped** |
+| 6 | as run 4 | `spec` | `88ad61aea` (merged with GATE2342-B) | **132 passed, 0 failed** |
 
 Every test of the gate's list in this group passed on the runner: `layout-st7-ui:51` 8/8 desktop (the guard runs on desktop only);
 `evidence-st7-ui` 35/63/84/106/132 desktop + tablet; `a11y-polished-2342:53`, `evidence-shell:546` desktop / tablet / mobile;
