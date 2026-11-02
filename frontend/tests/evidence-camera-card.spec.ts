@@ -287,6 +287,17 @@ test.describe('the camera card in an area screen (real backend, fake media stack
       { key: 'camera:c3', x: 0, y: 36, camera: nvr(3) },
     ]);
     await open(page);
+    // DIAG-GATE2342B (temporary)
+    await page.waitForTimeout(6000);
+    console.log('DIAG socks', JSON.stringify(await socks(page)));
+    console.log('DIAG page', JSON.stringify(await page.evaluate(() => {
+      const area = document.querySelector('sw-app')?.shadowRoot?.querySelector('devices-area') ?? document.querySelector('devices-area');
+      const cards = [...(area?.shadowRoot?.querySelectorAll('devices-camera-card') ?? [])] as (HTMLElement & Record<string, unknown>)[];
+      return {
+        vh: window.innerHeight, vw: window.innerWidth, hidden: document.hidden,
+        cards: cards.map((c) => { const r = c.getBoundingClientRect(); const res = c.resolved as { state?: string; status?: string } | null; return { key: c.closest('sw-card')?.getAttribute('data-camera-card'), top: Math.round(r.top), h: Math.round(r.height), inView: c.inView, expanded: c.expanded, state: res?.state, status: res?.status, quality: c.quality ?? c.profile, html: c.shadowRoot?.innerHTML.replace(/<!--[^>]*-->/g, '').slice(0, 300) }; }),
+      };
+    })));
     await expect.poll(async () => (await active(page)).length, { timeout: 20000 }).toBe(3);
     const byCam = async () => Object.fromEntries((await active(page)).map((s) => [s.camera, `${s.profile}:${s.kind}`]));
     // the requested profile reaches the relay at any size; the transport is the installation's (MSE) for all three
