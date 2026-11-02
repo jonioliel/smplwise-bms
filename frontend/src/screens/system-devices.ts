@@ -78,6 +78,10 @@ export class SystemDevices extends LitElement {
   /** CAMHEALTH091: the camera picture check (dark / blurred / frozen / shifted) - the compact card, the picture column and its filter. */
   @state() private image: ImageHealth | null = null;
   @state() private imageFilter: ImageKind | null = null;
+  /** POLISH4-WP2 (D11): the phone width (a shorter row card; the first read shows a skeleton, never the demo rows). */
+  @state() private phone = window.matchMedia('(max-width: 767px)').matches;
+  private phoneMq = window.matchMedia('(max-width: 767px)');
+  private onPhone = () => (this.phone = this.phoneMq.matches);
 
   static styles = [css`
     .filters {
@@ -197,6 +201,27 @@ export class SystemDevices extends LitElement {
       color: var(--sw-text-3);
       font-size: var(--sw-fs-xs);
     }
+    .filters sw-field {
+      inline-size: 200px;
+    }
+    /* POLISH4-WP2 (D11): the phone. A row is a card (sw-table stacks the cells); this screen keeps the camera, its state, the picture
+       check and when it was last seen on the card - FPS, rate, stream and the network bars move to the drawer, so a camera reads in
+       one glance instead of a nine-line column. The search takes the full row under the chips. */
+    @media (max-width: 767px) {
+      .filters sw-field {
+        inline-size: auto;
+        flex: 1 1 100%;
+      }
+      .filters .grow {
+        display: none;
+      }
+      .stage {
+        min-block-size: 0;
+      }
+      .nvr {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
   `, bubbleChrome];
 
   connectedCallback() {
@@ -207,7 +232,13 @@ export class SystemDevices extends LitElement {
     const f = params.get('filter');
     if (f === 'all' || f === 'online' || f === 'offline' || f === 'issues') this.filter = f;
     this.offlineFirst = params.get('sort') === 'offline';
+    this.phoneMq.addEventListener('change', this.onPhone);
     void this.reload();
+  }
+
+  disconnectedCallback() {
+    this.phoneMq.removeEventListener('change', this.onPhone);
+    super.disconnectedCallback();
   }
 
   private async reload() {
@@ -215,6 +246,7 @@ export class SystemDevices extends LitElement {
       this.cameras = null;
       return;
     }
+    this.error = '';
     try {
       const r = await listCameras();
       this.cameras = r.cameras;
@@ -350,6 +382,11 @@ export class SystemDevices extends LitElement {
     { key: 'net', label: 'רשת', render: (r) => this.net(r.state === 'live' ? 4 : r.state === 'stale' ? 2 : 0) },
     { key: 'more', label: '', width: '40px', render: () => html`<sw-button variant="ghost" size="sm" iconOnly icon="more" label="עוד"></sw-button>` },
   ];
+  /** POLISH4-WP2 (D11): the columns a phone row card keeps; the rest are in the drawer (see `render`). */
+  private static readonly PHONE_KEYS = new Set(['name', 'state', 'image', 'lastEvent']);
+  private get shownColumns(): TableColumn[] {
+    return this.phone ? this.columns.filter((c) => SystemDevices.PHONE_KEYS.has(c.key)) : this.columns;
+  }
 
   render() {
     const all = this.rows;
@@ -365,7 +402,7 @@ export class SystemDevices extends LitElement {
         ${api && this.discovery ? html`<div style="font-size:var(--sw-fs-xs);color:${this.discovery.cameras_last_error ? 'var(--sw-danger)' : 'var(--sw-text-3)'};margin-block-end:8px">גילוי אוטומטי מה־NVR כל ${Math.round(this.discovery.interval_s / 60)} דק׳ · ${this.discovery.cameras_last_error ? `נכשל: ${this.discovery.cameras_last_error}` : this.discovery.cameras_last_ok ? `הצליח ${this.discovery.cameras_last_ok.replace('T', ' ').replace('Z', ' UTC')}` : 'טרם רץ'}${this.discovery.streams_last_error ? ` · זרמי go2rtc: ${this.discovery.streams_last_error}` : ''}</div>` : nothing}
         ${api && this.canSync ? html`<sw-button slot="actions" variant="primary" icon="plus" @click=${() => { this.dialog = true; this.formAlias = ''; this.formChannel = (all.length ? Math.max(...all.map((c) => c.channel)) : 0) + 1; }}>רישום ידני</sw-button>` : nothing}
         ${this.message ? html`<div class="ok">${this.message}</div>` : nothing}
-        ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
+        ${this.error && !(isApi() && !api) ? html`<div class="err">${this.error}</div>` : nothing}
         ${api && this.image ? html`<camera-image-health-card .data=${this.image} .selected=${this.imageFilter}
           @cih-updated=${(e: CustomEvent<ImageHealth>) => (this.image = e.detail)} @cih-filter=${(e: CustomEvent<ImageKind | null>) => (this.imageFilter = e.detail)}></camera-image-health-card>` : nothing}
         <div class="filters">
@@ -374,12 +411,16 @@ export class SystemDevices extends LitElement {
           <sw-chip dot="var(--sw-danger)" ?selected=${this.filter === 'offline'} @click=${() => (this.filter = 'offline')} count=${all.filter((c) => c.state === 'offline').length}>מנותקות</sw-chip>
           <sw-chip dot="var(--sw-stale)" ?selected=${this.filter === 'issues'} @click=${() => (this.filter = 'issues')} count=${all.filter((c) => c.state !== 'live' && c.state !== 'offline').length}>בעיות / לא נבדק</sw-chip>
           <span class="grow"></span>
-          <sw-field style="inline-size:200px"><input type="search" placeholder="חיפוש מצלמה…" aria-label="חיפוש" /></sw-field>
+          <sw-field><input type="search" placeholder="חיפוש מצלמה…" aria-label="חיפוש" /></sw-field>
         </div>
         <div class="stage">
-          ${api && !all.length
+          ${isApi() && !api
+            ? this.error
+              ? html`<sw-state-panel state="error" heading="רשימת המצלמות לא נטענה" hint=${this.error} actionLabel="נסה שוב" data-cam-error @action=${() => void this.reload()}></sw-state-panel>`
+              : html`<sw-state-panel state="loading" heading="טוען מצלמות…" data-cam-loading></sw-state-panel>`
+            : api && !all.length
             ? html`<sw-state-panel icon="camera" state="empty" heading="אין מצלמות רשומות" hint="הגדירו את פרטי ה־NVR בהגדרות ‹ חיבורים ולחצו 'סנכרון מה־NVR', או רשמו ערוץ ידנית."></sw-state-panel>`
-            : html`<sw-table .columns=${this.columns} .rows=${rows} .selected=${this.selected} @row-select=${(e: CustomEvent<{ id: string }>) => { this.selected = e.detail.id; this.alias = all.find((c) => c.id === e.detail.id)?.api?.alias ?? ''; }}></sw-table>`}
+            : html`<sw-table focus-rows .columns=${this.shownColumns} .rows=${rows} .selected=${this.selected} @row-select=${(e: CustomEvent<{ id: string }>) => { this.selected = e.detail.id; this.alias = all.find((c) => c.id === e.detail.id)?.api?.alias ?? ''; }}></sw-table>`}
           ${cam
             ? html`<sw-drawer open heading=${cam.name} subheading=${cam.sub} @close=${() => (this.selected = null)}>
                 <sw-field label="כינוי מקומי" hint="שינוי כינוי אינו משנה OSD; שם ה־NVR נשמר בנפרד"><input .value=${api ? this.alias : cam.name} ?disabled=${!api || !this.canSync} @input=${(e: Event) => (this.alias = (e.target as HTMLInputElement).value)} /></sw-field>
@@ -388,6 +429,7 @@ export class SystemDevices extends LitElement {
                   <dt>Tracks</dt><dd><span class="ltr">${api ? `${cam.api?.main_track ?? '?'} / ${cam.api?.sub_track ?? '?'}` : `${cam.channel}01 / ${cam.channel}02`}</span></dd>
                   <dt>מצב</dt><dd><sw-badge kind=${cam.state}></sw-badge></dd>
                   <dt>נראתה לאחרונה</dt><dd>${cam.lastEvent}</dd>
+                  ${this.phone ? html`<dt>FPS · קצב</dt><dd><span class="ltr">${cam.fps} · ${cam.bitrate}</span></dd><dt>זרם ראשי</dt><dd><span class="ltr">${cam.firmware}</span></dd>` : nothing}
                   ${this.imageOf(cam.id) ? this.imageRows(this.imageOf(cam.id)!) : nothing}
                 </dl>
                 ${this.image?.can_manage && this.imageOf(cam.id) && this.imageOf(cam.id)!.state !== 'excluded' ? html`<div class="refs" data-cih-ref-actions>

@@ -164,11 +164,13 @@ export class LiveCamera extends LitElement {
     const tab = this.schedTab;
     const e = this.schedEdit?.kind === tab ? this.schedEdit : null;
     const days = e ? e.days : tab === 'record' ? s.record?.days : s.arming[tab];
+    // POLISH4-WP2 (D8): the record-mode legend takes skin tokens (dark-aware, skinned). A record mode is a category, never a status, so
+    // "תנועה" is no longer green (green is for status only); it takes the purple tier, distinct from the alarm red and the event amber.
     const recordModes = [
-      { id: 'CMR', label: 'רציף', color: '#2f6bff' },
-      { id: 'MOTION', label: 'תנועה', color: '#16a34a' },
-      { id: 'EDR', label: 'אירוע', color: '#f59e0b' },
-      { id: 'ALARM', label: 'אזעקה', color: '#dc2626' },
+      { id: 'CMR', label: 'רציף', color: 'var(--sw-recorded)' },
+      { id: 'MOTION', label: 'תנועה', color: 'var(--sw-purple)' },
+      { id: 'EDR', label: 'אירוע', color: 'var(--sw-warning)' },
+      { id: 'ALARM', label: 'אזעקה', color: 'var(--sw-danger)' },
     ];
     const canEdit = tab === 'record' ? s.can.schedule : s.can.events;
     const label = kinds.find((k) => k.id === tab)?.label ?? '';
@@ -280,7 +282,7 @@ export class LiveCamera extends LitElement {
       <div class="note">בחר כלל ולחץ על התמונה כדי לצייר: קו = <strong>שתי</strong> לחיצות (התחלה וסוף — לחיצה נוספת מזיזה את הסוף); אזור פריצה = <strong>4 עד 10</strong> לחיצות (נקודה לכל פינה), ואז ישר "שמור ל־NVR" למטה — אין צורך לסגור את הצורה. "אדם" / "רכב" = סינון אזעקות שווא (רק מטרה מסוג זה מפעילה).</div>
       ${ed.line ? html`<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-smart-lines>
           <label class="note" style="display:inline-flex;align-items:center;gap:4px"><input type="checkbox" data-smart-line-enabled .checked=${ed.line.enabled} @change=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, enabled: (e.target as HTMLInputElement).checked } })} /> חציית קו פעילה</label>
-          ${ed.line.lines.map((l) => html`<span style="display:inline-flex;gap:6px;align-items:center;border:1px solid var(--sw-border);border-radius:8px;padding:4px 8px" data-smart-line=${l.id}>
+          ${ed.line.lines.map((l) => html`<span style="display:inline-flex;gap:6px;align-items:center;border:1px solid var(--sw-border);border-radius:var(--sw-r-sm);padding:4px 8px" data-smart-line=${l.id}>
             <sw-chip ?selected=${ed.tool.type === 'line' && ed.tool.id === l.id} data-smart-pick-line=${l.id} @click=${() => (this.smartEdit = { ...ed, tool: { type: 'line', id: l.id } })}>קו ${l.id}${l.points.length === 2 && !(l.points[0][0] === 0 && l.points[0][1] === 1000) ? '' : ' · לא מצויר'}</sw-chip>
             <label class="note"><input type="checkbox" .checked=${l.enabled} @change=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, lines: ed.line!.lines.map((x) => (x.id === l.id ? { ...x, enabled: (e.target as HTMLInputElement).checked } : x)) } })} /> פעיל</label>
             <select class="note" aria-label="כיוון" .value=${l.direction} @change=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, lines: ed.line!.lines.map((x) => (x.id === l.id ? { ...x, direction: (e.target as HTMLSelectElement).value } : x)) } })}>${['any', 'left-right', 'right-left'].map((d) => html`<option value=${d} ?selected=${d === l.direction}>${dir(d)}</option>`)}</select>
@@ -291,7 +293,7 @@ export class LiveCamera extends LitElement {
         </div>` : nothing}
       ${ed.field ? html`<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-smart-regions>
           <label class="note" style="display:inline-flex;align-items:center;gap:4px"><input type="checkbox" data-smart-field-enabled .checked=${ed.field.enabled} @change=${(e: Event) => (this.smartEdit = { ...ed, field: { ...ed.field!, enabled: (e.target as HTMLInputElement).checked } })} /> פריצה לאזור פעילה</label>
-          ${ed.field.regions.map((r) => html`<span style="display:inline-flex;gap:6px;align-items:center;border:1px solid var(--sw-border);border-radius:8px;padding:4px 8px" data-smart-region=${r.id}>
+          ${ed.field.regions.map((r) => html`<span style="display:inline-flex;gap:6px;align-items:center;border:1px solid var(--sw-border);border-radius:var(--sw-r-sm);padding:4px 8px" data-smart-region=${r.id}>
             <sw-chip ?selected=${ed.tool.type === 'field' && ed.tool.id === r.id} data-smart-pick-region=${r.id} @click=${() => (this.smartEdit = { ...ed, tool: { type: 'field', id: r.id } })}>אזור ${r.id} · ${r.points.length} נק׳</sw-chip>
             <sw-button size="sm" variant="ghost" data-smart-region-clear=${r.id} @click=${() => (this.smartEdit = { ...ed, field: { ...ed.field!, regions: ed.field!.regions.map((x) => (x.id === r.id ? { ...x, points: [] } : x)) } })}>נקה</sw-button>
             <label class="note">רגישות <input type="range" min="1" max="100" .value=${String(r.sensitivity)} @input=${(e: Event) => (this.smartEdit = { ...ed, field: { ...ed.field!, regions: ed.field!.regions.map((x) => (x.id === r.id ? { ...x, sensitivity: Number((e.target as HTMLInputElement).value) } : x)) } })} /> ${r.sensitivity}</label>
@@ -584,9 +586,11 @@ export class LiveCamera extends LitElement {
       cursor: pointer;
       box-shadow: var(--sw-shadow-1);
     }
-    .round button:hover {
-      background: var(--sw-surface-2);
-      color: var(--sw-text);
+    @media (hover: hover) and (pointer: fine) {
+      .round button:hover {
+        background: var(--sw-surface-2);
+        color: var(--sw-text);
+      }
     }
     .round button:disabled {
       opacity: var(--sw-disabled-opacity);
