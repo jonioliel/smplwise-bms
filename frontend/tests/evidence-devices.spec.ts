@@ -1133,7 +1133,9 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await expect(ground.locator('devices-bulk-menu[data-floor-menu="cr007_ground"]')).toHaveCount(1);
       await expect(ground.locator('a[data-area-row="cr007_lobby"]')).toHaveAttribute('data-counts', /lights:1\/2/);
       await expect(ground.locator('a[data-area-row="cr007_storage"]')).toContainText('אין התקנים');
-      await expect(scr.locator('section[data-floor-card]')).toHaveCount(await scr.locator('nav[data-devices-tree] [data-tree-floor]').count() + 1); // + ללא שיוך
+      // HOME-295: "ללא שיוך" is the tree's last row; its own floor card is drawn only where no tree is (below 900 px)
+      await expect(scr.locator('section[data-floor-card]')).toHaveCount(await scr.locator('nav[data-devices-tree] [data-tree-floor]').count());
+      await expect(scr.locator('section[data-floor-card="unassigned"]')).toHaveCount(0);
       // "פתח קומה" (or the floor in the tree) narrows the cards to that floor; "כל המבנה" brings everything back
       await ground.locator('sw-button[data-open-floor="cr007_ground"]').click();
       await expect(scr.locator('section[data-floor-card]')).toHaveCount(1);
@@ -1364,7 +1366,17 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       const cs = getComputedStyle(e);
       const m = /rgba?\(([^)]+)\)/.exec(cs.backgroundColor);
       const parts = m ? m[1].split(/[\s,/]+/).filter(Boolean) : [];
-      return { filter: cs.backdropFilter || 'none', alpha: parts.length === 4 ? Number(parts[3]) : 1 };
+      let alpha = parts.length === 4 ? Number(parts[3]) : 1;
+      // PRE-GATE-2350: the classic skin paints cards with a gradient (skins/classic.ts: surface -> 96 % surface mixed with the page
+      // background) over a transparent background colour - the material is then the gradient's least opaque stop
+      if (alpha === 0 && /gradient\(/.test(cs.backgroundImage)) {
+        const stops = [...cs.backgroundImage.matchAll(/rgba?\(([^)]+)\)|color\(srgb ([^)]+)\)/g)].map((s) => {
+          const v = (s[1] ?? s[2]).split(/[\s,/]+/).filter(Boolean);
+          return v.length === 4 ? Number(v[3]) : 1;
+        });
+        if (stops.length) alpha = Math.min(...stops);
+      }
+      return { filter: cs.backdropFilter || 'none', alpha };
     });
   }
 
@@ -1516,7 +1528,8 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
           return `bg=${cs.backgroundColor} img=${cs.backgroundImage.slice(0, 120)} --sw-surface=${cs.getPropertyValue('--sw-surface').trim()} --sw-card-bg=${cs.getPropertyValue('--sw-card-bg').trim()} skin=${document.querySelector('sw-app')?.getAttribute('data-skin') ?? document.documentElement.getAttribute('data-skin')}`;
         });
         expect(solid.filter, why).toBe('none');
-        expect(solid.alpha, why).toBe(1);
+        // solid: no blur and an opaque surface (the classic skin's gradient ends at 96 % of the surface over the glass page)
+        expect(solid.alpha, why).toBeGreaterThanOrEqual(0.95);
       } else {
         testInfo.annotations.push({ type: 'note', description: 'this engine cannot emulate prefers-reduced-transparency; the solid fallback was not exercised' });
       }
@@ -1561,7 +1574,9 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await expect(b2).toHaveAttribute('data-devices-density', 'compact');
       expect(await lobby.evaluate((e) => parseFloat(getComputedStyle(e).paddingTop))).toBeLessThan(padComfortable);
       await expect(b2.locator('[data-climate-strip]')).toHaveCount(0);
-      await expect(lobby.locator('[data-ind="lights"]')).toHaveCount(1); // only the sensors count goes
+      // only the sensors count goes (HOME-295: a tile with quick actions shows them instead of the indicator line, so the
+      // counts are read from data-counts, which follows the shown pills)
+      await expect(lobby).toHaveAttribute('data-counts', /lights:1\/2/);
       await expect(lobby).not.toHaveAttribute('data-counts', /sensors:/);
       // the viewer's own toggle wins from then on (remembered in this browser)
       await setView(b2.page(), 'cards');
@@ -2003,7 +2018,8 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       if (!mobile) await a.locator('[data-layout-variant="phone"]').click();
       await a.locator('sw-button[data-layout-phone-auto]').click();
       await expect.poll(async () => (await (await request.get('/api/v1/devices/layouts/area/cr007_lobby')).json()).phone).toBeNull();
-      expect(await pos(a.locator('.lay-item[data-lay-key="card:lighting"]'))).toMatchObject({ x: 0, w: 4 });
+      // (the screen re-derives after the server answered: poll the grid, not one read right after the record went)
+      await expect.poll(() => pos(a.locator('.lay-item[data-lay-key="card:lighting"]'))).toMatchObject({ x: 0, w: 4 });
       await a.locator('sw-button[data-layout-cancel]').click();
     } finally {
       await resetLayouts(request);
@@ -2317,7 +2333,15 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       expect(box.y + box.height).toBeLessThanOrEqual(rowBox.y + 1);
     }
     await scr.locator('.kpis').evaluate((el) => el.scrollIntoView({ block: 'start' })); // the page scrolls: the row moves away
-    await expect(lowPanel).toHaveCount(0);
+    // PRE-GATE-2350: the control screens fit the window (owner rule 2026-10-24, no page scroll), so the row may not move at all;
+    // the popover closes when its trigger moves, which is only checkable when something did scroll
+    const moved = Math.abs(((await low.boundingBox())?.y ?? rowBox.y) - rowBox.y) > 2;
+    if (moved) await expect(lowPanel).toHaveCount(0);
+    else {
+      testInfo.annotations.push({ type: 'note', description: 'nothing scrolled at this size; the close-on-scroll check did not apply' });
+      await page.keyboard.press('Escape');
+      await expect(lowPanel).toHaveCount(0);
+    }
     if (!mobile) await page.setViewportSize(size);
 
     // a click on the row enters the area
@@ -2519,7 +2543,7 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       await expect(card.locator('.lay-tile[data-lay-tile="light.cr007_lobby"]')).toHaveAttribute('data-tile-size', 'l');
       await expect(card.locator('.lay-tile[data-lay-tile="light.cr007_lobby"]')).toHaveAttribute('style', /span 2/);
       await expect(card.locator('.tile[data-entity="light.cr007_lobby"]')).toContainText('תאורה <b>ראשית</b>');
-      await expect(card).toHaveAttribute('subheading', /^2 התקנים · 1 פעילים/);
+      await expect(card).toHaveAttribute('subheading', /^2 התקנים · אחד פעיל/); // POLISH-CONTROL-297 item 6
       expect(await areaCount()).toBe(chipCount);
       // the tile's controls work again outside the editor
       await expect(card.locator('.tile[data-entity="light.cr007_lobby"] sw-toggle[data-control="power"]')).toBeVisible();
