@@ -31,6 +31,8 @@ import { xsTile, xsTileStyles, type RowBox } from '../xsection/sw-xsection';
 import '../xsection/sw-floor-home-link';
 import './devices-tiles-panel';
 import { demoBuilding, demoSignals, demoTree, loadXsData, matchContext, sectionLinksOf, type XsData } from '../xsection/xs-data';
+import { multiBuildingOn } from '../api/mapping';
+import { floorScreenBuilding } from '../api/home-site';
 import type { HomeLinks } from '../api/catalog';
 import { fireReport, onFire, setFireMock } from '../xsection/fire-store';
 import { floorLightsTarget, linksFold, listStep, nearFloors, onXsOptions, phonePlaceFor, signalsOf, xsFromParams, xsMetrics, xsOptions, type FloorSignal, type XsOptions } from '../xsection/xs-model';
@@ -60,6 +62,8 @@ export class ExploreFloors extends LitElement {
   @state() private hoverId: string | null = null;
   /** SWITCH-LIGHT-DIMMER-2331: the floor whose lights popup is open (its lights strip / count on the section, or the selected floor's button). */
   @state() private lightsOf: FloorSignal | null = null;
+  /** BUILDING-SCOPE-CONTROL-2351: the multi-building switch (home.multi_building) - the floor lights popup names its building to the server. */
+  @state() private multiOn = false;
   private stopXs?: () => void;
   private stopFire?: () => void;
   /** T085: the connectors of each published structure (by version), for the links between floors. */
@@ -158,9 +162,11 @@ export class ExploreFloors extends LitElement {
       stroke: var(--sw-border-strong);
       stroke-width: 0.8;
     }
+    /* POLISH4 WP6 (D13): the floor name was a 6px literal in viewBox units (120 units drawn at 180 px = 9 px on screen, in text-3).
+       It is now the type scale's smallest step on screen: 2xs divided by the 1.5 draw scale, in the secondary ink (4.5:1 on the plate). */
     svg.stack .pname {
-      font-size: 6px;
-      fill: var(--sw-text-3);
+      font-size: calc(var(--sw-fs-2xs) * 2 / 3);
+      fill: var(--sw-text-2);
     }
     svg.stack .lk {
       stroke: var(--sw-accent);
@@ -209,10 +215,6 @@ export class ExploreFloors extends LitElement {
       cursor: pointer;
       box-shadow: var(--sw-shadow-1);
       transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
-    }
-    .floor:hover {
-      border-color: var(--sw-border-strong);
-      box-shadow: var(--sw-shadow-2);
     }
     .floor.on {
       border-color: var(--sw-accent);
@@ -306,16 +308,8 @@ export class ExploreFloors extends LitElement {
       border-color: var(--sw-accent);
       box-shadow: var(--sw-shadow-2);
     }
-    @media (hover: none) {
-      .floor:hover {
-        border-color: transparent;
-        box-shadow: var(--sw-shadow-1);
-      }
-      .floor.on:hover {
-        border-color: var(--sw-accent);
-        box-shadow: var(--sw-shadow-2);
-      }
-    }
+    /* POLISH4 WP6 (D12): the floor rows have one hover, the fine-pointer one below; the ungated :hover and its (hover: none) undo are gone,
+       so a tap on a tablet never leaves a row raised */
     .title {
       font-size: var(--sw-fs-xl);
       font-weight: var(--sw-fw-bold);
@@ -507,6 +501,7 @@ export class ExploreFloors extends LitElement {
     this.stopXs = onXsOptions(() => this.requestUpdate());
     this.stopFire = onFire(() => this.requestUpdate());
     void loadXsData().then((d) => (this.xsData = d));
+    void multiBuildingOn().then((on) => (this.multiOn = on));
   }
 
   disconnectedCallback() {
@@ -619,6 +614,7 @@ export class ExploreFloors extends LitElement {
     const t = f && !demo ? floorLightsTarget(f) : null;
     return html`<devices-tiles-panel kind="lights" data-floor-lights=${f?.id ?? ''} ?open=${!!f} pairedMaster
       scope=${t?.scope ?? 'building'} scopeId=${t?.scopeId ?? ''} scopeName=${f?.name ?? ''} .areaFilter=${t ? t.areaIds : null} switches=${this.xsEff().syn_switches}
+      .building=${t ? floorScreenBuilding(this.multiOn, this.context?.site.buildings?.length ?? 0, this.context?.building.id) : ''}
       headingText=${f ? xt('floorLightsTitle', { name: f.name }) : ''}
       @panel-close=${() => (this.lightsOf = null)} @panel-changed=${() => void loadXsData().then((x) => (this.xsData = x))}></devices-tiles-panel>`;
   }

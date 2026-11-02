@@ -56,6 +56,8 @@ export class InfraGenerator extends LitElement {
   @state() private phase: 'loading' | 'ready' | 'error' = 'loading';
   @state() private error = '';
   @state() private detecting = false;
+  /** The selected generator's own load failed (POLISH4-WP5: the page said "loading" forever; it now says so, with a retry). */
+  @state() private deviceFailed = false;
   private stop?: () => void;
   private timer = 0;
   private readonly tabsMode = new TabsModeController(this, 'area');
@@ -134,9 +136,13 @@ export class InfraGenerator extends LitElement {
   private async loadDevice(id: string) {
     try {
       const d = await getDevice(id);
-      if (id === this.selectedId()) this.device = d;
+      if (id === this.selectedId()) {
+        this.device = d;
+        this.deviceFailed = false;
+      }
     } catch (e) {
       this.error = describeError(e);
+      if (id === this.selectedId() && !this.device) this.deviceFailed = true;
     }
   }
   private async detect() {
@@ -187,7 +193,8 @@ export class InfraGenerator extends LitElement {
     const picker: DropdownItem[] = ds.map((x) => ({ id: x.id, label: `${x.name}${this.summary[x.id] && typeof this.summary[x.id].summary.engine_state?.value === 'string' ? ` · ${(G.engine as Record<string, string>)[String(this.summary[x.id].summary.engine_state.value)] ?? ''}` : ''}`, ...(x.open_alerts ? { alert: true as const } : {}) }));
     const pick = ds.length > 1 ? html`<div class="gpick" data-picker><span class="mut">${G.pickerLabel}</span><sw-dropdown .items=${picker} .value=${d?.id ?? ''} label=${G.pickerLabel} @change=${(e: CustomEvent<DropdownChange>) => this.pick(e)}></sw-dropdown><span class="mut">${ds.length}</span></div>` : nothing;
     let body;
-    if (!d) body = html`<div class="skl" style="block-size:240px" data-state="loading"></div>`;
+    if (!d && this.deviceFailed) body = html`<sw-state-panel state="error" heading=${G.loadError} hint=${this.error} actionLabel=${G.retry} @action=${() => { this.deviceFailed = false; void this.loadDevice(this.selectedId()); }} data-state="error"></sw-state-panel>`;
+    else if (!d) body = html`<div class="skl" style="block-size:240px" data-state="loading" aria-busy="true"></div>`;
     else if (!d.core_met) body = html`<div class="card" data-state="partial"><div class="empty"><div class="ic"><sw-icon name="warning" size="26"></sw-icon></div><h3>${G.notFound.partialTitle}</h3><div class="mut">${G.notFound.partialBody}</div>
       ${this.access.manage ? html`<a class="btn pri" href="#/system/infra/generator/mapping?device=${encodeURIComponent(d.id)}">${G.settings.subs.mapping}</a>` : nothing}</div></div>`;
     else if (page === 'live') body = html`<gen-live-page .device=${d} ?manage=${this.access.manage}></gen-live-page>`;

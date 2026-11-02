@@ -36,7 +36,10 @@ export class CalAttendeesSection extends LitElement {
   @property({ type: Boolean, attribute: 'allow-guests' }) allowGuests = true;
   /** tests and the static demo pass a client; otherwise the session's */
   @property({ attribute: false }) api: AttendeesApi | null = null;
+  /** a new entry: the list it starts from (the quick create's picks, carried by "פרטים נוספים"); read once */
+  @property({ attribute: false }) initial: AttendeeDraft[] = [];
 
+  private seeded = false;
   @state() private drafts: AttendeeDraft[] = [];
   @state() private view: AttendeesView | null = null;
   @state() private error = '';
@@ -49,6 +52,12 @@ export class CalAttendeesSection extends LitElement {
   connectedCallback(): void {
     super.connectedCallback();
     if (this.eventId) void this.load();
+  }
+
+  protected willUpdate(): void {
+    // a new entry starts from the carried-over list once; later picks are the section's own
+    if (!this.seeded && !this.eventId && this.initial.length) this.drafts = [...this.initial];
+    this.seeded = true;
   }
 
   /** The `attendees` of the create body (a new entry); empty when nobody was added. */
@@ -196,5 +205,6 @@ declare global {
 
 // 2.35.0 train: the picker fills the grid branch's attendee slot - the booking drawer (new: a local list read by the drawer's payload;
 // edit: live) and the quick create (a collapsed row; the list rides in the draft).
-calHooks.attendees = (p) => (p.surface === 'drawer' ? html`<cal-attendees-section .eventId=${p.eventId ?? ''}></cal-attendees-section>`
+calHooks.attendees = (p) => (p.surface === 'drawer' ? html`<cal-attendees-section .eventId=${p.eventId ?? ''}
+    .initial=${!p.eventId && Array.isArray(p.value) ? (p.value as AttendeeDraft[]) : []}></cal-attendees-section>`
   : html`<cal-quick-attendees .value=${Array.isArray(p.value) ? (p.value as AttendeeDraft[]) : []} .onChange=${(v: AttendeeDraft[]) => p.onChange(v)}></cal-quick-attendees>`);

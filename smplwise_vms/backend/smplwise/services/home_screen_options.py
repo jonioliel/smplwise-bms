@@ -37,6 +37,10 @@ present). Every choice the owner answered is only the DEFAULT; each one is a key
   tree_unassigned   always (default: as before) | editing (only while the screen editor is open - which only a system.configure
                     holder can open) | never. Presentation only: no entity, area or count changes; "כל המבנה" keeps counting them
                     OWNER-R12-2341 (owner 01.11, 6A): the same choice also governs the tiles view's "ללא שיוך" section
+  HOME-EDIT-DRAWER-2351 (owner 02.11, round 14): the screen editor's drawer (from 1200 px a side drawer at the inline end)
+  edit_drawer_space free (default: a CLOSED drawer gives its width back to the preview) | keep (the page keeps the drawer's column
+                    reserved while it is closed, as before). Open, the drawer always has its column; below 1200 px (tablet, phone:
+                    a bottom sheet) nothing changes. Presentation only
   Per user only (home.personal.screen): hide_shared (true = the shared building is not shown to this viewer; default false)
 
 The view (cards / tiles) stays `devices.default_view` (default cards), the info row `home.info_style` (auto: cards in cards mode,
@@ -71,6 +75,7 @@ CHOICES: dict[str, tuple[str, ...]] = {
     "site_entry": ("site", "last", "fixed"),
     "site_off_shared": ("exclude", "include"),
     "tree_unassigned": ("always", "editing", "never"),
+    "edit_drawer_space": ("free", "keep"),
 }
 BUILDING_ID_MAX = 120
 
@@ -94,6 +99,7 @@ DEFAULT: dict[str, Any] = {
     "site_entry_building": "",
     "site_off_shared": "exclude",
     "tree_unassigned": "always",
+    "edit_drawer_space": "free",
 }
 KEYS: tuple[str, ...] = tuple(DEFAULT)
 

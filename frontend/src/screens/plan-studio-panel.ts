@@ -1911,7 +1911,6 @@ export const studioPanelStyles = css`
     font-size: var(--sw-fs-sm);
     cursor: pointer;
   }
-  .libitem:hover,
   .libitem.on {
     background: var(--sw-accent-soft);
     border-color: var(--sw-accent);
@@ -1937,8 +1936,10 @@ export const studioPanelStyles = css`
     cursor: pointer;
     padding: 0 2px;
   }
+  /* POLISH4 WP6 (D28): the favourite star drew in the bare warning hue (2.0-2.15:1 on the light card and on its warning wash); it takes the
+     warning ink, which is the same hue in dark in every skin and >= 4.5:1 in light */
   .libitem .fav.on {
-    color: var(--sw-warning);
+    color: var(--sw-warning-text);
   }
   .levelchips {
     display: flex;
@@ -2084,7 +2085,7 @@ export const studioPanelStyles = css`
     margin-inline-end: 8px;
     padding: 1px 6px;
     border: 1px solid var(--sw-border);
-    border-radius: 999px;
+    border-radius: var(--sw-r-pill);
     direction: ltr;
   }
   [data-calib-pairs] .pair .x {
@@ -2164,10 +2165,33 @@ export const studioPanelStyles = css`
   .libitem .fav.on {
     background: var(--sw-warning-soft);
   }
-  @media (hover: none) {
+  /* POLISH4 WP6 (D12 / D13): hover only under a fine pointer (it replaces the ungated :hover + (hover: none) undo) */
+  @media (hover: hover) and (pointer: fine) {
     .libitem:hover:not(.on) {
-      background: var(--sw-surface);
-      border-color: var(--sw-border);
+      background: var(--sw-accent-soft);
+      border-color: var(--sw-accent);
+    }
+  }
+  /* POLISH4 WP6 (D13): a finger on a tablet or a phone gets the 44 px touch target on the studio's small keys (the mode pills, the
+     glazing panel chips and the favourite star); a mouse keeps the compact desktop rhythm */
+  @media (pointer: coarse) {
+    .modes button,
+    .panelchips button,
+    .btnlink {
+      min-block-size: var(--sw-touch-desktop);
+    }
+    .panelchips button {
+      min-inline-size: var(--sw-touch-desktop);
+    }
+    .libitem .fav {
+      min-inline-size: var(--sw-touch-desktop);
+      min-block-size: var(--sw-touch-desktop);
+    }
+  }
+  /* POLISH4 WP6 (D13): on a phone the three-up number row (width / height / depth) keeps each field at least a thumb wide */
+  @media (max-width: 479px) {
+    .three {
+      grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
     }
   }
   .badge {

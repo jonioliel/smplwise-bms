@@ -178,6 +178,29 @@ export const gdrivePoll = (id: string) => post<{ state: GdrivePollState; interva
 export const gdriveDisconnect = (id: string) =>
   post<{ had_token: boolean; revoked: boolean | null; target: OffboxTarget }>(`backups/offbox/targets/${encodeURIComponent(id)}/gdrive/disconnect`);
 
+/** GDRIVE-READY-2351 "בדיקת חיבור Google": one check per step, in Hebrew from the server (title, what is wrong, where to fix it). */
+export type GdriveCheckStatus = 'ok' | 'fail' | 'warn' | 'info' | 'skip';
+export interface GdriveCheck {
+  id: string;
+  status: GdriveCheckStatus;
+  title: string;
+  message: string;
+  fix?: string;
+}
+export interface GdriveDiagnosis {
+  ok: boolean;
+  connected: boolean;
+  ready_to_connect: boolean;
+  checks: GdriveCheck[];
+  summary: string;
+}
+export const gdriveDiagnose = (id: string) => post<GdriveDiagnosis>(`backups/offbox/targets/${encodeURIComponent(id)}/gdrive/diagnose`);
+
+/** The badge of one check (sw-badge kinds). */
+export function checkBadge(status: GdriveCheckStatus): 'live' | 'error' | 'partial' | 'neutral' {
+  return status === 'ok' ? 'live' : status === 'fail' ? 'error' : status === 'warn' ? 'partial' : 'neutral';
+}
+
 /** The next poll in ms: the server's interval (1-60 s), never faster than 2 s. */
 export function pollDelayMs(interval: number | undefined): number {
   const s = Number.isFinite(interval) ? Math.max(2, Math.min(60, Number(interval))) : 5;

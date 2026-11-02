@@ -25,7 +25,8 @@ import { PhoneWidth, phoneRestricted } from '../shell/phone';
 import { cameraState, entityName, loadMap, updateAnchor, type MapBundle } from '../api/maps';
 import { snapshotUrl, type Transport } from '../api/media';
 import { entryFloor, findFloor, loadTree, type CatalogTree } from '../api/catalog';
-import { canAnywhere, isApi, nvrLess } from '../api/session';
+import { can, canAnywhere, isApi, nvrLess } from '../api/session';
+import { dimmedActionTitle, mapCardGrantNote } from './lock-reason';
 import { getBuildingPresence, type BuildingSnapshot } from '../api/building-presence';
 import { POLL_MS as PRESENCE_POLL_MS, zoneChip, zoneTone } from '../api/building-presence-logic';
 import { bidi } from '../i18n/bidi';
@@ -268,9 +269,6 @@ export class ExploreFloorMap extends LitElement {
       color: inherit;
       text-decoration: none;
     }
-    .crumbs a:hover {
-      color: var(--sw-accent-text);
-    }
     .crumbs sw-icon {
       color: var(--sw-border-strong);
     }
@@ -485,7 +483,7 @@ export class ExploreFloorMap extends LitElement {
       z-index: var(--sw-z-map-ui);
       background: var(--sw-menu-surface);
       border: 1px solid var(--sw-border-strong);
-      border-radius: 999px;
+      border-radius: var(--sw-r-pill);
       padding: 4px 8px;
       box-shadow: var(--sw-shadow-1);
       display: flex;
@@ -788,7 +786,6 @@ export class ExploreFloorMap extends LitElement {
       text-align: start;
       cursor: pointer;
     }
-    .sidelist button.it:hover,
     .sidelist button.it.on {
       background: var(--sw-surface-3);
     }
@@ -815,7 +812,6 @@ export class ExploreFloorMap extends LitElement {
       color: var(--sw-text-2);
     }
     /* the caption of the row under the pointer or selected stands on the row's own wash (surface-3): the body ink keeps it at 4.5:1 in every skin */
-    .sidelist button.it:hover .st,
     .sidelist button.it.on .st {
       color: var(--sw-text);
     }
@@ -917,6 +913,11 @@ export class ExploreFloorMap extends LitElement {
     .note {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
+    }
+    .note a[data-grant-note-link] {
+      color: var(--sw-accent-text, var(--sw-accent));
+      text-decoration: underline;
+      text-underline-offset: 2px;
     }
     .warn {
       color: var(--sw-danger-text);
@@ -1038,7 +1039,7 @@ export class ExploreFloorMap extends LitElement {
     .sidelist .grab span {
       inline-size: 40px;
       block-size: 4px;
-      border-radius: 2px;
+      border-radius: var(--sw-r-pill);
       background: var(--sw-border-strong);
     }
     @media (max-width: 767px) {
@@ -1062,8 +1063,9 @@ export class ExploreFloorMap extends LitElement {
       }
       /* K88 phone pass (mobile audit rec. 5): the scrolling tool row fades at both edges instead of cutting a button */
       .tools {
-        -webkit-mask-image: linear-gradient(to right, transparent, #000 18px, #000 calc(100% - 18px), transparent);
-        mask-image: linear-gradient(to right, transparent, #000 18px, #000 calc(100% - 18px), transparent);
+        /* a mask reads only alpha: black is the opaque stop, not a colour of the page */
+        -webkit-mask-image: linear-gradient(to right, transparent, black 18px, black calc(100% - 18px), transparent);
+        mask-image: linear-gradient(to right, transparent, black 18px, black calc(100% - 18px), transparent);
         padding-inline: 14px;
         scrollbar-width: none;
       }
@@ -1186,9 +1188,6 @@ export class ExploreFloorMap extends LitElement {
       font-weight: 600;
       text-decoration: none;
     }
-    .roomcard .rc-open:hover {
-      text-decoration: underline;
-    }
     /* K88 3D round 2: the floor strip beside the 3D view */
     .floorstrip {
       position: absolute;
@@ -1218,9 +1217,6 @@ export class ExploreFloorMap extends LitElement {
       cursor: pointer;
       font: inherit;
       font-size: var(--sw-fs-xs);
-    }
-    .floorstrip button:hover {
-      background: var(--sw-surface-2);
     }
     .floorstrip button.on {
       border-color: var(--sw-accent);
@@ -1400,18 +1396,23 @@ export class ExploreFloorMap extends LitElement {
     .sidelist button.it.on .st {
       color: var(--sw-accent-text);
     }
-    @media (hover: none) {
-      .sidelist button.it:hover {
-        background: none;
+    /* POLISH4 WP6 (D12): the map is a touch-tablet control screen - hover lives only under a fine pointer, so a tap never leaves a
+       sticky wash (it replaces the old ungated :hover + (hover: none) undo pair); the selected row / floor keeps its own fill */
+    @media (hover: hover) and (pointer: fine) {
+      .crumbs a:hover {
+        color: var(--sw-accent-text);
       }
-      .sidelist button.it.on:hover {
-        background: var(--sw-accent-soft);
+      .sidelist button.it:hover:not(.on) {
+        background: var(--sw-surface-3);
       }
-      .floorstrip button:hover {
-        background: transparent;
+      .sidelist button.it:hover:not(.on) .st {
+        color: var(--sw-text);
       }
-      .floorstrip button.on:hover {
-        background: var(--sw-accent-soft);
+      .roomcard .rc-open:hover {
+        text-decoration: underline;
+      }
+      .floorstrip button:hover:not(.on):not([disabled]) {
+        background: var(--sw-surface-2);
       }
     }
     .panel h3 {
@@ -2456,7 +2457,7 @@ export class ExploreFloorMap extends LitElement {
       const d = a.entity?.domain ?? a.resource_id.split('.')[0];
       groups.set(d, [...(groups.get(d) ?? []), a]);
     }
-    const dotOf = (a: Anchor) => (a.camera ? (a.camera.status === 'online' ? '#22c55e' : a.camera.status === 'offline' ? '#ef4444' : 'var(--sw-text-3)') : a.entity?.state === 'on' || a.entity?.state === 'unlocked' || a.entity?.state === 'open' ? 'var(--sw-accent)' : 'var(--sw-text-3)');
+    const dotOf = (a: Anchor) => (a.camera ? (a.camera.status === 'online' ? 'var(--sw-success)' : a.camera.status === 'offline' ? 'var(--sw-danger)' : 'var(--sw-text-3)') : a.entity?.state === 'on' || a.entity?.state === 'unlocked' || a.entity?.state === 'open' ? 'var(--sw-accent)' : 'var(--sw-text-3)');
     return html`<div class="sidelist ${this.sheetTall ? 'tall' : ''}" data-sidelist data-sheet-tall=${this.sheetTall ? '1' : nothing}>
       <button class="grab" data-sheet-grab aria-label=${this.sheetTall ? 'הקטן את הרשימה' : 'הגדל את הרשימה'} @click=${() => (this.sheetTall = !this.sheetTall)}><span></span></button>
       <div class="sh"><sw-icon name="list" size=${14}></sw-icon>על התוכנית<span class="grow"></span><sw-button variant="ghost" size="sm" iconOnly icon="close" label="סגור" @click=${() => this.toggleSideList()}></sw-button></div>
@@ -2488,7 +2489,7 @@ export class ExploreFloorMap extends LitElement {
   private pickDot(a: Anchor | undefined): string {
     if (!a?.camera) return 'var(--sw-text-3)';
     if (a.camera.can_view_live === false || a.camera.recorder_enabled === false) return 'var(--sw-text-3)';
-    return a.camera.status === 'online' ? '#22c55e' : '#ef4444';
+    return a.camera.status === 'online' ? 'var(--sw-success)' : 'var(--sw-danger)';
   }
 
   /** The cameras a saved view may hold: the picked ones the caller may watch live (and whose recorder is enabled), sixteen at most. */
@@ -2751,7 +2752,7 @@ export class ExploreFloorMap extends LitElement {
       </div>
       ${!fresh ? html`<div class="warn">${e.state === 'unavailable' ? 'ההתקן אינו זמין.' : 'הסנכרון מול תשתית המערכת מנותק — המצב עלול להיות מיושן.'}</div>` : nothing}
       ${e.actions === undefined ? html`<div class="note">${t('entity.noControl')}</div>` : e.actions.length === 0 ? html`<div class="note">קריאה בלבד — אין פעולות מותרות ל־${domainLabel(e.domain)}.</div>` : nothing}
-      ${e.actions?.some((s) => s.granted === false) ? html`<div class="note" data-grant-note>פעולה מעומעמת דורשת הרשאה נפרדת (למשל פתיחת דלת) שאינה חלק משליטה כללית בישויות.</div>` : nothing}
+      ${this.grantNote(e.actions)}
       ${act
         ? html`<div class=${act.error || act.record?.status === 'failed' || act.record?.status === 'denied' ? 'warn' : 'note'}>${act.spec.label}: ${act.error ? act.error : act.record ? `${ACTION_STATUS_LABEL[act.record.status]}${act.record.error ? ` — ${ACTION_ERROR_LABEL[act.record.error] ?? act.record.error}` : ''}` : 'שולח…'}</div>`
         : nothing}
@@ -2803,6 +2804,14 @@ export class ExploreFloorMap extends LitElement {
     }
   }
 
+  /** UNLOCK-REASON-2370: the note under a dimmed action - for the open action of a lock, WHY it is dimmed (door not mapped, no door permission,
+   * floor-scoped grant, alarm-managed), with the door-map link for a system administrator; other dimmed actions keep the generic sentence. */
+  private grantNote(actions: HaActionSpec[] | undefined) {
+    const n = mapCardGrantNote(actions, can('system.configure'));
+    if (!n) return nothing;
+    return html`<div class="note" data-grant-note data-grant-reason=${actions?.find((s) => s.id === 'lock.unlock')?.reason ?? ''}>${n.text}${n.link ? html` <a data-grant-note-link href=${n.link.href}>${n.link.label}</a>` : nothing}</div>`;
+  }
+
   /** The actions as big buttons inside the card (R3) - the footer keeps only edit / rename. */
   private entityActions(a: Anchor) {
     const e = a.entity;
@@ -2817,7 +2826,7 @@ export class ExploreFloorMap extends LitElement {
     const e = a.entity;
     const busy = Boolean(this.action && e && this.action.entityId === e.entity_id && this.action.busy);
     const specs = e?.actions ?? [];
-    return html`${specs.map((s) => html`<span class="actrow" data-action-row=${s.id}>${e && s.argument_specs?.length ? s.argument_specs.map((a) => this.renderArg(e, s, a)) : nothing}<sw-button block variant=${s.risk === 'sensitive' ? 'danger' : s.sensitive ? 'danger' : 'primary'} ?disabled=${busy || this.screenState === 'stale' || e?.state === 'unavailable' || s.granted === false} title=${s.granted === false ? `נדרשת הרשאה נפרדת: ${s.grant ?? ''}` : s.risk_label ? `פעולה ${s.risk_label}` : ''} data-action=${s.id} data-risk=${s.risk ?? (s.sensitive ? 'attention' : 'routine')} data-granted=${s.granted === false ? 'no' : 'yes'} @click=${() => e && this.trigger(e.entity_id, s)}>${s.label}</sw-button></span>`)}`;
+    return html`${specs.map((s) => html`<span class="actrow" data-action-row=${s.id}>${e && s.argument_specs?.length ? s.argument_specs.map((a) => this.renderArg(e, s, a)) : nothing}<sw-button block variant=${s.risk === 'sensitive' ? 'danger' : s.sensitive ? 'danger' : 'primary'} ?disabled=${busy || this.screenState === 'stale' || e?.state === 'unavailable' || s.granted === false} title=${s.granted === false ? dimmedActionTitle(s, can('system.configure')) : s.risk_label ? `פעולה ${s.risk_label}` : ''} data-action=${s.id} data-risk=${s.risk ?? (s.sensitive ? 'attention' : 'routine')} data-granted=${s.granted === false ? 'no' : 'yes'} @click=${() => e && this.trigger(e.entity_id, s)}>${s.label}</sw-button></span>`)}`;
   }
 
   private renderConfirm() {
@@ -3222,12 +3231,12 @@ export class ExploreFloorMap extends LitElement {
       ${this.renderSideList()}
       ${this.renderSaveDialog()}
       ${this.shows3d ? nothing : html`<div class="legend" aria-label="מקרא">
-        ${b.zones.length && this.layers.has('zones') ? html`<span><i style="--lg: var(--sw-accent); border-radius: 2px; opacity: 0.5"></i>${b.zones.length} אזורים</span>` : nothing}
+        ${b.zones.length && this.layers.has('zones') ? html`<span><i style="--lg: var(--sw-accent); border-radius: var(--sw-r-2xs); opacity: 0.5"></i>${b.zones.length} אזורים</span>` : nothing}
         <span><i style="--lg: var(--sw-accent)"></i>חי</span>
         <span><i style="--lg: var(--sw-stale)"></i>לא מעודכן</span>
         <span><i style="--lg: var(--sw-offline)"></i>מנותק</span>
         <span><i style="--lg: var(--sw-forbidden)"></i>ללא הרשאה</span>
-        <span><i style="--lg: #fff; box-shadow: 0 0 0 1px var(--sw-border-strong)"></i>התקן</span>
+        <span><i style="--lg: var(--sw-menu-surface); box-shadow: 0 0 0 1px var(--sw-border-strong)"></i>התקן</span>
       </div>`}
       ${this.renderCard()}
       ${this.renderConfirm()}

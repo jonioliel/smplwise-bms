@@ -371,7 +371,7 @@ def rebuild_from(db: Any) -> bool:
 class Access:
     """The caller's media permissions and where they hold them, computed once per request. A device is visible / operable when
     the permission holds at its anchor (installation-wide, or placed on one of the caller's floors - the scope rule of
-    services/ha_scope.py; HA areas and floors are never a scope)."""
+    services/ha_scope.py, which since round 14 also counts the home mapping for a building binding)."""
 
     def __init__(self, conn: sqlite3.Connection, principal: Principal, perms: tuple[str, ...] = ALL_PERMS) -> None:
         self.conn, self.principal = conn, principal
@@ -399,7 +399,7 @@ class Access:
             d = authorize(self.conn, self.principal, perm, target)
             if d.allowed:
                 return d
-        return None
+        return ha_scope.mapping_decision(self.conn, self.principal, perm, entity_id)  # round 14: a building binding through the mapping
 
 
 # ------------------------------------------------------------------------------------------------ the catalogue

@@ -19,7 +19,7 @@ import { roleFor, rowSentence } from '../tickets/list-card-model';
 import { statusChip as chipOf } from '../tickets/status-sentence';
 import { lt } from '../tickets/list-text';
 import '../tickets/elapsed-clock';
-import { readSentenceOn, writeSentenceOn } from '../tickets/list-prefs';
+import { readSentenceChoice, writeSentenceOn } from '../tickets/list-prefs';
 import {
   activeExtraCount, ageText, applyView, ariaSort, bulkSummary, columnLabel, keepAfterBulk, layoutFromPrefs, nextIndex, NO_TABLE_FILTERS, pageState, queryParams,
   rangeSelect, slaText, sortMark, sortText, stuckText, tableFilters, toggleOne, togglePage, toggleSort, viewDoc, type BaseFilters, type ExtraFilters, type TableLayout,
@@ -34,7 +34,7 @@ import { ticketsLang } from '../tickets/text';
 import { dlt } from '../tickets/delete-text';
 import { openOverlay, menuKey } from '../tickets/overlay-menu';
 import { can, isApi } from '../api/session';
-import { setCostColumns, monthlyParams, type MonthlyGroup, fitColumns, tableMinWidth, COLUMN_WIDTH_PX, SELECT_COL_PX } from '../tickets/table-model';
+import { setCostColumns, monthlyParams, type MonthlyGroup, fitTable, parseTableMid, tableMinWidth, COLUMN_WIDTH_PX, SELECT_COL_PX } from '../tickets/table-model';
 import { costCell, costStatusTone } from '../tickets/cost-model';
 import { ct, type CostTextKey } from '../tickets/cost-text';
 
@@ -94,7 +94,9 @@ export class TicketsTable extends LitElement {
   @state() private exporting = false;
   @state() private defaultView = '';
   /** TKUI4: the "what is happening" column (the status sentence); a client-only choice, kept in this browser */
-  @state() private sentenceOn = readSentenceOn();
+  @state() private sentenceChoice = readSentenceChoice();
+  /** TICKETS-1440-COLUMN-SETTING-2360: the module setting `ui.table_mid_width` (the host passes it from GET tickets/module; '' = not known = sentence). */
+  @property() midWidth = '';
   private anchor: string | null = null;
   private seq = 0;
   private pages = 0;
@@ -585,7 +587,7 @@ export class TicketsTable extends LitElement {
   /** The shown columns: the sentence follows the title when it is on (a client-only column - the server knows nothing about it). */
   private shownColumns(): (ColumnKey | 'sentence')[] {
     const fitted = this.fittedColumns();
-    if (!this.sentenceOn || this.phone) return fitted;
+    if (!this.fittedTable().sentence || this.phone) return fitted;
     const i = fitted.indexOf('title');
     const cols: (ColumnKey | 'sentence')[] = [...fitted];
     cols.splice(i < 0 ? 0 : i + 1, 0, 'sentence');
@@ -596,7 +598,12 @@ export class TicketsTable extends LitElement {
    * keeps the default set; the chooser shows these, so a column added there always shows and the table scrolls sideways instead). */
   private fittedColumns(): ColumnKey[] {
     if (this.phone) return this.layout.columns;
-    return fitColumns(this.layout.columns, this.fitWidth, this.canSelect(), this.sentenceOn ? ['sentence'] : []);
+    return this.fittedTable().columns;
+  }
+
+  /** TICKETS-1440-COLUMN-SETTING-2360: columns and sentence together (tickets/table-model.ts fitTable, with `ui.table_mid_width` of the module settings). */
+  private fittedTable() {
+    return fitTable(this.layout.columns, this.phone ? 0 : this.fitWidth, this.canSelect(), this.sentenceChoice, parseTableMid(this.midWidth));
   }
 
   /** The fixed widths of the shown columns (table-layout: fixed): the title takes the rest. */
@@ -605,7 +612,7 @@ export class TicketsTable extends LitElement {
   }
 
   private onSentenceToggle = (e: CustomEvent<{ on: boolean }>) => {
-    this.sentenceOn = e.detail.on;
+    this.sentenceChoice = e.detail.on ? 'on' : 'off';
     writeSentenceOn(e.detail.on);
   };
 
@@ -763,7 +770,7 @@ export class TicketsTable extends LitElement {
             .count=${this.screen === 'ready' ? rows.length : null} ?more=${!!this.next} ?phone=${this.phone} ?canExport=${!!this.meta?.can.manage} ?exporting=${this.exporting} .defaultView=${this.defaultView} ?hostFilters=${this.hostFilters} .fitted=${this.fittedColumns()}
             @layout-change=${(e: CustomEvent<{ layout: TableLayout }>) => this.setLayout(e.detail.layout)} @extra-change=${(e: CustomEvent<{ extra: ExtraFilters }>) => this.setExtra(e.detail.extra)}
             @view-apply=${(e: CustomEvent<{ view: SavedView }>) => this.applySaved(e.detail.view)} @default-view=${(e: CustomEvent<{ id: string | null }>) => (this.defaultView = e.detail.id ?? '')}
-            .sentence=${this.sentenceOn} @sentence-change=${this.onSentenceToggle}
+            .sentence=${this.fittedTable().sentence} .sentenceFitted=${this.fittedTable().sentenceFitted} @sentence-change=${this.onSentenceToggle}
             @export-csv=${() => void this.exportCsv()} @monthly-report=${(e: CustomEvent<{ from: string; to: string; group: MonthlyGroup }>) => void this.monthlyReport(e.detail)}></tickets-table-toolbar>`}
       ${this.toast ? html`<div class=${`banner toast ${this.toast.tone === 'bad' ? 'bad' : 'info'}`} role="status" data-table-toast>${tIcon(this.toast.tone === 'bad' ? 'warning' : 'check')}<div><b>${this.toast.head}</b>${this.toast.rest ? html`<small>${this.toast.rest}</small>` : nothing}</div></div>` : nothing}
       ${this.body()}

@@ -403,7 +403,7 @@ export class SystemReadiness extends LitElement {
       text-align: center;
     }
     .ring .v b {
-      font-size: 40px;
+      font-size: var(--sw-fs-4xl);
       font-weight: var(--sw-fw-bold);
       letter-spacing: -0.04em;
       line-height: 1;

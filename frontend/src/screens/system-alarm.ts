@@ -93,19 +93,69 @@ const shared = css`
     letter-spacing: 0.2em;
     inline-size: 140px;
   }
-  .ok {
-    color: var(--sw-success-text);
+  select:focus-visible,
+  input:focus-visible {
+    outline: var(--sw-focus-w) solid var(--sw-focus);
+    outline-offset: 1px;
+  }
+  /* POLISH4-WP7: the saved / error line is the same pill as the rest of the settings (--sw-*-soft ground, -text ink); a bare
+     --sw-danger text did not reach contrast on a light card */
+  .ok,
+  .err {
+    display: inline-flex;
+    align-items: center;
+    align-self: flex-start;
+    min-block-size: 28px;
+    padding: 2px 12px;
+    border-radius: var(--sw-r-pill);
     font-size: var(--sw-fs-sm);
+    font-weight: var(--sw-fw-semibold);
+    max-inline-size: 100%;
+    overflow-wrap: anywhere;
+  }
+  .ok {
+    background: var(--sw-success-soft);
+    color: var(--sw-success-text);
   }
   .err {
-    color: var(--sw-danger);
-    font-size: var(--sw-fs-sm);
+    background: var(--sw-danger-soft);
+    color: var(--sw-danger-text);
   }
   .inline {
     display: flex;
     gap: 6px;
     align-items: center;
     flex-wrap: wrap;
+  }
+  /* POLISH4-WP7 (D16): the phone layout, shared by the alarm settings and the per-user alarm card. A row stacks its name over its
+     control, a control takes the whole line (a select or the code field at its natural width left a ragged edge at 390) and the
+     buttons beside the code field stay on that line. */
+  @media (max-width: 767px) {
+    .row {
+      flex-direction: column;
+      align-items: stretch;
+      gap: var(--sw-s-2);
+    }
+    .lbl {
+      flex-basis: auto;
+    }
+    .row select,
+    .row input {
+      inline-size: 100%;
+      box-sizing: border-box;
+      min-block-size: var(--sw-ctl-h-lg);
+    }
+    .inline {
+      flex-wrap: nowrap;
+    }
+    .inline input[type='password'] {
+      inline-size: auto;
+      flex: 1 1 0;
+      min-inline-size: 0;
+    }
+    .inline sw-button {
+      flex: none;
+    }
   }
 `;
 
@@ -150,6 +200,15 @@ export class SystemAlarmSettings extends LitElement {
       }
       .scroll {
         overflow-x: auto;
+      }
+      /* POLISH4-WP7 (D16): the pairing table keeps a readable width and scrolls sideways inside its own wrapper (never the page) */
+      @media (max-width: 767px) {
+        .scroll table {
+          min-inline-size: 520px;
+        }
+        .scroll select {
+          min-inline-size: 150px;
+        }
       }
     `,
   ];
@@ -202,7 +261,7 @@ export class SystemAlarmSettings extends LitElement {
     const yesNo = (key: string, on: boolean, yes: string, no: string, attr: string) => html`<select data-alarm-setting=${attr} ?disabled=${ro} @change=${(e: Event) => void this.setting(key, (e.target as HTMLSelectElement).value)}>
       <option value="true" ?selected=${on}>${yes}</option><option value="false" ?selected=${!on}>${no}</option></select>`;
     return html`<div class="panels" data-alarm-settings>
-      <sw-card heading="אזעקה · מדיניות" subheading="מה מותר מחוץ לרשת המקומית (SmplWise Arx), ואיזה קוד מקליד משתמש שחייב קוד. ההרשאות (alarm.view / arm / disarm / bypass) נקבעות בתפקידים; המדיניות לכל משתמש - במשתמשים והרשאות.">
+      <sw-card heading="אזעקה · מדיניות" subheading="מה מותר מחוץ לרשת המקומית (SmplWise Arx), ואיזה קוד מקליד משתמש שחייב קוד. ההרשאות (צפייה, דריכה, נטרול ועקיפה) נקבעות בתפקידים; המדיניות לכל משתמש - במשתמשים והרשאות.">
         <div class="row"><span class="lbl">שליטה מרחוק<span class="muted">alarm.remote_control - כבוי: אין דריכה, נטרול או עקיפה מחוץ לרשת המקומית.</span></span>${yesNo('alarm.remote_control', s.remote_control, 'מותרת', 'חסומה', 'remote_control')}</div>
         <div class="row"><span class="lbl">נטרול ועקיפה מרחוק<span class="muted">alarm.remote_disarm - כבוי: מבחוץ אפשר רק לדרוך ולהחזיר חיישן להגנה.</span></span>${yesNo('alarm.remote_disarm', s.remote_disarm, 'מותרים', 'חסומים', 'remote_disarm')}</div>
         <div class="row"><span class="lbl">ללא קוד גם מרחוק<span class="muted">alarm.remote_codeless - פעיל (ברירת מחדל, החלטת בעלים): משתמש "ללא קוד" דורך ומנטרל ללא קוד גם מבחוץ. נעילה ביומטרית קיימת רק באפליקציית האנדרואיד ורק אם הופעלה; בדפדפן אין נעילה כזו. כבוי: מבחוץ כל אחד מקליד קוד.</span></span>${yesNo('alarm.remote_codeless', s.remote_codeless, 'פעיל', 'כבוי', 'remote_codeless')}</div>
@@ -228,8 +287,8 @@ export class SystemAlarmSettings extends LitElement {
     const overrides = new Map((this.cfg?.overrides ?? []).map((o) => [o.zone_entity_id, o]));
     const controls = this.cfg?.candidates.controls ?? [];
     const otherPanels = (this.cfg?.panels ?? []).filter((x) => x.config_entry_id === p.config_entry_id && x.platform === p.platform);
-    return html`<sw-card heading=${`${p.name}`} subheading=${`${p.integration} · ${p.entity_id}`} data-alarm-settings-panel=${p.entity_id}>
-      <div class="row"><span class="lbl">שילוב<span class="muted">${p.integration_note || '—'} · config entry <span class="ltr">${p.config_entry_id ?? '—'}</span> · מצבי דריכה: ${p.arm_modes.join(', ')}${p.features_reported ? '' : ' (לא דווחו)'} · קוד: ${p.code_format ?? 'לא נדרש'}${p.code_format ? ` · קוד לדריכה: ${p.code_arm_required ? 'כן' : 'לא'}` : ''}</span></span></div>
+    return html`<sw-card heading=${`${p.name}`} subheading=${p.integration} data-alarm-settings-panel=${p.entity_id}>
+      <div class="row"><span class="lbl">שילוב<span class="muted">${p.integration_note || '—'} · ישות <span class="ltr">${p.entity_id}</span> · config entry <span class="ltr">${p.config_entry_id ?? '—'}</span> · מצבי דריכה: ${p.arm_modes.join(', ')}${p.features_reported ? '' : ' (לא דווחו)'} · קוד: ${p.code_format ?? 'לא נדרש'}${p.code_format ? ` · קוד לדריכה: ${p.code_arm_required ? 'כן' : 'לא'}` : ''}</span></span></div>
       <div class="row"><span class="lbl">קוד הלוח<span class="muted">נשמר מוצפן (AES-GCM, מפתח בתיקיית הנתונים של התוסף), לא מוצג ולא יוצא מהמערכת. משמש לשליחה ללוח עבור משתמשים מורשים.${info?.set ? ` מוגדר · ${dayTimeText(new Date(info.set_at ?? ''), { seconds: true })} · ${info.set_by ?? ''}` : ' לא מוגדר.'}</span></span>
         <span class="inline">
           <input type="password" inputmode=${p.code_format === 'number' ? 'numeric' : 'text'} autocomplete="new-password" maxlength="32" placeholder="קוד חדש" aria-label="קוד הלוח" data-panel-code-input ?disabled=${ro}

@@ -12,6 +12,7 @@ import { applyAutomationsGlass } from '../api/automations-demo';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { SkinController } from '../design/skin';
 import { bidi } from '../i18n/bidi';
+import { t } from '../i18n/he';
 import { replaceRoute } from '../router';
 import { ticketsApi, type Meta } from '../api/tickets';
 import { ticketsS4Api, type Readiness } from '../api/tickets-s4';
@@ -25,6 +26,7 @@ import { rovingIndex } from '../tickets/settings-tabs';
 import { tIcon } from '../tickets/icons';
 import { tt } from '../tickets/text';
 import { handlerDepartments } from '../tickets/dept-handlers-model';
+import { activeChips, filterPanel, filterToggle, FilterPanelController, panelSection, ticketToolbarStyles, type ActiveChip } from '../tickets/list-toolbar';
 
 /**
  * CR-038 owner request 2026-10-14: "מטפלים וספקים" (#/tickets/handlers[?seg=vendors|contacts]) - the fifth entry of the area's view
@@ -65,13 +67,16 @@ export class TicketsHandlersPage extends LitElement {
   @state() private adding = false;
   @state() private ok = '';
   @state() private error = '';
+  /** the department filter's panel (the list's "סינון" dialect) */
+  @state() private filterOpen = false;
+  readonly panelCtl = new FilterPanelController(this, () => this.filterOpen, (open) => (this.filterOpen = open));
   @state() private phone = window.matchMedia('(max-width: 767px)').matches;
   private okTimer = 0;
   private phoneMq = window.matchMedia('(max-width: 767px)');
   private onPhone = () => (this.phone = this.phoneMq.matches);
   private offNames: (() => void) | null = null;
 
-  static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, handlersGlass, css`
+  static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, handlersGlass, ticketToolbarStyles, css`
     .crumbs {
       font-size: var(--sw-fs-sm);
       color: var(--dv-text-2);
@@ -101,16 +106,58 @@ export class TicketsHandlersPage extends LitElement {
     .dh-det .seg small {
       margin-inline-start: 4px;
     }
-    .dh-det .rooms {
-      flex: 0 1 auto;
+    /* WP3 (POLISH-4): the toolbar is the list's (tickets/list-toolbar.ts); the period and the "new" key keep their places at its end, and
+       the row wraps when the department filter, the period and the search do not share one line (a tablet) */
+    .dh-det.tb {
+      flex-wrap: wrap;
     }
-    .dh-det .rc {
-      block-size: 34px;
-      padding-inline: 14px;
-      font-size: var(--sw-fs-base);
+    .dh-det.tb > .grow {
+      flex: 1 1 0;
+      min-inline-size: 0;
     }
     .newbtn {
       flex: none;
+    }
+    /* the receipt and the error: a toast in view (the TKSET dialect) instead of an inline line under the header, out of sight when the
+       card that was changed is far below it; the error stays until it is dismissed or the next action starts */
+    .toast .tx {
+      min-inline-size: 0;
+      overflow-wrap: anywhere;
+    }
+    .toast .x {
+      display: inline-grid;
+      place-items: center;
+      flex: none;
+      inline-size: 32px;
+      block-size: 32px;
+      margin-inline: 4px -8px;
+      padding: 0;
+      border: 0;
+      border-radius: var(--sw-r-pill);
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      position: relative;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform var(--sw-t-press) var(--sw-ease-out);
+    }
+    .toast .x::after {
+      content: '';
+      position: absolute;
+      inset: -6px;
+    }
+    .toast .x:active {
+      transform: scale(var(--sw-press-scale));
+    }
+    .toast .x:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: 1px;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .toast .x:hover {
+        background: color-mix(in srgb, currentColor 12%, transparent);
+      }
     }
     .page.embedded {
       padding: 0;
@@ -124,30 +171,26 @@ export class TicketsHandlersPage extends LitElement {
       .dh-det {
         gap: 10px;
       }
-      .dh-det .seg {
-        inline-size: 100%;
-        box-sizing: border-box;
-        display: grid;
+      .dh-det.tb > .seg {
         grid-template-columns: repeat(var(--segs, 3), minmax(0, 1fr));
+        grid-auto-flow: row;
         overflow: visible;
-      }
-      .dh-det .rooms {
-        order: 2;
-        inline-size: 100%;
-        flex: 1 1 100%;
-        margin-inline: -14px;
-        padding-inline: 14px;
       }
       .dh-det .grow {
         display: none;
       }
-      .dh-det .search {
-        order: 3;
-        flex: 1 1 0;
-        min-inline-size: 0;
-      }
+      /* the search, the filter and the "new" key share one 44 px row; "new" keeps its name for assistive tech and shows the plus */
       .dh-det .newbtn {
-        order: 3;
+        order: 1;
+        min-inline-size: 44px;
+        min-block-size: 44px;
+        justify-content: center;
+      }
+      .dh-det .newbtn .lbl {
+        display: none;
+      }
+      .toast {
+        inset-block-end: calc(var(--sw-bottomnav-h) + 14px);
       }
       .banner {
         flex-wrap: wrap;
@@ -197,6 +240,7 @@ export class TicketsHandlersPage extends LitElement {
   private setSeg(id: HandlersSegment): void {
     this.seg = id;
     this.adding = false;
+    this.filterOpen = false;
     if (!this.embedded) replaceRoute('/tickets/handlers', this.seg === 'handlers' ? undefined : new URLSearchParams({ seg: this.seg }));
     this.ok = '';
     this.error = '';
@@ -293,6 +337,20 @@ export class TicketsHandlersPage extends LitElement {
     storePeriod(d);
     void this.loadHandled();
   };
+
+  private deptChips(depts: readonly { id: string; name: string }[]): ActiveChip[] {
+    const d = depts.find((x) => x.id === this.dept);
+    return d ? [{ key: 'department', label: bidi(d.name), remove: () => (this.dept = '') }] : [];
+  }
+
+  /** The department filter's panel (the list's panel dialect): the chips with their `data-handlers-dept` hooks inside it. */
+  private deptPanel(depts: readonly { id: string; name: string }[]) {
+    const chips = html`<div class="fchips" role="group" aria-label=${tt('departmentsGroup')} data-handlers-depts>
+      <button type="button" class="rc" aria-pressed=${String(!this.dept)} data-handlers-dept="" @click=${() => (this.dept = '')}>${tt('allDepartments')}</button>
+      ${depts.map((d) => html`<button type="button" class="rc" aria-pressed=${String(this.dept === d.id)} data-handlers-dept=${d.id} @click=${() => (this.dept = d.id)}>${bidi(d.name)}</button>`)}
+    </div>`;
+    return filterPanel(panelSection(tt('departmentsGroup'), chips), this.dept ? 1 : 0, () => (this.dept = ''), () => (this.filterOpen = false));
+  }
 
   private onNotice = (e: CustomEvent<{ ok?: string; error?: string }>) => {
     window.clearTimeout(this.okTimer);
@@ -394,30 +452,35 @@ export class TicketsHandlersPage extends LitElement {
     const review = this.seg === 'review';
     const segs = this.segments();
     const canAdd = !review && (this.seg !== 'handlers' || (this.meta?.can.configure ?? true) || mine.length > 0);
+    const canFilter = depts.length > 1 && !review;
+    const chips = canFilter ? this.deptChips(depts) : [];
+    const panel = canFilter && this.filterOpen ? this.deptPanel(depts) : nothing;
     return html`<div class=${this.embedded ? 'page embedded' : 'page'} data-tickets-handlers data-seg=${this.seg} ?data-embedded=${this.embedded}>
       <header class="dh" data-tickets-header>
         ${this.embedded ? nothing : html`<div class="dh-row">
           <div class="titles"><div class="crumbs">${tt('area')}</div><h1 data-handlers-title>${tt('hdTitle')}</h1></div>
           <span class="grow"></span>
         </div>`}
-        <div class="dh-det">
+        <div class="dh-det tb" role="group" aria-label=${tt('hdTitle')} data-toolbar>
           <div class="seg sm" role="radiogroup" aria-label=${tt('hdTitle')} data-handlers-tabs style=${`--segs:${segs.length}`} @keydown=${this.onSegKey}>
             ${segs.map((id) => html`<button type="button" role="radio" aria-checked=${String(this.seg === id)} tabindex=${this.seg === id ? '0' : '-1'} data-seg=${id} @click=${() => this.setSeg(id)}>${tt(`hdSeg_${id}` as 'hdSeg_handlers')}${this.counts[id] === undefined ? nothing : html`<small>${this.counts[id]}</small>`}</button>`)}
           </div>
-          ${depts.length > 1 && !review ? html`<div class="rooms" role="group" aria-label=${tt('departmentsGroup')} data-handlers-depts>
-            <button type="button" class="rc" aria-pressed=${String(!this.dept)} data-handlers-dept="" @click=${() => (this.dept = '')}>${tt('allDepartments')}</button>
-            ${depts.map((d) => html`<button type="button" class="rc" aria-pressed=${String(this.dept === d.id)} data-handlers-dept=${d.id} @click=${() => (this.dept = d.id)}>${bidi(d.name)}</button>`)}
-          </div>` : nothing}
+          ${canFilter ? html`<span class="fanchor">
+            ${filterToggle(this.filterOpen, chips.length, () => (this.filterOpen = !this.filterOpen))}
+            ${this.phone ? nothing : panel}
+          </span>${activeChips(chips, () => (this.dept = ''))}` : nothing}
           <span class="grow"></span>
           ${this.periodPicker()}
           ${review ? nothing : html`<label class="search">${tIcon('search')}<span class="vh">${tt('u6SearchPh')}</span><input type="search" data-handlers-search maxlength="80" placeholder=${this.phone ? tt('searchShort') : tt('u6SearchPh')}
             .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /></label>`}
-          ${canAdd ? html`<button type="button" class="btn primary newbtn" data-handlers-new aria-expanded=${this.seg === 'handlers' ? String(this.adding) : nothing} @click=${() => this.onAdd()}>${tIcon('plus')}${this.addLabel()}</button>` : nothing}
+          ${canAdd ? html`<button type="button" class="btn primary newbtn" data-handlers-new aria-label=${this.addLabel()} aria-expanded=${this.seg === 'handlers' ? String(this.adding) : nothing} @click=${() => this.onAdd()}>${tIcon('plus')}<span class="lbl">${this.addLabel()}</span></button>` : nothing}
+          ${canFilter && this.phone ? panel : nothing}
         </div>
       </header>
       ${this.strip()}
-      ${this.error ? html`<div class="msg err" role="alert" data-handlers-error>${this.error}</div>` : nothing}
-      ${this.ok ? html`<div class="msg ok" role="status" data-handlers-ok>${this.ok}</div>` : nothing}
+      ${this.error ? html`<div class="toast bad" role="alert" data-handlers-error>${tIcon('warning')}<span class="tx">${this.error}</span>
+        <button type="button" class="x" aria-label=${t('actions.close')} data-handlers-error-close @click=${() => (this.error = '')}>${tIcon('x')}</button></div>`
+        : this.ok ? html`<div class="toast" role="status" data-handlers-ok>${tIcon('check')}<span class="tx">${this.ok}</span></div>` : nothing}
       ${this.body()}
     </div>`;
   }

@@ -32,12 +32,14 @@ SETTINGS_KEY = "presence.building.config"
 # a bar per floor) / quiet (one sentence) / off (no card, the map only); `card_empty_rooms` hide (only active rooms in the card) / show (empty
 # rooms too, grey, while room is left); `card_details` hover (the time and the empty / unknown names only in the tooltip) / inline;
 # `card_all_empty` last ("<room> · ריק מ־HH:MM", the room that emptied last) / count ("כל N החדרים ריקים").
-DEFAULTS: dict[str, Any] = {"enabled": False, "hold_seconds": 60, "empty_minutes": 10, "retention_days": 30, "home_display": "chip", "map_tint": True,
+# AREA-PRESENCE-LINE-2351: `area_line` - the devices area screen's presence line (services/area_presence.py); OFF by default (conservative:
+# it may carry people's names to every devices viewer who also holds presence.view).
+DEFAULTS: dict[str, Any] = {"enabled": False, "area_line": False, "hold_seconds": 60, "empty_minutes": 10, "retention_days": 30, "home_display": "chip", "map_tint": True,
                             "card_style": "strip", "card_empty_rooms": "hide", "card_details": "hover", "card_all_empty": "last"}
 LIMITS = {"hold_seconds": (0, 3600), "empty_minutes": (1, 1440), "retention_days": (0, 365)}
 CHOICES = {"home_display": ("card", "chip", "off"), "card_style": ("strip", "floors", "quiet", "off"), "card_empty_rooms": ("hide", "show"),
            "card_details": ("hover", "inline"), "card_all_empty": ("last", "count")}
-FLAGS = ("enabled", "map_tint")
+FLAGS = ("enabled", "map_tint", "area_line")
 MAX_SENSORS = 200
 UNKNOWN_STATES = {None, "", "unknown", "unavailable"}
 

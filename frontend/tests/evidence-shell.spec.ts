@@ -500,17 +500,22 @@ test.describe('CR-013 shell with a (mocked) backend', () => {
     await open(page, '/devices/building');
     await expect(page.locator('sw-app button[data-sys-pill]')).toHaveCount(1);
     await expect(page.locator('sw-app [data-sys-banner] a')).toHaveCount(1);
-    // a viewer without system.configure: the same dot, not a button - and no link in the banner
+    // a viewer without system.configure: the same dot, as a key that opens a read-only note (POLISH4-WP1 D1) - no link to the
+    // health tab, and no link in the banner
     mock.user = VIEWER;
     await open(page, '/devices/building');
     await expect(page.locator('sw-app [data-sys-pill]')).toHaveCount(1);
-    await expect(page.locator('sw-app button[data-sys-pill]')).toHaveCount(0);
+    await expect(page.locator('sw-app button[data-sys-pill]:not([data-sys-static])')).toHaveCount(0);
     await expect(page.locator('sw-app [data-sys-pill][data-sys-static]')).toHaveAttribute('aria-label', /מצב המערכת: תקלה/);
     await expect(page.locator('sw-app [data-sys-banner]')).toBeVisible();
     await expect(page.locator('sw-app [data-sys-banner] a')).toHaveCount(0);
     await page.locator('sw-app [data-sys-pill]').click({ force: true });
     await page.waitForTimeout(300);
     expect(await page.evaluate(() => location.hash)).not.toContain('diagnostics');
+    await expect(page.locator('sw-app [data-sys-pop]')).toContainText('מקליט לא זמין');
+    await expect(page.locator('sw-app [data-sys-pop] a')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('sw-app [data-sys-pop]')).toHaveCount(0);
   });
 
   test('the bare address lands on ראשי; settings shown only with a settings permission; WisKey only with access.read', async ({ page }, info) => {

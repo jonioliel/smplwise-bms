@@ -28,6 +28,7 @@ import './system-lookup-scope'; // CR-WISKEY-LEASE-REVOCATION-EVENT 5: who may l
 import type { TableColumn } from '../components/sw-table';
 import { demoGroups, demoRoles, demoUsers, demoAudit } from '../fixtures/catalog';
 import { can, isApi, session } from '../api/session';
+import { doorPermissionNote } from './lock-reason';
 import '../components/sw-toggle';
 import { describeError } from '../api/client';
 import { TabsModeController } from '../shell/tabs-mode';
@@ -1178,6 +1179,13 @@ export class SystemAccess extends LitElement {
         : nothing}`;
   }
 
+  /** UNLOCK-REASON-2370: "מותר" for a door permission is not "the door opens" - an intercom door also needs a door mapping. */
+  private doorPermissionNote(allowed: readonly string[]) {
+    const n = doorPermissionNote(allowed, can('system.configure'));
+    if (!n) return nothing;
+    return html`<div class="hint" style="margin-block-start:12px" data-effective-door-note>${n.text}${n.link ? html` <a data-effective-door-link href=${n.link.href}>${n.link.label}</a>` : nothing}</div>`;
+  }
+
   private renderEffectiveApi() {
     const dir = this.directory!;
     const p = this.preview;
@@ -1193,6 +1201,7 @@ export class SystemAccess extends LitElement {
               <div><div class="sec">מותר בהיקף</div>${p.allowed.length ? p.allowed.map((x) => html`<div class="row"><span>${this.label(x)}</span><sw-icon name="check" size=${14} style="color:var(--sw-live)"></sw-icon></div>`) : html`<div class="row"><span>כלום</span></div>`}</div>
               <div><div class="sec">מחוץ להיקף / לא מוקנה</div>${p.denied.map((x) => html`<div class="row"><span>${this.label(x)}</span><sw-icon name="close" size=${14} style="color:var(--sw-danger)"></sw-icon></div>`)}</div>
             </div>
+            ${this.doorPermissionNote(p.allowed)}
             ${p.bindings.length ? html`<div class="sec">שיוכים שנלקחו בחשבון</div>${p.bindings.map((b) => html`<div class="bind"><div>${b.role_name} · ${b.scope_name}${b.via_group ? ` (קבוצה "${b.via_group}")` : ''}</div></div>`)}` : nothing}
             <div class="hint" style="margin-block-start:12px">תצוגה זו אינה מתחזה למשתמש ואינה מאפשרת לעקוף את הגישה שלו; החישוב נעשה בצד השרת.</div>
           </sw-card>`

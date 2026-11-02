@@ -80,9 +80,11 @@ export function chooserOrder(cols: readonly ColumnKey[]): { key: ColumnKey; show
 // ---------------------------------------------------------------- widths (SMALL-UI-BUGS-2343)
 
 /** The table lays out with fixed column widths (table-layout: fixed): every column but the title has this width in px, the title
- * takes the rest (never less than TITLE_MIN_PX). Long text in a cell is cut with an ellipsis and its full text is the cell's tooltip. */
+ * takes the rest (never less than TITLE_MIN_PX). Long text in a cell is cut with an ellipsis and its full text is the cell's tooltip.
+ * GATE2342-B: `created` (the running clock, "פתוחה 20 ימים 2 ש׳") was 104 px and cut its text without an ellipsis; it is 148 px
+ * and the clock wraps to a second line when it is longer still (table-styles.ts td.c-created). */
 export const COLUMN_WIDTH_PX: Readonly<Record<ColumnKey | 'sentence', number>> = {
-  number: 76, title: 0, department: 128, priority: 104, status: 148, assignee: 148, place: 156, device: 148, created: 104, activity: 112,
+  number: 76, title: 0, department: 128, priority: 104, status: 148, assignee: 148, place: 156, device: 148, created: 148, activity: 112,
   stuck: 140, sla: 120, cost: 104, cost_status: 128, sentence: 260,
 };
 export const TITLE_MIN_PX = 220;
@@ -112,6 +114,32 @@ export function fitColumns(cols: readonly ColumnKey[], width: number, select: bo
     if (i >= 0) out.splice(i, 1);
   }
   return out;
+}
+
+/**
+ * TICKETS-1440-COLUMN-SETTING-2360 (Settings > the module > display, `ui.table_mid_width`): at a medium width (about 1440 px, the card is
+ * about 1,294 px) the default columns plus the "מה קורה" sentence column are wider than the table. The default set drops low-priority columns
+ * until it fits (AUTO_HIDE_ORDER: the department first). This setting picks what the table keeps instead: `sentence` (default, as before:
+ * the department steps aside) or `department` (the sentence column steps aside). The other column stays in the column chooser either way.
+ * The viewer's own choice wins: a non-default column set is never fitted, and a sentence tick used in this browser is kept as it was set.
+ */
+export const TABLE_MID_WIDTH = ['sentence', 'department'] as const;
+export type TableMidWidth = (typeof TABLE_MID_WIDTH)[number];
+export const TABLE_MID_DEFAULT: TableMidWidth = 'sentence';
+export function parseTableMid(v: unknown): TableMidWidth {
+  return typeof v === 'string' && (TABLE_MID_WIDTH as readonly string[]).includes(v) ? (v as TableMidWidth) : TABLE_MID_DEFAULT;
+}
+
+/** `choice` = the viewer's own sentence tick (readSentenceChoice): `default` = never touched. */
+export interface FittedTable { columns: ColumnKey[]; sentence: boolean; /** the sentence column is wanted but the table's width left it out */ sentenceFitted: boolean }
+export function fitTable(cols: readonly ColumnKey[], width: number, select: boolean, choice: 'on' | 'off' | 'default', mid: TableMidWidth = TABLE_MID_DEFAULT): FittedTable {
+  const wanted = choice !== 'off';
+  if (width <= 0 || !isDefaultColumns(cols) || !wanted) return { columns: fitColumns(cols, width, select, wanted ? ['sentence'] : []), sentence: wanted, sentenceFitted: false };
+  // the default set, the sentence on, the viewer has not decided: the installation says which of sentence / department gives way
+  if (mid === 'department' && choice === 'default' && tableMinWidth([...cols, 'sentence'], select) > width) {
+    return { columns: fitColumns(cols, width, select, []), sentence: false, sentenceFitted: true };
+  }
+  return { columns: fitColumns(cols, width, select, ['sentence']), sentence: true, sentenceFitted: false };
 }
 
 // ---------------------------------------------------------------- sort

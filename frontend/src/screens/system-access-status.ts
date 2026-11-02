@@ -50,6 +50,7 @@ import { ageText, alertDetail, alertTitle, errorText, modelLine, syncText } from
 import { localTime } from '../access-control/events-logic';
 import { UTC_ZONE } from './wiskey-format';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { accessPanelPolish } from './system-access-polish-css';
 import { st, type StKey } from '../i18n/access-status';
 
 const REFRESH_MS = 60_000; // the reads are cached by the server for 30-60 s: asking more often only repeats the same answer
@@ -90,6 +91,7 @@ export class SystemAccessStatus extends LitElement {
         white-space: nowrap;
       }
     `,
+    accessPanelPolish,
     bubbleChrome,
   ];
 
@@ -194,7 +196,7 @@ export class SystemAccessStatus extends LitElement {
   private healthCard(now: Date): TemplateResult {
     const stations = this.stationsRes.snap.data ?? [];
     return html`<sw-card flush data-access-card="health">
-      <div class="ch"><div><h3>${st('healthTitle')}</h3><div class="sub ltr">${st('healthSub')}</div></div></div>
+      <div class="ch"><div><h3>${st('healthTitle')}</h3><div class="sub">${st('healthSub')}</div></div></div>
       ${stations.length ? html`<div class="list">${stations.map((s) => this.stationRow(s, now))}</div>` : html`<div class="empty">${st('healthEmpty')}</div>`}
     </sw-card>`;
   }
@@ -222,7 +224,7 @@ export class SystemAccessStatus extends LitElement {
     else body = html`<div class="list" data-access-alerts>${page.items.map((a) => this.alertRow(a, now))}</div>`;
     return html`<sw-card flush data-access-card="alerts">
       <div class="ch">
-        <div><h3>${st('alertsTitle')}</h3><div class="sub ltr">${st('alertsSub', { n: page ? (page.total ?? page.items.length) : 0 })}</div></div>
+        <div><h3>${st('alertsTitle')}</h3><div class="sub">${st('alertsSub', { n: page ? (page.total ?? page.items.length) : 0 })}</div></div>
         <div class="ctl">
           <sw-dropdown tall data-access-alert-kind label=${st('alertKind')} .items=${this.kindItems()} .value=${this.kind} @change=${(e: CustomEvent<{ id: string }>) => this.setKind(e.detail.id as AlertKind | '')}></sw-dropdown>
           <button type="button" class="chipbtn" data-access-alerts-muted aria-pressed=${String(this.muted)} @click=${() => this.toggleMuted()}>${st('alertMutedShow')}</button>
@@ -318,7 +320,7 @@ export class SystemAccessStatus extends LitElement {
     else if (!rows.length) body = html`<div class="empty" data-access-conflicts-empty><span class="dot ok" aria-hidden="true"></span>${st('conflictsEmpty')}</div>`;
     else body = html`<sw-table data-access-conflicts .columns=${columns} .rows=${rows} rowKey="id"></sw-table>`;
     return html`<sw-card flush data-access-card="conflicts">
-      <div class="ch"><div><h3>${st('conflictsTitle')}</h3><div class="sub ltr">${st('conflictsSub')}</div></div></div>
+      <div class="ch"><div><h3>${st('conflictsTitle')}</h3><div class="sub">${st('conflictsSub')}</div></div></div>
       ${r.stale && s.data ? html`<div class="note stale" role="status" data-access-stale="conflicts"><sw-icon name="offline" size=${16}></sw-icon><span>${this.staleText(s.fetchedAt, now)}</span></div>` : nothing}
       ${body}
     </sw-card>`;

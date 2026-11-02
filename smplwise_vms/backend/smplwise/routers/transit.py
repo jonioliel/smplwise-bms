@@ -9,15 +9,17 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import math
 import sqlite3
 import threading
+import time
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
-from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, read_gate
 from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
@@ -152,3 +154,33 @@ def refresh_catalogue(request: Request, principal: Principal = Depends(current_p
     _REFRESH["t"] = t
     t.start()
     return {"started": True, "running": True}
+
+
+# ---------------------------------------------------------------- POLISH4-WP8 (owner-approved 02.11): "check now"
+
+CHECK_EVERY_S = 30.0
+_CHECK: dict[str, float] = {"at": 0.0}
+_CHECK_LOCK = threading.Lock()
+_configure_ro = read_gate(lambda conn, principal: require(conn, principal, "system.configure", INSTALLATION))
+
+
+@router.post("/transit/check")
+def check_now(request: Request, principal: Principal = Depends(_configure_ro)) -> dict[str, Any]:
+    """Ask the source ONCE now for the configured stops and answer the new health (`system.configure`, audited `transit.check`, one check per
+    30 s per installation). The loop polls only stops a screen uses, so an idle installation would keep showing its last failure; this check is
+    the administrator's way to see whether the source answers today. It never loops and never changes a setting. The permission is checked on
+    the read connection and no write lock is held while the source answers (the check stores its own rows; the audit row is written after)."""
+    with _CHECK_LOCK:
+        left = CHECK_EVERY_S - (time.monotonic() - _CHECK["at"])
+        if _CHECK["at"] and left > 0:
+            raise ApiError(429, "transit_check_rate_limited", "הבדיקה רצה לפני רגע. אפשר לבדוק שוב בעוד חצי דקה.", retryable=True,
+                           details={"retry_after_s": math.ceil(left)})
+        _CHECK["at"] = time.monotonic()
+    db = request.app.state.db
+    now = dt.datetime.now(dt.timezone.utc)
+    res = poller.check_once(db, _fetch(request), now)
+    with db.connection(label="transit.check.audit") as conn:
+        audit(conn, actor=principal, action="transit.check", decision="allowed", resource_type="installation", resource_id="transit", request_id=_rid(request),
+              details={"codes": res["codes"], "fetched": res["fetched"], "ok": res["ok"], "error": res["error"], "skipped": res["skipped"]})
+    with db.connection(mode="read", label="transit.check.view") as conn:
+        return {"check": {**res, "at": now.replace(microsecond=0).isoformat().replace("+00:00", "Z")}, "health": health.view(conn, now)}

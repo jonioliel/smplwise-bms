@@ -22,7 +22,7 @@ export const maintCss = [tempCss, css`
   .btn.dng { color: var(--sw-danger-text); border-color: var(--sw-danger); }
   .btn.big { padding: 12px 18px; font-size: var(--sw-fs-lg); min-block-size: 48px; justify-content: center; }
   .btn sw-icon { flex: none; }
-  .btn.pri:hover { background: var(--sw-accent-hover); }
+  @media (hover: hover) and (pointer: fine) { .btn.pri:hover { background: var(--sw-accent-hover); } }
 
   /* the page head (screens/infra-temperature.ts .top) */
   .top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -88,7 +88,7 @@ export const maintCss = [tempCss, css`
   table.t td { padding: 10px 12px; border-block-end: 1px solid var(--sw-border); vertical-align: middle; white-space: nowrap; }
   table.t tbody tr:last-child td { border-block-end: 0; }
   table.t tbody tr.go { cursor: pointer; }
-  table.t tbody tr.go:hover td { background: var(--sw-surface-2); }
+  @media (hover: hover) and (pointer: fine) { table.t tbody tr.go:hover td { background: var(--sw-surface-2); } }
   table.t tbody tr:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: -2px; }
   td .t1 { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
   td .t2 { display: block; font-size: var(--sw-fs-sm); color: var(--sw-text-3); }

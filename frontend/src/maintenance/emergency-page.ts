@@ -57,7 +57,7 @@ export class EmergencyReadinessPage extends LitElement {
     .item .st { font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); color: var(--c-text); }
     .item.red { background: var(--sw-danger-soft); }
     a.fix { color: var(--sw-accent-text); text-decoration: none; font-weight: var(--sw-fw-semibold); white-space: nowrap; }
-    a.fix:hover { text-decoration: underline; }
+    @media (hover: hover) and (pointer: fine) { a.fix:hover { text-decoration: underline; } }
     .foot { padding: 8px 14px; color: var(--sw-text-3); font-size: var(--sw-fs-sm); }
     .printonly { display: none; }
     @media (max-width: 767px) { .item { grid-template-columns: auto minmax(0, 1fr); } .item .side { grid-column: 2; } }

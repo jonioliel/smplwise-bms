@@ -1,12 +1,17 @@
 import { LitElement, html, nothing, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { live } from 'lit/directives/live.js';
 import '../components/sw-icon';
 import '../components/sw-dialog';
+import '../components/sw-toggle';
 import { describeError, resourceUrl } from '../api/client';
 import {
   cardOf, serverProviderOf, type AuthorizeStart, type Calendar, type CalendarsApi, type Connection, type ExtCalendar, type Feed, type ProviderCard,
 } from '../api/calendars';
-import { clientIdOk, directionsFor, firstStep, pasteLooksRight } from './connect-model';
+import {
+  FEED_REMOTE_CONFIRM_HE, FEED_REMOTE_LOCAL_ONLY_HE, clientIdOk, directionsFor, feedDetailHe, feedExpiry, feedMaxAgeHe, feedRemoteNeedsConfirm, feedRemoteView,
+  firstStep, pasteLooksRight,
+} from './connect-model';
 import { PROVIDER_LABEL } from './model';
 import { calCss } from './styles';
 
@@ -23,7 +28,10 @@ const DETAIL_HE: Record<string, string> = { busy: '"תפוס" בלבד', titles:
  * the owner pastes that address here. Microsoft: a short code for microsoft.com/devicelogin, approved on any phone or computer; this
  * dialog asks the server every few seconds. iCal: the secret address of the calendar. Binding: a provider calendar to an Arx calendar
  * (owner answer 17: needs the connect permission AND an edit role in that calendar - the server checks). Feeds: secret-address iCal
- * feeds of chosen calendars; the address is shown once.
+ * feeds of chosen calendars; the address is shown once. CAL-FEED-REVIEW-2351 round 14: per feed its expiry and "חידוש קישור" (a new
+ * address with the current default expiry), and - for an administrator or the creator who manages every calendar of the feed - the
+ * "גישה מרחוק" toggle; turning it on asks first and names the consequence; a feed open from outside is busy-only (the server enforces
+ * both); on the remote channel the toggle is locked with the reason (the server allows the switch from a local session only).
  */
 @customElement('cal-connect-dialog')
 export class CalConnectDialog extends LitElement {
@@ -42,6 +50,12 @@ export class CalConnectDialog extends LitElement {
     .url { font-size: var(--sw-fs-xs); word-break: break-all; padding: 8px 10px; border-radius: var(--sw-r-md); background: var(--sw-surface-2); user-select: all; }
     a.btn { text-decoration: none; }
     .fine { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
+    .feed { flex-wrap: wrap; }
+    .feed .what { display: flex; flex-direction: column; gap: 2px; min-inline-size: 0; flex: 1 1 160px; }
+    .feed .exp.bad { color: var(--sw-danger-text); }
+    .feed .rem { display: inline-flex; align-items: center; gap: 6px; font-size: var(--sw-fs-xs); color: var(--sw-text-2, var(--sw-text)); }
+    .confirm { display: flex; flex-direction: column; gap: 8px; }
+    .confirm .acts { display: flex; gap: 8px; flex-wrap: wrap; }
   `];
 
   @property({ attribute: false }) api: CalendarsApi | null = null;
@@ -72,6 +86,11 @@ export class CalConnectDialog extends LitElement {
   @state() private fCals: string[] = [];
   @state() private fDetail: 'busy' | 'titles' = 'busy';
   @state() private shownUrl = '';
+  /** round 14: false on the remote channel (the server refuses the remote switch there) */
+  @state() private feedsLocal = true;
+  @state() private feedMaxAge: number | null = null;
+  /** round 14 (2A): the feed whose remote access waits for the confirmation */
+  @state() private confirmRemote = '';
   private pollTimer = 0;
   private opened: ConnectMode | null = null;
 
@@ -84,7 +103,7 @@ export class CalConnectDialog extends LitElement {
     if (this.mode === this.opened) return;
     this.opened = this.mode;
     clearTimeout(this.pollTimer);
-    Object.assign(this, { error: '', busy: false, start: null, pasted: '', pollState: '', ext: null, feeds: null, shownUrl: '', clientSecret: '' });
+    Object.assign(this, { error: '', busy: false, start: null, pasted: '', pollState: '', ext: null, feeds: null, shownUrl: '', clientSecret: '', confirmRemote: '' });
     const m = this.mode;
     if (!m) return;
     if (m.kind === 'connect') {
@@ -323,17 +342,57 @@ export class CalConnectDialog extends LitElement {
       const r = await this.api_.feeds();
       this.feeds = r.feeds.filter((f) => !f.revoked);
       this.feedsEnabled = r.enabled;
+      this.feedsLocal = r.local !== false;
+      this.feedMaxAge = r.default_max_age_days ?? null;
     });
   }
 
-  private feedAct(fn: () => Promise<{ feed: Feed; path?: string }>): Promise<void> {
+  private feedAct(fn: () => Promise<{ feed: Feed; path?: string }>, keepCals = false): Promise<void> {
     return this.run(async () => {
       const r = await fn();
       if (r.path) this.shownUrl = resourceUrl(r.path);
-      this.fCals = [];
+      if (!keepCals) this.fCals = [];
+      this.confirmRemote = '';
       const all = await this.api_.feeds();
       this.feeds = all.feeds.filter((f) => !f.revoked);
+      this.feedsLocal = all.local !== false;
+      this.feedMaxAge = all.default_max_age_days ?? null;
     });
+  }
+
+  /** round 14 (2A): ON waits for the confirmation; OFF applies at once. */
+  private flipRemote(f: Feed, next: boolean): void {
+    if (feedRemoteNeedsConfirm(next)) {
+      this.confirmRemote = f.id;
+      return;
+    }
+    void this.feedAct(() => this.api_.setFeedRemote(f.id, false), true);
+  }
+
+  private feedRow(f: Feed, names: (ids: string[]) => string) {
+    const rv = feedRemoteView(f, this.feedsLocal);
+    const exp = feedExpiry(f.expires_at);
+    const on = rv.show && (rv.on || this.confirmRemote === f.id);
+    return html`<div class="item feed" data-feed=${f.id} data-feed-remote=${f.remote ? 'on' : 'off'}>
+      <div class="what"><span class="ell" title=${names(f.calendar_ids)}>${names(f.calendar_ids)}</span>
+        <span class="fine exp ${exp.expired ? 'bad' : ''}" data-feed-expiry>${exp.text}</span></div>
+      <span class="chip" data-feed-detail-chip=${f.remote ? 'busy-remote' : (f.detail_effective ?? f.detail)}>${feedDetailHe(f)}</span>
+      ${rv.show ? html`<span class="rem" title=${rv.locked ? FEED_REMOTE_LOCAL_ONLY_HE : ''}><sw-toggle label=${`גישה מרחוק ל${names(f.calendar_ids)}`} labelHidden data-feed-remote-toggle
+        .checked=${live(on)} ?disabled=${this.busy || rv.locked || !this.feedsEnabled || !!this.confirmRemote}
+        @change=${(e: CustomEvent<{ checked: boolean }>) => this.flipRemote(f, e.detail.checked)}></sw-toggle>מבחוץ</span>` : nothing}
+      <button type="button" class="btn sm" data-feed-rotate title="כתובת חדשה עם תוקף חדש; הכתובת הקודמת מפסיקה לעבוד" ?disabled=${this.busy || !this.feedsEnabled}
+        @click=${() => void this.feedAct(() => this.api_.rotateFeed(f.id), true)}>חידוש קישור</button>
+      <button type="button" class="btn sm bad" data-feed-revoke ?disabled=${this.busy} @click=${() => void this.feedAct(() => this.api_.revokeFeed(f.id), true)}>ביטול</button></div>`;
+  }
+
+  private remoteConfirm() {
+    const f = (this.feeds ?? []).find((x) => x.id === this.confirmRemote);
+    if (!f) return nothing;
+    return html`<div class="note warn confirm" role="alertdialog" aria-label="פתיחת הפיד לגישה מרחוק" data-feed-remote-confirm>
+      <b>לפתוח את הפיד לגישה מרחוק?</b><span>${FEED_REMOTE_CONFIRM_HE}</span>
+      <div class="acts"><button type="button" class="btn sm pri" data-feed-remote-yes ?disabled=${this.busy}
+        @click=${() => void this.feedAct(() => this.api_.setFeedRemote(f.id, true), true)}>כן, לפתוח מבחוץ</button>
+        <button type="button" class="btn sm" data-feed-remote-no ?disabled=${this.busy} @click=${() => (this.confirmRemote = '')}>ביטול</button></div></div>`;
   }
 
   private feedsBody() {
@@ -344,11 +403,11 @@ export class CalConnectDialog extends LitElement {
       ${!this.feedsEnabled ? html`<div class="note warn" data-feeds-off>פידים כבויים. מפעילים בהגדרות היומנים.</div>` : nothing}
       ${this.shownUrl ? html`<div class="note" data-feed-url-once><div class="grow"><b>הכתובת מוצגת פעם אחת בלבד</b><div class="url ltr" dir="ltr">${this.shownUrl}</div>
         <span class="fine">עובדת רק במקום שבו Arx נגיש לאפליקציית היומן.</span></div></div>` : nothing}
-      ${this.feeds === null && !this.error ? html`<div class="spin" role="status" aria-label="טוען"></div>` : html`<div class="list">${(this.feeds ?? []).map((f) => html`<div class="item" data-feed=${f.id}>
-        <span class="grow ell" title=${names(f.calendar_ids)}>${names(f.calendar_ids)}</span><span class="chip">${DETAIL_HE[f.detail]}</span>
-        <button type="button" class="btn sm" data-feed-rotate ?disabled=${this.busy || !this.feedsEnabled} @click=${() => void this.feedAct(() => this.api_.rotateFeed(f.id))}>כתובת חדשה</button>
-        <button type="button" class="btn sm bad" data-feed-revoke ?disabled=${this.busy} @click=${() => void this.feedAct(() => this.api_.revokeFeed(f.id))}>ביטול</button></div>`)}
+      ${this.remoteConfirm()}
+      ${!this.feedsLocal && (this.feeds ?? []).some((f) => f.can_remote) ? html`<div class="note" data-feed-remote-local-only>${FEED_REMOTE_LOCAL_ONLY_HE}</div>` : nothing}
+      ${this.feeds === null && !this.error ? html`<div class="spin" role="status" aria-label="טוען"></div>` : html`<div class="list">${(this.feeds ?? []).map((f) => this.feedRow(f, names))}
         ${(this.feeds ?? []).length ? nothing : html`<p class="fine" data-feeds-empty>אין פידים.</p>`}</div>`}
+      ${(this.feeds ?? []).length && this.feedMaxAge !== null ? html`<p class="fine" data-feed-renew-hint>"חידוש קישור" נותן כתובת חדשה בתוקף ${feedMaxAgeHe(this.feedMaxAge)}; הכתובת הקודמת מפסיקה לעבוד ויש לעדכן אותה באפליקציית היומן.</p>` : nothing}
       ${this.feedsEnabled ? html`<div class="list" role="group" aria-label="יומנים לפיד חדש">${mine.map((c) => html`<label class="check"><input type="checkbox" data-feed-cal=${c.id} .checked=${this.fCals.includes(c.id)}
         @change=${(e: Event) => (this.fCals = (e.target as HTMLInputElement).checked ? [...this.fCals, c.id] : this.fCals.filter((x) => x !== c.id))}>${c.name}</label>`)}</div>
         <div class="seg" role="radiogroup" aria-label="מה עובר">${(['busy', 'titles'] as const).map((d) => html`<button type="button" role="radio" aria-checked=${String(this.fDetail === d)}

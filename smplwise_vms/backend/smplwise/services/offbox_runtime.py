@@ -51,6 +51,11 @@ REASON_HE = {
     "gdrive_client_invalid": "Google דחה את פרטי הלקוח (Client ID / Secret)",
     "gdrive_client_missing": "חסרים פרטי הלקוח של Google",
     "gdrive_scope_refused": "Google לא אישר גישה לתיקיית הגיבוי",
+    # GDRIVE-READY-2351
+    "gdrive_client_type": "סוג הלקוח ב־Google שגוי (צריך TVs and Limited Input devices)",
+    "gdrive_client_not_found": "Google לא מכיר את מזהה הלקוח",
+    "gdrive_consent_not_configured": "מסך ההסכמה לא הוגדר בפרויקט ב־Google Cloud",
+    "gdrive_api_disabled": "Google Drive API לא הופעל בפרויקט ב־Google Cloud",
     "remote_error": "תשובה לא צפויה מהיעד",
 }
 

@@ -43,7 +43,8 @@ test('8B: the layout editor panel is a bottom sheet below 1200 px and a side pan
   const c = read('screens/devices-layout-css.ts');
   const sheet = c.indexOf('@media (max-width: 1199px) {\n      .lay-panel {\n        inset-block-start: auto;');
   expect(sheet, 'the sheet rule covers phone and tablet').toBeGreaterThan(0);
-  expect(c).toContain('@media (min-width: 1200px) {\n      :host([data-lay-editing]) sw-page {\n        padding-inline-end: calc(var(--lay-panel) + 32px);');
+  // HOME-EDIT-DRAWER-2351 (owner 02.11, round 14): the home screen's CLOSED edit drawer frees the column through data-he-free
+  expect(c).toContain('@media (min-width: 1200px) {\n      :host([data-lay-editing]:not([data-he-free])) sw-page {\n        padding-inline-end: calc(var(--lay-panel) + 32px);');
   expect(c).toContain('@media (max-width: 1199px) {\n      :host([data-lay-editing]) sw-page {\n        padding-block-end: 52vh;');
   // the old phone-only sheet / tablet side-panel split is gone
   expect(c).not.toContain('@media (min-width: 768px) {\n      :host([data-lay-editing]) sw-page');

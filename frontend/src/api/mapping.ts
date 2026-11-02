@@ -6,7 +6,7 @@ import { get, post, put } from './client';
 import { isApi } from './session';
 import { productSettings } from './prefs';
 import { demoMapping } from './mapping-demo';
-import { emptyState, MAPPING_SETTINGS_DEFAULT, settingsOf, stateOf, type CurrentLinks, type MapItem, type MappingSettings, type MappingState, type OurFloor, type Plan } from './mapping-engine';
+import { emptyState, MAPPING_SETTINGS_DEFAULT, settingsOf, stateOf, type CurrentLinks, type HaLabel, type MapItem, type MappingSettings, type MappingState, type OurFloor, type Plan } from './mapping-engine';
 
 export interface MappingVersion {
   number: number;
@@ -33,9 +33,21 @@ export interface MappingRead {
   settings: MappingSettings;
   multi_building: boolean;
   can_toggle: boolean;
+  /** Round 14 (owner 02.11): "הרשאת בניין לפי" - what a building-scoped role binding reaches while the multi-building switch is on. */
+  building_reach?: BuildingReach;
+  /** Only an administrator of roles (rbac.roles.manage across the installation) changes it. */
+  can_set_reach?: boolean;
   versions: MappingVersion[];
   seen: string[] | null;
-  items: { floors: { id: string; name: string; level: number | null }[]; areas: { id: string; name: string; floor_id: string | null; labels?: string[] }[] };
+  items: {
+    floors: { id: string; name: string; level: number | null }[];
+    /** `labels`: the area's label NAMES (HA-LABELS-SYNC-2351, synced read-only from the home system). */
+    areas: { id: string; name: string; floor_id: string | null; labels?: string[] }[];
+    /** HA-LABELS-SYNC-2351: the home system's label registry (absent on a server before 2.35.1). */
+    labels?: HaLabel[];
+    /** When the label registry was last listed; null = never (an old core, or not synced yet). */
+    labels_synced_at?: string | null;
+  };
   buildings: MappingBuilding[];
   links: Required<CurrentLinks>;
 }
@@ -45,6 +57,8 @@ export interface MappingData extends MappingRead {
   parsed: MappingState;
   mapItems: MapItem[];
   ourFloors: OurFloor[];
+  /** The label registry, or null when it was never listed (then "בתווית" cannot be judged on this site). */
+  haLabels: HaLabel[] | null;
 }
 
 export function toData(r: MappingRead): MappingData {
@@ -53,7 +67,8 @@ export function toData(r: MappingRead): MappingData {
     ...r.items.areas.map((a) => ({ id: a.id, kind: 'area' as const, name: a.name, floorId: a.floor_id, labels: a.labels ?? [] })),
   ];
   const ourFloors = r.buildings.flatMap((b) => b.floors.map((f) => ({ id: f.id, building_id: b.id, name: f.name, level: f.level })));
-  return { ...r, settings: settingsOf(r.settings), parsed: r.state ? stateOf(r.state) : emptyState(), mapItems, ourFloors };
+  const haLabels = r.items.labels && r.items.labels_synced_at ? r.items.labels : null;
+  return { ...r, settings: settingsOf(r.settings), parsed: r.state ? stateOf(r.state) : emptyState(), mapItems, ourFloors, haLabels };
 }
 
 // ------------------------------------------------------------------------------------------------------------------------------- demo
@@ -76,11 +91,15 @@ function demoStore(): DemoStore {
     settings: { ...MAPPING_SETTINGS_DEFAULT },
     multi_building: !!p.get('mb') && p.get('mb') !== 'off',
     can_toggle: true,
+    building_reach: 'map_and_mapping',
+    can_set_reach: true,
     versions: [],
     seen: null,
     items: {
       floors: d.items.filter((x) => x.kind === 'floor').map((x) => ({ id: x.id, name: x.name, level: x.level ?? null })),
       areas: d.items.filter((x) => x.kind === 'area').map((x) => ({ id: x.id, name: x.name, floor_id: x.floorId ?? null, labels: x.labels ?? [] })),
+      labels: demoLabels(d.items),
+      labels_synced_at: '2026-10-31T17:00:00Z',
     },
     buildings: d.buildings.map((b) => ({ id: b.id, name: b.name, is_shared: !!b.shared, floors: d.floors.filter((f) => f.building_id === b.id).map((f) => ({ id: f.id, name: f.name, level: f.level })) })),
     links: { floors: [], areas: [], buildings: [] },
@@ -89,6 +108,13 @@ function demoStore(): DemoStore {
   // `?mbmap=applied`: a site mapped once already, with two names new since (the health card)
   if (p.get('mbmap') === 'applied') demoSeedApplied(demo);
   return demo;
+}
+
+/** The demo's label registry, as the sync would mirror it: every label its areas carry, with the count. */
+function demoLabels(items: MapItem[]): HaLabel[] {
+  const n = new Map<string, number>();
+  for (const it of items) for (const l of new Set(it.labels ?? [])) n.set(l, (n.get(l) ?? 0) + 1);
+  return [...n].map(([name, areas], i) => ({ id: `demo_label_${i + 1}`, name, color: null, icon: null, areas }));
 }
 
 /** The evidence's "after apply" state: version 1 saw every name but two. */
@@ -130,6 +156,19 @@ export async function saveSettings(siteId: string, change: Partial<MappingSettin
     return { settings: s.read.settings };
   }
   return put<{ settings: MappingSettings }>(`sites/${encodeURIComponent(siteId)}/mapping/settings`, change);
+}
+
+/** Round 14 (owner 02.11): map placement only, or map placement + the home's area mapping (the default). */
+export type BuildingReach = 'map_and_mapping' | 'map';
+export const BUILDING_REACH_CHOICES: readonly BuildingReach[] = ['map_and_mapping', 'map'];
+export const BUILDING_REACH_TEXT: Record<BuildingReach, string> = { map_and_mapping: 'מפה + מיפוי אזורים', map: 'מיקום במפה' };
+
+export async function setBuildingReach(mode: BuildingReach): Promise<{ mode: BuildingReach }> {
+  if (!isApi()) {
+    demoStore().read.building_reach = mode;
+    return { mode };
+  }
+  return put<{ mode: BuildingReach }>('home/building-reach', { mode });
 }
 
 export async function setMultiBuilding(enabled: boolean): Promise<{ enabled: boolean }> {

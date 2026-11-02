@@ -72,7 +72,8 @@ Only on a site with two or more mapped buildings: the home screen (site bar, sit
 screen options (three rows), my screen (two rows), the building edit dialog (the shared check - every installation). One building: unchanged.
 
 ## Known limits
-- The summary counters' panel ("הצג ושלוט") still lists the whole installation inside a building (the panel has no building scope yet).
+- ~~The summary counters' panel ("הצג ושלוט") still lists the whole installation inside a building.~~ Resolved by
+  BUILDING-SCOPE-CONTROL-2351 (the panel, the floor / area actions and the server keep to the building shown).
 - On a landscape tablet 1024x768 the cards are short: they keep name, counters, one alert row and the off link; the floor bars and the open
   button give way (the name opens the building; the tree opens a floor).
 

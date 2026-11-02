@@ -2,7 +2,7 @@
 
 > Generated card. Edit management/tasks.json, then run this script with --write.
 
-**Phase:** V1 | **Priority:** P1 | **Status:** IN_PROGRESS
+**Phase:** V1 | **Priority:** P1 | **Status:** REVIEW
 
 **Owner role:** engineering | **Hardware:** False
 
@@ -15,20 +15,18 @@
 ## Model policy — not a live model switch
 ```json
 {
-  "implementation": "deep",
-  "review": "deep",
-  "effort": "high",
-  "escalation": "F4 (child RLIMITs / sandbox) needs a Linux run on the runner before docread.enabled may be switched on in a release."
+  "implementation": "balanced",
+  "review": "balanced",
+  "effort": "medium",
+  "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
 }
 ```
 
 ## Acceptance
-- **R-SUPPLIERDOCS2-1 / AT-SUPPLIERDOCS2-1:** Worst-case data on the main screens: long names, empty states, huge counts, no scrolling: built on an isolated branch, green runner entry check, joins release train 3 (2.30.0); no live device action.
+- **R-WORSTCASE-2310-1 / AT-WORSTCASE-2310-1:** Screens with extreme data stay in their cards: long area and cover names end in an ellipsis and keep their kind visible, five-digit counts widen their own row, temperatures and stale times give way last with the full value in a tooltip, the large weather widget shrinks its temperature to fit, the side rail active marker no longer counts as overflow.
 
 ## Deliverables
-- services/docread/pdftext.py (run_capped), services/docread/certificate_rules.py (IBAN pattern), services/docread/service.py (analyse, read slots, purge of deleted tasks), routers/docread.py
-- Tests: tests/test_docread_297.py (test_f1_*, test_f2_*, test_f6_*)
-- Docs: docs/changes/CR-SUPPLIERDOCS-297.md section 'Security review'
+- Code and tests in git history of pilot/WORSTCASE-2310
 
 ## Guardrails
 Read AGENTS.md and the linked master chapters. Inspect legacy code before replacement. No production configuration writes, physical commands, spending, or claims of passing unrun tests. Record commit, environment, commands and evidence.

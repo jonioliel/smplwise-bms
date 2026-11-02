@@ -109,6 +109,8 @@ test.describe('synoptic board: a building with no temperature and no lights', ()
       await expect(page.locator('[data-syn-info-hidden]')).toHaveText('טמפרטורה');
     } else await expect(page.locator('[data-syn-hidden]')).toHaveAttribute('data-syn-hidden', 'temp');
     await open(page, `${SYN}?xsdemo=6&xs_syn_columns=custom&xs_syn_custom=doors,temp,cameras`);
+    // PERF-HOME-DEVICES-2342: the synoptic screen is a lazy chunk that lands after the page's load event - wait for the board
+    await expect(page.locator('[data-syn-board]')).toBeVisible();
     expect(await visibleCols(page)).toEqual(['temp', 'cameras', 'doors']);
   });
 

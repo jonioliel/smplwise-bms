@@ -94,7 +94,9 @@ test.describe('handlers and vendors page + the assign dialog readiness (owner 20
     await expect.poll(() => last(mock, 'DELETE', /members\/user\/u-yossi$/)).toBeTruthy();
     await expect(page.locator(`${M} [data-member="user:u-yossi"]`)).toHaveCount(0);
     // another department
+    await page.locator(`${H} [data-filter-toggle]`).click(); // the department filter is the list's "סינון" panel
     await page.locator(`${H} [data-handlers-dept="dept-cleaning"]`).click();
+    await expect(page.locator(`${H} [data-active-chip="department"]`)).toBeVisible();
     await expect(page.locator(`${M} [data-member="user:u-dana"]`)).toBeVisible();
     await expect(page.locator(`${M} [data-member="user:u-ronit"]`)).toHaveCount(0);
   });

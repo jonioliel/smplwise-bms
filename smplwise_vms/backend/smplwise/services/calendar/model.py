@@ -62,6 +62,13 @@ SETTINGS_DEFAULTS: dict[str, Any] = {
     "maintenance_task_calendar": None,
     "notify_confirmations": False,
     "feeds_enabled": False,
+    # CAL-FEED-REVIEW-2351: the feed document's thresholds (every threshold is a setting): requests a minute per feed address and per
+    # client address (counted before the token is looked at, so a miss costs the same as a hit), and the expiry a NEW or renewed
+    # (rotated) feed address gets - fixed per address when it is issued, so a change never shortens an address already out
+    # (owner round 14, 3C: default 365 days, 0 = no limit)
+    "feed_rate_per_min": 30,
+    "feed_address_rate_per_min": 120,
+    "feed_max_age_days": 365,
     "sync_enabled": True,  # P2: the external-sync engine (C8/C9); nothing runs without a connection a `calendar.connect` holder created
     "sync_poll_min": 5,  # contract 12.3: 2-60
     "sync_accept_external": True,  # C9: external changes are accepted in both directions; off = pull is skipped (export only)
@@ -266,6 +273,9 @@ def settings_doc(doc: dict[str, Any]) -> dict[str, Any]:
     for f in ("sync_enabled", "sync_accept_external"):
         if not isinstance(s[f], bool):
             raise Invalid(f"{f}: true or false", f)
+    s["feed_rate_per_min"] = _int(s["feed_rate_per_min"], "feed_rate_per_min", 1, 600)
+    s["feed_address_rate_per_min"] = _int(s["feed_address_rate_per_min"], "feed_address_rate_per_min", 10, 6000)
+    s["feed_max_age_days"] = _int(s["feed_max_age_days"], "feed_max_age_days", 0, 3650)
     s["sync_poll_min"] = _int(s["sync_poll_min"], "sync_poll_min", 2, 60)
     s["sync_external_delete"] = _choice(s["sync_external_delete"], "sync_external_delete", ("cancel", "flag"))
     s["sync_google_scope"] = _choice(s["sync_google_scope"], "sync_google_scope", ("full", "events"))

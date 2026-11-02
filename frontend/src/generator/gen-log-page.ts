@@ -9,6 +9,7 @@ import { SkinController } from '../design/skin';
 import { genCss } from './gen-styles';
 import { fmtDateTime, fmtNum } from './gen-logic';
 import { glt, type GltKey } from '../i18n/generator-log';
+import { t } from '../i18n/he';
 
 const RANGES: RunRange[] = ['7d', '30d', '90d', '365d'];
 const KINDS: RunKind[] = ['test', 'mains_failure', 'manual', 'other'];
@@ -126,8 +127,8 @@ export class GenLogPage extends LitElement {
   }
 
   render() {
-    if (this.phase === 'loading' && !this.data) return html`<div class="col" data-state="loading"><div class="skl" style="inline-size:240px"></div><div class="skl" style="block-size:72px"></div><div class="skl" style="block-size:220px"></div></div>`;
-    if (this.phase === 'error' && !this.data) return html`<sw-state-panel state="error" heading=${glt('loadError')} hint=${this.error} data-state="error"></sw-state-panel>`;
+    if (this.phase === 'loading' && !this.data) return html`<div class="col" data-state="loading" aria-busy="true"><div class="skl" style="inline-size:240px"></div><div class="skl" style="block-size:72px"></div><div class="skl" style="block-size:220px"></div></div>`;
+    if (this.phase === 'error' && !this.data) return html`<sw-state-panel state="error" heading=${glt('loadError')} hint=${this.error} actionLabel=${t('states.retry')} @action=${() => void this.load()} data-state="error"></sw-state-panel>`;
     const d = this.data!;
     const cur = d.summary.current;
     return html`<div class="lg" data-gen-log>

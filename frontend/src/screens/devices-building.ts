@@ -41,6 +41,8 @@ import { mapHrefForArea } from '../api/plan-links';
 import { loadTree as loadCatalogTree } from '../api/catalog';
 import type { Floor as PlanFloor } from '../api/types';
 // PERF-HOME-DEVICES-2342: the plan view's map (<explore-floor-map>, with the plan canvas) is a lazy chunk, fetched only when the plan view renders (renderPlanView)
+// GATE2342-A: through the shell's loader (updated()), which upgrades it with its .floorId - an in-place upgrade ran its load() for no floor
+import { loadPendingScreens } from '../shell/lazy-screens';
 import type { DevicesBulkMenu } from './devices-bulk';
 import { bidi, ltrNum } from '../i18n/bidi';
 import type { BulkKind } from '../api/device-bulk';
@@ -59,7 +61,7 @@ import './home-ambient-bar';
 import { AMBIENT_WIDGETS } from './home-ambient-bar';
 import { infoStyleFor, loadScreenDisplay, BULK_IDLE_DEFAULT, FLOOR_TITLE_LINES_DEFAULT, INFO_STYLE_DEFAULT, type BulkIdle, type FloorTitleLines, type InfoStyle } from '../api/screen-display';
 import {
-  areaQuick, climateQuick, effectiveScreen, floorCardsMax, floorCardsSplit, HOME_SCREEN_DEFAULT, homeAlerts, isTabletLandscape, loadHomeScreen, rowQuickMax,
+  areaQuick, climateQuick, editDrawerReserved, effectiveScreen, floorCardsMax, floorCardsSplit, HOME_SCREEN_DEFAULT, homeAlerts, isTabletLandscape, loadHomeScreen, rowQuickMax,
   saveHomeScreen, screenFormBody, showRoomTemp, summaryKindsShown, tileQuickMax, tilesUnassignedShown, treeUnassignedShown,
   type HomeScreenForm, type HomeScreenOptions, type PersonalScreen, type QuickKind, type SummaryKind, type TreeUnassigned,
 } from '../api/home-screen';
@@ -68,6 +70,7 @@ import { hs } from '../i18n/home-screen';
 import { HOME_SCREEN_CSS } from './home-screen-css';
 import './home-screen-options'; // (the phone's area sheet draws <devices-area>, defined by the shell's route table - no import here: it imports this module)
 import './home-edit-panel';
+import { HOME_DRAWER_CSS, renderDrawerToggle, renderHomeDrawer, type HomeDrawerTab } from './home-edit-drawer';
 import type { QuickInfo } from './home-widgets';
 import {
   getHomeCandidates, HOME_DEFAULT, HOME_PERSONAL_EVENT, HOME_TITLE_DEFAULT, homeViewOf, loadHomeSettings, loadPersonal, moveAmong, NO_DATA, orderFloors, previewData, PHONE_MAX_WIDTH, resolveWidgets, saveHomeSettings, suggestConfig, widgetOn,
@@ -75,8 +78,14 @@ import {
 } from '../api/home';
 import { demoHome } from './home-demo';
 // MULTIBUILDING-HOME-2330: the site level of a multi-building installation (one building: nothing here is drawn)
-import { activeOff, bulkTargets, entryLevel, offSelection, scopeTag, scopeTree, shownBuildings, siteModel, SITE_LEVEL, type SiteBuilding, type SiteModel } from '../api/home-site';
+import { activeOff, bulkTargets, controlBuilding, entryLevel, offSelection, scopeTag, scopeTree, shownBuildings, siteModel, SITE_LEVEL, type SiteBuilding, type SiteModel } from '../api/home-site';
 import { getHomeLinks } from '../api/catalog';
+import { MINI_SITE_LEVEL, miniBuilding, miniModel, type MiniFloor, type MiniModel } from '../xsection/xs-mini-model'; // XS-MINI-WIDGET-2351
+import { floorLightsTarget, onXsOptions, xsOptions, type FloorSignal } from '../xsection/xs-model';
+import { demoSignals } from '../xsection/xs-data';
+import { xt } from '../i18n/xsection';
+import { fireReport } from '../xsection/fire-store';
+import { navigate } from '../router';
 import { multiBuildingOn } from '../api/mapping';
 import './mapping-all'; // MAPPING-ASSIST-2330: the site bar's health chip
 import type { Building, Floor as CatalogFloor } from '../api/types';
@@ -115,6 +124,9 @@ export function scrollParentOf(el: Element): HTMLElement | null {
 
 /** The count pills' keys that open the tiles' panel (cameras and sensors are counts only). */
 const PILL_KIND: Partial<Record<keyof DeviceCounts, TileKind>> = { lights: 'lights', switches: 'switches', covers: 'covers', climate: 'climate', heating: 'heating', media: 'media', locks: 'locks' };
+
+/** BUILDING-SCOPE-CONTROL-2351: the tooltip of the tiles' panel group control at the site level of a multi-building site. */
+const SITE_BULK_HOLD = 'פעולה קבוצתית זמינה בתוך בניין - בחרו בניין, או "כבה הכל" של האתר';
 
 /** The panel's deep link on the building screen (owner 2026-09-29): `#/devices/building?domain=<kind>[&floor=<id> |
  * &area=<id>][&filter=active|inactive|unavailable]` - the hash-query convention of the other screens (router.ts). */
@@ -1295,6 +1307,13 @@ export class DevicesBuilding extends LitElement {
   private fitTimer = 0;
   /** The widget whose settings are open in edit mode (a card's "הגדרות" button, or its row). */
   @state() private openWidget: WidgetId | '' = '';
+  /** HOME-EDIT-DRAWER-2351: edit mode's drawer (home-edit-drawer.ts) - open or closed (Escape), and its tab. */
+  @state() private drawerOpen = true;
+  @state() private drawerTab: HomeDrawerTab = 'home';
+  /** The layout editor's card selection as last seen: a new pick switches the drawer to the card tab. */
+  private drawerSel: string | null = null;
+  /** Focus moves into the drawer after the next render (edit mode entered, or the drawer opened from the bar). */
+  private drawerFocus = false;
 
   // ---------------------------------------------------------------------------------- HOME-295 (owner answers on the home mockup round 2)
   /** The installation's display options (home.screen) and this user's own (home.personal.screen, screen.personalize). */
@@ -1335,12 +1354,25 @@ export class DevicesBuilding extends LitElement {
     this.levelReady = false;
     if (this.multiOn && !this.siteSrc && isApi()) void this.loadSite();
   };
+  // ------------------------------------------------------------------ XS-MINI-WIDGET-2351: the mini cross-section widget
+  /** The catalogue's buildings with their floors and the mapping rows, read once - only when the widget is on or being edited (it is off by
+   * default, so a home without it never asks); null = not read. With the multi-building view on, the site's own read (siteSrc) is used. */
+  @state() private xsCat: { buildings: (Building & { floors?: CatalogFloor[] })[]; links: MatchLinks | null } | null = null;
+  private xsCatAsked = false;
+  /** The floor whose lights popup is open (from the widget's lights chip). */
+  @state() private xsLightsOf: FloorSignal | null = null;
+  private offXs: (() => void) | null = null;
+
   /** SITE_LEVEL or a building id: what the home shows on a multi-building site. */
   @state() private level: string = SITE_LEVEL;
   private levelReady = false;
   private siteMemo: { tree: DeviceTree | null; src: unknown; hide: boolean; out: { model: SiteModel; shown: SiteBuilding[] } | null } | null = null;
   /** The scope tag of the counters this render draws ('' = one building). */
   private kpiTag = '';
+  /** BUILDING-SCOPE-CONTROL-2351: the building "הצג ושלוט" acts in ('' = the one-building home or the site level: as before), and whether
+   * this render is the site level of a multi-building site (no group action over every building from the tiles' panel). */
+  private ctlBuilding = '';
+  private atSiteLevel = false;
   /** The areas of the building shown (null = the whole site / one building): the elevators widget follows them. */
   private scopeAreas: Set<string> | null = null;
 
@@ -1492,7 +1524,7 @@ export class DevicesBuilding extends LitElement {
       this.selected = 'all';
       this.beginHomeEdit();
     },
-    barExtra: () => this.renderInfoChoice(),
+    barExtra: () => html`${this.renderInfoChoice()}${renderDrawerToggle(this.drawerOpen, () => this.setDrawer(!this.drawerOpen, true))}`,
     extras: {
       dirty: () => this.homeDirty,
       save: () => this.saveHome(),
@@ -1660,6 +1692,11 @@ export class DevicesBuilding extends LitElement {
     this.candidates = null;
     this.candidatesError = '';
     this.openWidget = '';
+    // HOME-EDIT-DRAWER-2351: every session starts with the drawer open on the screen tab, focus inside it
+    this.drawerOpen = true;
+    this.drawerTab = 'home';
+    this.drawerSel = null;
+    this.drawerFocus = true;
     getHomeCandidates().then(
       (c) => (this.candidates = c),
       (err) => (this.candidatesError = describeError(err)),
@@ -1727,7 +1764,8 @@ export class DevicesBuilding extends LitElement {
     return resolveWidgets(h.config, h.direction, h.data, { editing: this.lay.editing, quickAllowed: this.quickInfo(t).allowed, phone: this.isPhone, mediaAvailable: this.mediaScreens === null ? undefined : this.mediaScreens > 0,
       elevatorsAvailable: !!this.elevators?.length, temperatureAvailable: this.tempWidget && this.tempUnits.length > 0,
       generatorsAvailable: generatorsAvailable(this.generators), doorsAvailable: doorsWidgetAvailable(this.doorsData, doorWindowsTabOn()),
-      noticesAvailable: (this.lay.editing ? noticesWidgetOffered : noticesWidgetAvailable)(this.noticesData, noticesModuleOn()), presenceAvailable: this.presenceOffered() });
+      noticesAvailable: (this.lay.editing ? noticesWidgetOffered : noticesWidgetAvailable)(this.noticesData, noticesModuleOn()), presenceAvailable: this.presenceOffered(),
+      xsectionAvailable: this.xsOffered(h) });
   }
 
   /** CR-015: whether the home's media widget has anything to show - the approved screens of this user (the same question the widget
@@ -1897,7 +1935,92 @@ export class DevicesBuilding extends LitElement {
     const data = areas && t.building.alarm && h.data.alarm ? { ...h.data, alarm: { ...h.data.alarm, state: t.building.alarm } } : h.data;
     return html`<home-widgets layout=${layout} ?quick-hidden=${!this.lay.editing && this.screen.quick_card === 'hide'} .items=${items} .config=${h.config} .data=${data} .quick=${this.quickInfo(t)} .zone=${h.time_zone} ?editing=${this.lay.editing} data-fit=${this.fit} ?alarmLink=${canAnywhere('alarm.view')} .scopeTag=${this.kpiTag}
       .elevators=${elevators} ?elevatorsStale=${this.elevatorsStale} .temperatureUnits=${this.tempUnits} ?temperatureStale=${this.tempStale} .generators=${this.generators} .doors=${this.doorsData} .notices=${this.noticesData} .presence=${this.presenceOffered() ? this.presenceSnap : null} .failed=${this.failedWidgets}
+      .xsMini=${items.some((i) => i.id === 'xsection' && i.avail === 'ok') ? this.xsMiniModel(items.find((i) => i.id === 'xsection')!.size) : null} .xsLightsOk=${this.xsLightsOk}
+      @home-xs-floor=${(e: CustomEvent<{ id: string }>) => navigate(`/explore/floors/${encodeURIComponent(e.detail.id)}`)} @home-xs-all=${this.onXsAll} @home-xs-lights=${this.onXsLights}
       @home-widget-retry=${this.onWidgetRetry} @home-widget-size=${this.onWidgetSize} @home-widget-toggle=${this.onWidgetToggle} @home-widget-move=${this.onWidgetMove} @home-widget-edit=${this.onWidgetEdit} @home-quick=${this.onQuick}></home-widgets>`;
+  }
+
+  /** XS-MINI-WIDGET-2351: may the viewer read the devices (the static demo always)? Without it nothing is read and the widget is absent. */
+  private xsMayRead(): boolean {
+    return !isApi() || canAnywhere('devices.read');
+  }
+
+  /** The buildings the widget may draw: the multi-building site's own read, else the widget's (read on demand). */
+  private xsBuildings(): (Building & { floors?: CatalogFloor[] })[] | null {
+    return (this.multiOn && this.siteSrc ? this.siteSrc.buildings : null) ?? this.xsCat?.buildings ?? null;
+  }
+
+  /** The widget is offered (a ghost / the switch in the editor, or drawn when on): the viewer may read the devices and a building has floors.
+   * The catalogue is read the first time the widget is switched on or the editor opens - a home that never shows it never asks. */
+  private xsOffered(h: HomeView): boolean {
+    if (!this.xsMayRead()) return false;
+    if (!this.xsCatAsked && (h.config.xsection.on || h.config.xsection.phone_on === true || this.lay.editing)) void this.loadXsCatalog();
+    const b = this.xsBuildings();
+    return !!b && miniBuilding(b) !== null;
+  }
+
+  private async loadXsCatalog() {
+    this.xsCatAsked = true;
+    try {
+      const [cat, links] = await Promise.all([loadCatalogTree(), isApi() ? getHomeLinks().catch(() => null) : Promise.resolve(null)]);
+      this.xsCat = { buildings: cat.sites.flatMap((s) => s.buildings ?? []), links };
+    } catch {
+      this.xsCat = { buildings: [], links: null }; // the widget stays absent; the next visit of the screen asks again
+    }
+  }
+
+  /** The building the widget draws: the level's on a multi-building site (the first one shown at the site level), else the first with floors. */
+  private xsBuilding() {
+    const all = this.xsBuildings();
+    if (!all) return null;
+    const site = this.site();
+    if (site) {
+      const shown = all.filter((b) => site.shown.some((s) => s.id === b.id));
+      return miniBuilding(shown, this.level === SITE_LEVEL ? MINI_SITE_LEVEL : this.level);
+    }
+    return miniBuilding(all);
+  }
+
+  /** The last model and what it was built from (the matching runs once per tree / building / option change, not on every render). */
+  private xsMemo: { key: unknown[]; out: MiniModel } | null = null;
+
+  private xsMiniModel(size: 's' | 'm' | 'l'): MiniModel | null {
+    const b = this.xsBuilding();
+    if (!b) return null;
+    const o = xsOptions();
+    const links = (this.multiOn && this.siteSrc ? this.siteSrc.links : null) ?? this.xsCat?.links ?? null;
+    const fire = o.fire_ui ? fireReport() : null;
+    const key = [b, this.tree, links, o, size, fire?.floors ?? null, !!this.site()];
+    if (this.xsMemo && this.xsMemo.key.every((k, i) => k === key[i])) return this.xsMemo.out;
+    const floors = b.floors ?? [];
+    const signals = isApi() ? undefined : demoSignals([...floors].sort((x, y) => y.level - x.level || y.sort_order - x.sort_order));
+    const out = miniModel({ building: b, tree: this.tree, ctx: { links, singleBuilding: !this.site() }, opts: o, size, fire: fire?.floors ?? null, signals });
+    this.xsMemo = { key, out };
+    return out;
+  }
+
+  /** The lights chip opens the floor lights popup (SWITCH-LIGHT-DIMMER-2331): devices.read and a target; the static demo shows its own rows. */
+  private xsLightsOk = (f: MiniFloor): boolean => (!isApi() ? f.lights !== null : canAnywhere('devices.read') && f.lightsTarget);
+
+  private onXsLights = (e: CustomEvent<{ id: string }>) => {
+    const b = this.xsBuilding();
+    const m = b ? this.xsMiniModel('l') : null;
+    this.xsLightsOf = m?.signals.find((s) => s.id === e.detail.id) ?? null;
+  };
+
+  private onXsAll = () => {
+    const b = this.xsBuilding();
+    navigate(b ? `/explore/buildings/${encodeURIComponent(b.id)}` : '/explore/sites');
+  };
+
+  /** The floor lights popup of the widget: the same panel and target as the floors screen and the synoptic board. */
+  private renderXsLights() {
+    const f = this.xsLightsOf;
+    const t = f && isApi() ? floorLightsTarget(f) : null;
+    return html`<devices-tiles-panel kind="lights" data-floor-lights=${f?.id ?? ''} data-xs-mini-panel ?open=${!!f} pairedMaster
+      scope=${t?.scope ?? 'building'} scopeId=${t?.scopeId ?? ''} scopeName=${f?.name ?? ''} .areaFilter=${t ? t.areaIds : null} switches=${xsOptions().syn_switches}
+      headingText=${f ? xt('floorLightsTitle', { name: f.name }) : ''}
+      @panel-close=${() => (this.xsLightsOf = null)} @panel-changed=${() => this.scheduleReload()}></devices-tiles-panel>`;
   }
 
   private onWidgetSize = (e: CustomEvent<{ id: WidgetId; size: 's' | 'm' | 'l' }>) => {
@@ -1963,22 +2086,61 @@ export class DevicesBuilding extends LitElement {
   }
 
   private onWidgetEdit = (e: CustomEvent<{ id: WidgetId }>) => {
+    // HOME-EDIT-DRAWER-2351: the widget's row opens in the drawer (screen tab) and is brought into view inside the drawer's own
+    // scroll - the page itself never moves
     this.openWidget = e.detail.id;
-    void this.updateComplete.then(() => this.renderRoot.querySelector('home-edit-panel')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+    this.drawerOpen = true;
+    this.drawerTab = 'home';
+    const id = e.detail.id;
+    void this.updateComplete.then(() => requestAnimationFrame(() => {
+      const panel = this.renderRoot.querySelector('home-edit-panel');
+      const row = panel?.shadowRoot?.querySelector<HTMLElement>(`[data-home-wrow="${CSS.escape(id)}"]`) ?? panel;
+      const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      row?.scrollIntoView({ block: 'nearest', behavior: still ? 'auto' : 'smooth' });
+    }));
   };
+
+  /** HOME-EDIT-DRAWER-2351: open / close the drawer. Closing hands focus back to the edit bar's "הגדרות המסך" key (when the close
+   * came from inside the drawer); opening from the bar moves focus into the drawer. */
+  private setDrawer(open: boolean, fromBar = false) {
+    if (open === this.drawerOpen) return;
+    this.drawerOpen = open;
+    if (open) this.drawerFocus = true;
+    else if (!fromBar) void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>('[data-home-drawer-toggle]')?.focus({ preventScroll: true }));
+  }
+
+  /** The drawer of edit mode: the screen tab (the home edit panel and the display options) and the card tab (the layout editor's
+   * panel of the selected card), with save / cancel in its footer. */
+  private renderEditDrawer(t: DeviceTree) {
+    const sel = this.lay.tileCard ?? this.lay.selected;
+    return renderHomeDrawer({
+      open: this.drawerOpen,
+      tab: this.drawerTab,
+      cardSelected: !!sel,
+      home: this.renderHomeEdit(t),
+      card: this.lay.renderPanel(),
+      dirty: this.lay.dirty,
+      busy: this.lay.busy,
+      onTab: (tab) => (this.drawerTab = tab),
+      onClose: () => this.setDrawer(false),
+      onSave: () => void this.lay.save(),
+      onCancel: () => this.lay.cancel(),
+    });
+  }
 
   private onQuick = (e: CustomEvent<{ action: QuickAction }>) => {
     if (!this.lay.editing) this.building(e.detail.action);
   };
 
-  /** Edit mode's card beside the layout bar: the title, the direction, every widget and the floor order. */
+  /** Edit mode's screen tab in the drawer (HOME-EDIT-DRAWER-2351): the title, the direction, every widget, the floor order and the
+   * display options. The panel is `flat` there (the drawer is its card). */
   private renderHomeEdit(t: DeviceTree) {
     const d = this.homeDraft;
     if (!d) return nothing;
     const names = new Map(t.floors.map((f) => [f.floor_id, f.name]));
     const floors = this.floorsOf(t).map((f) => ({ id: f.floor_id, name: names.get(f.floor_id) ?? f.floor_id }));
     const areas = this.floorsOf(t).flatMap((f) => f.areas.map((a) => ({ id: a.area_id, name: a.name, floor: f.name, counts: a.counts })));
-    return html`<home-edit-panel .draft=${d} .candidates=${this.candidates} .candidatesError=${this.candidatesError} .baseData=${homeViewOf(t.home)?.data ?? NO_DATA} .floors=${floors} .open=${this.openWidget} .elevators=${this.elevators ?? []} .temperatureUnits=${this.tempWidget ? this.tempUnits : []} ?generators=${generatorsAvailable(this.generators)} ?doors=${doorsWidgetAvailable(this.doorsData, doorWindowsTabOn())} ?notices=${noticesWidgetOffered(this.noticesData, noticesModuleOn())} ?presence=${this.presenceOffered()}
+    return html`<home-edit-panel flat .draft=${d} .candidates=${this.candidates} .candidatesError=${this.candidatesError} .baseData=${homeViewOf(t.home)?.data ?? NO_DATA} .floors=${floors} .open=${this.openWidget} .elevators=${this.elevators ?? []} .temperatureUnits=${this.tempWidget ? this.tempUnits : []} ?generators=${generatorsAvailable(this.generators)} ?doors=${doorsWidgetAvailable(this.doorsData, doorWindowsTabOn())} ?notices=${noticesWidgetOffered(this.noticesData, noticesModuleOn())} ?presence=${this.presenceOffered()} ?xsection=${this.xsOffered(this.homeOf(t))}
       @home-draft=${this.onDraft} @home-reset=${this.onHomeReset} @home-edit-open=${(e: CustomEvent<{ id: WidgetId | '' }>) => (this.openWidget = e.detail.id)}></home-edit-panel>
       ${this.screenDraft
         ? html`<section class="hs-edit" data-home-screen-edit aria-label=${hs('heading')}><h3>${hs('heading')}</h3>
@@ -2068,6 +2230,27 @@ export class DevicesBuilding extends LitElement {
   protected willUpdate(changed: PropertyValues) {
     // never hide what is selected: a floor that gets selected (the tree, a floor card, the filter) opens in the tree
     if (changed.has('selected') && this.collapsed.has(this.selected)) this.setCollapsed(this.selected, false);
+    // HOME-EDIT-DRAWER-2351: a card picked on the page (or its device tiles opened) shows its panel - the drawer opens on the card
+    // tab; when the pick is cleared the drawer goes back to the screen tab. Focus stays where it is (a card moved by the arrows keeps it).
+    const sel = this.lay.editing ? this.lay.tileCard ?? this.lay.selected : null;
+    if (sel !== this.drawerSel) {
+      this.drawerSel = sel;
+      if (sel) {
+        this.drawerTab = 'card';
+        this.drawerOpen = true;
+      } else if (this.drawerTab === 'card') this.drawerTab = 'home';
+    }
+    // HOME-EDIT-DRAWER-2351 (owner 02.11, round 14): a CLOSED drawer gives its column back to the preview (devices-layout-css.ts keys
+    // the page's reserved padding on data-he-free) unless home.screen.edit_drawer_space = keep. Only the side drawer (from 1200 px)
+    // reserves a column; below that (tablet, phone) the attribute changes nothing. Set before this render, so the measurements in
+    // updated() already see the new width; the width changes without a window resize, so the fit and the tree height start again.
+    const free = this.lay.editing && !editDrawerReserved(this.screen.edit_drawer_space, this.drawerOpen);
+    if (free !== this.hasAttribute('data-he-free')) {
+      this.toggleAttribute('data-he-free', free);
+      this.fitKey = '';
+      window.cancelAnimationFrame(this.fitTimer);
+      this.fitTimer = 0;
+    }
   }
 
   private setCollapsed(id: string, collapse: boolean) {
@@ -2089,6 +2272,7 @@ export class DevicesBuilding extends LitElement {
   }
 
   protected updated() {
+    loadPendingScreens(this.renderRoot, () => this.requestUpdate(), true); // the plan view's map chunk (not the shell's route: data-shell-ready does not wait for it)
     if (this.treeSheet !== this.treeSheetShown) {
       this.treeSheetShown = this.treeSheet;
       const byKey = this.treeSheetByKey;
@@ -2097,6 +2281,14 @@ export class DevicesBuilding extends LitElement {
       else if (byKey) requestAnimationFrame(() => this.renderRoot.querySelector<HTMLElement>('[data-phone-tree]')?.focus({ preventScroll: true }));
     }
     this.syncEditFromRoute();
+    // HOME-EDIT-DRAWER-2351: focus into the drawer once it is drawn (edit mode entered, or opened from the bar): its selected tab
+    if (this.drawerFocus && this.lay.editing && this.drawerOpen) {
+      const tab = this.renderRoot.querySelector<HTMLElement>('[data-home-drawer] [role="tab"][aria-selected="true"]');
+      if (tab) {
+        this.drawerFocus = false;
+        requestAnimationFrame(() => tab.focus({ preventScroll: true }));
+      }
+    }
     // HOME-295: no connection greys the last values (CSS keys on the host); the scrolling tree takes exactly the height that is left
     this.toggleAttribute('data-offline', this.offline);
     // (a control screen never scrolls: on a wide screen the tree - every floor with tree_scroll, the first ones with "more" - scrolls inside
@@ -3081,11 +3273,12 @@ export class DevicesBuilding extends LitElement {
         padding-inline: 10px;
       }
     }
-  `, BUILDING_GLASS, TILE_LAYOUT, HOME_LAYOUT, BUILDING_BUBBLE, HOME_SCREEN_CSS, TREE_UNASSIGNED_CSS];
+  `, BUILDING_GLASS, TILE_LAYOUT, HOME_LAYOUT, BUILDING_BUBBLE, HOME_SCREEN_CSS, TREE_UNASSIGNED_CSS, HOME_DRAWER_CSS];
 
   connectedCallback() {
     super.connectedCallback();
     window.addEventListener('sw-multi-building', this.onMulti);
+    this.offXs = onXsOptions(() => this.requestUpdate()); // XS-MINI-WIDGET-2351: the widget follows the installation's cross-section options
     this.prefsReady = Promise.all([
       loadDevicesPrefs().then((p) => {
         this.prefs = p;
@@ -3194,6 +3387,8 @@ export class DevicesBuilding extends LitElement {
     super.disconnectedCallback();
     window.clearTimeout(this.looseTimer);
     window.removeEventListener('sw-multi-building', this.onMulti);
+    this.offXs?.();
+    this.offXs = null;
     this.offRoute?.();
     this.offRoute = null;
     this.stop?.();
@@ -3315,6 +3510,8 @@ export class DevicesBuilding extends LitElement {
     const atSite = !!site && !inBuilding;
     const t = inBuilding ? scopeTree(full, inBuilding) : full;
     this.kpiTag = site ? scopeTag(site.model, this.level) : '';
+    this.ctlBuilding = controlBuilding(site, this.level);
+    this.atSiteLevel = atSite;
     this.scopeAreas = inBuilding ? inBuilding.areaIds : null;
     // POLISH-295 (owner approval 2026-10-25): no technical line under the title (floors · areas · devices · demo data) - clean operator screen
     const connected = this.sync?.connected ?? false;
@@ -3345,7 +3542,6 @@ export class DevicesBuilding extends LitElement {
     const body = html`${!t.floors.length
         ? html`<sw-state-panel icon="building" data-devices-state="empty" state="empty" heading=${t.scoped ? 'אין התקנים בקומות שלך' : 'אין קומות ואזורים'} hint=${t.scoped ? 'מוצגות רק הקומות שבהרשאתך.' : 'המבנה יופיע כאן כשיוגדרו קומות ואזורים.'}></sw-state-panel>`
         : nothing}
-      ${this.lay.editing ? this.renderHomeEdit(t) : nothing}
       ${this.layout === 'cards' ? this.renderCards(t, sideLayout) : this.layout === 'plan' ? this.renderPlan(t, sideLayout) : this.renderTiles(t, sideLayout)}`;
     // owner notes 2026-09-30: no "ערוך פריסה" button here (the user menu's "עריכת המסך הראשי" opens `?edit=1`); the header
     // row carries only a "not synced" chip when the state is NOT fine, and a small refresh icon
@@ -3374,13 +3570,14 @@ export class DevicesBuilding extends LitElement {
             </div>`
           : html`${this.renderToolbar(t, !quickShown, false)}${body}`}`}
       </div>
-      ${this.bulkAllowed ? html`<devices-bulk-dialog @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
+      ${this.bulkAllowed ? html`<devices-bulk-dialog .building=${this.ctlBuilding} @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
       ${site ? html`<home-site-off @bulk-done=${() => void this.load()}></home-site-off>` : nothing}
-      ${this.lay.renderPanel()}
+      ${this.lay.editing ? this.renderEditDrawer(t) : this.lay.renderPanel()}
       ${this.renderSheets(t)}
       ${this.renderQuickSheet()}
       ${looseNotice(this.looseNote, this.undoLoose, () => this.showLooseNote(null))}
-      <devices-tiles-panel ?open=${!!this.panel} .kind=${this.panel?.kind ?? 'lights'} .scope=${this.panel?.scope ?? 'building'} .scopeId=${this.panel?.id ?? ''} .scopeName=${this.panel?.name || this.scopeName(this.panel?.scope ?? 'building', this.panel?.id ?? '')} .filter=${this.panel?.filter ?? 'all'} @panel-close=${this.closePanel} @panel-filter=${this.onPanelFilter} @panel-changed=${() => this.scheduleReload()} @panel-navigate=${this.onPanelNavigate}></devices-tiles-panel>
+      ${this.xsLightsOf ? this.renderXsLights() : nothing}
+      <devices-tiles-panel .building=${this.ctlBuilding} .bulkHold=${this.atSiteLevel ? SITE_BULK_HOLD : ''} ?open=${!!this.panel} .kind=${this.panel?.kind ?? 'lights'} .scope=${this.panel?.scope ?? 'building'} .scopeId=${this.panel?.id ?? ''} .scopeName=${this.panel?.name || this.scopeName(this.panel?.scope ?? 'building', this.panel?.id ?? '')} .filter=${this.panel?.filter ?? 'all'} @panel-close=${this.closePanel} @panel-filter=${this.onPanelFilter} @panel-changed=${() => this.scheduleReload()} @panel-navigate=${this.onPanelNavigate}></devices-tiles-panel>
     </sw-page>`;
   }
 
@@ -3543,7 +3740,7 @@ export class DevicesBuilding extends LitElement {
             </div>`
           : nothing}
         ${floorId
-          ? (void import('./explore-floor-map'), html`<explore-floor-map embedded data-plan-map .floorId=${floorId} @area-open=${(e: CustomEvent<{ zone_id: string; zone_name: string; area_id: string | null; x: number; y: number }>) => this.onAreaOpen(t, e)}></explore-floor-map>`)
+          ? html`<explore-floor-map embedded data-plan-map .floorId=${floorId} @area-open=${(e: CustomEvent<{ zone_id: string; zone_name: string; area_id: string | null; x: number; y: number }>) => this.onAreaOpen(t, e)}></explore-floor-map>`
           : this.planFloorsLoaded && this.planFloors.length
             ? html`<sw-state-panel icon="building" state="empty" heading="אין תוכנית קומה" hint="העלו תוכנית לקומה במפה כדי לראות אותה כאן."></sw-state-panel>`
             : html`<sw-state-panel state="loading"></sw-state-panel>`}

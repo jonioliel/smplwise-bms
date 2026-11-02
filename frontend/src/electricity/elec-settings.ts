@@ -226,7 +226,7 @@ export class ElecSettingsPrices extends ElecBase {
         </div>
         <div class="col">
           <div class="card" data-card="vat"><div class="hd"><b class="h3">שיעור מע״מ</b><span class="sp"></span>${edit ? html`<button type="button" class="btn sm" data-new-vat @click=${() => { this.vf = { rate: '', from: elecToday() }; this.vErr = {}; this.error = ''; this.vOpen = true; }}>+ שיעור חדש</button>` : nothing}</div>
-            ${cur ? html`<div class="row" style="align-items:baseline"><span style="font-size:28px;font-weight:700" data-vat-rate>${n(cur.rate_percent + '%')}</span><span class="mut">מ-${n(fmtDate(cur.effective_from))}</span></div>` : html`<div class="mut">לא הוגדר</div>`}
+            ${cur ? html`<div class="row" style="align-items:baseline"><span style="font-size:var(--sw-fs-3xl);font-weight:700" data-vat-rate>${n(cur.rate_percent + '%')}</span><span class="mut">מ-${n(fmtDate(cur.effective_from))}</span></div>` : html`<div class="mut">לא הוגדר</div>`}
             ${vh.slice(1).map((v, i) => html`<div class="ver" style="margin-block-start:8px"><span class="num">${v.rate_percent}%</span><span>עד ${n(fmtDate(addDays(vh[i].effective_from, -1)))}</span></div>`)}</div>
           <div class="card" data-card="mode"><div class="hd"><b class="h3">ברירת מחדל להזנת מחיר</b></div><div class="list" role="radiogroup" aria-label="ברירת מחדל להזנת מחיר">
             ${(['ex_vat', 'inc_vat'] as PriceMode[]).map((m) => html`<label class="li ${mode === m ? 'sel' : ''}"><input type="radio" name="mode" data-default-mode=${m} .checked=${mode === m} ?disabled=${!edit} @change=${() => void this.setMode(m)} /><span class="ind"></span><div class="grow t1">${m === 'ex_vat' ? 'לפני מע״מ' : 'כולל מע״מ'}</div></label>`)}</div></div>
@@ -388,7 +388,7 @@ export class ElecSettingsBusiness extends ElecBase {
     return html`<div class="page" data-elec="settings-business" data-state="ready">
       <div class="cols side-l"><div class="card" style="min-inline-size:0"><fieldset style="border:0;margin:0;padding:0;min-inline-size:0" ?disabled=${!edit}><div class="form">
         <div class="fld wide"><span class="lbl">לוגו</span><div class="row">
-          <div class="chip c-mut nodot" style="inline-size:96px;block-size:96px;padding:0;justify-content:center;border-radius:14px;overflow:hidden" data-logo>${logoSrc ? html`<img src=${logoSrc} alt="לוגו" style="max-inline-size:100%;max-block-size:100%" />` : html`<span class="mut">אין לוגו</span>`}</div>
+          <div class="chip c-mut nodot" style="inline-size:96px;block-size:96px;padding:0;justify-content:center;border-radius:var(--sw-r-lg);overflow:hidden" data-logo>${logoSrc ? html`<img src=${logoSrc} alt="לוגו" style="max-inline-size:100%;max-block-size:100%" />` : html`<span class="mut">אין לוגו</span>`}</div>
           <div><label class="btn" style="cursor:pointer">${s.logo ? 'החלפה' : 'העלאת לוגו'}<input type="file" accept="image/png,image/jpeg" data-logo-input style="position:absolute;inline-size:1px;block-size:1px;opacity:0" @change=${(e: Event) => void this.logo((e.target as HTMLInputElement).files?.[0])} /></label>
             ${s.logo ? html` <button type="button" class="btn ghost" data-logo-remove @click=${() => void this.removeLogo()}>הסרה</button>` : nothing}<div class="mut" style="margin-block-start:6px">PNG או JPEG, עד 1MB</div></div></div></div>
         ${this.fld('name', 'שם העסק', { wide: true })}${this.fld('registration_no', 'ח.פ. / ע.מ.', { ltr: true })}${this.fld('phone', 'טלפון', { ltr: true })}${this.fld('address', 'כתובת', { wide: true })}${this.fld('email', 'דוא״ל', { ltr: true })}
@@ -407,7 +407,7 @@ export class ElecSettingsBusiness extends ElecBase {
       </div></fieldset>
       ${this.error ? alertBox('err', this.error) : nothing}${this.ok ? alertBox('ok', 'ההגדרות נשמרו') : nothing}
       ${edit ? html`<div class="row" style="margin-block-start:14px"><button type="button" class="btn pri" data-save ?disabled=${this.busy} @click=${() => void this.save()}>שמירה</button></div>` : nothing}</div>
-      <div class="card"><div class="hd"><b class="h3">תצוגה מקדימה</b></div><div style="overflow:hidden;max-block-size:320px;border-radius:8px" data-preview><elec-bill-paper .snapshot=${sample(this.biz, t, !!s.logo)} .logo=${logoSrc} hash=""></elec-bill-paper></div></div></div>
+      <div class="card"><div class="hd"><b class="h3">תצוגה מקדימה</b></div><div style="overflow:hidden;max-block-size:320px;border-radius:var(--sw-r-sm)" data-preview><elec-bill-paper .snapshot=${sample(this.biz, t, !!s.logo)} .logo=${logoSrc} hash=""></elec-bill-paper></div></div></div>
     </div>`;
   }
 }

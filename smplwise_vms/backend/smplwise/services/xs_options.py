@@ -21,6 +21,11 @@ is an option, and the defaults are the owner's:
   syn_phone_view  table | cards | section "תצוגת המפה הסינופטית בטלפון" (SYNOPTIC-MOBILE-2342): under 768 px the board is a compact
                                           table (default), one card per floor, or the building cross-section first; tablet and desktop
                                           keep the table
+  syn_phone_light bar | segments | number "תאורה בטלפון" (SYNOPTIC-PHONE-SETTINGS-2360): under "2/10" on the phone table and the floor cards -
+                                          a small bar (default), the segment strip (one segment a light, eight at most) or the number only;
+                                          the cross-section layout colours its slabs and ignores it
+  syn_phone_summary button | line | off   "שורת סיכום בטלפון" (SYNOPTIC-PHONE-SETTINGS-2360): the board's summary behind an info button
+                                          in the head (default), as one line under the board, or not at all; all three phone layouts
   syn_switches    typed | all             "מפסקים בעמודת התאורה" (SWITCH-LIGHT-DIMMER-2331): the lights column counts the switches an
                                           administrator typed as a light (default; services/devices.is_light), or every switch.* entity
                                           (the tree's counts switch_entities / switch_entities_on added to lights / lights_on)
@@ -47,6 +52,8 @@ ENUMS: dict[str, tuple[str, ...]] = {
     "syn_columns": ("all", "few", "custom"),
     "syn_switches": ("typed", "all"),
     "syn_phone_view": ("table", "cards", "section"),
+    "syn_phone_light": ("bar", "segments", "number"),
+    "syn_phone_summary": ("button", "line", "off"),
     "fire_column": ("hidden", "dashed"),
     "ack": ("hold", "confirm", "tap"),
     "ack_who": ("separate", "viewers", "admin"),
@@ -72,6 +79,8 @@ DEFAULT: dict[str, Any] = {
     "syn_events": True,
     "syn_switches": "typed",
     "syn_phone_view": "table",
+    "syn_phone_light": "bar",
+    "syn_phone_summary": "button",
     "fire_column": "hidden",
     "fire_ui": False,
     "ack": "hold",

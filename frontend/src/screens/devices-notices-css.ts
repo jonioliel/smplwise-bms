@@ -4,8 +4,7 @@ import { css } from 'lit';
  * HOMEEDIT-POLISH-2331: the notice board page's own layer over the shared notices sheet (notices/styles.ts, also read by the settings
  * pages, the compose dialog and the TV displays - left as it is). It brings the page to the HOMEFABLE-297 / POLISH-CONTROL-297 feel:
  * the page heading in the heading ink at 700, KPI tiles that lift on hover and give on pointer-down, a visible focus on a table row and
- * a phone card (both open the notice from the keyboard now), the hover wash only under a pointer that hovers, and a toast that slides
- * in. Tokens only.
+ * a phone card (both open the notice from the keyboard now) and a toast that slides in (the row hover wash is gated in the shared sheet). Tokens only.
  */
 export const devicesNoticesCss = css`
   .top h1 {
@@ -53,12 +52,8 @@ export const devicesNoticesCss = css`
       background: var(--sw-hover-wash);
     }
   }
-  /* the shared sheet washes a hovered row on every pointer (a tap left it grey on a phone); here only under a pointer that hovers */
-  @media not ((hover: hover) and (pointer: fine)) {
-    table.t tr.go:hover td {
-      background: transparent;
-    }
-  }
+  /* POLISH4-WP4: the row wash is gated to a hovering fine pointer in the shared sheet itself (notices/styles.ts, POLISH4-WP1), so the
+     local cancel that lived here is gone */
   table.t tr.go:focus-visible {
     outline: var(--sw-focus-w) solid var(--sw-focus);
     outline-offset: -2px;

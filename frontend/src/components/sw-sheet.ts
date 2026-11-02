@@ -44,7 +44,10 @@ const reducedMotion = () => {
  * `--sw-ease-thumb`), the content "focuses in"; `prefers-reduced-motion` removes every transition.
  * Accessibility: `role="dialog"` + `aria-modal` (not inline), focus moves to the first focusable (else the close button), Tab and
  * Shift+Tab wrap inside (through shadow roots and slots), Escape and a press on the backdrop close, focus returns to the opener.
- * Events: `close` when it closes (any way). Slots: default (body), `head` (a pill or title row under the grabber), `footer`.
+ * Events: `close` when it closes (any way). Slots: default (body), `head` (a pill or title row under the grabber), `footer` (a fixed
+ * row under the scrolling body: the actions of a form stay in view however long the form is).
+ * POLISH4-WP1 (WKWATER-POLISH-2331 proposal): `solid` - the opaque surface for a sheet that holds a form, so the page's figures do not
+ * read through a long form (the same `--sw-surface-solid` the reduced-transparency path draws). Opt-in: every other sheet is unchanged.
  */
 @customElement('sw-sheet')
 export class SwSheet extends LitElement {
@@ -58,6 +61,8 @@ export class SwSheet extends LitElement {
   @property({ type: Boolean, reflect: true }) narrow = false;
   /** While set, nothing closes the sheet (a physical action is on its way). */
   @property({ type: Boolean }) locked = false;
+  /** An opaque surface instead of the glass (a sheet that holds a form). */
+  @property({ type: Boolean, reflect: true }) solid = false;
   @state() private phone = false;
   @state() private hasFooter = false;
   @state() private hasHead = false;
@@ -301,6 +306,12 @@ export class SwSheet extends LitElement {
       overflow: visible;
       -webkit-mask-image: none;
       mask-image: none;
+    }
+    /* POLISH4-WP1: an opaque sheet on request (a form) - no glass, no blur behind its own surface */
+    :host([solid]) .sheet {
+      background: var(--sw-surface-solid);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
     }
     /* no blur, or the OS asks for less transparency: solid (the skin contract) */
     @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {

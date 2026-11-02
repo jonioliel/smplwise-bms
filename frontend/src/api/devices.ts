@@ -7,6 +7,9 @@ import { get, post, put } from './client';
 import { entityLabel } from '../i18n/entity-label';
 import type { HaSyncState } from './ha';
 import type { HomeView } from './home-config';
+import type { UnlockReason } from '../screens/lock-reason';
+
+export type { UnlockReason };
 
 export interface DeviceCounts {
   entities: number;
@@ -245,6 +248,8 @@ export interface DeviceItem extends DeviceRow {
   floor_id: string | null;
   floor_name: string | null;
   can_unlock?: boolean;
+  /** UNLOCK-REASON-2370: why a lock row cannot be unlocked (`ok` when it can) - one of the closed set the server's `unlock_reason` returns. */
+  unlock_reason?: UnlockReason;
 }
 
 export interface DeviceItems {
@@ -265,11 +270,18 @@ export interface DeviceItems {
 }
 
 /** `GET /devices/items`: every entity of one tile kind in the building / one HA floor / one HA area, floor › area. */
-export function getDeviceItems(kind: TileKind, scope: ItemsScope = 'building', id = '', switches: 'typed' | 'all' = 'typed') {
+export function getDeviceItems(kind: TileKind, scope: ItemsScope = 'building', id = '', switches: 'typed' | 'all' = 'typed', building = '') {
+  return get<DeviceItems>(`devices/items?${itemsQuery(kind, scope, id, switches, building)}`);
+}
+
+/** The query of `GET /devices/items`. BUILDING-SCOPE-CONTROL-2351: `building` (a multi-building site, inside one building) lists only
+ * that building's areas as the server resolves them; '' = the request exactly as before. */
+export function itemsQuery(kind: TileKind, scope: ItemsScope = 'building', id = '', switches: 'typed' | 'all' = 'typed', building = ''): string {
   const q = new URLSearchParams({ kind, scope });
   if (scope !== 'building') q.set('id', id);
   if (kind === 'lights' && switches === 'all') q.set('switches', 'all'); // SWITCH-LIGHT-DIMMER-2331: every switch.* with the lights
-  return get<DeviceItems>(`devices/items?${q.toString()}`);
+  if (building) q.set('building', building);
+  return q.toString();
 }
 
 /** "רענן מ-Home Assistant" (CR-007 HA refresh): re-read HA's entity / device / area / floor registries now.

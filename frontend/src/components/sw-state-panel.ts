@@ -27,6 +27,10 @@ export class SwStatePanel extends LitElement {
   /** CR-036 S8: no second sentence - an operator screen that says only its heading ("המסך הזה אינו זמין לך") does not get the
    * preset's explanatory hint when it passes none of its own. */
   @property({ type: Boolean, reflect: true }) quiet = false;
+  /** POLISH4-WP1 (owner Q2a, 02.11; ACCESS / LOOK-POLISH-2331 proposals): the state INSIDE a card or a drawer - no hero card of its
+   * own (a card in a card), no resting height that would stretch its host, a 48 px tile and a 17 px heading; the centred column, the
+   * states, the retry and the entrance stay. Between the whole-screen hero and the one-line `compact` row. Opt-in. */
+  @property({ type: Boolean, reflect: true }) bare = false;
   /** UXFIX-A11Y-295 (UX audit 2026-10-20: 105 of 110 empty states showed the map pin, "no alarm panel" included): the topical
    * icon of the EMPTY state (a shield on the alarm, a bolt on the meters). Only the empty state reads it: loading, error,
    * forbidden, stale and partial keep their preset icon, so a screen can set it once on a panel whose state changes. Unset: the
@@ -93,6 +97,34 @@ export class SwStatePanel extends LitElement {
     :host([compact]) .box {
       display: contents;
       animation: none;
+    }
+    /* POLISH4-WP1: bare - the state sits on its card's surface (the card is the object; the panel draws no second one) */
+    :host([bare]:not([compact])) {
+      flex: none;
+      margin-block: 0;
+      min-block-size: 0;
+      padding: var(--sw-s-6) var(--sw-s-4);
+    }
+    :host([bare]:not([compact])) .box {
+      padding: 0;
+      background: none;
+      box-shadow: none;
+      border-radius: 0;
+      gap: var(--sw-s-2);
+    }
+    :host([bare]:not([compact])) .icon {
+      inline-size: 48px;
+      block-size: 48px;
+      border-radius: var(--sw-r-md);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 14%, transparent);
+    }
+    :host([bare]:not([compact])) h4 {
+      font-size: var(--sw-fs-xl);
+      font-weight: var(--sw-fw-semibold);
+      letter-spacing: -0.01em;
+    }
+    :host([bare]:not([compact])) p {
+      font-size: var(--sw-fs-base);
     }
     @keyframes state-in {
       from {
@@ -222,14 +254,14 @@ export class SwStatePanel extends LitElement {
     const icon = !forbidden && this.state === 'empty' && this.icon ? this.icon : preset.icon;
     return html`
       <div class="box">
-      <div class="icon" data-look=${forbidden ? 'forbidden' : ''} data-icon=${icon} aria-hidden="true"><sw-icon .name=${icon} size=${this.compact ? 20 : 30}></sw-icon></div>
+      <div class="icon" data-look=${forbidden ? 'forbidden' : ''} data-icon=${icon} aria-hidden="true"><sw-icon .name=${icon} size=${this.compact ? 20 : this.bare ? 24 : 30}></sw-icon></div>
       <div class="text" role="status">
         <h4>${this.heading || preset.title()}</h4>
         ${hint ? html`<p>${hint}</p>` : ''}
         <slot></slot>
       </div>
       ${this.actionLabel && !forbidden
-        ? html`<sw-button variant=${this.state === 'error' ? 'primary' : 'secondary'} size=${this.compact ? 'sm' : 'md'} @click=${() => this.dispatchEvent(new CustomEvent('action', { bubbles: true, composed: true }))}>${this.actionLabel}</sw-button>`
+        ? html`<sw-button variant=${this.state === 'error' ? 'primary' : 'secondary'} size=${this.compact || this.bare ? 'sm' : 'md'} @click=${() => this.dispatchEvent(new CustomEvent('action', { bubbles: true, composed: true }))}>${this.actionLabel}</sw-button>`
         : ''}
       </div>
     `;

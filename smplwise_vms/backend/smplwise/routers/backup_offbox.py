@@ -75,6 +75,11 @@ MESSAGES = {
     "gdrive_client_missing": "חסרים מזהה הלקוח (Client ID) או הסוד שלו (Client secret).",
     "gdrive_scope_refused": "Google לא אישר את ההרשאה המצומצמת (drive.file). יש לוודא שהלקוח מסוג 'TVs and Limited Input devices'.",
     "gdrive_token_via_connect": "אסימון הגישה של Google מתקבל רק דרך 'חיבור חשבון Google'.",
+    # GDRIVE-READY-2351: the first-connection refusals, each named
+    "gdrive_client_type": "סוג הלקוח ב־Google שגוי. יש ליצור לקוח OAuth מסוג 'TVs and Limited Input devices' (לא Web application ולא Desktop app).",
+    "gdrive_client_not_found": "Google לא מכיר את מזהה הלקוח (Client ID): הוא נמחק, שייך לפרויקט אחר או הועתק חלקית.",
+    "gdrive_consent_not_configured": "מסך ההסכמה (OAuth consent) לא הוגדר בפרויקט ב־Google Cloud. 'בדיקת חיבור Google' מפרטת מה חסר.",
+    "gdrive_api_disabled": "‏Google Drive API לא הופעל בפרויקט ב־Google Cloud (APIs & Services › Library › Google Drive API › Enable).",
     "remote_error": "תשובה לא צפויה מהיעד.",
 }
 
@@ -381,6 +386,26 @@ def gdrive_poll(target_id: str, request: Request, principal: Principal = Depends
     if out["state"] in ("connected", "denied", "expired"):
         _audit_aside(request, principal, "backup.offbox.gdrive_connect", "allowed" if out["state"] == "connected" else "denied", target_id,
                      reason=None if out["state"] == "connected" else out["state"])
+    return out
+
+
+@router.post("/backups/offbox/targets/{target_id}/gdrive/diagnose")
+def gdrive_diagnose(target_id: str, request: Request, principal: Principal = Depends(current_principal),
+                    conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """GDRIVE-READY-2351 "בדיקת חיבור Google": what stands between this target and a working connection, step by step in Hebrew
+    (client id / secret, network, clock, client type + consent screen, secret match, account, Drive API, quota, folder). Read-only:
+    nothing is written here or created in Drive; no token or secret in the answer."""
+    require(conn, principal, "backup.manage", INSTALLATION)
+    _gdrive_or_404(conn, target_id)
+    release(conn)  # no transaction across the calls to Google
+    from ..services import offbox_gdrive_diagnose
+
+    try:
+        out = offbox_gdrive_diagnose.diagnose(_db(request), settings_of(request), target_id)
+    except OffboxError as exc:
+        raise _err(exc, _gdrive_status(exc.code)) from None
+    _audit_aside(request, principal, "backup.offbox.gdrive_diagnose", "allowed", target_id,
+                 details={"ok": out["ok"], "failed": [c["id"] for c in out["checks"] if c["status"] == "fail"]})
     return out
 
 

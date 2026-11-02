@@ -91,9 +91,11 @@ mapped once already with three names new since. Settings page: `#/system/diagnos
 
 ## Not done / limits
 - Labels: the home system's labels are not synced into our registry (`ha_areas` has no labels), so on a real site "בתווית" explains 0% and
-  label rules / label conflicts only work in the demo data. Syncing labels is a follow-up.
-- Auto-insert (3A setting on) runs when a configurer opens the settings page (no background job; the engine is client-side).
-- A platform floor with no level and no number in its name lands on a new floor of level 0 (no "which floor?" question yet).
+  label rules / label conflicts only work in the demo data. Syncing labels is a follow-up (done: HA-LABELS-SYNC-2351).
+- ~~Auto-insert (3A setting on) runs when a configurer opens the settings page (no background job; the engine is client-side).~~ Closed by
+  MAPPING-IMPROVE-2351 (a server background job).
+- ~~A platform floor with no level and no number in its name lands on a new floor of level 0 (no "which floor?" question yet).~~ Closed by
+  MAPPING-IMPROVE-2351 (the "קומות ללא מפלס" step).
 - The health chip on the home appears only with the multi-building view on (it lives in the site bar).
 - Restoring a version does not delete buildings / floors created after it (by design: nothing is deleted).
 - Adding the "בניינים ומיפוי" settings tab adds one tab to the settings strip; pixel baselines of the settings header may need a refresh on

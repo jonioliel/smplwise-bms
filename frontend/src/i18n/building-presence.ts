@@ -106,6 +106,14 @@ const he = {
   allEmptyLast: 'החדר שהתרוקן אחרון',
   allEmptyCount: 'רק ״כל החדרים ריקים״',
   cardOnlyHint: 'חל כשהתצוגה במסך הראשי היא ״כרטיס״',
+  // AREA-PRESENCE-LINE-2351: the presence line of the area screen and its switch
+  areaLineLabel: 'נוכחות',
+  areaLineAria: 'נוכחות באזור',
+  people: (n: number) => (n === 1 ? 'אדם אחד' : `${num(n)} אנשים`),
+  nobody: 'אין נוכחים',
+  andMore: (n: number) => `ועוד ${num(n)}`,
+  areaSwitchLabel: 'שורת נוכחות במסך האזור',
+  areaSwitchHint: 'כבוי כברירת מחדל. מוצגת במסך האזור ובחלון האזור המהיר. מי שמורשה לראות שמות יראה שמות, השאר רק מספר',
 };
 type Key = keyof typeof he;
 
@@ -138,6 +146,9 @@ const en: Partial<Record<Key, unknown>> = {
   emptyRoomsLabel: 'Empty rooms', emptyHide: 'Only active rooms in the card', emptyShow: 'Empty rooms too, in grey', detailsLabel: 'Update time and empty rooms',
   detailsHover: 'Only on mouse hover', detailsInline: 'Inside the card', allEmptyLabel: 'When every room is empty', allEmptyLast: 'The room that emptied last',
   allEmptyCount: 'Only "all rooms are empty"', cardOnlyHint: 'Applies when the home display is "Card"',
+  areaLineLabel: 'Presence', areaLineAria: 'Presence in the area', people: (n: number) => (n === 1 ? '1 person' : `${num(n)} people`), nobody: 'Nobody here',
+  andMore: (n: number) => `+${num(n)} more`, areaSwitchLabel: 'Presence line on the area screen',
+  areaSwitchHint: 'Off by default. Shown on the area screen and in the area quick window. Whoever may see names sees names; everyone else sees a number only',
 };
 
 export const BP: typeof he = new Proxy(he, {

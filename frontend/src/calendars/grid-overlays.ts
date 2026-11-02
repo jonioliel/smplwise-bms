@@ -1,6 +1,7 @@
 import { LitElement, html, nothing, css, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import { dateInputLang } from '../api/day-format';
 import type { Calendar, OnBehalfKind, Occurrence } from '../api/calendars';
 import { attendeeSlot, type CalCtx } from './ctx';
 import { DAY_LONG, colorVar, ddmm, hm, pad } from './model';
@@ -250,8 +251,8 @@ export class CalQuickCreate extends LitElement {
       <div class="qtop"><input class="qt" data-cal-qc="title" placeholder="הוספת כותרת" maxlength="120" aria-label="כותרת" .value=${d.title} @input=${(e: Event) => this.set({ title: (e.target as HTMLInputElement).value })}>
         <button type="button" class="btn icon sm x" aria-label="סגירה" data-cal-qc-close @click=${() => fire(this, 'qc-close')}><sw-icon name="close" size="16"></sw-icon></button></div>
       <div class="qr"><sw-icon name="clock" size="16"></sw-icon><div class="qv"><span>${DAY_LONG[d.day.getDay()]} ${ddmm(d.day)}</span>
-        <span class="tm ltr"><input type="time" step=${step} aria-label="שעת התחלה" data-cal-qc="from" .value=${mm(d.s)} ?disabled=${d.allDay} @change=${(e: Event) => this.time('s', (e.target as HTMLInputElement).value)}><span>–</span>
-          <input type="time" step=${step} aria-label="שעת סיום" data-cal-qc="to" .value=${mm(Math.min(d.e, 1439))} ?disabled=${d.allDay} @change=${(e: Event) => this.time('e', (e.target as HTMLInputElement).value)}></span>
+        <span class="tm ltr"><input type="time" lang=${dateInputLang()} step=${step} aria-label="שעת התחלה" data-cal-qc="from" .value=${mm(d.s)} ?disabled=${d.allDay} @change=${(e: Event) => this.time('s', (e.target as HTMLInputElement).value)}><span>–</span>
+          <input type="time" lang=${dateInputLang()} step=${step} aria-label="שעת סיום" data-cal-qc="to" .value=${mm(Math.min(d.e, 1439))} ?disabled=${d.allDay} @change=${(e: Event) => this.time('e', (e.target as HTMLInputElement).value)}></span>
         <label class="ck"><input type="checkbox" data-cal-qc="allday" .checked=${d.allDay} @change=${(e: Event) => this.allDay((e.target as HTMLInputElement).checked)}>כל היום</label></div></div>
       <div class="qr"><sw-icon name="pin" size="16"></sw-icon><div class="qv"><span class="sel" style=${`--h:${colorVar(cal?.color)}`}><span class="dot"></span>
           <select aria-label="יומן" data-cal-qc="calendar" @change=${(e: Event) => this.set({ calId: (e.target as HTMLSelectElement).value })}>${cals.map((c) => html`<option value=${c.id} ?selected=${c.id === d.calId}>${c.name}</option>`)}</select>

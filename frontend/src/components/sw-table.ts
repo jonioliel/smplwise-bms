@@ -7,6 +7,10 @@ export interface TableColumn<Row = Record<string, unknown>> {
   width?: string;
   ltr?: boolean;
   render?: (row: Row) => TemplateResult | string | typeof nothing;
+  /** POLISH4-WP1 (ACCESS-POLISH-2331 proposal): a secondary column that steps out below a width, so a screen drops it without a media
+   * query of its own - `phone` below 768 px (the column's line is left out of the row card), `tablet` below 1024 px (the column and its
+   * header are left out of the table too). Unset: the column always shows (every existing table is unchanged). */
+  hideBelow?: 'phone' | 'tablet';
 }
 
 /**
@@ -160,6 +164,17 @@ export class SwTable extends LitElement {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-2);
     }
+    /* POLISH4-WP1: TableColumn.hideBelow */
+    @media (max-width: 1023px) {
+      .hb-tablet {
+        display: none;
+      }
+    }
+    @media (max-width: 767px) {
+      .hb-phone {
+        display: none;
+      }
+    }
     .empty {
       padding: var(--sw-s-6);
       text-align: center;
@@ -183,7 +198,7 @@ export class SwTable extends LitElement {
     return html`
       <table>
         <thead>
-          <tr>${this.columns.map((c) => html`<th style=${c.width ? `width:${c.width}` : ''}>${c.label}</th>`)}</tr>
+          <tr>${this.columns.map((c) => html`<th class=${c.hideBelow ? `hb-${c.hideBelow}` : nothing} style=${c.width ? `width:${c.width}` : ''}>${c.label}</th>`)}</tr>
         </thead>
         <tbody>
           ${this.rows.map(
@@ -191,7 +206,7 @@ export class SwTable extends LitElement {
               tabindex=${this.focusRows ? '0' : nothing} @keydown=${this.focusRows ? (e: KeyboardEvent) => this.onRowKey(e, row) : nothing}
               @pointerenter=${(e: PointerEvent) => this.dispatchEvent(new CustomEvent('row-hover', { detail: { id: String(row[this.rowKey] ?? ''), row, clientX: e.clientX, clientY: e.clientY, pointerType: e.pointerType }, bubbles: true, composed: true }))}
               @pointerleave=${() => this.dispatchEvent(new CustomEvent('row-leave', { detail: { id: String(row[this.rowKey] ?? '') }, bubbles: true, composed: true }))}>
-              ${this.columns.map((c) => html`<td class=${c.ltr ? 'ltr' : ''} data-label=${c.label}>${c.render ? c.render(row) : String(row[c.key] ?? '')}</td>`)}
+              ${this.columns.map((c) => html`<td class=${[c.ltr ? 'ltr' : '', c.hideBelow ? `hb-${c.hideBelow}` : ''].filter(Boolean).join(' ')} data-label=${c.label}>${c.render ? c.render(row) : String(row[c.key] ?? '')}</td>`)}
             </tr>`,
           )}
         </tbody>

@@ -15,23 +15,21 @@
 ## Model policy — not a live model switch
 ```json
 {
-  "implementation": "deep",
-  "review": "deep",
-  "effort": "high",
-  "escalation": "F4 (child RLIMITs / sandbox) needs a Linux run on the runner before docread.enabled may be switched on in a release."
+  "implementation": "balanced",
+  "review": "balanced",
+  "effort": "medium",
+  "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
 }
 ```
 
 ## Acceptance
-- **R-SUPPLIERDOCS2-1 / AT-SUPPLIERDOCS2-1:** WisKey rc.4 adoption + rc.5 host check (deadline fix, migration 0186, relay-by-door fix): built on an isolated branch, green runner entry check, joins release train 3 (2.30.0); no live device action.
+- **R-WISKEY-RC4-2310-1 / AT-WISKEY-RC4-2310-1:** The WisKey rc.4 owner30 contribution and the rc.5 host check (one absolute deadline before the live wrapper selection, installed-client migration, a door relay is WisKey's physical relay in every station grant) are adopted on a branch with fakes only; auto-install stays off.
 
 ## Deliverables
-- services/docread/pdftext.py (run_capped), services/docread/certificate_rules.py (IBAN pattern), services/docread/service.py (analyse, read slots, purge of deleted tasks), routers/docread.py
-- Tests: tests/test_docread_297.py (test_f1_*, test_f2_*, test_f6_*)
-- Docs: docs/changes/CR-SUPPLIERDOCS-297.md section 'Security review'
+- Code, tests and change records on pilot/WISKEY-RC4-2310 (docs/changes/WISKEY-RC4-ADOPTION-2310.md)
 
 ## Guardrails
 Read AGENTS.md and the linked master chapters. Inspect legacy code before replacement. No production configuration writes, physical commands, spending, or claims of passing unrun tests. Record commit, environment, commands and evidence.
 
 ## Blocker
-Waits for the WisKey team reply via the owner, and the owner packaging decision (managed vs manual). WisKey goes last.
+Held by the owner release order "WisKey ships last" (after 2.36.0 and 2.37.0) and by the WisKey team reply via the owner. The code is on the branch chain that ends at pilot/WISKEY-RC7-ADOPT-2331; nothing is merged to main or tagged.

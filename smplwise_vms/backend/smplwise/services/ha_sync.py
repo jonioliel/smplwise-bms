@@ -1,6 +1,6 @@
 """Home Assistant catalogue + state sync (MASTER_SPEC ch. 14/15, T023/T024).
 
-A background thread keeps one WebSocket session to HA Core: registries (entities, devices, areas,
+A background thread keeps one WebSocket session to HA Core: registries (entities, devices, areas, labels,
 floors) and a full state snapshot at connect, then `state_changed` subscription. Rows carry occurred
 (HA `last_changed`/`last_updated`) and received (`state_seen_at`) times; while disconnected the API
 reports `fresh: false` and nothing is invented. Attributes are trimmed to an allow-list.
@@ -32,7 +32,9 @@ from . import ha_client, site_location
 log = logging.getLogger("smplwise.ha")
 
 REGISTRY_REFRESH_S = 600  # safety net only: registry events trigger a refresh within seconds
-REGISTRY_EVENTS = ("entity_registry_updated", "device_registry_updated", "area_registry_updated", "floor_registry_updated")
+# HA-LABELS-SYNC-2351: `label_registry_updated` (a label renamed / recoloured / deleted) is on HA's non-admin subscribe allow-list
+# too; an area's label assignment changing fires `area_registry_updated`
+REGISTRY_EVENTS = ("entity_registry_updated", "device_registry_updated", "area_registry_updated", "floor_registry_updated", "label_registry_updated")
 REGISTRY_DEBOUNCE_S = 1.5  # one refresh for a burst (an integration reload fires one event per entity)
 REGISTRY_MAX_WAIT_S = 10.0  # ...but a burst that never pauses still refreshes this often
 MANUAL_REFRESH_TIMEOUT_S = 30.0
@@ -378,12 +380,30 @@ def apply_registry(conn: sqlite3.Connection, maps: dict[str, dict[str, Any]]) ->
     return n
 
 
-def apply_structure(conn: sqlite3.Connection, areas: list[dict[str, Any]] | None, floors: list[dict[str, Any]] | None) -> None:
-    """Mirror HA's area and floor registries (CR-007): a table is rewritten whole, in the listing's order, so a
-    renamed / moved / deleted area never lingers. `None` for a listing means "that call did not succeed": its table
-    is left exactly as it was rather than emptied (review finding: one failed floor_registry call must not wipe the
-    tree until the next refresh). Only the fields the devices tree shows are kept."""
+def _text(v: Any, n: int = 200) -> str | None:
+    return v[:n] if isinstance(v, str) and v else None
+
+
+def apply_structure(conn: sqlite3.Connection, areas: list[dict[str, Any]] | None, floors: list[dict[str, Any]] | None,
+                    labels: list[dict[str, Any]] | None = None) -> None:
+    """Mirror HA's area, floor and label registries (CR-007, HA-LABELS-SYNC-2351): a table is rewritten whole, in the
+    listing's order, so a renamed / moved / deleted area or label never lingers. `None` for a listing means "that call did
+    not succeed" (or, for labels, "not asked"): its table is left exactly as it was rather than emptied (review finding:
+    one failed floor_registry call must not wipe the tree until the next refresh). An area's labels come with the area
+    listing, so they follow it: rewritten with the areas, kept with them. Only the fields the screens show are kept.
+    Database only - the caller lists HA before its transaction (no network I/O under the write lock)."""
     now = now_iso()
+    if labels is not None:
+        conn.execute("DELETE FROM ha_labels")
+        for i, lb in enumerate(labels):
+            lid = lb.get("label_id") if isinstance(lb, dict) else None
+            if not isinstance(lid, str) or not lid:
+                continue
+            conn.execute(
+                "INSERT OR REPLACE INTO ha_labels(label_id, name, color, icon, description, position, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (lid, _text(lb.get("name")) or lid, _text(lb.get("color"), 40), _text(lb.get("icon"), 80), _text(lb.get("description"), 500), i, now),
+            )
+        conn.execute("UPDATE ha_label_sync SET synced_at = ? WHERE id = 1", (now,))
     if floors is not None:
         conn.execute("DELETE FROM ha_floors")
         for i, f in enumerate(floors):
@@ -396,6 +416,7 @@ def apply_structure(conn: sqlite3.Connection, areas: list[dict[str, Any]] | None
             )
     if areas is not None:
         conn.execute("DELETE FROM ha_areas")
+        conn.execute("DELETE FROM ha_area_labels")
         for i, a in enumerate(areas):
             if not a.get("area_id"):
                 continue
@@ -403,6 +424,10 @@ def apply_structure(conn: sqlite3.Connection, areas: list[dict[str, Any]] | None
                 "INSERT OR REPLACE INTO ha_areas(area_id, name, floor_id, icon, position, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
                 (a["area_id"], a.get("name") or a["area_id"], a.get("floor_id"), a.get("icon"), i, now),
             )
+            raw = a.get("labels")
+            for j, lid in enumerate(raw if isinstance(raw, list) else []):
+                if isinstance(lid, str) and lid:
+                    conn.execute("INSERT OR IGNORE INTO ha_area_labels(area_id, label_id, position) VALUES (?, ?, ?)", (a["area_id"], lid, j))
 
 
 def _listing(reply: dict[str, Any] | None) -> list[dict[str, Any]] | None:
@@ -423,6 +448,8 @@ def mirror_fingerprint(conn: sqlite3.Connection) -> str:
         "SELECT entity_id, area_id, area_name, ha_floor_id, ha_floor_name, name, device_id, disabled, hidden, entity_category FROM ha_entities WHERE removed_at IS NULL ORDER BY entity_id",
         "SELECT area_id, name, floor_id, icon, position FROM ha_areas ORDER BY area_id",
         "SELECT floor_id, name, level, icon, position FROM ha_floors ORDER BY floor_id",
+        "SELECT label_id, name, color, icon, position FROM ha_labels ORDER BY label_id",
+        "SELECT area_id, label_id, position FROM ha_area_labels ORDER BY area_id, label_id",
     ):
         for r in conn.execute(sql):
             h.update(json.dumps(list(r), ensure_ascii=False, default=str).encode("utf-8"))
@@ -965,6 +992,10 @@ class HaSync:
             log.info("registry refresh (%s) in %.0f ms: %s", reason, (time.monotonic() - started) * 1000, "changed" if changed else "no change")
             if changed:
                 STATE.last_structure_at = STATE.last_registry_at
+                # MAPPING-IMPROVE-2351: auto-insert of new home-system names (setting 3A on) - its own short transactions, off the loop
+                from . import mapping_auto
+
+                asyncio.get_running_loop().run_in_executor(None, mapping_auto.run_safe, self.db, "registry")
             if notify and (changed or force_notice):
                 publish({"type": "structure_changed", "reason": reason, "changed": changed, "last_registry_at": STATE.last_registry_at})
             return changed
@@ -1152,6 +1183,13 @@ class HaSync:
         except Exception as exc:  # noqa: BLE001 - an HA without floors (old core) or a dropped call: keep what we have
             log.warning("floor registry unavailable: %s", type(exc).__name__)
             floors_listing = None
+        try:
+            labels_listing = _listing(await call("config/label_registry/list"))  # HA-LABELS-SYNC-2351
+        except Exception as exc:  # noqa: BLE001 - an HA without labels (old core) or a dropped call: keep what we have
+            log.warning("label registry unavailable: %s", type(exc).__name__)
+            labels_listing = None
+        if labels_listing is None:
+            log.warning("label registry listing failed; keeping the previous label mirror")
         if areas_listing is None:
             log.warning("area registry listing failed; keeping the previous area mirror")
         if floors_listing is None:
@@ -1185,7 +1223,7 @@ class HaSync:
 
             def _structure() -> None:
                 with db.connection(durable=False) as conn:
-                    apply_structure(conn, areas_listing, floors_listing)
+                    apply_structure(conn, areas_listing, floors_listing, labels_listing)
             _busy_retry(_structure)
 
             def _tombstone() -> None:

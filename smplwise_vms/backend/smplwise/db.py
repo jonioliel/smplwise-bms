@@ -55,6 +55,7 @@ SLOW_HOLD_S = float(os.environ.get("SW_DB_SLOW_HOLD_S", "3"))  # a longer write-
 # the janitor truncates the WAL file once it grew past this (at a quiet moment); also SQLite's journal_size_limit
 WAL_TRUNCATE_BYTES = int(float(os.environ.get("SW_DB_WAL_TRUNCATE_MB", "64")) * 1024 * 1024)
 CHECKPOINT_BUSY_S = 0.5  # how long a TRUNCATE checkpoint waits for readers before it gives up until the next tick
+SCRUB_READER_WAIT_S = 0.5  # Database.scrub_wal: how long the TRUNCATE checkpoint after a wipe waits for open readers (then: pending, retried)
 # SW_DB_WRITE_GATE=0 turns the FIFO write gate off (SQLite's own busy handler alone, as before 2026-09-29): an
 # operational escape hatch and the A/B switch of the stress tests
 WRITE_GATE = os.environ.get("SW_DB_WRITE_GATE", "1") != "0"
@@ -115,6 +116,10 @@ class WriteGate:
         self._lock = threading.Lock()
         self._holder: object | None = None
         self._queue: deque[list[Any]] = deque()  # [event, token handed over or None]
+        # Database.scrub_wal: the file whose WAL still holds a wiped value (a TRUNCATE checkpoint was busy), None when clean;
+        # scrub_gen counts the scrub requests so a retry only clears the mark it actually covered
+        self.scrub_path: Path | None = None
+        self.scrub_gen = 0
 
     def acquire(self, timeout: float, on_slow: Callable[[], None] | None = None, slow_after: float = 1.0, priority: bool = False) -> object | None:
         """A token once it is this caller's turn, None after `timeout` seconds (the caller reports "database is locked").
@@ -195,6 +200,49 @@ def gate_for(path: Path) -> WriteGate:
         if gate is None:
             gate = _gates[key] = WriteGate()
         return gate
+
+
+def _scrub_attempt(gate: WriteGate, path: Path, reader_wait_s: float, label: str) -> bool:
+    """One TRUNCATE checkpoint for Database.scrub_wal (the caller holds the gate or the gate is off). Clears the pending
+    mark when it passed and no newer scrub was requested meanwhile."""
+    with gate._lock:
+        gen = gate.scrub_gen
+    conn = sqlite3.connect(path, timeout=reader_wait_s, isolation_level=None, check_same_thread=False)
+    try:
+        try:
+            busy, frames, done = conn.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+        except sqlite3.OperationalError as exc:
+            if not is_busy(exc):
+                raise
+            busy, frames, done = 1, None, None
+    finally:
+        conn.close()
+    if busy:
+        log.info("WAL scrub (%s): busy (%s of %s frames); pending, retried when a transaction ends", label, done, frames)
+        return False
+    with gate._lock:
+        if gate.scrub_gen == gen:
+            gate.scrub_path = None
+    return True
+
+
+def _retry_scrub(gate: WriteGate | None) -> None:
+    """A transaction of this process just ended: finish a pending scrub_wal on its file, never waiting - not for the
+    gate (a writer in this process: its own end retries), not for a reader (its end retries). Never raises."""
+    if gate is None or gate.scrub_path is None:
+        return
+    token = gate.try_acquire() if WRITE_GATE else None
+    if WRITE_GATE and token is None:
+        return
+    try:
+        path = gate.scrub_path
+        if path is not None and (WRITE_GATE or not _holders):
+            _scrub_attempt(gate, path, 0.0, "retry")
+    except Exception:  # noqa: BLE001 - housekeeping after a transaction never fails the caller
+        log.debug("WAL scrub retry failed", exc_info=True)
+    finally:
+        if token is not None:
+            gate.release(token)
 
 
 _conn_gate: dict[int, WriteGate] = {}  # id(conn) -> its database's gate (connection() / write_aside())
@@ -962,6 +1010,7 @@ class Database:
                 conn.close()  # rolls back whatever is still open: the lock is free before the gate is handed on
             finally:
                 _drop_hold(conn)
+            _retry_scrub(self.gate)  # a wipe's TRUNCATE checkpoint this transaction kept busy (scrub_wal)
 
     @contextmanager
     def write_aside(self, label: str | None = None, wait_s: float | None = None, priority: bool = False) -> Iterator[sqlite3.Connection]:
@@ -991,6 +1040,7 @@ class Database:
                 conn.close()
             finally:
                 _drop_hold(conn)
+            _retry_scrub(self.gate)
 
     def _wal_bytes(self) -> int:
         wal = self.path.with_name(self.path.name + "-wal")
@@ -1006,6 +1056,7 @@ class Database:
         the moment is quiet - nobody in this process holds or waits for the write lock (the gate, and the holders when
         the gate is switched off) - a TRUNCATE checkpoint cuts the file to zero, under the gate, waiting at most
         CHECKPOINT_BUSY_S. Anything else is left to the next tick."""
+        _retry_scrub(self.gate)  # a pending scrub_wal (a wiped value still in the WAL) whatever the WAL size
         size = self._wal_bytes()
         conn = sqlite3.connect(self.path, timeout=0.2, isolation_level=None, check_same_thread=False)
         try:
@@ -1029,6 +1080,35 @@ class Database:
             return self._truncate(size)
         finally:
             self.gate.release(token)
+
+    def scrub_wal(self, label: str = "scrub_wal", reader_wait_s: float = SCRUB_READER_WAIT_S) -> bool:
+        """Push every committed page out of the WAL into the database file and cut the WAL to zero (a TRUNCATE checkpoint),
+        for a caller that promises a wiped value is gone from the whole file set (H-07 retired bridge keys, TKWISECRYPT
+        station passwords). True when the whole WAL was checkpointed now.
+
+        Never inside a transaction: SQLite refuses a checkpoint on a connection with an open transaction ("database table
+        is locked"), and connection() always begins one. Before the connection pool (DB-CONN-POOL-2343) that refusal was
+        hidden - closing the last connection checkpointed and removed the WAL anyway; with pooled connections the file
+        stays open, so the checkpoint must really run. Its own short connection (not a lease), under the write gate like a
+        writer (at most BUSY_TIMEOUT_S); it waits at most `reader_wait_s` for open readers. A reader that holds a snapshot
+        - often the caller's own read request - keeps the WAL busy: the scrub is then left PENDING on the file and retried,
+        without waiting, each time a transaction of this process ends (connection(), write_aside(), release() - so before
+        the caller's response is sent) and on the janitor's tick, until it passes."""
+        gate = self.gate
+        with gate._lock:
+            gate.scrub_gen += 1  # a retry that started before this wipe must not clear the mark
+            gate.scrub_path = self.path
+        token = None
+        if WRITE_GATE:
+            token = gate.acquire(BUSY_TIMEOUT_S, on_slow=lambda: _report_stray_holders(gate, label))
+            if token is None:
+                log.info("WAL scrub (%s): the write gate stayed busy; pending, retried when a transaction ends", label)
+                return False
+        try:
+            return _scrub_attempt(gate, self.path, reader_wait_s, label)
+        finally:
+            if token is not None:
+                gate.release(token)
 
     def _truncate(self, size: int) -> dict[str, Any]:
         started = time.monotonic()
@@ -1064,6 +1144,9 @@ def release(conn: sqlite3.Connection) -> None:
             conn.execute("COMMIT")
         _end_hold(conn)  # hands the gate on
     conn.execute("PRAGMA query_only=1")
+    db = database_of(conn)
+    if db is not None:
+        _retry_scrub(db.gate)  # before the response is sent: a wipe's checkpoint this request's snapshot kept busy (scrub_wal)
 
 
 def commit_now(conn: sqlite3.Connection, *, keep_reading: bool = True) -> None:

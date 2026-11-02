@@ -21,7 +21,7 @@ import { dateInputLang } from '../api/day-format';
 const columns: TableColumn[] = [
   { key: 'time', label: 'זמן', render: (r) => html`14.09.2026 ${String(r.time)}` },
   { key: 'user', label: 'משתמש', render: (r) => html`<span style="display:inline-flex;align-items:center;gap:8px"><sw-avatar name=${String(r.user)} size=${24}></sw-avatar>${String(r.user)}</span>` },
-  { key: 'action', label: 'פעולה', render: (r) => html`<span style=${String(r.decision).startsWith('נחסם') ? 'color:var(--sw-danger);font-weight:600' : ''}>${String(r.action)}</span>` },
+  { key: 'action', label: 'פעולה', render: (r) => html`<span style=${String(r.decision).startsWith('נחסם') ? 'color:var(--sw-danger-text);font-weight:var(--sw-fw-semibold)' : ''}>${String(r.action)}</span>` },
   { key: 'resource', label: 'פרטים', render: (r) => html`${String(r.resource)} <span style="color:var(--sw-text-3)">· ${String(r.decision)}</span>` },
   { key: 'role', label: 'תפקיד / היקף' },
   { key: 'rev', label: 'rev', ltr: true, render: () => html`7` },
@@ -160,7 +160,7 @@ export class SystemAudit extends LitElement {
   private renderApi() {
     const rows = this.rows;
     return html`
-      <sw-page crumbs="הגדרות" heading="יומן אודיט" subheading="מי צפה, שינה, ייצא או שלח פעולה · actor, פעולה, החלטה, משאב, סיבה, request_id, permission_revision · אין סיסמאות או טוקנים ביומן">
+      <sw-page crumbs="הגדרות" heading="יומן אודיט" subheading="מי צפה, שינה, ייצא או שלח פעולה · משתמש, פעולה, החלטה, משאב, סיבה ומספר בקשה · אין סיסמאות או טוקנים ביומן">
         <sw-button slot="actions" icon="download" ?disabled=${!rows?.length} @click=${() => this.exportCsv()}>ייצוא CSV</sw-button>
         <div class="filters" data-audit-filters>
           <sw-field><select aria-label="פעולה" .value=${this.family} @change=${(e: Event) => { this.family = (e.target as HTMLSelectElement).value; void this.load(); }}>${PREFIXES.map((p) => html`<option value=${p.id} ?selected=${p.id === this.family}>${p.label}</option>`)}</select></sw-field>
@@ -221,12 +221,32 @@ export class SystemAudit extends LitElement {
       border-color: var(--sw-accent);
       color: var(--sw-text-inverse);
     }
+    /* POLISH4-WP7 (D16): the phone layout. The filters share the width two to a line (the search field and the refresh key take a whole
+       line), the table is the card list sw-table gives a phone, and the footer line wraps under its pager. */
+    @media (max-width: 767px) {
+      .filters {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .filters sw-field {
+        inline-size: auto;
+        min-inline-size: 0;
+      }
+      .filters sw-field:has(input[type='search']),
+      .filters sw-field:has(input[type='date']),
+      .filters > sw-button {
+        grid-column: 1 / -1;
+      }
+      .pager {
+        flex-wrap: wrap;
+      }
+    }
   `, bubbleChrome];
 
   render() {
     if (isApi()) return this.renderApi();
     return html`
-      <sw-page crumbs="הגדרות" heading="יומן אודיט" subheading="מי צפה, שינה, ייצא או שלח פעולה · actor, מקור זהות, תפקיד והיקף, החלטה, request_id, permission_revision · נתוני הדגמה">
+      <sw-page crumbs="הגדרות" heading="יומן אודיט" subheading="מי צפה, שינה, ייצא או שלח פעולה · משתמש, תפקיד והיקף, החלטה, מספר בקשה · נתוני הדגמה">
         <sw-button slot="actions" icon="download">ייצוא</sw-button>
         <div class="filters">
           <sw-field><select aria-label="פעולה"><option>כל הפעולות</option><option>צפייה</option><option>שינוי</option><option>ייצוא</option><option>פעולת HA</option></select></sw-field>

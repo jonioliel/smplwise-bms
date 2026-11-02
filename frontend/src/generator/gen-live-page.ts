@@ -5,7 +5,7 @@ import '../components/sw-button';
 import './gen-chart-set';
 import { getLive, loadViewMode, saveViewMode, type GenDevice, type GenRange, type LiveResponse, type ViewMode } from '../api/generator';
 import { navigate } from '../router';
-import { he } from '../i18n/he';
+import { he, t } from '../i18n/he';
 import { elecCss } from '../electricity/styles';
 import { SkinController } from '../design/skin';
 import { genCss } from './gen-styles';
@@ -58,6 +58,8 @@ export class GenLivePage extends LitElement {
   @state() private range: GenRange = '24h';
   @state() private phone = window.matchMedia('(max-width: 767px)').matches;
   @state() private tick = Date.now();
+  /** The last poll failed: the values on screen are the last good ones (a banner says so, with a retry). */
+  @state() private pollFailed = false;
   private timer = 0;
   private mq = window.matchMedia('(max-width: 767px)');
   private onMq = () => (this.phone = this.mq.matches);
@@ -93,9 +95,13 @@ export class GenLivePage extends LitElement {
     const my = ++this.seq;
     try {
       const r = await getLive(this.device.id);
-      if (my === this.seq) this.live = r;
+      if (my === this.seq) {
+        this.live = r;
+        this.pollFailed = false;
+      }
     } catch {
-      /* the last values stay; the shell's device poll reports a lost server */
+      /* the last values stay on screen; a banner says the refresh failed (POLISH4-WP5), the shell's device poll reports a lost server */
+      if (my === this.seq) this.pollFailed = true;
     }
   }
 
@@ -164,6 +170,9 @@ export class GenLivePage extends LitElement {
     const banner = availability === 'offline'
       ? html`<div class="banner err" role="alert" data-banner="offline"><sw-icon name="warning" size="18"></sw-icon><b>${G.live.offlineTitle}</b><span>${fill(G.live.lastSeen, { t: fmtDateTime(d.last_seen_at) })} · ${G.live.offlineBody}</span></div>`
       : availability === 'stale' ? html`<div class="banner" role="status" data-banner="stale"><sw-icon name="warning" size="18"></sw-icon><b>${G.live.staleTitle}</b><span>${G.live.staleBody}</span></div>` : nothing;
+    const failed = this.pollFailed
+      ? html`<div class="banner" role="status" data-banner="poll-failed"><sw-icon name="warning" size="18"></sw-icon><b>${G.loadError}</b><div class="sp"></div><button type="button" class="btn sm" data-retry @click=${() => void this.poll()}>${t('states.retry')}</button></div>`
+      : nothing;
     const chip = !plan.showMains || plan.mainsOn === null ? nothing
       : plan.onGen && plan.showAts ? html`<span class="sev alert">${G.live.mainsLostChip}</span>` : plan.mode === 'test' ? html`<span class="sev info">${G.live.testChip}</span>` : plan.mainsOn ? html`<span class="sev cleared">${G.live.mainsOkChip}</span>` : html`<span class="sev alert">${G.live.mainsLostChip}</span>`;
     const pulse = toneOfEngine(plan.engine);
@@ -175,7 +184,7 @@ export class GenLivePage extends LitElement {
     const dials = gauges.length ? html`<div class="gauges n${gauges.length} ${stale ? 'stale' : ''}" data-view="gauges">${gauges.map(gaugeSvg)}</div>` : nothing;
     const charts = html`<gen-chart-set data-view="charts" .deviceId=${d.id} .roles=${d.capabilities.roles} .range=${this.range} mode="cards" @metric-open=${(e: CustomEvent<string>) => navigate(`/infra/generator/charts`, { device: d.id, metric: e.detail })}></gen-chart-set>`;
     return html`<div class="col" data-gen-live data-availability=${availability}>
-      ${banner}
+      ${banner}${failed}
       <div class="status-strip"><span class="big" data-status><span class="pulse ${pulse}"></span>${status}</span>
         <span class="mut">${[d.area_name, d.rated_kva ? `${fmtNum(d.rated_kva)} kVA` : ''].filter(Boolean).join(' · ')}</span><div class="sp"></div>
         ${stale ? nothing : html`<span class="last-seen"><sw-icon name="clock" size="14"></sw-icon> ${G.live.dataLive}</span>`}</div>

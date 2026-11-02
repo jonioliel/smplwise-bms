@@ -19,9 +19,11 @@ from ..auth import resolve_principal, resolve_remote_first, settings_of, touch_u
 from ..errors import ApiError, forbidden, validation
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, permissions_anywhere, require
 from ..remote_channel import is_remote
+from ..services import area_presence as ap
 from ..services import building_presence as bp
 from ..services import building_presence_history as bph
 from ..services import ha_sync
+from ..services import presence_people as people_svc
 
 router = APIRouter()
 
@@ -47,6 +49,7 @@ class SettingsIn(BaseModel):
     retention_days: int | None = None
     home_display: str | None = None
     map_tint: bool | None = None
+    area_line: bool | None = None  # AREA-PRESENCE-LINE-2351: the area screen's presence line (off by default)
     # PRESENCE-COMPACT-2310: the home card's display options (validated against bp.CHOICES)
     card_style: str | None = None
     card_empty_rooms: str | None = None
@@ -72,6 +75,33 @@ def building_snapshot(request: Request, principal: Principal = Depends(_principa
             raise forbidden(permission=bp.VIEW)
         note_grant(authorize(conn, principal, bp.VIEW, INSTALLATION), bp.VIEW)
         return bp.snapshot(conn, fresh=bool(ha_sync.STATE.connected))
+
+
+@router.get("/presence/area/{area_id}")
+def area_presence_line(area_id: str, request: Request, principal: Principal = Depends(_principal)) -> dict[str, Any]:
+    """AREA-PRESENCE-LINE-2351: who / how many are in one area now, for the area screen's presence line.
+
+    presence.building.view or presence.view anywhere; each part only with its own permission. `line: false` while the administrator has not switched the line on (nothing is read
+    then). Names only under the people `show_names` setting; the people part is audited like GET presence/people (throttled, counts only).
+    Owner 02.11 (round 14): presence.building.view without presence.view gets the people part as an anonymous count only
+    (`{count, names: null, more: 0, anonymous: true}`, services/area_presence.py) - never a name or any per-person field."""
+    if len(area_id) > 120:
+        raise validation("אזור לא תקין.", field="area_id")
+    db = request.app.state.db
+    with db.connection(mode="read", label="presence.area") as conn:
+        touch_user(conn, principal)
+        perms = permissions_anywhere(conn, principal)
+        if bp.VIEW not in perms and people_svc.VIEW not in perms:
+            with db.write_aside() as w:
+                audit(w, actor=principal, action=bp.VIEW, decision="denied", resource_type="area", resource_id=area_id, reason="no_binding", request_id=_rid(request))
+            raise forbidden(permission=bp.VIEW)
+        out, view = ap.area_line(conn, principal, area_id, fresh=bool(ha_sync.STATE.connected))
+        if view is not None and people_svc.should_audit(principal.user_id):
+            with db.write_aside() as w:  # counts only, never a name (as GET presence/people)
+                audit(w, actor=principal, action="presence.people.view", decision="allowed", resource_type="area", resource_id=area_id, request_id=_rid(request),
+                      details={"inside": view["totals"]["inside"], "named": view["totals"]["named"], "hidden": view["totals"]["hidden"], "enabled": view["enabled"],
+                               "area": (out["people"] or {}).get("count", 0), "anonymous": bool((out["people"] or {}).get("anonymous"))})
+        return out
 
 
 @router.get("/presence/building/sensors")

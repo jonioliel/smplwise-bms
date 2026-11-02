@@ -13,6 +13,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..rbac import INSTALLATION, Principal, authorize, bindings_of
 from ..errors import ApiError
 from ..services import devices as dsvc
+from ..services import ha_scope
 from ..services import semantic
 from ..services.access import camera_scope, visible_camera_ids
 from .settings import read_settings
@@ -144,6 +145,8 @@ def search(
 
     # HA entities: everything for installation-wide readers, only placed entities on visible floors otherwise
     ent_floors = _visible_floors(conn, principal, "entity.state.read")
+    # round 14 (owner 02.11): a building binding also reaches the entities the home mapping puts in its building (services/ha_scope)
+    ent_mapped = ha_scope.visible_floors(conn, principal, "entity.state.read")[1].mapped if ent_floors is not None else frozenset()
     from ..rbac import permissions_anywhere
 
     alarm_view = "alarm.view" in permissions_anywhere(conn, principal)
@@ -159,7 +162,7 @@ def search(
         if not (_contains(e["name"], needle) or _contains(e["original_name"], needle) or _contains(e["entity_id"], needle) or _contains(e["area_name"], needle)):
             continue
         fid = ent_placed.get(e["entity_id"])
-        if ent_floors is not None and (fid is None or fid not in ent_floors):
+        if ent_floors is not None and (fid is None or fid not in ent_floors) and e["entity_id"] not in ent_mapped:
             continue
         f = floors.get(fid) if fid else None
         sub = DOMAIN_LABEL.get(e["domain"], e["domain"]) + (f" · {e['area_name']}" if e["area_name"] else "") + (f" · {f['building_name']} · {f['name']}" if f else " · לא מוצבת על תוכנית")

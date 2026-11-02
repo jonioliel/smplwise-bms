@@ -30,6 +30,7 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import asdict, dataclass
 
+from ..errors import ApiError
 from ..rbac import INSTALLATION, STATION, Decision, Principal, authorize, legacy_name_of
 from ..rbac import _active_bindings as rbac_active_bindings
 from . import ha_scope, intercom_doors
@@ -73,6 +74,14 @@ def _entity_targets(conn: sqlite3.Connection, entity_id: str) -> tuple[list[tupl
     placed = ha_scope.placements(conn).get(entity_id, [])
     targets = [INSTALLATION] + [("floor", p["floor_id"]) for p in placed if not p.get("shared_from")]
     deny_only = [("floor", p["floor_id"]) for p in placed if p.get("shared_from")] + [("floor", f) for p in placed for f in p.get("share_floors") or ()]
+    from . import building_scope
+
+    if building_scope.mapping_reach_on(conn):  # round 14 (owner 02.11): a building binding also reaches through the home mapping
+        mapped = building_scope.entity_targets(conn).get(entity_id)
+        if mapped is not None:
+            targets.append(("building", mapped[0]))
+            if mapped[1] is not None:
+                deny_only.append(("floor", mapped[1]))
     return targets, deny_only
 
 
@@ -170,3 +179,63 @@ def may_open_some_door(conn: sqlite3.Connection, principal: Principal, station_i
 def door_access_map(conn: sqlite3.Connection, principal: Principal, station_ids: list[str], *, dev_mode: bool = False) -> dict[str, bool]:
     """Per station: whether this principal may open a door there (the WisKey screen shows the open button only then)."""
     return {sid: may_open_some_door(conn, principal, sid, dev_mode=dev_mode).allowed for sid in station_ids}
+
+
+# ---------------------------------------------------------------- why a lock cannot be opened (UNLOCK-REASON-2370)
+
+# The closed set of answers `unlock_reason` gives; the screens say one Hebrew sentence per value (frontend lock-reason.ts).
+UNLOCK_REASONS = ("ok", "no_permission", "door_not_mapped", "alarm_managed", "not_placed", "wall_profile", "no_control")
+
+
+class UnlockScope:
+    """The caller's `door.unlock` reach, built once per request: installation-wide, or the floors (and mapped entities) it is held on.
+    The same lookup the lock rows always used (ha_scope.visible_floors / placements / entity_visible), kept in one place."""
+
+    def __init__(self, conn: sqlite3.Connection, principal: Principal) -> None:
+        self.wide, self.floors = ha_scope.visible_floors(conn, principal, UNLOCK)
+        self.placed = ha_scope.placements(conn) if self.floors and not self.wide else {}
+
+    @property
+    def holds_somewhere(self) -> bool:
+        return self.wide or bool(self.floors)
+
+    def sees(self, entity_id: str) -> bool:
+        return ha_scope.entity_visible(self.wide, self.floors, self.placed, entity_id)
+
+
+def unlock_reason(conn: sqlite3.Connection, principal: Principal, entity_id: str, *, wiskey: bool, alarm_managed: bool = False, can_control: bool = True, scope: UnlockScope | None = None) -> str:
+    """THE rule behind a lock's `can_unlock` (`can_unlock` is `unlock_reason(...) == "ok"`): why this caller may not unlock this lock,
+    or "ok". One function for the devices panel (`GET /devices/items?kind=locks`), the single-entity view (`GET /ha/entities/{id}`)
+    and the WisKey open button, so no screen can say something the others do not. Display only, never authority - the action route
+    decides again. Order (the first that applies):
+
+    - `alarm_managed`: the alarm section owns the control.
+    - an intercom (WisKey) door: `door_not_mapped` when the door map does not resolve it (nothing else is evaluated - the door has no
+      station to check a grant against); else the one door rule (`check`): `wall_profile` for a wall-display account, `not_placed`
+      when the caller's door grant is bound to floors and this lock is not placed there, otherwise `no_permission`.
+    - any other lock: `no_permission` without `door.unlock` anywhere, `not_placed` when it is held on floors only and the lock is not
+      on them, `no_control` without `ha.entity.control` at the lock (`can_control`).
+
+    The answer is a reason code only - no station, floor or role names - so a caller learns nothing about the configuration."""
+    if alarm_managed:
+        return "alarm_managed"
+    scope = scope or UnlockScope(conn, principal)
+    if wiskey:
+        try:
+            target = intercom_doors.resolve(conn, entity_id)
+        except ApiError:
+            return "door_not_mapped"
+        # a developer identity counts as identified here (it never exists in the add-on; the route decides for real)
+        decision = check(conn, principal, target.station_id, target.relay, entity_id=entity_id, dev_mode=True)
+        if decision.allowed:
+            return "ok"
+        if decision.reason == "wall_account":
+            return "wall_profile"
+        if decision.reason == "no_binding" and not scope.wide and scope.floors and not scope.sees(entity_id):
+            return "not_placed"
+        return "no_permission"
+    if not scope.holds_somewhere:
+        return "no_permission"
+    if not scope.sees(entity_id):
+        return "not_placed"
+    return "ok" if can_control else "no_control"

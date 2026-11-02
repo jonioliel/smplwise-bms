@@ -335,6 +335,10 @@ SCHEMA: dict[tuple[str, ...], tuple[Any, Callable[[Any], Any]]] = {
     ("ui", "detail_tab"): ("overview", _choice("overview", "conv", "costs", "history")),
     ("ui", "drawer_size"): ("wide", _choice("drawer", "wide", "full")),
     ("ui", "phone_sheet"): ("full", _choice("full", "half")),
+    # TICKETS-1440-COLUMN-SETTING-2360: at a medium table width (about 1440 px) the "מה קורה" sentence column and the department column cannot both
+    # fit next to the rest of the default columns; which of the two the default set keeps. A viewer's own choice (the column chooser, the
+    # sentence tick) wins over this installation default
+    ("ui", "table_mid_width"): ("sentence", _choice("sentence", "department")),
     # HANDLERLOAD (owner 2026-10-17): the period of the "handled" number on the handler cards, in days (1 = today, 7, 30); each viewer's
     # own choice (kept in the browser) wins over this installation default
     ("ui", "handled_days"): (7, int_choice(1, 7, 30)),

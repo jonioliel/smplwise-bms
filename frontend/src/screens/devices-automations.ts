@@ -175,6 +175,33 @@ export class DevicesAutomations extends LitElement {
       gap: var(--dv-gap-lg, 16px);
       align-items: stretch;
     }
+    /* POLISH4-WP4 (D25): from 768 to 1199 px the cards take whole rows of three (two at 768) instead of two, a tighter gap, so the
+       cards view shows more than two cards a page where the height allows (the NOSCROLL fit still counts the rows; no new scroll) */
+    @media (min-width: 768px) and (max-width: 1199px) {
+      .cgrid {
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 264px), 1fr));
+        gap: var(--sw-s-3);
+      }
+    }
+    /* POLISH4-WP4 (D25): below the width where the toolbar holds the kinds, the state filter, the search and "+ חדש" in one line (about
+       1400 px), the state filter folds behind "סינון" as it does on a phone - by the same setting (automations.phone_filter: fold, the
+       default; "rows" keeps the filter's own row) - so the header is two rows at 1024 / 1180 instead of three. The open filter takes its
+       own line under the toolbar. */
+    @media (min-width: 768px) and (max-width: 1399px) {
+      :host([data-phone-filter='fold']) .dh-det .stf {
+        display: none;
+      }
+      :host([data-phone-filter='fold']) .dh-det .stf[data-open] {
+        display: inline-flex;
+        order: 9;
+      }
+      :host([data-phone-filter='fold']) .dh-det .foldbtn {
+        display: inline-flex;
+      }
+      .dh-det .search {
+        min-inline-size: 200px;
+      }
+    }
     .tools {
       display: contents;
     }

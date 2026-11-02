@@ -254,3 +254,21 @@ def test_a_site_admin_may_delegate_the_plain_grants_only(w, settings):
     assert no.status_code == 403 and no.json()["code"] == "role_not_delegable"
     with w.c.app.state.db.connection(mode="read") as conn:
         assert delegation_block(conn, "tickets_external") is None, "the owner may still add it to the allow-list (section 8.2)"
+
+
+def test_table_mid_width_setting_defaults_to_the_sentence_column(w, settings):
+    """TICKETS-1440-COLUMN-SETTING-2360: `ui.table_mid_width` (sentence | department) - which of the two columns the default tickets table keeps at a
+    medium width. Default sentence (today's behaviour), a valid save is served to every viewer by GET tickets/module, a refused value is a 422,
+    and a corrupt stored value reads as the default."""
+    doc = w.c.get(f"{API}/tickets/settings").json()
+    assert doc["ui"]["table_mid_width"] == "sentence"
+    r = w.c.put(f"{API}/tickets/settings", json={"revision": doc["revision"], "ui": {"table_mid_width": "department"}})
+    assert r.status_code == 200 and r.json()["ui"]["table_mid_width"] == "department"
+    rev = r.json()["revision"]
+    assert w.c.get(f"{API}/tickets/module", headers=as_user("vic")).json()["ui"]["table_mid_width"] == "department"
+    for bad in ({"table_mid_width": "both"}, {"table_mid_width": "Department"}, {"table_mid_width": 1}):
+        assert w.c.put(f"{API}/tickets/settings", json={"revision": rev, "ui": bad}).status_code == 422, bad
+    assert w.c.put(f"{API}/tickets/settings", json={"revision": rev, "ui": {"table_mid_width": "both"}}).status_code == 422
+    with w.c.app.state.db.connection() as conn:
+        conn.execute("UPDATE settings SET value = '{\"revision\": 9, \"ui\": {\"table_mid_width\": \"x\"}}' WHERE key = 'tickets.settings'")
+    assert w.c.get(f"{API}/tickets/settings").json()["ui"]["table_mid_width"] == "sentence", "invalid reads as default"

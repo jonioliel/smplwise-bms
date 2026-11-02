@@ -12,6 +12,7 @@ import {
   discardRestore, listCopies, prepareRestore, restoreFromCopy, restoreReady, safetyBody, scopeFromSetting, type RestoreScope,
   type OffboxCopy, type OffboxPrepared, type DrillStatus, type OffboxRun, type OffboxStatus, type OffboxTarget, type OffboxTargetIn,
   GDRIVE_NUMBERS, gdriveConnect, gdriveDisconnect, gdrivePoll, isGoogleDeviceUrl, pollContinues, pollDelayMs, type FormKind, type GdriveCode,
+  checkBadge, gdriveDiagnose, type GdriveDiagnosis,
 } from '../api/backup-offbox';
 import { keyExportReady, obt, obtError, type ObtKey } from '../i18n/backup-offbox';
 import { obr, obrApiError, obrError } from '../i18n/backup-offbox-restore';
@@ -21,7 +22,7 @@ import { patchSettings } from '../api/media';
 import { settingsStyles } from '../styles/settings';
 import { dayMonthTimeText } from '../api/day-format';
 
-type Dialog = null | 'export' | 'rotate' | { remove: OffboxTarget } | { restore: OffboxTarget } | { gdrive: OffboxTarget };
+type Dialog = null | 'export' | 'rotate' | { remove: OffboxTarget } | { restore: OffboxTarget } | { gdrive: OffboxTarget } | { gdiag: OffboxTarget };
 
 /**
  * DATASTORE-295 phase 2: Settings › אבחון › גיבוי ושחזור - the off-box targets (S3-compatible / SFTP), the encryption key (export once,
@@ -58,6 +59,9 @@ export class SwOffboxBackup extends LitElement {
   @state() private gCode: GdriveCode | null = null;
   @state() private gState: 'idle' | 'waiting' | 'connected' | 'denied' | 'expired' = 'idle';
   @state() private gErr = '';
+  // GDRIVE-READY-2351: "בדיקת חיבור Google" (read-only; the server answers each step in Hebrew)
+  @state() private gDiag: GdriveDiagnosis | null = null;
+  @state() private gDiagBusy = false;
   private gTimer: number | undefined;
   private poll: number | undefined;
 
@@ -212,6 +216,8 @@ export class SwOffboxBackup extends LitElement {
             ${gd.connected && gd.connected_at ? html`<span class="muted">${this.when(gd.connected_at)}</span>` : nothing}
             <sw-button size="sm" variant=${gd.connected ? 'ghost' : 'primary'} icon="link" ?disabled=${!!b} data-offbox-gdrive-connect
               @click=${() => void this.openGdrive(t)}>${gd.connected ? obt('gdriveReconnect') : obt('gdriveConnect')}</sw-button>
+            <sw-button size="sm" variant="ghost" icon="check" ?disabled=${!!b} data-offbox-gdrive-diagnose
+              @click=${() => void this.openDiag(t)}>${obt('gdriveDiagnose')}</sw-button>
             ${gd.connected
               ? html`<sw-button size="sm" variant="ghost" ?disabled=${!!b} data-offbox-gdrive-disconnect
                   @click=${() => void this.act(`gdoff:${t.id}`, () => gdriveDisconnect(t.id), obt('gdriveDisconnected'))}>${obt('gdriveDisconnect')}</sw-button>`
@@ -476,7 +482,8 @@ export class SwOffboxBackup extends LitElement {
                 <li>${obt('gdriveStep1', { url: '' })}<a data-ltr href=${link} target="_blank" rel="noopener noreferrer">${link.replace('https://', '')}</a></li>
                 <li>${obt('gdriveStep2')}<div class="code" data-ltr data-offbox-gdrive-code aria-live="polite">${c.user_code}</div></li>
                 <li>${obt('gdriveStep3')}</li></ol>
-              <div class="muted" role="status">${obt('gdriveWaiting')}</div>`
+              <div class="muted" role="status">${obt('gdriveWaiting')}</div>
+              <div class="muted" role="note" data-offbox-gdrive-blocked>${obt('gdriveBlockedHint')}</div>`
             : this.gErr ? nothing : html`<div class="muted">…</div>`}
       <div slot="footer">
         ${s === 'denied' || s === 'expired'
@@ -487,7 +494,48 @@ export class SwOffboxBackup extends LitElement {
     </sw-dialog>`;
   }
 
+  // ---------------------------------------------------------------- GDRIVE-READY-2351: "בדיקת חיבור Google"
+
+  private async openDiag(t: OffboxTarget) {
+    this.dialog = { gdiag: t };
+    this.gDiag = null;
+    this.gErr = '';
+    this.gDiagBusy = true;
+    try {
+      this.gDiag = await gdriveDiagnose(t.id);
+    } catch (err) {
+      this.gErr = err instanceof ApiError ? obtError(err.code) : describeError(err);
+    } finally {
+      this.gDiagBusy = false;
+    }
+  }
+
+  private renderDiag(t: OffboxTarget) {
+    const d = this.gDiag;
+    return html`<sw-dialog open heading=${obt('gdriveDiagTitle')} subheading=${t.name} data-offbox-gdrive-diag @close=${() => this.closeDialog()}>
+      ${this.gErr ? html`<div class="msg err" role="alert">${this.gErr}</div>` : nothing}
+      ${this.gDiagBusy ? html`<div class="muted" role="status">${obt('gdriveDiagRunning')}</div>` : nothing}
+      ${d
+        ? html`<div class="msg ${d.ok ? 'ok' : 'err'}" role=${d.ok ? 'status' : 'alert'} data-offbox-gdrive-diag-summary=${d.ok ? 'ok' : 'fail'}>${d.summary}</div>
+            <ul class="diag" data-offbox-gdrive-diag-list>
+              ${d.checks.map((c) => html`<li data-check=${c.id} data-status=${c.status}>
+                <span class="dh"><sw-badge kind=${checkBadge(c.status)} label=${c.title}></sw-badge></span>
+                <span>${c.message}</span>
+                ${c.fix && c.status !== 'ok' ? html`<span class="muted fix"><b>${obt('gdriveDiagFix')}</b> ${c.fix}</span>` : nothing}
+              </li>`)}
+            </ul>
+            <div class="muted">${obt('gdriveDiagNote')}</div>`
+        : nothing}
+      <div slot="footer">
+        <sw-button variant="primary" icon="check" ?disabled=${this.gDiagBusy} data-offbox-gdrive-diag-again @click=${() => void this.openDiag(t)}>${obt('gdriveDiagAgain')}</sw-button>
+        <sw-button variant="ghost" @click=${() => this.closeDialog()}>${obt('ok')}</sw-button>
+      </div>
+    </sw-dialog>`;
+  }
+
   private closeDialog() {
+    this.gDiag = null;
+    this.gDiagBusy = false;
     window.clearTimeout(this.gTimer);
     this.gCode = null;
     this.gErr = '';
@@ -512,6 +560,7 @@ export class SwOffboxBackup extends LitElement {
     if (!d) return nothing;
     if (typeof d === 'object' && 'restore' in d) return this.renderRestore(d.restore);
     if (typeof d === 'object' && 'gdrive' in d) return this.renderGdrive(d.gdrive);
+    if (typeof d === 'object' && 'gdiag' in d) return this.renderDiag(d.gdiag);
     if (typeof d === 'object') {
       return html`<sw-dialog open heading=${obt('remove')} subheading=${d.remove.name} data-offbox-remove-dialog @close=${() => this.closeDialog()}>
         <div class="muted">${obt('removeConfirm')}</div>
@@ -606,11 +655,11 @@ export class SwOffboxBackup extends LitElement {
   }
 
   static styles = [settingsStyles, css`
-    :host { display: grid; gap: var(--sw-space-4, 16px); }
+    :host { display: grid; gap: var(--sw-s-4); }
     .target { display: grid; gap: 6px; padding-block: 10px; border-block-end: 1px solid var(--sw-border); }
     .target:last-of-type { border-block-end: 0; }
     .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .name { font-weight: 600; }
+    .name { font-weight: var(--sw-fw-semibold); color: var(--sw-heading, var(--sw-text)); }
     .runs { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: var(--sw-fs-sm); }
     .run { display: inline-flex; align-items: center; gap: 6px; }
     .actions { display: flex; flex-wrap: wrap; gap: 8px; padding-block: 6px; }
@@ -618,7 +667,7 @@ export class SwOffboxBackup extends LitElement {
     .ret { display: flex; flex-wrap: wrap; gap: 10px; }
     .ret label { display: inline-flex; align-items: center; gap: 4px; }
     .ret input { inline-size: 64px; }
-    input.ctl, textarea.ctl, .ret input, .confirm-in, .keybox { font: inherit; padding: 6px 8px; border: 1px solid var(--sw-border); border-radius: var(--sw-radius-sm, 6px);
+    input.ctl, textarea.ctl, .ret input, .confirm-in, .keybox { font: inherit; padding: 6px 8px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-sm);
       background: var(--sw-surface); color: var(--sw-text); min-inline-size: 0; }
     .keyfacts { margin: 0; padding-inline-start: 18px; display: grid; gap: 4px; }
     .ack { display: flex; gap: 8px; align-items: flex-start; }
@@ -634,13 +683,29 @@ export class SwOffboxBackup extends LitElement {
     .facts .num { font-variant-numeric: tabular-nums; }
     /* GDRIVEBK-2310: the Google connection row and the consent dialog (the code is LTR, large, monospace) */
     .gd { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-    select.ctl { font: inherit; padding: 6px 8px; border: 1px solid var(--sw-border); border-radius: var(--sw-radius-sm, 6px);
+    select.ctl { font: inherit; padding: 6px 8px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-sm);
       background: var(--sw-surface); color: var(--sw-text); min-inline-size: 0; }
     input.num { inline-size: 96px; }
     .steps { margin: 0; padding-inline-start: 20px; display: grid; gap: 10px; }
-    .steps a { color: var(--sw-accent, var(--sw-text)); font-weight: var(--sw-fw-semibold); }
+    .steps a { color: var(--sw-accent-text, var(--sw-accent)); font-weight: var(--sw-fw-semibold); }
     .code { margin-block-start: 6px; font-family: var(--sw-font-mono, monospace); font-size: var(--sw-fs-xl, 1.5rem); letter-spacing: 0.12em;
       font-weight: var(--sw-fw-semibold); color: var(--sw-heading, var(--sw-text)); }
+    /* GDRIVE-READY-2351: the connection check - one row per step, the fix under it */
+    .diag { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+    .diag li { display: grid; gap: 2px; }
+    .diag .fix { font-size: var(--sw-fs-sm); }
+    /* POLISH4-WP7: a visible focus ring on the plain fields, and on a phone the head, the action keys and the fields wrap onto the width */
+    input.ctl:focus-visible, textarea.ctl:focus-visible, select.ctl:focus-visible, .ret input:focus-visible, .confirm-in:focus-visible, .keybox:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 1px; border-color: var(--sw-accent); }
+    @media (max-width: 767px) {
+      .head { flex-wrap: wrap; }
+      .actions sw-button, .gd sw-button { flex: 1 1 auto; }
+      input.ctl, select.ctl { inline-size: 100%; box-sizing: border-box; }
+      .code { overflow-wrap: anywhere; }
+    }
+    @media (pointer: coarse) {
+      input.ctl, select.ctl, .ret input, input.num { min-block-size: 44px; }
+    }
   `];
 }
 

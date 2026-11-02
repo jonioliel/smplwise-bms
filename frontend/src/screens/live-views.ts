@@ -163,7 +163,7 @@ export class LiveViews extends LitElement {
                       ${v.cameras.slice(0, 4).map((id) => html`<img src=${snapshotUrl(id)} alt="" loading="lazy" @error=${(ev: Event) => ((ev.target as HTMLImageElement).style.visibility = 'hidden')} />`)}
                       ${!v.cameras.length ? html`<div class="empty">אין מצלמות שמותר לך לראות בתצוגה זו</div>` : nothing}
                     </div>
-                    <div class="head"><b>${v.name}</b><sw-badge kind=${v.shared ? 'live' : 'neutral'} label=${v.shared ? 'משותפת' : 'אישית'}></sw-badge>${v.kiosk ? html`<sw-badge kind="neutral" label="קיוסק"></sw-badge>` : nothing}</div>
+                    <div class="head"><b>${v.name}</b><sw-badge kind=${v.shared ? 'recorded' : 'neutral'} label=${v.shared ? 'משותפת' : 'אישית'}></sw-badge>${v.kiosk ? html`<sw-badge kind="neutral" label="קיוסק"></sw-badge>` : nothing}</div>
                     <dl>
                       <dt>מצלמות</dt><dd>${v.camera_names.join(' · ') || '—'}${v.hidden_cameras ? html` <span class="muted">(+${v.hidden_cameras} ללא הרשאה)</span>` : nothing}</dd>
                       <dt>פריסה</dt><dd class="ltr">${v.cols}×${v.rows}</dd>
@@ -195,7 +195,7 @@ export class LiveViews extends LitElement {
       inline-size: 100%;
       block-size: 100%;
       object-fit: cover;
-      border-radius: 3px;
+      border-radius: var(--sw-r-2xs);
       background: var(--sw-video-bg);
       display: block;
     }
@@ -276,7 +276,7 @@ export class LiveViews extends LitElement {
       overflow: hidden;
     }
     .thumb sw-scene {
-      border-radius: 3px;
+      border-radius: var(--sw-r-2xs);
       inline-size: 100%;
       block-size: 100%;
     }
@@ -352,6 +352,53 @@ export class LiveViews extends LitElement {
     .foot {
       margin-block-start: 12px;
       gap: 8px;
+    }
+    /* POLISH4-WP2 (D9): the open / kiosk links and the camera chips answer the press on pointer-down (the card itself is not a
+       target); the scale reads the skin's press token and stays still under reduced motion */
+    .foot a {
+      display: inline-flex;
+      border-radius: var(--sw-r-sm);
+      -webkit-tap-highlight-color: transparent;
+      transition: transform var(--sw-t-press) var(--sw-ease-out);
+    }
+    .foot a:active,
+    .chips sw-chip:active {
+      transform: scale(var(--sw-press-scale, 0.97));
+    }
+    .chips sw-chip {
+      -webkit-tap-highlight-color: transparent;
+      transition: transform var(--sw-t-press) var(--sw-ease-out);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .foot a,
+      .chips sw-chip {
+        transition: none;
+      }
+      .foot a:active,
+      .chips sw-chip:active {
+        transform: none;
+      }
+    }
+    /* POLISH4-WP2 (D9): the phone. The columns / rows form stacks (two selects of 1fr at 390 cut the labels), the dialog form takes the
+       sheet's width, and the card's action row wraps instead of pushing "מחיקה" past the card edge */
+    @media (max-width: 767px) {
+      .two {
+        grid-template-columns: 1fr;
+      }
+      .form {
+        min-inline-size: 0;
+      }
+      .grid {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 12px;
+      }
+      .foot {
+        flex-wrap: wrap;
+        row-gap: 6px;
+      }
+      dl {
+        padding: 8px 10px;
+      }
     }
   `, bubbleChrome];
 

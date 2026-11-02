@@ -26,7 +26,7 @@ import { badgeLabel, badgeOf, parseNotificationLink } from '../components/notify
 import { inAndroidShell } from '../arx/android-app';
 import { DESKTOP_ONLY, STRUCTURE_DESKTOP_ONLY, phoneRestricted, routeGuardKind, onMobileOptions, setInstallationMobileOptions, type MobileKind } from './phone';
 import '../screens/devices-building';
-import { loadPendingScreens, pendingScreens, warmHomeDrillDown } from './lazy-screens'; // PERF-HOME-DEVICES-2342: the route screens are lazy chunks (the home screen stays in the entry chunk)
+import { loadPendingScreens, loadScreen, pendingScreens, waitingScreenTags, warmHomeDrillDown } from './lazy-screens'; // PERF-HOME-DEVICES-2342: the route screens are lazy chunks (the home screen stays in the entry chunk)
 // CR-017 S4's editors (<automation-builder>, <script-editor>, <scene-editor>) come with the list that mounts them (devices-automations imports them: PERF-HOME-DEVICES-2342)
 import '../screens/system-cast'; // CR-028: <system-cast>, <cast-my-screens> (#/multimedia/cast)
 import { refreshInsightsVisibility } from '../insights/access'; // CR-INSIGHT215
@@ -119,6 +119,9 @@ export class SwApp extends LitElement {
   @state() private searchBusy = false;
   /** UI round 1 (design A, no top bar): the search popover that opens from the corner button or Ctrl/Cmd+K. */
   @state() private searchPanel = false;
+  /** POLISH4-WP1 D1: the read-only status note of a user without הגדרות › בריאות (opened from the corner's status dot). */
+  @state() private sysPop = false;
+  private sysPopOutsideOn = false;
   private searchTimer = 0;
   private searchSeq = 0;
   private stopRouter?: () => void;
@@ -796,28 +799,60 @@ export class SwApp extends LitElement {
       cursor: pointer;
       -webkit-tap-highlight-color: transparent;
     }
-    /* a 44px hit area on the phone without a bigger drawing */
+    /* a 44 px hit area without a bigger drawing (POLISH4-WP1 D1: -8 px all round, 28 + 16 = 44; it was -6 px = 40 px) */
     .float button::after {
       content: '';
       position: absolute;
-      inset: -6px;
+      inset: -8px;
     }
-    .float button:hover,
+    /* POLISH4-WP1 D1: the wash follows a hovering fine pointer only (on touch a tapped key stayed tinted); an open key keeps it,
+       and a key gives on pointer-down (the press wash) */
+    @media (hover: hover) and (pointer: fine) {
+      .float button:hover {
+        background: var(--sw-surface-3);
+        color: var(--sw-text);
+      }
+    }
     .float button[aria-expanded='true'] {
       background: var(--sw-surface-3);
       color: var(--sw-text);
+    }
+    .float button:active {
+      background: var(--sw-surface-3);
     }
     .float button:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
       outline-offset: 1px;
     }
-    /* the status dot of a user who may not open הגדרות › בריאות: the same dot, not a button */
-    .float span.sysdot {
-      display: grid;
-      place-items: center;
-      inline-size: 28px;
-      block-size: 28px;
-      cursor: default;
+    /* POLISH4-WP1 D1: the status of a user who may not open הגדרות › בריאות is no longer a bare dot - the same dot is a key that
+       opens a small read-only note with the state in words and the components behind it (no link that would end on a refusal) */
+    .float .syspop {
+      margin-block-start: 6px;
+      inline-size: min(300px, calc(100vw - 24px));
+      box-sizing: border-box;
+      padding: 12px 14px;
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-menu-border);
+      border-radius: var(--sw-r-lg);
+      box-shadow: var(--sw-shadow-3);
+      color: var(--sw-text);
+      font-size: var(--sw-fs-sm);
+      line-height: 1.45;
+    }
+    .float .syspop b {
+      display: block;
+      font-size: var(--sw-fs-md);
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+    }
+    .float .syspop ul {
+      margin: 6px 0 0;
+      padding: 0;
+      list-style: none;
+      color: var(--sw-text-2);
+    }
+    .float .syspop li + li {
+      margin-block-start: 2px;
     }
     .float .sysdot i {
       inline-size: 9px;
@@ -1974,6 +2009,7 @@ export class SwApp extends LitElement {
       this.route = route;
       // the search popover never outlives the screen it was opened on (Back, a tab, a result, the bottom bar)
       this.closeSearchPanel(false);
+      this.sysPop = false;
       // not the WisKey embed mirroring the panel's own moves into the address (replaced)
       if (!replaced) {
         // CR-013: a menu item (or any navigation) closes the user menu and the tab-order dialog; their history entry
@@ -2234,6 +2270,7 @@ export class SwApp extends LitElement {
     this.toggleAttribute('data-shell-ready', this.session.mode !== 'loading' && (this.session.mode !== 'api' || this.startResolved) && pendingScreens() === 0);
     if (this.hasAttribute('data-shell-ready') && isHomeRoute(this.route)) warmHomeDrillDown();
     this.syncSearchOutside();
+    this.syncSysPopOutside();
     this.applyNavSize();
     this.syncBrandStrip();
     // what the floating corner (search, status) sits above: the phone's sticky section row, a tab / section row, or
@@ -2320,6 +2357,8 @@ export class SwApp extends LitElement {
     window.removeEventListener('keydown', this.onGlobalKey);
     this.searchPanel = false;
     this.syncSearchOutside();
+    this.sysPop = false;
+    this.syncSysPopOutside();
     window.removeEventListener('sw-setup-state', this.onSetupState);
     this.stopSetupDismissal?.();
     this.stopSetupDismissal = null;
@@ -2331,7 +2370,11 @@ export class SwApp extends LitElement {
 
   private async pollSummary() {
     try {
-      this.sys = await healthSummary();
+      const s = await healthSummary();
+      // GATE2342-C: a summary without its items list (a partial or older backend, a test's catch-all route answering {}) is not
+      // a state: sysWords / the banner read s.items, and a throw there aborts the WHOLE shell render - since the lazy route screens
+      // (GATE2342-B) the screen then never appears. Keep the last known state, as for a failed read.
+      if (s && typeof s === 'object' && Array.isArray(s.items)) this.sys = s;
     } catch {
       /* keep the last known state; the pill shows what we last knew */
     }
@@ -2356,11 +2399,46 @@ export class SwApp extends LitElement {
     const { text, title } = s ? this.sysWords(s) : { text: 'מערכת מקומית', title: 'מערכת מקומית' };
     // only for users who may open הגדרות › בריאות (system.configure); everyone else sees the state without a link that
     // would end on a refusal
-    if (!this.canOpenHealth()) return html`<span class="sysdot ${status}" data-sys-pill data-sys-static data-status=${status} role="img" title=${`${text}\n${title}`.trim()} aria-label=${`מצב המערכת: ${text}`}><i></i></span>`;
+    // POLISH4-WP1 D1: for them the dot is a key that opens a read-only note (the state in words + the components), not a bare dot
+    if (!this.canOpenHealth())
+      return html`<button type="button" class="sysdot ${status}" data-sys-pill data-sys-static data-status=${status} title=${`${text}\n${title}`.trim()} aria-label=${`מצב המערכת: ${text}`}
+        aria-haspopup="dialog" aria-expanded=${this.sysPop ? 'true' : 'false'} aria-controls=${this.sysPop ? 'sys-pop' : nothing} @click=${() => (this.sysPop = !this.sysPop)}><i></i></button>`;
     return html`<button type="button" class="sysdot ${status}" data-sys-pill data-status=${status} title=${`${text}\n${title}`.trim()} aria-label=${`מצב המערכת: ${text}`} @click=${() => (window.location.hash = '#/system/diagnostics?tab=health')}><i></i></button>`;
   }
 
   /** The status dot, the legacy pill and the alert banner lead to הגדרות › בריאות: allowed only with system.configure. */
+  /** POLISH4-WP1 D1: the note under the status dot of a user who may not open הגדרות › בריאות - the state in words and what is
+   * behind it (the dot's tooltip, which a touch screen never shows). Read-only: no link, nothing to press. */
+  private renderSysPop() {
+    const s = this.sys;
+    const { text } = s ? this.sysWords(s) : { text: 'מערכת מקומית' };
+    const items = s?.items ?? [];
+    return html`<div class="syspop" id="sys-pop" data-sys-pop role="dialog" aria-label="מצב המערכת">
+      <b>${`מצב המערכת: ${text}`}</b>
+      <ul>${items.length ? items.map((i) => html`<li>${i.label}</li>`) : html`<li>כל הרכיבים שהמערכת רואה עובדים</li>`}</ul>
+    </div>`;
+  }
+
+  /** A press outside the note (or a second press on the dot) closes it; the press is not swallowed - the note covers nothing
+   * that a tap there could have meant. */
+  private syncSysPopOutside() {
+    if (this.sysPop === this.sysPopOutsideOn) return;
+    this.sysPopOutsideOn = this.sysPop;
+    if (this.sysPop) document.addEventListener('pointerdown', this.onSysPopOutside, true);
+    else document.removeEventListener('pointerdown', this.onSysPopOutside, true);
+  }
+
+  private onSysPopOutside = (e: PointerEvent) => {
+    const path = e.composedPath();
+    if (path.some((n) => n instanceof HTMLElement && (n.hasAttribute('data-sys-pop') || n.hasAttribute('data-sys-static')))) return;
+    this.sysPop = false;
+  };
+
+  private closeSysPop(restoreFocus = false) {
+    this.sysPop = false;
+    if (restoreFocus) this.renderRoot.querySelector<HTMLElement>('[data-sys-static]')?.focus({ preventScroll: true });
+  }
+
   private canOpenHealth(): boolean {
     return tabAllowed('#/system/diagnostics', canNav);
   }
@@ -2410,6 +2488,7 @@ export class SwApp extends LitElement {
       return;
     }
     if (e.key === 'Escape' && this.searchPanel) this.closeSearchPanel();
+    if (e.key === 'Escape' && this.sysPop) this.closeSysPop(true);
   };
 
   private onSearchInput(e: Event) {
@@ -2626,6 +2705,7 @@ export class SwApp extends LitElement {
             : html`<div class="pillrow">${this.session.mode === 'api' && !this.gated ? html`<sw-cast-pill data-cast-slot ?remote=${onRemote()}></sw-cast-pill>` : nothing}${dot}${canSearch ? html`<button type="button" data-search-open aria-label=${t('app.search')} title=${t('app.search')} aria-haspopup="dialog" aria-expanded=${this.searchPanel ? 'true' : 'false'} @click=${() => (this.searchPanel ? this.closeSearchPanel(false) : this.openSearch())}><sw-icon name="search" size=${16}></sw-icon></button>` : nothing}</div>`}
           ${brand ? html`${!lead && this.hasCompanyLogo() ? html`<span class="bsep" aria-hidden="true"></span>` : nothing}<sw-brand kind="product" decorative .h=${32} data-brand-product></sw-brand>` : nothing}
         </div>
+        ${this.sysPop && !this.searchPanel ? this.renderSysPop() : nothing}
         ${this.searchPanel
           ? html`<div class="searchpanel" data-search-panel role="dialog" aria-label="חיפוש">
               <label class="search a"><sw-icon name="search" size=${16}></sw-icon><input type="search" placeholder="חיפוש חדרים, מצלמות, קומות וישויות…" aria-label=${t('app.search')} autocomplete="off" role="combobox" aria-expanded=${open} aria-controls="search-results" .value=${this.searchQ} @input=${this.onSearchInput} @keydown=${this.onSearchKey} @focus=${() => { if (this.searchResults.length) this.searchOpen = true; }} /></label>
@@ -2671,7 +2751,16 @@ export class SwApp extends LitElement {
   }
 
   private renderScreen() {
-    return html`${keyed(this.permEpoch, this.renderRoute())}${this.renderPermToast()}`;
+    const view = this.renderRoute();
+    // GATE2342-B: a lazy screen whose chunk is still on its way is not rendered yet (an element upgraded in place reads its properties
+    // only after connectedCallback - lazy-screens.ts waitingScreenTags); nothing is drawn in its place until it lands (as the
+    // unupgraded element drew nothing), and data-shell-ready stays off meanwhile (pendingScreens)
+    const waiting = waitingScreenTags(view);
+    if (waiting.length) {
+      for (const tag of waiting) loadScreen(tag, () => this.requestUpdate());
+      return html`${this.renderPermToast()}`;
+    }
+    return html`${keyed(this.permEpoch, view)}${this.renderPermToast()}`;
   }
 
   private renderRoute() {

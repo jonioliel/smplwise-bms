@@ -2,7 +2,7 @@
 `services/wiskey_relay_map_native.py` against Arx 876d0edf, adopted semantically - docs/changes/WISKEY-RC7-ADOPT-2331.md).
 
 No replacement map and no second journal: the export record comes from the original exporter (services/wiskey_relay_map_export.py,
-migration 0194) and the transport is the existing direct port (services/wiskey_capture_port.py), whose hello / reply MAC, connection
+migration 0196) and the transport is the existing direct port (services/wiskey_capture_port.py), whose hello / reply MAC, connection
 and correlation are already verified by the direct transport.
 
 - `publish`: ONE original DB transaction commits the full export BEFORE any socket I/O; then `installation/relay_map_source_v1`

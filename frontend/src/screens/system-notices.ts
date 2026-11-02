@@ -80,6 +80,17 @@ export class SystemNotices extends LitElement {
       .ctl { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-block-start: 8px; }
       .stack { display: grid; gap: 14px; }
       @media (max-width: 1023px) { .disp { grid-template-columns: minmax(0, 1fr); } }
+      /* POLISH4-WP8: a template tile gives on pointer-down, shows hover only on a fine pointer and a focus ring on the keyboard; on a phone
+         the saved / failed toast clears the bottom bar */
+      .tpl { transition: transform var(--sw-t-press) var(--sw-ease), border-color var(--sw-t-hover) var(--sw-ease-color); }
+      .tpl:active { transform: scale(var(--sw-press-scale)); }
+      .tpl:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
+      @media (hover: hover) and (pointer: fine) { .tpl:hover:not([aria-pressed='true']) { border-color: var(--sw-border-strong); } }
+      @media (prefers-reduced-motion: reduce) { .tpl { transition-duration: 0ms; } .tpl:active { transform: none; } }
+      @media (max-width: 767px) {
+        .toast { inset-block-end: calc(var(--sw-bottomnav-h, 0px) + 16px + env(safe-area-inset-bottom, 0px)); max-inline-size: calc(100% - 32px); }
+        .feed .u { max-inline-size: 100%; }
+      }
     `,
   ];
 

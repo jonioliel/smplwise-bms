@@ -54,7 +54,7 @@ export class SystemStorage extends LitElement {
       padding: 14px 16px;
     }
     .kpi .v {
-      font-size: 32px;
+      font-size: var(--sw-fs-4xl);
       font-weight: var(--sw-fw-bold);
       letter-spacing: -0.03em;
       line-height: 1.05;
@@ -365,7 +365,7 @@ export class SystemStorage extends LitElement {
               <div><span>מפתח פעיל</span><strong class="ltr" data-signing-active>${s.active ?? '—'}</strong></div>
               <div><span>נוצר</span><strong>${fmt(s.keys.find((k) => k.kid === s.active)?.created_at ?? null)}</strong></div>
               <div><span>מפתחות שהוחלפו</span><strong>${s.keys.filter((k) => k.retired_at).length}</strong></div>
-              <div><span>מפתח ציבורי (base64)</span><strong class="ltr" style="word-break:break-all;font-size:11px">${s.keys.find((k) => k.kid === s.active)?.public_key ?? '—'}</strong></div>
+              <div><span>מפתח ציבורי (base64)</span><strong class="ltr" style="word-break:break-all;font-size:var(--sw-fs-xs)">${s.keys.find((k) => k.kid === s.active)?.public_key ?? '—'}</strong></div>
             </div>
             ${s.keys.filter((k) => k.retired_at).length ? html`<div class="note">מפתחות שהוחלפו נשמרים לאימות חבילות ישנות: ${s.keys.filter((k) => k.retired_at).map((k) => `${k.kid} (עד ${fmt(k.retired_at)})`).join(', ')}</div>` : nothing}
             <div class="note" style="margin-block-start:6px">${s.trust} אימות מחוץ למערכת: <span class="ltr">scripts/verify_bundle.py bundle.zip --keyring keyring.json</span></div>
@@ -479,7 +479,7 @@ export class SystemStorage extends LitElement {
               <path d="${path}" fill="none" stroke="var(--sw-accent)" stroke-width="2.5" />
               <path d="${forecast}" fill="none" stroke="var(--sw-accent)" stroke-width="2" stroke-dasharray="5 5" opacity="0.7" />
               <line x1=${px(points.length - 1)} x2=${px(points.length - 1)} y1="10" y2="170" stroke="var(--sw-stale)" stroke-dasharray="4 4" />
-              <rect x="470" y="18" width="110" height="34" rx="6" fill="#fff" stroke="var(--sw-border)" />
+              <rect x="470" y="18" width="110" height="34" rx="6" fill="var(--sw-surface)" stroke="var(--sw-border)" />
               <text x="525" y="32" font-size="10.5" text-anchor="middle" fill="var(--sw-text-3)" font-family="var(--sw-font)">אומדן מילוי</text>
               <text x="525" y="46" font-size="11" font-weight="600" text-anchor="middle" fill="var(--sw-text)" font-family="var(--sw-font)">≈ 25.09.2026</text>
               ${['ינו', 'פבר', 'מרץ', 'אפר', 'מאי', 'יונ', 'יול'].map((m, i) => svg`<text x=${px(i)} y="190" font-size="10" text-anchor="middle" fill="var(--sw-text-3)" font-family="var(--sw-font)">${m}</text>`)}

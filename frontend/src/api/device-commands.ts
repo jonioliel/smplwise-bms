@@ -50,6 +50,9 @@ export interface CommandOptions {
   label?: string;
   /** LAT1: true when a pushed state of the entity shows the command's effect - the command confirms on that push. */
   reached?: (e: HaEntity) => boolean;
+  /** BUILDING-SCOPE-CONTROL-2351: the building whose view the control is in (a multi-building site) - the server refuses a device of another
+   * building. ''/absent = the request exactly as before. */
+  building?: string;
 }
 
 /** DomusUI's own per-domain optimistic timeouts (extraction s7), recorded here in code as the task asks. */
@@ -208,7 +211,7 @@ export async function runCommand<T>(
     : () => undefined;
   const deadline = Date.now() + domainTimeoutMs(domain);
   try {
-    let a = await runAction(entityId, actionId, args, opts.confirmed === true);
+    let a = await runAction(entityId, actionId, args, opts.confirmed === true, opts.building ?? '');
     answerMs = Math.round(performance.now() - t0);
     if (done) {
       // confirmed by the push already: one look lets the add-on record its own confirmation (ha_actions), result unused

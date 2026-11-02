@@ -187,6 +187,8 @@ export interface CalSettings {
   default_approval_timeout_h: number;
   reopen_days: number;
   sync_external_delete: 'cancel' | 'flag';
+  /** CAL-FEED-REVIEW-2351 round 14 (3C): the expiry a new or renewed feed address gets, in days (0 = no limit; default 365) */
+  feed_max_age_days?: number;
   /** CAL-GRID-EDIT-2343 */
   grid_edit?: GridEdit;
   cancel_notice_delay_s?: number;
@@ -244,7 +246,20 @@ export type AuthorizeStart =
 export interface AuthorizePoll { state: 'none' | 'pending' | 'slow_down' | 'denied' | 'expired' | 'connected'; interval?: number; connection?: Connection }
 export interface ExtCalendar { id_ref: string; name: string; can_write: boolean; is_primary: boolean }
 export interface BindingBody { connection_id: string | null; external_calendar_ref?: string; direction?: 'export' | 'import' | 'two_way'; detail?: 'busy' | 'titles' | 'details'; dedicated?: boolean }
-export interface Feed { id: string; calendar_ids: string[]; detail: 'busy' | 'titles'; created_at: string; last_used_at: string | null; revoked: boolean }
+export interface Feed {
+  id: string; calendar_ids: string[]; detail: 'busy' | 'titles'; created_at: string; last_used_at: string | null; revoked: boolean;
+  /** CAL-FEED-REVIEW-2351: the address also answers outside the building network (the per-feed remote switch, default off) */
+  remote?: boolean;
+  /** round 14 (4A): what the document really carries - always 'busy' while `remote` is on, whatever `detail` says */
+  detail_effective?: 'busy' | 'titles';
+  /** round 14 (2A): may THIS person change the remote switch now (on: an administrator or the creator managing every calendar of the feed) */
+  can_remote?: boolean;
+  /** round 14 (3C): when the current address stops answering (null = no expiry); fixed when the address was issued */
+  expires_at?: string | null;
+  token_set_at?: string;
+}
+/** GET /calendar/feeds. `local` false = this page came through the remote channel, where the server refuses the remote switch. */
+export interface FeedList { feeds: Feed[]; enabled: boolean; local?: boolean; default_max_age_days?: number }
 
 export interface SyncFlag { event_id: string; calendar: { id: string; name: string; color: CalColor }; title: string | null; start: string; end: string; flag: 'conflict' | 'deleted_external'; source: string; state: EntryState; revision: number }
 
@@ -324,10 +339,12 @@ export interface CalendarsApi {
   authorizeCancel(id: string): Promise<void>;
   connectionCalendars(id: string): Promise<{ calendars: ExtCalendar[] }>;
   putBinding(calendarId: string, body: BindingBody): Promise<unknown>;
-  feeds(): Promise<{ feeds: Feed[]; enabled: boolean }>;
+  feeds(): Promise<FeedList>;
   createFeed(calendarIds: string[], detail: 'busy' | 'titles'): Promise<{ feed: Feed; path: string }>;
   rotateFeed(id: string): Promise<{ feed: Feed; path: string }>;
   revokeFeed(id: string): Promise<{ feed: Feed }>;
+  /** CAL-FEED-REVIEW-2351 round 14: the per-feed remote switch (a local session only) */
+  setFeedRemote(id: string, enabled: boolean): Promise<{ feed: Feed }>;
 }
 
 const q = (o: Record<string, string | undefined>) => {
@@ -382,6 +399,7 @@ export const httpCalendars: CalendarsApi = {
   createFeed: (calendar_ids, detail) => post('/calendar/feeds', { calendar_ids, detail }),
   rotateFeed: (id) => post(`/calendar/feeds/${encodeURIComponent(id)}/rotate`),
   revokeFeed: (id) => post(`/calendar/feeds/${encodeURIComponent(id)}/revoke`),
+  setFeedRemote: (id, enabled) => put(`/calendar/feeds/${encodeURIComponent(id)}/remote`, { enabled }),
 };
 
 /** The screen's card of a server provider: both iCal kinds share the iCal card. */

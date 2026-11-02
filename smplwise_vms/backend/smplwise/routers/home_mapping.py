@@ -25,7 +25,8 @@ from ..audit import audit
 from ..auth import current_principal, get_conn
 from ..db import get_setting, new_id, now_iso, set_setting
 from ..errors import ApiError, conflict, validation
-from ..rbac import Principal, authorize, require
+from ..rbac import INSTALLATION, Principal, authorize, require
+from ..services import building_scope
 from .catalog import P_CONTENT, get_site
 
 router = APIRouter()
@@ -112,6 +113,20 @@ def _can_toggle(conn: sqlite3.Connection, principal: Principal) -> bool:
     return bool(sites) and all(authorize(conn, principal, P_CONTENT, ("site", s)).allowed for s in sites)
 
 
+def _labels(conn: sqlite3.Connection) -> tuple[dict[str, list[str]], list[dict[str, Any]], str | None]:
+    """HA-LABELS-SYNC-2351: the home system's labels as the sync mirrored them (read-only). Returns each area's label NAMES in the area's
+    own order (what the engine's "בתווית" rules and label conflicts read; an id the label table does not know is skipped), the label
+    catalogue with how many areas carry each, and when the label registry was last listed (None = never: an old core, or not synced yet)."""
+    by_area: dict[str, list[str]] = {}
+    for r in conn.execute("SELECT al.area_id, l.name FROM ha_area_labels al JOIN ha_labels l ON l.label_id = al.label_id ORDER BY al.area_id, al.position").fetchall():
+        by_area.setdefault(r["area_id"], []).append(r["name"])
+    catalogue = [{"id": r["label_id"], "name": r["name"], "color": r["color"], "icon": r["icon"], "areas": r["n"]} for r in conn.execute(
+        "SELECT l.label_id, l.name, l.color, l.icon, (SELECT COUNT(*) FROM ha_area_labels al JOIN ha_areas a ON a.area_id = al.area_id WHERE al.label_id = l.label_id) AS n"
+        " FROM ha_labels l ORDER BY l.position, l.name").fetchall()]
+    row = conn.execute("SELECT synced_at FROM ha_label_sync WHERE id = 1").fetchone()
+    return by_area, catalogue, row["synced_at"] if row else None
+
+
 # ---------------------------------------------------------------------------------------------------------------------------------- read
 
 @router.get("/sites/{site_id}/mapping")
@@ -134,9 +149,13 @@ def read_mapping(site_id: str, principal: Principal = Depends(current_principal)
     for f in _site_floors(conn, site_id):
         floors_by_b.setdefault(f["building_id"], []).append({"id": f["id"], "name": f["name"], "level": f["level"]})
     buildings = [{"id": b["id"], "name": b["name"], "is_shared": bool(b["is_shared"]) if "is_shared" in b.keys() else False, "floors": floors_by_b.get(b["id"], [])} for b in _site_buildings(conn, site_id)]
+    area_labels, labels, labels_synced_at = _labels(conn)
     items = {
         "floors": [{"id": r["floor_id"], "name": r["name"], "level": r["level"]} for r in conn.execute("SELECT floor_id, name, level FROM ha_floors ORDER BY position, name").fetchall()],
-        "areas": [{"id": r["area_id"], "name": r["name"], "floor_id": r["floor_id"]} for r in conn.execute("SELECT area_id, name, floor_id FROM ha_areas ORDER BY position, name").fetchall()],
+        "areas": [{"id": r["area_id"], "name": r["name"], "floor_id": r["floor_id"], "labels": area_labels.get(r["area_id"], [])}
+                  for r in conn.execute("SELECT area_id, name, floor_id FROM ha_areas ORDER BY position, name").fetchall()],
+        "labels": labels,
+        "labels_synced_at": labels_synced_at,
     }
     return {
         "site": {"id": site["id"], "name": site["name"]},
@@ -145,6 +164,9 @@ def read_mapping(site_id: str, principal: Principal = Depends(current_principal)
         "settings": _settings(st["settings_json"] if st else None),
         "multi_building": multi_building_on(conn),
         "can_toggle": _can_toggle(conn, principal),
+        # round 14 (owner 02.11): "הרשאת בניין לפי" - read by every mapping reader, changed only with rbac.roles.manage everywhere
+        "building_reach": building_scope.reach_mode(conn),
+        "can_set_reach": authorize(conn, principal, "rbac.roles.manage", INSTALLATION).allowed,
         "versions": _versions(conn, site_id),
         "seen": seen if isinstance(seen, list) else None,
         "items": items,
@@ -228,10 +250,32 @@ def put_multi_building(body: MultiIn, request: Request, principal: Principal = D
     for s in sites:
         require(conn, principal, P_CONTENT, ("site", s))
     before = multi_building_on(conn)
+    reach_before = building_scope.mapping_reach_on(conn)
     set_setting(conn, MULTI_KEY, "on" if body.enabled else "off")
+    if reach_before or building_scope.mapping_reach_on(conn):
+        building_scope.mapping_changed(conn)  # round 14: the mapping starts / stops counting for building reach - open sockets re-scope now
     audit(conn, actor=principal, action="home.multi_building", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
           details={"enabled": body.enabled, "was": before})
     return {"enabled": body.enabled}
+
+
+class ReachIn(BaseModel):
+    mode: Literal["map_and_mapping", "map"]
+
+
+@router.put("/home/building-reach")
+def put_building_reach(body: ReachIn, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Round 14 (owner 02.11): what a building-scoped role binding reaches - map placement, or map placement + the home's area mapping."""
+    # it changes who reaches which device, like a role edit: the full authority over roles (rbac.roles.manage across the installation)
+    require(conn, principal, "rbac.roles.manage", INSTALLATION)
+    was = building_scope.reach_mode(conn)
+    reach_before = building_scope.mapping_reach_on(conn)
+    set_setting(conn, building_scope.REACH_KEY, body.mode)
+    audit(conn, actor=principal, action="security.building_reach", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
+          details={"mode": body.mode, "was": was, "multi_building": multi_building_on(conn)})
+    if reach_before or building_scope.mapping_reach_on(conn):
+        building_scope.mapping_changed(conn)  # the reach of building bindings moved: open sockets re-scope now
+    return {"mode": body.mode}
 
 
 # ---------------------------------------------------------------------------------------------------------------------------------- apply
@@ -324,6 +368,7 @@ def apply_mapping(site_id: str, body: ApplyIn, request: Request, principal: Prin
     422 and nothing is written. `kind`: apply (the assistant), confirm (the health card's "אשר"), auto (auto-insert, setting 3A)."""
     get_site(conn, site_id)
     require(conn, principal, P_CONTENT, ("site", site_id))
+    guard = building_scope.RemapGuard(conn, principal, P_CONTENT)  # round 14: an area leaving its building needs that building's edit too
     plan = body.plan
     state_raw = _dump_state(body.state)
     st = _state_row(conn, site_id)
@@ -409,6 +454,7 @@ def apply_mapping(site_id: str, body: ApplyIn, request: Request, principal: Prin
             prev_items = []
         items = list(dict.fromkeys([*prev_items, *items]))
     summary = {**{k: v for k, v in body.summary.items() if isinstance(k, str)}, **counts, "buildings_created": len(created_b), "floors_created": len(created_f)}
+    guard.check()
     num = _new_version(conn, site_id, kind=body.kind, state_raw=state_raw, before=before, after=after, items=items, summary=summary, note=body.note, who=principal.user_id)
     audit(conn, actor=principal, action="home.mapping.apply", decision="allowed", resource_type="site", resource_id=site_id, request_id=_rid(request),
           details={"version": num, "kind": body.kind, **counts, "buildings_created": [b["id"] for b in created_b], "floors_created": [f["id"] for f in created_f]})
@@ -424,6 +470,7 @@ def restore_version(site_id: str, number: int, request: Request, principal: Prin
     v = conn.execute("SELECT * FROM home_mapping_versions WHERE site_id = ? AND number = ?", (site_id, number)).fetchone()
     if not v:
         raise ApiError(404, "not_found", "הגרסה לא נמצאה.")
+    guard = building_scope.RemapGuard(conn, principal, P_CONTENT)  # round 14: an area leaving its building needs that building's edit too
     target = json.loads(v["rows_after_json"])
     before = site_rows(conn, site_id)
     floors = {r["id"] for r in _site_floors(conn, site_id)}
@@ -458,6 +505,7 @@ def restore_version(site_id: str, number: int, request: Request, principal: Prin
                      "ON CONFLICT(area_id) DO UPDATE SET building_id = excluded.building_id, updated_at = excluded.updated_at, updated_by = excluded.updated_by",
                      (r["area_id"], r["building_id"], now, principal.user_id))
     after = site_rows(conn, site_id)
+    guard.check()
     rev = _save_state(conn, site_id, v["state_json"], principal, None)
     items = json.loads(v["items_json"] or "[]")
     num = _new_version(conn, site_id, kind="restore", state_raw=v["state_json"], before=before, after=after, items=items,

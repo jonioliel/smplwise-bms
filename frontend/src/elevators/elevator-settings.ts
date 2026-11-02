@@ -58,8 +58,8 @@ export class ElevatorSettings extends LitElement {
     /* R5-MEDIA-ENERGY-297: an option row is a well inside the card (no outlined box inside a card inside a card), its label in the heading ink */
     .drow { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 12px; border: 0; background: var(--sw-surface-2); border-radius: var(--sw-r-md); padding: 10px 14px; min-block-size: 48px; }
     .drow > span:first-child { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
-    .seg { display: inline-flex; flex-wrap: wrap; background: var(--sw-surface-3); padding: 2px; border-radius: 999px; gap: 1px; }
-    .seg button { border: 0; background: transparent; padding: 3px 12px; min-block-size: 30px; font: inherit; font-size: var(--sw-fs-xs); color: var(--sw-text-2); border-radius: 999px; cursor: pointer; }
+    .seg { display: inline-flex; flex-wrap: wrap; background: var(--sw-surface-3); padding: 2px; border-radius: var(--sw-r-pill); gap: 1px; }
+    .seg button { border: 0; background: transparent; padding: 3px 12px; min-block-size: 30px; font: inherit; font-size: var(--sw-fs-xs); color: var(--sw-text-2); border-radius: var(--sw-r-pill); cursor: pointer; }
     .seg button[aria-pressed='true'] { background: var(--sw-seg-thumb, var(--sw-surface)); color: var(--sw-text); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
     .seg button:focus-visible, .lnk:focus-visible { outline: var(--sw-focus-w, 2px) solid var(--sw-focus, var(--sw-accent)); outline-offset: 1px; }
     .incl { display: flex; flex-wrap: wrap; gap: 6px 14px; }
@@ -75,6 +75,12 @@ export class ElevatorSettings extends LitElement {
     .xrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto; gap: 8px; align-items: center; }
     .foot { display: flex; justify-content: flex-end; gap: 8px; padding-block-start: 10px; }
     @media (max-width: 600px) { .map { grid-template-columns: 1fr; } }
+    /* POLISH4-WP8: the segment keys give on pointer-down and are 44 px on a touch screen; the link row's three columns stack on a phone */
+    .seg button { transition: transform var(--sw-t-press) var(--sw-ease); }
+    .seg button:active { transform: scale(var(--sw-press-scale)); }
+    @media (pointer: coarse) { .seg button { min-block-size: 44px; padding-inline: 14px; } }
+    @media (max-width: 600px) { .xrow { grid-template-columns: minmax(0, 1fr) auto; } .xrow > :nth-child(2) { grid-column: 1 / -1; grid-row: 2; } }
+    @media (prefers-reduced-motion: reduce) { .seg button { transition-duration: 0ms; } .seg button:active { transform: none; } }
   `];
 
   connectedCallback() {

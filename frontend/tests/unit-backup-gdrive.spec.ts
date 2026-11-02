@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { OBT_TABLES, obt, obtError } from '../src/i18n/backup-offbox';
 import {
-  CONFIG_FIELDS, GDRIVE_NUMBERS, SECRET_FIELDS, blankTarget, isGoogleDeviceUrl, pollContinues, pollDelayMs, toRequest,
+  CONFIG_FIELDS, GDRIVE_NUMBERS, SECRET_FIELDS, blankTarget, checkBadge, isGoogleDeviceUrl, pollContinues, pollDelayMs, toRequest,
 } from '../src/api/backup-offbox';
 
 // GDRIVEBK-2310: a Google Drive off-box target in the screen - it starts OFF, the refresh token is never a form field (it arrives only
@@ -51,7 +51,9 @@ test('only Google’s own device page is a link', () => {
 
 test('Google statuses have words in every language (Hebrew first) and the step text keeps its {url} placeholder', () => {
   const codes = ['quota_exceeded', 'rate_limited', 'gdrive_reconnect_required', 'gdrive_not_connected', 'gdrive_client_invalid', 'gdrive_client_missing',
-    'gdrive_scope_refused', 'gdrive_token_via_connect', 'remote_error'];
+    'gdrive_scope_refused', 'gdrive_token_via_connect', 'remote_error',
+    // GDRIVE-READY-2351: the first-connection refusals, each named
+    'gdrive_client_type', 'gdrive_client_not_found', 'gdrive_consent_not_configured', 'gdrive_api_disabled'];
   for (const lang of ['he', 'en', 'ar', 'ru'] as const) {
     for (const c of codes) {
       expect(obtError(c, lang), `${lang}.${c}`).not.toBe(obt('err_other', undefined, lang));
@@ -61,4 +63,21 @@ test('Google statuses have words in every language (Hebrew first) and the step t
   expect(obtError('quota_exceeded', 'he')).toMatch(/[֐-׿]/);
   expect(obtError('gdrive_reconnect_required', 'en')).toContain('connect again');
   expect(obt('kind_gdrive', undefined, 'he')).toBe('Google Drive');
+});
+
+// GDRIVE-READY-2351: "בדיקת חיבור Google" - the badge of each step, its words in every language, and the "Access blocked" hint
+test('the connection check: one badge per status, words in every language, the test-user hint names the screen', () => {
+  expect(checkBadge('ok')).toBe('live');
+  expect(checkBadge('fail')).toBe('error');
+  expect(checkBadge('warn')).toBe('partial');
+  expect(checkBadge('info')).toBe('neutral');
+  expect(checkBadge('skip')).toBe('neutral');
+  for (const lang of ['he', 'en', 'ar', 'ru'] as const) {
+    for (const k of ['gdriveDiagnose', 'gdriveDiagTitle', 'gdriveDiagRunning', 'gdriveDiagFix', 'gdriveDiagAgain', 'gdriveDiagNote', 'gdriveBlockedHint'] as const) {
+      expect(OBT_TABLES[lang][k], `${lang}.${k}`).toBeTruthy();
+    }
+    expect(OBT_TABLES[lang].gdriveBlockedHint, lang).toContain('Test users');
+  }
+  expect(obt('gdriveDiagnose', undefined, 'he')).toBe('בדיקת חיבור Google');
+  expect(obt('gdriveDenied', undefined, 'he')).toContain('Test users');
 });

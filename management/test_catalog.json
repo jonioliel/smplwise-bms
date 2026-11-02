@@ -5237,7 +5237,7 @@
     "environment": null,
     "evidence": [],
     "executed_at": null,
-    "notes": "Planned in CR-008 (2026-09-29); lab host names and addresses stay out of the evidence."
+    "notes": "Planned in CR-008 (2026-09-29); lab host names and addresses stay out of the evidence. | 2026-11-02 (REGISTRY-UPDATE-2380): T092 shipped (v2.7.2); still NOT_RUN: no recorded acceptance run."
   },
   {
     "id": "AT185",
@@ -5534,7 +5534,7 @@
     "environment": null,
     "evidence": [],
     "executed_at": null,
-    "notes": "Planned in CR-012 (2026-09-30); lab host names, addresses and keys stay out of the evidence."
+    "notes": "Planned in CR-012 (2026-09-30); lab host names, addresses and keys stay out of the evidence. | 2026-11-02 (REGISTRY-UPDATE-2380): T096: BLOCKED on the owner's Firebase / Apple accounts; real FCM / APNs delivery NOT_RUN."
   },
   {
     "id": "AT197",
@@ -5691,7 +5691,7 @@
     "environment": null,
     "evidence": [],
     "executed_at": null,
-    "notes": "Planned in CR-015 (2026-09-30)."
+    "notes": "Planned in CR-015 (2026-09-30). | 2026-11-02 (REGISTRY-UPDATE-2380): T098 shipped (v2.7.2); NOT_RUN: no recorded acceptance run; brand behaviours never checked on a real screen."
   },
   {
     "id": "AT203",
@@ -5717,7 +5717,7 @@
     "environment": null,
     "evidence": [],
     "executed_at": null,
-    "notes": "Planned in CR-015 (2026-09-30)."
+    "notes": "Planned in CR-015 (2026-09-30). | 2026-11-02 (REGISTRY-UPDATE-2380): T098 shipped (v2.7.2); NOT_RUN: no recorded acceptance run."
   },
   {
     "id": "AT204",
@@ -5743,7 +5743,7 @@
     "environment": null,
     "evidence": [],
     "executed_at": null,
-    "notes": "Planned in CR-015 (2026-09-30)."
+    "notes": "Planned in CR-015 (2026-09-30). | 2026-11-02 (REGISTRY-UPDATE-2380): T098 shipped (v2.7.2); NOT_RUN: no recorded acceptance run."
   },
   {
     "id": "AT205",
@@ -6077,7 +6077,7 @@
     "environment": null,
     "evidence": [],
     "executed_at": null,
-    "notes": "Registered 2026-10-05 at the 2.0.2 integration (CR-027); NOT_RUN until recorded against a commit."
+    "notes": "Registered 2026-10-05 at the 2.0.2 integration (CR-027); NOT_RUN until recorded against a commit. | 2026-11-02 (REGISTRY-UPDATE-2380): T103 server side shipped (v2.7.2); NOT_RUN: relay not deployed, no Firebase / Apple account, no real phone."
   },
   {
     "id": "AT218",
@@ -6102,7 +6102,7 @@
     "environment": null,
     "evidence": [],
     "executed_at": null,
-    "notes": "Registered 2026-10-05 at the 2.0.2 integration (CR-028 preparation); NOT_RUN until recorded against a commit."
+    "notes": "Registered 2026-10-05 at the 2.0.2 integration (CR-028 preparation); NOT_RUN until recorded against a commit. | 2026-11-02 (REGISTRY-UPDATE-2380): T104 shipped (v2.7.2); NOT_RUN: the first physical cast test was never run (needs the owner's explicit approval)."
   },
   {
     "id": "AT219",
@@ -6174,7 +6174,7 @@
     "environment": null,
     "evidence": [],
     "executed_at": null,
-    "notes": "Registered 2026-10-05 by TASKS-SYNC; NOT_RUN until recorded against a commit."
+    "notes": "Registered 2026-10-05 by TASKS-SYNC; NOT_RUN until recorded against a commit. | 2026-11-02 (REGISTRY-UPDATE-2380): T107 shipped (v2.7.2); NOT_RUN: no recorded run, no real tablet; evidence on the runner is part of WALL-FOLLOWUPS-2380."
   },
   {
     "id": "AT222",
@@ -6440,7 +6440,7 @@
     "environment": null,
     "evidence": [],
     "executed_at": null,
-    "notes": "Registered 2026-10-06 by TASKS-SYNC-3; NOT_RUN until recorded against a commit."
+    "notes": "Registered 2026-10-06 by TASKS-SYNC-3; NOT_RUN until recorded against a commit. | 2026-11-02 (REGISTRY-UPDATE-2380): T118 shipped (v2.7.2); NOT_RUN: no signed release APK, nothing seen on a real phone."
   },
   {
     "id": "AT233",
@@ -8192,7 +8192,7 @@
     "environment": null,
     "evidence": [],
     "executed_at": null,
-    "notes": "NOT_RUN: waits for the tier-L gate of 2.4.6."
+    "notes": "NOT_RUN: waits for the tier-L gate of 2.4.6. | 2026-11-02 (REGISTRY-UPDATE-2380): KIOPOL: still NOT_RUN; evidence on the runner is part of WALL-FOLLOWUPS-2380."
   },
   {
     "id": "AT302",
@@ -10405,8 +10405,12 @@
       "Android: ./gradlew test (DeepLinksTest) in mobile/android-shell"
     ],
     "expected": "Every listed test passes; a valid device token is never refused; every sign-out path except a desktop-browser sign-out ends the device token and push registration; a link asking for an action runs nothing without a confirmation.",
-    "status": "NOT_RUN",
-    "notes": "2026-10-27 (PREP2241-297): no recorded run in the repository. Gate 2.24.1 runs the whole backend (security-core change). DeepLinksTest is outside the gate: NOT_RUN until run on a machine with the Android SDK."
+    "status": "PASS",
+    "notes": "2026-10-27 (PREP2241-297): no recorded run in the repository. Gate 2.24.1 runs the whole backend (security-core change). DeepLinksTest is outside the gate: NOT_RUN until run on a machine with the Android SDK. | 2026-11-02 (REGISTRY-UPDATE-2380): marked PASS from the 2026-10-27 workstation run recorded under AT-XSECFOLLOW-1 (same commit 13038637b); no new test was run for this update. The shipped tags are v2.24.1 (a360153e3) and v2.25.0 (13038637b).",
+    "commit": "13038637b",
+    "environment": "Workstation Windows 11, Python 3.12 (-X utf8, fakes only), Node 24 + Playwright unit config, JDK 17 Temurin + Android SDK (Gradle JVM unit tests)",
+    "executed_at": "2026-10-27",
+    "evidence": "Covered by the recorded XSECFOLLOW-297 run at 13038637b (which contains the XSECFIX-297 commits, a360153e3 is an ancestor): the 31-suite backend regression of 1114 passed 0 failed includes tests/test_xsecfix_297.py; Android ./gradlew testDebugUnitTest BUILD SUCCESSFUL with DeepLinksTest (7 tests) among the 68 JVM tests. NOT_RUN: full backend gate (security-core change), browser evidence specs, iOS shell (code not in the repository), on-device test."
   },
   {
     "id": "AT-MOTIONSETTING-1",
@@ -10547,5 +10551,2880 @@
     "expected": "Migrations contiguous to 0182 and every listed test passes; the crafted line is scrubbed in well under a second.",
     "status": "NOT_RUN",
     "notes": "2026-10-27 local (Windows, venv Python 3.12.10, -X utf8): tests/test_migrations.py + tests/test_migrations_263_upgrade.py + docread tests 57 passed at d4b3fc646 (merge of release/2241); scripts/release_check.py 'migrations contiguous: 182 files, last 0182_doc_extractions.sql' ok; docread tests incl. F1/F2/F6 regressions 55 passed at afbd84032. F4 (child RLIMITs) open: Linux-only, NOT_RUN. Not yet in a release gate."
+  },
+  {
+    "id": "AT-COORD-DOCS-2310-1",
+    "requirement_ids": [
+      "R-COORD-DOCS-2310-1"
+    ],
+    "task_ids": [
+      "COORD-DOCS-2310"
+    ],
+    "title": "Multi-Claude coordination protocol as documents and an optional tool",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The multi-Claude coordination protocol exists as optional documents and a tool; nothing in the product depends on it.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.30.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-LICENSE-2310-1",
+    "requirement_ids": [
+      "R-LICENSE-2310-1"
+    ],
+    "task_ids": [
+      "LICENSE-2310"
+    ],
+    "title": "Proprietary all-rights-reserved licence notice; internal review notes untracked",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "A proprietary all-rights-reserved licence notice is in the repository and 8 internal review notes under the gitignored private/ folder are no longer tracked.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.30.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-DEPAUDIT-2310-1",
+    "requirement_ids": [
+      "R-DEPAUDIT-2310-1"
+    ],
+    "task_ids": [
+      "DEPAUDIT-2310"
+    ],
+    "title": "Dependency, licence and secrets audit refreshed for v2.29.0",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "docs/security/DEPENDENCY_AND_SECRETS_AUDIT.md is refreshed for v2.29.0 (inventory, licences, vulnerability and secrets scans) with findings H1, M1-M3, L1-L7 and the owner and counsel decisions recorded; the Heebo font licence text ships next to the UI fonts.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.30.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-TASKS-SYNC-3110-1",
+    "requirement_ids": [
+      "R-TASKS-SYNC-3110-1"
+    ],
+    "task_ids": [
+      "TASKS-SYNC-3110"
+    ],
+    "title": "Task registry matched to the code history after 2.29.0",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "management/tasks.json matches the code history after 2.29.0 (shipped tasks marked REVIEW, six train-3 cards added), views regenerated; no application test run.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.30.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-A11Y-2310-1",
+    "requirement_ids": [
+      "R-A11Y-2310-1"
+    ],
+    "task_ids": [
+      "A11Y-2310"
+    ],
+    "title": "The shared dialog keeps the keyboard focus inside its box",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "sw-dialog traps Tab inside its box (aria-modal was declared without a trap).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.31.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-GDRIVEBK-2310-1",
+    "requirement_ids": [
+      "R-GDRIVEBK-2310-1"
+    ],
+    "task_ids": [
+      "GDRIVEBK-2310"
+    ],
+    "title": "Google Drive as an off-box backup target (device-flow OAuth, off by default)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Google Drive is an off-box backup target kind: device-flow OAuth, drive.file scope, sealed tokens, off by default (migration 0186; design docs/design/GDRIVE_BACKUP.md). The owner's first real connection is NOT_RUN (see GDRIVE-READY-2351).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.31.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-DEPFIX-2310-1",
+    "requirement_ids": [
+      "R-DEPFIX-2310-1"
+    ],
+    "task_ids": [
+      "DEPFIX-2310"
+    ],
+    "title": "Dependency security fixes: Pillow 13, paramiko 5, format-restricted image decodes",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "pillow 13.0.0 and paramiko 5.1.0 replace the vulnerable versions; untrusted image uploads decode only the expected formats and an MPO phone photo is accepted as its first frame (DEPAUDIT-2310 H1, M1, M2).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.31.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-DEPHARDEN-2310-1",
+    "requirement_ids": [
+      "R-DEPHARDEN-2310-1"
+    ],
+    "task_ids": [
+      "DEPHARDEN-2310"
+    ],
+    "title": "Worker dev tooling hardened; add-on base image pinned by digest (pin reverted in 2.31.1)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Worker dev tooling is hardened and the add-on base image digests are pinned (DEPAUDIT-2310 M3, L2). The digest pin broke the Supervisor build and was reverted to the tag in 2.31.1 (see ADDON-IMAGE-BUILD-FIXES-2311).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.31.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-SYNOPTIC-HA-2310-1",
+    "requirement_ids": [
+      "R-SYNOPTIC-HA-2310-1"
+    ],
+    "task_ids": [
+      "SYNOPTIC-HA-2310"
+    ],
+    "title": "Synoptic map and building cross-section read every home-system floor; floor mapping editor",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The synoptic map and the building cross-section read every floor of the home system: floors match by level on a one-building site, and a floor link editor links floors and adds or removes areas by hand (migration 0187).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.31.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-ADDON-IMAGE-BUILD-FIXES-2311-1",
+    "requirement_ids": [
+      "R-ADDON-IMAGE-BUILD-FIXES-2311-1"
+    ],
+    "task_ids": [
+      "ADDON-IMAGE-BUILD-FIXES-2311"
+    ],
+    "title": "Add-on image build fixes in 2.31.1 and 2.33.3",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The add-on image builds the way the Supervisor builds it: 2.31.1 references the base image by its tag again (the 2.31.0 digest pin made the build fail with \"pip: not found\"), 2.33.3 fixes the broken Dockerfile line of 2.33.2.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.31.1 and v2.33.3; NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-PUBSURF-2310-1",
+    "requirement_ids": [
+      "R-PUBSURF-2310-1"
+    ],
+    "task_ids": [
+      "PUBSURF-2310"
+    ],
+    "title": "Public surfaces re-check before document links; module gate and CDN no-store on document answers",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Every public surface was re-checked and the result recorded; document links stop answering while service requests are off and are never cached by a CDN.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.32.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-TEMPLINK-2320-1",
+    "requirement_ids": [
+      "R-TEMPLINK-2320-1"
+    ],
+    "task_ids": [
+      "TEMPLINK-2320"
+    ],
+    "title": "Report links: revoke on user deactivation, per-sender daily limit",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Every report link sent to a user is revoked when the user is deactivated or deleted; a per-sender daily limit for new links (default 50, a setting); the recipient name stays in the audit log (owner decisions 31.10).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.32.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-UIPOLISH-2320-1",
+    "requirement_ids": [
+      "R-UIPOLISH-2320-1"
+    ],
+    "task_ids": [
+      "UIPOLISH-2320"
+    ],
+    "title": "Phone switch 44 px touch target and readable dark-mode muted text",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Phone switches have a 44 px tall touch target without changing their look; the secondary text in dark mode reaches at least 5:1 contrast in every skin.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.32.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-LEGAL-WKMIT-2320-1",
+    "requirement_ids": [
+      "R-LEGAL-WKMIT-2320-1"
+    ],
+    "task_ids": [
+      "LEGAL-WKMIT-2320"
+    ],
+    "title": "Licence notice of the WisKey embed reference client (MIT) ships with the product",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The copyright and permission notice of the WisKey embed-api-v1 reference client (MIT) ships with the product.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.32.0; NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-PROVISION-BACKCHANNEL-2320-1",
+    "requirement_ids": [
+      "R-PROVISION-BACKCHANNEL-2320-1"
+    ],
+    "task_ids": [
+      "PROVISION-BACKCHANNEL-2320"
+    ],
+    "title": "Provision-ISR live and playback: video-only stream request, talk-back as a recorder setting",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "On a Provision-ISR recorder go2rtc sources ask for video only (#backchannel=0) so live and playback show video; a recorder setting \"two-way talk through the recorder\" turns talk-back on, off by default.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.32.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-SWITCH-AS-LIGHT-2321-1",
+    "requirement_ids": [
+      "R-SWITCH-AS-LIGHT-2321-1"
+    ],
+    "task_ids": [
+      "SWITCH-AS-LIGHT-2321"
+    ],
+    "title": "A switch typed as a light counts and acts as lighting",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Switches set to the type \"light\" count as lights everywhere (synoptic map, home counters, floor and area cards) and are switched by \"lights off / on\".",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.32.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-SYN-COLUMNS-2321-1",
+    "requirement_ids": [
+      "R-SYN-COLUMNS-2321-1"
+    ],
+    "task_ids": [
+      "SYN-COLUMNS-2321"
+    ],
+    "title": "Synoptic map hides columns without a data source; custom board columns",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Synoptic map columns with no data source are hidden (a setting, on by default, with a quiet note) and a custom column choice exists.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.32.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-CAL-SWITCH-REACH-2321-1",
+    "requirement_ids": [
+      "R-CAL-SWITCH-REACH-2321-1"
+    ],
+    "task_ids": [
+      "CAL-SWITCH-REACH-2321"
+    ],
+    "title": "Calendars module switch reachable while the module is off",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Settings > Calendars stays reachable while the calendars module is off and the calendars page offers \"enable the calendars module\".",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.32.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-MULTIBUILDING-HOME-2330-1",
+    "requirement_ids": [
+      "R-MULTIBUILDING-HOME-2330-1"
+    ],
+    "task_ids": [
+      "MULTIBUILDING-HOME-2330"
+    ],
+    "title": "Multi-building home: site level, building cards, building switch, shared building",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "On an installation of several buildings the home screen gets a site level (a card per building with counters and alerts, a grouped tree, a building switch, turn-off per building or for the site); a building can be marked as the shared building and is left unchecked by \"turn off the whole site\" (migration 0188; off until switched on).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.33.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-MAPPING-ASSIST-2330-1",
+    "requirement_ids": [
+      "R-MAPPING-ASSIST-2330-1"
+    ],
+    "task_ids": [
+      "MAPPING-ASSIST-2330"
+    ],
+    "title": "Mapping assistant: which home-system name belongs to which building",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The assistant finds which home-system names belong to which building from a mark in the name, keeps a mark-to-building table, asks only about exceptions, applies the plan only after \"Apply\", keeps restorable versions (migration 0189).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.33.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-CALCONNECT-2330-1",
+    "requirement_ids": [
+      "R-CALCONNECT-2330-1"
+    ],
+    "task_ids": [
+      "CALCONNECT-2330"
+    ],
+    "title": "External calendar connections: iCal subscription, Google Calendar, Microsoft 365 / Outlook",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "An iCal subscription (read-only), Google Calendar or Microsoft 365 / Outlook can be bound to an Arx calendar; synchronisation runs only while the calendars module and calendar sync are on; outgoing iCal feeds are off by default and need their own switch (setup guide docs/operations/CALENDAR_CONNECT_SETUP.md). Real-provider connections are NOT_RUN.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.33.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-SWITCH-LIGHT-DIMMER-2331-1",
+    "requirement_ids": [
+      "R-SWITCH-LIGHT-DIMMER-2331-1"
+    ],
+    "task_ids": [
+      "SWITCH-LIGHT-DIMMER-2331"
+    ],
+    "title": "No dimmer on on/off lights; switches in the synoptic lights column; floor lights popup",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Switches typed as a light and on/off-only lights show no brightness slider; a setting chooses which switches fill the synoptic lights column; pressing a floor's lights opens that floor's lights popup with \"turn all on / off\" through the usual confirmation.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.33.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-EVENTS-POLISH-2331-1",
+    "requirement_ids": [
+      "R-EVENTS-POLISH-2331-1"
+    ],
+    "task_ids": [
+      "EVENTS-POLISH-2331"
+    ],
+    "title": "Event centre polish (Security > Investigate > Events)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The event centre side panel actions stay in view, the list scrolls in its own box, event names are Hebrew and technical details sit in a collapsible section; Up / Down move between events and Esc closes the panel.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.33.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-SETTINGS-TABS-SCROLL-2331-1",
+    "requirement_ids": [
+      "R-SETTINGS-TABS-SCROLL-2331-1"
+    ],
+    "task_ids": [
+      "SETTINGS-TABS-SCROLL-2331"
+    ],
+    "title": "Scroll arrows, wheel, swipe and keys for long tab strips",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Long tab strips scroll with arrows at their ends, the mouse wheel, a swipe and the keyboard (arrow keys, Home / End); a strip that fits looks as before.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.33.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-TREE-HIDE-UNASSIGNED-2331-1",
+    "requirement_ids": [
+      "R-TREE-HIDE-UNASSIGNED-2331-1"
+    ],
+    "task_ids": [
+      "TREE-HIDE-UNASSIGNED-2331"
+    ],
+    "title": "Hide \"ללא שיוך\" from the building tree",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The unassigned row of the building tree can be hidden (always shown by default, only while editing, or never) from the home-screen options or on the row itself, with undo; counts do not change.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.33.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-AZIA-LIVE-2331-1",
+    "requirement_ids": [
+      "R-AZIA-LIVE-2331-1"
+    ],
+    "task_ids": [
+      "AZIA-LIVE-2331"
+    ],
+    "title": "Provision-ISR live video steadier on a full wall of cameras",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Stream capabilities read from a Provision-ISR recorder are kept for ten minutes and shared, and when the recorder is briefly busy a tile opens on the stream the add-on already has instead of failing. The measurement on the owner's site is BLOCKED (no access; AZIA_LIVE_DIAG_2026-11-01_HE.md in private/).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.33.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-SEGFAULT-PLAYBACK-2332-1",
+    "requirement_ids": [
+      "R-SEGFAULT-PLAYBACK-2332-1"
+    ],
+    "task_ids": [
+      "SEGFAULT-PLAYBACK-2332"
+    ],
+    "title": "The add-on recovers by itself after a crash during recorded-playback scrubbing",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "A crash of the add-on server process restarts it within seconds, is recorded and shown in Diagnostics (\"restarts after a crash\"), leaves a full trace in the log, and after two crashes within six hours the server restarts on slower, steadier networking components for six quiet hours.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.33.2; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-OWNER-R12-2341-1",
+    "requirement_ids": [
+      "R-OWNER-R12-2341-1"
+    ],
+    "task_ids": [
+      "OWNER-R12-2341"
+    ],
+    "title": "Owner answers of 01.11 (round 12): wording, unassigned section, tablet side panel",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The connections page and the setup guides no longer say Arx never writes to the recorder; the \"ללא שיוך\" choice also governs the unassigned section of the tiles view; the layout editor side panel is a bottom sheet on tablets as well as phones (answers 5A, 6A, 8B).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-POLISH-LEFTOVERS-2341-1",
+    "requirement_ids": [
+      "R-POLISH-LEFTOVERS-2341-1"
+    ],
+    "task_ids": [
+      "POLISH-LEFTOVERS-2341"
+    ],
+    "title": "Three leftovers of the 2.33.1 polish round",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The three leftovers of the 2.33.1 design polish round are closed (see the change record).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-LIVE-H265-2341-1",
+    "requirement_ids": [
+      "R-LIVE-H265-2341-1"
+    ],
+    "task_ids": [
+      "LIVE-H265-2341"
+    ],
+    "title": "Live video of H.265 cameras in browsers that cannot decode H.265",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "For H.265 cameras in browsers that cannot decode H.265 the server picks a fallback (the camera's other H.264 stream, else an on-demand transcoded H.264 copy shared by viewers with a cap); the tile shows which stream it got and a Hebrew message when there is none.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-NVR-H264-BULK-2341-1",
+    "requirement_ids": [
+      "R-NVR-H264-BULK-2341-1"
+    ],
+    "task_ids": [
+      "NVR-H264-BULK-2341"
+    ],
+    "title": "Switch every camera stream to H.264 from the UI; per-recorder NVR writes switch",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "A per-recorder switch \"אפשר שינויי הגדרות ב־NVR\" gates every setting write (Provision-ISR off by default, Hikvision unchanged) and the bulk encoding dialog has a one-click \"convert every stream to H.264\" preset. No write to a real recorder was run by the branch.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-SHARED-POLISH-2342-1",
+    "requirement_ids": [
+      "R-SHARED-POLISH-2342-1"
+    ],
+    "task_ids": [
+      "SHARED-POLISH-2342"
+    ],
+    "title": "Shared-layer proposals of the design-polish round",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "One technical-details disclosure, a common settings kit, centred empty states, a failure tone for media-page messages, opt-in content-sized dialogs and keyboard-focusable table rows.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-TICKETS-POLISH-2331-1",
+    "requirement_ids": [
+      "R-TICKETS-POLISH-2331-1"
+    ],
+    "task_ids": [
+      "TICKETS-POLISH-2331"
+    ],
+    "title": "Service requests: one compact toolbar for the list and the manager board",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The request list and the manager board share one compact toolbar with one Filter panel, removable chips, the view switch and \"new\" on the title row.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-TKSET-POLISH-2331-1",
+    "requirement_ids": [
+      "R-TKSET-POLISH-2331-1"
+    ],
+    "task_ids": [
+      "TKSET-POLISH-2331"
+    ],
+    "title": "Service request settings and side screens polish",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Service request settings and side screens use one column below 1000 px, one save pattern per card and clearer loading and switched-off states.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-DEVICES-POLISH-2331-1",
+    "requirement_ids": [
+      "R-DEVICES-POLISH-2331-1"
+    ],
+    "task_ids": [
+      "DEVICES-POLISH-2331"
+    ],
+    "title": "Layout editor, device controls and automations screen polish",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The layout editor panel is grouped, device controls share one control look, a cover tilt sits apart from its position, and the automations screen loads with the shape of its list.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-ACCESS-POLISH-2331-1",
+    "requirement_ids": [
+      "R-ACCESS-POLISH-2331-1"
+    ],
+    "task_ids": [
+      "ACCESS-POLISH-2331"
+    ],
+    "title": "People and access administration polish (wave 1)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "User and group drawers are side panels (a bottom sheet on a phone), deny rules are marked in the tables and loading, error and empty states are consistent.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-CALMSG-POLISH-2331-1",
+    "requirement_ids": [
+      "R-CALMSG-POLISH-2331-1"
+    ],
+    "task_ids": [
+      "CALMSG-POLISH-2331"
+    ],
+    "title": "Calendars and messaging settings polish",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Calendar, calendar connections and messaging channel settings have no cut-off rows, behaviour settings are grouped by topic and card actions sit at the foot of each card.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-MEDIA-POLISH-2331-1",
+    "requirement_ids": [
+      "R-MEDIA-POLISH-2331-1"
+    ],
+    "task_ids": [
+      "MEDIA-POLISH-2331"
+    ],
+    "title": "Media and doors polish (wave 3)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The players page fits the window with only its cards scrolling, the casting table lines up, door cards name each switch and the remote editor keeps save / cancel on screen.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WKWATER-POLISH-2331-1",
+    "requirement_ids": [
+      "R-WKWATER-POLISH-2331-1"
+    ],
+    "task_ids": [
+      "WKWATER-POLISH-2331"
+    ],
+    "title": "WisKey stations and water pages polish (wave 3)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The stations screen fits the window on a desktop, the water pages take the height under the tabs and the chart follows its box width.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-LOOK-POLISH-2331-1",
+    "requirement_ids": [
+      "R-LOOK-POLISH-2331-1"
+    ],
+    "task_ids": [
+      "LOOK-POLISH-2331"
+    ],
+    "title": "Look and branding settings polish (wave 2, part A)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The logo settings have keyboard-friendly tabs and an unsaved-changes mark and the wall-screen users list, empty state and drawer are reorganised into clear sections.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-CAMADMIN-POLISH-2331-1",
+    "requirement_ids": [
+      "R-CAMADMIN-POLISH-2331-1"
+    ],
+    "task_ids": [
+      "CAMADMIN-POLISH-2331"
+    ],
+    "title": "Camera administration polish (wave 3)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The privacy masks editor fits the window on a wide screen and the multi-camera batch list and progress rows are clearer.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-SCHED-POLISH-2331-1",
+    "requirement_ids": [
+      "R-SCHED-POLISH-2331-1"
+    ],
+    "task_ids": [
+      "SCHED-POLISH-2331"
+    ],
+    "title": "Automations and schedules administration polish (wave 3)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Automation and schedule rows stack instead of squeezing in a narrow column, the slot panel and table view are tidier and the create dialog keeps its actions on screen.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-INVREST-POLISH-2331-1",
+    "requirement_ids": [
+      "R-INVREST-POLISH-2331-1"
+    ],
+    "task_ids": [
+      "INVREST-POLISH-2331"
+    ],
+    "title": "Investigation leftovers polish (cases, one case, exports, event page)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The cases list fits the window with status filters and a count, a case page has two scrolling columns, exports are grouped and the event page shows Hebrew event names.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-INSIGHTS-POLISH-2331-1",
+    "requirement_ids": [
+      "R-INSIGHTS-POLISH-2331-1"
+    ],
+    "task_ids": [
+      "INSIGHTS-POLISH-2331"
+    ],
+    "title": "Insights and infrastructure reports polish (wave 3)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Insights and infrastructure reports have calmer counters, one segment track, openable door rows and larger touch targets on tablets and phones.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-HOMEEDIT-POLISH-2331-1",
+    "requirement_ids": [
+      "R-HOMEEDIT-POLISH-2331-1"
+    ],
+    "task_ids": [
+      "HOMEEDIT-POLISH-2331"
+    ],
+    "title": "Home editing screens polish (wave 3)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The home edit panel is grouped, widget rows are wells, keys and fields are 44 px on a phone and a triggered alarm shows on the phone ambient bar.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-SETUPPLAN-POLISH-2331-1",
+    "requirement_ids": [
+      "R-SETUPPLAN-POLISH-2331-1"
+    ],
+    "task_ids": [
+      "SETUPPLAN-POLISH-2331"
+    ],
+    "title": "Setup and plan administration polish (wave 3)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Connection results show as status lines with an icon and the map settings and area-links pages use the common settings look.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-TABSMODE-POLISH-2331-1",
+    "requirement_ids": [
+      "R-TABSMODE-POLISH-2331-1"
+    ],
+    "task_ids": [
+      "TABSMODE-POLISH-2331"
+    ],
+    "title": "Tabs display settings polish (wave 2, part B)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The tabs display settings have two headed groups, choices as tiles, one save / error line and a retry panel.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-PLAYBACK-SCRUB-2341-1",
+    "requirement_ids": [
+      "R-PLAYBACK-SCRUB-2341-1"
+    ],
+    "task_ids": [
+      "PLAYBACK-SCRUB-2341"
+    ],
+    "title": "Smooth recorded playback under fast scrubbing",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Rapid seeks are merged (only the last is sent), each seek closes the old stream before opening the next, a per-minute seek cap (setting, default 30) shows a Hebrew notice, and timeline previews show the nearest available picture within 30 seconds.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-ASYNCIO-DEFAULT-2342-1",
+    "requirement_ids": [
+      "R-ASYNCIO-DEFAULT-2342-1"
+    ],
+    "task_ids": [
+      "ASYNCIO-DEFAULT-2342"
+    ],
+    "title": "The server runs on asyncio and h11 by default (uvloop and httptools opt-in)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The server runs on the standard asyncio and h11 components by default (a suspected native crash source is off); a Diagnostics setting turns the fast components back on after a restart.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WRITE-GATE-EVENTS-2341-1",
+    "requirement_ids": [
+      "R-WRITE-GATE-EVENTS-2341-1"
+    ],
+    "task_ids": [
+      "WRITE-GATE-EVENTS-2341"
+    ],
+    "title": "False \"write gate held outside a transaction\" log alarm removed",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The false \"write gate held by events_ingest._write outside a transaction\" alarm is gone and a camera-list read no longer takes the write lock.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-FRIGATE-FORBIDDEN-2341-1",
+    "requirement_ids": [
+      "R-FRIGATE-FORBIDDEN-2341-1"
+    ],
+    "task_ids": [
+      "FRIGATE-FORBIDDEN-2341"
+    ],
+    "title": "Refused Frigate credentials: one health item instead of a flooded log",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Refused Frigate credentials no longer flood the log: Arx backs off up to 30 minutes, logs once per change and shows the exact fix step in Hebrew on the recorder health card.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-SUPERVISOR-BUILD-GATE-2341-1",
+    "requirement_ids": [
+      "R-SUPERVISOR-BUILD-GATE-2341-1"
+    ],
+    "task_ids": [
+      "SUPERVISOR-BUILD-GATE-2341"
+    ],
+    "title": "Release gate proves the add-on image builds the way the Supervisor builds it",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Release checks validate the add-on build files (base image by tag, Dockerfile syntax, arch and labels), so a broken build like 2.31.0 or 2.33.2 is caught before release.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-A11Y-POLISHED-2342-1",
+    "requirement_ids": [
+      "R-A11Y-POLISHED-2342-1"
+    ],
+    "task_ids": [
+      "A11Y-POLISHED-2342"
+    ],
+    "title": "Accessibility pass over the screens polished on 31.10 and 01.11",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Escape closes popovers and only the top dialog, every form field has a screen-reader name, arrow keys work in tab rows, save results are announced and light-mode status text meets 4.5:1.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.2; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-DARK-REVIEW-2342-1",
+    "requirement_ids": [
+      "R-DARK-REVIEW-2342-1"
+    ],
+    "task_ids": [
+      "DARK-REVIEW-2342"
+    ],
+    "title": "Dark-mode review of the screens polished on 01.11",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Five dark-mode contrast fixes on the polished screens and the selected segment of every segmented control is a raised, lighter key.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.2; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-HOME-DEVICES-LOAD-2342-1",
+    "requirement_ids": [
+      "R-HOME-DEVICES-LOAD-2342-1"
+    ],
+    "task_ids": [
+      "HOME-DEVICES-LOAD-2342"
+    ],
+    "title": "Faster home and devices screens: lazy screens, settings in two queries, shared requests",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Each screen loads on demand (home and devices open 33-44% faster), settings are read in 2 queries instead of hundreds and identical requests are shared.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.2; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-PHONE-BUTTONS-44-2342-1",
+    "requirement_ids": [
+      "R-PHONE-BUTTONS-44-2342-1"
+    ],
+    "task_ids": [
+      "PHONE-BUTTONS-44-2342"
+    ],
+    "title": "The shared button is 44 px high on a phone",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The shared button is drawn at least 44 px high on a phone.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.2; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-SYNOPTIC-MOBILE-2342-1",
+    "requirement_ids": [
+      "R-SYNOPTIC-MOBILE-2342-1"
+    ],
+    "task_ids": [
+      "SYNOPTIC-MOBILE-2342"
+    ],
+    "title": "The synoptic map on phones in three layouts",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The synoptic map has three phone layouts (compact table by default, floor cards, building section) chosen in its settings, with no overlapping numbers.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.2; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-SMALL-UI-BUGS-2343-1",
+    "requirement_ids": [
+      "R-SMALL-UI-BUGS-2343-1"
+    ],
+    "task_ids": [
+      "SMALL-UI-BUGS-2343"
+    ],
+    "title": "Tickets table width at 1440 and 1280 px; settings tab duplication",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The tickets table fits 1440 and 1280 px without sideways scrolling and settings pages with their own tabs no longer repeat them in the sidebar.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.2; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-GATE2342-1",
+    "requirement_ids": [
+      "R-GATE2342-1"
+    ],
+    "task_ids": [
+      "GATE2342"
+    ],
+    "title": "Release gate fixes of 2.34.2 (groups A, B, C and the pixel side)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The failures of the first 2.34.2 release gate are fixed (lazy-screen group, plan editor / camera card / tickets table / cross-section group, group C and the pixel baselines).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.2; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-CAL-GRID-EDIT-2343-1",
+    "requirement_ids": [
+      "R-CAL-GRID-EDIT-2343-1"
+    ],
+    "task_ids": [
+      "CAL-GRID-EDIT-2343"
+    ],
+    "title": "Outlook-style editing on the calendar grid",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Drag across free time to create (quick-create popover), drag an event to move it, drag its edge to resize, peek card, keyboard and long-press support and undo after move / resize / delete; moving an approved booking in an approval room becomes a request (per-calendar setting); editing by dragging can be limited to \"create only\" (migration 0191).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.35.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-CAL-ATTENDEES-2343-1",
+    "requirement_ids": [
+      "R-CAL-ATTENDEES-2343-1"
+    ],
+    "task_ids": [
+      "CAL-ATTENDEES-2343"
+    ],
+    "title": "Named attendees of calendar entries",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Calendar entries have named attendees (Arx users, residents and external guests stored encrypted) with in-app notices, guest notices on the configured channel, RSVP, count-only privacy for viewers and settings per installation and per calendar (migration 0190). Guest messages to real recipients are NOT_RUN.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.35.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-DB-CONN-POOL-2343-1",
+    "requirement_ids": [
+      "R-DB-CONN-POOL-2343-1"
+    ],
+    "task_ids": [
+      "DB-CONN-POOL-2343"
+    ],
+    "title": "Reuse SQLite connections between requests",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Database connections are reused between requests (settings read 2.6x faster); the add-on option db_conn_pool turns it off.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.35.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-PRE-GATE-2350-1",
+    "requirement_ids": [
+      "R-PRE-GATE-2350-1"
+    ],
+    "task_ids": [
+      "PRE-GATE-2350"
+    ],
+    "title": "Browser and backend evidence before the 2.35.0 gate",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The pre-gate runner check of the 2.35.0 train is run and its failures fixed (a11y skeleton spec, evidence-devices specs, compact density on area cards).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.35.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-GATE2350-A-1",
+    "requirement_ids": [
+      "R-GATE2350-A-1"
+    ],
+    "task_ids": [
+      "GATE2350-A"
+    ],
+    "title": "Release gate of 2.35.0: the six backend failures",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The six backend failures of the 2.35.0 gate are fixed (WAL scrub on its own connection with the pool, attendee module name, upload counters wait).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.35.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-NOTICE-BOARD-106-1",
+    "requirement_ids": [
+      "R-NOTICE-BOARD-106-1"
+    ],
+    "task_ids": [
+      "NOTICE-BOARD-106"
+    ],
+    "title": "Building notice board with TV screens (CR-NOTICE106) and the 2.18.0 overhaul",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "A building notice board with notices, audiences, push and TV boards exists (module off by default); the 2.18.0 overhaul adds the notices page parity with the approved mock-up, writing notices from the settings, status chips, promo / info slides and building photo, screen saver and logo layouts, a permanent TV link and push on publish.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped (see the task evidence); no acceptance run recorded in the registry. A real TV is NOT_RUN. NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-NOTICE-BOARD-FOLLOWUPS-295-1",
+    "requirement_ids": [
+      "R-NOTICE-BOARD-FOLLOWUPS-295-1"
+    ],
+    "task_ids": [
+      "NOTICE-BOARD-FOLLOWUPS-295"
+    ],
+    "title": "Notice board follow-ups: news sources, deletion, TV options, removal fix, nearby bus times",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Editable news (RSS) sources and connection caps of the TV listener, real deletion of a notice, one-row header / \"updated\" line / weather forecast days options with installation-wide defaults, the \"remove from board\" fix and nearby bus times (a labelled estimate, off by default).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped (see the task evidence); no acceptance run recorded in the registry. NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-TVNOTICE-297-1",
+    "requirement_ids": [
+      "R-TVNOTICE-297-1"
+    ],
+    "task_ids": [
+      "TVNOTICE-297"
+    ],
+    "title": "TV notice board V2 design and the owner answers of 27.10",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The notice board TV page follows the approved V2 mock-up (96 px header with the tenant and SmplWise logos, weather under the date, fixed bus area per layout); the \"updated\" line has two wordings (place and time - the default - or time and board name), an idle board can show the logos, and the one-row header survives very long names.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped (see the task evidence); no acceptance run recorded in the registry. The default wording in portrait is not covered by any test. NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-LOBBY-STYLES-2290-1",
+    "requirement_ids": [
+      "R-LOBBY-STYLES-2290-1"
+    ],
+    "task_ids": [
+      "LOBBY-STYLES-2290"
+    ],
+    "title": "Lobby screen styles (Gallery, Concierge, Stone, Lumen, Axis, Prism, Ink and Sign)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Three luxury lobby styles (Gallery, Concierge, Stone) with a day and a night building photo, three hi-tech styles (Lumen, Axis, Prism) and the Ink and Sign board styles for maintenance areas are selectable; nothing changes until an administrator chooses one.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped (see the task evidence); no acceptance run recorded in the registry. A real TV is NOT_RUN. NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-MOBILE-APP-SERVER-295-1",
+    "requirement_ids": [
+      "R-MOBILE-APP-SERVER-295-1"
+    ],
+    "task_ids": [
+      "MOBILE-APP-SERVER-295"
+    ],
+    "title": "Phone-app server side: saved sign-in, device key, WebView session exchange, attestation, critical sound",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The server supports the phone apps: persistent sign-in with a device key (APPREFRESH), the one-time-code WebView session exchange (POST /auth/app/session and /redeem), device attestation, offline field work (server half) and critical-sound alerts - every one off by default.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped (see the task evidence); no acceptance run recorded in the registry. No real phone run. NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-NOTICEPUSH-295-1",
+    "requirement_ids": [
+      "R-NOTICEPUSH-295-1"
+    ],
+    "task_ids": [
+      "NOTICEPUSH-295"
+    ],
+    "title": "Push on publish for the notice board to the phone app channel",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Publishing a notice sends a push through the notification core's app channel (generic payload to the relay, text fetched by the app with its device token); it sends nothing until SW_PUSH_RELAY_URL and the key are set.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped (see the task evidence); no acceptance run recorded in the registry. No real push delivery. NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WORSTCASE-2310-1",
+    "requirement_ids": [
+      "R-WORSTCASE-2310-1"
+    ],
+    "task_ids": [
+      "WORSTCASE-2310"
+    ],
+    "title": "Worst-case data on the main screens: long names, empty states, huge counts, no scrolling",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Screens with extreme data stay in their cards: long area and cover names end in an ellipsis and keep their kind visible, five-digit counts widen their own row, temperatures and stale times give way last with the full value in a tooltip, the large weather widget shrinks its temperature to fit, the side rail active marker no longer counts as overflow.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.30.0; no acceptance run recorded in the registry. NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-ENTRY-CHECK-2310-1",
+    "requirement_ids": [
+      "R-ENTRY-CHECK-2310-1"
+    ],
+    "task_ids": [
+      "ENTRY-CHECK-2310"
+    ],
+    "title": "Gate: runner entry check before a release train + 7-day quarantine list",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "A runner entry check runs before any branch joins a release train, with a single quarantine list of at most 7 days.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.30.0; no acceptance run recorded in the registry. NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-CALENDARS-UI-2310-1",
+    "requirement_ids": [
+      "R-CALENDARS-UI-2310-1"
+    ],
+    "task_ids": [
+      "CALENDARS-UI-2310"
+    ],
+    "title": "Calendars UI: booking calendars, approvals, maintenance calendar, resident view, sync settings (owner answers 30.10)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Calendars: month, week and day views, a rooms timeline, booking, approvals (contested requests; displacing needs the calendar manager), maintenance, calendar management, settings and connections and a resident flow on the phone; every owner decision is a setting (module off by default).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.31.0; no acceptance run recorded in the registry. NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-TEMPREPORT-2310-1",
+    "requirement_ids": [
+      "R-TEMPREPORT-2310-1"
+    ],
+    "task_ids": [
+      "TEMPREPORT-2310"
+    ],
+    "title": "Temperature report: security review and hardening of the report link and WhatsApp send",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Temperature report links: separate switches for system users and for names in shared PDFs (off by default), revocation when a WhatsApp number changes, no caching of the link answer.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.31.0; no acceptance run recorded in the registry. NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-POLISH-PHONE-2310-1",
+    "requirement_ids": [
+      "R-POLISH-PHONE-2310-1"
+    ],
+    "task_ids": [
+      "POLISH-PHONE-2310"
+    ],
+    "title": "Phone layer polish: chips and switch hit areas",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Phone layer: 16 px fields (no zoom on focus), no tap flash, no sticky hover, press feedback, 44 px hit areas, phone type tiers, dropdowns and pop-ups inside the screen (dvh).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.31.0; no acceptance run recorded in the registry. NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-PRESENCE-COMPACT-2310-1",
+    "requirement_ids": [
+      "R-PRESENCE-COMPACT-2310-1"
+    ],
+    "task_ids": [
+      "PRESENCE-COMPACT-2310"
+    ],
+    "title": "Presence card: compact redesign (owner rejected the tall card 30.10)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The building presence card is a compact strip of active rooms (four styles; empty rooms, details and \"empty since\" are settings) never taller than its neighbours, and the area window shows the room status.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.31.0; no acceptance run recorded in the registry. NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-RC4-2310-1",
+    "requirement_ids": [
+      "R-WISKEY-RC4-2310-1"
+    ],
+    "task_ids": [
+      "WISKEY-RC4-2310"
+    ],
+    "title": "WisKey rc.4 adoption + rc.5 host check (deadline fix, migration 0186, relay-by-door fix)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The WisKey rc.4 owner30 contribution and the rc.5 host check (one absolute deadline before the live wrapper selection, installed-client migration, a door relay is WisKey's physical relay in every station grant) are adopted on a branch with fakes only; auto-install stays off.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not merged, not tagged; NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-HA-LABELS-SYNC-2351-1",
+    "requirement_ids": [
+      "R-HA-LABELS-SYNC-2351-1"
+    ],
+    "task_ids": [
+      "HA-LABELS-SYNC-2351"
+    ],
+    "title": "Home-system labels synced into Arx (read-only) for the mapping assistant",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Area labels are read from the home system (nothing is written back) and used by the mapping assistant label rules and questions; the status card says how many areas carry a label and where a label points to another building (migration 0192).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-CAL-FEED-REVIEW-2351-1",
+    "requirement_ids": [
+      "R-CAL-FEED-REVIEW-2351-1"
+    ],
+    "task_ids": [
+      "CAL-FEED-REVIEW-2351"
+    ],
+    "title": "Security review of the outgoing iCal feed; remote switch, busy-only, 365-day expiry",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The outgoing iCal feed route is reviewed; a feed can be opened to remote access per feed (off by default, administrator or all-calendars manager, from inside the network, after a confirmation), a remote-open feed shows busy only, new links expire after a configurable period (default 365 days) and can be renewed (migration 0193).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-GDRIVE-READY-2351-1",
+    "requirement_ids": [
+      "R-GDRIVE-READY-2351-1"
+    ],
+    "task_ids": [
+      "GDRIVE-READY-2351"
+    ],
+    "title": "Google Drive backup ready for the owner's first real connection",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "A \"בדיקת חיבור Google\" check on every Google Drive target tests client, secret, clock, consent screen, Drive API, quota and folder step by step and says what to do (it changes nothing); errors are named correctly; a Hebrew first-connection guide exists (docs/operations/GDRIVE_CONNECT_SETUP_HE.md).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-HOME-EDIT-DRAWER-2351-1",
+    "requirement_ids": [
+      "R-HOME-EDIT-DRAWER-2351-1"
+    ],
+    "task_ids": [
+      "HOME-EDIT-DRAWER-2351"
+    ],
+    "title": "Home screen edit mode in a drawer",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Home screen settings and the selected card settings share one drawer (side from 1200 px, bottom sheet on tablets and phones) with save and cancel always in view; a closed drawer gives its width back to the preview (a setting keeps the column reserved).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-AREA-PRESENCE-LINE-2351-1",
+    "requirement_ids": [
+      "R-AREA-PRESENCE-LINE-2351-1"
+    ],
+    "task_ids": [
+      "AREA-PRESENCE-LINE-2351"
+    ],
+    "title": "Presence line in the area screen and quick pop-up",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The area screen and the area quick pop-up show one presence line (room state from its presence sensors and the people the phone app places there, by permission and the show-names setting; building-presence viewers without people rights see an anonymous count); off by default.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-XS-MINI-WIDGET-2351-1",
+    "requirement_ids": [
+      "R-XS-MINI-WIDGET-2351-1"
+    ],
+    "task_ids": [
+      "XS-MINI-WIDGET-2351"
+    ],
+    "title": "Mini building cross-section on the home widgets row",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "A home widget \"חתך בניין\" shows the building as a stack of floors tinted by the lights that are on, with alarm, temperature and open-door marks; press a floor to open it; off by default.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-MAPPING-IMPROVE-2351-1",
+    "requirement_ids": [
+      "R-MAPPING-IMPROVE-2351-1"
+    ],
+    "task_ids": [
+      "MAPPING-IMPROVE-2351"
+    ],
+    "title": "Mapping: floors without a level asked about; auto-insert in the background",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Home-system floors with no level are asked about and the answers are kept with each mapping version; new names are mapped automatically in the background after every change and at start-up, adding only what the stored rules place without a question; confirming a few areas creates no unneeded buildings or floors.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-BUILDING-SCOPE-CONTROL-2351-1",
+    "requirement_ids": [
+      "R-BUILDING-SCOPE-CONTROL-2351-1"
+    ],
+    "task_ids": [
+      "BUILDING-SCOPE-CONTROL-2351"
+    ],
+    "title": "\"Show and control\" per building on a multi-building site",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "With the multi-building view on, the counters panel, floor and area turn-off actions, the floor lights pop-up and every single device control act only on the building shown, and the server refuses a request for another building's device; a setting chooses whether building permission follows the mapping or the map position.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-PRE-GATE-2360-1",
+    "requirement_ids": [
+      "R-PRE-GATE-2360-1"
+    ],
+    "task_ids": [
+      "PRE-GATE-2360"
+    ],
+    "title": "Runner checks before the 2.36.0 release gate",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The 2.36.0 train is checked on the runner before its gate (drawer above the phone bar, GDrive diagnose and drawer specs).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-SYNOPTIC-PHONE-SETTINGS-2360-1",
+    "requirement_ids": [
+      "R-SYNOPTIC-PHONE-SETTINGS-2360-1"
+    ],
+    "task_ids": [
+      "SYNOPTIC-PHONE-SETTINGS-2360"
+    ],
+    "title": "Phone synoptic map: light and summary-line settings",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Two settings next to the phone synoptic view: \"תאורה בטלפון\" (small bar - default, segments, number only) and \"שורת סיכום בטלפון\" (info button - default, a line under the board, off).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-TICKETS-1440-COLUMN-SETTING-2360-1",
+    "requirement_ids": [
+      "R-TICKETS-1440-COLUMN-SETTING-2360-1"
+    ],
+    "task_ids": [
+      "TICKETS-1440-COLUMN-SETTING-2360"
+    ],
+    "title": "Tickets table: which column the default table keeps at a medium width",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "A tickets setting (ui.table_mid_width) chooses whether the default table keeps the sentence column (default) or the department column at about 1440 px; the other stays in the column chooser and a viewer's own choice wins.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-RELEASE-2360-TRAIN-1",
+    "requirement_ids": [
+      "R-RELEASE-2360-TRAIN-1"
+    ],
+    "task_ids": [
+      "RELEASE-2360-TRAIN"
+    ],
+    "title": "Release train 2.36.0 (building scope, mapping, labels, feed review, GDrive ready, home edit drawer, presence line, xs widget)",
+    "kind": "release gate",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "scripts/release_check.py, the runner release gate (backend suite, browser, evidence and pixel specs) on the release commit."
+    ],
+    "expected": "Release 2.36.0 is assembled, gated on the runner, merged to main and tagged v2.36.0 with bilingual release notes.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); gate result not recorded in git: NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-CAM-H264-VERIFY-2361-1",
+    "requirement_ids": [
+      "R-CAM-H264-VERIFY-2361-1"
+    ],
+    "task_ids": [
+      "CAM-H264-VERIFY-2361"
+    ],
+    "title": "Verify a bulk encoding change at the camera, per-channel report, skip a refused camera",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "After a bulk encoding apply or undo the stream is verified at the camera and reported per channel; the setting nvr.batch_on_refusal (\"skip and continue\" by default, or stop) decides what a refused camera does, and undo follows the same setting (owner decision 2B, 02.11); a read-only re-check route exists.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-RELEASE-2361-TRAIN-1",
+    "requirement_ids": [
+      "R-RELEASE-2361-TRAIN-1"
+    ],
+    "task_ids": [
+      "RELEASE-2361-TRAIN"
+    ],
+    "title": "Release train 2.36.1 (camera H.264 verification)",
+    "kind": "release gate",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "scripts/release_check.py, the runner release gate on the release commit."
+    ],
+    "expected": "Release 2.36.1 = 2.36.0 plus CAM-H264-VERIFY-2361 is gated on the runner, merged to main and tagged v2.36.1.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-POLISH4-WP1-SHARED-2370-1",
+    "requirement_ids": [
+      "R-POLISH4-WP1-SHARED-2370-1"
+    ],
+    "task_ids": [
+      "POLISH4-WP1-SHARED-2370"
+    ],
+    "title": "Polish round 4, WP1: shared stage 2 and the shell pill",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The shared layer gets its stage 2 (shell pill note, bare state panel, one settings key look, drawer footer-end, solid sheet, --sw-well); new variants are opt-in and the settings key is the one deliberate look change.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-POLISH4-WP2-LIVEINV-2370-1",
+    "requirement_ids": [
+      "R-POLISH4-WP2-LIVEINV-2370-1"
+    ],
+    "task_ids": [
+      "POLISH4-WP2-LIVEINV-2370"
+    ],
+    "title": "Polish round 4, WP2: live and investigation screens",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Live, investigation and video-domain screens use the video tokens (overlays, HUD, record-mode legend) with no backend or shared change.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-POLISH4-WP3-SERVICE-2370-1",
+    "requirement_ids": [
+      "R-POLISH4-WP3-SERVICE-2370-1"
+    ],
+    "task_ids": [
+      "POLISH4-WP3-SERVICE-2370"
+    ],
+    "title": "Polish round 4, WP3: the service area",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The ticket full screen, handlers, vendor accounts, tickets overview and maintenance pages are polished (defects D3-D6 fixed, D27 and D29 verified).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-POLISH4-WP4-HOME-2370-1",
+    "requirement_ids": [
+      "R-POLISH4-WP4-HOME-2370-1"
+    ],
+    "task_ids": [
+      "POLISH4-WP4-HOME-2370"
+    ],
+    "title": "Polish round 4, WP4: home and devices",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The home and devices screens are polished (survey defects D2, D24, D25, D26; owner answers Q5a, Q6a); the home edit drawer, the area presence line and the xs widget are untouched.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-POLISH4-WP5-MEDIA-2370-1",
+    "requirement_ids": [
+      "R-POLISH4-WP5-MEDIA-2370-1"
+    ],
+    "task_ids": [
+      "POLISH4-WP5-MEDIA-2370"
+    ],
+    "title": "Polish round 4, WP5: multimedia, cast, generator, electricity",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Multimedia groups and screens, cast-my-screens, the generator pages and the electricity pages are polished (D19 page side, D20, D21); no behaviour or data change.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-POLISH4-WP6-MAPS-2370-1",
+    "requirement_ids": [
+      "R-POLISH4-WP6-MAPS-2370-1"
+    ],
+    "task_ids": [
+      "POLISH4-WP6-MAPS-2370"
+    ],
+    "title": "Polish round 4, WP6: maps and plan",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The plan editor and studio, floor map, sites and import screens are polished (D12, D13, D28); map geometry is not mirrored and the 3D renderer is untouched.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-POLISH4-WP7-SETSYS-2370-1",
+    "requirement_ids": [
+      "R-POLISH4-WP7-SETSYS-2370-1"
+    ],
+    "task_ids": [
+      "POLISH4-WP7-SETSYS-2370"
+    ],
+    "title": "Polish round 4, WP7: settings (system)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The system settings tabs, security shell and pages, audit, storage, update, wizard and readiness are polished with the structure frozen (tabs, titles, control order, data attributes).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-POLISH4-WP8-SETMOD-2370-1",
+    "requirement_ids": [
+      "R-POLISH4-WP8-SETMOD-2370-1"
+    ],
+    "task_ids": [
+      "POLISH4-WP8-SETMOD-2370"
+    ],
+    "title": "Polish round 4, WP8: settings (modules) and the transit check button",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The modules settings (notifications, notices, public transport, voice announcements, infrastructure, access-control segments) are polished; the owner-approved addition is a transit \"בדוק עכשיו\" button backed by POST /api/v1/transit/check (system.configure, audited, one check per 30 s per installation).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-TRANSIT-CHECK-2370-1",
+    "requirement_ids": [
+      "R-TRANSIT-CHECK-2370-1"
+    ],
+    "task_ids": [
+      "TRANSIT-CHECK-2370"
+    ],
+    "title": "Transit settings: \"בדוק עכשיו\" check button and route (owner-approved addition, 02.11 evening)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "POST /api/v1/transit/check asks the transit source once per configured stop (system.configure on the read connection, audited as transit.check, one check per 30 s per installation with 429 transit_check_rate_limited, skipped no_stops without a call) and the settings screen has a \"בדוק עכשיו\" button; the route answers the same locally and remotely.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-UNLOCK-REASON-2370-1",
+    "requirement_ids": [
+      "R-UNLOCK-REASON-2370-1"
+    ],
+    "task_ids": [
+      "UNLOCK-REASON-2370"
+    ],
+    "title": "Say why a lock cannot be opened: one unlock_reason rule behind can_unlock",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "can_unlock is unlock_reason == ok, one function in door_authority behind GET /devices/items?kind=locks and GET /ha/entities/{id}, with the reasons ok, no_permission, door_not_mapped, alarm_managed, not_placed, wall_profile and no_control (codes only); the locks panel, map card, door grants tab and effective permissions word the reason; unmapped doors are summarised and a read-only door-map item joins the readiness check.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-RELEASE-2370-TRAIN-1",
+    "requirement_ids": [
+      "R-RELEASE-2370-TRAIN-1"
+    ],
+    "task_ids": [
+      "RELEASE-2370-TRAIN"
+    ],
+    "title": "Release train 2.37.0 (polish round 4, transit check, unlock reason)",
+    "kind": "release gate",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "scripts/release_check.py, the runner release gate on the release commit."
+    ],
+    "expected": "Release 2.37.0 = 2.36.0 plus polish round 4 packages WP1-WP8, the transit check and the unlock reason is gated on the runner, merged to main and tagged v2.37.0.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-RC7-ADOPT-2331-1",
+    "requirement_ids": [
+      "R-WISKEY-RC7-ADOPT-2331-1"
+    ],
+    "task_ids": [
+      "WISKEY-RC7-ADOPT-2331"
+    ],
+    "title": "WisKey Mac rc.7 adoption with auto-install policy B (the owner's switch)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The Arx side of the WisKey rc.7 adoption is built on fakes: installer guards before any component write, the generation fence as a publication fence only, the relay map native adapter with post-approval sync behind the owner's switch, and (policy B) the owner's auto-install switch on the existing authorized writer with switch and Core runtime checks before the native writer; wiskey.auto_install stays OFF and no code path turns it on.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not merged, not tagged; NOT_RUN until recorded against a commit.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-APP-TEAM-R11-2380-1",
+    "requirement_ids": [
+      "R-APP-TEAM-R11-2380-1"
+    ],
+    "task_ids": [
+      "APP-TEAM-R11-2380"
+    ],
+    "title": "Mobile M1: app-team R11 package (documents only)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "One consolidated R11 package goes to the app teams (Hebrew prompt, attachments list, a BUILT / NOT_RUN / BLOCKED table per open item), and the untracked mobile handoff documents (iOS and Android addenda, employee notice draft, brand folder) are committed after a secrets read; the owner sends it.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-MOBILE-CONTRACT-V22-2380-1",
+    "requirement_ids": [
+      "R-MOBILE-CONTRACT-V22-2380-1"
+    ],
+    "task_ids": [
+      "MOBILE-CONTRACT-V22-2380"
+    ],
+    "title": "Mobile M2: presence contract v2.2 (sensor shapes, intervals defaults, key-rotation proof)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "docs/api/mobile-presence-contract.md reaches v2.2 and the server validates it: sensor value shapes (MOBILE214 proposal), battery-unknown, confidence / proximity, intervals_s defaults, location_auth values and the K-5 key-rotation proof (K-6 / K-7 attestation stay deferred), with tests.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-APP-SERVER-LEFTOVERS-2380-1",
+    "requirement_ids": [
+      "R-APP-SERVER-LEFTOVERS-2380-1"
+    ],
+    "task_ids": [
+      "APP-SERVER-LEFTOVERS-2380"
+    ],
+    "title": "Mobile M3: brand-logo API for the apps; quiet-window hold narrowed to phone and browser push",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "A read-only, public-safe brand-logo API (/api/v1/brand/...) serves the apps, and the quiet-window hold applies to phone and browser push only; the employee notice text for the phone-side Wi-Fi match is handed to M1.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-PUSH-GOLIVE-KIT-2380-1",
+    "requirement_ids": [
+      "R-PUSH-GOLIVE-KIT-2380-1"
+    ],
+    "task_ids": [
+      "PUSH-GOLIVE-KIT-2380"
+    ],
+    "title": "Mobile M4: push go-live kit and supervised field-test script",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "An owner session checklist (Firebase, Apple, keystore, TestFlight or internal track), a relay deploy dry-run with fakes, a health and test-push runbook (docs/operations/ARX_PUSH_RELAY_DEPLOY_HE.md) and a supervised field-test script (docs/operations/MOBILE_FIELD_TEST_HE.md: app 2.1.5, session-exchange 303 proof, saved sign-in switch on the lab server only) exist.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-TV-FIT-2380-1",
+    "requirement_ids": [
+      "R-TV-FIT-2380-1"
+    ],
+    "task_ids": [
+      "TV-FIT-2380"
+    ],
+    "title": "Display D1: TV fit - portrait footer chips, crest logo, Hebrew-date fallback, overscan margin",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "On the notice TV page the portrait footer keeps its chips under every \"updated\" wording, template, V2 and lobby style (two-row footer or priority drop per owner answer Q3); the two specs that pin updated:full are un-pinned and a portrait-chip pixel spec is added; the H7 crest logo is sized by area; the Hebrew date has a fallback; a safe-area / overscan margin setting exists.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-REAL-TV-SESSION-2380-1",
+    "requirement_ids": [
+      "R-REAL-TV-SESSION-2380-1"
+    ],
+    "task_ids": [
+      "REAL-TV-SESSION-2380"
+    ],
+    "title": "Display D2: real-TV runbook, joint session and fixes",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "A real-TV runbook and checklist (TV page, lobby styles, overscan, remote keys, CSS zoom, saver, day / night) is written, run in a joint session on a lab TV, and the findings are fixed.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-BOARD-ADMIN-2380-1",
+    "requirement_ids": [
+      "R-BOARD-ADMIN-2380-1"
+    ],
+    "task_ids": [
+      "BOARD-ADMIN-2380"
+    ],
+    "title": "Display D3: notice board administration (chips providers, screen count, copy link, re-send, editor role)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Parking and gym status chips get data providers from chosen entities, a per-board screen count exists (migration), \"copy link\" no longer rotates the token (a separate \"replace link\" does), a notice can be sent again manually, and the editor role default of notices.manage follows the owner answer.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-CAST-FIRST-TEST-2380-1",
+    "requirement_ids": [
+      "R-CAST-FIRST-TEST-2380-1"
+    ],
+    "task_ids": [
+      "CAST-FIRST-TEST-2380"
+    ],
+    "title": "Display D4: first physical cast test and phase-2 decision memo",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The cast runbook is updated and one camera is cast to one lab TV in a joint test, phase-1 findings are fixed and a memo decides phase 2 (wall mosaic / carousel).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WALL-FOLLOWUPS-2380-1",
+    "requirement_ids": [
+      "R-WALL-FOLLOWUPS-2380-1"
+    ],
+    "task_ids": [
+      "WALL-FOLLOWUPS-2380"
+    ],
+    "title": "Display D5: wall display follow-ups (desktop wall mode, foldable detection, AT221 / AT301 evidence)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "A \"wall mode on desktop\" flag exists, foldable devices at 600-700 px are detected correctly, and AT221 and AT301 are run on the runner with evidence.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-ROUND4-LEFTOVERS-2380-1",
+    "requirement_ids": [
+      "R-ROUND4-LEFTOVERS-2380-1"
+    ],
+    "task_ids": [
+      "ROUND4-LEFTOVERS-2380"
+    ],
+    "title": "Display U1: polish round 4 leftovers (WisKey area, calendars D22, compact presence card redesign)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The reading-B leftovers of the display phase are done after the WisKey ship: the WisKey area polish (if round-4 question Q4 = b), calendars D22 and the presence card compact follow-up.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-RELEASE-2380-TRAIN-1",
+    "requirement_ids": [
+      "R-RELEASE-2380-TRAIN-1"
+    ],
+    "task_ids": [
+      "RELEASE-2380-TRAIN"
+    ],
+    "title": "Release train 2.38.0 (display and mobile server; features off by default)",
+    "kind": "release gate",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Release 2.38.0 carries the display and mobile-server work packages with every feature off by default and bilingual release notes, is gated on the runner and tagged v2.38.0; the app builds ship on their own track.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-REGISTRY-UPDATE-2380-1",
+    "requirement_ids": [
+      "R-REGISTRY-UPDATE-2380-1"
+    ],
+    "task_ids": [
+      "REGISTRY-UPDATE-2380"
+    ],
+    "title": "Registry H1: tasks.json and test_catalog brought up to date after v2.35.0",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "management/tasks.json, requirements.json and test_catalog.json match git after v2.35.0 and the 2.36.0 / 2.36.1 / 2.37.0 trains, the WisKey adoption and the 2.38.0 plan; the views are regenerated; DONE only with a release tag containing the work and a PASS record; NOT_RUN and BLOCKED stay explicit.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

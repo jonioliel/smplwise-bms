@@ -18,6 +18,9 @@ import { activateScene, automations, type Item } from '../api/automations';
 import { HOME_SCREEN_DEFAULT, loadHomeScreen, type HomeScreenOptions, type PopupAlert } from '../api/home-screen';
 import { EMPTY_LAYOUT, POPUP_ITEM_SECTIONS, isVersionConflict, savePopupLayout, type PopupLayout } from '../api/popup-layout';
 import { invalidateSettings } from '../api/prefs';
+import { getAreaPresence, type AreaPresence } from '../api/building-presence'; // AREA-PRESENCE-LINE-2351 (owner 02.11, round 14)
+import { POLL_MS as PRESENCE_POLL_MS, quickSheetPresence, type AreaLineView } from '../api/building-presence-logic';
+import { BP } from '../i18n/building-presence';
 import { listSchedules, type Schedule } from '../api/schedules';
 import { EVENT_LABEL, listEvents, type VmsEvent } from '../api/events';
 import { bidi, ltrNum } from '../i18n/bidi';
@@ -95,6 +98,9 @@ export class AreaQuickSheet extends LitElement {
   @state() private schedules: Schedule[] = [];
   @state() private events: VmsEvent[] = [];
   @state() private sceneBusy = '';
+  /** AREA-PRESENCE-LINE-2351 (owner 02.11, round 14): the area's presence line, as on the area screen (null = not read / not permitted). */
+  @state() private areaPres: AreaPresence | null = null;
+  private presTimer = 0;
   // AREAEDIT-2290: the installation's pop-up layout and the editor (managers only; the server stays the authority)
   @state() private opts: HomeScreenOptions = HOME_SCREEN_DEFAULT;
   @state() private editing = false;
@@ -343,6 +349,44 @@ export class AreaQuickSheet extends LitElement {
       /* each piece of the sub-line keeps its own direction (a number next to Hebrew never swaps places) */
       .sub > span {
         unicode-bidi: isolate;
+      }
+      /* AREA-PRESENCE-LINE-2351 (owner 02.11, round 14): the area line, as on the area screen - one fixed-height line that never wraps
+         (a long list ends in an ellipsis; the full list is the tooltip); green only while someone is there */
+      .pline {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-inline-size: 0;
+        block-size: 24px;
+        margin-block-start: 2px;
+        font-size: var(--sw-fs-sm);
+        line-height: 1.2;
+        color: var(--sw-text-2);
+        white-space: nowrap;
+        overflow: hidden;
+      }
+      .pline sw-icon,
+      .pline .psep {
+        flex: none;
+        color: var(--sw-text-3);
+      }
+      .pline .plbl {
+        flex: none;
+      }
+      .pline b {
+        flex: none;
+        font-weight: var(--sw-fw-semibold);
+        color: var(--sw-text);
+      }
+      .pline[data-tone='ok'] sw-icon,
+      .pline[data-tone='ok'] b {
+        color: var(--sw-success-text);
+      }
+      .pline .pwho {
+        min-inline-size: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: var(--sw-text);
       }
       /* PRESENCE-COMPACT-2310: the room's presence - green words only while active, a hollow dot for "no data" */
       .sub .pres i {
@@ -1240,6 +1284,7 @@ export class AreaQuickSheet extends LitElement {
       const prev = changed.get('area') as DeviceArea | null | undefined;
       if (prev?.area_id !== this.area.area_id) {
         this.detail = null;
+        this.areaPres = null;
         this.scenes = [];
         this.schedules = [];
         this.events = [];
@@ -1503,12 +1548,33 @@ export class AreaQuickSheet extends LitElement {
     this.stopHa = subscribeHa((m) => {
       if (m.type === 'entity_state_changed' || m.type === 'structure_changed') this.scheduleReload();
     });
+    // AREA-PRESENCE-LINE-2351: the people part does not come from entity pushes - a quiet 30 s read while open, the line on and visible
+    this.presTimer = window.setInterval(() => {
+      const a = this.area;
+      if (!a || !this.open || document.hidden || !this.areaPres?.line) return;
+      void this.readPresence(a.area_id).then((p) => {
+        if (p !== undefined && this.area?.area_id === a.area_id) this.areaPres = p;
+      });
+    }, PRESENCE_POLL_MS);
   }
 
   private stopLive() {
     this.stopHa?.();
     this.stopHa = null;
     window.clearTimeout(this.reloadTimer);
+    window.clearInterval(this.presTimer);
+    this.presTimer = 0;
+  }
+
+  /** AREA-PRESENCE-LINE-2351: the area's presence line answer - nothing is asked without presence.building.view or presence.view (the
+   * server decides what each may see: names, an anonymous count, the room word). undefined after a failed read: the last answer stays. */
+  private async readPresence(areaId: string): Promise<AreaPresence | null | undefined> {
+    if (!isApi() || !(canAnywhere('presence.building.view') || canAnywhere('presence.view'))) return null;
+    try {
+      return await getAreaPresence(areaId);
+    } catch {
+      return undefined;
+    }
   }
 
   private scheduleReload() {
@@ -1521,8 +1587,10 @@ export class AreaQuickSheet extends LitElement {
     if (!a || !this.open) return;
     const seq = ++this.loadSeq;
     try {
-      const d = await getDevicesArea(a.area_id);
+      // AREA-PRESENCE-LINE-2351: the presence line is read WITH the area, so it lands in the same render as the body (no extra jump)
+      const [d, pres] = await Promise.all([getDevicesArea(a.area_id), this.readPresence(a.area_id)]);
       if (seq !== this.loadSeq) return;
+      if (pres !== undefined) this.areaPres = pres;
       this.detail = d;
       this.error = '';
       this.placeAtOrigin();
@@ -1835,6 +1903,8 @@ export class AreaQuickSheet extends LitElement {
     const temp = a?.temperature !== null && a?.temperature !== undefined ? ltrNum(`${a.temperature.toFixed(1)}°`) : '';
     const expandLabel = this.mode === 'sheet' ? (this.detent === 'full' ? hs('qcCollapse') : hs('qcExpand')) : this.expanded ? hs('qcCollapse') : hs('qcExpand');
     const expandedNow = this.mode === 'sheet' ? this.detent === 'full' : this.expanded;
+    // AREA-PRESENCE-LINE-2351 (owner 02.11, round 14): the area line under the title while switched on; the sub-line's room word otherwise
+    const pres = quickSheetPresence(this.presence, this.areaPres);
     return html`<div class="scrim" data-qc-scrim @click=${() => this.close()}></div>
       <section class="panel" role="dialog" aria-modal="true" aria-label=${a?.name ?? ''} data-qc-panel data-qc-mode=${this.mode} data-qc-detent=${this.mode === 'sheet' ? this.detent : nothing} ?data-qc-expanded=${expandedNow}
         @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp}>
@@ -1843,7 +1913,8 @@ export class AreaQuickSheet extends LitElement {
           <span class="ring" ?data-on=${on}><sw-icon .name=${this.icon} size=${20}></sw-icon></span>
           <div class="ttl">
             <h2><span class="hn">${a ? bidi(a.name) : ''}</span>${this.editing ? html`<span class="editing" data-qc-editing><sw-icon name="edit" size=${12}></sw-icon>${hs('qcEditing')}</span>` : nothing}</h2>
-            <span class="sub">${this.editing ? html`<span class="ed-hint">${this.mode === 'sheet' ? hs('qcEditHintPhone') : hs('qcEditHintDesk')}</span>` : [this.floorName ? html`<span>${bidi(this.floorName)}</span>` : '', temp ? html`<span><b>${temp}</b></span>` : '', this.presence ? html`<span class="pres" data-qc-presence data-tone=${this.presence.tone}><i aria-hidden="true"></i>${this.presence.text}</span>` : '', c ? html`<span>${ltrNum(c.entities)} ${hs('qcDevicesLabel')}</span>` : ''].filter((x) => x !== '').map((x, i) => (i ? html` · ${x}` : x))}</span>
+            <span class="sub">${this.editing ? html`<span class="ed-hint">${this.mode === 'sheet' ? hs('qcEditHintPhone') : hs('qcEditHintDesk')}</span>` : [this.floorName ? html`<span>${bidi(this.floorName)}</span>` : '', temp ? html`<span><b>${temp}</b></span>` : '', pres.subWord ? html`<span class="pres" data-qc-presence data-tone=${pres.subWord.tone}><i aria-hidden="true"></i>${pres.subWord.text}</span>` : '', c ? html`<span>${ltrNum(c.entities)} ${hs('qcDevicesLabel')}</span>` : ''].filter((x) => x !== '').map((x, i) => (i ? html` · ${x}` : x))}</span>
+            ${this.editing ? nothing : this.renderPresenceLine(pres.line)}
           </div>
           <span class="acts">
             ${this.canEdit && !this.editing ? html`<button type="button" class="ib" data-qc-edit aria-label=${hs('qcEditTitle')} title=${hs('qcEditTitle')} @click=${() => this.startEdit()}><sw-icon name="edit" size=${17}></sw-icon></button>` : nothing}
@@ -1858,6 +1929,20 @@ export class AreaQuickSheet extends LitElement {
         </header>
         ${this.editing ? this.renderEditor() : html`<div class="body" data-qc-body><div class="cols">${this.renderBody()}</div></div>`}
       </section>`;
+  }
+
+  /** AREA-PRESENCE-LINE-2351 (owner 02.11, round 14): the area screen's presence line in the pop-up - "נוכחות · פעיל · דנה, יוסי ועוד 2".
+   * Names only when the server sent them; an anonymous count otherwise (presence.building.view without presence.view). */
+  private renderPresenceLine(v: AreaLineView) {
+    if (!v.show) return nothing;
+    const who = v.names.length
+      ? html`${v.names.map((n, i) => html`${i ? ', ' : ''}<bdi>${n}</bdi>`)}${v.rest > 0 ? ` ${BP.andMore(v.rest)}` : ''}`
+      : v.people;
+    return html`<span class="pline" data-qc-area-presence data-tone=${v.tone} role="status" aria-label=${BP.areaLineAria} title=${v.title}>
+      <sw-icon name="users" size=${14}></sw-icon><span class="plbl">${BP.areaLineLabel}</span>
+      ${v.room ? html`<span class="psep" aria-hidden="true">·</span><b data-qc-area-presence-room>${v.room}</b>` : nothing}
+      ${v.people ? html`<span class="psep" aria-hidden="true">·</span><span class="pwho" data-qc-area-presence-people>${who}</span>` : nothing}
+    </span>`;
   }
 
   private renderBody() {

@@ -1,5 +1,7 @@
 # גיבוי מחוץ למכונה ל־Google Drive: מדריך קצר לבעלים
 
+> לחיבור הראשון: `GDRIVE_CONNECT_SETUP_HE.md` - צעד אחר צעד עם שמות המסכים המדויקים, משתמש בדיקה במצב Testing, "בדיקת חיבור Google" וטבלת תקלות.
+
 הגרסה המלאה באנגלית: `GDRIVE_BACKUP_SETUP.md`. Arx לא יוצר עבורכם פרויקט, לקוח OAuth או כניסה ב־Google. את שלבים 1–5 עושים פעם אחת בחשבון Google שלכם.
 
 ## א. ב־Google Cloud Console (פעם אחת)

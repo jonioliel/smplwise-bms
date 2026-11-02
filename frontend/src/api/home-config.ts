@@ -20,7 +20,7 @@ export const SIDES: Side[] = ['start', 'end'];
 /** The side of b's widget column, as the person sees it: "end" is the left edge of the screen in Hebrew. */
 export const SIDE_LABEL: Record<Side, string> = { end: 'שמאל', start: 'ימין' };
 
-export type WidgetId = 'clock' | 'weather' | 'shabbat' | 'alarm' | 'quick' | 'media' | 'agenda' | 'launcher' | 'elevators' | 'temperature' | 'generators' | 'doors' | 'notices' | 'presence';
+export type WidgetId = 'clock' | 'weather' | 'shabbat' | 'alarm' | 'quick' | 'media' | 'agenda' | 'launcher' | 'elevators' | 'temperature' | 'generators' | 'doors' | 'notices' | 'presence' | 'xsection';
 /** `media` (CR-015 §7.5) is appended, so a saved order without it keeps its look: it lands last, like every widget a release adds.
  * BV1 (2026-10-05): `agenda` (the next event of the chosen calendars) and `launcher` (the quick-launcher grid) are appended the same way. */
 // CR-INFRA-ELEVATORS 2.8.0 (decision 10b): `elevators` is appended the same way; it is drawn only once the viewer sees at least one elevator.
@@ -29,9 +29,11 @@ export type WidgetId = 'clock' | 'weather' | 'shabbat' | 'alarm' | 'quick' | 'me
 // GENWIDGET 2.9.3: `generators` is appended the same way; it is drawn only once the viewer sees at least one generator (no options of its own).
 // DOORWIN2-295: `doors` is appended the same way; it is drawn only while the doors tab is on and the viewer sees a door (no options of its own).
 // PRESENCE-2280: `presence` (the building presence card) is appended last; drawn only while the module is on, configured, displayed as a card and the viewer may see it (no options of its own).
+// XS-MINI-WIDGET-2351: `xsection` (the mini building cross-section) is appended last and is the one widget that is OFF by default; drawn only
+// while the viewer may read the devices and the catalogue has a building with floors (no options of its own).
 // NOTICEPAGE-295: `notices` (the notice board) is appended last; drawn only while the notice board module is on and the viewer may read (no options of its own).
-export const WIDGET_IDS: WidgetId[] = ['clock', 'weather', 'shabbat', 'alarm', 'quick', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'notices', 'presence'];
-export const WIDGET_NAME: Record<WidgetId, string> = { clock: 'שעון', weather: 'מזג אוויר', shabbat: 'שבת', alarm: 'אזעקה', quick: 'פעולות מהירות', media: 'מולטימדיה', agenda: 'יומן', launcher: 'משגר מהיר', elevators: 'מעליות', temperature: 'טמפרטורות', generators: 'גנרטור', doors: 'דלתות', notices: 'לוח הודעות', presence: 'נוכחות במבנה' };
+export const WIDGET_IDS: WidgetId[] = ['clock', 'weather', 'shabbat', 'alarm', 'quick', 'media', 'agenda', 'launcher', 'elevators', 'temperature', 'generators', 'doors', 'notices', 'presence', 'xsection'];
+export const WIDGET_NAME: Record<WidgetId, string> = { clock: 'שעון', weather: 'מזג אוויר', shabbat: 'שבת', alarm: 'אזעקה', quick: 'פעולות מהירות', media: 'מולטימדיה', agenda: 'יומן', launcher: 'משגר מהיר', elevators: 'מעליות', temperature: 'טמפרטורות', generators: 'גנרטור', doors: 'דלתות', notices: 'לוח הודעות', presence: 'נוכחות במבנה', xsection: 'חתך בניין' };
 /** The infrastructure-list widgets (the same mode / hidden / filter shape). */
 export const LIST_WIDGETS: readonly WidgetId[] = ['elevators', 'temperature'];
 /** The elevators widget (owner feedback 2026-10-18): one card per elevator, ONE combined card, or both; elevators left out; all states or alerts only. */
@@ -173,6 +175,7 @@ export interface HomeConfig {
   doors: CommonCfg;
   notices: CommonCfg;
   presence: CommonCfg;
+  xsection: CommonCfg;
   calendar: CalendarCfg;
 }
 /** CR-INFRA-TEMPERATURE phase 3: the temperatures widget (unit ids left out in `hidden`). */
@@ -199,10 +202,13 @@ export const DEFAULT_SIZES: Record<WidgetId, Sizes> = {
   doors: { a: 'm', b: 's', c: 'm' },
   notices: { a: 'm', b: 's', c: 'm' },
   presence: { a: 'm', b: 's', c: 'm' },
+  xsection: { a: 'm', b: 's', c: 'm' },
 };
+/** XS-MINI-WIDGET-2351: the widgets a fresh installation (and a stored config without the key) has switched OFF. */
+export const WIDGETS_OFF_BY_DEFAULT: readonly WidgetId[] = ['xsection'];
 
 export function defaultConfig(): HomeConfig {
-  const base = (id: WidgetId): CommonCfg => ({ on: true, sizes: { ...DEFAULT_SIZES[id] }, label: '', phone_on: null, phone_size: null });
+  const base = (id: WidgetId): CommonCfg => ({ on: !WIDGETS_OFF_BY_DEFAULT.includes(id), sizes: { ...DEFAULT_SIZES[id] }, label: '', phone_on: null, phone_size: null });
   return {
     order: [...WIDGET_IDS],
     phone_layout: PHONE_LAYOUT_DEFAULT,
@@ -220,6 +226,7 @@ export function defaultConfig(): HomeConfig {
     doors: base('doors'),
     notices: base('notices'),
     presence: base('presence'),
+    xsection: base('xsection'),
     calendar: { date: '', parsha: '', candles: '', havdalah: '', holiday: '', extras: [] },
   };
 }
@@ -238,7 +245,7 @@ function sizesOf(v: unknown, id: WidgetId): Sizes {
 
 function commonOf(v: unknown, id: WidgetId): CommonCfg {
   const o = isObj(v) ? v : {};
-  return { on: bool(o.on, true), sizes: sizesOf(o.sizes, id), label: str(o.label), phone_on: typeof o.phone_on === 'boolean' ? o.phone_on : null, phone_size: SIZES.includes(o.phone_size as Size) ? (o.phone_size as Size) : null };
+  return { on: bool(o.on, !WIDGETS_OFF_BY_DEFAULT.includes(id)), sizes: sizesOf(o.sizes, id), label: str(o.label), phone_on: typeof o.phone_on === 'boolean' ? o.phone_on : null, phone_size: SIZES.includes(o.phone_size as Size) ? (o.phone_size as Size) : null };
 }
 
 function listOf<T extends string>(v: unknown, allowed: readonly T[], fallback: readonly T[]): T[] {
@@ -292,6 +299,7 @@ export function configOf(raw: unknown): HomeConfig {
     doors: commonOf(o.doors, 'doors'),
     notices: commonOf(o.notices, 'notices'),
     presence: commonOf(o.presence, 'presence'),
+    xsection: commonOf(o.xsection, 'xsection'),
     calendar: {
       date: str(cal.date),
       parsha: str(cal.parsha),
@@ -551,6 +559,9 @@ export interface ResolveOpts {
   noticesAvailable?: boolean;
   /** PRESENCE-2280: the building presence module is on, configured, shown as a card, and the viewer holds presence.building.view. Anything but `true` = the presence widget is ABSENT, in edit mode too (no ghost). */
   presenceAvailable?: boolean;
+  /** XS-MINI-WIDGET-2351: the viewer may read the devices and the catalogue has a building with floors. Anything but `true` = the mini
+   * cross-section widget is ABSENT, in edit mode too (no ghost). */
+  xsectionAvailable?: boolean;
 }
 
 /** Whether a widget is shown on this kind of screen: the phone has its own switch, defaulting to the desktop's. */
@@ -577,6 +588,7 @@ export function resolveWidgets(cfg: HomeConfig, direction: Direction, data: Home
     if (id === 'doors' && opts.doorsAvailable !== true) continue;
     if (id === 'notices' && opts.noticesAvailable !== true) continue;
     if (id === 'presence' && opts.presenceAvailable !== true) continue;
+    if (id === 'xsection' && opts.xsectionAvailable !== true) continue;
     let avail: Avail = 'ok';
     if (!widgetOn(w, !!opts.phone)) avail = 'off';
     else if (id === 'weather') {

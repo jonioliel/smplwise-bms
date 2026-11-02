@@ -540,7 +540,7 @@ export class MediaRemote extends LitElement {
     }
     const d = this.detail;
     const sub = d ? [d.area_name, d.floor_name].filter(Boolean).map((x) => bidi(x)).join(' · ') : '';
-    return html`<sw-drawer modal .open=${this.open} heading=${d ? bidi(d.name) : ''} subheading=${sub} @close=${this.onClose}>${this.body()}</sw-drawer>`;
+    return html`<sw-drawer modal ?data-editing=${this.editing} .open=${this.open} heading=${d ? bidi(d.name) : ''} subheading=${sub} @close=${this.onClose}>${this.body()}</sw-drawer>`;
   }
 
   private body(): TemplateResult {

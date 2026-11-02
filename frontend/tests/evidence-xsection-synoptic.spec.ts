@@ -98,6 +98,8 @@ test.describe('cross-section on the floors screen', () => {
     await expect(page.locator('[data-floor-card]').first()).toBeVisible();
     await expect(page.locator('[data-floor-list]')).toHaveAttribute('data-many', 'steps');
     await open(page, `${FLOORS}?xsdemo=16&xs_many=near`);
+    // PERF-HOME-DEVICES-2342: the floors screen is a lazy chunk that lands after the page's load event - wait for it before counting
+    await expect(page.locator('[data-floor-card]').first()).toBeVisible();
     const n = await page.locator('[data-floor-card]').count();
     expect(n).toBeGreaterThan(0);
     expect(n).toBeLessThan(16);

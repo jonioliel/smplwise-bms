@@ -190,6 +190,26 @@ def suggestions(conn: sqlite3.Connection) -> dict[str, DoorTarget]:
     return out
 
 
+def unmapped_summary(conn: sqlite3.Connection) -> dict[str, int]:
+    """UNLOCK-REASON-2370: how many WisKey lock entities (present and enabled) do not resolve to a station relay right now
+    (`count`: no map row, or a row that no longer resolves), and how many of those have a clear one-to-one `single_relay` suggestion
+    waiting for the administrator's approval (`with_suggestion`). Counts only - read-only, nothing is mapped here. The readiness page and
+    the door-permissions tab word it."""
+    rows = {r["entity_id"]: r for r in map_rows(conn)}
+    suggested = suggestions(conn)
+    count = with_suggestion = 0
+    for e in wiskey_locks(conn):
+        if e["removed_at"] or e["disabled"]:
+            continue
+        row = rows.get(e["entity_id"])
+        if row is not None and row_valid(conn, row, e["config_entry_id"]) is None:
+            continue
+        count += 1
+        if e["entity_id"] in suggested:
+            with_suggestion += 1
+    return {"count": count, "with_suggestion": with_suggestion}
+
+
 def set_mapping(conn: sqlite3.Connection, entity_id: str, station_id: str, relay: int, source: str, actor_id: str) -> dict[str, Any]:
     """Write one map row after the checks a manual or applied mapping needs: a WisKey lock entity, a station the WisKey
     copy lists with that relay, the entity's registry config entry (when known) being that station, and the relay not

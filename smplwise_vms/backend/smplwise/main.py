@@ -1074,6 +1074,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             from .services import bill_pdf
 
             threading.Thread(target=bill_pdf.self_check, name="bill-pdf-selfcheck", daemon=True).start()
+        if os.environ.get("SW_MAPPING_AUTO_STARTUP", "1") != "0":  # MAPPING-IMPROVE-2351: auto-insert of names that arrived while we were down
+            from .services import mapping_auto
+
+            threading.Thread(target=mapping_auto.run_safe, args=(app.state.db, "startup"), name="mapping-auto-startup", daemon=True).start()
         from .services import wiskey_background_feed
 
         wiskey_background_feed.FEED.start(settings)  # B0 (D-004/D-006): the split background session; runs only with wiskey_background_token

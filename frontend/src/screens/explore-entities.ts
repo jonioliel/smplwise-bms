@@ -236,7 +236,7 @@ export class ExploreEntities extends LitElement {
   }
 
   private columns: TableColumn[] = [
-    { key: 'name', label: 'ישות', render: (r) => html`<span style="display:inline-flex;align-items:center;gap:8px"><span style="display:grid;place-items:center;inline-size:26px;block-size:26px;border-radius:7px;background:var(--sw-accent-soft);color:var(--sw-accent)"><sw-icon name=${domainIcon(String(r.domain))} size=${13}></sw-icon></span><span><strong>${String(r.name)}</strong><div class="ltr" style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">${String(r.id)}</div></span></span>` },
+    { key: 'name', label: 'ישות', render: (r) => html`<span style="display:inline-flex;align-items:center;gap:8px"><span style="display:grid;place-items:center;inline-size:26px;block-size:26px;border-radius:var(--sw-r-xs);background:var(--sw-accent-soft);color:var(--sw-accent)"><sw-icon name=${domainIcon(String(r.domain))} size=${13}></sw-icon></span><span><strong>${String(r.name)}</strong><div class="ltr" style="font-size:var(--sw-fs-xs);color:var(--sw-text-3)">${String(r.id)}</div></span></span>` },
     { key: 'domain', label: 'Domain', ltr: true },
     { key: 'area', label: 'אזור' },
     { key: 'state', label: 'מצב' },
