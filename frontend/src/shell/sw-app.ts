@@ -2331,7 +2331,11 @@ export class SwApp extends LitElement {
 
   private async pollSummary() {
     try {
-      this.sys = await healthSummary();
+      const s = await healthSummary();
+      // GATE2342-C: a summary without its items list (a partial or older backend, a test's catch-all route answering {}) is not
+      // a state: sysWords / the banner read s.items, and a throw there aborts the WHOLE shell render - since the lazy route screens
+      // (GATE2342-B) the screen then never appears. Keep the last known state, as for a failed read.
+      if (s && typeof s === 'object' && Array.isArray(s.items)) this.sys = s;
     } catch {
       /* keep the last known state; the pill shows what we last knew */
     }
