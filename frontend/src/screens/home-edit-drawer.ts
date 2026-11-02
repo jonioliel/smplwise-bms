@@ -318,6 +318,10 @@ export const HOME_DRAWER_CSS = css`
   }
   /* a phone (only when the installation lets the layout editor open there): 44 px targets */
   @media (max-width: 767px) {
+    /* PRE-GATE-2360: the phone's bottom bar sits over the page; the sheet starts above it, or the bar covers save / cancel */
+    .he-drawer {
+      inset-block-end: calc(var(--sw-bottomnav-h, 0px) + 8px + env(safe-area-inset-bottom, 0px));
+    }
     .he-x,
     .he-tabs [role='tab'],
     .he-tog {
