@@ -2,13 +2,16 @@
 
     start (a permitted person, one explicit action) --> window [started_at, ends_at) --> ends at ends_at by itself, or earlier by an explicit stop
 
-What a window does: while it is active, the notification dispatch (services/notify_channels.dispatch) holds the CHANNELS (web push, the phone app,
-e-mail, WhatsApp, the spoken announcement) of a notification that is
+What a window does: while it is active, the notification dispatch (services/notify_channels.dispatch) holds the CHANNELS of a notification that is
   * in the window's place (the notification's `area_id` is the area, or an area on the window's floor), and
   * informational: severity `info` (and `alert` only when the administrator turned `quiet.windows.mute_alerts` on).
 It never touches: a CRITICAL severity, the `safety` category (contract 7.3 and the MUTEFIX fix of services/mobile_push: a critical category is never
 muted), the `doors` and `security` categories and every door / entry source (REL2140 review M-5: the doorbell is never muted, `mute_alerts` or not),
 an escalation, or the notification ROW itself - the inbox keeps every notification (the delivery log says `quiet_window`).
+
+Which channels (owner decision, app-team note Q-3, APP-SERVER-LEFTOVERS-2380): by default a window silences ONLY the push to phones and browsers - the
+`webpush` channel and the phone app (`app`, which follows the push column). E-mail, WhatsApp and the spoken announcement run as if no window existed
+(they keep their own rules: quiet hours, the announcement's own quiet mode). `quiet.windows.channels` = `all` restores the earlier behaviour (every channel).
 
 The end is decided by the clock: a window is active iff `ended_at IS NULL and started_at <= now < ends_at`; the janitor (`sweep`) only stamps the
 row afterwards. Nothing here calls Home Assistant: the lighting scenario of the change record is NOT part of slice 1.
@@ -36,6 +39,9 @@ CONFIGURE = "system.configure"         # the settings
 
 SCOPE_TYPES = ("floor", "area")
 ENABLED = "quiet.windows.enabled"
+CHANNELS_KEY = "quiet.windows.channels"
+PUSH_CHANNELS = frozenset({"webpush", "app"})   # phone / browser push: the web push channel and the phone app (the app follows the push column)
+ALL_CHANNELS = frozenset({"webpush", "app", "email", "whatsapp", "announce"})
 
 
 def _int_in(lo: int, hi: int) -> Callable[[str], bool]:
@@ -47,6 +53,7 @@ SETTINGS: dict[str, tuple[str, Callable[[str], bool]]] = {
     "quiet.windows.default_minutes": ("120", _int_in(5, 720)),   # the one-button duration: two hours
     "quiet.windows.max_minutes": ("240", _int_in(5, 720)),       # the longest a person may ask for
     "quiet.windows.mute_alerts": ("off", lambda v: v in ("off", "on")),  # also hold severity `alert` (default: `info` only)
+    CHANNELS_KEY: ("push", lambda v: v in ("push", "all")),            # which channels a window holds: phone / browser push only (default) or every channel
 }
 
 
@@ -67,6 +74,11 @@ def setting(conn: sqlite3.Connection, key: str) -> str:
 
 def enabled(conn: sqlite3.Connection) -> bool:
     return setting(conn, ENABLED) == "on"
+
+
+def held_channels(conn: sqlite3.Connection) -> frozenset[str]:
+    """The channels an active window holds back: phone / browser push only (default), or every channel when the administrator chose `all`."""
+    return ALL_CHANNELS if setting(conn, CHANNELS_KEY) == "all" else PUSH_CHANNELS
 
 
 def settings_view(conn: sqlite3.Connection) -> dict[str, str]:
@@ -234,8 +246,9 @@ def protected(n: dict[str, Any]) -> bool:
 def suppresses(conn: sqlite3.Connection, n: dict[str, Any], mode: str, now: dt.datetime) -> str | None:
     """The id of the active window that holds this notification's channels back, or None. Never for a critical severity, the safety category
     (services/mobile_push.CRITICAL_CATEGORIES), the doors / security categories or a door / entry source (`protected`, REL2140 M-5), an
-    escalation, a notification with no area, or while the feature is off. Every channel (web push, the app, e-mail, WhatsApp - its plan and
-    its `still_wanted` re-check - and the spoken announcement) decides through this one rule."""
+    escalation, a notification with no area, or while the feature is off. It says WHETHER a window is on this notification; WHICH channels it
+    holds is `held_channels` (phone / browser push by default). Every channel decides through these two (the dispatch stores both on the
+    Dispatch; WhatsApp re-checks both in its `still_wanted`)."""
     if mode == "escalate" or protected(n):
         return None
     area = n.get("area_id")

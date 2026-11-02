@@ -83,20 +83,26 @@ class Dispatch:
     _conn: Any = None
     _reach: dict[str, Reach] = field(default_factory=dict)
     quiet_window: str | None = None     # CR-QUIET103: the id of the active quiet window (floor / area) that holds this informational notification back
+    quiet_window_channels: frozenset[str] = frozenset({"webpush", "app"})  # which channels that window holds: phone / browser push by default (quiet.windows.channels)
 
     @property
     def severity(self) -> str:
         return self.n["severity"]
 
-    def held_reason(self) -> str:
-        """The delivery-log reason of a held channel: `quiet_window` when a quiet window holds it, else `quiet_hours`."""
-        return "quiet_window" if self.quiet_window else "quiet_hours"
+    def window_holds(self, channel: str) -> bool:
+        """An active quiet window holds THIS channel (never an escalation). By default only phone / browser push: the others ignore the window."""
+        return bool(self.quiet_window) and self.mode != "escalate" and channel in self.quiet_window_channels
+
+    def held_reason(self, channel: str | None = None) -> str:
+        """The delivery-log reason of a held channel: `quiet_window` when a quiet window holds it (when `channel` is given: holds THAT channel), else `quiet_hours`."""
+        window = bool(self.quiet_window) if channel is None else self.window_holds(channel)
+        return "quiet_window" if window else "quiet_hours"
 
     def held(self, channel: str) -> bool:
         """Quiet hours hold this channel back for this severity (the pass-through matrix); an escalation always passes."""
         if self.mode == "escalate":
             return False
-        if self.quiet_window:  # CR-QUIET103: set only for a non-critical, non-safety notification in the window's place (services/quiet_windows.suppresses)
+        if self.window_holds(channel):  # CR-QUIET103: set only for a non-critical, non-safety notification in the window's place (services/quiet_windows.suppresses)
             return True
         if not self.quiet:
             return False
@@ -291,7 +297,7 @@ class WebPushChannel(Channel):
                 out.append(Target(self.name, uid, host, "skipped", "snoozed"))
                 continue
             if d.held(self.name):
-                out.append(Target(self.name, uid, host, "skipped", d.held_reason()))
+                out.append(Target(self.name, uid, host, "skipped", d.held_reason(self.name)))
                 continue
             if key is None:
                 out.append(Target(self.name, uid, host, "skipped", "no_key"))
@@ -369,6 +375,8 @@ def dispatch(notifier: "push.PushNotifier", nid: str | None, item: dict[str, Any
             from . import quiet_windows
 
             d.quiet_window = quiet_windows.suppresses(conn, n, mode, now)
+            if d.quiet_window:
+                d.quiet_window_channels = quiet_windows.held_channels(conn)  # APP-SERVER-LEFTOVERS-2380: phone / browser push only, unless the administrator chose `all`
         except Exception:  # noqa: BLE001
             log.warning("quiet window check failed for notification %s", nid, exc_info=True)
         channels = policy["channels"]

@@ -675,6 +675,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import app_refresh as app_refresh_router
 
     app.include_router(app_refresh_router.router, prefix=api, tags=["identity"])  # APPREFRESH-295: the phone app's persistent sign-in (switch security.app_refresh, default off)
+    from .routers import app_brand as app_brand_router
+
+    app.include_router(app_brand_router.router, prefix=api, tags=["settings"])  # APP-SERVER-LEFTOVERS-2380: the company name + logo for the phone apps' splash / about screen (device token or session, read-only)
     from .routers import ha_users as ha_users_router
 
     app.include_router(ha_users_router.router, prefix=api, tags=["access"])  # USR1: home-system users created from Arx (users.ha_manage + an HA administrator)

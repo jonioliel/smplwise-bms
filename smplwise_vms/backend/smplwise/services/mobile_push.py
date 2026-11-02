@@ -301,8 +301,8 @@ class AppPushChannel(notify_channels.Channel):
             if d.mode != "escalate" and rec is not None and rec["snoozed_until"] and rec["snoozed_until"] > iso_utc(d.now):
                 out.append(notify_channels.Target(self.name, uid, ref, "skipped", "snoozed"))
                 continue
-            if d.held("webpush"):  # the app follows the matrix's push column (no column of its own)
-                out.append(notify_channels.Target(self.name, uid, ref, "skipped", d.held_reason()))
+            if d.held("webpush"):  # the app follows the matrix's push column (no column of its own) and, with the browser push, is what a quiet window holds
+                out.append(notify_channels.Target(self.name, uid, ref, "skipped", d.held_reason("webpush")))
                 continue
             if not ready:
                 out.append(notify_channels.Target(self.name, uid, ref, "skipped", "channel_unavailable"))
