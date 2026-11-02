@@ -1761,7 +1761,7 @@ export class SystemDiagnostics extends LitElement {
               ? html`<div class="blist" data-backups>${list.map((b) => this.renderBackupRow(b))}</div>`
               : this.loadFailed
                 ? html`<sw-state-panel compact state="error" heading="רשימת הגיבויים לא נטענה" hint=${this.loadFailed} actionLabel="נסו שוב" @action=${() => void this.loadBackups()}></sw-state-panel>`
-                : html`<sw-state-panel compact state="empty" icon="history" heading="עדיין אין גיבויים" hint="הראשון ייווצר אוטומטית לפני העדכון הבא, או עכשיו בלחיצה."></sw-state-panel>`}
+                : html`<sw-state-panel icon="history" compact state="empty" heading="עדיין אין גיבויים" hint="הראשון ייווצר אוטומטית לפני העדכון הבא, או עכשיו בלחיצה."></sw-state-panel>`}
       </sw-card>
       ${isApi() && can('backup.manage') ? html`<sw-offbox-backup data-offbox-section></sw-offbox-backup>` : nothing}
       <sw-card heading="אוטומטי ו־Rollback">

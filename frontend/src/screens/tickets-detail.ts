@@ -77,7 +77,7 @@ export class TicketsDetailPage extends LitElement {
   /** The full screen before its answer: the shape of what is coming (the back bar, the head, the status block, three rows), so
    * nothing jumps when the ticket lands. Decoration only; the page says it is busy. */
   private skeleton() {
-    return html`<div class="page" data-tickets-state="loading" aria-busy="true" aria-label=${t('states.loading')}>
+    return html`<div class="page" data-tickets-state="loading" role="status" aria-busy="true" aria-label=${t('states.loading')}>
       <div class="sk" aria-hidden="true">
         <sw-skeleton variant="block" height="36px" width="120px"></sw-skeleton>
         <sw-skeleton variant="block" height="96px"></sw-skeleton>

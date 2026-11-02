@@ -385,7 +385,7 @@ export class TicketsVendorAccounts extends LitElement {
   private body(): TemplateResult {
     if (this.phase === 'forbidden') return html`<sw-state-panel state="forbidden" quiet heading=${ct('forbidden')} data-va-state="forbidden"></sw-state-panel>`;
     if (this.phase === 'loading') {
-      return html`<div class="skel" data-va-state="loading" aria-busy="true" aria-label=${t('states.loading')}>
+      return html`<div class="skel" data-va-state="loading" role="status" aria-busy="true" aria-label=${t('states.loading')}>
         <sw-skeleton variant="block" height="132px"></sw-skeleton>
         <sw-skeleton variant="block" height="44px"></sw-skeleton>
         <sw-skeleton variant="block" height="240px"></sw-skeleton>

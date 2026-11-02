@@ -61,8 +61,10 @@ export const handlersGlass = css`
     border-radius: var(--sw-r-2xl);
     transition: box-shadow var(--mm-motion), transform var(--mm-motion);
   }
-  .hcard:hover {
-    box-shadow: var(--dv-shadow-2);
+  @media (hover: hover) and (pointer: fine) {
+    .hcard:hover {
+      box-shadow: var(--dv-shadow-2);
+    }
   }
   .hcard.off {
     opacity: 0.72;
@@ -313,8 +315,10 @@ export const handlersGlass = css`
   .crow:last-child {
     border-block-end: 0;
   }
-  .crow:hover {
-    background: var(--dv-surface-2);
+  @media (hover: hover) and (pointer: fine) {
+    .crow:hover {
+      background: var(--dv-surface-2);
+    }
   }
   .crow:focus-visible {
     outline: 2px solid var(--dv-focus);
