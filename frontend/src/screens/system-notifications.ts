@@ -30,6 +30,8 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { subscribeClock } from '../api/clock-ticker';
 import { dateInputLang } from '../api/day-format';
+import './system-quiet-windows'; // APP-SERVER-LEFTOVERS-2380: the quiet-window card (quiet.windows.*, incl. channels)
+import { qwt } from '../i18n/quiet-windows';
 
 type SecId = 'sources' | 'quiet' | 'esc' | 'lock' | 'keep' | 'mail' | 'wa' | 'chan' | 'log';
 const SECTIONS: { id: SecId; label: string; icon: string }[] = [
@@ -1297,7 +1299,8 @@ export class SystemNotifications extends LitElement {
       <div class="frow ${dis ? 'dis' : ''}" style="align-items:flex-start"><div class="l"><b>מה עובר בשעות שקט</b></div></div>
       <table class="qmx ${dis ? 'dis' : ''}"><thead><tr><th>חומרה</th><th>${CHANNEL_LABEL.webpush}</th><th>${CHANNEL_LABEL.email}</th><th>${CHANNEL_LABEL.whatsapp}</th><th>Companion</th></tr></thead><tbody>${SEVERITIES.slice().reverse().map((sv) => html`<tr><td><span class="sv" style=${`--sev:var(--nt-sev-${sv})`}><i></i>${SEVERITY_LABEL[sv]}</span></td>
         ${(['webpush', 'email', 'whatsapp'] as const).map((c) => html`<td><button type="button" class="chk" role="checkbox" aria-checked=${String(s.pass_through[sv][c] ?? false)} aria-label=${`${SEVERITY_LABEL[sv]} · ${CHANNEL_LABEL[c]}`} data-pass=${`${sv}:${c}`} ?disabled=${dis} @click=${() => this.patchSettings({ pass_through: togglePass(s.pass_through, sv, c) })}>${nIcon('check')}</button></td>`)}
-        <td><button type="button" class="chk" role="checkbox" aria-checked=${String(s.pass_through[sv].ha_mobile)} aria-label="Companion – בקרוב" disabled>${nIcon('check')}</button></td></tr>`)}</tbody></table></section>`;
+        <td><button type="button" class="chk" role="checkbox" aria-checked=${String(s.pass_through[sv].ha_mobile)} aria-label="Companion – בקרוב" disabled>${nIcon('check')}</button></td></tr>`)}</tbody></table></section>
+      <section class="glass sec" data-set-section="quiet-windows" id="sec-quiet-windows"><header><h2>${nIcon('moon')}${qwt('title')}</h2></header><system-quiet-windows></system-quiet-windows></section>`;
   }
   private setTime(which: 'from' | 'to', value: string) {
     if (!this.settings || !Number.isFinite(hhmmToMin(value))) return;
