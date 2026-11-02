@@ -17,6 +17,9 @@ the train. `pilot/POLISH4-WP5-EVID-BEFORE` / `-AFTER` and `probe/POLISH4-WP8-bef
 | 7 | `pilot/POLISH4-WP8-SETMOD-2370` (settings modules: access / external access, announcements, notices, notifications, presence, transit incl. the new "check now" route, elevators, generator) | a30c0810a | none |
 | 8 | `pilot/POLISH4-WP4-HOME-2370` (home edit bar, widgets, automations, announce, layout editor) | d82199646 | none |
 
+| 9 | `fix/UNLOCK-REASON-2370` (accurate lock unlock reasons, door-map notices, readiness fact; owner-approved for 2.37.0) | 335f178f7 | none (no route change, inventory unchanged) |
+| 10 | `chore/REGISTRY-UPDATE-2380` (management/tasks.json, test_catalog.json, views) | a1e588f52 | none; `scripts/project_status.py --write` re-run on the merged tree, regenerated views committed (383 tasks, 492 requirements) |
+
 Order note: WP4 is merged after WP1 (it removed a local notices hover cancel that relies on WP1's shared hover gate).
 
 After the merges, `contracts/API_INVENTORY.md` was regenerated with `scripts/api_inventory.py` (1711 routes, adding
@@ -35,7 +38,8 @@ the removals. After the two merges the list no longer has `screens/system-update
 |---|---|
 | `tsc --noEmit` | 0 errors (merged tree without WP3; and the final tree, see the last line of this table) |
 | Node unit specs, `playwright.unit.config.ts --workers=1 tests/unit-`, tree with WP1 / WP7 / WP6 / WP2 / WP5 | 3686 tests: **3684 passed, 1 failed, 1 skipped** (12.8 min). The one failure: `unit-empty-state-icons` "every empty sw-state-panel names a topical icon" - the empty panels of WP3's screens (tickets full screen, overview) were not yet on the tree; WP3's own commit `aa365b8f1` fixes exactly that guard |
-| Final tree (WP3 merged, hover gates, aria fixes below) | see "Final run" at the end of this document |
+| Tree with all eight polish packages + the pass fixes + API inventory (before UNLOCK-REASON and the registry) | tsc 0 errors; unit suite `tests/unit-` `--workers=1`: **3691 passed, 0 failed, 1 skipped** (12.4 min) |
+| After UNLOCK-REASON-2370 merge | tsc 0 errors; unit subset (lock-reason, token-lint, a11y, empty-state, menu-lint, polish4, readiness, door): **129 passed, 0 failed**; backend `test_unlock_reason_2370.py` + `test_transit_check_wp8.py` (single process): all 20 passed |
 | `scripts/release_check.py` | "ready for the owner's approval" - every check ok; the only FAIL is the expected "git tag for this version" (v2.36.0 is untagged on this branch; no bump yet) |
 | Backend suite, browser / evidence / pixel / visual-matrix specs | NOT_RUN (workstation memory; runner, see below) |
 
