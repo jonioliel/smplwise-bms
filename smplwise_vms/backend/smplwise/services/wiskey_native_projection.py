@@ -7,7 +7,7 @@ Native owns grants and append-only execution dedup; Arx only reads those grants.
 """
 
 from __future__ import annotations
-import hashlib, json, os, secrets
+import hashlib, json, os, secrets, threading
 from pathlib import Path
 from typing import Any
 from contextlib import contextmanager
@@ -26,6 +26,9 @@ FENCE_UNSUPPORTED = "generation_fence_unsupported"
 EVIDENCE_KEY = "wiskey.installation.generation_evidence.v1"
 OBSERVATION_KEY = "wiskey.installation.readiness_observation.v1"
 HISTORY_KEY = "wiskey.installation.r2_history.v1"
+# WisKey M12 policy B, slice S3: the wire projection of the committed maintenance intent (relay-maintenance-v1), next to controller.v1
+# in the same private directory and under the same fence. Written only by publish_maintenance (DB -> JOURNAL_LOCK -> fence).
+MAINTENANCE_RELATIVE = ".storage/hikvision_intercom.arx_installation/maintenance.v1.json"
 NAMES = ("smplwise_bridge", "hikvision_intercom")
 
 
@@ -42,6 +45,10 @@ def require_fence():
         raise InstallationError(FENCE_UNSUPPORTED)
 
 
+_HELD: dict[str, list] = {}  # private directory -> [thread ident, depth]: the fence this process holds (S3, re-entry by its holder)
+_HELD_LOCK = threading.Lock()
+
+
 @contextmanager
 def generation_fence(root):
     """WISKEY-RC7-ADOPT-2331 (rc.7 map row 5): the original `generation.lock` next to the projection, shared only with Native's
@@ -49,9 +56,26 @@ def generation_fence(root):
     state, no counter and no claim - it is never read or written, only flock'ed; the ONE journal stays in SQLite
     (`wiskey.installation.generation`). Order: Arx DB -> JOURNAL_LOCK -> this fence; Native takes only the fence and never calls Arx
     or its SQLite connection while holding it. No socket I/O under it. Busy for more than FENCE_WAIT_S: TimeoutError
-    `generation_fence_busy`. No fcntl: `generation_fence_unsupported` (`require_fence`)."""
+    `generation_fence_busy`. No fcntl: `generation_fence_unsupported` (`require_fence`).
+
+    WisKey M12 S3: a generation / claim writer keeps the fence until its write transaction ENDS (wiskey_install_generation._store,
+    db.on_transaction_end) - also inside the add-on start-up transaction. The thread that holds it may enter it again (depth count)
+    instead of waiting on its own flock; every other thread and process waits as before."""
     require_fence()
     parent = _private_dir(root)
+    key, me = str(parent.resolve()), threading.get_ident()
+    with _HELD_LOCK:
+        held = _HELD.get(key)
+        again = held is not None and held[0] == me
+        if again:
+            held[1] += 1
+    if again:
+        try:
+            yield
+        finally:
+            with _HELD_LOCK:
+                held[1] -= 1
+        return
     fd = os.open(parent / FENCE_NAME, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
     try:
         deadline = time.monotonic() + FENCE_WAIT_S
@@ -63,9 +87,13 @@ def generation_fence(root):
                 if time.monotonic() >= deadline:
                     raise TimeoutError("generation_fence_busy") from None
                 time.sleep(min(.01, max(0, deadline - time.monotonic())))
+        with _HELD_LOCK:
+            _HELD[key] = [me, 1]
         try:
             yield
         finally:
+            with _HELD_LOCK:
+                _HELD.pop(key, None)
             _fcntl.flock(fd, _fcntl.LOCK_UN)
     finally:
         os.close(fd)
@@ -106,6 +134,7 @@ def invalidate(root):
         return
     with generation_fence(root):  # rc.7 row 5: the delete runs under the publication fence (refused without fcntl)
         path.unlink(missing_ok=True)
+        (Path(root) / MAINTENANCE_RELATIVE).unlink(missing_ok=True)  # S3: no maintenance admission outlives its controller
         _sync(path.parent)
 
 
@@ -133,6 +162,49 @@ def _write(root, value):
         _sync(parent)
     finally:
         tmp.unlink(missing_ok=True)
+
+
+def publish_maintenance(db, root, *, generation_id, token):
+    """WisKey M12 policy B, slice S3 (relay-maintenance-v1, contribution M12-POLICY-B.20261102.01 adopted semantically): write the
+    COMMITTED maintenance intent of the ONE SQLite journal, exactly as stored, to `maintenance.v1.json`. Order DB -> JOURNAL_LOCK ->
+    fence, no transport I/O. The controller projection is never written or removed here: `invalidated` retires the maintenance
+    admission only. Returns the intent state, or `stale` (another generation / token, no committed intent, or no published
+    `installed` + `restart_requested` controller for this generation). Without fcntl: `generation_fence_unsupported`."""
+    from . import wiskey_install_generation as gen
+
+    require_fence()
+    with db.write_aside(label="publish committed maintenance v1") as conn:
+        with gen.JOURNAL_LOCK:
+            cur = gen.read(db, conn)
+            intent = None if cur is None else cur.get(gen.MAINTENANCE_KEY)
+            if (cur is None or cur["generation_id"] != generation_id or not isinstance(intent, dict)
+                    or intent.get("token") != token or cur["digest"] != intent.get("source_digest")):
+                return "stale"
+            with generation_fence(root):
+                from .wiskey_auto_install import InstallationError, read_private_json
+
+                try:
+                    controller = read_private_json(Path(root) / RELATIVE)
+                except InstallationError:
+                    return "stale"
+                if (not isinstance(controller, dict) or controller.get("generation_id") != generation_id
+                        or controller.get("source_digest") != cur["digest"] or controller.get("phase") != "installed"
+                        or controller.get("state") != gen.REQUESTED):
+                    return "stale"  # never manufacture installed / loaded state, never touch the controller
+                parent = _private_dir(root)
+                path = Path(root) / MAINTENANCE_RELATIVE
+                tmp = parent / (".maintenance." + secrets.token_hex(8) + ".tmp")
+                try:
+                    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+                    with os.fdopen(fd, "w") as stream:
+                        json.dump(intent, stream, sort_keys=True, separators=(",", ":"))
+                        stream.flush()
+                        os.fsync(stream.fileno())
+                    os.replace(tmp, path)
+                    _sync(parent)
+                finally:
+                    tmp.unlink(missing_ok=True)
+            return str(intent["state"])
 
 
 def publish(db, root, expected, *, generation_id, claim=None, restart_boot_id=None):

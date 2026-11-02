@@ -378,7 +378,36 @@ def _begin_immediate(conn: sqlite3.Connection, label: str, wait_s: float | None 
     _note_wait(now - started, label)
 
 
+# WisKey M12 policy B, slice S3 (docs/changes/WISKEY-RC7-ADOPT-2331.md): a few callers must keep an outside resource - the WisKey
+# generation publication fence - until the write transaction that changed the decision has ENDED (committed or rolled back),
+# including a caller's own long transaction such as the add-on start-up. on_transaction_end() registers such a release; it runs
+# once, right after the COMMIT / ROLLBACK and before the write gate is handed on (or when the lease closes, whatever happened).
+_tx_end: dict[int, list[Callable[[], None]]] = {}
+
+
+def on_transaction_end(conn: sqlite3.Connection, fn: Callable[[], None]) -> bool:
+    """Run `fn` once when this connection's open write transaction ends. False (nothing registered) for a connection that is not
+    a connection() / write_aside() lease of this module or that is outside a transaction: the caller then releases at once."""
+    try:
+        open_tx = conn.in_transaction
+    except sqlite3.ProgrammingError:  # closed
+        return False
+    if id(conn) not in _conn_gate or not open_tx:
+        return False
+    _tx_end.setdefault(id(conn), []).append(fn)
+    return True
+
+
+def _run_tx_end(conn: sqlite3.Connection) -> None:
+    for fn in _tx_end.pop(id(conn), ()):
+        try:
+            fn()
+        except Exception:  # noqa: BLE001 - a release never fails the commit that already happened
+            log.exception("end-of-transaction release failed")
+
+
 def _end_hold(conn: sqlite3.Connection) -> None:
+    _run_tx_end(conn)
     _release_gate(conn)
     held = _holders.pop(id(conn), None)
     if held is None:
@@ -398,6 +427,7 @@ def _end_hold(conn: sqlite3.Connection) -> None:
 
 def _drop_hold(conn: sqlite3.Connection) -> None:
     """The connection is closing: forget its hold and hand the gate on, whatever state the transaction ended in."""
+    _run_tx_end(conn)
     _holders.pop(id(conn), None)
     _release_gate(conn)
     _stray_logged.discard(id(conn))
