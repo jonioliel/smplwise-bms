@@ -295,7 +295,7 @@ test.describe('the camera card in an area screen (real backend, fake media stack
       const cards = [...(area?.shadowRoot?.querySelectorAll('devices-camera-card') ?? [])] as unknown as (HTMLElement & Record<string, unknown>)[];
       return {
         vh: window.innerHeight, vw: window.innerWidth, hidden: document.hidden,
-        cards: cards.map((c) => { const r = c.getBoundingClientRect(); const res = c.resolved as { state?: string; status?: string } | null; return { key: c.closest('sw-card')?.getAttribute('data-camera-card'), top: Math.round(r.top), h: Math.round(r.height), inView: c.inView, expanded: c.expanded, state: res?.state, status: res?.status, quality: c.quality ?? c.profile, html: c.shadowRoot?.innerHTML.replace(/<!--[^>]*-->/g, '').slice(0, 300) }; }),
+        cards: cards.map((c) => { const r = c.getBoundingClientRect(); const res = c.resolved as { state?: string; status?: string } | null; return { key: c.closest('sw-card')?.getAttribute('data-camera-card'), top: Math.round(r.top), h: Math.round(r.height), inView: c.inView, expanded: c.expanded, state: res?.state, status: res?.status, quality: c.quality ?? c.profile, margin: (c.io as { rootMargin?: string } | undefined)?.rootMargin, root: (() => { const ro = (c.io as { root?: Element | null } | undefined)?.root; if (!ro) return 'viewport'; const rr = ro.getBoundingClientRect(); return ro.tagName + '.' + ro.className + ' ' + Math.round(rr.top) + '-' + Math.round(rr.bottom); })(), card: (() => { const sc = c.closest('sw-card'); const rr = sc?.getBoundingClientRect(); return rr ? Math.round(rr.top) + '+' + Math.round(rr.height) : ''; })() }; }),
       };
     })));
     await expect.poll(async () => (await active(page)).length, { timeout: 20000 }).toBe(3);
