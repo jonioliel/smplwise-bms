@@ -2,11 +2,14 @@
 
 Branch `sec/CAL-FEED-REVIEW-2351` from `release/2350-train` (1993a207d). Scope: `GET /api/v1/calendar/feed/{token}.ics` (CALCONNECT-2330,
 2.33.0) - the only calendar route that answers without a signed-in person - and its management routes `/calendar/feeds*`. 2.33.1 put the
-document on `remote_channel.BLOCKED_ON_REMOTE` until this review. No version bump; the owner decides the remote exposure (last section).
+document on `remote_channel.BLOCKED_ON_REMOTE` until this review. No version bump. The owner decided the remote exposure on 02.11 (round 14,
+section 6); the screen and the server follow those answers.
 
 Code: `smplwise_vms/backend/smplwise/routers/calendar_feeds.py`, `remote_channel.py` (`ROUTE_GATED_ON_REMOTE`), `services/calendar/model.py`
 (three settings), migration `0192_calendar_feed_review.sql` (two columns; the lead re-sequences at assembly if another branch departs
-first - WisKey plans 0192-0194). Tests: `smplwise_vms/backend/tests/test_calendar_feed_review_2351.py`.
+first - WisKey plans 0192-0194; release/2360-train carries it as 0193). Round 14 adds no migration. Tests:
+`smplwise_vms/backend/tests/test_calendar_feed_review_2351.py`; screen: `frontend/src/calendars/connect-dialogs.ts`, `connect-model.ts`,
+`frontend/src/screens/system-calendars.ts`; `frontend/tests/unit-calendars-feed-remote-2351.spec.ts`, `evidence-calendars-connect-2330.spec.ts`.
 
 ## 1. Threat model
 
@@ -38,11 +41,11 @@ nevertheless re-compared with `hmac.compare_digest` (defence in depth).
 | F4 | Size: 5000 entries but no byte cap | Low | `MAX_DOC_BYTES` (2 MB): the document stops at the last whole entry and stays valid | `test_the_document_is_capped_in_bytes_and_stays_valid` |
 | F5 | Rate limiting only per token and only AFTER a successful lookup: unknown-token guessing was unlimited (a database read per request), and the contract (13.5) says "per token and IP" | Medium | Per-client-address budget (`feed_address_rate_per_min`, default 120) counted BEFORE format / lookup, so a miss costs the same as a hit and 404 / 429 tell nothing about validity; per-feed budget now the setting `feed_rate_per_min` (default 30). Remote: the address is `CF-Connecting-IP` | `test_per_address_budget_counts_misses_before_the_lookup_and_per_feed_budget_holds` |
 | F6 | Authority drift: a feed kept publishing after its creator was deactivated, lost `calendar.connect`, lost `edit` in a calendar | **High** | `_creator_calendars`: at every request the creator must exist, be active and not disabled, hold `calendar.connect`, and hold `edit`+ in each calendar (not archived); calendars that fail drop out; none left = the uniform 404 | `test_a_feed_follows_its_creators_current_authority` |
-| F7 | No expiry: an address leaked to a subscriber worked forever | Medium | Setting `feed_max_age_days` (default 0 = no limit, 1-3650): past it the uniform 404 until rotated | covered in the F1 test |
+| F7 | No expiry: an address leaked to a subscriber worked forever | Medium | Round 14 (3C): every address gets its own expiry when it is issued (create / rotate = "renew link") from the setting `feed_max_age_days` (default 365, 0 = no limit, up to 3650); past it the uniform 404 until renewed. Addresses issued before round 14 keep no expiry; a later change of the setting never shortens an address already out | F1 test; `test_round14_new_links_get_the_default_expiry_and_a_setting_change_never_shortens_an_issued_one`, `test_round14_existing_links_keep_their_expiry` |
 | F8 | Caching: `private, max-age=300` let a client / proxy keep serving a revoked feed for 5 min; no `Referrer-Policy` | Low | `Cache-Control: private, no-store`, `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex, nofollow`, `nosniff`; no cookie, no CORS | `test_document_headers` |
 | F9 | **Token in logs**: uvicorn's access line records the full path (= the token) in the add-on log; the request's DB-connection label (slow-hold / busy log lines, lock statistics) also carried the full path | **High** | `RedactFeedToken` log filter on `uvicorn.access`, `uvicorn.error`, `smplwise` (`/calendar/feed/REDACTED`); the document's own read connection with a token-free label | `test_access_log_lines_are_redacted_and_the_connection_label_has_no_token` |
 | F10 | Hash compare by SQL equality only | Info | `hmac.compare_digest` after the indexed lookup | `test_the_stored_hash_is_compared_in_constant_time` |
-| F11 | Remote exposure was all-or-nothing (blocked at the edge) | Design | Per-feed `remote_enabled` (default 0). The edge (`ROUTE_GATED_ON_REMOTE`) passes only an exact `GET /api/v1/calendar/feed/<43 chars>.ics`; every other method / shape stays edge-blocked; the route answers the uniform 404 unless that feed's switch is on. `PUT /calendar/feeds/{id}/remote {enabled}`: creator or admin, LOCAL session only (403 `local_only` remotely), feed live, audited `calendar.feed.remote`; revoke clears it | `test_remote_is_off_by_default_switched_per_feed_from_a_local_session_and_audited`, `test_edge_gate_shape`, `test_migration_0192_columns`; `test_remote_access.py` unchanged and green |
+| F11 | Remote exposure was all-or-nothing (blocked at the edge) | Design | Per-feed `remote_enabled` (default 0). Round 14: ON needs an administrator or the creator holding `manage` in every calendar of the feed (OFF: creator or admin); while ON the document is busy-only on every channel (`test_round14_*`). The edge (`ROUTE_GATED_ON_REMOTE`) passes only an exact `GET /api/v1/calendar/feed/<43 chars>.ics`; every other method / shape stays edge-blocked; the route answers the uniform 404 unless that feed's switch is on. `PUT /calendar/feeds/{id}/remote {enabled}`: creator or admin, LOCAL session only (403 `local_only` remotely), feed live, audited `calendar.feed.remote`; revoke clears it | `test_remote_is_off_by_default_switched_per_feed_from_a_local_session_and_audited`, `test_edge_gate_shape`, `test_migration_0192_columns`; `test_remote_access.py` unchanged and green |
 | F12 | Audit: create / rotate / revoke audited with ids only, the token never in an audit row - **sound**; document reads are not audited (volume) - `last_used_at` (10-minute granularity) is the trace | Info | the remote switch is audited (F11) | F1 + F11 tests |
 
 ## 3. Residual risks
@@ -56,7 +59,10 @@ nevertheless re-compared with `hmac.compare_digest` (defence in depth).
    tunnel, the header could be forged; the per-feed budget and the 256-bit token still hold.
 4. Rate-limit buckets are in memory (reset on restart; one process). Acceptable for a read-only document.
 5. Document reads are not individually audited; `last_used_at` only.
-6. No screen for the remote switch yet (API only) - deliberately, until the owner decides.
+6. ~~No screen for the remote switch yet~~ - round 14: the toggle is in "פידים יוצאים" (section 6).
+7. The per-address expiry lives in the settings row `calendar.feed_expiry` (JSON `{feed id: ISO instant | null}`), not in a cal_feeds
+   column, so round 14 needs no migration. It is written in the same transaction as the feed row; a revoked feed's entry is dropped;
+   an unreadable entry fails closed (expired). A later migration on cal_feeds may fold it into a column.
 
 ## 4. Proposal: exposing a feed on the remote channel (NOT enabled)
 
@@ -84,3 +90,24 @@ review attaches to switching a feed on:
    א. ללא הגבלה (כמו היום) ב. 180 יום ג. 365 יום
 4. לחייב "תפוס בלבד" בפיד שנפתח מרחוק?
    א. כן ב. לא, היוצר בוחר
+
+## 6. Owner decisions, round 14 (02.11 evening) - implemented
+
+Answers: 1A, 2A, 3C plus "allow changing it in the settings", 4A.
+
+| # | Decision | Server | Screen |
+|---|---|---|---|
+| 1A | Allow opening a feed for remote access, per feed | `PUT /calendar/feeds/{id}/remote` as built (default off) | - |
+| 2A | A toggle next to each feed in "פידים יוצאים", only for people who manage that calendar; turning it on asks for a confirmation that names the consequence | ON: an administrator, or the feed's creator holding `manage` in EVERY calendar of the feed; OFF: the creator or an administrator (less exposure). Local session only, unchanged (403 `local_only`). `GET /calendar/feeds` answers `can_remote` per feed and `local` | "מבחוץ" toggle per feed only when `can_remote`; ON opens an in-dialog confirmation ("הקישור של הפיד יעבוד גם מחוץ לרשת של הבניין ..."), "ביטול" leaves it off; OFF applies at once |
+| 2A (rule) | Keep the local-only rule; if it makes the toggle unusable from the normal UI, explain it in Hebrew | Kept. The normal UI (the local address and the Ingress panel) is a local session for the server, so the toggle works there; only the Arx remote channel (`/arx/`) refuses. Note: the Ingress panel counts as local even when the panel itself is opened from outside through the platform's own remote access - the rule is "not through the Arx tunnel", not "physically inside the building" | On the remote channel the toggle is locked and a note says why ("... אפשרית רק מתוך הרשת של הבניין. נכנסת עכשיו מרחוק ...") |
+| 3C | Default link expiry 365 days as an installation setting (90 / 180 / 365 / no limit); existing feeds keep their expiry; new links get the default; expiry and "renew link" next to each feed | `feed_max_age_days` default 365 (0 = no limit). Each address gets its expiry when issued (create / rotate), kept in `calendar.feed_expiry`; existing addresses have none; a setting change applies to new and renewed links only | הגדרות › יומנים › התנהגות › סנכרון ופרטיות: "תוקף קישור של פיד יוצא" 90 / 180 / 365 / ללא הגבלה. Per feed: "בתוקף עד dd.mm.yyyy" / "ללא תאריך תפוגה" / expired; the rotate button is now "חידוש קישור" (a new address with the current default; the old one stops) |
+| 4A | A feed open for remote access is always busy-only, enforced on the server | While `remote_enabled` is on the document renders busy-only on EVERY channel (the same token serves both), whatever `detail` says; answers carry `detail_effective`; switching off restores the feed's own choice | The chip reads '"תפוס" בלבד · פתוח מבחוץ'; the confirmation says so |
+
+Notes for the lead:
+- The toggle permission is narrower than the round-1 build (creator or admin): a creator who holds only `edit` in one of the feed's
+  calendars no longer may switch it ON (he still may switch it OFF or revoke).
+- "Renew link" is the existing rotate: it changes the address (subscribers must take the new one). No "extend the expiry and keep the
+  address" action was added - it would keep a possibly leaked address alive.
+- After switching a feed on, the address to give an outside subscriber is the remote address of the installation with the same
+  `/api/v1/calendar/feed/<token>.ics` ending; the token is shown only when it is issued, so a feed switched on later may need "חידוש קישור".
+- The behaviour tab gains one row in the "סנכרון ופרטיות" group: the settings screen's pixel baselines may need a refresh on the runner.

@@ -382,11 +382,11 @@ Ingress identity and the scoped role check named in its handler; errors use the 
 | calendar | POST | `/api/v1/calendar/events/{eid}/sync-resolve` | The human decision on an entry flagged by the sync (C9): `keep` clears the flag, `cancel` cancels the entry. Needs `edit`+ in its calendar. |
 | calendar | POST | `/api/v1/calendar/events/{eid}/withdraw` |  |
 | calendar | GET | `/api/v1/calendar/feed/{name}` | The feed document `<token>.ics` (no signed-in person: a subscriber cannot sign in). The uniform 404 when malformed, unknown, revoked, |
-| calendar | GET | `/api/v1/calendar/feeds` | CALCONNECT-2330: the outgoing iCal feeds (never their tokens) and whether `feeds_enabled` is on. |
+| calendar | GET | `/api/v1/calendar/feeds` | CALCONNECT-2330: the outgoing iCal feeds (never their tokens) and whether `feeds_enabled` is on. Round 14: per feed `can_remote` |
 | calendar | POST | `/api/v1/calendar/feeds` | `{calendar_ids, detail: busy\|titles}`; `edit`+ in each calendar; the path with its token is answered ONCE. A new feed is never remote. |
-| calendar | PUT | `/api/v1/calendar/feeds/{fid}/remote` | CAL-FEED-REVIEW-2351: `{enabled: bool}` - may this feed's address answer on the remote channel (default off). Creator or admin, a |
+| calendar | PUT | `/api/v1/calendar/feeds/{fid}/remote` | CAL-FEED-REVIEW-2351: `{enabled: bool}` - may this feed's address answer on the remote channel (default off). A LOCAL session only |
 | calendar | POST | `/api/v1/calendar/feeds/{fid}/revoke` | Ends the feed (its address answers 404 from now on). Creator or admin. |
-| calendar | POST | `/api/v1/calendar/feeds/{fid}/rotate` | A new token (answered once); the old address stops at once; the age limit counts again from now. Creator or admin. |
+| calendar | POST | `/api/v1/calendar/feeds/{fid}/rotate` | "Renew link": a new token (answered once); the old address stops at once; its expiry is fixed again from now with the CURRENT |
 | calendar | POST | `/api/v1/calendar/guests/purge` | C4: destroys every guest name and phone now. Counts only in the audit row. |
 | calendar | POST | `/api/v1/calendar/maintenance` |  |
 | calendar | POST | `/api/v1/calendar/maintenance/preview` |  |

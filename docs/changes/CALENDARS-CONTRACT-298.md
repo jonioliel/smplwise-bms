@@ -662,6 +662,7 @@ document `GET /calendar/feed/{token}.ics` is the module's only route without a s
 anything unknown, 30 a minute per token; public exposure still waits for the 15.11 review. CAL-FEED-REVIEW-2351 (the 15.11 review,
 docs/changes/CAL-FEED-REVIEW-2351.md): per-address budget counted before the lookup, the creator's current authority, an optional age
 limit, token-free logs, no-store, and a per-feed remote switch (default off, local sessions only) - the tunnel still answers 404 otherwise.
+Owner round 14 (02.11): a toggle per feed in the screen, a remote feed is busy-only, a per-address expiry (default 365 days, a setting).
 
 | Method | Path | Notes |
 |---|---|---|
@@ -672,8 +673,8 @@ limit, token-free logs, no-store, and a per-feed remote switch (default off, loc
 | POST | `/calendar/connections/{id}/authorize/poll` | Microsoft: `none / pending / slow_down / denied / expired / connected` |
 | DELETE | `/calendar/connections/{id}/authorize` | cancel a pending grant |
 | GET / POST | `/calendar/feeds` | `calendar.connect`; POST `{calendar_ids, detail: busy\|titles}` needs `edit`+ in each; answers the path ONCE |
-| POST | `/calendar/feeds/{id}/rotate` / `revoke` | creator or admin |
-| PUT | `/calendar/feeds/{id}/remote` | `{enabled}`; creator or admin; local session only (403 `local_only` remotely); audited `calendar.feed.remote` |
+| POST | `/calendar/feeds/{id}/rotate` / `revoke` | creator or admin; rotate = "חידוש קישור" (new address, new expiry from `feed_max_age_days`) |
+| PUT | `/calendar/feeds/{id}/remote` | `{enabled}`; ON: admin, or the creator with `manage` in every calendar of the feed; OFF: creator or admin; local session only (403 `local_only` remotely); audited `calendar.feed.remote`; while on, the document is busy-only |
 | GET | `/calendar/feed/{token}.ics` | text/calendar, confirmed entries, never notes, attendees or guests; remote only with the feed's switch |
 
 Connection answers carry `setup: {client_id_set, client_secret_set, authorized, feed_url_set, tenant, ready, pending_flow}` and

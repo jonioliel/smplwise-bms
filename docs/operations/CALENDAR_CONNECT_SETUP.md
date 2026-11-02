@@ -55,12 +55,14 @@ Microsoft has no per-token revoke: "ניתוק" deletes the tokens in Arx; also 
 ## 4. Outgoing iCal feed
 
 Settings › Calendars: switch on `feeds_enabled`. iCal card › "פידים יוצאים" › choose calendars (you need edit in each) and busy / titles
-› "פיד חדש". The address is shown ONCE; "כתובת חדשה" replaces it, "ביטול" ends it. Notes, guests and organisers never leave.
+› "פיד חדש". The address is shown ONCE; "חידוש קישור" replaces it (a new address with a new expiry), "ביטול" ends it. Notes, guests and organisers never leave.
 The address works only where Arx is reachable by the subscribing application. The feed security review (contract 15.11) is
 docs/changes/CAL-FEED-REVIEW-2351.md: on the remote channel (the tunnel) every feed answers "not found" unless that feed's own remote
-switch is on (default off; `PUT /calendar/feeds/{id}/remote`, from a local session only, by its creator or an administrator; no screen
-yet - an owner decision). Optional limits in Settings › Calendars: `feed_max_age_days` (the address stops answering N days after it was
-issued until "כתובת חדשה"; 0 = never), `feed_rate_per_min` and `feed_address_rate_per_min`. A feed stops showing a calendar as soon as its
+switch is on (default off). Owner round 14: the "מבחוץ" toggle next to each feed (shown to an administrator or to the feed's creator
+who manages every calendar of it; turning it on asks for a confirmation; only from a local session - on the remote channel the toggle is
+locked with an explanation). A feed open from outside is always busy-only. Each address expires `feed_max_age_days` after it was issued
+(Settings › Calendars › התנהגות, 90 / 180 / 365 / no limit, default 365; addresses issued before this change keep no expiry; a change of
+the setting applies to new and renewed addresses only). Also `feed_rate_per_min` and `feed_address_rate_per_min`. A feed stops showing a calendar as soon as its
 creator loses edit there, loses the connect permission or is deactivated.
 
 ## 5. Statuses on a card
