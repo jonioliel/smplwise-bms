@@ -67,7 +67,16 @@ async function open(page: Page, c: Case, skin: string, scheme: string) {
   }, c.init ?? {});
   await page.goto('about:blank');
   await page.goto(`/?design=a&skin=${skin}&scheme=${scheme}#${c.hash}`);
-  await page.waitForSelector('sw-app');
+  // GATE2360-B: on the Vite DEV server shared by four workers, a page's module graph sometimes never finished loading (2.36.0 gate:
+  // <sw-app> stayed an empty, undefined element for the whole 240 s budget of two cases, both green on the retry and at the other
+  // viewport). The shell is given 60 s to boot; a load that did not boot is reloaded ONCE and named in the report (annotation
+  // "dev-boot-reload"), so a real boot failure still fails here and a repeated stall stays visible. The measurement is unchanged.
+  const booted = await page.waitForSelector('sw-app', { timeout: 60_000 }).then(() => true, () => false);
+  if (!booted) {
+    test.info().annotations.push({ type: 'dev-boot-reload', description: `${c.id} ${skin}/${scheme}: <sw-app> did not boot in 60 s; reloaded once` });
+    await page.reload();
+    await page.waitForSelector('sw-app', { timeout: 60_000 });
+  }
   await page.locator(`sw-app ${c.ready}`).first().waitFor({ timeout: 20_000 });
   await page.evaluate(() => document.fonts.ready);
 }

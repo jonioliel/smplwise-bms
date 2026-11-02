@@ -119,6 +119,18 @@ test.describe('tickets deletion evidence', () => {
       }
     const mock = await go(page, '/tickets/mine', { costBlocked: ['0000000000000a04'] });
     await page.locator(`${T} tbody tr`).first().waitFor();
+    // GATE2360-A: the first rows drawn are not always the final list - the table answered 8 rows and then 11 in the 2.33.3 nightly and
+    // the 2.36.0 gate (an early load before the address's filters and the saved board settings settled), so `before` was 8 and the
+    // range selection could land on a list being redrawn. Count, and select, only once the row count held still for a while.
+    let last = -1;
+    await expect
+      .poll(async () => {
+        const n = await page.locator(`${T} tbody tr`).count();
+        const same = n === last;
+        last = n;
+        return same;
+      }, { intervals: [600], timeout: 15_000 })
+      .toBe(true);
     const before = await page.locator(`${T} tbody tr`).count();
     await page.locator(`${T} tbody [data-select]`).nth(0).click();
     await page.locator(`${T} tbody [data-select]`).nth(2).click({ modifiers: ['Shift'] });
