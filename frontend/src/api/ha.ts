@@ -172,16 +172,23 @@ export const getAction = (id: string) => get<HaActionRecord>(`ha/actions/${id}`)
 export const installBridge = () => post<HaIntegrationStatus>('ha/bridge/install');
 
 /** Entity-action request (contracts/entity-action.request.schema.json): one client id per click, short expiry. */
-export function runAction(entityId: string, actionId: string, args: Record<string, unknown> = {}, confirmed = false) {
-  const body = {
+export function runAction(entityId: string, actionId: string, args: Record<string, unknown> = {}, confirmed = false, building = '') {
+  const body = actionBody(actionId, args, confirmed, commandId(), new Date(Date.now() + 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z'), building);
+  return post<HaActionRecord>(`ha/entities/${encodeURIComponent(entityId)}/actions`, body);
+}
+
+/** The entity-action body. BUILDING-SCOPE-CONTROL-2351: `building` (a control pressed inside one building of a multi-building site) is
+ * added only when named - the server then refuses a device of another building (403 outside_building); '' = today's body, key for key. */
+export function actionBody(actionId: string, args: Record<string, unknown>, confirmed: boolean, requestId: string, expiresAt: string, building = '') {
+  return {
     allowed_action_id: actionId,
     arguments: args,
     expected_state_version: null,
     confirmation_grant: confirmed ? 'confirmed' : null,
-    client_request_id: commandId(),
-    expires_at: new Date(Date.now() + 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+    client_request_id: requestId,
+    expires_at: expiresAt,
+    ...(building ? { building } : {}),
   };
-  return post<HaActionRecord>(`ha/entities/${encodeURIComponent(entityId)}/actions`, body);
 }
 
 /** Poll a pending action until Home Assistant confirms (or the add-on gives up after ~20 s). LAT1: the next poll does not

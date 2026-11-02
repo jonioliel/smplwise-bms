@@ -31,6 +31,8 @@ import { xsTile, xsTileStyles, type RowBox } from '../xsection/sw-xsection';
 import '../xsection/sw-floor-home-link';
 import './devices-tiles-panel';
 import { demoBuilding, demoSignals, demoTree, loadXsData, matchContext, sectionLinksOf, type XsData } from '../xsection/xs-data';
+import { multiBuildingOn } from '../api/mapping';
+import { floorScreenBuilding } from '../api/home-site';
 import type { HomeLinks } from '../api/catalog';
 import { fireReport, onFire, setFireMock } from '../xsection/fire-store';
 import { floorLightsTarget, linksFold, listStep, nearFloors, onXsOptions, phonePlaceFor, signalsOf, xsFromParams, xsMetrics, xsOptions, type FloorSignal, type XsOptions } from '../xsection/xs-model';
@@ -60,6 +62,8 @@ export class ExploreFloors extends LitElement {
   @state() private hoverId: string | null = null;
   /** SWITCH-LIGHT-DIMMER-2331: the floor whose lights popup is open (its lights strip / count on the section, or the selected floor's button). */
   @state() private lightsOf: FloorSignal | null = null;
+  /** BUILDING-SCOPE-CONTROL-2351: the multi-building switch (home.multi_building) - the floor lights popup names its building to the server. */
+  @state() private multiOn = false;
   private stopXs?: () => void;
   private stopFire?: () => void;
   /** T085: the connectors of each published structure (by version), for the links between floors. */
@@ -507,6 +511,7 @@ export class ExploreFloors extends LitElement {
     this.stopXs = onXsOptions(() => this.requestUpdate());
     this.stopFire = onFire(() => this.requestUpdate());
     void loadXsData().then((d) => (this.xsData = d));
+    void multiBuildingOn().then((on) => (this.multiOn = on));
   }
 
   disconnectedCallback() {
@@ -619,6 +624,7 @@ export class ExploreFloors extends LitElement {
     const t = f && !demo ? floorLightsTarget(f) : null;
     return html`<devices-tiles-panel kind="lights" data-floor-lights=${f?.id ?? ''} ?open=${!!f} pairedMaster
       scope=${t?.scope ?? 'building'} scopeId=${t?.scopeId ?? ''} scopeName=${f?.name ?? ''} .areaFilter=${t ? t.areaIds : null} switches=${this.xsEff().syn_switches}
+      .building=${t ? floorScreenBuilding(this.multiOn, this.context?.site.buildings?.length ?? 0, this.context?.building.id) : ''}
       headingText=${f ? xt('floorLightsTitle', { name: f.name }) : ''}
       @panel-close=${() => (this.lightsOf = null)} @panel-changed=${() => void loadXsData().then((x) => (this.xsData = x))}></devices-tiles-panel>`;
   }

@@ -76,7 +76,7 @@ import {
 } from '../api/home';
 import { demoHome } from './home-demo';
 // MULTIBUILDING-HOME-2330: the site level of a multi-building installation (one building: nothing here is drawn)
-import { activeOff, bulkTargets, entryLevel, offSelection, scopeTag, scopeTree, shownBuildings, siteModel, SITE_LEVEL, type SiteBuilding, type SiteModel } from '../api/home-site';
+import { activeOff, bulkTargets, controlBuilding, entryLevel, offSelection, scopeTag, scopeTree, shownBuildings, siteModel, SITE_LEVEL, type SiteBuilding, type SiteModel } from '../api/home-site';
 import { getHomeLinks } from '../api/catalog';
 import { MINI_SITE_LEVEL, miniBuilding, miniModel, type MiniFloor, type MiniModel } from '../xsection/xs-mini-model'; // XS-MINI-WIDGET-2351
 import { floorLightsTarget, onXsOptions, xsOptions, type FloorSignal } from '../xsection/xs-model';
@@ -122,6 +122,9 @@ export function scrollParentOf(el: Element): HTMLElement | null {
 
 /** The count pills' keys that open the tiles' panel (cameras and sensors are counts only). */
 const PILL_KIND: Partial<Record<keyof DeviceCounts, TileKind>> = { lights: 'lights', switches: 'switches', covers: 'covers', climate: 'climate', heating: 'heating', media: 'media', locks: 'locks' };
+
+/** BUILDING-SCOPE-CONTROL-2351: the tooltip of the tiles' panel group control at the site level of a multi-building site. */
+const SITE_BULK_HOLD = 'פעולה קבוצתית זמינה בתוך בניין - בחרו בניין, או "כבה הכל" של האתר';
 
 /** The panel's deep link on the building screen (owner 2026-09-29): `#/devices/building?domain=<kind>[&floor=<id> |
  * &area=<id>][&filter=active|inactive|unavailable]` - the hash-query convention of the other screens (router.ts). */
@@ -1364,6 +1367,10 @@ export class DevicesBuilding extends LitElement {
   private siteMemo: { tree: DeviceTree | null; src: unknown; hide: boolean; out: { model: SiteModel; shown: SiteBuilding[] } | null } | null = null;
   /** The scope tag of the counters this render draws ('' = one building). */
   private kpiTag = '';
+  /** BUILDING-SCOPE-CONTROL-2351: the building "הצג ושלוט" acts in ('' = the one-building home or the site level: as before), and whether
+   * this render is the site level of a multi-building site (no group action over every building from the tiles' panel). */
+  private ctlBuilding = '';
+  private atSiteLevel = false;
   /** The areas of the building shown (null = the whole site / one building): the elevators widget follows them. */
   private scopeAreas: Set<string> | null = null;
 
@@ -3489,6 +3496,8 @@ export class DevicesBuilding extends LitElement {
     const atSite = !!site && !inBuilding;
     const t = inBuilding ? scopeTree(full, inBuilding) : full;
     this.kpiTag = site ? scopeTag(site.model, this.level) : '';
+    this.ctlBuilding = controlBuilding(site, this.level);
+    this.atSiteLevel = atSite;
     this.scopeAreas = inBuilding ? inBuilding.areaIds : null;
     // POLISH-295 (owner approval 2026-10-25): no technical line under the title (floors · areas · devices · demo data) - clean operator screen
     const connected = this.sync?.connected ?? false;
@@ -3547,14 +3556,14 @@ export class DevicesBuilding extends LitElement {
             </div>`
           : html`${this.renderToolbar(t, !quickShown, false)}${body}`}`}
       </div>
-      ${this.bulkAllowed ? html`<devices-bulk-dialog @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
+      ${this.bulkAllowed ? html`<devices-bulk-dialog .building=${this.ctlBuilding} @bulk-done=${() => void this.load()}></devices-bulk-dialog>` : nothing}
       ${site ? html`<home-site-off @bulk-done=${() => void this.load()}></home-site-off>` : nothing}
       ${this.lay.editing ? this.renderEditDrawer(t) : this.lay.renderPanel()}
       ${this.renderSheets(t)}
       ${this.renderQuickSheet()}
       ${looseNotice(this.looseNote, this.undoLoose, () => this.showLooseNote(null))}
       ${this.xsLightsOf ? this.renderXsLights() : nothing}
-      <devices-tiles-panel ?open=${!!this.panel} .kind=${this.panel?.kind ?? 'lights'} .scope=${this.panel?.scope ?? 'building'} .scopeId=${this.panel?.id ?? ''} .scopeName=${this.panel?.name || this.scopeName(this.panel?.scope ?? 'building', this.panel?.id ?? '')} .filter=${this.panel?.filter ?? 'all'} @panel-close=${this.closePanel} @panel-filter=${this.onPanelFilter} @panel-changed=${() => this.scheduleReload()} @panel-navigate=${this.onPanelNavigate}></devices-tiles-panel>
+      <devices-tiles-panel .building=${this.ctlBuilding} .bulkHold=${this.atSiteLevel ? SITE_BULK_HOLD : ''} ?open=${!!this.panel} .kind=${this.panel?.kind ?? 'lights'} .scope=${this.panel?.scope ?? 'building'} .scopeId=${this.panel?.id ?? ''} .scopeName=${this.panel?.name || this.scopeName(this.panel?.scope ?? 'building', this.panel?.id ?? '')} .filter=${this.panel?.filter ?? 'all'} @panel-close=${this.closePanel} @panel-filter=${this.onPanelFilter} @panel-changed=${() => this.scheduleReload()} @panel-navigate=${this.onPanelNavigate}></devices-tiles-panel>
     </sw-page>`;
   }
 

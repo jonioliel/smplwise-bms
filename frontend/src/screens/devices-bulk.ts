@@ -37,6 +37,8 @@ export interface BulkRequest {
   only?: string[];
   /** SWITCH-LIGHT-DIMMER-2331: lights kinds reach every switch.* too ("מפסקים בעמודת התאורה = כל המפסקים"). */
   switches?: 'typed' | 'all';
+  /** BUILDING-SCOPE-CONTROL-2351: the building the request acts in (multi-building site) - the server cuts the scope to it. */
+  building?: string;
 }
 
 /** How many entities a kind would reach according to the tree's counts (a hint for the menu only - the server's
@@ -522,6 +524,8 @@ type Phase = 'closed' | 'loading' | 'confirm' | 'nothing' | 'sending' | 'running
  */
 @customElement('devices-bulk-dialog')
 export class DevicesBulkDialog extends LitElement {
+  /** BUILDING-SCOPE-CONTROL-2351: the building the opening screen shows on a multi-building site ('' = none: every request as before). */
+  @property({ attribute: false }) building = '';
   @state() private phase: Phase = 'closed';
   @state() private req: BulkRequest | null = null;
   @state() private preview: BulkPreview | null = null;
@@ -632,15 +636,17 @@ export class DevicesBulkDialog extends LitElement {
   `;
 
   /** Open the dialog for one request: loads the server's preview, then waits for Cancel or the confirm button. */
-  async show(req: BulkRequest) {
+  async show(ask: BulkRequest) {
     if (this.phase === 'sending' || this.phase === 'running') return; // one at a time from this screen
+    // BUILDING-SCOPE-CONTROL-2351: the screen's building (set while it shows one building of a multi-building site) unless the request names its own
+    const req: BulkRequest = ask.building === undefined && this.building ? { ...ask, building: this.building } : ask;
     this.req = req;
     this.preview = null;
     this.record = null;
     this.error = '';
     this.phase = 'loading';
     try {
-      const p = await previewBulk(req.scope, req.id, req.kind, req.position, req.only, req.switches);
+      const p = await previewBulk(req.scope, req.id, req.kind, req.position, req.only, req.switches, req.building);
       if (this.req !== req) return;
       this.preview = p;
       this.phase = p.count ? 'confirm' : 'nothing';
@@ -666,7 +672,7 @@ export class DevicesBulkDialog extends LitElement {
     if (!req || !p || this.phase !== 'confirm') return;
     this.phase = 'sending';
     try {
-      const first = await runBulk(req.scope, req.id, req.kind, p.digest, req.position, req.only, req.switches);
+      const first = await runBulk(req.scope, req.id, req.kind, p.digest, req.position, req.only, req.switches, req.building);
       this.phase = 'running';
       this.follow = { stopped: false };
       const done = await followBulk(first, (r) => (this.record = r), this.follow);

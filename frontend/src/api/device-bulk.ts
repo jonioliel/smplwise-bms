@@ -68,6 +68,8 @@ export interface BulkPreview {
   kind: BulkKind;
   kind_label: string;
   count: number;
+  /** BUILDING-SCOPE-CONTROL-2351: the building the server cut the scope to (absent = no building named). */
+  building_id?: string;
   targets: BulkTarget[];
   by_domain: Record<string, number>;
   domain_labels: Record<string, string>;
@@ -143,23 +145,35 @@ function commandId(): string {
 /** `only` (owner 2026-09-29, the tiles' panel filter / search): narrow the set to these entity ids - the server never
  * adds one. */
 /** SWITCH-LIGHT-DIMMER-2331: `switches: 'all'` (lights kinds only) - the set takes every switch.* too (the synoptic floor lights popup). */
-export async function previewBulk(scope: BulkScope, id: string, kind: BulkKind, position?: number, only?: string[], switches?: 'typed' | 'all') {
-  const q = new URLSearchParams({ scope, id, kind });
-  if (position !== undefined) q.set('position', String(position));
-  if (only) q.set('only', only.join(','));
-  if (switches === 'all') q.set('switches', 'all');
+export async function previewBulk(scope: BulkScope, id: string, kind: BulkKind, position?: number, only?: string[], switches?: 'typed' | 'all', building?: string) {
   const sentAt = Date.now();
-  const p = await get<BulkPreview>(`devices/actions/preview?${q.toString()}`);
+  const p = await get<BulkPreview>(`devices/actions/preview?${previewQuery(scope, id, kind, position, only, switches, building)}`);
   const receivedAt = Date.now();
   // the server read its clock somewhere during the round trip: assume the middle (error <= half the round trip)
   if (typeof p.server_time_ms === 'number') serverOffsetMs = p.server_time_ms - (sentAt + receivedAt) / 2;
   return p;
 }
 
+/** The preview's query. BUILDING-SCOPE-CONTROL-2351: `building` (a multi-building site, inside one building) - the server cuts the scope
+ * to that building and refuses a scope / an id of another building (403 `outside_building`); absent or '' = the request exactly as before. */
+export function previewQuery(scope: BulkScope, id: string, kind: BulkKind, position?: number, only?: string[], switches?: 'typed' | 'all', building?: string): string {
+  const q = new URLSearchParams({ scope, id, kind });
+  if (position !== undefined) q.set('position', String(position));
+  if (only) q.set('only', only.join(','));
+  if (switches === 'all') q.set('switches', 'all');
+  if (building) q.set('building', building);
+  return q.toString();
+}
+
 /** The physical request. `confirmed: true` is stated here and nowhere else: only the dialog's confirm button calls
  * it. `position` (CR-007 slice 4): covers_position's own argument, the "כל התריסים" group control. */
-export function runBulk(scope: BulkScope, id: string, kind: BulkKind, previewDigest: string, position?: number, only?: string[], switches?: 'typed' | 'all') {
-  return post<BulkRecord>('devices/actions', {
+export function runBulk(scope: BulkScope, id: string, kind: BulkKind, previewDigest: string, position?: number, only?: string[], switches?: 'typed' | 'all', building?: string) {
+  return post<BulkRecord>('devices/actions', bulkBody(scope, id, kind, previewDigest, position, only, switches, building));
+}
+
+/** The body of `POST /devices/actions` (`building` as in previewQuery). */
+export function bulkBody(scope: BulkScope, id: string, kind: BulkKind, previewDigest: string, position?: number, only?: string[], switches?: 'typed' | 'all', building?: string) {
+  return {
     scope,
     id,
     kind,
@@ -170,7 +184,8 @@ export function runBulk(scope: BulkScope, id: string, kind: BulkKind, previewDig
     ...(position !== undefined ? { position } : {}),
     ...(only ? { only } : {}),
     ...(switches === 'all' ? { switches } : {}),
-  });
+    ...(building ? { building } : {}),
+  };
 }
 
 export const getBulk = (bulkId: string) => get<BulkRecord>(`devices/actions/${encodeURIComponent(bulkId)}`);

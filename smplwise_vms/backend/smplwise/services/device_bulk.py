@@ -50,7 +50,7 @@ from ..db import Database, now_iso, retry_locked
 from ..errors import ApiError
 from ..rbac import Principal
 from . import devices as dsvc
-from . import device_activity, ha_actions, ha_bridge, ha_client, ha_scope, service_identity
+from . import building_scope, device_activity, ha_actions, ha_bridge, ha_client, ha_scope, service_identity
 from .timeutil import iso_utc
 
 log = logging.getLogger(__name__)
@@ -401,12 +401,15 @@ def scope_flags(conn: Any, principal: Principal, entities: list[dict[str, Any]])
     return {"building": False, "all": False, "areas": areas, "floors": {area_floor.get(a, dsvc.NO_FLOOR) for a in areas}}
 
 
-def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: str, position: int | None = None, only: set[str] | None = None, switches: str = "typed") -> dict[str, Any]:
+def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: str, position: int | None = None, only: set[str] | None = None, switches: str = "typed",
+            building: str | None = None) -> dict[str, Any]:
     """The exact set a bulk request would send, or an ApiError (404 unknown scope, 403 outside the caller's scope).
     The same function answers the preview (the confirmation dialog) and the request itself. `position` (CR-007 slice
     4): the one argument a bulk kind ever carries (covers_position, 0-100) - required exactly for that kind. `only`
     (owner 2026-09-29, the tiles' panel filter / search): narrows the scope to these entity ids - it can only remove
-    entities from the set the rules resolve, never add one."""
+    entities from the set the rules resolve, never add one. `building` (BUILDING-SCOPE-CONTROL-2351, a multi-building site): the scope
+    is cut to that building's areas as the server resolves them (services/building_scope) - an area / floor of another building, or an
+    `only` id outside it, is refused (403 `outside_building`), never silently sent; absent = exactly as before."""
     if scope not in SCOPES:
         raise ApiError(422, "validation", "היקף לא מוכר.", details={"fields": ["scope"]})
     if kind not in KINDS:
@@ -439,6 +442,17 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
         name = areas[scope_id]["name"]
         fid = area_floor.get(scope_id)
         floor_name = (floors[fid]["name"] if fid in floors else dsvc.NO_FLOOR_NAME) if fid else None
+    if building is not None:
+        bcut = building_scope.cut(conn, building, list(areas.values()))
+        if (scope == "area" and not bcut.area_in(scope_id)) or (scope == "floor" and not bcut.floor_in(scope_id, area_floor)):
+            raise bcut.refuse(scope=scope, id=scope_id)
+        if only is not None:
+            stray = bcut.strays(e for e in in_scope if e["entity_id"] in only)
+            if stray:
+                raise bcut.refuse(scope=scope, id=scope_id, entity_count=len(stray))
+        in_scope = bcut.keep(in_scope)
+        if scope == "building":
+            name = bcut.name(conn) or name
     if only is not None:
         if len(only) > ONLY_MAX:
             raise ApiError(422, "validation", f"ניתן לצמצם לכל היותר {ONLY_MAX} התקנים.", details={"fields": ["only"]})
@@ -544,6 +558,7 @@ def resolve(conn: Any, principal: Principal, scope: str, scope_id: str, kind: st
         "never_included": never,
         "digest": digest([t["entity_id"] for t in targets], kind, position),
         "narrowed": only is not None,
+        **({"building_id": building} if building is not None else {}),
         "server_time_ms": int(time.time() * 1000),  # the client computes expires_at on the server's time line
         "position": position,  # covers_position only - echoed back so the confirmation dialog can restate it
         "note": "מנעולים, מערכת האזעקה, צופרים, סקריפטים, סצנות, כפתורים ושחרור דלתות אינם נכללים לעולם בפעולה מרוכזת.",

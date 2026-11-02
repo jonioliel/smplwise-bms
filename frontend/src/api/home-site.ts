@@ -213,3 +213,19 @@ export function scopeTag(m: SiteModel | null, level: string): string {
   if (level === SITE_LEVEL) return 'אתר';
   return m.buildings.find((b) => b.id === level)?.name ?? 'אתר';
 }
+
+/** BUILDING-SCOPE-CONTROL-2351: the building id the home's "הצג ושלוט" (the tiles' panel, the floor chips, the floor / area off
+ * menus) sends with its list and bulk requests, so the server cuts them to that building and refuses anything of another building.
+ * '' = no building: the one-building home (no site model - also every installation with the multi-building switch off) and the
+ * site level ("כל האתר"), where the requests go exactly as before. */
+export function controlBuilding(site: { shown: Pick<SiteBuilding, 'id'>[] } | null, level: string): string {
+  if (!site || level === SITE_LEVEL) return '';
+  return site.shown.some((b) => b.id === level) ? level : '';
+}
+
+/** BUILDING-SCOPE-CONTROL-2351: the building id of a floor screen's lights popup (the synoptic board, the floors' cross-section): only
+ * with the multi-building switch on AND a site of two or more buildings - the same condition under which the floor matching stops
+ * guessing by level / name (xs-data matchContext), so the server's own resolution of the building agrees with the popup's areas. */
+export function floorScreenBuilding(multiOn: boolean, siteBuildings: number, buildingId: string | null | undefined): string {
+  return multiOn && siteBuildings >= 2 && buildingId ? buildingId : '';
+}

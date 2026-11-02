@@ -35,6 +35,12 @@
       "type": "string",
       "format": "date-time",
       "pattern": "Z$"
+    },
+    "building": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "BUILDING-SCOPE-CONTROL-2351, optional: the building whose view the control was pressed in on a multi-building site; the entity must be one of that building's, else 403 outside_building. Absent = unchanged."
     }
   },
   "required": [

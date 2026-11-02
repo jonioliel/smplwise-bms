@@ -24,7 +24,7 @@ from ..config import Settings
 from ..db import Database, bump_permission_revision, get_setting, now_iso, retry_locked, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, permissions_anywhere, require
-from ..services import bridge_install, bridge_rotation_peer as peer_mod, device_activity, door_authority, door_path_guard, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, intercom_doors, media_store
+from ..services import bridge_install, bridge_rotation_peer as peer_mod, building_scope, device_activity, door_authority, door_path_guard, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, intercom_doors, media_store
 from ..services import service_identity
 from ..services import devices as dsvc
 from ..services.timeutil import iso_utc, parse_utc
@@ -190,6 +190,9 @@ class ActionBody(BaseModel):
     confirmation_grant: str | None = None
     client_request_id: str = Field(min_length=1, max_length=80)
     expires_at: str
+    # BUILDING-SCOPE-CONTROL-2351: on a multi-building site, the building whose view the control was pressed in - the entity must be one of
+    # that building's (services/building_scope), else 403 `outside_building`, audited, nothing sent; absent = exactly as before
+    building: str | None = Field(None, min_length=1, max_length=64)
 
 
 def _action_row(conn: sqlite3.Connection, action_id: str) -> dict[str, Any]:
@@ -241,6 +244,7 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
     rid = getattr(request.state, "correlation_id", None)
     if body.allowed_action_id in ("lock.lock", "lock.unlock") and intercom_doors.is_wiskey_lock(conn, entity_id):
         _door_gate(conn, principal, request, entity_id, body.allowed_action_id)  # SEC-WXD L2: the permission first, a uniform 403
+        _building_gate(conn, principal, request, entity_id, body)  # BUILDING-SCOPE-CONTROL-2351: then the building, before the door path
     if body.allowed_action_id == "lock.lock" and intercom_doors.is_wiskey_lock(conn, entity_id):
         # CR-033 D6: WisKey does not support lock - never sent, whoever asks, from a tile, a map card or "lock all"
         audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason="wiskey_lock_unsupported",
@@ -265,6 +269,7 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
         # caller asking for lock.lock is denied and audited exactly like a caller holding no control at all.
         require(conn, principal, "ha.entity.control", INSTALLATION)
     note_grant(ha_scope.control_decision(conn, principal, entity_id), "ha.action")  # T055: the action's audit rows name its scope
+    _building_gate(conn, principal, request, entity_id, body)  # BUILDING-SCOPE-CONTROL-2351: right after the permission, before anything else
     # CR-010 review B1 / M1: after the permission check (a caller holding no control keeps its audited 403), refused
     # for everyone who does hold it
     _refuse_alarm_managed(conn, principal, request, entity_id, body.allowed_action_id)
@@ -426,6 +431,24 @@ def _door_gate(conn: sqlite3.Connection, principal: Principal, request: Request,
     audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason=decision.reason,
           request_id=getattr(request.state, "correlation_id", None), details={"action": action_id})
     raise ApiError(403, "forbidden", "אין הרשאה לפתוח דלת זו", details={"reason": decision.reason, "action": action_id})
+
+
+def _building_gate(conn: sqlite3.Connection, principal: Principal, request: Request, entity_id: str, body: ActionBody) -> None:
+    """BUILDING-SCOPE-CONTROL-2351: a control pressed inside one building of a multi-building site (the tiles' panel, its lock-all, a
+    WisKey door's open from a tile) names that building; the entity must be one of the building's (services/building_scope, the same
+    check the bulk route and the tiles list run). Refused = 403 `outside_building` (or 404 `building_not_found`), audited as an
+    `ha.action` denial with the building id, before anything is recorded or sent. Runs after the permission check, so a caller without
+    control keeps its own audited 403 and learns nothing about where the entity is. No `building` = nothing here, exactly as before."""
+    if body.building is None:
+        return
+    row = conn.execute("SELECT * FROM ha_entities WHERE entity_id = ?", (entity_id,)).fetchone()
+    entity = ha_sync.entity_row(row) if row else {"entity_id": entity_id, "area_id": None}
+    try:
+        building_scope.require_entity(conn, body.building, entity)
+    except ApiError as exc:
+        audit(conn, actor=principal, action="ha.action", decision="denied", resource_type="ha_entity", resource_id=entity_id, reason=exc.code,
+              request_id=getattr(request.state, "correlation_id", None), details={"action": body.allowed_action_id, "building_id": body.building})
+        raise
 
 
 def _refuse_alarm_managed(conn: sqlite3.Connection, principal: Principal, request: Request, entity_id: str, action_id: str) -> None:
