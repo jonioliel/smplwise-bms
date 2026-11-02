@@ -96,8 +96,21 @@ async function mount(page: Page, st: St, tag: Tag, o: Mount = {}, size: Size = '
     try { const orig = Storage.prototype.setItem; Storage.prototype.setItem = function (k: string, v: string) { w.__setItems.push([k, v]); return orig.call(this, k, v); }; } catch { /* no storage */ }
   });
   await page.goto('about:blank');
-  await page.goto('/?design=a#/system/styleguide');
+  // PERF-HOME-DEVICES-2342 (2.34.2): the route screens are lazy chunks, and the three editors come with the automations list's chunk
+  // (screens/devices-automations imports screens/automation-editors), no longer with every address. Open the list's address first so
+  // the shell loads that chunk, then go on to the quiet style guide page as before; what the list fetched or recorded meanwhile is dropped.
+  await page.goto('/?design=a#/devices/automations');
+  await page.waitForFunction(() => ['automation-builder', 'script-editor', 'scene-editor'].every((t) => !!customElements.get(t)), undefined, { timeout: 20_000 });
+  await page.evaluate(() => (location.hash = '#/system/styleguide'));
+  await expect(page.locator('sw-app devices-automations')).toHaveCount(0, { timeout: 10_000 });
   await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => undefined); // the shell polls: a busy machine may never go idle
+  st.calls.length = 0;
+  errors.length = 0;
+  await page.evaluate(() => {
+    const w = window as unknown as { __ev: unknown[]; __setItems: Array<[string, string]> };
+    w.__ev = []; w.__setItems = [];
+    try { sessionStorage.clear(); } catch { /* no storage */ }
+  });
   await page.evaluate(({ tag, o }) => {
     for (const name of ['saved', 'cancel', 'deleted', 'item-changed']) document.addEventListener(name, (e) => (window as unknown as { __ev: unknown[] }).__ev.push({ name, detail: (e as CustomEvent).detail }));
     const el = document.createElement(tag) as unknown as HTMLElement & Record<string, unknown>;
