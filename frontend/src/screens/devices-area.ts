@@ -42,6 +42,9 @@ import './explore-floor-map';
 import './area-quick-sheet'; // AREAPOPUP-297: a neighbouring area pressed on the plan card opens its quick-control pop-up
 import { pressTarget, type QuickMode } from './area-quick-logic';
 import { loadHomeScreen, type DesktopArea } from '../api/home-screen';
+import { getAreaPresence, type AreaPresence } from '../api/building-presence'; // AREA-PRESENCE-LINE-2351: the area's presence line
+import { areaLineView, POLL_MS as PRESENCE_POLL_MS } from '../api/building-presence-logic';
+import { BP } from '../i18n/building-presence';
 
 export { rowLabel };
 
@@ -67,6 +70,47 @@ const AREA_DESIGN = css`
   /* a tighter page: the header, the room tabs, the security strip and the sections sit closer */
   sw-page {
     gap: 8px;
+  }
+  /* AREA-PRESENCE-LINE-2351: the presence line - one quiet line, fixed height, never wraps (a long list ends in an ellipsis; the full
+     list is the tooltip). Green only while someone is there. */
+  .pres-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-inline-size: 0;
+    block-size: 28px;
+    padding-inline: 4px;
+    color: var(--sw-text-2);
+    font-size: var(--sw-fs-sm);
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .pres-line sw-icon {
+    flex: none;
+    color: var(--sw-text-3);
+  }
+  .pres-line[data-tone='ok'] sw-icon,
+  .pres-line[data-tone='ok'] b {
+    color: var(--sw-success-text);
+  }
+  .pres-lbl {
+    flex: none;
+    color: var(--sw-text-2);
+  }
+  .pres-sep {
+    flex: none;
+    color: var(--sw-text-3);
+  }
+  .pres-line b {
+    flex: none;
+    color: var(--sw-text);
+    font-weight: var(--sw-fw-semibold);
+  }
+  .pres-who {
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--sw-text);
   }
   /* HOMEFABLE-297: the security strip is the one dark-ink line of the screen - a label in the heading ink, chips as filled wells */
   .sec-strip {
@@ -585,6 +629,9 @@ export class DevicesArea extends LitElement {
   /** AREAPOPUP-297: a neighbouring area pressed on the plan card - its quick-control pop-up (the home screen's shapes and settings). */
   @state() private quick: { area: DeviceArea; mode: QuickMode } | null = null;
   @state() private desktopArea: DesktopArea = 'drawer';
+  /** AREA-PRESENCE-LINE-2351: the area's presence answer (null = not read, not permitted, or a failed first read: no line at all). */
+  @state() private presence: AreaPresence | null = null;
+  private presenceTimer = 0;
   /** CR-007 6b: the area's card layout (one per installation and area; edited with system.configure). */
   private lay: DevicesLayoutController = new DevicesLayoutController(this, {
     scope: 'area',
@@ -1059,6 +1106,8 @@ export class DevicesArea extends LitElement {
     this.stop = null;
     window.clearTimeout(this.timer);
     this.timer = 0;
+    window.clearInterval(this.presenceTimer);
+    this.presenceTimer = 0;
     this.phoneMq?.removeEventListener('change', this.onPhone);
   }
 
@@ -1139,6 +1188,7 @@ export class DevicesArea extends LitElement {
     if (changed.has('areaId') && isApi() && !this.forbidden) {
       void this.lay.load();
       this.detail = null;
+      this.presence = null;
       this.notFound = false;
       this.error = '';
       void this.load();
@@ -1163,8 +1213,10 @@ export class DevicesArea extends LitElement {
     this.loading = true;
     const id = this.areaId;
     try {
-      const [d] = await Promise.all([getDevicesArea(id), this.prefsReady]); // first paint already in the installation's style
+      // AREA-PRESENCE-LINE-2351: the presence line is read WITH the area, so it is part of the first paint (no layout shift when it appears)
+      const [d, pres] = await Promise.all([getDevicesArea(id), this.readPresence(id), this.prefsReady]); // first paint already in the installation's style
       if (id !== this.areaId) return; // the route moved on while this was in flight
+      if (pres !== undefined) this.presence = pres;
       this.detail = d;
       this.sync = d.sync;
       this.error = '';
@@ -1181,6 +1233,55 @@ export class DevicesArea extends LitElement {
         void this.load();
       }
     }
+  }
+
+  /** AREA-PRESENCE-LINE-2351: the caller may see at least one part of the line (anonymous sensors or people). Without either nothing is asked. */
+  private presenceMayRead(): boolean {
+    return isApi() && (canAnywhere('presence.building.view') || canAnywhere('presence.view'));
+  }
+
+  /** The area's presence answer; null when not permitted, undefined after a failed read (the last answer is kept - nothing is invented). */
+  private async readPresence(id: string): Promise<AreaPresence | null | undefined> {
+    if (!this.presenceMayRead()) return null;
+    try {
+      const a = await getAreaPresence(id);
+      this.syncPresencePoll(a.line);
+      return a;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** Live updates: a quiet 30 s poll while the line is switched on and the page is visible (the area's own pushes refresh it too, via load()). */
+  private syncPresencePoll(on: boolean) {
+    if (!on) {
+      window.clearInterval(this.presenceTimer);
+      this.presenceTimer = 0;
+      return;
+    }
+    if (this.presenceTimer) return;
+    this.presenceTimer = window.setInterval(() => {
+      if (document.hidden || !this.areaId || !this.isConnected) return;
+      const id = this.areaId;
+      void this.readPresence(id).then((a) => {
+        if (a !== undefined && id === this.areaId) this.presence = a;
+      });
+    }, PRESENCE_POLL_MS);
+  }
+
+  /** AREA-PRESENCE-LINE-2351: one compact line - "נוכחות · פעיל · דנה, יוסי ועוד 2". Names only when the server sent them (permission + the
+   * people "show names" setting); otherwise a count. One line, fixed height, ellipsis: an update never moves the screen. */
+  private renderPresenceLine() {
+    const v = areaLineView(this.presence);
+    if (!v.show) return nothing;
+    const who = v.names.length
+      ? html`${v.names.map((n, i) => html`${i ? ', ' : ''}<bdi>${n}</bdi>`)}${v.rest > 0 ? ` ${BP.andMore(v.rest)}` : ''}`
+      : v.people;
+    return html`<div class="pres-line" data-area-presence data-tone=${v.tone} role="status" aria-label=${BP.areaLineAria} title=${v.title}>
+      <sw-icon name="users" size=${15}></sw-icon><span class="pres-lbl">${BP.areaLineLabel}</span>
+      ${v.room ? html`<span class="pres-sep" aria-hidden="true">·</span><b data-area-presence-room>${v.room}</b>` : nothing}
+      ${v.people ? html`<span class="pres-sep" aria-hidden="true">·</span><span class="pres-who" data-area-presence-people>${who}</span>` : nothing}
+    </div>`;
   }
 
   render() {
@@ -1242,6 +1343,7 @@ export class DevicesArea extends LitElement {
       ${this.error ? html`<sw-state-panel compact state="error" heading="הרענון האחרון נכשל" hint=${this.error}></sw-state-panel>` : nothing}
       ${bubble ? this.renderBubbleHead(d) : nothing}
       ${this.lay.renderBar()}
+      ${this.lay.editing ? nothing : this.renderPresenceLine()}
       ${this.lay.editing ? nothing : this.renderSecurityStrip(d)}
       ${this.lay.editing || !d.area.map || !this.prefs.planSurfaces.includes('area') || !isApi() ? nothing : this.renderPlanCard(d)}
       ${arranging

@@ -26,6 +26,8 @@ export interface BuildingPresenceSettings {
   card_empty_rooms?: CardEmptyRooms;
   card_details?: CardDetails;
   card_all_empty?: CardAllEmpty;
+  /** AREA-PRESENCE-LINE-2351: the area screen's presence line (OFF by default; older servers omit it = off). */
+  area_line?: boolean;
 }
 /** strip = a state word and one row of the active rooms (default); floors = a count and a bar per floor; quiet = one sentence; off = no card, the map only. */
 export type CardStyle = 'strip' | 'floors' | 'quiet' | 'off';
@@ -63,10 +65,21 @@ export interface PresenceRoomOption { area_id: string; name: string }
 export interface CandidateList { sensors: PresenceCandidate[]; rooms?: PresenceRoomOption[]; settings: BuildingPresenceSettings }
 export interface PresenceHistorySummary { rows: number; oldest: string | null; retention_days: number; enabled: boolean }
 
+/** AREA-PRESENCE-LINE-2351: GET presence/area/{id}. `line` false = the administrator has not switched the line on (nothing was read).
+ * `sensors` only with presence.building.view and a tagged sensor in the room; `people` only with presence.view and a plan room linked to the
+ * area - `names` null = counts only (the people `show_names` setting is off). */
+export interface AreaPresence {
+  area_id: string;
+  line: boolean;
+  sensors: { status: OccupancyStatus; empty_since: string | null; sensors: number } | null;
+  people: { count: number; names: string[] | null; more: number } | null;
+}
+
 export const HOLD_RANGE = { min: 0, max: 3600 } as const;
 export const EMPTY_RANGE = { min: 1, max: 1440 } as const;
 export const RETENTION_RANGE = { min: 0, max: 365 } as const;
 
+export const getAreaPresence = (areaId: string) => get<AreaPresence>(`presence/area/${encodeURIComponent(areaId)}`);
 export const getBuildingPresence = () => get<BuildingSnapshot>('presence/building');
 export const getPresenceCandidates = () => get<CandidateList>('presence/building/sensors');
 export const putPresenceTags = (entityIds: string[]) => put<CandidateList>('presence/building/sensors', { entity_ids: entityIds });
