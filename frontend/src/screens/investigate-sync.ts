@@ -226,6 +226,8 @@ export class InvestigateSync extends LitElement {
         inline-size: 100%;
       }
     }
+    /* POLISH4-WP2: the pill keeps the page's direction, so inset-inline-end is the RTL end (it was direction:ltr, which turned its own
+       inline-end to the right and laid it over the camera name); the value is isolated with <bdi> and reads left to right */
     .drift {
       position: absolute;
       inset-inline-end: 8px;
@@ -237,7 +239,6 @@ export class InvestigateSync extends LitElement {
       color: var(--sw-on-video);
       padding: 1px 7px;
       border-radius: var(--sw-r-pill);
-      direction: ltr;
     }
     .transport {
       display: flex;
@@ -368,9 +369,29 @@ export class InvestigateSync extends LitElement {
       background: var(--sw-video-scrim);
       display: grid;
       place-items: center;
+      transition: background-color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
     }
-    .slot .media .rm:hover .x {
+    .slot .media .rm {
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    /* POLISH4-WP2 (D10): the hover wash only under a fine pointer (it stuck on a tablet after a tap); the press on pointer-down */
+    @media (hover: hover) and (pointer: fine) {
+      .slot .media .rm:hover .x {
+        background: var(--sw-video-scrim-strong);
+      }
+    }
+    .slot .media .rm:active .x {
       background: var(--sw-video-scrim-strong);
+      transform: scale(var(--sw-press-scale, 0.94));
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .slot .media .rm .x {
+        transition: none;
+      }
+      .slot .media .rm:active .x {
+        transform: none;
+      }
     }
     .slot .cap {
       display: flex;
@@ -439,7 +460,7 @@ export class InvestigateSync extends LitElement {
         <div class="grid">
           ${sources.map(
             (s) => html`<div class="tile">
-              <span class="drift">${s.drift}</span>
+              <span class="drift"><bdi>${s.drift}</bdi></span>
               <sw-camera-tile name=${s.cam.name} state=${s.state} scene=${demoScene[s.cam.id] ?? 'lobby'}></sw-camera-tile>
             </div>`,
           )}

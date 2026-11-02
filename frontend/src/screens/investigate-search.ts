@@ -40,6 +40,8 @@ export class InvestigateSearch extends LitElement {
   @state() private providers: ProvidersResponse | null = null;
   @state() private busy = false;
   @state() private error = '';
+  /** POLISH4-WP2 (D10): what the retry of the error panel repeats - the provider read or the last search. */
+  private errorFrom: 'providers' | 'search' = 'search';
 
   connectedCallback() {
     super.connectedCallback();
@@ -49,7 +51,9 @@ export class InvestigateSearch extends LitElement {
   private async loadProviders() {
     try {
       this.providers = await searchProviders();
+      if (this.errorFrom === 'providers') this.error = '';
     } catch (err) {
+      this.errorFrom = 'providers';
       this.error = describeError(err);
     }
   }
@@ -58,10 +62,11 @@ export class InvestigateSearch extends LitElement {
     const q = this.q.trim();
     if (!q) return;
     this.busy = true;
-    this.error = '';
+    if (this.errorFrom === 'search') this.error = ''; // a provider read that failed stays on screen with its own retry
     try {
       this.answer = await semanticSearch(q);
     } catch (err) {
+      this.errorFrom = 'search';
       this.error = describeError(err);
     } finally {
       this.busy = false;
@@ -84,14 +89,19 @@ export class InvestigateSearch extends LitElement {
     const typeLabel: Record<string, string> = { person: 'אדם', vehicle: 'רכב', motion: 'תנועה', line: 'חציית קו', field: 'חדירה', door: 'דלת', offline: 'ניתוק', coverage_gap: 'פער כיסוי', other: 'אחר' };
     return html`
       <sw-page heading="חיפוש AI" subheading="שאלה חופשית → מסננים של מרכז האירועים (סוג, מקום, זמן) · baseline מקומי ללא רשת · ספק חיצוני רק ב־opt-in">
-        <sw-badge slot="actions" kind=${p?.active === 'local' ? 'live' : 'unknown'} label=${p ? (p.active === 'local' ? `ספק: baseline מקומי · ${local?.model_version ?? ''}` : p.active === 'none' ? 'חיפוש סמנטי כבוי' : `ספק: ${p.active}`) : 'טוען…'}></sw-badge>
+        <sw-badge slot="actions" kind=${p?.active === 'local' ? 'live' : 'unknown'} label=${p ? (p.active === 'local' ? `ספק: baseline מקומי · ${local?.model_version ?? ''}` : p.active === 'none' ? 'חיפוש סמנטי כבוי' : `ספק: ${p.active}`) : this.error && this.errorFrom === 'providers' ? 'הספקים לא נקראו' : 'טוען…'}></sw-badge>
         <div class="wrap">
           <div class="searchrow">
             <sw-field><input type="search" data-semantic-q placeholder="למשל: אדם בלובי אתמול בערב · vehicle near the gate this morning" aria-label="חיפוש" .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') void this.run(); }} /></sw-field>
             <sw-button variant="primary" icon="search" data-semantic-run ?disabled=${this.busy || !this.q.trim()} @click=${() => this.run()}>חפש</sw-button>
           </div>
-          ${this.error ? html`<div class="note" style="color:var(--sw-danger)">${this.error}</div>` : nothing}
-          ${a
+          ${this.error
+            ? html`<sw-state-panel compact state="error" heading=${this.errorFrom === 'providers' ? 'ספקי הניתוח לא נקראו' : 'החיפוש לא הושלם'} hint=${this.error} actionLabel="נסה שוב" data-semantic-error
+                @action=${() => void (this.errorFrom === 'providers' ? this.loadProviders() : this.run())}></sw-state-panel>`
+            : nothing}
+          ${this.busy
+            ? html`<sw-state-panel compact state="loading" heading="מחפש…" hint="מפרש את השאלה ומסנן את האירועים בהיקף שלך" data-semantic-loading></sw-state-panel>`
+            : a
             ? html`<sw-card heading="כך פורשה השאלה" subheading=${`${a.provider.name} · ${a.provider.model_version} · ללא רשת`} data-semantic-parsed>
                   <div class="chips">
                     ${a.parsed.objects.map((o) => html`<sw-chip selected icon="target">${OBJECT_LABEL[o] ?? o}</sw-chip>`)}
@@ -104,7 +114,7 @@ export class InvestigateSearch extends LitElement {
                 </sw-card>
                 <div class="head"><span>${a.total} התאמות (לפי metadata)</span><a href="#/investigate/events">מרכז האירועים</a></div>
                 ${a.results.length
-                  ? html`<div class="list">${a.results.map((r) => html`<div class="row" data-semantic-result data-confidence=${r.match.confidence} @click=${() => navigate(`/investigate/events/${r.id}`)}>
+                  ? html`<div class="list">${a.results.map((r) => html`<div class="row" role="link" tabindex="0" data-semantic-result data-confidence=${r.match.confidence} @click=${() => navigate(`/investigate/events/${r.id}`)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/investigate/events/${r.id}`); } }}>
                         <sw-badge kind=${r.match.confidence === 'exact' ? 'live' : 'stale'} label=${r.match.confidence === 'exact' ? 'התאמה מדויקת' : 'התאמה חלקית'}></sw-badge>
                         <div class="body"><strong>${typeLabel[r.type] ?? r.type} · ${r.camera_name ?? '—'}</strong><span class="note">${this.fmt(r.occurred_at)} · ${r.confidence === 'measured' ? 'נמדד במכשיר' : 'משוער'} · ${r.match.basis.join(' · ')}</span></div>
                       </div>`)}</div>`
@@ -269,9 +279,63 @@ export class InvestigateSearch extends LitElement {
     .searchrow sw-field {
       flex: 1;
     }
+    /* POLISH4-WP2 (D10): a result row and a match card are targets - a wash on a fine pointer only (no sticky hover on touch), the
+       press on pointer-down (a wash + the skin's press scale), a focus ring for the keyboard; still under reduced motion */
+    .row {
+      -webkit-tap-highlight-color: transparent;
+      transition: background-color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
+    }
+    .row:active {
+      background: var(--sw-pressed-wash);
+      transform: scale(var(--sw-press-scale));
+    }
+    .row:focus-visible,
+    .res:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset);
+    }
+    .res {
+      -webkit-tap-highlight-color: transparent;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .row:hover {
+        background: var(--sw-surface-2);
+      }
+      .res:hover {
+        border-color: var(--sw-border-strong);
+      }
+      .head a:hover {
+        text-decoration: underline;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .row,
+      .res {
+        transition: none;
+      }
+      .row:active,
+      .res:active {
+        transform: none;
+      }
+    }
     @media (max-width: 767px) {
       .results {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      /* the phone: the reference picture sits above its text instead of squeezing it to a 150 px column */
+      .by {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .by .ref {
+        inline-size: 100%;
+        block-size: 120px;
+      }
+      .head {
+        font-size: var(--sw-fs-lg);
+      }
+      .row {
+        align-items: flex-start;
       }
     }
   `, bubbleChrome, INVESTIGATE_R5];

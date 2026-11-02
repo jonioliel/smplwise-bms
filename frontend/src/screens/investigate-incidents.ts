@@ -131,7 +131,7 @@ export class InvestigateIncidents extends LitElement {
     .chip .d { inline-size: 7px; block-size: 7px; border-radius: 50%; background: var(--c, var(--sw-text-3)); }
     .mut { color: var(--sw-text-3); font-size: var(--sw-fs-sm); }
     a.lnk { color: var(--sw-accent-text); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); text-decoration: none; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
-    a.lnk:hover { text-decoration: underline; }
+    @media (hover: hover) and (pointer: fine) { a.lnk:hover { text-decoration: underline; } }
     .panel { background: var(--sw-surface); border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); min-inline-size: 0; min-block-size: 0; display: flex; flex-direction: column; overflow: hidden; }
     .panel .hd { display: flex; align-items: center; gap: 8px; padding: 11px 16px 8px; flex-wrap: wrap; flex: none; }
     /* R5-INVESTIGATE-297: a panel title is a title (17 px / 800); the panels carry the hero shadow */
@@ -149,7 +149,7 @@ export class InvestigateIncidents extends LitElement {
     .tile.hot { box-shadow: 0 0 0 2px var(--sw-danger); }
     .tile sw-camera-tile { position: absolute; inset: 0; block-size: 100%; inline-size: 100%; }
     .tile .rel { position: absolute; inset-block-start: 8px; inset-inline-end: 8px; padding: 2px 8px; border-radius: var(--sw-r-pill); background: var(--sw-video-scrim); color: var(--sw-on-video); font-size: var(--sw-fs-2xs); pointer-events: none; z-index: 1; }
-    .capchip { position: absolute; inset-block-start: 8px; inset-inline-end: 8px; z-index: 1; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: var(--sw-r-pill); background: var(--sw-warning); color: #1e2e47; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); pointer-events: none; }
+    .capchip { position: absolute; inset-block-start: 8px; inset-inline-end: 8px; z-index: 1; display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: var(--sw-r-pill); background: var(--sw-warning); color: var(--sw-on-lit); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-semibold); pointer-events: none; }
     .drs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
     .drs { gap: 6px; padding: 0 12px 12px; }
     .dr { display: grid; grid-template-columns: 62px minmax(0, 1fr) auto auto; align-items: center; gap: 10px; min-block-size: 44px; padding: 6px 10px; border-radius: var(--sw-r-sm); background: var(--c-soft, var(--sw-surface-2)); }

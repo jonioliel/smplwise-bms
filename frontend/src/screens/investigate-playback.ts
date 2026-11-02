@@ -219,7 +219,7 @@ export class InvestigatePlayback extends LitElement {
     .tile {
       position: relative;
       aspect-ratio: 16 / 9;
-      background: #111a2e;
+      background: var(--sw-video-bg);
       border-radius: var(--sw-r-xs);
       overflow: hidden;
       color: var(--sw-on-video);
@@ -238,7 +238,7 @@ export class InvestigatePlayback extends LitElement {
       inset-block-start: 6px;
       font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-semibold);
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      text-shadow: 0 1px 2px var(--sw-video-scrim);
       z-index: 2;
       display: flex;
       gap: 6px;
@@ -253,12 +253,12 @@ export class InvestigatePlayback extends LitElement {
       padding: 0 5px;
     }
     .tile .drift.bad {
-      background: rgba(239, 68, 68, 0.7);
+      background: color-mix(in srgb, var(--sw-danger) 70%, transparent);
     }
     .shade {
       position: absolute;
       inset: 0;
-      background: linear-gradient(180deg, rgba(0, 0, 0, 0.12) 0%, rgba(0, 0, 0, 0) 25%, rgba(0, 0, 0, 0) 60%, rgba(0, 0, 0, 0.5) 100%);
+      background: linear-gradient(180deg, color-mix(in srgb, var(--sw-video-scrim) 22%, transparent) 0%, transparent 25%, transparent 60%, color-mix(in srgb, var(--sw-video-scrim) 90%, transparent) 100%);
       pointer-events: none;
     }
     .tag {
@@ -273,7 +273,7 @@ export class InvestigatePlayback extends LitElement {
     .tag .nm {
       font-weight: var(--sw-fw-semibold);
       font-size: var(--sw-fs-sm);
-      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+      text-shadow: 0 1px 3px var(--sw-video-scrim);
     }
     .video.gap .tag .nm {
       text-shadow: none;
@@ -295,7 +295,7 @@ export class InvestigatePlayback extends LitElement {
       font-family: var(--sw-font-mono);
       font-size: var(--sw-fs-xs);
       direction: ltr;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      text-shadow: 0 1px 2px var(--sw-video-scrim);
       z-index: 2;
     }
     .video.gap .stamp {
@@ -342,14 +342,14 @@ export class InvestigatePlayback extends LitElement {
       box-shadow: var(--sw-shadow-2);
     }
     .bar sw-button {
-      --sw-text-2: #fff;
-      --sw-text: #fff;
-      --sw-surface-3: rgba(255, 255, 255, 0.14);
+      --sw-text-2: var(--sw-on-video);
+      --sw-text: var(--sw-on-video);
+      --sw-surface-3: var(--sw-video-hover);
     }
     .bar .q {
       font-size: var(--sw-fs-xs);
       font-weight: var(--sw-fw-semibold);
-      border: 1px solid rgba(255, 255, 255, 0.35);
+      border: 1px solid color-mix(in srgb, var(--sw-on-video) 35%, transparent);
       border-radius: var(--sw-r-pill);
       padding: 3px 9px;
       margin-inline: 2px;
@@ -365,7 +365,7 @@ export class InvestigatePlayback extends LitElement {
     .bar .sep {
       inline-size: 1px;
       block-size: 18px;
-      background: rgba(255, 255, 255, 0.25);
+      background: color-mix(in srgb, var(--sw-on-video) 25%, transparent);
       margin-inline: 4px;
     }
     /* The transport controls are ONE bar under the picture, never over it (owner 2026-10-02: on a phone the floating pill covered
@@ -401,7 +401,7 @@ export class InvestigatePlayback extends LitElement {
       box-sizing: border-box;
       justify-content: center;
       border-radius: var(--sw-r-md);
-      background: #111827;
+      background: var(--sw-video-bg);
       backdrop-filter: none;
       overflow-x: auto;
       scrollbar-width: none;
@@ -423,7 +423,7 @@ export class InvestigatePlayback extends LitElement {
       place-items: center;
       z-index: 4;
       border-radius: var(--sw-r-lg);
-      background: rgba(15, 23, 41, 0.55);
+      background: color-mix(in srgb, var(--sw-video-bg) 55%, transparent);
       color: var(--sw-on-video);
       min-inline-size: 0;
     }
@@ -448,8 +448,8 @@ export class InvestigatePlayback extends LitElement {
     .stall .spin {
       inline-size: 16px;
       block-size: 16px;
-      border: 2px solid rgba(255, 255, 255, 0.35);
-      border-block-start-color: #fff;
+      border: 2px solid color-mix(in srgb, var(--sw-on-video) 35%, transparent);
+      border-block-start-color: var(--sw-on-video);
       border-radius: 50%;
       animation: sw-stall-spin 0.9s linear infinite;
       flex: none;

@@ -539,6 +539,22 @@ export class InvestigateReviews extends LitElement {
         animation: none;
       }
     }
+    /* POLISH4-WP2: the drawer's small controls answer on pointer-down (a pressed wash - a colour change, so it also holds under reduced
+       motion); the touch tap flash is off */
+    .dnav button,
+    .seg button,
+    .ib,
+    .linkbtn {
+      -webkit-tap-highlight-color: transparent;
+    }
+    .dnav button:active:not(:disabled),
+    .seg button:active:not(:disabled),
+    .ib:active:not(:disabled) {
+      background: var(--sw-pressed-wash);
+    }
+    .linkbtn:active {
+      opacity: 0.7;
+    }
     /* the drawer's item navigation: previous / next and "2 מתוך 4", beside the heading */
     .dnav {
       display: inline-flex;
@@ -560,9 +576,11 @@ export class InvestigateReviews extends LitElement {
       color: var(--sw-text-2);
       cursor: pointer;
     }
-    .dnav button:hover:not(:disabled) {
-      background: var(--sw-surface-2);
-      color: var(--sw-text);
+    @media (hover: hover) and (pointer: fine) {
+      .dnav button:hover:not(:disabled) {
+        background: var(--sw-surface-2);
+        color: var(--sw-text);
+      }
     }
     .dnav button:disabled {
       opacity: 0.4;
