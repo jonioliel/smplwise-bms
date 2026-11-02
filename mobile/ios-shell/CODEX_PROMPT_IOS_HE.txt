@@ -1,0 +1,10 @@
+אתה Codex ועובד על מחשב ה-Mac של הבעלים. המשימה: אפליקציית iOS ל-SmplWise Arx (מעטפת אפליקציה סביב ה-PWA, כמו אפליקציית האנדרואיד הקיימת).
+
+1. פתח את החבילה ios-handoff-for-codex-v3.zip לתיקייה חדשה. קרא לפי הסדר שב-README_FIRST.txt: AGENTS.md, HANDOFF_IOS_CODEX.md, HANDOFF_IOS_ADDENDUM_SENSORS_PUSH.md, HANDOFF_IOS_ADDENDUM_2_DECISIONS.md (החדש גובר), ואת חוזה השרת docs/api/mobile-presence-contract.md (גובר על הטיוטות).
+2. צור את פרויקט ה-iOS תחת mobile/ios-shell/. עבוד על ענף נפרד, ללא שינוי בקוד ה-Arx או באנדרואיד.
+3. היקף: כל החיישנים בקטלוג (מיקום, פעילות, צעדים, גובה, סוללה, רשת/Wi-Fi, ביקון, מצב אפליקציה), כל אחד נבחר בנפרד עם "בחר הכל"/"בטל הכל"; מסך "חיישנים נדרשים" נעול כשהמנהל דורש חיישן (סעיף 2 ב-ADDENDUM_2); התראות דחיפה דרך ממסר SmplWise עם Notification Service Extension (שליפת הטקסט המלא מ-GET notifications/app/{message_id}).
+4. סדר עבודה: לפי סעיף D ב-ADDENDUM 1 (מיקום, סוללה, פעילות קודם; Wi-Fi וביקון אחרונים כי תלויים באישור Apple).
+5. עבוד מול שרת mock מקומי (הרחב את mobile/ios-shell/tools/mock_arx_server לפי סעיף 3 ב-ADDENDUM_2 והחוזה). אין גישה לשרת אמיתי.
+6. אל תבצע commit של חומר חתימה (.p8, .p12, .mobileprovision), מפתחות או סיסמאות. אל תמציא נוסח משפטי: הצג את notice_text מהשרת בלבד.
+7. מה שצריך מהבעלים (bundle id, חשבון Apple Developer, מפתח APNs): בקש בעברית פשוטה, בשאלות ממוספרות עם אפשרויות א/ב/ג, רק כשמגיעים אליו.
+8. דיווח בסיום כל שלב: לכל פריט BUILT / NOT_RUN / BLOCKED עם סיבה; ציין במפורש מה דורש iPhone פיזי ולא נבדק; דווח על כל הבדל מול החוזה (למשל שדה חסר) ועל כל API או entitlement שלא מתנהג כמו שכתוב.
