@@ -20,7 +20,7 @@ export class SwToggle extends LitElement {
       block-size: 24px;
       border-radius: var(--sw-r-pill);
       border: 0;
-      background: var(--sw-border-strong);
+      background: var(--sw-toggle-off);
       position: relative;
       cursor: pointer;
       /* POLISH-CLASSIC-DOMUS-297: the track fades on the state curve, the thumb rides the switch spring (tokens.ts: the plain curve at

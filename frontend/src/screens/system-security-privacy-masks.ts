@@ -234,7 +234,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
       inline-size: 44px;
       block-size: 26px;
       border-radius: var(--sw-r-pill);
-      background: var(--sw-border-strong);
+      background: var(--sw-toggle-off);
       position: relative;
       flex: none;
     }

@@ -157,6 +157,9 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--sw-badge-bg': lt('#b91c1c', '#ff6b62'),
       '--sw-badge-fg': lt('#ffffff', '#2a0b09'),
       '--sw-toggle-on': lt('#2767ed', '#3a6ce0'),
+      // A11Y-R4-LEFTOVERS-2380: the switch's OFF track. `--sw-border-strong` (a hairline tone, ~1.2:1 on a card) is not a UI boundary: this one
+      // reads >= 3:1 against every surface a switch sits on (WCAG 1.4.11) in every skin and scheme, and keeps the white thumb >= 3:1 on it.
+      '--sw-toggle-off': lt('#6f7a90', '#7b869e'),
       '--sw-toggle-thumb': same('#ffffff'), // the switch's knob (white on the track in both schemes; a skin may tint it)
       // Investigation timeline kinds (owner 2026-10-01): the defaults; the installation setting `timeline.colors` (api/timeline-colors.ts)
       // overrides them on the document root. Mid-tones that read on the light surface and on a dark one.
