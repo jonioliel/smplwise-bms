@@ -1,5 +1,21 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.34.2 (pilot) - Dark mode, accessibility, faster screens, 44 px phone buttons, the synoptic map on phones
+**After installing:** no database migration. Going back to 2.34.1 is safe.
+- **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. חזרה ל-2.34.1 בטוחה.
+
+### What was improved - מה השתפר
+- **English:** Dark mode: five contrast fixes on the polished screens, and the selected segment of every segmented control is now a raised, lighter key.
+- **עברית:** מצב כהה: חמישה תיקוני ניגודיות במסכים שלוטשו, והכפתור הנבחר בכל בורר מקטעים בולט ובהיר יותר.
+- **English:** Accessibility: Escape closes popovers and only the top dialog; every form field has a screen-reader name; arrow keys in tab rows; save results are announced; light-mode status text meets 4.5:1.
+- **עברית:** נגישות: Esc סוגר חלונות קופצים ורק את החלון העליון; לכל שדה יש שם לקורא מסך; חיצים בשורות לשוניות; תוצאות שמירה מוקראות; טקסט סטטוס במצב בהיר עומד בניגודיות 4.5.
+- **English:** Faster: each screen loads on demand (home and devices screens open 33-44% faster), settings are read in 2 queries instead of hundreds, identical requests are shared.
+- **עברית:** מהיר יותר: כל מסך נטען רק כשנכנסים אליו (מסך הבית ומסכי ההתקנים נפתחים מהר יותר ב-33%-44%), ההגדרות נקראות ב-2 שאילתות במקום מאות, ובקשות זהות משותפות.
+- **English:** Phones: buttons are at least 44 px high; the synoptic map has three phone layouts (compact table by default, floor cards, building section) chosen in its settings, with no overlapping numbers.
+- **עברית:** טלפון: כפתורים בגובה 44 פיקסלים לפחות; למפה הסינופטית שלוש תצוגות טלפון (טבלה קומפקטית כברירת מחדל, כרטיסי קומה, חתך בניין) לבחירה בהגדרות, בלי מספרים שעולים זה על זה.
+- **English:** The tickets table fits 1440 and 1280 px without sideways scrolling; settings pages with their own tabs no longer repeat them in the sidebar.
+- **עברית:** טבלת הקריאות נכנסת ברוחב 1440 ו-1280 בלי גלילה לצד; עמודי הגדרות עם לשוניות משלהם כבר לא חוזרים עליהן בסרגל הצד.
+
 ## 2.34.1 (pilot) - Smooth recorded playback, a steadier server, quieter logs, a release check for the add-on build
 **After installing:** no database migration. Going back to 2.34.0 is safe. The server now runs on the standard network components by default; the fast ones can be turned back on in Diagnostics ("שרת: רכיב תקשורת מהיר"), after a restart.
 - **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים. חזרה ל-2.34.0 בטוחה. השרת עובד כעת כברירת מחדל על רכיבי התקשורת הרגילים; את הרכיב המהיר אפשר להחזיר באבחון ("שרת: רכיב תקשורת מהיר"), אחרי הפעלה מחדש.

@@ -10,6 +10,7 @@ import path from 'node:path';
 //   npx vite --host 127.0.0.1 --port 5205   then   SW_BASE_URL=http://127.0.0.1:5205/ npx playwright test evidence-protected-switches --project=desktop --workers=1
 // SW_SHOTS=<dir> saves the screenshots there (docs/evidence/CR-019). Runs in every project: row locators take the layout that is visible (table from 600 px, cards below).
 const SHOTS = process.env.SW_SHOTS ?? '';
+const PS_URL = '/src/screens/devices-protected-switches-admin.ts';
 const SIZES = [
   { w: 1440, h: 900 },
   { w: 820, h: 1180 },
@@ -150,6 +151,11 @@ async function open(page: Page, fake: Fake, scheme: 'light' | 'dark' = 'light') 
 async function mount(page: Page, scheme: 'light' | 'dark' = 'light') {
   await page.emulateMedia({ colorScheme: scheme });
   await page.goto('./');
+  // PERF-HOME-DEVICES-2342 (2.34.2): the screens are lazy chunks, so the shell no longer defines this one on every address;
+  // the dev server loads its module (the same module instance the settings page imports)
+  await page.evaluate(async (url) => {
+    await import(/* @vite-ignore */ url);
+  }, PS_URL);
   await page.waitForFunction(() => !!customElements.get('devices-protected-switches'));
   await page.evaluate((dark) => {
     document.querySelectorAll('#ps-stage').forEach((e) => e.remove());

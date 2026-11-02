@@ -1,0 +1,458 @@
+import{a as Q,ac as Y,i as b,l as T,aw as R,A as h,w as O,q as L,e as a,ax as Z,ay as ss,az as E,aA as _,aB as H,aC as C,aD as es,aE as ts,aF as os,aG as S,aj as z,aH as k,aI as is,aJ as as,aK as A,aL as rs,aM as ns,aN as ls,aO as ds,aP as cs,aQ as hs,aR as ps,aS as us,ae as fs,R as j,j as ws,ai as gs,aT as ms,aU as bs,aV as vs,aW as xs,aX as $s,E as ks,F as ys,G as w,H as _s}from"./index-D0R90ECk.js";import{o as q}from"./architect-request-dialog-D0kyUZWL.js";import"./sw-floor-iso-CO3QMBAA.js";import{g as zs}from"./geometry-Cn_6xoWG.js";import{k as Ds,b as Fs,i as Os,a as Ls}from"./scene-builder-AqcAri-R.js";import{f as U}from"./connector-targets-Cw_oqhYV.js";import{f as Is,D as Bs}from"./shared-space-Bg2qLNxN.js";import"./sw-logo-art-Va6y_cIM.js";import"./material-resolve-DovWvTRQ.js";import"./zones-D1oIBQqa.js";var Ns=Object.defineProperty,Es=Object.getOwnPropertyDescriptor,f=(s,e,t,i)=>{for(var n=i>1?void 0:i?Es(e,t):e,c=s.length-1,d;c>=0;c--)(d=s[c])&&(n=(i?d(e,t,n):d(n))||n);return i&&n&&Ns(e,t,n),n};let p=class extends Q{constructor(){super(...arguments),this.phone=new Y(this),this.buildingId="bld-a",this.tree=null,this.selected=null,this.tab="floors",this.dialog=null,this.busy=!1,this.error="",this.formName="",this.formLevel=0,this.isos=new Map,this.isoPending=new Set,this.xsData=null,this.sheetOpen=!1,this.hoverId=null,this.lightsOf=null,this.linkDocs=new Map,this.rowBoxes=null,this.boxesHeight=0,this.cardsEl=null,this.homeRouteDone="",this.lightsAllowed=s=>s.nodata||s.lights===null?!1:!b()||this.xsData?.demo?!0:T("devices.read")&&R(s)!==null}pruned(){const s=(this.tree?.sites??[]).flatMap(e=>(e.buildings??[]).flatMap(t=>(t.floors??[]).map(i=>i.published_version_id))).filter(e=>!!e);return Ds(this.isos,s)}isoFor(s){const e=s.published_version_id;return!e||this.tree?.source!=="api"?null:this.isos.has(e)?this.isos.get(e)??null:(this.isoPending.has(e)||(this.isoPending.add(e),zs(e).then(t=>{const i=Fs({doc:t.doc,width:s.plan_width_px||t.doc.dimensions.width_px,height:s.plan_height_px||t.doc.dimensions.height_px,anchors:[],entityStates:{},circuitStates:{},layers:{objects:!1,cameras:!1,entities:!1,zones:!1}});this.isos=this.pruned().set(e,i.parts.some(n=>n.kind==="wall")?Os(i):null),this.linkDocs=new Map(this.linkDocs).set(e,{floorId:s.id,connectors:t.doc.connectors,levels:t.doc.levels,floorHeightM:Is(t.doc)})}).catch(()=>{this.isos=this.pruned().set(e,null)}).finally(()=>this.isoPending.delete(e))),null)}renderLinks(s){const e=s.map(o=>o.published_version_id?this.linkDocs.get(o.published_version_id):void 0).filter(o=>!!o),t=U(e,s.map(o=>({id:o.id,name:o.name})));if(!t.length)return h;const i=[...s].sort((o,u)=>o.level-u.level||o.sort_order-u.sort_order),n=34/3,c=o=>(o.published_version_id?this.linkDocs.get(o.published_version_id)?.floorHeightM:void 0)??Bs,d=new Map;let l=0;for(const o of i)d.set(o.id,l),l+=c(o)*n;const v=i.length?d.get(i[i.length-1].id):0,x=o=>v-(d.get(o)??0),m=(o,u)=>{const g=Ls(u[0],u[1]);return{x:g.x,y:g.y+x(o)}},$=o=>[[0,0],[1,0],[1,1],[0,1]].map(([u,g])=>m(o,[u,g])).map(u=>`${u.x.toFixed(1)},${u.y.toFixed(1)}`).join(" "),y=72+v;return a`<sw-card heading="קשרים בין קומות" subheading="מדרגות ומעליות שמקשרות קומות (מבנה מפורסם)" data-floor-links>
+      <div class="links">
+        <svg class="stack" viewBox=${`0 0 120 ${y}`} aria-hidden="true">
+          ${i.map(o=>O`<g data-stack-floor=${o.id}><polygon class="plate" points=${$(o.id)} /><text class="pname" x="2" y=${(x(o.id)+38).toFixed(1)}>${o.name}</text></g>`)}
+          ${t.map(o=>{const u=m(o.a.floorId,o.a.at),g=o.b?m(o.b.floorId,o.b.at):null;return O`<g data-stack-link=${o.id}>
+              ${g?O`<line class="lk" x1=${u.x} y1=${u.y} x2=${g.x} y2=${g.y} />`:h}
+              <circle class="lkdot" cx=${u.x} cy=${u.y} r="2.2" />${g?O`<circle class="lkdot" cx=${g.x} cy=${g.y} r="2.2" />`:h}
+            </g>`})}
+        </svg>
+        <ul class="lklist">
+          ${t.map(o=>a`<li data-link-row=${o.id}>${o.kindLabel}: ${L(o.a.label)} ↔ ${L(o.b?.label??o.farLabel)}${o.b?"":" (התאום עדיין לא פורסם)"}</li>`)}
+        </ul>
+      </div>
+    </sw-card>`}connectedCallback(){super.connectedCallback(),this.reload(),this.stopXs=Z(()=>this.requestUpdate()),this.stopFire=ss(()=>this.requestUpdate()),E().then(s=>this.xsData=s)}disconnectedCallback(){this.cardsObs?.disconnect(),this.cardsObs=void 0,this.cardsEl=null,this.stopXs?.(),this.stopFire?.(),super.disconnectedCallback()}updated(s){s.has("buildingId")&&s.get("buildingId")!==void 0&&(this.selected=null),this.watchCards(),this.measureCards(),this.openHomeFromRoute()}openHomeFromRoute(){const s=_().params.get("ha");if(!s||s===this.homeRouteDone||!this.tree)return;const e=this.context,i=(e&&this.demoN()?H(this.demoN(),e.building):e?.building)?.floors?.find(n=>n.id===s);this.homeRouteDone=s,i&&!this.dialog&&this.openDialog({kind:"home",floor:i})}watchCards(){const s=this.renderRoot.querySelector(".cards[data-align]");if(s!==this.cardsEl){if(this.cardsObs?.disconnect(),this.cardsEl=s,!s){this.rowBoxes&&(this.rowBoxes=null);return}this.cardsObs??=new ResizeObserver(()=>this.measureCards()),this.cardsObs.observe(s),s.querySelectorAll("[data-floor-card]").forEach(e=>this.cardsObs.observe(e))}}measureCards(){const s=this.cardsEl;if(!s)return;const e=s.getBoundingClientRect(),t=[...s.querySelectorAll("[data-floor-card]")].map(c=>{const d=c.getBoundingClientRect();return{id:c.dataset.floorCard,top:Math.round(d.top-e.top),height:Math.round(d.height)}}),i=Math.round(e.height);this.rowBoxes&&this.rowBoxes.length===t.length&&this.rowBoxes.every((c,d)=>c.id===t[d].id&&c.top===t[d].top&&c.height===t[d].height)||(this.rowBoxes=t),i!==this.boxesHeight&&(this.boxesHeight=i)}xsEff(){return b()?C():es(C(),_().params)}demoN(){if(b())return 0;const s=Number(_().params.get("xsdemo"));return Number.isInteger(s)&&s>=1&&s<=40?s:0}sectionBeside(){return!this.phone.matches&&this.xsEff().desktop_place!=="off"}demoData(){return b()?null:_().params.get("xsdata")}signalsFor(s){return!b()||this.xsData?.demo?ts([...s].sort((e,t)=>t.level-e.level||t.sort_order-e.sort_order),this.demoData()):os(s,this.xsData?.tree??null,this.xsData?.people??null,S(this.xsData,this.context?.site),{switches:this.xsEff().syn_switches})}pickFloor(s,e=!1){this.selected===s||e&&this.xsEff().click==="open"?z(`/explore/floors/${s}`):this.selected=s}linksFor(s){const e=s.map(t=>t.published_version_id?this.linkDocs.get(t.published_version_id):void 0).filter(t=>!!t);return U(e,s.map(t=>({id:t.id,name:t.name})))}renderLights(){const s=this.lightsOf,e=!b()||!!this.xsData?.demo,t=s&&!e?R(s):null;return a`<devices-tiles-panel kind="lights" data-floor-lights=${s?.id??""} ?open=${!!s} pairedMaster
+      scope=${t?.scope??"building"} scopeId=${t?.scopeId??""} scopeName=${s?.name??""} .areaFilter=${t?t.areaIds:null} switches=${this.xsEff().syn_switches}
+      headingText=${s?k("floorLightsTitle",{name:s.name}):""}
+      @panel-close=${()=>this.lightsOf=null} @panel-changed=${()=>void E().then(i=>this.xsData=i)}></devices-tiles-panel>`}renderFloorsTab(s,e,t){const i=this.tree,n=this.xsEff(),c=this.phone.matches,d=this.signalsFor(s),l=new Map(d.map(r=>[r.id,r])),v=is(d,n),x=this.linksFor(s),m=x.length?as(x):t||!b()?[{kind:"stairs",label:"מדרגות",floors:d.map(r=>r.id)}]:[],$=_().params.get("firemock");n.fire_ui?A($,d):A(null);const y=n.fire_ui?rs().floors:null,o=c?ns(n.phone_place,s.length):"none",{step:u,cols:g}=ls(s.length,c),M=n.many==="near"?ds(s,e?.id??null,2):s,X=cs(n.links,s.length,window.innerHeight)||c,G=c&&o==="side",I=this.sectionBeside()&&g===1&&M.length===s.length,W=!this.phone.restricted("structure")&&(!b()||T("site.content.configure")),V=M.map(r=>{const D=a`<button class="floor ${e?.id===r.id?"on":""} ${this.hoverId===r.id?"hl":""}" data-floor-card=${r.id} @click=${()=>this.pickFloor(r.id)} @pointerenter=${N=>N.pointerType==="mouse"&&(this.hoverId=r.id)} @pointerleave=${N=>N.pointerType==="mouse"&&(this.hoverId=null)} aria-pressed=${e?.id===r.id}>
+        <div class="txt">
+          <div class="title">${L(r.name)}</div>
+          <div class="counts">${r.camera_count} מצלמות${r.shared_camera_count?a` <span class="shared" data-floor-shared=${r.id}>(+${r.shared_camera_count} משותפות)</span>`:h} · ${r.anchor_count} פריטים במפה · מפלס ${hs(r.level)}${r.has_plan?"":" · אין תוכנית עדיין"}${r.draft_version_id?" · טיוטה ממתינה לפרסום":""}</div>
+        </div>
+        <sw-floor-iso data-floor-iso=${r.id} .rooms=${i.source==="demo"?ps(r.id):[]} .iso=${this.isoFor(r)} ?selected=${e?.id===r.id} ?empty=${!r.has_plan} width=${128}></sw-floor-iso>
+        <span class="chev"><sw-icon name="chevron" size=${16}></sw-icon></span>
+      </button>`,F=l.get(r.id);return G&&F?a`<div class="frow">${D}${us(F,n,e?.id===r.id,()=>this.pickFloor(r.id),v)}</div>`:D}),J=a`<div class="actions" data-floor-actions>
+      ${this.phone.restricted("structure")?h:a`<div>
+            <sw-button icon="plus" @click=${()=>this.openDialog({kind:"floor"})}>קומה חדשה</sw-button>
+            <sw-button variant="ghost" icon="building" @click=${()=>this.openDialog({kind:"building"})}>מבנה חדש</sw-button>
+          </div>`}
+      ${e?a`<div>
+            ${this.phone.restricted("structure")?h:a`<sw-button variant="ghost" icon="edit" @click=${()=>this.openDialog({kind:"rename",floor:e})}>עריכה</sw-button>
+                <sw-button variant="ghost" icon="link" data-home-link-btn @click=${()=>this.openDialog({kind:"home",floor:e})}>${k("homeLinkBtn")}</sw-button>
+                <sw-button variant="ghost" icon="trash" @click=${()=>this.openDialog({kind:"delete",floor:e,force:!1})}>מחיקה</sw-button>
+                <sw-button icon="upload" @click=${()=>z(`/explore/floors/${e.id}/import`)}>${e.has_plan?"תוכנית חדשה":"העלאת תוכנית"}</sw-button>`}
+            ${e.has_plan||e.draft_version_id?h:a`<sw-button variant="ghost" icon="mail" data-architect-request @click=${()=>q()}>בקשה לאדריכל</sw-button>`}
+            ${l.get(e.id)&&v.light&&this.lightsAllowed(l.get(e.id))?a`<sw-button variant="ghost" icon="light" data-floor-lights-open=${e.id} @click=${()=>this.lightsOf=l.get(e.id)}>${k("floorLightsBtn")}</sw-button>`:h}
+            <sw-button variant="primary" icon="map" @click=${()=>z(`/explore/floors/${e.id}`)}>פתח את ${e.name}</sw-button>
+          </div>`:h}
+    </div>`,P=a`<sw-xsection .floors=${d} .links=${m} .opts=${n} .fire=${y} selectedId=${e?.id??""} hoverId=${this.hoverId??""}
+      .rowBoxes=${I?this.rowBoxes:null} boxesHeight=${I?this.boxesHeight:0} ?canLink=${W} .lightsOk=${this.lightsAllowed}
+      @xs-lights=${r=>{this.lightsOf=l.get(r.detail.id)??null}}
+      @xs-link=${r=>{const D=s.find(F=>F.id===r.detail.id);D&&this.openDialog({kind:"home",floor:D})}}
+      @xs-pick=${r=>this.pickFloor(r.detail.id,!0)} @xs-hover=${r=>this.hoverId=r.detail.id}></sw-xsection>`,B=this.sectionBeside(),K=a`<div class="list" data-floor-list data-step=${u} data-cols=${g} data-many=${n.many}>
+      ${s.length?h:a`<div class="empty">${this.phone.restricted("structure")?"למבנה הזה אין עדיין קומות. הוספת קומות ותוכניות זמינה במחשב.":"למבנה הזה אין עדיין קומות. הוסף קומה, ואז העלה תוכנית (PDF או תמונה)."}<div style="margin-block-start:10px"><sw-button variant="ghost" icon="mail" data-architect-request @click=${()=>q()}>בקשה לאדריכל</sw-button></div></div>`}
+      ${c&&o==="card"?a`<sw-xs-compact .floors=${d} .opts=${n} selectedId=${e?.id??""} @xs-open-sheet=${()=>this.sheetOpen=!0}></sw-xs-compact>`:h}
+      <div class="cards" data-step=${u} data-cols=${g} ?data-align=${I}>${V}</div>
+      ${X?this.renderLinksFolded(x):this.renderLinks(s)}
+      ${this.error&&!this.dialog?a`<div class="err" role="alert">${this.error}</div>`:h}
+      ${J}
+    </div>`;return a`<div class="fl ${B?`beside ${n.desktop_place}`:""}" data-xs-place=${c?o:B?n.desktop_place:"off"}>
+      ${K}
+      ${B?a`<aside class="xscol" data-xs-col>${P}</aside>`:h}
+      ${this.sheetOpen&&c&&s.length?a`<sw-dialog open heading=${k("sectionSheetTitle")} data-xs-sheet @close=${()=>this.sheetOpen=!1}>
+            <div class="xssheet">${P}</div>
+            <sw-button slot="footer" variant="ghost" @click=${()=>this.sheetOpen=!1}>${k("close")}</sw-button>
+          </sw-dialog>`:h}
+    </div>`}renderLinksFolded(s){return s.length?a`<div class="linkrow" data-floor-links-folded><sw-icon name="layers" size=${14}></sw-icon><span class="lt">${k("linksTitle")}</span>
+      <span class="ll">${s.map(e=>`${e.kindLabel}: ${e.a.label} ↔ ${e.b?.label??e.farLabel}${e.b?"":` ${k("linksPending")}`}`).join(" · ")}</span></div>`:h}async reload(){try{this.tree=await fs(),this.error=""}catch(s){this.error=j(s)}}get context(){if(!this.tree)return null;for(const t of this.tree.sites)for(const i of t.buildings??[])if(i.id===this.buildingId)return{site:t,building:i};const s=this.tree.sites[0],e=s?.buildings?.[0];return s&&e?{site:s,building:e}:null}async run(s){this.busy=!0,this.error="";try{await s(),this.dialog=null,await this.reload()}catch(e){e instanceof ws&&e.code==="has_anchors"&&this.dialog?.kind==="delete"?(this.dialog={...this.dialog,force:!0},this.error=`${e.body.user_message} (${e.body.details.anchors??""} פריטים)`):this.error=j(e)}finally{this.busy=!1}}openDialog(s){this.phone.restricted("structure")||(this.error="",this.formName=s?.kind==="rename"?s.floor.name:"",this.formLevel=s?.kind==="rename"?s.floor.level:0,this.dialog=s)}renderDialog(s){const e=this.dialog;if(!e||this.phone.restricted("structure"))return h;const t=this.tree?.source==="demo",i=a`<sw-field label="שם"><input .value=${this.formName} @input=${l=>this.formName=l.target.value} placeholder="למשל: קומה 1" autofocus /></sw-field>`,n=a`<sw-field label="מפלס (0 = קרקע, שלילי = מרתף)" hint="קובע את סדר התצוגה בין הקומות"><input type="number" data-ltr .value=${String(this.formLevel)} @input=${l=>this.formLevel=Number(l.target.value)} /></sw-field>`,c=this.error?a`<div class="err" role="alert">${this.error}</div>`:h,d=t?a`<div class="err">נתוני הדגמה: אין שרת מחובר, השינוי לא יישמר.</div>`:h;switch(e.kind){case"floor":return a`<sw-dialog open heading="קומה חדשה" subheading=${`${s.name}`} @close=${()=>this.dialog=null}>
+          ${i}${n}${c}${d}
+          <sw-button slot="footer" variant="ghost" @click=${()=>this.dialog=null}>ביטול</sw-button>
+          <sw-button slot="footer" variant="primary" ?disabled=${!this.formName.trim()||this.busy||t} @click=${()=>this.run(async()=>{const l=await xs(s.id,{name:this.formName.trim(),level:this.formLevel});this.selected=l.id})}>הוסף קומה</sw-button>
+        </sw-dialog>`;case"rename":return a`<sw-dialog open heading="עריכת קומה" subheading=${e.floor.name} @close=${()=>this.dialog=null}>
+          ${i}${n}${c}${d}
+          <sw-button slot="footer" variant="ghost" @click=${()=>this.dialog=null}>ביטול</sw-button>
+          <sw-button slot="footer" variant="primary" ?disabled=${!this.formName.trim()||this.busy||t} @click=${()=>this.run(()=>vs(e.floor.id,{name:this.formName.trim(),level:this.formLevel}))}>שמירה</sw-button>
+        </sw-dialog>`;case"delete":return a`<sw-dialog open heading="מחיקת קומה" subheading=${e.floor.name} @close=${()=>this.dialog=null}>
+          <div style="font-size:var(--sw-fs-sm)">${e.force?"על הקומה מוצבים פריטים. מחיקה תסיר אותם מהמפה (ההיסטוריה נשמרת באודיט). להמשיך?":"הקומה תוסר מהמערכת. תוכניות שפורסמו נשמרות בארכיון; מצלמות והקלטות ב־NVR אינן נמחקות."}</div>
+          ${c}${d}
+          <sw-button slot="footer" variant="ghost" @click=${()=>this.dialog=null}>ביטול</sw-button>
+          <sw-button slot="footer" variant="danger" ?disabled=${this.busy||t} @click=${()=>this.run(async()=>{await bs(e.floor.id,e.force),this.selected===e.floor.id&&(this.selected=null)})}>${e.force?"מחק כולל הפריטים":"מחק קומה"}</sw-button>
+        </sw-dialog>`;case"home":{const l=s.floors??[],v=t||!b()?ms(l,this.demoData()==="none"?"none":this.demoData()==="sparse"?"sparse":"ha"):this.xsData?.tree??null,x=new Map((this.tree?.sites??[]).flatMap(m=>(m.buildings??[]).flatMap($=>($.floors??[]).map(y=>[y.id,(m.buildings?.length??0)>1?`${$.name} · ${y.name}`:y.name]))));return a`<sw-floor-home-link .floor=${e.floor} .floors=${l} .floorNames=${x} .tree=${v} .links=${this.xsData?.links??null}
+          ?singleBuilding=${S(this.xsData,this.context?.site).singleBuilding} ?demo=${t||!b()}
+          @close=${()=>this.dialog=null}
+          @saved=${m=>{this.dialog=null,this.xsData&&(this.xsData={...this.xsData,links:m.detail.links}),E().then($=>this.xsData=$)}}></sw-floor-home-link>`}case"building":return a`<sw-dialog open heading="מבנה חדש" subheading=${this.context?.site.name??""} @close=${()=>this.dialog=null}>
+          ${i}${c}${d}
+          <sw-button slot="footer" variant="ghost" @click=${()=>this.dialog=null}>ביטול</sw-button>
+          <sw-button slot="footer" variant="primary" ?disabled=${!this.formName.trim()||this.busy||t} @click=${()=>this.run(async()=>{const l=await gs(this.context.site.id,{name:this.formName.trim()});z(`/explore/buildings/${l.id}/floors`)})}>הוסף מבנה</sw-button>
+        </sw-dialog>`}}render(){if(!this.tree)return a`<sw-page heading="קומות"><sw-state-panel icon="floor" state=${this.error?"error":"loading"} hint=${this.error}></sw-state-panel></sw-page>`;const s=this.context;if(!s)return a`<sw-page heading="קומות" subheading="אין עדיין אתרים ומבנים">
+        <sw-state-panel icon="floor" state="empty" heading="עוד אין מבנים" hint="צור אתר ומבנה כדי להוסיף קומות ותוכניות.">
+          <div style="margin-block-start:10px"><sw-button variant="primary" icon="plus" @click=${()=>z("/explore/sites")}>לאתרים</sw-button></div>
+        </sw-state-panel>
+      </sw-page>`;const{site:e}=s,t=this.demoN()?H(this.demoN(),s.building,_().params.get("xsnames")==="long"):s.building,i=t.floors??[],n=i.find(l=>l.id===this.selected)??i[0]??null,c=i.reduce((l,v)=>l+v.camera_count,0),d=this.tree;return a`
+      <sw-page heading=${t.name} subheading=${`${e.address||e.name} · ${i.length} קומות${d.source==="demo"?" · נתוני הדגמה":""}`} crumbs=${`אתרים | ${e.name} | ${t.name}`}>
+        ${this.sectionBeside()?h:a`<div slot="actions" class="pic"><sw-scene kind="building"></sw-scene></div>`}
+        <div class="tabsrow"><sw-tabs .items=${[{id:"floors",label:"קומות",count:i.length},{id:"cameras",label:"מצלמות",count:c},{id:"details",label:"פרטים"}]} .active=${this.tab} @change=${l=>this.tab=l.detail.id}></sw-tabs>
+          ${this.phone.matches&&this.tab==="floors"&&this.xsEff().phone_place==="sheet"&&i.length?a`<sw-button class="xsbtn" size="sm" variant="ghost" data-xs-sheet-btn @click=${()=>this.sheetOpen=!0}>${k("sectionOpenBtn")}</sw-button>`:h}
+        </div>
+        ${this.tab==="floors"?this.renderFloorsTab(i,n,d.source==="demo"):this.tab==="cameras"?a`<div class="cams">${i.map(l=>a`<sw-card heading=${L(l.name)} subheading="${l.camera_count} מצלמות" interactive @click=${()=>z(`/explore/floors/${l.id}`)}></sw-card>`)}</div>`:a`<sw-card heading="פרטי המבנה">
+                <dl>
+                  <dt>אתר</dt><dd>${e.name}</dd>
+                  <dt>כתובת</dt><dd>${e.address||"—"}</dd>
+                  <dt>אזור זמן</dt><dd><span class="ltr">${e.timezone}</span></dd>
+                  <dt>קומות</dt><dd>${i.length} · ${i.filter(l=>l.has_plan).length} עם תוכנית מפורסמת</dd>
+                  <dt>קשרים בין קומות</dt><dd>מדרגות ומעלית בין קומות מוגדרות בעורך התוכנית ("מחבר אל"); הקשרים שפורסמו מופיעים בלשונית הקומות</dd>
+                </dl>
+              </sw-card>`}
+        ${this.renderDialog(t)}
+        ${this.renderLights()}
+      </sw-page>
+    `}};p.styles=[$s,ks`
+    .links {
+      display: flex;
+      gap: 18px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+    svg.stack {
+      inline-size: 180px;
+      block-size: auto;
+      overflow: visible;
+    }
+    svg.stack .plate {
+      fill: var(--sw-surface);
+      stroke: var(--sw-border-strong);
+      stroke-width: 0.8;
+    }
+    svg.stack .pname {
+      font-size: 6px;
+      fill: var(--sw-text-3);
+    }
+    svg.stack .lk {
+      stroke: var(--sw-accent);
+      stroke-width: 1.4;
+      stroke-dasharray: 3 2;
+    }
+    svg.stack .lkdot {
+      fill: var(--sw-accent);
+    }
+    .lklist {
+      margin: 0;
+      padding-inline-start: 18px;
+      font-size: var(--sw-fs-sm);
+      display: grid;
+      gap: 4px;
+    }
+    .pic {
+      inline-size: 112px;
+      block-size: 72px;
+      border-radius: var(--sw-r-sm);
+      overflow: hidden;
+      position: relative;
+      box-shadow: var(--sw-shadow-1);
+    }
+    .pic sw-scene {
+      position: absolute;
+      inset: 0;
+    }
+    .list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-inline-size: 720px;
+    }
+    .floor {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 10px 14px;
+      border: 1.5px solid var(--sw-border);
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface);
+      text-align: start;
+      font: inherit;
+      color: inherit;
+      cursor: pointer;
+      box-shadow: var(--sw-shadow-1);
+      transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
+    }
+    .floor:hover {
+      border-color: var(--sw-border-strong);
+      box-shadow: var(--sw-shadow-2);
+    }
+    .floor.on {
+      border-color: var(--sw-accent);
+      box-shadow: 0 0 0 3px var(--sw-accent-soft);
+    }
+    .floor .txt {
+      flex: 1;
+      min-inline-size: 0;
+    }
+    .title {
+      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-md);
+    }
+    .counts {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-3);
+      margin-block-start: 2px;
+    }
+    .counts .shared {
+      color: var(--sw-accent-text);
+    }
+    .chev {
+      color: var(--sw-text-3);
+    }
+    .floor.on .chev {
+      color: var(--sw-accent);
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    .actions div {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .err {
+      color: var(--sw-danger-text);
+      font-size: var(--sw-fs-xs);
+    }
+    .empty {
+      border: 1.5px dashed var(--sw-border-strong);
+      border-radius: var(--sw-r-md);
+      padding: 24px;
+      text-align: center;
+      color: var(--sw-text-3);
+      font-size: var(--sw-fs-sm);
+    }
+    dl {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 8px 14px;
+      margin: 0;
+      font-size: var(--sw-fs-sm);
+      max-inline-size: 520px;
+    }
+    dt {
+      color: var(--sw-text-3);
+    }
+    dd {
+      margin: 0;
+    }
+    .cams {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    /* R5-MAPS-297 (impeccable bolder, HOMEFABLE pattern): the floor rows are the hero objects - large radius, a 17/700 heading, the
+       counts as a 13/500 line with tabular digits; the selected floor is a FILLED accent field with the accent edge and shadow 2
+       (not a 3 px halo around a white card). Press on pointer-down; hover only with a fine pointer. */
+    .pic {
+      border-radius: var(--sw-r-md);
+      box-shadow: var(--sw-shadow-2);
+    }
+    .floor {
+      padding: 12px 16px;
+      border-color: transparent;
+      border-radius: var(--sw-r-lg);
+      transition: border-color var(--sw-t-hover) var(--sw-ease-color), background var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      user-select: none;
+    }
+    .floor:active {
+      transform: scale(var(--sw-press-scale));
+    }
+    .floor.on {
+      background: var(--sw-accent-soft);
+      border-color: var(--sw-accent);
+      box-shadow: var(--sw-shadow-2);
+    }
+    @media (hover: none) {
+      .floor:hover {
+        border-color: transparent;
+        box-shadow: var(--sw-shadow-1);
+      }
+      .floor.on:hover {
+        border-color: var(--sw-accent);
+        box-shadow: var(--sw-shadow-2);
+      }
+    }
+    .title {
+      font-size: var(--sw-fs-xl);
+      font-weight: var(--sw-fw-bold);
+      color: var(--sw-heading);
+      letter-spacing: -0.01em;
+    }
+    .floor.on .title {
+      color: var(--sw-accent-text);
+    }
+    .counts {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
+      color: var(--sw-text-2);
+      margin-block-start: 4px;
+      font-variant-numeric: tabular-nums;
+    }
+    .floor.on .counts {
+      color: var(--sw-text);
+    }
+    .empty {
+      background: var(--sw-surface-2);
+      font-weight: var(--sw-fw-medium);
+    }
+    dd {
+      font-weight: var(--sw-fw-semibold);
+      color: var(--sw-heading);
+    }
+    dt {
+      color: var(--sw-text-2);
+    }
+    /* R5-MAPS-297 loop 2: three steps, not one - the unselected floors are WELLS (surface 2, no shadow, no edge), the selected floor is the
+       one hero (accent field, 2 px accent edge, shadow 2), the heading 20/700 and the counts 14/500 with 700 digits. */
+    .floor {
+      background: var(--sw-surface-2);
+      box-shadow: none;
+      border-width: 2px;
+      padding: 14px 18px;
+    }
+    .floor.on {
+      background: var(--sw-accent-soft);
+      border-color: var(--sw-accent);
+      box-shadow: var(--sw-shadow-2);
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .floor:hover:not(.on) {
+        background: var(--sw-surface-3);
+        border-color: transparent;
+        box-shadow: none;
+      }
+    }
+    .title {
+      font-size: var(--sw-fs-2xl);
+      /* break-ui (shots/final/floors-worst-*): a 90-character unbreakable name ran out of the row; a name wraps to two lines at most */
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      overflow: hidden;
+      overflow-wrap: anywhere;
+    }
+    .counts {
+      overflow-wrap: anywhere;
+    }
+    .counts {
+      font-size: var(--sw-fs-md);
+    }
+    .pic {
+      inline-size: 124px;
+      block-size: 80px;
+    }
+    /* 2.29.0: the cross-section beside the list. The list is frozen (no scroll): its cards share the height and shrink in steps; the section takes the free area. */
+    :host {
+      display: block;
+      block-size: 100%;
+    }
+    sw-page {
+      block-size: 100%;
+      box-sizing: border-box;
+    }
+    .tabsrow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    .fl {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 16px;
+      min-block-size: 0;
+      block-size: 100%;
+    }
+    .fl.beside {
+      grid-template-columns: minmax(0, 720px) minmax(0, 1fr);
+    }
+    .fl.beside.right .xscol {
+      order: -1;
+    }
+    .xscol {
+      min-inline-size: 0;
+      min-block-size: 0;
+      block-size: 100%;
+      max-block-size: 100%;
+    }
+    @media (max-width: 1023px) {
+      .fl.beside {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 300px);
+      }
+    }
+    .list {
+      min-block-size: 0;
+      max-inline-size: none;
+    }
+    .cards {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-block-size: 0;
+    }
+    .cards[data-cols='2'] {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+    .frow {
+      display: flex;
+      gap: 8px;
+      align-items: stretch;
+    }
+    .frow > .floor {
+      flex: 1;
+      min-inline-size: 0;
+    }
+    .floor.hl:not(.on) {
+      background: var(--sw-surface-3);
+    }
+    /* the steps: the more floors, the smaller the card (no scrolling) */
+    .cards[data-step='1'] { gap: 8px; }
+    .cards[data-step='1'] .floor { padding: 10px 16px; }
+    .cards[data-step='1'] .title { font-size: var(--sw-fs-xl); }
+    .cards[data-step='1'] .counts { font-size: var(--sw-fs-sm); }
+    .cards[data-step='1'] sw-floor-iso { display: none; }
+    .cards[data-step='2'] { gap: 6px; }
+    .cards[data-step='2'] .floor { padding: 7px 14px; border-radius: var(--sw-r-md); }
+    .cards[data-step='2'] .title { font-size: var(--sw-fs-lg); }
+    .cards[data-step='2'] .counts { font-size: var(--sw-fs-xs); }
+    .cards[data-step='2'] sw-floor-iso, .cards[data-step='2'] .chev { display: none; }
+    .cards[data-step='3'] { gap: 4px; }
+    .cards[data-step='3'] .floor { padding: 4px 12px; border-radius: var(--sw-r-sm); border-width: 1.5px; }
+    .cards[data-step='3'] .title { font-size: var(--sw-fs-md); -webkit-line-clamp: 1; line-clamp: 1; }
+    .cards[data-step='3'] .counts, .cards[data-step='3'] sw-floor-iso, .cards[data-step='3'] .chev { display: none; }
+    .linkrow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-radius: var(--sw-r-md);
+      background: var(--sw-surface-2);
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
+      min-inline-size: 0;
+    }
+    .linkrow .lt { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); white-space: nowrap; }
+    .linkrow .ll { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* SYNOPTIC-HA-2310: the column has the page's height and the cards give way inside it (they shrank in steps but could still run under
+       the actions at 12 floors); the section's rows follow the cards' boxes, so both columns keep one rhythm. */
+    .fl.beside { grid-template-rows: minmax(0, 1fr); }
+    .fl.beside .list { min-block-size: 0; }
+    .fl.beside .cards { flex: 0 1 auto; }
+    .fl.beside .cards > .floor { flex: 0 1 auto; min-block-size: 0; overflow: hidden; }
+    .xssheet { block-size: min(72dvh, 640px); min-block-size: 360px; }
+    .xsbtn { margin-inline-start: auto; }
+    @media (max-width: 767px) {
+      .fl { block-size: auto; }
+      .floor { padding: 10px 12px; gap: 10px; }
+      .frow .floor sw-floor-iso { display: none; }
+      .frow .floor .chev { display: none; }
+      .title { font-size: var(--sw-fs-xl); }
+      .counts { font-size: var(--sw-fs-sm); }
+      .cards[data-step='1'] .title, .cards[data-step='2'] .title { font-size: var(--sw-fs-md); }
+      .cards[data-step='3'] .title { font-size: var(--sw-fs-sm); }
+      .xscol { display: none; }
+    }
+  `];f([ys()],p.prototype,"buildingId",2);f([w()],p.prototype,"tree",2);f([w()],p.prototype,"selected",2);f([w()],p.prototype,"tab",2);f([w()],p.prototype,"dialog",2);f([w()],p.prototype,"busy",2);f([w()],p.prototype,"error",2);f([w()],p.prototype,"formName",2);f([w()],p.prototype,"formLevel",2);f([w()],p.prototype,"isos",2);f([w()],p.prototype,"xsData",2);f([w()],p.prototype,"sheetOpen",2);f([w()],p.prototype,"hoverId",2);f([w()],p.prototype,"lightsOf",2);f([w()],p.prototype,"linkDocs",2);f([w()],p.prototype,"rowBoxes",2);f([w()],p.prototype,"boxesHeight",2);p=f([_s("explore-floors")],p);export{p as ExploreFloors};
+//# sourceMappingURL=explore-floors-DW1vlJhE.js.map

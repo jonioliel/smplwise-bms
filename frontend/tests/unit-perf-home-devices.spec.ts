@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { api, get, inflightGetCount, post } from '../src/api/client';
+import { loadScreen, waitingScreenTags } from '../src/shell/lazy-screens';
 
 // PERF-HOME-DEVICES-2342 (docs/changes/PERF-HOME-DEVICES-2342.md): the in-flight GET sharing of the API client and the static guard of the
 // shell's lazy screen chunks. No browser page.
@@ -76,6 +77,33 @@ test.describe('in-flight GET sharing', () => {
 });
 
 test.describe('lazy screen chunks', () => {
+  // GATE2342-B: the shell waits for a route screen's chunk before it renders the tag (an element upgraded in place gets its properties
+  // back only after connectedCallback: the plan editor loaded floor f0 instead of the one in the address). Lit results are modelled
+  // as plain objects (strings / values), which is all waitingScreenTags reads; no browser, so no tag is defined here.
+  test('waitingScreenTags finds the lazy screen tags of a route template, also inside keyed() and nested templates', () => {
+    const tpl = (strings: string[], ...values: unknown[]) => ({ _$litType$: 1, strings, values });
+    const editor = tpl(['<explore-plan-editor .floorId=', ' .presetEntity=', '></explore-plan-editor>'], 'f-2', '');
+    expect(waitingScreenTags(editor)).toEqual(['explore-plan-editor']);
+    expect(waitingScreenTags({ _$litDirective$: class {}, values: ['f-2', editor] })).toEqual(['explore-plan-editor']); // keyed(key, tpl)
+    expect(waitingScreenTags(tpl(['<div class="x">', '</div>'], tpl(['<tickets-list .route=', '></tickets-list>'], { segments: [] })))).toEqual(['tickets-list']);
+    expect(waitingScreenTags([tpl(['<explore-floors></explore-floors>']), tpl(['<explore-floors></explore-floors>'])])).toEqual(['explore-floors']);
+    // not lazy (in the entry chunk), not a template, nothing
+    expect(waitingScreenTags(tpl(['<sw-state-panel state="loading"></sw-state-panel>']))).toEqual([]);
+    expect(waitingScreenTags(tpl(['<devices-building></devices-building>']))).toEqual([]);
+    expect(waitingScreenTags(Symbol('nothing'))).toEqual([]);
+    expect(waitingScreenTags(null)).toEqual([]);
+    expect(waitingScreenTags('explore-plan-editor')).toEqual([]);
+  });
+
+  test('the shell renders a route through waitingScreenTags before the keyed() screen', () => {
+    const app = fs.readFileSync(path.join(HERE, '..', 'src', 'shell', 'sw-app.ts'), 'utf8');
+    const body = app.slice(app.indexOf('private renderScreen()'), app.indexOf('private renderRoute()'));
+    expect(body).toContain('waitingScreenTags(view)');
+    expect(body).toContain('loadScreen(tag, () => this.requestUpdate())');
+    expect(body.indexOf('waitingScreenTags(view)')).toBeLessThan(body.indexOf('keyed(this.permEpoch, view)'));
+    expect(loadScreen('not-a-screen')).toBe(false);
+  });
+
   test('every tag rendered by the shell or a screen is defined where it is rendered (scripts/lazy-tags-check.mjs)', () => {
     const out = execFileSync(process.execPath, [path.join(HERE, '..', 'scripts', 'lazy-tags-check.mjs')], { encoding: 'utf8' });
     expect(out).toContain('lazy-tags-check: OK');
