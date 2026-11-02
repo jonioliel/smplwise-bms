@@ -75,7 +75,7 @@ class AnnounceChannel(nc.Channel):
         exempt = d.severity == "critical" or d.mode == "escalate"
         if not exempt and cfg["quiet"]["mode"] == "suppress" and ann.quiet_active(conn, d.now, cfg):
             return [nc.Target(self.name, None, ref, "skipped", "quiet_hours")]
-        if d.quiet_window and d.mode != "escalate":  # CR-QUIET103: a spoken announcement is the loudest thing a quiet window exists to prevent
+        if d.window_holds(self.name):  # CR-QUIET103: held only when the administrator set `quiet.windows.channels` = all (by default a window silences phone / browser push only)
             return [nc.Target(self.name, None, ref, "skipped", "quiet_window")]
         phrase = emergency_phrase(conn, d)
         if phrase == "":

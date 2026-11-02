@@ -25,8 +25,10 @@ judged for permission; an area with no floor = installation scope), `started_at`
 
 ## 3. Suppressed and never suppressed
 
-Suppression is applied in the one dispatch function (`notify_channels.dispatch`, through `Dispatch.held`), so every channel follows it: web push,
-the phone app, e-mail, WhatsApp, and the spoken announcement. A held channel is logged as a skipped delivery with reason `quiet_window`; the
+Suppression is applied in the one dispatch function (`notify_channels.dispatch`, through `Dispatch.held`), so every channel follows it. *Amended by
+APP-SERVER-LEFTOVERS-2380 (owner decision, app-team note Q-3): by default a window holds only the push to phones and browsers (web push and the phone app);
+e-mail, WhatsApp and the spoken announcement ignore it unless `quiet.windows.channels` is `all`, which is the original behaviour described here: web push,
+the phone app, e-mail, WhatsApp, and the spoken announcement.* A held channel is logged as a skipped delivery with reason `quiet_window`; the
 notification row itself is created as always and stays in the inbox. WhatsApp re-checks at send time (a window that began while the message
 waited on pacing).
 

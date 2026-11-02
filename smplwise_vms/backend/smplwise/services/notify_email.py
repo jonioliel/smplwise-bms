@@ -1076,7 +1076,7 @@ class EmailChannel(Channel):
                                                            brand=brand_assets.company_name(conn), installer=white_label.email_line(conn))
         d.scratch["email_item"] = HeldItem("", d.nid, oneline(n.get("title"), 80), oneline(n.get("place"), 80), n.get("severity") or "info", int(n.get("count") or 1), _mono())
         if d.held(self.name):
-            return [Target(self.name, None, mask_address(a), "skipped", d.held_reason()) for a in cfg.recipients]
+            return [Target(self.name, None, mask_address(a), "skipped", d.held_reason(self.name)) for a in cfg.recipients]
         fold = False
         if d.mode == "escalate":
             GATE.force()
