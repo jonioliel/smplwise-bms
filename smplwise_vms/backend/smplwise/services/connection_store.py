@@ -720,6 +720,22 @@ def open_calendar_guest(data_dir: Path, event_id: str, seq: int, field: str, blo
     return _open(_Home(data_dir), _cal_guest_aad(event_id, seq, field), blob)
 
 
+# CAL-ATTENDEES-2343: an external guest invited to an entry - name, phone, e-mail; associated data `"cal_att|<attendee id>|<field>"`.
+def _cal_att_aad(attendee_id: str, field: str) -> bytes:
+    if not isinstance(attendee_id, str) or not 1 <= len(attendee_id) <= 64 or any(ord(ch) < 32 or ord(ch) == 127 or ch == "|" for ch in attendee_id) \
+            or field not in ("name", "phone", "email"):
+        raise SecretError("not a secret field")
+    return f"cal_att|{attendee_id}|{field}".encode("utf-8")
+
+
+def seal_calendar_attendee(data_dir: Path, attendee_id: str, field: str, plaintext: str) -> str:
+    return _seal(_Home(data_dir), _cal_att_aad(attendee_id, field), plaintext)
+
+
+def open_calendar_attendee(data_dir: Path, attendee_id: str, field: str, blob: str) -> str:
+    return _open(_Home(data_dir), _cal_att_aad(attendee_id, field), blob)
+
+
 # ---------------------------------------------------------------- calendar sync bindings (CALENDARS-298 section 12 / 3.7)
 # The external calendar reference and the provider sync token of a binding; associated data `"cal_sync|<binding id>|<ref|token>"`.
 

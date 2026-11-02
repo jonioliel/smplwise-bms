@@ -199,6 +199,10 @@ def recipients_for(conn: sqlite3.Connection, policy: dict[str, Any], n: dict[str
         from .notices import push as notice_push
 
         candidates = notice_push.recipient_users(conn, n)
+    elif rule == "calendar_attendee":  # CAL-ATTENDEES-2343: exactly the attendee the row was made for (services/calendar/attendee_notices.py)
+        from .calendar import attendee_notices
+
+        candidates = attendee_notices.recipient_users(conn, n)
     elif rule == "scenario":  # XSCENARIO109-295: the people the scenario's notify action addressed for this row (detailed or generic audience)
         candidates = [u for u in ((n.get("origin") or {}).get("to") or []) if isinstance(u, str)][:200]
     elif rule == "rfq_managers":  # TKRFQ5: the RFQ manager rule (creator, internal owner, department managers - with tickets.external)

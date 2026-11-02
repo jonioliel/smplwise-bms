@@ -10,6 +10,8 @@ import { STATE_LABEL, addDays, colorVar, ddmm, hm, isoDate, pad, startOfDay, whe
 import { calCss } from './styles';
 import { BEHALF_LABEL, localInstant, repeatSummary, rruleOf, type Repeat } from './booking-logic';
 import { editableInDrawer } from './event-drawer-logic';
+import './attendees-section'; // CAL-ATTENDEES-2343: the "מוזמנים" section (self-contained; reads / writes its own API)
+import type { CalAttendeesSection } from './attendees-section';
 
 /**
  * CALENDARS-UI-2310 slice A: the new / edit booking drawer (the approved round-8 mock-up, screen 4). Permission-aware: an operator books for
@@ -307,6 +309,8 @@ export class CalEventDrawer extends LitElement {
     const hc = parseInt(this.headcount, 10);
     if (hc > 0) out.headcount = hc;
     if (this.guestsOffered() && (this.guestName.trim() || this.guestPhone.trim())) out.guests = [{ name: this.guestName.trim(), phone: this.guestPhone.trim() }];
+    const attendees = (this.renderRoot.querySelector('cal-attendees-section') as CalAttendeesSection | null)?.payload() ?? []; // CAL-ATTENDEES-2343
+    if (attendees.length) Object.assign(out, { attendees });
     return out;
   }
 
@@ -410,6 +414,7 @@ export class CalEventDrawer extends LitElement {
           ${ev.headcount ? html`<dt>משתתפים</dt><dd class="num">${ev.headcount}</dd>` : nothing}
           ${ev.notes ? html`<dt>הערות</dt><dd>${ev.notes}</dd>` : nothing}
         </dl>
+        <cal-attendees-section .eventId=${ev.id}></cal-attendees-section>
         ${ev.sync_flag ? html`<div class="note bad" role="note"><sw-icon name="warning" size="18"></sw-icon><div><b>מסומן להחלטה</b><span class="muted">${ev.sync_flag === 'conflict' ? 'התנגשות עם יומן חיצוני: שתי ההזמנות נשמרו. ההחלטה בהגדרות ‹ חיבורי יומן.' : 'האירוע נמחק ביומן החיצוני.'}</span></div></div>` : nothing}
         ${!editableInDrawer(ev, ctx.now) && ['pending', 'confirmed'].includes(ev.state) ? html`<div class="note" role="note" data-cal-readonly-why><sw-icon name="lock" size="18"></sw-icon><div><b>צפייה בלבד</b>
           <span class="muted">${!ev.can.edit ? 'רק המארגן או מנהל היומן יכולים לשנות.' : new Date(ev.end) <= ctx.now ? 'המועד כבר עבר.' : ev.kind === 'maintenance' ? 'חלון תחזוקה נערך בלשונית "תחזוקה".' : 'אירוע מיומן חיצוני.'}</span></div></div>` : nothing}

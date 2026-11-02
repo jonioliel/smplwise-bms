@@ -309,9 +309,15 @@ def availability(body: Body, principal: Principal = Depends(current_principal_ro
 def create_event(body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     with _errors(conn, principal, request):
-        out = events.create(ctx, model.read_settings(conn), _body(body), _now())
+        from . import calendar_attendees as ca  # noqa: PLC0415 - CAL-ATTENDEES-2343: `attendees` may come with a new entry
+
+        data = _body(body)
+        items, _keep = ca.take_items(conn, data)
+        ca.precheck_create(ctx, data, items)
+        out = events.create(ctx, model.read_settings(conn), data, _now())
         ev = out["event"]
         _audit(conn, principal, request, "calendar.event.create", "calendar_event", ev["id"], calendar_id=ev["calendar_id"], state=out["state"], recurring=bool(ev["rrule"]))
+        ca.on_create(ctx, request, out, items, _now())
         return out
 
 
@@ -340,17 +346,29 @@ def get_event(eid: str, principal: Principal = Depends(current_principal_ro), co
 def patch_event(eid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     with _errors(conn, principal, request):
+        from . import calendar_attendees as ca  # noqa: PLC0415 - CAL-ATTENDEES-2343: a desired attendee list; change notices
+
         data = _body(body)
-        before = conn.execute("SELECT calendar_id, starts_at, ends_at, state FROM cal_events WHERE id = ?", (eid,)).fetchone()
-        out = events.update(ctx, model.read_settings(conn), eid, data, _now())
-        ev = out["event"]
-        # CAL-GRID-EDIT-2343: a move / resize from the grid is audited with what changed (ids and instants, never a title)
-        moved = bool(before and (before["starts_at"], before["ends_at"], before["calendar_id"]) != (ev["start"], ev["end"], ev["calendar_id"]))
-        extra: dict[str, Any] = {"moved": moved, "state": ev["state"]}
-        if moved and before:
-            extra |= {"from": [before["calendar_id"], before["starts_at"], before["ends_at"]], "to": [ev["calendar_id"], ev["start"], ev["end"]],
-                      "held": bool(ev.get("held")), "change_withdrawn": bool(out.get("change_withdrawn"))}
-        _audit(conn, principal, request, "calendar.event.update", "calendar_event", eid, scope=data.get("scope", "series"), **extra)
+        items, keep = ca.take_items(conn, data)
+        plan = ca.Plan(ctx, eid, items, keep, _now())
+        snap = ca.snapshot(conn, eid)
+        only_attendees = items is not None and not set(data) - {"revision", "scope", "occurrence_start"}
+        if only_attendees:
+            out = {"event": events.get(ctx, eid), "orphaned_overrides": []}
+        else:
+            before = conn.execute("SELECT calendar_id, starts_at, ends_at, state FROM cal_events WHERE id = ?", (eid,)).fetchone()
+            out = events.update(ctx, model.read_settings(conn), eid, data, _now())
+            ev = out["event"]
+            # CAL-GRID-EDIT-2343: a move / resize from the grid is audited with what changed (ids and instants, never a title)
+            moved = bool(before and (before["starts_at"], before["ends_at"], before["calendar_id"]) != (ev["start"], ev["end"], ev["calendar_id"]))
+            extra: dict[str, Any] = {"moved": moved, "state": ev["state"]}
+            if moved and before:
+                extra |= {"from": [before["calendar_id"], before["starts_at"], before["ends_at"]], "to": [ev["calendar_id"], ev["start"], ev["end"]],
+                          "held": bool(ev.get("held")), "change_withdrawn": bool(out.get("change_withdrawn"))}
+            _audit(conn, principal, request, "calendar.event.update", "calendar_event", eid, scope=data.get("scope", "series"), **extra)
+        view = ca.on_update(ctx, request, eid, None if only_attendees else snap, out, plan, _now())
+        if view is not None:
+            out["attendees"] = view
         return out
 
 
@@ -368,8 +386,12 @@ def restore_event(eid: str, body: Body, request: Request, principal: Principal =
 def cancel_event(eid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     with _errors(conn, principal, request):
+        from . import calendar_attendees as ca  # noqa: PLC0415 - CAL-ATTENDEES-2343: the cancel notice waits the undo window
+
+        before = ca.snapshot(conn, eid)
         out = events.cancel(ctx, model.read_settings(conn), eid, _body(body), _now())
         _audit(conn, principal, request, "calendar.event.cancel", "calendar_event", eid, scope=_body(body).get("scope", "series"))
+        ca.on_cancel(ctx, eid, before, _body(body), _now())
         return out
 
 
