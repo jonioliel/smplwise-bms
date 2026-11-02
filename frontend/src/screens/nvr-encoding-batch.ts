@@ -8,7 +8,8 @@ import '../components/sw-dropdown';
 import '../components/sw-tabs';
 import './nvr-confirm';
 import { ApiError } from '../api/client';
-import { nvrBatch, type Batch, type EncodingPreview, type PlanItem } from '../api/nvr-batch';
+import { nvrBatch, type Batch, type EncodingPreview, type PlanItem, type RefusalPolicy } from '../api/nvr-batch';
+import { REFUSAL_HINT, REFUSAL_ITEMS, REFUSAL_LABEL, normalizeRefusal } from './nvr-verify-logic';
 import type { CameraDetail } from '../api/nvr-settings';
 import type { DropdownItem } from '../components/sw-dropdown';
 import type { ConfirmModel } from './nvr-cameras-edit';
@@ -77,7 +78,11 @@ const CHECK = html`<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="
  *
  * The server plans every stream against its own device and starts exactly what was previewed (a camera changed meanwhile: the preview is
  * read again). Nothing here retries a write: a lost answer is checked by reading the active batch. Device strings are rendered as text only.
- * Events: `encoding-started` ({batch}).
+ * Events: `encoding-started` ({batch}), `verify-reports` (CAM-H264-VERIFY-2361: open the list of earlier verification reports).
+ *
+ * CAM-H264-VERIFY-2361: the preview asks what to do when the NVR refuses one camera ("לדלג ולהמשיך" - the default - or "לעצור את כל
+ * ההמרה"), preselected from the installation setting the preview answers; the choice goes with the start (an older server that does not
+ * name the setting gets nothing extra and keeps its stop rule).
  */
 @customElement('nvr-encoding-batch')
 export class NvrEncodingBatch extends LitElement {
@@ -101,6 +106,9 @@ export class NvrEncodingBatch extends LitElement {
   @state() private presetScope: PresetScope = 'all';
   @state() private presetRole: PresetRole = 'both';
   @state() private presetMode = false;
+  /** CAM-H264-VERIFY-2361: what a refused camera does in this change; `refusalKnown`: the server named its default (it takes the field). */
+  @state() private onRefusal: RefusalPolicy = 'skip';
+  @state() private refusalKnown = false;
 
   static styles = css`
     :host {
@@ -539,6 +547,7 @@ export class NvrEncodingBatch extends LitElement {
         ${this.dd('מצלמות', 'h264-scope', this.presetScope, SCOPE_ITEMS, (id) => ((this.presetScope = id as PresetScope), (this.line = '')))}
         ${this.dd('זרמים', 'h264-role', this.presetRole, ROLE_ITEMS, (id) => ((this.presetRole = id as PresetRole), (this.line = '')))}
         <sw-button size="sm" variant="primary" data-nvr-h264-run ?disabled=${empty || this.busy} @click=${() => this.runPreset()}>${this.busy && this.presetMode ? 'בודק…' : presetButtonLabel(streams.length)}</sw-button>
+        <sw-button size="sm" variant="ghost" data-nvr-verify-reports @click=${() => this.emit('verify-reports')}>דוחות בדיקה קודמים</sw-button>
       </div>
       ${empty || blocked.writesOff ? html`<p class="msg" data-nvr-h264-empty role="status">${empty ? presetEmptyLine(this.presetScope, blocked, this.selected.size) : `${blocked.writesOff} זרמים לא ישתנו: שינויי הגדרות ב־NVR כבויים (הגדרות החיבור).`}</p>` : nothing}
     </section>`;
@@ -598,6 +607,8 @@ export class NvrEncodingBatch extends LitElement {
     try {
       const p = await nvrBatch().previewEncoding({ settings, targets: picked.map((r) => ({ camera_id: r.cameraId, stream_ref: r.streamRef })), ...(recorders.size === 1 ? { recorder_id: picked[0].recorderId } : {}) });
       this.plan = p;
+      this.refusalKnown = p.on_refusal === 'skip' || p.on_refusal === 'stop';
+      this.onRefusal = normalizeRefusal(p.on_refusal);
       this.tab = p.counts.change ? 'change' : p.counts.skip ? 'skip' : 'unchanged';
       this.phase = 'preview';
       this.resetScroll();
@@ -648,6 +659,9 @@ export class NvrEncodingBatch extends LitElement {
       ${adjusted ? html`<p class="note" data-nvr-enc-adjusted>* הותאם למה שהמצלמה מאפשרת</p>` : nothing}
       <sw-tabs data-nvr-enc-tabs .items=${tabs} .active=${this.tab} group-label="תצוגה מקדימה" @change=${(e: CustomEvent<{ id: string }>) => ((this.tab = e.detail.id as PreviewTab), this.resetScroll())}></sw-tabs>
       ${list.length ? this.vlist(list.length, PREV_ROW, 'preview', (i) => this.previewRow(list[i]), 'תצוגה מקדימה') : html`<p class="msg" data-nvr-enc-empty role="status">אין זרמים ברשימה הזו.</p>`}
+      ${this.refusalKnown && p.counts.change > 1
+        ? html`<div class="tools" data-nvr-enc-refusal>${this.dd(REFUSAL_LABEL, 'on-refusal', this.onRefusal, [...REFUSAL_ITEMS], (id) => (this.onRefusal = normalizeRefusal(id)))}<span class="note" data-nvr-enc-refusal-hint>${REFUSAL_HINT[this.onRefusal]}</span></div>`
+        : nothing}
       ${p.batch_in_progress ? html`<p class="msg" data-nvr-enc-busy role="status">מתבצע שינוי מרובה</p>` : nothing}
       ${this.line ? html`<p class="msg" data-nvr-enc-line role="alert">${this.line}</p>` : nothing}
       <sw-button slot="footer" variant="ghost" data-nvr-enc-back @click=${() => ((this.phase = this.presetMode ? 'select' : 'settings'), (this.line = ''))}>חזרה</sw-button>
@@ -658,7 +672,7 @@ export class NvrEncodingBatch extends LitElement {
     const p = this.plan;
     if (!p || !p.counts.change) return;
     this.line = '';
-    this.confirmModel = encodingConfirmModel(p, this.nameOf);
+    this.confirmModel = encodingConfirmModel(p, this.nameOf, this.refusalKnown ? this.onRefusal : undefined);
     this.phase = 'confirm';
   }
 
@@ -671,7 +685,7 @@ export class NvrEncodingBatch extends LitElement {
     this.busy = true;
     this.phase = 'preview';
     try {
-      const b = await nvrBatch().startEncoding(startRequest(p));
+      const b = await nvrBatch().startEncoding(startRequest(p, this.refusalKnown ? this.onRefusal : undefined));
       this.handOff(b);
     } catch (err) {
       const sent = !(err instanceof ApiError) || err.status >= 500; // the answer may have been lost after the batch started

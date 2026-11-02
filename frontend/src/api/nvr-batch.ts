@@ -39,7 +39,64 @@ export interface BatchItem {
   user_message?: string | null;
   /** CR-020 phase D: the item's `{field: [from, to]}` (field names and values only). */
   fields?: Record<string, [unknown, unknown]> | null;
+  /** CAM-H264-VERIFY-2361: the NVR refused this stream and the batch stepped over it (`on_refusal: skip`). */
+  skipped?: boolean;
+  /** CAM-H264-VERIFY-2361: what the verification found for this stream (encoding batches; null until checked). */
+  verify?: ItemVerify | null;
 }
+
+// ------------------------------------------------------------------------------------------------ CAM-H264-VERIFY-2361: the verification
+
+/** confirmed: the camera sends the new codec; nvr_accepted: the NVR took it, the camera was not checked; still_old: the camera still sends the
+ * old codec; restart_needed: a reboot (the NVR said) or a reconnect (an old live session) is needed; failed: not done (a skipped one too); unchanged. */
+export type VerifyOutcome = 'confirmed' | 'nvr_accepted' | 'still_old' | 'restart_needed' | 'failed' | 'unchanged';
+
+export interface ItemVerify {
+  outcome: VerifyOutcome;
+  /** The server's Hebrew label ("המצלמה אישרה (H.264)", "עדיין H.265", "נכשל: ..."); text only. */
+  label: string;
+  /** One Hebrew sentence that explains it; text only. */
+  detail: string;
+  reason?: string | null;
+  expected?: string | null;
+  before?: string | null;
+  media?: 'confirmed' | 'old' | 'other' | 'not_checked' | 'not_needed' | null;
+  media_codec?: string | null;
+  media_reason?: string | null;
+  nvr?: string | null;
+  nvr_now?: string | null;
+  reboot_required?: boolean;
+  reconnect?: boolean;
+  skipped?: boolean;
+  checked_at?: string | null;
+}
+
+export interface VerifyListItem {
+  index: number;
+  camera_id: string | null;
+  stream_ref: string;
+  outcome?: VerifyOutcome;
+  label?: string;
+  reason?: string | null;
+  skipped?: boolean;
+}
+
+export interface BatchVerify {
+  /** pending: the batch still runs or the pass has not begun; running; done; interrupted (a restart); none (never checked). */
+  state: 'pending' | 'running' | 'done' | 'interrupted' | 'none';
+  kind?: 'after_apply' | 'recheck' | null;
+  counts: Record<VerifyOutcome, number>;
+  /** "מצלמות שלא השתנו": still_old + restart_needed + failed. */
+  worklist: VerifyListItem[];
+  skipped: VerifyListItem[];
+  can_recheck: boolean;
+  hidden?: number;
+  checked_at?: string | null;
+  started_at?: string | null;
+}
+
+/** A stream the NVR refuses during an encoding batch: skip it and continue (default), or stop the whole change. */
+export type RefusalPolicy = 'skip' | 'stop';
 
 /** CR-020 phase D: `svc` = the SVC-off batch of phase C; `encoding` = a bulk encoding change (older servers send no mode: svc). */
 export type BatchMode = 'svc' | 'encoding';
@@ -67,6 +124,14 @@ export interface Batch {
   mode?: BatchMode;
   /** CR-020 phase D: the target settings of an encoding batch. */
   settings?: EncodingSettings | null;
+  /** CAM-H264-VERIFY-2361: this batch's answer to a refused stream (older servers: absent = stop). */
+  on_refusal?: RefusalPolicy;
+  /** CAM-H264-VERIFY-2361: how many streams the batch stepped over. */
+  skipped?: number;
+  /** CAM-H264-VERIFY-2361: the verification report (encoding batches only; null for an SVC batch). */
+  verify?: BatchVerify | null;
+  /** Listings only. */
+  created_at?: string | null;
 }
 
 // ------------------------------------------------------------------------------------------------ CR-020 phase D: bulk encoding
@@ -126,6 +191,8 @@ export interface EncodingPreview {
   changes_total: number;
   adjusted: number;
   batch_in_progress: boolean;
+  /** CAM-H264-VERIFY-2361: the installation's default answer to a refused stream (the confirmation preselects it). */
+  on_refusal?: RefusalPolicy;
 }
 
 export interface EncodingPreviewRequest {
@@ -139,6 +206,8 @@ export interface EncodingStartRequest {
   settings: EncodingSettings;
   targets: (StreamRef & { if_match: string; changes: Record<string, unknown> })[];
   recorder_id?: string;
+  /** CAM-H264-VERIFY-2361: absent = the installation setting. */
+  on_refusal?: RefusalPolicy;
 }
 
 export interface BatchTarget {
@@ -168,6 +237,10 @@ export interface NvrBatchAdapter {
   previewEncoding(req: EncodingPreviewRequest): Promise<EncodingPreview>;
   /** CR-020 phase D: starts the bulk encoding change exactly as previewed (202). Sent ONCE. */
   startEncoding(req: EncodingStartRequest): Promise<Batch>;
+  /** CAM-H264-VERIFY-2361: a READ-ONLY re-check of an encoding batch's worklist (202; the report updates in the background). */
+  recheck(batchId: string): Promise<Batch>;
+  /** CAM-H264-VERIFY-2361: the latest batches (summaries, no items) - the reports that can be opened again. */
+  recent(): Promise<Batch[]>;
 }
 
 const enc = encodeURIComponent;
@@ -222,6 +295,11 @@ const http: NvrBatchAdapter = {
   undo: async (id) => normalizeBatch(await post<Batch>(`nvr/stream-batches/${enc(id)}/rollback`, { confirm: true })),
   previewEncoding: (req) => post<EncodingPreview>('nvr/encoding-batches/preview', req),
   startEncoding: async (req) => normalizeBatch(await post<Batch>('nvr/encoding-batches', req)),
+  recheck: async (id) => normalizeBatch(await post<Batch>(`nvr/stream-batches/${enc(id)}/verify`, {})),
+  recent: async () => {
+    const raw = await get<{ batches?: Batch[] }>('nvr/stream-batches');
+    return (raw?.batches ?? []).filter((b) => !!b && typeof b.batch_id === 'string').map(normalizeBatch);
+  },
 };
 
 /** The adapter in force. (The static demo has no batch: its camera list carries no `can_batch`, so no control exists to call it.) */

@@ -27,6 +27,8 @@ import { normalizePolicy, type H265Policy } from '../api/h265-support';
 
 /** LIVE-H265-2341: הגדרות › וידאו ומדיה › "קידוד H.265 בדפדפן" (media.h265_policy). */
 const H265_POLICY_OPTIONS: [H265Policy, string][] = [['auto', 'אוטומטי — ברירת המחדל'], ['sub', 'תמיד זרם משני'], ['transcode', 'תמיד תרגום'], ['off', 'כבוי (הזרם כמו שהוא)']];
+/** CAM-H264-VERIFY-2361: הגדרות › וידאו ומדיה › "מצלמה שה־NVR מסרב לשנות" (nvr.batch_on_refusal) - owner 2026-11-02: skip is the default. */
+const REFUSAL_OPTIONS: ['skip' | 'stop', string][] = [['skip', 'לדלג ולהמשיך — ברירת המחדל'], ['stop', 'לעצור את כל ההמרה']];
 import { ApiError, describeError, get } from '../api/client';
 import { navigate, parseRoute, replaceRoute } from '../router';
 import { settingsStyles } from '../styles/settings';
@@ -881,6 +883,10 @@ export class SystemDiagnostics extends LitElement {
         <div class="row"><span class="lbl">תרגומים במקביל<span class="muted">כמה מצלמות שונות מתורגמות ל־H.264 בו־זמנית (התרגום כבד על המעבד של שרת הווידאו). מעבר למכסה האריח מציג תמונה מתעדכנת עם הודעה. 0 = בלי תרגום</span></span>
           <sw-field class="ctl"><select data-set-h265-transcodes ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('media.h265_max_transcodes', Number((e.target as HTMLSelectElement).value))}>
             ${[0, 1, 2, 3, 4, 6, 8].map((n) => html`<option value=${n} ?selected=${Number(this.value('media.h265_max_transcodes') ?? 2) === n}>${n === 2 ? `${n} — ברירת המחדל` : n === 0 ? '0 — בלי תרגום' : n}</option>`)}
+          </select></sw-field></div>
+        <div class="row"><span class="lbl">מצלמה שה־NVR מסרב לשנות<span class="muted">בהמרת קידוד לכמה מצלמות (למשל הכל ל־H.264). לדלג ולהמשיך (ברירת מחדל): המצלמה נשארת כמו שהיא, נרשמת בדוח הבדיקה, וההמרה ממשיכה · לעצור: ההמרה נעצרת במצלמה הראשונה שנדחתה. אפשר לשנות גם לפני כל המרה</span></span>
+          <sw-field class="ctl"><select data-set-batch-refusal ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('nvr.batch_on_refusal', (e.target as HTMLSelectElement).value as 'skip' | 'stop')}>
+            ${REFUSAL_OPTIONS.map(([v, l]) => html`<option value=${v} ?selected=${(this.value('nvr.batch_on_refusal') === 'stop' ? 'stop' : 'skip') === v}>${l}</option>`)}
           </select></sw-field></div>
         <div class="row"><span class="lbl">פרופיל לקיר המצלמות<span class="muted">משני חוסך CPU ורוחב פס; ראשי לתצוגה בודדת</span></span>
           <sw-field class="ctl"><select ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('media.wall_profile', (e.target as HTMLSelectElement).value as 'sub' | 'main')}>

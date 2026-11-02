@@ -9,7 +9,8 @@
  * they are, or "cannot be applied") and starts exactly the plan the person confirmed; this module only shapes the screen. Device strings are
  * only ever rendered as text by the callers; nothing here builds HTML.
  */
-import type { EncodingPreview, EncodingSettings, EncodingStartRequest, PlanItem } from '../api/nvr-batch';
+import type { EncodingPreview, EncodingSettings, EncodingStartRequest, PlanItem, RefusalPolicy } from '../api/nvr-batch';
+import { encodingLead } from './nvr-verify-logic';
 import type { CameraDetail, EncodingField, NvrCamera, StreamEncoding, StreamOptions, StreamRole, Verdict } from '../api/nvr-settings';
 import { DASH, ROLE_HE } from './nvr-cameras-logic';
 import { FIELD_HE, REASON_HE, countLabel, reasonHe, valueLabel, type ConfirmModel } from './nvr-cameras-edit';
@@ -279,10 +280,12 @@ export function previewSummary(p: EncodingPreview): string {
 }
 
 /** The streams to start: every planned change, exactly as previewed (the server refuses anything else). */
-export function startRequest(p: EncodingPreview): EncodingStartRequest {
+export function startRequest(p: EncodingPreview, onRefusal?: RefusalPolicy): EncodingStartRequest {
   return {
     confirm: true, settings: p.settings, recorder_id: p.recorder_id,
     targets: p.items.filter((i) => i.status === 'change' && i.if_match).map((i) => ({ camera_id: i.camera_id, stream_ref: i.stream_ref, if_match: i.if_match as string, changes: i.changes })),
+    // CAM-H264-VERIFY-2361: the person's choice for a refused stream (absent: the installation setting)
+    ...(onRefusal ? { on_refusal: onRefusal } : {}),
   };
 }
 
@@ -292,11 +295,12 @@ export const inStreams = (n: number): string => (n === 1 ? 'בזרם אחד' : `
 export const ENC_CONFIRM_LEAD = 'השידור של כל מצלמה ייקטע לכמה שניות. השינוי יתבצע מצלמה אחרי מצלמה ויעצור בשגיאה הראשונה.';
 
 /** The ONE confirmation (the S2C rules: one dialog, the count, two buttons, the streams under "פרטים"; no typed word). */
-export function encodingConfirmModel(p: EncodingPreview, nameOf: (it: PlanItem) => string): ConfirmModel {
+export function encodingConfirmModel(p: EncodingPreview, nameOf: (it: PlanItem) => string, onRefusal?: RefusalPolicy): ConfirmModel {
   const items = p.items.filter((i) => i.status === 'change');
   return {
     heading: `לשנות את הקידוד ${inStreams(items.length)}?`,
-    lead: ENC_CONFIRM_LEAD,
+    // CAM-H264-VERIFY-2361: the lead says what a refused camera does (skip and continue / stop); an older server without the policy keeps the S2C words
+    lead: onRefusal ? encodingLead(onRefusal) : ENC_CONFIRM_LEAD,
     count: countLabel(p.changes_total),
     confirmLabel: 'החל',
     details: [],

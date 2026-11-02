@@ -11,6 +11,7 @@
 import type { Batch, BatchItem, BatchItemStatus, BatchState } from '../api/nvr-batch';
 import type { CameraDetail, NvrCamera, StreamEncoding } from '../api/nvr-settings';
 import { errorLine } from './nvr-cameras-edit';
+import { encodingUndoLead } from './nvr-verify-logic';
 
 // ------------------------------------------------------------------------------------------------ who can be chosen
 
@@ -278,11 +279,11 @@ export function batchView(b: Batch, nameOf: (i: BatchItem) => string, stopping =
   switch (b.state) {
     case 'completed':
       return {
-        ...base, ...undo, tone: 'done',
+        ...base, ...undo, tone: (b.skipped ?? 0) > 0 ? 'warn' : 'done',
         title: isEncoding(b)
           ? rb ? `הקידוד הוחזר ${inN(t.restored)}` : t.applied > 0 ? `הקידוד עודכן ${inN(t.applied)}` : 'ללא שינוי'
           : rb ? `SVC הוחזר ${inCameras(t.restored)}` : t.applied > 0 ? `SVC כבוי ${inCameras(t.applied)}` : 'ללא שינוי',
-        sub: !rb && t.applied > 0 && t.ok > t.applied ? `ללא שינוי ${inN(t.ok - t.applied)}` : '',
+        sub: join([!rb && t.applied > 0 && t.ok > t.applied && `ללא שינוי ${inN(t.ok - t.applied)}`, (b.skipped ?? 0) > 0 && `דולג ${inN(b.skipped ?? 0)}`]),
       };
     case 'stopped':
       return { ...base, ...undo, ...retry, tone: 'warn', title: rb ? 'ההחזרה נעצרה בבקשתך' : 'נעצר בבקשתך', sub: counts };
@@ -296,9 +297,10 @@ export function batchView(b: Batch, nameOf: (i: BatchItem) => string, stopping =
 /** The toast after a batch that completed in front of the person. */
 export function doneToast(b: Batch): { message: string; undo: boolean } {
   const t = tally(b);
-  if (b.kind === 'rollback') return { message: `בוטל ${inUnits(b, t.restored)}`, undo: false };
-  if (t.applied === 0) return { message: 'ללא שינוי', undo: false };
-  return { message: `נשמר ${inUnits(b, t.applied)}`, undo: true };
+  const skip = (b.skipped ?? 0) > 0 ? ` · דולג ${inUnits(b, b.skipped ?? 0)}` : ''; // CAM-H264-VERIFY-2361
+  if (b.kind === 'rollback') return { message: `בוטל ${inUnits(b, t.restored)}${skip}`, undo: false };
+  if (t.applied === 0) return { message: `ללא שינוי${skip}`, undo: false };
+  return { message: `נשמר ${inUnits(b, t.applied)}${skip}`, undo: true };
 }
 
 /** The line shown when starting (or undoing) the batch was refused. `reload`: the camera list is stale and should be read again. */
@@ -352,9 +354,9 @@ export function batchConfirmModel(names: string[]): BatchConfirm {
   return { heading: `לכבות SVC ${inCameras(names.length)}?`, lead: CONFIRM_LEAD, count: camerasLabel(names.length), confirmLabel: 'כבה', details: [], names };
 }
 
-export function undoConfirmModel(names: string[], mode: Batch['mode'] = 'svc'): BatchConfirm {
+export function undoConfirmModel(names: string[], mode: Batch['mode'] = 'svc', onRefusal?: Batch['on_refusal']): BatchConfirm {
   if (mode === 'encoding') {
-    return { heading: `להחזיר את הקידוד ${inStreamsOf(names.length)}?`, lead: UNDO_LEAD, count: names.length === 1 ? 'זרם אחד' : `${names.length} זרמים`, confirmLabel: 'החזר', details: [], names };
+    return { heading: `להחזיר את הקידוד ${inStreamsOf(names.length)}?`, lead: onRefusal ? encodingUndoLead(onRefusal) : UNDO_LEAD, count: names.length === 1 ? 'זרם אחד' : `${names.length} זרמים`, confirmLabel: 'החזר', details: [], names };
   }
   return { heading: `להחזיר SVC ${inCameras(names.length)}?`, lead: UNDO_LEAD, count: camerasLabel(names.length), confirmLabel: 'החזר', details: [], names };
 }
