@@ -30,6 +30,8 @@ DEFAULT = {
     "syn_events": True,
     "syn_switches": "typed",
     "syn_phone_view": "table",
+    "syn_phone_light": "bar",
+    "syn_phone_summary": "button",
     "fire_column": "hidden",
     "fire_ui": False,
     "ack": "hold",
@@ -53,6 +55,8 @@ CHANGED = {
     "syn_events": False,
     "syn_switches": "all",
     "syn_phone_view": "section",
+    "syn_phone_light": "segments",
+    "syn_phone_summary": "line",
     "fire_column": "dashed",
     "fire_ui": True,
     "ack": "confirm",
@@ -88,6 +92,12 @@ BAD = [
     {"syn_phone_view": "Table"},  # exact values, no case folding
     {"syn_phone_view": None},
     {"syn_phone_view": 2},
+    {"syn_phone_light": "dots"},  # SYNOPTIC-PHONE-SETTINGS-2360: bar | segments | number only
+    {"syn_phone_light": "Bar"},
+    {"syn_phone_light": None},
+    {"syn_phone_summary": "footer"},  # button | line | off only
+    {"syn_phone_summary": False},
+    {"syn_phone_summary": 1},
 ]
 
 
@@ -136,6 +146,29 @@ def test_phone_view_defaults_to_the_compact_table_and_takes_the_three_layouts(se
             assert c.get(URL).json()["settings"]["ui.xs"]["syn_phone_view"] == v
         assert c.patch(URL, json={"ui.xs": {**DEFAULT, "syn_phone_view": "grid"}}).status_code == 422
         assert c.get(URL).json()["settings"]["ui.xs"]["syn_phone_view"] == "table", "a refused value changes nothing"
+
+
+def test_phone_lights_and_summary_keep_today_as_the_default_and_take_their_values(settings):
+    """SYNOPTIC-PHONE-SETTINGS-2360 (owner 02.11 round 14): "תאורה בטלפון" (small bar / segments / number only) and the summary on the phone
+    (info button / line / off). The defaults are what 2.34.2 draws; a value stored before the keys existed reads as the default."""
+    assert xs_options.DEFAULT["syn_phone_light"] == "bar"
+    assert xs_options.DEFAULT["syn_phone_summary"] == "button"
+    old = xs_options.normalize({"syn_phone_view": "cards"})
+    assert (old["syn_phone_light"], old["syn_phone_summary"]) == ("bar", "button")
+    app = create_app(settings)
+    with TestClient(app) as c:
+        got = c.get(URL).json()["settings"]["ui.xs"]
+        assert (got["syn_phone_light"], got["syn_phone_summary"]) == ("bar", "button")
+        for light in ("segments", "number", "bar"):
+            for summary in ("line", "off", "button"):
+                r = c.patch(URL, json={"ui.xs": {**DEFAULT, "syn_phone_light": light, "syn_phone_summary": summary}})
+                assert r.status_code == 200, r.text
+                got = c.get(URL).json()["settings"]["ui.xs"]
+                assert (got["syn_phone_light"], got["syn_phone_summary"]) == (light, summary)
+        assert c.patch(URL, json={"ui.xs": {**DEFAULT, "syn_phone_light": "dots"}}).status_code == 422
+        assert c.patch(URL, json={"ui.xs": {**DEFAULT, "syn_phone_summary": "footer"}}).status_code == 422
+        got = c.get(URL).json()["settings"]["ui.xs"]
+        assert (got["syn_phone_light"], got["syn_phone_summary"]) == ("bar", "button"), "a refused value changes nothing"
 
 
 def test_hiding_empty_columns_is_on_by_default(client):

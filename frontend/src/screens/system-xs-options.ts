@@ -43,6 +43,8 @@ const GROUPS: { title: XtKey; opts: Opt[] }[] = [
       { key: 'syn_hide_empty', kind: 'bool', label: 'optSynHideEmpty', hint: 'optSynHideEmptyHint' },
       { key: 'syn_switches', kind: 'enum', label: 'optSynSwitches', options: [['typed', 'optSynSwitchesTyped'], ['all', 'optSynSwitchesAll']], hint: 'optSynSwitchesHint' },
       { key: 'syn_phone_view', kind: 'enum', label: 'optSynPhoneView', options: [['table', 'optSynPhoneTable'], ['cards', 'optSynPhoneCards'], ['section', 'optSynPhoneSection']], hint: 'optSynPhoneViewHint' },
+      { key: 'syn_phone_light', kind: 'enum', label: 'optSynPhoneLight', options: [['bar', 'optSynPhoneLightBar'], ['segments', 'optSynPhoneLightSegments'], ['number', 'optSynPhoneLightNumber']], hint: 'optSynPhoneLightHint' },
+      { key: 'syn_phone_summary', kind: 'enum', label: 'optSynPhoneSummary', options: [['button', 'optSynPhoneSummaryButton'], ['line', 'optSynPhoneSummaryLine'], ['off', 'optSynPhoneSummaryOff']], hint: 'optSynPhoneSummaryHint' },
       { key: 'syn_events', kind: 'bool', label: 'optSynEvents' },
       { key: 'wall', kind: 'bool', label: 'optWall' },
     ],
