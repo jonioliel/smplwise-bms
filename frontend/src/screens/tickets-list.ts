@@ -559,7 +559,7 @@ export class TicketsList extends LitElement {
     if (this.view === 'table' && !this.cal) {
       // CR-038 S6b (D24): the table view - its own server-side sort / filters / pages over the same scope, state, department and text
       const f = this.r.filters;
-      return html`<tickets-table ?fill=${!this.phone} hostFilters .extra=${this.tableExtra} .scope=${this.r.scope} .base=${{ status: f.status, department: f.department, q: f.q }} .meta=${this.meta} .hrefOf=${(id: string) => this.hrefOf(id)}
+      return html`<tickets-table ?fill=${!this.phone} hostFilters .extra=${this.tableExtra} .midWidth=${this.module?.ui?.table_mid_width ?? ''} .scope=${this.r.scope} .base=${{ status: f.status, department: f.department, q: f.q }} .meta=${this.meta} .hrefOf=${(id: string) => this.hrefOf(id)}
         .picked=${this.r.ticketId} @table-filters=${(e: CustomEvent<Partial<ListFilters>>) => this.setFilters(e.detail as Partial<ListFilters>)}
         @table-extra=${(e: CustomEvent<{ extra: ExtraFilters }>) => (this.tableExtra = e.detail.extra)} @table-holders=${(e: CustomEvent<{ holders: { key: string; name: string }[] }>) => (this.tableHolders = e.detail.holders)}></tickets-table>`;
     }

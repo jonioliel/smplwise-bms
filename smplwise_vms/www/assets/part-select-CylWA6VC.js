@@ -1,0 +1,2 @@
+function u(n,o,r){if(n.kind==="camera"||n.kind==="entity")return{anchor:n.id};if(n.kind!=="object"&&n.kind!=="opening")return null;const d=n.kind==="object"?o?.objects.find(e=>e.id===n.id):o?.openings.find(e=>e.id===n.id);if(!d)return null;const i=d.anchor_ref,c=i?r.find(e=>e.resource_type===i.resource_type&&e.resource_id===i.resource_id):void 0;return c?{anchor:c.id}:n.kind==="object"?{object:n.id}:null}export{u as b};
+//# sourceMappingURL=part-select-CylWA6VC.js.map
