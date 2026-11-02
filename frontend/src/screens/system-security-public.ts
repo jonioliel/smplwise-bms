@@ -66,13 +66,16 @@ export class SystemSecurityPublic extends LitElement {
       .ok { color: var(--sw-success-text, var(--sw-text-2)); font-size: var(--sw-fs-sm); display: inline-flex; gap: 6px; align-items: center; }
       .sw { display: flex; align-items: center; gap: 14px; inline-size: 100%; min-block-size: var(--sw-touch-desktop); padding: 6px 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: start; cursor: pointer; }
       .sw:disabled { cursor: default; opacity: var(--sw-disabled-opacity); }
-      .sw:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: 2px; }
+      .sw:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; }
+      .sw { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+      .sw:active:not(:disabled) .track { transform: scale(var(--sw-press-scale)); }
       .sw .t { flex: 1; min-inline-size: 0; font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
-      .track { flex: none; position: relative; inline-size: 42px; block-size: 24px; border-radius: var(--sw-r-pill); background: var(--sw-border-strong); transition: background var(--sw-t-fast) var(--sw-ease); }
+      .track { flex: none; position: relative; inline-size: 42px; block-size: 24px; border-radius: var(--sw-r-pill); background: var(--sw-border-strong); transition: background var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease); }
       .track::after { content: ''; position: absolute; inset-block-start: 3px; inset-inline-start: 3px; inline-size: 18px; block-size: 18px; border-radius: 50%; background: var(--sw-toggle-thumb); box-shadow: var(--sw-shadow-1); transition: transform var(--sw-t-fast) var(--sw-ease); }
       .sw[aria-checked='true'] .track { background: var(--sw-toggle-on); }
       .sw[aria-checked='true'] .track::after { transform: translateX(-18px); }
       :host-context([dir='ltr']) .sw[aria-checked='true'] .track::after { transform: translateX(18px); }
+      @media (max-width: 767px) { .grp { padding: 12px; } .fields { grid-template-columns: minmax(0, 1fr); } }
       @media (prefers-reduced-motion: reduce) { .track, .track::after { transition: none; } }
     `,
     bubbleChrome,

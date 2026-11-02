@@ -263,7 +263,7 @@ export class SystemUpdate extends LitElement {
       content: '';
       inline-size: 6px;
       block-size: 11px;
-      border: solid #fff;
+      border: solid var(--sw-text-inverse);
       border-width: 0 2px 2px 0;
       transform: translateY(-1px) rotate(45deg);
     }
@@ -272,7 +272,7 @@ export class SystemUpdate extends LitElement {
       outline-offset: 2px;
     }
     .chk input:disabled + .box {
-      opacity: 0.6;
+      opacity: var(--sw-disabled-opacity);
     }
     /* touch layouts: every button of this screen is a 44 px target (the inner button stretches to the host) */
     @media (max-width: 1100px) {

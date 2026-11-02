@@ -191,10 +191,10 @@ export class SystemSecurityNvr extends LitElement {
     return html`<sw-page crumbs="הגדרות | אבטחה" heading="NVR" subheading=${off ? 'ללא NVR' : h.nvr_configured ? 'מוגדר' : 'לא מוגדר'}>
       <sw-card heading="מצב" data-security-nvr>
         <div class="rows">
-          <div class="row"><span>NVR</span><span class=${off ? '' : h.nvr_configured ? 'ok' : 'err'}>${off ? 'מצב ללא NVR' : h.nvr_configured ? 'מוגדר' : 'לא מוגדר'}</span></div>
+          <div class="row"><span>NVR</span><span class=${off ? '' : h.nvr_configured ? 'msg ok' : 'msg err'}>${off ? 'מצב ללא NVR' : h.nvr_configured ? 'מוגדר' : 'לא מוגדר'}</span></div>
           ${off
             ? nothing
-            : html`<div class="row"><span>זרם התראות</span><span class=${h.events.ingest.connected ? 'ok' : 'err'}>${h.events.ingest.connected ? 'מחובר' : 'מנותק'}</span></div>
+            : html`<div class="row"><span>זרם התראות</span><span class=${h.events.ingest.connected ? 'msg ok' : 'msg err'}>${h.events.ingest.connected ? 'מחובר' : 'מנותק'}</span></div>
                 <div class="row"><span>ערוצים שגולו</span><span>${h.discovery.cameras}</span></div>
                 <div class="row"><span>גילוי אחרון תקין</span><span class=${h.discovery.cameras_last_error ? 'warn' : ''}>${when(h.discovery.cameras_last_ok)}</span></div>`}
         </div>

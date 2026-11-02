@@ -152,11 +152,30 @@ export class SystemWiskeyDiagnostics extends LitElement {
       padding-block-start: 10px;
     }
     .err {
-      color: var(--sw-danger);
+      align-self: flex-start;
+      padding: 2px 12px;
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-danger-soft);
+      color: var(--sw-danger-text);
       font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      overflow-wrap: anywhere;
     }
     bdi {
       unicode-bidi: isolate;
+    }
+    /* POLISH4-WP7: on a phone the head (label + check key) wraps and the key takes the line; the facts stack */
+    @media (max-width: 767px) {
+      .head {
+        flex-wrap: wrap;
+      }
+      .head sw-button {
+        flex: 1 1 100%;
+      }
+      .facts {
+        flex-direction: column;
+        gap: 4px;
+      }
     }
   `;
 

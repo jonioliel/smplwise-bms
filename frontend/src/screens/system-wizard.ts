@@ -295,7 +295,7 @@ export class SystemWizard extends LitElement {
       inset-inline-end: calc(-50% + 20px);
       inset-block-start: 15px;
       block-size: 3px;
-      border-radius: 2px;
+      border-radius: var(--sw-r-pill);
       background: var(--sw-border);
     }
     .rail li.done:not(:last-child)::after {
@@ -494,7 +494,7 @@ export class SystemWizard extends LitElement {
       align-items: center;
       gap: 4px;
       padding: 4px 12px;
-      border-radius: 999px;
+      border-radius: var(--sw-r-pill);
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-semibold);
       background: var(--sw-surface-3);
@@ -560,9 +560,11 @@ export class SystemWizard extends LitElement {
       font-weight: var(--sw-fw-semibold);
       text-decoration: none;
     }
-    a:hover,
-    .linkbtn:hover {
-      text-decoration: underline;
+    @media (hover: hover) and (pointer: fine) {
+      a:hover,
+      .linkbtn:hover {
+        text-decoration: underline;
+      }
     }
     .links {
       display: flex;

@@ -1,5 +1,6 @@
 import { t } from '../i18n/he';
 import { LitElement, html, css, nothing } from 'lit';
+import { html as shtml, unsafeStatic } from 'lit/static-html.js';
 import './plan-area-links-admin';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-page';
@@ -357,7 +358,7 @@ export class SystemDiagnostics extends LitElement {
     }
     .bar {
       block-size: 6px;
-      border-radius: 3px;
+      border-radius: var(--sw-r-2xs);
       background: var(--sw-surface-3);
       inline-size: 140px;
       overflow: hidden;
@@ -428,26 +429,29 @@ export class SystemDiagnostics extends LitElement {
     .sw-prev .tree {
       grid-row: 1 / 3;
     }
+    /* POLISH4-WP7: the two style previews read tokens only (no literal colours). The Arx preview is the flat ladder (surface-2 ground,
+       solid tiles on a hairline); the glass preview is the same ground with translucent tiles and a tinted bloom, so both follow
+       the light / dark scheme instead of staying pinned to one. */
     .sw-prev.smplwise {
-      background: #f6f7fb;
+      background: var(--sw-surface-2);
     }
     .sw-prev.smplwise i {
-      background: #ffffff;
-      border: 1px solid #e9edf3;
-      box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+      background: var(--sw-surface);
+      border: 1px solid var(--sw-border);
+      box-shadow: var(--sw-shadow-1);
     }
     .sw-prev.smplwise i.on {
-      background: linear-gradient(180deg, var(--sw-warning-soft), #ffffff 70%);
-      border-color: #f7d49a;
+      background: linear-gradient(180deg, var(--sw-warning-soft), var(--sw-surface) 70%);
+      border-color: color-mix(in srgb, var(--sw-warning) 40%, transparent);
     }
     .sw-prev.glass {
-      background: radial-gradient(140px 80px at 85% -10%, rgba(255, 184, 86, 0.45), transparent 60%), radial-gradient(120px 80px at 10% 110%, rgba(10, 132, 255, 0.5), transparent 60%), #0a0a0c;
+      background: radial-gradient(140px 80px at 85% -10%, color-mix(in srgb, var(--sw-warning) 45%, transparent), transparent 60%), radial-gradient(120px 80px at 10% 110%, color-mix(in srgb, var(--sw-accent) 50%, transparent), transparent 60%), var(--sw-surface-2);
     }
     .sw-prev.glass i {
       border-radius: var(--sw-r-md);
-      background: rgba(44, 44, 46, 0.62);
-      border: 1px solid rgba(255, 255, 255, 0.13);
-      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+      background: color-mix(in srgb, var(--sw-surface-solid) 62%, transparent);
+      border: 1px solid var(--sw-border-strong);
+      box-shadow: var(--sw-shadow-2);
       display: flex;
       align-items: flex-start;
       padding: 5px;
@@ -457,15 +461,16 @@ export class SystemDiagnostics extends LitElement {
       inline-size: 12px;
       block-size: 12px;
       border-radius: 50%;
-      background: rgba(235, 235, 245, 0.3);
+      background: var(--sw-text-3);
+      opacity: 0.45;
     }
     .sw-prev.glass i.tree::before {
       display: none;
     }
     .sw-prev.glass i.on {
-      background: linear-gradient(135deg, rgba(61, 90, 254, 0.55), rgba(61, 90, 254, 0.15)), rgba(44, 44, 46, 0.62);
-      border-color: rgba(100, 140, 255, 0.45);
-      box-shadow: 0 0 14px rgba(61, 90, 254, 0.4);
+      background: linear-gradient(135deg, color-mix(in srgb, var(--sw-accent) 55%, transparent), color-mix(in srgb, var(--sw-accent) 15%, transparent)), color-mix(in srgb, var(--sw-surface-solid) 62%, transparent);
+      border-color: color-mix(in srgb, var(--sw-accent) 45%, transparent);
+      box-shadow: 0 0 14px color-mix(in srgb, var(--sw-accent) 40%, transparent);
     }
     .stream {
       display: flex;
@@ -477,12 +482,60 @@ export class SystemDiagnostics extends LitElement {
       font-family: var(--sw-font-mono);
       direction: ltr;
     }
+    /* POLISH4-WP7 press + hover: the style swatch presses in on pointer-down (the same give as every key); hover only on a fine pointer */
+    .swatch {
+      transition: transform var(--sw-t-press) var(--sw-ease), border-color var(--sw-t-hover) var(--sw-ease-color);
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
+    .swatch:active:not(:disabled) {
+      transform: scale(var(--sw-press-scale));
+    }
+    .swatch:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: 2px;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .swatch:hover:not(:disabled):not([aria-pressed='true']) {
+        border-color: var(--sw-accent);
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .swatch {
+        transition-duration: 0ms;
+      }
+    }
     @media (max-width: 767px) {
       /* border-box: the full-width field keeps its padding and border inside the row (BACKUP-HASH-ENC's password / minimum
          fields stand alone in a stacked row and ran 7 px past the card at 390 - 2.7.0 gate) */
       .note-in {
         inline-size: 100%;
         box-sizing: border-box;
+      }
+      /* POLISH4-WP7 (D15): the rest of the host's fixed widths give way on a phone. A backup row stacks its name over its actions, the
+         two preview tiles share the width, the style swatches take a line each, and a usage bar fills its row. */
+      .brow {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .brow .acts sw-button {
+        flex: 1 1 auto;
+      }
+      .tile-preview {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .swatch {
+        flex: 1 1 100%;
+      }
+      .sw-prev {
+        inline-size: 100%;
+        box-sizing: border-box;
+      }
+      .bar {
+        inline-size: 100%;
+        max-inline-size: 100%;
+      }
+      .hsum {
+        align-items: flex-start;
       }
     }
   `, bubbleChrome];
@@ -809,7 +862,7 @@ export class SystemDiagnostics extends LitElement {
         <sw-kpi icon="bolt" value="0/33" label="מתגים פעילים" tone="neutral" layout=${previewLayout}></sw-kpi>
         <sw-kpi icon="lock" value="8/8" label="מנעולים נעולים" detail="הכול נעול" tone="live" layout=${previewLayout}></sw-kpi>
       </div>
-      ${this.canEdit ? html`<div class="foot"><sw-button variant="primary" size="sm" icon="check" ?disabled=${!dirty || this.busy} @click=${() => this.saveDesign()}>שמור עיצוב</sw-button>${this.message && this.tab === 'general' ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}${this.error && this.tab === 'general' ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}</div>` : nothing}
+      ${this.canEdit ? this.renderSaveRow({ tab: 'general', size: 'sm', disabled: !dirty || this.busy, onSave: () => this.saveDesign(), label: 'שמור עיצוב' }) : nothing}
     </sw-card>`;
   }
 
@@ -819,6 +872,15 @@ export class SystemDiagnostics extends LitElement {
   }
 
   /** NVR-less mode: the neutral notice a settings section shows instead of NVR / video forms that could only fail. */
+  /** POLISH4-WP7: the ONE save row of the host's tabs (it was copied six times): the primary action first, the saved / error line next
+   * to it, only on the tab that produced the message. `.foot.sticky` (settingsKitStyles) keeps it in view on a phone while a long tab
+   * scrolls under it. `hook` is the data attribute the specs and the walkthroughs find the button by. */
+  private renderSaveRow(o: { tab: string; disabled: boolean; onSave: () => unknown; hook?: string; size?: 'sm'; label?: string }) {
+    const here = this.tab === o.tab;
+    const hook = unsafeStatic(o.hook ?? 'data-save-row');
+    return shtml`<div class="foot sticky"><sw-button variant="primary" size=${o.size ?? 'md'} icon="check" ${hook} ?disabled=${o.disabled} @click=${o.onSave}>${o.label ?? 'שמור'}</sw-button>${here && this.message ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}${here && this.error ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}</div>`;
+  }
+
   private renderNvrLessNotice(what: string) {
     return html`<sw-card heading="מצב ללא NVR" subheading=${what} data-nvr-less-settings>
       <div class="muted">ההתקנה פועלת ללא NVR, ולכן ההגדרות של וידאו, הקלטות, ייצוא וחיפוש אירועים מוסתרות כאן. הן יחזרו כמו שהיו כשיחובר NVR בהגדרות ‹ חיבורים.</div>
@@ -1022,7 +1084,7 @@ export class SystemDiagnostics extends LitElement {
           <sw-field class="ctl"><select data-set-fast-network ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('server.fast_network', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('server.fast_network') ?? 'false') !== 'true'}>כבוי</option><option value="true" ?selected=${String(this.value('server.fast_network') ?? 'false') === 'true'}>פעיל</option>
           </select></sw-field></div>
-        <div class="foot"><sw-button variant="primary" icon="check" ?disabled=${!dirty || this.busy || !api} @click=${() => this.save()}>שמור</sw-button>${this.message ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}${this.error ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}</div>
+        ${this.renderSaveRow({ tab: 'media', disabled: !dirty || this.busy || !api, onSave: () => this.save() })}
         ${!api ? html`<div class="muted">נתוני הדגמה: ההגדרות נשמרות רק מול השרת.</div>` : nothing}
       </sw-card>
       ${NVR ? nothing : html`<system-timeline-colors></system-timeline-colors>`}
@@ -1082,7 +1144,7 @@ export class SystemDiagnostics extends LitElement {
           ${sel('plan.camsuggest_fov', '50', 'camsuggest-fov', [['0', 'מרחק בלבד'], ['25', 'נמוך'], ['50', 'בינוני'], ['75', 'גבוה'], ['100', 'חובה']])}</div>
         <div class="row" data-camsuggest-count><span class="lbl">הצעת מצלמה לאזור: מספר הצעות</span>
           ${sel('plan.camsuggest_count', '3', 'camsuggest-count', [['1', 'אחת'], ['2', 'שתיים'], ['3', 'שלוש']])}</div>
-        <div class="foot"><sw-button variant="primary" icon="check" data-save-map ?disabled=${!dirty || this.busy || !api} @click=${() => this.save()}>שמור</sw-button>${this.message ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}${this.error ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}</div>
+        ${this.renderSaveRow({ tab: 'map', hook: 'data-save-map', disabled: !dirty || this.busy || !api, onSave: () => this.save() })}
         ${!api ? html`<div class="muted">נתוני הדגמה: ההגדרות נשמרות רק מול השרת.</div>` : nothing}
       </sw-card>
       <system-plan-view data-section="plan-view"></system-plan-view>
@@ -1127,7 +1189,7 @@ export class SystemDiagnostics extends LitElement {
       ${this.skinsError ? html`<div class="err" data-skins-test-error>${this.skinsError}</div>` : nothing}
       ${t
         ? html`<div class="row" data-skins-test-result data-ok=${t.ok ? 'true' : 'false'}><span class="lbl">${t.ok ? `הספק ענה: HTTP ${t.http_status}` : t.http_status ? `הספק סירב: HTTP ${t.http_status}` : 'הספק לא ענה'}<span class="muted">${t.model}${t.message ? ` · ${t.message}` : ''}${t.request_id ? ` · ${t.request_id}` : ''}${t.ok && !t.image ? ' · התשובה לא כללה תמונה' : ''}</span></span>
-            ${t.image ? html`<img data-skins-test-image src=${t.image} alt="תשובת הספק לבדיקה" style="inline-size:96px;block-size:96px;object-fit:cover;border-radius:6px;border:1px solid var(--sw-border)" />` : nothing}</div>`
+            ${t.image ? html`<img data-skins-test-image src=${t.image} alt="תשובת הספק לבדיקה" style="inline-size:96px;block-size:96px;object-fit:cover;border-radius:var(--sw-r-xs);border:1px solid var(--sw-border)" />` : nothing}</div>`
         : st?.last_test
           ? html`<div class="muted" data-skins-last-test>בדיקה אחרונה: ${fmtTime(st.last_test.created_at)} · ${st.last_test.status === 'ok' ? 'הצליחה' : `נכשלה (${st.last_test.error_code ?? st.last_test.http_status ?? ''})`}</div>`
           : nothing}
@@ -1185,7 +1247,7 @@ export class SystemDiagnostics extends LitElement {
         <div class="muted" data-access-ui-embed-api style="margin-block-start:6px">ההטמעה משתמשת בממשק ההטמעה של WisKey (WisKey 2.0.0-rc.19 ומעלה): הלשוניות נבנות מהמסכים ש־WisKey מתיר למשתמש והמעבר ביניהן נעשה בהודעות; בגרסאות WisKey ישנות יותר ההטמעה עוברת אוטומטית לשיטה הקודמת.</div>
         <div class="muted" data-access-ui-warning style="margin-block-start:6px;color:var(--sw-text)"><b>שים לב:</b> משתמש שחשבון תשתית המערכת שלו מחזיק ב־WisKey הרשאת ניהול (manage), או שהוא מנהל תשתית המערכת, יכול בתוך WisKey המוטמע לפתוח דלתות ולערוך אנשים (PIN, כרטיסים, תוקף) — בלי שלב האישור של Arx ובלי רישום באודיט של Arx. התיעוד של הפעולות האלה נמצא רק ביומן של WisKey.</div>
         ${this.canEdit
-          ? html`<div class="foot"><sw-button variant="primary" icon="check" data-save-access-ui ?disabled=${!dirty || this.busy || !api} @click=${() => this.save()}>שמור</sw-button>${this.message && this.tab === 'access-control' ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}${this.error && this.tab === 'access-control' ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}</div>`
+          ? this.renderSaveRow({ tab: 'access-control', hook: 'data-save-access-ui', disabled: !dirty || this.busy || !api, onSave: () => this.save() })
           : html`<div class="muted">${api ? 'שינוי הבחירה דורש הרשאת מנהל מערכת.' : 'נתוני הדגמה: ההגדרות נשמרות רק מול השרת.'}</div>`}
       </sw-card>
       <system-access-display></system-access-display>
@@ -1263,7 +1325,7 @@ export class SystemDiagnostics extends LitElement {
       </sw-card>
       ${api && can('system.configure') ? html`<system-video-conn-test></system-video-conn-test>` : nothing}
       ${this.canEdit
-        ? html`<div class="foot"><sw-button variant="primary" icon="check" data-save-remote ?disabled=${!dirty || this.busy} @click=${() => this.save()}>שמור</sw-button>${this.message && this.tab === 'remote' ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}${this.error && this.tab === 'remote' ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}</div>`
+        ? this.renderSaveRow({ tab: 'remote', hook: 'data-save-remote', disabled: !dirty || this.busy, onSave: () => this.save() })
         : html`<div class="muted">${api ? 'שינוי ההגדרות דורש הרשאת מנהל מערכת.' : 'נתוני הדגמה: ההגדרות נשמרות רק מול השרת.'}</div>`}
     </div>`;
   }
@@ -1338,7 +1400,7 @@ export class SystemDiagnostics extends LitElement {
         </div>
         <div class="muted" data-devices-layout-next style="margin-block-start:8px">הפריסה עצמה (מיקום וגודל של כרטיסים ואריחים, כותרת, אייקון, גודל טקסט וצבע לפי תפקיד) נערכת במסך המבנה ובמסך האזור, בכפתור "ערוך פריסה".</div>
         ${this.canEdit && api
-          ? html`<div class="foot"><sw-button variant="primary" icon="check" data-save-devices ?disabled=${!dirty || this.busy} @click=${() => this.save()}>שמור</sw-button>${this.message && this.tab === 'devices' ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}${this.error && this.tab === 'devices' ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}</div>`
+          ? this.renderSaveRow({ tab: 'devices', hook: 'data-save-devices', disabled: !dirty || this.busy, onSave: () => this.save() })
           : html`<div class="muted" data-devices-readonly>${api ? 'שינוי ההגדרות דורש הרשאת מנהל מערכת.' : 'נתוני הדגמה: ההגדרות נשמרות רק מול השרת.'}</div>`}
       </sw-card>
       ${api && this.canEdit ? html`<devices-climate-kind-admin data-section="climate-kind"></devices-climate-kind-admin>` : nothing}
