@@ -41,6 +41,8 @@ import { mapHrefForArea } from '../api/plan-links';
 import { loadTree as loadCatalogTree } from '../api/catalog';
 import type { Floor as PlanFloor } from '../api/types';
 // PERF-HOME-DEVICES-2342: the plan view's map (<explore-floor-map>, with the plan canvas) is a lazy chunk, fetched only when the plan view renders (renderPlanView)
+// GATE2342-A: through the shell's loader (updated()), which upgrades it with its .floorId - an in-place upgrade ran its load() for no floor
+import { loadPendingScreens } from '../shell/lazy-screens';
 import type { DevicesBulkMenu } from './devices-bulk';
 import { bidi, ltrNum } from '../i18n/bidi';
 import type { BulkKind } from '../api/device-bulk';
@@ -2089,6 +2091,7 @@ export class DevicesBuilding extends LitElement {
   }
 
   protected updated() {
+    loadPendingScreens(this.renderRoot, () => this.requestUpdate(), true); // the plan view's map chunk (not the shell's route: data-shell-ready does not wait for it)
     if (this.treeSheet !== this.treeSheetShown) {
       this.treeSheetShown = this.treeSheet;
       const byKey = this.treeSheetByKey;
@@ -3543,7 +3546,7 @@ export class DevicesBuilding extends LitElement {
             </div>`
           : nothing}
         ${floorId
-          ? (void import('./explore-floor-map'), html`<explore-floor-map embedded data-plan-map .floorId=${floorId} @area-open=${(e: CustomEvent<{ zone_id: string; zone_name: string; area_id: string | null; x: number; y: number }>) => this.onAreaOpen(t, e)}></explore-floor-map>`)
+          ? html`<explore-floor-map embedded data-plan-map .floorId=${floorId} @area-open=${(e: CustomEvent<{ zone_id: string; zone_name: string; area_id: string | null; x: number; y: number }>) => this.onAreaOpen(t, e)}></explore-floor-map>`
           : this.planFloorsLoaded && this.planFloors.length
             ? html`<sw-state-panel icon="building" state="empty" heading="אין תוכנית קומה" hint="העלו תוכנית לקומה במפה כדי לראות אותה כאן."></sw-state-panel>`
             : html`<sw-state-panel state="loading"></sw-state-panel>`}

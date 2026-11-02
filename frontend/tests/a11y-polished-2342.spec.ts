@@ -52,6 +52,8 @@ test('stacked dialogs: Escape closes only the top one', async ({ page }) => {
 
 test('sw-popover: Escape inside the card closes it and the focus goes back to the opener', async ({ page }) => {
   await styleguide(page);
+  // the style guide's chunk defines <sw-popover> (the screens are lazy chunks since PERF-HOME-DEVICES-2342, 2.34.2)
+  await page.waitForFunction(() => !!customElements.get('sw-popover'));
   await page.evaluate(() => {
     const opener = document.createElement('button');
     opener.id = 'pop-opener';
