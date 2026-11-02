@@ -75,8 +75,10 @@ The fake learned Google's real answers for these cases: `client_kind`, `client_d
 - Frontend: `npx tsc --noEmit -p .` PASS; unit specs (`--workers=1`) `unit-backup-gdrive` (+1 test), `unit-backup-offbox`,
   `unit-backup-offbox-restore` and the gating lints `unit-token-lint`, `unit-lead-reserve`, `unit-uxfix-rtl`, `unit-menu-lint`,
   `unit-empty-state-icons` - 58 passed.
-- NOT_RUN: the browser spec `tests/offbox-backup-ui.spec.ts` and any pixel baseline (no local browser runs on this workstation; the
-  runner was reserved for tonight's gates). `contracts/API_INVENTORY.md` is regenerated at release (`scripts/api_inventory.py`).
+- Runner (`run_smart.py preview pilot/GDRIVE-READY-2351 tests/offbox-backup-ui.spec.ts --workers=1`): 24 passed (desktop, tablet,
+  mobile). That spec does not open the new check dialog.
+- NOT_RUN: a browser spec / pixel baseline for the new "בדיקת חיבור Google" dialog. `contracts/API_INVENTORY.md` is regenerated at
+  release (`scripts/api_inventory.py`).
 
 ## Left for the owner
 
