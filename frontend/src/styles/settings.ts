@@ -24,7 +24,11 @@ import { css } from 'lit';
  *   input[aria-invalid]  a control whose value the screen rejected (+ .field-error under it)
  */
 /** POLISH2-295: the settings pages' segmented control on its own, so a component outside settingsStyles (sw-list-display-settings) shares
- * it instead of keeping its own look; selected = the accent with the inverse label (AA in both schemes), unselected = text-2 on the track. */
+ * it instead of keeping its own look.
+ * POLISH4-WP1 (owner Q3a, 02.11): ONE settings key style - the pill-thumb key of the look settings (system-design.ts, system-nav-size.ts):
+ * a sunken track (surface-3, 3 px inset, no dividers) and the selected key a lifted thumb (the card surface + shadow 1, the label in the
+ * accent ink; in dark the --sw-seg-thumb lift of DARK-REVIEW-2342). The accent-filled divided keys are gone. The --sw-seg-* knobs of a
+ * glass host (TKUI6, system-tickets) still override every part, so those hosts draw as before. */
 export const settingsSegStyles = css`
   .seg {
     display: inline-flex;
@@ -32,18 +36,18 @@ export const settingsSegStyles = css`
        clipped the last segment ("30 דק׳") of the schedules defaults in the page's 300 px side column at tablet widths */
     flex: none;
     max-inline-size: 100%;
-    border: 1px solid var(--sw-seg-border, var(--sw-border-strong));
-    border-radius: var(--sw-seg-radius, var(--sw-r-sm));
+    border: 1px solid var(--sw-seg-border, transparent);
+    border-radius: var(--sw-seg-radius, var(--sw-r-md));
     overflow: hidden;
-    background: var(--sw-seg-track, var(--sw-surface));
-    padding: var(--sw-seg-pad, 0);
-    gap: var(--sw-seg-gap, 0);
+    background: var(--sw-seg-track, var(--sw-surface-3));
+    padding: var(--sw-seg-pad, 3px);
+    gap: var(--sw-seg-gap, 2px);
   }
   /* the knobs --sw-seg-* belong to a glass host (TKUI6: the service-management settings): a pill track with a lifted thumb */
   /* R5-SYSTEM-297: a segment is a KEY - 14/600, 34 px, the hover only under a pointer that hovers (mobile-native) */
   .seg button {
     border: 0;
-    border-radius: var(--sw-seg-btn-radius, 0);
+    border-radius: var(--sw-seg-btn-radius, var(--sw-r-sm));
     background: transparent;
     padding: 0 14px;
     min-block-size: var(--sw-seg-h, 34px);
@@ -54,7 +58,7 @@ export const settingsSegStyles = css`
     color: var(--sw-text-2);
   }
   .seg button + button {
-    border-inline-start: var(--sw-seg-divider, 1px solid var(--sw-border));
+    border-inline-start: var(--sw-seg-divider, 0 solid transparent);
   }
   @media (hover: hover) and (pointer: fine) {
     .seg button:hover {
@@ -64,9 +68,9 @@ export const settingsSegStyles = css`
   }
   .seg button[aria-pressed='true'],
   .seg button[aria-selected='true'] {
-    background: var(--sw-seg-on-bg, var(--sw-accent));
-    color: var(--sw-seg-on-fg, var(--sw-text-inverse));
-    box-shadow: var(--sw-seg-on-shadow, none);
+    background: var(--sw-seg-on-bg, var(--sw-seg-thumb, var(--sw-surface)));
+    color: var(--sw-seg-on-fg, var(--sw-accent-text));
+    box-shadow: var(--sw-seg-on-shadow, var(--sw-seg-thumb-shadow, var(--sw-shadow-1)));
   }
   .seg button:focus-visible {
     outline: var(--sw-focus-w) solid var(--sw-focus);

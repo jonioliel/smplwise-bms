@@ -317,6 +317,11 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       // (shell scheme): a glass host with its own scheme does not read it (tests/unit-dark-polish-beds.spec.ts measures every skin).
       '--sw-seg-thumb': lt('initial', 'color-mix(in srgb, var(--sw-text) 10%, var(--sw-surface-3-solid))'),
       '--sw-seg-thumb-shadow': lt('initial', '0 0 0 1px color-mix(in srgb, var(--sw-text) 20%, transparent), 0 1px 3px rgba(0, 0, 0, 0.5)'),
+      // POLISH4-WP1 (HOMEEDIT-POLISH-2331 proposal): the WELL - one step down from a card (a group of rows, a column of choices):
+      // surface-2 pulled a quarter of the way toward the border tone. It was a knob of the settings ladder only (styles/settings.ts,
+      // which still re-declares it on its host, so a glass host with its own surface-2 keeps its own well); an editor outside the
+      // settings now reads the same well instead of a private copy. Resolved at :root (shell scheme).
+      '--sw-well': same('color-mix(in srgb, var(--sw-surface-2) 76%, var(--sw-border))'),
     },
   },
   {

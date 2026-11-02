@@ -49,7 +49,11 @@ export const noticesCss = css`
   table.t td { padding: 10px 12px; border-block-end: 1px solid var(--sw-border); vertical-align: top; color: var(--sw-text); }
   table.t tr:last-child td { border-block-end: 0; }
   table.t tr.go { cursor: pointer; }
-  table.t tr.go:hover td { background: var(--sw-surface-2); }
+  /* POLISH4-WP1 (HOMEEDIT-POLISH-2331 proposal 2): the row wash follows a hovering fine pointer only, at the source (a tapped row stayed
+     grey on a phone; the home notices page used to cancel it locally) */
+  @media (hover: hover) and (pointer: fine) {
+    table.t tr.go:hover td { background: var(--sw-surface-2); }
+  }
   .t1 { display: block; font-weight: var(--sw-fw-medium); color: var(--sw-heading); }
   .t2 { display: block; color: var(--sw-text-2); font-size: var(--sw-fs-xs); margin-block-start: 2px; max-inline-size: 48ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mut { color: var(--sw-text-3); }
