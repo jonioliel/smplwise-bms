@@ -24,10 +24,10 @@ export const CAL_DEFAULTS: Partial<CalSettings> = {
   contested_order: 'first_come', allow_displace: true, displace_approver: 'calendar_manager', override_scope: 'both', phone_time_picker: 'grid', reauth_mode: 'reauth_and_continue',
   sync_conflict_display: 'side_by_side', tablet_panels: 'collapse', resident_pending_display: 'count', resident_cancel_until: 'start', resident_rooms: 'bookable',
   purge_confirm: 'type_word', loading_style: 'skeleton', default_approval_timeout_h: 2, reopen_days: 7, sync_external_delete: 'cancel',
-  grid_edit: 'drag', cancel_notice_delay_s: 6, undo_window_s: 120,
+  grid_edit: 'drag', cancel_notice_delay_s: 6, undo_window_s: 120, feed_max_age_days: 365,
 };
 
-type Opt = [value: string | boolean, label: string];
+type Opt = [value: string | boolean | number, label: string];
 /** CALMSG-POLISH-2331: the topic of a behaviour row - the tab filters by it (22 rows were one unsorted list of 2 pages, 8 on a phone). */
 export type BehaviorGroup = 'display' | 'requests' | 'booking' | 'residents' | 'sync' | 'attendees';
 export interface SettingRow { key: keyof CalSettings | 'displaced'; label: string; kind: 'seg' | 'tog' | 'step'; opts?: Opt[]; min?: number; max?: number; step?: number; unit?: string; hint?: string; static?: boolean; group?: BehaviorGroup }
@@ -68,6 +68,9 @@ export const BEHAVIOR_ROWS: SettingRow[] = [
   { group: 'sync', key: 'sync_conflict_display', label: 'התנגשות מסנכרון בתצוגת השבוע', kind: 'seg', opts: [['side_by_side', 'זו לצד זו'], ['list_only', 'רק ברשימה']] },
   { group: 'sync', key: 'reauth_mode', label: 'חיבור שדורש הרשאה מחדש', kind: 'seg', opts: [['reauth_and_continue', 'הרשאה + "המשך"'], ['reauth_only', 'הרשאה בלבד']] },
   { group: 'sync', key: 'purge_confirm', label: 'אישור "מחיקת כל פרטי האורחים"', kind: 'seg', opts: [['type_word', 'הקלדת "מחיקה"'], ['one_click', 'לחיצה בחלון']] },
+  // CAL-FEED-REVIEW-2351 owner round 14 (3C): the expiry a new or renewed outgoing-feed address gets; an address already out keeps its own
+  { group: 'sync', key: 'feed_max_age_days', label: 'תוקף קישור של פיד יוצא', kind: 'seg', opts: [[90, '90 יום'], [180, '180 יום'], [365, '365 יום'], [0, 'ללא הגבלה']],
+    hint: 'לקישורים חדשים ומחודשים; קישור קיים שומר על התוקף שלו' },
 ];
 
 /** The label of a row's default value ("ברירת מחדל: ..."). */
