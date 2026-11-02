@@ -36,6 +36,7 @@ const LABEL_KEY: Record<ChoiceKey, HsKey> = {
   site_entry: 'siteEntry',
   site_off_shared: 'siteOffShared',
   tree_unassigned: 'treeUnassigned',
+  edit_drawer_space: 'editDrawerSpace',
 };
 const VALUE_PREFIX: Record<ChoiceKey, string> = {
   summary_chooser: 'chooser_',
@@ -53,6 +54,7 @@ const VALUE_PREFIX: Record<ChoiceKey, string> = {
   site_entry: 'se_',
   site_off_shared: 'sos_',
   tree_unassigned: 'tu_',
+  edit_drawer_space: 'eds_',
 };
 const QUICK_LABEL: Record<QuickKind, HsKey> = { lights: 'qLights', climate: 'qClimate', covers: 'qCovers', switches: 'qSwitches' };
 const QUICK_ICON: Record<QuickKind, string> = { lights: 'light', climate: 'snow', covers: 'layers', switches: 'bolt' };
@@ -281,6 +283,7 @@ export class HomeScreenOptionsForm extends LitElement {
       ${this.choice('floor_off')}
       ${this.choice('many_floors')}
       ${this.treeUnassigned()}
+      <div class="f" data-hs-edit-drawer-space>${this.choice('edit_drawer_space')}<span class="muted">${hs('edsNote')}</span></div>
       ${this.choice('building_off_tablet')}
       ${this.choice('quick_card')}
       ${this.choice('phone_floors')}

@@ -111,8 +111,10 @@ export const devicesLayoutCss = [
     }
     /* OWNER-R12-2341 (owner 01.11, 8B): the side panel only from 1200 px; a phone AND a tablet (768-1199) get the bottom sheet,
        so the 12-column preview keeps the page's full width (the 300 px panel left it ~560 px at 1024) */
+    /* HOME-EDIT-DRAWER-2351 (owner 02.11, round 14): the home screen sets data-he-free while its edit drawer is CLOSED and
+       home.screen.edit_drawer_space = free (default) - the preview takes the column back. The area screen never sets it. */
     @media (min-width: 1200px) {
-      :host([data-lay-editing]) sw-page {
+      :host([data-lay-editing]:not([data-he-free])) sw-page {
         padding-inline-end: calc(var(--lay-panel) + 32px);
       }
     }

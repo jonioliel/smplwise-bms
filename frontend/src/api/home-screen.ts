@@ -58,6 +58,8 @@ export const CHOICES = {
   site_off_shared: ['exclude', 'include'],
   // TREE-HIDE-UNASSIGNED-2331: whether the building tree draws the "ללא שיוך" bucket - always / only in the screen editor / never
   tree_unassigned: ['always', 'editing', 'never'],
+  // HOME-EDIT-DRAWER-2351 (owner 02.11, round 14): a closed edit drawer gives its width back to the preview (free) or keeps it (keep)
+  edit_drawer_space: ['free', 'keep'],
 } as const;
 export type ChoiceKey = keyof typeof CHOICES;
 export const CHOICE_KEYS = Object.keys(CHOICES) as ChoiceKey[];
@@ -79,6 +81,7 @@ export const CHOICE_DEFAULTS = {
   site_entry: 'site',
   site_off_shared: 'exclude',
   tree_unassigned: 'always',
+  edit_drawer_space: 'free',
 } as const;
 
 export interface HomeScreenOptions {
@@ -110,6 +113,15 @@ export interface HomeScreenOptions {
   site_off_shared: SiteOffShared;
   /** TREE-HIDE-UNASSIGNED-2331: the tree's "ללא שיוך" row - always (default), only while the screen editor is open, or never. */
   tree_unassigned: TreeUnassigned;
+  /** HOME-EDIT-DRAWER-2351 (owner 02.11, round 14): the screen editor's side drawer (from 1200 px) when it is CLOSED - free (default:
+   * the preview takes the width back) | keep (its column stays reserved, as before). Below 1200 px nothing changes. */
+  edit_drawer_space: EditDrawerSpace;
+}
+export type EditDrawerSpace = 'free' | 'keep';
+
+/** HOME-EDIT-DRAWER-2351: does the page keep the edit drawer's column while the drawer is closed? Open, it always does. */
+export function editDrawerReserved(mode: EditDrawerSpace, open: boolean): boolean {
+  return open || mode === 'keep';
 }
 export type SiteEntry = 'site' | 'last' | 'fixed';
 export type SiteOffShared = 'exclude' | 'include';
