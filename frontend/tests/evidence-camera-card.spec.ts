@@ -286,18 +286,14 @@ test.describe('the camera card in an area screen (real backend, fake media stack
       { key: 'camera:c2', x: 6, y: 0, camera: nvr(2), profile: 'sub' },
       { key: 'camera:c3', x: 0, y: 36, camera: nvr(3) },
     ]);
+    // On the phone the three cards stack: the third one sat exactly at the edge of the reach (its top 1 px inside the scroller's bottom
+    // plus one card height of margin, 2.34.1). PHONE-BUTTONS-44-2342 draws the area header's buttons 44 px (owner answer 2A), which moves
+    // it 8 px down and out of reach - by the card's own rule (devices-camera-card observe()), so this spec brings it into view first.
+    const inReach = async () => {
+      if (testInfo.project.name === 'mobile') await card(page, 'camera:c3').scrollIntoViewIfNeeded();
+    };
     await open(page);
-    // DIAG-GATE2342B (temporary)
-    await page.waitForTimeout(6000);
-    console.log('DIAG socks', JSON.stringify(await socks(page)));
-    console.log('DIAG page', JSON.stringify(await page.evaluate(() => {
-      const area = document.querySelector('sw-app')?.shadowRoot?.querySelector('devices-area') ?? document.querySelector('devices-area');
-      const cards = [...(area?.shadowRoot?.querySelectorAll('devices-camera-card') ?? [])] as unknown as (HTMLElement & Record<string, unknown>)[];
-      return {
-        vh: window.innerHeight, vw: window.innerWidth, hidden: document.hidden,
-        cards: cards.map((c) => { const r = c.getBoundingClientRect(); const res = c.resolved as { state?: string; status?: string } | null; return { key: c.closest('sw-card')?.getAttribute('data-camera-card'), top: Math.round(r.top), h: Math.round(r.height), inView: c.inView, expanded: c.expanded, state: res?.state, status: res?.status, quality: c.quality ?? c.profile, margin: (c.io as { rootMargin?: string } | undefined)?.rootMargin, root: (() => { const ro = (c.io as { root?: Element | null } | undefined)?.root; if (!ro) return 'viewport'; const rr = ro.getBoundingClientRect(); return ro.tagName + '.' + ro.className + ' ' + Math.round(rr.top) + '-' + Math.round(rr.bottom); })(), card: (() => { const sc = c.closest('sw-card'); const rr = sc?.getBoundingClientRect(); return rr ? Math.round(rr.top) + '+' + Math.round(rr.height) : ''; })() }; }),
-      };
-    })));
+    await inReach();
     await expect.poll(async () => (await active(page)).length, { timeout: 20000 }).toBe(3);
     const byCam = async () => Object.fromEntries((await active(page)).map((s) => [s.camera, `${s.profile}:${s.kind}`]));
     // the requested profile reaches the relay at any size; the transport is the installation's (MSE) for all three
@@ -308,6 +304,7 @@ test.describe('the camera card in an area screen (real backend, fake media stack
     // auto follows the wall's profile (main here); a card's own choice does not
     await setSettings(request, { 'media.wall_profile': 'main' });
     await page.reload();
+    await inReach();
     await expect.poll(async () => (await active(page)).length, { timeout: 20000 }).toBe(3);
     await expect.poll(byCam, { timeout: 10000 }).toEqual({ [cameraIds['1']]: 'main:mse', [cameraIds['2']]: 'sub:mse', [cameraIds['3']]: 'main:mse' });
     await setSettings(request, { 'media.wall_profile': 'sub' });
