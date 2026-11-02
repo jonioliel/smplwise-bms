@@ -23,6 +23,7 @@ middleware sits in front of everything:
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from .config import Settings
@@ -196,6 +197,15 @@ BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/nvr/privacy-masks",)
 # CALCONNECT-2330: the outgoing iCal feed document (a token address, no signed-in person) is not served through the tunnel - contract 15.6 /
 # 15.11: public exposure waits for the feed security review, so the remote channel answers the uniform 404 (local / ingress only; feeds off by default)
 BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/calendar/feed",)
+# CAL-FEED-REVIEW-2351 (docs/changes/CAL-FEED-REVIEW-2351.md): a per-feed remote switch (`cal_feeds.remote_enabled`, default off) may open ONE
+# feed's address on the tunnel. The edge cannot read it, so exactly a well-formed `GET /api/v1/calendar/feed/<43-char token>.ics` passes on
+# to the route, which answers the same uniform 404 unless that feed's switch is on; any other method or shape under the prefix stays
+# blocked here. Nothing else is route-gated.
+ROUTE_GATED_ON_REMOTE = (("/api/v1/calendar/feed", re.compile(r"^/api/v1/calendar/feed/[A-Za-z0-9_-]{43}\.ics$"), frozenset({"GET"})),)
+
+
+def _route_gated(kind: str, method: str, rest: str) -> bool:
+    return kind == "http" and any(method in methods and shape.fullmatch(rest) is not None for _, shape, methods in ROUTE_GATED_ON_REMOTE)
 SESSION_COOKIES = ("__Secure-arx_session", "arx_session")
 # What a client must send, machine-readable (the phone apps read `details` to pick the right message): the session cookie is only
 # accepted on a state-changing request that proves its origin. `reason` is one of csrf_reasons() below.
@@ -348,7 +358,7 @@ class RemoteChannel:
             await _plain(send, 308, b"", [(b"location", location)])
             return
         rest = path[len(prefix):]
-        if any(rest == b or rest.startswith(b + "/") for b in BLOCKED_ON_REMOTE):
+        if any(rest == b or rest.startswith(b + "/") for b in BLOCKED_ON_REMOTE) and not _route_gated(kind, (scope.get("method") or "GET").upper(), rest):
             await _plain(send, 404, b'{"code":"not_found","user_message":"Not found","retryable":false,"correlation_id":"","details":{}}')
             return
         if kind == "http" and rest.lower().endswith(".map"):  # PUB-05: the bundle's source maps are not served without an identity (Ingress keeps them)

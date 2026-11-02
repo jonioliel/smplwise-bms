@@ -659,7 +659,9 @@ Microsoft the device-code flow - no callback route, no public OAuth surface. (2)
 events only"; owner answer C8 (binding) fixed the full calendar scope with a setting. The default stays `full`; `sync_google_scope =
 events` asks for `calendar.events` + `calendar.calendarlist.readonly`; read connections ask for the read-only variants. (3) The feed
 document `GET /calendar/feed/{token}.ics` is the module's only route without a signed-in person; off by default (`feeds_enabled`), 404 for
-anything unknown, 30 a minute per token; public exposure still waits for the 15.11 review.
+anything unknown, 30 a minute per token; public exposure still waits for the 15.11 review. CAL-FEED-REVIEW-2351 (the 15.11 review,
+docs/changes/CAL-FEED-REVIEW-2351.md): per-address budget counted before the lookup, the creator's current authority, an optional age
+limit, token-free logs, no-store, and a per-feed remote switch (default off, local sessions only) - the tunnel still answers 404 otherwise.
 
 | Method | Path | Notes |
 |---|---|---|
@@ -671,7 +673,8 @@ anything unknown, 30 a minute per token; public exposure still waits for the 15.
 | DELETE | `/calendar/connections/{id}/authorize` | cancel a pending grant |
 | GET / POST | `/calendar/feeds` | `calendar.connect`; POST `{calendar_ids, detail: busy\|titles}` needs `edit`+ in each; answers the path ONCE |
 | POST | `/calendar/feeds/{id}/rotate` / `revoke` | creator or admin |
-| GET | `/calendar/feed/{token}.ics` | text/calendar, confirmed entries, never notes or guests |
+| PUT | `/calendar/feeds/{id}/remote` | `{enabled}`; creator or admin; local session only (403 `local_only` remotely); audited `calendar.feed.remote` |
+| GET | `/calendar/feed/{token}.ics` | text/calendar, confirmed entries, never notes, attendees or guests; remote only with the feed's switch |
 
 Connection answers carry `setup: {client_id_set, client_secret_set, authorized, feed_url_set, tenant, ready, pending_flow}` and
 `account_hint` (the iCal host). Audit: `calendar.connection.client|feed|authorize_start|authorize`, `calendar.feed.create|rotate|revoke`.
