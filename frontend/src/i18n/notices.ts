@@ -444,6 +444,15 @@ const he = {
   nextRow_show: 'מוצגת',
   nextRow_hide: 'מוסתרת',
   v2Only: 'בעיצוב החדש בלבד',
+  // TV-SETTINGS-2380: the two TV-fit rows (docs/changes/TV-SETTINGS-2380.md section 3)
+  portraitChipsLabel: 'תצוגת אייקוני המבנה במסך אנכי',
+  portraitChips_rows: 'שתי שורות',
+  portraitChips_drop: 'שורה אחת, מסתירים את התקינים קודם',
+  portraitChipsHint: 'במסך אנכי אייקוני המבנה (מעליות, גנרטור, חניה, חדר כושר) והשורה "עודכן" יכולים לא להיכנס בשורה אחת. "שתי שורות" מציג את כולם; "שורה אחת" שומר על שורה אחת ומסתיר קודם את התקינים (תקלה נשארת עד הסוף).',
+  safeMarginLabel: 'שוליים בטוחים בקצוות המסך',
+  safeMargin_0: 'ללא',
+  safeMargin_pct: '{n}%',
+  safeMarginHint: 'מרחק מכל קצה של המסך שבו לא מציירים. מתאים לטלוויזיה שחותכת את הקצוות (overscan). לבדיקה על מכשיר אחד אפשר להוסיף לכתובת ‎?safe=3‎ (גובר על ההגדרה). ברירת המחדל: ללא.',
 };
 
 type Key = keyof typeof he;
@@ -499,6 +508,10 @@ const en: Partial<Record<Key, string>> = {
   coSize_s: 'Small', coSize_m: 'Medium', coSize_l: 'Large', coSize_xl: 'Extra large', portraitOrderLabel: 'Order on a portrait screen',
   portraitOrder_bus: 'Buses, then notices', portraitOrder_notices: 'Notices, then buses', nextRowLabel: '"Next" row', nextRow_show: 'Shown', nextRow_hide: 'Hidden',
   v2Only: 'With the new design only',
+  portraitChipsLabel: 'Building chips in portrait', portraitChips_rows: 'Two rows', portraitChips_drop: 'One row, healthy ones hidden first',
+  portraitChipsHint: 'On a portrait screen the building chips (elevators, generator, parking, gym) and the "updated" line may not fit in one row. "Two rows" shows them all; "One row" keeps a single row and hides the healthy chips first (a fault stays to the end).',
+  safeMarginLabel: 'Safe margin', safeMargin_0: 'None', safeMargin_pct: '{n}%',
+  safeMarginHint: 'Space at every edge of the screen where nothing is drawn, for a TV that cuts its edges (overscan). To test one device, add ‎?safe=3‎ to its address (it wins over the setting). Default: none.',
 };
 
 export type NtKey = Key;

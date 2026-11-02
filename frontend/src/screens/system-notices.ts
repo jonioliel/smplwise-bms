@@ -21,6 +21,8 @@ import '../notices/compose-dialog';
 import '../notices/display-saver';
 import '../notices/display-layout';
 import '../notices/display-design';
+import '../notices/display-fit'; // TV-SETTINGS-2380: portrait chips + safe margin
+import { tvFitDefaultsOf, type TvFitDefaults } from '../notices/display-fit-model';
 import '../notices/display-info';
 import '../notices/display-slides';
 import '../notices/display-transit';
@@ -306,6 +308,7 @@ export class SystemNotices extends LitElement {
     return html`<div class="panel" data-tv-defaults-card><div class="hd"><h2>${nt('tvDefaultsCard')}</h2></div><div class="form">
       <p class="hint">${nt('tvDefaultsHint')}</p>
       <notice-display-design mode="defaults" .defaults=${this.tv2Defaults()} @defaults-change=${(e: CustomEvent<Partial<Tv2Defaults>>) => void this.saveTvDefaults(e.detail)}></notice-display-design>
+      <notice-display-fit mode="defaults" .defaults=${this.tvFitDefaults()} @defaults-change=${(e: CustomEvent<Partial<TvFitDefaults>>) => void this.saveTvDefaults(e.detail)}></notice-display-fit>
       <notice-display-layout mode="defaults" .defaults=${this.tvDefaults()} @defaults-change=${(e: CustomEvent<Partial<TvDefaults>>) => void this.saveTvDefaults(e.detail)}></notice-display-layout>
     </div></div>`;
   }
@@ -315,7 +318,12 @@ export class SystemNotices extends LitElement {
     return tv2DefaultsOf(this.s?.settings.tv2_defaults);
   }
 
-  private async saveTvDefaults(body: Partial<TvDefaults & Tv2Defaults>): Promise<void> {
+  /** TV-SETTINGS-2380: the installation defaults of the two TV-fit options (they travel in `tv2_defaults`). */
+  private tvFitDefaults(): TvFitDefaults {
+    return tvFitDefaultsOf(this.s?.settings.tv2_defaults);
+  }
+
+  private async saveTvDefaults(body: Partial<TvDefaults & Tv2Defaults & TvFitDefaults>): Promise<void> {
     try {
       const r = await putTvDefaults(body);
       if (this.s) this.s = { ...this.s, settings: { ...this.s.settings, tv_defaults: r.tv_defaults, ...(r.tv2_defaults ? { tv2_defaults: r.tv2_defaults } : {}) } };
@@ -625,6 +633,7 @@ export class SystemNotices extends LitElement {
             <label class="ck"><input type="checkbox" .checked=${d.blocks.company_logo} @change=${(e: Event) => this.setD({ blocks: { ...d.blocks, company_logo: (e.target as HTMLInputElement).checked } })}>${nt('companyLogo')}</label>
             <label class="ck"><input type="checkbox" checked disabled>${nt('smplwiseLogo')}</label></div>
           <notice-display-design .display=${d} .defaults=${this.tv2Defaults()} @display-change=${(e: CustomEvent<Partial<Display>>) => this.setD(e.detail)}></notice-display-design>
+          <notice-display-fit .display=${d} .defaults=${this.tvFitDefaults()} @display-change=${(e: CustomEvent<Partial<Display>>) => this.setD(e.detail)}></notice-display-fit>
           <notice-display-layout .display=${d} .defaults=${this.tvDefaults()} @display-change=${(e: CustomEvent<Partial<Display>>) => this.setD(e.detail)}></notice-display-layout>
           <notice-display-saver .display=${effectiveTv(d, this.tvDefaults())} @display-change=${(e: CustomEvent<Partial<Display>>) => this.setD(e.detail)}></notice-display-saver>
         </div></div>
