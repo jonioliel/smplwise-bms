@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { CHOICE_DEFAULTS, CHOICES, editDrawerReserved, homeScreenOf } from '../src/api/home-screen';
 
 // HOME-EDIT-DRAWER-2351 (docs/changes/HOME-EDIT-DRAWER-2351.md): the home screen's edit mode lives in a drawer, not in the page flow.
 // A source contract (node only, no app build):
@@ -64,5 +65,28 @@ test.describe('home edit drawer', () => {
     expect(panel).toMatch(/container-type: inline-size;/);
     expect(panel).toMatch(/@container \(max-width: 640px\) \{\s*\.home-edit \{\s*grid-template-columns: minmax\(0, 1fr\);/);
     expect(panel).toMatch(/:host\(\[flat\]\) \.home-edit \{/);
+  });
+
+  test('owner 02.11 (round 14): a CLOSED drawer gives its column back unless the setting keeps it; open, it always has it', () => {
+    // the setting: home.screen.edit_drawer_space = free (default) | keep (the reserved column of before)
+    expect(CHOICES.edit_drawer_space).toEqual(['free', 'keep']);
+    expect(CHOICE_DEFAULTS.edit_drawer_space).toBe('free');
+    expect(homeScreenOf({}).edit_drawer_space).toBe('free');
+    expect(homeScreenOf({ edit_drawer_space: 'keep' }).edit_drawer_space).toBe('keep');
+    expect(homeScreenOf({ edit_drawer_space: 'x' }).edit_drawer_space).toBe('free');
+    expect(editDrawerReserved('free', true)).toBe(true);
+    expect(editDrawerReserved('keep', true)).toBe(true);
+    expect(editDrawerReserved('free', false)).toBe(false);
+    expect(editDrawerReserved('keep', false)).toBe(true);
+    // the screen sets data-he-free before the render (the editor's draft decides, so the choice previews live) ...
+    expect(building).toMatch(/const free = this\.lay\.editing && !editDrawerReserved\(this\.screen\.edit_drawer_space, this\.drawerOpen\);/);
+    expect(building).toMatch(/this\.toggleAttribute\('data-he-free', free\);\s*this\.fitKey = '';\s*window\.cancelAnimationFrame\(this\.fitTimer\);\s*this\.fitTimer = 0;/);
+    // ... and only the side drawer's reserved padding (from 1200 px) keys on it: the tablet / phone bottom-sheet room is unchanged
+    const lay = code('screens/devices-layout-css.ts');
+    expect(lay).toMatch(/@media \(min-width: 1200px\) \{\s*:host\(\[data-lay-editing\]:not\(\[data-he-free\]\)\) sw-page \{\s*padding-inline-end: calc\(var\(--lay-panel\) \+ 32px\);/);
+    expect(lay).toMatch(/@media \(max-width: 1199px\) \{\s*:host\(\[data-lay-editing\]\) sw-page \{\s*padding-block-end: 52vh;/);
+    // the choice sits in the screen options (the drawer's screen tab and Settings > home screen)
+    expect(code('screens/home-screen-options.ts')).toMatch(/data-hs-edit-drawer-space>\$\{this\.choice\('edit_drawer_space'\)\}/);
+    expect(read('i18n/home-screen.ts')).toContain("editDrawerSpace: 'שמירת מקום לחלון העריכה כשהוא סגור'");
   });
 });
