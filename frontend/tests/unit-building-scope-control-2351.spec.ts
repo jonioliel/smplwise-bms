@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { controlBuilding, floorScreenBuilding, shownBuildings, siteModel, SITE_LEVEL } from '../src/api/home-site';
 import { bulkBody, previewQuery } from '../src/api/device-bulk';
 import { actionBody } from '../src/api/ha';
+import { BUILDING_REACH_CHOICES, BUILDING_REACH_TEXT } from '../src/api/mapping';
 import { itemsQuery, type DeviceCounts, type DeviceTree } from '../src/api/devices';
 import { demoSite } from '../src/screens/home-site-demo';
 
@@ -61,4 +62,9 @@ test('a single control: the body as before without a building, the building adde
   expect(actionBody('light.turn_off', {}, false, 'r1', '2099-01-01T00:00:00Z')).toEqual(today);
   expect(JSON.stringify(actionBody('light.turn_off', {}, false, 'r1', '2099-01-01T00:00:00Z', ''))).toBe(JSON.stringify(today));
   expect(actionBody('lock.unlock', {}, true, 'r2', '2099-01-01T00:00:00Z', 'b1')).toEqual({ ...today, allowed_action_id: 'lock.unlock', confirmation_grant: 'confirmed', client_request_id: 'r2', building: 'b1' });
+});
+
+test('round 14: "הרשאת בניין לפי" offers the server’s two values, the owner’s default first, in the owner’s words', () => {
+  expect(BUILDING_REACH_CHOICES).toEqual(['map_and_mapping', 'map']);
+  expect(BUILDING_REACH_TEXT).toEqual({ map_and_mapping: 'מפה + מיפוי אזורים', map: 'מיקום במפה' });
 });

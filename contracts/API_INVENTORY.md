@@ -444,6 +444,7 @@ Ingress identity and the scoped role check named in its handler; errors use the 
 | catalog | PATCH | `/api/v1/floors/{floor_id}` |  |
 | catalog | PUT | `/api/v1/floors/{floor_id}/home-link` | Whoever may edit the floor (site.content.configure on it) - and on every other floor a row is taken from. Unknown platform ids |
 | catalog | GET | `/api/v1/home-links` | The rows whose floor the caller may read (an area taken off every floor has no floor and is always listed: it names no place). |
+| catalog | PUT | `/api/v1/home/building-reach` | Round 14 (owner 02.11): what a building-scoped role binding reaches - map placement, or map placement + the home's area mapping. |
 | catalog | PUT | `/api/v1/home/multi-building` | The multi-building view of the home screen: OFF by default (owner 31.10). Off = the exact one-building home; the mapping data stays. |
 | catalog | GET | `/api/v1/sites` | Only nodes the caller may read appear; a site is listed when the caller can read it or any child. |
 | catalog | POST | `/api/v1/sites` |  |

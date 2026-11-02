@@ -49,7 +49,8 @@ Two different limits are in play, and the audit checks each:
 - **Who may (per user)** = the role bindings (HA_IDENTITY_RBAC_HE §6, §15): a binding on building A reaches A's floors, and an HA entity
   is reached through where it is placed on those floors' maps (`services/ha_scope`: anchors, published circuits, shared rooms). This is
   the only per-user building limit in the product; nothing in this branch adds a user -> building assignment (`hide_shared` /
-  `site_entry_building` are personal display preferences, not authority).
+  `site_entry_building` are personal display preferences, not authority). **Round 14 (below) widened this rule for building bindings:
+  placement OR the home's area mapping.**
 - **Where the request acts (per view)** = the `building` parameter: the building whose view the control was pressed in. It only narrows -
   it never grants - and it is what keeps "acting in building A never touches building B" on a multi-building site.
 
@@ -77,6 +78,54 @@ Two different limits are in play, and the audit checks each:
 A user bound to building A cannot control a device of building B on any of these paths (the RBAC placement rule - proven on the single
 route and the bulk preview by `test_a_user_bound_to_building_a_never_controls_building_b`); the closed gap is the view cut: a crafted
 single request from building A's view naming a device of building B is now refused like the bulk one.
+
+## Round 14 - owner decision 02.11 (answer B): a building binding also follows the home mapping
+**The rule.** For permission purposes a device belongs to building X when it is placed on X's floor maps (anchors, published circuits,
+shared rooms - the rule before) **or** its area is mapped to X by the home mapping (map placement of a plan room > per-area row > the
+platform floor's row, then the area -> building rows: the same resolution as the `building` cut). A union, never a replacement:
+- only a binding at the **building** scope or above (building, site; installation is wide anyway) gains the mapped devices - a floor
+  binding gains nothing (its reach stays the placement rule);
+- an unmapped area (and an entity without an area) adds nothing;
+- an explicit deny on the floor the area maps to wins (deny-overrides, as everywhere); a deny on the building / site removes it too;
+- a deleted building or floor maps nothing.
+
+**The setting** "הרשאת בניין לפי" (`security.building_reach`): `map_and_mapping` = "מפה + מיפוי אזורים" (default, the owner's answer) or
+`map` = "מיקום במפה" (the rule before). It counts only while the multi-building switch is on - **switch off = exactly the rule before**,
+whatever the setting says. `PUT /api/v1/home/building-reach {mode}` needs `rbac.roles.manage` across the installation (it changes who reaches
+what, like a role edit), audited `security.building_reach` (`mode`, `was`, `multi_building`); read in `GET /sites/{id}/mapping`
+(`building_reach`, `can_set_reach`); shown on the mapping screen's settings card (disabled for anyone else). No migration (a settings row).
+
+**One place.** `services/ha_scope` decides it: `visible_floors()` returns a `FloorSet` that now carries `mapped` (the entities reached
+through the mapping for that permission) and `entity_visible()` takes the union; `mapping_decision()` gives the allowing decision for the
+audit rows (`control_decision`, the media decision, the door targets). Every route of the audit table that asks `ha_scope` follows without
+code of its own:
+
+| Path (audit table above) | Follows the mapping reach | How |
+|---|---|---|
+| single control, lock-all, scene / script tile | yes | `control_allowed` / `control_decision` (audit `scope_type` = `building`) |
+| bulk preview / run, the tiles list, the tree, area / activity reads, the catalogue, entity detail | yes | `scoped_rows` / `control_checker` / `bulk_scope` -> `entity_visible` |
+| WS `/ha/ws` (state + media push) | yes | `visible_floors` + `entity_visible`; re-scoped at once on a mapping change (below), else within 60 s |
+| alarm, multimedia, elevators, temperature, water, automations / schedules / scenarios scope, notifications, tickets device context, camera cards (HA cameras) | yes | each calls `visible_floors` + `entity_visible` (or `entity_allowed` / `scoped_rows`) |
+| door unlock of an HA lock (`door_authority`) | yes | the mapped building is an allow target, the mapped floor a deny target |
+| `/search` | yes | its own placement query plus `FloorSet.mapped` (the one place) |
+| VMS cameras (NVR live, playback, exports, events) | n/a | not HA entities: no area; scoped on the RBAC tree by their own anchors (`services/access`) |
+| partner API keys | n/a | a key's own floor restriction, not a role binding (`partner/core.entity_covered`) - unchanged |
+
+**Stale reach.** Nothing is cached across REST requests (reach is worked out on every call). Long-lived sockets re-scope on the user's
+access generation: every mapping write (the floor's home links, the assistant's apply / restore, a plan room's area link), the switch and
+the setting call `building_scope.mapping_changed` -> `revocation.mark(all users)` while the mapping counts (or just stopped counting), so an
+open socket re-scopes at once. Off = no signal (and so no capture-lease side effect), exactly as before.
+
+**Mapping writes became permission-relevant - the RemapGuard.** With the mapping counting, a floor editor of building A could include
+building B's area on his floor and pull B's devices into the reach of A's holders. While the mapping counts, every mapping write therefore
+also needs the route's own permission where each moved area is NOW (its floor, else its building) - the source-and-target rule of a camera
+move (HA_IDENTITY_RBAC_HE §5). Refused = the writes rolled back (savepoint), the audited 403 of `require`, nothing written. Switch off:
+the routes are exactly as before.
+
+**Open for the owner.** (1) While the switch is off, mapping edits are not guarded (byte-identical rule); rows prepared then become
+authority the moment the switch is turned on - whoever turns it on should look over the mapping versions first (each names who applied
+it). (2) Home Assistant moving an entity to another HA area changes its mapped building: REST follows at once, an open socket within 60 s
+(the registry sync sends no access signal).
 
 ## Frontend
 - `api/home-site.ts`: `controlBuilding(site, level)` (the home's building, '' for no site model / the site level / a hidden or gone
@@ -114,6 +163,16 @@ single request from building A's view naming a device of building B is now refus
   re-run on the runner's timing lane. Frontend: unit-building-scope-control-2351 (5, incl. the single body) + circuit-action, home-site-2330,
   mapping-assist-2330: **28 passed**; token / menu / a11y / entity-id-sweep / allon / bulk-headline / home-screen-295 specs **86 passed**;
   `npx tsc --noEmit` clean; `lazy-tags-check` OK.
+- Round 14 (02.11, `tests/test_building_reach_round14.py`, 8): a building-A binding reaches A's mapped devices that are on no map (list,
+  single control, entity detail, bulk preview / run, search; the audit row names the building binding) and none of B's or of no area; a
+  floor binding gains nothing; "מיקום במפה" removes the mapping reach (only `rbac.roles.manage` may set it: 403 + audit for a building
+  site_admin, the change audited with `mode` / `was`, sockets signalled) and back; remapping an area moves its reach at once (and signals);
+  a deny on the mapped floor wins; the RemapGuard refuses a floor editor pulling B's area (audited 403 on B's floor, nothing written) and
+  allows his own and the same edit with the switch off; and the identity proof, switch off and switch on + "מיקום במפה": the mapping code
+  replaced by a function that raises never runs and the reach is the placement rule exactly. Mutation: with the mapping reach disabled
+  6 of the 8 fail (the two OFF proofs pass by design). Regression, one file per process: 33 files, **712 passed, 1 failed** - the same
+  `test_lat1_toggle_latency` wall-clock test as above (load; fails identically without this work). Frontend: tsc clean; 2351 spec 6 passed
+  (incl. the setting's two values / labels); mapping / home-site / lint specs 96 passed; `lazy-tags-check` OK.
 - NOT_RUN: browser evidence (the multi-building evidence specs against a build) - the workstation is low on memory and the runner is busy
   with release gates; no pixel change is expected for one-building installations (no new element is drawn without a site model), the
   building view only changes the panel heading's words and the site level's master control state.
@@ -121,9 +180,8 @@ single request from building A's view naming a device of building B is now refus
 ## Known limits
 - ~~A single-device control from a panel row takes no building.~~ Closed 02.11: the single route takes `building` and runs the shared check.
 - The `building` cut is a per-view guard, not a permission: a client that omits it acts with the caller's own RBAC reach (exactly as at the
-  site level). The per-user limit stays the role binding, which reaches an HA entity through its map placement; a device's building in
-  the home mapping (home_floor_links / home_area_links / home_area_buildings) is not a permission scope (HA_IDENTITY_RBAC_HE, ha_scope).
-  Open for the owner: whether a building-scoped binding should ALSO follow the home mapping (a security-spec change, not made here).
+  site level). The per-user limit is the role binding - since round 14 placement OR (building bindings, switch on, setting default) the
+  home mapping; see "Round 14" above.
 - Automations, scripts, schedules and scenarios are installation objects: their run-now routes take no building (one HA automation may
   touch several buildings). A scene / script pressed on a tile inside a building goes through the single route and is cut there.
 - The synoptic / cross-section popup sends a building only with two or more buildings on the site; with one building the request is as before.

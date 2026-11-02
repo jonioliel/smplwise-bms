@@ -65,6 +65,9 @@ def apply_area_links(body: LinksIn, request: Request, principal: Principal = Dep
         if item.revision is not None and item.revision != z["revision"]:
             raise conflict("stale_revision", "החדר השתנה בינתיים; טען מחדש לפני שמירה.", zone_id=z["id"], current_revision=z["revision"])
         plan.append((z, links.check_area(conn, item.area_id)))
+    from ..services import building_scope
+
+    guard = building_scope.RemapGuard(conn, principal, "placement.edit")  # round 14: a room link that moves an area out of its building
     changed = 0
     now = now_iso()
     details: list[dict[str, Any]] = []
@@ -74,6 +77,7 @@ def apply_area_links(body: LinksIn, request: Request, principal: Principal = Dep
         conn.execute("UPDATE spatial_zones SET ha_area_id = ?, revision = revision + 1, updated_at = ? WHERE id = ?", (area_id, now, z["id"]))
         changed += 1
         details.append({"zone_id": z["id"], "floor_id": z["floor_id"], "area_id": area_id})
+    guard.check()
     if changed:
         audit(conn, actor=principal, action="zone.area_links", decision="allowed", resource_type="installation", resource_id="*",
               request_id=getattr(request.state, "correlation_id", None), details={"changed": changed, "links": details[:50]})

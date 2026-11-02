@@ -1,7 +1,11 @@
 """Who may see which Home Assistant entity (chapters 14/15, CR-007): one rule for the catalogue, the push socket, the
 map bundle and the devices area. An installation-wide holder of the permission sees everything; a holder bound to
 floors sees only entities placed on those floors - anchored on their map or wired to a circuit of their published
-structure (T085). Nothing else counts: HA areas and floors are the owner's naming, not a scope."""
+structure (T085). HA areas and floors are the owner's naming, not a scope - with ONE exception (owner decision 02.11, round 14, answer B):
+on a multi-building site, under the installation setting "הרשאת בניין לפי" = "מפה + מיפוי אזורים" (the default), a holder bound to a
+BUILDING (or above it) also reaches the entities whose area the home mapping puts in that building (services/building_scope) - a union
+with the placement rule, decided here only (`FloorSet.mapped`, `mapping_decision`), so every caller of this module follows it. A floor
+binding never gains anything from the mapping, an unmapped area adds nothing, and an explicit deny on the floor the area maps to wins."""
 from __future__ import annotations
 
 import sqlite3
@@ -79,6 +83,11 @@ class FloorSet(set):
     is not denied - deny wins (entity_visible)."""
 
     denied: frozenset[str] = frozenset()
+    # round 14: the entities this caller reaches through the home mapping (a building binding, the setting on); empty = the rule before
+    mapped: frozenset[str] = frozenset()
+
+    def __bool__(self) -> bool:  # "holds it somewhere": a floor, or an entity through the mapping (a building without floors of ours)
+        return set.__len__(self) > 0 or bool(self.mapped)
 
 
 def visible_floors(conn: sqlite3.Connection, principal: Principal, permission: str) -> tuple[bool, set[str]]:
@@ -95,7 +104,40 @@ def visible_floors(conn: sqlite3.Connection, principal: Principal, permission: s
         elif d.reason == "explicit_deny":
             denied.add(f["id"])
     floors.denied = frozenset(denied)
+    floors.mapped = mapped_entities(conn, principal, permission, floors.denied)
     return False, floors
+
+
+def mapped_entities(conn: sqlite3.Connection, principal: Principal, permission: str, denied: frozenset[str] = frozenset()) -> frozenset[str]:
+    """Round 14: the entities `principal` reaches with `permission` through the home mapping - those whose area resolves to a building
+    where the permission holds at the BUILDING scope (a building, site or installation binding; a floor binding is not enough), unless the
+    floor the area maps to carries an explicit deny. Empty while the multi-building switch is off or the setting is "מיקום במפה"."""
+    from . import building_scope
+
+    if not building_scope.mapping_reach_on(conn):
+        return frozenset()
+    held = {r[0] for r in conn.execute("SELECT id FROM buildings WHERE deleted_at IS NULL").fetchall()
+            if authorize(conn, principal, permission, ("building", r[0])).allowed}
+    if not held:
+        return frozenset()
+    return frozenset(eid for eid, (b, f) in building_scope.entity_targets(conn).items() if b in held and (f is None or f not in denied))
+
+
+def mapping_decision(conn: sqlite3.Connection, principal: Principal, permission: str, entity_id: str) -> Decision | None:
+    """The allowing decision behind a reach through the home mapping (the building binding), for the audit rows that name the scope an
+    action ran under - the same rule as `mapped_entities`, for one entity. None = no such reach."""
+    from . import building_scope
+
+    if not building_scope.mapping_reach_on(conn):
+        return None
+    target = building_scope.entity_targets(conn).get(entity_id)
+    if target is None:
+        return None
+    building_id, floor_id = target
+    if floor_id is not None and authorize(conn, principal, permission, ("floor", floor_id)).reason == "explicit_deny":
+        return None
+    d = authorize(conn, principal, permission, ("building", building_id))
+    return d if d.allowed else None
 
 
 def placements(conn: sqlite3.Connection) -> Placements:
@@ -150,7 +192,7 @@ def entity_visible(wide: bool, floors: set[str], placed: Placements, entity_id: 
     denied = getattr(floors, "denied", frozenset())
     if not wide and denied and any(denied & set(p.get("share_floors") or ()) for p in places):
         return False
-    return wide or any(p["floor_id"] in floors for p in places)
+    return wide or any(p["floor_id"] in floors for p in places) or entity_id in getattr(floors, "mapped", ())
 
 
 def entity_allowed(conn: sqlite3.Connection, principal: Principal, entity_id: str, permission: str) -> bool:
@@ -182,6 +224,9 @@ def control_decision(conn: sqlite3.Connection, principal: Principal, entity_id: 
             d = authorize(conn, principal, perm, target)
             if d.allowed and (target == INSTALLATION or not denied_on_room):  # CR-009: a deny on any floor of the room wins
                 return d
+        d = mapping_decision(conn, principal, perm, entity_id)  # round 14: the building binding through the home mapping
+        if d is not None and not denied_on_room:
+            return d
     return None
 
 
