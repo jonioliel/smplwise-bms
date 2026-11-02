@@ -59,7 +59,7 @@ import './home-ambient-bar';
 import { AMBIENT_WIDGETS } from './home-ambient-bar';
 import { infoStyleFor, loadScreenDisplay, BULK_IDLE_DEFAULT, FLOOR_TITLE_LINES_DEFAULT, INFO_STYLE_DEFAULT, type BulkIdle, type FloorTitleLines, type InfoStyle } from '../api/screen-display';
 import {
-  areaQuick, climateQuick, effectiveScreen, floorCardsMax, floorCardsSplit, HOME_SCREEN_DEFAULT, homeAlerts, isTabletLandscape, loadHomeScreen, rowQuickMax,
+  areaQuick, climateQuick, editDrawerReserved, effectiveScreen, floorCardsMax, floorCardsSplit, HOME_SCREEN_DEFAULT, homeAlerts, isTabletLandscape, loadHomeScreen, rowQuickMax,
   saveHomeScreen, screenFormBody, showRoomTemp, summaryKindsShown, tileQuickMax, tilesUnassignedShown, treeUnassignedShown,
   type HomeScreenForm, type HomeScreenOptions, type PersonalScreen, type QuickKind, type SummaryKind, type TreeUnassigned,
 } from '../api/home-screen';
@@ -2129,6 +2129,17 @@ export class DevicesBuilding extends LitElement {
         this.drawerTab = 'card';
         this.drawerOpen = true;
       } else if (this.drawerTab === 'card') this.drawerTab = 'home';
+    }
+    // HOME-EDIT-DRAWER-2351 (owner 02.11, round 14): a CLOSED drawer gives its column back to the preview (devices-layout-css.ts keys
+    // the page's reserved padding on data-he-free) unless home.screen.edit_drawer_space = keep. Only the side drawer (from 1200 px)
+    // reserves a column; below that (tablet, phone) the attribute changes nothing. Set before this render, so the measurements in
+    // updated() already see the new width; the width changes without a window resize, so the fit and the tree height start again.
+    const free = this.lay.editing && !editDrawerReserved(this.screen.edit_drawer_space, this.drawerOpen);
+    if (free !== this.hasAttribute('data-he-free')) {
+      this.toggleAttribute('data-he-free', free);
+      this.fitKey = '';
+      window.cancelAnimationFrame(this.fitTimer);
+      this.fitTimer = 0;
     }
   }
 
