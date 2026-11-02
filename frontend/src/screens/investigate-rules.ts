@@ -268,23 +268,23 @@ export class InvestigateRules extends LitElement {
           ? this.loading && !this.rules.length
             ? html`<sw-state-panel state="loading"></sw-state-panel>`
             : this.rules.length
-              ? html`<div class="list">${this.rules.map((r) => html`<sw-card flush class="rule" data-rule-row data-rule-id=${r.id} style="--bg:var(--sw-accent-soft);--fg:var(--sw-accent-text)">
+              ? html`<sw-card class="rulecard list"><div class="list">${this.rules.map((r) => html`<div class="rule" data-rule-row data-rule-id=${r.id} style="--bg:var(--sw-accent-soft);--fg:var(--sw-accent-text)">
                     <div class="ic"><sw-icon name=${r.owner === 'ha' ? 'home' : 'bell'} size=${16}></sw-icon></div>
                     <div class="txt"><b>${r.name}</b><small>${this.summary(r)}</small><small>התראות: ${r.alerts.open} פתוחות מתוך ${r.alerts.total} · שונה על ידי ${r.updated_by_username ?? r.created_by_username ?? '—'} ${this.fmt(r.updated_at)}</small></div>
                     <span class="last">הופעל: ${r.last_fired_at ? this.fmt(r.last_fired_at) : '—'}</span>
                     <sw-toggle ?checked=${r.enabled} ?disabled=${this.busy || r.owner === 'ha'} labelHidden label="פעיל" data-rule-toggle @change=${(ev: CustomEvent<{ checked: boolean }>) => void this.run(async () => { const { id, revision, alerts, created_by_username, updated_by_username, created_at, updated_at, last_fired_at, ...body } = r; void alerts; void created_by_username; void updated_by_username; void created_at; void updated_at; void last_fired_at; await updateRule(id, { ...body, enabled: ev.detail.checked, revision }); })}></sw-toggle>
                     <sw-button size="sm" data-rule-edit @click=${() => this.openEditor(r)}>עריכה</sw-button>
                     <sw-button variant="ghost" size="sm" iconOnly icon="trash" label="מחיקה" data-rule-delete @click=${() => (this.confirmDelete = r)}></sw-button>
-                  </sw-card>`)}</div>`
+                  </div>`)}</div></sw-card>`
               : html`<sw-state-panel icon="rule" state="empty" heading="אין חוקים עדיין" hint="חוק בודק אירועים שכבר נשמרו ומייצר התראה במערכת; הרץ הרצה יבשה לפני שמירה."></sw-state-panel>`
-          : html`<div class="list">${this.alerts.length
-              ? this.alerts.map((a) => html`<sw-card flush class="rule" data-alert-row data-acked=${a.acked_at ? 'true' : 'false'} style="--bg:${a.acked_at ? 'var(--sw-offline-soft)' : 'var(--sw-warning-soft)'};--fg:${a.acked_at ? 'var(--sw-offline-text)' : 'var(--sw-warning-text)'}">
+          : this.alerts.length
+            ? html`<sw-card class="rulecard list"><div class="list">${this.alerts.map((a) => html`<div class="rule" data-alert-row data-acked=${a.acked_at ? 'true' : 'false'} style="--bg:${a.acked_at ? 'var(--sw-offline-soft)' : 'var(--sw-warning-soft)'};--fg:${a.acked_at ? 'var(--sw-offline-text)' : 'var(--sw-warning-text)'}">
                   <div class="ic"><sw-icon name="bell" size=${16}></sw-icon></div>
                   <div class="txt"><b>${a.message || a.rule_name}</b><small>${a.rule_name} · ${a.camera_id ? `מצלמה ${a.camera_id}` : a.entity_id ?? ''} · <span class="ltr">${this.fmt(a.fired_at)}</span></small><small>${a.reasons.join(' · ')}</small></div>
                   <a href=${`#/investigate/events/${a.event_id}`}><sw-button size="sm" variant="ghost" icon="bell">לאירוע</sw-button></a>
                   ${a.acked_at ? html`<span class="last">טופל · ${a.acked_by_username ?? ''}</span>` : !can('events.ack') ? nothing : html`<sw-button size="sm" icon="check" data-alert-ack ?disabled=${this.busy} @click=${() => void this.run(async () => { await ackAlert(a.id); })}>סמן כטופל</sw-button>`}
-                </sw-card>`)
-              : html`<sw-state-panel icon="rule" state="empty" heading="אין התראות" hint="התראות נוצרות כשאירוע חדש תואם חוק פעיל."></sw-state-panel>`}</div>`}
+                </div>`)}</div></sw-card>`
+            : html`<sw-state-panel icon="rule" state="empty" heading="אין התראות" hint="התראות נוצרות כשאירוע חדש תואם חוק פעיל."></sw-state-panel>`}
         ${this.renderEditor()}
         ${this.confirmDelete
           ? html`<sw-dialog open heading="מחיקת חוק" subheading=${this.confirmDelete.name} @close=${() => (this.confirmDelete = null)}>

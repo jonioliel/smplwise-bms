@@ -80,8 +80,13 @@ export class SystemDevices extends LitElement {
   @state() private imageFilter: ImageKind | null = null;
   /** POLISH4-WP2 (D11): the phone width (a shorter row card; the first read shows a skeleton, never the demo rows). */
   @state() private phone = window.matchMedia('(max-width: 767px)').matches;
+  @state() private narrow = window.matchMedia('(max-width: 1279px)').matches;
   private phoneMq = window.matchMedia('(max-width: 767px)');
-  private onPhone = () => (this.phone = this.phoneMq.matches);
+  private narrowMq = window.matchMedia('(max-width: 1279px)');
+  private onPhone = () => {
+    this.phone = this.phoneMq.matches;
+    this.narrow = this.narrowMq.matches;
+  };
 
   static styles = [css`
     .filters {
@@ -233,11 +238,13 @@ export class SystemDevices extends LitElement {
     if (f === 'all' || f === 'online' || f === 'offline' || f === 'issues') this.filter = f;
     this.offlineFirst = params.get('sort') === 'offline';
     this.phoneMq.addEventListener('change', this.onPhone);
+    this.narrowMq.addEventListener('change', this.onPhone);
     void this.reload();
   }
 
   disconnectedCallback() {
     this.phoneMq.removeEventListener('change', this.onPhone);
+    this.narrowMq.removeEventListener('change', this.onPhone);
     super.disconnectedCallback();
   }
 
@@ -318,6 +325,7 @@ export class SystemDevices extends LitElement {
         api: c,
       }));
     }
+    if (isApi()) return []; // POLISH4-WP2 (D11): the registry is still loading (or failed) - never the demo rows
     return demoWall.map((c) => ({
       id: c.id,
       name: c.name,
@@ -382,10 +390,13 @@ export class SystemDevices extends LitElement {
     { key: 'net', label: 'רשת', render: (r) => this.net(r.state === 'live' ? 4 : r.state === 'stale' ? 2 : 0) },
     { key: 'more', label: '', width: '40px', render: () => html`<sw-button variant="ghost" size="sm" iconOnly icon="more" label="עוד"></sw-button>` },
   ];
-  /** POLISH4-WP2 (D11): the columns a phone row card keeps; the rest are in the drawer (see `render`). */
+  /** POLISH4-WP2 (D11): the columns a phone row card keeps (the picture check only while it runs); the rest are in the drawer (see
+   * `render`). Below 1280 px the network bars (a repeat of the state) and the empty "more" button leave, so the table fits its card
+   * at 1024 instead of scrolling sideways. */
   private static readonly PHONE_KEYS = new Set(['name', 'state', 'image', 'lastEvent']);
   private get shownColumns(): TableColumn[] {
-    return this.phone ? this.columns.filter((c) => SystemDevices.PHONE_KEYS.has(c.key)) : this.columns;
+    if (this.phone) return this.columns.filter((c) => SystemDevices.PHONE_KEYS.has(c.key) && (c.key !== 'image' || !!this.image?.enabled));
+    return this.narrow ? this.columns.filter((c) => c.key !== 'net' && c.key !== 'more') : this.columns;
   }
 
   render() {
@@ -397,8 +408,8 @@ export class SystemDevices extends LitElement {
     const cam = all.find((c) => c.id === this.selected);
     const api = !!this.cameras;
     return html`
-      <sw-page heading="בריאות מצלמות" subheading=${api ? `${this.recorder?.name ?? 'NVR'}${this.recorder?.model ? ` · ${this.recorder.model}` : ''} · ${all.length} מצלמות רשומות · גילוי לקריאה בלבד` : 'NVR ראשי · 10 ערוצים · Capability matrix לפי ראיות · נתוני הדגמה'}>
-        ${api && this.canSync ? html`<sw-button slot="actions" icon="refresh" ?disabled=${this.busy} @click=${() => this.sync()}>${this.busy ? 'מסנכרן…' : 'סנכרון מה־NVR (קריאה)'}</sw-button>` : html`<sw-button slot="actions" icon="refresh" ?disabled=${api}>בדיקת יכולות (קריאה)</sw-button>`}
+      <sw-page heading="בריאות מצלמות" subheading=${api ? `${this.recorder?.name ?? 'NVR'}${this.recorder?.model ? ` · ${this.recorder.model}` : ''} · ${all.length} מצלמות רשומות · גילוי לקריאה בלבד` : isApi() ? 'קורא את רשימת המצלמות · גילוי לקריאה בלבד' : 'NVR ראשי · 10 ערוצים · Capability matrix לפי ראיות · נתוני הדגמה'}>
+        ${api && this.canSync ? html`<sw-button slot="actions" icon="refresh" ?disabled=${this.busy} @click=${() => this.sync()}>${this.busy ? 'מסנכרן…' : 'סנכרון מה־NVR (קריאה)'}</sw-button>` : html`<sw-button slot="actions" icon="refresh" ?disabled=${api || isApi()}>בדיקת יכולות (קריאה)</sw-button>`}
         ${api && this.discovery ? html`<div style="font-size:var(--sw-fs-xs);color:${this.discovery.cameras_last_error ? 'var(--sw-danger)' : 'var(--sw-text-3)'};margin-block-end:8px">גילוי אוטומטי מה־NVR כל ${Math.round(this.discovery.interval_s / 60)} דק׳ · ${this.discovery.cameras_last_error ? `נכשל: ${this.discovery.cameras_last_error}` : this.discovery.cameras_last_ok ? `הצליח ${this.discovery.cameras_last_ok.replace('T', ' ').replace('Z', ' UTC')}` : 'טרם רץ'}${this.discovery.streams_last_error ? ` · זרמי go2rtc: ${this.discovery.streams_last_error}` : ''}</div>` : nothing}
         ${api && this.canSync ? html`<sw-button slot="actions" variant="primary" icon="plus" @click=${() => { this.dialog = true; this.formAlias = ''; this.formChannel = (all.length ? Math.max(...all.map((c) => c.channel)) : 0) + 1; }}>רישום ידני</sw-button>` : nothing}
         ${this.message ? html`<div class="ok">${this.message}</div>` : nothing}
@@ -444,7 +455,7 @@ export class SystemDevices extends LitElement {
               </sw-drawer>`
             : nothing}
         </div>
-        ${!api
+        ${!api && !isApi()
           ? html`<sw-card heading="NVR ראשי">
               <div class="nvr">
                 <div><span>דגם</span>DS-76xx (הדגמה)</div>

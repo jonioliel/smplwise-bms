@@ -226,6 +226,8 @@ export class InvestigateSync extends LitElement {
         inline-size: 100%;
       }
     }
+    /* POLISH4-WP2: the pill keeps the page's direction, so inset-inline-end is the RTL end (it was direction:ltr, which turned its own
+       inline-end to the right and laid it over the camera name); the value is isolated with <bdi> and reads left to right */
     .drift {
       position: absolute;
       inset-inline-end: 8px;
@@ -237,7 +239,6 @@ export class InvestigateSync extends LitElement {
       color: var(--sw-on-video);
       padding: 1px 7px;
       border-radius: var(--sw-r-pill);
-      direction: ltr;
     }
     .transport {
       display: flex;
@@ -459,7 +460,7 @@ export class InvestigateSync extends LitElement {
         <div class="grid">
           ${sources.map(
             (s) => html`<div class="tile">
-              <span class="drift">${s.drift}</span>
+              <span class="drift"><bdi>${s.drift}</bdi></span>
               <sw-camera-tile name=${s.cam.name} state=${s.state} scene=${demoScene[s.cam.id] ?? 'lobby'}></sw-camera-tile>
             </div>`,
           )}

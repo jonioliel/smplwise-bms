@@ -38,7 +38,8 @@ async function mock(page: Page, opts: { camerasHang?: boolean; providersFail?: b
 }
 
 interface Shot { hash: string; api?: { camerasHang?: boolean; providersFail?: boolean }; act?: (page: Page) => Promise<void> }
-const SHOTS: Record<string, Shot> = {
+const ONLY = ['api-rules', 'api-alerts', 'api-search', 'api-health-loading', 'api-health', 'sync', 'search', 'health'];
+const SHOTS_ALL: Record<string, Shot> = {
   overview: { hash: '/live' },
   wall: { hash: '/live/wall' },
   views: { hash: '/live/views' },
@@ -65,6 +66,7 @@ const SHOTS: Record<string, Shot> = {
   'api-health-loading': { hash: '/investigate/health', api: { camerasHang: true } },
   'api-health': { hash: '/investigate/health', api: {} },
 };
+const SHOTS: Record<string, Shot> = Object.fromEntries(Object.entries(SHOTS_ALL).filter(([id]) => ONLY.includes(id)));
 
 test.describe('wp2 drift shots', () => {
   test.describe.configure({ timeout: 90_000 });

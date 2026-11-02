@@ -62,7 +62,7 @@ export class InvestigateSearch extends LitElement {
     const q = this.q.trim();
     if (!q) return;
     this.busy = true;
-    this.error = '';
+    if (this.errorFrom === 'search') this.error = ''; // a provider read that failed stays on screen with its own retry
     try {
       this.answer = await semanticSearch(q);
     } catch (err) {
@@ -89,7 +89,7 @@ export class InvestigateSearch extends LitElement {
     const typeLabel: Record<string, string> = { person: 'אדם', vehicle: 'רכב', motion: 'תנועה', line: 'חציית קו', field: 'חדירה', door: 'דלת', offline: 'ניתוק', coverage_gap: 'פער כיסוי', other: 'אחר' };
     return html`
       <sw-page heading="חיפוש AI" subheading="שאלה חופשית → מסננים של מרכז האירועים (סוג, מקום, זמן) · baseline מקומי ללא רשת · ספק חיצוני רק ב־opt-in">
-        <sw-badge slot="actions" kind=${p?.active === 'local' ? 'live' : 'unknown'} label=${p ? (p.active === 'local' ? `ספק: baseline מקומי · ${local?.model_version ?? ''}` : p.active === 'none' ? 'חיפוש סמנטי כבוי' : `ספק: ${p.active}`) : 'טוען…'}></sw-badge>
+        <sw-badge slot="actions" kind=${p?.active === 'local' ? 'live' : 'unknown'} label=${p ? (p.active === 'local' ? `ספק: baseline מקומי · ${local?.model_version ?? ''}` : p.active === 'none' ? 'חיפוש סמנטי כבוי' : `ספק: ${p.active}`) : this.error && this.errorFrom === 'providers' ? 'הספקים לא נקראו' : 'טוען…'}></sw-badge>
         <div class="wrap">
           <div class="searchrow">
             <sw-field><input type="search" data-semantic-q placeholder="למשל: אדם בלובי אתמול בערב · vehicle near the gate this morning" aria-label="חיפוש" .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') void this.run(); }} /></sw-field>
@@ -329,8 +329,7 @@ export class InvestigateSearch extends LitElement {
       }
       .by .ref {
         inline-size: 100%;
-        block-size: auto;
-        aspect-ratio: 16 / 9;
+        block-size: 120px;
       }
       .head {
         font-size: var(--sw-fs-lg);
