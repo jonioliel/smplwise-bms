@@ -5,6 +5,7 @@ import '../components/sw-button';
 import '../components/sw-dialog';
 import '../components/sw-table';
 import '../components/sw-state-panel';
+import '../components/sw-skeleton';
 import type { TableColumn } from '../components/sw-table';
 import { settingsStyles } from '../styles/settings';
 import { bubbleChrome } from '../styles/bubble-chrome';
@@ -22,6 +23,7 @@ import {
   type AccountFilters, type Bucket, type CurrencyBlock, type VendorLine,
 } from './vendor-account-model';
 import { dateInputLang } from '../api/day-format';
+import { t } from '../i18n/he';
 
 const BUCKET_TEXT: Record<Bucket, CostTextKey> = { due: 'vaDue', paid: 'vaPaid', open: 'vaOpen' };
 type Phase = 'loading' | 'ready' | 'error' | 'forbidden';
@@ -135,6 +137,40 @@ export class TicketsVendorAccounts extends LitElement {
     .fails {
       margin: 4px 0 0;
       padding-inline-start: 18px;
+    }
+    /* the first answer: the shape of the page that is coming (the vendors' summary, the action bar, the claims), so nothing jumps */
+    .skel {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sw-s-3);
+    }
+    /* WP3 (POLISH-4, D5): the phone. The six filters take two to a row (a single column was six rows tall before the first number),
+       the actions stack as full 44 px keys, and the select-all line is a real touch target. The tables are cards already (sw-table). */
+    @media (max-width: 767px) {
+      .filters {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--sw-s-2);
+      }
+      .filters label {
+        flex: none;
+      }
+      .filters .in,
+      .selall {
+        min-block-size: 44px;
+      }
+      .bar {
+        gap: var(--sw-s-2);
+      }
+      .bar .grow {
+        display: none;
+      }
+      .bar sw-button {
+        flex: 1 1 100%;
+      }
+      .selall {
+        flex: 1 1 100%;
+      }
     }
   `, bubbleChrome];
 
@@ -348,7 +384,13 @@ export class TicketsVendorAccounts extends LitElement {
 
   private body(): TemplateResult {
     if (this.phase === 'forbidden') return html`<sw-state-panel state="forbidden" quiet heading=${ct('forbidden')} data-va-state="forbidden"></sw-state-panel>`;
-    if (this.phase === 'loading') return html`<sw-state-panel state="loading" data-va-state="loading"></sw-state-panel>`;
+    if (this.phase === 'loading') {
+      return html`<div class="skel" data-va-state="loading" aria-busy="true" aria-label=${t('states.loading')}>
+        <sw-skeleton variant="block" height="132px"></sw-skeleton>
+        <sw-skeleton variant="block" height="44px"></sw-skeleton>
+        <sw-skeleton variant="block" height="240px"></sw-skeleton>
+      </div>`;
+    }
     if (this.phase === 'error') {
       return html`<sw-state-panel state="error" heading=${ct('vaLoadFailed')} hint=${this.loadError} actionLabel=${ct('retry')} data-va-state="error"
         @action=${() => { this.phase = 'loading'; void this.load(); }}></sw-state-panel>`;
