@@ -58,6 +58,17 @@ test.describe('synoptic board: a building with no temperature and no lights', ()
     // no cell of a drawn column is a lone "-"
     const dashes = await page.locator('[data-syn-row] .cell, [data-syn-row] .deg').evaluateAll((els) => els.filter((e) => (e as HTMLElement).getBoundingClientRect().width > 0 && e.textContent?.trim() === '-').length);
     expect(dashes).toBe(0);
+    if (info.project.name === 'mobile') {
+      // SYNOPTIC-MOBILE-2342 (sub-answer 3B): the phone keeps the note behind the info button; the floor name opens the floor
+      await page.waitForTimeout(300);
+      expect(await scrollers(page)).toEqual([]);
+      await shot(page, 'board-sparse', info.project.name);
+      await page.locator('[data-syn-info]').click();
+      await expect(page.locator('[data-syn-info-hidden]')).toHaveText('תאורה, טמפרטורה, נוכחות, התראות');
+      await page.locator('[data-syn-info-settings]').click();
+      await expect(page).toHaveURL(/#\/system\/diagnostics\?focus=xs/);
+      return;
+    }
     // the note names what is hidden (presence too: no count reaches the demo floors)
     const note = page.locator('[data-syn-hidden]');
     await expect(note).toBeVisible();
@@ -82,16 +93,21 @@ test.describe('synoptic board: a building with no temperature and no lights', ()
     await open(page, `${SYN}?xsdemo=6&xsdata=sparse&xs_syn_hide_empty=0`);
     await expect(page.locator('[data-syn-board]')).toBeVisible();
     const cols = await visibleCols(page);
-    if (info.project.name === 'mobile') expect(cols).toEqual(['light', 'temp', 'alerts']);
+    // SYNOPTIC-MOBILE-2342: the phone keeps the columns with data first, then (360 px and wider) the empty ones dashed, five at most
+    if (info.project.name === 'mobile') expect(cols).toEqual(['cameras', 'doors', 'light', 'temp', 'presence']);
     else expect(cols).toEqual(['light', 'temp', 'presence', 'cameras', 'doors', 'alerts']);
     await expect(page.locator('[data-syn-hidden]')).toHaveCount(0);
   });
 
-  test('custom columns: the ticked ones in the fixed order; a ticked column without a source is still left out and named', async ({ page }) => {
+  test('custom columns: the ticked ones in the fixed order; a ticked column without a source is still left out and named', async ({ page }, info) => {
     await open(page, `${SYN}?xsdemo=6&xsdata=sparse&xs_syn_columns=custom&xs_syn_custom=doors,temp`);
     await expect(page.locator('[data-syn-board]')).toBeVisible();
     expect(await visibleCols(page)).toEqual(['doors']);
-    await expect(page.locator('[data-syn-hidden]')).toHaveAttribute('data-syn-hidden', 'temp');
+    if (info.project.name === 'mobile') {
+      // SYNOPTIC-MOBILE-2342: on the phone the hidden columns are named in the info sheet
+      await page.locator('[data-syn-info]').click();
+      await expect(page.locator('[data-syn-info-hidden]')).toHaveText('טמפרטורה');
+    } else await expect(page.locator('[data-syn-hidden]')).toHaveAttribute('data-syn-hidden', 'temp');
     await open(page, `${SYN}?xsdemo=6&xs_syn_columns=custom&xs_syn_custom=doors,temp,cameras`);
     expect(await visibleCols(page)).toEqual(['temp', 'cameras', 'doors']);
   });
@@ -102,7 +118,10 @@ test.describe('synoptic board: a building with no temperature and no lights', ()
     const cols = await visibleCols(page);
     expect(cols.slice(0, 2)).toEqual(['light', 'temp']);
     expect(cols).not.toContain('alerts');
-    await expect(page.locator('[data-syn-hidden]')).toHaveAttribute('data-syn-hidden', 'alerts');
+    if (info.project.name === 'mobile') {
+      await page.locator('[data-syn-info]').click();
+      await expect(page.locator('[data-syn-info-hidden]')).toHaveText('התראות');
+    } else await expect(page.locator('[data-syn-hidden]')).toHaveAttribute('data-syn-hidden', 'alerts');
     await shot(page, 'board-with-data', info.project.name);
   });
 });

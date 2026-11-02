@@ -93,6 +93,8 @@ test.describe('home-system link (after)', () => {
     await expect(page.locator('[data-syn-match="level"]')).toHaveCount(3);
     await expect(page.locator('[data-syn-match="name"]')).toHaveCount(1);
     await expect(page.locator('[data-syn-match="none"]')).toHaveCount(1);
+    // SYNOPTIC-MOBILE-2342: on the phone the hint lives in the board's info sheet
+    if (info.project.name === 'mobile') await page.locator('[data-syn-info]').click();
     await expect(page.locator('[data-syn-hint]')).toHaveCount(1);
     if (info.project.name === 'mobile') {
       // a phone hides the structure tools (ui.mobile hide_structure, default on): the hint says it, without a link
