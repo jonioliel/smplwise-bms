@@ -84,7 +84,7 @@ function settingsDefaults(): CalSettings {
     series_horizon_days: 400, max_calendars: 500, notify_confirmations: false, contested_order: 'first_come', allow_displace: true, displace_approver: 'calendar_manager',
     override_scope: 'both', phone_time_picker: 'grid', reauth_mode: 'reauth_and_continue', sync_conflict_display: 'side_by_side', tablet_panels: 'collapse',
     resident_pending_display: 'count', resident_cancel_until: 'start', resident_rooms: 'bookable', purge_confirm: 'type_word', loading_style: 'skeleton',
-    default_approval_timeout_h: 2, reopen_days: 7, sync_external_delete: 'cancel',
+    default_approval_timeout_h: 2, reopen_days: 7, sync_external_delete: 'cancel', feed_max_age_days: 365,
   };
 }
 
@@ -157,7 +157,8 @@ function build(mode: string): Store {
     { event_id: 'e22', calendar: { id: 'alon', name: 'חדר ישיבות אלון', color: 'blue' }, title: 'ראיון (Arx) מול "שיחת לקוח" (Google)', start: at(-3, '10:00'), end: at(-3, '11:30'), flag: 'conflict', source: 'arx', state: 'confirmed', revision: 1 },
     { event_id: 'e40', calendar: { id: 'events', name: 'אירועי הקהילה', color: 'magenta' }, title: 'ערב שירה', start: at(6, '18:00'), end: at(6, '20:00'), flag: 'deleted_external', source: 'arx', state: 'confirmed', revision: 1 },
   ];
-  const feeds: Feed[] = [{ id: 'f1', calendar_ids: ['maint'], detail: 'busy', created_at: at(-20, '09:00'), last_used_at: at(0, '10:20'), revoked: false }];
+  const feeds: Feed[] = [{ id: 'f1', calendar_ids: ['maint'], detail: 'busy', detail_effective: 'busy', created_at: at(-20, '09:00'), last_used_at: at(0, '10:20'), revoked: false,
+    remote: false, can_remote: true, expires_at: at(345, '09:00') }];
   const s: Store = { cals, occ, requests, settings: settingsDefaults(), members, connections, flags, feeds, guests: 214, seq: 100 };
   if (mode === 'empty') return { ...s, cals: [], occ: [], requests: [], members: {}, connections: [], flags: [], feeds: [], guests: 0 };
   if (mode === 'worst') worst(s);
@@ -574,25 +575,45 @@ export const demoCalendars: CalendarsApi = {
     }
     return { ok: true };
   },
-  feeds: () => read((s) => ({ feeds: clone(s.feeds), enabled: s.settings.feeds_enabled !== false })),
+  feeds: () => read((s) => ({ feeds: clone(s.feeds), enabled: s.settings.feeds_enabled !== false, local: true, default_max_age_days: demoMaxAge(s) })),
   createFeed: async (calendarIds, detail) => {
     const s = st();
     s.seq += 1;
-    const f: Feed = { id: `f${s.seq}`, calendar_ids: calendarIds, detail, created_at: new Date().toISOString(), last_used_at: null, revoked: false };
+    const f: Feed = { id: `f${s.seq}`, calendar_ids: calendarIds, detail, detail_effective: detail, created_at: new Date().toISOString(), last_used_at: null, revoked: false,
+      remote: false, can_remote: true, expires_at: demoExpiry(s) };
     s.feeds.push(f);
     return { feed: clone(f), path: `/api/v1/calendar/feed/demo-token-${s.seq}-shown-once.ics` };
   },
   rotateFeed: async (id) => {
     const s = st();
     s.seq += 1;
-    return { feed: clone(s.feeds.find((f) => f.id === id) as Feed), path: `/api/v1/calendar/feed/demo-token-${s.seq}-shown-once.ics` };
+    const f = s.feeds.find((x) => x.id === id) as Feed;
+    f.expires_at = demoExpiry(s);
+    return { feed: clone(f), path: `/api/v1/calendar/feed/demo-token-${s.seq}-shown-once.ics` };
   },
   revokeFeed: async (id) => {
     const f = st().feeds.find((x) => x.id === id) as Feed;
     f.revoked = true;
+    f.remote = false;
+    f.detail_effective = f.detail;
+    return { feed: clone(f) };
+  },
+  setFeedRemote: async (id, enabled) => {
+    const f = st().feeds.find((x) => x.id === id) as Feed;
+    f.remote = enabled;
+    f.detail_effective = enabled ? 'busy' : f.detail; // round 14 (4A): a feed open from outside is busy-only
     return { feed: clone(f) };
   },
 };
+
+/** CAL-FEED-REVIEW-2351 round 14 (3C): the expiry a new or renewed demo address gets. */
+function demoMaxAge(s: Store): number {
+  return typeof s.settings.feed_max_age_days === 'number' ? s.settings.feed_max_age_days : 365;
+}
+function demoExpiry(s: Store): string | null {
+  const d = demoMaxAge(s);
+  return d ? new Date(Date.now() + d * 86_400_000).toISOString() : null;
+}
 
 const demoPolls: Record<string, number> = {};
 

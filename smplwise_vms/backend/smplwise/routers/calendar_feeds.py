@@ -18,8 +18,19 @@ calendar, Google, Outlook) cannot sign in. CAL-FEED-REVIEW-2351 (the contract 15
 - no cookie, `no-store`, `no-referrer`, `noindex`; the token never reaches a log line (the access log filter below, a token-free
   connection label) or an audit row;
 - the remote channel (the tunnel) keeps answering the uniform 404 unless THIS feed's `remote_enabled` is on (default off; switched only
-  from a local session by its creator or an administrator, audited) - remote_channel lets only a well-formed `GET <token>.ics` through
-  to this route, everything else under the prefix stays blocked at the edge."""
+  from a local session, audited) - remote_channel lets only a well-formed `GET <token>.ics` through to this route, everything else under
+  the prefix stays blocked at the edge.
+
+Owner decisions round 14 (02.11, docs/changes/CAL-FEED-REVIEW-2351.md section 6):
+- 1A / 2A: the remote switch per feed, a toggle in "פידים יוצאים". Switching it ON needs an administrator, or the feed's creator holding
+  `manage` in EVERY calendar of the feed (the UI shows the toggle only then: `can_remote`); OFF needs the creator or an administrator.
+  Both only from a local session (403 `local_only` on the remote channel; the list answers `local` so the screen can explain it).
+- 4A: a feed whose remote switch is on is ALWAYS busy-only ("תפוס", no titles), on every channel, whatever its own `detail` says;
+  the answers carry `detail_effective`. Switching it off restores the feed's own detail.
+- 3C: each address carries its own expiry, fixed when it is issued (create / rotate = "renew link"): now + `feed_max_age_days` (an
+  installation setting, default 365, 0 = no limit). A later change of the setting applies to addresses issued after it only, and an
+  address issued before round 14 has no expiry (no silent revocation). The per-feed expiry lives in the settings row
+  `calendar.feed_expiry` ({feed id: ISO instant or null}) instead of a new cal_feeds column (no new migration on this branch)."""
 from __future__ import annotations
 
 import datetime as dt
@@ -37,6 +48,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Request, Response
 
 from ..auth import _track, current_principal, get_conn, settings_of
+from ..db import get_setting, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, LOCAL_ID_PREFIX, Principal, authorize, require
 from ..services.calendar import calendars as cals
@@ -60,6 +72,8 @@ TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{43}$")
 DOC_PATH_RE = re.compile(r"^/api/v1/calendar/feed/[A-Za-z0-9_-]{43}\.ics$")  # what remote_channel lets through to this route
 BUSY = "תפוס"
 LOCAL_ONLY_HE = "שינוי הגישה מרחוק לפיד אפשרי רק בגישה מקומית (מתוך הרשת של הבניין)."
+REMOTE_MANAGE_HE = "פתיחת פיד לגישה מרחוק מותרת רק למנהל מערכת או ליוצר הפיד כשהוא מנהל את כל היומנים שבו."
+EXPIRY_KEY = "calendar.feed_expiry"  # {feed id: ISO instant | null} - the expiry each address got when it was issued (round 14, 3C)
 _RATE: dict[str, list[float]] = {}
 _RATE_LOCK = threading.Lock()
 
@@ -84,17 +98,54 @@ def _row(conn: sqlite3.Connection, fid: str) -> sqlite3.Row:
     return row
 
 
-def _expires_at(row: sqlite3.Row, max_age_days: int) -> dt.datetime | None:
-    if not max_age_days:
-        return None
-    return model.parse_utc(row["token_set_at"] or row["created_at"], "token_set_at") + dt.timedelta(days=max_age_days)
+def _expiry_map(conn: sqlite3.Connection) -> dict[str, Any]:
+    try:
+        v = json.loads(get_setting(conn, EXPIRY_KEY) or "{}")
+    except ValueError:
+        v = {}
+    return v if isinstance(v, dict) else {}
 
 
-def _out(row: sqlite3.Row, max_age_days: int = 0) -> dict[str, Any]:
-    exp = _expires_at(row, max_age_days)
-    return {"id": row["id"], "calendar_ids": json.loads(row["calendar_ids_json"] or "[]"), "detail": row["detail"], "created_at": row["created_at"],
-            "last_used_at": row["last_used_at"], "revoked": row["revoked_at"] is not None, "remote": bool(row["remote_enabled"]),
-            "token_set_at": row["token_set_at"] or row["created_at"], "expires_at": model.iso(exp) if exp else None}
+def _issue_expiry(conn: sqlite3.Connection, fid: str, now: dt.datetime) -> None:
+    """Fixes the expiry of the address just issued (create / rotate) from the CURRENT default; drops the ids of feeds that are gone or revoked."""
+    days = model.read_settings(conn)["feed_max_age_days"]
+    live = {r[0] for r in conn.execute("SELECT id FROM cal_feeds WHERE revoked_at IS NULL")}
+    m = {k: v for k, v in _expiry_map(conn).items() if k in live}
+    m[fid] = model.iso(now + dt.timedelta(days=days)) if days else None
+    set_setting(conn, EXPIRY_KEY, json.dumps(m, sort_keys=True))
+
+
+def _forget_expiry(conn: sqlite3.Connection, fid: str) -> None:
+    m = _expiry_map(conn)
+    if fid in m:
+        m.pop(fid)
+        set_setting(conn, EXPIRY_KEY, json.dumps(m, sort_keys=True))
+
+
+def _expires_at(row: sqlite3.Row, expiry: dict[str, Any]) -> tuple[bool, dt.datetime | None]:
+    """(unreadable, the expiry). An address issued before round 14 has no entry: no expiry (no silent revocation). An entry that cannot
+    be read fails closed (the document treats it as expired)."""
+    if expiry.get(row["id"]) is None:
+        return False, None
+    try:
+        return False, model.parse_utc(expiry[row["id"]], "expires_at")
+    except model.Invalid:
+        return True, None
+
+
+def _effective_detail(row: sqlite3.Row) -> str:
+    """Round 14, 4A: a feed open on the remote channel is busy-only, whatever its own detail says."""
+    return "busy" if row["remote_enabled"] else row["detail"]
+
+
+def _out(row: sqlite3.Row, expiry: dict[str, Any], ctx: Ctx | None = None) -> dict[str, Any]:
+    _, exp = _expires_at(row, expiry)
+    out = {"id": row["id"], "calendar_ids": json.loads(row["calendar_ids_json"] or "[]"), "detail": row["detail"], "detail_effective": _effective_detail(row),
+           "created_at": row["created_at"], "last_used_at": row["last_used_at"], "revoked": row["revoked_at"] is not None, "remote": bool(row["remote_enabled"]),
+           "token_set_at": row["token_set_at"] or row["created_at"], "expires_at": model.iso(exp) if exp else None}
+    if ctx is not None:
+        out["can_remote"] = row["revoked_at"] is None and _may_switch_remote(ctx, row, not row["remote_enabled"])
+    return out
 
 
 def _path(token: str) -> str:
@@ -106,6 +157,27 @@ def _own(ctx: Ctx, row: sqlite3.Row) -> None:
         raise Denied(model.PERM_CONNECT, row["id"], "owner")
 
 
+def _manages_all(ctx: Ctx, row: sqlite3.Row) -> bool:
+    """The caller holds `manage` in every calendar of the feed (none archived or gone)."""
+    ids = json.loads(row["calendar_ids_json"] or "[]")
+    if not ids:
+        return False
+    for cid in ids:
+        cal = ctx.conn.execute("SELECT * FROM cal_calendars WHERE id = ? AND archived_at IS NULL", (cid,)).fetchone()
+        if cal is None or ctx.role_in(cal) != "manage":
+            return False
+    return True
+
+
+def _may_switch_remote(ctx: Ctx, row: sqlite3.Row, enabled: bool) -> bool:
+    """Round 14, 2A: ON - an administrator, or the creator who manages every calendar of the feed; OFF - the creator or an administrator."""
+    if ctx.admin:
+        return True
+    if row["created_by"] != ctx.principal.user_id:
+        return False
+    return _manages_all(ctx, row) if enabled else True
+
+
 def _remote(request: Request) -> bool:
     from ..remote_channel import is_remote
 
@@ -113,12 +185,15 @@ def _remote(request: Request) -> bool:
 
 
 @router.get("/calendar/feeds")
-def list_feeds(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """CALCONNECT-2330: the outgoing iCal feeds (never their tokens) and whether `feeds_enabled` is on."""
+def list_feeds(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """CALCONNECT-2330: the outgoing iCal feeds (never their tokens) and whether `feeds_enabled` is on. Round 14: per feed `can_remote`
+    (may THIS caller change the remote switch now), `detail_effective`, `expires_at`; `local` (false on the remote channel, where the
+    switch is refused) and `default_max_age_days` (the expiry a new or renewed address gets, 0 = no limit)."""
     _need(conn, principal)
     s = model.read_settings(conn)
-    return {"feeds": [_out(r, s["feed_max_age_days"]) for r in conn.execute("SELECT * FROM cal_feeds ORDER BY created_at, id").fetchall()],
-            "enabled": bool(s["feeds_enabled"])}
+    ctx, expiry = Ctx(conn, principal), _expiry_map(conn)
+    return {"feeds": [_out(r, expiry, ctx) for r in conn.execute("SELECT * FROM cal_feeds ORDER BY created_at, id").fetchall()],
+            "enabled": bool(s["feeds_enabled"]), "local": not _remote(request), "default_max_age_days": s["feed_max_age_days"]}
 
 
 @router.post("/calendar/feeds", status_code=201)
@@ -142,27 +217,32 @@ def create_feed(body: Body, request: Request, principal: Principal = Depends(cur
                 raise Denied("calendar.role", cid, "edit")
         if conn.execute("SELECT COUNT(*) FROM cal_feeds WHERE revoked_at IS NULL").fetchone()[0] >= MAX_FEEDS:
             raise model.Invalid("too many feeds", "calendar_ids", "limit_reached")
-        fid, token, now = cals.new_id("fed"), secrets.token_urlsafe(32), model.iso(cal_mod._now())
+        fid, token, when = cals.new_id("fed"), secrets.token_urlsafe(32), cal_mod._now()
+        now = model.iso(when)
         conn.execute("INSERT INTO cal_feeds(id, calendar_ids_json, detail, token_hash, created_by, created_at, token_set_at) VALUES (?,?,?,?,?,?,?)",
                      (fid, json.dumps(ids), detail, _hash(token), principal.user_id, now, now))
+        _issue_expiry(conn, fid, when)
         _audit(conn, principal, request, "calendar.feed.create", "calendar_feed", fid, calendars=len(ids), detail=detail)
-        return {"feed": _out(_row(conn, fid), model.read_settings(conn)["feed_max_age_days"]), "path": _path(token)}
+        return {"feed": _out(_row(conn, fid), _expiry_map(conn), ctx), "path": _path(token)}
 
 
 @router.post("/calendar/feeds/{fid}/rotate")
 def rotate_feed(fid: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """A new token (answered once); the old address stops at once; the age limit counts again from now. Creator or admin."""
+    """"Renew link": a new token (answered once); the old address stops at once; its expiry is fixed again from now with the CURRENT
+    default (`feed_max_age_days`). The remote switch is kept. Creator or admin."""
     _need(conn, principal)
     _feeds_on(conn)
     row = _row(conn, fid)
     with _errors(conn, principal, request):
-        _own(Ctx(conn, principal), row)
+        ctx = Ctx(conn, principal)
+        _own(ctx, row)
         if row["revoked_at"] is not None:
             raise ApiError(409, "bad_state", "הפיד בוטל.")
-        token = secrets.token_urlsafe(32)
-        conn.execute("UPDATE cal_feeds SET token_hash = ?, last_used_at = NULL, token_set_at = ? WHERE id = ?", (_hash(token), model.iso(cal_mod._now()), fid))
+        token, when = secrets.token_urlsafe(32), cal_mod._now()
+        conn.execute("UPDATE cal_feeds SET token_hash = ?, last_used_at = NULL, token_set_at = ? WHERE id = ?", (_hash(token), model.iso(when), fid))
+        _issue_expiry(conn, fid, when)
         _audit(conn, principal, request, "calendar.feed.rotate", "calendar_feed", fid)
-        return {"feed": _out(_row(conn, fid), model.read_settings(conn)["feed_max_age_days"]), "path": _path(token)}
+        return {"feed": _out(_row(conn, fid), _expiry_map(conn), ctx), "path": _path(token)}
 
 
 @router.post("/calendar/feeds/{fid}/revoke")
@@ -171,18 +251,22 @@ def revoke_feed(fid: str, request: Request, principal: Principal = Depends(curre
     _need(conn, principal)
     row = _row(conn, fid)
     with _errors(conn, principal, request):
-        _own(Ctx(conn, principal), row)
+        ctx = Ctx(conn, principal)
+        _own(ctx, row)
         if row["revoked_at"] is None:
             conn.execute("UPDATE cal_feeds SET revoked_at = ?, remote_enabled = 0 WHERE id = ?", (model.iso(cal_mod._now()), fid))
+            _forget_expiry(conn, fid)
             _audit(conn, principal, request, "calendar.feed.revoke", "calendar_feed", fid)
-        return {"feed": _out(_row(conn, fid), model.read_settings(conn)["feed_max_age_days"])}
+        return {"feed": _out(_row(conn, fid), _expiry_map(conn), ctx)}
 
 
 @router.put("/calendar/feeds/{fid}/remote")
 def set_feed_remote(fid: str, body: Body, request: Request, principal: Principal = Depends(current_principal),
                     conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """CAL-FEED-REVIEW-2351: `{enabled: bool}` - may this feed's address answer on the remote channel (default off). Creator or admin, a
-    LOCAL session only (switching it on from outside is refused, like the tickets module's public keys), feeds on, the feed live; audited."""
+    """CAL-FEED-REVIEW-2351: `{enabled: bool}` - may this feed's address answer on the remote channel (default off). A LOCAL session only
+    (switching it from outside is refused, like the tickets module's public keys), feeds on, the feed live; audited. Round 14: ON needs an
+    administrator or the creator managing every calendar of the feed, OFF the creator or an administrator; while ON the document is
+    busy-only (`detail_effective`)."""
     _need(conn, principal)
     if _remote(request):
         raise ApiError(403, "local_only", LOCAL_ONLY_HE, details={"field": "remote"})
@@ -192,13 +276,16 @@ def set_feed_remote(fid: str, body: Body, request: Request, principal: Principal
     with _errors(conn, principal, request):
         if set(d) != {"enabled"} or not isinstance(d["enabled"], bool):
             raise model.Invalid("enabled: true or false", "enabled")
-        _own(Ctx(conn, principal), row)
+        ctx = Ctx(conn, principal)
+        _own(ctx, row)
+        if not _may_switch_remote(ctx, row, d["enabled"]):
+            raise ApiError(403, "forbidden", REMOTE_MANAGE_HE, details={"field": "remote"})
         if row["revoked_at"] is not None:
             raise ApiError(409, "bad_state", "הפיד בוטל.")
         if bool(row["remote_enabled"]) != d["enabled"]:
             conn.execute("UPDATE cal_feeds SET remote_enabled = ? WHERE id = ?", (1 if d["enabled"] else 0, fid))
             _audit(conn, principal, request, "calendar.feed.remote", "calendar_feed", fid, enabled=d["enabled"])
-        return {"feed": _out(_row(conn, fid), model.read_settings(conn)["feed_max_age_days"])}
+        return {"feed": _out(_row(conn, fid), _expiry_map(conn), ctx)}
 
 
 # ---------------------------------------------------------------- the document
@@ -344,15 +431,15 @@ def feed_document(name: str, request: Request, conn: sqlite3.Connection = Depend
     if remote and not row["remote_enabled"]:
         raise _gone()
     now = cal_mod._now()
-    exp = _expires_at(row, s["feed_max_age_days"])
-    if exp is not None and now >= exp:
+    broken, exp = _expires_at(row, _expiry_map(conn))
+    if broken or (exp is not None and now >= exp):
         raise _gone()
     if not _rate_ok(f"t|{h}", s["feed_rate_per_min"]):
         raise ApiError(429, "rate_limited", "יותר מדי בקשות.", retryable=True)
     calendar_ids = _creator_calendars(conn, row)
     if not calendar_ids:
         raise _gone()
-    body = render(conn, calendar_ids, row["detail"], now)
+    body = render(conn, calendar_ids, _effective_detail(row), now)  # round 14, 4A: remote on = busy-only on every channel
     last = row["last_used_at"]
     if not last or model.parse_utc(last, "l") < now - dt.timedelta(minutes=10):
         with request.app.state.db.write_aside(label="calendar.feed.used") as c:

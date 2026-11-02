@@ -132,4 +132,47 @@ test.describe('calendar connect flow (CALCONNECT-2330)', () => {
     await expect(page.locator(`${D} [data-feed]`)).toHaveCount(1);
     await fits(page);
   });
+
+  // CAL-FEED-REVIEW-2351 owner round 14 (02.11): the remote toggle asks first and names the consequence; a feed open from outside is busy-only;
+  // every feed shows its expiry and "חידוש קישור".
+  test('outgoing feeds: remote toggle with confirmation, busy-only chip, expiry and renew', async ({ page }) => {
+    test.skip(phone(), 'feeds are managed on the tablet and the desktop');
+    await open(page, '/system/calendar-sync');
+    if (test.info().project.name === 'desktop') await page.locator(`${Y} [data-provider="ical"] [data-feeds]`).click();
+    else {
+      await page.locator(`${Y} [data-sync-new]`).click();
+      await page.locator(`${Y} [data-new-feeds]`).click();
+    }
+    await expect(page.locator(`${D} [data-feeds-dialog]`)).toBeVisible();
+    await page.locator(`${D} [data-feed-cal="brosh"]`).check();
+    await page.locator(`${D} [data-feed-detail="titles"]`).click();
+    await page.locator(`${D} [data-feed-create]`).click();
+    const row = page.locator(`${D} [data-feed]`).last();
+    await expect(row.locator('[data-feed-detail-chip]')).toHaveText('כותרות');
+    await expect(row.locator('[data-feed-expiry]')).toContainText('בתוקף עד');
+    await expect(page.locator(`${D} [data-feed-renew-hint]`)).toContainText('365 יום');
+    const sw = row.locator('[data-feed-remote-toggle] button[role="switch"]');
+    await expect(sw).toHaveAttribute('aria-checked', 'false');
+    // ON asks first; "ביטול" leaves it off
+    await sw.click();
+    await expect(page.locator(`${D} [data-feed-remote-confirm]`)).toContainText('מחוץ לרשת של הבניין');
+    await fits(page);
+    await page.locator(`${D} [data-feed-remote-no]`).click();
+    await expect(page.locator(`${D} [data-feed-remote-confirm]`)).toHaveCount(0);
+    await expect(sw).toHaveAttribute('aria-checked', 'false');
+    await expect(row).toHaveAttribute('data-feed-remote', 'off');
+    // confirmed: open from outside, and the chip reads busy-only
+    await sw.click();
+    await page.locator(`${D} [data-feed-remote-yes]`).click();
+    await expect(row).toHaveAttribute('data-feed-remote', 'on');
+    await expect(row.locator('[data-feed-detail-chip]')).toHaveText('"תפוס" בלבד · פתוח מבחוץ');
+    await expect(sw).toHaveAttribute('aria-checked', 'true');
+    // OFF applies at once and the feed's own choice comes back
+    await sw.click();
+    await expect(row).toHaveAttribute('data-feed-remote', 'off');
+    await expect(row.locator('[data-feed-detail-chip]')).toHaveText('כותרות');
+    await row.locator('[data-feed-rotate]').click();
+    await expect(page.locator(`${D} [data-feed-url-once]`)).toContainText('/api/v1/calendar/feed/');
+    await fits(page);
+  });
 });

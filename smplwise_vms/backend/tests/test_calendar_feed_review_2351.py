@@ -121,16 +121,19 @@ def test_token_is_256_bit_hashed_shown_once_and_rotation_restarts_its_age(cc, mo
     assert hashes == {hashlib.sha256(ta.encode()).hexdigest(), hashlib.sha256(tb.encode()).hexdigest()}
     listed = json.dumps(ok(cc.get(f"{API}/calendar/feeds")))
     assert ta not in listed and tb not in listed and ta not in json.dumps(audit_rows(cc), default=str)
-    assert a["feed"]["token_set_at"] == "2026-11-02T09:00:00Z" and a["feed"]["expires_at"] is None and a["feed"]["remote"] is False
-    # the age limit (F7): `feed_max_age_days` counts from the token's issue; past it the uniform 404, rotation starts it again
+    assert a["feed"]["token_set_at"] == "2026-11-02T09:00:00Z" and a["feed"]["remote"] is False
+    # the expiry (F7, owner round 14 / 3C): fixed per address when it is issued from `feed_max_age_days`; past it the uniform 404,
+    # rotation ("renew link") issues a new address with a new expiry
+    assert a["feed"]["expires_at"] == "2027-11-02T09:00:00Z"  # the default: 365 days
     enable(cc, feed_max_age_days=7)
-    assert ok(cc.get(f"{API}/calendar/feeds"))["feeds"][0]["expires_at"] == "2026-11-09T09:00:00Z"
-    assert cc.get(a["path"]).status_code == 200
+    c = feed(cc, cal)
+    assert c["feed"]["expires_at"] == "2026-11-09T09:00:00Z"
+    assert cc.get(c["path"]).status_code == 200
     later = NOW + dt.timedelta(days=8)
     monkeypatch.setattr(cal_router, "_now", lambda: later)
-    assert cc.get(a["path"]).status_code == 404
-    rot = ok(cc.post(f"{API}/calendar/feeds/{a['feed']['id']}/rotate"))
-    assert rot["feed"]["expires_at"] == "2026-11-17T09:00:00Z" and cc.get(rot["path"]).status_code == 200 and cc.get(a["path"]).status_code == 404
+    assert cc.get(c["path"]).status_code == 404 and cc.get(a["path"]).status_code == 200  # a's own expiry (365 days) is untouched
+    rot = ok(cc.post(f"{API}/calendar/feeds/{c['feed']['id']}/rotate"))
+    assert rot["feed"]["expires_at"] == "2026-11-17T09:00:00Z" and cc.get(rot["path"]).status_code == 200 and cc.get(c["path"]).status_code == 404
     with pytest.raises(Exception):  # noqa: B017 - the setting is range-checked
         enable(cc, feed_max_age_days=99999)
 
@@ -361,3 +364,133 @@ def test_migration_0193_columns(cc):
     with db(cc).connection() as x:
         cols = {r[1]: r for r in x.execute("PRAGMA table_info(cal_feeds)")}
     assert "remote_enabled" in cols and cols["remote_enabled"][4] == "0" and "token_set_at" in cols
+
+
+# ---------------------------------------------------------------- owner decisions round 14 (02.11): toggle, busy-only remote, expiry
+
+def _members(c, cal, user, role):
+    cur = ok(c.get(f"{API}/calendar/calendars/{cal['id']}"))["calendar"]
+    ok(c.put(f"{API}/calendar/calendars/{cal['id']}/members", json={"revision": cur["revision"],
+                                                                      "members": [{"subject_kind": "user", "subject_id": f"dev-{user}", "cal_role": role}]}))
+
+
+def test_round14_remote_toggle_needs_manage_in_every_calendar_and_a_local_session(cc, monkeypatch):
+    """2A: ON - an administrator, or the creator managing EVERY calendar of the feed; OFF - the creator or an administrator; `can_remote`
+    tells the screen whether to show the toggle; the remote channel refuses the switch (`local` = false in the list)."""
+    enable(cc)
+    cal, other = room(cc), room(cc, "חדר ב")
+    bind(cc, cc.settings_obj, "erin", "operator", "installation", "*")
+    bind(cc, cc.settings_obj, "erin", "calendar_connect", "installation", "*")
+    _members(cc, cal, "erin", "manage")
+    _members(cc, other, "erin", "edit")
+    erin = as_user("erin")
+    made = ok(cc.post(f"{API}/calendar/feeds", json={"calendar_ids": [cal["id"], other["id"]], "detail": "busy"}, headers=erin), 201)
+    fid = made["feed"]["id"]
+    listed = ok(cc.get(f"{API}/calendar/feeds", headers=erin))
+    assert listed["local"] is True and listed["default_max_age_days"] == 365
+    assert listed["feeds"][0]["can_remote"] is False  # edit (not manage) in one of the two calendars: no toggle
+    r = cc.put(f"{API}/calendar/feeds/{fid}/remote", json={"enabled": True}, headers=erin)
+    assert r.status_code == 403 and ok(cc.get(f"{API}/calendar/feeds"))["feeds"][0]["remote"] is False
+    # manage in both: the toggle shows and works
+    _members(cc, other, "erin", "manage")
+    assert ok(cc.get(f"{API}/calendar/feeds", headers=erin))["feeds"][0]["can_remote"] is True
+    assert ok(cc.put(f"{API}/calendar/feeds/{fid}/remote", json={"enabled": True}, headers=erin))["feed"]["remote"] is True
+    # demoted again: she may still switch it OFF (less exposure), but not on again
+    _members(cc, other, "erin", "edit")
+    assert ok(cc.get(f"{API}/calendar/feeds", headers=erin))["feeds"][0]["can_remote"] is True  # remote is on: the switch now turns it off
+    assert ok(cc.put(f"{API}/calendar/feeds/{fid}/remote", json={"enabled": False}, headers=erin))["feed"]["remote"] is False
+    assert cc.put(f"{API}/calendar/feeds/{fid}/remote", json={"enabled": True}, headers=erin).status_code == 403
+    # another calendar.connect holder who manages both calendars but did not make the feed: no toggle, refused
+    bind(cc, cc.settings_obj, "cora", "operator", "installation", "*")
+    bind(cc, cc.settings_obj, "cora", "calendar_connect", "installation", "*")
+    for c in (cal, other):
+        _members(cc, c, "cora", "manage")
+    assert ok(cc.get(f"{API}/calendar/feeds", headers=as_user("cora")))["feeds"][0]["can_remote"] is False
+    assert cc.put(f"{API}/calendar/feeds/{fid}/remote", json={"enabled": True}, headers=as_user("cora")).status_code in (403, 404)
+    # an administrator may switch any live feed
+    assert ok(cc.get(f"{API}/calendar/feeds"))["feeds"][0]["can_remote"] is True
+    assert ok(cc.put(f"{API}/calendar/feeds/{fid}/remote", json={"enabled": True}))["feed"]["remote"] is True
+    # on the remote channel the switch is refused for everyone and the list says so (the screen explains instead of failing)
+    monkeypatch.setattr(feeds, "_remote", lambda request: True)
+    assert ok(cc.get(f"{API}/calendar/feeds"))["local"] is False
+    r = cc.put(f"{API}/calendar/feeds/{fid}/remote", json={"enabled": False})
+    assert r.status_code == 403 and r.json()["code"] == "local_only"
+    assert [json.loads(x["details_json"])["enabled"] for x in audit_rows(cc, "calendar.feed.remote")] == [True, False, True]
+
+
+def test_round14_a_remote_feed_is_busy_only_on_every_channel_whatever_its_detail(cc):
+    """4A: with the remote switch on, the document carries "תפוס" only (no titles), remotely AND locally; off again restores the titles."""
+    enable(cc)
+    cal = room(cc)
+    event(cc, cal, title="ועד הבית")
+    made = feed(cc, cal, "titles")
+    fid, path = made["feed"]["id"], made["path"]
+    remote_path = REMOTE + path[len(API):]
+    assert made["feed"]["detail_effective"] == "titles" and "SUMMARY:ועד הבית" in cc.get(path).text
+    out = ok(cc.put(f"{API}/calendar/feeds/{fid}/remote", json={"enabled": True}))["feed"]
+    assert out["detail"] == "titles" and out["detail_effective"] == "busy"  # the feed's own choice is kept, not used
+    for p in (remote_path, path):
+        doc = cc.get(p, headers={"CF-Connecting-IP": "203.0.113.30"})
+        assert doc.status_code == 200, p
+        assert "ועד הבית" not in doc.text and "SUMMARY:תפוס" in doc.text and "CLASS:PRIVATE" in doc.text and "CLASS:PUBLIC" not in doc.text
+    assert ok(cc.get(f"{API}/calendar/feeds"))["feeds"][0]["detail_effective"] == "busy"
+    # rotation keeps the switch and the busy-only rule
+    rot = ok(cc.post(f"{API}/calendar/feeds/{fid}/rotate"))
+    assert rot["feed"]["remote"] is True and "ועד הבית" not in cc.get(REMOTE + rot["path"][len(API):]).text
+    ok(cc.put(f"{API}/calendar/feeds/{fid}/remote", json={"enabled": False}))
+    assert "SUMMARY:ועד הבית" in cc.get(rot["path"]).text and cc.get(REMOTE + rot["path"][len(API):]).status_code == 404
+
+
+def test_round14_new_links_get_the_default_expiry_and_a_setting_change_never_shortens_an_issued_one(cc, monkeypatch):
+    """3C: default 365 days (installation setting; 0 = no limit); each address keeps the expiry it was issued with; the setting
+    applies to new and renewed addresses only."""
+    from smplwise.services.calendar import model as cal_model
+
+    assert cal_model.SETTINGS_DEFAULTS["feed_max_age_days"] == 365
+    enable(cc)
+    cal = room(cc)
+    a = feed(cc, cal)
+    assert a["feed"]["expires_at"] == "2027-11-02T09:00:00Z"
+    enable(cc, feed_max_age_days=90)
+    b = feed(cc, cal)
+    enable(cc, feed_max_age_days=0)
+    c = feed(cc, cal)
+    assert b["feed"]["expires_at"] == "2027-01-31T09:00:00Z" and c["feed"]["expires_at"] is None
+    by_id = {f["id"]: f["expires_at"] for f in ok(cc.get(f"{API}/calendar/feeds"))["feeds"]}
+    assert by_id == {a["feed"]["id"]: "2027-11-02T09:00:00Z", b["feed"]["id"]: "2027-01-31T09:00:00Z", c["feed"]["id"]: None}
+    # 100 days on: only b (issued with 90) is past its expiry; a keeps its 365, c has none
+    monkeypatch.setattr(cal_router, "_now", lambda: NOW + dt.timedelta(days=100))
+    assert [cc.get(x["path"]).status_code for x in (a, b, c)] == [200, 404, 200]
+    # renew b with the current default (no limit)
+    rb = ok(cc.post(f"{API}/calendar/feeds/{b['feed']['id']}/rotate"))
+    assert rb["feed"]["expires_at"] is None and cc.get(rb["path"]).status_code == 200
+    # a revoked feed leaves the expiry row; an unreadable entry fails closed
+    ok(cc.post(f"{API}/calendar/feeds/{c['feed']['id']}/revoke"))
+    with db(cc).connection() as x:
+        m = json.loads(x.execute("SELECT value FROM settings WHERE key = ?", (feeds.EXPIRY_KEY,)).fetchone()[0])
+        assert c["feed"]["id"] not in m and set(m) == {a["feed"]["id"], b["feed"]["id"]}
+        m[a["feed"]["id"]] = "not a date"
+        x.execute("UPDATE settings SET value = ? WHERE key = ?", (json.dumps(m), feeds.EXPIRY_KEY))
+    assert cc.get(a["path"]).status_code == 404
+
+
+def test_round14_existing_links_keep_their_expiry(cc, monkeypatch):
+    """3C: an address issued before round 14 (no expiry entry; a 2.33 row without token_set_at) keeps working with no expiry, whatever
+    the default says - no silent revocation; it gets one only when it is renewed."""
+    enable(cc)
+    cal = room(cc)
+    token = "L" * 43
+    with db(cc).connection() as x:
+        x.execute("INSERT INTO cal_feeds(id, calendar_ids_json, detail, token_hash, created_by, created_at) VALUES (?,?,?,?,?,?)",
+                  ("fed_legacy", json.dumps([cal["id"]]), "busy", hashlib.sha256(token.encode()).hexdigest(), "dev-joni", "2025-01-01T08:00:00Z"))
+    path = f"{API}/calendar/feed/{token}.ics"
+    for days in (90, 365, 0):
+        enable(cc, feed_max_age_days=days)
+        listed = ok(cc.get(f"{API}/calendar/feeds"))["feeds"]
+        assert [f["expires_at"] for f in listed if f["id"] == "fed_legacy"] == [None]
+    enable(cc, feed_max_age_days=90)
+    monkeypatch.setattr(cal_router, "_now", lambda: NOW + dt.timedelta(days=2000))
+    assert cc.get(path).status_code == 200
+    monkeypatch.setattr(cal_router, "_now", lambda: NOW)
+    rot = ok(cc.post(f"{API}/calendar/feeds/fed_legacy/rotate"))
+    assert rot["feed"]["expires_at"] == "2027-01-31T09:00:00Z" and cc.get(path).status_code == 404
