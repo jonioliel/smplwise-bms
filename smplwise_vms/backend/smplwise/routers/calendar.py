@@ -309,9 +309,15 @@ def availability(body: Body, principal: Principal = Depends(current_principal_ro
 def create_event(body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     with _errors(conn, principal, request):
-        out = events.create(ctx, model.read_settings(conn), _body(body), _now())
+        from . import calendar_attendees as ca  # noqa: PLC0415 - CAL-ATTENDEES-2343: `attendees` may come with a new entry
+
+        data = _body(body)
+        items, _keep = ca.take_items(conn, data)
+        ca.precheck_create(ctx, data, items)
+        out = events.create(ctx, model.read_settings(conn), data, _now())
         ev = out["event"]
         _audit(conn, principal, request, "calendar.event.create", "calendar_event", ev["id"], calendar_id=ev["calendar_id"], state=out["state"], recurring=bool(ev["rrule"]))
+        ca.on_create(ctx, request, out, items, _now())
         return out
 
 
@@ -340,8 +346,19 @@ def get_event(eid: str, principal: Principal = Depends(current_principal_ro), co
 def patch_event(eid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     with _errors(conn, principal, request):
-        out = events.update(ctx, model.read_settings(conn), eid, _body(body), _now())
-        _audit(conn, principal, request, "calendar.event.update", "calendar_event", eid, scope=_body(body).get("scope", "series"))
+        from . import calendar_attendees as ca  # noqa: PLC0415 - CAL-ATTENDEES-2343: a desired attendee list; change notices
+
+        data = _body(body)
+        items, keep = ca.take_items(conn, data)
+        plan = ca.Plan(ctx, eid, items, keep, _now())
+        before = ca.snapshot(conn, eid)
+        only_attendees = items is not None and not set(data) - {"revision", "scope", "occurrence_start"}
+        out = {"event": events.get(ctx, eid), "orphaned_overrides": []} if only_attendees else events.update(ctx, model.read_settings(conn), eid, data, _now())
+        if not only_attendees:
+            _audit(conn, principal, request, "calendar.event.update", "calendar_event", eid, scope=data.get("scope", "series"))
+        view = ca.on_update(ctx, request, eid, None if only_attendees else before, out, plan, _now())
+        if view is not None:
+            out["attendees"] = view
         return out
 
 
@@ -349,8 +366,12 @@ def patch_event(eid: str, body: Body, request: Request, principal: Principal = D
 def cancel_event(eid: str, body: Body, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     ctx = _ctx(request, conn, principal)
     with _errors(conn, principal, request):
+        from . import calendar_attendees as ca  # noqa: PLC0415 - CAL-ATTENDEES-2343: the cancel notice waits the undo window
+
+        before = ca.snapshot(conn, eid)
         out = events.cancel(ctx, model.read_settings(conn), eid, _body(body), _now())
         _audit(conn, principal, request, "calendar.event.cancel", "calendar_event", eid, scope=_body(body).get("scope", "series"))
+        ca.on_cancel(ctx, eid, before, _body(body), _now())
         return out
 
 

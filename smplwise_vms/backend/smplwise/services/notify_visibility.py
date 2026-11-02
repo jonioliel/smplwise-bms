@@ -196,6 +196,10 @@ class Reach:
             from .maintenance import access as maintenance_access
 
             return maintenance_access.can_see_task(self.conn, self.principal, sid)
+        if kind == "calendar_event":  # CAL-ATTENDEES-2343: the attendee himself, while the calendars module is on
+            from .calendar import attendee_notices
+
+            return attendee_notices.can_see(self.conn, self.principal, n)
         if kind == "notice":  # NOTICEPUSH-295: the notice's audience, or a notice manager (the sent item in the deliveries screen)
             from .notices import push as notice_push
 

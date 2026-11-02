@@ -308,6 +308,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         calendar_jobs.sync_tick(db, settings.data_dir)
     except Exception:  # noqa: BLE001
         log.warning("calendar sync tick failed", exc_info=True)
+    try:  # CAL-ATTENDEES-2343: due attendee notices (in-app / the guests' messaging channel; a cancel waits the undo window); guest-contact retention hourly
+        from .services.calendar import attendee_notices
+
+        attendee_notices.tick(db, settings.data_dir)
+    except Exception:  # noqa: BLE001
+        log.warning("calendar attendee notices tick failed", exc_info=True)
     try:  # CR-038 S5a: the shared WhatsApp send ledger keeps 2 days (hourly inside)
         from .services import messaging_runtime
 
@@ -870,6 +876,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(calendar_router.open_router, prefix=api, tags=["calendar"])  # module state, settings, guest purge: answer while the module is off
     app.include_router(calendar_router.router, prefix=api, tags=["calendar"])
+    from .routers import calendar_attendees as calendar_attendees_router  # CAL-ATTENDEES-2343: named attendees, their policy and notices
+
+    app.include_router(calendar_attendees_router.router, prefix=api, tags=["calendar"])
     from .routers import calendar_sync as calendar_sync_router  # CALENDARS-298 phase 2: external calendar connections, bindings, manual sync
 
     app.include_router(calendar_sync_router.router, prefix=api, tags=["calendar"])
