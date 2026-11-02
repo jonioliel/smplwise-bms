@@ -95,6 +95,8 @@ test.describe('phone synoptic map: lights gauge x summary x layout', () => {
             if (summary !== 'button') await expect(page.locator('sw-sheet[data-syn-info-sheet]')).toHaveCount(0);
             if (summary === 'line' && view !== 'section') await expect(page.locator('[data-syn-summary="line"]')).toHaveCount(1);
             if (summary !== 'line') await expect(page.locator('[data-syn-summary="line"]')).toHaveCount(0);
+            // "off" keeps a small settings button (the demo has no sign-in, so it is allowed); the other two values do not draw it
+            await expect(page.locator('[data-syn-map-settings]')).toHaveCount(summary === 'off' ? 1 : 0);
 
             expect(await spills(page)).toEqual([]);
             expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
@@ -113,6 +115,23 @@ test.describe('phone synoptic map: lights gauge x summary x layout', () => {
       await expect(page.locator('[data-syn-gauge="segments"]').first()).toBeVisible();
       await page.screenshot({ path: join(OUT, `${view}-segments-line-dark.png`) });
     }
+  });
+
+  test('"off" keeps a 44 px settings button that opens the map settings', async ({ page }, info) => {
+    test.skip(info.project.name !== 'mobile', 'phone layouts');
+    for (const view of VIEWS) {
+      await open(page, `xsdemo=3&xs_syn_phone_view=${view}&xs_syn_phone_summary=off`, 390);
+      const btn = page.locator('[data-syn-map-settings]');
+      await expect(btn).toHaveCount(1);
+      const box = (await btn.boundingBox())!;
+      expect(box.width).toBeGreaterThanOrEqual(43.5);
+      expect(box.height).toBeGreaterThanOrEqual(43.5);
+      await expect(btn).toHaveAttribute('aria-label', 'הגדרות המפה');
+      if (view === 'table') await page.screenshot({ path: join(OUT, 'off-settings-button.png') });
+    }
+    await page.locator('[data-syn-map-settings]').click();
+    await expect(page).toHaveURL(/\/system\/diagnostics/);
+    await expect(page).toHaveURL(/focus=xs/);
   });
 
   test('the default keeps the bar and the info button, which opens its sheet', async ({ page }, info) => {

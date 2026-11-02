@@ -607,9 +607,13 @@ export function phoneLightApplies(view: (typeof XS_SYN_PHONE_VIEW)[number]): boo
   return view !== 'section';
 }
 
-/** SYNOPTIC-PHONE-SETTINGS-2360: the summary under `syn_phone_summary` - the info button (and its sheet), the line under the board, or neither. All three layouts. */
-export function phoneSummaryParts(mode: (typeof XS_SYN_PHONE_SUMMARY)[number]): { button: boolean; line: boolean } {
-  return { button: mode === 'button', line: mode === 'line' };
+/**
+ * SYNOPTIC-PHONE-SETTINGS-2360: the summary under `syn_phone_summary` - the info button (and its sheet), the line under the board, or neither. All
+ * three layouts. With "off" the head keeps a small settings button (`settings`, 44 px hit area) for whoever may open the map settings
+ * (`canOpenSettings`: system.configure), so the phone never loses the route to "הגדרות המפה"; nobody else sees a button.
+ */
+export function phoneSummaryParts(mode: (typeof XS_SYN_PHONE_SUMMARY)[number], canOpenSettings = false): { button: boolean; line: boolean; settings: boolean } {
+  return { button: mode === 'button', line: mode === 'line', settings: mode === 'off' && canOpenSettings };
 }
 
 /**

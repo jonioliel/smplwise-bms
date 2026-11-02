@@ -48,23 +48,24 @@ The cross-section does not apply: its floors are slabs warmed by the share of li
 |---|---|---|---|---|
 | `button` (default) | the 44 px info button | the info sheet (`renderInfo`), as in 2.34.2 | sheet | sheet; the strip's "פרטים" button (no floor selected) opens it |
 | `line` | no button | one line under the board: "כל המבנה · N קומות", the hidden-columns note with its way to the setting, the lights on no floor, the unlinked-floor hint with its link | after the list (one more `auto` grid row; the list stays the only scrolling part) | the bottom strip already says "כל המבנה · N קומות" (and the lights), so the line carries only the notes, and appears only when there is one; the strip's "פרטים" button is not drawn |
-| `off` | no button | nowhere (no sheet, no line, no "פרטים") | - | - |
+| `off` | no info button; a small settings button instead (wrench icon, 44 px hit area, "הגדרות המפה", opens Settings › כללי at the map card) for users who may open those settings (`system.configure`, the route's own permission; the demo has no sign-in and allows it); nobody else sees a button | nowhere (no sheet, no line, no "פרטים") | - | - |
 
 The head chips ("x/y דולקות", temperature) are the board's totals, not the summary, and stay in all three. The links of the line keep a 44 px touch
-target without growing the line (`::after` inset, as the section's pills). Reading `off` as "no way to the info sheet" is deliberate: it is what
-"כבויה" says; the settings link is still in the line / sheet of the other two values, and the card is reachable from the settings screen.
+target without growing the line (`::after` inset, as the section's pills). With `off` the phone keeps its route to the map settings through the small
+settings button (owner answer 02.11 evening); `phoneSummaryParts(mode, canOpenSettings)` decides it, `canOpenMapSettings()` asks `system.configure`.
+The button is a UX guard, not a security boundary: the server enforces every write.
 
 ## 4. Tests
 
 - `smplwise_vms/backend/tests/test_xs_options.py`: defaults and the changed set carry both keys, six refused values, the round trip of all nine
   combinations through PATCH /settings, a refused value changes nothing, a stored value without the keys reads as the defaults.
-- `frontend/tests/unit-synoptic-phone-settings-2360.spec.ts` (Node, 8 tests): defaults / normalisation / demo override; the gauge mapping incl. every
+- `frontend/tests/unit-synoptic-phone-settings-2360.spec.ts` (Node, 8 tests; incl. the settings button's mapping for off / button / line with and without the permission): defaults / normalisation / demo override; the gauge mapping incl. every
   edge of the segment count (1..30 lights x 0..n lit); the summary parts and where the gauge applies; the template wiring read from the source (the
   default bar markup unchanged, both former hand-drawn bars go through `lightGauge`, one `sum` drives button / sheet / line, the line closes all three
   layouts, the wide board does not read the keys); the CSS rows of the line and the strip's footprint; the settings card; the words; server <-> frontend parity.
 - `frontend/tests/evidence-synoptic-phone-settings-2360.spec.ts` (runner, mobile project): 3 layouts x 3 gauges x 3 summaries x 320 / 390 with 12 floors
-  - gauge markup per setting, info button / sheet / line per setting, no cell spills, no sideways scroll, only the list scrolls; the dark strip and line; the
-  default; the lights popup from a strip; the settings card. Screenshots in `docs/evidence/SYNOPTIC-PHONE-SETTINGS-2360/`.
+  - gauge markup per setting, info button / sheet / line per setting, no cell spills, no sideways scroll, only the list scrolls; the dark strip and line; the "off" settings button (44 px, opens the map card);
+  the default; the lights popup from a strip; the settings card. Screenshots in `docs/evidence/SYNOPTIC-PHONE-SETTINGS-2360/`.
 
 ## 5. Pixel baselines
 
@@ -76,4 +77,3 @@ None expected to change. The defaults draw the 2.34.2 markup; no committed scree
 
 - Not checked on a real phone (the strip's legibility at 6 px, the line's links under a thumb).
 - The cross-section ignores `syn_phone_light` by design (section 3); if a stepped slab fill is wanted there, that is a separate request.
-- `off` removes the only phone route to the info sheet's "הגדרות המפה" link; the owner reaches the card from the settings screen.

@@ -12,7 +12,7 @@ import { xt } from '../i18n/xsection';
 import { describeError } from '../api/client';
 import { loadTree, type CatalogTree } from '../api/catalog';
 import { listEvents, type VmsEvent } from '../api/events';
-import { canAnywhere, isApi } from '../api/session';
+import { can, canAnywhere, isApi } from '../api/session';
 import type { Building, Floor } from '../api/types';
 import { navigate, parseRoute } from '../router';
 import { demoBuilding, demoSignals, loadXsData, matchContext, type XsData } from '../xsection/xs-data';
@@ -413,6 +413,11 @@ export class DevicesSynoptic extends LitElement {
     return html`<span class="grow" data-syn-hint>${text}</span>${this.canLink() ? html`<button class="lnk" data-syn-link=${un[0].id} @click=${() => this.linkFloor(b, un[0].id)}>${xt('matchHintAction')}</button>` : nothing}`;
   }
 
+  /** SYNOPTIC-PHONE-SETTINGS-2360: who may open הגדרות › כללי (the route's own permission, nav.ts: system.configure). The demo has no sign-in. */
+  private canOpenMapSettings(): boolean {
+    return !this.wall && (!isApi() || can('system.configure'));
+  }
+
   private canLink(): boolean {
     // the editor lives with the floors' structure tools, which a phone hides by the installation's option (ui.mobile hide_structure)
     return !this.wall && !phoneRestricted('structure') && (!isApi() || canAnywhere('site.content.configure'));
@@ -471,10 +476,11 @@ export class DevicesSynoptic extends LitElement {
     const dense = sigs.length > PHONE_DENSE_FLOORS;
     const view = o.syn_phone_view;
     // SYNOPTIC-PHONE-SETTINGS-2360: "שורת סיכום בטלפון" - the info button and its sheet (default), a line under the board, or neither
-    const sum = phoneSummaryParts(o.syn_phone_summary);
+    const sum = phoneSummaryParts(o.syn_phone_summary, this.canOpenMapSettings());
     const sumLine = sum.line ? this.summaryLine(b, sigs, hiddenEmpty, noFloor, view !== 'section') : nothing;
     const head = html`<div class="phead">${chips}<span class="live"><i></i>${this.now}</span>
-      ${sum.button ? html`<button class="ib" data-syn-info aria-haspopup="dialog" aria-label=${xt('synInfo')} title=${xt('synInfo')} @click=${() => (this.info = true)}>${xi('info')}</button>` : nothing}</div>`;
+      ${sum.button ? html`<button class="ib" data-syn-info aria-haspopup="dialog" aria-label=${xt('synInfo')} title=${xt('synInfo')} @click=${() => (this.info = true)}>${xi('info')}</button>` : nothing}
+      ${sum.settings ? html`<button class="ib" data-syn-map-settings aria-label=${xt('synInfoSettings')} title=${xt('synInfoSettings')} @click=${() => navigate('/system/diagnostics', { focus: 'xs' })}>${xi('wrench')}</button>` : nothing}</div>`;
     const alarm = alarmF ? this.alarmPanel(alarmF, rep) : html`<span></span>`;
     const isBelow = (f: FloorSignal, i: number) => hasBelow && f.level < 0 && (i === 0 || sigs[i - 1].level >= 0);
     const rowAria = (f: FloorSignal) => `${f.name}${f.nodata ? `, ${xt('noData')}` : ''}${this.detailText(f, (c) => pc.includes(c)) ? `: ${this.detailText(f, (c) => pc.includes(c))}` : ''}`;

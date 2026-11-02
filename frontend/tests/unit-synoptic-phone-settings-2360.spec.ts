@@ -66,9 +66,13 @@ test('the lights gauge: bar = the share (the 2.34.2 bar), number = nothing, segm
 });
 
 test('the summary: the info button (default), the line, or neither - and where the lights setting applies', () => {
-  expect(phoneSummaryParts('button')).toEqual({ button: true, line: false });
-  expect(phoneSummaryParts('line')).toEqual({ button: false, line: true });
-  expect(phoneSummaryParts('off')).toEqual({ button: false, line: false });
+  expect(phoneSummaryParts('button')).toEqual({ button: true, line: false, settings: false });
+  expect(phoneSummaryParts('line')).toEqual({ button: false, line: true, settings: false });
+  expect(phoneSummaryParts('off')).toEqual({ button: false, line: false, settings: false });
+  // "off" keeps a small settings button, only for whoever may open the map settings; the other two values never draw it
+  expect(phoneSummaryParts('off', true)).toEqual({ button: false, line: false, settings: true });
+  expect(phoneSummaryParts('button', true).settings).toBe(false);
+  expect(phoneSummaryParts('line', true).settings).toBe(false);
   // the lights gauge lives in the table and the cards; the cross-section colours its slabs itself
   expect(XS_SYN_PHONE_VIEW.filter(phoneLightApplies)).toEqual(['table', 'cards']);
 });
@@ -84,10 +88,13 @@ test('the board draws what the settings say: the gauge in the table cell and the
   expect((cell.match(/this\.lightGauge\(f, o\)/g) ?? []).length).toBe(2);
   expect(src).toMatch(/<span class="sl [^"]*"[^>]*><i style="inline-size:\$\{litPercent\(f\)\}%">/);
   // the summary: one decision (`sum`) drives the head button, the section strip's details button, the sheet and the line
-  expect(src).toMatch(/const sum = phoneSummaryParts\(o\.syn_phone_summary\)/);
   expect(src).toMatch(/\$\{sum\.button \? html`<button class="ib" data-syn-info/);
   expect(src).toMatch(/\$\{sum\.button \? html`<sw-button size="sm" variant="ghost" data-syn-details/);
   expect(src).toMatch(/\$\{sum\.button \? this\.renderInfo\(b, sigs, cols, pc, hiddenEmpty, noFloor\) : nothing\}/);
+  expect(src).toMatch(/phoneSummaryParts\(o\.syn_phone_summary, this\.canOpenMapSettings\(\)\)/);
+  expect(src).toMatch(/\$\{sum\.settings \? html`<button class="ib" data-syn-map-settings aria-label=\$\{xt\('synInfoSettings'\)\}/);
+  expect(src).toMatch(/navigate\('\/system\/diagnostics', \{ focus: 'xs' \}\)\}>\$\{xi\('wrench'\)\}/);
+  expect(src).toMatch(/return !this\.wall && \(!isApi\(\) \|\| can\('system\.configure'\)\)/);
   expect(src).toMatch(/const sumLine = sum\.line \? this\.summaryLine\(b, sigs, hiddenEmpty, noFloor, view !== 'section'\) : nothing/);
   // the line closes all three layouts, after the list (the list stays the only scrolling part)
   expect(src).toMatch(/<div class="pbl" \?data-dense=\$\{dense\}>\$\{items\}<\/div>\$\{sumLine\}<\/section>/);
