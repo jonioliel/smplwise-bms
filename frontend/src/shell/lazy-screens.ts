@@ -5,21 +5,20 @@
  * included - downloaded, parsed and evaluated one ~11 MB entry chunk. Now only the home screen (devices-building, imported
  * by the shell for its demo tree and as the landing page) and what the shell itself draws stay in the entry chunk; every
  * other screen below is fetched when the shell first renders its tag. The tags are rendered exactly as before
- * (sw-app renderRoute): an element whose definition has not arrived is an unupgraded custom element.
+ * (sw-app renderRoute): an element whose definition has not arrived is an unupgraded custom element, and Lit carries the
+ * properties set on it over when it upgrades (the same path tickets-overview has used since MGRDASH).
  *
- * GATE2342-A: such an element must NOT be upgraded in place. An in-place upgrade runs the constructor and then
- * connectedCallback at once, and Lit's constructor moves the properties the template set on the plain element
- * (`.floorId`, `.initialTab`, ...) aside until the FIRST UPDATE - so every screen that reads one in connectedCallback saw
- * its default instead (the plan editor loaded floor f0 whatever floor was asked, #/investigate/rules?tab=alerts opened on
- * the rules tab). So `loadPendingScreens(root)` takes each undefined element of a listed tag out of the DOM (a comment
- * keeps its place) before its chunk arrives - a definition only upgrades connected elements - and when the chunk landed
- * upgrades it while detached, sets the properties again through the now defined accessors and puts it back: its
- * connectedCallback runs with the template's values, exactly as for an element created after its definition. If the
- * render moved on meanwhile (another route), the comment is gone and so is the element.
- *
- * `loadPendingScreens(root)` runs after each render of the shell (and of the home screen, for its plan view's map) and
- * starts the chunk of each tag listed here; `pendingScreens()` says how many are still in flight (the shell keeps
+ * GATE2342-B: the shell does NOT render a route screen's tag before its chunk landed (`waitingScreenTags` - an element upgraded in
+ * place gets its properties back only after connectedCallback, see there); it starts the chunk and draws nothing in its place until it
+ * lands. `loadPendingScreens(root)` stays as the safety net: it looks for undefined custom elements under the shell's render root
+ * after each render and starts the chunk of each tag listed here; `pendingScreens()` says how many are still in flight (the shell keeps
  * `data-shell-ready` off until they landed, so nothing that waits for it sees a screen that is not there yet).
+ *
+ * GATE2342-A: the safety net must not upgrade in place either (a lazy tag the route template does not show - the embedded floor map
+ * of the shell, the home screen's plan view, which calls it for its own render root). It takes each undefined element of a listed
+ * tag out of the DOM (a comment keeps its place) before its chunk arrives - a definition upgrades only connected elements - and when
+ * the chunk landed upgrades it while detached, sets the properties again through the now defined accessors and puts it back, so
+ * its connectedCallback runs with the template's values. If the render moved on meanwhile, the comment is gone and so is the element.
  *
  * Not listed: schedule-editor (components/device-activity, the long-press popup of every device, imports it eagerly). A screen
  * module listed here must not be imported eagerly by the shell (it would land in the entry chunk again), and a tag
@@ -120,54 +119,87 @@ export const LAZY_SCREENS: Readonly<Record<string, Loader>> = {
   'bubble-demo': () => import('../screens/bubble-demo'),
 };
 
-/** tag -> its chunk in flight: settles `true` once the tag is defined, `false` when the fetch failed (never rejects). Dropped
- * when it settled, so a failed chunk is asked again by the next render. One fetch per tag, whoever asked first (the home's
- * warm-up of the area screen and a tap on an area share it). */
-const chunks = new Map<string, Promise<boolean>>();
-let inFlight = 0;
+/** The chunk fetch of each tag, while it is in flight (a settled one is dropped: a failed fetch may be retried by the next render). */
+const loads = new Map<string, Promise<void>>();
+/** The tags a rendered route waits for (a background warm-up alone is not in here). */
+const awaited = new Set<string>();
+/** Chunks that loaded: a tag whose module landed is never waited for again (were it not defined by its module, the shell renders it
+ * as before instead of waiting in a loop). */
+const landed = new Set<string>();
+const RETRY_MS = 3000;
 
 /** How many screen chunks a rendered route is still waiting for (a background warm-up is not counted). */
 export function pendingScreens(): number {
-  return inFlight;
+  return awaited.size;
 }
 
-function chunkOf(tag: string): Promise<boolean> | null {
+const isDefined = (tag: string): boolean => typeof customElements !== 'undefined' && !!customElements.get(tag);
+
+/** Start the chunk of `tag` once (a failed fetch - offline, a release swapped under an open tab - may be retried by the next
+ * render). `done` runs when it settled, either way - also when the fetch was already in flight (a background warm-up the route
+ * now waits for). `background`: a warm-up nothing on the screen waits for - not counted by pendingScreens and never reloads the
+ * page when it fails. Returns whether a fetch started now. */
+export function loadScreen(tag: string, done?: () => void, background = false): boolean {
   const load = LAZY_SCREENS[tag];
-  if (!load || customElements.get(tag)) return null;
-  let p = chunks.get(tag);
+  if (!load || isDefined(tag)) return false;
+  let p = loads.get(tag);
+  const fresh = !p;
   if (!p) {
     p = load().then(
       () => {
-        chunks.delete(tag);
-        return true;
+        landed.add(tag);
       },
-      (err: unknown) => {
-        chunks.delete(tag);
+      async (err: unknown) => {
         console.warn(`screen chunk for <${tag}> failed to load`, err);
-        return false;
+        if (awaited.has(tag)) reloadOnceForNewRelease();
+        // the render that follows tries again: not at once (offline, every render would fetch again in a tight loop)
+        await new Promise((r) => setTimeout(r, RETRY_MS));
       },
     );
-    chunks.set(tag, p);
+    const settled = p;
+    void settled.finally(() => {
+      if (loads.get(tag) === settled) loads.delete(tag);
+    });
+    loads.set(tag, p);
   }
-  return p;
+  if (!background && !awaited.has(tag)) {
+    awaited.add(tag);
+    void p.finally(() => awaited.delete(tag));
+  }
+  if (done) void p.finally(done);
+  return fresh;
 }
 
-/** Fetch the chunk of `tag` unless it is defined (a fetch already in flight is shared; a failed one - offline, a release swapped
- * under an open tab - is retried by the next call). `done` runs when it settled, either way. `background`: nothing on the screen
- * waits for it - not counted by pendingScreens and never reloads the page when it fails. Returns whether there is a chunk to
- * wait for. */
-export function loadScreen(tag: string, done?: () => void, background = false): boolean {
-  const p = chunkOf(tag);
-  if (!p) return false;
-  if (!background) inFlight += 1;
-  void p.then((ok) => {
-    if (!background) {
-      inFlight -= 1;
-      if (!ok) reloadOnceForNewRelease();
+const TAG_RE = /<([a-z][a-z0-9]*-[a-z0-9-]*)/g;
+
+/** GATE2342-B: the lazy screen tags a route's template renders whose chunk has not landed yet. `result` is what the shell's
+ * renderRoute returns: a Lit TemplateResult ({strings, values}), a directive result such as keyed() ({values}), an array or
+ * `nothing`; nested templates in the values are searched too.
+ *
+ * Why the shell waits for these instead of rendering the tag at once: an element rendered BEFORE its definition is upgraded in place
+ * when the chunk lands, and Lit gives back the properties set on it (`.floorId`, `.areaId`, `.route`, ...) only at its first update -
+ * AFTER connectedCallback. A screen that reads a property in connectedCallback (explore-plan-editor loads `this.floorId || 'f0'`
+ * there) then works on the default value. Created after its definition, the element gets its properties before it is connected,
+ * exactly as when every screen was in the entry chunk. */
+export function waitingScreenTags(result: unknown): string[] {
+  const out = new Set<string>();
+  const walk = (v: unknown, depth: number): void => {
+    if (depth > 12 || v === null || typeof v !== 'object') return;
+    if (Array.isArray(v)) {
+      for (const x of v) walk(x, depth + 1);
+      return;
     }
-    done?.();
-  });
-  return true;
+    const r = v as { strings?: unknown; values?: unknown };
+    if (Array.isArray(r.strings)) {
+      for (const m of (r.strings as string[]).join('').matchAll(TAG_RE)) {
+        const tag = m[1]!;
+        if (Object.prototype.hasOwnProperty.call(LAZY_SCREENS, tag) && !isDefined(tag) && !landed.has(tag)) out.add(tag);
+      }
+    }
+    if (Array.isArray(r.values)) for (const x of r.values) walk(x, depth + 1);
+  };
+  walk(result, 0);
+  return [...out];
 }
 
 const RELOAD_KEY = 'arx-screen-chunk-reload';
@@ -205,7 +237,7 @@ export function warmHomeDrillDown(): void {
 /** Put a parked element back where its comment is, upgraded first when its chunk defined it (see the header). */
 function unpark(el: Element, mark: Comment): void {
   if (!mark.isConnected) return; // the render moved on (another route, another floor): the element went with its place
-  if (customElements.get(el.localName) && !el.matches(':defined')) {
+  if (isDefined(el.localName) && !el.matches(':defined')) {
     // the properties the template set on the plain element - including ones it set again while the element was parked
     const props = Object.keys(el).map((k) => [k, (el as unknown as Record<string, unknown>)[k]] as const);
     customElements.upgrade(el); // detached: the constructor runs now, connectedCallback only when it is back in the document
@@ -214,25 +246,26 @@ function unpark(el: Element, mark: Comment): void {
   mark.replaceWith(el);
 }
 
-/** Every undefined custom element under `root` whose tag is a lazy screen: park it, start its chunk, and put it back upgraded
- * when the chunk landed (the header says why it is not upgraded in place). `done` runs after each one is back. `background`:
- * as for loadScreen - the caller is not the shell's route, so `data-shell-ready` does not wait for it. */
+/** Every undefined custom element under `root` whose tag is a lazy screen: park it, start (or join) its chunk, and put it back
+ * upgraded when the chunk settled (the header says why it is not upgraded in place). `done` runs after each one is back.
+ * `background`: as for loadScreen - the caller is not the shell's route, so `data-shell-ready` does not wait for it.
+ * Returns how many elements were parked. */
 export function loadPendingScreens(root: ParentNode, done?: () => void, background = false): number {
   let n = 0;
   for (const el of [...root.querySelectorAll(':not(:defined)')]) {
-    if (!LAZY_SCREENS[el.localName] || customElements.get(el.localName)) continue;
-    const mark = document.createComment(` ${el.localName} `);
+    const tag = el.localName;
+    if (!Object.prototype.hasOwnProperty.call(LAZY_SCREENS, tag) || isDefined(tag) || landed.has(tag)) continue;
+    const mark = document.createComment(` ${tag} `);
     el.replaceWith(mark);
-    const waiting = loadScreen(
-      el.localName,
+    loadScreen(
+      tag,
       () => {
         unpark(el, mark);
         done?.();
       },
       background,
     );
-    if (waiting) n += 1;
-    else unpark(el, mark);
+    n += 1;
   }
   return n;
 }

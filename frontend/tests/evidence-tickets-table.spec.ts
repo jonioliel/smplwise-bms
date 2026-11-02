@@ -90,15 +90,20 @@ test.describe('tickets table evidence', () => {
     const bg = await pop.evaluate((e) => getComputedStyle(e).backgroundColor);
     expect(bg, 'an OPAQUE menu surface').not.toMatch(/rgba\([^)]*,\s*0(\.\d+)?\)/);
     await shot(page, 'columns');
-    await pop.locator('[data-col-toggle="department"]').uncheck();
-    await expect(page.locator(`${T} th[data-col="department"]`)).toHaveCount(0);
+    // SMALL-UI-BUGS-2343: at 1440 with the sentence column (on by default) the default set steps the department column aside to fit
+    // the card (tickets/table-model.ts fitColumns; its unit spec: "the sentence column counts in the budget"), so the hide / reset
+    // round trip uses the handler column, which the fitting never hides
+    await expect(page.locator(`${T} th[data-col="assignee"]`)).toHaveCount(1);
+    await pop.locator('[data-col-toggle="assignee"]').uncheck();
+    await expect(page.locator(`${T} th[data-col="assignee"]`)).toHaveCount(0);
     await pop.locator('[data-col-toggle="sla"]').check();
     await expect(page.locator(`${T} th[data-col="sla"]`)).toHaveCount(1);
     await expect(pop.locator('[data-col-toggle="title"]')).toBeDisabled();
     await pop.locator('[data-col-up="sla"]').click();
     await expect.poll(() => (mock.prefs()?.columns as string[] | undefined)?.slice(-2)).toEqual(['sla', 'activity']);
     await pop.locator('[data-col-reset]').click();
-    await expect(page.locator(`${T} th[data-col="department"]`)).toHaveCount(1);
+    await expect(page.locator(`${T} th[data-col="assignee"]`)).toHaveCount(1);
+    await expect(page.locator(`${T} th[data-col="sla"]`)).toHaveCount(0);
     await page.keyboard.press('Escape');
     await expect(pop).toHaveCount(0);
   });
