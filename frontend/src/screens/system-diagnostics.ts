@@ -11,6 +11,7 @@ import '../components/sw-tabs';
 import '../components/sw-field';
 import '../components/sw-toggle';
 import '../components/sw-icon';
+import '../components/sw-state-panel';
 import '../components/sw-remote-sessions';
 import '../components/sw-csp-reports';
 import '../components/recorder-health-panel'; // CR-026: per-recorder health cards and thresholds (בריאות ועבודות)
@@ -165,6 +166,8 @@ export class SystemDiagnostics extends LitElement {
   @state() private sessions: { id: string; camera_id: string; stream: string; username: string; seconds: number; bytes_down: number }[] = [];
   @state() private busy = false;
   @state() private message = '';
+  /** POLISH4-WP7: why the bridge status, the health report or the backup list could not be read (their own error state, with a retry) */
+  @state() private loadFailed = '';
   @state() private error = '';
   @state() private version = '';
   @state() private ha: HaStatus | null = null;
@@ -654,6 +657,7 @@ export class SystemDiagnostics extends LitElement {
   private async loadHa(regenerate = false) {
     if (!isApi()) return;
     this.error = '';
+    this.loadFailed = '';
     try {
       this.ha = await haStatus();
       if (this.canEdit && !onRemote()) this.pairing = await bridgePairing(regenerate);
@@ -665,6 +669,7 @@ export class SystemDiagnostics extends LitElement {
       }
     } catch (err) {
       this.error = describeError(err);
+      this.loadFailed = this.error;
     }
   }
 
@@ -733,7 +738,9 @@ export class SystemDiagnostics extends LitElement {
     return html`<div class="sections">
       <sw-card heading="חיבור ל־Home Assistant" subheading="קריאה בלבד: מצבים, רישום ישויות, אזורים וקומות">
         ${!h
-          ? html`<div class="muted">טוען…</div>`
+          ? this.loadFailed
+            ? html`<sw-state-panel compact state="error" heading="מצב החיבור לא נטען" hint=${this.loadFailed} actionLabel="נסו שוב" @action=${() => void this.loadHa()}></sw-state-panel>`
+            : html`<sw-state-panel compact state="loading"></sw-state-panel>`
           : html`
             <div class="row"><span class="lbl">גישה ל־API של Home Assistant<span class="muted">${h.configured ? 'דרך ה־Supervisor (homeassistant_api) או HA_URL בפיתוח' : 'לא מוגדר — ה־Add-on לא קיבל SUPERVISOR_TOKEN'}</span></span><sw-badge kind=${h.configured ? 'live' : 'offline'}></sw-badge></div>
             <div class="row"><span class="lbl">סנכרון מצבים (WebSocket)<span class="muted">${s?.connected ? `מחובר · HA ${s.ha_version ?? '?'} · ${s.entities} ישויות · אירוע אחרון ${fmtTime(s.last_event_at)}` : `${syncDisconnectedText(s?.last_error)} · ${s?.reconnects ?? 0} חיבורים מחדש`}</span></span><sw-badge kind=${s?.connected ? 'live' : 'offline'}></sw-badge></div>
@@ -1412,10 +1419,12 @@ export class SystemDiagnostics extends LitElement {
   private async loadReport(fresh = false) {
     if (!isApi()) return;
     this.reportBusy = true;
+    this.loadFailed = '';
     try {
       this.report = await healthReport(fresh);
     } catch (err) {
       this.error = describeError(err);
+      this.loadFailed = this.error;
     } finally {
       this.reportBusy = false;
     }
@@ -1423,7 +1432,11 @@ export class SystemDiagnostics extends LitElement {
 
   private renderReport() {
     const r = this.report;
-    if (!r) return html`<div class="sections"><sw-card heading="בריאות המערכת"><div class="muted">${this.reportBusy ? 'בודק…' : 'טוען…'}</div></sw-card></div>`;
+    if (!r) {
+      return html`<div class="sections"><sw-card heading="בריאות המערכת">${this.loadFailed && !this.reportBusy
+        ? html`<sw-state-panel compact state="error" heading="דוח הבריאות לא נטען" hint=${this.loadFailed} actionLabel="נסו שוב" @action=${() => void this.loadReport(true)}></sw-state-panel>`
+        : html`<sw-state-panel compact state="loading" heading=${this.reportBusy ? 'בודק…' : 'טוען…'}></sw-state-panel>`}</sw-card></div>`;
+    }
     const checked = timeText(new Date(r.checked_at), { seconds: true });
     return html`<div class="sections">
       <sw-card heading="בריאות המערכת" subheading="מצב נפרד לכל רכיב, לא נורה אחת">
@@ -1460,12 +1473,14 @@ export class SystemDiagnostics extends LitElement {
   private async loadBackups() {
     if (!isApi()) return;
     void getMeterBackup().then((m) => (this.meterBackup = m));
+    this.loadFailed = '';
     try {
       const r = await listBackups();
       this.backups = r.backups;
       this.backupPolicy = r.policy;
     } catch (err) {
       this.error = describeError(err);
+      this.loadFailed = this.error;
       this.backups = [];
     }
   }
@@ -1741,10 +1756,12 @@ export class SystemDiagnostics extends LitElement {
         ${!isApi()
           ? html`<div class="muted">נתוני הדגמה: הגיבויים עובדים מול השרת.</div>`
           : this.backups === null
-            ? html`<div class="muted">טוען…</div>`
+            ? html`<sw-state-panel compact state="loading"></sw-state-panel>`
             : list.length
               ? html`<div class="blist" data-backups>${list.map((b) => this.renderBackupRow(b))}</div>`
-              : html`<div class="muted" style="padding-block:6px">עדיין אין גיבויים. הראשון ייווצר אוטומטית לפני העדכון הבא, או עכשיו בלחיצה.</div>`}
+              : this.loadFailed
+                ? html`<sw-state-panel compact state="error" heading="רשימת הגיבויים לא נטענה" hint=${this.loadFailed} actionLabel="נסו שוב" @action=${() => void this.loadBackups()}></sw-state-panel>`
+                : html`<sw-state-panel compact state="empty" icon="history" heading="עדיין אין גיבויים" hint="הראשון ייווצר אוטומטית לפני העדכון הבא, או עכשיו בלחיצה."></sw-state-panel>`}
       </sw-card>
       ${isApi() && can('backup.manage') ? html`<sw-offbox-backup data-offbox-section></sw-offbox-backup>` : nothing}
       <sw-card heading="אוטומטי ו־Rollback">
