@@ -18,6 +18,7 @@ generated `contracts/API_INVENTORY.md`, train side kept; it is not used by any b
 | D1 | probe @ a149cba12 | spec (vite dev), desktop | layout-bv1-tiles, evidence-bv1-tiles, evidence-presence-design-2300, layout-noscroll-297, layout-home-widgets-wide-298, layout-widgets-break-297, evidence-switchui-295, layout-header-logo-295 | 61: **54 passed, 0 failed, 7 skipped** (8.5 min) |
 | D2 | probe @ d25f652b4 | spec (vite dev), tablet + mobile | evidence-presence-design-2300 | 8: **8 passed** |
 | B | probe @ d25f652b4 | preview | 36 specs of the touched screens: the new drawer + GDrive specs, area nav / hscroll / breakui, calendars grid-edit / manage / nav / views, elevators / generator home, home-295 family, shell, switch-light-dimmer, synoptic columns / ha / mobile, tree-unassigned, whoin, area popup edit, devices / worstcase / elevators layout guards, page background, overlay no-shift, perf-home-load, skin foundation smoke, tree collapse, polish 295 x2, uxrest states, entity-id scan | 984: **689 passed, 0 failed, 295 skipped** (37.5 min) |
+| R | probe @ 833c69115 | preview, desktop | evidence-home-edit-drawer-2351 after the phone fix | **1 passed** |
 | U | fix @ 1df74f462 (workstation) | unit | `playwright.unit.config.ts --workers=1 tests/unit-` | 3641: **3640 passed, 0 failed, 1 skipped**; `tsc --noEmit` 0 errors |
 
 ## Failures of run A and their causes
@@ -41,8 +42,8 @@ the gate.
    viewport edge, under the phone's bottom bar, which covered the drawer footer (save / cancel). The default
    `ui.mobile.hide_layout_editor=off` lets a phone enter edit mode, so this is reachable. Fix b6b4ec22f: below 768 px the sheet ends
    above `--sw-bottomnav-h` (+8 px + safe area), the pattern the toasts already use. Tablet / desktop unchanged.
-   Regression test 1df74f462 (hit-test of both footer keys at every width). The runner re-run of the drawer spec after the fix is
-   listed under NOT_RUN until the 2.35.0 gate frees the runner.
+   Regression test 1df74f462 (hit-test of both footer keys at every width). Runner re-run on the probe @ 833c69115 (after the 2.35.0
+   gate ended), desktop project: **1 passed**; the new 390 screenshot shows the footer above the bottom bar.
 2. **New browser spec `offbox-gdrive-diagnose-2351.spec.ts`** (cf72b4886, fixed 167ee42b2): the "בדיקת חיבור Google" dialog against a
    mocked `POST .../gdrive/diagnose` (no Google contact): running status, summary, one row per check with the fix only under a row
    that is not ok, "בדיקה חוזרת" redraws, the dialog sends nothing but the diagnose call, the body does not scroll, a server error
@@ -76,10 +77,10 @@ geometry and keys, which those commits do not change.
 
 ## NOT_RUN
 
-Held by the lead's instruction (the 2.35.0 gate has the runner; no new runner runs until it ends):
+Release gates have the runner (lead, 02.11); the long fixture job takes the runner's shared lock and would block a re-gate, so it was
+not started after the 2.35.0 gate ended:
 - Fixture job: `evidence-home-screen`, `evidence-home-polish`, `evidence-devices`, `evidence-presence-2280-layout`,
   `evidence-area-redesign`, `evidence-area-nav` (run A skipped them: they need `devices_fake_ha.py`). The gate runs none of them
   (`gate: false`), so they do not decide the gate.
-- Re-run of `evidence-home-edit-drawer-2351` after fix b6b4ec22f.
 - Full backend suite on the runner (the train doc's 445-test workstation subset is the latest backend result).
 - Live structure refresh against the lab home system (MAPPING-IMPROVE) and a real Google connection (GDRIVE-READY): owner / lab only.
