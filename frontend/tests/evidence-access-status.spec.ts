@@ -105,7 +105,7 @@ test.describe('the access-control Settings page: behaviour', () => {
     await expect(alertRows(page).nth(0)).toHaveAttribute('data-tone', 'err');
     await expect(alertRows(page).nth(1)).toContainText('לובי: סנכרון תקוע');
     await expect(alertRows(page).nth(1)).toHaveAttribute('data-tone', 'warn');
-    await expect(page.locator(`${STATUS} [data-access-card="alerts"] .sub`)).toHaveText('fleet/alerts · 2');
+    await expect(page.locator(`${STATUS} [data-access-card="alerts"] .sub`)).toHaveText('2 ברשימה');
 
     // the sync table: counts only, a zero is a dash, the error of an offline station in words
     const sync = page.locator(`${STATUS} sw-table[data-access-sync]`);

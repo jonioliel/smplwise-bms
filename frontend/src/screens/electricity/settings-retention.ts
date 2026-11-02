@@ -88,6 +88,23 @@ export class ElecSettingsRetention extends LitElement {
         color: var(--sw-success-text, var(--sw-live-text));
         font-size: var(--sw-fs-sm);
       }
+      /* POLISH4-WP8 (owner Q7): on a phone the save row stays in view while the long list of data kinds scrolls under it (the settings
+         kit's .foot.sticky look, styles/settings.ts); an option row's number field takes its own line */
+      @media (max-width: 767px) {
+        .foot {
+          position: sticky;
+          inset-block-end: var(--sw-s-2);
+          z-index: 3;
+          padding: 10px var(--sw-s-2);
+          border: 1px solid var(--sw-border-strong);
+          border-radius: var(--sw-r-lg);
+          background: var(--sw-surface-solid);
+          box-shadow: var(--sw-shadow-3);
+        }
+        .rowx .fld {
+          flex: 1 1 100%;
+        }
+      }
     `,
     bubbleChrome,
   ];

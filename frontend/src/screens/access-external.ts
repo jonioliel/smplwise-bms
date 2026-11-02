@@ -161,7 +161,13 @@ export class AccessExternalScreen extends LitElement {
       .gl-h { font-size: var(--sw-fs-sm); color: var(--sw-text-2); font-weight: 600; background: var(--sw-surface-2); border-block-end: 1px solid var(--sw-border-strong); }
       .gl-r { border: 0; border-block-end: 1px solid var(--sw-border); background: transparent; inline-size: 100%; text-align: start; color: inherit; cursor: pointer; font: inherit; }
       .gl-r:last-child { border-block-end: 0; }
-      .gl-r:hover { background: var(--sw-hover-wash); }
+      /* POLISH4-WP8: the row wash only on a fine pointer (it stuck after a tap on a tablet); a row gives on pointer-down */
+      @media (hover: hover) and (pointer: fine) { .gl-r:hover { background: var(--sw-hover-wash); } }
+      .gl-r { transition: background-color var(--sw-t-hover) var(--sw-ease-color); }
+      .gl-r:active { background: var(--sw-hover-wash); }
+      .kpi { transition: transform var(--sw-t-press) var(--sw-ease); }
+      .kpi:active { transform: scale(var(--sw-press-scale)); }
+      @media (prefers-reduced-motion: reduce) { .gl-r, .kpi { transition-duration: 0ms; } .kpi:active { transform: none; } }
       .gl-r[aria-current='true'] { background: var(--sw-accent-soft); }
       .gl-r:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: -2px; }
       .pn b { display: block; color: var(--sw-heading); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -236,6 +242,14 @@ export class AccessExternalScreen extends LitElement {
       .seg button { border: 1px solid var(--sw-border-strong); background: var(--sw-surface-solid); color: var(--sw-text); padding: 0 14px; border-radius: var(--sw-r-pill); min-block-size: var(--sw-touch-desktop); font: inherit; cursor: pointer; }
       .seg button[aria-pressed='true'] { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); font-weight: 600; }
       .seg button:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: 2px; }
+      /* POLISH4-WP8 (D18, owner Q9a): the list card switches to its two-line rows by its OWN width (a narrow main column beside the side
+         panels on a tablet), not only by the window's */
+      .tcard.grants { container: xgrants / inline-size; }
+      @container xgrants (max-width: 860px) {
+        .gl-h { display: none; }
+        .gl-r { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'pn chev' 'st st' 'doors doors' 'win code'; gap: 8px 12px; }
+        .gl-r .pn { grid-area: pn; } .gl-r .st { grid-area: st; } .gl-r .doors { grid-area: doors; } .gl-r .win { grid-area: win; } .gl-r .code { grid-area: code; justify-items: end; } .gl-r .chev { grid-area: chev; }
+      }
       @media (max-width: 1180px) {
         .cols { grid-template-columns: 1fr; }
         .side { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
@@ -259,6 +273,26 @@ export class AccessExternalScreen extends LitElement {
         .gl-r .code { justify-items: start; }
         .drow { grid-template-columns: 28px minmax(0, 1fr); }
         .drow .dact { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; }
+      }
+      /* POLISH4-WP8 (D18, owner Q9a): from a 1024 px window up (and tall enough for a working list) the page itself never scrolls - the
+         title, the banners and the KPI filters stay put, the grants list scrolls inside its card under its filters and column head, the
+         side panels scroll in their own column when they are taller than the window. 1024-1180 keeps the two columns with a narrower side
+         (the list card then shows its two-line rows). A phone, a narrow or a short window keeps the page scroll. */
+      @media (min-width: 1024px) and (min-height: 600px) {
+        :host { min-block-size: 0; overflow: hidden; padding-block-end: 16px; }
+        .cols { flex: 1 1 auto; min-block-size: 0; grid-template-rows: minmax(0, 1fr); align-items: stretch; }
+        .main { display: flex; flex-direction: column; gap: 14px; min-block-size: 0; }
+        .main > .kpis { flex: none; }
+        .main > .tcard.grants { flex: 1 1 auto; min-block-size: 0; display: flex; flex-direction: column; }
+        .tcard.grants > .filters, .tcard.grants > .gl-h, .tcard.grants > .legend { flex: none; }
+        .tcard.grants > .gl-body { flex: 1 1 auto; min-block-size: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--sw-border-strong) transparent; }
+        .main > [data-pending-panel] { flex: 0 1 auto; min-block-size: 0; max-block-size: 38%; overflow-y: auto; scrollbar-width: thin; }
+        .side { min-block-size: 0; overflow-y: auto; align-content: start; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--sw-border-strong) transparent; }
+      }
+      @media (min-width: 1024px) and (max-width: 1180px) and (min-height: 600px) {
+        .cols { grid-template-columns: minmax(0, 1fr) 290px; }
+        .side { grid-template-columns: minmax(0, 1fr); }
+        .kpi { padding: 9px 10px; gap: 8px; }
       }
     `,
     bubbleChrome,
@@ -1105,11 +1139,11 @@ export class AccessExternalScreen extends LitElement {
       const [h, p] = off && empty ? ['emptyOffTitle', 'emptyOffText'] : empty ? ['emptyTitle', 'emptyText'] : ['noMatchTitle', 'noMatchText'];
       // the empty list offers the one useful next step: a new request (when the caller may ask), or clearing the filter
       const canAsk = empty && !off && !!this.data?.may_request;
-      body = html`<div style="padding:28px 16px" data-external-empty=${off && empty ? 'off' : empty ? 'empty' : 'filter'}><sw-state-panel icon="link" state="empty" heading=${xt(h as XtKey)} hint=${xt(p as XtKey)}
+      body = html`<div class="gl-body" style="padding:28px 16px" data-external-empty=${off && empty ? 'off' : empty ? 'empty' : 'filter'}><sw-state-panel icon="link" state="empty" heading=${xt(h as XtKey)} hint=${xt(p as XtKey)}
         actionLabel=${!empty ? xt('showAllOpen') : canAsk ? rt('newBtn') : ''} @action=${() => (canAsk ? this.openRequest() : (this.query = { filter: 'live', q: '', station: '', source: '' }))}></sw-state-panel></div>`;
     } else {
       body = html`<div class="gl-h" aria-hidden="true"><span>${xt('colPerson')}</span><span>${xt('colDoors')}</span><span>${xt('colWindow')}</span><span>${xt('colState')}</span><span>${xt('colCode')}</span><span></span></div>
-        <div role="list">${rows.map((g) => html`<button type="button" role="listitem" class="gl-r" data-grant=${g.id} data-ui-state=${uiState(g)} aria-current=${String(this.sel === g.id)} @click=${() => this.openDrawer(g.id)}>
+        <div class="gl-body" role="list">${rows.map((g) => html`<button type="button" role="listitem" class="gl-r" data-grant=${g.id} data-ui-state=${uiState(g)} aria-current=${String(this.sel === g.id)} @click=${() => this.openDrawer(g.id)}>
           <span class="pn"><b>${this.name(g)}</b><small>${[g.company, xt(g.category === 'contractor' ? 'contractor' : 'visitor')].filter(Boolean).join(' · ')}</small><span class="sr">${xt(SRC_KEY[g.source] ?? 'srcManual')}${g.source_ref ? html` <span class="num">${g.source_ref}</span>` : nothing}</span></span>
           <span class="doors">${this.doorChips(g)}</span>
           <span class="win"><span class="num">${datesText(g.valid_from, g.valid_until, this.tz)}</span><small class="num">${hoursText(g, this.tz)}</small></span>
@@ -1117,7 +1151,7 @@ export class AccessExternalScreen extends LitElement {
           <span class="code">${g.credential === 'pin' ? this.codeCell(g) : html`<span class="chip" data-tone="off">${xt('code_not_needed')}</span>`}</span>
           <span class="chev"><sw-icon name="chevronBack" size="16"></sw-icon></span></button>`)}</div>`;
     }
-    return html`<div class="tcard">
+    return html`<div class="tcard grants" data-grants-card>
       <div class="filters">
         <input class="in" type="search" aria-label=${xt('search')} placeholder=${xt('search')} .value=${this.query.q} @input=${(e: Event) => (this.query = { ...this.query, q: (e.target as HTMLInputElement).value })} />
         <sw-dropdown tall .items=${stations} .value=${this.query.station} label=${xt('colDoors')} @change=${(e: CustomEvent<{ id: string }>) => (this.query = { ...this.query, station: e.detail.id })}></sw-dropdown>

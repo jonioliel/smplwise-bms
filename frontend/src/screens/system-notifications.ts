@@ -160,9 +160,59 @@ export class SystemNotifications extends LitElement {
         font-size: var(--sw-fs-xl);
         color: var(--dv-text-3);
       }
-      .setnav button:hover {
+      /* POLISH4-WP8: hover washes only on a fine pointer (they stuck after a tap on a tablet); a key gives on pointer-down */
+      @media (hover: hover) and (pointer: fine) {
+        .setnav button:hover:not([aria-current='true']) {
+          background: var(--dv-surface-3);
+          color: var(--dv-text);
+        }
+        .pick button:hover {
+          background: var(--dv-surface-3);
+        }
+      }
+      .setnav button,
+      .pick button,
+      .sevseg button,
+      button.chip {
+        transition: background-color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
+      }
+      .setnav button:active,
+      .pick button:active {
         background: var(--dv-surface-3);
-        color: var(--dv-text);
+      }
+      .sevseg button:active:not(:disabled),
+      button.chip:active:not(:disabled) {
+        transform: scale(var(--sw-press-scale));
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .setnav button,
+        .pick button,
+        .sevseg button,
+        button.chip {
+          transition-duration: 0ms;
+        }
+        .sevseg button:active:not(:disabled),
+        button.chip:active:not(:disabled) {
+          transform: none;
+        }
+      }
+      /* owner Q7: the outgoing-mail form saves on its own row; on a phone that row stays in view while the form scrolls under it */
+      .frow.mailfoot {
+        border-block-start: 0;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+      @media (max-width: 767px) {
+        .frow.mailfoot {
+          position: sticky;
+          inset-block-end: var(--sw-s-2);
+          z-index: 3;
+          padding: 10px var(--sw-s-2);
+          border: 1px solid var(--sw-border-strong);
+          border-radius: var(--sw-r-lg);
+          background: var(--sw-surface-solid);
+          box-shadow: var(--sw-shadow-3);
+        }
       }
       .setnav button[aria-current='true'] {
         background: var(--dv-accent-soft);
@@ -300,10 +350,10 @@ export class SystemNotifications extends LitElement {
         white-space: nowrap;
       }
       .mx th:first-child {
-        border-start-start-radius: 12px;
+        border-start-start-radius: var(--sw-r-sm);
       }
       .mx th:last-child {
-        border-start-end-radius: 12px;
+        border-start-end-radius: var(--sw-r-sm);
       }
       .mx th.c,
       .mx td.c {
@@ -364,13 +414,13 @@ export class SystemNotifications extends LitElement {
         display: inline-flex;
         gap: 2px;
         padding: 2px;
-        border-radius: 999px;
+        border-radius: var(--sw-r-pill);
         background: var(--dv-surface-3);
       }
       .sevseg button {
         border: 0;
         background: transparent;
-        border-radius: 999px;
+        border-radius: var(--sw-r-pill);
         block-size: 40px;
         min-inline-size: 36px;
         padding: 0 10px;
@@ -405,7 +455,7 @@ export class SystemNotifications extends LitElement {
         gap: 5px;
         block-size: 40px;
         padding: 0 11px;
-        border-radius: 999px;
+        border-radius: var(--sw-r-pill);
         border: 1px solid var(--dv-border);
         background: var(--dv-surface-2);
         font-size: var(--sw-fs-sm);
@@ -877,9 +927,6 @@ export class SystemNotifications extends LitElement {
         text-align: start;
         font-size: var(--sw-fs-md);
       }
-      .pick button:hover {
-        background: var(--dv-surface-3);
-      }
       .tagrow {
         display: flex;
         gap: 6px;
@@ -910,7 +957,7 @@ export class SystemNotifications extends LitElement {
           block-size: 44px;
           border: 1px solid var(--dv-border);
           background: var(--dv-surface-2);
-          border-radius: 999px;
+          border-radius: var(--sw-r-pill);
           padding: 0 14px;
         }
         .setnav button[aria-current='true'] {
@@ -1317,7 +1364,7 @@ export class SystemNotifications extends LitElement {
         <label class="w2">כתובת Arx לקישור<input class="inp ltr" data-mail-linkbase placeholder="https://" .value=${m.linkBase} @input=${(ev: Event) => set({ linkBase: (ev.target as HTMLInputElement).value })} /></label>
       </div>
       ${this.mailError ? html`<div class="errline" data-mail-error role="alert">${this.mailError}</div>` : nothing}
-      <div class="frow" style="border-block-start:0;justify-content:flex-end;gap:8px"><button type="button" class="btn quiet" data-mail-test ?disabled=${this.mailBusy !== null || !e.configured} @click=${() => void this.testMail()}>${nIcon(this.mailBusy === 'test' ? 'refresh' : 'send')}${this.mailBusy === 'test' ? 'שולח…' : 'שליחת בדיקה'}</button><button type="button" class="btn primary" data-mail-save ?disabled=${this.mailBusy !== null} @click=${() => void this.saveMail()}>שמירה</button></div></section>`;
+      <div class="frow mailfoot"><button type="button" class="btn quiet" data-mail-test ?disabled=${this.mailBusy !== null || !e.configured} @click=${() => void this.testMail()}>${nIcon(this.mailBusy === 'test' ? 'refresh' : 'send')}${this.mailBusy === 'test' ? 'שולח…' : 'שליחת בדיקה'}</button><button type="button" class="btn primary" data-mail-save ?disabled=${this.mailBusy !== null} @click=${() => void this.saveMail()}>שמירה</button></div></section>`;
   }
 
   /** NOTIFWA: the WhatsApp section is its own element (the module's look is being redesigned); this screen only places it and refreshes the chips after a save. */

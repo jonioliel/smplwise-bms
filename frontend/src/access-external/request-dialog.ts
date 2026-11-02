@@ -79,7 +79,7 @@ export class AccessRequestDialog extends LitElement {
       .plist { display: grid; max-block-size: 232px; overflow: auto; border: 1px solid var(--sw-border-strong); border-radius: var(--sw-r-md); }
       .plist label { display: grid; grid-template-columns: 20px 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 9px 12px; border-block-end: 1px solid var(--sw-border); cursor: pointer; }
       .plist label:last-child { border-block-end: 0; }
-      .plist label:hover { background: var(--sw-hover-wash); }
+      @media (hover: hover) and (pointer: fine) { .plist label:hover { background: var(--sw-hover-wash); } } /* POLISH4-WP8: no sticky wash after a tap */
       .plist label.dis { cursor: not-allowed; opacity: .62; }
       .plist input { inline-size: 18px; block-size: 18px; margin: 0; accent-color: var(--sw-accent); }
       .av { inline-size: 34px; block-size: 34px; border-radius: 50%; background: var(--sw-accent-soft); color: var(--sw-accent-text); display: grid; place-items: center; font-size: var(--sw-fs-xs); font-weight: 700; flex: none; }
@@ -114,7 +114,7 @@ export class AccessRequestDialog extends LitElement {
       .apprs { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--sw-r-sm); background: var(--sw-surface-2); font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
       .avs { display: inline-flex; }
       .avs span { inline-size: 28px; block-size: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--sw-accent-soft); color: var(--sw-accent-text);
-        font-size: 11px; font-weight: 700; border: 2px solid var(--sw-surface); margin-inline-start: -6px; }
+        font-size: var(--sw-fs-xs); font-weight: 700; border: 2px solid var(--sw-surface); margin-inline-start: -6px; }
       .avs span:first-child { margin-inline-start: 0; }
       .ntext { padding: 12px 14px; border-radius: var(--sw-r-md); background: var(--sw-surface-2); font-size: var(--sw-fs-sm); line-height: 1.6; color: var(--sw-text); max-block-size: 160px; overflow: auto; }
       .bubble { padding: 12px 14px; border-radius: var(--sw-r-md); background: var(--sw-success-soft); color: var(--sw-text); font-size: var(--sw-fs-sm); line-height: 1.6; max-inline-size: 440px; }

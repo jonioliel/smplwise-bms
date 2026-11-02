@@ -26,7 +26,7 @@ export const xCss = css`
   [data-tone='err'] { --c: var(--sw-danger); --cs: var(--sw-danger-soft); --ct: var(--x-err-t); }
   [data-tone='off'] { --c: var(--sw-unknown); --cs: var(--sw-unknown-soft); --ct: var(--x-off-t); }
   .chip {
-    display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; border-radius: 999px; font-size: var(--sw-fs-sm);
+    display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; border-radius: var(--sw-r-pill); font-size: var(--sw-fs-sm);
     font-weight: 600; line-height: 20px; white-space: nowrap; max-inline-size: 100%;
     background: var(--cs, var(--sw-surface-3)); color: var(--ct, var(--sw-text-2));
   }
@@ -36,7 +36,7 @@ export const xCss = css`
   /* SHAREDUI-295: white on the solid state colours measured 1.8-3.8:1 (success, warning, danger, unknown); the badge is the soft fill
      with the tone text and a ring in the state colour, so it still reads as the strongest mark of the row */
   .badge {
-    display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 3px 11px; font-size: var(--sw-fs-sm);
+    display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 3px 11px; font-size: var(--sw-fs-sm);
     font-weight: 600; white-space: nowrap; line-height: 1.4; background: var(--cs); color: var(--ct);
     box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--c) 55%, transparent);
   }
@@ -64,7 +64,7 @@ export const xCss = css`
   .ladder .stp { display: grid; justify-items: center; gap: 6px; text-align: center; position: relative; font-size: var(--sw-fs-xs); color: var(--sw-text-2); line-height: 1.25; padding: 0 2px; }
   .ladder .stp::before { content: ''; position: absolute; top: 10px; inset-inline-start: calc(-50% + 12px); inset-inline-end: calc(50% + 12px); block-size: 2px; background: var(--sw-surface-3); }
   .ladder .stp:first-child::before { display: none; }
-  .ladder .stp i { inline-size: 22px; block-size: 22px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 12px; font-weight: 700; position: relative; z-index: 1; background: var(--sw-surface-3); color: var(--sw-text-3); }
+  .ladder .stp i { inline-size: 22px; block-size: 22px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: var(--sw-fs-xs); font-weight: 700; position: relative; z-index: 1; background: var(--sw-surface-3); color: var(--sw-text-3); }
   .ladder .stp[data-s='done'] i { background: var(--x-ok); color: var(--sw-text-inverse); }
   .ladder .stp[data-s='done']::before { background: var(--x-ok); }
   .ladder .stp[data-s='done'] { color: var(--sw-text-2); }

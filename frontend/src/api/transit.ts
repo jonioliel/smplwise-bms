@@ -44,7 +44,10 @@ export interface CatalogueStatus {
 
 export interface TransitHealth {
   enabled: boolean;
-  state: 'off' | 'ok' | 'stale' | 'down';
+  /** source_down (BUSSTATUS-297): the provider is failing and the last good data is younger than outage_warn_h */
+  state: 'off' | 'ok' | 'stale' | 'down' | 'source_down';
+  /** the newest good data (the cache, else the last success) */
+  last_good_at?: string | null;
   codes_in_use: number;
   age_s: number | null;
   last_ok_at: string | null;
@@ -98,3 +101,15 @@ export const searchTransitStops = (city: string, q: string) =>
   get<{ stops: CatalogueStop[]; catalogue: CatalogueStatus }>(`transit/stops?city=${encodeURIComponent(city)}&q=${encodeURIComponent(q)}`);
 export const transitStatus = () => get<{ health: TransitHealth; catalogue: CatalogueStatus }>('transit/status');
 export const refreshTransitCatalogue = () => post<{ started: boolean; running: boolean }>('transit/catalogue/refresh');
+
+/** POLISH4-WP8: the answer of one manual check of the source (POST /transit/check, system.configure, once per 30 s). */
+export interface TransitCheck {
+  codes: number;
+  fetched: number;
+  ok: boolean;
+  error: string | null;
+  skipped: 'no_stops' | 'retry_after' | null;
+  retry_after_s: number | null;
+  at: string;
+}
+export const checkTransit = () => post<{ check: TransitCheck; health: TransitHealth }>('transit/check');

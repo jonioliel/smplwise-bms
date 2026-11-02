@@ -17,6 +17,7 @@ import { AUDIT_ACTIONS, AUDIT_PERIODS, age, appendAudit, auditFields, auditPerio
 import { actionText, ageText, errorText, fieldText, whenText } from '../access-control/status-text';
 import { UTC_ZONE } from './wiskey-format';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { accessPanelPolish } from './system-access-polish-css';
 import { st } from '../i18n/access-status';
 
 /** CR-036 S12: a person's name on a record is a button that narrows the log to them (inline: the table's cells live in its shadow root). */
@@ -55,6 +56,7 @@ export class SystemAccessAudit extends LitElement {
         border-block-start: 1px solid var(--sw-border);
       }
     `,
+    accessPanelPolish,
     bubbleChrome,
   ];
 

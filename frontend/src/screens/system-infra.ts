@@ -90,7 +90,7 @@ export class SystemInfra extends LitElement {
 
   render() {
     const offered = SECTIONS.filter((s) => s.allowed(this.access, generatorAccess()));
-    if (!offered.length) return html`<sw-state-panel state="forbidden" data-elec="settings" data-state="forbidden"></sw-state-panel>`;
+    if (!offered.length) return html`<sw-state-panel state="forbidden" heading="אין הרשאה להגדרות התשתיות" hint="מנהל המערכת מעניק את ההרשאה לכל אזור תשתית בנפרד." data-elec="settings" data-state="forbidden"></sw-state-panel>`;
     const asked = this.route?.segments[2];
     const cur = offered.find((s) => s.id === asked) ?? offered[0];
     const items: TabItem[] = offered.map((s) => ({ id: s.id, label: s.label, href: `#/system/infra/${s.id}` }));

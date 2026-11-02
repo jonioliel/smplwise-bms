@@ -42,11 +42,13 @@ class Health:
     consecutive: int = 0
     backoff_until: dt.datetime | None = None
     failing_since: dt.datetime | None = None
+    retry_after_until: dt.datetime | None = None  # POLISH4-WP8: the provider itself asked to wait (Retry-After) until then; a manual check honours it
     restored: bool = False  # BUSSTATUS-297: the persisted state was read (once per process)
 
     def ok(self, now: dt.datetime) -> None:
         with self.lock:
             self.last_ok_at, self.consecutive, self.backoff_until, self.failing_since = now, 0, None, None
+            self.retry_after_until = None
 
     def fail(self, now: dt.datetime, kind: str, retry_after_s: int | None = None) -> None:
         with self.lock:
@@ -58,6 +60,9 @@ class Health:
             wait = BACKOFF_S[min(self.consecutive, len(BACKOFF_S)) - 1]
             if retry_after_s:  # the provider said when to come back (Retry-After): never earlier than that, never later than an hour
                 wait = max(wait, min(int(retry_after_s), RETRY_AFTER_MAX_S))
+                self.retry_after_until = now + dt.timedelta(seconds=min(int(retry_after_s), RETRY_AFTER_MAX_S))
+            else:
+                self.retry_after_until = None
             self.backoff_until = now + dt.timedelta(seconds=wait)
 
     def pristine(self) -> bool:
@@ -67,7 +72,8 @@ class Health:
     def dump(self) -> dict[str, Any]:
         with self.lock:
             return {"last_ok_at": _iso(self.last_ok_at), "last_error_at": _iso(self.last_error_at), "last_error": self.last_error, "errors": self.errors,
-                    "consecutive": self.consecutive, "failing_since": _iso(self.failing_since), "backoff_until": _iso(self.backoff_until)}
+                    "consecutive": self.consecutive, "failing_since": _iso(self.failing_since), "backoff_until": _iso(self.backoff_until),
+                    "retry_after_until": _iso(self.retry_after_until)}
 
     def load(self, doc: dict[str, Any]) -> None:
         def t(k: str) -> dt.datetime | None:
@@ -76,6 +82,7 @@ class Health:
         with self.lock:
             self.restored = True
             self.last_ok_at, self.last_error_at, self.failing_since, self.backoff_until = t("last_ok_at"), t("last_error_at"), t("failing_since"), t("backoff_until")
+            self.retry_after_until = t("retry_after_until")
             self.last_error = doc["last_error"] if isinstance(doc.get("last_error"), str) else ""
             self.errors = doc["errors"] if isinstance(doc.get("errors"), int) else 0
             self.consecutive = doc["consecutive"] if isinstance(doc.get("consecutive"), int) else 0
@@ -83,6 +90,13 @@ class Health:
     def blocked(self, now: dt.datetime) -> bool:
         with self.lock:
             return self.backoff_until is not None and now < self.backoff_until
+
+    def retry_after_left(self, now: dt.datetime) -> int:
+        """Seconds the PROVIDER asked us to wait (its Retry-After); 0 when it asked nothing or the time has passed (our own backoff is not counted)."""
+        with self.lock:
+            if self.retry_after_until is None or now >= self.retry_after_until:
+                return 0
+            return max(1, int((self.retry_after_until - now).total_seconds()))
 
     def view(self) -> dict[str, Any]:
         with self.lock:
@@ -203,6 +217,57 @@ def poll_once(db: Database, source: Any, now: dt.datetime) -> dict[str, Any]:
         marks = ",".join("?" * len(want))
         conn.execute(f"DELETE FROM transit_cache WHERE code NOT IN ({marks})", tuple(want))
     return {"codes": len(want), "fetched": fetched, "error": failed}
+
+
+def check_once(db: Database, source: Any, now: dt.datetime) -> dict[str, Any]:
+    """POLISH4-WP8 (owner-approved 02.11): the settings screen's "check now" - ONE arrivals request per CONFIGURED stop, now, even when no
+    screen shows the stops (the loop polls only stops a screen uses, so an idle installation keeps showing its last failure for days). Never
+    loops, never changes the settings. Our own circuit-breaker backoff is not honoured (a person asked); the provider's Retry-After is.
+    The result updates the source health (a success clears the failure run and records the success; a failure is one more error) and,
+    for the stops a screen uses, the cache rows. Returns {codes, fetched, ok, error, skipped, retry_after_s}."""
+    from ..notices import sources
+
+    with db.connection(mode="read", label="transit.check.plan") as conn:
+        cfg = load_config(conn)
+        want = used_codes(conn)
+        tz = sources.installation_tz(conn)
+        restore_health(conn)
+    codes = [int(s["code"]) for s in cfg["stops"]]
+    if not codes:
+        return {"codes": 0, "fetched": 0, "ok": False, "error": None, "skipped": "no_stops", "retry_after_s": None}
+    wait = HEALTH.retry_after_left(now)
+    if wait:
+        return {"codes": len(codes), "fetched": 0, "ok": False, "error": None, "skipped": "retry_after", "retry_after_s": wait}
+    prov = _provider_for(source, tz)
+    if hasattr(prov, "configure"):
+        prov.configure(position_fresh_s=model.position_fresh_s(cfg), poll_s=model.poll_s(cfg))
+    if hasattr(prov, "new_pass"):
+        prov.new_pass()
+    fetched, failed, retry_after = 0, None, None
+    for code in codes:
+        window = want.get(code, 60)
+        to = now + dt.timedelta(minutes=min(window, 240) + EXTRA_MIN)
+        try:
+            try:
+                rows = prov.arrivals(code, now, to)
+            except provider_mod.UnknownStop:
+                rows = []  # the source answered: an unknown stop is not the source's failure
+            if code in want:
+                _store(db, code, now, to, rows)
+            fetched += 1
+        except stride.StrideError as exc:
+            failed, retry_after = exc.kind, exc.retry_after_s
+            break
+        except Exception as exc:  # noqa: BLE001 - a manual check reports, it never raises into the route
+            log.exception("transit check failed")
+            failed = type(exc).__name__
+            break
+    if failed:
+        HEALTH.fail(now, failed, retry_after)
+    else:
+        HEALTH.ok(now)
+    persist_health(db)
+    return {"codes": len(codes), "fetched": fetched, "ok": not failed, "error": failed, "skipped": None, "retry_after_s": retry_after}
 
 
 def _store(db: Database, code: int, fetched_at: dt.datetime, window_to: dt.datetime, rows: list[dict[str, Any]]) -> None:
