@@ -71,7 +71,7 @@ test.describe('calendar grid editing (CAL-GRID-EDIT-2343)', () => {
     test(`day view: drag-select opens the quick create, Esc cancels (${scheme})`, async ({ page }) => {
       test.skip(proj() !== 'desktop', 'mouse drag: desktop; touch below');
       await open(page, '/calendars/cal?view=day&date=2026-11-02', scheme);
-      const a = await pointIn(page, 'brosh', 15 * 60 + 5);
+      const a = await pointIn(page, 'brosh', 15 * 60 + 20); // after "שיחת הורים" 14:30-15:15
       const b = await pointIn(page, 'brosh', 16 * 60 + 20);
       await page.mouse.move(a.x, a.y);
       await page.mouse.down();
@@ -81,7 +81,7 @@ test.describe('calendar grid editing (CAL-GRID-EDIT-2343)', () => {
       await page.mouse.up();
       const qc = page.locator(`${V} cal-quick-create [data-cal-quick]`);
       await expect(qc).toBeVisible();
-      await expect(qc.locator('[data-cal-qc="from"]')).toHaveValue('15:00');
+      await expect(qc.locator('[data-cal-qc="from"]')).toHaveValue('15:15');
       await expect(qc.locator('[data-cal-qc="to"]')).toHaveValue('16:30');
       await expect(qc.locator('[data-cal-qc-status]')).toHaveAttribute('data-cal-qc-status', 'ok');
       await expect(qc.locator('[data-cal-slot="attendees"]')).toHaveCount(1); // the attendee picker's slot (another branch)
