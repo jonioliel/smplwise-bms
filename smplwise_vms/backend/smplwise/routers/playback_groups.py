@@ -51,6 +51,10 @@ def _start_many(settings: Settings, conn: sqlite3.Connection, principal: Princip
     CR-024 experimental cross-recorder group (`group.clocks` set): each member is searched and played in its recorder's zone and
     clock offset - the search asks for [start + offset) on the recorder's clock and the segment it answers is turned back into
     server time (- offset); a recorder whose clock was refused leaves its members missing with the reason."""
+    max_seeks = int(read_settings(conn).get("playback.max_seeks_per_min", pb.DEFAULT_MAX_SEEKS_PER_MIN))  # PLAYBACK-SCRUB-2341, per member session
+    waits = [w for w in (pb.seek_retry_after(x, max_seeks) for x in existing.values()) if w is not None]
+    if waits:  # all members or none: a group never seeks some tiles and leaves one behind on the rate cap
+        raise pb.seek_rate_error(max_seeks, max(waits))
 
     def one(cam: sqlite3.Row) -> tuple[str, pb.PlaybackSession | None, str | None]:
         clock = group.clocks.get(str(cam["recorder_id"])) if group.clocks else None
@@ -67,7 +71,7 @@ def _start_many(settings: Settings, conn: sqlite3.Connection, principal: Princip
             return cam["id"], None, "gap"
         try:
             if cam["id"] in existing:
-                return cam["id"], pb.seek(settings, existing[cam["id"]], actual_start, seg_end), None
+                return cam["id"], pb.seek(settings, existing[cam["id"]], actual_start, seg_end, max_per_min=max_seeks), None
             return cam["id"], pb.create(settings, principal, cam, actual_start, seg_end, zone_name, cap, clock_offset_s=off.total_seconds()), None
         except ApiError as exc:
             return cam["id"], None, exc.code

@@ -199,6 +199,13 @@ DEFAULTS: dict[str, str] = {
     "plan.presence_fade": "3",  # CR-006 1b: the presence tint on the floor map fades this many minutes after the last motion; "off" = the tint only while a sensor is on (owner decision 2026-09-28: on/off + minutes per installation)
     "playback.max_sessions": "4",  # playback sessions open at once (each is one NVR RTSP playback stream)
     "playback.lease_s": "600",  # idle lease; the janitor deletes the go2rtc stream after it expires
+    # PLAYBACK-SCRUB-2341: at most this many seeks (new generations) per playback session in a rolling minute; over it the seek is
+    # refused with a Hebrew notice (429 seek_rate) and the current generation keeps playing. 0 = no cap.
+    "playback.max_seeks_per_min": "30",
+    # ASYNCIO-DEFAULT-2342 (owner 02.11, answer 5A): "שרת: רכיב תקשורת מהיר" - the native event loop / HTTP parser (uvloop + httptools)
+    # instead of the standard asyncio + h11. Off by default; read once at start-up by smplwise/__main__.py (applies after a restart);
+    # the environment variable SW_FAST_NETWORK wins over it, the crash guard's safe mode wins over both.
+    "server.fast_network": "false",
     # 2.0.0 stall detection (docs/changes/PLAYBACK-STALL-RESUME.md): seconds without media progress while a recording should be playing
     # before the player says "מתחבר מחדש", and how many automatic "resume from here" attempts (each a new generation of the same session,
     # the old go2rtc stream deleted) it makes before "הניגון נעצר" with a retry button; 0 = detect and stop, no automatic attempt.
@@ -512,7 +519,7 @@ LOCAL_PURGE_WORD = "מחיקה לצמיתות"  # REL2140 M-1: typed to switch t
 # frontend/src/styles/devices-themes.ts (docs/design/DEVICE_THEMES.md, "How to add a theme").
 DEVICE_THEMES = ("default", "sand", "forest", "graphite")
 
-INT_KEYS = ("privacy.local_purge_days", "security.local_admin_session_days", "security.local_password_min", "backup.password_min", "security.local_link_ttl_h", "media.max_live_sessions", "media.h265_max_transcodes", "access.station_media_max_talk_s", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", "device_activity.retention_days", "history.range_max_days", "history.presence_retention_days", "ui.page_size.schedules", "ui.page_size.schedules_phone", "ui.page_size.automations", "ui.page_size.automations_phone", "ui.page_size.automations_cards", "ui.page_size.automations_cards_phone", *automation_settings.INT_KEYS)
+INT_KEYS = ("privacy.local_purge_days", "security.local_admin_session_days", "security.local_password_min", "backup.password_min", "security.local_link_ttl_h", "media.max_live_sessions", "media.h265_max_transcodes", "access.station_media_max_talk_s", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.max_seeks_per_min", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", "device_activity.retention_days", "history.range_max_days", "history.presence_retention_days", "ui.page_size.schedules", "ui.page_size.schedules_phone", "ui.page_size.automations", "ui.page_size.automations_phone", "ui.page_size.automations_cards", "ui.page_size.automations_cards_phone", *automation_settings.INT_KEYS)
 
 
 # BUBBLE-FREEZE-295 (owner 2026-10-26): skins that are frozen - kept in the code, rejected by new writes, and a stored value is read as the fallback.
@@ -785,6 +792,8 @@ class SettingsPatch(BaseModel):
     time_zone: str | None = Field(default=None, pattern=r"^[A-Za-z_]+(/[A-Za-z_\-+0-9]+)+$", alias="time.zone")
     playback_max_sessions: int | None = Field(default=None, ge=1, le=128, alias="playback.max_sessions")
     playback_lease_s: int | None = Field(default=None, ge=60, le=3600, alias="playback.lease_s")
+    playback_max_seeks_per_min: int | None = Field(default=None, ge=0, le=600, alias="playback.max_seeks_per_min")
+    server_fast_network: str | None = Field(default=None, pattern="^(true|false)$", alias="server.fast_network")  # ASYNCIO-DEFAULT-2342
     playback_cross_recorder_sync: str | None = Field(default=None, pattern="^(true|false)$", alias="playback.cross_recorder_sync")
     playback_stall_s: int | None = Field(default=None, ge=2, le=30, alias="playback.stall_s")
     playback_auto_resume_attempts: int | None = Field(default=None, ge=0, le=5, alias="playback.auto_resume_attempts")

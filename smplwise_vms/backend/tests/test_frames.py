@@ -11,6 +11,10 @@ from smplwise.main import create_app
 from smplwise.routers import frames
 
 
+def _search_unavailable(*a, **k):
+    raise OSError("no recorder in this test")
+
+
 def test_frame_cache_permissions_and_unconfigured(settings, monkeypatch):
     app = create_app(settings)
     c = TestClient(app)
@@ -31,6 +35,8 @@ def test_frame_cache_permissions_and_unconfigured(settings, monkeypatch):
         return True
 
     monkeypatch.setattr(frames, "GRAB", fake_grab)
+    monkeypatch.setattr(frames, "SEARCH", _search_unavailable)  # PLAYBACK-SCRUB-2341: the recorder search is not reachable here -> the asked second, as before
+    frames.MEMO.clear()
     r = c2.get(f"/api/v1/cameras/{cam['id']}/frame?at=2026-09-16T08:00:07Z")
     assert r.status_code == 200 and r.headers["content-type"] == "image/jpeg" and r.content.startswith(b"\xff\xd8")
     assert len(calls) == 1 and "Streaming/tracks/101" in calls[0] and "starttime=" in calls[0]
