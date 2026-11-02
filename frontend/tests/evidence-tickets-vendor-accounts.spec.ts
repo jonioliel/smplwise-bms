@@ -213,6 +213,23 @@ test.describe('vendors account (TK258)', () => {
     await expect(page.locator(`${S} [data-va-csv]`)).toBeVisible();
   });
 
+  test('POLISH-4 D5, phone: the filters take two to a row and the keys are 44 px', async ({ page }, info) => {
+    test.skip(info.project.name !== 'mobile', 'phone only');
+    await go(page, {});
+    await ready(page);
+    const from = (await page.locator(`${S} [data-va-from]`).boundingBox())!;
+    const to = (await page.locator(`${S} [data-va-to]`).boundingBox())!;
+    const vendor = (await page.locator(`${S} [data-va-vendor]`).boundingBox())!;
+    expect(Math.abs(from.y - to.y), 'the two dates share a row').toBeLessThanOrEqual(2);
+    expect(Math.abs(from.x - to.x), 'side by side').toBeGreaterThan(100);
+    expect(vendor.y, 'the vendor filter is on the next row').toBeGreaterThan(from.y + from.height - 2);
+    for (const sel of ['[data-va-from]', '[data-va-vendor]', '[data-va-csv]', '[data-va-mark]']) {
+      expect((await page.locator(`${S} ${sel}`).boundingBox())!.height, sel).toBeGreaterThanOrEqual(43.5);
+    }
+    expect((await page.locator(`${S} .selall`).boundingBox())!.height, 'select-all line').toBeGreaterThanOrEqual(43.5);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 'no sideways scroll').toBeLessThanOrEqual(1);
+  });
+
   test('states: loading, empty, error with retry, forbidden', async ({ page }) => {
     await go(page, { slow: true });
     await page.waitForSelector(`${S} [data-va-state="loading"]`);
