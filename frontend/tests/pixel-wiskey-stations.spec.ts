@@ -100,10 +100,20 @@ test.describe('pixel: the stations and doors screen', () => {
     await page.locator(`${SCREEN} [data-wk-grid] [data-wk-station="lobby"] button.open`).click();
     await page.locator(`${SCREEN} sw-drawer [data-wk-settings-toggle]`).click();
     await expect(page.locator(`${SCREEN} sw-drawer [data-wk-codes]`)).toBeVisible();
-    // WISKEY-DOOR-TECH-2390: the section grew by the "שינויים טכניים" row; a fixed alignment (its end at the drawer's end) instead of
-    // scrollIntoViewIfNeeded, whose alignment depends on where the drawer happened to be scrolled
+    // WISKEY-DOOR-TECH-2390: the section grew by the "שינויים טכניים" row. A fixed picture: the section's end at the end of the drawer's
+    // OWN scroll container (never the page behind it), and the page behind the drawer pinned like the release shot (STATIONS-FLAKE-2270)
     await expect(page.locator(`${SCREEN} sw-drawer wk-door-tech [data-wk-dt-open]`)).toBeVisible();
-    await page.locator(`${SCREEN} sw-drawer [data-wk-dsec="settings"]`).evaluate((el) => el.scrollIntoView({ block: 'end' }));
+    await page.locator(`${SCREEN} sw-drawer [data-wk-dsec="settings"]`).evaluate((el) => {
+      let n: Node | null = el.parentNode;
+      while (n) {
+        if (n instanceof HTMLElement && n.scrollHeight > n.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(n).overflowY)) {
+          n.scrollTop += el.getBoundingClientRect().bottom - n.getBoundingClientRect().bottom;
+          return;
+        }
+        n = n instanceof ShadowRoot ? n.host : n.parentNode;
+      }
+    });
+    await pinLobby(page, info, 'release');
     await shoot(page, info, 'stations-classic-settings');
   });
 
