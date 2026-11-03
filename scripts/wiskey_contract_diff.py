@@ -11,6 +11,17 @@ full nested schemas, not an authorization oracle and not an approval to write, s
 
 `DIR` holds the two catalogs directly or in a `schemas/` sub-folder (a WisKey delivery root works as is).
 
+WISKEY-RC10-PIN-2382: the default pin is `rc10-extract` (WisKey 2.0.1-rc.10, extracted by Arx with scripts/wiskey_rc_extract.py);
+`rc37-contract.4` stays as the oldest baseline Arx still reads. A next WisKey rc is diffed in one run:
+
+    py -3.12 scripts/wiskey_rc_extract.py --git "C:/hik intercom" --ref <ref> --out <tmp>
+    py -3.12 scripts/wiskey_contract_diff.py --candidate <tmp>
+
+When BOTH folders hold `surface.static.json` (the Arx extraction), it is diffed too: capabilities, the separate WebSocket
+registries, the direct-only reads, the overview projections, HA services / entities / events and the closed shapes Arx reads
+(direct discovery, W10 parameters and events, the Core observation). A removed name or a changed value is breaking; an addition
+is a change.
+
 Exit code: 0 identical, 1 additions or non-breaking changes only, 2 a removal or a change of a required key, a base
 permission or the READ classification (an explicit migration review is needed before the delivery is accepted),
 3 usage / integrity error.
@@ -25,9 +36,12 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_PIN = ROOT / "docs" / "integrations" / "wiskey" / "catalog" / "rc37-contract.4"
+DEFAULT_PIN = ROOT / "docs" / "integrations" / "wiskey" / "catalog" / "rc10-extract"
 COMMANDS_FILE = "commands.static.json"
 ERRORS_FILE = "errors.static.json"
+SURFACE_FILE = "surface.static.json"
+# surface keys that only describe the file (or are derived prose), not a contract fact
+SURFACE_IGNORED = frozenset({"warning", "note"})
 PERMISSION_KEYS = (
     "alternative_area_grants",
     "administrator_only_by_base_mapping",
@@ -73,7 +87,46 @@ def load(folder: Path) -> dict[str, Any]:
         out[key] = body
         out["sha256"][name] = sha256_of(path)
         out.setdefault("version", doc.get("version"))
+    surface = where / SURFACE_FILE
+    if surface.is_file():
+        try:
+            out["surface"] = json.loads(surface.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise CatalogError(f"{surface}: {type(exc).__name__}") from exc
+        out["sha256"][SURFACE_FILE] = sha256_of(surface)
     return out
+
+
+def surface_diff(old: Any, new: Any, path: str = "") -> tuple[list[str], list[str]]:
+    """(breaking, changes) between two `surface.static.json` trees: a list of names is compared as a set (a removed name is
+    breaking, an added one a change); a dict key that disappears or a scalar that changes is breaking; a new key is a change."""
+    breaking: list[str] = []
+    changes: list[str] = []
+    if isinstance(old, dict) and isinstance(new, dict):
+        for key in sorted(set(old) | set(new), key=str):
+            if key in SURFACE_IGNORED:
+                continue
+            where = f"{path}.{key}" if path else str(key)
+            if key not in new:
+                breaking.append(f"surface {where}: removed")
+            elif key not in old:
+                changes.append(f"surface {where}: added")
+            else:
+                b, c = surface_diff(old[key], new[key], where)
+                breaking += b
+                changes += c
+        return breaking, changes
+    if isinstance(old, list) and isinstance(new, list) and all(isinstance(v, str) for v in old + new):
+        gone = sorted(set(old) - set(new))
+        came = sorted(set(new) - set(old))
+        if gone:
+            breaking.append(f"surface {path}: removed {gone}")
+        if came:
+            changes.append(f"surface {path}: added {came}")
+        return breaking, changes
+    if old != new:
+        (changes if path.endswith(("version", "count", "capabilities_count")) else breaking).append(f"surface {path}: {old!r} -> {new!r}")
+    return breaking, changes
 
 
 def verify_pin(pin_dir: Path) -> list[str]:
@@ -154,7 +207,16 @@ def diff(old: dict[str, Any], new: dict[str, Any]) -> dict[str, Any]:
     for code in sorted(set(old_e) & set(new_e)):
         if old_e[code].get("retry") != new_e[code].get("retry"):
             changes.append(f"error {code}: retry class {old_e[code].get('retry')} -> {new_e[code].get('retry')}")
+    surface = "absent in both"
+    if "surface" in old and "surface" in new:
+        b, c = surface_diff(old["surface"], new["surface"])
+        breaking += b
+        changes += c
+        surface = "compared"
+    elif "surface" in old or "surface" in new:
+        surface = "only in " + ("the pin" if "surface" in old else "the candidate") + " (not compared)"
     return {
+        "surface": surface,
         "old": {"version": old.get("version"), "commands": len(old_c), "errors": len(old_e), "sha256": old["sha256"]},
         "new": {"version": new.get("version"), "commands": len(new_c), "errors": len(new_e), "sha256": new["sha256"]},
         "commands_added": added,
@@ -173,6 +235,7 @@ def render(report: dict[str, Any]) -> str:
         f"pinned:    {report['old']['version']}  {report['old']['commands']} commands, {report['old']['errors']} errors",
         f"candidate: {report['new']['version']}  {report['new']['commands']} commands, {report['new']['errors']} errors",
         "files byte-identical" if report["identical_files"] else "files differ",
+        f"surface: {report.get('surface')}",
     ]
     for title, items in (("NEEDS MIGRATION REVIEW", report["breaking"]), ("changes", report["changes"])):
         if items:

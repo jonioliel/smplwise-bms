@@ -52,12 +52,20 @@ SERVICE_WRITE_CAP = {"contract": "wiskey-native-service-write.v1", "schema_versi
                      "commands": ["users/create", "users/pin_generate", "users/temporary_cancel", "users/update"],
                      "metadata_parameter": "service_write", "grant_source": "owner pairing options.native_service_grants_v1",
                      "default_authority": "denied_without_current_native_owner_grant"}
+# WISKEY-RC10-PIN-2382: WisKey 2.0.1-rc.10 (`direct_bridge_discovery.py`, docs/integrations/wiskey/catalog/rc10-extract) adds ONE key to
+# the same v1 block: `installation_contract: "wiskey-native-service-write.v2"` (the contract of the grant WisKey derives from its own
+# automatic installation). Everything else is byte-for-byte the v1 block. Reader revision 3 accepts exactly these two closed shapes; any
+# other key or value is still another contract (rejected, never guessed). The v2 name is recorded as an observation only - it grants
+# nothing in Arx and changes no installation policy (policy B).
+SERVICE_WRITE_INSTALLATION_CONTRACT = "wiskey-native-service-write.v2"
+SERVICE_WRITE_CAP_RC10 = {**SERVICE_WRITE_CAP, "installation_contract": SERVICE_WRITE_INSTALLATION_CONTRACT}
+SERVICE_WRITE_SHAPES = (SERVICE_WRITE_CAP, SERVICE_WRITE_CAP_RC10)
 TALK_AUDIO_CAP = {"schema": "arx.station_talk_audio.v1", "transport": "signed_ws_pcmu_v1", "opt_in": "media/talk_open.parameters.listen",
                   "default": False}
 # WISKEY-RC4-2310 (WisKey owner30 contribution, rc.4): reader revision 2 names the two closed historical v1 shapes explicitly - the core
 # alone, and the core plus all three metadata blocks that Native already emits. This reader accepts both (and, per review M3, an older
 # WisKey that omits some blocks); any other top-level key is still refused. No wire document changes.
-READER_REVISION = 2
+READER_REVISION = 3  # 3: WISKEY-RC10-PIN-2382 - the rc.10 `native_service_write` block (one added key) is read too
 _NATIVE_V1_KEYS = _CAP_KEYS | _CAP_OPTIONAL
 _CMD_KEYS = {"name", "envelope", "api_contract", "explicit_parameter_version"}
 _TIME_KEYS = {"schema_version", "server_utc", "max_ts_skew_seconds", "max_issued_future_seconds", "max_command_ttl_seconds"}
@@ -88,6 +96,8 @@ class Capabilities:
     business_contracts: Mapping[str, Any] = field(default_factory=dict, repr=False)
     service_write: bool = False  # `native_service_write` offered exactly as wiskey-native-service-write.v1
     talk_audio: bool = False  # `station_talk_audio` offered exactly as arx.station_talk_audio.v1 (opt-in, default off)
+    # WISKEY-RC10-PIN-2382: the rc.10 block's `installation_contract` (None for the historical v1 block) - an observation, never authority
+    service_write_installation_contract: str | None = None
     rejected_blocks: tuple[str, ...] = ()  # optional blocks present but not read (malformed / another contract): their feature is off
 
     def lists(self, command: str) -> bool:
@@ -158,7 +168,7 @@ def read_capabilities(raw: Any, connection_ref: str) -> Capabilities:
         rejected.append("business_contracts")
         contracts = {}
     service = raw.get("native_service_write")
-    if service is not None and (not isinstance(service, Mapping) or dict(service) != SERVICE_WRITE_CAP):
+    if service is not None and (not isinstance(service, Mapping) or dict(service) not in SERVICE_WRITE_SHAPES):
         rejected.append("native_service_write")  # another service-write contract is a new contract: never guessed, never used
         service = None
     talk_audio = raw.get("station_talk_audio")
@@ -169,7 +179,8 @@ def read_capabilities(raw: Any, connection_ref: str) -> Capabilities:
         log.warning("wiskey discovery: optional capabilities blocks not offered as read: %s", ",".join(rejected))
     return Capabilities(connection_ref, frozenset(names), tuple(families), versions, dict(limits), dict(resources), len(stations),
                         business_contracts={k: dict(v) for k, v in contracts.items()}, service_write=service is not None,
-                        talk_audio=talk_audio is not None, rejected_blocks=tuple(rejected))
+                        talk_audio=talk_audio is not None, rejected_blocks=tuple(rejected),
+                        service_write_installation_contract=None if service is None else service.get("installation_contract"))
 
 
 def _utc(value: Any) -> datetime:

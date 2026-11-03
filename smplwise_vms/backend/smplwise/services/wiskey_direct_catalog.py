@@ -66,6 +66,12 @@ def _installation_on() -> bool:
     except Exception:  # noqa: BLE001 - unreadable: the exclusion holds
         return False
 ROW_KINDS = ("CATALOG_PROVENANCE", "COMMAND", "DIRECT_ONLY_COMMAND")
+# WISKEY-RC10-PIN-2382 (WisKey 2.0.1-rc.10, docs/integrations/wiskey/catalog/rc10-extract): the two rc.10 registrations the trimmed
+# round-5 file does not hold. `upgrade/manual_readiness_v1` is a public READ of rc.10's WebSocket table, so WisKey's direct socket lists
+# it (an ordinary NativeBridgeMessage row); `installation/core_runtime_v1` is HA-only (see `load`). Declaring them changes no caller: Arx
+# sends neither on the direct envelope. tests/test_wiskey_rc10_pin.py checks this catalog against the rc.10 extraction.
+RC10_DIRECT_COMMANDS: tuple[str, ...] = ("upgrade/manual_readiness_v1",)
+RC10_HA_ONLY_COMMANDS: tuple[str, ...] = ("installation/core_runtime_v1",)
 
 
 class CatalogError(Exception):
@@ -172,7 +178,13 @@ def load(path: str | None = None) -> Catalog:
     extra = tuple(_entry({"kind": "COMMAND", "command": name, "wire_schema": NATIVE_WIRE,
         "discovered_for_native_owner": True, "direct_dispatch_available": True,
         "transport_mode": "native_bridge_legacy_business"}) for name in
-        ("features/emergency_event_status_v1", "features/emergency_secure_v1", *RELAY_MAP_COMMANDS))
+        ("features/emergency_event_status_v1", "features/emergency_secure_v1", *RELAY_MAP_COMMANDS, *RC10_DIRECT_COMMANDS))
+    # WISKEY-RC10-PIN-2382: the HA-authenticated Core observation (`installation/core_runtime_v1`, wiskey_core_runtime_gate.py) is a
+    # separate HA WebSocket read that WisKey never admits on the bridge envelope: an HA-body row, so `direct_refusal` refuses it
+    # `not_a_direct_command` before any byte (it was unknown here, which fell back to the bridge envelope).
+    extra += tuple(_entry({"kind": "COMMAND", "command": name, "wire_schema": HA_BODY_WIRE,
+        "discovered_for_native_owner": False, "direct_dispatch_available": False,
+        "transport_mode": "ha_websocket_only"}) for name in RC10_HA_ONLY_COMMANDS)
     return Catalog(catalog.code, catalog.source_sha256, catalog.registered_count + len(extra),
         catalog.discovered_count + len(extra), catalog.entries() + extra)
 

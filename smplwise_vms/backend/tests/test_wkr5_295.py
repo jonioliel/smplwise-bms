@@ -64,7 +64,8 @@ def test_catalog_counts_names_not_lines_and_skips_provenance() -> None:
     from smplwise.services.wiskey_relay_map_native import COMMANDS as RELAY_MAP_COMMANDS
 
     assert len(RELAY_MAP_COMMANDS) == 6
-    assert wdc.load().command_count == c.command_count + 2 + len(RELAY_MAP_COMMANDS)
+    # WISKEY-RC10-PIN-2382: + the rc.10 rows (one direct, one HA-only)
+    assert wdc.load().command_count == c.command_count + 2 + len(RELAY_MAP_COMMANDS) + len(wdc.RC10_DIRECT_COMMANDS) + len(wdc.RC10_HA_ONLY_COMMANDS)
     lines = [json.loads(x) for x in wdc.CATALOG_PATH.read_text(encoding="utf-8").splitlines() if x.strip()]
     assert len(lines) == 295 and lines[0]["kind"] == "CATALOG_PROVENANCE"
     assert c.command_count == 294 and c.registered_count == 290 and c.discovered_count == 289
@@ -79,7 +80,8 @@ def test_envelope_is_decided_per_command_from_the_catalog_row() -> None:
     peer = {e.command for e in c.entries() if e.envelope == bridge.PEER_QUERY_KIND}
     assert peer == set(cp.PEER_QUERY_COMMANDS)  # the WKINT rule and the catalog agree
     ha_body = sorted(e.command for e in c.entries() if e.envelope is None)
-    assert ha_body == ["audio/diagnostics", "audio/mute", "audio/receive", "audio/send", "audio/start"]
+    # WISKEY-RC10-PIN-2382: rc.10's HA-authenticated Core observation is an HA-body row too (never on the direct envelope)
+    assert ha_body == ["audio/diagnostics", "audio/mute", "audio/receive", "audio/send", "audio/start", "installation/core_runtime_v1"]
     for name in ("direct/capabilities", "direct/time", "peer_identity/get", "users/create", "capture/lease_event"):
         assert wdc.envelope_for(name) == bridge.KIND
     assert all(e.envelope != bridge.DIRECT_PROTOCOL for e in c.entries())  # the transport protocol is never a bridge.kind

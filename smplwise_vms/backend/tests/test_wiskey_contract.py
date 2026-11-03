@@ -7,7 +7,10 @@ catalog, every key Arx puts in the frame is a key the request schema lists, ever
 types agree, and `api_contract` is sent on every command the catalog does not classify as READ. They do not prove that
 a command is allowed for a given user, that a nested value is valid, or that WisKey would accept a write.
 
-The contract-diff tool (scripts/wiskey_contract_diff.py) is exercised here too, against mutated copies of the pin."""
+The contract-diff tool (scripts/wiskey_contract_diff.py) is exercised here too, against mutated copies of the pin.
+
+WISKEY-RC10-PIN-2382: the tool's DEFAULT pin is now `rc10-extract`; the calls below name this rc.37 pin explicitly (`--pinned`). This
+file stays the rc.37 baseline (the oldest WisKey Arx still reads); tests/test_wiskey_rc10_pin.py holds the same frames to rc.10."""
 from __future__ import annotations
 
 import asyncio
@@ -73,7 +76,7 @@ def _edit(folder: Path, name: str, change: Any) -> None:
 def test_identical_catalogs_are_a_clean_diff():
     report = tool.diff(tool.load(PIN), tool.load(PIN))
     assert report["exit_code"] == 0 and report["identical_files"] and not report["breaking"] and not report["changes"]
-    assert tool.main(["--verify", "--candidate", str(PIN)]) == 0
+    assert tool.main(["--verify", "--pinned", str(PIN), "--candidate", str(PIN)]) == 0
 
 
 def test_a_delivery_root_with_a_schemas_folder_is_found(tmp_path):
@@ -81,7 +84,7 @@ def test_a_delivery_root_with_a_schemas_folder_is_found(tmp_path):
     (root / "schemas").mkdir(parents=True)
     for name in (tool.COMMANDS_FILE, tool.ERRORS_FILE):
         shutil.copy(PIN / name, root / "schemas" / name)
-    assert tool.main(["--candidate", str(root)]) == 0
+    assert tool.main(["--pinned", str(PIN), "--candidate", str(root)]) == 0
 
 
 def test_added_commands_and_errors_are_changes_not_breaking(tmp_path):
@@ -118,7 +121,7 @@ def test_removal_or_required_key_or_permission_or_read_change_needs_review(tmp_p
         _edit(folder, tool.COMMANDS_FILE, change)
         report = tool.diff(tool.load(PIN), tool.load(folder))
         assert report["exit_code"] == 2 and report["breaking"], label
-        assert tool.main(["--candidate", str(folder)]) == 2, label
+        assert tool.main(["--pinned", str(PIN), "--candidate", str(folder)]) == 2, label
     folder = tmp_path / "error_removed"
     shutil.copytree(PIN, folder)
     _edit(folder, tool.ERRORS_FILE, lambda d: (d["errors"].pop("access_denied"), d.update(count=d["count"] - 1)))
@@ -137,7 +140,7 @@ def test_a_count_that_disagrees_with_the_content_is_refused(tmp_path):
     _edit(folder, tool.COMMANDS_FILE, lambda d: d.update(count=d["count"] + 5))
     with pytest.raises(tool.CatalogError):
         tool.load(folder)
-    assert tool.main(["--candidate", str(folder)]) == 3
+    assert tool.main(["--pinned", str(PIN), "--candidate", str(folder)]) == 3
 
 
 # ---------------------------------------------------------------- Arx's client against the catalog
