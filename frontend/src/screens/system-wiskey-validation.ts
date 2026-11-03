@@ -517,7 +517,7 @@ export class SystemWiskeyValidation extends LitElement {
     }
     .checks li {
       display: grid;
-      grid-template-columns: 132px 1fr;
+      grid-template-columns: 140px 1fr;
       align-items: start;
       gap: 8px;
       padding: 6px 0;
@@ -595,7 +595,7 @@ export class SystemWiskeyValidation extends LitElement {
     }
     @media (max-width: 600px) {
       .checks li {
-        grid-template-columns: 124px 1fr;
+        grid-template-columns: 140px 1fr;
       }
     }
   `;
