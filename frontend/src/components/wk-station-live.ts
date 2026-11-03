@@ -17,6 +17,9 @@ import { smt } from '../i18n/wiskey-station-media';
  * when the screen's policy shows one. A half-duplex station's sound is muted while the operator holds the floor.
  *
  * Video geometry is never mirrored by RTL (AGENTS.md): the frame sets `direction: ltr` for the player only.
+ *
+ * WISKEY-TALK-DIAL-2382: with `talkHere` false the talk control lives in the drawer's call section ("dial the station"), not here; the
+ * live view still mutes its own sound for that station's talk - it hears the `talk-floor` event (bubbling, composed) on the window.
  */
 @customElement('wk-station-live')
 export class WkStationLive extends LitElement {
@@ -29,6 +32,8 @@ export class WkStationLive extends LitElement {
   /** The classic-panel talk link is offered when native talk is not (the policy `access.talk_button` and the caller's rights). */
   @property() classicHref = '';
   @property() classicLabel = '';
+  /** WISKEY-TALK-DIAL-2382: false = the talk control (and its classic link) is drawn by the drawer's call section instead. */
+  @property({ type: Boolean }) talkHere = true;
 
   @state() private profile: MediaProfileId | null = null;
   @query('sw-live-player') private player?: SwLivePlayer;
@@ -109,6 +114,23 @@ export class WkStationLive extends LitElement {
     }
   `;
 
+  connectedCallback(): void {
+    super.connectedCallback();
+    window.addEventListener('talk-floor', this.onOuterFloor);
+  }
+
+  disconnectedCallback(): void {
+    window.removeEventListener('talk-floor', this.onOuterFloor);
+    super.disconnectedCallback();
+  }
+
+  /** The call section's talk of THIS station (a talk button outside this element; its own button is handled by `onFloor`). */
+  private onOuterFloor = (e: Event): void => {
+    if (this.talkHere) return;
+    const d = (e as CustomEvent<{ held: boolean; stationId?: string }>).detail;
+    if (d?.stationId === this.stationId) this.onFloor(e);
+  };
+
   protected willUpdate(changed: PropertyValues): void {
     if (changed.has('media') || changed.has('stationId')) {
       const ids = this.media?.video?.profiles.map((p) => p.id) ?? [];
@@ -154,7 +176,9 @@ export class WkStationLive extends LitElement {
             </div>
           </div>`
         : nothing}
-      ${talk?.available
+      ${!this.talkHere
+        ? nothing
+        : talk?.available
         ? html`<wk-talk-button .stationId=${this.stationId} .talk=${talk} .live=${this.live} data-wk-talk="native" @talk-floor=${this.onFloor}></wk-talk-button>`
         : this.classicHref
           ? html`<wk-action-button tone="dashed" icon="window" block size="lg" href=${this.classicHref} data-wk-talk="classic">${this.classicLabel}</wk-action-button>`

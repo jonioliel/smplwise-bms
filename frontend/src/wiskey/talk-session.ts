@@ -129,6 +129,8 @@ export class TalkSession {
   outcome: string | null = null;
   /** The session's hard end (epoch ms, from the server's limit), 0 when none is open. */
   endsAt = 0;
+  /** WISKEY-TALK-DIAL-2382: when the station's talk channel opened (epoch ms; the in-call duration counts from it), 0 when none is open. */
+  openedAt = 0;
   /** Requests sent this life (a test reads it: one per start, never a retry). */
   starts = 0;
   /** The operator muted the microphone (the session and the station's sound go on). Kept across the opening. */
@@ -150,6 +152,11 @@ export class TalkSession {
   /** Seconds left in the open session (null when none). */
   secondsLeft(): number | null {
     return this.phase === 'open' || this.phase === 'talking' ? Math.max(0, Math.ceil((this.endsAt - this.deps.now()) / 1000)) : null;
+  }
+
+  /** WISKEY-TALK-DIAL-2382: whole seconds since the talk opened (the in-call duration), null when none is open. */
+  secondsOpen(): number | null {
+    return (this.phase === 'open' || this.phase === 'talking') && this.openedAt ? Math.max(0, Math.floor((this.deps.now() - this.openedAt) / 1000)) : null;
   }
 
   /** Whether the browser applied echo cancellation to the open microphone (null: unknown / no microphone open). */
@@ -223,6 +230,7 @@ export class TalkSession {
       }
       if (msg.type === 'talk/state' && msg.value === 'open' && this.phase === 'starting') {
         this.phase = 'open';
+        this.openedAt = this.deps.now();
         // the talk holds the station's sound for the whole session: the live view mutes its own copy (no double sound, no echo path)
         this.floorHeld = true;
         this.deps.floor?.(true);
@@ -324,6 +332,7 @@ export class TalkSession {
     this.floorHeld = false;
     this.reply = null;
     this.endsAt = 0;
+    this.openedAt = 0;
   }
 
   private fail(problem: TalkProblem): void {

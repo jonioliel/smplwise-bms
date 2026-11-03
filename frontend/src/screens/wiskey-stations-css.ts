@@ -358,6 +358,22 @@ export const stationsCss = css`
     color: var(--sw-text-3);
     font-weight: var(--sw-fw-regular);
   }
+  /* WISKEY-TALK-DIAL-2382 (owner 03.11, Q2): the dial is Arx's talk; the classic panel is a small secondary link under it, at the end */
+  .dialnative {
+    display: grid;
+    gap: var(--sw-s-1);
+    min-inline-size: 0;
+  }
+  .dialnative > wk-action-button {
+    justify-self: end;
+  }
+  /* WISKEY-TALK-DIAL-2382: why the drawer cannot dial from this screen - one sentence that wraps (never cut), the classic panel beside it */
+  .cs.dialwhy {
+    flex: 1 1 14em;
+    white-space: normal;
+    font-size: var(--sw-fs-sm);
+    line-height: 1.4;
+  }
   .dur {
     font-family: var(--sw-font-mono);
     font-size: var(--sw-fs-xs);

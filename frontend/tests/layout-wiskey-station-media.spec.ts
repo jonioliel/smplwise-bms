@@ -34,8 +34,11 @@ function ownTargets(args: { ctx: string }): string[] {
       if (mine.has(el.tagName) && el.shadowRoot) walk(el.shadowRoot, true);
     }
   };
-  const host = document.querySelector('sw-app')?.shadowRoot?.querySelector('wiskey-stations')?.shadowRoot?.querySelector('wk-station-live');
+  const screen = document.querySelector('sw-app')?.shadowRoot?.querySelector('wiskey-stations')?.shadowRoot;
+  const host = screen?.querySelector('wk-station-live');
   if (host) walk(host.shadowRoot ?? host, true);
+  // WISKEY-TALK-DIAL-2382: the talk button now lives in the drawer's call section ("dial the station")
+  for (const tb of Array.from(screen?.querySelectorAll('wk-talk-button[data-wk-dial]') ?? [])) walk(tb.shadowRoot ?? tb, true);
   return out;
 }
 
@@ -77,10 +80,10 @@ test.describe('station media layout guard', () => {
           await page.setViewportSize({ width: w, height: height(w) });
           const ctx = `${skin} ${theme} ${w}`;
           await page.locator(`${SCREEN} [data-wk-grid] [data-wk-station="gate"] button.open`).click();
-          await drawer('wk-station-live wk-talk-button').waitFor();
+          await drawer('wk-talk-button').waitFor();
           await settle(page);
           await check(`${ctx} idle`);
-          const btn = drawer('wk-station-live wk-talk-button [data-wk-ptt]');
+          const btn = drawer('wk-talk-button [data-wk-ptt]');
           const box = (await btn.boundingBox())!;
           await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
           await page.mouse.down();
@@ -88,13 +91,13 @@ test.describe('station media layout guard', () => {
           await expect(btn).toHaveAttribute('data-phase', 'talking', { timeout: 10_000 });
           await settle(page);
           await check(`${ctx} talking`);
-          await drawer('wk-station-live wk-talk-button [data-wk-talk-end]').click();
+          await drawer('wk-talk-button [data-wk-talk-end]').click();
           await expect(btn).toHaveAttribute('data-phase', 'idle');
           await page.keyboard.press('Escape');
           await settle(page);
           // a station without talk: the classic link under the player
           await page.locator(`${SCREEN} [data-wk-grid] [data-wk-station="lobby"] button.open`).click();
-          await drawer('wk-station-live [data-wk-talk="classic"]').waitFor();
+          await drawer('[data-wk-dial="reason"] [data-wk-dial-classic]').waitFor();
           await settle(page);
           await check(`${ctx} classic`);
           await page.keyboard.press('Escape');
@@ -109,9 +112,9 @@ test.describe('station media layout guard', () => {
       await openStations(page);
       await page.waitForSelector(`${SCREEN} [data-wk-station]`, { timeout: 30_000 });
       await page.locator(`${SCREEN} [data-wk-grid] [data-wk-station="gate"] button.open`).click();
-      const btn = drawer('wk-station-live wk-talk-button [data-wk-ptt]');
+      const btn = drawer('wk-talk-button [data-wk-ptt]');
       await btn.click();
-      await expect(drawer('wk-station-live wk-talk-button [data-wk-talk-line]')).toHaveAttribute('data-problem', 'user_busy');
+      await expect(drawer('wk-talk-button [data-wk-talk-line]')).toHaveAttribute('data-problem', 'user_busy');
       await settle(page);
       await check(`refused ${w}`);
     }
