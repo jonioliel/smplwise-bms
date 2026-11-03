@@ -188,6 +188,7 @@ export class SwDialog extends LitElement {
     while (a?.shadowRoot?.activeElement) a = a.shadowRoot.activeElement;
     if (a && !this.contains(a) && !this.shadowRoot?.contains(a)) this.opener = a as HTMLElement;
     requestAnimationFrame(() => {
+      this.keepBoxInView();
       const pick = (root: ParentNode): HTMLElement | null => {
         for (const el of root.querySelectorAll<HTMLElement>('[autofocus], input, textarea, select, sw-button, button')) {
           if (el.hasAttribute('disabled') || (el as HTMLInputElement).type === 'hidden' || el.slot === 'footer') continue;
@@ -206,6 +207,34 @@ export class SwDialog extends LitElement {
         target.focus({ preventScroll: true });
       }
     });
+  }
+
+  /** GATE2380-B: in the glass style (domus, crystal) a sw-card carries a backdrop-filter, which makes it the containing block of the
+   * fixed backdrop: the box is centred on the CARD, not on the screen, and on a phone scrolled along a tall card it opened partly or
+   * wholly outside the visible part of the page (the NVR connection card's "save anyway" dialog, 2.38.0 gate). Only when the backdrop
+   * is not the viewport AND the box is not inside what its scrollers show, the page scrolls so the box sits in the middle of the
+   * visible part; a dialog on the viewport (every other skin) or one already in view moves nothing. */
+  private keepBoxInView() {
+    const back = this.renderRoot.querySelector<HTMLElement>('.backdrop');
+    const box = this.renderRoot.querySelector<HTMLElement>('.box');
+    if (!back || !box) return;
+    const b = back.getBoundingClientRect();
+    const de = document.documentElement;
+    if (Math.abs(b.top) < 1 && Math.abs(b.left) < 1 && Math.abs(b.width - de.clientWidth) < 2 && Math.abs(b.height - de.clientHeight) < 2) return;
+    // the box's own place (offsets ignore the opening transform of @starting-style), then the visible part: the viewport cut by every
+    // clipping ancestor up the composed tree
+    const top = b.top + box.offsetTop;
+    const bottom = top + box.offsetHeight;
+    let lo = 0;
+    let hi = de.clientHeight;
+    for (let n: Node | null = back.parentNode; n; n = n instanceof ShadowRoot ? n.host : n.parentNode) {
+      if (!(n instanceof Element) || getComputedStyle(n).overflowY === 'visible') continue;
+      const r = n.getBoundingClientRect();
+      lo = Math.max(lo, r.top + n.clientTop);
+      hi = Math.min(hi, r.top + n.clientTop + n.clientHeight);
+    }
+    if (top >= lo - 0.5 && bottom <= hi + 0.5) return;
+    box.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
   }
 
   private track(open: boolean) {
