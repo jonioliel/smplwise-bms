@@ -604,6 +604,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import bulk_people as bulk_people_router  # CR-BULKPEOPLE-295: bulk edit, CSV import / export of people (its own line)
 
     app.include_router(bulk_people_router.router, prefix=api, tags=["access-control"])
+    from .routers import access_control_station_people  # WISKEY-PEOPLE-COMPLETE-2390: station-only people, duplicates, PIN check (its own line)
+
+    app.include_router(access_control_station_people.router, prefix=api, tags=["access-control"])
     app.include_router(doors_router.router, prefix=api, tags=["access-control"])  # CR-033: door map, station placement, door grants, trusted path
     app.include_router(wiskey_relay_map_router.router, prefix=api, tags=["access-control"])  # WISKEY-RELAYMAP-2310: the WisKey relay map approval
     from .routers import door_automations as door_automations_router  # CR-AUTODOORS-295: automations that open doors (its own line)

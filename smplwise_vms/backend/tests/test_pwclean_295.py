@@ -24,8 +24,9 @@ REPO_ROOT = BACKEND.parents[1]
 HISTORICAL = ("signed_person_writes", "person_writes/resolve_create", "wiskey-signed-person-completion-draft1",
               "wiskey-create-resolution-draft1", "signed_person_completion_read_v1", "person_create_resolution_v1")
 
-# sha256 of the canonical command catalog, computed on release/2200 @ 47ca1a2c0 BEFORE the cleanup
-CATALOG_SHA256 = "0fdcbd37b67f8506178c35a8aea233f0080a0ed5895259c7430aa16f7f1abafe"
+# sha256 of the canonical command catalog, computed on release/2200 @ 47ca1a2c0 BEFORE the cleanup; WISKEY-PEOPLE-COMPLETE-2390 added the
+# `station_people` channel (services/wiskey_channels.py STATION_PEOPLE) - the only change, recomputed then
+CATALOG_SHA256 = "38db8b1c002cdc01032e27d6b3ac18b86df8c7cf67b8e8da17fb5fbde96bb031"
 PEOPLE_CATALOG_FIXTURE_SHA256 = "92ffc92b384fe0f667b66221076cfaf6b8259ffb28dd50c4c8cc2d7f83cf5e68"
 MIGRATION_0145_SHA256 = "b0fb6fd086a47430fc170008f233d2aa753d8d2140bf8c7bebbe60ab74aefa3f"
 
