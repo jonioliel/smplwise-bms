@@ -55,6 +55,7 @@ export class WkCallHistory extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
+    this.style.display = 'contents'; // no box of its own: an empty log never takes a gap of the drawer's column
     this.timer = window.setInterval(() => {
       if (!document.hidden) void this.load(false);
     }, REFRESH_MS);

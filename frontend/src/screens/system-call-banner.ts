@@ -35,8 +35,9 @@ export class SystemCallBanner extends LitElement {
   static styles = [
     settingsStyles,
     css`
+      /* no box of its own: while nothing is drawn (loading, an older backend) the settings column's gap is not taken */
       :host {
-        display: block;
+        display: contents;
         --sw-ctl-h-md: max(44px, var(--sw-touch-desktop, 44px));
         --sw-ctl-h-sm: max(44px, var(--sw-touch-desktop, 44px));
       }
