@@ -60,7 +60,11 @@ def sent(server: JoinServer) -> list[str]:
 
 def test_catalog_counts_names_not_lines_and_skips_provenance() -> None:
     c = wdc.parse(wdc.CATALOG_PATH.read_text(encoding="utf-8"))
-    assert wdc.load().command_count == c.command_count + 2
+    # the two emergency commands, plus (WISKEY-RC7-ADOPT-2331 row 4 / WisKey M12 S3) the six relay map transfer commands DECLARED in load()
+    from smplwise.services.wiskey_relay_map_native import COMMANDS as RELAY_MAP_COMMANDS
+
+    assert len(RELAY_MAP_COMMANDS) == 6
+    assert wdc.load().command_count == c.command_count + 2 + len(RELAY_MAP_COMMANDS)
     lines = [json.loads(x) for x in wdc.CATALOG_PATH.read_text(encoding="utf-8").splitlines() if x.strip()]
     assert len(lines) == 295 and lines[0]["kind"] == "CATALOG_PROVENANCE"
     assert c.command_count == 294 and c.registered_count == 290 and c.discovered_count == 289

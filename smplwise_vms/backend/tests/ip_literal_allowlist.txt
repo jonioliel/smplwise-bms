@@ -34,3 +34,7 @@ docs/changes/CR-PARTNERAPI113.md                              # PARTNERAPI113: t
 smplwise_vms/backend/tests/test_frigate_perm_restream.py      # FRIGPERM: the stream-URL redaction and restream builder are proven against real private-range literals (the code under test must keep them out of logs)
 smplwise_vms/backend/tests/test_notices_security_295.py       # NOTICEGB: the custom-feed SSRF guard is proven against private / link-local resolutions (the guard under test refuses them)
 smplwise_vms/backend/tests/test_calendar_connect_2330.py     # CALCONNECT-2330: the iCal feed SSRF guard is proven against private literals and a name resolving to a private address (the guard under test refuses them)
+
+# --- Test receipts: JUnit files repeat the parametrized test ids of the allowlisted test_bridge_cast_policy.py (its address-class cases) ---
+docs/changes/receipts/WISKEY-*/*.junit.xml                    # WisKey receipts; the ids come from test_bridge_cast_policy.py, never a lab address
+docs/evidence/WISKEY-RC4-2310/round*/shard_*.junit.xml         # WisKey rc.4 receipts; same test ids as above
