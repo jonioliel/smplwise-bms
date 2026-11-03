@@ -98,9 +98,10 @@ for (const skin of SKINS) {
       await expect.poll(() => isOpen(page, 'tl-dlg')).toBe(true);
       await page.waitForTimeout(150);
       const g = await geometry(page, 'tl-dlg');
-      // the hazard is really there: the card carries a backdrop-filter and runs past both edges of the viewport
+      // the hazard is really there: the card carries a backdrop-filter, its top is above the viewport, and its own centre is far from the
+      // viewport's (a box centred on the card - the old behaviour - would sit away from the middle of the screen, or off it)
       expect(g.cardFilter, JSON.stringify(g)).not.toMatch(/^(none|)$/);
-      expect(g.cardTop < 0 && g.cardBottom > g.vh, JSON.stringify(g)).toBe(true);
+      expect(g.cardTop < 0 && Math.abs((g.cardTop + g.cardBottom) / 2 - g.vh / 2) > 150, JSON.stringify(g)).toBe(true);
       // the backdrop is the viewport, in the top layer
       expect(g.top, 'backdrop in the top layer').toBe(true);
       expect(Math.abs(g.back.l) <= 1 && Math.abs(g.back.t) <= 1 && Math.abs(g.back.w - g.vw) <= 1 && Math.abs(g.back.h - g.vh) <= 1, JSON.stringify(g)).toBe(true);
@@ -141,6 +142,8 @@ test('a toast stays above an open dialog: the offline pill shown before the dial
       const host = document.querySelector('arx-pwa-prompts')!;
       const net = host.shadowRoot!.querySelector('[data-net]');
       if (!net) return null;
+      // the pill lets presses through (pointer-events: none on the host); for this probe only it takes them, so the hit test sees what paints on top
+      (net as HTMLElement).style.pointerEvents = 'auto';
       const r = net.getBoundingClientRect();
       const x = (r.left + r.right) / 2;
       const y = (r.top + r.bottom) / 2;
