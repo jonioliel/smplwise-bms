@@ -87,6 +87,7 @@ command-entry keys, lifecycle v1 flags, media-ingress body keys, Core observatio
 | `tests/test_wiskey_rc10_pin.py` (new, 81 tests) | every Arx pin against rc.10 (section 3), every classic frame Arx sends against rc.10's request validation (client, adapter, readback, pacing, messaging: 47 frames), W10, discovery, entities, capabilities, the open WisKey gaps (pinned), the extractor | - |
 | `tests/test_wiskey_contract.py` | names the rc.37 pin explicitly (`--pinned`) now that the default moved | same assertions |
 | `tests/test_alignment_controller.py` | catalog counts 300 / 304 | - |
+| `tests/test_wkr5_295.py`, `tests/test_wiskey_mac_adopt_298.py` | catalog counts +2 and the HA-body row list (+ `installation/core_runtime_v1`) | - |
 
 Not changed: `tests/fake_wiskey.py` still validates against rc.37 (the oldest supported WisKey; switching it would change the
 feature flags of ~40 test files other agents are editing). `wiskey_channels.UNPINNED_CHANNELS` keeps its meaning ("newer than
@@ -139,7 +140,7 @@ Opportunities, not gaps: `whatsapp/send_pacing_v1` (paced send; Arx still uses `
 | `WISKEY_SOURCE_GIT="C:/hik intercom" pytest tests/test_wiskey_rc10_pin.py` | 81 passed (reproduces rc.37's delivered catalogs and this pin from source) |
 | 38 directly impacted test files in one process (every test importing the touched modules, the channels, the contract tool or the join fake) | 1305 passed, 15 skipped, 3 xfailed, 3 failed (count pins of the catalog in test_wkr5_295 x2, test_wiskey_mac_adopt_298 x1: updated) -> those 4 files re-run: 162 passed, 2 skipped |
 | the wider 66-file set (adds every fake-WisKey user) | stopped by a 50 min timeout at 18% inside test_intercom_consent_link (not touched here); NOT_RUN to completion locally |
-| full backend suite (runner) | NOT_RUN |
+| full backend suite (runner) | NOT_RUN - the runner gate was `running` (fix/STATION-WS-PATH-2381) at 19:57 UTC, so no run was queued |
 | `tsc` | NOT_RUN - no frontend change |
 | lab / device | NOT_RUN by design (static only) |
 
