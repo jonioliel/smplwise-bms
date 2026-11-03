@@ -75,7 +75,12 @@ const hitAt = (page: Page, x: number, y: number) =>
     const top = document.elementFromPoint(x, y);
     if (top && top.tagName !== 'SW-APP') return top.tagName.toLowerCase();
     const el = root.elementFromPoint(x, y);
-    if (!el || el.tagName !== 'SW-DIALOG') return el?.tagName.toLowerCase() ?? 'none';
+    if (!el) return 'none';
+    if (el.tagName !== 'SW-DIALOG') {
+      // a slotted child of a dialog (its text, a button): the content of that dialog's box
+      const host = el.closest('sw-dialog');
+      return host ? `${host.id}:content` : el.tagName.toLowerCase();
+    }
     const inner = el.shadowRoot!.elementFromPoint(x, y);
     return `${el.id}:${inner?.className || inner?.tagName.toLowerCase()}`;
   }, [x, y]);
