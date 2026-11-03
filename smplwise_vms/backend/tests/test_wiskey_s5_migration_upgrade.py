@@ -88,3 +88,17 @@ def test_s5_a_2370_train_database_runs_exactly_the_three_wiskey_files(settings, 
     with database.connection("read") as conn:
         assert conn.execute("SELECT name FROM ha_labels WHERE label_id = 'lbl-a'").fetchone()[0] == "תווית"
     assert database.migrate() == []
+
+
+def test_s5_policy_b_survives_the_merge_no_migration_seeds_the_switch_and_on_stays_refused(settings, tmp_path, monkeypatch) -> None:
+    """Policy B after the train merge: no migration file names `wiskey.auto_install`, an upgraded database reads it absent = OFF,
+    and this build still refuses the owner's ON (OWNER_ON_PERMITTED False; flipping it is a reviewed commit that changes this test)."""
+    from smplwise.services import wiskey_auto_install as wai
+
+    assert not [f.name for f in dbmod.MIGRATIONS_DIR.glob("*.sql") if wai.SWITCH_KEY in f.read_text(encoding="utf-8")]
+    database = _database_at(191, settings, tmp_path, monkeypatch)
+    database.migrate()
+    with database.connection("read") as conn:
+        assert conn.execute("SELECT 1 FROM settings WHERE key = ?", (wai.SWITCH_KEY,)).fetchone() is None
+    assert wai.switch_on_db(database) is False
+    assert wai.OWNER_ON_PERMITTED is False and wai.owner_on_permitted() is False
