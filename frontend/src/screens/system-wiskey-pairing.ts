@@ -28,6 +28,7 @@ import { formatTime, UTC_ZONE } from './wiskey-format';
 const LINE_KIND: Record<PairingLineState, StateKind> = { ok: 'live', warn: 'stale', blocked: 'error', unknown: 'unknown' };
 const LINE_TEXT: Record<PairingLineState, string> = { ok: 'תקין', warn: 'לתשומת לב', blocked: 'חסום', unknown: 'לא ידוע' };
 const FEATURE_KIND: Record<FeatureState, StateKind> = { on: 'live', off: 'offline', blocked: 'error', unknown: 'unknown' };
+const PROVIDER_TEXT: Record<string, string> = { local: 'Arx (וידאו בלבד)', auto: 'WisKey (וידאו ודיבור)' }; // the words of the row "מקור הווידאו והדיבור"
 const FEATURE_TEXT: Record<FeatureState, string> = { on: 'פעיל', off: 'כבוי', blocked: 'חסום', unknown: 'לא ידוע' };
 
 /**
@@ -295,8 +296,13 @@ export class SystemWiskeyPairing extends LitElement {
       return html`<div class="chips" data-wkp-listed>${Object.entries(listed).map(([c, on]) => html`<span class="chip ${on ? 'on' : ''}"><bdi>${c}</bdi> ${on ? '✓' : '✗'}</span>`)}</div>`;
     }
     if (l.key === 'provider') {
-      return html`<div class="chips" data-wkp-provider><span class="chip">בחירה: <bdi>${String(f.choice ?? '')}</bdi></span>
-        <span class="chip">רשימת ערוץ השירות: <bdi>${f.feed_reason ? String(f.feed_reason) : 'מפרסמת וידאו'}</bdi></span></div>`;
+      // WISKEY-TALK-DIAL-2382 owns the row "מקור הווידאו והדיבור" and its readiness codes: shown here with the same words, linked, never edited
+      const codes = Array.isArray(f.readiness) ? (f.readiness as string[]) : [];
+      const row = (f.row ?? null) as { href: string; label: string } | null;
+      return html`<div class="chips" data-wkp-provider><span class="chip" data-wkp-provider-choice=${String(f.choice ?? '')}>${PROVIDER_TEXT[String(f.choice)] ?? String(f.choice ?? '')}</span>
+          <span class="chip">רשימת ערוץ השירות: <bdi>${f.feed_reason ? String(f.feed_reason) : 'מפרסמת וידאו'}</bdi></span>
+          ${codes.map((c) => html`<span class="chip" data-wkp-readiness=${c}><bdi>${c}</bdi></span>`)}</div>
+        ${row ? html`<a href=${row.href} data-wkp-provider-link>לשורה "${row.label}"</a>` : nothing}`;
     }
     return nothing;
   }

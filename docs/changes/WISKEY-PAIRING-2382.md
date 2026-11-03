@@ -73,6 +73,18 @@ Frontend
   code cannot be announced), and the "מצב WisKey" rows grouped. RTL, phone layout stacks, no "Home Assistant" text.
 - `api/wiskey-pairing.ts`: types, calls, pure helpers.
 
+### Coordination with the parallel branches
+
+- `pilot/WISKEY-TALK-DIAL-2382` owns the Settings row "מקור הווידאו והדיבור" (`access.station_media_provider`, values "Arx (וידאו בלבד)" /
+  "WisKey (וידאו ודיבור)") and `GET /access-control/station-media/readiness`. This block adds NO provider row and edits nothing in
+  `system-access-display.ts`: its provider line uses the same label and value words, links to that row, and lists the same closed readiness
+  codes (`wiskey_unreachable`, `api_incompatible`, `video_not_listed`, `talk_not_listed`, `pairing_missing`, `pairing_key_rotated`) computed by
+  the same rules (`wiskey_pairing.readiness_codes`, a copy only because that branch is not on main; on the 2.38.2 train it can call
+  `intercom_media.readiness`). It also shows `w10.listed`'s own reason (`not_listed / api_incompatible / commands_unknown / discovery_unknown`).
+- The signed check is a new signing caller: pinned in `tests/test_t06_admission_295.py` and recorded in
+  `docs/changes/T06-ADMISSION-MAPPING-295.md` (WISKEY-PAIRING-2382 addendum).
+- Managed install, rc.10 pin, station ops, deep links, inbound calls: status only, with a link where a screen exists.
+
 ## 3. What is still needed (outside this branch)
 
 From the owner (lab), in order:

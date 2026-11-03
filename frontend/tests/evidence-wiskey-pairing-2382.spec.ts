@@ -18,7 +18,7 @@ const W10 = ['media/station_descriptor', 'media/stream_lease', 'media/talk_open'
 type Body = Record<string, unknown>;
 const line = (key: string, state: string, reason: string, text: string, fix: string | null = null, facts: Body = {}) => ({
   key, label: { bridge: 'גשר Arx בתשתית המערכת', component: 'רכיב WisKey', key: 'מפתח הצימוד', acceptance: 'WisKey מקבל את המפתח', discovery: 'חוזה הגילוי (פקודות מדיה ודיבור)',
-    provider: 'נתיב המדיה של העמדות', rotation: 'החלפת מפתח הגשר', last_error: 'שגיאה אחרונה' }[key], state, reason, text, fix, facts,
+    provider: 'מקור הווידאו והדיבור', rotation: 'החלפת מפתח הגשר', last_error: 'שגיאה אחרונה' }[key], state, reason, text, fix, facts,
 });
 const feature = (key: string, group: string, label: string, state: string, reasons: Body[] = [], link: Body | null = null) => ({ row: 1, key, group, label, state, reasons, link });
 const reason = (code: string, kind: string, text: string, fix: string) => ({ code, kind, text, fix });
@@ -67,8 +67,8 @@ function status(kind: 'paired' | 'unknown' | 'refused' | 'rotated' | 'lab'): Bod
   }
   // the lab of 03.11: the signed path is fine, the service feed lists no W10 command - talk stays on Arx's own source
   return { ...base, verdict: 'paired', paired: true, talk_ready: false, probe: PROBE, lines: [bridge, component, keyOk, accepted, discOk,
-    line('provider', 'blocked', 'provider_feed_gate', 'נתיב המדיה מוגדר "אוטומטי", אבל Arx בוחר ב־WisKey רק לפי רשימת הפקודות שבערוץ השירות, ושם פקודות המדיה לא מופיעות (not_listed).',
-      'זה לא תלוי בצימוד: נדרש עדכון. פריט פתוח בפיתוח, לא פעולה של בעל המערכת.', { choice: 'auto', feed_reason: 'not_listed' }), rotOff, noErr] };
+    line('provider', 'blocked', 'provider_feed_gate', 'מקור הווידאו והדיבור מוגדר "WisKey (וידאו ודיבור)", אבל Arx בוחר ב־WisKey רק לפי רשימת הפקודות שבערוץ השירות, ושם פקודות המדיה לא מופיעות (not_listed).',
+      'זה לא תלוי בצימוד: נדרש עדכון. פריט פתוח בפיתוח, לא פעולה של בעל המערכת.', { choice: 'auto', feed_reason: 'not_listed', readiness: ['talk_not_listed', 'video_not_listed'], row: { href: '#/system/diagnostics?tab=access-control', label: 'מקור הווידאו והדיבור' } }), rotOff, noErr] };
 }
 
 type Call = { method: string; path: string; body: unknown };
@@ -131,6 +131,9 @@ test.describe('WISKEY-PAIRING-2382: the Arx <-> WisKey pairing block', () => {
       if (kind === 'lab') {
         await expect(lineOf(page, 'provider')).toHaveAttribute('data-state', 'blocked');
         await expect(lineOf(page, 'provider').locator('[data-wkp-provider]')).toContainText('not_listed');
+        await expect(lineOf(page, 'provider').locator('[data-wkp-provider-choice="auto"]')).toHaveText('WisKey (וידאו ודיבור)');
+        await expect(lineOf(page, 'provider').locator('[data-wkp-readiness]')).toHaveCount(2);
+        await expect(lineOf(page, 'provider').locator('a[data-wkp-provider-link]')).toHaveText('לשורה "מקור הווידאו והדיבור"');
         await expect(page.locator(`${CARD} [data-wkp-talk]`)).toContainText('לא מוכן');
       }
       if (kind === 'paired') await expect(lineOf(page, 'discovery').locator('[data-wkp-listed] .chip.on')).toHaveCount(6);

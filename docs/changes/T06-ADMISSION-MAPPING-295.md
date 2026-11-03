@@ -187,3 +187,9 @@ port). It names a closed set (`test_the_relay_map_native_adapter_sends_only_the_
 people or program write. Its one production entry, `publish_selected` (routers/wiskey_relay_map.py, after an approval), and the dormant `maintain`
 return before any I/O while `wiskey.auto_install` is off; policy B keeps it off in 2.37.1 (`OWNER_ON_PERMITTED = False`). `prepare_quiesced` has no
 production caller. The pin was missed when the module was adopted (the RC7 / S3 runs did not include this file); the S6 runner run found it.
+
+## WISKEY-PAIRING-2382 addendum (the signed pairing check)
+
+| Caller | Commands | Admission |
+|---|---|---|
+| `services/wiskey_pairing.py` (`probe`, route `POST /system/wiskey-pairing/probe`) | `direct/connect` (inside `DirectApiTransport`), then `direct/capabilities` and `direct/time` through `DirectDiscovery.refresh` - nothing else | `system.configure` + a system administrator (`rbac.is_system_admin`), local sessions only, at most one probe per 5 s, audited `wiskey.pairing.probe` (outcome code only). Reads only: no person, door, station, program or installation command; never retried. Pinned by `tests/test_wiskey_pairing_2382.py::test_the_probe_sends_only_the_two_discovery_reads` and the fake server's received list. |

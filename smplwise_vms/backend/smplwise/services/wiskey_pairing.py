@@ -51,7 +51,7 @@ KEY_CODES = frozenset({"bridge_not_paired", "bridge_key_rotated"})
 UNREACHABLE_CODES = frozenset({"direct_unreachable", "direct_hello_timeout", "direct_hello_invalid", "direct_connect_timeout", "direct_connect_failed"})
 
 LABEL = {"bridge": "גשר Arx בתשתית המערכת", "component": "רכיב WisKey", "key": "מפתח הצימוד", "acceptance": "WisKey מקבל את המפתח",
-         "discovery": "חוזה הגילוי (פקודות מדיה ודיבור)", "provider": "נתיב המדיה של העמדות", "rotation": "החלפת מפתח הגשר", "last_error": "שגיאה אחרונה"}
+         "discovery": "חוזה הגילוי (פקודות מדיה ודיבור)", "provider": "מקור הווידאו והדיבור", "rotation": "החלפת מפתח הגשר", "last_error": "שגיאה אחרונה"}
 
 TEXT = {
     "bridge_ok": "הגשר מותקן ({version}) ומצומד; הוא שולח עדכון חתום כל דקה.",
@@ -78,8 +78,8 @@ TEXT = {
     "discovery_unknown": "חוזה הגילוי לא נקרא עדיין.",
     "discovery_clock": "השעונים של Arx ו־WisKey רחוקים מדי זה מזה ({why}); פקודות חתומות יידחו.",
     "provider_auto": "Arx בוחר לבד: החיבור הישיר של WisKey, ואם הוא לא זמין - הנתיב החתום דרך תשתית המערכת.",
-    "provider_local": "נתיב המדיה של העמדות מוגדר \"מקומי\": Arx לא מדבר עם העמדות דרך WisKey, גם כשהצימוד תקין.",
-    "provider_feed_gate": "נתיב המדיה מוגדר \"אוטומטי\", אבל Arx בוחר ב־WisKey רק לפי רשימת הפקודות שבערוץ השירות, ושם פקודות המדיה לא מופיעות ({why}). "
+    "provider_local": "מקור הווידאו והדיבור מוגדר \"Arx (וידאו בלבד)\": Arx לא מדבר עם העמדות דרך WisKey, גם כשהצימוד תקין.",
+    "provider_feed_gate": "מקור הווידאו והדיבור מוגדר \"WisKey (וידאו ודיבור)\", אבל Arx בוחר ב־WisKey רק לפי רשימת הפקודות שבערוץ השירות, ושם פקודות המדיה לא מופיעות ({why}). "
                           "לכן וידאו ודיבור לא עוברים דרך WisKey, גם כשהצימוד והחיבור הישיר תקינים.",
     "provider_feed_no_talk": "ערוץ השירות מפרסם את פקודות הווידאו אבל לא את פקודות הדיבור, ולכן דיבור לא עובר דרך WisKey.",
     "rotation_off": "החלפת מפתח הגשר כבויה; קוד הצימוד המקורי נשאר בתוקף.",
@@ -106,7 +106,7 @@ FIX = {
     "discovery_media_missing": "עדכנו את WisKey לגרסה שמפרסמת את פקודות המדיה של העמדות (בהתקנה ידנית - בעל המערכת).",
     "discovery_unknown": "לחצו \"בדיקה מול WisKey\".",
     "discovery_clock": "סנכרנו את השעון של שרת תשתית המערכת (NTP). Arx לא מזיז את השעון שלו.",
-    "provider_local": "בהגדרות › מתגי מסכי כניסה: בחרו \"אוטומטי\" בנתיב המדיה של העמדות.",
+    "provider_local": "בהגדרות › מתגי מסכי כניסה › מקור הווידאו והדיבור: בחרו \"WisKey (וידאו ודיבור)\".",
     "provider_feed_gate": "זה לא תלוי בצימוד: נדרש עדכון - או ש־WisKey יפרסם את פקודות המדיה גם ברשימת הפקודות של ערוץ השירות, או ש־Arx יבחר לפי הגילוי החתום. פריט פתוח בפיתוח, לא פעולה של בעל המערכת.",
     "provider_feed_no_talk": "כמו בשורה למעלה: נדרש עדכון של רשימת הפקודות בערוץ השירות או של בחירת Arx. פריט פתוח בפיתוח.",
     "rotation_risk": "אל תלחצו \"החלפת מפתח\" בכרטיס מפתח הגשר כל עוד WisKey בשימוש. אפשר לכבות את ההחלפה שם, או בצימוד מחדש למטה.",
@@ -268,6 +268,43 @@ def _discovery_line(settings: Any, p: dict[str, Any] | None) -> dict[str, Any]:
     return _line("discovery", OK, "discovery_ok", facts=facts, protocol=cap["protocol"], schema=cap["schema_version"], listed=sum(listed.values()))
 
 
+# WISKEY-TALK-DIAL-2382 owns the Settings row "מקור הווידאו והדיבור" (system-access-display.ts) and GET /access-control/station-media/readiness
+# (intercom_media.readiness, READINESS_CODES). This block shows the value and links to that row; `readiness_codes` uses the SAME closed codes and
+# rules so the two screens never disagree (it is computed here only because that branch is not on main yet).
+READINESS_CODES = ("wiskey_unreachable", "api_incompatible", "video_not_listed", "talk_not_listed", "pairing_missing", "pairing_key_rotated")
+PROVIDER_ROW = {"href": "#/system/diagnostics?tab=access-control", "label": "מקור הווידאו והדיבור"}
+
+
+def readiness_codes(conn: Any, settings: Any) -> list[str]:
+    from . import intercom_media, intercom_sync
+
+    try:
+        feed_state, _overview = intercom_sync.SYNC.served(settings)
+    except Exception:  # noqa: BLE001 - an unreadable feed is "not reachable"
+        feed_state = "error"
+    try:
+        api = intercom_media._feed_discovery(settings)
+    except Exception:  # noqa: BLE001
+        api = None
+    video, talk, why = w10.listed(api)
+    missing: list[str] = []
+    if feed_state != "ready":
+        missing.append("wiskey_unreachable")
+    if why == "api_incompatible":
+        missing.append("api_incompatible")
+    elif api is not None:
+        if not video:
+            missing.append("video_not_listed")
+        if not talk:
+            missing.append("talk_not_listed")
+    k = key_facts(conn, getattr(settings, "data_dir", None))["state"]
+    if k == "rotated":
+        missing.append("pairing_key_rotated")
+    elif k != "ok":
+        missing.append("pairing_missing")
+    return missing
+
+
 def _provider_line(conn: Any, settings: Any) -> dict[str, Any]:
     """`access.station_media_provider` AND the gate behind it: with `auto`, intercom_media.provider_for still keeps Arx's own source unless the
     service feed's `overview.api.commands` lists the W10 video commands (`w10.listed`); the signed `direct/capabilities` is not read there."""
@@ -275,7 +312,8 @@ def _provider_line(conn: Any, settings: Any) -> dict[str, Any]:
 
     choice = intercom_media.provider_choice(conn)
     video, talk, why = feed_listing(settings)
-    facts = {"choice": choice, "feed_video": video, "feed_talk": talk, "feed_reason": why}
+    facts = {"choice": choice, "feed_video": video, "feed_talk": talk, "feed_reason": why, "readiness": readiness_codes(conn, settings),
+             "row": PROVIDER_ROW}
     if choice != "auto":
         return _line("provider", BLOCKED, "provider_local", facts=facts)
     if not video:
@@ -387,7 +425,7 @@ def owner_steps(by: dict[str, dict[str, Any]], k: dict[str, Any]) -> list[str]:
             steps += ["עדכון WisKey הוא פעולה של בעל המערכת (התקנה ידנית, מדיניות B): התקינו את גרסת WisKey המאושרת (2.0.1 ומעלה) והפעילו מחדש את תשתית המערכת.",
                       "חזרו לכאן ולחצו \"בדיקה מול WisKey\"."]
     if by["provider"]["reason"] == "provider_local":
-        steps.append("בהגדרות › מתגי מסכי כניסה: נתיב המדיה של העמדות - \"אוטומטי\".")
+        steps.append("בהגדרות › מתגי מסכי כניסה › מקור הווידאו והדיבור: \"WisKey (וידאו ודיבור)\".")
     return steps
 
 

@@ -107,7 +107,7 @@ def test_paired_and_accepted_with_all_six_commands(world, monkeypatch):
     assert sent == ["direct/capabilities", "direct/time"], "the probe sends reads only"
     # the default media path is Arx's own: paired, but talk does not ride WisKey until the owner picks "auto"
     assert ln["provider"]["state"] == "blocked" and body["talk_ready"] is False
-    assert any("אוטומטי" in s for s in body["owner_steps"])
+    assert any("מקור הווידאו והדיבור" in s and "WisKey (וידאו ודיבור)" in s for s in body["owner_steps"])
     with world["db"].connection() as conn:
         set_setting(conn, "access.station_media_provider", "auto")
         set_setting(conn, br.FLAG_KEY, "off")
@@ -411,3 +411,33 @@ def test_feature_status_reads_only(world):
     with world["db"].connection(mode="read") as conn:
         after = conn.execute("SELECT COUNT(*) FROM settings").fetchone()[0], conn.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0]
     assert before == after
+
+
+def test_provider_line_uses_the_talk_dial_row_and_its_readiness_codes(world, monkeypatch):
+    """WISKEY-TALK-DIAL-2382 owns the row and GET /access-control/station-media/readiness: the same label, value words and closed codes here."""
+    pl = _lines(world["c"].get(API).json())["provider"]
+    assert pl["label"] == "מקור הווידאו והדיבור" and "Arx (וידאו בלבד)" in pl["text"]
+    assert pl["facts"]["row"]["label"] == "מקור הווידאו והדיבור" and pl["facts"]["row"]["href"].endswith("tab=access-control")
+    assert set(pl["facts"]["readiness"]) <= set(wp.READINESS_CODES) and "pairing_missing" in pl["facts"]["readiness"]
+    _pair(world)
+    with world["db"].connection() as conn:
+        bk.adopt_legacy(conn, world["settings"].data_dir)
+        bk.set_state(conn, bk.LEGACY_KID, "retired")
+        bk.insert(conn, world["settings"].data_dir, kid="g1-dddddddd", generation=1, state="current", material=bk.new_material(), rotation_id=None)
+    _feed(monkeypatch, [])
+    codes = _lines(world["c"].get(API).json())["provider"]["facts"]["readiness"]
+    assert codes[-3:] == ["video_not_listed", "talk_not_listed", "pairing_key_rotated"]
+
+
+def test_the_probe_sends_only_the_two_discovery_reads():
+    """T06 admission (tests/test_t06_admission_295.py pins wiskey_pairing.py as a signing caller): its only signed commands are the two
+    discovery reads, through DirectDiscovery - no command name of its own is put on the wire."""
+    import ast
+    from pathlib import Path
+
+    from smplwise.services import wiskey_direct_discovery as dd
+
+    src = Path(wp.__file__).read_text(encoding="utf-8")
+    literals = {n.value for n in ast.walk(ast.parse(src)) if isinstance(n, ast.Constant) and isinstance(n.value, str) and "/" in n.value and " " not in n.value}
+    assert not {x for x in literals if x.startswith(("users/", "media/talk", "stations/", "features/", "jobs/", "installation/"))}
+    assert (dd.CAPABILITIES, dd.TIME) == ("direct/capabilities", "direct/time")
