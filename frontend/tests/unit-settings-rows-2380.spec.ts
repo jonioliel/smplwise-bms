@@ -28,14 +28,14 @@ const HA_WORDS = /Home Assistant|\bHA\b|Supervisor|Ingress|Companion|add-on/i;
 
 // ---------------------------------------------------------------- 1. TV rows
 
-test('TV rows: the values and factory are the server\'s (rows / 0), an older backend reads as the factory', () => {
+test('TV rows: the values and factory are the server\'s (drop / 0 since TV-CHIPS-2381), an older backend reads as the factory', () => {
   expect(TV_FIT_KEYS).toEqual(['portrait_chips', 'safe_margin']);
   expect(PORTRAIT_CHIPS).toEqual(['rows', 'drop']);
   expect(SAFE_MARGINS).toEqual([0, 1, 2, 3, 4, 5]);
-  expect(TVFIT_FACTORY).toEqual({ portrait_chips: 'rows', safe_margin: 0 });
+  expect(TVFIT_FACTORY).toEqual({ portrait_chips: 'drop', safe_margin: 0 });
   expect(tvFitDefaultsOf(undefined)).toEqual(TVFIT_FACTORY);
-  expect(tvFitDefaultsOf({ portrait_chips: 'drop', safe_margin: 3 })).toEqual({ portrait_chips: 'drop', safe_margin: 3 });
-  for (const bad of ['Drop', '', 2, null, true]) expect(tvFitDefaultsOf({ portrait_chips: bad }).portrait_chips).toBe('rows');
+  expect(tvFitDefaultsOf({ portrait_chips: 'rows', safe_margin: 3 })).toEqual({ portrait_chips: 'rows', safe_margin: 3 }); // a stored rows stays
+  for (const bad of ['Drop', '', 2, null, true]) expect(tvFitDefaultsOf({ portrait_chips: bad }).portrait_chips).toBe('drop');
   for (const bad of [-1, 6, 2.5, '3', true, null]) expect(tvFitDefaultsOf({ safe_margin: bad }).safe_margin).toBe(0);
 });
 
@@ -54,7 +54,7 @@ test('TV rows: a board follows the default until it chooses; its own 0 beats a d
 test('TV rows: the Hebrew labels, button texts and hints are the change record\'s; English twins exist', () => {
   expect(nt('portraitChipsLabel', undefined, 'he')).toBe('תצוגת אייקוני המבנה במסך אנכי');
   expect(nt('portraitChips_rows', undefined, 'he')).toBe('שתי שורות');
-  expect(nt('portraitChips_drop', undefined, 'he')).toBe('שורה אחת, מסתירים את התקינים קודם');
+  expect(nt('portraitChips_drop', undefined, 'he')).toBe('שורה אחת, מסתירים לפי סדר העדיפות'); // TV-CHIPS-2381
   expect(nt('safeMarginLabel', undefined, 'he')).toBe('שוליים בטוחים בקצוות המסך');
   expect(nt('safeMargin_0', undefined, 'he')).toBe('ללא');
   const [k3, v3] = tvFitText('safe_margin', 3);

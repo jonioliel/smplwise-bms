@@ -32,13 +32,18 @@ def module_on(conn: sqlite3.Connection) -> bool:
     return (get_setting(conn, "notices.enabled", "false") or "false") == "true"
 
 
-def write_settings(conn: sqlite3.Connection, values: dict[str, str]) -> dict[str, str]:
-    """Stores the validated strings; returns {key: new value} for the keys that really changed."""
+def write_settings(conn: sqlite3.Connection, values: dict[str, str], *, pin: bool = False) -> dict[str, str]:
+    """Stores the validated strings; returns {key: new value} for the keys that really changed. `pin` (TV-CHIPS-2381, the TV defaults):
+    a value equal to the current default is stored too when the key has no row yet, so the choice is kept if a factory value changes
+    later; it is not reported as a change."""
     changed: dict[str, str] = {}
     for k, v in values.items():
-        if (get_setting(conn, k, model.SETTINGS_DEFAULTS[k]) or model.SETTINGS_DEFAULTS[k]) != v:
+        stored = get_setting(conn, k, None)
+        if (stored or model.SETTINGS_DEFAULTS[k]) != v:
             set_setting(conn, k, v)
             changed[k] = v
+        elif pin and stored is None:
+            set_setting(conn, k, v)
     return changed
 
 

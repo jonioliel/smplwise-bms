@@ -13,7 +13,7 @@ from smplwise.services.notices import model
 
 API = "/api/v1"
 KEYS = ("design", "board_layout", "co_size", "portrait_order", "next_row", "live_bg", "systems_status", "urgent_screen", "portrait_chips", "safe_margin")  # LOBBY-STYLES-2300 added three, TV-SETTINGS-2380 the last two
-FACTORY = {"design": "classic", "board_layout": "side", "co_size": "auto", "portrait_order": "bus", "next_row": "show", "live_bg": "auto", "systems_status": "problems", "urgent_screen": "style", "portrait_chips": "rows", "safe_margin": 0}
+FACTORY = {"design": "classic", "board_layout": "side", "co_size": "auto", "portrait_order": "bus", "next_row": "show", "live_bg": "auto", "systems_status": "problems", "urgent_screen": "style", "portrait_chips": "drop", "safe_margin": 0}  # TV-CHIPS-2381: drop
 
 
 def _enable(client):

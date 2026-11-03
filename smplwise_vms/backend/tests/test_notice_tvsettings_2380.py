@@ -10,7 +10,7 @@ from conftest import as_user, bind
 from smplwise.services.notices import model
 
 API = "/api/v1"
-FACTORY = {"portrait_chips": "rows", "safe_margin": 0}
+FACTORY = {"portrait_chips": "drop", "safe_margin": 0}  # TV-CHIPS-2381: the factory chips mode is drop (owner 03.11, Q3 = B)
 
 
 def _enable(client):
@@ -67,8 +67,8 @@ def test_a_stored_bad_default_reads_as_the_factory_value():
     assert {k: model.tv2_defaults_doc(lambda k, d: stored.get(k, d))[k] for k in FACTORY} == FACTORY
     stored = {"notices.tv2.safe_margin": "-1"}
     assert model.tv2_defaults_doc(lambda k, d: stored.get(k, d))["safe_margin"] == 0
-    stored = {"notices.tv2.safe_margin": "4", "notices.tv2.portrait_chips": "drop"}
-    assert {k: model.tv2_defaults_doc(lambda k, d: stored.get(k, d))[k] for k in FACTORY} == {"portrait_chips": "drop", "safe_margin": 4}
+    stored = {"notices.tv2.safe_margin": "4", "notices.tv2.portrait_chips": "rows"}  # a stored rows beats the factory drop
+    assert {k: model.tv2_defaults_doc(lambda k, d: stored.get(k, d))[k] for k in FACTORY} == {"portrait_chips": "rows", "safe_margin": 4}
 
 
 def test_a_board_holds_only_its_own_choice_and_the_effective_display_resolves_it():
@@ -90,16 +90,16 @@ def test_boards_follow_the_defaults_until_they_choose(client):
     d = client.get(f"{API}/notices/settings").json()["settings"]["tv2_defaults"]
     assert {k: d[k] for k in FACTORY} == FACTORY
 
-    r = client.put(f"{API}/notices/tv-defaults", json={"portrait_chips": "drop", "safe_margin": 3})
-    assert r.status_code == 200 and (r.json()["tv2_defaults"]["portrait_chips"], r.json()["tv2_defaults"]["safe_margin"]) == ("drop", 3)
-    assert _fd(client, "lobby", tok) == {"portrait_chips": "drop", "safe_margin": 3}
+    r = client.put(f"{API}/notices/tv-defaults", json={"portrait_chips": "rows", "safe_margin": 3})
+    assert r.status_code == 200 and (r.json()["tv2_defaults"]["portrait_chips"], r.json()["tv2_defaults"]["safe_margin"]) == ("rows", 3)
+    assert _fd(client, "lobby", tok) == {"portrait_chips": "rows", "safe_margin": 3}
 
-    r = client.patch(f"{API}/notices/boards/{bid}", json={"display": {"portrait_chips": "rows", "safe_margin": 0}})  # the board's own 0 beats a default of 3
+    r = client.patch(f"{API}/notices/boards/{bid}", json={"display": {"portrait_chips": "drop", "safe_margin": 0}})  # the board's own 0 beats a default of 3
     assert r.status_code == 200
     assert _fd(client, "lobby", tok) == FACTORY
     r = client.patch(f"{API}/notices/boards/{bid}", json={"display": {"safe_margin": None}})
     assert r.status_code == 200 and "safe_margin" not in r.json()["board"]["display"]
-    assert _fd(client, "lobby", tok) == {"portrait_chips": "rows", "safe_margin": 3}  # back to the installation value
+    assert _fd(client, "lobby", tok) == {"portrait_chips": "drop", "safe_margin": 3}  # back to the installation value
     # the Settings preview (the TV's payload through the session, with a draft) carries them as well
     r = client.post(f"{API}/notices/boards/{bid}/preview", json={"display": {"safe_margin": 5}})
     assert r.status_code == 200 and r.json()["board"]["display"]["safe_margin"] == 5
@@ -132,7 +132,7 @@ def test_both_need_the_boards_permission(client, settings):
 def test_a_change_is_audited_and_an_unchanged_save_is_not(client):
     _enable(client)
     bid = _board(client)["board"]["id"]
-    assert client.put(f"{API}/notices/tv-defaults", json={"safe_margin": 2, "portrait_chips": "drop"}).status_code == 200
+    assert client.put(f"{API}/notices/tv-defaults", json={"safe_margin": 2, "portrait_chips": "rows"}).status_code == 200
     rows = _audit(client, "notices.tv_defaults.update")
     assert len(rows) == 1 and rows[0]["keys"] == ["notices.tv2.portrait_chips", "notices.tv2.safe_margin"]
     assert client.put(f"{API}/notices/tv-defaults", json={"safe_margin": 2}).status_code == 200  # the same value again: nothing changed

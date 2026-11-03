@@ -82,7 +82,7 @@ export interface Display {
   systems_status?: SystemsStatus | null;
   urgent_screen?: UrgentScreen | null;
   /** TV-FIT-2380: the footer's building chips when they do not fit beside the "updated" line - rows = a second footer row (the default;
-   * portrait always), drop = one row, the healthy chips leave first (see tv-fit.ts). Absent / null = rows. */
+   * portrait always), drop = one row, the healthy chips leave first (see tv-fit.ts). Absent / null = drop (TV-CHIPS-2381). */
   portrait_chips?: 'rows' | 'drop' | null;
   /** TV-FIT-2380: the safe-area (overscan) margin of this screen, percent of each side (0..5; absent = 0). The `?safe=` parameter of the
    * TV's own address overrides it (overscan belongs to the device, not to the board). */

@@ -19,8 +19,9 @@ export const SAFE_MARGINS: readonly SafeMargin[] = [0, 1, 2, 3, 4, 5];
 export interface TvFitDefaults { portrait_chips: PortraitChips; safe_margin: SafeMargin }
 export type TvFitKey = keyof TvFitDefaults;
 export const TV_FIT_KEYS: readonly TvFitKey[] = ['portrait_chips', 'safe_margin'];
-/** The factory values (the server's `TV2_FACTORY` for the two keys). */
-export const TVFIT_FACTORY: TvFitDefaults = { portrait_chips: 'rows', safe_margin: 0 };
+/** The factory values (the server's `TV2_FACTORY` for the two keys). TV-CHIPS-2381 (owner 03.11, Q3 = B): the chips hide by priority
+ * (`drop`) unless an administrator chose two rows; a stored `rows` (installation or board) is kept. */
+export const TVFIT_FACTORY: TvFitDefaults = { portrait_chips: 'drop', safe_margin: 0 };
 
 const okChips = (v: unknown): v is PortraitChips => v === 'rows' || v === 'drop';
 const okMargin = (v: unknown): v is SafeMargin => typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 5;

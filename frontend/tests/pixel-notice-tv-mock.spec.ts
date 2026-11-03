@@ -83,6 +83,8 @@ for (const c of CASES) {
 
   // TV-FIT-2380: the same screen with the product DEFAULT footer (no wording or chips pinned): every building chip is drawn whole and the
   // time of the "updated" line too - the gap the pinned parity check above used to hide (the parking chip fell off in portrait).
+  // TV-CHIPS-2381 (owner 03.11, Q3 = B): the default is now the priority drop, so a chip may leave the one-row footer - only a healthy
+  // one, never cut; every chip that is shown is whole, and the time too.
   test(`the default footer keeps every chip and the time: ${c.name}`, async ({ browser }) => {
     const ctx = await browser.newContext({ viewport: { width: c.w, height: c.h }, deviceScaleFactor: 1, locale: 'he-IL', timezoneId: 'Asia/Jerusalem' });
     const page = await ctx.newPage();
@@ -102,14 +104,16 @@ for (const c of CASES) {
           if (b.left < p.left - 1 || b.right > p.right + 1 || b.top < p.top - 1 || b.bottom > p.bottom + 1) { bad.push(what + ' cut'); return; }
         }
       };
-      const chips = [...document.querySelectorAll('#cv .chips .ch')];
-      chips.forEach((ch) => inside(ch, (ch.textContent || '').trim()));
+      const chips = [...document.querySelectorAll<HTMLElement>('#cv .chips .ch')];
+      chips.filter((ch) => !ch.hidden).forEach((ch) => inside(ch, (ch.textContent || '').trim()));
       const t = document.querySelector('#cv [data-updated]');
       if (t) inside(t, 'time');
-      return { bad, n: chips.length, live: (t?.closest('.live')?.textContent || '').trim() };
+      return { bad, n: chips.length, left: chips.filter((ch) => ch.hidden).map((ch) => ch.dataset.look || 'ok'), live: (t?.closest('.live')?.textContent || '').trim() };
     });
     expect(r.bad, c.name).toEqual([]);
     expect(r.n).toBe(4);
+    expect(r.left.every((look) => look === 'ok'), c.name + ': only healthy chips leave').toBe(true);
+    expect(r.left.length).toBeLessThan(4);
     expect(r.live).toBe('עודכן · הכניסה הראשית 09:12');
     await ctx.close();
   });

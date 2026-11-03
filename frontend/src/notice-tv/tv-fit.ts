@@ -1,9 +1,10 @@
 /**
  * TV-FIT-2380 - the pure rules that make the TV board fit a real screen (no DOM):
  *
- *  - the footer's building chips: `rows` (default) = when the chips and the "updated" line do not fit in one row, the chips take a row of
- *    their own (portrait: always), so no chip is lost to the longer "עודכן · <place>" wording; `drop` = one row as before, but the chips
- *    that leave are the healthy ones first (alarm, warning and "off" entries stay longest), never simply the last one;
+ *  - the footer's building chips: `rows` = when the chips and the "updated" line do not fit in one row, the chips take a row of
+ *    their own (portrait: always), so no chip is lost to the longer "עודכן · <place>" wording; `drop` (the default since TV-CHIPS-2381,
+ *    owner 03.11 Q3 = B) = one row, and the chips that leave go by priority: the healthy ones first (alarm, warning and "off" entries
+ *    stay longest), and within one state the one last in the board's chip order (Settings › the board › מצב הבניין, editable);
  *  - the safe-area / overscan margin: a percent of each side of the screen, from the board (`display.safe_margin`) or the TV's own
  *    address (`?safe=`, which wins: overscan is a property of the device);
  *  - the company logo sized by area (gap H7 of TVNOTICE-297): a tall crest gets more height, a long banner more width, so both read
@@ -14,10 +15,11 @@ import type { Display } from './tv-logic';
 export type ChipFit = 'rows' | 'drop';
 export const CHIP_FITS: ChipFit[] = ['rows', 'drop'];
 
-/** The chip behaviour in force: the `?chips=` test hook, else the board's `portrait_chips`, else rows. */
+/** The chip behaviour in force: the `?chips=` test hook, else the board's `portrait_chips`, else drop (TV-CHIPS-2381: the server's
+ * factory value; the feed always carries the effective value, so this fallback only answers a feed without the key). */
 export function chipFitOf(d: Pick<Display, 'portrait_chips'> | null | undefined, q?: string | null): ChipFit {
   if (q === 'rows' || q === 'drop') return q;
-  return d?.portrait_chips === 'drop' ? 'drop' : 'rows';
+  return d?.portrait_chips === 'rows' ? 'rows' : 'drop';
 }
 
 /** The order in which chips leave a footer that has no room (drop mode): healthy first, then "off", then warnings; an alarm last.

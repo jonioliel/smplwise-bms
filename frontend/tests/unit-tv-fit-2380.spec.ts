@@ -6,15 +6,18 @@ import { dayIn, fixedFromGregorian, hebrewDate, hebrewDateText, hebrewFromGregor
 // the safe-area / overscan margin, the company logo sized by area (gap H7) and the Hebrew date without the browser's Hebrew calendar.
 //   npx playwright test -c playwright.unit.config.ts tests/unit-tv-fit-2380.spec.ts --workers=1
 
-test('the chips behaviour: two rows by default, drop on request, the test hook wins', () => {
+// TV-CHIPS-2381 (owner 03.11, Q3 = B): the default is the priority drop; two rows only when chosen.
+test('the chips behaviour: priority drop by default, two rows when chosen, the test hook wins', () => {
   expect(CHIP_FITS).toEqual(['rows', 'drop']);
-  expect(chipFitOf(undefined)).toBe('rows');
-  expect(chipFitOf({ portrait_chips: null })).toBe('rows');
+  expect(chipFitOf(undefined)).toBe('drop');
+  expect(chipFitOf({ portrait_chips: null })).toBe('drop');
   expect(chipFitOf({ portrait_chips: 'drop' })).toBe('drop');
-  expect(chipFitOf({ portrait_chips: 'bogus' as never })).toBe('rows');
+  expect(chipFitOf({ portrait_chips: 'rows' })).toBe('rows');
+  expect(chipFitOf({ portrait_chips: 'bogus' as never })).toBe('drop');
   expect(chipFitOf({ portrait_chips: 'drop' }, 'rows')).toBe('rows');
+  expect(chipFitOf({ portrait_chips: 'rows' }, 'drop')).toBe('drop');
   expect(chipFitOf({}, 'drop')).toBe('drop');
-  expect(chipFitOf({}, 'other')).toBe('rows');
+  expect(chipFitOf({}, 'other')).toBe('drop');
 });
 
 test('drop order: the healthy chips leave first (the later one first), then "off", then warnings, an alarm last', () => {

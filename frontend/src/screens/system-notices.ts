@@ -24,6 +24,7 @@ import '../notices/display-design';
 import '../notices/display-fit'; // TV-SETTINGS-2380: portrait chips + safe margin
 import { tvFitDefaultsOf, type TvFitDefaults } from '../notices/display-fit-model';
 import '../notices/display-info';
+import '../notices/info-sources'; // TV-CHIPS-2381
 import '../notices/display-slides';
 import '../notices/display-transit';
 import '../notices/news-sources';
@@ -363,6 +364,8 @@ export class SystemNotices extends LitElement {
         <div class="fld"><label for="ns-bn">${nt('dBuilding')}</label><input id="ns-bn" class="inp" maxlength="60" .value=${st.building_name} placeholder=${s.building_fallback}
           @change=${(e: Event) => this.patchSettings({ building_name: (e.target as HTMLInputElement).value })}><span class="hint">${nt('dBuildingHint', { name: s.building_fallback || '-' })}</span></div>
       </div>
+      <notice-info-sources .parking=${st.parking_entities ?? []} .gym=${st.gym_entities ?? []} .candidates=${s.info_entities ?? {}}
+        @info-sources-change=${(e: CustomEvent<{ parking_entities?: string[]; gym_entities?: string[] }>) => this.patchSettings(e.detail)}></notice-info-sources>
       <div class="fld"><label for="ns-origin">${nt('dOrigin')}</label><input id="ns-origin" class="inp ltr" maxlength="220" .value=${st.boards_origin} placeholder="http://192.0.2.10:18094"
         @change=${(e: Event) => this.patchSettings({ boards_origin: (e.target as HTMLInputElement).value })}><span class="hint">${nt('dOriginHint')}</span></div>
       <div class="r">
@@ -653,7 +656,7 @@ export class SystemNotices extends LitElement {
               ${this.feedPick === 'custom' ? html`<input class="inp ltr" placeholder="https://" .value=${this.feedUrl} @input=${(e: Event) => (this.feedUrl = (e.target as HTMLInputElement).value)}>` : nothing}
               <sw-button size="sm" icon="plus" ?disabled=${!this.feedPick || d.news.feeds.length >= 6} @click=${() => this.addFeed()}>${nt('add')}</sw-button>
               <span>${nt('speed')}</span><div class="seg">${(['slow', 'normal', 'fast'] as const).map((sp) => html`<button aria-pressed=${String(d.news.speed === sp)} @click=${() => this.setD({ news: { ...d.news, speed: sp } })}>${nt(sp === 'slow' ? 'spSlow' : sp === 'normal' ? 'spNormal' : 'spFast')}</button>`)}</div></div></div>
-          <notice-display-info .value=${d.blocks.info} .show=${d.blocks.info_show !== false} @info-show-change=${(e: CustomEvent<boolean>) => this.setD({ blocks: { ...d.blocks, info_show: e.detail } })} @info-change=${(e: CustomEvent<string[]>) => this.setD({ blocks: { ...d.blocks, info: e.detail } })}></notice-display-info>
+          <notice-display-info .value=${d.blocks.info} .show=${d.blocks.info_show !== false} .sources=${s.parking_entities ? { parking: s.parking_entities, gym: s.gym_entities ?? [] } : null} @info-show-change=${(e: CustomEvent<boolean>) => this.setD({ blocks: { ...d.blocks, info_show: e.detail } })} @info-change=${(e: CustomEvent<string[]>) => this.setD({ blocks: { ...d.blocks, info: e.detail } })}></notice-display-info>
           <div class="blk"><span class="ck"><b>${nt('blkNotices')}</b></span><span class="hint">${active.length} ${nt('kpiActive')}</span>
             <div class="sub"><span>${nt('mode')}</span><div class="seg" data-mode-seg>${(['rotation', 'all', 'focus'] as const).map((m) => html`<button aria-pressed=${String(d.mode === m)} data-mode=${m} @click=${() => this.setD({ mode: m })}>${nt(m === 'rotation' ? 'modeRotation' : m === 'all' ? 'modeAll' : 'modeFocus')}</button>`)}</div></div>
             <div class="sub"><span>${nt('rotateEvery')}</span><input class="inp short num" type="number" min="6" max="60" step="1" data-rot .value=${String(d.rotate_s)}
