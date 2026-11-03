@@ -17,7 +17,9 @@ const CONFIRM = `${ENC} sw-dialog[open][data-nvr-confirm-dialog]`;
 const PROG = `${PAGE} nvr-camera-batch sw-dialog[open][data-nvr-batch-progress]`;
 const REPORT = `${PAGE} nvr-verify-report sw-dialog[open][data-nvr-verify]`;
 const POLL = { timeout: 9_000 };
-const STREAMS = ['cam-1:101', 'cam-2:201', 'cam-2:202', 'cam-3:301'];
+// The main streams of cameras 1..4: 1 and 3 are H.264 with SVC on, 2 and 4 are H.265, so all four really change under H.264 + SVC off.
+// (A sub stream such as cam-2:202 is already H.264 and has no SVC: the preview rightly counts it as "כבר מוגדרים", not as a change.)
+const STREAMS = ['cam-1:101', 'cam-2:201', 'cam-3:301', 'cam-4:401'];
 
 async function shot(page: Page, name: string) {
   if (!SHOTS) return;
@@ -37,7 +39,7 @@ async function pick(page: Page, dd: string, id: string) {
   await page.locator(`${DLG} sw-dropdown[data-nvr-enc-dd="${dd}"] [role="option"][data-id="${id}"]`).click();
 }
 
-/** The toolbar -> four streams (cameras 1..3) -> codec H.264 + SVC off -> the preview (four changes). */
+/** The toolbar -> four main streams (cameras 1..4) -> codec H.264 + SVC off -> the preview (four changes, none already set). */
 async function toPreview(page: Page) {
   await expect(page.locator(`${PAGE} [data-nvr-encoding-open]`)).toBeVisible();
   await page.locator(`${PAGE} [data-nvr-encoding-open]`).click();
@@ -120,15 +122,15 @@ test.describe('CAM-H264-VERIFY-2361 refusal choice and verification report (mock
       on_refusal: 'skip', skipped: 1, created_at: at,
       verify: {
         state: 'done', kind: 'after_apply', counts, can_recheck: true, checked_at: at, started_at: at,
-        worklist: [{ index: 1, camera_id: 'cam-2', stream_ref: '202', outcome: 'still_old' }, { index: 2, camera_id: 'cam-2', stream_ref: '201', outcome: 'failed', skipped: true }],
-        skipped: [{ index: 2, camera_id: 'cam-2', stream_ref: '201', outcome: 'failed', skipped: true }],
+        worklist: [{ index: 1, camera_id: 'cam-2', stream_ref: '201', outcome: 'still_old' }, { index: 2, camera_id: 'cam-3', stream_ref: '301', outcome: 'failed', skipped: true }],
+        skipped: [{ index: 2, camera_id: 'cam-3', stream_ref: '301', outcome: 'failed', skipped: true }],
       },
     };
     bm.recheck = (x) => {
       x.items[1].verify = { outcome: 'confirmed', label: 'המצלמה אישרה (H.264)', detail: 'המצלמה שולחת H.264.', expected: 'H.264' };
       const v = (x.extra as { verify: { counts: Record<string, number>; worklist: unknown[] } }).verify;
       v.counts = { ...counts, confirmed: 2, still_old: 0 };
-      v.worklist = [{ index: 2, camera_id: 'cam-2', stream_ref: '201', outcome: 'failed', skipped: true }];
+      v.worklist = [{ index: 2, camera_id: 'cam-3', stream_ref: '301', outcome: 'failed', skipped: true }];
     };
     // item 2 is refused by the NVR and stepped over (the batch goes on), the others are applied
     d.step();
