@@ -72,6 +72,7 @@ import './system-timeline-colors'; // owner 2026-10-01: הגדרות › ויד�
 import './system-video-conn-test'; // owner 2026-10-01: הגדרות › גישה מרחוק › בדיקת חיבור וידאו
 import './system-wiskey-diagnostics'; // WisKey B0: הגדרות › מתגי מסכי כניסה › WisKey רואה את Arx כ־
 import './system-call-banner'; // WISKEY-INBOUND-CALLS-2382: who gets the incoming-call banner (off by default)
+import './system-wiskey-pairing'; // WISKEY-PAIRING-2382: הגדרות › מתגי מסכי כניסה › חיבור Arx ל-WisKey + מצב WisKey
 import './system-access-display'; // CR-036 S12: הגדרות › מתגי מסכי כניסה › תצוגת מסך התחנות (the four S6 display settings)
 import './system-access-parity'; // CR-036 S12: הגדרות › מתגי מסכי כניסה › השוואה למסכי האינטרקום (the side-by-side check before a screen is switched)
 import { loadTree } from '../api/catalog';
@@ -1272,6 +1273,7 @@ export class SystemDiagnostics extends LitElement {
       <system-access-display></system-access-display>
       <system-call-banner></system-call-banner>
       ${!api || can('access.admin.read') ? html`<system-access-parity></system-access-parity>` : nothing}
+      <system-wiskey-pairing></system-wiskey-pairing>
       <system-wiskey-diagnostics></system-wiskey-diagnostics>
     </div>`;
   }

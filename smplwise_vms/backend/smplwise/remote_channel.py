@@ -192,6 +192,8 @@ BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/system/secrets",)
 BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/identity/service-identity",)
 # CR-WISKEY-HMAC-ROTATION-295: the bridge HMAC key and its rotation are administered from local sessions only
 BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/system/bridge-key",)
+# WISKEY-PAIRING-2382: the Arx <-> WisKey pairing block (its repair answer carries a new pairing code) - local sessions only
+BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/system/wiskey-pairing",)
 # NVRMASK-295: a privacy-mask preview / write (masks live view and the recording) is local-only; the undo stays reachable
 BLOCKED_ON_REMOTE = BLOCKED_ON_REMOTE + ("/api/v1/nvr/privacy-masks",)
 # CALCONNECT-2330: the outgoing iCal feed document (a token address, no signed-in person) is not served through the tunnel - contract 15.6 /

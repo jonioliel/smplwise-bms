@@ -768,6 +768,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import bridge_key as bridge_key_router
 
     app.include_router(bridge_key_router.router, prefix=api, tags=["system"])  # CR-WISKEY-HMAC-ROTATION-295: bridge HMAC key rotation (off; go-live not permitted; fakes only)
+    from .routers import wiskey_pairing as wiskey_pairing_router
+
+    app.include_router(wiskey_pairing_router.router, prefix=api, tags=["system"])  # WISKEY-PAIRING-2382: Arx <-> WisKey pairing status, probe, guided re-pair
     from .routers import partner as partner_router
 
     app.include_router(partner_router.router, prefix=api, tags=["system"])  # PARTNERAPI113-295: partner tokens and webhooks (off; go-live not permitted; fakes only)
