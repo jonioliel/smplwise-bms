@@ -24,6 +24,13 @@ async function compare(page: Page, info: Parameters<typeof noBaseline>[0] & { pr
   else await expect(page).toHaveScreenshot(file, { maxDiffPixels: 40, animations: 'disabled' });
 }
 
+/** A part of the page (a dialog box, a card): its pixels do not depend on where the page behind it happens to be scrolled. */
+async function compareEl(page: Page, info: Parameters<typeof noBaseline>[0] & { project: { name: string } }, selector: string, name: string) {
+  const file = `${name}-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
+  if (noBaseline(info, file)) test.info().annotations.push({ type: 'skipped-pixel', description: `${file}: no baseline on ${process.platform}` });
+  else await expect(page.locator(selector)).toHaveScreenshot(file, { maxDiffPixels: 40, animations: 'disabled' });
+}
+
 async function open(page: Page, m: InstallerMock, hash = '/system/intercom-installer/clock', ready = `${CLOCK} [data-clock="ready"]`) {
   await installInstallerMock(page, m);
   await page.clock.setFixedTime(NOW);
@@ -140,7 +147,7 @@ test.describe('the intercom installer: clock', () => {
     await page.waitForSelector(`${CLOCK} [data-typed]`);
     await page.locator(`${CLOCK} [data-typed]`).fill('שער');
     await settlePage(page);
-    await compare(page, info, 'installer-clock-confirm');
+    await compareEl(page, info, `${CLOCK} wk-installer-confirm sw-dialog .box`, 'installer-clock-confirm-box');
   });
 });
 
@@ -222,7 +229,7 @@ test.describe('the intercom installer: station technical settings', () => {
     await page.locator(`${TECH} [data-door-save]`).click();
     await page.waitForSelector(`${TECH} [data-typed]`);
     await settlePage(page);
-    await compare(page, info, 'installer-technical-confirm');
+    await compareEl(page, info, `${TECH} wk-installer-confirm sw-dialog .box`, 'installer-technical-confirm-box');
   });
 });
 
@@ -320,7 +327,7 @@ test.describe('the intercom installer: add, reconnect, remove', () => {
     await page.waitForSelector(`${LIFE} [data-wizard="user"]`);
     await page.locator(`${LIFE} [data-flow-field="host"]`).fill('lobby.local');
     await settlePage(page);
-    await compare(page, info, 'installer-lifecycle-wizard');
+    await compareEl(page, info, `${LIFE} sw-card[data-wizard="user"]`, 'installer-lifecycle-wizard-card');
   });
 });
 
