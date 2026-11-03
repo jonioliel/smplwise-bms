@@ -29,6 +29,7 @@ from ..rbac import INSTALLATION, Principal, authorize, has_any_binding, permissi
 from ..services import connection_store as cstore
 from ..services.notices import audience as aud
 from ..services.notices import display as disp
+from ..services.notices import info as ninfo
 from ..services.notices import model, news_sources, page, store
 from ..services.notices import push as npush
 from ..services.transit import model as transit_model
@@ -151,6 +152,9 @@ class SettingsIn(BaseModel):
     boards_origin: str | None = Field(default=None, max_length=220)
     conn_total: int | None = None  # NOTICECAPS-295: validated in model.settings_values (4..256)
     conn_per_address: int | None = None  # NOTICECAPS-295: validated in model.settings_values (1..64)
+    # TV-CHIPS-2381: the sources of the parking / gym chips (entity ids; validated in model.settings_values, at most 8 each)
+    parking_entities: list[str] | None = None
+    gym_entities: list[str] | None = None
 
 
 def _weather_entities(conn: sqlite3.Connection) -> list[dict[str, str]]:
@@ -166,6 +170,8 @@ def get_settings(request: Request, principal: Principal = Depends(current_princi
     s = store.settings(conn)
     data_dir = settings_of(request).data_dir
     return {"settings": s, "can": can, "weather_entities": _weather_entities(conn), "company_logo": disp.has_company_logo(data_dir),
+            # TV-CHIPS-2381: what the parking / gym source pickers may offer (read-only lists of the state mirror)
+            "info_entities": {k: ninfo.candidates(conn, k) for k in model.INFO_SOURCE_KINDS},
             "listener": bool(getattr(settings_of(request), "notice_boards", False)), "building_fallback": disp.fallback_name(conn)}
 
 
@@ -396,7 +402,9 @@ def put_tv_defaults(body: TvDefaultsIn, request: Request, principal: Principal =
         values = model.tv_defaults_values(body.model_dump(exclude_none=True))
     except Invalid as exc:
         raise _invalid(exc)
-    changed = store.write_settings(conn, values)
+    # TV-CHIPS-2381: an administrator's choice is stored even when it equals the factory value, so a later change of a factory value
+    # (2.38.1: portrait_chips rows -> drop) never moves a choice someone made; the audit still lists only real changes.
+    changed = store.write_settings(conn, values, pin=True)
     if changed:
         audit(conn, actor=principal, action="notices.tv_defaults.update", decision="allowed", resource_type="installation", resource_id="notices",
               request_id=_rid(request), details={"keys": sorted(changed)})

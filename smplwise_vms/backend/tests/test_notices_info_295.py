@@ -82,7 +82,7 @@ def test_generator_chip(conn, engine, state, text):
     assert info.build(conn, ["generator"], "he", connected=False)[0]["state"] == "off"  # a stale mirror is never "ready"
 
 
-def test_only_the_asked_kinds_in_picker_order_and_parking_gym_have_no_provider_yet(conn):
+def test_only_the_asked_kinds_in_picker_order_and_parking_gym_without_a_source_have_no_chip(conn):  # TV-CHIPS-2381: sources
     _elevator(conn, "e1", fault="off", waiting="on")
     _generator(conn, "g1", "stopped", "230")
     out = info.build(conn, ["generator", "elevators", "parking", "gym"], connected=True)

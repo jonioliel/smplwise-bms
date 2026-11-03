@@ -210,7 +210,8 @@ def test_display_settings_are_validated(client):
 
 def test_normalize_display_fills_every_key():
     d = model.normalize_display({"template": 3, "blocks": {"info": ["generator", "elevators"]}, "theme": "light"})
-    assert d["template"] == 3 and d["theme"] == "day" and d["blocks"]["info"] == ["elevators", "generator"]
+    # TV-CHIPS-2381: the chip list keeps the administrator's order (it is the portrait priority order)
+    assert d["template"] == 3 and d["theme"] == "day" and d["blocks"]["info"] == ["generator", "elevators"]
     assert set(d) == set(model.DISPLAY_DEFAULTS)
     assert model.normalize_display({"rotate_s": 99})["rotate_s"] == 12
 

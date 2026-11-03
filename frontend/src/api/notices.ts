@@ -100,6 +100,9 @@ export interface NoticesSettings {
   /** BOARDV2-297: the installation defaults of the V2 board options (absent from an older backend) */
   /** TV-SETTINGS-2380: the group also carries `portrait_chips` / `safe_margin` (absent from an older backend) */
   tv2_defaults?: Tv2Defaults & Partial<TvFitDefaults>;
+  /** TV-CHIPS-2381: the entities the parking / gym chips read (absent from an older backend = none) */
+  parking_entities?: string[];
+  gym_entities?: string[];
 }
 
 /** NOTICERSS-295: one entry of the installation's editable list of news sources (`custom` = a raw URL a board stored, not yet in the list). */
@@ -123,6 +126,8 @@ export interface SettingsResponse {
   settings: NoticesSettings;
   can: NoticesCan;
   weather_entities: { entity_id: string; name: string }[];
+  /** TV-CHIPS-2381: what the parking / gym source pickers may offer (absent from an older backend) */
+  info_entities?: { parking?: { entity_id: string; name: string; domain: string }[]; gym?: { entity_id: string; name: string; domain: string }[] };
   company_logo: boolean;
   listener: boolean;
   building_fallback: string;

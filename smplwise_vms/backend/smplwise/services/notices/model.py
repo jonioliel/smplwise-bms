@@ -19,6 +19,21 @@ HM_RE = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 DWELL_MIN, DWELL_MAX = 3, 600
 ROTATE_MIN, ROTATE_MAX = 6, 60
 INFO_KINDS = ("elevators", "generator", "parking", "gym")
+# TV-CHIPS-2381 (owner 03.11, Q4 = A): the parking and gym chips read entities the administrator picks in the notice-board settings
+# (`notices.info.<kind>_entities`, a JSON list; empty = no chip). Read-only: the TV feed shows a state word, never the entity.
+INFO_SOURCE_KINDS = ("parking", "gym")
+INFO_SOURCE_MAX = 8
+INFO_ONOFF_DOMAINS = ("binary_sensor", "input_boolean", "switch", "schedule")
+INFO_NUMBER_DOMAINS = ("sensor", "input_number", "counter")
+INFO_TEXT_DOMAINS = ("input_select", "select")
+INFO_SOURCE_DOMAINS: dict[str, tuple[str, ...]] = {
+    # parking: a number = free spaces (summed); an on / off entity = one space (on = taken); a list entity = its option as written
+    "parking": INFO_ONOFF_DOMAINS[:3] + INFO_NUMBER_DOMAINS + INFO_TEXT_DOMAINS,
+    # gym: on / off = open / closed (an occupancy sensor: in use / free); a list entity = its option as written. Never a number: a
+    # count of people is not shown on a lobby screen.
+    "gym": INFO_ONOFF_DOMAINS + INFO_TEXT_DOMAINS,
+}
+ENTITY_ID_RE = re.compile(r"^([a-z_]{1,40})\.[a-z0-9_]{1,190}$")
 NEWS_SPEEDS = ("slow", "normal", "fast")
 NEWS_FEEDS_MAX = 6
 # NOTICESAVER-295: the TV's screen saver (OLED care) and where the two logos sit. Stored inside the board's display JSON (no migration);
@@ -85,8 +100,11 @@ CO_SIZES = ("auto", "s", "m", "l", "xl")
 PORTRAIT_ORDERS = ("bus", "notices")
 NEXT_ROWS = ("show", "hide")
 #  TV-SETTINGS-2380 (the TV page reads both since TV-FIT-2380):
-#  portrait_chips: the portrait footer's building chips - rows = two rows, nothing is dropped (default; landscape turns to two rows only
-#                  when a chip would be cut), drop = one row, the healthiest chips leave first (an alarm last)
+#  portrait_chips: the portrait footer's building chips - rows = two rows, nothing is dropped (landscape turns to two rows only when a
+#                  chip would be cut), drop = one row, chips leave by priority: the healthy ones first, an alarm last, and within one
+#                  state the one last in the board's chip order (`blocks.info`, editable) first.
+#                  TV-CHIPS-2381 (owner 03.11, Q3 = B): the factory value is `drop`. Only an UNSET value follows it: an installation
+#                  default stored as `rows` and a board's own `rows` stay `rows` (the stored value always wins; no migration).
 #  safe_margin:    the overscan / safe-area margin, whole percent of each side (0..5; 0 = none, the factory value). A TV's own address
 #                  `?safe=<n>` overrides it for that device.
 TV_FIT_KEYS = ("portrait_chips", "safe_margin")
@@ -97,7 +115,7 @@ TV2_CHOICES: dict[str, tuple[Any, ...]] = {"design": DESIGNS, "board_layout": BO
                                            "portrait_chips": PORTRAIT_CHIPS, "safe_margin": SAFE_MARGINS}
 TV2_FACTORY: dict[str, Any] = {"design": "classic", "board_layout": "side", "co_size": "auto", "portrait_order": "bus", "next_row": "show",
                                "live_bg": "auto", "systems_status": "problems", "urgent_screen": "style",
-                               "portrait_chips": "rows", "safe_margin": 0}
+                               "portrait_chips": "drop", "safe_margin": 0}
 TV2_SETTING: dict[str, str] = {k: f"notices.tv2.{k}" for k in TV2_CHOICES}
 ALL_TV_CHOICES: dict[str, tuple[Any, ...]] = {**TV_CHOICES, **TV2_CHOICES}
 ALL_TV_FACTORY: dict[str, Any] = {**TV_FACTORY, **TV2_FACTORY}
@@ -136,6 +154,9 @@ SETTINGS_DEFAULTS: dict[str, str] = {
     "notices.weather_fallback": "false",
     "notices.news_custom": "false",  # NOTICEGB-295: custom feeds stay off until the owner turns them on; a stored value always wins
     "notices.building_name": "",
+    # TV-CHIPS-2381: the sources of the parking / gym chips (JSON lists of entity ids; empty = no chip)
+    "notices.info.parking_entities": "[]",
+    "notices.info.gym_entities": "[]",
     # the origin the TV links point to: the LAN listener as the owner mapped it (e.g. http://<host>:18094) or the remote address;
     # empty = the address the manager uses (the Settings screen says so)
     "notices.boards.origin": "",
@@ -333,7 +354,9 @@ def normalize_display(raw: Any, *, strict: bool = False) -> dict[str, Any]:
     if "info" in blocks:
         info = blocks["info"]
         if isinstance(info, list) and all(x in INFO_KINDS for x in info):
-            d["blocks"]["info"] = [k for k in INFO_KINDS if k in info]
+            # TV-CHIPS-2381: the administrator's order is kept (it is the order on the screen and the priority order of the portrait
+            # `drop` footer); a repeated kind counts once. Boards saved before keep the factory order elevators, generator, parking, gym.
+            d["blocks"]["info"] = list(dict.fromkeys(info))
         elif strict:
             raise Invalid("display.blocks.info", "ערך לא תקין.")
     w = src.get("weather") if isinstance(src.get("weather"), dict) else {}
@@ -476,7 +499,28 @@ def settings_doc(get: Any) -> dict[str, Any]:
         "news_sources": CURATED_NEWS,
         "tv_defaults": tv_defaults_doc(lambda k, dflt: raw.get(k, dflt)),
         "tv2_defaults": tv2_defaults_doc(lambda k, dflt: raw.get(k, dflt)),
+        "parking_entities": info_sources_of("parking", raw["notices.info.parking_entities"]),
+        "gym_entities": info_sources_of("gym", raw["notices.info.gym_entities"]),
     }
+
+
+def info_source_ok(kind: str, entity_id: Any) -> bool:
+    """TV-CHIPS-2381: an entity id of a domain the chip of `kind` can read."""
+    if not isinstance(entity_id, str):
+        return False
+    m = ENTITY_ID_RE.match(entity_id)
+    return bool(m) and m.group(1) in INFO_SOURCE_DOMAINS.get(kind, ())
+
+
+def info_sources_of(kind: str, raw: Any) -> list[str]:
+    """TV-CHIPS-2381: the stored source list of a chip (a JSON string); anything unreadable or out of the list reads as empty / is left out."""
+    try:
+        v = json.loads(raw) if isinstance(raw, str) else raw
+    except ValueError:
+        return []
+    if not isinstance(v, list):
+        return []
+    return list(dict.fromkeys(x for x in v if info_source_ok(kind, x)))[:INFO_SOURCE_MAX]
 
 
 SETTINGS_FIELDS: dict[str, str] = {  # API field -> settings key
@@ -487,6 +531,7 @@ SETTINGS_FIELDS: dict[str, str] = {  # API field -> settings key
     "weather_fallback": "notices.weather_fallback", "news_custom": "notices.news_custom", "building_name": "notices.building_name",
     "boards_origin": "notices.boards.origin",
     "conn_total": "notices.boards.conn_total", "conn_per_address": "notices.boards.conn_per_address",
+    "parking_entities": "notices.info.parking_entities", "gym_entities": "notices.info.gym_entities",
 }
 
 
@@ -527,6 +572,13 @@ def settings_values(patch: dict[str, Any]) -> dict[str, str]:
             if value != "" and not (isinstance(value, str) and re.match(r"^weather\.[a-z0-9_]{1,190}$", value)):
                 raise Invalid(field, "ישות מזג אוויר: weather.* או ריק.")
             out[key] = value
+        elif field in ("parking_entities", "gym_entities"):
+            kind = field.split("_")[0]
+            if not isinstance(value, list) or len(value) > INFO_SOURCE_MAX:
+                raise Invalid(field, f"עד {INFO_SOURCE_MAX} ישויות.")
+            if not all(info_source_ok(kind, x) for x in value):
+                raise Invalid(field, "ישות שהסימון לא יכול לקרוא.")
+            out[key] = json.dumps(list(dict.fromkeys(value)))
         elif field == "building_name":
             out[key] = clean_text(value, field, 60)
         elif field == "boards_origin":
