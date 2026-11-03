@@ -41,6 +41,8 @@ const tokens: TokenTable = {
   '--sw-focus': lt('#2767ed', '#a9bdff'),
   '--sw-nav': lt('#2767ed', '#4c6fd9'),
   '--sw-toggle-on': lt('#2767ed', '#4c6fd9'),
+  // A11Y-R4-LEFTOVERS-2380: the off track against bubble's opaque tinted surfaces (dark: the lilac surfaces are LIGHT enough that a track must be lighter still)
+  '--sw-toggle-off': lt('#66708a', '#ada5c0'),
   '--sw-live': lt('#16a34a', '#3ddc84'),
   '--sw-live-soft': lt('rgba(22, 163, 74, 0.14)', 'rgba(61, 220, 132, 0.2)'),
   '--sw-live-text': lt('#116330', '#7ff0b0'),

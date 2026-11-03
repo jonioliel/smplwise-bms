@@ -715,7 +715,7 @@ export class SecurityAlarm extends LitElement {
       block-size: 28px;
       border-radius: var(--sw-r-pill);
       border: 0;
-      background: var(--sw-border-strong);
+      background: var(--sw-toggle-off);
       position: relative;
       cursor: pointer;
       padding: 0;

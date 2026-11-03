@@ -401,7 +401,7 @@ test.describe('הגדרות › התראות (live, throwaway backend)', () => {
     const screen = page.locator('arx-notifications-settings');
     await expect(screen.locator('[data-push-settings][data-loaded="1"]')).toBeVisible({ timeout: 20_000 });
     // the tab is offered to every user in the settings tab row
-    await expect(page.locator('sw-app').getByRole('link', { name: 'התראות' }).first()).toBeAttached();
+    await expect(page.locator('sw-app').getByRole('tab', { name: 'התראות' }).first()).toBeAttached();
     await expect(screen.locator('[data-push-state="off"]')).toBeVisible();
     await page.waitForFunction(async () => !!(await navigator.serviceWorker.getRegistration()));
     await shot(page, 'notifications-off', info.project.name);

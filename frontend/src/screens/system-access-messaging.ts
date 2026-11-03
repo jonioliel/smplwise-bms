@@ -197,7 +197,7 @@ export class SystemAccessMessaging extends LitElement {
         inline-size: 42px;
         block-size: 24px;
         border-radius: var(--sw-r-pill);
-        background: var(--sw-border-strong);
+        background: var(--sw-toggle-off);
         transition: background var(--sw-t-fast) var(--sw-ease);
       }
       .track::after {

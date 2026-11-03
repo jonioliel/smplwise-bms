@@ -216,10 +216,13 @@ test.describe('tab bar styles (mocked backend)', () => {
     const first = await tabs.first().boundingBox();
     const second = await tabs.nth(1).boundingBox();
     expect(first!.x).toBeGreaterThan(second!.x);
-    // roles unchanged: links, one aria-current="page", reachable with Tab
+    // links, one aria-current="page"; A11Y-R4-LEFTOVERS-2380: a real tablist (role=tab, aria-selected on the current one, roving tabindex), so the
+    // next tab is reached with the arrow key (ArrowLeft in RTL), not with Tab
     await expect(page.locator('sw-app sw-tabs[data-area-tabs] a[aria-current="page"]')).toHaveCount(1);
+    await expect(page.locator('sw-app sw-tabs[data-area-tabs] [role="tablist"]')).toHaveCount(1);
+    await expect(page.locator('sw-app sw-tabs[data-area-tabs] a[role="tab"][aria-selected="true"]')).toHaveCount(1);
     await tabs.first().focus();
-    await page.keyboard.press('Tab');
+    await page.keyboard.press('ArrowLeft');
     expect(await page.evaluate(() => (document.querySelector('sw-app')!.shadowRoot!.querySelector('sw-tabs[data-area-tabs]')!.shadowRoot!.activeElement as HTMLElement | null)?.getAttribute('href'))).toBe('#/wiskey/events');
   });
 

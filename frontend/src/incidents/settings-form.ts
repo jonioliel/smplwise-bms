@@ -45,7 +45,7 @@ export class IncidentSettingsForm extends LitElement {
     .tx span { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
     /* POLISH4-WP7: the key reads the same tokens as sw-toggle (track, thumb, spring), presses in on pointer-down, shows a focus ring, and on a phone grows a
        44 px tall hit area in the block axis only (a transparent ::before, so the drawn key and the row do not move) */
-    .sw { position: relative; inline-size: 42px; block-size: 24px; border-radius: var(--sw-r-pill); background: var(--sw-border-strong); border: 0; cursor: pointer; flex: none; padding: 0; transition: background var(--sw-t-med) var(--sw-ease); -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+    .sw { position: relative; inline-size: 42px; block-size: 24px; border-radius: var(--sw-r-pill); background: var(--sw-toggle-off); border: 0; cursor: pointer; flex: none; padding: 0; transition: background var(--sw-t-med) var(--sw-ease); -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
     .sw::after { content: ''; position: absolute; inset-block-start: 3px; inset-inline-start: 3px; inline-size: 18px; block-size: 18px; border-radius: 50%; background: var(--sw-toggle-thumb); transition: inset-inline-start var(--sw-spring-toggle-ms) var(--sw-spring-toggle); box-shadow: var(--sw-shadow-thumb); }
     .sw[aria-checked='true'] { background: var(--sw-toggle-on); }
     .sw[aria-checked='true']::after { inset-inline-start: 21px; }

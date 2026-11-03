@@ -1043,8 +1043,16 @@ export class ExplorePlanEditor extends LitElement {
     /* POLISH4 WP6 (D13): a finger gets a larger key on the bar's 26 px icon buttons (the tool rail is already 38 px) */
     @media (pointer: coarse) {
       .bar button.icon {
+        position: relative;
         inline-size: var(--sw-ctl-h-lg);
         block-size: var(--sw-ctl-h-lg);
+      }
+      /* A11Y-R4-LEFTOVERS-2380: the drawn key stays --sw-ctl-h-lg (36 / 40 px, so the bar does not grow on a tablet); an invisible layer
+       * brings the hit area to 44 px. It reaches at most 4 px past the key, and the bar's gap is 8 px, so two neighbours never overlap. */
+      .bar button.icon::after {
+        content: '';
+        position: absolute;
+        inset: min(0px, calc((var(--sw-ctl-h-lg) - 44px) / 2));
       }
     }
   `, studioPanelStyles, packageDialogStyles, studio6Styles];

@@ -142,7 +142,7 @@ const rules = `
 :host(sw-badge:not([onimage])) { background: transparent; border: 1px solid color-mix(in srgb, currentColor 45%, transparent); border-radius: var(--sw-r-md); }
 ::slotted(input), ::slotted(select), ::slotted(textarea) { background: transparent; border-radius: var(--sw-r-sm); }
 /* tesla 6 - switch: an outlined track, the thumb in grey, accent when on */
-:host(sw-toggle) button { background: transparent; box-shadow: inset 0 0 0 1px var(--sw-border-strong); }
+:host(sw-toggle) button { background: transparent; box-shadow: inset 0 0 0 1px var(--sw-toggle-off); }
 :host(sw-toggle) button::after { background: var(--sw-text-2); box-shadow: none; }
 :host(sw-toggle[checked]) button { background: var(--sw-toggle-on); box-shadow: none; }
 :host(sw-toggle[checked]) button::after { background: #fff; }

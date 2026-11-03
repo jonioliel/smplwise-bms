@@ -70,7 +70,7 @@ export class SystemSecurityPublic extends LitElement {
       .sw { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
       .sw:active:not(:disabled) .track { transform: scale(var(--sw-press-scale)); }
       .sw .t { flex: 1; min-inline-size: 0; font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
-      .track { flex: none; position: relative; inline-size: 42px; block-size: 24px; border-radius: var(--sw-r-pill); background: var(--sw-border-strong); transition: background var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease); }
+      .track { flex: none; position: relative; inline-size: 42px; block-size: 24px; border-radius: var(--sw-r-pill); background: var(--sw-toggle-off); transition: background var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease); }
       .track::after { content: ''; position: absolute; inset-block-start: 3px; inset-inline-start: 3px; inline-size: 18px; block-size: 18px; border-radius: 50%; background: var(--sw-toggle-thumb); box-shadow: var(--sw-shadow-1); transition: transform var(--sw-t-fast) var(--sw-ease); }
       .sw[aria-checked='true'] .track { background: var(--sw-toggle-on); }
       .sw[aria-checked='true'] .track::after { transform: translateX(-18px); }

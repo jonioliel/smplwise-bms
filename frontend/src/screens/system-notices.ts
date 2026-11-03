@@ -528,8 +528,8 @@ export class SystemNotices extends LitElement {
           <sw-button icon="refresh" data-rotate @click=${() => (this.confirmRotate = { board: b, copy: false })}>${nt('newLink')}</sw-button>
           <sw-toggle .checked=${b.enabled} label=${nt('boardEnabled')} @change=${(e: CustomEvent<{ checked: boolean }>) => this.saveBoard({ enabled: e.detail.checked })}></sw-toggle>
         </div></div>
-      <sw-tabs .items=${tabs} active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id as BoardTab)}></sw-tabs>
-      <div class="stack">${this.tab === 'general' ? this.generalTab() : this.tab === 'display' ? this.displayTab() : this.noticesTab()}</div>`;
+      <sw-tabs .items=${tabs} active=${this.tab} panel="board-panel" @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id as BoardTab)}></sw-tabs>
+      <div class="stack" id="board-panel">${this.tab === 'general' ? this.generalTab() : this.tab === 'display' ? this.displayTab() : this.noticesTab()}</div>`;
   }
 
   private generalTab() {

@@ -89,6 +89,13 @@ export function nextIndex(key: string, index: number, count: number, rtl: boolea
   return (at + (forward ? 1 : -1) + count) % count;
 }
 
+/** A11Y-R4-LEFTOVERS-2380: which tab is the one Tab stop of a strip (roving tabindex): the selected one, else the first (never none). -1 for an empty strip. */
+export function rovingStop(ids: readonly string[], active: string): number {
+  if (!ids.length) return -1;
+  const at = ids.indexOf(active);
+  return at < 0 ? 0 : at;
+}
+
 /** The physical `left` delta that brings one tab fully into view with `pad` pixels of room (the fade / the arrow), or 0. */
 export function revealDelta(boxLeft: number, boxRight: number, itemLeft: number, itemRight: number, pad: number): number {
   const room = Math.max(0, Math.min(pad, (boxRight - boxLeft - (itemRight - itemLeft)) / 2));
