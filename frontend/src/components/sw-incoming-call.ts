@@ -214,10 +214,14 @@ export class SwIncomingCall extends LitElement {
     .line[data-tone='error'] {
       color: var(--sw-danger-text, #b91c1c);
     }
+    /* the call's own actions on one row (answer + decline, or end); the doors under them, each as wide as its name needs */
     .acts {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
       gap: var(--sw-s-2, 8px);
+    }
+    .acts.doors {
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     }
     .acts wk-action-button {
       display: flex;
@@ -287,9 +291,6 @@ export class SwIncomingCall extends LitElement {
       }
       .pic {
         max-block-size: 34vh;
-      }
-      .acts {
-        grid-template-columns: repeat(3, 1fr);
       }
     }
     @media (prefers-color-scheme: dark) {
@@ -622,8 +623,8 @@ export class SwIncomingCall extends LitElement {
           : html`<wk-action-button tone="danger" icon="hangup" size="lg" data-call-hangup ?busy=${busy === 'hangUp'} ?disabled=${!!busy} @click=${() => void this.signal(c, 'hangUp')}
               >${t.hangUp}</wk-action-button
             >`}
-        ${this.doorButtons(c)}
       </div>
+      ${c.can_open_door && c.online && c.locks.length ? html`<div class="acts doors">${this.doorButtons(c)}</div>` : nothing}
       <div class="foot">
         <a href=${stationDrawerHref(c.station_id)} data-call-open-station>${wkIcon('window', 14)}${t.station}</a>
         ${others > 0 ? html`<button class="link" data-call-next aria-label=${t.next} @click=${() => (this.front = (this.front + 1) % shown.length)}>${fill(t.more, { n: others })}</button>` : nothing}
