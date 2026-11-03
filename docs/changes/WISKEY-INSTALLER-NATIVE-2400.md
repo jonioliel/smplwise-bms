@@ -132,6 +132,33 @@ Tests: `tests/test_wiskey_installer_platform.py` (8), unit + browser specs (one 
   the maintenance queue.
 - (phase 4) `platform/webhook_key` reveals the key in plain text; no rotation command exists.
 
+## Commits and receipts
+
+| Phase | Feature commit | Follow-ups |
+|---|---|---|
+| 1 clock | `f83dfed2c` | spec fix in `420fe30df`, baselines `d66999d5a` |
+| 2 technical | `420fe30df` | baselines `d66999d5a` |
+| 3 lifecycle | `4451d39cc` | baselines `8383fcffa` |
+| 4 platform | `7667a37a7` | phone tab strip + baselines `0edbbd7a8`; element baselines for dialogs `455e369d5`, `b78a6b677` |
+
+- Backend (local, Python 3.12 venv, fake WisKey on the rc.10 extract): `pytest tests/test_wiskey_installer_clock.py
+  tests/test_wiskey_installer_technical.py tests/test_wiskey_installer_lifecycle.py tests/test_wiskey_channels.py tests/test_pwclean_295.py
+  tests/test_wiskey_contract.py tests/test_wiskey_diagnostics.py` -> 154 passed, 2 skipped (after phase 3);
+  `tests/test_wiskey_installer_platform.py` -> 8 passed (phase 4). Totals per file: clock 20, technical 9, lifecycle 11, platform 8.
+- Frontend unit (local, Node only): `npx playwright test -c playwright.unit.config.ts tests/unit-wiskey-installer.spec.ts
+  tests/unit-settings-index.spec.ts` -> 14 passed; `npx tsc --noEmit` clean.
+- Browser (runner, desktop + mobile): `run_smart.py spec pilot/WISKEY-INSTALLER-NATIVE-2400 tests/evidence-wiskey-installer.spec.ts
+  --project=desktop --project=mobile` -> phase 1-2: 30 passed (`d66999d5a`); phase 3: 40 passed (`4451d39cc`); phase 4: 52 passed
+  (`0edbbd7a8`); final verification without `--update-snapshots`, `--repeat-each=2`: 104 passed (`b78a6b677`).
+- Design detector: `impeccable detect` over the seven installer UI files -> no findings.
+
+## NOT_RUN
+
+- Any lab / device / Home Assistant test (no lab access by instruction): every WisKey call and the HA flow API are fakes.
+- The HA flow REST start with `entry_id` (reconfigure) against a real Home Assistant.
+- Windows pixel baselines (Linux runner baselines only); the tablet project (skipped by design in this spec).
+- The full frontend suite, the visual matrix and the fixture specs; `contracts/API_INVENTORY.md` is regenerated at release.
+
 ## Migration
 
 None (no table). Process memory only for the limits and the 15 s check cache.
