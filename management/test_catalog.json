@@ -13426,5 +13426,1005 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-RELEASE-2371-WISKEY-1",
+    "requirement_ids": [
+      "R-RELEASE-2371-WISKEY-1"
+    ],
+    "task_ids": [
+      "RELEASE-2371-WISKEY"
+    ],
+    "title": "Release 2.37.1: WisKey alignment (rc.39 native component, one restart decision, readiness, station still)",
+    "kind": "release gate",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "scripts/release_check.py and the runner gate on the release commit."
+    ],
+    "expected": "Release 2.37.1 = 2.37.0 plus the WisKey chain (rc.4 / relay map / relay export / rc.7 adoption with auto-install policy B, S4 Core runtime observer with bridge 0.10.2, S5 pre-merge, S6 release prep), gated on the runner, merged to main and tagged v2.37.1.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-GATE2370-1",
+    "requirement_ids": [
+      "R-GATE2370-1"
+    ],
+    "task_ids": [
+      "GATE2370"
+    ],
+    "title": "Release gate fixes of 2.37.0 (groups A-D)",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "The failures of the 2.37.0 full gate are fixed on fix/GATE2370-A..D and merged into release/2370-train before the tag.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-TV-SETTINGS-2380-1",
+    "requirement_ids": [
+      "R-TV-SETTINGS-2380-1"
+    ],
+    "task_ids": [
+      "TV-SETTINGS-2380"
+    ],
+    "title": "Display: notice TV settings rows (2.38.0)",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "The TV notice-board settings added in the display train are reachable in Settings and shipped in 2.38.0.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-DARK-SEG-ALL-2380-1",
+    "requirement_ids": [
+      "R-DARK-SEG-ALL-2380-1"
+    ],
+    "task_ids": [
+      "DARK-SEG-ALL-2380"
+    ],
+    "title": "Dark mode: readable chosen option of every segmented switch",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "In dark mode the chosen option of every selection switch is readable (about 60 switches across the screens).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-PUSH-RELAY-SAFE-2380-1",
+    "requirement_ids": [
+      "R-PUSH-RELAY-SAFE-2380-1"
+    ],
+    "task_ids": [
+      "PUSH-RELAY-SAFE-2380"
+    ],
+    "title": "Push relay safety: push stays off while the relay is not live",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "Push to the phone app cannot be switched on while the relay server is not live; the setting explains why.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-A11Y-R4-LEFTOVERS-2380-1",
+    "requirement_ids": [
+      "R-A11Y-R4-LEFTOVERS-2380-1"
+    ],
+    "task_ids": [
+      "A11Y-R4-LEFTOVERS-2380"
+    ],
+    "title": "Accessibility leftovers of polish round 4",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "The accessibility findings left open by polish round 4 are fixed with runner specs.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-GATE2380-1",
+    "requirement_ids": [
+      "R-GATE2380-1"
+    ],
+    "task_ids": [
+      "GATE2380"
+    ],
+    "title": "Release gate fixes of 2.38.0 (groups A-B)",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "The failures of the 2.38.0 gate are fixed on fix/GATE2380-A and -B and merged into release/2380-train before the tag.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-STATION-WS-PATH-2381-1",
+    "requirement_ids": [
+      "R-STATION-WS-PATH-2381-1"
+    ],
+    "task_ids": [
+      "STATION-WS-PATH-2381"
+    ],
+    "title": "Fix: one api/v1 prefix for the station live, listen and talk sockets",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "The stations drawer opens its live video, listen and talk sockets under one api/v1 prefix, through Ingress and the remote path.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-RELEASE-2381-1",
+    "requirement_ids": [
+      "R-RELEASE-2381-1"
+    ],
+    "task_ids": [
+      "RELEASE-2381"
+    ],
+    "title": "Release 2.38.1: station sockets fix",
+    "kind": "release gate",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "scripts/release_check.py and the runner gate on the release commit."
+    ],
+    "expected": "Release 2.38.1 = 2.38.0 plus STATION-WS-PATH-2381, gated on the runner, merged to main and tagged v2.38.1.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-RELEASE-2382-TRAIN-1",
+    "requirement_ids": [
+      "R-RELEASE-2382-TRAIN-1"
+    ],
+    "task_ids": [
+      "RELEASE-2382-TRAIN"
+    ],
+    "title": "Release train 2.38.2 (WisKey activation, TV chips, dialog top layer, board management)",
+    "kind": "release gate",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "scripts/release_check.py and the runner gate on the release commit."
+    ],
+    "expected": "Release 2.38.2 = 2.38.1 plus the merged train branches, gated on the runner, merged to main and tagged v2.38.2.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-TV-CHIPS-2381-1",
+    "requirement_ids": [
+      "R-TV-CHIPS-2381-1"
+    ],
+    "task_ids": [
+      "TV-CHIPS-2381"
+    ],
+    "title": "Display: TV footer chips",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "The TV notice board footer chips follow the owner answers of the display phase.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-DIALOG-TOPLAYER-2381-1",
+    "requirement_ids": [
+      "R-DIALOG-TOPLAYER-2381-1"
+    ],
+    "task_ids": [
+      "DIALOG-TOPLAYER-2381"
+    ],
+    "title": "Shared dialog in the browser top layer",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "The shared dialog opens in the top layer so no surface covers it.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-TALK-DIAL-2382-1",
+    "requirement_ids": [
+      "R-WISKEY-TALK-DIAL-2382-1"
+    ],
+    "task_ids": [
+      "WISKEY-TALK-DIAL-2382"
+    ],
+    "title": "WisKey A-a: talk end to end, the provider row and native dial",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "Talk through WisKey W10 works end to end when selected; the video and talk provider has a Settings row; \"dial\" opens a talk session.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-TALK-CAPS-2382-1",
+    "requirement_ids": [
+      "R-WISKEY-TALK-CAPS-2382-1"
+    ],
+    "task_ids": [
+      "WISKEY-TALK-CAPS-2382"
+    ],
+    "title": "WisKey: choose the W10 provider from the signed direct capabilities",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "Arx selects the WisKey W10 media provider from the signed direct/capabilities read when overview.api does not list W10 (plan finding 2).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-PAIRING-2382-1",
+    "requirement_ids": [
+      "R-WISKEY-PAIRING-2382-1"
+    ],
+    "task_ids": [
+      "WISKEY-PAIRING-2382"
+    ],
+    "title": "WisKey A-b: pairing status, signed check, guided re-pair, \"מצב WisKey\"",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "Settings shows the Arx to WisKey pairing state, runs a signed check on demand and guides a re-pair.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-MANAGED-INSTALL-2382-1",
+    "requirement_ids": [
+      "R-WISKEY-MANAGED-INSTALL-2382-1"
+    ],
+    "task_ids": [
+      "WISKEY-MANAGED-INSTALL-2382"
+    ],
+    "title": "WisKey A-c: Arx-managed install and upgrade (owner-started, policy B)",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "An owner-started managed install / upgrade path behind wiskey.managed.enabled with typed confirmation, adoption of a manual install, stop / swap / start / compare / rollback.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-INBOUND-CALLS-2382-1",
+    "requirement_ids": [
+      "R-WISKEY-INBOUND-CALLS-2382-1"
+    ],
+    "task_ids": [
+      "WISKEY-INBOUND-CALLS-2382"
+    ],
+    "title": "WisKey A-e: inbound station calls in Arx",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "A ringing station shows an incoming-call banner in Arx with pick up / reject, a call ledger (migration 0197) and a setting that is off by default.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-JOIN-LIVE-2382-1",
+    "requirement_ids": [
+      "R-WISKEY-JOIN-LIVE-2382-1"
+    ],
+    "task_ids": [
+      "WISKEY-JOIN-LIVE-2382"
+    ],
+    "title": "WisKey T1: direct join starts and stops at runtime",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "The WisKey direct join is re-evaluated when the provider setting or the key changes, tears down on local, and exposes its join state.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-RC10-PIN-2382-1",
+    "requirement_ids": [
+      "R-WISKEY-RC10-PIN-2382-1"
+    ],
+    "task_ids": [
+      "WISKEY-RC10-PIN-2382"
+    ],
+    "title": "WisKey T2: command contract re-pinned to 2.0.1-rc.10",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "The WisKey command catalogue and contract diff are re-pinned to rc.10, including the new installation, W10 and messaging rows.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-STATUS-PAGE-2382-1",
+    "requirement_ids": [
+      "R-WISKEY-STATUS-PAGE-2382-1"
+    ],
+    "task_ids": [
+      "WISKEY-STATUS-PAGE-2382"
+    ],
+    "title": "WisKey T3: \"מצב WisKey\" status page",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "One Settings page lists the WisKey version, entries per station, pairing, provider and join state, discovery, switches, policy B, readiness and the Core gate; every \"off\" line says why.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-STATION-OPS-2390-1",
+    "requirement_ids": [
+      "R-WISKEY-STATION-OPS-2390-1"
+    ],
+    "task_ids": [
+      "WISKEY-STATION-OPS-2390"
+    ],
+    "title": "WisKey T4: station maintenance actions (sync, rescan, health and clock refresh)",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "Sync now (person / station / all), rescan, health refresh and clock refresh from Arx on a closed maintenance channel with permission, station scope and audit.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-CONFLICTS-2390-1",
+    "requirement_ids": [
+      "R-WISKEY-CONFLICTS-2390-1"
+    ],
+    "task_ids": [
+      "WISKEY-CONFLICTS-2390"
+    ],
+    "title": "WisKey T5: conflicts resolve and fleet alert actions",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "Conflicts review / resolve / resolve deletion and fleet alert actions from Arx with WisKey's preview.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-DOOR-TECH-2390-1",
+    "requirement_ids": [
+      "R-WISKEY-DOOR-TECH-2390-1"
+    ],
+    "task_ids": [
+      "WISKEY-DOOR-TECH-2390"
+    ],
+    "title": "WisKey T6: door technical writes (hold-open schedules, public codes, programs)",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "Hold-open schedule save / delete, public code write (value never stored in Arx) and program save / pause on a door_technical channel, system administrator only, with confirm and audit.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-SCHED-WRITE-2390-1",
+    "requirement_ids": [
+      "R-WISKEY-SCHED-WRITE-2390-1"
+    ],
+    "task_ids": [
+      "WISKEY-SCHED-WRITE-2390"
+    ],
+    "title": "WisKey T7: device schedule library writes",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "Create / edit / import / plan / deploy / claim device schedules from Arx with WisKey's preview and readiness before apply.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-PROFILES-EDIT-2390-1",
+    "requirement_ids": [
+      "R-WISKEY-PROFILES-EDIT-2390-1"
+    ],
+    "task_ids": [
+      "WISKEY-PROFILES-EDIT-2390"
+    ],
+    "title": "WisKey T8: groups and profile fields editing",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "Groups and profile fields: preview, apply, versions compare and rollback through a draft from Arx.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-PEOPLE-COMPLETE-2390-1",
+    "requirement_ids": [
+      "R-WISKEY-PEOPLE-COMPLETE-2390-1"
+    ],
+    "task_ids": [
+      "WISKEY-PEOPLE-COMPLETE-2390"
+    ],
+    "title": "WisKey T9: people completeness (PIN and duplicate checks, unmanaged users)",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "PIN duplicate check, duplicate-person check, unmanaged users on stations (adopt / ignore / delete with confirm), conditional profile fields.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-ACCESS-DIAG-2400-1",
+    "requirement_ids": [
+      "R-WISKEY-ACCESS-DIAG-2400-1"
+    ],
+    "task_ids": [
+      "WISKEY-ACCESS-DIAG-2400"
+    ],
+    "title": "WisKey T10: access diagnostics views",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "Access scenario (\"can X open door Y now\"), compare, periodic reviews, data quality, station permission audit, sync diagnostics and expiring access in Arx.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-OPS-VIEWS-2400-1",
+    "requirement_ids": [
+      "R-WISKEY-OPS-VIEWS-2400-1"
+    ],
+    "task_ids": [
+      "WISKEY-OPS-VIEWS-2400"
+    ],
+    "title": "WisKey T11: operations and fleet views",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "Operations query, investigations timeline, jobs, capacity and trends, fleet inventory export, audit export and events report in Arx.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-WA-QUEUE-2400-1",
+    "requirement_ids": [
+      "R-WISKEY-WA-QUEUE-2400-1"
+    ],
+    "task_ids": [
+      "WISKEY-WA-QUEUE-2400"
+    ],
+    "title": "WisKey T12: messaging completion on the installed client",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "Template registry sync, durable queue (enqueue / job / cancel), v3 outcomes and send pacing on the installed client.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-VISITS-2400-1",
+    "requirement_ids": [
+      "R-WISKEY-VISITS-2400-1"
+    ],
+    "task_ids": [
+      "WISKEY-VISITS-2400"
+    ],
+    "title": "WisKey T13: visits and guest templates decision and bridge",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "WisKey visit requests and guest templates are mapped onto Arx visitors / external access, or retired, per the owner decision.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-CLOCK-VIEW-2400-1",
+    "requirement_ids": [
+      "R-WISKEY-CLOCK-VIEW-2400-1"
+    ],
+    "task_ids": [
+      "WISKEY-CLOCK-VIEW-2400"
+    ],
+    "title": "WisKey T14: clock / NTP and WisKey media options view",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "Host and station clock drift, NTP settings and the WisKey media provider check are visible in Arx.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-EVENT-CURSOR-2390-1",
+    "requirement_ids": [
+      "R-WISKEY-EVENT-CURSOR-2390-1"
+    ],
+    "task_ids": [
+      "WISKEY-EVENT-CURSOR-2390"
+    ],
+    "title": "WisKey T15: gap-free events after a restart (event cursor)",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "The events/resume_v1 cursor is used on the service feed so no door event is missed across restarts.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-LIVE-VALIDATION-2390-1",
+    "requirement_ids": [
+      "R-WISKEY-LIVE-VALIDATION-2390-1"
+    ],
+    "task_ids": [
+      "WISKEY-LIVE-VALIDATION-2390"
+    ],
+    "title": "WisKey T16: live validation screen for commissioning",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "A screen runs WisKey's live_validation feature per station (identity, door capabilities, door read, media, one door pulse with a witness), each run approved by the owner.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-SVC-GRANT-2400-1",
+    "requirement_ids": [
+      "R-WISKEY-SVC-GRANT-2400-1"
+    ],
+    "task_ids": [
+      "WISKEY-SVC-GRANT-2400"
+    ],
+    "title": "WisKey T17: service-write grant path",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "Arx shows and requests the WisKey service-write grant from the status page once WisKey publishes a grant writer.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-DEEPLINKS-2382-1",
+    "requirement_ids": [
+      "R-WISKEY-DEEPLINKS-2382-1"
+    ],
+    "task_ids": [
+      "WISKEY-DEEPLINKS-2382"
+    ],
+    "title": "WisKey T18: deep links into the embedded panel for everything not native",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "Every WisKey capability that is not native in Arx has an \"open in WisKey\" link to the exact tab / tool of the embedded panel.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-ACTIVATION-RUNBOOK-0411-1",
+    "requirement_ids": [
+      "R-WISKEY-ACTIVATION-RUNBOOK-0411-1"
+    ],
+    "task_ids": [
+      "WISKEY-ACTIVATION-RUNBOOK-0411"
+    ],
+    "title": "WisKey T19: activation runbook for the 04.11 joint session",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "An ordered activation ladder (door map, provider, pairing check, video_talk, listen, live validation, door windows / emergency) with the screen, expected status line, rollback and approval wording per step.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-LISTEN-2410-1",
+    "requirement_ids": [
+      "R-WISKEY-LISTEN-2410-1"
+    ],
+    "task_ids": [
+      "WISKEY-LISTEN-2410"
+    ],
+    "title": "WisKey T20: standalone listen to a station",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "Listen to a station without talk once WisKey publishes a downlink.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-EMERGENCY-LOCK-2410-1",
+    "requirement_ids": [
+      "R-WISKEY-EMERGENCY-LOCK-2410-1"
+    ],
+    "task_ids": [
+      "WISKEY-EMERGENCY-LOCK-2410"
+    ],
+    "title": "WisKey T21: emergency LOCK / secure",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "An emergency secure / LOCK command for WisKey doors, behind the emergency switches and approvals.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-RING-STATION-2410-1",
+    "requirement_ids": [
+      "R-WISKEY-RING-STATION-2410-1"
+    ],
+    "task_ids": [
+      "WISKEY-RING-STATION-2410"
+    ],
+    "title": "WisKey T22: operator-initiated ringing call to a station",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "The operator can make a station ring, if the device supports it.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-INSTALLER-NATIVE-2400-1",
+    "requirement_ids": [
+      "R-WISKEY-INSTALLER-NATIVE-2400-1"
+    ],
+    "task_ids": [
+      "WISKEY-INSTALLER-NATIVE-2400"
+    ],
+    "title": "WisKey installer tools natively in Arx (platform, clock, station technical settings)",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Runner suites named in the change record of the branch; owner check where the card needs the installation."
+    ],
+    "expected": "The WisKey installer tools (platform, clock / NTP, station technical settings, lifecycle) are available natively in Arx in phases.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (REGISTRY-AUDIT-20261103); NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

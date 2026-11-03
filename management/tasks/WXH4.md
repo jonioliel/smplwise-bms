@@ -35,4 +35,4 @@
 Read AGENTS.md and the linked master chapters. Inspect legacy code before replacement. No production configuration writes, physical commands, spending, or claims of passing unrun tests. Record commit, environment, commands and evidence.
 
 ## Blocker
-DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
+Waits for two owner decisions (CR-WISKEY-HMAC-ROTATION-295 section 16.3: delivery of the new key and who may reveal it) and a bridge release; the 2026-10-10 deferral itself was lifted on 2026-10-20.
