@@ -214,3 +214,39 @@ rebuilt UI) -> merge commit **204e99d50**. Still no version bump (WisKey 2.37.1 
 - The full backend suite and the full Playwright tier: the train gate.
 - Still open from section 7: a design glance at the quiet-window card (phone) and owner Q3 (portrait footer two rows vs drop, default `rows`).
 - Before the version commit: merge WisKey 2.37.1 when released, rebuild the UI, bump to 2.38.0, regenerate the API inventory.
+
+## 10. Slice 4 (03.11): v2.37.1 (WisKey) merged
+
+The lead merged `fix/DARK-SEG-ALL-2380` into the train (c694dac74). Then `git merge --no-ff v2.37.1` (tag v2.37.1 = main 4062e4c73) -> merge commit
+**f3938813d**. Still no version bump, no UI build, no tag.
+
+| File | Resolution |
+|---|---|
+| `contracts/API_INVENTORY.md` | the only conflict. Regenerated on the merged tree: **1719 routes** (2.37.1's 1717 + the train's two `GET /api/v1/brand/app*`); Version stays 2.37.1 |
+| `smplwise_vms/www`, `www-public`, `CHANGELOG.md`, `config.yaml`, `Dockerfile` | no conflict; identical to v2.37.1's (CHANGELOG head 2.37.1; the version commit rebuilds www) |
+| Migrations | main's 0194-0196 come in; **the train adds no migration** (nothing to renumber); release_check: 196 files, contiguous, last 0196 |
+| `frontend/src/screens/system-diagnostics.ts` | auto-merged, both intents: the app sign-in card and WisKey's install / restart warning |
+
+**Baseline (d22b278f4):** `visual-matrix` `security-alarm-ready-light-tablet` - the OFF-switch track (A11Y-R4-LEFTOVERS-2380). e2391a9a7 refreshed only
+the desktop copy (that run had no tablet project). Refreshed on the runner with `-u` over all three projects: only this file moved. Reviewed: only the
+off track of the five bypass switches differs (2299 px); the ON switch and the rest are unchanged.
+
+### 10.1 Checks
+
+| Check | Where | Result |
+|---|---|---|
+| `tsc --noEmit` (src + tests) | workstation | 0 errors |
+| Unit specs touched by the merge (`unit-wiskey-relay-map`, `unit-wiskey-switches`) + the train's (`unit-settings-rows-2380`, `unit-switch-contrast-2380`, `unit-a11y-r4-leftovers-2380`, `unit-tv-fit-2380`) + `unit-dark-polish-beds`, `unit-token-lint`, `--workers=1` | workstation | **69 passed, 0 failed** |
+| Backend, one process: the 25 WisKey / relay-map / migration test files that the merge changed (incl. `test_wiskey_s5_migration_upgrade`, `test_wiskey_relay_map_*`, `test_wiskey_adopt_2272_*`, `test_wiskey_m12_*`) + `test_migrations`, `test_db_gate` + the train's 11 (`test_mobile_push`, `test_tickets_app_push`, `test_app_server_leftovers_2380`, `test_push_golive_check`, `test_presence_contract_v22`, `test_app_refresh_rotation_fixtures_k5`, `test_notice_tvsettings_2380`, `test_notice_boardv2_297`, `test_quiet103`, `test_notify_channels`, `test_docs_config_consistency`) | workstation | **935 passed, 21 skipped, 0 failed** (51 min) |
+| `scripts/release_check.py` | workstation | 19 / 19 ok (one version 2.37.1 everywhere, migrations contiguous to 0196, `git tag for this version: v2.37.1 exists`); RESULT: ready for the owner's approval |
+| `visual-matrix`, `-u` (f3938813d) | runner | 75 passed; 1 PNG rewritten (above) |
+| `visual-matrix` without `-u` (d22b278f4) | runner, desktop + tablet + mobile | **75 passed, 0 failed** |
+| `evidence-dark-seg-all-2380` (the DARK-SEG receipt) + `evidence-polish2-295` (d22b278f4) | runner, desktop + mobile (their header projects) | **36 passed, 0 failed** |
+| `evidence-switchui-295` (changed by the merge; vite dev) (d22b278f4) | runner, desktop + mobile | **16 passed, 0 failed** |
+
+Before every runner job: `gate_status.json` = pass (not running) and no `release_gate.py` / `release_gate2.sh` process.
+
+### 10.2 NOT_RUN
+
+- The runner entry check (9.5) - unchanged.
+- The full backend suite and the full Playwright tier after this merge: the train gate.
