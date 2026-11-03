@@ -1589,6 +1589,9 @@ class IntercomSync:
             from . import notify_sources  # CR-018: a station that starts ringing signals `door.ring` - queued for the notifier's thread, never a write on this loop
 
             notify_sources.on_stations(before, projected["stations"])
+            from . import intercom_calls  # WISKEY-INBOUND-CALLS-2382: the call book (in memory) + the call log (queued for its writer thread)
+
+            intercom_calls.on_stations(before, projected["stations"])
             lease_station_diff(before, projected["stations"])
         STATE.fetched_at = now_iso()
         self._fetched_mono = time.monotonic()

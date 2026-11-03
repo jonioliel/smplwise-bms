@@ -36,6 +36,7 @@ import { refreshCalendars, wireCalendars } from '../calendars/access'; // CALEND
 import { startRfqQuestions } from '../tickets/rfq-questions-store'; // RFQQUESTIONS: the nav badge of vendor questions
 import { rt } from '../tickets/rfq-text';
 import '../xsection/sw-fire-bar'; // 2.29.0: the alarm bar (off unless the option fire_ui is on)
+import '../components/sw-incoming-call'; // WISKEY-INBOUND-CALLS-2382: the incoming door-station call banner (off unless its setting is on)
 import { setXsOptions, xsOptions } from '../xsection/xs-model';
 import { classifyDevice, readDeviceEnv, wallModeFor } from '../wall/device-class';
 import { incidentState, onIncidentState, startIncidents } from '../incidents/store';
@@ -3489,7 +3490,7 @@ export class SwApp extends LitElement {
     if (this.wallMode()) return html`${bar}<sw-wall></sw-wall>`;
     if (this.route?.segments[0] === 'kiosk') return html`${bar}<main style="block-size:100dvh">${this.renderScreen()}</main>`;
     if (this.embedded()) return html`${bar}<main class="embed" style="block-size:100dvh;overflow:auto">${this.renderScreen()}</main>`;
-    return html`${bar}${this.renderA()}`;
+    return html`${bar}<sw-incoming-call></sw-incoming-call>${this.renderA()}`;
   }
 }
 

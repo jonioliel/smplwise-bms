@@ -875,6 +875,9 @@ def open_door(act: _Action, station_id: str, lock: int, entry_point: str, not_af
             exc.details["door_request_id"] = request_id  # the status read asks about it (the interim transport has none)
         raise
     reply["door_request_id"] = request_id
+    from ..services import intercom_calls  # WISKEY-INBOUND-CALLS-2382: a door opened during (or just after) a call joins that call's log row
+
+    intercom_calls.note_door(station_id, act.principal)
     return reply
 
 
@@ -1027,7 +1030,11 @@ def call_signal(request: Request, station_id: str, principal: Principal = Depend
     not_after = _envelope(act, body)
     _call_station(act)
     _station(act)
-    return _perform(act, "call", lambda call: intercom_client.media_signal(call, station_id, body.command), intercom_sync.project_signal, not_after)
+    reply = _perform(act, "call", lambda call: intercom_client.media_signal(call, station_id, body.command), intercom_sync.project_signal, not_after)
+    from ..services import intercom_calls  # WISKEY-INBOUND-CALLS-2382: who answered / rejected / hung up, for the call log (never raises)
+
+    intercom_calls.note_command(station_id, body.command, principal, reply.get("call"))
+    return reply
 
 
 @router.get("/intercom/tts/engines")
