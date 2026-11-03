@@ -69,6 +69,25 @@ def test_opening_of_a_meter_added_during_the_period_is_its_first_reading():
     assert w.end.kind == "last_report" and not w.reported_to_end
 
 
+def test_opening_of_a_meter_that_first_reported_after_a_previous_empty_bill_is_its_first_reading():
+    """BILLSTART: the meter was already in the account's previous bill but had not reported yet, so that bill closed it at the
+    previous period's start ("last_report" with no value) and this bill carries from there. The first-reading fallback used to run
+    only without a carry, so the opening stayed empty ("לא נקלט", 'opening_unknown') although the meter's first reading lies inside
+    this period and the consumption from it on is billed."""
+    r = FakeReadings()
+    r.add_meter("m", "מזגן")
+    w1 = meter_window(r, "m", [utc(2026, 9, 1), utc(2026, 10, 1)])  # the previous bill: no data at all
+    assert w1.end.kind == "last_report" and w1.end.at == utc(2026, 9, 1) and w1.end.reading_wh is None
+    first = utc(2026, 10, 4, 11)
+    r.read("m", first, 593_670)
+    r.read("m", utc(2026, 10, 7), 600_000)
+    r.read("m", utc(2026, 11, 1), 610_000)
+    w2 = meter_window(r, "m", [utc(2026, 10, 1), utc(2026, 11, 1)], carried_from=w1.end.at)
+    assert (w2.start.kind, w2.start.at, w2.start.reading_wh) == ("first_reading", first, 593_670)
+    assert w2.wh == 16_330 and w2.carried_in_wh == 0
+    assert w2.end.reading_wh - w2.start.reading_wh == w2.wh
+
+
 def test_opening_unknown_when_the_meter_never_reported():
     r = FakeReadings()
     r.add_meter("m", "מונה")

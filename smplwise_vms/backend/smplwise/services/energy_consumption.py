@@ -136,15 +136,16 @@ def meter_window(provider: BillingReadings, meter_id: str, bounds: list[dt.datet
         br = provider.reading_at(meter_id, w_start)
         v = _value(br)
         start = Anchor(w_start, v, "none" if v is None else ("reading" if getattr(br, "exact", False) else "interpolated"))
-        first_at, first_wh = getattr(br, "after_at", None), getattr(br, "after_wh", None)
-        if v is None and getattr(br, "before_at", None) is None and first_at is not None and first_wh is not None and first_at < w_end:
-            # BILL-start-reading: the meter's first stored reading lies inside the window (a meter added during the period). Nothing
-            # was measured before it, so the energy billed starts there: the opening reading IS that first reading, at its own
-            # instant - end - start then equals the consumption, instead of an empty start column.
-            start = Anchor(first_at, Decimal(int(first_wh)), "first_reading")
         g = _gap(br)
         if g:
             gaps.append(g)
+    first_at, first_wh = getattr(br, "after_at", None), getattr(br, "after_wh", None)
+    if start.reading_wh is None and getattr(br, "before_at", None) is None and first_at is not None and first_wh is not None and first_at < w_end:
+        # BILL-start-reading: the meter's first stored reading lies inside the window (a meter added during the period). Nothing
+        # was measured before it, so the energy billed starts there: the opening reading IS that first reading, at its own
+        # instant - end - start then equals the consumption, instead of an empty start column. BILLSTART: the same holds when
+        # the window carries from a previous bill that closed the meter before it had ever reported (no value at the carry point).
+        start = Anchor(first_at, Decimal(int(first_wh)), "first_reading")
     reported = until >= w_end and not stopped
     if reported:
         br = provider.reading_at(meter_id, w_end)
