@@ -156,6 +156,19 @@ async function compare(page: Page, info: TestInfo, name: string) {
   else await expect(page).toHaveScreenshot(file, { maxDiffPixels: 40, animations: 'disabled' });
 }
 
+/** The dialog's own box only: the page behind the scrim (its scroll position after the tap that opened it) is not part of the case. */
+async function compareBox(page: Page, info: TestInfo, name: string) {
+  await settlePage(page);
+  const file = `${name}-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
+  const box = page.locator(`${PAGE} sw-dialog[data-lv-pulse-dialog][open] .box`);
+  if (process.env.SW_SHOTS) {
+    fs.mkdirSync(OUT, { recursive: true });
+    await box.screenshot({ path: path.join(OUT, file) });
+  }
+  if (noBaseline(info, file)) test.info().annotations.push({ type: 'skipped-pixel', description: `${file}: no baseline on ${process.platform}` });
+  else await expect(box).toHaveScreenshot(file, { maxDiffPixels: 40, animations: 'disabled' });
+}
+
 const stationCard = (page: Page, sid: string) => page.locator(`${PAGE} [data-lv-station="${sid}"]`);
 const checkRow = (page: Page, sid: string, key: string) => page.locator(`${PAGE} [data-lv-station="${sid}"] [data-lv-check="${key}"]`);
 
@@ -262,7 +275,7 @@ test.describe('WISKEY-LIVE-VALIDATION-2390: the station acceptance tool', () => 
     // a still picture: no hover under the pointer that opened the dialog, no focus ring / caret in the field just typed into
     await page.mouse.move(0, 0);
     await dlg.locator('[data-lv-witness-name]').evaluate((el) => (el as HTMLInputElement).blur());
-    await compare(page, info, 'lv-pulse-dialog');
+    await compareBox(page, info, 'lv-pulse-dialog-box');
   });
 
   test('classic is pixel-stable: the page before any run', async ({ page }, info) => {
