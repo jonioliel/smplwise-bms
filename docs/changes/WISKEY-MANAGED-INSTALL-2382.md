@@ -201,9 +201,24 @@ Routes (system administrator + `system.configure`, every write audited): `GET /w
 
 ## 11. Tests and receipts
 
-See the closing report of the branch for exact commands and outcomes. Backend: `tests/test_wiskey_managed_install_2382.py`
-(fake Supervisor + fake config tree). Unit: `frontend/tests/unit-wiskey-managed.spec.ts`. Browser: `frontend/tests/evidence-wiskey-managed-2382.spec.ts`
-(runner only).
+Backend: `tests/test_wiskey_managed_install_2382.py` (fake Supervisor + fake config tree: switch and phrase, the one writer, manual
+markers, adoption, unknown tree, invalid marker, convert, failure -> automatic rollback, registry restore only on a schema change,
+downgrade refused, Core not stopping / stop refused, missing / stale backup, Core gate x accepted risk, owner rollback, fresh install
+with Core not coming back, one run at a time, dry-run check, start-up recovery, tampered bundle). Unit:
+`frontend/tests/unit-wiskey-managed.spec.ts`. Browser: `frontend/tests/evidence-wiskey-managed-2382.spec.ts` (runner only).
+
+| Run | Where | Commit | Outcome |
+|---|---|---|---|
+| `run_smart.py backend` - the new file + bundle, installer, R3, review, alignment, policy-B gate + switch, rc.7, Mac adopt | runner | `8319f3531` | 283 passed |
+| `run_smart.py backend` - `test_self_update_s3.py`, `test_self_update.py` | runner | `8319f3531` | 66 passed |
+| `run_smart.py spec` - evidence-wiskey-managed-2382, evidence-switchui-295, unit-wiskey-managed, unit-wiskey-switches, desktop + mobile | runner | `8319f3531` | 68 passed |
+| `npx playwright test -c playwright.unit.config.ts` unit-wiskey-managed + unit-wiskey-switches | workstation (node only) | working tree | 16 passed |
+| `npx tsc --noEmit` | workstation | working tree | exit 0 |
+
+First runner run (`f0f23cc5b`): 12 failed - the unattended-installer tests that staged the shipped bundle (now managed-pinned, so
+refused at the Core gate: fixed by staging a legacy-pinned copy), the R3 manual-install codes (now `native_foreign_installed`), and
+four self-update tests that failed only in the same process after those failures (module state of the bridge status); alone they pass.
+NOT_RUN: the full backend suite, the pixel suite, the UI build (`build:addon`), any lab or real-Supervisor run.
 
 ## Rollback of this branch
 
