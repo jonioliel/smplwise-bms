@@ -38,7 +38,8 @@ export interface StationMediaVideo {
 export interface StationMediaTalk {
   available: boolean;
   /** Why not (TALK_REASONS): `off` (the setting says video only), `provider_local` (Arx's own source: video only), `pairing` (WisKey
-   * chosen, no pairing key that signs), `not_listed` (WisKey does not publish the W10 talk commands to Arx), `unsupported` (the station
+   * chosen, no pairing key that signs), `not_listed` (WisKey publishes the W10 talk commands to Arx neither in its overview nor in its signed
+   * capabilities), `capabilities_unread` (the overview lacks them and the signed capabilities could not be read), `unsupported` (the station
    * has none), `wiskey_unavailable`
    * (WisKey chosen but not reachable: Arx's own video serves), `forbidden` (no call permission on the station). */
   reason: string | null;
@@ -156,16 +157,47 @@ export function parseProvider(settings: Record<string, unknown> | null | undefin
   return settings?.[STATION_MEDIA_PROVIDER_KEY] === 'auto' ? 'auto' : 'local';
 }
 
-/** The closed reasons of `GET access-control/station-media/readiness` (services/intercom_media.py READINESS_CODES). */
-export const READINESS_CODES = ['wiskey_unreachable', 'api_incompatible', 'video_not_listed', 'talk_not_listed', 'pairing_missing', 'pairing_key_rotated'] as const;
+/** The closed reasons of `GET access-control/station-media/readiness` (services/intercom_media.py READINESS_CODES). WISKEY-TALK-CAPS-2382:
+ * `video_not_listed` / `talk_not_listed` = listed neither in WisKey's overview nor in its signed capabilities; `capabilities_unread` = the
+ * overview lacks them and the signed capabilities could not be read (`wiskey.capabilities.reason_kind` says why). */
+export const READINESS_CODES = ['wiskey_unreachable', 'api_incompatible', 'video_not_listed', 'talk_not_listed', 'capabilities_unread', 'pairing_missing', 'pairing_key_rotated'] as const;
 export type ReadinessCode = (typeof READINESS_CODES)[number];
+
+/** WISKEY-TALK-CAPS-2382: why the signed capabilities read failed, grouped (services/wiskey_media_caps.py `reason_kind`). */
+export const CAPS_REASON_KINDS = ['unreachable', 'refused', 'clock', 'incompatible', 'failed'] as const;
+export type CapsReasonKind = (typeof CAPS_REASON_KINDS)[number];
+
+/** WISKEY-TALK-CAPS-2382: WisKey's signed `direct/capabilities` as the readiness reports it. `not_needed`: the overview already lists W10;
+ * `not_read`: not consulted (no key that signs); `read`: read (its own listing); `unread`: the signed read failed (`reason`, `reason_kind`). */
+export interface StationMediaCapabilities {
+  state: 'not_needed' | 'not_read' | 'read' | 'unread';
+  video_listed: boolean;
+  talk_listed: boolean;
+  reason: string | null;
+  reason_kind: string | null;
+  source: 'join' | 'read' | null;
+  read_at: string | null;
+}
+
+export function capsReasonKind(r: StationMediaReadiness | null | undefined): CapsReasonKind {
+  const k = r?.wiskey?.capabilities?.reason_kind ?? '';
+  return (CAPS_REASON_KINDS as readonly string[]).includes(k) ? (k as CapsReasonKind) : 'failed';
+}
 
 export interface StationMediaReadiness {
   choice: StationMediaProvider;
   /** The source a station read uses now (before WisKey's per-station answer). */
   active: 'local' | 'wiskey';
   mode: StationMediaMode;
-  wiskey: { reachable: boolean; video_listed: boolean; talk_listed: boolean; signing: boolean };
+  wiskey: {
+    reachable: boolean;
+    video_listed: boolean;
+    talk_listed: boolean;
+    signing: boolean;
+    /** WISKEY-TALK-CAPS-2382: where W10 was found (`overview`, `capabilities`, or nowhere). Absent on an older server. */
+    listed_in?: 'overview' | 'capabilities' | null;
+    capabilities?: StationMediaCapabilities;
+  };
   missing: string[];
   video_ready: boolean;
   talk_ready: boolean;
@@ -184,7 +216,7 @@ export function readinessSummary(r: StationMediaReadiness | null): { state: 'ok'
 }
 
 /** Every `talk.reason` the drawer explains (anything else reads as `unavailable`). */
-export const TALK_REASONS = ['off', 'provider_local', 'pairing', 'not_listed', 'unsupported', 'wiskey_unavailable', 'forbidden', 'unavailable'] as const;
+export const TALK_REASONS = ['off', 'provider_local', 'pairing', 'not_listed', 'capabilities_unread', 'unsupported', 'wiskey_unavailable', 'forbidden', 'unavailable'] as const;
 export type TalkReason = (typeof TALK_REASONS)[number];
 
 export function talkReason(reason: string | null | undefined): TalkReason {
