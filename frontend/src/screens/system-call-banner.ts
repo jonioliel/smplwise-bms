@@ -4,7 +4,7 @@ import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-field';
 import '../components/sw-icon';
-import { describeError } from '../api/client';
+import { ApiError, describeError } from '../api/client';
 import { getCallBannerSettings, putCallBannerSettings, type CallBannerMode, type CallBannerSettings, type CallBannerSettingsView } from '../api/intercom-calls';
 import { can, isApi } from '../api/session';
 import { ict } from '../i18n/incoming-calls';
@@ -28,6 +28,8 @@ export class SystemCallBanner extends LitElement {
   @state() private message = '';
   @state() private error = '';
   @state() private failed = '';
+  /** The server has no such setting (an older backend): the card is not drawn at all. */
+  @state() private absent = false;
   private gen = 0;
 
   static styles = [
@@ -88,7 +90,8 @@ export class SystemCallBanner extends LitElement {
       this.draft = { ...v.settings, roles: [...v.settings.roles], stations: [...v.settings.stations] };
     } catch (err) {
       if (gen !== this.gen) return;
-      this.failed = describeError(err);
+      if (!(err instanceof ApiError) || err.status === 404) this.absent = true;
+      else this.failed = describeError(err);
     }
   }
 
@@ -131,14 +134,14 @@ export class SystemCallBanner extends LitElement {
   }
 
   render() {
-    if (!isApi() || !can('system.configure')) return nothing;
+    if (!isApi() || !can('system.configure') || this.absent) return nothing;
     const t = ict().setting;
     if (this.failed) {
       return html`<sw-card heading=${t.title} data-call-banner-setting="error"><div class="row"><span class="lbl">${t.error}</span><sw-button size="lg" variant="ghost" icon="refresh" @click=${() => void this.load()}>${t.retry}</sw-button></div></sw-card>`;
     }
     const v = this.view;
     const d = this.draft;
-    if (!v || !d) return html`<sw-card heading=${t.title} data-call-banner-setting="loading"><div class="row"><span class="lbl muted">${t.loading}</span></div></sw-card>`;
+    if (!v || !d) return nothing; // drawn once it is known (an older backend has no such setting: never a flash of an empty card)
     const label: Record<CallBannerMode, string> = { off: t.off, everyone: t.everyone, roles: t.roles };
     const needRole = d.mode === 'roles' && d.roles.length === 0;
     return html`<sw-card heading=${t.title} subheading=${t.sub} data-call-banner-setting="ready" data-mode=${d.mode}>
