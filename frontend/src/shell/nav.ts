@@ -262,7 +262,11 @@ export function applyWiskeyUi(settings: Record<string, unknown> | null | undefin
  * area disappears from the navigation, the phone bottom bar included. */
 export let WISKEY_HIDDEN = false;
 export function applyWiskeyHidden(settings: Record<string, unknown> | null | undefined): boolean {
+  const was = WISKEY_HIDDEN;
   WISKEY_HIDDEN = String(settings?.['ui.hide_wiskey'] ?? 'false') === 'true';
+  // WISKEY-DEEPLINKS-2382: the deep links into the panel (components/wk-deep-links.ts) follow the area at once - the settings may
+  // answer after a screen has drawn them
+  if (was !== WISKEY_HIDDEN) for (const l of embedNavListeners) l();
   return WISKEY_HIDDEN;
 }
 

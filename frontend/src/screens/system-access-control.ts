@@ -4,6 +4,7 @@ import '../components/sw-page';
 import '../components/sw-tabs';
 import '../components/sw-button';
 import '../components/sw-state-panel';
+import '../components/wk-deep-links';
 import './system-access-status';
 import './system-access-audit';
 import './system-access-groups';
@@ -71,6 +72,9 @@ export class SystemAccessControl extends LitElement {
       .body {
         display: block;
         min-inline-size: 0;
+      }
+      .deeplinks {
+        margin-block-start: var(--sw-s-3, 12px);
       }
     `,
     bubbleChrome,
@@ -143,6 +147,7 @@ export class SystemAccessControl extends LitElement {
               : active === 'messaging'
                 ? html`<system-access-messaging .rev=${this.rev}></system-access-messaging>`
                 : html`<system-access-status .rev=${this.rev} @access-meta=${this.onMeta}></system-access-status>`}
+        <wk-deep-links class="deeplinks" place=${`settings-${active}`}></wk-deep-links>
       </div>
     </sw-page>`;
   }

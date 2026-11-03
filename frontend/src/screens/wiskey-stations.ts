@@ -633,7 +633,7 @@ export class WiskeyStations extends LitElement {
     const state = !all.length ? 'empty' : 'ready';
     const placeName = rowsOf.find((r) => r.id === place)?.name ?? t.places.all;
     return html`<sw-page wide heading=${t.title} subheading=${subtitleOf(tl, t)}>
-      ${this.renderFeedBadge()}
+      ${this.renderFeedBadge()}<wk-deep-links slot="actions" place="stations" mode="menu"></wk-deep-links>
       <div data-wk-stations data-wk-state=${state} data-view=${view} data-live=${String(v.live)}>
         ${all.length
           ? html`<div class="toolbar">
