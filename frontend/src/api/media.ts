@@ -1,5 +1,5 @@
 /** Media, settings and snapshots against the add-on backend. */
-import { apiUrl, get, patch, post } from './client';
+import { apiUrl, get, patch, post, resourceUrl } from './client';
 import type { CameraEncoding } from './types';
 import type { NavSizeWire } from './me-prefs';
 
@@ -307,9 +307,13 @@ export function liveWsUrl(cameraId: string, profile: 'sub' | 'main', h265: '' | 
   return u.toString();
 }
 
-/** ws(s):// URL of a live relay path the server named (`live_path` of a resolved camera card: a standalone camera shown live). */
+/** ws(s):// URL of a live relay path the server named (`live_path` of a resolved camera card: a standalone camera shown live).
+ * Two server conventions exist: the camera card names a path under the API base (`media/live-ha/<id>/ws`), the station
+ * live / listen / talk routes name it from the page dir (`api/v1/access-control/...`). STATION-WS-PATH-2381: the second
+ * went through `apiUrl` and doubled the prefix (`api/v1/api/v1/...`, a 403 in the add-on), so no station socket ever opened. */
 export function relayWsUrl(path: string): string {
-  const u = new URL(apiUrl(path));
+  const rel = path.replace(/^\/+/, '');
+  const u = new URL(rel.startsWith('api/v1/') ? resourceUrl(rel) : apiUrl(rel));
   u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
   return u.toString();
 }
