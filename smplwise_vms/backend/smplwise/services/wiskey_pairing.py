@@ -51,7 +51,8 @@ KEY_CODES = frozenset({"bridge_not_paired", "bridge_key_rotated"})
 UNREACHABLE_CODES = frozenset({"direct_unreachable", "direct_hello_timeout", "direct_hello_invalid", "direct_connect_timeout", "direct_connect_failed"})
 
 LABEL = {"bridge": "גשר Arx בתשתית המערכת", "component": "רכיב WisKey", "key": "מפתח הצימוד", "acceptance": "WisKey מקבל את המפתח",
-         "discovery": "חוזה הגילוי (פקודות מדיה ודיבור)", "provider": "מקור הווידאו והדיבור", "rotation": "החלפת מפתח הגשר", "last_error": "שגיאה אחרונה"}
+         "discovery": "חוזה הגילוי (פקודות מדיה ודיבור)", "provider": "מקור הווידאו והדיבור", "rotation": "החלפת מפתח הגשר", "events": "אירועי דלת אחרי הפעלה מחדש",
+         "last_error": "שגיאה אחרונה"}
 
 TEXT = {
     "bridge_ok": "הגשר מותקן ({version}) ומצומד; הוא שולח עדכון חתום כל דקה.",
@@ -85,6 +86,13 @@ TEXT = {
     "rotation_off": "החלפת מפתח הגשר כבויה; קוד הצימוד המקורי נשאר בתוקף.",
     "rotation_risk": "החלפת מפתח הגשר מופעלת. החלפה תמחק את קוד הצימוד המקורי מהגשר, ו־WisKey יפסיק לקבל את Arx.",
     "rotation_done": "מפתח הגשר כבר הוחלף; זה מה שמנתק את WisKey (ראו \"מפתח הצימוד\").",
+    # WISKEY-EVENT-CURSOR-2400: the last resume of WisKey's door events (services/wiskey_event_resume.py)
+    "events_off": "המשכת אירועי הדלת מ־WisKey כבויה בהתקנה הזו; אירועים שקרו בזמן ש־Arx או WisKey היו כבויים עלולים לחסור.",
+    "events_not_run": "עוד לא נקראו אירועי דלת מ־WisKey מאז ש־Arx עלה.",
+    "events_ok": "המשך אחרון {at}: {delivered} אירועים חדשים, {duplicates} כפולים סוננו. {caught}",
+    "events_gap": "פער באירועי הדלת: {start} עד {end} ({why}). האירועים בטווח הזה לא הגיעו ל־Arx - ההיסטוריה שם לא שלמה.",
+    "events_unsupported": "גרסת WisKey לא מציעה המשך רציף של אירועים, ולכן אירועים שקרו בזמן ש־Arx או WisKey היו כבויים עלולים לחסור.",
+    "events_failed": "ההמשך האחרון ({at}) לא הצליח ({code}); Arx ינסה שוב. אירוע לא הולך לאיבוד כל עוד WisKey שומר אותו.",
     "no_error": "אין שגיאה.",
     "error": "{code}",
 }
@@ -112,7 +120,16 @@ FIX = {
     "rotation_risk": "אל תלחצו \"החלפת מפתח\" בכרטיס מפתח הגשר כל עוד WisKey בשימוש. אפשר לכבות את ההחלפה שם, או בצימוד מחדש למטה.",
     "rotation_done": "צימוד מחדש (למטה) מחזיר קוד צימוד מקורי.",
     "error": "ראו את השורה שמסומנת באדום למעלה.",
+    "events_off": "המשכת האירועים כובתה במכוון בהגדרת השרת של ההתקנה. כדי להפעיל אותה שוב - פנו לתמיכה.",
+    "events_not_run": "Arx קורא את האירועים ברגע שערוץ השירות אל WisKey מוכן. אם זה נמשך - בדקו את השורות למעלה.",
+    "events_gap": "אין מה לתקן ב־Arx: את האירועים שבטווח אפשר לראות ביומן הכניסות (כל עוד WisKey שומר אותם). השורה חוזרת לתקינה 7 ימים אחרי הפער.",
+    "events_unsupported": "עדכנו את WisKey לגרסה שמפרסמת המשך רציף של אירועים (בהתקנה ידנית - בעל המערכת).",
+    "events_failed": "אם זה חוזר: בדקו את השורות \"מפתח הצימוד\" ו\"WisKey מקבל את המפתח\" למעלה.",
 }
+
+EVENT_GAP_WHY = {"first_start": "Arx התחיל בלי נקודת המשך", "source_replaced": "WisKey הותקן מחדש או שמאגר האירועים שלו אופס",
+                 "source_mismatch": "מאגר האירועים של WisKey התחלף", "cursor_ahead": "ההיסטוריה של WisKey חזרה אחורה (שחזור)",
+                 "retention_gap": "נקודת ההמשך ישנה מדי: WisKey כבר מחק את האירועים שאחריה", "cursor_invalid": "WisKey לא זיהה את נקודת ההמשך"}
 
 ERROR_TEXT = {
     "direct_connect_refused": "WisKey סגר את החיבור בלי תשובה - החתימה לא אומתה אצלו.",
@@ -344,6 +361,33 @@ def _transport_error() -> str | None:
     return code if isinstance(code, str) and code else None
 
 
+def _events_line(conn: Any) -> dict[str, Any]:
+    """WISKEY-EVENT-CURSOR-2400: one line - the last resume of WisKey's door events, and a recent gap if there was one. Read only."""
+    from . import wiskey_event_resume as wer
+
+    try:
+        f = wer.facts(conn)
+    except Exception as exc:  # noqa: BLE001 - the pairing block still answers
+        log.warning("wiskey pairing: event resume facts failed (%s)", type(exc).__name__)
+        f = {"enabled": wer.enabled(), "last": None, "caught_up_at": None, "source": None, "stored": 0, "gap": None}
+    last = f["last"] or {}
+    if not f["enabled"]:
+        return _line("events", WARN, "events_off", facts=f)
+    if f["gap"]:
+        g = f["gap"]
+        return _line("events", WARN, "events_gap", facts=f, start=g["from"] or "לא ידוע", end=g["to"],
+                     why=EVENT_GAP_WHY.get(g["reason"], g["reason"]))
+    if not last:
+        return _line("events", UNKNOWN, "events_not_run", facts=f)
+    if last.get("state") == "unsupported":
+        return _line("events", WARN, "events_unsupported", facts=f)
+    if last.get("state") in ("page", "busy", "superseded"):
+        caught = f"Arx מעודכן עד {f['caught_up_at']}." if f["caught_up_at"] else "עוד לא הגיע לסוף הרשימה של WisKey."
+        return _line("events", OK, "events_ok", facts=f, at=last.get("at"), delivered=last.get("delivered", 0),
+                     duplicates=last.get("duplicates", 0), caught=caught)
+    return _line("events", WARN, "events_failed", facts=f, at=last.get("at"), code=last.get("code") or last.get("state"))
+
+
 def _error_line(p: dict[str, Any] | None) -> dict[str, Any]:
     probe_code = (p or {}).get("code") if (p or {}).get("accepted") is not True else None
     disc = (p or {}).get("discovery_error")
@@ -365,7 +409,7 @@ def status(conn: Any, settings: Any, *, now: float | None = None) -> dict[str, A
     k = key_facts(conn, data_dir)
     p = PROBE["last"]
     lines = [_bridge_line(conn, now), _component_line(conn), _key_line(k), _acceptance_line(k, p), _discovery_line(settings, p),
-             _provider_line(conn, settings), _rotation_line(conn, k), _error_line(p)]
+             _provider_line(conn, settings), _rotation_line(conn, k), _events_line(conn), _error_line(p)]
     by = {ln["key"]: ln for ln in lines}
     acc = by["acceptance"]
     if k["state"] != "ok" or acc["reason"] == "refused":

@@ -77,7 +77,7 @@ def _probe(w):
 def test_not_paired_no_key_everything_says_how_to_fix(world):
     body = world["c"].get(API).json()
     ln = _lines(body)
-    assert list(ln) == ["bridge", "component", "key", "acceptance", "discovery", "provider", "rotation", "last_error"]
+    assert list(ln) == ["bridge", "component", "key", "acceptance", "discovery", "provider", "rotation", "events", "last_error"]
     assert body["verdict"] == "not_paired" and body["paired"] is False and body["talk_ready"] is False
     assert ln["bridge"]["state"] == "blocked" and ln["bridge"]["reason"] == "bridge_not_paired"
     assert ln["key"]["state"] == "blocked" and ln["key"]["reason"] == "key_missing" and ln["key"]["facts"]["present"] is False
