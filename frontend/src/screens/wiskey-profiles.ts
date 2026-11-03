@@ -308,7 +308,7 @@ export class WiskeyProfilesScreen extends LitElement {
     if (this.load === 'forbidden') {
       return html`<sw-page heading=${title}><sw-state-panel quiet state="forbidden" heading=${pft('noPermission')} hint=${pft('noPermissionHint')} data-pf-state="forbidden"></sw-state-panel></sw-page>`;
     }
-    if (this.load === 'unsupported') return html`<sw-page heading=${title}><sw-state-panel quiet state="empty" heading=${pft('unsupported')} data-pf-state="unsupported"></sw-state-panel></sw-page>`;
+    if (this.load === 'unsupported') return html`<sw-page heading=${title}><sw-state-panel icon="users" quiet state="empty" heading=${pft('unsupported')} data-pf-state="unsupported"></sw-state-panel></sw-page>`;
     if (this.load === 'error' || !this.draft || !this.base) {
       return html`<sw-page heading=${title}><sw-state-panel state="error" heading=${pft('loadError')} hint=${this.loadError} actionLabel=${pft('retry')} @action=${() => void this.reload()}
         data-pf-state="error"></sw-state-panel></sw-page>`;
@@ -685,11 +685,11 @@ export class WiskeyProfilesScreen extends LitElement {
   static styles = css`
     :host { display: block; }
     .stack { display: grid; gap: 14px; }
-    .tabs { display: inline-flex; gap: 2px; padding: 3px; margin-block-end: 14px; border-radius: var(--sw-r-md); background: var(--sw-surface-2, var(--sw-surface)); border: 1px solid var(--sw-border);
+    .tabs { display: inline-flex; gap: 2px; padding: 3px; margin-block-end: 14px; border-radius: var(--sw-r-md); background: var(--sw-surface-2); border: 1px solid var(--sw-border);
       max-inline-size: 100%; overflow-x: auto; }
     .tabs button { font: inherit; font-size: var(--sw-fs-sm); padding: 6px 14px; border: 0; border-radius: calc(var(--sw-r-md) - 2px); background: transparent; color: var(--sw-text-2); cursor: pointer;
       white-space: nowrap; min-block-size: 36px; }
-    .tabs button.on { background: var(--sw-surface); color: var(--sw-text); font-weight: var(--sw-fw-semibold, 600); box-shadow: var(--sw-shadow-1); }
+    .tabs button.on { background: var(--sw-seg-key, var(--sw-surface)); color: var(--sw-seg-key-ink, var(--sw-text)); font-weight: 600; box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
     .tabs button:focus-visible, .chip:focus-visible { outline: 2px solid var(--sw-accent); outline-offset: 2px; }
     .bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; padding: 10px 14px; border-radius: var(--sw-r-lg); background: var(--sw-surface);
       border: 1px solid var(--sw-border); position: sticky; inset-block-start: 0; z-index: 2; }
@@ -701,19 +701,19 @@ export class WiskeyProfilesScreen extends LitElement {
     .muted { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
     .note { margin: 0; padding: 10px 12px; border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); background: var(--sw-surface); font-size: var(--sw-fs-sm); }
     .note ul { margin: 6px 0 0; padding-inline-start: 18px; }
-    .note.warn { border-color: var(--sw-warning, #b7791f); background: var(--sw-warning-soft, transparent); }
+    .note.warn { border-color: var(--sw-warning); background: var(--sw-warning-soft); }
     .note.err { border-color: var(--sw-danger); background: var(--sw-danger-soft); }
-    .item { display: grid; gap: 8px; padding: 10px; border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); background: var(--sw-surface-2, transparent); min-inline-size: 0; }
+    .item { display: grid; gap: 8px; padding: 10px; border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); background: var(--sw-surface-2); min-inline-size: 0; }
     .item.off { opacity: 0.72; }
     .item-top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
     .item-top .lbl { flex: 1 1 14em; min-inline-size: 0; }
     .moves { display: inline-flex; gap: 2px; margin-inline-start: auto; align-items: center; }
-    .mv { font: inherit; inline-size: 34px; block-size: 34px; border-radius: var(--sw-r-sm, 6px); border: 1px solid transparent; background: transparent; color: var(--sw-text-2); cursor: pointer; }
+    .mv { font: inherit; inline-size: 34px; block-size: 34px; border-radius: var(--sw-r-sm); border: 1px solid transparent; background: transparent; color: var(--sw-text-2); cursor: pointer; }
     .mv:hover:not([disabled]) { border-color: var(--sw-border); color: var(--sw-text); }
     .mv[disabled] { opacity: 0.35; cursor: default; }
     .mv:focus-visible { outline: 2px solid var(--sw-accent); outline-offset: 2px; }
-    input[type='text'], input[type='search'], select, textarea { font: inherit; font-size: var(--sw-fs-md, 15px); color: var(--sw-text); background: var(--sw-surface); border: 1px solid var(--sw-border);
-      border-radius: var(--sw-r-sm, 6px); padding: 7px 10px; min-block-size: 38px; inline-size: 100%; box-sizing: border-box; }
+    input[type='text'], input[type='search'], select, textarea { font: inherit; font-size: 1rem; color: var(--sw-text); background: var(--sw-surface); border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-sm); padding: 7px 10px; min-block-size: 38px; inline-size: 100%; box-sizing: border-box; }
     textarea { min-block-size: 76px; resize: vertical; }
     .grid { display: grid; gap: 8px 12px; grid-template-columns: repeat(auto-fit, minmax(10em, 1fr)); align-items: end; }
     .f { display: grid; gap: 4px; font-size: var(--sw-fs-sm); color: var(--sw-text-2); min-inline-size: 0; }
@@ -724,10 +724,10 @@ export class WiskeyProfilesScreen extends LitElement {
     .chips { display: flex; flex-wrap: wrap; gap: 6px; border: 0; padding: 0; margin: 0; min-inline-size: 0; }
     .chip { font: inherit; font-size: var(--sw-fs-sm); padding: 5px 12px; min-block-size: 32px; border-radius: 999px; border: 1px solid var(--sw-border); background: var(--sw-surface);
       color: var(--sw-text); cursor: pointer; display: inline-flex; gap: 6px; align-items: center; }
-    .chip.on { background: var(--sw-accent-soft, var(--sw-surface)); border-color: var(--sw-accent); color: var(--sw-accent-text, var(--sw-text)); font-weight: 600; }
+    .chip.on { background: var(--sw-accent-soft); border-color: var(--sw-accent); color: var(--sw-accent-text); font-weight: 600; }
     .chip.unknown { border-style: dashed; }
     .chip[disabled] { opacity: 0.5; cursor: not-allowed; }
-    .chip .dot { inline-size: 7px; block-size: 7px; border-radius: 50%; background: var(--sw-text-3, var(--sw-text-2)); }
+    .chip .dot { inline-size: 7px; block-size: 7px; border-radius: 50%; background: var(--sw-text-3); }
     .problem { color: var(--sw-danger); font-size: var(--sw-fs-sm); }
     .sr { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     .diff, .people, .versions { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
@@ -741,17 +741,17 @@ export class WiskeyProfilesScreen extends LitElement {
     .before { text-decoration: line-through; color: var(--sw-text-2); }
     .after { font-weight: 600; }
     .people li.changed { border-color: var(--sw-accent); }
-    .gain { color: var(--sw-success, var(--sw-text)); font-size: var(--sw-fs-sm); }
+    .gain { color: var(--sw-success); font-size: var(--sw-fs-sm); }
     .lose { color: var(--sw-danger); font-size: var(--sw-fs-sm); }
-    .warn-t { color: var(--sw-warning, var(--sw-text)); font-size: var(--sw-fs-sm); }
+    .warn-t { color: var(--sw-warning); font-size: var(--sw-fs-sm); }
     .err-t { color: var(--sw-danger); font-size: var(--sw-fs-sm); font-weight: 600; }
     .fi { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding-block: 4px; border-block-end: 1px solid var(--sw-border); }
     .fi .ex { flex-basis: 100%; }
     .kv { display: grid; gap: 4px; }
     .count { font-weight: 700; }
     .versions .acts { display: inline-flex; gap: 6px; margin-inline-start: auto; }
-    .result.ok { border-color: var(--sw-success, var(--sw-border)); }
-    .result.warn { border-color: var(--sw-warning, var(--sw-border)); }
+    .result.ok { border-color: var(--sw-success); }
+    .result.warn { border-color: var(--sw-warning); }
     .result.err { border-color: var(--sw-danger); }
     .result p { margin: 0; }
     .dlg-acts { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
