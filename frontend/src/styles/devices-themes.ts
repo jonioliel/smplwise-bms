@@ -153,6 +153,9 @@ export const devicesThemes = css`
        so inside it the segments keep their own fill in both of its schemes (initial = guaranteed-invalid: every user's fallback) */
     --sw-seg-thumb: initial;
     --sw-seg-thumb-shadow: initial;
+    /* GATE2370-B: the same for the settings key's dark light pill */
+    --sw-seg-key: initial;
+    --sw-seg-key-ink: initial;
     --sw-glass-blur: var(--dv-surface-blur);
     --sw-bg: transparent;
     --sw-surface: var(--dv-surface);
