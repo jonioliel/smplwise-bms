@@ -28,7 +28,7 @@ these four commands; the same socket and identity as the service channel), each 
 lane name `triage` is not special-cased by intercom_sync (a read slot and the read buckets, like WISKEY-STATION-OPS' `maintenance`);
 this module adds its own limits on top (`Limits`).
 
-The review's token never reaches the browser: the review is stored here (`wiskey_conflict_reviews`, migration 0200) under a random id,
+The review's token never reaches the browser: the review is stored here (`wiskey_conflict_reviews`, migration 0198) under a random id,
 bound to the operator, the station, the person and WisKey's revision, single use, REVIEW_TTL_S. The resolve names the review id and the
 direction the operator confirmed; the server sends WisKey's token. The impact the operator saw is kept with it (closed fields only: no
 PIN, no card number, no photo).
@@ -297,7 +297,7 @@ class Limits:
 LIMITS = Limits()
 
 
-# ---------------------------------------------------------------- the review store (migration 0200)
+# ---------------------------------------------------------------- the review store (migration 0198)
 
 REVIEW_TTL_S = 600  # a review older than this must be taken again (the device may have changed; WisKey would say `review_stale`)
 REVIEW_KEEP_DAYS = 30  # a used / expired review row stays this long (what was confirmed), then it is removed

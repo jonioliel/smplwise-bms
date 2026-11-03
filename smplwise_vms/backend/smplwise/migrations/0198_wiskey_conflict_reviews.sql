@@ -3,8 +3,9 @@
 -- the station, the WisKey person id, WisKey's record revision, WisKey's `review_token` (an HMAC fingerprint of the device record; it
 -- never leaves the server and is blanked once used) and the closed impact the operator was shown (field names, counts, flags - no
 -- PIN, no card number, no photo). The resolution names the review id; the row is single use and expires after 10 minutes.
--- Number 0200: 0198 (WISKEY-PEOPLE-COMPLETE-2390) and 0199 (WISKEY-LIVE-VALIDATION-2390) are taken on other branches; a train that
--- already holds 0200 renumbers this file. Additive only; older code never reads it. Not a backup table (an operational record with
+-- Number 0198: the next free number on release/2382-train (ends at 0197; release_check requires a contiguous sequence). 0198 is ALSO
+-- taken by WISKEY-PEOPLE-COMPLETE-2390 (0198_wiskey_station_people) and 0199 by WISKEY-LIVE-VALIDATION-2390: the train that merges
+-- more than one of them renumbers this file to the next free number (it depends on nothing but its own table). Additive only; older code never reads it. Not a backup table (an operational record with
 -- its own retention: 30 days, services/wiskey_triage.REVIEW_KEEP_DAYS). Rollback: drop the table.
 
 CREATE TABLE IF NOT EXISTS wiskey_conflict_reviews (
