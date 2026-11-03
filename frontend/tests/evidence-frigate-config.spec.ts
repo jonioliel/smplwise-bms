@@ -28,7 +28,7 @@ async function start(page: Page, ctl: Partial<FrigateControlMock> = {}, over: Pa
   await page.locator('nvr-recorders-card [data-recorder="nvr-2"] [data-recorder-connection]').click();
   const box = page.locator('nvr-recorders-card [data-frigate-control-settings]');
   await expect(box).toBeVisible();
-  await box.locator('[data-fcs-tabs]').getByRole('button', { name: 'אזורים והגדרות' }).click();
+  await box.locator('[data-fcs-tabs]').getByRole('tab', { name: 'אזורים והגדרות' }).click();
   const panel = box.locator('[data-frigate-config-panel]');
   await expect(panel).toBeVisible();
   await expect(panel.locator('[data-zone-stage]')).toBeVisible();
@@ -174,7 +174,7 @@ test.describe('settings: zones and camera settings', () => {
     await confirm(panel, false);
     expect(bodyOf(writes(m, 'config/settings/objects')[0]).values).toEqual({ 'objects.track': ['car', 'dog', 'person'] });
     // the change log names the section
-    await box.locator('[data-fcs-tabs]').getByRole('button', { name: 'יומן שינויים' }).click();
+    await box.locator('[data-fcs-tabs]').getByRole('tab', { name: 'יומן שינויים' }).click();
     await expect(box.locator('[data-change]').first()).toContainText('הגדרות מצלמה: עצמים למעקב');
   });
 

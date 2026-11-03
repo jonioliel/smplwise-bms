@@ -160,13 +160,13 @@ test.describe('settings: management of the writes', () => {
     const m = await start(page, '/system/setup');
     const box = await openCard(page, m);
     // FRGD: the card has tabs - the mapping sits under "פרופילים", the log under "יומן שינויים"
-    await box.locator('[data-fcs-tabs]').getByRole('button', { name: 'פרופילים' }).click();
+    await box.locator('[data-fcs-tabs]').getByRole('tab', { name: 'פרופילים' }).click();
     await expect(box.locator('[data-fcs-rule="armed_away"]')).toHaveValue('away');
     await box.locator('[data-fcs-rule="disarmed"]').selectOption('home');
     await expect.poll(() => writes(m, 'profile-rules').length).toBe(1);
     expect(writes(m, 'profile-rules')[0]).toContain('{"rules":{"disarmed":"home"}}');
     expect(writes(m, 'frigate/nvr-2/profile ')).toHaveLength(0); // nothing was switched
-    await box.locator('[data-fcs-tabs]').getByRole('button', { name: 'יומן שינויים' }).click();
+    await box.locator('[data-fcs-tabs]').getByRole('tab', { name: 'יומן שינויים' }).click();
     await expect(box.locator('[data-change]')).toHaveCount(3);
     await expect(box.locator('[data-change="ch1"]')).toContainText('זיהוי אובייקטים: כבוי');
     await expect(box.locator('[data-change="ch3"] [data-change-status="reverted"]')).toBeVisible();
