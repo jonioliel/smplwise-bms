@@ -9,8 +9,8 @@ The display routes (`/b/{slug}` and `/api/v1/notices/display/{slug}...`) need no
 (one long random revocable token per board, in the URL fragment, sent back as `X-Board-Token`), exactly like the LAN listener. On the
 remote channel they answer only while `notices.boards.remote` is on.
 
-Push (NOTICEPUSH-295): publishing can send the notice once through the notification pipeline (services/notices/push.py); there is no
-re-send route. Not in this build (CR slice 4): the home widget, promo slides, the building photo of template 2, the building-status chips."""
+Push (NOTICEPUSH-295): publishing can send the notice once through the notification pipeline (services/notices/push.py); an edit never
+re-sends by itself. BOARD-MGMT-2381: `POST /notices/{id}/resend` is the manual "שלח שוב" (notices.manage on the audience + notices.push). Not in this build (CR slice 4): the home widget, promo slides, the building photo of template 2, the building-status chips."""
 from __future__ import annotations
 
 import datetime as dt
@@ -669,6 +669,7 @@ def _notice_out(n: dict[str, Any], now: dt.datetime, boards: list[str], *, manag
         out["created_at"] = n["created_at"]
         out["push_requested"] = bool(n["push_requested"])
         out["pushed_at"] = n["pushed_at"]
+        out["push_generation"] = int(n.get("push_generation") or 0)  # BOARD-MGMT-2381: how many times "שלח שוב" was used
         if reads is not None:
             out["reads"] = reads
     return out
@@ -867,6 +868,31 @@ def publish(notice_id: str, request: Request, body: PublishIn | None = None, pri
     push_res = _publish_and_push(conn, principal, request, n, explicit)
     n2 = store.get_notice(conn, notice_id)
     return {"notice": _notice_out(n2, store.utcnow(), store.boards_of(conn, [notice_id])[notice_id], manager=True), "push": push_res}  # type: ignore[arg-type]
+
+
+@router.post("/notices/{notice_id}/resend")
+def resend(notice_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """BOARD-MGMT-2381 (owner 03.11, answer 6A): the manual "שלח שוב" - the notice as it is now, to its audience, once more. Never automatic.
+    Needs what an explicit push tick needs: notices.manage on the notice's audience and notices.push. Only a published notice that is
+    still on (active or scheduled); at most once a minute; a notice without recipients (TV only) is refused. Audited (content-free)."""
+    n = _managed(conn, principal, notice_id)
+    if PERM_PUSH not in permissions_anywhere(conn, principal):
+        audit(conn, actor=principal, action=PERM_PUSH, decision="denied", resource_type="notice", resource_id=notice_id, reason="no_binding", request_id=_rid(request))
+        raise ApiError(403, "forbidden", "אין הרשאה לשלוח התראה על הודעה.", details={"permission": PERM_PUSH})
+    now = store.utcnow()
+    if n["status"] != "published" or model.effective_state(n, now) not in ("active", "scheduled"):
+        raise ApiError(409, "not_live", "רק הודעה שפורסמה ועדיין בתוקף נשלחת שוב.")
+    wait = npush.resend_wait_s(conn, n, now)
+    if wait:
+        raise ApiError(429, "resend_too_soon", "ההודעה נשלחה לפני רגע. אפשר לשלוח שוב בעוד דקה.", retryable=True, details={"retry_after_s": wait})
+    res = npush.resend(conn, n, principal.user_id)
+    if not res["recipients"]:
+        raise ApiError(409, "no_recipients", "להודעה אין נמענים: היא מוצגת רק בלוחות.")
+    audit(conn, actor=principal, action="notices.resend", decision="allowed" if res["sent"] else "denied", resource_type="notice", resource_id=notice_id,
+          request_id=_rid(request), details={"recipients": res["recipients"], "sent": res["sent"], "generation": res["generation"],
+                                             **({"error": res["error"]} if "error" in res else {})})
+    n2 = store.get_notice(conn, notice_id)
+    return {"notice": _notice_out(n2, store.utcnow(), store.boards_of(conn, [notice_id])[notice_id], manager=True), "push": res}  # type: ignore[arg-type]
 
 
 @router.post("/notices/{notice_id}/archive")

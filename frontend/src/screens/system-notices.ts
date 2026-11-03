@@ -113,8 +113,9 @@ export class SystemNotices extends LitElement {
   @state() private feedPick = '';
   @state() private feedUrl = '';
   @state() private confirmDelete = false;
-  /** NOTICEPOLISH-295: the board whose link is about to be re-issued (copy link = issue a new one, the stored token is a hash). */
-  @state() private confirmRotate: { board: Board; copy: boolean } | null = null;
+  /** The board whose link is about to be replaced ("החלף קישור"). BOARD-MGMT-2381: `legacy` = the request came from "העתק קישור" on a board
+   * whose link has no stored copy - the dialog says why it cannot be copied; nothing is replaced without this confirmation. */
+  @state() private confirmRotate: { board: Board; copy: boolean; legacy?: boolean } | null = null;
   @state() private placeOther = false;
   @state() private sendToTvs = false;
   /** NOTICEADD-295: the compose dialog (null = closed) and what it offers (the audience options load once, for a notice manager). */
@@ -411,18 +412,18 @@ export class SystemNotices extends LitElement {
       <sw-button size="sm" @click=${stop(() => this.goBoard(b))}>${nt('open')}</sw-button>`;
   }
 
-  /** The TV link is stored only as a SHA-256, so it cannot be read back: "copy" issues a new link after a confirmation. Offered to a
-   * system administrator (system.configure) who also holds the boards right; nobody else is shown it. */
+  /** "העתק קישור" is offered to a system administrator (system.configure) who also holds the boards right; nobody else is shown it. */
   private canCopyLink(): boolean {
     const can = this.s?.can;
     return !!(can?.configure && can.boards);
   }
 
-  /** NOTICEPERM-295: the TV link is permanent - the stored one is read back and copied (the same link every time); a board saved before
-   * the stored token existed asks once before it issues one. */
+  /** NOTICEPERM-295 + BOARD-MGMT-2381 (owner 03.11, answer 5A): the TV link is permanent - the stored one is read back and copied, the
+   * same link every time, and nothing on the board changes (a paired TV stays connected). A board saved before the stored token existed
+   * has no copy to read: the replace confirmation opens with the reason, and only its explicit "החלף קישור" replaces the link. */
   private async copyLink(b: Board): Promise<void> {
     if (!b.has_stored_link) {
-      this.confirmRotate = { board: b, copy: true };
+      this.confirmRotate = { board: b, copy: true, legacy: true };
       return;
     }
     try {
@@ -756,13 +757,15 @@ export class SystemNotices extends LitElement {
     }
   }
 
-  /** The confirmation before a link is re-issued (the previous link stops working at once). */
+  /** "החלף קישור": the confirmation before a link is replaced (TVs on the current link disconnect at once). The rotation is audited by the
+   * server (`notices.board.rotate`). */
   private rotateDialog() {
     const c = this.confirmRotate;
     return html`<sw-dialog ?open=${!!c} heading=${c ? nt('copyAsk', { name: c.board.name }) : ''} @close=${() => (this.confirmRotate = null)} data-rotate-confirm>
+      ${c?.legacy ? html`<p data-no-stored-link>${nt('noStoredLink')}</p>` : nothing}
       <p>${nt('copyAskBody')}</p>
       <sw-button slot="footer" @click=${() => (this.confirmRotate = null)}>${nt('cancel')}</sw-button>
-      <sw-button slot="footer" variant="primary" data-rotate-go @click=${() => { const x = this.confirmRotate; this.confirmRotate = null; if (x) void this.rotate(x.board, x.copy); }}>${nt('copyAsk2')}</sw-button></sw-dialog>`;
+      <sw-button slot="footer" variant="danger" data-rotate-go @click=${() => { const x = this.confirmRotate; this.confirmRotate = null; if (x) void this.rotate(x.board, x.copy); }}>${nt('copyAsk2')}</sw-button></sw-dialog>`;
   }
 
   private deleteDialog() {

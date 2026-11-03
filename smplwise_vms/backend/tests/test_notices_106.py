@@ -458,9 +458,11 @@ def test_permissions_are_labelled_and_in_the_built_in_roles():
 
     for p in ("notices.view", "notices.manage", "notices.push", "notices.boards"):
         assert p in PERMISSION_LABELS
-    # readers need no role permission (any live binding reads its audience); the base roles stay unchanged so delegation ceilings do not move
-    for role in ("viewer", "kiosk", "operator", "editor"):
+    # readers need no role permission (any live binding reads its audience); viewer / kiosk / operator stay unchanged
+    for role in ("viewer", "kiosk", "operator"):
         assert not any(p.startswith("notices.") for p in ROLES[role]), role
+    # BOARD-MGMT-2381 (owner 03.11, answer 7B): editor manages notices by default - view + manage, never push / delete / boards
+    assert [p for p in ROLES["editor"] if p.startswith("notices.")] == ["notices.view", "notices.manage"]
     assert ROLES["notices_manage"] == ["notices.view", "notices.manage"] and "notices.manage" in ROLES["site_admin"]
     assert "notices.boards" in ROLES["system_admin"] and "notices.boards" not in ROLES["site_admin"]
     assert {"notices_manage", "notices_push", "notices_boards"} <= set(DEFAULT_DELEGABLE)

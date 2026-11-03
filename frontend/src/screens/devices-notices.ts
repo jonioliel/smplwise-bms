@@ -6,7 +6,7 @@ import '../components/sw-icon';
 import '../components/sw-dialog';
 import '../components/sw-state-panel';
 import { ApiError, describeError } from '../api/client';
-import { archiveNotice, audienceOptions, listBoards, listNotices, markRead, type Board, type Notice, type NoticesList } from '../api/notices';
+import { archiveNotice, audienceOptions, audiencePreview, listBoards, listNotices, markRead, resendNotice, type Board, type Notice, type NoticesList } from '../api/notices';
 import { nt } from '../i18n/notices';
 import { SEV_KEY, SEV_LOOK, STATE_KEY, audienceText, draftOf, kpiCounts, listRows, matches, newDraft, windowText, type Draft, type Kpi, type Seg } from '../notices/model';
 import '../notices/compose-dialog';
@@ -15,6 +15,7 @@ import '../notices/places-tree';
 import '../notices/reads-sheet';
 import '../notices/delete-dialog';
 import { canDeleteRow, type DeleteTarget } from '../notices/delete-model';
+import { canResend, resendOutcome } from '../notices/resend-model';
 import { PLACE_ALL, buildPlaces, placesCss, placesSelect, type AreaOpt } from '../notices/places-tree';
 import { noticesCss } from '../notices/styles';
 import { NOTICES_SETTINGS_HREF } from '../shell/nav';
@@ -47,6 +48,7 @@ export class DevicesNotices extends LitElement {
   @state() private readsFor: Notice | null = null; // NOTICEPAGE-295: the "מי קרא" sheet
   @state() private draft: Draft | null = null;
   @state() private deleting: DeleteTarget | null = null; // NOTICEDEL-295: the notice whose deletion is being confirmed
+  @state() private resending: { n: Notice; count: number | null; busy: boolean } | null = null; // BOARD-MGMT-2381: the "שלח שוב" confirmation
   @state() private reading: Notice | null = null;
   @state() private toast = '';
   private toastTimer = 0;
@@ -140,7 +142,7 @@ export class DevicesNotices extends LitElement {
               <div class="cards">${rows.length ? rows.map((n) => this.card(n)) : html`<div class="card" data-no-rows><span class="mut">${nt('noRows')}</span> <button type="button" class="pick" data-clear-filters @click=${() => this.clearFilters()}>${nt('clearFilters')}</button></div>`}</div>
             </div></div>`}
       </sw-page>
-      ${this.composeDialog()} ${this.readDialog()}
+      ${this.composeDialog()} ${this.readDialog()} ${this.resendDialog()}
       <notice-delete .notice=${this.deleting} @notice-delete-close=${() => (this.deleting = null)} @notice-deleted=${() => this.deleted()}></notice-delete>
       <notice-reads .notice=${this.readsFor} @reads-close=${() => (this.readsFor = null)}></notice-reads>
       ${this.toast ? html`<div class="toast" role="status">${this.toast}</div>` : nothing}`;
@@ -216,7 +218,39 @@ export class DevicesNotices extends LitElement {
       ? html`<sw-button size="sm" variant="ghost" data-delete @click=${() => this.askDelete(n.id)}>${nt('delete')}</sw-button>` : nothing;
     if (n.state === 'archived') return del;
     return html`${n.state !== 'expired' ? html`<sw-button size="sm" variant=${n.state === 'draft' ? 'primary' : 'secondary'} @click=${() => this.open(n)}>${nt(n.state === 'draft' ? 'continueEdit' : 'edit')}</sw-button>` : nothing}
+      ${canResend(n, this.data?.can.push ?? false) ? html`<sw-button size="sm" data-resend @click=${() => this.askResend(n)}>${nt('resend')}</sw-button>` : nothing}
       ${n.state !== 'draft' ? html`<sw-button size="sm" data-archive @click=${() => this.archive(n)}>${nt('archive')}</sw-button>` : nothing}${del}`;
+  }
+
+  /** BOARD-MGMT-2381 (owner 03.11, answer 6A): "שלח שוב" asks once, with the number of recipients, then sends the notice as it is now. */
+  private askResend(n: Notice): void {
+    this.resending = { n, count: null, busy: false };
+    void audiencePreview(n.audience ?? {}).then((r) => {
+      if (this.resending?.n.id === n.id) this.resending = { ...this.resending, count: r.users };
+    }).catch(() => undefined);
+  }
+
+  private async resend(): Promise<void> {
+    const r = this.resending;
+    if (!r || r.busy) return;
+    this.resending = { ...r, busy: true };
+    try {
+      const out = resendOutcome((await resendNotice(r.n.id)).push);
+      this.resending = null;
+      this.say(nt(out.key, { n: out.n }));
+      await this.load();
+    } catch (e) {
+      this.resending = null;
+      this.say(describeError(e));
+    }
+  }
+
+  private resendDialog() {
+    const r = this.resending;
+    return html`<sw-dialog ?open=${!!r} heading=${r ? nt('resendAsk', { title: r.n.title }) : ''} @close=${() => (this.resending = null)} data-resend-confirm>
+      ${r ? html`<p>${r.count !== null ? nt('resendBody', { n: r.count }) : nt('resendBodyNoCount')}</p>` : nothing}
+      <sw-button slot="footer" @click=${() => (this.resending = null)}>${nt('cancel')}</sw-button>
+      <sw-button slot="footer" variant="primary" ?disabled=${r?.busy ?? false} data-resend-go @click=${() => this.resend()}>${nt('resend')}</sw-button></sw-dialog>`;
   }
 
   /** NOTICEDEL-295: opens the confirmation (and closes the compose dialog when the request came from it). */

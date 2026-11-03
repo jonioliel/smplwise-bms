@@ -76,7 +76,9 @@
         "views.edit",
         "catalog.manage",
         "media.read",
-        "presence.report"
+        "presence.report",
+        "notices.view",
+        "notices.manage"
       ]
     },
     {
