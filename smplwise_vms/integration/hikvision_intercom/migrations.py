@@ -22,6 +22,13 @@ async def async_migrate_entry(hass: HomeAssistant, entry: IntercomConfigEntry) -
         issue(hass, "migration", active=True, entry_id=entry.entry_id)
         return False
     if entry.minor_version < 2:
+        from .manual_migration_backup import save
+
+        try:
+            await hass.async_add_executor_job(save, hass.config.config_dir, entry.as_dict())
+        except (OSError, ValueError, TypeError):
+            issue(hass, "migration", active=True, entry_id=entry.entry_id)
+            return False
         # Version 1.2 adds optional observed capability baseline; no relay is enabled here.
         hass.config_entries.async_update_entry(entry, version=1, minor_version=2)
     issue(hass, "migration", active=False, entry_id=entry.entry_id)

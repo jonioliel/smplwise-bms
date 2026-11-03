@@ -248,6 +248,7 @@ Arx itself sends only these calls, from one module, and nothing else (a test fai
 | read the job list | progress of the running update |
 | read the core info, run the configuration check, restart the core | "הפעל מחדש את תשתית המערכת" (only after the configuration check passed) |
 | restart this add-on | "הפעל מחדש" after an NVR connection change (refused while an update runs); the allow-list still accepts writing this add-on's options, which no Arx screen uses since the NVR connection moved into Arx (CR-022) |
+| read the backup list, stop the core, start the core | only during an owner-started access-control component install / update / rollback (Settings › Security, "התקנה ועדכון של רכיב בקרת הכניסה"): a recent full backup must exist, the core is stopped for the verified swap and started again |
 
 Arx never adds a store repository, never touches another add-on, never creates, restores or downloads platform backups,
 and never restarts or updates the host, the OS or the Supervisor. To give the role back, install a release without the

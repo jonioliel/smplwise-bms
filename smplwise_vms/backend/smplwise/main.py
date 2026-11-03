@@ -777,6 +777,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import wiskey_switches as wiskey_switches_router
 
     app.include_router(wiskey_switches_router.router, prefix=api, tags=["access"])  # SMALLFIXA-295 (review 3 G-01/G-03): the wiskey.acr5_* switch writer (system administrator)
+    from .routers import wiskey_managed as wiskey_managed_router
+
+    app.include_router(wiskey_managed_router.router, prefix=api, tags=["access"])  # WISKEY-MANAGED-INSTALL-2382: WisKey installs and upgrades through Arx (owner-started, system administrator)
     from .routers import fleet as fleet_router
 
     # CR-FLEET215: the signed daily fleet report (switch OFF; system administrator). Its readiness block comes from CR-READY96's
@@ -1129,6 +1132,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         transit_poller.POLLER.start(app.state.db, settings)  # BUSTIMES-295: idle until the module is on and a board shows transit; the only caller of the third party
         await run_in_threadpool(bridge_install.run_startup, app.state.db, settings)
+        from .services import wiskey_managed_install as _wmi
+
+        threading.Thread(target=_wmi.recover_interrupted_safe, args=(app.state.db, settings), name="wiskey-managed-recover", daemon=True).start()  # WISKEY-MANAGED-INSTALL-2382: an Arx restart mid-run never leaves the core stopped
         if settings.cast_relay:  # CR-028: the cast relay listens only when the add-on option is on (the host port mapping is the owner's)
             from .services import cast_relay
 

@@ -12,6 +12,7 @@ REPO = Path(__file__).resolve().parents[3]
 INTEG = REPO / "smplwise_vms" / "integration"
 NATIVE = INTEG / "hikvision_intercom"
 PIN = INTEG / "hikvision_intercom.pin.json"
+MANAGED = INTEG / "hikvision_intercom.managed_manifest.json"  # WISKEY-MANAGED-INSTALL-2382: WisKey's MANAGED_MANIFEST.json
 
 pytestmark = pytest.mark.skipif(not PIN.is_file(), reason="repository layout not available")
 
@@ -21,28 +22,42 @@ def _pin() -> dict:
 
 
 def test_pin_names_the_delivered_product_and_archive():
-    # WISKEY-R3-2272: rc.39 Native product (WisKey R3 delivery 11903a80, label 2.0.0-rc.39+arx-align.20261029.04)
+    # WISKEY-MANAGED-INSTALL-2382: the WisKey rc.10 MANAGED bundle (M12-07, branch origin/codex/wiskey-mac-m12-policy-b-2026-11-02 @
+    # 2834aa5e8, WISKEY_ARX_MANAGED_2.0.1-rc.10.zip sha256 3365c2b4...) replaces rc.39+arx-align; the pin is WisKey's own, byte-exact
     pin = _pin()
-    assert pin["format"] == "smplwise-native-bundle-pin.v1" and pin["component"] == "hikvision_intercom"
-    assert pin["product_code"] == "4407121a8ad9df2bbebc07161808bbbc2664b592"
-    assert pin["component_version"] == "2.0.0-rc.39+arx-align.20261029.04"
-    assert pin["archive_sha256"] == "32c54c65fc0c6ae9d1c99f733fe9fa8f6f0d5bbb47e01252356ee00e92b27eb0"
-    assert pin["archive_bytes"] == 1729318 and pin["file_count"] == 377 == len(pin["files"])
-    assert pin["manifest_sha256"] == "e94a58d2f228a6c1d245111ea367332b847581a357d25575f2e5dc06a6b3439f"
-    assert pin["tree_sha256"] == "6e4c425b8417be3d9fc0e61b014a01007434e29a34a55cc1b28000302bed573f"  # = WisKey's STAGED_NATIVE_PIN
+    assert hashlib.sha256(PIN.read_bytes()).hexdigest() == "0063c70f2fb14f663e544bd235b84bf475b0b493189c34e907d482a65a136b8a"
+    assert pin["component"] == "hikvision_intercom" and pin["profile"] == "managed_original_authority_flow"
+    assert pin["product_CODE"] == "6049821dd39235b7d50ea2a43621e440caa51fb2" and pin["component_version"] == "2.0.1-rc.10"
+    assert pin["file_count"] == 389 == len(pin["files"])
+    assert pin["tree_sha256"] == "660cea99d315a3d9cc37e62d5823c1a88c23868f35a1ae9e608d281d97f515d4"
+    assert pin["component_digest_algorithm"] == "wiskey-posix-tree-sha256.v1"
+    assert pin["component_digest_recomputed"] == "5a3d3cedaab4f1ae8d3708b49e571496cae83c6a7eabc38437e2932305852e2d"
+    managed = json.loads(MANAGED.read_text(encoding="utf-8"))
+    assert hashlib.sha256(MANAGED.read_bytes()).hexdigest() == "4b2acc0a091d2091f52411dfda0725f5bff4a0835eca14dff0583f140502ed54"
+    assert managed["ZIP_sha256"] == "3365c2b4bb452651a9ff6590b3a9a1b36578e7629c746e64073730617222c294" and managed["ZIP_bytes"] == 1760464
+    assert (managed["product_CODE"], managed["version"], managed["profile"]) == (pin["product_CODE"], pin["component_version"], pin["profile"])
+    assert managed["component_digest"] == pin["component_digest_recomputed"] and managed["pin_tree_sha256"] == pin["tree_sha256"]
+    on_disk = {p.relative_to(NATIVE).as_posix(): {"bytes": p.stat().st_size, "sha256": hashlib.sha256(p.read_bytes()).hexdigest()}
+               for p in NATIVE.rglob("*") if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc"}
+    assert on_disk == managed["files"], "the shipped tree differs from WisKey's MANAGED_MANIFEST.json"
+    assert "_manual_upgrade_profile.json" not in on_disk, "a managed bundle never carries the manual marker"
 
 
 def test_label_to_content_mapping_never_reuses_a_label_for_other_content():
-    # the historical rc.38 ambiguity (two different trees under one label) must not recur: the current label is new and unique, and the
-    # recorded history keeps both old rc.38 products apart by product code
+    # the historical rc.38 ambiguity (two different trees under one label) must not recur: every known tree under the current label is
+    # the current product (its manual and managed profiles), and the two old rc.38 products stay apart by product CODE
+    from smplwise.services import wiskey_versions as wv
+
     pin = _pin()
-    history = pin["label_history"]
-    current = [h for h in history if h["label"] == pin["component_version"]]
-    assert len(current) == 1 and current[0]["product_code"] == pin["product_code"] and current[0]["tree_sha256"] == pin["tree_sha256"]
-    rc38 = [h for h in history if h["label"] == "2.0.0-rc.38"]
-    assert {h["product_code"] for h in rc38} == {"0a099c53d359a1bffdf9e63f31d2433f1c9445a4", "cc50b3b15460944c5c55450f47a2b23d77b6e686"}
-    assert {h["archive_sha256"] for h in history} == {h["archive_sha256"] for h in history} and len({h["archive_sha256"] for h in history}) == 3
-    assert pin["component_version"] not in {h["label"] for h in history if h["product_code"] != pin["product_code"]}
+    trees = wv.known_trees()
+    current = [t for t in trees if t["label"] == pin["component_version"]]
+    assert {t["product_CODE"] for t in current} == {pin["product_CODE"]}
+    assert {t["profile"] for t in current} == {"managed_original_authority_flow", "owner_manual_existing"}
+    assert [t["component_digest"] for t in current if t["profile"] == pin["profile"]] == [pin["component_digest_recomputed"]]
+    rc38 = [t for t in trees if t["label"] == "2.0.0-rc.38"]
+    assert {t["product_CODE"] for t in rc38} == {"0a099c53d359a1bffdf9e63f31d2433f1c9445a4", "cc50b3b15460944c5c55450f47a2b23d77b6e686"}
+    digests = [t["component_digest"] for t in trees if t["component_digest"]]
+    assert len(digests) == len(set(digests))
 
 
 def test_staged_tree_is_byte_exact_to_the_pin():
@@ -58,6 +73,9 @@ def test_staged_tree_is_byte_exact_to_the_pin():
     assert tree.hexdigest() == pin["tree_sha256"]
     manifest = json.loads((NATIVE / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["domain"] == "hikvision_intercom" and manifest["version"] == pin["component_version"]
+    from smplwise.services.wiskey_distribution_digest import digest
+
+    assert digest(NATIVE) == pin["component_digest_recomputed"]
 
 
 def test_bridge_mirror_is_untouched_by_the_native_bundle():

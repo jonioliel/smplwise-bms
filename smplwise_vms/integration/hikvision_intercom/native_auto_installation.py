@@ -42,6 +42,11 @@ async def prepare_storage(hass):
     """Quiescent startup migration through the existing ECC engine, before writers."""
     import os
 
+    from .manual_upgrade_profile import initialize
+
+    if await initialize(hass):
+        return
+
     from .access.ecc_storage import open_ecc_storage
     from .access.repository import AccessRepository
     from .ecc_host_storage import close_selection, selection_directory
@@ -53,9 +58,12 @@ async def prepare_storage(hass):
     repository = AccessRepository(original.async_save)
     await repository.async_load(await original.async_load())
     snapshot = repository.snapshot()
+    from .repository_identity import initialize as initialize_repository_identity
+
+    identity = await initialize_repository_identity(hass, repository, original)
     selection = await open_ecc_storage(
         directory,
-        repository_id=str(uuid4()),
+        repository_id=identity,
         legacy_image=snapshot,
         create=True,
         source_guard=lambda: repository.snapshot() == snapshot,
@@ -147,6 +155,10 @@ class NativeAutoInstallation:
             }
 
     async def reconcile(self):
+        from .manual_upgrade_profile import enabled
+
+        if enabled(self.hass):
+            return
         async with self.lock:
             if self.stopping or self.hass.is_stopping:
                 return
@@ -270,6 +282,10 @@ class NativeAutoInstallation:
 
 
 async def setup_auto_installation(hass):
+    from .manual_upgrade_profile import initialize
+
+    if await initialize(hass):
+        return None
     store = AccessStore(hass, key=DOMAIN + ".automatic_installation")
     state = await store.async_load()
     if state is None:

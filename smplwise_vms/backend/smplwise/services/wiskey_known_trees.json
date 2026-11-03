@@ -1,0 +1,19 @@
+{
+  "format": "smplwise-wiskey-known-trees.v1",
+  "digest_algorithm": "wiskey-posix-tree-sha256.v1",
+  "note": "WISKEY-MANAGED-INSTALL-2382: WisKey component trees Arx can recognise by their portable digest. Sources: WisKey M12-07 package (branch origin/codex/wiskey-mac-m12-policy-b-2026-11-02 @ 2834aa5e8) VERSION_PROFILE_MAP.json, MANIFEST.json, MANAGED_MANIFEST.json, LEGACY_FILES.json (digest recomputed by Arx from its rows), and the Arx 2.38.0 bundle pin. A label alone is never an identity: two different trees shipped as 2.0.0-rc.38 (no digest recorded, so they are history only).",
+  "trees": [
+    {"label": "2.0.1-rc.10", "product_CODE": "6049821dd39235b7d50ea2a43621e440caa51fb2", "profile": "managed_original_authority_flow",
+     "component_digest": "5a3d3cedaab4f1ae8d3708b49e571496cae83c6a7eabc38437e2932305852e2d", "files": 389, "source": "WisKey M12-07 MANAGED_MANIFEST.json"},
+    {"label": "2.0.1-rc.10", "product_CODE": "6049821dd39235b7d50ea2a43621e440caa51fb2", "profile": "owner_manual_existing",
+     "component_digest": "9a3f237d673bafdb316eddba1bf0d42b86a7e631a82998d090d367033dab4ce5", "files": 390, "source": "WisKey M12-07 MANIFEST.json (manual-existing package)"},
+    {"label": "2.0.1-rc.7", "product_CODE": "015f0277c7dee03894c63c3055087319a6af21c5", "profile": "owner_manual_existing",
+     "component_digest": "b427f46cd9f760aa80b4254bad3a41577e36f6e7b36bf8240bd49671315b674a", "files": null, "source": "WisKey M12-07 VERSION_PROFILE_MAP.json"},
+    {"label": "2.0.1-rc.1", "product_CODE": "881f3f7f73384e673aca3dda923d2e3e7e24f9e3", "profile": "legacy_unmarked",
+     "component_digest": "c8389eb40a762ac95c6f25671a2267689bd55c1a95f4389ebe4f20bc4f6db409", "files": 169, "source": "WisKey M12-07 LEGACY_FILES.json (the owner's earlier manual install)"},
+    {"label": "2.0.0-rc.39+arx-align.20261029.04", "product_CODE": "4407121a8ad9df2bbebc07161808bbbc2664b592", "profile": "arx_bundle_legacy",
+     "component_digest": "00df5e151fa8dc30be983389af8f3b483e709e74060663f9a85dcf889dc5c459", "files": 377, "source": "Arx 2.38.0 bundle pin (WisKey R3 delivery 11903a80)"},
+    {"label": "2.0.0-rc.38", "product_CODE": "0a099c53d359a1bffdf9e63f31d2433f1c9445a4", "profile": "history_only", "component_digest": null, "files": null, "source": "WisKey VERSION_PROFILE_MAP.json legacy_preserved"},
+    {"label": "2.0.0-rc.38", "product_CODE": "cc50b3b15460944c5c55450f47a2b23d77b6e686", "profile": "history_only", "component_digest": null, "files": null, "source": "WisKey VERSION_PROFILE_MAP.json legacy_preserved"}
+  ]
+}

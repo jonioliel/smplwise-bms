@@ -55,8 +55,10 @@ def _registered_handlers(hass):
     commands = set(registered_commands(hass))
     commands.update(registered_resume(hass))
     from .native_installation_api import registered as installed_commands
+    from .relay_export_api import registered as relay_export_commands
 
     commands.update(installed_commands(hass))
+    commands.update(relay_export_commands(hass))
     for get in (
         registered_feature_commands,
         registered_tts_commands,
@@ -220,12 +222,18 @@ class DirectBridgeServer:
     def identity(self, connection):
         row = check_connection(connection)
         registry = self.namespace.get("native_peer_registry")
+        identity = registry.repository_id if registry is not None else None
+        if registry is None:
+            from .repository_identity import cached
+
+            owner = BridgeCommandHost._owner(host_for(self.hass))
+            identity = cached(self.hass, owner.repository)
         return {
             "protocol": PROTOCOL,
             "query_owner_id": row.subject.id,
             "principal_kind": "pairing_service",
             "connection_ref": row.challenge,
-            "repository_id": registry.repository_id if registry is not None else None,
+            "repository_id": identity,
         }
 
     async def dispatch(self, connection, message):

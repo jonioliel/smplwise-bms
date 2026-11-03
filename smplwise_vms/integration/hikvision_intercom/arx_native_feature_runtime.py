@@ -9,6 +9,7 @@ Structural composition remains inactive until signed current Arx policy arrives.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import os
 import stat
@@ -114,6 +115,38 @@ def _write_manifest(path, identity, value):
     write_exclusive(path / "host.json", json.dumps(value, sort_keys=True))
 
 
+def _promote_recovery_origin(path, identity, previous, expected):
+    """Atomic ownership metadata change for the SAME original effect journal.
+
+    startup.json publishes first. If interrupted, the next original boot may
+    complete this change only after matching repository/DB/inode/profile and
+    original recovery ownership. No journal row or database is replaced.
+    """
+    target = path / "host.json"
+    raw = read_private(target, limit=16384)
+    if strict_json(raw, limit=16384) != previous or _identity(path, directory=True) != identity:
+        raise Refusal("feature_journal_manifest_invalid")
+    backup = path / ("host-before-recovery-" + hashlib.sha256(raw).hexdigest() + ".json")
+    if os.path.lexists(backup):
+        if read_private(backup, limit=16384) != raw:
+            raise Refusal("feature_journal_manifest_invalid")
+    else:
+        write_exclusive(backup, raw.decode("utf-8"))
+    temporary = path / (".host-recovery-" + os.urandom(16).hex() + ".json")
+    try:
+        write_exclusive(temporary, json.dumps(expected, sort_keys=True))
+        if read_private(target, limit=16384) != raw or _identity(path, directory=True) != identity:
+            raise Refusal("feature_journal_manifest_invalid")
+        os.replace(temporary, target)
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 @dataclass(repr=False)
 class _Runtime:
     hass: object
@@ -184,6 +217,37 @@ async def async_setup_native_feature_runtime(hass):
     effects = validation = source = boundary = authority = host = None
     try:
         expected_origin = "recovery" if borrowed is not None else "owned"
+        if (
+            manifest is not None
+            and borrowed is not None
+            and type(manifest.get("effects")) is dict
+            and manifest["effects"].get("origin") == "owned"
+        ):
+            # Original runtime-owned -> recovery-borrowed, at original startup.
+            # Exact same effects DB, validation DB and profile are mandatory.
+            if borrowed.path != path / "effects.sqlite":
+                raise Refusal("feature_journal_manifest_invalid")
+            promoted = _check_manifest(
+                None,
+                identity=directory_identity,
+                path=path,
+                repository_id=registry.repository_id,
+                effects=_metadata(borrowed, "recovery"),
+                validation={
+                    "origin": "owned",
+                    "identity": list(_identity(path / "validation.sqlite")),
+                    "profile": ecc_effects_profile().metadata(),
+                },
+            )
+            before = {**promoted, "effects": {**promoted["effects"], "origin": "owned"}}
+            if manifest != before:
+                raise Refusal("feature_journal_manifest_invalid")
+            await joined_thread(
+                _promote_recovery_origin, path, directory_identity, manifest, promoted
+            )
+            if not _same_context(hass, context) or recovery.journal is not borrowed:
+                raise Refusal("feature_runtime_source_changed")
+            manifest = promoted
         if manifest is not None:
             if (
                 manifest["repository_id"] != registry.repository_id
@@ -324,3 +388,30 @@ async def close_native_feature_runtime(hass, repository):
     _result, cancelled = await join_owned(runtime.closing)
     if cancelled:
         raise asyncio.CancelledError
+
+
+def original_effects_for_recovery(hass, repository):
+    """Read the actually installed original journal; never invent another one."""
+    context = _context(hass)
+    runtime = _RUNTIMES.get(hass)
+    if runtime is None:
+        return None
+    if (
+        context is None
+        or context[1] is not repository
+        or runtime.repository is not repository
+        or runtime.hass is not hass
+        or runtime.namespace is not context[0]
+        or runtime.namespace.get(KEY) is not runtime.handle
+        or runtime.closing is not None
+        or runtime.namespace.get("arx_feature_host") is not runtime.host
+        or runtime.host.journal is not runtime.effects
+    ):
+        raise Refusal("feature_runtime_source_changed")
+    FeatureExecutionJournal._stable(runtime.effects)
+    return (
+        runtime.effects.path,
+        runtime.effects.repository_id,
+        runtime.effects.profile,
+        runtime.effects,
+    )
