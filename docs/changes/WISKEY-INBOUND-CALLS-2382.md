@@ -107,7 +107,7 @@ ignored by older code; with the setting off (default) nothing new is shown and n
 |---|---|---|
 | Backend: `test_intercom_calls_2382.py` + `test_notify_sources.py` + `test_security_review_wxd_fixes.py` + `test_access_permissions_wxperm.py` + `test_intercom.py` | workstation, repo `.venv`, backend as in `0f39b01e4` (unchanged since) | 280 passed |
 | Backend: `test_intercom_calls_2382.py` + `test_notify_sources.py` | runner `run_smart.py backend` @ `6bc7fb1d3` | 54 passed |
-| `tsc --noEmit` | workstation; runner `run_smart.py tsc` @ `0f39b01e4` | ok / ok |
+| `tsc --noEmit` | workstation; runner `run_smart.py tsc` @ `0f39b01e4` and @ `49274d1b7` | ok / ok / ok |
 | Unit `unit-incoming-calls.spec.ts` (node only) | workstation, `playwright.unit.config.ts` | 13 passed |
 | `evidence-incoming-call.spec.ts` desktop / tablet / mobile | runner @ `6eccd2d58` | 35 passed, 0 failed, 4 skipped (project-only tests) |
 | Regression `evidence-wiskey-stations`, `layout-wiskey-stations`, `evidence-access-s12`, `layout-access-s12` (3 projects) | runner @ `6eccd2d58` (load 11.8) | 6 failed: 3 = the hygiene allow-list did not know the banner's reads (fixed in `6bc7fb1d3`), 3 = `sw-app` / dialog timeouts under load |
