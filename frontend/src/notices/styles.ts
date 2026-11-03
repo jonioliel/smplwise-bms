@@ -41,7 +41,7 @@ export const noticesCss = css`
   .toolbar .sp { flex: 1; }
   .seg { display: inline-flex; border: 1px solid var(--sw-border); border-radius: var(--sw-r-lg); padding: 2px; gap: 2px; background: var(--sw-surface-2); flex-wrap: wrap; }
   .seg button { font: inherit; font-size: var(--sw-fs-sm); border: 0; background: transparent; color: var(--sw-text-2); padding: 5px 12px; border-radius: var(--sw-r-md); cursor: pointer; }
-  .seg button[aria-pressed='true'] { background: var(--sw-seg-thumb, var(--sw-surface-solid)); color: var(--sw-text); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); font-weight: var(--sw-fw-medium); }
+  .seg button[aria-pressed='true'] { background: var(--sw-seg-key, var(--sw-surface-solid)); color: var(--sw-seg-key-ink, var(--sw-text)); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); font-weight: var(--sw-fw-medium); }
   .search { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--sw-border); border-radius: var(--sw-r-pill); padding: 4px 10px; background: var(--sw-surface-2); }
   .search input { font: inherit; font-size: var(--sw-fs-sm); border: 0; outline: 0; background: transparent; color: var(--sw-text); inline-size: 150px; }
   table.t { inline-size: 100%; border-collapse: collapse; font-size: var(--sw-fs-sm); }

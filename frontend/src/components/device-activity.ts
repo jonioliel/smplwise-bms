@@ -901,7 +901,7 @@ export class DeviceActivity extends LitElement {
       flex: 1; min-block-size: 36px; border: 0; border-radius: var(--sw-r-pill); background: transparent; color: var(--sw-text-2); font: inherit; font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-medium); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: var(--sw-s-1h);
     }
-    .segt button.on { background: var(--sw-surface-solid); color: var(--sw-accent-text); box-shadow: var(--sw-shadow-1); }
+    .segt button.on { background: var(--sw-seg-key, var(--sw-surface-solid)); color: var(--sw-seg-key-ink, var(--sw-accent-text)); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
     .segt button:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 1px; }
     .cnt { font-size: var(--sw-fs-xs); background: var(--sw-accent-soft); color: var(--sw-accent-text); border-radius: var(--sw-r-pill); padding: 0 6px; }
 
@@ -928,7 +928,7 @@ export class DeviceActivity extends LitElement {
     .clr .n { min-inline-size: 16px; block-size: 16px; display: inline-grid; place-items: center; border-radius: var(--sw-r-pill); background: var(--sw-accent-soft); color: var(--sw-accent-text); font-size: 10px; font-variant-numeric: tabular-nums; }
     .vw { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--sw-r-sm); background: var(--sw-surface-3); }
     .vw button { display: inline-grid; place-items: center; inline-size: 28px; block-size: 28px; border: 0; border-radius: calc(var(--sw-r-sm) - 2px); background: transparent; color: var(--sw-text-2); cursor: pointer; padding: 0; }
-    .vw button.on { background: var(--sw-surface-solid); color: var(--sw-accent-text); box-shadow: var(--sw-shadow-1); }
+    .vw button.on { background: var(--sw-seg-key, var(--sw-surface-solid)); color: var(--sw-seg-key-ink, var(--sw-accent-text)); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
     .vw button:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 1px; }
 
     /* ---- the day groups: a sticky day line (translucent, so the sheet's glass stays) with the count at its end ---- */

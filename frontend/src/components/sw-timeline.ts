@@ -125,9 +125,9 @@ export class SwTimeline extends LitElement {
       color: var(--sw-text-2);
     }
     .windows button.on {
-      background: var(--sw-surface);
-      color: var(--sw-accent-text);
-      box-shadow: var(--sw-shadow-1);
+      background: var(--sw-seg-key, var(--sw-surface));
+      color: var(--sw-seg-key-ink, var(--sw-accent-text));
+      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
     }
     :host([compact]) {
       border: 0;

@@ -966,10 +966,10 @@ export class SystemReadiness extends LitElement {
         color: var(--sw-text-2);
       }
       .panes button[aria-selected='true'] {
-        background: var(--sw-surface);
-        color: var(--sw-text);
+        background: var(--sw-seg-key, var(--sw-surface));
+        color: var(--sw-seg-key-ink, var(--sw-text));
         font-weight: var(--sw-fw-semibold);
-        box-shadow: var(--sw-shadow-1);
+        box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
       }
       .cols {
         grid-template-columns: minmax(0, 1fr);

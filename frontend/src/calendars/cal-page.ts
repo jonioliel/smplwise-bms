@@ -41,8 +41,10 @@ export class CalendarsPage extends LitElement {
     .tabs { display: inline-flex; gap: 2px; padding: 4px; border-radius: var(--sw-r-pill); background: var(--sw-surface-3); max-inline-size: 100%; overflow: hidden; }
     .tab { font: inherit; font-size: var(--sw-fs-md); border: 0; background: transparent; color: var(--sw-text-2); padding: 0 14px; min-block-size: 34px; border-radius: var(--sw-r-pill);
       cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; text-decoration: none; -webkit-tap-highlight-color: transparent; }
-    .tab[aria-current='page'] { background: var(--sw-surface-solid); color: var(--sw-heading); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1); }
+    .tab[aria-current='page'] { background: var(--sw-seg-key, var(--sw-surface-solid)); color: var(--sw-seg-key-ink, var(--sw-heading)); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
     .tab .n { color: var(--sw-text-3); font-weight: var(--sw-fw-semibold); }
+    /* DARK-SEG-ALL-2380: on the dark light pill the count takes the key's dark label (light keeps the muted ink) */
+    .tab[aria-current='page'] .n { color: var(--sw-seg-key-ink, var(--sw-text-3)); }
     .search { display: inline-flex; align-items: center; gap: 8px; min-block-size: var(--sw-ctl-h-lg); padding: 0 14px; border-radius: var(--sw-r-pill); border: 1px solid var(--sw-border);
       background: var(--sw-surface-solid); inline-size: 220px; max-inline-size: 100%; }
     .search input { font: inherit; font-size: var(--sw-fs-md); border: 0; outline: 0; background: transparent; color: var(--sw-text); min-inline-size: 0; flex: 1; }

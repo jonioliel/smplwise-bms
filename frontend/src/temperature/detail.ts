@@ -107,7 +107,7 @@ export class TempDetail extends LitElement {
     .sname { overflow-wrap: anywhere; word-break: break-word; }
     .seg { display: inline-flex; background: var(--sw-surface-2); border-radius: var(--sw-r-pill); padding: 3px; gap: 2px; }
     .seg button { border: 0; background: transparent; border-radius: var(--sw-r-pill); padding: 4px 12px; font: inherit; font-size: var(--sw-fs-sm); color: var(--sw-text-2); cursor: pointer; }
-    .seg button[aria-pressed='true'] { background: var(--sw-seg-thumb, var(--sw-surface)); color: var(--sw-text); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); font-weight: var(--sw-fw-semibold); }
+    .seg button[aria-pressed='true'] { background: var(--sw-seg-key, var(--sw-surface)); color: var(--sw-seg-key-ink, var(--sw-text)); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); font-weight: var(--sw-fw-semibold); }
     .ph { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-block-end: 8px; }
     .ph h4 { flex: 1; }
     .bigchart { position: relative; block-size: 250px; touch-action: pan-y; min-inline-size: 0; max-inline-size: 100%; overflow: hidden; }

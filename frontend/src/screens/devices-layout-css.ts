@@ -197,8 +197,8 @@ export const devicesLayoutCss = [
       min-block-size: 30px;
     }
     .lay-seg button[aria-pressed='true'] {
-      background: var(--sw-seg-thumb, var(--sw-surface));
-      color: var(--sw-accent-text, var(--sw-accent));
+      background: var(--sw-seg-key, var(--sw-surface));
+      color: var(--sw-seg-key-ink, var(--sw-accent-text, var(--sw-accent)));
       font-weight: var(--sw-fw-semibold);
       box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
     }

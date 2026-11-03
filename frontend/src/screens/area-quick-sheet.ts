@@ -1137,9 +1137,9 @@ export class AreaQuickSheet extends LitElement {
         cursor: pointer;
       }
       .seg button.on {
-        background: var(--sw-surface-solid);
-        color: var(--sw-text);
-        box-shadow: var(--sw-shadow-1);
+        background: var(--sw-seg-key, var(--sw-surface-solid));
+        color: var(--sw-seg-key-ink, var(--sw-text));
+        box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
       }
       .seg button:disabled {
         opacity: 0.45;

@@ -214,7 +214,7 @@ export class InvestigateIncidents extends LitElement {
       .board .panel[hidden-part] { display: none; }
       .ptabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; padding: 3px; background: var(--sw-surface-3); border-radius: var(--sw-r-md); flex: none; }
       .ptabs button { font: inherit; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); border: 0; background: transparent; color: var(--sw-text-2); border-radius: var(--sw-r-sm); min-block-size: 36px; padding: 0 4px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 4px; white-space: nowrap; }
-      .ptabs button[aria-pressed='true'] { background: var(--sw-surface); color: var(--sw-accent-text); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1); }
+      .ptabs button[aria-pressed='true'] { background: var(--sw-seg-key, var(--sw-surface)); color: var(--sw-seg-key-ink, var(--sw-accent-text)); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
       .ptabs .n { font-size: var(--sw-fs-2xs); border-radius: var(--sw-r-pill); padding: 0 6px; background: var(--sw-surface-3); color: var(--sw-text-2); }
       .ptabs .n[data-look] { background: var(--c); color: var(--sw-text-inverse); }
       .tiles { gap: 8px; padding: 0 12px 12px; }

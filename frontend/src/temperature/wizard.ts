@@ -95,7 +95,7 @@ export class TempWizard extends LitElement {
     .gprev { display: flex; gap: 16px; align-items: center; }
     .seg { display: inline-flex; background: var(--sw-surface-2); border-radius: var(--sw-r-pill); padding: 3px; gap: 2px; flex-wrap: wrap; }
     .seg button { border: 0; background: transparent; border-radius: var(--sw-r-pill); padding: 5px 12px; font: inherit; font-size: var(--sw-fs-sm); color: var(--sw-text-2); cursor: pointer; }
-    .seg button[aria-pressed='true'] { background: var(--sw-seg-thumb, var(--sw-surface)); color: var(--sw-text); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); font-weight: var(--sw-fw-semibold); }
+    .seg button[aria-pressed='true'] { background: var(--sw-seg-key, var(--sw-surface)); color: var(--sw-seg-key-ink, var(--sw-text)); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); font-weight: var(--sw-fw-semibold); }
     .opts { display: flex; flex-wrap: wrap; gap: 6px 16px; }
     .opts.scroll { max-block-size: 160px; overflow: auto; }
     .summ { display: grid; gap: 4px; font-size: var(--sw-fs-sm); flex: 1; }

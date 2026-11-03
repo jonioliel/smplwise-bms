@@ -822,8 +822,8 @@ export class InvestigateHistoryMap extends LitElement {
       min-block-size: 24px;
     }
     .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-thumb, var(--sw-surface-solid, var(--sw-surface)));
-      color: var(--sw-text);
+      background: var(--sw-seg-key, var(--sw-surface-solid, var(--sw-surface)));
+      color: var(--sw-seg-key-ink, var(--sw-text));
       font-weight: var(--sw-fw-semibold);
       box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
     }

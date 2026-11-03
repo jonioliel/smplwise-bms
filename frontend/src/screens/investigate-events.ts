@@ -144,10 +144,10 @@ export class InvestigateEvents extends LitElement {
       cursor: pointer;
     }
     .rangepick button.on {
-      background: var(--sw-surface);
-      color: var(--sw-accent-text);
+      background: var(--sw-seg-key, var(--sw-surface));
+      color: var(--sw-seg-key-ink, var(--sw-accent-text));
       font-weight: var(--sw-fw-semibold);
-      box-shadow: var(--sw-shadow-1);
+      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
     }
     /* EVENTS-POLISH-2331 (owner: the panel's actions sat at the bottom of the PAGE): from a tablet up the screen takes exactly the height the
        shell leaves it and never scrolls; the list scrolls inside its own box (sticky header) and the drawer - absolute in that box - is as

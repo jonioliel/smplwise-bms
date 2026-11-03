@@ -1137,10 +1137,10 @@ export class SwApp extends LitElement {
       color: var(--sw-text);
     }
     nav.sections a.on {
-      background: var(--sw-surface);
-      color: var(--sw-accent-text);
+      background: var(--sw-seg-key, var(--sw-surface));
+      color: var(--sw-seg-key-ink, var(--sw-accent-text));
       font-weight: var(--sw-fw-semibold);
-      box-shadow: var(--sw-shadow-1);
+      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
     }
     nav.sections a:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);
@@ -1761,8 +1761,8 @@ export class SwApp extends LitElement {
         box-shadow: none;
       }
       :host([data-design='a']) nav.secrow a.on .pill {
-        background: var(--sw-surface);
-        box-shadow: var(--sw-shadow-1), 0 0 0 1px var(--sw-border);
+        background: var(--sw-seg-key, var(--sw-surface));
+        box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1), 0 0 0 1px var(--sw-border));
       }
       :host([data-design='a']) nav.secrow a:focus-visible {
         outline: none;

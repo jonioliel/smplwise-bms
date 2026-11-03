@@ -349,8 +349,8 @@ export class ScheduleEditor extends LitElement {
       transform: scale(var(--sw-press-scale, 1));
     }
     .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-thumb, var(--sw-surface));
-      color: var(--sw-accent-text);
+      background: var(--sw-seg-key, var(--sw-surface));
+      color: var(--sw-seg-key-ink, var(--sw-accent-text));
       box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
       font-weight: var(--sw-fw-bold);
     }

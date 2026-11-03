@@ -35,7 +35,7 @@ export class CalResident extends LitElement {
     .tabs { display: flex; gap: 2px; padding: 4px; border-radius: var(--sw-r-pill); background: var(--sw-surface-3); }
     .tabs button { flex: 1; font: inherit; font-size: var(--sw-fs-md); border: 0; background: transparent; color: var(--sw-text-2); min-block-size: 40px; border-radius: var(--sw-r-pill);
       cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; -webkit-tap-highlight-color: transparent; }
-    .tabs button[aria-pressed='true'] { background: var(--sw-surface-solid); color: var(--sw-heading); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1); }
+    .tabs button[aria-pressed='true'] { background: var(--sw-seg-key, var(--sw-surface-solid)); color: var(--sw-seg-key-ink, var(--sw-heading)); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
     .panel { flex: 1; padding: 12px; gap: 10px; }
     .days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; flex: none; }
     .days button { font: inherit; border: 0; border-radius: var(--sw-r-md); background: var(--sw-surface-2); color: var(--sw-heading); min-block-size: 52px; display: grid; place-items: center;

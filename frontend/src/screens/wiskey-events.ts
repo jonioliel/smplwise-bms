@@ -801,8 +801,8 @@ export class WiskeyEvents extends LitElement {
       cursor: pointer;
     }
     .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-thumb, var(--sw-surface-solid));
-      color: var(--sw-heading);
+      background: var(--sw-seg-key, var(--sw-surface-solid));
+      color: var(--sw-seg-key-ink, var(--sw-heading));
       box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
     }
     .g {

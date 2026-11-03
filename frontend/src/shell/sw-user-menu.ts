@@ -298,8 +298,8 @@ export class SwUserMenu extends LitElement {
       cursor: pointer;
     }
     li.view .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-thumb, var(--sw-menu-surface));
-      color: var(--sw-text);
+      background: var(--sw-seg-key, var(--sw-menu-surface));
+      color: var(--sw-seg-key-ink, var(--sw-text));
       font-weight: var(--sw-fw-semibold);
       box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
     }

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TOKEN_NAMES } from '../src/design/tokens';
+import { TOKEN_NAMES, TOKENS } from '../src/design/tokens';
 
 // DU1 design unification (2026-10-09): the drift guard. The CSS of the shell, the shared components and the screens reads the
 // design tokens for type, radii and colours; a literal in one of those places is the start of a second visual language.
@@ -130,7 +130,9 @@ test('text and fill colours are tokens: a hex literal on color / background / bo
 // TKUI7 (service module, 2026-10-16): the service module reads the tokens without a literal or a second token as a fallback,
 // and the public-ticket bundle (its own CSS, no skins) declares every --sw token it reads in styles.css.
 test('service module: no `var(--sw-x, <anything>)` fallback for a declared token in src/tickets, tickets screens, the view switch and the setup hint', () => {
-  const names = new Set(TOKEN_NAMES);
+  // DARK-SEG-ALL-2380: a token whose LIGHT value is `initial` (guaranteed-invalid: the dark segment key --sw-seg-key, its label
+  // --sw-seg-key-ink, its edge --sw-seg-thumb-shadow) exists to be read with the user's own light value as the fallback - exempt
+  const names = new Set(TOKEN_NAMES.filter((n) => TOKENS[n].light.trim() !== 'initial'));
   const scope = files.filter((f) => /^(tickets\/|screens\/(tickets-|system-tickets)|components\/sw-view-switch|shell\/setup-hint)/.test(f.rel));
   expect(scope.length).toBeGreaterThan(100);
   const bad: string[] = [];

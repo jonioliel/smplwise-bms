@@ -274,8 +274,8 @@ export const adminStyles = css`
     white-space: nowrap;
   }
   .seg button[aria-pressed='true'] {
-    background: var(--sw-seg-thumb, var(--sw-surface));
-    color: var(--sw-text);
+    background: var(--sw-seg-key, var(--sw-surface));
+    color: var(--sw-seg-key-ink, var(--sw-text));
     box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
   }
   .seg button:disabled {

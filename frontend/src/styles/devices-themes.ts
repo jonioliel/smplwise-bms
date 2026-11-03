@@ -149,11 +149,10 @@ export const devicesThemes = css`
 
   /* ---- 1. the bridge: glass knobs -> the v2 tokens every nested component reads ---- */
   :host([data-devices-style='glass']) {
-    /* DARK-REVIEW-2342: the dark segment thumb (--sw-seg-thumb) follows the SHELL's scheme; a glass screen has its own (devices.scheme),
-       so inside it the segments keep their own fill in both of its schemes (initial = guaranteed-invalid: every user's fallback) */
-    --sw-seg-thumb: initial;
+    /* DARK-REVIEW-2342 / DARK-SEG-ALL-2380: the dark segment key (--sw-seg-key, its label --sw-seg-key-ink, its edge
+       --sw-seg-thumb-shadow) follows the SHELL's scheme; a glass screen has its own (devices.scheme), so inside it the segments keep
+       their own fill in both of its schemes (initial = guaranteed-invalid: every user's fallback) */
     --sw-seg-thumb-shadow: initial;
-    /* GATE2370-B: the same for the settings key's dark light pill */
     --sw-seg-key: initial;
     --sw-seg-key-ink: initial;
     --sw-glass-blur: var(--dv-surface-blur);

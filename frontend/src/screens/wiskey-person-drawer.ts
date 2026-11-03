@@ -133,10 +133,10 @@ export class WiskeyPersonDrawer extends LitElement {
       cursor: pointer;
     }
     .tabs button[aria-selected='true'] {
-      background: var(--sw-surface);
-      color: var(--sw-heading, var(--sw-text));
+      background: var(--sw-seg-key, var(--sw-surface));
+      color: var(--sw-seg-key-ink, var(--sw-heading, var(--sw-text)));
       font-weight: var(--sw-fw-bold);
-      box-shadow: var(--sw-shadow-1);
+      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
     }
     .tabs button {
       touch-action: manipulation;
