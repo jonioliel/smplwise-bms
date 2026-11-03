@@ -4,9 +4,10 @@ import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-dialog';
 import { describeError } from '../api/client';
-import { archiveNotice, audiencePreview, createNotice, deleteNotice, patchNotice, publishNotice, type Board, type Severity } from '../api/notices';
+import { archiveNotice, audiencePreview, createNotice, deleteNotice, patchNotice, publishNotice, resendNotice, type Board, type Severity } from '../api/notices';
 import { nt } from '../i18n/notices';
 import { SEV_KEY, audienceOf, inputOf, pushState, validate, type Draft } from './model';
+import { canResendDraft, resendOutcome } from './resend-model';
 import { noticesCss } from './styles';
 import { dateInputLang } from '../api/day-format';
 
@@ -41,6 +42,8 @@ export class NoticeCompose extends LitElement {
   @state() private audScope = true;
   @state() private busy = false;
   @state() private confirming = false;
+  /** BOARD-MGMT-2381: the first click of "שמירה ושליחה שוב" turns it into the confirmation (the recipient count on the button). */
+  @state() private confirmResend = false;
   private audTimer = 0;
 
   protected willUpdate(changed: Map<string, unknown>): void {
@@ -48,6 +51,7 @@ export class NoticeCompose extends LitElement {
       this.d = this.draft ? { ...this.draft } : null;
       this.err = '';
       this.confirming = false;
+      this.confirmResend = false;
       this.audCount = null;
       this.audScope = true;
       if (this.d) this.refreshAudience();
@@ -73,6 +77,7 @@ export class NoticeCompose extends LitElement {
     this.d = next;
     this.err = '';
     this.confirming = false;
+    this.confirmResend = false;
     if ('aud' in p || 'floors' in p || 'groups' in p || 'roles' in p) this.refreshAudience();
   }
 
@@ -116,11 +121,39 @@ export class NoticeCompose extends LitElement {
         await patchNotice(d.id, { ...body, ...(editable && this.canPush && d.push !== null ? { push: d.push } : {}) });
         if (publish && d.status === 'draft') sent = (await publishNotice(d.id, tick)).push?.recipients ?? 0;
       }
-      this.done(publish ? (sent ? nt('pushDone', { n: sent }) : nt('published')) : d.status === 'published' ? nt('saved') : nt('savedDraft'));
+      // BOARD-MGMT-2381 (owner 03.11, answer 6A): saving a published notice never re-sends it; the message says how to send it again
+      this.done(publish ? (sent ? nt('pushDone', { n: sent }) : nt('published')) : d.status === 'published' ? nt(canResendDraft(d, this.canPush) ? 'savedNoResend' : 'saved') : nt('savedDraft'));
     } catch (e) {
       this.err = describeError(e);
     } finally {
       this.busy = false;
+    }
+  }
+
+  /** BOARD-MGMT-2381: "שמירה ושליחה שוב" on a published notice - the first click asks (the button shows the recipient count), the second
+   * saves the edit and then sends the saved notice once more. Never automatic: a plain "שמירה" sends nothing. */
+  private async saveAndResend(): Promise<void> {
+    const d = this.d;
+    if (!d?.id) return;
+    const bad = validate(d);
+    if (bad) {
+      this.err = nt(bad);
+      return;
+    }
+    if (!this.confirmResend) {
+      this.confirmResend = true;
+      return;
+    }
+    this.busy = true;
+    try {
+      await patchNotice(d.id, inputOf(d));
+      const out = resendOutcome((await resendNotice(d.id)).push);
+      this.done(nt(out.key, { n: out.n }));
+    } catch (e) {
+      this.err = describeError(e);
+    } finally {
+      this.busy = false;
+      this.confirmResend = false;
     }
   }
 
@@ -210,6 +243,8 @@ export class NoticeCompose extends LitElement {
       ${d.status === 'new' ? html`<sw-button slot="footer" variant="ghost" @click=${() => this.close()}>${nt('cancel')}</sw-button>` : nothing}
       ${d.id && d.status !== 'archived' ? html`<sw-button slot="footer" variant=${this.confirming ? 'danger' : 'ghost'} ?disabled=${this.busy} data-remove-notice @click=${() => this.removeNotice()}>${this.confirming ? nt(d.status === 'draft' ? 'confirmDelete' : 'confirmArchive') : nt(removeKey)}</sw-button>` : nothing}
       ${d.id && d.status === 'published' && this.canDelete ? html`<sw-button slot="footer" variant="ghost" ?disabled=${this.busy} data-delete-notice @click=${() => this.dispatchEvent(new CustomEvent('notice-delete', { detail: { id: d.id }, bubbles: true, composed: true }))}>${nt('delete')}</sw-button>` : nothing}
+      ${canResendDraft(d, this.canPush) ? html`<sw-button slot="footer" variant=${this.confirmResend ? 'primary' : 'secondary'} ?disabled=${this.busy} data-save-resend @click=${() => this.saveAndResend()}>${this.confirmResend
+        ? (this.audCount !== null ? nt('resendConfirmN', { n: this.audCount }) : nt('resendConfirm')) : nt('saveResend')}</sw-button>` : nothing}
       ${editable ? html`<sw-button slot="footer" ?disabled=${this.busy} data-save-draft @click=${() => this.save(false)}>${nt('saveDraft')}</sw-button>` : nothing}
       ${d.status !== 'archived' ? html`<sw-button slot="footer" variant="primary" ?disabled=${this.busy} data-publish @click=${() => this.save(editable)}>${d.status === 'published' ? nt('save') : nt('publish')}</sw-button>` : nothing}
     </sw-dialog>`;

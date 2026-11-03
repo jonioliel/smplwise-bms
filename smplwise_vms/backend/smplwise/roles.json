@@ -90,7 +90,9 @@
         "catalog.manage",
         "media.read",
         "presence.report",
-        "calendar.view"
+        "calendar.view",
+        "notices.view",
+        "notices.manage"
       ]
     },
     {

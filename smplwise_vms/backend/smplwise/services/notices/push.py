@@ -6,7 +6,9 @@
   notice (an empty audience) pushes nobody. The notification centre then intersects the list with visibility (`can_see`): the audience,
   or a holder of `notices.manage`.
 * Resolved when the notice is archived, and by the janitor once it has ended (`resolve_ended`), so the inbox never keeps a dead notice.
-* Editing a published notice never pushes again; there is no re-send in this slice.
+* Editing a published notice never pushes again by itself. BOARD-MGMT-2381 (owner 03.11, answer 6A): a manual "שלח שוב" (`resend`)
+  sends the notice as it is now to its audience once more: the previous notification is resolved (`superseded`) and a new one opens
+  under the next `push_generation`, so the inbox holds one current copy. At most once a minute per notice.
 * Whether a publish pushes: the author's explicit tick wins (`push` true / false). Without one, the setting `notices.push_default`:
   `always`, `never`, or `by_severity` (the default: only a critical notice). An explicit tick needs `notices.push`; the default is the
   administrator's policy and needs nothing from the author.
@@ -65,9 +67,13 @@ def send(conn: sqlite3.Connection, notice: dict[str, Any], actor_id: str | None,
     conn.execute("UPDATE notices SET push_requested = 1 WHERE id = ?", (notice["id"],))
     if not users:  # a TV-only notice, or an audience nobody is in
         return out
+    return _emit(conn, notice, actor_id, int(notice.get("push_generation") or 0), out)
+
+
+def _emit(conn: sqlite3.Connection, notice: dict[str, Any], actor_id: str | None, gen: int, out: dict[str, Any]) -> dict[str, Any]:
+    """One notification of the notice under generation `gen` (its dedupe key). Never raises into the caller's write."""
     from .. import notify
 
-    gen = int(notice.get("push_generation") or 0)
     try:
         res = notify.emit_full(conn, notify.Signal(
             source=SOURCE, subject_kind=SUBJECT, subject_id=notice["id"], severity=notice["severity"], dedupe_key=key_of(notice["id"], gen),
@@ -81,6 +87,41 @@ def send(conn: sqlite3.Connection, notice: dict[str, Any], actor_id: str | None,
     out["sent"] = res.action in ("created", "folded", "renotified")
     if out["sent"]:
         conn.execute("UPDATE notices SET pushed_at = COALESCE(pushed_at, ?) WHERE id = ?", (now_iso(), notice["id"]))
+    return out
+
+
+RESEND_COOLDOWN_S = 60
+
+
+def resend_wait_s(conn: sqlite3.Connection, notice: dict[str, Any], now: Any = None) -> int:
+    """Seconds left before the notice may be sent again (0 = now): one send a minute, counted from the current generation's
+    notification (a notice that was never sent has none)."""
+    row = conn.execute("SELECT first_at FROM notifications WHERE dedupe_key = ? ORDER BY first_at DESC LIMIT 1",
+                       (key_of(notice["id"], int(notice.get("push_generation") or 0)),)).fetchone()
+    sent = model.parse_iso(row["first_at"]) if row else None
+    if sent is None:
+        return 0
+    left = RESEND_COOLDOWN_S - int(((now or store.utcnow()) - sent).total_seconds())
+    return max(0, min(left, RESEND_COOLDOWN_S))
+
+
+def resend(conn: sqlite3.Connection, notice: dict[str, Any], actor_id: str | None) -> dict[str, Any]:
+    """BOARD-MGMT-2381: the manual "שלח שוב" of a published notice. Recipients are resolved first: an empty audience (a TV-only notice, or
+    nobody in it) writes nothing and answers `recipients: 0`. Otherwise the notice is sent under the next generation; only when the
+    pipeline took it is the previous generation's open notification resolved as `superseded` and the generation stored - a failing
+    pipeline leaves everything as it was. Returns {requested, sent, recipients, generation}."""
+    users = aud.resolve_users(conn, aud.parse(notice["audience_json"]))
+    old = int(notice.get("push_generation") or 0)
+    out: dict[str, Any] = {"requested": True, "sent": False, "recipients": len(users), "generation": old}
+    if not users:
+        return out
+    gen = old + 1
+    _emit(conn, {**notice, "push_generation": gen}, actor_id, gen, out)
+    if "error" in out:
+        return out
+    resolve(conn, notice["id"], old, "superseded")
+    conn.execute("UPDATE notices SET push_generation = ?, push_requested = 1 WHERE id = ?", (gen, notice["id"]))
+    out["generation"] = gen
     return out
 
 

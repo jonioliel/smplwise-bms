@@ -37,6 +37,8 @@ export interface Notice {
   reads?: number;
   push_requested?: boolean;
   pushed_at?: string | null;
+  /** BOARD-MGMT-2381: how many times "שלח שוב" sent the notice again (0 = never) */
+  push_generation?: number;
 }
 
 export interface NoticesCan {
@@ -176,6 +178,9 @@ export const createNotice = (body: NoticeInput) => post<{ notice: Notice; push?:
 export const patchNotice = (id: string, body: Partial<NoticeInput>) => patch<{ notice: Notice }>(`notices/${encodeURIComponent(id)}`, body);
 export const publishNotice = (id: string, push?: boolean) =>
   post<{ notice: Notice; push?: { requested: boolean; sent: boolean; recipients: number } }>(`notices/${encodeURIComponent(id)}/publish`, push === undefined ? undefined : { push });
+/** BOARD-MGMT-2381 (owner 03.11, answer 6A): the manual "שלח שוב" of a published notice - never called automatically after an edit. */
+export const resendNotice = (id: string) =>
+  post<{ notice: Notice; push: { requested: boolean; sent: boolean; recipients: number; generation?: number; error?: string } }>(`notices/${encodeURIComponent(id)}/resend`);
 export const archiveNotice = (id: string) => post<{ notice: Notice }>(`notices/${encodeURIComponent(id)}/archive`);
 /** NOTICEDEL-295: `confirmLive` is the extra step for a notice that is on air (the server answers 409 `confirm_live_required` without it). */
 export const deleteNotice = (id: string, confirmLive = false) => del(`notices/${encodeURIComponent(id)}${confirmLive ? '?confirm_live=true' : ''}`);
