@@ -785,7 +785,7 @@ export class WiskeyPeople extends LitElement {
         ? html`<sw-button slot="actions" variant="primary" icon="plus" data-wiskey-people-add @click=${() => this.openEditor('new')}>${pt('action.add')}</sw-button>`
         : nothing}
       ${ready && this.canManage
-        ? html`<sw-button slot="actions" variant="secondary" icon="door" data-people-station-only @click=${() => (this.stationPeople = true)}>${spt('open')}</sw-button>`
+        ? html`<sw-button slot="actions" variant="secondary" icon="door" ?iconOnly=${this.phone} label=${spt('open')} data-people-station-only @click=${() => (this.stationPeople = true)}>${spt('open')}</sw-button>`
         : nothing}
       ${ready && isApi() && this.bulkShown
         ? html`<sw-button slot="actions" variant="secondary" icon="upload" data-people-bulk-open @click=${() => (this.bulk = 'import')}>${bt('open')}</sw-button>`

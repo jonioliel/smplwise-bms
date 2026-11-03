@@ -33,7 +33,8 @@ async function open(page: Page, m: StationPeopleMock): Promise<void> {
 async function openView(page: Page): Promise<Locator> {
   await page.locator(`${SCREEN} [data-people-station-only]`).click();
   const dialog = page.locator(`${VIEW} sw-dialog[data-station-people]`);
-  await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveAttribute('open', ''); // the host itself has no box (its backdrop is fixed): check what it shows
+  await expect(dialog.locator('.intro')).toBeVisible();
   await expect(dialog).toHaveAttribute('data-station-people-loading', 'false', { timeout: 10_000 });
   return dialog;
 }
@@ -207,10 +208,10 @@ test('layout: the view fits the screen with no sideways scroll, actions reachabl
   expect(box!.x + box!.width).toBeLessThanOrEqual(vw + 1);
   const adopt = await row(page, '2001').locator('[data-station-user-act="adopt"]').boundingBox();
   expect(adopt!.x + adopt!.width).toBeLessThanOrEqual(vw + 1);
-  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('[data-station-people-close]')).toBeVisible();
   await shot(page, info, `station-people-${info.project.name}`);
   await row(page, '2003').locator('[data-station-user-act="delete"]').click();
-  await expect(action(page)).toBeVisible();
+  await expect(action(page)).toHaveAttribute('data-station-action', 'delete');
   const ask = await action(page).locator('[data-station-action-typed]').boundingBox();
   expect(ask!.x + ask!.width).toBeLessThanOrEqual(vw + 1);
   await shot(page, info, `station-people-delete-${info.project.name}`);
