@@ -155,7 +155,8 @@ test.describe('WISKEY-PAIRING-2382: the Arx <-> WisKey pairing block', () => {
     const calls = await boot(page, (c) => [200, c.path.endsWith('/repair') ? done : status('rotated')]);
     await page.locator(`${CARD} sw-button[data-wkp-repair-open]`).click({ timeout: 30_000 });
     const dlg = page.locator(`${CARD} sw-dialog[data-wkp-confirm]`);
-    await expect(dlg).toBeVisible();
+    await expect(dlg).toHaveAttribute('open', '');
+    await expect(dlg.locator('sw-button[data-wkp-confirm-ok]')).toBeVisible();
     await expect(dlg.locator('input[data-wkp-pause]')).toBeChecked();
     await shot(page, info, 'repair-confirm');
     expect(calls.filter((c) => c.method === 'POST')).toHaveLength(0);
