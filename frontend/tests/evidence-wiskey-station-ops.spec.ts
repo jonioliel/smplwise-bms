@@ -52,7 +52,8 @@ async function shot(page: Page, info: TestInfo, name: string) {
 
 async function confirmAndSend(page: Page, op: string) {
   await inBlock(page, `[data-wk-maint-op="${op}"]`).click();
-  await expect(inBlock(page, `sw-dialog[data-wk-maint-confirm="${op}"]`)).toBeVisible();
+  await expect(inBlock(page, `sw-dialog[data-wk-maint-confirm="${op}"]`)).toHaveAttribute('open', '');
+  await expect(inBlock(page, '[data-wk-maint-sentence]')).toBeVisible();
   await inBlock(page, '[data-wk-maint-send]').click();
 }
 
