@@ -4,6 +4,7 @@
 // ("WisKey סירב: ..."), as the owner asked.
 const he = {
   manageTitle: 'ניהול ספריית לוחות הזמנים',
+  manageOpen: 'ניהול הספרייה',
   newSchedule: 'לוח זמנים חדש',
   importFile: 'ייבוא מקובץ',
   exportFile: 'ייצוא לקובץ',
@@ -141,7 +142,7 @@ const he = {
   unknownOutcome: 'נשלח ולא התקבלה תשובה ברורה - ייתכן שבוצע. רעננו ובדקו לפני שמנסים שוב.',
   noStations: 'אין עמדות מחוברות',
   offline: 'לא מחוברת',
-  stationsPicked: '{n} עמדות נבחרו',
+  stationsPicked: 'עמדות שנבחרו: {n}',
   stale: 'הנתונים אינם עדכניים - רעננו לפני שינוי',
   forbidden: 'אין לך הרשאה לנהל את ספריית לוחות הזמנים',
 };
@@ -149,6 +150,7 @@ type Key = keyof typeof he;
 
 const en: Partial<Record<Key, string>> = {
   manageTitle: 'Schedule library',
+  manageOpen: 'Manage library',
   newSchedule: 'New schedule',
   importFile: 'Import',
   exportFile: 'Export',

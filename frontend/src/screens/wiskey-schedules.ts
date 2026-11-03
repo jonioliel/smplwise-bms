@@ -446,7 +446,7 @@ export class WiskeySchedules extends LitElement {
         ? html`<sw-button slot="actions" variant="ghost" icon="edit" data-sch-edit @click=${() => (window.location.hash = CLASSIC_EDIT_HREF)}>${sch('editClassic')}</sw-button>`
         : nothing}
       ${this.manage && this.access.library && !this.demo()
-        ? html`<sw-button slot="actions" variant="ghost" icon="calendar" data-sch-manage-open @click=${() => this.setManaging(true)}>${sedText('manageTitle')}</sw-button>`
+        ? html`<sw-button slot="actions" variant="ghost" icon="calendar" data-sch-manage-open @click=${() => this.setManaging(true)}>${sedText('manageOpen')}</sw-button>`
         : nothing}
       <sw-button slot="actions" variant="ghost" icon="refresh" data-sch-refresh label=${sch('refresh')} @click=${() => this.refresh()}>${sch('refresh')}</sw-button>
       ${doors.length && !this.narrow

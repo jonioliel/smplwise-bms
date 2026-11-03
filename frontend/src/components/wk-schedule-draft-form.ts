@@ -154,7 +154,7 @@ export class WkScheduleDraftForm extends LitElement {
       background: var(--sw-accent-soft, var(--sw-surface-2));
     }
     .win input {
-      inline-size: 7.2em;
+      inline-size: 8.8em; /* room for a 12-hour browser format too (08:00 AM) */
       border-color: transparent;
       background: transparent;
     }

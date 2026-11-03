@@ -831,7 +831,7 @@ export class WkScheduleLibrary extends LitElement {
             return html`<div class="row" data-se-job=${j.id} data-status=${st}>
               <div class="main">
                 <span class="t">${j.name ?? '—'} · ${this.stationName(j.station_id)}</span>
-                <span class="s">${[j.error ? reasonOf(j.error) : '', ...((j.blockers ?? []).filter(Boolean) as string[]).map((b) => reasonOf(b))].filter(Boolean).join(' · ')}</span>
+                <span class="s">${j.error ? reasonOf(j.error) : ((j.blockers ?? []).filter(Boolean) as string[]).map((b) => reasonOf(b)).join(' · ')}</span>
               </div>
               <sw-badge kind=${KIND[jobTone(st)]} label=${JOB_STATES[st] ?? st}></sw-badge>
               <div class="acts">
@@ -1011,7 +1011,8 @@ export class WkScheduleLibrary extends LitElement {
       ${p.results.map((r) => {
         const job = r.job ? p.jobs[r.job.id] ?? r.job : null;
         const status = job ? JOB_STATES[job.status ?? ''] ?? job.status ?? '' : sed(`st_${r.status}` as 'st_queued');
-        const why = job ? [job.error ? reasonOf(job.error) : '', ...((job.blockers ?? []).filter(Boolean) as string[]).map((b) => reasonOf(b))].filter(Boolean).join(' · ') : reasonOf(r.code) || r.reason || '';
+        // a failed job says why it failed; the creation-time blockers would only blur that
+        const why = job ? (job.error ? reasonOf(job.error) : ((job.blockers ?? []).filter(Boolean) as string[]).map((b) => reasonOf(b)).join(' · ')) : reasonOf(r.code) || r.reason || '';
         const tone = job ? jobTone(job.status) : deployTone(r);
         return html`<div class="row" data-se-result=${r.station?.id ?? r.plan_id} data-status=${job?.status ?? r.status}>
           <div class="main"><span class="t">${r.station?.name ?? this.stationName(r.station?.id)}</span><span class="s">${why}</span></div>
