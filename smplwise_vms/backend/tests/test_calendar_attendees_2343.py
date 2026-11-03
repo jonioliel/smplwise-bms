@@ -528,7 +528,7 @@ def test_whatsapp_channel_through_the_shared_account_on_the_fake_adapter(cc, mon
         mr.store_doc(conn, ma.MappingDoc(1, (ma.Account(f"entry:{entry}", "discovered", label="משרד"),), {wa.USE_KEY: f"entry:{entry}"}))
     assert notices.CHANNELS["whatsapp"].available(db(cc)) is True  # the attendee use inherits the notifications account
     ok(book(cc, a, who=u["oren"], attendees=[guest()]), 201)
-    res = dispatch(cc, dt.datetime.now(UTC))
+    res = dispatch(cc)  # the booking clock (NOW), not the wall clock: the entry ends 2026-11-03 11:00Z and a later wall clock retracts it as past
     assert res["sent"] == 1, (res, notices_of(cc))
     texts = fake.sent_texts()
     assert len(texts) == 1 and "ישיבת דיירים" in texts[0] and "http" not in texts[0]
