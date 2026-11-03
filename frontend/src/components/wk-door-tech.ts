@@ -107,6 +107,13 @@ export class WkDoorTech extends LitElement {
       font-weight: var(--sw-fw-semibold);
       color: var(--sw-text-2);
     }
+    /* the dialog's body is a column that scrolls: its direct children keep their height (a tall tab must not squash the tab bar) */
+    .sub,
+    .tabs,
+    .note,
+    [role='tabpanel'] {
+      flex-shrink: 0;
+    }
     .sub {
       margin: 0 0 var(--sw-s-3);
       font-size: var(--sw-fs-sm);
