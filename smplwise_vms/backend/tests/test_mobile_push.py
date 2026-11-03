@@ -45,6 +45,10 @@ class FakeRelay:
         body: dict = {"ok": status == 200}
         if status in (404, 410):
             body = {"code": "relay_token_unknown" if status == 404 else "push_token_gone"}
+        elif status == 401:
+            body = {"code": "unauthorized"}
+        elif status == 403:
+            body = {"code": "server_id_claimed"}
         return httpx.Response(status, headers={"Retry-After": "0"} if status == 429 else {}, json=body)
 
 
@@ -527,3 +531,88 @@ def test_the_options_writer_refuses_a_bad_push_relay_url():
         assert self_update._option_ok("relay_url", good)
     for bad in ("https://relay.example/v1", "http://relay.example", "https://relay.example?x", 5, "x" * 2000):
         assert not self_update._option_ok("relay_url", bad)
+
+
+# ---------------------------------------------------------------- RELAY-SAFE-2380 follow-up: 401 / 403 are configuration errors too
+
+AUTH_HE, TAKEN_HE = "מפתח השרת לממסר נדחה", "מזהה השרת תפוס"
+
+
+@pytest.mark.parametrize("entry,code,state,message,status", [
+    ((401, "contract"), "relay_auth_failed", "auth_failed", AUTH_HE, 401),
+    ((401, "html"), "relay_auth_failed", "auth_failed", AUTH_HE, 401),
+    ((403, "contract"), "relay_server_id_taken", "server_id_taken", TAKEN_HE, 403),
+])
+def test_401_and_403_keep_the_registration_and_show_a_distinct_state(w, relay, entry, code, state, message, status):
+    did, tok = register(w, "ops2")
+    _app_policy(w)
+    relay.script[TOKEN] = [entry]
+    nid = w.emit("camera.offline", "camera", w.cam, params={"name": "לובי"}, dedupe_key="a1").id
+    w.flush()
+    assert [(r["status"], r["reason"]) for r in w.deliveries(nid) if r["channel"] == "app"] == [("failed", code)]
+    dev = _device(w)
+    assert dev["push"]["registered"] is True and dev["push"]["last_error"] == code and dev["push"]["failures"] == 0
+    h = svc.relay_health()
+    assert h["state"] == state and h["code"] == code and h["message"] == message and h["last_config_error_status"] == status and h["backoff_seconds_left"] == 60
+    stats = w.c.get(f"{API}/notify/stats").json()["app_relay"]
+    assert stats["state"] == state and stats["code"] == code and stats["message"] == message
+    assert "srvkey" not in json.dumps(stats) and "relay.test" not in json.dumps(stats)
+    # the same backoff: no call inside the window, and the skipped message is recorded with the same specific reason
+    calls = len(relay.calls)
+    web_push.reset_limits()
+    nid = w.emit("camera.offline", "camera", w.cam, params={"name": "לובי"}, dedupe_key="a2").id
+    w.flush()
+    assert len(relay.calls) == calls and [(r["status"], r["reason"]) for r in w.deliveries(nid) if r["channel"] == "app"] == [("failed", code)]
+    # the test push reports it as well
+    r = w.c.post(f"{API}/notifications/app/test", headers=tok)
+    assert r.status_code == 200 and r.json()["sent"] is False and r.json()["reason"] == code
+    assert _device(w)["push"]["registered"] is True
+
+
+def test_a_403_that_is_not_the_server_id_error_is_a_wrong_address(w, relay):
+    register(w, "ops2")
+    relay.script[TOKEN] = [(403, "other_json")]
+    svc.send_test(w.db, _device(w)["device_id"])
+    assert svc.relay_health()["code"] == "relay_url_wrong" and _device(w)["push"]["registered"] is True
+
+
+def test_the_key_is_fixed_the_next_probe_clears_the_auth_state(w, relay):
+    register(w, "ops2")
+    did = _device(w)["device_id"]
+    relay.script[TOKEN] = [(401, "contract")]
+    assert svc.send_test(w.db, did)["reason"] == "relay_auth_failed"
+    relay.script[TOKEN] = [200]
+    relay.now += 61
+    assert svc.send_test(w.db, did)["sent"] is True
+    h = svc.relay_health()
+    assert h["state"] == "ok" and h["code"] is None and h["message"] is None and _device(w)["push"]["last_error"] is None
+
+
+def test_the_states_can_change_between_probes(w, relay):
+    register(w, "ops2")
+    did = _device(w)["device_id"]
+    relay.script[TOKEN] = [(404, "html")]
+    svc.send_test(w.db, did)
+    relay.script[TOKEN] = [(401, "contract")]
+    relay.now += 61
+    svc.send_test(w.db, did)
+    h = svc.relay_health()
+    assert h["state"] == "auth_failed" and h["config_errors_in_a_row"] == 2 and h["backoff_seconds_left"] == 300
+
+
+def test_many_401_and_403_never_drop_the_registration(w, relay):
+    """Ten counted failures dropped a registration before; 401 / 403 now count none, only the contract token errors drop."""
+    register(w, "ops2")
+    did = _device(w)["device_id"]
+    for i in range(svc.DROP_AFTER_FAILURES + 3):
+        relay.script[TOKEN] = [(401, "contract") if i % 2 else (403, "contract")]
+        relay.now += 4000
+        svc.send_test(w.db, did)
+    assert len(relay.calls) == svc.DROP_AFTER_FAILURES + 3
+    dev = _device(w)
+    assert dev["push"]["registered"] is True and dev["push"]["failures"] == 0
+    # and the contract token error is still the one thing that drops it
+    relay.script[TOKEN] = [(410, "contract")]
+    relay.now += 4000
+    svc.send_test(w.db, did)
+    assert _device(w)["push"]["registered"] is False and _device(w)["push"]["last_error"] == "relay_410"

@@ -31,9 +31,26 @@ member above (state `url_invalid` with the Hebrew reason) and a skipped channel,
 manifest (`config.yaml` `schema`: `push_relay_url: match(...)?`) so the Supervisor refuses a bad value in its own form (English message). Not done:
 an existing install holding a bad or `""` value could fail option validation after the update, which needs a deliberate release decision.
 
-## Tests (run 2026-11-03, venv, single process; 132 passed, 0 failed)
+## Follow-up (lead-approved 2026-11-03): 401 and 403 are configuration errors too
 
-`pytest tests/test_mobile_push.py test_tickets_app_push.py test_app_server_leftovers_2380.py test_critical_sound.py test_self_update_s3_fixes.py test_docs_config_consistency.py test_secrets_store.py test_secrets_transitional_263.py`: 132 passed. NOT_RUN: the rest of the backend suite, any frontend / browser / runner check, anything against a real relay or phone.
+Same class of risk as the wrong address: before, a 401 (server key refused) or a 403 `server_id_claimed` counted as a device failure and ten of
+them silently dropped a registration. Now they follow the 404 / 410 path: registration kept, **no device failure counted**, same shared backoff
+(60 / 300 / 900 / 3600 s), message not retried; the contract token errors (404 `relay_token_unknown`, 410 `push_token_gone`) stay the only drop path.
+
+| Relay answer | code (device `push_last_error`, delivery reason, test-push `reason`) | `app_relay.state` | Hebrew message |
+|---|---|---|---|
+| 404 / 410 without the token body, 403 without `server_id_claimed` | `relay_url_wrong` | `config_error` | כתובת הממסר שגויה |
+| 401 | `relay_auth_failed` | `auth_failed` | מפתח השרת לממסר נדחה |
+| 403 `server_id_claimed` | `relay_server_id_taken` | `server_id_taken` | מזהה השרת תפוס |
+
+`app_relay` gained a `code` member. A 401 / 403 no longer clears the health state (a 2xx, the contract token error or another 4xx from a relay that
+accepted the key does). Tests: 401 contract / 401 html / 403 `server_id_claimed` (kept, distinct state, stats view, backoff, skipped message reason,
+test push), plain 403 = wrong address, key fixed -> state clears, state changes between probes, 13 mixed 401 / 403 never drop and a 410 token error
+still does.
+
+## Tests (run 2026-11-03, venv, single process; 139 passed, 0 failed: the 132 of the first round plus 7 for the follow-up)
+
+`pytest tests/test_mobile_push.py test_tickets_app_push.py test_app_server_leftovers_2380.py test_critical_sound.py test_self_update_s3_fixes.py test_docs_config_consistency.py test_secrets_store.py test_secrets_transitional_263.py`: 139 passed. NOT_RUN: the rest of the backend suite, any frontend / browser / runner check, anything against a real relay or phone.
 
 
 `tests/test_mobile_push.py` (the fake relay now speaks the contract bodies and can answer html / empty / other-json): token-error body 404 and 410
@@ -44,8 +61,6 @@ writer. The pre-existing 410 test still passes (its fake now returns the contrac
 
 ## Not changed / notes
 
-- 401 (bad server key) and 403 `server_id_claimed` are also configuration errors, but they still count as device failures and, after ten, drop a
-  registration. Same class of risk, left alone because the task named 404 / 410; recommend a follow-up.
 - A wrong address that answers **200** (a website that accepts any POST) is still counted as sent; the relay's `{"ok": true}` body is not checked.
 - No frontend change (the health member is API-only; no screen was added), so no browser or runner run.
 - `docs/operations/ARX_PUSH_RELAY_DEPLOY_HE.md` is edited by the go-live kit branch (section 5, the 404 / 410 side effect) and was not touched
