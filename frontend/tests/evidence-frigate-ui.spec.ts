@@ -222,14 +222,14 @@ test.describe('settings: the Frigate management card', () => {
     await expect(box).toBeVisible();
     return box;
   }
-  const tab = (box: ReturnType<Page['locator']>, name: string) => box.locator('[data-fcs-tabs]').getByRole('button', { name });
+  const tab = (box: ReturnType<Page['locator']>, name: string) => box.locator('[data-fcs-tabs]').getByRole('tab', { name });
 
   test('tabs: classes with the two new ones; the profiles tab holds the mapping and the automatic profile; mode, consent and the status line follow the server', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
     const m = await start(page, '/system/setup', {}, { classes: { ...ALL_OFF } });
     const box = await openCard(page);
-    await expect(box.locator('[data-fcs-tabs]').getByRole('button')).toHaveText(['סוגי פעולה', 'פרופילים', 'אזורים והגדרות', 'ייצואים', 'תיקים', 'אירועים ידניים', 'יומן שינויים', 'פיקוח']);
+    await expect(box.locator('[data-fcs-tabs]').getByRole('tab')).toHaveText(['סוגי פעולה', 'פרופילים', 'אזורים והגדרות', 'ייצואים', 'תיקים', 'אירועים ידניים', 'יומן שינויים', 'פיקוח']);
     await expect(box.locator('[data-fcs-class]')).toHaveCount(8); // FRGS: + config
     await expect(box.locator('[data-fcs-all-off]')).toBeVisible();
     await noOverflow(page);
@@ -482,8 +482,8 @@ test.describe('settings: the Frigate management card', () => {
     const box = await openCard(page);
     const text = await box.innerText();
     expect(text).not.toMatch(/Home Assistant|Ingress|\bHA\b/);
-    await expect(box.locator('[data-fcs-tabs]').getByRole('button', { name: 'ייצואים' })).toBeVisible();
-    await expect(box.locator('[data-fcs-tabs]').getByRole('button', { name: 'תיקים' })).toBeVisible(); // system.configure opens every tab
+    await expect(box.locator('[data-fcs-tabs]').getByRole('tab', { name: 'ייצואים' })).toBeVisible();
+    await expect(box.locator('[data-fcs-tabs]').getByRole('tab', { name: 'תיקים' })).toBeVisible(); // system.configure opens every tab
   });
 
   test('dark: the management card', async ({ page }) => {
