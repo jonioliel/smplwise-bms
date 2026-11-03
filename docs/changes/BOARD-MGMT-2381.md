@@ -85,6 +85,17 @@ scope rule, `audience_out_of_scope` otherwise).
 
 Revert the branch commits. No schema change; `push_generation` values written by re-sends stay valid for the old code (it reads the column).
 
-## 6. Evidence
+## 6. Evidence (code commit 9fae89419)
 
-See the agent report for the exact commands and results (tsc, unit specs, backend pytest, runner browser specs).
+| Check | Where | Result |
+|---|---|---|
+| `tsc --noEmit` (src + tests) | workstation | 0 errors |
+| `playwright test -c playwright.unit.config.ts` (all Node-only unit specs, incl. new `unit-board-mgmt-2381`) | workstation, 4 workers | 3816 passed, 0 failed (3883 skipped, 118 did not run - page specs outside this config) |
+| `pytest tests/test_board_mgmt_2381.py` | workstation | 16 passed |
+| pytest: notices 106 / perm / push / delete / security / caps / tvsettings / boardv2 / remove, access wxperm, rbac groups, access, alarm, devices, automations scope, building presence, board-mgmt | workstation | 396 passed, 0 failed |
+| `run_smart.py backend` (full suite, two shards) | runner | 19733 passed, 24 skipped, 3 xfailed, **1 failed**: `test_calendar_attendees_2343.py::test_whatsapp_channel_through_the_shared_account_on_the_fake_adapter` - **fails the same way on a clean `origin/main` (v2.38.0)**, not caused by this branch |
+| `run_smart.py preview`: `evidence-board-mgmt-2381`, `evidence-notices`, `evidence-noticedel-295`, `evidence-noticepage-295`, `evidence-noticeslides-295` | runner, desktop / tablet / mobile | 165 passed, 0 failed |
+| `run_smart.py preview`: `evidence-board-mgmt-2381` alone, list reporter | runner, desktop / tablet / mobile | 18 passed (two phone tests stop early by design: the boards table and the notice table are desktop views) |
+| Pixel baselines | - | none touched: no pixel spec covers `#/system/notices` or `#/devices/notices`; the TV page is unchanged |
+
+Gate check before every runner job: `gate_status.json` = pass (release/2380-train), no `release_gate.py` / `release_gate2.sh` process.
