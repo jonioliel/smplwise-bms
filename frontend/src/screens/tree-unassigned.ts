@@ -9,6 +9,7 @@
  * Presentation only: the bucket, its screen (#/devices/areas/unassigned) and the "כל המבנה" counts (which include it) never change.
  */
 import { css, html, nothing } from 'lit';
+import { liftRef, liftedReset } from '../components/top-layer';
 import { hs } from '../i18n/home-screen';
 import { ltrNum } from '../i18n/bidi';
 import { treeUnassignedHint, type TreeUnassigned } from '../api/home-screen';
@@ -80,7 +81,8 @@ export function looseHint(mode: TreeUnassigned, onShow: (() => void) | null) {
 /** The notice at the foot of the screen (polite live region), with "בטל" while it says the row was hidden. */
 export function looseNotice(n: LooseNotice | null, onUndo: () => void, onClose: () => void) {
   if (!n) return nothing;
-  return html`<div class="tl-toast" role="status" aria-live="polite" data-tree-unassigned-toast=${n.kind}>
+  // DIALOG-TOPLAYER-2381: in the top layer, so it stays above a sw-dialog opened during its 8 s
+  return html`<div class="tl-toast" role="status" aria-live="polite" data-tree-unassigned-toast=${n.kind} ${liftRef()}>
     <span>${hs(n.kind === 'hidden' ? 'tuHidden' : 'tuFailed')}</span>
     ${n.kind === 'hidden' ? html`<button type="button" class="tl-undo" data-tree-unassigned-undo @click=${onUndo}>${hs('tuUndo')}</button>` : nothing}
     <button type="button" class="tl-x" aria-label=${hs('close')} @click=${onClose}><sw-icon name="close" size=${14}></sw-icon></button>
@@ -88,6 +90,7 @@ export function looseNotice(n: LooseNotice | null, onUndo: () => void, onClose: 
 }
 
 export const TREE_UNASSIGNED_CSS = css`
+  ${liftedReset}
   .tree-loose-line {
     position: relative;
     display: flex;

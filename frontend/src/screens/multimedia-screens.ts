@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
+import { liftRef, liftedReset } from '../components/top-layer';
 import { leadReserveStyles } from '../styles/lead-reserve';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
@@ -95,7 +96,7 @@ export class MultimediaScreens extends LitElement {
   private loading = false;
   private homeFloorsLoaded = false;
 
-  static styles = [mediaGlassStyles, leadReserveStyles, css`
+  static styles = [mediaGlassStyles, leadReserveStyles, liftedReset, css`
     :host {
       display: block;
       position: relative;
@@ -1061,7 +1062,7 @@ export class MultimediaScreens extends LitElement {
     <media-bulk-dialog @bulk-done=${() => void this.load()}></media-bulk-dialog>
     ${this.confirmDialog()}
     ${this.remoteKey ? html`<media-remote .deviceKey=${this.remoteKey} .open=${true} @close=${() => this.closeRemote()}></media-remote>` : nothing}
-    ${this.toast ? html`<div class="toast" role="status">${mIcon('check')}${this.toast}</div>` : nothing}`;
+    ${this.toast ? html`<div class="toast" role="status" ${liftRef() /* DIALOG-TOPLAYER-2381: above an open sw-dialog */}>${mIcon('check')}${this.toast}</div>` : nothing}`;
   }
 }
 

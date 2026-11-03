@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
+import { liftToTopLayer, liftedHostReset } from '../components/top-layer';
 
 /**
  * CR-020 S2: the short toast after a stream change. "נשמר" with "בטל" for 10 seconds (the press on "בטל" IS the confirmation of the
@@ -18,7 +19,7 @@ export class NvrUndoToast extends LitElement {
   @property({ type: Boolean }) busy = false;
   private timer: ReturnType<typeof setTimeout> | null = null;
 
-  static styles = css`
+  static styles = [liftedHostReset, css`
     :host {
       position: fixed;
       inset-block-end: calc(var(--sw-bottomnav-h) + 16px);
@@ -72,7 +73,7 @@ export class NvrUndoToast extends LitElement {
       opacity: 0.8;
       font-size: var(--sw-fs-lg);
     }
-  `;
+  `];
 
   private arm() {
     if (this.timer) clearTimeout(this.timer);
@@ -81,6 +82,8 @@ export class NvrUndoToast extends LitElement {
 
   protected updated(changed: PropertyValues) {
     if (changed.has('message') || changed.has('duration')) this.arm();
+    // DIALOG-TOPLAYER-2381: the undo stays readable and pressable above an sw-dialog opened during its 10 s (e.g. the next confirmation)
+    if (this.message) liftToTopLayer(this);
   }
 
   disconnectedCallback() {

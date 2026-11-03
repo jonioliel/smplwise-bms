@@ -1,4 +1,5 @@
 import { LitElement, html, nothing, css } from 'lit';
+import { liftRef, liftedReset } from '../components/top-layer';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import '../components/sw-dialog';
@@ -53,7 +54,7 @@ export function agoText(iso: string | null, now: Date): string {
  */
 @customElement('system-calendar-sync')
 export class SystemCalendarSync extends LitElement {
-  static styles = [calCss, leadReserveStyles, css`
+  static styles = [calCss, leadReserveStyles, liftedReset, css`
     :host { display: flex; flex-direction: column; min-block-size: 0; flex: 1; padding: 14px var(--sw-page-pad) 20px; gap: 12px; overflow: hidden; }
     .panel { flex: 1; }
     /* CALMSG-POLISH-2331: the title row sits above the panel like Settings › יומנים and every sw-page settings screen (crumb, the skin's h1) */
@@ -212,7 +213,7 @@ export class SystemCalendarSync extends LitElement {
         ${this.rules()}
       </section>
       ${this.dialogs()}
-      ${this.toastText ? html`<div class="toast" role="status" data-sync-toast>${this.toastText}</div>` : nothing}`;
+      ${this.toastText ? html`<div class="toast" role="status" data-sync-toast ${liftRef() /* DIALOG-TOPLAYER-2381: above an open sw-dialog */}>${this.toastText}</div>` : nothing}`;
   }
 
   private phoneProviders(now: Date) {

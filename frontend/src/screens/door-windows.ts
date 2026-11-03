@@ -6,6 +6,7 @@ import '../components/sw-icon';
 import '../components/sw-drawer';
 import '../components/sw-dialog';
 import '../components/sw-state-panel';
+import { liftRef, liftedReset } from '../components/top-layer';
 import '../door-windows/emergency';
 import '../door-windows/emergency-grants';
 import '../door-windows/event-rules';
@@ -52,7 +53,7 @@ type Confirm = { title: string; text: string; btn: string; danger?: boolean; run
  */
 @customElement('door-windows-screen')
 export class DoorWindowsScreen extends LitElement {
-  static styles = [dwCss, css`
+  static styles = [dwCss, liftedReset, css`
     :host { display: block; }
     .stack { display: grid; gap: 16px; } /* round 2 loop 2: the larger titles cost 26 px of inner scroll at 1440x900 - the stack gap and the card padding give it back */
     section { display: grid; gap: 10px; }
@@ -459,7 +460,7 @@ export class DoorWindowsScreen extends LitElement {
         @close=${() => (this.openForOpen = false)} @changed=${() => void this.load()} @notice=${(e: CustomEvent<string>) => this.flash(e.detail)}></door-open-for>
       <door-emergency-grants .open=${this.grantsOpen} @close=${() => (this.grantsOpen = false)} @notice=${(e: CustomEvent<string>) => this.flash(e.detail)}></door-emergency-grants>
       <door-emergency-sheet .open=${this.sheet} .data=${em} @close=${() => (this.sheet = false)} @changed=${() => void this.loadEmergency()}></door-emergency-sheet>
-      ${this.toast ? html`<div class="toast" role="status">${this.toast}</div>` : nothing}
+      ${this.toast ? html`<div class="toast" role="status" ${liftRef() /* DIALOG-TOPLAYER-2381: above an open sw-dialog (a failed action toasts while its dialog stays open) */}>${this.toast}</div>` : nothing}
     </sw-page>`;
   }
 

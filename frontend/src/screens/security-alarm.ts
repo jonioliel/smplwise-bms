@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
+import { liftRef, liftedReset } from '../components/top-layer';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-button';
@@ -109,7 +110,7 @@ export class SecurityAlarm extends LitElement {
   private toastTimer = 0;
   private watched = new Set<string>();
 
-  static styles = [css`
+  static styles = [liftedReset, css`
     :host {
       display: block;
       --al-ok: var(--sw-success);
@@ -1179,7 +1180,7 @@ export class SecurityAlarm extends LitElement {
         ? html`<details class="unpaired" data-alarm-unpaired><summary>ללא שיוך · ${p.unpaired_controls.length} מתגי עקיפה שלא שויכו לחיישן</summary><ul>${p.unpaired_controls.map((c) => html`<li>${c.name}${c.bypassed ? ' · עוקף' : ''}</li>`)}</ul><div class="hint">שיוך ידני: הגדרות ‹ אבטחה ‹ ניהול אזעקה.</div></details>`
         : nothing}
     </sw-page>
-    ${this.renderKeypad()} ${this.renderPin()} ${this.toast ? html`<div class="toast" role="status" aria-live="polite">${this.toast}</div>` : nothing}`;
+    ${this.renderKeypad()} ${this.renderPin()} ${this.toast ? html`<div class="toast" role="status" aria-live="polite" ${liftRef() /* DIALOG-TOPLAYER-2381: above an open sw-dialog */}>${this.toast}</div>` : nothing}`;
   }
 
   private renderHero(p: AlarmPanel) {
