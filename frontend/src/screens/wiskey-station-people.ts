@@ -234,7 +234,7 @@ export class WiskeyStationPeople extends LitElement {
         ${this.phase === 'loading' ? html`<sw-state-panel state="loading" compact heading=${st('reading')}></sw-state-panel>` : nothing}
         ${this.phase === 'error' ? html`<sw-state-panel state="error" compact heading=${st('reason_generic')} data-station-people-error></sw-state-panel>` : nothing}
         ${this.phase === 'ready' && this.feedDown ? html`<sw-state-panel state="error" compact heading=${st('feed_down')} data-station-people-feed-down></sw-state-panel>` : nothing}
-        ${this.phase === 'ready' && !this.feedDown && !this.scope.length ? html`<sw-state-panel state="empty" compact heading=${st('no_stations')} data-station-people-noscope></sw-state-panel>` : nothing}
+        ${this.phase === 'ready' && !this.feedDown && !this.scope.length ? html`<sw-state-panel icon="door" state="empty" compact heading=${st('no_stations')} data-station-people-noscope></sw-state-panel>` : nothing}
         ${this.phase === 'ready' && this.scope.length ? this.renderReady(shown, rows.length, hiddenCount) : nothing}
         <div slot="footer" class="footer">
           <sw-button variant="ghost" icon="refresh" data-station-people-refresh ?disabled=${this.loadingAny || this.phase === 'loading'} @click=${() => void this.load(true)}>${st('refresh')}</sw-button>
@@ -268,7 +268,7 @@ export class WiskeyStationPeople extends LitElement {
       ${shown.length
         ? html`<ul class="rows" data-station-people-rows>${repeat(shown, (r) => r.employee_no, (r) => this.renderRow(r))}</ul>`
         : !this.loadingAny
-          ? html`<sw-state-panel state="empty" compact heading=${total ? st('empty_filtered') : st('empty')} data-station-people-empty></sw-state-panel>`
+          ? html`<sw-state-panel icon="users" state="empty" compact heading=${total ? st('empty_filtered') : st('empty')} data-station-people-empty></sw-state-panel>`
           : nothing}`;
   }
 
@@ -421,7 +421,7 @@ export class WiskeyStationPeople extends LitElement {
       background: transparent;
       color: var(--sw-text);
       font: inherit;
-      font-size: 16px;
+      font-size: max(16px, var(--sw-fs-sm));
     }
     .search input:focus {
       outline: none;
@@ -654,7 +654,7 @@ export class WiskeyStationPeople extends LitElement {
       flex-basis: 100%;
     }
     input[data-station-action-typed] {
-      font-size: 16px;
+      font-size: max(16px, var(--sw-fs-sm));
     }
     @media (max-width: 767px) {
       .row {
