@@ -197,55 +197,124 @@ test('dark schemes: the inks of the 01.11 polished screens read on their mixed b
   expect(fails).toEqual([]);
 });
 
-// ---- the selected segment of a segmented control (owner answer A, 2026-11-01) ----
-// The thumb (--sw-seg-thumb) on the two tracks the users draw (surface-3: sw-tabs' pill and most `.seg`; surface-2: the presence,
-// temperature, notices and request-dialog segments) inside a card, and on the user menu's opaque surface. The selected inks the users
-// write: heading, text, accent-text (sw-tabs' pill and the settings `.seg`), text-2 (an unselected label next to it, for the order).
-const SEG_TRACKS: Record<string, { track: string; under?: string }> = {
-  'surface-3 track in a card': { track: 'var(--sw-surface-3)' },
-  'surface-2 track in a card': { track: 'var(--sw-surface-2)' },
-  'surface-3 track in the user menu': { track: 'var(--sw-surface-3)', under: 'var(--sw-menu-surface)' },
-};
-const SEG_INKS = ['var(--sw-heading)', 'var(--sw-text)', 'var(--sw-accent-text)'];
-const SEG_RING = 'color-mix(in srgb, var(--sw-text) 20%, transparent)';
-/** the thumb's own fill against its track; below this the ring (>= SEG_RING_MIN against the track) carries the shape */
-const SEG_FILL_MIN = 1.1;
-const SEG_RING_MIN = 1.5;
+// ---- the chosen key of a segmented control (owner answer A, 2026-11-01; DARK-SEG-ALL-2380, owner-approved 03.11) ----
+// DARK-REVIEW-2342 lifted the dark thumb toward the ink (--sw-seg-thumb): a raised key, but only ~1.1-1.3:1 from its track, under
+// the 3:1 WCAG 1.4.11 asks of a chosen segment. GATE2370-B gave the SETTINGS key the light pill (--sw-seg-key, its opaque dark label
+// --sw-seg-key-ink); DARK-SEG-ALL-2380 moved every other segmented control onto the same two tokens and retired --sw-seg-thumb.
+// Every rule in src/ whose background reads var(--sw-seg-key, ..) is collected from the source and its background / color
+// expressions are evaluated exactly as written (var() chains, fallbacks), per live skin, dark column, against every track a
+// segmented control draws (surface-3 or surface-2 in a card, surface-3 in the user menu, surface-2 on the page, the card surface
+// itself): the key 3:1 from the track, its label 4.5:1 on the key. The accent-filled keys and tesla's inverted pill are measured too.
 
-function measureSeg(id: (typeof SKIN_IDS)[number]) {
-  const t = { ...skinTable(id), ...LOCAL };
-  const ev = makeEval(t, 'dark');
+const walkSrc = (d: string = SRC, out: string[] = []): string[] => {
+  for (const e of readdirSync(d)) {
+    const p = path.join(d, e);
+    if (statSync(p).isDirectory()) walkSrc(p, out);
+    else if (p.endsWith('.ts')) out.push(p);
+  }
+  return out;
+};
+const relSrc = (f: string) => path.relative(SRC, f).split(path.sep).join('/');
+/** a frozen skin's rules are never drawn (skins/index.ts FROZEN_SKINS); they stay as they were */
+const FROZEN_FILES = FROZEN_SKINS.map((id) => `design/skins/${id}.ts`);
+const stripComments = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '');
+const normSel = (s: string) => stripComments(s).replace(/\s+/g, ' ').trim();
+/** the LAST declaration of a property in a rule body (sw-cast-picker writes a fallback colour line, then light-dark()) */
+const decl = (body: string, prop: string): string | undefined => {
+  const all = [...stripComments(body).matchAll(new RegExp(`(?:^|[;{\\s])${prop}:\\s*([^;{}]+?)\\s*(?:;|$)`, 'g'))];
+  return all.length ? all[all.length - 1][1].trim() : undefined;
+};
+interface KeyRule {
+  file: string;
+  sel: string;
+  body: string;
+  bg: string;
+  ink: string;
+}
+/** the chosen-key rules that draw no colour of their own: the label inherits it from the rule named here */
+const INHERITED_INK: Record<string, string> = {
+  // the skins' sw-tabs pill dresses only the fill / shadow; the label is the component's .on .lbl colour
+  "[data-variant='pill']) .on .lbl": 'var(--sw-seg-key-ink, currentColor)',
+  // sw-app's security row (design a): the pill inside the chosen link inherits nav.sections a.on
+  'nav.secrow a.on .pill': 'var(--sw-seg-key-ink, var(--sw-accent-text))',
+  // live-camera's hovered chosen transport key keeps the fill; its label is still .round .transport button.on's
+  '.round .transport button.on:hover:not(:disabled)': 'var(--sw-seg-key-ink, var(--sw-accent-text))',
+};
+function keyRules(): KeyRule[] {
+  const out: KeyRule[] = [];
+  for (const f of walkSrc()) {
+    const file = relSrc(f);
+    if (FROZEN_FILES.includes(file)) continue;
+    const src = readFileSync(f, 'utf8');
+    for (const m of src.matchAll(/([^{}]*)\{([^{}]*)\}/g)) {
+      const bg = decl(m[2], 'background');
+      if (!bg || !bg.includes('var(--sw-seg-key,')) continue;
+      const sel = normSel(m[1]);
+      const inherited = Object.entries(INHERITED_INK).find(([k]) => sel.endsWith(k));
+      out.push({ file, sel, body: m[2], bg, ink: decl(m[2], 'color') ?? inherited?.[1] ?? '' });
+    }
+  }
+  return out;
+}
+const KEY_TRACKS: Record<string, { track: string; under: string }> = {
+  'surface-3 track in a card': { track: 'var(--sw-surface-3)', under: SURF },
+  'surface-2 track in a card': { track: 'var(--sw-surface-2)', under: SURF },
+  'surface-3 track in the user menu': { track: 'var(--sw-surface-3)', under: 'var(--sw-menu-surface)' },
+  'surface-2 track on the page': { track: 'var(--sw-surface-2)', under: 'var(--sw-bg)' },
+  'card-surface track on the page': { track: SURF, under: 'var(--sw-bg)' },
+};
+/** the chosen keys that are NOT the light pill, on the tracks they actually sit on: an accent fill under the inverse ink (the dark
+ * accent reads only 2.6-2.9:1 from a surface-3 track in classic / infra / soft, so an accent key there takes the light pill too -
+ * home-screen-css .pfl .segs did), tesla's inverted pill (its track is transparent: the card) */
+const OTHER_KEYS: { where: string; bg: string; ink: string; tracks: (keyof typeof KEY_TRACKS)[]; skins?: readonly string[] }[] = [
+  { where: 'live-wall .layouts (accent key in the raised surface tray)', bg: 'var(--sw-accent)', ink: 'var(--sw-text-inverse)', tracks: ['card-surface track on the page'] },
+  { where: 'system-plan-view .range / plan-studio-panel .modes / system-audit .pages (accent key among outlined keys on the card)', bg: 'var(--sw-accent)', ink: 'var(--sw-text-inverse)', tracks: ['card-surface track on the page'] },
+  { where: 'design/skins/tesla.ts sw-tabs pill .on .lbl (inverted)', bg: 'var(--sw-text)', ink: 'var(--sw-text-inverse)', tracks: ['card-surface track on the page', 'surface-3 track in a card'], skins: ['tesla'] },
+];
+
+function measureKeys(id: (typeof SKIN_IDS)[number], rules: KeyRule[]) {
+  const ev = makeEval({ ...skinTable(id), ...LOCAL }, 'dark');
   const page = over(ev('var(--sw-bg)'), [0, 0, 0, 1]);
   const out: { line: string; ok: boolean }[] = [];
-  for (const [name, tr] of Object.entries(SEG_TRACKS)) {
-    const base = over(ev(tr.under ?? SURF), page);
-    const track = over(ev(tr.track), base);
-    const thumb = over(ev('var(--sw-seg-thumb)'), track);
-    const fill = contrastRatio(thumb, track);
-    const ring = contrastRatio(over(ev(SEG_RING), track), track);
-    out.push({ line: `${id}/dark seg thumb vs ${name}: fill ${fill.toFixed(2)} (min ${SEG_FILL_MIN}), ring ${ring.toFixed(2)} (min ${SEG_RING_MIN})`, ok: fill >= SEG_FILL_MIN && ring >= SEG_RING_MIN && fill > 1 });
-    for (const ink of SEG_INKS) {
-      const r = contrastRatio(over(ev(ink), thumb), thumb);
-      out.push({ line: `${id}/dark seg thumb (${name}) ${ink}: ${r.toFixed(2)} (min 4.5)`, ok: r >= 4.5 });
+  const all = Object.keys(KEY_TRACKS) as (keyof typeof KEY_TRACKS)[];
+  const keys = [...rules.map((r) => ({ where: `${r.file} ${r.sel.slice(-70)}`, bg: r.bg, ink: r.ink, tracks: all })), ...OTHER_KEYS.filter((k) => !k.skins || k.skins.includes(id))];
+  for (const k of keys) {
+    for (const name of k.tracks) {
+      const tr = KEY_TRACKS[name];
+      const track = over(ev(tr.track), over(ev(tr.under), page));
+      const key = over(ev(k.bg), track);
+      const fill = contrastRatio(key, track);
+      const ink = contrastRatio(over(ev(k.ink), key), key);
+      out.push({ line: `${id}/dark ${k.where} - key vs ${name}: ${fill.toFixed(2)} (min 3)`, ok: fill >= 3 });
+      out.push({ line: `${id}/dark ${k.where} - label on the key (${name}): ${ink.toFixed(2)} (min 4.5)`, ok: ink >= 4.5 });
     }
-    // the thumb must be LIGHTER than its track in dark (a raised key, not a hole)
-    const lum = (c: RGBA) => contrastRatio(c, [0, 0, 0, 1]);
-    out.push({ line: `${id}/dark seg thumb lighter than ${name}`, ok: lum(thumb) > lum(track) });
+  }
+  // an unchosen label (--sw-text-2) on each track
+  for (const [name, tr] of Object.entries(KEY_TRACKS)) {
+    const track = over(ev(tr.track), over(ev(tr.under), page));
+    const off = contrastRatio(over(ev('var(--sw-text-2)'), track), track);
+    out.push({ line: `${id}/dark unchosen label on ${name}: ${off.toFixed(2)} (min 4.5)`, ok: off >= 4.5 });
   }
   return out;
 }
 
-test('dark schemes: the selected segment is a raised key - lighter than its track, ringed, its inks at 4.5:1, every live skin', () => {
-  const rows = SKINS_LIVE.flatMap(measureSeg);
-  console.log(rows.map((r) => r.line).join('\n'));
+test('dark schemes: every chosen segment key is 3:1 from its track and its label 4.5:1, every live skin (DARK-SEG-ALL-2380)', () => {
+  const rules = keyRules();
+  const noInk = rules.filter((r) => !r.ink).map((r) => `${r.file}: ${r.sel} - a chosen key without a colour (add color: var(--sw-seg-key-ink, ..))`);
+  expect(noInk).toEqual([]);
+  const rows = SKINS_LIVE.flatMap((id) => measureKeys(id, rules));
+  const summary = rows.filter((r) => !r.ok || /settings\.ts .* key vs surface-3 track in a card|unchosen label on surface-3 track in a card/.test(r.line));
+  console.log(`${rules.length} chosen-key rules read --sw-seg-key; ${rows.length} measurements\n` + summary.map((r) => r.line).join('\n'));
   expect(rows.filter((r) => !r.ok).map((r) => r.line)).toEqual([]);
 });
 
-test('light schemes: the segment thumb token is `initial` (every user falls back to its own light fill)', () => {
+test('light schemes: the segment key tokens are `initial` (every user falls back to its own light fill); --sw-seg-thumb is retired', () => {
   for (const id of SKIN_IDS) {
     const t = skinTable(id);
-    expect(t['--sw-seg-thumb'].light, id).toBe('initial');
+    expect(t['--sw-seg-key'].light, id).toBe('initial');
+    expect(t['--sw-seg-key-ink'].light, id).toBe('initial');
     expect(t['--sw-seg-thumb-shadow'].light, id).toBe('initial');
+    expect(t['--sw-seg-thumb'], `${id}: --sw-seg-thumb was retired by DARK-SEG-ALL-2380 (use --sw-seg-key / --sw-seg-key-ink)`).toBeUndefined();
   }
 });
 
@@ -273,38 +342,115 @@ test('dark schemes: the chosen settings key is 3:1 from its track and its label 
   expect(rows.filter((r) => !r.ok).map((r) => r.line)).toEqual([]);
 });
 
-// every selected segment drawn with a neutral surface key reads the dark thumb (a new segmented control must too): the rule of
-// `.seg / .segs / .lay-seg / .sevseg button[aria-pressed|aria-checked='true']` and sw-tabs' pill `.on .lbl` in src/ and the skins
-test('lint: a neutral segment thumb is var(--sw-seg-thumb, <light fill>) with var(--sw-seg-thumb-shadow, <light shadow>)', () => {
-  const walk = (d: string, out: string[] = []): string[] => {
-    for (const e of readdirSync(d)) {
-      const p = path.join(d, e);
-      if (statSync(p).isDirectory()) walk(p, out);
-      else if (p.endsWith('.ts')) out.push(p);
-    }
-    return out;
-  };
-  const RULE = /([^{}]*(?:\.(?:seg|segs|lay-seg|sevseg) button\[aria-(?:pressed|checked)='true'\]|\[data-variant='pill'\]\) \.on \.lbl)[^{}]*)\{([^{}]*)\}/g;
-  const NEUTRAL_BG = /background:\s*var\(--sw-(?:surface|surface-solid|menu-surface)\b/;
+// DARK-SEG-ALL-2380: the inventory of the segmented controls (a track of 2-4 keys, one chosen) whose chosen key is a neutral
+// surface in light. Each draws the dark light pill: `background: var(--sw-seg-key, <light fill>)`, `color: var(--sw-seg-key-ink,
+// <light ink>)` and the edge `box-shadow: var(--sw-seg-thumb-shadow, <light shadow>)`. A control that drops the tokens fails here; a
+// NEW one is caught by the pattern check below and joins this list.
+const SEG_INVENTORY: [file: string, chosen: string][] = [
+  ['access-external/request-dialog.ts', ".seg button[aria-pressed='true']"],
+  ['arx/arx-login.ts', 'button.mode.on'],
+  ['calendars/cal-page.ts', ".tab[aria-current='page']"],
+  ['calendars/resident.ts', ".tabs button[aria-pressed='true']"],
+  ['calendars/styles.ts', ".seg button[aria-pressed='true']"],
+  ['calendars/view-manage.ts', ".rolepick button[aria-pressed='true']"],
+  ['components/device-activity.ts', '.segt button.on'],
+  ['components/device-activity.ts', '.vw button.on'],
+  ['components/frigate-admin-shared.ts', ".seg button[aria-pressed='true']"],
+  ['components/sw-cast-picker.ts', ".seg button[aria-pressed='true']"],
+  ['components/sw-tabs.ts', ":host([data-variant='pill']) .on .lbl"],
+  ['components/sw-timeline.ts', '.windows button.on'],
+  ['components/sw-view-switch.ts', "button[aria-pressed='true']"],
+  ['design/skins/crystal.ts', ":host(sw-tabs[data-variant='pill']) .on .lbl"],
+  ['design/skins/domus.ts', ":host(sw-tabs[data-variant='pill']) .on .lbl"],
+  ['electricity/styles.ts', ".seg button[aria-pressed='true']"],
+  ['elevators/elevator-settings.ts', ".seg button[aria-pressed='true']"],
+  ['incidents/settings-form.ts', ".seg button[aria-pressed='true']"],
+  ['insights/styles.ts', ".seg button[aria-pressed='true']"],
+  ['maintenance/round-run.ts', ".vw button[aria-pressed='true']"],
+  ['maintenance/styles.ts', ".seg button[aria-pressed='true']"],
+  ['notices/styles.ts', ".seg button[aria-pressed='true']"],
+  ['screens/area-quick-sheet.ts', '.seg button.on'],
+  ['screens/devices-building.ts', ".bswitch button[aria-pressed='true']"],
+  ['screens/devices-layout-css.ts', ".lay-seg button[aria-pressed='true']"],
+  ['screens/explore-presence.ts', ".seg button[aria-pressed='true']"],
+  ['screens/home-screen-css.ts', ".pfl .segs button[aria-pressed='true']"],
+  ['screens/home-screen-options.ts', ".seg button[aria-pressed='true']"],
+  ['screens/home-widgets.ts', ".seg button[aria-pressed='true']"],
+  ['screens/investigate-events.ts', '.rangepick button.on'],
+  ['screens/investigate-ha-events.ts', '.rangepick button.on'],
+  ['screens/investigate-history-map.ts', ".seg button[aria-pressed='true']"],
+  ['screens/investigate-incidents.ts', ".ptabs button[aria-pressed='true']"],
+  ['screens/investigate-reviews.ts', ".layers button[aria-selected='true']"],
+  ['screens/investigate-reviews.ts', ".seg button[aria-pressed='true']"],
+  ['screens/live-camera.ts', '.round .transport button.on'],
+  ['screens/plan-studio6-panel.ts', ".seg.sm button[aria-pressed='true']"],
+  ['screens/schedule-conditions.ts', ".seg button[aria-pressed='true']"],
+  ['screens/schedule-create-dialog.ts', ".tabs button[aria-selected='true']"],
+  ['screens/schedule-editor.ts', ".seg button[aria-pressed='true']"],
+  ['screens/schedule-entity-picker.ts', ".seg button[aria-pressed='true']"],
+  ['screens/security-alarm.ts', ".vt button[aria-pressed='true']"],
+  ['screens/system-brand-installer.ts', ".tabs button[aria-selected='true']"],
+  ['screens/system-brand-logos.ts', ".seg button[aria-pressed='true']"],
+  ['screens/system-brand-logos.ts', ".tabs button[aria-selected='true']"],
+  ['screens/system-building-presence.ts', ".seg button[aria-pressed='true']"],
+  ['screens/system-design.ts', ".seg button[aria-pressed='true']"],
+  ['screens/system-home-screen.ts', ".seg button[aria-pressed='true']"],
+  ['screens/system-look.ts', ".seg button[aria-pressed='true']"],
+  ['screens/system-mapping.ts', ".seg button[aria-pressed='true']"],
+  ['screens/system-nav-size.ts', ".seg button[aria-pressed='true']"],
+  ['screens/system-palette-editor.ts', ".seg button[aria-pressed='true']"],
+  ['screens/system-presence.ts', ".seg button[aria-pressed='true']"],
+  ['screens/system-readiness.ts', ".panes button[aria-selected='true']"],
+  ['screens/system-timeline-colors.ts', ".seg button[aria-checked='true']"],
+  ['screens/system-update.ts', ".seg button[aria-pressed='true']"],
+  ['screens/wiskey-events.ts', ".seg button[aria-pressed='true']"],
+  ['screens/wiskey-person-drawer.ts', ".tabs button[aria-selected='true']"],
+  ['shell/sw-app.ts', 'nav.sections a.on'],
+  ['shell/sw-app.ts', ":host([data-design='a']) nav.secrow a.on .pill"],
+  ['shell/sw-home-personal.ts', ".seg button[aria-pressed='true']"],
+  ['shell/sw-user-menu.ts', "li.view .seg button[aria-pressed='true']"],
+  ['styles/settings.ts', ".seg button[aria-selected='true']"],
+  ['temperature/detail.ts', ".seg button[aria-pressed='true']"],
+  ['temperature/report.ts', ".seg button[aria-pressed='true']"],
+  ['temperature/wizard.ts', ".seg button[aria-pressed='true']"],
+];
+
+test('lint: every segmented control in the inventory draws its chosen key with --sw-seg-key / --sw-seg-key-ink (DARK-SEG-ALL-2380)', () => {
+  const rules = keyRules();
   const bad: string[] = [];
-  let users = 0;
-  // a frozen skin's rules are never drawn (skins/index.ts FROZEN_SKINS); they stay as they were
-  const frozen = FROZEN_SKINS.map((id) => path.join(SRC, 'design', 'skins', `${id}.ts`));
-  for (const f of walk(SRC)) {
-    if (frozen.includes(f)) continue;
+  for (const [file, chosen] of SEG_INVENTORY) {
+    const r = rules.find((k) => k.file === file && k.sel.endsWith(chosen));
+    if (!r) {
+      bad.push(`${file}: ${chosen} - no rule with background: var(--sw-seg-key, <light fill>)`);
+      continue;
+    }
+    if (!r.ink.includes('--sw-seg-key-ink')) bad.push(`${file}: ${chosen} - color without var(--sw-seg-key-ink, <light ink>)`);
+    const sh = decl(r.body, 'box-shadow');
+    if (sh && sh !== 'none' && !sh.includes('--sw-seg-thumb-shadow')) bad.push(`${file}: ${chosen} - box-shadow without var(--sw-seg-thumb-shadow, <light shadow>)`);
+  }
+  expect(rules.length, 'chosen-key rules reading --sw-seg-key (the inventory of DARK-SEG-ALL-2380)').toBeGreaterThanOrEqual(SEG_INVENTORY.length);
+  expect(bad).toEqual([]);
+});
+
+// a NEW segmented control: a chosen key `.seg / .segs / .segt / .lay-seg / .sevseg / .vw / .tabs / .rangepick / .ptabs / .panes /
+// .rolepick / .windows / .bswitch / .transport / .vt button[aria-pressed|aria-selected|aria-checked='true'|.on]` or sw-tabs' pill
+// `.on .lbl` drawn with a neutral surface must read the key tokens; nobody reads the retired --sw-seg-thumb fill any more
+test('lint: no neutral chosen segment without --sw-seg-key, no --sw-seg-thumb fill (DARK-SEG-ALL-2380)', () => {
+  const RULE = /([^{}]*(?:\.(?:seg|segs|segt|lay-seg|sevseg|vw|tabs|rangepick|ptabs|panes|rolepick|windows|bswitch|transport|vt)(?:\.[\w-]+)? button(?:\[aria-(?:pressed|selected|checked)='true'\]|\.on)|\[data-variant='pill'\]\) \.on \.lbl)[^{}]*)\{([^{}]*)\}/g;
+  const NEUTRAL_BG = /background:\s*var\(--sw-(?:surface|surface-solid|surface-2|menu-surface)\b/;
+  const bad: string[] = [];
+  for (const f of walkSrc()) {
+    const file = relSrc(f);
+    if (FROZEN_FILES.includes(file)) continue;
     const src = readFileSync(f, 'utf8');
+    if (/var\(--sw-seg-thumb,/.test(src)) bad.push(`${file}: reads the retired var(--sw-seg-thumb, ..) - use var(--sw-seg-key, ..) with var(--sw-seg-key-ink, ..)`);
     for (const m of src.matchAll(RULE)) {
-      const [sel, body] = [m[1], m[2]];
-      // the glass / bubble / tesla rules carry their own knobs (--mm-seg-thumb, an inverted key) and are not neutral surface keys
-      if (/glass|bubble|data-skin/.test(sel)) continue;
-      if (!NEUTRAL_BG.test(body) && !/--sw-seg-thumb/.test(body)) continue;
-      users++;
-      const rel = path.relative(SRC, f).split(path.sep).join('/');
-      if (NEUTRAL_BG.test(body)) bad.push(`${rel}: ${sel.trim().slice(-80)} - background without var(--sw-seg-thumb, ..)`);
-      if (/box-shadow:\s*var\(--sw-shadow-[123]\)/.test(body)) bad.push(`${rel}: ${sel.trim().slice(-80)} - box-shadow without var(--sw-seg-thumb-shadow, ..)`);
+      const sel = normSel(m[1]);
+      // the glass / bubble / tesla hosts carry their own knobs (--mm-seg-thumb, an inverted key) and are not neutral surface keys
+      if (/glass|bubble|data-skin|:hover|:active/.test(sel)) continue;
+      if (NEUTRAL_BG.test(stripComments(m[2]))) bad.push(`${file}: ${sel.slice(-80)} - a neutral chosen key without var(--sw-seg-key, ..)`);
     }
   }
-  expect(users, 'the segmented controls found (the inventory of DARK-REVIEW-2342 is 37)').toBeGreaterThanOrEqual(37);
   expect(bad).toEqual([]);
 });
 
