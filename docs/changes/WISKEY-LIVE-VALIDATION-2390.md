@@ -117,4 +117,17 @@ branch `pilot/WISKEY-RC10-PIN-2382`) is checked by a test when it is in the tree
   `frontend/tests/evidence-wiskey-live-validation-2390.spec.ts`.
 - No lab, no device write, no door pulse outside the fake.
 
-Receipts, commands and NOT_RUN items: see the commit message and the lead's report.
+## Receipts (2026-11-03/04)
+
+| What | Where | Result |
+|---|---|---|
+| `tests/test_wiskey_live_validation_2390.py` + `test_t06_work_states_297.py` + `test_wkcap_295.py` | workstation, `.venv` Python 3.12, `pytest -q` | 159 passed, 1 skipped (the rc10 pin is not in this tree) |
+| `test_w031_295.py`, `test_eccact_features_295.py`, `test_wkpeer_295.py`, `test_door_automation_295.py` | workstation | passed |
+| `test_wiskey_s5_migration_upgrade.py` | workstation | 3 FAILED - expected: the 0199 gap (0197 / 0198 live on other branches) and `nums[-1] == 196`; see Migration |
+| `npx tsc --noEmit` | workstation (node only) | 0 errors |
+| `tests/unit-wiskey-live-validation-2390.spec.ts` (node only) | workstation, `playwright.unit.config.ts` | 5 passed |
+| `tests/evidence-wiskey-live-validation-2390.spec.ts` desktop + mobile (16 cases, 3 `pixel-stable`) | runner, `run_smart.py spec` @ `530c77b4d` | 16 passed, three runs in a row |
+| regression: `pixel-wiskey-stations`, `pixel-access-s12`, `evidence-wiskey-stations`, `evidence-access-s12`, `layout-wiskey-stations`, `unit-a11y-polished-lint` | runner, desktop + mobile | 151 passed, 25 skipped (the specs' own skips), 0 failed |
+
+NOT_RUN: the full backend suite and the full browser gate; any lab / WisKey / station / door contact (by design); the
+rc10-pin test (skipped until `pilot/WISKEY-RC10-PIN-2382` lands).
