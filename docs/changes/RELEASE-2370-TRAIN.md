@@ -104,7 +104,9 @@ The 2.37.0 gate (b0fa0dc86) failed 5 `[mobile]` cases of `pixel-wiskey-messaging
   (`system-access-polish-css.ts`); the dark one also carries the WP1 tab-strip look. The sticky row itself was a product defect - the
   status span's 14rem basis wrapped the two keys onto two stacked lines beside an empty strip (a ~120 px bar over the form) - fixed in
   `system-access-messaging.ts` (phone: the status takes its own line only while it carries a note; the keys share one line). The
-  baselines show the fixed bar. **frontend/src changed: rebuild the UI before the re-gate.**
+  baselines show the fixed bar. Because the save click no longer scrolls a phone page to its end, `settings-classic-errors` (mobile)
+  now centres the rejected field before its picture (it had drifted 3 px between runs). **frontend/src changed: rebuild the UI before
+  the re-gate.**
 
 ## Runner work still needed (NOT_RUN here)
 
