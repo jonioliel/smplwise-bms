@@ -1,5 +1,13 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.38.1 (pilot) - Fix: live video, listening and talk in the stations drawer
+**After installing:** no database migration - going back to 2.38.0 is safe. No setting changes its default. The interface is rebuilt with the add-on, so reload the page once after the update.
+- **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים - חזרה ל-2.38.0 בטוחה. אף הגדרה לא משנה ברירת מחדל. הממשק נבנה מחדש עם התוסף, לכן כדאי לטעון את הדף מחדש פעם אחת אחרי העדכון.
+
+### What was fixed - מה תוקן
+- **English:** With "Video and talk on the stations screen" turned on, the station drawer never showed live video: the browser opened the station's live connection at a wrong address and the add-on refused it. The live video, listening and talk connections of a station now open at the right address. Camera cards are unchanged.
+- **עברית:** כשההגדרה "וידאו ודיבור במסך התחנות" הייתה דולקת, החלונית של התחנה לא הציגה וידאו חי: הדפדפן פתח את החיבור החי של התחנה בכתובת שגויה והתוסף סירב לו. חיבורי הווידאו החי, ההאזנה והדיבור של תחנה נפתחים עכשיו בכתובת הנכונה. כרטיסי המצלמות לא השתנו.
+
 ## 2.38.0 (pilot) - The TV notice board fits the screen, new settings for quiet windows and the phone app, readable choices in dark mode, keyboard tabs
 **After installing:** no database migration - going back to 2.37.1 is safe. Nothing new turns on by itself: presence sharing, quiet windows, the sensor value check and the two phone app sign-in switches all stay off until an administrator turns them on, and push to the phone app stays off because it needs the relay server, which is not live yet. A notice board with nothing set gets the two-row footer in portrait and no screen margin. The interface is rebuilt with the add-on, so reload the page once after the update.
 - **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים - חזרה ל-2.37.1 בטוחה. שום דבר חדש לא נדלק מעצמו: שיתוף הנוכחות, חלונות השקט, בדיקת ערכי החיישנים ושני מתגי הכניסה מהאפליקציה לנייד נשארים כבויים עד שמנהל מערכת מדליק אותם, והפוש לאפליקציה בנייד נשאר כבוי כי הוא צריך את שרת הממסר, שעדיין לא פעיל. לוח הודעות שלא הוגדר בו דבר מקבל במסך אנכי שורה תחתונה בשתי שורות, בלי שוליים בקצוות. הממשק נבנה מחדש עם התוסף, לכן כדאי לטעון את הדף מחדש פעם אחת אחרי העדכון.
