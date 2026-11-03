@@ -341,6 +341,14 @@ export class SystemAccessMessaging extends LitElement {
           background: var(--sw-surface-solid);
           box-shadow: var(--sw-shadow-3);
         }
+        /* GATE2370-D: the sticky bar is one line of keys. The status span's 14rem basis pushed the keys onto two stacked lines under an
+           empty strip (a 120 px bar over the form); on a phone the status takes its own line only while it says something */
+        .actions .grow {
+          flex: 1 1 100%;
+        }
+        .actions .grow:not(:has(.note)) {
+          display: none;
+        }
       }
       sw-button {
         min-block-size: var(--_t);
