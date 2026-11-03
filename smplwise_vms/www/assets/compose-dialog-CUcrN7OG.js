@@ -1,0 +1,46 @@
+import{F as h,G as p,a as $,rv as m,rw as g,rx as y,qK as e,ry as w,rz as f,rA as k,rB as D,rC as S,R as v,rD as T,rE as C,A as c,e as a,rq as P,bV as b,H as A}from"./index-Bd8RPmTw.js";import{n as x}from"./styles-ClgQ0Xsl.js";var E=Object.defineProperty,N=Object.getOwnPropertyDescriptor,r=(t,i,n,d)=>{for(var o=d>1?void 0:d?N(i,n):i,s=t.length-1,u;s>=0;s--)(u=t[s])&&(o=(d?u(i,n,o):u(o))||o);return d&&o&&E(i,n,o),o};let l=class extends ${constructor(){super(...arguments),this.draft=null,this.boards=[],this.floors=[],this.groups=[],this.roles=[],this.canPush=!1,this.canDelete=!1,this.pushDefault="by_severity",this.d=null,this.err="",this.audCount=null,this.audScope=!0,this.busy=!1,this.confirming=!1,this.audTimer=0}willUpdate(t){t.has("draft")&&(this.d=this.draft?{...this.draft}:null,this.err="",this.confirming=!1,this.audCount=null,this.audScope=!0,this.d&&this.refreshAudience())}close(){clearTimeout(this.audTimer),this.dispatchEvent(new CustomEvent("notice-close",{bubbles:!0,composed:!0}))}done(t){this.dispatchEvent(new CustomEvent("notice-saved",{detail:{message:t},bubbles:!0,composed:!0}))}set(t){if(!this.d)return;const i={...this.d,...t};t.severity==="critical"&&(i.pinned=!0,i.untilArchived=!1),this.d=i,this.err="",this.confirming=!1,("aud"in t||"floors"in t||"groups"in t||"roles"in t)&&this.refreshAudience()}refreshAudience(){clearTimeout(this.audTimer);const t=this.d;t&&(this.audTimer=window.setTimeout(async()=>{try{const i=await m(g(t));this.audCount=i.users,this.audScope=i.in_scope}catch{this.audCount=null}},250))}toggle(t,i){return t.includes(i)?t.filter(n=>n!==i):[...t,i]}async save(t){const i=this.d;if(!i)return;const n=y(i);if(n){this.err=e(n);return}this.busy=!0;try{const d=w(i),o=i.status==="new"||i.status==="draft",s=!this.canPush||!o?void 0:t?f(i,this.pushDefault,!0).checked:i.push??void 0;let u=0;i.id?(await D(i.id,{...d,...o&&this.canPush&&i.push!==null?{push:i.push}:{}}),t&&i.status==="draft"&&(u=(await S(i.id,s)).push?.recipients??0)):u=(await k({...d,publish:t,...s===void 0?{}:{push:s}})).push?.recipients??0,this.done(t?u?e("pushDone",{n:u}):e("published"):i.status==="published"?e("saved"):e("savedDraft"))}catch(d){this.err=v(d)}finally{this.busy=!1}}async removeNotice(){const t=this.d;if(!t?.id){this.close();return}if(!this.confirming){this.confirming=!0;return}this.busy=!0;try{t.status==="draft"?(await T(t.id),this.done(e("deleted"))):(await C(t.id),this.done(e("archived")))}catch(i){this.err=v(i)}finally{this.busy=!1,this.confirming=!1}}pushRow(t){if(t.status==="published"||t.status==="archived")return c;const i=f(t,this.pushDefault,this.canPush);return a`<div class="fld" data-push-row><span class="lbl">${e("pushTick")}</span>
+      <label class="ck"><input type="checkbox" data-push .checked=${i.checked} ?disabled=${i.disabled}
+        @change=${n=>this.set({push:n.target.checked})}>${e("pushTick")}</label>
+      <span class="hint">${t.aud==="tv"?e("pushTv"):this.canPush?e("pushHint"):e("pushNoPerm")}</span></div>`}render(){const t=this.d;if(!t)return a`<sw-dialog></sw-dialog>`;const i=["info","alert","critical"],n=["all","place","group","tv"],d=t.status==="new"||t.status==="draft",o=t.status==="draft"?"deleteDraft":"archive";return a`<sw-dialog open wide data-compose-dialog heading=${t.id?e("editTitle"):e("composeTitle")} subheading=${e("composeSub")} @close=${()=>this.close()}>
+      <div class="two">
+        <div class="form">
+          <div class="fld"><label for="nt-title">${e("fTitle")}</label><input id="nt-title" class="inp" maxlength="120" .value=${t.title} @input=${s=>this.set({title:s.target.value})}></div>
+          <div class="fld"><label for="nt-body">${e("fBody")}</label><textarea id="nt-body" class="inp" maxlength="2000" .value=${t.body} @input=${s=>this.set({body:s.target.value})}></textarea></div>
+          <div class="r">
+            <div class="fld"><span class="lbl">${e("fSeverity")}</span><div class="seg" role="group" data-sev>${i.map(s=>a`<button aria-pressed=${String(t.severity===s)} @click=${()=>this.set({severity:s})}>${e(P[s])}</button>`)}</div></div>
+            <div class="fld"><span class="lbl">&nbsp;</span><label class="ck"><input type="checkbox" .checked=${t.pinned} @change=${s=>this.set({pinned:s.target.checked})}>${e("fPinned")}</label></div>
+          </div>
+          <div class="r">
+            <div class="fld"><label for="nt-from">${e("fFrom")}</label><input id="nt-from" class="inp num" type="datetime-local" lang=${b()} .value=${t.from} @input=${s=>this.set({from:s.target.value})}></div>
+            <div class="fld"><label for="nt-to">${e("fTo")}</label><input id="nt-to" class="inp num" type="datetime-local" lang=${b()} ?disabled=${t.untilArchived} .value=${t.to} @input=${s=>this.set({to:s.target.value})}>
+              ${t.severity==="critical"?a`<span class="hint">${e("criticalNeedsEnd")}</span>`:a`<label class="ck"><input type="checkbox" .checked=${t.untilArchived} @change=${s=>this.set({untilArchived:s.target.checked})}>${e("fUntilArchived")}</label>`}</div>
+          </div>
+          <div class="r">
+            <div class="fld"><label for="nt-dwell">${e("fDwell")}</label><input id="nt-dwell" class="inp short num" type="number" min="3" max="600" .value=${t.dwell} @input=${s=>this.set({dwell:s.target.value})}><span class="hint">${e("fDwellHint")}</span></div>
+            <div class="fld"><label for="nt-when">${e("fWhen")}</label><input id="nt-when" class="inp" maxlength="60" .value=${t.when} placeholder=${e("fWhenHint")} @input=${s=>this.set({when:s.target.value})}></div>
+          </div>
+        </div>
+        <div class="form">
+          <div class="fld"><span class="lbl">${e("fAudience")}</span>
+            <div class="seg" role="group" data-aud>${n.map(s=>a`<button aria-pressed=${String(t.aud===s)} data-a=${s} @click=${()=>this.set({aud:s})}>${e(s==="all"?"audAll":s==="place"?"audPlace":s==="group"?"audGroup":"audTv")}</button>`)}</div>
+            ${t.aud==="place"?a`<div class="chips">${this.floors.map(s=>a`<button class="pick" aria-pressed=${String(t.floors.includes(s.id))} @click=${()=>this.set({floors:this.toggle(t.floors,s.id)})}>${s.building} · ${s.name}</button>`)}</div>`:c}
+            ${t.aud==="group"?a`<div class="chips">${this.groups.map(s=>a`<button class="pick" aria-pressed=${String(t.groups.includes(s.id))} @click=${()=>this.set({groups:this.toggle(t.groups,s.id)})}>${s.name}</button>`)}
+              ${this.roles.map(s=>a`<button class="pick" aria-pressed=${String(t.roles.includes(s.id))} @click=${()=>this.set({roles:this.toggle(t.roles,s.id)})}>${s.name}</button>`)}</div>`:c}
+            ${t.aud!=="tv"&&this.audCount!==null?a`<div class="sum"><sw-icon name="users" size="14"></sw-icon><b class="num">${this.audCount}</b>${e("audUsers",{n:""}).trim()}</div>`:c}
+            ${this.audScope?c:a`<span class="err">${e("audOutOfScope")}</span>`}
+          </div>
+          <div class="fld"><span class="lbl">${e("fBoards")}</span>
+            ${this.boards.length?a`<div class="chips" data-boards>${this.boards.map(s=>a`<button class="pick" ?disabled=${!s.enabled} aria-pressed=${String(t.boards.includes(s.id))} data-board-pick=${s.id}
+              @click=${()=>this.set({boards:this.toggle(t.boards,s.id)})}><sw-icon name="wall" size="12"></sw-icon>${s.enabled?s.name:e("boardOff",{name:s.name})}</button>`)}</div>`:a`<span class="hint">${e("noBoards")}</span>`}
+          </div>
+          ${this.pushRow(t)}
+        </div>
+      </div>
+      ${this.err?a`<p class="err" role="alert" data-compose-error>${this.err}</p>`:c}
+      ${t.status==="new"?a`<sw-button slot="footer" variant="ghost" @click=${()=>this.close()}>${e("cancel")}</sw-button>`:c}
+      ${t.id&&t.status!=="archived"?a`<sw-button slot="footer" variant=${this.confirming?"danger":"ghost"} ?disabled=${this.busy} data-remove-notice @click=${()=>this.removeNotice()}>${this.confirming?e(t.status==="draft"?"confirmDelete":"confirmArchive"):e(o)}</sw-button>`:c}
+      ${t.id&&t.status==="published"&&this.canDelete?a`<sw-button slot="footer" variant="ghost" ?disabled=${this.busy} data-delete-notice @click=${()=>this.dispatchEvent(new CustomEvent("notice-delete",{detail:{id:t.id},bubbles:!0,composed:!0}))}>${e("delete")}</sw-button>`:c}
+      ${d?a`<sw-button slot="footer" ?disabled=${this.busy} data-save-draft @click=${()=>this.save(!1)}>${e("saveDraft")}</sw-button>`:c}
+      ${t.status!=="archived"?a`<sw-button slot="footer" variant="primary" ?disabled=${this.busy} data-publish @click=${()=>this.save(d)}>${t.status==="published"?e("save"):e("publish")}</sw-button>`:c}
+    </sw-dialog>`}};l.styles=[x];r([h({attribute:!1})],l.prototype,"draft",2);r([h({attribute:!1})],l.prototype,"boards",2);r([h({attribute:!1})],l.prototype,"floors",2);r([h({attribute:!1})],l.prototype,"groups",2);r([h({attribute:!1})],l.prototype,"roles",2);r([h({attribute:!1})],l.prototype,"canPush",2);r([h({attribute:!1})],l.prototype,"canDelete",2);r([h({attribute:!1})],l.prototype,"pushDefault",2);r([p()],l.prototype,"d",2);r([p()],l.prototype,"err",2);r([p()],l.prototype,"audCount",2);r([p()],l.prototype,"audScope",2);r([p()],l.prototype,"busy",2);r([p()],l.prototype,"confirming",2);l=r([A("notice-compose")],l);
+//# sourceMappingURL=compose-dialog-CUcrN7OG.js.map
