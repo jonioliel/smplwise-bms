@@ -44,6 +44,7 @@ export const LAZY_SCREENS: Readonly<Record<string, Loader>> = {
   'wiskey-embed': () => import('../screens/wiskey-embed'),
   'access-external-screen': () => import('../screens/access-external'),
   'door-windows-screen': () => import('../screens/door-windows'),
+  'wiskey-profiles-screen': () => import('../screens/wiskey-profiles'), // WISKEY-PROFILES-EDIT-2390: קבוצות ושדות
   'devices-area': () => import('../screens/devices-area'),
   'devices-schedules': () => import('../screens/devices-schedules'),
   'system-schedules': () => import('../screens/system-schedules'),

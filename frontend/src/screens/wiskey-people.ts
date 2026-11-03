@@ -12,6 +12,7 @@ import './wiskey-person-drawer';
 import './wiskey-message-dialog';
 import './wiskey-person-actions';
 import './wiskey-bulk-people';
+import '../components/wk-profiles-link'; // WISKEY-PROFILES-EDIT-2390: "קבוצות ושדות" (renders nothing unless the server allows editing)
 import { bt } from '../i18n/bulk-people';
 import { bulkSettings } from '../api/bulk-people';
 import type { ActionKind, ActionResult } from './wiskey-person-actions';
@@ -759,6 +760,7 @@ export class WiskeyPeople extends LitElement {
       ${ready && isApi() && this.bulkShown
         ? html`<sw-button slot="actions" variant="secondary" icon="upload" data-people-bulk-open @click=${() => (this.bulk = 'import')}>${bt('open')}</sw-button>`
         : nothing}
+      ${ready && this.canManage && isApi() ? html`<wk-profiles-link slot="actions"></wk-profiles-link>` : nothing}
       ${isApi() && this.phase !== 'forbidden'
         ? html`<sw-button slot="actions" variant="ghost" icon="refresh" iconOnly data-wiskey-people-refresh label=${pt('action.refresh')} ?disabled=${this.busy} @click=${() => void this.reload()}></sw-button>`
         : nothing}`;
