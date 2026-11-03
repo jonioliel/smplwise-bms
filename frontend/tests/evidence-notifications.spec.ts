@@ -474,7 +474,7 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
     await expect(sys(page).locator('[data-set-state="ready"]')).toBeVisible();
     await expect(page.locator('sw-app .subnav sw-tabs [aria-current="page"]')).toHaveText('התראות');
     if (!narrow(page, info)) {
-      expect(await sys(page).locator('[data-set-section]').evaluateAll((els) => els.map((e) => e.getAttribute('data-set-section')))).toEqual(['sources', 'quiet', 'esc', 'lock', 'keep', 'mail', 'wa', 'chan', 'log']); // NOTIFWA: the WhatsApp section after the mail
+      expect(await sys(page).locator('[data-set-section]').evaluateAll((els) => els.map((e) => e.getAttribute('data-set-section')))).toEqual(['sources', 'quiet', 'quiet-windows', 'esc', 'lock', 'keep', 'mail', 'wa', 'chan', 'log']); // NOTIFWA: the WhatsApp section after the mail; release/2380-train: the quiet-window card is its own glass section right under the quiet hours (same nav entry)
       expect(await sys(page).locator('[data-set-nav]').evaluateAll((els) => els.map((e) => (e.textContent ?? '').trim()))).toEqual([
         'מקורות והרשאות – מה נשלח', 'שעות שקט ומה עובר', 'הסלמה', 'פרטיות מסך נעול', 'שמירה', 'דואר יוצא', 'וואטסאפ', 'ערוצים', 'יומן מסירה וכשלים',
       ]);
@@ -604,7 +604,9 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
     for (const [id, name] of [['quiet', 'sec-quiet'], ['esc', 'sec-esc'], ['lock', 'sec-lock'], ['mail', 'sec-mail'], ['log', 'sec-log']]) {
       await sys(page).locator(`[data-set-nav="${id}"]`).click();
       await expect(sys(page).locator(`#${name}`)).toBeVisible();
-      expect(await sys(page).locator('[data-set-section]').count()).toBe(1);
+      // release/2380-train: "שעות שקט" also shows the quiet-window card's section (#sec-quiet-windows) under the quiet hours - one nav entry
+      expect(await sys(page).locator('[data-set-section]').count()).toBe(id === 'quiet' ? 2 : 1);
+      if (id === 'quiet') await expect(sys(page).locator('#sec-quiet-windows system-quiet-windows')).toBeAttached();
       await shot(page, `settings-${id}-390-light`);
     }
   });
