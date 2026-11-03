@@ -181,6 +181,7 @@ test.describe('incoming call banner', () => {
     await installCallsMock(page);
     await openApp(page, '#/explore/floors/f0');
     await expect(banner(page)).toBeVisible({ timeout: 30_000 });
+    await banner(page).evaluate((el) => Promise.all(el.getAnimations().map((x) => x.finished))); // the entry slide (scale 0.98) is over
     const vp = page.viewportSize()!;
     const box = (await banner(page).boundingBox())!;
     const where = JSON.stringify({ box, vp });
