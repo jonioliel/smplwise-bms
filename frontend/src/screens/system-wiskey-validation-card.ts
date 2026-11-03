@@ -7,7 +7,7 @@ import { VALIDATION_HREF } from '../api/wiskey-validation';
 /**
  * הגדרות › מתגי מסכי כניסה › "בדיקת קבלה לעמדות" (WISKEY-LIVE-VALIDATION-2390): the entry to the acceptance tool, next to the WisKey
  * status. One short card with one link; the tool itself is its own route (#/system/wiskey-validation, system-wiskey-validation.ts).
- * Shown to whoever may run the checks (access.stations.manage somewhere) and in the demo.
+ * Shown to whoever may run the checks (access.stations.manage somewhere); not in the demo (no backend to run against).
  */
 @customElement('system-wiskey-validation-card')
 export class SystemWiskeyValidationCard extends LitElement {
@@ -37,7 +37,7 @@ export class SystemWiskeyValidationCard extends LitElement {
   `;
 
   render() {
-    if (isApi() && !canAnywhere('access.stations.manage')) return nothing;
+    if (!isApi() || !canAnywhere('access.stations.manage')) return nothing; // not in the demo: no existing baseline changes
     return html`<sw-card heading="בדיקת קבלה לעמדות" subheading="לכל עמדה: זהות, דלתות, תמונה דרך Arx ודרך WisKey, דיבור, אירועים ושעון. רץ רק כשלוחצים, ונשמר לכל ריצה.">
       <div class="row" data-lv-card>
         <span class="muted">פתיחת דלת עם עד היא פעולה נפרדת, למנהל מערכת בלבד.</span>

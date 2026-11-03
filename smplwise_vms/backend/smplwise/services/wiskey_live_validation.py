@@ -73,7 +73,7 @@ STEP_KEYS = frozenset({"step_id", "action", "target", "phase", "observation"})
 PHASES = frozenset({"prepared", "attempted", "acknowledged", "unknown", "aborted", "denied"})
 # a closed WisKey refusal that means "this WisKey cannot run the feature here" (unsupported), not "the check failed"
 UNSUPPORTED_CODES = frozenset({"unknown_command", "unknown_feature", "feature_disabled", "authenticated_current_source_not_installed",
-                               "signed_feature_policy_not_current", "feature_host_missing", "use_prepare_media"})
+                               "signed_feature_policy_not_current", "native_media_ingress_unavailable", "use_prepare_media"})
 
 CLOCK_TOLERANCE_S = 2.0  # the station drawer's own "clock ok" line uses the same 2 s
 RUN_TTL_S = 180  # the execution deadline of one station's validation operation (WisKey: deadline = the draft's expiry)
@@ -92,8 +92,8 @@ CHECK_TEXT = {
 REASON_TEXT = {
     "relay_map_missing": "לעמדה אין שיוך דלתות מאושר, ולכן WisKey לא יכול לבדוק אותה. שייכו דלתות במסך שיוך דלתות.",
     "direct_join_off": "החיבור הישיר ל-WisKey כבוי (מקור הווידאו והדיבור במצב Arx, או שאין מפתח צימוד חותם).",
-    "wiskey_unreachable": "WisKey לא ענה בזמן.",
-    "feature_host_missing": "רכיב WisKey המותקן אינו מציע הרצת בדיקות.",
+    "native_media_ingress_unavailable": "רכיב המדיה של WisKey אינו זמין.",
+    "use_prepare_media": "WisKey דורש הכנת מדיה לצעד הזה.",
     "feature_disabled": "הבדיקה כבויה ב-WisKey.",
     "authenticated_current_source_not_installed": "רכיב ההרצה של WisKey אינו מותקן או אינו מחובר ל-Arx.",
     "signed_feature_policy_not_current": "המדיניות החתומה של WisKey אינה מעודכנת לבדיקה הזו.",
@@ -430,29 +430,6 @@ def mapped_doors(conn: sqlite3.Connection, station_id: str) -> list[Door]:
     return [Door(api, physical, rev) for api, physical, rev in rows if seen[physical] == 1]
 
 
-def host_blocker(features: Any) -> Outcome | None:
-    """`features/status` once per run: None when WisKey's host can run `live_validation` (or does not say), else the Outcome every
-    WisKey check of the run gets."""
-    from .wiskey_feature_direct import FeatureWireError
-
-    try:
-        raw = features.client.status()
-    except FeatureWireError as exc:
-        if exc.outcome == "not_sent":
-            return not_run("direct_join_off")
-        if exc.code in ("unknown_command",):
-            return unsupported("feature_host_missing")
-        if exc.outcome == "unknown":
-            return not_run("wiskey_unreachable")
-        return unsupported(exc.code) if exc.code in UNSUPPORTED_CODES else failed(exc.code)
-    host = raw.get("features") if isinstance(raw, Mapping) else None
-    entry = host.get(FEATURE) if isinstance(host, Mapping) else None
-    if not isinstance(entry, Mapping) or entry.get("execution_available") is not False:
-        return None  # available, or WisKey's status does not describe it: the start itself answers
-    blocker = entry.get("blocker")
-    return unsupported(blocker if isinstance(blocker, str) and blocker else "feature_disabled")
-
-
 @dataclass
 class WiskeyRun:
     """What one native `live_validation` operation answered, per step id (phase + observation), or one outcome for all steps."""
@@ -586,17 +563,16 @@ def step_outcome(action: str, phase: str, observation: Any) -> Outcome:
     return failed("result_unknown", {"phase": phase})
 
 
-def native_checks(conn: sqlite3.Connection, features: Any, *, principal: Principal, run_id: str, station_id: str,
-                  blocker: Outcome | None, **kw: Any) -> dict[str, Outcome]:
+def native_checks(conn: sqlite3.Connection, features: Any, *, principal: Principal, run_id: str, station_id: str, **kw: Any) -> dict[str, Outcome]:
     """identity / door_capabilities / door_read of one station. Steps: identity on the first mapped door, then per door its
-    capabilities and its configuration read (every mapped door is a target WisKey requires a step for)."""
+    capabilities and its configuration read (every mapped door is a target WisKey requires a step for). WisKey's `features/status`
+    is NOT read first (WisKey T06: a static availability flag proves nothing; tests/test_t06_work_states_297.py): the start itself
+    answers, and a host that cannot run the feature refuses it with a closed code (`unsupported`)."""
     doors = mapped_doors(conn, station_id)
     if not doors:
         return {c: not_run("relay_map_missing") for c in WISKEY_CHECKS}
     if features is None:
         return {c: not_run("direct_join_off") for c in WISKEY_CHECKS}
-    if blocker is not None:
-        return {c: blocker for c in WISKEY_CHECKS}
     steps: list[tuple[str, str, Door]] = [("identity", "identity", doors[0])]
     for d in doors:
         steps.append((f"door_capabilities-{d.physical_relay}", "door_capabilities", d))
@@ -909,7 +885,6 @@ def execute_run(db: Any, settings: Any, principal: Principal, rid: str, stations
         features = FEATURES_PROVIDER()
     except Exception:  # noqa: BLE001 - an unreadable selection is "not selected"
         features = None
-    blocker = host_blocker(features) if features is not None else None
     feed = probes.feed_state()
     cancelled = False
     for station in stations:
@@ -921,7 +896,7 @@ def execute_run(db: Any, settings: Any, principal: Principal, rid: str, stations
             mark_running(conn, rid, sid, WISKEY_CHECKS)
         with db.connection(label="wiskey validation native") as conn:
             try:
-                native = native_checks(conn, features, principal=principal, run_id=rid, station_id=sid, blocker=blocker, **native_kw)
+                native = native_checks(conn, features, principal=principal, run_id=rid, station_id=sid, **native_kw)
             except Exception:  # noqa: BLE001
                 log.exception("wiskey validation: native checks of a station failed")
                 native = {c: failed("probe_error") for c in WISKEY_CHECKS}
@@ -993,8 +968,6 @@ def run_pulse(db: Any, principal: Principal, *, station: Mapping[str, Any], door
             early = not_run("door_not_mapped")
         elif features is None:
             early = not_run("direct_join_off")
-        else:
-            early = host_blocker(features)  # a read of WisKey: never inside a write transaction
         with db.connection(label="wiskey validation pulse") as conn:
             rid = create_run(conn, kind="pulse", scope="one", stations=[(sid, str(station.get("name") or ""))], actor=principal,
                              parent_run_id=parent_run_id, checks=(PULSE,))

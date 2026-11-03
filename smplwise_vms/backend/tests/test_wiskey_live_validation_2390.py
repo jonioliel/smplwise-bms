@@ -309,20 +309,27 @@ def test_the_direct_join_off_is_not_run(env, monkeypatch):
 
 
 @pytest.mark.parametrize("blocker", FIXTURE["host_status_blockers"])
-def test_a_host_that_cannot_run_the_feature_is_unsupported_and_nothing_is_started(env, blocker):
-    env.port.status_answer = {"schema_version": 1, "features": {"live_validation": {"execution_available": False, "blocker": blocker}}}
+def test_a_host_that_cannot_run_the_feature_refuses_the_start_and_the_check_is_unsupported(env, blocker):
+    env.port.start_script = [f"refuse:{blocker}"]
     checks = checks_of(env.run(station_id="st-a"), "st-a")
     assert all((checks[c]["status"], checks[c]["reason"]) == ("unsupported", blocker) for c in lv.WISKEY_CHECKS)
-    assert env.port.validation_starts() == []
+    assert checks["identity"]["reason_text"] != blocker, "a Hebrew line"
+
+
+def test_features_status_is_never_read(env):
+    """WisKey T06 (tests/test_t06_work_states_297.py): a static availability flag proves nothing; only the start answers."""
+    env.port.status_answer = {"schema_version": 1, "features": {"live_validation": {"execution_available": False, "blocker": "feature_disabled"}}}
+    checks = checks_of(env.run(all=True), "st-a")
+    assert env.port.sent("features/status") == []
+    assert all(checks[c]["status"] == "pass" for c in lv.WISKEY_CHECKS)
+    _pulse(env)
+    assert env.port.sent("features/status") == []
 
 
 def test_a_closed_refusal_is_unsupported_or_failed_by_its_code(env):
-    env.port.queue["features/status"] = [PortError("unknown_command", "refused")]
+    env.port.start_script = ["refuse:unknown_command"]
     checks = checks_of(env.run(station_id="st-a"), "st-a")
-    assert all((checks[c]["status"], checks[c]["reason"]) == ("unsupported", "feature_host_missing") for c in lv.WISKEY_CHECKS)
-    env.port.start_script = ["refuse:feature_disabled"]
-    checks = checks_of(env.run(station_id="st-a"), "st-a")
-    assert all((checks[c]["status"], checks[c]["reason"]) == ("unsupported", "feature_disabled") for c in lv.WISKEY_CHECKS)
+    assert all((checks[c]["status"], checks[c]["reason"]) == ("unsupported", "unknown_command") for c in lv.WISKEY_CHECKS)
     env.port.start_script = ["refuse:binding_denied"]
     checks = checks_of(env.run(station_id="st-a"), "st-a")
     assert all((checks[c]["status"], checks[c]["reason"]) == ("fail", "binding_denied") for c in lv.WISKEY_CHECKS)

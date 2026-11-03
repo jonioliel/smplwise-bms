@@ -142,7 +142,7 @@ async function boot(page: Page, opts: Partial<Pick<World, 'persona' | 'runningPo
   return w;
 }
 
-const noBaseline = (info: TestInfo, name: string) => !['all', 'changed'].includes(info.config.updateSnapshots) && !fs.existsSync(info.snapshotPath(name));
+const noBaseline = (info: TestInfo, name: string) => !['all', 'changed', 'missing'].includes(info.config.updateSnapshots) && !fs.existsSync(info.snapshotPath(name));
 
 async function compare(page: Page, info: TestInfo, name: string) {
   await settlePage(page);
@@ -208,8 +208,8 @@ test.describe('WISKEY-LIVE-VALIDATION-2390: the station acceptance tool', () => 
     await expect(stationCard(page, 'st-garage').locator('[data-lv-pulse-off]')).toBeVisible();
     await page.locator(`${PAGE} [data-lv-pulse-open="st-lobby"]`).click();
     const dlg = page.locator(`${PAGE} sw-dialog[data-lv-pulse-dialog][open]`);
-    await expect(dlg).toBeVisible();
-    await expect(dlg).toContainText('פעולה פיזית - דלת תיפתח');
+    await expect(dlg.locator('[data-lv-physical]')).toBeVisible(); // the host is a zero-size wrapper of a fixed backdrop
+    await expect(dlg).toHaveAttribute('heading', 'פעולה פיזית - דלת תיפתח');
     await expect(dlg.locator('[data-lv-physical]')).toContainText('הדלת תיפתח באמת');
     const send = dlg.locator('[data-lv-pulse-send]');
     await expect(send).toHaveAttribute('disabled', '');
@@ -257,7 +257,7 @@ test.describe('WISKEY-LIVE-VALIDATION-2390: the station acceptance tool', () => 
     await page.locator(`${PAGE} [data-lv-pulse-open="st-lobby"]`).click();
     const dlg = page.locator(`${PAGE} sw-dialog[data-lv-pulse-dialog][open]`);
     await dlg.locator('[data-lv-witness-name]').fill('דנה כהן');
-    await expect(dlg).toBeVisible();
+    await expect(dlg.locator('[data-lv-physical]')).toBeVisible();
     await compare(page, info, 'lv-pulse-dialog');
   });
 

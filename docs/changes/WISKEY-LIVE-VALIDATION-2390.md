@@ -26,6 +26,8 @@ confirmed relay map), then `features/result` until the native receipt is finishe
 does not succeed and marks the rest `aborted`: Arx shows that step as `fail` and the rest as `not_run`
 (`aborted_after_failure`). An unknown / lost / still-running result is `fail` (`result_unknown`), never a pass. One request id
 per station run (`wiskey_feature_intents`, no replay); settled `accepted` only when every step was acknowledged.
+WisKey's `features/status` is never read (WisKey T06, `tests/test_t06_work_states_297.py`: a static availability flag proves
+nothing) - the start itself answers.
 
 The optional **door pulse** is a separate run ("פעולה פיזית - דלת תיפתח"): one `pulse` step of one mapped door through the same
 feature, for a system administrator on a local session (refused through the remote tunnel), with `access.doors.open` on the
@@ -34,8 +36,8 @@ part of "run all"; refused while any run is in progress; never retried. WisKey's
 acknowledged (`physical_result` / `human_witness` stay `unknown` there), so the result stays `pending / awaiting_witness`
 until the administrator records the witness's verdict once: `opened` passes, `not_opened` / `unsure` fail.
 
-Results are honest: `pass`, `fail` + reason, `unsupported` (WisKey does not offer it: host blocker, unknown command, W10 not
-listed ...), `not_run` + why (switch, no relay map, direct join off, cancelled, interrupted, earlier step failed). Every reason
+Results are honest: `pass`, `fail` + reason, `unsupported` (WisKey does not offer it: the start refused with a closed code such
+as `feature_disabled` / `authenticated_current_source_not_installed` / `unknown_command`, W10 not listed ...), `not_run` + why (switch, no relay map, direct join off, cancelled, interrupted, earlier step failed). Every reason
 code has one Hebrew line in `services/wiskey_live_validation.REASON_TEXT` (served with each result and used in the export).
 
 Kept per run (migration 0199): the run (who, when, scope, state) and one row per station and check (status, reason code, a
