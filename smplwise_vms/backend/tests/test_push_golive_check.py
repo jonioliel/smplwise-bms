@@ -44,11 +44,23 @@ def test_dry_run_with_fakes_passes_and_prints_no_token(capsys):
     assert "NOT_RUN  Worker typecheck" in out  # without --worker the Worker's own checks are listed as not run, never as passed
 
 
-def test_preflight_accepts_well_formed_files_and_prints_no_value(tmp_path, capsys):
+def test_preflight_accepts_well_formed_files_and_prints_no_value(tmp_path, capsys, monkeypatch):
+    # the shapes only: where pytest's tmp_path lives decides the git-ignore check (a --basetemp inside a checkout is "git would add
+    # this file", correctly), so that check is taken out here and covered by test_git_ignored_inside_outside_the_repository
+    monkeypatch.setattr(pgc, "_git_ignored", lambda _p: None)
     _write_secrets(tmp_path / "s", keys="efrat:" + "ab" * 32 + ",office2:" + "cd" * 32)
     code, out = _run(["secrets-preflight", "--dir", str(tmp_path / "s"), "--apns-key-id", KEY_ID, "--apns-team-id", "TEAM123456"], capsys)
     assert code == 0, out
     assert "PLACEHOLDER" not in out and SA_EMAIL not in out and "example-project" not in out and "ab" * 32 not in out and KEY_ID not in out
+
+
+def test_git_ignored_inside_outside_the_repository():
+    # git check-ignore works on paths that do not exist yet: secrets/ is ignored, a file next to the code is not, outside = cannot be added
+    assert pgc._git_ignored(ROOT / "secrets" / "firebase-relay-service-account.json") is True
+    assert pgc._git_ignored(ROOT / "scripts" / "firebase-relay-service-account.json") is False
+    outside = Path(ROOT.anchor) / "sw-not-a-checkout" / "push-relay-server-keys.txt"
+    if ROOT.resolve() != Path(ROOT.anchor).resolve():
+        assert pgc._git_ignored(outside) is None
 
 
 @pytest.mark.parametrize("kwargs, expect", [
