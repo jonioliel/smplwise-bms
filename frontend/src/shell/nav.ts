@@ -200,6 +200,7 @@ function safeDecode(s: string): string {
 function wiskeyActiveTab(r: RouteState | null): string {
   const path = wiskeyPathSegment(r);
   if (path === 'external') return 'external'; // SHAREDID-293: an Arx-only screen, never the embed
+  if (path === 'access-diag') return 'people'; // WISKEY-ACCESS-DIAG-2400: "אבחון הרשאות" belongs to the people tab (no tab of its own)
   const screen = wiskeyScreenOf(path);
   const own = !!screen && WISKEY_UI[screen] === 'smplwise';
   if (own) return path;

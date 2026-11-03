@@ -31,7 +31,8 @@ MIGRATION_0145_SHA256 = "b0fb6fd086a47430fc170008f233d2aa753d8d2140bf8c7bebbe60a
 
 
 def _catalog() -> dict:
-    return {"allowlists": {k: sorted(v) for k, v in sorted(ch.ALLOWLISTS.items())}, "lease_signed": sorted(ch.LEASE_SIGNED),
+    # WISKEY-ACCESS-DIAG-2400 added the `diagnostics` and `access_review` channels after the cleanup; the pre-cleanup catalog is everything else
+    return {"allowlists": {k: sorted(v) for k, v in sorted(ch.ALLOWLISTS.items()) if k not in ("diagnostics", "access_review")}, "lease_signed": sorted(ch.LEASE_SIGNED),
             "w10": sorted(ch.W10_COMMANDS), "peer_query": sorted(cp.PEER_QUERY_COMMANDS), "codes": [ch.NOT_ALLOWED, ch.RESERVED_KEY]}
 
 

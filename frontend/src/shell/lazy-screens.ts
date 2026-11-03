@@ -44,6 +44,7 @@ export const LAZY_SCREENS: Readonly<Record<string, Loader>> = {
   'wiskey-embed': () => import('../screens/wiskey-embed'),
   'access-external-screen': () => import('../screens/access-external'),
   'door-windows-screen': () => import('../screens/door-windows'),
+  'wiskey-access-diag': () => import('../screens/wiskey-access-diag'), // WISKEY-ACCESS-DIAG-2400: אבחון הרשאות
   'devices-area': () => import('../screens/devices-area'),
   'devices-schedules': () => import('../screens/devices-schedules'),
   'system-schedules': () => import('../screens/system-schedules'),

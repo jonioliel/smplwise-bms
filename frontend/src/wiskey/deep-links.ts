@@ -23,6 +23,10 @@
  * the per-visit way to the embedded panel that changes no setting. The panel itself is opened from the ORIGIN by the embed (never
  * the Ingress path) - nothing here builds a Home Assistant address.
  *
+ * Native screens that took capabilities over (`native` set): WISKEY-ACCESS-DIAG-2400 (plan task T10) - "אבחון הרשאות" (`#/wiskey/access-diag`)
+ * replaces the panel's periodic reviews, comparison and data quality tools, and adds "can X open door Y" and the station permission audit
+ * to the stations screen. Their panel targets stay (the screen's own "open in the intercom window" fallback and the rows' coverage).
+ *
  * Temporary links (owner answers 2026-11-03, corrected): Q4 "א" - device schedules and groups / profile fields get full editing in
  * Arx; Q7 "ג" - the installer tools (platform, clock, station technical settings, lifecycle) become native. Their entries carry
  * `bridge: 'Q4' | 'Q7'`: the panel link is the bridge until the native screen sets `native`.
@@ -124,9 +128,12 @@ export const DEEP_LINKS: Readonly<Record<string, DeepLinkEntry>> = Object.freeze
   'people.unmanaged': { target: tab('users'), label: 'משתמשים לא מנוהלים ובדיקת "האם יכול לפתוח"', rows: [25, 29] },
   'profiles.edit': { target: tool('profile_options'), label: 'עריכת קבוצות ושדות פרופיל', rows: [27], bridge: 'Q4' },
   'people.lifecycle': { target: tool('identity_lifecycle'), label: 'מחזור חיים וחידושים', rows: [28] },
-  'access.reviews': { target: tool('access_reviews'), label: 'סקירות הרשאה תקופתיות', rows: [29] },
-  'access.compare': { target: tool('access_comparison'), label: 'השוואת הרשאות', rows: [29] },
-  'people.quality': { target: tool('data_quality'), label: 'איכות נתונים', rows: [29] },
+  // WISKEY-ACCESS-DIAG-2400: native in Arx ("אבחון הרשאות"); the server asks access.read at installation scope (people views: people.read)
+  'access.reviews': { target: tool('access_reviews'), label: 'סקירות הרשאה תקופתיות', rows: [29], native: { href: '#/wiskey/access-diag?view=reviews', need: ['access.read'] } },
+  'access.compare': { target: tool('access_comparison'), label: 'השוואת הרשאות', rows: [29], native: { href: '#/wiskey/access-diag?view=compare', need: ['access.read'] } },
+  'people.quality': { target: tool('data_quality'), label: 'איכות נתונים', rows: [29], native: { href: '#/wiskey/access-diag?view=quality', need: ['access.read'] } },
+  'access.scenario': { target: tab('users'), label: 'האם יכול לפתוח את הדלת עכשיו', rows: [29], native: { href: '#/wiskey/access-diag', need: ['access.read'] } },
+  'stations.permission_audit': { target: tool('audit'), label: 'ביקורת הרשאות עמדה', rows: [89], native: { href: '#/wiskey/access-diag?view=audit', need: ['access.read'] } },
   'visits.requests': { target: tool('visit_requests'), label: 'בקשות ביקור', rows: [30] },
   'visits.templates': { target: tool('guest_templates'), label: 'תבניות אורחים', rows: [30] },
   // ---- schedules
@@ -148,7 +155,7 @@ export const DEEP_LINKS: Readonly<Record<string, DeepLinkEntry>> = Object.freeze
 /** Which capabilities each place offers, in the order shown. A place lists only what an operator there would look for. */
 export const PLACES: Readonly<Record<DeepPlace, readonly string[]>> = Object.freeze({
   station: ['stations.technical', 'sync.run', 'health.fleet', 'clock.settings'],
-  stations: ['stations.technical', 'sync.run', 'alerts.act', 'health.fleet'],
+  stations: ['stations.technical', 'sync.run', 'alerts.act', 'health.fleet', 'access.scenario', 'stations.permission_audit'],
   people: ['people.unmanaged', 'profiles.edit', 'people.lifecycle', 'access.reviews', 'access.compare', 'people.quality'],
   schedules: ['schedules.edit', 'stations.technical'],
   'settings-status': ['sync.run', 'alerts.act', 'health.fleet', 'clock.settings', 'operations.center', 'operations.investigations', 'platform.center'],

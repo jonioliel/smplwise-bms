@@ -3,7 +3,7 @@ import { installStationsMock, newMock as newStationsMock, openStations, type Sta
 import { install as installPeople, newMock as newPeopleMock } from './wiskey-people-mock';
 import { installAccessMock, NOW as ACCESS_NOW, url as accessUrl, type MockOptions } from './access-control-mocks';
 import { FAKE_CATALOG, stubPanel, type FakeCatalog } from './wiskey-fake-ha';
-import { DEEP_LINKS, deepLinkHref } from '../src/wiskey/deep-links';
+import { DEEP_LINKS, linkFor } from '../src/wiskey/deep-links';
 
 // WISKEY-DEEPLINKS-2382 (integration plan task T18): the "no dead end" links from Arx places into the embedded intercom panel, behind
 // the real shell against MOCKED backends (tests/wiskey-stations-mocks.ts, wiskey-people-mock.ts, access-control-mocks.ts) and the
@@ -28,7 +28,8 @@ const FULL_CATALOG: FakeCatalog = {
 
 const links = (host: Locator) => host.locator('[data-wk-deeplink]');
 const hrefs = (host: Locator) => links(host).evaluateAll((as) => as.map((a) => `${a.getAttribute('data-wk-deeplink')}=${a.getAttribute('href')}`));
-const expected = (ids: string[]) => ids.map((id) => `${id}=${deepLinkHref(id)}`);
+// WISKEY-ACCESS-DIAG-2400: a capability a native Arx screen took over links there (linkFor), every other one into the panel
+const expected = (ids: string[]) => ids.map((id) => `${id}=${linkFor(id)}`);
 const hash = (page: Page) => page.evaluate(() => decodeURIComponent(location.hash));
 /** The tab / tool of the last frame address the fake panel was asked for. */
 const lastFrame = (hits: string[]) => {
@@ -71,7 +72,7 @@ test.describe('deep links: the stations and doors screen and the station drawer'
     await expect(host).toHaveAttribute('slot', 'actions');
     await expect(host.locator('[data-wk-deeplinks-list]')).toHaveCount(0); // closed until asked
     await openList(host);
-    expect(await hrefs(host)).toEqual(expected(['stations.technical', 'sync.run', 'alerts.act', 'health.fleet']));
+    expect(await hrefs(host)).toEqual(expected(['stations.technical', 'sync.run', 'alerts.act', 'health.fleet', 'access.scenario', 'stations.permission_audit']));
     expect(await links(host).allTextContents()).not.toContainEqual(expect.stringMatching(BANNED));
     // Escape closes and gives the focus back to the button
     await page.keyboard.press('Escape');
@@ -134,7 +135,7 @@ test.describe('deep links: the stations and doors screen and the station drawer'
     await expect(page.locator(`${STATIONS} [data-wk-stations][data-wk-state="ready"]`)).toBeVisible({ timeout: 30_000 });
     const host = page.locator(`${STATIONS} wk-deep-links[place="stations"]`);
     await openList(host);
-    expect(await hrefs(host)).toEqual(expected(['stations.technical', 'sync.run', 'health.fleet'])); // fleet_alerts is not in this catalog
+    expect(await hrefs(host)).toEqual(expected(['stations.technical', 'sync.run', 'health.fleet', 'access.scenario', 'stations.permission_audit'])); // fleet_alerts is not in this catalog
   });
 });
 
