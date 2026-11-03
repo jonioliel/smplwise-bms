@@ -57,8 +57,9 @@ test('one settings key style: the pill-thumb key, every part still a --sw-seg-* 
   const s = read('styles/settings.ts');
   expect(s).toContain('background: var(--sw-seg-track, var(--sw-surface-3));');
   expect(s).toContain('border-inline-start: var(--sw-seg-divider, 0 solid transparent);');
-  expect(s).toContain('background: var(--sw-seg-on-bg, var(--sw-seg-thumb, var(--sw-surface)));');
-  expect(s).toContain('color: var(--sw-seg-on-fg, var(--sw-accent-text));');
+  // GATE2370-B: dark draws the chosen key as the light pill (--sw-seg-key, measured in unit-dark-polish-beds); light is unchanged
+  expect(s).toContain('background: var(--sw-seg-on-bg, var(--sw-seg-key, var(--sw-surface)));');
+  expect(s).toContain('color: var(--sw-seg-on-fg, var(--sw-seg-key-ink, var(--sw-accent-text)));');
   expect(s).toContain('box-shadow: var(--sw-seg-on-shadow, var(--sw-seg-thumb-shadow, var(--sw-shadow-1)));');
   expect(s).not.toContain('var(--sw-seg-on-bg, var(--sw-accent))');
 });

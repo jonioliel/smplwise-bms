@@ -39,6 +39,10 @@ DEFAULTS: dict[str, str] = {
     # transcode = only the transcoded variant; off = the stream as it is. The recorder's own encoding is never changed (services/live_codec.py).
     "media.h265_policy": "auto",
     "media.h265_max_transcodes": "2",  # distinct transcoded streams at once (CPU on the go2rtc host); 0 = never transcode
+    # CAM-H264-VERIFY-2361 (owner 02.11 round 14): a bulk ENCODING change whose stream is refused by the NVR (that camera only) - skip = leave
+    # that stream as it is, list it and continue with the next one (default); stop = the CR-020 S2C rule, the whole change stops there.
+    # Never covers a permission loss, the recorder's write switch turned off, an unreachable / busy NVR or an unknown outcome: those always stop.
+    "nvr.batch_on_refusal": "skip",
     "snapshots.max_age_s": "60",
     # IANA zone of the site/NVR wall clock (chapter 20). The lab NVR reports windowsZone "Israel Standard Time".
     "time.zone": "Asia/Jerusalem",
@@ -787,6 +791,7 @@ class SettingsPatch(BaseModel):
     media_video_notices: str | None = Field(default=None, pattern="^(true|false)$", alias="media.video_notices")
     media_h265_policy: str | None = Field(default=None, pattern="^(auto|sub|transcode|off)$", alias="media.h265_policy")  # LIVE-H265-2341
     media_h265_max_transcodes: int | None = Field(default=None, ge=0, le=16, alias="media.h265_max_transcodes")
+    nvr_batch_on_refusal: str | None = Field(default=None, pattern="^(skip|stop)$", alias="nvr.batch_on_refusal")  # CAM-H264-VERIFY-2361
     nvr_privacy_mask_write: str | None = Field(default=None, pattern="^(true|false)$", alias="nvr.privacy_mask_write")  # NVRMASK-295
     nvr_privacy_mask_copy: str | None = Field(default=None, pattern="^(true|false)$", alias="nvr.privacy_mask_copy")  # MASKCOPY62-295
     snapshots_max_age_s: int | None = Field(default=None, ge=5, le=3600, alias="snapshots.max_age_s")

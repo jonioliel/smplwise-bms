@@ -51,6 +51,35 @@ export function inPageClip(args: { ctx: string; within: string }): Finding[] {
     for (let p: Node | null = el; p; p = p instanceof ShadowRoot ? p.host : (p as Element).assignedSlot ?? p.parentNode) if (p instanceof Element && p.matches(args.within)) return true;
     return false;
   };
+  // GATE2370-A: an invisible hit ring - an empty, unpainted, absolutely placed ::before / ::after on a positioned key (the corner pill's
+  // `.float button::after { inset: -8px }`, 28 + 16 = 44 px, POLISH4-WP1 D1) - draws nothing, yet Chromium counts its end-side bleed in
+  // scrollWidth of the key and of every box around it. The check already skips a box with an absolutely placed ELEMENT inside; it cannot
+  // see pseudo-elements. So the sideways overflow that such rings explain - and only that much - is not "content wider than its box".
+  const ringBleed = (el: HTMLElement): number => {
+    const er = el.getBoundingClientRect();
+    const ecs = getComputedStyle(el);
+    const boxLeft = er.left + parseFloat(ecs.borderLeftWidth);
+    const boxRight = boxLeft + el.clientWidth;
+    const rtl = ecs.direction === 'rtl';
+    let bleed = 0;
+    for (const host of [el, ...Array.from(el.querySelectorAll('*'))]) {
+      const hcs = getComputedStyle(host);
+      if (hcs.position === 'static') continue; // the ring's containing block must be the host's own padding box
+      const hr = host.getBoundingClientRect();
+      for (const pseudo of ['::before', '::after']) {
+        const p = getComputedStyle(host, pseudo);
+        if (p.content !== '""' || !/absolute/.test(p.position)) continue;
+        const unpainted = /^(transparent|rgba\(0, 0, 0, 0\))$/.test(p.backgroundColor) && p.backgroundImage === 'none' && p.boxShadow === 'none'
+          && ['Top', 'Right', 'Bottom', 'Left'].every((s) => parseFloat(p.getPropertyValue(`border-${s.toLowerCase()}-width`)) === 0 || p.getPropertyValue(`border-${s.toLowerCase()}-style`) === 'none')
+          && (p.outlineStyle === 'none' || parseFloat(p.outlineWidth) === 0);
+        if (!unpainted || p.left === 'auto' || p.right === 'auto') continue;
+        const left = hr.left + parseFloat(hcs.borderLeftWidth) + parseFloat(p.left);
+        const right = hr.right - parseFloat(hcs.borderRightWidth) - parseFloat(p.right);
+        bleed = Math.max(bleed, rtl ? boxLeft - left : right - boxRight);
+      }
+    }
+    return bleed;
+  };
   const seen = new Set<string>();
   for (const el of all) {
     if (!(el instanceof HTMLElement) || /^(INPUT|TEXTAREA|SELECT|OPTION|STYLE|SCRIPT)$/.test(el.tagName) || el.closest('svg') || el.classList.contains('vh') || el.classList.contains('sr') || el.classList.contains('reg') || el.classList.contains('handle') || el.classList.contains('ghost') || !inside(el)) continue;
@@ -59,7 +88,7 @@ export function inPageClip(args: { ctx: string; within: string }): Finding[] {
     const cs = getComputedStyle(el);
     if (cs.visibility === 'hidden' || cs.display === 'contents') continue;
     const rail = /auto|scroll/.test(cs.overflowX) && cs.display === 'flex' && cs.flexDirection === 'row'; // a designed swipe rail
-    if (el.scrollWidth > el.clientWidth + 1 && el.clientWidth > 0 && !rail && !Array.from(el.querySelectorAll('*')).some((c) => /absolute|fixed/.test(getComputedStyle(c).position)) && cs.textOverflow !== 'ellipsis' && !/^(sw-|html|body)/i.test(el.tagName) && cs.display !== 'inline') {
+    if (el.scrollWidth > el.clientWidth + 1 && el.clientWidth > 0 && !rail && !Array.from(el.querySelectorAll('*')).some((c) => /absolute|fixed/.test(getComputedStyle(c).position)) && cs.textOverflow !== 'ellipsis' && !/^(sw-|html|body)/i.test(el.tagName) && cs.display !== 'inline' && el.scrollWidth - el.clientWidth > ringBleed(el) + 1) {
       const k = `scroll|${name(el)}`;
       if (!seen.has(k)) { seen.add(k); out.push({ cls: 'clipped', el: name(el), detail: `content ${el.scrollWidth}px wider than box ${el.clientWidth}px (overflow-x ${cs.overflowX})`, ctx: args.ctx }); }
     }

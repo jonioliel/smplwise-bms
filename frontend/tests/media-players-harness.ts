@@ -352,6 +352,9 @@ export async function open(page: Page, hash: string, size: Size = '1440') {
   await page.goto('about:blank');
   await page.goto(`/?design=a#${hash}`);
   await page.waitForSelector('sw-app');
+  // PERF-HOME-DEVICES-2342 (2.34.2): the route screens are lazy chunks; the shell sets data-shell-ready once the route's chunk landed
+  // (GATE2360-A: the 450 ms below used to start when the screen was already there - now it starts when it is)
+  await page.locator('sw-app[data-shell-ready]').waitFor({ state: 'attached', timeout: 20_000 }).catch(() => undefined);
   await page.waitForTimeout(450);
 }
 

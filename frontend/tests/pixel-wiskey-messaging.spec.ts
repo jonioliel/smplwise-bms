@@ -221,6 +221,11 @@ test.describe('pixel: the Settings page "הודעות"', () => {
     await p2.locator(`${MSG} [data-msg-setting="bulk_max"]`).fill('0');
     await p2.locator(`${MSG} [data-msg-save]`).click();
     await expect(p2.locator(`${MSG} [data-msg-notice="invalid"]`)).toBeVisible();
+    // GATE2370-D: on a phone the save row is sticky (POLISH4-WP8), so the click no longer scrolls the page to its end and the scroll
+    // position was whatever the fills left (it drifted by 3 px between runs); the picture is the rejected field with its problem, centred
+    if (info.project.name === 'mobile') {
+      await p2.locator(`${MSG} [data-msg-setting="bulk_max"]`).evaluate((el) => el.scrollIntoView({ block: 'center', behavior: 'instant' }));
+    }
     await compare(p2, info, 'settings-classic-errors');
     const p3 = await page.context().newPage();
     await openSettings(p3, 'classic', 'light', { service: { state: 'ready', connected: false, accounts: [], problem: null, last_error: null } });

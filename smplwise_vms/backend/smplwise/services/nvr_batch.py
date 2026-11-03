@@ -35,6 +35,17 @@ longer writes the constant BATCH_FIELDS but its own planned change, read from it
 new codec's options (`write_stream(options_codec=)`). The batch record carries `mode` (`svc` | `encoding`) and `settings`;
 status items carry `fields`. Every rule above applies unchanged to both modes.
 
+CAM-H264-VERIFY-2361 (owner 2026-11-02, round 14): an ENCODING batch (and its undo) carries `on_refusal` (`skip` | `stop`), taken
+from the setting `nvr.batch_on_refusal` (default `skip`) or the start's body when the batch is created. `skip` relaxes the S2C rule
+above for ONE kind of failure only - the NVR refused or ignored THIS stream (SKIP_CODES: not supported / rejected / no effect /
+capabilities / stale / not found / invalid for the device): the item keeps its refused / failed / no_effect row, its id is listed in
+`meta.skipped`, one `phase: skip` audit row is written, and the runner takes the next stream. Everything else still stops the batch:
+a permission loss, the recorder's write switch turned off (also when the refusal came from the adapter), a busy or unreachable NVR, a
+deadline, an unknown outcome (the unknown rule above), a partial change (`diverged`). An SVC batch keeps `stop` always. Rollback per
+stream is unchanged: a skipped stream has no `applied` row, so the undo never touches it; a skipped UNDO leaves its source row
+`applied`, so a second undo of the same batch retries exactly the streams that are still changed. After the batch ends the runner
+runs the read-only verification pass (services/nvr_verify.py) in the same thread before it exits.
+
 Single process (review finding 13): the add-on runs ONE worker process. `_live` (the runners of this process) is the
 source of truth for "is this runner alive"; start-up recovery interrupts every batch left running. A second worker would
 interrupt another worker's live batch at its start-up and could not see its runners - it would need a per-process id with
@@ -71,6 +82,13 @@ log = logging.getLogger(__name__)
 WRITE_PERMISSION = nvr_settings.WRITE_PERMISSION
 BATCH_FIELDS: dict[str, Any] = {"svc": False}  # the allow-list v1: exactly this change
 MIN_TARGETS = 2  # one camera is the single route
+REFUSAL_KEY = "nvr.batch_on_refusal"  # CAM-H264-VERIFY-2361: skip (default) | stop
+REFUSAL_POLICIES = ("skip", "stop")
+DEFAULT_REFUSAL = "skip"
+# CAM-H264-VERIFY-2361: the refusals of ONE stream that `on_refusal: skip` steps over (the NVR said no to this camera / ignored the
+# change). Never: forbidden, writes_disabled, nvr_busy, source_unavailable / source_timeout, deadline, outcome unknown, diverged.
+SKIP_CODES = frozenset({"nvr_not_supported", "nvr_rejected", "nvr_no_effect", "no_effect", "capabilities_unreadable", "stale", "not_found", "validation",
+                        "not_rollbackable", "device_refused"})
 MAX_TARGETS = 1024  # an input-size guard against an abusive body, not a product cap (a recorder has at most 256 channels here)
 BEAT_STALE_S = 180  # a running batch whose heartbeat is older than this and whose runner is not in this process is interrupted
 BEAT_EVERY_S = 20.0
@@ -270,7 +288,15 @@ def item_changes(r: sqlite3.Row) -> dict[str, Any]:
     return out
 
 
-def _item(r: sqlite3.Row) -> dict[str, Any]:
+def refusal_policy(conn: sqlite3.Connection, override: Any = None) -> str:
+    """CAM-H264-VERIFY-2361: the batch's answer to a refused stream - the start's own choice, else the installation setting."""
+    if override in REFUSAL_POLICIES:
+        return str(override)
+    v = get_setting(conn, REFUSAL_KEY)
+    return v if v in REFUSAL_POLICIES else DEFAULT_REFUSAL
+
+
+def _item(r: sqlite3.Row, skipped: set[str] | None = None, verify: dict[str, Any] | None = None) -> dict[str, Any]:
     status = _item_status(r)
     code = r["error"] if r["error"] and r["error"] != status else None
     message = ERROR_MESSAGES.get(code or "", None) if code else None
@@ -278,7 +304,14 @@ def _item(r: sqlite3.Row) -> dict[str, Any]:
         message = MESSAGES.get(status) or ("השינוי נדחה." if status == "refused" else "השינוי נכשל.")
     return {"index": r["batch_index"], "camera_id": r["camera_id"], "stream_ref": r["stream_ref"], "status": status, "change_id": r["id"],
             "rollback_of": r["rollback_of"], "error_code": code, "user_message": message, "reboot_required": bool(r["reboot_required"]),
-            "fields": _fields_of(r)}
+            "fields": _fields_of(r), "skipped": str(r["id"]) in (skipped or set()),
+            "verify": _verify_item(verify, str(r["id"]))}
+
+
+def _verify_item(rec: dict[str, Any] | None, change_id: str) -> dict[str, Any] | None:
+    from . import nvr_verify  # late: nvr_verify imports this module
+
+    return nvr_verify.item_report(rec, change_id)
 
 
 # ------------------------------------------------------------------------------------------------ create
@@ -455,8 +488,10 @@ def create_rollback_batch(conn: sqlite3.Connection, db: Any, settings: Settings,
             orig = {}
         items.append({"camera_id": r["camera_id"], "stream_ref": r["stream_ref"], "etag": r["etag_after"], "rollback_of": r["id"], "note": f"החזר של {r['id']}",
                       "fields": {k: [v[1], v[0]] for k, v in orig.items() if isinstance(v, list) and len(v) == 2}})
+    mode = meta.get("mode") or "svc"
+    extra = {"on_refusal": refusal_policy(conn), "roles": meta.get("roles") or {}} if mode == "encoding" else {}  # CAM-H264-VERIFY-2361
     bid = _new_batch(conn, principal, kind="rollback", rid=rid, key=key, items=items, request_id=request_id, source_batch_id=source_id,
-                     extra_meta={"mode": meta.get("mode") or "svc", **({"settings": meta["settings"]} if meta.get("settings") else {})})
+                     extra_meta={"mode": mode, **({"settings": meta["settings"]} if meta.get("settings") else {}), **extra})
     _audit_batch(conn, principal, "rollback", "allowed", rid, {"phase": "attempt", "batch_id": bid, "source_batch_id": source_id, "total": len(items),
                                                                 "targets": [{"camera_id": r["camera_id"], "stream_ref": r["stream_ref"], "rollback_of": r["id"]} for r in applied]},
                  request_id=request_id)
@@ -480,7 +515,11 @@ def batch_status(conn: sqlite3.Connection, principal: Any, batch_id: str, *, off
     offset = max(0, int(offset))
     scope = camera_scope(conn, principal, WRITE_PERMISSION)
     page = conn.execute("SELECT * FROM nvr_changes WHERE batch_id = ? ORDER BY batch_index LIMIT ? OFFSET ?", (batch_id, limit, offset)).fetchall()
-    items = [_item(r) for r in page if scope.allows(r["camera_id"])]
+    from . import nvr_verify  # late: nvr_verify imports this module
+
+    skipped = {str(x) for x in (meta.get("skipped") or [])}
+    vrec = nvr_verify.load(conn, batch_id) if meta.get("mode") == "encoding" else None
+    items = [_item(r, skipped, vrec) for r in page if scope.allows(r["camera_id"])]
     counts = _counts(conn, batch_id)
     total = int(meta.get("total") or sum(counts.values()))
     cur = conn.execute("SELECT batch_index FROM nvr_changes WHERE batch_id = ? AND status = 'pending' ORDER BY batch_index LIMIT 1", (batch_id,)).fetchone()
@@ -495,6 +534,9 @@ def batch_status(conn: sqlite3.Connection, principal: Any, batch_id: str, *, off
         "created_at": meta.get("created_at"), "started_by": meta.get("actor_username"), "stopped_at": meta.get("stopped_at"),
         "stopped_reason": meta.get("stopped_reason"), "source_batch_id": meta.get("source_batch_id"),
         "mode": meta.get("mode") or "svc", "settings": meta.get("settings"),
+        # CAM-H264-VERIFY-2361: the refusal policy of this batch, the streams it stepped over, the verification report (encoding only)
+        "on_refusal": meta.get("on_refusal") or "stop", "skipped": len(skipped),
+        "verify": nvr_verify.report(conn, batch_id, meta, lambda cid: scope.allows(cid)),
         "can_rollback": meta.get("kind") == "write" and state != "running" and counts.get("applied", 0) > 0
                         and not counts.get("running") and not counts.get("unknown") and not counts.get("queued"),
     }
@@ -576,6 +618,10 @@ def _run(db: Any, settings: Settings, principal: Any, batch_id: str) -> None:
             _finish(db, principal, batch_id, reason)
         except Exception:  # noqa: BLE001 - the recovery pass (start-up / janitor) settles it then
             log.exception("nvr batch %s: could not record the end", batch_id)
+        if reason not in ("abandoned", "shutdown") and not _shutdown.is_set():
+            from . import nvr_verify  # late: nvr_verify imports this module
+
+            nvr_verify.after_batch(db, settings, batch_id)  # CAM-H264-VERIFY-2361: read-only; an encoding batch only; never raises
         with _live_lock:
             _live.pop(batch_id, None)
             _item_started.pop(batch_id, None)
@@ -677,6 +723,9 @@ def _loop(db: Any, settings: Settings, principal: Any, batch_id: str) -> str | N
                         continue
                     code = "forbidden" if error.status == 403 else error.code[:64]
                     conn.execute("UPDATE nvr_changes SET status = 'refused', error = ? WHERE id = ?", (code, row["id"]))
+                    if not timed_out and _may_skip(conn, settings, meta, code, error):
+                        _skip_item(conn, principal, batch_id, row, code)
+                        continue
                     return "forbidden" if code == "forbidden" else ("deadline" if timed_out else "item_refused")
                 if status == "not_attempted":  # a user stop (or an abandonment) won the race for the claim
                     return None
@@ -685,6 +734,10 @@ def _loop(db: Any, settings: Settings, principal: Any, batch_id: str) -> str | N
                 if status == "pending":
                     unknown_id = str(row["id"])
                 else:
+                    code = str((error.code if error is not None else None) or cur["error"] or status)[:64]
+                    if not timed_out and status in ("refused", "failed", "no_effect") and _may_skip(conn, settings, meta, code, error):
+                        _skip_item(conn, principal, batch_id, row, code)
+                        continue
                     return "deadline" if timed_out else "item_failed"
         finally:
             _item_ends(batch_id)
@@ -692,6 +745,33 @@ def _loop(db: Any, settings: Settings, principal: Any, batch_id: str) -> str | N
             verdict = _check_unknown(db, settings, principal, batch_id, unknown_id)
             if verdict != "applied":
                 return verdict
+
+
+def _may_skip(conn: sqlite3.Connection, settings: Settings, meta: dict[str, Any], code: str, error: ApiError | None) -> bool:
+    """CAM-H264-VERIFY-2361: whether this refusal of ONE stream is stepped over (`on_refusal: skip` of an encoding batch, a SKIP_CODES
+    refusal, the recorder's write switch still on - read now, so a switch turned off mid-batch still stops it)."""
+    if meta.get("mode") != "encoding" or meta.get("on_refusal") != "skip" or code not in SKIP_CODES:
+        return False
+    if error is not None and (error.details or {}).get("reason") == "writes_disabled":
+        return False
+    try:
+        adapter: Any = registry.adapter_for(conn, settings, str(meta.get("recorder_id")))  # builds only, no device call
+    except ApiError:
+        return False
+    return getattr(adapter, "writes_enabled", True) is not False
+
+
+def _skip_item(conn: sqlite3.Connection, principal: Any, batch_id: str, row: sqlite3.Row, code: str) -> None:
+    """The refused stream stays as the NVR left it (its row keeps the refusal); the batch lists it and goes on (one audit row)."""
+    meta = _meta(conn, batch_id) or {}
+    skipped = [str(x) for x in (meta.get("skipped") or [])]
+    if str(row["id"]) not in skipped:
+        skipped.append(str(row["id"]))
+    meta["skipped"] = skipped
+    _save_meta(conn, batch_id, meta)
+    _audit_batch(conn, principal, str(meta.get("kind") or "write"), "denied", str(meta.get("recorder_id") or "*"),
+                 {"phase": "skip", "batch_id": batch_id, "change_id": row["id"], "index": row["batch_index"], "camera_id": row["camera_id"],
+                  "stream_ref": row["stream_ref"], "code": code}, reason=code, request_id=meta.get("request_id"))
 
 
 def _check_unknown(db: Any, settings: Settings, principal: Any, batch_id: str, change_id: str) -> str:

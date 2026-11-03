@@ -6,7 +6,8 @@ import path from 'node:path';
 // "פעולות מהירות" at 1920 / 1440 - the fixed 52 px room under the content lost to the band's fit steps and was too short for a bar that
 // wraps in a narrow card. Each card now keeps its bar's measured height free. This spec mounts the REAL band (one <home-widgets>) in
 // edit mode through the widget-break harness, in every direction and fit step the home uses, and checks that no part of a card's
-// content reaches under its edit bar and that the bar stays inside its card. Geometry only, no pixel baseline.
+// content reaches under its edit bar and that the bar stays inside its card. Geometry only, no pixel baseline. "Content" is what is
+// drawn: a box is clipped by the card and by any element between them that clips its overflow (GATE2370-C).
 // Needs the Vite DEV server (the harness imports /src/; a preview build has no tests/ page, the gate's classifier reads this line).
 //   SW_BASE_URL=http://127.0.0.1:<port>/ npx playwright test tests/layout-home-edit-bar-wp4.spec.ts --project=desktop
 // WF_SHOTS=<dir> also writes a screenshot per case.
@@ -53,11 +54,27 @@ async function overlaps(page: Page): Promise<string[]> {
         if (cs.display === 'none' || cs.visibility === 'hidden') continue;
         const r = e.getBoundingClientRect();
         if (!r.width || !r.height) continue;
-        // only what is drawn inside the card counts (a clipped part of the card is not under the bar)
-        const top = Math.max(r.top, c.top);
-        const bottom = Math.min(r.bottom, c.bottom);
-        if (bottom <= top) continue;
-        if (bottom > b.top + 1 && r.right > b.left && r.left < b.right) {
+        // only what is drawn counts: the element's box clipped by the card and by every element between them that clips its overflow
+        // (GATE2370-C: the row band's weather forecast puts the days that do not fit on a second grid row of height 0 inside a
+        // `overflow: hidden` .wx-fc - those labels are never drawn, yet their boxes sit under the bar; an svg clips its own content too)
+        let top = Math.max(r.top, c.top);
+        let bottom = Math.min(r.bottom, c.bottom);
+        let left = r.left;
+        let right = r.right;
+        for (let p = e.parentElement; p && p !== card; p = p.parentElement) {
+          const pcs = getComputedStyle(p);
+          const pr = p.getBoundingClientRect();
+          if (pcs.overflowY !== 'visible') {
+            top = Math.max(top, pr.top);
+            bottom = Math.min(bottom, pr.bottom);
+          }
+          if (pcs.overflowX !== 'visible') {
+            left = Math.max(left, pr.left);
+            right = Math.min(right, pr.right);
+          }
+        }
+        if (bottom <= top || right <= left) continue;
+        if (bottom > b.top + 1 && right > b.left && left < b.right) {
           out.push(`${id}: ${e.tagName.toLowerCase()}.${(typeof e.className === 'string' ? e.className : '').split(' ')[0]} reaches ${Math.round(bottom - b.top)} px under the bar`);
           break;
         }

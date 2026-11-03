@@ -11,10 +11,12 @@ import './nvr-confirm';
 import './nvr-undo-toast';
 import './nvr-camera-batch';
 import './nvr-encoding-batch';
+import './nvr-verify-report';
 import { keyed } from 'lit/directives/keyed.js';
 import type { Batch } from '../api/nvr-batch';
 import type { NvrCameraBatch, CameraInfo } from './nvr-camera-batch';
 import type { NvrEncodingBatch } from './nvr-encoding-batch';
+import type { NvrVerifyReport } from './nvr-verify-report';
 import { encodingStreams } from './nvr-encoding-logic';
 import { batchCandidates, doneToast, tally } from './nvr-batch-logic';
 import { undoLabel } from './nvr-h264-preset';
@@ -851,6 +853,14 @@ export class SystemSecurityCameras extends LitElement {
   }
 
   /** "שינוי קידוד לכמה מצלמות": the toolbar's button and the multi-camera checklist's link. */
+  /** CAM-H264-VERIFY-2361: the verification report of an encoding change (`null`: the list of earlier reports). */
+  private openReport(batchId: string | null) {
+    const el = this.renderRoot.querySelector<NvrVerifyReport>('nvr-verify-report');
+    if (!el) return;
+    if (batchId) void el.show(batchId);
+    else void el.showList();
+  }
+
   private openEncoding() {
     if (this.batchRunning) return;
     this.toast = null;
@@ -1155,10 +1165,13 @@ export class SystemSecurityCameras extends LitElement {
       @batch-change=${(e: CustomEvent<{ batch: Batch | null }>) => (this.batch = e.detail.batch)}
       @batch-finished=${(e: CustomEvent<{ batch: Batch }>) => this.onBatchFinished(e.detail.batch)}
       @batch-refresh=${() => void this.load()}
+      @verify-report=${(e: CustomEvent<{ batchId: string }>) => this.openReport(e.detail.batchId)}
       @encoding-open=${() => this.openEncoding()}></nvr-camera-batch>
       ${d.can_batch === true
         ? html`<nvr-encoding-batch .rows=${encodingStreams(d.cameras, this.details, d.stale)} .details=${this.details}
-            @encoding-started=${(e: CustomEvent<{ batch: Batch }>) => void this.batchEl()?.followBatch(e.detail.batch)}></nvr-encoding-batch>`
+            @verify-reports=${() => this.openReport(null)}
+            @encoding-started=${(e: CustomEvent<{ batch: Batch }>) => void this.batchEl()?.followBatch(e.detail.batch)}></nvr-encoding-batch>
+          <nvr-verify-report .info=${this.cameraInfo()} .streams=${this.streamRoles()}></nvr-verify-report>`
         : nothing}`;
   }
 

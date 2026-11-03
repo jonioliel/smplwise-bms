@@ -176,13 +176,23 @@ def parse_preview_body(body: Any) -> tuple[dict[str, Any], list[Target], str | N
 
 
 def parse_start_body(body: Any) -> tuple[dict[str, Any], list[Target], str | None]:
-    """`confirm` first (only the JSON literal true; a missing confirmation never reaches a device read), then the shape."""
+    """`confirm` first (only the JSON literal true; a missing confirmation never reaches a device read), then the shape. The optional
+    `on_refusal` (CAM-H264-VERIFY-2361) is read by `parse_on_refusal`."""
     if not isinstance(body, dict) or body.get("confirm") is not True:
         raise ApiError(422, "confirm_required", "יש לאשר את השינוי.")
-    extra = set(body) - {"confirm", "settings", "targets", "recorder_id"}
+    extra = set(body) - {"confirm", "settings", "targets", "recorder_id", "on_refusal"}
     if extra:
         raise _invalid("בקשה לא תקינה.", extra=sorted(str(k)[:32] for k in extra)[:5])
+    parse_on_refusal(body)
     return parse_settings(body.get("settings")), parse_targets(body.get("targets"), planned=True), parse_recorder(body.get("recorder_id"))
+
+
+def parse_on_refusal(body: Any) -> str | None:
+    """CAM-H264-VERIFY-2361: `on_refusal` of the start - "skip" | "stop", absent = the installation setting `nvr.batch_on_refusal`."""
+    v = body.get("on_refusal") if isinstance(body, dict) else None
+    if v is not None and v not in nvr_batch.REFUSAL_POLICIES:
+        raise _invalid("ערך לא תקין.", field="on_refusal")
+    return v
 
 
 # ------------------------------------------------------------------------------------------------ the plan (pure)
@@ -474,11 +484,12 @@ def preview(conn: sqlite3.Connection, settings: Settings, principal: Any, target
     nvr_batch._audit_batch(conn, principal, "preview", "allowed", rid, {"phase": "preview", "mode": MODE, "settings": target, "targets": len(targets), **summary},
                            request_id=request_id)
     running = conn.execute("SELECT 1 FROM settings WHERE key = ?", (nvr_batch.lock_key(conn, settings, rid),)).fetchone() is not None
-    return {"recorder_id": rid, "settings": target, "items": items, **summary, "batch_in_progress": running}
+    return {"recorder_id": rid, "settings": target, "items": items, **summary, "batch_in_progress": running,
+            "on_refusal": nvr_batch.refusal_policy(conn)}  # CAM-H264-VERIFY-2361: the default the confirmation shows
 
 
 def create_encoding_batch(conn: sqlite3.Connection, db: Any, settings: Settings, principal: Any, target: dict[str, Any], targets: list[Target],
-                          recorder_id: str | None, *, request_id: str | None = None) -> dict[str, Any]:
+                          recorder_id: str | None, *, request_id: str | None = None, on_refusal: str | None = None) -> dict[str, Any]:
     """`POST /nvr/encoding-batches`. The caller has checked `nvr.configure` at installation, parsed the body (confirm first)
     and authorized every target camera. Re-plans from a fresh read: every target must still be a planned change, with the
     etag and the exact change the person confirmed; then the phase C placeholders, ONE `nvr.stream.batch` attempt row
@@ -505,9 +516,13 @@ def create_encoding_batch(conn: sqlite3.Connection, db: Any, settings: Settings,
     except ApiError as exc:
         raise nvr_batch.refuse(conn, principal, exc, request_id, recorder_id=rid, targets=len(targets), mode=MODE) from None
     items = [{"camera_id": t.camera_id, "stream_ref": t.stream_ref, "etag": t.if_match, "fields": p["fields"]} for t, p in zip(targets, plans)]
-    bid = nvr_batch._new_batch(conn, principal, kind="write", rid=rid, key=key, items=items, request_id=request_id, extra_meta={"mode": MODE, "settings": target})
+    # CAM-H264-VERIFY-2361: the refusal policy is fixed for the batch's life; the role of each stream names its go2rtc stream for the media check
+    policy = nvr_batch.refusal_policy(conn, on_refusal)
+    roles = {t.stream_ref: p["role"] for t, p in zip(targets, plans) if p.get("role") in ("main", "sub")}
+    bid = nvr_batch._new_batch(conn, principal, kind="write", rid=rid, key=key, items=items, request_id=request_id,
+                               extra_meta={"mode": MODE, "settings": target, "on_refusal": policy, "roles": roles})
     nvr_batch._audit_batch(conn, principal, "write", "allowed", rid, {
-        "phase": "attempt", "mode": MODE, "batch_id": bid, "total": len(items), "settings": target,
+        "phase": "attempt", "mode": MODE, "batch_id": bid, "total": len(items), "settings": target, "on_refusal": policy,
         "fields": sorted({k for p in plans for k in p["fields"]}), "targets": [{"camera_id": t.camera_id, "stream_ref": t.stream_ref} for t in targets],
     }, request_id=request_id)
     commit_now(conn)  # the rows exist before the runner looks for them

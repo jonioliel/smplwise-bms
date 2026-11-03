@@ -90,6 +90,12 @@ def world(settings, monkeypatch):
     pdfseam.set_renderer(None)  # the real renderer (services/bill_pdf)
     monkeypatch.setattr(eb, "now_utc", lambda: dt.datetime(2026, 10, 2, 9, 0, tzinfo=UTC))
     monkeypatch.setattr(eb, "AUTO_EVERY_S", 10**9)
+    # GATE2360-B: the pipeline test checks WeasyPrint's output (the draft / copy marks, fonts, the chart text), not its speed; on the
+    # loaded gate machine a correct render crossed the 5 s slow-render rule of `auto` and the copy came out of fpdf2, whose rotated
+    # watermark pdftotext does not read back as "העתק". Same budget as test_bill_pdf / test_energy_tou_billing; the hard timeout stays
+    # bounded and the fallback keeps its own tests (test_bill_pdf).
+    monkeypatch.setenv("SW_BILL_PDF_FALLBACK_S", "60")
+    monkeypatch.setenv("SW_BILL_PDF_TIMEOUT_S", "90")
     c = TestClient(create_app(settings))
     assert c.get("/api/v1/me").status_code == 200  # bootstrap: system_admin
     db = Database(settings.db_path)

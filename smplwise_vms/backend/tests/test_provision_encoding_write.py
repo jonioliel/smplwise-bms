@@ -373,17 +373,26 @@ def test_bulk_batch_v2_sends_partial_items_per_stream(pw):
     assert [b.count("<item id=") for b in fake.set_bodies] == [1, 1] and all("<GOP>40</GOP>" in b and "<frameRate>" not in b for b in fake.set_bodies)
 
 
-def test_bulk_batch_stops_at_a_refusing_camera_and_the_next_preview_skips_it(pw):
+@pytest.mark.parametrize("policy", ["stop", "skip"])
+def test_bulk_batch_stops_at_a_refusing_camera_and_the_next_preview_skips_it(pw, policy):
+    """CAM-H264-VERIFY-2361: `stop` keeps the CR-020 S2C rule; `skip` (the owner's default since 2026-11-02) leaves the refusing camera as it
+    is, lists it and continues. Either way the refusing channel is written once and never retried."""
     app, c, fake, ids, s = pw
     fake.set_refused = {2: 4}  # R2: the NVR does not pass writes to channel 2
+    assert c.patch("/api/v1/settings", json={"nvr.batch_on_refusal": policy}).status_code == 200
     target = {"gop": 30}
     p = c.post(PREVIEW, json={"settings": target, "targets": refs(ids, (1, 2, 3))}).json()
     r = c.post(START, json={"confirm": True, "settings": target, "targets": planned(p)})
     assert r.status_code == 202, r.text
     done = wait_done(c, r.json()["batch_id"])
-    assert done["state"] == "failed"
-    assert [(i["status"], i["error_code"]) for i in done["items"]] == [("applied", None), ("refused", "nvr_not_supported"), ("not_attempted", "earlier_failure")]
-    assert fake.writes == ["SetVideoStreamConfig", "SetVideoStreamConfig"], "channel 3 was never attempted, channel 2 never retried"
+    if policy == "stop":
+        assert done["state"] == "failed"
+        assert [(i["status"], i["error_code"]) for i in done["items"]] == [("applied", None), ("refused", "nvr_not_supported"), ("not_attempted", "earlier_failure")]
+        assert fake.writes == ["SetVideoStreamConfig", "SetVideoStreamConfig"], "channel 3 was never attempted, channel 2 never retried"
+    else:
+        assert (done["state"], done["skipped"]) == ("completed", 1)
+        assert [(i["status"], i["error_code"], i["skipped"]) for i in done["items"]] == [("applied", None, False), ("refused", "nvr_not_supported", True), ("applied", None, False)]
+        assert fake.writes == ["SetVideoStreamConfig"] * 3, "channel 2 tried once and skipped, channel 3 applied"
     p2 = c.post(PREVIEW, json={"settings": {"gop": 31}, "targets": refs(ids, (1, 2, 3))}).json()
     st = {i["stream_ref"]: (i["status"], i["reason"]) for i in p2["items"]}
     assert st["201"] == ("skip", "device_refused") and st["101"][0] == "change" and st["301"][0] == "change"

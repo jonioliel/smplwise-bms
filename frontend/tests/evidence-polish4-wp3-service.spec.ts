@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { installTicketsMock, url } from './tickets-mocks';
 import { installS4Mock } from './tickets-s4-mocks';
+import { settle } from './helpers/settle';
 
 // POLISH ROUND 4, WP3 (service area): the ticket full screen waits on a skeleton and fails into the shared panel with "try again" (D3);
 // the handlers page stands on the request list's toolbar (D4): the departments behind the "סינון" panel with an active chip, the keys
@@ -80,6 +81,8 @@ test.describe('WP3 service: handlers on the list toolbar (D4)', () => {
       await toggle.click();
       const panel = page.locator(`${H} [data-filter-panel]`);
       await expect(panel).toBeVisible();
+      // the panel may open with a transition: measure it at rest
+      await settle(page);
       const pb = (await panel.boundingBox())!;
       expect(pb.x, 'the panel stays inside the screen').toBeGreaterThanOrEqual(-1);
       expect(pb.x + pb.width, 'the panel stays inside the screen').toBeLessThanOrEqual(vw + 1);
@@ -93,7 +96,8 @@ test.describe('WP3 service: handlers on the list toolbar (D4)', () => {
       await expect(page.locator(`${H} [data-active-chip]`)).toHaveCount(0);
       await expect(page.locator(`${H} tickets-handlers-members [data-member="user:u-ronit"]`)).toBeVisible();
       if (info.project.name === 'mobile') {
-        // one row of 44 px keys: the search, the filter and the "new" plus; the segments on the row above
+        // one row of 44 px keys: the search, the filter and the "new" plus; the segments on the row above (measured at rest)
+        await settle(page);
         const search = (await page.locator(`${H} .search`).boundingBox())!;
         const filter = (await toggle.boundingBox())!;
         const add = (await page.locator(`${H} [data-handlers-new]`).boundingBox())!;
