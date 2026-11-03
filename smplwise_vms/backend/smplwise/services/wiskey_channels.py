@@ -92,10 +92,22 @@ PACING = frozenset({"whatsapp/pacing_status_v1"})
 # as an unsigned frame on the feed's session. `W10_COMMANDS` names them so a test can prove no guard lets one through.
 W10_COMMANDS = frozenset(wiskey_media_contract.COMMANDS)
 UNPINNED_CHANNELS = frozenset({"readback", "pacing"})
+# WISKEY-SCHED-WRITE-2390 (plan 2026-11-03 T7): the device schedule LIBRARY's write side (services/wiskey_schedule_writes.py) - library
+# create / update / delete / import / export, the station reads before an apply (readiness, dependencies, assess), comparison baselines,
+# deployment proposals, responsibility claims and deployment jobs. Installation-wide in WisKey (`management: view` / `manage`). Not the
+# per-door technical hold (`stations/technical_*`, task T6) and not the three list reads (they stay on `read`). Same socket and identity
+# as `service`, a guard of its own, so no other channel can carry these and this guard carries nothing else.
+SCHEDULES = frozenset({
+    "schedules/preview", "schedules/create", "schedules/update", "schedules/delete", "schedules/export", "schedules/import_preview",
+    "schedules/import_apply", "schedules/readiness", "schedules/dependencies", "schedules/assess", "schedules/baseline_save",
+    "schedules/baseline_clear", "schedules/plan_preview", "schedules/plan_save", "schedules/plan_recheck", "schedules/plan_delete",
+    "schedules/plan_export", "schedules/operations_claim_preview", "schedules/operations_claim_confirm", "schedules/operations_claim_release",
+    "schedules/operations_create", "schedules/operations_check", "schedules/operations_cancel", "schedules/operations_archive",
+})
 
 ALLOWLISTS: dict[str, frozenset[str]] = {"background": BACKGROUND, "service": SERVICE, "read": READ, "technical": TECHNICAL, "messaging": MESSAGING,
-                                         "readback": READBACK, "pacing": PACING}
-ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing")  # the guards the service session builds for the adapters (intercom_sync on_ready)
+                                         "readback": READBACK, "pacing": PACING, "schedules": SCHEDULES}
+ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing", "schedules")  # the guards the service session builds for the adapters (intercom_sync on_ready)
 
 # Home Assistant's own frames a channel may send besides WisKey commands (the auth handshake is written by ha_client itself):
 # `get_config` tells "WisKey not loaded yet" from "not installed"; the service feed watches the stations' entities.
@@ -107,6 +119,7 @@ HA_FRAMES: dict[str, frozenset[str]] = {
     "messaging": frozenset(),
     "readback": frozenset(),
     "pacing": frozenset(),
+    "schedules": frozenset(),
 }
 
 
@@ -147,4 +160,5 @@ def describe() -> dict[str, Any]:
         "messaging": {"commands": sorted(MESSAGING), "in_use": True},
         "readback": {"commands": sorted(READBACK), "in_use": True},
         "pacing": {"commands": sorted(PACING), "in_use": True},
+        "schedules": {"commands": sorted(SCHEDULES), "in_use": True},
     }

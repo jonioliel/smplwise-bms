@@ -31,7 +31,8 @@ MIGRATION_0145_SHA256 = "b0fb6fd086a47430fc170008f233d2aa753d8d2140bf8c7bebbe60a
 
 
 def _catalog() -> dict:
-    return {"allowlists": {k: sorted(v) for k, v in sorted(ch.ALLOWLISTS.items())}, "lease_signed": sorted(ch.LEASE_SIGNED),
+    # WISKEY-SCHED-WRITE-2390 added the `schedules` channel after the cleanup; the pre-cleanup catalog is everything else, unchanged
+    return {"allowlists": {k: sorted(v) for k, v in sorted(ch.ALLOWLISTS.items()) if k != "schedules"}, "lease_signed": sorted(ch.LEASE_SIGNED),
             "w10": sorted(ch.W10_COMMANDS), "peer_query": sorted(cp.PEER_QUERY_COMMANDS), "codes": [ch.NOT_ALLOWED, ch.RESERVED_KEY]}
 
 

@@ -46,6 +46,9 @@ import {
   type Tone,
 } from '../access-control/schedules-logic';
 import { schedulesCss } from './wiskey-schedules-css';
+import '../components/wk-schedule-library'; // WISKEY-SCHED-WRITE-2390: the library editor (schedules administrator only)
+import { libraryManage } from '../access-control/schedule-editor-logic';
+import { sed as sedText } from '../i18n/schedule-editor';
 
 type View = 'door' | 'table';
 const VIEW_KEY = 'sw.wiskey.schedules.view';
@@ -132,6 +135,10 @@ export class WiskeySchedules extends LitElement {
   @state() private plans: Fetch<SchedulePlan[]> = LOADING;
   @state() private ops: Fetch<ScheduleOperations> = LOADING;
   @state() private features: Record<string, boolean | null> = {};
+  /** WISKEY-SCHED-WRITE-2390: the schedules administrator edits the library here (the server checks again on every write). */
+  @state() private manage = false;
+  /** The management view (`?manage=1`): the library editor instead of the door view. */
+  @state() private managing = parseRoute().params.get('manage') === '1';
 
   private stopSession: (() => void) | null = null;
   private stopRoute: (() => void) | null = null;
@@ -158,8 +165,10 @@ export class WiskeySchedules extends LitElement {
     if (!isApi()) return;
     this.stopSession = onSession(() => {
       this.access = schedulesAccess(canAnywhere, can);
+      this.manage = libraryManage(can);
     });
     this.access = schedulesAccess(canAnywhere, can);
+    this.manage = libraryManage(can);
     if (!this.access.screen) return;
     void this.load();
     this.poll = window.setInterval(() => {
@@ -181,6 +190,7 @@ export class WiskeySchedules extends LitElement {
 
   private onRoute(r: RouteState) {
     if (r.mode !== 'wiskey') return;
+    this.managing = r.params.get('manage') === '1';
     const door = r.params.get('door');
     if (door !== this.wanted) {
       this.wanted = door;
@@ -393,7 +403,37 @@ export class WiskeySchedules extends LitElement {
     return this.renderReady();
   }
 
+  /** WISKEY-SCHED-WRITE-2390: open / leave the management view (part of the address; no history entry). */
+  private setManaging(on: boolean) {
+    this.managing = on;
+    const r = parseRoute();
+    if (r.mode === 'wiskey') {
+      const params = new URLSearchParams(r.params);
+      if (on) params.set('manage', '1');
+      else params.delete('manage');
+      replaceRoute(r.path, params);
+    }
+    if (on) void this.loadLibrary();
+  }
+
+  private renderManaging() {
+    const stations = this.stations();
+    const f = this.library;
+    return html`<sw-page wide heading=${sch('title')} subheading=${subtitle(doorsOf(stations).length, f.data ? f.data.length : null)}>
+      <sw-button slot="actions" variant="ghost" icon="chevronBack" data-sch-manage-close @click=${() => this.setManaging(false)}>${sch('viewDoor')}</sw-button>
+      <sw-button slot="actions" variant="ghost" icon="refresh" data-sch-refresh label=${sch('refresh')} @click=${() => this.refresh()}>${sch('refresh')}</sw-button>
+      <div data-sch data-sch-state=${f.data ? 'ready' : f.state} data-sch-view="manage">
+        ${f.data
+          ? this.renderManage(stations)
+          : f.state === 'loading'
+            ? html`<sw-state-panel quiet state="loading" heading=${sch('loading')} data-sch-panel="manage-loading"></sw-state-panel>`
+            : html`<sw-state-panel quiet state="error" heading=${sch('error')} actionLabel=${sch('retry')} data-sch-panel="manage-error" @action=${() => this.refresh()}></sw-state-panel>`}
+      </div>
+    </sw-page>`;
+  }
+
   private renderReady() {
+    if (this.manage && this.managing && !this.demo() && this.access.library) return this.renderManaging();
     const stations = this.stations();
     const doors = doorsOf(stations);
     const view = this.effectiveView();
@@ -404,6 +444,9 @@ export class WiskeySchedules extends LitElement {
     return html`<sw-page wide heading=${sch('title')} subheading=${subtitle(doors.length, libCount)}>
       ${this.access.edit && !this.demo()
         ? html`<sw-button slot="actions" variant="ghost" icon="edit" data-sch-edit @click=${() => (window.location.hash = CLASSIC_EDIT_HREF)}>${sch('editClassic')}</sw-button>`
+        : nothing}
+      ${this.manage && this.access.library && !this.demo()
+        ? html`<sw-button slot="actions" variant="ghost" icon="calendar" data-sch-manage-open @click=${() => this.setManaging(true)}>${sedText('manageTitle')}</sw-button>`
         : nothing}
       <sw-button slot="actions" variant="ghost" icon="refresh" data-sch-refresh label=${sch('refresh')} @click=${() => this.refresh()}>${sch('refresh')}</sw-button>
       ${doors.length && !this.narrow
@@ -523,6 +566,15 @@ export class WiskeySchedules extends LitElement {
       { key: 'code', label: sch('colCode'), render: (r) => html`<span data-sch-code=${r.codeState}>${r.code}</span>` },
     ];
     return html`<sw-table dense data-sch-table .rowKey=${'key'} .columns=${cols as unknown as TableColumn[]} .rows=${rows as unknown as Record<string, unknown>[]} @row-select=${(e: CustomEvent<{ id: string }>) => this.pick(e.detail.id)}></sw-table>`;
+  }
+
+  /** WISKEY-SCHED-WRITE-2390: the editable library, proposals and jobs (wk-schedule-library); after a write the three reads repeat. */
+  private renderManage(stations: readonly AccessStation[]) {
+    const stale = this.feed?.fresh === false || !this.library.fresh;
+    return html`<div class="manage" data-sch-manage>
+      <wk-schedule-library .stations=${[...stations]} .library=${this.library.data} .plans=${this.plans.data} .ops=${this.ops.data} ?live=${!stale} ?narrow=${this.narrow}
+        @sched-changed=${() => void this.loadLibrary()}></wk-schedule-library>
+    </div>`;
   }
 
   private renderLibrary(stations: readonly AccessStation[]) {
