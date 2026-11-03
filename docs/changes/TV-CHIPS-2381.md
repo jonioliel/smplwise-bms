@@ -76,6 +76,18 @@ Kept minimal: `screens/system-notices.ts` (+1 import, +2 lines mounting `<notice
 | `pixel-notice-tv-mock.spec.ts` | "the default footer" test: a chip may leave, only a healthy one, never cut |
 | `pixel-bustimes-295.spec.ts` | unchanged spec; its portrait pictures use the product default footer, so they follow the new default (see the receipts) |
 
-## 5. Receipts
+| `test_notices_106.py`, `evidence-notices.spec.ts` (TV-fit defaults card) | stale after the intended change: the chip list keeps its order; the card starts on drop and the test presses "two rows" |
 
-See the closing report of this branch (commit SHAs, tsc, unit, pytest and the runner jobs).
+## 5. Receipts (03.11)
+
+| Check | Where | Result |
+|---|---|---|
+| `tsc --noEmit` (src + tests) | workstation | 0 errors |
+| Unit (`-c playwright.unit.config.ts --workers=1`): `unit-tv-chips-2381`, `unit-tv-fit-2380`, `unit-settings-rows-2380`, `unit-tvnotice2-297`, `unit-notice-tv-logic`, `unit-token-lint`, `unit-a11y-polished-lint` | workstation | **60 passed, 0 failed** |
+| Backend, one process: `tests/test_notice*.py` (17 files) + `test_docs_config_consistency.py` | workstation | 397 passed, 1 failed (`test_notices_106::test_normalize_display_fills_every_key`, stale: asserted the forced order) -> fixed in 5b3a342cd; `test_notices_106.py` re-run: **43 passed** |
+| Runner preview @ 58390d5e9 (gate_status pass, no gate process): the 3 TV pixel specs, the 6 `notice-tv-*`, the 4 `layout-noticeboard-*`, `layout-bustimes-overlap-295`, `evidence-notice-tv`, `evidence-brand-tv` | runner, desktop | **415 passed, 5 skipped, 0 failed** - every baseline (bus times portrait included) passed unchanged: **no baseline refresh** |
+| Runner preview @ 58390d5e9: `evidence-tv-chips-2381`, `evidence-notices`, `evidence-noticeslides-295`, `evidence-announce-297`, `evidence-announceb-295` | runner, desktop + mobile | 85 passed, 17 skipped, 2 failed (the stale TV-fit defaults test, desktop + mobile) |
+| Runner preview @ 5b3a342cd: `evidence-notices`, `evidence-tv-chips-2381` | runner, desktop + mobile | **58 passed, 0 failed** |
+
+NOT_RUN: the full backend suite and the full Playwright tier (the release gate); the runner entry check (`branch_check.sh`); a real-TV look at
+the drop default and a live-entity check of the two new chips (no lab entities for parking / gym were used; the tests use mirror rows).
