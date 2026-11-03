@@ -94,7 +94,10 @@ async function chosenKeys(page: Page) {
         const r = el.getBoundingClientRect();
         return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden' && !el.closest('[data-devices-style="glass"]');
       })
-      .map(({ el, host }) => {
+      .map(({ el: hit, host }) => {
+        // sw-app's phone security row draws the chosen key on the label's .pill inside a transparent link: measure the pill
+        const pill = hit.querySelector(':scope > .pill');
+        const el = pill && (parse(getComputedStyle(pill).backgroundColor)?.a ?? 0) > 0 ? pill : hit;
         const bg = bgOf(el);
         const fg = over(parse(getComputedStyle(el).color)!, bg);
         const track = bgOf(up(el)!);
