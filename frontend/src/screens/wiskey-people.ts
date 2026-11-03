@@ -7,6 +7,7 @@ import '../components/sw-icon';
 import '../components/sw-button';
 import '../components/sw-state-panel';
 import '../components/sw-avatar';
+import '../components/wk-deep-links';
 import './wiskey-person-editor';
 import './wiskey-person-drawer';
 import './wiskey-message-dialog';
@@ -761,7 +762,8 @@ export class WiskeyPeople extends LitElement {
         : nothing}
       ${isApi() && this.phase !== 'forbidden'
         ? html`<sw-button slot="actions" variant="ghost" icon="refresh" iconOnly data-wiskey-people-refresh label=${pt('action.refresh')} ?disabled=${this.busy} @click=${() => void this.reload()}></sw-button>`
-        : nothing}`;
+        : nothing}
+      ${ready ? html`<wk-deep-links slot="actions" place="people" mode="menu"></wk-deep-links>` : nothing}`;
   }
 
   private renderSearch(): TemplateResult {

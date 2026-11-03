@@ -151,7 +151,7 @@ test.describe('the schedules screen: behaviour', () => {
     await expect.poll(() => count(mock, 'stations/entry-a/programs')).toBe(before + 1);
     await expect.poll(() => count(mock, 'schedules')).toBe(2);
     await page.locator(`${SCREEN} sw-button[data-sch-edit]`).click();
-    await expect.poll(() => page.url()).toContain('#/wiskey/tools');
+    await expect.poll(() => page.url()).toContain('#/wiskey/tools/schedules'); // WISKEY-DEEPLINKS-2382: the schedules tool itself, not the hub
   });
 
   test('an operator (installation scope) sees the library but no edit button', async ({ page }) => {

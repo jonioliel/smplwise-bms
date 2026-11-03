@@ -11,6 +11,7 @@ import '../components/sw-badge';
 import '../components/sw-card';
 import '../components/sw-icon';
 import '../components/wk-action-button';
+import '../components/wk-deep-links';
 import type { TableColumn } from '../components/sw-table';
 import type { AccessStation, StationCodes, StationPrograms } from '../api/access-stations';
 import { intercomSnapshotUrl, type DisplayZone, type IntercomCallCommand } from '../api/intercom';
@@ -402,6 +403,7 @@ function technical(v: ViewCtx, s: AccessStation): TemplateResult | typeof nothin
       ${s.errors ? html`<dt>${t.tech.lastError}</dt><dd>${s.errors.last_error ? html`<code data-wk-last-error>${s.errors.last_error}</code>` : html`<span class="muted">${t.tech.none}</span>`}</dd>` : nothing}
       ${s.errors?.scan_error ? html`<dt>${t.tech.scanError}</dt><dd><code>${s.errors.scan_error}</code></dd>` : nothing}
     </dl>
+    <wk-deep-links place="station"></wk-deep-links>
   </section>`;
 }
 

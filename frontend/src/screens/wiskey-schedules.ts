@@ -10,6 +10,7 @@ import '../components/sw-table';
 import '../components/sw-state-panel';
 import '../components/sw-view-switch';
 import '../components/sw-week-grid';
+import '../components/wk-deep-links';
 import type { StateKind } from '../components/sw-badge';
 import type { TableColumn } from '../components/sw-table';
 import type { WeekDays } from '../components/sw-week-grid';
@@ -406,6 +407,7 @@ export class WiskeySchedules extends LitElement {
         ? html`<sw-button slot="actions" variant="ghost" icon="edit" data-sch-edit @click=${() => (window.location.hash = CLASSIC_EDIT_HREF)}>${sch('editClassic')}</sw-button>`
         : nothing}
       <sw-button slot="actions" variant="ghost" icon="refresh" data-sch-refresh label=${sch('refresh')} @click=${() => this.refresh()}>${sch('refresh')}</sw-button>
+      ${this.demo() ? nothing : html`<wk-deep-links slot="actions" place="schedules" mode="menu"></wk-deep-links>`}
       ${doors.length && !this.narrow
         ? html`<sw-view-switch slot="actions" data-sch-views label=${sch('viewLabel')} .value=${view} .options=${[
             { id: 'door', label: sch('viewDoor'), icon: 'calendar' },
