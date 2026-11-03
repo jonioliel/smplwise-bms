@@ -857,7 +857,6 @@ export class WkScheduleLibrary extends LitElement {
     const heading = e === 'new' ? sed('editorNew') : sed('editorEdit', { name: e.name ?? '' });
     const busy = !!this.busy;
     return html`<sw-drawer modal open heading=${heading} data-se-editor=${e === 'new' ? 'new' : e.id} @close=${(ev: Event) => ev.target === ev.currentTarget && this.closeEditor()}>
-      ${this.note ? this.renderNote() : nothing}
       <wk-schedule-draft-form .draft=${this.draft} .faults=${all} ?narrow=${this.narrow} today=${localNow(Date.now()).date} ?disabled=${busy}
         @draft-change=${(ev: CustomEvent<Draft>) => (this.draft = ev.detail)}></wk-schedule-draft-form>
       <div class="panel" data-se-check>
@@ -872,6 +871,7 @@ export class WkScheduleLibrary extends LitElement {
           : html`<span class="s">${sed('checkNeeded')}</span>`}
       </div>
       ${this.renderAssess(valid)}
+      ${this.note ? this.renderNote() /* next to the save button: on a phone the sheet is scrolled to its end when a save answers */ : nothing}
       ${plans.length ? html`<p class="warn" data-se-affects>${sed('affectsPlans', { stations: plans.map((p) => this.stationName(p.station_id)).join(', ') })}</p>` : nothing}
       <div slot="footer" class="foot">
         <wk-action-button data-se-cancel @click=${() => this.closeEditor()}>${sed('cancel')}</wk-action-button>
