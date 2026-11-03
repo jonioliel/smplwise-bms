@@ -1450,6 +1450,10 @@ def patch_settings(body: SettingsPatch, request: Request, principal: Principal =
         from ..remote_channel import set_csp_enforce
 
         set_csp_enforce(changes["remote.csp_enforce"] == "true")
+    if "access.station_media_provider" in changes:  # WISKEY-JOIN-LIVE-2382: WisKey's direct join follows the provider without a restart
+        from ..services import wiskey_join_live
+
+        wiskey_join_live.request_reevaluate("settings", actor=principal, request_id=getattr(request.state, "correlation_id", None))
     if any(k in changes for k in ("access.station_media", "ui.hide_wiskey")):  # LAZYMIC-295: the microphone policy follows at once
         from ..remote_channel import load_mic_mode_from
 

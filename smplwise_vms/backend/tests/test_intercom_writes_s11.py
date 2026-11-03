@@ -311,7 +311,8 @@ def test_archive_restore_switch_and_temporary_cancel_round_trip(wx):
     assert post(c, "/people/u7/temporary-cancel", "root", revision=rev(fake, "u7"), reason_code="because", confirmed=True).status_code == 422
     # the rows: the action, the target, the revision, the effect - nothing of the person
     attempts = [r for r in rows(s) if r["action"].startswith("intercom.person.") and r["details"].get("phase") == "attempt"]
-    assert attempts and all(set(a["details"]) <= {"command", "phase", "client_request_id", "expires_at", "command_id", "revision", "effect", "pending", "active", "reason_code"}
+    assert attempts and all(set(a["details"]) <= {"command", "phase", "client_request_id", "expires_at", "command_id", "revision", "effect", "pending", "active", "reason_code",
+                                                         "transport", "transport_reason", "direct_state", "direct_code"}  # WISKEY-JOIN-LIVE-2382: the path, never person data
                             for a in attempts), [a["details"] for a in attempts]
 
 

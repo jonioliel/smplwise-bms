@@ -1302,7 +1302,7 @@ def native_targets(stations: Any) -> list[tuple[str, str]]:
 
 
 def people_send(act: "_Action", conn: sqlite3.Connection, command: str, business: dict[str, Any], fallback: Callable[[intercom_client.Call], Any], *,
-                stations: Any, create_origin_ref: str | None = None) -> Callable[[intercom_client.Call], Any]:
+                stations: Any, create_origin_ref: str | None = None, not_after: datetime | None = None) -> Callable[[intercom_client.Call], Any]:
     """WKINT-295: the people write's `send`. With WisKey's direct API selected (services/wiskey_direct_join.py: `access.station_media_provider
     = auto`, a pairing key that signs and an authenticated direct socket) it is the NATIVE write (services/wiskey_native_write.py:
     durable intent, signed command, verified receipt, UNKNOWN never re-sent); otherwise `fallback` - the Home Assistant send, unchanged.
@@ -1311,13 +1311,18 @@ def people_send(act: "_Action", conn: sqlite3.Connection, command: str, business
     from ..services import wiskey_direct_join
 
     if wiskey_direct_join.installed() is None:
+        act.details.update(transport=wiskey_direct_join.PATH_CLASSIC, transport_reason="not_installed")  # WISKEY-JOIN-LIVE-2382
         return fallback
     with unlocked(conn):
+        # WISKEY-JOIN-LIVE-2382: a direct write that provably had no effect goes over `fallback` once (never after an unknown outcome);
+        # the path actually used reaches the outcome row through `record`
         native = wiskey_direct_join.people_send(conn, act.principal, command, business, targets=native_targets(stations),
-                                                create_origin_ref=create_origin_ref)
+                                                create_origin_ref=create_origin_ref, fallback=fallback, not_after=not_after,
+                                                record=act.details.update)
     if native is None:
+        act.details.update(transport=wiskey_direct_join.PATH_CLASSIC, transport_reason=wiskey_direct_join.people_path(command)["reason"])
         return fallback
-    act.details["transport"] = "wiskey_direct"
+    act.details["transport"] = wiskey_direct_join.PATH_DIRECT
     return native
 
 
@@ -1450,7 +1455,7 @@ def person_create(request: Request, auth: ia.Authority = Depends(people_writer()
     except ApiError as exc:
         raise act.refuse(exc) from None
     send = people_send(act, conn, "users/create", {"data": data, "sync_now": body.sync_now}, lambda call: intercom_client.users_create(call, data, body.sync_now),
-                       stations=iw.draft_stations(data), create_origin_ref=f"arx-create:{body.client_request_id}")
+                       stations=iw.draft_stations(data), create_origin_ref=f"arx-create:{body.client_request_id}", not_after=not_after)
     reply = _perform(act, "person", send, iw.project_editor, not_after, lane="config", summary=_person_summary)
     reply["person"] = iw.view_editor_person(auth, reply["person"])
     reply["note"] = SAVE_NOTE
@@ -1479,7 +1484,7 @@ def person_update(request: Request, user_id: str, auth: ia.Authority = Depends(p
     not_after = _envelope(act, body)  # expiry and duplicate under the write lock again, right before the attempt row
     send = people_send(act, conn, "users/update", {"user_id": user_id, "revision": body.revision, "data": data, "sync_now": body.sync_now},
                        lambda call: intercom_client.users_update(call, user_id, body.revision, data, body.sync_now),
-                       stations=None if getattr(gate, "stations", None) is None else [*gate.stations, *iw.draft_stations(data)])
+                       stations=None if getattr(gate, "stations", None) is None else [*gate.stations, *iw.draft_stations(data)], not_after=not_after)
     reply = _perform(act, "person", send, iw.project_editor, not_after, lane="config", summary=_person_summary,
                      target=intercom_sync.person_target(user_id))
     reply["person"] = iw.view_editor_person(auth, reply["person"])
@@ -1508,7 +1513,8 @@ def person_delete(request: Request, user_id: str, auth: ia.Authority = Depends(p
     gate = gated(act, conn, lambda: iw.gate_person_write(settings, auth, user_id, revision=body.revision))
     not_after = _envelope(act, body)
     send = people_send(act, conn, "users/delete", {"user_id": user_id, "revision": body.revision},
-                       lambda call: intercom_client.users_delete(call, user_id, body.revision), stations=getattr(gate, "stations", None))
+                       lambda call: intercom_client.users_delete(call, user_id, body.revision), stations=getattr(gate, "stations", None),
+                       not_after=not_after)
     reply = _perform(act, "deleted", send, intercom_sync.project_accepted, not_after, lane="config",
                      target=intercom_sync.person_target(user_id))
     reply["note"] = "WisKey קיבל את המחיקה. ההסרה מכל תחנה (גם מנותקת) מתוזמנת על ידי WisKey ואינה מיידית."
