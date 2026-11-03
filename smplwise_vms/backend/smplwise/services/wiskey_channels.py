@@ -102,6 +102,10 @@ INSTALLER = frozenset({
     "clock/settings_get", "clock/settings_update", "clock/host_status", "clock/host_apply", "clock/station_sync",
     # phase 2: a station's technical settings (door name, open time, relay inversion; capability and password-presence flags)
     "stations/technical_get", "stations/technical_update",
+    # phase 3: removing / replacing a station (WisKey's reviewed lifecycle; adding one is WisKey's config-entry flow, not a WS command).
+    # Not `platform/lifecycle_decide`: Arx's single service identity cannot be WisKey's separate approver.
+    "platform/lifecycle_review", "platform/lifecycle_prepare", "platform/lifecycle_jobs", "platform/lifecycle_plan", "platform/lifecycle_apply",
+    "platform/lifecycle_verify", "platform/lifecycle_remove",
 })
 
 ALLOWLISTS: dict[str, frozenset[str]] = {"background": BACKGROUND, "service": SERVICE, "read": READ, "technical": TECHNICAL, "messaging": MESSAGING,

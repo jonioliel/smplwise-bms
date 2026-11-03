@@ -131,6 +131,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       // WISKEY-INSTALLER-NATIVE-2400: WisKey's installer tools, natively (owner decision 03.11, Q7)
       { ownTabs: true, tab: 'intercom-installer', label: 'התקנה ותחזוקת מערכת האינטרקום', href: '#/system/intercom-installer', keywords: 'wiskey אינטרקום מתקין התקנה תחזוקה שעון ntp שרת זמן עמדה הגדרות טכניות זמן פתיחה שם דלת ממסר הוספת עמדה הסרת עמדה החלפה פלטפורמה ייבוא ייצוא webhook שמירת נתונים שלמות קיבולת' },
       { tab: 'intercom-installer', label: 'שעון האינטרקום', href: '#/system/intercom-installer/clock', sub: true, keywords: 'ntp שעון סטייה שרת זמן' },
+      { tab: 'intercom-installer', label: 'הוספה והסרה של עמדות אינטרקום', href: '#/system/intercom-installer/lifecycle', sub: true, keywords: 'הוספת עמדה אשף התחברות מחדש סיסמה כתובת הסרת עמדה החלפת עמדה מכשיר חדש' },
       { tab: 'intercom-installer', label: 'הגדרות טכניות של עמדה', href: '#/system/intercom-installer/technical', sub: true, keywords: 'שם דלת זמן פתיחה היפוך ממסר סיסמאות יכולות' },
       { tab: 'fleet-report', label: 'דיווח בריאות', href: '#/system/fleet-report', keywords: 'דוח יומי smplwise fleet צי קוד רישום חתימה שקט לא מדווחת מה נשלח' }, // CR-FLEET215 (readiness and demo mode: the readiness tab, READYFLEET-295)
       { tab: 'general', label: 'בריאות ועבודות', href: `${GEN}?tab=health`, keywords: 'דיאגנוסטיקה מצב רכיבים תור' },

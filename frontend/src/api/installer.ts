@@ -276,3 +276,129 @@ export function doorErrors(draft: DoorValues, constraints: TechnicalDoor['constr
 }
 
 export const needsTyped = (changes: DoorValues, dangerous: readonly DoorField[]) => Object.keys(changes).some((k) => dangerous.includes(k as DoorField));
+
+// ---------------------------------------------------------------- phase 3: add / re-onboard (WisKey's config-entry flow) and remove / replace
+
+export type FlowStep = 'user' | 'reconfigure' | 'confirm_device' | 'locks' | 'mapping' | 'confirm_mapping' | 'other';
+
+export interface FlowView {
+  flow_id: string;
+  type: 'form' | 'create_entry' | 'abort' | 'other' | 'aborted';
+  step_id: FlowStep | null;
+  errors: Record<string, string>;
+  choices: Partial<Record<'mode' | 'api_id' | 'result' | 'scheme', Array<string | number>>>;
+  defaults: Record<string, string | number | boolean>;
+  device: { model: string | null; firmware: string | null; serial: string | null } | null;
+  entry: { entry_id: string | null; title: string | null } | null;
+  reason: string | null;
+}
+
+export const PULSE_PHRASE = 'פתיחת דלת לבדיקה';
+
+export const startOnboarding = (kind: 'add' | 'reconfigure', entryId?: string) =>
+  post<WriteReply<FlowView>>(`${BASE}/onboarding`, { ...envelope(), kind, ...(entryId ? { entry_id: entryId } : {}) });
+export const onboardingStep = (flowId: string, step: FlowStep, input: Record<string, unknown>, typed?: string) =>
+  post<WriteReply<FlowView>>(`${BASE}/onboarding/${encodeURIComponent(flowId)}/steps/${step}`, { ...envelope(typed), input });
+export const abortOnboarding = (flowId: string) => post<WriteReply<{ flow_id: string; type: 'aborted' }>>(`${BASE}/onboarding/${encodeURIComponent(flowId)}/abort`, envelope());
+
+/** The steps whose answer can CREATE or CHANGE the station's configuration in WisKey (they get the confirmation dialog); `mapping` pulses
+ * the door relay (typed phrase); the others only check (the connection, the device identity). */
+export const COMMITTING_STEPS: readonly FlowStep[] = ['locks', 'confirm_mapping'];
+
+/** The connection form's input: the password is sent only when typed (an empty one on reconfigure keeps the stored password). */
+export function connectionInput(form: Record<string, string | boolean>, step: FlowStep): Record<string, unknown> {
+  const out: Record<string, unknown> = {
+    name: String(form.name ?? '').trim(),
+    host: String(form.host ?? '').trim(),
+    username: String(form.username ?? '').trim(),
+    scheme: form.scheme === 'https' ? 'https' : 'http',
+    port: Number(form.port),
+    verify_ssl: form.verify_ssl === true,
+    rtsp_port: Number(form.rtsp_port),
+  };
+  const pw = String(form.password ?? '');
+  if (pw || step === 'user') out.password = pw;
+  return out;
+}
+
+export function connectionErrors(input: Record<string, unknown>, step: FlowStep): string[] {
+  const bad: string[] = [];
+  const text = (k: string, max: number) => typeof input[k] === 'string' && (input[k] as string).length >= 1 && (input[k] as string).length <= max;
+  if (!text('name', 64)) bad.push('name');
+  if (!(typeof input.host === 'string' && /^[A-Za-z0-9.:\-[\]]{1,255}$/.test(input.host))) bad.push('host');
+  if (!text('username', 64)) bad.push('username');
+  if (step === 'user' && !text('password', 128)) bad.push('password');
+  for (const k of ['port', 'rtsp_port']) {
+    const n = input[k] as number;
+    if (!Number.isInteger(n) || n < 1 || n > 65535) bad.push(k);
+  }
+  return bad;
+}
+
+export interface LifecycleImpact {
+  mode: 'replacement' | 'retirement' | 'unknown' | null;
+  source_id: string | null;
+  target_id: string | null;
+  affected_people: number | null;
+  rows_complete: boolean | null;
+  groups: number | null;
+  known_bindings: number | null;
+  unknown_owners: number | null;
+  hold_programs: number | null;
+  native_schedules: number | null;
+  required_target_locks: number[];
+  blockers: string[];
+  device_writes: number | null;
+  stations?: { id: string | null; name: string | null; identity_verified: boolean; error: string | null }[];
+}
+
+export type JobState = 'prepared' | 'approved' | 'rejected' | 'applied' | 'verified' | 'removing' | 'removed' | 'expired' | 'failed' | 'unknown';
+
+export interface LifecycleJob {
+  id: string | null;
+  fingerprint: string | null;
+  source_id: string | null;
+  target_id: string | null;
+  source_name: string | null;
+  target_name: string | null;
+  state: JobState | null;
+  created_at: string | null;
+  expires_at: string | null;
+  applied_at: string | null;
+  verified_at: string | null;
+  removed_at: string | null;
+  require_approval: boolean | null;
+  approval_state: string | null;
+  affected_people: number | null;
+}
+
+export interface LifecycleList {
+  records: LifecycleJob[];
+  fetched_at: string | null;
+  stations: { id: string; name: string; online: boolean }[] | null;
+}
+
+export const getLifecycle = () => get<LifecycleList>(`${BASE}/lifecycle`);
+export const reviewLifecycle = (source: string, target = '') =>
+  get<{ review: LifecycleImpact; fetched_at: string | null }>(`${BASE}/lifecycle/review?source_id=${encodeURIComponent(source)}&target_id=${encodeURIComponent(target)}`);
+export const prepareLifecycle = (source: string, target?: string) =>
+  post<WriteReply<{ job: LifecycleJob; impact?: LifecycleImpact }>>(`${BASE}/lifecycle/prepare`, { ...envelope(), source_id: source, ...(target ? { target_id: target } : {}) });
+export const lifecycleAction = (job: LifecycleJob, action: 'apply' | 'verify' | 'remove', typed?: string) =>
+  post<WriteReply<{ job: LifecycleJob }>>(`${BASE}/lifecycle/jobs/${encodeURIComponent(job.id ?? '')}/${action}`, { ...envelope(typed), fingerprint: job.fingerprint });
+
+/** The next action of a job, by WisKey's states: prepared -> apply (typed), applied -> verify, verified -> remove (typed). */
+export function nextAction(job: LifecycleJob): 'apply' | 'verify' | 'remove' | null {
+  if (job.state === 'prepared' || job.state === 'approved') return 'apply';
+  if (job.state === 'applied') return 'verify';
+  if (job.state === 'verified' || job.state === 'removing') return 'remove';
+  return null;
+}
+
+export const JOB_STEPS: readonly JobState[] = ['prepared', 'applied', 'verified', 'removed'];
+
+/** How far along the job is (0..3) for the step indicator. */
+export function jobProgress(state: JobState | null): number {
+  if (state === 'removing') return 2.5;
+  const i = JOB_STEPS.indexOf((state === 'approved' ? 'prepared' : state) as JobState);
+  return i < 0 ? -1 : i;
+}

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ApiError } from '../src/api/client';
 import { diffRows, envelope, hasChanges, ntpErrors, outcomeOf, skewTone, validServer } from '../src/api/installer';
-import { fill, installerText, technicalText } from '../src/i18n/wiskey-installer';
+import { fill, installerText, lifecycleText, technicalText } from '../src/i18n/wiskey-installer';
 
 // WISKEY-INSTALLER-NATIVE-2400: the pure logic and the words of the intercom installer tools - how a write's answer is read (completed /
 // refused / not sent / unknown: never "done" without the server saying so), the diff a confirmation shows, the NTP rules the server
@@ -74,13 +74,13 @@ test('the envelope confirms, and carries a typed phrase only when one is asked',
 });
 
 test('the words: Hebrew, filled placeholders, no "Home Assistant"', () => {
-  const all = { ...leaves(installerText), ...leaves(technicalText, 'technical.') };
+  const all = { ...leaves(installerText), ...leaves(technicalText, 'technical.'), ...leaves(lifecycleText, 'lifecycle.') };
   for (const [key, text] of Object.entries(all)) {
     expect(text, key).not.toMatch(/home\s*assistant/i);
     if (!key.startsWith('clock.modes.')) expect(text, key).toMatch(/[֐-׿]|^—$|^\{/);
   }
   expect(fill(installerText.clock.syncHeading, { name: 'Main gate' })).toBe('כתיבת הגדרות השעון לעמדה Main gate');
-  for (const file of ['screens/system-intercom-installer.ts', 'screens/installer-clock.ts', 'components/wk-installer-confirm.ts', 'api/installer.ts', 'screens/installer-technical.ts']) {
+  for (const file of ['screens/system-intercom-installer.ts', 'screens/installer-clock.ts', 'components/wk-installer-confirm.ts', 'api/installer.ts', 'screens/installer-technical.ts', 'screens/installer-lifecycle.ts']) {
     expect(readFileSync(path.join(SRC, file), 'utf8'), file).not.toMatch(/home\s*assistant/i);
   }
 });
@@ -96,4 +96,23 @@ test('a door edit sends only what changed, inside the advertised bounds; the rel
   expect(doorErrors({ doorName: '', openDuration: NaN }, null)).toEqual(['doorName', 'openDuration']);
   expect(needsTyped({ openDuration: 8 }, ['relayReverseEnabled'])).toBe(false);
   expect(needsTyped({ relayReverseEnabled: true }, ['relayReverseEnabled'])).toBe(true);
+});
+
+test('the wizard input has closed keys and sends the password only when typed; a job has one next step', async () => {
+  const { connectionInput, connectionErrors, nextAction, jobProgress } = await import('../src/api/installer');
+  const form = { name: ' לובי ', host: 'lobby.local', username: 'admin', password: '', scheme: 'https', port: '80', verify_ssl: true, rtsp_port: '554' };
+  const re = connectionInput(form, 'reconfigure');
+  expect(re).toEqual({ name: 'לובי', host: 'lobby.local', username: 'admin', scheme: 'https', port: 80, verify_ssl: true, rtsp_port: 554 });
+  expect(connectionErrors(re, 'reconfigure')).toEqual([]);
+  const add = connectionInput(form, 'user');
+  expect(add.password).toBe('');
+  expect(connectionErrors(add, 'user')).toEqual(['password']);
+  expect(connectionErrors(connectionInput({ ...form, host: 'a b', port: '0' }, 'reconfigure'), 'reconfigure')).toEqual(['host', 'port']);
+  const job = (state: string) => ({ state }) as never;
+  expect(nextAction(job('prepared'))).toBe('apply');
+  expect(nextAction(job('applied'))).toBe('verify');
+  expect(nextAction(job('verified'))).toBe('remove');
+  expect(nextAction(job('removed'))).toBeNull();
+  expect(jobProgress('removed')).toBe(3);
+  expect(jobProgress('expired')).toBe(-1);
 });

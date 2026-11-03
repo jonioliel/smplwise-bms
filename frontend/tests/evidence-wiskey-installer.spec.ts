@@ -225,3 +225,101 @@ test.describe('the intercom installer: station technical settings', () => {
     await compare(page, info, 'installer-technical-confirm');
   });
 });
+
+const LIFE = `${ROOT} installer-lifecycle`;
+const openLife = (page: Page, m: InstallerMock) => open(page, m, '/system/intercom-installer/lifecycle', `${LIFE} [data-jobs]`);
+
+test.describe('the intercom installer: add, reconnect, remove', () => {
+  test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
+  test.beforeEach(({}, info) => {
+    test.skip(info.project.name === 'tablet', 'desktop and phone only');
+  });
+
+  test('the wizard adds a station; the password leaves the form once sent; the saving step is confirmed', async ({ page }) => {
+    const m = newInstallerMock();
+    await openLife(page, m);
+    await page.locator(`${LIFE} [data-add-start]`).click();
+    await expect(page.locator(`${LIFE} [data-wizard="user"]`)).toBeVisible();
+    await expect(page.locator(`${LIFE} [data-flow-next]`)).toHaveAttribute('disabled', '');
+    await page.locator(`${LIFE} [data-flow-field="name"]`).fill('לובי');
+    await page.locator(`${LIFE} [data-flow-field="host"]`).fill('lobby.local');
+    await page.locator(`${LIFE} [data-flow-field="password"]`).fill('wrong');
+    await page.locator(`${LIFE} [data-flow-next]`).click();
+    await expect(page.locator(`${LIFE} [data-flow-error]`)).toContainText('שגויים');
+    await expect(page.locator(`${LIFE} [data-flow-field="password"]`)).toHaveValue('');
+    await page.locator(`${LIFE} [data-flow-field="password"]`).fill('correct-horse');
+    await page.locator(`${LIFE} [data-flow-next]`).click();
+    await expect(page.locator(`${LIFE} [data-wizard="confirm_device"]`)).toContainText('DS-KV6113-WPE1');
+    await page.locator(`${LIFE} [data-flow-next]`).click();
+    await expect(page.locator(`${LIFE} [data-wizard="locks"]`)).toBeVisible();
+    await page.locator(`${LIFE} [data-flow-next]`).click(); // camera only: this step saves - the confirmation dialog
+    await page.locator(`${LIFE} [data-confirm-send]`).click();
+    await expect(page.locator(`${LIFE} [data-flash]`)).toContainText('לובי');
+    expect(m.flowInputs.map((x) => x.step)).toEqual(['user', 'user', 'confirm_device', 'locks']);
+    expect(m.flowInputs[1].input).toMatchObject({ name: 'לובי', host: 'lobby.local', username: 'admin', password: 'correct-horse', port: 80 });
+  });
+
+  test('the relay test pulses the door only with the typed phrase', async ({ page }) => {
+    const m = newInstallerMock();
+    await openLife(page, m);
+    await page.locator(`${LIFE} [data-add-start]`).click();
+    await page.locator(`${LIFE} [data-flow-field="host"]`).fill('lobby.local');
+    await page.locator(`${LIFE} [data-flow-field="password"]`).fill('pw');
+    await page.locator(`${LIFE} [data-flow-next]`).click();
+    await page.locator(`${LIFE} [data-flow-next]`).click();
+    await page.locator(`${LIFE} [data-flow-mode="map_active_relay"]`).check();
+    await page.locator(`${LIFE} [data-flow-next]`).click();
+    await page.locator(`${LIFE} [data-confirm-send]`).click();
+    await expect(page.locator(`${LIFE} [data-wizard="mapping"]`)).toBeVisible();
+    await page.locator(`${LIFE} [data-flow-next]`).click();
+    await expect(page.locator(`${LIFE} [data-phrase]`)).toHaveText('פתיחת דלת לבדיקה');
+    await expect(page.locator(`${LIFE} [data-confirm-send]`)).toHaveAttribute('disabled', '');
+    await page.locator(`${LIFE} [data-typed]`).fill('פתיחת דלת לבדיקה');
+    await page.locator(`${LIFE} [data-confirm-send]`).click();
+    await expect(page.locator(`${LIFE} [data-wizard="confirm_mapping"]`)).toBeVisible();
+    const pulse = m.writes.find((w) => w.path.endsWith('/steps/mapping'))!;
+    expect(pulse.body).toMatchObject({ typed_confirmation: 'פתיחת דלת לבדיקה', input: { api_id: 1, test_unlock: true } });
+  });
+
+  test('a removal: impact, prepare, then each step with the typed station name; a blocker stops it', async ({ page }) => {
+    const m = newInstallerMock();
+    await openLife(page, m);
+    await page.locator(`${LIFE} [data-source-pick]`).selectOption('entry-a');
+    await page.locator(`${LIFE} [data-target-pick]`).selectOption('entry-c');
+    await page.locator(`${LIFE} [data-review]`).click();
+    await expect(page.locator(`${LIFE} [data-blockers]`)).toContainText('בעמדת היעד יש משתמשים');
+    await expect(page.locator(`${LIFE} [data-prepare]`)).toHaveAttribute('disabled', '');
+    await page.locator(`${LIFE} [data-target-pick]`).selectOption('');
+    await page.locator(`${LIFE} [data-review]`).click();
+    await page.locator(`${LIFE} [data-prepare]`).click();
+    await page.locator(`${LIFE} [data-confirm-send]`).click();
+    await expect(page.locator(`${LIFE} [data-job="job-1"]`)).toHaveAttribute('data-state', 'prepared');
+    await page.locator(`${LIFE} [data-job-action="apply"]`).click();
+    await page.locator(`${LIFE} [data-typed]`).fill('שער ראשי');
+    await page.locator(`${LIFE} [data-confirm-send]`).click();
+    await expect(page.locator(`${LIFE} [data-job="job-1"]`)).toHaveAttribute('data-state', 'applied');
+    await page.locator(`${LIFE} [data-job-action="verify"]`).click();
+    await expect(page.locator(`${LIFE} [data-typed]`)).toHaveCount(0);
+    await page.locator(`${LIFE} [data-confirm-send]`).click();
+    await page.locator(`${LIFE} [data-job-action="remove"]`).click();
+    await page.locator(`${LIFE} [data-typed]`).fill('שער ראשי');
+    await page.locator(`${LIFE} [data-confirm-send]`).click();
+    await expect(page.locator(`${LIFE} [data-job="job-1"]`)).toHaveAttribute('data-state', 'removed');
+    expect(m.writes.map((w) => w.path.split('/').pop())).toEqual(['prepare', 'apply', 'verify', 'remove']);
+  });
+
+  test('classic is pixel-stable: add, reconnect, remove', async ({ page }, info) => {
+    await openLife(page, newInstallerMock());
+    await settlePage(page);
+    await compare(page, info, 'installer-lifecycle');
+  });
+
+  test('classic is pixel-stable: the connection step of the wizard', async ({ page }, info) => {
+    await openLife(page, newInstallerMock());
+    await page.locator(`${LIFE} [data-add-start]`).click();
+    await page.waitForSelector(`${LIFE} [data-wizard="user"]`);
+    await page.locator(`${LIFE} [data-flow-field="host"]`).fill('lobby.local');
+    await settlePage(page);
+    await compare(page, info, 'installer-lifecycle-wizard');
+  });
+});

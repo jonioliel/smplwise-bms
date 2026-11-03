@@ -19,6 +19,40 @@ export interface InstallerMock {
   ntp: { revision: number; server: string; port: number; interval: number };
   writes: { path: string; body: Record<string, unknown> }[];
   doors: Record<string, Record<number, DoorState>>;
+  flow: { id: string; step: string; entry: string | null } | null;
+  flowSeq: number;
+  flowInputs: { step: string; input: Record<string, unknown> }[];
+  jobs: Record<string, any>[];
+}
+
+const FLOW_SCHEMAS: Record<string, unknown[]> = {
+  user: [{ name: 'name', default: 'Intercom' }, { name: 'host' }, { name: 'username', default: 'admin' }, { name: 'scheme', default: 'http' }, { name: 'port', default: 80 }],
+  confirm_device: [],
+  locks: [],
+  mapping: [],
+  confirm_mapping: [],
+};
+
+function flowView(m: InstallerMock, errors: Record<string, string> = {}) {
+  const f = m.flow!;
+  const choices: Record<string, unknown[]> = {};
+  if (f.step === 'user' || f.step === 'reconfigure') choices.scheme = ['http', 'https'];
+  if (f.step === 'locks') choices.mode = ['camera_only', 'map_active_relay'];
+  if (f.step === 'mapping') choices.api_id = [1, 2];
+  if (f.step === 'confirm_mapping') choices.result = ['released_and_returned', 'choose_again', 'camera_only'];
+  const defaults = f.step === 'reconfigure' ? { name: 'שער ראשי', host: 'gate.local', username: 'admin', scheme: 'http', port: 80, verify_ssl: true, rtsp_port: 554 }
+    : f.step === 'user' ? { name: 'Intercom', username: 'admin', scheme: 'http', port: 80, verify_ssl: true, rtsp_port: 554 } : {};
+  void FLOW_SCHEMAS;
+  return { flow_id: f.id, type: 'form', step_id: f.step, errors, choices, defaults,
+    device: f.step === 'confirm_device' ? { model: 'DS-KV6113-WPE1', firmware: 'V2.2.53', serial: 'MAC identity' } : null, entry: null, reason: null };
+}
+
+function finish(m: InstallerMock) {
+  const f = m.flow!;
+  m.flow = null;
+  return f.entry
+    ? { flow_id: f.id, type: 'abort', step_id: null, errors: {}, choices: {}, defaults: {}, device: null, entry: null, reason: 'reconfigure_successful' }
+    : { flow_id: f.id, type: 'create_entry', step_id: null, errors: {}, choices: {}, defaults: {}, device: null, entry: { entry_id: 'entry-new', title: 'לובי' }, reason: null };
 }
 
 export interface DoorState {
@@ -61,6 +95,10 @@ export const newInstallerMock = (over: Partial<InstallerMock> = {}): InstallerMo
   unavailable: new Set(),
   ntp: { revision: 3, server: 'time.windows.com', port: 123, interval: 60 },
   writes: [],
+  flow: null,
+  flowSeq: 1,
+  flowInputs: [],
+  jobs: [],
   doors: Object.fromEntries(['entry-a', 'entry-b', 'entry-c'].map((id) => [id, { 1: { doorName: 'כניסה', openDuration: 5, relayReverseEnabled: false }, 2: { doorName: 'שער רכב', openDuration: 3, relayReverseEnabled: false } }])),
   ...over,
 });
@@ -172,6 +210,67 @@ export async function installInstallerMock(page: Page, m: InstallerMock = newIns
       return write(route, typed ? 'update_relay' : 'update', typed, () => {
         m.doors[s.id][n] = { ...m.doors[s.id][n], ...b.changes } as DoorState;
         return { door: n, values: { ...m.doors[s.id][n] }, constraints: BOUNDS, error: null };
+      });
+    }
+    // ---------------------------------------------------------------- phase 3: onboarding (a fake of WisKey's config-entry flow) and lifecycle jobs
+    if (p === 'onboarding' && method === 'POST') {
+      const b = JSON.parse(req.postData() ?? '{}') as { kind: string; entry_id?: string };
+      return write(route, 'onboarding_start', null, () => {
+        const id = `flow${String(m.flowSeq++).padStart(6, '0')}abcd`;
+        m.flow = { id, step: b.kind === 'reconfigure' ? 'reconfigure' : 'user', entry: b.entry_id ?? null };
+        return flowView(m);
+      });
+    }
+    const step = /^onboarding\/([^/]+)\/steps\/([a-z_]+)$/.exec(p);
+    if (step && method === 'POST') {
+      const b = JSON.parse(req.postData() ?? '{}') as { input: Record<string, unknown> };
+      const typed = step[2] === 'mapping' ? 'פתיחת דלת לבדיקה' : null;
+      if (!m.flow || m.flow.id !== step[1]) return error(route, 404, 'onboarding_flow_not_found', 'האשף אינו פתוח', { outcome: 'not_sent' });
+      return write(route, typed ? 'onboarding_pulse' : 'onboarding_step', typed, () => {
+        m.flowInputs.push({ step: step[2], input: b.input });
+        const f = m.flow!;
+        if ((f.step === 'user' || f.step === 'reconfigure') && b.input.password === 'wrong') return flowView(m, { base: 'invalid_auth' });
+        const next: Record<string, string> = { user: 'confirm_device', reconfigure: 'confirm_device', confirm_device: 'locks', mapping: 'confirm_mapping' };
+        if (f.step === 'locks' && b.input.mode === 'camera_only') return finish(m);
+        if (f.step === 'confirm_mapping') return finish(m);
+        f.step = f.step === 'locks' ? 'mapping' : next[f.step];
+        return flowView(m);
+      });
+    }
+    const abort = /^onboarding\/([^/]+)\/abort$/.exec(p);
+    if (abort && method === 'POST') return write(route, 'onboarding_abort', null, () => ((m.flow = null), { flow_id: abort[1], type: 'aborted' }));
+    if (p === 'lifecycle' && method === 'GET') return json(route, { records: m.jobs.map((j) => ({ ...j })), fetched_at: NOW.toISOString(), stations: STATIONS, open_flows: false });
+    if (p.startsWith('lifecycle/review') && method === 'GET') {
+      const q = new URL(req.url()).searchParams;
+      const target = q.get('target_id') ?? '';
+      return json(route, {
+        fetched_at: NOW.toISOString(),
+        review: {
+          mode: target ? 'replacement' : 'retirement', source_id: q.get('source_id'), target_id: target || null, affected_people: 14, rows_complete: true, groups: 1,
+          known_bindings: 14, unknown_owners: 0, hold_programs: 0, native_schedules: 0, required_target_locks: target ? [1] : [], device_writes: 0,
+          blockers: target === 'entry-c' ? ['target_contains_accounts'] : [],
+          stations: [{ id: q.get('source_id'), name: 'שער ראשי', identity_verified: true, error: null }],
+        },
+      });
+    }
+    if (p === 'lifecycle/prepare' && method === 'POST') {
+      const b = JSON.parse(req.postData() ?? '{}') as { source_id: string; target_id?: string };
+      return write(route, 'prepare', null, () => {
+        const s = STATIONS.find((x) => x.id === b.source_id)!;
+        const t = STATIONS.find((x) => x.id === b.target_id);
+        const job = { id: `job-${m.jobs.length + 1}`, fingerprint: 'fp-1', source_id: s.id, target_id: t?.id ?? null, source_name: s.name, target_name: t?.name ?? null, state: 'prepared',
+          created_at: NOW.toISOString(), expires_at: null, applied_at: null, verified_at: null, removed_at: null, require_approval: false, approval_state: 'pending', affected_people: 14 };
+        m.jobs.push(job);
+        return { job };
+      });
+    }
+    const jobAction = /^lifecycle\/jobs\/([^/]+)\/(apply|verify|remove)$/.exec(p);
+    if (jobAction && method === 'POST') {
+      const job = m.jobs.find((j) => j.id === jobAction[1])!;
+      const action = jobAction[2];
+      return write(route, action, action === 'verify' ? null : job.source_name, () => {
+        job.state = action === 'apply' ? 'applied' : action === 'verify' ? 'verified' : 'removed';
+        return { job: { ...job } };
       });
     }
     return error(route, 404, 'not_found', 'לא נמצא', {});
