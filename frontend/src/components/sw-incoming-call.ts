@@ -567,8 +567,8 @@ export class SwIncomingCall extends LitElement {
       return html`<div class="ask" role="group" data-call-door-ask=${ask}>
         <span>${fill(t.doorAsk, { name })}</span>
         <div class="row">
-          <wk-action-button tone="primary" icon="unlock" size="lg" data-call-door-yes @click=${() => void this.openDoor(c, ask)}>${t.doorYes}</wk-action-button>
-          <wk-action-button size="lg" data-call-door-no @click=${() => (this.doorAsk = null)}>${t.doorNo}</wk-action-button>
+          <wk-action-button tone="primary" icon="unlock" size="lg" block data-call-door-yes @click=${() => void this.openDoor(c, ask)}>${t.doorYes}</wk-action-button>
+          <wk-action-button size="lg" block data-call-door-no @click=${() => (this.doorAsk = null)}>${t.doorNo}</wk-action-button>
         </div>
       </div>`;
     }
@@ -580,7 +580,7 @@ export class SwIncomingCall extends LitElement {
     const t = ict().banner;
     const sending = this.busy[c.call_id] === 'door';
     return c.locks.map(
-      (l) => html`<wk-action-button icon="unlock" size="lg" data-call-door=${l.physical_index} ?busy=${sending} ?disabled=${sending || !!this.doorAsk}
+      (l) => html`<wk-action-button icon="unlock" size="lg" block data-call-door=${l.physical_index} ?busy=${sending} ?disabled=${sending || !!this.doorAsk}
         @click=${() => (this.doorAsk = `${c.call_id}/${l.physical_index}`)}>${sending ? t.doorSending : doorLabel(l, c.locks.length, ict())}</wk-action-button>`,
     );
   }
@@ -615,12 +615,12 @@ export class SwIncomingCall extends LitElement {
       ${this.doorPart(c)}
       <div class="acts">
         ${st === 'ringing'
-          ? html`<wk-action-button tone="ok" icon="phone" size="lg" data-call-answer ?busy=${busy === 'answer'} ?disabled=${!!busy || !c.online} @click=${() => void this.answer(c)}
+          ? html`<wk-action-button tone="ok" icon="phone" size="lg" block data-call-answer ?busy=${busy === 'answer'} ?disabled=${!!busy || !c.online} @click=${() => void this.answer(c)}
                 >${busy === 'answer' ? t.answering : t.answer}</wk-action-button
-              ><wk-action-button tone="danger" icon="close" size="lg" data-call-reject ?busy=${busy === 'reject'} ?disabled=${!!busy || !c.online} @click=${() => void this.signal(c, 'reject')}
+              ><wk-action-button tone="danger" icon="close" size="lg" block data-call-reject ?busy=${busy === 'reject'} ?disabled=${!!busy || !c.online} @click=${() => void this.signal(c, 'reject')}
                 >${t.reject}</wk-action-button
               >`
-          : html`<wk-action-button tone="danger" icon="hangup" size="lg" data-call-hangup ?busy=${busy === 'hangUp'} ?disabled=${!!busy} @click=${() => void this.signal(c, 'hangUp')}
+          : html`<wk-action-button tone="danger" icon="hangup" size="lg" block data-call-hangup ?busy=${busy === 'hangUp'} ?disabled=${!!busy} @click=${() => void this.signal(c, 'hangUp')}
               >${t.hangUp}</wk-action-button
             >`}
       </div>
