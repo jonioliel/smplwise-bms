@@ -8,6 +8,7 @@ import {
   alertKey,
   choices,
   conflictKey,
+  deviceTime,
   mayOpenTriage,
   outcomeOf,
   restoreKind,
@@ -82,6 +83,13 @@ test.describe('conflicts', () => {
     expect(reviewSecondsLeft({ expires_at: '2026-11-04T07:59:00Z' }, at)).toBeLessThan(0);
     expect(tt.drawer.expires(600)).toContain('10');
     expect(tt.drawer.expires(-1)).toContain('לבדוק שוב');
+  });
+
+  test('a validity bound is the station own wall time, shown as written', () => {
+    expect(deviceTime('2026-01-01T00:00:00')).toBe('1.1.2026 00:00');
+    expect(deviceTime('2027-12-31T23:59:00')).toBe('31.12.2027 23:59');
+    expect(deviceTime(null)).toBe('…');
+    expect(deviceTime('soon')).toBe('soon');
   });
 
   test('row keys', () => {

@@ -16,6 +16,7 @@ import {
   alertKey,
   choices,
   conflictKey,
+  deviceTime,
   getTriage,
   outcomeOf,
   postAlertAction,
@@ -335,7 +336,7 @@ export class WkTriagePanel extends LitElement {
       font-size: var(--sw-fs-sm);
       line-height: 1.5;
     }
-    .dlg label {
+    .dlg label:not(.chk) {
       display: grid;
       gap: 4px;
     }
@@ -532,7 +533,7 @@ export class WkTriagePanel extends LitElement {
       case 'name':
         return s.display_name ?? '—';
       case 'validity':
-        return s.validity.timed ? `${s.validity.from ?? '…'} – ${s.validity.until ?? '…'}` : d.always;
+        return s.validity.timed ? `${deviceTime(s.validity.from)} – ${deviceTime(s.validity.until)}` : d.always;
       case 'doors':
         return s.door_rights.length ? s.door_rights.join(', ') : '—';
       case 'pin':

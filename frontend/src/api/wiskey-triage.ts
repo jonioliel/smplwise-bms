@@ -192,3 +192,11 @@ export const TRIAGE_NEED: readonly string[] = ['access.admin.read', 'access.stat
 export function mayOpenTriage(can: (p: string) => boolean): boolean {
   return TRIAGE_NEED.some((p) => can(p));
 }
+
+/** A validity bound as the station keeps it (its own local wall time, `YYYY-MM-DDTHH:MM:SS`, no zone): shown as written - date and
+ * minutes, never converted (the device's clock is the reference). Anything else is shown as is; absent is '…'. */
+export function deviceTime(v: string | null | undefined): string {
+  if (!v) return '…';
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(v);
+  return m ? `${Number(m[3])}.${Number(m[2])}.${m[1]} ${m[4]}:${m[5]}` : v;
+}
