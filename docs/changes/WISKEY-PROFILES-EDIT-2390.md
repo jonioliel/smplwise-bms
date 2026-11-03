@@ -154,6 +154,12 @@ Migration: none (reviews are in process memory; audit rows use the existing tabl
 - Browser (runner, desktop + mobile, mocked backend): `tests/evidence-wiskey-profiles.spec.ts`; evidence images in
   `docs/design/evidence/wiskey-profiles/`.
 
+Results (2026-11-03): backend `test_wiskey_profiles.py` 35 passed (workstation); runner backend (`test_wiskey_profiles`, `test_wiskey_channels`,
+`test_pwclean_295`, `test_wiskey_contract`, `test_wiskey_diagnostics`) 149 passed, 2 skipped @ 62c142ad6; runner unit suite (`tests/unit-*`, node)
+3774 passed @ bc5cadfd4; runner evidence spec desktop + mobile 22 passed @ bc5cadfd4; regression sample on the runner @ 62c142ad6:
+`evidence-access-status.spec.ts` + `pixel-wiskey-people.spec.ts` desktop + mobile passed (the entry link stays hidden there, baselines unchanged).
+NOT_RUN: tablet project, the full backend suite, the full Playwright matrix, any live / lab test.
+
 ## 9. Owner questions
 
 1. Permission for editing groups and fields: a) `access.people.manage` at installation scope (built: site and system administrators);
