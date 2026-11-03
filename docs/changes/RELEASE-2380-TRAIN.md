@@ -125,3 +125,92 @@ NOT_RUN: every browser spec and the runner (as above).
   page). Tesla: the off ring is stronger. Review rule: only the off track / ring may differ.
 - No resting change from `scroll-padding` (phone), the plan-editor hit layer, or the `sw-tabs` roles (attributes only).
 - The new Settings cards of section 3 use `.seg` keys, not switches, so the OFF-switch move does not touch them.
+
+## 9. Slice 3 (03.11): v2.37.0 merged, the browser NOT_RUN list closed on the runner
+
+### 9.1 Merge of the released 2.37.0
+
+`git merge --no-ff v2.37.0` (tag v2.37.0 = main 88dc0b287; brings the 2.36.1 CAM-H264-VERIFY work, the 2.37.0 gate fixes GATE2370-A..D and the
+rebuilt UI) -> merge commit **204e99d50**. Still no version bump (WisKey 2.37.1 goes first).
+
+| File | Resolution |
+|---|---|
+| `contracts/API_INVENTORY.md` | the only conflict (the route-count line). Regenerated with `scripts/api_inventory.py` on the merged tree: **1714 routes** (2.37.0's 1712 + the train's two `GET /api/v1/brand/app*`); Version stays 2.37.0 |
+| `smplwise_vms/www`, `www-public` | no conflict; identical to v2.37.0's (the train had not rebuilt; the version commit rebuilds) |
+| version files, `CHANGELOG.md` | no conflict; 2.37.0 everywhere (release_check, 9.2) |
+| `frontend/src/design/tokens.ts` | auto-merged, both intents: the train's `--sw-toggle-off` and GATE2370-B's `--sw-seg-key` / `--sw-seg-key-ink` |
+| `frontend/src/screens/system-access-messaging.ts` | auto-merged, both intents: the switch track reads `--sw-toggle-off`, and GATE2370-D's one-line phone save bar |
+| `frontend/src/screens/system-diagnostics.ts` | auto-merged, both intents: the app sign-in card (import + mount) and CAM-H264-VERIFY's refusal row |
+| `styles/settings.ts`, `tests/breakui-worst.ts`, the 8 phone WisKey baselines | not touched by the train: taken from 2.37.0 (five of those baselines then moved again for the train's own reasons, 9.3) |
+
+### 9.2 Workstation checks (one worker / one process)
+
+| Check | Result |
+|---|---|
+| `tsc --noEmit` (src + tests), after the merge and again after the spec changes | 0 errors |
+| Unit specs (`--workers=1`): the four train specs (`unit-a11y-r4-leftovers-2380`, `unit-settings-rows-2380`, `unit-switch-contrast-2380`, `unit-tv-fit-2380`) + `unit-dark-polish-beds`, `unit-polish4-shared`, `unit-nvr-verify-report`, `unit-tvnotice2-297`, `unit-a11y-polished-lint`, `unit-token-lint` | **89 passed, 0 failed** |
+| Backend, one process: `test_mobile_push`, `test_tickets_app_push`, `test_app_server_leftovers_2380`, `test_push_golive_check`, `test_presence_contract_v22`, `test_app_refresh_rotation_fixtures_k5`, `test_notice_tvsettings_2380`, `test_notice_boardv2_297`, `test_quiet103`, `test_notify_channels`, `test_docs_config_consistency`, `test_cam_h264_verify_2361` | **270 passed, 0 failed** (15.5 min) |
+| `test_push_golive_check` after its fix (9.3), also with a `--basetemp` inside the checkout | 15 passed |
+| `scripts/release_check.py` | every line ok, including `git tag for this version: v2.37.0 exists`; RESULT: ready for the owner's approval |
+
+### 9.3 Runner (Playwright `--workers=1`; no release gate was running - `gate_status.json` = pass / release/2370-train before the jobs)
+
+| Job | Specs | Projects | Result |
+|---|---|---|---|
+| preview, `-u` (204e99d50) | the 14 `pixel-*` files with baselines + `pixel-notice-tv-mock`, `pixel-notice-tv-portrait-chips`, `visual-matrix` | desktop, mobile | 271 passed, 75 skipped (project skips), 0 failed; 42 PNGs written, each reviewed -> **e2391a9a7** |
+| preview, the same 16 files **without** `-u` (cb55cca7c) | as above | desktop, mobile | **271 passed, 75 skipped, 0 failed** |
+| preview (e2391a9a7) | `evidence-notices`, `evidence-noticepage-295`, `evidence-noticeslides-295`, `evidence-noticedel-295`, `evidence-presence-settings`, `evidence-whoin034-295`, `evidence-polish4-wp8`, `uxrest-audit`, `uxrest-focus`, `uxrest-states`, `evidence-arx-remote`, `evidence-tabs-scroll-2331`, `a11y-r4-leftovers-2380`, `a11y-polished-2342`, `a11y-dialog-focus-2310`, `evidence-shell`, `evidence-plan-studio-4`, `evidence-switch-light-dimmer-2331` | desktop, tablet, mobile | **302 passed, 70 skipped, 0 failed** |
+| preview (0c2189c62) | `evidence-notifications`, `layout-a11y-295`, `evidence-tabs-styles`, `evidence-tabs-ui`, `evidence-tabset-293`, `evidence-pwa-push` (their header projects) | desktop, mobile | 117 passed, 13 skipped, **2 failed** (stale spec, below) |
+| preview (0c2189c62) | `layout-visdiff-246`, `layout-page-background`, `evidence-remote-video`, `evidence-infra-tabs`, `evidence-tabs-live` (header: desktop) | desktop | **42 passed, 18 skipped, 0 failed** |
+| spec, vite dev (b494671bb) | `evidence-tabs-pair`, `evidence-switchui-295`, `evidence-protected-switches` | desktop, mobile | **60 passed, 0 failed** |
+| fixture (b494671bb) | `evidence-presence-2280-layout` (devices_floor), `evidence-arx-sessions` (arx) | desktop, tablet, mobile / desktop | **FIXTURE_PASS** (30 passed; 1 passed) |
+| preview, after the fix (b494671bb) | `evidence-notifications` | desktop, mobile | **59 passed, 5 skipped, 0 failed** |
+| spec, vite dev (b494671bb) | new `evidence-settings-cards-2380` (9.4) | desktop, mobile | **14 passed, 2 skipped (phone-only tests on desktop), 0 failed** |
+| preview (b494671bb) | `evidence-notices`, `evidence-presence-settings` with the new tests (9.4) | desktop, tablet, mobile | **96 passed, 0 failed** |
+| backend, one process (b494671bb) | the PUSH-RELAY-SAFE set (`test_mobile_push`, `test_tickets_app_push`, `test_app_server_leftovers_2380`, `test_critical_sound`, `test_self_update_s3_fixes`, `test_docs_config_consistency`, `test_secrets_store`, `test_secrets_transitional_263`) + `test_push_golive_check`, `test_presence_contract_v22`, `test_app_refresh_rotation_fixtures_k5`, `test_app_refresh_295`, `test_notice_tvsettings_2380`, `test_notice_boardv2_297`, `test_notice_tvopt_295`, `test_notice_tvnotice2_297`, `test_quiet103`, `test_notify_channels`, `test_presence`, `test_cam_h264_verify_2361` | - | 464 passed, **1 failed** (fragile test, below) |
+| backend, after the fix (cb55cca7c) | `test_push_golive_check`, `test_mobile_push`, `test_app_server_leftovers_2380` | - | **81 passed, 0 failed** |
+
+**Baselines (e2391a9a7) - every rewritten PNG compared with its old version (side by side + a difference mask, the small ones zoomed):**
+- `pixel-notice-tv-portrait-chips` - the first 13 baselines (TV-FIT-2380): every classic template, the header-a variant, V2, the six lobby styles,
+  Ink and Sign at 1080 x 1920; every chip drawn and uncut, the "updated" time in full; V2 has no chips by design.
+- OFF switch (`--sw-toggle-off`, A11Y-R4-LEFTOVERS-2380) - only the off track differs (about 650 px each, one 42 x 24 box): `pixel-wiskey-messaging`
+  settings and tab shots, light and dark, 1440 and 390 (14 files), `pixel-access-status` policy 1440 / 390, `visual-matrix`
+  security-alarm-ready light / dark (the bypass switches of the zone cards).
+- Phone `scroll-padding` (`main { scroll-padding-block-end: calc(var(--sw-s-2) + 66px) }`, A11Y-R4-LEFTOVERS-2380) - the screen content is the same, but
+  a centred scroll-into-view now centres in the part above the reserved 74 px, so what sits around / behind the captured element is 37 px higher:
+  `pixel-access-s12` checklist and display ×2 (390), `pixel-access-status` drawers ×2 and muted (390), `pixel-wiskey-messaging`
+  settings-classic-errors-390 (the rejected field is still in the middle of the visible part, clear of the save bar), `pixel-wiskey-people-writes` ×3
+  and `pixel-wiskey-stations` stations-classic-settings-390 (the list behind the drawer). Section 8.3's "no resting change from scroll-padding" holds for
+  a screen at rest, not for pictures taken after a scroll-into-view.
+- `pixel-bustimes-295` passed against its committed baselines (TV-FIT did not move them past the threshold): no refresh. `pixel-notice-tv-mock` passed.
+
+**Failures and fixes:**
+1. `evidence-notifications` ×2 (desktop: the section-order list; mobile: "one section at a time") - **stale spec**. Settings row 3 put the quiet-window
+   card in its own glass section `#sec-quiet-windows` right under the quiet hours, under the same nav entry. The list gains `quiet-windows`; on a
+   phone the quiet entry shows two sections (b494671bb); re-run green. (`evidence-notify-live`, a live-backend spec skipped without its fake backend,
+   already lacked the WhatsApp section and is left as it is.)
+2. `test_push_golive_check::test_preflight_accepts_well_formed_files_and_prints_no_value` - **fragile test, not a product fault**. `run_remote.sh backend`
+   puts `--basetemp` inside the worktree, so the placeholder secret files sat inside a git checkout, not ignored, and the preflight said - correctly -
+   "git would add this file" (2 of 14 checks). The workstation and the gate (basetemp outside the checkout) passed. The shape test now stubs the
+   lookup, and a new test covers `_git_ignored` itself (secrets/ ignored, a code folder not, outside the checkout = None) (cb55cca7c).
+
+### 9.4 New browser coverage of the four Settings rows (0c2189c62)
+
+- `evidence-notices`: the TV-fit defaults in the TV boards card (two keys / six keys, saved at once, `safe_margin` as an integer) and a board's
+  display tab ("ברירת מחדל" pressed while the board follows the default, a board's own `0` kept, both sent with the board's save).
+- `evidence-presence-settings`: "בדיקת ערכי החיישנים" - כבוי by default, three keys, `value_check: 'normalize'` sent with the page save.
+- `evidence-settings-cards-2380` (new, vite dev): the quiet-window card and the app sign-in card as an API session against an in-spec fake - defaults,
+  the confirmation (`confirmed: true`; switching off names the open windows), a default over the maximum refused before the save, the PUT bodies, the
+  exchange waiting for the saved sign-in, the remote channel closing "פעיל" with the local-network note while "כבוי" works, 403 = no card, and on a
+  phone the `.foot.sticky` save row in view at the bottom of a short scroller.
+
+### 9.5 Remaining NOT_RUN / open
+
+- **Runner entry check (`~/gate2/branch_check.sh`) - NOT_RUN.** `run_smart.py` has no job for it. Its `--dry-run` (no lock, no test) on 0c2189c62:
+  164 changed files vs origin/main, 612 / 822 backend files, 581 / 923 specs (all pixel specs: the design layer changed), estimate **~84-101 min** wall
+  with the tests lock held (agent runs are refused meanwhile; a WisKey agent was using the runner). Per the owner's 31.10 rule a train of ready branches
+  takes one check on the assembled train - the 2.38.0 train gate after the version commit is that check, or the lead starts the entry check in a
+  quiet window.
+- The full backend suite and the full Playwright tier: the train gate.
+- Still open from section 7: a design glance at the quiet-window card (phone) and owner Q3 (portrait footer two rows vs drop, default `rows`).
+- Before the version commit: merge WisKey 2.37.1 when released, rebuild the UI, bump to 2.38.0, regenerate the API inventory.
