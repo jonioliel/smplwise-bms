@@ -1287,6 +1287,8 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
     { id: 'messaging-accounts', label: 'ערוץ ההודעות', href: '#/system/messaging-accounts' },
     // CR-FLEET215: the daily health report to SmplWise - the switch, what is sent, the last reports (system.configure + system administrator)
     { id: 'fleet-report', label: 'דיווח בריאות', href: '#/system/fleet-report' },
+    // WISKEY-INSTALLER-NATIVE-2400: WisKey's installer tools (clock, station technical settings, add / remove, platform) - system.configure at the installation
+    { id: 'intercom-installer', label: 'התקנת האינטרקום', href: '#/system/intercom-installer' },
     /** CR-013 review M10: the screen catalogue left the user menu; a system administrator reaches it from here */
     { id: 'screens', label: 'כל המסכים', href: '#/screens' },
   ],
@@ -1552,6 +1554,7 @@ export const TAB_PERMISSIONS: Record<string, string[]> = {
   [DOOR_WINDOWS_HREF]: ['access.stations.read', 'access.windows.manage', 'access.windows.cancel', 'access.emergency.lock', 'access.emergency.open'],
   '#/system/messaging-accounts': ['system.configure', 'messaging.accounts.manage'], // CR-038 S5a (installation scope)
   '#/system/fleet-report': ['system.configure'], // CR-FLEET215 (installation scope; the server also requires a system administrator)
+  '#/system/intercom-installer': ['system.configure'], // WISKEY-INSTALLER-NATIVE-2400 (installation scope; every call checks it again)
   // CR-021 S2: the updates page - system.update at installation scope (system administrators only, never delegable)
   [UPDATE_SETTINGS_HREF]: ['system.update'],
   // CR-010, moved to הגדרות › אבטחה 2026-09-30: the alarm screen - alarm.view at any scope: a floor-scoped holder sees the
@@ -1606,7 +1609,7 @@ export const NATIVE_WISKEY_TABS: Record<string, { screen: WiskeyScreen; need: st
 /** Tabs whose permission counts only when held at installation scope, because the screen and its API check it there
  * and nowhere else: WisKey stations are not mapped to sites or floors, so access.read is installation-wide by design
  * (CR-005). A floor-scoped viewer or a site-scoped site_admin would otherwise see the tab and land on "no permission". */
-export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/readiness', '#/system/security/manage', SECURITY_CAMERAS_HREF, SECURITY_PUBLIC_HREF, SECURITY_WISKEY_HREF, SECURITY_PRIVACY_MASKS_HREF, ENTITIES_SETTINGS_HREF, SCHEDULES_SETTINGS_HREF, WALL_SETTINGS_HREF, AUTOMATIONS_SETTINGS_HREF, MULTIMEDIA_SETTINGS_HREF, UPDATE_SETTINGS_HREF, INFRA_METERS_HREF, INFRA_SETTINGS_HREF, TICKETS_SETTINGS_HREF, '#/system/messaging-accounts', '#/system/fleet-report', INCIDENTS_SETTINGS_HREF]); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
+export const INSTALLATION_ONLY_HREFS = new Set<string>([...STATIC_WISKEY_TABS.map((t) => t.href ?? ''), '#/system/wizard', '#/system/readiness', '#/system/security/manage', SECURITY_CAMERAS_HREF, SECURITY_PUBLIC_HREF, SECURITY_WISKEY_HREF, SECURITY_PRIVACY_MASKS_HREF, ENTITIES_SETTINGS_HREF, SCHEDULES_SETTINGS_HREF, WALL_SETTINGS_HREF, AUTOMATIONS_SETTINGS_HREF, MULTIMEDIA_SETTINGS_HREF, UPDATE_SETTINGS_HREF, INFRA_METERS_HREF, INFRA_SETTINGS_HREF, TICKETS_SETTINGS_HREF, '#/system/messaging-accounts', '#/system/fleet-report', '#/system/intercom-installer', INCIDENTS_SETTINGS_HREF]); // the alarm management: routers/alarm.py `_configurer` checks system.configure at installation scope
 
 /** `installationOnly`: the permission must be held at installation scope, not at any scope. */
 export type Can = (permission: string, installationOnly?: boolean) => boolean;

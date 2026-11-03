@@ -1,0 +1,24 @@
+{
+  "pin": "rc-extract-2.0.1-rc.10",
+  "provider": "WisKey (hikvision_intercom)",
+  "runtime_version": "2.0.1-rc.10",
+  "source_ref": "origin/codex/wiskey-mac-m12-policy-b-2026-11-02",
+  "source_commit": "2834aa5e8830f55e270dc5c99b8313f3c05fe3de",
+  "extracted_by": "scripts/wiskey_rc_extract.py v1 (static ast parse, no import, no device)",
+  "files": {
+    "commands.static.json": {
+      "sha256": "83945e8e1adc702970b586c0e32f9ff4f5323d9f1212d586127ba596590dee45",
+      "count": 245
+    },
+    "errors.static.json": {
+      "sha256": "a3f54c748de3dcf260edb40ea1c13dd19dc7a913af07cbccd2f33f4dc07a7c9d",
+      "count": 365
+    },
+    "surface.static.json": {
+      "sha256": "3e69e59ae6a5e576805d1965b9e5cc914aa97024355058292ac9eb282b4face2"
+    },
+    "LICENSE": {
+      "sha256": "84dd9f1b887230cec87efb15b654a01aff6ef959445b2cb94db71a68c0593336"
+    }
+  }
+}

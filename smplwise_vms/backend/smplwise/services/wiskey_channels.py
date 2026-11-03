@@ -92,10 +92,19 @@ PACING = frozenset({"whatsapp/pacing_status_v1"})
 # as an unsigned frame on the feed's session. `W10_COMMANDS` names them so a test can prove no guard lets one through.
 W10_COMMANDS = frozenset(wiskey_media_contract.COMMANDS)
 UNPINNED_CHANNELS = frozenset({"readback", "pacing"})
+# WISKEY-INSTALLER-NATIVE-2400 (owner decision 03.11, Q7 "ג"): WisKey's installer tools in Arx (services/wiskey_installer*.py) - the
+# fleet clock / NTP (`clock/*`), a station's technical settings (`stations/technical_get` / `technical_update`) and the platform
+# (`platform/*`). Administrator commands in WisKey; in Arx system.configure at the installation, a confirmation per write and a typed
+# phrase for the dangerous ones. Same socket and identity as `service`, a guard of its own, so the service channel's reviewed write list
+# stays as it was and nothing else can ride this guard. Each phase of the branch adds its own commands here.
+INSTALLER = frozenset({
+    # phase 1: clock / NTP (the station's clock READ again is the station-maintenance channel's `stations/clock_refresh`, not here)
+    "clock/settings_get", "clock/settings_update", "clock/host_status", "clock/host_apply", "clock/station_sync",
+})
 
 ALLOWLISTS: dict[str, frozenset[str]] = {"background": BACKGROUND, "service": SERVICE, "read": READ, "technical": TECHNICAL, "messaging": MESSAGING,
-                                         "readback": READBACK, "pacing": PACING}
-ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing")  # the guards the service session builds for the adapters (intercom_sync on_ready)
+                                         "readback": READBACK, "pacing": PACING, "installer": INSTALLER}
+ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing", "installer")  # the guards the service session builds for the adapters (intercom_sync on_ready)
 
 # Home Assistant's own frames a channel may send besides WisKey commands (the auth handshake is written by ha_client itself):
 # `get_config` tells "WisKey not loaded yet" from "not installed"; the service feed watches the stations' entities.
@@ -107,6 +116,7 @@ HA_FRAMES: dict[str, frozenset[str]] = {
     "messaging": frozenset(),
     "readback": frozenset(),
     "pacing": frozenset(),
+    "installer": frozenset(),
 }
 
 
@@ -147,4 +157,5 @@ def describe() -> dict[str, Any]:
         "messaging": {"commands": sorted(MESSAGING), "in_use": True},
         "readback": {"commands": sorted(READBACK), "in_use": True},
         "pacing": {"commands": sorted(PACING), "in_use": True},
+        "installer": {"commands": sorted(INSTALLER), "in_use": True},
     }
