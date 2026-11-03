@@ -32,7 +32,9 @@ async function open(page: Page, over: Partial<SchedMock> = {}): Promise<SchedMoc
 async function compare(page: Page, info: Parameters<typeof noBaseline>[0] & { project: { name: string } }, name: string) {
   const file = `${name}-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
   if (noBaseline(info, file)) test.info().annotations.push({ type: 'skipped-pixel', description: `${file}: no baseline on ${process.platform}` });
-  else await expect(page).toHaveScreenshot(file, { maxDiffPixels: 40, animations: 'disabled' });
+  // the shell's top tab strip is masked: its horizontal scroll position after load is the shell's, not this screen's (a first-test-of-
+  // the-worker variance seen on the phone in the runner run of 04.11), and it is pinned by the shell's own pixel specs
+  else await expect(page).toHaveScreenshot(file, { maxDiffPixels: 40, animations: 'disabled', mask: [page.locator('sw-app sw-tabs').first()] });
 }
 
 test.describe('pixel: the schedule library editor', () => {
