@@ -87,6 +87,18 @@ export class SystemIntercomInstaller extends LitElement {
     }
   }
 
+  updated(): void {
+    // a phone shows part of the tab strip: keep the current tool's tab in view (the strip scrolls, the page does not)
+    const strip = this.renderRoot.querySelector<HTMLElement>('nav.tabs');
+    const current = strip?.querySelector<HTMLElement>('a[aria-current="page"]');
+    if (strip && current) {
+      const s = strip.getBoundingClientRect();
+      const c = current.getBoundingClientRect();
+      if (c.left < s.left) strip.scrollLeft -= s.left - c.left + 8;
+      else if (c.right > s.right) strip.scrollLeft += c.right - s.right + 8;
+    }
+  }
+
   private get tool(): ToolName {
     return (INSTALLER_TOOLS as readonly string[]).includes(this.view) ? (this.view as ToolName) : INSTALLER_TOOLS[0];
   }
