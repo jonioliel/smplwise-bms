@@ -13,6 +13,7 @@ import '../components/sw-icon';
 import '../components/wk-action-button';
 import type { TableColumn } from '../components/sw-table';
 import type { AccessStation, StationCodes, StationPrograms } from '../api/access-stations';
+import { callLogSection } from '../components/wk-call-history'; // WISKEY-INBOUND-CALLS-2382: the station's recent calls
 import { intercomSnapshotUrl, type DisplayZone, type IntercomCallCommand } from '../api/intercom';
 import { fill, type StationsText } from '../i18n/wiskey-stations';
 import type { StationActions } from './wiskey-stations-actions';
@@ -538,6 +539,7 @@ export function drawerBody(v: ViewCtx, s: AccessStation): TemplateResult {
           <div class="callrow"><span class="cs muted" data-wk-announce-state>${ttsState || t.drawer.announceHint}</span><wk-action-button icon="volume" data-wk-announce-at=${s.id} ?disabled=${!v.live || !s.online} @click=${stop(() => v.announce(s.id))}>${t.announce}</wk-action-button></div>
         </section>`
       : nothing}
+    ${callLogSection(s.id, s.zone as { kind: string; name: string } | null)}
     ${technical(v, s)} ${doorSettings(v, s)}
   `;
 }

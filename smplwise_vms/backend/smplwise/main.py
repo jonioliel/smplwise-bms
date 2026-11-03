@@ -589,6 +589,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(intercom_media_router.router, prefix=api, tags=["access-control"])
     from .routers import intercom_listen as intercom_listen_router  # WKAUDIN-295: listening to a station (its own line; off by default)
     app.include_router(intercom_listen_router.router, prefix=api, tags=["access-control"])
+    from .routers import intercom_calls as intercom_calls_router  # WISKEY-INBOUND-CALLS-2382: the incoming-call banner, the call log (its own line)
+
+    app.include_router(intercom_calls_router.router, prefix=api, tags=["access-control"])
     from .routers import access_control_writes  # CR-036 S11: the person writes added to the editor's (its own line, like S4's)
 
     app.include_router(access_control_writes.router, prefix=api, tags=["access-control"])
@@ -1118,6 +1121,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import notify_sources
 
         notify_sources.start(app.state.db, settings)  # CR-018 S2: the source monitors (health, faults, sensors) and the writer of queued signals
+        from .services import intercom_calls
+
+        intercom_calls.WRITER.start(app.state.db)  # WISKEY-INBOUND-CALLS-2382: the writer of the door-station call log (closes calls left open first)
         if not ha_only:
             from .services import recorder_health
 
@@ -1255,6 +1261,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import notify_sources
 
         await _in_thread(notify_sources.shutdown)
+        from .services import intercom_calls as _intercom_calls
+
+        await _in_thread(_intercom_calls.WRITER.shutdown)
         from .services import intercom_media as _station_media
 
         # WKF01F02-295 (F01): the signed station-media provider's leased streams leave go2rtc and their timers are joined; never raises

@@ -744,7 +744,7 @@ test.describe('wiskey-stations: hygiene', () => {
     expect([...hosts]).toHaveLength(1);
     const own = paths.filter((p) => /access-control|intercom\/|devices\/(tree|entities)/.test(p));
     expect(own.length).toBeGreaterThan(3);
-    for (const p of own) expect(p).toMatch(/^(GET access-control\/(stations|features)(\/[^/]+\/(programs|codes))?|GET intercom\/stations\/[^/]+\/camera-snapshot\.jpg(\?.*)?|GET intercom\/tts\/engines|GET devices\/(tree|entities)(\?.*)?)$/);
+    for (const p of own) expect(p).toMatch(/^(GET access-control\/(stations|features)(\/[^/]+\/(programs|codes))?|GET intercom\/stations\/[^/]+\/camera-snapshot\.jpg(\?.*)?|GET intercom\/tts\/engines|GET intercom\/calls(\/active)?|GET access-control\/stations\/[^/]+\/media|GET devices\/(tree|entities)(\?.*)?)$/);
     expect(paths.filter((p) => /hikvision|\/command|\/proxy/.test(p))).toEqual([]);
   });
 

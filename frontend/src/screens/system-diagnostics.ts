@@ -71,6 +71,7 @@ import './system-brand-colors';// 2.4.4: הגדרות › כללי › צבעי 
 import './system-timeline-colors'; // owner 2026-10-01: הגדרות › וידאו ומדיה › צבעי ציר הזמן
 import './system-video-conn-test'; // owner 2026-10-01: הגדרות › גישה מרחוק › בדיקת חיבור וידאו
 import './system-wiskey-diagnostics'; // WisKey B0: הגדרות › מתגי מסכי כניסה › WisKey רואה את Arx כ־
+import './system-call-banner'; // WISKEY-INBOUND-CALLS-2382: who gets the incoming-call banner (off by default)
 import './system-access-display'; // CR-036 S12: הגדרות › מתגי מסכי כניסה › תצוגת מסך התחנות (the four S6 display settings)
 import './system-access-parity'; // CR-036 S12: הגדרות › מתגי מסכי כניסה › השוואה למסכי האינטרקום (the side-by-side check before a screen is switched)
 import { loadTree } from '../api/catalog';
@@ -1269,6 +1270,7 @@ export class SystemDiagnostics extends LitElement {
           : html`<div class="muted">${api ? 'שינוי הבחירה דורש הרשאת מנהל מערכת.' : 'נתוני הדגמה: ההגדרות נשמרות רק מול השרת.'}</div>`}
       </sw-card>
       <system-access-display></system-access-display>
+      <system-call-banner></system-call-banner>
       ${!api || can('access.admin.read') ? html`<system-access-parity></system-access-parity>` : nothing}
       <system-wiskey-diagnostics></system-wiskey-diagnostics>
     </div>`;
