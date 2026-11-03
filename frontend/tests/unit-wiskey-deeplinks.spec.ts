@@ -10,12 +10,15 @@ import {
   ROOT,
   ROOT_HREF,
   deepLinkHref,
+  BRIDGED,
   deepLinksFor,
+  linkFor,
   deepTarget,
   inCatalog,
   isDeepPlace,
   mayOpenPanel,
   targetHref,
+  type DeepLinkEntry,
   type DeepPlace,
 } from '../src/wiskey/deep-links';
 
@@ -73,15 +76,15 @@ test.describe('the deep-link table', () => {
   });
 
   test('the addresses: a tool under #/wiskey/tools/<tool>; a tab that can be a native screen with ?classic=1; users is "people"', () => {
-    expect(deepLinkHref('fleet_alerts')).toBe('#/wiskey/tools/fleet_alerts');
-    expect(deepLinkHref('device_schedules')).toBe('#/wiskey/tools/schedules');
-    expect(deepLinkHref('clock_settings')).toBe('#/wiskey/tools/clock_options');
-    expect(deepLinkHref('profile_fields')).toBe('#/wiskey/tools/profile_options');
-    expect(deepLinkHref('panel_permissions')).toBe('#/wiskey/tools/access_control');
-    expect(deepLinkHref('sync')).toBe('#/wiskey/sync');
-    expect(deepLinkHref('station_settings')).toBe('#/wiskey/devices?classic=1');
-    expect(deepLinkHref('people_panel')).toBe('#/wiskey/people?classic=1');
-    expect(deepLinkHref('events_report')).toBe('#/wiskey/events?classic=1');
+    expect(deepLinkHref('alerts.act')).toBe('#/wiskey/tools/fleet_alerts');
+    expect(deepLinkHref('schedules.edit')).toBe('#/wiskey/tools/schedules');
+    expect(deepLinkHref('clock.settings')).toBe('#/wiskey/tools/clock_options');
+    expect(deepLinkHref('profiles.edit')).toBe('#/wiskey/tools/profile_options');
+    expect(deepLinkHref('permissions.panel')).toBe('#/wiskey/tools/access_control');
+    expect(deepLinkHref('sync.run')).toBe('#/wiskey/sync');
+    expect(deepLinkHref('stations.technical')).toBe('#/wiskey/devices?classic=1');
+    expect(deepLinkHref('people.unmanaged')).toBe('#/wiskey/people?classic=1');
+    expect(deepLinkHref('events.report')).toBe('#/wiskey/events?classic=1');
     expect(targetHref({ tab: 'camera_wall', tool: null })).toBe('#/wiskey/camera_wall');
     // the schedules screen's "edit" button uses the table: the schedules tool itself (it was the tools hub)
     expect(CLASSIC_EDIT_HREF).toBe('#/wiskey/tools/schedules');
@@ -121,9 +124,9 @@ test.describe('who gets the links', () => {
 
   test('the panel\'s administrator-only tools are offered to an access-control administrator only', () => {
     const ids = (admin: boolean) => deepLinksFor('settings-status', { panel: true, admin }).map((l) => l.id);
-    expect(ids(true)).toEqual(['sync', 'fleet_alerts', 'health', 'clock_settings', 'operations_center', 'investigations', 'platform_center']);
-    expect(ids(false)).toEqual(['sync', 'fleet_alerts', 'health', 'clock_settings', 'operations_center']);
-    expect(deepLinksFor('settings-policy', { panel: true, admin: false }).map((l) => l.id)).toEqual(['permission_directory', 'media_options']);
+    expect(ids(true)).toEqual(['sync.run', 'alerts.act', 'health.fleet', 'clock.settings', 'operations.center', 'operations.investigations', 'platform.center']);
+    expect(ids(false)).toEqual(['sync.run', 'alerts.act', 'health.fleet', 'clock.settings', 'operations.center']);
+    expect(deepLinksFor('settings-policy', { panel: true, admin: false }).map((l) => l.id)).toEqual(['permissions.directory', 'media.settings']);
   });
 
   test('with the panel\'s handshake catalog known, a link the panel would not open for this operator is not offered', () => {
@@ -132,26 +135,55 @@ test.describe('who gets the links', () => {
     expect(inCatalog({ tab: 'tools', tool: 'health' }, catalog)).toBe(true);
     expect(inCatalog({ tab: 'tools', tool: 'clock_options' }, catalog)).toBe(false);
     expect(inCatalog({ tab: 'devices', tool: null }, null)).toBe(true); // no catalog yet: the panel decides (and falls back by itself)
-    expect(deepLinksFor('station', { ...ADMIN, catalog }).map((l) => l.id)).toEqual(['sync', 'health']);
-    expect(deepLinksFor('people', { ...ADMIN, catalog }).map((l) => l.id)).toEqual(['people_panel', 'profile_fields']);
+    expect(deepLinksFor('station', { ...ADMIN, catalog }).map((l) => l.id)).toEqual(['sync.run', 'health.fleet']);
+    expect(deepLinksFor('people', { ...ADMIN, catalog }).map((l) => l.id)).toEqual(['people.unmanaged', 'profiles.edit']);
   });
 
   test('what each place offers an administrator (the order shown)', () => {
     const ids = (p: DeepPlace) => deepLinksFor(p, ADMIN).map((l) => `${l.id}=${l.href}`);
-    expect(ids('station')).toEqual(['station_settings=#/wiskey/devices?classic=1', 'sync=#/wiskey/sync', 'health=#/wiskey/tools/health', 'clock_settings=#/wiskey/tools/clock_options']);
-    expect(ids('stations')).toEqual(['station_settings=#/wiskey/devices?classic=1', 'sync=#/wiskey/sync', 'fleet_alerts=#/wiskey/tools/fleet_alerts', 'health=#/wiskey/tools/health']);
+    expect(ids('station')).toEqual(['stations.technical=#/wiskey/devices?classic=1', 'sync.run=#/wiskey/sync', 'health.fleet=#/wiskey/tools/health', 'clock.settings=#/wiskey/tools/clock_options']);
+    expect(ids('stations')).toEqual(['stations.technical=#/wiskey/devices?classic=1', 'sync.run=#/wiskey/sync', 'alerts.act=#/wiskey/tools/fleet_alerts', 'health.fleet=#/wiskey/tools/health']);
     expect(ids('people')).toEqual([
-      'people_panel=#/wiskey/people?classic=1',
-      'profile_fields=#/wiskey/tools/profile_options',
-      'identity_lifecycle=#/wiskey/tools/identity_lifecycle',
-      'access_reviews=#/wiskey/tools/access_reviews',
-      'access_comparison=#/wiskey/tools/access_comparison',
-      'data_quality=#/wiskey/tools/data_quality',
+      'people.unmanaged=#/wiskey/people?classic=1',
+      'profiles.edit=#/wiskey/tools/profile_options',
+      'people.lifecycle=#/wiskey/tools/identity_lifecycle',
+      'access.reviews=#/wiskey/tools/access_reviews',
+      'access.compare=#/wiskey/tools/access_comparison',
+      'people.quality=#/wiskey/tools/data_quality',
     ]);
-    expect(ids('schedules')).toEqual(['device_schedules=#/wiskey/tools/schedules', 'station_settings=#/wiskey/devices?classic=1']);
-    expect(ids('settings-audit')).toEqual(['panel_audit=#/wiskey/tools/audit', 'events_report=#/wiskey/events?classic=1']);
-    expect(ids('settings-groups')).toEqual(['profile_fields=#/wiskey/tools/profile_options']);
-    expect(ids('settings-messaging')).toEqual(['whatsapp_templates=#/wiskey/tools/whatsapp_templates']);
-    expect(ids('settings-policy')).toEqual(['panel_permissions=#/wiskey/tools/access_control', 'permission_directory=#/wiskey/tools/permission_directory', 'media_options=#/wiskey/tools/media_options', 'workflow_center=#/wiskey/tools/workflow_center']);
+    expect(ids('schedules')).toEqual(['schedules.edit=#/wiskey/tools/schedules', 'stations.technical=#/wiskey/devices?classic=1']);
+    expect(ids('settings-audit')).toEqual(['audit.panel=#/wiskey/tools/audit', 'events.report=#/wiskey/events?classic=1']);
+    expect(ids('settings-groups')).toEqual(['profiles.edit=#/wiskey/tools/profile_options']);
+    expect(ids('settings-messaging')).toEqual(['messaging.templates=#/wiskey/tools/whatsapp_templates']);
+    expect(ids('settings-policy')).toEqual(['permissions.panel=#/wiskey/tools/access_control', 'permissions.directory=#/wiskey/tools/permission_directory', 'media.settings=#/wiskey/tools/media_options', 'workflows.center=#/wiskey/tools/workflow_center']);
+  });
+});
+
+test.describe('keyed by capability: a native screen replaces a link without touching the callers', () => {
+  test('linkFor gives the panel link today, the panel root for an unknown capability', () => {
+    expect(linkFor('schedules.edit')).toBe('#/wiskey/tools/schedules');
+    expect(linkFor('profiles.edit')).toBe('#/wiskey/tools/profile_options');
+    expect(linkFor('no.such')).toBe(ROOT_HREF);
+    for (const id of Object.keys(DEEP_LINKS)) expect(linkFor(id), id).toBe(deepLinkHref(id)); // no native screen exists yet
+  });
+
+  test('the temporary links of the owner Q4 / Q7 (native screens to come) are marked', () => {
+    expect([...BRIDGED].sort()).toEqual(['clock.settings', 'platform.center', 'profiles.edit', 'schedules.edit', 'stations.technical']);
+    expect(DEEP_LINKS['schedules.edit'].bridge).toBe('Q4');
+    expect(DEEP_LINKS['profiles.edit'].bridge).toBe('Q4');
+    for (const id of ['clock.settings', 'platform.center', 'stations.technical']) expect(DEEP_LINKS[id].bridge, id).toBe('Q7');
+    for (const id of Object.keys(DEEP_LINKS)) expect(DEEP_LINKS[id].native, id).toBeUndefined();
+  });
+
+  test('once an entry carries a native route: linkFor and every place follow; the panel rule and catalog no longer apply to it', () => {
+    const table: Record<string, DeepLinkEntry> = { ...DEEP_LINKS, 'schedules.edit': { ...DEEP_LINKS['schedules.edit'], native: { href: '#/access/schedules/edit', need: ['access.schedules.manage'] } } };
+    expect(linkFor('schedules.edit', table)).toBe('#/access/schedules/edit');
+    const holds = (p: string) => p === 'access.schedules.manage';
+    const links = deepLinksFor('schedules', { panel: true, admin: true, can: holds }, table);
+    expect(links.map((l) => `${l.id}:${l.kind}=${l.href}`)).toEqual(['schedules.edit:native=#/access/schedules/edit', 'stations.technical:panel=#/wiskey/devices?classic=1']);
+    // no panel for this caller: the native link stays, the panel link goes
+    expect(deepLinksFor('schedules', { panel: false, admin: false, can: holds }, table).map((l) => l.id)).toEqual(['schedules.edit']);
+    // the native screen's permission is not held: not offered
+    expect(deepLinksFor('schedules', { panel: false, admin: false, can: () => false }, table)).toEqual([]);
   });
 });

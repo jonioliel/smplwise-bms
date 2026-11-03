@@ -71,14 +71,14 @@ test.describe('deep links: the stations and doors screen and the station drawer'
     await expect(host).toHaveAttribute('slot', 'actions');
     await expect(host.locator('[data-wk-deeplinks-list]')).toHaveCount(0); // closed until asked
     await openList(host);
-    expect(await hrefs(host)).toEqual(expected(['station_settings', 'sync', 'fleet_alerts', 'health']));
+    expect(await hrefs(host)).toEqual(expected(['stations.technical', 'sync.run', 'alerts.act', 'health.fleet']));
     expect(await links(host).allTextContents()).not.toContainEqual(expect.stringMatching(BANNED));
     // Escape closes and gives the focus back to the button
     await page.keyboard.press('Escape');
     await expect(host.locator('[data-wk-deeplinks-list]')).toHaveCount(0);
     // the sync link: the embedded panel opens on its sync tab
     await openList(host);
-    await host.locator('[data-wk-deeplink="sync"]').click();
+    await host.locator('[data-wk-deeplink="sync.run"]').click();
     await expect.poll(() => hash(page)).toMatch(/^#\/wiskey\/sync(\?|$)/);
     await expect(page.locator('sw-app wiskey-embed')).toHaveCount(1, { timeout: 30_000 });
     await expect.poll(() => lastFrame(hits), { timeout: 15_000 }).toBe('sync/');
@@ -93,10 +93,10 @@ test.describe('deep links: the stations and doors screen and the station drawer'
     await expect(host.locator('[data-wk-deeplinks-toggle]')).toContainText('פתיחה בחלון האינטרקום (4)');
     await openList(host);
     await expect(host.locator('[data-wk-deeplinks-toggle]')).toHaveAttribute('aria-expanded', 'true');
-    expect(await hrefs(host)).toEqual(expected(['station_settings', 'sync', 'health', 'clock_settings']));
-    await expect(host.locator('[data-wk-deeplink="station_settings"]')).toHaveAttribute('data-wk-target', 'devices');
-    await expect(host.locator('[data-wk-deeplink="clock_settings"]')).toHaveAttribute('data-wk-target', 'tools/clock_options');
-    await host.locator('[data-wk-deeplink="clock_settings"]').click();
+    expect(await hrefs(host)).toEqual(expected(['stations.technical', 'sync.run', 'health.fleet', 'clock.settings']));
+    await expect(host.locator('[data-wk-deeplink="stations.technical"]')).toHaveAttribute('data-wk-target', 'devices');
+    await expect(host.locator('[data-wk-deeplink="clock.settings"]')).toHaveAttribute('data-wk-target', 'tools/clock_options');
+    await host.locator('[data-wk-deeplink="clock.settings"]').click();
     await expect.poll(() => hash(page)).toMatch(/^#\/wiskey\/tools\/clock_options(\?|$)/);
     await expect.poll(() => lastFrame(hits), { timeout: 15_000 }).toBe('tools/clock_options');
   });
@@ -107,7 +107,7 @@ test.describe('deep links: the stations and doors screen and the station drawer'
     await page.locator(`${STATIONS} [data-wk-grid] [data-wk-station="lobby"] button.open`).click();
     const host = page.locator(`${STATIONS} sw-drawer[data-wk-drawer] wk-deep-links[place="station"]`);
     await openList(host);
-    await host.locator('[data-wk-deeplink="station_settings"]').click();
+    await host.locator('[data-wk-deeplink="stations.technical"]').click();
     await expect.poll(() => hash(page)).toMatch(/^#\/wiskey\/devices\?classic=1/);
     await expect(page.locator('sw-app wiskey-embed')).toHaveCount(1, { timeout: 30_000 });
     await expect(page.locator(STATIONS)).toHaveCount(0);
@@ -134,7 +134,7 @@ test.describe('deep links: the stations and doors screen and the station drawer'
     await expect(page.locator(`${STATIONS} [data-wk-stations][data-wk-state="ready"]`)).toBeVisible({ timeout: 30_000 });
     const host = page.locator(`${STATIONS} wk-deep-links[place="stations"]`);
     await openList(host);
-    expect(await hrefs(host)).toEqual(expected(['station_settings', 'sync', 'health'])); // fleet_alerts is not in this catalog
+    expect(await hrefs(host)).toEqual(expected(['stations.technical', 'sync.run', 'health.fleet'])); // fleet_alerts is not in this catalog
   });
 });
 
@@ -150,8 +150,8 @@ test.describe('deep links: the people screen', () => {
     await expect(page.locator('wiskey-people sw-page')).toHaveAttribute('data-people-phase', 'ready', { timeout: 20_000 });
     const host = page.locator('sw-app wiskey-people wk-deep-links[place="people"]');
     await openList(host);
-    expect(await hrefs(host)).toEqual(expected(['people_panel', 'profile_fields', 'identity_lifecycle', 'access_reviews', 'access_comparison', 'data_quality']));
-    await host.locator('[data-wk-deeplink="profile_fields"]').click();
+    expect(await hrefs(host)).toEqual(expected(['people.unmanaged', 'profiles.edit', 'people.lifecycle', 'access.reviews', 'access.compare', 'people.quality']));
+    await host.locator('[data-wk-deeplink="profiles.edit"]').click();
     await expect.poll(() => hash(page)).toMatch(/^#\/wiskey\/tools\/profile_options(\?|$)/);
     await expect.poll(() => lastFrame(hits), { timeout: 15_000 }).toBe('tools/profile_options');
   });
@@ -165,7 +165,7 @@ test.describe('deep links: the schedules screen', () => {
     await accessBoot(page, { settings: { 'access.ui.schedules': 'smplwise' } }, '/wiskey/schedules', 'sw-app wiskey-schedules [data-sch-program]');
     const host = page.locator('sw-app wiskey-schedules wk-deep-links[place="schedules"]');
     await openList(host);
-    expect(await hrefs(host)).toEqual(expected(['device_schedules', 'station_settings']));
+    expect(await hrefs(host)).toEqual(expected(['schedules.edit', 'stations.technical']));
     await page.keyboard.press('Escape');
     await page.locator('sw-app wiskey-schedules sw-button[data-sch-edit]').click();
     await expect.poll(() => hash(page)).toMatch(/^#\/wiskey\/tools\/schedules(\?|$)/);
@@ -189,18 +189,18 @@ test.describe('deep links: Settings › בקרת כניסה', () => {
     await accessBoot(page, {}, '/system/access-control', `${PAGE} [data-access-segment="status"]`);
     const status = page.locator(`${PAGE} wk-deep-links[place="settings-status"]`);
     await openList(status);
-    expect(await hrefs(status)).toEqual(expected(['sync', 'fleet_alerts', 'health', 'clock_settings', 'operations_center', 'investigations', 'platform_center']));
+    expect(await hrefs(status)).toEqual(expected(['sync.run', 'alerts.act', 'health.fleet', 'clock.settings', 'operations.center', 'operations.investigations', 'platform.center']));
     await page.goto(accessUrl('/system/access-control/audit'));
     const audit = page.locator(`${PAGE} wk-deep-links[place="settings-audit"]`);
     await openList(audit);
-    expect(await hrefs(audit)).toEqual(expected(['panel_audit', 'events_report']));
+    expect(await hrefs(audit)).toEqual(expected(['audit.panel', 'events.report']));
     await page.goto(accessUrl('/system/access-control/groups'));
     await openList(page.locator(`${PAGE} wk-deep-links[place="settings-groups"]`));
     await page.goto(accessUrl('/system/access-control/policy'));
     const policy = page.locator(`${PAGE} wk-deep-links[place="settings-policy"]`);
     await openList(policy);
-    expect(await hrefs(policy)).toEqual(expected(['panel_permissions', 'permission_directory', 'media_options', 'workflow_center']));
-    await policy.locator('[data-wk-deeplink="panel_permissions"]').click();
+    expect(await hrefs(policy)).toEqual(expected(['permissions.panel', 'permissions.directory', 'media.settings', 'workflows.center']));
+    await policy.locator('[data-wk-deeplink="permissions.panel"]').click();
     await expect.poll(() => hash(page)).toMatch(/^#\/wiskey\/tools\/access_control(\?|$)/);
     await expect.poll(() => lastFrame(hits), { timeout: 15_000 }).toBe('tools/access_control');
   });

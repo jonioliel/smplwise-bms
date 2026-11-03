@@ -17,7 +17,7 @@ import type { JobStatus, LibrarySchedule, ScheduleJob, ScheduleOperations, Sched
 import type { DisplayZone, IntercomFeedState } from '../api/intercom';
 import { sch, schDynamic } from '../i18n/access-schedules';
 import { offsetAt, UTC_ZONE } from '../screens/wiskey-format';
-import { deepLinkHref } from '../wiskey/deep-links';
+import { linkFor } from '../wiskey/deep-links';
 
 /** The reads repeat while the screen is visible (CR-036 3.4: the integration's change notice may not cover these stores, W6); the
  * server caches them for 30-60 s, so asking more often would only repeat the answer. */
@@ -485,4 +485,4 @@ export function schedulesAccess(canAnywhere: (p: string) => boolean, canInstalla
 
 /** The classic panel's schedule editor (always the embedded panel): its `schedules` management tool, from the one deep-link table
  * (WISKEY-DEEPLINKS-2382; it was the tools hub `#/wiskey/tools` before). */
-export const CLASSIC_EDIT_HREF = deepLinkHref('device_schedules');
+export const CLASSIC_EDIT_HREF = linkFor('schedules.edit');

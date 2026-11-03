@@ -1,7 +1,7 @@
 import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './sw-icon';
-import { can, isApi, onSession } from '../api/session';
+import { can, canAnywhere, isApi, onSession } from '../api/session';
 import { WISKEY_HIDDEN, onWiskeyEmbedNav, wiskeyEmbedNav } from '../shell/nav';
 import { wkIcon } from '../screens/wiskey-stations-icons';
 import { deepLinksFor, mayOpenPanel, type DeepLink } from '../wiskey/deep-links';
@@ -159,7 +159,7 @@ export class WkDeepLinks extends LitElement {
     void this.rev;
     const api = isApi();
     const panel = mayOpenPanel({ api, accessReadInstallation: api && can('access.read'), hidden: WISKEY_HIDDEN });
-    return deepLinksFor(this.place, { panel, admin: api && can('access.admin.read'), catalog: wiskeyEmbedNav().catalog });
+    return api ? deepLinksFor(this.place, { panel, admin: can('access.admin.read'), catalog: wiskeyEmbedNav().catalog, can: canAnywhere }) : [];
   }
 
   private onOutside = (e: Event) => {
@@ -195,8 +195,13 @@ export class WkDeepLinks extends LitElement {
     return html`<ul class="list" role="list">
       ${links.map(
         (l) => html`<li>
-          <a href=${l.href} data-wk-deeplink=${l.id} data-wk-target=${l.target.tool ? `${l.target.tab}/${l.target.tool}` : l.target.tab} @click=${() => (this.open = false)}
-            >${wkIcon('window', 14)}<span>${l.label}</span></a
+          <a
+            href=${l.href}
+            data-wk-deeplink=${l.id}
+            data-wk-kind=${l.kind}
+            data-wk-target=${l.kind === 'native' ? l.href : l.target.tool ? `${l.target.tab}/${l.target.tool}` : l.target.tab}
+            @click=${() => (this.open = false)}
+            >${l.kind === 'panel' ? wkIcon('window', 14) : html`<sw-icon name="chevronBack" size=${14}></sw-icon>`}<span>${l.label}</span></a
           >
         </li>`,
       )}

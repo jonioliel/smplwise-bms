@@ -10,8 +10,11 @@ Every access-control capability that Arx has no native screen for (the plan's ma
 has, and the installer tools kept in the panel) now has a precise link from the Arx place where an operator looks for it, straight to
 the panel's tab / management tool. Before, the same capabilities were reachable only by opening the embedded panel and searching.
 
-- **One table** - `frontend/src/wiskey/deep-links.ts` (pure, node-tested): capability id -> panel `tab` / `tool`, the Hebrew label,
-  the plan rows served, and the places that offer it. An id the table does not know falls back to the panel root
+- **One table, keyed by capability** - `frontend/src/wiskey/deep-links.ts` (pure, node-tested): capability (`schedules.edit`,
+  `profiles.edit`, `stations.technical` ...) -> where it lives: the native Arx screen once one exists (`native`), else the panel
+  `tab` / `tool`; plus the Hebrew label, the plan rows served, and the places that offer it. Callers ask `linkFor(capability)` (one
+  address) or `<wk-deep-links place=...>` (a place's list) and never build an address, so a native screen replaces a link by filling
+  its entry's `native: { href, need }` - no caller changes. A capability the table does not know falls back to the panel root
   (`#/wiskey/overview?classic=1`), never to a guessed address.
 - **One component** - `frontend/src/components/wk-deep-links.ts`: `place=` names the place; `mode="inline"` is a closed disclosure
   line ("פתיחה בחלון האינטרקום (n)") inside a section, `mode="menu"` an icon button in a page's actions that opens a short list. Links
@@ -24,46 +27,65 @@ the panel's tab / management tool. Before, the same capabilities were reachable 
 
 ## Permissions
 
-A link is drawn only for a caller who may open the panel - the WisKey area's own rule: a backend, `access.read` at installation
+A panel link is drawn only for a caller who may open the panel - the WisKey area's own rule: a backend, `access.read` at installation
 scope, and the area not hidden for everyone (`ui.hide_wiskey`). The panel's administrator-only tools (`platform_center`,
 `workflow_center`, `investigations`, `access_control` - panel.js `tabAvailable` requires the panel admin) are offered only with
 `access.admin.read` at installation scope. Once the panel's handshake catalog (`wiskey:ready`) is known in the session, a link
 whose tab / tool it does not list for this operator is not offered. The panel keeps its own permissions inside; a link never grants
-anything (WisKey falls back to its default screen for an id the operator may not open).
+anything (WisKey falls back to its default screen for an id the operator may not open). A native link (none yet) follows its own
+screen's `need` permission instead, whether or not the caller may open the panel.
+
+## Temporary links - the owner's corrected answers Q4 "א" and Q7 "ג" (2026-11-03)
+
+Q4: device schedules and groups / profile fields get full editing in Arx. Q7: the installer tools (platform, clock, station technical
+settings, lifecycle) become native. Those native screens are built later by other agents; until each lands, the panel link below is
+the bridge. Each entry carries `bridge: 'Q4' | 'Q7'` (`BRIDGED` lists them; a unit test pins the list):
+
+| Capability | Bridge | Native screen to come replaces |
+|---|---|---|
+| `schedules.edit` | Q4 | device schedule library / plans / deploy (`tools/schedules`); also the schedules screen's "edit" button (`linkFor('schedules.edit')`) |
+| `profiles.edit` | Q4 | groups and profile fields edit (`tools/profile_options`) |
+| `stations.technical` | Q7 | station technical settings, door programs, hold-open, public codes, rescan, clock refresh (`devices` station dialog) |
+| `clock.settings` | Q7 | clock / NTP (`tools/clock_options`) |
+| `platform.center` | Q7 | platform centre incl. station lifecycle, onboarding, maintenance queue, capacity (`tools/platform_center`) |
+
+"Lifecycle" in Q7 is read as the STATION lifecycle (inside the platform centre). The people-side identity lifecycle and renewals
+(`people.lifecycle`, row 28, plan T10) are not marked; if the owner meant those too, add `bridge: 'Q7'` to that entry. To retire a
+bridge: set the entry's `native` (route + permission); `linkFor`, every place and the schedules button follow; then drop `bridge`.
 
 ## The link map
 
-| Capability id | Panel target | Arx route | Plan rows | Offered in |
+| Capability | Panel target | Arx route | Plan rows | Offered in |
 |---|---|---|---|---|
-| `station_settings` | `devices` (the station settings dialog: technical, door programs, hold-open, public codes, rescan, clock refresh) | `#/wiskey/devices?classic=1` | 34, 36, 45, 46, 47 | station drawer, stations, schedules |
-| `sync` | `sync` (sync now per person / station / all, conflict review + resolve, diagnostics file) | `#/wiskey/sync` | 3, 36, 38 | station drawer, stations, Settings status |
-| `health` | `tools/health` (health, fleet inventory export, acceptance) | `#/wiskey/tools/health` | 34, 82, 98 | station drawer, stations, Settings status |
-| `fleet_alerts` | `tools/fleet_alerts` | `#/wiskey/tools/fleet_alerts` | 77 | stations, Settings status |
-| `clock_settings` | `tools/clock_options` | `#/wiskey/tools/clock_options` | 51 | station drawer, Settings status |
-| `people_panel` | `users` (unmanaged users import / adopt / ignore / delete, a person's "can open" scenario) | `#/wiskey/people?classic=1` | 25, 29 | people |
-| `profile_fields` | `tools/profile_options` | `#/wiskey/tools/profile_options` | 27 | people, Settings groups |
-| `identity_lifecycle` | `tools/identity_lifecycle` | `#/wiskey/tools/identity_lifecycle` | 28 | people |
-| `access_reviews` | `tools/access_reviews` | `#/wiskey/tools/access_reviews` | 29 | people |
-| `access_comparison` | `tools/access_comparison` | `#/wiskey/tools/access_comparison` | 29 | people |
-| `data_quality` | `tools/data_quality` | `#/wiskey/tools/data_quality` | 29 | people |
-| `device_schedules` | `tools/schedules` | `#/wiskey/tools/schedules` | 49 | schedules (also its "edit" button) |
-| `panel_audit` | `tools/audit` (change log, export, station permission audit) | `#/wiskey/tools/audit` | 79, 89 | Settings audit |
-| `events_report` | `events` (report, print) | `#/wiskey/events?classic=1` | 79 | Settings audit |
-| `operations_center` | `tools/operations_center` | `#/wiskey/tools/operations_center` | 80 | Settings status |
-| `investigations` (panel admin) | `tools/investigations` | `#/wiskey/tools/investigations` | 80 | Settings status |
-| `platform_center` (panel admin) | `tools/platform_center` | `#/wiskey/tools/platform_center` | 50, 82 | Settings status |
-| `workflow_center` (panel admin) | `tools/workflow_center` | `#/wiskey/tools/workflow_center` | 84 | Settings policy |
-| `panel_permissions` (panel admin) | `tools/access_control` | `#/wiskey/tools/access_control` | 87 | Settings policy |
-| `permission_directory` | `tools/permission_directory` | `#/wiskey/tools/permission_directory` | 87 | Settings policy |
-| `media_options` | `tools/media_options` | `#/wiskey/tools/media_options` | 52 | Settings policy |
-| `whatsapp_templates` | `tools/whatsapp_templates` | `#/wiskey/tools/whatsapp_templates` | 75 | Settings messaging |
-| `visit_requests`, `guest_templates` | `tools/visit_requests`, `tools/guest_templates` | `#/wiskey/tools/...` | 30 | in the table, mounted nowhere (owner question Q6 of the plan) |
-| (unknown id) | panel root | `#/wiskey/overview?classic=1` | - | - |
+| `stations.technical` | `devices` (the station settings dialog: technical, door programs, hold-open, public codes, rescan, clock refresh) | `#/wiskey/devices?classic=1` | 34, 36, 45, 46, 47 | station drawer, stations, schedules |
+| `sync.run` | `sync` (sync now per person / station / all, conflict review + resolve, diagnostics file) | `#/wiskey/sync` | 3, 36, 38 | station drawer, stations, Settings status |
+| `health.fleet` | `tools/health` (health, fleet inventory export, acceptance) | `#/wiskey/tools/health` | 34, 82, 98 | station drawer, stations, Settings status |
+| `alerts.act` | `tools/fleet_alerts` | `#/wiskey/tools/fleet_alerts` | 77 | stations, Settings status |
+| `clock.settings` | `tools/clock_options` | `#/wiskey/tools/clock_options` | 51 | station drawer, Settings status |
+| `people.unmanaged` | `users` (unmanaged users import / adopt / ignore / delete, a person's "can open" scenario) | `#/wiskey/people?classic=1` | 25, 29 | people |
+| `profiles.edit` | `tools/profile_options` | `#/wiskey/tools/profile_options` | 27 | people, Settings groups |
+| `people.lifecycle` | `tools/identity_lifecycle` | `#/wiskey/tools/identity_lifecycle` | 28 | people |
+| `access.reviews` | `tools/access_reviews` | `#/wiskey/tools/access_reviews` | 29 | people |
+| `access.compare` | `tools/access_comparison` | `#/wiskey/tools/access_comparison` | 29 | people |
+| `people.quality` | `tools/data_quality` | `#/wiskey/tools/data_quality` | 29 | people |
+| `schedules.edit` | `tools/schedules` | `#/wiskey/tools/schedules` | 49 | schedules (also its "edit" button) |
+| `audit.panel` | `tools/audit` (change log, export, station permission audit) | `#/wiskey/tools/audit` | 79, 89 | Settings audit |
+| `events.report` | `events` (report, print) | `#/wiskey/events?classic=1` | 79 | Settings audit |
+| `operations.center` | `tools/operations_center` | `#/wiskey/tools/operations_center` | 80 | Settings status |
+| `operations.investigations` (panel admin) | `tools/investigations` | `#/wiskey/tools/investigations` | 80 | Settings status |
+| `platform.center` (panel admin) | `tools/platform_center` | `#/wiskey/tools/platform_center` | 50, 82 | Settings status |
+| `workflows.center` (panel admin) | `tools/workflow_center` | `#/wiskey/tools/workflow_center` | 84 | Settings policy |
+| `permissions.panel` (panel admin) | `tools/access_control` | `#/wiskey/tools/access_control` | 87 | Settings policy |
+| `permissions.directory` | `tools/permission_directory` | `#/wiskey/tools/permission_directory` | 87 | Settings policy |
+| `media.settings` | `tools/media_options` | `#/wiskey/tools/media_options` | 52 | Settings policy |
+| `messaging.templates` | `tools/whatsapp_templates` | `#/wiskey/tools/whatsapp_templates` | 75 | Settings messaging |
+| `visits.requests`, `visits.templates` | `tools/visit_requests`, `tools/guest_templates` | `#/wiskey/tools/...` | 30 | in the table, mounted nowhere (owner question Q6 of the plan) |
+| (unknown capability) | panel root | `#/wiskey/overview?classic=1` | - | - |
 
 Places: the station drawer's "טכני" section (`place="station"`, inline); the stations and doors screen, the people screen and the
 schedules screen (page actions, menu); Settings › בקרת כניסה, one line under each segment (`settings-status | -audit | -groups |
 -policy | -messaging`, inline). The schedules screen's "edit in the classic panel" button now opens the schedules tool itself
-(`CLASSIC_EDIT_HREF`, from the table) instead of the tools hub.
+(`CLASSIC_EDIT_HREF = linkFor('schedules.edit')`) instead of the tools hub - and will open the native editor once it exists.
 
 Source of the ids: WisKey 2.0.1-rc.10 (`C:\hik intercom`, `origin/codex/wiskey-mac-m12-policy-b-2026-11-02`), the router of
 `custom_components/hikvision_intercom/frontend/panel.js` (read-only extract): tabs `overview users devices events sync tools
