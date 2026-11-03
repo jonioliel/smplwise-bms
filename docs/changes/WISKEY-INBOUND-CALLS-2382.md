@@ -100,3 +100,29 @@ Read on `origin/codex/wiskey-mac-m12-policy-b-2026-11-02` (static reading):
 
 Revert the branch. The migration is additive (`DROP TABLE intercom_calls` removes it); the setting key `intercom.call_banner` is
 ignored by older code; with the setting off (default) nothing new is shown and no request is made by users without `access.call`.
+
+## Receipts (03.11)
+
+| What | Where / SHA | Result |
+|---|---|---|
+| Backend: `test_intercom_calls_2382.py` + `test_notify_sources.py` + `test_security_review_wxd_fixes.py` + `test_access_permissions_wxperm.py` + `test_intercom.py` | workstation, repo `.venv`, backend as in `0f39b01e4` (unchanged since) | 280 passed |
+| Backend: `test_intercom_calls_2382.py` + `test_notify_sources.py` | runner `run_smart.py backend` @ `6bc7fb1d3` | 54 passed |
+| `tsc --noEmit` | workstation; runner `run_smart.py tsc` @ `0f39b01e4` | ok / ok |
+| Unit `unit-incoming-calls.spec.ts` (node only) | workstation, `playwright.unit.config.ts` | 13 passed |
+| `evidence-incoming-call.spec.ts` desktop / tablet / mobile | runner @ `6eccd2d58` | 35 passed, 0 failed, 4 skipped (project-only tests) |
+| Regression `evidence-wiskey-stations`, `layout-wiskey-stations`, `evidence-access-s12`, `layout-access-s12` (3 projects) | runner @ `6eccd2d58` (load 11.8) | 6 failed: 3 = the hygiene allow-list did not know the banner's reads (fixed in `6bc7fb1d3`), 3 = `sw-app` / dialog timeouts under load |
+| The 6 above, again | runner @ `6bc7fb1d3` | 18 passed, 0 failed |
+| Pixel `pixel-incoming-call` (new, "pixel-stable") + `pixel-wiskey-stations` + `pixel-access-s12`, desktop + mobile | runner `linux-pixel` @ `6eccd2d58` | 35 passed, 1 skipped; main @ `efc12d0e3` 27 passed on the two existing files |
+| Linux baselines of `pixel-incoming-call` | runner `--update-snapshots` @ `d78e95576`, committed in `fcfc1892b` | 10 PNG |
+
+Evidence screenshots are written on the runner under `docs/design/evidence/WISKEY-INBOUND-CALLS-2382/` and were not copied back.
+
+## NOT_RUN
+
+- Anything against the real WisKey / Home Assistant / door station (no lab access by rule): the ring → banner latency, a real
+  answer / decline / hang-up, the call log on real transitions.
+- Real two-way audio from the banner (the runner browser has no microphone; the talk start is mocked as refused). The talk session
+  itself is the existing `wiskey/talk-session.ts`, unchanged.
+- The ring tone's audibility (Web Audio is not asserted; only the server-side sound decision and the "touch to enable" line).
+- The fixture job (real backend + UI together) and the full release gate.
+- iOS Safari (autoplay / microphone rules differ there).
