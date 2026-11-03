@@ -36,7 +36,7 @@ test('the detail line says only what the server kept', () => {
   expect(detailLine(check({ check: 'clock', detail: { skew_seconds: 0.43, source: 'wiskey' } }))).toBe('סטייה 0.4 שנ׳ · קריאה עדכנית');
   expect(detailLine(check({ check: 'events', detail: { stream: 'connected', source: 'feed' } }))).toBe('זרם: connected · מהעותק השמור');
   expect(detailLine(check({ check: 'media_arx', detail: { source: 'arx', bytes: 40960 } }))).toBe('תמונה 40 KB');
-  expect(detailLine(check({ check: 'door_read', detail: { doors: [{ door: 1, result: 'pass' }, { door: 2, result: 'fail' }] } }))).toBe('דלת 1: pass, דלת 2: fail');
+  expect(detailLine(check({ check: 'door_read', detail: { doors: [{ door: 1, result: 'pass' }, { door: 2, result: 'fail' }] } }))).toBe('דלת 1: עבר, דלת 2: נכשל');
   expect(detailLine(check({ check: 'pulse', detail: { door: 1, witness_name: 'דנה כהן', witness: 'opened' } }))).toBe('דלת 1 · עד: דנה כהן');
   expect(detailLine(check({ check: 'talk', detail: { transport: 'pcmu_frames', busy: true } }))).toBe('pcmu_frames · תפוס כרגע');
   expect(detailLine(check({ detail: {} }))).toBe('');

@@ -467,6 +467,7 @@ def run_native(conn: sqlite3.Connection, features: Any, *, principal: Principal,
     """ONE `live_validation` operation: the request + current policy + snapshot (Arx RBAC, the confirmed relay map), the durable
     intent committed before the start, then completion reads until finished or `wait_s`. `steps` = (step_id, action, door)."""
     from ..db import permission_revision
+    from .wiskey_capture_port import PortError
     from .wiskey_feature_direct import FeatureWireError, _commit
 
     now = now or _now()
@@ -491,6 +492,8 @@ def run_native(conn: sqlite3.Connection, features: Any, *, principal: Principal,
         return WiskeyRun(whole=not_run(exc.code))
     except fx.FeatureError as exc:
         return WiskeyRun(whole=not_run(exc.code))
+    except PortError as exc:  # the port's identity: no selected / connected direct link - nothing was stored or sent
+        return WiskeyRun(whole=not_run("direct_join_off" if exc.outcome == "not_sent" else exc.code))
     granted = set(snapshot.get("permissions") or ())
     missing = sorted(set(required) - granted)
     if missing:

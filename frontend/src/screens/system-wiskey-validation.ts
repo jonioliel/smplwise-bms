@@ -343,7 +343,7 @@ export class SystemWiskeyValidation extends LitElement {
       </header>
       ${checks
         ? html`<ul class="checks">${checks.map((c) => this.checkRow(c))}</ul>`
-        : html`<p class="muted" data-lv-not-checked>העמדה לא נבדקה בבדיקה הזו.</p>`}
+        : html`<p class="muted" data-lv-not-checked>${this.run ? 'העמדה לא נבדקה בבדיקה הזו.' : 'העמדה עוד לא נבדקה.'}</p>`}
       ${this.pulseBlock(d, s, pulses, running)}
     </section>`;
   }
@@ -517,7 +517,7 @@ export class SystemWiskeyValidation extends LitElement {
     }
     .checks li {
       display: grid;
-      grid-template-columns: 96px 1fr;
+      grid-template-columns: 132px 1fr;
       align-items: start;
       gap: 8px;
       padding: 6px 0;
@@ -595,7 +595,7 @@ export class SystemWiskeyValidation extends LitElement {
     }
     @media (max-width: 600px) {
       .checks li {
-        grid-template-columns: 84px 1fr;
+        grid-template-columns: 124px 1fr;
       }
     }
   `;

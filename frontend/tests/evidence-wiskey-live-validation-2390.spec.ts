@@ -30,6 +30,7 @@ const REASONS: Record<string, string> = {
   aborted_after_failure: 'לא הורץ: צעד קודם נכשל, ו-WisKey עוצר את שאר הצעדים.',
   awaiting_witness: 'WisKey אישר את שליחת הפקודה; ממתין לאישור העד.',
   witness_opened: 'העד אישר שהדלת נפתחה.',
+  offline: 'העמדה מנותקת.',
 };
 const STATIONS = [
   { id: 'st-lobby', name: 'לובי ראשי', online: true, doors: [{ door: 1, name: 'כניסה' }, { door: 2, name: 'מחסום' }], can_pulse: true },

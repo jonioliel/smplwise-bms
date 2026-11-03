@@ -131,6 +131,8 @@ export function confirmMatches(station: Pick<ValidationStation, 'id' | 'name'>, 
   return typed.trim() === expected && expected.length > 0;
 }
 
+const DOOR_RESULT: Record<string, string> = { pass: 'עבר', fail: 'נכשל', not_run: 'לא הורץ', unsupported: 'לא נתמך' };
+
 /** A short, plain line for a check's detail (numbers and codes the server kept), for the screen and the printed record. */
 export function detailLine(c: Pick<CheckResult, 'check' | 'detail'>): string {
   const d = c.detail || {};
@@ -139,7 +141,7 @@ export function detailLine(c: Pick<CheckResult, 'check' | 'detail'>): string {
   if (c.check === 'events' && typeof d.stream === 'string') parts.push(`זרם: ${d.stream}`);
   if ((c.check === 'media_arx' || c.check === 'media_wiskey') && typeof d.bytes === 'number') parts.push(`תמונה ${Math.round((d.bytes as number) / 1024)} KB`);
   if (c.check === 'talk' && typeof d.transport === 'string') parts.push(`${d.transport}${d.busy ? ' · תפוס כרגע' : ''}`);
-  if (Array.isArray(d.doors)) parts.push((d.doors as Array<{ door: number; result: string }>).map((x) => `דלת ${x.door}: ${x.result}`).join(', '));
+  if (Array.isArray(d.doors)) parts.push((d.doors as Array<{ door: number; result: string }>).map((x) => `דלת ${x.door}: ${DOOR_RESULT[x.result] ?? x.result}`).join(', '));
   if (c.check === 'pulse') {
     if (typeof d.door === 'number') parts.push(`דלת ${d.door}`);
     if (typeof d.witness_name === 'string') parts.push(`עד: ${d.witness_name}`);

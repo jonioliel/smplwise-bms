@@ -304,8 +304,10 @@ def test_the_direct_join_off_is_not_run(env, monkeypatch):
     env.port.connected = False
     monkeypatch.setattr(lv, "FEATURES_PROVIDER", lambda: fd.FeatureAdapters(fd.DirectFeatureClient(env.port), env.port))
     checks = checks_of(env.run(station_id="st-a"), "st-a")
-    assert all(checks[c]["status"] == "not_run" for c in lv.WISKEY_CHECKS)
+    assert all((checks[c]["status"], checks[c]["reason"]) == ("not_run", "direct_join_off") for c in lv.WISKEY_CHECKS)
     assert env.port.validation_starts() == []
+    with env.db.connection(mode="read") as conn:
+        assert conn.execute("SELECT COUNT(*) FROM wiskey_feature_intents").fetchone()[0] == 0, "nothing stored before a link exists"
 
 
 @pytest.mark.parametrize("blocker", FIXTURE["host_status_blockers"])
