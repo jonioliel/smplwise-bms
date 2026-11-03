@@ -104,14 +104,15 @@ test.describe('pixel: the stations and doors screen', () => {
     // OWN scroll container (never the page behind it), and the page behind the drawer pinned like the release shot (STATIONS-FLAKE-2270)
     await expect(page.locator(`${SCREEN} sw-drawer wk-door-tech [data-wk-dt-open]`)).toBeVisible();
     await page.locator(`${SCREEN} sw-drawer [data-wk-dsec="settings"]`).evaluate((el) => {
-      let n: Node | null = el.parentNode;
-      while (n) {
+      // up the flat tree: a slotted node continues at its slot (the drawer's scroll box is in sw-drawer's shadow root)
+      const up = (x: Node): Node | null => (x instanceof Element && x.assignedSlot ? x.assignedSlot : x instanceof ShadowRoot ? x.host : x.parentNode);
+      for (let n = up(el); n; n = up(n)) {
         if (n instanceof HTMLElement && n.scrollHeight > n.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(n).overflowY)) {
           n.scrollTop += el.getBoundingClientRect().bottom - n.getBoundingClientRect().bottom;
           return;
         }
-        n = n instanceof ShadowRoot ? n.host : n.parentNode;
       }
+      throw new Error('the drawer scroll container was not found');
     });
     await pinLobby(page, info, 'release');
     await shoot(page, info, 'stations-classic-settings');
