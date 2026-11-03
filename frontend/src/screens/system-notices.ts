@@ -33,6 +33,7 @@ import type { NoticeSavedDetail } from '../notices/compose-dialog';
 import { noticesCss } from '../notices/styles';
 import { NOTICES_HREF, NOTICES_SETTINGS_HREF, applyNoticesHidden } from '../shell/nav';
 import '../notices/display-home';
+import { liftRef, liftedReset } from '../components/top-layer';
 import { dateInputLang } from '../api/day-format';
 
 type BoardTab = 'general' | 'display' | 'notices';
@@ -49,6 +50,7 @@ type BoardDetail = Awaited<ReturnType<typeof getBoard>>;
 @customElement('system-notices')
 export class SystemNotices extends LitElement {
   static styles = [
+    liftedReset,
     settingsLadderStyles,
     noticesCss,
     css`
@@ -268,7 +270,7 @@ export class SystemNotices extends LitElement {
     if (!this.s) return html`<sw-page heading=${nt('setTitle')}><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     return html`<sw-page heading="" data-notices-settings>${this.boardId && this.detail ? this.boardPage() : this.overview()}</sw-page>
       ${this.createDialog()} ${this.linkDialog()} ${this.rotateDialog()} ${this.deleteDialog()} ${this.composeDialog()}
-      ${this.toast ? html`<div class="toast" role="status">${this.toast}</div>` : nothing}`;
+      ${this.toast ? html`<div class="toast" role="status" ${liftRef() /* DIALOG-TOPLAYER-2381: above an open sw-dialog (2382 train: the notice board's toasts) */}>${this.toast}</div>` : nothing}`;
   }
 
   private overview() {

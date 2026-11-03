@@ -20,6 +20,7 @@ import { PLACE_ALL, buildPlaces, placesCss, placesSelect, type AreaOpt } from '.
 import { noticesCss } from '../notices/styles';
 import { NOTICES_SETTINGS_HREF } from '../shell/nav';
 import { devicesNoticesCss } from './devices-notices-css';
+import { liftRef, liftedReset } from '../components/top-layer';
 
 /**
  * CR-NOTICE106 section 9: ראשי › לוח הודעות (#/devices/notices). Readers see the active notices of their audience (a read sheet marks
@@ -29,7 +30,7 @@ import { devicesNoticesCss } from './devices-notices-css';
  */
 @customElement('devices-notices')
 export class DevicesNotices extends LitElement {
-  static styles = [noticesCss, placesCss, devicesNoticesCss];
+  static styles = [noticesCss, placesCss, devicesNoticesCss, liftedReset];
 
   @state() private data: NoticesList | null = null;
   @state() private manager = false;
@@ -145,7 +146,7 @@ export class DevicesNotices extends LitElement {
       ${this.composeDialog()} ${this.readDialog()} ${this.resendDialog()}
       <notice-delete .notice=${this.deleting} @notice-delete-close=${() => (this.deleting = null)} @notice-deleted=${() => this.deleted()}></notice-delete>
       <notice-reads .notice=${this.readsFor} @reads-close=${() => (this.readsFor = null)}></notice-reads>
-      ${this.toast ? html`<div class="toast" role="status">${this.toast}</div>` : nothing}`;
+      ${this.toast ? html`<div class="toast" role="status" ${liftRef() /* DIALOG-TOPLAYER-2381: above an open sw-dialog (2382 train: the notice board's toasts) */}>${this.toast}</div>` : nothing}`;
   }
 
   private kpis(c: Record<Kpi, number>) {

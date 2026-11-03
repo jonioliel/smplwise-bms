@@ -27,5 +27,6 @@ test('the copy button reads the stored link instead of re-issuing, and only an u
   expect(api).toContain('has_stored_link');
   const page = src('screens/system-notices.ts');
   expect(page).toContain('getBoardLink(b.id)');
-  expect(page).toMatch(/if \(!b\.has_stored_link\) \{\s+this\.confirmRotate = \{ board: b, copy: true \};/);
+  // BOARD-MGMT-2381 (answer 5A): an unstored board still opens the confirmation first (now marked `legacy` for its reason line); copy never re-issues silently
+  expect(page).toMatch(/if \(!b\.has_stored_link\) \{\s+this\.confirmRotate = \{ board: b, copy: true(, legacy: true)? \};\s+return;/);
 });
