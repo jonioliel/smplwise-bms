@@ -141,8 +141,10 @@ def station_media(request: Request, auth: ia.Authority = Depends(_gate(READ)), s
     """`state`: `off` (the setting; the drawer keeps the still and the classic panel), `unavailable` (+ `reason`: `feed`,
     `offline`, `no_camera`, `no_media`, `no_host`, `no_credentials`, `descriptor_*`, `provider_error`) or `ready`. `talk.reason` when
     talk is not offered: `off` (the setting is video only), `provider_local` (Arx's own source: video only), `pairing` (WisKey chosen,
-    no pairing key that can sign), `not_listed` (WisKey does not list the W10 talk commands for Arx), `unsupported` (the station offers none),
-    `wiskey_unavailable` (WisKey chosen but not reachable now: Arx's own video serves), `forbidden` (no `access.call` here)."""
+    no pairing key that can sign), `not_listed` (WisKey lists the W10 talk commands for Arx neither in its overview nor in its signed
+    capabilities), `capabilities_unread` (WISKEY-TALK-CAPS-2382: the overview lacks them and the signed capabilities could not be read),
+    `unsupported` (the station offers none), `wiskey_unavailable` (WisKey chosen but not reachable now: Arx's own video serves),
+    `forbidden` (no `access.call` here)."""
     settings = settings_of(request)
     feed_state, station = _visible_station(settings, auth, station_id)
     mode = im.media_mode(auth.conn)
@@ -186,9 +188,11 @@ def station_media(request: Request, auth: ia.Authority = Depends(_gate(READ)), s
 def station_media_readiness(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """WISKEY-TALK-DIAL-2382: whether the stations screen's video and talk can come from WisKey (`access.station_media_provider = auto`)
     and every reason they cannot (`missing`: `wiskey_unreachable`, `api_incompatible`, `video_not_listed`, `talk_not_listed`,
-    `pairing_missing`, `pairing_key_rotated`), for the Settings row that chooses the source. `system.configure` (a refusal is audited by
-    `require`). Read only: nothing is sent to WisKey, nothing is signed or written; the choice itself is saved through `PATCH /settings`
-    (audited `settings.update`, like every product setting)."""
+    `capabilities_unread`, `pairing_missing`, `pairing_key_rotated`), for the Settings row that chooses the source. `system.configure` (a
+    refusal is audited by `require`). Nothing is written and no W10 command is sent. WISKEY-TALK-CAPS-2382: when WisKey's overview lacks the
+    W10 commands, its signed `direct/capabilities` is consulted (`wiskey.capabilities`: the direct join's document, or one signed read of
+    the two discovery commands, cached; never without a key that signs). The choice itself is saved through `PATCH /settings` (audited
+    `settings.update`, like every product setting)."""
     require(conn, principal, "system.configure", INSTALLATION)
     return im.readiness(settings_of(request), conn)
 

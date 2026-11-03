@@ -17,6 +17,7 @@ import {
   TALK_MAX_KEY,
   TALK_MAX_MAX_S,
   TALK_MAX_MIN_S,
+  capsReasonKind,
   getStationMediaReadiness,
   parseMediaMode,
   parseProvider,
@@ -172,7 +173,9 @@ export class SystemAccessDisplay extends LitElement {
     if (!sum) return { state: 'checking', text: t.checking };
     const auto = this.value(STATION_MEDIA_PROVIDER_KEY) === 'auto';
     if (sum.state === 'ok') return { state: 'ok', text: auto ? t.ok : t.okLocal };
-    const list = sum.codes.map((c) => t.codes[c]).join('; ');
+    // WISKEY-TALK-CAPS-2382: the failed signed capabilities read names its reason in plain words
+    const kind = t.capsKinds[capsReasonKind(this.readiness)];
+    const list = sum.codes.map((c) => fill(t.codes[c], { kind })).join('; ');
     const tail = auto ? (sum.state === 'partial' ? t.videoOnly : t.fallback) : '';
     return { state: sum.state, text: `${fill(t.missing, { list })}${tail ? ` - ${tail}` : ''}` };
   }
