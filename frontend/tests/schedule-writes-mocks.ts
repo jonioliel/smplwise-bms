@@ -89,7 +89,7 @@ export async function installSchedWritesMock(page: Page, m: SchedMock): Promise<
     previews.set(id, { kind, data });
     return id;
   };
-  const refusal = (route: Route, action: string, code: string, status = 409) =>
+  const refusal = (route: Route, code: string, status = 409) =>
     json(route, { code: 'schedule_refused', user_message: `WisKey סירב - ${REASON[code] ?? code} (${code}). לא נשמר דבר.`, retryable: false, correlation_id: 'mock', details: { outcome: 'refused', wiskey_code: code, reason: REASON[code] ?? code } }, status);
   const notSent = (route: Route, code: string, message: string, status = 409) =>
     json(route, { code, user_message: message, retryable: false, correlation_id: 'mock', details: { outcome: 'not_sent' } }, status);
@@ -129,7 +129,7 @@ export async function installSchedWritesMock(page: Page, m: SchedMock): Promise<
     if (m.refuse[action]) {
       const code = m.refuse[action];
       delete m.refuse[action];
-      return refusal(route, action, code, code === 'unauthorized' ? 403 : 409);
+      return refusal(route, code, code === 'unauthorized' ? 403 : 409);
     }
     if (m.unknown.has(action)) {
       m.unknown.delete(action);
