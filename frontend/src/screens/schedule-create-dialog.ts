@@ -127,9 +127,9 @@ export class ScheduleCreateDialog extends LitElement {
       transform: scale(var(--sw-press-scale));
     }
     .tabs button[aria-selected='true'] {
-      background: var(--sw-surface);
-      color: var(--sw-accent-text);
-      box-shadow: var(--sw-shadow-1);
+      background: var(--sw-seg-key, var(--sw-surface));
+      color: var(--sw-seg-key-ink, var(--sw-accent-text));
+      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
       font-weight: var(--sw-fw-bold);
     }
     .body {

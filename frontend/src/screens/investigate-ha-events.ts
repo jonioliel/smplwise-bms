@@ -70,7 +70,7 @@ export class InvestigateHaEvents extends LitElement {
     .filters .grow { flex: 1; }
     .rangepick { display: inline-flex; gap: 2px; background: var(--sw-surface-3); border-radius: var(--sw-r-sm); padding: 2px; }
     .rangepick button { font: inherit; font-size: var(--sw-fs-xs); border: 0; background: transparent; color: var(--sw-text-2); border-radius: var(--sw-r-xs); padding: 4px 8px; cursor: pointer; min-block-size: 28px; }
-    .rangepick button.on { background: var(--sw-surface); color: var(--sw-accent-text); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1); }
+    .rangepick button.on { background: var(--sw-seg-key, var(--sw-surface)); color: var(--sw-seg-key-ink, var(--sw-accent-text)); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
     /* R5-INVESTIGATE-297: the status line reads as a stat strip (the count a display numeral), the rows at 13 px */
     .banner[data-ha-status] { font-size: var(--sw-fs-sm); padding: 8px 14px; background: var(--sw-surface); box-shadow: var(--sw-shadow-1); }
     .banner[data-ha-status] [data-ha-summary] { font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }

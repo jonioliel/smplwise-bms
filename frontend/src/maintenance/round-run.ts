@@ -50,7 +50,7 @@ export class MaintRoundRun extends LitElement {
     .plist .numin { font-size: var(--sw-fs-xl); padding: 8px; }
     .vw { display: inline-flex; padding: 2px; gap: 2px; background: var(--sw-surface-3); border-radius: var(--sw-r-sm); }
     .vw button { border: 0; background: transparent; font: inherit; font-size: var(--sw-fs-sm); color: var(--sw-text-2); padding: 4px 10px; border-radius: calc(var(--sw-r-sm) - 2px); cursor: pointer; min-block-size: 32px; }
-    .vw button[aria-pressed='true'] { background: var(--sw-surface-solid); color: var(--sw-text); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1); }
+    .vw button[aria-pressed='true'] { background: var(--sw-seg-key, var(--sw-surface-solid)); color: var(--sw-seg-key-ink, var(--sw-text)); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
     .vw button:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 1px; }
     .q { font-size: var(--sw-fs-2xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading); line-height: 1.3; }
     .yn { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }

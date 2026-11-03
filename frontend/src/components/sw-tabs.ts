@@ -317,11 +317,17 @@ export class SwTabs extends LitElement {
       box-sizing: border-box;
       justify-content: center;
     }
-    /* DARK-REVIEW-2342: the dark thumb is a raised key (--sw-seg-thumb, design/tokens.ts); light falls back to the surface */
+    /* DARK-SEG-ALL-2380 (WCAG 1.4.11): in dark the chosen key is the light pill of every segmented control (--sw-seg-key with its
+       opaque dark label --sw-seg-key-ink, design/tokens.ts); light falls back to the surface and keeps the inherited ink (currentColor
+       as the value of color is the inherited colour, so the hover ink of the button still reaches the label in light) */
     :host([data-variant='pill']) .on .lbl {
-      background: var(--sw-seg-thumb, var(--sw-surface));
+      background: var(--sw-seg-key, var(--sw-surface));
+      color: var(--sw-seg-key-ink, currentColor);
       box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
       font-weight: var(--sw-fw-semibold);
+    }
+    :host([data-variant='pill']) .on .count {
+      color: var(--sw-seg-key-ink, var(--sw-accent-text));
     }
 
     /* ---- underline: the settings-page style (thin accent underline under the active tab) ---- */

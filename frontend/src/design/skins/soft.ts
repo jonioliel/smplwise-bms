@@ -80,9 +80,6 @@ const tokens: TokenTable = {
   '--sw-danger': lt('#e5484d', '#ff453a'),
   '--sw-danger-soft': lt('rgba(229, 72, 77, 0.13)', 'rgba(255, 69, 58, 0.2)'),
   '--sw-danger-text': lt('#b91c1c', '#ff8a80'),
-  // DARK-REVIEW-2342: soft's surface-3 is a translucent wash, so the base 10 % lift read only 1.13:1 against the track in the user menu;
-  // 16 % keeps the key visibly raised (accent-text still >= 4.5:1, tests/unit-dark-polish-beds.spec.ts). Light stays `initial`.
-  '--sw-seg-thumb': lt('initial', 'color-mix(in srgb, var(--sw-text) 16%, var(--sw-surface-3-solid))'),
   '--sw-forbidden': lt('#d70015', '#ff453a'),
   '--sw-forbidden-soft': lt('rgba(215, 0, 21, 0.12)', 'rgba(255, 69, 58, 0.2)'),
   '--sw-forbidden-text': lt('#b91c1c', '#ff8a80'),

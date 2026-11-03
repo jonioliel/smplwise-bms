@@ -67,7 +67,7 @@ export class CalViewManage extends LitElement {
     table.t td .who { font-weight: var(--sw-fw-bold); color: var(--sw-heading); }
     .rolepick { display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--sw-r-pill); background: var(--sw-surface-3); }
     .rolepick button { font: inherit; font-size: var(--sw-fs-sm); border: 0; background: transparent; color: var(--sw-text-2); padding: 5px 10px; border-radius: var(--sw-r-pill); cursor: pointer; white-space: nowrap; }
-    .rolepick button[aria-pressed='true'] { background: var(--sw-surface-solid); color: var(--sw-heading); font-weight: var(--sw-fw-bold); box-shadow: var(--sw-shadow-1); }
+    .rolepick button[aria-pressed='true'] { background: var(--sw-seg-key, var(--sw-surface-solid)); color: var(--sw-seg-key-ink, var(--sw-heading)); font-weight: var(--sw-fw-bold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
     .rolepick button[disabled] { cursor: default; }
     aside.panel { inline-size: 360px; flex: none; }
     .rights { display: flex; flex-direction: column; gap: 6px; }

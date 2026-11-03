@@ -65,7 +65,7 @@ export const calCss = css`
   .seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--sw-r-pill); background: var(--sw-surface-3); max-inline-size: 100%; overflow: hidden; }
   .seg button { font: inherit; font-size: var(--sw-fs-sm); border: 0; background: transparent; color: var(--sw-text-2); padding: 6px 12px; border-radius: var(--sw-r-pill);
     cursor: pointer; white-space: nowrap; min-block-size: 30px; }
-  .seg button[aria-pressed='true'] { background: var(--sw-seg-thumb, var(--sw-surface-solid)); color: var(--sw-heading); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
+  .seg button[aria-pressed='true'] { background: var(--sw-seg-key, var(--sw-surface-solid)); color: var(--sw-seg-key-ink, var(--sw-heading)); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
   .seg button[disabled] { opacity: var(--sw-disabled-opacity); cursor: default; }
 
   /* the calendar's colour dot / square */

@@ -463,8 +463,8 @@ export const elecCss = css`
     min-block-size: max(30px, var(--elec-touch));
   }
   .seg button[aria-pressed='true'] {
-    background: var(--sw-seg-thumb, var(--sw-surface-solid));
-    color: var(--sw-text);
+    background: var(--sw-seg-key, var(--sw-surface-solid));
+    color: var(--sw-seg-key-ink, var(--sw-text));
     font-weight: var(--sw-fw-semibold);
     box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
   }

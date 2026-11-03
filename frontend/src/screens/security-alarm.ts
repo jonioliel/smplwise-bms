@@ -464,9 +464,9 @@ export class SecurityAlarm extends LitElement {
       transition: background var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
     }
     .vt button[aria-pressed='true'] {
-      background: var(--sw-surface);
-      color: var(--sw-accent-text);
-      box-shadow: var(--sw-shadow-1);
+      background: var(--sw-seg-key, var(--sw-surface));
+      color: var(--sw-seg-key-ink, var(--sw-accent-text));
+      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
     }
     .counts {
       font-size: var(--sw-fs-sm);

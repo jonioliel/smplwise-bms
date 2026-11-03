@@ -663,9 +663,9 @@ export class LiveCamera extends LitElement {
       cursor: pointer;
     }
     .round .transport button.on {
-      background: var(--sw-surface);
-      color: var(--sw-accent-text);
-      box-shadow: var(--sw-shadow-1);
+      background: var(--sw-seg-key, var(--sw-surface));
+      color: var(--sw-seg-key-ink, var(--sw-accent-text));
+      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
     }
     .ptz {
       display: flex;
@@ -880,6 +880,10 @@ export class LiveCamera extends LitElement {
       .round button:hover:not(:disabled) {
         background: var(--sw-surface-2);
         box-shadow: var(--sw-shadow-2);
+      }
+      /* DARK-SEG-ALL-2380: a hovered chosen transport key keeps the dark light pill (its label is the key's dark ink); light: surface-2 as before */
+      .round .transport button.on:hover:not(:disabled) {
+        background: var(--sw-seg-key, var(--sw-surface-2));
       }
     }
     .round button:active:not(:disabled),

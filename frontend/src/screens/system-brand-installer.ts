@@ -50,7 +50,7 @@ export class SystemBrandInstaller extends LitElement {
     .top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .tabs { display: inline-flex; align-self: flex-start; gap: 2px; padding: 3px; border-radius: var(--sw-r-md); background: var(--sw-surface-3); max-inline-size: 100%; overflow-x: auto; scrollbar-width: none; }
     .tabs button { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; min-block-size: 28px; padding: 0 12px; border-radius: var(--sw-r-sm); color: var(--sw-text-2); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-medium); white-space: nowrap; }
-    .tabs button[aria-selected='true'] { background: var(--sw-surface); color: var(--sw-accent-text); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1); }
+    .tabs button[aria-selected='true'] { background: var(--sw-seg-key, var(--sw-surface)); color: var(--sw-seg-key-ink, var(--sw-accent-text)); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
     .tabs button:focus-visible, .sw:focus-visible, .dot:focus-visible, .drop:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: var(--sw-focus-offset); }
     .tabs .ptab { display: none; }
     .grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }

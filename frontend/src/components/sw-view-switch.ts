@@ -55,9 +55,9 @@ export class SwViewSwitch extends LitElement {
       }
     }
     button[aria-pressed='true'] {
-      background: var(--sw-surface-solid);
-      color: var(--sw-heading);
-      box-shadow: var(--sw-shadow-1);
+      background: var(--sw-seg-key, var(--sw-surface-solid));
+      color: var(--sw-seg-key-ink, var(--sw-heading));
+      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
     }
     button:focus-visible {
       outline: var(--sw-focus-w) solid var(--sw-focus);

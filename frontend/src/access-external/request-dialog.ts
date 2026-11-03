@@ -67,7 +67,7 @@ export class AccessRequestDialog extends LitElement {
       .seg { display: flex; gap: 4px; padding: 3px; border-radius: var(--sw-r-md); background: var(--sw-surface-2); }
       .seg button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 0; background: transparent; color: var(--sw-text-2);
         min-block-size: var(--sw-touch-desktop, 44px); border-radius: var(--sw-r-sm); font: inherit; font-size: var(--sw-fs-sm); cursor: pointer; padding: 0 10px; }
-      .seg button[aria-pressed='true'] { background: var(--sw-seg-thumb, var(--sw-surface-solid)); color: var(--sw-heading); font-weight: 600; box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
+      .seg button[aria-pressed='true'] { background: var(--sw-seg-key, var(--sw-surface-solid)); color: var(--sw-seg-key-ink, var(--sw-heading)); font-weight: 600; box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
       .seg button:disabled { opacity: .5; cursor: not-allowed; }
       .seg button:focus-visible { outline: 2px solid var(--sw-focus); outline-offset: 1px; }
       .f2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }

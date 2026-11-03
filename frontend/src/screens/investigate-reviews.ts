@@ -457,10 +457,10 @@ export class InvestigateReviews extends LitElement {
       transform: scale(var(--sw-press-scale));
     }
     .layers button[aria-selected='true'] {
-      background: var(--sw-surface);
-      color: var(--sw-heading);
+      background: var(--sw-seg-key, var(--sw-surface));
+      color: var(--sw-seg-key-ink, var(--sw-heading));
       font-weight: var(--sw-fw-semibold);
-      box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight);
+      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight));
     }
     .layers button:focus-visible,
     .seg button:focus-visible,
@@ -619,8 +619,8 @@ export class InvestigateReviews extends LitElement {
       cursor: pointer;
     }
     .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-thumb, var(--sw-surface));
-      color: var(--sw-text);
+      background: var(--sw-seg-key, var(--sw-surface));
+      color: var(--sw-seg-key-ink, var(--sw-text));
       box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
     }
     .ib {

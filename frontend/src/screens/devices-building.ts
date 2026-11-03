@@ -871,13 +871,17 @@ const HOME_LAYOUT = css`
     outline: 2px solid var(--sw-focus);
   }
   .bswitch button[aria-pressed='true'] {
-    background: var(--sw-seg-on-bg, var(--sw-surface));
-    color: var(--sw-seg-on-text, var(--sw-accent-text));
-    box-shadow: var(--sw-shadow-1);
+    background: var(--sw-seg-on-bg, var(--sw-seg-key, var(--sw-surface)));
+    color: var(--sw-seg-on-text, var(--sw-seg-key-ink, var(--sw-accent-text)));
+    box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
     font-weight: var(--sw-fw-semibold);
   }
   .bswitch button.shared {
     color: var(--sw-shared-text);
+  }
+  /* DARK-SEG-ALL-2380: a chosen shared building on the dark light pill takes the key's dark label (light keeps the shared ink) */
+  .bswitch button.shared[aria-pressed='true'] {
+    color: var(--sw-seg-key-ink, var(--sw-shared-text));
   }
   .bswitch button.shared sw-icon {
     color: var(--sw-shared);

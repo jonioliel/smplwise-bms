@@ -315,11 +315,13 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--sw-toast-action': lt('#8db4ff', '#9cc0ff'),
       // DARK-REVIEW-2342 (owner answer A, 2026-11-01): the selected segment of a segmented control (sw-tabs' pill, the screens' `.seg`).
       // In dark the thumb was --sw-surface on a --sw-surface-3 track - DARKER than its track (~1.25:1), a hole instead of a raised key.
-      // The dark thumb is the track lifted toward the ink, with a hairline ring and a drop shadow; light is `initial` (guaranteed-
-      // invalid), so every user writes `var(--sw-seg-thumb, <its own light fill>)` and light keeps its exact pixels. Resolved at :root
-      // (shell scheme): a glass host with its own scheme does not read it (tests/unit-dark-polish-beds.spec.ts measures every skin).
-      '--sw-seg-thumb': lt('initial', 'color-mix(in srgb, var(--sw-text) 10%, var(--sw-surface-3-solid))'),
+      // DARK-SEG-ALL-2380 retired the lifted dark fill (--sw-seg-thumb: ~1.1-1.3:1 from its track, under the 3:1 of WCAG 1.4.11) for the
+      // light pill below; the hairline ring + drop shadow stay the dark key's edge. Light is `initial` (guaranteed-invalid): every user
+      // writes `var(--sw-seg-thumb-shadow, <its own light shadow>)` and light keeps its exact pixels.
       '--sw-seg-thumb-shadow': lt('initial', '0 0 0 1px color-mix(in srgb, var(--sw-text) 20%, transparent), 0 1px 3px rgba(0, 0, 0, 0.5)'),
+      // DARK-SEG-ALL-2380: the chosen key of EVERY segmented control in dark (the settings key below, sw-tabs' pill and the ~60 local
+      // `.seg` / `.tabs` / `.vw` / `.rangepick` ... keys; the inventory and its 3:1 / 4.5:1 checks are tests/unit-dark-polish-beds.spec.ts).
+      // Each user writes `background: var(--sw-seg-key, <its light fill>)` and `color: var(--sw-seg-key-ink, <its light ink>)`.
       // GATE2370-B (WCAG 1.4.11, tests/evidence-polish2-295.spec.ts): the SETTINGS key (styles/settings.ts settingsSegStyles, the
       // pill-thumb of POLISH4-WP1) in dark. On it the --sw-seg-thumb lift sat ~1.3:1 from its surface-3 track, below the 3:1 a chosen
       // segment needs (the accent-filled key it replaced passed). Dark draws the chosen settings key as the light pill the glass screens

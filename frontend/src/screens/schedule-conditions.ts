@@ -158,8 +158,8 @@ export class ScheduleConditions extends LitElement {
       cursor: pointer;
     }
     .seg button[aria-pressed='true'] {
-      background: var(--sw-seg-thumb, var(--sw-surface));
-      color: var(--sw-accent-text);
+      background: var(--sw-seg-key, var(--sw-surface));
+      color: var(--sw-seg-key-ink, var(--sw-accent-text));
       box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
     }
     label.check {

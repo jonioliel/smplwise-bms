@@ -352,9 +352,9 @@ export class ArxLogin extends LitElement {
       box-shadow: none;
     }
     button.mode.on {
-      background: var(--sw-surface);
-      color: var(--sw-heading, var(--sw-text));
-      box-shadow: var(--sw-shadow-2, none);
+      background: var(--sw-seg-key, var(--sw-surface));
+      color: var(--sw-seg-key-ink, var(--sw-heading, var(--sw-text)));
+      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-2, none));
     }
     button.mode:hover:not(:disabled):not(.on) {
       background: none;

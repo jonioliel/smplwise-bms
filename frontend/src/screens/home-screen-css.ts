@@ -568,10 +568,12 @@ export const HOME_SCREEN_CSS = css`
     cursor: pointer;
   }
   .pfl .segs button[aria-pressed='true'] {
-    background: var(--sw-seg-on-bg, var(--sw-accent));
-    color: var(--sw-seg-on-text, var(--sw-text-inverse));
+    /* DARK-SEG-ALL-2380 (WCAG 1.4.11): the dark accent read 2.8-2.9:1 from the surface-3 track (classic, infra, soft); dark draws the
+       light pill of every segmented control (--sw-seg-key / --sw-seg-key-ink, design/tokens.ts); light keeps the accent key */
+    background: var(--sw-seg-on-bg, var(--sw-seg-key, var(--sw-accent)));
+    color: var(--sw-seg-on-text, var(--sw-seg-key-ink, var(--sw-text-inverse)));
     font-weight: var(--sw-fw-semibold);
-    box-shadow: var(--sw-seg-on-shadow, var(--sw-shadow-1));
+    box-shadow: var(--sw-seg-on-shadow, var(--sw-seg-thumb-shadow, var(--sw-shadow-1)));
   }
   .treebtn {
     display: inline-flex;
