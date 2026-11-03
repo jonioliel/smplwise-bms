@@ -38,6 +38,12 @@ export const installerStyles = css`
     outline: var(--sw-focus-w) solid var(--sw-focus);
     outline-offset: 1px;
   }
+  label.f input:disabled,
+  label.f select:disabled {
+    background: var(--sw-surface-2, var(--sw-surface-3));
+    color: var(--sw-text-3);
+    cursor: not-allowed;
+  }
   label.f input[aria-invalid='true'] {
     border-color: var(--sw-danger, var(--sw-err));
   }
