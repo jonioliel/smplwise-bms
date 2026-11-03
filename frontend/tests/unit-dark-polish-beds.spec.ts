@@ -249,6 +249,30 @@ test('light schemes: the segment thumb token is `initial` (every user falls back
   }
 });
 
+// GATE2370-B (WCAG 1.4.11, the in-browser check is evidence-polish2-295): the SETTINGS key (styles/settings.ts settingsSegStyles) in
+// dark is the light pill --sw-seg-key on the surface-3 track inside a card - 3:1 from the track, its label --sw-seg-key-ink 4.5:1 on
+// it, an unselected --sw-text-2 label 4.5:1 on the track; light stays `initial` (the card surface + the accent ink).
+test('dark schemes: the chosen settings key is 3:1 from its track and its label 4.5:1, every live skin', () => {
+  const rows: { line: string; ok: boolean }[] = [];
+  for (const id of SKINS_LIVE) {
+    const t = skinTable(id);
+    expect(t['--sw-seg-key'].light, id).toBe('initial');
+    expect(t['--sw-seg-key-ink'].light, id).toBe('initial');
+    const ev = makeEval({ ...t, ...LOCAL }, 'dark');
+    const page = over(ev('var(--sw-bg)'), [0, 0, 0, 1]);
+    const track = over(ev('var(--sw-surface-3)'), over(ev(SURF), page));
+    const key = over(ev('var(--sw-seg-key, var(--sw-surface))'), track);
+    const fill = contrastRatio(key, track);
+    const on = contrastRatio(over(ev('var(--sw-seg-key-ink, var(--sw-accent-text))'), key), key);
+    const off = contrastRatio(over(ev('var(--sw-text-2)'), track), track);
+    rows.push({ line: `${id}/dark settings key vs track: ${fill.toFixed(2)} (min 3)`, ok: fill >= 3 });
+    rows.push({ line: `${id}/dark settings key label: ${on.toFixed(2)} (min 4.5)`, ok: on >= 4.5 });
+    rows.push({ line: `${id}/dark settings unselected label: ${off.toFixed(2)} (min 4.5)`, ok: off >= 4.5 });
+  }
+  console.log(rows.map((r) => r.line).join('\n'));
+  expect(rows.filter((r) => !r.ok).map((r) => r.line)).toEqual([]);
+});
+
 // every selected segment drawn with a neutral surface key reads the dark thumb (a new segmented control must too): the rule of
 // `.seg / .segs / .lay-seg / .sevseg button[aria-pressed|aria-checked='true']` and sw-tabs' pill `.on .lbl` in src/ and the skins
 test('lint: a neutral segment thumb is var(--sw-seg-thumb, <light fill>) with var(--sw-seg-thumb-shadow, <light shadow>)', () => {
