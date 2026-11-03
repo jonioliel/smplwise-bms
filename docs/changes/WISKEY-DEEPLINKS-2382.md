@@ -145,7 +145,20 @@ changes, so links drawn before the settings answered disappear at once), `tests/
 - Existing pixel baselines that show the new icon / line (stations, people, schedules, the drawer, the Settings page) are refreshed
   on the runner in this branch.
 
-Results and receipts: see the commit message / the closing report of the branch.
+### Receipts (2026-11-03)
+
+| Run | Where | Result |
+|---|---|---|
+| `tsc --noEmit` (src + tests) | workstation | rc 0 (after the capability refactor) |
+| `unit-wiskey-deeplinks` + `unit-access-schedules-logic` (node) | workstation | 34 passed |
+| `evidence-wiskey-deeplinks` desktop + mobile | runner preview @ 8324ce145 | 11 passed, 11 skipped (per-project skips) |
+| 19 evidence + 10 layout specs touching the changed screens, 3 projects | runner preview @ 8324ce145 | 600 passed, 575 skipped, 1 failed: `evidence-wiskey-people-native:78` (asserts a request right after the drawer shows); rerun 6/6 passed on the branch and 6/6 on main - a timing flake, not this change |
+| 9 pixel specs, `--update-snapshots=changed` | runner @ 8324ce145 (load ~13) | 117 baselines rewritten; each diffed against HEAD; the one outside the changed places (`s12-domus-display-390`, diagnostics page) not taken |
+| re-take at low load | runner @ b24c4bd31 / 73642e07a | two phone baselines caught at another scroll offset under load re-taken (`stations-classic-settings-390`, `schedules-classic-door-390`); the latter now differs from main's only by the icon (125 px) |
+| final: 9 pixel specs + 2 evidence specs, 3 projects | runner @ 73642e07a | 185 passed, 150 skipped, 1 failed: `pixel-wiskey-stations:87` phone (`stations-classic-settings-390`, the page behind the sheet at another scroll offset); alone 8/8 passed on the branch and 8/8 on main - load-sensitive, recorded as flaky |
+
+NOT_RUN: the real panel in a browser (only the fake v1 panel page of `tests/wiskey-fake-ha.ts`); the lab; tablet pixel shots of the new
+spec (desktop and phone only); `evidence-wiskey-embed*` (needs `SW_LIVE=1` and a live backend).
 
 ## Rollback
 
