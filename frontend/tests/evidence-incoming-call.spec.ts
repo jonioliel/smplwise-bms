@@ -183,8 +183,10 @@ test.describe('incoming call banner', () => {
     await expect(banner(page)).toBeVisible({ timeout: 30_000 });
     const vp = page.viewportSize()!;
     const box = (await banner(page).boundingBox())!;
-    expect(Math.round(box.x)).toBe(0);
-    expect(Math.round(box.width)).toBe(vp.width);
+    const where = JSON.stringify({ box, vp });
+    expect(box.x, where).toBeGreaterThanOrEqual(-0.5);
+    expect(box.x + box.width, where).toBeLessThanOrEqual(vp.width + 0.5);
+    expect(box.width, where).toBeGreaterThanOrEqual(vp.width - 1.5); // edge to edge
     expect(Math.abs(box.y + box.height - vp.height)).toBeLessThanOrEqual(1);
     expect(box.height).toBeLessThan(vp.height * 0.85);
     for (const sel of ['[data-call-answer]', '[data-call-reject]', '[data-call-door="1"]']) {

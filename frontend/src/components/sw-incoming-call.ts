@@ -278,7 +278,7 @@ export class SwIncomingCall extends LitElement {
         inset-block-start: auto;
         inset-block-end: 0;
         inset-inline: 0;
-        inline-size: 100%;
+        inline-size: auto;
         border-radius: var(--sw-r-lg, 16px) var(--sw-r-lg, 16px) 0 0;
         border-inline: 0;
         border-block-end: 0;
