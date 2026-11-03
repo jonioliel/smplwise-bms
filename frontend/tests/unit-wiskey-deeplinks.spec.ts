@@ -70,7 +70,8 @@ test.describe('the deep-link table', () => {
     for (const [place, ids] of Object.entries(PLACES)) {
       expect(isDeepPlace(place)).toBe(true);
       for (const id of ids) expect(DEEP_LINKS[id], `${place}: ${id}`).toBeTruthy();
-      const hrefs = ids.map(deepLinkHref);
+      // WISKEY-CONFLICTS-2400: each place offers one link per DESTINATION (a native screen's address, else the panel's)
+      const hrefs = ids.map((id) => linkFor(id));
       expect(new Set(hrefs).size, place).toBe(hrefs.length);
     }
   });
@@ -119,7 +120,8 @@ test.describe('who gets the links', () => {
   });
 
   test('no panel, no link - in every place', () => {
-    for (const place of Object.keys(PLACES) as DeepPlace[]) expect(deepLinksFor(place, { panel: false, admin: true })).toEqual([]);
+    // a native Arx screen is not the panel: it stays (WISKEY-CONFLICTS-2400 - the conflicts and alerts screens)
+    for (const place of Object.keys(PLACES) as DeepPlace[]) expect(deepLinksFor(place, { panel: false, admin: true }).filter((l) => l.kind === 'panel'), place).toEqual([]);
   });
 
   test('the panel\'s administrator-only tools are offered to an access-control administrator only', () => {
@@ -142,7 +144,7 @@ test.describe('who gets the links', () => {
   test('what each place offers an administrator (the order shown)', () => {
     const ids = (p: DeepPlace) => deepLinksFor(p, ADMIN).map((l) => `${l.id}=${l.href}`);
     expect(ids('station')).toEqual(['stations.technical=#/wiskey/devices?classic=1', 'sync.run=#/wiskey/sync', 'health.fleet=#/wiskey/tools/health', 'clock.settings=#/wiskey/tools/clock_options']);
-    expect(ids('stations')).toEqual(['stations.technical=#/wiskey/devices?classic=1', 'sync.run=#/wiskey/sync', 'alerts.act=#/wiskey/tools/fleet_alerts', 'health.fleet=#/wiskey/tools/health']);
+    expect(ids('stations')).toEqual(['stations.technical=#/wiskey/devices?classic=1', 'sync.run=#/wiskey/sync', 'conflicts.resolve=#/wiskey/conflicts', 'alerts.act=#/wiskey/alerts', 'health.fleet=#/wiskey/tools/health']);
     expect(ids('people')).toEqual([
       'people.unmanaged=#/wiskey/people?classic=1',
       'profiles.edit=#/wiskey/tools/profile_options',
@@ -164,7 +166,10 @@ test.describe('keyed by capability: a native screen replaces a link without touc
     expect(linkFor('schedules.edit')).toBe('#/wiskey/tools/schedules');
     expect(linkFor('profiles.edit')).toBe('#/wiskey/tools/profile_options');
     expect(linkFor('no.such')).toBe(ROOT_HREF);
-    for (const id of Object.keys(DEEP_LINKS)) expect(linkFor(id), id).toBe(deepLinkHref(id)); // no native screen exists yet
+    for (const id of Object.keys(DEEP_LINKS)) if (!DEEP_LINKS[id].native) expect(linkFor(id), id).toBe(deepLinkHref(id)); // the panel link where no native screen exists
+    // WISKEY-CONFLICTS-2400: the first native screens - the fleet alerts and the conflicts
+    expect(linkFor('alerts.act')).toBe('#/wiskey/alerts');
+    expect(linkFor('conflicts.resolve')).toBe('#/wiskey/conflicts');
   });
 
   test('the temporary links of the owner Q4 / Q7 (native screens to come) are marked', () => {
@@ -172,7 +177,9 @@ test.describe('keyed by capability: a native screen replaces a link without touc
     expect(DEEP_LINKS['schedules.edit'].bridge).toBe('Q4');
     expect(DEEP_LINKS['profiles.edit'].bridge).toBe('Q4');
     for (const id of ['clock.settings', 'platform.center', 'stations.technical']) expect(DEEP_LINKS[id].bridge, id).toBe('Q7');
-    for (const id of Object.keys(DEEP_LINKS)) expect(DEEP_LINKS[id].native, id).toBeUndefined();
+    const natives = Object.keys(DEEP_LINKS).filter((id) => DEEP_LINKS[id].native);
+    expect(natives.sort()).toEqual(['alerts.act', 'conflicts.resolve']); // WISKEY-CONFLICTS-2400
+    for (const id of natives) expect(DEEP_LINKS[id].native!.need).toEqual(['access.admin.read', 'access.stations.manage', 'system.configure']);
   });
 
   test('once an entry carries a native route: linkFor and every place follow; the panel rule and catalog no longer apply to it', () => {

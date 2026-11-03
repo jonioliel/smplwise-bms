@@ -102,6 +102,8 @@ const SEGMENT: Record<string, string> = { users: 'people' };
 /** Tabs that can also be a native Arx screen: the link adds `?classic=1` so it always lands in the panel. */
 const CLASSIC: readonly string[] = ['overview', 'events', 'users', 'devices'];
 
+/** WISKEY-CONFLICTS-2400: who may open the native conflicts / alerts screen (screens/wiskey-triage.ts `mayOpenTriage`). */
+const TRIAGE_NEED: readonly string[] = ['access.admin.read', 'access.stations.manage', 'system.configure'];
 const tab = (t: string): DeepTarget => Object.freeze({ tab: t, tool: null });
 const tool = (t: string): DeepTarget => Object.freeze({ tab: 'tools', tool: t });
 
@@ -118,7 +120,11 @@ export const DEEP_LINKS: Readonly<Record<string, DeepLinkEntry>> = Object.freeze
   'sync.run': { target: tab('sync'), label: 'סנכרון עכשיו ופתרון התנגשויות', rows: [3, 36, 38] },
   // ---- health, alerts, clock
   'health.fleet': { target: tool('health'), label: 'בריאות, קיבולת ובדיקת קבלה', rows: [34, 82, 98] },
-  'alerts.act': { target: tool('fleet_alerts'), label: 'טיפול בהתראות', rows: [77] },
+  // WISKEY-CONFLICTS-2400 (T5): the fleet alerts and the conflict review / resolve are native Arx screens now (#/wiskey/alerts,
+  // #/wiskey/conflicts); the panel targets stay as the address a place falls back to in the table's own tests. `need`: the screen opens for
+  // the status page's reader or a station manager / system administrator (any one, at any scope - the server checks the rest).
+  'alerts.act': { target: tool('fleet_alerts'), label: 'טיפול בהתראות', rows: [76, 77], native: { href: '#/wiskey/alerts', need: TRIAGE_NEED } },
+  'conflicts.resolve': { target: tab('sync'), label: 'פתרון התנגשויות סנכרון', rows: [37, 38], native: { href: '#/wiskey/conflicts', need: TRIAGE_NEED } },
   'clock.settings': { target: tool('clock_options'), label: 'שעון ו־NTP', rows: [51], bridge: 'Q7' },
   // ---- people
   'people.unmanaged': { target: tab('users'), label: 'משתמשים לא מנוהלים ובדיקת "האם יכול לפתוח"', rows: [25, 29] },
@@ -148,7 +154,7 @@ export const DEEP_LINKS: Readonly<Record<string, DeepLinkEntry>> = Object.freeze
 /** Which capabilities each place offers, in the order shown. A place lists only what an operator there would look for. */
 export const PLACES: Readonly<Record<DeepPlace, readonly string[]>> = Object.freeze({
   station: ['stations.technical', 'sync.run', 'health.fleet', 'clock.settings'],
-  stations: ['stations.technical', 'sync.run', 'alerts.act', 'health.fleet'],
+  stations: ['stations.technical', 'sync.run', 'conflicts.resolve', 'alerts.act', 'health.fleet'],
   people: ['people.unmanaged', 'profiles.edit', 'people.lifecycle', 'access.reviews', 'access.compare', 'people.quality'],
   schedules: ['schedules.edit', 'stations.technical'],
   'settings-status': ['sync.run', 'alerts.act', 'health.fleet', 'clock.settings', 'operations.center', 'operations.investigations', 'platform.center'],
@@ -210,6 +216,9 @@ export interface DeepLinkViewer {
   readonly catalog?: CatalogLike | null;
   /** A permission at any scope (a native screen's `need`); absent = a native link is offered without a permission check here. */
   readonly can?: (permission: string) => boolean;
+  /** WISKEY-CONFLICTS-2400: the WisKey area is shown (`ui.hide_wiskey` off). A native screen under `#/wiskey/` lives in that area: with the
+   * area hidden for everyone its link is not offered (the shell would only show the "area hidden" panel). Absent = shown. */
+  readonly area?: boolean;
 }
 
 /** The rule of the WisKey area's navigation (shell/nav.ts `tabAllowed` + `ui.hide_wiskey`), as one boolean. */
@@ -239,6 +248,7 @@ export function deepLinksFor(place: string, viewer: DeepLinkViewer, table: Reado
     let link: DeepLink;
     if (e.native) {
       if (e.native.need?.length && viewer.can && !e.native.need.some((p) => viewer.can!(p))) continue;
+      if (viewer.area === false && e.native.href.startsWith('#/wiskey/')) continue;
       link = { id, label: e.label, href: e.native.href, kind: 'native', target: e.target, bridge: e.bridge };
     } else {
       if (!viewer.panel || (e.panelAdmin && !viewer.admin) || !inCatalog(e.target, viewer.catalog)) continue;

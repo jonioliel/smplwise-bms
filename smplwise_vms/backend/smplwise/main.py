@@ -595,6 +595,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import access_control_writes  # CR-036 S11: the person writes added to the editor's (its own line, like S4's)
 
     app.include_router(access_control_writes.router, prefix=api, tags=["access-control"])
+    from .routers import access_control_triage  # WISKEY-CONFLICTS-2400: conflict resolution and fleet alert actions (its own file and its own line)
+
+    app.include_router(access_control_triage.router, prefix=api, tags=["access-control"])
     from .routers import wiskey_lineage as wiskey_lineage_router  # WKR5-295: the WisKey people-write lineage administration (its own line)
 
     app.include_router(wiskey_lineage_router.router, prefix=api, tags=["access-control"])
@@ -1127,6 +1130,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import intercom_calls
 
         intercom_calls.WRITER.start(app.state.db)  # WISKEY-INBOUND-CALLS-2382: the writer of the door-station call log (closes calls left open first)
+        from .services import wiskey_triage
+
+        wiskey_triage.FEED.start(app.state.db, settings)  # WISKEY-CONFLICTS-2400: WisKey fleet alerts -> notifications, only while its setting is on (default off)
         if not ha_only:
             from .services import recorder_health
 
@@ -1267,6 +1273,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import intercom_calls as _intercom_calls
 
         await _in_thread(_intercom_calls.WRITER.shutdown)
+        from .services import wiskey_triage as _wiskey_triage
+
+        await _in_thread(_wiskey_triage.FEED.shutdown)
         from .services import intercom_media as _station_media
 
         # WKF01F02-295 (F01): the signed station-media provider's leased streams leave go2rtc and their timers are joined; never raises

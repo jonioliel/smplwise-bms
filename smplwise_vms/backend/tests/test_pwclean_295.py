@@ -30,8 +30,11 @@ PEOPLE_CATALOG_FIXTURE_SHA256 = "92ffc92b384fe0f667b66221076cfaf6b8259ffb28dd50c
 MIGRATION_0145_SHA256 = "b0fb6fd086a47430fc170008f233d2aa753d8d2140bf8c7bebbe60ab74aefa3f"
 
 
+ADDED_AFTER_CLEANUP = frozenset({"triage"})  # WISKEY-CONFLICTS-2400 added the `triage` channel; the pre-cleanup catalog is everything else, unchanged
+
+
 def _catalog() -> dict:
-    return {"allowlists": {k: sorted(v) for k, v in sorted(ch.ALLOWLISTS.items())}, "lease_signed": sorted(ch.LEASE_SIGNED),
+    return {"allowlists": {k: sorted(v) for k, v in sorted(ch.ALLOWLISTS.items()) if k not in ADDED_AFTER_CLEANUP}, "lease_signed": sorted(ch.LEASE_SIGNED),
             "w10": sorted(ch.W10_COMMANDS), "peer_query": sorted(cp.PEER_QUERY_COMMANDS), "codes": [ch.NOT_ALLOWED, ch.RESERVED_KEY]}
 
 

@@ -4,6 +4,7 @@ import '../components/sw-card';
 import '../components/sw-badge';
 import '../components/sw-button';
 import '../components/sw-dialog';
+import '../components/wk-triage-panel'; // WISKEY-CONFLICTS-2400: the conflicts and fleet alerts section of "מצב WisKey"
 import { describeError } from '../api/client';
 import { isApi, can, onRemote, LOCAL_ONLY_GENERIC } from '../api/session';
 import {
@@ -372,6 +373,15 @@ export class SystemWiskeyPairing extends LitElement {
     </div>`;
   }
 
+  /** WISKEY-CONFLICTS-2400: what is red on this page can be closed here - the sync conflicts (reviewed, then resolved) and the fleet alerts
+   * (snoozed / restored), in the compact size of the conflicts screen (#/wiskey/conflicts), which this section links to. */
+  private renderTriage() {
+    return html`<div class="section" data-wkp-triage>
+      <h4>מצב WisKey: התנגשויות והתראות</h4>
+      <wk-triage-panel mode="compact"></wk-triage-panel>
+    </div>`;
+  }
+
   render() {
     if (!isApi() || !can('system.configure')) return nothing;
     const d = this.data;
@@ -390,7 +400,7 @@ export class SystemWiskeyPairing extends LitElement {
             ${d
               ? html`<div class="lines">${d.lines.map((l) => this.renderLine(l))}</div>
                   ${d.owner_steps.length ? html`<div class="section" data-wkp-steps><h4>מה נדרש מחוץ ל־Arx</h4><ol>${d.owner_steps.map((s) => html`<li>${s}</li>`)}</ol></div>` : nothing}
-                  ${this.renderRepair(d)} ${this.renderFeatures(d)} ${this.renderConfirm(d)}`
+                  ${this.renderRepair(d)} ${this.renderFeatures(d)} ${this.renderTriage()} ${this.renderConfirm(d)}`
               : nothing}`}
     </sw-card>`;
   }

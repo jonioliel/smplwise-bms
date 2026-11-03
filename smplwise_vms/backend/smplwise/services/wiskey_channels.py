@@ -92,10 +92,16 @@ PACING = frozenset({"whatsapp/pacing_status_v1"})
 # as an unsigned frame on the feed's session. `W10_COMMANDS` names them so a test can prove no guard lets one through.
 W10_COMMANDS = frozenset(wiskey_media_contract.COMMANDS)
 UNPINNED_CHANNELS = frozenset({"readback", "pacing"})
+# WISKEY-CONFLICTS-2400 (plan 2026-11-03 T5): the conflict review / resolve and the fleet alert snooze from the conflicts screen and the
+# status page (services/wiskey_triage.py). All four are in the pinned catalog and non-READ there (`api_contract` on every frame);
+# `conflicts/review` reads the station and writes nothing, the other three change WisKey's own record / suppression state (a resolve then
+# QUEUES the person's or the station's sync in WisKey). Same socket and identity as `service`, a guard of its own: the service channel's
+# write list stays the reviewed one and nothing else can ride this guard. ADDITIVE: other branches add their own channels next to it.
+TRIAGE = frozenset({"conflicts/review", "conflicts/resolve", "conflicts/resolve_deletion", "fleet/alerts_action"})
 
 ALLOWLISTS: dict[str, frozenset[str]] = {"background": BACKGROUND, "service": SERVICE, "read": READ, "technical": TECHNICAL, "messaging": MESSAGING,
-                                         "readback": READBACK, "pacing": PACING}
-ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing")  # the guards the service session builds for the adapters (intercom_sync on_ready)
+                                         "readback": READBACK, "pacing": PACING, "triage": TRIAGE}
+ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing", "triage")  # the guards the service session builds for the adapters (intercom_sync on_ready)
 
 # Home Assistant's own frames a channel may send besides WisKey commands (the auth handshake is written by ha_client itself):
 # `get_config` tells "WisKey not loaded yet" from "not installed"; the service feed watches the stations' entities.
@@ -107,6 +113,7 @@ HA_FRAMES: dict[str, frozenset[str]] = {
     "messaging": frozenset(),
     "readback": frozenset(),
     "pacing": frozenset(),
+    "triage": frozenset(),
 }
 
 
@@ -147,4 +154,5 @@ def describe() -> dict[str, Any]:
         "messaging": {"commands": sorted(MESSAGING), "in_use": True},
         "readback": {"commands": sorted(READBACK), "in_use": True},
         "pacing": {"commands": sorted(PACING), "in_use": True},
+        "triage": {"commands": sorted(TRIAGE), "in_use": True},
     }

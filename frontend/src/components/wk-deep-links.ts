@@ -159,7 +159,7 @@ export class WkDeepLinks extends LitElement {
     void this.rev;
     const api = isApi();
     const panel = mayOpenPanel({ api, accessReadInstallation: api && can('access.read'), hidden: WISKEY_HIDDEN });
-    return api ? deepLinksFor(this.place, { panel, admin: can('access.admin.read'), catalog: wiskeyEmbedNav().catalog, can: canAnywhere }) : [];
+    return api ? deepLinksFor(this.place, { panel, admin: can('access.admin.read'), catalog: wiskeyEmbedNav().catalog, can: canAnywhere, area: !WISKEY_HIDDEN }) : [];
   }
 
   private onOutside = (e: Event) => {

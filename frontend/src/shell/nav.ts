@@ -200,6 +200,7 @@ function safeDecode(s: string): string {
 function wiskeyActiveTab(r: RouteState | null): string {
   const path = wiskeyPathSegment(r);
   if (path === 'external') return 'external'; // SHAREDID-293: an Arx-only screen, never the embed
+  if (path === 'conflicts' || path === 'alerts') return 'conflicts'; // WISKEY-CONFLICTS-2400: an Arx-only screen, never the embed
   const screen = wiskeyScreenOf(path);
   const own = !!screen && WISKEY_UI[screen] === 'smplwise';
   if (own) return path;

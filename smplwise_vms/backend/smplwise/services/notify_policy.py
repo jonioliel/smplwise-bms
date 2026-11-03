@@ -239,6 +239,12 @@ SOURCES: tuple[Source, ...] = (
     _s("security.local_passkey_clone", "חשד לשכפול מפתח גישה", "security", "alert", "חשד לשכפול מפתח גישה",
        "מפתח גישה (passkey) של משתמש Arx דיווח על מונה נמוך מהידוע - ייתכן שהוא שוכפל. הכניסה נדחתה. פרטים באודיט ובהגדרות › משתמשי Arx.",
        window_s=3600, who="managers", subject="system", resolves=False),
+    # WISKEY-CONFLICTS-2400 (services/wiskey_triage.AlertFeed): a WisKey fleet alert (station offline, sync stalled / conflict / error, event
+    # gap, clock drift) - one open row per station + kind, resolved when WisKey stops reporting it or it is snoozed. Signalled ONLY while the
+    # setting `access.wiskey_alerts_notify` is on (default off; listed only then). To the managers (a `system` subject). The station's
+    # name and the kind - never a person. In the app only by default; quiet hours / windows apply as to any source.
+    _s("wiskey.fleet_alert", "התראת עמדות WisKey", "device_faults", "info", "{detail}", "{name}: {detail}.", who="managers", push=False, subject="system",
+       resolve_text="ההתראה הסתיימה או נדחתה"),
     # CR-ARX-WISKEY-SHARED-IDENTITY: external-person door grants, to the managers (a `system` subject). Content-free - never a name, a
     # number, a door or a code; the grant screen and the audit carry the ids.
     _s("access.grant_request", "בקשת גישה זמנית לאדם חיצוני", "security", "info", "בקשת גישה זמנית",
@@ -407,8 +413,16 @@ def list_policies(conn: sqlite3.Connection) -> list[dict[str, Any]]:
             continue
         if s.key.startswith("scenario.") and not _scenarios_on(conn):  # XSCENARIO109-295: the scenario sources exist only while the module is on
             continue
+        if s.key == "wiskey.fleet_alert" and not _wiskey_alerts_listed(conn):  # WISKEY-CONFLICTS-2400: exists only while its setting is on
+            continue
         out.append(rows.get(s.key) or {**default_row(s), "revision": 0})
     return out
+
+
+def _wiskey_alerts_listed(conn: sqlite3.Connection) -> bool:
+    from . import wiskey_triage
+
+    return wiskey_triage.notify_enabled(conn)
 
 
 def _denied_listed(conn: sqlite3.Connection) -> bool:

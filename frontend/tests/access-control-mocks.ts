@@ -429,6 +429,16 @@ export async function installAccessMock(page: Page, opts: MockOptions = {}): Pro
       b.alerts.items = items.slice(offset, offset + size);
       return json(route, { ...fresh(b), sync: sync() });
     }
+    // WISKEY-CONFLICTS-2400: the conflicts screen's page facts (the conflicts / alerts lists are the status reads above). Acting is mocked by
+    // the triage specs themselves (tests/wiskey-triage-mocks.ts), never here.
+    if (ac === 'triage' && method === 'GET') {
+      const manage = holds('system.configure') || (holds('access.stations.manage') && !scoped());
+      return json(route, {
+        may_resolve: manage, may_act_alerts: manage, feed: 'ready',
+        notify: { enabled: false, can_edit: holds('system.configure'), last: { at: null, state: 'idle', emitted: 0, resolved: 0 } },
+        review_ttl_s: 600, durations: [15, 60, 240, 1440, 10080], reasons: ['planned_maintenance', 'network_work', 'investigating'], recent: { conflicts: {}, alerts: {} },
+      });
+    }
     if (ac === 'status/audit') {
       if (needAdmin()) return refuse(route, 'access.admin.read');
       if (scoped()) return json(route, { ...clone(WIRE.errors.forbidden), details: { permission: 'access.admin.read', target_type: 'installation', target_id: '*', reason: 'station_scoped' } }, 403);
