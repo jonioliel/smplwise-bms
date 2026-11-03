@@ -19,7 +19,9 @@ HOLD = b"GET /b/x HTTP/1.1\r\nHost: x\r\n"  # an unfinished request keeps its sl
 
 def _serve(**kw):
     svc = type("S", (), {})()
-    handler = type("H", (listener._Handler,), {"svc": svc, "www_dir": None, "timeout": 5.0})
+    # GATE2360-B: the held sockets are closed by `_stop`; the handler timeout is only a hang guard. At 5 s it raced the runtime-caps
+    # test on the loaded gate machine: a held connection timed out mid-test, freed its slot and `_total` read 2 instead of 3.
+    handler = type("H", (listener._Handler,), {"svc": svc, "www_dir": None, "timeout": 60.0})
     server = listener._CappedServer(("127.0.0.1", 0), handler, **kw)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server

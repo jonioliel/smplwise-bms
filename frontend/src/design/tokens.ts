@@ -320,6 +320,16 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       // (shell scheme): a glass host with its own scheme does not read it (tests/unit-dark-polish-beds.spec.ts measures every skin).
       '--sw-seg-thumb': lt('initial', 'color-mix(in srgb, var(--sw-text) 10%, var(--sw-surface-3-solid))'),
       '--sw-seg-thumb-shadow': lt('initial', '0 0 0 1px color-mix(in srgb, var(--sw-text) 20%, transparent), 0 1px 3px rgba(0, 0, 0, 0.5)'),
+      // GATE2370-B (WCAG 1.4.11, tests/evidence-polish2-295.spec.ts): the SETTINGS key (styles/settings.ts settingsSegStyles, the
+      // pill-thumb of POLISH4-WP1) in dark. On it the --sw-seg-thumb lift sat ~1.3:1 from its surface-3 track, below the 3:1 a chosen
+      // segment needs (the accent-filled key it replaced passed). Dark draws the chosen settings key as the light pill the glass screens
+      // already use (POLISH2-295, styles/media-glass.ts --mm-seg-thumb): the ink as the fill and the opaque dark surface as the label,
+      // as the glass pill's dark label (>= 10:1 in every skin; the dark accent itself reads under 4.5:1 on a light pill). Both are plain
+      // colours, never a color-mix: the in-browser contrast checks read the computed rgb(). Light is `initial`: the card surface with
+      // the accent ink, exactly as before. Resolved at :root (shell scheme); a glass host with its own scheme resets both
+      // (styles/devices-themes.ts).
+      '--sw-seg-key': lt('initial', 'var(--sw-text)'),
+      '--sw-seg-key-ink': lt('initial', 'var(--sw-surface-solid)'),
       // POLISH4-WP1 (HOMEEDIT-POLISH-2331 proposal): the WELL - one step down from a card (a group of rows, a column of choices):
       // surface-2 pulled a quarter of the way toward the border tone. It was a knob of the settings ladder only (styles/settings.ts,
       // which still re-declares it on its host, so a glass host with its own surface-2 keeps its own well); an editor outside the

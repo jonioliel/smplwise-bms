@@ -27,7 +27,8 @@ import { css } from 'lit';
  * it instead of keeping its own look.
  * POLISH4-WP1 (owner Q3a, 02.11): ONE settings key style - the pill-thumb key of the look settings (system-design.ts, system-nav-size.ts):
  * a sunken track (surface-3, 3 px inset, no dividers) and the selected key a lifted thumb (the card surface + shadow 1, the label in the
- * accent ink; in dark the --sw-seg-thumb lift of DARK-REVIEW-2342). The accent-filled divided keys are gone. The --sw-seg-* knobs of a
+ * accent ink; in dark the light pill of --sw-seg-key, GATE2370-B: the --sw-seg-thumb lift was under 3:1 from the track). The
+ * accent-filled divided keys are gone. The --sw-seg-* knobs of a
  * glass host (TKUI6, system-tickets) still override every part, so those hosts draw as before. */
 export const settingsSegStyles = css`
   .seg {
@@ -68,8 +69,10 @@ export const settingsSegStyles = css`
   }
   .seg button[aria-pressed='true'],
   .seg button[aria-selected='true'] {
-    background: var(--sw-seg-on-bg, var(--sw-seg-thumb, var(--sw-surface)));
-    color: var(--sw-seg-on-fg, var(--sw-accent-text));
+    /* GATE2370-B: in dark the chosen key is the light pill (--sw-seg-key / --sw-seg-key-ink, design/tokens.ts): the --sw-seg-thumb
+       lift read ~1.3:1 from the track, a chosen segment needs 3:1 (WCAG 1.4.11); light keeps the card surface + the accent ink */
+    background: var(--sw-seg-on-bg, var(--sw-seg-key, var(--sw-surface)));
+    color: var(--sw-seg-on-fg, var(--sw-seg-key-ink, var(--sw-accent-text)));
     box-shadow: var(--sw-seg-on-shadow, var(--sw-seg-thumb-shadow, var(--sw-shadow-1)));
   }
   .seg button:focus-visible {

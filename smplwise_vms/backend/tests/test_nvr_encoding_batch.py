@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 from conftest import as_user, bind
 from fastapi.testclient import TestClient
-from nvr_batch_helpers import SECRETS, audits, batch_rows, camera_ids, details, fast_unknown, make_app, puts, quiet_alert_stream, ready, rows, setup_fake, wait_done, wait_put, with_nvr  # noqa: F401
+from nvr_batch_helpers import SECRETS, audits, batch_rows, camera_ids, details, fast_unknown, make_app, puts, quiet_alert_stream, quiet_startup_reads, ready, rows, setup_fake, startup_builds, wait_done, wait_put, with_nvr  # noqa: F401
 
 from smplwise.routers import nvr_batch as batch_router
 from smplwise.services import nvr_batch
@@ -36,9 +36,11 @@ def fake(monkeypatch) -> FakeDevices:
 @pytest.fixture()
 def ew(settings, fake, fast_unknown):
     app = make_app(settings)
+    builds = startup_builds()
     with TestClient(app) as c:
         ready(app, 5)
         quiet_alert_stream()  # the background listener's own reads must not interleave with what a test counts
+        quiet_startup_reads(builds)  # GATE2360-B: nor the rest of the start-up discovery (derived events, storage warm-up)
         yield app, c, fake, camera_ids(app)
     assert nvr_batch.wait_idle(10)
 

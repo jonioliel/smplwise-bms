@@ -101,7 +101,13 @@ class FakeDevices:
                 # CR-024: the recorder's own serial in deviceInfo (None = the device does not report one)
                 "serial": None,
             }
-            self.go2rtc: dict[str, Any] = {"up": True, "auth": True, "version": "1.9.9-fake", "streams": {}, "foreign": ["intercom_door_1", "intercom_door_2"]}
+            # CAM-H264-VERIFY-2361: the stream probe (GET /api/streams?src=<name>&video=all) answers the producer's codec - by default
+            # the codec the fake NVR shows for that channel / profile (`smplwise_<rec>_ch<N>_<main|sub>`); `media_codec` {name: "h265"}
+            # overrides it (the NVR took the change, the camera still sends the old codec); `probe` False answers without receivers
+            # (a go2rtc without the probe); `viewers` {name: codec} are streams with a live producer already (a viewer is watching);
+            # `probes` lists every probed name.
+            self.go2rtc: dict[str, Any] = {"up": True, "auth": True, "version": "1.9.9-fake", "streams": {}, "foreign": ["intercom_door_1", "intercom_door_2"],
+                                           "media_codec": {}, "probe": True, "viewers": {}, "probes": []}
             self.ha: dict[str, Any] = {"up": True, "status": 200, "version": "2026.9.3", "time_zone": "Asia/Jerusalem", "drift_s": 0}
             self.hits: list[str] = []
             self.writes: list[str] = []
@@ -251,6 +257,12 @@ class FakeDevices:
         if which != n["write_path"] or not self._stream_exists(sid):
             return status_doc(4, "notSupport", 403)
         mode = (n["put"] or {}).get("status", "ok")
+        keeps_old = bool((n["put"] or {}).get("keeps_old"))
+        by_stream = (n.get("put_by_stream") or {}).get(str(sid))  # CAM-H264-VERIFY-2361: one stream's own answer (a mode, or "keeps_old")
+        if by_stream == "keeps_old":
+            keeps_old = True
+        elif by_stream:
+            mode = by_stream
         if n["put_fail_at"] is not None and n["put_count"] == n["put_fail_at"]:
             mode = "busy"
         if n.get("put_unknown_at") is not None and n["put_count"] == n["put_unknown_at"]:
@@ -267,7 +279,7 @@ class FakeDevices:
             if n["timeout_applies"]:
                 self._apply_put(sid, body)
             raise httpx.ReadTimeout("fake NVR timed out", request=request)
-        if not (n["put"] or {}).get("keeps_old"):
+        if not keeps_old:
             self._apply_put(sid, body)
         if mode == "server_error":
             return httpx.Response(500, text="Internal Server Error", request=request)
@@ -361,8 +373,13 @@ class FakeDevices:
         if path == "/api" and request.method == "GET":
             return httpx.Response(200, json={"version": g["version"], "config_path": "/config/go2rtc.yaml"}, request=request)
         if path == "/api/streams":
+            if request.method == "GET" and request.url.params.get("src"):
+                return self._go2rtc_probe(request)
             if request.method == "GET":
                 body = {name: {"producers": [{"url": "rtsp://***@fake/stream", **({"medias": ["video"]} if online else {})}]} for name, online in g["streams"].items()}
+                for name, codec in (g.get("viewers") or {}).items():
+                    if name in body:
+                        body[name]["producers"][0]["receivers"] = [{"codec": {"codec_name": codec, "codec_type": "video"}}]
                 body.update({name: {"producers": [{"url": "rtsp://***@door/stream"}]} for name in g["foreign"]})
                 return httpx.Response(200, json=body, request=request)
             self.writes.append(f"go2rtc {request.method} {request.url.params.get('name') or request.url.params.get('src')}")
@@ -373,6 +390,27 @@ class FakeDevices:
                 g["streams"].pop(request.url.params.get("src", ""), None)
                 return httpx.Response(200, request=request)
         return httpx.Response(404, text="not found", request=request)
+
+    def _go2rtc_probe(self, request: httpx.Request) -> httpx.Response:
+        """GET /api/streams?src=<name>[&video=all]: one stream by NAME (a name go2rtc does not hold: 404; never created)."""
+        import re as _re
+
+        g = self.go2rtc
+        name = request.url.params.get("src", "")
+        if name not in g["streams"]:
+            return httpx.Response(404, text="", request=request)
+        g["probes"].append(name)
+        producer: dict[str, Any] = {"url": "rtsp://***@fake/stream"}
+        codec = (g.get("viewers") or {}).get(name)
+        if codec is None and request.url.params.get("video") is not None and g.get("probe", True):
+            codec = (g.get("media_codec") or {}).get(name)
+            m = _re.search(r"_ch(\d+)_(main|sub)$", name)
+            if codec is None and m:
+                raw = str(self._encoding(int(m.group(1)), m.group(2)).get("codec") or "")
+                codec = raw.lower().replace(".", "") or None
+        if codec:
+            producer["receivers"] = [{"codec": {"codec_name": codec, "codec_type": "video"}}]
+        return httpx.Response(200, json={"producers": [producer], "consumers": []}, request=request)
 
     # ------------------------------------------------------------ Home Assistant REST
 

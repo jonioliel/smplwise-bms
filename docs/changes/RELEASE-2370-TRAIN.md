@@ -91,6 +91,23 @@ dark, focus rings, names of new buttons, reduced-motion, 44 px phone targets, ho
 | WP8 settings modules | `pixel-access-status` (desktop 1440 + mobile 390, classic / bubble / domus): every picture with a card subtitle (the text changed; on 390 the card heads stack). `pixel-access-s12`: `s12-classic-audit-person-*` (action-log subtitle) only. `visual-matrix` `settings-notifications`: expected unchanged in classic (a skin with other `--sw-r-pill` / `--sw-r-sm` values would move). No pixel spec covers transit, announcements, presence, retention, elevator / generator settings or external access |
 | WP4 home | `visual-matrix` `devices-home` (ready / dialog), `devices-building`, `devices-schedules`: no change expected (if `devices-home` differs it would be the media-chip hover gate under a hovering pointer only - review before accepting). Evidence shots only (not baselines): home edit mode (the bar's height is kept free, 44 px controls on touch), automations at 820 / 1024 / 1180 (two-row header, three-column cards), announcements (focus ring, shadow) |
 
+### Gate fix D (fix/GATE2370-D): the WisKey messaging settings and people screen on a phone
+
+The 2.37.0 gate (b0fa0dc86) failed 5 `[mobile]` cases of `pixel-wiskey-messaging` / `pixel-wiskey-people`; all 8 baselines below are
+`390-mobile-linux`, refreshed on the runner (`run_smart.py preview ... --project=mobile -u`) and reviewed old against new:
+
+- `pixel-wiskey-people`: `operator-list`, `operator-drawer`, `state-forbidden`. Only the floating corner moves: for a user without the
+  health right the status dot is now a key (8a7fb96bf, WP1 D1), so on a phone it takes the 44 px touch width of every corner key
+  (UXFIX-A11Y-295) - the same pill the administrator already had. Intended.
+- `pixel-wiskey-messaging`: `settings-classic`, `settings-domus`, `settings-classic-dark`, `settings-classic-errors`,
+  `settings-classic-service-down`. The phone-sticky save row (204fb4099, WP8 D16) and the 12 px row inset of the access segments
+  (`system-access-polish-css.ts`); the dark one also carries the WP1 tab-strip look. The sticky row itself was a product defect - the
+  status span's 14rem basis wrapped the two keys onto two stacked lines beside an empty strip (a ~120 px bar over the form) - fixed in
+  `system-access-messaging.ts` (phone: the status takes its own line only while it carries a note; the keys share one line). The
+  baselines show the fixed bar. Because the save click no longer scrolls a phone page to its end, `settings-classic-errors` (mobile)
+  now centres the rejected field before its picture (it had drifted 3 px between runs). **frontend/src changed: rebuild the UI before
+  the re-gate.**
+
 ## Runner work still needed (NOT_RUN here)
 
 `visual-matrix --all`; `evidence-shell` (status dot note, desktop / tablet / mobile); `layout-a11y-295`; the unit page specs that need the
