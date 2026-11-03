@@ -111,3 +111,17 @@ Not touched: `wk-station-live.ts`, the call row, deep links, pairing, managed in
 
 Revert the branch's commit(s). No migration, no setting, no stored state (the memo and the cache are process memory). Removing the
 two mount lines hides the UI; removing the `include_router` line removes the endpoints; the channel entry is inert without a caller.
+
+## 8. Test receipts (2026-11-03)
+
+| What | Where | Command | Result |
+|---|---|---|---|
+| Backend, new | workstation, `.venv` (no browser) | `python -m pytest -o addopts= -q -p no:cacheprovider tests/test_wiskey_station_ops.py` | 25 passed |
+| Backend, channel neighbours | workstation | `pytest tests/test_wiskey_channels.py tests/test_pwclean_295.py tests/test_wiskey_diagnostics.py tests/test_eccact_readback_295.py tests/test_wa_pacing_coverage_295.py tests/test_wiskey_contract.py tests/test_wkdirect_295.py tests/test_wiskey_station_ops.py` | 247 passed, 2 skipped, 1 failed (the live-guard map in test_wiskey_channels, fixed in this branch; re-run: test_wiskey_channels 32 passed, 2 skipped) |
+| Unit spec (node, no page) | workstation | `npx playwright test -c playwright.unit.config.ts tests/unit-wiskey-station-ops.spec.ts` | 7 passed |
+| Typecheck | runner @ `a127b5146` | `run_smart.py tsc pilot/WISKEY-STATION-OPS-2390 --machine runner` | tsc ok |
+| Browser, new + stations neighbours | runner @ `f4039b87d` | `run_smart.py spec ... tests/evidence-wiskey-station-ops.spec.ts tests/evidence-wiskey-stations.spec.ts --project=desktop --project=mobile --project=tablet` | 161 passed, 7 skipped |
+| Browser, layout / pixel / media (unchanged by the mounts) | runner @ `a127b5146` | `run_smart.py spec ... tests/layout-wiskey-stations.spec.ts tests/pixel-wiskey-stations.spec.ts tests/evidence-wiskey-station-media.spec.ts` (3 projects) | no failure in these files (the same run's failures were the new spec's dialog assertion and the stations hygiene allow-list, both fixed and re-run above) |
+
+NOT_RUN: the full backend suite, the full release gate, any lab / real WisKey check. No pixel spec was added (the existing stations
+pixel baselines stay valid: the blocks take no room for a caller without the permissions).
