@@ -14,6 +14,17 @@ const noBaseline = (info: Pick<TestInfo, 'snapshotPath' | 'config'>, name: strin
 const inDt = (page: Page, sel: string) => page.locator(`${SCREEN} sw-drawer[data-wk-drawer] wk-door-tech ${sel}`);
 
 async function shoot(page: Page, info: TestInfo, name: string, endAt?: string) {
+  // the drawer behind the dialog at a fixed scroll: the door technical row's end at the end of the drawer's own scroll box (a phone
+  // shows the drawer under the dialog; a click or a focus may have scrolled it by a run-dependent amount)
+  await page.locator(`${SCREEN} sw-drawer[data-wk-drawer] wk-door-tech`).evaluate((el) => {
+    const up = (x: Node): Node | null => (x instanceof Element && x.assignedSlot ? x.assignedSlot : x instanceof ShadowRoot ? x.host : x.parentNode);
+    for (let n = up(el); n; n = up(n)) {
+      if (n instanceof HTMLElement && n.scrollHeight > n.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(n).overflowY)) {
+        n.scrollTop += el.getBoundingClientRect().bottom - n.getBoundingClientRect().bottom;
+        return;
+      }
+    }
+  });
   // a fixed scroll: the dialog's body at its top (a click or a focus may have scrolled it by a run-dependent amount)
   await inDt(page, 'sw-dialog[data-wk-dt-dialog]').evaluate((d) => {
     const body = d.shadowRoot?.querySelector<HTMLElement>('.body');
