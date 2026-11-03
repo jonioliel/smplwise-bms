@@ -1,4 +1,5 @@
 import { LitElement, html, nothing, css, type PropertyValues } from 'lit';
+import { liftRef, liftedReset } from '../components/top-layer';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import '../components/sw-toggle';
@@ -98,7 +99,7 @@ const OVERLAP_HINT: Record<OverlapMode, string> = {
  */
 @customElement('system-calendars')
 export class SystemCalendars extends LitElement {
-  static styles = [calCss, leadReserveStyles, css`
+  static styles = [calCss, leadReserveStyles, liftedReset, css`
     :host { display: flex; flex-direction: column; min-block-size: 0; flex: 1; padding: 14px var(--sw-page-pad) 20px; gap: 12px; overflow: hidden; }
     /* CALMSG-POLISH-2331: the page title reads like every settings page (sw-page): the "הגדרות" crumb, the skin's h1 scale */
     h1 { margin: 0; font-family: var(--sw-font-heading, var(--sw-font)); font-size: var(--sw-h1, var(--sw-fs-2xl)); font-weight: var(--sw-h1-weight, var(--sw-fw-bold));
@@ -476,7 +477,7 @@ export class SystemCalendars extends LitElement {
         ${tab === 'overlap' ? this.overlapTab() : tab === 'behavior' ? this.behaviorTab() : tab === 'approval' ? this.approvalTab() : tab === 'perm' ? this.permTab() : this.retentionTab()}
       </section>
       ${this.dialogs()}
-      ${this.toastText ? html`<div class="toast" role="status" data-calset-toast>${this.toastText}</div>` : nothing}`;
+      ${this.toastText ? html`<div class="toast" role="status" data-calset-toast ${liftRef() /* DIALOG-TOPLAYER-2381: above an open sw-dialog */}>${this.toastText}</div>` : nothing}`;
   }
 
   // ---------------------------------------------------------------- tab: maintenance overlap (D7 / C1 / C3, owner answers 9 and 10)

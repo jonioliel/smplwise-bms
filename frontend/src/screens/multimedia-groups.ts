@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
+import { liftRef } from '../components/top-layer';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import '../components/media-group-dialog';
@@ -1071,7 +1072,7 @@ export class MultimediaGroups extends LitElement {
     <media-group-dialog @group-done=${() => void this.load()}></media-group-dialog>
     <media-preset-editor .devices=${this.devices} @preset-saved=${() => { this.say('נשמר'); void this.load(); }} @preset-stale=${() => void this.load()}></media-preset-editor>
     ${this.deleteDialog()}
-    ${this.toast ? html`<div class="toast" role="status">${mIcon('check')}${this.toast}</div>` : nothing}`;
+    ${this.toast ? html`<div class="toast" role="status" ${liftRef() /* DIALOG-TOPLAYER-2381: above an open sw-dialog */}>${mIcon('check')}${this.toast}</div>` : nothing}`;
   }
 }
 

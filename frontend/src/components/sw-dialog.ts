@@ -2,12 +2,20 @@ import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './sw-button';
 import { deepFocusables } from './sw-drawer';
+import { raiseLifted, setTopLayer } from './top-layer';
 
 /** A11Y-POLISHED-2342: the open dialogs, oldest first. Every dialog listens for Escape on the window, so a confirmation opened over
  * another dialog closed BOTH on one press; now only the top one answers the key. */
 const OPEN_STACK: SwDialog[] = [];
 
-/** Small centred modal for short forms and confirmations. Closes on Escape, backdrop click or the ✕. */
+/** Small centred modal for short forms and confirmations. Closes on Escape, backdrop click or the ✕.
+ *
+ * DIALOG-TOPLAYER-2381: the backdrop is a manual popover shown in the browser's top layer, so it always covers the whole viewport and the
+ * box is centred on the screen, whatever the dialog's ancestors carry (in the glass skins every sw-card has a backdrop-filter, which made
+ * the card the containing block of the fixed backdrop: the dialog was centred on the card and only the card was dimmed). A dialog opened
+ * from a dialog is shown later, so it paints above (the same order as OPEN_STACK). Nothing else changes: the focus trap, Escape, the
+ * return of focus and the page behind (not inert) are this element's own, as before. Without the Popover API the backdrop stays a fixed
+ * element at --sw-z-modal. */
 @customElement('sw-dialog')
 export class SwDialog extends LitElement {
   @property({ type: Boolean, reflect: true }) open = false;
@@ -35,6 +43,15 @@ export class SwDialog extends LitElement {
     .backdrop {
       position: fixed;
       inset: 0;
+      /* the browser's [popover] style (fit-content size, auto margin, a border, Canvas colours) put back to a full-viewport layer */
+      inline-size: auto;
+      block-size: auto;
+      max-inline-size: none;
+      max-block-size: none;
+      margin: 0;
+      border: 0;
+      overflow: visible;
+      color: inherit;
       background: var(--sw-overlay);
       z-index: var(--sw-z-modal);
       display: grid;
@@ -182,13 +199,14 @@ export class SwDialog extends LitElement {
    * until 0.1.80 it stayed on the page behind, so a keyboard user had to tab through the whole page. */
   updated(changed: Map<string, unknown>) {
     if (changed.has('open')) this.track(this.open);
+    if (changed.has('open') && !this.open) this.layer(false);
     if (changed.has('open') && !this.open && changed.get('open') === true) this.restoreFocus();
     if (!changed.has('open') || !this.open) return;
     let a: Element | null = document.activeElement;
     while (a?.shadowRoot?.activeElement) a = a.shadowRoot.activeElement;
     if (a && !this.contains(a) && !this.shadowRoot?.contains(a)) this.opener = a as HTMLElement;
+    this.layer(true);
     requestAnimationFrame(() => {
-      this.keepBoxInView();
       const pick = (root: ParentNode): HTMLElement | null => {
         for (const el of root.querySelectorAll<HTMLElement>('[autofocus], input, textarea, select, sw-button, button')) {
           if (el.hasAttribute('disabled') || (el as HTMLInputElement).type === 'hidden' || el.slot === 'footer') continue;
@@ -209,32 +227,10 @@ export class SwDialog extends LitElement {
     });
   }
 
-  /** GATE2380-B: in the glass style (domus, crystal) a sw-card carries a backdrop-filter, which makes it the containing block of the
-   * fixed backdrop: the box is centred on the CARD, not on the screen, and on a phone scrolled along a tall card it opened partly or
-   * wholly outside the visible part of the page (the NVR connection card's "save anyway" dialog, 2.38.0 gate). Only when the backdrop
-   * is not the viewport AND the box is not inside what its scrollers show, the page scrolls so the box sits in the middle of the
-   * visible part; a dialog on the viewport (every other skin) or one already in view moves nothing. */
-  private keepBoxInView() {
-    const back = this.renderRoot.querySelector<HTMLElement>('.backdrop');
-    const box = this.renderRoot.querySelector<HTMLElement>('.box');
-    if (!back || !box) return;
-    const b = back.getBoundingClientRect();
-    const de = document.documentElement;
-    if (Math.abs(b.top) < 1 && Math.abs(b.left) < 1 && Math.abs(b.width - de.clientWidth) < 2 && Math.abs(b.height - de.clientHeight) < 2) return;
-    // the box's own place (offsets ignore the opening transform of @starting-style), then the visible part: the viewport cut by every
-    // clipping ancestor up the composed tree
-    const top = b.top + box.offsetTop;
-    const bottom = top + box.offsetHeight;
-    let lo = 0;
-    let hi = de.clientHeight;
-    for (let n: Node | null = back.parentNode; n; n = n instanceof ShadowRoot ? n.host : n.parentNode) {
-      if (!(n instanceof Element) || getComputedStyle(n).overflowY === 'visible') continue;
-      const r = n.getBoundingClientRect();
-      lo = Math.max(lo, r.top + n.clientTop);
-      hi = Math.min(hi, r.top + n.clientTop + n.clientHeight);
-    }
-    if (top >= lo - 0.5 && bottom <= hi + 0.5) return;
-    box.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
+  /** DIALOG-TOPLAYER-2381: the backdrop in / out of the top layer. Opening raises the toasts that must stay above a dialog. */
+  private layer(show: boolean) {
+    setTopLayer(this.renderRoot.querySelector('.backdrop'), show);
+    if (show) raiseLifted();
   }
 
   private track(open: boolean) {
@@ -246,7 +242,10 @@ export class SwDialog extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     window.addEventListener('keydown', this.onKey);
-    if (this.open && this.hasUpdated) this.track(true);
+    if (this.open && this.hasUpdated) {
+      this.track(true);
+      this.layer(true); // taken out of the page and put back while open: the browser hid the popover on removal
+    }
   }
 
   disconnectedCallback() {
@@ -257,7 +256,7 @@ export class SwDialog extends LitElement {
   }
 
   render() {
-    return html`<div class="backdrop" @click=${(e: Event) => e.target === e.currentTarget && this.close()}>
+    return html`<div class="backdrop" popover="manual" @click=${(e: Event) => e.target === e.currentTarget && this.close()}>
       <div class="box" role="dialog" aria-modal="true" aria-label=${this.heading}>
         <header><div><h3>${this.heading}</h3>${this.subheading ? html`<div class="sub">${this.subheading}</div>` : ''}</div><sw-button variant="ghost" size="sm" iconOnly icon="close" label="סגור" @click=${this.close}></sw-button></header>
         <div class="body"><slot></slot></div>

@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import '../components/sw-place-tree';
+import { liftRef } from '../components/top-layer';
 import type { IconName } from '../components/sw-icon';
 import { ApiError, describeError } from '../api/client';
 import { maintApi, type Task, type TaskKind } from '../api/maintenance';
@@ -262,7 +263,7 @@ export class MaintListPage extends LitElement {
       ${this.vendor ? html`<maint-vendor-card .vendorId=${this.vendor} .access=${this.access} @close=${() => { this.vendor = null; }}
           @open-task=${(e: CustomEvent<{ id: string; mode: 'view' | 'complete' }>) => { this.vendor = null; this.sheetMode = e.detail.mode; this.sheet = e.detail.id; }}
           @new-document=${(e: CustomEvent<string>) => { this.vendor = null; this.form = { kind: 'vendor_document', id: null }; this.pendingVendor = e.detail; }}></maint-vendor-card>` : nothing}
-      ${this.toast ? html`<div class="toast" role="status" aria-live="polite">${this.toast}</div>` : nothing}`;
+      ${this.toast ? html`<div class="toast" role="status" aria-live="polite" ${liftRef() /* DIALOG-TOPLAYER-2381: above the task sheet's open sw-dialog */}>${this.toast}</div>` : nothing}`;
   }
 
   /** the supplier a "new document" from the supplier card is for (the form preselects it) */

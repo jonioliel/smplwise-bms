@@ -2,6 +2,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-button';
 import '../components/sw-icon';
+import { liftToTopLayer, liftedHostReset } from '../components/top-layer';
 import { onSession } from '../api/session';
 import { applyUpdate, dismiss, onPwa, promptInstall, pwa, showInstall, showIosHint, startPwa } from './register';
 import { syncSubscription } from './push';
@@ -39,7 +40,7 @@ export class ArxPwaPrompts extends LitElement {
     this.backTimer = window.setTimeout(() => (this.backOnline = false), 3000);
   };
 
-  static styles = css`
+  static styles = [liftedHostReset, css`
     :host {
       position: fixed;
       inset-inline: 0;
@@ -195,7 +196,7 @@ export class ArxPwaPrompts extends LitElement {
         animation: none;
       }
     }
-  `;
+  `];
 
   connectedCallback() {
     super.connectedCallback();
@@ -211,6 +212,8 @@ export class ArxPwaPrompts extends LitElement {
     window.addEventListener('offline', this.onOffline);
     window.addEventListener('online', this.onOnline);
     void startPwa();
+    // DIALOG-TOPLAYER-2381: the offline pill and the update card stay above an open sw-dialog (it is in the top layer)
+    liftToTopLayer(this);
   }
 
   disconnectedCallback() {

@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
+import { liftRef } from '../components/top-layer';
 import { customElement, property, query, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import { repeat } from 'lit/directives/repeat.js';
@@ -739,7 +740,7 @@ export class MultimediaPlayers extends LitElement {
     <media-group-dialog @group-done=${() => void this.load()}></media-group-dialog>
     ${this.confirmDialog()}
     ${this.playerKey ? html`<media-player-panel .deviceKey=${this.playerKey} .open=${true} @close=${() => this.closePlayer()}></media-player-panel>` : nothing}
-    ${this.toast ? html`<div class="toast" role="status">${mIcon('check')}${this.toast}</div>` : nothing}`;
+    ${this.toast ? html`<div class="toast" role="status" ${liftRef() /* DIALOG-TOPLAYER-2381: above an open sw-dialog */}>${mIcon('check')}${this.toast}</div>` : nothing}`;
   }
 }
 

@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
+import { liftRef } from '../components/top-layer';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../tickets/contacts-directory';
 import '../tickets/handlers-members';
@@ -478,9 +479,9 @@ export class TicketsHandlersPage extends LitElement {
         </div>
       </header>
       ${this.strip()}
-      ${this.error ? html`<div class="toast bad" role="alert" data-handlers-error>${tIcon('warning')}<span class="tx">${this.error}</span>
+      ${this.error ? html`<div class="toast bad" role="alert" data-handlers-error ${liftRef() /* DIALOG-TOPLAYER-2381: above an open sw-dialog */}>${tIcon('warning')}<span class="tx">${this.error}</span>
         <button type="button" class="x" aria-label=${t('actions.close')} data-handlers-error-close @click=${() => (this.error = '')}>${tIcon('x')}</button></div>`
-        : this.ok ? html`<div class="toast" role="status" data-handlers-ok>${tIcon('check')}<span class="tx">${this.ok}</span></div>` : nothing}
+        : this.ok ? html`<div class="toast" role="status" data-handlers-ok ${liftRef() /* DIALOG-TOPLAYER-2381: above an open sw-dialog */}>${tIcon('check')}<span class="tx">${this.ok}</span></div>` : nothing}
       ${this.body()}
     </div>`;
   }

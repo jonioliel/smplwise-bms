@@ -1,5 +1,6 @@
 import { css } from 'lit';
 import { tempCss } from '../temperature/styles';
+import { liftedReset } from '../components/top-layer';
 
 /**
  * CR-MAINT215 slice 2: the visual language of the maintenance section - the owner-approved mockup v2
@@ -7,7 +8,7 @@ import { tempCss } from '../temperature/styles';
  * badges and soft chips (temperature/styles.ts, reused as is), the places tree (components/sw-place-tree.ts), the electricity table
  * (`table.t`, the toolbar search and the segmented control), the pill buttons, the sw-state-panel states and sw-dialog. Tokens only.
  */
-export const maintCss = [tempCss, css`
+export const maintCss = [tempCss, liftedReset, css`
   :host { --tc-acc: var(--sw-accent); display: flex; flex-direction: column; gap: 14px; min-inline-size: 0; min-block-size: 0; }
   [data-look='acc'] { --c: var(--sw-accent); --c-text: var(--sw-accent-text); }
   [data-look='ok'] { --c-soft: var(--sw-success-soft); }

@@ -4,6 +4,7 @@ import qrcode from 'qrcode-generator';
 import '../components/sw-dialog';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
+import { liftRef } from '../components/top-layer';
 import { describeError } from '../api/client';
 import { maintApi, type Tag, type TagMedium, type Task } from '../api/maintenance';
 import { mt } from '../i18n/maintenance';
@@ -209,7 +210,7 @@ export class MaintTagsPage extends LitElement {
       ${this.revoke ? html`<sw-dialog open heading=${mt('tagRevoke')} @close=${() => { this.revoke = null; }}><p>${mt('tagRevokeConfirm', { l: this.revoke.label || this.targetText(this.revoke) })}</p>
         <div class="foot" slot="footer"><span class="sp"></span><button type="button" class="btn" @click=${() => { this.revoke = null; }}>${mt('cancel')}</button>
           <button type="button" class="btn dng" ?disabled=${this.busy} data-maint-revoke-yes @click=${() => void this.doRevoke(this.revoke!)}>${mt('tagRevoke')}</button></div></sw-dialog>` : nothing}
-      ${this.toast ? html`<div class="toast noprint" role="status" aria-live="polite">${this.toast}</div>` : nothing}`;
+      ${this.toast ? html`<div class="toast noprint" role="status" aria-live="polite" ${liftRef() /* DIALOG-TOPLAYER-2381: above an open sw-dialog */}>${this.toast}</div>` : nothing}`;
     if (!live.length) {
       return html`${top}<sw-state-panel icon="qr" state="empty" heading=${mt('emptyTags')} hint=${mt('emptyTagsBody')} data-state="empty">
         <button type="button" class="btn pri" @click=${openNew}><sw-icon name="plus" size="16"></sw-icon>${mt('firstTag')}</button></sw-state-panel>${overlays}`;

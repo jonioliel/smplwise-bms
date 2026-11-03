@@ -6,6 +6,7 @@ import '../tickets/rfq-board';
 import '../tickets/rfq-compare';
 import { automationsStyles } from '../styles/automations-glass';
 import { mediaPageStyles } from '../styles/media-page';
+import { liftRef } from '../components/top-layer';
 import { applyAutomationsGlass } from '../api/automations-demo';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { SkinController } from '../design/skin';
@@ -357,7 +358,7 @@ export class TicketsRfqsPage extends LitElement {
     return html`${body}
       ${ready && this.canCreate() ? html`<tickets-rfq-new .open=${r.creating} .meta=${this.meta} .sourceTicket=${r.from}
         @close=${() => go(rfqHref({ ...r, creating: false, from: '' }), true)} @rfq-saved=${this.onSaved}></tickets-rfq-new>` : nothing}
-      ${this.toast ? html`<div class=${`toast ${this.toast.tone}`} role=${this.toast.tone === 'bad' ? 'alert' : 'status'} data-rfq-toast>${tIcon(this.toast.tone === 'bad' ? 'warning' : 'check')}${this.toast.text}</div>` : nothing}`;
+      ${this.toast ? html`<div class=${`toast ${this.toast.tone}`} role=${this.toast.tone === 'bad' ? 'alert' : 'status'} data-rfq-toast ${liftRef() /* DIALOG-TOPLAYER-2381: above the board's open sw-dialog */}>${tIcon(this.toast.tone === 'bad' ? 'warning' : 'check')}${this.toast.text}</div>` : nothing}`;
   }
 }
 

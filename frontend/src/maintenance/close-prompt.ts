@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing } from 'lit';
+import { liftRef, liftedReset } from '../components/top-layer';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-dialog';
 import { describeError } from '../api/client';
@@ -24,7 +25,7 @@ export class MaintClosePrompt extends LitElement {
   @state() private error = '';
   @state() private toast = '';
 
-  static styles = css`
+  static styles = [liftedReset, css`
     :host { display: contents; }
     .acts { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; inline-size: 100%; }
     .btn { display: inline-flex; align-items: center; justify-content: center; border-radius: var(--sw-r-pill); padding: 8px 16px; min-block-size: 40px; border: 1px solid var(--sw-border); background: var(--sw-surface);
@@ -34,7 +35,7 @@ export class MaintClosePrompt extends LitElement {
     .err { color: var(--sw-danger-text); margin-block-start: 8px; }
     .toast { position: fixed; inset-block-end: calc(var(--sw-bottomnav-h, 0px) + 20px); inset-inline: 0; margin-inline: auto; inline-size: max-content; max-inline-size: 90vw; background: var(--sw-toast-bg);
       color: var(--sw-toast-text); border-radius: var(--sw-r-pill); padding: 8px 16px; z-index: var(--sw-z-toast); box-shadow: var(--sw-shadow-2); }
-  `;
+  `];
 
   connectedCallback() {
     super.connectedCallback();
@@ -89,7 +90,7 @@ export class MaintClosePrompt extends LitElement {
         <div class="acts" slot="footer"><button type="button" class="btn" data-maint-close-no @click=${() => { this.plan = null; }}>${mt('closeAskNo')}</button>
           <button type="button" class="btn pri" ?disabled=${this.busy} data-maint-close-yes @click=${() => void this.yes()}>${mt('closeAskYes')}</button></div>
       </sw-dialog>` : nothing}
-      ${this.toast ? html`<div class="toast" role="status" aria-live="polite">${this.toast}</div>` : nothing}`;
+      ${this.toast ? html`<div class="toast" role="status" aria-live="polite" ${liftRef() /* DIALOG-TOPLAYER-2381: above an open sw-dialog */}>${this.toast}</div>` : nothing}`;
   }
 }
 

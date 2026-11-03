@@ -31,6 +31,7 @@ import { SkinController } from '../design/skin';
 import { applyExternalPlacement } from '../shell/nav';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { dateInputLang } from '../api/day-format';
+import { liftRef, liftedReset } from '../components/top-layer';
 import { leadReserveStyles } from '../styles/lead-reserve'; // header dropdown placement 4: the first row keeps the reserve free (integ/293)
 
 const POLL_MS = 15_000;
@@ -134,6 +135,7 @@ export class AccessExternalScreen extends LitElement {
   static styles = [
     xCss,
     leadReserveStyles,
+    liftedReset,
     css`
       :host { display: flex; flex-direction: column; gap: 14px; padding: 14px var(--sw-page-pad) 32px; max-inline-size: var(--sw-content-max); inline-size: 100%; box-sizing: border-box;
         /* SHAREDUI-295: every button of the screen, its drawer and dialogs is a 44 px target (the system-access screens do the same) */
@@ -1200,7 +1202,7 @@ export class AccessExternalScreen extends LitElement {
       </div>
       ${this.dialog ? nothing : this.drawer()}
       ${this.dialogs()}
-      <div class="toasts" aria-live="polite">${this.toasts.map((t) => html`<div class="toast" data-toast><sw-icon name="check" size="16"></sw-icon>${t.text}</div>`)}</div>
+      <div class="toasts" aria-live="polite" ${liftRef() /* DIALOG-TOPLAYER-2381: above an open sw-dialog (a dialog action toasts while it stays open) */}>${this.toasts.map((t) => html`<div class="toast" data-toast><sw-icon name="check" size="16"></sw-icon>${t.text}</div>`)}</div>
     `;
   }
 }

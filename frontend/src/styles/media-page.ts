@@ -1,5 +1,6 @@
 import { css } from 'lit';
 import { leadReserveStyles } from './lead-reserve';
+import { liftedReset } from '../components/top-layer';
 
 /**
  * CR-016: the page chrome shared by the players page and the groups page (the screens page keeps its own copy, 0.1.149): the
@@ -8,6 +9,7 @@ import { leadReserveStyles } from './lead-reserve';
  * restyles the multimedia area edits that file and this one, no page.
  */
 export const mediaPageStyles = css`
+    ${liftedReset}
     :host {
       display: block;
       position: relative;

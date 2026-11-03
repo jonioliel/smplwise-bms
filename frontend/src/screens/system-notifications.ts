@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
+import { liftRef } from '../components/top-layer';
 import { customElement, property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import '../components/sw-dialog';
@@ -1435,7 +1436,7 @@ export class SystemNotifications extends LitElement {
       ${this.renderBody()}
     </div>
     ${this.renderPicker()}
-    ${this.toast ? html`<div class="toast ${this.toast.bad ? 'bad' : ''}" role="status" data-set-toast>${nIcon(this.toast.bad ? 'warning' : 'check')}${this.toast.text}</div>` : nothing}`;
+    ${this.toast ? html`<div class="toast ${this.toast.bad ? 'bad' : ''}" role="status" data-set-toast ${liftRef() /* DIALOG-TOPLAYER-2381: above an open sw-dialog */}>${nIcon(this.toast.bad ? 'warning' : 'check')}${this.toast.text}</div>` : nothing}`;
   }
 }
 
