@@ -6,7 +6,7 @@ commit and the runner gate. Every feature stays off by default (presence, quiet 
 
 ## 1. Merged (one `--no-ff` merge commit each, in this order)
 
-All six branches were cut from `release/2360-train`.
+Branches 1-6 were cut from `release/2360-train`; 7-8 joined in slice 2 (section 8).
 
 | # | Branch | Tip | Merge commit | Conflicts |
 |---|---|---|---|---|
@@ -16,6 +16,8 @@ All six branches were cut from `release/2360-train`.
 | 4 | `pilot/TV-FIT-2380` (portrait footer keeps every chip, overscan margin, crest logo by area, Hebrew date fallback) | 8107863ed | 571891e9d | none |
 | 5 | `pilot/TV-SETTINGS-2380` (contains TV-FIT; `portrait_chips` / `safe_margin` saved, validated, audited, served) | 3d0d7b949 | 4f3453699 | none |
 | 6 | `docs/APP-TEAMS-R11-2380` (R11 package record, phone-app handoff docs + brand assets, employee notice) | 61cadc6dd | b9ebb682c | none |
+| 7 | `fix/PUSH-RELAY-SAFE-2380` (built on APP-SERVER-LEFTOVERS; a bare relay 404 / 410, 401 and 403 are configuration errors that keep the registration; relay URL validated) - slice 2, section 8 | 669bba371 | 7fa940bb6 | none |
+| 8 | `fix/A11Y-R4-LEFTOVERS-2380` (built on 2370-train; `sw-tabs` tablist, `--sw-toggle-off` >= 3:1, status note focus, plan bar 44 px touch, phone scroll-padding) - slice 2, section 8 | 1040f88ab | 32310da07 | none |
 
 ## 2. Conflicts
 
@@ -79,3 +81,47 @@ NOT_RUN: every browser spec (evidence / layout / pixel) and the full backend sui
 - The value-check row sits in the first card of the Phone app page; the page's single save row (sticky on a phone) is in the policy card
   below it, as before.
 - Owner Q3 (portrait footer: two rows vs drop) is still open; the default stays `rows`.
+
+## 8. Slice 2 (03.11): relay safety and the accessibility leftovers
+
+Merged after the Settings rows (one `--no-ff` merge each, rows 7-8 of section 1); no conflict, `contracts/API_INVENTORY.md` regenerated after
+both merges: unchanged (1713 routes; the relay fix changes no route signature or first docstring line).
+
+**Relay document fix (0e1a89b7a).** PUSH-GOLIVE-KIT's decode table in `docs/operations/ARX_PUSH_RELAY_DEPLOY_HE.md` section 5.1 said that a relay
+404 / 410 makes the server drop the device's push registration at once. Since PUSH-RELAY-SAFE-2380 that is true only for the contract token error
+bodies (404 `relay_token_unknown`, 410 `push_token_gone`); a bare 404 / 410 and a 403 without `server_id_claimed` are `relay_url_wrong`, a 401 is
+`relay_auth_failed`, a 403 `server_id_claimed` is `relay_server_id_taken` - configuration errors that keep the registration. The table now has a
+row for each; the field-test negative step (`MOBILE_FIELD_TEST_HE.md` C8) expects `relay_auth_failed`, and `PUSH-GOLIVE-KIT-2380.md` finding 4
+carries a "superseded" note.
+
+### 8.1 Checks (workstation, one worker / one process)
+
+| Check | Result |
+|---|---|
+| `tsc --noEmit` (src + tests) | 0 errors |
+| Node unit specs, `playwright.unit.config.ts --workers=1 tests/unit-` | **3740 passed, 1 skipped, 0 failed** (17.0 min; the evidence PNGs the login / service-identity specs rewrite were restored, not committed) |
+| Backend, one process: `test_mobile_push`, `test_tickets_app_push`, `test_app_server_leftovers_2380`, `test_critical_sound`, `test_self_update_s3_fixes`, `test_docs_config_consistency`, `test_secrets_store`, `test_secrets_transitional_263` (the PUSH-RELAY-SAFE set) + `test_push_golive_check` | **153 passed, 0 failed** (pytest exit 0) |
+
+NOT_RUN: every browser spec and the runner (as above).
+
+### 8.2 Accessibility browser specs to run on the runner (from `A11Y-R4-LEFTOVERS-2380.md`)
+
+1. `a11y-r4-leftovers-2380` (new): `sw-tabs` tablist roles, one Tab stop, arrows / Home / End, tabpanel marking.
+2. `a11y-polished-2342`, `a11y-dialog-focus-2310`, `layout-a11y-295` (the existing beds; the 44 px probe).
+3. Tabs: `evidence-tabs-scroll-2331`, `evidence-tabs-styles`, `evidence-tabs-ui`, `evidence-tabset-293`, `evidence-infra-tabs`, `evidence-tabs-live`,
+   `evidence-tabs-pair` (unselected tabs are no longer Tab stops - arrows reach them).
+4. `evidence-shell` (status-dot note: keyboard open puts focus in the note, Escape returns it), `evidence-pwa-push` (the sw-tabs entry is now a `tab`).
+5. Plan editor on a coarse pointer at 768-1199 and 390 px: `pixel-walk-touch`, `evidence-plan-studio-4` (the bar must not wrap or grow).
+6. Switch screens, light and dark, every skin in the matrix: `visual-matrix` (settings-notifications, settings-security, security-alarm, access
+   screens), `evidence-switchui-295`, `evidence-protected-switches`, `evidence-switch-light-dimmer-2331`.
+7. Phone 390 px, settings screens with a sticky save row (notifications, retention, presence, access messaging, announce templates, diagnostics
+   tabs - now also the quiet-window and app sign-in cards of section 3): focus the last field above / below the pinned row, it must not sit under it.
+
+### 8.3 Baselines expected to move (central refresh on the train)
+
+- **Every picture with an OFF switch** (`--sw-toggle-off`): the off track is darker in light (about 1.2:1 -> >= 3:1 on the card) and lighter in
+  dark. `visual-matrix` shots of settings-notifications, security alarm / public security, access messaging / policy, incidents settings, the
+  brand installer, the privacy masks, and any screen with an `sw-toggle` (automation rows, schedules, access, calendars, the presence settings
+  page). Tesla: the off ring is stronger. Review rule: only the off track / ring may differ.
+- No resting change from `scroll-padding` (phone), the plan-editor hit layer, or the `sw-tabs` roles (attributes only).
+- The new Settings cards of section 3 use `.seg` keys, not switches, so the OFF-switch move does not touch them.
