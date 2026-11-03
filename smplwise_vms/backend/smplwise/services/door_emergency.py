@@ -157,6 +157,18 @@ def open_available(settings: Any, conn: sqlite3.Connection | None = None) -> boo
         return False
 
 
+def lock_available(settings: Any, conn: sqlite3.Connection | None = None) -> bool:
+    """DOORLIVE-2310 (owner decision 2026-10-30, item 4): whether the LIVE engine can LOCK doors (`lock_secure`). False for the WisKey v2
+    engine (no such command): the LOCK control is hidden and a real LOCK start is refused. A release of a LOCK that exists is unaffected;
+    drills run against the simulation and never ask."""
+    if not live_ok(conn):
+        return False
+    try:
+        return getattr(dwe.emergency_engine(settings), "lock_supported", False) is True
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def enabled(conn: sqlite3.Connection) -> bool:
     return setting(conn, ENABLED) == "on" and live_ok(conn)
 
@@ -168,7 +180,7 @@ def open_enabled(conn: sqlite3.Connection, settings: Any) -> bool:
 def settings_view(conn: sqlite3.Connection, settings: Any) -> dict[str, Any]:
     return {**{k: setting(conn, k) for k in SETTINGS}, "go_live_permitted": live_ok(conn), "live_engine_built": dwe.emergency_engine_built(),
             "emergency_engine_built": dwe.emergency_engine_built(), "build_ready": dwe.emergency_ready(),  # build_ready: permit + engine flag, before the settings switch
-            "open_available": open_available(settings, conn),
+            "open_available": open_available(settings, conn), "lock_available": lock_available(settings, conn),
             "attested": attested(conn), "attestation": {"version": ATTESTATION_VERSION, "text": ATTESTATION_TEXT_HE}}
 
 
@@ -371,6 +383,8 @@ def prepare(conn: sqlite3.Connection, settings: Any, principal: Principal, *, ac
             raise _refuse(conn, principal, audit_action, 409, "emergency_off", "לחצני החירום כבויים.")
         if kind == "open" and not open_enabled(conn, settings):
             raise _refuse(conn, principal, audit_action, 409, "open_unavailable", "פתיחת חירום אינה זמינה.")
+        if kind == "lock_secure" and not lock_available(settings, conn):  # DOORLIVE-2310: no WisKey command for a LOCK
+            raise _refuse(conn, principal, audit_action, 409, "lock_unavailable", "נעילת חירום אינה זמינה: אין פקודה מתאימה במערכת הכניסה.")
     if action == "start":
         target = scope_target(scope_type, scope_id)
         if not authorize(conn, principal, PERMISSION[kind], target).allowed:
@@ -434,6 +448,8 @@ def start(conn: sqlite3.Connection, settings: Any, principal: Principal, *, toke
             raise _refuse(conn, principal, audit_action, 409, "emergency_off", "לחצני החירום כבויים.")
         if kind == "open" and not open_enabled(conn, settings):
             raise _refuse(conn, principal, audit_action, 409, "open_unavailable", "פתיחת חירום אינה זמינה.")
+        if kind == "lock_secure" and not lock_available(settings, conn):  # DOORLIVE-2310
+            raise _refuse(conn, principal, audit_action, 409, "lock_unavailable", "נעילת חירום אינה זמינה: אין פקודה מתאימה במערכת הכניסה.")
     limited = _start_rate(conn, principal.user_id, drill, now)
     if limited:
         raise _refuse(conn, principal, "door.emergency.rate_limited", 429, "rate_limited", "יותר מדי הפעלות חירום בזמן קצר.", limit=limited)
@@ -594,16 +610,27 @@ _INFLIGHT = threading.BoundedSemaphore(INFLIGHT_MAX)
 
 def call_with_deadline(fn: Any, deadline_s: float) -> dwe.DoorOutcome:
     """DW-03 (3): run one engine call on its own daemon thread and wait at most `deadline_s`. A call that has not answered is UNKNOWN
-    `deadline` (never refused, never acknowledged); its late answer is discarded. An exception of the call is raised to the caller."""
+    `deadline` (never refused, never acknowledged); its late answer is discarded. An exception of the call is raised to the caller.
+
+    WIN-ARX-RC4-DEADLINE-01: the ONE absolute end of the call is fixed here, BEFORE the daemon thread starts, and the call runs inside it
+    (`wiskey_call_budget.until`) - the selection / connection wait, the metadata and database reads, the inner engine and its I/O all
+    spend that same budget; nothing after it opens a fresh one. Once it is spent no new effect is started; an I/O already sent is not
+    cancelled by this (its answer is simply not waited for)."""
+    from . import wiskey_call_budget as budget
+
     slots = _INFLIGHT  # the call frees the slot it took, even when the module's cap was replaced meanwhile (a late hung call)
     if not slots.acquire(blocking=False):
         return dwe.DoorOutcome("unknown", "not_sent:lane_full")
     box: dict[str, Any] = {}
     done = threading.Event()
+    end = budget.now() + float(deadline_s)  # fixed before dispatch: a late-starting thread never gets a deadline of its own
 
     def run() -> None:
         try:
-            box["out"] = fn()
+            with budget.until(end):
+                box["out"] = fn()
+        except budget.DeadlineExpired:  # the budget was spent before an effect could start
+            box["out"] = dwe.DoorOutcome("unknown", "end_to_end_deadline")
         except BaseException as exc:  # noqa: BLE001 - handed to the waiting caller
             box["exc"] = exc
         finally:

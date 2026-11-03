@@ -169,3 +169,21 @@ Neither path is reachable in this build: `door_windows_engine.LIVE_ENGINE_BUILT`
 above is therefore narrowed: door automations now have a production caller of `FeatureAdapters.prepare`, gated off. The card caller
 (`capture/lease_*`) goes through the CAPMAP DTO9 pre-flight on the direct path whenever `MAPPING_ENABLED` is on
 (`wiskey_direct_join.mapped_card_transport`; off in this build = the plain direct transport as before); no new command.
+
+## WISKEY-R3-2272 addendum (installed client)
+
+`wiskey_auto_install.py` joins the pinned signing callers (`InstalledWiskeyClient.call` -> `DirectLink.call_command`). The module names a closed set of
+commands (`test_the_installed_client_sends_only_the_pinned_installation_and_read_commands`): `installation/readiness_v1` and
+`installation/capability_preflight_v1` (reads, reconcile only), `installation/request_restart_v2` (one restart under the durable Arx claim; reached only from
+reconcile / the bridge install, both behind `wiskey.auto_install`, default off), `media/station_snapshot_v1` (a still; the two routes check `access.read` on
+the station chain and the switch first), `whatsapp/template_registry_v1` (read, through the capture port) and `whatsapp/template_enqueue_v1` /
+`whatsapp/template_send_v3` (no production caller yet: a caller must add its own admission row). No door, people or program write is reachable from it.
+
+## WISKEY-S6-RELEASE-PREP addendum (relay map transfer, 2.37.1)
+
+`wiskey_relay_map_native.py` (WISKEY-RC7-ADOPT-2331 row 6, WisKey M12 S3) joins the pinned signing callers (`port.call` on the direct capture
+port). It names a closed set (`test_the_relay_map_native_adapter_sends_only_the_pinned_installation_commands`): `installation/relay_map_source_v1`,
+`installation/relay_map_stage_v1` / `_v2`, `installation/relay_map_prepare_v1` / `_v2` / `_v3` and the read `installation/readiness_v1`. No door,
+people or program write. Its one production entry, `publish_selected` (routers/wiskey_relay_map.py, after an approval), and the dormant `maintain`
+return before any I/O while `wiskey.auto_install` is off; policy B keeps it off in 2.37.1 (`OWNER_ON_PERMITTED = False`). `prepare_quiesced` has no
+production caller. The pin was missed when the module was adopted (the RC7 / S3 runs did not include this file); the S6 runner run found it.

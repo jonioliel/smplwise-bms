@@ -138,8 +138,9 @@ def test_every_switch_defaults_off_and_the_view_names_exactly_the_four(client, d
     r = client.get(API)
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["switches"] == {k: "off" for k in a5.FLAGS.values()} and len(body["switches"]) == 4
-    assert body["go_live_permitted"] is a5.go_live_permitted()
+    # WISKEY-RC7-ADOPT-2331 S1: the view also carries the owner's `wiskey.auto_install` (off, its own build constant)
+    assert body["switches"] == {**{k: "off" for k in a5.FLAGS.values()}, "wiskey.auto_install": "off"} and len(body["switches"]) == 5
+    assert body["go_live_permitted"] is a5.go_live_permitted() and body["auto_install_permitted"] is False
     assert _stored(db) == {}, "a read writes nothing"
     with db.connection(mode="read") as conn:
         assert not any(a5.consumer_on(conn, k) for k in a5.FLAGS)

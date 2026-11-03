@@ -1,6 +1,12 @@
 """Constants for the SMPLWISE bridge."""
 DOMAIN = "smplwise_bridge"
-VERSION = "0.10.0"
+VERSION = "0.10.2"
+# 0.10.2 (WisKey M12 policy B, slice S4 - pilot/WISKEY-S4-OBSERVER): the READ-ONLY WebSocket command `smplwise_bridge/core_runtime_v1`
+# (core_runtime_observation.py, adopted byte-identical from WisKey contribution M12-POLICY-B.20261102.01, MIT notice in
+# LICENSE-WISKEY-core-runtime-observation.txt). HA administrators only; no grant, service, signature or write. Nothing else changes.
+# Needs one Home Assistant restart (by the owner) to load; until then the add-on's Core gate reads `unknown_command` and refuses.
+# 0.10.1 (WISKEY-ADOPT-2272 review M6): the native intercom setup only for an automatic-install entry, started as a task (review H4) -
+# bumped so an existing installation's copy is refreshed (bridge_install.install copies when the installed version differs).
 # 0.9.6 (EXTID-295, Fable security review 4 of 2026-10-21): V-01 - the impact check refuses a step that carries more than one type key
 # (runnable.ACTION_TYPE_KEYS: a device action with a decoy `action` key was judged as the decoy). Needs one Home Assistant restart (by the owner).
 # also 0.9.6 (LEASEBR-295, combined with EXTID-295 in release 2.12.0 into ONE bridge 0.9.6, slice L4 of the capture lease, docs/contracts/wiskey-capture-lease/): two NEW signed services, `lease_event` and `lease_request`
@@ -25,6 +31,9 @@ VERSION = "0.10.0"
 # 0.8.0: no new service; the allow-list gained valve.open_valve, valve.close_valve, vacuum.pause, water_heater.turn_on / turn_off (equipment cards, add-on 2.4.0).
 CONF_ADDON_URL = "addon_url"
 CONF_PAIRING_CODE = "pairing_code"
+# WISKEY-ADOPT-2272 review H4: written into the entry ONLY by the add-on's automatic-install discovery; without it the bridge never sets
+# up the native intercom component itself
+CONF_WISKEY_AUTO_INSTALL = "wiskey_auto_install"
 DEFAULT_ADDON_URL = "http://0b8c26d5-smplwise-vms:8099"
 SERVICE_EXECUTE = "execute"
 SERVICE_SYNC = "sync_directory"

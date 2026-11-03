@@ -59,6 +59,7 @@ def aenv(settings):
             conn.execute("INSERT INTO intercom_station_placement(config_entry_id, site_id, building_id, assigned_by, assigned_at, revision) VALUES (?, 's1', ?, 'test', ?, 1)",
                          (st, b, now))
             fx.set_relay_map(conn, station_id=st, api_relay=1, physical_relay=2, confirmed_by=admin.user_id, expected_revision=0)
+            fx.set_relay_map(conn, station_id=st, api_relay=2, physical_relay=1, confirmed_by=admin.user_id, expected_revision=0)  # WISKEY-RC5-2310: a door is its PHYSICAL relay; the crossed map covers both
     e.admin = admin
     return e
 

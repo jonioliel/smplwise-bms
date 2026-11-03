@@ -1,0 +1,283 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://smplwise.local/contracts/wiskey-capture-lease/answers/capture_cancel.answer.schema.json",
+  "title": "capture_cancel answer (closed)",
+  "description": "Closed answer of smplwise_bridge.lease_request action `capture_cancel` (wiskey-capture-lease-v1, M1/M2/M10 as decided). Validates the bridge's own answer object (the `service_response` of HA's return_response). Exactly one variant matches. Status: Arx answer to ARX-LEASE-RESPONSE, 2026-10-17; closes SCHEMA.md section 4 `lease_request` paragraph (lines 72-77); the route stays OFF (access.capture_lease=off, GO_LIVE_PERMITTED=False).",
+  "$defs": {
+    "uuid4": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    }
+  },
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result",
+        "request_id",
+        "cancelled"
+      ],
+      "description": "The host held a session for this lease_ref (named, or `*`) and destroyed it now with its collected card. No card was added.",
+      "properties": {
+        "result": {
+          "const": "acknowledged"
+        },
+        "request_id": {
+          "$ref": "#/$defs/uuid4"
+        },
+        "cancelled": {
+          "const": true
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result",
+        "request_id",
+        "code"
+      ],
+      "description": "The host (stage 8, WisKey) refused. For the session that remains after each code see CAPTURE_ANSWER_CODES.json `refused_liveness`.",
+      "properties": {
+        "result": {
+          "const": "refused"
+        },
+        "request_id": {
+          "$ref": "#/$defs/uuid4"
+        },
+        "code": {
+          "enum": [
+            "capture_not_found",
+            "lease_gone",
+            "binding_denied",
+            "capture_applying"
+          ]
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result",
+        "stage",
+        "code"
+      ],
+      "description": "Refused by the bridge (stages 1-4) before the schema stage passed: request_id MUST be absent (DTO v3 section 9).",
+      "properties": {
+        "result": {
+          "const": "rejected"
+        },
+        "stage": {
+          "enum": [
+            "transport",
+            "encoding",
+            "parse",
+            "schema"
+          ]
+        },
+        "code": {
+          "type": "string"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "stage": {
+                "const": "transport"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "code": {
+                "enum": [
+                  "transport_shape"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "stage": {
+                "const": "encoding"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "code": {
+                "enum": [
+                  "invalid_utf8",
+                  "lone_surrogate",
+                  "message_too_large"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "stage": {
+                "const": "parse"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "code": {
+                "enum": [
+                  "invalid_json",
+                  "duplicate_key",
+                  "non_json_constant",
+                  "non_integer_number",
+                  "integer_out_of_range",
+                  "lone_surrogate",
+                  "not_an_object"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "stage": {
+                "const": "schema"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "code": {
+                "enum": [
+                  "unknown_field",
+                  "missing_field",
+                  "wrong_type",
+                  "bad_format",
+                  "bad_value"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result",
+        "stage",
+        "code",
+        "request_id"
+      ],
+      "description": "Refused at stages 5-8 (binding, signature, time, state/replay) after the schema stage passed: request_id REQUIRED and equal to the request's. Nothing was done.",
+      "properties": {
+        "result": {
+          "const": "rejected"
+        },
+        "stage": {
+          "enum": [
+            "binding",
+            "signature",
+            "time",
+            "state"
+          ]
+        },
+        "code": {
+          "type": "string"
+        },
+        "request_id": {
+          "$ref": "#/$defs/uuid4"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "stage": {
+                "const": "binding"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "code": {
+                "enum": [
+                  "ts_mismatch",
+                  "action_service_mismatch",
+                  "station_scope_mismatch"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "stage": {
+                "const": "signature"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "code": {
+                "enum": [
+                  "bad_signature"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "stage": {
+                "const": "time"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "code": {
+                "enum": [
+                  "clock_invalid",
+                  "lifetime_invalid",
+                  "not_yet_valid",
+                  "expired"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "stage": {
+                "const": "state"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "code": {
+                "enum": [
+                  "replay",
+                  "storage_unavailable"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

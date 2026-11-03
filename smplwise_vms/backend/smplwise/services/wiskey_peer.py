@@ -408,6 +408,34 @@ def verify_resolution(frame: Any) -> ResolutionVerdict:
 PEER_READ_TIMEOUT_S = 10.0
 PEER_READ_OUTCOMES = ("result", "refused", "not_sent", "unknown")
 
+# WISKEY-MAC-ADOPT-298 item D (Mac 03_template_peer/PEER_CLOSED_RESULTS_AND_BOOTSTRAP.json, contract unchanged): the CLOSED result lists of
+# wiskey-peer-query.v1. resolve answers `found` | `unknown` only (`never_committed` is not a result); the command-level authenticated refusal
+# of both reads is exactly `binding_denied`. Any other refusal code is a transport admission / route layer answer: it says nothing about
+# the original write. The bootstrap of a read binding is the OWNER's private installer (tools/provision_native_peer_query.py), never Arx.
+PEER_RESOLVE_STATES = ("found", "unknown")
+PEER_COMMAND_REFUSALS = {"peer_bindings/get": ("binding_denied",), "peer_receipts/resolve": ("binding_denied",)}
+PEER_RESULT_CLASSES = {
+    "found": "central_commit_proved_only",
+    "unknown": "unknown_no_retry",
+    "binding_denied": "authenticated_refusal_of_this_read_prior_write_unknown",
+    "disconnect": "unknown_no_retry",
+    "timeout": "unknown_no_retry",
+    "not_sent": "client_transport_proof_only",
+}
+
+
+def peer_result_class(receipt: "PeerReadReceipt", frame: Any = None) -> str:
+    """The closed class of ONE peer read. `found` only for a verified resolve `found` frame; a refusal is `binding_denied` only when that is
+    the command's closed refusal code; every other case (disconnect, timeout, an unlisted code, a malformed frame) is unknown_no_retry -
+    no class here ever licenses a write or a replay."""
+    if receipt.outcome == "not_sent":
+        return PEER_RESULT_CLASSES["not_sent"]
+    if receipt.outcome == "refused" and receipt.code in PEER_COMMAND_REFUSALS.get(receipt.command, ()):
+        return PEER_RESULT_CLASSES["binding_denied"]
+    if receipt.outcome == "result" and receipt.command == "peer_receipts/resolve" and verify_resolution(frame).state == "committed":
+        return PEER_RESULT_CLASSES["found"]
+    return PEER_RESULT_CLASSES["unknown"]
+
 
 @dataclass(frozen=True)
 class PeerReadReceipt:

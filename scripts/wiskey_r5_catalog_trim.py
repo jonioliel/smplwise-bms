@@ -16,6 +16,7 @@ from pathlib import Path
 
 COMMAND_FIELDS = ("kind", "command", "wire_schema", "transport_mode", "discovered_for_native_owner", "direct_dispatch_available")
 DIRECT_FIELDS = ("kind", "command", "registered_in_HA_WebSocket_table", "transport", "signed_command_const")
+HA_BODY_WIRE = "original HA WebSocket body; no native envelope reinterpretation"
 PROVENANCE_FIELDS = ("kind", "implementation_input_CODE", "generator_CODE", "registered_count", "discovered_count", "native_TTL_seconds",
                      "registration_is_not_business_or_installation_acceptance", "original_Arx", "installed_target", "live")
 
@@ -32,6 +33,10 @@ def main(src: str, dst: str) -> int:
             keep = {k: row[k] for k in PROVENANCE_FIELDS}
             keep["trimmed_from_sha256"] = hashlib.sha256(raw).hexdigest()
         elif kind == "COMMAND":
+            if "direct_dispatch_available" not in row:
+                # WISKEY-ADOPT-2272: the owner28 catalog (CODE 0a099c53) dropped this column; every row whose wire is not the original
+                # HA WebSocket body is dispatched on the direct envelope (the same rule wiskey_direct_catalog applies to the envelope)
+                row = {**row, "direct_dispatch_available": row["wire_schema"] != HA_BODY_WIRE}
             keep = {k: row[k] for k in COMMAND_FIELDS}
         elif kind == "DIRECT_ONLY_COMMAND":
             keep = {k: row[k] for k in DIRECT_FIELDS}

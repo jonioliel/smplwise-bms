@@ -677,6 +677,9 @@ class WiskeyServiceEngine:
         join = wiskey_direct_join.installed()
         if join is not None and join.selected():
             writer = asw.writer_for(join) if action else None
+            # WISKEY-MAC-ADOPT-298: the final service contract has no users/delete or cards: such a write keeps the service channel
+            if writer is not None and not getattr(writer, "supports", lambda _a: True)(action):
+                writer = None
             if writer is not None:
                 if person_id is not None and intercom_sync.SYNC.write_gate(intercom_sync.person_target(person_id)) is not None:
                     raise EngineError("not_sent", "outcome_pending")  # R3-06 holds on this path too: read the person fresh first

@@ -23,7 +23,10 @@
     "abort": {
       "already_configured": "הגשר כבר מוגדר; פרטי הצימוד רועננו.",
       "invalid_discovery": "הודעת הגילוי לא הכילה קוד צימוד.",
-      "single_instance_allowed": "אפשר להגדיר גשר אחד בלבד."
+      "single_instance_allowed": "אפשר להגדיר גשר אחד בלבד.",
+      "cannot_connect": "לא ניתן להגיע לתוסף בהתקנה האוטומטית.",
+      "invalid_auth": "קוד הצימוד של ההתקנה האוטומטית נדחה.",
+      "unknown": "ההתקנה האוטומטית נכשלה."
     }
   },
   "options": {

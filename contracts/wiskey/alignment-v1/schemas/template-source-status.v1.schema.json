@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wiskey.invalid/contracts/arx/alignment-v1/template-source-status.v1.schema.json",
+  "x-contract-version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "schema_version",
+    "state",
+    "accounts_count",
+    "missing_fields"
+  ],
+  "properties": {
+    "contract": {
+      "const": "wiskey-existing-template-source-status.v1"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "state": {
+      "enum": [
+        "metadata_missing",
+        "not_identified"
+      ]
+    },
+    "accounts_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "missing_fields": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "approved_template_reference",
+          "template_revision",
+          "account_binding",
+          "approved_body",
+          "language",
+          "ordered_parameter_fields",
+          "approval_provenance"
+        ]
+      },
+      "uniqueItems": true
+    }
+  }
+}

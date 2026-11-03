@@ -6,10 +6,15 @@ fa05c60b001ad1af092a9e43e8f9170388e708c3), trimmed to its routing facts by scrip
 
 The file has THREE row kinds and this reader handles each one explicitly (W5-CATALOG-01):
 - `CATALOG_PROVENANCE` - exactly one, first; metadata, never counted as a command;
-- `COMMAND`            - a command registered in WisKey's Home Assistant WebSocket table (274);
-- `DIRECT_ONLY_COMMAND` - a command only the direct socket serves (`peer_identity/get`, `direct/capabilities`, `direct/time`); it has
+- `COMMAND`            - a command registered in WisKey's Home Assistant WebSocket table (276 since WISKEY-MAC-ADOPT-298: the FINAL Mac
+                          catalog of 27.10, source SHA-256 dd55f9df..., CODE d5a3ab86 - adds `users/service_write_status_v1` and
+                          `features/people_csv_preview`; 282 since WISKEY-ADOPT-2272: the owner28 catalog CATALOG-FINAL-08, source
+                          SHA-256 15ad9de7..., CODE 0a099c53 - adds `events/resume_v1`, `whatsapp/template_registry_v1` /
+                          `_enqueue_v1` / `_job_v1` / `_cancel_v1` and `whatsapp/template_send_v3`);
+- `DIRECT_ONLY_COMMAND` - a command only the direct socket serves (`peer_identity/get`, `direct/capabilities`, `direct/capabilities_v2`,
+                          `direct/time`); it has
                           none of the HA registration fields and is not required to.
-277 command names in 43 families. Anything else (an unknown row kind, a duplicate name, a count that does not match the provenance)
+286 command names in 43 families. Anything else (an unknown row kind, a duplicate name, a count that does not match the provenance)
 refuses the whole catalog.
 
 The SIGNED ENVELOPE KIND of a command is decided here, per command, from the catalog row (W5-API-01) - never from
@@ -20,7 +25,15 @@ The SIGNED ENVELOPE KIND of a command is decided here, per command, from the cat
                               they are never sent on the direct envelope.
 `wiskey-direct-connect.v1` is the connect body only (wiskey_media_bridge.connect_body). No `api_contract` is added to a closed envelope.
 
-OWNER_EXCLUDED_WRITES: the owner's decision keeps the job-approval WRITES out of Arx (reads stay available)."""
+OWNER_EXCLUDED_WRITES: the job-approval WRITES (owner decision before 28.10). WISKEY-ADOPT-2272: the owner's 28.10 instruction (permanent full
+installation, "no artificial allowlist of targets/fields/actions for the installed Arx") conflicts with it; review M2 keeps the exclusion
+unless `wiskey.auto_install` is on, and the owner confirms in writing before turning it on. WisKey's own business approvals, schema, CAS
+and authority checks stay authoritative. The contradiction is recorded in docs/changes/WISKEY-ADOPT-2272.md; Arx has no caller of either
+write.
+WISKEY-R3-2272 (R3 delivery 07_jobs_approval): WisKey's own signed-actor, `confirmed`, revision, 24h-review and different-approver rules stay
+authoritative inside Native; the two writes raise a revision without starting a job and `review_id` is read only from read-review. The
+delivery's assembled file emptied OWNER_EXCLUDED_WRITES for good; Arx keeps review M2 (excluded unless the installation switch is on),
+in line with the owner's 29.10 decision that every installation effect stays behind `wiskey.auto_install`."""
 from __future__ import annotations
 
 import hashlib
@@ -28,6 +41,7 @@ import json
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from typing import Callable
 
 from . import wiskey_media_bridge as bridge
 
@@ -35,7 +49,22 @@ CATALOG_PATH = Path(__file__).with_name("wiskey_r5_catalog.jsonl")
 NATIVE_WIRE = "CATALOG_DEFINITIONS.json#/$defs/NativeBridgeMessage"
 PEER_QUERY_WIRE = "original wiskey-peer-query.v1 signed read envelope"
 HA_BODY_WIRE = "original HA WebSocket body; no native envelope reinterpretation"
-OWNER_EXCLUDED_WRITES = frozenset({"jobs/approval_decide", "jobs/approval_request"})
+OWNER_EXCLUDED_WRITES: frozenset[str] = frozenset({"jobs/approval_decide", "jobs/approval_request"})
+# WISKEY-ADOPT-2272 review M2: the exclusion holds on every installation; it is lifted ONLY while the automatic installation switch
+# (`wiskey.auto_install`) is on - `wiskey_direct_join.startup` installs the reader, None (no join) keeps the exclusion. The owner must
+# confirm in writing, before turning the switch on, that Arx may write job approvals (docs/changes/WISKEY-ADOPT-2272.md,
+# WKWRITE-295-ADOPTION-MAP.md, WKR5-295.md). An unreadable switch keeps the exclusion.
+INSTALLATION_SWITCH: Callable[[], bool] | None = None
+
+
+def _installation_on() -> bool:
+    reader = INSTALLATION_SWITCH
+    if reader is None:
+        return False
+    try:
+        return reader() is True
+    except Exception:  # noqa: BLE001 - unreadable: the exclusion holds
+        return False
 ROW_KINDS = ("CATALOG_PROVENANCE", "COMMAND", "DIRECT_ONLY_COMMAND")
 
 
@@ -131,7 +160,21 @@ def parse(text: str) -> Catalog:
 
 @lru_cache(maxsize=1)
 def load(path: str | None = None) -> Catalog:
-    return parse(Path(path or CATALOG_PATH).read_text(encoding="utf-8"))
+    catalog = parse(Path(path or CATALOG_PATH).read_text(encoding="utf-8"))
+    if path is not None:
+        return catalog
+    # WISKEY-RC7-ADOPT-2331 (rc.7 map row 4): the relay map transfer commands are DECLARED here only; their one caller is
+    # services/wiskey_relay_map_native.py (stage v1 after an approval, with the owner's switch on; prepare v1 / v2 only from a
+    # maintenance caller - none). WisKey M12 S3 adds the sixth (prepare v3), sent only by the DORMANT
+    # `maintain` (switch ON + a witness provider, which no production code has). The OWNER_EXCLUDED_WRITES rule (review M2) is unchanged.
+    from .wiskey_relay_map_native import COMMANDS as RELAY_MAP_COMMANDS
+
+    extra = tuple(_entry({"kind": "COMMAND", "command": name, "wire_schema": NATIVE_WIRE,
+        "discovered_for_native_owner": True, "direct_dispatch_available": True,
+        "transport_mode": "native_bridge_legacy_business"}) for name in
+        ("features/emergency_event_status_v1", "features/emergency_secure_v1", *RELAY_MAP_COMMANDS))
+    return Catalog(catalog.code, catalog.source_sha256, catalog.registered_count + len(extra),
+        catalog.discovered_count + len(extra), catalog.entries() + extra)
 
 
 def file_sha256(path: str | None = None) -> str:
@@ -151,7 +194,7 @@ def envelope_for(command: str) -> str | None:
 
 def direct_refusal(command: str) -> str | None:
     """Why `command` must never be written on the direct envelope (refused `not_sent` before any byte), else None."""
-    if command in OWNER_EXCLUDED_WRITES:
+    if command in OWNER_EXCLUDED_WRITES and not _installation_on():
         return "owner_excluded"
     entry = load().get(command)
     if entry is not None and entry.envelope is None:

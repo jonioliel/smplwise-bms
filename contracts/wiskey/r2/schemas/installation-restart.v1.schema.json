@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wiskey.invalid/contracts/arx/v1/installation-restart.v1.schema.json",
+  "x-contract-version": "1.0.0",
+  "type": "object",
+  "properties": {
+    "contract": {
+      "const": "wiskey-installation-restart.v1"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "state": {
+      "enum": [
+        "requested",
+        "already_recorded"
+      ]
+    },
+    "replay_available": {
+      "const": false
+    },
+    "generation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "request_boot_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    }
+  },
+  "required": [
+    "contract",
+    "schema_version",
+    "state",
+    "replay_available",
+    "generation_id",
+    "request_boot_id"
+  ],
+  "additionalProperties": false
+}

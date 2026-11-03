@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wiskey.invalid/contracts/arx/alignment-v1/readiness-observation.v1.schema.json",
+  "x-contract-version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "schema_version",
+    "generation_id",
+    "claim_id",
+    "state",
+    "readiness"
+  ],
+  "properties": {
+    "format": {
+      "const": "wiskey-readiness-observation.v1"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "generation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "claim_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "state": {
+      "enum": [
+        "ready",
+        "not_ready",
+        "deadline",
+        "before_dispatch"
+      ]
+    },
+    "readiness": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "legacy/installation-readiness.v1.schema.json"
+        }
+      ]
+    }
+  }
+}

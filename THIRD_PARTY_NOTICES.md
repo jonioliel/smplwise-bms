@@ -57,6 +57,7 @@ Full inventory, versions and the licence analysis: `docs/security/DEPENDENCY_AND
 | Plan Studio 6 models and textures (Kenney and others) | `smplwise_vms/www/plan3d/` | CC0-1.0 - per-file source and hash in `plan3d/MANIFEST.json` |
 | WisKey command / error catalogue rc37-contract.4 | `docs/integrations/wiskey/catalog/rc37-contract.4/` | MIT (`LICENSE` in that folder) |
 | WisKey embed-api-v1 reference client (adapted as `frontend/src/wiskey/embed-connector.ts`) | the web UI bundle | MIT - WisKey root LICENSE, confirmed by the WisKey team 2026-10-31 (sample SHA256 d3324a40...); full notice below and in `frontend/src/wiskey/LICENSE-embed-api-v1.txt` |
+| WisKey Core runtime observer (`core_runtime_observation.py`, contribution M12-POLICY-B.20261102.01, byte-identical) | the SMPLWISE Bridge integration (`custom_components/smplwise_bridge/`, mirrored into the add-on image) | MIT - same WisKey notice as below, shipped next to the file as `LICENSE-WISKEY-core-runtime-observation.txt` |
 | AndroidX (appcompat, activity-ktx, webkit, core-splashscreen, biometric), Material Components | the Android shell APK | Apache-2.0 |
 
 ## WisKey embed-api-v1 reference client - MIT notice

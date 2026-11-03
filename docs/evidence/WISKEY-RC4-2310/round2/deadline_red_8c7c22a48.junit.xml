@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="5" time="44.440" timestamp="2026-10-30T22:01:33.131804+02:00" hostname="joni"><testcase classname="tests.test_wiskey_rc4_deadline_2310" name="test_an_open_held_in_selection_past_its_deadline_is_unknown_and_never_sent_later" time="23.971"><failure message="AssertionError: no features/start was sent after the deadline&#10;assert [{'request': ...': '1', ...}}] == []&#10;  &#10;  Left contains one more item: {'request': {'contract_version': 'wiskey-arx-feature-execution.v1', 'feature': 'emergency_buttons', 'request_id': 'd94...ner': {'entry_id': 'entry-pairing-1', 'query_owner_id': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'}, 'source_epoch': '1', ...}}&#10;  Use -v to get more diff">world = &lt;fake_doorwin_adapters.ProductWorld object at 0x0000019D90472D20&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000019D90472C30&gt;
+
+    def test_an_open_held_in_selection_past_its_deadline_is_unknown_and_never_sent_later(world, monkeypatch):
+        pw = world
+        monkeypatch.setattr(de, "ENGINE_DEADLINE_S", SHORT_S)
+        t0 = pw.clock.t
+        pw.join.gate.clear()
+        r = pw.press("open")
+        assert r.status_code == 201, r.text
+        iid = r.json()["incident"]["id"]
+        assert pw.join.entered.wait(10), "the engine call reached the selection"
+        row = _wait_door(pw, iid, "apply")
+        assert (row["state"], row["code"]) == ("unknown", "deadline"), "the caller got UNKNOWN at its deadline"
+        assert _starts(pw) == [] and _intents(pw) == []
+    
+        # the selection only finishes long after the deadline
+        pw.clock.t = t0 + 100.0
+        pw.join.gate.set()
+        _wait_calls_done()
+    
+&gt;       assert _starts(pw) == [], "no features/start was sent after the deadline"
+E       AssertionError: no features/start was sent after the deadline
+E       assert [{'request': ...': '1', ...}}] == []
+E         
+E         Left contains one more item: {'request': {'contract_version': 'wiskey-arx-feature-execution.v1', 'feature': 'emergency_buttons', 'request_id': 'd94...ner': {'entry_id': 'entry-pairing-1', 'query_owner_id': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'}, 'source_epoch': '1', ...}}
+E         Use -v to get more diff
+
+tests\test_wiskey_rc4_deadline_2310.py:170: AssertionError</failure></testcase><testcase classname="tests.test_wiskey_rc4_deadline_2310" name="test_a_release_held_in_selection_past_its_deadline_is_unknown_and_never_sent_later" time="5.375"><failure message="AssertionError: no release start was sent after the deadline&#10;assert [{'request': ...': '1', ...}}] == []&#10;  &#10;  Left contains one more item: {'request': {'contract_version': 'wiskey-arx-feature-execution.v1', 'feature': 'emergency_buttons', 'request_id': '331...ner': {'entry_id': 'entry-pairing-1', 'query_owner_id': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'}, 'source_epoch': '1', ...}}&#10;  Use -v to get more diff">world = &lt;fake_doorwin_adapters.ProductWorld object at 0x0000019D941DFEC0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000019D93FC49B0&gt;
+
+    def test_a_release_held_in_selection_past_its_deadline_is_unknown_and_never_sent_later(world, monkeypatch):
+        pw = world
+        iid = _hold_within_budget(pw)
+        monkeypatch.setattr(de, "ENGINE_DEADLINE_S", SHORT_S)
+        t0 = pw.clock.t
+        pw.join.gate.clear()
+        pw.join.entered.clear()
+        n_seen = len(pw.join.seen)
+        rel = pw.release(iid, kind="open")
+        assert rel.status_code == 200, rel.text
+        assert pw.join.entered.wait(10), "the release call reached the selection"
+        row = _wait_door(pw, iid, "release")
+        assert (row["state"], row["code"]) == ("unknown", "deadline")
+        n_intents = len(_intents(pw))
+    
+        pw.clock.t = t0 + 100.0
+        pw.join.gate.set()
+        _wait_calls_done()
+    
+&gt;       assert _starts(pw, "release") == [], "no release start was sent after the deadline"
+E       AssertionError: no release start was sent after the deadline
+E       assert [{'request': ...': '1', ...}}] == []
+E         
+E         Left contains one more item: {'request': {'contract_version': 'wiskey-arx-feature-execution.v1', 'feature': 'emergency_buttons', 'request_id': '331...ner': {'entry_id': 'entry-pairing-1', 'query_owner_id': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'}, 'source_epoch': '1', ...}}
+E         Use -v to get more diff
+
+tests\test_wiskey_rc4_deadline_2310.py:199: AssertionError</failure></testcase><testcase classname="tests.test_wiskey_rc4_deadline_2310" name="test_open_and_release_within_the_deadline_still_work_and_never_get_a_fresh_deadline" time="4.530" /><testcase classname="tests.test_wiskey_rc4_deadline_2310" name="test_release_within_the_deadline_still_works_with_the_business_permit_off" time="3.904" /><testcase classname="tests.test_wiskey_rc4_deadline_2310" name="test_the_live_wrapper_alone_bounds_a_slow_selection_when_no_caller_deadline_exists" time="3.553"><failure message="AssertionError: assert DoorOutcome(s...Unauthorized') == DoorOutcome(s...end_deadline')&#10;  &#10;  Differing attributes:&#10;  ['state', 'code']&#10;  &#10;  Drill down into differing attribute state:&#10;    state: 'refused' != 'unknown'&#10;    - unknown...&#10;  &#10;  ...Full output truncated (6 lines hidden), use '-vv' to show">world = &lt;fake_doorwin_adapters.ProductWorld object at 0x0000019D95AFBBF0&gt;
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x0000019D95CC49B0&gt;
+
+    def test_the_live_wrapper_alone_bounds_a_slow_selection_when_no_caller_deadline_exists(world, monkeypatch):
+        """DISPATCH_INLINE (no call_with_deadline): the wrapper's own budget is entered before the selection, and a selection that
+        consumed it starts nothing. Outcome UNKNOWN `end_to_end_deadline`, nothing admitted, nothing sent."""
+        pw = world
+        t0 = pw.clock.t
+    
+        def slow_selection(command=None):
+            pw.join.seen.append((command, budget._END.get()))
+            pw.clock.t = t0 + 100.0  # the socket / discovery wait used the whole budget
+            return True
+    
+        monkeypatch.setattr(pw.join, "selected", slow_selection)
+        out = pw.live.apply("open", pw.doors[0].station_id, pw.doors[0].relay, "req:st:1", "")
+&gt;       assert out == dwe.DoorOutcome("unknown", "end_to_end_deadline")
+E       AssertionError: assert DoorOutcome(s...Unauthorized') == DoorOutcome(s...end_deadline')
+E         
+E         Differing attributes:
+E         ['state', 'code']
+E         
+E         Drill down into differing attribute state:
+E           state: 'refused' != 'unknown'
+E           - unknown...
+E         
+E         ...Full output truncated (6 lines hidden), use '-vv' to show
+
+tests\test_wiskey_rc4_deadline_2310.py:253: AssertionError</failure></testcase></testsuite></testsuites>

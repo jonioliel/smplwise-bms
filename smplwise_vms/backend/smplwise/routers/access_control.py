@@ -293,6 +293,15 @@ def camera_snapshot(
         raise ApiError(404, "intercom_station_not_found", "העמדה לא נמצאה ב־WisKey.")
     if not station.get("camera_entity"):
         raise ApiError(404, "intercom_no_camera", f"לעמדה {station['name']} אין מצלמה ב־WisKey.")
+    from ..services import wiskey_auto_install as wai
+
+    if station.get("online") and wai.switch_on(conn):
+        # WISKEY-R3-2272: with the installation switch on the door cards get the installed WisKey still first (the frontend keeps
+        # this URL; `GET /access-control/stations/{id}/thumbnail.jpg` serves the same still) - never cached, never stale
+        with unlocked(conn):
+            installed = wai.route_snapshot(settings, station_id)
+        if installed is not None:
+            return Response(installed[0], media_type=installed[1], headers={"Cache-Control": "private, no-store", "X-Snapshot-Stale": "false"})
     host = intercom_sync.SYNC.station_host(settings, station_id)
     if not host:
         raise ApiError(503, "intercom_camera_host_unknown", "WisKey לא מסר את כתובת העמדה, ולכן אין ממנה תמונה.")

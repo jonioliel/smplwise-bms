@@ -22,7 +22,7 @@ from .errors import ApiError, validation_payload
 from .mode import is_ha_only
 from . import recorder_scope
 from .routers import home_mapping as home_mapping_router  # MAPPING-ASSIST-2330
-from .routers import access, access_control, access_groups, alarm, doors as doors_router, anchors, automations, backup, brand as brand_router, white_label as white_label_router, cameras, cases, catalog, device_cameras, device_layouts, devices, energy_billing, events, exports, floor_images as floor_images_router, frames, ha, health, me, media, multimedia, notifications, nvr_connection, nvr_settings as nvr_settings_router, nvr_write, popup_layout as popup_layout_router, plan_area_links as plan_area_links_router, plan_bakes as plan_bakes_router, plan_catalog, plan_geometry, plan_ifc as plan_ifc_router, plan_package as plan_package_router, plan_view as plan_view_router, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, system_update, ui_background, views, wall as wall_router, zones
+from .routers import access, access_control, wiskey_relay_map as wiskey_relay_map_router, access_groups, alarm, doors as doors_router, anchors, automations, backup, brand as brand_router, white_label as white_label_router, cameras, cases, catalog, device_cameras, device_layouts, devices, energy_billing, events, exports, floor_images as floor_images_router, frames, ha, health, me, media, multimedia, notifications, nvr_connection, nvr_settings as nvr_settings_router, nvr_write, popup_layout as popup_layout_router, plan_area_links as plan_area_links_router, plan_bakes as plan_bakes_router, plan_catalog, plan_geometry, plan_ifc as plan_ifc_router, plan_package as plan_package_router, plan_view as plan_view_router, plans, playback, playback_groups, push, recordings, rules, schedules, search, settings as settings_router, setup, skins, storage, system_update, ui_background, views, wall as wall_router, zones
 
 log = logging.getLogger("smplwise")
 
@@ -338,6 +338,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         wiskey_direct_join.janitor()
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("wiskey lineage janitor failed", exc_info=True)
+    try:  # WISKEY-ADOPT-2272: WisKey's automatic installation (registry sync / re-announce) - hourly inside; `off` unless wiskey.auto_install = on
+        from .services import wiskey_auto_install
+
+        wiskey_auto_install.reconcile_due(db, settings)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("wiskey installation reconcile failed", exc_info=True)
     try:  # CR-038 S5b: the ticket outbox (90 days) and inbound (30 days) retention, hourly inside
         from .services.tickets.messaging import RUNTIME as tickets_messaging
 
@@ -599,6 +605,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(bulk_people_router.router, prefix=api, tags=["access-control"])
     app.include_router(doors_router.router, prefix=api, tags=["access-control"])  # CR-033: door map, station placement, door grants, trusted path
+    app.include_router(wiskey_relay_map_router.router, prefix=api, tags=["access-control"])  # WISKEY-RELAYMAP-2310: the WisKey relay map approval
     from .routers import door_automations as door_automations_router  # CR-AUTODOORS-295: automations that open doors (its own line)
 
     app.include_router(door_automations_router.router, prefix=api, tags=["access-control"])
@@ -1031,9 +1038,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # WKINT-295: WisKey's direct API behind the people-write / capture / template ports - installed ONLY when the installation chose
         # `access.station_media_provider = auto` AND the pairing key signs (else nothing at all: no lineage, no transport, no thread);
         # one lineage per process, its scope recovered once the direct socket authenticates (in the background, never blocking start)
+        from .services import wiskey_auto_install
+
+        # WISKEY-ADOPT-2272: fills the unset station provider (`auto`, the one setting the installation needs - review M1) once WisKey's
+        # installation manifest is ready - only with wiskey.auto_install = on; audited; never overrides an owner value, never switches a
+        # feature on, never opens the template send permit, never sends or actuates
+        try:
+            await run_in_threadpool(wiskey_auto_install.activate_software, app.state.db)
+        except Exception:  # noqa: BLE001 - start-up never fails on it
+            log.warning("wiskey installation activation failed", exc_info=True)
         _wkjoin = await run_in_threadpool(wiskey_direct_join.startup, app.state.db, settings)
         if _wkjoin is not None:
             threading.Thread(target=_wkjoin.recover_now, name="wiskey-join-recover", daemon=True).start()
+        # DOORLIVE-2310: the door engines go live behind OFF switches - the Direct emergency engine becomes the process's emergency engine (it sends only over
+        # the selected join) and an incident still active from before this start is flagged for verification (never re-sent). Changes no switch.
+        from .services import door_engine_live
+
+        await run_in_threadpool(door_engine_live.startup, app.state.db, settings)
         from .services import energy_sampler
 
         energy_sampler.SAMPLER.start(app.state.db, settings)  # CR-023: one poll a minute of the meters from the state mirror (read-only)
@@ -1199,6 +1220,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         intercom_consent.RELEASER.stop()  # WA-CONSENT-LINK: no new release starts; due rows stay due for the next start
         from .services import wiskey_direct_join as _wkj
 
+        from .services import door_engine_live as _del
+
+        _del.uninstall()
         _wkj.shutdown()  # WKINT-295: the existing transports come back; the lineage closes (a no-op when nothing was installed)
         intercom_sync.SYNC.shutdown()
         intercom_sync.SYNC.journal = None  # R5-A6: nothing is sent after shutdown; unresolved rows stay for the next process

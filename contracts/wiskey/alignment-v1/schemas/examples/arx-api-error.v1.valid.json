@@ -1,0 +1,7 @@
+{
+  "code": "intercom_no_camera",
+  "user_message": "Synthetic no camera",
+  "retryable": false,
+  "correlation_id": "synthetic-correlation",
+  "details": {}
+}

@@ -76,7 +76,10 @@ def token_of(c: Any, person: str = "u1") -> str:
 def test_contract_module_names_every_wiskey_defined_item_and_marks_the_unconfirmed():
     names = {i["item"]: i["status"] for i in contract.items()}
     assert names["command_name"] == contract.ADOPTED and contract.COMMAND == "whatsapp/template_send_v2"
-    assert {"pacing_schema_version", "person_revision_source", "conversation_window_signal", "queue_and_execution_source"} <= set(contract.unconfirmed())
+    # WISKEY-MAC-ADOPT-298: WisKey's seven template answers confirmed the person revision (2), retry_after (4) and the open window (5);
+    # the pacing budget (3, partial) and the live queue (6, installation NOT_PERFORMED) stay unconfirmed
+    assert {"pacing_schema_version", "queue_and_execution_source"} == set(contract.unconfirmed())
+    assert {names[k] for k in ("person_revision_source", "retry_after_on_not_sent", "conversation_window_signal")} == {contract.ADOPTED_MAC}
     assert contract.DIRECT_STATION_VERIFIED is False and contract.public_state()["station_verified"] is False
     assert contract.SCHEMA_VERSION == 2 and len(contract.REQUEST_KEYS) == 10 and "consent" not in contract.REQUEST_KEYS
     assert set(contract.WISKEY_NOT_SENT_CODES) == {"template_mismatch", "source_or_admission_refused"}

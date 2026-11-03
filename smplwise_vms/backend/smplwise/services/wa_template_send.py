@@ -93,7 +93,7 @@ NATIVE_INSTALLER_CONSUMED_KEYS = ("schema_version", "station_id", "bridge_entry_
 NATIVE_PARAMETER_FIELDS = ("display_name", "employee_no", "pin", "valid_from", "valid_until")  # WisKey-side only; never on Arx's wire
 V2_REF_MAX_BYTES = 128
 V2_REVISION_MAX = 2 ** 53 - 1
-REGISTRY_MAX = 20
+REGISTRY_MAX = 128  # WISKEY-ADOPT-2272: WisKey's resource exchange carries 1..128 templates; the signed native registry fills it
 SLOTS = ("name", "organization", "link", "days")
 PURPOSES = ("consent_request", "notice")
 PARAM_MAX = 1024  # a filled slot (Meta's own limit is the template's; Arx never sends more than this)
@@ -117,6 +117,7 @@ class TemplateRef:
     purpose: str
     wiskey_ref: str | None = None  # WK4ADOPT-295: WisKey's exact private template reference (template_send_v2 `template_ref`)
     wiskey_revision: int | None = None  # ... and the revision Arx observed (`expected_template_revision`)
+    account: str | None = None  # WISKEY-ADOPT-2272: the native account the template belongs to (signed registry sync); None = the messaging account
 
 
 def _v2_ref_ok(value: Any) -> bool:
@@ -141,11 +142,17 @@ def parse_ref(raw: Any) -> TemplateRef | None:
     wref, wrev = raw.get("template_ref"), raw.get("template_revision")
     if (wref is None) != (wrev is None) or (wref is not None and not (_v2_ref_ok(wref) and _v2_rev_ok(wrev))):
         return None  # both or neither (the v2 pair), never half of it
-    return TemplateRef(rid, name, lang, tuple(params), str(purpose), wref, wrev)
+    account = raw.get("account")
+    if account is not None and not (isinstance(account, str) and WIRE_ID_RE.fullmatch(account)):
+        return None
+    if account is not None and not rid.startswith(NATIVE_ID_PREFIX):
+        return None  # review M3: only a row the signed native registry sync created may name its own account
+    return TemplateRef(rid, name, lang, tuple(params), str(purpose), wref, wrev, account)
 
 
 def validate_registry(raw: Any) -> tuple[list[TemplateRef], list[dict[str, str]]]:
-    """(references, problems `{path, code}`) of an administrator's list. Ids and (name, language) pairs are unique."""
+    """(references, problems `{path, code}`) of an administrator's list. Ids and (account, name, language) triples are unique (the same
+    name/language on two native accounts stays two templates - WISKEY-ADOPT-2272)."""
     if not isinstance(raw, list):
         return [], [{"path": "templates", "code": "not_a_list"}]
     problems: list[dict[str, str]] = []
@@ -156,7 +163,7 @@ def validate_registry(raw: Any) -> tuple[list[TemplateRef], list[dict[str, str]]
         ref = parse_ref(item)
         if ref is None:
             problems.append({"path": f"templates.{i}", "code": "invalid"})
-        elif any(r.id == ref.id for r in out) or any((r.name, r.language) == (ref.name, ref.language) for r in out):
+        elif any(r.id == ref.id for r in out) or any((r.account, r.name, r.language) == (ref.account, ref.name, ref.language) for r in out):
             problems.append({"path": f"templates.{i}", "code": "duplicate"})
         else:
             out.append(ref)
@@ -173,9 +180,56 @@ def load_registry(conn: sqlite3.Connection) -> list[TemplateRef]:
     return [] if problems else refs  # fail closed: a registry with any bad entry reads as empty
 
 
+NATIVE_ID_PREFIX = "native_"  # WISKEY-ADOPT-2272 review H1: ids the signed native registry sync owns (never an administrator's row)
+
+
+def is_native(ref: TemplateRef) -> bool:
+    """A row the native registry sync created (and may replace); every other row is the administrator's and is never touched by it.
+    Only such a row may carry an `account` (`parse_ref`, review M3)."""
+    return ref.id.startswith(NATIVE_ID_PREFIX)
+
+
+def admin_registry_input(raw: Any) -> tuple[list[TemplateRef], list[dict[str, str]]]:
+    """Review M3: the administrator's PUT. Rows with a `native_*` id belong to the signed sync and are skipped (they are kept as stored,
+    so a screen may send back what it read); every other row loses any `account` it carries (an administrator row always uses the
+    configured messaging account and its availability). Problem paths keep the caller's own indexes."""
+    if not isinstance(raw, list):
+        return validate_registry(raw)
+    index: list[int] = []
+    rows: list[Any] = []
+    for i, item in enumerate(raw):
+        if isinstance(item, dict) and isinstance(item.get("id"), str) and item["id"].startswith(NATIVE_ID_PREFIX):
+            continue
+        index.append(i)
+        rows.append({k: v for k, v in item.items() if k != "account"} if isinstance(item, dict) else item)
+    refs, problems = validate_registry(rows)
+    for p in problems:
+        if p["path"].startswith("templates.") and p["path"][10:].isdigit() and int(p["path"][10:]) < len(index):
+            p["path"] = f"templates.{index[int(p['path'][10:])]}"
+    return refs, problems
+
+
+def ref_doc(r: TemplateRef) -> dict[str, Any]:
+    """The stored form of one reference (the inverse of `parse_ref`)."""
+    return {"id": r.id, "name": r.name, "language": r.language, "params": list(r.params), "purpose": r.purpose,
+            **({"template_ref": r.wiskey_ref, "template_revision": r.wiskey_revision} if r.wiskey_ref is not None else {}),
+            **({"account": r.account} if r.account is not None else {})}
+
+
+def load_registry_raw(conn: sqlite3.Connection) -> Any:
+    """The stored registry document as JSON (None when absent or not JSON) - for callers that must not mistake a broken registry for
+    an empty one (the fail-closed `load_registry` reads both as [])."""
+    row = conn.execute("SELECT value FROM settings WHERE key = ?", (REGISTRY_KEY,)).fetchone()
+    if not row:
+        return []
+    try:
+        return json.loads(row[0])
+    except (TypeError, ValueError):
+        return None
+
+
 def store_registry(conn: sqlite3.Connection, refs: list[TemplateRef]) -> None:
-    doc = [{"id": r.id, "name": r.name, "language": r.language, "params": list(r.params), "purpose": r.purpose,
-            **({"template_ref": r.wiskey_ref, "template_revision": r.wiskey_revision} if r.wiskey_ref is not None else {})} for r in refs]
+    doc = [ref_doc(r) for r in refs]
     conn.execute("INSERT INTO settings(key, value) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                  (REGISTRY_KEY, json.dumps(doc, separators=(",", ":"))))
 
@@ -401,6 +455,9 @@ class NoWindowProbe:
         return "unknown"
 
 
+WINDOW_STATES = ("open", "closed", "unknown")
+
+
 def needs_template(window: str) -> bool:
     """Only an explicit `open` window may carry free text; closed and unknown take a template."""
     return window != "open"
@@ -504,11 +561,15 @@ class TemplateSender:
         - the person revision is `person_revision` (W-013) or `expected_person_revision` (unit D); both given must agree.
         - the WisKey template pair is the explicit `template_ref` + `expected_template_revision` (unit D) or else the pair stored on
           the reference (`TemplateRef.wiskey_ref` / `.wiskey_revision`, W-013); without either: `template_v2_unbound`.
-        - same admission as `send` (switch + permit, the reference, the shared budget, the window).
+        - same admission as `send` (switch + permit, the reference, the shared budget) EXCEPT the window: an open window does not refuse
+          an explicitly requested approved template (WISKEY-MAC-ADOPT-298 item B, WisKey answer 5); `window` must be open|closed|unknown.
         - the transport: the explicit one (W-013), else the v2 provider of the direct join while `template_send_v2` is selected
           (`TRANSPORT_V2_PROVIDER`, unit D; set but answering None refuses, with no fallback), else the installed transport. It must
           offer `send_v2`, else refused before any hand-over.
         `accepted` is the provider's acceptance only (delivery unknown); anything but a closed v2 result is UNKNOWN, never retried."""
+        # review M4: the window is an INPUT check - refused before the switch, the registry or the shared budget is consulted
+        if window not in WINDOW_STATES:
+            return _refuse("invalid_fields")
         if person_revision is not None and expected_person_revision is not None and person_revision != expected_person_revision:
             return _refuse("invalid_reference")
         revision = person_revision if person_revision is not None else expected_person_revision
@@ -537,8 +598,11 @@ class TemplateSender:
             reason = "pacing_expired" if d.expired else "paced"
             return TemplateResult("not_sent", code=reason, reason=reason, retry_after_s=max(1, int((d.not_before - now).total_seconds())),
                                   wait_until=d.not_before)
-        if not needs_template(window) and tpl.purpose != "consent_request":
-            return _refuse("window_open")
+        # WISKEY-MAC-ADOPT-298 item B (Mac 03_template_peer/TEMPLATE_SEVEN_ANSWERS.json answer 5, option b): an EXPLICITLY requested
+        # approved template is sent as a template even inside an open conversation window - this route never chooses free text and never
+        # infers the window. So `window` no longer refuses here (`send`, v1, keeps its F3C TP-04 rule). Nothing else is relaxed: the switch
+        # + permit, the registered reference and its WisKey pair, the shared budget and the transport selection above/below all still hold.
+        # (`window` itself was checked first, before the budget: review M4.)
         transport = self._v2_transport()
         send_v2 = getattr(transport, "send_v2", None)
         if transport is None or isinstance(transport, UnwiredTransport) or not callable(send_v2):

@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { WS_KEYS, WS_TABLES, wst } from '../src/i18n/wiskey-switches';
 import { ApiError } from '../src/api/client';
-import { SWITCH_KEYS, SWITCH_STEM, canTurnOn, refusalKind, stateOf, type SwitchesView } from '../src/api/wiskey-switches';
+import { INSTALL_KEY, SWITCH_KEYS, SWITCH_STEM, canTurnOn, canTurnOnInstall, refusalKind, stateOf, type SwitchesView } from '../src/api/wiskey-switches';
 import { SECURITY_SETTINGS_TABS, SECURITY_WISKEY_HREF, INSTALLATION_ONLY_HREFS, isNvrHref, tabAllowed, visibleTabs, type Can } from '../src/shell/nav';
 import { SETTINGS_GROUPS } from '../src/screens/system-index';
 
@@ -82,4 +82,30 @@ test('the tab: under Settings > Security, system administrators at installation 
   expect(visibleTabs(SECURITY_SETTINGS_TABS, true, only('alarm.view')).map((x) => x.id)).not.toContain('wiskey');
   expect(isNvrHref(SECURITY_WISKEY_HREF)).toBe(false);
   expect(SETTINGS_GROUPS.flatMap((g) => g.entries).some((e) => e.href === SECURITY_WISKEY_HREF && e.sub)).toBe(true);
+});
+
+// WISKEY-RC7-ADOPT-2331 S1 (WisKey M12 policy B): the owner's automatic-installation switch on the same route and screen.
+test('the install switch: a separate entry, off unless the server says exactly on, its own build permit', () => {
+  expect(INSTALL_KEY).toBe('wiskey.auto_install');
+  expect((SWITCH_KEYS as readonly string[]).includes(INSTALL_KEY)).toBe(false);
+  for (const k of ['installGroup', 'installTitle', 'installText', 'installPermitMissing', 'installPermitRefused', 'installConfirmOnText', 'installConfirmOffText']) {
+    expect(WS_KEYS).toContain(k);
+  }
+  const v: SwitchesView = { switches: { 'wiskey.acr5_access_state': 'on' }, go_live_permitted: true };
+  expect(stateOf(v, INSTALL_KEY)).toBe('off');
+  expect(stateOf({ ...v, switches: { [INSTALL_KEY]: null as unknown as 'on' } }, INSTALL_KEY)).toBe('off');
+  expect(stateOf({ ...v, switches: { [INSTALL_KEY]: 'ON' as unknown as 'on' } }, INSTALL_KEY)).toBe('off');
+  expect(stateOf({ ...v, switches: { [INSTALL_KEY]: 'on' } }, INSTALL_KEY)).toBe('on');
+  // the acr5 go-live permit never lets the install switch on: only its own `auto_install_permitted === true`
+  expect(canTurnOnInstall(v)).toBe(false);
+  expect(canTurnOnInstall({ auto_install_permitted: false })).toBe(false);
+  expect(canTurnOnInstall({ auto_install_permitted: 'true' as unknown as boolean })).toBe(false);
+  expect(canTurnOnInstall({ auto_install_permitted: true })).toBe(true);
+});
+
+test('the install refusal is its own closed kind and is worded without internal names', () => {
+  expect(refusalKind(err(409, 'auto_install_not_permitted'))).toBe('installPermit');
+  expect(refusalKind(err(409, 'wiskey_not_permitted'))).toBe('permit');
+  expect(wst('installPermitRefused', undefined, 'he')).toContain('המתג נשאר כבוי');
+  expect(wst('installPermitMissing', undefined, 'en')).toContain('isolated lab');
 });

@@ -1,0 +1,116 @@
+FF..F                                                                    [100%]
+================================== FAILURES ===================================
+_ test_an_open_held_in_selection_past_its_deadline_is_unknown_and_never_sent_later _
+
+world = <fake_doorwin_adapters.ProductWorld object at 0x0000019D90472D20>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000019D90472C30>
+
+    def test_an_open_held_in_selection_past_its_deadline_is_unknown_and_never_sent_later(world, monkeypatch):
+        pw = world
+        monkeypatch.setattr(de, "ENGINE_DEADLINE_S", SHORT_S)
+        t0 = pw.clock.t
+        pw.join.gate.clear()
+        r = pw.press("open")
+        assert r.status_code == 201, r.text
+        iid = r.json()["incident"]["id"]
+        assert pw.join.entered.wait(10), "the engine call reached the selection"
+        row = _wait_door(pw, iid, "apply")
+        assert (row["state"], row["code"]) == ("unknown", "deadline"), "the caller got UNKNOWN at its deadline"
+        assert _starts(pw) == [] and _intents(pw) == []
+    
+        # the selection only finishes long after the deadline
+        pw.clock.t = t0 + 100.0
+        pw.join.gate.set()
+        _wait_calls_done()
+    
+>       assert _starts(pw) == [], "no features/start was sent after the deadline"
+E       AssertionError: no features/start was sent after the deadline
+E       assert [{'request': ...': '1', ...}}] == []
+E         
+E         Left contains one more item: {'request': {'contract_version': 'wiskey-arx-feature-execution.v1', 'feature': 'emergency_buttons', 'request_id': 'd94...ner': {'entry_id': 'entry-pairing-1', 'query_owner_id': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'}, 'source_epoch': '1', ...}}
+E         Use -v to get more diff
+
+tests\test_wiskey_rc4_deadline_2310.py:170: AssertionError
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:488 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1229 no built UI found (SW_WWW_DIR=None); API only
+_ test_a_release_held_in_selection_past_its_deadline_is_unknown_and_never_sent_later _
+
+world = <fake_doorwin_adapters.ProductWorld object at 0x0000019D941DFEC0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000019D93FC49B0>
+
+    def test_a_release_held_in_selection_past_its_deadline_is_unknown_and_never_sent_later(world, monkeypatch):
+        pw = world
+        iid = _hold_within_budget(pw)
+        monkeypatch.setattr(de, "ENGINE_DEADLINE_S", SHORT_S)
+        t0 = pw.clock.t
+        pw.join.gate.clear()
+        pw.join.entered.clear()
+        n_seen = len(pw.join.seen)
+        rel = pw.release(iid, kind="open")
+        assert rel.status_code == 200, rel.text
+        assert pw.join.entered.wait(10), "the release call reached the selection"
+        row = _wait_door(pw, iid, "release")
+        assert (row["state"], row["code"]) == ("unknown", "deadline")
+        n_intents = len(_intents(pw))
+    
+        pw.clock.t = t0 + 100.0
+        pw.join.gate.set()
+        _wait_calls_done()
+    
+>       assert _starts(pw, "release") == [], "no release start was sent after the deadline"
+E       AssertionError: no release start was sent after the deadline
+E       assert [{'request': ...': '1', ...}}] == []
+E         
+E         Left contains one more item: {'request': {'contract_version': 'wiskey-arx-feature-execution.v1', 'feature': 'emergency_buttons', 'request_id': '331...ner': {'entry_id': 'entry-pairing-1', 'query_owner_id': 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'}, 'source_epoch': '1', ...}}
+E         Use -v to get more diff
+
+tests\test_wiskey_rc4_deadline_2310.py:199: AssertionError
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:488 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1229 no built UI found (SW_WWW_DIR=None); API only
+_ test_the_live_wrapper_alone_bounds_a_slow_selection_when_no_caller_deadline_exists _
+
+world = <fake_doorwin_adapters.ProductWorld object at 0x0000019D95AFBBF0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000019D95CC49B0>
+
+    def test_the_live_wrapper_alone_bounds_a_slow_selection_when_no_caller_deadline_exists(world, monkeypatch):
+        """DISPATCH_INLINE (no call_with_deadline): the wrapper's own budget is entered before the selection, and a selection that
+        consumed it starts nothing. Outcome UNKNOWN `end_to_end_deadline`, nothing admitted, nothing sent."""
+        pw = world
+        t0 = pw.clock.t
+    
+        def slow_selection(command=None):
+            pw.join.seen.append((command, budget._END.get()))
+            pw.clock.t = t0 + 100.0  # the socket / discovery wait used the whole budget
+            return True
+    
+        monkeypatch.setattr(pw.join, "selected", slow_selection)
+        out = pw.live.apply("open", pw.doors[0].station_id, pw.doors[0].relay, "req:st:1", "")
+>       assert out == dwe.DoorOutcome("unknown", "end_to_end_deadline")
+E       AssertionError: assert DoorOutcome(s...Unauthorized') == DoorOutcome(s...end_deadline')
+E         
+E         Differing attributes:
+E         ['state', 'code']
+E         
+E         Drill down into differing attribute state:
+E           state: 'refused' != 'unknown'
+E           - unknown...
+E         
+E         ...Full output truncated (6 lines hidden), use '-vv' to show
+
+tests\test_wiskey_rc4_deadline_2310.py:253: AssertionError
+----------------------------- Captured log setup ------------------------------
+WARNING  smplwise:main.py:488 developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant
+WARNING  smplwise:main.py:1229 no built UI found (SW_WWW_DIR=None); API only
+============================== warnings summary ===============================
+..\..\..\smplwisebms\.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\cloude\smplwisebms\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_wiskey_rc4_deadline_2310.py::test_an_open_held_in_selection_past_its_deadline_is_unknown_and_never_sent_later
+FAILED tests/test_wiskey_rc4_deadline_2310.py::test_a_release_held_in_selection_past_its_deadline_is_unknown_and_never_sent_later
+FAILED tests/test_wiskey_rc4_deadline_2310.py::test_the_live_wrapper_alone_bounds_a_slow_selection_when_no_caller_deadline_exists
+3 failed, 2 passed, 1 warning in 45.09s

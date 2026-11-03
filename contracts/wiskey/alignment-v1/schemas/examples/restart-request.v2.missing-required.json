@@ -1,0 +1,9 @@
+{
+  "generation_id": "synthetic-generation",
+  "claim_id": "synthetic-claim",
+  "source_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "expected": {
+    "smplwise_bridge": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "hikvision_intercom": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  }
+}

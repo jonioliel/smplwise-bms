@@ -1,0 +1,17 @@
+HEAD=23f3f17af5e8d79d8322635178ed1608e5fb3261
+$ /c/Users/jon/AppData/Local/Programs/Python/Python312/python.exe scripts/sync_integration.py --check
+integration mirror is up to date
+EXIT=0
+$ /c/Users/jon/AppData/Local/Programs/Python/Python312/python.exe scripts/wiskey_posix_digest.py custom_components/smplwise_bridge  (digest + algorithm + file count)
+EXIT=0
+wiskey-posix-tree-sha256.v1 f6f7eaa762861fc3524d1383463b54d8d123d9c5ec39b82a713fde943ba4c1f8 28
+$ /c/Users/jon/AppData/Local/Programs/Python/Python312/python.exe scripts/wiskey_posix_digest.py smplwise_vms/integration/smplwise_bridge  (digest + algorithm + file count)
+EXIT=0
+wiskey-posix-tree-sha256.v1 f6f7eaa762861fc3524d1383463b54d8d123d9c5ec39b82a713fde943ba4c1f8 28
+$ /c/Users/jon/AppData/Local/Programs/Python/Python312/python.exe scripts/wiskey_posix_digest.py smplwise_vms/integration/hikvision_intercom  (digest + algorithm + file count)
+EXIT=0
+wiskey-posix-tree-sha256.v1 00df5e151fa8dc30be983389af8f3b483e709e74060663f9a85dcf889dc5c459 377
+$ cmp of the three wiskey_distribution_digest.py copies
+aec3daba29ca25513381e0674ea093d3b4030783c548c2fa063a44f42ac363f0 *custom_components/smplwise_bridge/wiskey_distribution_digest.py
+aec3daba29ca25513381e0674ea093d3b4030783c548c2fa063a44f42ac363f0 *smplwise_vms/integration/smplwise_bridge/wiskey_distribution_digest.py
+aec3daba29ca25513381e0674ea093d3b4030783c548c2fa063a44f42ac363f0 *smplwise_vms/backend/smplwise/services/wiskey_distribution_digest.py

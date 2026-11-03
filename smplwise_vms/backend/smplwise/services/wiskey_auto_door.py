@@ -114,7 +114,7 @@ class NativeDoorSender:
             creator, approver = _principal(conn, row["created_by"]), _principal(conn, row["armed_by"])
             if creator is None or approver is None:
                 return "not_sent", "actor_unknown"
-            mapped = fx.relay_row(conn, station_id, relay)
+            mapped = fx.relay_row_for_door(conn, station_id, relay)  # WISKEY-RC5-2310: `relay` is the door's physical relay
             if mapped is None:
                 return "not_sent", "relay_map_missing"
             try:
@@ -125,7 +125,7 @@ class NativeDoorSender:
                     authority_revision=row["policy_revision"], scope_ref=scope_ref_of(row["id"], station_id, relay), parameter_reference=request_id,
                     params={"station_id": station_id, "relay": mapped.physical_relay, "mapping_revision": mapped.revision,
                             "automation_ref": row["id"], "expiry": _utc(not_after)},
-                    now=self.clock(), source_epoch=str(row["policy_revision"]), actor_session_active=True, targets=[(station_id, relay)],
+                    now=self.clock(), source_epoch=str(row["policy_revision"]), actor_session_active=True, targets=[(station_id, mapped.api_relay)],
                     execution_expires_at=not_after, request_id=request_id)
             except FeatureWireError as exc:
                 return "not_sent", exc.code

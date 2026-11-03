@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wiskey.invalid/contracts/arx/v1/installation-retirement.v1.schema.json",
+  "x-contract-version": "1.0.0",
+  "type": "object",
+  "properties": {
+    "contract": {
+      "const": "wiskey-installation-retirement.v1"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "state": {
+      "const": "retired"
+    },
+    "history": {
+      "const": "preserved"
+    },
+    "replay_available": {
+      "const": false
+    }
+  },
+  "required": [
+    "contract",
+    "schema_version",
+    "state",
+    "history",
+    "replay_available"
+  ],
+  "additionalProperties": false
+}

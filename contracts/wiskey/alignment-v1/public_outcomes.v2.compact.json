@@ -1,0 +1,4228 @@
+{
+ "CODES": {
+  "Unauthorized": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "[a-z_]{1,40}": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "abandoned": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "acceptance_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "accepted": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "access": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "access_denied": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "access_lost": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "access_removal_pending": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "access_review_limit": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "access_review_stale": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "access_reviews_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "access_setup_cleanup_failed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "access_shutdown_cleanup_failed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "account_key_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "ack_lost_no_replay": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "action_failed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "active": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "actor_id_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "admitted": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "admitting": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "allowed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "already_managed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "ambiguous_write": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "api_incompatible": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "appearance_settings_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "applied": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "applying": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "approval_command_unsupported": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "approval_expired": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "approval_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "approve": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "approved": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "archive_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "archive_state_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "archived": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "arx_restart_claim_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "at_least_once": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "audio_auth_failed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "audio_backpressure": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "audio_busy": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "audio_connection_lost": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "audio_expired": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "audio_identity_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "audio_idle_timeout": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "audio_invalid_packet": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "audio_journal_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "audio_journal_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "audio_not_started": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "audio_open_unconfirmed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "audio_source_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "audio_stopped": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "audio_unsupported": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "authenticated_bridge_source_not_installed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "authenticated_current_source_not_installed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "automatic_emergency_disabled": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "awaiting_approval": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "awaiting_revocation": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "background_authorization_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "background_cannot_read_overview": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "background_has_more_than_overview": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "background_is_admin": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "background_scope_is_all_stations": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "background_shares_service_identity": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "background_subscribe_not_live": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "backup_cannot_decrypt": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "backup_mapping_collision": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "backup_passphrase_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "backup_profile_settings_mismatch": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "backup_review_expired": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "backup_review_stale": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "backup_too_large": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "bad_braces": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "bad_id": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "bad_language": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "bad_name": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "binding_denied": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "binding_mismatch": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "bounded_backup_profile_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "bounded_profile_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "bridge_command_capacity": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "bridge_command_replayed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "bridge_error": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "bridge_key_rotated": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "bridge_not_installed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "bridge_not_loaded": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "bridge_not_paired": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "bridge_outcome_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "bridge_outdated": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "bridge_too_old": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "bulk_review_expired": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "bulk_review_stale": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "bulk_selection_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "busy": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "cancelled": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "cancelled_before_dispatch": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "candidate_admission_profile_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "candidate_destination_exists": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "candidate_migration_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "candidate_migration_requires_schema16": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "candidate_policy_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "candidate_policy_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "candidate_repack_requires_schema17": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "candidate_verification_failed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "capacity_reached": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "capture_applying": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "capture_capacity": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "capture_failed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "capture_lease_gone": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "capture_limit": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "capture_not_found": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "capture_not_ready": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "capture_outcome_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "capture_reader_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "capture_source_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "capture_station_busy": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "capture_unsupported": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "captured": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "card_capacity": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "card_conflict": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "card_exceeds_capabilities": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "card_not_found": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "card_owned_elsewhere": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "card_removal_pending": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "card_still_assigned": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "card_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "central_committed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "class_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "cleanup_failed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "cleanup_joined": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "clock_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "clock_unhealthy": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "closed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "code": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "collapsed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "command_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "committed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "comparison_not_found": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "complete": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "completed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "completed_with_errors": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "composing_original_resources": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "config_timeout": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "configuration_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "confirm_mismatch": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "confirmation_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "connected": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "connecting": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "connection_closed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "connection_exhausted": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "connection_failed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "connection_locked": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "connection_lost": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "consent_race": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "consent_requested": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "consent_setup": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "contradiction": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "control_chars": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "counters_incomplete": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "credential": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "credentials_unreadable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "csv_duplicate_employee": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "csv_empty": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "csv_group_ambiguous": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "csv_invalid_columns": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "csv_invalid_encoding": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "csv_invalid_format": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "csv_invalid_headers": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "csv_invalid_json": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "csv_invalid_mode": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "csv_permissions_conflict": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "csv_preview_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "csv_profile_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "csv_review_stale": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "csv_station_ambiguous": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "csv_too_large": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "csv_too_many_rows": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "csv_validation_failed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "cursor_stale": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "deadline_exceeded": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "declined": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "definitively_not_sent": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "delete_not_verified": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "deletion_not_pending": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "delivered": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "device_busy": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "device_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "device_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "device_user_missing": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "direct_connect_failed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "direct_connect_refused": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "direct_connect_timeout": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "direct_connection_capacity": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "direct_hello_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "direct_hello_timeout": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "direct_identity_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "direct_output_capacity": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "direct_unreachable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "disabled": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "discovering_original_resources": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "dispatching": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "distribution_digest_mismatch": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "door_outcome_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "door_refused": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "dropped": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "duplicate": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "duplicate_card": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "duplicate_id": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "duplicate_label": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "duplicate_original": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "durable_repository_uuid_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "durable_resume": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "ecc_migration_requires_schema16": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "ecc_storage_backup_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "ecc_storage_initial_image_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "ecc_storage_not_selected": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "ecc_storage_selection_mismatch": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "effects_journal_startup_capacity": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "emergency_claim_conflict": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "emergency_event_ledger_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "emergency_recovery_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "emergency_recovery_unbound": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "emergency_secure_active": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "employee_conflict": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "employee_no_conflict": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "empty": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "error": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "event_mapping_conflict": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "event_not_found": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "event_released_or_superseded": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "event_source_closed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "expired": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "expires_at_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "expires_too_far": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "expiring": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "failed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "feature_action_failed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "feature_cleanup_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "feature_disabled": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "feature_host_capacity": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "feature_host_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "feature_journal_installation_incomplete": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "feature_journal_manifest_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "feature_journal_path_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "feature_runtime_already_installed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "feature_runtime_source_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "feed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "field_access_denied": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "field_level": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "fields": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "finished": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "fleet_alert_limit": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "fleet_alerts_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "floor_ack_shape": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "floor_not_held": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "forbidden": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "frame_ack_shape": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "generating": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "generation_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "generation_missing": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "generation_not_installed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "generation_or_distribution_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "grant_revoked": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "granted": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "group_policy_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "guest_credential_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "guest_responsible_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "guest_template_limit": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "guest_template_not_found": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "guest_templates_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "ha_error": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "ha_forbidden": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "ha_not_configured": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "ha_service_outcome_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "ha_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "health_history_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "held": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "historical_read_denied": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "hold_pause_before_edit": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "http_rejected": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "identity_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "identity_migration_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "idle": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "idle_or_reauth_configured": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "idle_timeout": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "inactive": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "installation_identity_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "installation_peer_generation_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "installation_retired": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "installation_storage_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "installation_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "installed_native_source": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "installer_failed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intent": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "interactive_only": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "interactive_session_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_action_refused": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_busy": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_camera_host_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_capture_applying": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_capture_not_found": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_capture_not_ready": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_capture_over": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_capture_station_busy": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_capture_user_busy": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_cursor_expired": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_duplicate_command": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_export_station_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_field_level": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_invalid_request": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_listen_not_found": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_listen_off": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_listen_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_lock_not_wiskey": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_lock_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_lock_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_lock_unmapped": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_map_station_mismatch": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_media_cleanup_failed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_media_expired": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_media_profile_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_media_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_no_camera": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_no_lock": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_no_video": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_outcome_pending": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_outcome_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_parity_busy": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_person_scope": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_photo_not_found": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_pin_interactive_only": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_rate_limited": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_refused": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_relay_taken": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_release_in_progress": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_revision_conflict": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_snapshot_not_ready": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_station_not_found": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_station_offline": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_talk_busy": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_talk_not_found": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_talk_off": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_talk_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_talk_unsupported": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_talk_upstream_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "intercom_unsupported": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_assignments": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_boolean": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_cards": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_clock": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_code": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_cursor": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_emergency_event": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_execution_deadline": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_fields": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_id": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_identifier": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_lock": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_operation": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_parameters": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_phone": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_photo": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_pin": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_policy_snapshot": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_private_backup": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_resolution": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_response": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_session": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_storage": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_sync_status": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_text": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_time": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_timezone": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_timing_policy": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_user_timing": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "invalid_validity": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "job_busy": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "job_empty_or_too_large": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "job_finished": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "job_limit": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "job_paused": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "jobs_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "journal_capacity": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "last_error": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "lease_ceiling": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "lease_expires_at_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "legacy_source_snapshot_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "lifecycle_already_applied": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "lifecycle_blocked": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "lifecycle_cleanup_pending": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "lifecycle_history_full": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "lifecycle_not_applied": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "lifecycle_not_found": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "lifecycle_remove_failed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "local_admission_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "local_validity_needs_conversion": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "lock_not_assigned": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "lock_not_managed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "lost": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "maintenance_window_closed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "malformed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "malformed:state": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "malformed_envelope": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "manager_closed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "media_cleanup_failed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "media_error": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "media_not_configured": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "media_not_supported": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "media_outcome_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "media_settings_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "media_settings_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "media_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_bulk_mismatch": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_bulk_too_many": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_consent_pending": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_consent_recently_requested": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_consent_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_disabled": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_duplicate": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_empty": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_expired": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_forbidden": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_forbidden_content": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_free_text_disabled": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_no_consent": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_no_phone": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_not_registered": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_optout_clear_forbidden": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_outside_hours": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_paced": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_pacing_expired": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_pair_rate_limited": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_rate_limited": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_refused": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_service_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_settings_conflict": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_settings_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_template_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_template_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_too_long": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "message_uncertain": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "metadata_missing": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "migration_source_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "migration_source_save_refused": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "missing": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "missing_phone": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "mode_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "mse_codec_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "mse_connection_lost": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "mse_protocol_error": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "mse_provider_failed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "mse_provider_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "mse_session_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "name_ref_conflict": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "name_ref_consumed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "name_ref_expired": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "name_ref_outcome_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "name_ref_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "native_bundle_missing": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "native_commit_not_observed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "native_composition_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "native_media_ingress_capacity": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "native_media_ingress_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "native_media_ingress_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "native_media_not_started": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "native_owner_dispatch": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "native_source_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "native_storage_capacity": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "native_template_owner_exists": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "native_write_action_unsupported": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "native_write_multiple_commits": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "native_write_source_not_observed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "native_write_source_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "no_answer": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "no_assignment": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "not_a_boolean": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "not_a_list": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "not_checked": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "not_configured": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "not_connected": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "not_found": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "not_identified": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "not_implemented": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "not_measured": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "not_observed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "not_pinned": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "not_proven": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "not_ready": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "not_sent": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "not_system_admin": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "off": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "offline": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "operation_already_recorded": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "operation_conflict": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "operation_in_progress": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "operation_not_found": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "operation_pending_or_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "operation_receipts_full": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "operation_unsupported": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "operations_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "operator_scope_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "organization_missing": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "original_already_committed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "original_bridge_or_station_not_loaded": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "original_capture_source_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "original_create_already_committed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "original_reference_mismatch": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "out_of_range": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "outcome": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "outcome_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "outside_schedule": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "outside_validity": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "owner_mismatch": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "ownership_missing": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "paced": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "pacing_capacity": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "pacing_expired": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "pacing_interrupted": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "pacing_lease_expired": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "pacing_ledger_migration_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "pacing_sender_reconciliation_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "page": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "pair_rate_limited": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "pairing_command_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "pairing_reconnect_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "partial": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "paused": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "peer_bridge_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "peer_query_disabled": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "peer_receipt_capacity": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "pending": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "permanent_receipt_fence": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "permanent_registry_fence": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "permission_revision_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "permission_timeout": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "permissions_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "permissions_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "person_capacity": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "person_exceeds_capabilities": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "person_scope_shared": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "personal_identity_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "photo_disabled": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "photo_storage_full": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "pin_conflict": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "pin_device_managed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "pin_exceeds_capabilities": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "pin_generation_failed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "pin_owned_elsewhere": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "pin_quarantine_capacity": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "pin_quarantine_not_found": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "pin_quarantine_pending": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "pin_quarantined": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "pin_readback_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "pin_removal_pending": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "platform/lifecycle_remove": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "policy_binding_denied": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "policy_expired": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "policy_head_capacity": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "policy_ledger_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "policy_ledger_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "policy_revision_conflict": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "policy_revision_rollback": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "policy_revoked": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "policy_source_capacity": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "policy_version_not_found": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "prepare:": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "prepare:transport_error": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "prepare:unverified": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "prepared": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "preparing": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "preview_expired": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "preview_token": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "private_storage_directory_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "private_storage_file_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "profile_definition_in_use": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "profile_review_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "profile_settings_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "profile_value_not_unique": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "proof_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "provider_accepted": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "provider_outcome_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "provider_throttle": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "pump_error": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "purpose_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "queue_expired": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "queued": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "queued_template_source_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "range": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "rate_limited": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "readback_mismatch": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "readback_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "ready": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "reauth_expired": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "reauth_failed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "reauth_provider_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "reauth_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "receipt": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "receipt_incomplete": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "receipt_unverified": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "record_not_found": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "record_too_large": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "recording": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "recovered_after_send": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "recovered_before_send": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "recovery_cleanup_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "recovery_configuration_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "recovery_host_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "recovery_path_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "refusal_restored": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "refused": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "refused_known": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "registered": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "rejected": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "release_in_progress": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "release_unconfirmed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "released": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "remote_mfa_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "remote_not_allowed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "remote_session_revoked": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "remote_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "remote_user_inactive": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "removed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "removing": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "renewal_already_pending": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "renewal_approver_inactive": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "renewal_identity_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "renewal_identity_in_use": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "renewal_identity_inactive": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "renewal_identity_unlinked": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "renewal_not_extension": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "renewal_not_temporary": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "renewal_person_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "renewal_request_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "reply_unauthenticated": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "report_failed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "report_source_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "request_id_conflict": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "request_id_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "request_too_large": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "requested": [
+   "domain-result"
+  ],
+  "reserving": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "reset_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "restart_claim_conflict": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "restart_claim_not_pending": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "restart_claim_stale": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "restart_execution_history_full": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "restart_execution_history_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "restart_pending": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "restart_request_failed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "restore_current_storage_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "restore_current_storage_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "restore_repository_profile_mismatch": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "restore_verification_failed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "retired": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "retry_parent_not_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "review_expired": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "review_stale": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "revision_conflict": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "revocation_not_confirmed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "revoked": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "rotated": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "rotation_pending": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "rows": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "rtc_connection_lost": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "rtc_protocol_error": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "rtc_revocable_provider_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "rtc_session_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "rtc_signaling_failed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "running": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "saved": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "scan_limit": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "scenario_invalid_time": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_baseline_expired": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_baseline_limit": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_baseline_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_binding_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_binding_out_of_range": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_claim_conflict": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_claim_expired": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_claim_in_use": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_claim_not_found": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_compilation_limit": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_compilation_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_deployment_busy": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_deployment_incomplete": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_deployment_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_deployment_limit": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_deployment_not_found": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_deployment_ownership_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_deployment_retained": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_deployment_terminal": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_holiday_limit": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_holiday_overlap": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_import_expired": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_invalid_date": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_invalid_time": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_invalid_week": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_inventory_incomplete": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_limit": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_no_safe_slots": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_not_found": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_observation_extra_fields": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_observation_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_operation_exists": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_operation_failed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_operation_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_operation_limit": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_operation_not_found": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_operation_retained": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_operations_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_overlap": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_period_limit": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_plan_active_resources": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_plan_device_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_plan_expired": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_plan_limit": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_plan_not_found": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_plan_resource_reserved": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_plan_storage_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_plan_user_defaults": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_plan_users_unreadable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_read_busy": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_resource_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_runtime_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_source_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_station_clock_unverified": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_station_timezone_unverified": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_transfer_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_unverified": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_user_capability_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_write_uncertain": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schedule_writes_unverified": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "scheduler_timeout": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "schema_version": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "scope_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "screen_locked": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "second_factor_enrollment_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "second_factor_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "secret_store_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "security_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "selection_publication_uncertain": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "sender_ref_duplicate": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "sender_ref_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "sender_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "sending": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "sent": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "sent_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "separate_approver_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "sequence_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "service_actor_mismatch": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "service_field_denied": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "service_grant_denied": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "service_grant_expired": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "service_grant_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "service_identity_is_admin": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "service_not_found": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "service_operation_conflict": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "service_origin_or_request_already_recorded": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "service_subscribe_not_live": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "service_target_denied": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "service_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "service_write_capacity": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "service_write_commit_mismatch": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "service_write_outcome_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "service_write_repository_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "service_write_source_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "session_expired": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "session_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "settled": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "setup": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "shares_service_identity": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "slowdown_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "snapshot_entity_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "snapshot_not_supported": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "snapshot_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "source_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "source_changed_before_dispatch": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "source_missing": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "source_not_configured": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "source_or_admission_refused": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "speaking": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "stale": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "stale_backup_refused": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "started": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "state": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "station_already_attached": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "station_camera_ambiguous": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "station_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "station_has_no_managed_lock": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "station_id": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "station_id_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "station_identity_duplicate": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "station_mapping_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "station_not_found": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "station_offline": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "station_retiring": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "station_scope": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "station_scoped": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "station_source_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "station_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "station_unloaded": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "status_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "stopped": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "storage_busy": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "storage_checkpoint_busy": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "storage_contents_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "storage_corrupt": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "storage_full": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "storage_generation_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "storage_image_capacity": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "storage_image_not_initialized": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "storage_load_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "storage_path_rebound": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "storage_reopen_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "storage_stopping": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "storage_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "storage_write_failed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "subscription_capacity": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "subscription_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "supervisor_error": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "supervisor_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "talk_ref_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "technical_write_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "template_capacity_or_request_conflict": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "template_capacity_reached": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "template_cleanup_failed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "template_jobs_storage_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "template_mismatch": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "template_native_binding_unsupported": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "template_not_found": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "template_outcome_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "template_placeholders_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "template_revision_conflict": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "template_selection_duplicate": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "template_send_invalid": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "template_send_unsupported": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "template_source_changed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "template_source_not_installed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "template_source_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "template_unsupported": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "template_v2_not_sent": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "template_v2_preview_stale": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "template_v2_refused": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "template_v2_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "template_window_open": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "temporary_already_inactive": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "temporary_user_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "terminal": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "timeout": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "timing_boundary_ambiguous": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "token_revoked": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "too_large": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "too_long": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "too_many": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "too_many_placeholders": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "too_many_reviews": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "transfer_finished": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "transfer_in_progress": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "transport_error": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "tts_engine_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "type": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "unauthorized": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "unbound": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "uncertain": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "unchanged_pin_generated_not_saved": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "unknown_action": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "unknown_command": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "unknown_contract_version": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "unknown_feature": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "unknown_placeholder": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "unknown_request": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "unmanaged_employee": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "unmanaged_lock": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "unmanaged_storage_refused": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "unmappable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "unproven_duplicate": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "unreadable_validity": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "unreserved_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "unsafe_peer_revision": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "unselected_storage_exists": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "unsupported": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "unsupported_card_type": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "unsupported_credentials": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "unsupported_media_type": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "unsupported_user_type": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "unsupported_version": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "untrimmed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "unverified": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "upstream_closed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "user_archived": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "user_not_found": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "validation": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "validity_timezone_mismatch": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "verified": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "visit_approval_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "visit_approver_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "visit_inactive_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "visit_request_closed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "visit_request_limit": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "visit_request_not_found": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "visit_request_stale": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "visit_second_operator_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "waiting_for_original_entries": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "wall_user_remote_not_allowed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "webhook_https_required": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "whatsapp_history_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "whatsapp_invalid_phone": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "whatsapp_media_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "whatsapp_pacing_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "whatsapp_preview_expired": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "whatsapp_send_uncertain": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "whatsapp_templates_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "whatsapp_unavailable": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "wiskey_code": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "wiskey_direct_not_connected": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "wiskey_direct_not_installed": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "wiskey_own_pacing": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "within_tolerance": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "workflow_limit": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "write_outcome_unknown": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  },
+  "wrong_thread": {
+   "same_operation_replay": false,
+   "unknown_is_not_not_sent": true
+  }
+ },
+ "DOMAIN_STATE_SETS": {
+  "event_reset_reasons": [
+   "retention_gap",
+   "source_replaced",
+   "cursor_ahead"
+  ],
+  "event_resume": [
+   "page",
+   "reset_required"
+  ],
+  "generation_journal": [
+   "staging",
+   "installing",
+   "installed",
+   "failed",
+   "rolled_back",
+   "uninstalling",
+   "uninstalled"
+  ],
+  "legacy_Arx_installer_labels_NOT_readiness": [
+   "not_available",
+   "error",
+   "not_installed",
+   "active",
+   "update_pending",
+   "installed_pending"
+  ],
+  "queue": [
+   "queued",
+   "dispatching",
+   "completed",
+   "cancelled",
+   "unknown"
+  ],
+  "readiness": [
+   "ready",
+   "not_ready"
+  ],
+  "readiness_reasons": [
+   "generation_missing",
+   "generation_invalid",
+   "generation_not_installed",
+   "bridge_not_loaded",
+   "distribution_digest_mismatch",
+   "generation_or_distribution_unavailable",
+   "restart_pending",
+   "restart_request_failed"
+  ],
+  "restart_journal": [
+   "not_requested",
+   "requested",
+   "failed",
+   "unknown",
+   "completed"
+  ],
+  "restart_result": [
+   "requested",
+   "already_recorded"
+  ],
+  "service_receipt": [
+   "completed",
+   "unknown"
+  ],
+  "template_result": [
+   "accepted",
+   "not_sent",
+   "unknown"
+  ],
+  "template_result_codes": [
+   "source_or_admission_refused",
+   "template_mismatch",
+   "provider_accepted",
+   "provider_outcome_unknown",
+   "operation_pending_or_unknown"
+  ]
+ },
+ "OUTCOME_CONTRACT_ROWS": [
+  {
+   "command_or_route": "whatsapp/template_send_v2",
+   "layer": "native_typed_result",
+   "meaning": "provider accepted",
+   "wire_code": "provider_accepted",
+   "wire_pointer": "result",
+   "wire_state": "accepted"
+  },
+  {
+   "command_or_route": "whatsapp/template_send_v3",
+   "layer": "native_typed_result",
+   "meaning": "provider accepted",
+   "wire_code": "provider_accepted",
+   "wire_pointer": "result.template_result",
+   "wire_state": "accepted"
+  },
+  {
+   "command_or_route": "whatsapp/template_send_v2",
+   "layer": "native_typed_result",
+   "meaning": "Original source/admission rejected before sending; v2 deliberately keeps this generic code.",
+   "wire_code": "source_or_admission_refused",
+   "wire_pointer": "result",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_send_v3",
+   "layer": "native_typed_result",
+   "meaning": "Original source/admission rejected before sending; v2 deliberately keeps this generic code.",
+   "wire_code": "source_or_admission_refused",
+   "wire_pointer": "result.template_result",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_send_v2",
+   "layer": "native_typed_result",
+   "meaning": "Existing approved template metadata/body binding did not match.",
+   "wire_code": "template_mismatch",
+   "wire_pointer": "result",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_send_v3",
+   "layer": "native_typed_result",
+   "meaning": "Existing approved template metadata/body binding did not match.",
+   "wire_code": "template_mismatch",
+   "wire_pointer": "result.template_result",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_send_v2",
+   "layer": "native_typed_result",
+   "meaning": "Provider may have received the request; ACK/effect is not proven.",
+   "wire_code": "provider_outcome_unknown",
+   "wire_pointer": "result",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/template_send_v3",
+   "layer": "native_typed_result",
+   "meaning": "Provider may have received the request; ACK/effect is not proven.",
+   "wire_code": "provider_outcome_unknown",
+   "wire_pointer": "result.template_result",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/template_send_v2",
+   "layer": "native_typed_result",
+   "meaning": "operation pending or unknown",
+   "wire_code": "operation_pending_or_unknown",
+   "wire_pointer": "result",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/template_send_v3",
+   "layer": "native_typed_result",
+   "meaning": "operation pending or unknown",
+   "wire_code": "operation_pending_or_unknown",
+   "wire_pointer": "result.template_result",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/template_send_v3",
+   "layer": "native_typed_result",
+   "meaning": "Original local ledger blocked admission before dispatch; no provider availability promise.",
+   "wire_code": "rate_limited",
+   "wire_pointer": "result.pacing_outcome",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_enqueue_v1",
+   "layer": "native_typed_result",
+   "meaning": "Explicit cancellation before native worker entered provider I/O.",
+   "wire_code": "cancelled_before_dispatch",
+   "wire_pointer": "result.result",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_job_v1",
+   "layer": "native_typed_result",
+   "meaning": "Explicit cancellation before native worker entered provider I/O.",
+   "wire_code": "cancelled_before_dispatch",
+   "wire_pointer": "result.result",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_cancel_v1",
+   "layer": "native_typed_result",
+   "meaning": "Explicit cancellation before native worker entered provider I/O.",
+   "wire_code": "cancelled_before_dispatch",
+   "wire_pointer": "result.result",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_enqueue_v1",
+   "layer": "native_typed_result",
+   "meaning": "Original queued intent TTL elapsed before dispatch.",
+   "wire_code": "queue_expired",
+   "wire_pointer": "result.result",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_job_v1",
+   "layer": "native_typed_result",
+   "meaning": "Original queued intent TTL elapsed before dispatch.",
+   "wire_code": "queue_expired",
+   "wire_pointer": "result.result",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_cancel_v1",
+   "layer": "native_typed_result",
+   "meaning": "Original queued intent TTL elapsed before dispatch.",
+   "wire_code": "queue_expired",
+   "wire_pointer": "result.result",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_enqueue_v1",
+   "layer": "native_typed_result",
+   "meaning": "Immutable account/template/person/grant/source snapshot no longer matches before I/O.",
+   "wire_code": "source_changed_before_dispatch",
+   "wire_pointer": "result.result",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_job_v1",
+   "layer": "native_typed_result",
+   "meaning": "Immutable account/template/person/grant/source snapshot no longer matches before I/O.",
+   "wire_code": "source_changed_before_dispatch",
+   "wire_pointer": "result.result",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_cancel_v1",
+   "layer": "native_typed_result",
+   "meaning": "Immutable account/template/person/grant/source snapshot no longer matches before I/O.",
+   "wire_code": "source_changed_before_dispatch",
+   "wire_pointer": "result.result",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_enqueue_v1",
+   "layer": "native_typed_result",
+   "meaning": "Provider may have received the request; ACK/effect is not proven.",
+   "wire_code": "provider_outcome_unknown",
+   "wire_pointer": "result.result",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/template_job_v1",
+   "layer": "native_typed_result",
+   "meaning": "Provider may have received the request; ACK/effect is not proven.",
+   "wire_code": "provider_outcome_unknown",
+   "wire_pointer": "result.result",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/template_cancel_v1",
+   "layer": "native_typed_result",
+   "meaning": "Provider may have received the request; ACK/effect is not proven.",
+   "wire_code": "provider_outcome_unknown",
+   "wire_pointer": "result.result",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/template_enqueue_v1",
+   "layer": "native_typed_result",
+   "meaning": "Previously dispatching journal reopened without a conclusive ACK; never re-dispatch.",
+   "wire_code": "ack_lost_no_replay",
+   "wire_pointer": "result.result",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/template_job_v1",
+   "layer": "native_typed_result",
+   "meaning": "Previously dispatching journal reopened without a conclusive ACK; never re-dispatch.",
+   "wire_code": "ack_lost_no_replay",
+   "wire_pointer": "result.result",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/template_cancel_v1",
+   "layer": "native_typed_result",
+   "meaning": "Previously dispatching journal reopened without a conclusive ACK; never re-dispatch.",
+   "wire_code": "ack_lost_no_replay",
+   "wire_pointer": "result.result",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/template_enqueue_v1",
+   "layer": "native_typed_result",
+   "meaning": "Old queued journal lacks its authenticated original source snapshot; migrated to UNKNOWN.",
+   "wire_code": "legacy_source_snapshot_unavailable",
+   "wire_pointer": "result.result",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/template_job_v1",
+   "layer": "native_typed_result",
+   "meaning": "Old queued journal lacks its authenticated original source snapshot; migrated to UNKNOWN.",
+   "wire_code": "legacy_source_snapshot_unavailable",
+   "wire_pointer": "result.result",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/template_cancel_v1",
+   "layer": "native_typed_result",
+   "meaning": "Old queued journal lacks its authenticated original source snapshot; migrated to UNKNOWN.",
+   "wire_code": "legacy_source_snapshot_unavailable",
+   "wire_pointer": "result.result",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/send_pacing_v1",
+   "layer": "native_typed_result",
+   "meaning": "Original local ledger blocked admission before dispatch; no provider availability promise.",
+   "wire_code": "rate_limited",
+   "wire_pointer": "result.error.send_state + result.error.code",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/send_pacing_v1",
+   "layer": "native_typed_result",
+   "meaning": "whatsapp pacing unavailable",
+   "wire_code": "whatsapp_pacing_unavailable",
+   "wire_pointer": "result.error.send_state + result.error.code",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/send_pacing_v1",
+   "layer": "native_typed_result",
+   "meaning": "whatsapp preview expired",
+   "wire_code": "whatsapp_preview_expired",
+   "wire_pointer": "result.error.send_state + result.error.code",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/send_pacing_v1",
+   "layer": "native_typed_result",
+   "meaning": "Closed fields/types/limits failed original validation.",
+   "wire_code": "invalid_fields",
+   "wire_pointer": "result.error.send_state + result.error.code",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/send_pacing_v1",
+   "layer": "native_typed_result",
+   "meaning": "whatsapp unavailable",
+   "wire_code": "whatsapp_unavailable",
+   "wire_pointer": "result.error.send_state + result.error.code",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/send_pacing_v1",
+   "layer": "native_typed_result",
+   "meaning": "whatsapp send uncertain",
+   "wire_code": "whatsapp_send_uncertain",
+   "wire_pointer": "result.error.send_state + result.error.code",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/send",
+   "layer": "transport_error",
+   "meaning": "Original local ledger blocked admission before dispatch; no provider availability promise.",
+   "wire_code": "rate_limited",
+   "wire_pointer": "frame.error.code",
+   "wire_state": "refused"
+  },
+  {
+   "command_or_route": "whatsapp/pacing_status_v1",
+   "layer": "native_typed_result",
+   "meaning": "Original local ledger blocked admission before dispatch; no provider availability promise.",
+   "wire_code": "rate_limited",
+   "wire_pointer": "result.accounts[].retry_after_s",
+   "wire_state": "observation"
+  },
+  {
+   "command_or_route": "users/create",
+   "layer": "native_typed_result",
+   "meaning": "Central source commit recorded; device application is not thereby proven.",
+   "wire_code": "central_saved",
+   "wire_pointer": "result.state + result.code",
+   "wire_state": "completed"
+  },
+  {
+   "command_or_route": "users/create",
+   "layer": "native_typed_result",
+   "meaning": "Return original stored receipt/state only; no second business dispatch.",
+   "wire_code": "operation_already_recorded",
+   "wire_pointer": "result.state + result.code",
+   "wire_state": "completed or unknown"
+  },
+  {
+   "command_or_route": "users/create",
+   "layer": "transport_error",
+   "meaning": "Service intent was persisted before commit; completion/ACK is uncertain, no replay.",
+   "wire_code": "service_write_outcome_unknown",
+   "wire_pointer": "frame.error.code",
+   "wire_state": "frame success=false; possible effect unknown"
+  },
+  {
+   "command_or_route": "users/update",
+   "layer": "native_typed_result",
+   "meaning": "Central source commit recorded; device application is not thereby proven.",
+   "wire_code": "central_saved",
+   "wire_pointer": "result.state + result.code",
+   "wire_state": "completed"
+  },
+  {
+   "command_or_route": "users/update",
+   "layer": "native_typed_result",
+   "meaning": "Return original stored receipt/state only; no second business dispatch.",
+   "wire_code": "operation_already_recorded",
+   "wire_pointer": "result.state + result.code",
+   "wire_state": "completed or unknown"
+  },
+  {
+   "command_or_route": "users/update",
+   "layer": "transport_error",
+   "meaning": "Service intent was persisted before commit; completion/ACK is uncertain, no replay.",
+   "wire_code": "service_write_outcome_unknown",
+   "wire_pointer": "frame.error.code",
+   "wire_state": "frame success=false; possible effect unknown"
+  },
+  {
+   "command_or_route": "users/pin_generate",
+   "layer": "native_typed_result",
+   "meaning": "PIN candidate generated; it is not saved/applied by this result.",
+   "wire_code": "pin_generated_not_saved",
+   "wire_pointer": "result.state + result.code",
+   "wire_state": "completed"
+  },
+  {
+   "command_or_route": "users/pin_generate",
+   "layer": "native_typed_result",
+   "meaning": "Return original stored receipt/state only; no second business dispatch.",
+   "wire_code": "operation_already_recorded",
+   "wire_pointer": "result.state + result.code",
+   "wire_state": "completed or unknown"
+  },
+  {
+   "command_or_route": "users/pin_generate",
+   "layer": "transport_error",
+   "meaning": "Service intent was persisted before commit; completion/ACK is uncertain, no replay.",
+   "wire_code": "service_write_outcome_unknown",
+   "wire_pointer": "frame.error.code",
+   "wire_state": "frame success=false; possible effect unknown"
+  },
+  {
+   "command_or_route": "users/temporary_cancel",
+   "layer": "native_typed_result",
+   "meaning": "Central source commit recorded; device application is not thereby proven.",
+   "wire_code": "central_saved",
+   "wire_pointer": "result.state + result.code",
+   "wire_state": "completed"
+  },
+  {
+   "command_or_route": "users/temporary_cancel",
+   "layer": "native_typed_result",
+   "meaning": "Return original stored receipt/state only; no second business dispatch.",
+   "wire_code": "operation_already_recorded",
+   "wire_pointer": "result.state + result.code",
+   "wire_state": "completed or unknown"
+  },
+  {
+   "command_or_route": "users/temporary_cancel",
+   "layer": "transport_error",
+   "meaning": "Service intent was persisted before commit; completion/ACK is uncertain, no replay.",
+   "wire_code": "service_write_outcome_unknown",
+   "wire_pointer": "frame.error.code",
+   "wire_state": "frame success=false; possible effect unknown"
+  },
+  {
+   "command_or_route": "users/service_write_status_v1",
+   "layer": "native_typed_result",
+   "meaning": "No code field exists in this closed receipt-status response; unknown is not never_committed",
+   "wire_code": null,
+   "wire_pointer": "result.state",
+   "wire_state": "completed or unknown"
+  },
+  {
+   "command_or_route": "events/resume_v1",
+   "layer": "native_typed_result",
+   "meaning": "At least one local acceptance sequence is no longer retained.",
+   "wire_code": "retention_gap",
+   "wire_pointer": "result.reason or frame.error.code",
+   "wire_state": "reset_required"
+  },
+  {
+   "command_or_route": "events/resume_v1",
+   "layer": "native_typed_result",
+   "meaning": "Cursor generation differs from the current original event source.",
+   "wire_code": "source_replaced",
+   "wire_pointer": "result.reason or frame.error.code",
+   "wire_state": "reset_required"
+  },
+  {
+   "command_or_route": "events/resume_v1",
+   "layer": "native_typed_result",
+   "meaning": "Cursor is ahead of the persisted high-water mark.",
+   "wire_code": "cursor_ahead",
+   "wire_pointer": "result.reason or frame.error.code",
+   "wire_state": "reset_required"
+  },
+  {
+   "command_or_route": "events/resume_v1",
+   "layer": "native_typed_result",
+   "meaning": "Current-source cursor syntax/MAC is invalid.",
+   "wire_code": "invalid_cursor",
+   "wire_pointer": "result.reason or frame.error.code",
+   "wire_state": "refused"
+  }
+ ],
+ "UNRECOGNIZED_VALUE": {
+  "unknown_code": "Treat as unrecognized refusal/uncertain domain outcome; no retry/replay or conversion to not_sent. Reconcile original status/source before any new explicit intent.",
+  "unknown_contract_version": "Reject typed interpretation; preserve redacted raw receipt privately; request supported version through software, never invent success.",
+  "unknown_provider_external_code": "External opaque provider/device details are not normalized to a new internal success. Original adapters return their documented conservative unknown/refusal.",
+  "unknown_state": "Never coerce into completed/ready/accepted; fail typed consumer closed.",
+  "wire_code_must_not_be_rewritten": true
+ },
+ "contract": "wiskey-public-outcomes.v2",
+ "note": "Compact form: per-source evidence stripped (4.4 MB in the delivery). The wire value is never rewritten; unknown code/state/version fails closed (UNRECOGNIZED_VALUE). | WISKEY-R3-2272: union of the R2 table and the R3 delivery's v2 table (source_CODE 1f73db73a5c762d67d6f64cca334cfa806bbddda, sha256 41cbbb99d8b4e6ec01f86b96a8f5e8453ee76938b4c7f7b8db3eb1d2b2c75267); the delivery's file carries only CODES+UNRECOGNIZED_VALUE and omits 4 R2 codes (intercom_snapshot_not_ready, intercom_media_expired, requested, intercom_no_video) and the typed rows / state sets - all kept.",
+ "r3_source_CODE": "1f73db73a5c762d67d6f64cca334cfa806bbddda",
+ "schema_version": 2,
+ "source_CODE": "d95c6e803a47330191edcaae5522a2910037ee99",
+ "source_file": "03_codes_statuses/PUBLIC_OUTCOMES_V1.json",
+ "source_sha256": "9f2f060f819f52afc3b05126095cbfb153279e84c09a4bcc252f538cd1177dac"
+}

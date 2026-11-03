@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wiskey.invalid/contracts/arx/v1/event-retention.v1.schema.json",
+  "x-contract-version": "1.0.0",
+  "type": "object",
+  "properties": {
+    "contract": {
+      "const": "wiskey-event-retention.v1"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "effective": {
+      "type": "object",
+      "properties": {
+        "days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 365
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20000
+        },
+        "bytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 262144,
+          "maximum": 25165824
+        }
+      },
+      "required": [
+        "days",
+        "count",
+        "bytes"
+      ],
+      "additionalProperties": false
+    },
+    "order": {
+      "const": "local_acceptance_sequence"
+    },
+    "delivery": {
+      "const": "at_least_once"
+    },
+    "age_basis": {
+      "const": "received_at"
+    },
+    "minimum_days_guaranteed": {
+      "const": false
+    }
+  },
+  "required": [
+    "contract",
+    "schema_version",
+    "effective",
+    "order",
+    "delivery",
+    "age_basis",
+    "minimum_days_guaranteed"
+  ],
+  "additionalProperties": false
+}

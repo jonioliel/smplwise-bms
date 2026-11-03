@@ -1,0 +1,11 @@
+SUITE=relaymap_800308b10
+HEAD=800308b100e72bd3e18d370e0b7b3fc7df844086
+DIRTY=0
+SMPLWISE_IMPORT=C:\Users\jon\AppData\Local\Temp\claude\C--cloude-smplwisebms\bcc5e6ba-69e8-4745-beae-e21304a60c47\scratchpad\rx_800308b10\smplwise_vms\backend\smplwise\__init__.py
+PYTHON=3.12.10 /c/cloude/smplwisebms/.venv/Scripts/python.exe
+CWD=<worktree>/smplwise_vms/backend
+COMMAND=PYTHONPATH=. /c/cloude/smplwisebms/.venv/Scripts/python.exe -m pytest -p no:cacheprovider -rfE --junitxml=junit.xml $(cat files.txt)
+START=2026-10-31T18:39:52Z
+END=2026-10-31T18:49:54Z
+EXIT_CODE=0
+HEAD_AFTER=800308b100e72bd3e18d370e0b7b3fc7df844086

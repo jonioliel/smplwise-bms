@@ -1,0 +1,6 @@
+tests/test_wkcap_295.py
+tests/test_t06_work_states_297.py
+tests/test_wiskeya06_297.py
+tests/test_t06_admission_295.py
+tests/test_eccact_features_295.py
+tests/test_wiskey_owner26_callers_297.py

@@ -1,0 +1,14 @@
+{
+  "id": "synthetic-job",
+  "kind": "bulk_import",
+  "state": "paused",
+  "revision": 3,
+  "created_at": "2026-10-29T00:00:00Z",
+  "updated_at": "2026-10-29T00:01:00Z",
+  "approval": null,
+  "total": 1,
+  "saved": 0,
+  "failed": 0,
+  "pending": 1,
+  "errors": []
+}

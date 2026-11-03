@@ -1,0 +1,141 @@
+{
+ "round": 2,
+ "date": "2026-10-30",
+ "branch": "pilot/WISKEY-RC4-2310",
+ "workstation": "Windows 11 owner workstation (not the Ubuntu runner)",
+ "python": "C:/cloude/smplwisebms/.venv/Scripts/python.exe (Python 3.12.10); mirror/digest/release_check with C:/Users/jon/AppData/Local/Programs/Python/Python312/python.exe",
+ "cwd": "C:/cloude/smplwise-rc4/smplwise_vms/backend",
+ "review_input": {
+  "repo": "jonioliel/home-assistant-hikvision-intercom (local clone, fetch only)",
+  "ref": "codex/wiskey-windows-arx-rc4-adoption-review-2026-10-30",
+  "commit": "8d57fad905d94f85c189a334a69edc78ff034469",
+  "read": [
+   "REVIEW_HE.txt",
+   "FORWARD_TO_ARX_HE.txt",
+   "00_summary/ARX_REVIEW.json (WIN-ARX-RC4-DEADLINE-01)"
+  ],
+  "merged": false
+ },
+ "commits": {
+  "b185d62f7": "merge origin/main v2.28.0 eda683371",
+  "d72cebccf": "migration 0183 -> 0186",
+  "887344fb0497a3e17cf414bf5874051b0d663f6f": "WIN-ARX-RC4-DEADLINE-01 fix + test"
+ },
+ "new_test": {
+  "path": "smplwise_vms/backend/tests/test_wiskey_rc4_deadline_2310.py",
+  "sha256_at_887344fb0": "b7758bf79971764cbf147262581a709e98795fd1f4b0f61501a664e53bfc9e1e",
+  "tests": 5,
+  "note": "the red run used an earlier revision of the same file (sha above in red run); after it only the slow-selection stub of test 5 changed from clock=t0+100 to clock+=100 so its release half also exceeds the budget"
+ },
+ "runs": [
+  {
+   "file": "deadline_red_8c7c22a48.txt",
+   "tested_sha": "8c7c22a486701d08ecd5ac1e4a0f2188611fb93c",
+   "start": null,
+   "end": null,
+   "exit_code": 1,
+   "summary": "3 failed, 2 passed, 1 warning in 45.09s",
+   "tested_tree": "8c7c22a48 + the untracked new test file only (no product change)",
+   "test_file_sha256": "561b8fd77515e30ce7f3cd749fba2699d1f4fe0167a4deaeed1454b9854ed03c",
+   "note": "START/END not captured for this run (NOT_CAPTURED); exit code from deadline_red_8c7c22a48.exit",
+   "failures": [
+    "apply: a features/start (hold_open) was sent after UNKNOWN deadline",
+    "release: a release start was sent after UNKNOWN deadline",
+    "inline wrapper: no budget before selection (refused instead of unknown end_to_end_deadline)"
+   ],
+   "name": "deadline acceptance test BEFORE the fix (red)"
+  },
+  {
+   "file": "deadline.txt",
+   "tested_sha": "887344fb0497a3e17cf414bf5874051b0d663f6f",
+   "start": "2026-10-30T20:20:31Z",
+   "end": "2026-10-30T20:21:55Z",
+   "exit_code": 0,
+   "summary": "5 passed, 1 warning in 52.04s",
+   "name": "deadline acceptance test AFTER the fix (green)"
+  },
+  {
+   "file": "source.txt",
+   "tested_sha": "887344fb0497a3e17cf414bf5874051b0d663f6f",
+   "start": "2026-10-30T20:20:31Z",
+   "end": "2026-10-30T20:26:23Z",
+   "exit_code": 0,
+   "summary": "100 passed, 1 warning in 317.72s (0:05:17)",
+   "name": "source suite (C-ARX-FINAL-04 file list, adapted paths)",
+   "files": "source.files"
+  },
+  {
+   "name": "targeted round 2 (116 files, same 6-shard split as round 1), run in parallel with the two runs above",
+   "shards": [
+    {
+     "file": "shard_0.txt",
+     "tested_sha": "887344fb0497a3e17cf414bf5874051b0d663f6f",
+     "start": "2026-10-30T20:20:30Z",
+     "end": "2026-10-30T20:39:29Z",
+     "exit_code": 0,
+     "summary": "594 passed, 2 skipped, 1 warning in 1102.28s (0:18:22)"
+    },
+    {
+     "file": "shard_1.txt",
+     "tested_sha": "887344fb0497a3e17cf414bf5874051b0d663f6f",
+     "start": "2026-10-30T20:20:30Z",
+     "end": "2026-10-30T20:38:53Z",
+     "exit_code": 0,
+     "summary": "494 passed, 1 warning in 1067.41s (0:17:47)"
+    },
+    {
+     "file": "shard_2.txt",
+     "tested_sha": "887344fb0497a3e17cf414bf5874051b0d663f6f",
+     "start": "2026-10-30T20:20:30Z",
+     "end": "2026-10-30T20:44:15Z",
+     "exit_code": 0,
+     "summary": "613 passed, 1 skipped, 1 warning in 1388.32s (0:23:08)"
+    },
+    {
+     "file": "shard_3.txt",
+     "tested_sha": "887344fb0497a3e17cf414bf5874051b0d663f6f",
+     "start": "2026-10-30T20:20:31Z",
+     "end": "2026-10-30T20:45:42Z",
+     "exit_code": 0,
+     "summary": "543 passed, 1 warning in 1476.70s (0:24:36)"
+    },
+    {
+     "file": "shard_4.txt",
+     "tested_sha": "887344fb0497a3e17cf414bf5874051b0d663f6f",
+     "start": "2026-10-30T20:20:31Z",
+     "end": "2026-10-30T20:53:11Z",
+     "exit_code": 0,
+     "summary": "635 passed, 3 skipped, 1 warning in 1921.12s (0:32:01)"
+    },
+    {
+     "file": "shard_5.txt",
+     "tested_sha": "887344fb0497a3e17cf414bf5874051b0d663f6f",
+     "start": "2026-10-30T20:20:31Z",
+     "end": "2026-10-30T21:19:32Z",
+     "exit_code": 0,
+     "summary": "684 passed, 1 skipped, 1 warning in 3506.10s (0:58:26)"
+    }
+   ],
+   "totals": "3563 passed, 0 failed, 7 skipped",
+   "basis": "one uniform run, all shards at 887344fb0 - not a composite"
+  },
+  {
+   "name": "mirror, digest and release checks",
+   "file": "mirror_digest_checks.txt",
+   "tested_sha": "887344fb0497a3e17cf414bf5874051b0d663f6f",
+   "result": "sync_integration --check EXIT CODE 0; wiskey_posix_digest EXIT CODE 0 on both bridge copies (28 files, f6f7eaa7...c1f8) and on the embedded hikvision_intercom tree (377 files, 00df5e15...c459); three digest modules byte-identical (aec3daba...63f0); release_check EXIT CODE 0, migrations contiguous 186 files last 0186 (reports main's version 2.28.0; this branch is not a release)"
+  }
+ ],
+ "not_captured": [
+  "PID of every run",
+  "START/END of the red run"
+ ],
+ "not_run": [
+  "full backend suite",
+  "frontend/UI build and screenshots (www/ after the merge is main's build)",
+  "Arx artifact build (NOT_BUILT)",
+  "Ubuntu runner (release gate running)",
+  "any live/device/HA/WisKey/lab test"
+ ],
+ "round1_history": "../RECEIPTS.json and ../round1/ kept unchanged: 3560 passed / 3 failed / 7 skipped at 23f3f17af, re-run of shards 0 and 4 at 9020a3b34; NOT_CAPTURED items there stay NOT_CAPTURED"
+}

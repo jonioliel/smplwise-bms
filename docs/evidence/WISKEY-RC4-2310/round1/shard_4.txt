@@ -1,0 +1,40 @@
+HEAD=23f3f17af5e8d79d8322635178ed1608e5fb3261
+2026-10-30T12:17:02Z
+$ /c/cloude/smplwisebms/.venv/Scripts/python.exe -m pytest -p no:cacheprovider -rfE --junitxml=shard_4.junit.xml $(cat shard_4.files)
+........................................................................ [ 11%]
+........................................................................ [ 22%]
+s....................................................................... [ 33%]
+........................................................................ [ 45%]
+........................................................................ [ 56%]
+.....................................................s.s................ [ 67%]
+........................................................................ [ 78%]
+.....F.................................................................. [ 90%]
+..............................................................           [100%]
+================================== FAILURES ===================================
+_________ test_program_errors_map_to_the_engine_kinds[error1-refused] _________
+
+error = PortError('station_unloaded'), kind = 'refused'
+
+    @pytest.mark.parametrize("error, kind", [(PortError("revision_conflict", "refused"), "revision_conflict"), (PortError("station_unloaded", "refused"), "refused"),
+                                             (PortError("timeout", "unknown"), "unknown"), (PortError("wiskey_direct_not_connected", "not_sent"), "not_sent")])
+    def test_program_errors_map_to_the_engine_kinds(error, kind):
+        with pytest.raises(dwe.EngineError) as e:
+            _engine(ProgramPort({wpd.SAVE: error})).save("entry-1", 1, 0, {}, True)
+>       assert e.value.kind == kind
+E       AssertionError: assert 'unknown' == 'refused'
+E         
+E         - refused
+E         + unknown
+
+tests\test_wiskey_owner26_callers_297.py:113: AssertionError
+============================== warnings summary ===============================
+..\..\..\smplwisebms\.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\cloude\smplwisebms\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_wiskey_owner26_callers_297.py::test_program_errors_map_to_the_engine_kinds[error1-refused]
+1 failed, 634 passed, 3 skipped, 1 warning in 1242.86s (0:20:42)
+EXIT=1
+2026-10-30T12:38:10Z

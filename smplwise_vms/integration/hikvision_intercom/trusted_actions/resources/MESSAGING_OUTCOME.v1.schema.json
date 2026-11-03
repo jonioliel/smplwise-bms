@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wiskey:arx:messaging-outcome:v1",
+  "description": "Explicit opt-in original provider rejection after an attempted HTTP POST. No dispatch rollback, retry permission, delivery or preview restoration is asserted.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "kind", "request_id", "operation_id", "outcome", "dispatch_certainty", "stage", "error"],
+  "properties": {
+    "schema_version": {"const": "wiskey-arx-messaging-outcome.v1"},
+    "kind": {"const": "action_result"},
+    "request_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "operation_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "outcome": {"const": "not_sent"},
+    "dispatch_certainty": {"const": "possible"},
+    "stage": {"const": "post_dispatch"},
+    "error": {
+      "type": "object", "additionalProperties": false,
+      "required": ["code", "send_state", "throttle_scope", "retry_after_s", "retry_after_source", "cause"],
+      "properties": {
+        "code": {"enum": ["rate_limited", "pair_rate_limited"]},
+        "send_state": {"const": "not_sent"},
+        "throttle_scope": {"enum": ["account", "pair"]},
+        "retry_after_s": {"type": ["integer", "null"], "minimum": 0, "maximum": 9007199254740991},
+        "retry_after_source": {"enum": ["verified_provider_response", null]},
+        "cause": {"const": "provider_throttle"}
+      },
+      "allOf": [
+        {"if": {"properties": {"code": {"const": "pair_rate_limited"}}}, "then": {"properties": {"throttle_scope": {"const": "pair"}}}, "else": {"properties": {"throttle_scope": {"const": "account"}}}},
+        {"if": {"properties": {"retry_after_s": {"type": "null"}}}, "then": {"properties": {"retry_after_source": {"type": "null"}}}, "else": {"properties": {"retry_after_source": {"const": "verified_provider_response"}}}}
+      ]
+    }
+  }
+}

@@ -25,6 +25,7 @@ from ..db import Database, get_setting, now_iso, unlocked
 from ..errors import ApiError
 from . import bridge_keys as bk
 from . import ha_bridge, ha_client
+from .wiskey_distribution_digest import digest as distribution_digest, files as distribution_files
 
 log = logging.getLogger("smplwise.bridge")
 
@@ -84,12 +85,29 @@ def _marker(target: Path) -> dict[str, Any]:
         return {}
 
 
+def _manual_owner_profile(cfg: Path | None) -> bool:
+    return bool(cfg and ((cfg / "hikvision_intercom_manual_upgrade.json").exists()
+        or (cfg / "hikvision_intercom_manual_upgrade.json").is_symlink()
+        or (cfg / "custom_components/hikvision_intercom/_manual_upgrade_profile.json").exists()
+        or (cfg / "custom_components/hikvision_intercom/_manual_upgrade_profile.json").is_symlink()))
+
+
+def _target_digest(target: Path) -> str | None:
+    try:
+        return distribution_digest(target)
+    except (OSError, ValueError):
+        return None
+
+
 def _copy_tree(src: Path, dst: Path) -> int:
     """Fresh copy next to the target, then swap (Home Assistant only reads custom components at start-up)."""
+    expected = distribution_digest(src)  # rejects links/collisions before copy
     tmp = dst.with_name(dst.name + ".smplwise-new")
     if tmp.exists():
         shutil.rmtree(tmp)
-    shutil.copytree(src, tmp, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".DS_Store", MARKER))
+    shutil.copytree(src, tmp, symlinks=True, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".DS_Store", MARKER))
+    if distribution_digest(tmp) != expected:
+        raise OSError("component_copy_digest_mismatch")
     if dst.exists():
         old = dst.with_name(dst.name + ".smplwise-old")
         if old.exists():
@@ -118,22 +136,31 @@ def announce_discovery(db: Database, settings: Settings, conn: sqlite3.Connectio
     """Tell the Supervisor that the bridge service is available (Home Assistant shows it as discovered). Only while a fresh pairing code
     waits to be paired (first install or a re-pair): once the code is adopted into the key set nothing is announced (K-01) - the bridge is
     already configured and a discovery would only push a code into its entry."""
+    if _manual_owner_profile(ha_config_dir()):
+        return False
     if not ha_client.supervisor_token():
         return False
+    from . import wiskey_auto_install as wai
+
     if conn is not None:
         secret = _discovery_code(conn)
+        auto = wai.switch_on(conn)
     else:
         with db.connection() as c:
             secret = _discovery_code(c)
+            auto = wai.switch_on(c)
     if not secret:
         STATE["discovery_posted_at"] = None
         return False
+    # WISKEY-ADOPT-2272 (WisKey owner28): with the automatic installation switched on, the announcement asks the bridge to pair
+    # without its confirmation form (the add-on's own authenticated Supervisor discovery); otherwise unchanged
+    config = {"addon_url": addon_url(), "pairing_code": secret, **({"wiskey_auto_install": True} if auto else {})}
     try:
         if conn is not None:
             with unlocked(conn):  # the Supervisor call runs without the request's write lock
-                ha_client.post_discovery(settings, DOMAIN, {"addon_url": addon_url(), "pairing_code": secret})
+                ha_client.post_discovery(settings, DOMAIN, config)
         else:
-            ha_client.post_discovery(settings, DOMAIN, {"addon_url": addon_url(), "pairing_code": secret})
+            ha_client.post_discovery(settings, DOMAIN, config)
     except ApiError as exc:
         STATE["last_error"] = f"discovery:{exc.code}"
         log.warning("bridge discovery announcement failed: %s", exc.code)
@@ -145,6 +172,9 @@ def announce_discovery(db: Database, settings: Settings, conn: sqlite3.Connectio
 def install(db: Database, settings: Settings, force: bool = False, announce: bool = True, conn: sqlite3.Connection | None = None) -> dict[str, Any]:
     """Copy the integration into Home Assistant's config directory when missing/outdated (or forced).
     `conn` is the request transaction when called from a handler (a nested connection would wait on it)."""
+    if conn is None:
+        with db.connection(label="automatic WisKey installation") as owned:
+            return install(db,settings,force,announce,owned)
     with _lock:
         STATE["last_run"] = now_iso()
         STATE["last_error"] = None
@@ -160,25 +190,44 @@ def install(db: Database, settings: Settings, force: bool = False, announce: boo
         if not cfg:
             STATE["last_error"] = "ha_config_not_mapped"
             return status(db, conn)
+        if _manual_owner_profile(cfg):
+            STATE["last_error"] = "manual_owner_upgrade_profile"
+            # WISKEY-RC7-ADOPT-2331 (section 8a): the native guard records the refusal (read-only preflight, one audit row per new
+            # refusal); nothing is written to either component directory
+            from . import wiskey_auto_install as wai
+
+            wai.installer_step(db, settings, cfg, src, conn=conn, restart=False)
+            return status(db, conn)
         target = cfg / "custom_components" / DOMAIN
         installed = read_version(target) if target.is_dir() else None
         STATE["installed_version"] = installed
         STATE["installed_at"] = _marker(target).get("at") if installed else None
         try:
-            if force or installed != STATE["source_version"]:
+            # WISKEY-RC4-2310: re-copy on a forced run, a missing target, a different version label OR different content (rc.4 portable
+            # digest); an installed tree the digest refuses (a link, a case alias, no manifest) counts as different and is replaced.
+            if force or not target.is_dir() or installed != STATE["source_version"] or distribution_digest(src) != _target_digest(target):
+                from .wiskey_native_projection import invalidate
+                invalidate(cfg)
                 (cfg / "custom_components").mkdir(exist_ok=True)
                 n = _copy_tree(src, target)
                 at = now_iso()
                 (target / MARKER).write_text(json.dumps({"version": STATE["source_version"], "at": at, "files": n}), encoding="utf-8")
                 STATE.update(installed_version=STATE["source_version"], installed_at=at, installed_now=True)
                 log.info("bridge integration %s copied into Home Assistant's custom_components (%d files); restart Home Assistant to load it", STATE["source_version"], n)
-        except OSError as exc:
+        except (OSError, ValueError) as exc:  # ValueError: the source tree is refused by the digest (link, alias, no manifest)
             STATE["last_error"] = f"copy_failed:{type(exc).__name__}"
             log.warning("bridge integration copy failed: %s", type(exc).__name__)
             return status(db, conn)
-        if announce:
-            announce_discovery(db, settings, conn)
-        return status(db, conn)
+    # WISKEY-ADOPT-2272: the pinned WisKey native bundle next to the bridge (staging, one restart per digest) - only with the
+    # `wiskey.auto_install` switch on; it never blocks the bridge's own copy or its announcement. WisKey M12 policy B (S2): the gate
+    # (`preflight_managed_runtime`: guards, OFF before any Core read, the Core runtime READ gate) runs inside installer_step, in front of
+    # the native writer only - Arx deviation, owner default D2=a: the contribution's call before the bridge copy above is not adopted.
+    from . import wiskey_auto_install as wai
+
+    wai.installer_step(db, settings, cfg, src, conn=conn, restart=announce)
+    if announce:
+        announce_discovery(db, settings, conn)
+    return status(db, conn)
 
 
 def run_startup(db: Database, settings: Settings) -> None:
@@ -193,7 +242,7 @@ def run_startup(db: Database, settings: Settings) -> None:
 
 
 def _state(d: dict[str, Any]) -> str:
-    if d["last_error"] in ("source_missing", "ha_config_not_mapped") or not d["config_dir"]:
+    if d["last_error"] in ("source_missing", "ha_config_not_mapped", "manual_owner_upgrade_profile") or not d["config_dir"]:
         return "not_available"
     if d["last_error"] and str(d["last_error"]).startswith("copy_failed"):
         return "error"
@@ -221,4 +270,7 @@ def status(db: Database | None = None, conn: sqlite3.Connection | None = None) -
     d["up_to_date"] = bool(d["source_version"]) and d["installed_version"] == d["source_version"]
     d["state"] = _state(d)
     d["addon_url"] = addon_url()
+    from . import wiskey_auto_install as wai
+
+    d["wiskey_native"] = dict(wai.NATIVE)  # WISKEY-ADOPT-2272: off / staged / up_to_date / source_missing / error (+ code), no path
     return d

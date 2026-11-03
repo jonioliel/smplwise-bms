@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wiskey.invalid/contracts/arx/v1/installation.v1.schema.json",
+  "x-contract-version": "1.0.0",
+  "type": "object",
+  "properties": {
+    "format": {
+      "const": "wiskey-local-installation.v1"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "installation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "repository_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "catalog_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+      },
+      "uniqueItems": true
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "$ref": "definitions.json#/$defs/InstallationEntry"
+      }
+    },
+    "readiness": {
+      "enum": [
+        "ready",
+        "waiting_for_arx_bridge"
+      ]
+    },
+    "template_registry_command": {
+      "const": "whatsapp/template_registry_v1"
+    },
+    "event_cursor_command": {
+      "const": "events/resume_v1"
+    },
+    "discovery_command": {
+      "const": "direct/capabilities_v2"
+    }
+  },
+  "required": [
+    "format",
+    "schema_version",
+    "installation_id",
+    "repository_id",
+    "catalog_sha256",
+    "commands",
+    "entries",
+    "readiness",
+    "template_registry_command",
+    "event_cursor_command",
+    "discovery_command"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "readiness": {
+            "const": "ready"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "entries": {
+            "minItems": 1
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "entries": {
+            "maxItems": 0
+          }
+        }
+      }
+    }
+  ]
+}

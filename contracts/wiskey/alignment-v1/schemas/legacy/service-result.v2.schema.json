@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wiskey.invalid/contracts/arx/v1/service-result.v2.schema.json",
+  "x-contract-version": "1.0.0",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "contract": {
+          "const": "wiskey-native-service-write.v2"
+        },
+        "schema_version": {
+          "const": 1
+        },
+        "state": {
+          "const": "completed"
+        },
+        "code": {
+          "enum": [
+            "central_saved",
+            "pin_generated_not_saved"
+          ]
+        },
+        "operation_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "result": {},
+        "receipt": {
+          "$ref": "definitions.json#/$defs/ServiceReceipt"
+        },
+        "replay_available": {
+          "const": false
+        }
+      },
+      "required": [
+        "contract",
+        "schema_version",
+        "state",
+        "code",
+        "operation_id",
+        "result",
+        "receipt",
+        "replay_available"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "contract": {
+          "const": "wiskey-native-service-write.v2"
+        },
+        "schema_version": {
+          "const": 1
+        },
+        "state": {
+          "enum": [
+            "completed",
+            "unknown"
+          ]
+        },
+        "code": {
+          "const": "operation_already_recorded"
+        },
+        "operation_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "receipt": {
+          "anyOf": [
+            {
+              "$ref": "definitions.json#/$defs/ServiceReceipt"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "replay_available": {
+          "const": false
+        }
+      },
+      "required": [
+        "contract",
+        "schema_version",
+        "state",
+        "code",
+        "operation_id",
+        "receipt",
+        "replay_available"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

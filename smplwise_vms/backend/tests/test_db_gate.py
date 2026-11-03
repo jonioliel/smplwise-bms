@@ -649,3 +649,13 @@ def test_a_gate_kept_after_a_manual_commit_is_reported(db, monkeypatch, caplog):
                     pass
         assert any("manual committer" in r.getMessage() and "outside a transaction" in r.getMessage() for r in caplog.records)
     assert db.gate.state() == {"held": False, "waiting": 0}
+
+
+def test_rollback_now_drops_the_writes_and_hands_the_gate_on(db):
+    """WISKEY-R3-2272: the by-hand rollback (a bare conn.rollback() keeps the gate and is forbidden outside db.py)."""
+    with db.connection(label="rolls back") as conn:
+        set_setting(conn, "rb", "1")
+        db_mod.rollback_now(conn)
+        assert not conn.in_transaction and not db.gate.state()["held"]
+    with db.connection(mode="read") as conn:
+        assert db_mod.get_setting(conn, "rb") is None

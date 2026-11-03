@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wiskey.invalid/contracts/arx/v1/event-record.v1.schema.json",
+  "x-contract-version": "1.0.0",
+  "$ref": "definitions.json#/$defs/EventRecord"
+}

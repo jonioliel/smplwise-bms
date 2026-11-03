@@ -572,19 +572,24 @@ def emergency_state(request: Request, principal: Principal = Depends(current_pri
         raise ApiError(403, "forbidden", "אין הרשאה.")
     settings = settings_of(request)
     can_lock, can_open = de.LOCK in perms, de.OPEN in perms
+    lock_live = de.lock_available(settings, conn)  # DOORLIVE-2310: the LOCK control is hidden while no WisKey command exists for it
     active = de.active_incident(conn)
     drill = de.active_incident(conn, drill=True)
     out: dict[str, Any] = {
         "enabled": de.enabled(conn), "open_enabled": de.open_enabled(conn, settings), "hold_ms": int(de.setting(conn, de.HOLD_MS)),
         "home_widget": de.setting(conn, de.HOME_WIDGET) == "on",  # DOORWIN2-295: the optional home-screen entry (off by default)
-        "can": {"lock": can_lock, "open": can_open, "grant": deg.grant_basis(conn, principal) is not None},  # EMROLE-295: the holders panel
+        "can": {"lock": can_lock and lock_live, "open": can_open, "grant": deg.grant_basis(conn, principal) is not None},  # EMROLE-295: the holders panel
         "active": de.incident_view(conn, active, with_doors=can_lock or can_open) | {"can_release": authorize(conn, principal, de.PERMISSION[active["kind"]],
                                                                                                                 de.scope_target(active["scope_type"], active["scope_id"])).allowed,
                                                               "can_retry_open": active["kind"] == "open" and not active["drill"] and de.retry_open_basis(conn, principal) is not None}
         if active is not None else None,
     }
+    if active is not None:
+        from ..services import door_engine_live
+
+        out["active"]["verify_required"] = door_engine_live.verify_required(active["id"])  # DOORLIVE-2310: found active at start - verify against the access system
     if can_lock or can_open:
-        out["scopes"] = {"lock_secure": de.scopes_for(conn, principal, "lock_secure") if can_lock else [],
+        out["scopes"] = {"lock_secure": de.scopes_for(conn, principal, "lock_secure") if can_lock and lock_live else [],
                          "open": de.scopes_for(conn, principal, "open") if can_open else []}
         out["drill"] = de.incident_view(conn, drill) if drill is not None and drill["requested_by"] == principal.user_id else None
         labels = dw.doors_by_key(conn)

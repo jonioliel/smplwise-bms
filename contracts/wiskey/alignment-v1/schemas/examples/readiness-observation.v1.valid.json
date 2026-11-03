@@ -1,0 +1,8 @@
+{
+  "format": "wiskey-readiness-observation.v1",
+  "schema_version": 1,
+  "generation_id": "synthetic-generation",
+  "claim_id": null,
+  "state": "deadline",
+  "readiness": null
+}

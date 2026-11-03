@@ -19,6 +19,7 @@ from . import wa_template_send as wts
 from . import wiskey_template_direct as wtd
 
 ADOPTED = "ADOPTED_W013"
+ADOPTED_MAC = "ADOPTED_MAC_2026_10_27"  # WISKEY-MAC-ADOPT-298: confirmed in writing by WisKey's seven template answers (product CODE c82b2d10)
 UNCONFIRMED = "UNCONFIRMED"
 
 # -- re-exported wire names (single import point for the flow) -------------------------------------------------------------------
@@ -44,14 +45,17 @@ ITEMS: tuple[dict[str, str], ...] = (
     {"item": "result_schema", "value": "schema_version 2, six closed keys", "status": ADOPTED, "note": "W013 item 3-4; v1 results are never read as v2"},
     {"item": "template_ref_pair", "value": "template_ref + expected_template_revision", "status": ADOPTED,
      "note": "WisKey's private template reference; an administrator copies it from WisKey, Arx never invents it"},
-    {"item": "person_revision_source", "value": "users/get `revision` of the recipient", "status": UNCONFIRMED,
-     "note": "Arx reads the revision from the same person record WisKey serves; WisKey has not confirmed that it is the revision v2 compares"},
+    {"item": "person_revision_source", "value": "users/get `revision` of the recipient", "status": ADOPTED_MAC,
+     "note": "WisKey answer 2 (Mac 03_template_peer, 27.10): the same native person revision users/get returns, compared before compose and "
+             "re-checked before dispatch"},
     {"item": "pacing_schema_version", "value": str(PACING_SCHEMA_VERSION), "status": UNCONFIRMED,
-     "note": "pacing_status_v1 is assumed to cover template sends; WisKey has not said whether a v2 send is charged to the same counters"},
-    {"item": "retry_after_on_not_sent", "value": "none in a closed v2 result", "status": UNCONFIRMED,
-     "note": "Arx never retries; a pair/rate throttle on v2 has no closed result code yet"},
-    {"item": "conversation_window_signal", "value": "none (Arx treats window `unknown` as closed)", "status": UNCONFIRMED,
-     "note": "owner 25.10: an open window is enough, no consent flag; WisKey exposes no window state to read"},
+     "note": "WisKey answer 3 (partial): v2 uses the native pacing ledger, message_class `code`; shared_budget_guaranteed=false - no shared "
+             "provider budget is inferred"},
+    {"item": "retry_after_on_not_sent", "value": "none in a closed v2 result", "status": ADOPTED_MAC,
+     "note": "WisKey answer 4: `not_sent` + `source_or_admission_refused` is the closed non-dispatch result; no top-level retry_after; no "
+             "delay or not_sent authorises replay of an UNKNOWN"},
+    {"item": "conversation_window_signal", "value": "not needed: an explicit approved template is sent inside an open window", "status": ADOPTED_MAC,
+     "note": "WisKey answer 5 option b; Arx's send_v2 no longer refuses `window_open` (WISKEY-MAC-ADOPT-298 item B)"},
     {"item": "queue_and_execution_source", "value": "Mac station production queue", "status": UNCONFIRMED,
      "note": "WisKey said the execution source and queue are not installed (23.10); no live v2 send has ever been made"},
 )

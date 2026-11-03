@@ -1,0 +1,116 @@
+{
+  "format": "wiskey-alignment-schema-index.v1",
+  "schemas": [
+    {
+      "path": "controller-projection.v1.schema.json",
+      "sha256": "6142de2a420551c239173cbed2dd4cb3844e1c04b28fb6754cb4b2a4b8cf38de",
+      "version": "1.0.0",
+      "scope": "controller-projection.v1"
+    },
+    {
+      "path": "restart-request.v2.schema.json",
+      "sha256": "078bc35c0357f20c34df976a8466955b096d0f7e6cb43c629a23d1c381398e2b",
+      "version": "1.0.0",
+      "scope": "restart-request.v2"
+    },
+    {
+      "path": "restart-result.v2.schema.json",
+      "sha256": "e330435b9593895fbc77eed58da1337606d3819eca4ade87eb072cb551d95172",
+      "version": "1.0.0",
+      "scope": "restart-result.v2"
+    },
+    {
+      "path": "restart-executions.v1.schema.json",
+      "sha256": "aaf895bd83945cc196affee9ba1537a21072ec18de1c672cbadbdc506aaed26b",
+      "version": "1.0.0",
+      "scope": "restart-executions.v1"
+    },
+    {
+      "path": "arx-generation-journal.v1.schema.json",
+      "sha256": "1208ad9279aa4ed9c715280dbce61e8cfca3783bf968d2718d63bb60dbcf4110",
+      "version": "1.0.0",
+      "scope": "arx-generation-journal.v1"
+    },
+    {
+      "path": "readiness-observation.v1.schema.json",
+      "sha256": "0f85c39703c94f91d9149ee6c11c37e7a830fb875ecd3679bc3f448f8ecf0c98",
+      "version": "1.0.0",
+      "scope": "readiness-observation.v1"
+    },
+    {
+      "path": "r2-intent-archive.v1.schema.json",
+      "sha256": "5ef98121073dabf6be7a4be86e9ac7ea58a82132812eea5dde844dadea78e1fc",
+      "version": "1.0.0",
+      "scope": "r2-intent-archive.v1"
+    },
+    {
+      "path": "existing-whatsapp-source.v1.schema.json",
+      "sha256": "e57597df7846c4d2d78110ffbc297f2f1531b135e4265a5eb78dfd2a6557bf9a",
+      "version": "1.0.0",
+      "scope": "existing-whatsapp-source.v1"
+    },
+    {
+      "path": "template-source-status.v1.schema.json",
+      "sha256": "24cffa009e6d5d1eef936d0052f63b417b56e344a8daa2f9f02091441c4ae200",
+      "version": "1.0.0",
+      "scope": "template-source-status.v1"
+    },
+    {
+      "path": "capability-preflight.v1.schema.json",
+      "sha256": "58e5068eb865387b5242f3e8e03689b2d94d89553fd5f051e2c8fba71ba7caaf",
+      "version": "1.0.0",
+      "scope": "capability-preflight.v1"
+    },
+    {
+      "path": "arx-api-error.v1.schema.json",
+      "sha256": "91b451d83e0d6276fae038afafe1766377819fd1f1388a8e3e90ce2a00144b89",
+      "version": "1.0.0",
+      "scope": "arx-api-error.v1"
+    },
+    {
+      "path": "jobs-approval-request.v1.schema.json",
+      "sha256": "3ab893785eb0894793c0f62bfd02114600cdf2935421ca23299e8c6ab557a950",
+      "version": "1.0.0",
+      "scope": "jobs-approval-request.v1"
+    },
+    {
+      "path": "jobs-approval-decide.v1.schema.json",
+      "sha256": "15ceb286360623e66387f9d96d61ea86f0f13536060c70bdb1fc4e75c3f4d0f9",
+      "version": "1.0.0",
+      "scope": "jobs-approval-decide.v1"
+    },
+    {
+      "path": "jobs-public-result.v1.schema.json",
+      "sha256": "ead78ac482d4a71d1653029b63a3c1340411500c9354e27bdb4e32df26b3059d",
+      "version": "1.0.0",
+      "scope": "jobs-public-result.v1"
+    },
+    {
+      "path": "template-send-request.v2.schema.json",
+      "sha256": "d1a3214dec310c94b59677b45e02dea5e89e6cca563ffba207fa2f9693b5da80",
+      "version": "1.0.0",
+      "scope": "template-send-request.v2"
+    },
+    {
+      "path": "template-send-result.v2.schema.json",
+      "sha256": "cd0ef907bf7cbb874bf6871ce721bb91000420993ee856c3f0d10710a4fe9cae",
+      "version": "1.0.0",
+      "scope": "template-send-result.v2"
+    },
+    {
+      "path": "runtime-preflight-observation.v1.schema.json",
+      "sha256": "c9175b0720dd9e97ac9bdedae092ca2d7918e6002d3abc9155898bcc25e0b3c0",
+      "version": "1.0.0",
+      "scope": "runtime-preflight-observation.v1"
+    }
+  ],
+  "contextual_invariants": [
+    "original signed actor/grant identity",
+    "Arx claim and generation CAS",
+    "pair equality and process boot binding",
+    "no replay for UNKNOWN",
+    "template approval/account/revision/source binding",
+    "UTF-8 byte bounds enforced by original business validator"
+  ],
+  "legacy": "byte-preserved local refs; not silently extended"
+}

@@ -12,7 +12,7 @@ from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service_info.hassio import HassioServiceInfo
 
-from .const import CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_LOCAL_IDENTITY_EXTENDED, CONF_LOCAL_IDENTITY_RUNNABLE, CONF_PAIRING_CODE, CONF_SERVICE_USER_ID, DEFAULT_ADDON_URL, DOMAIN, VERSION
+from .const import CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_LOCAL_IDENTITY_EXTENDED, CONF_LOCAL_IDENTITY_RUNNABLE, CONF_PAIRING_CODE, CONF_SERVICE_USER_ID, CONF_WISKEY_AUTO_INSTALL, DEFAULT_ADDON_URL, DOMAIN, VERSION
 from .runnable import RUNNABLE_DOMAINS, parse_runnable, selector_value
 from .service_identity import options_error
 from .signing import sign
@@ -63,12 +63,21 @@ class SmplwiseBridgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         code = str(cfg.get("pairing_code") or "").strip()
         if not code:
             return self.async_abort(reason="invalid_discovery")
+        auto = cfg.get("wiskey_auto_install") is True
         await self.async_set_unique_id(DOMAIN)
-        # An existing entry takes the (possibly regenerated) pairing code and reloads; nothing is duplicated.
-        self._abort_if_unique_id_configured(updates={CONF_ADDON_URL: url, CONF_PAIRING_CODE: code})
+        # An existing entry takes the (possibly regenerated) pairing code and reloads; nothing is duplicated. Review H4: only the
+        # automatic-install discovery adds the entry flag that lets the bridge set up the native intercom component.
+        self._abort_if_unique_id_configured(updates={CONF_ADDON_URL: url, CONF_PAIRING_CODE: code, **({CONF_WISKEY_AUTO_INSTALL: True} if auto else {})})
         self._discovered = {CONF_ADDON_URL: url, CONF_PAIRING_CODE: code}
         self._addon_name = discovery_info.name or self._addon_name
         self.context["title_placeholders"] = {"addon": self._addon_name}
+        if auto:
+            # 0.10.x (WISKEY-ADOPT-2272, owner28): the add-on's own authenticated Supervisor discovery asks for the automatic
+            # installation - the entry is created after a successful signed ping, without the confirmation form
+            err = await self._try_pair(url, code)
+            if err is not None:
+                return self.async_abort(reason=err)
+            return self.async_create_entry(title="SMPLWISE Bridge", data={**self._discovered, CONF_WISKEY_AUTO_INSTALL: True})
         return await self.async_step_hassio_confirm()
 
     async def async_step_hassio_confirm(self, user_input: dict[str, Any] | None = None):

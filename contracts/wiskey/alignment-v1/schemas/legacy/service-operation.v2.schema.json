@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wiskey.invalid/contracts/arx/v1/service-operation.v2.schema.json",
+  "x-contract-version": "1.0.0",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "command": {
+          "const": "users/create"
+        },
+        "service_write": {
+          "$ref": "definitions.json#/$defs/ServiceMetadataV2"
+        },
+        "data": {
+          "$ref": "definitions.json#/$defs/UserPatch"
+        },
+        "sync_now": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "command",
+        "service_write",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "command": {
+          "const": "users/update"
+        },
+        "service_write": {
+          "$ref": "definitions.json#/$defs/ServiceMetadataV2"
+        },
+        "user_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "data": {
+          "$ref": "definitions.json#/$defs/UserPatch"
+        },
+        "sync_now": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "command",
+        "service_write",
+        "user_id",
+        "revision",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "command": {
+          "const": "users/pin_generate"
+        },
+        "service_write": {
+          "$ref": "definitions.json#/$defs/ServiceMetadataV2"
+        },
+        "user_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        }
+      },
+      "required": [
+        "command",
+        "service_write",
+        "user_id"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "command": {
+          "const": "users/temporary_cancel"
+        },
+        "service_write": {
+          "$ref": "definitions.json#/$defs/ServiceMetadataV2"
+        },
+        "user_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "reason_code": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "command",
+        "service_write",
+        "user_id",
+        "revision",
+        "reason_code"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

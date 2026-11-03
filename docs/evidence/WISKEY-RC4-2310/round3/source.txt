@@ -1,0 +1,15 @@
+HEAD=e584d1533b68e8e2e85b13f2bde4d2531da6b74a
+DIRTY=0
+START=2026-10-30T22:41:27Z
+$ /c/cloude/smplwisebms/.venv/Scripts/python.exe -m pytest -p no:cacheprovider -rfE --junitxml=source.junit.xml $(cat source.files)
+........................................................................ [ 72%]
+............................                                             [100%]
+============================== warnings summary ===============================
+..\..\..\smplwisebms\.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\cloude\smplwisebms\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+100 passed, 1 warning in 173.07s (0:02:53)
+END=2026-10-30T22:44:43Z
+EXIT CODE=0

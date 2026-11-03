@@ -3,6 +3,7 @@
  * the access-control system for a read. Hebrew first; English, Arabic and Russian follow the document language (a missing key falls back
  * to the Hebrew; a unit test holds the parity). The Arabic and Russian columns are an INITIAL translation and need a native review
  * (dev-marked). No internal key name and no home-platform name on the face; the key is shown only in the small details line.
+ * WISKEY-RC7-ADOPT-2331 S1: the `install*` words - the owner's automatic-installation switch, a separate group on the same screen.
  */
 const he = {
   tab: 'קריאות בקרת כניסה',
@@ -35,6 +36,13 @@ const he = {
   confirmOffText: 'המערכת תפסיק לבקש מידע זה. מה שאי אפשר לוודא ייחשב כלא ידוע.',
   doneOn: 'המתג הופעל',
   doneOff: 'המתג כובה',
+  installGroup: 'התקנה אוטומטית',
+  installTitle: 'התקנה אוטומטית של רכיב בקרת הכניסה',
+  installText: 'כשמופעל, המערכת מתקינה ומעדכנת את רכיב בקרת הכניסה בעצמה, רק אחרי שכל הבדיקות עוברות. התקנה ידנית או זרה לעולם אינה נדרסת.',
+  installPermitMissing: 'אי אפשר להפעיל עדיין: בדיקת התאימות של סביבת ההתקנה עדיין אינה יכולה לעבור, ובדיקת המעבדה המבודדת טרם הושלמה.',
+  installPermitRefused: 'ההפעלה נדחתה: בדיקת התאימות של סביבת ההתקנה עדיין אינה יכולה לעבור, ובדיקת המעבדה המבודדת טרם הושלמה. המתג נשאר כבוי.',
+  installConfirmOnText: 'המערכת תתקין ותעדכן את רכיב בקרת הכניסה בעצמה, רק כשכל הבדיקות עוברות. התקנה ידנית או זרה לא תידרס. אפשר לכבות בכל רגע.',
+  installConfirmOffText: 'המערכת תפסיק להתקין ולעדכן את רכיב בקרת הכניסה. מה שכבר מותקן נשאר כפי שהוא.',
 };
 type Key = keyof typeof he;
 
@@ -69,6 +77,13 @@ const en: Record<Key, string> = {
   confirmOffText: 'The system will stop asking for this information. Anything that cannot be verified counts as unknown.',
   doneOn: 'The switch is on',
   doneOff: 'The switch is off',
+  installGroup: 'Automatic installation',
+  installTitle: 'Automatic installation of the access-control component',
+  installText: 'When on, the system installs and updates the access-control component by itself, only after every check passes. A manual or foreign installation is never overwritten.',
+  installPermitMissing: 'It cannot be turned on yet: the compatibility check of the installation environment cannot pass yet, and the isolated lab test is not done.',
+  installPermitRefused: 'Turning it on was refused: the compatibility check of the installation environment cannot pass yet, and the isolated lab test is not done. The switch stays off.',
+  installConfirmOnText: 'The system will install and update the access-control component by itself, only when every check passes. A manual or foreign installation is never overwritten. You can turn it off at any time.',
+  installConfirmOffText: 'The system will stop installing and updating the access-control component. What is already installed stays as it is.',
 };
 
 // initial translation - needs a native review (dev-marked)
@@ -103,6 +118,13 @@ const ar: Record<Key, string> = {
   confirmOffText: 'سيتوقف النظام عن طلب هذه المعلومات. ما لا يمكن التحقق منه يُعد غير معروف.',
   doneOn: 'تم تشغيل المفتاح',
   doneOff: 'تم إيقاف المفتاح',
+  installGroup: 'التثبيت التلقائي',
+  installTitle: 'التثبيت التلقائي لمكوّن التحكم في الدخول',
+  installText: 'عند التشغيل، يثبّت النظام مكوّن التحكم في الدخول ويحدّثه بنفسه، فقط بعد نجاح كل الفحوص. لا يُستبدل أبدا تثبيت يدوي أو غريب.',
+  installPermitMissing: 'لا يمكن التشغيل بعد: فحص توافق بيئة التثبيت لا يمكنه النجاح بعد، واختبار المختبر المعزول لم يكتمل.',
+  installPermitRefused: 'رُفض التشغيل: فحص توافق بيئة التثبيت لا يمكنه النجاح بعد، واختبار المختبر المعزول لم يكتمل. يبقى المفتاح متوقفا.',
+  installConfirmOnText: 'سيثبّت النظام مكوّن التحكم في الدخول ويحدّثه بنفسه، فقط عند نجاح كل الفحوص. لن يُستبدل تثبيت يدوي أو غريب. يمكن الإيقاف في أي وقت.',
+  installConfirmOffText: 'سيتوقف النظام عن تثبيت مكوّن التحكم في الدخول وتحديثه. ما هو مثبت يبقى كما هو.',
 };
 
 // initial translation - needs a native review (dev-marked)
@@ -137,6 +159,13 @@ const ru: Record<Key, string> = {
   confirmOffText: 'Система перестанет запрашивать эти данные. То, что нельзя проверить, считается неизвестным.',
   doneOn: 'Переключатель включён',
   doneOff: 'Переключатель выключен',
+  installGroup: 'Автоматическая установка',
+  installTitle: 'Автоматическая установка компонента контроля доступа',
+  installText: 'Если включено, система сама устанавливает и обновляет компонент контроля доступа, только после прохождения всех проверок. Ручная или чужая установка никогда не перезаписывается.',
+  installPermitMissing: 'Пока включить нельзя: проверка совместимости среды установки пока не может пройти, а тест в изолированной лаборатории не завершён.',
+  installPermitRefused: 'Включение отклонено: проверка совместимости среды установки пока не может пройти, а тест в изолированной лаборатории не завершён. Переключатель остаётся выключенным.',
+  installConfirmOnText: 'Система будет сама устанавливать и обновлять компонент контроля доступа, только когда все проверки пройдены. Ручная или чужая установка не перезаписывается. Выключить можно в любой момент.',
+  installConfirmOffText: 'Система перестанет устанавливать и обновлять компонент контроля доступа. Уже установленное остаётся как есть.',
 };
 
 export type WsKey = Key;

@@ -7,17 +7,21 @@ import { installExternalMock, XNOW } from './access-external-mocks';
 //   - turning one on / off asks for a confirmation and sends exactly that one key;
 //   - while the build has no go-live permit an "off" switch cannot be turned on and the row says why; a 409 from a stale screen
 //     is worded the same way; a 403 shows the closed forbidden panel.
+// WISKEY-RC7-ADOPT-2331 S1 (WisKey M12 policy B): a fifth row, the owner's automatic-installation switch (`wiskey.auto_install`) in its own
+// group, with its own build permit (`auto_install_permitted`, false in this build): shown off, ON not offered, the row says why.
 // Desktop and phone (--project=desktop / --project=mobile). Needs the Vite dev server or a built preview (SW_BASE_URL).
 const SCREEN = 'sw-app system-security-wiskey';
-const KEYS = ['wiskey.acr5_access_state', 'wiskey.acr5_normalize_user', 'wiskey.acr5_presence', 'wiskey.acr5_feature_plans'];
+const KEYS = ['wiskey.acr5_access_state', 'wiskey.acr5_normalize_user', 'wiskey.acr5_presence', 'wiskey.acr5_feature_plans', 'wiskey.auto_install'];
+const READS = '[data-wiskey-switch]:not([data-wiskey-switch="install"])';
 
 const json = (route: Route, body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 const problem = (code: string) => ({ code, user_message: '', retryable: false, correlation_id: 'mock', details: {} });
 
 interface Opts {
   permit?: boolean;
+  installPermit?: boolean;
   get?: 'ok' | 'forbidden';
-  put?: 'ok' | 'conflict';
+  put?: 'ok' | 'conflict' | 'installConflict';
 }
 
 async function boot(page: Page, o: Opts = {}) {
@@ -26,6 +30,7 @@ async function boot(page: Page, o: Opts = {}) {
   state['wiskey.acr5_presence'] = 'on';
   const puts: Record<string, unknown>[] = [];
   let permit = o.permit ?? true;
+  let installPermit = o.installPermit ?? false;
   await page.route('**/api/v1/wiskey/switches', async (route) => {
     const req = route.request();
     if (o.get === 'forbidden') return json(route, problem('not_system_admin'), 403);
@@ -36,9 +41,13 @@ async function boot(page: Page, o: Opts = {}) {
         permit = false;
         return json(route, problem('wiskey_not_permitted'), 409);
       }
+      if (o.put === 'installConflict') {
+        installPermit = false;
+        return json(route, problem('auto_install_not_permitted'), 409);
+      }
       Object.assign(state, body.switches);
     }
-    return json(route, { switches: state, go_live_permitted: permit });
+    return json(route, { switches: state, go_live_permitted: permit, auto_install_permitted: installPermit });
   });
   await page.clock.setFixedTime(XNOW);
   const errors: string[] = [];
@@ -54,13 +63,14 @@ test('the four switches in plain language, with the internal key only in the det
   const { errors } = await boot(page);
   const s = page.locator(SCREEN);
   await expect(s.locator('[data-wiskey-switches]')).toBeVisible({ timeout: 30_000 });
-  await expect(s.locator('[data-wiskey-switch]')).toHaveCount(4);
+  await expect(s.locator('[data-wiskey-switch]')).toHaveCount(5);
+  await expect(s.locator(READS)).toHaveCount(4);
   await expect(s.locator('[data-wiskey-switch="presence"] [data-wiskey-state]')).toHaveAttribute('data-state', 'on');
   await expect(s.locator('[data-wiskey-switch="access"] [data-wiskey-state]')).toHaveAttribute('data-state', 'off');
-  await expect(s.locator('[data-wiskey-details]')).toHaveCount(4);
+  await expect(s.locator('[data-wiskey-details]')).toHaveCount(5);
   const face = await s.locator('[data-wiskey-switch] h4, [data-wiskey-switch] .x').allInnerTexts();
   expect(face.join(' ')).not.toMatch(/acr5|wiskey\./i);
-  await expect(s.locator('[data-wiskey-permit]')).toHaveCount(0); // the permit is carried: nothing to explain
+  await expect(s.locator(`${READS} [data-wiskey-permit]`)).toHaveCount(0); // the permit is carried: nothing to explain
   await noOverflow(page);
   expect(errors).toEqual([]);
 });
@@ -97,7 +107,7 @@ test('no go-live permit: an off switch cannot be turned on and says why; one tha
   await boot(page, { permit: false });
   const s = page.locator(SCREEN);
   await expect(s.locator('[data-wiskey-switches]')).toBeVisible({ timeout: 30_000 });
-  await expect(s.locator('[data-wiskey-permit]')).toHaveCount(3); // the three that are off
+  await expect(s.locator(`${READS} [data-wiskey-permit]`)).toHaveCount(3); // the three reads that are off
   await expect(s.locator('[data-wiskey-switch="access"] [data-wiskey-toggle]')).toHaveAttribute('disabled', '');
   await expect(s.locator('[data-wiskey-switch="presence"] [data-wiskey-toggle]')).not.toHaveAttribute('disabled', '');
   await expect(s.locator('[data-wiskey-switch="presence"] [data-wiskey-permit]')).toHaveCount(0);
@@ -120,4 +130,31 @@ test('a caller the server refuses (403) gets the closed forbidden panel and no s
   const s = page.locator(SCREEN);
   await expect(s.locator('[data-wiskey-forbidden]')).toBeVisible({ timeout: 30_000 });
   await expect(s.locator('[data-wiskey-switch]')).toHaveCount(0);
+});
+
+test('the automatic installation: its own group, off, ON not offered in this build and the row says why', async ({ page }) => {
+  const { puts, errors } = await boot(page);
+  const s = page.locator(SCREEN);
+  await expect(s.locator('[data-wiskey-install-group]')).toBeVisible({ timeout: 30_000 });
+  const row = s.locator('[data-wiskey-switch="install"]');
+  await expect(row.locator('[data-wiskey-state]')).toHaveAttribute('data-state', 'off');
+  await expect(row.locator('[data-wiskey-toggle]')).toHaveAttribute('disabled', '');
+  await expect(row.locator('[data-wiskey-permit]')).toContainText('בדיקת המעבדה המבודדת');
+  expect((await row.locator('h4, .x').allInnerTexts()).join(' ')).not.toMatch(/acr5|wiskey\.|home assistant/i);
+  await expect(row.locator('[data-wiskey-details] code')).toHaveText('wiskey.auto_install');
+  expect(puts).toEqual([]);
+  await noOverflow(page);
+  expect(errors).toEqual([]);
+});
+
+test('the automatic installation: a stale screen refused with 409 says why, stays off and is blocked afterwards', async ({ page }) => {
+  const { puts } = await boot(page, { installPermit: true, put: 'installConflict' });
+  const s = page.locator(SCREEN);
+  const row = s.locator('[data-wiskey-switch="install"]');
+  await row.locator('[data-wiskey-toggle]').click();
+  await s.locator('sw-dialog[data-wiskey-dialog="on"] [data-wiskey-confirm]').click();
+  await expect.poll(() => puts).toEqual([{ switches: { 'wiskey.auto_install': 'on' } }]);
+  await expect(s.locator('[data-wiskey-error]')).toContainText('המתג נשאר כבוי');
+  await expect(row.locator('[data-wiskey-state]')).toHaveAttribute('data-state', 'off');
+  await expect(row.locator('[data-wiskey-toggle]')).toHaveAttribute('disabled', '');
 });

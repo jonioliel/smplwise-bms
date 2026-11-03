@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wiskey.invalid/contracts/arx/alignment-v1/arx-generation-journal.v1.schema.json",
+  "x-contract-version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "generation_id",
+    "digest",
+    "state",
+    "claim",
+    "proof",
+    "updated"
+  ],
+  "properties": {
+    "generation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "digest": {
+      "type": "string",
+      "minLength": 1
+    },
+    "state": {
+      "enum": [
+        "staged",
+        "restart_claimed",
+        "restart_requested",
+        "restart_unknown"
+      ]
+    },
+    "claim": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "proof": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "intent",
+            "outcome",
+            "at"
+          ],
+          "properties": {
+            "intent": {
+              "const": "reconcile"
+            },
+            "outcome": {
+              "type": "string",
+              "minLength": 1
+            },
+            "at": {
+              "type": "number"
+            }
+          }
+        }
+      ]
+    },
+    "updated": {
+      "type": "number"
+    }
+  }
+}

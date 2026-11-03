@@ -1,0 +1,8 @@
+{
+  "schema_version": 2,
+  "state": "not_sent",
+  "code": "source_or_admission_refused",
+  "provider_accepted": false,
+  "delivery": "unknown",
+  "retry_permitted": false
+}

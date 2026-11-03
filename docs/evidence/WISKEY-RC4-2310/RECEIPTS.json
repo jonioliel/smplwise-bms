@@ -1,0 +1,123 @@
+{
+ "branch": "pilot/WISKEY-RC4-2310",
+ "workstation": "Windows 11 owner workstation (not the Ubuntu runner)",
+ "python": "C:/cloude/smplwisebms/.venv/Scripts/python.exe (venv of C:/Users/jon/AppData/Local/Programs/Python/Python312, Python 3.12.10)",
+ "cwd": "C:/cloude/smplwise-rc4/smplwise_vms/backend",
+ "inputs": {
+  "OWNER30_FOCUSED.patch": {
+   "source": "C:/hik intercom @ 2c8b05a3ec0da9ba42dba1ff0327eab44c246cb4:docs/owner-development-2026-10-30/mac-arx-upgrade-doors/arx-contribution/OWNER30_FOCUSED.patch",
+   "bytes": 65078,
+   "sha256": "bf076d75714319a3a155248b2052edecc2e27f149992d8762a77df2054add7b5",
+   "verified": true
+  },
+  "patch_base": "8bd92456a798d828acd115c04cd87b2c99e73174",
+  "fixture_delivered": {
+   "source": "2c8b05a3ec0da9ba42dba1ff0327eab44c246cb4:docs/owner-development-2026-10-30/mac-arx-upgrade-doors/C03_contract/schemas/event_status.result.v1.valid.json",
+   "bytes": 1090,
+   "sha256": "8b6087a4a49c2baad397e9f071ef8d1afe4f92e64d343173e21afbd96e43b02f",
+   "verified": true
+  },
+  "fixture_in_repo": {
+   "path": "smplwise_vms/backend/tests/fixtures/wiskey/event_status.result.v1.valid.json",
+   "bytes": 1090,
+   "sha256": "8b6087a4a49c2baad397e9f071ef8d1afe4f92e64d343173e21afbd96e43b02f"
+  },
+  "test_owner30_doors.py_adapted": {
+   "path": "smplwise_vms/backend/tests/test_owner30_doors.py",
+   "bytes": 12805,
+   "sha256": "96ae82aa83708d594cb4e0265375ede59e54423bf629fbdd7348e0f19114fc7d"
+  },
+  "windows_intake_commit": "7083929d3b727eef2fcc6abfbf86efd6e1ca8b75",
+  "native_product_CODE_quoted": "ffa92eecb90b7eb5a177837d0a6ad8f0893f4bea (2.0.1-rc.4)"
+ },
+ "runs": [
+  {
+   "file": "suite_source_rc4.txt",
+   "tested_sha": "23f3f17af5e8d79d8322635178ed1608e5fb3261",
+   "exit": 0,
+   "summary": "100 passed, 1 warning",
+   "name": "source suite (C-ARX-FINAL-04 file list, adapted paths)",
+   "command": "python -m pytest -p no:cacheprovider -rfE --junitxml=... tests/test_owner30_doors.py tests/test_wkr5_295_emergency.py tests/test_wkr5_295.py tests/test_bridge_install.py tests/test_wkcap_295.py"
+  },
+  {
+   "name": "targeted round 1 (116 files: wiskey*/wk*/door*/bridge*/digest/migrat*/release_check, minus the 5 above), 6 parallel shards",
+   "tested_sha": "23f3f17af5e8d79d8322635178ed1608e5fb3261",
+   "shards": [
+    {
+     "file": "round1/shard_0.txt",
+     "tested_sha": "23f3f17af5e8d79d8322635178ed1608e5fb3261",
+     "exit": 1,
+     "summary": "2 failed, 592 passed, 2 skipped, 1 warning"
+    },
+    {
+     "file": "round1/shard_1.txt",
+     "tested_sha": "23f3f17af5e8d79d8322635178ed1608e5fb3261",
+     "exit": 0,
+     "summary": "494 passed, 1 warning"
+    },
+    {
+     "file": "round1/shard_2.txt",
+     "tested_sha": "23f3f17af5e8d79d8322635178ed1608e5fb3261",
+     "exit": 0,
+     "summary": "613 passed, 1 skipped, 1 warning"
+    },
+    {
+     "file": "round1/shard_3.txt",
+     "tested_sha": "23f3f17af5e8d79d8322635178ed1608e5fb3261",
+     "exit": 0,
+     "summary": "543 passed, 1 warning"
+    },
+    {
+     "file": "round1/shard_4.txt",
+     "tested_sha": "23f3f17af5e8d79d8322635178ed1608e5fb3261",
+     "exit": 1,
+     "summary": "1 failed, 634 passed, 3 skipped, 1 warning"
+    },
+    {
+     "file": "round1/shard_5.txt",
+     "tested_sha": "23f3f17af5e8d79d8322635178ed1608e5fb3261",
+     "exit": 0,
+     "summary": "684 passed, 1 skipped, 1 warning"
+    }
+   ],
+   "totals": "3560 passed, 3 failed, 7 skipped",
+   "file_lists": "shard_0.files .. shard_5.files"
+  },
+  {
+   "name": "targeted re-run of shards 0 and 4 after commit 9020a3b34 (test pins aligned)",
+   "shards": [
+    {
+     "file": "rerun_shard_0.txt",
+     "tested_sha": "9020a3b344ba8c96d4488e303a2682b7f0d3393a",
+     "exit": 0,
+     "summary": "594 passed, 2 skipped, 1 warning"
+    },
+    {
+     "file": "rerun_shard_4.txt",
+     "tested_sha": "9020a3b344ba8c96d4488e303a2682b7f0d3393a",
+     "exit": 0,
+     "summary": "635 passed, 3 skipped, 1 warning"
+    }
+   ]
+  },
+  {
+   "name": "targeted effective result at 9020a3b34",
+   "totals": "3563 passed, 0 failed, 7 skipped",
+   "basis": "shards 0 and 4 re-run at 9020a3b34; shards 1,2,3,5 from round 1 - 9020a3b34 changes only three test files, all in shards 0 and 4, and no product code"
+  },
+  {
+   "name": "mirror and digest checks",
+   "file": "mirror_digest_checks.txt",
+   "tested_sha": "23f3f17af5e8d79d8322635178ed1608e5fb3261",
+   "result": "sync_integration --check EXIT 0; wiskey_posix_digest EXIT 0 on both bridge copies (same digest) and on the staged hikvision_intercom tree; three digest modules byte-identical"
+  }
+ ],
+ "not_run": [
+  "full backend suite",
+  "frontend/UI build and screenshots (no UI change)",
+  "Ubuntu runner (release gate running)",
+  "any live/device/HA/lab test",
+  "Arx artifact build"
+ ],
+ "wiskey_original_receipts": "168 / 100 / 32 PASS are WisKey receipts; not re-run, not modified, not re-attributed. Our source-suite count (100) is an independent run on Arx code."
+}

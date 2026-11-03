@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="8" skipped="0" tests="9" time="73.476" timestamp="2026-10-31T00:17:38.180900+02:00" hostname="joni"><testcase classname="tests.test_wiskey_rc5_relay_binding_2310" name="test_the_map_row_of_a_door_is_found_by_its_physical_relay" time="37.286"><failure message="AttributeError: module 'smplwise.services.wiskey_feature_exec' has no attribute 'relay_row_for_door'">env = &lt;test_wkcap_295.Env object at 0x000001646534C440&gt;
+
+    def test_the_map_row_of_a_door_is_found_by_its_physical_relay(env):
+        with env.db.connection() as conn:
+&gt;           assert fx.relay_row_for_door(conn, ST, 1) == fx.RelayRow(ST, 2, 1, 1)
+                   ^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: module 'smplwise.services.wiskey_feature_exec' has no attribute 'relay_row_for_door'
+
+tests\test_wiskey_rc5_relay_binding_2310.py:59: AttributeError</failure></testcase><testcase classname="tests.test_wiskey_rc5_relay_binding_2310" name="test_two_active_rows_on_one_physical_relay_map_nothing" time="2.046"><failure message="AttributeError: module 'smplwise.services.wiskey_feature_exec' has no attribute 'relay_row_for_door'">env = &lt;test_wkcap_295.Env object at 0x0000016468821B50&gt;
+
+    def test_two_active_rows_on_one_physical_relay_map_nothing(env):
+        with env.db.connection() as conn:
+            fx.set_relay_map(conn, station_id="st-dup", api_relay=1, physical_relay=1, confirmed_by=env.admin.user_id, expected_revision=0)
+            fx.set_relay_map(conn, station_id="st-dup", api_relay=2, physical_relay=1, confirmed_by=env.admin.user_id, expected_revision=0)
+&gt;           assert fx.relay_row_for_door(conn, "st-dup", 1) is None, "ambiguous: WisKey refuses a duplicate physical relay too"
+                   ^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: module 'smplwise.services.wiskey_feature_exec' has no attribute 'relay_row_for_door'
+
+tests\test_wiskey_rc5_relay_binding_2310.py:70: AttributeError</failure></testcase><testcase classname="tests.test_wiskey_rc5_relay_binding_2310" name="test_an_emergency_hold_on_a_crossed_map_names_the_physical_door_and_its_api_grant" time="2.497"><failure message="AssertionError: the grant of physical relay 1 is api relay 2&#10;assert [('st-x', 1, 2, 1)] == [('st-x', 2, 1, 1)]&#10;  &#10;  At index 0 diff: ('st-x', 1, 2, 1) != ('st-x', 2, 1, 1)&#10;  Use -v to get more diff">env = &lt;test_wkcap_295.Env object at 0x0000016468CB0380&gt;
+
+    def test_an_emergency_hold_on_a_crossed_map_names_the_physical_door_and_its_api_grant(env):
+        port = FakeDirectPort()
+        eng = engine_for(env, port)
+        assert eng.apply("open", ST, 1, f"req-1:{ST}:1", "").state == "acknowledged"
+        (sent,) = port.sent("features/start")
+        assert sent["request"]["params"]["relay"] == 1 and sent["request"]["params"]["mapping_revision"] == 1
+&gt;       assert _grants(sent) == [(ST, 2, 1, 1)], "the grant of physical relay 1 is api relay 2"
+E       AssertionError: the grant of physical relay 1 is api relay 2
+E       assert [('st-x', 1, 2, 1)] == [('st-x', 2, 1, 1)]
+E         
+E         At index 0 diff: ('st-x', 1, 2, 1) != ('st-x', 2, 1, 1)
+E         Use -v to get more diff
+
+tests\test_wiskey_rc5_relay_binding_2310.py:81: AssertionError</failure></testcase><testcase classname="tests.test_wiskey_rc5_relay_binding_2310" name="test_an_emergency_on_a_door_without_a_row_for_its_physical_relay_sends_nothing" time="2.666"><failure message="AssertionError: assert 'acknowledged' == 'refused'&#10;  &#10;  - refused&#10;  + acknowledged">env = &lt;test_wkcap_295.Env object at 0x0000016468CB0CB0&gt;
+
+    def test_an_emergency_on_a_door_without_a_row_for_its_physical_relay_sends_nothing(env):
+        with env.db.connection() as conn:
+            fx.set_relay_map(conn, station_id="st-half", api_relay=1, physical_relay=2, confirmed_by=env.admin.user_id, expected_revision=0)
+        port = FakeDirectPort()
+        eng = engine_for(env, port)
+&gt;       assert eng.apply("open", "st-half", 1, "req-h:st-half:1", "").state == "refused"
+E       AssertionError: assert 'acknowledged' == 'refused'
+E         
+E         - refused
+E         + acknowledged
+
+tests\test_wiskey_rc5_relay_binding_2310.py:89: AssertionError</failure></testcase><testcase classname="tests.test_wiskey_rc5_relay_binding_2310" name="test_the_durable_read_names_the_physical_door_and_matches_the_api_grant" time="2.755" /><testcase classname="tests.test_wiskey_rc5_relay_binding_2310" name="test_a_history_record_of_the_other_api_relay_settles_nothing" time="2.730"><failure message="AssertionError: a target that is not this door's grant (api 2 -&gt; physical 1) is not this attempt's answer&#10;assert 'accepted' == 'sent'&#10;  &#10;  - sent&#10;  + accepted">env = &lt;test_wkcap_295.Env object at 0x0000016468D665A0&gt;
+
+    def test_a_history_record_of_the_other_api_relay_settles_nothing(env):
+        port = FakeDirectPort()
+        port.result_mode = "running"
+        eng = engine_for(env, port)
+        assert eng.apply("open", ST, 1, f"req-o:{ST}:1", "").state == "unknown"
+        (sent,) = port.sent("features/start")
+        req = sent["request"]
+        event_ref = sent["policy_snapshot"]["private_input"]["event_ref"]
+        target = {"station_id": ST, "api_relay": 1, "physical_relay": 1, "mapping_revision": 1, "recorded_phase": "acknowledged", "outcome": "acknowledged",
+                  "duplicate": False, "prior_operation": None, "recovery_obligation": False, "release_recorded": False, "release_outcome": None}
+        port.queue["features/emergency_event_status_v1"] = [{
+            "contract": "wiskey-emergency-event-status.v1", "schema_version": 1, "event_ref": event_ref, "state": "found",
+            "records": [{"operation_id": req["operation_id"], "request_id": req["request_id"], "revision": 1, "descriptor_epoch": "epoch-1",
+                         "kind": "wiskey-emergency-event.v2", "command": "hold_open", "trigger": "manual", "retry_of": None, "targets": [target]}],
+            "physical_result": "unknown", "observed_device": None, "replay_available": False, "absence_is_never_sent_proof": False,
+            "reader_boot_id": None, "reader_process_id": 4242}]
+        eng.apply("open", ST, 1, f"req-o:{ST}:1", "")
+        assert len(port.sent("features/emergency_event_status_v1")) == 1
+        with env.db.connection(mode="read") as conn:
+&gt;           assert fx.intent_state(conn, req["request_id"]) == "sent", "a target that is not this door's grant (api 2 -&gt; physical 1) is not this attempt's answer"
+E           AssertionError: a target that is not this door's grant (api 2 -&gt; physical 1) is not this attempt's answer
+E           assert 'accepted' == 'sent'
+E             
+E             - sent
+E             + accepted
+
+tests\test_wiskey_rc5_relay_binding_2310.py:135: AssertionError</failure></testcase><testcase classname="tests.test_wiskey_rc5_relay_binding_2310" name="test_a_request_whose_relay_is_not_the_grants_physical_relay_is_refused_before_anything_is_stored" time="2.766"><failure message="Failed: DID NOT RAISE FeatureWireError">env = &lt;test_wkcap_295.Env object at 0x0000016468E4BEF0&gt;
+
+    def test_a_request_whose_relay_is_not_the_grants_physical_relay_is_refused_before_anything_is_stored(env):
+        port = FakeDirectPort()
+        ad = fd.FeatureAdapters(fd.DirectFeatureClient(port), port)
+        private = {"kind": ed.KIND_V2, "event_ref": "e-1", "command": "hold_open", "trigger": "manual", "retry_of": None}
+        with env.db.connection() as conn:
+&gt;           with pytest.raises(fd.FeatureWireError) as exc:
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           Failed: DID NOT RAISE FeatureWireError
+
+tests\test_wiskey_rc5_relay_binding_2310.py:145: Failed</failure></testcase><testcase classname="tests.test_wiskey_rc5_relay_binding_2310" name="test_without_explicit_targets_the_target_is_the_api_relay_of_the_physical_door" time="2.725"><failure message="assert [(1, 2)] == [(2, 1)]&#10;  &#10;  At index 0 diff: (1, 2) != (2, 1)&#10;  Use -v to get more diff">env = &lt;test_wkcap_295.Env object at 0x0000016468EA3890&gt;
+
+    def test_without_explicit_targets_the_target_is_the_api_relay_of_the_physical_door(env):
+        port = FakeDirectPort()
+        ad = fd.FeatureAdapters(fd.DirectFeatureClient(port), port)
+        with env.db.connection() as conn:
+            _body, snap = ad.prepare(conn, feature="door_windows", actor=fx.human_actor(env.admin.user_id), principals=[env.admin], authority_ref="auth-1",
+                                     authority_revision=5, scope_ref="scope-1", parameter_reference="pref-1",
+                                     params={"station_id": ST, "relay": 1, "mapping_revision": 1, "start": NOW.isoformat(),
+                                             "end": (NOW + timedelta(hours=1)).isoformat(), "timezone": "Asia/Jerusalem"},
+                                     now=NOW, source_epoch="epoch-5", actor_session_active=True)
+&gt;       assert [(s["api_relay"], s["physical_relay"]) for s in snap["stations"]] == [(2, 1)]
+E       assert [(1, 2)] == [(2, 1)]
+E         
+E         At index 0 diff: (1, 2) != (2, 1)
+E         Use -v to get more diff
+
+tests\test_wiskey_rc5_relay_binding_2310.py:163: AssertionError</failure></testcase><testcase classname="tests.test_wiskey_rc5_relay_binding_2310" name="test_a_door_automation_on_a_crossed_map_pulses_the_same_physical_door" time="6.450"><failure message="AssertionError: the armed door is physical relay 1; the previous lookup sent physical relay 2 (the other door)&#10;assert 2 == 1">native = {'app': &lt;fastapi.applications.FastAPI object at 0x0000016468F00D10&gt;, 'c': &lt;starlette.testclient.TestClient object at 0...abase object at 0x0000016468F58470&gt;, 'sender': &lt;test_door_automation_295.FakeSender object at 0x0000016468F58680&gt;, ...}
+
+    def test_a_door_automation_on_a_crossed_map_pulses_the_same_physical_door(native):
+        w, port = native, native["port"]
+        _armed(w["c"])
+        port.queue["features/result"] = [{"schema_version": 1, "operation_ref": "op-1", "state": "finished", "replay_available": False,
+                                          "receipt": {"original": {}, "phase": "acknowledged", "physical_result": "unknown", "replay_available": False}}]
+        out = fire(w)
+        assert out and out[0]["outcome"] == "sent", out
+        (sent,) = port.sent("features/start")
+        door = sent["request"]["params"]["relay"]
+&gt;       assert door == 1, "the armed door is physical relay 1; the previous lookup sent physical relay 2 (the other door)"
+E       AssertionError: the armed door is physical relay 1; the previous lookup sent physical relay 2 (the other door)
+E       assert 2 == 1
+
+tests\test_wiskey_rc5_relay_binding_2310.py:188: AssertionError</failure></testcase></testsuite></testsuites>

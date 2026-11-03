@@ -7,14 +7,14 @@ import '../components/sw-icon';
 import '../components/sw-dialog';
 import '../components/sw-state-panel';
 import { describeError } from '../api/client';
-import { SWITCH_KEYS, SWITCH_STEM, canTurnOn, getSwitches, putSwitch, refusalKind, stateOf, type RefusalKind, type SwitchKey, type SwitchState, type SwitchesView } from '../api/wiskey-switches';
+import { INSTALL_KEY, SWITCH_KEYS, SWITCH_STEM, canTurnOn, canTurnOnInstall, getSwitches, putSwitch, refusalKind, stateOf, type AnySwitchKey, type RefusalKind, type SwitchKey, type SwitchState, type SwitchesView } from '../api/wiskey-switches';
 import { can, isApi } from '../api/session';
 import { statusStyles } from '../access-control/status-css';
 import { wst, type WsKey } from '../i18n/wiskey-switches';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
 interface Pending {
-  key: SwitchKey;
+  key: AnySwitchKey;
   next: SwitchState;
 }
 
@@ -25,6 +25,9 @@ interface Pending {
  * details line. Turning one on or off asks for a confirmation and sends exactly that one key. While the build carries no go-live permit
  * a switch that is off cannot be turned on: the row says so, and a 409 from a stale screen is worded the same way. No explanatory
  * paragraphs beyond the one-line lead.
+ * WISKEY-RC7-ADOPT-2331 S1 (WisKey M12 policy B): a second group shows the owner's automatic-installation switch (`wiskey.auto_install`,
+ * default off) on the same route, the same confirmation and the same audit. While the build refuses it (`auto_install_permitted`), the
+ * row says why and ON is not offered; a 409 `auto_install_not_permitted` from a stale screen is worded the same way.
  */
 @customElement('system-security-wiskey')
 export class SystemSecurityWiskey extends LitElement {
@@ -54,6 +57,8 @@ export class SystemSecurityWiskey extends LitElement {
       .foot { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-block-start: 14px; }
       .err-line { margin: 10px 0 0; color: var(--sw-danger-text, var(--sw-danger)); font-size: var(--sw-fs-sm); }
       .grp { padding: 14px; border-block-start: 1px solid var(--sw-border); }
+      .grp-h { margin: 0; padding: 14px 14px 0; border-block-start: 1px solid var(--sw-border); color: var(--sw-text-2); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-bold); }
+      .grp-h + .sw-row { border-block-start: 0; }
       .ok { color: var(--sw-success-text, var(--sw-text-2)); font-size: var(--sw-fs-sm); display: inline-flex; gap: 6px; align-items: center; }
       @media (max-width: 767px) { .sw-row { grid-template-columns: minmax(0, 1fr); } }
     `,
@@ -83,7 +88,7 @@ export class SystemSecurityWiskey extends LitElement {
     return !isApi() || can('system.configure');
   }
 
-  private ask(key: SwitchKey, next: SwitchState): void {
+  private ask(key: AnySwitchKey, next: SwitchState): void {
     if (this.busy || !this.canEdit) return;
     this.error = '';
     this.done = null;
@@ -92,6 +97,7 @@ export class SystemSecurityWiskey extends LitElement {
   }
 
   private refusalText(kind: RefusalKind, err: unknown): string {
+    if (kind === 'installPermit') return wst('installPermitRefused');
     if (kind === 'permit') return wst('permitRefused');
     if (kind === 'forbidden') return wst('forbidden');
     if (kind === 'invalid') return wst('invalid');
@@ -109,9 +115,9 @@ export class SystemSecurityWiskey extends LitElement {
       this.pending = null;
     } catch (err) {
       const kind = refusalKind(err);
-      if (kind === 'permit' && this.view) {
+      if ((kind === 'permit' || kind === 'installPermit') && this.view) {
         // a stale screen: the server says there is no permit, so show it as the row would have
-        this.view = { ...this.view, go_live_permitted: false };
+        this.view = kind === 'installPermit' ? { ...this.view, auto_install_permitted: false } : { ...this.view, go_live_permitted: false };
         this.pending = null;
         this.error = this.refusalText(kind, err);
       } else this.dlgError = this.refusalText(kind, err);
@@ -120,14 +126,19 @@ export class SystemSecurityWiskey extends LitElement {
     }
   }
 
-  private name(key: SwitchKey): string {
-    return wst(`${SWITCH_STEM[key]}Title` as WsKey);
+  private stem(key: AnySwitchKey): string {
+    return key === INSTALL_KEY ? 'install' : SWITCH_STEM[key as SwitchKey];
   }
 
-  private row(v: SwitchesView, key: SwitchKey) {
+  private name(key: AnySwitchKey): string {
+    return wst(`${this.stem(key)}Title` as WsKey);
+  }
+
+  private row(v: SwitchesView, key: AnySwitchKey) {
     const on = stateOf(v, key) === 'on';
-    const blocked = !on && !canTurnOn(v);
-    const stem = SWITCH_STEM[key];
+    const install = key === INSTALL_KEY;
+    const blocked = !on && !(install ? canTurnOnInstall(v) : canTurnOn(v));
+    const stem = this.stem(key);
     return html`<div class="sw-row" data-wiskey-switch=${stem} data-state=${on ? 'on' : 'off'}>
       <div>
         <h4 class="t">${this.name(key)}<span class="pill" data-state=${on ? 'on' : 'off'} data-wiskey-state>${wst(on ? 'on' : 'off')}</span></h4>
@@ -135,7 +146,7 @@ export class SystemSecurityWiskey extends LitElement {
         <p class="k" data-wiskey-details>${wst('detailsKey')}: <code>${key}</code></p>
       </div>
       <sw-button variant=${on ? 'secondary' : 'primary'} data-wiskey-toggle ?disabled=${!this.canEdit || this.busy || blocked} @click=${() => this.ask(key, on ? 'off' : 'on')}>${wst(on ? 'turnOff' : 'turnOn')}</sw-button>
-      ${blocked ? html`<p class="why" data-wiskey-permit><sw-icon name="info" size="14"></sw-icon>${wst('permitMissing')}</p>` : nothing}
+      ${blocked ? html`<p class="why" data-wiskey-permit><sw-icon name="info" size="14"></sw-icon>${wst(install ? 'installPermitMissing' : 'permitMissing')}</p>` : nothing}
     </div>`;
   }
 
@@ -143,9 +154,10 @@ export class SystemSecurityWiskey extends LitElement {
     const p = this.pending;
     if (!p) return nothing;
     const on = p.next === 'on';
+    const install = p.key === INSTALL_KEY;
     const name = this.name(p.key);
     return html`<sw-dialog open heading=${wst(on ? 'confirmOnQ' : 'confirmOffQ', { name })} data-wiskey-dialog=${p.next} @close=${() => { if (!this.busy) this.pending = null; }}>
-      <p style="margin:0">${wst(on ? 'confirmOnText' : 'confirmOffText')}</p>
+      <p style="margin:0">${wst(install ? (on ? 'installConfirmOnText' : 'installConfirmOffText') : on ? 'confirmOnText' : 'confirmOffText')}</p>
       ${this.dlgError ? html`<p class="err-line" role="alert" data-wiskey-dialog-error>${this.dlgError}</p>` : nothing}
       <div class="foot"><sw-button variant="ghost" data-wiskey-cancel ?disabled=${this.busy} @click=${() => (this.pending = null)}>${wst('cancel')}</sw-button>
         <sw-button variant=${on ? 'primary' : 'danger'} data-wiskey-confirm ?disabled=${this.busy} @click=${() => void this.confirm()}>${wst(on ? 'turnOn' : 'turnOff')}</sw-button></div>
@@ -160,6 +172,8 @@ export class SystemSecurityWiskey extends LitElement {
     return html`<sw-card flush data-wiskey-switches>
       <p class="lead">${wst('lead')}</p>
       ${SWITCH_KEYS.map((k) => this.row(v, k))}
+      <h3 class="grp-h" data-wiskey-install-group>${wst('installGroup')}</h3>
+      ${this.row(v, INSTALL_KEY)}
       ${this.error ? html`<div class="note err" role="alert" data-wiskey-error><sw-icon name="warning" size=${16}></sw-icon><span>${this.error}</span></div>` : nothing}
       ${this.done && !this.error ? html`<div class="grp"><span class="ok" role="status" data-wiskey-saved><sw-icon name="check" size=${16}></sw-icon>${wst(this.done === 'on' ? 'doneOn' : 'doneOff')}</span></div>` : nothing}
     </sw-card>

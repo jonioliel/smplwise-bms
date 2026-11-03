@@ -1,0 +1,211 @@
+{
+ "round": 3,
+ "date": "2026-10-31 (UTC times below are 2026-10-30 evening)",
+ "branch": "pilot/WISKEY-RC4-2310",
+ "workstation": "Windows 11 owner workstation (not the Ubuntu runner)",
+ "python": "C:/cloude/smplwisebms/.venv/Scripts/python.exe (Python 3.12.10); mirror/digest/release_check with C:/Users/jon/AppData/Local/Programs/Python/Python312/python.exe",
+ "cwd": "C:/cloude/smplwise-rc4/smplwise_vms/backend",
+ "runner": "round3/run.sh (one pytest per file list; 10 runs started in parallel; PID not captured)",
+ "inputs": {
+  "repo": "jonioliel/home-assistant-hikvision-intercom (local clone, fetch + git archive only)",
+  "intake": {
+   "ref": "codex/wiskey-windows-host-assembly-intake-2026-10-30",
+   "commit": "ae3d677a854519e739190b8a847caf85abf10214",
+   "archive": "handoff/WISKEY_WINDOWS_HOST_ASSEMBLY_INTAKE_2026-10-30.zip",
+   "bytes": 81608,
+   "sha256": "fbffb25d5509f86ada5023e022cebbfff07f337f8ec5dc7419a23a980f8053e8",
+   "verified": true
+  },
+  "mac_followup": {
+   "ref": "codex/wiskey-mac-host-assembly-followup-2026-10-30",
+   "commit": "5439ffa465ad5afb86242b05bf6b70ebb45deb4d",
+   "archive": "handoff/WISKEY_MAC_HOST_ASSEMBLY_FOLLOWUP_2026-10-30.zip",
+   "bytes": 27749810,
+   "sha256": "690041f9f774b7d442c41a88856807a29954c15bfd98e432c79ee79085fc6a79",
+   "verified": true
+  },
+  "native_product": {
+   "commit": "bc2d8574543701c55b4380418b1909ffc1838d8d",
+   "label": "2.0.1-rc.5",
+   "ancestor_of_mac_followup": true
+  },
+  "manual_package": {
+   "path_in_archive": "package/WISKEY_MANUAL_EXISTING_2.0.1-rc.5.zip",
+   "bytes": 1718764,
+   "sha256": "648f6fd6e4d6d32392df668ea87cbd63c859af629d7945d6915bc8e2efd8c1fb",
+   "files": 382,
+   "component_digest_recomputed": "fa0aa0ece26760aaab4b319239b9231fe60dfb3a753a352033615b43dd888f45",
+   "verified": true,
+   "native_files_vs_git_bc2d8574": "381 byte-identical; only _manual_upgrade_profile.json differs"
+  },
+  "merged": false,
+  "embedded_bundle_replaced": false
+ },
+ "commits": {
+  "e584d1533b68e8e2e85b13f2bde4d2531da6b74a": "WISKEY-RC5-2310 relay binding fix + tests"
+ },
+ "new_test": {
+  "path": "smplwise_vms/backend/tests/test_wiskey_rc5_relay_binding_2310.py",
+  "sha256": "8ece154689ad333317cafd1dbc57b69bcd9150b15b9a17da79edd587666895a0",
+  "tests": 9,
+  "note": "identical bytes in the red and the green run"
+ },
+ "fixture_only_changes": [
+  "tests/test_wkcap_295.py",
+  "tests/test_t06_work_states_297.py",
+  "tests/test_wiskeya06_297.py",
+  "tests/test_t06_admission_295.py"
+ ],
+ "targeted_total": {
+  "files": 116,
+  "passed": 3563,
+  "failed": 0,
+  "skipped": 7,
+  "note": "same six shard lists as round 2; one uniform run on e584d1533"
+ },
+ "runs": [
+  {
+   "file": "relay_red_5b843c9f2.txt",
+   "tested_sha": "5b843c9f2789ec87c1e1b04e68473bdea8c532d4",
+   "start": "2026-10-30T22:17:10Z",
+   "end": "2026-10-30T22:18:57Z",
+   "exit_code": 1,
+   "summary": "8 failed, 1 passed, 1 warning in 73.89s (0:01:13)",
+   "name": "relay-binding acceptance test BEFORE the fix (red)",
+   "tested_tree": "5b843c9f2 + the untracked new test file only (no product change)",
+   "test_file_sha256": "8ece154689ad333317cafd1dbc57b69bcd9150b15b9a17da79edd587666895a0",
+   "failures": [
+    "lookup by physical relay missing (2 tests)",
+    "emergency hold on a crossed map: grant/params not bound to the physical door",
+    "emergency without a row for the physical relay was sent",
+    "C07 history target of the other api relay settled the attempt",
+    "adapter sent a request whose relay is not the grant's physical relay",
+    "default target used the physical relay as api relay",
+    "door automation sent physical relay 2 for the physical-1 door"
+   ]
+  },
+  {
+   "file": "relay.txt",
+   "tested_sha": "e584d1533b68e8e2e85b13f2bde4d2531da6b74a",
+   "start": "2026-10-30T22:41:27Z",
+   "end": "2026-10-30T22:42:44Z",
+   "exit_code": 0,
+   "summary": "9 passed, 1 warning in 54.65s",
+   "name": "relay-binding acceptance test AFTER the fix (green)"
+  },
+  {
+   "file": "deadline.txt",
+   "tested_sha": "e584d1533b68e8e2e85b13f2bde4d2531da6b74a",
+   "start": "2026-10-30T22:41:27Z",
+   "end": "2026-10-30T22:42:48Z",
+   "exit_code": 0,
+   "summary": "5 passed, 1 warning in 55.51s",
+   "name": "WIN-ARX-RC4-DEADLINE-01 test re-run"
+  },
+  {
+   "file": "source.txt",
+   "tested_sha": "e584d1533b68e8e2e85b13f2bde4d2531da6b74a",
+   "start": "2026-10-30T22:41:27Z",
+   "end": "2026-10-30T22:44:43Z",
+   "exit_code": 0,
+   "summary": "100 passed, 1 warning in 173.07s (0:02:53)",
+   "name": "source suite (5 files of C-ARX-FINAL-04), same list as round 2"
+  },
+  {
+   "file": "shard_0.txt",
+   "tested_sha": "e584d1533b68e8e2e85b13f2bde4d2531da6b74a",
+   "start": "2026-10-30T22:41:28Z",
+   "end": "2026-10-30T22:53:18Z",
+   "exit_code": 0,
+   "summary": "594 passed, 2 skipped, 1 warning in 684.63s (0:11:24)",
+   "name": "targeted shard 0 (round-2 list)"
+  },
+  {
+   "file": "shard_1.txt",
+   "tested_sha": "e584d1533b68e8e2e85b13f2bde4d2531da6b74a",
+   "start": "2026-10-30T22:41:27Z",
+   "end": "2026-10-30T22:53:06Z",
+   "exit_code": 0,
+   "summary": "494 passed, 1 warning in 671.56s (0:11:11)",
+   "name": "targeted shard 1 (round-2 list)"
+  },
+  {
+   "file": "shard_2.txt",
+   "tested_sha": "e584d1533b68e8e2e85b13f2bde4d2531da6b74a",
+   "start": "2026-10-30T22:41:27Z",
+   "end": "2026-10-30T22:57:14Z",
+   "exit_code": 0,
+   "summary": "613 passed, 1 skipped, 1 warning in 919.74s (0:15:19)",
+   "name": "targeted shard 2 (round-2 list)"
+  },
+  {
+   "file": "shard_3.txt",
+   "tested_sha": "e584d1533b68e8e2e85b13f2bde4d2531da6b74a",
+   "start": "2026-10-30T22:41:28Z",
+   "end": "2026-10-30T22:59:20Z",
+   "exit_code": 0,
+   "summary": "543 passed, 1 warning in 1045.13s (0:17:25)",
+   "name": "targeted shard 3 (round-2 list)"
+  },
+  {
+   "file": "shard_4.txt",
+   "tested_sha": "e584d1533b68e8e2e85b13f2bde4d2531da6b74a",
+   "start": "2026-10-30T22:41:27Z",
+   "end": "2026-10-30T23:02:31Z",
+   "exit_code": 0,
+   "summary": "635 passed, 3 skipped, 1 warning in 1236.39s (0:20:36)",
+   "name": "targeted shard 4 (round-2 list)"
+  },
+  {
+   "file": "shard_5.txt",
+   "tested_sha": "e584d1533b68e8e2e85b13f2bde4d2531da6b74a",
+   "start": "2026-10-30T22:41:28Z",
+   "end": "2026-10-30T23:12:28Z",
+   "exit_code": 0,
+   "summary": "684 passed, 1 skipped, 1 warning in 1833.27s (0:30:33)",
+   "name": "targeted shard 5 (round-2 list)"
+  },
+  {
+   "file": "affected.txt",
+   "tested_sha": "e584d1533b68e8e2e85b13f2bde4d2531da6b74a",
+   "start": "2026-10-30T22:41:27Z",
+   "end": "2026-10-30T22:50:48Z",
+   "exit_code": 1,
+   "summary": "1 failed, 301 passed, 3 xfailed, 1 warning in 535.33s (0:08:55)",
+   "name": "files touched by the fixture change + related files outside the round-2 list",
+   "note": "the 1 failure is pre-existing (see next run); not caused by this change",
+   "failures": [
+    "tests/test_t06_work_states_297.py::test_no_production_module_reads_features_status_as_a_result_or_a_go_live"
+   ]
+  },
+  {
+   "file": "preexisting_baseline_5b843c9f2.txt",
+   "tested_sha": "5b843c9f2789ec87c1e1b04e68473bdea8c532d4",
+   "start": "2026-10-30T22:57:11Z",
+   "end": "2026-10-30T22:57:42Z",
+   "exit_code": 1,
+   "summary": "1 failed, 1 warning in 7.91s",
+   "name": "the same failing test at the round-2 head 5b843c9f2 (temporary detached worktree, removed after)",
+   "note": "pre-existing: the static guard flags services/wiskey_selected_readonly.py:25,26,33 (owner30 read-only probe, adopted in round 1) for reading features/status; this file is not in the round-2 targeted list. Not fixed here (outside rc.5 scope); recorded for the owner."
+  }
+ ],
+ "checks": {
+  "file": "mirror_digest_checks.txt",
+  "sync_integration_check": 0,
+  "release_check": 0,
+  "digests": {
+   "bridge_copies": "f6f7eaa762861fc3524d1383463b54d8d123d9c5ec39b82a713fde943ba4c1f8 (28)",
+   "embedded_native": "00df5e151fa8dc30be983389af8f3b483e709e74060663f9a85dcf889dc5c459 (377, unchanged)",
+   "rc5_manual": "fa0aa0ece26760aaab4b319239b9231fe60dfb3a753a352033615b43dd888f45 (382)",
+   "rc5_git": "8af9a99e3476f32bf8eb56e557977077776bebe7e0e89ec9d9c2752d523d0be2 (381)"
+  }
+ },
+ "not_run": [
+  "tests against an executing rc.5 Native (our tests use FakeDirectPort; bundle tests are pinned to the embedded tree path; not repointed)",
+  "full suite",
+  "Ubuntu runner",
+  "UI build",
+  "Arx artifact build",
+  "live HA / WisKey / door / device"
+ ]
+}

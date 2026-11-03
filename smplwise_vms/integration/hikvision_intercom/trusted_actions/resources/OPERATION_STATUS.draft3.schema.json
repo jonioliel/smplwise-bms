@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wiskey:arx:run-all:operation-status-draft3",
+  "x-status": "PROPOSED_OFF_NOT_WRITTEN_AGREEMENT",
+  "x-runtime-enabled": false,
+  "x-validation": "VALIDATION_NOT_RUN; stdlib structural/refs only",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": "wiskey-arx-receipt-status-draft.3"
+        },
+        "kind": {
+          "const": "operation_status"
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "x-type": "proposed opaque logical reference, no actual identifier/token examples"
+        },
+        "target_operation_reference": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "x-type": "proposed opaque logical reference, no actual identifier/token examples"
+        },
+        "state": {
+          "const": "pending"
+        }
+      },
+      "required": [
+        "schema_version",
+        "kind",
+        "request_id",
+        "target_operation_reference",
+        "state"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": "wiskey-arx-receipt-status-draft.3"
+        },
+        "kind": {
+          "const": "operation_status"
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "x-type": "proposed opaque logical reference, no actual identifier/token examples"
+        },
+        "target_operation_reference": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "x-type": "proposed opaque logical reference, no actual identifier/token examples"
+        },
+        "state": {
+          "const": "not_found_or_expired"
+        }
+      },
+      "required": [
+        "schema_version",
+        "kind",
+        "request_id",
+        "target_operation_reference",
+        "state"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "const": "wiskey-arx-receipt-status-draft.3"
+        },
+        "kind": {
+          "const": "operation_status"
+        },
+        "request_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "x-type": "proposed opaque logical reference, no actual identifier/token examples"
+        },
+        "target_operation_reference": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "x-type": "proposed opaque logical reference, no actual identifier/token examples"
+        },
+        "state": {
+          "const": "completed"
+        },
+        "result": {
+          "$ref": "ACTION_RESULT.draft3.schema.json"
+        }
+      },
+      "required": [
+        "schema_version",
+        "kind",
+        "request_id",
+        "target_operation_reference",
+        "state",
+        "result"
+      ],
+      "additionalProperties": false
+    }
+  ],
+  "x-kind": "new generalized lookup only, not DTOv3 or classic bulk response",
+  "x-predicates": "exact request/target correlation, actor/target scope and grant/selection first; missing/expired is not proof not sent or permission to retry"
+}

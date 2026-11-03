@@ -381,6 +381,9 @@ def _begin_immediate(conn: sqlite3.Connection, label: str, wait_s: float | None 
     ordinary writers (SEC246 L3: a device command's record, see WriteGate.acquire)."""
     started = time.monotonic()
     budget = BUSY_TIMEOUT_S if wait_s is None else max(0.0, min(float(wait_s), BUSY_TIMEOUT_S))
+    from .services import wiskey_call_budget as call_budget
+    if call_budget.active():
+        budget = call_budget.remaining(budget)
     full_ms = int(conn.execute("PRAGMA busy_timeout").fetchone()[0])  # the connection's own (BUSY_TIMEOUT_S unless a caller set less)
     gate = _conn_gate.get(id(conn)) if WRITE_GATE else None
     key = id(conn)
@@ -423,7 +426,36 @@ def _begin_immediate(conn: sqlite3.Connection, label: str, wait_s: float | None 
     _note_wait(now - started, label)
 
 
+# WisKey M12 policy B, slice S3 (docs/changes/WISKEY-RC7-ADOPT-2331.md): a few callers must keep an outside resource - the WisKey
+# generation publication fence - until the write transaction that changed the decision has ENDED (committed or rolled back),
+# including a caller's own long transaction such as the add-on start-up. on_transaction_end() registers such a release; it runs
+# once, right after the COMMIT / ROLLBACK and before the write gate is handed on (or when the lease closes, whatever happened).
+_tx_end: dict[int, list[Callable[[], None]]] = {}
+
+
+def on_transaction_end(conn: sqlite3.Connection, fn: Callable[[], None]) -> bool:
+    """Run `fn` once when this connection's open write transaction ends. False (nothing registered) for a connection that is not
+    a connection() / write_aside() lease of this module or that is outside a transaction: the caller then releases at once."""
+    try:
+        open_tx = conn.in_transaction
+    except sqlite3.ProgrammingError:  # closed
+        return False
+    if id(conn) not in _conn_gate or not open_tx:
+        return False
+    _tx_end.setdefault(id(conn), []).append(fn)
+    return True
+
+
+def _run_tx_end(conn: sqlite3.Connection) -> None:
+    for fn in _tx_end.pop(id(conn), ()):
+        try:
+            fn()
+        except Exception:  # noqa: BLE001 - a release never fails the commit that already happened
+            log.exception("end-of-transaction release failed")
+
+
 def _end_hold(conn: sqlite3.Connection) -> None:
+    _run_tx_end(conn)
     _release_gate(conn)
     held = _holders.pop(id(conn), None)
     if held is None:
@@ -443,6 +475,7 @@ def _end_hold(conn: sqlite3.Connection) -> None:
 
 def _drop_hold(conn: sqlite3.Connection) -> None:
     """The connection is closing: forget its hold and hand the gate on, whatever state the transaction ended in."""
+    _run_tx_end(conn)
     _holders.pop(id(conn), None)
     _release_gate(conn)
     _stray_logged.discard(id(conn))
@@ -867,14 +900,16 @@ class Database:
         return not raw.in_transaction
 
     def _open(self, durable: bool = True) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.path, timeout=BUSY_TIMEOUT_S, isolation_level=None, check_same_thread=False)
+        from .services import wiskey_call_budget as call_budget
+        wait = call_budget.remaining(BUSY_TIMEOUT_S) if call_budget.active() else BUSY_TIMEOUT_S
+        conn = sqlite3.connect(self.path, timeout=wait, isolation_level=None, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         # FULL: every commit is fsynced (a committed audit row survives a power cut); NORMAL for the mirror writes of
         # device data opened with durable=False (see the module docstring)
         conn.execute(f"PRAGMA synchronous={'FULL' if durable else 'NORMAL'}")
         conn.execute("PRAGMA foreign_keys=ON")
-        conn.execute(f"PRAGMA busy_timeout={int(BUSY_TIMEOUT_S * 1000)}")
+        conn.execute(f"PRAGMA busy_timeout={max(1, int(wait * 1000))}")
         conn.execute(f"PRAGMA journal_size_limit={WAL_TRUNCATE_BYTES}")  # a reset WAL is cut back to this size
         return conn
 
@@ -1125,6 +1160,14 @@ def commit_now(conn: sqlite3.Connection, *, keep_reading: bool = True) -> None:
         _end_hold(conn)
     if keep_reading:
         conn.execute("BEGIN")
+
+
+def rollback_now(conn: sqlite3.Connection) -> None:
+    """Drop the open transaction (if any) and hand the write lock on, without starting another one - THE way to roll back by
+    hand (a bare conn.rollback() keeps this process's write gate; tests/test_db_gate.py forbids it outside db.py)."""
+    if conn.in_transaction:
+        conn.execute("ROLLBACK")
+    _end_hold(conn)
 
 
 def rollback_and_restart(conn: sqlite3.Connection) -> None:

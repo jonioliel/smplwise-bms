@@ -1,0 +1,3269 @@
+{
+ "CODES": {
+  "Unauthorized": [
+   "native-or-Arx-refusal"
+  ],
+  "[a-z_]{1,40}": [
+   "native-or-Arx-refusal"
+  ],
+  "abandoned": [
+   "domain-result"
+  ],
+  "acceptance_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "accepted": [
+   "domain-result"
+  ],
+  "access": [
+   "native-or-Arx-refusal"
+  ],
+  "access_denied": [
+   "native-or-Arx-refusal"
+  ],
+  "access_lost": [
+   "native-or-Arx-refusal"
+  ],
+  "access_removal_pending": [
+   "native-or-Arx-refusal"
+  ],
+  "access_review_limit": [
+   "native-or-Arx-refusal"
+  ],
+  "access_review_stale": [
+   "native-or-Arx-refusal"
+  ],
+  "access_reviews_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "access_setup_cleanup_failed": [
+   "native-or-Arx-refusal"
+  ],
+  "access_shutdown_cleanup_failed": [
+   "native-or-Arx-refusal"
+  ],
+  "account_key_invalid": [
+   "domain-result"
+  ],
+  "ack_lost_no_replay": [
+   "domain-result"
+  ],
+  "action_failed": [
+   "domain-result"
+  ],
+  "active": [
+   "domain-result"
+  ],
+  "actor_id_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "admitted": [
+   "domain-result"
+  ],
+  "admitting": [
+   "domain-result"
+  ],
+  "allowed": [
+   "domain-result"
+  ],
+  "already_managed": [
+   "native-or-Arx-refusal"
+  ],
+  "ambiguous_write": [
+   "native-or-Arx-refusal"
+  ],
+  "api_incompatible": [
+   "native-or-Arx-refusal"
+  ],
+  "appearance_settings_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "applied": [
+   "domain-result"
+  ],
+  "applying": [
+   "domain-result"
+  ],
+  "approval_command_unsupported": [
+   "native-or-Arx-refusal"
+  ],
+  "approval_expired": [
+   "native-or-Arx-refusal"
+  ],
+  "approval_required": [
+   "domain-result"
+  ],
+  "approve": [
+   "native-or-Arx-refusal"
+  ],
+  "approved": [
+   "domain-result"
+  ],
+  "archive_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "archive_state_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "archived": [
+   "domain-result"
+  ],
+  "at_least_once": [
+   "domain-result"
+  ],
+  "audio_auth_failed": [
+   "native-or-Arx-refusal"
+  ],
+  "audio_backpressure": [
+   "native-or-Arx-refusal"
+  ],
+  "audio_busy": [
+   "native-or-Arx-refusal"
+  ],
+  "audio_connection_lost": [
+   "domain-result"
+  ],
+  "audio_expired": [
+   "domain-result"
+  ],
+  "audio_identity_required": [
+   "native-or-Arx-refusal"
+  ],
+  "audio_idle_timeout": [
+   "domain-result"
+  ],
+  "audio_invalid_packet": [
+   "native-or-Arx-refusal"
+  ],
+  "audio_journal_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "audio_journal_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "audio_not_started": [
+   "native-or-Arx-refusal"
+  ],
+  "audio_open_unconfirmed": [
+   "native-or-Arx-refusal"
+  ],
+  "audio_source_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "audio_stopped": [
+   "domain-result"
+  ],
+  "audio_unsupported": [
+   "native-or-Arx-refusal"
+  ],
+  "authenticated_bridge_source_not_installed": [
+   "native-or-Arx-refusal"
+  ],
+  "authenticated_current_source_not_installed": [
+   "native-or-Arx-refusal"
+  ],
+  "automatic_emergency_disabled": [
+   "native-or-Arx-refusal"
+  ],
+  "awaiting_approval": [
+   "domain-result"
+  ],
+  "awaiting_revocation": [
+   "domain-result"
+  ],
+  "background_authorization_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "background_cannot_read_overview": [
+   "native-or-Arx-refusal"
+  ],
+  "background_has_more_than_overview": [
+   "native-or-Arx-refusal"
+  ],
+  "background_is_admin": [
+   "native-or-Arx-refusal"
+  ],
+  "background_scope_is_all_stations": [
+   "native-or-Arx-refusal"
+  ],
+  "background_shares_service_identity": [
+   "native-or-Arx-refusal"
+  ],
+  "background_subscribe_not_live": [
+   "native-or-Arx-refusal"
+  ],
+  "backup_cannot_decrypt": [
+   "native-or-Arx-refusal"
+  ],
+  "backup_mapping_collision": [
+   "native-or-Arx-refusal"
+  ],
+  "backup_passphrase_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "backup_profile_settings_mismatch": [
+   "native-or-Arx-refusal"
+  ],
+  "backup_review_expired": [
+   "native-or-Arx-refusal"
+  ],
+  "backup_review_stale": [
+   "native-or-Arx-refusal"
+  ],
+  "backup_too_large": [
+   "native-or-Arx-refusal"
+  ],
+  "bad_braces": [
+   "domain-result"
+  ],
+  "bad_id": [
+   "domain-result"
+  ],
+  "bad_language": [
+   "domain-result"
+  ],
+  "bad_name": [
+   "domain-result"
+  ],
+  "binding_denied": [
+   "native-or-Arx-refusal"
+  ],
+  "binding_mismatch": [
+   "native-or-Arx-refusal"
+  ],
+  "bounded_backup_profile_required": [
+   "native-or-Arx-refusal"
+  ],
+  "bounded_profile_required": [
+   "native-or-Arx-refusal"
+  ],
+  "bridge_command_capacity": [
+   "native-or-Arx-refusal"
+  ],
+  "bridge_command_replayed": [
+   "native-or-Arx-refusal"
+  ],
+  "bridge_error": [
+   "native-or-Arx-refusal"
+  ],
+  "bridge_key_rotated": [
+   "native-or-Arx-refusal"
+  ],
+  "bridge_not_installed": [
+   "native-or-Arx-refusal"
+  ],
+  "bridge_not_loaded": [
+   "domain-result"
+  ],
+  "bridge_not_paired": [
+   "native-or-Arx-refusal"
+  ],
+  "bridge_outcome_unknown": [
+   "native-or-Arx-refusal"
+  ],
+  "bridge_outdated": [
+   "native-or-Arx-refusal"
+  ],
+  "bridge_too_old": [
+   "native-or-Arx-refusal"
+  ],
+  "bulk_review_expired": [
+   "native-or-Arx-refusal"
+  ],
+  "bulk_review_stale": [
+   "native-or-Arx-refusal"
+  ],
+  "bulk_selection_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "busy": [
+   "domain-result"
+  ],
+  "cancelled": [
+   "domain-result"
+  ],
+  "cancelled_before_dispatch": [
+   "domain-result"
+  ],
+  "candidate_admission_profile_required": [
+   "native-or-Arx-refusal"
+  ],
+  "candidate_destination_exists": [
+   "native-or-Arx-refusal"
+  ],
+  "candidate_migration_required": [
+   "native-or-Arx-refusal"
+  ],
+  "candidate_migration_requires_schema16": [
+   "native-or-Arx-refusal"
+  ],
+  "candidate_policy_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "candidate_policy_required": [
+   "native-or-Arx-refusal"
+  ],
+  "candidate_repack_requires_schema17": [
+   "native-or-Arx-refusal"
+  ],
+  "candidate_verification_failed": [
+   "native-or-Arx-refusal"
+  ],
+  "capacity_reached": [
+   "native-or-Arx-refusal"
+  ],
+  "capture_applying": [
+   "native-or-Arx-refusal"
+  ],
+  "capture_capacity": [
+   "native-or-Arx-refusal"
+  ],
+  "capture_failed": [
+   "native-or-Arx-refusal"
+  ],
+  "capture_lease_gone": [
+   "domain-result"
+  ],
+  "capture_limit": [
+   "native-or-Arx-refusal"
+  ],
+  "capture_not_found": [
+   "domain-result"
+  ],
+  "capture_not_ready": [
+   "native-or-Arx-refusal"
+  ],
+  "capture_outcome_unknown": [
+   "native-or-Arx-refusal"
+  ],
+  "capture_reader_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "capture_source_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "capture_station_busy": [
+   "native-or-Arx-refusal"
+  ],
+  "capture_unsupported": [
+   "native-or-Arx-refusal"
+  ],
+  "captured": [
+   "domain-result"
+  ],
+  "card_capacity": [
+   "native-or-Arx-refusal"
+  ],
+  "card_conflict": [
+   "native-or-Arx-refusal"
+  ],
+  "card_exceeds_capabilities": [
+   "native-or-Arx-refusal"
+  ],
+  "card_not_found": [
+   "native-or-Arx-refusal"
+  ],
+  "card_owned_elsewhere": [
+   "native-or-Arx-refusal"
+  ],
+  "card_removal_pending": [
+   "native-or-Arx-refusal"
+  ],
+  "card_still_assigned": [
+   "native-or-Arx-refusal"
+  ],
+  "card_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "central_committed": [
+   "domain-result"
+  ],
+  "class_unknown": [
+   "domain-result"
+  ],
+  "cleanup_failed": [
+   "domain-result"
+  ],
+  "cleanup_joined": [
+   "domain-result"
+  ],
+  "clock_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "clock_unhealthy": [
+   "native-or-Arx-refusal"
+  ],
+  "closed": [
+   "domain-result"
+  ],
+  "code": [
+   "native-or-Arx-refusal"
+  ],
+  "collapsed": [
+   "domain-result"
+  ],
+  "command_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "committed": [
+   "domain-result"
+  ],
+  "comparison_not_found": [
+   "native-or-Arx-refusal"
+  ],
+  "complete": [
+   "domain-result"
+  ],
+  "completed": [
+   "domain-result"
+  ],
+  "completed_with_errors": [
+   "native-or-Arx-refusal"
+  ],
+  "composing_original_resources": [
+   "domain-result"
+  ],
+  "config_timeout": [
+   "native-or-Arx-refusal"
+  ],
+  "configuration_invalid": [
+   "domain-result"
+  ],
+  "confirm_mismatch": [
+   "native-or-Arx-refusal"
+  ],
+  "confirmation_required": [
+   "native-or-Arx-refusal"
+  ],
+  "connected": [
+   "native-or-Arx-refusal"
+  ],
+  "connecting": [
+   "domain-result"
+  ],
+  "connection_closed": [
+   "domain-result"
+  ],
+  "connection_exhausted": [
+   "native-or-Arx-refusal"
+  ],
+  "connection_failed": [
+   "native-or-Arx-refusal"
+  ],
+  "connection_locked": [
+   "native-or-Arx-refusal"
+  ],
+  "connection_lost": [
+   "domain-result"
+  ],
+  "consent_race": [
+   "domain-result"
+  ],
+  "consent_requested": [
+   "domain-result"
+  ],
+  "consent_setup": [
+   "domain-result"
+  ],
+  "contradiction": [
+   "native-or-Arx-refusal"
+  ],
+  "control_chars": [
+   "domain-result"
+  ],
+  "counters_incomplete": [
+   "domain-result"
+  ],
+  "credential": [
+   "domain-result"
+  ],
+  "credentials_unreadable": [
+   "native-or-Arx-refusal"
+  ],
+  "csv_duplicate_employee": [
+   "native-or-Arx-refusal"
+  ],
+  "csv_empty": [
+   "native-or-Arx-refusal"
+  ],
+  "csv_group_ambiguous": [
+   "native-or-Arx-refusal"
+  ],
+  "csv_invalid_columns": [
+   "native-or-Arx-refusal"
+  ],
+  "csv_invalid_encoding": [
+   "native-or-Arx-refusal"
+  ],
+  "csv_invalid_format": [
+   "native-or-Arx-refusal"
+  ],
+  "csv_invalid_headers": [
+   "native-or-Arx-refusal"
+  ],
+  "csv_invalid_json": [
+   "native-or-Arx-refusal"
+  ],
+  "csv_invalid_mode": [
+   "native-or-Arx-refusal"
+  ],
+  "csv_permissions_conflict": [
+   "native-or-Arx-refusal"
+  ],
+  "csv_preview_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "csv_profile_unknown": [
+   "native-or-Arx-refusal"
+  ],
+  "csv_review_stale": [
+   "native-or-Arx-refusal"
+  ],
+  "csv_station_ambiguous": [
+   "native-or-Arx-refusal"
+  ],
+  "csv_too_large": [
+   "native-or-Arx-refusal"
+  ],
+  "csv_too_many_rows": [
+   "native-or-Arx-refusal"
+  ],
+  "csv_validation_failed": [
+   "native-or-Arx-refusal"
+  ],
+  "cursor_stale": [
+   "native-or-Arx-refusal"
+  ],
+  "deadline_exceeded": [
+   "domain-result"
+  ],
+  "declined": [
+   "native-or-Arx-refusal"
+  ],
+  "definitively_not_sent": [
+   "domain-result"
+  ],
+  "delete_not_verified": [
+   "native-or-Arx-refusal"
+  ],
+  "deletion_not_pending": [
+   "native-or-Arx-refusal"
+  ],
+  "delivered": [
+   "native-or-Arx-refusal"
+  ],
+  "device_busy": [
+   "native-or-Arx-refusal"
+  ],
+  "device_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "device_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "device_user_missing": [
+   "native-or-Arx-refusal"
+  ],
+  "direct_connect_failed": [
+   "native-or-Arx-refusal"
+  ],
+  "direct_connect_refused": [
+   "native-or-Arx-refusal"
+  ],
+  "direct_connect_timeout": [
+   "native-or-Arx-refusal"
+  ],
+  "direct_connection_capacity": [
+   "domain-result"
+  ],
+  "direct_hello_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "direct_hello_timeout": [
+   "native-or-Arx-refusal"
+  ],
+  "direct_identity_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "direct_output_capacity": [
+   "native-or-Arx-refusal"
+  ],
+  "direct_unreachable": [
+   "native-or-Arx-refusal"
+  ],
+  "disabled": [
+   "domain-result"
+  ],
+  "discovering_original_resources": [
+   "native-or-Arx-refusal"
+  ],
+  "dispatching": [
+   "domain-result"
+  ],
+  "distribution_digest_mismatch": [
+   "domain-result"
+  ],
+  "door_outcome_unknown": [
+   "native-or-Arx-refusal"
+  ],
+  "door_refused": [
+   "native-or-Arx-refusal"
+  ],
+  "dropped": [
+   "domain-result"
+  ],
+  "duplicate": [
+   "domain-result"
+  ],
+  "duplicate_card": [
+   "native-or-Arx-refusal"
+  ],
+  "duplicate_id": [
+   "domain-result"
+  ],
+  "duplicate_label": [
+   "domain-result"
+  ],
+  "duplicate_original": [
+   "native-or-Arx-refusal"
+  ],
+  "durable_repository_uuid_required": [
+   "native-or-Arx-refusal"
+  ],
+  "durable_resume": [
+   "native-or-Arx-refusal"
+  ],
+  "ecc_migration_requires_schema16": [
+   "native-or-Arx-refusal"
+  ],
+  "ecc_storage_backup_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "ecc_storage_initial_image_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "ecc_storage_not_selected": [
+   "native-or-Arx-refusal"
+  ],
+  "ecc_storage_selection_mismatch": [
+   "native-or-Arx-refusal"
+  ],
+  "effects_journal_startup_capacity": [
+   "native-or-Arx-refusal"
+  ],
+  "emergency_claim_conflict": [
+   "native-or-Arx-refusal"
+  ],
+  "emergency_event_ledger_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "emergency_recovery_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "emergency_recovery_unbound": [
+   "native-or-Arx-refusal"
+  ],
+  "emergency_secure_active": [
+   "native-or-Arx-refusal"
+  ],
+  "employee_conflict": [
+   "native-or-Arx-refusal"
+  ],
+  "employee_no_conflict": [
+   "native-or-Arx-refusal"
+  ],
+  "empty": [
+   "domain-result"
+  ],
+  "error": [
+   "domain-result"
+  ],
+  "event_mapping_conflict": [
+   "native-or-Arx-refusal"
+  ],
+  "event_not_found": [
+   "native-or-Arx-refusal"
+  ],
+  "event_released_or_superseded": [
+   "native-or-Arx-refusal"
+  ],
+  "event_source_closed": [
+   "native-or-Arx-refusal"
+  ],
+  "expired": [
+   "domain-result"
+  ],
+  "expires_at_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "expires_too_far": [
+   "native-or-Arx-refusal"
+  ],
+  "expiring": [
+   "domain-result"
+  ],
+  "failed": [
+   "domain-result"
+  ],
+  "feature_action_failed": [
+   "native-or-Arx-refusal"
+  ],
+  "feature_cleanup_unknown": [
+   "native-or-Arx-refusal"
+  ],
+  "feature_disabled": [
+   "native-or-Arx-refusal"
+  ],
+  "feature_host_capacity": [
+   "native-or-Arx-refusal"
+  ],
+  "feature_host_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "feature_journal_installation_incomplete": [
+   "native-or-Arx-refusal"
+  ],
+  "feature_journal_manifest_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "feature_journal_path_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "feature_runtime_already_installed": [
+   "native-or-Arx-refusal"
+  ],
+  "feature_runtime_source_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "feed": [
+   "domain-result"
+  ],
+  "field_access_denied": [
+   "native-or-Arx-refusal"
+  ],
+  "field_level": [
+   "domain-result"
+  ],
+  "fields": [
+   "native-or-Arx-refusal"
+  ],
+  "finished": [
+   "domain-result"
+  ],
+  "fleet_alert_limit": [
+   "native-or-Arx-refusal"
+  ],
+  "fleet_alerts_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "floor_ack_shape": [
+   "native-or-Arx-refusal"
+  ],
+  "floor_not_held": [
+   "native-or-Arx-refusal"
+  ],
+  "forbidden": [
+   "domain-result"
+  ],
+  "frame_ack_shape": [
+   "native-or-Arx-refusal"
+  ],
+  "generating": [
+   "domain-result"
+  ],
+  "generation_invalid": [
+   "domain-result"
+  ],
+  "generation_missing": [
+   "domain-result"
+  ],
+  "generation_not_installed": [
+   "domain-result"
+  ],
+  "generation_or_distribution_unavailable": [
+   "domain-result"
+  ],
+  "grant_revoked": [
+   "native-or-Arx-refusal"
+  ],
+  "granted": [
+   "domain-result"
+  ],
+  "group_policy_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "guest_credential_required": [
+   "native-or-Arx-refusal"
+  ],
+  "guest_responsible_required": [
+   "native-or-Arx-refusal"
+  ],
+  "guest_template_limit": [
+   "native-or-Arx-refusal"
+  ],
+  "guest_template_not_found": [
+   "native-or-Arx-refusal"
+  ],
+  "guest_templates_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "ha_error": [
+   "native-or-Arx-refusal"
+  ],
+  "ha_forbidden": [
+   "native-or-Arx-refusal"
+  ],
+  "ha_not_configured": [
+   "domain-result"
+  ],
+  "ha_service_outcome_unknown": [
+   "domain-result"
+  ],
+  "ha_unavailable": [
+   "domain-result"
+  ],
+  "health_history_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "held": [
+   "domain-result"
+  ],
+  "historical_read_denied": [
+   "native-or-Arx-refusal"
+  ],
+  "hold_pause_before_edit": [
+   "native-or-Arx-refusal"
+  ],
+  "http_rejected": [
+   "native-or-Arx-refusal"
+  ],
+  "identity_changed": [
+   "domain-result"
+  ],
+  "identity_migration_required": [
+   "native-or-Arx-refusal"
+  ],
+  "idle": [
+   "domain-result"
+  ],
+  "idle_or_reauth_configured": [
+   "native-or-Arx-refusal"
+  ],
+  "idle_timeout": [
+   "domain-result"
+  ],
+  "inactive": [
+   "domain-result"
+  ],
+  "installation_identity_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "installation_peer_generation_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "installation_retired": [
+   "native-or-Arx-refusal"
+  ],
+  "installation_storage_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "installation_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "installed_native_source": [
+   "domain-result"
+  ],
+  "intent": [
+   "domain-result"
+  ],
+  "interactive_only": [
+   "domain-result"
+  ],
+  "interactive_session_required": [
+   "domain-result"
+  ],
+  "intercom_action_refused": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_busy": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_camera_host_unknown": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_capture_applying": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_capture_not_found": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_capture_not_ready": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_capture_over": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_capture_station_busy": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_capture_user_busy": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_cursor_expired": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_duplicate_command": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_export_station_required": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_field_level": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_invalid_request": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_listen_not_found": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_listen_off": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_listen_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_lock_not_wiskey": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_lock_required": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_lock_unknown": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_lock_unmapped": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_map_station_mismatch": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_media_cleanup_failed": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_media_expired": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_media_profile_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_media_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_no_camera": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_no_lock": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_no_video": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_outcome_pending": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_outcome_unknown": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_parity_busy": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_person_scope": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_photo_not_found": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_pin_interactive_only": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_rate_limited": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_refused": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_relay_taken": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_release_in_progress": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_revision_conflict": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_snapshot_not_ready": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_station_not_found": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_station_offline": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_talk_busy": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_talk_not_found": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_talk_off": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_talk_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_talk_unsupported": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_talk_upstream_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "intercom_unsupported": [
+   "native-or-Arx-refusal"
+  ],
+  "invalid": [
+   "domain-result"
+  ],
+  "invalid_assignments": [
+   "native-or-Arx-refusal"
+  ],
+  "invalid_boolean": [
+   "native-or-Arx-refusal"
+  ],
+  "invalid_cards": [
+   "native-or-Arx-refusal"
+  ],
+  "invalid_clock": [
+   "native-or-Arx-refusal"
+  ],
+  "invalid_code": [
+   "native-or-Arx-refusal"
+  ],
+  "invalid_cursor": [
+   "native-or-Arx-refusal"
+  ],
+  "invalid_emergency_event": [
+   "native-or-Arx-refusal"
+  ],
+  "invalid_execution_deadline": [
+   "native-or-Arx-refusal"
+  ],
+  "invalid_fields": [
+   "domain-result"
+  ],
+  "invalid_id": [
+   "native-or-Arx-refusal"
+  ],
+  "invalid_identifier": [
+   "native-or-Arx-refusal"
+  ],
+  "invalid_lock": [
+   "native-or-Arx-refusal"
+  ],
+  "invalid_operation": [
+   "native-or-Arx-refusal"
+  ],
+  "invalid_parameters": [
+   "native-or-Arx-refusal"
+  ],
+  "invalid_phone": [
+   "native-or-Arx-refusal"
+  ],
+  "invalid_photo": [
+   "native-or-Arx-refusal"
+  ],
+  "invalid_pin": [
+   "native-or-Arx-refusal"
+  ],
+  "invalid_policy_snapshot": [
+   "native-or-Arx-refusal"
+  ],
+  "invalid_private_backup": [
+   "native-or-Arx-refusal"
+  ],
+  "invalid_resolution": [
+   "native-or-Arx-refusal"
+  ],
+  "invalid_response": [
+   "domain-result"
+  ],
+  "invalid_session": [
+   "domain-result"
+  ],
+  "invalid_storage": [
+   "native-or-Arx-refusal"
+  ],
+  "invalid_sync_status": [
+   "native-or-Arx-refusal"
+  ],
+  "invalid_text": [
+   "native-or-Arx-refusal"
+  ],
+  "invalid_time": [
+   "native-or-Arx-refusal"
+  ],
+  "invalid_timezone": [
+   "native-or-Arx-refusal"
+  ],
+  "invalid_timing_policy": [
+   "native-or-Arx-refusal"
+  ],
+  "invalid_user_timing": [
+   "native-or-Arx-refusal"
+  ],
+  "invalid_validity": [
+   "native-or-Arx-refusal"
+  ],
+  "job_busy": [
+   "native-or-Arx-refusal"
+  ],
+  "job_empty_or_too_large": [
+   "native-or-Arx-refusal"
+  ],
+  "job_finished": [
+   "native-or-Arx-refusal"
+  ],
+  "job_limit": [
+   "native-or-Arx-refusal"
+  ],
+  "job_paused": [
+   "native-or-Arx-refusal"
+  ],
+  "jobs_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "journal_capacity": [
+   "native-or-Arx-refusal"
+  ],
+  "last_error": [
+   "native-or-Arx-refusal"
+  ],
+  "lease_ceiling": [
+   "domain-result"
+  ],
+  "lease_expires_at_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "legacy_source_snapshot_unavailable": [
+   "domain-result"
+  ],
+  "lifecycle_already_applied": [
+   "native-or-Arx-refusal"
+  ],
+  "lifecycle_blocked": [
+   "native-or-Arx-refusal"
+  ],
+  "lifecycle_cleanup_pending": [
+   "native-or-Arx-refusal"
+  ],
+  "lifecycle_history_full": [
+   "native-or-Arx-refusal"
+  ],
+  "lifecycle_not_applied": [
+   "native-or-Arx-refusal"
+  ],
+  "lifecycle_not_found": [
+   "native-or-Arx-refusal"
+  ],
+  "lifecycle_remove_failed": [
+   "native-or-Arx-refusal"
+  ],
+  "local_admission_unavailable": [
+   "domain-result"
+  ],
+  "local_validity_needs_conversion": [
+   "native-or-Arx-refusal"
+  ],
+  "lock_not_assigned": [
+   "domain-result"
+  ],
+  "lock_not_managed": [
+   "native-or-Arx-refusal"
+  ],
+  "lost": [
+   "native-or-Arx-refusal"
+  ],
+  "maintenance_window_closed": [
+   "native-or-Arx-refusal"
+  ],
+  "malformed": [
+   "native-or-Arx-refusal"
+  ],
+  "malformed:state": [
+   "native-or-Arx-refusal"
+  ],
+  "malformed_envelope": [
+   "native-or-Arx-refusal"
+  ],
+  "manager_closed": [
+   "native-or-Arx-refusal"
+  ],
+  "media_cleanup_failed": [
+   "native-or-Arx-refusal"
+  ],
+  "media_error": [
+   "native-or-Arx-refusal"
+  ],
+  "media_not_configured": [
+   "native-or-Arx-refusal"
+  ],
+  "media_not_supported": [
+   "native-or-Arx-refusal"
+  ],
+  "media_outcome_unknown": [
+   "native-or-Arx-refusal"
+  ],
+  "media_settings_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "media_settings_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "media_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "message_bulk_mismatch": [
+   "native-or-Arx-refusal"
+  ],
+  "message_bulk_too_many": [
+   "native-or-Arx-refusal"
+  ],
+  "message_consent_pending": [
+   "native-or-Arx-refusal"
+  ],
+  "message_consent_recently_requested": [
+   "native-or-Arx-refusal"
+  ],
+  "message_consent_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "message_disabled": [
+   "native-or-Arx-refusal"
+  ],
+  "message_duplicate": [
+   "native-or-Arx-refusal"
+  ],
+  "message_empty": [
+   "native-or-Arx-refusal"
+  ],
+  "message_expired": [
+   "native-or-Arx-refusal"
+  ],
+  "message_forbidden": [
+   "native-or-Arx-refusal"
+  ],
+  "message_forbidden_content": [
+   "native-or-Arx-refusal"
+  ],
+  "message_free_text_disabled": [
+   "native-or-Arx-refusal"
+  ],
+  "message_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "message_no_consent": [
+   "native-or-Arx-refusal"
+  ],
+  "message_no_phone": [
+   "native-or-Arx-refusal"
+  ],
+  "message_not_registered": [
+   "native-or-Arx-refusal"
+  ],
+  "message_optout_clear_forbidden": [
+   "native-or-Arx-refusal"
+  ],
+  "message_outside_hours": [
+   "native-or-Arx-refusal"
+  ],
+  "message_paced": [
+   "native-or-Arx-refusal"
+  ],
+  "message_pacing_expired": [
+   "native-or-Arx-refusal"
+  ],
+  "message_pair_rate_limited": [
+   "native-or-Arx-refusal"
+  ],
+  "message_rate_limited": [
+   "native-or-Arx-refusal"
+  ],
+  "message_refused": [
+   "native-or-Arx-refusal"
+  ],
+  "message_service_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "message_settings_conflict": [
+   "native-or-Arx-refusal"
+  ],
+  "message_settings_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "message_template_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "message_template_unknown": [
+   "native-or-Arx-refusal"
+  ],
+  "message_too_long": [
+   "native-or-Arx-refusal"
+  ],
+  "message_uncertain": [
+   "native-or-Arx-refusal"
+  ],
+  "migration_source_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "migration_source_save_refused": [
+   "native-or-Arx-refusal"
+  ],
+  "missing": [
+   "domain-result"
+  ],
+  "missing_phone": [
+   "native-or-Arx-refusal"
+  ],
+  "mode_unknown": [
+   "domain-result"
+  ],
+  "mse_codec_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "mse_connection_lost": [
+   "native-or-Arx-refusal"
+  ],
+  "mse_protocol_error": [
+   "native-or-Arx-refusal"
+  ],
+  "mse_provider_failed": [
+   "native-or-Arx-refusal"
+  ],
+  "mse_provider_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "mse_session_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "name_ref_conflict": [
+   "native-or-Arx-refusal"
+  ],
+  "name_ref_consumed": [
+   "native-or-Arx-refusal"
+  ],
+  "name_ref_expired": [
+   "native-or-Arx-refusal"
+  ],
+  "name_ref_outcome_unknown": [
+   "native-or-Arx-refusal"
+  ],
+  "name_ref_unknown": [
+   "native-or-Arx-refusal"
+  ],
+  "native_commit_not_observed": [
+   "native-or-Arx-refusal"
+  ],
+  "native_composition_unavailable": [
+   "domain-result"
+  ],
+  "native_media_ingress_capacity": [
+   "native-or-Arx-refusal"
+  ],
+  "native_media_ingress_required": [
+   "native-or-Arx-refusal"
+  ],
+  "native_media_ingress_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "native_media_not_started": [
+   "native-or-Arx-refusal"
+  ],
+  "native_owner_dispatch": [
+   "domain-result"
+  ],
+  "native_source_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "native_storage_capacity": [
+   "native-or-Arx-refusal"
+  ],
+  "native_template_owner_exists": [
+   "native-or-Arx-refusal"
+  ],
+  "native_write_action_unsupported": [
+   "native-or-Arx-refusal"
+  ],
+  "native_write_multiple_commits": [
+   "native-or-Arx-refusal"
+  ],
+  "native_write_source_not_observed": [
+   "native-or-Arx-refusal"
+  ],
+  "native_write_source_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "no_answer": [
+   "domain-result"
+  ],
+  "no_assignment": [
+   "domain-result"
+  ],
+  "not_a_boolean": [
+   "domain-result"
+  ],
+  "not_a_list": [
+   "domain-result"
+  ],
+  "not_checked": [
+   "domain-result"
+  ],
+  "not_configured": [
+   "domain-result"
+  ],
+  "not_connected": [
+   "native-or-Arx-refusal"
+  ],
+  "not_found": [
+   "native-or-Arx-refusal"
+  ],
+  "not_implemented": [
+   "native-or-Arx-refusal"
+  ],
+  "not_measured": [
+   "domain-result"
+  ],
+  "not_observed": [
+   "domain-result"
+  ],
+  "not_pinned": [
+   "native-or-Arx-refusal"
+  ],
+  "not_proven": [
+   "domain-result"
+  ],
+  "not_ready": [
+   "domain-result"
+  ],
+  "not_sent": [
+   "domain-result"
+  ],
+  "not_system_admin": [
+   "domain-result"
+  ],
+  "off": [
+   "domain-result"
+  ],
+  "offline": [
+   "domain-result"
+  ],
+  "operation_already_recorded": [
+   "domain-result"
+  ],
+  "operation_conflict": [
+   "native-or-Arx-refusal"
+  ],
+  "operation_in_progress": [
+   "native-or-Arx-refusal"
+  ],
+  "operation_not_found": [
+   "native-or-Arx-refusal"
+  ],
+  "operation_pending_or_unknown": [
+   "native-or-Arx-refusal"
+  ],
+  "operation_receipts_full": [
+   "native-or-Arx-refusal"
+  ],
+  "operation_unsupported": [
+   "native-or-Arx-refusal"
+  ],
+  "operations_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "operator_scope_required": [
+   "native-or-Arx-refusal"
+  ],
+  "organization_missing": [
+   "domain-result"
+  ],
+  "original_already_committed": [
+   "native-or-Arx-refusal"
+  ],
+  "original_bridge_or_station_not_loaded": [
+   "domain-result"
+  ],
+  "original_capture_source_unavailable": [
+   "domain-result"
+  ],
+  "original_create_already_committed": [
+   "native-or-Arx-refusal"
+  ],
+  "original_reference_mismatch": [
+   "native-or-Arx-refusal"
+  ],
+  "out_of_range": [
+   "domain-result"
+  ],
+  "outcome": [
+   "native-or-Arx-refusal"
+  ],
+  "outcome_unknown": [
+   "domain-result"
+  ],
+  "outside_schedule": [
+   "domain-result"
+  ],
+  "outside_validity": [
+   "domain-result"
+  ],
+  "owner_mismatch": [
+   "native-or-Arx-refusal"
+  ],
+  "ownership_missing": [
+   "native-or-Arx-refusal"
+  ],
+  "paced": [
+   "native-or-Arx-refusal"
+  ],
+  "pacing_capacity": [
+   "native-or-Arx-refusal"
+  ],
+  "pacing_expired": [
+   "native-or-Arx-refusal"
+  ],
+  "pacing_interrupted": [
+   "domain-result"
+  ],
+  "pacing_lease_expired": [
+   "native-or-Arx-refusal"
+  ],
+  "pacing_ledger_migration_required": [
+   "native-or-Arx-refusal"
+  ],
+  "pacing_sender_reconciliation_required": [
+   "native-or-Arx-refusal"
+  ],
+  "page": [
+   "domain-result"
+  ],
+  "pair_rate_limited": [
+   "native-or-Arx-refusal"
+  ],
+  "pairing_command_required": [
+   "native-or-Arx-refusal"
+  ],
+  "pairing_reconnect_required": [
+   "native-or-Arx-refusal"
+  ],
+  "partial": [
+   "domain-result"
+  ],
+  "paused": [
+   "domain-result"
+  ],
+  "peer_bridge_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "peer_query_disabled": [
+   "native-or-Arx-refusal"
+  ],
+  "peer_receipt_capacity": [
+   "native-or-Arx-refusal"
+  ],
+  "pending": [
+   "domain-result"
+  ],
+  "permanent_receipt_fence": [
+   "native-or-Arx-refusal"
+  ],
+  "permanent_registry_fence": [
+   "native-or-Arx-refusal"
+  ],
+  "permission_revision_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "permission_timeout": [
+   "native-or-Arx-refusal"
+  ],
+  "permissions_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "permissions_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "person_capacity": [
+   "native-or-Arx-refusal"
+  ],
+  "person_exceeds_capabilities": [
+   "native-or-Arx-refusal"
+  ],
+  "person_scope_shared": [
+   "native-or-Arx-refusal"
+  ],
+  "personal_identity_required": [
+   "native-or-Arx-refusal"
+  ],
+  "photo_disabled": [
+   "native-or-Arx-refusal"
+  ],
+  "photo_storage_full": [
+   "native-or-Arx-refusal"
+  ],
+  "pin_conflict": [
+   "native-or-Arx-refusal"
+  ],
+  "pin_device_managed": [
+   "native-or-Arx-refusal"
+  ],
+  "pin_exceeds_capabilities": [
+   "native-or-Arx-refusal"
+  ],
+  "pin_generation_failed": [
+   "native-or-Arx-refusal"
+  ],
+  "pin_owned_elsewhere": [
+   "native-or-Arx-refusal"
+  ],
+  "pin_quarantine_capacity": [
+   "native-or-Arx-refusal"
+  ],
+  "pin_quarantine_not_found": [
+   "native-or-Arx-refusal"
+  ],
+  "pin_quarantine_pending": [
+   "native-or-Arx-refusal"
+  ],
+  "pin_quarantined": [
+   "native-or-Arx-refusal"
+  ],
+  "pin_readback_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "pin_removal_pending": [
+   "native-or-Arx-refusal"
+  ],
+  "platform/lifecycle_remove": [
+   "native-or-Arx-refusal"
+  ],
+  "policy_binding_denied": [
+   "native-or-Arx-refusal"
+  ],
+  "policy_expired": [
+   "native-or-Arx-refusal"
+  ],
+  "policy_head_capacity": [
+   "native-or-Arx-refusal"
+  ],
+  "policy_ledger_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "policy_ledger_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "policy_revision_conflict": [
+   "native-or-Arx-refusal"
+  ],
+  "policy_revision_rollback": [
+   "native-or-Arx-refusal"
+  ],
+  "policy_revoked": [
+   "native-or-Arx-refusal"
+  ],
+  "policy_source_capacity": [
+   "native-or-Arx-refusal"
+  ],
+  "policy_version_not_found": [
+   "native-or-Arx-refusal"
+  ],
+  "prepare:": [
+   "native-or-Arx-refusal"
+  ],
+  "prepare:transport_error": [
+   "native-or-Arx-refusal"
+  ],
+  "prepare:unverified": [
+   "native-or-Arx-refusal"
+  ],
+  "prepared": [
+   "domain-result"
+  ],
+  "preparing": [
+   "domain-result"
+  ],
+  "preview_expired": [
+   "native-or-Arx-refusal"
+  ],
+  "preview_token": [
+   "domain-result"
+  ],
+  "private_storage_directory_required": [
+   "native-or-Arx-refusal"
+  ],
+  "private_storage_file_required": [
+   "native-or-Arx-refusal"
+  ],
+  "profile_definition_in_use": [
+   "native-or-Arx-refusal"
+  ],
+  "profile_review_required": [
+   "native-or-Arx-refusal"
+  ],
+  "profile_settings_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "profile_value_not_unique": [
+   "native-or-Arx-refusal"
+  ],
+  "proof_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "provider_accepted": [
+   "native-or-Arx-refusal"
+  ],
+  "provider_outcome_unknown": [
+   "domain-result"
+  ],
+  "provider_throttle": [
+   "domain-result"
+  ],
+  "pump_error": [
+   "domain-result"
+  ],
+  "purpose_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "queue_expired": [
+   "domain-result"
+  ],
+  "queued": [
+   "domain-result"
+  ],
+  "queued_template_source_required": [
+   "native-or-Arx-refusal"
+  ],
+  "range": [
+   "domain-result"
+  ],
+  "rate_limited": [
+   "domain-result"
+  ],
+  "readback_mismatch": [
+   "native-or-Arx-refusal"
+  ],
+  "readback_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "ready": [
+   "domain-result"
+  ],
+  "reauth_expired": [
+   "native-or-Arx-refusal"
+  ],
+  "reauth_failed": [
+   "native-or-Arx-refusal"
+  ],
+  "reauth_provider_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "reauth_required": [
+   "native-or-Arx-refusal"
+  ],
+  "receipt": [
+   "native-or-Arx-refusal"
+  ],
+  "receipt_incomplete": [
+   "native-or-Arx-refusal"
+  ],
+  "receipt_unverified": [
+   "native-or-Arx-refusal"
+  ],
+  "record_not_found": [
+   "native-or-Arx-refusal"
+  ],
+  "record_too_large": [
+   "native-or-Arx-refusal"
+  ],
+  "recording": [
+   "domain-result"
+  ],
+  "recovered_after_send": [
+   "domain-result"
+  ],
+  "recovered_before_send": [
+   "domain-result"
+  ],
+  "recovery_cleanup_unknown": [
+   "native-or-Arx-refusal"
+  ],
+  "recovery_configuration_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "recovery_host_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "recovery_path_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "refusal_restored": [
+   "domain-result"
+  ],
+  "refused": [
+   "domain-result"
+  ],
+  "refused_known": [
+   "domain-result"
+  ],
+  "registered": [
+   "native-or-Arx-refusal"
+  ],
+  "rejected": [
+   "domain-result"
+  ],
+  "release_in_progress": [
+   "native-or-Arx-refusal"
+  ],
+  "release_unconfirmed": [
+   "native-or-Arx-refusal"
+  ],
+  "released": [
+   "domain-result"
+  ],
+  "remote_mfa_required": [
+   "native-or-Arx-refusal"
+  ],
+  "remote_not_allowed": [
+   "native-or-Arx-refusal"
+  ],
+  "remote_session_revoked": [
+   "domain-result"
+  ],
+  "remote_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "remote_user_inactive": [
+   "native-or-Arx-refusal"
+  ],
+  "removed": [
+   "domain-result"
+  ],
+  "removing": [
+   "native-or-Arx-refusal"
+  ],
+  "renewal_already_pending": [
+   "native-or-Arx-refusal"
+  ],
+  "renewal_approver_inactive": [
+   "native-or-Arx-refusal"
+  ],
+  "renewal_identity_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "renewal_identity_in_use": [
+   "native-or-Arx-refusal"
+  ],
+  "renewal_identity_inactive": [
+   "native-or-Arx-refusal"
+  ],
+  "renewal_identity_unlinked": [
+   "native-or-Arx-refusal"
+  ],
+  "renewal_not_extension": [
+   "native-or-Arx-refusal"
+  ],
+  "renewal_not_temporary": [
+   "native-or-Arx-refusal"
+  ],
+  "renewal_person_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "renewal_request_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "reply_unauthenticated": [
+   "native-or-Arx-refusal"
+  ],
+  "report_failed": [
+   "domain-result"
+  ],
+  "report_source_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "request_id_conflict": [
+   "domain-result"
+  ],
+  "request_id_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "request_too_large": [
+   "native-or-Arx-refusal"
+  ],
+  "requested": [
+   "domain-result"
+  ],
+  "reserving": [
+   "domain-result"
+  ],
+  "reset_required": [
+   "domain-result"
+  ],
+  "restart_pending": [
+   "native-or-Arx-refusal"
+  ],
+  "restart_request_failed": [
+   "domain-result"
+  ],
+  "restore_current_storage_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "restore_current_storage_required": [
+   "native-or-Arx-refusal"
+  ],
+  "restore_repository_profile_mismatch": [
+   "native-or-Arx-refusal"
+  ],
+  "restore_verification_failed": [
+   "native-or-Arx-refusal"
+  ],
+  "retired": [
+   "domain-result"
+  ],
+  "retry_parent_not_unknown": [
+   "native-or-Arx-refusal"
+  ],
+  "review_expired": [
+   "native-or-Arx-refusal"
+  ],
+  "review_stale": [
+   "native-or-Arx-refusal"
+  ],
+  "revision_conflict": [
+   "native-or-Arx-refusal"
+  ],
+  "revocation_not_confirmed": [
+   "native-or-Arx-refusal"
+  ],
+  "revoked": [
+   "native-or-Arx-refusal"
+  ],
+  "rotated": [
+   "domain-result"
+  ],
+  "rotation_pending": [
+   "native-or-Arx-refusal"
+  ],
+  "rows": [
+   "native-or-Arx-refusal"
+  ],
+  "rtc_connection_lost": [
+   "native-or-Arx-refusal"
+  ],
+  "rtc_protocol_error": [
+   "native-or-Arx-refusal"
+  ],
+  "rtc_revocable_provider_required": [
+   "native-or-Arx-refusal"
+  ],
+  "rtc_session_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "rtc_signaling_failed": [
+   "native-or-Arx-refusal"
+  ],
+  "running": [
+   "domain-result"
+  ],
+  "saved": [
+   "domain-result"
+  ],
+  "scan_limit": [
+   "domain-result"
+  ],
+  "scenario_invalid_time": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_baseline_expired": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_baseline_limit": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_baseline_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_binding_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_binding_out_of_range": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_claim_conflict": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_claim_expired": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_claim_in_use": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_claim_not_found": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_compilation_limit": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_compilation_unknown": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_deployment_busy": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_deployment_incomplete": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_deployment_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_deployment_limit": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_deployment_not_found": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_deployment_ownership_required": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_deployment_retained": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_deployment_terminal": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_holiday_limit": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_holiday_overlap": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_import_expired": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_invalid_date": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_invalid_time": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_invalid_week": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_inventory_incomplete": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_limit": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_no_safe_slots": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_not_found": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_observation_extra_fields": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_observation_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_operation_exists": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_operation_failed": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_operation_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_operation_limit": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_operation_not_found": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_operation_retained": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_operations_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_overlap": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_period_limit": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_plan_active_resources": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_plan_device_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_plan_expired": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_plan_limit": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_plan_not_found": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_plan_resource_reserved": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_plan_storage_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_plan_user_defaults": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_plan_users_unreadable": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_read_busy": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_resource_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_runtime_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_source_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_station_clock_unverified": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_station_timezone_unverified": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_transfer_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_unverified": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_user_capability_unknown": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_write_uncertain": [
+   "native-or-Arx-refusal"
+  ],
+  "schedule_writes_unverified": [
+   "domain-result"
+  ],
+  "scheduler_timeout": [
+   "native-or-Arx-refusal"
+  ],
+  "schema_version": [
+   "native-or-Arx-refusal"
+  ],
+  "scope_unknown": [
+   "native-or-Arx-refusal"
+  ],
+  "screen_locked": [
+   "native-or-Arx-refusal"
+  ],
+  "second_factor_enrollment_required": [
+   "native-or-Arx-refusal"
+  ],
+  "second_factor_required": [
+   "native-or-Arx-refusal"
+  ],
+  "secret_store_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "security_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "selection_publication_uncertain": [
+   "native-or-Arx-refusal"
+  ],
+  "sender_ref_duplicate": [
+   "domain-result"
+  ],
+  "sender_ref_invalid": [
+   "domain-result"
+  ],
+  "sender_unknown": [
+   "domain-result"
+  ],
+  "sending": [
+   "domain-result"
+  ],
+  "sent": [
+   "domain-result"
+  ],
+  "sent_unknown": [
+   "domain-result"
+  ],
+  "separate_approver_required": [
+   "native-or-Arx-refusal"
+  ],
+  "sequence_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "service_actor_mismatch": [
+   "native-or-Arx-refusal"
+  ],
+  "service_field_denied": [
+   "native-or-Arx-refusal"
+  ],
+  "service_grant_denied": [
+   "native-or-Arx-refusal"
+  ],
+  "service_grant_expired": [
+   "native-or-Arx-refusal"
+  ],
+  "service_grant_required": [
+   "native-or-Arx-refusal"
+  ],
+  "service_identity_is_admin": [
+   "native-or-Arx-refusal"
+  ],
+  "service_not_found": [
+   "native-or-Arx-refusal"
+  ],
+  "service_operation_conflict": [
+   "native-or-Arx-refusal"
+  ],
+  "service_origin_or_request_already_recorded": [
+   "native-or-Arx-refusal"
+  ],
+  "service_subscribe_not_live": [
+   "native-or-Arx-refusal"
+  ],
+  "service_target_denied": [
+   "native-or-Arx-refusal"
+  ],
+  "service_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "service_write_capacity": [
+   "native-or-Arx-refusal"
+  ],
+  "service_write_commit_mismatch": [
+   "native-or-Arx-refusal"
+  ],
+  "service_write_outcome_unknown": [
+   "native-or-Arx-refusal"
+  ],
+  "service_write_repository_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "service_write_source_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "session_expired": [
+   "native-or-Arx-refusal"
+  ],
+  "session_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "settled": [
+   "domain-result"
+  ],
+  "setup": [
+   "domain-result"
+  ],
+  "shares_service_identity": [
+   "domain-result"
+  ],
+  "slowdown_invalid": [
+   "domain-result"
+  ],
+  "snapshot_entity_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "snapshot_not_supported": [
+   "native-or-Arx-refusal"
+  ],
+  "snapshot_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "source_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "source_changed_before_dispatch": [
+   "domain-result"
+  ],
+  "source_not_configured": [
+   "native-or-Arx-refusal"
+  ],
+  "source_or_admission_refused": [
+   "native-or-Arx-refusal"
+  ],
+  "speaking": [
+   "domain-result"
+  ],
+  "stale": [
+   "domain-result"
+  ],
+  "stale_backup_refused": [
+   "native-or-Arx-refusal"
+  ],
+  "started": [
+   "domain-result"
+  ],
+  "state": [
+   "native-or-Arx-refusal"
+  ],
+  "station_already_attached": [
+   "native-or-Arx-refusal"
+  ],
+  "station_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "station_has_no_managed_lock": [
+   "native-or-Arx-refusal"
+  ],
+  "station_id": [
+   "native-or-Arx-refusal"
+  ],
+  "station_id_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "station_identity_duplicate": [
+   "native-or-Arx-refusal"
+  ],
+  "station_mapping_required": [
+   "native-or-Arx-refusal"
+  ],
+  "station_not_found": [
+   "native-or-Arx-refusal"
+  ],
+  "station_offline": [
+   "native-or-Arx-refusal"
+  ],
+  "station_retiring": [
+   "native-or-Arx-refusal"
+  ],
+  "station_scope": [
+   "domain-result"
+  ],
+  "station_scoped": [
+   "domain-result"
+  ],
+  "station_source_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "station_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "station_unloaded": [
+   "native-or-Arx-refusal"
+  ],
+  "status_unknown": [
+   "native-or-Arx-refusal"
+  ],
+  "stopped": [
+   "domain-result"
+  ],
+  "storage_busy": [
+   "native-or-Arx-refusal"
+  ],
+  "storage_checkpoint_busy": [
+   "native-or-Arx-refusal"
+  ],
+  "storage_contents_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "storage_corrupt": [
+   "native-or-Arx-refusal"
+  ],
+  "storage_full": [
+   "native-or-Arx-refusal"
+  ],
+  "storage_generation_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "storage_image_capacity": [
+   "native-or-Arx-refusal"
+  ],
+  "storage_image_not_initialized": [
+   "native-or-Arx-refusal"
+  ],
+  "storage_load_required": [
+   "native-or-Arx-refusal"
+  ],
+  "storage_path_rebound": [
+   "native-or-Arx-refusal"
+  ],
+  "storage_reopen_required": [
+   "native-or-Arx-refusal"
+  ],
+  "storage_stopping": [
+   "native-or-Arx-refusal"
+  ],
+  "storage_unavailable": [
+   "domain-result"
+  ],
+  "storage_write_failed": [
+   "native-or-Arx-refusal"
+  ],
+  "subscription_capacity": [
+   "native-or-Arx-refusal"
+  ],
+  "subscription_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "supervisor_error": [
+   "native-or-Arx-refusal"
+  ],
+  "supervisor_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "talk_ref_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "technical_write_unknown": [
+   "native-or-Arx-refusal"
+  ],
+  "template_capacity_or_request_conflict": [
+   "native-or-Arx-refusal"
+  ],
+  "template_capacity_reached": [
+   "native-or-Arx-refusal"
+  ],
+  "template_cleanup_failed": [
+   "native-or-Arx-refusal"
+  ],
+  "template_jobs_storage_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "template_mismatch": [
+   "native-or-Arx-refusal"
+  ],
+  "template_native_binding_unsupported": [
+   "native-or-Arx-refusal"
+  ],
+  "template_not_found": [
+   "native-or-Arx-refusal"
+  ],
+  "template_outcome_unknown": [
+   "native-or-Arx-refusal"
+  ],
+  "template_placeholders_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "template_revision_conflict": [
+   "native-or-Arx-refusal"
+  ],
+  "template_selection_duplicate": [
+   "native-or-Arx-refusal"
+  ],
+  "template_send_invalid": [
+   "native-or-Arx-refusal"
+  ],
+  "template_send_unsupported": [
+   "domain-result"
+  ],
+  "template_source_changed": [
+   "native-or-Arx-refusal"
+  ],
+  "template_source_not_installed": [
+   "native-or-Arx-refusal"
+  ],
+  "template_source_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "template_unsupported": [
+   "domain-result"
+  ],
+  "template_v2_not_sent": [
+   "native-or-Arx-refusal"
+  ],
+  "template_v2_preview_stale": [
+   "native-or-Arx-refusal"
+  ],
+  "template_v2_refused": [
+   "native-or-Arx-refusal"
+  ],
+  "template_v2_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "template_window_open": [
+   "native-or-Arx-refusal"
+  ],
+  "temporary_already_inactive": [
+   "native-or-Arx-refusal"
+  ],
+  "temporary_user_required": [
+   "native-or-Arx-refusal"
+  ],
+  "terminal": [
+   "domain-result"
+  ],
+  "timeout": [
+   "domain-result"
+  ],
+  "timing_boundary_ambiguous": [
+   "native-or-Arx-refusal"
+  ],
+  "token_revoked": [
+   "domain-result"
+  ],
+  "too_large": [
+   "domain-result"
+  ],
+  "too_long": [
+   "domain-result"
+  ],
+  "too_many": [
+   "domain-result"
+  ],
+  "too_many_placeholders": [
+   "domain-result"
+  ],
+  "too_many_reviews": [
+   "native-or-Arx-refusal"
+  ],
+  "transfer_finished": [
+   "native-or-Arx-refusal"
+  ],
+  "transfer_in_progress": [
+   "native-or-Arx-refusal"
+  ],
+  "transport_error": [
+   "domain-result"
+  ],
+  "tts_engine_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "type": [
+   "domain-result"
+  ],
+  "unauthorized": [
+   "native-or-Arx-refusal"
+  ],
+  "unavailable": [
+   "domain-result"
+  ],
+  "unbound": [
+   "domain-result"
+  ],
+  "uncertain": [
+   "native-or-Arx-refusal"
+  ],
+  "unchanged_pin_generated_not_saved": [
+   "domain-result"
+  ],
+  "unknown": [
+   "domain-result"
+  ],
+  "unknown_action": [
+   "native-or-Arx-refusal"
+  ],
+  "unknown_command": [
+   "native-or-Arx-refusal"
+  ],
+  "unknown_contract_version": [
+   "native-or-Arx-refusal"
+  ],
+  "unknown_feature": [
+   "native-or-Arx-refusal"
+  ],
+  "unknown_placeholder": [
+   "domain-result"
+  ],
+  "unknown_request": [
+   "domain-result"
+  ],
+  "unmanaged_employee": [
+   "native-or-Arx-refusal"
+  ],
+  "unmanaged_lock": [
+   "native-or-Arx-refusal"
+  ],
+  "unmanaged_storage_refused": [
+   "native-or-Arx-refusal"
+  ],
+  "unmappable": [
+   "domain-result"
+  ],
+  "unproven_duplicate": [
+   "native-or-Arx-refusal"
+  ],
+  "unreadable_validity": [
+   "native-or-Arx-refusal"
+  ],
+  "unreserved_unknown": [
+   "domain-result"
+  ],
+  "unsafe_peer_revision": [
+   "native-or-Arx-refusal"
+  ],
+  "unselected_storage_exists": [
+   "native-or-Arx-refusal"
+  ],
+  "unsupported": [
+   "domain-result"
+  ],
+  "unsupported_card_type": [
+   "native-or-Arx-refusal"
+  ],
+  "unsupported_credentials": [
+   "native-or-Arx-refusal"
+  ],
+  "unsupported_media_type": [
+   "native-or-Arx-refusal"
+  ],
+  "unsupported_user_type": [
+   "native-or-Arx-refusal"
+  ],
+  "unsupported_version": [
+   "native-or-Arx-refusal"
+  ],
+  "untrimmed": [
+   "domain-result"
+  ],
+  "unverified": [
+   "domain-result"
+  ],
+  "upstream_closed": [
+   "domain-result"
+  ],
+  "user_archived": [
+   "native-or-Arx-refusal"
+  ],
+  "user_not_found": [
+   "native-or-Arx-refusal"
+  ],
+  "validation": [
+   "native-or-Arx-refusal"
+  ],
+  "validity_timezone_mismatch": [
+   "native-or-Arx-refusal"
+  ],
+  "verified": [
+   "domain-result"
+  ],
+  "visit_approval_required": [
+   "native-or-Arx-refusal"
+  ],
+  "visit_approver_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "visit_inactive_required": [
+   "native-or-Arx-refusal"
+  ],
+  "visit_request_closed": [
+   "native-or-Arx-refusal"
+  ],
+  "visit_request_limit": [
+   "native-or-Arx-refusal"
+  ],
+  "visit_request_not_found": [
+   "native-or-Arx-refusal"
+  ],
+  "visit_request_stale": [
+   "native-or-Arx-refusal"
+  ],
+  "visit_second_operator_required": [
+   "native-or-Arx-refusal"
+  ],
+  "waiting_for_original_entries": [
+   "domain-result"
+  ],
+  "wall_user_remote_not_allowed": [
+   "native-or-Arx-refusal"
+  ],
+  "webhook_https_required": [
+   "native-or-Arx-refusal"
+  ],
+  "whatsapp_history_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "whatsapp_invalid_phone": [
+   "native-or-Arx-refusal"
+  ],
+  "whatsapp_media_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "whatsapp_pacing_unavailable": [
+   "domain-result"
+  ],
+  "whatsapp_preview_expired": [
+   "native-or-Arx-refusal"
+  ],
+  "whatsapp_send_uncertain": [
+   "native-or-Arx-refusal"
+  ],
+  "whatsapp_templates_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "whatsapp_unavailable": [
+   "native-or-Arx-refusal"
+  ],
+  "wiskey_code": [
+   "native-or-Arx-refusal"
+  ],
+  "wiskey_direct_not_connected": [
+   "native-or-Arx-refusal"
+  ],
+  "wiskey_direct_not_installed": [
+   "native-or-Arx-refusal"
+  ],
+  "wiskey_own_pacing": [
+   "domain-result"
+  ],
+  "within_tolerance": [
+   "native-or-Arx-refusal"
+  ],
+  "workflow_limit": [
+   "native-or-Arx-refusal"
+  ],
+  "write_outcome_unknown": [
+   "native-or-Arx-refusal"
+  ],
+  "wrong_thread": [
+   "native-or-Arx-refusal"
+  ]
+ },
+ "DOMAIN_STATE_SETS": {
+  "event_reset_reasons": [
+   "retention_gap",
+   "source_replaced",
+   "cursor_ahead"
+  ],
+  "event_resume": [
+   "page",
+   "reset_required"
+  ],
+  "generation_journal": [
+   "staging",
+   "installing",
+   "installed",
+   "failed",
+   "rolled_back",
+   "uninstalling",
+   "uninstalled"
+  ],
+  "legacy_Arx_installer_labels_NOT_readiness": [
+   "not_available",
+   "error",
+   "not_installed",
+   "active",
+   "update_pending",
+   "installed_pending"
+  ],
+  "queue": [
+   "queued",
+   "dispatching",
+   "completed",
+   "cancelled",
+   "unknown"
+  ],
+  "readiness": [
+   "ready",
+   "not_ready"
+  ],
+  "readiness_reasons": [
+   "generation_missing",
+   "generation_invalid",
+   "generation_not_installed",
+   "bridge_not_loaded",
+   "distribution_digest_mismatch",
+   "generation_or_distribution_unavailable",
+   "restart_pending",
+   "restart_request_failed"
+  ],
+  "restart_journal": [
+   "not_requested",
+   "requested",
+   "failed",
+   "unknown",
+   "completed"
+  ],
+  "restart_result": [
+   "requested",
+   "already_recorded"
+  ],
+  "service_receipt": [
+   "completed",
+   "unknown"
+  ],
+  "template_result": [
+   "accepted",
+   "not_sent",
+   "unknown"
+  ],
+  "template_result_codes": [
+   "source_or_admission_refused",
+   "template_mismatch",
+   "provider_accepted",
+   "provider_outcome_unknown",
+   "operation_pending_or_unknown"
+  ]
+ },
+ "OUTCOME_CONTRACT_ROWS": [
+  {
+   "command_or_route": "whatsapp/template_send_v2",
+   "layer": "native_typed_result",
+   "meaning": "provider accepted",
+   "wire_code": "provider_accepted",
+   "wire_pointer": "result",
+   "wire_state": "accepted"
+  },
+  {
+   "command_or_route": "whatsapp/template_send_v3",
+   "layer": "native_typed_result",
+   "meaning": "provider accepted",
+   "wire_code": "provider_accepted",
+   "wire_pointer": "result.template_result",
+   "wire_state": "accepted"
+  },
+  {
+   "command_or_route": "whatsapp/template_send_v2",
+   "layer": "native_typed_result",
+   "meaning": "Original source/admission rejected before sending; v2 deliberately keeps this generic code.",
+   "wire_code": "source_or_admission_refused",
+   "wire_pointer": "result",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_send_v3",
+   "layer": "native_typed_result",
+   "meaning": "Original source/admission rejected before sending; v2 deliberately keeps this generic code.",
+   "wire_code": "source_or_admission_refused",
+   "wire_pointer": "result.template_result",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_send_v2",
+   "layer": "native_typed_result",
+   "meaning": "Existing approved template metadata/body binding did not match.",
+   "wire_code": "template_mismatch",
+   "wire_pointer": "result",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_send_v3",
+   "layer": "native_typed_result",
+   "meaning": "Existing approved template metadata/body binding did not match.",
+   "wire_code": "template_mismatch",
+   "wire_pointer": "result.template_result",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_send_v2",
+   "layer": "native_typed_result",
+   "meaning": "Provider may have received the request; ACK/effect is not proven.",
+   "wire_code": "provider_outcome_unknown",
+   "wire_pointer": "result",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/template_send_v3",
+   "layer": "native_typed_result",
+   "meaning": "Provider may have received the request; ACK/effect is not proven.",
+   "wire_code": "provider_outcome_unknown",
+   "wire_pointer": "result.template_result",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/template_send_v2",
+   "layer": "native_typed_result",
+   "meaning": "operation pending or unknown",
+   "wire_code": "operation_pending_or_unknown",
+   "wire_pointer": "result",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/template_send_v3",
+   "layer": "native_typed_result",
+   "meaning": "operation pending or unknown",
+   "wire_code": "operation_pending_or_unknown",
+   "wire_pointer": "result.template_result",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/template_send_v3",
+   "layer": "native_typed_result",
+   "meaning": "Original local ledger blocked admission before dispatch; no provider availability promise.",
+   "wire_code": "rate_limited",
+   "wire_pointer": "result.pacing_outcome",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_enqueue_v1",
+   "layer": "native_typed_result",
+   "meaning": "Explicit cancellation before native worker entered provider I/O.",
+   "wire_code": "cancelled_before_dispatch",
+   "wire_pointer": "result.result",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_job_v1",
+   "layer": "native_typed_result",
+   "meaning": "Explicit cancellation before native worker entered provider I/O.",
+   "wire_code": "cancelled_before_dispatch",
+   "wire_pointer": "result.result",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_cancel_v1",
+   "layer": "native_typed_result",
+   "meaning": "Explicit cancellation before native worker entered provider I/O.",
+   "wire_code": "cancelled_before_dispatch",
+   "wire_pointer": "result.result",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_enqueue_v1",
+   "layer": "native_typed_result",
+   "meaning": "Original queued intent TTL elapsed before dispatch.",
+   "wire_code": "queue_expired",
+   "wire_pointer": "result.result",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_job_v1",
+   "layer": "native_typed_result",
+   "meaning": "Original queued intent TTL elapsed before dispatch.",
+   "wire_code": "queue_expired",
+   "wire_pointer": "result.result",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_cancel_v1",
+   "layer": "native_typed_result",
+   "meaning": "Original queued intent TTL elapsed before dispatch.",
+   "wire_code": "queue_expired",
+   "wire_pointer": "result.result",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_enqueue_v1",
+   "layer": "native_typed_result",
+   "meaning": "Immutable account/template/person/grant/source snapshot no longer matches before I/O.",
+   "wire_code": "source_changed_before_dispatch",
+   "wire_pointer": "result.result",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_job_v1",
+   "layer": "native_typed_result",
+   "meaning": "Immutable account/template/person/grant/source snapshot no longer matches before I/O.",
+   "wire_code": "source_changed_before_dispatch",
+   "wire_pointer": "result.result",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_cancel_v1",
+   "layer": "native_typed_result",
+   "meaning": "Immutable account/template/person/grant/source snapshot no longer matches before I/O.",
+   "wire_code": "source_changed_before_dispatch",
+   "wire_pointer": "result.result",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/template_enqueue_v1",
+   "layer": "native_typed_result",
+   "meaning": "Provider may have received the request; ACK/effect is not proven.",
+   "wire_code": "provider_outcome_unknown",
+   "wire_pointer": "result.result",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/template_job_v1",
+   "layer": "native_typed_result",
+   "meaning": "Provider may have received the request; ACK/effect is not proven.",
+   "wire_code": "provider_outcome_unknown",
+   "wire_pointer": "result.result",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/template_cancel_v1",
+   "layer": "native_typed_result",
+   "meaning": "Provider may have received the request; ACK/effect is not proven.",
+   "wire_code": "provider_outcome_unknown",
+   "wire_pointer": "result.result",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/template_enqueue_v1",
+   "layer": "native_typed_result",
+   "meaning": "Previously dispatching journal reopened without a conclusive ACK; never re-dispatch.",
+   "wire_code": "ack_lost_no_replay",
+   "wire_pointer": "result.result",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/template_job_v1",
+   "layer": "native_typed_result",
+   "meaning": "Previously dispatching journal reopened without a conclusive ACK; never re-dispatch.",
+   "wire_code": "ack_lost_no_replay",
+   "wire_pointer": "result.result",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/template_cancel_v1",
+   "layer": "native_typed_result",
+   "meaning": "Previously dispatching journal reopened without a conclusive ACK; never re-dispatch.",
+   "wire_code": "ack_lost_no_replay",
+   "wire_pointer": "result.result",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/template_enqueue_v1",
+   "layer": "native_typed_result",
+   "meaning": "Old queued journal lacks its authenticated original source snapshot; migrated to UNKNOWN.",
+   "wire_code": "legacy_source_snapshot_unavailable",
+   "wire_pointer": "result.result",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/template_job_v1",
+   "layer": "native_typed_result",
+   "meaning": "Old queued journal lacks its authenticated original source snapshot; migrated to UNKNOWN.",
+   "wire_code": "legacy_source_snapshot_unavailable",
+   "wire_pointer": "result.result",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/template_cancel_v1",
+   "layer": "native_typed_result",
+   "meaning": "Old queued journal lacks its authenticated original source snapshot; migrated to UNKNOWN.",
+   "wire_code": "legacy_source_snapshot_unavailable",
+   "wire_pointer": "result.result",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/send_pacing_v1",
+   "layer": "native_typed_result",
+   "meaning": "Original local ledger blocked admission before dispatch; no provider availability promise.",
+   "wire_code": "rate_limited",
+   "wire_pointer": "result.error.send_state + result.error.code",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/send_pacing_v1",
+   "layer": "native_typed_result",
+   "meaning": "whatsapp pacing unavailable",
+   "wire_code": "whatsapp_pacing_unavailable",
+   "wire_pointer": "result.error.send_state + result.error.code",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/send_pacing_v1",
+   "layer": "native_typed_result",
+   "meaning": "whatsapp preview expired",
+   "wire_code": "whatsapp_preview_expired",
+   "wire_pointer": "result.error.send_state + result.error.code",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/send_pacing_v1",
+   "layer": "native_typed_result",
+   "meaning": "Closed fields/types/limits failed original validation.",
+   "wire_code": "invalid_fields",
+   "wire_pointer": "result.error.send_state + result.error.code",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/send_pacing_v1",
+   "layer": "native_typed_result",
+   "meaning": "whatsapp unavailable",
+   "wire_code": "whatsapp_unavailable",
+   "wire_pointer": "result.error.send_state + result.error.code",
+   "wire_state": "not_sent"
+  },
+  {
+   "command_or_route": "whatsapp/send_pacing_v1",
+   "layer": "native_typed_result",
+   "meaning": "whatsapp send uncertain",
+   "wire_code": "whatsapp_send_uncertain",
+   "wire_pointer": "result.error.send_state + result.error.code",
+   "wire_state": "unknown"
+  },
+  {
+   "command_or_route": "whatsapp/send",
+   "layer": "transport_error",
+   "meaning": "Original local ledger blocked admission before dispatch; no provider availability promise.",
+   "wire_code": "rate_limited",
+   "wire_pointer": "frame.error.code",
+   "wire_state": "refused"
+  },
+  {
+   "command_or_route": "whatsapp/pacing_status_v1",
+   "layer": "native_typed_result",
+   "meaning": "Original local ledger blocked admission before dispatch; no provider availability promise.",
+   "wire_code": "rate_limited",
+   "wire_pointer": "result.accounts[].retry_after_s",
+   "wire_state": "observation"
+  },
+  {
+   "command_or_route": "users/create",
+   "layer": "native_typed_result",
+   "meaning": "Central source commit recorded; device application is not thereby proven.",
+   "wire_code": "central_saved",
+   "wire_pointer": "result.state + result.code",
+   "wire_state": "completed"
+  },
+  {
+   "command_or_route": "users/create",
+   "layer": "native_typed_result",
+   "meaning": "Return original stored receipt/state only; no second business dispatch.",
+   "wire_code": "operation_already_recorded",
+   "wire_pointer": "result.state + result.code",
+   "wire_state": "completed or unknown"
+  },
+  {
+   "command_or_route": "users/create",
+   "layer": "transport_error",
+   "meaning": "Service intent was persisted before commit; completion/ACK is uncertain, no replay.",
+   "wire_code": "service_write_outcome_unknown",
+   "wire_pointer": "frame.error.code",
+   "wire_state": "frame success=false; possible effect unknown"
+  },
+  {
+   "command_or_route": "users/update",
+   "layer": "native_typed_result",
+   "meaning": "Central source commit recorded; device application is not thereby proven.",
+   "wire_code": "central_saved",
+   "wire_pointer": "result.state + result.code",
+   "wire_state": "completed"
+  },
+  {
+   "command_or_route": "users/update",
+   "layer": "native_typed_result",
+   "meaning": "Return original stored receipt/state only; no second business dispatch.",
+   "wire_code": "operation_already_recorded",
+   "wire_pointer": "result.state + result.code",
+   "wire_state": "completed or unknown"
+  },
+  {
+   "command_or_route": "users/update",
+   "layer": "transport_error",
+   "meaning": "Service intent was persisted before commit; completion/ACK is uncertain, no replay.",
+   "wire_code": "service_write_outcome_unknown",
+   "wire_pointer": "frame.error.code",
+   "wire_state": "frame success=false; possible effect unknown"
+  },
+  {
+   "command_or_route": "users/pin_generate",
+   "layer": "native_typed_result",
+   "meaning": "PIN candidate generated; it is not saved/applied by this result.",
+   "wire_code": "pin_generated_not_saved",
+   "wire_pointer": "result.state + result.code",
+   "wire_state": "completed"
+  },
+  {
+   "command_or_route": "users/pin_generate",
+   "layer": "native_typed_result",
+   "meaning": "Return original stored receipt/state only; no second business dispatch.",
+   "wire_code": "operation_already_recorded",
+   "wire_pointer": "result.state + result.code",
+   "wire_state": "completed or unknown"
+  },
+  {
+   "command_or_route": "users/pin_generate",
+   "layer": "transport_error",
+   "meaning": "Service intent was persisted before commit; completion/ACK is uncertain, no replay.",
+   "wire_code": "service_write_outcome_unknown",
+   "wire_pointer": "frame.error.code",
+   "wire_state": "frame success=false; possible effect unknown"
+  },
+  {
+   "command_or_route": "users/temporary_cancel",
+   "layer": "native_typed_result",
+   "meaning": "Central source commit recorded; device application is not thereby proven.",
+   "wire_code": "central_saved",
+   "wire_pointer": "result.state + result.code",
+   "wire_state": "completed"
+  },
+  {
+   "command_or_route": "users/temporary_cancel",
+   "layer": "native_typed_result",
+   "meaning": "Return original stored receipt/state only; no second business dispatch.",
+   "wire_code": "operation_already_recorded",
+   "wire_pointer": "result.state + result.code",
+   "wire_state": "completed or unknown"
+  },
+  {
+   "command_or_route": "users/temporary_cancel",
+   "layer": "transport_error",
+   "meaning": "Service intent was persisted before commit; completion/ACK is uncertain, no replay.",
+   "wire_code": "service_write_outcome_unknown",
+   "wire_pointer": "frame.error.code",
+   "wire_state": "frame success=false; possible effect unknown"
+  },
+  {
+   "command_or_route": "users/service_write_status_v1",
+   "layer": "native_typed_result",
+   "meaning": "No code field exists in this closed receipt-status response; unknown is not never_committed",
+   "wire_code": null,
+   "wire_pointer": "result.state",
+   "wire_state": "completed or unknown"
+  },
+  {
+   "command_or_route": "events/resume_v1",
+   "layer": "native_typed_result",
+   "meaning": "At least one local acceptance sequence is no longer retained.",
+   "wire_code": "retention_gap",
+   "wire_pointer": "result.reason or frame.error.code",
+   "wire_state": "reset_required"
+  },
+  {
+   "command_or_route": "events/resume_v1",
+   "layer": "native_typed_result",
+   "meaning": "Cursor generation differs from the current original event source.",
+   "wire_code": "source_replaced",
+   "wire_pointer": "result.reason or frame.error.code",
+   "wire_state": "reset_required"
+  },
+  {
+   "command_or_route": "events/resume_v1",
+   "layer": "native_typed_result",
+   "meaning": "Cursor is ahead of the persisted high-water mark.",
+   "wire_code": "cursor_ahead",
+   "wire_pointer": "result.reason or frame.error.code",
+   "wire_state": "reset_required"
+  },
+  {
+   "command_or_route": "events/resume_v1",
+   "layer": "native_typed_result",
+   "meaning": "Current-source cursor syntax/MAC is invalid.",
+   "wire_code": "invalid_cursor",
+   "wire_pointer": "result.reason or frame.error.code",
+   "wire_state": "refused"
+  }
+ ],
+ "UNRECOGNIZED_VALUE": {
+  "unknown_code": "Treat as unrecognized refusal/uncertain domain outcome; no retry/replay or conversion to not_sent. Reconcile original status/source before any new explicit intent.",
+  "unknown_contract_version": "Reject typed interpretation; preserve redacted raw receipt privately; request supported version through software, never invent success.",
+  "unknown_provider_external_code": "External opaque provider/device details are not normalized to a new internal success. Original adapters return their documented conservative unknown/refusal.",
+  "unknown_state": "Never coerce into completed/ready/accepted; fail typed consumer closed.",
+  "wire_code_must_not_be_rewritten": true
+ },
+ "contract": "wiskey-public-outcomes.v1",
+ "note": "Compact form: per-source evidence stripped (4.4 MB in the delivery). The wire value is never rewritten; unknown code/state/version fails closed (UNRECOGNIZED_VALUE).",
+ "schema_version": 1,
+ "source_CODE": "d95c6e803a47330191edcaae5522a2910037ee99",
+ "source_file": "03_codes_statuses/PUBLIC_OUTCOMES_V1.json",
+ "source_sha256": "9f2f060f819f52afc3b05126095cbfb153279e84c09a4bcc252f538cd1177dac"
+}

@@ -1,0 +1,15 @@
+{
+  "contract": "wiskey-existing-template-source-status.v1",
+  "schema_version": 1,
+  "state": "metadata_missing",
+  "accounts_count": 1,
+  "missing_fields": [
+    "approved_template_reference",
+    "template_revision",
+    "account_binding",
+    "approved_body",
+    "language",
+    "ordered_parameter_fields",
+    "approval_provenance"
+  ]
+}

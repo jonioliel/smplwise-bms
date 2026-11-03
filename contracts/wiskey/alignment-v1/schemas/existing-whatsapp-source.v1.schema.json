@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wiskey.invalid/contracts/arx/alignment-v1/existing-whatsapp-source.v1.schema.json",
+  "x-contract-version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "schema_version",
+    "integration",
+    "service",
+    "service_fields",
+    "template_metadata",
+    "templates",
+    "missing_fields",
+    "cloud_credentials",
+    "accounts"
+  ],
+  "properties": {
+    "format": {
+      "const": "wiskey-existing-whatsapp-source.v1"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "integration": {
+      "const": "ha-whatsapp"
+    },
+    "service": {
+      "const": "whatsapp.send_message"
+    },
+    "service_fields": {
+      "const": [
+        "account",
+        "target",
+        "message"
+      ]
+    },
+    "template_metadata": {
+      "const": "not_exposed_by_send_service"
+    },
+    "templates": {
+      "const": []
+    },
+    "missing_fields": {
+      "const": [
+        "approved_template_reference",
+        "template_revision",
+        "account_binding",
+        "approved_body",
+        "language",
+        "ordered_parameter_fields",
+        "approval_provenance"
+      ]
+    },
+    "cloud_credentials": {
+      "const": "not_applicable_to_this_service_interface"
+    },
+    "accounts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "account",
+          "service_account"
+        ],
+        "properties": {
+          "account": {
+            "type": "string",
+            "minLength": 1
+          },
+          "service_account": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

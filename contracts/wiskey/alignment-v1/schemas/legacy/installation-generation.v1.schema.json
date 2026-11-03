@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wiskey.invalid/contracts/arx/v1/installation-generation.v1.schema.json",
+  "x-contract-version": "1.0.0",
+  "type": "object",
+  "properties": {
+    "format": {
+      "const": "wiskey-installation-generation.v1"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "generation_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$"
+    },
+    "state": {
+      "enum": [
+        "staging",
+        "installing",
+        "installed",
+        "failed",
+        "rolled_back",
+        "uninstalling",
+        "uninstalled"
+      ]
+    },
+    "expected": {
+      "type": "object",
+      "properties": {
+        "smplwise_bridge": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "hikvision_intercom": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "smplwise_bridge",
+        "hikvision_intercom"
+      ],
+      "additionalProperties": false
+    },
+    "staged": {
+      "$ref": "definitions.json#/$defs/ComponentDigests"
+    },
+    "installed": {
+      "$ref": "definitions.json#/$defs/ComponentDigests"
+    },
+    "previously_present": {
+      "type": "object",
+      "properties": {
+        "smplwise_bridge": {
+          "type": "boolean"
+        },
+        "hikvision_intercom": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "smplwise_bridge",
+        "hikvision_intercom"
+      ],
+      "additionalProperties": false
+    },
+    "restart": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "enum": [
+            "not_requested",
+            "requested",
+            "failed",
+            "unknown",
+            "completed"
+          ]
+        },
+        "boot_id": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "state",
+        "boot_id"
+      ],
+      "additionalProperties": false
+    },
+    "last_verified_boot_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "native_restart": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "enum": [
+            "requested",
+            "failed"
+          ]
+        },
+        "boot_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+        },
+        "process_id": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "state",
+        "boot_id",
+        "process_id"
+      ],
+      "additionalProperties": false
+    },
+    "stop_request": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "enum": [
+            "requested",
+            "confirmed",
+            "unknown",
+            "failed"
+          ]
+        }
+      },
+      "required": [
+        "state"
+      ],
+      "additionalProperties": false
+    },
+    "stopped_boot_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    }
+  },
+  "required": [
+    "format",
+    "schema_version",
+    "generation_id",
+    "state",
+    "expected",
+    "staged",
+    "installed",
+    "previously_present",
+    "restart"
+  ],
+  "additionalProperties": false
+}

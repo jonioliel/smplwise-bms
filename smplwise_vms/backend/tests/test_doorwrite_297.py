@@ -172,10 +172,14 @@ def test_every_write_state_has_a_plain_hebrew_sentence_without_codes():
             assert hebrew.search(text) and "_" not in text and not re.search(r"[A-Za-z]", text), (state, text)
 
 
-def test_the_build_ships_with_both_engines_off():
+def test_the_build_ships_with_both_engines_built_in_and_every_switch_off():
+    """DOORLIVE-2310 (owner decision 2026-10-30): both engines are built into the regular release; activation is by the OFF-by-default switches only."""
     src = Path(dwe.__file__).read_text(encoding="utf-8")
-    assert "\nPROGRAM_ENGINE_BUILT = False" in src and "\nEMERGENCY_ENGINE_BUILT = False" in src
-    assert dwe.program_ready() is False and isinstance(dwe.window_engine(None), dwe.PreparedEngine)
+    assert "\nPROGRAM_ENGINE_BUILT = True" in src and "\nEMERGENCY_ENGINE_BUILT = True" in src and "\nLIVE_ENGINE_BUILT = False" in src
+    assert dwe.program_ready() is True and dwe.window_engine(None).tier == "program"
+    from smplwise.services import door_windows as dw
+
+    assert dw.SETTINGS[dw.ENABLED][0] == "off"
 
 
 # ================================================================ the write path, end to end through the live seam

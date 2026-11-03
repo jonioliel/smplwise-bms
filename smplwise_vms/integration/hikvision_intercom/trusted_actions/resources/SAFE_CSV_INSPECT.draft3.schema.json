@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:wiskey:arx:seven:safe_csv_inspect-draft3",
+  "x-status": "DRAFT3_WRITTEN_PLANNING_RECEIVED_OFF",
+  "x-runtime-enabled": false,
+  "x-validation": "VALIDATION_NOT_RUN; stdlib structural/refs only",
+  "type": "object",
+  "properties": {
+    "intent_action": {
+      "const": "users/csv_inspect"
+    },
+    "profile_schema_version": {
+      "const": "wiskey-arx-safe-csv-draft.3"
+    },
+    "headers": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "display_name",
+          "valid_from",
+          "valid_until",
+          "group_ids"
+        ]
+      }
+    },
+    "alias_policy": {
+      "const": "canonical_names_only"
+    }
+  },
+  "required": [
+    "intent_action",
+    "profile_schema_version",
+    "headers",
+    "alias_policy"
+  ],
+  "additionalProperties": false,
+  "x-interface": "new logical safe contract candidate, not classic WS request; no CSV text/body/data rows",
+  "x-aliases": "No alternate alias silently invented. Explicit alias revision required before admitting another name.",
+  "x-legacy": "new document only; classic CSV/old schemas unchanged"
+}

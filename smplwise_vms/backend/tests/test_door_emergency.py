@@ -62,12 +62,13 @@ def test_a_drill_works_while_off_and_never_reaches_any_engine(settings, monkeypa
 def test_the_shipped_build_cannot_switch_the_emergency_lock_on(settings, monkeypatch):
     """DWFIX-295 (review 3 DW-01 / DW-08): with the constants AS SHIPPED the live engine answers not_implemented, so the switch is refused
     and a real press stays `emergency_off` - no incident of `refused` doors is ever written."""
-    assert dwe.GO_LIVE_PERMITTED is True and dwe.LIVE_ENGINE_BUILT is False
+    # DOORLIVE-2310: the release now builds the engines in; this test models the ROLLBACK build (engine flags off, `go_live=False`) - and the refusing engine itself
+    w = ProductWorld(settings, monkeypatch, go_live=False)
+    assert dwe.GO_LIVE_PERMITTED is True and dwe.LIVE_ENGINE_BUILT is False and dwe.EMERGENCY_ENGINE_BUILT is False
     assert de.live_ok() is False
     with pytest.raises(dwe.EngineError) as e:
         dwe.WiskeyEmergencyEngine(None).apply("lock_secure", "s", 1, "r", "")
     assert e.value.kind == "not_implemented"
-    w = ProductWorld(settings, monkeypatch, go_live=False)
     r = w.put("/doors/emergency/settings", changes={"doors.emergency.enabled": "on"}, confirmed=True)
     assert r.status_code == 409 and r.json()["code"] == "engine_not_implemented"
     assert w.press().json()["code"] == "emergency_off" and w.emergency.calls == []

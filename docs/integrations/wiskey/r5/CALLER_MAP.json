@@ -1,10 +1,10 @@
 {
  "schema": "wkr5-caller-map.v1",
- "catalog_source_sha256": "f707d1a15252e08f87596a1296b476f366d8718f884c5857756f1a6c63f431d7",
- "implementation_input_CODE": "fa05c60b001ad1af092a9e43e8f9170388e708c3",
+ "catalog_source_sha256": "3123d20d086856f981f22c0604a4e951350482587d530a6e9a2c054898a4642e",
+ "implementation_input_CODE": "4407121a8ad9df2bbebc07161808bbbc2664b592",
  "method": "string-literal scan of smplwise_vms/backend/smplwise/**/*.py; a caller candidate is not a send, an acceptance or an installation",
- "family_count": 43,
- "command_count": 277,
+ "family_count": 44,
+ "command_count": 294,
  "families": {
   "acceptance": {
    "commands": {
@@ -127,7 +127,8 @@
       "smplwise/services/intercom_client.py",
       "smplwise/services/wiskey_background_feed.py",
       "smplwise/services/wiskey_channels.py",
-      "smplwise/services/wiskey_diagnostics.py"
+      "smplwise/services/wiskey_diagnostics.py",
+      "smplwise/services/wiskey_native_feed.py"
      ]
     },
     "authorization/settings_get": {
@@ -149,7 +150,8 @@
     "smplwise/services/intercom_client.py",
     "smplwise/services/wiskey_background_feed.py",
     "smplwise/services/wiskey_channels.py",
-    "smplwise/services/wiskey_diagnostics.py"
+    "smplwise/services/wiskey_diagnostics.py",
+    "smplwise/services/wiskey_native_feed.py"
    ]
   },
   "backups": {
@@ -186,7 +188,8 @@
      "discovered_for_native_owner": true,
      "owner_excluded_write": false,
      "arx_callers": [
-      "smplwise/services/wiskey_capture_direct.py"
+      "smplwise/services/wiskey_capture_direct.py",
+      "smplwise/services/wiskey_capture_map.py"
      ]
     },
     "capture/lease_request": {
@@ -195,12 +198,14 @@
      "discovered_for_native_owner": true,
      "owner_excluded_write": false,
      "arx_callers": [
-      "smplwise/services/wiskey_capture_direct.py"
+      "smplwise/services/wiskey_capture_direct.py",
+      "smplwise/services/wiskey_capture_map.py"
      ]
     }
    },
    "arx_callers": [
-    "smplwise/services/wiskey_capture_direct.py"
+    "smplwise/services/wiskey_capture_direct.py",
+    "smplwise/services/wiskey_capture_map.py"
    ]
   },
   "cards": {
@@ -212,6 +217,8 @@
      "owner_excluded_write": false,
      "arx_callers": [
       "smplwise/routers/access_control_writes.py",
+      "smplwise/services/access_grant_engine.py",
+      "smplwise/services/access_service_writer.py",
       "smplwise/services/intercom_client.py",
       "smplwise/services/intercom_writes.py",
       "smplwise/services/wiskey_channels.py",
@@ -285,6 +292,8 @@
      "owner_excluded_write": false,
      "arx_callers": [
       "smplwise/routers/access_control_writes.py",
+      "smplwise/services/access_grant_engine.py",
+      "smplwise/services/access_service_writer.py",
       "smplwise/services/intercom_client.py",
       "smplwise/services/intercom_writes.py",
       "smplwise/services/wiskey_channels.py",
@@ -295,6 +304,8 @@
    "arx_callers": [
     "smplwise/routers/access_control.py",
     "smplwise/routers/access_control_writes.py",
+    "smplwise/services/access_grant_engine.py",
+    "smplwise/services/access_service_writer.py",
     "smplwise/services/intercom_authority.py",
     "smplwise/services/intercom_client.py",
     "smplwise/services/intercom_writes.py",
@@ -392,6 +403,13 @@
       "smplwise/services/wiskey_direct_discovery.py"
      ]
     },
+    "direct/capabilities_v2": {
+     "row_kind": "DIRECT_ONLY_COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
     "direct/time": {
      "row_kind": "DIRECT_ONLY_COMMAND",
      "direct_envelope": "wiskey-bridge-command.v1",
@@ -442,6 +460,7 @@
      "owner_excluded_write": false,
      "arx_callers": [
       "smplwise/services/access_denied.py",
+      "smplwise/services/access_entries.py",
       "smplwise/services/intercom_adapter.py",
       "smplwise/services/intercom_parity.py",
       "smplwise/services/wiskey_channels.py"
@@ -455,6 +474,20 @@
      "arx_callers": []
     },
     "events/report": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "events/resume_v1": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "events/retention_policy_v1": {
      "row_kind": "COMMAND",
      "direct_envelope": "wiskey-bridge-command.v1",
      "discovered_for_native_owner": true,
@@ -492,6 +525,7 @@
    },
    "arx_callers": [
     "smplwise/services/access_denied.py",
+    "smplwise/services/access_entries.py",
     "smplwise/services/intercom_adapter.py",
     "smplwise/services/intercom_parity.py",
     "smplwise/services/wiskey_channels.py"
@@ -506,6 +540,15 @@
      "owner_excluded_write": false,
      "arx_callers": [
       "smplwise/services/wiskey_feature_direct.py"
+     ]
+    },
+    "features/people_csv_preview": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_people_csv.py"
      ]
     },
     "features/prepare_media": {
@@ -532,7 +575,9 @@
      "discovered_for_native_owner": true,
      "owner_excluded_write": false,
      "arx_callers": [
-      "smplwise/services/wiskey_feature_direct.py"
+      "smplwise/services/wiskey_direct_join.py",
+      "smplwise/services/wiskey_feature_direct.py",
+      "smplwise/services/wiskey_people_csv.py"
      ]
     },
     "features/status": {
@@ -546,7 +591,9 @@
     }
    },
    "arx_callers": [
-    "smplwise/services/wiskey_feature_direct.py"
+    "smplwise/services/wiskey_direct_join.py",
+    "smplwise/services/wiskey_feature_direct.py",
+    "smplwise/services/wiskey_people_csv.py"
    ]
   },
   "fleet": {
@@ -644,6 +691,61 @@
     "smplwise/services/wiskey_channels.py"
    ]
   },
+  "installation": {
+   "commands": {
+    "installation/capability_preflight_v1": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_auto_install.py"
+     ]
+    },
+    "installation/readiness_v1": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_auto_install.py"
+     ]
+    },
+    "installation/request_restart_v1": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "installation/request_restart_v2": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_auto_install.py"
+     ]
+    },
+    "installation/retire_v1": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    },
+    "installation/template_source_status_v1": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": []
+    }
+   },
+   "arx_callers": [
+    "smplwise/services/wiskey_auto_install.py"
+   ]
+  },
   "investigations": {
    "commands": {
     "investigations/query": {
@@ -668,14 +770,14 @@
     "jobs/approval_decide": {
      "row_kind": "COMMAND",
      "direct_envelope": "wiskey-bridge-command.v1",
-     "discovered_for_native_owner": false,
+     "discovered_for_native_owner": true,
      "owner_excluded_write": true,
      "arx_callers": []
     },
     "jobs/approval_request": {
      "row_kind": "COMMAND",
      "direct_envelope": "wiskey-bridge-command.v1",
-     "discovered_for_native_owner": false,
+     "discovered_for_native_owner": true,
      "owner_excluded_write": true,
      "arx_callers": []
     },
@@ -773,6 +875,15 @@
       "smplwise/services/wiskey_media_contract.py"
      ]
     },
+    "media/station_snapshot_v1": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_auto_install.py"
+     ]
+    },
     "media/stream_lease": {
      "row_kind": "COMMAND",
      "direct_envelope": "wiskey-bridge-command.v1",
@@ -821,6 +932,7 @@
    },
    "arx_callers": [
     "smplwise/services/intercom_client.py",
+    "smplwise/services/wiskey_auto_install.py",
     "smplwise/services/wiskey_channels.py",
     "smplwise/services/wiskey_media_contract.py"
    ]
@@ -852,7 +964,8 @@
       "smplwise/services/tickets/settings_doc.py",
       "smplwise/services/wiskey_background_feed.py",
       "smplwise/services/wiskey_channels.py",
-      "smplwise/services/wiskey_diagnostics.py"
+      "smplwise/services/wiskey_diagnostics.py",
+      "smplwise/services/wiskey_native_feed.py"
      ]
     },
     "overview/summary": {
@@ -871,7 +984,8 @@
     "smplwise/services/tickets/settings_doc.py",
     "smplwise/services/wiskey_background_feed.py",
     "smplwise/services/wiskey_channels.py",
-    "smplwise/services/wiskey_diagnostics.py"
+    "smplwise/services/wiskey_diagnostics.py",
+    "smplwise/services/wiskey_native_feed.py"
    ]
   },
   "peer_bindings": {
@@ -883,7 +997,10 @@
      "owner_excluded_write": false,
      "arx_callers": [
       "smplwise/services/wiskey_command_port.py",
-      "smplwise/services/wiskey_native_write.py"
+      "smplwise/services/wiskey_native_write.py",
+      "smplwise/services/wiskey_peer.py",
+      "smplwise/services/wiskey_peer_query.py",
+      "smplwise/services/wiskey_peer_registry.py"
      ]
     },
     "peer_bindings/history": {
@@ -892,13 +1009,17 @@
      "discovered_for_native_owner": true,
      "owner_excluded_write": false,
      "arx_callers": [
-      "smplwise/services/wiskey_command_port.py"
+      "smplwise/services/wiskey_command_port.py",
+      "smplwise/services/wiskey_peer_query.py"
      ]
     }
    },
    "arx_callers": [
     "smplwise/services/wiskey_command_port.py",
-    "smplwise/services/wiskey_native_write.py"
+    "smplwise/services/wiskey_native_write.py",
+    "smplwise/services/wiskey_peer.py",
+    "smplwise/services/wiskey_peer_query.py",
+    "smplwise/services/wiskey_peer_registry.py"
    ]
   },
   "peer_identity": {
@@ -921,12 +1042,14 @@
      "discovered_for_native_owner": true,
      "owner_excluded_write": false,
      "arx_callers": [
-      "smplwise/services/wiskey_command_port.py"
+      "smplwise/services/wiskey_command_port.py",
+      "smplwise/services/wiskey_peer_query.py"
      ]
     }
    },
    "arx_callers": [
-    "smplwise/services/wiskey_command_port.py"
+    "smplwise/services/wiskey_command_port.py",
+    "smplwise/services/wiskey_peer_query.py"
    ]
   },
   "peer_receipts": {
@@ -938,15 +1061,19 @@
      "owner_excluded_write": false,
      "arx_callers": [
       "smplwise/services/wiskey_command_port.py",
+      "smplwise/services/wiskey_intents.py",
       "smplwise/services/wiskey_native_write.py",
-      "smplwise/services/wiskey_peer.py"
+      "smplwise/services/wiskey_peer.py",
+      "smplwise/services/wiskey_peer_query.py"
      ]
     }
    },
    "arx_callers": [
     "smplwise/services/wiskey_command_port.py",
+    "smplwise/services/wiskey_intents.py",
     "smplwise/services/wiskey_native_write.py",
-    "smplwise/services/wiskey_peer.py"
+    "smplwise/services/wiskey_peer.py",
+    "smplwise/services/wiskey_peer_query.py"
    ]
   },
   "peer_writes": {
@@ -1713,7 +1840,9 @@
      "direct_envelope": "wiskey-bridge-command.v1",
      "discovered_for_native_owner": true,
      "owner_excluded_write": false,
-     "arx_callers": []
+     "arx_callers": [
+      "smplwise/services/wiskey_program_direct.py"
+     ]
     },
     "stations/technical_program_list": {
      "row_kind": "COMMAND",
@@ -1722,7 +1851,8 @@
      "owner_excluded_write": false,
      "arx_callers": [
       "smplwise/services/intercom_adapter.py",
-      "smplwise/services/wiskey_channels.py"
+      "smplwise/services/wiskey_channels.py",
+      "smplwise/services/wiskey_program_direct.py"
      ]
     },
     "stations/technical_program_save": {
@@ -1730,7 +1860,9 @@
      "direct_envelope": "wiskey-bridge-command.v1",
      "discovered_for_native_owner": true,
      "owner_excluded_write": false,
-     "arx_callers": []
+     "arx_callers": [
+      "smplwise/services/wiskey_program_direct.py"
+     ]
     },
     "stations/technical_relays": {
      "row_kind": "COMMAND",
@@ -1762,7 +1894,8 @@
     "smplwise/services/intercom_adapter.py",
     "smplwise/services/intercom_authority.py",
     "smplwise/services/intercom_client.py",
-    "smplwise/services/wiskey_channels.py"
+    "smplwise/services/wiskey_channels.py",
+    "smplwise/services/wiskey_program_direct.py"
    ]
   },
   "subscribe": {
@@ -1778,7 +1911,8 @@
       "smplwise/services/recorders/provision_isr.py",
       "smplwise/services/wiskey_background_feed.py",
       "smplwise/services/wiskey_channels.py",
-      "smplwise/services/wiskey_diagnostics.py"
+      "smplwise/services/wiskey_diagnostics.py",
+      "smplwise/services/wiskey_native_feed.py"
      ]
     }
    },
@@ -1788,7 +1922,8 @@
     "smplwise/services/recorders/provision_isr.py",
     "smplwise/services/wiskey_background_feed.py",
     "smplwise/services/wiskey_channels.py",
-    "smplwise/services/wiskey_diagnostics.py"
+    "smplwise/services/wiskey_diagnostics.py",
+    "smplwise/services/wiskey_native_feed.py"
    ]
   },
   "support": {
@@ -2015,11 +2150,15 @@
      "owner_excluded_write": false,
      "arx_callers": [
       "smplwise/routers/access_control.py",
+      "smplwise/services/access_grant_engine.py",
+      "smplwise/services/access_service_writer.py",
       "smplwise/services/intercom_authority.py",
       "smplwise/services/intercom_client.py",
       "smplwise/services/intercom_writes.py",
       "smplwise/services/wiskey_channels.py",
+      "smplwise/services/wiskey_direct_discovery.py",
       "smplwise/services/wiskey_native_write.py",
+      "smplwise/services/wiskey_service_write.py",
       "smplwise/services/wiskey_write_lineage.py"
      ]
     },
@@ -2065,6 +2204,7 @@
      "owner_excluded_write": false,
      "arx_callers": [
       "smplwise/routers/access_control.py",
+      "smplwise/services/access_service_writer.py",
       "smplwise/services/intercom_authority.py",
       "smplwise/services/intercom_client.py",
       "smplwise/services/intercom_writes.py",
@@ -2170,7 +2310,9 @@
       "smplwise/routers/access_control.py",
       "smplwise/services/intercom_client.py",
       "smplwise/services/intercom_writes.py",
-      "smplwise/services/wiskey_channels.py"
+      "smplwise/services/wiskey_channels.py",
+      "smplwise/services/wiskey_direct_discovery.py",
+      "smplwise/services/wiskey_service_write.py"
      ]
     },
     "users/query": {
@@ -2182,6 +2324,15 @@
       "smplwise/services/intercom_adapter.py",
       "smplwise/services/intercom_parity.py",
       "smplwise/services/wiskey_channels.py"
+     ]
+    },
+    "users/service_write_status_v1": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_service_write.py"
      ]
     },
     "users/set_active": {
@@ -2207,7 +2358,9 @@
       "smplwise/services/intercom_client.py",
       "smplwise/services/intercom_writes.py",
       "smplwise/services/wiskey_channels.py",
-      "smplwise/services/wiskey_native_write.py"
+      "smplwise/services/wiskey_direct_discovery.py",
+      "smplwise/services/wiskey_native_write.py",
+      "smplwise/services/wiskey_service_write.py"
      ]
     },
     "users/unarchive": {
@@ -2231,25 +2384,33 @@
      "arx_callers": [
       "smplwise/routers/access_control.py",
       "smplwise/routers/access_control_writes.py",
+      "smplwise/services/access_grant_engine.py",
+      "smplwise/services/access_service_writer.py",
       "smplwise/services/intercom_authority.py",
       "smplwise/services/intercom_client.py",
       "smplwise/services/intercom_writes.py",
       "smplwise/services/wiskey_channels.py",
-      "smplwise/services/wiskey_native_write.py"
+      "smplwise/services/wiskey_direct_discovery.py",
+      "smplwise/services/wiskey_native_write.py",
+      "smplwise/services/wiskey_service_write.py"
      ]
     }
    },
    "arx_callers": [
     "smplwise/routers/access_control.py",
     "smplwise/routers/access_control_writes.py",
+    "smplwise/services/access_grant_engine.py",
+    "smplwise/services/access_service_writer.py",
     "smplwise/services/intercom_adapter.py",
     "smplwise/services/intercom_authority.py",
     "smplwise/services/intercom_client.py",
     "smplwise/services/intercom_parity.py",
     "smplwise/services/intercom_writes.py",
     "smplwise/services/wiskey_channels.py",
+    "smplwise/services/wiskey_direct_discovery.py",
     "smplwise/services/wiskey_direct_join.py",
     "smplwise/services/wiskey_native_write.py",
+    "smplwise/services/wiskey_service_write.py",
     "smplwise/services/wiskey_write_lineage.py"
    ]
   },
@@ -2356,6 +2517,42 @@
       "smplwise/services/wiskey_channels.py"
      ]
     },
+    "whatsapp/template_cancel_v1": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_installed_features.py"
+     ]
+    },
+    "whatsapp/template_enqueue_v1": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_auto_install.py"
+     ]
+    },
+    "whatsapp/template_job_v1": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_installed_features.py"
+     ]
+    },
+    "whatsapp/template_registry_v1": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_auto_install.py"
+     ]
+    },
     "whatsapp/template_send_v1": {
      "row_kind": "COMMAND",
      "direct_envelope": "wiskey-bridge-command.v1",
@@ -2371,7 +2568,17 @@
      "discovered_for_native_owner": true,
      "owner_excluded_write": false,
      "arx_callers": [
+      "smplwise/services/wa_template_v2_contract.py",
       "smplwise/services/wiskey_template_direct.py"
+     ]
+    },
+    "whatsapp/template_send_v3": {
+     "row_kind": "COMMAND",
+     "direct_envelope": "wiskey-bridge-command.v1",
+     "discovered_for_native_owner": true,
+     "owner_excluded_write": false,
+     "arx_callers": [
+      "smplwise/services/wiskey_auto_install.py"
      ]
     },
     "whatsapp/templates_get": {
@@ -2392,7 +2599,10 @@
    "arx_callers": [
     "smplwise/services/intercom_messaging_adapter.py",
     "smplwise/services/wa_pacing.py",
+    "smplwise/services/wa_template_v2_contract.py",
+    "smplwise/services/wiskey_auto_install.py",
     "smplwise/services/wiskey_channels.py",
+    "smplwise/services/wiskey_installed_features.py",
     "smplwise/services/wiskey_template_direct.py"
    ]
   },

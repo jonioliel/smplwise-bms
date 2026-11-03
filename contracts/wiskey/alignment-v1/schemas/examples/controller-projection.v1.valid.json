@@ -1,0 +1,23 @@
+{
+  "format": "wiskey-arx-generation-projection.v1",
+  "schema_version": 1,
+  "controller": "arx-sqlite:wiskey.installation.generation",
+  "generation_id": "synthetic-generation",
+  "source_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "claim_id": "synthetic-claim",
+  "state": "restart_claimed",
+  "phase": "installed",
+  "expected": {
+    "smplwise_bridge": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "hikvision_intercom": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "staged": {
+    "smplwise_bridge": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "hikvision_intercom": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "installed": {
+    "smplwise_bridge": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "hikvision_intercom": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "restart_boot_id": "synthetic-boot"
+}

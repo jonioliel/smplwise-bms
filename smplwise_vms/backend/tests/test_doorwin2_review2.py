@@ -139,6 +139,7 @@ def test_e03_a_call_that_never_answers_is_unknown_after_the_deadline(em, monkeyp
     class Hanging:
         simulated = False
         open_supported = True
+        lock_supported = True
 
         def apply(self, kind, station_id, relay, request_id, reason):
             if (station_id, relay) == (em.ENTRY, 1):

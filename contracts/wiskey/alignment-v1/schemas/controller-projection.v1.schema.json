@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wiskey.invalid/contracts/arx/alignment-v1/controller-projection.v1.schema.json",
+  "x-contract-version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "schema_version",
+    "controller",
+    "generation_id",
+    "source_digest",
+    "claim_id",
+    "state",
+    "phase",
+    "expected",
+    "staged",
+    "installed",
+    "restart_boot_id"
+  ],
+  "properties": {
+    "format": {
+      "const": "wiskey-arx-generation-projection.v1"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "controller": {
+      "const": "arx-sqlite:wiskey.installation.generation"
+    },
+    "generation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "source_digest": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "claim_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "state": {
+      "enum": [
+        "staged",
+        "restart_claimed",
+        "restart_requested",
+        "restart_unknown"
+      ]
+    },
+    "phase": {
+      "enum": [
+        "staging",
+        "installing",
+        "installed"
+      ]
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "smplwise_bridge",
+        "hikvision_intercom"
+      ],
+      "properties": {
+        "smplwise_bridge": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "hikvision_intercom": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "staged": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "smplwise_bridge": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "hikvision_intercom": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "installed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [],
+      "properties": {
+        "smplwise_bridge": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "hikvision_intercom": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "restart_boot_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

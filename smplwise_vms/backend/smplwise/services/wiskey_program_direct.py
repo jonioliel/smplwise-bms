@@ -17,8 +17,10 @@ socket and this connection's discovery listing the command). There is no fallbac
 `unknown` and the next step is a fresh read. The human authority stays where it is: the door-windows routes admit the person
 (`access.windows.manage` on the door's station chain) before the engine is called; the wire carries the pairing signature only.
 
-This module turns nothing on. `door_windows_engine.PROGRAM_ENGINE_BUILT` (and the legacy LIVE_ENGINE_BUILT) stay False, so the window factory keeps handing out the tier-D
-`PreparedEngine`; an administrator switch and the owner's activation decision are separate."""
+This contribution marks PROGRAM_ENGINE_BUILT as source availability. It changes no
+installation setting, provider selection or live permit; runtime selection and
+business permissions still apply. Adoption and owner installation are separate.
+"""
 from __future__ import annotations
 
 from typing import Any, Callable, Mapping
@@ -64,7 +66,13 @@ class DirectProgramPort:
             if exc.outcome == "not_sent":
                 raise dwe.EngineError("not_sent", exc.code) from None
             if exc.outcome == "refused":
-                raise dwe.EngineError("revision_conflict" if exc.code in CONFLICT_CODES else "refused", exc.code) from None
+                if exc.code in CONFLICT_CODES:
+                    raise dwe.EngineError("revision_conflict", exc.code) from None
+                # Auth/source can be rechecked after the original handler has
+                # persisted a program. This old error envelope has no commit
+                # stage. Only the dedicated original program CAS code above
+                # proves that this program mutation lost before its write.
+                raise dwe.EngineError("unknown", exc.code) from None
             raise dwe.EngineError("unknown", exc.code) from None
         if not isinstance(raw, Mapping):
             raise dwe.EngineError("unknown", "invalid_response")

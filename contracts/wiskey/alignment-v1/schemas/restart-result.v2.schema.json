@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wiskey.invalid/contracts/arx/alignment-v1/restart-result.v2.schema.json",
+  "x-contract-version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "schema_version",
+    "state",
+    "generation_id",
+    "claim_id",
+    "request_boot_id",
+    "execution_state",
+    "replay_available"
+  ],
+  "properties": {
+    "contract": {
+      "const": "wiskey-installation-restart.v2"
+    },
+    "schema_version": {
+      "const": 2
+    },
+    "state": {
+      "enum": [
+        "accepted",
+        "already_recorded"
+      ]
+    },
+    "generation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "claim_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "request_boot_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "execution_state": {
+      "enum": [
+        "accepted",
+        "failed"
+      ]
+    },
+    "replay_available": {
+      "const": false
+    }
+  }
+}

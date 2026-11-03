@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wiskey.invalid/contracts/arx/alignment-v1/runtime-preflight-observation.v1.schema.json",
+  "x-contract-version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "schema_version",
+    "ha_core",
+    "arx_addon",
+    "global_health"
+  ],
+  "properties": {
+    "format": {
+      "const": "wiskey-runtime-preflight-observation.v1"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "ha_core": {
+      "$ref": "capability-preflight.v1.schema.json"
+    },
+    "arx_addon": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "namespace",
+        "ffmpeg",
+        "external_go2rtc_namespace"
+      ],
+      "properties": {
+        "namespace": {
+          "const": "arx_addon"
+        },
+        "ffmpeg": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "available",
+            "version"
+          ],
+          "properties": {
+            "available": {
+              "type": "boolean"
+            },
+            "version": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "external_go2rtc_namespace": {
+          "const": "not_measured"
+        }
+      }
+    },
+    "global_health": {
+      "const": "not_assessed"
+    }
+  }
+}

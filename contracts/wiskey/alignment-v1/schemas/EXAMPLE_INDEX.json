@@ -1,0 +1,478 @@
+[
+  {
+    "schema": "controller-projection.v1.schema.json",
+    "path": "examples/controller-projection.v1.valid.json",
+    "expected_valid": true,
+    "error_path": "/format",
+    "reason": "valid"
+  },
+  {
+    "schema": "controller-projection.v1.schema.json",
+    "path": "examples/controller-projection.v1.missing-required.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "missing-required"
+  },
+  {
+    "schema": "controller-projection.v1.schema.json",
+    "path": "examples/controller-projection.v1.wrong-type.json",
+    "expected_valid": false,
+    "error_path": "/format",
+    "reason": "wrong-type"
+  },
+  {
+    "schema": "controller-projection.v1.schema.json",
+    "path": "examples/controller-projection.v1.forbidden-extra.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "forbidden-extra"
+  },
+  {
+    "schema": "restart-request.v2.schema.json",
+    "path": "examples/restart-request.v2.valid.json",
+    "expected_valid": true,
+    "error_path": "/schema_version",
+    "reason": "valid"
+  },
+  {
+    "schema": "restart-request.v2.schema.json",
+    "path": "examples/restart-request.v2.missing-required.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "missing-required"
+  },
+  {
+    "schema": "restart-request.v2.schema.json",
+    "path": "examples/restart-request.v2.wrong-type.json",
+    "expected_valid": false,
+    "error_path": "/schema_version",
+    "reason": "wrong-type"
+  },
+  {
+    "schema": "restart-request.v2.schema.json",
+    "path": "examples/restart-request.v2.forbidden-extra.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "forbidden-extra"
+  },
+  {
+    "schema": "restart-result.v2.schema.json",
+    "path": "examples/restart-result.v2.valid.json",
+    "expected_valid": true,
+    "error_path": "/contract",
+    "reason": "valid"
+  },
+  {
+    "schema": "restart-result.v2.schema.json",
+    "path": "examples/restart-result.v2.missing-required.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "missing-required"
+  },
+  {
+    "schema": "restart-result.v2.schema.json",
+    "path": "examples/restart-result.v2.wrong-type.json",
+    "expected_valid": false,
+    "error_path": "/contract",
+    "reason": "wrong-type"
+  },
+  {
+    "schema": "restart-result.v2.schema.json",
+    "path": "examples/restart-result.v2.forbidden-extra.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "forbidden-extra"
+  },
+  {
+    "schema": "restart-executions.v1.schema.json",
+    "path": "examples/restart-executions.v1.valid.json",
+    "expected_valid": true,
+    "error_path": "/format",
+    "reason": "valid"
+  },
+  {
+    "schema": "restart-executions.v1.schema.json",
+    "path": "examples/restart-executions.v1.missing-required.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "missing-required"
+  },
+  {
+    "schema": "restart-executions.v1.schema.json",
+    "path": "examples/restart-executions.v1.wrong-type.json",
+    "expected_valid": false,
+    "error_path": "/format",
+    "reason": "wrong-type"
+  },
+  {
+    "schema": "restart-executions.v1.schema.json",
+    "path": "examples/restart-executions.v1.forbidden-extra.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "forbidden-extra"
+  },
+  {
+    "schema": "arx-generation-journal.v1.schema.json",
+    "path": "examples/arx-generation-journal.v1.valid.json",
+    "expected_valid": true,
+    "error_path": "/generation_id",
+    "reason": "valid"
+  },
+  {
+    "schema": "arx-generation-journal.v1.schema.json",
+    "path": "examples/arx-generation-journal.v1.missing-required.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "missing-required"
+  },
+  {
+    "schema": "arx-generation-journal.v1.schema.json",
+    "path": "examples/arx-generation-journal.v1.wrong-type.json",
+    "expected_valid": false,
+    "error_path": "/generation_id",
+    "reason": "wrong-type"
+  },
+  {
+    "schema": "arx-generation-journal.v1.schema.json",
+    "path": "examples/arx-generation-journal.v1.forbidden-extra.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "forbidden-extra"
+  },
+  {
+    "schema": "readiness-observation.v1.schema.json",
+    "path": "examples/readiness-observation.v1.valid.json",
+    "expected_valid": true,
+    "error_path": "/format",
+    "reason": "valid"
+  },
+  {
+    "schema": "readiness-observation.v1.schema.json",
+    "path": "examples/readiness-observation.v1.missing-required.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "missing-required"
+  },
+  {
+    "schema": "readiness-observation.v1.schema.json",
+    "path": "examples/readiness-observation.v1.wrong-type.json",
+    "expected_valid": false,
+    "error_path": "/format",
+    "reason": "wrong-type"
+  },
+  {
+    "schema": "readiness-observation.v1.schema.json",
+    "path": "examples/readiness-observation.v1.forbidden-extra.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "forbidden-extra"
+  },
+  {
+    "schema": "r2-intent-archive.v1.schema.json",
+    "path": "examples/r2-intent-archive.v1.valid.json",
+    "expected_valid": true,
+    "error_path": "/format",
+    "reason": "valid"
+  },
+  {
+    "schema": "r2-intent-archive.v1.schema.json",
+    "path": "examples/r2-intent-archive.v1.missing-required.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "missing-required"
+  },
+  {
+    "schema": "r2-intent-archive.v1.schema.json",
+    "path": "examples/r2-intent-archive.v1.wrong-type.json",
+    "expected_valid": false,
+    "error_path": "/format",
+    "reason": "wrong-type"
+  },
+  {
+    "schema": "r2-intent-archive.v1.schema.json",
+    "path": "examples/r2-intent-archive.v1.forbidden-extra.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "forbidden-extra"
+  },
+  {
+    "schema": "existing-whatsapp-source.v1.schema.json",
+    "path": "examples/existing-whatsapp-source.v1.valid.json",
+    "expected_valid": true,
+    "error_path": "/format",
+    "reason": "valid"
+  },
+  {
+    "schema": "existing-whatsapp-source.v1.schema.json",
+    "path": "examples/existing-whatsapp-source.v1.missing-required.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "missing-required"
+  },
+  {
+    "schema": "existing-whatsapp-source.v1.schema.json",
+    "path": "examples/existing-whatsapp-source.v1.wrong-type.json",
+    "expected_valid": false,
+    "error_path": "/format",
+    "reason": "wrong-type"
+  },
+  {
+    "schema": "existing-whatsapp-source.v1.schema.json",
+    "path": "examples/existing-whatsapp-source.v1.forbidden-extra.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "forbidden-extra"
+  },
+  {
+    "schema": "template-source-status.v1.schema.json",
+    "path": "examples/template-source-status.v1.valid.json",
+    "expected_valid": true,
+    "error_path": "/contract",
+    "reason": "valid"
+  },
+  {
+    "schema": "template-source-status.v1.schema.json",
+    "path": "examples/template-source-status.v1.missing-required.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "missing-required"
+  },
+  {
+    "schema": "template-source-status.v1.schema.json",
+    "path": "examples/template-source-status.v1.wrong-type.json",
+    "expected_valid": false,
+    "error_path": "/contract",
+    "reason": "wrong-type"
+  },
+  {
+    "schema": "template-source-status.v1.schema.json",
+    "path": "examples/template-source-status.v1.forbidden-extra.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "forbidden-extra"
+  },
+  {
+    "schema": "capability-preflight.v1.schema.json",
+    "path": "examples/capability-preflight.v1.valid.json",
+    "expected_valid": true,
+    "error_path": "/contract",
+    "reason": "valid"
+  },
+  {
+    "schema": "capability-preflight.v1.schema.json",
+    "path": "examples/capability-preflight.v1.missing-required.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "missing-required"
+  },
+  {
+    "schema": "capability-preflight.v1.schema.json",
+    "path": "examples/capability-preflight.v1.wrong-type.json",
+    "expected_valid": false,
+    "error_path": "/contract",
+    "reason": "wrong-type"
+  },
+  {
+    "schema": "capability-preflight.v1.schema.json",
+    "path": "examples/capability-preflight.v1.forbidden-extra.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "forbidden-extra"
+  },
+  {
+    "schema": "arx-api-error.v1.schema.json",
+    "path": "examples/arx-api-error.v1.valid.json",
+    "expected_valid": true,
+    "error_path": "/code",
+    "reason": "valid"
+  },
+  {
+    "schema": "arx-api-error.v1.schema.json",
+    "path": "examples/arx-api-error.v1.missing-required.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "missing-required"
+  },
+  {
+    "schema": "arx-api-error.v1.schema.json",
+    "path": "examples/arx-api-error.v1.wrong-type.json",
+    "expected_valid": false,
+    "error_path": "/code",
+    "reason": "wrong-type"
+  },
+  {
+    "schema": "arx-api-error.v1.schema.json",
+    "path": "examples/arx-api-error.v1.forbidden-extra.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "forbidden-extra"
+  },
+  {
+    "schema": "jobs-approval-request.v1.schema.json",
+    "path": "examples/jobs-approval-request.v1.valid.json",
+    "expected_valid": true,
+    "error_path": "/job_id",
+    "reason": "valid"
+  },
+  {
+    "schema": "jobs-approval-request.v1.schema.json",
+    "path": "examples/jobs-approval-request.v1.missing-required.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "missing-required"
+  },
+  {
+    "schema": "jobs-approval-request.v1.schema.json",
+    "path": "examples/jobs-approval-request.v1.wrong-type.json",
+    "expected_valid": false,
+    "error_path": "/job_id",
+    "reason": "wrong-type"
+  },
+  {
+    "schema": "jobs-approval-request.v1.schema.json",
+    "path": "examples/jobs-approval-request.v1.forbidden-extra.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "forbidden-extra"
+  },
+  {
+    "schema": "jobs-approval-decide.v1.schema.json",
+    "path": "examples/jobs-approval-decide.v1.valid.json",
+    "expected_valid": true,
+    "error_path": "/job_id",
+    "reason": "valid"
+  },
+  {
+    "schema": "jobs-approval-decide.v1.schema.json",
+    "path": "examples/jobs-approval-decide.v1.missing-required.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "missing-required"
+  },
+  {
+    "schema": "jobs-approval-decide.v1.schema.json",
+    "path": "examples/jobs-approval-decide.v1.wrong-type.json",
+    "expected_valid": false,
+    "error_path": "/job_id",
+    "reason": "wrong-type"
+  },
+  {
+    "schema": "jobs-approval-decide.v1.schema.json",
+    "path": "examples/jobs-approval-decide.v1.forbidden-extra.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "forbidden-extra"
+  },
+  {
+    "schema": "jobs-public-result.v1.schema.json",
+    "path": "examples/jobs-public-result.v1.valid.json",
+    "expected_valid": true,
+    "error_path": "/id",
+    "reason": "valid"
+  },
+  {
+    "schema": "jobs-public-result.v1.schema.json",
+    "path": "examples/jobs-public-result.v1.missing-required.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "missing-required"
+  },
+  {
+    "schema": "jobs-public-result.v1.schema.json",
+    "path": "examples/jobs-public-result.v1.wrong-type.json",
+    "expected_valid": false,
+    "error_path": "/id",
+    "reason": "wrong-type"
+  },
+  {
+    "schema": "jobs-public-result.v1.schema.json",
+    "path": "examples/jobs-public-result.v1.forbidden-extra.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "forbidden-extra"
+  },
+  {
+    "schema": "template-send-request.v2.schema.json",
+    "path": "examples/template-send-request.v2.valid.json",
+    "expected_valid": true,
+    "error_path": "/schema_version",
+    "reason": "valid"
+  },
+  {
+    "schema": "template-send-request.v2.schema.json",
+    "path": "examples/template-send-request.v2.missing-required.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "missing-required"
+  },
+  {
+    "schema": "template-send-request.v2.schema.json",
+    "path": "examples/template-send-request.v2.wrong-type.json",
+    "expected_valid": false,
+    "error_path": "/schema_version",
+    "reason": "wrong-type"
+  },
+  {
+    "schema": "template-send-request.v2.schema.json",
+    "path": "examples/template-send-request.v2.forbidden-extra.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "forbidden-extra"
+  },
+  {
+    "schema": "template-send-result.v2.schema.json",
+    "path": "examples/template-send-result.v2.valid.json",
+    "expected_valid": true,
+    "error_path": "/schema_version",
+    "reason": "valid"
+  },
+  {
+    "schema": "template-send-result.v2.schema.json",
+    "path": "examples/template-send-result.v2.missing-required.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "missing-required"
+  },
+  {
+    "schema": "template-send-result.v2.schema.json",
+    "path": "examples/template-send-result.v2.wrong-type.json",
+    "expected_valid": false,
+    "error_path": "/schema_version",
+    "reason": "wrong-type"
+  },
+  {
+    "schema": "template-send-result.v2.schema.json",
+    "path": "examples/template-send-result.v2.forbidden-extra.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "forbidden-extra"
+  },
+  {
+    "schema": "runtime-preflight-observation.v1.schema.json",
+    "path": "examples/runtime-preflight-observation.v1.valid.json",
+    "expected_valid": true,
+    "error_path": "/format",
+    "reason": "valid"
+  },
+  {
+    "schema": "runtime-preflight-observation.v1.schema.json",
+    "path": "examples/runtime-preflight-observation.v1.missing-required.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "missing-required"
+  },
+  {
+    "schema": "runtime-preflight-observation.v1.schema.json",
+    "path": "examples/runtime-preflight-observation.v1.wrong-type.json",
+    "expected_valid": false,
+    "error_path": "/format",
+    "reason": "wrong-type"
+  },
+  {
+    "schema": "runtime-preflight-observation.v1.schema.json",
+    "path": "examples/runtime-preflight-observation.v1.forbidden-extra.json",
+    "expected_valid": false,
+    "error_path": "/",
+    "reason": "forbidden-extra"
+  }
+]

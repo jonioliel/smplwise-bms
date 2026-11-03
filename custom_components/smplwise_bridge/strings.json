@@ -23,7 +23,10 @@
     "abort": {
       "already_configured": "The bridge is already configured; the pairing details were refreshed.",
       "invalid_discovery": "The discovery message had no pairing code.",
-      "single_instance_allowed": "Only one bridge can be configured."
+      "single_instance_allowed": "Only one bridge can be configured.",
+      "cannot_connect": "The add-on could not be reached for the automatic installation.",
+      "invalid_auth": "The pairing code of the automatic installation was refused.",
+      "unknown": "The automatic installation failed."
     }
   },
   "options": {

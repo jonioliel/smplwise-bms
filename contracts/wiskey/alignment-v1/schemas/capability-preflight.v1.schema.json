@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wiskey.invalid/contracts/arx/alignment-v1/capability-preflight.v1.schema.json",
+  "x-contract-version": "1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "schema_version",
+    "namespace",
+    "global_ha_health",
+    "dependencies",
+    "paths"
+  ],
+  "properties": {
+    "contract": {
+      "const": "wiskey-capability-preflight.v1"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "namespace": {
+      "const": "ha_core"
+    },
+    "global_ha_health": {
+      "const": "not_assessed"
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ffmpeg",
+        "libturbojpeg",
+        "pymicro_vad"
+      ],
+      "properties": {
+        "ffmpeg": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "available",
+            "version"
+          ],
+          "properties": {
+            "available": {
+              "type": "boolean"
+            },
+            "version": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "libturbojpeg": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "available",
+            "version"
+          ],
+          "properties": {
+            "available": {
+              "type": "boolean"
+            },
+            "version": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "pymicro_vad": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "available",
+            "version"
+          ],
+          "properties": {
+            "available": {
+              "type": "boolean"
+            },
+            "version": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "paths": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "native_grant_events_g711",
+        "camera_jpeg_resize",
+        "ha_ffmpeg_paths",
+        "assist_pipeline"
+      ],
+      "properties": {
+        "native_grant_events_g711": {
+          "const": "independent_of_these_dependencies"
+        },
+        "camera_jpeg_resize": {
+          "enum": [
+            "available",
+            "original_image_only_bounded"
+          ]
+        },
+        "ha_ffmpeg_paths": {
+          "enum": [
+            "available_binary_unprobed",
+            "ffmpeg_missing"
+          ]
+        },
+        "assist_pipeline": {
+          "enum": [
+            "dependency_present_not_setup_proof",
+            "required_dependency_missing"
+          ]
+        }
+      }
+    }
+  }
+}
