@@ -13,7 +13,13 @@ const SCREEN = 'wiskey-stations';
 const noBaseline = (info: Pick<TestInfo, 'snapshotPath' | 'config'>, name: string) => !['all', 'changed'].includes(info.config.updateSnapshots) && !fs.existsSync(info.snapshotPath(name));
 const inDt = (page: Page, sel: string) => page.locator(`${SCREEN} sw-drawer[data-wk-drawer] wk-door-tech ${sel}`);
 
-async function shoot(page: Page, info: TestInfo, name: string) {
+async function shoot(page: Page, info: TestInfo, name: string, endAt?: string) {
+  // a fixed scroll: the dialog's body at its top (a click or a focus may have scrolled it by a run-dependent amount)
+  await inDt(page, 'sw-dialog[data-wk-dt-dialog]').evaluate((d) => {
+    const body = d.shadowRoot?.querySelector<HTMLElement>('.body');
+    if (body) body.scrollTop = 0;
+  });
+  if (endAt) await inDt(page, endAt).evaluate((el) => el.scrollIntoView({ block: 'end' }));
   await settlePage(page);
   const file = `${name}-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
   if (noBaseline(info, file)) info.annotations.push({ type: 'skipped-pixel', description: `${file}: no baseline on ${process.platform}` });
@@ -47,7 +53,7 @@ test.describe('pixel: the door technical dialog', () => {
     await inDt(page, '[data-wk-dt-add-period="Sunday"]').click();
     await inDt(page, '[data-wk-dt-save]').click();
     await expect(inDt(page, '[data-wk-dt-confirm="hold_save"]')).toBeVisible();
-    await shoot(page, info, 'door-tech-confirm');
+    await shoot(page, info, 'door-tech-confirm', '[data-wk-dt-confirm="hold_save"]');
   });
 
   test('classic is pixel-stable: the door technical dialog - the public code form and the programs', async ({ page }, info) => {

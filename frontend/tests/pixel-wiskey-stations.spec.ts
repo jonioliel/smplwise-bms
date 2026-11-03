@@ -100,7 +100,10 @@ test.describe('pixel: the stations and doors screen', () => {
     await page.locator(`${SCREEN} [data-wk-grid] [data-wk-station="lobby"] button.open`).click();
     await page.locator(`${SCREEN} sw-drawer [data-wk-settings-toggle]`).click();
     await expect(page.locator(`${SCREEN} sw-drawer [data-wk-codes]`)).toBeVisible();
-    await page.locator(`${SCREEN} sw-drawer [data-wk-dsec="settings"]`).scrollIntoViewIfNeeded();
+    // WISKEY-DOOR-TECH-2390: the section grew by the "שינויים טכניים" row; a fixed alignment (its end at the drawer's end) instead of
+    // scrollIntoViewIfNeeded, whose alignment depends on where the drawer happened to be scrolled
+    await expect(page.locator(`${SCREEN} sw-drawer wk-door-tech [data-wk-dt-open]`)).toBeVisible();
+    await page.locator(`${SCREEN} sw-drawer [data-wk-dsec="settings"]`).evaluate((el) => el.scrollIntoView({ block: 'end' }));
     await shoot(page, info, 'stations-classic-settings');
   });
 
