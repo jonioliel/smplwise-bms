@@ -110,6 +110,14 @@ has a standing rule that it never names the integration (UI_COPY_RULES; the `BAN
 
 The owner can choose otherwise. That would change the rule and its spec too.
 
+## 6a. Known limits
+
+- During an Arx talk, the call section's first line still reads "אין שיחה". That line is WisKey's call state, and an Arx talk is not an
+  intercom call. The talk row under it shows "בשיחה 0:42" and "ניתוק".
+- Not run against a real WisKey or station. The lab session of 04.11 (owner Q1: features switched on step by step) is the first real run. With
+  WisKey 2.0.1-rc.10, the Settings row will show the two "not listed" reasons, and the drawer will show `not_listed` (with WisKey chosen) or
+  `provider_local` (with Arx chosen) until WisKey lists the W10 commands.
+
 ## 7. For the WisKey team
 
 1. **The six W10 commands are not listed for Arx.** WisKey 2.0.1-rc.10 in the lab: `overview.api` = version 1, min_client 0, 258 commands, none
@@ -119,10 +127,30 @@ The owner can choose otherwise. That would change the rule and its spec too.
 2. No new command is requested. The owner decided (03.11, Q2 "ג") that dial = Arx's talk session, with no ring feature. A future "ring the station /
    call an indoor unit" would need a new WisKey command; it is not asked for now.
 
-## 8. Tests
+## 8. Tests and results (03.11)
 
-See the closing report and section 9 for the exact commands and results.
+Workstation (one process / one worker; node-only units, no browser):
 
-## 9. Results
+| Check | Result |
+|---|---|
+| `tsc --noEmit` (src + tests) | 0 errors |
+| units: `unit-wiskey-talk-dial-2382` (new), `unit-wiskey-station-media` (+ in-call duration), `unit-wxmedset`, `unit-wkdirect-talk-max`, `unit-wiskey-stations` | **76 passed, 0 failed** |
+| backend: `test_station_media_readiness_2382` (new), `test_intercom_media`, `test_wiskey_media_v11`, `test_asgi_wiskey_295` | **155 passed, 0 failed** |
+| backend route guards: `test_capabilities`, `test_plan_routes_unique`, `test_secfix2_pub07_guard_first` | **39 passed, 0 failed** |
 
-(filled in below by the runs of this branch)
+Runner (`run_smart.py preview`, `--workers=1`; `gate_status.json` = pass / release/2380-train and no gate process before each job):
+
+| Job | Specs | Result |
+|---|---|---|
+| `--update-snapshots=changed` @ b6152956d | `pixel-wiskey-talk-dial-2382` (new), `pixel-wiskey-station-media`, `evidence-wiskey-talk-dial-2382` (new), `evidence-wiskey-station-media`; desktop + mobile | **77 passed, 11 skipped, 0 failed**; 24 PNGs (8 new, 16 refreshed), each reviewed -> 0ba05e4f6 |
+| verify (no `-u`) @ c2f576337 | `pixel-wiskey-talk-dial-2382`, `pixel-wiskey-station-media`, `pixel-wiskey-stations`, `evidence-wiskey-stations`, `evidence-wxmedset`; desktop + mobile | 135 passed, 18 skipped, **1 failed**: `pixel-wiskey-stations` "classic ... door settings" desktop (2 % of pixels; media setting off, a path this branch does not change) |
+| that test alone, base branch `fix/STATION-WS-PATH-2381` | desktop | 1 passed |
+| that test alone, this branch, `--repeat-each=2` | desktop | **2 passed** - an order / load flake of the long run (runner load 10-13), not this change |
+| @ c2f576337 | `layout-wiskey-station-media` (every skin x light/dark x 10 widths) + `evidence-wiskey-talk-dial-2382`; desktop | **10 passed**; layout guard 242 checks, 0 findings, 0 controls under the hit area, 0 page errors |
+
+Baselines reviewed: the new dial states (idle with the small "בלוח הקלאסי" link; in a call with "בשיחה 0:00 · נותרו 2:00" and
+"ניתוק"; provider local; pairing) at 1440 and 390; the refreshed drawers show the talk control in the call section (gate ringing: answer /
+reject, then "דיבור עם העמדה" and the classic link), the no-talk station shows "העמדה הזו לא מציעה דיבור" with the classic panel.
+
+NOT_RUN: the release gate; `contracts/API_INVENTORY.md` regeneration (a release step); a11y / visual-matrix suites; tablet project of the new
+specs; anything against the real WisKey / stations (lab untouched - 04.11 lab session).
