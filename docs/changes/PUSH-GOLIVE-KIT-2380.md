@@ -31,6 +31,9 @@ runner was used. Nothing was sent anywhere.** Everything below that touches Fire
    notification on the `app` channel. Ask the app teams for a button (open question 3 in the field-test document).
 4. **A relay answer of 404 or 410 makes the Arx server drop the device's push registration at once** (`mobile_push.record`); a wrongly typed
    relay URL (extra path) answers 404 and therefore silently un-registers phones until the app is next opened. The deploy document now says so.
+   **Superseded by PUSH-RELAY-SAFE-2380 (merged on release/2380-train):** only the contract token error bodies (404 `relay_token_unknown`,
+   410 `push_token_gone`) drop a registration; a bare 404 / 410, a 401 and a 403 are configuration errors that keep it. The deploy
+   document's decode table (section 5.1) was corrected on the train.
 5. The relay test count in the documents was 27; the suite has **34** tests.
 6. X4 findings F-1 (marker header, no session swap), F-2 (no device registration from an `a.` session) and F-3 (audit rows) are fixed in the
    current code (`routers/app_refresh.py`, `routers/presence.py`, `services/app_session.py`); the X4 "NO-SHIP for leaving it on" text predates them but
