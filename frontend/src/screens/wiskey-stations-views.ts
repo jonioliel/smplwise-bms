@@ -8,6 +8,7 @@
 import { html, nothing, type TemplateResult } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-badge';
+import '../components/wk-door-tech'; // WISKEY-DOOR-TECH-2390: the door technical writes in the door settings section (its own component)
 import '../components/sw-card';
 import '../components/sw-icon';
 import '../components/wk-action-button';
@@ -456,6 +457,7 @@ function doorSettings(v: ViewCtx, s: AccessStation): TemplateResult | typeof not
       <sw-icon name="chevronDown" size=${14}></sw-icon><span>${t.drawer.doorSettings}</span>
     </button>
     ${v.detailOpen ? html`${programs && stationDoors(s).length ? programRows(v, s, d) : nothing}${codes ? codesRows(v, d) : nothing}` : nothing}
+    ${v.detailOpen ? html`<wk-door-tech .station=${s} ?live=${v.live} @door-tech-changed=${() => v.retryDetail()}></wk-door-tech>` : nothing}
   </section>`;
 }
 

@@ -595,6 +595,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import wiskey_lineage as wiskey_lineage_router  # WKR5-295: the WisKey people-write lineage administration (its own line)
 
     app.include_router(wiskey_lineage_router.router, prefix=api, tags=["access-control"])
+    from .routers import access_control_door_tech  # WISKEY-DOOR-TECH-2390: door technical writes (its own file and its own line)
+
+    app.include_router(access_control_door_tech.router, prefix=api, tags=["access-control"])
     from .routers import access_control_messaging  # CR-036 WA: WhatsApp from the people screen (its own file and its own line)
 
     app.include_router(access_control_messaging.router, prefix=api, tags=["access-control"])
