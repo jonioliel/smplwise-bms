@@ -43,7 +43,7 @@ from ..auth import current_principal_ro, get_read_conn, settings_of
 from ..config import Settings
 from ..db import Database, retry_locked
 from ..errors import ApiError
-from ..rbac import Principal, authorize
+from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import intercom_authority as ia
 from ..services import intercom_media as im
 from ..services import intercom_sync
@@ -139,7 +139,10 @@ def station_thumbnail(request: Request, auth: ia.Authority = Depends(_gate(READ)
 @router.get("/access-control/stations/{station_id}/media")
 def station_media(request: Request, auth: ia.Authority = Depends(_gate(READ)), station_id: str = Path(min_length=1, max_length=MAX_STATION_ID)) -> dict[str, Any]:
     """`state`: `off` (the setting; the drawer keeps the still and the classic panel), `unavailable` (+ `reason`: `feed`,
-    `offline`, `no_camera`, `no_media`, `no_host`, `no_credentials`, `descriptor_*`, `provider_error`) or `ready`."""
+    `offline`, `no_camera`, `no_media`, `no_host`, `no_credentials`, `descriptor_*`, `provider_error`) or `ready`. `talk.reason` when
+    talk is not offered: `off` (the setting is video only), `provider_local` (Arx's own source: video only), `pairing` (WisKey chosen,
+    no pairing key that can sign), `not_listed` (WisKey does not list the W10 talk commands for Arx), `unsupported` (the station offers none),
+    `wiskey_unavailable` (WisKey chosen but not reachable now: Arx's own video serves), `forbidden` (no `access.call` here)."""
     settings = settings_of(request)
     feed_state, station = _visible_station(settings, auth, station_id)
     mode = im.media_mode(auth.conn)
@@ -168,7 +171,8 @@ def station_media(request: Request, auth: ia.Authority = Depends(_gate(READ)), s
     if mode != "video_talk":
         talk: dict[str, Any] = {"available": False, "reason": "off"}
     elif not d.talk_transport:
-        talk = {"available": False, "reason": "unsupported"}
+        # WISKEY-TALK-DIAL-2382: `provider_local` (Arx's own source, video only), `pairing`, `not_listed`, `wiskey_unavailable` or `unsupported`
+        talk = {"available": False, "reason": im.talk_gap(settings, auth.conn, d)}
     elif not auth.station(CALL, station_id):
         talk = {"available": False, "reason": "forbidden"}
     else:
@@ -176,6 +180,17 @@ def station_media(request: Request, auth: ia.Authority = Depends(_gate(READ)), s
         talk = {"available": True, "reason": None, "transport": d.talk_transport, "codec": d.audio_codec, "duplex": d.duplex,
                 "max_seconds": im.talk_limit_s(auth.conn, d), "sample_rate": im.SAMPLE_RATE, "frame_ms": im.FRAME_MS, "busy": busy}
     return {**body, "state": "ready", "video": video, "talk": talk, "listen": d.listen, "expires_at": im.iso(d.expires_at)}
+
+
+@router.get("/access-control/station-media/readiness")
+def station_media_readiness(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """WISKEY-TALK-DIAL-2382: whether the stations screen's video and talk can come from WisKey (`access.station_media_provider = auto`)
+    and every reason they cannot (`missing`: `wiskey_unreachable`, `api_incompatible`, `video_not_listed`, `talk_not_listed`,
+    `pairing_missing`, `pairing_key_rotated`), for the Settings row that chooses the source. `system.configure` (a refusal is audited by
+    `require`). Read only: nothing is sent to WisKey, nothing is signed or written; the choice itself is saved through `PATCH /settings`
+    (audited `settings.update`, like every product setting)."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    return im.readiness(settings_of(request), conn)
 
 
 # ---------------------------------------------------------------- live video (the existing relay)

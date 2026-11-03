@@ -37,7 +37,10 @@ export interface StationMediaVideo {
 
 export interface StationMediaTalk {
   available: boolean;
-  /** Why not: `off` (the setting says video only), `unsupported` (no talk transport: the classic panel keeps it), `forbidden`. */
+  /** Why not (TALK_REASONS): `off` (the setting says video only), `provider_local` (Arx's own source: video only), `pairing` (WisKey
+   * chosen, no pairing key that signs), `not_listed` (WisKey does not publish the W10 talk commands to Arx), `unsupported` (the station
+   * has none), `wiskey_unavailable`
+   * (WisKey chosen but not reachable: Arx's own video serves), `forbidden` (no call permission on the station). */
   reason: string | null;
   transport?: string;
   codec?: 'pcmu' | 'pcma';
@@ -140,4 +143,62 @@ export function newRequestId(): string {
   const bytes = new Uint8Array(12);
   crypto.getRandomValues(bytes);
   return `ptt-${Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')}`;
+}
+
+// ---------------------------------------------------------------- WISKEY-TALK-DIAL-2382: the source choice, its readiness, the dial
+
+/** The settings key of the station media source (routers/settings.py): `local` = Arx's own source (video only), `auto` = WisKey's signed
+ * W10 source (video and talk) while it is ready, else Arx's own. */
+export const STATION_MEDIA_PROVIDER_KEY = 'access.station_media_provider';
+export type StationMediaProvider = 'local' | 'auto';
+
+export function parseProvider(settings: Record<string, unknown> | null | undefined): StationMediaProvider {
+  return settings?.[STATION_MEDIA_PROVIDER_KEY] === 'auto' ? 'auto' : 'local';
+}
+
+/** The closed reasons of `GET access-control/station-media/readiness` (services/intercom_media.py READINESS_CODES). */
+export const READINESS_CODES = ['wiskey_unreachable', 'api_incompatible', 'video_not_listed', 'talk_not_listed', 'pairing_missing', 'pairing_key_rotated'] as const;
+export type ReadinessCode = (typeof READINESS_CODES)[number];
+
+export interface StationMediaReadiness {
+  choice: StationMediaProvider;
+  /** The source a station read uses now (before WisKey's per-station answer). */
+  active: 'local' | 'wiskey';
+  mode: StationMediaMode;
+  wiskey: { reachable: boolean; video_listed: boolean; talk_listed: boolean; signing: boolean };
+  missing: string[];
+  video_ready: boolean;
+  talk_ready: boolean;
+}
+
+/** `system.configure`; read only (nothing is sent to WisKey). */
+export const getStationMediaReadiness = () => get<StationMediaReadiness>('access-control/station-media/readiness');
+
+/** The readiness as the Settings row says it: `ok` (WisKey can serve video and talk), `partial` / `missing` with the known codes in the
+ * server's order (an unknown code is dropped, never shown). */
+export function readinessSummary(r: StationMediaReadiness | null): { state: 'ok' | 'partial' | 'missing'; codes: ReadinessCode[] } | null {
+  if (!r) return null;
+  const codes = (Array.isArray(r.missing) ? r.missing : []).filter((c): c is ReadinessCode => (READINESS_CODES as readonly string[]).includes(c));
+  if (!codes.length && r.talk_ready) return { state: 'ok', codes };
+  return { state: r.video_ready ? 'partial' : 'missing', codes };
+}
+
+/** Every `talk.reason` the drawer explains (anything else reads as `unavailable`). */
+export const TALK_REASONS = ['off', 'provider_local', 'pairing', 'not_listed', 'unsupported', 'wiskey_unavailable', 'forbidden', 'unavailable'] as const;
+export type TalkReason = (typeof TALK_REASONS)[number];
+
+export function talkReason(reason: string | null | undefined): TalkReason {
+  return (TALK_REASONS as readonly string[]).includes(reason ?? '') ? (reason as TalkReason) : 'unavailable';
+}
+
+/** What the drawer's "dial the station" offers for a station read: `native` (Arx's own talk session), `reason` (why not, with the classic
+ * panel as the secondary way), or `legacy` (nothing read yet, or the setting off: the classic-panel link exactly as before). `undefined`
+ * media = not read yet; `null` = the read failed. */
+export type DialState = { kind: 'native' } | { kind: 'reason'; reason: TalkReason } | { kind: 'legacy' };
+
+export function dialState(mode: StationMediaMode, media: StationMedia | null | undefined): DialState {
+  if (mode === 'off' || media === undefined) return { kind: 'legacy' };
+  if (!media || media.state !== 'ready') return { kind: 'reason', reason: media?.state === 'off' ? 'off' : 'unavailable' };
+  if (media.talk?.available) return { kind: 'native' };
+  return { kind: 'reason', reason: talkReason(media.talk?.reason) };
 }

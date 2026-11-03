@@ -18,7 +18,7 @@ import type { StateKind } from '../components/sw-badge';
 import { ApiError, describeError } from '../api/client';
 import { getDevicesTree, getEntityRows } from '../api/devices';
 import { intercomSnapshotUrl, releaseIntercomDoor, signalIntercomCall, subscribeIntercom, type IntercomCallCommand } from '../api/intercom';
-import { getStationMedia, parseMediaMode, type StationMedia, type StationMediaMode } from '../api/station-media';
+import { dialState, getStationMedia, parseMediaMode, type StationMedia, type StationMediaMode } from '../api/station-media';
 import { smt } from '../i18n/wiskey-station-media';
 import {
   getAccessFeatures,
@@ -429,7 +429,10 @@ export class WiskeyStations extends LitElement {
     if (!m || m.state !== 'ready') return null;
     const video = !!m.video?.allowed && Object.keys(m.video.paths).length > 0;
     if (!video && !m.talk?.available) return null;
-    const classic = v.rights.talk && !m.talk?.available;
+    // WISKEY-TALK-DIAL-2382: the talk control (or why not, with the classic panel) is the call section's "dial the station" for a caller
+    // who may call; the live area keeps it only where that section draws no dial (no call permission anywhere: nothing to offer anyway)
+    const here = !v.rights.call;
+    const classic = here && v.rights.talk && !m.talk?.available;
     return html`<wk-station-live
       data-wk-live-native
       .stationId=${s.id}
@@ -437,9 +440,38 @@ export class WiskeyStations extends LitElement {
       .media=${video ? m : { ...m, video: null }}
       .poster=${this.posterOf(s)}
       .live=${v.live && s.online}
+      .talkHere=${here}
       .classicHref=${classic ? classicPanelHref() : ''}
       .classicLabel=${v.text.talk.classic}
     ></wk-station-live>`;
+  }
+
+  /** WISKEY-TALK-DIAL-2382: the drawer's "dial the station". Once the station's media was read (the setting on): Arx's own talk session in
+   * the call section (the talk button: one start request, the in-call duration, hang up), or - when talk is not offered - the reason in
+   * plain words with the classic panel as the secondary way, never silently. Undefined (the classic-panel link as before) while the setting
+   * is off or nothing was read yet. */
+  private dialControl(s: AccessStation, active: boolean, v: ViewCtx) {
+    const d = dialState(this.mediaMode, this.media[s.id]);
+    if (d.kind === 'legacy') return undefined;
+    const t = smt().dial;
+    if (d.kind === 'native') {
+      // owner 03.11 (Q2 "ג"): the dial opens Arx's talk, and a small secondary link to the classic panel stays beside it
+      return html`<div class="dialnative">
+        <wk-talk-button
+          dial
+          data-wk-dial="native"
+          .stationId=${s.id}
+          .talk=${this.media[s.id]?.talk ?? null}
+          .live=${v.live && s.online}
+          .idleLabel=${active ? t.talk : t.dial}
+        ></wk-talk-button>
+        <wk-action-button tone="quiet" icon="window" href=${classicPanelHref()} data-wk-dial-classic="secondary">${t.classic}</wk-action-button>
+      </div>`;
+    }
+    return html`<div class="callrow" data-wk-dial="reason" data-reason=${d.reason}>
+      <span class="cs muted dialwhy" data-wk-dial-reason role="status">${t.reasons[d.reason]}</span>
+      <wk-action-button tone="dashed" icon="window" href=${classicPanelHref()} data-wk-dial-classic>${t.classic}</wk-action-button>
+    </div>`;
   }
 
   /** Where the classic-panel talk link would be. In a card or a row: "talk" opens the drawer (its push-to-talk) once the setting
@@ -453,6 +485,8 @@ export class WiskeyStations extends LitElement {
         this.open(s.id);
       }}>${smt().talk.openDrawer}</wk-action-button>`;
     }
+    // WISKEY-TALK-DIAL-2382: once the media was read, the call section's dial control is the one talk control of the drawer
+    if (dialState(this.mediaMode, this.media[s.id]).kind !== 'legacy' && v.rights.call) return nothing;
     return this.liveArea(s, v) ? nothing : undefined;
   }
 
@@ -538,6 +572,7 @@ export class WiskeyStations extends LitElement {
     if (this.mediaMode !== 'off') {
       ctx.liveArea = (s) => this.liveArea(s, ctx);
       ctx.talkControl = (s, large) => this.talkControl(s, large, ctx);
+      ctx.dialControl = (s, active) => this.dialControl(s, active, ctx);
     }
     return ctx;
   }

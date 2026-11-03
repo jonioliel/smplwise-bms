@@ -93,6 +93,9 @@ export interface ViewCtx {
   liveArea?(s: AccessStation): TemplateResult | null;
   /** CR-036 S18: the talk control where the classic-panel link would be; undefined = the link (when the policy offers it). */
   talkControl?(s: AccessStation, large: boolean): TemplateResult | typeof nothing | undefined;
+  /** WISKEY-TALK-DIAL-2382: "dial the station" in the drawer's call section - Arx's own talk (the talk button) or why not with the classic
+   * panel beside it; undefined = the classic-panel dial link, exactly as before (the setting off, or the station's media not read yet). */
+  dialControl?(s: AccessStation, active: boolean): TemplateResult | undefined;
 }
 
 const zoneOf = (v: ViewCtx, s: AccessStation): DisplayZone | null => s.zone ?? v.defaultZone;
@@ -483,6 +486,8 @@ export function drawerBody(v: ViewCtx, s: AccessStation): TemplateResult {
   const tts = v.actions.tts[s.id];
   const ttsState = tts ? ttsStateText(tts, t) : '';
   const own = v.liveArea?.(s) ?? null;
+  // WISKEY-TALK-DIAL-2382: one position in the call section whatever the call state, so an open talk survives a ringing / in-call change
+  const dial = v.rights.call && s.online ? v.dialControl?.(s, active) : undefined;
   return html`
     ${own ?? html`<div class="live ${s.online ? '' : 'off'}" data-wk-live data-still-state=${st}>
       ${st === 'image' ? html`<img src=${stillSrc(v, s)} alt=${fill(t.still.alt, { name: s.name })} decoding="async" @error=${() => v.stillError(s.id, v.poster)} />` : noPicture(v, s, st)}
@@ -497,7 +502,8 @@ export function drawerBody(v: ViewCtx, s: AccessStation): TemplateResult {
           <h4>${wkIcon('phone', 14)}${t.drawer.call}</h4>
           ${active
             ? html`${callRow(v, s, true)}${s.call_state === 'in_call' ? talkSlot(v, s, true) : nothing}`
-            : html`<div class="callrow"><span class="cs muted">${t.call.none}</span>${v.rights.call && s.online ? html`<wk-action-button tone="dashed" icon="phone" href=${classicPanelHref()} data-wk-dial>${t.call.dial}</wk-action-button>` : nothing}</div>`}
+            : html`<div class="callrow"><span class="cs muted">${t.call.none}</span>${v.rights.call && s.online && dial === undefined ? html`<wk-action-button tone="dashed" icon="phone" href=${classicPanelHref()} data-wk-dial>${t.call.dial}</wk-action-button>` : nothing}</div>`}
+          ${dial ?? nothing}
         </section>`
       : nothing}
     ${doors.length || v.rights.door

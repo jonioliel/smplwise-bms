@@ -272,3 +272,25 @@ test.describe('two-way talk session (full duplex, owner 25.10)', () => {
     expect(problemOfOutcome('never_connected')).toBe('failed');
   });
 });
+
+// WISKEY-TALK-DIAL-2382: the drawer's dial shows the in-call duration, counted from the station's channel opening
+test.describe('in-call duration (WISKEY-TALK-DIAL-2382)', () => {
+  test('counts from the open state, not from the press; gone when the talk ends', async () => {
+    const { session, log } = rig();
+    expect(session.secondsOpen()).toBeNull();
+    void session.start();
+    await flush();
+    log.clock += 4_000; // the start request and the socket took four seconds
+    expect(session.secondsOpen()).toBeNull();
+    log.sockets[0].server({ type: 'talk/state', value: 'open' });
+    expect(session.secondsOpen()).toBe(0);
+    log.clock += 42_900;
+    expect(session.secondsOpen()).toBe(42);
+    expect(session.secondsLeft()).toBe(74); // the limit still counts from the server's reply (120 s - 46.9 s, rounded up)
+    session.toggleMute();
+    expect(session.secondsOpen()).toBe(42); // muted is still in the call
+    session.end();
+    expect(session.secondsOpen()).toBeNull();
+    expect(session.openedAt).toBe(0);
+  });
+});

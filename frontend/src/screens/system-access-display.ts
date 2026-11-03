@@ -10,20 +10,41 @@ import { invalidateSettings } from '../api/prefs';
 import { can, isApi } from '../api/session';
 import { MAX_PHRASES, MAX_PHRASE_LENGTH, POLICY_DEFAULTS, POLICY_KEYS, parsePolicy } from './wiskey-stations-logic';
 import { PHRASES_STORED_MAX, mediaOptions, phrasePreview } from '../access-control/parity-logic';
-import { STATION_MEDIA_KEY, TALK_MAX_DEFAULT_S, TALK_MAX_KEY, TALK_MAX_MAX_S, TALK_MAX_MIN_S, parseMediaMode, parseTalkMax, talkMaxInput } from '../api/station-media';
+import {
+  STATION_MEDIA_KEY,
+  STATION_MEDIA_PROVIDER_KEY,
+  TALK_MAX_DEFAULT_S,
+  TALK_MAX_KEY,
+  TALK_MAX_MAX_S,
+  TALK_MAX_MIN_S,
+  getStationMediaReadiness,
+  parseMediaMode,
+  parseProvider,
+  parseTalkMax,
+  readinessSummary,
+  talkMaxInput,
+  type StationMediaReadiness,
+} from '../api/station-media';
+import { fill, smt } from '../i18n/wiskey-station-media';
 import { STATION_LISTEN_KEY, parseListenMode } from '../api/station-listen';
 import { slt } from '../i18n/wiskey-station-listen';
 import { settingsStyles } from '../styles/settings';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { pt } from '../i18n/access-parity';
 
-type DisplayKey = (typeof POLICY_KEYS)[keyof typeof POLICY_KEYS] | typeof STATION_MEDIA_KEY | typeof TALK_MAX_KEY | typeof STATION_LISTEN_KEY;
+type DisplayKey =
+  | (typeof POLICY_KEYS)[keyof typeof POLICY_KEYS]
+  | typeof STATION_MEDIA_KEY
+  | typeof STATION_MEDIA_PROVIDER_KEY
+  | typeof TALK_MAX_KEY
+  | typeof STATION_LISTEN_KEY;
 const DEFAULTS: Record<DisplayKey, string> = {
   [POLICY_KEYS.callHint]: POLICY_DEFAULTS.callHint,
   [POLICY_KEYS.talk]: POLICY_DEFAULTS.talk,
   [POLICY_KEYS.announceScope]: POLICY_DEFAULTS.announceScope,
   [POLICY_KEYS.phrases]: '',
   [STATION_MEDIA_KEY]: 'off',
+  [STATION_MEDIA_PROVIDER_KEY]: 'local',
   [TALK_MAX_KEY]: String(TALK_MAX_DEFAULT_S),
   [STATION_LISTEN_KEY]: 'off',
 };
@@ -44,6 +65,11 @@ const DEFAULTS: Record<DisplayKey, string> = {
  * WKDIRECT-295: "משך דיבור מרבי" (`access.station_media_max_talk_s`, seconds, a whole number 1..86400, default 300 - the station's own
  * range) appears under it only while the choice is video + talk; a talk ends at the smaller of this and the station's own value. A value
  * outside the range is not saved (the field says the range).
+ *
+ * WISKEY-TALK-DIAL-2382: "מקור הווידאו והדיבור" (`access.station_media_provider`: `local` = Arx, video only - the default; `auto` = WisKey,
+ * video and talk) while the media setting is not off - until now a `PATCH /settings`-only key. Under its label, one line says in plain
+ * Hebrew what WisKey mode still needs (`GET access-control/station-media/readiness`, read only, system administrator): WisKey not
+ * reachable, its discovery not listing the video / talk commands, no signed pairing. Saved and audited like the other rows.
  */
 @customElement('system-access-display')
 export class SystemAccessDisplay extends LitElement {
@@ -54,6 +80,9 @@ export class SystemAccessDisplay extends LitElement {
   @state() private message = '';
   @state() private error = '';
   @state() private failed = '';
+  /** WISKEY-TALK-DIAL-2382: what WisKey mode needs (null while unread), or that the check failed. */
+  @state() private readiness: StationMediaReadiness | null = null;
+  @state() private readinessFailed = false;
   private gen = 0;
 
   static styles = [
@@ -96,6 +125,7 @@ export class SystemAccessDisplay extends LitElement {
       [POLICY_KEYS.announceScope]: policy.announceScope,
       [POLICY_KEYS.phrases]: String((settings as Record<string, unknown>)[POLICY_KEYS.phrases] ?? ''),
       [STATION_MEDIA_KEY]: parseMediaMode(settings as Record<string, unknown>),
+      [STATION_MEDIA_PROVIDER_KEY]: parseProvider(settings as Record<string, unknown>),
       [TALK_MAX_KEY]: String(parseTalkMax(settings as Record<string, unknown>)),
       [STATION_LISTEN_KEY]: parseListenMode(settings as Record<string, unknown>),
     } as Record<DisplayKey, string>;
@@ -113,10 +143,38 @@ export class SystemAccessDisplay extends LitElement {
       if (gen !== this.gen) return;
       this.saved = this.read(r.settings);
       this.canEdit = !!r.can_edit && can('system.configure');
+      void this.loadReadiness();
     } catch (err) {
       if (gen !== this.gen) return;
       this.failed = describeError(err);
     }
+  }
+
+  /** WISKEY-TALK-DIAL-2382: the read-only readiness of WisKey mode (only for who may change the source; never retried in a loop). */
+  private async loadReadiness(): Promise<void> {
+    if (!isApi() || !can('system.configure')) return;
+    const gen = this.gen;
+    this.readinessFailed = false;
+    try {
+      const r = await getStationMediaReadiness();
+      if (gen === this.gen) this.readiness = r;
+    } catch {
+      if (gen === this.gen) this.readinessFailed = true;
+    }
+  }
+
+  /** The readiness line under the source row, for the source as chosen in the form (saved or not). */
+  private readinessLine(): { state: string; text: string } | null {
+    if (!isApi() || !can('system.configure')) return null;
+    const t = smt().source;
+    if (this.readinessFailed) return { state: 'failed', text: t.failed };
+    const sum = readinessSummary(this.readiness);
+    if (!sum) return { state: 'checking', text: t.checking };
+    const auto = this.value(STATION_MEDIA_PROVIDER_KEY) === 'auto';
+    if (sum.state === 'ok') return { state: 'ok', text: auto ? t.ok : t.okLocal };
+    const list = sum.codes.map((c) => t.codes[c]).join('; ');
+    const tail = auto ? (sum.state === 'partial' ? t.videoOnly : t.fallback) : '';
+    return { state: sum.state, text: `${fill(t.missing, { list })}${tail ? ` - ${tail}` : ''}` };
   }
 
   private value(key: DisplayKey): string {
@@ -154,6 +212,7 @@ export class SystemAccessDisplay extends LitElement {
       this.draft = {};
       invalidateSettings();
       this.message = pt('dispSaved');
+      void this.loadReadiness();
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -180,6 +239,16 @@ export class SystemAccessDisplay extends LitElement {
       </sw-field></div>`;
   }
 
+  /** WISKEY-TALK-DIAL-2382: the station media source (Arx / WisKey) and what WisKey mode still needs. */
+  private sourceRow() {
+    const t = smt().source;
+    const line = this.readinessLine();
+    return html`<div class="row" data-access-display-source>
+      <span class="lbl">${t.label}${line ? html`<span class="muted" role="status" data-access-display-readiness=${line.state}>${line.text}</span>` : nothing}</span>
+      ${this.select(STATION_MEDIA_PROVIDER_KEY, [['local', t.local], ['auto', t.auto]])}
+    </div>`;
+  }
+
   render() {
     if (this.failed) {
       return html`<sw-card heading=${pt('dispTitle')} data-access-display="error"><div class="row"><span class="lbl">${this.failed}</span><sw-button size="lg" variant="ghost" icon="refresh" @click=${() => void this.load()}>${pt('dispRetry')}</sw-button></div></sw-card>`;
@@ -197,6 +266,7 @@ export class SystemAccessDisplay extends LitElement {
         ${this.select(POLICY_KEYS.talk, [['classic', pt('dispTalkClassic')], ['hidden', pt('dispTalkHidden')]])}</div>
       <div class="row" data-access-display-media><span class="lbl">${pt('dispMedia')}</span>
         ${this.select(STATION_MEDIA_KEY, mediaOptions())}</div>
+      ${this.value(STATION_MEDIA_KEY) !== 'off' ? this.sourceRow() : nothing}
       ${this.value(STATION_MEDIA_KEY) === 'video_talk' ? this.talkMax() : nothing}
       ${this.value(STATION_MEDIA_KEY) !== 'off'
         ? html`<div class="row" data-access-display-listen><span class="lbl">${slt().setting.label}<span class="muted">${slt().setting.text}</span></span>

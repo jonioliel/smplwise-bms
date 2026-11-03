@@ -18,6 +18,8 @@ export interface StationMediaMock {
   liveAllowed: boolean;
   /** The caller may talk (talk.available); false = `forbidden`. */
   talkAllowed: boolean;
+  /** WISKEY-TALK-DIAL-2382: the server's reason for no talk (`provider_local`, `pairing`, `not_listed` ...) in video_talk mode; null = talk. */
+  talkReason: string | null;
   busy: boolean;
   /** A refusal for POST talk (status + code), or null. */
   startFail: { status: number; code: string } | null;
@@ -39,6 +41,7 @@ export const newMediaMock = (over: Partial<StationMediaMock> = {}): StationMedia
     station: {},
     liveAllowed: true,
     talkAllowed: true,
+    talkReason: null,
     busy: false,
     startFail: null,
     mic: 'ok',
@@ -76,6 +79,8 @@ function mediaBody(mm: StationMediaMock, id: string) {
       ? { available: false, reason: 'off' }
       : how === 'video_only' || how === 'main_only'
         ? { available: false, reason: 'unsupported' }
+        : mm.talkReason
+          ? { available: false, reason: mm.talkReason }
         : !mm.talkAllowed
           ? { available: false, reason: 'forbidden' }
           : { available: true, reason: null, transport: 'pcmu_frames', codec: 'pcmu', duplex: 'half', max_seconds: 120, sample_rate: 8000, frame_ms: 20, busy: mm.busy };

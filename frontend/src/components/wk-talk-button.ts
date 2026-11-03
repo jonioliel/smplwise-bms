@@ -4,6 +4,7 @@ import './sw-icon';
 import './wk-action-button';
 import { newRequestId, startTalk, stopTalk, talkSocketUrl, type StationMediaTalk } from '../api/station-media';
 import { clock, fill, smt } from '../i18n/wiskey-station-media';
+import { wkIcon } from '../screens/wiskey-stations-icons';
 import { micPermission, openMic } from '../wiskey/talk-mic';
 import { TalkSession, type TalkDeps, type TalkProblem } from '../wiskey/talk-session';
 
@@ -18,6 +19,10 @@ import { TalkSession, type TalkDeps, type TalkProblem } from '../wiskey/talk-ses
  * States shown (a short line, no paragraphs): start / opening / microphone open or muted with the time left; a headset hint when the
  * browser did not apply echo cancellation; the microphone blocked, missing, busy, or unavailable on a plain-HTTP page; another
  * operator talking (who is never said); every way a session ends.
+ *
+ * WISKEY-TALK-DIAL-2382: the drawer's "dial the station" (`dial`): the idle button says `idleLabel` with the phone glyph, the open talk
+ * shows the in-call duration ("בשיחה 0:42") beside the time left, and "end" reads "hang up". The session is the same one (one start
+ * request, never retried). The duration counts from the station's channel opening (TalkSession `openedAt`).
  */
 @customElement('wk-talk-button')
 export class WkTalkButton extends LitElement {
@@ -25,6 +30,9 @@ export class WkTalkButton extends LitElement {
   @property({ attribute: false }) talk: StationMediaTalk | null = null;
   /** The feed is live and the station online: nothing is offered on a last-known copy. */
   @property({ type: Boolean }) live = true;
+  /** WISKEY-TALK-DIAL-2382: the drawer's dial control (phone glyph, `idleLabel`, "hang up"). */
+  @property({ type: Boolean }) dial = false;
+  @property() idleLabel = '';
   /** Test seam: replaces the browser effects (api, socket, microphone). */
   @property({ attribute: false }) deps: Partial<TalkDeps> | null = null;
 
@@ -136,6 +144,14 @@ export class WkTalkButton extends LitElement {
     .line[data-tone='error'] {
       color: var(--sw-danger-text);
     }
+    .ptt svg {
+      flex: none;
+    }
+    .elapsed {
+      color: var(--sw-text);
+      font-weight: var(--sw-fw-semibold);
+    }
+    .elapsed bdi,
     .left {
       direction: ltr;
       unicode-bidi: isolate;
@@ -209,17 +225,21 @@ export class WkTalkButton extends LitElement {
   }
 
   render() {
-    const t = smt().talk;
+    const all = smt();
+    const t = all.talk;
     const s = this.session;
     const phase = s?.phase ?? 'idle';
     const busy = !!this.talk?.busy && phase === 'idle';
     const blocked = this.blocked();
     const disabled = !this.live || (phase === 'idle' && (busy || !!blocked));
     const left = s?.secondsLeft() ?? null;
+    const open = s?.secondsOpen() ?? null;
     void this.tick;
     const active = phase === 'open' || phase === 'talking';
-    const label = phase === 'talking' ? t.talking : phase === 'starting' ? t.starting : phase === 'open' ? t.muted : t.start;
-    const aria = phase === 'talking' ? t.mute : phase === 'open' ? t.unmute : t.start;
+    const idle = this.idleLabel || (this.dial ? all.dial.dial : t.start);
+    const label = phase === 'talking' ? t.talking : phase === 'starting' ? t.starting : phase === 'open' ? t.muted : idle;
+    const aria = phase === 'talking' ? t.mute : phase === 'open' ? t.unmute : idle;
+    const glyph = phase === 'idle' && this.dial ? wkIcon('phone', 18) : null;
     const problem = s?.problem ?? (phase === 'idle' ? blocked : null);
     const line = problem
       ? { tone: problem === 'busy' || problem === 'expired' ? 'warn' : 'error', text: t.problems[problem] }
@@ -241,14 +261,20 @@ export class WkTalkButton extends LitElement {
         ?disabled=${disabled}
         @click=${this.activate}
       >
-        ${phase === 'talking' ? html`<i class="dot" aria-hidden="true"></i>` : html`<sw-icon name=${phase === 'open' ? 'micOff' : 'mic'} size=${18}></sw-icon>`}<span>${label}</span>
+        ${phase === 'talking' ? html`<i class="dot" aria-hidden="true"></i>` : glyph ?? html`<sw-icon name=${phase === 'open' ? 'micOff' : 'mic'} size=${18}></sw-icon>`}<span>${label}</span>
       </button>
       ${line || phase === 'open' || phase === 'talking'
         ? html`<div class="row">
             <span class="line" role="status" aria-live="polite" data-wk-talk-line data-tone=${line?.tone ?? ''} data-problem=${problem ?? ''}
-              >${line ? line.text : left !== null ? html`<span class="left" data-wk-talk-left>${fill(t.left, { t: clock(left) })}</span>` : nothing}</span
+              >${line
+                ? line.text
+                : html`${open !== null ? html`<span class="elapsed" data-wk-talk-elapsed>${all.dial.inCall} <bdi>${clock(open)}</bdi></span> · ` : nothing}${left !== null
+                    ? html`<span class="left" data-wk-talk-left>${fill(t.left, { t: clock(left) })}</span>`
+                    : nothing}`}</span
             >
-            ${phase === 'open' || phase === 'talking' ? html`<wk-action-button tone="danger" icon="hangup" data-wk-talk-end @click=${() => this.end()}>${t.end}</wk-action-button>` : nothing}
+            ${phase === 'open' || phase === 'talking'
+              ? html`<wk-action-button tone="danger" icon="hangup" data-wk-talk-end @click=${() => this.end()}>${this.dial ? all.dial.hangUp : t.end}</wk-action-button>`
+              : nothing}
           </div>`
         : nothing}`;
   }

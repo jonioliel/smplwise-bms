@@ -208,7 +208,7 @@ def test_unavailable_states_name_their_reason(feed, fake_go2rtc):
     mode(c, "video_talk")
     body = c.get(MEDIA.format("entry-a")).json()
     assert body["state"] == "ready" and [p["id"] for p in body["video"]["profiles"]] == ["main"] and body["video"]["default_profile"] == "main"
-    assert body["talk"] == {"available": False, "reason": "unsupported"}, "no talk without an intercom hook: the classic panel keeps it"
+    assert body["talk"] == {"available": False, "reason": "provider_local"}, "Arx's own source is video only (WISKEY-TALK-DIAL-2382: named as such)"
     for sid, reason in (("entry-b", "offline"), ("entry-c", "no_host"), ("entry-e", "no_camera")):
         r = c.get(MEDIA.format(sid)).json()
         assert (r["state"], r["reason"]) == ("unavailable", reason), sid

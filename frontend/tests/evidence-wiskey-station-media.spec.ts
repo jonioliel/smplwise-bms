@@ -36,8 +36,8 @@ async function boot(page: Page, over: Partial<StationMediaMock> = {}, base: Part
 const drawer = (page: Page) => page.locator(`${SCREEN} sw-drawer[data-wk-drawer]`);
 const inDrawer = (page: Page, sel: string) => page.locator(`${SCREEN} sw-drawer[data-wk-drawer] ${sel}`);
 const live = (page: Page) => inDrawer(page, 'wk-station-live');
-const ptt = (page: Page) => inDrawer(page, 'wk-station-live wk-talk-button [data-wk-ptt]');
-const talkLine = (page: Page) => inDrawer(page, 'wk-station-live wk-talk-button [data-wk-talk-line]');
+const ptt = (page: Page) => inDrawer(page, 'wk-talk-button [data-wk-ptt]');
+const talkLine = (page: Page) => inDrawer(page, 'wk-talk-button [data-wk-talk-line]');
 
 async function openDrawer(page: Page, id: string) {
   await page.locator(`${SCREEN} [data-wk-grid] [data-wk-station="${id}"] button.open`).click();
@@ -78,8 +78,8 @@ test.describe('station media: live video', () => {
     await expect(player).toBeVisible();
     await expect.poll(async () => (await sockets(page)).map((s) => [new URL(s.url).pathname.replace(/^.*\/api\/v1\//, '') + new URL(s.url).search, s.kind])).toContainEqual(['access-control/stations/gate/live/ws?profile=sub', 'webrtc']);
     await expect.poll(() => player.evaluate((el) => (el as unknown as { status: string }).status), { timeout: 15_000 }).toBe('playing');
-    await expect(inDrawer(page, 'wk-station-live [data-wk-talk="classic"]')).toBeVisible();
-    await expect(inDrawer(page, 'wk-station-live wk-talk-button')).toHaveCount(0);
+    await expect(inDrawer(page, '[data-wk-dial="reason"] [data-wk-dial-classic]')).toBeVisible();
+    await expect(inDrawer(page, 'wk-talk-button')).toHaveCount(0);
     await expect(inDrawer(page, '[data-wk-classic-link]')).toHaveCount(0); // the still's overlay is gone with the still
     await shot(page, info, 'video-classic-light');
     await inDrawer(page, 'wk-station-live [data-wk-quality] button[data-profile="main"]').click();
@@ -116,7 +116,7 @@ test.describe('station media: two-way talk (full duplex, WKF01F02-295)', () => {
     const { mm } = await boot(page, { mode: 'video_talk' });
     await openDrawer(page, 'gate');
     await expect(ptt(page)).toBeVisible();
-    await expect(inDrawer(page, 'wk-station-live [data-wk-talk="classic"]')).toHaveCount(0);
+    await expect(inDrawer(page, '[data-wk-dial="reason"] [data-wk-dial-classic]')).toHaveCount(0);
     await expect(inDrawer(page, '[data-wk-talk="classic"]')).toHaveCount(0); // the call section's classic link too (gate is ringing)
     await shot(page, info, 'talk-ready-light');
     await ptt(page).click();
@@ -141,7 +141,7 @@ test.describe('station media: two-way talk (full duplex, WKF01F02-295)', () => {
     await page.keyboard.press('Enter');
     await expect(ptt(page)).toHaveAttribute('data-phase', 'talking');
     expect(mm.starts).toHaveLength(1);
-    await inDrawer(page, 'wk-station-live wk-talk-button [data-wk-talk-end]').click();
+    await inDrawer(page, 'wk-talk-button [data-wk-talk-end]').click();
     await expect(ptt(page)).toHaveAttribute('data-phase', 'idle');
     await expect.poll(() => mm.talkText.at(-1)).toEqual({ type: 'talk/stop' });
     await expect(talkLine(page)).toHaveText('הדיבור הסתיים');
@@ -183,7 +183,7 @@ test.describe('station media: two-way talk (full duplex, WKF01F02-295)', () => {
     await boot(page, { mode: 'video_talk', busy: true });
     await openDrawer(page, 'gate');
     await expect(ptt(page)).toBeDisabled();
-    await expect(inDrawer(page, 'wk-station-live wk-talk-button [data-wk-talk-line]')).toHaveText('העמדה בדיבור עם מפעיל אחר');
+    await expect(inDrawer(page, 'wk-talk-button [data-wk-talk-line]')).toHaveText('העמדה בדיבור עם מפעיל אחר');
     await shot(page, info, 'talk-busy-light');
     await page.goto('about:blank');
     await boot(page, { mode: 'video_talk', mic: 'denied' });
@@ -204,13 +204,13 @@ test.describe('station media: two-way talk (full duplex, WKF01F02-295)', () => {
   test('no talk transport: the classic-panel link; no call permission: no talk control at all', async ({ page }) => {
     await boot(page, { mode: 'video_talk', station: { gate: 'video_only' } });
     await openDrawer(page, 'gate');
-    await expect(inDrawer(page, 'wk-station-live [data-wk-talk="classic"]')).toBeVisible();
-    await expect(inDrawer(page, 'wk-station-live wk-talk-button')).toHaveCount(0);
+    await expect(inDrawer(page, '[data-wk-dial="reason"] [data-wk-dial-classic]')).toBeVisible();
+    await expect(inDrawer(page, 'wk-talk-button')).toHaveCount(0);
     await page.goto('about:blank');
     await boot(page, { mode: 'video_talk', talkAllowed: false }, { persona: 'operator' });
     await openDrawer(page, 'gate');
     await expect(inDrawer(page, 'wk-station-live sw-live-player')).toBeVisible();
-    await expect(inDrawer(page, 'wk-station-live wk-talk-button')).toHaveCount(0);
+    await expect(inDrawer(page, 'wk-talk-button')).toHaveCount(0);
     await expect(inDrawer(page, '[data-wk-talk]')).toHaveCount(0);
   });
 

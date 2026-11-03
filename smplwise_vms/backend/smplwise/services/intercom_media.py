@@ -1266,6 +1266,94 @@ def provider_for(settings: Settings, conn: Any = None) -> MediaProvider:
     return chosen if signed else _local
 
 
+# ---------------------------------------------------------------- WISKEY-TALK-DIAL-2382: why WisKey's source is (not) in use
+
+READINESS_CODES = ("wiskey_unreachable", "api_incompatible", "video_not_listed", "talk_not_listed", "pairing_missing", "pairing_key_rotated")
+
+
+def signing_problem(conn: Any) -> str | None:
+    """Why the pairing key cannot sign a W10 command now (`not_paired` / `key_rotated`), or None when it can. The same rule as the
+    signer's (`BridgeSigner`): read only - nothing is signed, built or sent, and the key never leaves this function."""
+    if conn is None:
+        return "not_paired"
+    from . import ha_bridge
+
+    signer = bridge.BridgeSigner(lambda: ha_bridge.signing_key(conn))
+    try:
+        signer._key()  # noqa: SLF001 - the signer's own check of the key, so the two rules can never drift apart
+    except bridge.MediaBridgeError as exc:
+        return "key_rotated" if exc.code == "bridge_key_rotated" else "not_paired"
+    except Exception:  # noqa: BLE001 - an unreadable key set is "not paired" (the signer's rule)
+        return "not_paired"
+    return None
+
+
+def readiness(settings: Settings, conn: Any) -> dict[str, Any]:
+    """WISKEY-TALK-DIAL-2382: whether the station screen's media can come from WisKey (`access.station_media_provider = auto`) and, when
+    it cannot, every reason in a closed code list (READINESS_CODES): WisKey not reachable now (the feed has no current copy), a contract
+    this build does not speak, its discovery not listing the video or the talk commands, no pairing key that can sign (or a rotated one
+    WisKey would refuse). The same facts `provider_for` decides on - read only: no command is sent to WisKey and nothing is written.
+    `active` is the source a station read would use NOW (`wiskey` / `local`), before WisKey's per-station answer (a failed answer still
+    falls back to Arx's own source)."""
+    from . import intercom_sync
+
+    choice = provider_choice(conn)
+    try:
+        feed_state, _overview = intercom_sync.SYNC.served(settings)
+    except Exception:  # noqa: BLE001 - an unreadable feed is "not reachable"
+        feed_state = "error"
+    try:
+        api = _feed_discovery(settings)
+    except Exception:  # noqa: BLE001
+        api = None
+    video, talk, why = w10.listed(api)
+    problem = signing_problem(conn)
+    missing: list[str] = []
+    if feed_state != "ready":
+        missing.append("wiskey_unreachable")
+    if why == "api_incompatible":
+        missing.append("api_incompatible")
+    elif api is not None:  # no discovery at all is the unreachable line above, not a second reason
+        if not video:
+            missing.append("video_not_listed")
+        if not talk:  # named on its own (lab 03.11, WisKey 2.0.1-rc.10: none of the six W10 commands is listed for Arx)
+            missing.append("talk_not_listed")
+    if problem is not None:
+        missing.append("pairing_key_rotated" if problem == "key_rotated" else "pairing_missing")
+    active = "wiskey" if choice == "auto" and video and problem is None else "local"
+    return {
+        "choice": choice,
+        "active": active,
+        "mode": media_mode(conn),
+        "wiskey": {"reachable": feed_state == "ready", "video_listed": video, "talk_listed": talk, "signing": problem is None},
+        "missing": missing,
+        "video_ready": video and problem is None,
+        "talk_ready": video and talk and problem is None,
+    }
+
+
+def talk_gap(settings: Settings, conn: Any, d: Descriptor) -> str:
+    """WISKEY-TALK-DIAL-2382: why a station's descriptor offers no talk, as the drawer explains it. `provider_local`: the installation
+    chose Arx's own source (video only); `not_listed`: WisKey's discovery does not list the W10 talk commands for Arx (or speaks a contract
+    this build does not); `unsupported`: WisKey lists them but this station offers no talk; with WisKey chosen but Arx's own source
+    serving: `pairing` (no key that can sign) or `wiskey_unavailable` (WisKey is not reachable or its answer failed)."""
+    if d.provider not in (_local.name, WiskeyBridgeProvider.name):
+        return "unsupported"  # another provider (a test's): its own descriptor says no talk
+    r = readiness(settings, conn)
+    missing = set(r["missing"])
+    if d.provider == WiskeyBridgeProvider.name:
+        return "not_listed" if missing & {"api_incompatible", "talk_not_listed"} else "unsupported"
+    if provider_choice(conn) != "auto":
+        return "provider_local"
+    if "wiskey_unreachable" in missing:
+        return "wiskey_unavailable"
+    if missing & {"api_incompatible", "video_not_listed", "talk_not_listed"}:
+        return "not_listed"
+    if missing & {"pairing_missing", "pairing_key_rotated"}:
+        return "pairing"
+    return "wiskey_unavailable"
+
+
 # ---------------------------------------------------------------- the state: descriptors, viewers, talk sessions
 
 @dataclass
