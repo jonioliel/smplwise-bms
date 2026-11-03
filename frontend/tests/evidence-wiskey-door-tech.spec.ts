@@ -31,6 +31,8 @@ async function boot(page: Page, over: Partial<DtMock> = {}, base: Partial<Statio
   return { mock, dt };
 }
 
+/** The dialog's own reads (the drawer itself reads the programs and the code presence when its door settings open). */
+const own = (dt: DtMock) => dt.reads.filter((r) => r.startsWith('door-tech:') || r.startsWith('hold:'));
 const inDrawer = (page: Page, sel: string) => page.locator(`${SCREEN} sw-drawer[data-wk-drawer] ${sel}`);
 const inDt = (page: Page, sel: string) => inDrawer(page, `wk-door-tech ${sel}`);
 
@@ -67,7 +69,7 @@ test.describe('door technical writes', () => {
     const { dt } = await boot(page);
     await openSettings(page, 'lobby');
     await expect(inDt(page, '[data-wk-dt-open]')).toBeVisible();
-    expect(dt.reads).toEqual([]);
+    expect(own(dt)).toEqual([]);
     expect(dt.posts).toEqual([]);
     await inDrawer(page, '[data-wk-dsec="settings"]').scrollIntoViewIfNeeded();
     await shot(page, info, 'drawer-entry');
@@ -75,14 +77,13 @@ test.describe('door technical writes', () => {
     const op = await boot(page, {}, { persona: 'operator' });
     await openSettings(page, 'lobby');
     await expect(inDrawer(page, 'wk-door-tech [data-wk-dt-open]')).toHaveCount(0);
-    expect(op.dt.reads).toEqual([]);
+    expect(own(op.dt)).toEqual([]);
   });
 
   test('a hold-open schedule: add behind a confirmation (cancel sends nothing), edit, delete - each once', async ({ page }, info) => {
     const { dt } = await boot(page);
     await openDialog(page, 'lobby');
-    expect(dt.reads).toEqual(expect.arrayContaining(['door-tech:lobby', 'programs:lobby', 'hold:lobby/1', 'hold:lobby/2']));
-    expect(dt.reads.filter((r) => r.startsWith('codes:'))).toEqual([]); // the device read of the codes waits for the codes tab
+    expect(own(dt)).toEqual(expect.arrayContaining(['door-tech:lobby', 'hold:lobby/1', 'hold:lobby/2']));
     await expect(inDt(page, '[data-wk-dt-hold="1"]')).toContainText('שעות לובי');
     await expect(inDt(page, '[data-wk-dt-hold="2"]')).toContainText('אין לוח החזקה');
     await shot(page, info, 'hold-list');
@@ -127,10 +128,11 @@ test.describe('door technical writes', () => {
   test('a public code needs the typed phrase, is sent once and never shown; a refusal reads "WisKey סירב"', async ({ page }, info) => {
     const { dt } = await boot(page);
     await openDialog(page, 'lobby');
+    const before = dt.reads.filter((r) => r === 'codes:lobby').length;
     await inDt(page, '[data-wk-dt-tab="codes"]').click();
     await expect(inDt(page, '[data-wk-dt-slot="1"][data-configured="true"]')).toContainText('מוגדר');
     await expect(inDt(page, '[data-wk-dt-slot="2"][data-configured="false"]')).toContainText('לא מוגדר');
-    expect(dt.reads).toContain('codes:lobby');
+    expect(dt.reads.filter((r) => r === 'codes:lobby').length).toBe(before + 1); // the device read of the codes waits for the codes tab
     await inDt(page, '[data-wk-dt-code-set="2"]').click();
     await expect(inDt(page, '[data-wk-dt-code-form="2"]')).toBeVisible();
     await expect(inDt(page, '[data-wk-dt-code-field="current"]')).toHaveCount(0); // a slot that is not set has no current code
@@ -222,7 +224,7 @@ test.describe('door technical writes', () => {
     const { dt } = await boot(page, { allowed: new Set(['gate']) });
     await openDialog(page, 'lobby');
     await expect(inDt(page, '[data-wk-dt-not-allowed]')).toContainText('למנהלי מערכת בלבד');
-    expect(dt.reads).toEqual(['door-tech:lobby']);
+    expect(own(dt)).toEqual(['door-tech:lobby']);
     await shot(page, info, 'not-allowed');
     await page.goto('about:blank');
     const off = await boot(page, { allowed: new Set(['store']), drafts: { 'store/1': { door: 1, revision: 1, policy: { timezone: 'Asia/Jerusalem', name: 'מחסן', weekly: {}, holidays: [] } } } });
