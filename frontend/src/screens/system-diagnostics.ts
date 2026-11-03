@@ -73,6 +73,7 @@ import './system-video-conn-test'; // owner 2026-10-01: הגדרות › גיש�
 import './system-wiskey-diagnostics'; // WisKey B0: הגדרות › מתגי מסכי כניסה › WisKey רואה את Arx כ־
 import './system-access-display'; // CR-036 S12: הגדרות › מתגי מסכי כניסה › תצוגת מסך התחנות (the four S6 display settings)
 import './system-access-parity'; // CR-036 S12: הגדרות › מתגי מסכי כניסה › השוואה למסכי האינטרקום (the side-by-side check before a screen is switched)
+import './system-wiskey-validation-card'; // WISKEY-LIVE-VALIDATION-2390: הגדרות › מתגי מסכי כניסה › בדיקת קבלה לעמדות (link to its own route)
 import { loadTree } from '../api/catalog';
 import type { Site } from '../api/types';
 import type { DevicesPick } from './devices-theme-picker';
@@ -1271,6 +1272,7 @@ export class SystemDiagnostics extends LitElement {
       <system-access-display></system-access-display>
       ${!api || can('access.admin.read') ? html`<system-access-parity></system-access-parity>` : nothing}
       <system-wiskey-diagnostics></system-wiskey-diagnostics>
+      <system-wiskey-validation-card></system-wiskey-validation-card>
     </div>`;
   }
 

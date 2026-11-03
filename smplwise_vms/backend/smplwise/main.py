@@ -615,6 +615,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import quiet as quiet_router
 
     app.include_router(quiet_router.router, prefix=api, tags=["notifications"])  # CR-QUIET103 slice 1: quiet windows per floor / area (OFF)
+    from .routers import wiskey_validation as wiskey_validation_router  # WISKEY-LIVE-VALIDATION-2390: station acceptance runs (on demand only)
+
+    app.include_router(wiskey_validation_router.router, prefix=api, tags=["access-control"])
     from .routers import readiness as readiness_router
 
     app.include_router(readiness_router.router, prefix=api, tags=["ops"])  # CR-READY96 slice 1: installation readiness score (system.configure)
