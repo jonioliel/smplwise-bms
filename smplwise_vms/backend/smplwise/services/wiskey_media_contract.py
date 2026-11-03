@@ -336,7 +336,10 @@ SILENCE_PCMU = b"\xff" * FRAME_BYTES  # mu-law digital silence (0xFF is +0 in G.
 LEASE_MAX_AHEAD_S = 15.0
 LEASE_CLOCK_SLACK_S = 15.0  # WisKey's clock against ours: a lease named a little later than its 15 s is not refused for that
 V11_CLOSE_REASONS = CLOSE_REASONS  # the caller's enum of talk_close
-V11_EVENT_REASONS = ("stopped", "ended", "expired", "access_lost", "upstream_closed", "idle_timeout", "source_changed")
+V11_EVENT_REASONS = ("stopped", "ended", "expired", "access_lost", "upstream_closed", "idle_timeout", "source_changed",
+                     # WISKEY-RC10-PIN-2382: rc.10 ends a talk with `media_not_supported` when the station refuses two-way audio
+                     # (station_media_runtime.py, `audio_unsupported`); read as itself instead of the generic `upstream_closed`
+                     "media_not_supported")
 
 _TEXT_RE = re.compile(r"^[^\x00-\x1f\x7f]+$")
 _PARAM_KEYS: dict[str, frozenset[str]] = {
