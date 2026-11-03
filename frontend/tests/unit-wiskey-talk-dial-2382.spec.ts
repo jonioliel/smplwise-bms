@@ -66,7 +66,7 @@ test.describe('dial state per media read', () => {
     // the operator drawer never names the integration (UI_COPY_RULES; the evidence spec's BANNED list); the Settings row does, verbatim
     expect(he.not_listed).toBe('מערכת האינטרקום לא מפרסמת פקודות דיבור ל-Arx');
     expect(heStationMediaText.source.codes.talk_not_listed).toBe('WisKey לא מפרסם פקודות דיבור ל-Arx');
-    for (const t of [heStationMediaText, enStationMediaText]) expect(JSON.stringify(t.dial)).not.toMatch(/wiskey/i);
+    for (const t of [heStationMediaText, enStationMediaText]) expect(JSON.stringify([t.dial.dial, t.dial.talk, t.dial.inCall, t.dial.hangUp, t.dial.classic, ...Object.values(t.dial.reasons)])).not.toMatch(/wiskey/i); // the words, not the keys
     expect(he.unsupported).not.toBe(he.not_listed);
   });
 });
