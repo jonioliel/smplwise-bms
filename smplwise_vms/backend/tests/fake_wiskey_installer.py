@@ -12,6 +12,7 @@ Switches a test sets:
 from __future__ import annotations
 
 import copy
+import json
 from pathlib import Path
 from typing import Any
 
@@ -306,3 +307,215 @@ class FakeFlows:
     def abort(self, settings: Any, flow_id: str) -> None:
         self.calls.append(("abort", flow_id, {}))
         self.flows.pop(flow_id, None)
+
+
+class PlatformFake(InstallerFake):
+    """InstallerFake plus rc.10's operations centre (operations_api.dispatch_operations, maintenance_api.dispatch), stateful: a revision,
+    station metadata, the webhook and its key, retention with event records, one-use reviews bound to their kind, receipts, the
+    maintenance queue."""
+
+    WEBHOOK_KEY = "ab" * 32
+    SIGNING_KEY = "cd" * 32
+
+    def __init__(self, *a: Any, **kw: Any) -> None:
+        super().__init__(*a, **kw)
+        self.ops: dict[str, Any] = {"revision": 4, "retention": {"days": 30, "count": 5000, "bytes": 16_777_216},
+                                    "webhook": {"enabled": False, "url": "", "kinds": []}, "stations": {}, "templates": {"t1": {}}, "door_presets": {},
+                                    "views": {}, "reports": {}, "receipts": [], "report_runs": [], "journal": [], "observations": [], "schema": 2,
+                                    "signing_key": self.SIGNING_KEY, "webhook_key": self.WEBHOOK_KEY}
+        self.events = 1200
+        self.reviews: dict[str, dict[str, Any]] = {}
+        self.queue: dict[str, dict[str, Any]] = {}
+        self.fail_station: str | None = None  # config_apply: this station's receipt fails
+
+    def _catalog(self) -> dict[str, str]:
+        return {s["id"]: s["name"] for s in self.overview["stations"]}
+
+    def _review(self, kind: str, values: Any) -> str:
+        token = f"rv-{kind}-{len(self.reviews) + 1}"
+        self.reviews[token] = {"kind": kind, "values": values}
+        return token
+
+    def _consume(self, msg: dict[str, Any], kind: str) -> tuple[Any, str | None]:
+        if msg.get("confirmed") is not True:
+            return None, "confirmation_required"
+        review = self.reviews.pop(msg["review_id"], None)
+        if review is None or review["kind"] != kind:
+            return None, "review_expired"
+        return review["values"], None
+
+    def _rows(self, msg: dict[str, Any], window: bool) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        rows, pending = [], []
+        for sid in msg["station_ids"]:
+            if sid not in self._catalog():
+                raise KeyError(sid)
+            if sid in self.offline:
+                rows.append({"station_id": sid, "name": self._catalog()[sid], "before": None, "after": None, "error": "station_unloaded", **({"window": None} if window else {})})
+                continue
+            before = dict(self.doors[sid][msg["door"]])
+            row = {"station_id": sid, "name": self._catalog()[sid], "before": before, "after": {**before, **msg["changes"]}, "error": None}
+            if window:
+                row["window"] = {"enabled": False, "days": [0, 1, 2, 3, 4, 5, 6], "start": "00:00", "end": "23:59", "timezone": "UTC"}
+            rows.append(row)
+            pending.append({"station_id": sid, "name": self._catalog()[sid], "door": msg["door"], "expected": before, "changes": dict(msg["changes"])})
+        return rows, pending
+
+    def _h_platform__get(self, msg: dict[str, Any]) -> dict[str, Any]:
+        data = copy.deepcopy(self.ops)
+        data.pop("signing_key")
+        data.pop("webhook_key")
+        return ok(msg, {**data, "event_usage": {"records": self.events, "bytes": self.events * 900, "days": 30, "count_limit": 5000, "byte_limit": 16_777_216,
+                                                 "observed_records_per_day": 40.0, "count_horizon_days": 125.0, "forecast_basis": "x", "storage_failed": False},
+                        "catalog": self._catalog(), "capabilities": ["fleet_configuration_approval", "fleet_maintenance_queue", "fleet_capacity_trends"]})
+
+    def _h_platform__capacity(self, msg: dict[str, Any]) -> dict[str, Any]:
+        def kind(count: int, limit: int) -> dict[str, Any]:
+            return {"count": count, "advertised_limit": limit, "used_percent": round(100 * count / limit, 1), "remaining": limit - count,
+                    "observed_growth_per_day": 1.5, "estimated_days_to_limit": None, "alert": "near_limit" if count / limit >= 0.8 else "observed"}
+        return ok(msg, {"records": [{"station_id": sid, "name": n, "sampled_at": "2026-11-03T06:00:00+00:00", "age_seconds": 60, "fresh": True, "sample_count": 4,
+                                     "sample_span_days": 3.0, "users": kind(420, 500), "cards": kind(100, 1000), "programs": {"advertised_limit": None, "alert": "unknown"}}
+                                    for sid, n in self._catalog().items()], "basis": "complete_observed_inventories", "forecast_is_estimate": True})
+
+    def _h_platform__integrity(self, msg: dict[str, Any]) -> dict[str, Any]:
+        return ok(msg, {"checks": [{"component": c, "state": "available", "remedy": "none"} for c in ("access", "panel_permissions", "operations_center", "events")],
+                        "writes_performed": False})
+
+    def _h_platform__demo(self, msg: dict[str, Any]) -> dict[str, Any]:
+        return ok(msg, {"demo": True, "stations": [{"name": "x", "online": True}], "steps": ["review_identity", "verify_door_mapping"], "device_writes": 0})
+
+    def _h_platform__save(self, msg: dict[str, Any]) -> dict[str, Any]:
+        if msg["collection"] != "stations":
+            return fail(msg, "invalid_fields")
+        if msg["record_id"] not in self._catalog():
+            return fail(msg, "station_not_found")
+        if msg["revision"] != self.ops["revision"]:
+            return fail(msg, "revision_conflict")
+        self.ops["revision"] += 1
+        self.ops["stations"][msg["record_id"]] = {"actor": "svc", "values": copy.deepcopy(msg["values"])}
+        self.effects.append(("platform/save", {"record_id": msg["record_id"]}))
+        return ok(msg, {"id": msg["record_id"], "revision": self.ops["revision"], "values": copy.deepcopy(msg["values"])})
+
+    def _h_platform__export(self, msg: dict[str, Any]) -> dict[str, Any]:
+        return ok(msg, {"format": "smplwise-operations", "version": 1,
+                        "stations": {k: {"name": self._catalog().get(k, k), "values": v["values"]} for k, v in self.ops["stations"].items()}, "templates": []})
+
+    def _h_platform__import_preview(self, msg: dict[str, Any]) -> dict[str, Any]:
+        try:
+            source = json.loads(msg["content"])
+            assert source["format"] == "smplwise-operations"
+        except Exception:  # noqa: BLE001
+            return fail(msg, "configuration_invalid")
+        if set(msg["mapping"]) != set(source["stations"]) or set(msg["mapping"].values()) - set(self._catalog()):
+            return fail(msg, "station_mapping_required")
+        token = self._review("import", {"stations": {msg["mapping"][k]: v["values"] for k, v in source["stations"].items()}})
+        return ok(msg, {"review_id": token, "stations": [{"source": k, "name": v["name"], "target": msg["mapping"][k], "replaces": False} for k, v in source["stations"].items()],
+                        "templates": 0, "replaces_templates": True})
+
+    def _h_platform__import_apply(self, msg: dict[str, Any]) -> dict[str, Any]:
+        values, err = self._consume(msg, "import")
+        if err:
+            return fail(msg, err)
+        self.ops["revision"] += 1
+        self.ops["stations"].update({k: {"actor": "svc", "values": v} for k, v in values["stations"].items()})
+        self.effects.append(("platform/import_apply", {"stations": len(values["stations"])}))
+        return ok(msg, {"revision": self.ops["revision"], "stations": len(values["stations"])})
+
+    def _h_platform__webhook_save(self, msg: dict[str, Any]) -> dict[str, Any]:
+        v = msg["values"]
+        if v.get("url") and not str(v["url"]).startswith("https://"):
+            return fail(msg, "webhook_https_required")
+        if msg["confirmed"] is not True:
+            return fail(msg, "confirmation_required")
+        if msg["revision"] != self.ops["revision"]:
+            return fail(msg, "revision_conflict")
+        self.ops["revision"] += 1
+        self.ops["webhook"] = {"enabled": v["enabled"], "url": v["url"], "kinds": sorted(v["kinds"])}
+        self.effects.append(("platform/webhook_save", {}))
+        return ok(msg, {"revision": self.ops["revision"], "enabled": v["enabled"]})
+
+    def _h_platform__webhook_key(self, msg: dict[str, Any]) -> dict[str, Any]:
+        if msg["confirmed"] is not True:
+            return fail(msg, "confirmation_required")
+        return ok(msg, {"key": self.WEBHOOK_KEY})
+
+    def _h_platform__retention_preview(self, msg: dict[str, Any]) -> dict[str, Any]:
+        v = msg["values"]
+        after = min(self.events, v["count"])
+        return ok(msg, {"review_id": self._review("retention", v), "before": self.events, "after": after, "removed": self.events - after, "values": v})
+
+    def _h_platform__retention_apply(self, msg: dict[str, Any]) -> dict[str, Any]:
+        values, err = self._consume(msg, "retention")
+        if err:
+            return fail(msg, err)
+        self.events = min(self.events, values["count"])
+        self.ops["retention"] = values
+        self.effects.append(("platform/retention_apply", {"count": values["count"]}))
+        return ok(msg, {"records": self.events, "bytes": self.events * 900, "days": values["days"], "count_limit": values["count"], "byte_limit": values["bytes"]})
+
+    def _h_platform__config_read(self, msg: dict[str, Any]) -> dict[str, Any]:
+        return ok(msg, {"rows": [{"station_id": sid, "name": self._catalog().get(sid), "configuration": {"door": msg["door"], "values": dict(self.doors[sid][msg["door"]]),
+                                                                                                           "constraints": {}}, "error": None} for sid in msg["station_ids"]]})
+
+    def _h_platform__config_preview(self, msg: dict[str, Any]) -> dict[str, Any]:
+        try:
+            rows, pending = self._rows(msg, window=False)
+        except KeyError:
+            return fail(msg, "invalid_fields")
+        token = self._review("configuration", {"rows": pending}) if pending else None
+        return ok(msg, {"review_id": token, "rows": rows, "apply_count": len(pending)})
+
+    def _h_platform__config_apply(self, msg: dict[str, Any]) -> dict[str, Any]:
+        values, err = self._consume(msg, "configuration")
+        if err:
+            return fail(msg, err)
+        receipts = []
+        for row in values["rows"]:
+            receipt = {"at": "2026-11-03T07:00:00+00:00", "station_id": row["station_id"], "state": "failed", "code": ""}
+            if row["station_id"] == self.fail_station:
+                receipt["code"] = "device_unavailable"
+            else:
+                self.doors[row["station_id"]][row["door"]].update(row["changes"])
+                receipt["state"] = "verified"
+                self.effects.append(("platform/config_apply", {"station_id": row["station_id"]}))
+            receipts.append(receipt)
+            self.ops["receipts"].append(receipt)
+        return ok(msg, {"receipts": receipts})
+
+    def _h_platform__maintenance_preview(self, msg: dict[str, Any]) -> dict[str, Any]:
+        try:
+            rows, pending = self._rows(msg, window=True)
+        except KeyError:
+            return fail(msg, "invalid_fields")
+        token = self._review("maintenance", {"rows": pending}) if pending else None
+        return ok(msg, {"review_id": token, "rows": rows, "queue_count": len(pending)})
+
+    def _h_platform__maintenance_enqueue(self, msg: dict[str, Any]) -> dict[str, Any]:
+        values, err = self._consume(msg, "maintenance")
+        if err:
+            return fail(msg, err)
+        jid = f"00000000-0000-4000-8000-{len(self.queue) + 1:012d}"
+        self.queue[jid] = {"id": jid, "actor": "svc", "created_at": "2026-11-03T07:00:00+00:00", "expires_at": "2026-11-11T07:00:00+00:00", "dual_required": False,
+                           "consent": None, "state": "queued", "rows": [{**r, "window": None, "state": "pending", "code": ""} for r in values["rows"]]}
+        self.effects.append(("platform/maintenance_enqueue", {"job_id": jid}))
+        return ok(msg, {"job_id": jid, "state": "queued"})
+
+    def _jobs_public(self) -> list[dict[str, Any]]:
+        return [{**copy.deepcopy(j), "fingerprint": f"fp-{j['id'][-4:]}-{j['state']}", "own_request": True} for j in reversed(list(self.queue.values()))]
+
+    def _h_platform__maintenance_jobs(self, msg: dict[str, Any]) -> dict[str, Any]:
+        return ok(msg, {"records": self._jobs_public()})
+
+    def _h_platform__maintenance_cancel(self, msg: dict[str, Any]) -> dict[str, Any]:
+        if msg["confirmed"] is not True:
+            return fail(msg, "confirmation_required")
+        job = self.queue.get(msg["job_id"])
+        if job is None:
+            return fail(msg, "job_not_found")
+        if msg["fingerprint"] != f"fp-{job['id'][-4:]}-{job['state']}":
+            return fail(msg, "bulk_review_stale")
+        job["state"] = "cancelled"
+        for row in job["rows"]:
+            if row["state"] == "pending":
+                row["state"] = "cancelled"
+        self.effects.append(("platform/maintenance_cancel", {"job_id": job["id"]}))
+        return ok(msg, {"records": self._jobs_public()})

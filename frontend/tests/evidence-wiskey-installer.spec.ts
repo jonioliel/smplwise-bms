@@ -323,3 +323,95 @@ test.describe('the intercom installer: add, reconnect, remove', () => {
     await compare(page, info, 'installer-lifecycle-wizard');
   });
 });
+
+const PLAT = `${ROOT} installer-platform`;
+const openPlat = (page: Page, m: InstallerMock) => open(page, m, '/system/intercom-installer/platform', `${PLAT} [data-platform="ready"]`);
+
+test.describe('the intercom installer: platform', () => {
+  test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
+  test.beforeEach(({}, info) => {
+    test.skip(info.project.name === 'tablet', 'desktop and phone only');
+  });
+
+  test('health, capacity and the queue are shown; nothing is written by looking', async ({ page }) => {
+    const m = newInstallerMock();
+    await openPlat(page, m);
+    await expect(page.locator(`${PLAT} [data-part="health"]`)).toHaveAttribute('data-state', 'ready');
+    await expect(page.locator(`${PLAT} [data-capacity="entry-c"]`)).toContainText('בגבול');
+    await expect(page.locator(`${PLAT} [data-part="queue"]`)).toContainText('התור ריק');
+    expect(m.writes).toHaveLength(0);
+  });
+
+  test('a change to several stations: preview, typed apply, a result per station with the partial failure', async ({ page }) => {
+    const m = newInstallerMock();
+    await openPlat(page, m);
+    await page.locator(`${PLAT} [data-change-station="entry-a"]`).check();
+    await page.locator(`${PLAT} [data-change-station="entry-c"]`).check();
+    await page.locator(`${PLAT} [data-change-field="openDuration"]`).fill('7');
+    await page.locator(`${PLAT} [data-change-preview]`).click();
+    await expect(page.locator(`${PLAT} [data-change-rows] tr[data-row="entry-a"]`)).toContainText('7');
+    await page.locator(`${PLAT} [data-change-apply]`).click();
+    await expect(page.locator(`${PLAT} [data-confirm-send]`)).toHaveAttribute('disabled', '');
+    await page.locator(`${PLAT} [data-typed]`).fill('החלה על העמדות');
+    await page.locator(`${PLAT} [data-confirm-send]`).click();
+    await expect(page.locator(`${PLAT} [data-receipt="entry-c"]`)).toHaveAttribute('data-state', 'failed');
+    await expect(page.locator(`${PLAT} [data-receipt="entry-a"]`)).toHaveAttribute('data-state', 'verified');
+    await expect(page.locator(`${PLAT} [data-flash]`)).toContainText('חלק מהעמדות נכשלו');
+    expect(m.writes.map((w) => w.path)).toEqual(['access-control/installer/platform/config/apply']);
+  });
+
+  test('the maintenance queue: enqueue with the typed phrase, then cancel', async ({ page }) => {
+    const m = newInstallerMock();
+    await openPlat(page, m);
+    await page.locator(`${PLAT} [data-change-station="entry-a"]`).check();
+    await page.locator(`${PLAT} [data-change-mode]`).selectOption('maintenance');
+    await page.locator(`${PLAT} [data-change-field="openDuration"]`).fill('9');
+    await page.locator(`${PLAT} [data-change-preview]`).click();
+    await page.locator(`${PLAT} [data-change-apply]`).click();
+    await page.locator(`${PLAT} [data-typed]`).fill('תזמון תחזוקה');
+    await page.locator(`${PLAT} [data-confirm-send]`).click();
+    await expect(page.locator(`${PLAT} [data-maint-job="job-m1"]`)).toHaveAttribute('data-state', 'queued');
+    await page.locator(`${PLAT} [data-maint-cancel]`).click();
+    await page.locator(`${PLAT} [data-confirm-send]`).click();
+    await expect(page.locator(`${PLAT} [data-maint-job="job-m1"]`)).toHaveAttribute('data-state', 'cancelled');
+  });
+
+  test('retention shows what is deleted first; the webhook key is shown once after the typed phrase', async ({ page }) => {
+    const m = newInstallerMock();
+    await openPlat(page, m);
+    await page.locator(`${PLAT} [data-ret="count"]`).fill('1000');
+    await page.locator(`${PLAT} [data-ret-check]`).click();
+    await expect(page.locator(`${PLAT} [data-ret-preview]`)).toContainText('200');
+    expect(m.writes).toHaveLength(0);
+    await page.locator(`${PLAT} [data-ret-apply]`).click();
+    await page.locator(`${PLAT} [data-typed]`).fill('מחיקת אירועים');
+    await page.locator(`${PLAT} [data-confirm-send]`).click();
+    await expect(page.locator(`${PLAT} [data-flash]`)).toBeVisible();
+    await page.locator(`${PLAT} [data-hook-url]`).fill('http://insecure.example/x');
+    await expect(page.locator(`${PLAT} [data-hook-save]`)).toHaveAttribute('disabled', '');
+    await page.locator(`${PLAT} [data-hook-key-show]`).click();
+    await page.locator(`${PLAT} [data-typed]`).fill('הצגת המפתח');
+    await page.locator(`${PLAT} [data-confirm-send]`).click();
+    await expect(page.locator(`${PLAT} [data-hook-key]`)).toHaveText('ab'.repeat(32));
+    await page.locator(`${PLAT} [data-hook-hide]`).click();
+    await expect(page.locator(`${PLAT} [data-hook-key]`)).toHaveCount(0);
+    expect(m.writes.map((w) => w.path.split('/').slice(-2).join('/'))).toEqual(['retention/apply', 'webhook/key']);
+  });
+
+  test('a station window is saved with confirmation', async ({ page }) => {
+    const m = newInstallerMock();
+    await openPlat(page, m);
+    await page.locator(`${PLAT} [data-meta-pick]`).selectOption('entry-a');
+    await page.locator(`${PLAT} [data-meta-field="zone"]`).fill('לובי צפוני');
+    await page.locator(`${PLAT} [data-meta-save]`).click();
+    await page.locator(`${PLAT} [data-confirm-send]`).click();
+    await expect(page.locator(`${PLAT} [data-flash]`)).toBeVisible();
+    expect(m.writes[0]).toMatchObject({ path: 'access-control/installer/platform/stations/entry-a', body: { revision: 4, values: { zone: 'לובי צפוני' } } });
+  });
+
+  test('classic is pixel-stable: the platform tab', async ({ page }, info) => {
+    await openPlat(page, newInstallerMock());
+    await settlePage(page);
+    await compare(page, info, 'installer-platform');
+  });
+});

@@ -106,6 +106,13 @@ INSTALLER = frozenset({
     # Not `platform/lifecycle_decide`: Arx's single service identity cannot be WisKey's separate approver.
     "platform/lifecycle_review", "platform/lifecycle_prepare", "platform/lifecycle_jobs", "platform/lifecycle_plan", "platform/lifecycle_apply",
     "platform/lifecycle_verify", "platform/lifecycle_remove",
+    # phase 4: the rest of the platform - configuration, export / import, webhook, retention, integrity, capacity, the fleet configuration
+    # change and the maintenance queue. Not the dual-approval decisions, `maintenance_resume_v1` (native owner), `archive` / `report` /
+    # `delete` (see services/wiskey_installer_platform.py).
+    "platform/get", "platform/capacity", "platform/integrity", "platform/demo", "platform/save", "platform/export", "platform/import_preview",
+    "platform/import_apply", "platform/webhook_save", "platform/webhook_key", "platform/retention_preview", "platform/retention_apply",
+    "platform/config_read", "platform/config_preview", "platform/config_apply", "platform/maintenance_preview", "platform/maintenance_enqueue",
+    "platform/maintenance_jobs", "platform/maintenance_cancel",
 })
 
 ALLOWLISTS: dict[str, frozenset[str]] = {"background": BACKGROUND, "service": SERVICE, "read": READ, "technical": TECHNICAL, "messaging": MESSAGING,

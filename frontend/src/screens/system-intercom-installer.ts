@@ -5,13 +5,14 @@ import '../components/sw-state-panel';
 import './installer-clock';
 import './installer-technical';
 import './installer-lifecycle';
+import './installer-platform';
 import { settingsStyles } from '../styles/settings';
 import { ApiError } from '../api/client';
 import { getOverview, type InstallerOverview, type ToolName } from '../api/installer';
 import { installerText as T } from '../i18n/wiskey-installer';
 
-/** The tools of the area, in the order an installer meets them. A tool that is not built yet in this release is not listed. */
-export const INSTALLER_TOOLS: readonly ToolName[] = ['clock', 'technical', 'lifecycle'];
+/** The tools of the area, in the order an installer meets them. */
+export const INSTALLER_TOOLS: readonly ToolName[] = ['clock', 'technical', 'lifecycle', 'platform'];
 export const INSTALLER_HREF = '#/system/intercom-installer';
 
 /**
@@ -99,6 +100,7 @@ export class SystemIntercomInstaller extends LitElement {
     if (tool === 'clock') return html`${unknown}<installer-clock></installer-clock>`;
     if (tool === 'technical') return html`${unknown}<installer-technical .stations=${this.overview?.stations ?? []}></installer-technical>`;
     if (tool === 'lifecycle') return html`${unknown}<installer-lifecycle .stations=${this.overview?.stations ?? []}></installer-lifecycle>`;
+    if (tool === 'platform') return html`${unknown}<installer-platform></installer-platform>`;
     return html``;
   }
 

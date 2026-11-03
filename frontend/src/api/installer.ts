@@ -402,3 +402,152 @@ export function jobProgress(state: JobState | null): number {
   const i = JOB_STEPS.indexOf((state === 'approved' ? 'prepared' : state) as JobState);
   return i < 0 ? -1 : i;
 }
+
+// ---------------------------------------------------------------- phase 4: the rest of the platform
+
+export interface MaintWindow {
+  enabled: boolean;
+  days: number[];
+  start: string | null;
+  end: string | null;
+  timezone: string | null;
+}
+
+export interface StationMeta {
+  zone: string | null;
+  owner: string | null;
+  tags: string[];
+  thresholds: Record<'offline' | 'sync_stalled' | 'event_gap', number | null>;
+  window: MaintWindow | null;
+}
+
+export interface Receipt {
+  at: string | null;
+  station_id: string | null;
+  state: 'verified' | 'failed' | 'unknown' | null;
+  code: string | null;
+}
+
+export interface PlatformData {
+  revision: number;
+  retention: { days: number | null; count: number | null; bytes: number | null };
+  webhook: { enabled: boolean; url: string; kinds: string[] };
+  stations: Record<string, { revision: number; values: StationMeta | null }>;
+  catalog: Record<string, string | null>;
+  templates: number | null;
+  door_presets: number | null;
+  receipts: Receipt[];
+  event_usage: Record<string, number | boolean | null>;
+  capabilities: string[];
+}
+
+export interface CapacityKind {
+  count: number | null;
+  advertised_limit: number | null;
+  used_percent: number | null;
+  remaining: number | null;
+  observed_growth_per_day: number | null;
+  estimated_days_to_limit: number | null;
+  alert: string | null;
+}
+
+export interface CapacityData {
+  records: { station_id: string | null; name: string | null; sampled_at: string | null; fresh: boolean | null; sample_count: number | null; users: CapacityKind; cards: CapacityKind }[];
+  forecast_is_estimate: boolean;
+}
+
+export interface IntegrityData {
+  checks: { component: string | null; state: string | null; remedy: string | null }[];
+  writes_performed: boolean;
+}
+
+export interface MaintJob {
+  id: string | null;
+  fingerprint: string | null;
+  state: string | null;
+  created_at: string | null;
+  expires_at: string | null;
+  own_request: boolean | null;
+  dual_required: boolean | null;
+  rows: { station_id: string | null; name: string | null; door: number | null; changes: DoorValues | null; state: string | null; code: string | null; window: MaintWindow | null }[];
+}
+
+export interface PlatformView {
+  platform: PartState<PlatformData>;
+  capacity: PartState<CapacityData>;
+  integrity: PartState<IntegrityData>;
+  maintenance: PartState<{ records: MaintJob[] }>;
+  demo: PartState<{ demo: boolean; steps: string[]; device_writes: number | null }>;
+  stations: { id: string; name: string; online: boolean }[] | null;
+  typed: Record<string, string>;
+}
+
+export interface ChangePreview {
+  review_id: string | null;
+  count: number | null;
+  rows: { station_id: string | null; name: string | null; before: DoorValues | null; after: DoorValues | null; window: MaintWindow | null; error: string | null }[];
+}
+
+export interface ImportReview {
+  review_id: string;
+  templates: number | null;
+  replaces_templates: boolean;
+  stations: { source: string | null; name: string | null; target: string | null; replaces: boolean }[];
+}
+
+const P = `${BASE}/platform`;
+type Read<T> = { data: T; fetched_at: string | null };
+
+export const getPlatform = () => get<PlatformView>(P);
+export const exportPlatform = () => get<Read<Record<string, unknown>>>(`${P}/export`);
+export const saveStationMeta = (id: string, revision: number, values: StationMeta) =>
+  put<WriteReply<{ revision: number | null }>>(`${P}/stations/${encodeURIComponent(id)}`, { ...envelope(), revision, values });
+export const saveWebhook = (revision: number, values: PlatformData['webhook']) => put<WriteReply<{ revision: number | null; enabled: boolean }>>(`${P}/webhook`, { ...envelope(), revision, values });
+export const revealWebhookKey = (typed: string) => post<WriteReply<{ key: string }>>(`${P}/webhook/key`, envelope(typed));
+export const previewImport = (content: string, mapping: Record<string, string>) => post<Read<ImportReview>>(`${P}/import/preview`, { content, mapping });
+export const applyImport = (reviewId: string, typed: string) => post<WriteReply<{ revision: number | null; stations: number | null }>>(`${P}/import/apply`, { ...envelope(typed), review_id: reviewId });
+export const previewRetention = (values: { days: number; count: number; bytes: number }) =>
+  post<Read<{ review_id: string; before: number | null; after: number | null; removed: number | null }>>(`${P}/retention/preview`, { values });
+export const applyRetention = (reviewId: string, typed: string) => post<WriteReply<Record<string, number | null>>>(`${P}/retention/apply`, { ...envelope(typed), review_id: reviewId });
+export const previewChange = (mode: 'config' | 'maintenance', stationIds: string[], door: number, changes: DoorValues) =>
+  post<Read<ChangePreview>>(`${P}/${mode}/preview`, { station_ids: stationIds, door, changes });
+export const applyChange = (reviewId: string, typed: string) =>
+  post<WriteReply<{ receipts: Receipt[]; verified: number; failed: number }>>(`${P}/config/apply`, { ...envelope(typed), review_id: reviewId });
+export const enqueueMaintenance = (reviewId: string, typed: string) =>
+  post<WriteReply<{ job_id: string | null; state: string | null }>>(`${P}/maintenance/enqueue`, { ...envelope(typed), review_id: reviewId });
+export const cancelMaintenance = (job: MaintJob) =>
+  post<WriteReply<{ records: MaintJob[] }>>(`${P}/maintenance/jobs/${encodeURIComponent(job.id ?? '')}/cancel`, { ...envelope(), fingerprint: job.fingerprint });
+
+/** WisKey's maintenance-window rule (operations_center.window). */
+export function windowErrors(w: MaintWindow): string[] {
+  const bad: string[] = [];
+  const hhmm = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+  if (w.enabled && w.days.length === 0) bad.push('days');
+  if (!w.start || !hhmm.test(w.start)) bad.push('start');
+  if (!w.end || !hhmm.test(w.end)) bad.push('end');
+  if (!bad.length && (w.start ?? '') >= (w.end ?? '')) bad.push('end');
+  if (!w.timezone || !/^[A-Za-z0-9_+\-/]{1,100}$/.test(w.timezone)) bad.push('timezone');
+  return bad;
+}
+
+/** WisKey's webhook rule (operations_center.webhook_settings): https, port 443 / 8443, no credentials, query or fragment; a kind when on. */
+export function webhookErrors(v: PlatformData['webhook']): string[] {
+  const bad: string[] = [];
+  if (v.enabled && v.kinds.length === 0) bad.push('kinds');
+  if (v.url || v.enabled) {
+    try {
+      const u = new URL(v.url);
+      if (u.protocol !== 'https:' || !u.hostname || u.username || u.password || u.search || u.hash || !['', '443', '8443'].includes(u.port)) bad.push('url');
+    } catch {
+      bad.push('url');
+    }
+  }
+  return bad;
+}
+
+/** The per-station result of a fleet change: verified / failed with the code - a partial failure is never summarised as success. */
+export function receiptSummary(receipts: readonly Receipt[]): { verified: number; failed: number; partial: boolean } {
+  const verified = receipts.filter((r) => r.state === 'verified').length;
+  const failed = receipts.length - verified;
+  return { verified, failed, partial: verified > 0 && failed > 0 };
+}

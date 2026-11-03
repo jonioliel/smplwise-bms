@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ApiError } from '../src/api/client';
 import { diffRows, envelope, hasChanges, ntpErrors, outcomeOf, skewTone, validServer } from '../src/api/installer';
-import { fill, installerText, lifecycleText, technicalText } from '../src/i18n/wiskey-installer';
+import { fill, installerText, lifecycleText, platformText, technicalText } from '../src/i18n/wiskey-installer';
 
 // WISKEY-INSTALLER-NATIVE-2400: the pure logic and the words of the intercom installer tools - how a write's answer is read (completed /
 // refused / not sent / unknown: never "done" without the server saying so), the diff a confirmation shows, the NTP rules the server
@@ -74,13 +74,13 @@ test('the envelope confirms, and carries a typed phrase only when one is asked',
 });
 
 test('the words: Hebrew, filled placeholders, no "Home Assistant"', () => {
-  const all = { ...leaves(installerText), ...leaves(technicalText, 'technical.'), ...leaves(lifecycleText, 'lifecycle.') };
+  const all = { ...leaves(installerText), ...leaves(technicalText, 'technical.'), ...leaves(lifecycleText, 'lifecycle.'), ...leaves(platformText, 'platform.') };
   for (const [key, text] of Object.entries(all)) {
     expect(text, key).not.toMatch(/home\s*assistant/i);
     if (!key.startsWith('clock.modes.')) expect(text, key).toMatch(/[֐-׿]|^—$|^\{/);
   }
   expect(fill(installerText.clock.syncHeading, { name: 'Main gate' })).toBe('כתיבת הגדרות השעון לעמדה Main gate');
-  for (const file of ['screens/system-intercom-installer.ts', 'screens/installer-clock.ts', 'components/wk-installer-confirm.ts', 'api/installer.ts', 'screens/installer-technical.ts', 'screens/installer-lifecycle.ts']) {
+  for (const file of ['screens/system-intercom-installer.ts', 'screens/installer-clock.ts', 'components/wk-installer-confirm.ts', 'api/installer.ts', 'screens/installer-technical.ts', 'screens/installer-lifecycle.ts', 'screens/installer-platform.ts']) {
     expect(readFileSync(path.join(SRC, file), 'utf8'), file).not.toMatch(/home\s*assistant/i);
   }
 });
@@ -115,4 +115,24 @@ test('the wizard input has closed keys and sends the password only when typed; a
   expect(nextAction(job('removed'))).toBeNull();
   expect(jobProgress('removed')).toBe(3);
   expect(jobProgress('expired')).toBe(-1);
+});
+
+test('the platform rules: maintenance window, webhook, and a per-station result that never hides a failure', async () => {
+  const { windowErrors, webhookErrors, receiptSummary } = await import('../src/api/installer');
+  const w = { enabled: true, days: [0, 1], start: '02:00', end: '05:00', timezone: 'Asia/Jerusalem' };
+  expect(windowErrors(w)).toEqual([]);
+  expect(windowErrors({ ...w, days: [] })).toEqual(['days']);
+  expect(windowErrors({ ...w, start: '06:00' })).toEqual(['end']);
+  expect(windowErrors({ ...w, start: '25:00', timezone: 'bad zone' })).toEqual(['start', 'timezone']);
+  const hook = { enabled: true, url: 'https://hooks.example/arx', kinds: ['access_event'] };
+  expect(webhookErrors(hook)).toEqual([]);
+  expect(webhookErrors({ ...hook, url: 'http://hooks.example/arx' })).toEqual(['url']);
+  expect(webhookErrors({ ...hook, url: 'https://u:p@hooks.example/arx' })).toEqual(['url']);
+  expect(webhookErrors({ ...hook, url: 'https://hooks.example/arx?token=1' })).toEqual(['url']);
+  expect(webhookErrors({ ...hook, url: 'https://hooks.example:9443/arx' })).toEqual(['url']);
+  expect(webhookErrors({ ...hook, kinds: [] })).toEqual(['kinds']);
+  expect(webhookErrors({ enabled: false, url: '', kinds: [] })).toEqual([]);
+  const r = (state: 'verified' | 'failed') => ({ at: null, station_id: 'x', state, code: null });
+  expect(receiptSummary([r('verified'), r('failed')])).toEqual({ verified: 1, failed: 1, partial: true });
+  expect(receiptSummary([r('verified')])).toEqual({ verified: 1, failed: 0, partial: false });
 });

@@ -23,6 +23,9 @@ export interface InstallerMock {
   flowSeq: number;
   flowInputs: { step: string; input: Record<string, unknown> }[];
   jobs: Record<string, any>[];
+  platform: { revision: number; retention: Record<string, number>; webhook: { enabled: boolean; url: string; kinds: string[] }; stations: Record<string, any>; catalog: Record<string, string>;
+    templates: number; door_presets: number; receipts: unknown[]; event_usage: Record<string, number | boolean>; capabilities: string[] };
+  queue: Record<string, any>[];
 }
 
 const FLOW_SCHEMAS: Record<string, unknown[]> = {
@@ -99,6 +102,15 @@ export const newInstallerMock = (over: Partial<InstallerMock> = {}): InstallerMo
   flowSeq: 1,
   flowInputs: [],
   jobs: [],
+  platform: {
+    revision: 4, retention: { days: 30, count: 5000, bytes: 16_777_216 }, webhook: { enabled: false, url: '', kinds: [] },
+    stations: { 'entry-a': { revision: 4, values: { zone: 'לובי', owner: 'אבי', tags: ['כניסה'], thresholds: { offline: 600, sync_stalled: 900, event_gap: 600 },
+      window: { enabled: true, days: [0, 1, 2, 3, 4], start: '02:00', end: '05:00', timezone: 'Asia/Jerusalem' } } } },
+    catalog: { 'entry-a': 'שער ראשי', 'entry-b': 'דלת צדדית', 'entry-c': 'רציף פריקה' }, templates: 3, door_presets: 0, receipts: [],
+    event_usage: { records: 1200, bytes: 1_080_000, days: 30, count_limit: 5000, byte_limit: 16_777_216, observed_records_per_day: 40, count_horizon_days: 125, storage_failed: false },
+    capabilities: ['fleet_maintenance_queue'],
+  },
+  queue: [],
   doors: Object.fromEntries(['entry-a', 'entry-b', 'entry-c'].map((id) => [id, { 1: { doorName: 'כניסה', openDuration: 5, relayReverseEnabled: false }, 2: { doorName: 'שער רכב', openDuration: 3, relayReverseEnabled: false } }])),
   ...over,
 });
@@ -273,6 +285,77 @@ export async function installInstallerMock(page: Page, m: InstallerMock = newIns
         return { job: { ...job } };
       });
     }
+    // ---------------------------------------------------------------- phase 4: the platform
+    if (p === 'platform' && method === 'GET') {
+      const ready = <T>(data: T) => ({ state: 'ready', error: null, fetched_at: NOW.toISOString(), data });
+      return json(route, {
+        platform: ready({ ...m.platform, stations: { ...m.platform.stations } }),
+        capacity: ready({
+          records: STATIONS.map((s, i) => ({ station_id: s.id, name: s.name, sampled_at: NOW.toISOString(), fresh: true, sample_count: 4,
+            users: { count: [420, 120, 498][i], advertised_limit: 500, used_percent: [84, 24, 99.6][i], remaining: [80, 380, 2][i], observed_growth_per_day: 1.5, estimated_days_to_limit: i === 0 ? 53.3 : null, alert: ['near_limit', 'observed', 'at_limit'][i] },
+            cards: { count: 100, advertised_limit: 1000, used_percent: 10, remaining: 900, observed_growth_per_day: null, estimated_days_to_limit: null, alert: 'observed' } })),
+          forecast_is_estimate: true,
+        }),
+        integrity: ready({ checks: [{ component: 'access', state: 'available', remedy: 'none' }, { component: 'events', state: 'available', remedy: 'none' }], writes_performed: false }),
+        maintenance: ready({ records: m.queue.map((j) => ({ ...j })) }),
+        demo: ready({ demo: true, steps: ['review_identity'], device_writes: 0 }),
+        stations: STATIONS,
+        typed: { webhook_key: 'הצגת המפתח', import_apply: 'ייבוא תצורה', retention_apply: 'מחיקת אירועים', config_apply: 'החלה על העמדות', maint_enqueue: 'תזמון תחזוקה' },
+      });
+    }
+    if (p === 'platform/export' && method === 'GET') return json(route, { data: { format: 'smplwise-operations', version: 1, stations: {}, templates: [] }, fetched_at: NOW.toISOString() });
+    const meta = /^platform\/stations\/([^/]+)$/.exec(p);
+    if (meta && method === 'PUT') {
+      const b = JSON.parse(req.postData() ?? '{}') as { values: Record<string, unknown> };
+      return write(route, 'station_save', null, () => {
+        m.platform.revision += 1;
+        m.platform.stations[meta[1]] = { revision: m.platform.revision, values: b.values };
+        return { revision: m.platform.revision, values: b.values };
+      });
+    }
+    if (p === 'platform/webhook' && method === 'PUT') {
+      const b = JSON.parse(req.postData() ?? '{}') as { values: { enabled: boolean; url: string; kinds: string[] } };
+      return write(route, 'webhook_save', null, () => ((m.platform.revision += 1), (m.platform.webhook = b.values), { revision: m.platform.revision, enabled: b.values.enabled }));
+    }
+    if (p === 'platform/webhook/key' && method === 'POST') return write(route, 'webhook_key', 'הצגת המפתח', () => ({ key: 'ab'.repeat(32) }));
+    if (p === 'platform/retention/preview' && method === 'POST') {
+      const b = JSON.parse(req.postData() ?? '{}') as { values: { count: number } };
+      return json(route, { data: { review_id: 'rv-ret', before: 1200, after: Math.min(1200, b.values.count), removed: Math.max(0, 1200 - b.values.count), values: b.values }, fetched_at: NOW.toISOString() });
+    }
+    if (p === 'platform/retention/apply' && method === 'POST') return write(route, 'retention_apply', 'מחיקת אירועים', () => ({ records: 1000 }));
+    if ((p === 'platform/config/preview' || p === 'platform/maintenance/preview') && method === 'POST') {
+      const b = JSON.parse(req.postData() ?? '{}') as { station_ids: string[]; door: number; changes: Record<string, unknown> };
+      const rows = b.station_ids.map((id) => {
+        const s = STATIONS.find((x) => x.id === id)!;
+        if (!s.online) return { station_id: id, name: s.name, before: null, after: null, window: null, error: 'station_unloaded' };
+        const before = { ...m.doors[id][b.door] };
+        return { station_id: id, name: s.name, before, after: { ...before, ...b.changes }, window: null, error: null };
+      });
+      const count = rows.filter((r) => !r.error).length;
+      return json(route, { data: { review_id: count ? `rv-${p.split('/')[1]}` : null, count, rows }, fetched_at: NOW.toISOString() });
+    }
+    if (p === 'platform/config/apply' && method === 'POST') {
+      return write(route, 'config_apply', 'החלה על העמדות', () => {
+        const receipts = [{ at: NOW.toISOString(), station_id: 'entry-a', state: 'verified', code: null }, { at: NOW.toISOString(), station_id: 'entry-c', state: 'failed', code: 'device_unavailable' }];
+        return { receipts, verified: 1, failed: 1 };
+      });
+    }
+    if (p === 'platform/maintenance/enqueue' && method === 'POST') {
+      return write(route, 'maint_enqueue', 'תזמון תחזוקה', () => {
+        m.queue.unshift({ id: 'job-m1', fingerprint: 'fp-m1', state: 'queued', created_at: NOW.toISOString(), expires_at: null, own_request: true, dual_required: false,
+          rows: [{ station_id: 'entry-a', name: 'שער ראשי', door: 1, changes: { openDuration: 9 }, state: 'pending', code: null, window: null }] });
+        return { job_id: 'job-m1', state: 'queued' };
+      });
+    }
+    const cancel = /^platform\/maintenance\/jobs\/([^/]+)\/cancel$/.exec(p);
+    if (cancel && method === 'POST') {
+      return write(route, 'maint_cancel', null, () => {
+        for (const j of m.queue) if (j.id === cancel[1]) ((j.state = 'cancelled'), j.rows.forEach((r: Record<string, unknown>) => (r.state = 'cancelled')));
+        return { records: m.queue };
+      });
+    }
+    if (p === 'platform/import/preview' && method === 'POST') return json(route, { data: { review_id: 'rv-imp', templates: 0, replaces_templates: true, stations: [] }, fetched_at: NOW.toISOString() });
+    if (p === 'platform/import/apply' && method === 'POST') return write(route, 'import_apply', 'ייבוא תצורה', () => ({ revision: 9, stations: 0 }));
     return error(route, 404, 'not_found', 'לא נמצא', {});
   });
   return m;
