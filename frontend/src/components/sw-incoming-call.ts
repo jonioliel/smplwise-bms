@@ -82,14 +82,14 @@ export class SwIncomingCall extends LitElement {
       gap: var(--sw-s-3, 12px);
       padding: var(--sw-s-3, 12px);
       border-radius: var(--sw-r-lg, 16px);
-      border: 1px solid var(--sw-border-strong, rgba(0, 0, 0, 0.18));
-      background: var(--sw-surface, #fff);
-      color: var(--sw-text, #111);
+      border: 1px solid var(--sw-border-strong);
+      background: var(--sw-surface);
+      color: var(--sw-text);
       box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28), 0 2px 6px rgba(0, 0, 0, 0.12);
       font-size: var(--sw-fs-base, 14px);
     }
     .sheet[data-state='ringing'] {
-      border-color: color-mix(in srgb, var(--sw-success, #15803d) 55%, var(--sw-border-strong, #ccc));
+      border-color: color-mix(in srgb, var(--sw-success) 55%, var(--sw-border-strong));
     }
     @media (prefers-reduced-motion: no-preference) {
       .sheet {
@@ -108,7 +108,7 @@ export class SwIncomingCall extends LitElement {
     @keyframes pulse {
       0%,
       100% {
-        box-shadow: 0 0 0 0 color-mix(in srgb, var(--sw-success, #15803d) 45%, transparent);
+        box-shadow: 0 0 0 0 color-mix(in srgb, var(--sw-success) 45%, transparent);
       }
       50% {
         box-shadow: 0 0 0 8px transparent;
@@ -127,12 +127,12 @@ export class SwIncomingCall extends LitElement {
       inline-size: 36px;
       block-size: 36px;
       border-radius: 50%;
-      background: var(--sw-success-soft, #dcfce7);
-      color: var(--sw-success-text, #166534);
+      background: var(--sw-success-soft);
+      color: var(--sw-success-text);
     }
     .sheet[data-state='in_call'] .ring {
-      background: var(--sw-accent-soft, #e0e7ff);
-      color: var(--sw-accent-text, #3730a3);
+      background: var(--sw-accent-soft);
+      color: var(--sw-accent-text);
     }
     .ttl {
       flex: 1 1 auto;
@@ -141,7 +141,7 @@ export class SwIncomingCall extends LitElement {
       line-height: 1.25;
     }
     .ttl small {
-      color: var(--sw-text-2, #555);
+      color: var(--sw-text-2);
       font-size: var(--sw-fs-sm, 13px);
     }
     .ttl b {
@@ -154,7 +154,7 @@ export class SwIncomingCall extends LitElement {
     .clock {
       flex: none;
       font-variant-numeric: tabular-nums;
-      color: var(--sw-text-2, #555);
+      color: var(--sw-text-2);
       font-size: var(--sw-fs-sm, 13px);
     }
     .icon-btn {
@@ -166,16 +166,16 @@ export class SwIncomingCall extends LitElement {
       border-radius: var(--sw-r-sm, 8px);
       border: 0;
       background: transparent;
-      color: var(--sw-text-2, #555);
+      color: var(--sw-text-2);
       cursor: pointer;
       -webkit-tap-highlight-color: transparent;
     }
     .icon-btn:hover {
-      background: var(--sw-surface-2, #f3f4f6);
+      background: var(--sw-surface-2);
     }
     .icon-btn:focus-visible,
     a:focus-visible {
-      outline: var(--sw-focus-w, 2px) solid var(--sw-focus, #2563eb);
+      outline: var(--sw-focus-w, 2px) solid var(--sw-focus);
       outline-offset: 2px;
     }
     .pic {
@@ -183,10 +183,10 @@ export class SwIncomingCall extends LitElement {
       aspect-ratio: 16 / 9;
       border-radius: var(--sw-r-md, 12px);
       overflow: hidden;
-      background: var(--sw-surface-sunken, #e5e7eb);
+      background: var(--sw-surface-sunken, var(--sw-surface-3));
       display: grid;
       place-items: center;
-      color: var(--sw-text-3, #777);
+      color: var(--sw-text-3);
     }
     .pic img {
       inline-size: 100%;
@@ -203,16 +203,16 @@ export class SwIncomingCall extends LitElement {
     .line {
       margin: 0;
       font-size: var(--sw-fs-sm, 13px);
-      color: var(--sw-text-2, #555);
+      color: var(--sw-text-2);
     }
     .line[data-tone='ok'] {
-      color: var(--sw-success-text, #166534);
+      color: var(--sw-success-text);
     }
     .line[data-tone='warn'] {
-      color: var(--sw-warning-text, #92400e);
+      color: var(--sw-warning-text);
     }
     .line[data-tone='error'] {
-      color: var(--sw-danger-text, #b91c1c);
+      color: var(--sw-danger-text);
     }
     /* the call's own actions on one row (answer + decline, or end); the doors under them, each as wide as its name needs */
     .acts {
@@ -231,7 +231,7 @@ export class SwIncomingCall extends LitElement {
       gap: var(--sw-s-2, 8px);
       padding: var(--sw-s-2, 8px);
       border-radius: var(--sw-r-md, 12px);
-      background: var(--sw-surface-2, #f3f4f6);
+      background: var(--sw-surface-2);
     }
     .ask .row {
       display: flex;
@@ -256,7 +256,7 @@ export class SwIncomingCall extends LitElement {
     }
     .foot a,
     .foot button.link {
-      color: var(--sw-accent-text, #3730a3);
+      color: var(--sw-accent-text);
       text-decoration: none;
       background: none;
       border: 0;

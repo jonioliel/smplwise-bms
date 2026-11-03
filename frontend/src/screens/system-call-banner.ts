@@ -57,7 +57,7 @@ export class SystemCallBanner extends LitElement {
       input[type='checkbox'] {
         inline-size: 18px;
         block-size: 18px;
-        accent-color: var(--sw-accent, #4f46e5);
+        accent-color: var(--sw-accent);
       }
       .row.stack {
         flex-direction: column;
