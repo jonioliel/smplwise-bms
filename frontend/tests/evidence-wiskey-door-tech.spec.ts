@@ -65,7 +65,7 @@ test.describe('door technical writes', () => {
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
   test.beforeEach(({}, info) => test.skip(info.project.name === 'tablet', 'desktop and phone only'));
 
-  test('nothing is read or sent before the dialog opens; a caller without the permission gets no block', async ({ page }, info) => {
+  test('nothing is read or sent before the dialog opens', async ({ page }, info) => {
     const { dt } = await boot(page);
     await openSettings(page, 'lobby');
     await expect(inDt(page, '[data-wk-dt-open]')).toBeVisible();
@@ -73,11 +73,15 @@ test.describe('door technical writes', () => {
     expect(dt.posts).toEqual([]);
     await inDrawer(page, '[data-wk-dsec="settings"]').scrollIntoViewIfNeeded();
     await shot(page, info, 'drawer-entry');
-    await page.goto('about:blank');
+  });
+
+  test('a caller without system.configure or access.stations.manage gets no block and nothing is read', async ({ page }) => {
     const op = await boot(page, {}, { persona: 'operator' });
     await openSettings(page, 'lobby');
+    await expect(inDrawer(page, '[data-wk-dsec="settings"]')).toBeVisible();
     await expect(inDrawer(page, 'wk-door-tech [data-wk-dt-open]')).toHaveCount(0);
     expect(own(op.dt)).toEqual([]);
+    expect(op.dt.posts).toEqual([]);
   });
 
   test('a hold-open schedule: add behind a confirmation (cancel sends nothing), edit, delete - each once', async ({ page }, info) => {
