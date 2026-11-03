@@ -122,7 +122,15 @@ for (const c of CASES) {
     expect(g.time).toBe('09:12');
     fs.mkdirSync(OUT, { recursive: true });
     fs.writeFileSync(path.join(OUT, `portrait-chips-${c.name}.png`), await page.screenshot());
-    // the pixel step: once the runner generated the baselines (an explicit --update-snapshots), never from a missing file on a gate
+  });
+
+  // GATE2380-B: the picture is its own test, with "pixel-stable" in the title. The release gate runs every file that calls
+  // toHaveScreenshot( in its pixel step with `-g pixel-stable` (and leaves those titles out of the preview groups with --grep-invert):
+  // a pixel file without such a title ran zero tests there ("No tests found", gate 2.38.0 pixel_5). The geometry above stays in the
+  // preview groups.
+  test(`portrait footer is pixel-stable under the default wording: ${c.name}`, async ({ page }) => {
+    await open(page, c.display);
+    // once the runner generated the baselines (an explicit --update-snapshots), never from a missing file on a gate
     if (fs.existsSync(SNAPS) || ['all', 'changed'].includes(test.info().config.updateSnapshots)) {
       await expect(page).toHaveScreenshot(`portrait-chips-${c.name}.png`, { maxDiffPixelRatio: 0.005, animations: 'disabled' });
     }
