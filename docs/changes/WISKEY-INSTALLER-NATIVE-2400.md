@@ -150,6 +150,10 @@ Tests: `tests/test_wiskey_installer_platform.py` (8), unit + browser specs (one 
 - Browser (runner, desktop + mobile): `run_smart.py spec pilot/WISKEY-INSTALLER-NATIVE-2400 tests/evidence-wiskey-installer.spec.ts
   --project=desktop --project=mobile` -> phase 1-2: 30 passed (`d66999d5a`); phase 3: 40 passed (`4451d39cc`); phase 4: 52 passed
   (`0edbbd7a8`); final verification without `--update-snapshots`, `--repeat-each=2`: 104 passed (`b78a6b677`).
+- Backend regression (runner, `c91406df5`): every `tests/test_wiskey_*.py`, `test_intercom*.py`, `test_access_control*.py` and
+  `test_capabilities.py` (61 files) -> 1708 passed, 4 skipped. A full-suite runner run was aborted (killed by its own PIDs): later spec
+  runs re-checked-out the shared runner worktree under it and shard 1 errored around 6-11 % (app session / area / automations /
+  backup files); those files run locally on this branch -> 141 passed. The full two-shard suite is therefore NOT_RUN on the final commit.
 - Design detector: `impeccable detect` over the seven installer UI files -> no findings.
 
 ## NOT_RUN
@@ -157,7 +161,7 @@ Tests: `tests/test_wiskey_installer_platform.py` (8), unit + browser specs (one 
 - Any lab / device / Home Assistant test (no lab access by instruction): every WisKey call and the HA flow API are fakes.
 - The HA flow REST start with `entry_id` (reconfigure) against a real Home Assistant.
 - Windows pixel baselines (Linux runner baselines only); the tablet project (skipped by design in this spec).
-- The full frontend suite, the visual matrix and the fixture specs; `contracts/API_INVENTORY.md` is regenerated at release.
+- The full backend suite (two shards) on the final commit (see above); the full frontend suite, the visual matrix and the fixture specs; `contracts/API_INVENTORY.md` is regenerated at release.
 
 ## Migration
 
