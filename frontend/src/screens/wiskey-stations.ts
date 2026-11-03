@@ -12,6 +12,7 @@ import '../components/sw-place-tree';
 import '../components/sw-view-switch';
 import '../components/wk-action-button';
 import '../components/wk-announce-dialog';
+import '../components/wk-stations-maintenance'; // WISKEY-STATION-OPS-2390: the list action for station maintenance (its own component)
 import '../components/wk-station-live';
 import '../components/wk-talk-button';
 import type { StateKind } from '../components/sw-badge';
@@ -606,6 +607,7 @@ export class WiskeyStations extends LitElement {
               ${v.rights.announce && online
                 ? html`<wk-action-button icon="volume" data-wk-announce ?disabled=${!v.live} label=${t.announce} @click=${() => v.announce('')}><span class="lbl">${t.announce}</span></wk-action-button>`
                 : nothing}
+              <wk-stations-maintenance .stations=${all as AccessStation[]} ?live=${v.live}></wk-stations-maintenance>
               <sw-view-switch data-wk-views label=${t.views.label} .value=${view} .options=${[
                 { id: 'cards', label: t.views.cards, icon: 'grid' },
                 { id: 'list', label: t.views.list, icon: 'list' },
