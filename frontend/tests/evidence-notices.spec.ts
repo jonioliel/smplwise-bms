@@ -527,3 +527,64 @@ test('push: the defaults card chooses לפי חומרה / תמיד / אף פעם
   await sel.selectOption('always');
   await expect.poll(() => calls.find((c) => c.method === 'PATCH' && c.path === 'notices/settings')?.body).toMatchObject({ push_default: 'always' });
 });
+
+// TV-SETTINGS-2380 (release/2380-train, Settings row 1): the two TV-fit rows - "תצוגת אייקוני המבנה במסך אנכי" (portrait_chips) and
+// "שוליים בטוחים בקצוות המסך" (safe_margin, a whole percent 0..5 sent as a JSON integer) - as installation defaults in the TV boards card
+// (saved at once, they travel in tv2_defaults) and on a board's display tab (first key "ברירת מחדל" = null; a board's own 0 is a real
+// choice; saved with the board's save button).
+test('settings: the TV-fit defaults (portrait chips, safe margin) are saved at once (TV-SETTINGS-2380)', async ({ page }) => {
+  const calls = await install(page);
+  let tv2: Record<string, unknown> = { design: 'classic', board_layout: 'side', co_size: 'auto', portrait_order: 'bus', next_row: 'show', portrait_chips: 'rows', safe_margin: 0 };
+  await page.route('**/api/v1/notices/tv-defaults', async (route) => {
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    calls.push({ method: route.request().method(), path: 'notices/tv-defaults', body });
+    tv2 = { ...tv2, ...body };
+    await json(route, { tv_defaults: { header: 'c', updated: 'place', space: 'bigger', night_logo: 'auto', weather_days: 0, idle_logo: 'sw' }, tv2_defaults: tv2 });
+  });
+  await page.goto('about:blank');
+  await page.goto(url('/system/notices'));
+  const fit = page.locator('sw-app system-notices [data-tv-defaults-card] notice-display-fit');
+  await expect(fit).toBeVisible();
+  const chips = fit.locator('[data-seg="portrait-chips"]');
+  const margin = fit.locator('[data-seg="safe-margin"]');
+  await expect(chips.locator('button')).toHaveCount(2); // no "default" key in the defaults card
+  await expect(margin.locator('button')).toHaveCount(6);
+  await expect(chips.locator('button[data-v="rows"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(margin.locator('button[data-v="0"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(margin.locator('button[data-v="0"]')).toHaveText('ללא');
+  await expect(margin.locator('button[data-v="3"]')).toHaveText('3%');
+  await chips.locator('button[data-v="drop"]').click();
+  await expect(chips.locator('button[data-v="drop"]')).toHaveAttribute('aria-pressed', 'true');
+  await margin.locator('button[data-v="3"]').click();
+  await expect(margin.locator('button[data-v="3"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => calls.filter((c) => c.method === 'PUT' && c.path === 'notices/tv-defaults').map((c) => c.body)).toEqual([{ portrait_chips: 'drop' }, { safe_margin: 3 }]);
+  await noOverflow(page);
+  await shot(page, 'settings-tv-fit-defaults');
+});
+
+test('board page: the TV-fit rows follow the default until the board picks; a board\'s own 0 is kept and saved (TV-SETTINGS-2380)', async ({ page }) => {
+  const calls = await install(page);
+  await page.goto('about:blank');
+  await page.goto(url('/system/notices/b1'));
+  const root = page.locator('sw-app system-notices');
+  await root.locator('sw-tabs').getByText('תצוגה').click();
+  const fit = root.locator('notice-display-fit');
+  await expect(fit).toBeVisible();
+  const chips = fit.locator('[data-seg="portrait-chips"]');
+  const margin = fit.locator('[data-seg="safe-margin"]');
+  await expect(chips.locator('button')).toHaveCount(3);
+  await expect(margin.locator('button')).toHaveCount(7);
+  await expect(chips.locator('button[data-v="default"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(margin.locator('button[data-v="default"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(fit.locator('[data-default-note]')).toHaveCount(2);
+  await margin.locator('button[data-v="0"]').click();
+  await expect(margin.locator('button[data-v="0"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(margin.locator('button[data-v="default"]')).toHaveAttribute('aria-pressed', 'false');
+  await chips.locator('button[data-v="drop"]').click();
+  await expect(chips.locator('button[data-v="drop"]')).toHaveAttribute('aria-pressed', 'true');
+  await noOverflow(page);
+  await shot(page, 'board-display-tv-fit');
+  await root.locator('[data-save-display]').click();
+  await expect.poll(() => (calls.find((c) => c.method === 'PATCH' && c.path === 'notices/boards/b1')?.body as { display?: object } | undefined)?.display)
+    .toMatchObject({ portrait_chips: 'drop', safe_margin: 0 });
+});

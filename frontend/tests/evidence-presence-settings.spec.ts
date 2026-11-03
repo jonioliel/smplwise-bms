@@ -123,6 +123,30 @@ test.describe('הגדרות › אפליקציה לנייד (CR-027)', () => {
     await shot(page, 'presence-settings-policy');
   });
 
+  // MOBILE-CONTRACT-V22-2380 (release/2380-train, Settings row 2): "בדיקת ערכי החיישנים" - off by default (an older backend without the key
+  // reads as off), three keys, saved with the page's one save row as `value_check`.
+  test('the sensor value check: off by default, three keys, "נרמול" goes up with the page save', async ({ page }) => {
+    const mock = await mockBackend(page);
+    await open(page, '/system/diagnostics?tab=mobile');
+    const row = page.locator('system-presence [data-presence-row="value-check"]');
+    await expect(row).toBeVisible({ timeout: 15000 });
+    await expect(row).toContainText('בדיקת ערכי החיישנים');
+    const seg = row.locator('[data-presence-value-check]');
+    await expect(seg.locator('button')).toHaveText(['כבוי', 'נרמול', 'קפדני']);
+    await expect(seg.locator('button[data-v="off"]')).toHaveAttribute('aria-pressed', 'true');
+    const save = page.locator('system-presence [data-presence-save]');
+    await expect(save.locator('button')).toBeDisabled();
+    await seg.locator('button[data-v="normalize"]').click();
+    await expect(seg.locator('button[data-v="normalize"]')).toHaveAttribute('aria-pressed', 'true');
+    await expect(save.locator('button')).toBeEnabled();
+    await save.click();
+    await expect.poll(() => mock.puts.length).toBe(1);
+    expect(mock.puts[0]).toMatchObject({ value_check: 'normalize' });
+    await expect(seg.locator('button[data-v="normalize"]')).toHaveAttribute('aria-pressed', 'true');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+    await shot(page, 'presence-settings-value-check');
+  });
+
   test('break-glass needs a reason, suspends with the server answer and can be ended', async ({ page }) => {
     const mock = await mockBackend(page, { settings: { enabled: true, required_sensors: { ...DEFAULTS.required_sensors, enabled: true, sensors: ['location'] } } });
     await open(page, '/system/diagnostics?tab=mobile');
