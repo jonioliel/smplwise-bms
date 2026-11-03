@@ -1,0 +1,13 @@
+# WISKEY-S6-RELEASE-PREP - runner (Linux) full backend suite
+# command: PYTHONIOENCODING=utf-8 MSYS_NO_PATHCONV=1 python private/runner/run_smart.py backend pilot/WISKEY-S5-PREMERGE --machine runner --wait-min 45
+# head: 48295f83c; workstation start 2026-11-03 07:46:02, end 10:09:17 local, run_smart exit 0 (it does not propagate shard failures)
+# remote: run_remote.sh backend (2 shards, every tests/test_*.py, pytest -q -p no:cacheprovider)
+
+[run_smart] backend pilot/WISKEY-S5-PREMERGE -> שרת הריצה (אובונטו) (workers=2): המחשב נבחר ידנית (עומס 5.2, זיכרון פנוי 12.8GB)
+== backend pilot/WISKEY-S5-PREMERGE @ 48295f83c in /home/sw/work/pilot-WISKEY-S5-PREMERGE
+shard 1: 1 failed, 9223 passed, 11 skipped, 1 warning in 8577.04s (2:22:57)
+shard 2: 2 failed, 10319 passed, 13 skipped, 3 xfailed, 2 warnings in 8222.22s (2:17:02)
+FAILED tests/test_no_ip_literals.py::test_no_unlisted_private_ip_literals - A...
+FAILED tests/test_t06_admission_295.py::test_the_only_modules_that_reach_a_signing_call_are_the_known_ones
+FAILED tests/test_wkr5_295.py::test_catalog_counts_names_not_lines_and_skips_provenance
+רץ על שרת הריצה (אובונטו) כי המחשב נבחר ידנית (עומס 5.2, זיכרון פנוי 12.8GB)

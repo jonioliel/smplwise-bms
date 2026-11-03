@@ -96,6 +96,8 @@ switches), `unit-bridge-key`, `unit-wkaudin-295`, `unit-wkdirect-talk-max`, `uni
 
 ## NOT_RUN
 
+S6 follow-up: see `docs/changes/WISKEY-S6-RELEASE-PREP.md` (merge of 2.37.0 final, version 2.37.1, the runner receipt).
+
 - S6 (out of scope): the runner (Linux) - full backend suite, the POSIX / fcntl / symlink / jsonschema skips above, runner entry check,
   receipts with PID / command / env / exit; the add-on build (`npm run build:addon`) - the committed `smplwise_vms/www` is the train's
   build and does not carry the chain's WisKey screen changes; Vite build / preview, Playwright browser suites, pixel baselines.
