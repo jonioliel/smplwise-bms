@@ -259,6 +259,9 @@ test.describe('WISKEY-LIVE-VALIDATION-2390: the station acceptance tool', () => 
     const dlg = page.locator(`${PAGE} sw-dialog[data-lv-pulse-dialog][open]`);
     await dlg.locator('[data-lv-witness-name]').fill('דנה כהן');
     await expect(dlg.locator('[data-lv-physical]')).toBeVisible();
+    // a still picture: no hover under the pointer that opened the dialog, no focus ring / caret in the field just typed into
+    await page.mouse.move(0, 0);
+    await dlg.locator('[data-lv-witness-name]').evaluate((el) => (el as HTMLInputElement).blur());
     await compare(page, info, 'lv-pulse-dialog');
   });
 
