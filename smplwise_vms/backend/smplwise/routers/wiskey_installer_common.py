@@ -93,15 +93,46 @@ class Write:
         if self.op.danger == "typed" and not wi.typed_ok(expected, body.typed_confirmation):
             raise self.refuse(409, "typed_confirmation_required", f"כדי לבצע {self.what} יש להקליד בדיוק: {expected}", expected=expected)
 
-    def run(self, values: dict[str, Any], on_ok: Callable[[dict[str, Any]], None] | None = None) -> dict[str, Any]:
-        """Arx's limits, the attempt row, ONE send, the outcome row. Returns the screen's reply."""
+    def _admit(self) -> None:
         limited = wi.LIMITS.admit(self.act.principal.user_id, self.op, self.target)
         if limited is not None:
             code, retry = limited
             raise self.act.refuse(ApiError(429, code, wi.LIMIT_MESSAGES[code].format(s=int(retry + 0.999)), retryable=True,
                                            details={"retry_after_s": retry, "operation": self.op.name}))
+
+    def run(self, values: dict[str, Any], on_ok: Callable[[dict[str, Any]], None] | None = None) -> dict[str, Any]:
+        """Arx's limits, the attempt row, ONE send, the outcome row. Returns the screen's reply."""
+        self._admit()
         try:
             return self._perform(values, on_ok)
+        finally:
+            wi.LIMITS.done()
+
+    def run_call(self, call: Callable[[], dict[str, Any]], summary: Callable[[dict[str, Any]], dict[str, Any]],
+                 error: Callable[[Exception], ApiError | None]) -> dict[str, Any]:
+        """The same steps around a call that is not a WisKey command (the onboarding flow): `call` returns the projected answer or raises;
+        `error(exc)` turns a known failure into an ApiError whose `details.outcome` says what is known (None: unknown)."""
+        self._admit()
+        act = self.act
+        try:
+            act.attempt()
+            try:
+                data = call()
+            except Exception as exc:  # noqa: BLE001 - classified below; an unclassified failure is an unknown outcome
+                known = error(exc)
+                outcome = str((known.details if known else {}).get("outcome") or "unknown")
+                code = str((known.details if known else {}).get("wiskey_code") or type(exc).__name__)
+                if outcome != "not_sent":
+                    wi.LIMITS.sent(self.op, self.target)
+                act.outcome(outcome, code, {"error": code})
+                if known is None:
+                    raise
+                raise known from None
+            finally:
+                act.conn.execute("BEGIN")
+            wi.LIMITS.sent(self.op, self.target)
+            act.outcome("ok", None, {"result": summary(data)})
+            return {"operation": self.op.name, "status": "completed", "command_id": act.details["command_id"], "data": data}
         finally:
             wi.LIMITS.done()
 

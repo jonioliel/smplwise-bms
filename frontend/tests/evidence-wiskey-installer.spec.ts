@@ -76,7 +76,6 @@ test.describe('the intercom installer: clock', () => {
     const m = newInstallerMock();
     await open(page, m);
     await page.locator(`${CLOCK} [data-station="entry-a"] [data-clock-sync]`).click();
-    await expect(page.locator(`${DIALOG}`)).toBeVisible();
     await expect(page.locator(`${CLOCK} [data-phrase]`)).toHaveText('שער ראשי');
     await expect(page.locator(`${CLOCK} [data-confirm-send]`)).toHaveAttribute('disabled', '');
     await page.locator(`${CLOCK} [data-typed]`).fill('שער');
@@ -138,9 +137,91 @@ test.describe('the intercom installer: clock', () => {
   test('classic is pixel-stable: the station clock confirmation with the typed phrase', async ({ page }, info) => {
     await open(page, newInstallerMock());
     await page.locator(`${CLOCK} [data-station="entry-a"] [data-clock-sync]`).click();
-    await page.waitForSelector(DIALOG);
+    await page.waitForSelector(`${CLOCK} [data-typed]`);
     await page.locator(`${CLOCK} [data-typed]`).fill('שער');
     await settlePage(page);
     await compare(page, info, 'installer-clock-confirm');
+  });
+});
+
+const TECH = `${ROOT} installer-technical`;
+const TDIALOG = `${TECH} wk-installer-confirm sw-dialog[open]`;
+
+async function openTech(page: Page, m: InstallerMock, station = 'entry-a') {
+  await open(page, m, '/system/intercom-installer/technical', `${TECH} [data-technical="empty"]`);
+  await page.locator(`${TECH} [data-station-pick]`).selectOption(station);
+  await page.waitForSelector(`${TECH} [data-technical="ready"]`, { timeout: 30_000 });
+}
+
+test.describe('the intercom installer: station technical settings', () => {
+  test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
+  test.beforeEach(({}, info) => {
+    test.skip(info.project.name === 'tablet', 'desktop and phone only');
+  });
+
+  test('the read shows both doors; only the mapped door is editable; passwords are presence only', async ({ page }) => {
+    await openTech(page, newInstallerMock());
+    await expect(page.locator(`${TECH} sw-card[data-door="1"]`)).toHaveAttribute('data-editable', 'true');
+    await expect(page.locator(`${TECH} sw-card[data-door="2"]`)).toHaveAttribute('data-editable', 'false');
+    await expect(page.locator(`${TECH} sw-card[data-door="2"] [data-field="openDuration"]`)).toBeDisabled();
+    await expect(page.locator(`${TECH} [data-passwords]`)).toContainText('אין קוד ציבורי');
+    await expect(page.locator(`${TECH} [data-door-save]`)).toHaveAttribute('disabled', '');
+  });
+
+  test('an edit shows before / after and sends expected + only the change, once', async ({ page }) => {
+    const m = newInstallerMock();
+    await openTech(page, m);
+    await page.locator(`${TECH} sw-card[data-door="1"] [data-field="openDuration"]`).fill('300');
+    await expect(page.locator(`${TECH} [data-door-save]`)).toHaveAttribute('disabled', '');
+    await page.locator(`${TECH} sw-card[data-door="1"] [data-field="openDuration"]`).fill('8');
+    await page.locator(`${TECH} [data-door-save]`).click();
+    await expect(page.locator(`${TDIALOG} tr[data-key="openDuration"][data-changed]`)).toContainText('8');
+    await expect(page.locator(`${TECH} [data-typed]`)).toHaveCount(0);
+    await page.locator(`${TECH} [data-confirm-send]`).click();
+    await expect(page.locator(`${TECH} [data-flash]`)).toBeVisible();
+    expect(m.writes).toHaveLength(1);
+    expect(m.writes[0]).toMatchObject({ path: 'access-control/installer/technical/stations/entry-a/doors/1', body: { expected: { doorName: 'כניסה', openDuration: 5, relayReverseEnabled: false }, changes: { openDuration: 8 } } });
+  });
+
+  test('a relay inversion warns and needs the typed station name', async ({ page }) => {
+    const m = newInstallerMock();
+    await openTech(page, m);
+    await page.locator(`${TECH} sw-card[data-door="1"] [data-field="relayReverseEnabled"]`).check();
+    await expect(page.locator(`${TECH} sw-card[data-door="1"] .msg.warn`)).toBeVisible();
+    await page.locator(`${TECH} [data-door-save]`).click();
+    await expect(page.locator(`${TECH} [data-confirm-send]`)).toHaveAttribute('disabled', '');
+    await page.locator(`${TECH} [data-typed]`).fill('שער ראשי');
+    await page.locator(`${TECH} [data-confirm-send]`).click();
+    await expect(page.locator(`${TECH} [data-flash]`)).toBeVisible();
+    expect(m.writes[0].body).toMatchObject({ typed_confirmation: 'שער ראשי', changes: { relayReverseEnabled: true } });
+  });
+
+  test('a failed read says why; an unknown save is not shown as done', async ({ page }) => {
+    await open(page, newInstallerMock({ result: { technical_read: 'refused' } }), '/system/intercom-installer/technical', `${TECH} [data-technical="empty"]`);
+    await page.locator(`${TECH} [data-station-pick]`).selectOption('entry-a');
+    await expect(page.locator(`${TECH} [data-technical="error"]`)).toBeVisible();
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    const m = newInstallerMock({ result: { update: 'unknown' } });
+    await openTech(page, m);
+    await page.locator(`${TECH} sw-card[data-door="1"] [data-field="doorName"]`).fill('לובי');
+    await page.locator(`${TECH} [data-door-save]`).click();
+    await page.locator(`${TECH} [data-confirm-send]`).click();
+    await expect(page.locator(`${TECH} [data-outcome="unknown"]`)).toBeVisible();
+    await expect(page.locator(`${TECH} [data-flash]`)).toHaveCount(0);
+  });
+
+  test('classic is pixel-stable: a station\'s technical settings', async ({ page }, info) => {
+    await openTech(page, newInstallerMock());
+    await settlePage(page);
+    await compare(page, info, 'installer-technical');
+  });
+
+  test('classic is pixel-stable: the relay-inversion confirmation', async ({ page }, info) => {
+    await openTech(page, newInstallerMock());
+    await page.locator(`${TECH} sw-card[data-door="1"] [data-field="relayReverseEnabled"]`).check();
+    await page.locator(`${TECH} [data-door-save]`).click();
+    await page.waitForSelector(`${TECH} [data-typed]`);
+    await settlePage(page);
+    await compare(page, info, 'installer-technical-confirm');
   });
 });

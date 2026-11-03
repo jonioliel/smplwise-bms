@@ -200,3 +200,79 @@ export function skewTone(skew: number | null | undefined): 'ok' | 'warn' | 'err'
   const a = Math.abs(skew);
   return a <= 5 ? 'ok' : a <= 60 ? 'warn' : 'err';
 }
+
+// ---------------------------------------------------------------- phase 2: a station's technical settings
+
+export type DoorField = 'doorName' | 'openDuration' | 'relayReverseEnabled';
+export interface DoorValues {
+  doorName?: string;
+  openDuration?: number;
+  relayReverseEnabled?: boolean;
+}
+export type DoorConstraint = { type: 'boolean' } | { type: 'text' | 'integer'; min: number; max: number };
+
+export interface TechnicalDoor {
+  door: number | null;
+  values: DoorValues | null;
+  constraints: Partial<Record<DoorField, DoorConstraint>> | null;
+  error: string | null;
+}
+
+export interface TechnicalReport {
+  checked_at: string | null;
+  doors: TechnicalDoor[];
+  passwords: { states: Record<string, boolean | null>; public_pin_state: string | null } | null;
+  password_error: string | null;
+  features: { family: string; name: string; supported: boolean }[];
+  relay_selection: { physical_index: number; api_id: number; confirmed: boolean; name: string | null }[];
+}
+
+export interface TechnicalView {
+  station_id: string;
+  name: string | null;
+  online: boolean | null;
+  typed_phrase: string | null;
+  fetched_at: string | null;
+  editable_doors: number[];
+  dangerous_fields: DoorField[];
+  report: TechnicalReport;
+}
+
+export const DOOR_FIELDS: readonly DoorField[] = ['doorName', 'openDuration', 'relayReverseEnabled'];
+
+export const getTechnical = (id: string, fresh = false) => get<TechnicalView>(`${BASE}/technical/stations/${encodeURIComponent(id)}${fresh ? '?fresh=true' : ''}`);
+export const updateDoor = (id: string, door: number, expected: DoorValues, changes: DoorValues, typed?: string) =>
+  put<WriteReply<TechnicalDoor>>(`${BASE}/technical/stations/${encodeURIComponent(id)}/doors/${door}`, { ...envelope(typed), expected, changes });
+
+/** Only the fields that differ from what was read. */
+export function doorChanges(before: DoorValues, draft: DoorValues): DoorValues {
+  const out: DoorValues = {};
+  for (const k of DOOR_FIELDS) {
+    if (draft[k] !== undefined && draft[k] !== before[k]) (out as Record<string, unknown>)[k] = draft[k];
+  }
+  return out;
+}
+
+/** The fields of `draft` outside the bounds the device advertised (WisKey client/technical.validate_changes). */
+export function doorErrors(draft: DoorValues, constraints: TechnicalDoor['constraints']): DoorField[] {
+  const out: DoorField[] = [];
+  for (const k of DOOR_FIELDS) {
+    const v = draft[k];
+    const c = constraints?.[k];
+    if (v === undefined) continue;
+    if (k === 'doorName') {
+      const s = String(v);
+      const max = c && c.type !== 'boolean' ? c.max : 64;
+      const min = c && c.type !== 'boolean' ? c.min : 1;
+      if (s.length < min || s.length > max || /[\u0000-\u001f]/.test(s)) out.push(k);
+    } else if (k === 'openDuration') {
+      const n = Number(v);
+      const max = c && c.type !== 'boolean' ? c.max : 255;
+      const min = c && c.type !== 'boolean' ? c.min : 0;
+      if (!Number.isInteger(n) || n < min || n > max) out.push(k);
+    } else if (typeof v !== 'boolean') out.push(k);
+  }
+  return out;
+}
+
+export const needsTyped = (changes: DoorValues, dangerous: readonly DoorField[]) => Object.keys(changes).some((k) => dangerous.includes(k as DoorField));

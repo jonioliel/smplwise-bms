@@ -33,6 +33,15 @@ class InstallerFake(FakeWiskey):
         self.ntp = {"revision": 3, **NTP_DEFAULT}
         self.host = {"supported": True, "synchronized": True, "use_ntp": True, "config": {"servers": ["time.windows.com"], "fallback_servers": []}}
         self.clock_skew: dict[str, float] = {"entry-a": 0.4, "entry-c": 61.0}
+        # station technical settings (client/technical.py read_door / update_door): both doors' DoorParam per station, the advertised
+        # bounds, and the confirmed relay selection (entry-c has none: camera only)
+        self.doors: dict[str, dict[int, dict[str, Any]]] = {
+            sid: {1: {"doorName": "Door 1", "openDuration": 5, "relayReverseEnabled": False}, 2: {"doorName": "Door 2", "openDuration": 3, "relayReverseEnabled": False}}
+            for sid in ("entry-a", "entry-b", "entry-c")
+        }
+        self.bounds = {"doorName": {"type": "text", "min": 1, "max": 32}, "openDuration": {"type": "integer", "min": 1, "max": 255}, "relayReverseEnabled": {"type": "boolean"}}
+        self.relays: dict[str, list[dict[str, Any]]] = {"entry-a": [{"physical_index": 1, "api_id": 1, "confirmed": True, "name": "Main"}], "entry-b": [{"physical_index": 1, "api_id": 2, "confirmed": True}], "entry-c": []}
+        self.readback_lies: set[str] = set()  # stations whose readback differs from the write (WisKey: device_unavailable after the PUT)
 
     # ------------------------------------------------------------ the responder
     def _answer(self, command: str, msg: dict[str, Any], auth: dict[str, Any]) -> list[Any]:
@@ -90,3 +99,40 @@ class InstallerFake(FakeWiskey):
                       "measurement": {"status": "measured", "duration_seconds": 0.2, "estimated_skew_seconds": skew, "uncertainty_seconds": 1.1},
                       "next_transition": {"status": "fixed"}},
         })
+
+    # ------------------------------------------------------------ station technical settings (rc.10 technical_api.dispatch_technical)
+    def _h_stations__technical_get(self, msg: dict[str, Any]) -> dict[str, Any]:
+        station = self._station(msg)
+        if station is None or msg["station_id"] in self.offline:
+            return fail(msg, "station_unloaded")
+        doors = [{"door": d, "values": copy.deepcopy(v), "constraints": {k: copy.deepcopy(self.bounds[k]) for k in v}} for d, v in sorted(self.doors[msg["station_id"]].items())]
+        return ok(msg, {
+            "checked_at": "2026-11-03T07:00:00+00:00", "doors": doors,
+            "passwords": {"states": {"engineeringConfigured": True, "setupAlarmConfigured": False, "public1Configured": False}, "public_pin_state": "absent"},
+            "password_error": None,
+            "features": [{"family": "AccessControl", "name": "isSupportDoorParam", "supported": True}, {"family": "VideoIntercom", "name": "isSupportPrivilegePasswordStatus", "supported": True}],
+            "relay_selection": copy.deepcopy(self.relays.get(msg["station_id"], [])),
+        })
+
+    def _h_stations__technical_update(self, msg: dict[str, Any]) -> dict[str, Any]:
+        sid, door = msg["station_id"], msg["door"]
+        if self._station(msg) is None or sid in self.offline:
+            return fail(msg, "station_unloaded")
+        if door not in {r["api_id"] for r in self.relays.get(sid, [])}:
+            return fail(msg, "operation_unsupported")
+        if msg["confirmed"] is not True:
+            return fail(msg, "invalid_fields")
+        current = self.doors[sid][door]
+        changes = msg["changes"]
+        if msg["expected"] != current:
+            return fail(msg, "device_unavailable")  # HikvisionValidationError "reload before saving" -> device_unavailable
+        for k, v in changes.items():
+            cap = self.bounds.get(k)
+            if cap is None or (cap["type"] == "integer" and not (type(v) is int and cap["min"] <= v <= cap["max"])) or (
+                    cap["type"] == "text" and not (isinstance(v, str) and cap["min"] <= len(v) <= cap["max"])) or (cap["type"] == "boolean" and type(v) is not bool):
+                return fail(msg, "device_unavailable")
+        self.doors[sid][door] = {**current, **changes}
+        self.effects.append(("stations/technical_update", {"station_id": sid, "door": door, "changes": dict(changes)}))
+        if sid in self.readback_lies:
+            return fail(msg, "device_unavailable")  # "Technical change not confirmed by readback"
+        return ok(msg, {"door": door, "values": copy.deepcopy(self.doors[sid][door]), "constraints": {k: copy.deepcopy(self.bounds[k]) for k in self.doors[sid][door]}})

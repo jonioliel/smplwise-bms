@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ApiError } from '../src/api/client';
 import { diffRows, envelope, hasChanges, ntpErrors, outcomeOf, skewTone, validServer } from '../src/api/installer';
-import { fill, installerText } from '../src/i18n/wiskey-installer';
+import { fill, installerText, technicalText } from '../src/i18n/wiskey-installer';
 
 // WISKEY-INSTALLER-NATIVE-2400: the pure logic and the words of the intercom installer tools - how a write's answer is read (completed /
 // refused / not sent / unknown: never "done" without the server saying so), the diff a confirmation shows, the NTP rules the server
@@ -74,13 +74,26 @@ test('the envelope confirms, and carries a typed phrase only when one is asked',
 });
 
 test('the words: Hebrew, filled placeholders, no "Home Assistant"', () => {
-  const all = leaves(installerText);
+  const all = { ...leaves(installerText), ...leaves(technicalText, 'technical.') };
   for (const [key, text] of Object.entries(all)) {
     expect(text, key).not.toMatch(/home\s*assistant/i);
     if (!key.startsWith('clock.modes.')) expect(text, key).toMatch(/[֐-׿]|^—$|^\{/);
   }
   expect(fill(installerText.clock.syncHeading, { name: 'Main gate' })).toBe('כתיבת הגדרות השעון לעמדה Main gate');
-  for (const file of ['screens/system-intercom-installer.ts', 'screens/installer-clock.ts', 'components/wk-installer-confirm.ts', 'api/installer.ts']) {
+  for (const file of ['screens/system-intercom-installer.ts', 'screens/installer-clock.ts', 'components/wk-installer-confirm.ts', 'api/installer.ts', 'screens/installer-technical.ts']) {
     expect(readFileSync(path.join(SRC, file), 'utf8'), file).not.toMatch(/home\s*assistant/i);
   }
+});
+
+test('a door edit sends only what changed, inside the advertised bounds; the relay needs the typed name', async () => {
+  const { doorChanges, doorErrors, needsTyped } = await import('../src/api/installer');
+  const before = { doorName: 'כניסה', openDuration: 5, relayReverseEnabled: false };
+  expect(doorChanges(before, { ...before })).toEqual({});
+  expect(doorChanges(before, { ...before, openDuration: 8 })).toEqual({ openDuration: 8 });
+  const c = { doorName: { type: 'text' as const, min: 1, max: 4 }, openDuration: { type: 'integer' as const, min: 1, max: 30 }, relayReverseEnabled: { type: 'boolean' as const } };
+  expect(doorErrors({ doorName: 'abcd', openDuration: 30, relayReverseEnabled: true }, c)).toEqual([]);
+  expect(doorErrors({ doorName: 'abcde', openDuration: 31 }, c)).toEqual(['doorName', 'openDuration']);
+  expect(doorErrors({ doorName: '', openDuration: NaN }, null)).toEqual(['doorName', 'openDuration']);
+  expect(needsTyped({ openDuration: 8 }, ['relayReverseEnabled'])).toBe(false);
+  expect(needsTyped({ relayReverseEnabled: true }, ['relayReverseEnabled'])).toBe(true);
 });

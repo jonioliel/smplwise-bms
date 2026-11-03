@@ -100,6 +100,8 @@ UNPINNED_CHANNELS = frozenset({"readback", "pacing"})
 INSTALLER = frozenset({
     # phase 1: clock / NTP (the station's clock READ again is the station-maintenance channel's `stations/clock_refresh`, not here)
     "clock/settings_get", "clock/settings_update", "clock/host_status", "clock/host_apply", "clock/station_sync",
+    # phase 2: a station's technical settings (door name, open time, relay inversion; capability and password-presence flags)
+    "stations/technical_get", "stations/technical_update",
 })
 
 ALLOWLISTS: dict[str, frozenset[str]] = {"background": BACKGROUND, "service": SERVICE, "read": READ, "technical": TECHNICAL, "messaging": MESSAGING,

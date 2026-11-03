@@ -3,13 +3,14 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-page';
 import '../components/sw-state-panel';
 import './installer-clock';
+import './installer-technical';
 import { settingsStyles } from '../styles/settings';
 import { ApiError } from '../api/client';
 import { getOverview, type InstallerOverview, type ToolName } from '../api/installer';
 import { installerText as T } from '../i18n/wiskey-installer';
 
 /** The tools of the area, in the order an installer meets them. A tool that is not built yet in this release is not listed. */
-export const INSTALLER_TOOLS: readonly ToolName[] = ['clock'];
+export const INSTALLER_TOOLS: readonly ToolName[] = ['clock', 'technical'];
 export const INSTALLER_HREF = '#/system/intercom-installer';
 
 /**
@@ -95,6 +96,7 @@ export class SystemIntercomInstaller extends LitElement {
     }
     const unknown = facts && facts.available === null ? html`<div class="msg warn" role="status">${T.unknownTool}</div>` : nothing;
     if (tool === 'clock') return html`${unknown}<installer-clock></installer-clock>`;
+    if (tool === 'technical') return html`${unknown}<installer-technical .stations=${this.overview?.stations ?? []}></installer-technical>`;
     return html``;
   }
 

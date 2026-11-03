@@ -89,3 +89,40 @@ export type InstallerText = typeof installerText;
 export function fill(template: string, values: Record<string, string | number>): string {
   return template.replace(/\{(\w+)\}/g, (_, k: string) => (k in values ? String(values[k]) : `{${k}}`));
 }
+
+export const technicalText = {
+  pick: 'עמדה',
+  pickHint: 'הנתונים נקראים מהמכשיר עצמו דרך WisKey. קריאה אורכת עד כדקה.',
+  read: 'קריאה מהעמדה',
+  reread: 'קריאה מחדש',
+  readAt: 'נקרא מהעמדה: {at}',
+  offline: 'העמדה אינה מחוברת - אפשר לקרוא את מה שנשמר, אבל לא לשנות.',
+  door: 'דלת {n}',
+  notMapped: 'הדלת אינה במיפוי הממסרים המאושר של העמדה, ולכן אי אפשר לשנות אותה מכאן.',
+  doorError: 'לא ניתן לקרוא את הדלת ({code}).',
+  fields: { doorName: 'שם הדלת', openDuration: 'זמן פתיחה (שניות)', relayReverseEnabled: 'היפוך ממסר' } as Record<string, string>,
+  bounds: 'בין {min} ל־{max}',
+  lengthBounds: '{min}-{max} תווים',
+  relayOn: 'הפוך',
+  relayOff: 'רגיל',
+  relayWarn: 'היפוך הממסר משנה את המשמעות של "נעול" ו"פתוח" במנעול. שינוי שגוי עלול להשאיר דלת פתוחה - נדרש אישור בהקלדה.',
+  save: 'שמירת הדלת',
+  saveHeading: 'שמירת ההגדרות של {door} בעמדה {name}',
+  saveBody: 'WisKey קורא את הדלת שוב, בודק שלא השתנתה מאז הקריאה, כותב רק את השדות שהשתנו וקורא בחזרה כדי לאמת.',
+  saved: 'נשמר ונקרא בחזרה מהעמדה.',
+  invalid: 'הערך מחוץ לטווח שהמכשיר מאפשר',
+  features: 'יכולות שהמכשיר מדווח',
+  supported: 'נתמך',
+  notSupported: 'לא נתמך',
+  passwords: 'סיסמאות ההרשאה במכשיר (קיום בלבד, לא הערכים)',
+  pinState: { configured: 'מוגדר קוד ציבורי', absent: 'אין קוד ציבורי', unknown: 'לא ידוע' } as Record<string, string>,
+  passwordNames: {
+    engineeringConfigured: 'סיסמת הנדסה', setupAlarmConfigured: 'סיסמת דריכה', householderUnlockConfigured: 'סיסמת פתיחה לדייר', antiHijackingConfigured: 'סיסמת חטיפה', sendCardConfigured: 'סיסמת כרטיס',
+  } as Record<string, string>,
+  set: 'מוגדרת',
+  unset: 'לא מוגדרת',
+  relays: 'מיפוי ממסרים מאושר',
+  relayRow: 'ממסר פיזי {physical} ← דלת API {api}',
+  noRelays: 'אין מיפוי ממסרים (עמדת מצלמה בלבד).',
+  empty: 'בחרו עמדה כדי לקרוא את ההגדרות הטכניות שלה.',
+};

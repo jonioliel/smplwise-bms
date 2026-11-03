@@ -18,6 +18,40 @@ export interface InstallerMock {
   unavailable: Set<string>;
   ntp: { revision: number; server: string; port: number; interval: number };
   writes: { path: string; body: Record<string, unknown> }[];
+  doors: Record<string, Record<number, DoorState>>;
+}
+
+export interface DoorState {
+  doorName: string;
+  openDuration: number;
+  relayReverseEnabled: boolean;
+}
+
+const BOUNDS = { doorName: { type: 'text', min: 1, max: 32 }, openDuration: { type: 'integer', min: 1, max: 255 }, relayReverseEnabled: { type: 'boolean' } };
+const RELAYS: Record<string, { physical_index: number; api_id: number; confirmed: boolean; name: string | null }[]> = {
+  'entry-a': [{ physical_index: 1, api_id: 1, confirmed: true, name: 'ראשי' }],
+  'entry-b': [{ physical_index: 1, api_id: 1, confirmed: true, name: null }],
+  'entry-c': [],
+};
+
+function technicalView(m: InstallerMock, s: { id: string; name: string; online: boolean }) {
+  return {
+    station_id: s.id, name: s.name, online: s.online, typed_phrase: s.name, fetched_at: '2026-09-27T10:29:00Z',
+    editable_doors: RELAYS[s.id].map((r) => r.api_id), dangerous_fields: ['relayReverseEnabled'],
+    report: {
+      checked_at: '2026-09-27T10:29:00+00:00',
+      doors: [1, 2].map((n) => ({ door: n, values: { ...m.doors[s.id][n] }, constraints: BOUNDS, error: null })),
+      passwords: { states: { engineeringConfigured: true, setupAlarmConfigured: false, householderUnlockConfigured: null, antiHijackingConfigured: false, sendCardConfigured: null }, public_pin_state: 'absent' },
+      password_error: null,
+      features: [
+        { family: 'AccessControl', name: 'isSupportDoorParam', supported: true },
+        { family: 'AccessControl', name: 'isSupportRemoteControlDoor', supported: true },
+        { family: 'VideoIntercom', name: 'isSupportPrivilegePasswordStatus', supported: true },
+        { family: 'VideoIntercom', name: 'isSupportElevatorControl', supported: false },
+      ],
+      relay_selection: RELAYS[s.id],
+    },
+  };
 }
 
 export const newInstallerMock = (over: Partial<InstallerMock> = {}): InstallerMock => ({
@@ -27,6 +61,7 @@ export const newInstallerMock = (over: Partial<InstallerMock> = {}): InstallerMo
   unavailable: new Set(),
   ntp: { revision: 3, server: 'time.windows.com', port: 123, interval: 60 },
   writes: [],
+  doors: Object.fromEntries(['entry-a', 'entry-b', 'entry-c'].map((id) => [id, { 1: { doorName: 'כניסה', openDuration: 5, relayReverseEnabled: false }, 2: { doorName: 'שער רכב', openDuration: 3, relayReverseEnabled: false } }])),
   ...over,
 });
 
@@ -121,6 +156,23 @@ export async function installInstallerMock(page: Page, m: InstallerMock = newIns
         configuration_verified: true, server: m.ntp.server, clock_verified: true, copied_system: false,
         clock: { device_time: '2026-09-27T13:30:01+03:00', checked_at: NOW.toISOString(), time_mode: 'NTP', skew_seconds: 1, measurement: { status: 'measured', estimated_skew_seconds: 0.7, uncertainty_seconds: 1.1 } },
       }));
+    }
+    const tech = /^technical\/stations\/([^/?]+)$/.exec(p);
+    if (tech && method === 'GET') {
+      const s = STATIONS.find((x) => x.id === decodeURIComponent(tech[1]))!;
+      if (m.result.technical_read === 'refused') return error(route, 502, 'installer_read_failed', 'WisKey לא החזיר את הנתונים (device_busy).', { state: 'error', wiskey_code: 'device_busy' });
+      return json(route, technicalView(m, s));
+    }
+    const door = /^technical\/stations\/([^/]+)\/doors\/(\d)$/.exec(p);
+    if (door && method === 'PUT') {
+      const s = STATIONS.find((x) => x.id === decodeURIComponent(door[1]))!;
+      const n = Number(door[2]);
+      const b = JSON.parse(req.postData() ?? '{}') as { changes: Record<string, unknown> };
+      const typed = 'relayReverseEnabled' in (b.changes ?? {}) ? s.name : null;
+      return write(route, typed ? 'update_relay' : 'update', typed, () => {
+        m.doors[s.id][n] = { ...m.doors[s.id][n], ...b.changes } as DoorState;
+        return { door: n, values: { ...m.doors[s.id][n] }, constraints: BOUNDS, error: null };
+      });
     }
     return error(route, 404, 'not_found', 'לא נמצא', {});
   });

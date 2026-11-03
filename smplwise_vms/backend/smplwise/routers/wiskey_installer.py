@@ -13,14 +13,16 @@ from ..auth import settings_of
 from ..rbac import Principal
 from ..services import intercom_sync, wiskey_channels
 from ..services import wiskey_installer as wi
-from . import wiskey_installer_clock
+from . import wiskey_installer_clock, wiskey_installer_technical
 from .wiskey_installer_common import installer_reader
 
 router = APIRouter()
 router.include_router(wiskey_installer_clock.router)
+router.include_router(wiskey_installer_technical.router)
 
 TOOLS: dict[str, tuple[str, ...]] = {
     "clock": ("clock/settings_get", "clock/settings_update", "clock/host_status", "clock/host_apply", "clock/station_sync"),
+    "technical": ("stations/technical_get", "stations/technical_update"),
 }
 
 
@@ -43,3 +45,4 @@ def installer_overview(request: Request, principal: Principal = Depends(installe
 def reset() -> None:
     wi.reset()
     wiskey_installer_clock.reset()
+    wiskey_installer_technical.reset()
