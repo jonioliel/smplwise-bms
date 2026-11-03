@@ -136,6 +136,22 @@ on a device or in WisKey from the code itself (only what an administrator explic
 - **UI copy rule**: the refusal line names WisKey ("WisKey סירב: ...") as the task requires; the operator screens' "no platform name"
   rule is otherwise kept (this block is administrator-only). Recorded as a deliberate exception, not silently resolved.
 
-## 7. Tests and receipts
+## 7. Tests and receipts (all against fakes / mocked backends; no lab, no device)
 
-See section 8 (filled from the actual runs).
+| What | Where | Command | Result |
+|---|---|---|---|
+| Backend: door-tech suite (fake WisKey: every command, refusal, partial, unknown/timeout, not-sent relay, permissions incl. deny over `system.configure`, confirmations, typed phrase, limits, codes never in reply / audit / log) + channel / contract suites around the shared edits | workstation, Python 3.12.10 (repo venv) | `pytest tests/test_wiskey_door_tech.py tests/test_wiskey_channels.py tests/test_pwclean_295.py tests/test_wiskey_contract.py tests/test_wkdirect_295.py tests/test_eccact_readback_295.py tests/test_wa_pacing_coverage_295.py tests/test_intercom_adapter.py` | **273 passed, 2 skipped, 0 failed** (backend code as of `6eda53858`, unchanged since) |
+| Frontend typecheck (src + tests) | workstation, Node 24.21.0 | `npx tsc --noEmit` | exit 0 |
+| Unit spec (node, no page) | workstation | `npx playwright test -c playwright.unit.config.ts tests/unit-wiskey-door-tech.spec.ts` | **8 passed** |
+| Evidence + regression browser specs, desktop + phone | runner | `run_smart.py spec pilot/WISKEY-DOOR-TECH-2390 tests/evidence-wiskey-door-tech.spec.ts tests/evidence-wiskey-stations.spec.ts tests/layout-wiskey-stations.spec.ts tests/unit-wiskey-door-tech.spec.ts --project=desktop --project=mobile --machine runner` @ `1ac9f02d1` | **123 passed, 7 skipped** (skips are the specs' own tablet / live guards) |
+| Pixel (`pixel-stable` titles), desktop 1440 + phone 390 | runner | `run_smart.py linux-pixel pilot/WISKEY-DOOR-TECH-2390 tests/pixel-wiskey-door-tech.spec.ts tests/pixel-wiskey-stations.spec.ts --project=desktop --project=mobile` @ `1ac9f02d1`, twice | **21 passed, 1 skipped** - both runs |
+
+Baselines: 8 new `door-tech-{hold,confirm,code,programs}-{1440,390}` and the refreshed `stations-classic-settings-{1440,390}`, all
+generated on the runner with `--update-snapshots` and reviewed. The pixel runs found three UI defects that were fixed on the branch
+(confirmation drawn off-screen on a phone, weekly hours reversed in the Hebrew line, the tab bar squashed under a tall tab) and
+two scroll-dependent shots that were made deterministic (the page / drawer behind the dialog is pinned).
+
+NOT_RUN: the full backend suite (a run over all 64 `test_(wiskey|intercom|access_control...)` files was stopped at 7% after ~40 min
+on the workstation - too slow; the focused set above covers every shared edit); the release gate; any lab / live WisKey test (by task
+rule). Evidence PNGs written by the evidence spec stay on the runner (`docs/design/evidence/wiskey-door-tech/`), not copied back - the
+pixel baselines are the reviewed pictures.
