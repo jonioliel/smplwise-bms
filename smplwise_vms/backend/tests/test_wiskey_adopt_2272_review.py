@@ -176,6 +176,15 @@ def _pinned_copy(root: Path, version: str | None = None, marker: str | None = No
 
 
 @pytest.fixture()
+def legacy_src(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """WISKEY-MANAGED-INSTALL-2382: the shipped bundle now carries WisKey's MANAGED pin (the unattended path stops it at the Core gate);
+    the installer mechanics below are the legacy-pin rule, so they stage the same bytes re-pinned without a profile (SW_NATIVE_SRC)."""
+    src = _pinned_copy(tmp_path / "legacy_integ")
+    monkeypatch.setenv("SW_NATIVE_SRC", str(src))
+    return src
+
+
+@pytest.fixture()
 def cfg(tmp_path: Path) -> Path:
     root = tmp_path / "ha"
     (root / "custom_components").mkdir(parents=True)
@@ -229,7 +238,7 @@ def test_h3_arx_s_own_tree_is_replaced_and_kept_as_the_rollback_backup(cfg: Path
 
 @pytest.mark.skipif(not __import__('smplwise.services.wiskey_native_projection', fromlist=['x']).fence_supported(), reason="WISKEY-RC7-ADOPT-2331 rc.7 row 5b: the projection refuses without fcntl (generation_fence_unsupported) - runner")
 def test_h3_the_installer_stores_the_staged_digest_and_refuses_a_newer_tree(settings: Any, tmp_path: Path,
-                                                                            monkeypatch: pytest.MonkeyPatch) -> None:
+                                                                            monkeypatch: pytest.MonkeyPatch, legacy_src: Path) -> None:
     from smplwise.services import bridge_install, ha_client
 
     cfg_dir = tmp_path / "cfg"
@@ -520,7 +529,8 @@ def test_m7_concurrent_enqueue_returns_the_recorded_state_never_a_false_not_sent
 
 @pytest.mark.parametrize("where", ["_staged_digest", pytest.param("request_component_restart", marks=pytest.mark.skipif(
     not __import__('smplwise.services.wiskey_native_projection', fromlist=['x']).fence_supported(), reason="WISKEY-RC7-ADOPT-2331 rc.7 row 5b: the projection refuses without fcntl (generation_fence_unsupported) - runner"))])
-def test_m8_installer_step_on_a_database_error(settings: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, where: str) -> None:
+def test_m8_installer_step_on_a_database_error(settings: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, where: str,
+                                              legacy_src: Path) -> None:
     import sqlite3
 
     from smplwise.services import bridge_install, ha_client
