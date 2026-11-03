@@ -104,8 +104,9 @@ never names the integration.
 | `smplwise_vms/backend/smplwise/services/wiskey_media_caps.py` (new) | the signed source: cache, join shortcut, one-off signed read, reason kinds |
 | `smplwise_vms/backend/smplwise/services/intercom_media.py` | `Listing` + `listing()`; `provider_for`, `WiskeyBridgeProvider.listed/_describe`, `readiness`, `talk_gap`, `READINESS_CODES`, `set_provider` |
 | `smplwise_vms/backend/smplwise/routers/intercom_media.py` | docstrings only (first lines unchanged, so the API inventory is unchanged) |
-| `smplwise_vms/backend/tests/test_wiskey_talk_caps_2382.py` (new) | 27 tests on the fake direct server + fake station |
+| `smplwise_vms/backend/tests/test_wiskey_talk_caps_2382.py` (new) | 28 tests on the fake direct server + fake station |
 | `smplwise_vms/backend/tests/test_station_media_readiness_2382.py` | the signed listing scripted in its fixture; new cases; two expectations follow the precise meaning |
+| `smplwise_vms/backend/tests/test_t06_admission_295.py` | `wiskey_media_caps.py` added to the pinned set of modules that reach the signing seam (admission: two discovery reads only, pinned in the new test file) |
 | `frontend/src/api/station-media.ts` | `capabilities_unread` in `READINESS_CODES` and `TALK_REASONS`; `StationMediaCapabilities`, `CAPS_REASON_KINDS`, `capsReasonKind` |
 | `frontend/src/i18n/wiskey-station-media.ts` | Hebrew and English: the drawer reason, the row code, the five reason kinds |
 | `frontend/src/screens/system-access-display.ts` | the row fills `{kind}` of the new code |
@@ -120,7 +121,26 @@ No `management/tasks.json` edit (other agents edit it concurrently; the lead rec
 
 ## 5. Tests
 
-RECEIPTS_PLACEHOLDER
+All backend runs: workstation, Python 3.12 (the repository venv), `smplwise_vms/backend`. Browser specs: the runner via `run_smart.py`
+(gate idle - `gate_status` pass, no release_gate process - checked right before the job).
+
+| Command | Where | Result |
+|---|---|---|
+| `pytest tests/test_wiskey_talk_caps_2382.py` | workstation | 28 passed |
+| `pytest tests/test_station_media_readiness_2382.py` | workstation | 29 passed |
+| 20 impacted files in one process: adoptr6, asgi_wiskey, intercom_media, t06_admission, w031, mac_adopt_298 (+review), media_v11, r2_align contracts, wk4adopt, wkaudin, wkdirect, wkf01f02, wkjoin, wkr5, adopt_2272 (contrib, review), rc10_pin, readiness, talk_caps | workstation | 726 passed, 5 skipped, 3 xfailed, **1 failed**: `test_t06_admission_295::test_the_only_modules_that_reach_a_signing_call_are_the_known_ones` - the new module reaches the signing seam (an admission decision): added to the pinned set, its commands pinned by a new test |
+| `pytest tests/test_t06_admission_295.py tests/test_wiskey_talk_caps_2382.py tests/test_station_media_readiness_2382.py` (after the fix) | workstation | 119 passed, 3 xfailed |
+| `npx tsc --noEmit -p .` | workstation | exit 0 |
+| `npx playwright test -c playwright.unit.config.ts tests/unit-wiskey-talk-caps-2382.spec.ts tests/unit-wiskey-talk-dial-2382.spec.ts` (node only, no browser) | workstation | 11 passed |
+| `run_smart.py spec pilot/WISKEY-TALK-CAPS-2382 tests/evidence-wiskey-talk-caps-2382.spec.ts tests/evidence-wiskey-talk-dial-2382.spec.ts --project=desktop --project=mobile --machine runner` @ `d325f22f0` | runner | 25 passed, 7 skipped (the Settings tests run on desktop only, by design) |
+
+NOT_RUN:
+- the full backend suite (local or runner): only the 20 impacted files ran;
+- pixel baselines: no `toHaveScreenshot` in the new spec. The drawer markup is unchanged (only a new reason string), so the TALK-DIAL
+  baselines are not expected to move. Not re-taken;
+- the gate, `npm run build:addon`, the API inventory: the first docstring lines are unchanged;
+- lab / real WisKey rc.10: no lab access in this task. The first real check is the readiness row on the lab after the train is
+  installed: `wiskey.listed_in` should read `capabilities`, and `missing` should be empty.
 
 ## 6. Known limits
 

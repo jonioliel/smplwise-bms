@@ -341,6 +341,23 @@ def test_never_read_on_an_event_loop_thread(wk, settings):
     assert asyncio.run(on_loop()) is None and connects(wk.server) == 0
 
 
+def test_the_signed_read_sends_only_the_two_discovery_reads(wk, settings):
+    """T06 admission: wiskey_media_caps reaches the signing seam, so what it sends is pinned - the two discovery reads with empty parameters,
+    on the plain bridge-command envelope; never a W10 command, never a write."""
+    import ast
+
+    for state in ("w10", "refused"):
+        if state == "refused":
+            wk.server.script["direct/time"] = {"error": "Unauthorized"}
+            caps.invalidate()
+        im.readiness(settings, db("auto"))
+    assert {(c, k) for c, k, _p in wk.server.received} == {("direct/capabilities", "wiskey-bridge-command.v1"), ("direct/time", "wiskey-bridge-command.v1")}
+    assert all(p == {} for _c, _k, p in wk.server.received)
+    src = Path(caps.__file__).read_text(encoding="utf-8")
+    sent = [n for n in ast.walk(ast.parse(src)) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "call_command"]
+    assert len(sent) == 1 and isinstance(sent[0].args[0], ast.Name) and sent[0].args[0].id == "command", "one seam call, fed by DirectDiscovery"
+
+
 def test_reason_kinds_cover_the_reader_codes():
     assert caps.reason_kind(None) is None
     assert caps.reason_kind("discovery_unknown:outcome_unknown") == "unreachable"

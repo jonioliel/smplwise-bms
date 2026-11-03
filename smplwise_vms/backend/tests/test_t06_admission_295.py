@@ -219,7 +219,10 @@ def test_the_only_modules_that_reach_a_signing_call_are_the_known_ones():
                        "wiskey_capture_map.py", "wiskey_peer.py", "wiskey_peer_query.py", "wiskey_people_csv.py", "wiskey_native_feed.py",
                        "wiskey_program_direct.py",  # WISKEY-OWNER26-297: G-DOOR-WINDOWS (W-023)
                        "wiskey_auto_install.py",  # WISKEY-R3-2272: the installed client; its commands are pinned below
-                       "wiskey_relay_map_native.py"}, callers  # WISKEY-RC7-ADOPT-2331 row 6 / M12 S3: relay map transfer; commands pinned below
+                       "wiskey_relay_map_native.py",  # WISKEY-RC7-ADOPT-2331 row 6 / M12 S3: relay map transfer; commands pinned below
+                       # WISKEY-TALK-CAPS-2382: the two discovery READS only (direct/capabilities + direct/time through DirectDiscovery, empty
+                       # parameters, no W10 command); pinned in test_wiskey_talk_caps_2382.py::test_the_signed_read_sends_only_the_two_discovery_reads
+                       "wiskey_media_caps.py"}, callers
 
 
 def test_the_installed_client_sends_only_the_pinned_installation_and_read_commands():
