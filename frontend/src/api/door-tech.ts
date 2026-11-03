@@ -222,10 +222,11 @@ export function normalized(b: PolicyBody): PolicyBody {
   };
 }
 
-/** One line per weekday with hours ("א׳ 07:00–19:00, 20:00–22:00"); days without hours are left out. */
+/** One line per weekday with hours ("א׳ 07:00–19:00, 20:00–22:00", the hours isolated left-to-right); days without hours are left out. */
 export function weekLines(b: PolicyBody | null, t: DoorTechText): string[] {
   if (!b) return [];
-  return WEEK.filter((d) => (b.weekly[d] ?? []).length).map((d) => `${t.days[d]} ${(b.weekly[d] ?? []).map((p) => `${p.start}–${p.end}`).join(', ')}`);
+  // the hours are a left-to-right isolate inside the Hebrew line (never shown reversed, as the drawer's program rows)
+  return WEEK.filter((d) => (b.weekly[d] ?? []).length).map((d) => `${t.days[d]} ⁦${(b.weekly[d] ?? []).map((p) => `${p.start}–${p.end}`).join(', ')}⁩`);
 }
 
 // ---------------------------------------------------------------- codes

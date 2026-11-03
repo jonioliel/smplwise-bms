@@ -82,7 +82,7 @@ test('the editor model: a served policy becomes a full week, nothing invented; n
   const n = normalized(body({ name: '  Lobby  ', weekly: { ...emptyBody('x').weekly, Sunday: [{ start: '20:00', end: '24:00' }, { start: '06:00', end: '08:00' }] } }));
   expect(n.name).toBe('Lobby');
   expect(n.weekly.Sunday.map((p) => p.start)).toEqual(['06:00', '20:00']);
-  expect(weekLines(n, he)).toEqual(['א׳ 06:00–08:00, 20:00–24:00']);
+  expect(weekLines(n, he)).toEqual(['א׳ ⁦06:00–08:00, 20:00–24:00⁩']);
 });
 
 test('the editor checks the server rules: name, times, order, overlap, eight periods, dates', () => {

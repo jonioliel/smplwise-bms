@@ -440,7 +440,11 @@ export class WkDoorTech extends LitElement {
 
   private ask(p: Pending): void {
     this.pending = p;
-    this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>('[data-wk-dt-send]')?.focus());
+    this.updateComplete.then(() => {
+      const box = this.renderRoot.querySelector<HTMLElement>('[data-wk-dt-confirm]');
+      box?.scrollIntoView({ block: 'nearest' });
+      box?.querySelector<HTMLElement>('[data-wk-dt-send]')?.focus();
+    });
   }
 
   private async send(): Promise<void> {
@@ -608,7 +612,6 @@ export class WkDoorTech extends LitElement {
           (id) => html`<button type="button" role="tab" aria-selected=${String(this.tab === id)} data-wk-dt-tab=${id} @click=${() => this.pick(id)}>${t.tabs[id]}</button>`,
         )}
       </div>
-      ${this.pending ? this.renderConfirm(this.pending) : nothing}
       <div role="tabpanel" data-wk-dt-panel=${this.tab}>
         ${this.tab === 'hold' ? this.renderHold() : this.tab === 'codes' ? this.renderCodes() : this.tab === 'programs' ? this.renderPrograms() : this.renderHistory()}
       </div>`;
@@ -624,6 +627,11 @@ export class WkDoorTech extends LitElement {
         <wk-action-button data-wk-dt-cancel @click=${() => (this.pending = null)}>${t.confirm.cancel}</wk-action-button>
       </div>
     </div>`;
+  }
+
+  /** The confirmation of a write, drawn where the operator asked for it (the door's card, under the editor's buttons) - never off-screen. */
+  private confirmAt(key: string): TemplateResult | typeof nothing {
+    return this.pending?.key === key ? this.renderConfirm(this.pending) : nothing;
   }
 
   private result(key: string): TemplateResult | typeof nothing {
@@ -667,7 +675,7 @@ export class WkDoorTech extends LitElement {
                 ? html`<span>${fill(t.hold.holidays, { n: body.holidays.length })}</span>`
                 : nothing}</div>`
             : html`<span class="line">${t.hold.none}</span>`}
-          ${this.result(key)}
+          ${this.confirmAt(key)} ${this.result(key)}
         </div>`;
       })}`;
   }
@@ -751,7 +759,7 @@ export class WkDoorTech extends LitElement {
         <wk-action-button tone="primary" icon="check" data-wk-dt-save ?disabled=${!this.live || !!this.running || problems.length > 0} @click=${() => this.askHoldSave()}>${t.editor.save}</wk-action-button>
         <wk-action-button data-wk-dt-editor-cancel ?disabled=${!!this.running} @click=${() => ((this.editing = null), (this.pending = null))}>${t.editor.cancel}</wk-action-button>
       </div>
-      ${this.result(`hold:${e.door}`)}
+      ${this.confirmAt(`hold:${e.door}`)} ${this.result(`hold:${e.door}`)}
     </div>`;
   }
 
@@ -795,7 +803,7 @@ export class WkDoorTech extends LitElement {
         </div>
         ${!draftBody && (!p || paused) ? html`<span class="line">${t.programs.needDraft}</span>` : nothing}
         ${draftBody && p?.enabled ? html`<span class="line">${t.programs.pauseFirst}</span>` : nothing}
-        ${this.result(key)}
+        ${this.confirmAt(key)} ${this.result(key)}
       </div>`;
     })}`;
   }
