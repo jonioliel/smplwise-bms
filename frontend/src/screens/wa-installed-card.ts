@@ -9,7 +9,7 @@ import { describeError } from '../api/client';
 import { waInstalledApi, type InstalledCommand, type InstalledJob, type InstalledTemplate, type InstalledView } from '../api/wa-installed';
 import { statusStyles } from '../access-control/status-css';
 import { skeletonRows } from '../access-control/status-panel';
-import { bidi } from '../i18n/bidi';
+import { bidi, ltrIsolate } from '../i18n/bidi';
 import { wi, type WiKey } from '../i18n/wa-installed';
 import { blockers, jobTone, jobWord, pacedEditable, recentJobs, syncTone } from '../messaging/wa-installed-model';
 import { timeText } from '../api/day-format';
@@ -130,7 +130,7 @@ export class WaInstalledCard extends LitElement {
   private template(t: InstalledTemplate): TemplateResult {
     return html`<div class="row" data-wa-template=${t.id} data-source=${t.source}>
       <span class="dot ${t.bound ? 'ok' : 'muted'}" aria-hidden="true"></span>
-      <span class="main"><span class="t"><span class="ltr">${bidi(t.name)}</span></span>
+      <span class="main"><span class="t">${ltrIsolate(t.name)}</span>
         <span class="s">${t.language} · ${wi(t.source === 'wiskey' ? 'src_wiskey' : 'src_arx')}${t.account ? html` · <span class="ltr">${bidi(t.account)}</span>` : nothing}${t.bound ? nothing : html` · ${wi('unbound')}`}</span></span>
     </div>`;
   }
