@@ -2,6 +2,7 @@ import { test, expect, type Locator, type Page, type TestInfo } from '@playwrigh
 import { install, newMock } from './wiskey-people-mock';
 import { installWrites, newWrites } from './wiskey-writes-mock';
 import { installStationPeople, newStationPeople, type StationPeopleMock } from './station-people-mock';
+import { settle } from './helpers/settle';
 
 // WISKEY-PEOPLE-COMPLETE-2390 (owner decision Q3 "a", 03.11): evidence for the "people on stations only" view of the people screen
 // (אנשים > בעמדות בלבד), its three actions (adopt, ignore, delete from the station) with their confirmations and honest per-station
@@ -14,7 +15,6 @@ import { installStationPeople, newStationPeople, type StationPeopleMock } from '
 const SCREEN = 'wiskey-people';
 const VIEW = 'wiskey-station-people';
 const NOW = '2026-11-03T10:00:00Z';
-const settle = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 const desktopOnly = (info: TestInfo) => test.skip(info.project.name !== 'desktop', 'desktop project: functional spec');
 const layoutOnly = (info: TestInfo) => test.skip(!['desktop', 'mobile'].includes(info.project.name), 'desktop and mobile layout');
 const shot = (page: Page, info: TestInfo, name: string) => settle(page).then(() => page.screenshot({ path: info.outputPath(`${name}.png`) }));
@@ -212,6 +212,7 @@ test('layout: the view fits the screen with no sideways scroll, actions reachabl
   await shot(page, info, `station-people-${info.project.name}`);
   await row(page, '2003').locator('[data-station-user-act="delete"]').click();
   await expect(action(page)).toHaveAttribute('data-station-action', 'delete');
+  await settle(page); // the confirmation dialog opens with an animation: measure it at rest
   const ask = await action(page).locator('[data-station-action-typed]').boundingBox();
   expect(ask!.x + ask!.width).toBeLessThanOrEqual(vw + 1);
   await shot(page, info, `station-people-delete-${info.project.name}`);

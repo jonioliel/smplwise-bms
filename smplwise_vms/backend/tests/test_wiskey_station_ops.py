@@ -41,7 +41,7 @@ AUTH_ROWS = [
      "error": "authentication_failed", "status_code": 4, "sub_status": "unauthorized"},
     {"timestamp": "2026-11-03T05:12:00+00:00", "station_ref": "aaaaaaaaaaaa", "user_ref": None, "step": "complete", "outcome": "succeeded"},
     {"timestamp": "2026-11-03T06:41:00+00:00", "station_ref": "aaaaaaaaaaaa", "user_ref": None, "step": "inventory", "outcome": "failed",
-     "error": "authentication_failed", "status_code": 4, "sub_status": "secret-host-10.0.0.9"},
+     "error": "authentication_failed", "status_code": 4, "sub_status": "secret-host-192.0.2.9"},
 ]
 
 
@@ -177,7 +177,7 @@ def test_each_action_sends_its_one_frame_with_the_catalog_keys(wx, action, comma
     trail = rows(s, ops.OPS[action].audit)
     assert [r["details"]["phase"] for r in trail] == ["attempt", "outcome"]
     assert trail[1]["details"]["outcome"] == "ok" and trail[1]["actor_user_id"] == "dev-root" and trail[1]["resource_id"] == "entry-a"
-    assert "10.0.0" not in json.dumps(trail)
+    assert "192.0.2" not in json.dumps(trail)
 
 
 def test_sync_is_acknowledged_not_claimed_done_and_the_clock_is_a_read(wx):
@@ -200,7 +200,7 @@ def test_health_refresh_returns_the_report_with_the_authentication_failure(wx):
     auth = data["auth"]
     assert auth["last_failure"] == {"source": "sync", "step": "inventory", "at": "2026-11-03T06:41:00+00:00", "status_code": 4, "sub_status": "other"}
     assert auth["retained"] == 2 and auth["steps"] == {"identity": 1, "inventory": 1} and auth["last_sync_ok_at"] == "2026-11-03T05:12:00+00:00"
-    assert "user_ref" not in json.dumps(data) and "bbbbbbbbbbbb" not in json.dumps(data) and "10.0.0.9" not in json.dumps(data)
+    assert "user_ref" not in json.dumps(data) and "bbbbbbbbbbbb" not in json.dumps(data) and "192.0.2.9" not in json.dumps(data)
 
 
 # ---------------------------------------------------------------- the gates

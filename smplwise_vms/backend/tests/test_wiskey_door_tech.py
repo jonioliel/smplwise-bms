@@ -581,7 +581,7 @@ def test_the_policy_is_wiskeys_shape_and_the_code_rules():
 
 
 def test_project_relays_and_codes_keep_no_value():
-    relays = dt.project_relays("entry-c")({"stations": [{"id": "entry-c", "host": "10.0.0.9", "integrated_locks": [{"physical_index": 1, "api_id": 1}, {"physical_index": 2, "api_id": 7}]}]})
+    relays = dt.project_relays("entry-c")({"stations": [{"id": "entry-c", "host": "192.0.2.9", "integrated_locks": [{"physical_index": 1, "api_id": 1}, {"physical_index": 2, "api_id": 7}]}]})
     assert relays == {"found": True, "relays": {1: 1, 2: 7}}
     out = dt.project_code_write(2)({"status": {"states": {"public2Configured": True}, "new_pin": "999999"}, "capabilities": {"slots": [2]}, "acknowledged": True,
                                     "old_pin": "111111"})
