@@ -7,7 +7,7 @@
  */
 const he = {
   title: 'התקנה ועדכון של רכיב בקרת הכניסה',
-  lead: 'מנהל מערכת מתקין ומעדכן את הרכיב מכאן, אחרי בדיקת גיבוי מלא. שום דבר לא מותקן מעצמו, ואין שדרוג לאחור.',
+  lead: 'מנהל מערכת מתקין ומעדכן את הרכיב מכאן, אחרי בדיקת גיבוי מלא. התקנה בעליית התוסף רק אם הופעלה כאן, ואין שדרוג לאחור.',
   installed: 'מותקן',
   shipped: 'זמין בגרסה זו',
   status: 'מצב',
@@ -45,7 +45,15 @@ const he = {
   enabledTitle: 'התקנה ועדכון דרך המערכת',
   enabledText: 'כשמופעל, מנהל מערכת יכול להתקין, לעדכן ולהחזיר גרסה מכאן. ההפעלה עצמה לא מתקינה דבר.',
   riskTitle: 'קבלת סיכון בבדיקת סביבת ההתקנה',
-  riskText: 'מאפשר עדכון כשסביבת ההתקנה נצפתה אך לא ניתן לאמת את מקורה. לא חל על אף תוצאה אחרת.',
+  riskText: 'מאפשר עדכון כשסביבת ההתקנה נצפתה אך לא ניתן לאמת את מקורה. לא חל על אף תוצאה אחרת, ולא על התקנה בעליית התוסף.',
+  startupTitle: 'התקנה ועדכון בעליית התוסף',
+  startupText: 'כשמופעל, עדכון זמין מתבצע מעצמו כשהתוסף עולה, עם אותן בדיקות: גיבוי מלא עדכני, בדיקת סביבת ההתקנה, השוואה והחזרה בכשל. התקנה ידנית שלא הועברה לניהול לא תוחלף. ניסיון אחד לכל גרסה.',
+  keepTitle: 'כמה עדכונים אחרונים לשמור',
+  keepText: 'לכל עדכון נשמרים הגרסה הקודמת והגיבוי הפרטי שלו. הישנים יותר נמחקים אחרי העדכון המוצלח הבא.',
+  keepLabel: 'מספר העדכונים',
+  keepSave: 'שמירה',
+  keepSaved: 'נשמר',
+  originStartup: 'בעליית התוסף',
   typeQ: 'להפעיל את "{name}"?',
   typeText: 'כדי לאשר, יש להקליד את המשפט: {phrase}',
   typeLabel: 'משפט האישור',
@@ -97,7 +105,9 @@ const he = {
   job_failed: 'נכשל',
   lastRun: 'הפעולה האחרונה',
   riskAccepted: 'בוצע בקבלת סיכון בבדיקת סביבת ההתקנה',
-  unattended: 'התקנה אוטומטית ללא מנהל נשארת כבויה.',
+  unattended: 'ההתקנה האוטומטית הישנה, בלי בדיקת גיבוי והשוואה, נשארת כבויה.',
+  code_core_not_running: 'תשתית המערכת לא פועלת',
+  code_validation: 'הערך אינו תקין',
   code_full_backup_missing: 'לא נמצא גיבוי מלא',
   code_full_backup_stale: 'הגיבוי המלא האחרון ישן מ-24 שעות',
   code_backups_unreadable: 'אי אפשר לקרוא את רשימת הגיבויים',
@@ -120,7 +130,7 @@ type Key = keyof typeof he;
 
 const en: Record<Key, string> = {
   title: 'Installing and updating the access-control component',
-  lead: 'A system administrator installs and updates the component from here, after a full-backup check. Nothing installs by itself, and there is no downgrade.',
+  lead: 'A system administrator installs and updates the component from here, after a full-backup check. It installs at add-on start-up only when turned on here, and there is no downgrade.',
   installed: 'Installed',
   shipped: 'Available in this version',
   status: 'Status',
@@ -158,7 +168,15 @@ const en: Record<Key, string> = {
   enabledTitle: 'Install and update through the system',
   enabledText: 'When on, a system administrator can install, update and roll back from here. Turning it on installs nothing.',
   riskTitle: 'Accept the risk of the installation-environment check',
-  riskText: 'Allows an update when the installation environment was observed but its origin cannot be verified. Covers no other result.',
+  riskText: 'Allows an update when the installation environment was observed but its origin cannot be verified. Covers no other result, and never an add-on start-up install.',
+  startupTitle: 'Install and update when the add-on starts',
+  startupText: 'When on, an available update runs by itself when the add-on starts, with the same checks: a recent full backup, the installation-environment check, the comparison and the rollback on failure. A manual installation not handed over is never replaced. One attempt per version.',
+  keepTitle: 'How many recent updates to keep',
+  keepText: 'Each update keeps the previous version and its private backup. Older ones are removed after the next successful update.',
+  keepLabel: 'Number of updates',
+  keepSave: 'Save',
+  keepSaved: 'Saved',
+  originStartup: 'At add-on start-up',
   typeQ: 'Turn on "{name}"?',
   typeText: 'To confirm, type the sentence: {phrase}',
   typeLabel: 'Confirmation sentence',
@@ -210,7 +228,9 @@ const en: Record<Key, string> = {
   job_failed: 'Failed',
   lastRun: 'Last action',
   riskAccepted: 'Done with the installation-environment risk accepted',
-  unattended: 'Unattended automatic installation stays off.',
+  unattended: 'The old automatic installation, without the backup check and the comparison, stays off.',
+  code_core_not_running: 'The platform is not running',
+  code_validation: 'The value is not valid',
   code_full_backup_missing: 'No full backup found',
   code_full_backup_stale: 'The last full backup is older than 24 hours',
   code_backups_unreadable: 'The backup list cannot be read',
@@ -234,7 +254,6 @@ const en: Record<Key, string> = {
 const ar: Record<Key, string> = {
   ...en,
   title: 'تثبيت وتحديث مكوّن التحكم في الدخول',
-  lead: 'يثبّت مدير النظام المكوّن ويحدّثه من هنا بعد التحقق من نسخة احتياطية كاملة. لا يُثبَّت شيء تلقائيا، ولا رجوع إلى إصدار أقدم.',
   installed: 'المثبّت',
   shipped: 'المتوفر في هذا الإصدار',
   status: 'الحالة',
@@ -261,14 +280,12 @@ const ar: Record<Key, string> = {
   progress: 'التقدّم',
   job_succeeded: 'اكتمل',
   job_running: 'قيد التنفيذ',
-  unattended: 'يبقى التثبيت التلقائي دون مدير متوقفا.',
 };
 
 // initial translation - needs a native review (dev-marked)
 const ru: Record<Key, string> = {
   ...en,
   title: 'Установка и обновление компонента контроля доступа',
-  lead: 'Системный администратор устанавливает и обновляет компонент отсюда после проверки полной резервной копии. Ничего не устанавливается само, отката версии нет.',
   installed: 'Установлено',
   shipped: 'Доступно в этой версии',
   status: 'Состояние',
@@ -295,7 +312,6 @@ const ru: Record<Key, string> = {
   progress: 'Ход выполнения',
   job_succeeded: 'Завершено',
   job_running: 'Выполняется',
-  unattended: 'Автоматическая установка без администратора остаётся выключенной.',
 };
 
 const TABLES: Record<WmLang, Record<Key, string>> = { he, en, ar, ru };

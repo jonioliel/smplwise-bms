@@ -281,7 +281,7 @@ def _job(w) -> dict[str, Any]:
 def test_the_switches_are_off_by_default_and_the_view_names_no_path(world):
     _install_manual(world)
     body = world["client"].get(API).json()
-    assert body["switches"] == {"enabled": "off", "core_risk": "off"}
+    assert body["switches"] == {"enabled": "off", "core_risk": "off", "startup": "off"}
     assert body["unattended_permitted"] is False, "the unattended path stays closed (policy B)"
     assert body["installed"]["ownership"] == "manual" and body["installed"]["markers"] == {"component": "manual", "config": "manual"}
     assert body["plan"] == "convert" and body["runnable"] is False and body["adoptable"] is True
@@ -318,9 +318,9 @@ def test_the_risk_switch_needs_the_managed_switch_and_its_own_phrase_and_goes_of
     assert _switch_on(world, "core_risk", PHRASE_RISK).status_code == 409
     assert _switch_on(world).status_code == 200
     assert _switch_on(world, "core_risk", PHRASE_ON).status_code == 422
-    assert _switch_on(world, "core_risk", PHRASE_RISK).json()["switches"] == {"enabled": "on", "core_risk": "on"}
+    assert _switch_on(world, "core_risk", PHRASE_RISK).json()["switches"] == {"enabled": "on", "core_risk": "on", "startup": "off"}
     r = world["client"].put(API + "/switch", json={"switch": "enabled", "value": "off"})
-    assert r.status_code == 200 and r.json()["switches"] == {"enabled": "off", "core_risk": "off"}
+    assert r.status_code == 200 and r.json()["switches"] == {"enabled": "off", "core_risk": "off", "startup": "off"}
 
 
 def test_a_non_system_admin_is_refused(world, settings):
@@ -343,28 +343,30 @@ def test_missing_or_any_value_but_on_reads_off(world, stored):
 
 
 def test_no_code_path_writes_the_managed_switches_except_the_owners_writer():
-    """Static, same style as policy B's test_1b: K_ENABLED / K_RISK are written by one function only (`set_switch`, behind
+    """Static, same style as policy B's test_1b: K_ENABLED / K_RISK / K_STARTUP are written by one function only (`set_switch`, behind
     `check_switch`), and only the owner's route calls it. The policy-B check of `wiskey.auto_install` stays as it is."""
     call = re.compile(r"set_setting\(([^()]|\([^()]*\))*\)", re.S)
     text = (PACKAGE / "services" / "wiskey_managed_install.py").read_text(encoding="utf-8")
-    body = text[text.index("def set_switch("):text.index("# ---------------------------------------------------------------- the bundle")]
+    body = text[text.index("def set_switch("):text.index("# ---------------------------------------------------------------- the number of recent runs")]
     offenders = []
     for path in PACKAGE.rglob("*.py"):
         source = path.read_text(encoding="utf-8")
         for m in call.finditer(source):
             args = m.group(0)
-            if re.search(r"K_ENABLED|K_RISK|wiskey\.managed\.(enabled|core_risk)", args):
-                # the one named write allowed: inside set_switch, the accepted-risk switch going OFF with the managed switch
-                if not (path.name == "wiskey_managed_install.py" and args == 'set_setting(conn, K_RISK, "off")' and args in body):
-                    offenders.append(f"{path.relative_to(BACKEND).as_posix()}: {args[:80]}")
-    assert offenders == []  # set_switch writes ON only by the closed list (`k`) behind check_switch, never by naming the key
-    assert text.count('set_setting(conn, K_RISK, "off")') == 1
+            if re.search(r"K_ENABLED|K_RISK|K_STARTUP\b|SWITCH_KEYS|DEPENDENT_KEYS|wiskey\.managed\.(enabled|core_risk|startup)\b", args):
+                offenders.append(f"{path.relative_to(BACKEND).as_posix()}: {args[:80]}")
+    assert offenders == []  # set_switch writes only by the closed lists (`k`, `dep`) behind check_switch, never by naming the key
+    # the two loop writes, both inside set_switch: the asked key (`k == key`) and a dependent switch going OFF with the managed switch
+    assert re.findall(r"set_setting\(conn, (\w+), ", body) == ["k", "dep", "K_STARTUP_ATTEMPT"]
+    assert 'set_setting(conn, dep, "off")' in body and "set_setting(conn, k, value)" in body
+    assert text.count("set_setting(conn, k, value)") == 1 and text.count('set_setting(conn, dep, "off")') == 1
+    assert wmi.DEPENDENT_KEYS == (wmi.K_RISK, wmi.K_STARTUP) and wmi.SWITCH_KEYS == (wmi.K_ENABLED, wmi.K_RISK, wmi.K_STARTUP)
     assert body.index("check_switch(conn, key, value, confirm)") < body.index("set_setting(")
     users = sorted(p.relative_to(BACKEND).as_posix() for p in PACKAGE.rglob("*.py")
                    if re.search(r"\b(wmi|wiskey_managed_install)\.set_switch\(", p.read_text(encoding="utf-8")))
     assert users == ["smplwise/routers/wiskey_managed.py"]  # other modules' own `set_switch` functions are unrelated
     other = [p.relative_to(BACKEND).as_posix() for p in PACKAGE.rglob("*.py")
-             if "wiskey.managed.enabled" in p.read_text(encoding="utf-8") and p.name != "wiskey_managed_install.py"]
+             if re.search(r"wiskey\.managed\.(enabled|startup)\b", p.read_text(encoding="utf-8")) and p.name != "wiskey_managed_install.py"]
     assert other == []
     assert wai.OWNER_ON_PERMITTED is False, "the unattended path's build constant is unchanged"
 

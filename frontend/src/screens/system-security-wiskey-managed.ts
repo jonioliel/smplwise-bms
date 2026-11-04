@@ -7,8 +7,9 @@ import '../components/sw-dialog';
 import '../components/sw-state-panel';
 import { describeError } from '../api/client';
 import {
-  STEP_ORDER, adoptManaged, checkManaged, getManaged, isFinished, jobTone, managedRefusal, offers, phraseMatches, putManagedSwitch, refusalCode,
-  startRollback, startUpgrade, type CheckResult, type ManagedJob, type ManagedView, type OnOff, type SwitchName,
+  KEEP_RUNS_RANGE, STEP_ORDER, adoptManaged, checkManaged, getManaged, isFinished, jobTone, keepRunsOf, managedRefusal, offers, phraseMatches,
+  putKeepRuns, putManagedSwitch, refusalCode, startRollback, startUpgrade, switchState, type CheckResult, type ManagedJob, type ManagedView,
+  type OnOff, type SwitchName,
 } from '../api/wiskey-managed';
 import { can, isApi } from '../api/session';
 import { statusStyles } from '../access-control/status-css';
@@ -43,6 +44,10 @@ export class SystemSecurityWiskeyManaged extends LitElement {
   @state() private notice = '';
   @state() private check: CheckResult | null = null;
   @state() private checking = false;
+  /** Owner decision 04.11 Q8 = B: the kept-runs number being chosen (null = the server's). */
+  @state() private keepDraft: number | null = null;
+  @state() private keepSaving = false;
+  @state() private keepNote = '';
   private timer: ReturnType<typeof setTimeout> | null = null;
 
   static styles = [
@@ -81,6 +86,8 @@ export class SystemSecurityWiskeyManaged extends LitElement {
       .typed input { min-block-size: 40px; padding: 0 10px; border-radius: var(--sw-r-md); border: 1px solid var(--sw-border-strong, var(--sw-border)); background: var(--sw-surface); color: var(--sw-text); font: inherit; font-size: var(--sw-fs-md); }
       .err-line { margin: 10px 0 0; color: var(--sw-danger-text, var(--sw-danger)); font-size: var(--sw-fs-sm); }
       .foot { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-block-start: 14px; }
+      .keep { display: flex; gap: 8px; align-items: center; }
+      .keep select { min-block-size: 40px; min-inline-size: 72px; padding: 0 10px; border-radius: var(--sw-r-md); border: 1px solid var(--sw-border-strong, var(--sw-border)); background: var(--sw-surface); color: var(--sw-text); font: inherit; font-size: var(--sw-fs-md); }
       @media (max-width: 767px) {
         .facts { grid-template-columns: minmax(0, 1fr); }
         .fact + .fact { border-inline-start: 0; border-block-start: 1px solid var(--sw-border); }
@@ -151,8 +158,51 @@ export class SystemSecurityWiskeyManaged extends LitElement {
     const v = this.view;
     if (!v) return null;
     if (p.kind === 'adopt') return v.phrases.adopt;
-    if (p.kind === 'switch' && p.next === 'on') return p.name === 'enabled' ? v.phrases.enabled : v.phrases.core_risk;
+    if (p.kind === 'switch' && p.next === 'on') {
+      if (p.name === 'core_risk') return v.phrases.core_risk;
+      return p.name === 'startup' ? v.phrases.startup ?? v.phrases.enabled : v.phrases.enabled; // Q7 = A: start-up asks the managed phrase again
+    }
     return null;
+  }
+
+  private async saveKeep(): Promise<void> {
+    const n = this.keepDraft;
+    if (n === null || this.keepSaving || !this.canEdit) return;
+    this.keepSaving = true;
+    this.keepNote = '';
+    this.error = '';
+    try {
+      this.view = await putKeepRuns(n);
+      this.keepDraft = null;
+      this.keepNote = wmt('keepSaved');
+    } catch (err) {
+      this.error = this.refusalText(err);
+    } finally {
+      this.keepSaving = false;
+    }
+  }
+
+  /** Owner decision 04.11 Q8 = B: how many recent updates keep their previous version and private backup (default 5, 1-10). */
+  private keepRow(v: ManagedView) {
+    const current = keepRunsOf(v);
+    const value = this.keepDraft ?? current;
+    const [lo, hi] = v.keep_runs_range ?? KEEP_RUNS_RANGE;
+    const options = Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
+    const dirty = this.keepDraft !== null && this.keepDraft !== current;
+    return html`<div class="row" data-wm-keep data-value=${String(current)}>
+      <div>
+        <h4 class="t">${wmt('keepTitle')}${this.keepNote ? html`<span class="pill" data-tone="ok" data-wm-keep-saved>${this.keepNote}</span>` : nothing}</h4>
+        <p class="x">${wmt('keepText')}</p>
+      </div>
+      <div class="keep">
+        <select aria-label=${wmt('keepLabel')} data-wm-keep-select ?disabled=${!this.canEdit || this.keepSaving || v.running}
+          @change=${(e: Event) => { this.keepDraft = Number((e.target as HTMLSelectElement).value); this.keepNote = ''; }}>
+          ${options.map((n) => html`<option value=${String(n)} ?selected=${n === value}>${n}</option>`)}
+        </select>
+        <sw-button variant="secondary" data-wm-keep-save ?disabled=${!dirty || !this.canEdit || this.keepSaving}
+          @click=${() => void this.saveKeep()}>${wmt('keepSave')}</sw-button>
+      </div>
+    </div>`;
   }
 
   private refusalText(err: unknown): string {
@@ -222,8 +272,8 @@ export class SystemSecurityWiskeyManaged extends LitElement {
   }
 
   private switchRow(v: ManagedView, name: SwitchName) {
-    const on = v.switches[name] === 'on';
-    const stem = name === 'enabled' ? 'enabled' : 'risk';
+    const on = switchState(v, name) === 'on';
+    const stem = name === 'enabled' ? 'enabled' : name === 'startup' ? 'startup' : 'risk';
     return html`<div class="row" data-wm-switch=${name} data-state=${on ? 'on' : 'off'}>
       <div>
         <h4 class="t">${wmt(`${stem}Title` as WmKey)}<span class="pill" data-state=${on ? 'on' : 'off'}>${wmt(on ? 'on' : 'off')}</span></h4>
@@ -272,6 +322,7 @@ export class SystemSecurityWiskeyManaged extends LitElement {
     const tone = jobTone(job);
     return html`<div class="sec" data-wm-job data-state=${job.state} data-kind=${job.kind}>
       <h4>${wmt(done ? 'lastRun' : 'progress')}<span class="pill" data-tone=${tone}>${wmtOf('job_', job.state) ?? job.state}</span>
+        ${job.origin === 'startup' ? html`<span class="pill" data-wm-origin="startup">${wmt('originStartup')}</span>` : nothing}
         <span class="code">${job.from_version ?? '—'} → ${job.to_version ?? '—'}</span></h4>
       <ul class="list" aria-live="polite">${rows.map((n) => {
         const s = stepOf(n);
@@ -291,9 +342,10 @@ export class SystemSecurityWiskeyManaged extends LitElement {
     let heading = '';
     let text = '';
     if (p.kind === 'switch') {
-      const name = wmt(p.name === 'enabled' ? 'enabledTitle' : 'riskTitle');
+      const stem = p.name === 'enabled' ? 'enabled' : p.name === 'startup' ? 'startup' : 'risk';
+      const name = wmt(`${stem}Title` as WmKey);
       heading = wmt(p.next === 'on' ? 'typeQ' : 'offQ', { name });
-      text = p.next === 'on' ? wmt(p.name === 'enabled' ? 'enabledText' : 'riskText') : wmt('offText');
+      text = p.next === 'on' ? wmt(`${stem}Text` as WmKey) : wmt('offText');
     } else if (p.kind === 'adopt') {
       heading = wmt('adoptQ');
       text = wmt('adoptText');
@@ -333,6 +385,8 @@ export class SystemSecurityWiskeyManaged extends LitElement {
       ${this.facts(v)}
       ${this.switchRow(v, 'enabled')}
       ${v.switches.enabled === 'on' ? this.switchRow(v, 'core_risk') : nothing}
+      ${v.switches.enabled === 'on' && v.phrases.startup ? this.switchRow(v, 'startup') : nothing}
+      ${v.keep_runs !== undefined ? this.keepRow(v) : nothing}
       ${this.actions(v)}
       ${this.checkList()}
       ${this.jobView(v.job)}

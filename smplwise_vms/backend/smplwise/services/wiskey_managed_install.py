@@ -20,6 +20,20 @@ Rules
 - Supervisor calls only through `self_update` (the one allow-list). No platform backup is ever created, restored or downloaded.
 - No secret, path or token in a view, an audit row or a log line: closed codes, versions and digests only.
 
+Owner decisions 04.11 (round 18; docs/changes/WISKEY-INSTALL-ANSWERS-2400.md):
+- Q3 = B: a forward run may ALSO start by itself when the add-on starts (`startup_reconcile`), but only with the managed switch ON AND
+  its own owner switch `wiskey.managed.startup` ON (off by default, the managed switch's typed phrase, goes off with the managed switch).
+  The start-up run is the SAME orchestrated run (Core gate, 24 h full backup, private backup, stop / swap / start / compare, automatic
+  rollback); it never adopts a manual install, never rolls back, never runs a downgrade, and it takes the Core gate STRICTLY (only
+  `supported`; the accepted-risk switch never applies to it). One attempt per shipped bundle digest: a start-up run that stopped Core
+  (or did not finish) is not repeated for the same bundle until the owner turns the start-up switch on again. The unattended policy-B
+  path (`wiskey_auto_install`, `OWNER_ON_PERMITTED = False`) is NOT opened by this.
+- Q4 = A: the full platform backup must be at most 24 h old (`BACKUP_MAX_AGE_S`). Q5 = A: Arx never creates it (no Supervisor call does).
+- Q6 = B: the accepted-risk switch stays as built (off; never switched on by code). Q7 = A: the three typed phrases stay.
+- Q8 = B: how many recent runs keep their previous tree and private backup is an installation setting (`wiskey.managed.keep_runs`,
+  default 5 = the owner's number of 04.11, 1-10, system administrator, audited); it takes effect at the next successful run's
+  clean-up.
+
 Seams for tests: `PLATFORM` (the Supervisor / Core side), `SPAWN` (the worker thread), `SLEEP` / `CLOCK` / `WALL`."""
 from __future__ import annotations
 
@@ -50,9 +64,15 @@ K_RISK = "wiskey.managed.core_risk"
 K_ADOPTION = "wiskey.managed.adoption"
 K_JOB = "wiskey.managed.job"
 K_INSTALLED = "wiskey.managed.installed"  # the tree the last successful managed run left installed (digest, version, job)
-SWITCH_KEYS = (K_ENABLED, K_RISK)
-SWITCH_NAMES = {"enabled": K_ENABLED, "core_risk": K_RISK}
-PHRASES = {K_ENABLED: "מאשר ניהול התקנה", K_RISK: "מאשר סיכון סביבה"}
+K_STARTUP = "wiskey.managed.startup"  # owner decision 04.11 Q3 = B: a forward run may also start at add-on start-up (default off)
+K_STARTUP_ATTEMPT = "wiskey.managed.startup_attempt"  # the last start-up attempt (bundle digest, job id, time) - one per bundle digest
+K_KEEP_RUNS = "wiskey.managed.keep_runs"  # owner decision 04.11 Q8 = B: how many recent runs keep their previous tree + private backup
+SWITCH_KEYS = (K_ENABLED, K_RISK, K_STARTUP)
+DEPENDENT_KEYS = (K_RISK, K_STARTUP)  # need the managed switch ON, and go OFF with it
+SWITCH_NAMES = {"enabled": K_ENABLED, "core_risk": K_RISK, "startup": K_STARTUP}
+# Owner decision 04.11 Q7 = A: the three typed phrases stay as they are. The start-up switch adds no fourth phrase: it asks for the
+# managed switch's own phrase again (the same approval, given once more for the start-up path).
+PHRASES = {K_ENABLED: "מאשר ניהול התקנה", K_RISK: "מאשר סיכון סביבה", K_STARTUP: "מאשר ניהול התקנה"}
 ADOPT_PHRASE = "מאשר העברה לניהול"
 
 COMPONENT_MARKER = "_manual_upgrade_profile.json"
@@ -63,14 +83,16 @@ STAGE_ROOT = ".smplwise-wiskey-managed"  # inside the config tree (same filesyst
 JOB_ID_RE = re.compile(r"^\d{8}T\d{6}Z-[0-9a-f]{6}$")
 REGISTRY_FILES = ("core.config_entries", "core.device_registry", "core.entity_registry")
 
-BACKUP_MAX_AGE_S = 24 * 3600     # owner question Q2
+BACKUP_MAX_AGE_S = 24 * 3600     # owner decision 04.11 Q4 = A: at most 24 h (the owner takes it - Q5 = A; Arx never creates one)
 STOP_CONFIRM_S = 90.0            # the core API must stop answering within this after the stop call
 STOP_TIMEOUT_S = 300.0           # the Supervisor answers the stop call once the container is down
 START_TIMEOUT_S = 600.0
 START_DEADLINE_S = 600.0         # the core API must answer again within this
 SETTLE_DEADLINE_S = 240.0        # the WisKey entries must be back (same ids, loaded) within this
 POLL_S = 3.0
-KEEP_RUNS = 3                    # owner question Q6
+KEEP_RUNS = 5                    # owner decision 04.11 Q8 = B (number given 04.11): keep the last 5; the default of the setting K_KEEP_RUNS
+KEEP_RUNS_MIN, KEEP_RUNS_MAX = 1, 10
+STARTUP_CORE_WAIT_S = 600.0      # at add-on start-up, wait at most this long for the core API before giving up (nothing touched)
 SPACE_FACTOR = 3
 CORE_RISK_STATE, CORE_RISK_CODE = "unverified", "core_runtime_provenance_unavailable"
 
@@ -172,13 +194,14 @@ def check_switch(conn: Any, key: Any, value: Any, confirm: Any) -> None:
     if value == "on":
         if not _phrase_ok(confirm, PHRASES[key]):
             raise ManagedRefused("confirmation_required", 422)
-        if key == K_RISK and not enabled(conn):
+        if key in DEPENDENT_KEYS and not enabled(conn):
             raise ManagedRefused("managed_off", 409)
 
 
 def set_switch(conn: Any, key: str, value: str, confirm: Any = None) -> list[tuple[str, str, str]]:
-    """check_switch() then write; returns (key, before, after) per written key. The only production write of K_ENABLED / K_RISK
-    (test-enforced). Turning the managed switch off also turns the accepted-risk switch off."""
+    """check_switch() then write; returns (key, before, after) per written key. The only production write of K_ENABLED / K_RISK /
+    K_STARTUP (test-enforced). Turning the managed switch off also turns every dependent switch (accepted risk, start-up) off. Turning
+    the start-up switch ON re-arms it: the record of the last start-up attempt is cleared, so the next add-on start may try once more."""
     from ..db import set_setting
 
     check_switch(conn, key, value, confirm)
@@ -188,10 +211,40 @@ def set_switch(conn: Any, key: str, value: str, confirm: Any = None) -> list[tup
             before = mode(conn, k)
             set_setting(conn, k, value)
             out.append((k, before, value))
-    if key == K_ENABLED and value == "off" and mode(conn, K_RISK) == "on":
-        set_setting(conn, K_RISK, "off")
-        out.append((K_RISK, "on", "off"))
+    if key == K_ENABLED and value == "off":
+        for dep in DEPENDENT_KEYS:  # the closed list drives the writes; only ever OFF here
+            if mode(conn, dep) == "on":
+                set_setting(conn, dep, "off")
+                out.append((dep, "on", "off"))
+    if key == K_STARTUP and value == "on" and _get_json(conn, K_STARTUP_ATTEMPT):
+        set_setting(conn, K_STARTUP_ATTEMPT, "")
+        out.append((K_STARTUP_ATTEMPT, "recorded", "cleared"))
     return out
+
+
+# ---------------------------------------------------------------- the number of recent runs kept (owner decision 04.11 Q8 = B)
+
+def keep_runs(conn: Any) -> int:
+    """The installation's number of recent runs whose previous tree and private backup are kept; KEEP_RUNS when unset or invalid."""
+    raw = _get(conn, K_KEEP_RUNS)
+    if isinstance(raw, str) and re.fullmatch(r"[0-9]{1,2}", raw):
+        n = int(raw)
+        if KEEP_RUNS_MIN <= n <= KEEP_RUNS_MAX:
+            return n
+    return KEEP_RUNS
+
+
+def set_keep_runs(conn: Any, value: Any) -> tuple[int, int]:
+    """The ONE writer of K_KEEP_RUNS (called by `PUT /wiskey/managed/keep-runs`, system administrator, audited). An integer in
+    KEEP_RUNS_MIN..KEEP_RUNS_MAX (never a bool, a string or a float). Deletes nothing by itself: the next successful run's clean-up keeps
+    this many. Returns (before, after)."""
+    from ..db import set_setting
+
+    if type(value) is not int or not KEEP_RUNS_MIN <= value <= KEEP_RUNS_MAX:
+        raise ManagedRefused("validation", 422)
+    before = keep_runs(conn)
+    set_setting(conn, K_KEEP_RUNS, str(value))
+    return before, value
 
 
 # ---------------------------------------------------------------- the bundle (what Arx ships)
@@ -316,7 +369,7 @@ def _public_job(job: dict[str, Any] | None) -> dict[str, Any] | None:
     if not job:
         return None
     keep = ("id", "kind", "state", "code", "plan", "from_version", "to_version", "steps", "started_at", "finished_at", "core_gate",
-            "risk_accepted", "storage_restored", "rollback_of")
+            "risk_accepted", "storage_restored", "rollback_of", "origin")
     return {k: job.get(k) for k in keep}
 
 
@@ -342,9 +395,14 @@ def view(conn: Any, settings: Any = None) -> dict[str, Any]:
     plan = _plan(installed, bundle) if cfg is not None else "not_mapped"
     job = _get_json(conn, K_JOB)
     adoption = _get_json(conn, K_ADOPTION)
+    attempt = _get_json(conn, K_STARTUP_ATTEMPT)
     return {
-        "switches": {"enabled": mode(conn, K_ENABLED), "core_risk": mode(conn, K_RISK)},
-        "phrases": {"enabled": PHRASES[K_ENABLED], "core_risk": PHRASES[K_RISK], "adopt": ADOPT_PHRASE},
+        "switches": {"enabled": mode(conn, K_ENABLED), "core_risk": mode(conn, K_RISK), "startup": mode(conn, K_STARTUP)},
+        "phrases": {"enabled": PHRASES[K_ENABLED], "core_risk": PHRASES[K_RISK], "startup": PHRASES[K_STARTUP], "adopt": ADOPT_PHRASE},
+        "keep_runs": keep_runs(conn),
+        "keep_runs_range": [KEEP_RUNS_MIN, KEEP_RUNS_MAX],
+        "backup_max_age_h": BACKUP_MAX_AGE_S // 3600,
+        "startup_attempt": {k: attempt.get(k) for k in ("digest", "job", "at")} if attempt else None,
         "bundle": {k: bundle.get(k) for k in ("state", "code", "version", "digest", "product_CODE", "files")},
         "installed": {"state": installed.get("state"), "ownership": own, "version": installed.get("version"),
                       "label": installed.get("label"), "digest": installed.get("digest"), "profile": installed.get("profile"),
@@ -550,14 +608,16 @@ def _entry_schema(cfg: Path) -> dict[str, list[Any]] | None:
         return None
 
 
-def _prune(settings: Any, cfg: Path, keep_ids: set[str]) -> None:
-    """Keep the newest KEEP_RUNS stage directories and private backups (only names Arx created), and every id in `keep_ids`."""
+def _prune(settings: Any, cfg: Path, keep_ids: set[str], keep: int = KEEP_RUNS) -> None:
+    """Keep the newest `keep` (the installation setting K_KEEP_RUNS, 1-10) stage directories and private backups (only names Arx
+    created), and every id in `keep_ids`."""
+    keep = keep if type(keep) is int and KEEP_RUNS_MIN <= keep <= KEEP_RUNS_MAX else KEEP_RUNS
     for root in (Path(cfg) / STAGE_ROOT, _backup_root(settings)):
         try:
             ids = sorted((p.name for p in root.iterdir() if p.is_dir() and not p.is_symlink() and JOB_ID_RE.match(p.name)), reverse=True)
         except OSError:
             continue
-        for old in ids[KEEP_RUNS:]:
+        for old in ids[keep:]:
             if old not in keep_ids:
                 shutil.rmtree(root / old, ignore_errors=True)
 
@@ -733,7 +793,7 @@ class _Run:
         _job_update(self.db, self.job)
         _audit(self.db, "wiskey.managed.run", "allowed" if state == "succeeded" else "denied", reason=code,
                details={"job": self.job["id"], "kind": self.job["kind"], "state": state, "from": self.job.get("from_version"),
-                        "to": self.job.get("to_version"), "core_gate": self.job.get("core_gate"),
+                        "to": self.job.get("to_version"), "core_gate": self.job.get("core_gate"), "origin": self.job.get("origin", "owner"),
                         "risk_accepted": self.job.get("risk_accepted"), "storage_restored": self.job.get("storage_restored")})
 
     # platform waits
@@ -853,9 +913,12 @@ def _restore(settings: Any, cfg: Path, stage_id: str, backup_id: str | None, exp
         raise StepFailed("rollback_verification_failed")
 
 
-def start(db: Any, settings: Any, kind: str, *, actor: Any = None, request_id: str | None = None) -> dict[str, Any]:
+def start(db: Any, settings: Any, kind: str, *, actor: Any = None, request_id: str | None = None, origin: str = "owner") -> dict[str, Any]:
     """Start one run (`forward` = install / upgrade / convert by plan, or `rollback`). The cheap checks run here (409 at once); the rest
-    are steps of the job. Returns the public job."""
+    are steps of the job. `origin` is `owner` (a request) or `startup` (`startup_reconcile`: forward only, strict Core gate; the attempt is
+    recorded before the worker starts). Returns the public job."""
+    if origin not in ("owner", "startup") or (origin == "startup" and kind != "forward"):
+        raise ManagedRefused("validation", 422)
     if not _RUN_LOCK.acquire(blocking=False):
         raise ManagedRefused("job_running")
     try:
@@ -874,9 +937,12 @@ def start(db: Any, settings: Any, kind: str, *, actor: Any = None, request_id: s
                    "to_version": bundle["version"], "to_digest": bundle["digest"],
                    "prior_installed": _read(db, lambda c: _get_json(c, K_INSTALLED)), "steps": [], "started_at": _now_iso(),
                    "finished_at": None, "core_gate": None, "risk_accepted": False, "storage_restored": False}
+        job["origin"] = origin
         _job_update(db, job)
+        if origin == "startup":  # recorded BEFORE the worker starts: a crash mid-run still counts as this bundle's attempt
+            _write_json(db, K_STARTUP_ATTEMPT, {"digest": job["to_digest"], "job": job_id, "at": _now_iso()})
         _audit(db, "wiskey.managed.run_started", "allowed", actor=actor, request_id=request_id,
-               details={"job": job_id, "kind": job["kind"], "from": job["from_version"], "to": job["to_version"]})
+               details={"job": job_id, "kind": job["kind"], "from": job["from_version"], "to": job["to_version"], "origin": origin})
     except BaseException:
         _RUN_LOCK.release()
         raise
@@ -912,7 +978,8 @@ def run(db: Any, settings: Any, job: dict[str, Any], cfg: Path) -> None:
     r.done()
     if not rollback:  # a rollback restores a tree that ran here before: no gate, no fresh full backup needed (it is the way back)
         r.step("core_gate")
-        risk_on = _read(db, lambda c: mode(c, K_RISK) == "on")
+        # a start-up run takes the gate strictly: only `supported` passes; the accepted-risk switch covers owner-started runs only
+        risk_on = job.get("origin", "owner") == "owner" and _read(db, lambda c: mode(c, K_RISK) == "on")
         refusal, state, accepted = gate_verdict(r.p.core_gate(), risk_on)
         job.update(core_gate=state, risk_accepted=accepted)
         if refusal:
@@ -971,7 +1038,7 @@ def run(db: Any, settings: Any, job: dict[str, Any], cfg: Path) -> None:
             _write_json(db, K_INSTALLED, job.get("prior_installed"))
         else:
             _write_json(db, K_INSTALLED, {"digest": job["to_digest"], "version": job["to_version"], "job": job["id"], "at": _now_iso()})
-            _prune(settings, cfg, {job["id"]})
+            _prune(settings, cfg, {job["id"]}, _read(db, keep_runs))
         return r.finish("succeeded")
 
     # automatic rollback
@@ -1055,3 +1122,99 @@ def recover_interrupted_safe(db: Any, settings: Any) -> None:
         recover_interrupted(db, settings)
     except Exception as exc:  # noqa: BLE001 - start-up must not fail
         log.warning("wiskey managed recovery failed (%s)", type(exc).__name__)
+
+
+# ---------------------------------------------------------------- start-up reconcile (owner decision 04.11, round 18 Q3 = B)
+
+AUDIT_STARTUP = "wiskey.managed.startup"
+
+
+def _retry_allowed(attempt: dict[str, Any], job: dict[str, Any] | None) -> bool:
+    """A start-up attempt for the same bundle may be repeated only when it ended `aborted` before Core was ever asked to stop (the
+    checks refused: nothing on the box was touched) - never after a stop, a swap, a rollback, an interruption or a success."""
+    if not job or job.get("id") != attempt.get("job") or job.get("state") != "aborted":
+        return False
+    return not any(isinstance(s, dict) and s.get("name") == "stop_core" for s in job.get("steps") or ())
+
+
+def _audit_startup(db: Any, decision: str, reason: str | None, details: dict[str, Any]) -> None:
+    """One `wiskey.managed.startup` row per NEW outcome (the same reason and details as the latest row are not repeated at every start)."""
+    from ..audit import audit
+
+    def write(c: Any) -> None:
+        last = c.execute("SELECT reason, details_json FROM audit_log WHERE action = ? ORDER BY rowid DESC LIMIT 1", (AUDIT_STARTUP,)).fetchone()
+        if last is not None and last[0] == reason and json.loads(last[1] or "{}") == details:
+            return
+        audit(c, actor=None, action=AUDIT_STARTUP, decision=decision, resource_type="installation", resource_id=DOMAIN, reason=reason,
+              details=details)
+
+    try:
+        with db.write_aside(label="wiskey managed startup audit") as c:
+            write(c)
+    except Exception as exc:  # noqa: BLE001 - the audit never blocks the start-up
+        log.warning("wiskey managed start-up audit unavailable (%s)", type(exc).__name__)
+
+
+def _closed(details: dict[str, Any]) -> dict[str, Any]:
+    return {k: v for k, v in details.items() if k in ("plan", "ownership", "code")}
+
+
+def startup_reconcile(db: Any, settings: Any) -> str:
+    """At add-on start-up (after `recover_interrupted`): start ONE forward run by itself when, and only when,
+    - the managed switch AND the start-up switch are ON (both owner steps with the typed phrase; missing / unreadable = off);
+    - the installed tree is one a run may replace WITHOUT an owner step (missing, Arx-managed, or already adopted by the owner - a manual
+      install still needs the owner's adoption) and the plan is install / upgrade / convert (never a downgrade); the shipped bundle is
+      byte-exact to its pin; there is room;
+    - this bundle digest was not already attempted at start-up (see `_retry_allowed`);
+    - the core API answers within STARTUP_CORE_WAIT_S.
+    The run itself is the owner path's run (`start(..., origin="startup")`): strict Core gate, full backup <= 24 h, private backup,
+    stop / swap / start / compare, automatic rollback. Returns a closed outcome; every refusal but "off" / "up_to_date" /
+    "already_attempted" is audited once. Never raises."""
+    try:
+        on, startup_on, attempt, job = _read(db, lambda c: (enabled(c), mode(c, K_STARTUP) == "on", _get_json(c, K_STARTUP_ATTEMPT),
+                                                             _get_json(c, K_JOB)))
+    except Exception:  # noqa: BLE001 - an unreadable database is "off"
+        return "off"
+    if not (on and startup_on):
+        return "off"
+    bundle = bundle_info()
+    if attempt and bundle.get("state") == "ok" and attempt.get("digest") == bundle.get("digest") and not _retry_allowed(attempt, job):
+        return "already_attempted"
+    try:
+        pre = preflight(db)
+    except ManagedRefused as exc:
+        if exc.code == "plan_refused" and exc.details.get("plan") == "up_to_date":
+            return "up_to_date"
+        _audit_startup(db, "denied", exc.code, _closed(exc.details))
+        return exc.code
+    platform = PLATFORM(settings)
+    try:
+        if not platform.configured():
+            _audit_startup(db, "denied", "supervisor_unreachable", {})
+            return "supervisor_unreachable"
+        end = CLOCK() + STARTUP_CORE_WAIT_S
+        while not platform.core_api_up():
+            if CLOCK() >= end:
+                _audit_startup(db, "denied", "core_not_running", {})
+                return "core_not_running"
+            SLEEP(POLL_S)
+    except Exception:  # noqa: BLE001
+        _audit_startup(db, "denied", "platform_unavailable", {})
+        return "platform_unavailable"
+    try:
+        started = start(db, settings, "forward", origin="startup")
+    except ManagedRefused as exc:
+        _audit_startup(db, "denied", exc.code, _closed(exc.details))
+        return exc.code
+    _audit_startup(db, "allowed", None, {"job": started.get("id"), "plan": pre["plan"], "from": started.get("from_version"),
+                                         "to": started.get("to_version")})
+    return "started"
+
+
+def startup_safe(db: Any, settings: Any) -> None:
+    """The add-on start-up thread: recover an interrupted run first, then the start-up reconcile. Never raises."""
+    recover_interrupted_safe(db, settings)
+    try:
+        startup_reconcile(db, settings)
+    except Exception as exc:  # noqa: BLE001 - start-up must not fail
+        log.warning("wiskey managed start-up reconcile failed (%s)", type(exc).__name__)
