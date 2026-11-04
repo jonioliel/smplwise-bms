@@ -10,6 +10,8 @@ import { skinsUnderTest } from './helpers/frozen-skins';
 //   2. all the capsule controls of the screen share the same height, ring width, radius, base font size / weight and the 44 px touch target
 //      (the label may shrink inside the control - the control's own base size is what is compared);
 //   3. the page has no horizontal overflow.
+// WALL-PHONE-TOOLBAR-2401: the phone toolbar's labelled mode (ui.wall_phone_bar = labels) is the one with labels to fit; the default icon row has
+// no label on its keys (evidence-mobile-wall-kiosk.spec.ts guards it).
 // No backend: the app (dev server or preview), the API answered by page.route. DROPDOWNFIT_SHOT_DIR=<dir> (+ DROPDOWNFIT_SHOT_NAME) also writes a PNG at 411 px; DROPDOWNFIT_SHOT_ONLY=1 only takes it.
 const WIDTHS = [320, 360, 411, 1280];
 const SKINS = skinsUnderTest(['crystal', 'bubble']);
@@ -38,7 +40,7 @@ async function mock(page: Page, size: string) {
     }
     if (p === 'settings') {
       return json({
-        settings: { 'media.transport_default': 'mse', 'media.max_live_sessions': 16, 'media.wall_profile': 'sub', 'snapshots.max_age_s': 60, 'ui.tabs_mode': 'dropdown', 'ui.tabs_mode_groups': {}, 'ui.dd_style': 'capsule', 'ui.dd_style_groups': {}, 'ui.dd_size': size, 'ui.dd_size_groups': {} },
+        settings: { 'media.transport_default': 'mse', 'media.max_live_sessions': 16, 'media.wall_profile': 'sub', 'snapshots.max_age_s': 60, 'ui.tabs_mode': 'dropdown', 'ui.tabs_mode_groups': {}, 'ui.dd_style': 'capsule', 'ui.dd_style_groups': {}, 'ui.dd_size': size, 'ui.dd_size_groups': {}, 'ui.wall_phone_bar': 'labels' },
         can_edit: false,
       });
     }

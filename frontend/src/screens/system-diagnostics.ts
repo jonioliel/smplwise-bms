@@ -89,6 +89,7 @@ import { RUNG_HE, type QualityMode } from '../map/quality-ladder';
 import { loadOwnMode, saveOwnMode } from '../api/plan-quality';
 import { planViewPrefs, type SiteLocation } from '../api/plan-view';
 import { timeText, dayTimeText } from '../api/day-format';
+import { WALL_PHONE_BAR_HINT, WALL_PHONE_BAR_LABEL, WALL_PHONE_BAR_OPTIONS, wallPhoneBarMode, type WallPhoneBarMode } from './wall-phone-bar';
 
 /** הגדרות › מתגי מסכי כניסה: the SMPLWISE WisKey screens that can show either WisKey's own panel or the screen built here. */
 const ACCESS_SCREENS: { screen: WiskeyScreen; label: string; href: string; detail: string }[] = [
@@ -977,6 +978,10 @@ export class SystemDiagnostics extends LitElement {
         <div class="row"><span class="lbl">פריסת קיוסק כברירת מחדל<span class="muted">עמודות × שורות בעמוד; קישור קיוסק עם cols/rows גובר</span></span>
           <sw-field class="ctl"><select data-set-kiosk-layout ?disabled=${!api || !this.canEdit} @change=${(e: Event) => { const [c, r] = (e.target as HTMLSelectElement).value.split('x').map(Number); this.set('ui.kiosk_cols', c); this.set('ui.kiosk_rows', r); }}>
             ${[[2, 2], [3, 2], [3, 3], [4, 3], [4, 4], [5, 4], [6, 4]].map(([c, r]) => html`<option value=${`${c}x${r}`} ?selected=${Number(this.value('ui.kiosk_cols') ?? 3) === c && Number(this.value('ui.kiosk_rows') ?? 2) === r}>${c}×${r} · ${c * r} מצלמות</option>`)}
+          </select></sw-field></div>
+        <div class="row" data-set-wall-phone-bar-row><span class="lbl">${WALL_PHONE_BAR_LABEL}<span class="muted">${WALL_PHONE_BAR_HINT}</span></span>
+          <sw-field class="ctl"><select data-set-wall-phone-bar ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.wall_phone_bar', wallPhoneBarMode((e.target as HTMLSelectElement).value))}>
+            ${WALL_PHONE_BAR_OPTIONS.map(([v, l]) => html`<option value=${v} ?selected=${wallPhoneBarMode(this.value('ui.wall_phone_bar')) === (v as WallPhoneBarMode)}>${l}</option>`)}
           </select></sw-field></div>`}
         <div class="row"><span class="lbl">מסך פתיחה<span class="muted">המסך שהמערכת נפתחת עליו כשהכתובת לא מציינת מסך (ריענון של הכתובת הראשית)</span></span>
           <sw-field class="ctl"><select data-set-start-route ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.start_route', (e.target as HTMLSelectElement).value)}>

@@ -88,6 +88,12 @@ export class SwDropdown extends LitElement {
   @property({ type: Boolean, reflect: true }) block = false;
   /** 2.0.4: the chip box itself is the touch target (the desktop dial, 44 px on touch layouts) - for a toolbar control pressed on its own (the live wall's columns). */
   @property({ type: Boolean, reflect: true }) tall = false;
+  /** WALL-PHONE-TOOLBAR-2401: the closed control is a square touch key (44 px; a 44-48 px circle in the capsule style) that shows only its icon - and
+   * `badge`, a short value in its corner. The full name ("<label>: <chosen option>") stays the accessible name and becomes the tooltip; the list
+   * opens as before. Single choice only (a `multiple` list keeps its chip). */
+  @property({ type: Boolean, attribute: 'icon-only', reflect: true }) iconOnly = false;
+  /** icon-only: a short value drawn in the key's corner (a number); '' = none. Never a label (a label would not fit the key). */
+  @property() badge = '';
   /** 0.1.157: the style (attribute `dd-style`, reflected so the per-style CSS below matches the host); `auto` / unknown = today's look. */
   @property({ attribute: 'dd-style', reflect: true }) ddStyle: DdStyle = 'auto';
   /** Unreleased: the size (attribute `dd-size`, reflected): `md` = the reference size (and today's size of every other style), `sm` smaller, `lg` bigger. */
@@ -1120,7 +1126,70 @@ export class SwDropdown extends LitElement {
     :host([dd-style='text']) .pop {
       min-inline-size: 240px;
     }
+    /* ---- WALL-PHONE-TOOLBAR-2401: icon-only. One square key (the chip's own border, fill and shadow in every style, so a bare style still reads as
+       a control), the icon centred, no text and no chevron - nothing to cut, so nothing to ellipsise. The chip box is the 44 px target. ---- */
+    :host([icon-only]:not([multiple])) {
+      flex: none;
+    }
+    :host([icon-only]:not([block]):not([multiple])) .chip {
+      inline-size: 44px;
+      min-inline-size: 44px;
+      block-size: 44px;
+      min-block-size: 44px;
+      padding: 0;
+      gap: 0;
+      justify-content: center;
+    }
+    :host([icon-only]:not([dd-style='capsule']):not([multiple])) .chip {
+      border: 1px solid var(--sw-dd-border, var(--sw-border-strong));
+      border-radius: var(--sw-dd-radius, 10px);
+      background: var(--sw-dd-bg, var(--sw-surface));
+      box-shadow: var(--sw-dd-shadow, var(--sw-shadow-1));
+    }
+    :host([icon-only]:not([multiple])) .chip::after {
+      inset: 0;
+    }
+    :host([icon-only][dd-style='capsule']:not([block]):not([multiple])) .chip {
+      inline-size: max(var(--_ch), 44px);
+      min-inline-size: max(var(--_ch), 44px);
+      block-size: max(var(--_ch), 44px);
+    }
+    /* a key is never taller than the phone row allows (the lg capsule is 58 px): 48 px at most */
+    :host([icon-only][dd-style='capsule'][dd-size='lg']) {
+      --_ch: 48px;
+      --_cico: 22px;
+    }
+    .io {
+      display: none;
+    }
+    :host([icon-only]) .chip .io {
+      display: inline-flex;
+      color: var(--sw-accent-text, var(--sw-accent));
+    }
+    :host([icon-only]) .chip .badge {
+      position: absolute;
+      inset-block-start: -3px;
+      inset-inline-end: -3px;
+      box-sizing: border-box;
+      min-inline-size: 18px;
+      block-size: 18px;
+      padding-inline: 4px;
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-accent);
+      color: var(--sw-text-inverse);
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-bold);
+      line-height: 18px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      pointer-events: none;
+      box-shadow: 0 0 0 2px var(--sw-surface);
+    }
     @media (forced-colors: active) {
+      :host([icon-only]) .chip .badge {
+        border: 1px solid CanvasText;
+      }
       :host(:where(:not([dd-style='auto']))) .chip {
         border: 1px solid ButtonText;
       }
@@ -1162,8 +1231,8 @@ export class SwDropdown extends LitElement {
   /** DROPDOWNFIT-295: fits the chip's label (`.txt`) into the room the control gives it; see fit-text.ts. */
   private fitLabel = () => {
     const txt = this.renderRoot.querySelector<HTMLElement>('.chip .txt');
+    this.removeAttribute('data-tight'); // also when there is no label to fit (icon-only): the tight chrome is a label's
     if (!txt) return;
-    this.removeAttribute('data-tight');
     fitTextElement(txt);
     if (txt.getAttribute('data-fit') === 'wrap' && this.ddStyle === 'capsule') {
       this.setAttribute('data-tight', '');
@@ -1694,6 +1763,10 @@ export class SwDropdown extends LitElement {
     const name = sel ? `${sel.label}${sel.count !== undefined ? ` (${sel.count})` : ''}` : this.placeholder;
     const aria = `${[this.label, name].filter(Boolean).join(': ')}${alert ? ', יש התראות באפשרויות אחרות' : ''}`;
     const listId = `l-${this.seq}`;
+    if (this.iconOnly) {
+      const ico = this.ddStyle === 'capsule' ? this.iconPx : 20;
+      return this.renderControl(listId, aria, html`<span class="io" aria-hidden="true"><sw-icon .name=${this.icon ?? sel?.icon ?? 'layers'} size=${ico}></sw-icon></span>${this.badge ? html`<span class="badge" data-dd-badge aria-hidden="true">${this.badge}</span>` : nothing}`, nothing, false, true);
+    }
     return this.renderControl(listId, aria, html`<span class="txt">${sel?.label ?? this.placeholder}</span>${sel?.count !== undefined ? html`<span class="n">(${sel.count})</span>` : nothing}`, nothing, false);
   }
 
@@ -1712,16 +1785,18 @@ export class SwDropdown extends LitElement {
     return this.renderControl(listId, aria, html`<span class="txt">${names}</span>${picked.length ? html`<span class="n" data-dd-chip-count>${count}</span>` : nothing}`, foot, true);
   }
 
-  private renderControl(listId: string, aria: string, text: unknown, foot: unknown, multi: boolean) {
+  private renderControl(listId: string, aria: string, text: unknown, foot: unknown, multi: boolean, keyOnly = false) {
     const sel = this.selected;
     const alert = multi ? false : this.hiddenAlert;
-    return html`<button type="button" class="chip" data-dropdown-chip aria-haspopup="listbox" aria-expanded=${String(this.open)} aria-controls=${listId} aria-label=${aria}
+    return html`<button type="button" class="chip" data-dropdown-chip aria-haspopup="listbox" aria-expanded=${String(this.open)} aria-controls=${listId} aria-label=${aria} title=${keyOnly ? aria : nothing}
         @click=${() => (this.open ? this.close(true) : void this.openList())} @keydown=${(e: KeyboardEvent) => this.onChipKey(e)}>
-        ${this.ddStyle === 'capsule'
+        ${keyOnly
+          ? nothing
+          : this.ddStyle === 'capsule'
           ? html`<span class="ci" aria-hidden="true"><sw-icon .name=${this.icon ?? sel?.icon ?? 'layers'} size=${this.iconPx}></sw-icon></span>`
-          : this.icon ? html`<sw-icon .name=${this.icon} size=${15}></sw-icon>` : nothing}${this.ddStyle === 'prefix' && this.label ? html`<span class="pre" data-dd-prefix aria-hidden="true">${this.label}</span>` : nothing}
+          : this.icon ? html`<sw-icon .name=${this.icon} size=${15}></sw-icon>` : nothing}${!keyOnly && this.ddStyle === 'prefix' && this.label ? html`<span class="pre" data-dd-prefix aria-hidden="true">${this.label}</span>` : nothing}
         ${text}
-        <span class="chev" aria-hidden="true"><sw-icon name="chevronDown" size=${this.ddStyle === 'capsule' ? ({ sm: 14, md: 16, lg: 18 } as Record<string, number>)[this.ddSize] ?? 16 : 12}></sw-icon></span>
+        ${keyOnly ? nothing : html`<span class="chev" aria-hidden="true"><sw-icon name="chevronDown" size=${this.ddStyle === 'capsule' ? ({ sm: 14, md: 16, lg: 18 } as Record<string, number>)[this.ddSize] ?? 16 : 12}></sw-icon></span>`}
         ${alert ? html`<span class="dot ${alert === 'warn' ? 'warn' : ''}" data-chip-alert=${alert}></span>` : nothing}
       </button>
       <div class="pop ${this.present}${this.closing ? ' closing' : ''}" popover=${this.present === 'inline' ? nothing : 'manual'} ?hidden=${!(this.open || this.closing)} data-present=${this.present} @keydown=${(e: KeyboardEvent) => this.onListKey(e)} @click=${(e: MouseEvent) => this.onPopClick(e)}>

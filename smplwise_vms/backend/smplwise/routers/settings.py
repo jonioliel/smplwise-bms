@@ -53,6 +53,10 @@ DEFAULTS: dict[str, str] = {
     "ui.wall_count": "4",  # tiles the camera wall opens with (a browser can override it for itself)
     "ui.kiosk_cols": "3",  # kiosk page layout when the URL carries none
     "ui.kiosk_rows": "2",
+    # WALL-PHONE-TOOLBAR-2401 (owner 04.11 evening): the camera wall's toolbar on a phone (under 768 px). icons (default) = ONE row of
+    # icon keys, each control's full name on a long press / as its tooltip and accessible name; labels = the earlier two rows with the
+    # full labels (each control a 150 px basis). Installation-wide; the desktop toolbar is the same in both.
+    "ui.wall_phone_bar": "icons",
     "ui.hide_search": "false",  # hide the AI search tab (the owner's choice while it is not in use)
     # TOPPILL-295 (owner 2026-10-24): the search button in the top-left pill. OFF by default - a search is a way to reach places a person
     # was not sent to. `ui.global_search` = off | admins | roles | all; `roles` reads `ui.global_search_roles` (comma-separated role ids).
@@ -827,6 +831,7 @@ class SettingsPatch(BaseModel):
     ui_wall_count: int | None = Field(default=None, ge=1, le=32, alias="ui.wall_count")
     ui_kiosk_cols: int | None = Field(default=None, ge=1, le=6, alias="ui.kiosk_cols")
     ui_kiosk_rows: int | None = Field(default=None, ge=1, le=5, alias="ui.kiosk_rows")
+    ui_wall_phone_bar: str | None = Field(default=None, pattern="^(icons|labels)$", alias="ui.wall_phone_bar")  # WALL-PHONE-TOOLBAR-2401
     ui_hide_search: str | None = Field(default=None, pattern="^(true|false)$", alias="ui.hide_search")
     ui_global_search: str | None = Field(default=None, pattern="^(off|admins|roles|all)$", alias="ui.global_search")
     ui_global_search_roles: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_.\-]+(,[A-Za-z0-9_.\-]+)*$|^$", max_length=600, alias="ui.global_search_roles")

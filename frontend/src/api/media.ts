@@ -144,6 +144,8 @@ export interface ProductSettings {
   'ui.wall_count'?: number | string;
   'ui.kiosk_cols'?: number | string;
   'ui.kiosk_rows'?: number | string;
+  /** WALL-PHONE-TOOLBAR-2401: the camera wall's toolbar on a phone - icons (default: one row of icon keys) | labels (two rows, full labels). */
+  'ui.wall_phone_bar'?: 'icons' | 'labels';
   'ui.hide_search'?: string;
   /** TOPPILL-295: the pill's search: off (default) | admins | roles | all; `roles` reads ui.global_search_roles (comma-separated role ids). */
   'ui.global_search'?: 'off' | 'admins' | 'roles' | 'all';
