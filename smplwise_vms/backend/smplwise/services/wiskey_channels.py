@@ -111,10 +111,19 @@ DOOR_TECHNICAL = frozenset({
     "stations/technical_hold_save", "stations/technical_hold_delete", "stations/technical_codes_write",
     "stations/technical_program_save", "stations/technical_program_action",
 })
+# WISKEY-PEOPLE-COMPLETE-2390 (owner Q3 "a", 03.11): the people that exist on a door station but not in WisKey's person list, and the
+# duplicate checks of the people screen (services/station_people.py). Reads: `stations/inventory` (one station's users as the device
+# reports them - WisKey reads the device; READ in the pinned catalog, `stations: view`), `users/data_quality` and `users/duplicate_check`
+# (READ, `users: view`; no PIN, no full card number) and `users/pin_check` (non-READ, `users: manage`; answers `available` only - the
+# PIN goes to WisKey once and is never kept). Writes (non-READ, `users: manage`): `users/adopt` (WisKey takes over the station user as
+# is - nothing is created on the station), `users/ignore` (WisKey's own ignore flag) and `users/delete_unmanaged` (WisKey removes the
+# station user through its own sync - a device write). Same socket and identity as `service`; never a generic proxy.
+STATION_PEOPLE = frozenset({"stations/inventory", "users/data_quality", "users/duplicate_check", "users/pin_check",
+                            "users/adopt", "users/ignore", "users/delete_unmanaged"})
 
 ALLOWLISTS: dict[str, frozenset[str]] = {"background": BACKGROUND, "service": SERVICE, "read": READ, "technical": TECHNICAL, "messaging": MESSAGING,
-                                         "readback": READBACK, "pacing": PACING, "maintenance": MAINTENANCE, "door_technical": DOOR_TECHNICAL}
-ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing", "maintenance", "door_technical")  # the guards the service session builds for the adapters (intercom_sync on_ready)
+                                         "readback": READBACK, "pacing": PACING, "maintenance": MAINTENANCE, "door_technical": DOOR_TECHNICAL, "station_people": STATION_PEOPLE}
+ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing", "maintenance", "door_technical", "station_people")  # the guards the service session builds for the adapters (intercom_sync on_ready)
 
 # Home Assistant's own frames a channel may send besides WisKey commands (the auth handshake is written by ha_client itself):
 # `get_config` tells "WisKey not loaded yet" from "not installed"; the service feed watches the stations' entities.
@@ -128,6 +137,7 @@ HA_FRAMES: dict[str, frozenset[str]] = {
     "pacing": frozenset(),
     "maintenance": frozenset(),
     "door_technical": frozenset(),
+    "station_people": frozenset(),
 }
 
 
@@ -170,4 +180,5 @@ def describe() -> dict[str, Any]:
         "pacing": {"commands": sorted(PACING), "in_use": True},
         "maintenance": {"commands": sorted(MAINTENANCE), "in_use": True},
         "door_technical": {"commands": sorted(DOOR_TECHNICAL), "in_use": True},
+        "station_people": {"commands": sorted(STATION_PEOPLE), "in_use": True},
     }

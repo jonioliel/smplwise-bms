@@ -41,6 +41,9 @@ import {
 } from '../access-control/people-writes-logic';
 import { wt, type WritesKey } from '../i18n/access-writes';
 import { dateInputLang } from '../api/day-format';
+import { checkPin } from '../api/station-people';
+import { pinWorthChecking } from '../access-control/station-people-logic';
+import { st } from '../i18n/station-people';
 
 /** The browser's own check of an IANA zone name (the server checks it again with the zone database). */
 function validZone(zone: string): boolean {
@@ -156,6 +159,9 @@ export class WiskeyPersonEditor extends LitElement {
    * it stays only in the two password fields for the save. A stored PIN is never shown: WisKey never returns one. */
   @state() private pinReveal: string | null = null;
   @state() private pinCopy: '' | 'copied' | 'manual' = '';
+  /** WISKEY-PEOPLE-COMPLETE-2390: whether the typed PIN is free (asked once when the field is left; the value is never kept). */
+  @state() private pinCheck: '' | 'checking' | 'free' | 'taken' | 'failed' | 'limited' = '';
+  private pinCheckSeq = 0;
   @state() private confirmDelete = false;
   @state() private confirmClose = false;
   @state() private capturing = false;
@@ -297,6 +303,7 @@ export class WiskeyPersonEditor extends LitElement {
       if (r.pin) {
         this.draft = { ...this.draft, pin: r.pin.pin, confirm_pin: r.pin.pin };
         this.pinStatus = 'generated';
+        this.pinCheck = '';
         this.pinReveal = r.pin.pin;
       } else {
         this.pinStatus = 'failed';
@@ -329,6 +336,26 @@ export class WiskeyPersonEditor extends LitElement {
   private hidePin() {
     this.pinReveal = null;
     this.pinCopy = '';
+  }
+
+  /** WISKEY-PEOPLE-COMPLETE-2390: a duplicate PIN is caught before the save - asked once when the PIN field is left, for a holder of the
+   * sensitive level only (the server checks it too, and limits how often). A failure is only advice: the save still checks. */
+  private async checkPinFree() {
+    const pin = this.draft?.pin;
+    const seq = ++this.pinCheckSeq;
+    if (!isApi() || !canAnywhere('access.people.sensitive') || !pinWorthChecking(pin)) {
+      this.pinCheck = '';
+      return;
+    }
+    this.pinCheck = 'checking';
+    try {
+      const r = await checkPin(this.userId, pin as string);
+      if (seq !== this.pinCheckSeq) return;
+      this.pinCheck = r.available === true ? 'free' : r.available === false ? 'taken' : 'failed';
+    } catch (err) {
+      if (seq !== this.pinCheckSeq) return;
+      this.pinCheck = err instanceof ApiError && err.status === 429 ? 'limited' : 'failed';
+    }
   }
 
   // ------------------------------------------------------------------ validity
@@ -772,13 +799,18 @@ export class WiskeyPersonEditor extends LitElement {
       ${blocked ? html`<p class="danger" data-wiskey-editor-pin-blocked>${t('pin_mode_blocked')}</p>` : nothing}
       <div class="grid2">
         <sw-field label=${t('new_pin')}>
-          <input type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]*" maxlength="128" data-ltr data-wiskey-editor-pin .value=${live(d.pin ?? '')} ?disabled=${blocked || removing} @input=${(e: Event) => { this.hidePin(); this.patch('pin', (e.target as HTMLInputElement).value || undefined); }} />
+          <input type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]*" maxlength="128" data-ltr data-wiskey-editor-pin .value=${live(d.pin ?? '')} ?disabled=${blocked || removing} @input=${(e: Event) => { this.hidePin(); this.pinCheckSeq++; this.pinCheck = ''; this.patch('pin', (e.target as HTMLInputElement).value || undefined); }} @change=${() => void this.checkPinFree()} />
         </sw-field>
         <sw-field label=${t('confirm_pin')}>
           <input type="password" inputmode="numeric" autocomplete="new-password" pattern="[0-9]*" maxlength="128" data-ltr data-wiskey-editor-pin-confirm .value=${live(d.confirm_pin)} ?disabled=${blocked || removing} @input=${(e: Event) => { this.hidePin(); this.patch('confirm_pin', (e.target as HTMLInputElement).value); }} />
         </sw-field>
       </div>
       <div aria-live="polite" data-wiskey-editor-pin-status=${this.pinStatus}>
+        ${this.pinCheck === 'checking' ? html`<p class="muted" data-wiskey-editor-pin-check="checking">${st('pin_checking')}</p>` : nothing}
+        ${this.pinCheck === 'free' ? html`<p class="ok" data-wiskey-editor-pin-check="free">${st('pin_free')}</p>` : nothing}
+        ${this.pinCheck === 'taken' ? html`<p class="danger" data-wiskey-editor-pin-check="taken">${st('pin_taken')}</p>` : nothing}
+        ${this.pinCheck === 'failed' ? html`<p class="muted" data-wiskey-editor-pin-check="failed">${st('pin_check_failed')}</p>` : nothing}
+        ${this.pinCheck === 'limited' ? html`<p class="muted" data-wiskey-editor-pin-check="limited">${st('pin_check_limited')}</p>` : nothing}
         ${this.pinStatus === 'generated' ? html`<p class="ok">נוצר קוד פנוי ומולא בשני השדות. הוא אינו שמור עדיין - הוא ייבדק שוב בשמירה.</p>` : nothing}
         ${this.pinReveal
           ? html`<div class="reveal" data-wiskey-editor-pin-reveal>

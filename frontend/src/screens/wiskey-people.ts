@@ -13,6 +13,10 @@ import './wiskey-person-drawer';
 import './wiskey-message-dialog';
 import './wiskey-person-actions';
 import './wiskey-bulk-people';
+import './wiskey-station-people';
+import { getPeopleDuplicates, type DuplicatesReply } from '../api/station-people';
+import { duplicateSummary } from '../access-control/station-people-logic';
+import { st as spt } from '../i18n/station-people';
 import { bt } from '../i18n/bulk-people';
 import { bulkSettings } from '../api/bulk-people';
 import type { ActionKind, ActionResult } from './wiskey-person-actions';
@@ -204,6 +208,10 @@ export class WiskeyPeople extends LitElement {
   /** The bulk buttons show only when the switch is on (or to a system administrator, who can switch it on); hidden on any error. */
   @state() private bulkShown = false;
   @state() private messagesRev = 0; // bumped after a message was sent: the open person's history is read again
+  /** WISKEY-PEOPLE-COMPLETE-2390: the "people on stations only" dialog, and the people who may be in the list twice (managers only). */
+  @state() private stationPeople = false;
+  @state() private dups: DuplicatesReply | null = null;
+  @state() private dupsOpen = false;
 
   private rowsKey = ''; // the query and filters the shown rows answer: "the last known" is only ever the answer to THIS request
   private generation = 0;
@@ -303,6 +311,7 @@ export class WiskeyPeople extends LitElement {
       this.photoOn = this.features.person_photo?.available !== false;
     }
     await this.loadMessaging();
+    void this.loadDuplicates();
     if (stations.status === 'fulfilled' && stations.value.stations) {
       this.stations = stations.value.stations;
       this.zone = (stations.value as { default_zone?: DisplayZone | null }).default_zone ?? UTC_ZONE;
@@ -312,6 +321,20 @@ export class WiskeyPeople extends LitElement {
       this.groups = groups.value.groups.groups;
       this.fields = groups.value.groups.fields;
       this.photoOn = this.photoOn && groups.value.groups.photo_enabled !== false;
+    }
+  }
+
+  /** WISKEY-PEOPLE-COMPLETE-2390: who may be in the list twice (same name, phone or unique profile value). Managers only; a failure
+   * simply shows no warning (it is advice, not a state of the list). */
+  private async loadDuplicates() {
+    if (!this.canManage) {
+      this.dups = null;
+      return;
+    }
+    try {
+      this.dups = await getPeopleDuplicates();
+    } catch {
+      this.dups = null;
     }
   }
 
@@ -734,6 +757,11 @@ export class WiskeyPeople extends LitElement {
         ? html`<wiskey-person-editor .userId=${this.editing === 'new' ? '' : this.editing.id} @editor-saved=${(e: CustomEvent) => this.onSaved(e)} @editor-deleted=${(e: CustomEvent) => this.onDeleted(e)} @editor-close=${() => this.closeEditor()}></wiskey-person-editor>`
         : nothing}
       ${this.message && !this.message.inDrawer ? this.renderMessage() : nothing}
+      ${this.stationPeople
+        ? html`<wiskey-station-people open .zone=${this.zone} @close=${() => (this.stationPeople = false)}
+            @changed=${() => { void this.reload(); void this.loadDuplicates(); }}
+            @open-person=${(e: CustomEvent<{ id: string }>) => { this.stationPeople = false; void this.openPerson(e.detail.id); }}></wiskey-station-people>`
+        : nothing}
       ${this.bulk
         ? html`<sw-bulk-people-dialog open .mode=${this.bulk} .personIds=${[...this.selected]} .stations=${this.stations.map((st) => ({ id: st.id, name: st.name, locks: [1, 2] }))}
             .groups=${this.groups.map((g) => ({ id: g.id, label: g.label }))} @close=${() => (this.bulk = null)} @changed=${() => void this.reload()}></sw-bulk-people-dialog>`
@@ -756,6 +784,9 @@ export class WiskeyPeople extends LitElement {
         : nothing}
       ${ready && this.canManage
         ? html`<sw-button slot="actions" variant="primary" icon="plus" data-wiskey-people-add @click=${() => this.openEditor('new')}>${pt('action.add')}</sw-button>`
+        : nothing}
+      ${ready && this.canManage
+        ? html`<sw-button slot="actions" variant="secondary" icon="door" ?iconOnly=${this.phone} label=${spt('open')} data-people-station-only @click=${() => (this.stationPeople = true)}>${spt('open')}</sw-button>`
         : nothing}
       ${ready && isApi() && this.bulkShown
         ? html`<sw-button slot="actions" variant="secondary" icon="upload" data-people-bulk-open @click=${() => (this.bulk = 'import')}>${bt('open')}</sw-button>`
@@ -823,8 +854,28 @@ export class WiskeyPeople extends LitElement {
     </div>`;
   }
 
+  private renderDuplicates(): TemplateResult | typeof nothing {
+    const sum = duplicateSummary(this.dups?.groups);
+    if (!this.canManage || !sum.groups.length) return nothing;
+    return html`<div class="note dup" role="status" data-people-duplicates=${sum.groups.length}>
+      <sw-icon name="users" size=${16}></sw-icon>
+      <span>${spt('dup_strip', { n: sum.groups.length })}${this.dups?.complete === false ? ` ${spt('dup_partial')}` : ''}</span>
+      <sw-button size="sm" variant="ghost" data-people-duplicates-toggle aria-expanded=${String(this.dupsOpen)} @click=${() => (this.dupsOpen = !this.dupsOpen)}>${this.dupsOpen ? spt('dup_hide') : spt('dup_show')}</sw-button>
+      ${this.dupsOpen
+        ? html`<div class="dup-list"><p class="dup-hint">${spt('dup_resolve')}</p><ul>
+            ${sum.groups.map((g) => html`<li data-people-duplicate-group=${g.code}>
+              <span class="dup-kind">${g.code === 'duplicate_display_name' ? spt('dup_name') : g.code === 'duplicate_phone' ? spt('dup_phone') : spt('dup_profile', { label: g.label })}</span>
+              ${g.people.map((p) => html`<button type="button" class="dup-person" data-people-duplicate-person=${p.id} @click=${() => void this.openPerson(p.id)}>${p.display_name}</button>`)}
+              ${g.more ? html`<span class="dup-more">${spt('dup_more', { n: g.more })}</span>` : nothing}
+            </li>`)}
+          </ul></div>`
+        : nothing}
+    </div>`;
+  }
+
   private renderStrips(): TemplateResult {
     return html`
+      ${this.renderDuplicates()}
       ${this.notice
         ? html`<div class="note ${this.notice.tone}" role="status" data-wiskey-people-notice=${this.notice.tone}>
             <sw-icon name=${this.notice.tone === 'ok' ? 'check' : 'warning'} size=${16}></sw-icon><span>${this.notice.text}</span>
@@ -1171,6 +1222,50 @@ export class WiskeyPeople extends LitElement {
     }
     .note.ok {
       background: var(--sw-success-soft);
+    }
+    /* WISKEY-PEOPLE-COMPLETE-2390: people who may be in the list twice */
+    .note.dup {
+      background: var(--sw-warning-soft);
+    }
+    .dup-list {
+      flex-basis: 100%;
+    }
+    .dup-list ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 6px;
+    }
+    .dup-list li {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px 8px;
+    }
+    .dup-hint {
+      margin: 0 0 6px;
+      color: var(--sw-text-2);
+    }
+    .dup-kind {
+      font-weight: var(--sw-fw-semibold);
+    }
+    .dup-person {
+      min-block-size: 32px;
+      padding: 2px 10px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-surface);
+      color: var(--sw-accent-text);
+      font: inherit;
+      cursor: pointer;
+    }
+    .dup-person:focus-visible {
+      outline: var(--sw-focus-w) solid var(--sw-focus);
+      outline-offset: var(--sw-focus-offset);
+    }
+    .dup-more {
+      color: var(--sw-text-3);
     }
     /* not sticky: now that the page scrolls, a bar stuck to the top of the column would pass under the shell's floating search / status
        corner (it covers the far end of whatever is at the top) and cover the rows beneath it (layout guard: floating) */
