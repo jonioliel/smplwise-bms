@@ -136,6 +136,20 @@ re-open grace removes that part.
   `evidence-wiskey-station-media.spec.ts` (main follows the choice; MSE only / WebRTC only on both profiles; personal over installation with
   the server plans) and its mock.
 
+### 7.1 What was run (2026-11-04)
+
+| Check | Command / place | Result |
+|---|---|---|
+| Type check | `npx tsc --noEmit` (frontend, workstation) | clean |
+| Unit specs (explicit files) | 18 video / station / menu specs + 4 lint and string specs + 10 source-walk lint specs, `playwright.unit.config.ts` | 137 + 42 passed; the 10-file lint batch 100 passed after one fix (a Hebrew string used `›` instead of `‹`) |
+| Backend (targeted) | `pytest` of the new file + 11 related files (station media, W10 lease lifecycle, ASGI WisKey lifecycle, prefs, HA camera live, H.265, camera scope, readiness, settings nav pref) | 504 passed |
+| Release check | `scripts/release_check.py` | ready (one version 2.39.0, migrations 0001-0205 contiguous) |
+| API inventory | `scripts/api_inventory.py` | 1843 -> 1844 routes (`GET /media/video-policy`) |
+| Evidence + pixel + layout (runner, no gate running, 106 GB free) | `run_smart.py preview pilot/VIDEO-TRANSPORT-2400` - evidence-video-transport-2400, evidence-webrtc-only, evidence-webrtc-first, evidence-remote-video, evidence-wall-pano, evidence-wiskey-station-media, pixel-wiskey-station-media, pixel-wiskey-talk-dial-2382, layout-wiskey-station-media | 128 passed, 145 skipped (desktop-only player specs on tablet / mobile, fixture-backend specs), 0 failed; no pixel baseline changed |
+
+Observed once: `test_full_app_lifecycle_…` (ASGI WisKey) failed its "no OS socket more than before" check inside one long combined run and
+passed alone, with the new file, and in the final combined run - recorded as order-dependent, not reproduced.
+
 ## 8. Known limits
 
 - The frozen-MSE evidence uses the player's own first-frame entry on a fake MSE socket (the fake stack decodes no fMP4); a real frozen stream
