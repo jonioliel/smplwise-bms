@@ -248,3 +248,130 @@ Every rewritten PNG was compared with HEAD as old / new / difference sheets and 
   `wiskey_feature_status`, `access_control_writes` or `join_state`): **1191 passed, 15 skipped, 3 xfailed, 0 failed** (48 min).
 - Needs the runner (NOT_RUN here): the pixel set without `-u` on the merged UI (stations / people / settings / access control),
   the full backend suite, the evidence / regression specs, the release gate, the UI build (`build:addon`).
+
+## 8. Main v2.39.0 and the owner-answer branches of 04.11 (2026-11-04, afternoon)
+
+Branch `release/2400-train` @ `a96798dc8` -> this section. Version lines are now **2.39.0** (main's); no 2.40.0 bump, no changelog
+entry, no UI rebuild (`smplwise_vms/www` is main's 2.39.0 build), no tag. The 2.40.0 version commit, `build:addon`, the gate, the tag
+and the merge to `main` are the owner's.
+
+### 8.1 Merges (`--no-ff`, in this order)
+
+| # | Branch (change doc in `docs/changes/`) | Tip | Cut from | Merge commit | Conflicts |
+|---|---|---|---|---|---|
+| 0 | `origin/main` = v2.39.0 | a8eac3176 | - | 121e29861 | `contracts/API_INVENTORY.md` (header) |
+| 1 | `pilot/WISKEY-INSTALL-ANSWERS-2400` - round 18 Q2-Q8: settings group "בקרת כניסה" with the installer row, start-up install switch (default off), kept runs 5 | a7d6054e7 | train 8e3ac8398 | caea80b2a | none (`main.py` auto) |
+| 2 | `pilot/WISKEY-OPS-ANSWERS-2400` - Q9-Q11, Q21: maintenance label, schedule-deploy warning, "no talk" reasons name WisKey | 9b05b0edf | train 8e3ac8398 | 8148e8e55 | none (`test_wiskey_station_ops.py` auto with main) |
+| 3 | `pilot/BOARD-ANSWERS-2400` - Q12-Q17: pre-0173 board link sealed on TV connect, "הפוך" chip lists | 9e69b26ea | train 8e3ac8398 | 15ae3816a | none (`main.py` auto) |
+| 4 | `pilot/WALL-ANSWERS-2400` - Q18-Q20: open-foldable setting, portrait health chip once, kiosk header on a phone, desktop flag column, migration **0204** | 604334317 | train 8e3ac8398 | 80983c8db | `contracts/API_INVENTORY.md` |
+| 5 | `pilot/PRESENCE-COUNT-2400` - Q25-Q28: "מונה ושמות" presence card, the new default style | 003a88a83 | train 8e3ac8398 | 7cbd8930e | none |
+| 6 | `pilot/WXD10-DOOR-JOBS-2400` - CR-033 D10a / D10b, API only, migration **0205** | 8d562f1cf | train 8e3ac8398 | a839ceeba | `contracts/API_INVENTORY.md` |
+| 7 | `pilot/TTS-DEFAULT-ENGINE-2400` - fixed announcement engine / language (coordinator 04.11: add it) | 5795a6ecd | train a96798dc8 | 1879f1095 | none |
+
+Train commits on top: `0ee9302e6` (generated: API inventory), `2cec97a47` (26 PNG re-taken, 8.4), this document.
+
+- **Conflicts**: only `contracts/API_INVENTORY.md`. At the main merge it was regenerated (1837 routes, header 2.39.0); at WALL and WXD10
+  the train's side was kept and the file regenerated once after the last merge (`0ee9302e6`): **1843 routes** (+ `PUT
+  wiskey/managed/keep-runs`, + `GET` / `PATCH wall/settings`, + three `intercom/door-path-conversion` routes), none removed, header
+  2.39.0. TTS adds no route (it uses `PATCH /settings` and widens the reader of `GET intercom/tts/engines` to `system.configure`).
+- **Channel lists / admission tests**: none of the seven branches touched `wiskey_channels.py`, `test_wiskey_channels.py`,
+  `test_pwclean_295.py` or `test_t06_admission_295.py`; the `ADDED_AFTER_CLEANUP` union of section 1.1 stands unchanged. WXD10 adds
+  no WisKey command caller (the T06 pin passes).
+- **Settings column**: INSTALL-ANSWERS' group "בקרת כניסה" (access-control screen, "התקנה ותחזוקה", "מתגי מסכי כניסה") is kept as the
+  branch built it; it replaces the train's earlier search-only placement of the installer (section 2.3; owner question 6.1 is
+  answered: ג). No other branch edits `system-index.ts`. TTS adds two rows inside the "תצוגת מסך התחנות" card (content pane), no column
+  entry. `layout-settings-nav-fit-402` on the runner: **passed** at 1440x900 and 1366x768 (8.3).
+- **Migrations**: WALL 0204, then WXD10 0205 - contiguous `0001..0205`, 205 files, no duplicate number (WXD10's own release check
+  failed only on the missing 0204, as its change doc expected).
+- **WXD10 owner questions** (its section 7): answered by the coordinator with the recommended "as built" options - 1א (undo of a
+  disable stays for the system administrator, confirmed and audited), 2א (undo of a conversion deletes the Arx door job only), 3א (no
+  Settings screen while the inventory is empty). No code change.
+- **Nothing reverted**: every branch was cut from this train (8e3ac8398 / a96798dc8, ancestors of the train) and merged without a
+  textual conflict except the generated inventory, so no train line was dropped by a resolution.
+
+### 8.2 Local receipts (workstation, project `.venv` Python 3.12, Node 24.21.0)
+
+| Check | Tree | Result |
+|---|---|---|
+| Migrations | 0ee9302e6 / 1879f1095 | contiguous 0001..0205, 205 files, no duplicate |
+| `scripts/release_check.py` | 0ee9302e6 and 1879f1095 | every item `[ok]` (incl. the tag `v2.39.0`), RESULT: ready for the owner's approval |
+| `npx tsc --noEmit -p tsconfig.json` | 0ee9302e6 and 1879f1095 | exit 0 both |
+| Unit, explicit files (47: the branches' own specs - managed, settings index / nav / rows, installer, intercom ops, schedule editor, talk dial / caps, station media / ops, board answers, TV chips, wall device class / logic / alerts, kiosk idle, glass wall, presence count / compact / logic / line, home clock / screen / config, door conversion / settings, deep links, triage, access diag - and the lints: tokens, design tokens x2, empty-state icons, date format, a11y x2, phone buttons, menu, RTL, white label, motion, dark beds, pending tokens, uxrest2, polish4) | 0ee9302e6 | **458 passed, 8 skipped, 0 failed** |
+| Unit after TTS (11 files: tts-default, round4 leftovers, stations, talk max, wxmedset, settings index / rows, token lint, empty-state icons, date format, a11y) | 1879f1095 | **125 passed** |
+| Backend group 1 (14 files: install answers, managed install, policy B x2, r3 owner switch, MAC managed, station ops, intercom authority, permissions wxperm, schedule writes, door tech, live validation, wiskeyarx 291, progress matcher) | 0ee9302e6 | **471 passed, 3 skipped** |
+| Backend group 2 (20 files: board answers, board mgmt, TV chips, notices perm / info / security / caps / tvsettings / 106, wall, wall alerts, kiosk role, me permissions, presence count / compact / history / building / area line, ui settings, settings nav pref) | 0ee9302e6 | **356 passed** |
+| Backend group 3 (20 files: WXD10, door gate / enable / inventory / d6-d8 / signed, wxd fixes, door automation, doorwin, migrations x3, db gate, db template, release check, WisKey channels, pwclean, T06 admission, backup, docs config) | 0ee9302e6 | **391 passed, 3 skipped, 3 xfailed** |
+| Backend after TTS (8 files: tts default, intercom, ui settings, intercom authority, settings nav pref, permissions wxperm, wxd fixes, release check) | 1879f1095 | **281 passed** |
+
+Skips / xfails are the files' existing markers. The worktree's `frontend/node_modules` is a junction to the main checkout's (identical
+`package-lock.json`, gitignored). The unit runs left `docs/evidence/USR2` untouched this time.
+
+### 8.3 Runner receipts
+
+`private/runner/run_smart.py <job> release/2400-train ... --machine=runner` from the train worktree. Before these jobs the runner was
+idle: `gate_status.json` `pass` (the 2.39.0 gate of `release/2390-train` @ a8eac3176 had ended 10:30 UTC), no `release_gate`
+process, 105-110 GB free.
+
+| Job | SHA | Result |
+|---|---|---|
+| Pixel **without** refresh: all 26 `pixel-*` + `evidence-intercom-ops` + `evidence-wiskey-installer` + `evidence-wiskey-live-validation-2390` + `visual-matrix`, desktop + mobile + tablet, workers 1 (`preview`) | 0ee9302e6 | 483 passed, 348 skipped, **18 failed** - all desktop 1440 settings pages: the column (8.4) |
+| Re-take `--update-snapshots=changed`, the 7 failing spec files, desktop, workers 1 | 0ee9302e6 | 26 PNG written, reviewed, committed `2cec97a47` |
+| Verify **without** refresh, the same 7 spec files, desktop, workers 1 | 2cec97a47 | **101 passed, 0 failed** |
+| Evidence / regression `preview`, desktop + mobile + tablet (24 specs: `layout-settings-nav-fit-402`, `layout-settings-nav-295`, `evidence-wiskey-managed-2382`, `evidence-wiskey-schedule-writes`, `evidence-wiskey-talk-caps-2382`, `evidence-wiskey-talk-dial-2382`, `unit-schedule-editor-logic`, `evidence-board-answers-2400`, `evidence-board-mgmt-2381`, `evidence-tv-chips-2381`, `evidence-wall-answers-2400`, `evidence-wall-followups-2390`, `evidence-wall`, `evidence-wall-alerts`, `evidence-wall-plan`, `evidence-wall-phone`, `evidence-mobile-wall-kiosk`, `evidence-kiosk-polish`, `evidence-kiosk`, `layout-wall-plan`, `evidence-look-polish-2331`, `evidence-wiskey-deeplinks`, `evidence-calendars-nav-2310`, `evidence-nav-size`) | 2cec97a47 | 341 passed, 345 skipped (project-scoped), **1 failed**: `evidence-mobile-wall-kiosk.spec.ts:61` [mobile] (8.5) |
+| `spec` job (vite dev server), desktop + mobile + tablet: `evidence-presence-count-2400`, `evidence-presence-design-2300`, `layout-widgets-break-297`, `layout-home-widgets-wide-298`, `layout-home-edit-bar-wp4`, `evidence-presence-round16`, `evidence-settings-cards-2380` | 2cec97a47 | **74 passed, 40 skipped, 0 failed** |
+
+`layout-settings-nav-fit-402` (INSTALL-ANSWERS had not run it): 1440x900 and 1366x768 "every group, opened one at a time, fits" and the
+header toggle - **3 passed** (desktop; skipped on tablet / phone by design). OPS-ANSWERS' 9 re-taken baselines
+(`pixel-wiskey-schedule-writes` x7, `pixel-wiskey-talk-dial-2382` x2) and WALL-ANSWERS' `wall-fold-inner-portrait` **passed without
+refresh** in the first pixel run on the merged UI (the column does not reach them).
+
+### 8.4 Baseline review (26 PNG, `2cec97a47`)
+
+Every image was compared with HEAD by a script (bounding box of the pixels that differ by more than 16 levels) and the changed region
+was looked at old / new side by side. In all 26 the changed pixels lie inside the settings column (x 1108-1327 of 1440); page content,
+header and shell are identical. What changed: the column has six groups; "בקרת כניסה" (door icon) sits between "מדיה" and "מערכת
+ותשתית" and, open, lists "בקרת כניסה", "התקנה ותחזוקה", "מתגי מסכי כניסה"; "מערכת ותשתית" lost those rows.
+
+- `evidence-intercom-ops` overview; `evidence-wiskey-installer` clock / lifecycle / platform / technical (the group "בקרת כניסה" is
+  the open one; on the installer pages "התקנה ותחזוקה" is the marked row);
+- `evidence-wiskey-live-validation-2390` empty / run-all (one more closed group header);
+- `pixel-access-s12` `s12-classic-audit-person`; `pixel-access-status` 12 (classic audit / busy / empty / forbidden / groups / list /
+  lower / muted / not-connected / policy / stale, domus list); `pixel-wiskey-messaging` 4 (classic, dark, service down, domus);
+- `pixel-access-status` forbidden: the persona with `access.read` only sees "התראות ואוטומציה" and "בקרת כניסה" (the operations tab
+  moved with its group) instead of "מערכת ותשתית"; the forbidden card is unchanged;
+- `visual-matrix` `settings-diagnostics-ready-{light,dark}`: "מערכת ותשתית" open and two rows shorter, plus the new closed header.
+
+### 8.5 `evidence-mobile-wall-kiosk.spec.ts:61` - recorded, not fixed
+
+[mobile] "camera wall on a phone: one short toolbar row": the phone toolbar of `#/live/wall` is 94 px against the spec's 56 px bound.
+It fails the same way on `main` (WALL-FOLLOWUPS-2390 section 4, WALL-ANSWERS-2400 section 6). Cause: DROPDOWNFIT-295 (`833fc840e`,
+after an owner report that the toolbar's labels were cut with an ellipsis) gave every control of the bar `flex: 1 1 150px` so each
+label fits whole; three 150 px controls and the 40 px kiosk button do not fit one row at 390 px, so the bar wraps to two rows. The spec
+still states the 2026-09-30 mobile audit's "one row". The two owner requirements conflict (whole labels vs one row), so this is a
+design decision, not a clear defect: not changed, not hidden, not quarantined here. Owner question 8.7.1.
+
+### 8.6 Runner incident
+
+At 12:01 local a `preview` job for the TTS checks was started while the hotfix gate (`fix/BRIDGE-STALE-DISCOVERY-2383`, tier L,
+started 11:38 UTC) was running: the status read and the launch were in one command and its output was read after the launch. The job
+was stopped about 40 s later - locally its `run_smart.py` processes and shells, on the runner exactly its own `run_remote.sh preview
+release/2400-train` and its child `tsc --noEmit && vite build` in `~/work/release-2400-train` (the only work it had started). Nothing
+of the gate was touched; that 40 s `tsc` may have added to the gate's load (it reported a 3 s late `playwright-pool` phase, load 39).
+
+### 8.7 What remains
+
+1. **Owner question - the camera wall's phone toolbar** (8.5): (a) keep the two-row bar (whole labels, DROPDOWNFIT-295) and set the
+   spec's bound to two rows; (b) one row again with shorter labels or icon-only selects (a design change of the bar); (c) leave as is.
+2. **TTS-DEFAULT-ENGINE on the runner** - see 8.8.
+3. Main will become v2.39.1 (`fix/BRIDGE-STALE-DISCOVERY-2383`); it is merged here only when the coordinator says so.
+   `pilot/VIDEO-TRANSPORT-2400` comes later.
+4. NOT_RUN: the full backend suite, the full unit sweep (432 files), `layout-access-s12` (TTS NOT_RUN), the release gate,
+   `build:addon`, Windows pixel baselines, any lab / WisKey / station / Home Assistant / device contact (none allowed).
+   `management/tasks.json` / `test_catalog.json` not edited.
+
+### 8.8 TTS-DEFAULT-ENGINE-2400 on the runner
+
+NOT_RUN yet: the hotfix gate is running on the runner. To run when it has ended: `pixel-access-s12` (its re-taken desktop 1440
+display / parity images were taken on a train without the "בקרת כניסה" group and show the settings column, so they are expected to
+need a re-take), `pixel-wiskey-stations`, `pixel-wiskey-station-media`, `visual-matrix` without refresh; `evidence-tts-default-2400`,
+`evidence-access-s12`, `evidence-wxmedset`, `evidence-wiskey-stations` (`spec` job).
