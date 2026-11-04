@@ -137,8 +137,18 @@ Backend, `smplwise_vms/backend/tests/test_wxd10_door_jobs.py` - 13 tests:
 
 Frontend unit spec `frontend/tests/unit-door-conversion-wxd10.spec.ts` - 4 tests (Node only).
 
-Results: see the closing report of this task (commands and counts); `release_check` is expected to fail only on "migrations
-contiguous" (section 4).
+Results (2026-11-04, Windows workstation, Python 3.12 venv, fakes only):
+
+- `pytest -q tests/test_wxd10_door_jobs.py tests/test_wiskey_door_gate.py tests/test_wiskey_door_enable.py
+  tests/test_wiskey_door_inventory.py tests/test_wiskey_d6_d8.py tests/test_security_review_wxd_fixes.py
+  tests/test_wiskey_door_signed.py tests/test_door_automation_295.py tests/test_doorwin_api.py tests/test_migrations.py
+  tests/test_t06_admission_295.py tests/test_release_check.py`: **131 passed, 3 xfailed (pre-existing), 1 failed** - the failure
+  is `test_release_check.py::test_repository_is_release_consistent` on "migrations contiguous" (0204 missing, section 4), expected.
+- `scripts/release_check.py`: NOT ready on "migrations contiguous" only; every other item ok.
+- `tsc --noEmit`: 0 errors. `playwright test -c playwright.unit.config.ts tests/unit-door-conversion-wxd10.spec.ts
+  tests/unit-door-settings.spec.ts`: 10 passed (Node only, no browser).
+- No WisKey command caller was added, so `docs/changes/T06-ADMISSION-MAPPING-295.md` needs no new row (`test_t06_admission_295.py`
+  green). NOT_RUN: the full backend suite, pixel / browser suites, the runner.
 
 ## 6. Not done / limits
 
