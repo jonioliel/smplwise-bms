@@ -74,7 +74,7 @@ test.describe('the intercom operations views', () => {
     await expect(page.locator(`${ROOT} [data-job="job-1"] [data-job-error-rows] li`)).toHaveCount(2);
     await expect(page.locator(`${ROOT} [data-job="job-2"] [data-job-cancel]`)).toHaveCount(0);
     await page.locator(`${ROOT} [data-job="job-1"] [data-job-cancel]`).click();
-    await expect(page.locator(DIALOG)).toBeVisible();
+    await expect(page.locator(`${DIALOG} .box`)).toBeVisible();
     expect(m.cancels).toHaveLength(0);
     await page.locator(`${DIALOG} [data-cancel-confirm]`).click();
     await expect(page.locator(`${ROOT} [data-flash]`)).toContainText('בוטלה');
@@ -188,13 +188,14 @@ test.describe('the intercom operations views', () => {
   test('classic is pixel-stable: operations and jobs', async ({ page }, info) => {
     await open(page, newOpsMock(), '/system/intercom-operations/operations', `${ROOT} [data-jobs] [data-job]`);
     await settlePage(page);
-    await compareEl(page, info, `${ROOT} [data-ops-view="operations"]`, 'intercom-ops-operations');
+    await compareEl(page, info, `${ROOT} [data-ops]`, 'intercom-ops-operations');
+    await compareEl(page, info, `${ROOT} [data-jobs]`, 'intercom-ops-jobs');
   });
 
   test('classic is pixel-stable: the cancel confirmation box', async ({ page }, info) => {
     await open(page, newOpsMock(), '/system/intercom-operations/operations', `${ROOT} [data-jobs] [data-job]`);
     await page.locator(`${ROOT} [data-job="job-1"] [data-job-cancel]`).click();
-    await expect(page.locator(DIALOG)).toBeVisible();
+    await expect(page.locator(`${DIALOG} .box`)).toBeVisible();
     await settlePage(page);
     await compareEl(page, info, `${DIALOG} .box`, 'intercom-ops-cancel-box');
   });
@@ -202,19 +203,21 @@ test.describe('the intercom operations views', () => {
   test('classic is pixel-stable: the investigations timeline', async ({ page }, info) => {
     await open(page, newOpsMock(), '/system/intercom-operations/investigations', `${ROOT} [data-timeline] [data-tl]`);
     await settlePage(page);
-    await compareEl(page, info, `${ROOT} [data-timeline]`, 'intercom-ops-timeline');
+    await compareEl(page, info, `${ROOT} [data-timeline] .list`, 'intercom-ops-timeline');
   });
 
   test('classic is pixel-stable: capacity and the trend chart', async ({ page }, info) => {
     await open(page, newOpsMock(), '/system/intercom-operations/capacity', `${ROOT} wk-ops-trend-chart [data-trend-chart]`);
     await settlePage(page);
-    await compareEl(page, info, `${ROOT} [data-ops-view="capacity"]`, 'intercom-ops-capacity');
+    await compareEl(page, info, `${ROOT} [data-capacity] .cap-grid`, 'intercom-ops-capacity');
+    await compareEl(page, info, `${ROOT} [data-trend]`, 'intercom-ops-trend');
   });
 
   test('classic is pixel-stable: the events report and its chart', async ({ page }, info) => {
     await open(page, newOpsMock(), '/system/intercom-operations/events', `${ROOT} wk-ops-day-chart [data-day-chart]`);
     await settlePage(page);
-    await compareEl(page, info, `${ROOT} [data-events]`, 'intercom-ops-events');
+    await compareEl(page, info, `${ROOT} [data-events] wk-ops-day-chart`, 'intercom-ops-events');
+    await compareEl(page, info, `${ROOT} [data-events] .two`, 'intercom-ops-events-tables');
   });
 
   test('classic is pixel-stable: exports', async ({ page }, info) => {
@@ -226,7 +229,7 @@ test.describe('the intercom operations views', () => {
   test('classic is pixel-stable: empty and error parts', async ({ page }, info) => {
     await open(page, newOpsMock({ empty: true }), '/system/intercom-operations/operations', `${ROOT} [data-jobs] [data-part-state="empty"]`);
     await settlePage(page);
-    await compareEl(page, info, `${ROOT} [data-ops-view="operations"]`, 'intercom-ops-empty');
+    await compareEl(page, info, `${ROOT} [data-jobs]`, 'intercom-ops-empty');
     await page.unrouteAll({ behavior: 'ignoreErrors' });
     await open(page, newOpsMock({ fail: new Set(['events_report']) }), '/system/intercom-operations/events', `${ROOT} [data-events] [data-part-state="error"]`);
     await settlePage(page);

@@ -604,7 +604,7 @@ export class SystemIntercomOps extends LitElement {
     const pct = v.used_percent;
     const tone = meterTone(pct);
     return html`<div class="meter" data-tone=${tone} data-meter=${attr} role="meter" aria-valuemin="0" aria-valuemax=${v.limit ?? 0} aria-valuenow=${v.count ?? 0} aria-label=${label}>
-      <div class="lbl"><span>${label}</span><b>${T.usersOf(v.count, v.limit)}${pct !== null ? ` · ${Math.round(pct)}%` : ''}</b></div>
+      <div class="lbl"><span>${label}</span><b><bdi dir="ltr">${T.usersOf(v.count, v.limit)}</bdi>${pct !== null ? html` · <bdi dir="ltr">${Math.round(pct)}%</bdi>` : nothing}</b></div>
       <div class="bar"><i style=${`inline-size:${Math.max(0, Math.min(100, pct ?? 0))}%`}></i></div>
     </div>`;
   }
@@ -638,7 +638,7 @@ export class SystemIntercomOps extends LitElement {
                 <div class="end">${st.max_users ? this.meter(T.table.users, { count: st.users, limit: st.max_users, used_percent: st.users !== null ? Math.round((1000 * st.users) / st.max_users) / 10 : null, remaining: null, growth_per_day: null, days_to_limit: null, alert: 'observed' }, 'users') : nothing}</div>
                 <div class="meta">
                   ${st.pending_users ? html`<span>${T.table.pending}: ${st.pending_users}</span>` : nothing}
-                  ${st.cards !== null ? html`<span>${T.table.cards}: ${st.cards}${st.max_cards ? ` / ${st.max_cards}` : ''}</span>` : nothing}
+                  ${st.cards !== null ? html`<span>${T.table.cards}: <bdi dir="ltr">${st.cards}${st.max_cards ? ` / ${st.max_cards}` : ''}</bdi></span>` : nothing}
                   ${st.last_error ? html`<span>${T.table.error}: <code>${st.last_error}</code></span>` : nothing}
                 </div>
               </article>`,
@@ -695,7 +695,7 @@ export class SystemIntercomOps extends LitElement {
 
   private pager(p: { total: number; offset: number; next_offset: number | null; previous_offset: number | null; limit: number | null }, go: (o: number) => void): TemplateResult | typeof nothing {
     if (p.next_offset === null && p.previous_offset === null) return nothing;
-    return html`<div class="pager" data-pager><span>${p.offset + 1}–${Math.min(p.total, p.offset + (p.limit ?? 25))} / ${p.total}</span>
+    return html`<div class="pager" data-pager><bdi dir="ltr">${p.offset + 1}–${Math.min(p.total, p.offset + (p.limit ?? 25))} / ${p.total}</bdi>
       <sw-button size="sm" ?disabled=${p.previous_offset === null} @click=${() => p.previous_offset !== null && go(p.previous_offset)}>${T.prev}</sw-button>
       <sw-button size="sm" ?disabled=${p.next_offset === null} @click=${() => p.next_offset !== null && go(p.next_offset)}>${T.more}</sw-button></div>`;
   }
@@ -826,7 +826,7 @@ export class SystemIntercomOps extends LitElement {
                 <header><b>${r.name}</b>${this.pill(alertTone(r.users.alert), ALERT_HE[r.users.alert], 'alert')}</header>
                 ${this.meter(T.table.users, r.users, 'users')}${this.meter(T.table.cards, r.cards, 'cards')}
                 <div class="muted">
-                  ${r.users.growth_per_day !== null ? html`<span>${T.growth(r.users.growth_per_day)}</span>` : nothing}
+                  ${r.users.growth_per_day !== null ? html`<span><bdi dir="ltr">${r.users.growth_per_day > 0 ? '+' : ''}${r.users.growth_per_day}</bdi> ביום</span>` : nothing}
                   ${r.users.days_to_limit !== null ? html` · <span data-days-to-limit>${T.daysToLimit(r.users.days_to_limit)}</span>` : nothing}
                   <div>${T.sampledAt}: ${this.time(r.sampled_at)}</div>
                 </div>
