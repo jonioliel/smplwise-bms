@@ -30,6 +30,7 @@ import '../notices/display-transit';
 import '../notices/news-sources';
 import { feedView, shortName } from '../notices/news-model';
 import type { NoticeSavedDetail } from '../notices/compose-dialog';
+import type { InfoSourcesPatch } from '../notices/info-chips-model'; // BOARD-ANSWERS-2400
 import { noticesCss } from '../notices/styles';
 import { NOTICES_HREF, NOTICES_SETTINGS_HREF, applyNoticesHidden } from '../shell/nav';
 import '../notices/display-home';
@@ -368,7 +369,8 @@ export class SystemNotices extends LitElement {
           @change=${(e: Event) => this.patchSettings({ building_name: (e.target as HTMLInputElement).value })}><span class="hint">${nt('dBuildingHint', { name: s.building_fallback || '-' })}</span></div>
       </div>
       <notice-info-sources .parking=${st.parking_entities ?? []} .gym=${st.gym_entities ?? []} .candidates=${s.info_entities ?? {}}
-        @info-sources-change=${(e: CustomEvent<{ parking_entities?: string[]; gym_entities?: string[] }>) => this.patchSettings(e.detail)}></notice-info-sources>
+        .inverted=${{ parking: st.parking_inverted ?? [], gym: st.gym_inverted ?? [] }}
+        @info-sources-change=${(e: CustomEvent<InfoSourcesPatch>) => this.patchSettings(e.detail)}></notice-info-sources>
       <div class="fld"><label for="ns-origin">${nt('dOrigin')}</label><input id="ns-origin" class="inp ltr" maxlength="220" .value=${st.boards_origin} placeholder="http://192.0.2.10:18094"
         @change=${(e: Event) => this.patchSettings({ boards_origin: (e.target as HTMLInputElement).value })}><span class="hint">${nt('dOriginHint')}</span></div>
       <div class="r">
@@ -425,7 +427,8 @@ export class SystemNotices extends LitElement {
 
   /** NOTICEPERM-295 + BOARD-MGMT-2381 (owner 03.11, answer 5A): the TV link is permanent - the stored one is read back and copied, the
    * same link every time, and nothing on the board changes (a paired TV stays connected). A board saved before the stored token existed
-   * has no copy to read: the replace confirmation opens with the reason, and only its explicit "החלף קישור" replaces the link. */
+   * has no copy to read: the replace confirmation opens with the reason, and only its explicit "החלף קישור" replaces the link.
+   * BOARD-ANSWERS-2400 (owner 04.11, Q13 = B): the server keeps that copy the next time the board's TV connects, so the reason says so. */
   private async copyLink(b: Board): Promise<void> {
     if (!b.has_stored_link) {
       this.confirmRotate = { board: b, copy: true, legacy: true };
@@ -556,6 +559,7 @@ export class SystemNotices extends LitElement {
       <div class="panel"><div class="hd"><h2>${nt('bAddress')}</h2></div>
         <div class="link"><code class="ltr">${this.linkUrl(b, '••••••••••••••••••••••••••••••••')}</code></div>
         <p class="hint">${nt('linkOnce')} ${nt('linkHint')}</p>
+        ${b.has_stored_link === false ? html`<p class="hint" data-link-pending>${nt('linkPending')}</p>` : nothing}
         <div class="ctl"><sw-button icon="refresh" @click=${() => (this.confirmRotate = { board: b, copy: false })}>${nt('newLink')}</sw-button></div></div>
     </div>`;
   }

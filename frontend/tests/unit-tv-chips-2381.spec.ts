@@ -107,7 +107,8 @@ test('wiring: the sources card in the defaults card (saved at once), the order e
   const screen = read('src/screens/system-notices.ts');
   expect(screen).toContain("import '../notices/info-sources';");
   expect(screen).toContain('<notice-info-sources .parking=${st.parking_entities ?? []} .gym=${st.gym_entities ?? []} .candidates=${s.info_entities ?? {}}');
-  expect(screen).toContain('@info-sources-change=${(e: CustomEvent<{ parking_entities?: string[]; gym_entities?: string[] }>) => this.patchSettings(e.detail)}');
+  // BOARD-ANSWERS-2400: the event also carries `<kind>_inverted` ("הפוך"), typed by InfoSourcesPatch
+  expect(screen).toContain('@info-sources-change=${(e: CustomEvent<InfoSourcesPatch>) => this.patchSettings(e.detail)}');
   expect(screen).toMatch(/<notice-display-info [^>]*\.sources=\$\{s\.parking_entities \?/);
   const src = read('src/notices/info-sources.ts');
   expect(src).toContain('info-sources-change');

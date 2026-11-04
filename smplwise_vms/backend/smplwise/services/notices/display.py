@@ -242,13 +242,15 @@ class DisplayService:
     company logo; `clock` returns an aware UTC instant (tests)."""
 
     def __init__(self, open_conn: Callable[[], Any], data_dir: Path | None, *, clock: Callable[[], dt.datetime] = store.utcnow,
-                 limiter: RateLimiter | None = None, news: sources.NewsCache | None = None, touch: Callable[[str], None] | None = None) -> None:
+                 limiter: RateLimiter | None = None, news: sources.NewsCache | None = None, touch: Callable[[str], None] | None = None,
+                 capture: Callable[[str, str], None] | None = None) -> None:
         self.open_conn = open_conn
         self.data_dir = Path(data_dir) if data_dir else None
         self.clock = clock
         self.limiter = limiter or LIMITER
         self.news = news
         self.touch = touch
+        self.capture = capture  # BOARD-ANSWERS-2400 (Q13 = B): keeps the sealed copy of a pre-NOTICEPERM-295 board's link (capture_link)
 
     def _miss(self, client: str) -> Reply:
         if not self.limiter.hit(f"nb-miss:{client}", MISSES):
@@ -284,6 +286,13 @@ class DisplayService:
             try:
                 self.touch(board["id"])
             except Exception:  # noqa: BLE001 - last_seen_at is best effort; never fails a feed read
+                pass
+        if self.capture and not board.get("token_sealed") and req.token:
+            # BOARD-ANSWERS-2400: only here, after resolve() verified THIS token against the stored hash (constant-time), on an enabled
+            # board of a module that is on. Best effort: never fails or slows the feed, never logs the token.
+            try:
+                self.capture(board["id"], req.token)
+            except Exception:  # noqa: BLE001
                 pass
         etag = f'"{doc["board"]["version"]}"'
         if req.if_none_match and req.if_none_match.strip() == etag:
@@ -358,6 +367,49 @@ def touch_seen(db: Any) -> Callable[[str], None]:
         last[board_id] = now
         with db.connection(label="notices.board.seen") as conn:
             conn.execute("UPDATE notice_boards SET last_seen_at = ? WHERE id = ?", (model.iso(store.utcnow()), board_id))
+
+    return run
+
+
+CAPTURE_RETRY_S = 60.0  # at most one capture attempt per board a minute (a failing key never turns every feed poll into a write)
+
+
+def capture_link(db: Any, data_dir: Path | None, *, clock: Callable[[], float] | None = None) -> Callable[[str, str], None]:
+    """BOARD-ANSWERS-2400 (owner 04.11, Q13 = B): a board saved before NOTICEPERM-295 holds only the hash of its link token, so "העתק קישור"
+    had nothing to read. When its TV next reads the feed with a token that `DisplayService.resolve` verified against that hash, the SAME
+    token is stored sealed (connection_store.seal_notice_board_token: AES-GCM, the key file of the add-on, associated data bound to the
+    board id) - exactly what create / rotate / issue-link store. From then on the administrator's copy works and the TV is never cut off.
+
+    The write is conditional and atomic: `token_sealed IS NULL` (an existing copy is never replaced - not by a TV, not by an attacker),
+    `token_hash = sha256(token)` (a token rotated away between the read and the write is not stored) and `deleted_at IS NULL`. The sealed
+    blob is opened again and compared before the write. One audit row `notices.board.link_captured` per stored copy, the board id only
+    (never the token or a fragment of it). Nothing is logged with the token; a failure is silent and retried at most once a minute."""
+    import time
+
+    from .. import connection_store as cstore
+
+    now = clock or time.monotonic
+    tried: dict[str, float] = {}
+
+    def run(board_id: str, token: str) -> None:
+        if not data_dir or not isinstance(token, str) or not TOKEN_RE.match(token):
+            return
+        t = now()
+        if t - tried.get(board_id, -CAPTURE_RETRY_S) < CAPTURE_RETRY_S:
+            return
+        tried[board_id] = t
+        sealed = cstore.seal_notice_board_token(Path(data_dir), board_id, token)
+        if cstore.open_notice_board_token(Path(data_dir), board_id, sealed) != token:
+            return
+        with db.connection(label="notices.board.link_capture") as conn:
+            got = conn.execute("""UPDATE notice_boards SET token_sealed = ?
+                                  WHERE id = ? AND token_sealed IS NULL AND deleted_at IS NULL AND token_hash = ?""",
+                               (sealed, board_id, store.token_hash(token))).rowcount
+            if got == 1:
+                from ...audit import audit
+
+                audit(conn, actor=None, action="notices.board.link_captured", decision="allowed", resource_type="notice_board",
+                      resource_id=board_id, details={"source": "tv_feed"})
 
     return run
 

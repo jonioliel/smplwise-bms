@@ -155,6 +155,9 @@ class SettingsIn(BaseModel):
     # TV-CHIPS-2381: the sources of the parking / gym chips (entity ids; validated in model.settings_values, at most 8 each)
     parking_entities: list[str] | None = None
     gym_entities: list[str] | None = None
+    # BOARD-ANSWERS-2400 (Q16 = A): "הפוך" - the picked on / off entities read the other way round (a subset of the sources above)
+    parking_inverted: list[str] | None = None
+    gym_inverted: list[str] | None = None
 
 
 def _weather_entities(conn: sqlite3.Connection) -> list[dict[str, str]]:
@@ -180,6 +183,7 @@ def patch_settings(body: SettingsIn, request: Request, principal: Principal = De
     require(conn, principal, "system.configure", INSTALLATION)
     patch = body.model_dump(exclude_none=True)
     try:
+        patch = model.with_info_invert(patch, store.settings(conn))  # BOARD-ANSWERS-2400: "הפוך" stays a subset of the sources
         values = model.settings_values(patch)
     except Invalid as exc:
         raise _invalid(exc)
@@ -517,7 +521,8 @@ def stored_link(board_id: str, request: Request, response: Response, principal: 
     """NOTICEPERM-295: the permanent TV link - the SAME token every time, for an administrator only (notices.boards). Never logged; the audit row carries no value."""
     b = _board_or_404(conn, board_id)
     if not b.get("token_sealed"):
-        raise ApiError(409, "no_stored_link", "ללוח הזה אין קישור שמור. אפשר להנפיק אותו פעם אחת.")
+        # BOARD-ANSWERS-2400: the copy is kept the next time the board's TV connects (display.capture_link)
+        raise ApiError(409, "no_stored_link", "ללוח הזה עוד אין עותק שמור של הקישור. הוא יישמר בפעם הבאה שהטלוויזיה מתחברת.")
     try:
         token = cstore.open_notice_board_token(settings_of(request).data_dir, b["id"], b["token_sealed"])
     except cstore.SecretError:
@@ -971,6 +976,7 @@ def _display_service(request: Request) -> disp.DisplayService:
     if svc is None:
         db = request.app.state.db
         svc = disp.DisplayService(lambda: db.connection(mode="read", label="notices.display"), settings_of(request).data_dir, touch=disp.touch_seen(db),
+                                  capture=disp.capture_link(db, settings_of(request).data_dir),  # BOARD-ANSWERS-2400 (Q13 = B)
                                   limiter=disp.RateLimiter())  # the application's own counters (the LAN listener has its own too)
         request.app.state.notice_display = svc
     return svc

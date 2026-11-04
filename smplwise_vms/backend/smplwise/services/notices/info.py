@@ -11,7 +11,8 @@ Kinds and where they come from:
   (never a made-up state). Parking: a number = free spaces (summed over the picked entities), an on / off entity = one space (on =
   taken), a list entity (input_select / select) = its option as written; gym: on / off = open / closed (an occupancy, presence or motion
   sensor: in use / free), a list entity = its option as written. The chip carries the state word only - never the entity, its name or a
-  count of people.
+  count of people. BOARD-ANSWERS-2400 (owner 04.11, Q16 = A): these rules are approved, and a picked on / off entity can be marked
+  "הפוך" (`notices.info.<kind>_inverted`): its state is read the other way round (parking: on = free; gym: on = closed / free).
 """
 from __future__ import annotations
 
@@ -106,6 +107,19 @@ def _ids(conn: sqlite3.Connection, kind: str) -> list[str]:
     return model.info_sources_of(kind, get_setting(conn, f"notices.info.{kind}_entities", "[]") or "[]")
 
 
+def _inverted(conn: sqlite3.Connection, kind: str) -> set[str]:
+    """BOARD-ANSWERS-2400 (owner 04.11, Q16 = A): the picked on / off entities whose state reads the other way round ("הפוך")."""
+    return set(model.info_inverted_of(kind, get_setting(conn, f"notices.info.{kind}_inverted", "[]") or "[]", _ids(conn, kind)))
+
+
+def _onoff(r: sqlite3.Row, inverted: set[str]) -> str | None:
+    """An on / off entity's state as the chip reads it: "on" / "off" (flipped for an inverted source), None for anything else."""
+    s = str(r["state"]).strip().lower()
+    if s not in ("on", "off"):
+        return None
+    return ("off" if s == "on" else "on") if r["entity_id"] in inverted else s
+
+
 def source_rows(conn: sqlite3.Connection, kind: str) -> list[sqlite3.Row]:
     """The picked entities of a chip that the mirror still knows, in the administrator's order (a removed one is skipped)."""
     ids = _ids(conn, kind)
@@ -138,6 +152,7 @@ def parking(conn: sqlite3.Connection, lang: str, connected: bool) -> dict[str, s
         return _chip("parking", "ok", _as_text(texts[0]["state"]), lang)
     free = 0
     counted = False
+    inverted = _inverted(conn, "parking")
     for r in live:
         if r["domain"] in model.INFO_NUMBER_DOMAINS:
             n = _number(r["state"])
@@ -145,8 +160,8 @@ def parking(conn: sqlite3.Connection, lang: str, connected: bool) -> dict[str, s
                 free += max(0, int(n))
                 counted = True
         elif r["domain"] in model.INFO_ONOFF_DOMAINS:
-            s = str(r["state"]).lower()
-            if s in ("on", "off"):
+            s = _onoff(r, inverted)  # on = taken; an inverted source: on = free
+            if s is not None:
                 free += 1 if s == "off" else 0
                 counted = True
     if not counted:
@@ -166,10 +181,11 @@ def gym(conn: sqlite3.Connection, lang: str, connected: bool) -> dict[str, str] 
     texts = [r for r in live if r["domain"] in model.INFO_TEXT_DOMAINS]
     if texts:
         return _chip("gym", "ok", _as_text(texts[0]["state"]), lang)
-    onoff = [r for r in live if r["domain"] in model.INFO_ONOFF_DOMAINS and str(r["state"]).lower() in ("on", "off")]
+    inverted = _inverted(conn, "gym")
+    onoff = [r for r in live if r["domain"] in model.INFO_ONOFF_DOMAINS and _onoff(r, inverted) is not None]
     if not onoff:
         return _chip("gym", "off", t["na"], lang)
-    on = any(str(r["state"]).lower() == "on" for r in onoff)
+    on = any(_onoff(r, inverted) == "on" for r in onoff)  # on = open / in use; an inverted source: on = closed / free
     if all(r["domain"] == "binary_sensor" and (r["device_class"] or "") in _OCCUPANCY for r in onoff):
         return _chip("gym", "ok", t["in_use"] if on else t["vacant"], lang)  # an occupancy sensor: in use / free (no count, no person)
     return _chip("gym", "ok" if on else "off", t["open"] if on else t["closed"], lang)

@@ -133,8 +133,10 @@ test.describe('question 5: copy never replaces the link', () => {
     await page.goto(url('/system/notices/b1'));
     const root = page.locator('sw-app system-notices');
     await root.locator('.top [data-copy-link]').click();
+    // BOARD-ANSWERS-2400 (Q13 = B): the board page and the reason both say the copy is kept the next time the TV connects
+    await expect(root.locator('[data-link-pending]')).toContainText('יישמר בפעם הבאה שהטלוויזיה מתחברת');
     const ask = root.locator('[data-rotate-confirm]');
-    await expect(ask.locator('[data-no-stored-link]')).toContainText('אי אפשר להעתיק אותו');
+    await expect(ask.locator('[data-no-stored-link]')).toContainText('יישמר בפעם הבאה שהטלוויזיה מתחברת');
     await expect(ask).toContainText('טלוויזיות שמחוברות בקישור הנוכחי יתנתקו. להחליף?');
     expect(calls.some((c) => c.path === 'notices/boards/b1/link')).toBe(false);
     expect(rotations(calls)).toBe(0);
