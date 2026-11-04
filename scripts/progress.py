@@ -1,7 +1,7 @@
 """Progress figures for the owner's reports: task cards with implementation evidence per phase and overall.
 
-Counts a card as "done or in progress" when its status is DONE / IN_PROGRESS or when one of its evidence lines
-carries an implementation marker. Markers are matched exactly, not as loose substrings (REGISTRY-AUDIT-20261103
+Counts a card as evidenced when its status is DONE or when one of its evidence lines carries an implementation
+marker. An IN_PROGRESS status alone no longer counts (owner decision 2026-11-04): work in flight is not evidence. Markers are matched exactly, not as loose substrings (REGISTRY-AUDIT-20261103
 follow-up, owner decision 2026-11-04): see MARKER_RULES and `evidence_line_marker`. Prints a Markdown table (Hebrew
 labels) and a weighted estimate; the numbers are evidence-based, not acceptance.
 
@@ -32,7 +32,7 @@ WEIGHTS = {"G0": 1.0, "PILOT": 3.0, "BETA": 1.5, "V1": 1.0, "V2": 0.5, "V3": 0.2
 #  - "commit" / "commits" must be followed by a commit id (7-40 hex characters, so "no merge commit named after it"
 #    is not evidence; a YYYYMMDD date is not an id), the form the registry audit writes ("commit <sha> (release X, on origin/main)");
 #  - a commit id annotated "(<branch>, not on origin/main, not released)" is work in flight: it is not implementation
-#    evidence on its own (an IN_PROGRESS status still counts the card; a second id that is on origin/main does);
+#    evidence on its own (a second id on the same line that is on origin/main does count; a status of IN_PROGRESS does not);
 #  - "PASS" does not count when negated ("not PASS", "no PASS", "never PASS");
 #  - a line that states what is missing (NOT_RUN, Not done, Not proven, Open:, ...) never counts, whatever words it
 #    contains; "lab", "fix (", "pre-evidence" and "design SW A" count only as the first words of a line, the way
@@ -100,9 +100,9 @@ def evidence_line_marker(line: str) -> str | None:
 
 
 def evidence_basis(task: dict) -> str | None:
-    """Why the card counts: "status:<STATUS>", the marker of its first qualifying evidence line, or None."""
-    if task.get("status") in ("DONE", "IN_PROGRESS"):
-        return "status:" + task["status"]
+    """Why the card counts: "status:DONE", the marker of its first qualifying evidence line, or None."""
+    if task.get("status") == "DONE":
+        return "status:DONE"
     for line in task.get("evidence") or []:
         marker = evidence_line_marker(line)
         if marker:

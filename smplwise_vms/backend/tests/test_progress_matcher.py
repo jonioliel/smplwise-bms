@@ -118,11 +118,18 @@ def test_second_id_on_main_makes_the_line_evidence():
     assert marker(line) == "commit"
 
 
-def test_in_progress_status_still_counts_the_card():
+def test_in_progress_status_alone_does_not_count_the_card():
     line = "commit 604fe0c73 (pilot/WISKEY-TALK-DIAL-2382, not on origin/main, not released) - in flight."
     t = card("IN_PROGRESS", line)
-    assert progress.evidence_basis(t) == "status:IN_PROGRESS"
-    assert progress.has_evidence(t)
+    assert progress.evidence_basis(t) is None
+    assert not progress.has_evidence(t)
+    # ... but shipped evidence on the same card still does
+    shipped = card("IN_PROGRESS", "commit 604fe0c73 (release 2.4.9, on origin/main) - shipped")
+    assert progress.evidence_basis(shipped) == "marker:commit"
+
+
+def test_done_status_counts_the_card():
+    assert progress.evidence_basis(card("DONE")) == "status:DONE"
 
 
 # --- neighbouring card ids -------------------------------------------------------------------------------------------------
