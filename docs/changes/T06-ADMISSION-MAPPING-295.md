@@ -193,3 +193,12 @@ production caller. The pin was missed when the module was adopted (the RC7 / S3 
 | Caller | Commands | Admission |
 |---|---|---|
 | `services/wiskey_pairing.py` (`probe`, route `POST /system/wiskey-pairing/probe`) | `direct/connect` (inside `DirectApiTransport`), then `direct/capabilities` and `direct/time` through `DirectDiscovery.refresh` - nothing else | `system.configure` + a system administrator (`rbac.is_system_admin`), local sessions only, at most one probe per 5 s, audited `wiskey.pairing.probe` (outcome code only). Reads only: no person, door, station, program or installation command; never retried. Pinned by `tests/test_wiskey_pairing_2382.py::test_the_probe_sends_only_the_two_discovery_reads` and the fake server's received list. |
+
+## 2.40.0 train addendum (lead review, 04.11)
+
+| Caller | Commands | Admission |
+|---|---|---|
+| `services/wiskey_event_resume.py` (`signed_sender`, the service feed's socket) | `events/resume_v1` {cursor, limit} only (its own one-command guard) | A read of WisKey's event backlog; no route triggers it, the feed task does. No person, door, station, program or installation command. Pinned by `test_t06_admission_295.py::test_the_2400_signing_callers_send_only_their_pinned_commands` and `test_wiskey_event_cursor_2400.py`. |
+| `services/wiskey_wa_queue.py` (the direct join's signed port, only while the join selects the command) | `whatsapp/template_registry_v1` (read), `whatsapp/template_enqueue_v1`, `whatsapp/template_job_v1` (read), `whatsapp/template_cancel_v1`, `whatsapp/template_send_v3` - the closed `DIRECT_COMMANDS` tuple; the paced free-text send stays on the `messaging_paced` channel | Registry sync and the installed-messaging settings: `system.configure` (`_configure_gate`). Send, job status and cancel: `people.message` on the person (`_gate`, permission before the body), `client_request_id`, audited; an unknown outcome is never re-sent. The owner step for template sends is unchanged (still blocked until approved). Pinned by the same test and `test_wiskey_wa_queue_2400.py`. |
+
+Lead decision: both admitted as pinned. Any new command on either module needs a new row here.
