@@ -91,7 +91,12 @@ class SmplwiseBridgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         set away (keyset.KeySet K-02 "repaired") and every signed push was refused. Now: nothing to change -> abort without a call; else one
         signed ping with the discovered code (the same `_try_pair` as a first install); accepted -> the entry is updated and reloaded as before
         (the K-02 re-pair path); refused or unreachable -> abort `already_configured` WITHOUT updates. Never logs a code. Review H4: only the
-        automatic-install discovery adds the entry flag that lets the bridge set up the native intercom component."""
+        automatic-install discovery adds the entry flag that lets the bridge set up the native intercom component.
+
+        0.10.4 (BRIDGE-UPDATE-LISTENER-2401): the accepted update reloads the entry exactly once, and never as a flow reload on top of an
+        update listener (deprecated in Home Assistant 2026.6, refused from 2026.12). A loaded bridge listens to its entry and schedules that
+        reload itself (`entry_updated` in __init__.py), so the flow passes `reload_on_update=False`; an entry without a listener (not loaded,
+        or waiting for a setup retry) keeps the flow's own reload, which Home Assistant performs only for a loaded or retrying entry."""
         updates = {CONF_ADDON_URL: url, CONF_PAIRING_CODE: code, **({CONF_WISKEY_AUTO_INSTALL: True} if auto else {})}
         data = dict(getattr(entry, "data", None) or {})
         if getattr(entry, "source", None) == config_entries.SOURCE_IGNORE or all(data.get(k) == v for k, v in updates.items()):
@@ -99,7 +104,7 @@ class SmplwiseBridgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="already_configured")
         err = await self._try_pair(url, code)
         if err is None:
-            self._abort_if_unique_id_configured(updates=updates)
+            self._abort_if_unique_id_configured(updates=updates, reload_on_update=not getattr(entry, "update_listeners", None))
             return self.async_abort(reason="already_configured")  # not reached: the call above aborts the flow after updating the entry
         _LOGGER.info("SMPLWISE Bridge: a discovery offered a pairing code the add-on did not accept (%s); the existing entry is kept unchanged", err)
         return self.async_abort(reason="already_configured")

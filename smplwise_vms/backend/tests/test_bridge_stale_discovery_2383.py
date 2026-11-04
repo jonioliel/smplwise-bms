@@ -61,11 +61,14 @@ class FakeEntry:
         self.data = dict(data)
         self.source = source
         self.entry_id = "entry-" + secrets.token_hex(4)
+        self.update_listeners: list[Any] = []  # a LOADED bridge entry has one (BRIDGE-UPDATE-LISTENER-2401); an unloaded one has none
 
 
 class FakeConfigFlow:
     """What the bridge's flow uses of homeassistant.config_entries.ConfigFlow, with the core's semantics: `async_set_unique_id` answers the
-    existing entry of that unique id; `_abort_if_unique_id_configured(updates)` writes changed data into it, schedules its reload and aborts."""
+    existing entry of that unique id; `_abort_if_unique_id_configured(updates)` writes changed data into it, runs its update listeners,
+    schedules its reload (unless `reload_on_update=False`) and aborts. BRIDGE-UPDATE-LISTENER-2401: a flow reload of an entry that HAS an
+    update listener is refused as Home Assistant 2026.12 does (an error; 2026.6 - 2026.11 log the deprecation warning seen in the lab)."""
 
     def __init_subclass__(cls, domain: str | None = None, **kw: Any) -> None:
         super().__init_subclass__(**kw)
@@ -80,13 +83,20 @@ class FakeConfigFlow:
         self.unique_id = unique_id
         return self.hass.entries.get(unique_id)
 
-    def _abort_if_unique_id_configured(self, updates: dict[str, Any] | None = None) -> None:
+    def _abort_if_unique_id_configured(self, updates: dict[str, Any] | None = None, reload_on_update: bool = True) -> None:
         entry = self.hass.entries.get(self.unique_id)
         if entry is None:
             return
         if updates and any(entry.data.get(k) != v for k, v in updates.items()):
             entry.data = {**entry.data, **updates}
-            self.hass.reloads.append(dict(entry.data))
+            for listener in list(entry.update_listeners):  # Home Assistant runs each as a task: a coroutine is kept for the test to run
+                out = listener(self.hass, entry)
+                if out is not None:
+                    self.hass.pending.append(out)
+            if reload_on_update:
+                if entry.update_listeners:
+                    raise RuntimeError("has an update listener and should use it for scheduling a reload")
+                self.hass.reloads.append(dict(entry.data))
         raise AbortFlow("already_configured")
 
     def async_abort(self, *, reason: str) -> dict[str, Any]:
@@ -168,6 +178,7 @@ class FakeHass:
         self.entries: dict[str, FakeEntry] = {}
         self.session = FakeSession(arx)
         self.reloads: list[dict[str, Any]] = []
+        self.pending: list[Any] = []  # update-listener coroutines (BRIDGE-UPDATE-LISTENER-2401)
 
 
 def arx_verifier(current: dict[str, str | None]) -> Any:
@@ -204,14 +215,14 @@ def _code() -> str:
     return secrets.token_urlsafe(24)
 
 
-# ---------------------------------------------------------------- the bridge (0.10.3)
+# ---------------------------------------------------------------- the bridge (0.10.3 behaviour, version 0.10.4)
 
 def test_bridge_version_is_0_10_3_in_both_copies():
     const = _load("const")
-    assert const.VERSION == "0.10.3"
+    assert const.VERSION == "0.10.4"
     for root in (BRIDGE_DIR, ROOT / "smplwise_vms" / "integration" / "smplwise_bridge"):
-        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.10.3"
-        assert "const VERSION = '0.10.3';" in (root / "www" / "smplwise-card.js").read_text(encoding="utf-8")
+        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.10.4"
+        assert "const VERSION = '0.10.4';" in (root / "www" / "smplwise-card.js").read_text(encoding="utf-8")
         assert "_discovered_for_existing" in (root / "config_flow.py").read_text(encoding="utf-8")
 
 
@@ -465,7 +476,7 @@ def test_install_records_the_uuid_and_a_repair_updates_the_same_message(world):
     assert rec["fp"] == bd.code_fp(first) and first not in json.dumps(_records(world)), "a one-way tag, never the code"
     assert sup.deliver(hass)[0]["type"] == "form"  # first install: Home Assistant offers the bridge
     hass.entries["smplwise_bridge"] = FakeEntry({"addon_url": URL, "pairing_code": first})
-    _set(world, bridge__integration_version="0.10.3")
+    _set(world, bridge__integration_version="0.10.4")
     r = world["c"].get("/api/v1/ha/bridge/pairing?regenerate=true")
     assert r.status_code == 200 and r.json()["announced"] is True and r.json()["announce_path"] is True
     second = r.json()["pairing_code"]
@@ -553,7 +564,7 @@ def test_lab_state_on_a_manual_profile_heals_and_stays_healed(world):
     assert hass.entries["smplwise_bridge"].data["pairing_code"] == c_code
     sup.ha_start(hass)
     assert hass.entries["smplwise_bridge"].data["pairing_code"] == c_code
-    push = ha_bridge.sign(c_code, {"users": [], "version": "0.10.3"})
+    push = ha_bridge.sign(c_code, {"users": [], "version": "0.10.4"})
     assert world["c"].post("/api/v1/ha/bridge/directory", json=push).status_code == 200
 
 
@@ -583,7 +594,7 @@ def test_repair_on_a_manual_profile_with_a_known_bridge_is_announced(world):
     sup, hass = world["sup"], world["hass"]
     with world["db"].connection() as conn:
         set_setting(conn, "bridge.secret", _code())
-        set_setting(conn, "bridge.integration_version", "0.10.3")
+        set_setting(conn, "bridge.integration_version", "0.10.4")
         bk.adopt_legacy(conn, world["settings"].data_dir)
         bk.set_state(conn, bk.LEGACY_KID, "retired")
         bk.insert(conn, world["settings"].data_dir, kid="g1-cccccccc", generation=1, state="current", material=bk.new_material(), rotation_id=None)
@@ -620,7 +631,7 @@ def test_a_store_that_keeps_every_post_still_ends_with_the_current_message_only(
     sup = world["sup"]
     sup.dedupe = False
     bridge_install.install(world["db"], world["settings"])
-    _set(world, bridge__integration_version="0.10.3")
+    _set(world, bridge__integration_version="0.10.4")
     world["c"].get("/api/v1/ha/bridge/pairing?regenerate=true")
     assert sup.bridge_codes() == [_arx_code(world)] and len(sup.deletes) == 1, "post the new one, then delete the old"
     assert list(_records(world)) == list(sup.messages)
@@ -658,23 +669,23 @@ def test_automatic_install_flag_refused_by_the_door_fails_cleanly(world, monkeyp
 def test_refused_directory_pushes_show_up_in_the_pairing_block(world):
     c = world["c"]
     good = _code()
-    _set(world, bridge__secret=good, bridge__paired_at="2026-11-03T08:00:00+00:00", bridge__integration_version="0.10.3",
+    _set(world, bridge__secret=good, bridge__paired_at="2026-11-03T08:00:00+00:00", bridge__integration_version="0.10.4",
          bridge__directory_at=now_iso())
-    stale = ha_bridge.sign(_code(), {"users": [], "version": "0.10.3"})
+    stale = ha_bridge.sign(_code(), {"users": [], "version": "0.10.4"})
     assert c.post("/api/v1/ha/bridge/directory", json=stale).status_code == 401
-    assert c.post("/api/v1/ha/bridge/directory", json=ha_bridge.sign(_code(), {"users": [], "version": "0.10.3"})).status_code == 401
+    assert c.post("/api/v1/ha/bridge/directory", json=ha_bridge.sign(_code(), {"users": [], "version": "0.10.4"})).status_code == 401
     body = c.get("/api/v1/system/wiskey-pairing").json()
     line = {ln["key"]: ln for ln in body["lines"]}["bridge"]
     assert line["state"] == "blocked" and line["reason"] == "bridge_rejected" and line["facts"]["refused_count"] == 2 and line["fix"]
     assert body["repair"] == {**body["repair"], "available": True, "reason": "bridge_rejected"}
     assert good not in json.dumps(body)
     # an accepted push clears it
-    assert c.post("/api/v1/ha/bridge/directory", json=ha_bridge.sign(good, {"users": [], "version": "0.10.3"})).status_code == 200
+    assert c.post("/api/v1/ha/bridge/directory", json=ha_bridge.sign(good, {"users": [], "version": "0.10.4"})).status_code == 200
     line = {ln["key"]: ln for ln in c.get("/api/v1/system/wiskey-pairing").json()["lines"]}["bridge"]
     assert line["reason"] == "bridge_ok"
     # after a re-pair the bridge still signs with the old code: the row says the new code did not arrive
     c.get("/api/v1/ha/bridge/pairing?regenerate=true")
-    assert c.post("/api/v1/ha/bridge/directory", json=ha_bridge.sign(good, {"users": [], "version": "0.10.3"})).status_code == 401
+    assert c.post("/api/v1/ha/bridge/directory", json=ha_bridge.sign(good, {"users": [], "version": "0.10.4"})).status_code == 401
     line = {ln["key"]: ln for ln in c.get("/api/v1/system/wiskey-pairing").json()["lines"]}["bridge"]
     assert line["reason"] == "bridge_rejected_after_repair" and line["state"] == "blocked"
     # a clock / replay refusal is not "another code"
@@ -736,7 +747,7 @@ def test_bridge_diagnostics_and_wiring_carry_no_secret():
     entry = types.SimpleNamespace(entry_id="e1", data={"pairing_code": code, "addon_url": URL})
     hass = types.SimpleNamespace(data={"smplwise_bridge_push_health": {"e1": ph}})
     out = asyncio.run(diag.async_get_config_entry_diagnostics(hass, entry))
-    assert out["directory_push"]["reason"] == "addon_refused_signature" and out["pairing_code_in_entry"] is True and out["version"] == "0.10.3"
+    assert out["directory_push"]["reason"] == "addon_refused_signature" and out["pairing_code_in_entry"] is True and out["version"] == "0.10.4"
     assert code not in json.dumps(out) and URL not in json.dumps(out)
     assert asyncio.run(diag.async_get_config_entry_diagnostics(types.SimpleNamespace(data={}), entry))["directory_push"] == {"reason": "not_loaded"}
     src = (BRIDGE_DIR / "__init__.py").read_text(encoding="utf-8")

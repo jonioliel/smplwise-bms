@@ -370,6 +370,11 @@ class FakeEntry:
         self.listeners.append(listener)
         return lambda: None
 
+    @property
+    def update_listeners(self) -> list[Any]:
+        """Home Assistant's name for the same list (config flows read it; BRIDGE-UPDATE-LISTENER-2401)."""
+        return self.listeners
+
 
 class FakeServices:
     def __init__(self, hass: "FakeHass") -> None:
@@ -389,6 +394,10 @@ class FakeServices:
 class FakeConfigEntries:
     def __init__(self, hass: "FakeHass") -> None:
         self.hass = hass
+        self.reloads: list[str] = []  # BRIDGE-UPDATE-LISTENER-2401: reloads the bridge's own update listener scheduled
+
+    def async_schedule_reload(self, entry_id: str) -> None:
+        self.reloads.append(entry_id)
 
     def async_update_entry(self, entry: FakeEntry, data: dict[str, Any] | None = None, options: dict[str, Any] | None = None) -> bool:
         if data is not None:

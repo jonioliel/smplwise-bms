@@ -209,9 +209,9 @@ def test_the_observer_and_its_licence_are_the_contributions_exact_bytes_in_both_
 
 def test_bridge_version_is_0102_everywhere_and_both_copies_are_identical():
     const = (SRC / "const.py").read_text(encoding="utf-8")
-    assert json.loads((SRC / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.10.3" and 'VERSION = "0.10.3"' in const
-    assert "const VERSION = '0.10.3';" in (SRC / "www" / "smplwise-card.js").read_text(encoding="utf-8")
-    assert "Needs one Home Assistant restart (by the owner)" in const.split('VERSION = "0.10.3"', 1)[1].split("# 0.10.1", 1)[0]
+    assert json.loads((SRC / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.10.4" and 'VERSION = "0.10.4"' in const
+    assert "const VERSION = '0.10.4';" in (SRC / "www" / "smplwise-card.js").read_text(encoding="utf-8")
+    assert "Needs one Home Assistant restart (by the owner)" in const.split('VERSION = "0.10.4"', 1)[1].split("# 0.10.1", 1)[0]
     names = sorted(p.relative_to(SRC).as_posix() for p in SRC.rglob("*") if p.is_file() and "__pycache__" not in p.parts)
     assert {"core_runtime_observation.py", "LICENSE-WISKEY-core-runtime-observation.txt"} <= set(names)
     assert names == sorted(p.relative_to(MIRROR).as_posix() for p in MIRROR.rglob("*") if p.is_file() and "__pycache__" not in p.parts)

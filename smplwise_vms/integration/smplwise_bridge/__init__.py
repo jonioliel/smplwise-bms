@@ -394,9 +394,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         """0.9.2 (SVCIDENT3): the scripts / scenes / automations Arx-only users may run, read live from the options (empty by default; malformed = empty)."""
         return runnable.allowlist(entry.options.get(CONF_LOCAL_IDENTITY_RUNNABLE))
 
+    # 0.10.4 (BRIDGE-UPDATE-LISTENER-2401): the pairing this setup was built from; the entry listener below compares against it
+    loaded_pairing = [pairing_fields(entry.data)]
+
     def wipe_entry_code() -> None:
         """The first rotation completed: the pairing code is no longer a key - do not keep it in the entry either (HA-06)."""
-        hass.config_entries.async_update_entry(entry, data={**entry.data, CONF_PAIRING_CODE: ""})
+        data = {**entry.data, CONF_PAIRING_CODE: ""}
+        loaded_pairing[0] = pairing_fields(data)  # the bridge's own wipe is not a new pairing: the listener only pushes the directory
+        hass.config_entries.async_update_entry(entry, data=data)
 
     def save_failed(exc: BaseException) -> None:
         _LOGGER.warning("bridge key state not saved (%s); retried", type(exc).__name__)
@@ -661,15 +666,45 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(async_track_time_interval(hass, housekeeping, timedelta(seconds=30)))
     entry.async_on_unload(async_track_time_interval(hass, push_directory, timedelta(seconds=DIRECTORY_INTERVAL_S)))
 
-    async def options_updated(_hass: HomeAssistant, _entry: ConfigEntry) -> None:
-        """The delegation switch changed inside Home Assistant: tell the add-on now instead of at the next minute (the switch is read live, nothing reloads)."""
+    async def entry_updated(_hass: HomeAssistant, updated: ConfigEntry) -> None:
+        """The entry changed. 0.10.4 (BRIDGE-UPDATE-LISTENER-2401): this listener is the ONE place that schedules the bridge's reload.
+
+        Home Assistant 2026.6 deprecated (and 2026.12 refuses) a config flow that reloads an entry which has an update listener
+        ("... has an update listener and should use it for scheduling a reload"). The discovery re-pair path of the config flow
+        (config_flow._discovered_for_existing, 0.10.3) therefore updates the entry WITHOUT a flow reload, and this listener reloads it:
+        - a new pairing (add-on address, pairing code or the automatic-install flag differ from what this setup was built from) -> one
+          reload, exactly what the flow's reload did: the fresh setup takes the K-02 re-pair path (keyset.KeySet.repaired);
+        - anything else - the options (the delegation switch, the service identity, the runnable list, all read live) or the bridge's own
+          code wipe (HA-06) - reloads nothing and tells the add-on now instead of at the next minute, as before."""
+        current = pairing_fields(updated.data)
+        if current != loaded_pairing[0]:
+            loaded_pairing[0] = current  # one reload per new pairing, however often the entry is written before it runs
+            schedule_reload(hass, updated.entry_id)
+            return
         hass.async_create_task(push_directory())
 
-    entry.async_on_unload(entry.add_update_listener(options_updated))
+    entry.async_on_unload(entry.add_update_listener(entry_updated))
     hass.async_create_task(push_directory())
     if native_setup_wanted(hass, entry):
         hass.async_create_task(_async_setup_native(hass))  # review H4: never awaited - the bridge entry's setup does not wait on it
     return True
+
+
+def pairing_fields(data: Any) -> tuple[str, str, bool]:
+    """0.10.4 (BRIDGE-UPDATE-LISTENER-2401): the part of the entry data a setup is built from and only a reload applies - the add-on
+    address, the pairing code (the K-02 re-pair input) and the automatic-install flag (the native setup, review H4). Never logged."""
+    data = data or {}
+    return (str(data.get(CONF_ADDON_URL) or "").rstrip("/"), str(data.get(CONF_PAIRING_CODE) or ""), data.get(CONF_WISKEY_AUTO_INSTALL) is True)
+
+
+def schedule_reload(hass: HomeAssistant, entry_id: str) -> None:
+    """0.10.4: the entry's reload, scheduled by its update listener (Home Assistant's `async_schedule_reload`; an older core without it
+    gets the same reload as a task)."""
+    schedule = getattr(hass.config_entries, "async_schedule_reload", None)
+    if schedule is not None:
+        schedule(entry_id)
+    else:
+        hass.async_create_task(hass.config_entries.async_reload(entry_id))
 
 
 NATIVE_DOMAIN = "hikvision_intercom"
