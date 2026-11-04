@@ -8901,5 +8901,645 @@
     "test_ids": [
       "AT-REGISTRY-UPDATE-2380-1"
     ]
+  },
+  {
+    "id": "R-RELEASE-2371-WISKEY-1",
+    "title": "Release 2.37.1: WisKey alignment (rc.39 native component, one restart decision, readiness, station still)",
+    "statement": "Release 2.37.1 = 2.37.0 plus the WisKey chain (rc.4 / relay map / relay export / rc.7 adoption with auto-install policy B, S4 Core runtime observer with bridge 0.10.2, S5 pre-merge, S6 release prep), gated on the runner, merged to main and tagged v2.37.1.",
+    "task_ids": [
+      "RELEASE-2371-WISKEY"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-RELEASE-2371-WISKEY-1"
+    ]
+  },
+  {
+    "id": "R-GATE2370-1",
+    "title": "Release gate fixes of 2.37.0 (groups A-D)",
+    "statement": "The failures of the 2.37.0 full gate are fixed on fix/GATE2370-A..D and merged into release/2370-train before the tag.",
+    "task_ids": [
+      "GATE2370"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-GATE2370-1"
+    ]
+  },
+  {
+    "id": "R-TV-SETTINGS-2380-1",
+    "title": "Display: notice TV settings rows (2.38.0)",
+    "statement": "The TV notice-board settings added in the display train are reachable in Settings and shipped in 2.38.0.",
+    "task_ids": [
+      "TV-SETTINGS-2380"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-TV-SETTINGS-2380-1"
+    ]
+  },
+  {
+    "id": "R-DARK-SEG-ALL-2380-1",
+    "title": "Dark mode: readable chosen option of every segmented switch",
+    "statement": "In dark mode the chosen option of every selection switch is readable (about 60 switches across the screens).",
+    "task_ids": [
+      "DARK-SEG-ALL-2380"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-DARK-SEG-ALL-2380-1"
+    ]
+  },
+  {
+    "id": "R-PUSH-RELAY-SAFE-2380-1",
+    "title": "Push relay safety: push stays off while the relay is not live",
+    "statement": "Push to the phone app cannot be switched on while the relay server is not live; the setting explains why.",
+    "task_ids": [
+      "PUSH-RELAY-SAFE-2380"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-PUSH-RELAY-SAFE-2380-1"
+    ]
+  },
+  {
+    "id": "R-A11Y-R4-LEFTOVERS-2380-1",
+    "title": "Accessibility leftovers of polish round 4",
+    "statement": "The accessibility findings left open by polish round 4 are fixed with runner specs.",
+    "task_ids": [
+      "A11Y-R4-LEFTOVERS-2380"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-A11Y-R4-LEFTOVERS-2380-1"
+    ]
+  },
+  {
+    "id": "R-GATE2380-1",
+    "title": "Release gate fixes of 2.38.0 (groups A-B)",
+    "statement": "The failures of the 2.38.0 gate are fixed on fix/GATE2380-A and -B and merged into release/2380-train before the tag.",
+    "task_ids": [
+      "GATE2380"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-GATE2380-1"
+    ]
+  },
+  {
+    "id": "R-STATION-WS-PATH-2381-1",
+    "title": "Fix: one api/v1 prefix for the station live, listen and talk sockets",
+    "statement": "The stations drawer opens its live video, listen and talk sockets under one api/v1 prefix, through Ingress and the remote path.",
+    "task_ids": [
+      "STATION-WS-PATH-2381"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-STATION-WS-PATH-2381-1"
+    ]
+  },
+  {
+    "id": "R-RELEASE-2381-1",
+    "title": "Release 2.38.1: station sockets fix",
+    "statement": "Release 2.38.1 = 2.38.0 plus STATION-WS-PATH-2381, gated on the runner, merged to main and tagged v2.38.1.",
+    "task_ids": [
+      "RELEASE-2381"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-RELEASE-2381-1"
+    ]
+  },
+  {
+    "id": "R-RELEASE-2382-TRAIN-1",
+    "title": "Release train 2.38.2 (WisKey activation, TV chips, dialog top layer, board management)",
+    "statement": "Release 2.38.2 = 2.38.1 plus the merged train branches, gated on the runner, merged to main and tagged v2.38.2.",
+    "task_ids": [
+      "RELEASE-2382-TRAIN"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-RELEASE-2382-TRAIN-1"
+    ]
+  },
+  {
+    "id": "R-TV-CHIPS-2381-1",
+    "title": "Display: TV footer chips",
+    "statement": "The TV notice board footer chips follow the owner answers of the display phase.",
+    "task_ids": [
+      "TV-CHIPS-2381"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-TV-CHIPS-2381-1"
+    ]
+  },
+  {
+    "id": "R-DIALOG-TOPLAYER-2381-1",
+    "title": "Shared dialog in the browser top layer",
+    "statement": "The shared dialog opens in the top layer so no surface covers it.",
+    "task_ids": [
+      "DIALOG-TOPLAYER-2381"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-DIALOG-TOPLAYER-2381-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-TALK-DIAL-2382-1",
+    "title": "WisKey A-a: talk end to end, the provider row and native dial",
+    "statement": "Talk through WisKey W10 works end to end when selected; the video and talk provider has a Settings row; \"dial\" opens a talk session.",
+    "task_ids": [
+      "WISKEY-TALK-DIAL-2382"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-TALK-DIAL-2382-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-TALK-CAPS-2382-1",
+    "title": "WisKey: choose the W10 provider from the signed direct capabilities",
+    "statement": "Arx selects the WisKey W10 media provider from the signed direct/capabilities read when overview.api does not list W10 (plan finding 2).",
+    "task_ids": [
+      "WISKEY-TALK-CAPS-2382"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-TALK-CAPS-2382-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-PAIRING-2382-1",
+    "title": "WisKey A-b: pairing status, signed check, guided re-pair, \"מצב WisKey\"",
+    "statement": "Settings shows the Arx to WisKey pairing state, runs a signed check on demand and guides a re-pair.",
+    "task_ids": [
+      "WISKEY-PAIRING-2382"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-PAIRING-2382-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-MANAGED-INSTALL-2382-1",
+    "title": "WisKey A-c: Arx-managed install and upgrade (owner-started, policy B)",
+    "statement": "An owner-started managed install / upgrade path behind wiskey.managed.enabled with typed confirmation, adoption of a manual install, stop / swap / start / compare / rollback.",
+    "task_ids": [
+      "WISKEY-MANAGED-INSTALL-2382"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-MANAGED-INSTALL-2382-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-INBOUND-CALLS-2382-1",
+    "title": "WisKey A-e: inbound station calls in Arx",
+    "statement": "A ringing station shows an incoming-call banner in Arx with pick up / reject, a call ledger (migration 0197) and a setting that is off by default.",
+    "task_ids": [
+      "WISKEY-INBOUND-CALLS-2382"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-INBOUND-CALLS-2382-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-JOIN-LIVE-2382-1",
+    "title": "WisKey T1: direct join starts and stops at runtime",
+    "statement": "The WisKey direct join is re-evaluated when the provider setting or the key changes, tears down on local, and exposes its join state.",
+    "task_ids": [
+      "WISKEY-JOIN-LIVE-2382"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-JOIN-LIVE-2382-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-RC10-PIN-2382-1",
+    "title": "WisKey T2: command contract re-pinned to 2.0.1-rc.10",
+    "statement": "The WisKey command catalogue and contract diff are re-pinned to rc.10, including the new installation, W10 and messaging rows.",
+    "task_ids": [
+      "WISKEY-RC10-PIN-2382"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-RC10-PIN-2382-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-STATUS-PAGE-2382-1",
+    "title": "WisKey T3: \"מצב WisKey\" status page",
+    "statement": "One Settings page lists the WisKey version, entries per station, pairing, provider and join state, discovery, switches, policy B, readiness and the Core gate; every \"off\" line says why.",
+    "task_ids": [
+      "WISKEY-STATUS-PAGE-2382"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-STATUS-PAGE-2382-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-STATION-OPS-2390-1",
+    "title": "WisKey T4: station maintenance actions (sync, rescan, health and clock refresh)",
+    "statement": "Sync now (person / station / all), rescan, health refresh and clock refresh from Arx on a closed maintenance channel with permission, station scope and audit.",
+    "task_ids": [
+      "WISKEY-STATION-OPS-2390"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-STATION-OPS-2390-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-CONFLICTS-2390-1",
+    "title": "WisKey T5: conflicts resolve and fleet alert actions",
+    "statement": "Conflicts review / resolve / resolve deletion and fleet alert actions from Arx with WisKey's preview.",
+    "task_ids": [
+      "WISKEY-CONFLICTS-2390"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-CONFLICTS-2390-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-DOOR-TECH-2390-1",
+    "title": "WisKey T6: door technical writes (hold-open schedules, public codes, programs)",
+    "statement": "Hold-open schedule save / delete, public code write (value never stored in Arx) and program save / pause on a door_technical channel, system administrator only, with confirm and audit.",
+    "task_ids": [
+      "WISKEY-DOOR-TECH-2390"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-DOOR-TECH-2390-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-SCHED-WRITE-2390-1",
+    "title": "WisKey T7: device schedule library writes",
+    "statement": "Create / edit / import / plan / deploy / claim device schedules from Arx with WisKey's preview and readiness before apply.",
+    "task_ids": [
+      "WISKEY-SCHED-WRITE-2390"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-SCHED-WRITE-2390-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-PROFILES-EDIT-2390-1",
+    "title": "WisKey T8: groups and profile fields editing",
+    "statement": "Groups and profile fields: preview, apply, versions compare and rollback through a draft from Arx.",
+    "task_ids": [
+      "WISKEY-PROFILES-EDIT-2390"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-PROFILES-EDIT-2390-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-PEOPLE-COMPLETE-2390-1",
+    "title": "WisKey T9: people completeness (PIN and duplicate checks, unmanaged users)",
+    "statement": "PIN duplicate check, duplicate-person check, unmanaged users on stations (adopt / ignore / delete with confirm), conditional profile fields.",
+    "task_ids": [
+      "WISKEY-PEOPLE-COMPLETE-2390"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-PEOPLE-COMPLETE-2390-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-ACCESS-DIAG-2400-1",
+    "title": "WisKey T10: access diagnostics views",
+    "statement": "Access scenario (\"can X open door Y now\"), compare, periodic reviews, data quality, station permission audit, sync diagnostics and expiring access in Arx.",
+    "task_ids": [
+      "WISKEY-ACCESS-DIAG-2400"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-ACCESS-DIAG-2400-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-OPS-VIEWS-2400-1",
+    "title": "WisKey T11: operations and fleet views",
+    "statement": "Operations query, investigations timeline, jobs, capacity and trends, fleet inventory export, audit export and events report in Arx.",
+    "task_ids": [
+      "WISKEY-OPS-VIEWS-2400"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-OPS-VIEWS-2400-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-WA-QUEUE-2400-1",
+    "title": "WisKey T12: messaging completion on the installed client",
+    "statement": "Template registry sync, durable queue (enqueue / job / cancel), v3 outcomes and send pacing on the installed client.",
+    "task_ids": [
+      "WISKEY-WA-QUEUE-2400"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-WA-QUEUE-2400-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-VISITS-2400-1",
+    "title": "WisKey T13: visits and guest templates decision and bridge",
+    "statement": "WisKey visit requests and guest templates are mapped onto Arx visitors / external access, or retired, per the owner decision.",
+    "task_ids": [
+      "WISKEY-VISITS-2400"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-VISITS-2400-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-CLOCK-VIEW-2400-1",
+    "title": "WisKey T14: clock / NTP and WisKey media options view",
+    "statement": "Host and station clock drift, NTP settings and the WisKey media provider check are visible in Arx.",
+    "task_ids": [
+      "WISKEY-CLOCK-VIEW-2400"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-CLOCK-VIEW-2400-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-EVENT-CURSOR-2390-1",
+    "title": "WisKey T15: gap-free events after a restart (event cursor)",
+    "statement": "The events/resume_v1 cursor is used on the service feed so no door event is missed across restarts.",
+    "task_ids": [
+      "WISKEY-EVENT-CURSOR-2390"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-EVENT-CURSOR-2390-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-LIVE-VALIDATION-2390-1",
+    "title": "WisKey T16: live validation screen for commissioning",
+    "statement": "A screen runs WisKey's live_validation feature per station (identity, door capabilities, door read, media, one door pulse with a witness), each run approved by the owner.",
+    "task_ids": [
+      "WISKEY-LIVE-VALIDATION-2390"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-LIVE-VALIDATION-2390-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-SVC-GRANT-2400-1",
+    "title": "WisKey T17: service-write grant path",
+    "statement": "Arx shows and requests the WisKey service-write grant from the status page once WisKey publishes a grant writer.",
+    "task_ids": [
+      "WISKEY-SVC-GRANT-2400"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-SVC-GRANT-2400-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-DEEPLINKS-2382-1",
+    "title": "WisKey T18: deep links into the embedded panel for everything not native",
+    "statement": "Every WisKey capability that is not native in Arx has an \"open in WisKey\" link to the exact tab / tool of the embedded panel.",
+    "task_ids": [
+      "WISKEY-DEEPLINKS-2382"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-DEEPLINKS-2382-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-ACTIVATION-RUNBOOK-0411-1",
+    "title": "WisKey T19: activation runbook for the 04.11 joint session",
+    "statement": "An ordered activation ladder (door map, provider, pairing check, video_talk, listen, live validation, door windows / emergency) with the screen, expected status line, rollback and approval wording per step.",
+    "task_ids": [
+      "WISKEY-ACTIVATION-RUNBOOK-0411"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-ACTIVATION-RUNBOOK-0411-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-LISTEN-2410-1",
+    "title": "WisKey T20: standalone listen to a station",
+    "statement": "Listen to a station without talk once WisKey publishes a downlink.",
+    "task_ids": [
+      "WISKEY-LISTEN-2410"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-LISTEN-2410-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-EMERGENCY-LOCK-2410-1",
+    "title": "WisKey T21: emergency LOCK / secure",
+    "statement": "An emergency secure / LOCK command for WisKey doors, behind the emergency switches and approvals.",
+    "task_ids": [
+      "WISKEY-EMERGENCY-LOCK-2410"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-EMERGENCY-LOCK-2410-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-RING-STATION-2410-1",
+    "title": "WisKey T22: operator-initiated ringing call to a station",
+    "statement": "The operator can make a station ring, if the device supports it.",
+    "task_ids": [
+      "WISKEY-RING-STATION-2410"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-RING-STATION-2410-1"
+    ]
+  },
+  {
+    "id": "R-WISKEY-INSTALLER-NATIVE-2400-1",
+    "title": "WisKey installer tools natively in Arx (platform, clock, station technical settings)",
+    "statement": "The WisKey installer tools (platform, clock / NTP, station technical settings, lifecycle) are available natively in Arx in phases.",
+    "task_ids": [
+      "WISKEY-INSTALLER-NATIVE-2400"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-WISKEY-INSTALLER-NATIVE-2400-1"
+    ]
   }
 ]
