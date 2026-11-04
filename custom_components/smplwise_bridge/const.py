@@ -1,6 +1,10 @@
 """Constants for the SMPLWISE bridge."""
 DOMAIN = "smplwise_bridge"
-VERSION = "0.10.3"
+VERSION = "0.10.4"
+# 0.10.4 (BRIDGE-UPDATE-LISTENER-2401): Home Assistant 2026.12 refuses a config flow that reloads an entry which has an update listener
+# (deprecated since 2026.6, logged at every lab start). The discovery re-pair path now updates the entry without a flow reload and the
+# entry's own update listener schedules the one reload (a new pairing only); options and the code wipe still reload nothing.
+# Needs one Home Assistant restart (by the owner) to load.
 # 0.10.3 (BRIDGE-STALE-DISCOVERY-2383): a Supervisor discovery for an EXISTING entry applies its pairing code only when the add-on accepts it
 # (one signed ping with that code, config_flow._discovered_for_existing); a refused or unreachable code leaves the entry unchanged. Home
 # Assistant replays every discovery message at each start, and an old message used to put an old code back into the entry after a re-pair.
