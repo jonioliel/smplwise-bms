@@ -196,3 +196,30 @@ Every rewritten PNG was compared with HEAD as old / new / difference sheets and 
   `access_control_writes` or `join_state`): 1005 tests, 988 passed, 14 skipped, 3 xfailed, 0 failed (exit 0).
 - Needs the runner (NOT_RUN here): the stations / people / settings pixel set without `-u` on the merged UI, the full backend suite,
   the evidence / regression specs, the release gate, the UI build (`build:addon`).
+
+## 8. Release preparation for 2.39.0 (2026-11-04)
+
+- **Main merged** (`c60a210cf`, `git merge --no-ff origin/main` @ `d9d4e55b1`): brings `c7cc22769` (2.38.2 rebuilt `www` / `www-public`),
+  `f5fbbe7b2` (people-native data-path spec) and the PROGRESS-MARKER-FIX merge (`scripts/progress.py`, its test, management views; no
+  add-on code). One textual conflict: `frontend/tests/evidence-wiskey-people-native.spec.ts` - the train (`c62bb597a`, 2.2) and main
+  (`f5fbbe7b2`) made the same fix (only `intercom/calls/active` allowed); main's text taken, so the file equals main's. `www` /
+  `www-public`: no conflict (the train never touched them); after the merge both are byte-identical to `origin/main` (the 2.38.2 build).
+  The lead's 2.39.0 `build:addon` replaces them. `contracts/API_INVENTORY.md`: no conflict. `git merge-base --is-ancestor origin/main
+  HEAD`: true.
+- **Version 2.39.0** in `smplwise_vms/config.yaml`, `smplwise_vms/Dockerfile` (`io.hass.version`), `smplwise/__init__.py`; API inventory
+  regenerated (`scripts/api_inventory.py`, project venv): 1771 routes, only the header line changed.
+- **CHANGELOG** `## 2.39.0 (pilot)` on top: migrations 0198 / 0199 additive, back to 2.38.2 = the backup taken before the update, nothing
+  turns on by itself (managed-install switch off; the two automatic checks named: duplicate people, PIN check), reload once; added (station
+  maintenance, door technical, on-stations-only people, duplicates / PIN, groups and fields, schedule library, acceptance check, managed
+  install), improved (bundled WisKey 2.0.1-rc.10 managed; profiles deep link native), fixed (none to an existing screen). Every item from
+  the seven change docs and 1.2 of this document.
+
+| Check | Where / SHA | Result |
+|---|---|---|
+| Pixel **without** `-u`: all 21 `pixel-*` specs + `visual-matrix` + `evidence-wiskey-live-validation-2390` + `evidence-wiskey-people-native` (closes its NOT_RUN in 6), desktop + mobile + tablet, preview, `--workers=1` (`run_smart.py preview release/2390-train ... --machine=runner`) | runner @ `c60a210cf` (gate state `pass`, no gate / Playwright process, 107 GB free before) | 810 tests: **448 passed, 362 skipped (project skips), 0 failed, 0 flaky**, 16.2 min; no PNG re-taken (the merge changed no frontend source, only the one spec); `evidence-wiskey-people-native` desktop 55 passed incl. the data-path test. No `.tmp_*` left in `~/work/release-2390-train` |
+| `scripts/release_check.py` (project venv) | workstation @ version tree | every line `[ok]` (one version 2.39.0 incl. CHANGELOG head and API inventory; migrations contiguous 199 files, last 0199) except `[FAIL] git tag v2.39.0 not yet`; **RESULT: ready for the owner's approval** |
+| `npx tsc --noEmit -p tsconfig.json` | workstation (Node 24.21.0) @ version tree | exit 0 |
+| Backend targeted, one process, 12 files: `test_migrations`, `test_migrations_263_upgrade`, `test_wiskey_s5_migration_upgrade`, `test_db_gate`, `test_release_check`, `test_version`, `test_wiskey_channels`, `test_pwclean_295`, `test_t06_admission_295`, `test_progress_matcher`, `test_wiskey_station_people_2390`, `test_wiskey_live_validation_2390` | workstation, project venv @ version tree | **279 passed, 2 skipped, 3 xfailed, 0 failed** (19.7 min) |
+
+NOT_RUN: the UI build (`build:addon`, the lead), the release gate, the full backend suite, the evidence / regression browser specs on
+the merged-with-main tree (only the pixel set above), any lab / WisKey / station / Supervisor contact.
