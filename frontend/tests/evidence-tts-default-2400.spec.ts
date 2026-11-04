@@ -135,7 +135,7 @@ test.describe('the announcement dialogs', () => {
     await dlg.locator('[data-wk-engine]').selectOption('tts.local');
     await expect(dlg.locator('[data-wk-language]')).toHaveValue('en'); // the fixed language, which this engine has too
     await expect(dlg.locator('[data-wk-announce-override]')).toContainText('להכרזה הזו בלבד');
-    await shot(page, info, 'composer-override', `${SCREEN} wk-announce-dialog sw-dialog`);
+    await shot(page, info, 'composer-override', `${SCREEN} wk-announce-dialog sw-dialog [role="dialog"]`);
     await dlg.locator('[data-wk-announce-message]').fill('test');
     await dlg.locator('[data-wk-target]').first().click();
     await dlg.locator('[data-wk-announce-send]').click();
@@ -157,7 +157,7 @@ test.describe('the announcement dialogs', () => {
     await dlg.locator('[data-wk-announce-message]').fill('test');
     await dlg.locator('[data-wk-target]').first().click();
     await expect(dlg.locator('[data-wk-announce-send]')).toHaveAttribute('disabled', '');
-    await shot(page, info, 'composer-missing', `${SCREEN} wk-announce-dialog sw-dialog`);
+    await shot(page, info, 'composer-missing', `${SCREEN} wk-announce-dialog sw-dialog [role="dialog"]`);
     expect(mock.spoken).toHaveLength(0);
     await dlg.locator('[data-wk-engine]').selectOption('tts.local');
     await expect(dlg.locator('[data-wk-language]')).toHaveValue('he');
@@ -174,10 +174,10 @@ test.describe('the announcement dialogs', () => {
     const speak = page.locator('wiskey-overview [data-wiskey-speak]').first();
     await expect(speak).toBeVisible({ timeout: 30_000 });
     await speak.click();
-    const dialog = page.locator('wiskey-overview sw-dialog[data-wiskey-tts-dialog]');
+    const dialog = page.locator('wiskey-overview sw-dialog[data-wiskey-tts-dialog] [role="dialog"]');
     await expect(dialog.locator('select[data-wiskey-tts-engine]')).toHaveValue('tts.cloud', { timeout: 15_000 });
     await expect(dialog.locator('select[data-wiskey-tts-language]')).toHaveValue('en');
-    await shot(page, info, 'overview-fixed', 'wiskey-overview sw-dialog[data-wiskey-tts-dialog]');
+    await shot(page, info, 'overview-fixed', 'wiskey-overview sw-dialog[data-wiskey-tts-dialog] [role="dialog"]');
     await page.unrouteAll({ behavior: 'ignoreErrors' });
     await installAccessMock(page, { settings: { 'access.tts_engine': 'tts.gone' } });
     await page.goto('about:blank');
@@ -187,6 +187,6 @@ test.describe('the announcement dialogs', () => {
     await expect(dialog.locator('select[data-wiskey-tts-engine]')).toHaveValue('');
     await dialog.locator('textarea[data-wiskey-tts-message]').fill('test');
     await expect(dialog.locator('[data-wiskey-tts-send] button')).toBeDisabled();
-    await shot(page, info, 'overview-missing', 'wiskey-overview sw-dialog[data-wiskey-tts-dialog]');
+    await shot(page, info, 'overview-missing', 'wiskey-overview sw-dialog[data-wiskey-tts-dialog] [role="dialog"]');
   });
 });
