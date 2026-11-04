@@ -25,7 +25,7 @@ from ..db import Database, bump_permission_revision, get_setting, now_iso, retry
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, permissions_anywhere, require
 from ..services import bridge_install, bridge_rotation_peer as peer_mod, building_scope, device_activity, door_authority, door_path_guard, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, intercom_doors, media_store
-from ..services import service_identity
+from ..services import bridge_discovery, service_identity
 from ..services import devices as dsvc
 from ..services.timeutil import iso_utc, parse_utc
 from .media import _principal_for_ws
@@ -651,9 +651,14 @@ def pairing(request: Request, principal: Principal = Depends(current_principal),
         _lease_repair("repair")  # CR-WISKEY-LEASE-REVOCATION-EVENT T9: a new pairing key - every capture lease goes, a new stream
         audit(conn, actor=principal, action="bridge.pairing.regenerate", decision="allowed", resource_type="installation", resource_id="*", request_id=getattr(request.state, "correlation_id", None))
     host = socket.gethostname()
+    announced = False
     if regenerate:
         peer_mod.clear_capability(conn)  # a new pairing: the bridge must announce again
-    return {"pairing_code": secret, "key_set": ha_bridge.key_set_adopted(conn), "addon_host": host, "addon_url": f"http://{host}:8099", "paired_at": get_setting(conn, "bridge.paired_at") or None}
+        # BRIDGE-STALE-DISCOVERY-2383: the new code goes to the existing bridge entry through Arx's own discovery message (the bridge's K-02
+        # re-pair path) when that path is open; otherwise the old message is deleted so it cannot bring the old code back at a restart
+        announced = bridge_install.announce_discovery(request.app.state.db, settings_of(request), conn)
+    return {"pairing_code": secret, "key_set": ha_bridge.key_set_adopted(conn), "addon_host": host, "addon_url": f"http://{host}:8099", "paired_at": get_setting(conn, "bridge.paired_at") or None,
+            "announced": announced, "announce_path": bridge_discovery.path_open(conn)}
 
 
 @router.post("/ha/bridge/ping")
@@ -670,7 +675,12 @@ def bridge_ping(message: dict[str, Any], conn: sqlite3.Connection = Depends(get_
 @router.post("/ha/bridge/directory")
 def bridge_directory(message: dict[str, Any], request: Request, conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Signed user directory push from the integration (id, name, username, active, admin, groups)."""
-    ha_bridge.verify_message(conn, message)
+    try:
+        ha_bridge.verify_message(conn, message)
+    except ApiError as exc:
+        bridge_discovery.note_directory_refused(exc.code)  # BRIDGE-STALE-DISCOVERY-2383: "the bridge signs with another code" for the diagnostics
+        raise
+    bridge_discovery.note_directory_accepted()
     # HA-01: a directory push is a user list and nothing else - a key-rotation control body (or any body without a `users` list) signed with a
     # live key must never reach the deactivation below (a missing list would read as "nobody exists" and switch every operator off)
     if message.get("protocol") is not None or message.get("op") is not None or not isinstance(message.get("users"), list):

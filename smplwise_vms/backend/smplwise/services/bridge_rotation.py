@@ -755,6 +755,11 @@ def worker_pass(db: Database, settings: Any, peer: peers.Peer | None = None, now
     rotation when it is due. Returns the rotation it acted on. Never raises."""
     engine = Engine(db, settings.data_dir, peer, now=now, settings=settings)
     try:
+        # BRIDGE-STALE-DISCOVERY-2383 (K-01): once a rotation adopted the plain pairing code into the key set, Arx's discovery message that
+        # carried it is deleted within one worker round (a network call only when such a message is recorded; never raises)
+        from . import bridge_discovery
+
+        bridge_discovery.retire(db, settings, sweep=False)
         acted = engine.tick()
         if acted is not None:
             return acted

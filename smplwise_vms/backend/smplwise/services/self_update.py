@@ -18,6 +18,9 @@ owner answers of 2026-10-03):
                                         of its schema type.
   * `POST /discovery`                   body `{"service": "smplwise_bridge", "config": {addon_url, pairing_code}}` (services/ha_client.py);
                                         `GET /core/info` is also read by services/ha_user_auth.py (the core's port) - both through this door.
+  * `DELETE /discovery/{uuid}`          BRIDGE-STALE-DISCOVERY-2383: Arx removes ITS OWN discovery message once the pairing code it carried
+                                        is no longer current (services/bridge_discovery.py). `{uuid}` must be 32 lowercase hex (the form the
+                                        Supervisor answers a POST with); the Supervisor itself refuses a message of another add-on (403).
 
 Security review of 2026-10-04: the update slug must equal the slug the infrastructure reported for THIS add-on (`GET /addons/self/info`,
 remembered by `send`), so no other add-on (`core_ssh` ...) can ever be addressed; before that read no update call is possible.
@@ -64,6 +67,7 @@ P_CORE_RESTART = "/core/restart"
 P_OPTIONS = "/addons/self/options"
 P_SELF_RESTART = "/addons/self/restart"
 P_DISCOVERY = "/discovery"
+P_DISCOVERY_ITEM = "/discovery/{uuid}"
 
 # The whole outgoing surface of the add-on towards its infrastructure. Anything else raises ProbeRefused before a socket is opened.
 ALLOWED: frozenset[tuple[str, str]] = frozenset({
@@ -72,6 +76,7 @@ ALLOWED: frozenset[tuple[str, str]] = frozenset({
     ("GET", P_CORE_INFO), ("POST", P_CORE_CHECK), ("POST", P_CORE_RESTART),  # S3: the platform restart
     ("POST", P_OPTIONS), ("POST", P_SELF_RESTART),                           # pre-existing nvr_system calls / the CR-022 Arx restart
     ("POST", P_DISCOVERY),                                                   # the bridge announcement (services/ha_client.py)
+    ("DELETE", P_DISCOVERY_ITEM),                                            # BRIDGE-STALE-DISCOVERY-2383: Arx's own stale announcement
 })
 # The calls that carry a JSON body, with the exact keys they may carry. Every other call sends no body.
 BODY_KEYS: dict[tuple[str, str], frozenset[str]] = {
@@ -108,6 +113,7 @@ REMOTE_PATH_RE = re.compile(r"^/[a-z0-9][a-z0-9_-]{0,31}$")
 LOG_LEVELS = ("debug", "info", "warning", "error")
 DISCOVERY_SERVICES = frozenset({"smplwise_bridge"})   # config.yaml `discovery`
 DISCOVERY_CONFIG_KEYS = frozenset({"addon_url", "pairing_code"})
+DISCOVERY_UUID_RE = re.compile(r"[0-9a-f]{32}")   # supervisor/discovery: `uuid4().hex`
 
 VERSION_RE = re.compile(r"[0-9A-Za-z._+-]{1,40}")
 INTERVALS = (0, 1, 3, 6, 12, 24)   # hours; 0 = off (CR-021 section 5.1)
@@ -194,8 +200,8 @@ def remember_self(data: dict[str, Any] | None) -> None:
     _SELF_SLUG = slug if isinstance(slug, str) and SLUG_RE.fullmatch(slug) else None
 
 
-def check_allowed(method: str, path: str, body: dict[str, Any] | None = None, slug: str | None = None) -> str:
-    """The allow-list, the body shape and the slug, checked BEFORE anything is opened. Returns the concrete path."""
+def check_allowed(method: str, path: str, body: dict[str, Any] | None = None, slug: str | None = None, uuid: str | None = None) -> str:
+    """The allow-list, the body shape, the slug and the discovery uuid, checked BEFORE anything is opened. Returns the concrete path."""
     if (method, path) not in ALLOWED:
         raise ProbeRefused(f"{method} {path}")
     keys = BODY_KEYS.get((method, path))
@@ -210,6 +216,12 @@ def check_allowed(method: str, path: str, body: dict[str, Any] | None = None, sl
         _check_options(body)
     if path == P_DISCOVERY:
         _check_discovery(body)
+    if "{uuid}" in path:
+        if slug is not None or not isinstance(uuid, str) or not DISCOVERY_UUID_RE.fullmatch(uuid):
+            raise ProbeRefused(f"{method} {path}: uuid")
+        return path.replace("{uuid}", uuid)
+    if uuid is not None:
+        raise ProbeRefused(f"{method} {path}: uuid")
     if "{slug}" in path:
         if not isinstance(slug, str) or not SLUG_RE.fullmatch(slug):
             raise ProbeRefused(f"{method} {path}: slug")
@@ -222,9 +234,9 @@ def check_allowed(method: str, path: str, body: dict[str, Any] | None = None, sl
 
 
 def send(method: str, path: str, *, base: str, token: str, transport: Any = None, body: dict[str, Any] | None = None, slug: str | None = None,
-         timeout: float | None = None) -> Reply:
+         timeout: float | None = None, uuid: str | None = None) -> Reply:
     """The single place a request to the infrastructure is made. `path` is an ALLOWED template. Never raises for a network or HTTP problem."""
-    concrete = check_allowed(method, path, body, slug)
+    concrete = check_allowed(method, path, body, slug, uuid)
     import httpx
 
     try:

@@ -3,6 +3,7 @@ the user only confirms) or entered by hand (add-on address + pairing code from t
 from __future__ import annotations
 
 import datetime as dt
+import logging
 from typing import Any
 
 import voluptuous as vol
@@ -16,6 +17,8 @@ from .const import CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHAN
 from .runnable import RUNNABLE_DOMAINS, parse_runnable, selector_value
 from .service_identity import options_error
 from .signing import sign
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class SmplwiseBridgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -64,10 +67,10 @@ class SmplwiseBridgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if not code:
             return self.async_abort(reason="invalid_discovery")
         auto = cfg.get("wiskey_auto_install") is True
-        await self.async_set_unique_id(DOMAIN)
-        # An existing entry takes the (possibly regenerated) pairing code and reloads; nothing is duplicated. Review H4: only the
-        # automatic-install discovery adds the entry flag that lets the bridge set up the native intercom component.
-        self._abort_if_unique_id_configured(updates={CONF_ADDON_URL: url, CONF_PAIRING_CODE: code, **({CONF_WISKEY_AUTO_INSTALL: True} if auto else {})})
+        existing = await self.async_set_unique_id(DOMAIN)
+        if existing is not None:
+            return await self._discovered_for_existing(existing, url, code, auto)
+        self._abort_if_unique_id_configured()
         self._discovered = {CONF_ADDON_URL: url, CONF_PAIRING_CODE: code}
         self._addon_name = discovery_info.name or self._addon_name
         self.context["title_placeholders"] = {"addon": self._addon_name}
@@ -79,6 +82,27 @@ class SmplwiseBridgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 return self.async_abort(reason=err)
             return self.async_create_entry(title="SMPLWISE Bridge", data={**self._discovered, CONF_WISKEY_AUTO_INSTALL: True})
         return await self.async_step_hassio_confirm()
+
+    async def _discovered_for_existing(self, entry: config_entries.ConfigEntry, url: str, code: str, auto: bool):
+        """0.10.3 (BRIDGE-STALE-DISCOVERY-2383): an existing entry takes a discovered (regenerated) pairing code ONLY when the add-on accepts it.
+
+        Home Assistant replays every Supervisor discovery message at each start, and a message the add-on posted once stays until it is
+        deleted - so a discovery may carry an OLD code. Applying it blindly wrote that code into the entry, the reload threw the working key
+        set away (keyset.KeySet K-02 "repaired") and every signed push was refused. Now: nothing to change -> abort without a call; else one
+        signed ping with the discovered code (the same `_try_pair` as a first install); accepted -> the entry is updated and reloaded as before
+        (the K-02 re-pair path); refused or unreachable -> abort `already_configured` WITHOUT updates. Never logs a code. Review H4: only the
+        automatic-install discovery adds the entry flag that lets the bridge set up the native intercom component."""
+        updates = {CONF_ADDON_URL: url, CONF_PAIRING_CODE: code, **({CONF_WISKEY_AUTO_INSTALL: True} if auto else {})}
+        data = dict(getattr(entry, "data", None) or {})
+        if getattr(entry, "source", None) == config_entries.SOURCE_IGNORE or all(data.get(k) == v for k, v in updates.items()):
+            self._abort_if_unique_id_configured()
+            return self.async_abort(reason="already_configured")
+        err = await self._try_pair(url, code)
+        if err is None:
+            self._abort_if_unique_id_configured(updates=updates)
+            return self.async_abort(reason="already_configured")  # not reached: the call above aborts the flow after updating the entry
+        _LOGGER.info("SMPLWISE Bridge: a discovery offered a pairing code the add-on did not accept (%s); the existing entry is kept unchanged", err)
+        return self.async_abort(reason="already_configured")
 
     async def async_step_hassio_confirm(self, user_input: dict[str, Any] | None = None):
         assert self._discovered is not None

@@ -95,14 +95,16 @@ def pairing_repair(body: RepairBody, request: Request, principal: Principal = De
         paused = True
         audit(conn, actor=principal, action="settings.changed", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
               details={"key": br.FLAG_KEY, "before": "on", "after": "off", "via": "wiskey.pairing.repair"})
-    announced = bridge_install.announce_discovery(request.app.state.db, settings, conn) if before["repair"]["announce"] else False
+    # BRIDGE-STALE-DISCOVERY-2383: always through announce_discovery - it posts the new code when the path is open (a manual owner profile
+    # included, once a bridge is known) and otherwise deletes Arx's old message, so a restart cannot bring the old code back into the bridge
+    announced = bridge_install.announce_discovery(request.app.state.db, settings, conn)
     wp.forget_probe()
     audit(conn, actor=principal, action="wiskey.pairing.repair", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
           details={"reason": reason, "announced": announced, "rotation_paused": paused})
     after = wp.status(conn, settings)
     url = bridge_install.addon_url()
     if announced:
-        steps = ["בתשתית המערכת יופיע עדכון לאינטגרציה SMPLWISE Bridge עם הקוד החדש. אם מופיעה בקשת אישור - אשרו אותה.",
+        steps = ["הקוד החדש נשלח לגשר הקיים: הגשר בודק אותו מול Arx ומחליף אותו בעצמו, בלי אישור. אם הגשר עוד לא הוגדר - בתשתית המערכת תופיע בקשה להוסיף את SMPLWISE Bridge; אשרו אותה.",
                  "המתינו דקה עד שהגשר ישלח עדכון חתום (השורה \"גשר Arx\" תהפוך לתקינה).",
                  "לחצו \"בדיקה מול WisKey\"."]
     else:

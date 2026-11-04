@@ -24,7 +24,7 @@ from ..config import Settings
 from ..db import Database, get_setting, now_iso, unlocked
 from ..errors import ApiError
 from . import bridge_keys as bk
-from . import ha_bridge, ha_client
+from . import ha_bridge, ha_client, self_update
 from .wiskey_distribution_digest import digest as distribution_digest, files as distribution_files
 
 log = logging.getLogger("smplwise.bridge")
@@ -133,24 +133,35 @@ def _discovery_code(conn: sqlite3.Connection) -> str | None:
 
 
 def announce_discovery(db: Database, settings: Settings, conn: sqlite3.Connection | None = None) -> bool:
-    """Tell the Supervisor that the bridge service is available (Home Assistant shows it as discovered). Only while a fresh pairing code
-    waits to be paired (first install or a re-pair): once the code is adopted into the key set nothing is announced (K-01) - the bridge is
-    already configured and a discovery would only push a code into its entry."""
-    if _manual_owner_profile(ha_config_dir()):
-        return False
-    if not ha_client.supervisor_token():
-        return False
+    """Tell the Supervisor that the bridge service is available (Home Assistant shows it as discovered, or an existing bridge entry takes
+    the code through its K-02 re-pair path). Only while a fresh pairing code waits to be paired (first install or a re-pair): once the code
+    is adopted into the key set nothing is announced (K-01).
+
+    BRIDGE-STALE-DISCOVERY-2383: Home Assistant replays every Supervisor discovery at each start, so Arx keeps ITS message equal to the
+    current code: the uuid of every post is recorded, and a message whose code is no longer current is deleted - after adoption, after a
+    re-pair (the new one is posted first), and whenever announcing is skipped (services/bridge_discovery.py). On a manual WisKey owner
+    profile the code is still delivered to an EXISTING bridge entry (installs nothing; never with the automatic-install flag); without a
+    known bridge the owner adds the integration himself."""
+    from . import bridge_discovery as bd
     from . import wiskey_auto_install as wai
 
+    if not ha_client.supervisor_token():
+        return False
+    manual = _manual_owner_profile(ha_config_dir())
+
+    def read(c: sqlite3.Connection) -> tuple[str | None, bool]:
+        if not bd.may_announce(c, manual):
+            return None, False
+        return _discovery_code(c), (not manual) and bool(wai.switch_on(c))
+
     if conn is not None:
-        secret = _discovery_code(conn)
-        auto = wai.switch_on(conn)
+        secret, auto = read(conn)
     else:
         with db.connection() as c:
-            secret = _discovery_code(c)
-            auto = wai.switch_on(c)
+            secret, auto = read(c)
     if not secret:
         STATE["discovery_posted_at"] = None
+        bd.retire(db, settings, conn)
         return False
     # WISKEY-ADOPT-2272 (WisKey owner28): with the automatic installation switched on, the announcement asks the bridge to pair
     # without its confirmation form (the add-on's own authenticated Supervisor discovery); otherwise unchanged
@@ -158,14 +169,25 @@ def announce_discovery(db: Database, settings: Settings, conn: sqlite3.Connectio
     try:
         if conn is not None:
             with unlocked(conn):  # the Supervisor call runs without the request's write lock
-                ha_client.post_discovery(settings, DOMAIN, config)
+                data = ha_client.post_discovery(settings, DOMAIN, config)
         else:
-            ha_client.post_discovery(settings, DOMAIN, config)
+            data = ha_client.post_discovery(settings, DOMAIN, config)
     except ApiError as exc:
         STATE["last_error"] = f"discovery:{exc.code}"
         log.warning("bridge discovery announcement failed: %s", exc.code)
         return False
+    except self_update.ProbeRefused:
+        # BRIDGE-STALE-DISCOVERY-2383 finding: the single door's discovery shape (DISCOVERY_CONFIG_KEYS, string values) does not admit the
+        # automatic-install flag, so that announcement never left Arx and used to raise out of here (a 500 on a re-pair). Reported to the
+        # owner; until it is decided the announcement fails cleanly instead.
+        STATE["last_error"] = "discovery:call_refused"
+        log.warning("bridge discovery announcement refused by the infrastructure allow-list (automatic-install flag)")
+        return False
     STATE["discovery_posted_at"] = now_iso()
+    try:
+        bd.after_post(db, settings, conn, (data or {}).get("uuid"), secret)
+    except Exception as exc:  # noqa: BLE001 - the announcement itself went out; the housekeeping retries at the next start
+        log.warning("bridge discovery record failed (%s)", type(exc).__name__)
     return True
 
 
@@ -197,6 +219,10 @@ def install(db: Database, settings: Settings, force: bool = False, announce: boo
             from . import wiskey_auto_install as wai
 
             wai.installer_step(db, settings, cfg, src, conn=conn, restart=False)
+            if announce:
+                # BRIDGE-STALE-DISCOVERY-2383: nothing is copied, but Arx's own discovery message is still kept current (a new code to the
+                # existing bridge entry) or removed (a stale code would come back into the bridge at every Home Assistant start)
+                announce_discovery(db, settings, conn)
             return status(db, conn)
         target = cfg / "custom_components" / DOMAIN
         installed = read_version(target) if target.is_dir() else None

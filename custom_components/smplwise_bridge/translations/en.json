@@ -21,7 +21,7 @@
       "unknown": "Unexpected error."
     },
     "abort": {
-      "already_configured": "The bridge is already configured; the pairing details were refreshed.",
+      "already_configured": "The bridge is already configured. A discovered pairing code is applied only when the add-on accepts it.",
       "invalid_discovery": "The discovery message had no pairing code.",
       "single_instance_allowed": "Only one bridge can be configured.",
       "cannot_connect": "The add-on could not be reached for the automatic installation.",
