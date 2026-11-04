@@ -2858,6 +2858,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'multimedia') return html`<system-multimedia></system-multimedia>`; // הגדרות › מולטימדיה (CR-015)
         if (s[1] === 'infra') return html`<system-infra .route=${r}></system-infra>`; // הגדרות › תשתיות (CR-023)
         if (s[1] === 'fleet-report') return html`<system-fleet-report></system-fleet-report>`; // CR-FLEET215: דיווח בריאות
+        if (s[1] === 'intercom-operations') return html`<system-intercom-ops .view=${s[2] ?? ''}></system-intercom-ops>`; // WISKEY-OPS-VIEWS-2400: תפעול האינטרקום
         if (s[1] === 'messaging-accounts') return html`<system-messaging-accounts></system-messaging-accounts>`; // CR-038 S5a: ערוץ ההודעות
         if (s[1] === 'tickets') return html`<system-tickets></system-tickets>`; // CR-038: the tickets module (its label is the configured name, D33)
         if (s[1] === 'entities') return html`<explore-entities></explore-entities>`; // the device catalogue, formerly the map's "התקנים" tab (system.configure only: the screen checks it too)

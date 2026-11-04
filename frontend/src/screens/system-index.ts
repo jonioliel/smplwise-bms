@@ -112,6 +112,13 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { tab: 'access-control', label: 'קבוצות ושדות', href: '#/system/access-control/groups', sub: true, keywords: 'קבוצה שדות פרופיל גרסאות מדיניות' },
       { tab: 'access-control', label: 'מדיניות', href: '#/system/access-control/policy', sub: true, keywords: 'תמונת אירוע מספר עובד שגיאות סנכרון רגיש תיעוד צפייה' },
       { tab: 'access-control', label: 'הודעות', href: '#/system/access-control/messaging', sub: true, keywords: 'וואטסאפ whatsapp תבניות שליחת הודעה הודעה חופשית מכסה נמענים' },
+      // WISKEY-OPS-VIEWS-2400 (integration plan T11): the intercom system's operations and fleet views (access.read at the installation)
+      { ownTabs: true, tab: 'intercom-operations', label: 'תפעול האינטרקום', href: '#/system/intercom-operations', keywords: 'wiskey אינטרקום תפעול פעולות סנכרון חקירות ציר זמן משימות ביטול קיבולת מגמה מלאי צי ייצוא יומן שינויים דוח אירועים מדדים' },
+      { tab: 'intercom-operations', label: 'פעולות ומשימות', href: '#/system/intercom-operations/operations', sub: true, keywords: 'סנכרון עריכה מרוכזת ייבוא משימות שגיאות ביטול' },
+      { tab: 'intercom-operations', label: 'חקירות', href: '#/system/intercom-operations/investigations', sub: true, keywords: 'ציר זמן כניסות שינויים סנכרון' },
+      { tab: 'intercom-operations', label: 'קיבולת ומגמות', href: '#/system/intercom-operations/capacity', sub: true, keywords: 'משתמשים כרטיסים מגבלה צמיחה תחזית' },
+      { tab: 'intercom-operations', label: 'דוח אירועים', href: '#/system/intercom-operations/events', sub: true, keywords: 'כניסות נדחו אושרו חריגות לפי יום לפי עמדה' },
+      { tab: 'intercom-operations', label: 'ייצוא', href: '#/system/intercom-operations/exports', sub: true, keywords: 'csv מלאי צי יומן שינויים קובץ' },
       { tab: 'general', label: 'גשר Arx', href: `${GEN}?tab=ha`, keywords: 'אינטגרציה צימוד pairing bridge supervisor home assistant' },
       { tab: 'general', label: 'מתגי מסכי כניסה', href: `${GEN}?tab=access-control`, keywords: 'wiskey מוטמע אינטרקום תצוגה מסך תחנות שיחה דיבור הכרזה משפטים בדיקת התאמה השוואה צד לצד' },
       { tab: 'entities', label: 'קטלוג התקנים', href: '#/system/entities', keywords: 'ישויות entities תחומים' },

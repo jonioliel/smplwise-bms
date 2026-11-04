@@ -38,6 +38,8 @@ const M_ROWS_IN_PANEL = [3, 34, 36];
 const BANNED = /wiskey|home\s*assistant|hikvision|ingress|supervisor|\bHA\b/i;
 
 const route = (href: string) => wiskeyRoute(parseRoute(href), true);
+/** WISKEY-OPS-VIEWS-2400 (plan T11): the capabilities whose native screen is Settings › תפעול האינטרקום. */
+const OPS_NATIVE_IDS = ['operations.center', 'operations.investigations', 'events.report', 'health.fleet', 'audit.panel'];
 const ADMIN = { panel: true, admin: true } as const;
 
 test.describe('the deep-link table', () => {
@@ -118,14 +120,18 @@ test.describe('who gets the links', () => {
     expect(mayOpenPanel({ api: true, accessReadInstallation: true, hidden: true })).toBe(false);
   });
 
-  test('no panel, no link - in every place', () => {
-    for (const place of Object.keys(PLACES) as DeepPlace[]) expect(deepLinksFor(place, { panel: false, admin: true })).toEqual([]);
+  test('no panel, no PANEL link - in every place (a native screen of WISKEY-OPS-VIEWS-2400 stays, behind its own permission)', () => {
+    for (const place of Object.keys(PLACES) as DeepPlace[]) {
+      expect(deepLinksFor(place, { panel: false, admin: true }).filter((l) => l.kind === 'panel'), place).toEqual([]);
+      expect(deepLinksFor(place, { panel: false, admin: true, can: () => false }), place).toEqual([]);
+    }
   });
 
   test('the panel\'s administrator-only tools are offered to an access-control administrator only', () => {
     const ids = (admin: boolean) => deepLinksFor('settings-status', { panel: true, admin }).map((l) => l.id);
     expect(ids(true)).toEqual(['sync.run', 'alerts.act', 'health.fleet', 'clock.settings', 'operations.center', 'operations.investigations', 'platform.center']);
-    expect(ids(false)).toEqual(['sync.run', 'alerts.act', 'health.fleet', 'clock.settings', 'operations.center']);
+    // WISKEY-OPS-VIEWS-2400: the investigations timeline is a native Arx view now (access.read): no longer the panel's administrator tool
+    expect(ids(false)).toEqual(['sync.run', 'alerts.act', 'health.fleet', 'clock.settings', 'operations.center', 'operations.investigations']);
     expect(deepLinksFor('settings-policy', { panel: true, admin: false }).map((l) => l.id)).toEqual(['permissions.directory', 'media.settings']);
   });
 
@@ -141,8 +147,8 @@ test.describe('who gets the links', () => {
 
   test('what each place offers an administrator (the order shown)', () => {
     const ids = (p: DeepPlace) => deepLinksFor(p, ADMIN).map((l) => `${l.id}=${l.href}`);
-    expect(ids('station')).toEqual(['stations.technical=#/wiskey/devices?classic=1', 'sync.run=#/wiskey/sync', 'health.fleet=#/wiskey/tools/health', 'clock.settings=#/wiskey/tools/clock_options']);
-    expect(ids('stations')).toEqual(['stations.technical=#/wiskey/devices?classic=1', 'sync.run=#/wiskey/sync', 'alerts.act=#/wiskey/tools/fleet_alerts', 'health.fleet=#/wiskey/tools/health']);
+    expect(ids('station')).toEqual(['stations.technical=#/wiskey/devices?classic=1', 'sync.run=#/wiskey/sync', 'health.fleet=#/system/intercom-operations/capacity', 'clock.settings=#/wiskey/tools/clock_options']);
+    expect(ids('stations')).toEqual(['stations.technical=#/wiskey/devices?classic=1', 'sync.run=#/wiskey/sync', 'alerts.act=#/wiskey/tools/fleet_alerts', 'health.fleet=#/system/intercom-operations/capacity']);
     expect(ids('people')).toEqual([
       'people.unmanaged=#/wiskey/people?classic=1',
       'profiles.edit=#/wiskey/tools/profile_options',
@@ -152,7 +158,7 @@ test.describe('who gets the links', () => {
       'people.quality=#/wiskey/tools/data_quality',
     ]);
     expect(ids('schedules')).toEqual(['schedules.edit=#/wiskey/tools/schedules', 'stations.technical=#/wiskey/devices?classic=1']);
-    expect(ids('settings-audit')).toEqual(['audit.panel=#/wiskey/tools/audit', 'events.report=#/wiskey/events?classic=1']);
+    expect(ids('settings-audit')).toEqual(['audit.panel=#/system/intercom-operations/exports', 'events.report=#/system/intercom-operations/events']);
     expect(ids('settings-groups')).toEqual(['profiles.edit=#/wiskey/tools/profile_options']);
     expect(ids('settings-messaging')).toEqual(['messaging.templates=#/wiskey/tools/whatsapp_templates']);
     expect(ids('settings-policy')).toEqual(['permissions.panel=#/wiskey/tools/access_control', 'permissions.directory=#/wiskey/tools/permission_directory', 'media.settings=#/wiskey/tools/media_options', 'workflows.center=#/wiskey/tools/workflow_center']);
@@ -164,7 +170,7 @@ test.describe('keyed by capability: a native screen replaces a link without touc
     expect(linkFor('schedules.edit')).toBe('#/wiskey/tools/schedules');
     expect(linkFor('profiles.edit')).toBe('#/wiskey/tools/profile_options');
     expect(linkFor('no.such')).toBe(ROOT_HREF);
-    for (const id of Object.keys(DEEP_LINKS)) expect(linkFor(id), id).toBe(deepLinkHref(id)); // no native screen exists yet
+    for (const id of Object.keys(DEEP_LINKS)) if (!OPS_NATIVE_IDS.includes(id)) expect(linkFor(id), id).toBe(deepLinkHref(id)); // no other native screen yet
   });
 
   test('the temporary links of the owner Q4 / Q7 (native screens to come) are marked', () => {
@@ -172,7 +178,7 @@ test.describe('keyed by capability: a native screen replaces a link without touc
     expect(DEEP_LINKS['schedules.edit'].bridge).toBe('Q4');
     expect(DEEP_LINKS['profiles.edit'].bridge).toBe('Q4');
     for (const id of ['clock.settings', 'platform.center', 'stations.technical']) expect(DEEP_LINKS[id].bridge, id).toBe('Q7');
-    for (const id of Object.keys(DEEP_LINKS)) expect(DEEP_LINKS[id].native, id).toBeUndefined();
+    for (const id of Object.keys(DEEP_LINKS)) if (!OPS_NATIVE_IDS.includes(id)) expect(DEEP_LINKS[id].native, id).toBeUndefined();
   });
 
   test('once an entry carries a native route: linkFor and every place follow; the panel rule and catalog no longer apply to it', () => {
@@ -185,5 +191,21 @@ test.describe('keyed by capability: a native screen replaces a link without touc
     expect(deepLinksFor('schedules', { panel: false, admin: false, can: holds }, table).map((l) => l.id)).toEqual(['schedules.edit']);
     // the native screen's permission is not held: not offered
     expect(deepLinksFor('schedules', { panel: false, admin: false, can: () => false }, table)).toEqual([]);
+  });
+});
+
+test.describe('WISKEY-OPS-VIEWS-2400: the operations views replace five panel links', () => {
+  test('each of the five goes to its native view, behind access.read; the panel address stays in the entry', () => {
+    const views: Record<string, string> = { 'operations.center': 'operations', 'operations.investigations': 'investigations', 'events.report': 'events', 'health.fleet': 'capacity', 'audit.panel': 'exports' };
+    expect(Object.keys(views).sort()).toEqual([...OPS_NATIVE_IDS].sort());
+    for (const [id, view] of Object.entries(views)) {
+      expect(DEEP_LINKS[id].native, id).toEqual({ href: `#/system/intercom-operations/${view}`, need: ['access.read'] });
+      expect(linkFor(id), id).toBe(`#/system/intercom-operations/${view}`);
+      expect(route(deepLinkHref(id)).kind, id).toBe('embed'); // the panel address is still known (deepLinkHref)
+    }
+    const holds = (p: string) => p === 'access.read';
+    const audit = deepLinksFor('settings-audit', { panel: false, admin: false, can: holds });
+    expect(audit.map((l) => `${l.id}:${l.kind}`)).toEqual(['audit.panel:native', 'events.report:native']);
+    expect(deepLinksFor('settings-audit', { panel: true, admin: true, can: () => false })).toEqual([]);
   });
 });
