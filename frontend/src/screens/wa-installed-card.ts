@@ -52,7 +52,7 @@ export class WaInstalledCard extends LitElement {
       .chip.ok { background: var(--sw-success-soft); color: var(--sw-success-text); }
       .chip.bad { background: var(--sw-danger-soft); color: var(--sw-danger-text); }
       .chip.warn { background: var(--sw-warning-soft); color: var(--sw-warning-text); }
-      .cmds { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 6px 12px; }
+      .cmds { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 6px 12px; }
       .cmd { display: flex; align-items: center; gap: 8px; min-inline-size: 0; font-size: var(--sw-fs-sm); }
       .cmd span { min-inline-size: 0; overflow-wrap: anywhere; }
       .line { display: flex; align-items: center; gap: 10px; min-inline-size: 0; font-size: var(--sw-fs-sm); }
@@ -130,7 +130,7 @@ export class WaInstalledCard extends LitElement {
   private template(t: InstalledTemplate): TemplateResult {
     return html`<div class="row" data-wa-template=${t.id} data-source=${t.source}>
       <span class="dot ${t.bound ? 'ok' : 'muted'}" aria-hidden="true"></span>
-      <span class="main"><span class="t ltr">${bidi(t.name)}</span>
+      <span class="main"><span class="t"><span class="ltr">${bidi(t.name)}</span></span>
         <span class="s">${t.language} · ${wi(t.source === 'wiskey' ? 'src_wiskey' : 'src_arx')}${t.account ? html` · <span class="ltr">${bidi(t.account)}</span>` : nothing}${t.bound ? nothing : html` · ${wi('unbound')}`}</span></span>
     </div>`;
   }
