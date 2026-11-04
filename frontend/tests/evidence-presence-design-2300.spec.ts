@@ -110,7 +110,7 @@ for (const scheme of ['light', 'dark'] as const) {
               await expect(page.locator('[data-building-bar="ticks"] i[data-t="on"]')).toHaveCount(2);
               await expect(page.locator('[data-building-bar="ticks"] i[data-t="unk"]')).toHaveCount(1);
             } else await expect(page.locator('[data-building-bar="share"]')).toHaveCount(1);
-            await expect(page.locator('[data-building-rooms] bdi').first()).toBeVisible();
+            await expect(page.locator('[data-building-rooms] .nm')).toBeVisible();
             await expect(page.locator('presence-pills')).toHaveCount(0);
             if (st.name === 'count') await expect(page.locator('[data-building-rest]')).toHaveCount(0); // default: only active rooms
           }

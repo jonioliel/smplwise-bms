@@ -131,6 +131,8 @@ export interface CompactView {
   others: CompactRoom[];
   /** All empty + "last": "<room> · ריק מ־HH:MM" (the room that emptied last); '' otherwise. */
   last: string;
+  /** PRESENCE-COUNT-2400: the parts of `last` (the room and its HH:MM), null when there is no "last" line. */
+  lastRoom: { name: string; at: string } | null;
   /** The "floors" style: one bar per floor, the most active first (a building without floors is one bar). */
   floors: CompactFloor[];
   /** Details inline (and the empty rooms are not pills): one quiet line of the empty / unknown names; '' otherwise. */
@@ -156,6 +158,10 @@ export const COUNT_FLOORS = 5;
 /** Active names in the count line's tooltip before "+N". */
 const TITLE_NAMES = 30;
 
+/** A room name isolated for the Hebrew line (FSI ... PDI - what <bdi> does, as text): a Latin name keeps its place, and the line stays ONE text
+ * run, so a long list ends in the line's own ellipsis instead of name boxes running past the card. */
+export const isolate = (s: string) => `\u2068${s}\u2069`;
+
 export interface CountBar {
   /** 'ticks' = one tick a room (at most TICK_CAP); 'share' = one bar filled to `pct`; 'none' = no room with a sensor. */
   kind: 'ticks' | 'share' | 'none';
@@ -171,9 +177,11 @@ export interface CountView {
   of: string;
   /** "חדרים פעילים" / "חדר פעיל" / "המבנה ריק" / "אין מידע מהחיישנים". */
   word: string;
-  /** The active names drawn (each in its own bdi) and the count of the rest. */
+  /** The active names drawn and the count of the rest. */
   names: string[];
   more: number;
+  /** The names line as one text run: the drawn names (each isolated) joined by " · ", then "+N". */
+  line: string;
   /** The quiet line in place of the names: "<room> · ריק מ־HH:MM" / "כל 5 החדרים ריקים" / "החדרים יופיעו כשהחיישנים ידווחו"; '' while rooms are active. */
   quiet: string;
   /** Muted names after the active ones (with "show empty rooms" or details inline); '' otherwise. */
@@ -186,6 +194,8 @@ export interface CountView {
   /** The large card's floor line ("קרקע 1/1 · קומה 2 1/2"), empty without floors. */
   floors: CompactFloor[];
   moreFloors: number;
+  /** The floor line as one text run ('' without floors). */
+  floorLine: string;
 }
 
 /** What the "count and names" card draws, from the compact view (pure; the widget only lays it out). */
@@ -196,7 +206,8 @@ export function countView(v: CompactView): CountView {
   const word = v.tone === 'ok' ? BP.countWord(n) : v.tone === 'clear' ? (v.of ? BP.countEmpty : BP.cardAllEmpty(0)) : BP.countUnknown;
   const drawn = v.tone === 'ok' ? v.active.slice(0, COUNT_NAMES).map((r) => r.name) : [];
   const more = v.tone === 'ok' ? Math.max(0, n - drawn.length) : 0;
-  const quiet = v.tone === 'ok' ? '' : v.tone === 'clear' ? v.last || (v.of ? BP.cardAllEmpty(v.of) : '') : BP.countUnknownSub;
+  const quiet = v.tone === 'ok' ? '' : v.tone === 'clear' ? (v.lastRoom ? BP.lastEmpty(isolate(v.lastRoom.name), v.lastRoom.at) : v.of ? BP.cardAllEmpty(v.of) : '') : BP.countUnknownSub;
+  const line = [...drawn.map(isolate), ...(more ? [BP.plus(more)] : [])].join(' · ');
   // the muted rest after the names: only with "show empty rooms" or details inline (the default keeps them in the tooltip and the ticks)
   const empty = v.ticks.filter((r) => r.tone === 'neutral');
   const unknown = v.ticks.filter((r) => r.tone === 'unknown');
@@ -215,7 +226,9 @@ export function countView(v: CompactView): CountView {
     bar = { kind: 'ticks', pct: 0, title: '', ticks: v.ticks.map((r) => ({ tone: r.tone === 'ok' ? 'on' : r.tone === 'unknown' ? 'unk' : 'off', title: r.title })) };
   }
   const floors = v.hasFloors ? v.floorOrder.slice(0, COUNT_FLOORS) : [];
-  return { num, of, word, names: drawn, more, quiet, extra, title, aria, bar, floors, moreFloors: v.hasFloors ? Math.max(0, v.floorOrder.length - floors.length) : 0 };
+  const moreFloors = v.hasFloors ? Math.max(0, v.floorOrder.length - floors.length) : 0;
+  const floorLine = [...floors.map((f) => `${isolate(f.name)} ${BP.count(f.on)}/${BP.count(f.of)}`), ...(moreFloors ? [BP.moreFloors(moreFloors)] : [])].join('  ·  ');
+  return { num, of, word, names: drawn, more, line, quiet, extra, title, aria, bar, floors, moreFloors, floorLine };
 }
 
 const TIP_NAMES = 12;
@@ -229,7 +242,7 @@ function names(list: readonly CompactRoom[], cap: number): string {
 /** Everything the compact card draws. `show` is false unless the widget exists (see `presenceWidgetAvailable`). */
 export function compactView(s: BuildingSnapshot | null | undefined, zone = 'Asia/Jerusalem'): CompactView {
   const opts = cardOptions(s?.settings);
-  const base: CompactView = { show: false, tone: 'unknown', word: '', sub: '', at: '', opts, of: 0, active: [], others: [], last: '', floors: [], rest: '', tip: '', ticks: [], floorOrder: [], hasFloors: false };
+  const base: CompactView = { show: false, tone: 'unknown', word: '', sub: '', at: '', opts, of: 0, active: [], others: [], last: '', lastRoom: null, floors: [], rest: '', tip: '', ticks: [], floorOrder: [], hasFloors: false };
   if (!s || !presenceWidgetAvailable(s)) return base;
   const rooms = (s.rooms ?? []).filter((r) => r.name);
   const byName = (a: CompactRoom, b: CompactRoom) => a.name.localeCompare(b.name, 'he');
@@ -248,10 +261,14 @@ export function compactView(s: BuildingSnapshot | null | undefined, zone = 'Asia
   const word = tone === 'ok' ? BP.occupied : tone === 'clear' ? BP.empty : BP.unknown;
   const sub = tone === 'ok' ? BP.stripSub(s.occupied_rooms ?? active.length, of) : tone === 'clear' ? BP.cardAllEmpty(of) : BP.cardNoInfo;
   let last = '';
+  let lastRoom: CompactView['lastRoom'] = null;
   if (tone === 'clear' && opts.allEmpty === 'last') {
     const timed = rooms.filter((r) => r.status === 'clear' && clockText(r.empty_since, zone));
     timed.sort((a, b) => Date.parse(b.empty_since ?? '') - Date.parse(a.empty_since ?? ''));
-    if (timed[0]) last = BP.lastEmpty(timed[0].name ?? '', clockText(timed[0].empty_since, zone));
+    if (timed[0]) {
+      lastRoom = { name: timed[0].name ?? '', at: clockText(timed[0].empty_since, zone) };
+      last = BP.lastEmpty(lastRoom.name, lastRoom.at);
+    }
   }
   const others = opts.emptyRooms === 'show' && !last ? [...empty, ...unknown] : [];
   // floors in the order the rooms come (the server sorts them), the most active first; a stable sort keeps that order on a tie
@@ -271,7 +288,7 @@ export function compactView(s: BuildingSnapshot | null | undefined, zone = 'Asia
     ? [empty.length ? `${BP.emptyNames}: ${names(empty, REST_NAMES)}` : '', unknown.length ? `${BP.unknownNames}: ${names(unknown, REST_NAMES)}` : ''].filter(Boolean).join(' · ')
     : '';
   return {
-    show: true, tone, word, sub, at, opts, of, active, others, last, floors, rest, tip: tipLines.filter(Boolean).join('\n'),
+    show: true, tone, word, sub, at, opts, of, active, others, last, lastRoom, floors, rest, tip: tipLines.filter(Boolean).join('\n'),
     ticks: [...active, ...unknown, ...empty], floorOrder, hasFloors,
   };
 }

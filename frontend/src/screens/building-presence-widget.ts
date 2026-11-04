@@ -111,9 +111,11 @@ export const PRESENCE_WIDGET_STYLES = css`
   .wg-pres .pn-w { display: flex; align-items: center; gap: 7px; min-inline-size: 0; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-heading, var(--sw-text)); white-space: nowrap; }
   .wg-pres .pn-w > span:not(.pr-lamp) { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; }
   .wg-pres .pn .pr-lamp { inline-size: 8px; block-size: 8px; }
-  .wg-pres .pn-names { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
-  .wg-pres .pn-names i { font-style: normal; color: var(--sw-text-3); padding-inline: 5px; }
-  .wg-pres .pn-names .x { color: var(--sw-text-3); }
+  /* the names line: one text run per part (no element per name), each part ends in its own ellipsis - nothing runs past the card */
+  .wg-pres .pn-names { display: flex; gap: 0.35em; min-inline-size: 0; font-size: var(--sw-fs-sm); color: var(--sw-text-2); white-space: nowrap; }
+  .wg-pres .pn-names > span { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; }
+  .wg-pres .pn-names .nm { flex: 0 1 auto; }
+  .wg-pres .pn-names .x { flex: 0 1000 auto; color: var(--sw-text-3); }
   .wg-pres .pn-bar { display: flex; gap: 3px; block-size: 4px; min-inline-size: 0; flex: none; }
   .wg-pres .pn-bar i { flex: 1; min-inline-size: 0; border-radius: var(--sw-r-pill, 999px); background: var(--sw-surface-3); }
   .wg-pres .pn-bar i[data-t='on'] { background: var(--sw-success); }
@@ -121,8 +123,6 @@ export const PRESENCE_WIDGET_STYLES = css`
   .wg-pres .pn-bar.share { display: block; background: var(--sw-surface-3); border-radius: var(--sw-r-pill, 999px); overflow: hidden; }
   .wg-pres .pn-bar.share b { display: block; block-size: 100%; inline-size: var(--p, 0%); background: var(--sw-success); border-radius: var(--sw-r-pill, 999px); }
   .wg-pres .pn-fl { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
-  .wg-pres .pn-fl b { font-weight: var(--sw-fw-semibold); color: var(--sw-text-2); direction: ltr; unicode-bidi: isolate; }
-  .wg-pres .pn-sr { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   /* the tightest fit step and the row band: no floor line (the count, the names and the bar keep the card at the row's height) */
   :host([data-fit='2']) .wg-pres .pn-fl,
   .wg-pres.pr-compact .pn-fl { display: none; }
@@ -179,19 +179,16 @@ function quiet(v: CompactView, it: WidgetItem, compact: boolean) {
 /** PRESENCE-COUNT-2400: count and names (round-16 direction A). */
 function count(v: CompactView, it: WidgetItem, compact: boolean) {
   const c = countView(v);
-  const sep = html`<i aria-hidden="true">·</i>`;
   let second: TemplateResult | typeof nothing = nothing;
   if (c.names.length) {
-    second = html`<div class="pn-names" data-building-rooms>${c.names.map((n, i) => html`${i ? sep : nothing}<bdi>${n}</bdi>`)}${c.more ? html`${sep}${BP.plus(c.more)}` : nothing}${c.extra ? html`${sep}<span class="x" data-building-rest>${c.extra}</span>` : nothing}</div>`;
+    second = html`<div class="pn-names" data-building-rooms><span class="nm">${c.line}</span>${c.extra ? html`<span class="x" data-building-rest>· ${c.extra}</span>` : nothing}</div>`;
   } else if (c.quiet && it.size !== 's') {
-    // the room that emptied last (in a bdi, so a Latin name keeps its place), or the sentence
-    second = v.last && c.quiet === v.last
-      ? html`<div class="pn-names" data-building-last><bdi>${v.last}</bdi></div>`
-      : html`<div class="pn-names" data-building-quiet>${c.quiet}</div>`;
+    // the room that emptied last (its name isolated, so a Latin name keeps its place), or the sentence
+    second = html`<div class="pn-names" ?data-building-last=${!!v.lastRoom} ?data-building-quiet=${!v.lastRoom}><span class="nm">${c.quiet}</span></div>`;
   }
+  // the number is a picture of "2 of 5 active rooms" for a screen reader (one named image, no hidden text box)
   const row = html`<div class="pn-row" title=${c.title}>
-    <div class="pn-n" aria-hidden="true" data-building-presence-big><b>${c.num}</b>${c.of ? html`<span>${c.of}</span>` : nothing}</div>
-    <span class="pn-sr">${c.aria}</span>
+    <div class="pn-n" role="img" aria-label=${c.aria} data-building-presence-big><b aria-hidden="true">${c.num}</b>${c.of ? html`<span aria-hidden="true">${c.of}</span>` : nothing}</div>
     <div class="pn-t"><div class="pn-w"><span class="pr-lamp" aria-hidden="true"></span><span data-building-word>${c.word}</span>${timeIn(v, it)}</div>${second}</div>
   </div>`;
   let bar: TemplateResult | typeof nothing = nothing;
@@ -200,9 +197,7 @@ function count(v: CompactView, it: WidgetItem, compact: boolean) {
   } else if (it.size !== 's' && c.bar.kind === 'share') {
     bar = html`<div class="pn-bar share" aria-hidden="true" data-building-bar="share" title=${c.bar.title} style=${`--p:${c.bar.pct}%`}><b></b></div>`;
   }
-  const fl = it.size === 'l' && !compact && c.floors.length
-    ? html`<div class="pn-fl" data-building-floors>${c.floors.map((f, i) => html`${i ? '  ·  ' : ''}<bdi>${f.name}</bdi> <b>${BP.count(f.on)}/${BP.count(f.of)}</b>`)}${c.moreFloors ? `  ·  ${BP.moreFloors(c.moreFloors)}` : ''}</div>`
-    : nothing;
+  const fl = it.size === 'l' && !compact && c.floorLine ? html`<div class="pn-fl" data-building-floors>${c.floorLine}</div>` : nothing;
   return html`<div class="pn">${row}${bar}${fl}</div>`;
 }
 

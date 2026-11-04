@@ -36,9 +36,9 @@ async function fit(page: Page) {
     const cards = ([...(sr?.querySelectorAll('.wg') ?? [])] as HTMLElement[]).filter((c) => c.offsetParent !== null);
     const card = (sr?.querySelector('.wg-pres') ?? null) as HTMLElement | null;
     const tb = card?.getBoundingClientRect();
-    const kids = card ? ([...card.querySelectorAll('*')] as HTMLElement[]).filter((k) => k.offsetParent !== null && !k.classList.contains('pn-sr')) : [];
+    const kids = card ? ([...card.querySelectorAll('*')] as HTMLElement[]).filter((k) => k.offsetParent !== null) : [];
     // vertically nothing may leave the card; sideways the card's own blocks (a long name inside the names line is cut by its ellipsis on purpose)
-    const blocks = new Set(card ? [...card.querySelectorAll('.wg-h, .pn, .pn-row, .pn-n, .pn-t, .pn-w, .pn-names, .pn-bar, .pn-fl')] : []);
+    const blocks = new Set(card ? [...card.querySelectorAll('.wg-h, .pn, .pn-row, .pn-n, .pn-t, .pn-w, .pn-names, .pn-names > span, .pn-bar, .pn-fl')] : []);
     const out = tb ? kids.filter((k) => {
       const r = k.getBoundingClientRect();
       if (!(r.height > 0)) return false;
@@ -126,7 +126,11 @@ test.describe('PRESENCE-COUNT-2400: count and names - the home card', () => {
         }
         // what the card says, per state
         const big = page.locator('[data-building-presence-big]');
-        if (ds === 'ready') await expect(big).toHaveText('2/5');
+        if (ds === 'ready') {
+          await expect(big).toHaveText('2/5');
+          await expect(big).toHaveAttribute('role', 'img');
+          await expect(big).toHaveAttribute('aria-label', '2 מתוך 5 חדרים פעילים');
+        }
         if (ds === 'empty') await expect(big).toHaveText('0/5');
         if (ds === 'unknown') await expect(big).toHaveText('–/5');
         if (ds === 'worst') await expect(big).toHaveText('167/500');
@@ -136,7 +140,7 @@ test.describe('PRESENCE-COUNT-2400: count and names - the home card', () => {
           await expect(page.locator('[data-building-bar] i')).toHaveCount(5);
           await expect(page.locator('[data-building-bar] i[data-t="on"]')).toHaveCount(2);
         }
-        if (ds === 'ready') await expect(page.locator('[data-building-rooms] bdi')).toHaveText(['אופן ספייס', 'לובי']);
+        if (ds === 'ready') await expect(page.locator('[data-building-rooms] .nm')).toHaveText('⁨אופן ספייס⁩ · ⁨לובי⁩');
         if (ds === 'empty') await expect(page.locator('[data-building-last]')).toContainText('ריק מ־');
         if (size === 'l' && ds === 'ready' && !phone) await expect(page.locator('[data-building-floors]')).toContainText('קרקע');
         if (ds === 'ready' && size === 'm') {

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CARD_CHOICES, type BuildingPresenceSettings, type BuildingRoom, type BuildingSnapshot } from '../src/api/building-presence';
-import { COUNT_FLOORS, COUNT_NAMES, TICK_CAP, cardOptions, compactView, countView } from '../src/api/building-presence-logic';
+import { COUNT_FLOORS, COUNT_NAMES, TICK_CAP, cardOptions, compactView, countView, isolate } from '../src/api/building-presence-logic';
 
 // PRESENCE-COUNT-2400: the home card "count and names" (round-16 direction A; owner round 18, Q25-27) - the number, the word, the names line,
 // the "empty since" line, the tick bar (one tick a room up to 40, one share bar above), the large card's floor line, and the new default.
@@ -48,6 +48,8 @@ test.describe('the count line (answer 25 א)', () => {
   test('ready: "2" over "/5", "חדרים פעילים", the active names as text (by name), nothing else', () => {
     const c = cv(snap(READY));
     expect(c).toMatchObject({ num: '2', of: '/5', word: 'חדרים פעילים', names: ['אופן ספייס', 'לובי'], more: 0, quiet: '', extra: '' });
+    // one text run: each name isolated (what <bdi> does), so a Latin name keeps its place and the line ends in its own ellipsis
+    expect(c.line).toBe(`${isolate('אופן ספייס')} · ${isolate('לובי')}`);
     expect(c.aria).toBe('2 מתוך 5 חדרים פעילים');
     // details on hover: the active names, then the update time and the empty / unknown names
     expect(c.title.split('\n')).toEqual(['אופן ספייס, לובי', 'עודכן 08:20', 'ריקים: חדר ישיבות קטן, מטבחון', 'אין מידע: משרד מנהל']);
@@ -61,6 +63,7 @@ test.describe('the count line (answer 25 א)', () => {
     const c = cv(snap(many(20, 12)));
     expect(c.names).toHaveLength(COUNT_NAMES);
     expect(c.more).toBe(12 - COUNT_NAMES);
+    expect(c.line.endsWith(` · +${12 - COUNT_NAMES}`)).toBe(true);
     expect(c.title.split('\n')[0]).toContain('משרד 1');
   });
   test('"show empty rooms" or details inline add the empty / unknown names after the active ones, muted; the default does not', () => {
@@ -75,7 +78,7 @@ test.describe('all empty and no data (round 9 choices kept)', () => {
   const EMPTY = READY.map((r, i) => ({ ...r, status: 'clear' as const, empty_since: `2026-11-04T0${7 - (i % 3)}:${10 + i}:00Z` }));
   test('all empty: a grey "0", "המבנה ריק" and the room that emptied LAST, "<room> · ריק מ־HH:MM"', () => {
     const c = cv(snap(EMPTY));
-    expect(c).toMatchObject({ num: '0', of: '/5', word: 'המבנה ריק', names: [], quiet: 'משרד מנהל · ריק מ־07:13' });
+    expect(c).toMatchObject({ num: '0', of: '/5', word: 'המבנה ריק', names: [], quiet: `${isolate('משרד מנהל')} · ריק מ־07:13` });
     expect(c.bar.ticks.every((t) => t.tone === 'off')).toBe(true);
   });
   test('all empty with "count only": the sentence instead of the room', () => {
@@ -117,15 +120,19 @@ test.describe('the tick bar (answer 27 א)', () => {
 
 test.describe('the large card floor line', () => {
   test('the floors in the server order with "active/rooms"', () => {
-    expect(cv(snap(READY)).floors).toEqual([{ name: 'קרקע', on: 1, of: 1 }, { name: 'קומה 2', on: 1, of: 2 }, { name: 'קומה 3', on: 0, of: 2 }]);
+    const c = cv(snap(READY));
+    expect(c.floors).toEqual([{ name: 'קרקע', on: 1, of: 1 }, { name: 'קומה 2', on: 1, of: 2 }, { name: 'קומה 3', on: 0, of: 2 }]);
+    expect(c.floorLine).toBe(`${isolate('קרקע')} 1/1  ·  ${isolate('קומה 2')} 1/2  ·  ${isolate('קומה 3')} 0/2`);
   });
   test(`at most ${COUNT_FLOORS} floors, then "+N קומות"; a building without floors has no floor line`, () => {
     const c = cv(snap(many(24, 5)));
     expect(c.floors).toHaveLength(COUNT_FLOORS);
     expect(c.moreFloors).toBe(12 - COUNT_FLOORS);
+    expect(c.floorLine.endsWith(`+${12 - COUNT_FLOORS} קומות`)).toBe(true);
     const flat = cv(snap(READY.map((r) => ({ ...r, floor: null }))));
     expect(flat.floors).toEqual([]);
     expect(flat.moreFloors).toBe(0);
+    expect(flat.floorLine).toBe('');
   });
 });
 
