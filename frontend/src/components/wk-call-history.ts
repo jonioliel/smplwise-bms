@@ -10,23 +10,49 @@ const PAGE = 8;
 const REFRESH_MS = 30_000;
 
 /** Scoped to the element: it renders into the stations screen's own tree (light DOM), so the drawer's section styles (`.dsec`, `h4`)
- * apply to its heading exactly as to the other sections. */
-const STYLE = html`<style>
+ * apply to its heading exactly as to the other sections. A constructable sheet adopted by that tree (the screen's shadow root, or the
+ * document): the strict CSP refuses an inline <style> element (`style-src-elem 'self'`, test_remote_hardening M4). */
+const CSS = `
   wk-call-history { display: contents; }
   wk-call-history ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
   wk-call-history li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--sw-s-2, 8px); padding-block: 6px;
-    border-block-end: 1px solid var(--sw-border, rgba(0, 0, 0, 0.08)); font-size: var(--sw-fs-sm, 13px); }
+    border-block-end: 1px solid var(--sw-border); font-size: var(--sw-fs-sm, 13px); }
   wk-call-history li:last-child { border-block-end: 0; }
-  wk-call-history .cw { color: var(--sw-text-2, #555); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  wk-call-history .cw { color: var(--sw-text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
   wk-call-history .cx { min-inline-size: 0; display: grid; }
   wk-call-history .cx span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  wk-call-history .cx small, wk-call-history .cd { color: var(--sw-text-3, #777); }
+  wk-call-history .cx small, wk-call-history .cd { color: var(--sw-text-3); }
   wk-call-history .cd { font-variant-numeric: tabular-nums; }
-  wk-call-history li[data-tone='warn'] .cx span { color: var(--sw-warning-text, #92400e); }
-  wk-call-history li[data-tone='live'] .cx span { color: var(--sw-success-text, #166534); font-weight: var(--sw-fw-semibold, 600); }
-  wk-call-history .cm { background: none; border: 0; padding: 6px 0; font: inherit; font-size: var(--sw-fs-sm, 13px); color: var(--sw-accent-text, #3730a3); cursor: pointer; min-block-size: 32px; }
-  wk-call-history .cm:focus-visible { outline: var(--sw-focus-w, 2px) solid var(--sw-focus, #2563eb); outline-offset: 2px; }
-</style>`;
+  wk-call-history li[data-tone='warn'] .cx span { color: var(--sw-warning-text); }
+  wk-call-history li[data-tone='live'] .cx span { color: var(--sw-success-text); font-weight: var(--sw-fw-semibold, 600); }
+  wk-call-history .cm { background: none; border: 0; padding: 6px 0; font: inherit; font-size: var(--sw-fs-sm, 13px); color: var(--sw-accent-text); cursor: pointer; min-block-size: 32px; }
+  wk-call-history .cm:focus-visible { outline: var(--sw-focus-w, 2px) solid var(--sw-focus); outline-offset: 2px; }
+`;
+
+let sheet: CSSStyleSheet | null | undefined;
+function callHistorySheet(): CSSStyleSheet | null {
+  if (sheet === undefined) {
+    try {
+      sheet = new CSSStyleSheet();
+      sheet.replaceSync(CSS);
+    } catch {
+      sheet = null; // an engine without constructable sheets: the log is drawn unstyled, never blocked
+    }
+  }
+  return sheet;
+}
+
+/** Adopt the sheet once into the tree the element lives in (each stations screen has its own shadow root). */
+function adoptInto(root: Node): void {
+  const s = callHistorySheet();
+  const r = root as Document | ShadowRoot;
+  if (!s || !('adoptedStyleSheets' in r) || r.adoptedStyleSheets.includes(s)) return;
+  try {
+    r.adoptedStyleSheets = [...r.adoptedStyleSheets, s];
+  } catch {
+    /* ignore: unstyled, as above */
+  }
+}
 
 /**
  * WISKEY-INBOUND-CALLS-2382: a station's recent calls, a section of the station drawer - one line per call: when it rang, how it ended
@@ -55,6 +81,7 @@ export class WkCallHistory extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
+    adoptInto(this.getRootNode());
     this.style.display = 'contents'; // no box of its own: an empty log never takes a gap of the drawer's column
     this.timer = window.setInterval(() => {
       if (!document.hidden) void this.load(false);
@@ -102,7 +129,7 @@ export class WkCallHistory extends LitElement {
     if (!this.allowed() || !this.rows?.length) return nothing;
     const text = ict();
     const t = text.log;
-    return html`${STYLE}<section class="dsec" data-wk-dsec="calls" data-call-log="ready">
+    return html`<section class="dsec" data-wk-dsec="calls" data-call-log="ready">
       <h4><sw-icon name="history" size=${14}></sw-icon>${t.title}</h4>
       <ul>
         ${this.rows.map((r) => {
