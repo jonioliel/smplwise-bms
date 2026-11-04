@@ -8,6 +8,7 @@ import { CAL_EVENTS, emit, visibleCals, type CalCtx } from './ctx';
 import { DAY_LONG, MONTHS, addDays, colorVar, hm, isoDate, markOf, pad, pageOf, sameDay, span, startOfDay, timelineWindow } from './model';
 import { calCss } from './styles';
 import { EQUIPMENT_LABEL, firstFree, parseDateParam, readHashParam, trackLanes, writeHashParams } from './booking-logic';
+import { axisFit } from './rooms-axis';
 
 const CAPACITY_STEPS = [0, 6, 10, 20, 50];
 
@@ -46,8 +47,12 @@ export class CalViewRooms extends LitElement {
     .tl-axis span.first { transform: none; }
     .tl-axis span.last { transform: translateX(-100%); }
     .tl-now { position: absolute; inset-block: 0; inline-size: 2px; background: var(--sw-accent); z-index: 2; pointer-events: none; }
-    .tl-nowlab { position: absolute; top: 2px; line-height: 18px; transform: translateX(-50%); background: var(--sw-accent); color: var(--sw-text-inverse); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-bold);
-      border-radius: var(--sw-r-pill); padding: 1px 7px; z-index: 3; }
+    /* ROUND4-LEFTOVERS-2390 (D22): ".tl-axis span" (an hour label: grey ink, top 4px) out-ranked the pill's own class, so the time
+       on the pill was drawn in the labels' grey on the accent fill (unreadable, it read as a covered label). The pill's rules now
+       carry the axis in the selector; once the axis is measured the pill is placed in px inside the axis ("placed": no centring) */
+    .tl-axis .tl-nowlab { position: absolute; top: 2px; line-height: 18px; transform: translateX(-50%); background: var(--sw-accent); color: var(--sw-text-inverse); font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-bold);
+      border-radius: var(--sw-r-pill); padding: 1px 7px; z-index: 3; white-space: nowrap; }
+    .tl-axis .tl-nowlab.placed { transform: none; }
     .tl-free { position: absolute; inset-block: 7px; border-radius: var(--sw-r-xs); outline: 1.5px dashed var(--sw-accent); outline-offset: -1.5px; background: var(--sw-accent-soft);
       color: var(--sw-accent-text); display: grid; place-items: center; font-weight: var(--sw-fw-bold); font-size: var(--sw-fs-sm); direction: rtl; z-index: 2; border: 0; font-family: inherit;
       cursor: pointer; white-space: nowrap; overflow: hidden; }
@@ -56,7 +61,8 @@ export class CalViewRooms extends LitElement {
     .pop { position: absolute; z-index: calc(var(--sw-z-drawer) + 1); inset-block-start: 56px; inset-inline-end: 16px; background: var(--sw-menu-surface); border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-lg); box-shadow: var(--sw-shadow-3); padding: 8px; display: grid; gap: 2px; min-inline-size: 200px; }
     .pop label { display: flex; gap: 8px; align-items: center; min-block-size: 34px; padding-inline: 8px; border-radius: var(--sw-r-sm); font-size: var(--sw-fs-md); cursor: pointer; }
-    .pop label:hover { background: var(--sw-hover-wash); }
+    @media (hover: hover) and (pointer: fine) { .pop label:hover { background: var(--sw-hover-wash); } }
+    @media (pointer: coarse) { .pop label { min-block-size: 44px; } }
     .btn[aria-pressed='true'] { background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent; }
     .fail { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
     .found { font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
@@ -82,6 +88,10 @@ export class CalViewRooms extends LitElement {
   @state() private page = 1;
   @state() private per = 8;
   @state() private shift = 0;
+  /** the measured axis (ROUND4-LEFTOVERS-2390 D22): its width, the now pill's width and the widest hour label; 0 = not yet measured */
+  @state() private axisPx = 0;
+  @state() private pillPx = 0;
+  @state() private labelPx = 0;
   @state() private free: { room: string; start: Date; end: Date } | null | undefined = undefined;
   private loadedKey = '';
   private ro: ResizeObserver | null = null;
@@ -108,6 +118,21 @@ export class CalViewRooms extends LitElement {
   protected updated(): void {
     const rows = this.renderRoot.querySelector('.tl');
     if (rows && this.ro) this.ro.observe(rows);
+    this.measureAxis();
+  }
+
+  /** The axis, the pill and the hour labels as drawn (a skin's type scale, the device's width): the pill keeps clear of the labels by
+   * their real size. Converges: the widths do not depend on which labels are left out. */
+  private measureAxis(): void {
+    const axis = this.renderRoot.querySelector('.tl-axis') as HTMLElement | null;
+    if (!axis) return;
+    const pill = axis.querySelector('.tl-nowlab') as HTMLElement | null;
+    let label = 0;
+    for (const el of axis.querySelectorAll<HTMLElement>('span.num:not(.tl-nowlab)')) label = Math.max(label, el.offsetWidth);
+    const near = (a: number, b: number) => Math.abs(a - b) < 1;
+    if (!near(axis.clientWidth, this.axisPx)) this.axisPx = axis.clientWidth;
+    if (pill && !near(pill.offsetWidth, this.pillPx)) this.pillPx = pill.offsetWidth;
+    if (label && !near(label, this.labelPx)) this.labelPx = label;
   }
 
   protected willUpdate(changed: PropertyValues): void {
@@ -121,6 +146,7 @@ export class CalViewRooms extends LitElement {
     const rowMin = (this.ctx?.device === 'phone' ? 56 : 52) + 6;
     const per = Math.max(1, Math.floor((tl.clientHeight - 32) / rowMin));
     if (per !== this.per) this.per = per;
+    this.measureAxis();
   }
 
   private async load(): Promise<void> {
@@ -233,13 +259,16 @@ export class CalViewRooms extends LitElement {
     const hours = win.to - win.from;
     const nowL = today ? ((ctx.now.getHours() * 60 + ctx.now.getMinutes() - win.from * 60) / (hours * 60)) * 100 : -1;
     const showNow = nowL > 0 && nowL < 100;
+    // the hours the pill would meet are left out, measured in px (D22); before the first measure, the old share of the axis
+    const fit = axisFit({ nowPct: showNow ? nowL : -1, hours, axisPx: this.axisPx, pillPx: this.pillPx, labelPx: this.labelPx, fallbackPct: phone ? 9 : 3 });
     const axis = Array.from({ length: hours + 1 }, (_, k) => {
       const x = (k / hours) * 100;
-      if (showNow && Math.abs(x - nowL) < (phone ? 9 : 3)) return nothing; // the hour under the now pill is dropped
-      return html`<span class=${`num${k === 0 ? ' first' : k === hours ? ' last' : ''}`} style=${`left:${x}%`}>${pad((win.from + k) % 24)}${phone ? '' : ':00'}</span>`;
+      if (fit.hidden.has(k)) return nothing;
+      return html`<span class=${`num${k === 0 ? ' first' : k === hours ? ' last' : ''}`} data-cal-hour=${(win.from + k) % 24} style=${`left:${x}%`}>${pad((win.from + k) % 24)}${phone ? '' : ':00'}</span>`;
     });
+    const pillAt = fit.pillLeftPx === null ? `left:${nowL}%` : `left:${fit.pillLeftPx}px`;
     return html`<div class="tl" data-cal-timeline>
-      <div class="tl-row head"><div></div><div class="tl-axis">${axis}${showNow ? html`<span class="tl-nowlab num" style=${`left:${nowL}%`}>${hm(ctx.now)}</span>` : nothing}</div></div>
+      <div class="tl-row head"><div></div><div class="tl-axis">${axis}${showNow ? html`<span class=${`tl-nowlab num${fit.pillLeftPx === null ? '' : ' placed'}`} data-cal-now style=${pillAt}>${hm(ctx.now)}</span>` : nothing}</div></div>
       <div class="rows">${rooms.map((r) => this.row(r, win, showNow ? nowL : -1))}</div>
     </div>`;
   }

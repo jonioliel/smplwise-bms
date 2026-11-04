@@ -171,6 +171,8 @@ export class CalQuickAttendees extends LitElement {
     .tg[aria-expanded='true'] .chev { transform: rotate(180deg); }
     .tg:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: 2px; border-radius: var(--sw-r-sm); }
     .body { padding-block-start: 6px; padding-inline-start: 26px; }
+    /* ROUND4-LEFTOVERS-2390 (D22 review): the attendees toggle is a 44 px target on a touch screen */
+    @media (pointer: coarse) { .tg { min-block-size: 44px; } }
   `];
 
   @property({ attribute: false }) value: AttendeeDraft[] = [];

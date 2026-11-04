@@ -33,7 +33,8 @@ export class CalAttendeePicker extends LitElement {
     [role='listbox'] { position: absolute; z-index: 2; inset-inline: 0; inset-block-start: calc(100% + 4px); margin: 0; padding: 4px; list-style: none; max-block-size: 220px; overflow-y: auto;
       background: var(--sw-surface-solid); border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); box-shadow: var(--sw-shadow-2); }
     [role='option'] { display: flex; align-items: center; gap: 8px; min-block-size: 40px; padding: 0 10px; border-radius: var(--sw-r-sm); cursor: pointer; }
-    [role='option'][aria-selected='true'], [role='option']:hover { background: var(--sw-hover-wash); }
+    [role='option'][aria-selected='true'] { background: var(--sw-hover-wash); }
+    @media (hover: hover) and (pointer: fine) { [role='option']:hover { background: var(--sw-hover-wash); } }
     [role='option'] .k { margin-inline-start: auto; font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
     .empty { padding: 8px 10px; color: var(--sw-text-3); font-size: var(--sw-fs-sm); }
     ul.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
@@ -47,7 +48,7 @@ export class CalAttendeePicker extends LitElement {
       background: transparent; color: var(--sw-text-2); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
     .mini[aria-pressed='true'] { background: var(--sw-heading); color: var(--sw-surface-solid); }
     .mini:focus-visible, [role='option']:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: var(--sw-focus-offset); }
-    @media (hover: hover) { .mini:not([disabled]):hover { background: var(--sw-hover-wash); } .mini[aria-pressed='true']:hover { background: var(--sw-heading); } }
+    @media (hover: hover) and (pointer: fine) { .mini:not([disabled]):hover { background: var(--sw-hover-wash); } .mini[aria-pressed='true']:hover { background: var(--sw-heading); } }
     fieldset { border: 1px solid var(--sw-border); border-radius: var(--sw-r-md); margin: 0; padding: 10px; display: flex; flex-direction: column; gap: 6px; min-inline-size: 0; }
     legend { padding: 0 4px; font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); }
     .row { display: flex; gap: 6px; flex-wrap: wrap; }

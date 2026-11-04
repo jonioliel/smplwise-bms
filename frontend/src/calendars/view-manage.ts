@@ -36,8 +36,11 @@ export class CalViewManage extends LitElement {
     .main { flex: 1; }
     .list { flex: 1; min-block-size: 0; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
     .list > .row { flex: none; }
+    /* ROUND4-LEFTOVERS-2390 (D22): at 1024 x 768 the list showed 7 calendars with most of an eighth row empty under them - 2 px less
+       padding a row (58 -> 54 px, still well over a 44 px target) fits the eighth; the phone's rows keep their tap height */
+    @media (min-width: 700px) { .list > .row { padding-block: 8px; } }
     .cname { flex: 0 0 300px; min-inline-size: 0; cursor: pointer; }
-    .cname:hover .name { color: var(--sw-accent-text); }
+    @media (hover: hover) and (pointer: fine) { .cname:hover .name { color: var(--sw-accent-text); } }
     .type { flex: 0 0 84px; display: inline-flex; gap: 6px; align-items: center; color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
     .mgr { flex: 0 0 180px; min-inline-size: 0; font-size: var(--sw-fs-sm); }
     .mgr b { color: var(--sw-heading); }
@@ -49,7 +52,9 @@ export class CalViewManage extends LitElement {
     .menu.up { inset-block-start: auto; inset-block-end: calc(100% + 4px); }
     .menu button { font: inherit; font-size: var(--sw-fs-md); text-align: start; border: 0; background: transparent; color: var(--sw-heading); padding: 9px 12px; border-radius: var(--sw-r-md);
       cursor: pointer; display: flex; gap: 8px; align-items: center; }
-    .menu button:hover { background: var(--sw-hover-wash); }
+    @media (hover: hover) and (pointer: fine) { .menu button:hover { background: var(--sw-hover-wash); } }
+    .menu button:active { background: var(--sw-pressed-wash); }
+    @media (pointer: coarse) { .menu button { min-block-size: 44px; } }
     .menu button.bad { color: var(--sw-danger-text); }
     .hint { font-size: var(--sw-fs-sm); color: var(--sw-text-3); }
     /* members */
@@ -197,8 +202,10 @@ export class CalViewManage extends LitElement {
     return this.listScreen();
   }
 
+  /** Rows a page: the measured row (with its 6 px gap) once there is one, the estimate before (ROUND4-LEFTOVERS-2390 D22: the estimate
+   * used to be a floor over the measure, so a row shorter than the estimate still paged by the estimate). */
   private perPage(rowH: number, fallback: number): number {
-    return this.listH ? rowsThatFit(this.listH + 6, Math.max(rowH, this.rowH)) : fallback;
+    return this.listH ? rowsThatFit(this.listH + 6, this.rowH || rowH) : fallback;
   }
 
   private listScreen() {
