@@ -231,6 +231,11 @@ export class SwFoldCards extends LitElement {
 
   protected updated(changed: PropertyValues): void {
     if (changed.has('open') || changed.has('cards') || changed.has('wide') || changed.has('inplace')) this.measure();
+    // SETTINGS-CARDS-ACCORDION-2402: in place, a long card above that just folded can move the pressed header out of view - bring it
+    // back (only as far as needed; the phone keeps its own behaviour)
+    if (this.inplace && this.open && changed.has('open') && changed.get('open') !== undefined) {
+      this.renderRoot.querySelector<HTMLElement>(`.head[data-fold-toggle="${CSS.escape(this.open)}"]`)?.scrollIntoView({ block: 'nearest' });
+    }
   }
 
   private openBody(): HTMLElement | null {

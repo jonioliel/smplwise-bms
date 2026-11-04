@@ -51,6 +51,7 @@ test('the list component: in place it never takes the wide arrangement (and so n
   expect(fold).toContain('@property({ type: Boolean, reflect: true }) inplace = false;');
   expect(fold).toContain('const wide = !this.inplace && width >= FOLD_WIDE_MIN;');
   expect(fold).toContain("if (changed.has('inplace') && this.inplace) this.wide = false;");
+  expect(fold).toContain("if (this.inplace && this.open && changed.has('open') && changed.get('open') !== undefined) {"); // the pressed header stays in view
 });
 
 test('the server takes the same four values', () => {
