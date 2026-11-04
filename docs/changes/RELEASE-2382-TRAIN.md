@@ -31,7 +31,8 @@ Integration commits on the train (this slice):
 | 2d5238efe | test fix | `test_wiskey_s5_migration_upgrade` allows migrations after 0196 (2.3) |
 | bc4f5aded | **product fix** + test fix | the station call log without an inline `<style>` (2.4); `test_remote_access` knows the pairing routes (2.5) |
 | fe73cf9e6 | feature wiring (lead's request) | "מצב WisKey": the direct-join row reads `wiskey_join_live.join_state()` (2.6) |
-| 954cb6c7e | test fix | intercom-calls tests pin the quiet hours off (2.8) |
+| 954cb6c7e | test fix | intercom-calls tests pin the quiet hours off (2.7) |
+| 3c9ee2068 | test fix | pairing tests start with no bridge installed version left by an earlier test (2.8) |
 
 ### 1.1 Conflict resolutions
 
@@ -93,7 +94,7 @@ direct-join reasons say where the join is: `join_starting` ("מופעל" / "מת
 `people_writes` path (direct / classic + reason) is not shown - the page renders reasons per row only, so it needs a page field and its
 browser coverage.
 
-### 2.8 `test_intercom_calls_2382::test_everyone_with_the_call_right_on_the_station_gets_the_ringing_call` - time-of-day test
+### 2.7 `test_intercom_calls_2382::test_everyone_with_the_call_right_on_the_station_gets_the_ringing_call` - time-of-day test
 
 Found by the full backend suite (shard 1, ~01:30Z = 03:30 local). The banner's ring follows the installation's quiet hours on the wall
 clock (default night window), so at night the product correctly answered `sound: silent, sound_reason: quiet_hours` where the test
@@ -101,7 +102,16 @@ expected `ring` - the same kind of fault as 2.1. The file's `world` fixture now 
 quiet-hours test still switches it on itself (`test_the_ring_is_silent_in_quiet_hours_unless_the_doorbell_passes_them`). Workstation, at
 night: 1 failed -> **17 passed** (954cb6c7e).
 
-### 2.7 Not product faults, recorded
+### 2.8 `test_wiskey_pairing_2382` (2 tests) - order-dependent test isolation
+
+In the last runner job (one process, the pairing file after the WisKey installer / review tests), the bridge line read `warn` instead of
+`ok`. `bridge_install.STATE` is process-wide; an earlier test left its own `installed_version` there, so installed != active -> "update
+pending". The file passes alone (workstation and the branch's own runs). The `world` fixture now saves the value, sets None for each test
+(the update-pending test sets its own) and restores it. Workstation: 32 passed (3c9ee2068). The second failure's text could not be read
+back (the runner stopped answering SSH right after the job); it asserts on the same bridge line (the "refused" advice is offered only
+with the bridge ok), so the same cause is assumed - re-run on the runner: **BLOCKED** (the runner has not answered SSH since the job ended; 7.).
+
+### 2.9 Not product faults, recorded
 
 - `evidence-incoming-call` in `spec` mode (vite dev) @ 9d5b2963b: every test timed out on `sw-app` staying hidden. The runner's vite log
   shows "Re-optimizing dependencies because vite config has changed": every worktree's `frontend/node_modules` is a symlink to the clone's,
@@ -140,9 +150,9 @@ Runner jobs: `run_smart.py <job> release/2382-train --machine=runner --workers=1
 | Backend touched areas, one process (99 files: every test importing a changed module - intercom calls / media / sync, notices, roles, the WisKey direct catalog / discovery / media contract - + the changed tests + migrations / db gate / docs config) | workstation @ d110a176f | stopped at ~11 % (373 passed, 0 failed): about 50 s per module start on this PC, ~13 h projected |
 | the same list + PAIRING files, one process | runner @ 9d5b2963b | stopped at ~19 % (734 passed, 0 failed) in favour of the full suite below, which contains every file of the list |
 | `test_wiskey_talk_caps_2382` + `test_station_media_readiness_2382` | runner @ 2d5238efe | **57 passed** |
-| Full backend suite (`run_smart.py backend`, two shards of 428 / 429 files) | runner @ 2d5238efe | **cut short**: both shards were killed at ~03:32Z when the SSH session that carried the run dropped (the nightly `release_gate.py main` had started at ~02:22Z; runner load 31-51). Reached: shard 1 8224 / 9398 tests, shard 2 8115 / 10584 - **16 313 passed, 19 skipped, 3 xfailed, 4 failed** (of 16 339 reached): `test_remote_access::test_every_route_needs_a_remote_session` (2.5), `test_remote_hardening::test_m4_no_inline_style_elements_in_the_app` (2.4), `test_intercom_calls_2382::test_everyone_with_the_call_right_on_the_station_gets_the_ringing_call` (2.8), `test_media_review_fixes::test_l4_the_group_volume_bucket_...` (a rate-limit bucket test that expects a 429 within five quick requests; under load 30-50 the bucket refills between them; file unchanged since 2.0, passes alone on the workstation @ 954cb6c7e - load flake) |
-| The rest of the full suite + the final head's targeted set, one process (167 files: every file the cut shards had not finished - 54 + 80 - plus the 56 files around merge 10 and the fixes: every test importing `wiskey_direct_join` / `wiskey_join_live` / `wiskey_feature_status` / `access_control_writes` or touching `station_media_provider`, the four JOIN-LIVE files, `test_remote_access`, `test_remote_hardening`, `test_intercom_calls_2382`, `test_calendar_attendees_2343`, `test_wiskey_s5_migration_upgrade`, `test_t06_admission_295`, `test_wiskey_pairing_2382`, `test_wiskey_talk_caps_2382`, `test_station_media_readiness_2382`, `test_migrations`, `test_settings*`) | runner @ 954cb6c7e | LAST_BACKEND_RESULT |
-| Pixel `-u`: all 20 `pixel-*` + `visual-matrix`, desktop + mobile | runner @ d27c6695c | 306 passed, 91 skipped, 1 failed (2.7, screenshot protocol error); 15 PNG written |
+| Full backend suite (`run_smart.py backend`, two shards of 428 / 429 files) | runner @ 2d5238efe | **cut short**: both shards were killed at ~03:32Z when the SSH session that carried the run dropped (the nightly `release_gate.py main` had started at ~02:22Z; runner load 31-51). Reached: shard 1 8224 / 9398 tests, shard 2 8115 / 10584 - **16 313 passed, 19 skipped, 3 xfailed, 4 failed** (of 16 339 reached): `test_remote_access::test_every_route_needs_a_remote_session` (2.5), `test_remote_hardening::test_m4_no_inline_style_elements_in_the_app` (2.4), `test_intercom_calls_2382::test_everyone_with_the_call_right_on_the_station_gets_the_ringing_call` (2.7), `test_media_review_fixes::test_l4_the_group_volume_bucket_...` (a rate-limit bucket test that expects a 429 within five quick requests; under load 30-50 the bucket refills between them; file unchanged since 2.0, passes alone on the workstation @ 954cb6c7e - load flake) |
+| The rest of the full suite + the final head's targeted set, one process (167 files: every file the cut shards had not finished - 54 + 80 - plus the 56 files around merge 10 and the fixes: every test importing `wiskey_direct_join` / `wiskey_join_live` / `wiskey_feature_status` / `access_control_writes` or touching `station_media_provider`, the four JOIN-LIVE files, `test_remote_access`, `test_remote_hardening`, `test_intercom_calls_2382`, `test_calendar_attendees_2343`, `test_wiskey_s5_migration_upgrade`, `test_t06_admission_295`, `test_wiskey_pairing_2382`, `test_wiskey_talk_caps_2382`, `test_station_media_readiness_2382`, `test_migrations`, `test_settings*`) | runner @ bbe75bd75 (code = 954cb6c7e; detached on the runner, started after the nightly gate ended) | **4963 passed, 9 skipped, 3 xfailed, 2 failed** (50 min): `test_wiskey_pairing_2382::test_paired_and_accepted_with_all_six_commands` and `::test_wiskey_refuses_a_different_key` (2.8); every other file - all JOIN-LIVE files, the fixed tests of 2.1-2.8, `test_media_review_fixes` - green |
+| Pixel `-u`: all 20 `pixel-*` + `visual-matrix`, desktop + mobile | runner @ d27c6695c | 306 passed, 91 skipped, 1 failed (2.9, screenshot protocol error); 15 PNG written |
 | the same, tablet (`pixel-wiskey-station-media`, `visual-matrix`) | runner @ d27c6695c | 34 passed, 5 skipped; 5 PNG written |
 | Pixel **without** `-u`, desktop + mobile / tablet | runner @ b308cf54c | **307 passed, 91 skipped, 0 failed** / **34 passed, 5 skipped, 0 failed** |
 | Pixel `-u` again after PAIRING | runner @ aec6061ff | 307 passed / 34 passed; 1 PNG written, not kept (3) |
@@ -183,10 +193,10 @@ Every rewritten PNG was compared with HEAD and with both branch tips (`origin/pi
   `git merge-tree` against the train shows one conflict, `contracts/API_INVENTORY.md` (regenerate). Its `test_t06_admission_295` has no change
   against its merge base with the train, so the PAIRING + TALK-CAPS caller set (1.1) should merge clean; if it reaches the file later, keep
   all three intents. 2.39.0's 0198 (people) / 0199 (live validation) pass `test_wiskey_s5_migration_upgrade` as it is now (2.3).
-- Time-of-day tests: two were found on this train (2.1 calendar wall clock, 2.8 quiet hours at night). The full suite ran 23:27Z-03:32Z (night, Asia/Jerusalem);
+- Time-of-day tests: two were found on this train (2.1 calendar wall clock, 2.7 quiet hours at night). The full suite ran 23:27Z-03:32Z (night, Asia/Jerusalem);
   a daytime run could hide another of the same kind, a night run (the gate) shows them.
 - TALK-CAPS adds a signed sender (`wiskey_media_caps.py`) without a row in `docs/changes/T06-ADMISSION-MAPPING-295.md` (PAIRING added one).
-- Runner infra: the shared `node_modules/.vite` deps cache across worktrees breaks a concurrent vite-dev (`spec`) job (2.7); the runner disk
+- Runner infra: the shared `node_modules/.vite` deps cache across worktrees breaks a concurrent vite-dev (`spec`) job (2.9); the runner disk
   filled up at 00:00 (100 %, 0 B): pytest basetemps of full runs (`.tmp_s1` / `.tmp_s2`) reach 20-50 GB per worktree. The train's were
   removed after its runs; `pilot-BOARD-MGMT-2381`'s (51 GB, merged here, no process) were removed to continue.
 - A unit spec rewrites `docs/evidence/USR2/*.png` on every full unit run (reverted each time; not committed).
@@ -200,4 +210,10 @@ Every rewritten PNG was compared with HEAD and with both branch tips (`origin/pi
 - The full backend suite on the FINAL head: it ran @ 2d5238efe (before merge 10 and the fixes 2.4-2.8); the final head ran the targeted set (4).
 - The notices / board / TV / dialog evidence specs after merges 8-9 (run @ aec6061ff, before TALK-CAPS; TALK-CAPS touches only the
   station-media client, its i18n and the access display Settings row).
+- **BLOCKED:** the runner re-run of `test_wiskey_pairing_2382` after 2.8 (with `test_wiskey_adopt_2272_installer` / `_review` before it,
+  as in the failing job), and the removal of that last job's `~/work/release-2382-train/.tmp_b`: the runner stopped answering SSH
+  (connection timeout) right after the job. To do once it is back: `run_smart.py backend release/2382-train tests/test_nvr_less.py
+  tests/test_wiskey_adopt_2272_installer.py tests/test_wiskey_adopt_2272_review.py tests/test_wiskey_pairing_2382.py`, then remove the
+  train's `.tmp_*`.
+- `test_wiskey_adopt_2272_review` `test_h3_*` (4) fail on the Windows workstation (they pass on the runner) - platform, not this train.
 - Real devices: no WisKey, station, Home Assistant or go2rtc contact in this slice (mocks and fakes only).
