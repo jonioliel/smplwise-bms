@@ -717,6 +717,12 @@ def _capture_discovery(monkeypatch) -> list[dict[str, Any]]:
     return posted
 
 
+def _code_free(posted: list[dict[str, Any]]) -> bool:
+    """BRIDGE-STALE-DISCOVERY-2383: nothing announced but, at most once, the code-free recovery post (it answers the id of an announcement an
+    older Arx left in the Supervisor, so Arx can delete it)."""
+    return len(posted) <= 1 and all(set(p) == {"addon_url"} for p in posted)
+
+
 def test_k01_discovery_never_carries_rotated_key_material(lab, monkeypatch):
     """K-01 (fixed; was a strict xfail): after the first rotation (switched, and again after verify) nothing is announced at all - in
     particular not `signing_key()`, which is then the current key."""
@@ -724,9 +730,10 @@ def test_k01_discovery_never_carries_rotated_key_material(lab, monkeypatch):
     lab.start()
     material = lab.current().material
     assert material and lab.current().kid != bk.LEGACY_KID
-    assert bridge_install.announce_discovery(lab.db, lab.settings) is False and posted == []
+    # BRIDGE-STALE-DISCOVERY-2383: the only post left is the one-time, code-free recovery of an older announcement's id (`addon_url` only)
+    assert bridge_install.announce_discovery(lab.db, lab.settings) is False and _code_free(posted)
     assert _retire(lab)["last"]["state"] == "verified"
-    assert bridge_install.announce_discovery(lab.db, lab.settings) is False and posted == []
+    assert bridge_install.announce_discovery(lab.db, lab.settings) is False and _code_free(posted)
     assert lab.current().material not in json.dumps(posted)
 
 
@@ -751,7 +758,7 @@ def test_k01_restart_after_a_rotation_leaves_the_entry_and_the_channel_alone(lab
     lab.start()
     assert _retire(lab)["last"]["state"] == "verified"
     lab.boot_arx()
-    assert bridge_install.announce_discovery(lab.db, lab.settings) is False and posted == []
+    assert bridge_install.announce_discovery(lab.db, lab.settings) is False and _code_free(posted)
     assert side.entry_code == "" and side.ks.legacy is None
     assert lab.push_ok() and lab.arx_message_verifies_at_bridge() is None
 

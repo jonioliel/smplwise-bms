@@ -171,7 +171,22 @@ export function listEntities(opts: { domain?: string; q?: string; area?: string;
 }
 export const getEntity = (entityId: string) => get<HaEntity>(`ha/entities/${encodeURIComponent(entityId)}`);
 export const haStatus = () => get<HaStatus>('ha/status');
-export const bridgePairing = (regenerate = false) => get<{ pairing_code: string | null; key_set?: boolean; addon_host: string; addon_url: string; paired_at: string | null }>(`ha/bridge/pairing${regenerate ? '?regenerate=true' : ''}`);
+/** BRIDGE-STALE-DISCOVERY-2383: `announced` = a regenerated code was sent to the existing bridge through Arx's own discovery message;
+ *  `announce_path` = a new code reaches the bridge by itself here (absent on an older server). */
+export interface BridgePairing { pairing_code: string | null; key_set?: boolean; addon_host: string; addon_url: string; paired_at: string | null; announced?: boolean; announce_path?: boolean }
+export const bridgePairing = (regenerate = false) => get<BridgePairing>(`ha/bridge/pairing${regenerate ? '?regenerate=true' : ''}`);
+/** BRIDGE-STALE-DISCOVERY-2383: the regenerate row and its result tell the truth for each case. */
+export function regenHint(announcePath: boolean | undefined): string {
+  if (announcePath === true) return 'מבטל את הצימוד הקיים; הקוד החדש נשלח לגשר הקיים אוטומטית, והגשר מחליף אותו רק אחרי ש־Arx מאשר אותו';
+  if (announcePath === false) return 'מבטל את הצימוד הקיים; בהתקנה הזו הקוד לא נשלח אוטומטית - מזינים אותו בגשר בתשתית המערכת';
+  return 'מבטל את הצימוד הקיים; יש להגדיר מחדש את האינטגרציה';
+}
+
+export function regenMessage(announced: boolean | undefined): string {
+  return announced
+    ? 'נוצר קוד צימוד חדש והוא נשלח לגשר הקיים. בתוך דקה הצימוד אמור לחזור ל"מצומד".'
+    : 'נוצר קוד צימוד חדש. הוא לא נשלח לגשר אוטומטית: בתשתית המערכת מחקו את SMPLWISE Bridge והוסיפו אותה שוב עם הכתובת והקוד שמוצגים כאן.';
+}
 export const getAction = (id: string) => get<HaActionRecord>(`ha/actions/${id}`);
 export const installBridge = () => post<HaIntegrationStatus>('ha/bridge/install');
 

@@ -59,6 +59,9 @@ TEXT = {
     "bridge_not_paired": "הגשר עוד לא צומד ל־Arx.",
     "bridge_silent": "הגשר צומד, אבל לא שלח עדכון חתום מאז {since}. כנראה שהוא לא טעון או שהקוד שלו שונה מזה של Arx.",
     "bridge_update_pending": "גרסת הגשר שרצה ({active}) שונה מהגרסה שהותקנה ({installed}); נדרשת הפעלה מחדש של תשתית המערכת.",
+    # BRIDGE-STALE-DISCOVERY-2383: the bridge keeps pushing, but with a code Arx does not hold (401 on every signed push)
+    "bridge_rejected": "הגשר שולח עדכונים חתומים, אבל Arx דוחה אותם ({count} מאז {since}): הגשר חותם בקוד צימוד אחר מזה של Arx.",
+    "bridge_rejected_after_repair": "אחרי הצימוד מחדש הגשר עדיין חותם בקוד הישן: Arx דוחה את העדכונים שלו ({count} מאז {since}). הקוד החדש לא הגיע לגשר.",
     "component_managed": "WisKey {version} · התקנה מנוהלת על ידי Arx.",
     "component_manual": "WisKey {version} · התקנה ידנית (בעל המערכת מעדכן את WisKey בעצמו).",
     "component_unknown": "גרסת WisKey לא ידועה כרגע: ערוץ השירות אל WisKey במצב \"{feed}\".",
@@ -85,6 +88,7 @@ TEXT = {
     "provider_feed_no_talk": "ערוץ השירות מפרסם את פקודות הווידאו אבל לא את פקודות הדיבור, ולכן דיבור לא עובר דרך WisKey.",
     "rotation_off": "החלפת מפתח הגשר כבויה; קוד הצימוד המקורי נשאר בתוקף.",
     "rotation_risk": "החלפת מפתח הגשר מופעלת. החלפה תמחק את קוד הצימוד המקורי מהגשר, ו־WisKey יפסיק לקבל את Arx.",
+    "rotation_blocked_wiskey": "החלפת מפתח הגשר חסומה כל עוד WisKey מותקן: WisKey מאמת את Arx רק מול קוד הצימוד המקורי, וההחלפה מוחקת אותו מהגשר.",
     "rotation_done": "מפתח הגשר כבר הוחלף; זה מה שמנתק את WisKey (ראו \"מפתח הצימוד\").",
     # WISKEY-EVENT-CURSOR-2400: the last resume of WisKey's door events (services/wiskey_event_resume.py)
     "events_off": "המשכת אירועי הדלת מ־WisKey כבויה בהתקנה הזו; אירועים שקרו בזמן ש־Arx או WisKey היו כבויים עלולים לחסור.",
@@ -101,6 +105,11 @@ FIX = {
     "bridge_not_paired": "בהגדרות › תשתית המערכת: העתיקו את קוד הצימוד והוסיפו בתשתית המערכת את האינטגרציה SMPLWISE Bridge עם הקוד הזה.",
     "bridge_silent": "בתשתית המערכת: הגדרות › מכשירים ושירותים › SMPLWISE Bridge - ודאו שהיא טעונה (בלי שגיאה) והפעילו מחדש את תשתית המערכת. אם זה לא עוזר - צימוד מחדש (למטה).",
     "bridge_update_pending": "הפעילו מחדש את תשתית המערכת כדי שהגרסה החדשה של הגשר תיטען.",
+    "bridge_rejected": "לרוב זו הודעת גילוי ישנה שהחזירה לגשר קוד ישן אחרי הפעלה מחדש של תשתית המערכת. Arx מגרסה 2.39.1 מוחק אותה בעצמו. "
+                       "לחצו \"צימוד מחדש\" למטה (מנהל מערכת). אם הקוד לא נשלח לגשר אוטומטית - הזינו אותו בגשר כפי שמוצג אחרי הצימוד.",
+    "bridge_rejected_after_repair": "אם הקוד נשלח אוטומטית: המתינו דקה (הגשר בודק את הקוד מול Arx ומחליף אותו בעצמו); אם השורה נשארת אדומה - הפעילו מחדש "
+                                    "את תשתית המערכת. אם הקוד לא נשלח: הגדרות › מכשירים ושירותים › SMPLWISE Bridge › מחיקה, ואז הוספת אינטגרציה › "
+                                    "SMPLWISE Bridge עם הכתובת והקוד שמוצגים כאן.",
     "component_unknown": "בדקו ש־WisKey מותקן וטעון בתשתית המערכת. בהתקנה ידנית בעל המערכת מתקין ומעדכן אותו בעצמו.",
     "key_missing": "לחצו \"צימוד מחדש\" למטה (מנהל מערכת). Arx ייצור קוד צימוד חדש.",
     "key_unreadable": "לחצו \"צימוד מחדש\" למטה (מנהל מערכת). Arx ייצור קוד צימוד חדש במקום המפתח שאי אפשר לפענח.",
@@ -202,11 +211,20 @@ def _bridge_line(conn: Any, now: float) -> dict[str, Any]:
     installed = st.get("installed_version")
     paired_at = get_setting(conn, "bridge.paired_at") or None
     directory_at = get_setting(conn, "bridge.directory_at") or None
+    from . import bridge_discovery as bd
+
     facts = {"installed_version": installed, "active_version": active, "source_version": st.get("source_version"), "paired_at": paired_at,
-             "directory_at": directory_at, "paired": bool(paired_at)}
+             "directory_at": directory_at, "paired": bool(paired_at), **bd.facts(conn)}
+    last = bk.epoch_of(directory_at) if directory_at else None
+    rej = bd.directory_refusals()
+    if rej and now - float(rej["last_epoch"]) <= BRIDGE_SILENT_S and (last is None or float(rej["last_epoch"]) > last):
+        # BRIDGE-STALE-DISCOVERY-2383: refused pushes newer than the last accepted one - the bridge holds another code (typically a stale discovery
+        # replayed at a Home Assistant start). Shown before "not paired": right after a re-pair `paired_at` is blank and this is the real reason.
+        facts.update(refused_count=rej["count"], refused_since=rej["first_at"], refused_code=rej["code"])
+        reason = "bridge_rejected" if paired_at else "bridge_rejected_after_repair"
+        return _line("bridge", BLOCKED, reason, facts=facts, count=rej["count"], since=rej["first_at"])
     if not paired_at:
         return _line("bridge", BLOCKED, "bridge_not_paired", facts=facts)
-    last = bk.epoch_of(directory_at) if directory_at else None
     if last is None or now - last > BRIDGE_SILENT_S:
         return _line("bridge", WARN, "bridge_silent", facts=facts, since=directory_at or "הצימוד")
     if installed and active and installed != active:
@@ -346,6 +364,9 @@ def _rotation_line(conn: Any, k: dict[str, Any]) -> dict[str, Any]:
     facts = {"enabled": br.mode(conn) == "on", "active": br.active_row(conn) is not None}
     if k["state"] == "rotated":
         return _line("rotation", WARN, "rotation_done", facts=facts)
+    facts["blocked_by_wiskey"] = br.wiskey_present()
+    if facts["enabled"] and br.go_live_permitted() and facts["blocked_by_wiskey"]:
+        return _line("rotation", OK, "rotation_blocked_wiskey", facts=facts)  # BRIDGE-STALE-DISCOVERY-2383: the safe default
     if facts["enabled"] and br.go_live_permitted():
         return _line("rotation", WARN, "rotation_risk", facts=facts)
     return _line("rotation", OK, "rotation_off", facts=facts)
@@ -420,7 +441,9 @@ def status(conn: Any, settings: Any, *, now: float | None = None) -> dict[str, A
         paired = None
     talk_ready = paired is True and by["discovery"]["state"] == OK and by["provider"]["state"] == OK
     repair_reason = ("key_" + k["state"]) if k["state"] != "ok" else ("refused" if acc["reason"] == "refused" else None)
-    discovery_path = _discovery_path_open()
+    if repair_reason is None and by["bridge"]["reason"] == "bridge_rejected":
+        repair_reason = "bridge_rejected"  # BRIDGE-STALE-DISCOVERY-2383: a new code is the fix when the bridge holds another one
+    discovery_path = _discovery_path_open(conn)
     return {
         "generated_at": now_iso(),
         "verdict": "paired" if paired else "not_paired" if paired is False else "unknown",
@@ -446,15 +469,13 @@ def _features(conn: Any, settings: Any) -> list[dict[str, Any]]:
         return []
 
 
-def _discovery_path_open() -> bool:
-    """Whether a new pairing code can reach the bridge by itself (the add-on's Supervisor discovery): not on a manual WisKey owner profile and
-    only inside the add-on. Otherwise the owner types the code into the bridge. Read only."""
-    from . import bridge_install, ha_client
+def _discovery_path_open(conn: Any) -> bool:
+    """Whether a new pairing code can reach the bridge by itself (the add-on's Supervisor discovery): only inside the add-on, and on a manual
+    WisKey owner profile only once a bridge entry is known (BRIDGE-STALE-DISCOVERY-2383: the code then goes to that entry, nothing is
+    installed). Otherwise the owner types the code into the bridge. Read only."""
+    from . import bridge_discovery
 
-    try:
-        return bool(ha_client.supervisor_token()) and not bridge_install._manual_owner_profile(bridge_install.ha_config_dir())
-    except Exception:  # noqa: BLE001
-        return False
+    return bridge_discovery.path_open(conn)
 
 
 def owner_steps(by: dict[str, dict[str, Any]], k: dict[str, Any]) -> list[str]:

@@ -277,6 +277,17 @@ def _recorders_disabled_set_is_per_test():
 
 
 @pytest.fixture(autouse=True)
+def _bridge_push_refusals_are_per_test():
+    """BRIDGE-STALE-DISCOVERY-2383: the refused-directory-push counter is process state; a refused push in one test must not turn the
+    "גשר Arx" line red in the next."""
+    from smplwise.services import bridge_discovery
+
+    bridge_discovery.reset_for_tests()
+    yield
+    bridge_discovery.reset_for_tests()
+
+
+@pytest.fixture(autouse=True)
 def _storage_report_cache_is_per_test():
     """`services.storage` keeps a process-wide 10-minute report cache, and the start-up warm-up fills it from a daemon thread that
     can finish after its test is over. Without this, a report built for another test's settings (an NVR, disks) leaks into the next

@@ -1,6 +1,10 @@
 """Constants for the SMPLWISE bridge."""
 DOMAIN = "smplwise_bridge"
-VERSION = "0.10.2"
+VERSION = "0.10.3"
+# 0.10.3 (BRIDGE-STALE-DISCOVERY-2383): a Supervisor discovery for an EXISTING entry applies its pairing code only when the add-on accepts it
+# (one signed ping with that code, config_flow._discovered_for_existing); a refused or unreachable code leaves the entry unchanged. Home
+# Assistant replays every discovery message at each start, and an old message used to put an old code back into the entry after a re-pair.
+# Needs one Home Assistant restart (by the owner) to load.
 # 0.10.2 (WisKey M12 policy B, slice S4 - pilot/WISKEY-S4-OBSERVER): the READ-ONLY WebSocket command `smplwise_bridge/core_runtime_v1`
 # (core_runtime_observation.py, adopted byte-identical from WisKey contribution M12-POLICY-B.20261102.01, MIT notice in
 # LICENSE-WISKEY-core-runtime-observation.txt). HA administrators only; no grant, service, signature or write. Nothing else changes.

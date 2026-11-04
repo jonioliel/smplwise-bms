@@ -551,6 +551,27 @@ def post_discovery(settings: Settings, service: str, config: dict[str, Any]) -> 
     return reply.data or {}
 
 
+def delete_discovery(settings: Settings, uuid: str) -> str:
+    """BRIDGE-STALE-DISCOVERY-2383: remove one of THIS add-on's own Supervisor discovery messages (`DELETE /discovery/{uuid}`, the add-on's
+    Supervisor token; the Supervisor answers 403 for a message of another add-on and 404 for an unknown uuid). Through the same single door.
+    Returns `deleted` | `gone` (404: already removed) | `forbidden` (not ours - never retried) | `failed` (no answer / another error: retried
+    later). Never raises for the infrastructure's answer."""
+    from . import self_update
+
+    token = supervisor_token()
+    if not token:
+        return "failed"
+    base = os.environ.get("SW_SUPERVISOR_URL", self_update.DEFAULT_BASE).rstrip("/")
+    reply = self_update.send("DELETE", self_update.P_DISCOVERY_ITEM, base=base, token=token, uuid=uuid, timeout=10)
+    if reply.kind == "ok":
+        return "deleted"
+    if reply.kind == "error" and reply.status == 404:
+        return "gone"
+    if reply.kind == "forbidden" and reply.status == 403:
+        return "forbidden"
+    return "failed"
+
+
 def call_service(settings: Settings, domain: str, service: str, data: dict[str, Any], return_response: bool = False, timeout: float = 15.0) -> dict[str, Any]:
     """POST /api/services/<domain>/<service> on Home Assistant Core (only used for the bridge's own services)."""
     if not configured(settings):
