@@ -355,11 +355,13 @@ export class LiveWall extends LitElement {
       min-inline-size: 48px;
       block-size: 48px;
     }
+    /* the select covers the key's border too: the whole drawn key (44 px) is the select's box and its touch target */
     .pbar[data-mode='icons'] .ikey > select {
+      --_kb: 1px;
       position: absolute;
-      inset: 0;
-      inline-size: 100%;
-      block-size: 100%;
+      inset: calc(-1 * var(--_kb));
+      inline-size: calc(100% + 2 * var(--_kb));
+      block-size: calc(100% + 2 * var(--_kb));
       min-inline-size: 0;
       min-block-size: 0;
       margin: 0;
@@ -369,6 +371,9 @@ export class LiveWall extends LitElement {
       cursor: pointer;
       -webkit-appearance: none;
       appearance: none;
+    }
+    .pbar[data-mode='icons'] .ikey[data-capsule] > select {
+      --_kb: 2px;
     }
     .pbar[data-mode='icons'] .ikey:focus-within {
       border-color: var(--sw-accent);

@@ -97,8 +97,12 @@ test.describe('camera wall on a phone: one short toolbar row', () => {
     }
     await expect(bar.locator('[data-wall-quality]')).toHaveAttribute('aria-label', 'איכות');
     await expect(bar.locator('sw-dropdown[data-wall-cols-dd] [data-dropdown-chip]')).toHaveAttribute('aria-label', 'עמודות בקיר: עמודות אוטו');
-    expect(await bar.locator('[data-wall-count-select]').evaluate((s) => s.closest('[data-wall-key]')?.getAttribute('data-hint'))).toBe('מספר מצלמות: 9 מצלמות');
-    await expect(bar.locator('.kbadge')).toHaveText('9');
+    expect(await bar.locator('[data-wall-count-select]').evaluate((s) => s.closest('[data-wall-key]')?.getAttribute('data-hint'))).toBe('מספר מצלמות: כל המצלמות (8)'); // 9 stored, 8 cameras: all
+    await expect(bar.locator('.kbadge')).toHaveText('8');
+    for (const sel of ['[data-wall-quality]', '[data-wall-count-select]']) {
+      const s = (await bar.locator(sel).boundingBox())!;
+      expect(Math.min(s.width, s.height), `${sel}: the select covers the whole 44 px key`).toBeGreaterThanOrEqual(44);
+    }
     // the old controls are gone from the phone: no 11-button row, no column chips
     await expect(wall.locator('.layouts')).toHaveCount(0);
     await expect(wall.locator('[data-wall-cols-row]')).toHaveCount(0);
@@ -189,7 +193,7 @@ test.describe('camera wall on a phone: one short toolbar row', () => {
       return out;
     });
     expect(controls.map((c) => c.name), 'quality, count, columns').toEqual(['איכות', 'מספר מצלמות', 'עמודות בקיר']);
-    expect(controls.map((c) => c.text)).toEqual(['איכות: אוטו', '9 מצלמות', 'עמודות אוטו']);
+    expect(controls.map((c) => c.text)).toEqual(['איכות: אוטו', 'כל המצלמות (8)', 'עמודות אוטו']); // 9 stored, 8 cameras: all
     for (const c of controls) {
       expect(c.fits, `${c.name}: "${c.text}" is shown whole`).toBe(true);
       expect(c.ellipsis, `${c.name}: no ellipsis`).toBe(false);
