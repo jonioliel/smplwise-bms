@@ -117,6 +117,11 @@ def test_paired_and_accepted_with_all_six_commands(world, monkeypatch):
     assert pl["state"] == "blocked" and pl["reason"] == "provider_feed_gate" and pl["facts"]["feed_reason"] == "discovery_unknown" and pl["facts"]["choice"] == "auto"
     assert body["talk_ready"] is False and "discovery_unknown" in pl["text"]
     _feed(monkeypatch, list(w10.COMMANDS))
+    from smplwise.services import wiskey_event_resume as wer  # WISKEY-EVENT-CURSOR-2400: the events line after a clean resume
+
+    monkeypatch.setenv(wer.ENV, "1")
+    monkeypatch.setitem(wer.STATUS, "last", {"at": "2026-11-04T12:00:00Z", "state": "page", "code": None, "delivered": 0, "duplicates": 0,
+                                              "pages": 1, "gaps": 0, "caught_up": True})
     body = world["c"].get(API).json()
     assert body["talk_ready"] is True and _lines(body)["provider"]["state"] == "ok" and _lines(body)["rotation"]["state"] == "ok"
     assert all(ln["state"] == "ok" for ln in body["lines"]), [(x["key"], x["reason"]) for x in body["lines"]]

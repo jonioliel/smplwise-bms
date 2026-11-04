@@ -117,7 +117,29 @@ the switch, the status-line states, and the last outcome surviving a restart.
 
 ## 6. Receipts
 
-See the commit message and the segment report for the exact runs (local workstation and runner).
+| Where | Command | Result |
+|---|---|---|
+| runner, `run_smart.py backend` @ `d2cd4a89b` | 17 files: the new file, pairing, adopt-2272 features + review, s5 migration upgrade, migrations, migrations-263, db template, channels, intercom, fake WisKey, intercom adapter, WisKey background, WisKey diagnostics, events, event detail, events cache | 462 passed, 2 skipped, 5 failed (below) |
+| workstation, Python 3.12 venv | `pytest -o addopts= tests/test_wiskey_event_cursor_2400.py` | 22 passed |
+| workstation, after the fix | `pytest -o addopts= tests/test_wiskey_pairing_2382.py` | 31 passed |
+| workstation, 0201 moved aside (= the base's migration set) | the two s5 upgrade tests below | 2 failed: `[...196, 197] == [...196]` - already red on the base |
+| runner, after the fix | - | NOT_RUN: runner disk at 90% (24 GB free, under the 30 GB floor); this branch's `.tmp_*` (1.9 GB) was deleted after the first run |
+
+The 5 runner failures:
+
+- `test_wiskey_pairing_2382.py::test_paired_and_accepted_with_all_six_commands` - the test expects EVERY line ok; the new `events`
+  line was `events_off` (the pump is off in the app tests). Fixed in the follow-up commit: the test switches the pump on and sets a
+  clean last pass.
+- `test_migrations_263_upgrade.py::test_the_release_numbers_are_contiguous_and_final` and
+  `test_wiskey_s5_migration_upgrade.py::test_s5_the_sequence_is_contiguous_unique_and_the_wiskey_files_follow_the_train` - 0201 without
+  0198-0200 on this branch (section 4). Clears when the train renumbers.
+- `test_wiskey_s5_migration_upgrade.py::test_s5_a_2350_database_upgrades_0191_to_0196_in_one_start` and
+  `::test_s5_a_2370_train_database_runs_exactly_the_three_wiskey_files` - they expect `migrate()` to stop at 0196. The base
+  (`origin/release/2382-train`) already has 0197 (intercom calls), so they fail there too (checked: with 0201 moved aside they fail with
+  `[..., 196, 197]`). This branch adds 0201 to the same list.
+
+NOT_RUN: frontend `tsc` and the pixel/evidence specs (the UI change is one union member, and the screen renders lines generically). No
+lab run.
 
 ## 7. Known limits / next
 
