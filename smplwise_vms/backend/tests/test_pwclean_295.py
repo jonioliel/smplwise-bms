@@ -26,18 +26,23 @@ HISTORICAL = ("signed_person_writes", "person_writes/resolve_create", "wiskey-si
 
 # sha256 of the canonical command catalog, computed on release/2200 @ 47ca1a2c0 BEFORE the cleanup
 CATALOG_SHA256 = "0fdcbd37b67f8506178c35a8aea233f0080a0ed5895259c7430aa16f7f1abafe"
+# WISKEY-OPS-VIEWS-2400 added the `operations` channel (additive): the catalog recomputed with it; without it, still the pre-cleanup hash
+CATALOG_SHA256_WITH_OPERATIONS = "b9ae08da338c4ed3f77f70b39fab2536f1b4aeb21a52a9ac2a88839eb0f5ac59"
+ADDED_CHANNELS = frozenset({"operations"})
 PEOPLE_CATALOG_FIXTURE_SHA256 = "92ffc92b384fe0f667b66221076cfaf6b8259ffb28dd50c4c8cc2d7f83cf5e68"
 MIGRATION_0145_SHA256 = "b0fb6fd086a47430fc170008f233d2aa753d8d2140bf8c7bebbe60ab74aefa3f"
 
 
-def _catalog() -> dict:
-    return {"allowlists": {k: sorted(v) for k, v in sorted(ch.ALLOWLISTS.items())}, "lease_signed": sorted(ch.LEASE_SIGNED),
+def _catalog(without: frozenset[str] = frozenset()) -> dict:
+    return {"allowlists": {k: sorted(v) for k, v in sorted(ch.ALLOWLISTS.items()) if k not in without}, "lease_signed": sorted(ch.LEASE_SIGNED),
             "w10": sorted(ch.W10_COMMANDS), "peer_query": sorted(cp.PEER_QUERY_COMMANDS), "codes": [ch.NOT_ALLOWED, ch.RESERVED_KEY]}
 
 
 def test_the_command_catalog_is_byte_identical_to_before_the_cleanup():
     text = json.dumps(_catalog(), sort_keys=True, separators=(",", ":"))
-    assert hashlib.sha256(text.encode()).hexdigest() == CATALOG_SHA256
+    assert hashlib.sha256(text.encode()).hexdigest() == CATALOG_SHA256_WITH_OPERATIONS
+    before = json.dumps(_catalog(ADDED_CHANNELS), sort_keys=True, separators=(",", ":"))
+    assert hashlib.sha256(before.encode()).hexdigest() == CATALOG_SHA256
     assert cp.PEER_QUERY_COMMANDS == frozenset({"peer_bindings/get", "peer_bindings/history", "peer_protocol/get", "peer_receipts/resolve"})
     fixture = BACKEND / "tests" / "fixtures" / "wiskey_round4" / "people_command_catalog.json"
     assert hashlib.sha256(fixture.read_bytes()).hexdigest() == PEOPLE_CATALOG_FIXTURE_SHA256
