@@ -206,12 +206,16 @@ test.describe('deep links: Settings › בקרת כניסה', () => {
     await expect.poll(() => lastFrame(hits), { timeout: 15_000 }).toBe('tools/access_control');
   });
 
-  test('a station-scoped administrator sees the page but no link; with the area hidden for everyone nobody gets one', async ({ page }) => {
+  test('a station-scoped administrator sees the page but no link; with the area hidden for everyone nobody gets a panel link', async ({ page }) => {
     await accessBoot(page, { persona: 'scopedAdmin' }, '/system/access-control', `${PAGE} [data-access-segment="status"]`);
     await expect(page.locator(`${PAGE} wk-deep-links`)).toHaveAttribute('hidden', '');
     await page.unrouteAll({ behavior: 'ignoreErrors' });
     await accessBoot(page, { settings: { 'ui.hide_wiskey': 'true' } }, '/system/access-control', `${PAGE} [data-access-segment="status"]`);
-    await expect(page.locator(`${PAGE} wk-deep-links`)).toHaveAttribute('hidden', '');
+    // WISKEY-OPS-VIEWS-2400: no PANEL link with the area hidden; Arx's own native views (Settings › תפעול האינטרקום) stay
+    const status = page.locator(`${PAGE} wk-deep-links[place="settings-status"]`);
+    await openList(status);
+    expect(await hrefs(status)).toEqual(expected(['health.fleet', 'operations.center', 'operations.investigations']));
+    expect((await hrefs(status)).every((h) => h.includes('=#/system/intercom-operations/'))).toBe(true);
   });
 });
 
