@@ -156,6 +156,9 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       // the light badge takes the deep red of --sw-danger-text (white 6.5:1), the dark one a near-black text on the coral (7:1).
       '--sw-badge-bg': lt('#b91c1c', '#ff6b62'),
       '--sw-badge-fg': lt('#ffffff', '#2a0b09'),
+      // ROUND4-LEFTOVERS-2390: text on a filled --sw-warning (the WisKey ringing pill). White read 2.2:1 on the classic amber and 3.9:1 on
+      // tesla's deeper one; this near-black warm ink reads >= 4.5:1 on the warning fill of every live skin, light and dark.
+      '--sw-on-warning': same('#1f1300'),
       '--sw-toggle-on': lt('#2767ed', '#3a6ce0'),
       // A11Y-R4-LEFTOVERS-2380: the switch's OFF track. `--sw-border-strong` (a hairline tone, ~1.2:1 on a card) is not a UI boundary: this one
       // reads >= 3:1 against every surface a switch sits on (WCAG 1.4.11) in every skin and scheme, and keeps the white thumb >= 3:1 on it.

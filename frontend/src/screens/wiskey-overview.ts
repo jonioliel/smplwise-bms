@@ -742,6 +742,23 @@ export class WiskeyOverview extends LitElement {
       color: var(--sw-text-3);
       flex: 1 1 220px;
       max-inline-size: 360px;
+      transition: border-color var(--sw-t-fast) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
+    }
+    /* ROUND4-LEFTOVERS-2390 (WP9): the search field states as on the stations screen (WKWATER) - a hover edge only under a
+       fine hovering pointer, a focus ring on the field (the input itself has no outline), 44 px on a touch screen */
+    @media (hover: hover) and (pointer: fine) {
+      .search:hover {
+        border-color: var(--sw-text-3);
+      }
+    }
+    .search:focus-within {
+      border-color: var(--sw-accent);
+      box-shadow: 0 0 0 3px var(--sw-accent-soft);
+    }
+    @media (pointer: coarse) {
+      .search {
+        min-block-size: 44px;
+      }
     }
     .search input {
       border: 0;
@@ -760,6 +777,7 @@ export class WiskeyOverview extends LitElement {
       margin-inline-start: auto;
       color: var(--sw-text-3);
       font-size: var(--sw-fs-sm);
+      font-variant-numeric: tabular-nums;
     }
     .grid {
       display: grid;
@@ -847,7 +865,8 @@ export class WiskeyOverview extends LitElement {
       padding: 4px 12px;
       border-radius: var(--sw-r-pill);
       background: var(--sw-warning);
-      color: var(--sw-text-inverse);
+      /* ROUND4-LEFTOVERS-2390 (WP9): white on the amber fill read 2.2:1 (classic) - the ink for a warning fill */
+      color: var(--sw-on-warning);
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-bold);
       box-shadow: var(--sw-shadow-1);
@@ -897,8 +916,8 @@ export class WiskeyOverview extends LitElement {
       inset-block-start: 8px;
       font-size: var(--sw-fs-2xs);
       letter-spacing: 0.04em;
-      background: rgba(17, 24, 39, 0.5);
-      color: #fff;
+      background: var(--sw-video-scrim);
+      color: var(--sw-on-video);
       border-radius: var(--sw-r-2xs);
       padding: 1px 6px;
     }
@@ -919,6 +938,7 @@ export class WiskeyOverview extends LitElement {
       align-items: center;
       justify-content: center;
       gap: 10px;
+      font-variant-numeric: tabular-nums;
     }
     .attn {
       display: flex;
@@ -944,7 +964,7 @@ export class WiskeyOverview extends LitElement {
     }
     .note.err {
       background: var(--sw-danger-soft);
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
     }
     .note.info {
       background: var(--sw-surface-2);
@@ -979,7 +999,7 @@ export class WiskeyOverview extends LitElement {
     }
     .result.err {
       background: var(--sw-danger-soft);
-      color: var(--sw-danger);
+      color: var(--sw-danger-text);
     }
     .form {
       display: flex;
