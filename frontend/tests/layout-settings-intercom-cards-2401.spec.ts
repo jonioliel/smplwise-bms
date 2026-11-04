@@ -10,7 +10,7 @@ import { FOLDS, foldGeometry, installCardsMock, openAccess, pageOverflow } from 
 // acceptance-check card, drawn only for whoever may run it). Mocked backend (an administrator: every card has its real content), classic
 // light. On the phone the cards stack with no sideways scroll and every header is a 44 px target.
 //   ~/run_remote.sh spec <branch> tests/layout-settings-intercom-cards-2401.spec.ts --project=desktop --project=mobile
-//   CARDS_LOG=1 prints every measurement; CARDS_SHOTS=<dir> saves a screenshot per card and size.
+//   Every measurement is printed; CARDS_SHOTS=<dir> saves a screenshot per card and size.
 const SIZES: [number, number][] = [[1440, 900], [1366, 768]];
 const SHOTS = process.env.CARDS_SHOTS ?? '';
 const HEAD_SLOT = 52; // one more header: 48 px + the 4 px gap
@@ -49,7 +49,7 @@ test.describe('layout a fits the screen with any one card open', () => {
         const worst = Math.max(o.doc, o.main, o.wrap, o.screen);
         const line = `${id} @${w}x${h}: page ${worst} (doc ${o.doc} main ${o.main} wrap ${o.wrap} ${o.tag} ${o.screen}) · body ${g.bodyTop}-${g.bodyBottom} (${g.bodyH} px, inner overflow ${g.bodyInner}, scroll ${g.bodyScroll}) · last header ${g.lastHead} · window ${g.win}`;
         log.push(line);
-        if (process.env.CARDS_LOG) console.log(`SETTINGS-INTERCOM-CARDS-2401 ${line}`);
+        console.log(`SETTINGS-INTERCOM-CARDS-2401 ${line}`); // the receipts of the change note quote these lines
         if (SHOTS) {
           fs.mkdirSync(SHOTS, { recursive: true });
           await page.screenshot({ path: path.join(SHOTS, `cards-${id}-${w}x${h}.png`) });
