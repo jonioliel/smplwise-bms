@@ -6,6 +6,8 @@ import { settlePage } from './pixel-settle';
 // SETTINGS-INTERCOM-CARDS-2401 pixel baselines, NEW states only: Settings › "מתגי מסכי כניסה" in layout a (the cards: the switches card, the
 // announcements card at 1440x900, the stations-screen display card at 1366x768, the phone at 390) and layout b's second tab "הכרזות וקול",
 // classic light, against the mocked backend (deterministic data, fixed clock, performance:full). Whole-page images: the layout is the subject.
+// Every test title says "pixel-stable": the release gate's pixel lane selects its tests with -g pixel-stable (a title without it
+// ran 0 tests there, 2.40.1 gate shard pixel_10).
 // Baselines are per OS: the Linux ones are generated on the runner with `--update-snapshots`, looked at, then committed; on an OS without a
 // baseline the check is skipped instead of failing on a missing file.
 //   ~/run_remote.sh spec <branch> tests/pixel-settings-intercom-cards-2401.spec.ts --project=desktop --project=mobile [--update-snapshots]
@@ -45,7 +47,7 @@ test.describe('pixel: SETTINGS-INTERCOM-CARDS-2401', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
   });
 
-  test('layout a: the switches and the announcements at 1440x900, the display at 1366x768', async ({ page }, info) => {
+  test('classic is pixel-stable: layout a, the switches and the announcements at 1440x900, the display at 1366x768', async ({ page }, info) => {
     test.skip(info.project.name !== 'desktop', 'desktop sizes');
     await page.setViewportSize({ width: 1440, height: 900 });
     await installCardsMock(page);
@@ -59,7 +61,7 @@ test.describe('pixel: SETTINGS-INTERCOM-CARDS-2401', () => {
     await compare(page, 'cards-display-1366');
   });
 
-  test('layout a on the phone: the cards stack', async ({ page }, info) => {
+  test('classic is pixel-stable: layout a on the phone, the cards stack', async ({ page }, info) => {
     test.skip(info.project.name !== 'mobile', 'the phone');
     await installCardsMock(page);
     await openAccess(page);
@@ -67,7 +69,7 @@ test.describe('pixel: SETTINGS-INTERCOM-CARDS-2401', () => {
     await compare(page, 'cards-screens-390');
   });
 
-  test('layout b: the second tab "הכרזות וקול"', async ({ page }, info) => {
+  test('classic is pixel-stable: layout b, the second tab "הכרזות וקול"', async ({ page }, info) => {
     test.skip(info.project.name !== 'desktop', 'desktop size');
     await page.setViewportSize({ width: 1440, height: 900 });
     await installCardsMock(page, { layout: 'tabs' });
