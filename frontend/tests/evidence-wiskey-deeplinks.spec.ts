@@ -72,7 +72,7 @@ test.describe('deep links: the stations and doors screen and the station drawer'
     await expect(host).toHaveAttribute('slot', 'actions');
     await expect(host.locator('[data-wk-deeplinks-list]')).toHaveCount(0); // closed until asked
     await openList(host);
-    expect(await hrefs(host)).toEqual(expected(['stations.technical', 'sync.run', 'alerts.act', 'health.fleet']));
+    expect(await hrefs(host)).toEqual(expected(['stations.technical', 'sync.run', 'conflicts.resolve', 'alerts.act', 'health.fleet']));
     expect(await links(host).allTextContents()).not.toContainEqual(expect.stringMatching(BANNED));
     // Escape closes and gives the focus back to the button
     await page.keyboard.press('Escape');
@@ -135,7 +135,8 @@ test.describe('deep links: the stations and doors screen and the station drawer'
     await expect(page.locator(`${STATIONS} [data-wk-stations][data-wk-state="ready"]`)).toBeVisible({ timeout: 30_000 });
     const host = page.locator(`${STATIONS} wk-deep-links[place="stations"]`);
     await openList(host);
-    expect(await hrefs(host)).toEqual(expected(['stations.technical', 'sync.run', 'health.fleet'])); // fleet_alerts is not in this catalog
+    // the panel's fleet_alerts tool is not in this catalog - the alerts link is the native Arx screen now (WISKEY-CONFLICTS-2400), so it stays
+    expect(await hrefs(host)).toEqual(expected(['stations.technical', 'sync.run', 'conflicts.resolve', 'alerts.act', 'health.fleet']));
   });
 });
 
@@ -212,9 +213,12 @@ test.describe('deep links: Settings › בקרת כניסה', () => {
     await expect.poll(() => lastFrame(hits), { timeout: 15_000 }).toBe('tools/access_control');
   });
 
-  test('a station-scoped administrator sees the page but no link; with the area hidden for everyone nobody gets a panel link', async ({ page }) => {
+  test('a station-scoped administrator sees the page but no panel link; with the area hidden for everyone nobody gets one', async ({ page }) => {
     await accessBoot(page, { persona: 'scopedAdmin' }, '/system/access-control', `${PAGE} [data-access-segment="status"]`);
-    await expect(page.locator(`${PAGE} wk-deep-links`)).toHaveAttribute('hidden', '');
+    // WISKEY-CONFLICTS-2400: the alerts screen is a native Arx screen (access.admin.read at any scope opens it) - only that one
+    const scoped = page.locator(`${PAGE} wk-deep-links[place="settings-status"]`);
+    await openList(scoped);
+    expect(await links(scoped).evaluateAll((as) => as.map((a) => `${a.getAttribute('data-wk-deeplink')}:${a.getAttribute('data-wk-kind')}`))).toEqual(['alerts.act:native']);
     await page.unrouteAll({ behavior: 'ignoreErrors' });
     await accessBoot(page, { settings: { 'ui.hide_wiskey': 'true' } }, '/system/access-control', `${PAGE} [data-access-segment="status"]`);
     // WISKEY-OPS-VIEWS-2400: no PANEL link with the area hidden; Arx's own native views (Settings › תפעול האינטרקום) stay

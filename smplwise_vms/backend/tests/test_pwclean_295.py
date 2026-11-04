@@ -39,6 +39,7 @@ ADDED_AFTER_CLEANUP = (
     "schedules",  # WISKEY-SCHED-WRITE-2390
     "installer",  # WISKEY-INSTALLER-NATIVE-2400
     "operations",  # WISKEY-OPS-VIEWS-2400
+    "triage",  # WISKEY-CONFLICTS-2400
 )
 
 

@@ -173,9 +173,16 @@ OPERATIONS = frozenset({
     "jobs/action",  # the one write: cancel only (services/wiskey_ops_views.py CANCEL)
 })
 
+# WISKEY-CONFLICTS-2400 (plan 2026-11-03 T5): the conflict review / resolve and the fleet alert snooze from the conflicts screen and the
+# status page (services/wiskey_triage.py). All four are in the pinned catalog and non-READ there (`api_contract` on every frame);
+# `conflicts/review` reads the station and writes nothing, the other three change WisKey's own record / suppression state (a resolve then
+# QUEUES the person's or the station's sync in WisKey). Same socket and identity as `service`, a guard of its own: the service channel's
+# write list stays the reviewed one and nothing else can ride this guard. ADDITIVE: other branches add their own channels next to it.
+TRIAGE = frozenset({"conflicts/review", "conflicts/resolve", "conflicts/resolve_deletion", "fleet/alerts_action"})
+
 ALLOWLISTS: dict[str, frozenset[str]] = {"background": BACKGROUND, "service": SERVICE, "read": READ, "technical": TECHNICAL, "messaging": MESSAGING,
-                                         "readback": READBACK, "pacing": PACING, "maintenance": MAINTENANCE, "door_technical": DOOR_TECHNICAL, "station_people": STATION_PEOPLE, "profiles": PROFILES, "schedules": SCHEDULES, "installer": INSTALLER, "operations": OPERATIONS}
-ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing", "maintenance", "door_technical", "station_people", "profiles", "schedules", "installer", "operations")  # the guards the service session builds for the adapters (intercom_sync on_ready)
+                                         "readback": READBACK, "pacing": PACING, "maintenance": MAINTENANCE, "door_technical": DOOR_TECHNICAL, "station_people": STATION_PEOPLE, "profiles": PROFILES, "schedules": SCHEDULES, "installer": INSTALLER, "operations": OPERATIONS, "triage": TRIAGE}
+ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing", "maintenance", "door_technical", "station_people", "profiles", "schedules", "installer", "operations", "triage")  # the guards the service session builds for the adapters (intercom_sync on_ready)
 
 # Home Assistant's own frames a channel may send besides WisKey commands (the auth handshake is written by ha_client itself):
 # `get_config` tells "WisKey not loaded yet" from "not installed"; the service feed watches the stations' entities.
@@ -194,6 +201,7 @@ HA_FRAMES: dict[str, frozenset[str]] = {
     "schedules": frozenset(),
     "installer": frozenset(),
     "operations": frozenset(),
+    "triage": frozenset(),
 }
 
 
@@ -241,4 +249,5 @@ def describe() -> dict[str, Any]:
         "schedules": {"commands": sorted(SCHEDULES), "in_use": True},
         "installer": {"commands": sorted(INSTALLER), "in_use": True},
         "operations": {"commands": sorted(OPERATIONS), "in_use": True},
+        "triage": {"commands": sorted(TRIAGE), "in_use": True},
     }

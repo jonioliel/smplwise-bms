@@ -2885,6 +2885,8 @@ export class SwApp extends LitElement {
         if (s[1] === 'external') return html`<access-external-screen .route=${r}></access-external-screen>`;
         if (s[1] === 'door-windows') return html`<door-windows-screen .route=${r}></door-windows-screen>`; // CR-039 DOORWIN-295 (off by default)
         if (s[1] === 'profiles') return html`<wiskey-profiles-screen .route=${r}></wiskey-profiles-screen>`; // WISKEY-PROFILES-EDIT-2390: קבוצות ושדות (the server checks people.manage at installation scope)
+        // WISKEY-CONFLICTS-2400: conflicts and fleet alerts acted on in Arx (an Arx-only screen, never the embed; the server checks the rights)
+        if (s[1] === 'conflicts' || s[1] === 'alerts') return html`<wiskey-triage .route=${r}></wiskey-triage>`;
         const w = wiskeyRoute(r, this.session.mode === 'api');
         // one call site: switching embedded tabs keeps the loaded frame (embed API v1: a wiskey:navigate message)
         if (w.kind === 'embed') return html`<wiskey-embed .tab=${w.tab} .tool=${w.tool ?? ''}></wiskey-embed>`;
