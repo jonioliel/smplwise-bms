@@ -223,3 +223,26 @@ Every rewritten PNG was compared with HEAD as old / new / difference sheets and 
 
 NOT_RUN: the UI build (`build:addon`, the lead), the release gate, the full backend suite, the evidence / regression browser specs on
 the merged-with-main tree (only the pixel set above), any lab / WisKey / station / Supervisor contact.
+
+## 9. Gate 2 of 8216c6359 failed: causes and fixes (`24d50bf5b`)
+
+`8216c6359` is the lead's rebuilt UI (`build:addon` on the runner @ `3d4335bce`). Gate report:
+`~/smplwise-results/gate_release-2390-train_8216c6359.gate2.md` (runner).
+
+| Failure | Cause | Fix |
+|---|---|---|
+| [lint] `evidence-station-people-2390.spec.ts:215` geometry read after a click | the delete dialog was measured with the spec's own two-frame `settle` (no animation wait) | the local `settle` replaced by `helpers/settle` (waits for running animations) and awaited before the measurement; `lint_spec_waits.py --new-since v2.38.2`: 0 findings in 16 files |
+| [backend] `test_wiskeyarx_291::test_n07_arx_sends_api_contract_one_or_omits_it` | **stale lint**: STATION-OPS, DOOR-TECH, PROFILES-EDIT, SCHED-WRITE pass `api_contract=intercom_client.API_CONTRACT` (the same constant, asserted == 1); the regex knew only the bare name. None of the four branches ran this file | the pattern accepts the bare or `intercom_client.`-qualified constant and still refuses a literal or any other name (checked against 8 samples) |
+| [backend] `test_bkpfix_295::test_sync_integration_writes_the_readme_with_lf` | **real defect (tooling)**: MANAGED-INSTALL hand-edited the generated `smplwise_vms/integration/README.md`; the next `scripts/sync_integration.py` would have erased the `hikvision_intercom/` paragraph | the paragraph moved into the generator's `README_TEXT` (byte-equal to the committed file); `sync_integration.py --check`: up to date |
+| [backend] `test_no_ip_literals::test_no_unlisted_private_ip_literals` | three new 2390 test files used a private `10.x` address as a fake host (`test_wiskey_door_tech.py`, `test_wiskey_live_validation_2390.py`, `test_wiskey_station_ops.py`) | RFC 5737 `192.0.2.9` (the leak assertion follows) |
+| [addon_build] `failed to prepare extraction snapshot` | **infrastructure**: all 14 Dockerfile steps finished and the image was exported; the error is containerd's snapshot store at the final unpack (`parent snapshot ... does not exist: not found`) | none (no product or Dockerfile change) |
+
+No product runtime file changed.
+
+| Check | Where / SHA | Result |
+|---|---|---|
+| Backend, 11 files: the three failed files + `test_wiskey_door_tech`, `test_wiskey_live_validation_2390`, `test_wiskey_station_ops`, `test_wiskey_profiles`, `test_wiskey_schedule_writes`, `test_bridge_install`, `test_bridge_media_policy`, `test_bridge_config_drift` | workstation, project venv, tree of `24d50bf5b` | **298 passed, 0 failed** (14.4 min) |
+| `npx tsc --noEmit -p tsconfig.json` | workstation @ `24d50bf5b` tree | exit 0 |
+| `evidence-station-people-2390.spec.ts`, preview, desktop + mobile + tablet, `--repeat-each=2` | runner @ `24d50bf5b` (gate state `fail`, no gate running, 110 GB free) | **18 passed, 30 skipped (project skips), 0 failed** |
+
+NOT_RUN: the gate re-run (the lead runs `--after`), the add-on image build.
