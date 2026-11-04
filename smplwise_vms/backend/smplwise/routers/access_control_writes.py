@@ -118,7 +118,9 @@ def _write(
     gate = gated(act, conn, lambda: iw.gate_person_write(settings, auth, user_id, sensitive=sensitive, revision=body.revision))
     not_after = _envelope(act, body)
     if native is not None:  # WKINT-295: the native write when WisKey's direct API is selected, else `send` unchanged
-        send = people_send(act, conn, command, native, send, stations=getattr(gate, "stations", None))
+        send = people_send(act, conn, command, native, send, stations=getattr(gate, "stations", None), not_after=not_after)
+    else:  # WISKEY-JOIN-LIVE-2382: every people write records its path - this command has no native form
+        act.details.update(transport="classic", transport_reason="no_native_form")
     reply = _perform(act, "person", send, iw.project_editor, not_after, lane="config", summary=_person_summary, target=intercom_sync.person_target(user_id))
     reply["person"] = iw.view_editor_person(auth, reply["person"])
     reply.update(iw.effect_fields(command))
