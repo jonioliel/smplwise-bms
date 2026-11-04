@@ -164,9 +164,31 @@ Receipts: see the section at the end.
 ## NOT_RUN
 
 - Any lab / device / WisKey contact (forbidden for this task): the 24 commands have never been sent to a real WisKey.
-- The full backend suite and the full preview suite (only the targeted sets listed in the receipts).
-- Tablet project of the new specs (desktop and phone only, as asked).
+- The full backend suite: started on the runner @ `e5217b126`, then STOPPED by me on the coordinator's disk instruction (runner at 90 %);
+  its pytest temp (15.7 GB) deleted. Only the targeted backend set below ran. The full preview suite was not run either.
+- The tablet project of the new specs (desktop and phone, as asked).
+- The station-maintenance branch's `maintenance` channel together with this `schedules` channel (two different branches; the merge of
+  `wiskey_channels.py` / `test_wiskey_channels.py` / `test_pwclean_295.py` must keep both).
 
 ## Receipts
 
-(filled in after the runner runs)
+All on the runner (`private/runner/run_smart.py ... --machine runner`), gate idle before each job; nothing on a device.
+
+| What | Command | Commit | Result |
+|---|---|---|---|
+| Backend, local (Windows venv) | `pytest tests/test_wiskey_schedule_writes.py` | working tree | 24 passed |
+| Backend, local | `pytest tests/test_wiskey_channels.py tests/test_pwclean_295.py tests/test_wiskey_contract.py tests/test_eccact_readback_295.py tests/test_wkdirect_295.py` | working tree | exit 0 |
+| Backend, local | `pytest tests/test_capabilities.py tests/test_plan_routes_unique.py tests/test_secfix2_pub07_guard_first.py tests/test_wiskey_channels.py tests/test_pwclean_295.py tests/test_intercom_adapter.py tests/test_db_gate.py` | working tree | exit 0 |
+| Backend, runner | `backend <b> tests/test_wiskey_schedule_writes.py tests/test_wiskey_channels.py tests/test_pwclean_295.py tests/test_intercom_adapter.py tests/test_wiskey_contract.py tests/test_access_control_wire.py` | `9bd85c9de` | 180 passed, 2 skipped |
+| tsc, runner | `tsc <b>` | `e5217b126` | ok (EXIT=0) |
+| Specs, runner | `preview <b> tests/unit-schedule-editor-logic.spec.ts tests/evidence-wiskey-schedule-writes.spec.ts tests/pixel-wiskey-schedule-writes.spec.ts tests/pixel-access-schedules.spec.ts --project=desktop --project=mobile --workers=1 --repeat-each=2` | `df85fd8f2` | 86 passed, 14 skipped, 0 failed |
+| Specs, runner (final) | `preview <b> tests/unit-schedule-editor-logic.spec.ts tests/evidence-wiskey-schedule-writes.spec.ts tests/pixel-wiskey-schedule-writes.spec.ts tests/pixel-access-schedules.spec.ts tests/evidence-access-schedules.spec.ts tests/layout-access-schedules.spec.ts --project=desktop --project=mobile --workers=1` | `e5217b126` | 77 passed, 43 skipped, 0 failed |
+| Baselines | `preview <b> tests/pixel-wiskey-schedule-writes.spec.ts tests/pixel-access-schedules.spec.ts --project=desktop --project=mobile --update-snapshots` (+ the phone door view regenerated in the steady state) | `5080807ed`, `402cae32d`, `899184312` | 8 new (editor) + 17 refreshed (schedules screen: the admin header carries the new button) |
+
+Skips: the unit spec runs on the desktop project only; the tablet project is skipped by design. Pixel notes: the editor's baselines
+mask the shell's top tab strip (its scroll position after load varied on the phone for the first test of a worker - 588 px, the
+strip only); the existing `pixel-access-schedules` phone baselines show the same shell variance (`schedules-classic-empty-390`
+flip-flopped once while regenerating) - pre-existing, not from this change.
+
+Evidence images (runner, `e5217b126`): `docs/design/evidence/wiskey-schedule-writes/` - manage view, editor checked / confirm /
+fault / refused, import preview, deploy impact / progress, claim confirm; desktop and mobile (18 files).
