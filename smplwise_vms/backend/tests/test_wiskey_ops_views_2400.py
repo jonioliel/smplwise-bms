@@ -375,7 +375,7 @@ def test_an_unclear_cancel_is_unknown_not_refused(ox):
 
 
 def test_projections_drop_unknown_keys_and_values():
-    summary = ov.project_summary({"stations": [{"id": "a", "name": "A‮", "online": "yes", "sync_state": "weird", "host": "10.0.0.1", "capabilities": {"max_users": 10},
+    summary = ov.project_summary({"stations": [{"id": "a", "name": "A‮", "online": "yes", "sync_state": "weird", "host": "192.0.2.10", "capabilities": {"max_users": 10},
                                                 "user_count": 9}, {"id": "../x"}]})
     assert summary["stations"] == [{**summary["stations"][0]}] and len(summary["stations"]) == 1
     s0 = summary["stations"][0]

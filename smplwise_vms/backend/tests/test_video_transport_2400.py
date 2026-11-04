@@ -213,7 +213,7 @@ def test_the_stop_row_names_go2rtc_error_sanitized(feed, fake_go2rtc, fake_provi
 
 @pytest.mark.parametrize("raw,code", [
     ("streams: wrong user/pass", "auth"),
-    ("dial tcp 10.1.2.3:554: i/o timeout", "timeout"),
+    ("dial tcp 192.0.2.11:554: i/o timeout", "timeout"),
     ("dial tcp [fe80::1]:554: connection refused", "refused"),
     ("codecs not matched: video:H265 => video:H264", "codecs"),
     ("RTSP/1.0 453 Not Enough Bandwidth", "busy"),
@@ -223,7 +223,7 @@ def test_the_stop_row_names_go2rtc_error_sanitized(feed, fake_go2rtc, fake_provi
 def test_go2rtc_errors_are_classified_and_never_carry_an_address(raw, code):
     assert live_diag.classify(raw) == code
     text = live_diag.sanitize(raw + " rtsp://admin:secret@192.0.2.7/x aa:bb:cc:dd:ee:ff 01ABCDEFGHJKMNPQRSTVWXYZ00")
-    for leak in ("192.0.2.7", "10.1.2.3", "fe80::1", "secret", "admin:", "aa:bb:cc", "01ABCDEF"):
+    for leak in ("192.0.2.7", "192.0.2.11", "fe80::1", "secret", "admin:", "aa:bb:cc", "01ABCDEF"):
         assert leak not in text, (leak, text)
     assert len(live_diag.sanitize("x" * 500)) == live_diag.MAX_TEXT
 

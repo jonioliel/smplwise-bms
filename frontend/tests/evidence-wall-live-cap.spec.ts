@@ -26,9 +26,13 @@ interface Opts {
   lanWall: 'sub' | 'main';
   main265: string[]; // cameras whose main stream cannot play over WebRTC
   mse: boolean;
+  /** media.transport_default. VIDEO-TRANSPORT-2400: the remote plan follows it (MSE only = MSE only); the cap and quality tests below
+   * are about the remote ladder of `auto` (WebRTC first, MSE as the announced last resort) - until 2.40.0 this fixture said `mse`
+   * and still expected WebRTC first, which was the lab bug the owner decision of 2026-11-04 fixed. */
+  transport: 'auto' | 'webrtc' | 'mse';
 }
 
-const BASE: Opts = { cams: 8, channel: 'remote', remoteCap: 4, serverCap: null, silentCams: [], admin: false, mediaCap: 32, remoteWall: 'sub', lanWall: 'sub', main265: [], mse: true };
+const BASE: Opts = { cams: 8, channel: 'remote', remoteCap: 4, serverCap: null, silentCams: [], admin: false, mediaCap: 32, remoteWall: 'sub', lanWall: 'sub', main265: [], mse: true, transport: 'auto' };
 
 const FAKE_MEDIA = (o: Pick<Opts, 'serverCap' | 'silentCams'>) => {
   const w = window as unknown as Record<string, unknown>;
@@ -173,7 +177,7 @@ async function openWall(page: Page, over: Partial<Opts> = {}, hash = '#/live/wal
     if (path === 'settings') {
       return json({
         settings: {
-          'media.transport_default': 'mse', 'media.max_live_sessions': o.mediaCap, 'media.wall_profile': o.lanWall, 'snapshots.max_age_s': 5, // < 10 s: the wall refreshes snapshot tiles every max(10, this) s
+          'media.transport_default': o.transport, 'media.max_live_sessions': o.mediaCap, 'media.wall_profile': o.lanWall, 'snapshots.max_age_s': 5, // < 10 s: the wall refreshes snapshot tiles every max(10, this) s
           'remote.max_live_streams': o.remoteCap, 'remote.wall_profile': o.remoteWall, 'remote.mse_fallback': o.mse ? 'true' : 'false', 'remote.default_profile': 'main',
         },
         can_edit: false,
@@ -236,6 +240,19 @@ test.describe('camera wall under the remote live cap (mocked API, fake relay)', 
     expect(all.some((s) => s.kind === 'mse')).toBe(false);
     expect(all.length).toBe(4);
     expect((await activeSocks(page)).map((s) => s.camera).sort()).toEqual(['c1', 'c2']);
+  });
+
+  test('VIDEO-TRANSPORT-2400: installation MSE only on the remote channel - the wall opens MSE only, within the same cap, nothing else', async ({ page }) => {
+    test.setTimeout(60000);
+    await openWall(page, { serverCap: 4, transport: 'mse' });
+    await expect.poll(async () => (await activeSocks(page)).length, { timeout: 15000 }).toBe(4);
+    await expect(page.locator('live-wall sw-live-player')).toHaveCount(4);
+    for (const id of ['c5', 'c6', 'c7', 'c8']) await expect(tile(page, id).locator('[data-snapshot-label]')).toHaveText('תמונה · לחץ לצפייה חיה');
+    await expect(page.locator('live-wall [data-live-cap]')).toHaveCount(0);
+    await page.waitForTimeout(3000); // shorter than the MSE first-fragment bound (the fake relay sends none)
+    const all = await socks(page);
+    expect(all.length, 'one socket per playing tile').toBe(4);
+    expect(all.every((s) => s.kind === 'mse' && s.profile === 'sub'), JSON.stringify(all)).toBe(true);
   });
 
   for (const admin of [false, true]) {

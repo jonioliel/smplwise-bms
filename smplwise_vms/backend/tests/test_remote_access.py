@@ -574,7 +574,7 @@ def test_the_extended_mode_kill_switch_is_reachable_on_the_remote_channel():
 
     from test_plan_routes_unique import _routers
 
-    routes = {(m, "/api/v1" + r.path) for router in _routers().values() for r in router.routes for m in getattr(r, "methods", set())}
+    routes = {(m, "/api/v1" + r.path) for router in _routers().values() for r in router.routes if hasattr(r, "path") for m in getattr(r, "methods", set())}
     assert REMOTE_KILL_SWITCH in routes
     assert REMOTE_KILL_SWITCH not in BLOCKED_ON_REMOTE and REMOTE_KILL_SWITCH not in PUBLIC_ON_REMOTE
     path = REMOTE_KILL_SWITCH[1]
@@ -591,7 +591,9 @@ def test_every_route_needs_a_remote_session(arx):
     fresh = TestClient(arx.app)
     leaks = []
     checked = 0
-    routes = [r for router in _routers().values() for r in router.routes]
+    # a router that gathers sub-routers (routers/wiskey_installer.py) lists them as FastAPI's `_IncludedRouter` wrappers, which have no
+    # path; their routes are walked through the sub-routers' own modules, which `_routers()` finds as well
+    routes = [r for router in _routers().values() for r in router.routes if isinstance(r, (APIRoute, APIWebSocketRoute))]
     for route in routes:
         full = "/api/v1" + route.path
         path = "/".join("x" if seg.startswith("{") else seg for seg in full.split("/"))
