@@ -72,7 +72,7 @@ test.describe('deep links: the stations and doors screen and the station drawer'
     await expect(host).toHaveAttribute('slot', 'actions');
     await expect(host.locator('[data-wk-deeplinks-list]')).toHaveCount(0); // closed until asked
     await openList(host);
-    expect(await hrefs(host)).toEqual(expected(['stations.technical', 'sync.run', 'conflicts.resolve', 'alerts.act', 'health.fleet', 'access.scenario', 'stations.permission_audit']));
+    expect(await hrefs(host)).toEqual(expected(['stations.technical', 'stations.lifecycle', 'sync.run', 'conflicts.resolve', 'alerts.act', 'health.fleet', 'access.scenario', 'stations.permission_audit']));
     expect(await links(host).allTextContents()).not.toContainEqual(expect.stringMatching(BANNED));
     // Escape closes and gives the focus back to the button
     await page.keyboard.press('Escape');
@@ -85,7 +85,7 @@ test.describe('deep links: the stations and doors screen and the station drawer'
     await expect.poll(() => lastFrame(hits), { timeout: 15_000 }).toBe('sync/');
   });
 
-  test('the drawer\'s technical section: a closed line, then the station links; a tool link opens that tool', async ({ page }) => {
+  test('the drawer\'s technical section: a closed line, then the station links; a panel link opens its tab, the installer tools are native', async ({ page }) => {
     const { hits } = await stubPanel(page, { kiosk: true, panels: true, api: 'v1', catalog: FULL_CATALOG });
     await stationsBoot(page);
     await page.locator(`${STATIONS} [data-wk-grid] [data-wk-station="gate"] button.open`).click();
@@ -95,24 +95,29 @@ test.describe('deep links: the stations and doors screen and the station drawer'
     await openList(host);
     await expect(host.locator('[data-wk-deeplinks-toggle]')).toHaveAttribute('aria-expanded', 'true');
     expect(await hrefs(host)).toEqual(expected(['stations.technical', 'sync.run', 'health.fleet', 'clock.settings']));
-    await expect(host.locator('[data-wk-deeplink="stations.technical"]')).toHaveAttribute('data-wk-target', 'devices');
-    await expect(host.locator('[data-wk-deeplink="clock.settings"]')).toHaveAttribute('data-wk-target', 'tools/clock_options');
-    await host.locator('[data-wk-deeplink="clock.settings"]').click();
-    await expect.poll(() => hash(page)).toMatch(/^#\/wiskey\/tools\/clock_options(\?|$)/);
-    await expect.poll(() => lastFrame(hits), { timeout: 15_000 }).toBe('tools/clock_options');
+    // WISKEY-INSTALLER-NATIVE-2400 (2.40.0 train): the technical settings and the clock are the installer's native tools now
+    await expect(host.locator('[data-wk-deeplink="stations.technical"]')).toHaveAttribute('data-wk-kind', 'native');
+    await expect(host.locator('[data-wk-deeplink="stations.technical"]')).toHaveAttribute('data-wk-target', '#/system/intercom-installer/technical');
+    await expect(host.locator('[data-wk-deeplink="clock.settings"]')).toHaveAttribute('data-wk-target', '#/system/intercom-installer/clock');
+    await expect(host.locator('[data-wk-deeplink="sync.run"]')).toHaveAttribute('data-wk-kind', 'panel');
+    await host.locator('[data-wk-deeplink="sync.run"]').click();
+    await expect.poll(() => hash(page)).toMatch(/^#\/wiskey\/sync(\?|$)/);
+    await expect.poll(() => lastFrame(hits), { timeout: 15_000 }).toBe('sync/');
   });
 
-  test('the station settings link reaches the panel\'s own stations tab although the stations screen is set to Arx', async ({ page }) => {
-    const { hits } = await stubPanel(page, { kiosk: true, panels: true, api: 'v1', catalog: FULL_CATALOG });
+  // WISKEY-INSTALLER-NATIVE-2400 (2.40.0 train): the station settings link was the Q7 bridge into the panel's stations tab; it is the
+  // installer's native technical tool now (the panel address stays in the table, deepLinkHref)
+  test('the station settings link opens the installer\'s native technical tool, not the embedded panel', async ({ page }) => {
+    await stubPanel(page, { kiosk: true, panels: true, api: 'v1', catalog: FULL_CATALOG });
     await stationsBoot(page);
     await page.locator(`${STATIONS} [data-wk-grid] [data-wk-station="lobby"] button.open`).click();
     const host = page.locator(`${STATIONS} sw-drawer[data-wk-drawer] wk-deep-links[place="station"]`);
     await openList(host);
     await host.locator('[data-wk-deeplink="stations.technical"]').click();
-    await expect.poll(() => hash(page)).toMatch(/^#\/wiskey\/devices\?classic=1/);
-    await expect(page.locator('sw-app wiskey-embed')).toHaveCount(1, { timeout: 30_000 });
+    await expect.poll(() => hash(page)).toMatch(/^#\/system\/intercom-installer\/technical(\?|$)/);
+    await expect(page.locator('sw-app system-intercom-installer')).toHaveCount(1, { timeout: 30_000 });
+    await expect(page.locator('sw-app wiskey-embed')).toHaveCount(0);
     await expect(page.locator(STATIONS)).toHaveCount(0);
-    await expect.poll(() => lastFrame(hits), { timeout: 15_000 }).toBe('devices/');
   });
 
   test('a caller without the technical part has no drawer links; the page list still follows access.read', async ({ page }) => {
@@ -136,7 +141,7 @@ test.describe('deep links: the stations and doors screen and the station drawer'
     const host = page.locator(`${STATIONS} wk-deep-links[place="stations"]`);
     await openList(host);
     // the panel's fleet_alerts tool is not in this catalog - the alerts link is the native Arx screen now (WISKEY-CONFLICTS-2400), so it stays
-    expect(await hrefs(host)).toEqual(expected(['stations.technical', 'sync.run', 'conflicts.resolve', 'alerts.act', 'health.fleet', 'access.scenario', 'stations.permission_audit']));
+    expect(await hrefs(host)).toEqual(expected(['stations.technical', 'stations.lifecycle', 'sync.run', 'conflicts.resolve', 'alerts.act', 'health.fleet', 'access.scenario', 'stations.permission_audit']));
   });
 });
 
@@ -221,11 +226,12 @@ test.describe('deep links: Settings › בקרת כניסה', () => {
     expect(await links(scoped).evaluateAll((as) => as.map((a) => `${a.getAttribute('data-wk-deeplink')}:${a.getAttribute('data-wk-kind')}`))).toEqual(['alerts.act:native']);
     await page.unrouteAll({ behavior: 'ignoreErrors' });
     await accessBoot(page, { settings: { 'ui.hide_wiskey': 'true' } }, '/system/access-control', `${PAGE} [data-access-segment="status"]`);
-    // WISKEY-OPS-VIEWS-2400: no PANEL link with the area hidden; Arx's own native views (Settings › תפעול האינטרקום) stay
+    // WISKEY-OPS-VIEWS-2400: no PANEL link with the area hidden; Arx's own native views (Settings › תפעול האינטרקום) stay, and since the
+    // 2.40.0 train the installer's native tools (Settings › התקנה ותחזוקת מערכת האינטרקום) as well
     const status = page.locator(`${PAGE} wk-deep-links[place="settings-status"]`);
     await openList(status);
-    expect(await hrefs(status)).toEqual(expected(['health.fleet', 'operations.center', 'operations.investigations']));
-    expect((await hrefs(status)).every((h) => h.includes('=#/system/intercom-operations/'))).toBe(true);
+    expect(await hrefs(status)).toEqual(expected(['health.fleet', 'clock.settings', 'operations.center', 'operations.investigations', 'platform.center']));
+    expect((await hrefs(status)).every((h) => /=#\/system\/intercom-(operations|installer)\//.test(h))).toBe(true);
   });
 });
 

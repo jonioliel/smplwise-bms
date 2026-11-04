@@ -141,7 +141,8 @@ test.describe('who opens it, and where it is linked from', () => {
     const ids = (v: Parameters<typeof deepLinksFor>[1]) => deepLinksFor('stations', v).map((l) => `${l.id}:${l.kind}`);
     expect(ids({ panel: false, admin: false, can: (p) => p === 'access.admin.read' })).toEqual(['conflicts.resolve:native', 'alerts.act:native']);
     expect(ids({ panel: false, admin: false, can: () => false })).toEqual([]);
-    expect(ids({ panel: true, admin: true, can: () => true, area: false }).filter((x) => x.endsWith(':native'))).toEqual([]);
+    // the area rule hides the native screens under #/wiskey/ only; the Settings views (installer, operations - 2.40.0 train) stay
+    expect(ids({ panel: true, admin: true, can: () => true, area: false }).filter((x) => x.endsWith(':native'))).toEqual(['stations.technical:native', 'stations.lifecycle:native', 'health.fleet:native']);
   });
 
   test('the native routes never become the embedded panel', () => {

@@ -26,6 +26,9 @@
  * Native screens that took capabilities over (`native` set): WISKEY-ACCESS-DIAG-2400 (plan task T10) - "אבחון הרשאות" (`#/wiskey/access-diag`)
  * replaces the panel's periodic reviews, comparison and data quality tools, and adds "can X open door Y" and the station permission audit
  * to the stations screen. Their panel targets stay (the screen's own "open in the intercom window" fallback and the rows' coverage).
+ * WISKEY-INSTALLER-NATIVE-2400 (owner Q7 "ג", registered by the 2.40.0 train) - "התקנה ותחזוקת מערכת האינטרקום" (`#/system/intercom-installer`)
+ * replaces the Q7 bridges: the clock / NTP, a station's technical settings, the station lifecycle and the platform. Like OPS-VIEWS-2400,
+ * WISKEY-CONFLICTS-2400 and WISKEY-PROFILES-EDIT-2390, see the entries.
  *
  * Temporary links (owner answers 2026-11-03, corrected): Q4 "א" - device schedules and groups / profile fields get full editing in
  * Arx; Q7 "ג" - the installer tools (platform, clock, station technical settings, lifecycle) become native. Their entries carry
@@ -116,6 +119,10 @@ const tab = (t: string): DeepTarget => Object.freeze({ tab: t, tool: null });
 export const OPS_NATIVE_HREF = '#/system/intercom-operations';
 const OPS_NATIVE = (view: string): NativeRoute => Object.freeze({ href: `${OPS_NATIVE_HREF}/${view}`, need: ['access.read'], installation: true });
 const tool = (t: string): DeepTarget => Object.freeze({ tab: 'tools', tool: t });
+/** WISKEY-INSTALLER-NATIVE-2400 (owner Q7 "ג"): the native tools of Settings › התקנה ותחזוקת מערכת האינטרקום (screens/system-intercom-installer.ts) -
+ * `system.configure`, which the server checks at installation scope on every route (routers/wiskey_installer*.py). The panel link stays as `target`. */
+export const INSTALLER_NATIVE_HREF = '#/system/intercom-installer';
+const INSTALLER_NATIVE = (view: string): NativeRoute => Object.freeze({ href: `${INSTALLER_NATIVE_HREF}/${view}`, need: ['system.configure'], installation: true });
 
 /**
  * capability -> where it lives. Every row the plan marks "embedded panel only" (E), the missing operator actions the panel already has
@@ -125,7 +132,11 @@ const tool = (t: string): DeepTarget => Object.freeze({ tab: 'tools', tool: t })
  */
 export const DEEP_LINKS: Readonly<Record<string, DeepLinkEntry>> = Object.freeze({
   // ---- stations, doors (the station settings dialog of the devices tab: technical, door programs, hold-open, public codes, rescan, clock)
-  'stations.technical': { target: tab('devices'), label: 'הגדרות העמדה: טכני, תוכניות דלת, קודים, סריקה ושעון', rows: [34, 36, 45, 46, 47], bridge: 'Q7' },
+  // WISKEY-INSTALLER-NATIVE-2400 (2.40.0 train): row 47 (door name, open time, relay inversion) is the installer's native technical tool; rows
+  // 34 / 36 / 45 / 46 are native in the station drawer since the 2.39.0 train. The Q7 bridge is retired.
+  'stations.technical': { target: tab('devices'), label: 'הגדרות טכניות של עמדה', rows: [34, 36, 45, 46, 47], native: INSTALLER_NATIVE('technical') },
+  // WISKEY-INSTALLER-NATIVE-2400: add / re-onboard / remove / replace a station (row 50) - in the panel it is part of the platform centre
+  'stations.lifecycle': { target: tool('platform_center'), label: 'הוספה והסרה של עמדות אינטרקום', rows: [50], panelAdmin: true, native: INSTALLER_NATIVE('lifecycle') },
   // ---- synchronisation (the sync tab: sync now per person / station / all, the conflict review and resolve, the diagnostics file)
   'sync.run': { target: tab('sync'), label: 'סנכרון עכשיו ופתרון התנגשויות', rows: [3, 36, 38] },
   // ---- health, alerts, clock
@@ -135,7 +146,7 @@ export const DEEP_LINKS: Readonly<Record<string, DeepLinkEntry>> = Object.freeze
   // the status page's reader or a station manager / system administrator (any one, at any scope - the server checks the rest).
   'alerts.act': { target: tool('fleet_alerts'), label: 'טיפול בהתראות', rows: [76, 77], native: { href: '#/wiskey/alerts', need: TRIAGE_NEED } },
   'conflicts.resolve': { target: tab('sync'), label: 'פתרון התנגשויות סנכרון', rows: [37, 38], native: { href: '#/wiskey/conflicts', need: TRIAGE_NEED } },
-  'clock.settings': { target: tool('clock_options'), label: 'שעון ו־NTP', rows: [51], bridge: 'Q7' },
+  'clock.settings': { target: tool('clock_options'), label: 'שעון ו־NTP', rows: [51], native: INSTALLER_NATIVE('clock') }, // WISKEY-INSTALLER-NATIVE-2400 (Q7 bridge retired)
   // ---- people
   'people.unmanaged': { target: tab('users'), label: 'משתמשים לא מנוהלים ובדיקת "האם יכול לפתוח"', rows: [25, 29] },
   // WISKEY-PROFILES-EDIT-2390 (2.39.0 train): the native "קבוצות ושדות" screen took rows 26 / 27 over (the Q4 bridge retired); the
@@ -157,7 +168,8 @@ export const DEEP_LINKS: Readonly<Record<string, DeepLinkEntry>> = Object.freeze
   'events.report': { target: tab('events'), label: 'דוח אירועים', rows: [79], native: OPS_NATIVE('events') },
   'operations.center': { target: tool('operations_center'), label: 'פעולות ומשימות', rows: [80], native: OPS_NATIVE('operations') },
   'operations.investigations': { target: tool('investigations'), label: 'ציר זמן לחקירה', rows: [80], panelAdmin: true, native: OPS_NATIVE('investigations') },
-  'platform.center': { target: tool('platform_center'), label: 'מרכז הפלטפורמה', rows: [50, 82], panelAdmin: true, bridge: 'Q7' },
+  // WISKEY-INSTALLER-NATIVE-2400: configuration, export / import, webhook, retention, integrity, capacity, maintenance queue (Q7 bridge retired)
+  'platform.center': { target: tool('platform_center'), label: 'תצורת מערכת האינטרקום', rows: [50, 82], panelAdmin: true, native: INSTALLER_NATIVE('platform') },
   'workflows.center': { target: tool('workflow_center'), label: 'מרכז תהליכים', rows: [84], panelAdmin: true },
   // ---- messaging, media, permissions
   'messaging.templates': { target: tool('whatsapp_templates'), label: 'תבניות הודעה של חלון האינטרקום', rows: [75] },
@@ -169,7 +181,7 @@ export const DEEP_LINKS: Readonly<Record<string, DeepLinkEntry>> = Object.freeze
 /** Which capabilities each place offers, in the order shown. A place lists only what an operator there would look for. */
 export const PLACES: Readonly<Record<DeepPlace, readonly string[]>> = Object.freeze({
   station: ['stations.technical', 'sync.run', 'health.fleet', 'clock.settings'],
-  stations: ['stations.technical', 'sync.run', 'conflicts.resolve', 'alerts.act', 'health.fleet', 'access.scenario', 'stations.permission_audit'],
+  stations: ['stations.technical', 'stations.lifecycle', 'sync.run', 'conflicts.resolve', 'alerts.act', 'health.fleet', 'access.scenario', 'stations.permission_audit'],
   people: ['people.unmanaged', 'profiles.edit', 'people.lifecycle', 'access.reviews', 'access.compare', 'people.quality'],
   schedules: ['schedules.edit', 'stations.technical'],
   'settings-status': ['sync.run', 'alerts.act', 'health.fleet', 'clock.settings', 'operations.center', 'operations.investigations', 'platform.center'],

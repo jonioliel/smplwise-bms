@@ -180,7 +180,8 @@ test.describe('where the area is reached', () => {
 
   test('every native deep link points at a tab of this screen', () => {
     for (const e of Object.values(DEEP_LINKS)) {
-      if (!e.native) continue;
+      // other native screens (profiles, conflicts, access diagnostics, the installer tools - 2.39.0 / 2.40.0 trains) have their own routes
+      if (!e.native || !e.native.href.startsWith(`${INTERCOM_OPS_HREF}/`)) continue;
       const view = e.native.href.replace(`${INTERCOM_OPS_HREF}/`, '');
       expect(OPS_TABS as readonly string[]).toContain(view);
     }

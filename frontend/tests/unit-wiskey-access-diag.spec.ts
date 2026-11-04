@@ -189,6 +189,7 @@ test.describe('the deep-link table: native routes replace the panel links', () =
     // a caller who holds no access.read anywhere is not offered the native links
     expect(deepLinksFor('people', { panel: false, admin: false, can: () => false })).toEqual([]);
     const native = deepLinksFor('stations', { panel: false, admin: false, can: (p) => p === 'access.read' });
-    expect(native.map((l) => `${l.id}:${l.kind}`)).toEqual(['access.scenario:native', 'stations.permission_audit:native']);
+    // (the capacity view of WISKEY-OPS-VIEWS-2400 also follows access.read - it joins the same menu in the 2.40.0 train)
+    expect(native.map((l) => `${l.id}:${l.kind}`)).toEqual(['health.fleet:native', 'access.scenario:native', 'stations.permission_audit:native']);
   });
 });

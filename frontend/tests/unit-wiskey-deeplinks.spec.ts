@@ -48,6 +48,13 @@ const NATIVE: Record<string, string> = {
   'access.scenario': '#/wiskey/access-diag',
   'stations.permission_audit': '#/wiskey/access-diag?view=audit',
 };
+/** WISKEY-INSTALLER-NATIVE-2400 (owner Q7, registered by the 2.40.0 train): the Q7 bridges replaced by the installer's native tools. */
+const INSTALLER_NATIVE: Record<string, string> = {
+  'clock.settings': '#/system/intercom-installer/clock',
+  'stations.technical': '#/system/intercom-installer/technical',
+  'stations.lifecycle': '#/system/intercom-installer/lifecycle',
+  'platform.center': '#/system/intercom-installer/platform',
+};
 const ADMIN = { panel: true, admin: true } as const;
 
 test.describe('the deep-link table', () => {
@@ -142,8 +149,9 @@ test.describe('who gets the links', () => {
   test('the panel\'s administrator-only tools are offered to an access-control administrator only', () => {
     const ids = (admin: boolean) => deepLinksFor('settings-status', { panel: true, admin }).map((l) => l.id);
     expect(ids(true)).toEqual(['sync.run', 'alerts.act', 'health.fleet', 'clock.settings', 'operations.center', 'operations.investigations', 'platform.center']);
-    // WISKEY-OPS-VIEWS-2400: the investigations timeline is a native Arx view now (access.read): no longer the panel's administrator tool
-    expect(ids(false)).toEqual(['sync.run', 'alerts.act', 'health.fleet', 'clock.settings', 'operations.center', 'operations.investigations']);
+    // WISKEY-OPS-VIEWS-2400: the investigations timeline is a native Arx view now (access.read): no longer the panel's administrator tool;
+    // WISKEY-INSTALLER-NATIVE-2400 (2.40.0 train): neither is the platform (the native installer tool follows system.configure, not the panel rule)
+    expect(ids(false)).toEqual(['sync.run', 'alerts.act', 'health.fleet', 'clock.settings', 'operations.center', 'operations.investigations', 'platform.center']);
     expect(deepLinksFor('settings-policy', { panel: true, admin: false }).map((l) => l.id)).toEqual(['permissions.directory', 'media.settings']);
   });
 
@@ -153,15 +161,17 @@ test.describe('who gets the links', () => {
     expect(inCatalog({ tab: 'tools', tool: 'health' }, catalog)).toBe(true);
     expect(inCatalog({ tab: 'tools', tool: 'clock_options' }, catalog)).toBe(false);
     expect(inCatalog({ tab: 'devices', tool: null }, null)).toBe(true); // no catalog yet: the panel decides (and falls back by itself)
-    expect(deepLinksFor('station', { ...ADMIN, catalog }).map((l) => l.id)).toEqual(['sync.run', 'health.fleet']);
+    // the native installer tools (technical settings, clock) and the capacity view do not depend on the catalog either (2.40.0 train)
+    expect(deepLinksFor('station', { ...ADMIN, catalog }).map((l) => l.id)).toEqual(['stations.technical', 'sync.run', 'health.fleet', 'clock.settings']);
     // WISKEY-ACCESS-DIAG-2400: the native "אבחון הרשאות" links do not depend on the panel's catalog
     expect(deepLinksFor('people', { ...ADMIN, catalog }).map((l) => l.id)).toEqual(['people.unmanaged', 'profiles.edit', 'access.reviews', 'access.compare', 'people.quality']);
   });
 
   test('what each place offers an administrator (the order shown)', () => {
     const ids = (p: DeepPlace) => deepLinksFor(p, ADMIN).map((l) => `${l.id}=${l.href}`);
-    expect(ids('station')).toEqual(['stations.technical=#/wiskey/devices?classic=1', 'sync.run=#/wiskey/sync', 'health.fleet=#/system/intercom-operations/capacity', 'clock.settings=#/wiskey/tools/clock_options']);
-    expect(ids('stations')).toEqual(['stations.technical=#/wiskey/devices?classic=1', 'sync.run=#/wiskey/sync', 'conflicts.resolve=#/wiskey/conflicts', 'alerts.act=#/wiskey/alerts', 'health.fleet=#/system/intercom-operations/capacity',
+    expect(ids('station')).toEqual(['stations.technical=#/system/intercom-installer/technical', 'sync.run=#/wiskey/sync', 'health.fleet=#/system/intercom-operations/capacity', 'clock.settings=#/system/intercom-installer/clock']);
+    expect(ids('stations')).toEqual(['stations.technical=#/system/intercom-installer/technical', 'stations.lifecycle=#/system/intercom-installer/lifecycle', 'sync.run=#/wiskey/sync',
+      'conflicts.resolve=#/wiskey/conflicts', 'alerts.act=#/wiskey/alerts', 'health.fleet=#/system/intercom-operations/capacity',
       'access.scenario=#/wiskey/access-diag', 'stations.permission_audit=#/wiskey/access-diag?view=audit']);
     expect(ids('people')).toEqual([
       'people.unmanaged=#/wiskey/people?classic=1',
@@ -171,7 +181,7 @@ test.describe('who gets the links', () => {
       'access.compare=#/wiskey/access-diag?view=compare',
       'people.quality=#/wiskey/access-diag?view=quality',
     ]);
-    expect(ids('schedules')).toEqual(['schedules.edit=#/wiskey/tools/schedules', 'stations.technical=#/wiskey/devices?classic=1']);
+    expect(ids('schedules')).toEqual(['schedules.edit=#/wiskey/tools/schedules', 'stations.technical=#/system/intercom-installer/technical']);
     expect(ids('settings-audit')).toEqual(['audit.panel=#/system/intercom-operations/exports', 'events.report=#/system/intercom-operations/events']);
     expect(ids('settings-groups')).toEqual(['profiles.edit=#/wiskey/profiles']);
     expect(ids('settings-messaging')).toEqual(['messaging.templates=#/wiskey/tools/whatsapp_templates']);
@@ -192,16 +202,17 @@ test.describe('keyed by capability: a native screen replaces a link without touc
   });
 
   test('the temporary links of the owner Q4 / Q7 (native screens to come) are marked', () => {
-    expect([...BRIDGED].sort()).toEqual(['clock.settings', 'platform.center', 'schedules.edit', 'stations.technical']);
+    // WISKEY-INSTALLER-NATIVE-2400 (2.40.0 train): the three Q7 bridges are retired; only the schedules editor (Q4) remains
+    expect([...BRIDGED].sort()).toEqual(['schedules.edit']);
     expect(DEEP_LINKS['schedules.edit'].bridge).toBe('Q4');
     expect(DEEP_LINKS['profiles.edit'].bridge).toBeUndefined(); // retired: the native screen exists (WISKEY-PROFILES-EDIT-2390)
-    for (const id of ['clock.settings', 'platform.center', 'stations.technical']) expect(DEEP_LINKS[id].bridge, id).toBe('Q7');
+    for (const id of Object.keys(INSTALLER_NATIVE)) expect(DEEP_LINKS[id].bridge, id).toBeUndefined();
     expect(DEEP_LINKS['profiles.edit'].native).toEqual({ href: '#/wiskey/profiles', need: ['access.people.manage'] });
     expect(DEEP_LINKS['profiles.edit'].rows).toEqual([26, 27]);
     const TRIAGE_NATIVE_IDS = ['alerts.act', 'conflicts.resolve']; // WISKEY-CONFLICTS-2400
     for (const id of TRIAGE_NATIVE_IDS) expect(DEEP_LINKS[id].native!.need).toEqual(['access.admin.read', 'access.stations.manage', 'system.configure']);
     for (const id of Object.keys(NATIVE)) expect(DEEP_LINKS[id].native?.href, id).toBe(NATIVE[id]); // WISKEY-ACCESS-DIAG-2400
-    for (const id of Object.keys(DEEP_LINKS).filter((x) => x !== 'profiles.edit' && !OPS_NATIVE_IDS.includes(x) && !TRIAGE_NATIVE_IDS.includes(x) && !(x in NATIVE))) expect(DEEP_LINKS[id].native, id).toBeUndefined();
+    for (const id of Object.keys(DEEP_LINKS).filter((x) => x !== 'profiles.edit' && !OPS_NATIVE_IDS.includes(x) && !TRIAGE_NATIVE_IDS.includes(x) && !(x in NATIVE) && !(x in INSTALLER_NATIVE))) expect(DEEP_LINKS[id].native, id).toBeUndefined();
   });
 
   test('once an entry carries a native route: linkFor and every place follow; the panel rule and catalog no longer apply to it', () => {
@@ -209,7 +220,8 @@ test.describe('keyed by capability: a native screen replaces a link without touc
     expect(linkFor('schedules.edit', table)).toBe('#/access/schedules/edit');
     const holds = (p: string) => p === 'access.schedules.manage';
     const links = deepLinksFor('schedules', { panel: true, admin: true, can: holds }, table);
-    expect(links.map((l) => `${l.id}:${l.kind}=${l.href}`)).toEqual(['schedules.edit:native=#/access/schedules/edit', 'stations.technical:panel=#/wiskey/devices?classic=1']);
+    // (stations.technical is the installer's native tool since the 2.40.0 train: system.configure, not held here, so not offered)
+    expect(links.map((l) => `${l.id}:${l.kind}=${l.href}`)).toEqual(['schedules.edit:native=#/access/schedules/edit']);
     // no panel for this caller: the native link stays, the panel link goes
     expect(deepLinksFor('schedules', { panel: false, admin: false, can: holds }, table).map((l) => l.id)).toEqual(['schedules.edit']);
     // the native screen's permission is not held: not offered
@@ -233,5 +245,23 @@ test.describe('WISKEY-OPS-VIEWS-2400: the operations views replace five panel li
     // access.read held only on some station scope: the native views (installation-wide) are not offered
     expect(deepLinksFor('settings-audit', { panel: false, admin: false, can: holds, canInstallation: () => false })).toEqual([]);
     expect(deepLinksFor('settings-audit', { panel: false, admin: false, can: holds, canInstallation: holds }).map((l) => l.id)).toEqual(['audit.panel', 'events.report']);
+  });
+});
+
+test.describe('WISKEY-INSTALLER-NATIVE-2400: the installer tools replace the Q7 bridges (2.40.0 train)', () => {
+  test('clock, technical settings, lifecycle and platform go to their native tool, behind system.configure at the installation', () => {
+    for (const [id, href] of Object.entries(INSTALLER_NATIVE)) {
+      expect(DEEP_LINKS[id].native, id).toEqual({ href, need: ['system.configure'], installation: true });
+      expect(linkFor(id), id).toBe(href);
+      expect(route(deepLinkHref(id)).kind, id).toBe('embed'); // the panel address is still known (deepLinkHref)
+    }
+    expect(deepLinkHref('stations.lifecycle')).toBe('#/wiskey/tools/platform_center');
+    const holds = (p: string) => p === 'system.configure';
+    const station = deepLinksFor('station', { panel: false, admin: false, can: holds, canInstallation: holds });
+    expect(station.map((l) => `${l.id}:${l.kind}`)).toEqual(['stations.technical:native', 'clock.settings:native']);
+    // system.configure held only on a scope below the installation: the installer tools are not offered
+    expect(deepLinksFor('station', { panel: false, admin: false, can: holds, canInstallation: () => false })).toEqual([]);
+    // the WisKey area hidden for everyone: the installer tools live in Settings, so they stay (the conflicts screen under #/wiskey/ goes)
+    expect(deepLinksFor('stations', { panel: false, admin: false, can: holds, canInstallation: holds, area: false }).map((l) => l.id)).toEqual(['stations.technical', 'stations.lifecycle']);
   });
 });
