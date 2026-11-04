@@ -223,7 +223,26 @@ def test_the_only_modules_that_reach_a_signing_call_are_the_known_ones():
                        "wiskey_pairing.py",  # WISKEY-PAIRING-2382: the admin "בדוק חיבור חתום" - direct/capabilities + direct/time only
                        # WISKEY-TALK-CAPS-2382: the two discovery READS only (direct/capabilities + direct/time through DirectDiscovery, empty
                        # parameters, no W10 command); pinned in test_wiskey_talk_caps_2382.py::test_the_signed_read_sends_only_the_two_discovery_reads
-                       "wiskey_media_caps.py"}, callers
+                       "wiskey_media_caps.py",
+                       # 2.40.0 train (the two branches added the callers without this pin; recorded in docs/changes/RELEASE-2400-TRAIN.md for
+                       # the lead's admission review): WISKEY-EVENT-CURSOR-2400 - one signed `events/resume_v1` {cursor, limit} on the service
+                       # feed's socket, pinned in test_wiskey_event_cursor_2400.py::test_the_signed_sender_carries_only_the_resume_command_with_cursor_and_limit;
+                       # WISKEY-WA-QUEUE-2400 - the template registry / send_v3 over the direct join's signed port, only while the join selects
+                       # the command (wiskey_wa_queue.DIRECT_COMMANDS), pinned in test_wiskey_wa_queue_2400.py
+                       "wiskey_event_resume.py", "wiskey_wa_queue.py"}, callers
+
+
+def test_the_2400_signing_callers_send_only_their_pinned_commands():
+    """2.40.0 train: what the two new signing callers may put on the seam, by name (see the pin above). The event resume sender carries one
+    read; the WhatsApp queue carries WisKey's template registry read, the enqueue / job / cancel of a template job and the v3 template send
+    (the paced free-text send `whatsapp/send_pacing_v1` is on the `messaging_paced` channel, not on the signed port)."""
+    from smplwise.services import wiskey_event_resume as er
+    from smplwise.services import wiskey_wa_queue as wq
+
+    assert er.COMMAND == "events/resume_v1"
+    assert wq.DIRECT_COMMANDS == ("whatsapp/template_registry_v1", "whatsapp/template_enqueue_v1", "whatsapp/template_job_v1",
+                                  "whatsapp/template_cancel_v1", "whatsapp/template_send_v3")
+    assert wq.SEND_PACING_COMMAND not in wq.DIRECT_COMMANDS
 
 
 def test_the_installed_client_sends_only_the_pinned_installation_and_read_commands():
