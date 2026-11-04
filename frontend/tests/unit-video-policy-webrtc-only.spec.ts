@@ -18,11 +18,14 @@ test.describe('WebRTC only never plans MSE', () => {
     expect(remoteVideoFor('webrtc', remoteMe('true'))?.mseFallback).toBe(false);
   });
 
-  test('auto / mse / unset keep remote.mse_fallback as it is', () => {
-    for (const t of ['auto', 'mse', '']) {
+  test('auto / unset keep remote.mse_fallback as it is', () => {
+    for (const t of ['auto', '']) {
       expect(playerPlan('main', null, t, remoteMe('true')).plan).toBe('main:webrtc,main:mse');
       expect(playerPlan('main', null, t, remoteMe('false')).plan).toBe('main:webrtc,sub:webrtc');
     }
+    // VIDEO-TRANSPORT-2400 (lab audit 2026-11-04 finding 1): an explicit MSE choice is MSE only on the remote channel too
+    expect(playerPlan('main', null, 'mse', remoteMe('true')).plan).toBe('main:mse');
+    expect(playerPlan('main', null, 'mse', remoteMe('false')).plan).toBe('main:mse');
     expect(remoteVideoFor('auto', remoteMe('true'))?.mseFallback).toBe(true);
   });
 

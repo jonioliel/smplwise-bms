@@ -12,6 +12,9 @@ const he = {
     sub: 'רגילה',
     main: 'גבוהה',
     poster: 'תמונה אחרונה',
+    // VIDEO-TRANSPORT-2400: the viewer's video setting allows nothing this station offers (never another transport instead)
+    blocked: 'העמדה אינה משדרת בהגדרת הווידאו שלך',
+    blockedHint: 'לשינוי: החשבון שלי ‹ וידאו',
   },
   talk: {
     label: 'דיבור',
@@ -109,6 +112,8 @@ const en: StationMediaText = {
     sub: 'Standard',
     main: 'High',
     poster: 'Last picture',
+    blocked: 'This station does not stream with your video setting',
+    blockedHint: 'Change it in My account › Video',
   },
   talk: {
     label: 'Talk',

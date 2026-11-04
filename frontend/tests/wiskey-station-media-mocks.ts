@@ -24,6 +24,11 @@ export interface StationMediaMock {
   /** A refusal for POST talk (status + code), or null. */
   startFail: { status: number; code: string } | null;
   mic: MicMode;
+  /** VIDEO-TRANSPORT-2400: the installation's `media.transport_default` (undefined: not set - `auto`), the viewer's own choice (GET
+   * /media/video-policy is answered only when one of the two is set), and whether the station read carries the server's plans. */
+  transport?: 'auto' | 'webrtc' | 'mse';
+  personal?: 'auto' | 'webrtc' | 'mse' | null;
+  serverPlans?: boolean;
   // recorded
   mediaReads: string[];
   starts: { station: string; body: Record<string, unknown> }[];
@@ -84,12 +89,15 @@ function mediaBody(mm: StationMediaMock, id: string) {
         : !mm.talkAllowed
           ? { available: false, reason: 'forbidden' }
           : { available: true, reason: null, transport: 'pcmu_frames', codec: 'pcmu', duplex: 'half', max_seconds: 120, sample_rate: 8000, frame_ms: 20, busy: mm.busy };
+  const choice = mm.personal ?? mm.transport ?? 'auto';
+  const plans = Object.fromEntries(profiles.map((p) => [p.id, choice === 'auto' ? `${p.id}:webrtc,${p.id}:mse` : `${p.id}:${choice}`]));
+  const transport = mm.serverPlans ? { transport: { choice, source: mm.personal ? 'personal' : 'installation', channel: 'local', order: choice === 'auto' ? ['webrtc', 'mse'] : [choice], plans } } : {};
   return {
     ...base,
     state: 'ready',
     listen: true,
     expires_at: '2026-10-12T08:19:07Z',
-    video: { profiles, default_profile: profiles[0].id, allowed: mm.liveAllowed, paths: mm.liveAllowed ? paths : {}, max_viewers: 2, viewers: 0 },
+    video: { profiles, default_profile: profiles[0].id, allowed: mm.liveAllowed, paths: mm.liveAllowed ? paths : {}, max_viewers: 2, viewers: 0, ...transport },
     talk,
   };
 }
@@ -226,6 +234,7 @@ export const STATION_MEDIA_FAKE = () => {
 
 export async function installStationMediaMock(page: Page, base: StationsMock, mm: StationMediaMock): Promise<StationMediaMock> {
   base.settings['access.station_media'] = mm.mode; // the stations mock serves its settings (read at request time)
+  if (mm.transport) base.settings['media.transport_default'] = mm.transport;
   await page.addInitScript(STATION_MEDIA_FAKE);
   await page.addInitScript((mode) => ((window as unknown as Record<string, unknown>).__mic = mode), mm.mic);
   await page.routeWebSocket(/\/api\/v1\/access-control\/talk\/[^/]+\/ws/, (ws) => {
@@ -249,6 +258,11 @@ export async function installStationMediaMock(page: Page, base: StationsMock, mm
     const req = route.request();
     const p = new URL(req.url()).pathname.replace(/^.*\/api\/v1\//, '');
     const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+    if (p === 'media/video-policy' && (mm.transport || mm.personal)) {
+      const inst = mm.transport ?? 'auto';
+      const choice = mm.personal ?? inst;
+      return json({ choice, source: mm.personal ? 'personal' : 'installation', explicit: choice !== 'auto', installation: inst, personal: mm.personal ?? null, channel: 'local', order: choice === 'auto' ? ['webrtc', 'mse'] : [choice], remote: null });
+    }
     const media = /^access-control\/stations\/([^/]+)\/media$/.exec(p);
     if (media) {
       const id = decodeURIComponent(media[1]);

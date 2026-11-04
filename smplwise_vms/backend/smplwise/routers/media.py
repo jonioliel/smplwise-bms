@@ -263,6 +263,29 @@ def list_sessions(principal: Principal = Depends(current_principal), conn: sqlit
     }
 
 
+def video_policy_for(conn: sqlite3.Connection, principal: Principal, channel: str) -> dict[str, Any]:
+    """VIDEO-TRANSPORT-2400: the transport policy of THIS viewer on THIS channel (services/video_transport.py) - the installation's
+    `media.transport_default`, the viewer's own `video.transport` (/me/prefs) and the remote settings."""
+    from ..services import user_prefs
+    from ..services import video_transport as vt
+
+    s = read_settings(conn)
+    personal = user_prefs.get_prefs(conn, principal.user_id)["prefs"].get(vt.PERSONAL_KEY)
+    remote = {k: v for k, v in s.items() if k.startswith("remote.")} if channel == "remote" else None
+    return vt.policy(s[vt.INSTALLATION_KEY], personal, channel, remote)
+
+
+@router.get("/media/video-policy")
+def video_policy(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """VIDEO-TRANSPORT-2400: how every live player of the caller travels on this channel (`choice` auto | webrtc | mse, its `source`
+    personal | installation | default, the ordered `order`, the remote settings that shape a remote plan). The one decision every
+    player executes; an explicit choice is never overridden. Any signed-in caller (it reads only the caller's own preference and
+    product settings every player already follows); no permission is granted by it."""
+    from ..remote_channel import channel_of
+
+    return video_policy_for(conn, principal, channel_of(request))
+
+
 @router.get("/media/live/{camera_id}")
 def live_info(camera_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), profile: str = Query("sub", pattern="^(sub|main)$")) -> dict[str, Any]:
     """What the player needs before opening the socket: permission, transport default and the relay path."""
@@ -283,6 +306,8 @@ def live_info(camera_id: str, request: Request, principal: Principal = Depends(c
         "profile": profile,
         "ws_path": f"api/v1/media/live/{cam['id']}/ws?profile={profile}",
         "transport_default": s["media.transport_default"],
+        # VIDEO-TRANSPORT-2400: the caller's policy and the steps a player of this profile walks (services/video_transport.py)
+        "video_plan": _live_plan(conn, principal, request, cam, profile),
         "max_live_sessions": s["media.max_live_sessions"],
         "active_sessions": REGISTRY.count(),
         "media_configured": bool(settings_of(request).go2rtc_url),
@@ -291,6 +316,29 @@ def live_info(camera_id: str, request: Request, principal: Principal = Depends(c
         "h265": {"policy": lc.normalize_policy(s["media.h265_policy"]), "max_transcodes": s["media.h265_max_transcodes"], "active_transcodes": len(lc.BUDGET.active())},
         **({"remote_live": {"max": s["remote.max_live_streams"], "active": remote_live_by_chain().get(chain, 0)}} if chain else {}),
     }
+
+
+def _live_plan(conn: sqlite3.Connection, principal: Principal, request: Request, cam: Any, profile: str) -> dict[str, Any]:
+    from ..remote_channel import channel_of
+    from ..services import video_transport as vt
+
+    pol = video_policy_for(conn, principal, channel_of(request))
+    import json as _json
+
+    try:
+        caps = _json.loads(cam["capabilities_json"] or "{}")
+        encoding = caps.get("encoding") if isinstance(caps, dict) and isinstance(caps.get("encoding"), dict) else None
+    except (ValueError, TypeError, KeyError, IndexError):  # the plan stays without the registry's WebRTC verdicts
+        encoding = None
+    remote = pol.get("remote") or {}
+    steps = vt.plan_steps(pol["choice"], pol["channel"], profile, mse_fallback=remote.get("mse_fallback", True),
+                          webrtc_ok=vt.webrtc_ok_from_encoding(encoding) if encoding else None)
+    return {**pol, "steps": steps, "plan": vt.encode(steps)}
+
+
+def _tail(resource_id: str) -> str:
+    """The last characters of a resource id for a log line (a station id is a device serial - never logged whole)."""
+    return ("..." + resource_id[-6:]) if len(resource_id) > 6 else resource_id
 
 
 async def _principal_for_ws(websocket: WebSocket) -> Principal | None:
@@ -438,16 +486,31 @@ async def _live_relay(
         with contextlib.suppress(Exception):
             await websocket.send_text(_json.dumps({"type": "arx/stream", "value": hello}, ensure_ascii=False))
 
+    # VIDEO-TRANSPORT-2400 (lab audit finding 8): what the sockets said - the transport asked for, the first media byte, go2rtc's
+    # first error frame (sanitized) - so a session that ends at once is explainable (services/live_diag.py)
+    from ..services.live_diag import LiveDiag
+
+    diag = LiveDiag()
+
     def on_down(n: int) -> None:
         session.bytes_down += n
+        diag.down_bytes()
+
+    def observed_text(text: str) -> str | None:
+        try:
+            diag.down_text(text)
+        except Exception:  # noqa: BLE001 - an observer never breaks the relay
+            pass
+        return on_text(text) if on_text is not None else text
 
     reason = "ended"
     try:
         await run_in_threadpool(_audit, "video.live.start", {"session": session.id, "stream": name})
-        reason = await relay_ws(websocket, client.ws_url(name), client.ws_headers(), on_down, should_stop=lease.should_stop, on_text=on_text)
+        reason = await relay_ws(websocket, client.ws_url(name), client.ws_headers(), on_down, should_stop=lease.should_stop, on_text=observed_text)
         if lease.lost:
             reason = "access_lost"
-        log.info("live session %s ended: %s", session.id, reason)
+        log.info("live session %s ended: %s (transport %s, first media %s ms)", session.id, reason, diag.transport or "-",
+                 diag.ttff_ms if diag.ttff_ms is not None else "-")
     except Exception as exc:  # upstream refused / dropped
         reason = "upstream_failure"
         log.warning("live session %s upstream failure: %s", session.id, type(exc).__name__)
@@ -462,7 +525,12 @@ async def _live_relay(
             else:
                 await websocket.close()
         seconds = time.time() - session.started_at
-        await run_in_threadpool(_audit, "video.live.stop", {"session": session.id, "seconds": int(seconds), "bytes_down": session.bytes_down, "reason": reason})
+        diag_details = diag.details()
+        if diag_details.get("upstream_error"):
+            log.warning("live session %s (%s %s): go2rtc error %s: %s", session.id, resource_type, _tail(resource_id), diag_details["upstream_error"],
+                        diag_details.get("upstream_error_text", ""))
+        await run_in_threadpool(_audit, "video.live.stop", {"session": session.id, "seconds": int(seconds), "bytes_down": session.bytes_down, "reason": reason,
+                                                            **diag_details})
         if on_end is not None:
             with contextlib.suppress(Exception):
                 on_end(reason, seconds)

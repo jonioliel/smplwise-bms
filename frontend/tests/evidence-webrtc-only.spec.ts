@@ -8,7 +8,8 @@ import { FAKE_MEDIA, type RtcMode } from './live-fake-media';
 //     view);
 //   - a remembered per-camera step (`sw.live.works`, 0.1.148) left over from an earlier transport choice;
 //   - the installation settings cached by the running page (productSettings) after the choice changed elsewhere;
-//   - the personal per-browser override (`sw.transport`) set to WebRTC.
+//   - the personal choice set to WebRTC (VIDEO-TRANSPORT-2400: on the server, /me/prefs `video.transport`, served by
+//     GET /media/video-policy - it replaced the per-browser override `sw.transport`).
 // An explicit WebRTC choice must never open an MSE stream on any channel; `auto` / `mse` keep their behaviour (the control
 // test). No backend: the built app (npx vite build; the preview serves dist/, SW_BASE_URL for another port), the API
 // answered by page.route, and the browser media stack a fake (tests/live-fake-media.ts): a live socket that records
@@ -26,7 +27,7 @@ interface Setup {
   transport: Transport | (() => Transport);
   mseFallback?: boolean;
   rtc: Record<string, RtcMode>;
-  /** the personal per-browser override (`sw.transport`) */
+  /** the personal choice (VIDEO-TRANSPORT-2400: the server's /media/video-policy `personal`) */
   override?: Transport;
   /** `sw.live.works` (0.1.148 per-camera memory) */
   works?: Record<string, { step: string; at: number }>;
@@ -43,12 +44,11 @@ async function setup(page: Page, o: Setup) {
       w.__rtc = x.rtc;
       localStorage.setItem('sw.wall.count', '4');
       localStorage.removeItem('sw.wall.quality');
-      if (x.override) localStorage.setItem('sw.transport', x.override);
-      else localStorage.removeItem('sw.transport');
+      localStorage.removeItem('sw.transport'); // VIDEO-TRANSPORT-2400: never consulted again (only a one-time seed)
       if (x.works) localStorage.setItem('sw.live.works', JSON.stringify(x.works));
       else localStorage.removeItem('sw.live.works');
     },
-    { rtc: o.rtc, override: o.override ?? '', works: o.works ?? null },
+    { rtc: o.rtc, works: o.works ?? null },
   );
   await page.addInitScript(FAKE_MEDIA);
   await page.route('**/api/v1/**', async (route) => {
@@ -71,6 +71,13 @@ async function setup(page: Page, o: Setup) {
     if (p === 'settings') {
       const t = typeof o.transport === 'function' ? o.transport() : o.transport;
       return json({ settings: { 'media.transport_default': t, 'media.max_live_sessions': 16, 'media.wall_profile': 'sub', 'media.video_notices': o.notices ? 'true' : 'false', 'snapshots.max_age_s': 60, 'remote.max_live_streams': 16, 'remote.wall_profile': 'sub', 'ui.kiosk_cols': 2, 'ui.kiosk_rows': 2 }, can_edit: false });
+    }
+    if (p === 'media/video-policy') {
+      // VIDEO-TRANSPORT-2400: the server's one decision (backend services/video_transport.py `policy`)
+      const inst = typeof o.transport === 'function' ? o.transport() : o.transport;
+      const choice = o.override ?? inst;
+      const order = choice !== 'auto' ? [choice] : o.channel === 'remote' && o.mseFallback === false ? ['webrtc'] : ['webrtc', 'mse'];
+      return json({ choice, source: o.override ? 'personal' : 'installation', explicit: choice !== 'auto', installation: inst, personal: o.override ?? null, channel: o.channel, order, remote: o.channel === 'remote' ? { default_profile: 'main', mse_fallback: o.mseFallback !== false } : null });
     }
     if (p === 'devices/camera-card/resolve') return json({ state: 'live', kind: 'nvr', camera_id: 'c2', recorder_id: 'r', channel: 2, name: 'Street', status: 'online', encoding: ENCODING });
     if (p === 'health/summary') return json({ status: 'ok', items: [], checked_at: '2026-10-01T00:00:00Z', version: 'test' });

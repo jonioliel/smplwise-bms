@@ -134,6 +134,13 @@ PLAN_QUALITY_MODES: tuple[str, ...] = ("auto", "1", "2", "realistic", "lite")
 VALIDATORS["plan.quality"] = _choice("plan.quality", PLAN_QUALITY_MODES)
 DEFAULTS["plan.quality"] = None
 
+# `video.transport` (VIDEO-TRANSPORT-2400, owner 2026-11-04): the viewer's own live-video transport - auto | webrtc | mse - over the
+# installation's `media.transport_default`, on every channel and surface (services/video_transport.py); null = follow the installation.
+# It replaces the per-browser `localStorage sw.transport` (read once by the frontend to seed this key, then removed). Presentation of
+# the viewer's own streams only: no permission needed.
+VALIDATORS["video.transport"] = _choice("video.transport", ("auto", "webrtc", "mse"))
+DEFAULTS["video.transport"] = None
+
 # `tickets.board` (CR-038 S6b, D24): the tickets board's view / table columns / sort / density / page size / default saved view - a partial
 # object (services/tickets/table_prefs.py); null = the defaults. Presentation only: no permission needed.
 VALIDATORS["tickets.board"] = tickets_table_prefs.normalize

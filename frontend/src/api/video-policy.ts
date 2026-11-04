@@ -1,4 +1,12 @@
 /**
+ * VIDEO-TRANSPORT-2400 (owner decisions 2026-11-04): the transport is exactly what the viewer's choice says - "MSE בלבד" plays MSE
+ * only, "WebRTC בלבד" WebRTC only - on every channel and surface; only `auto` tries more than one transport. The choice is decided
+ * by the server (GET /media/video-policy, backend services/video_transport.py: the personal `video.transport` of /me/prefs, else
+ * the installation's `media.transport_default`, else `auto`) and every player executes it. `planSteps` below mirrors the server's
+ * `plan_steps` (the demo mode and an older server derive the policy here from the settings, `localPolicy`); both are checked
+ * against one case table (contracts/fixtures/video_transport/policy_cases.json, tests/unit-video-transport-2400.spec.ts).
+ * The text below (CR-008 D7) describes `auto` on the remote channel; an explicit choice there plays its one transport.
+ *
  * CR-008 D7 - the remote video policy (SmplWise Arx). On the remote channel a live player does not follow the LAN
  * transport choice (הגדרות › וידאו ומדיה; automatic = WebRTC first since the owner decision of 2026-10-05); it walks a
  * short ladder instead:
@@ -19,6 +27,104 @@ import type { CameraEncoding, Me } from './types';
 
 export type Profile = 'main' | 'sub';
 export type StepTransport = 'webrtc' | 'mse';
+export type TransportChoice = 'auto' | 'webrtc' | 'mse';
+export type VideoChannel = 'local' | 'remote';
+
+/** GET /media/video-policy (backend services/video_transport.py `policy`). */
+export interface VideoPolicy {
+  choice: TransportChoice;
+  source: 'personal' | 'installation' | 'default';
+  explicit: boolean;
+  installation: TransportChoice;
+  personal: TransportChoice | null;
+  channel: VideoChannel;
+  order: StepTransport[];
+  label?: string;
+  remote: { default_profile: Profile; mse_fallback: boolean } | null;
+}
+
+const CHOICES: readonly TransportChoice[] = ['auto', 'webrtc', 'mse'];
+
+export function normalizeChoice(v: unknown): TransportChoice | null {
+  const t = typeof v === 'string' ? v.trim().toLowerCase() : '';
+  return (CHOICES as readonly string[]).includes(t) ? (t as TransportChoice) : null;
+}
+
+/** The personal choice when set, else the installation's, else `auto` (services/video_transport.py `effective_choice`). */
+export function effectiveChoice(installation: unknown, personal: unknown): { choice: TransportChoice; source: VideoPolicy['source'] } {
+  const own = normalizeChoice(personal);
+  if (own) return { choice: own, source: 'personal' };
+  const base = normalizeChoice(installation);
+  if (base) return { choice: base, source: 'installation' };
+  return { choice: 'auto', source: 'default' };
+}
+
+const flag = (v: unknown, dflt = true): boolean => (typeof v === 'boolean' ? v : v == null ? dflt : String(v).trim().toLowerCase() !== 'false');
+
+/** The transports a player may use, in order: one for an explicit choice; `auto` only may hold two. */
+export function transportOrder(choice: string, channel: VideoChannel, mseFallback: unknown = true): StepTransport[] {
+  const c = normalizeChoice(choice) ?? 'auto';
+  if (c !== 'auto') return [c];
+  if (channel === 'remote' && !flag(mseFallback)) return ['webrtc'];
+  return ['webrtc', 'mse'];
+}
+
+export interface PlanOptions {
+  mseFallback?: unknown;
+  /** local: the profile is not the viewer's own choice (the wall's default quality) - the other profile may follow */
+  autoProfile?: boolean;
+  /** a station: the quality is the viewer's choice and the relay path is per profile - never another profile */
+  singleProfile?: boolean;
+  /** remote: false where the registry says the profile does not decode over WebRTC */
+  webrtcOk?: Partial<Record<Profile, boolean>> | null;
+  /** what the source offers per profile (a station's descriptor); a transport not offered is dropped, never replaced */
+  offered?: Partial<Record<Profile, readonly string[]>> | null;
+}
+
+/** The steps one player walks (services/video_transport.py `plan_steps`); empty = nothing may play under this choice. */
+export function planSteps(choice: string, channel: VideoChannel, profile: Profile, o: PlanOptions = {}): VideoStep[] {
+  const c = normalizeChoice(choice) ?? 'auto';
+  const p: Profile = profile === 'main' ? 'main' : 'sub';
+  const other = otherProfile(p);
+  const order = transportOrder(c, channel, o.mseFallback ?? true);
+  let steps: VideoStep[];
+  if (channel === 'remote') {
+    if (order.length === 1 && order[0] === 'mse') steps = [{ profile: p, transport: 'mse' }];
+    else if (order.length === 1) steps = [{ profile: p, transport: 'webrtc' }, { profile: other, transport: 'webrtc' }];
+    else steps = [{ profile: p, transport: 'webrtc' }, { profile: p, transport: 'mse' }];
+  } else if (c !== 'auto') {
+    steps = [{ profile: p, transport: c }, ...(o.autoProfile ? [{ profile: other, transport: c }] : [])];
+  } else {
+    steps = [{ profile: p, transport: 'webrtc' }, { profile: p, transport: 'mse' }];
+    if (o.autoProfile) {
+      const first: StepTransport = other === 'main' ? 'mse' : 'webrtc';
+      steps.push({ profile: other, transport: first }, { profile: other, transport: first === 'mse' ? 'webrtc' : 'mse' });
+    }
+  }
+  if (o.singleProfile) steps = steps.filter((s) => s.profile === p);
+  if (channel === 'remote' && o.webrtcOk) steps = steps.filter((s) => s.transport !== 'webrtc' || o.webrtcOk?.[s.profile] !== false);
+  if (o.offered) steps = steps.filter((s) => (o.offered?.[s.profile] ?? []).includes(s.transport));
+  return steps;
+}
+
+/** The policy derived here from the settings (the demo mode, or a server without /media/video-policy): the installation's choice
+ * only - a personal choice lives on the server. */
+export function localPolicy(installation: unknown, me: Me | null | undefined = session.me, personal: unknown = null): VideoPolicy {
+  const { choice, source } = effectiveChoice(installation, personal);
+  const channel: VideoChannel = me?.channel === 'remote' ? 'remote' : 'local';
+  const r = me?.remote ?? {};
+  const mseFallback = flag(r['remote.mse_fallback'], true);
+  return {
+    choice,
+    source,
+    explicit: choice !== 'auto',
+    installation: normalizeChoice(installation) ?? 'auto',
+    personal: normalizeChoice(personal),
+    channel,
+    order: transportOrder(choice, channel, mseFallback),
+    remote: channel === 'remote' ? { default_profile: r['remote.default_profile'] === 'sub' ? 'sub' : 'main', mse_fallback: mseFallback } : null,
+  };
+}
 
 export interface VideoStep {
   profile: Profile;
@@ -51,7 +157,8 @@ export function remoteVideo(me: Me | null | undefined = session.me): RemoteVideo
 /** Owner bug 2026-10-01: the remote policy for a player whose transport choice is `transport` (the installation's
  * `media.transport_default`, or the viewer's own override). An explicit WebRTC choice never falls back to MSE, on any
  * channel: remotely it walks the other profile over WebRTC instead (as with `remote.mse_fallback` false). `auto` / `mse`
- * keep `remote.mse_fallback` as it is. */
+ * keep `remote.mse_fallback` as it is (VIDEO-TRANSPORT-2400: it shapes `auto` only - an explicit MSE choice plans MSE only,
+ * planSteps). */
 export function remoteVideoFor(transport: string | null | undefined, me: Me | null | undefined = session.me): RemoteVideo | null {
   const policy = remoteVideo(me);
   return policy && transport === 'webrtc' ? { ...policy, mseFallback: false } : policy;
@@ -93,13 +200,36 @@ export function decodeLadder(value: string): VideoStep[] {
 }
 
 /** What a screen hands its `sw-live-player` (`plan` + `preferred`): '' outside the remote channel (today's behaviour),
- * `none` when nothing may play under the policy (the player shows the message). `transport` is the player's `mode`: an
- * explicit `webrtc` leaves MSE out of the plan (remoteVideoFor). */
+ * `none` when nothing may play under the policy (the player shows the message). `transport` is the player's `mode` (the
+ * viewer's effective choice): an explicit `webrtc` leaves MSE out of the plan, an explicit `mse` WebRTC (VIDEO-TRANSPORT-2400). */
 export function playerPlan(preferred: Profile, encoding?: CameraEncoding | null, transport = '', me: Me | null | undefined = session.me): { plan: string; preferred: Profile | ''; gop: string } {
-  const policy = remoteVideoFor(transport, me);
+  const policy = remoteVideo(me);
   if (!policy) return { plan: '', preferred: '', gop: '' };
-  const steps = videoLadder(preferred, policy.mseFallback, encoding);
+  // VIDEO-TRANSPORT-2400: the viewer's choice decides the transports (an explicit MSE choice plans MSE only); '' reads as `auto`
+  const steps = planSteps(transport || 'auto', 'remote', preferred, { mseFallback: policy.mseFallback, webrtcOk: webrtcOkFrom(encoding) });
   return { plan: steps.length ? encodeLadder(steps) : 'none', preferred, gop: encodeGop(encoding) };
+}
+
+/** The registry's WebRTC verdicts per profile (false only for `webrtc: 'no'`; unknown is tried). */
+export function webrtcOkFrom(encoding: CameraEncoding | null | undefined): Record<Profile, boolean> {
+  return { main: webrtcPossible(encoding, 'main'), sub: webrtcPossible(encoding, 'sub') };
+}
+
+/** VIDEO-TRANSPORT-2400: what a station's live view hands its player for one profile - the server's plan for it when the station read
+ * carried one (`video.transport.plans`), else the same decision made here. `blocked`: the station offers no transport the choice allows
+ * (the view says so; nothing else is tried). On the local channel a plan that the player's own chain-less walk of `mode` follows anyway
+ * is handed over as '' (the local timings stay: the WebRTC connect bound, the MSE fallback of `auto`). */
+export function stationPlayer(choice: TransportChoice, profile: Profile, offered: Partial<Record<Profile, readonly string[]>> | null, serverPlan?: string | null, me: Me | null | undefined = session.me): { mode: TransportChoice; plan: string; blocked: boolean } {
+  const channel: VideoChannel = me?.channel === 'remote' ? 'remote' : 'local';
+  const mseFallback = me?.remote?.['remote.mse_fallback'];
+  const steps = serverPlan === 'none' ? [] : serverPlan ? decodeLadder(serverPlan) : planSteps(choice, channel, profile, { mseFallback, singleProfile: true, offered });
+  if (!steps.length) return { mode: choice, plan: 'none', blocked: true };
+  // one transport left: the player plays exactly that one (its `mode` keeps every step honest too)
+  const kinds = [...new Set(steps.map((s) => s.transport))];
+  const mode: TransportChoice = kinds.length === 1 ? kinds[0] : choice;
+  const natural = encodeLadder(planSteps(mode, 'local', profile, { singleProfile: true }));
+  if (channel === 'local' && encodeLadder(steps) === natural) return { mode, plan: '', blocked: false };
+  return { mode, plan: encodeLadder(steps), blocked: false };
 }
 
 /** Smart codec (H.264+ / H.265+) stretches the GOP dynamically: the longest first-frame wait. */
@@ -137,18 +267,7 @@ export function encodeGop(encoding: CameraEncoding | null | undefined): string {
  * `autoProfile` is set only where the profile is not the viewer's own choice (the wall's "ברירת מחדל" quality).
  */
 export function lanLadder(profile: Profile, mode: 'auto' | 'webrtc' | 'mse', autoProfile: boolean): VideoStep[] {
-  const other = otherProfile(profile);
-  if (mode === 'webrtc' || mode === 'mse') {
-    const steps: VideoStep[] = [{ profile, transport: mode }];
-    if (autoProfile) steps.push({ profile: other, transport: mode });
-    return steps;
-  }
-  const steps: VideoStep[] = [{ profile, transport: 'webrtc' }, { profile, transport: 'mse' }];
-  if (autoProfile) {
-    const first: StepTransport = other === 'main' ? 'mse' : 'webrtc';
-    steps.push({ profile: other, transport: first }, { profile: other, transport: first === 'mse' ? 'webrtc' : 'mse' });
-  }
-  return steps;
+  return planSteps(mode, 'local', profile, { autoProfile }); // VIDEO-TRANSPORT-2400: the one expansion of the policy
 }
 
 export function sameStep(a: VideoStep | null | undefined, b: VideoStep | null | undefined): boolean {
@@ -252,6 +371,44 @@ export function noteWebrtcUnreachable(down = true, now = Date.now(), store: Work
  * a chain without an MSE step (WebRTC only) is returned as it is. */
 export function mseFirst(steps: VideoStep[]): VideoStep[] {
   return orderLadder(steps, steps.find((s) => s.transport === 'mse') ?? null);
+}
+
+/**
+ * VIDEO-TRANSPORT-2400 (lab audit finding 5): the frozen-MSE watch of a live player. Sampled every FREEZE_POLL_MS while an MSE stream
+ * plays: progress is the playhead moving (or, while the element is paused - autoplay refused -, the buffer growing). No progress for
+ * FREEZE_AFTER_MS = frozen: the player reconnects the same step (any choice); only `auto` moves on to WebRTC after
+ * FREEZE_FALLBACK_AFTER freezes in a row. A hidden tab is never judged (its sample restarts).
+ */
+export const FREEZE_POLL_MS = 2000;
+export const FREEZE_AFTER_MS = 8000;
+export const FREEZE_FALLBACK_AFTER = 2;
+const FREEZE_EPS_S = 0.05;
+
+export interface FreezeMark {
+  t: number;
+  end: number;
+  at: number;
+}
+
+export function freezeStep(prev: FreezeMark | null, cur: { t: number; end: number; now: number; paused: boolean; hidden?: boolean }, afterMs = FREEZE_AFTER_MS): { frozen: boolean; mark: FreezeMark | null } {
+  if (cur.hidden) return { frozen: false, mark: null };
+  const fresh: FreezeMark = { t: cur.t, end: cur.end, at: cur.now };
+  if (!prev) return { frozen: false, mark: fresh };
+  const moved = cur.paused ? cur.end > prev.end + FREEZE_EPS_S : cur.t > prev.t + FREEZE_EPS_S;
+  if (moved) return { frozen: false, mark: fresh };
+  return { frozen: cur.now - prev.at >= afterMs, mark: prev };
+}
+
+/** Where an automatic retry starts (VIDEO-TRANSPORT-2400): the step that played last when it is still allowed, else the first. */
+export function retryIndex(steps: VideoStep[], lastGood: VideoStep | null): number {
+  const i = lastGood ? steps.findIndex((s) => sameStep(s, lastGood)) : -1;
+  return i >= 0 ? i : 0;
+}
+
+/** The step an `auto` player moves to after repeated MSE freezes: WebRTC of the same profile when the ladder holds it. */
+export function freezeFallback(steps: VideoStep[], current: VideoStep | null, mode: string): VideoStep | null {
+  if (mode !== 'auto' || !current || current.transport !== 'mse') return null;
+  return steps.find((s) => s.profile === current.profile && s.transport === 'webrtc') ?? null;
 }
 
 /** The player badge: `main·WebRTC`, `sub·WebRTC`, `main·MSE`. */

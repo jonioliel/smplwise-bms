@@ -133,7 +133,7 @@ def station_thumbnail(request: Request, auth: ia.Authority = Depends(_gate(READ)
             raise ApiError(409, "intercom_media_expired", "Media descriptor expired.")
         return Response(data, media_type="image/jpeg", headers=headers)
     finally:
-        im.release_leased_streams(settings, station_id)
+        im.release_leased_streams(settings, station_id, grace_s=im.REOPEN_GRACE_S)  # VIDEO-TRANSPORT-2400: the live view that follows reuses it
 
 
 @router.get("/access-control/stations/{station_id}/media")
@@ -170,6 +170,8 @@ def station_media(request: Request, auth: ia.Authority = Depends(_gate(READ)), s
             "max_viewers": d.max_viewers,
             "viewers": im.MEDIA.viewers(station_id),
         }
+        if live_ok:
+            video["transport"] = _station_plans(request, auth, d)
     if mode != "video_talk":
         talk: dict[str, Any] = {"available": False, "reason": "off"}
     elif not d.talk_transport:
@@ -182,6 +184,24 @@ def station_media(request: Request, auth: ia.Authority = Depends(_gate(READ)), s
         talk = {"available": True, "reason": None, "transport": d.talk_transport, "codec": d.audio_codec, "duplex": d.duplex,
                 "max_seconds": im.talk_limit_s(auth.conn, d), "sample_rate": im.SAMPLE_RATE, "frame_ms": im.FRAME_MS, "busy": busy}
     return {**body, "state": "ready", "video": video, "talk": talk, "listen": d.listen, "expires_at": im.iso(d.expires_at)}
+
+
+def _station_plans(request: Request, auth: ia.Authority, d: im.Descriptor) -> dict[str, Any]:
+    """VIDEO-TRANSPORT-2400: the caller's transport policy and, per offered profile, the steps the drawer's player walks - the same
+    decision as every camera player (services/video_transport.py). The quality is the viewer's own choice (`single_profile`); a
+    transport the descriptor does not offer for that profile is dropped, never replaced (`plan` `none` = nothing may play)."""
+    from ..remote_channel import channel_of
+    from ..services import video_transport as vt
+    from .media import video_policy_for
+
+    pol = video_policy_for(auth.conn, auth.principal, channel_of(request))
+    remote = pol.get("remote") or {}
+    offered = {p.id: list(p.transports) for p in d.profiles}
+    plans = {}
+    for p in d.profiles:
+        steps = vt.plan_steps(pol["choice"], pol["channel"], p.id, mse_fallback=remote.get("mse_fallback", True), single_profile=True, offered=offered)
+        plans[p.id] = vt.encode(steps)
+    return {"choice": pol["choice"], "source": pol["source"], "channel": pol["channel"], "order": pol["order"], "plans": plans}
 
 
 @router.get("/access-control/station-media/readiness")
@@ -293,8 +313,9 @@ async def station_live_ws(websocket: WebSocket, station_id: str, profile: str = 
         )
     finally:
         im.MEDIA.drop_viewer(station_id, token)
-        # WKLIVE-295: the last viewer of a station takes WisKey's leased stream (and its private source) out of go2rtc's memory again
-        await run_in_threadpool(im.release_leased_streams, settings, station_id)
+        # WKLIVE-295: the last viewer of a station takes WisKey's leased stream (and its private source) out of go2rtc's memory again -
+        # VIDEO-TRANSPORT-2400: after a short re-open grace (im.REOPEN_GRACE_S), so closing and re-opening the drawer is not a cold start
+        await run_in_threadpool(lambda: im.release_leased_streams(settings, station_id, grace_s=im.REOPEN_GRACE_S))
 
 
 def _sanitize_frame(text: str) -> str | None:

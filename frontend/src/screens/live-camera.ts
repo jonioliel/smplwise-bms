@@ -18,7 +18,8 @@ import { cameraSchedules, cameraSmart, osdStatus, recordStart, recordStatus, rec
 import '../components/sw-week-grid';
 import '../components/sw-dialog';
 import { canAnywhere, canReadNvrConfig, isApi, onRemote } from '../api/session';
-import { cameraCapabilities, cameraZones, snapshotUrl, setTransportOverride, transportOverride, type CameraCapabilities, type CameraZones, type ProductSettings, type Transport } from '../api/media';
+import { cameraCapabilities, cameraZones, snapshotUrl, type CameraCapabilities, type CameraZones, type ProductSettings, type Transport } from '../api/media';
+import { cachedVideoPolicy, setPersonalTransport } from '../api/video-transport';
 import '../components/sw-chip';
 import { listCameras, updateCamera } from '../api/maps';
 import { effectiveTransport, productSettings, TRANSPORT_DEFAULT, transportLabel } from '../api/prefs';
@@ -1271,9 +1272,17 @@ export class LiveCamera extends LitElement {
     }
   }
 
+  /** VIDEO-TRANSPORT-2400: the viewer's own choice, saved on the server (/me/prefs `video.transport`, also in "החשבון שלי › וידאו") so it
+   * follows the viewer to every screen and device; picking the installation's own choice hands it back to the installation. It
+   * replaces the per-browser override of earlier versions. A refused save springs back to what the server holds. */
   private setTransport(t: Transport) {
-    setTransportOverride(t === (this.settings?.['media.transport_default'] ?? TRANSPORT_DEFAULT) ? '' : t);
+    const installation = cachedVideoPolicy()?.installation ?? this.settings?.['media.transport_default'] ?? TRANSPORT_DEFAULT;
     this.transport = t;
+    void setPersonalTransport(t === installation ? null : t)
+      .then((p) => {
+        if (p) this.transport = p.choice;
+      })
+      .catch(() => (this.transport = effectiveTransport(this.settings)));
   }
 
   private onPlayer(e: CustomEvent<{ status: string; transport?: string; error?: string }>) {
@@ -1308,12 +1317,13 @@ export class LiveCamera extends LitElement {
           <button title="התחבר מחדש" aria-label="התחבר מחדש" @click=${() => this.player?.reconnect()}><sw-icon name="refresh" size=${16}></sw-icon></button>
           <button class="q ${this.profile === 'main' ? 'on' : ''}" @click=${() => (this.profile = 'main')}>ראשי</button>
           <button class="q ${this.profile === 'sub' ? 'on' : ''}" @click=${() => (this.profile = 'sub')}>משני</button>
-          ${remote
-            ? this.settings?.['media.video_notices'] !== 'true' ? nothing : html`<span class="note" data-remote-video-policy>גישה מרחוק: WebRTC תחילה${remote.mseFallback ? ' · MSE רק כמוצא אחרון' : ' · בלי MSE'}</span>`
-            : html`<div class="transport" role="group" aria-label="תעבורה">
-                  ${(['auto', 'webrtc', 'mse'] as Transport[]).map((t) => html`<button class=${this.transport === t ? 'on' : ''} @click=${() => this.setTransport(t)}>${t === 'auto' ? 'אוטומטי' : t === 'webrtc' ? 'WebRTC' : 'MSE'}</button>`)}
-                </div>
-                ${transportOverride() ? html`<span class="note">ברירת המחדל של המערכת: ${transportLabel(this.settings?.['media.transport_default'] ?? TRANSPORT_DEFAULT)}</span>` : nothing}`}
+          <div class="transport" role="group" aria-label="תעבורה" data-transport-choice=${this.transport}>
+            ${(['auto', 'webrtc', 'mse'] as Transport[]).map((t) => html`<button class=${this.transport === t ? 'on' : ''} aria-pressed=${String(this.transport === t)} @click=${() => this.setTransport(t)}>${t === 'auto' ? 'אוטומטי' : t === 'webrtc' ? 'WebRTC' : 'MSE'}</button>`)}
+          </div>
+          ${cachedVideoPolicy()?.source === 'personal' ? html`<span class="note" data-transport-own>ברירת המחדל של המערכת: ${transportLabel(cachedVideoPolicy()?.installation ?? this.settings?.['media.transport_default'] ?? TRANSPORT_DEFAULT)}</span>` : nothing}
+          ${remote && this.settings?.['media.video_notices'] === 'true'
+            ? html`<span class="note" data-remote-video-policy>גישה מרחוק: ${this.transport === 'mse' ? 'MSE בלבד' : this.transport === 'webrtc' ? 'WebRTC בלבד · בלי MSE' : `WebRTC תחילה${remote.mseFallback ? ' · MSE רק כמוצא אחרון' : ' · בלי MSE'}`}</span>`
+            : nothing}
         </div>
         ${this.playerStatus === 'playing' && this.settings?.['media.video_notices'] !== 'true' ? nothing : html`<div class="note">${this.playerStatus === 'playing' ? `מנגן דרך ${this.playerTransport === 'webrtc' ? 'WebRTC' : 'MSE'}` : this.playerStatus === 'error' ? 'הזרם לא זמין' : 'מתחבר…'}</div>`}
       </div>
