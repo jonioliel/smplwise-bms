@@ -85,3 +85,41 @@ Local: workstation, project `.venv` Python 3.12, Node 24.21.0; `frontend/node_mo
 
 No migration. Revert the train's merges, or go back to 2.40.0: the two settings rows stay in `settings` and are ignored; the bridge
 0.10.3 of 2.40.0 keeps working on Home Assistant up to 2026.11 (with the warning).
+
+## 6. Gate of d6e20460f (UI build commit): two pixel items
+
+The 2.40.1 gate on `release/2401-train` @ `d6e20460f` failed on two pixel-only items (`gate_release-2401-train_d6e20460f.gate2.md`).
+
+### 6.1 Shard pixel_10 "No tests found" - fixed (`c74d32ec6`, test only)
+
+- Cause: the gate's pixel lane runs every mapped pixel spec as `playwright test <spec> --project=desktop --project=mobile -g
+  pixel-stable`. Shard pixel_10 was `pixel-settings-intercom-cards-2401.spec.ts` (new in SETTINGS-INTERCOM-CARDS-2401), and none of its
+  three test titles contained "pixel-stable", so Playwright found no test (rc 1). The branch's own runs had not used the `-g` filter.
+- Fix: the three titles now start with "classic is pixel-stable:" (the convention of the other pixel specs), and the spec's header says
+  why. Baseline file names are passed by the spec (`compare(page, 'cards-...')`), not derived from the title, so no image changes. No
+  product code changed - no UI rebuild needed.
+- Checked: of the other `tests/pixel-*.spec.ts`, `pixel-dialog-toplayer-2381` builds its titles with `pixelTitle()` and
+  `pixel-notice-tv-mock` has no baselines (the gate does not map it to the pixel lane); no other pixel spec is missing the word.
+
+### 6.2 `evidence-wiskey-installer.spec.ts:324` [mobile] (`installer-lifecycle-wizard-card-390`, 952 px) - not reproduced, nothing changed
+
+- The gate run and its retry alone failed (retry 20:38 UTC). The gate's actual / diff images were not kept: the next gate phase emptied
+  `~/work/gate-release-2401-train/frontend/test-results` (only `.last-run.json` is left), so the diff could not be looked at.
+- The gate's `dist` and the one `run_smart.py preview` builds for this train are the same build (`dist/index.html` identical, same
+  `index-xLRE7Qht.js`, 476 assets, both at `d6e20460f`).
+- On the runner, after the gate (no gate running, `release_gate` absent): the test alone at `d6e20460f` [mobile] **1 passed**; the whole
+  installer spec the gate's way (`-g pixel-stable`, desktop + mobile, workers 1, `--repeat-each=3`) **42 passed**; and the gate's whole
+  pixel set (below) passed it again. So the merged change does not move this card in a clean run; it was not re-taken (re-taking an image
+  that matches would only hide the cause). The test fixes the clock and mocks the backend; the remaining suspects are environmental
+  (machine load while the gate ran other phases; the shell's floating pill that the 2.40.0 train noted over this card's corner on the
+  phone). If it fails again in the re-gate, the gate must keep that run's actual / diff images so the region can be looked at.
+
+### 6.3 Receipts (runner, before every job `gate_status.json` = `fail` (ended), no `release_gate` process, 104 GB free)
+
+| Job | SHA | Result |
+|---|---|---|
+| `preview` `evidence-wiskey-installer` [mobile] `-g "connection step"` | d6e20460f | 1 passed |
+| `preview` `evidence-wiskey-installer`, desktop + mobile, workers 1, `-g pixel-stable`, `--repeat-each=3` | d6e20460f | **42 passed** |
+| `preview`, the gate's 23 mapped pixel spec files (`evidence-intercom-ops`, `evidence-wiskey-installer`, `evidence-wiskey-live-validation-2390` and the 20 `pixel-*` of the gate selection incl. `pixel-settings-intercom-cards-2401`), desktop + mobile, workers 1, `-g pixel-stable` | c74d32ec6 | **197 passed, 25 skipped, 0 failed** |
+
+NOT_RUN: the re-gate (the lead's).
