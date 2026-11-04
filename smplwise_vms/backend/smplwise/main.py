@@ -595,9 +595,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import access_control_writes  # CR-036 S11: the person writes added to the editor's (its own line, like S4's)
 
     app.include_router(access_control_writes.router, prefix=api, tags=["access-control"])
+    from .routers import access_control_station_ops  # WISKEY-STATION-OPS-2390: station maintenance (its own file and its own line)
+
+    app.include_router(access_control_station_ops.router, prefix=api, tags=["access-control"])
+    from .routers import access_control_profiles  # WISKEY-PROFILES-EDIT-2390: the groups and profile fields editor (its own file and its own line)
+
+    app.include_router(access_control_profiles.router, prefix=api, tags=["access-control"])
+    from .routers import access_control_schedule_writes  # WISKEY-SCHED-WRITE-2390: the device schedule library's writes (its own file and line)
+
+    app.include_router(access_control_schedule_writes.router, prefix=api, tags=["access-control"])
     from .routers import wiskey_lineage as wiskey_lineage_router  # WKR5-295: the WisKey people-write lineage administration (its own line)
 
     app.include_router(wiskey_lineage_router.router, prefix=api, tags=["access-control"])
+    from .routers import access_control_door_tech  # WISKEY-DOOR-TECH-2390: door technical writes (its own file and its own line)
+
+    app.include_router(access_control_door_tech.router, prefix=api, tags=["access-control"])
     from .routers import access_control_messaging  # CR-036 WA: WhatsApp from the people screen (its own file and its own line)
 
     app.include_router(access_control_messaging.router, prefix=api, tags=["access-control"])
@@ -607,6 +619,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import bulk_people as bulk_people_router  # CR-BULKPEOPLE-295: bulk edit, CSV import / export of people (its own line)
 
     app.include_router(bulk_people_router.router, prefix=api, tags=["access-control"])
+    from .routers import access_control_station_people  # WISKEY-PEOPLE-COMPLETE-2390: station-only people, duplicates, PIN check (its own line)
+
+    app.include_router(access_control_station_people.router, prefix=api, tags=["access-control"])
     app.include_router(doors_router.router, prefix=api, tags=["access-control"])  # CR-033: door map, station placement, door grants, trusted path
     app.include_router(wiskey_relay_map_router.router, prefix=api, tags=["access-control"])  # WISKEY-RELAYMAP-2310: the WisKey relay map approval
     from .routers import door_automations as door_automations_router  # CR-AUTODOORS-295: automations that open doors (its own line)
@@ -618,6 +633,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import quiet as quiet_router
 
     app.include_router(quiet_router.router, prefix=api, tags=["notifications"])  # CR-QUIET103 slice 1: quiet windows per floor / area (OFF)
+    from .routers import wiskey_validation as wiskey_validation_router  # WISKEY-LIVE-VALIDATION-2390: station acceptance runs (on demand only)
+
+    app.include_router(wiskey_validation_router.router, prefix=api, tags=["access-control"])
     from .routers import readiness as readiness_router
 
     app.include_router(readiness_router.router, prefix=api, tags=["ops"])  # CR-READY96 slice 1: installation readiness score (system.configure)
@@ -783,6 +801,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import wiskey_switches as wiskey_switches_router
 
     app.include_router(wiskey_switches_router.router, prefix=api, tags=["access"])  # SMALLFIXA-295 (review 3 G-01/G-03): the wiskey.acr5_* switch writer (system administrator)
+    from .routers import wiskey_managed as wiskey_managed_router
+
+    app.include_router(wiskey_managed_router.router, prefix=api, tags=["access"])  # WISKEY-MANAGED-INSTALL-2382: WisKey installs and upgrades through Arx (owner-started, system administrator)
     from .routers import fleet as fleet_router
 
     # CR-FLEET215: the signed daily fleet report (switch OFF; system administrator). Its readiness block comes from CR-READY96's
@@ -1140,6 +1161,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         transit_poller.POLLER.start(app.state.db, settings)  # BUSTIMES-295: idle until the module is on and a board shows transit; the only caller of the third party
         await run_in_threadpool(bridge_install.run_startup, app.state.db, settings)
+        from .services import wiskey_managed_install as _wmi
+
+        threading.Thread(target=_wmi.recover_interrupted_safe, args=(app.state.db, settings), name="wiskey-managed-recover", daemon=True).start()  # WISKEY-MANAGED-INSTALL-2382: an Arx restart mid-run never leaves the core stopped
         if settings.cast_relay:  # CR-028: the cast relay listens only when the add-on option is on (the host port mapping is the owner's)
             from .services import cast_relay
 

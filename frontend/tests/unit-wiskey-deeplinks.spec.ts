@@ -118,8 +118,14 @@ test.describe('who gets the links', () => {
     expect(mayOpenPanel({ api: true, accessReadInstallation: true, hidden: true })).toBe(false);
   });
 
-  test('no panel, no link - in every place', () => {
-    for (const place of Object.keys(PLACES) as DeepPlace[]) expect(deepLinksFor(place, { panel: false, admin: true })).toEqual([]);
+  test('no panel, no panel link - in every place; a native screen follows its own permission', () => {
+    for (const place of Object.keys(PLACES) as DeepPlace[]) {
+      expect(deepLinksFor(place, { panel: false, admin: true }).filter((l) => l.kind === 'panel'), place).toEqual([]);
+      expect(deepLinksFor(place, { panel: false, admin: true, can: () => false }), place).toEqual([]);
+    }
+    // WISKEY-PROFILES-EDIT-2390 (2.39.0 train): the groups and fields editor is native - offered without the panel to whoever holds its permission
+    const holds = (p: string) => p === 'access.people.manage';
+    expect(deepLinksFor('settings-groups', { panel: false, admin: false, can: holds }).map((l) => `${l.id}:${l.kind}`)).toEqual(['profiles.edit:native']);
   });
 
   test('the panel\'s administrator-only tools are offered to an access-control administrator only', () => {
@@ -145,7 +151,7 @@ test.describe('who gets the links', () => {
     expect(ids('stations')).toEqual(['stations.technical=#/wiskey/devices?classic=1', 'sync.run=#/wiskey/sync', 'alerts.act=#/wiskey/tools/fleet_alerts', 'health.fleet=#/wiskey/tools/health']);
     expect(ids('people')).toEqual([
       'people.unmanaged=#/wiskey/people?classic=1',
-      'profiles.edit=#/wiskey/tools/profile_options',
+      'profiles.edit=#/wiskey/profiles', // native since WISKEY-PROFILES-EDIT-2390 (2.39.0 train)
       'people.lifecycle=#/wiskey/tools/identity_lifecycle',
       'access.reviews=#/wiskey/tools/access_reviews',
       'access.compare=#/wiskey/tools/access_comparison',
@@ -153,26 +159,29 @@ test.describe('who gets the links', () => {
     ]);
     expect(ids('schedules')).toEqual(['schedules.edit=#/wiskey/tools/schedules', 'stations.technical=#/wiskey/devices?classic=1']);
     expect(ids('settings-audit')).toEqual(['audit.panel=#/wiskey/tools/audit', 'events.report=#/wiskey/events?classic=1']);
-    expect(ids('settings-groups')).toEqual(['profiles.edit=#/wiskey/tools/profile_options']);
+    expect(ids('settings-groups')).toEqual(['profiles.edit=#/wiskey/profiles']);
     expect(ids('settings-messaging')).toEqual(['messaging.templates=#/wiskey/tools/whatsapp_templates']);
     expect(ids('settings-policy')).toEqual(['permissions.panel=#/wiskey/tools/access_control', 'permissions.directory=#/wiskey/tools/permission_directory', 'media.settings=#/wiskey/tools/media_options', 'workflows.center=#/wiskey/tools/workflow_center']);
   });
 });
 
 test.describe('keyed by capability: a native screen replaces a link without touching the callers', () => {
-  test('linkFor gives the panel link today, the panel root for an unknown capability', () => {
+  test('linkFor gives the native screen where one exists, else the panel link, the panel root for an unknown capability', () => {
     expect(linkFor('schedules.edit')).toBe('#/wiskey/tools/schedules');
-    expect(linkFor('profiles.edit')).toBe('#/wiskey/tools/profile_options');
+    expect(linkFor('profiles.edit')).toBe('#/wiskey/profiles'); // WISKEY-PROFILES-EDIT-2390
+    expect(deepLinkHref('profiles.edit')).toBe('#/wiskey/tools/profile_options'); // the panel address stays known
     expect(linkFor('no.such')).toBe(ROOT_HREF);
-    for (const id of Object.keys(DEEP_LINKS)) expect(linkFor(id), id).toBe(deepLinkHref(id)); // no native screen exists yet
+    for (const id of Object.keys(DEEP_LINKS)) expect(linkFor(id), id).toBe(DEEP_LINKS[id].native?.href ?? deepLinkHref(id));
   });
 
   test('the temporary links of the owner Q4 / Q7 (native screens to come) are marked', () => {
-    expect([...BRIDGED].sort()).toEqual(['clock.settings', 'platform.center', 'profiles.edit', 'schedules.edit', 'stations.technical']);
+    expect([...BRIDGED].sort()).toEqual(['clock.settings', 'platform.center', 'schedules.edit', 'stations.technical']);
     expect(DEEP_LINKS['schedules.edit'].bridge).toBe('Q4');
-    expect(DEEP_LINKS['profiles.edit'].bridge).toBe('Q4');
+    expect(DEEP_LINKS['profiles.edit'].bridge).toBeUndefined(); // retired: the native screen exists (WISKEY-PROFILES-EDIT-2390)
     for (const id of ['clock.settings', 'platform.center', 'stations.technical']) expect(DEEP_LINKS[id].bridge, id).toBe('Q7');
-    for (const id of Object.keys(DEEP_LINKS)) expect(DEEP_LINKS[id].native, id).toBeUndefined();
+    expect(DEEP_LINKS['profiles.edit'].native).toEqual({ href: '#/wiskey/profiles', need: ['access.people.manage'] });
+    expect(DEEP_LINKS['profiles.edit'].rows).toEqual([26, 27]);
+    for (const id of Object.keys(DEEP_LINKS).filter((x) => x !== 'profiles.edit')) expect(DEEP_LINKS[id].native, id).toBeUndefined();
   });
 
   test('once an entry carries a native route: linkFor and every place follow; the panel rule and catalog no longer apply to it', () => {

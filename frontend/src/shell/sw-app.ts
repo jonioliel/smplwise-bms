@@ -2845,6 +2845,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'setup') return html`<system-setup></system-setup>`;
         if (s[1] === 'wizard') return html`<system-wizard></system-wizard>`;
         if (s[1] === 'readiness') return html`<system-readiness></system-readiness>`; // הגדרות › מוכנות (CR-READY96)
+        if (s[1] === 'wiskey-validation') return html`<system-wiskey-validation></system-wiskey-validation>`; // WISKEY-LIVE-VALIDATION-2390: הגדרות › בדיקת קבלה לעמדות
         if (s[1] === 'security') return html`<system-security .sub=${s[2] ?? ''} .panelId=${r.params.get('panel') ?? ''}></system-security>`;
         if (s[1] === 'storage') return html`<system-storage></system-storage>`;
         if (s[1] === 'update') return html`<system-update></system-update>`; // הגדרות › עדכונים (CR-021, system.update)
@@ -2881,6 +2882,7 @@ export class SwApp extends LitElement {
         // SHAREDID-293: "גישת חוץ" - an Arx-only screen under the access-control area (owner decision 6: or under service management)
         if (s[1] === 'external') return html`<access-external-screen .route=${r}></access-external-screen>`;
         if (s[1] === 'door-windows') return html`<door-windows-screen .route=${r}></door-windows-screen>`; // CR-039 DOORWIN-295 (off by default)
+        if (s[1] === 'profiles') return html`<wiskey-profiles-screen .route=${r}></wiskey-profiles-screen>`; // WISKEY-PROFILES-EDIT-2390: קבוצות ושדות (the server checks people.manage at installation scope)
         const w = wiskeyRoute(r, this.session.mode === 'api');
         // one call site: switching embedded tabs keeps the loaded frame (embed API v1: a wiskey:navigate message)
         if (w.kind === 'embed') return html`<wiskey-embed .tab=${w.tab} .tool=${w.tool ?? ''}></wiskey-embed>`;

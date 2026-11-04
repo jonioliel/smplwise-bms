@@ -202,8 +202,11 @@ class PanelPermissions:
 
         if bridge_authorized(user=user, permissions=self):
             return {
-                "allowed": True, "is_admin": False, "bridge_full_scope": True,
-                "areas": {area: "manage" for area in AREAS}, "station_ids": None,
+                "allowed": True,
+                "is_admin": False,
+                "bridge_full_scope": True,
+                "areas": {area: "manage" for area in AREAS},
+                "station_ids": None,
                 "fields": {key: "manage" for key in FIELDS},
             }
         if user.is_admin:
@@ -298,6 +301,7 @@ class PanelPermissions:
                     "users": normalized,
                     "station_groups": groups,
                 }
+
                 # Do not let connection cancellation split durable and live authorization.
                 async def commit() -> None:
                     current()
@@ -457,6 +461,7 @@ _READ_MANAGEMENT = {
     "support/bundle",
     "fleet/inventory_export",
     "upgrade/readiness",
+    "upgrade/manual_readiness_v1",
 }
 _WRITE_MANAGEMENT = {
     "profiles/settings_update",

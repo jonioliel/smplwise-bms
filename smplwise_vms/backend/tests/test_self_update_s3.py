@@ -105,7 +105,10 @@ def updated_process(monkeypatch, app, settings, version):
 
 EXPECTED_ALLOWED = {("GET", "/addons/self/info"), ("POST", "/store/reload"), ("POST", "/store/addons/{slug}/update"), ("GET", "/jobs/info"),
                     ("GET", "/core/info"), ("POST", "/core/check"), ("POST", "/core/restart"), ("POST", "/addons/self/options"), ("POST", "/addons/self/restart"),
-                    ("POST", "/discovery"), ("DELETE", "/discovery/{uuid}")}  # BRIDGE-STALE-DISCOVERY-2383: Arx's own stale announcement
+                    ("POST", "/discovery"),
+                    # WISKEY-MANAGED-INSTALL-2382: the owner-started WisKey run reads the backup list and stops / starts the core (no body)
+                    ("GET", "/backups"), ("POST", "/core/stop"), ("POST", "/core/start"),
+                    ("DELETE", "/discovery/{uuid}")}  # BRIDGE-STALE-DISCOVERY-2383: Arx's own stale announcement
 
 
 def test_the_allow_list_is_exact(settings, sup):  # noqa: F811

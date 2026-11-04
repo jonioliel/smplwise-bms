@@ -376,7 +376,9 @@ async def async_setup_runtime(hass: HomeAssistant, entry: IntercomConfigEntry) -
             "stream": profile.stream,
             "call_states": list(profile.call_states),
         }
-        if baseline is None:
+        from .manual_upgrade_profile import enabled as manual_upgrade
+
+        if baseline is None and not manual_upgrade(hass):
             hass.config_entries.async_update_entry(
                 entry, data={**entry.data, "capability_baseline": observed}
             )
@@ -414,7 +416,7 @@ async def async_setup_runtime(hass: HomeAssistant, entry: IntercomConfigEntry) -
         registry = er.async_get(hass)
         for index in {1, 2} - {lock.physical_index for lock in locks}:
             old = registry.async_get_entity_id("lock", DOMAIN, f"{entry.unique_id}_door_{index}")
-            if old:
+            if old and not manual_upgrade(hass):
                 registry.async_remove(old)
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
         manager.attach(entry.entry_id, AccessClient(client))

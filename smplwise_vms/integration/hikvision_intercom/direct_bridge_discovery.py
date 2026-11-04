@@ -146,7 +146,9 @@ def capabilities(hass, connection, *, version=1):
         "physical_result": "unproven",
     }
 
-    if version == 2:
+    from .manual_upgrade_profile import enabled as manual_upgrade
+
+    if version == 2 and not manual_upgrade(hass):
         from .native_auto_installation import KEY as AUTO_KEY
         from .native_auto_installation import SERVICE_CONTRACT
         from .trusted_actions.direct_bridge_origin import check_connection

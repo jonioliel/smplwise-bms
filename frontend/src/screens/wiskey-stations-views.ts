@@ -8,15 +8,18 @@
 import { html, nothing, type TemplateResult } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-badge';
+import '../components/wk-door-tech'; // WISKEY-DOOR-TECH-2390: the door technical writes in the door settings section (its own component)
 import '../components/sw-card';
 import '../components/sw-icon';
 import '../components/wk-action-button';
 import '../components/wk-deep-links';
+import '../components/wk-station-maintenance'; // WISKEY-STATION-OPS-2390: the drawer's maintenance block (its own component)
 import type { TableColumn } from '../components/sw-table';
 import type { AccessStation, StationCodes, StationPrograms } from '../api/access-stations';
 import { callLogSection } from '../components/wk-call-history'; // WISKEY-INBOUND-CALLS-2382: the station's recent calls
 import { intercomSnapshotUrl, type DisplayZone, type IntercomCallCommand } from '../api/intercom';
 import { fill, type StationsText } from '../i18n/wiskey-stations';
+import { liveValidationRow } from '../wiskey/live-validation-link'; // WISKEY-LIVE-VALIDATION-2390: one line in the technical section
 import type { StationActions } from './wiskey-stations-actions';
 import {
   CallClock,
@@ -403,11 +406,13 @@ function technical(v: ViewCtx, s: AccessStation): TemplateResult | typeof nothin
       ${tc.firmware ? html`<dt>${t.tech.firmware}</dt><dd><code>${tc.firmware}</code></dd>` : nothing}
       <dt>${t.tech.relays}</dt>
       <dd>${fill(t.tech.relaysValue, { n: s.locks.length, mode: s.lock_enabled ? t.tech.relayOn : t.tech.relayOff })}</dd>
+      ${liveValidationRow(s.id)}
       ${clock ? html`<dt>${t.tech.clock}</dt><dd>${clock}</dd>` : nothing} ${streamText ? html`<dt>${t.tech.stream}</dt><dd>${streamText}</dd>` : nothing}
       ${s.errors ? html`<dt>${t.tech.lastError}</dt><dd>${s.errors.last_error ? html`<code data-wk-last-error>${s.errors.last_error}</code>` : html`<span class="muted">${t.tech.none}</span>`}</dd>` : nothing}
       ${s.errors?.scan_error ? html`<dt>${t.tech.scanError}</dt><dd><code>${s.errors.scan_error}</code></dd>` : nothing}
     </dl>
     <wk-deep-links place="station"></wk-deep-links>
+    <wk-station-maintenance .station=${s} ?live=${v.live}></wk-station-maintenance>
   </section>`;
 }
 
@@ -462,6 +467,7 @@ function doorSettings(v: ViewCtx, s: AccessStation): TemplateResult | typeof not
       <sw-icon name="chevronDown" size=${14}></sw-icon><span>${t.drawer.doorSettings}</span>
     </button>
     ${v.detailOpen ? html`${programs && stationDoors(s).length ? programRows(v, s, d) : nothing}${codes ? codesRows(v, d) : nothing}` : nothing}
+    ${v.detailOpen ? html`<wk-door-tech .station=${s} ?live=${v.live} @door-tech-changed=${() => v.retryDetail()}></wk-door-tech>` : nothing}
   </section>`;
 }
 

@@ -92,10 +92,55 @@ PACING = frozenset({"whatsapp/pacing_status_v1"})
 # as an unsigned frame on the feed's session. `W10_COMMANDS` names them so a test can prove no guard lets one through.
 W10_COMMANDS = frozenset(wiskey_media_contract.COMMANDS)
 UNPINNED_CHANNELS = frozenset({"readback", "pacing"})
+# WISKEY-STATION-OPS-2390 (plan 2026-11-03 T4): a station's maintenance from the stations drawer and its list action
+# (services/wiskey_station_ops.py): queue the station's sync, re-read its capabilities and inventory, refresh its health report, read its
+# clock again. All four are station-scoped and non-READ in the pinned catalog (`api_contract` on every frame); none sets anything on the
+# device (`clock/station_sync`, which WRITES the clock, is NOT here). Same socket and identity as `service`, a guard of its own, so the
+# service channel's write list stays the reviewed one and nothing else can ride this guard.
+MAINTENANCE = frozenset({"sync/station", "stations/rescan", "health/refresh", "stations/clock_refresh"})
+# WISKEY-DOOR-TECH-2390 (plan 2026-11-03 T6, owner Q5 = a): the door technical WRITES from the stations drawer
+# (services/wiskey_door_tech.py): a door's hold-open schedule draft (save / delete), a public door code (add / replace / remove - the
+# value goes to WisKey once and is never stored, logged or answered by Arx) and the door's hold-open program (save / pause / remove).
+# All five are non-READ, station-scoped and granted at `stations: manage` in the pinned catalog (`api_contract` on every frame); the
+# reads that go with them stay on `technical`. One read rides along: `overview`, sent in the SAME coroutine right before a code write
+# to learn WisKey's API relay id of the door (the served copy drops it), so the read and the write share one slot and one session. Same
+# socket and identity as `service`, a closed guard of its own, so neither the service channel's reviewed write list nor the technical
+# channel's reads change, and nothing else can ride this guard.
+DOOR_TECHNICAL = frozenset({
+    "overview",
+    "stations/technical_hold_save", "stations/technical_hold_delete", "stations/technical_codes_write",
+    "stations/technical_program_save", "stations/technical_program_action",
+})
+# WISKEY-PEOPLE-COMPLETE-2390 (owner Q3 "a", 03.11): the people that exist on a door station but not in WisKey's person list, and the
+# duplicate checks of the people screen (services/station_people.py). Reads: `stations/inventory` (one station's users as the device
+# reports them - WisKey reads the device; READ in the pinned catalog, `stations: view`), `users/data_quality` and `users/duplicate_check`
+# (READ, `users: view`; no PIN, no full card number) and `users/pin_check` (non-READ, `users: manage`; answers `available` only - the
+# PIN goes to WisKey once and is never kept). Writes (non-READ, `users: manage`): `users/adopt` (WisKey takes over the station user as
+# is - nothing is created on the station), `users/ignore` (WisKey's own ignore flag) and `users/delete_unmanaged` (WisKey removes the
+# station user through its own sync - a device write). Same socket and identity as `service`; never a generic proxy.
+STATION_PEOPLE = frozenset({"stations/inventory", "users/data_quality", "users/duplicate_check", "users/pin_check",
+                            "users/adopt", "users/ignore", "users/delete_unmanaged"})
+# WISKEY-PROFILES-EDIT-2390 (plan 2026-11-03 T8): the groups and profile fields editor (services/wiskey_profiles.py): WisKey's impact
+# preview and the apply of a reviewed policy (non-READ, `management: manage`, `api_contract` on both frames), the compare of two policy
+# versions and the group suggestions for one person (both READ). `profiles/settings_update` (the direct save without the review) is on
+# NO list. Same socket and identity as `service`, a guard of its own, so the service channel's write list stays the reviewed one.
+PROFILES = frozenset({"profiles/settings_preview", "profiles/settings_apply", "profiles/versions_compare", "users/group_suggestions"})
+# WISKEY-SCHED-WRITE-2390 (plan 2026-11-03 T7): the device schedule LIBRARY's write side (services/wiskey_schedule_writes.py) - library
+# create / update / delete / import / export, the station reads before an apply (readiness, dependencies, assess), comparison baselines,
+# deployment proposals, responsibility claims and deployment jobs. Installation-wide in WisKey (`management: view` / `manage`). Not the
+# per-door technical hold (`stations/technical_*`, task T6) and not the three list reads (they stay on `read`). Same socket and identity
+# as `service`, a guard of its own, so no other channel can carry these and this guard carries nothing else.
+SCHEDULES = frozenset({
+    "schedules/preview", "schedules/create", "schedules/update", "schedules/delete", "schedules/export", "schedules/import_preview",
+    "schedules/import_apply", "schedules/readiness", "schedules/dependencies", "schedules/assess", "schedules/baseline_save",
+    "schedules/baseline_clear", "schedules/plan_preview", "schedules/plan_save", "schedules/plan_recheck", "schedules/plan_delete",
+    "schedules/plan_export", "schedules/operations_claim_preview", "schedules/operations_claim_confirm", "schedules/operations_claim_release",
+    "schedules/operations_create", "schedules/operations_check", "schedules/operations_cancel", "schedules/operations_archive",
+})
 
 ALLOWLISTS: dict[str, frozenset[str]] = {"background": BACKGROUND, "service": SERVICE, "read": READ, "technical": TECHNICAL, "messaging": MESSAGING,
-                                         "readback": READBACK, "pacing": PACING}
-ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing")  # the guards the service session builds for the adapters (intercom_sync on_ready)
+                                         "readback": READBACK, "pacing": PACING, "maintenance": MAINTENANCE, "door_technical": DOOR_TECHNICAL, "station_people": STATION_PEOPLE, "profiles": PROFILES, "schedules": SCHEDULES}
+ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing", "maintenance", "door_technical", "station_people", "profiles", "schedules")  # the guards the service session builds for the adapters (intercom_sync on_ready)
 
 # Home Assistant's own frames a channel may send besides WisKey commands (the auth handshake is written by ha_client itself):
 # `get_config` tells "WisKey not loaded yet" from "not installed"; the service feed watches the stations' entities.
@@ -107,6 +152,11 @@ HA_FRAMES: dict[str, frozenset[str]] = {
     "messaging": frozenset(),
     "readback": frozenset(),
     "pacing": frozenset(),
+    "maintenance": frozenset(),
+    "door_technical": frozenset(),
+    "station_people": frozenset(),
+    "profiles": frozenset(),
+    "schedules": frozenset(),
 }
 
 
@@ -147,4 +197,9 @@ def describe() -> dict[str, Any]:
         "messaging": {"commands": sorted(MESSAGING), "in_use": True},
         "readback": {"commands": sorted(READBACK), "in_use": True},
         "pacing": {"commands": sorted(PACING), "in_use": True},
+        "maintenance": {"commands": sorted(MAINTENANCE), "in_use": True},
+        "door_technical": {"commands": sorted(DOOR_TECHNICAL), "in_use": True},
+        "station_people": {"commands": sorted(STATION_PEOPLE), "in_use": True},
+        "profiles": {"commands": sorted(PROFILES), "in_use": True},
+        "schedules": {"commands": sorted(SCHEDULES), "in_use": True},
     }

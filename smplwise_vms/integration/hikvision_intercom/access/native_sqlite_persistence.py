@@ -50,13 +50,15 @@ type _NativeRoots = tuple[
 type _RecordForest = dict[str, tuple[Any, ...]]
 _MAIN_SCHEMA = {
     ("table", "metadata"): "create table metadata(key text primary key,value text not null)",
-    ("table", "nodes"): " ".join('''CREATE TABLE nodes(
+    ("table", "nodes"): " ".join(
+        """CREATE TABLE nodes(
                         path TEXT PRIMARY KEY,parent TEXT,slot TEXT,ordinal INTEGER NOT NULL,
                         kind TEXT NOT NULL CHECK(kind IN ('dict','list','value')),payload BLOB,
                         CHECK((kind='value')=(payload IS NOT NULL)),
                         CHECK(payload IS NULL OR length(payload)<=65536),
                         FOREIGN KEY(parent) REFERENCES nodes(path) DEFERRABLE INITIALLY DEFERRED)
-                        '''.casefold().split()),
+                        """.casefold().split()
+    ),
     ("index", "sqlite_autoindex_metadata_1"): None,
     ("index", "sqlite_autoindex_nodes_1"): None,
 }
@@ -229,8 +231,10 @@ class _LiteralCache:
 
     def __init__(self, max_bytes: int, max_entries: int) -> None:
         if (
-            type(max_bytes) is not int or not 1 <= max_bytes <= LITERAL_CACHE_MAX_BYTES
-            or type(max_entries) is not int or not 1 <= max_entries <= LITERAL_CACHE_MAX_ENTRIES
+            type(max_bytes) is not int
+            or not 1 <= max_bytes <= LITERAL_CACHE_MAX_BYTES
+            or type(max_entries) is not int
+            or not 1 <= max_entries <= LITERAL_CACHE_MAX_ENTRIES
         ):
             raise ValueError("bounded private literal cache required")
         self.max_bytes, self.max_entries = max_bytes, max_entries
@@ -246,11 +250,9 @@ class _LiteralCache:
         additions = (
             (path, row[4])
             for path, row in records.items()
-            if row[3] == "value" and path not in result.entries
-            and (
-                previous is None or path not in previous
-                or previous[path][3:] != row[3:]
-            )
+            if row[3] == "value"
+            and path not in result.entries
+            and (previous is None or path not in previous or previous[path][3:] != row[3:])
         )
         for path, payload in sorted(additions, key=lambda item: (len(item[1]), item[0])):
             if len(result.entries) >= result.max_entries:
@@ -392,7 +394,9 @@ def _same_json(value: Any, saved: Any) -> bool:
 
 
 def _nodes(
-    image: dict[str, Any], profile: NativeSqliteProfile, *,
+    image: dict[str, Any],
+    profile: NativeSqliteProfile,
+    *,
     validated_forest: _RecordForest | None = None,
     validated_literals: _LiteralCache | None = None,
 ) -> tuple[_RecordForest, int]:
@@ -410,8 +414,11 @@ def _nodes(
     logical_bytes = 0
 
     def visit(
-        value: Any, path: tuple[str | int, ...] = (), parent: str | None = None,
-        slot: str | None = None, ordinal: int = 0,
+        value: Any,
+        path: tuple[str | int, ...] = (),
+        parent: str | None = None,
+        slot: str | None = None,
+        ordinal: int = 0,
     ) -> None:
         nonlocal logical_bytes
         if len(path) > MAX_DEPTH or len(result) >= profile.node_limit:
@@ -446,7 +453,8 @@ def _nodes(
                 and previous[3] == "value"
                 and _same_json(
                     value,
-                    cached[1] if cached is not None and cached[0] == previous[4]
+                    cached[1]
+                    if cached is not None and cached[0] == previous[4]
                     else _decode(previous[4]),
                 )
             ):
@@ -509,7 +517,10 @@ def _nodes(
                         raise AccessError("invalid_storage")
                     previous_sequence = key
                 visit(
-                    child, (*path, key), name, _encoded_path((key,)),
+                    child,
+                    (*path, key),
+                    name,
+                    _encoded_path((key,)),
                     key if stable_audit else index,
                 )
 
@@ -541,7 +552,8 @@ def accounting(image: dict[str, Any], profile: NativeSqliteProfile) -> dict[str,
             ),
             inline_photo_utf8_bytes=sum(
                 len(user["photo"].encode("utf-8"))
-                for user in image["users"].values() if user.get("photo") is not None
+                for user in image["users"].values()
+                if user.get("photo") is not None
             ),
         )
     return result
@@ -606,9 +618,7 @@ def _reconstruct(nodes: _RecordForest, profile: NativeSqliteProfile) -> dict[str
         used_slots[parent].add(slot)
         used_ordinals[parent].add(ordinal)
         container, key = values[parent], path[-1]
-        stable_audit = (
-            profile.layout_revision == 2 and paths[parent] == ["admin_audit", "records"]
-        )
+        stable_audit = profile.layout_revision == 2 and paths[parent] == ["admin_audit", "records"]
         if type(container) is dict and type(key) is str:
             container[key] = values[name]
         elif (
@@ -754,8 +764,16 @@ class NativeSqlitePersistence:
                 raise Refusal("native_storage_capacity")
             owner.geometry = tuple(
                 (name, db.execute("PRAGMA " + name).fetchone()[0])
-                for name in ("page_size", "max_page_count", "cache_spill", "synchronous",
-                             "fullfsync", "wal_autocheckpoint", "journal_mode", "foreign_keys")
+                for name in (
+                    "page_size",
+                    "max_page_count",
+                    "cache_spill",
+                    "synchronous",
+                    "fullfsync",
+                    "wal_autocheckpoint",
+                    "journal_mode",
+                    "foreign_keys",
+                )
             )
             if tables:
                 metadata = dict(db.execute("SELECT key,value FROM main.metadata"))
@@ -849,7 +867,10 @@ class NativeSqlitePersistence:
     def _stable(self) -> _PersistenceOwner:
         owner = NativeSqlitePersistence._stable_labels(self)
         require_connection_scope(
-            owner.roots[0], owner.roots[1], row_factory=None, geometry=owner.geometry,
+            owner.roots[0],
+            owner.roots[1],
+            row_factory=None,
+            geometry=owner.geometry,
             verify=lambda: NativeSqlitePersistence._stable_labels(self),
             schema=_MAIN_SCHEMA if owner.schema_ready else None,
         )
@@ -1014,7 +1035,12 @@ class NativeSqlitePersistence:
             raise
 
     async def _run[T](self, operation: Callable[..., T], *args: Any) -> T:
-        owner = NativeSqlitePersistence._stable(self)
+        # Obtain the ORIGINAL mutex without querying its connection. A prior
+        # joined worker can still be using (or closing) that connection here.
+        # All original scope/label/geometry checks remain inside the mutex.
+        owner = _OWNERS.get(self)
+        if owner is None or owner.life[0]:
+            raise Refusal("binding_denied")
         async with owner.lock:
             NativeSqlitePersistence._stable(self)
             owner.pending_literals[0] = None

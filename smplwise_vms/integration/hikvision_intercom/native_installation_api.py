@@ -34,7 +34,9 @@ async def dispatch(hass, connection, message, command):
     try:
         principal = await host_for(hass).admit(connection, message, command)
         params = principal.parameters
-        authority = hass.data[DOMAIN][AUTHORITY]
+        authority = hass.data[DOMAIN].get(AUTHORITY)
+        if authority is None:
+            raise Refusal("installation_unavailable")
         if command != COMMANDS[7]:
             authority.grant(principal.owner_key[0].entry)
         if command in COMMANDS[5:]:

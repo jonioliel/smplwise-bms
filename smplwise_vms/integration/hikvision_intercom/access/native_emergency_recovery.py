@@ -39,6 +39,7 @@ class RecoveryStation:
     entry: ConfigEntry
     identity: str
     grants: tuple[StationGrant, ...]
+    history: tuple[StationGrant, ...] = ()
 
     def __post_init__(self):
         if (
@@ -57,6 +58,17 @@ class RecoveryStation:
             raise Refusal("binding_denied")
         for grant in self.grants:
             StationGrant.__post_init__(grant)
+        if (
+            type(self.history) is not tuple
+            or len(self.history) > 2048
+            or any(
+                type(g) is not StationGrant or g.station_id != self.entry.entry_id
+                for g in self.history
+            )
+        ):
+            raise Refusal("binding_denied")
+        for grant in self.history:
+            StationGrant.__post_init__(grant)
 
 
 @dataclass(frozen=True, repr=False)
@@ -68,6 +80,7 @@ class _Station:
     grant_values: tuple
     connection: tuple
     mapping: tuple
+    history: tuple
 
 
 @dataclass(frozen=True, repr=False)
@@ -98,6 +111,7 @@ def _issue(owner):
                 station.grant_values,
                 station.connection,
                 station.mapping,
+                station.history,
             )
             for station in owner.stations
         ),
@@ -141,6 +155,7 @@ def _issued(config):
             or station.grant_values != values[5]
             or station.connection != values[6]
             or station.mapping != values[7]
+            or station.history != values[8]
         ):
             raise Refusal("binding_denied")
     return owner
@@ -156,7 +171,12 @@ class NativeEmergencyRecovery:
     """
 
     def __init__(
-        self, hass, journal: FeatureExecutionJournal, stations: tuple[RecoveryStation, ...]
+        self,
+        hass,
+        journal: FeatureExecutionJournal,
+        stations: tuple[RecoveryStation, ...],
+        *,
+        predecessor_host=None,
     ):
         if (
             type(hass) is not HomeAssistant
@@ -165,9 +185,23 @@ class NativeEmergencyRecovery:
             or not 1 <= len(stations) <= 200
             or any(type(s) is not RecoveryStation for s in stations)
             or len({s.entry.entry_id for s in stations}) != len(stations)
-            or hass in _REGISTERED
         ):
             raise Refusal("binding_denied")
+        previous = None
+        if hass in _REGISTERED and predecessor_host is None:
+            # Preserve the existing public refusal for duplicate registration.
+            # An absent explicit lifecycle proof never enters successor logic.
+            raise Refusal("binding_denied")
+        if hass in _REGISTERED or predecessor_host is not None:
+            # Only an original successfully joined host may replace its own
+            # registration. The deny-only tombstone is NEVER removed: failed
+            # construction/GC/alias deletion still cannot mean unconfigured.
+            from ..native_emergency_recovery_host import _joined_predecessor
+
+            previous = _joined_predecessor(predecessor_host, hass, journal)
+            registered = _REGISTERED.get(hass)
+            if registered is None or registered() is not previous:
+                raise Refusal("binding_denied")
         records = []
         for station in stations:
             RecoveryStation.__post_init__(station)
@@ -191,11 +225,17 @@ class NativeEmergencyRecovery:
                     tuple(astuple(grant) for grant in station.grants),
                     astuple(ConnectionSettings.from_mapping(entry.data)),
                     mapping,
+                    tuple(astuple(g) for g in station.history),
                 )
             )
         domain = hass.data.setdefault(DOMAIN, {})
         if _KEY in domain:
-            raise Refusal("binding_denied")
+            if previous is None or domain[_KEY] is not previous:
+                raise Refusal("binding_denied")
+            # Only the authenticated lifecycle successor may withdraw its
+            # original closed alias. _REGISTERED still denies the unconfigured
+            # default throughout validation and after any failed construction.
+            del domain[_KEY]
         self.journal, self.stations = journal, stations
         owner = _Owner(
             weakref.ref(hass),
@@ -267,6 +307,7 @@ class NativeEmergencyRecovery:
                 or public.identity != station.identity
                 or public.grants is not station.grants
                 or tuple(astuple(grant) for grant in public.grants) != station.grant_values
+                or tuple(astuple(grant) for grant in public.history) != station.history
                 or entries.async_get_entry(entry.entry_id) is not entry
                 or entry.unique_id != station.identity
                 or astuple(ConnectionSettings.from_mapping(entry.data)) != station.connection
@@ -286,10 +327,17 @@ class NativeEmergencyRecovery:
                 station.identity,
             )
             for station in owner.stations
-            for grant in station.grant_values
+            for grant in (*station.grant_values, *station.history)
         }
         if any(item["target_signature"] not in expected for item in claims):
             raise Refusal("emergency_recovery_unbound")
+        for item in claims:
+            sid, api, physical, _revision, _identity = item["target_signature"]
+            station = next(s for s in owner.stations if s.entry().entry_id == sid)
+            if (physical, api) not in station.mapping:
+                # Historical information is readable, but an unresolved fence
+                # cannot be moved onto another API/physical relay after swap.
+                raise Refusal("emergency_recovery_unbound")
         return claims
 
 
@@ -309,8 +357,7 @@ def restore_startup_refusals(hass, entry: ConfigEntry, runtime) -> None:
     client = runtime.client
     session = runtime.session
     if (
-        station is None
-        or type(runtime) is not IntercomRuntime
+        type(runtime) is not IntercomRuntime
         or type(client) is not HikvisionClient
         or type(session) is not httpx.AsyncClient
         or type(session._transport) is not LimitedTransport
@@ -320,7 +367,30 @@ def restore_startup_refusals(hass, entry: ConfigEntry, runtime) -> None:
         or runtime.is_closed
         or entry.state is not ConfigEntryState.SETUP_IN_PROGRESS
         or getattr(entry, "runtime_data", None) is runtime
-        or client._expected_identity != station.identity
+    ):
+        raise Refusal("binding_denied")
+    if station is None:
+        # An original camera/observation-only entry has no relay on which a
+        # recovery fence could be installed. Validate the real entry/runtime
+        # and the complete original claims before allowing its ordinary setup;
+        # never synthesize an empty grant or bypass a managed relay's mapping.
+        if (
+            hass.config_entries.async_get_entry(entry.entry_id) is not entry
+            or entry.domain != DOMAIN
+            or managed_locks(entry.data)
+            or runtime.locks
+            or client.physical_doors
+            or client.enabled_doors
+            or client._expected_identity != entry.unique_id
+            or runtime.profile.unique_id != entry.unique_id
+            or astuple(client.settings) != astuple(ConnectionSettings.from_mapping(entry.data))
+        ):
+            raise Refusal("binding_denied")
+        NativeEmergencyRecovery._claims(config, owner)
+        NativeEmergencyRecovery._current(config, owner)
+        return
+    if (
+        client._expected_identity != station.identity
         or runtime.profile.unique_id != station.identity
         or astuple(client.settings) != station.connection
         or tuple((lock.physical_index, lock.api_id) for lock in runtime.locks) != station.mapping

@@ -24,14 +24,24 @@ REPO_ROOT = BACKEND.parents[1]
 HISTORICAL = ("signed_person_writes", "person_writes/resolve_create", "wiskey-signed-person-completion-draft1",
               "wiskey-create-resolution-draft1", "signed_person_completion_read_v1", "person_create_resolution_v1")
 
-# sha256 of the canonical command catalog, computed on release/2200 @ 47ca1a2c0 BEFORE the cleanup
+# sha256 of the canonical command catalog, computed on release/2200 @ 47ca1a2c0 BEFORE the cleanup (without ADDED_AFTER_CLEANUP; the 2.39.0
+# train recomputed it: with `station_people` in the catalog it is 38db8b1c...bb031, the value WISKEY-PEOPLE-COMPLETE-2390 pinned)
 CATALOG_SHA256 = "0fdcbd37b67f8506178c35a8aea233f0080a0ed5895259c7430aa16f7f1abafe"
 PEOPLE_CATALOG_FIXTURE_SHA256 = "92ffc92b384fe0f667b66221076cfaf6b8259ffb28dd50c4c8cc2d7f83cf5e68"
 MIGRATION_0145_SHA256 = "b0fb6fd086a47430fc170008f233d2aa753d8d2140bf8c7bebbe60ab74aefa3f"
+# the WisKey channels added after the cleanup (services/wiskey_channels.py), one per 2.39.0 branch; not part of the pre-cleanup catalog
+ADDED_AFTER_CLEANUP = (
+    "maintenance",  # WISKEY-STATION-OPS-2390
+    "door_technical",  # WISKEY-DOOR-TECH-2390
+    "station_people",  # WISKEY-PEOPLE-COMPLETE-2390
+    "profiles",  # WISKEY-PROFILES-EDIT-2390
+    "schedules",  # WISKEY-SCHED-WRITE-2390
+)
 
 
 def _catalog() -> dict:
-    return {"allowlists": {k: sorted(v) for k, v in sorted(ch.ALLOWLISTS.items())}, "lease_signed": sorted(ch.LEASE_SIGNED),
+    # the pre-cleanup catalog: every channel except the ones added after the cleanup (ADDED_AFTER_CLEANUP), unchanged
+    return {"allowlists": {k: sorted(v) for k, v in sorted(ch.ALLOWLISTS.items()) if k not in ADDED_AFTER_CLEANUP}, "lease_signed": sorted(ch.LEASE_SIGNED),
             "w10": sorted(ch.W10_COMMANDS), "peer_query": sorted(cp.PEER_QUERY_COMMANDS), "codes": [ch.NOT_ALLOWED, ch.RESERVED_KEY]}
 
 

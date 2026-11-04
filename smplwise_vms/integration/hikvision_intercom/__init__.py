@@ -48,6 +48,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     from .audio_tts import register_tts_audio
     from .event_manager import async_setup_events
     from .issues import async_setup_repairs
+    from .manual_upgrade_profile import initialize as initialize_manual_profile
     from .mse_api import register_mse
     from .name_reference_api import register_name_references
     from .panel import async_setup_panel
@@ -59,6 +60,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     from .websocket import async_register_websocket
     from .whatsapp_template_api_v2 import register_template_api_v2
 
+    manual_profile = await initialize_manual_profile(hass)
     async_setup_repairs(hass)
     from .native_auto_installation import prepare_storage, setup_auto_installation
 
@@ -100,21 +102,36 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     register_event_resume(hass)
     register_installation_api(hass)
+    from .core_runtime_observation import register as register_core_runtime_observation
+
+    register_core_runtime_observation(hass)
+    from .relay_export_api import register as register_relay_export
+
+    register_relay_export(hass)
     register_direct_bridge(hass)
     from .capture_native_composition import setup_native_capture_composition
 
-    setup_native_capture_composition(hass)
+    if not manual_profile:
+        setup_native_capture_composition(hass)
     from .native_template_installation import CONFIG_KEY, setup_native_template_installation
     from .native_template_resources import migrate_existing_configuration
 
-    await migrate_existing_configuration(hass, config.get(DOMAIN, {}).get(CONFIG_KEY))
-    setup_native_template_installation(hass, config.get(DOMAIN, {}).get(CONFIG_KEY))
+    if not manual_profile:
+        await migrate_existing_configuration(hass, config.get(DOMAIN, {}).get(CONFIG_KEY))
+        setup_native_template_installation(hass, config.get(DOMAIN, {}).get(CONFIG_KEY))
     await setup_auto_installation(hass)
     return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: IntercomConfigEntry) -> bool:
     """Create and own the per-entry runtime."""
+    if hass.data.get(DOMAIN, {}).get("relay_export_maintenance"):
+        from homeassistant.exceptions import ConfigEntryNotReady
+
+        from .relay_maintenance import RELOADING
+
+        if RELOADING.get() is not hass.data[DOMAIN]["relay_export_maintenance"]:
+            raise ConfigEntryNotReady("relay_export_original_quiesce_required")
     from .capture_lease_runtime import async_setup_capture_entry
     from .runtime import async_setup_runtime
 

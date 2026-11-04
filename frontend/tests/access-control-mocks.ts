@@ -230,6 +230,9 @@ export async function installAccessMock(page: Page, opts: MockOptions = {}): Pro
     const q = url.searchParams;
     const method = req.method();
     const query = Object.fromEntries(q.entries());
+    // WISKEY-PROFILES-EDIT-2390: the "קבוצות ושדות" entry link asks this. These specs do not cover the editor (tests/wiskey-profiles-mocks.ts does):
+    // the link stays hidden and the question is not counted among the page's reads.
+    if (p === 'access-control/profiles/access') return json(route, { can_edit: false, sensitive: false });
     st.calls.push({ method, path: p, query });
 
     if (p === 'me') return json(route, me(persona(), !!st.opts.ticketsOn));

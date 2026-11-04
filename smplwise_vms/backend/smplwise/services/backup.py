@@ -272,6 +272,9 @@ SETTINGS_KEEP = SETTINGS_KEEP | {"security.app_refresh_attestation", "security.a
 # cursor (an older archive cursor would replay events or hide a gap). Never exported, never restored (`wiskey.installation.*` by prefix).
 SETTINGS_KEEP = SETTINGS_KEEP | {"wiskey.auto_install", "wiskey.installation.restart_digest", "wiskey.events.cursor"}
 SETTINGS_KEEP_PREFIXES = SETTINGS_KEEP_PREFIXES + ("wiskey.installation.",)
+# WISKEY-MANAGED-INSTALL-2382: the owner's managed-installation switches, the adoption record, the last run and the tree Arx installed
+# describe THIS box - an archive must never switch managed installs on, claim an adoption or offer a rollback of another box's tree
+SETTINGS_KEEP_PREFIXES = SETTINGS_KEEP_PREFIXES + ("wiskey.managed.",)
 # OFFBOX-RESTORE-2300 (owner 2026-10-30): the restore defaults and the local safety-archive switch are this installation's policy
 SETTINGS_KEEP = SETTINGS_KEEP | {"backup.offbox_restore_scope", "backup.local_restore_scope", "backup.safety_before_local_restore"}
 

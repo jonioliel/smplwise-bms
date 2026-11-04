@@ -5,6 +5,7 @@ import '../components/sw-badge';
 import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-table';
+import '../components/wk-profiles-link'; // WISKEY-PROFILES-EDIT-2390: the editor's entry (renders nothing unless the server allows editing)
 import type { TableColumn } from '../components/sw-table';
 import {
   getGroupVersions,
@@ -163,7 +164,7 @@ export class SystemAccessGroups extends LitElement {
     return html`<sw-card flush data-access-card="groups">
       <div class="ch">
         <div><h3>${st('groupsTitle')}</h3><div class="sub">${st('groupsSub')}</div></div>
-        ${policy ? html`<div class="ctl rev" data-access-revision><span class="muted">${st('revisionNow', { n: policy.revision ?? '—' })}</span>${policy.photo_enabled === null ? nothing : html`<span class="muted">${policy.photo_enabled ? st('photoOn') : st('photoOff')}</span>`}</div>` : nothing}
+        ${policy ? html`<div class="ctl rev" data-access-revision><span class="muted">${st('revisionNow', { n: policy.revision ?? '—' })}</span>${policy.photo_enabled === null ? nothing : html`<span class="muted">${policy.photo_enabled ? st('photoOn') : st('photoOff')}</span>`}<wk-profiles-link variant="ghost"></wk-profiles-link></div>` : nothing}
       </div>
       ${r.stale && policy ? html`<div class="note stale" role="status" data-access-stale="groups"><sw-icon name="offline" size=${16}></sw-icon><span>${s.fetchedAt ? st('stale', { t: ageText(age(s.fetchedAt, new Date(), this.zone())) }) : st('staleNever')}</span></div>` : nothing}
       ${body}

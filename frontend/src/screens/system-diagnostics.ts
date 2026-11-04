@@ -75,6 +75,7 @@ import './system-call-banner'; // WISKEY-INBOUND-CALLS-2382: who gets the incomi
 import './system-wiskey-pairing'; // WISKEY-PAIRING-2382: הגדרות › מתגי מסכי כניסה › חיבור Arx ל-WisKey + מצב WisKey
 import './system-access-display'; // CR-036 S12: הגדרות › מתגי מסכי כניסה › תצוגת מסך התחנות (the four S6 display settings)
 import './system-access-parity'; // CR-036 S12: הגדרות › מתגי מסכי כניסה › השוואה למסכי האינטרקום (the side-by-side check before a screen is switched)
+import './system-wiskey-validation-card'; // WISKEY-LIVE-VALIDATION-2390: הגדרות › מתגי מסכי כניסה › בדיקת קבלה לעמדות (link to its own route)
 import { loadTree } from '../api/catalog';
 import type { Site } from '../api/types';
 import type { DevicesPick } from './devices-theme-picker';
@@ -1276,6 +1277,7 @@ export class SystemDiagnostics extends LitElement {
       ${!api || can('access.admin.read') ? html`<system-access-parity></system-access-parity>` : nothing}
       <system-wiskey-pairing></system-wiskey-pairing>
       <system-wiskey-diagnostics></system-wiskey-diagnostics>
+      <system-wiskey-validation-card></system-wiskey-validation-card>
     </div>`;
   }
 

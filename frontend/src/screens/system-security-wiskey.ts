@@ -6,6 +6,7 @@ import '../components/sw-button';
 import '../components/sw-icon';
 import '../components/sw-dialog';
 import '../components/sw-state-panel';
+import './system-security-wiskey-managed';
 import { describeError } from '../api/client';
 import { INSTALL_KEY, SWITCH_KEYS, SWITCH_STEM, canTurnOn, canTurnOnInstall, getSwitches, putSwitch, refusalKind, stateOf, type AnySwitchKey, type RefusalKind, type SwitchKey, type SwitchState, type SwitchesView } from '../api/wiskey-switches';
 import { can, isApi } from '../api/session';
@@ -28,6 +29,7 @@ interface Pending {
  * WISKEY-RC7-ADOPT-2331 S1 (WisKey M12 policy B): a second group shows the owner's automatic-installation switch (`wiskey.auto_install`,
  * default off) on the same route, the same confirmation and the same audit. While the build refuses it (`auto_install_permitted`), the
  * row says why and ON is not offered; a 409 `auto_install_not_permitted` from a stale screen is worded the same way.
+ * WISKEY-MANAGED-INSTALL-2382: below the switches, the owner-started "installation and updates" card (system-security-wiskey-managed).
  */
 @customElement('system-security-wiskey')
 export class SystemSecurityWiskey extends LitElement {
@@ -177,6 +179,7 @@ export class SystemSecurityWiskey extends LitElement {
       ${this.error ? html`<div class="note err" role="alert" data-wiskey-error><sw-icon name="warning" size=${16}></sw-icon><span>${this.error}</span></div>` : nothing}
       ${this.done && !this.error ? html`<div class="grp"><span class="ok" role="status" data-wiskey-saved><sw-icon name="check" size=${16}></sw-icon>${wst(this.done === 'on' ? 'doneOn' : 'doneOff')}</span></div>` : nothing}
     </sw-card>
+    <system-security-wiskey-managed></system-security-wiskey-managed>
     ${this.dialog()}`;
   }
 

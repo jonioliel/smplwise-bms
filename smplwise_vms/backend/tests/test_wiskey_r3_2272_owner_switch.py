@@ -62,8 +62,11 @@ def test_the_switch_is_off_by_default_and_nothing_wiskey_is_written(settings: An
     assert _wiskey_settings(app) == {} and not (ha_cfg / ".storage").exists()
 
 
-@pytest.mark.parametrize("version,code", [("2.0.1-rc.1", "native_newer_installed"), ("2.0.0-rc.1", "native_foreign_installed"),
-                                          ("not-a-semver", "native_foreign_installed")])
+# WISKEY-MANAGED-INSTALL-2382: the shipped bundle is WisKey's rc.10 MANAGED bundle; its managed pin makes the rc.7 guard
+# (`preflight_native`) refuse every tree Arx did not stage as `foreign_install_present` BEFORE any version compare - so a newer manual
+# tree is reported as foreign too (it was `native_newer_installed` under the rc.39 legacy pin). Left untouched either way.
+@pytest.mark.parametrize("version,code", [("2.0.1-rc.11", "native_foreign_installed"), ("2.0.1-rc.1", "native_foreign_installed"),
+                                          ("2.0.0-rc.1", "native_foreign_installed"), ("not-a-semver", "native_foreign_installed")])
 def test_a_manual_native_install_is_left_untouched_with_the_switch_on(settings: Any, ha_cfg: Path, supervisor: dict[str, list[Any]],  # noqa: F811
                                                                       version: str, code: str) -> None:
     """The owner's lab: a manual WisKey install (2.0.1-rc.1, 169 files, domain hikvision_intercom) with another digest than the pinned
@@ -88,7 +91,10 @@ def test_a_manual_native_install_is_left_untouched_with_the_switch_off(settings:
     before = _snapshot(tree)
     app = _app(settings, False)
     st = bridge_install.install(app.state.db, settings)
-    assert st["wiskey_native"]["state"] == "off" and _snapshot(tree) == before and supervisor["restart"] == []
+    # WISKEY-MANAGED-INSTALL-2382: with the managed pin the guards run first, whatever the switch (policy B): the foreign tree is reported
+    # as refused (it was `off` under the rc.39 legacy pin) - and, as before, left byte-identical with no restart
+    assert (st["wiskey_native"]["state"], st["wiskey_native"]["code"]) == ("refused", "native_foreign_installed")
+    assert _snapshot(tree) == before and supervisor["restart"] == []
 
 
 def test_stage_native_bundle_classifies_the_manual_tree_as_foreign_without_a_staged_digest(tmp_path: Path) -> None:

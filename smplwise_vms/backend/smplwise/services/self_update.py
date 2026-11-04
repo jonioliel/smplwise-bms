@@ -21,6 +21,9 @@ owner answers of 2026-10-03):
   * `DELETE /discovery/{uuid}`          BRIDGE-STALE-DISCOVERY-2383: Arx removes ITS OWN discovery message once the pairing code it carried
                                         is no longer current (services/bridge_discovery.py). `{uuid}` must be 32 lowercase hex (the form the
                                         Supervisor answers a POST with); the Supervisor itself refuses a message of another add-on (403).
+  * `GET  /backups`, `POST /core/stop`, `POST /core/start`   WISKEY-MANAGED-INSTALL-2382: the owner-started WisKey run
+                                        (services/wiskey_managed_install.py) reads the backup list (never creates, restores or downloads
+                                        one) and stops / starts the core around the verified component swap. No body on any of the three.
 
 Security review of 2026-10-04: the update slug must equal the slug the infrastructure reported for THIS add-on (`GET /addons/self/info`,
 remembered by `send`), so no other add-on (`core_ssh` ...) can ever be addressed; before that read no update call is possible.
@@ -68,6 +71,9 @@ P_OPTIONS = "/addons/self/options"
 P_SELF_RESTART = "/addons/self/restart"
 P_DISCOVERY = "/discovery"
 P_DISCOVERY_ITEM = "/discovery/{uuid}"
+P_BACKUPS = "/backups"            # WISKEY-MANAGED-INSTALL-2382: read the platform's backup list (a recent full backup is required)
+P_CORE_STOP = "/core/stop"        # WISKEY-MANAGED-INSTALL-2382: stop the core before the WisKey component swap
+P_CORE_START = "/core/start"      # WISKEY-MANAGED-INSTALL-2382: start it again after the swap / the rollback
 
 # The whole outgoing surface of the add-on towards its infrastructure. Anything else raises ProbeRefused before a socket is opened.
 ALLOWED: frozenset[tuple[str, str]] = frozenset({
@@ -77,6 +83,7 @@ ALLOWED: frozenset[tuple[str, str]] = frozenset({
     ("POST", P_OPTIONS), ("POST", P_SELF_RESTART),                           # pre-existing nvr_system calls / the CR-022 Arx restart
     ("POST", P_DISCOVERY),                                                   # the bridge announcement (services/ha_client.py)
     ("DELETE", P_DISCOVERY_ITEM),                                            # BRIDGE-STALE-DISCOVERY-2383: Arx's own stale announcement
+    ("GET", P_BACKUPS), ("POST", P_CORE_STOP), ("POST", P_CORE_START),        # WISKEY-MANAGED-INSTALL-2382: the owner-started WisKey run
 })
 # The calls that carry a JSON body, with the exact keys they may carry. Every other call sends no body.
 BODY_KEYS: dict[tuple[str, str], frozenset[str]] = {

@@ -88,6 +88,8 @@ class _Binding:
     journal_identity: tuple
     stations: tuple
     profile: EffectJournalProfile | None = None
+    active: frozenset | None = None
+    history: tuple = ()
 
 
 def _read_binding(directory):
@@ -100,6 +102,12 @@ def _read_binding(directory):
     value = strict_json(read_private(path, limit=MAX_CONFIG_BYTES), limit=MAX_CONFIG_BYTES)
     if _file_version(path) != before or _identity(directory, directory=True) != directory_identity:
         raise Refusal("recovery_path_changed")
+    active, history = None, ()
+    from .recovery_startup_v3 import FORMAT as V3_FORMAT
+    from .recovery_startup_v3 import parse as parse_v3
+
+    if value.get("format") == V3_FORMAT:
+        value, active, history = parse_v3(value)
     if (
         set(value) != {"format", "repository_id", "journal", "stations"}
         or type(value["format"]) is not str
@@ -201,6 +209,8 @@ def _read_binding(directory):
         tuple(raw_identity),
         tuple(stations),
         profile,
+        active,
+        history,
     )
 
 
@@ -261,9 +271,20 @@ def _context(hass, repository, selection):
     return None
 
 
+def _managed_station_ids(hass):
+    # Camera/observation-only entries have no relay mapping to recover. They
+    # remain ordinary ConfigEntries; never invent a grant for them to satisfy
+    # startup's closed, nonempty-relay binding. Every actual managed relay entry
+    # must still be covered, including one added after startup.
+    return {
+        entry.entry_id
+        for entry in hass.config_entries.async_entries(DOMAIN)
+        if managed_locks(entry.data)
+    }
+
+
 def _stations(hass, binding):
-    entries = tuple(hass.config_entries.async_entries(DOMAIN))
-    if {entry.entry_id for entry in entries} != {s[0] for s in binding.stations}:
+    if _managed_station_ids(hass) != {s[0] for s in binding.stations}:
         raise Refusal("emergency_recovery_unbound")
     result = []
     for sid, identity, rows in binding.stations:
@@ -278,7 +299,14 @@ def _stations(hass, binding):
             != {(g[2], g[1]) for g in rows}
         ):
             raise Refusal("emergency_recovery_unbound")
-        result.append(RecoveryStation(entry, identity, tuple(StationGrant(*g) for g in rows)))
+        historical = tuple(
+            StationGrant(*grant)
+            for old_sid, old_identity, grant in binding.history
+            if old_sid == sid and old_identity == identity
+        )
+        result.append(
+            RecoveryStation(entry, identity, tuple(StationGrant(*g) for g in rows), historical)
+        )
     return tuple(result)
 
 
@@ -292,6 +320,7 @@ def _claims_bound(journal, binding):
     expected = {
         (*grant, identity) for _sid, identity, grants in binding.stations for grant in grants
     }
+    expected.update((*grant, identity) for _sid, identity, grant in binding.history)
     claims = FeatureExecutionJournal.pending_secure_claims(journal)
     if any(claim["target_signature"] not in expected for claim in claims):
         raise Refusal("emergency_recovery_unbound")
@@ -385,6 +414,8 @@ class NativeEmergencyRecoveryHost:
         from .access.native_emergency_recovery import _issued
 
         NativeEmergencyRecovery._current(recovery, _issued(recovery))
+        if _managed_station_ids(hass) != {s[0] for s in owner.binding.stations}:
+            raise Refusal("recovery_host_unavailable")
         return owner
 
     async def close(self):
@@ -425,6 +456,13 @@ class NativeEmergencyRecoveryHost:
                     owner.close_failed = True
                     raise
                 owner.closed = True
+                # A successful joined close retires THIS registration even
+                # while the closed host/task cycle is still strongly retained.
+                # Recomposition must not depend on an incidental GC pass.
+                # Failed cleanup above keeps its original registration/source.
+                registered = _INSTALLED.get(hass)
+                if registered is not None and registered() is self:
+                    _INSTALLED.pop(hass)
 
             task = asyncio.create_task(finish())
             owner.close_task = weakref.ref(task)
@@ -434,12 +472,58 @@ class NativeEmergencyRecoveryHost:
         await finish_owned_commit(task)
 
 
+def _joined_predecessor(host, hass, journal):
+    """Original successful close proof for SAME-source explicit recomposition.
+
+    Not a grant or a public label: issuance, the original close task, repository,
+    selected engine, DB identity/profile and the previous recovery all match.
+    The recovery module retains its deny-only registration through replacement.
+    """
+    if type(host) is not NativeEmergencyRecoveryHost:
+        raise Refusal("recovery_predecessor_unavailable")
+    owner = _OWNERS.get(host)
+    task = None if owner is None or owner.close_task is None else owner.close_task()
+    if (
+        owner is None
+        or not owner.closed
+        or owner.close_failed
+        or owner.hass() is not hass
+        or task is None
+        or not task.done()
+        or task.cancelled()
+        or task.exception() is not None
+        or owner.repository() is None
+    ):
+        raise Refusal("recovery_predecessor_unavailable")
+    selection = owner.selection() if owner.selection is not None else None
+    if _context(hass, owner.repository(), selection) is not owner.selection_roots:
+        raise Refusal("recovery_predecessor_unavailable")
+    if type(journal) is not FeatureExecutionJournal:
+        raise Refusal("recovery_predecessor_unavailable")
+    current = FeatureExecutionJournal._stable(journal).configuration
+    if (
+        current[1] != owner.binding.repository_id
+        or current[2] != owner.binding.journal_path
+        or _identity(current[2]) != owner.binding.journal_identity
+    ):
+        raise Refusal("recovery_predecessor_unavailable")
+    _journal_profile_matches(journal, owner.binding)
+    recovery = owner.recovery()
+    if recovery is None:
+        raise Refusal("recovery_predecessor_unavailable")
+    from .access.native_emergency_recovery import _issued
+
+    _issued(recovery)
+    return recovery
+
+
 async def async_setup_native_emergency_recovery(
     hass: HomeAssistant,
     *,
     repository: AccessRepository,
     selection: EccStorageSelection | None = None,
     journal: FeatureExecutionJournal | None = None,
+    predecessor: NativeEmergencyRecoveryHost | None = None,
 ) -> NativeEmergencyRecoveryHost | None:
     """Call after repository open and before ANY DOMAIN entry setup.
 
@@ -448,6 +532,8 @@ async def async_setup_native_emergency_recovery(
     owned. An internally opened journal is closed after all original feature
     hosts finish. A missing configuration directory returns None, never success.
     """
+    if predecessor is not None and type(predecessor) is not NativeEmergencyRecoveryHost:
+        raise Refusal("recovery_predecessor_unavailable")
     initial = _context(hass, repository, selection)
     lock = _LOCKS.setdefault(hass, asyncio.Lock())
     async with lock:
@@ -501,7 +587,11 @@ async def async_setup_native_emergency_recovery(
                 raise Refusal("recovery_host_unavailable")
             if KEY in hass.data.setdefault(DOMAIN, {}):
                 raise Refusal("recovery_host_unavailable")
-            recovery = NativeEmergencyRecovery(hass, opened, stations)
+            if predecessor is not None:
+                prior = _OWNERS.get(predecessor)
+                if prior is None or prior.repository() is not repository:
+                    raise Refusal("recovery_predecessor_unavailable")
+            recovery = NativeEmergencyRecovery(hass, opened, stations, predecessor_host=predecessor)
             host = NativeEmergencyRecoveryHost()
             host._recovery, host._journal = recovery, opened
             owner = _Owner(
@@ -522,6 +612,10 @@ async def async_setup_native_emergency_recovery(
                 # HA owns this closure, which retains the original journal even
                 # if every public host resource label is grafted. Module issuance
                 # remains weak, so journal leases cannot globally root HA.
+                # The one-shot bus already removed this listener. Explicit
+                # close still joins the original hosts/journal, without trying
+                # to unsubscribe an already-consumed HA listener a second time.
+                owner.stop = None
                 await NativeEmergencyRecoveryHost.close(host)
 
             host._stop = hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, stop)
@@ -591,7 +685,11 @@ def native_emergency_recovery_ready(hass, journal) -> bool:
 
 
 def require_native_emergency_recovery(
-    hass: HomeAssistant, journal: FeatureExecutionJournal, grants: tuple[StationGrant, ...]
+    hass: HomeAssistant,
+    journal: FeatureExecutionJournal,
+    grants: tuple[StationGrant, ...],
+    *,
+    release=False,
 ) -> None:
     """Require original restart refusals; this grants no command permission.
 
@@ -607,7 +705,16 @@ def require_native_emergency_recovery(
         raise Refusal("emergency_recovery_unavailable")
     original = _execution_recovery_context(hass, journal)
     host, owner, manager = original
-    expected = {grant for _sid, _identity, rows in owner.binding.stations for grant in rows}
+    expected = {
+        grant
+        for _sid, _identity, rows in owner.binding.stations
+        for grant in rows
+        if release or owner.binding.active is None or grant in owner.binding.active
+    }
+    if release:
+        # The original release coordinator must still match its durable claim;
+        # inactivity prevents new holds, never a properly authenticated release.
+        expected.update(grant for _sid, _identity, grant in owner.binding.history)
     values = []
     for grant in grants:
         StationGrant.__post_init__(grant)
@@ -628,3 +735,19 @@ def require_native_emergency_recovery(
         (g.station_id, g.api_relay, g.physical_relay, g.mapping_revision) for g in grants
     ]:
         raise Refusal("emergency_recovery_unavailable")
+
+
+def read_emergency_mapping(hass, journal):
+    """Current original recovery mapping for authenticated history reads only.
+
+    Copies cached original mapping facts; no registry/lease/grant or I/O effect.
+    """
+    _host, owner, _manager = _fresh_execution_recovery_context(hass, journal)
+    return tuple(
+        dict.fromkeys(
+            (
+                *(row for _station, _identity, rows in owner.binding.stations for row in rows),
+                *(row for _station, _identity, row in owner.binding.history),
+            )
+        )
+    )
