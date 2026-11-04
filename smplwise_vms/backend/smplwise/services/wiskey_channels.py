@@ -161,9 +161,21 @@ INSTALLER = frozenset({
     "platform/maintenance_jobs", "platform/maintenance_cancel",
 })
 
+# WISKEY-OPS-VIEWS-2400 (integration plan T11, rows 79, 80, 82): the operations and fleet views of Settings › תפעול האינטרקום
+# (services/wiskey_ops_views.py). Nine READS (each one WisKey's catalog classifies READ; sent without `api_contract`) and ONE write,
+# `jobs/action` - which Arx sends only with `action: "cancel"` (the job's own revision, a confirmation, an audit row before and after).
+# Not `jobs/approval_*` (Arx's single service identity cannot be WisKey's separate approver), not `jobs/bulk_create` / `csv_create`
+# (bulk edits are Arx's own screen), not `events/print` / `events/export` (the entry log's CSV is the read channel's). Same socket and
+# identity as `service`, a guard of its own, so no other channel's list changes.
+OPERATIONS = frozenset({
+    "overview/summary", "operations/query", "investigations/query", "jobs/list", "jobs/errors", "platform/capacity", "fleet/inventory_export",
+    "audit/export", "events/report",
+    "jobs/action",  # the one write: cancel only (services/wiskey_ops_views.py CANCEL)
+})
+
 ALLOWLISTS: dict[str, frozenset[str]] = {"background": BACKGROUND, "service": SERVICE, "read": READ, "technical": TECHNICAL, "messaging": MESSAGING,
-                                         "readback": READBACK, "pacing": PACING, "maintenance": MAINTENANCE, "door_technical": DOOR_TECHNICAL, "station_people": STATION_PEOPLE, "profiles": PROFILES, "schedules": SCHEDULES, "installer": INSTALLER}
-ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing", "maintenance", "door_technical", "station_people", "profiles", "schedules", "installer")  # the guards the service session builds for the adapters (intercom_sync on_ready)
+                                         "readback": READBACK, "pacing": PACING, "maintenance": MAINTENANCE, "door_technical": DOOR_TECHNICAL, "station_people": STATION_PEOPLE, "profiles": PROFILES, "schedules": SCHEDULES, "installer": INSTALLER, "operations": OPERATIONS}
+ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing", "maintenance", "door_technical", "station_people", "profiles", "schedules", "installer", "operations")  # the guards the service session builds for the adapters (intercom_sync on_ready)
 
 # Home Assistant's own frames a channel may send besides WisKey commands (the auth handshake is written by ha_client itself):
 # `get_config` tells "WisKey not loaded yet" from "not installed"; the service feed watches the stations' entities.
@@ -181,6 +193,7 @@ HA_FRAMES: dict[str, frozenset[str]] = {
     "profiles": frozenset(),
     "schedules": frozenset(),
     "installer": frozenset(),
+    "operations": frozenset(),
 }
 
 
@@ -227,4 +240,5 @@ def describe() -> dict[str, Any]:
         "profiles": {"commands": sorted(PROFILES), "in_use": True},
         "schedules": {"commands": sorted(SCHEDULES), "in_use": True},
         "installer": {"commands": sorted(INSTALLER), "in_use": True},
+        "operations": {"commands": sorted(OPERATIONS), "in_use": True},
     }

@@ -50,6 +50,8 @@ export type DeepPlace =
 export interface NativeRoute {
   readonly href: string;
   readonly need?: readonly string[];
+  /** WISKEY-OPS-VIEWS-2400: `need` counts only when held at the installation (the screen's server checks it there). */
+  readonly installation?: boolean;
 }
 
 export interface DeepLinkEntry {
@@ -103,6 +105,10 @@ const SEGMENT: Record<string, string> = { users: 'people' };
 const CLASSIC: readonly string[] = ['overview', 'events', 'users', 'devices'];
 
 const tab = (t: string): DeepTarget => Object.freeze({ tab: t, tool: null });
+/** WISKEY-OPS-VIEWS-2400 (plan T11): the native views of Settings › תפעול האינטרקום (screens/system-intercom-ops.ts) - `access.read`, which the
+ * server checks at installation scope (routers/access_control_ops.py). The panel link stays in the entry as `target` (deepLinkHref). */
+export const OPS_NATIVE_HREF = '#/system/intercom-operations';
+const OPS_NATIVE = (view: string): NativeRoute => Object.freeze({ href: `${OPS_NATIVE_HREF}/${view}`, need: ['access.read'], installation: true });
 const tool = (t: string): DeepTarget => Object.freeze({ tab: 'tools', tool: t });
 
 /**
@@ -117,7 +123,7 @@ export const DEEP_LINKS: Readonly<Record<string, DeepLinkEntry>> = Object.freeze
   // ---- synchronisation (the sync tab: sync now per person / station / all, the conflict review and resolve, the diagnostics file)
   'sync.run': { target: tab('sync'), label: 'סנכרון עכשיו ופתרון התנגשויות', rows: [3, 36, 38] },
   // ---- health, alerts, clock
-  'health.fleet': { target: tool('health'), label: 'בריאות, קיבולת ובדיקת קבלה', rows: [34, 82, 98] },
+  'health.fleet': { target: tool('health'), label: 'קיבולת ומגמות של העמדות', rows: [34, 82, 98], native: OPS_NATIVE('capacity') },
   'alerts.act': { target: tool('fleet_alerts'), label: 'טיפול בהתראות', rows: [77] },
   'clock.settings': { target: tool('clock_options'), label: 'שעון ו־NTP', rows: [51], bridge: 'Q7' },
   // ---- people
@@ -134,10 +140,10 @@ export const DEEP_LINKS: Readonly<Record<string, DeepLinkEntry>> = Object.freeze
   // ---- schedules
   'schedules.edit': { target: tool('schedules'), label: 'עריכת לוחות זמנים במכשירים', rows: [49], bridge: 'Q4' },
   // ---- logs, operations, platform
-  'audit.panel': { target: tool('audit'), label: 'יומן שינויים, ייצוא וביקורת הרשאות עמדה', rows: [79, 89] },
-  'events.report': { target: tab('events'), label: 'דוח והדפסת אירועים', rows: [79] },
-  'operations.center': { target: tool('operations_center'), label: 'מרכז תפעול ומשימות', rows: [80] },
-  'operations.investigations': { target: tool('investigations'), label: 'חקירות', rows: [80], panelAdmin: true },
+  'audit.panel': { target: tool('audit'), label: 'ייצוא יומן השינויים ומלאי העמדות', rows: [79, 89], native: OPS_NATIVE('exports') },
+  'events.report': { target: tab('events'), label: 'דוח אירועים', rows: [79], native: OPS_NATIVE('events') },
+  'operations.center': { target: tool('operations_center'), label: 'פעולות ומשימות', rows: [80], native: OPS_NATIVE('operations') },
+  'operations.investigations': { target: tool('investigations'), label: 'ציר זמן לחקירה', rows: [80], panelAdmin: true, native: OPS_NATIVE('investigations') },
   'platform.center': { target: tool('platform_center'), label: 'מרכז הפלטפורמה', rows: [50, 82], panelAdmin: true, bridge: 'Q7' },
   'workflows.center': { target: tool('workflow_center'), label: 'מרכז תהליכים', rows: [84], panelAdmin: true },
   // ---- messaging, media, permissions
@@ -212,6 +218,8 @@ export interface DeepLinkViewer {
   readonly catalog?: CatalogLike | null;
   /** A permission at any scope (a native screen's `need`); absent = a native link is offered without a permission check here. */
   readonly can?: (permission: string) => boolean;
+  /** A permission at the installation (a native screen whose `need` is installation-only); absent = `can` decides. */
+  readonly canInstallation?: (permission: string) => boolean;
 }
 
 /** The rule of the WisKey area's navigation (shell/nav.ts `tabAllowed` + `ui.hide_wiskey`), as one boolean. */
@@ -240,7 +248,8 @@ export function deepLinksFor(place: string, viewer: DeepLinkViewer, table: Reado
     if (!e) continue;
     let link: DeepLink;
     if (e.native) {
-      if (e.native.need?.length && viewer.can && !e.native.need.some((p) => viewer.can!(p))) continue;
+      const check = e.native.installation && viewer.canInstallation ? viewer.canInstallation : viewer.can;
+      if (e.native.need?.length && check && !e.native.need.some((p) => check(p))) continue;
       link = { id, label: e.label, href: e.native.href, kind: 'native', target: e.target, bridge: e.bridge };
     } else {
       if (!viewer.panel || (e.panelAdmin && !viewer.admin) || !inCatalog(e.target, viewer.catalog)) continue;

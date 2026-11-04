@@ -625,6 +625,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import wiskey_installer as wiskey_installer_router  # WISKEY-INSTALLER-NATIVE-2400: WisKey's installer tools (system.configure)
 
     app.include_router(wiskey_installer_router.router, prefix=api, tags=["access-control"])
+    from .routers import access_control_ops as access_control_ops_router  # WISKEY-OPS-VIEWS-2400: Settings › תפעול האינטרקום (its own line)
+
+    app.include_router(access_control_ops_router.router, prefix=api, tags=["access-control"])
     app.include_router(doors_router.router, prefix=api, tags=["access-control"])  # CR-033: door map, station placement, door grants, trusted path
     app.include_router(wiskey_relay_map_router.router, prefix=api, tags=["access-control"])  # WISKEY-RELAYMAP-2310: the WisKey relay map approval
     from .routers import door_automations as door_automations_router  # CR-AUTODOORS-295: automations that open doors (its own line)

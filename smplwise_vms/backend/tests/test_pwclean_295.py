@@ -25,7 +25,8 @@ HISTORICAL = ("signed_person_writes", "person_writes/resolve_create", "wiskey-si
               "wiskey-create-resolution-draft1", "signed_person_completion_read_v1", "person_create_resolution_v1")
 
 # sha256 of the canonical command catalog, computed on release/2200 @ 47ca1a2c0 BEFORE the cleanup (without ADDED_AFTER_CLEANUP; the 2.39.0
-# train recomputed it: with `station_people` in the catalog it is 38db8b1c...bb031, the value WISKEY-PEOPLE-COMPLETE-2390 pinned)
+# train recomputed it: with `station_people` in the catalog it is 38db8b1c...bb031, the value WISKEY-PEOPLE-COMPLETE-2390 pinned;
+# the 2.40.0 train: with only `operations` in the catalog it is b9ae08da...5ac59, the value WISKEY-OPS-VIEWS-2400 pinned)
 CATALOG_SHA256 = "0fdcbd37b67f8506178c35a8aea233f0080a0ed5895259c7430aa16f7f1abafe"
 PEOPLE_CATALOG_FIXTURE_SHA256 = "92ffc92b384fe0f667b66221076cfaf6b8259ffb28dd50c4c8cc2d7f83cf5e68"
 MIGRATION_0145_SHA256 = "b0fb6fd086a47430fc170008f233d2aa753d8d2140bf8c7bebbe60ab74aefa3f"
@@ -37,6 +38,7 @@ ADDED_AFTER_CLEANUP = (
     "profiles",  # WISKEY-PROFILES-EDIT-2390
     "schedules",  # WISKEY-SCHED-WRITE-2390
     "installer",  # WISKEY-INSTALLER-NATIVE-2400
+    "operations",  # WISKEY-OPS-VIEWS-2400
 )
 
 

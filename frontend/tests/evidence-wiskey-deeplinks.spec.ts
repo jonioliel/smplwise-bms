@@ -3,7 +3,7 @@ import { installStationsMock, newMock as newStationsMock, openStations, type Sta
 import { install as installPeople, newMock as newPeopleMock } from './wiskey-people-mock';
 import { installAccessMock, NOW as ACCESS_NOW, url as accessUrl, type MockOptions } from './access-control-mocks';
 import { FAKE_CATALOG, stubPanel, type FakeCatalog } from './wiskey-fake-ha';
-import { DEEP_LINKS, deepLinkHref } from '../src/wiskey/deep-links';
+import { DEEP_LINKS, linkFor } from '../src/wiskey/deep-links';
 
 // WISKEY-DEEPLINKS-2382 (integration plan task T18): the "no dead end" links from Arx places into the embedded intercom panel, behind
 // the real shell against MOCKED backends (tests/wiskey-stations-mocks.ts, wiskey-people-mock.ts, access-control-mocks.ts) and the
@@ -28,7 +28,8 @@ const FULL_CATALOG: FakeCatalog = {
 
 const links = (host: Locator) => host.locator('[data-wk-deeplink]');
 const hrefs = (host: Locator) => links(host).evaluateAll((as) => as.map((a) => `${a.getAttribute('data-wk-deeplink')}=${a.getAttribute('href')}`));
-const expected = (ids: string[]) => ids.map((id) => `${id}=${deepLinkHref(id)}`);
+// WISKEY-OPS-VIEWS-2400: where a capability has a native screen (Settings › תפעול האינטרקום), the link goes there (linkFor)
+const expected = (ids: string[]) => ids.map((id) => `${id}=${linkFor(id)}`);
 const hash = (page: Page) => page.evaluate(() => decodeURIComponent(location.hash));
 /** The tab / tool of the last frame address the fake panel was asked for. */
 const lastFrame = (hits: string[]) => {
@@ -211,12 +212,16 @@ test.describe('deep links: Settings › בקרת כניסה', () => {
     await expect.poll(() => lastFrame(hits), { timeout: 15_000 }).toBe('tools/access_control');
   });
 
-  test('a station-scoped administrator sees the page but no link; with the area hidden for everyone nobody gets one', async ({ page }) => {
+  test('a station-scoped administrator sees the page but no link; with the area hidden for everyone nobody gets a panel link', async ({ page }) => {
     await accessBoot(page, { persona: 'scopedAdmin' }, '/system/access-control', `${PAGE} [data-access-segment="status"]`);
     await expect(page.locator(`${PAGE} wk-deep-links`)).toHaveAttribute('hidden', '');
     await page.unrouteAll({ behavior: 'ignoreErrors' });
     await accessBoot(page, { settings: { 'ui.hide_wiskey': 'true' } }, '/system/access-control', `${PAGE} [data-access-segment="status"]`);
-    await expect(page.locator(`${PAGE} wk-deep-links`)).toHaveAttribute('hidden', '');
+    // WISKEY-OPS-VIEWS-2400: no PANEL link with the area hidden; Arx's own native views (Settings › תפעול האינטרקום) stay
+    const status = page.locator(`${PAGE} wk-deep-links[place="settings-status"]`);
+    await openList(status);
+    expect(await hrefs(status)).toEqual(expected(['health.fleet', 'operations.center', 'operations.investigations']));
+    expect((await hrefs(status)).every((h) => h.includes('=#/system/intercom-operations/'))).toBe(true);
   });
 });
 
