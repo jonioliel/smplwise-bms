@@ -7092,7 +7092,7 @@
     "environment": null,
     "evidence": [],
     "executed_at": null,
-    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built. 2026-11-04: the owner-approved read-only inventory ran on the lab Home Assistant data (0 door-opening items), not on the Arx database; the owner closed WXD7R on that basis. Left NOT_RUN: no execution record with commit and environment against the stated entry gate."
   },
   {
     "id": "AT259",
