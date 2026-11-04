@@ -99,7 +99,9 @@ export const PRESENCE_WIDGET_STYLES = css`
   .wg-pres .pc-rooms .rest { color: var(--sw-text-3); }
   /* PRESENCE-COUNT-2400 - count and names (round-16 direction A): the number in the clock's voice (the clock's --hm, scaled per size so the
      row never grows), the names as text, a hairline bar with a tick a room. Green lives only in the lamp and the bar. */
-  .wg-pres .pn { display: flex; flex-direction: column; gap: 8px; flex: 1 1 auto; min-inline-size: 0; }
+  /* the block keeps its own height so the card centres it (as the mockup); only the row band, where the card is a row, lets it take the width */
+  .wg-pres .pn { display: flex; flex-direction: column; gap: 8px; flex: 0 1 auto; min-inline-size: 0; }
+  :host([layout='row']) .wg-pres .pn { flex: 1 1 auto; }
   .wg-pres .pn-row { display: flex; align-items: center; gap: 14px; min-inline-size: 0; }
   .wg-pres .pn-n { display: flex; align-items: baseline; flex: none; direction: ltr; unicode-bidi: isolate; line-height: 0.9; }
   .wg-pres .pn-n b { font-size: calc(var(--hm, 54px) * var(--pnf, 0.82)); font-weight: var(--sw-fw-medium); letter-spacing: -0.04em; color: var(--sw-heading, var(--sw-text)); }
