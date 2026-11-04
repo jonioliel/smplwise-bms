@@ -98,10 +98,23 @@ UNPINNED_CHANNELS = frozenset({"readback", "pacing"})
 # device (`clock/station_sync`, which WRITES the clock, is NOT here). Same socket and identity as `service`, a guard of its own, so the
 # service channel's write list stays the reviewed one and nothing else can ride this guard.
 MAINTENANCE = frozenset({"sync/station", "stations/rescan", "health/refresh", "stations/clock_refresh"})
+# WISKEY-DOOR-TECH-2390 (plan 2026-11-03 T6, owner Q5 = a): the door technical WRITES from the stations drawer
+# (services/wiskey_door_tech.py): a door's hold-open schedule draft (save / delete), a public door code (add / replace / remove - the
+# value goes to WisKey once and is never stored, logged or answered by Arx) and the door's hold-open program (save / pause / remove).
+# All five are non-READ, station-scoped and granted at `stations: manage` in the pinned catalog (`api_contract` on every frame); the
+# reads that go with them stay on `technical`. One read rides along: `overview`, sent in the SAME coroutine right before a code write
+# to learn WisKey's API relay id of the door (the served copy drops it), so the read and the write share one slot and one session. Same
+# socket and identity as `service`, a closed guard of its own, so neither the service channel's reviewed write list nor the technical
+# channel's reads change, and nothing else can ride this guard.
+DOOR_TECHNICAL = frozenset({
+    "overview",
+    "stations/technical_hold_save", "stations/technical_hold_delete", "stations/technical_codes_write",
+    "stations/technical_program_save", "stations/technical_program_action",
+})
 
 ALLOWLISTS: dict[str, frozenset[str]] = {"background": BACKGROUND, "service": SERVICE, "read": READ, "technical": TECHNICAL, "messaging": MESSAGING,
-                                         "readback": READBACK, "pacing": PACING, "maintenance": MAINTENANCE}
-ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing", "maintenance")  # the guards the service session builds for the adapters (intercom_sync on_ready)
+                                         "readback": READBACK, "pacing": PACING, "maintenance": MAINTENANCE, "door_technical": DOOR_TECHNICAL}
+ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing", "maintenance", "door_technical")  # the guards the service session builds for the adapters (intercom_sync on_ready)
 
 # Home Assistant's own frames a channel may send besides WisKey commands (the auth handshake is written by ha_client itself):
 # `get_config` tells "WisKey not loaded yet" from "not installed"; the service feed watches the stations' entities.
@@ -114,6 +127,7 @@ HA_FRAMES: dict[str, frozenset[str]] = {
     "readback": frozenset(),
     "pacing": frozenset(),
     "maintenance": frozenset(),
+    "door_technical": frozenset(),
 }
 
 
@@ -155,4 +169,5 @@ def describe() -> dict[str, Any]:
         "readback": {"commands": sorted(READBACK), "in_use": True},
         "pacing": {"commands": sorted(PACING), "in_use": True},
         "maintenance": {"commands": sorted(MAINTENANCE), "in_use": True},
+        "door_technical": {"commands": sorted(DOOR_TECHNICAL), "in_use": True},
     }
