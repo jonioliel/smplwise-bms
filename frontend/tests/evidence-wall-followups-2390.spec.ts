@@ -15,13 +15,14 @@ import {
 // Then the acceptance walks of AT221 (CR-030 wall display: recognised by the device, presets, settings, remote refusal) and AT301
 // (KIOPOL: distance legibility, burn-in, touch), split over the three projects so each runs where its device lives.
 //   run_smart.py preview <branch> tests/evidence-wall-followups-2390.spec.ts --project=desktop --project=tablet --project=mobile
-// SW_SHOTS=<dir> writes the screenshots (reviewed by hand; the pixel baselines are pixel-wall-followups-2390.spec.ts).
-const SHOTS = process.env.SW_SHOTS ? (process.env.SW_SHOTS === '1' ? '../docs/evidence/WALL-FOLLOWUPS-2390' : process.env.SW_SHOTS) : '';
+// Screenshots for the hand review go to SW_SHOTS=<dir> when set, else to the test's own output folder (test-results/, fetched from
+// the runner); the pixel baselines are pixel-wall-followups-2390.spec.ts.
+const SHOTS = process.env.SW_SHOTS ?? '';
 
 async function shot(page: Page, name: string, project: string) {
-  if (!SHOTS) return;
-  fs.mkdirSync(SHOTS, { recursive: true });
-  await page.screenshot({ path: path.join(SHOTS, `${name}-${project}.png`) });
+  const file = SHOTS ? path.join(SHOTS, `wf2390-${name}-${project}.png`) : test.info().outputPath(`wf2390-${name}-${project}.png`);
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  await page.screenshot({ path: file });
 }
 
 /** The project's own device, at the project's own viewport. */
