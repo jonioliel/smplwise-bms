@@ -48,7 +48,7 @@ export interface CardsMock {
 }
 
 /** Installs the mocks; `layout` is the saved `access.settings_layout` (undefined = the server default, cards). */
-export async function installCardsMock(page: Page, opts: MockOptions & { layout?: 'cards' | 'tabs' | 'list' } = {}): Promise<CardsMock> {
+export async function installCardsMock(page: Page, opts: MockOptions & { layout?: 'cards' | 'accordion' | 'tabs' | 'list' } = {}): Promise<CardsMock> {
   const { layout, ...rest } = opts;
   const settings: Record<string, string> = { ...(rest.settings ?? {}) };
   settings['access.settings_layout'] = layout ?? 'cards';

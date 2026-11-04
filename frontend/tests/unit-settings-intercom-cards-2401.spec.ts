@@ -62,7 +62,7 @@ test.describe('the layout setting', () => {
   test('cards is the default; only cards / tabs / list are read, anything else is the default', () => {
     expect(ACCESS_LAYOUT_KEY).toBe('access.settings_layout');
     expect(ACCESS_LAYOUT_DEFAULT).toBe('cards');
-    expect([...ACCESS_LAYOUTS]).toEqual(['cards', 'tabs', 'list']);
+    expect([...ACCESS_LAYOUTS]).toEqual(['cards', 'accordion', 'tabs', 'list']); // + accordion: SETTINGS-CARDS-ACCORDION-2402
     for (const l of ACCESS_LAYOUTS) expect(parseAccessLayout(l)).toBe(l);
     for (const bad of [undefined, null, '', 'a', 'b', 'c', 'Cards', 'grid', 1, {}]) expect(parseAccessLayout(bad)).toBe('cards');
   });
@@ -70,15 +70,15 @@ test.describe('the layout setting', () => {
   test('the server validates the same three values and defaults to cards', () => {
     const py = fs.readFileSync(path.join(HERE, '..', '..', 'smplwise_vms', 'backend', 'smplwise', 'routers', 'settings.py'), 'utf8');
     expect(py).toContain('"access.settings_layout": "cards",');
-    expect(py).toContain('pattern="^(cards|tabs|list)$", alias="access.settings_layout"');
-    expect(py).toContain('if out.get("access.settings_layout") not in ("cards", "tabs", "list"):');
+    expect(py).toContain('pattern="^(cards|accordion|tabs|list)$", alias="access.settings_layout"');
+    expect(py).toContain('if out.get("access.settings_layout") not in ("cards", "accordion", "tabs", "list"):');
   });
 
   test('the layout row: short plain Hebrew labels, one per layout, in both languages', () => {
     expect(heSettingsCardsText.layout.label).toBe('סידור הלשונית');
-    expect([heSettingsCardsText.layout.cards, heSettingsCardsText.layout.tabs, heSettingsCardsText.layout.list]).toEqual(['כרטיסים מתקפלים', 'שתי לשוניות', 'רשימה אחת']);
+    expect([heSettingsCardsText.layout.cards, heSettingsCardsText.layout.accordion, heSettingsCardsText.layout.tabs, heSettingsCardsText.layout.list]).toEqual(['כרטיסים: כותרות בצד', 'כרטיסים: נפתחים במקום', 'שתי לשוניות', 'רשימה אחת']);
     for (const l of ACCESS_LAYOUTS) {
-      expect(heSettingsCardsText.layout[l].length).toBeLessThanOrEqual(20);
+      expect(heSettingsCardsText.layout[l].length).toBeLessThanOrEqual(24); // "כרטיסים: נפתחים במקום" (2402) is 21
       expect(enSettingsCardsText.layout[l].length).toBeGreaterThan(0);
     }
     expect(heSettingsCardsText.voiceTab).toBe('הכרזות וקול');
@@ -155,7 +155,7 @@ test.describe('the summary lines', () => {
   });
 
   test('the area, the display, the announcements, the call banner and the checklist', () => {
-    expect(areaSummary(false, false, 'cards')).toBe('האזור מוצג · הטמעה בטלפון: כבויה · כרטיסים מתקפלים');
+    expect(areaSummary(false, false, 'cards')).toBe('האזור מוצג · הטמעה בטלפון: כבויה · כרטיסים: כותרות בצד');
     expect(areaSummary(true, true, 'list')).toBe('האזור מוסתר לכולם · הטמעה בטלפון: מופעלת · רשימה אחת');
     expect(displaySummary('כל מי שרואה את התחנה', 'מוצג', 'כבוי')).toBe('רמז שיחה: כל מי שרואה את התחנה · דיבור: מוצג · וידאו: כבוי');
     expect(announceSummary('תחנה אחת בכל פעם', '', 0)).toBe('תחנה אחת בכל פעם · מנוע: ברירת המחדל · משפטים מובנים');
