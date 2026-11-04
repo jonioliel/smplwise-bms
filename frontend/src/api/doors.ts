@@ -97,6 +97,8 @@ export interface DoorSettings {
   editor_allowed_available: boolean;
   /** CR-033 D6: scheduled jobs that lock a WisKey door (they will never work). */
   lock_jobs: DoorLockJob[];
+  /** WXD10 (CR-033 6.4): whether the confirmed "disable and list" actions may run at all; `off` by default. */
+  conversion: 'off' | 'on';
 }
 
 export const getDoorSettings = () => get<DoorSettings>('doors/settings');
@@ -142,3 +144,80 @@ export interface DoorPathInventory {
 
 /** Read-only: nothing is converted, disabled or sent by this request. */
 export const getDoorPathInventory = () => get<DoorPathInventory>('intercom/door-path-inventory');
+
+// ---------------------------------------------------------------- disable and list (WXD10A / WXD10B, CR-033 6.4)
+
+export type DoorConversionAction = 'disable' | 'convert_event_job' | 'hand_over_program';
+export type DoorConversionCategory = 'event_automation' | 'schedule' | 'script' | 'scene' | 'launcher' | 'unknown';
+
+/** One action for one item: offered now, or the reason it is not (`reason_text` is the server's Hebrew; never show `reason`). */
+export interface DoorConversionOffer {
+  available: boolean;
+  reason: string | null;
+  reason_text: string;
+  /** convert_event_job: the doors the draft Arx door job will hold and how many Home Assistant steps leave the automation. */
+  doors?: string[];
+  removed_steps?: number;
+  /** hand_over_program: the draft weekly door window (days 0 = Sunday .. 6). */
+  program?: { name: string; days: number[]; days_text: string; periods: { start: string; end: string }[]; doors: string[] } | null;
+}
+
+export interface DoorConversionRecord {
+  id: string;
+  item_key: string;
+  kind: 'automation' | 'schedule';
+  name: string;
+  action: 'disabled' | 'converted' | 'handed_over';
+  state: 'done' | 'undone';
+  door_job_id: string | null;
+  program_rule_id: string | null;
+  doors: number;
+  done_by: string;
+  done_at: string;
+  undone_by: string | null;
+  undone_at: string | null;
+}
+
+export interface DoorConversionItem {
+  key: string;
+  kind: DoorPathItem['kind'];
+  name: string;
+  category: DoorConversionCategory;
+  category_text: string;
+  origin: DoorPathItem['origin'];
+  origin_text: string;
+  state: DoorPathItem['state'];
+  autonomous: boolean;
+  revision: string | null;
+  door_steps: number;
+  doors: string[];
+  resolvable: boolean;
+  unresolved: string[];
+  disable_required: boolean;
+  approver_text: string;
+  run_guard_text: string;
+  actions: Record<DoorConversionAction, DoorConversionOffer>;
+  offered: DoorConversionAction[];
+  record: DoorConversionRecord | null;
+}
+
+export interface DoorConversionList {
+  switch: 'off' | 'on';
+  /** `no_wiskey`: no WisKey door at all; `nothing_found`: no saved item opens one (the 2026-11-04 lab result); `items`. */
+  state: 'no_wiskey' | 'nothing_found' | 'items';
+  state_text: string;
+  wiskey_present: boolean;
+  generated_at: string;
+  counts: { items: number; disable: number; convert_event_job: number; hand_over_program: number; list_only: number; disable_required: number; handled: number };
+  items: DoorConversionItem[];
+  records: DoorConversionRecord[];
+}
+
+/** Read-only. */
+export const getDoorConversion = () => get<DoorConversionList>('intercom/door-path-conversion');
+/** One confirmed action on one listed item; `revision` is the item's revision as listed (a changed item is refused). */
+export const runDoorConversion = (key: string, action: DoorConversionAction, revision: string | null) =>
+  post<{ record: DoorConversionRecord; changed: boolean }>('intercom/door-path-conversion/actions', { key, action, revision, confirmed: true });
+export const undoDoorConversion = (recordId: string) =>
+  post<{ record: DoorConversionRecord; re_enabled: boolean; ha_steps_restored: boolean | null }>(`intercom/door-path-conversion/records/${encodeURIComponent(recordId)}/undo`, { confirmed: true });
+export const setDoorConversionSwitch = (value: DoorSettings['conversion']) => put<DoorSettings>('doors/settings', { conversion: value, confirmed: true });

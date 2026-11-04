@@ -2,7 +2,9 @@
  * Pure helpers of the WisKey door Settings cards (CR-033 wave 1, system-doors.ts) - no DOM, unit-tested in Node
  * (tests/unit-door-settings.spec.ts). Hebrew copy lives here so the cards and the spec read the same words.
  */
-import type { DoorGrantRole, DoorGrantSubject, DoorMap, DoorMapLock, DoorPathInventory, DoorPathItem } from '../api/doors';
+import type {
+  DoorConversionAction, DoorConversionItem, DoorConversionList, DoorConversionRecord, DoorGrantRole, DoorGrantSubject, DoorMap, DoorMapLock, DoorPathInventory, DoorPathItem,
+} from '../api/doors';
 
 /** The built-in roles' read-only answer in the "תפקידים" section (owner default: no built-in role changes by a switch). */
 export function builtinAnswer(role: DoorGrantRole): string {
@@ -151,4 +153,45 @@ export function guardTone(item: DoorPathItem): 'stale' | 'unknown' | 'neutral' {
   if (item.run_guard === 'refused_unresolvable') return 'stale';
   if (item.run_guard === 'refused_not_converted') return 'unknown';
   return 'neutral';
+}
+
+// ---------------------------------------------------------------- disable and list (WXD10A / WXD10B, CR-033 6.4)
+
+export const CONVERSION_ACTION_TEXT: Record<DoorConversionAction, string> = {
+  disable: 'השבתה ורישום',
+  convert_event_job: 'הסבה למשימת דלת של Arx',
+  hand_over_program: 'העברה לחלון פתיחה קבוע',
+};
+
+const RECORD_TEXT: Record<DoorConversionRecord['action'], string> = { disabled: 'הושבת', converted: 'הוסב למשימת דלת', handed_over: 'הועבר לחלון פתיחה' };
+
+/** The line above the list: the empty cases first (an installation where nothing opens a door is the normal case). */
+export function conversionSummary(list: DoorConversionList): string {
+  if (list.state !== 'items') return list.state_text || (list.state === 'no_wiskey' ? 'אין דלתות אינטרקום בהתקנה' : 'לא נמצאו פריטים שפותחים דלת');
+  const c = list.counts;
+  const parts = [`${c.items} פריטים`];
+  if (c.disable) parts.push(`${c.disable} ניתנים להשבתה`);
+  if (c.convert_event_job) parts.push(`${c.convert_event_job} ניתנים להסבה`);
+  if (c.hand_over_program) parts.push(`${c.hand_over_program} ניתנים להעברה`);
+  if (c.handled) parts.push(`${c.handled} טופלו`);
+  if (list.switch === 'off') parts.push('הפעולות כבויות בהגדרות');
+  return parts.join(' · ');
+}
+
+/** The one confirmation each action asks before it is sent (the server refuses without `confirmed: true`). */
+export function conversionQuestion(item: DoorConversionItem, action: DoorConversionAction): string {
+  if (action === 'disable') return `להשבית את "${item.name}"? הפריט יישאר ברשימה ואפשר לבטל את ההשבתה.`;
+  if (action === 'convert_event_job') {
+    const n = item.actions.convert_event_job.removed_steps ?? 0;
+    return `להסיר מ"${item.name}" ${n === 1 ? 'שלב פתיחה אחד' : `${n} שלבי פתיחה`} וליצור משימת דלת של Arx? המשימה נוצרת כטיוטה ולא תפתח דלת עד שמישהו יפעיל אותה.`;
+  }
+  const p = item.actions.hand_over_program.program;
+  const when = p ? `${p.days_text} ${p.periods.map((x) => `${x.start}-${x.end}`).join(', ')}` : '';
+  return `להשבית את התזמון "${item.name}" וליצור חלון פתיחה קבוע${when ? ` (${when})` : ''}? החלון נוצר כטיוטה ולא נשלח למערכת האינטרקום עד שיופעל.`;
+}
+
+/** A register row in one line. */
+export function recordLine(r: DoorConversionRecord): string {
+  const state = r.state === 'undone' ? ' · בוטל' : '';
+  return `${r.name} · ${RECORD_TEXT[r.action]} · ${r.done_by}${state}`;
 }
