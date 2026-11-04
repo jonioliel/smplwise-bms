@@ -169,6 +169,20 @@ test.describe('question 18: the settings row (Settings > wall displays), adminis
     test.info().annotations.push({ type: 'select-height', description: String(b.height) });
     if (info.project.name === 'mobile') expect(b.height, 'a 44 px touch target on the phone').toBeGreaterThanOrEqual(44);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 'no sideways scroll').toBeLessThanOrEqual(0);
+    // the row is really drawn where it is: the topmost element at the select's centre belongs to the settings page's row
+    const hit = await page.evaluate(([x, y]) => {
+      let el: Element | null = document.elementFromPoint(x, y);
+      const chain: string[] = [];
+      while (el && el.shadowRoot && el.shadowRoot.elementFromPoint(x, y) && el.shadowRoot.elementFromPoint(x, y) !== el) {
+        chain.push(el.tagName.toLowerCase());
+        el = el.shadowRoot.elementFromPoint(x, y);
+      }
+      if (el) chain.push(`${el.tagName.toLowerCase()}${el.hasAttribute('data-wall-foldable') ? '[data-wall-foldable]' : ''}`);
+      return chain.join(' > ');
+    }, [b.x + b.width / 2, b.y + b.height / 2]);
+    test.info().annotations.push({ type: 'foldable-hit', description: `${hit} @ ${JSON.stringify(b)}` });
+    expect(hit, 'nothing covers the row').toContain('system-wall');
+    expect(b.y + b.height, 'the row is on the screen').toBeLessThanOrEqual(page.viewportSize()!.height);
     await shot(page, `settings-foldable-${info.project.name}`);
     await sel.selectOption('phone');
     await expect.poll(() => st.settingsPatched).toEqual([{ foldable_open: 'phone' }]);
