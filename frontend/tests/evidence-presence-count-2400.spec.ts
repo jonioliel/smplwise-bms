@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
+import { PICKER_SKINS } from './helpers/frozen-skins';
 
 // PRESENCE-COUNT-2400: the home card "count and names" (round-16 direction A; owner round 18, Q25-27), the DEFAULT presence style since
 // 2.40.0, drawn by the shipped code in the real home band (clock, alarm, presence) of tests/presence-design-harness. Asserts the measured
@@ -12,7 +13,6 @@ import path from 'node:path';
 // P24_SHOTS=<dir> also writes one picture per case and fit.json (private-evidence/presence-2400/).
 const SHOTS = process.env.P24_SHOTS;
 const FIXED = new Date('2026-11-04T08:20:00Z'); // 10:20 in the installation's zone, as in round 16
-const SKINS = ['classic', 'domus', 'tesla', 'bubble', 'crystal', 'infra', 'soft'] as const;
 type Scheme = 'light' | 'dark';
 type Mount = (ds: string, layout: string, size: string, card?: Record<string, string>) => Promise<void>;
 
@@ -155,11 +155,11 @@ test.describe('PRESENCE-COUNT-2400: count and names - the home card', () => {
     });
   }
 
-  test('every skin, light and dark: the medium card keeps the row and clips nothing', async ({ page }, info) => {
+  test('every skin the picker offers (frozen skins left out; the foundation skins infra and soft in), light and dark: the medium card keeps the row and clips nothing', async ({ page }, info) => {
     const phone = info.project.name === 'mobile';
     const layout = phone ? 'stack' : 'hero';
     const report: Record<string, unknown> = {};
-    for (const skin of SKINS) {
+    for (const skin of PICKER_SKINS) {
       for (const scheme of ['light', 'dark'] as Scheme[]) {
         await open(page, scheme, skin);
         for (const ds of ['ready', 'worst'] as const) {
