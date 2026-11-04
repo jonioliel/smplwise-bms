@@ -220,10 +220,13 @@ test.describe('wall: a panoramic camera whose sub stream does not decode over We
     expect(await works(page)).toEqual({}); // the chain's own first step played: nothing left to remember
   });
 
-  test('a connection failure (not a decode failure) never switches the profile', async ({ page }) => {
+  // VIDEO-SUB-FALLBACK-2402 (owner round 20, Q3 = a) reversed the 0.1.148 rule "a connection failure never switches the profile" for the
+  // AUTOMATIC quality: a sub stream that never connects moves to main on the same transport (here WebRTC only) and the tile says so.
+  test('default quality: a sub connection failure moves to main over the same transport (owner 2402), and says so', async ({ page }) => {
     test.setTimeout(60000);
     await openWall(page, { rtc: { sub: 'fail', main: 'ok' }, transport: 'webrtc' });
-    await expect(player(page).locator('[data-player-error]')).toBeVisible({ timeout: 20000 });
-    expect(await sockets(page)).toEqual(['c2:sub:webrtc']);
+    await expect.poll(() => player(page).evaluate((p) => (p as unknown as { status: string }).status), { timeout: 20000 }).toBe('playing');
+    expect(await sockets(page)).toEqual(['c2:sub:webrtc', 'c2:main:webrtc']);
+    await expect(player(page).locator('[data-sub-fallback]')).toHaveText('עבר לזרם הראשי');
   });
 });

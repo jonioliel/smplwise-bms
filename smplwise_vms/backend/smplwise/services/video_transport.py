@@ -18,7 +18,8 @@ The order of `auto`:
 Profile steps (a profile fallback never changes the transport of an explicit choice):
 - local: a player whose profile is not the viewer's own choice (`auto_profile`, the wall's default quality) may continue on
   the other profile (explicit: the same transport; `auto`: the other profile's lab order, main MSE first, sub WebRTC first);
-- remote: an explicit WebRTC choice (or `auto` without the MSE fallback) continues on the other profile over WebRTC; a stream
+- remote: with `auto_profile` (VIDEO-SUB-FALLBACK-2402) the other profile follows on each transport already planned (the player
+  switches profile only on that same transport); an explicit WebRTC choice (or `auto` without the MSE fallback) continues on the other profile over WebRTC; a stream
   the registry knows undecodable over WebRTC (`encoding.<profile>.webrtc == "no"`) is skipped there (CR-008 D7);
 - a station (`single_profile`): the drawer's quality choice is the viewer's, so the plan never changes the profile; a transport
   the station's descriptor does not offer for the profile is dropped (`offered`), never replaced by the other one.
@@ -96,6 +97,8 @@ def plan_steps(choice: str, channel: str, profile: str, *, mse_fallback: Any = T
             steps = [(p, "webrtc"), (o, "webrtc")]
         else:
             steps = [(p, "webrtc"), (p, "mse")]
+        if auto_profile:  # VIDEO-SUB-FALLBACK-2402: the other profile on each transport already planned (never a transport of its own)
+            steps += [(o, t) for (pr, t) in list(steps) if pr == p and (o, t) not in steps]
     elif c != "auto":
         steps = [(p, c)] + ([(o, c)] if auto_profile else [])
     else:

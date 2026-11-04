@@ -92,6 +92,8 @@ export function planSteps(choice: string, channel: VideoChannel, profile: Profil
     if (order.length === 1 && order[0] === 'mse') steps = [{ profile: p, transport: 'mse' }];
     else if (order.length === 1) steps = [{ profile: p, transport: 'webrtc' }, { profile: other, transport: 'webrtc' }];
     else steps = [{ profile: p, transport: 'webrtc' }, { profile: p, transport: 'mse' }];
+    // VIDEO-SUB-FALLBACK-2402: the other profile on each transport already planned (the player switches profile only on that transport)
+    if (o.autoProfile) for (const s of [...steps]) if (s.profile === p && !steps.some((x) => x.profile === other && x.transport === s.transport)) steps.push({ profile: other, transport: s.transport });
   } else if (c !== 'auto') {
     steps = [{ profile: p, transport: c }, ...(o.autoProfile ? [{ profile: other, transport: c }] : [])];
   } else {
@@ -202,11 +204,12 @@ export function decodeLadder(value: string): VideoStep[] {
 /** What a screen hands its `sw-live-player` (`plan` + `preferred`): '' outside the remote channel (today's behaviour),
  * `none` when nothing may play under the policy (the player shows the message). `transport` is the player's `mode` (the
  * viewer's effective choice): an explicit `webrtc` leaves MSE out of the plan, an explicit `mse` WebRTC (VIDEO-TRANSPORT-2400). */
-export function playerPlan(preferred: Profile, encoding?: CameraEncoding | null, transport = '', me: Me | null | undefined = session.me): { plan: string; preferred: Profile | ''; gop: string } {
+export function playerPlan(preferred: Profile, encoding?: CameraEncoding | null, transport = '', me: Me | null | undefined = session.me, autoProfile = false): { plan: string; preferred: Profile | ''; gop: string } {
   const policy = remoteVideo(me);
   if (!policy) return { plan: '', preferred: '', gop: '' };
-  // VIDEO-TRANSPORT-2400: the viewer's choice decides the transports (an explicit MSE choice plans MSE only); '' reads as `auto`
-  const steps = planSteps(transport || 'auto', 'remote', preferred, { mseFallback: policy.mseFallback, webrtcOk: webrtcOkFrom(encoding) });
+  // VIDEO-TRANSPORT-2400: the viewer's choice decides the transports (an explicit MSE choice plans MSE only); '' reads as `auto`.
+  // VIDEO-SUB-FALLBACK-2402: `autoProfile` (the wall's automatic quality) adds the other profile on the same transports.
+  const steps = planSteps(transport || 'auto', 'remote', preferred, { mseFallback: policy.mseFallback, webrtcOk: webrtcOkFrom(encoding), autoProfile });
   return { plan: steps.length ? encodeLadder(steps) : 'none', preferred, gop: encodeGop(encoding) };
 }
 
@@ -409,6 +412,62 @@ export function retryIndex(steps: VideoStep[], lastGood: VideoStep | null): numb
 export function freezeFallback(steps: VideoStep[], current: VideoStep | null, mode: string): VideoStep | null {
   if (mode !== 'auto' || !current || current.transport !== 'mse') return null;
   return steps.find((s) => s.profile === current.profile && s.transport === 'webrtc') ?? null;
+}
+
+/**
+ * VIDEO-SUB-FALLBACK-2402 (owner round 20, Q3 = a): a tile whose quality is AUTOMATIC (`autoProfile`: the wall's default quality) whose
+ * SUB stream gives no media (no fragment / no byte in the first-frame bound), never connects, or is refused by go2rtc moves to the MAIN
+ * stream on the SAME transport - never MSE <-> WebRTC because of it (the 2.40.0 transport policy stays absolute; under `auto` a WebRTC
+ * connect failure still tries the sub stream over MSE first, as the policy's own order says). An explicit quality never switches: the
+ * tile says the stream does not arrive. The fallback is remembered per camera for this browser tab (sessionStorage) for SUB_DOWN_TTL_MS:
+ * meanwhile the tile opens main directly (no sub attempt on every reconnect); after it the sub stream is tried again. 10 minutes - the
+ * same rhythm as the tab's "WebRTC unreachable" memory: a sub stream the NVR fixes is back within one wall session, and a dead one
+ * costs one failed attempt per camera per 10 minutes.
+ */
+export const SUB_DOWN_KEY = 'sw.live.sub_down';
+export const SUB_DOWN_TTL_MS = 10 * 60 * 1000;
+export type SubFallbackReason = 'sub_no_media' | 'sub_connect' | 'sub_error' | 'sub_remembered';
+
+function readSubDown(store: WorksStore | null): Record<string, number> {
+  try {
+    const v = JSON.parse(store?.getItem(SUB_DOWN_KEY) ?? '{}');
+    return v && typeof v === 'object' ? v : {};
+  } catch {
+    return {};
+  }
+}
+
+/** True while this tab remembers the camera's sub stream as giving nothing (within the TTL). */
+export function subDown(cameraId: string, now = Date.now(), store: WorksStore | null = sessionStore()): boolean {
+  const at = Number(readSubDown(store)[cameraId] ?? 0);
+  return at > 0 && now - at <= SUB_DOWN_TTL_MS;
+}
+
+/** Remembers (or with `down` false forgets) that the camera's sub stream gave nothing. */
+export function noteSubDown(cameraId: string, down = true, now = Date.now(), store: WorksStore | null = sessionStore()): void {
+  if (!store || !cameraId) return;
+  const all = readSubDown(store);
+  if (down) all[cameraId] = now;
+  else if (cameraId in all) delete all[cameraId];
+  else return;
+  for (const [k, at] of Object.entries(all)) if (now - Number(at) > SUB_DOWN_TTL_MS) delete all[k];
+  try {
+    if (Object.keys(all).length) store.setItem(SUB_DOWN_KEY, JSON.stringify(all));
+    else store.removeItem(SUB_DOWN_KEY);
+  } catch {
+    /* private mode / quota: the next player tries the sub stream again, which is only slower */
+  }
+}
+
+/** The main step on the failing sub step's own transport (null: none in the ladder, or the step is not a sub step). */
+export function subFallbackStep(steps: VideoStep[], current: VideoStep | null | undefined): VideoStep | null {
+  if (!current || current.profile !== 'sub') return null;
+  return steps.find((s) => s.profile === 'main' && s.transport === current.transport) ?? null;
+}
+
+/** The ladder with its main steps first (the remembered fallback), each profile keeping the policy's transport order. */
+export function mainFirst(steps: VideoStep[]): VideoStep[] {
+  return [...steps.filter((s) => s.profile === 'main'), ...steps.filter((s) => s.profile !== 'main')];
 }
 
 /** The player badge: `main·WebRTC`, `sub·WebRTC`, `main·MSE`. */
