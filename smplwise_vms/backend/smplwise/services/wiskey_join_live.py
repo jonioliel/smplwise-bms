@@ -58,14 +58,18 @@ AUDIT_START = "wiskey.direct_join.start"
 AUDIT_STOP = "wiskey.direct_join.stop"
 LEASE_REASON = {OFF_BY_SETTING: "feature_off", KEY_MISSING: "key_rotation", KEY_ROTATED: "key_rotation", "key_changed": "key_rotation"}
 
-# the features that follow the join, each with the command whose selection it needs (read without I/O for join_state)
-FEATURE_COMMANDS: tuple[tuple[str, str], ...] = (
-    ("feature_host", "features/start"),          # emergency v2, door automations, live validation
-    ("door_programs", "stations/technical_program_save"),  # door windows tier B
-    ("people_csv", "features/people_csv_preview"),
-    ("templates", "whatsapp/template_send_v1"),
-    ("relay_map", "installation/relay_map_stage_v1"),
-)
+# the features that follow the join, each with the command whose selection it needs (read without I/O for join_state). The command names
+# come from their own modules (no door-program command literal lives here: the SR-1 source scan pins every program write site).
+def feature_commands() -> tuple[tuple[str, str], ...]:
+    from . import wiskey_people_csv, wiskey_program_direct, wiskey_relay_map_native, wiskey_template_direct
+
+    return (
+        ("feature_host", "features/start"),                     # emergency v2, door automations, live validation
+        ("door_programs", wiskey_program_direct.SAVE),          # door windows tier B
+        ("people_csv", wiskey_people_csv.COMMAND),
+        ("templates", wiskey_template_direct.V1_COMMAND),
+        ("relay_map", wiskey_relay_map_native.STAGE),
+    )
 
 
 def _utc_iso(value: float) -> str:
@@ -376,7 +380,7 @@ def join_state() -> dict[str, Any]:
     out["installed"] = join is not None
     out["people_writes"] = wdj.people_path()
     features: dict[str, Any] = {}
-    for name, command in FEATURE_COMMANDS:
+    for name, command in feature_commands():
         if join is None:
             features[name] = {"available": False, "reason": out["state"] if out["state"] in (OFF_BY_SETTING, KEY_MISSING, KEY_ROTATED, ERROR) else "not_installed"}
             continue
