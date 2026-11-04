@@ -33,4 +33,4 @@
 Read AGENTS.md and the linked master chapters. Inspect legacy code before replacement. No production configuration writes, physical commands, spending, or claims of passing unrun tests. Record commit, environment, commands and evidence.
 
 ## Blocker
-Waits for the owner (question Q2: a lab TV in a joint session this week, an Android TV box only, or fix blind) and for TV-FIT-2380 to merge.
+Waits for the owner (question Q2: a lab TV in a joint session this week, an Android TV box only, or fix blind); TV-FIT-2380 shipped in 2.38.0 (merge 571891e9d).

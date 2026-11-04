@@ -2,7 +2,7 @@
 
 > Generated card. Edit management/tasks.json, then run this script with --write.
 
-**Phase:** V2 | **Priority:** P2 | **Status:** BLOCKED
+**Phase:** V2 | **Priority:** P2 | **Status:** IN_PROGRESS
 
 **Owner role:** fullstack | **Hardware:** False
 
@@ -32,6 +32,3 @@
 
 ## Guardrails
 Read AGENTS.md and the linked master chapters. Inspect legacy code before replacement. No production configuration writes, physical commands, spending, or claims of passing unrun tests. Record commit, environment, commands and evidence.
-
-## Blocker
-Waiting for W10 (stream descriptor and audio hook) from the WisKey side; the owner asks to start S18 right after stage 1 as soon as W10 arrives.

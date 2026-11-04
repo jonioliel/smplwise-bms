@@ -94,6 +94,13 @@ duplicated all of that for no gain the owner asked for.
 
 #### 3.2.1 The detection rule (documented, deterministic, unit-tested)
 
+> **Amended by WALL-FOLLOWUPS-2390 (2026-11-04, `docs/changes/WALL-FOLLOWUPS-2390.md`):** (1) the `mobileUA and short < 700`
+> band keeps only tall screens (long / short >= 1.4) as phones; a near-square screen there (an unfolded foldable, 673x841 /
+> 690x829) or a window spread over two viewport segments is a **tablet** - the "foldable unfolded 673x841 -> phone" row below
+> is superseded. (2) The class is re-read on every physical screen change (fold / unfold), not only on load and
+> `orientationchange`, and the shell swaps in place. (3) A profile flag `desktop` ("wall mode on desktop", the one-hour
+> follow-up of section 13) also mounts the wall on a desktop-class browser.
+
 Inputs, all read from the physical device and **not from the viewport** (the on-screen keyboard, split screen and rotation
 change the viewport but not these):
 

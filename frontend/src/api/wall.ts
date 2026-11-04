@@ -16,6 +16,8 @@ export interface WallConfig {
   strip: string[];
   state_entities: string[];
   show_map: boolean;
+  /** WALL-FOLLOWUPS-2390: the wall display also takes over a desktop-class browser (no touch: a mini-PC behind a wall monitor). Absent = false. */
+  desktop?: boolean;
   /** CR-029 S5-B: how the map band draws the plan - live 3D or the baked stills, at which quality, after how long it idles
    * into the still. "follow" hands a dial to this browser's pin, then the installation (map/wall-plan-mode.ts). Absent in an
    * answer from before the block existed: read it as follow everywhere. */

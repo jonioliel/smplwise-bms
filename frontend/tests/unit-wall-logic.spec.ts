@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { isAwake, pageCameras, pixelShift, reconnectDelayMs, resolveLayout, serverHealth, tileHealth, wallScale } from '../src/wall/wall-logic';
+import { CURSOR_IDLE_MS, cursorHidden, isAwake, pageCameras, pixelShift, reconnectDelayMs, resolveLayout, serverHealth, tileHealth, wallScale, wallScaleFor } from '../src/wall/wall-logic';
 
 // CR-030 section 4: presets, pages, burn-in, offline ladders and the schedule. Node only.
 const base = { layout: 'auto' as const, grid: 'auto' as const, viewportW: 1280, viewportH: 800, showMap: false, rotateS: 0 };
@@ -95,4 +95,26 @@ test('schedule windows in the installation zone, across the Israeli DST changes'
   expect(isAwake(w, 'Asia/Jerusalem', new Date('2026-10-26T04:30:00Z'))).toBe(false);
   // 2026-03-27 (the change to summer time): Friday 06:30 UTC = 09:30 local (UTC+3), awake
   expect(isAwake(w, 'Asia/Jerusalem', new Date('2026-03-27T06:30:00Z'))).toBe(true);
+});
+
+// ---- WALL-FOLLOWUPS-2390: the desktop wall and the foldable's inner screen
+test('desktop wall: the scale follows the window, a tablet keeps the physical screen', () => {
+  expect(wallScaleFor('desktop', 2560, 1440, 1280, 720)).toBe(1); // a small window on a large monitor stays readable, not 1.4x
+  expect(wallScaleFor('desktop', 1920, 1080, 1920, 1080)).toBeCloseTo(1.35);
+  expect(wallScaleFor('tablet', 800, 1280, 1280, 400)).toBe(1); // the keyboard shrinks the viewport, the screen decides
+  expect(wallScaleFor('tablet', 1200, 1920, 1200, 1920)).toBe(1.4);
+});
+
+test('desktop wall: the pointer hides after 3 s without movement, only on a desktop', () => {
+  expect(CURSOR_IDLE_MS).toBe(3000);
+  expect(cursorHidden('desktop', 0, 2999)).toBe(false);
+  expect(cursorHidden('desktop', 0, 3000)).toBe(true);
+  expect(cursorHidden('tablet', 0, 60_000)).toBe(false); // a finger has no pointer to hide
+});
+
+test('desktop and foldable layouts: landscape monitors take the landscape grid; the unfolded inner screen turns with the hand', () => {
+  expect(resolveLayout({ layout: 'auto', grid: 'auto', cameras: 4, viewportW: 1920, viewportH: 1080, showMap: false, rotateS: 0 })).toMatchObject({ preset: 'tablet-landscape', cols: 2, rows: 2 });
+  expect(resolveLayout({ layout: 'auto', grid: 'auto', cameras: 6, viewportW: 1440, viewportH: 900, showMap: false, rotateS: 0 })).toMatchObject({ preset: 'tablet-landscape', cols: 3, rows: 2, perPage: 6 });
+  expect(resolveLayout({ layout: 'auto', grid: 'auto', cameras: 4, viewportW: 690, viewportH: 829, showMap: false, rotateS: 0 })).toMatchObject({ preset: 'tablet-portrait', cols: 1, rows: 2 });
+  expect(resolveLayout({ layout: 'auto', grid: 'auto', cameras: 4, viewportW: 829, viewportH: 690, showMap: false, rotateS: 0 })).toMatchObject({ preset: 'tablet-landscape', cols: 2, rows: 2 });
 });
