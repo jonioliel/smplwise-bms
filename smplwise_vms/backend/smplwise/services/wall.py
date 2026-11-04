@@ -9,7 +9,7 @@ import sqlite3
 import threading
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from ..db import get_setting, now_iso
 
@@ -98,7 +98,7 @@ class WallConfig(BaseModel):
     show_map: bool = False
     # WALL-FOLLOWUPS-2390: the wall display also takes over a desktop-class browser (a mini-PC behind a wall monitor). Presentation only:
     # the client decides where the wall mounts; the role and its bindings are the same on every device.
-    desktop: bool = False
+    desktop: StrictBool = False  # strict: "yes" or 1 is a 422, never a silent true
     plan: Plan = Field(default_factory=Plan)  # the map band's own plan mode / quality / idle time (CR-029 S5-B)
     theme: Literal["follow", "dark", "light"] = "dark"
     alerts: Alerts = Field(default_factory=Alerts)

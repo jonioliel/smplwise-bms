@@ -20,7 +20,9 @@ async function check(target: Page | Locator, info: Parameters<typeof noBaseline>
 }
 
 async function wallReady(page: Page) {
-  await expect(wall(page).locator('[data-wall-health]')).not.toHaveAttribute('data-tone', 'stale'); // the health read landed
+  await expect(wall(page).locator('[data-wall-health]').first()).not.toHaveAttribute('data-tone', 'stale'); // the health read landed
+  // every tile has reached its final mocked state (no media -> stale with the frozen time), so the badges never race the shot
+  await expect(wall(page).locator('[data-wall-tile]:not([data-health="stale"])')).toHaveCount(0, { timeout: 20_000 });
   await page.mouse.move(0, 0);
   await settlePage(page);
 }
