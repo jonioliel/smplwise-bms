@@ -230,7 +230,7 @@ test.describe('the banner setting', () => {
   test('off by default; choosing roles needs a role; saving sends exactly the choice', async ({ page }, info) => {
     test.skip(info.project.name !== 'desktop', 'behaviour runs on one project');
     const m = await installCallsMock(page, { active: { enabled: false, mode: 'off', sound: 'ring', sound_reason: null, calls: [] } });
-    await openApp(page, '#/system/diagnostics?tab=access-control');
+    await openApp(page, '#/system/diagnostics?tab=access-control&card=calls'); // SETTINGS-INTERCOM-CARDS-2401: the card of layout a (the default)
     const card = page.locator('sw-app system-call-banner sw-card[data-call-banner-setting="ready"]');
     await expect(card).toBeVisible({ timeout: 30_000 });
     await expect(card).toHaveAttribute('data-mode', 'off');

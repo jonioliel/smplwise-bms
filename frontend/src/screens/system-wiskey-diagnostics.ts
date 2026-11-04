@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-card';
 import '../components/sw-badge';
 import '../components/sw-button';
@@ -15,6 +15,8 @@ import {
 } from '../api/intercom';
 import type { StateKind } from '../components/sw-badge';
 import { formatTime, UTC_ZONE } from './wiskey-format';
+import { emitFoldSummary } from '../access-control/settings-cards-logic';
+import { fill, sct } from '../i18n/settings-cards';
 
 const AREAS: Array<[keyof WiskeyAuthorization['areas'], string]> = [
   ['overview', 'סקירה'],
@@ -86,6 +88,8 @@ function stateKind(state: string): StateKind {
  */
 @customElement('system-wiskey-diagnostics')
 export class SystemWiskeyDiagnostics extends LitElement {
+  /** SETTINGS-INTERCOM-CARDS-2401: drawn inside a card of layout a - no heading of its own; the summary line is reported instead. */
+  @property({ type: Boolean, reflect: true }) bare = false;
   @state() private data: WiskeyDiagnostics | null = null;
   @state() private busy = false;
   @state() private error = '';
@@ -231,11 +235,24 @@ export class SystemWiskeyDiagnostics extends LitElement {
     return html`<div class="finding ${f.level}" data-wk-diag-finding=${f.code}><b>${SUBJECT_TEXT[f.subject]}:</b> ${FINDING_TEXT[f.code] ?? f.code}</div>`;
   }
 
+  /** SETTINGS-INTERCOM-CARDS-2401: the one-line summary (the card's header in layout a): not checked yet, or each identity's state. */
+  summary(): string {
+    const t = sct().sum;
+    const d = this.data;
+    if (this.busy) return sct().sum.loading;
+    if (!d) return this.error ? t.diagFailed : t.diagIdle;
+    return fill(t.diag, { service: STATE_TEXT[d.service.state] ?? d.service.state, background: STATE_TEXT[d.background.state] ?? d.background.state });
+  }
+
+  protected updated(): void {
+    if (this.bare) emitFoldSummary(this, { card: 'diagnostics', summary: this.summary(), present: isApi() && can('system.configure') });
+  }
+
   render() {
     if (!isApi()) return nothing;
     if (!can('system.configure')) return nothing;
     const d = this.data;
-    return html`<sw-card heading="WisKey רואה את Arx כ־" subheading="קריאה בלבד: מה ש־WisKey מדווח על זהות החיבורים של Arx אליו. הבדיקה נעשית לפי בקשה." data-wk-diag-card>
+    return html`<sw-card heading=${this.bare ? '' : 'WisKey רואה את Arx כ־'} subheading=${this.bare ? '' : 'קריאה בלבד: מה ש־WisKey מדווח על זהות החיבורים של Arx אליו. הבדיקה נעשית לפי בקשה.'} data-wk-diag-card>
       <div class="block">
         <div class="head"><span class="muted">${d ? html`נבדק ב־<bdi>${formatTime(d.generated_at, 'he-IL', UTC_ZONE)}</bdi>` : 'עדיין לא נבדק'}</span>
           <sw-button size="sm" variant="primary" icon="refresh" data-wk-diag-run ?disabled=${this.busy} @click=${() => this.run()}>${this.busy ? 'בודק…' : d ? 'בדיקה מחדש' : 'בדיקה'}</sw-button></div>

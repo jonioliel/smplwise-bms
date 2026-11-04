@@ -389,7 +389,8 @@ export const settingsStyles = css`
     justify-content: space-between;
     align-items: center;
     gap: var(--sw-s-3) var(--sw-s-4);
-    padding: 14px 16px;
+    /* SETTINGS-INTERCOM-CARDS-2401: a host may draw its rows denser (--sw-set-row-pad / --sw-set-row-gap); unset = as before */
+    padding: var(--sw-set-row-pad, 14px 16px);
     border: 0;
     border-radius: var(--sw-r-md);
     background: var(--sw-well, var(--sw-surface-2));
@@ -397,7 +398,7 @@ export const settingsStyles = css`
     min-inline-size: 0;
   }
   .row + .row {
-    margin-block-start: 8px;
+    margin-block-start: var(--sw-set-row-gap, 8px);
   }
   .row:last-child {
     border-block-end: 0;

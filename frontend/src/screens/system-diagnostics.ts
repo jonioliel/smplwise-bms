@@ -23,7 +23,7 @@ import { parseSearchRoles, searchModeOf } from '../api/search-access';
 import '../components/sw-offbox-backup'; // DATASTORE-295 phase 2: off-box copies, encryption key, restore drill
 import { logout as arxLogout } from '../arx/auth';
 import { demoHealth, demoJobs } from '../fixtures/catalog';
-import { can, isApi, nvrLess, onRemote, LOCAL_ONLY_GENERIC } from '../api/session';
+import { can, canAnywhere, isApi, nvrLess, onRemote, session, LOCAL_ONLY_GENERIC } from '../api/session';
 import { getSettings, listSessions, listStreams, patchSettings, syncStreams, type ProductSettings } from '../api/media';
 import { invalidateSettings, TRANSPORT_DEFAULT, transportLabel } from '../api/prefs';
 import { normalizePolicy, type H265Policy } from '../api/h265-support';
@@ -76,6 +76,31 @@ import './system-wiskey-pairing'; // WISKEY-PAIRING-2382: הגדרות › מת�
 import './system-access-display'; // CR-036 S12: הגדרות › מתגי מסכי כניסה › תצוגת מסך התחנות (the four S6 display settings)
 import './system-access-parity'; // CR-036 S12: הגדרות › מתגי מסכי כניסה › השוואה למסכי האינטרקום (the side-by-side check before a screen is switched)
 import './system-wiskey-validation-card'; // WISKEY-LIVE-VALIDATION-2390: הגדרות › מתגי מסכי כניסה › בדיקת קבלה לעמדות (link to its own route)
+import '../components/sw-fold-cards'; // SETTINGS-INTERCOM-CARDS-2401: הגדרות › מתגי מסכי כניסה as collapsible cards (layout a)
+import type { FoldCard } from '../components/sw-fold-cards';
+import {
+  ACCESS_CARDS,
+  ACCESS_LAYOUT_KEY,
+  ACCESS_LAYOUTS,
+  ACCESS_TAB,
+  VOICE_TAB,
+  FOLD_SUMMARY_EVENT,
+  areaSummary,
+  browserStorage,
+  loadOpenCard,
+  parseAccessLayout,
+  parseCard,
+  pickOpenCard,
+  saveOpenCard,
+  screensSummary,
+  tabOfCard,
+  toggleCard,
+  withUnsaved,
+  type AccessCardId,
+  type AccessLayout,
+  type FoldSummaryDetail,
+} from '../access-control/settings-cards-logic';
+import { sct } from '../i18n/settings-cards';
 import { loadTree } from '../api/catalog';
 import type { Site } from '../api/types';
 import type { DevicesPick } from './devices-theme-picker';
@@ -147,6 +172,14 @@ const TABS = [
   { id: 'support', label: 'תמיכה' },
 ];
 
+/** SETTINGS-INTERCOM-CARDS-2401: the sub-tabs as drawn - layout b (`access.settings_layout` = tabs) adds "הכרזות וקול" right after
+ * "מתגי מסכי כניסה"; the other layouts keep the list above. */
+function tabsFor(layout: AccessLayout): { id: string; label: string }[] {
+  if (layout !== 'tabs') return TABS;
+  const i = TABS.findIndex((x) => x.id === ACCESS_TAB);
+  return [...TABS.slice(0, i + 1), { id: VOICE_TAB, label: sct().voiceTab }, ...TABS.slice(i + 1)];
+}
+
 /** SC28 — system settings (board 3 screen 23): underline tabs, label / control rows; the media tab is live against the backend. */
 @customElement('system-diagnostics')
 export class SystemDiagnostics extends LitElement {
@@ -213,6 +246,15 @@ export class SystemDiagnostics extends LitElement {
   @state() private restoreMode: 'replace' | 'merge' = 'replace';
   @state() private restoreAccess = false;
   @state() private restoreConfirm = '';
+  /** SETTINGS-INTERCOM-CARDS-2401 (layout a): the card opened in this visit ('' = all closed on a narrow screen; null = none chosen yet:
+   * the remembered card, else the first), whether the cards stand beside their headers (a wide list), and what each card's own component
+   * reported - its summary line and whether it draws anything for this viewer. `accessLink` is the `?card=` of the address, applied once
+   * the layout is known. */
+  @state() private accessOpen: AccessCardId | '' | null = null;
+  @state() private accessWide = true;
+  @state() private foldSummary: Partial<Record<AccessCardId, string>> = {};
+  @state() private foldPresent: Partial<Record<AccessCardId, boolean>> = {};
+  private accessLink: AccessCardId | null = null;
   @state() private health: { discovery?: Record<string, unknown>; video_codecs?: VideoCodecs; remote?: { live_streams?: number }; events?: { ingest: { connected: boolean; last_heartbeat_at: string | null; last_event_at: string | null; last_error: string | null; reconnects: number; events_stored: number }; derive: { last_ok: string | null; last_error: string | null; derived: number }; stored: number } } | null = null;
 
   static styles = [settingsStyles, css`
@@ -551,12 +593,26 @@ export class SystemDiagnostics extends LitElement {
         align-items: flex-start;
       }
     }
+    /* SETTINGS-INTERCOM-CARDS-2401 (layout a): the cards of "מתגי מסכי כניסה" take the page's width (the open card stands beside the
+       headers) and draw their rows a step denser, so every open card fits 1366x768 without a scroll */
+    sw-fold-cards.afolds {
+      max-inline-size: 1180px;
+    }
+    .afold-body {
+      min-inline-size: 0;
+      --sw-set-row-pad: 10px 14px;
+      --sw-set-row-gap: 6px;
+    }
+    .afold-body > * {
+      --sw-card-pad: 14px;
+    }
   `, bubbleChrome];
 
   connectedCallback() {
     super.connectedCallback();
     this.readTab();
     window.addEventListener('hashchange', this.onHash);
+    this.addEventListener(FOLD_SUMMARY_EVENT, this.onFoldSummary);
     if (typeof matchMedia === 'function') {
       this.phoneMq = matchMedia('(max-width: 767px)');
       this.phone = this.phoneMq.matches;
@@ -568,6 +624,7 @@ export class SystemDiagnostics extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener('hashchange', this.onHash);
+    this.removeEventListener(FOLD_SUMMARY_EVENT, this.onFoldSummary);
     this.phoneMq?.removeEventListener('change', this.onPhoneMq);
     this.phoneMq = null;
   }
@@ -575,9 +632,50 @@ export class SystemDiagnostics extends LitElement {
   /** SET-polish: the sub-tab is a deep link (`#/system/diagnostics?tab=backup`): read on arrival and whenever the address changes while this
    * screen stays mounted (the settings navigation), written back in place when the user switches a tab. */
   private readTab() {
-    const wanted = parseRoute().params.get('tab') ?? 'general';
-    if (wanted !== this.tab && TABS.some((x) => x.id === wanted)) this.openTab(wanted, false);
+    const params = parseRoute().params;
+    const wanted = params.get('tab') ?? 'general';
+    // SETTINGS-INTERCOM-CARDS-2401: `&card=<id>` opens that card of "מתגי מסכי כניסה" (layout a) or its tab (layout b); "הכרזות וקול"
+    // (layout b's second tab) is accepted in any layout - willUpdate turns it into the announcements card when the tabs are not split
+    const card = parseCard(params.get('card'));
+    if (card && (wanted === ACCESS_TAB || wanted === VOICE_TAB)) {
+      this.accessLink = card;
+      this.requestUpdate();
+    }
+    if (wanted !== this.tab && (TABS.some((x) => x.id === wanted) || wanted === VOICE_TAB)) this.openTab(wanted, false);
   }
+
+  /** SETTINGS-INTERCOM-CARDS-2401: the layout is known once the settings are read (always in the demo, which has no server). */
+  private layoutKnown(): boolean {
+    return !isApi() || this.settings !== null || !!this.error;
+  }
+
+  /** SETTINGS-INTERCOM-CARDS-2401: the saved layout of "מתגי מסכי כניסה" (a change applies after its save). */
+  private accessLayout(): AccessLayout {
+    return parseAccessLayout(this.settings?.[ACCESS_LAYOUT_KEY]);
+  }
+
+  protected willUpdate(): void {
+    if (!this.layoutKnown()) return;
+    const layout = this.accessLayout();
+    if (this.tab === VOICE_TAB && layout !== 'tabs') {
+      this.tab = ACCESS_TAB;
+      if (!this.accessLink) this.accessLink = 'announce';
+    }
+    const link = this.accessLink;
+    if (!link) return;
+    this.accessLink = null;
+    if (layout === 'cards') this.accessOpen = link;
+    else if (layout === 'tabs' && (this.tab === ACCESS_TAB || this.tab === VOICE_TAB)) this.tab = tabOfCard(link);
+  }
+
+  /** SETTINGS-INTERCOM-CARDS-2401: a card's component reports its summary line and whether it draws anything for this viewer. */
+  private readonly onFoldSummary = (e: Event) => {
+    const d = (e as CustomEvent<FoldSummaryDetail>).detail;
+    if (!d) return;
+    e.stopPropagation();
+    if (this.foldSummary[d.card] !== d.summary) this.foldSummary = { ...this.foldSummary, [d.card]: d.summary };
+    if (this.foldPresent[d.card] !== d.present) this.foldPresent = { ...this.foldPresent, [d.card]: d.present };
+  };
 
   private onHash = () => {
     const h = window.location.hash;
@@ -1242,43 +1340,170 @@ export class SystemDiagnostics extends LitElement {
   }
 
   /** הגדרות › מתגי מסכי כניסה (CR-005 recorded decision 2026-09-28, embedded panel): per screen, WisKey's own Home Assistant
-   * panel embedded as-is (the default) or the SMPLWISE screen; WisKey's other screens are always embedded. */
+   * panel embedded as-is (the default) or the SMPLWISE screen; WisKey's other screens are always embedded.
+   * SETTINGS-INTERCOM-CARDS-2401 (owner 04.11, round 19 Q6 = a): the tab is drawn in the layout the installation chose
+   * (`access.settings_layout`): collapsible cards (a, default), two tabs (b: this one and "הכרזות וקול") or the 2.40.0 list (c). The rows
+   * below are shared by the three; every control keeps its data attribute. */
   private renderAccessControl() {
-    const api = isApi();
-    const dirty = ACCESS_SCREENS.some((a) => `access.ui.${a.screen}` in this.draft) || 'ui.hide_wiskey' in this.draft || 'access.phone_embed' in this.draft;
-    const choice = (s: WiskeyScreen) => (String(this.value(`access.ui.${s}`) ?? 'wiskey') === 'smplwise' ? 'smplwise' : 'wiskey');
-    return html`<div class="sections">
-      <sw-card heading="מתגי מסכי כניסה" subheading="לכל מסך: הממשק המקורי של WisKey מוטמע כמו שהוא, או המסך שנבנה ב־Arx. הלשונית נשארת באותו מקום ובאותו שם.">
-        <div class="row"><span class="lbl">הצג את WisKey במערכת<span class="muted">הסתרה מסירה את כל אזור WisKey מהניווט לכל המשתמשים, ללא תלות בתפקיד; הבחירות למסכים הבודדים למטה חלות רק כשהאזור מוצג</span></span>
+    if (!this.layoutKnown()) return html`<div class="sections"><sw-state-panel compact state="loading"></sw-state-panel></div>`;
+    const layout = this.accessLayout();
+    return layout === 'cards' ? this.renderAccessCards() : this.renderAccessList(layout);
+  }
+
+  /** The keys of the access-control rows this page saves itself (the other cards save their own). */
+  private accessDirty(keys: 'screens' | 'area' | 'all' = 'all'): boolean {
+    const screens = ACCESS_SCREENS.some((a) => `access.ui.${a.screen}` in this.draft);
+    const area = 'ui.hide_wiskey' in this.draft || 'access.phone_embed' in this.draft || ACCESS_LAYOUT_KEY in this.draft;
+    return keys === 'screens' ? screens : keys === 'area' ? area : screens || area;
+  }
+
+  private accessChoice(s: WiskeyScreen, saved = false): 'wiskey' | 'smplwise' {
+    const v = saved ? this.settings?.[`access.ui.${s}`] : this.value(`access.ui.${s}`);
+    return String(v ?? 'wiskey') === 'smplwise' ? 'smplwise' : 'wiskey';
+  }
+
+  private rowHideWiskey(api: boolean) {
+    return html`<div class="row"><span class="lbl">הצג את WisKey במערכת<span class="muted">הסתרה מסירה את כל אזור WisKey מהניווט לכל המשתמשים, ללא תלות בתפקיד; הבחירות למסכים הבודדים למטה חלות רק כשהאזור מוצג</span></span>
           <sw-field class="ctl"><select data-set-hide-wiskey ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('ui.hide_wiskey', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('ui.hide_wiskey') ?? 'false') !== 'true'}>מוצג</option><option value="true" ?selected=${String(this.value('ui.hide_wiskey') ?? 'false') === 'true'}>מוסתר</option>
-          </select></sw-field></div>
-        ${ACCESS_SCREENS.map(
-          (a) => html`<div class="row"><span class="lbl">${a.label}<span class="muted">${a.detail} · <span class="ltr">${a.href}</span></span></span>
+          </select></sw-field></div>`;
+  }
+
+  private rowsScreens(api: boolean) {
+    return ACCESS_SCREENS.map(
+      (a) => html`<div class="row"><span class="lbl">${a.label}<span class="muted">${a.detail} · <span class="ltr">${a.href}</span></span></span>
             <sw-field class="ctl"><select data-set-access-ui=${a.screen} ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set(`access.ui.${a.screen}`, (e.target as HTMLSelectElement).value as 'wiskey' | 'smplwise')}>
-              <option value="wiskey" ?selected=${choice(a.screen) === 'wiskey'}>WisKey (מוטמע)</option>
-              <option value="smplwise" ?selected=${choice(a.screen) === 'smplwise'}>Arx</option>
+              <option value="wiskey" ?selected=${this.accessChoice(a.screen) === 'wiskey'}>WisKey (מוטמע)</option>
+              <option value="smplwise" ?selected=${this.accessChoice(a.screen) === 'smplwise'}>Arx</option>
             </select></sw-field></div>`,
-        )}
-        <div class="row"><span class="lbl">הטמעה גם באפליקציית הטלפון (ניסיוני)<span class="muted">כבוי: באפליקציית הטלפון WisKey לא מוטמע - מוצג המסך של Arx או הערה, עם "פתח ב-WisKey". מופעל: Arx מעביר את ההזדהות של האפליקציה לתשתית המערכת שבתוך המסגרת. אם ההזדהות לא מצליחה, המסך חוזר לבד להתנהגות הרגילה.</span></span>
+    );
+  }
+
+  private rowPhoneEmbed(api: boolean) {
+    return html`<div class="row"><span class="lbl">הטמעה גם באפליקציית הטלפון (ניסיוני)<span class="muted">כבוי: באפליקציית הטלפון WisKey לא מוטמע - מוצג המסך של Arx או הערה, עם "פתח ב-WisKey". מופעל: Arx מעביר את ההזדהות של האפליקציה לתשתית המערכת שבתוך המסגרת. אם ההזדהות לא מצליחה, המסך חוזר לבד להתנהגות הרגילה.</span></span>
           <sw-field class="ctl"><select data-set-phone-embed ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('access.phone_embed', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('access.phone_embed') ?? 'false') !== 'true'}>כבוי</option><option value="true" ?selected=${String(this.value('access.phone_embed') ?? 'false') === 'true'}>מופעל</option>
-          </select></sw-field></div>
-        <div class="row" data-access-ui-fixed><span class="lbl">שאר מסכי WisKey (סנכרון, בריאות, יומן שינויים, ניהול)<span class="muted">קיימים רק ב־WisKey, ולכן תמיד מוטמעים</span></span><sw-field class="ctl"><select disabled><option selected>WisKey (מוטמע) · קבוע</option></select></sw-field></div>
-        <div class="muted" style="margin-block-start:8px">במסך מוטמע הדפדפן מריץ את הממשק של WisKey עצמו בתוך תשתית המערכת, עם החיבור של המשתמש אליה: ההרשאות, האישורים והאודיט שם הם של WisKey, לא של Arx. "פתח בחלון מלא" פותח את אותו לוח בלשונית נפרדת.</div>
+          </select></sw-field></div>`;
+  }
+
+  /** SETTINGS-INTERCOM-CARDS-2401: the layout of this tab (a / b / c), saved with the card's button like the other rows. */
+  private rowLayout(api: boolean) {
+    const t = sct().layout;
+    const v = parseAccessLayout(this.value(ACCESS_LAYOUT_KEY));
+    return html`<div class="row" data-access-layout-row><span class="lbl">${t.label}<span class="muted">${t.text}</span></span>
+          <sw-field class="ctl"><select data-set-access-layout aria-label=${t.label} ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set(ACCESS_LAYOUT_KEY, parseAccessLayout((e.target as HTMLSelectElement).value))}>
+            ${ACCESS_LAYOUTS.map((l) => html`<option value=${l} ?selected=${v === l}>${t[l]}</option>`)}
+          </select></sw-field></div>`;
+  }
+
+  private rowFixed() {
+    return html`<div class="row" data-access-ui-fixed><span class="lbl">שאר מסכי WisKey (סנכרון, בריאות, יומן שינויים, ניהול)<span class="muted">קיימים רק ב־WisKey, ולכן תמיד מוטמעים</span></span><sw-field class="ctl"><select disabled><option selected>WisKey (מוטמע) · קבוע</option></select></sw-field></div>`;
+  }
+
+  private accessNotes() {
+    return html`<div class="muted" style="margin-block-start:8px">במסך מוטמע הדפדפן מריץ את הממשק של WisKey עצמו בתוך תשתית המערכת, עם החיבור של המשתמש אליה: ההרשאות, האישורים והאודיט שם הם של WisKey, לא של Arx. "פתח בחלון מלא" פותח את אותו לוח בלשונית נפרדת.</div>
         <div class="muted" data-access-ui-embed-api style="margin-block-start:6px">ההטמעה משתמשת בממשק ההטמעה של WisKey (WisKey 2.0.0-rc.19 ומעלה): הלשוניות נבנות מהמסכים ש־WisKey מתיר למשתמש והמעבר ביניהן נעשה בהודעות; בגרסאות WisKey ישנות יותר ההטמעה עוברת אוטומטית לשיטה הקודמת.</div>
-        <div class="muted" data-access-ui-warning style="margin-block-start:6px;color:var(--sw-text)"><b>שים לב:</b> משתמש שחשבון תשתית המערכת שלו מחזיק ב־WisKey הרשאת ניהול (manage), או שהוא מנהל תשתית המערכת, יכול בתוך WisKey המוטמע לפתוח דלתות ולערוך אנשים (PIN, כרטיסים, תוקף) — בלי שלב האישור של Arx ובלי רישום באודיט של Arx. התיעוד של הפעולות האלה נמצא רק ביומן של WisKey.</div>
-        ${this.canEdit
-          ? this.renderSaveRow({ tab: 'access-control', hook: 'data-save-access-ui', disabled: !dirty || this.busy || !api, onSave: () => this.save() })
-          : html`<div class="muted">${api ? 'שינוי הבחירה דורש הרשאת מנהל מערכת.' : 'נתוני הדגמה: ההגדרות נשמרות רק מול השרת.'}</div>`}
+        <div class="muted" data-access-ui-warning style="margin-block-start:6px;color:var(--sw-text)"><b>שים לב:</b> משתמש שחשבון תשתית המערכת שלו מחזיק ב־WisKey הרשאת ניהול (manage), או שהוא מנהל תשתית המערכת, יכול בתוך WisKey המוטמע לפתוח דלתות ולערוך אנשים (PIN, כרטיסים, תוקף) — בלי שלב האישור של Arx ובלי רישום באודיט של Arx. התיעוד של הפעולות האלה נמצא רק ביומן של WisKey.</div>`;
+  }
+
+  private accessSave(api: boolean, hook: string, dirty: boolean) {
+    return this.canEdit
+      ? this.renderSaveRow({ tab: 'access-control', hook, disabled: !dirty || this.busy || !api, onSave: () => this.save() })
+      : html`<div class="muted">${api ? 'שינוי הבחירה דורש הרשאת מנהל מערכת.' : 'נתוני הדגמה: ההגדרות נשמרות רק מול השרת.'}</div>`;
+  }
+
+  /** Layouts c and b: the 2.40.0 single list (+ the layout row); b moves the announcements and the call banner to "הכרזות וקול". */
+  private renderAccessList(layout: AccessLayout) {
+    const api = isApi();
+    return html`<div class="sections" data-access-layout=${layout}>
+      <sw-card heading="מתגי מסכי כניסה" subheading="לכל מסך: הממשק המקורי של WisKey מוטמע כמו שהוא, או המסך שנבנה ב־Arx. הלשונית נשארת באותו מקום ובאותו שם.">
+        ${this.rowHideWiskey(api)}
+        ${this.rowsScreens(api)}
+        ${this.rowPhoneEmbed(api)}
+        ${this.rowLayout(api)}
+        ${this.rowFixed()}
+        ${this.accessNotes()}
+        ${this.accessSave(api, 'data-save-access-ui', this.accessDirty())}
       </sw-card>
-      <system-access-display></system-access-display>
-      <system-call-banner></system-call-banner>
+      ${layout === 'tabs' ? html`<system-access-display show="display"></system-access-display>` : html`<system-access-display></system-access-display><system-call-banner></system-call-banner>`}
       ${!api || can('access.admin.read') ? html`<system-access-parity></system-access-parity>` : nothing}
       <system-wiskey-pairing></system-wiskey-pairing>
       <system-wiskey-diagnostics></system-wiskey-diagnostics>
       <system-wiskey-validation-card></system-wiskey-validation-card>
     </div>`;
+  }
+
+  /** Layout b's second tab, "הכרזות וקול": the announcements (targets, the fixed engine, the quick phrases) and the incoming-call banner. */
+  private renderAccessVoice() {
+    return html`<div class="sections" data-access-layout="tabs" data-access-voice>
+      <system-access-display show="announce"></system-access-display>
+      <system-call-banner></system-call-banner>
+    </div>`;
+  }
+
+  /** Layout a: whether a card is drawn for this viewer before its component says otherwise (the same gates the components use). */
+  private cardPresent(id: AccessCardId): boolean {
+    const reported = this.foldPresent[id];
+    if (reported !== undefined) return reported;
+    const api = isApi();
+    switch (id) {
+      case 'parity':
+      case 'checklist':
+        return !api || can('access.admin.read');
+      case 'calls':
+      case 'pairing':
+      case 'diagnostics':
+        return api && can('system.configure');
+      case 'validation':
+        return api && canAnywhere('access.stations.manage');
+      default:
+        return true;
+    }
+  }
+
+  /** Layout a: the summary line of a card - this page's own two from the SAVED settings, the others as their components report them. */
+  private cardSummary(id: AccessCardId): string {
+    if (id === 'screens') return withUnsaved(screensSummary(ACCESS_SCREENS.map((a) => ({ label: a.label, choice: this.accessChoice(a.screen, true) }))), this.accessDirty('screens'));
+    if (id === 'area') {
+      const s = this.settings;
+      return withUnsaved(areaSummary(String(s?.['ui.hide_wiskey'] ?? 'false') === 'true', String(s?.['access.phone_embed'] ?? 'false') === 'true', parseAccessLayout(s?.[ACCESS_LAYOUT_KEY])), this.accessDirty('area'));
+    }
+    return this.foldSummary[id] ?? sct().sum.loading;
+  }
+
+  /** Layout a: a header was pressed - open that card (the open one folds on a narrow list) and remember it for this user. */
+  private pressCard(id: string, current: AccessCardId | ''): void {
+    const card = parseCard(id);
+    if (!card) return;
+    const next = toggleCard(current, card, this.accessWide);
+    this.accessOpen = next;
+    saveOpenCard(browserStorage(), session.me?.user.id, next);
+  }
+
+  /** Layout a (the default): the tab's sections as collapsible cards, one open at a time (components/sw-fold-cards.ts). */
+  private renderAccessCards() {
+    const api = isApi();
+    const t = sct();
+    const cards: FoldCard[] = ACCESS_CARDS.map((id) => ({ id, title: t.title[id], summary: this.cardSummary(id), hidden: !this.cardPresent(id) }));
+    const shown = cards.filter((c) => !c.hidden).map((c) => c.id as AccessCardId);
+    const wanted = this.accessOpen ?? loadOpenCard(browserStorage(), session.me?.user.id);
+    const open = pickOpenCard(wanted, shown, this.accessWide);
+    const parity = !api || can('access.admin.read');
+    const body = (id: AccessCardId, content: unknown) =>
+      html`<div class="afold-body" slot=${`b-${id}`} role="region" aria-label=${t.title[id]} data-access-fold=${id} ?hidden=${id !== open}>${content}</div>`;
+    return html`<sw-fold-cards class="afolds" data-access-layout="cards" label=${t.cardsLabel} .cards=${cards} .open=${open}
+        @fold-toggle=${(e: CustomEvent<{ id: string }>) => this.pressCard(e.detail.id, open)} @fold-wide=${(e: CustomEvent<{ wide: boolean }>) => (this.accessWide = e.detail.wide)}>
+      ${body('screens', html`<sw-card data-access-ui-card="screens">${this.rowsScreens(api)}${this.rowFixed()}${this.accessSave(api, 'data-save-access-ui', this.accessDirty())}</sw-card>`)}
+      ${body('area', html`<sw-card data-access-ui-card="area">${this.rowHideWiskey(api)}${this.rowPhoneEmbed(api)}${this.rowLayout(api)}${this.accessNotes()}${this.accessSave(api, 'data-save-access-area', this.accessDirty())}</sw-card>`)}
+      ${body('display', html`<system-access-display show="display" bare></system-access-display>`)}
+      ${body('announce', html`<system-access-display show="announce" bare></system-access-display>`)}
+      ${body('calls', html`<system-call-banner bare></system-call-banner>`)}
+      ${body('parity', parity ? html`<system-access-parity show="report" bare></system-access-parity>` : nothing)}
+      ${body('checklist', parity ? html`<system-access-parity show="checklist" bare></system-access-parity>` : nothing)}
+      ${body('pairing', html`<system-wiskey-pairing bare></system-wiskey-pairing>`)}
+      ${body('diagnostics', html`<system-wiskey-diagnostics bare></system-wiskey-diagnostics>`)}
+      ${body('validation', html`<system-wiskey-validation-card bare></system-wiskey-validation-card>`)}
+    </sw-fold-cards>`;
   }
 
   /** הגדרות › גישה מרחוק (CR-008 SmplWise Arx, owner decisions D4/D5/D7/D8 of 2026-09-29): who may sign in through
@@ -1804,13 +2029,14 @@ export class SystemDiagnostics extends LitElement {
   }
 
   render() {
-    const cur = TABS.find((t) => t.id === this.tab) ?? TABS[0];
+    const tabs = this.layoutKnown() ? tabsFor(this.accessLayout()) : TABS; // SETTINGS-INTERCOM-CARDS-2401: layout b adds "הכרזות וקול"
+    const cur = tabs.find((t) => t.id === this.tab) ?? tabs[0];
     return html`
-      <sw-page crumbs=${cur.id === 'general' ? 'הגדרות' : 'הגדרות | כללי'} heading=${cur.label} subheading=${`${TAB_SUB[cur.id] ?? ''}${isApi() ? '' : ' · נתוני הדגמה'}`}>
-        <sw-tabs underline data-settings-tabs .variant=${this.phoneSelect ? 'dropdown' : this.tabsMode.props('').variant} ?adaptive=${this.phoneSelect ? false : this.tabsMode.props('').adaptive} ?tall=${this.phoneSelect} ?block=${this.phoneSelect} dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel} group-label="קטגוריה" .items=${TABS} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.openTab(e.detail.id)}></sw-tabs>
+      <sw-page crumbs=${cur.id === 'general' ? 'הגדרות' : 'הגדרות | כללי'} heading=${cur.label} subheading=${`${(cur.id === VOICE_TAB ? sct().voiceTabSub : TAB_SUB[cur.id]) ?? ''}${isApi() ? '' : ' · נתוני הדגמה'}`}>
+        <sw-tabs underline data-settings-tabs .variant=${this.phoneSelect ? 'dropdown' : this.tabsMode.props('').variant} ?adaptive=${this.phoneSelect ? false : this.tabsMode.props('').adaptive} ?tall=${this.phoneSelect} ?block=${this.phoneSelect} dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel} group-label="קטגוריה" .items=${tabs} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.openTab(e.detail.id)}></sw-tabs>
         ${this.message && this.tab === 'ha' ? html`<div class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</div>` : nothing}
         ${this.error && this.tab === 'ha' ? html`<div class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</div>` : nothing}
-        ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'tabs' ? html`<system-tabs-config></system-tabs-config>` : this.tab === 'media' ? this.renderMedia() : this.tab === 'map' ? this.renderMap() : this.tab === 'buildings' ? html`<system-mapping></system-mapping>` : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === 'devices' ? this.renderDevices() : this.tab === 'remote' ? this.renderRemote() : this.tab === 'mobile' ? html`<system-presence></system-presence>` : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
+        ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'tabs' ? html`<system-tabs-config></system-tabs-config>` : this.tab === 'media' ? this.renderMedia() : this.tab === 'map' ? this.renderMap() : this.tab === 'buildings' ? html`<system-mapping></system-mapping>` : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === VOICE_TAB ? this.renderAccessVoice() : this.tab === 'devices' ? this.renderDevices() : this.tab === 'remote' ? this.renderRemote() : this.tab === 'mobile' ? html`<system-presence></system-presence>` : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
       </sw-page>
     `;
   }

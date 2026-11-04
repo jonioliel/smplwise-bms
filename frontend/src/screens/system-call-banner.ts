@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-field';
@@ -10,6 +10,8 @@ import { can, isApi } from '../api/session';
 import { ict } from '../i18n/incoming-calls';
 import { settingsStyles } from '../styles/settings';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { callsSummary, emitFoldSummary, withUnsaved } from '../access-control/settings-cards-logic';
+import { sct } from '../i18n/settings-cards';
 
 const MODES: readonly CallBannerMode[] = ['off', 'everyone', 'roles'];
 
@@ -22,6 +24,8 @@ const MODES: readonly CallBannerMode[] = ['off', 'everyone', 'roles'];
  */
 @customElement('system-call-banner')
 export class SystemCallBanner extends LitElement {
+  /** SETTINGS-INTERCOM-CARDS-2401: drawn inside a card of layout a - no heading of its own; the summary line is reported instead. */
+  @property({ type: Boolean, reflect: true }) bare = false;
   @state() private view: CallBannerSettingsView | null = null;
   @state() private draft: CallBannerSettings | null = null;
   @state() private busy = false;
@@ -134,18 +138,32 @@ export class SystemCallBanner extends LitElement {
     }
   }
 
+  /** SETTINGS-INTERCOM-CARDS-2401: the one-line summary of the saved choice (the card's header in layout a). */
+  summary(): string {
+    const s = this.view?.settings;
+    if (this.failed) return sct().sum.failed;
+    if (!s) return sct().sum.loading;
+    return withUnsaved(callsSummary(s.mode, s.roles.length, s.stations.length, s.sound), this.dirty());
+  }
+
+  protected updated(): void {
+    // an older server without the setting, or a viewer who may not change it: no card at all (its header too)
+    if (this.bare) emitFoldSummary(this, { card: 'calls', summary: this.summary(), present: isApi() && can('system.configure') && !this.absent });
+  }
+
   render() {
     if (!isApi() || !can('system.configure') || this.absent) return nothing;
     const t = ict().setting;
+    const heading = this.bare ? '' : t.title;
     if (this.failed) {
-      return html`<sw-card heading=${t.title} data-call-banner-setting="error"><div class="row"><span class="lbl">${t.error}</span><sw-button size="lg" variant="ghost" icon="refresh" @click=${() => void this.load()}>${t.retry}</sw-button></div></sw-card>`;
+      return html`<sw-card heading=${heading} data-call-banner-setting="error"><div class="row"><span class="lbl">${t.error}</span><sw-button size="lg" variant="ghost" icon="refresh" @click=${() => void this.load()}>${t.retry}</sw-button></div></sw-card>`;
     }
     const v = this.view;
     const d = this.draft;
     if (!v || !d) return nothing; // drawn once it is known (an older backend has no such setting: never a flash of an empty card)
     const label: Record<CallBannerMode, string> = { off: t.off, everyone: t.everyone, roles: t.roles };
     const needRole = d.mode === 'roles' && d.roles.length === 0;
-    return html`<sw-card heading=${t.title} subheading=${t.sub} data-call-banner-setting="ready" data-mode=${d.mode}>
+    return html`<sw-card heading=${heading} subheading=${this.bare ? '' : t.sub} data-call-banner-setting="ready" data-mode=${d.mode}>
       <div class="row"><span class="lbl">${t.mode}<span class="muted">${t.modeText}</span></span>
         <sw-field class="ctl"><select data-call-banner-mode ?disabled=${this.busy} @change=${(e: Event) => this.patch({ mode: (e.target as HTMLSelectElement).value as CallBannerMode })}>
           ${MODES.map((m) => html`<option value=${m} ?selected=${d.mode === m}>${label[m]}</option>`)}
