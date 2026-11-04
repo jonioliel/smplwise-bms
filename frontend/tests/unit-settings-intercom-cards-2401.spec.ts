@@ -211,7 +211,7 @@ test.describe('wiring (source)', () => {
 
   test('the list component: headers are 44 px targets, one open card, the wide arrangement by the list width', () => {
     const fold = read('components/sw-fold-cards.ts');
-    expect(fold).toContain('min-block-size: 48px;');
+    expect(fold).toContain('min-block-size: 44px;');
     expect(fold).toContain('aria-expanded=${String(c.id === this.open)}');
     expect(fold).toContain('export const FOLD_WIDE_MIN = 820;');
     expect(fold).toContain('container-type: inline-size;');

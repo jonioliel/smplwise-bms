@@ -58,6 +58,11 @@ export class SystemWiskeyPairing extends LitElement {
   private get featuresShown(): boolean {
     return this.showFeatures ?? !this.bare;
   }
+  /** SETTINGS-INTERCOM-CARDS-2401: the conflicts and alerts section, folded inside a card of layout a like the feature list (null = not chosen) */
+  @state() private showTriage: boolean | null = null;
+  private get triageShown(): boolean {
+    return this.showTriage ?? !this.bare;
+  }
 
   static styles = css`
     :host {
@@ -231,6 +236,13 @@ export class SystemWiskeyPairing extends LitElement {
     bdi {
       unicode-bidi: isolate;
     }
+    /* SETTINGS-INTERCOM-CARDS-2401: inside a card of layout a the status lines are a step denser */
+    :host([bare]) .line {
+      padding: 6px 0;
+    }
+    :host([bare]) .section {
+      padding-block: 8px;
+    }
     @media (max-width: 767px) {
       .line,
       .feat {
@@ -385,6 +397,14 @@ export class SystemWiskeyPairing extends LitElement {
   /** WISKEY-CONFLICTS-2400: what is red on this page can be closed here - the sync conflicts (reviewed, then resolved) and the fleet alerts
    * (snoozed / restored), in the compact size of the conflicts screen (#/wiskey/conflicts), which this section links to. */
   private renderTriage() {
+    if (this.bare) {
+      // SETTINGS-INTERCOM-CARDS-2401: inside a card the section opens on its own key (the panel reads its lists only then)
+      return html`<div class="section" data-wkp-triage>
+        <div class="top" style="border:0;padding:0"><h4>מצב WisKey: התנגשויות והתראות</h4><span class="sp"></span>
+          <sw-button size="sm" variant="ghost" data-wkp-triage-toggle @click=${() => (this.showTriage = !this.triageShown)}>${this.triageShown ? 'הסתרה' : 'הצגה'}</sw-button></div>
+        ${this.triageShown ? html`<wk-triage-panel mode="compact"></wk-triage-panel>` : nothing}
+      </div>`;
+    }
     return html`<div class="section" data-wkp-triage>
       <h4>מצב WisKey: התנגשויות והתראות</h4>
       <wk-triage-panel mode="compact"></wk-triage-panel>

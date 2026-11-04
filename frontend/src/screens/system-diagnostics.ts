@@ -600,8 +600,8 @@ export class SystemDiagnostics extends LitElement {
     }
     .afold-body {
       min-inline-size: 0;
-      --sw-set-row-pad: 10px 14px;
-      --sw-set-row-gap: 6px;
+      --sw-set-row-pad: 8px 14px;
+      --sw-set-row-gap: 4px;
     }
     .afold-body > * {
       --sw-card-pad: 14px;

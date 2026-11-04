@@ -13,7 +13,7 @@ import { FOLDS, foldGeometry, installCardsMock, openAccess, pageOverflow } from 
 //   Every measurement is printed; CARDS_SHOTS=<dir> saves a screenshot per card and size.
 const SIZES: [number, number][] = [[1440, 900], [1366, 768]];
 const SHOTS = process.env.CARDS_SHOTS ?? '';
-const HEAD_SLOT = 52; // one more header: 48 px + the 4 px gap
+const HEAD_SLOT = 48; // one more header: 44-45 px + the 3 px gap
 
 test.describe('layout a fits the screen with any one card open', () => {
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
@@ -49,6 +49,15 @@ test.describe('layout a fits the screen with any one card open', () => {
         const worst = Math.max(o.doc, o.main, o.wrap, o.screen);
         const line = `${id} @${w}x${h}: page ${worst} (doc ${o.doc} main ${o.main} wrap ${o.wrap} ${o.tag} ${o.screen}) · body ${g.bodyTop}-${g.bodyBottom} (${g.bodyH} px, inner overflow ${g.bodyInner}, scroll ${g.bodyScroll}) · last header ${g.lastHead} · window ${g.win}`;
         log.push(line);
+        if (id === 'pairing') {
+          // what the status card is made of (its length depends on the installation: lines, owner steps, re-pair, features, conflicts)
+          const parts = await page.evaluate(() => {
+            const root = document.querySelector('sw-app')?.shadowRoot?.querySelector('system-diagnostics')?.shadowRoot?.querySelector('system-wiskey-pairing')?.shadowRoot;
+            const hgt = (sel: string) => Math.round([...(root?.querySelectorAll<HTMLElement>(sel) ?? [])].reduce((s, e) => s + e.getBoundingClientRect().height, 0));
+            return { top: hgt('.top'), lines: hgt('.lines'), steps: hgt('[data-wkp-steps]'), repair: hgt('[data-wkp-repair]'), features: hgt('[data-wkp-features]'), triage: hgt('[data-wkp-triage]') };
+          });
+          console.log(`SETTINGS-INTERCOM-CARDS-2401 pairing parts @${w}x${h}: ${JSON.stringify(parts)}`);
+        }
         console.log(`SETTINGS-INTERCOM-CARDS-2401 ${line}`); // the receipts of the change note quote these lines
         if (SHOTS) {
           fs.mkdirSync(SHOTS, { recursive: true });
@@ -80,8 +89,9 @@ test.describe('layout a on a phone', () => {
     expect(g.docW, 'no sideways scroll').toBeLessThanOrEqual(0);
     for (const hh of g.headH) expect(hh).toBeGreaterThanOrEqual(44);
     for (const id of g.heads) {
-      await page.locator(`${FOLDS} [data-fold-toggle="${id}"]`).click();
-      await expect(page.locator(`${FOLDS} [data-fold-toggle="${id}"]`)).toHaveAttribute('aria-expanded', 'true');
+      const head = page.locator(`${FOLDS} [data-fold-toggle="${id}"]`);
+      if ((await head.getAttribute('aria-expanded')) !== 'true') await head.click(); // the first card is open on arrival
+      await expect(head).toHaveAttribute('aria-expanded', 'true');
       g = await foldGeometry(page);
       expect(g.docW, `${id}: no sideways scroll`).toBeLessThanOrEqual(0);
       if (SHOTS) {

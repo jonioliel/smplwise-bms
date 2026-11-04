@@ -13,6 +13,8 @@ export interface FoldCard {
 
 /** From this width of the list the open card stands beside the headers; narrower, it unfolds under its own header. */
 export const FOLD_WIDE_MIN = 820;
+/** What stays free under the open card of a wide list: the page's bottom padding and a little air. */
+export const FOLD_BOTTOM_RESERVE = 32;
 
 /**
  * SETTINGS-INTERCOM-CARDS-2401 (owner 04.11, round 19 Q6 = a): collapsible cards, ONE open at a time. Each card's header is a button with
@@ -40,7 +42,16 @@ export class SwFoldCards extends LitElement {
 
   private ro: ResizeObserver | null = null;
   private watched: Element | null = null;
-  private readonly onResize = () => this.measure();
+  private frame = 0;
+  private readonly onResize = () => this.schedule();
+
+  private schedule(): void {
+    if (this.frame) return;
+    this.frame = requestAnimationFrame(() => {
+      this.frame = 0;
+      this.measure();
+    });
+  }
 
   static styles = css`
     :host {
@@ -59,7 +70,7 @@ export class SwFoldCards extends LitElement {
       grid-template-columns: minmax(232px, 280px) minmax(0, 1fr);
       grid-template-rows: repeat(var(--fold-n, 1), auto) 1fr;
       column-gap: var(--sw-s-4, 16px);
-      row-gap: 4px;
+      row-gap: 3px;
       align-items: start;
     }
     .list.wide .head {
@@ -96,12 +107,12 @@ export class SwFoldCards extends LitElement {
       grid-template-areas: 't i' 's i';
       align-items: center;
       column-gap: 10px;
-      row-gap: 1px;
+      row-gap: 0;
       inline-size: 100%;
       min-inline-size: 0;
-      min-block-size: 48px;
+      min-block-size: 44px;
       box-sizing: border-box;
-      padding: 6px 14px;
+      padding: 4px 12px;
       margin: 0;
       border: 1px solid var(--sw-border);
       border-radius: var(--sw-r-md);
@@ -139,6 +150,7 @@ export class SwFoldCards extends LitElement {
       text-overflow: ellipsis;
       white-space: nowrap;
       font-size: var(--sw-fs-md);
+      line-height: 1.35;
       font-weight: var(--sw-fw-semibold);
       color: var(--sw-heading, var(--sw-text));
     }
@@ -149,6 +161,7 @@ export class SwFoldCards extends LitElement {
       text-overflow: ellipsis;
       white-space: nowrap;
       font-size: var(--sw-fs-xs);
+      line-height: 1.35;
       color: var(--sw-text-3);
     }
     .head sw-icon {
@@ -193,13 +206,16 @@ export class SwFoldCards extends LitElement {
     super.connectedCallback();
     window.addEventListener('resize', this.onResize);
     if (typeof ResizeObserver === 'function') {
-      this.ro = new ResizeObserver(() => this.measure());
+      // measured in the next frame, never inside the observer's own callback (no "ResizeObserver loop" error when the room changes)
+      this.ro = new ResizeObserver(() => this.schedule());
       this.ro.observe(this);
     }
   }
 
   disconnectedCallback(): void {
     window.removeEventListener('resize', this.onResize);
+    if (this.frame) cancelAnimationFrame(this.frame);
+    this.frame = 0;
     this.ro?.disconnect();
     this.ro = null;
     this.watched = null;
@@ -235,7 +251,8 @@ export class SwFoldCards extends LitElement {
       body?.removeAttribute('data-fold-scroll');
       return;
     }
-    const room = Math.max(240, Math.floor(window.innerHeight - this.getBoundingClientRect().top - 16));
+    // the page's own bottom padding (sw-page: 24 px) and a little air stay below the open card
+    const room = Math.max(240, Math.floor(window.innerHeight - this.getBoundingClientRect().top - FOLD_BOTTOM_RESERVE));
     this.style.setProperty('--fold-room', `${room}px`);
     if (!body) return;
     // measured without the inner scroll first, so a card that shrank gives the scroll back
