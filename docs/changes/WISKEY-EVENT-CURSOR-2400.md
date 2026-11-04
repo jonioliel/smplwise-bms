@@ -123,7 +123,8 @@ the switch, the status-line states, and the last outcome surviving a restart.
 | workstation, Python 3.12 venv | `pytest -o addopts= tests/test_wiskey_event_cursor_2400.py` | 22 passed |
 | workstation, after the fix | `pytest -o addopts= tests/test_wiskey_pairing_2382.py` | 31 passed |
 | workstation, 0201 moved aside (= the base's migration set) | the two s5 upgrade tests below | 2 failed: `[...196, 197] == [...196]` - already red on the base |
-| runner, after the fix | - | NOT_RUN: runner disk at 90% (24 GB free, under the 30 GB floor); this branch's `.tmp_*` (1.9 GB) was deleted after the first run |
+| runner, `run_smart.py backend` @ `fc7fb0b0d` (disk had 37 GB free) | `test_wiskey_event_cursor_2400.py` + `test_wiskey_pairing_2382.py` | 53 passed |
+| runner cleanup | `~/work/pilot-WISKEY-EVENT-CURSOR-2400/.tmp_*` after each run | deleted (1.9 GB, then 255 MB) |
 
 The 5 runner failures:
 
