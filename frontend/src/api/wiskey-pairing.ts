@@ -6,7 +6,7 @@
 import { get, post } from './client';
 
 export type PairingLineState = 'ok' | 'warn' | 'blocked' | 'unknown';
-export type PairingLineKey = 'bridge' | 'component' | 'key' | 'acceptance' | 'discovery' | 'provider' | 'rotation' | 'last_error';
+export type PairingLineKey = 'bridge' | 'component' | 'key' | 'acceptance' | 'discovery' | 'provider' | 'rotation' | 'events' | 'last_error';
 
 export interface PairingLine {
   key: PairingLineKey;

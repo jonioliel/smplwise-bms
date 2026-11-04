@@ -77,7 +77,7 @@ def _probe(w):
 def test_not_paired_no_key_everything_says_how_to_fix(world):
     body = world["c"].get(API).json()
     ln = _lines(body)
-    assert list(ln) == ["bridge", "component", "key", "acceptance", "discovery", "provider", "rotation", "last_error"]
+    assert list(ln) == ["bridge", "component", "key", "acceptance", "discovery", "provider", "rotation", "events", "last_error"]
     assert body["verdict"] == "not_paired" and body["paired"] is False and body["talk_ready"] is False
     assert ln["bridge"]["state"] == "blocked" and ln["bridge"]["reason"] == "bridge_not_paired"
     assert ln["key"]["state"] == "blocked" and ln["key"]["reason"] == "key_missing" and ln["key"]["facts"]["present"] is False
@@ -117,6 +117,11 @@ def test_paired_and_accepted_with_all_six_commands(world, monkeypatch):
     assert pl["state"] == "blocked" and pl["reason"] == "provider_feed_gate" and pl["facts"]["feed_reason"] == "discovery_unknown" and pl["facts"]["choice"] == "auto"
     assert body["talk_ready"] is False and "discovery_unknown" in pl["text"]
     _feed(monkeypatch, list(w10.COMMANDS))
+    from smplwise.services import wiskey_event_resume as wer  # WISKEY-EVENT-CURSOR-2400: the events line after a clean resume
+
+    monkeypatch.setenv(wer.ENV, "1")
+    monkeypatch.setitem(wer.STATUS, "last", {"at": "2026-11-04T12:00:00Z", "state": "page", "code": None, "delivered": 0, "duplicates": 0,
+                                              "pages": 1, "gaps": 0, "caught_up": True})
     body = world["c"].get(API).json()
     assert body["talk_ready"] is True and _lines(body)["provider"]["state"] == "ok" and _lines(body)["rotation"]["state"] == "ok"
     assert all(ln["state"] == "ok" for ln in body["lines"]), [(x["key"], x["reason"]) for x in body["lines"]]

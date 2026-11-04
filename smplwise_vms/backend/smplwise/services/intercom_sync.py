@@ -1696,6 +1696,7 @@ class IntercomSync:
             from . import wiskey_channels
 
             from .wiskey_native_feed import bind_metadata
+            session_call = call  # WISKEY-EVENT-CURSOR-2400: the signed events/resume_v1 sender adds its own one-command guard
             raw = await bind_metadata(call, self.settings)
             native_metadata_call = raw
             call = wiskey_channels.guard(raw, "service")  # CR-036 S1: only the service (write) channel's allow-list leaves here
@@ -1734,6 +1735,10 @@ class IntercomSync:
                         await self._refresh()
 
             poller = asyncio.create_task(poll(), name="intercom-poll")
+            from . import wiskey_event_resume  # WISKEY-EVENT-CURSOR-2400: gap-free door events (ends with the session's tasks)
+            resume = wiskey_event_resume.start(session_call, self.settings, end)
+            if resume is not None:
+                self._tasks.add(resume)
 
         try:
             await ha_client.ws_session(self.settings, on_ready, lambda _data: None, end, on_message=self._on_message)
@@ -1792,6 +1797,9 @@ class IntercomSync:
 
                 intercom_adapter.ADAPTER.cache.invalidate()
                 self._kick()
+                from . import wiskey_event_resume  # WISKEY-EVENT-CURSOR-2400: new door events may be waiting
+
+                wiskey_event_resume.wake()
             elif kind == "access_revoked":
                 _lease_hook("receiver_changed")  # T8: the add-on lost WisKey access - every live capture lease goes
                 self._fail(IntercomError("unauthorized", "subscribe"))
