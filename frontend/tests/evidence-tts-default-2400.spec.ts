@@ -59,7 +59,7 @@ test.describe('the setting', () => {
     await expect(engine).toHaveValue('');
     const language = page.locator(`${DISPLAY} select[data-set-access-display="access.tts_language"]`);
     await expect(language.locator('option')).toHaveText(['אוטומטית (עברית כשיש)', 'עברית · he', 'English · en']);
-    await expect(page.locator(`${DISPLAY} [data-access-display-tts-engine] .muted`)).toContainText('נבחר מראש בכל הכרזה');
+    await expect(page.locator(`${DISPLAY} [data-access-display-tts-engine] .muted`).first()).toContainText('נבחר מראש בכל הכרזה');
     await shot(page, info, 'setting-default', `${DISPLAY} sw-card`);
     await engine.selectOption('tts.cloud');
     await expect(language.locator('option')).toHaveText(['אוטומטית (עברית כשיש)', 'English · en']);
