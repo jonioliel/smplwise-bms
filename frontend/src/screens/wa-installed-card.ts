@@ -105,8 +105,9 @@ export class WaInstalledCard extends LitElement {
       this.view = v;
       this.flash(wi(`sync_${v.sync?.outcome ?? 'synced'}` as WiKey));
     } catch (e) {
-      this.error = describeError(e);
-      await this.load();
+      const why = describeError(e);
+      await this.load(); // the stored outcome of the failed refresh (the list itself is unchanged)
+      if (this.phase === 'ready') this.error = why;
     } finally {
       this.busy = '';
     }
