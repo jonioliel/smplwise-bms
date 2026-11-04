@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-field';
@@ -35,6 +35,12 @@ import { pt } from '../i18n/access-parity';
 import { getIntercomTtsEngines, type IntercomTtsEngines } from '../api/intercom';
 import { TTS_ENGINE_KEY, TTS_LANGUAGE_KEY, languageName, parseTtsFixed, systemDefaultEngine } from '../api/tts-default';
 import { fill as tfill, ttt } from '../i18n/tts-default';
+import { announceSummary, displaySummary, emitFoldSummary, withUnsaved } from '../access-control/settings-cards-logic';
+import { sct } from '../i18n/settings-cards';
+
+/** SETTINGS-INTERCOM-CARDS-2401: which rows the card draws - all of them (layout c, the 2.40.0 card), or one of its two halves (layouts a
+ * and b): the stations screen display, or the announcements (the targets, the fixed engine and language, the quick phrases). */
+export type AccessDisplayShow = 'all' | 'display' | 'announce';
 
 type DisplayKey =
   | (typeof POLICY_KEYS)[keyof typeof POLICY_KEYS]
@@ -90,6 +96,11 @@ type EnginesState = 'idle' | 'loading' | 'ready' | 'unavailable';
  */
 @customElement('system-access-display')
 export class SystemAccessDisplay extends LitElement {
+  /** SETTINGS-INTERCOM-CARDS-2401: the rows this card draws (see AccessDisplayShow); 'all' = the 2.40.0 card. */
+  @property({ reflect: true }) show: AccessDisplayShow = 'all';
+  /** SETTINGS-INTERCOM-CARDS-2401: drawn inside a card of layout a - no heading of its own (the card's header carries the title and the
+   * summary line, which this component reports with `emitFoldSummary`). */
+  @property({ type: Boolean, reflect: true }) bare = false;
   @state() private saved: Record<DisplayKey, string> | null = null;
   @state() private draft: Partial<Record<DisplayKey, string>> = {};
   @state() private canEdit = false;
@@ -122,6 +133,11 @@ export class SystemAccessDisplay extends LitElement {
         min-block-size: 132px;
         resize: vertical;
         line-height: 1.5;
+      }
+      /* SETTINGS-INTERCOM-CARDS-2401: inside a card of layout a the phrase box opens at three lines (it still grows by hand) - the open
+         card has to fit the screen */
+      :host([bare]) textarea {
+        min-block-size: 84px;
       }
     `,
     bubbleChrome,
@@ -165,8 +181,9 @@ export class SystemAccessDisplay extends LitElement {
       if (gen !== this.gen) return;
       this.saved = this.read(r.settings);
       this.canEdit = !!r.can_edit && can('system.configure');
-      void this.loadReadiness();
-      if (this.canEdit && this.enginesState === 'idle') void this.loadEngines();
+      // SETTINGS-INTERCOM-CARDS-2401: each half reads only what its own rows show
+      if (this.show !== 'announce') void this.loadReadiness();
+      if (this.show !== 'display' && this.canEdit && this.enginesState === 'idle') void this.loadEngines();
     } catch (err) {
       if (gen !== this.gen) return;
       this.failed = describeError(err);
@@ -300,7 +317,7 @@ export class SystemAccessDisplay extends LitElement {
       this.draft = {};
       invalidateSettings();
       this.message = pt('dispSaved');
-      void this.loadReadiness();
+      if (this.show !== 'announce') void this.loadReadiness();
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -337,18 +354,37 @@ export class SystemAccessDisplay extends LitElement {
     </div>`;
   }
 
-  render() {
-    if (this.failed) {
-      return html`<sw-card heading=${pt('dispTitle')} data-access-display="error"><div class="row"><span class="lbl">${this.failed}</span><sw-button size="lg" variant="ghost" icon="refresh" @click=${() => void this.load()}>${pt('dispRetry')}</sw-button></div></sw-card>`;
-    }
-    if (!this.saved) return html`<sw-card heading=${pt('dispTitle')} data-access-display="loading"><div class="row"><span class="lbl muted">${pt('dispLoading')}</span></div></sw-card>`;
-    const ro = !isApi() || !this.canEdit;
-    const phrases = this.value(POLICY_KEYS.phrases);
-    const preview = phrasePreview(phrases);
+  /** SETTINGS-INTERCOM-CARDS-2401: the card's title - the 2.40.0 one, or the announcements half's own. */
+  private cardTitle(): string {
+    return this.show === 'announce' ? sct().title.announce : pt('dispTitle');
+  }
+
+  /** SETTINGS-INTERCOM-CARDS-2401: the one-line summary of the SAVED values of this card's rows (the card's header in layout a). */
+  summary(): string {
+    const t = sct().sum;
+    if (this.failed) return t.failed;
+    const s = this.saved;
+    if (!s) return t.loading;
     const dirty = Object.keys(this.draft).length > 0;
-    const valid = talkMaxInput(this.value(TALK_MAX_KEY)) !== null;
-    return html`<sw-card heading=${pt('dispTitle')} subheading=${pt('dispSub')} data-access-display="ready">
-      <div class="row"><span class="lbl">${pt('dispCallHint')}<span class="muted">${pt('dispCallHintText')}</span></span>
+    if (this.show === 'announce') {
+      const scope = s[POLICY_KEYS.announceScope] === 'station' ? pt('dispAnnounceStation') : pt('dispAnnounceScope');
+      const engineId = s[TTS_ENGINE_KEY];
+      const engine = engineId ? (this.engines?.engines.find((e) => e.engine_id === engineId)?.name ?? engineId) : '';
+      return withUnsaved(announceSummary(scope, engine, phrasePreview(s[POLICY_KEYS.phrases]).shown), dirty);
+    }
+    const hint = s[POLICY_KEYS.callHint] === 'call' ? pt('dispCallHintCall') : pt('dispCallHintEveryone');
+    const talk = s[POLICY_KEYS.talk] === 'hidden' ? pt('dispTalkHidden') : t.talkShown;
+    const media = mediaOptions().find(([m]) => m === s[STATION_MEDIA_KEY])?.[1] ?? pt('dispMediaOff');
+    return withUnsaved(displaySummary(hint, talk, media), dirty);
+  }
+
+  protected updated(): void {
+    if (this.bare) emitFoldSummary(this, { card: this.show === 'announce' ? 'announce' : 'display', summary: this.summary(), present: true });
+  }
+
+  /** The stations screen display rows (the first half). */
+  private displayRows() {
+    return html`<div class="row"><span class="lbl">${pt('dispCallHint')}<span class="muted">${pt('dispCallHintText')}</span></span>
         ${this.select(POLICY_KEYS.callHint, [['everyone', pt('dispCallHintEveryone')], ['call', pt('dispCallHintCall')]])}</div>
       <div class="row"><span class="lbl">${pt('dispTalk')}<span class="muted">${pt('dispTalkText')}</span></span>
         ${this.select(POLICY_KEYS.talk, [['classic', pt('dispTalkClassic')], ['hidden', pt('dispTalkHidden')]])}</div>
@@ -359,14 +395,35 @@ export class SystemAccessDisplay extends LitElement {
       ${this.value(STATION_MEDIA_KEY) !== 'off'
         ? html`<div class="row" data-access-display-listen><span class="lbl">${slt().setting.label}<span class="muted">${slt().setting.text}</span></span>
             ${this.select(STATION_LISTEN_KEY, [['off', slt().setting.off], ['on', slt().setting.on], ['probe', slt().setting.probe]])}</div>`
-        : nothing}
-      <div class="row"><span class="lbl">${pt('dispAnnounce')}<span class="muted">${pt('dispAnnounceText')}</span></span>
+        : nothing}`;
+  }
+
+  /** The announcement rows (the second half): the targets, the fixed engine and language, the quick phrases. */
+  private announceRows(ro: boolean) {
+    const phrases = this.value(POLICY_KEYS.phrases);
+    const preview = phrasePreview(phrases);
+    return html`<div class="row"><span class="lbl">${pt('dispAnnounce')}<span class="muted">${pt('dispAnnounceText')}</span></span>
         ${this.select(POLICY_KEYS.announceScope, [['scope', pt('dispAnnounceScope')], ['station', pt('dispAnnounceStation')]])}</div>
       ${this.ttsRows()}
       <div class="row stack"><span class="lbl">${pt('dispPhrases')}<span class="muted">${pt('dispPhrasesText', { n: MAX_PHRASES, len: MAX_PHRASE_LENGTH })}</span></span>
         <sw-field hint=${[preview.builtIn ? pt('dispPhrasesBuiltIn') : pt('dispPhrasesCount', { n: preview.shown }), preview.dropped ? pt('dispPhrasesDropped', { n: preview.dropped }) : ''].filter(Boolean).join(' · ')}>
-          <textarea data-set-access-display=${POLICY_KEYS.phrases} aria-label=${pt('dispPhrases')} maxlength=${PHRASES_STORED_MAX} rows="5" ?disabled=${ro || this.busy} .value=${phrases} @input=${(e: Event) => this.set(POLICY_KEYS.phrases, (e.target as HTMLTextAreaElement).value)}></textarea>
-        </sw-field></div>
+          <textarea data-set-access-display=${POLICY_KEYS.phrases} aria-label=${pt('dispPhrases')} maxlength=${PHRASES_STORED_MAX} rows=${this.bare ? '3' : '5'} ?disabled=${ro || this.busy} .value=${phrases} @input=${(e: Event) => this.set(POLICY_KEYS.phrases, (e.target as HTMLTextAreaElement).value)}></textarea>
+        </sw-field></div>`;
+  }
+
+  render() {
+    const heading = this.bare ? '' : this.cardTitle();
+    if (this.failed) {
+      return html`<sw-card heading=${heading} data-access-display="error" data-access-display-show=${this.show}><div class="row"><span class="lbl">${this.failed}</span><sw-button size="lg" variant="ghost" icon="refresh" @click=${() => void this.load()}>${pt('dispRetry')}</sw-button></div></sw-card>`;
+    }
+    if (!this.saved) return html`<sw-card heading=${heading} data-access-display="loading" data-access-display-show=${this.show}><div class="row"><span class="lbl muted">${pt('dispLoading')}</span></div></sw-card>`;
+    const ro = !isApi() || !this.canEdit;
+    const dirty = Object.keys(this.draft).length > 0;
+    const valid = talkMaxInput(this.value(TALK_MAX_KEY)) !== null;
+    const sub = this.bare ? '' : this.show === 'announce' ? sct().announceSub : pt('dispSub');
+    return html`<sw-card heading=${heading} subheading=${sub} data-access-display="ready" data-access-display-show=${this.show}>
+      ${this.show !== 'announce' ? this.displayRows() : nothing}
+      ${this.show !== 'display' ? this.announceRows(ro) : nothing}
       ${ro
         ? html`<div class="muted" data-access-display-readonly>${isApi() ? pt('dispReadOnly') : ''}</div>`
         : html`<div class="foot">

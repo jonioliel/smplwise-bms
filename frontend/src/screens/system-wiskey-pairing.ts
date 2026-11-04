@@ -1,5 +1,5 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
-import { customElement, state } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-card';
 import '../components/sw-badge';
 import '../components/sw-button';
@@ -25,6 +25,8 @@ import {
 } from '../api/wiskey-pairing';
 import type { StateKind } from '../components/sw-badge';
 import { formatTime, UTC_ZONE } from './wiskey-format';
+import { emitFoldSummary } from '../access-control/settings-cards-logic';
+import { sct } from '../i18n/settings-cards';
 
 const LINE_KIND: Record<PairingLineState, StateKind> = { ok: 'live', warn: 'stale', blocked: 'error', unknown: 'unknown' };
 const LINE_TEXT: Record<PairingLineState, string> = { ok: 'תקין', warn: 'לתשומת לב', blocked: 'חסום', unknown: 'לא ידוע' };
@@ -41,6 +43,9 @@ const FEATURE_TEXT: Record<FeatureState, string> = { on: 'פעיל', off: 'כב�
  */
 @customElement('system-wiskey-pairing')
 export class SystemWiskeyPairing extends LitElement {
+  /** SETTINGS-INTERCOM-CARDS-2401: drawn inside a card of layout a - no heading of its own (the summary line is reported instead), and
+   * the long feature list starts folded (its own "הצגה" key opens it), so the open card fits the screen. */
+  @property({ type: Boolean, reflect: true }) bare = false;
   @state() private data: PairingStatus | null = null;
   @state() private busy: '' | 'load' | 'probe' | 'repair' = '';
   @state() private error = '';
@@ -48,7 +53,16 @@ export class SystemWiskeyPairing extends LitElement {
   @state() private pauseRotation = true;
   @state() private result: RepairResult | null = null;
   @state() private copied = false;
-  @state() private showFeatures = true;
+  /** null = not chosen yet: shown, folded inside a card of layout a (SETTINGS-INTERCOM-CARDS-2401) */
+  @state() private showFeatures: boolean | null = null;
+  private get featuresShown(): boolean {
+    return this.showFeatures ?? !this.bare;
+  }
+  /** SETTINGS-INTERCOM-CARDS-2401: the conflicts and alerts section, folded inside a card of layout a like the feature list (null = not chosen) */
+  @state() private showTriage: boolean | null = null;
+  private get triageShown(): boolean {
+    return this.showTriage ?? !this.bare;
+  }
 
   static styles = css`
     :host {
@@ -222,6 +236,13 @@ export class SystemWiskeyPairing extends LitElement {
     bdi {
       unicode-bidi: isolate;
     }
+    /* SETTINGS-INTERCOM-CARDS-2401: inside a card of layout a the status lines are a step denser */
+    :host([bare]) .line {
+      padding: 6px 0;
+    }
+    :host([bare]) .section {
+      padding-block: 8px;
+    }
     @media (max-width: 767px) {
       .line,
       .feat {
@@ -367,26 +388,47 @@ export class SystemWiskeyPairing extends LitElement {
         <h4>מצב WisKey: תכונות בנויות</h4>
         <span class="muted">${c.on} פעילות · ${c.off} כבויות · ${c.blocked} חסומות${c.unknown ? ` · ${c.unknown} לא ידוע` : ''}</span>
         <span class="sp"></span>
-        <sw-button size="sm" variant="ghost" data-wkp-features-toggle @click=${() => (this.showFeatures = !this.showFeatures)}>${this.showFeatures ? 'הסתרה' : 'הצגה'}</sw-button>
+        <sw-button size="sm" variant="ghost" data-wkp-features-toggle @click=${() => (this.showFeatures = !this.featuresShown)}>${this.featuresShown ? 'הסתרה' : 'הצגה'}</sw-button>
       </div>
-      ${this.showFeatures ? groupFeatures(d.features).map(([g, rows]) => html`<div class="group"><h5>${g}</h5>${rows.map((f) => this.renderFeature(f))}</div>`) : nothing}
+      ${this.featuresShown ? groupFeatures(d.features).map(([g, rows]) => html`<div class="group"><h5>${g}</h5>${rows.map((f) => this.renderFeature(f))}</div>`) : nothing}
     </div>`;
   }
 
   /** WISKEY-CONFLICTS-2400: what is red on this page can be closed here - the sync conflicts (reviewed, then resolved) and the fleet alerts
    * (snoozed / restored), in the compact size of the conflicts screen (#/wiskey/conflicts), which this section links to. */
   private renderTriage() {
+    if (this.bare) {
+      // SETTINGS-INTERCOM-CARDS-2401: inside a card the section opens on its own key (the panel reads its lists only then)
+      return html`<div class="section" data-wkp-triage>
+        <div class="top" style="border:0;padding:0"><h4>מצב WisKey: התנגשויות והתראות</h4><span class="sp"></span>
+          <sw-button size="sm" variant="ghost" data-wkp-triage-toggle @click=${() => (this.showTriage = !this.triageShown)}>${this.triageShown ? 'הסתרה' : 'הצגה'}</sw-button></div>
+        ${this.triageShown ? html`<wk-triage-panel mode="compact"></wk-triage-panel>` : nothing}
+      </div>`;
+    }
     return html`<div class="section" data-wkp-triage>
       <h4>מצב WisKey: התנגשויות והתראות</h4>
       <wk-triage-panel mode="compact"></wk-triage-panel>
     </div>`;
   }
 
+  /** SETTINGS-INTERCOM-CARDS-2401: the one-line summary (the card's header in layout a): the verdict and whether talk is ready. */
+  summary(): string {
+    const t = sct().sum;
+    if (onRemote()) return LOCAL_ONLY_GENERIC;
+    const d = this.data;
+    if (!d) return this.error ? t.failed : t.loading;
+    return `${VERDICT_TEXT[d.verdict]} · ${d.talk_ready ? t.pairingTalkReady : t.pairingTalkNot}`;
+  }
+
+  protected updated(): void {
+    if (this.bare) emitFoldSummary(this, { card: 'pairing', summary: this.summary(), present: isApi() && can('system.configure') });
+  }
+
   render() {
     if (!isApi() || !can('system.configure')) return nothing;
     const d = this.data;
     const remote = onRemote();
-    return html`<sw-card heading="חיבור Arx ל-WisKey" subheading="האם Arx ו־WisKey מצומדים, מה חסר ואיך משלימים. הבדיקה החתומה היא קריאה בלבד ונרשמת ביומן." data-wkp-card>
+    return html`<sw-card heading=${this.bare ? '' : 'חיבור Arx ל-WisKey'} subheading=${this.bare ? '' : 'האם Arx ו־WisKey מצומדים, מה חסר ואיך משלימים. הבדיקה החתומה היא קריאה בלבד ונרשמת ביומן.'} data-wkp-card>
       ${remote
         ? html`<div class="muted" data-wkp-remote>${LOCAL_ONLY_GENERIC}</div>`
         : html`<div class="top">

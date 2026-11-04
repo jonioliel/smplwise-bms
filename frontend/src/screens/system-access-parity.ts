@@ -22,6 +22,8 @@ import { WISKEY_SCREENS, WISKEY_SCREEN_SEGMENT, WISKEY_UI, type WiskeyScreen } f
 import type { DisplayZone } from '../api/intercom';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { pt } from '../i18n/access-parity';
+import { checklistSummary, emitFoldSummary } from '../access-control/settings-cards-logic';
+import { sct } from '../i18n/settings-cards';
 
 const HOURS = [24, 168] as const;
 
@@ -59,6 +61,11 @@ function browserStorage(): Storage | null {
 export class SystemAccessParity extends LitElement {
   /** The page's refresh counter: a change runs the report again only when one was already run. */
   @property({ type: Number }) rev = 0;
+  /** SETTINGS-INTERCOM-CARDS-2401: which of the two cards is drawn - both (layouts b and c), or one of them (layout a: each is a card). */
+  @property({ reflect: true }) show: 'all' | 'report' | 'checklist' = 'all';
+  /** SETTINGS-INTERCOM-CARDS-2401: drawn inside a card of layout a - no heading of its own (the summary line is reported instead), and the
+   * checklist's screens stand side by side, so the open card fits the screen. */
+  @property({ type: Boolean, reflect: true }) bare = false;
   @state() private subject = '';
   @state() private hours: number = HOURS[0];
   @state() private users: DirectoryUser[] = [];
@@ -127,6 +134,18 @@ export class SystemAccessParity extends LitElement {
         accent-color: var(--sw-accent);
         flex: none;
       }
+      /* SETTINGS-INTERCOM-CARDS-2401: the screens of the checklist - one after the other (as before), or side by side inside a card */
+      .chk-grid {
+        display: contents;
+      }
+      :host([bare]) .chk-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr));
+        border-block-start: 1px solid var(--sw-border);
+      }
+      :host([bare]) .chk-grid .chk {
+        border-block-start: 0;
+      }
     `,
     bubbleChrome,
   ];
@@ -140,7 +159,7 @@ export class SystemAccessParity extends LitElement {
     });
     this.ticks = loadChecklist(browserStorage());
     // another user's view needs system.configure on the server; the directory may refuse the list (then the report is the caller's own)
-    if (isApi() && can('system.configure')) {
+    if (isApi() && can('system.configure') && this.show !== 'checklist') {
       listUsers()
         .then((d) => (this.users = d.users.filter((u) => u.active && !u.is_self)))
         .catch(() => (this.users = []));
@@ -157,6 +176,7 @@ export class SystemAccessParity extends LitElement {
       this.lastRev = this.rev;
       if (this.asked) void this.res.reload();
     }
+    if (this.bare && this.show !== 'all') emitFoldSummary(this, { card: this.show === 'checklist' ? 'checklist' : 'parity', summary: this.summary(), present: true });
   }
 
   private run(): void {
@@ -240,7 +260,7 @@ export class SystemAccessParity extends LitElement {
   private head(): TemplateResult {
     const busy = this.res.snap.busy;
     return html`<div class="ch">
-      <div><h3>${pt('title')}</h3><div class="sub">${pt('sub')}</div></div>
+      ${this.bare ? html`<div class="sub">${pt('sub')}</div>` : html`<div><h3>${pt('title')}</h3><div class="sub">${pt('sub')}</div></div>`}
       <div class="ctl">
         ${this.users.length ? html`<sw-dropdown tall data-parity-subject label=${pt('subject')} .items=${this.subjectItems()} .value=${this.subject} @change=${(e: CustomEvent<{ id: string }>) => (this.subject = e.detail.id)}></sw-dropdown>` : nothing}
         <sw-dropdown tall data-parity-hours label=${pt('window')} .items=${this.hourItems()} .value=${String(this.hours)} @change=${(e: CustomEvent<{ id: string }>) => (this.hours = Number(e.detail.id) || HOURS[0])}></sw-dropdown>
@@ -264,13 +284,13 @@ export class SystemAccessParity extends LitElement {
     const progress = checklistProgress(this.ticks, screens);
     return html`<sw-card flush data-access-card="parity-checklist">
       <div class="ch">
-        <div><h3>${pt('checklistTitle')}</h3><div class="sub">${pt('checklistSub')}</div></div>
+        ${this.bare ? html`<div class="sub">${pt('checklistSub')}</div>` : html`<div><h3>${pt('checklistTitle')}</h3><div class="sub">${pt('checklistSub')}</div></div>`}
         <div class="ctl">
           <span class="muted" data-parity-progress>${pt('checklistDone', progress)}</span>
           ${progress.done ? html`<sw-button size="lg" variant="ghost" data-parity-clear @click=${() => this.clearTicks()}>${pt('checklistClear')}</sw-button>` : nothing}
         </div>
       </div>
-      ${screens.map((c) => {
+      <div class="chk-grid">${screens.map((c) => {
         const segment = WISKEY_SCREEN_SEGMENT[c.screen as WiskeyScreen];
         const href = `#/wiskey/${segment}`;
         return html`<div class="chk" data-parity-checklist=${c.screen}>
@@ -283,12 +303,27 @@ export class SystemAccessParity extends LitElement {
             (item) => html`<label class="item"><input type="checkbox" data-parity-item=${`${c.screen}:${item}`} .checked=${!!this.ticks[c.screen]?.[item]} @change=${() => this.tick(c.screen, item)} /><span>${pt(item)}</span></label>`,
           )}
         </div>`;
-      })}
+      })}</div>
     </sw-card>`;
   }
 
+  /** SETTINGS-INTERCOM-CARDS-2401: the one-line summary of the report (not run / checking / the counts) or of the checklist (ticked). */
+  summary(): string {
+    const t = sct().sum;
+    if (this.show === 'checklist') {
+      const p = checklistProgress(this.ticks, CHECKLIST.filter((c) => (WISKEY_SCREENS as string[]).includes(c.screen)));
+      return checklistSummary(p.done, p.all);
+    }
+    const s = this.res?.snap;
+    const r = s?.data;
+    if (!this.asked || !s) return t.parityIdle;
+    if (s.busy && !r) return t.parityBusy;
+    if (!r) return t.parityFailed;
+    return pt('summary', { match: r.summary.match ?? 0, filtered: r.summary.filtered ?? 0, mismatch: r.summary.mismatch ?? 0 });
+  }
+
   render() {
-    return html`<div class="stack" data-access-status="ready">${this.report()}${this.checklist()}</div>`;
+    return html`<div class="stack" data-access-status="ready">${this.show !== 'checklist' ? this.report() : nothing}${this.show !== 'report' ? this.checklist() : nothing}</div>`;
   }
 }
 

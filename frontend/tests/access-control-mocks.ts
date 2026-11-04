@@ -152,6 +152,9 @@ export async function installAccessMock(page: Page, opts: MockOptions = {}): Pro
     'access.event_portrait_sensitive': 'false',
     'access.employee_no_sensitive': 'false',
     'access.sync_errors_everyone': 'false',
+    // SETTINGS-INTERCOM-CARDS-2401: the specs written before 2.40.1 drive "מתגי מסכי כניסה" as the single list (layout c), which they
+    // describe; the cards (layout a, the product default) and the two tabs (b) have their own specs, which pass the layout in `settings`
+    'access.settings_layout': 'list',
     ...(st.opts.settings ?? {}),
   };
   const persona = () => st.opts.persona ?? 'admin';

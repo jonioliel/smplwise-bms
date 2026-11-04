@@ -270,6 +270,11 @@ DEFAULTS: dict[str, str] = {
     # (frontend/src/wiskey/companion-bridge.ts). "false" (the default) keeps the 0.1.123 behaviour: no frame in the app,
     # the SMPLWISE screen or a note plus "פתח ב-WisKey".
     "access.phone_embed": "false",
+    # SETTINGS-INTERCOM-CARDS-2401 (owner 04.11, round 19 Q6 = a, "with the ability to change to b or c in Settings"): how the Settings
+    # tab "מתגי מסכי כניסה" is laid out, per installation - cards (a, the default: one collapsible card open at a time, the tab fits the
+    # screen) | tabs (b: two tabs, the display and the announcements / voice) | list (c: the single long list of 2.40.0). Presentation
+    # only; every control and every other setting is the same in the three layouts. frontend/src/access-control/settings-cards-logic.ts.
+    "access.settings_layout": "cards",
     # CR-036 S3 (owner answers 2026-10-12: every decision is an administrator setting, the answer is the default): who sees
     # what in the access-control reads - the employee number is a names-level field, the event picture needs only the events
     # view (each view audited), sync error texts need access.admin.read. services/intercom_authority.py reads them per request.
@@ -565,6 +570,8 @@ def read_settings(conn: sqlite3.Connection, *, private: bool = False) -> dict[st
         out[key] = int(value) if key in INT_KEYS else value
     if out.get("access.external.placement") not in ("access", "tickets", "both"):  # SHAREDID-293: a corrupt value never moves the screen
         out["access.external.placement"] = "access"
+    if out.get("access.settings_layout") not in ("cards", "tabs", "list"):  # SETTINGS-INTERCOM-CARDS-2401: a corrupt value reads as the default
+        out["access.settings_layout"] = DEFAULTS["access.settings_layout"]
     # CR-039 DOORWIN-295: READ-ONLY, derived - whether the door-windows tab is in the navigation (a door feature is switched on). Not in
     # DEFAULTS and not patchable here: the switches themselves live behind /doors/windows/settings and /doors/emergency/settings.
     out["doors.ui.tab"] = "on" if (get_setting(conn, "doors.windows.enabled") == "on" or get_setting(conn, "doors.emergency.enabled") == "on") else "off"
@@ -926,6 +933,7 @@ class SettingsPatch(BaseModel):
     ui_wiskey_density: str | None = Field(default=None, pattern="^(auto|4|6|8|9|12)$", alias="ui.wiskey_density")
     ui_wiskey_wall: str | None = Field(default=None, pattern="^(auto|4|9|12)$", alias="ui.wiskey_wall")
     access_phone_embed: str | None = Field(default=None, pattern="^(true|false)$", alias="access.phone_embed")
+    access_settings_layout: str | None = Field(default=None, pattern="^(cards|tabs|list)$", alias="access.settings_layout")  # SETTINGS-INTERCOM-CARDS-2401
     access_employee_no_sensitive: str | None = Field(default=None, pattern="^(true|false)$", alias="access.employee_no_sensitive")  # CR-036 S3
     access_event_portrait_sensitive: str | None = Field(default=None, pattern="^(true|false)$", alias="access.event_portrait_sensitive")
     access_event_portrait_audit: str | None = Field(default=None, pattern="^(true|false)$", alias="access.event_portrait_audit")
