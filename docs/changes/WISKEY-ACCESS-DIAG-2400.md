@@ -105,7 +105,22 @@ Not touched: `contracts/API_INVENTORY.md` (the train regenerates it: +12 routes 
 
 ## Tests and receipts
 
-See "Receipts" below (filled from the actual runs).
+All fakes / mocks; no lab, no device, no Home Assistant. Receipts (2026-11-04):
+
+| Run | Where | Command | Result |
+|---|---|---|---|
+| backend, new + neighbours | runner @ `986f600be` | `run_smart.py backend <branch> --machine runner tests/test_wiskey_access_diag.py tests/test_wiskey_channels.py tests/test_pwclean_295.py tests/test_fake_wiskey.py tests/test_eccact_readback_295.py tests/test_wa_pacing_coverage_295.py tests/test_intercom_adapter.py tests/test_intercom_authority.py tests/test_access_control_wire.py tests/test_release_check.py` | 228 passed, 2 skipped, **1 failed**: `test_release_check` (migrations must be contiguous; the file was 0200) -> renumbered to 0198 |
+| backend after the fix | runner @ `aaada4c86` | `... tests/test_wiskey_access_diag.py tests/test_release_check.py tests/test_wiskey_channels.py tests/test_pwclean_295.py` | 69 passed, 2 skipped |
+| backend (local loop) | workstation, project venv (Python 3.12.10) | `python -m pytest tests/test_wiskey_access_diag.py tests/test_wiskey_channels.py tests/test_pwclean_295.py` | 65 passed, 2 skipped (18 of them the new file) |
+| unit (node) | workstation | `npx playwright test -c playwright.unit.config.ts tests/unit-wiskey-access-diag.spec.ts tests/unit-wiskey-deeplinks.spec.ts` | 29 passed |
+| static unit lints | workstation | the same config with `unit-token-lint`, `unit-a11y-polished-lint`, `unit-menu-lint`, `unit-designtokens-297`, `unit-dialog-toplayer-2381`, `unit-empty-state-icons`, `unit-page-background`, `unit-a11y-r4-leftovers-2380`, `unit-uxfix-rtl`, `unit-entity-id-sweep`, `unit-date-format-module`, `unit-day-format`, `unit-design-tokens`, `unit-arx-pending-tokens` | 110 passed (after adding `lang` to the date-time input) |
+| tsc, lazy tags | workstation | `npx tsc --noEmit`; `node scripts/lazy-tags-check.mjs` | clean; OK |
+| baselines | runner @ `aaada4c86` | `run_smart.py spec <branch> --machine runner tests/pixel-wiskey-access-diag.spec.ts tests/pixel-wiskey-deeplinks.spec.ts --project=desktop --project=mobile --workers=1 --update-snapshots` | 14 passed; 12 new + 2 refreshed `*-linux.png`, reviewed image by image |
+| browser specs | runner @ `3ad7c33ec` | `run_smart.py spec <branch> --machine runner tests/pixel-wiskey-access-diag.spec.ts tests/pixel-wiskey-deeplinks.spec.ts tests/evidence-wiskey-access-diag.spec.ts tests/evidence-wiskey-deeplinks.spec.ts --project=desktop --project=mobile --workers=1` | 40 passed, 12 skipped by design (phone-only / desktop-only behaviour tests), 0 pixel skips |
+
+NOT_RUN: the full backend suite (started once, stopped at ~3 % on the coordinator's disk instruction; the train gate covers it), the
+preview / fixture / tablet projects, the dark scheme and the other skins (pixel baselines are classic light only), `contracts/API_INVENTORY.md`
+regeneration, any lab check (the views have never seen a real WisKey answer; the shapes come from rc.10's source).
 
 ## Rollback
 
