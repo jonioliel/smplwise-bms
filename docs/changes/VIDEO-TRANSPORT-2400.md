@@ -150,6 +150,17 @@ re-open grace removes that part.
 Observed once: `test_full_app_lifecycle_…` (ASGI WisKey) failed its "no OS socket more than before" check inside one long combined run and
 passed alone, with the new file, and in the final combined run - recorded as order-dependent, not reproduced.
 
+## 7.2 Gate 2.40.0 @ 36385bcb2: evidence-wall-live-cap.spec.ts (stale spec, not a regression)
+
+Four tests failed on desktop and mobile (:201, :225, :301, :310). Every count the spec makes still held - 4 sockets for a cap of 4, one
+attempt per refused tile, the snapshot tiles, the profile of each tile; what failed was the TRANSPORT: `kind === 'webrtc'` /
+"no MSE socket" / the badge `main·WebRTC` / `sub·WebRTC`, received `mse` / `main·MSE` / `sub·MSE`. The spec's mocked settings said
+`media.transport_default: 'mse'` on the remote channel and still expected WebRTC first - exactly the behaviour the owner decision of
+2026-11-04 removed (lab audit finding 1: "MSE only" was ignored remotely). The remote live cap and the wall quality ladder work as
+before; they are about the ladder of `auto`. The fix is in the spec only: the fixture's transport is a parameter, `auto` by default (what
+those tests describe), and one new test pins the decision itself - installation "MSE only" on the remote wall under a cap of 4: four MSE
+sockets of the sub profile, four snapshot tiles, no WebRTC, no cap error, no extra socket.
+
 ## 8. Known limits
 
 - The frozen-MSE evidence uses the player's own first-frame entry on a fake MSE socket (the fake stack decodes no fMP4); a real frozen stream

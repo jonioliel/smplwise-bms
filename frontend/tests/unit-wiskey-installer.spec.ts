@@ -45,7 +45,7 @@ test('the diff marks only what changes, in the given order', () => {
 });
 
 test('the NTP rules are WisKey\'s own', () => {
-  for (const ok of ['time.windows.com', 'pool.ntp.org', '10.0.0.1', 'ntp-1', 'a']) expect(validServer(ok), ok).toBe(true);
+  for (const ok of ['time.windows.com', 'pool.ntp.org', '192.0.2.10', 'ntp-1', 'a']) expect(validServer(ok), ok).toBe(true);
   for (const bad of ['', '1.2.3', '0.0.0.0', '224.0.0.1', '300.1.1.1', '-bad.com', 'bad-.com', 'a'.repeat(65), 'a..b', 'with space']) expect(validServer(bad), bad).toBe(false);
   expect(ntpErrors({ server: 'pool.ntp.org', port: 123, interval: 60 })).toEqual([]);
   expect(ntpErrors({ server: 'x y', port: 1, interval: 0 })).toEqual(['server', 'port', 'interval']);
