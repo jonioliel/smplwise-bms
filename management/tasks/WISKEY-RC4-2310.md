@@ -2,7 +2,7 @@
 
 > Generated card. Edit management/tasks.json, then run this script with --write.
 
-**Phase:** V1 | **Priority:** P1 | **Status:** BLOCKED
+**Phase:** V1 | **Priority:** P1 | **Status:** REVIEW
 
 **Owner role:** engineering | **Hardware:** False
 
@@ -30,6 +30,3 @@
 
 ## Guardrails
 Read AGENTS.md and the linked master chapters. Inspect legacy code before replacement. No production configuration writes, physical commands, spending, or claims of passing unrun tests. Record commit, environment, commands and evidence.
-
-## Blocker
-Held by the owner release order "WisKey ships last" (after 2.36.0 and 2.37.0) and by the WisKey team reply via the owner. The code is on the branch chain that ends at pilot/WISKEY-RC7-ADOPT-2331; nothing is merged to main or tagged.

@@ -59,6 +59,16 @@ MEDIA_PATH_PREFIX = "/api/hikvision_intercom/arx_bridge/v1/media/"
 MEDIA_INGRESS_COMMAND = "features/media_ingress_v1"
 DISCOVERY_TIMEOUT_S = 6.0
 DISCOVERY_COMMANDS = frozenset({CAPABILITIES, TIME})
+STOPPED_CODE = "join_stopped"  # WISKEY-JOIN-LIVE-2382: a request after the runtime stop began (not_sent: nothing was written)
+
+
+def _close_coro(coro: Any) -> None:
+    close = getattr(coro, "close", None)
+    if close is not None:
+        try:
+            close()
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def envelope_kind(command: str) -> str:
@@ -90,6 +100,11 @@ class DirectCommandSession:
         self.discovery = DirectDiscovery()
         self.require_discovery = False
         self._discovery_lock: asyncio.Lock | None = None
+        # WISKEY-JOIN-LIVE-2382: a runtime stop. Once `begin_close()` ran, every NEW request is refused `not_sent join_stopped` before any
+        # I/O; `busy` counts the requests handed to the session loop from outside it (the drain waits for them before the socket closes).
+        self._closing = False
+        self._busy = 0
+        self._busy_lock = threading.Lock()
 
     def __repr__(self) -> str:
         return f"DirectCommandSession(connected={self.connected})"
@@ -142,6 +157,8 @@ class DirectCommandSession:
             return await self._call_with_budget(command, parameters, timeout=timeout)
 
     async def _call_with_budget(self, command: str, parameters: Mapping[str, Any], *, timeout: float) -> dict[str, Any]:
+        if self._closing:  # WISKEY-JOIN-LIVE-2382: the join is stopping - nothing new is written
+            raise bridge.MediaBridgeError(STOPPED_CODE, "not_sent")
         if not isinstance(parameters, Mapping):
             raise bridge.MediaBridgeError("invalid_parameters", "not_sent")
         refusal = catalog.direct_refusal(command)  # HA-body audio commands and the owner-excluded job-approval writes: never written
@@ -185,6 +202,8 @@ class DirectCommandSession:
 
     def transport_refusal(self, command: str | None = None) -> str | None:
         """Why the direct path may not carry `command` on the current connection now (None = it may). No I/O."""
+        if self._closing:
+            return STOPPED_CODE
         link = self._link
         if link is None or link.closed:
             return "wiskey_direct_not_connected"
@@ -199,8 +218,52 @@ class DirectCommandSession:
         """Await `coro` on the session loop from any loop, without blocking the caller's loop; shielded from the caller's cancel."""
         if self.on_loop():
             return await coro
-        future = asyncio.run_coroutine_threadsafe(coro, self.loop)  # type: ignore[arg-type]
+        self._enter(coro)
+        try:
+            future = asyncio.run_coroutine_threadsafe(coro, self.loop)  # type: ignore[arg-type]
+        except BaseException:
+            self._leave()
+            _close_coro(coro)
+            raise
+        future.add_done_callback(lambda _f: self._leave())
         return await asyncio.shield(asyncio.wrap_future(future))
+
+    # -- WISKEY-JOIN-LIVE-2382: the runtime stop ---------------------------------------------------------------------------------------
+    def _enter(self, coro: Any) -> None:
+        """Count one request handed to the loop from outside; refused `not_sent join_stopped` (nothing scheduled) once closing."""
+        with self._busy_lock:
+            if self._closing:
+                _close_coro(coro)
+                raise bridge.MediaBridgeError(STOPPED_CODE, "not_sent")
+            self._busy += 1
+
+    def _leave(self) -> None:
+        with self._busy_lock:
+            self._busy = max(0, self._busy - 1)
+
+    @property
+    def busy(self) -> int:
+        with self._busy_lock:
+            return self._busy
+
+    @property
+    def closing(self) -> bool:
+        return self._closing
+
+    def begin_close(self) -> None:
+        """From now on nothing new is handed to the loop or written (a request already in flight runs to its own end)."""
+        with self._busy_lock:
+            self._closing = True
+
+    def drain(self, grace_s: float, *, poll_s: float = 0.02) -> bool:
+        """Wait (this thread only, never the session loop) until no request handed in from outside is still running, at most `grace_s`.
+        True when idle. A request still running after the grace is cancelled by `close()` - its outcome is then `unknown`, never re-sent."""
+        deadline = time.monotonic() + max(0.0, grace_s)
+        while self.busy > 0:
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(poll_s)
+        return True
 
     def run_sync(self, coro: Awaitable[Any], timeout: float) -> Any:
         """Block the calling thread (never the session loop) until `coro` ends on the session loop."""
@@ -215,12 +278,18 @@ class DirectCommandSession:
         except budget.DeadlineExpired:
             coro.close()
             raise
-        return self.runner.run(coro, timeout)
+        self._enter(coro)
+        try:
+            return self.runner.run(coro, timeout)
+        finally:
+            self._leave()
 
     def connect_ready(self, timeout: float = DEFAULT_TIMEOUT_S, command: str | None = None) -> bool:
         """Selection rule part (3): the socket is (or now becomes) authenticated - and, with `require_discovery` (WKR5-295, part (4)),
         this connection's discovery lists `command` (when given) and its time observation admits Arx's signing window. Respects the
         60 s back-off; never raises."""
+        if self._closing:
+            return False
         if not self.connected:
             if self._clock() < self._down_until:
                 return False
@@ -261,13 +330,18 @@ class DirectCommandSession:
                             repository_id=link.repository_id or "", connection_ref=link.connection_ref)
 
     def close(self) -> None:
+        """Close the socket and end the loop (its remaining tasks are cancelled by `LoopThread.stop`). Idempotent; never raises."""
+        self.begin_close()
         link, self._link = self._link, None
         if link is not None:
             try:
                 self.runner.run(link.close(), 10)
             except Exception:  # noqa: BLE001
                 pass
-        self.runner.stop()
+        try:
+            self.runner.stop()
+        except Exception:  # noqa: BLE001 - media_cleanup_failed: the loop's own cleanup stays unresolved; the join is gone either way
+            log.warning("wiskey direct join: the session loop did not end cleanly")
 
 
 # ---------------------------------------------------------------- WiskeyCommandPort (WKWRITE)
@@ -529,6 +603,7 @@ class DirectJoin:
         return self._features
 
     _features: Any = None
+    origin: str | None = None  # WISKEY-JOIN-LIVE-2382: `startup` when installed by `startup` (the runtime manager owns only those)
 
     def people_csv_or_none(self) -> Any:
         """WKR5ADOPT-295 (W-006): the `FeatureAdapters` for the people CSV preview + start, only while BOTH `features/people_csv_preview`
@@ -660,13 +735,20 @@ class DirectJoin:
         self._purged_at = t
         return self.lineage.purge()
 
-    def close(self) -> None:
+    def close(self, drain_s: float = 0.0) -> bool:
+        """WISKEY-JOIN-LIVE-2382: the clean stop. (1) nothing new starts (`not_sent join_stopped`); (2) the requests already in flight get
+        `drain_s` to end on their own; (3) the socket closes and the loop ends - a request still running is cancelled and settles `unknown`
+        in the still-open lineage (never re-sent); (4) the lineage closes last (its writer lease is handed over at once). Returns whether
+        the drain ended idle."""
+        self.session.begin_close()
+        idle = self.session.drain(drain_s) if drain_s > 0 else self.session.busy == 0
+        self.session.close()
         if self.lineage is not None:
             try:
                 self.lineage.close()
             except Exception:  # noqa: BLE001
                 pass
-        self.session.close()
+        return idle
 
 
 class _RecordingPort:
@@ -690,6 +772,10 @@ class _RecordingPort:
 # ---------------------------------------------------------------- process state
 
 JOIN: DirectJoin | None = None
+# WISKEY-JOIN-LIVE-2382: `startup` and `shutdown` run one at a time (the runtime manager, the add-on start/stop and the automatic
+# installation's reconcile may all call them); a second `startup` while a join is installed returns that join (never a second one).
+LIFECYCLE = threading.RLock()
+ORIGIN_STARTUP = "startup"
 
 
 def installed() -> DirectJoin | None:
@@ -704,12 +790,54 @@ def janitor() -> int | None:
     return join.purge_due()
 
 
+# WISKEY-JOIN-LIVE-2382: when the direct path was chosen for a people write but did not carry it, the write may go over the classic
+# (Home Assistant) channel instead - ONLY when Arx holds proof that the direct attempt had no effect AND that the classic write cannot
+# duplicate an earlier native one:
+#   - the native outcome `not_sent` (no byte of the mutation frame was written - the WKWRITE contract), whatever its code;
+#   - a refusal of the native writer BEFORE its intent for a transport / availability reason (the codes and prefixes below): the source
+#     read failed or WisKey's source does not offer the action, the lineage is closed / missing / stale, another holder has the scope;
+#   - a VERIFIED WisKey refusal that is pre-effect AND says the direct channel cannot carry this write (not a business answer).
+# Never: an `unknown` outcome (timeout after the write, a lost answer, a refused signature - WisKey's `Unauthorized` may follow a commit,
+# so the writer settles it unknown), a business refusal (invalid_fields, revision_conflict, user_not_found, ...), an Arx authority or
+# actor refusal (rbac_denied, actor_session_inactive, ...), or a lineage answer that names an earlier native write of this person or
+# origin (create_origin_already_used, person_write_in_flight, duplicate_operation). Those fail visibly with their code. The classic
+# write is a NEW request on its own channel (its own frame, no native nonce reused); the native frame is never sent again.
+FALLBACK_NATIVE_ERRORS = frozenset({"action_not_offered", "lineage_unavailable", "lineage_closed", "lineage_missing", "lineage_stale",
+                                    "writer_busy", "writer_fenced", STOPPED_CODE})
+FALLBACK_NATIVE_PREFIXES = ("source_unavailable:", "source_invalid:")
+FALLBACK_REFUSALS = frozenset({"native_write_source_not_observed", "native_write_action_unsupported", "unknown_command"})
+NO_FALLBACK = frozenset({"create_origin_already_used", "person_write_in_flight", "duplicate_operation"})
+PATH_DIRECT = "wiskey_direct"
+PATH_CLASSIC = "classic"
+PATH_CLASSIC_AFTER_DIRECT = "classic_after_direct"
+
+
+def fallback_permitted(state: str, code: str | None) -> bool:
+    """Whether a people write the direct path did not carry may go over the classic channel (see the rule above). Pure."""
+    c = code or ""
+    if c in NO_FALLBACK:
+        return False
+    if state == "not_sent":
+        return True
+    if state == "native_error":
+        return c in FALLBACK_NATIVE_ERRORS or c.startswith(FALLBACK_NATIVE_PREFIXES)
+    if state == "refused":
+        return c in FALLBACK_REFUSALS
+    return False  # unknown, committed, anything else
+
+
 def people_send(conn: Any, principal: Any, command: str, business: Mapping[str, Any], *, targets: list[tuple[str, str]],
-                create_origin_ref: str | None = None) -> Callable[[Any], Awaitable[Any]] | None:
+                create_origin_ref: str | None = None, fallback: Callable[[Any], Awaitable[Any]] | None = None,
+                not_after: Any = None, record: Callable[..., None] | None = None) -> Callable[[Any], Awaitable[Any]] | None:
     """For the people-write routes: the `send(call)` coroutine function of a NATIVE write when the direct path is selected now, else
     None (the route keeps its own Home Assistant send, unchanged). The returned send ignores the feed's `call` and maps the native
     outcome onto what intercom_sync already understands: committed -> the ACK's result (projected as before), not_sent ->
-    `intercom_sync.NotSent`, a pre-effect refusal -> `IntercomError(code)`, unknown -> `UnclearAnswer(code)` (never re-sent)."""
+    `intercom_sync.NotSent`, a pre-effect refusal -> `IntercomError(code)`, unknown -> `UnclearAnswer(code)` (never re-sent).
+
+    WISKEY-JOIN-LIVE-2382: with `fallback` (the route's Home Assistant send) a write the direct path provably did not carry goes over the
+    classic channel once (`fallback_permitted`), unless `not_after` (the route's expiry) has passed - then `NotSent("expired")`.
+    `record(**fields)` receives the path actually used (`transport`, and on a fallback `direct_state` / `direct_code`) for the route's
+    audit row."""
     join = JOIN
     if join is None or join.lineage is None or not join.selected(command):
         return None
@@ -727,19 +855,56 @@ def people_send(conn: Any, principal: Any, command: str, business: Mapping[str, 
     except NativeWriteError as exc:
         refusal = exc.code
     audit_sink = join.audit_for(conn, principal) if join.audit_for is not None else None
+    used: dict[str, bool] = {"classic": False}
 
-    async def send(_call: Any) -> Any:
+    def note(**fields: Any) -> None:
+        if record is not None:
+            try:
+                record(**fields)
+            except Exception:  # noqa: BLE001 - the record is the audit's; it never changes the write
+                log.warning("wiskey people write: the path could not be recorded")
+
+    async def classic(call: Any, state: str, code: str | None) -> Any:
+        """The ONE classic attempt after a direct attempt that provably had no effect."""
+        import datetime as _dt
+
+        if used["classic"]:  # defensive: the feed calls a send once; a second classic write is never made here
+            raise intercom_sync.NotSent("classic_already_used")
+        used["classic"] = True
+        note(transport=PATH_CLASSIC_AFTER_DIRECT, direct_state=state, direct_code=code)
+        if not_after is not None and _dt.datetime.now(_dt.timezone.utc) >= not_after:
+            raise intercom_sync.NotSent("expired")
+        log.info("wiskey people write: the direct path did not carry %s (%s %s); sent over the classic channel", command, state, code)
+        return await fallback(call)  # type: ignore[misc]
+
+    async def send(call: Any) -> Any:
         if refusal is not None:
+            note(transport=PATH_DIRECT, direct_state="native_error", direct_code=refusal)
             raise intercom_sync.NotSent(refusal)
         try:
             outcome, raw = await join.native_write(command, business, actor=actor, decision=decision, create_origin_ref=create_origin_ref,
                                                    audit_sink=audit_sink)
         except NativeWriteError as exc:  # refused before any intent / I/O of the mutation
+            if fallback is not None and fallback_permitted("native_error", exc.code):
+                return await classic(call, "native_error", exc.code)
+            note(transport=PATH_DIRECT, direct_state="native_error", direct_code=exc.code)
+            raise intercom_sync.NotSent(exc.code) from None
+        except bridge.MediaBridgeError as exc:  # the session refused to take the write (the join stopping): nothing was handed over
+            if exc.outcome != "not_sent":
+                note(transport=PATH_DIRECT, direct_state="unknown", direct_code=exc.code)
+                raise intercom_client.UnclearAnswer(command, exc.code) from None
+            if fallback is not None and fallback_permitted("not_sent", exc.code):
+                return await classic(call, "not_sent", exc.code)
+            note(transport=PATH_DIRECT, direct_state="not_sent", direct_code=exc.code)
             raise intercom_sync.NotSent(exc.code) from None
         if outcome.state == "committed":
+            note(transport=PATH_DIRECT, direct_state="committed", direct_code=None)
             if command == "users/delete":
                 return {"accepted": True}
             return raw
+        if fallback is not None and fallback_permitted(outcome.state, outcome.code):
+            return await classic(call, outcome.state, outcome.code)
+        note(transport=PATH_DIRECT, direct_state=outcome.state, direct_code=outcome.code)
         if outcome.state == "not_sent":
             raise intercom_sync.NotSent(outcome.code or "not_sent")
         if outcome.state == "refused":
@@ -747,6 +912,30 @@ def people_send(conn: Any, principal: Any, command: str, business: Mapping[str, 
         raise intercom_client.UnclearAnswer(command, outcome.code or "unknown")
 
     return send
+
+
+def people_path(command: str = "users/update") -> dict[str, Any]:
+    """WISKEY-JOIN-LIVE-2382: which channel a people write would take NOW and why - no I/O, never raises. `path`: `direct` | `classic`;
+    `reason`: None for direct, else a closed code (`not_installed`, `lineage_unavailable`, `lineage_<status>`, `not_configured`, or the
+    session's transport refusal: `wiskey_direct_not_connected`, `join_stopped`, a discovery code). A selected direct write that WisKey
+    then does not carry may still go classic per write (`fallback_permitted`)."""
+    join = JOIN
+    try:
+        if join is None:
+            return {"path": "classic", "reason": "not_installed"}
+        lin = join.lineage
+        if lin is None:
+            return {"path": "classic", "reason": "lineage_unavailable"}
+        if not lin.writable():
+            return {"path": "classic", "reason": f"lineage_{lin.status}" if lin.status in ("missing", "stale", "closed") else "lineage_unavailable"}
+        if not join.configured():
+            return {"path": "classic", "reason": "not_configured"}
+        refusal = join.session.transport_refusal(command)
+        if refusal is not None:
+            return {"path": "classic", "reason": refusal}
+        return {"path": "direct", "reason": None}
+    except Exception:  # noqa: BLE001
+        return {"path": "classic", "reason": "unreadable"}
 
 
 def _cached(fn: Callable[[], Any], ttl: float) -> Callable[[], Any]:
@@ -766,6 +955,14 @@ def startup(db: Any, settings: Any, *, opener: Callable[[], Awaitable[Any]] | No
             provider_reader: Callable[[], bool] | None = None, key_reader: Callable[[], Any] | None = None) -> DirectJoin | None:
     """Install the join when (1) `auto` and (2) the key signs hold NOW; else install nothing and return None. Opens ONE lineage for
     this process and tries `recover(scope)` once (deferred to the first write of the scope when the socket is not up)."""
+    with LIFECYCLE:
+        if JOIN is not None:  # WISKEY-JOIN-LIVE-2382: never a second join (the installed one stays; nothing is opened twice)
+            return JOIN
+        return _startup(db, settings, opener=opener, open_lineage=open_lineage, provider_reader=provider_reader, key_reader=key_reader)
+
+
+def _startup(db: Any, settings: Any, *, opener: Callable[[], Awaitable[Any]] | None, open_lineage: bool,
+             provider_reader: Callable[[], bool] | None, key_reader: Callable[[], Any] | None) -> DirectJoin | None:
     global JOIN
     from . import ha_bridge, lease_events
     from . import wa_template_send as wts
@@ -807,6 +1004,7 @@ def startup(db: Any, settings: Any, *, opener: Callable[[], Awaitable[Any]] | No
 
     join = DirectJoin(session, provider_ok=_cached(read_provider, DirectJoin.PROVIDER_TTL_S),
                       key_ok=lambda: key_signs(key_provider()), lineage=lineage, audit_for=audit_to)
+    join.origin = ORIGIN_STARTUP  # WISKEY-JOIN-LIVE-2382: the runtime manager stops only a join `startup` installed
     join.lease_transport = SelectingLeaseTransport(join, mapped_card_transport(join, wiskey_capture_direct.DirectLeaseTransport(join.capture_port)),
                                                    lease_events.BridgeLeaseTransport())
     join.template_transport = wiskey_template_direct.DirectTemplateTransport(join.capture_port)
@@ -830,20 +1028,23 @@ def startup(db: Any, settings: Any, *, opener: Callable[[], Awaitable[Any]] | No
     return join
 
 
-def shutdown() -> None:
-    """Uninstall everything `startup` installed (the existing transports come back)."""
+def shutdown(drain_s: float = 0.0) -> bool | None:
+    """Uninstall everything `startup` installed (the existing transports come back), then stop the join cleanly (`DirectJoin.close`):
+    the globals go first, so no new caller can pick the join while it drains. None when nothing was installed, else whether the drain
+    ended idle."""
     global JOIN
     from . import lease_events
     from . import wa_template_send as wts
 
-    join, JOIN = JOIN, None
-    catalog.INSTALLATION_SWITCH = None  # review M2: back to the exclusion
-    if join is None:
-        return
-    if lease_events.TRANSPORT is join.lease_transport:
-        lease_events.set_transport(None)
-    if wts.TRANSPORT_PROVIDER == join.template_or_none:
-        wts.TRANSPORT_PROVIDER = None
-    if wts.TRANSPORT_V2_PROVIDER == join.template_v2_or_none:
-        wts.TRANSPORT_V2_PROVIDER = None
-    join.close()
+    with LIFECYCLE:
+        join, JOIN = JOIN, None
+        catalog.INSTALLATION_SWITCH = None  # review M2: back to the exclusion
+        if join is None:
+            return None
+        if lease_events.TRANSPORT is join.lease_transport:
+            lease_events.set_transport(None)
+        if wts.TRANSPORT_PROVIDER == join.template_or_none:
+            wts.TRANSPORT_PROVIDER = None
+        if wts.TRANSPORT_V2_PROVIDER == join.template_v2_or_none:
+            wts.TRANSPORT_V2_PROVIDER = None
+        return join.close(drain_s=drain_s)

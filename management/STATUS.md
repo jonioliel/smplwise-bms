@@ -1,23 +1,23 @@
 # Project status — generated view
 
-Generated: 2026-11-02T21:44:14.924420+00:00
+Generated: 2026-11-03T23:30:28.135081+00:00
 
-Tasks: 383 | Requirements: 492 | Tests: 509 | Screens: 32
+Tasks: 423 | Requirements: 532 | Tests: 549 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
 ## Status counts
-- BACKLOG: 138
-- BLOCKED: 15
+- BACKLOG: 142
+- BLOCKED: 16
 - DONE: 40
-- IN_PROGRESS: 32
-- REVIEW: 158
+- IN_PROGRESS: 22
+- REVIEW: 203
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 289
+- V1: 329
 - V2: 29
 - V3: 2
 
@@ -25,18 +25,19 @@ No VMS implementation or hardware test is implied by this planning registry.
 - T003: Excluded from G0 by owner decision 2026-09-22 - not to be worked (see the evidence entry).
 - T004: Excluded from G0 by owner decision 2026-09-22 - not to be worked (see the evidence entry).
 - T096: Real FCM / APNs delivery needs the owner's Firebase project and Apple account (docs/operations/ARX_PUSH_RELAY_DEPLOY_HE.md); the relay Worker is not deployed. The CR-012 wake design is treated as superseded by the CR-027 relay (the CR-012 document itself still says "Proposed"); the go-live work is PUSH-GOLIVE-KIT-2380.
-- WXH0: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
-- WXH1: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
-- WXH2: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
-- WXH3: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
-- WXH4: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
-- WXH5: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
-- WXH6: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
-- WXH7: DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row.
-- WXAV: Waiting for W10 (stream descriptor and audio hook) from the WisKey side; the owner asks to start S18 right after stage 1 as soon as W10 arrives.
-- WISKEY-RC4-2310: Held by the owner release order "WisKey ships last" (after 2.36.0 and 2.37.0) and by the WisKey team reply via the owner. The code is on the branch chain that ends at pilot/WISKEY-RC7-ADOPT-2331; nothing is merged to main or tagged.
-- REAL-TV-SESSION-2380: Waits for the owner (question Q2: a lab TV in a joint session this week, an Android TV box only, or fix blind) and for TV-FIT-2380 to merge.
+- WXH1: Not a work blocker any more: The owner lifted the 2026-10-10 deferral on 2026-10-20 (private/planning/OWNER_DECISIONS_2026-10-20_NIGHT.md, round 4 item 4: "HMAC key rotation: build now (activation only after a Fable review)"); built as HMACROT-295 / HMACACT-295 / HMACACT2-295, docs/changes/CR-WISKEY-HMAC-ROTATION-295.md. The status stays BLOCKED only because the registry rule needs every dependency DONE (owner acceptance).
+- WXH2: Not a work blocker any more: The owner lifted the 2026-10-10 deferral on 2026-10-20 (private/planning/OWNER_DECISIONS_2026-10-20_NIGHT.md, round 4 item 4: "HMAC key rotation: build now (activation only after a Fable review)"); built as HMACROT-295 / HMACACT-295 / HMACACT2-295, docs/changes/CR-WISKEY-HMAC-ROTATION-295.md. The status stays BLOCKED only because the registry rule needs every dependency DONE (owner acceptance).
+- WXH3: Not a work blocker any more: The owner lifted the 2026-10-10 deferral on 2026-10-20 (private/planning/OWNER_DECISIONS_2026-10-20_NIGHT.md, round 4 item 4: "HMAC key rotation: build now (activation only after a Fable review)"); built as HMACROT-295 / HMACACT-295 / HMACACT2-295, docs/changes/CR-WISKEY-HMAC-ROTATION-295.md. The status stays BLOCKED only because the registry rule needs every dependency DONE (owner acceptance).
+- WXH4: Waits for two owner decisions (CR-WISKEY-HMAC-ROTATION-295 section 16.3: delivery of the new key and who may reveal it) and a bridge release; the 2026-10-10 deferral itself was lifted on 2026-10-20.
+- WXH5: Not a work blocker any more: The owner lifted the 2026-10-10 deferral on 2026-10-20 (private/planning/OWNER_DECISIONS_2026-10-20_NIGHT.md, round 4 item 4: "HMAC key rotation: build now (activation only after a Fable review)"); built as HMACROT-295 / HMACACT-295 / HMACACT2-295, docs/changes/CR-WISKEY-HMAC-ROTATION-295.md. The status stays BLOCKED only because the registry rule needs every dependency DONE (owner acceptance).
+- WXH6: Not a work blocker any more: The owner lifted the 2026-10-10 deferral on 2026-10-20 (private/planning/OWNER_DECISIONS_2026-10-20_NIGHT.md, round 4 item 4: "HMAC key rotation: build now (activation only after a Fable review)"); built as HMACROT-295 / HMACACT-295 / HMACACT2-295, docs/changes/CR-WISKEY-HMAC-ROTATION-295.md. The status stays BLOCKED only because the registry rule needs every dependency DONE (owner acceptance).
+- WXH7: Not a work blocker any more: The owner lifted the 2026-10-10 deferral on 2026-10-20 (private/planning/OWNER_DECISIONS_2026-10-20_NIGHT.md, round 4 item 4: "HMAC key rotation: build now (activation only after a Fable review)"); built as HMACROT-295 / HMACACT-295 / HMACACT2-295, docs/changes/CR-WISKEY-HMAC-ROTATION-295.md. The status stays BLOCKED only because the registry rule needs every dependency DONE (owner acceptance).
+- REAL-TV-SESSION-2380: Waits for the owner (question Q2: a lab TV in a joint session this week, an Android TV box only, or fix blind); TV-FIT-2380 shipped in 2.38.0 (merge 571891e9d).
 - CAST-FIRST-TEST-2380: A device action needs the owner's explicit approval (question Q9: approve one camera to one lab TV in a joint session, or later).
+- WISKEY-SVC-GRANT-2400: Waits for WisKey: a writer for native_service_grants_v1 on a manual install (plan section 5, Q-WK-4).
+- WISKEY-LISTEN-2410: Waits for WisKey: the standalone listen downlink contract (plan section 5, Q-WK-5).
+- WISKEY-EMERGENCY-LOCK-2410: Waits for WisKey: emergency secure support (today emergency_secure_unsupported_v1; plan section 5, Q-WK-7).
+- WISKEY-RING-STATION-2410: Waits for WisKey and a device investigation: can the station be rung from the operator side (plan section 5, Q-WK-6).
 
 ## Backlog
 | ID | Phase | Status | Task | Depends on |
@@ -148,7 +149,7 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [T105](tasks/T105.md) | V1 | BACKLOG | Provision-ISR: מקליטים ומצלמות (CR-025) - מתאם API v1 לקריאה, חיפוש, השמעה, ייצוא, אירועים | — |
 | [T106](tasks/T106.md) | V1 | BACKLOG | ניטור בריאות מקליטים (CR-026): שבעה מקורות התראה, הגדרות פר מקליט, עומק ל-Provision-ISR | — |
 | [T107](tasks/T107.md) | V2 | REVIEW | מסך קיר לטאבלט קבוע (CR-030, WDM / WDX): משתמש קיר שמזוהה לפי טאבלט | — |
-| [T108](tasks/T108.md) | V2 | BACKLOG | גנרטורים (CR-031, GEN1): זיהוי לפי התקן, תרשים זרימת הספק, התראות וניתוב, היסטוריה | — |
+| [T108](tasks/T108.md) | V2 | REVIEW | גנרטורים (CR-031, GEN1): זיהוי לפי התקן, תרשים זרימת הספק, התראות וניתוב, היסטוריה | — |
 | [T109](tasks/T109.md) | V1 | BACKLOG | מתגים מוגנים (CR-019): ברירת מחדל 'כלול', הצעת סיווג, רשימת סקירה בהגדרות | — |
 | [T110](tasks/T110.md) | V1 | BACKLOG | הגדרות מצלמות ב-NVR (CR-020): טבלת מצלמות, כתיבה מוגנת (SVC / קידוד), שינוי לכמה מצלמות | — |
 | [T111](tasks/T111.md) | V1 | BACKLOG | עדכון והפעלה מחדש מתוך Arx (CR-021): בדיקת גרסה, עדכון באישור אחד, מסך מצב ששורד הפעלה מחדש | — |
@@ -176,7 +177,7 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [WXD11](tasks/WXD11.md) | V1 | BACKLOG | WisKey CR-033: Door-path gate T1..T26 on fakes | WXD0, WXD1, WXD2, WXD3, WXD4, WXD5A, WXD5B, WXD6, WXD7, WXD7R, WXD8, WXD9, WXD10A, WXD10B |
 | [WXG0](tasks/WXG0.md) | V1 | BACKLOG | WisKey CR-034: Merge WX3 gate tool to main | — |
 | [WXG1](tasks/WXG1.md) | V1 | BACKLOG | WisKey CR-034: Gate: impact block, exit 5, gate:allow | WXG0 |
-| [WXH0](tasks/WXH0.md) | V1 | BLOCKED | WisKey CR-034: Rotation fakes | — |
+| [WXH0](tasks/WXH0.md) | V1 | REVIEW | WisKey CR-034: Rotation fakes | — |
 | [WXH1](tasks/WXH1.md) | V1 | BLOCKED | WisKey CR-034: Bridge multi-key verifier and rotate service | WXH0 |
 | [WXH2](tasks/WXH2.md) | V1 | BLOCKED | WisKey CR-034: Arx key set and rotation state machine | WXH0 |
 | [WXH3](tasks/WXH3.md) | V1 | BLOCKED | WisKey CR-034: bridge.key.rotate, owner contacts, emergency notice | WXH2 |
@@ -217,11 +218,11 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [BILLSTART](tasks/BILLSTART.md) | V1 | REVIEW | Electricity bill start-reading bug | — |
 | [ST7L](tasks/ST7L.md) | V2 | REVIEW | Plan Studio 6 look development: two rounds, LOOK_SPEC and CC0 assets | — |
 | [ST7INT](tasks/ST7INT.md) | V2 | BACKLOG | Plan Studio 6: integration on 2.4.6, migrations 0074-0075, gate and release | ST7S0, ST7S4, ST7S1, ST7S2, ST7S3 |
-| [ST7SITE](tasks/ST7SITE.md) | V2 | BACKLOG | Plan Studio 6: site location for the sun comes from the HA settings (latitude / longitude) | — |
-| [ST7UI](tasks/ST7UI.md) | V2 | BACKLOG | Plan Studio 6: editor UI (material per wall / room / item, north compass, saved walk positions) and plan.view settings screen | — |
+| [ST7SITE](tasks/ST7SITE.md) | V2 | REVIEW | Plan Studio 6: site location for the sun comes from the HA settings (latitude / longitude) | — |
+| [ST7UI](tasks/ST7UI.md) | V2 | REVIEW | Plan Studio 6: editor UI (material per wall / room / item, north compass, saved walk positions) and plan.view settings screen | — |
 | [ST7HIST](tasks/ST7HIST.md) | V2 | REVIEW | Plan Studio 6: level 3 also in the history map and the event page | — |
 | [WXCR](tasks/WXCR.md) | V1 | REVIEW | WisKey: change requests CR-033 (door path) and CR-034 (key rotation) with the implementation plan | — |
-| [WXIMP](tasks/WXIMP.md) | V1 | REVIEW | WisKey importer on the Arx side (CR-035), stage 1: offline package intake, import manifest, staged install plan (fakes only) | — |
+| [WXIMP](tasks/WXIMP.md) | V1 | BACKLOG | WisKey importer on the Arx side (CR-035), stage 1: offline package intake, import manifest, staged install plan (fakes only) | — |
 | [WXNS](tasks/WXNS.md) | V1 | REVIEW | WisKey native screens plan (CR-036): 49 screens and actions | — |
 | [WXN01](tasks/WXN01.md) | V1 | REVIEW | WisKey native screens S0+S1: WisKey fake, pinned catalogue, last_access removal, background projection, channel guard | — |
 | [WXN34](tasks/WXN34.md) | V1 | BACKLOG | WisKey native screens S3+S4: new permissions, station and field filtering, adapter and read channel | WXN01, WXD2, WXD3 |
@@ -229,7 +230,7 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [WXN6](tasks/WXN6.md) | V1 | BACKLOG | WisKey native screens S6-S10: stations and doors, people, events, schedules, status and groups | WXN34, WXN5 |
 | [WXN11](tasks/WXN11.md) | V1 | BACKLOG | WisKey native screens S11-S14: station-scoped writes, per-screen switch, gate, lab verification | WXN6 |
 | [WXW](tasks/WXW.md) | V2 | BACKLOG | WisKey new writes (including doors), allowed now by the owner decision | WXN11 |
-| [WXAV](tasks/WXAV.md) | V2 | BLOCKED | WisKey local live video and two-way audio (S18) | — |
+| [WXAV](tasks/WXAV.md) | V2 | IN_PROGRESS | WisKey local live video and two-way audio (S18) | — |
 | [WKS9](tasks/WKS9.md) | V1 | DONE | WisKey native screens S9: read-only door schedules screen (access.ui.schedules) | — |
 | [WKS11](tasks/WKS11.md) | V1 | DONE | WisKey native screens S11: person and card writes on the station chain (archive, on/off, cards, photo, PIN, capture) | — |
 | [WKS12](tasks/WKS12.md) | V1 | DONE | WisKey native screens S12: stage-1 gap analysis, parity report, action-log filters, S13 suite manifest | — |
@@ -314,7 +315,7 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [WORSTCASE-2310](tasks/WORSTCASE-2310.md) | V1 | REVIEW | Worst-case data on the main screens: long names, empty states, huge counts, no scrolling | — |
 | [POLISH-PHONE-2310](tasks/POLISH-PHONE-2310.md) | V1 | REVIEW | Phone layer polish: chips and switch hit areas | — |
 | [ENTRY-CHECK-2310](tasks/ENTRY-CHECK-2310.md) | V1 | REVIEW | Gate: runner entry check before a release train + 7-day quarantine list | — |
-| [WISKEY-RC4-2310](tasks/WISKEY-RC4-2310.md) | V1 | BLOCKED | WisKey rc.4 adoption + rc.5 host check (deadline fix, migration 0186, relay-by-door fix) | — |
+| [WISKEY-RC4-2310](tasks/WISKEY-RC4-2310.md) | V1 | REVIEW | WisKey rc.4 adoption + rc.5 host check (deadline fix, migration 0186, relay-by-door fix) | — |
 | [PRESENCE-COMPACT-2310](tasks/PRESENCE-COMPACT-2310.md) | V1 | REVIEW | Presence card: compact redesign (owner rejected the tall card 30.10) | — |
 | [COORD-DOCS-2310](tasks/COORD-DOCS-2310.md) | V1 | REVIEW | Multi-Claude coordination protocol as documents and an optional tool | — |
 | [LICENSE-2310](tasks/LICENSE-2310.md) | V1 | REVIEW | Proprietary all-rights-reserved licence notice; internal review notes untracked | — |
@@ -386,41 +387,81 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [LOBBY-STYLES-2290](tasks/LOBBY-STYLES-2290.md) | V1 | REVIEW | Lobby screen styles (Gallery, Concierge, Stone, Lumen, Axis, Prism, Ink and Sign) | — |
 | [MOBILE-APP-SERVER-295](tasks/MOBILE-APP-SERVER-295.md) | V1 | REVIEW | Phone-app server side: saved sign-in, device key, WebView session exchange, attestation, critical sound | — |
 | [NOTICEPUSH-295](tasks/NOTICEPUSH-295.md) | V1 | REVIEW | Push on publish for the notice board to the phone app channel | — |
-| [HA-LABELS-SYNC-2351](tasks/HA-LABELS-SYNC-2351.md) | V1 | IN_PROGRESS | Home-system labels synced into Arx (read-only) for the mapping assistant | — |
-| [CAL-FEED-REVIEW-2351](tasks/CAL-FEED-REVIEW-2351.md) | V1 | IN_PROGRESS | Security review of the outgoing iCal feed; remote switch, busy-only, 365-day expiry | — |
-| [GDRIVE-READY-2351](tasks/GDRIVE-READY-2351.md) | V1 | IN_PROGRESS | Google Drive backup ready for the owner's first real connection | — |
-| [HOME-EDIT-DRAWER-2351](tasks/HOME-EDIT-DRAWER-2351.md) | V1 | IN_PROGRESS | Home screen edit mode in a drawer | — |
-| [AREA-PRESENCE-LINE-2351](tasks/AREA-PRESENCE-LINE-2351.md) | V1 | IN_PROGRESS | Presence line in the area screen and quick pop-up | — |
-| [XS-MINI-WIDGET-2351](tasks/XS-MINI-WIDGET-2351.md) | V1 | IN_PROGRESS | Mini building cross-section on the home widgets row | — |
-| [MAPPING-IMPROVE-2351](tasks/MAPPING-IMPROVE-2351.md) | V1 | IN_PROGRESS | Mapping: floors without a level asked about; auto-insert in the background | — |
-| [BUILDING-SCOPE-CONTROL-2351](tasks/BUILDING-SCOPE-CONTROL-2351.md) | V1 | IN_PROGRESS | "Show and control" per building on a multi-building site | — |
-| [PRE-GATE-2360](tasks/PRE-GATE-2360.md) | V1 | IN_PROGRESS | Runner checks before the 2.36.0 release gate | — |
-| [SYNOPTIC-PHONE-SETTINGS-2360](tasks/SYNOPTIC-PHONE-SETTINGS-2360.md) | V1 | IN_PROGRESS | Phone synoptic map: light and summary-line settings | — |
-| [TICKETS-1440-COLUMN-SETTING-2360](tasks/TICKETS-1440-COLUMN-SETTING-2360.md) | V1 | IN_PROGRESS | Tickets table: which column the default table keeps at a medium width | — |
-| [RELEASE-2360-TRAIN](tasks/RELEASE-2360-TRAIN.md) | V1 | IN_PROGRESS | Release train 2.36.0 (building scope, mapping, labels, feed review, GDrive ready, home edit drawer, presence line, xs widget) | — |
-| [CAM-H264-VERIFY-2361](tasks/CAM-H264-VERIFY-2361.md) | V1 | IN_PROGRESS | Verify a bulk encoding change at the camera, per-channel report, skip a refused camera | — |
-| [RELEASE-2361-TRAIN](tasks/RELEASE-2361-TRAIN.md) | V1 | IN_PROGRESS | Release train 2.36.1 (camera H.264 verification) | — |
-| [POLISH4-WP1-SHARED-2370](tasks/POLISH4-WP1-SHARED-2370.md) | V1 | IN_PROGRESS | Polish round 4, WP1: shared stage 2 and the shell pill | — |
-| [POLISH4-WP2-LIVEINV-2370](tasks/POLISH4-WP2-LIVEINV-2370.md) | V1 | IN_PROGRESS | Polish round 4, WP2: live and investigation screens | — |
-| [POLISH4-WP3-SERVICE-2370](tasks/POLISH4-WP3-SERVICE-2370.md) | V1 | IN_PROGRESS | Polish round 4, WP3: the service area | — |
-| [POLISH4-WP4-HOME-2370](tasks/POLISH4-WP4-HOME-2370.md) | V1 | IN_PROGRESS | Polish round 4, WP4: home and devices | — |
-| [POLISH4-WP5-MEDIA-2370](tasks/POLISH4-WP5-MEDIA-2370.md) | V1 | IN_PROGRESS | Polish round 4, WP5: multimedia, cast, generator, electricity | — |
-| [POLISH4-WP6-MAPS-2370](tasks/POLISH4-WP6-MAPS-2370.md) | V1 | IN_PROGRESS | Polish round 4, WP6: maps and plan | — |
-| [POLISH4-WP7-SETSYS-2370](tasks/POLISH4-WP7-SETSYS-2370.md) | V1 | IN_PROGRESS | Polish round 4, WP7: settings (system) | — |
-| [POLISH4-WP8-SETMOD-2370](tasks/POLISH4-WP8-SETMOD-2370.md) | V1 | IN_PROGRESS | Polish round 4, WP8: settings (modules) and the transit check button | — |
-| [TRANSIT-CHECK-2370](tasks/TRANSIT-CHECK-2370.md) | V1 | IN_PROGRESS | Transit settings: "בדוק עכשיו" check button and route (owner-approved addition, 02.11 evening) | — |
-| [UNLOCK-REASON-2370](tasks/UNLOCK-REASON-2370.md) | V1 | IN_PROGRESS | Say why a lock cannot be opened: one unlock_reason rule behind can_unlock | — |
-| [RELEASE-2370-TRAIN](tasks/RELEASE-2370-TRAIN.md) | V1 | IN_PROGRESS | Release train 2.37.0 (polish round 4, transit check, unlock reason) | — |
-| [WISKEY-RC7-ADOPT-2331](tasks/WISKEY-RC7-ADOPT-2331.md) | V1 | IN_PROGRESS | WisKey Mac rc.7 adoption with auto-install policy B (the owner's switch) | — |
+| [HA-LABELS-SYNC-2351](tasks/HA-LABELS-SYNC-2351.md) | V1 | REVIEW | Home-system labels synced into Arx (read-only) for the mapping assistant | — |
+| [CAL-FEED-REVIEW-2351](tasks/CAL-FEED-REVIEW-2351.md) | V1 | REVIEW | Security review of the outgoing iCal feed; remote switch, busy-only, 365-day expiry | — |
+| [GDRIVE-READY-2351](tasks/GDRIVE-READY-2351.md) | V1 | REVIEW | Google Drive backup ready for the owner's first real connection | — |
+| [HOME-EDIT-DRAWER-2351](tasks/HOME-EDIT-DRAWER-2351.md) | V1 | REVIEW | Home screen edit mode in a drawer | — |
+| [AREA-PRESENCE-LINE-2351](tasks/AREA-PRESENCE-LINE-2351.md) | V1 | REVIEW | Presence line in the area screen and quick pop-up | — |
+| [XS-MINI-WIDGET-2351](tasks/XS-MINI-WIDGET-2351.md) | V1 | REVIEW | Mini building cross-section on the home widgets row | — |
+| [MAPPING-IMPROVE-2351](tasks/MAPPING-IMPROVE-2351.md) | V1 | REVIEW | Mapping: floors without a level asked about; auto-insert in the background | — |
+| [BUILDING-SCOPE-CONTROL-2351](tasks/BUILDING-SCOPE-CONTROL-2351.md) | V1 | REVIEW | "Show and control" per building on a multi-building site | — |
+| [PRE-GATE-2360](tasks/PRE-GATE-2360.md) | V1 | REVIEW | Runner checks before the 2.36.0 release gate | — |
+| [SYNOPTIC-PHONE-SETTINGS-2360](tasks/SYNOPTIC-PHONE-SETTINGS-2360.md) | V1 | REVIEW | Phone synoptic map: light and summary-line settings | — |
+| [TICKETS-1440-COLUMN-SETTING-2360](tasks/TICKETS-1440-COLUMN-SETTING-2360.md) | V1 | REVIEW | Tickets table: which column the default table keeps at a medium width | — |
+| [RELEASE-2360-TRAIN](tasks/RELEASE-2360-TRAIN.md) | V1 | REVIEW | Release train 2.36.0 (building scope, mapping, labels, feed review, GDrive ready, home edit drawer, presence line, xs widget) | — |
+| [CAM-H264-VERIFY-2361](tasks/CAM-H264-VERIFY-2361.md) | V1 | REVIEW | Verify a bulk encoding change at the camera, per-channel report, skip a refused camera | — |
+| [RELEASE-2361-TRAIN](tasks/RELEASE-2361-TRAIN.md) | V1 | REVIEW | Release train 2.36.1 (camera H.264 verification) | — |
+| [POLISH4-WP1-SHARED-2370](tasks/POLISH4-WP1-SHARED-2370.md) | V1 | REVIEW | Polish round 4, WP1: shared stage 2 and the shell pill | — |
+| [POLISH4-WP2-LIVEINV-2370](tasks/POLISH4-WP2-LIVEINV-2370.md) | V1 | REVIEW | Polish round 4, WP2: live and investigation screens | — |
+| [POLISH4-WP3-SERVICE-2370](tasks/POLISH4-WP3-SERVICE-2370.md) | V1 | REVIEW | Polish round 4, WP3: the service area | — |
+| [POLISH4-WP4-HOME-2370](tasks/POLISH4-WP4-HOME-2370.md) | V1 | REVIEW | Polish round 4, WP4: home and devices | — |
+| [POLISH4-WP5-MEDIA-2370](tasks/POLISH4-WP5-MEDIA-2370.md) | V1 | REVIEW | Polish round 4, WP5: multimedia, cast, generator, electricity | — |
+| [POLISH4-WP6-MAPS-2370](tasks/POLISH4-WP6-MAPS-2370.md) | V1 | REVIEW | Polish round 4, WP6: maps and plan | — |
+| [POLISH4-WP7-SETSYS-2370](tasks/POLISH4-WP7-SETSYS-2370.md) | V1 | REVIEW | Polish round 4, WP7: settings (system) | — |
+| [POLISH4-WP8-SETMOD-2370](tasks/POLISH4-WP8-SETMOD-2370.md) | V1 | REVIEW | Polish round 4, WP8: settings (modules) and the transit check button | — |
+| [TRANSIT-CHECK-2370](tasks/TRANSIT-CHECK-2370.md) | V1 | REVIEW | Transit settings: "בדוק עכשיו" check button and route (owner-approved addition, 02.11 evening) | — |
+| [UNLOCK-REASON-2370](tasks/UNLOCK-REASON-2370.md) | V1 | REVIEW | Say why a lock cannot be opened: one unlock_reason rule behind can_unlock | — |
+| [RELEASE-2370-TRAIN](tasks/RELEASE-2370-TRAIN.md) | V1 | REVIEW | Release train 2.37.0 (polish round 4, transit check, unlock reason) | — |
+| [WISKEY-RC7-ADOPT-2331](tasks/WISKEY-RC7-ADOPT-2331.md) | V1 | REVIEW | WisKey Mac rc.7 adoption with auto-install policy B (the owner's switch) | — |
 | [APP-TEAM-R11-2380](tasks/APP-TEAM-R11-2380.md) | V1 | BACKLOG | Mobile M1: app-team R11 package (documents only) | T103 |
-| [MOBILE-CONTRACT-V22-2380](tasks/MOBILE-CONTRACT-V22-2380.md) | V1 | IN_PROGRESS | Mobile M2: presence contract v2.2 (sensor shapes, intervals defaults, key-rotation proof) | — |
-| [APP-SERVER-LEFTOVERS-2380](tasks/APP-SERVER-LEFTOVERS-2380.md) | V1 | IN_PROGRESS | Mobile M3: brand-logo API for the apps; quiet-window hold narrowed to phone and browser push | — |
-| [PUSH-GOLIVE-KIT-2380](tasks/PUSH-GOLIVE-KIT-2380.md) | V1 | IN_PROGRESS | Mobile M4: push go-live kit and supervised field-test script | — |
-| [TV-FIT-2380](tasks/TV-FIT-2380.md) | V1 | IN_PROGRESS | Display D1: TV fit - portrait footer chips, crest logo, Hebrew-date fallback, overscan margin | — |
+| [MOBILE-CONTRACT-V22-2380](tasks/MOBILE-CONTRACT-V22-2380.md) | V1 | REVIEW | Mobile M2: presence contract v2.2 (sensor shapes, intervals defaults, key-rotation proof) | — |
+| [APP-SERVER-LEFTOVERS-2380](tasks/APP-SERVER-LEFTOVERS-2380.md) | V1 | REVIEW | Mobile M3: brand-logo API for the apps; quiet-window hold narrowed to phone and browser push | — |
+| [PUSH-GOLIVE-KIT-2380](tasks/PUSH-GOLIVE-KIT-2380.md) | V1 | REVIEW | Mobile M4: push go-live kit and supervised field-test script | — |
+| [TV-FIT-2380](tasks/TV-FIT-2380.md) | V1 | REVIEW | Display D1: TV fit - portrait footer chips, crest logo, Hebrew-date fallback, overscan margin | — |
 | [REAL-TV-SESSION-2380](tasks/REAL-TV-SESSION-2380.md) | V1 | BLOCKED | Display D2: real-TV runbook, joint session and fixes | TV-FIT-2380 |
 | [BOARD-ADMIN-2380](tasks/BOARD-ADMIN-2380.md) | V1 | BACKLOG | Display D3: notice board administration (chips providers, screen count, copy link, re-send, editor role) | POLISH4-WP8-SETMOD-2370 |
 | [CAST-FIRST-TEST-2380](tasks/CAST-FIRST-TEST-2380.md) | V1 | BLOCKED | Display D4: first physical cast test and phase-2 decision memo | T104, POLISH4-WP5-MEDIA-2370 |
 | [WALL-FOLLOWUPS-2380](tasks/WALL-FOLLOWUPS-2380.md) | V1 | BACKLOG | Display D5: wall display follow-ups (desktop wall mode, foldable detection, AT221 / AT301 evidence) | POLISH4-WP2-LIVEINV-2370, T107 |
 | [ROUND4-LEFTOVERS-2380](tasks/ROUND4-LEFTOVERS-2380.md) | V1 | BACKLOG | Display U1: polish round 4 leftovers (WisKey area, calendars D22, compact presence card redesign) | WISKEY-RC7-ADOPT-2331 |
 | [RELEASE-2380-TRAIN](tasks/RELEASE-2380-TRAIN.md) | V1 | BACKLOG | Release train 2.38.0 (display and mobile server; features off by default) | RELEASE-2370-TRAIN |
-| [REGISTRY-UPDATE-2380](tasks/REGISTRY-UPDATE-2380.md) | V1 | IN_PROGRESS | Registry H1: tasks.json and test_catalog brought up to date after v2.35.0 | — |
+| [REGISTRY-UPDATE-2380](tasks/REGISTRY-UPDATE-2380.md) | V1 | REVIEW | Registry H1: tasks.json and test_catalog brought up to date after v2.35.0 | — |
+| [RELEASE-2371-WISKEY](tasks/RELEASE-2371-WISKEY.md) | V1 | REVIEW | Release 2.37.1: WisKey alignment (rc.39 native component, one restart decision, readiness, station still) | — |
+| [GATE2370](tasks/GATE2370.md) | V1 | REVIEW | Release gate fixes of 2.37.0 (groups A-D) | — |
+| [TV-SETTINGS-2380](tasks/TV-SETTINGS-2380.md) | V1 | REVIEW | Display: notice TV settings rows (2.38.0) | — |
+| [DARK-SEG-ALL-2380](tasks/DARK-SEG-ALL-2380.md) | V1 | REVIEW | Dark mode: readable chosen option of every segmented switch | — |
+| [PUSH-RELAY-SAFE-2380](tasks/PUSH-RELAY-SAFE-2380.md) | V1 | REVIEW | Push relay safety: push stays off while the relay is not live | — |
+| [A11Y-R4-LEFTOVERS-2380](tasks/A11Y-R4-LEFTOVERS-2380.md) | V1 | REVIEW | Accessibility leftovers of polish round 4 | — |
+| [GATE2380](tasks/GATE2380.md) | V1 | REVIEW | Release gate fixes of 2.38.0 (groups A-B) | — |
+| [STATION-WS-PATH-2381](tasks/STATION-WS-PATH-2381.md) | V1 | REVIEW | Fix: one api/v1 prefix for the station live, listen and talk sockets | — |
+| [RELEASE-2381](tasks/RELEASE-2381.md) | V1 | REVIEW | Release 2.38.1: station sockets fix | — |
+| [RELEASE-2382-TRAIN](tasks/RELEASE-2382-TRAIN.md) | V1 | IN_PROGRESS | Release train 2.38.2 (WisKey activation, TV chips, dialog top layer, board management) | — |
+| [TV-CHIPS-2381](tasks/TV-CHIPS-2381.md) | V1 | IN_PROGRESS | Display: TV footer chips | — |
+| [DIALOG-TOPLAYER-2381](tasks/DIALOG-TOPLAYER-2381.md) | V1 | IN_PROGRESS | Shared dialog in the browser top layer | — |
+| [WISKEY-TALK-DIAL-2382](tasks/WISKEY-TALK-DIAL-2382.md) | V1 | IN_PROGRESS | WisKey A-a: talk end to end, the provider row and native dial | — |
+| [WISKEY-TALK-CAPS-2382](tasks/WISKEY-TALK-CAPS-2382.md) | V1 | IN_PROGRESS | WisKey: choose the W10 provider from the signed direct capabilities | — |
+| [WISKEY-PAIRING-2382](tasks/WISKEY-PAIRING-2382.md) | V1 | IN_PROGRESS | WisKey A-b: pairing status, signed check, guided re-pair, "מצב WisKey" | — |
+| [WISKEY-MANAGED-INSTALL-2382](tasks/WISKEY-MANAGED-INSTALL-2382.md) | V1 | IN_PROGRESS | WisKey A-c: Arx-managed install and upgrade (owner-started, policy B) | — |
+| [WISKEY-INBOUND-CALLS-2382](tasks/WISKEY-INBOUND-CALLS-2382.md) | V1 | IN_PROGRESS | WisKey A-e: inbound station calls in Arx | — |
+| [WISKEY-JOIN-LIVE-2382](tasks/WISKEY-JOIN-LIVE-2382.md) | V1 | IN_PROGRESS | WisKey T1: direct join starts and stops at runtime | — |
+| [WISKEY-RC10-PIN-2382](tasks/WISKEY-RC10-PIN-2382.md) | V1 | IN_PROGRESS | WisKey T2: command contract re-pinned to 2.0.1-rc.10 | — |
+| [WISKEY-STATUS-PAGE-2382](tasks/WISKEY-STATUS-PAGE-2382.md) | V1 | IN_PROGRESS | WisKey T3: "מצב WisKey" status page | — |
+| [WISKEY-STATION-OPS-2390](tasks/WISKEY-STATION-OPS-2390.md) | V1 | IN_PROGRESS | WisKey T4: station maintenance actions (sync, rescan, health and clock refresh) | — |
+| [WISKEY-CONFLICTS-2390](tasks/WISKEY-CONFLICTS-2390.md) | V1 | BACKLOG | WisKey T5: conflicts resolve and fleet alert actions | — |
+| [WISKEY-DOOR-TECH-2390](tasks/WISKEY-DOOR-TECH-2390.md) | V1 | IN_PROGRESS | WisKey T6: door technical writes (hold-open schedules, public codes, programs) | — |
+| [WISKEY-SCHED-WRITE-2390](tasks/WISKEY-SCHED-WRITE-2390.md) | V1 | IN_PROGRESS | WisKey T7: device schedule library writes | — |
+| [WISKEY-PROFILES-EDIT-2390](tasks/WISKEY-PROFILES-EDIT-2390.md) | V1 | IN_PROGRESS | WisKey T8: groups and profile fields editing | — |
+| [WISKEY-PEOPLE-COMPLETE-2390](tasks/WISKEY-PEOPLE-COMPLETE-2390.md) | V1 | IN_PROGRESS | WisKey T9: people completeness (PIN and duplicate checks, unmanaged users) | — |
+| [WISKEY-ACCESS-DIAG-2400](tasks/WISKEY-ACCESS-DIAG-2400.md) | V1 | BACKLOG | WisKey T10: access diagnostics views | — |
+| [WISKEY-OPS-VIEWS-2400](tasks/WISKEY-OPS-VIEWS-2400.md) | V1 | BACKLOG | WisKey T11: operations and fleet views | — |
+| [WISKEY-WA-QUEUE-2400](tasks/WISKEY-WA-QUEUE-2400.md) | V1 | BACKLOG | WisKey T12: messaging completion on the installed client | — |
+| [WISKEY-VISITS-2400](tasks/WISKEY-VISITS-2400.md) | V1 | BACKLOG | WisKey T13: visits and guest templates decision and bridge | — |
+| [WISKEY-CLOCK-VIEW-2400](tasks/WISKEY-CLOCK-VIEW-2400.md) | V1 | IN_PROGRESS | WisKey T14: clock / NTP and WisKey media options view | — |
+| [WISKEY-EVENT-CURSOR-2390](tasks/WISKEY-EVENT-CURSOR-2390.md) | V1 | BACKLOG | WisKey T15: gap-free events after a restart (event cursor) | — |
+| [WISKEY-LIVE-VALIDATION-2390](tasks/WISKEY-LIVE-VALIDATION-2390.md) | V1 | IN_PROGRESS | WisKey T16: live validation screen for commissioning | — |
+| [WISKEY-SVC-GRANT-2400](tasks/WISKEY-SVC-GRANT-2400.md) | V1 | BLOCKED | WisKey T17: service-write grant path | — |
+| [WISKEY-DEEPLINKS-2382](tasks/WISKEY-DEEPLINKS-2382.md) | V1 | IN_PROGRESS | WisKey T18: deep links into the embedded panel for everything not native | — |
+| [WISKEY-ACTIVATION-RUNBOOK-0411](tasks/WISKEY-ACTIVATION-RUNBOOK-0411.md) | V1 | REVIEW | WisKey T19: activation runbook for the 04.11 joint session | — |
+| [WISKEY-LISTEN-2410](tasks/WISKEY-LISTEN-2410.md) | V1 | BLOCKED | WisKey T20: standalone listen to a station | — |
+| [WISKEY-EMERGENCY-LOCK-2410](tasks/WISKEY-EMERGENCY-LOCK-2410.md) | V1 | BLOCKED | WisKey T21: emergency LOCK / secure | — |
+| [WISKEY-RING-STATION-2410](tasks/WISKEY-RING-STATION-2410.md) | V1 | BLOCKED | WisKey T22: operator-initiated ringing call to a station | — |
+| [WISKEY-INSTALLER-NATIVE-2400](tasks/WISKEY-INSTALLER-NATIVE-2400.md) | V1 | IN_PROGRESS | WisKey installer tools natively in Arx (platform, clock, station technical settings) | — |
