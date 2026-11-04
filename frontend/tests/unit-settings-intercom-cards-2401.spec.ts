@@ -218,8 +218,9 @@ test.describe('wiring (source)', () => {
     expect(fold).toContain('@media (prefers-reduced-motion: reduce)');
   });
 
-  test('the settings search finds "הכרזות וקול" without a new row in the column (owner decision 402)', () => {
+  test('the settings column keeps its rows (owner decision 402): no entry for "הכרזות וקול", the search words lead to the tab', () => {
     const idx = read('screens/system-index.ts');
-    expect(idx).toContain("{ tab: 'general', label: 'הכרזות וקול', href: `${GEN}?tab=access-voice`, sub: true,");
+    expect(idx).not.toContain('tab=access-voice');
+    expect(idx).toContain('כרטיסים סידור הכרזות וקול מנוע הקראה');
   });
 });
