@@ -143,16 +143,37 @@ lint, page background, token lint, uxfix RTL, messaging strings, messaging pacin
 
 Runner browser specs: see section 7.
 
-## 7. Runner receipts
+## 7. Runner receipts (04.11, `private/runner/run_smart.py`, Ubuntu runner; before each job: no gate running, no
+`release_gate` process, >= 47 GB free; `~/work/pilot-WISKEY-WA-QUEUE-2400/.tmp_*` deleted at the end)
 
-(filled in after the runner run - see the commit that adds them)
+1. `spec pilot/WISKEY-WA-QUEUE-2400 tests/evidence-wa-installed-2400.spec.ts tests/evidence-wiskey-messaging-settings.spec.ts
+   tests/layout-wiskey-messaging.spec.ts --project=desktop --project=mobile` @ `b203b63d4`: 37 passed, 30 skipped, **1 failed** -
+   the page's copy-hygiene test (`evidence-wiskey-messaging-settings` "no platform name"): the card said "WisKey". Fixed in `9ce333810`
+   (the card and the new routes say "שירות ההודעות", all four languages; unit + browser specs assert it).
+2. Same job @ `9ce333810`: 37 passed, 30 skipped, 1 failed - a failed registry refresh lost its error note (the re-read cleared it).
+   Fixed in `ca6a9ccbf`.
+3. Same job @ `ca6a9ccbf`: **38 passed, 30 skipped, 0 failed** (the 30 skips are the specs' own one-project behaviour tests and the
+   tablet skip).
+4. `linux-pixel ... tests/pixel-wiskey-messaging.spec.ts --project=desktop --project=mobile` (compare): 23 passed, 1 failed -
+   `settings-classic-errors-1440` (desktop): the save click scrolls the page to its end, where the card now sits (26 210 px, identical
+   in two repeats). The baseline was re-taken from the runner's Linux render (`bc8c06383`, clean copy `9cffb6105`); every other
+   baseline of the file matched unchanged.
+5. Same pixel job @ `9cffb6105`: **24 passed, 0 failed** (desktop + mobile).
+6. `backend pilot/WISKEY-WA-QUEUE-2400 tests/test_wiskey_wa_queue_2400.py tests/test_wiskey_channels.py tests/test_pwclean_295.py
+   tests/test_tplv2_295.py tests/test_wiskey_adopt_2272_features.py` @ `9cffb6105`: **171 passed, 3 skipped**.
+
+Visual review: the runner's render of the settings page with the card (desktop, after the save click) was looked at; Hebrew, RTL,
+no overflow; the layout checks of `evidence-wa-installed-2400` (no horizontal scroll, nothing wider than the card, `direction: rtl`)
+pass on desktop and phone, light and dark, with worst-case long names.
 
 ## 8. NOT_RUN
 
 - Anything against the lab, a real WisKey, station or phone (no lab access by instruction).
 - The full backend suite (the train gate covers it; coordinator 04.11: targeted files only).
-- Pixel baselines: no new pixel spec was added. The card sits below the form, outside the viewport of the existing
-  `pixel-wiskey-messaging.spec.ts` settings shots; whether those baselines are untouched is checked on the runner (section 7).
+- No NEW pixel spec was added (the evidence spec carries the layout guards); one existing baseline was re-taken (section 7 item 4).
+- Evidence screenshot files (`SW_SHOTS=1`) were not collected into `docs/design/evidence/WISKEY-WA-QUEUE-2400/` (the runner job
+  does not pass the variable through); the visual review used the runner's pixel render.
+- `management/tasks.json` / test catalog not edited (no task row for T12 there yet; the lead owns the registry).
 
 ## 9. Rollback
 
