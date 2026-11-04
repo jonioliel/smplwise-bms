@@ -5,8 +5,8 @@
 -- outcome rows of every decision as well (actions `intercom.access_review_decide`); this table holds the successful ones only.
 -- No access is changed by a decision (WisKey: "decisions never mutate admission policy or equipment"); no credential, phone or device
 -- address is stored here: the WisKey ids, the decision, the operator's reason and cadence, WisKey's receipt times, the Arx actor.
--- Number 0200: the next number free on every ref (0198 and 0199 are taken by other 2.39 / 2.40 branches); a train that already holds
--- 0200 renumbers this file. Additive only; older code never reads it. Not a backup table (services/backup.py PROJECT_TABLES does not list
+-- Number 0198: the next number after release/2382-train's 0197 (the release check wants the numbers contiguous). Other unmerged branches
+-- also use 0198 / 0199 (WISKEY-PEOPLE-COMPLETE-2390, WISKEY-LIVE-VALIDATION-2390 ...): the train that merges a second one renumbers it. Additive only; older code never reads it. Not a backup table (services/backup.py PROJECT_TABLES does not list
 -- it): a log, re-creatable from WisKey's receipts minus the Arx actor. Rollback: drop the table.
 
 CREATE TABLE IF NOT EXISTS wiskey_access_review_decisions (
