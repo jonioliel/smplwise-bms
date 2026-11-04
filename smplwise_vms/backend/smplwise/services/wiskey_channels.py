@@ -138,9 +138,32 @@ SCHEDULES = frozenset({
     "schedules/operations_create", "schedules/operations_check", "schedules/operations_cancel", "schedules/operations_archive",
 })
 
+# WISKEY-INSTALLER-NATIVE-2400 (owner decision 03.11, Q7 "ג"): WisKey's installer tools in Arx (services/wiskey_installer*.py) - the
+# fleet clock / NTP (`clock/*`), a station's technical settings (`stations/technical_get` / `technical_update`) and the platform
+# (`platform/*`). Administrator commands in WisKey; in Arx system.configure at the installation, a confirmation per write and a typed
+# phrase for the dangerous ones. Same socket and identity as `service`, a guard of its own, so the service channel's reviewed write list
+# stays as it was and nothing else can ride this guard. Each phase of the branch adds its own commands here.
+INSTALLER = frozenset({
+    # phase 1: clock / NTP (the station's clock READ again is the station-maintenance channel's `stations/clock_refresh`, not here)
+    "clock/settings_get", "clock/settings_update", "clock/host_status", "clock/host_apply", "clock/station_sync",
+    # phase 2: a station's technical settings (door name, open time, relay inversion; capability and password-presence flags)
+    "stations/technical_get", "stations/technical_update",
+    # phase 3: removing / replacing a station (WisKey's reviewed lifecycle; adding one is WisKey's config-entry flow, not a WS command).
+    # Not `platform/lifecycle_decide`: Arx's single service identity cannot be WisKey's separate approver.
+    "platform/lifecycle_review", "platform/lifecycle_prepare", "platform/lifecycle_jobs", "platform/lifecycle_plan", "platform/lifecycle_apply",
+    "platform/lifecycle_verify", "platform/lifecycle_remove",
+    # phase 4: the rest of the platform - configuration, export / import, webhook, retention, integrity, capacity, the fleet configuration
+    # change and the maintenance queue. Not the dual-approval decisions, `maintenance_resume_v1` (native owner), `archive` / `report` /
+    # `delete` (see services/wiskey_installer_platform.py).
+    "platform/get", "platform/capacity", "platform/integrity", "platform/demo", "platform/save", "platform/export", "platform/import_preview",
+    "platform/import_apply", "platform/webhook_save", "platform/webhook_key", "platform/retention_preview", "platform/retention_apply",
+    "platform/config_read", "platform/config_preview", "platform/config_apply", "platform/maintenance_preview", "platform/maintenance_enqueue",
+    "platform/maintenance_jobs", "platform/maintenance_cancel",
+})
+
 ALLOWLISTS: dict[str, frozenset[str]] = {"background": BACKGROUND, "service": SERVICE, "read": READ, "technical": TECHNICAL, "messaging": MESSAGING,
-                                         "readback": READBACK, "pacing": PACING, "maintenance": MAINTENANCE, "door_technical": DOOR_TECHNICAL, "station_people": STATION_PEOPLE, "profiles": PROFILES, "schedules": SCHEDULES}
-ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing", "maintenance", "door_technical", "station_people", "profiles", "schedules")  # the guards the service session builds for the adapters (intercom_sync on_ready)
+                                         "readback": READBACK, "pacing": PACING, "maintenance": MAINTENANCE, "door_technical": DOOR_TECHNICAL, "station_people": STATION_PEOPLE, "profiles": PROFILES, "schedules": SCHEDULES, "installer": INSTALLER}
+ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing", "maintenance", "door_technical", "station_people", "profiles", "schedules", "installer")  # the guards the service session builds for the adapters (intercom_sync on_ready)
 
 # Home Assistant's own frames a channel may send besides WisKey commands (the auth handshake is written by ha_client itself):
 # `get_config` tells "WisKey not loaded yet" from "not installed"; the service feed watches the stations' entities.
@@ -157,6 +180,7 @@ HA_FRAMES: dict[str, frozenset[str]] = {
     "station_people": frozenset(),
     "profiles": frozenset(),
     "schedules": frozenset(),
+    "installer": frozenset(),
 }
 
 
@@ -202,4 +226,5 @@ def describe() -> dict[str, Any]:
         "station_people": {"commands": sorted(STATION_PEOPLE), "in_use": True},
         "profiles": {"commands": sorted(PROFILES), "in_use": True},
         "schedules": {"commands": sorted(SCHEDULES), "in_use": True},
+        "installer": {"commands": sorted(INSTALLER), "in_use": True},
     }

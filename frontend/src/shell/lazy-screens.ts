@@ -76,6 +76,7 @@ export const LAZY_SCREENS: Readonly<Record<string, Loader>> = {
   'tickets-vendor-accounts': () => import('../tickets/vendor-accounts'),
   'system-tickets': () => import('../screens/system-tickets'),
   'system-fleet-report': () => import('../screens/system-fleet-report'),
+  'system-intercom-installer': () => import('../screens/system-intercom-installer'), // WISKEY-INSTALLER-NATIVE-2400
   'system-messaging-accounts': () => import('../screens/system-messaging-accounts'),
   'security-alarm': () => import('../screens/security-alarm'),
   'live-overview': () => import('../screens/live-overview'),
