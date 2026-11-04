@@ -40,6 +40,8 @@ ADDED_AFTER_CLEANUP = (
     "installer",  # WISKEY-INSTALLER-NATIVE-2400
     "operations",  # WISKEY-OPS-VIEWS-2400
     "triage",  # WISKEY-CONFLICTS-2400
+    "diagnostics",  # WISKEY-ACCESS-DIAG-2400
+    "access_review",  # WISKEY-ACCESS-DIAG-2400
 )
 
 

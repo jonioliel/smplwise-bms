@@ -40,6 +40,14 @@ const BANNED = /wiskey|home\s*assistant|hikvision|ingress|supervisor|\bHA\b/i;
 const route = (href: string) => wiskeyRoute(parseRoute(href), true);
 /** WISKEY-OPS-VIEWS-2400 (plan T11): the capabilities whose native screen is Settings › תפעול האינטרקום. */
 const OPS_NATIVE_IDS = ['operations.center', 'operations.investigations', 'events.report', 'health.fleet', 'audit.panel'];
+/** WISKEY-ACCESS-DIAG-2400 (plan task T10): the capabilities a native Arx screen took over ("אבחון הרשאות"), with its route. */
+const NATIVE: Record<string, string> = {
+  'access.reviews': '#/wiskey/access-diag?view=reviews',
+  'access.compare': '#/wiskey/access-diag?view=compare',
+  'people.quality': '#/wiskey/access-diag?view=quality',
+  'access.scenario': '#/wiskey/access-diag',
+  'stations.permission_audit': '#/wiskey/access-diag?view=audit',
+};
 const ADMIN = { panel: true, admin: true } as const;
 
 test.describe('the deep-link table', () => {
@@ -146,20 +154,22 @@ test.describe('who gets the links', () => {
     expect(inCatalog({ tab: 'tools', tool: 'clock_options' }, catalog)).toBe(false);
     expect(inCatalog({ tab: 'devices', tool: null }, null)).toBe(true); // no catalog yet: the panel decides (and falls back by itself)
     expect(deepLinksFor('station', { ...ADMIN, catalog }).map((l) => l.id)).toEqual(['sync.run', 'health.fleet']);
-    expect(deepLinksFor('people', { ...ADMIN, catalog }).map((l) => l.id)).toEqual(['people.unmanaged', 'profiles.edit']);
+    // WISKEY-ACCESS-DIAG-2400: the native "אבחון הרשאות" links do not depend on the panel's catalog
+    expect(deepLinksFor('people', { ...ADMIN, catalog }).map((l) => l.id)).toEqual(['people.unmanaged', 'profiles.edit', 'access.reviews', 'access.compare', 'people.quality']);
   });
 
   test('what each place offers an administrator (the order shown)', () => {
     const ids = (p: DeepPlace) => deepLinksFor(p, ADMIN).map((l) => `${l.id}=${l.href}`);
     expect(ids('station')).toEqual(['stations.technical=#/wiskey/devices?classic=1', 'sync.run=#/wiskey/sync', 'health.fleet=#/system/intercom-operations/capacity', 'clock.settings=#/wiskey/tools/clock_options']);
-    expect(ids('stations')).toEqual(['stations.technical=#/wiskey/devices?classic=1', 'sync.run=#/wiskey/sync', 'conflicts.resolve=#/wiskey/conflicts', 'alerts.act=#/wiskey/alerts', 'health.fleet=#/system/intercom-operations/capacity']);
+    expect(ids('stations')).toEqual(['stations.technical=#/wiskey/devices?classic=1', 'sync.run=#/wiskey/sync', 'conflicts.resolve=#/wiskey/conflicts', 'alerts.act=#/wiskey/alerts', 'health.fleet=#/system/intercom-operations/capacity',
+      'access.scenario=#/wiskey/access-diag', 'stations.permission_audit=#/wiskey/access-diag?view=audit']);
     expect(ids('people')).toEqual([
       'people.unmanaged=#/wiskey/people?classic=1',
       'profiles.edit=#/wiskey/profiles', // native since WISKEY-PROFILES-EDIT-2390 (2.39.0 train)
       'people.lifecycle=#/wiskey/tools/identity_lifecycle',
-      'access.reviews=#/wiskey/tools/access_reviews',
-      'access.compare=#/wiskey/tools/access_comparison',
-      'people.quality=#/wiskey/tools/data_quality',
+      'access.reviews=#/wiskey/access-diag?view=reviews',
+      'access.compare=#/wiskey/access-diag?view=compare',
+      'people.quality=#/wiskey/access-diag?view=quality',
     ]);
     expect(ids('schedules')).toEqual(['schedules.edit=#/wiskey/tools/schedules', 'stations.technical=#/wiskey/devices?classic=1']);
     expect(ids('settings-audit')).toEqual(['audit.panel=#/system/intercom-operations/exports', 'events.report=#/system/intercom-operations/events']);
@@ -190,7 +200,8 @@ test.describe('keyed by capability: a native screen replaces a link without touc
     expect(DEEP_LINKS['profiles.edit'].rows).toEqual([26, 27]);
     const TRIAGE_NATIVE_IDS = ['alerts.act', 'conflicts.resolve']; // WISKEY-CONFLICTS-2400
     for (const id of TRIAGE_NATIVE_IDS) expect(DEEP_LINKS[id].native!.need).toEqual(['access.admin.read', 'access.stations.manage', 'system.configure']);
-    for (const id of Object.keys(DEEP_LINKS).filter((x) => x !== 'profiles.edit' && !OPS_NATIVE_IDS.includes(x) && !TRIAGE_NATIVE_IDS.includes(x))) expect(DEEP_LINKS[id].native, id).toBeUndefined();
+    for (const id of Object.keys(NATIVE)) expect(DEEP_LINKS[id].native?.href, id).toBe(NATIVE[id]); // WISKEY-ACCESS-DIAG-2400
+    for (const id of Object.keys(DEEP_LINKS).filter((x) => x !== 'profiles.edit' && !OPS_NATIVE_IDS.includes(x) && !TRIAGE_NATIVE_IDS.includes(x) && !(x in NATIVE))) expect(DEEP_LINKS[id].native, id).toBeUndefined();
   });
 
   test('once an entry carries a native route: linkFor and every place follow; the panel rule and catalog no longer apply to it', () => {

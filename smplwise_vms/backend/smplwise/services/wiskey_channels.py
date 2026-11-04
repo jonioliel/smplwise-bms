@@ -180,9 +180,23 @@ OPERATIONS = frozenset({
 # write list stays the reviewed one and nothing else can ride this guard. ADDITIVE: other branches add their own channels next to it.
 TRIAGE = frozenset({"conflicts/review", "conflicts/resolve", "conflicts/resolve_deletion", "fleet/alerts_action"})
 
+# WISKEY-ACCESS-DIAG-2400 (plan 2026-11-03 T10): the access-diagnostics views (services/wiskey_access_diag.py; capability matrix rows 28,
+# 29, 36, 89). `diagnostics` holds READS only: eight commands the pinned catalog classifies READ ("can X open door Y" - the access scenario -,
+# the comparison and its pickers, the periodic reviews and one review's preview, data quality, identity lifecycle, sync diagnostics) and
+# `stations/permission_audit`, which the catalog does NOT classify READ (it carries `api_contract`) and which rc.10's source shows reads the
+# station's inventory and writes nothing (`device_writes: 0`, admin_operations_api.py / access/permission_audit.py). `access_review` is the
+# ONE write of the views: a periodic-review decision (`users/access_review_decide`), a durable receipt in WisKey that changes no access and
+# no device (access/permission_reviews.py: "decisions never mutate admission policy or equipment"). Both ride the service socket (same
+# identity), each with a guard of its own, so the read list stays write-free and the decision cannot ride any other guard.
+DIAGNOSTICS = frozenset({
+    "users/access_scenario", "users/access_compare", "users/access_compare_options", "users/access_reviews", "users/access_review_preview",
+    "users/data_quality", "users/lifecycle", "sync/diagnostics", "stations/permission_audit",
+})
+ACCESS_REVIEW = frozenset({"users/access_review_decide"})
+
 ALLOWLISTS: dict[str, frozenset[str]] = {"background": BACKGROUND, "service": SERVICE, "read": READ, "technical": TECHNICAL, "messaging": MESSAGING,
-                                         "readback": READBACK, "pacing": PACING, "maintenance": MAINTENANCE, "door_technical": DOOR_TECHNICAL, "station_people": STATION_PEOPLE, "profiles": PROFILES, "schedules": SCHEDULES, "installer": INSTALLER, "operations": OPERATIONS, "triage": TRIAGE}
-ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing", "maintenance", "door_technical", "station_people", "profiles", "schedules", "installer", "operations", "triage")  # the guards the service session builds for the adapters (intercom_sync on_ready)
+                                         "readback": READBACK, "pacing": PACING, "maintenance": MAINTENANCE, "door_technical": DOOR_TECHNICAL, "station_people": STATION_PEOPLE, "profiles": PROFILES, "schedules": SCHEDULES, "installer": INSTALLER, "operations": OPERATIONS, "triage": TRIAGE, "diagnostics": DIAGNOSTICS, "access_review": ACCESS_REVIEW}
+ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing", "maintenance", "door_technical", "station_people", "profiles", "schedules", "installer", "operations", "triage", "diagnostics", "access_review")  # the guards the service session builds for the adapters (intercom_sync on_ready)
 
 # Home Assistant's own frames a channel may send besides WisKey commands (the auth handshake is written by ha_client itself):
 # `get_config` tells "WisKey not loaded yet" from "not installed"; the service feed watches the stations' entities.
@@ -202,6 +216,8 @@ HA_FRAMES: dict[str, frozenset[str]] = {
     "installer": frozenset(),
     "operations": frozenset(),
     "triage": frozenset(),
+    "diagnostics": frozenset(),
+    "access_review": frozenset(),
 }
 
 
@@ -250,4 +266,6 @@ def describe() -> dict[str, Any]:
         "installer": {"commands": sorted(INSTALLER), "in_use": True},
         "operations": {"commands": sorted(OPERATIONS), "in_use": True},
         "triage": {"commands": sorted(TRIAGE), "in_use": True},
+        "diagnostics": {"commands": sorted(DIAGNOSTICS), "in_use": True},
+        "access_review": {"commands": sorted(ACCESS_REVIEW), "in_use": True},
     }

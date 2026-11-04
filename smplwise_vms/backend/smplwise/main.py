@@ -607,6 +607,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import access_control_triage  # WISKEY-CONFLICTS-2400: conflict resolution and fleet alert actions (its own file and its own line)
 
     app.include_router(access_control_triage.router, prefix=api, tags=["access-control"])
+    from .routers import access_control_diag  # WISKEY-ACCESS-DIAG-2400: the "אבחון הרשאות" views (its own file and its own line)
+
+    app.include_router(access_control_diag.router, prefix=api, tags=["access-control"])
     from .routers import wiskey_lineage as wiskey_lineage_router  # WKR5-295: the WisKey people-write lineage administration (its own line)
 
     app.include_router(wiskey_lineage_router.router, prefix=api, tags=["access-control"])

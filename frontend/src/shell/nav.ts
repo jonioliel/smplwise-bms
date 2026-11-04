@@ -202,6 +202,7 @@ function wiskeyActiveTab(r: RouteState | null): string {
   if (path === 'external') return 'external'; // SHAREDID-293: an Arx-only screen, never the embed
   if (path === 'profiles') return 'people'; // WISKEY-PROFILES-EDIT-2390: the groups and fields editor belongs to the people tab (no tab of its own)
   if (path === 'conflicts' || path === 'alerts') return 'conflicts'; // WISKEY-CONFLICTS-2400: an Arx-only screen, never the embed
+  if (path === 'access-diag') return 'people'; // WISKEY-ACCESS-DIAG-2400: "אבחון הרשאות" belongs to the people tab (no tab of its own)
   const screen = wiskeyScreenOf(path);
   const own = !!screen && WISKEY_UI[screen] === 'smplwise';
   if (own) return path;

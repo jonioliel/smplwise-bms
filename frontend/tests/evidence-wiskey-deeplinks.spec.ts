@@ -28,7 +28,7 @@ const FULL_CATALOG: FakeCatalog = {
 
 const links = (host: Locator) => host.locator('[data-wk-deeplink]');
 const hrefs = (host: Locator) => links(host).evaluateAll((as) => as.map((a) => `${a.getAttribute('data-wk-deeplink')}=${a.getAttribute('href')}`));
-// WISKEY-OPS-VIEWS-2400: where a capability has a native screen (Settings › תפעול האינטרקום), the link goes there (linkFor)
+// WISKEY-OPS-VIEWS-2400 / WISKEY-ACCESS-DIAG-2400: a capability a native Arx screen took over links there (linkFor), every other one into the panel
 const expected = (ids: string[]) => ids.map((id) => `${id}=${linkFor(id)}`);
 const hash = (page: Page) => page.evaluate(() => decodeURIComponent(location.hash));
 /** The tab / tool of the last frame address the fake panel was asked for. */
@@ -72,7 +72,7 @@ test.describe('deep links: the stations and doors screen and the station drawer'
     await expect(host).toHaveAttribute('slot', 'actions');
     await expect(host.locator('[data-wk-deeplinks-list]')).toHaveCount(0); // closed until asked
     await openList(host);
-    expect(await hrefs(host)).toEqual(expected(['stations.technical', 'sync.run', 'conflicts.resolve', 'alerts.act', 'health.fleet']));
+    expect(await hrefs(host)).toEqual(expected(['stations.technical', 'sync.run', 'conflicts.resolve', 'alerts.act', 'health.fleet', 'access.scenario', 'stations.permission_audit']));
     expect(await links(host).allTextContents()).not.toContainEqual(expect.stringMatching(BANNED));
     // Escape closes and gives the focus back to the button
     await page.keyboard.press('Escape');
@@ -136,7 +136,7 @@ test.describe('deep links: the stations and doors screen and the station drawer'
     const host = page.locator(`${STATIONS} wk-deep-links[place="stations"]`);
     await openList(host);
     // the panel's fleet_alerts tool is not in this catalog - the alerts link is the native Arx screen now (WISKEY-CONFLICTS-2400), so it stays
-    expect(await hrefs(host)).toEqual(expected(['stations.technical', 'sync.run', 'conflicts.resolve', 'alerts.act', 'health.fleet']));
+    expect(await hrefs(host)).toEqual(expected(['stations.technical', 'sync.run', 'conflicts.resolve', 'alerts.act', 'health.fleet', 'access.scenario', 'stations.permission_audit']));
   });
 });
 

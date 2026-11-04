@@ -46,6 +46,7 @@ export const LAZY_SCREENS: Readonly<Record<string, Loader>> = {
   'door-windows-screen': () => import('../screens/door-windows'),
   'wiskey-profiles-screen': () => import('../screens/wiskey-profiles'), // WISKEY-PROFILES-EDIT-2390: קבוצות ושדות
   'wiskey-triage': () => import('../screens/wiskey-triage'), // WISKEY-CONFLICTS-2400
+  'wiskey-access-diag': () => import('../screens/wiskey-access-diag'), // WISKEY-ACCESS-DIAG-2400: אבחון הרשאות
   'devices-area': () => import('../screens/devices-area'),
   'devices-schedules': () => import('../screens/devices-schedules'),
   'system-schedules': () => import('../screens/system-schedules'),
