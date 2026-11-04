@@ -9,6 +9,7 @@ import './wk-action-button';
 import './wk-schedule-draft-form';
 import type { StateKind } from './sw-badge';
 import type { AccessStation } from '../api/access-stations';
+import { dateInputLang } from '../api/day-format'; // DATEFMT60-295: Hebrew lang on date / time inputs
 import type { LibrarySchedule, ScheduleOperations, SchedulePlan } from '../api/access-schedules';
 import {
   applyImport,
@@ -862,8 +863,8 @@ export class WkScheduleLibrary extends LitElement {
       <div class="panel" data-se-check>
         <h4><sw-icon name="check" size=${14}></sw-icon>${sed('checkTitle')}</h4>
         <div class="line">
-          <label class="f">${sed('checkAt')}<input type="date" .value=${this.checkAt.date} @change=${(ev: Event) => (this.checkAt = { ...this.checkAt, date: (ev.target as HTMLInputElement).value })} /></label>
-          <label class="f">&nbsp;<input type="time" step="60" .value=${this.checkAt.time} @change=${(ev: Event) => (this.checkAt = { ...this.checkAt, time: (ev.target as HTMLInputElement).value })} /></label>
+          <label class="f">${sed('checkAt')}<input type="date" lang=${dateInputLang()} .value=${this.checkAt.date} @change=${(ev: Event) => (this.checkAt = { ...this.checkAt, date: (ev.target as HTMLInputElement).value })} /></label>
+          <label class="f">&nbsp;<input type="time" lang=${dateInputLang()} step="60" .value=${this.checkAt.time} @change=${(ev: Event) => (this.checkAt = { ...this.checkAt, time: (ev.target as HTMLInputElement).value })} /></label>
           <wk-action-button icon="check" data-se-check-run ?busy=${this.busy === 'check'} ?disabled=${busy || !valid || !this.live} @click=${() => void this.runCheck()}>${sed('checkRun')}</wk-action-button>
         </div>
         ${this.checked

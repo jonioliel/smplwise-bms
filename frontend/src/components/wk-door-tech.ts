@@ -6,6 +6,7 @@ import './sw-icon';
 import './wk-action-button';
 import { getStationCodes, getStationPrograms, type AccessStation, type Period, type StationCodes, type StationProgram, type StationPrograms, type WeekdayName } from '../api/access-stations';
 import { canAnywhere } from '../api/session';
+import { dateInputLang } from '../api/day-format'; // DATEFMT60-295: Hebrew lang on date / time inputs
 import {
   WEEK,
   codeFormProblem,
@@ -143,10 +144,11 @@ export class WkDoorTech extends LitElement {
       white-space: nowrap;
     }
     .tabs button[aria-selected='true'] {
-      background: var(--sw-surface, #fff);
-      color: var(--sw-accent-text, var(--sw-accent));
+      /* DARK-SEG-ALL-2380: the chosen key reads the segment tokens (a neutral surface key is invisible in the dark scheme) */
+      background: var(--sw-seg-key, var(--sw-surface));
+      color: var(--sw-seg-key-ink, var(--sw-accent-text, var(--sw-accent)));
       font-weight: var(--sw-fw-semibold);
-      box-shadow: var(--sw-shadow-1);
+      box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
     }
     .note {
       font-size: var(--sw-fs-sm);
@@ -745,8 +747,8 @@ export class WkDoorTech extends LitElement {
             <div class="grid2">
               <label class="f">${t.editor.holidayName}<input maxlength="32" .value=${h.name} @input=${(ev: Event) => this.change((x) => (x.holidays[i].name = (ev.target as HTMLInputElement).value))} /></label>
               <span></span>
-              <label class="f">${t.editor.holidayStart}<input type="date" min="2000-01-01" max="2037-12-31" .value=${h.start} @input=${(ev: Event) => this.change((x) => (x.holidays[i].start = (ev.target as HTMLInputElement).value))} /></label>
-              <label class="f">${t.editor.holidayEnd}<input type="date" min="2000-01-01" max="2037-12-31" .value=${h.end} @input=${(ev: Event) => this.change((x) => (x.holidays[i].end = (ev.target as HTMLInputElement).value))} /></label>
+              <label class="f">${t.editor.holidayStart}<input type="date" lang=${dateInputLang()} min="2000-01-01" max="2037-12-31" .value=${h.start} @input=${(ev: Event) => this.change((x) => (x.holidays[i].start = (ev.target as HTMLInputElement).value))} /></label>
+              <label class="f">${t.editor.holidayEnd}<input type="date" lang=${dateInputLang()} min="2000-01-01" max="2037-12-31" .value=${h.end} @input=${(ev: Event) => this.change((x) => (x.holidays[i].end = (ev.target as HTMLInputElement).value))} /></label>
             </div>
             <div class="periods">
               ${h.periods.length ? nothing : html`<span class="closed">${t.editor.holidayClosed}</span>`}

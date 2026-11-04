@@ -5,6 +5,7 @@ import './sw-week-grid';
 import './wk-action-button';
 import type { WeekdayName } from '../api/access-stations';
 import type { Draft } from '../api/schedule-writes';
+import { dateInputLang } from '../api/day-format'; // DATEFMT60-295: Hebrew lang on date / time inputs
 import type { WeekDays } from './sw-week-grid';
 import {
   DAYS_UI,
@@ -272,10 +273,10 @@ export class WkScheduleDraftForm extends LitElement {
         ${ps.map((p, i) => {
           const bad = !!faultAt(this.faults, `weekly.${day}.${i}`);
           return html`<span class="win" data-se-win=${`${day}.${i}`} ?data-bad=${bad}>
-            <input type="time" step="60" aria-label=${`${DAY_NAMES[day]} ${sed('from')}`} .value=${p.start} ?disabled=${this.disabled} data-se-start
+            <input type="time" lang=${dateInputLang()} step="60" aria-label=${`${DAY_NAMES[day]} ${sed('from')}`} .value=${p.start} ?disabled=${this.disabled} data-se-start
               @change=${(e: Event) => this.emit(editPeriod(d, day, i, 'start', (e.target as HTMLInputElement).value))} />
             <span aria-hidden="true">–</span>
-            <input type="time" step="60" aria-label=${`${DAY_NAMES[day]} ${sed('to')}`} .value=${p.end === '24:00' ? '23:59' : p.end} ?disabled=${this.disabled} data-se-end
+            <input type="time" lang=${dateInputLang()} step="60" aria-label=${`${DAY_NAMES[day]} ${sed('to')}`} .value=${p.end === '24:00' ? '23:59' : p.end} ?disabled=${this.disabled} data-se-end
               @change=${(e: Event) => {
                 const v = (e.target as HTMLInputElement).value;
                 this.emit(editPeriod(d, day, i, 'end', v === '23:59' && p.end === '24:00' ? '24:00' : v));
@@ -303,21 +304,21 @@ export class WkScheduleDraftForm extends LitElement {
           @input=${(e: Event) => this.emit(editHoliday(d, i, { name: (e.target as HTMLInputElement).value }))} />
       </label>
       <label class="field">${sed('holidayFrom')}
-        <input type="date" .value=${h.start} aria-invalid=${String(!!faultAt(this.faults, `${w}.start`))} ?disabled=${this.disabled} data-se-hstart
+        <input type="date" lang=${dateInputLang()} .value=${h.start} aria-invalid=${String(!!faultAt(this.faults, `${w}.start`))} ?disabled=${this.disabled} data-se-hstart
           @change=${(e: Event) => this.emit(editHoliday(d, i, { start: (e.target as HTMLInputElement).value }))} />
       </label>
       <label class="field">${sed('holidayTo')}
-        <input type="date" .value=${h.end} aria-invalid=${String(!!faultAt(this.faults, `${w}.end`))} ?disabled=${this.disabled} data-se-hend
+        <input type="date" lang=${dateInputLang()} .value=${h.end} aria-invalid=${String(!!faultAt(this.faults, `${w}.end`))} ?disabled=${this.disabled} data-se-hend
           @change=${(e: Event) => this.emit(editHoliday(d, i, { end: (e.target as HTMLInputElement).value }))} />
       </label>
       <button class="x" type="button" aria-label=${sed('removeHoliday')} data-se-remove-holiday ?disabled=${this.disabled} @click=${() => this.emit(removeHoliday(d, i))}><sw-icon name="trash" size=${16}></sw-icon></button>
       <div class="wins">
         ${h.periods.length ? nothing : html`<span class="closed">${sed('holidayClosed')}</span>`}
         ${h.periods.map((p, k) => html`<span class="win" ?data-bad=${!!faultAt(this.faults, `${w}.periods.${k}`)}>
-          <input type="time" step="60" aria-label=${`${h.name} ${sed('from')}`} .value=${p.start} ?disabled=${this.disabled}
+          <input type="time" lang=${dateInputLang()} step="60" aria-label=${`${h.name} ${sed('from')}`} .value=${p.start} ?disabled=${this.disabled}
             @change=${(e: Event) => this.emit(editHoliday(d, i, { periods: h.periods.map((x, j) => (j === k ? { ...x, start: (e.target as HTMLInputElement).value } : x)) }))} />
           <span aria-hidden="true">–</span>
-          <input type="time" step="60" aria-label=${`${h.name} ${sed('to')}`} .value=${p.end === '24:00' ? '23:59' : p.end} ?disabled=${this.disabled}
+          <input type="time" lang=${dateInputLang()} step="60" aria-label=${`${h.name} ${sed('to')}`} .value=${p.end === '24:00' ? '23:59' : p.end} ?disabled=${this.disabled}
             @change=${(e: Event) => this.emit(editHoliday(d, i, { periods: h.periods.map((x, j) => (j === k ? { ...x, end: (e.target as HTMLInputElement).value } : x)) }))} />
           <button class="x" type="button" aria-label=${sed('removeWindow')} ?disabled=${this.disabled}
             @click=${() => this.emit(editHoliday(d, i, { periods: h.periods.filter((_, j) => j !== k) }))}><sw-icon name="close" size=${14}></sw-icon></button>

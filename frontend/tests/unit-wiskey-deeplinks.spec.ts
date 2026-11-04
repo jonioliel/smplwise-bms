@@ -118,8 +118,14 @@ test.describe('who gets the links', () => {
     expect(mayOpenPanel({ api: true, accessReadInstallation: true, hidden: true })).toBe(false);
   });
 
-  test('no panel, no link - in every place', () => {
-    for (const place of Object.keys(PLACES) as DeepPlace[]) expect(deepLinksFor(place, { panel: false, admin: true })).toEqual([]);
+  test('no panel, no panel link - in every place; a native screen follows its own permission', () => {
+    for (const place of Object.keys(PLACES) as DeepPlace[]) {
+      expect(deepLinksFor(place, { panel: false, admin: true }).filter((l) => l.kind === 'panel'), place).toEqual([]);
+      expect(deepLinksFor(place, { panel: false, admin: true, can: () => false }), place).toEqual([]);
+    }
+    // WISKEY-PROFILES-EDIT-2390 (2.39.0 train): the groups and fields editor is native - offered without the panel to whoever holds its permission
+    const holds = (p: string) => p === 'access.people.manage';
+    expect(deepLinksFor('settings-groups', { panel: false, admin: false, can: holds }).map((l) => `${l.id}:${l.kind}`)).toEqual(['profiles.edit:native']);
   });
 
   test('the panel\'s administrator-only tools are offered to an access-control administrator only', () => {

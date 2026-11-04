@@ -284,7 +284,7 @@ export class SystemWiskeyValidation extends LitElement {
           : !d
             ? html`<sw-state-panel state="loading" data-lv-state="loading" heading="טוען את העמדות…"></sw-state-panel>`
             : !d.stations.length
-              ? html`<sw-state-panel state="empty" data-lv-state="empty" heading="אין עמדות לבדיקה" hint=${d.feed_state === 'ready' ? 'לא נמצאו עמדות שמותר לך לבדוק.' : 'נתוני העמדות מ-WisKey אינם זמינים כרגע.'}></sw-state-panel>`
+              ? html`<sw-state-panel icon="door" state="empty" data-lv-state="empty" heading="אין עמדות לבדיקה" hint=${d.feed_state === 'ready' ? 'לא נמצאו עמדות שמותר לך לבדוק.' : 'נתוני העמדות מ-WisKey אינם זמינים כרגע.'}></sw-state-panel>`
               : html`<div class="wrap" data-lv-state="ready">
                   ${this.note ? html`<p class="note" role="status" data-lv-note>${this.note}</p>` : nothing}
                   ${this.runBar(d)}
@@ -548,7 +548,7 @@ export class SystemWiskeyValidation extends LitElement {
       flex-direction: column;
       gap: 6px;
       padding: 10px;
-      border: 1px dashed var(--sw-danger, #c62828);
+      border: 1px dashed var(--sw-danger);
       border-radius: var(--sw-r-sm);
     }
     .pulse.idle {
@@ -575,13 +575,13 @@ export class SystemWiskeyValidation extends LitElement {
       margin: 0;
       padding: 10px 12px;
       border-radius: var(--sw-r-sm);
-      border: 1px solid var(--sw-danger, #c62828);
+      border: 1px solid var(--sw-danger);
       color: var(--sw-text);
-      background: color-mix(in srgb, var(--sw-danger, #c62828) 10%, transparent);
+      background: color-mix(in srgb, var(--sw-danger) 10%, transparent);
     }
     .err {
       margin: 0;
-      color: var(--sw-danger, #c62828);
+      color: var(--sw-danger);
       font-size: var(--sw-fs-sm);
     }
     .dacts {
