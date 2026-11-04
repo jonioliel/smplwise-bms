@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { classifyDevice, envKey, FOLDABLE_MAX_ASPECT, SETTLE_MS, wallModeFor, watchDeviceClass, type DeviceEnv } from '../src/wall/device-class';
+import { classifyDevice, classifyOptionsFor, envKey, FOLDABLE_MAX_ASPECT, FOLDABLE_OPEN_DEFAULT, isOpenFoldable, SETTLE_MS, wallModeFor, watchDeviceClass, type DeviceEnv } from '../src/wall/device-class';
 
 // CR-030 section 3.2.1: the worked table of the detection rule, one assertion per row. Node only (the pure function).
 const touch = (w: number, h: number, mobileUA = false, over: Partial<DeviceEnv> = {}): DeviceEnv => ({ maxTouchPoints: 5, coarsePointer: true, hoverNone: true, screenWidth: w, screenHeight: h, mobileUA, ...over });
@@ -50,6 +50,57 @@ for (const [name, env, expected] of TABLE) {
 
 test('the foldable bound is the documented 1.4', () => {
   expect(FOLDABLE_MAX_ASPECT).toBe(1.4);
+});
+
+// WALL-ANSWERS-2400 (owner 04.11, round 18 question 18 = A + a setting): an unfolded foldable is a tablet by default; the
+// installation setting "phone" moves exactly the open-foldable case and nothing else.
+const OPEN_FOLDABLES: [string, DeviceEnv][] = [
+  ['Galaxy Z Fold 5 inner 690x829 (Mobile)', touch(690, 829, true)],
+  ['Galaxy Z Fold 5 inner turned 829x690 (Mobile)', touch(829, 690, true)],
+  ['Galaxy Z Fold 3/4 inner 673x841 (Mobile)', touch(673, 841, true)],
+  ['Pixel Fold inner 841x701 (Mobile)', touch(841, 701, true)],
+  ['Pixel 9 Pro Fold inner 791x820 (Mobile)', touch(791, 820, true)],
+  ['a window spread over the hinge (two viewport segments)', touch(1100, 820, false, { segments: 2 })],
+];
+const NOT_FOLDABLES: [string, DeviceEnv, 'tablet' | 'phone' | 'desktop'][] = [
+  ['the folded cover screen 344x882', touch(344, 882, true), 'phone'],
+  ['iPhone 15 393x852', touch(393, 852, true), 'phone'],
+  ['a 7 inch tablet with a phone UA, tall 600x960', touch(600, 960, true), 'phone'],
+  ['iPad Air 820x1180', touch(820, 1180), 'tablet'],
+  ['a near-square tablet WITHOUT a Mobile token 690x829', touch(690, 829), 'tablet'],
+  ['700x1200 with a Mobile token (tall: not a foldable)', touch(700, 1200, true), 'tablet'],
+  ['a large near-square screen with a Mobile token, 960x1000 (over the foldable bound)', touch(960, 1000, true), 'tablet'],
+  ['desktop 1440x900', mouse(1440, 900), 'desktop'],
+];
+
+for (const [name, env] of OPEN_FOLDABLES) {
+  test(`open foldable: ${name} -> tablet by default, phone with the setting`, () => {
+    expect(isOpenFoldable(env)).toBe(true);
+    expect(classifyDevice(env)).toBe('tablet');
+    expect(classifyDevice(env, { foldableOpen: 'tablet' })).toBe('tablet');
+    expect(classifyDevice(env, { foldableOpen: 'phone' })).toBe('phone');
+  });
+}
+
+for (const [name, env, expected] of NOT_FOLDABLES) {
+  test(`not an open foldable: ${name} -> ${expected} whatever the setting says`, () => {
+    expect(isOpenFoldable(env)).toBe(false);
+    expect(classifyDevice(env, { foldableOpen: 'tablet' })).toBe(expected);
+    expect(classifyDevice(env, { foldableOpen: 'phone' })).toBe(expected);
+  });
+}
+
+test('the foldable setting reaches the rule from /me; anything unknown or absent is the default (tablet)', () => {
+  expect(FOLDABLE_OPEN_DEFAULT).toBe('tablet');
+  expect(classifyOptionsFor(null)).toEqual({ foldableOpen: 'tablet' });
+  expect(classifyOptionsFor({ wall: { enabled: true } })).toEqual({ foldableOpen: 'tablet' });
+  expect(classifyOptionsFor({ wall: { enabled: true, foldable_open: 'phone' } })).toEqual({ foldableOpen: 'phone' });
+  expect(classifyOptionsFor({ wall: { enabled: true, foldable_open: 'laptop' as never } })).toEqual({ foldableOpen: 'tablet' });
+  const inner = touch(690, 829, true);
+  const me = { wall: { enabled: true, foldable_open: 'phone' as const } };
+  expect(wallModeFor(me, classifyDevice(inner, classifyOptionsFor(me))), 'phone: the application on the open foldable').toBe(false);
+  expect(wallModeFor({ wall: { enabled: true } }, classifyDevice(inner, classifyOptionsFor({ wall: { enabled: true } }))), 'default: the wall').toBe(true);
+  expect(wallModeFor(me, classifyDevice(touch(820, 1180), classifyOptionsFor(me))), 'a real tablet keeps the wall').toBe(true);
 });
 
 test('the viewport is never an input: a keyboard-shrunk window changes nothing', () => {

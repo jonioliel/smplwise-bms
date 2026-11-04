@@ -148,11 +148,21 @@ export class KioskWall extends LitElement {
     :host([data-idle]) .stats {
       opacity: 0.7;
     }
+    /* WALL-ANSWERS-2400 (owner 04.11, round 18 question 19): the header and the counters never shrink. The kiosk is a flex item of the
+       shell's 100dvh <main> with min-block-size: 100%, so when its content is taller (a phone: wrapped header + 16:9 tiles packed
+       from the top + counters) the host is held at 100dvh and its flex items shrink. The header's explicit min-block-size (48 px)
+       replaced the automatic content minimum, so it was squeezed to 48 px while its wrapped rows (the title row, the layout select,
+       the clock row) spilled out of it - drawn over the first camera tile. With flex: none the header keeps its content height and
+       the grid starts under it; the page scrolls inside <main> as it already did. */
     header {
       display: flex;
       align-items: center;
       gap: 12px;
       min-block-size: 48px;
+      flex: none;
+    }
+    .stats {
+      flex: none;
     }
     header sw-brand[kind='product'] {
       opacity: 0.9; /* NOTICEPUSH-295: the approved mockup mark (sw-brand draws it inline, 24 px), as before the mint PNG it replaces */

@@ -45,7 +45,7 @@ def test_create_binds_cameras_and_me_carries_the_flag(settings):
     assert r.status_code == 201, r.text
     assert r.json()["config"]["cameras"] == cams[:2] and r.json()["status"] == "never"
     me = c.get("/api/v1/me", headers=W).json()
-    assert me["wall"] == {"enabled": True, "profile_version": 1, "desktop": False}
+    assert me["wall"] == {"enabled": True, "profile_version": 1, "desktop": False, "foldable_open": "tablet"}
     assert {(b["scope_type"], b["scope_id"]) for b in me["bindings"]} == {("camera", cams[0]), ("camera", cams[1])}
     cfg = c.get("/api/v1/wall/config", headers=W).json()
     assert [x["id"] for x in cfg["cameras"]] == cams[:2] and cfg["zone"] and cfg["alerts"] == []
@@ -59,26 +59,106 @@ def test_create_binds_cameras_and_me_carries_the_flag(settings):
 
 def test_desktop_flag_reaches_me_and_changes_no_permission(settings):
     """WALL-FOLLOWUPS-2390: "wall mode on desktop" is a profile flag; /me carries it (the client decides the mount before it
-    fetches the configuration), the change is audited and bumps the version, and nothing about the role or the bindings moves."""
+    fetches the configuration), the change is audited and bumps the version, and nothing about the role or the bindings moves.
+    WALL-ANSWERS-2400: the flag is a column of its own (top-level `desktop`), never a key of the configuration blob."""
     app, c, cams = _setup(settings)
     _add(c, cams)
     before = c.get("/api/v1/me", headers=W).json()
-    assert wall_service.default_config()["desktop"] is False
-    r = c.patch("/api/v1/wall/profiles/dev-wall", json={"config": {"desktop": True}}, headers=ADMIN)
+    assert "desktop" not in wall_service.default_config()
+    r = c.patch("/api/v1/wall/profiles/dev-wall", json={"desktop": True}, headers=ADMIN)
     assert r.status_code == 200, r.text
-    assert r.json()["config"]["desktop"] is True and r.json()["version"] == 2
-    assert r.json()["config"]["cameras"] == cams[:2], "a partial patch keeps the rest of the configuration"
+    assert r.json()["desktop"] is True and r.json()["version"] == 2 and "desktop" not in r.json()["config"]
+    assert r.json()["config"]["cameras"] == cams[:2], "the rest of the profile is untouched"
     me = c.get("/api/v1/me", headers=W).json()
-    assert me["wall"] == {"enabled": True, "profile_version": 2, "desktop": True}
+    assert me["wall"] == {"enabled": True, "profile_version": 2, "desktop": True, "foldable_open": "tablet"}
     assert me["bindings"] == before["bindings"] and me["permissions_any"] == before["permissions_any"], "presentation only"
-    assert c.get("/api/v1/wall/config", headers=W).json()["config"]["desktop"] is True
-    assert c.patch("/api/v1/wall/profiles/dev-wall", json={"config": {"desktop": "yes"}}, headers=ADMIN).status_code == 422
-    assert c.patch("/api/v1/wall/profiles/dev-wall", json={"config": {"desktop": True}}, headers=W).status_code == 403, "a wall user cannot switch it"
+    assert "desktop" not in c.get("/api/v1/wall/config", headers=W).json()["config"]
+    with app.state.db.connection() as conn:
+        row = conn.execute("SELECT desktop, config_json FROM wall_profiles WHERE user_id = 'dev-wall'").fetchone()
+    assert row["desktop"] == 1 and '"desktop"' not in row["config_json"], "a column, never a key of config_json"
+    assert c.patch("/api/v1/wall/profiles/dev-wall", json={"desktop": "yes"}, headers=ADMIN).status_code == 422
+    assert c.patch("/api/v1/wall/profiles/dev-wall", json={"config": {"desktop": True}}, headers=ADMIN).status_code == 422, "no longer a configuration key"
+    assert c.patch("/api/v1/wall/profiles/dev-wall", json={"desktop": False}, headers=W).status_code == 403, "a wall user cannot switch it"
     with app.state.db.connection() as conn:
         rows = [r["details_json"] or "" for r in conn.execute("SELECT details_json FROM audit_log WHERE action = 'wall.profile.update'").fetchall()]
-    assert any("config.desktop" in d for d in rows), rows
+    assert any('"desktop"' in d for d in rows), rows
     c.patch("/api/v1/wall/profiles/dev-wall", json={"enabled": False}, headers=ADMIN)
     assert c.get("/api/v1/me", headers=W).json()["wall"] is None, "a disabled profile has no wall anywhere"
+
+
+def test_desktop_column_survives_a_rollback_of_the_configuration(settings):
+    """WALL-ANSWERS-2400 (owner answer 20 = B): the stored configuration of a profile with the switch ON must validate under the
+    OLDER model (no `desktop` key, extra keys forbidden), so a rollback keeps every profile's settings."""
+    app, c, cams = _setup(settings)
+    _add(c, cams)
+    r = c.patch("/api/v1/wall/profiles/dev-wall", json={"desktop": True, "config": {"rotate_s": 30, "theme": "light"}}, headers=ADMIN)
+    assert r.status_code == 200 and r.json()["desktop"] is True, r.text
+    old_model = wall_service.WallConfig  # 2.38 / 2.39 had the same keys minus `desktop`, extra="forbid"
+    assert "desktop" not in old_model.model_fields and old_model.model_config.get("extra") == "forbid"
+    with app.state.db.connection() as conn:
+        stored = conn.execute("SELECT config_json FROM wall_profiles WHERE user_id = 'dev-wall'").fetchone()["config_json"]
+    old = old_model.model_validate_json(stored)  # raises on an unknown key - the failure mode the column removes
+    assert old.rotate_s == 30 and old.theme == "light" and old.cameras == cams[:2]
+
+
+def test_migration_0204_moves_the_switch_out_of_the_blob(settings):
+    """A row written by a 2390-era build (`desktop` inside config_json) is migrated: the value lands in the column, the key leaves
+    the blob, every other key stays; a row with the key false or absent stays off; a row that is not JSON is left alone."""
+    import json
+    import sqlite3
+    from pathlib import Path
+
+    from smplwise import db as dbmod
+
+    app, c, cams = _setup(settings)
+    _add(c, cams)
+    sql = (Path(dbmod.__file__).parent / "migrations" / "0204_wall_profiles_desktop.sql").read_text(encoding="utf-8")
+    mem = sqlite3.connect(":memory:")
+    mem.execute("CREATE TABLE wall_profiles (user_id TEXT PRIMARY KEY, config_json TEXT NOT NULL)")
+    on = {"cameras": ["a"], "desktop": True, "rotate_s": 30, "plan": {"mode": "live"}}
+    rows = [("on", json.dumps(on)), ("off", json.dumps({"desktop": False, "rotate_s": 15})), ("none", json.dumps({"rotate_s": 60})), ("bad", "not json")]
+    mem.executemany("INSERT INTO wall_profiles VALUES (?, ?)", rows)
+    mem.executescript(sql)
+    got = {r[0]: (r[1], r[2]) for r in mem.execute("SELECT user_id, desktop, config_json FROM wall_profiles")}
+    assert got["on"][0] == 1 and json.loads(got["on"][1]) == {"cameras": ["a"], "rotate_s": 30, "plan": {"mode": "live"}}
+    assert list(json.loads(got["on"][1])) == ["cameras", "rotate_s", "plan"], "the order of the other keys is kept"
+    assert got["off"][0] == 0 and json.loads(got["off"][1]) == {"rotate_s": 15}
+    assert got["none"][0] == 0 and json.loads(got["none"][1]) == {"rotate_s": 60}
+    assert got["bad"] == (0, "not json")
+    # the running service also reads a blob that still carries the key (a row restored from an older database): ignored there
+    with app.state.db.connection() as conn:
+        conn.execute("UPDATE wall_profiles SET config_json = ?, desktop = 0 WHERE user_id = 'dev-wall'", (json.dumps({**wall_service.default_config(), "desktop": True, "rotate_s": 30}),))
+    prof = c.get("/api/v1/wall/profiles/dev-wall", headers=ADMIN).json()
+    assert prof["config"]["rotate_s"] == 30, "the legacy key does not drop the configuration to the defaults"
+    assert prof["desktop"] is False, "the column decides"
+
+
+def test_foldable_setting_is_admin_only_audited_and_reaches_me(settings):
+    """WALL-ANSWERS-2400 (owner answer 18 = A + a setting): an unfolded foldable is a tablet by default; an administrator may
+    switch the installation to "phone". Presentation only - /me carries it for a wall user; nothing about permissions moves."""
+    import json
+
+    app, c, cams = _setup(settings)
+    _add(c, cams)
+    assert c.get("/api/v1/wall/settings", headers=ADMIN).json() == {"foldable_open": "tablet"}
+    assert c.get("/api/v1/wall/profiles", headers=ADMIN).json()["foldable_open"] == "tablet"
+    before = c.get("/api/v1/me", headers=W).json()
+    assert c.get("/api/v1/wall/settings", headers=W).status_code == 403
+    assert c.patch("/api/v1/wall/settings", json={"foldable_open": "phone"}, headers=W).status_code == 403, "a wall user cannot switch it"
+    assert c.patch("/api/v1/wall/settings", json={"foldable_open": "laptop"}, headers=ADMIN).status_code == 422
+    assert c.patch("/api/v1/wall/settings", json={"foldable_open": "phone", "x": 1}, headers=ADMIN).status_code == 422
+    r = c.patch("/api/v1/wall/settings", json={"foldable_open": "phone"}, headers=ADMIN)
+    assert r.status_code == 200 and r.json() == {"foldable_open": "phone"}
+    me = c.get("/api/v1/me", headers=W).json()
+    assert me["wall"]["foldable_open"] == "phone"
+    assert me["bindings"] == before["bindings"] and me["permissions_any"] == before["permissions_any"], "presentation only"
+    c.patch("/api/v1/wall/settings", json={"foldable_open": "phone"}, headers=ADMIN)  # unchanged: no second audit row
+    with app.state.db.connection() as conn:
+        rows = conn.execute("SELECT actor_user_id, details_json FROM audit_log WHERE action = 'wall.settings.update'").fetchall()
+        conn.execute("UPDATE settings SET value = 'garbage' WHERE key = 'wall.foldable_open'")
+    assert len(rows) == 1 and rows[0]["actor_user_id"]
+    assert json.loads(rows[0]["details_json"])["foldable_open"] == {"from": "tablet", "to": "phone"}
+    assert c.get("/api/v1/wall/settings", headers=ADMIN).json() == {"foldable_open": "tablet"}, "an unknown stored value reads as the default"
 
 
 def test_patch_rewrites_bindings_and_bumps_the_version(settings):

@@ -20,10 +20,12 @@ import {
   listPhotoSets,
   listWallProfiles,
   patchWallProfile,
+  patchWallSettings,
   removeWallProfile,
   wallCandidates,
   type PhotoSet,
   type WallConfig,
+  type WallFoldableOpen,
   type WallProfile,
   type WallWindow,
 } from '../api/wall';
@@ -70,7 +72,10 @@ export class SystemWall extends LitElement {
   @state() private floors: FloorLite[] = [];
   @state() private cameras: CamLite[] = [];
   @state() private editing: WallProfile | null = null;
-  @state() private draft: { title: string; enabled: boolean; remote: boolean; config: WallConfig } | null = null;
+  @state() private draft: { title: string; enabled: boolean; remote: boolean; desktop: boolean; config: WallConfig } | null = null;
+  /** WALL-ANSWERS-2400: how an unfolded foldable is classified, for every wall display of the installation (admin only, audited). */
+  @state() private foldable: WallFoldableOpen = 'tablet';
+  @state() private foldableBusy = false;
   @state() private removing: WallProfile | null = null;
   @state() private photoSets: PhotoSet[] = [];
   @state() private managingPhotos = false;
@@ -118,6 +123,8 @@ export class SystemWall extends LitElement {
       .line > span:first-child { flex: 1 1 160px; min-inline-size: 0; color: var(--sw-text); }
       .line sw-field { flex: 0 1 220px; min-inline-size: 160px; }
       .sub { font-weight: var(--sw-fw-semibold); color: var(--sw-text); padding-block-start: var(--sw-s-1); }
+      /* WALL-ANSWERS-2400: the installation-wide row under the list (one setting line in its own card) */
+      .general { display: block; margin-block-start: var(--sw-s-3); }
       .cams { display: grid; gap: 4px; }
       .cam { display: grid; grid-template-columns: auto auto 1fr auto; gap: var(--sw-s-2); align-items: center; min-block-size: 40px; padding: 2px 10px; border-radius: var(--sw-r-sm); background: var(--sw-well, var(--sw-surface-2)); }
       .cam.on { background: var(--sw-accent-soft); }
@@ -163,6 +170,7 @@ export class SystemWall extends LitElement {
       const r = await listWallProfiles();
       this.profiles = r.profiles;
       this.max = r.max_profiles;
+      if (!this.foldableBusy) this.foldable = r.foldable_open === 'phone' ? 'phone' : 'tablet';
       this.error = '';
     } catch (e) {
       if (!quiet || !this.profiles) this.error = describeError(e);
@@ -210,7 +218,7 @@ export class SystemWall extends LitElement {
     this.editing = p;
     const config = structuredClone(p.config);
     config.plan = { ...FOLLOW_PLAN, ...(config.plan ?? {}) }; // an answer from before the plan block reads as follow
-    this.draft = { title: p.title, enabled: p.enabled, remote: p.remote_allowed, config };
+    this.draft = { title: p.title, enabled: p.enabled, remote: p.remote_allowed, desktop: p.desktop === true, config };
   }
 
   private async loadPhotoSets(): Promise<void> {
@@ -225,7 +233,7 @@ export class SystemWall extends LitElement {
     if (!this.editing || !this.draft) return;
     this.busy = true;
     try {
-      await patchWallProfile(this.editing.user_id, { title: this.draft.title.trim() || this.editing.title, enabled: this.draft.enabled, remote_allowed: this.draft.remote, config: this.draft.config as unknown as Record<string, unknown> });
+      await patchWallProfile(this.editing.user_id, { title: this.draft.title.trim() || this.editing.title, enabled: this.draft.enabled, remote_allowed: this.draft.remote, desktop: this.draft.desktop, config: this.draft.config as unknown as Record<string, unknown> });
       this.editing = null;
       this.draft = null;
       await this.load(true);
@@ -234,6 +242,34 @@ export class SystemWall extends LitElement {
     } finally {
       this.busy = false;
     }
+  }
+
+  /** WALL-ANSWERS-2400: saved at once (one audited setting), like the list's enable / disable; a failure puts the old value back. */
+  private async setFoldable(v: WallFoldableOpen): Promise<void> {
+    const before = this.foldable;
+    this.foldable = v;
+    this.foldableBusy = true;
+    try {
+      this.foldable = (await patchWallSettings({ foldable_open: v })).foldable_open;
+      this.error = '';
+    } catch (e) {
+      this.foldable = before;
+      this.error = describeError(e);
+    } finally {
+      this.foldableBusy = false;
+    }
+  }
+
+  private renderGeneral() {
+    return html`<sw-card class="general" data-wall-general>
+      <div class="line">
+        <span>טלפון מתקפל פתוח</span>
+        <sw-field><select aria-label="טלפון מתקפל פתוח" data-wall-foldable ?disabled=${this.foldableBusy} @change=${(e: Event) => void this.setFoldable((e.target as HTMLSelectElement).value === 'phone' ? 'phone' : 'tablet')}>
+          <option value="tablet" ?selected=${this.foldable === 'tablet'}>כמו טאבלט (מסך קיר)</option>
+          <option value="phone" ?selected=${this.foldable === 'phone'}>כמו טלפון (המערכת הרגילה)</option>
+        </select></sw-field>
+      </div>
+    </sw-card>`;
   }
 
   private async toggleEnabled(p: WallProfile): Promise<void> {
@@ -408,8 +444,8 @@ export class SystemWall extends LitElement {
         <sw-field label="כותרת"><input type="text" maxlength="40" aria-label="כותרת" data-wall-field="title" .value=${d.title} @input=${(e: Event) => { d.title = (e.target as HTMLInputElement).value; }} /></sw-field>
         ${tog('פעיל', d.enabled, (v) => (d.enabled = v), 'enabled')}
         ${tog('גישה מרחוק', d.remote, (v) => (d.remote = v), 'remote')}
-        ${tog('מסך קיר גם במחשב', c.desktop === true, (v) => (c.desktop = v), 'desktop')}
-        ${c.desktop ? html`<div class="muted" data-wall-desktop-note>מחשב בלי מגע יציג את מסך הקיר במקום המערכת</div>` : nothing}
+        ${tog('מסך קיר גם במחשב', d.desktop, (v) => (d.desktop = v), 'desktop')}
+        ${d.desktop ? html`<div class="muted" data-wall-desktop-note>מחשב בלי מגע יציג את מסך הקיר במקום המערכת</div>` : nothing}
         <div class="muted">תפקיד: קיוסק (מפה ווידאו חי בלבד)</div>
       </div>
       <div class="sec"><h3>מצלמות ופריסה</h3>
@@ -492,6 +528,7 @@ export class SystemWall extends LitElement {
         <span class=${full ? 'count full' : 'count'} data-wall-count title=${full ? 'הגעתם למספר המסכים המרבי' : ''}>${n} / ${this.max} מסכים</span>
       </div>
       ${this.profiles ? this.renderList() : html`<sw-state-panel state="loading"></sw-state-panel>`}
+      ${this.profiles ? this.renderGeneral() : nothing}
       ${this.renderAdd()}${this.renderDrawer()}${this.renderRemove()}
       <sw-wall-photo-sets ?open=${this.managingPhotos} @close=${() => (this.managingPhotos = false)} @sets-changed=${() => void this.loadPhotoSets()}></sw-wall-photo-sets>
     </sw-page>`;

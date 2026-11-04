@@ -139,7 +139,8 @@ test.describe('desktop wall mode', () => {
     await shot(page, 'settings-drawer-desktop-on', info.project.name);
     await drawer.locator('[data-wall-save]').click();
     await expect.poll(() => st.patched.length).toBe(1);
-    expect((st.patched[0].config as { desktop?: boolean }).desktop).toBe(true);
+    expect(st.patched[0].desktop, 'a field of the profile (WALL-ANSWERS-2400), not of config').toBe(true);
+    expect((st.patched[0].config as Record<string, unknown>).desktop).toBeUndefined();
   });
 });
 

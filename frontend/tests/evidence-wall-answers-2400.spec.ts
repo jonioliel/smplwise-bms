@@ -1,12 +1,14 @@
 import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
-import { FOLD_COVER, FOLD_INNER, TABLET_L, TABLET_P, asDevice, expectWall, install, newMock, wall, type Dev } from './wall-followups-mocks';
+import { FOLD_COVER, FOLD_INNER, FOLD_INNER_TURNED, TABLET_L, TABLET_P, asDevice, expectApp, expectWall, foldTo, install, newMock, wall, type Dev } from './wall-followups-mocks';
 
 // WALL-ANSWERS-2400 (docs/changes/WALL-ANSWERS-2400.md): the owner's answers of 04.11 (round 18) on the wall display, against a
 // mocked backend. The physical device is emulated by the spec (wall-followups-mocks.ts asDevice), so each group runs in ONE project:
+//   question 18     an open foldable: tablet (default) or phone (setting) -> mobile project; the settings row -> desktop + mobile
 //   question 19 (1) "המערכת תקינה" twice on a portrait wall          -> desktop project
 //   question 19 (2) the kiosk header on a phone spills over the tiles -> mobile project (Pixel 7 emulation, touch)
+//   question 20     "מסך קיר גם במחשב" is a field of the profile      -> evidence-wall-followups-2390.spec.ts (the drawer save) + backend
 //   run_smart.py preview <branch> tests/evidence-wall-answers-2400.spec.ts --project=desktop --project=mobile
 // Screenshots for the hand review go to the test's own output folder (test-results/, fetched from the runner).
 
@@ -110,4 +112,67 @@ test.describe('question 19 (2): the kiosk header on a phone stays above the came
       await shot(page, `kiosk-phone-${dev.w}x${dev.h}`);
     });
   }
+});
+
+test.describe('question 18: an unfolded foldable follows the installation setting', () => {
+  test.beforeEach(({}, info) => {
+    test.skip(info.project.name !== 'mobile', 'a phone-class device that unfolds into a small tablet');
+  });
+
+  test('default (tablet): unfolded -> the wall, folded -> the application', async ({ page }) => {
+    await install(page, newMock({ cams: 4 }));
+    await asDevice(page, FOLD_INNER);
+    await page.goto('/?design=a#/');
+    await expectWall(page, 'tablet-portrait');
+    await foldTo(page, FOLD_COVER);
+    await expectApp(page);
+  });
+
+  test('setting "phone": unfolded, turned and folded -> always the application (the kiosk for a kiosk-only user); a real tablet keeps the wall', async ({ page }) => {
+    const st = newMock({ cams: 4, foldable: 'phone' });
+    await install(page, st);
+    await asDevice(page, FOLD_INNER);
+    await page.goto('/?design=a#/');
+    await expectApp(page);
+    await expect(page.locator('kiosk-wall')).toHaveCount(1); // a kiosk-only wall user on a phone-class device: the kiosk route
+    await shot(page, 'foldable-phone-inner');
+    for (const dev of [FOLD_INNER_TURNED, FOLD_COVER, FOLD_INNER]) {
+      await foldTo(page, dev);
+      await page.waitForTimeout(400); // past the 250 ms settle of the class watcher
+      await expectApp(page);
+    }
+    await foldTo(page, TABLET_P); // the same setting never moves a real tablet
+    await expectWall(page, 'tablet-portrait');
+  });
+});
+
+test.describe('question 18: the settings row (Settings > wall displays), administrators only', () => {
+  test.beforeEach(({}, info) => {
+    test.skip(info.project.name === 'tablet', 'desktop and phone are enough for a settings row');
+  });
+
+  test('one select under the list; a change is saved at once and the list answer carries it', async ({ page }, info) => {
+    const st = newMock({ admin: true, scheme: 'light' });
+    await install(page, st);
+    await page.goto('/?design=a&look=performance:full#/system/wall');
+    const row = page.locator('system-wall [data-wall-general]');
+    await expect(row).toBeVisible();
+    const sel = row.locator('select[data-wall-foldable]');
+    await expect(sel).toHaveValue('tablet');
+    await expect(sel.locator('option')).toHaveText(['כמו טאבלט (מסך קיר)', 'כמו טלפון (המערכת הרגילה)']);
+    await expect(row).toContainText('טלפון מתקפל פתוח');
+    const b = (await sel.boundingBox())!;
+    const vw = page.viewportSize()!.width;
+    expect(b.x, 'the select is inside the screen').toBeGreaterThanOrEqual(0);
+    expect(b.x + b.width).toBeLessThanOrEqual(vw);
+    expect(b.height, 'a touch-sized control').toBeGreaterThanOrEqual(36);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 'no sideways scroll').toBeLessThanOrEqual(0);
+    await shot(page, `settings-foldable-${info.project.name}`);
+    await sel.selectOption('phone');
+    await expect.poll(() => st.settingsPatched).toEqual([{ foldable_open: 'phone' }]);
+    await expect(sel).toHaveValue('phone');
+    await page.reload();
+    await expect(page.locator('system-wall [data-wall-general] select[data-wall-foldable]')).toHaveValue('phone');
+    expect(st.patched, 'no profile was touched').toEqual([]);
+  });
 });

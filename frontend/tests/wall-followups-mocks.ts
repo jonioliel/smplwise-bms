@@ -5,6 +5,8 @@ import { expect, type Page, type Route } from '@playwright/test';
 // - the device is MUTABLE (`foldTo`): the screen, touch and mobile token live on `window.__swDev`, so a test can fold and unfold
 //   the same page without a reload, the way a book-style foldable does;
 // - `me.wall.desktop` (the "wall mode on desktop" profile flag) and a PATCH recorder for the settings drawer.
+// WALL-ANSWERS-2400: `desktop` is a field of the profile (not of `config`), `me.wall.foldable_open` carries the installation's
+// foldable setting, and PATCH wall/settings is recorded in `settingsPatched`.
 
 export type Dev = { w: number; h: number; touch: boolean; mobile: boolean; segments?: number };
 export const TABLET_L: Dev = { w: 1280, h: 800, touch: true, mobile: false };
@@ -59,11 +61,13 @@ export interface Mock {
   version: number;
   admin: boolean;
   patched: Record<string, unknown>[];
+  foldable: 'tablet' | 'phone';
+  settingsPatched: Record<string, unknown>[];
 }
-export const newMock = (over: Partial<Mock> = {}): Mock => ({ wall: true, desktop: false, cams: 4, skin: 'classic', scheme: 'dark', theme: 'dark', channel: 'local', configStatus: 200, configBody: null, version: 1, admin: false, patched: [], ...over });
+export const newMock = (over: Partial<Mock> = {}): Mock => ({ wall: true, desktop: false, cams: 4, skin: 'classic', scheme: 'dark', theme: 'dark', channel: 'local', configStatus: 200, configBody: null, version: 1, admin: false, patched: [], foldable: 'tablet', settingsPatched: [], ...over });
 
 export const BASE_CFG = {
-  cameras: [] as string[], scope: 'cameras', layout: 'auto', grid: 'auto', rotate_s: 0, stream: 'sub', strip: ['clock', 'date', 'health'], state_entities: [], show_map: false, desktop: false, theme: 'dark',
+  cameras: [] as string[], scope: 'cameras', layout: 'auto', grid: 'auto', rotate_s: 0, stream: 'sub', strip: ['clock', 'date', 'health'], state_entities: [], show_map: false, theme: 'dark',
   alerts: { enabled: true, categories: ['safety'], min_severity: 'alert', ack_allowed: false, takeover_timeout_s: 120, sound: false },
   frame: { enabled: false, folder: null, idle_min: 10, interval_s: 30, fit: 'contain', clock: true, motion: 'none' },
   burn_in: { shift: true, dim_after_min: 30, dim_to: 0.6, shuffle_h: 1 },
@@ -73,8 +77,8 @@ export const BASE_CFG = {
 
 export function profile(st: Mock, user = 'reception', title = 'קבלה') {
   return {
-    user_id: `u-${user}`, username: user, display_name: title, title, area_id: null, floor_id: null, enabled: true, remote_allowed: false, version: st.version,
-    config: { ...BASE_CFG, desktop: st.desktop, theme: st.theme, cameras: CAMS.slice(0, st.cams).map((c) => c.id) },
+    user_id: `u-${user}`, username: user, display_name: title, title, area_id: null, floor_id: null, enabled: true, remote_allowed: false, desktop: st.desktop, version: st.version,
+    config: { ...BASE_CFG, theme: st.theme, cameras: CAMS.slice(0, st.cams).map((c) => c.id) },
     status: 'connected', connections: 1, last_seen_at: '2026-11-04T08:00:00Z', last_channel: 'local', created_at: '2026-10-05T08:00:00Z', updated_at: '2026-10-05T08:00:00Z',
     camera_names: CAMS.slice(0, st.cams).map((c) => c.name),
   };
@@ -98,7 +102,7 @@ export async function install(page: Page, st: Mock) {
         channel: st.channel, remote: null, user: { id: 'u-wall', username: 'reception', display_name: 'קבלה', source: 'ingress' }, active: true,
         bindings: [{ id: 'b1', role_id: st.admin ? 'system_admin' : 'kiosk', role_name: st.admin ? 'מנהל' : 'קיוסק', scope_type: st.admin ? 'installation' : 'floor', scope_id: st.admin ? '*' : 'f1', scope_name: 'x', effect: 'allow' }],
         permissions_installation: st.admin ? perms : [], permissions_any: perms, has_access: true, permission_revision: 1, permissions_fingerprint: 'fp', permissions_changed: false,
-        bootstrap_state: 'done', mode: 'full', wall: st.wall && !st.admin ? { enabled: true, profile_version: st.version, desktop: st.desktop } : null,
+        bootstrap_state: 'done', mode: 'full', wall: st.wall && !st.admin ? { enabled: true, profile_version: st.version, desktop: st.desktop, foldable_open: st.foldable } : null,
       });
     }
     if (p === 'me/prefs') return json({ prefs: {}, stored: [], updated_at: null });
@@ -112,11 +116,17 @@ export async function install(page: Page, st: Mock) {
     }
     if (p.startsWith('wall/states')) return json({ states: [] });
     if (p === 'wall/alerts') return json({ alerts: [] });
-    if (p === 'wall/profiles') return json({ profiles: [profile(st), profile({ ...st, desktop: false, cams: 2 }, 'lobby', 'לובי')], max_profiles: 20 });
+    if (p === 'wall/profiles') return json({ profiles: [profile(st), profile({ ...st, desktop: false, cams: 2 }, 'lobby', 'לובי')], max_profiles: 20, foldable_open: st.foldable });
+    if (p === 'wall/settings' && req.method() === 'PATCH') {
+      const body = req.postDataJSON() as { foldable_open?: 'tablet' | 'phone' };
+      st.settingsPatched.push(body);
+      if (body.foldable_open) st.foldable = body.foldable_open;
+      return json({ foldable_open: st.foldable });
+    }
     if (p.startsWith('wall/profiles/') && req.method() === 'PATCH') {
-      const body = req.postDataJSON() as { config?: { desktop?: boolean } };
+      const body = req.postDataJSON() as { desktop?: boolean };
       st.patched.push(body);
-      if (typeof body.config?.desktop === 'boolean') st.desktop = body.config.desktop;
+      if (typeof body.desktop === 'boolean') st.desktop = body.desktop;
       st.version += 1;
       return json(profile(st));
     }

@@ -10,7 +10,7 @@ import { loadSession, session } from '../api/session';
 import type { ProductSettings } from '../api/media';
 import { ackWallAlert, frameUrl, getFrameList, getWallAnnouncement, getWallConfig, getWallStates, wallSocketUrl, type WallAlert, type WallDisplayConfig, type WallState } from '../api/wall';
 import { classifyDevice, readDeviceEnv, watchDeviceClass } from './device-class';
-import { alertView, cursorHidden, frameActive, holdProgress, isAwake, needsAttention, pageCameras, pixelShift, reconnectDelayMs, resolveLayout, serverHealth, shuffleOrder, tileHealth, wakesDisplay, wallScaleFor } from './wall-logic';
+import { alertView, chipHome, cursorHidden, frameActive, holdProgress, isAwake, needsAttention, pageCameras, pixelShift, reconnectDelayMs, resolveLayout, serverHealth, shuffleOrder, tileHealth, wakesDisplay, wallScaleFor } from './wall-logic';
 import { timeText } from '../api/day-format';
 import { closeLabel, closeWaitMs, dirOf, headingOf, machineMark, pollMs, sizeOf, visibleNow, type ScreenAnnouncement } from '../announce/screen-overlay';
 
@@ -1281,12 +1281,15 @@ export class SwWall extends LitElement {
     ];
     if (this.frameOn() && this.photos.length) return this.renderFrame(data, clock, scale, alertChips);
     const chips = alertChips.concat(cfg.strip.includes('health') ? [this.healthChip()] : []).concat(this.states.map((s) => html`<span class="chip" data-chip=${s.id}>${s.name} <b>${s.state ?? ''}${s.unit ? ` ${s.unit}` : ''}</b></span>`));
+    // WALL-ANSWERS-2400: one home for the chips - the strip, or the portrait preset's state band - never both (chipHome)
+    const home = chipHome(layout.preset);
+    const chipsEl = down === 'banner' ? html`<span class="banner" data-wall-banner>אין חיבור למערכת · מנסה שוב</span>` : chips;
     const stripEl = html`<div class="strip" data-wall-strip>
       <span class="place" data-wall-title>${data.title}</span>
       ${cfg.strip.includes('clock')
         ? html`<span class="clock" data-wall-clock @pointerdown=${this.pressStart} @pointerup=${this.pressEnd} @pointerleave=${this.pressEnd} @pointercancel=${this.pressEnd}>${clock.time}${cfg.strip.includes('date') && clock.date ? html`<span class="date">${clock.date}</span>` : nothing}</span>`
         : html`<span style="margin-inline:auto"></span>`}
-      <span class="chips">${down === 'banner' ? html`<span class="banner" data-wall-banner>אין חיבור למערכת · מנסה שוב</span>` : chips}</span>
+      ${home === 'strip' ? html`<span class="chips">${chipsEl}</span>` : nothing}
     </div>`;
     return html`<div class=${`wall ${dim ? 'dim' : ''}`} data-wall-state="base" data-preset=${layout.preset} ?data-map=${layout.map} data-wall-class=${classifyDevice(this.env)} style=${`${s};--cols:${layout.cols};--rows:${layout.rows};transform:translate(${dx}px,${dy}px);opacity:${dim ? cfg.burn_in.dim_to : 1}`}>
       ${stripEl}
@@ -1294,7 +1297,7 @@ export class SwWall extends LitElement {
         ? html`<div class="grid" data-wall-grid>${view.tile ? this.renderAlertTile(view.tile, view.more, cfg, transport) : nothing}${cams.slice(view.tile ? 1 : 0).map((c) => this.renderTile(c, transport, cfg.offline.show_last_frame_s))}${layout.pages > 1 ? html`<div class="dots" data-wall-dots>${Array.from({ length: layout.pages }, (_, i) => html`<i ?data-on=${i === page}></i>`)}</div>` : nothing}</div>`
         : html`<div class="empty" data-wall-state="no-cameras">לא הוגדרו מצלמות למסך הזה</div>`}
       ${layout.map ? this.renderMapPane() : nothing}
-      ${layout.preset === 'tablet-portrait' ? html`<div class="band" data-wall-band>${chips}</div>` : nothing}
+      ${home === 'band' ? html`<div class="band" data-wall-band>${chipsEl}</div>` : nothing}
       ${view.takeover.length ? this.renderTakeover(view.takeover, data, clock, transport) : nothing}
       ${this.renderAnnouncement()}
       ${this.panel ? this.renderPanel(data) : nothing}

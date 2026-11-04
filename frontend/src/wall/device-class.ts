@@ -16,6 +16,10 @@
  *   (`watchDeviceClass`), not only on load: the shell swaps between the wall display and the application at once.
  * - "Wall mode on desktop": a wall profile may also take over a desktop-class browser (a mini-PC behind a wall monitor),
  *   switched on per profile by the administrator (`me.wall.desktop`). Phones never get the wall.
+ *
+ * WALL-ANSWERS-2400 (owner 04.11, round 18 question 18 = א + a setting): the unfolded foldable stays a tablet by default, and an
+ * administrator may switch the installation to "an open foldable is a phone" (Settings > wall displays, `me.wall.foldable_open`).
+ * Only the open-foldable case moves; every other device keeps its class whatever the setting says.
  */
 export type DeviceClass = 'tablet' | 'phone' | 'desktop';
 
@@ -41,15 +45,42 @@ export const TABLET_MIN_SHORT_MOBILE_UA = 700;
 /** long / short under this is a near-square screen: the inner screen of an unfolded foldable (1.07-1.25), never a phone (1.8 and up). */
 export const FOLDABLE_MAX_ASPECT = 1.4;
 
-export function classifyDevice(env: DeviceEnv): DeviceClass {
+/** How an UNFOLDED foldable is classified (installation setting `wall.foldable_open`): a small tablet (default) or a phone. */
+export type FoldableOpen = 'tablet' | 'phone';
+export const FOLDABLE_OPEN_DEFAULT: FoldableOpen = 'tablet';
+
+export interface ClassifyOptions {
+  foldableOpen?: FoldableOpen;
+}
+
+/** The largest short side (CSS px) an unfolded foldable's inner screen has (Galaxy Z Fold 3-7, Pixel Fold / 9 Pro Fold: 673-~790). */
+export const FOLDABLE_MAX_SHORT = 900;
+
+/**
+ * An unfolded foldable: a touch screen of tablet size (short side >= 600) that is either spread over a hinge (two viewport
+ * segments) or carries a phone ("Mobile") user agent on a near-square screen (long / short under 1.4, short side under 900:
+ * the inner screens of the Galaxy Z Fold 3-7, Pixel Fold, Pixel 9 Pro Fold). Tablets do not send the Mobile token (iPads send a
+ * Mac UA, Android tablets drop it), and a 7 inch tablet that does is tall (1.6), so neither is one.
+ */
+export function isOpenFoldable(env: DeviceEnv): boolean {
+  const touch = env.maxTouchPoints > 0 && (env.coarsePointer || env.hoverNone);
+  if (!touch) return false;
+  const short = Math.min(env.screenWidth, env.screenHeight);
+  const long = Math.max(env.screenWidth, env.screenHeight);
+  if (short < TABLET_MIN_SHORT) return false;
+  if ((env.segments ?? 1) > 1) return true;
+  return env.mobileUA && short < FOLDABLE_MAX_SHORT && long / short < FOLDABLE_MAX_ASPECT;
+}
+
+export function classifyDevice(env: DeviceEnv, opts: ClassifyOptions = {}): DeviceClass {
   const touch = env.maxTouchPoints > 0 && (env.coarsePointer || env.hoverNone);
   if (!touch) return 'desktop';
   const short = Math.min(env.screenWidth, env.screenHeight);
   const long = Math.max(env.screenWidth, env.screenHeight);
   if (short < TABLET_MIN_SHORT) return 'phone'; // a phone, a folded foldable's cover screen
-  if ((env.segments ?? 1) > 1) return 'tablet'; // spread over the hinge: an open foldable
+  if (isOpenFoldable(env)) return opts.foldableOpen === 'phone' ? 'phone' : 'tablet'; // spread over the hinge, or a near-square inner screen
   if (env.mobileUA && short < TABLET_MIN_SHORT_MOBILE_UA && long / short >= FOLDABLE_MAX_ASPECT) return 'phone'; // a tall screen with a phone UA
-  return 'tablet'; // touch, short >= 600 (7" and up), or an unfolded foldable (near-square) even with a Mobile token
+  return 'tablet'; // touch, short >= 600 (7" and up)
 }
 
 export function readDeviceEnv(): DeviceEnv {
@@ -74,7 +105,12 @@ export function readDeviceEnv(): DeviceEnv {
 }
 
 export interface WallMe {
-  wall?: { enabled?: boolean; desktop?: boolean } | null;
+  wall?: { enabled?: boolean; desktop?: boolean; foldable_open?: FoldableOpen } | null;
+}
+
+/** The classification options a signed-in user's `/me` carries (the installation's foldable setting; anything unknown = the default). */
+export function classifyOptionsFor(me: WallMe | null | undefined): ClassifyOptions {
+  return { foldableOpen: me?.wall?.foldable_open === 'phone' ? 'phone' : FOLDABLE_OPEN_DEFAULT };
 }
 
 /** The wall interface is mounted for an enabled wall profile on a tablet, and on a desktop when the profile allows it; never on a phone. */
