@@ -51,6 +51,7 @@ test.describe('pixel: CR-036 S12', () => {
       await open(page, {}, skin, `${D} system-access-display sw-card[data-access-display="ready"]`);
       await check(() => compare(page, info, `s12-${skin}-display`, `${D} system-access-display sw-card`), `${D} system-access-display sw-card`);
       await page.locator(`${D} system-access-parity sw-button[data-parity-run]`).click();
+      await page.mouse.move(0, 0); // TTS-DEFAULT-ENGINE-2400: no row of the report under the pointer (the taller display card above moved it there)
       await page.waitForSelector(`${D} system-access-parity sw-card[data-parity-state="ready"]`, { timeout: 20_000 });
       await settlePage(page);
       const parity = `${D} system-access-parity sw-card[data-access-card="parity"]`;
@@ -64,6 +65,7 @@ test.describe('pixel: CR-036 S12', () => {
     await dd.locator('[data-dropdown-chip]').click();
     await dd.locator('[role="option"][data-id="u-operator-a"]').click();
     await page.locator(`${D} system-access-parity sw-button[data-parity-run]`).click();
+    await page.mouse.move(0, 0);
     await page.waitForSelector(`${D} system-access-parity sw-card[data-parity-state="ready"]`, { timeout: 20_000 });
     await settlePage(page);
     await compare(page, info, 's12-classic-parity-operator', `${D} system-access-parity sw-card[data-access-card="parity"]`);
