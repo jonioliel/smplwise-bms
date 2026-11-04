@@ -5,6 +5,7 @@ import '../components/sw-camera-tile';
 import '../components/sw-button';
 import '../components/sw-field';
 import '../components/sw-icon';
+import type { IconName } from '../components/sw-icon';
 import '../components/sw-state-panel';
 import '../components/sw-dialog';
 import '../components/sw-dropdown';
@@ -28,6 +29,7 @@ import { repeat } from 'lit/directives/repeat.js';
 import { REFUSED_MS, RELEASE_MS, allocateLive, effectiveLiveCap, sameSet, snapshotRefreshMs } from '../api/live-budget';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { KEY_HINT_MOVE_PX, KEY_HINT_PRESS_MS, KEY_HINT_SHOW_MS, colsBadge, countBadge, keyHint, wallPhoneBarMode, type WallPhoneBarMode } from './wall-phone-bar';
 
 /** The wall's quality choice of THIS device (`sub` = רגילה, `main` = גבוהה); unset = follow the installation setting. */
 export const WALL_QUALITY_KEY = 'sw.wall.quality';
@@ -304,6 +306,121 @@ export class LiveWall extends LitElement {
       cursor: pointer;
       padding: 0;
     }
+    /* WALL-PHONE-TOOLBAR-2401 (owner 04.11 evening): the phone's default toolbar is ONE row of icon keys (wall-phone-bar.ts). A key is a 44 px
+       square (46 / 44 / 48 px circle in the capsule style, as the capsule dropdown), the icon in the middle, a short number in the corner where
+       there is one; the native select lies over the whole key, invisible, so a tap opens the phone's own picker. No text on a key, so nothing is
+       cut and nothing ends in an ellipsis; the full name is the accessible name, the tooltip and the long-press bubble (.khint). */
+    .pbar[data-mode='icons'] {
+      position: relative;
+      flex-wrap: nowrap;
+      gap: 8px;
+    }
+    .pbar[data-mode='icons'] .ikey {
+      flex: none;
+      position: relative;
+      display: grid;
+      place-items: center;
+      gap: 0;
+      box-sizing: border-box;
+      inline-size: 44px;
+      min-inline-size: 44px;
+      block-size: 44px;
+      border: 1px solid var(--sw-dd-border, var(--sw-border-strong));
+      border-radius: var(--sw-dd-radius, 10px);
+      background: var(--sw-dd-bg, var(--sw-surface));
+      box-shadow: var(--sw-dd-shadow, var(--sw-shadow-1));
+      color: var(--sw-accent-text, var(--sw-accent));
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .pbar[data-mode='icons'] .ikey[data-capsule] {
+      inline-size: 46px;
+      min-inline-size: 46px;
+      block-size: 46px;
+      border: 2px solid var(--sw-accent);
+      border-radius: var(--sw-r-pill);
+      background: linear-gradient(180deg, var(--sw-surface-solid) 0%, color-mix(in srgb, var(--sw-accent) 11%, var(--sw-surface-solid)) 100%);
+      box-shadow: 0 3px 8px -3px color-mix(in srgb, var(--sw-accent) 42%, transparent), 0 1px 2px color-mix(in srgb, var(--sw-text) 10%, transparent);
+    }
+    .pbar[data-mode='icons'] .ikey[data-capsule][dd-size='sm'] {
+      inline-size: 44px;
+      min-inline-size: 44px;
+      block-size: 44px;
+    }
+    .pbar[data-mode='icons'] .ikey[data-capsule][dd-size='lg'] {
+      inline-size: 48px;
+      min-inline-size: 48px;
+      block-size: 48px;
+    }
+    .pbar[data-mode='icons'] .ikey > select {
+      position: absolute;
+      inset: 0;
+      inline-size: 100%;
+      block-size: 100%;
+      min-inline-size: 0;
+      min-block-size: 0;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      opacity: 0;
+      cursor: pointer;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .pbar[data-mode='icons'] .ikey:focus-within {
+      border-color: var(--sw-accent);
+      box-shadow: 0 0 0 3px var(--sw-accent-soft);
+    }
+    .pbar[data-mode='icons'] .kbadge {
+      position: absolute;
+      inset-block-start: -3px;
+      inset-inline-end: -3px;
+      box-sizing: border-box;
+      min-inline-size: 18px;
+      block-size: 18px;
+      padding-inline: 4px;
+      border-radius: var(--sw-r-pill);
+      background: var(--sw-accent);
+      color: var(--sw-text-inverse);
+      font-size: var(--sw-fs-xs);
+      font-weight: var(--sw-fw-bold);
+      line-height: 18px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      pointer-events: none;
+      box-shadow: 0 0 0 2px var(--sw-surface);
+    }
+    .pbar[data-mode='icons'] .kiosk {
+      inline-size: 44px;
+      block-size: 44px;
+      -webkit-touch-callout: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    /* the long-press name: under the row, over the wall (it never pushes the tiles down), wraps instead of being cut */
+    .pbar .khint {
+      position: absolute;
+      inset-block-start: calc(100% + 6px);
+      inset-inline-start: 0;
+      z-index: 5;
+      box-sizing: border-box;
+      max-inline-size: 100%;
+      padding: 6px 10px;
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-heading);
+      color: var(--sw-surface);
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-semibold);
+      line-height: 1.35;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      box-shadow: var(--sw-shadow-2);
+      pointer-events: none;
+    }
     @media (max-width: 767px) {
       .grid {
         gap: 8px;
@@ -429,6 +546,63 @@ export class LiveWall extends LitElement {
       /* private mode */
     }
   }
+
+  /** WALL-PHONE-TOOLBAR-2401: the full name of the key a finger rests on (the long-press bubble), '' = none. */
+  @state() private keyHintText = '';
+  private hintTimer = 0;
+  private hintHideTimer = 0;
+  /** the key whose name the current press showed: the release that ends that press does not also open it */
+  private hintKey: Element | null = null;
+  private hintStart: { x: number; y: number } | null = null;
+
+  /** The installation's choice for the phone toolbar (ui.wall_phone_bar): one row of icon keys (default) or two rows of full labels. */
+  private get phoneBarMode(): WallPhoneBarMode {
+    return wallPhoneBarMode(this.settings?.['ui.wall_phone_bar']);
+  }
+
+  private keyOf(e: Event): Element | null {
+    return (e.target as Element | null)?.closest?.('[data-wall-key]') ?? null;
+  }
+
+  private onKeyPress = (e: PointerEvent) => {
+    this.hintKey = null;
+    window.clearTimeout(this.hintTimer);
+    const key = this.keyOf(e);
+    if (!key) return;
+    this.hintStart = { x: e.clientX, y: e.clientY };
+    this.hintTimer = window.setTimeout(() => {
+      this.hintKey = key;
+      this.keyHintText = key.getAttribute('data-hint') ?? '';
+      window.clearTimeout(this.hintHideTimer);
+      this.hintHideTimer = window.setTimeout(() => (this.keyHintText = ''), KEY_HINT_SHOW_MS);
+    }, KEY_HINT_PRESS_MS);
+  };
+
+  private onKeyMove = (e: PointerEvent) => {
+    if (this.hintStart && Math.hypot(e.clientX - this.hintStart.x, e.clientY - this.hintStart.y) > KEY_HINT_MOVE_PX) this.onKeyRelease();
+  };
+
+  private onKeyRelease = () => {
+    window.clearTimeout(this.hintTimer);
+    this.hintStart = null;
+  };
+
+  /** capture phase: a long press only shows the name - its release does not also open the control under the finger */
+  private onKeyClick = {
+    handleEvent: (e: Event) => {
+      if (this.hintKey && this.keyOf(e) === this.hintKey) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      this.hintKey = null;
+    },
+    capture: true,
+  };
+
+  /** a long press on a key is the name, not the phone's text-selection / context menu */
+  private onKeyMenu = (e: Event) => {
+    if (this.keyOf(e)) e.preventDefault();
+  };
 
   /** The room the grid has: its width and the height left under it in the window (0 until measured). */
   @state() private box = { w: 0, h: 0 };
@@ -667,6 +841,10 @@ export class LiveWall extends LitElement {
     this.wanted.clear();
     this.ro?.disconnect();
     window.removeEventListener('resize', this.measure);
+    window.clearTimeout(this.hintTimer);
+    window.clearTimeout(this.hintHideTimer);
+    this.keyHintText = '';
+    this.hintKey = null;
   }
 
   /** The layout the wall opens with: this browser's last choice, else the owner's default (הגדרות › כללי). */
@@ -815,10 +993,14 @@ export class LiveWall extends LitElement {
   /** CR-024: the recorder filter - only when the visible cameras span two or more recorders. */
   private recorderSelect(phone: boolean) {
     if (this.recorders.length < 2) return nothing;
-    return html`<sw-field slot=${phone ? '' : 'actions'} ?capsule=${this.capsuleField} dd-size=${this.tabsMode.ddSize} icon="layers"><select aria-label="NVR" data-wall-recorder @change=${(e: Event) => this.setRecorder((e.target as HTMLSelectElement).value)}>
+    return html`<sw-field slot=${phone ? '' : 'actions'} ?capsule=${this.capsuleField} dd-size=${this.tabsMode.ddSize} icon="layers">${this.recorderControl(phone)}</sw-field>`;
+  }
+
+  private recorderControl(phone: boolean, title = '') {
+    return html`<select aria-label="NVR" data-wall-recorder title=${title || nothing} @change=${(e: Event) => this.setRecorder((e.target as HTMLSelectElement).value)}>
       <option value="" ?selected=${!this.recorderFilter}>${phone ? 'כל ה־NVR' : 'NVR: הכול'}</option>
       ${this.recorders.map((r) => html`<option value=${r.id} ?selected=${r.id === this.recorderFilter}>${r.name}</option>`)}
-    </select></sw-field>`;
+    </select>`;
   }
 
   private renderApi() {
@@ -941,34 +1123,77 @@ export class LiveWall extends LitElement {
   }
 
   /** LV1: the column count as the shared compact dropdown (0 = automatic best fit). */
-  private columnsDropdown(phone: boolean) {
+  private columnsDropdown(phone: boolean, key = false) {
     const items: DropdownItem[] = COLUMN_CHOICES.map((n) => ({ id: String(n), label: n === 0 ? 'עמודות אוטו' : n === 1 ? 'עמודה אחת' : `${n} עמודות` }));
-    return html`<sw-dropdown slot=${phone ? '' : 'actions'} data-wall-cols-dd tall ?block=${phone} label="עמודות בקיר" icon="grid" dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel}
+    const hint = key ? keyHint('עמודות בקיר', items.find((it) => it.id === String(this.colsOverride))?.label) : '';
+    return html`<sw-dropdown slot=${phone ? '' : 'actions'} data-wall-cols-dd tall ?block=${phone && !key} ?icon-only=${key} badge=${key ? colsBadge(this.colsOverride) : ''} ?data-wall-key=${key} data-hint=${hint || nothing}
+      label="עמודות בקיר" icon="grid" dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel}
       .items=${items} .value=${String(this.colsOverride)} @change=${(e: CustomEvent<DropdownChange>) => this.setCols(Number(e.detail.id) || 0)}></sw-dropdown>`;
   }
 
-  /** The phone's one-row toolbar: quality, camera count and columns as native selects (two taps to change any of them), and the
-   * kiosk button. The cap note lives in the footer line on a phone (renderApi). */
   /** DROPDOWNFIT-295: the toolbar's native selects wear the capsule dropdown's look (same height / ring / font / icon spacing, label fitted) whenever the dropdown style is the capsule. */
   private get capsuleField() {
     return this.tabsMode.ddStyle === 'capsule';
   }
 
-  private renderPhoneBar(api: boolean, total: number) {
-    const short = (p: 'sub' | 'main') => (p === 'sub' ? 'רגילה' : 'גבוהה');
-    return html`<div slot="actions" class="pbar" data-wall-phone-bar>
-      <sw-field ?capsule=${this.capsuleField} dd-size=${this.tabsMode.ddSize} icon="camera"><select aria-label="איכות" data-wall-quality title="איכות הקיר במכשיר הזה (נשמרת בדפדפן)" @change=${(e: Event) => this.setQuality((e.target as HTMLSelectElement).value)}>
+  private qualityControl(title: string) {
+    return html`<select aria-label="איכות" data-wall-quality title=${title} @change=${(e: Event) => this.setQuality((e.target as HTMLSelectElement).value)}>
         <option value="auto" ?selected=${this.stream === 'auto'}>איכות: אוטו</option>
-        ${(['sub', 'main'] as const).map((p) => html`<option value=${p} ?selected=${this.stream === p}>איכות: ${short(p)}</option>`)}
-      </select></sw-field>
-      <sw-field ?capsule=${this.capsuleField} dd-size=${this.tabsMode.ddSize} icon="grid"><select aria-label="מספר מצלמות" data-wall-count-select @change=${(e: Event) => { this.setCount(parseCountId((e.target as HTMLSelectElement).value)); if (this.cameras) navigate('/live/wall'); }}>
+        ${(['sub', 'main'] as const).map((p) => html`<option value=${p} ?selected=${this.stream === p}>איכות: ${p === 'sub' ? 'רגילה' : 'גבוהה'}</option>`)}
+      </select>`;
+  }
+
+  private countControl(total: number, title = '') {
+    return html`<select aria-label="מספר מצלמות" data-wall-count-select title=${title || nothing} @change=${(e: Event) => { this.setCount(parseCountId((e.target as HTMLSelectElement).value)); if (this.cameras) navigate('/live/wall'); }}>
         ${this.cameras ? html`<option value="" selected disabled>נבחרו במפה</option>` : nothing}
         ${countLadder(total).map((n) => html`<option value=${n} ?selected=${String(n) === countChoiceId(this.count, total) && !this.cameras}>${n} מצלמות</option>`)}
         <option value=${COUNT_ALL_ID} ?selected=${countChoiceId(this.count, total) === COUNT_ALL_ID && !this.cameras}>כל המצלמות (${total})</option>
-      </select></sw-field>
+      </select>`;
+  }
+
+  private kioskKey(hint: string) {
+    return html`<button type="button" class="kiosk" data-open-kiosk aria-label="קיוסק" title="פותח את הקיוסק בלשונית חדשה" ?data-wall-key=${!!hint} data-hint=${hint || nothing} @click=${() => this.openKiosk()}><sw-icon name="expand" size=${hint ? 20 : 18}></sw-icon></button>`;
+  }
+
+  /** The phone's toolbar in the installation's mode (WALL-PHONE-TOOLBAR-2401, ui.wall_phone_bar): one row of icon keys (default) or the
+   * labelled controls. The cap note lives in the footer line on a phone (renderApi). */
+  private renderPhoneBar(api: boolean, total: number) {
+    return this.phoneBarMode === 'labels' ? this.renderPhoneBarLabels(api, total) : this.renderPhoneBarIcons(api, total);
+  }
+
+  /** "שתי שורות עם שמות מלאים": quality, camera count and columns as labelled controls (a 150 px basis each, so two rows at 390 px; the label
+   * fits, never an ellipsis), the recorder filter and the kiosk button - the toolbar as it was before 2.40.1. */
+  private renderPhoneBarLabels(api: boolean, total: number) {
+    return html`<div slot="actions" class="pbar" data-wall-phone-bar data-mode="labels">
+      <sw-field ?capsule=${this.capsuleField} dd-size=${this.tabsMode.ddSize} icon="camera">${this.qualityControl('איכות הקיר במכשיר הזה (נשמרת בדפדפן)')}</sw-field>
+      <sw-field ?capsule=${this.capsuleField} dd-size=${this.tabsMode.ddSize} icon="grid">${this.countControl(total)}</sw-field>
       ${api ? this.columnsDropdown(true) : nothing}
       ${api ? this.recorderSelect(true) : nothing}
-      <button type="button" class="kiosk" data-open-kiosk aria-label="קיוסק" title="פותח את הקיוסק בלשונית חדשה" @click=${() => this.openKiosk()}><sw-icon name="expand" size=${18}></sw-icon></button>
+      ${this.kioskKey('')}
+    </div>`;
+  }
+
+  /** One key: the icon, an optional short number, and the native select over the whole key (invisible; a tap opens the phone's picker). The
+   * select stays a child of sw-field, so it keeps the field's own focus treatment (no second ring); the key draws the ring (:focus-within). */
+  private iconKey(icon: IconName, hint: string, badge: string, control: unknown) {
+    return html`<sw-field class="ikey" ?data-capsule=${this.capsuleField} dd-size=${this.tabsMode.ddSize} data-wall-key data-hint=${hint} title=${hint}><sw-icon name=${icon} size=${20} aria-hidden="true"></sw-icon>${badge ? html`<span class="kbadge" aria-hidden="true">${badge}</span>` : nothing}${control}</sw-field>`;
+  }
+
+  /** "שורה אחת עם אייקונים" (the default): quality, camera count, columns, the recorder filter (two or more recorders) and the kiosk as one row
+   * of 44 px keys; each key's full name on a long press, as its tooltip and as its accessible name. */
+  private renderPhoneBarIcons(api: boolean, total: number) {
+    const quality = keyHint('איכות', this.stream === 'auto' ? 'אוטו' : this.stream === 'sub' ? 'רגילה' : 'גבוהה');
+    const choice = countChoiceId(this.count, total);
+    const count = keyHint('מספר מצלמות', this.cameras ? 'נבחרו במפה' : choice === COUNT_ALL_ID ? `כל המצלמות (${total})` : `${choice} מצלמות`);
+    const recorder = keyHint('NVR', this.recorders.find((r) => r.id === this.recorderFilter)?.name ?? 'כל ה־NVR');
+    return html`<div slot="actions" class="pbar" data-wall-phone-bar data-mode="icons"
+      @pointerdown=${this.onKeyPress} @pointermove=${this.onKeyMove} @pointerup=${this.onKeyRelease} @pointercancel=${this.onKeyRelease} @click=${this.onKeyClick} @contextmenu=${this.onKeyMenu}>
+      ${this.iconKey('aperture', quality, '', this.qualityControl(quality))}
+      ${this.iconKey('camera', count, countBadge(this.count, total, !!this.cameras), this.countControl(total, count))}
+      ${api ? this.columnsDropdown(true, true) : nothing}
+      ${api && this.recorders.length >= 2 ? this.iconKey('layers', recorder, '', this.recorderControl(true, recorder)) : nothing}
+      ${this.kioskKey('קיוסק: פותח את הקיוסק בלשונית חדשה')}
+      ${this.keyHintText ? html`<div class="khint" role="status" data-wall-key-hint>${this.keyHintText}</div>` : nothing}
     </div>`;
   }
 

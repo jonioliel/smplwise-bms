@@ -12,6 +12,9 @@ import { pickCols } from './wall-count-helpers';
 //     choices (1x1, 1x2, 1x3, 1x4, 2x2, 2x3) and opens on one column, the header wraps, the summary tiles are one row;
 //  3. the amber ring around a tapped `select` is Android Chrome's default focus ring -> one brand-coloured focus ring
 //     (styles/focus-policy.ts) for every shadow root.
+// WALL-PHONE-TOOLBAR-2401 (owner 04.11 evening): the toolbar is ONE row of icon keys by default (<= 56 px at 390 px, 44 px keys, the full name
+// on a long press / as the tooltip and accessible name); the setting ui.wall_phone_bar = labels brings back the two rows with full labels.
+// Neither mode cuts a label with an ellipsis, neither scrolls sideways.
 // Against a MOCKED backend (page.route; snapshots only, no relay). Runs in the "mobile" project (Pixel 7, touch).
 // npm run build first; the preview serves dist/.
 const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../docs/evidence/UIR2-mobile');
@@ -20,7 +23,7 @@ const CAMS = 8;
 
 test.skip(({ hasTouch }) => !hasTouch, 'the phone project (Pixel 7, touch)');
 
-async function mock(page: Page) {
+async function mock(page: Page, extra: Record<string, unknown> = {}) {
   await page.route('**/api/v1/**', async (route) => {
     const p = new URL(route.request().url()).pathname.replace(/^.*\/api\/v1\//, '');
     const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
@@ -35,7 +38,7 @@ async function mock(page: Page) {
       }));
       return json({ cameras, recorder: null, can_sync: true, media: {} });
     }
-    if (p === 'settings') return json({ settings: { 'media.transport_default': 'mse', 'media.max_live_sessions': 16, 'media.wall_profile': 'sub', 'snapshots.max_age_s': 60, 'ui.kiosk_cols': 3, 'ui.kiosk_rows': 2 }, can_edit: false });
+    if (p === 'settings') return json({ settings: { 'media.transport_default': 'mse', 'media.max_live_sessions': 16, 'media.wall_profile': 'sub', 'snapshots.max_age_s': 60, 'ui.kiosk_cols': 3, 'ui.kiosk_rows': 2, ...extra }, can_edit: false });
     if (p === 'health/summary') return json({ status: 'ok', items: [], checked_at: '2026-09-30T00:00:00Z', version: 'test' });
     if (/^cameras\/[^/]+\/snapshot\.jpg$/.test(p)) return route.fulfill({ status: 200, contentType: 'image/jpeg', body: GIF });
     if (p === 'me/prefs') return json({ prefs: { 'nav.order': ['devices', 'security', 'explore', 'wiskey'] }, stored: [], updated_at: null });
@@ -72,6 +75,30 @@ test.describe('camera wall on a phone: one short toolbar row', () => {
       expect(s.height, `${sel} is a touch-sized control`).toBeGreaterThanOrEqual(sel === '[data-wall-cols-dd]' ? 32 : 40); // the dropdown chip is 32 px with a 44 px hit area (::after)
       expect(s.x + s.width, `${sel} stays inside the screen`).toBeLessThanOrEqual(390);
     }
+    // WALL-PHONE-TOOLBAR-2401: the default is the icon row - every key a 44 px target with no text on it (nothing to cut, no ellipsis), its
+    // full name as the accessible name and the tooltip
+    await expect(bar).toHaveAttribute('data-mode', 'icons');
+    const keys = await bar.evaluate((el) => Array.from(el.querySelectorAll('[data-wall-key]')).map((k) => {
+      const r = k.getBoundingClientRect();
+      const chip = k.shadowRoot?.querySelector('.chip');
+      const own = (chip ?? k) as Element;
+      // the words drawn on the key: a dropdown's label text, or the key's own text nodes (the select inside is invisible, the badge is a number)
+      const drawn = chip ? chip.querySelector('.txt')?.textContent ?? '' : Array.from(k.childNodes).filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent ?? '').join('');
+      return { w: r.width, h: r.height, right: r.right, hint: k.getAttribute('data-hint') ?? '', title: own.getAttribute('title') ?? '', text: drawn.trim(), ellipsis: getComputedStyle(own).textOverflow === 'ellipsis' };
+    }));
+    expect(keys.length, 'quality, count, columns, kiosk').toBe(4);
+    for (const k of keys) {
+      expect(Math.min(k.w, k.h), `${k.hint}: a touch-sized key`).toBeGreaterThanOrEqual(44);
+      expect(k.right, `${k.hint}: inside the screen`).toBeLessThanOrEqual(390);
+      expect(k.hint, 'a full name').toMatch(/^(איכות|מספר מצלמות|עמודות בקיר|קיוסק): .+/);
+      expect(k.title, `${k.hint}: the tooltip is the full name`).not.toBe('');
+      expect(k.text, `${k.hint}: no label on the key`).toBe('');
+      expect(k.ellipsis).toBe(false);
+    }
+    await expect(bar.locator('[data-wall-quality]')).toHaveAttribute('aria-label', 'איכות');
+    await expect(bar.locator('sw-dropdown[data-wall-cols-dd] [data-dropdown-chip]')).toHaveAttribute('aria-label', 'עמודות בקיר: עמודות אוטו');
+    expect(await bar.locator('[data-wall-count-select]').evaluate((s) => s.closest('[data-wall-key]')?.getAttribute('data-hint'))).toBe('מספר מצלמות: 9 מצלמות');
+    await expect(bar.locator('.kbadge')).toHaveText('9');
     // the old controls are gone from the phone: no 11-button row, no column chips
     await expect(wall.locator('.layouts')).toHaveCount(0);
     await expect(wall.locator('[data-wall-cols-row]')).toHaveCount(0);
@@ -87,6 +114,93 @@ test.describe('camera wall on a phone: one short toolbar row', () => {
     await expect(wall.locator('.grid')).toHaveAttribute('data-wall-cols', '1');
     await pickCols(page, 0);
     await expect(wall.locator('.grid')).not.toHaveAttribute('data-wall-cols-manual', '');
+    // the count key carries the number chosen; the columns key a number only when chosen by hand
+    await expect(bar.locator('.kbadge')).toHaveText('4');
+    await expect(bar.locator('sw-dropdown[data-wall-cols-dd] [data-dd-badge]')).toHaveCount(0);
+  });
+
+  test('a long press shows the key\'s full name and does not also open the control', async ({ page }) => {
+    await mock(page);
+    await open(page, '/live/wall');
+    const bar = page.locator('live-wall [data-wall-phone-bar]');
+    await expect(bar).toHaveAttribute('data-mode', 'icons');
+    const press = async (sel: string) => {
+      const b = (await bar.locator(sel).boundingBox())!;
+      await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+      await page.mouse.down();
+      await page.waitForTimeout(800);
+    };
+    // the columns key: the name shows while the finger rests, the release does not open the list
+    await press('sw-dropdown[data-wall-cols-dd]');
+    const hint = bar.locator('[data-wall-key-hint]');
+    await expect(hint).toHaveText('עמודות בקיר: עמודות אוטו');
+    const hb = (await hint.boundingBox())!;
+    expect(hb.x).toBeGreaterThanOrEqual(0);
+    expect(hb.x + hb.width, 'the name stays inside the screen').toBeLessThanOrEqual(390);
+    const before = (await bar.boundingBox())!;
+    expect(before.height, 'the name floats: the row keeps its height').toBeLessThanOrEqual(56);
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+    await expect(bar.locator('sw-dropdown[data-wall-cols-dd] [data-dropdown-chip]')).toHaveAttribute('aria-expanded', 'false');
+    await shot(page, 'wall-phone-toolbar-longpress');
+    // the kiosk key: a long press names it and does not open a new tab
+    const tabs = page.context().pages().length;
+    await press('[data-open-kiosk]');
+    await expect(hint).toHaveText('קיוסק: פותח את הקיוסק בלשונית חדשה');
+    await page.mouse.up();
+    await page.waitForTimeout(500);
+    expect(page.context().pages().length, 'no kiosk tab from a long press').toBe(tabs);
+    // the name goes away by itself
+    await expect(hint).toHaveCount(0, { timeout: 5000 });
+    expect(await noSideways(page)).toBeLessThanOrEqual(0);
+  });
+
+  test('the option "two rows with full labels": every label whole, no ellipsis, no sideways scroll', async ({ page }) => {
+    await page.addInitScript(() => { try { localStorage.setItem('sw.wall.count', '9'); localStorage.removeItem('sw.wall.cols'); } catch { /* */ } });
+    await mock(page, { 'ui.wall_phone_bar': 'labels' });
+    await open(page, '/live/wall');
+    const wall = page.locator('live-wall');
+    const bar = wall.locator('[data-wall-phone-bar]');
+    await expect(bar).toHaveAttribute('data-mode', 'labels');
+    await expect(bar.locator('[data-wall-key]')).toHaveCount(0);
+    const b = (await bar.boundingBox())!;
+    expect(b.height, 'two rows').toBeGreaterThan(56);
+    expect(b.height, 'not more than two rows').toBeLessThanOrEqual(120);
+    const controls = await bar.evaluate((el) => {
+      const canvas = document.createElement('canvas').getContext('2d')!;
+      const out: { name: string; text: string; fits: boolean; ellipsis: boolean; right: number; h: number }[] = [];
+      for (const sel of Array.from(el.querySelectorAll('select'))) {
+        const cs = getComputedStyle(sel);
+        const field = sel.closest('sw-field');
+        // the field's icon and chevron sit inside the padding of a capsule select; a plain select draws its own arrow at the end
+        const arrow = field?.hasAttribute('capsule') ? 0 : 20;
+        const avail = sel.clientWidth - parseFloat(cs.paddingInlineStart) - parseFloat(cs.paddingInlineEnd) - arrow;
+        canvas.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+        const text = sel.selectedOptions[0]?.textContent?.trim() ?? '';
+        const r = sel.getBoundingClientRect();
+        out.push({ name: sel.getAttribute('aria-label') ?? '?', text, fits: canvas.measureText(text).width <= avail + 0.5, ellipsis: cs.textOverflow === 'ellipsis', right: r.right, h: r.height });
+      }
+      const dd = el.querySelector('sw-dropdown[data-wall-cols-dd]');
+      const txt = dd?.shadowRoot?.querySelector('.chip .txt') as HTMLElement | null;
+      if (dd && txt) {
+        const r = dd.getBoundingClientRect();
+        out.push({ name: 'עמודות בקיר', text: txt.textContent?.trim() ?? '', fits: txt.scrollWidth <= txt.clientWidth + 0.5 && txt.scrollHeight <= txt.clientHeight + 3, ellipsis: getComputedStyle(txt).textOverflow === 'ellipsis', right: r.right, h: r.height });
+      }
+      return out;
+    });
+    expect(controls.map((c) => c.name), 'quality, count, columns').toEqual(['איכות', 'מספר מצלמות', 'עמודות בקיר']);
+    expect(controls.map((c) => c.text)).toEqual(['איכות: אוטו', '9 מצלמות', 'עמודות אוטו']);
+    for (const c of controls) {
+      expect(c.fits, `${c.name}: "${c.text}" is shown whole`).toBe(true);
+      expect(c.ellipsis, `${c.name}: no ellipsis`).toBe(false);
+      expect(c.right, `${c.name}: inside the screen`).toBeLessThanOrEqual(390);
+      expect(c.h, `${c.name}: touch-sized`).toBeGreaterThanOrEqual(40);
+    }
+    expect(await noSideways(page)).toBeLessThanOrEqual(0);
+    await shot(page, 'wall-phone-toolbar-two-rows');
+    // the controls work the same
+    await bar.locator('[data-wall-count-select]').selectOption('4');
+    await expect(wall.locator('sw-camera-tile[data-cam]')).toHaveCount(4);
   });
 });
 
