@@ -1271,8 +1271,6 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
     { id: 'setup', label: 'חיבורים', href: '#/system/setup' },
     // CR-036 S10: the access-control status, the intercom's action log, groups and fields (access.admin.read at any scope)
     { id: 'access-control', label: 'בקרת כניסה', href: ACCESS_CONTROL_SETTINGS_HREF },
-    // WISKEY-OPS-VIEWS-2400: the intercom system's operations and fleet views - access.read at installation scope (exports and cancel: access.admin.read)
-    { id: 'intercom-operations', label: 'תפעול האינטרקום', href: INTERCOM_OPS_HREF },
     { id: 'entities', label: 'קטלוג התקנים', href: ENTITIES_SETTINGS_HREF },
     { id: 'schedules', label: 'תזמונים', href: SCHEDULES_SETTINGS_HREF },
     { id: 'wall', label: 'מסכי קיר', href: WALL_SETTINGS_HREF },
@@ -1297,6 +1295,9 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
     { id: 'fleet-report', label: 'דיווח בריאות', href: '#/system/fleet-report' },
     /** CR-013 review M10: the screen catalogue left the user menu; a system administrator reaches it from here */
     { id: 'screens', label: 'כל המסכים', href: '#/screens' },
+    // WISKEY-OPS-VIEWS-2400: the intercom system's operations and fleet views - access.read at installation scope (exports and cancel:
+    // access.admin.read). Last in the row, so no existing tab moves.
+    { id: 'intercom-operations', label: 'תפעול האינטרקום', href: INTERCOM_OPS_HREF },
   ],
 };
 
