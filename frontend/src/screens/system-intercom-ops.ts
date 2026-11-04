@@ -302,14 +302,14 @@ export class SystemIntercomOps extends LitElement {
       }
       .meter .bar {
         block-size: 8px;
-        border-radius: 4px;
+        border-radius: var(--sw-r-pill);
         background: var(--sw-accent-soft);
         overflow: hidden;
       }
       .meter .bar > i {
         display: block;
         block-size: 100%;
-        border-radius: 4px;
+        border-radius: var(--sw-r-pill);
         background: var(--sw-accent);
       }
       .meter[data-tone='warn'] .bar {
@@ -586,7 +586,7 @@ export class SystemIntercomOps extends LitElement {
     if (p.s === 'idle' || p.s === 'loading') return html`<sw-state-panel state="loading" compact heading=${T.loading} data-part-state="loading"></sw-state-panel>`;
     if (p.s === 'error') {
       if (p.status === 501 || !this.offered(view))
-        return html`<sw-state-panel state="empty" compact heading=${T.unavailable} data-part-state="unavailable"></sw-state-panel>`;
+        return html`<sw-state-panel icon="wrench" state="empty" compact heading=${T.unavailable} data-part-state="unavailable"></sw-state-panel>`;
       return html`<sw-state-panel state="error" compact heading=${T.errorTitle} hint=${p.message} actionLabel=${T.retry} @action=${retry} data-part-state="error"></sw-state-panel>`;
     }
     return null;
@@ -643,7 +643,7 @@ export class SystemIntercomOps extends LitElement {
                 </div>
               </article>`,
             )}</div>`
-          : html`<sw-state-panel state="empty" compact heading=${T.empty}></sw-state-panel>`}
+          : html`<sw-state-panel icon="door" state="empty" compact heading=${T.empty}></sw-state-panel>`}
       </section>`;
   }
 
@@ -687,7 +687,7 @@ export class SystemIntercomOps extends LitElement {
                 this.opsFilter = { ...f, offset: o };
                 void this.loadOps();
               })}`
-            : html`<sw-state-panel state="empty" compact heading=${T.empty} data-part-state="empty"></sw-state-panel>`}`}
+            : html`<sw-state-panel icon="activity" state="empty" compact heading=${T.empty} data-part-state="empty"></sw-state-panel>`}`}
       </section>
       ${this.renderJobs()}
       ${this.renderCancelDialog()}`;
@@ -722,7 +722,7 @@ export class SystemIntercomOps extends LitElement {
               ${open ? html`<ul class="errs" data-job-error-rows>${j.errors.map((e) => html`<li>${T.row} ${e.row ?? '—'}: <code>${e.code}</code></li>`)}</ul>` : nothing}
             </article>`;
           })}</div>`
-        : html`<sw-state-panel state="empty" compact heading=${T.jobsEmpty} data-part-state="empty"></sw-state-panel>`)}
+        : html`<sw-state-panel icon="list" state="empty" compact heading=${T.jobsEmpty} data-part-state="empty"></sw-state-panel>`)}
       ${this.exportMsg && this.exportMsg.kind === 'job' ? html`<div class="msg ${this.exportMsg.ok ? 'ok' : 'err'}" role="status" data-export-msg>${this.exportMsg.text}</div>` : nothing}
     </section>`;
   }
@@ -806,7 +806,7 @@ export class SystemIntercomOps extends LitElement {
               this.tlFilter = { ...f, offset: o };
               void this.loadTimeline();
             })}`
-          : html`<sw-state-panel state="empty" compact heading=${T.empty} data-part-state="empty"></sw-state-panel>`}`}
+          : html`<sw-state-panel icon="history" state="empty" compact heading=${T.empty} data-part-state="empty"></sw-state-panel>`}`}
     </section>`;
   }
 
@@ -832,7 +832,7 @@ export class SystemIntercomOps extends LitElement {
                 </div>
               </article>`,
             )}</div>`
-          : html`<sw-state-panel state="empty" compact heading=${T.empty} data-part-state="empty"></sw-state-panel>`)}
+          : html`<sw-state-panel icon="users" state="empty" compact heading=${T.empty} data-part-state="empty"></sw-state-panel>`)}
       </section>
       ${reply && rows.length
         ? html`<section class="part" data-trend>

@@ -106,7 +106,7 @@ export class SystemIntercomInstaller extends LitElement {
   private body(tool: ToolName): TemplateResult {
     const facts = this.overview?.tools[tool];
     if (facts && facts.available === false) {
-      return html`<sw-state-panel state="empty" heading=${T.unavailableTool} hint=${facts.missing.join(', ')} data-tool-unavailable></sw-state-panel>`;
+      return html`<sw-state-panel icon="wrench" state="empty" heading=${T.unavailableTool} hint=${facts.missing.join(', ')} data-tool-unavailable></sw-state-panel>`;
     }
     const unknown = facts && facts.available === null ? html`<div class="msg warn" role="status">${T.unknownTool}</div>` : nothing;
     if (tool === 'clock') return html`${unknown}<installer-clock></installer-clock>`;

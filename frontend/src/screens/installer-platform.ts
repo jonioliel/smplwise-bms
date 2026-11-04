@@ -9,6 +9,7 @@ import type { ConfirmRequest } from '../components/wk-installer-confirm';
 import { settingsStyles } from '../styles/settings';
 import { installerStyles } from './installer-styles';
 import { ApiError } from '../api/client';
+import { dateInputLang } from '../api/day-format';
 import {
   DOOR_FIELDS,
   applyChange,
@@ -283,8 +284,8 @@ export class InstallerPlatform extends LitElement {
                       @change=${(e: Event) => setW({ days: (e.target as HTMLInputElement).checked ? [...w.days, i].sort() : w.days.filter((d) => d !== i) })} />${label}</label>`)}
                   </div>
                   <div class="grid2">
-                    <label class="f"><span>${X.start}</span><input type="time" dir="ltr" .value=${w.start ?? ''} aria-invalid=${wbad.includes('start') ? 'true' : 'false'} @input=${(e: Event) => setW({ start: (e.target as HTMLInputElement).value })} /></label>
-                    <label class="f"><span>${X.end}</span><input type="time" dir="ltr" .value=${w.end ?? ''} aria-invalid=${wbad.includes('end') ? 'true' : 'false'} @input=${(e: Event) => setW({ end: (e.target as HTMLInputElement).value })} /></label>
+                    <label class="f"><span>${X.start}</span><input type="time" dir="ltr" lang=${dateInputLang()} .value=${w.start ?? ''} aria-invalid=${wbad.includes('start') ? 'true' : 'false'} @input=${(e: Event) => setW({ start: (e.target as HTMLInputElement).value })} /></label>
+                    <label class="f"><span>${X.end}</span><input type="time" dir="ltr" lang=${dateInputLang()} .value=${w.end ?? ''} aria-invalid=${wbad.includes('end') ? 'true' : 'false'} @input=${(e: Event) => setW({ end: (e.target as HTMLInputElement).value })} /></label>
                     <label class="f"><span>${X.timezone}</span><input dir="ltr" .value=${w.timezone ?? ''} @input=${(e: Event) => setW({ timezone: (e.target as HTMLInputElement).value })} /></label>
                   </div>
                   ${wbad.length ? html`<div class="field-error" role="alert">${wbad.map((b) => X.invalid[b] ?? b).join(' · ')}</div>` : nothing}`

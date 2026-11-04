@@ -209,7 +209,7 @@ export class InstallerTechnical extends LitElement {
       ${!this.loading && this.error
         ? html`<sw-state-panel state="error" heading=${T.errorTitle} hint=${this.error} actionLabel=${T.retry} @action=${() => void this.load(true)} compact></sw-state-panel>`
         : nothing}
-      ${!this.loading && !v && !this.error ? html`<sw-state-panel state="empty" heading=${X.empty} compact></sw-state-panel>` : nothing}
+      ${!this.loading && !v && !this.error ? html`<sw-state-panel icon="door" state="empty" heading=${X.empty} compact></sw-state-panel>` : nothing}
       ${!this.loading && v
         ? html`${v.online === false ? html`<div class="msg warn" role="status">${X.offline}</div>` : nothing}
             ${v.report.doors.map((d) => this.doorCard(d))}${this.factsCard()}`
