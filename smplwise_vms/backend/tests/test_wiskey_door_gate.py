@@ -92,8 +92,12 @@ DOOR_GATE: dict[str, list[str]] = {
         "test_wiskey_door_inventory.py::test_d7_resolver_finds_every_static_path_and_fails_closed_on_the_rest",
         "test_security_review_wxd_fixes.py::test_l6_an_integration_scene_is_judged_by_its_members",
     ],
-    "T13 conversion approver rule (D10a groundwork; the conversion itself is OPEN)": [
+    "T13 conversion: approver rule, disable-and-list, Arx event door jobs (D10a) and the hold-open hand-over (D10b)": [
         "test_wiskey_door_inventory.py::test_d7_approver_must_cover_the_live_revision_and_hold_the_door",
+        "test_wxd10_door_jobs.py::test_wxd10_no_wiskey_and_nothing_found_are_answered_cleanly",
+        "test_wxd10_door_jobs.py::test_wxd10a_disable_and_list_then_undo_restores_exactly_that_item",
+        "test_wxd10_door_jobs.py::test_wxd10a_convert_event_automation_to_a_draft_arx_door_job",
+        "test_wxd10_door_jobs.py::test_wxd10b_hand_over_creates_a_draft_window_and_undo_puts_the_schedule_back",
     ],
     "T14 Arx-authored vs edited externally": ["test_wiskey_door_inventory.py::test_d7_inventory_classifies_names_only_and_is_read_only"],
     "T15 a scheduled lock.lock on a WisKey lock is listed as never working": [
@@ -154,7 +158,6 @@ DOOR_GATE: dict[str, list[str]] = {
 
 # Rows that fakes cannot close yet (listed in docs/changes/CR-033-INTEGRATION-NOTES.md, never counted as covered).
 OPEN = {
-    "T13": "D10a conversion (Arx event door jobs, disable-and-list run) is not built; only its approver rule and the enable guard are",
     "T19": "a fake HA that models context.user_id / parent_id, concurrent runs and a permission change mid-run (DR-8 gate)",
     "T24": "the bridge-side 0.8.1 execute block and its signed policy message (needs the bridge version bump)",
 }

@@ -23,9 +23,11 @@ owner-approved write run (CR-033 6.4), never done by this guard."""
 from __future__ import annotations
 
 import sqlite3
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from typing import Any, Protocol
+from typing import Any, Iterator, Protocol
 
 from ..errors import ApiError
 from ..rbac import Principal
@@ -174,8 +176,31 @@ def _enable_judged(conn: sqlite3.Connection) -> bool:
     return door_path_guard.editor_mode(conn) == "blocked"
 
 
+# WXD10 (CR-033 6.4, "disable and list" must be reversible): the ONE exception to the enable refusal above. The undo of a disable that
+# the administrator confirmed through services/door_conversion.py puts exactly that item back the way it was - the state it had before
+# the disable, at the revision recorded right after it (the service checks the revision and the register row before entering). The
+# pass names one (kind, item id), lives only for the duration of that one write call (a context variable, reset on exit) and is set by
+# services/door_conversion.py only (a grep test pins the single caller). Every other enable keeps the refusal.
+_RESTORE: ContextVar[tuple[str, str] | None] = ContextVar("door_run_guard_restore", default=None)
+
+
+@contextmanager
+def restore_pass(kind: str, item_id: str) -> Iterator[None]:
+    token = _RESTORE.set((kind, item_id))
+    try:
+        yield
+    finally:
+        _RESTORE.reset(token)
+
+
+def _restoring(kind: str, item_id: str | None) -> bool:
+    return bool(item_id) and _RESTORE.get() == (kind, item_id)
+
+
 def judge_enable_item(conn: sqlite3.Connection, kind: str, item_id: str) -> None:
     """Enabling an automation from Arx: refused (raised) when it holds a WisKey door step, or a step that may be one."""
+    if _restoring(kind, item_id):
+        return
     if not _enable_judged(conn):
         return
     r = door_path.Resolver(conn)
@@ -189,6 +214,8 @@ def judge_enable_item(conn: sqlite3.Connection, kind: str, item_id: str) -> None
 def judge_enable_schedule(conn: sqlite3.Connection, item: dict[str, Any]) -> None:
     """Enabling a schedule from Arx (alone or in a bulk enable): refused (raised) when any of its slots holds a WisKey door
     step, or a step that may be one."""
+    if _restoring("schedule", str(item.get("schedule_id") or "")):
+        return
     if not _enable_judged(conn):
         return
     r = door_path.Resolver(conn)

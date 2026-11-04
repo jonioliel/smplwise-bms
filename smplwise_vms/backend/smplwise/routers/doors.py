@@ -21,6 +21,10 @@
   releases ONE such entity by hand (a note is required) or blocks it again. System administrator (`system.configure`),
   confirmation, audited `intercom.door.entity_unblocked` / `intercom.door.entity_reblocked` (who, when, why). The release applies
   to that entity only: an item with a real WisKey door step stays refused (services/door_overrides.py, door_blocks.py).
+- Disable and list (WXD10A / WXD10B, CR-033 6.4): `GET /intercom/door-path-conversion` (read only: what may be done to each item of the
+  inventory, and the register), `POST /intercom/door-path-conversion/actions` (one confirmed action on one item: disable, convert to a
+  draft Arx door job, hand over to a draft door window) and `POST /intercom/door-path-conversion/records/{id}/undo`. System administrator,
+  confirmation, audited; refused while `doors.conversion` is off (the default). services/door_conversion.py.
 
 Every switch carries an explicit `confirmed: true` from the client's confirmation step (never supplied by the server)."""
 from __future__ import annotations
@@ -38,7 +42,8 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import bump_permission_revision, get_setting, now_iso, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, ROLES, STATION, Principal, authorize, require, role_name, role_permissions, scope_name
-from ..services import bridge_rotation, door_authority, door_blocks, door_overrides, door_path, door_path_guard, ha_bridge, intercom_doors, intercom_sync, revocation, trusted_door
+from ..services import (bridge_rotation, door_authority, door_blocks, door_conversion, door_overrides, door_path, door_path_guard, ha_bridge, intercom_doors, intercom_sync,
+                        revocation, trusted_door)
 from . import access as acc
 
 router = APIRouter()
@@ -334,7 +339,7 @@ def switch_role(role_id: str, body: RoleSwitch, request: Request, principal: Pri
 def _settings_view(conn: sqlite3.Connection) -> dict[str, Any]:
     return {"trusted_path": trusted_door.mode(conn), "trusted_path_available": trusted_door.trusted_path_available(conn),
             "editor_block": door_path_guard.editor_mode(conn), "editor_allowed_available": door_path_guard.ALLOWED_SELECTABLE,
-            "lock_jobs": door_path_guard.wiskey_lock_jobs(conn)}
+            "lock_jobs": door_path_guard.wiskey_lock_jobs(conn), "conversion": door_conversion.mode(conn)}
 
 
 @router.get("/doors/settings")
@@ -346,6 +351,7 @@ def door_settings(principal: Principal = Depends(current_principal), conn: sqlit
 class DoorSettingsBody(BaseModel):
     trusted_path: Literal["off", "on"] | None = None
     editor_block: Literal["blocked", "allowed"] | None = None
+    conversion: Literal["off", "on"] | None = None
     confirmed: Any = None
 
 
@@ -354,11 +360,18 @@ def set_door_settings(body: DoorSettingsBody, request: Request, principal: Princ
     """`doors.trusted_path`: `off` (default; the interim transport) or `on` (the signed door_open only). Switching on is an
     owner-approved step and is refused while no bridge offering door_open is known (fail closed).
     `doors.editor_block` (CR-033 D8): `blocked` (default) or `allowed`; `allowed` is refused until new door steps can be stored
-    as Arx door steps (D10a). Either key may be sent alone."""
+    as Arx door steps (D10a). `doors.conversion` (WXD10, CR-033 6.4): `off` (default) or `on` - whether the confirmed "disable and
+    list" actions (services/door_conversion.py) may run at all; the list itself is always readable. Any key may be sent alone."""
     require(conn, principal, CONFIGURE, INSTALLATION)
     _confirmed(body.confirmed)
-    if body.trusted_path is None and body.editor_block is None:
+    if body.trusted_path is None and body.editor_block is None and body.conversion is None:
         raise ApiError(422, "validation", "לא נשלחה הגדרה לשינוי.")
+    if body.conversion is not None:
+        before = door_conversion.mode(conn)
+        if body.conversion != before:
+            set_setting(conn, door_conversion.FLAG_KEY, body.conversion)
+            audit(conn, actor=principal, action="settings.changed", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),
+                  details={"key": door_conversion.FLAG_KEY, "before": before, "after": body.conversion})
     if body.trusted_path is not None:
         before = trusted_door.mode(conn)
         if body.trusted_path == "on" and not trusted_door.trusted_path_available(conn):
@@ -430,6 +443,60 @@ def door_path_inventory(request: Request, principal: Principal = Depends(current
     disabled or sent. Names only - no entity ids, station ids or addresses."""
     require(conn, principal, CONFIGURE, INSTALLATION)
     return door_path.inventory(conn, dev_mode=bool(settings_of(request).dev_user))
+
+
+# ---------------------------------------------------------------- disable and list, event door jobs, hand-over (WXD10A / WXD10B)
+
+@router.get("/intercom/door-path-conversion")
+def door_path_conversion(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """READ ONLY: the inventory's items with what may be done to each (disable, convert to an Arx door job, hand over to a door
+    window) and why not, the register of what was done, and the switch `doors.conversion`. An empty inventory answers
+    `state = nothing_found` with nothing offered. System administrator only; names only."""
+    require(conn, principal, CONFIGURE, INSTALLATION)
+    return door_conversion.listing(conn, dev_mode=bool(settings_of(request).dev_user))
+
+
+class DoorConversionBody(BaseModel):
+    key: str = Field(min_length=3, max_length=300)
+    action: Literal["disable", "convert_event_job", "hand_over_program"]
+    revision: str | None = Field(default=None, max_length=64)
+    confirmed: Any = None
+
+
+def _writers(request: Request, conn: sqlite3.Connection, principal: Principal) -> tuple[Any, Any]:
+    """The automations' and schedules' own bridge writers (with their identity gates), built only when a write is reached."""
+    from . import automations as auto_router
+    from . import schedules as sched_router
+
+    return (lambda: auto_router._bridge_writer(request, conn, principal)), (lambda: sched_router._bridge_writer(request, conn, principal))
+
+
+@router.post("/intercom/door-path-conversion/actions")
+def door_path_conversion_act(body: DoorConversionBody, request: Request, principal: Principal = Depends(current_principal),
+                             conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """One confirmed action on ONE listed item: `disable` (the existing write path), `convert_event_job` (M1: the automation's direct
+    door steps removed, a DRAFT Arx door job created) or `hand_over_program` (M3: the schedule switched off, a DRAFT weekly door window
+    created). Refused unless `doors.conversion` is on, `confirmed: true`, the item is listed with that action offered and `revision`
+    is its live revision. Audited (`door.path_disabled` / `door.path_converted` / `door.path_handed_over`). No door is opened."""
+    require(conn, principal, CONFIGURE, INSTALLATION)
+    auto_w, sched_w = _writers(request, conn, principal)
+    return door_conversion.act(conn, principal, key=body.key, action=body.action, revision=body.revision, confirmed=body.confirmed,
+                               dev_mode=bool(settings_of(request).dev_user), auto_writer=auto_w, sched_writer=sched_w, rid=_rid(request))
+
+
+class ConfirmBody(BaseModel):
+    confirmed: Any = None
+
+
+@router.post("/intercom/door-path-conversion/records/{record_id}/undo")
+def door_path_conversion_undo(body: ConfirmBody, request: Request, record_id: str = Path(min_length=4, max_length=64), principal: Principal = Depends(current_principal),
+                              conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Reverse one action of the register (same switch, confirmation, audit `door.path_restored`): a disabled item is enabled again
+    while its revision is unchanged; a hand-over's draft window is retired and the schedule enabled again; a conversion's door job is
+    deleted (its removed Home Assistant steps are not put back by Arx)."""
+    require(conn, principal, CONFIGURE, INSTALLATION)
+    auto_w, sched_w = _writers(request, conn, principal)
+    return door_conversion.undo(conn, principal, record_id, confirmed=body.confirmed, auto_writer=auto_w, sched_writer=sched_w, rid=_rid(request))
 
 
 # ---------------------------------------------------------------- the blocks screen: what the door path blocks, and the one release (WXUNBLK)
