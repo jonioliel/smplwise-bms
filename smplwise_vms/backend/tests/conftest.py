@@ -322,6 +322,32 @@ def _ha_sync_link_is_per_test():
     ha_sync.STATE.__dict__.update(_HA_LINK_AT_IMPORT)
 
 
+def _pristine_bridge_install() -> dict:
+    from smplwise.services import bridge_install
+
+    return dict(bridge_install.STATE)
+
+
+_BRIDGE_INSTALL_AT_IMPORT = _pristine_bridge_install()
+
+
+@pytest.fixture(autouse=True)
+def _bridge_install_state_is_per_test():
+    """`bridge_install.STATE` (source / installed version, the mapped HA config dir, last error) is process-wide. Every test that runs
+    an install with a mapped config dir (tests/test_bridge_install.py and a dozen WisKey / Lovelace files) left it set, and a later
+    test of the same process saw a "bridge copy waiting for a Home Assistant restart": platform_restart.reasons() reported a
+    `bridge` reason, and four tests of test_self_update.py / test_self_update_s3.py failed after test_bridge_install.py
+    (GATE-HYGIENE-2402; docs/changes/BRIDGE-UPDATE-LISTENER-2401.md). The dict is put back to its import-time content (the same
+    object: modules hold a reference to it) before and after each test."""
+    from smplwise.services import bridge_install
+
+    bridge_install.STATE.clear()
+    bridge_install.STATE.update(_BRIDGE_INSTALL_AT_IMPORT)
+    yield
+    bridge_install.STATE.clear()
+    bridge_install.STATE.update(_BRIDGE_INSTALL_AT_IMPORT)
+
+
 # ---------------------------------------------------------------- SW_DB_IO_GUARD=1: I/O under the SQLite write lock
 
 if os.environ.get("SW_DB_IO_GUARD") == "1":

@@ -5,7 +5,9 @@ Maps the files changed between <base> and HEAD to the backend test files and Pla
 back to the FULL tier of a side (backend / frontend) whenever a change can reach everything. Never selects less than:
   * every test file added or modified in the diff (backend tests/test_*.py, frontend tests/*.spec.ts);
   * the fixed SMOKE set (critical suites, below);
-  * every security / permission suite (SECURITY_RE on the file name), in full.
+  * every security / permission suite (SECURITY_RE on the file name), in full;
+  * every file of the always-run list smplwise_vms/backend/tests/gate_always_run.json of the tested checkout (whole-package scanners
+    and pins, GATE-HYGIENE-2402); gate 2 (gate2_select.py) inherits it because it calls select().
 The safety net is the full nightly run on main (nightly_tests.sh, no selection) and `audit`, which lists every nightly red that
 a selection run would have skipped (scripts/gate/select_tests.py audit ...).
 
@@ -69,6 +71,17 @@ SMOKE_BACKEND = ["test_migrations.py", "test_smoke_after_upgrade.py", "test_gate
                  "test_health_report.py", "test_backup.py", "test_release_check.py", "test_db_gate.py", "test_db_template.py",
                  "test_gate_speed.py", "test_select_tests.py"]
 SMOKE_FRONTEND_GLOBS = ["unit-*.spec.ts", "evidence-nav*.spec.ts", "layout-shell*.spec.ts"]
+# GATE-HYGIENE-2402: whole-package scanners and pins (SR-1, no-IP-literals, route walks, ...) run in EVERY selection. The list is
+# declarative and lives in the checkout under test (smplwise_vms/backend/tests/gate_always_run.json), so a branch that adds a scanner
+# adds it to the list in the same commit and no runner reinstall is needed. PACKAGE_SCAN_RE is the detector the completeness test
+# (tests/test_gate_always_run.py) uses: a file that matches it must be listed or reviewed as "not_scanners".
+ALWAYS_RUN_FILE = "gate_always_run.json"
+PACKAGE_SCAN_RE = re.compile(
+    r"""rglob\(\s*['"]\*\.py['"]\s*\)"""                          # walks a source tree (the package, services/, routers/)
+    r"""|['"]routers['"]\s*\)\s*\.glob\(\s*['"]\*\.py"""           # every router module
+    r"""|\b_routers\(\)|pkgutil\.(?:iter_modules|walk_packages)\("""   # the router registry
+    r"""|\bapp\.(?:router\.)?routes\b"""                            # the app's whole route table
+    r"""|ls-files""")                                               # the repository
 SECURITY_RE = re.compile(r"security|rbac|perm|auth|secret|csrf|privacy|scope|role|passkey|webauthn|login|session|ingress|grant|harden|poc", re.I)
 TAG_RE = re.compile(r"""(?:@customElement\(\s*|customElements\.define\(\s*)['"]([a-z][a-z0-9]*-[a-z0-9-]+)['"]""")
 TS_IMPORT_RE = re.compile(r"""(?:\bfrom\s*|\bimport\s*\(?\s*)['"]([./][^'"]+)['"]""")
@@ -108,6 +121,27 @@ def _stem_tokens(path: str) -> set[str]:
     if parent and parent not in ("src", "tests", "smplwise", "services", "routers", "screens", "components", "api", "frontend"):
         toks.add(parent)
     return {t for t in toks if len(t) >= 4}
+
+
+# ---------------------------------------------------------------- the always-run list (GATE-HYGIENE-2402)
+def always_run_backend(root: Path) -> dict[str, str]:
+    """{test file: reason} from <root>/smplwise_vms/backend/tests/gate_always_run.json. A missing file (a branch older than
+    GATE-HYGIENE-2402) is an empty list; an unreadable or malformed one RAISES, so the engine falls back to the full tier and says so
+    (release_gate.compute_selection's error path) instead of silently dropping the scanners."""
+    p = Path(root) / BE / "tests" / ALWAYS_RUN_FILE
+    if not p.exists():
+        return {}
+    doc = json.loads(p.read_text(encoding="utf-8"))
+    be = doc.get("backend") if isinstance(doc, dict) else None
+    if not isinstance(be, dict) or not all(isinstance(k, str) and k.startswith("test_") and k.endswith(".py") and isinstance(v, str)
+                                           for k, v in be.items()):
+        raise ValueError(f"{p}: 'backend' must map test_*.py file names to reasons")
+    return dict(be)
+
+
+def package_scanners(tests_dir: Path) -> set[str]:
+    """The test_*.py files whose text matches PACKAGE_SCAN_RE (walks the package, the router registry or the repository)."""
+    return {p.name for p in Path(tests_dir).glob("test_*.py") if PACKAGE_SCAN_RE.search(_read(p))}
 
 
 # ---------------------------------------------------------------- python import graph
@@ -258,6 +292,8 @@ def select(root: Path, changes: list[tuple[str, str]], version_only_paths: set[s
     for n in all_tests:
         if SECURITY_RE.search(n):
             badd(n, "security/permission suite")
+    for n, why in sorted(always_run_backend(root).items()):
+        badd(n, f"always-run ({ALWAYS_RUN_FILE}): {why}")
     if not reasons["backend"]:
         mods = py_modules(be)
         changed_mods, helpers, routes, stems = set(), set(), set(), set()
