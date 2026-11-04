@@ -40,12 +40,12 @@ export async function installWaInstalled(page: Page, st: WaInstalledMock = newWa
   });
   await page.route(/\/api\/v1\/access-control\/messaging\/installed\/registry-sync$/, async (route) => {
     st.syncs += 1;
-    if (st.sync === 'not_selected') return json(route, err('registry_sync_unavailable', 'החיבור הישיר ל-WisKey אינו זמין כרגע, ולכן רשימת התבניות לא רועננה.', { outcome: 'not_sent' }), 409);
+    if (st.sync === 'not_selected') return json(route, err('registry_sync_unavailable', 'החיבור הישיר לשירות ההודעות אינו זמין כרגע, ולכן רשימת התבניות לא רועננה.', { outcome: 'not_sent' }), 409);
     if (st.sync === 'refused') {
       st.view.registry.last_sync = { outcome: 'refused', code: 'installation_unavailable', native: null, at: '2026-11-04T09:00:00+00:00' };
-      return json(route, err('registry_sync_refused', 'WisKey לא מסרה רשימת תבניות תקינה. הרשימה הקיימת נשמרה.', { outcome: 'refused', code: 'installation_unavailable' }), 502);
+      return json(route, err('registry_sync_refused', 'שירות ההודעות לא מסר רשימת תבניות תקינה. הרשימה הקיימת נשמרה.', { outcome: 'refused', code: 'installation_unavailable' }), 502);
     }
-    if (st.sync === 'unknown') return json(route, err('registry_sync_uncertain', 'לא התקבלה תשובה מ-WisKey. הרשימה הקיימת נשמרה.', { outcome: 'unknown' }), 504);
+    if (st.sync === 'unknown') return json(route, err('registry_sync_uncertain', 'לא התקבלה תשובה משירות ההודעות. הרשימה הקיימת נשמרה.', { outcome: 'unknown' }), 504);
     st.view.registry.last_sync = { outcome: 'synced', code: null, native: st.view.registry.wiskey_rows, at: '2026-11-04T09:00:00+00:00' };
     return json(route, { ...clone(st.view), sync: clone(st.view.registry.last_sync) });
   });

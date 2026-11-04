@@ -11,12 +11,12 @@ const job = (over: Partial<InstalledJob> = {}): InstalledJob => ({
   created_at: '2026-11-04T08:00:00+00:00', updated_at: '2026-11-04T08:00:00+00:00', ...over,
 });
 
-test('every key exists in all four languages, placeholders match, and no text names the home platform', () => {
+test('every key exists in all four languages, placeholders match, and no text names a platform', () => {
   for (const lang of ['he', 'en', 'ar', 'ru'] as const) {
     expect(Object.keys(WI_TABLES[lang]).sort(), lang).toEqual([...WI_KEYS].sort());
     for (const k of WI_KEYS) {
       expect(WI_TABLES[lang][k].trim().length, `${lang}.${k}`).toBeGreaterThan(0);
-      expect(WI_TABLES[lang][k], `${lang}.${k}`).not.toMatch(/home assistant/i);
+      expect(WI_TABLES[lang][k], `${lang}.${k}`).not.toMatch(/home assistant|wiskey|hikvision|\bHA\b/i);  // the page's copy rule
     }
   }
   const ph = (s: string) => (s.match(/\{\w+\}/g) ?? []).sort().join(',');

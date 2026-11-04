@@ -80,7 +80,7 @@ test('the card says why a template send is blocked, what WisKey offers now, and 
   await expect(card.locator('[data-wa-no-delivery]')).toBeVisible();
   await expect(card.locator('[data-wa-history]')).toBeVisible();
   const text = (await card.innerText()).toLowerCase();
-  expect(text).not.toContain('home assistant');
+  expect(text).not.toMatch(/home assistant|wiskey|hikvision|\bha\b/);  // the page's copy rule: the provider is "שירות ההודעות"
   expect(text).not.toMatch(/נמסרה|delivered/);
   await fits(page);
   await shot(page, info, 'ready-light');
@@ -113,6 +113,7 @@ test('refresh from WisKey: a sync says so, a refusal keeps the list and says why
   await expect(card.locator('[data-wa-error]')).toBeVisible();
   await expect(card.locator('[data-wa-last-sync="refused"]')).toBeVisible();
   await expect(card.locator('[data-wa-template]')).toHaveCount(2);
+  expect((await card.innerText()).toLowerCase()).not.toContain('wiskey');  // the server's error words follow the copy rule too
   expect(st.syncs).toBe(2);
   await shot(page, info, 'sync-refused');
 });

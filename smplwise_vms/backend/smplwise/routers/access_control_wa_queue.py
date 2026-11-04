@@ -107,13 +107,13 @@ def registry_sync(request: Request, principal: Principal = Depends(base._configu
               reason=out["code"], resource_type="installation", resource_id="messaging", request_id=base._rid(request),
               details={"outcome": out["outcome"], "native": out["native"]})
     if out["outcome"] == "not_sent":
-        raise ApiError(409, "registry_sync_unavailable", "החיבור הישיר ל-WisKey אינו זמין כרגע, ולכן רשימת התבניות לא רועננה.",
+        raise ApiError(409, "registry_sync_unavailable", "החיבור הישיר לשירות ההודעות אינו זמין כרגע, ולכן רשימת התבניות לא רועננה.",
                        details={"outcome": "not_sent", "code": out["code"]})
     if out["outcome"] in ("refused", "invalid"):
-        raise ApiError(502, "registry_sync_refused", "WisKey לא מסרה רשימת תבניות תקינה. הרשימה הקיימת נשמרה.",
+        raise ApiError(502, "registry_sync_refused", "שירות ההודעות לא מסר רשימת תבניות תקינה. הרשימה הקיימת נשמרה.",
                        details={"outcome": out["outcome"], "code": out["code"]})
     if out["outcome"] == "unknown":
-        raise ApiError(504, "registry_sync_uncertain", "לא התקבלה תשובה מ-WisKey. הרשימה הקיימת נשמרה.", details={"outcome": "unknown", "code": out["code"]})
+        raise ApiError(504, "registry_sync_uncertain", "לא התקבלה תשובה משירות ההודעות. הרשימה הקיימת נשמרה.", details={"outcome": "unknown", "code": out["code"]})
     return {**_fresh_overview(request), "sync": out}
 
 
@@ -141,10 +141,10 @@ def _error(outcome: str, code: str | None, retry_after_s: int | None = None) -> 
         return ApiError(504, "message_uncertain", "לא ידוע אם ההודעה נשלחה. אל תשלחו שוב לפני שבדקתם עם הנמען.", details=d)
     if code == "rate_limited":
         d["retry_after_s"] = retry_after_s
-        return ApiError(429, "message_paced_wiskey", "WisKey עיכבה את ההודעה לפי קצב השליחה שלה. ההודעה לא נשלחה - אפשר לנסות שוב מאוחר יותר.",
+        return ApiError(429, "message_paced_wiskey", "שירות ההודעות עיכב את ההודעה לפי קצב השליחה שלו. ההודעה לא נשלחה - אפשר לנסות שוב מאוחר יותר.",
                         retryable=True, details=d)
     if outcome == "refused":
-        return ApiError(502, "template_installed_refused", "WisKey דחתה את שליחת התבנית, והיא לא נשלחה.", details=d)
+        return ApiError(502, "template_installed_refused", "שירות ההודעות דחה את שליחת התבנית, והיא לא נשלחה.", details=d)
     return ApiError(409, "template_installed_not_sent", "ההודעה לא נשלחה.", details=d)
 
 
@@ -165,7 +165,7 @@ def send_installed(request: Request, response: Response, auth: ia.Authority = De
     def transport_check(_ctx: dict[str, Any]) -> None:
         port = wq.port_for(command)
         if port is None:
-            raise act.refuse(ApiError(409, "template_installed_unavailable", "החיבור הישיר ל-WisKey אינו זמין כרגע. ההודעה לא נשלחה.",
+            raise act.refuse(ApiError(409, "template_installed_unavailable", "החיבור הישיר לשירות ההודעות אינו זמין כרגע. ההודעה לא נשלחה.",
                                       details={"reason": "transport_not_selected", "mode": body.mode}))
         held["port"] = port
 
@@ -314,7 +314,7 @@ def job_cancel(request: Request, auth: ia.Authority = Depends(base._gate),
         raise act.refuse(ApiError(409, "message_job_not_cancellable", "המשימה כבר הסתיימה.", details={"state": row["state"]}))
     port = wq.port_for(wq.CANCEL_COMMAND)
     if port is None:
-        raise act.refuse(ApiError(409, "message_job_cancel_unavailable", "החיבור הישיר ל-WisKey אינו זמין כרגע. המשימה לא בוטלה.",
+        raise act.refuse(ApiError(409, "message_job_cancel_unavailable", "החיבור הישיר לשירות ההודעות אינו זמין כרגע. המשימה לא בוטלה.",
                                   details={"reason": "transport_not_selected"}))
     client = wq.PortClient(port)
     try:
@@ -330,6 +330,6 @@ def job_cancel(request: Request, auth: ia.Authority = Depends(base._gate),
         audit(w, actor=act.principal, action=wq.AUDIT_JOB, decision="allowed", resource_type="intercom_person", resource_id=person_id,
               request_id=act.rid, details={**act.details, "phase": "cancel", "state": view.state, "outcome": view.outcome})
     if view.state != "cancelled":
-        raise ApiError(409, "message_job_not_cancellable", "WisKey כבר החלה לשלוח את ההודעה, ולכן אי אפשר לבטל אותה.",
+        raise ApiError(409, "message_job_not_cancellable", "שירות ההודעות כבר החל לשלוח את ההודעה, ולכן אי אפשר לבטל אותה.",
                        details={"state": view.state, "outcome": view.outcome})
     return {"job": _job_doc(view)}
