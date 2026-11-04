@@ -3,7 +3,7 @@ import '../components/sw-icon';
 import './presence-pills';
 import type { WidgetItem } from '../api/home-config';
 import type { BuildingSnapshot } from '../api/building-presence';
-import { compactView, presenceWidgetAvailable, type CompactView } from '../api/building-presence-logic';
+import { compactView, countView, presenceWidgetAvailable, type CompactView } from '../api/building-presence-logic';
 import { BP } from '../i18n/building-presence';
 
 /**
@@ -13,8 +13,15 @@ import { BP } from '../i18n/building-presence';
  * ghost) unless the caller holds presence.building.view and the server reports an enabled, configured module whose home display is "card"
  * and whose card style is not "off" (`presenceWidgetAvailable`).
  *
+ * PRESENCE-COUNT-2400 (owner round 18, Q25-27 - round-16 direction A, private/design-system-2026-10-27/round16-presence): the DEFAULT style is
+ * now "count" - the active count large in the clock's voice ("2/5"), the active names as plain text (no pills), and a hairline bar with one
+ * tick a room (green = active, grey = empty, hollow = no data; one share bar above TICK_CAP rooms). Green only in the lamp and the bar. Small =
+ * the count line only; large = + a quiet floor line. All empty = a grey "0" and "<room> · ריק מ־HH:MM". The count line keeps the card at
+ * its row's height (measured in round 16: 178 px desktop, 140 px phone, 5 rooms and 500 alike). An installation that saved a style keeps it.
+ *
  * Four settings (Settings > Presence > Times and display; owner answers 31.10), read from the snapshot's settings:
- *   - card_style: strip (default) = a state word, the count, and ONE row of active-room pills (two in the large size) with an honest "+N";
+ *   - card_style: count (default since 2.40.0, above); strip (the 2.31.0 default) = a state word, the count, and ONE row of active-room
+ *                 pills (two in the large size) with an honest "+N";
  *                 floors = the active count large beside a short bar per floor; quiet = one sentence and the active names; off = no card.
  *   - card_empty_rooms: hide (default) = only active rooms; show = empty (grey) and unknown (dashed) pills after them while room is left.
  *   - card_details: hover (default) = the update time and the empty / unknown names only in the tooltip; inline = drawn in the card.
@@ -90,8 +97,38 @@ export const PRESENCE_WIDGET_STYLES = css`
   .wg-pres .pc-rooms { font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
   .wg-pres .pc-rooms bdi + bdi::before { content: ', '; }
   .wg-pres .pc-rooms .rest { color: var(--sw-text-3); }
+  /* PRESENCE-COUNT-2400 - count and names (round-16 direction A): the number in the clock's voice (the clock's --hm, scaled per size so the
+     row never grows), the names as text, a hairline bar with a tick a room. Green lives only in the lamp and the bar. */
+  .wg-pres .pn { display: flex; flex-direction: column; gap: 8px; flex: 1 1 auto; min-inline-size: 0; }
+  .wg-pres .pn-row { display: flex; align-items: center; gap: 14px; min-inline-size: 0; }
+  .wg-pres .pn-n { display: flex; align-items: baseline; flex: none; direction: ltr; unicode-bidi: isolate; line-height: 0.9; }
+  .wg-pres .pn-n b { font-size: calc(var(--hm, 54px) * var(--pnf, 0.82)); font-weight: var(--sw-fw-medium); letter-spacing: -0.04em; color: var(--sw-heading, var(--sw-text)); }
+  .wg-pres[data-size='s'] { --pnf: 1; }
+  .wg-pres[data-size='l'] { --pnf: 0.7; }
+  .wg-pres[data-tone='clear'] .pn-n b, .wg-pres[data-tone='unknown'] .pn-n b { color: var(--sw-text-3); font-weight: 300; }
+  .wg-pres .pn-n span { font-size: var(--sw-fs-lg); font-weight: 300; color: var(--sw-text-3); margin-inline-start: 3px; }
+  .wg-pres .pn-t { flex: 1; min-inline-size: 0; display: flex; flex-direction: column; gap: 3px; }
+  .wg-pres .pn-w { display: flex; align-items: center; gap: 7px; min-inline-size: 0; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-heading, var(--sw-text)); white-space: nowrap; }
+  .wg-pres .pn-w > span:not(.pr-lamp) { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; }
+  .wg-pres .pn .pr-lamp { inline-size: 8px; block-size: 8px; }
+  .wg-pres .pn-names { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
+  .wg-pres .pn-names i { font-style: normal; color: var(--sw-text-3); padding-inline: 5px; }
+  .wg-pres .pn-names .x { color: var(--sw-text-3); }
+  .wg-pres .pn-bar { display: flex; gap: 3px; block-size: 4px; min-inline-size: 0; flex: none; }
+  .wg-pres .pn-bar i { flex: 1; min-inline-size: 0; border-radius: var(--sw-r-pill, 999px); background: var(--sw-surface-3); }
+  .wg-pres .pn-bar i[data-t='on'] { background: var(--sw-success); }
+  .wg-pres .pn-bar i[data-t='unk'] { background: transparent; box-shadow: inset 0 0 0 1px var(--sw-border-strong); }
+  .wg-pres .pn-bar.share { display: block; background: var(--sw-surface-3); border-radius: var(--sw-r-pill, 999px); overflow: hidden; }
+  .wg-pres .pn-bar.share b { display: block; block-size: 100%; inline-size: var(--p, 0%); background: var(--sw-success); border-radius: var(--sw-r-pill, 999px); }
+  .wg-pres .pn-fl { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
+  .wg-pres .pn-fl b { font-weight: var(--sw-fw-semibold); color: var(--sw-text-2); direction: ltr; unicode-bidi: isolate; }
+  .wg-pres .pn-sr { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  /* the tightest fit step and the row band: no floor line (the count, the names and the bar keep the card at the row's height) */
+  :host([data-fit='2']) .wg-pres .pn-fl,
+  .wg-pres.pr-compact .pn-fl { display: none; }
   @media (prefers-reduced-motion: no-preference) {
     .wg-pres .pr-lamp { transition: background-color var(--sw-t-state, 200ms) var(--sw-ease, ease), box-shadow var(--sw-t-state, 200ms) var(--sw-ease, ease); }
+    .wg-pres .pn-bar i { transition: background-color var(--sw-t-state, 200ms) var(--sw-ease, ease), box-shadow var(--sw-t-state, 200ms) var(--sw-ease, ease); }
   }
 `;
 
@@ -139,12 +176,42 @@ function quiet(v: CompactView, it: WidgetItem, compact: boolean) {
   return html`${line}${names}${rest}`;
 }
 
+/** PRESENCE-COUNT-2400: count and names (round-16 direction A). */
+function count(v: CompactView, it: WidgetItem, compact: boolean) {
+  const c = countView(v);
+  const sep = html`<i aria-hidden="true">·</i>`;
+  let second: TemplateResult | typeof nothing = nothing;
+  if (c.names.length) {
+    second = html`<div class="pn-names" data-building-rooms>${c.names.map((n, i) => html`${i ? sep : nothing}<bdi>${n}</bdi>`)}${c.more ? html`${sep}${BP.plus(c.more)}` : nothing}${c.extra ? html`${sep}<span class="x" data-building-rest>${c.extra}</span>` : nothing}</div>`;
+  } else if (c.quiet && it.size !== 's') {
+    // the room that emptied last (in a bdi, so a Latin name keeps its place), or the sentence
+    second = v.last && c.quiet === v.last
+      ? html`<div class="pn-names" data-building-last><bdi>${v.last}</bdi></div>`
+      : html`<div class="pn-names" data-building-quiet>${c.quiet}</div>`;
+  }
+  const row = html`<div class="pn-row" title=${c.title}>
+    <div class="pn-n" aria-hidden="true" data-building-presence-big><b>${c.num}</b>${c.of ? html`<span>${c.of}</span>` : nothing}</div>
+    <span class="pn-sr">${c.aria}</span>
+    <div class="pn-t"><div class="pn-w"><span class="pr-lamp" aria-hidden="true"></span><span data-building-word>${c.word}</span>${timeIn(v, it)}</div>${second}</div>
+  </div>`;
+  let bar: TemplateResult | typeof nothing = nothing;
+  if (it.size !== 's' && c.bar.kind === 'ticks') {
+    bar = html`<div class="pn-bar" aria-hidden="true" data-building-bar="ticks">${c.bar.ticks.map((t) => html`<i data-t=${t.tone} title=${t.title}></i>`)}</div>`;
+  } else if (it.size !== 's' && c.bar.kind === 'share') {
+    bar = html`<div class="pn-bar share" aria-hidden="true" data-building-bar="share" title=${c.bar.title} style=${`--p:${c.bar.pct}%`}><b></b></div>`;
+  }
+  const fl = it.size === 'l' && !compact && c.floors.length
+    ? html`<div class="pn-fl" data-building-floors>${c.floors.map((f, i) => html`${i ? '  ·  ' : ''}<bdi>${f.name}</bdi> <b>${BP.count(f.on)}/${BP.count(f.of)}</b>`)}${c.moreFloors ? `  ·  ${BP.moreFloors(c.moreFloors)}` : ''}</div>`
+    : nothing;
+  return html`<div class="pn">${row}${bar}${fl}</div>`;
+}
+
 /** The widget. Never reached unless the host resolved `presenceWidgetAvailable` first. */
 export function renderPresence(h: PresenceWidgetHost, it: WidgetItem): TemplateResult {
   const v = compactView(h.snap);
   const compact = !!h.compact;
   const link = html`<a class="pr-go" href="#/explore" data-building-card-map aria-disabled=${String(h.editing)} tabindex=${h.editing ? -1 : 0}>${BP.onMap}</a>`;
   const head = html`<div class="wg-h"><sw-icon name="users" size="15"></sw-icon><span>${it.title}</span>${link}</div>`;
-  const body = v.opts.style === 'floors' ? floors(v, it, compact) : v.opts.style === 'quiet' ? quiet(v, it, compact) : strip(v, it, compact);
+  const body = v.opts.style === 'floors' ? floors(v, it, compact) : v.opts.style === 'quiet' ? quiet(v, it, compact) : v.opts.style === 'strip' ? strip(v, it, compact) : count(v, it, compact);
   return h.shell(it, `wg-pres pr-${v.opts.style}${compact ? ' pr-compact' : ''}`, { tone: v.tone }, html`${head}${body}`);
 }

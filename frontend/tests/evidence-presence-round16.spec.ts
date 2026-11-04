@@ -22,8 +22,9 @@ async function draw(page: Page, opt: Opt, ds: string, layout: string, size: stri
   await page.waitForFunction(() => (window as unknown as { pdReady?: boolean }).pdReady === true, null, { timeout: 30_000 });
   await page.evaluate(
     async ([d, l, s, o]) => {
-      const w = window as unknown as { pdMountHome: (...a: string[]) => Promise<void>; pdOption16: (o: string) => Promise<void> };
-      await w.pdMountHome(d, l, s);
+      const w = window as unknown as { pdMountHome: (d: string, l: string, s: string, card?: Record<string, string>) => Promise<void>; pdOption16: (o: string) => Promise<void> };
+      // PRESENCE-COUNT-2400: "current" is the 2.31.0 strip (no longer the default); the options hide its body and draw themselves
+      await w.pdMountHome(d, l, s, { card_style: 'strip' });
       await w.pdOption16(o);
     },
     [ds, layout, size, opt] as const,

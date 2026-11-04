@@ -15,7 +15,8 @@ test.describe('PRESENCE-2280 layout vs mockup', () => {
     { area_id: 'a_small', name: 'חדר ישיבות קטן', status: 'clear', sensors: 1, empty_since: iso(9, 52), poly: [[0.7, 0.4], [0.95, 0.4], [0.95, 0.55], [0.7, 0.55]] },
     { area_id: 'a_mgr', name: 'משרד מנהל', status: 'unknown', sensors: 1, empty_since: null, poly: [[0.05, 0.7], [0.35, 0.7], [0.35, 0.95], [0.05, 0.95]] },
   ];
-  const SETTINGS = { enabled: true, retention_days: 30, home_display: 'card', map_tint: true, hold_seconds: 60, empty_minutes: 10 };
+  // PRESENCE-COUNT-2400: the checks below are the strip's (pills, state word); "count" is the default since 2.40.0 and has its own spec
+  const SETTINGS = { enabled: true, retention_days: 30, home_display: 'card', map_tint: true, hold_seconds: 60, empty_minutes: 10, card_style: 'strip' };
   const mkSensors = (n: number) =>
     Array.from({ length: n }, (_, i) => {
       const r = ROOMS[i % ROOMS.length];

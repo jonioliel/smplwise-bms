@@ -500,7 +500,7 @@ export class SystemBuildingPresence extends LitElement {
       </div>`;
     return html`<div class="cardopts" data-building-card-options>
       <div class="room">${BP.cardHeading}</div>
-      ${group('card_style', BP.styleLabel, o.style, { strip: BP.styleStrip, floors: BP.styleFloors, quiet: BP.styleQuiet, off: BP.styleOff })}
+      ${group('card_style', BP.styleLabel, o.style, { count: BP.styleCount, strip: BP.styleStrip, floors: BP.styleFloors, quiet: BP.styleQuiet, off: BP.styleOff })}
       ${o.style === 'off' ? nothing : html`
         ${group('card_empty_rooms', BP.emptyRoomsLabel, o.emptyRooms, { hide: BP.emptyHide, show: BP.emptyShow })}
         ${group('card_details', BP.detailsLabel, o.details, { hover: BP.detailsHover, inline: BP.detailsInline })}

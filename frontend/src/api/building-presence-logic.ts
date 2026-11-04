@@ -137,6 +137,85 @@ export interface CompactView {
   rest: string;
   /** The tooltip: the update time, then the empty and the unknown names (capped with +N). */
   tip: string;
+  /** PRESENCE-COUNT-2400: every room for the tick bar - the active ones, then the unknown ones, then the empty ones (each by name). */
+  ticks: CompactRoom[];
+  /** PRESENCE-COUNT-2400: the floors in the server's order (not by activity) for the large card's quiet floor line. */
+  floorOrder: CompactFloor[];
+  /** Whether any room names a floor (a building without floors has no floor line). */
+  hasFloors: boolean;
+}
+
+// ---- PRESENCE-COUNT-2400: the "count and names" card (round-16 direction A, owner answers round 18, Q25-27) ----
+
+/** One tick a room up to this many rooms; above it the bar is one share (owner answer 27 א). */
+export const TICK_CAP = 40;
+/** Active names handed to the names line (the line ends in an ellipsis; the rest count as "+N"). */
+export const COUNT_NAMES = 8;
+/** Floors in the large card's floor line before "+N קומות". */
+export const COUNT_FLOORS = 5;
+/** Active names in the count line's tooltip before "+N". */
+const TITLE_NAMES = 30;
+
+export interface CountBar {
+  /** 'ticks' = one tick a room (at most TICK_CAP); 'share' = one bar filled to `pct`; 'none' = no room with a sensor. */
+  kind: 'ticks' | 'share' | 'none';
+  ticks: { tone: 'on' | 'off' | 'unk'; title: string }[];
+  pct: number;
+  title: string;
+}
+
+export interface CountView {
+  /** The big number: the active rooms ("–" while the sensors do not report). */
+  num: string;
+  /** "/5" beside it ('' when no room has a sensor). */
+  of: string;
+  /** "חדרים פעילים" / "חדר פעיל" / "המבנה ריק" / "אין מידע מהחיישנים". */
+  word: string;
+  /** The active names drawn (each in its own bdi) and the count of the rest. */
+  names: string[];
+  more: number;
+  /** The quiet line in place of the names: "<room> · ריק מ־HH:MM" / "כל 5 החדרים ריקים" / "החדרים יופיעו כשהחיישנים ידווחו"; '' while rooms are active. */
+  quiet: string;
+  /** Muted names after the active ones (with "show empty rooms" or details inline); '' otherwise. */
+  extra: string;
+  /** The tooltip of the count line: the active names, then the update time and the empty / unknown names. */
+  title: string;
+  /** What a screen reader hears for the number: "2 מתוך 5 חדרים פעילים". */
+  aria: string;
+  bar: CountBar;
+  /** The large card's floor line ("קרקע 1/1 · קומה 2 1/2"), empty without floors. */
+  floors: CompactFloor[];
+  moreFloors: number;
+}
+
+/** What the "count and names" card draws, from the compact view (pure; the widget only lays it out). */
+export function countView(v: CompactView): CountView {
+  const n = v.active.length;
+  const num = v.tone === 'unknown' ? '–' : BP.count(n);
+  const of = v.of ? `/${BP.count(v.of)}` : '';
+  const word = v.tone === 'ok' ? BP.countWord(n) : v.tone === 'clear' ? (v.of ? BP.countEmpty : BP.cardAllEmpty(0)) : BP.countUnknown;
+  const drawn = v.tone === 'ok' ? v.active.slice(0, COUNT_NAMES).map((r) => r.name) : [];
+  const more = v.tone === 'ok' ? Math.max(0, n - drawn.length) : 0;
+  const quiet = v.tone === 'ok' ? '' : v.tone === 'clear' ? v.last || (v.of ? BP.cardAllEmpty(v.of) : '') : BP.countUnknownSub;
+  // the muted rest after the names: only with "show empty rooms" or details inline (the default keeps them in the tooltip and the ticks)
+  const empty = v.ticks.filter((r) => r.tone === 'neutral');
+  const unknown = v.ticks.filter((r) => r.tone === 'unknown');
+  const extra = v.tone === 'ok' && (v.opts.emptyRooms === 'show' || v.opts.details === 'inline')
+    ? [empty.length ? `${BP.emptyNames}: ${names(empty, REST_NAMES)}` : '', unknown.length ? `${BP.unknownNames}: ${names(unknown, REST_NAMES)}` : ''].filter(Boolean).join(' · ')
+    : '';
+  const activeLine = v.tone === 'ok' ? names(v.active, TITLE_NAMES) : '';
+  const title = [activeLine, v.tip].filter(Boolean).join('\n');
+  const aria = v.tone === 'unknown' ? BP.countUnknown : v.of ? BP.countAria(n, v.of) : word;
+  let bar: CountBar;
+  if (!v.of) bar = { kind: 'none', ticks: [], pct: 0, title: '' };
+  else if (v.of > TICK_CAP) {
+    const pct = Math.round((n / v.of) * 100);
+    bar = { kind: 'share', ticks: [], pct, title: BP.countShare(n, v.of, pct) };
+  } else {
+    bar = { kind: 'ticks', pct: 0, title: '', ticks: v.ticks.map((r) => ({ tone: r.tone === 'ok' ? 'on' : r.tone === 'unknown' ? 'unk' : 'off', title: r.title })) };
+  }
+  const floors = v.hasFloors ? v.floorOrder.slice(0, COUNT_FLOORS) : [];
+  return { num, of, word, names: drawn, more, quiet, extra, title, aria, bar, floors, moreFloors: v.hasFloors ? Math.max(0, v.floorOrder.length - floors.length) : 0 };
 }
 
 const TIP_NAMES = 12;
@@ -150,7 +229,7 @@ function names(list: readonly CompactRoom[], cap: number): string {
 /** Everything the compact card draws. `show` is false unless the widget exists (see `presenceWidgetAvailable`). */
 export function compactView(s: BuildingSnapshot | null | undefined, zone = 'Asia/Jerusalem'): CompactView {
   const opts = cardOptions(s?.settings);
-  const base: CompactView = { show: false, tone: 'unknown', word: '', sub: '', at: '', opts, of: 0, active: [], others: [], last: '', floors: [], rest: '', tip: '' };
+  const base: CompactView = { show: false, tone: 'unknown', word: '', sub: '', at: '', opts, of: 0, active: [], others: [], last: '', floors: [], rest: '', tip: '', ticks: [], floorOrder: [], hasFloors: false };
   if (!s || !presenceWidgetAvailable(s)) return base;
   const rooms = (s.rooms ?? []).filter((r) => r.name);
   const byName = (a: CompactRoom, b: CompactRoom) => a.name.localeCompare(b.name, 'he');
@@ -185,12 +264,16 @@ export function compactView(s: BuildingSnapshot | null | undefined, zone = 'Asia
     f.of++;
     if (r.status === 'occupied') f.on++;
   }
+  const floorOrder = floors.map((f) => ({ ...f }));
   floors.sort((a, b) => b.on - a.on);
   const tipLines = [at ? BP.updated(at) : '', empty.length ? `${BP.emptyNames}: ${names(empty, TIP_NAMES)}` : '', unknown.length ? `${BP.unknownNames}: ${names(unknown, TIP_NAMES)}` : ''];
   const rest = opts.details === 'inline' && opts.emptyRooms === 'hide' && tone === 'ok'
     ? [empty.length ? `${BP.emptyNames}: ${names(empty, REST_NAMES)}` : '', unknown.length ? `${BP.unknownNames}: ${names(unknown, REST_NAMES)}` : ''].filter(Boolean).join(' · ')
     : '';
-  return { show: true, tone, word, sub, at, opts, of, active, others, last, floors, rest, tip: tipLines.filter(Boolean).join('\n') };
+  return {
+    show: true, tone, word, sub, at, opts, of, active, others, last, floors, rest, tip: tipLines.filter(Boolean).join('\n'),
+    ticks: [...active, ...unknown, ...empty], floorOrder, hasFloors,
+  };
 }
 
 /** PRESENCE-COMPACT-2310 (answer 4): the area window's quiet part of the sub-line - "פעיל" / "ריק מ־HH:MM" / "אין מידע". Shown while tracking
