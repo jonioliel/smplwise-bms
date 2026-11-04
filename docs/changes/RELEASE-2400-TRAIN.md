@@ -362,7 +362,7 @@ of the gate was touched; that 40 s `tsc` may have added to the gate's load (it r
 
 1. **Owner question - the camera wall's phone toolbar** (8.5): (a) keep the two-row bar (whole labels, DROPDOWNFIT-295) and set the
    spec's bound to two rows; (b) one row again with shorter labels or icon-only selects (a design change of the bar); (c) leave as is.
-2. **SR-1 program-write pin** - known red until main v2.39.1 is merged (8.9).
+2. **SR-1 program-write pin** - closed by the main v2.39.1 merge (9.2).
 3. Main will become v2.39.1 (`fix/BRIDGE-STALE-DISCOVERY-2383`); it is merged here only when the coordinator says so.
    `pilot/VIDEO-TRANSPORT-2400` comes later.
 4. NOT_RUN: the full backend suite, the full unit sweep (432 files), `layout-access-s12` (TTS NOT_RUN), the release gate,
@@ -392,3 +392,63 @@ test-only fix is `613f4b0ef` on `fix/BRIDGE-STALE-DISCOVERY-2383` and arrives wi
 so; not cherry-picked). None of the eight 2.40.0 branches adds a `technical_program_save` / `technical_program_action` site (WXD10's
 `door_conversion.py` included), and the file's other four pins (open sites, Home Assistant lock-service sites, timer-shaped modules)
 pass, so no `ENGINE_WRITES` entry is owed by this train.
+
+## 9. VIDEO-TRANSPORT-2400 and main v2.39.1 (2026-11-04, evening)
+
+Coordinator 04.11: merge `pilot/VIDEO-TRANSPORT-2400`, then main v2.39.1 once the 2.39.1 re-gate had ended. Version lines are now
+**2.39.1** (main's); still no 2.40.0 bump, changelog entry, UI rebuild (`www` = main's 2.39.1 build) or tag.
+
+### 9.1 Merges (`--no-ff`)
+
+| # | Branch | Tip | Cut from | Merge commit | Conflicts |
+|---|---|---|---|---|---|
+| 1 | `pilot/VIDEO-TRANSPORT-2400` - one server-side live-video transport decision (`services/video_transport.py`, `GET /media/video-policy`), the personal `user_prefs` key `video.transport`, the station profile rule, MSE stall detection, a 45 s WisKey lease grace, go2rtc error logging; no migration | 06da48b15 | train 0ee9302e6 | 4b43b95b7 | none - no file changed on both sides since 0ee9302e6 |
+| 2 | `origin/main` = v2.39.1 (`fix/BRIDGE-STALE-DISCOVERY-2383`: bridge pairing survives re-pair and HA restarts, bridge 0.10.2 -> 0.10.3; SR-1 pin `613f4b0ef`) | 613f4b0ef | - | 6b80f3187 | `contracts/API_INVENTORY.md` only |
+
+- **API inventory**: after the video merge `scripts/api_inventory.py` gave 1844 routes, byte-identical to the branch's file (nothing to
+  commit). After main: regenerated, **1844 routes**, header 2.39.1 (+ `GET /media/video-policy` against section 8's 1843).
+- **Version pins** (bridge 0.10.3 in the integration copies, manifest, const, tests, `config.yaml` 2.39.1) and `CHANGELOG.md` came in
+  without a conflict: the train has no 2.40.0 entry yet, so the head is main's 2.39.1 entry, then 2.39.0. The remaining "0.10.2"
+  strings are history comments and test data, identical to main.
+- **Migrations**: unchanged, contiguous 0001..0205 (VIDEO-TRANSPORT adds none; it uses the existing `user_prefs` table).
+- `git merge-base --is-ancestor origin/main HEAD`: true.
+
+### 9.2 Receipts
+
+Local: workstation, project `.venv` Python 3.12, Node 24.21.0. Runner: `run_smart.py`, checked before every job - the 2.39.1 re-gate
+had ended (`gate_status.json` `pass`, finished 13:21 UTC), no `release_gate` process, 105 GB free. No runner job was started while a
+gate ran.
+
+| Check | Where / SHA | Result |
+|---|---|---|
+| `scripts/release_check.py` | workstation @ 4b43b95b7 and @ 6b80f3187 | every item `[ok]` (one version 2.39.1, bridge copies identical, bridge 0.10.3, migrations 205 contiguous, tag `v2.39.1`), RESULT: ready |
+| `npx tsc --noEmit -p tsconfig.json` | workstation @ 4b43b95b7 and @ 6b80f3187 | exit 0 both |
+| Unit, explicit files (17: `unit-video-transport-2400`, the branch's updated `unit-video-policy-webrtc-only`, `unit-wiskey-station-media`, `unit-user-menu-sections`, plus stations, talk dial / caps, TTS default and the source lints - tokens x2, a11y, empty-state icons, date format, menu, RTL, white label, phone buttons) | workstation @ 4b43b95b7 | **166 passed** |
+| The same + settings index, managed, wall device class, presence count, door conversion, board answers (23 files) | workstation @ 6b80f3187 | **260 passed** |
+| Backend group V1 (10 files: `test_video_transport_2400`, intercom media, station media readiness, ASGI WisKey lifecycle, join live, user prefs, settings nav pref, bridge stream source, release check, **`test_fake_doorwin_closed_rule_sr1`**) | workstation @ 6b80f3187 | **248 passed** - the SR-1 pin passes with main's `613f4b0ef` (section 8.9 closed) |
+| Backend group V2 (11 live / go2rtc files: go2rtc big media, HA camera live, live H.265, live review fixes, multi-NVR live, Provision ISR live shape and source cache, camera scope, readiness, live events, Frigate live) | workstation @ 6b80f3187 | 305 passed, **1 failed**: `test_readiness_96::test_a_demo_runs_on_a_separate_database_and_leaves_the_real_one_untouched` (9.3) |
+| Backend group V3 (15 files: main's `test_bridge_stale_discovery_2383`, pairing 2382, T06 admission, channels, pwclean, migrations x2, and the 2.40.0 suites install answers, managed install, WXD10, wall, TTS default, board answers, presence count, station ops) | workstation @ 6b80f3187 | **397 passed, 3 skipped, 3 xfailed** |
+| Backend `test_readiness_96`, `test_video_transport_2400`, `test_asgi_wiskey_295` (`backend` job) | runner @ 6b80f3187 | **98 passed, 0 failed** |
+| Pixel **without** refresh - the player screens: `pixel-wiskey-station-media` (stations drawer), `pixel-wiskey-stations`, `pixel-wiskey-talk-dial-2382`, `pixel-incoming-call`, `pixel-wall-plan`, `pixel-wall-followups-2390`, `pixel-walk-touch`, `visual-matrix` (incl. `live-wall`), desktop + mobile + tablet, workers 1 (`preview`) | runner @ 6b80f3187 | **152 passed, 67 skipped, 0 failed** - no baseline changed, none re-taken |
+| Evidence `preview`, desktop + mobile + tablet: `evidence-video-transport-2400`, `evidence-webrtc-only`, `evidence-webrtc-first`, `evidence-remote-video`, `evidence-wall-pano`, `evidence-wiskey-station-media`, `layout-wiskey-station-media`, `evidence-wall`, `evidence-kiosk`, `evidence-mobile-wall-kiosk`, `evidence-wiskey-pairing-2382` (main's pairing fix), `evidence-tts-default-2400` | runner @ 6b80f3187 | 167 passed, 189 skipped (project-scoped), **1 failed**: the known `evidence-mobile-wall-kiosk.spec.ts:61` [mobile] (8.5) |
+
+The camera page itself has no pixel spec; its transport behaviour is covered by `evidence-video-transport-2400` (remote MSE only on the
+camera page, wall and kiosk; retry; personal over installation; frozen-MSE recovery) and `evidence-webrtc-only`.
+
+### 9.3 Red, recorded
+
+- `test_readiness_96.py::test_a_demo_runs_on_a_separate_database_and_leaves_the_real_one_untouched` fails **on the Windows workstation
+  only**: after `demo/stop` the test expects `<data>/demo` to be gone and it still exists. It fails the same way alone, and on the main
+  checkout at v2.39.1 (`613f4b0ef`, untouched by this train); no demo / readiness file changed in this train since `a96798dc8`. On the
+  runner (Linux) the file passes (above), and the 2.39.1 gate passed. Most likely Windows refuses to remove a directory while a SQLite
+  file in it is still open - not a product fault on the add-on's platform (Linux). Not changed here.
+- `evidence-mobile-wall-kiosk.spec.ts:61` [mobile]: unchanged, owner question 8.7.1.
+
+### 9.4 What remains
+
+1. The 2.40.0 version commit, `build:addon`, the gate, the tag and the merge to `main` (owner / lead).
+2. Owner question 8.7.1 (camera wall phone toolbar).
+3. VIDEO-TRANSPORT's own owner test plan in the lab (its change doc, section 9) after the train is installed.
+4. NOT_RUN: the full backend suite, the full unit sweep, `layout-access-s12`, the release gate, `build:addon`, Windows pixel baselines,
+   any lab / WisKey / station / go2rtc / Home Assistant / device contact (none allowed). `management/tasks.json` / `test_catalog.json`
+   not edited.
