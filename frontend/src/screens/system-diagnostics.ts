@@ -80,10 +80,12 @@ import '../components/sw-fold-cards'; // SETTINGS-INTERCOM-CARDS-2401: הגדר�
 import type { FoldCard } from '../components/sw-fold-cards';
 import {
   ACCESS_CARDS,
+  ACCESS_LAYOUT_DEFAULT,
   ACCESS_LAYOUT_KEY,
   ACCESS_LAYOUTS,
   ACCESS_TAB,
   VOICE_TAB,
+  isCardsLayout,
   FOLD_SUMMARY_EVENT,
   areaSummary,
   browserStorage,
@@ -599,6 +601,10 @@ export class SystemDiagnostics extends LitElement {
     sw-fold-cards.afolds {
       max-inline-size: 1180px;
     }
+    /* SETTINGS-CARDS-ACCORDION-2402: in place, one column of cards - the settings column's own width (as the list) */
+    sw-fold-cards.afolds[inplace] {
+      max-inline-size: 880px;
+    }
     .afold-body {
       min-inline-size: 0;
       --sw-set-row-pad: 8px 14px;
@@ -665,7 +671,7 @@ export class SystemDiagnostics extends LitElement {
     const link = this.accessLink;
     if (!link) return;
     this.accessLink = null;
-    if (layout === 'cards') this.accessOpen = link;
+    if (isCardsLayout(layout)) this.accessOpen = link;
     else if (layout === 'tabs' && (this.tab === ACCESS_TAB || this.tab === VOICE_TAB)) this.tab = tabOfCard(link);
   }
 
@@ -1352,7 +1358,7 @@ export class SystemDiagnostics extends LitElement {
   private renderAccessControl() {
     if (!this.layoutKnown()) return html`<div class="sections"><sw-state-panel compact state="loading"></sw-state-panel></div>`;
     const layout = this.accessLayout();
-    return layout === 'cards' ? this.renderAccessCards() : this.renderAccessList(layout);
+    return isCardsLayout(layout) ? this.renderAccessCards(layout === 'accordion') : this.renderAccessList(layout);
   }
 
   /** The keys of the access-control rows this page saves itself (the other cards save their own). */
@@ -1397,7 +1403,7 @@ export class SystemDiagnostics extends LitElement {
     const v = parseAccessLayout(this.value(ACCESS_LAYOUT_KEY));
     return html`<div class="row" data-access-layout-row><span class="lbl">${t.label}<span class="muted">${t.text}</span></span>
           <sw-field class="ctl"><select data-set-access-layout aria-label=${t.label} ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set(ACCESS_LAYOUT_KEY, parseAccessLayout((e.target as HTMLSelectElement).value))}>
-            ${ACCESS_LAYOUTS.map((l) => html`<option value=${l} ?selected=${v === l}>${t[l]}</option>`)}
+            ${ACCESS_LAYOUTS.map((l) => html`<option value=${l} ?selected=${v === l}>${l === ACCESS_LAYOUT_DEFAULT ? `${t[l]} ${t.defaultMark}` : t[l]}</option>`)}
           </select></sw-field></div>`;
   }
 
@@ -1477,27 +1483,29 @@ export class SystemDiagnostics extends LitElement {
   }
 
   /** Layout a: a header was pressed - open that card (the open one folds on a narrow list) and remember it for this user. */
-  private pressCard(id: string, current: AccessCardId | ''): void {
+  private pressCard(id: string, current: AccessCardId | '', wide: boolean): void {
     const card = parseCard(id);
     if (!card) return;
-    const next = toggleCard(current, card, this.accessWide);
+    const next = toggleCard(current, card, wide);
     this.accessOpen = next;
     saveOpenCard(browserStorage(), session.me?.user.id, next);
   }
 
   /** Layout a (the default): the tab's sections as collapsible cards, one open at a time (components/sw-fold-cards.ts). */
-  private renderAccessCards() {
+  private renderAccessCards(inplace = false) {
     const api = isApi();
     const t = sct();
     const cards: FoldCard[] = ACCESS_CARDS.map((id) => ({ id, title: t.title[id], summary: this.cardSummary(id), hidden: !this.cardPresent(id) }));
     const shown = cards.filter((c) => !c.hidden).map((c) => c.id as AccessCardId);
     const wanted = this.accessOpen ?? loadOpenCard(browserStorage(), session.me?.user.id);
-    const open = pickOpenCard(wanted, shown, this.accessWide);
+    // SETTINGS-CARDS-ACCORDION-2402: in place (the accordion) the open card can always be folded, as on a phone
+    const wide = !inplace && this.accessWide;
+    const open = pickOpenCard(wanted, shown, wide);
     const parity = !api || can('access.admin.read');
     const body = (id: AccessCardId, content: unknown) =>
       html`<div class="afold-body" slot=${`b-${id}`} role="region" aria-label=${t.title[id]} data-access-fold=${id} ?hidden=${id !== open}>${content}</div>`;
-    return html`<sw-fold-cards class="afolds" data-access-layout="cards" label=${t.cardsLabel} .cards=${cards} .open=${open}
-        @fold-toggle=${(e: CustomEvent<{ id: string }>) => this.pressCard(e.detail.id, open)} @fold-wide=${(e: CustomEvent<{ wide: boolean }>) => (this.accessWide = e.detail.wide)}>
+    return html`<sw-fold-cards class="afolds" data-access-layout=${inplace ? 'accordion' : 'cards'} ?inplace=${inplace} label=${t.cardsLabel} .cards=${cards} .open=${open}
+        @fold-toggle=${(e: CustomEvent<{ id: string }>) => this.pressCard(e.detail.id, open, wide)} @fold-wide=${(e: CustomEvent<{ wide: boolean }>) => (this.accessWide = e.detail.wide)}>
       ${body('screens', html`<sw-card data-access-ui-card="screens">${this.rowsScreens(api)}${this.rowFixed()}${this.accessSave(api, 'data-save-access-ui', this.accessDirty())}</sw-card>`)}
       ${body('area', html`<sw-card data-access-ui-card="area">${this.rowHideWiskey(api)}${this.rowPhoneEmbed(api)}${this.rowLayout(api)}${this.accessNotes()}${this.accessSave(api, 'data-save-access-area', this.accessDirty())}</sw-card>`)}
       ${body('display', html`<system-access-display show="display" bare></system-access-display>`)}

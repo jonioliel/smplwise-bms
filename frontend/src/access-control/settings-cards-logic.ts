@@ -14,9 +14,17 @@
 import { fill, sct } from '../i18n/settings-cards';
 
 export const ACCESS_LAYOUT_KEY = 'access.settings_layout';
-export type AccessLayout = 'cards' | 'tabs' | 'list';
-export const ACCESS_LAYOUTS: readonly AccessLayout[] = ['cards', 'tabs', 'list'];
+/** SETTINGS-CARDS-ACCORDION-2402 (owner 04.11 night, round 20 Q2 = a): `accordion` - the same cards, opened in place one at a time on a
+ * desktop too (a short screen then scrolls the settings content, never sideways). One more value of the same setting, not a second
+ * setting: the four layouts are one choice, so they are one select (docs/changes/SETTINGS-CARDS-ACCORDION-2402.md). */
+export type AccessLayout = 'cards' | 'accordion' | 'tabs' | 'list';
+export const ACCESS_LAYOUTS: readonly AccessLayout[] = ['cards', 'accordion', 'tabs', 'list'];
 export const ACCESS_LAYOUT_DEFAULT: AccessLayout = 'cards';
+
+/** The two layouts drawn as cards (`sw-fold-cards`): beside their headers (cards) or in place (accordion). */
+export function isCardsLayout(layout: AccessLayout): boolean {
+  return layout === 'cards' || layout === 'accordion';
+}
 
 /** The stored layout as the tab draws it: anything unknown is the default (the server does the same). */
 export function parseAccessLayout(raw: unknown): AccessLayout {

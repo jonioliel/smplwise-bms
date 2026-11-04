@@ -27,7 +27,7 @@ test.describe('layout a: collapsible cards (the default)', () => {
     await expect(head(page, 'validation'), 'drawn only for who may run the acceptance check').toBeHidden();
     // the summaries are the saved values (the mock: overview / events / people on Arx)
     await expect(summary(page, 'screens')).toHaveText('Arx: מרכז הכניסה, פעילות, אנשים · השאר WisKey מוטמע');
-    await expect(summary(page, 'area')).toHaveText('האזור מוצג · הטמעה בטלפון: כבויה · כרטיסים מתקפלים');
+    await expect(summary(page, 'area')).toHaveText('האזור מוצג · הטמעה בטלפון: כבויה · כרטיסים: כותרות בצד');
     await expect(summary(page, 'display')).toHaveText('רמז שיחה: כל מי שרואה את התחנה · דיבור: מוצג · וידאו: כבוי');
     await expect(summary(page, 'announce')).toHaveText('תחנה, מקום או כל התחנות · מנוע: ברירת המחדל · משפטים מובנים');
     await expect(summary(page, 'calls')).toHaveText('לכל מי שרשאי לענות · כל העמדות · עם צלצול');
@@ -113,7 +113,7 @@ test.describe('the layout row switches the tab between a, b and c', () => {
     await openAccess(page);
     await head(page, 'area').click({ timeout: 30_000 });
     const layout = page.locator(`${D} select[data-set-access-layout]`);
-    await expect(layout.locator('option')).toHaveText(['כרטיסים מתקפלים', 'שתי לשוניות', 'רשימה אחת']);
+    await expect(layout.locator('option')).toHaveText(['כרטיסים: כותרות בצד (ברירת מחדל)', 'כרטיסים: נפתחים במקום', 'שתי לשוניות', 'רשימה אחת']); // SETTINGS-CARDS-ACCORDION-2402
     await expect(layout).toHaveValue('cards');
     await layout.selectOption('tabs');
     await page.locator(`${D} sw-button[data-save-access-area] button`).click();

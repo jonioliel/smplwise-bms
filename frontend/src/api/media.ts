@@ -199,7 +199,7 @@ export interface ProductSettings {
   'access.phone_embed'?: string;
   /** SETTINGS-INTERCOM-CARDS-2401: how the Settings tab "מתגי מסכי כניסה" is laid out - cards (a, the default) | tabs (b) | list (c).
    * access-control/settings-cards-logic.ts. */
-  'access.settings_layout'?: 'cards' | 'tabs' | 'list';
+  'access.settings_layout'?: 'cards' | 'accordion' | 'tabs' | 'list'; // SETTINGS-CARDS-ACCORDION-2402: accordion = the cards opened in place
   /** CR-006 phase 2 (AI-rendered floor skins, slice 2a): the image provider, its model, the privacy acknowledgement
    * (nothing is sent while it is 'false') and the render budgets. The API key is an add-on option, never a setting. */
   'skins.provider'?: 'openai';

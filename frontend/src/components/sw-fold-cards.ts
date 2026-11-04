@@ -38,6 +38,9 @@ export class SwFoldCards extends LitElement {
   @property() open = '';
   /** the list's accessible name */
   @property() label = '';
+  /** SETTINGS-CARDS-ACCORDION-2402: never the wide arrangement - the open card unfolds under its header at every width (the classic
+   * accordion); the page scrolls when the open card is taller than the window, never sideways. */
+  @property({ type: Boolean, reflect: true }) inplace = false;
   @state() private wide = true;
 
   private ro: ResizeObserver | null = null;
@@ -222,8 +225,12 @@ export class SwFoldCards extends LitElement {
     super.disconnectedCallback();
   }
 
+  protected willUpdate(changed: PropertyValues): void {
+    if (changed.has('inplace') && this.inplace) this.wide = false; // no wide first frame (the host knows the layout and does not wait for the event)
+  }
+
   protected updated(changed: PropertyValues): void {
-    if (changed.has('open') || changed.has('cards') || changed.has('wide')) this.measure();
+    if (changed.has('open') || changed.has('cards') || changed.has('wide') || changed.has('inplace')) this.measure();
   }
 
   private openBody(): HTMLElement | null {
@@ -233,7 +240,7 @@ export class SwFoldCards extends LitElement {
   /** The arrangement (by the list's width), the room the open card gets on a wide list, and whether it must scroll inside. */
   private measure(): void {
     const width = this.getBoundingClientRect().width;
-    const wide = width >= FOLD_WIDE_MIN;
+    const wide = !this.inplace && width >= FOLD_WIDE_MIN;
     if (width > 0 && wide !== this.wide) {
       this.wide = wide;
       this.dispatchEvent(new CustomEvent('fold-wide', { detail: { wide }, bubbles: true, composed: true }));

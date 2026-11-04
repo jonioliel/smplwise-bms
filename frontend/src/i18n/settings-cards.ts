@@ -7,8 +7,10 @@
 const he = {
   layout: {
     label: 'סידור הלשונית',
-    text: 'כרטיסים: כרטיס אחד פתוח בכל פעם והלשונית נכנסת במסך · שתי לשוניות: התצוגה לחוד, ההכרזות והקול לחוד · רשימה אחת: הכול ברצף',
-    cards: 'כרטיסים מתקפלים',
+    text: 'כרטיס אחד פתוח בכל פעם, לצד הכותרות או מתחת לכותרת · שתי לשוניות: התצוגה לחוד, ההכרזות והקול לחוד · רשימה אחת: הכול ברצף',
+    cards: 'כרטיסים: כותרות בצד',
+    accordion: 'כרטיסים: נפתחים במקום',
+    defaultMark: '(ברירת מחדל)',
     tabs: 'שתי לשוניות',
     list: 'רשימה אחת',
   },
@@ -73,8 +75,10 @@ export type SettingsCardsText = Widen<typeof he>;
 const en: SettingsCardsText = {
   layout: {
     label: 'Layout of this tab',
-    text: 'Cards: one card open at a time and the tab fits the screen · Two tabs: the display apart from the announcements and voice · One list: everything in a row',
-    cards: 'Collapsible cards',
+    text: 'One card open at a time, beside the headers or under its header · Two tabs: the display apart from the announcements and voice · One list: everything in a row',
+    cards: 'Cards: headers at the side',
+    accordion: 'Cards: open in place',
+    defaultMark: '(default)',
     tabs: 'Two tabs',
     list: 'One list',
   },
