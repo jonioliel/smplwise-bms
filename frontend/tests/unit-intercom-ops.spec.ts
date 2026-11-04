@@ -88,7 +88,8 @@ test.describe('tones', () => {
 test.describe('chart geometry', () => {
   test('clean axis maxima, ticks and compact labels', () => {
     expect(niceMax(0)).toBe(1);
-    expect(niceMax(7)).toBe(10);
+    expect(niceMax(7)).toBe(8);
+    expect(niceMax(525)).toBe(600);
     expect(niceMax(18)).toBe(20);
     expect(niceMax(21)).toBe(25);
     expect(niceMax(460)).toBe(500);

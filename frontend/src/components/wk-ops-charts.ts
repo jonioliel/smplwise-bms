@@ -370,7 +370,7 @@ export class WkOpsTrendChart extends Sized {
           const y = top + plotH - (t / max) * plotH;
           return svg`<line class="grid" x1="0" x2=${plotW} y1=${y} y2=${y} opacity=${t === 0 ? 1 : 0.6}></line><text x=${W - 4} y=${y + 4} text-anchor="end">${compact(t)}</text>`;
         })}
-        ${limitY !== null ? svg`<line class="limit" x1="0" x2=${plotW} y1=${limitY} y2=${limitY} data-trend-limit></line><text x="4" y=${limitY - 4} text-anchor="start">מגבלה ${this.limit}</text>` : nothing}
+        ${limitY !== null ? svg`<line class="limit" x1="0" x2=${plotW} y1=${limitY} y2=${limitY} data-trend-limit></line><text x=${plotW - 4} y=${limitY - 5} text-anchor="end" data-trend-limit-label>מגבלה ${this.limit}</text>` : nothing}
         <path class="area" d=${area}></path>
         <path class="line" d=${linePath(pts.map((p) => ({ x: p.x, y: p.y + top })))}></path>
         <circle class="dot" cx=${last.x} cy=${last.y + top} r="4"></circle>
