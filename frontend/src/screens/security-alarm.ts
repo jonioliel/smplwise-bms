@@ -142,7 +142,7 @@ export class SecurityAlarm extends LitElement {
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
       transition: background var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease),
-        transform var(--sw-t-press) var(--sw-ease-out);
+        transform var(--sw-t-press) var(--sw-ease);
     }
     /* ROUND4-LEFTOVERS-2390 (WP9): the panel switcher's hover only under a fine hovering pointer (it stuck after a tap on a
        touch screen), and a press on pointer-down like the filter chips */
@@ -406,7 +406,7 @@ export class SecurityAlarm extends LitElement {
       -webkit-tap-highlight-color: transparent;
       user-select: none;
       -webkit-user-select: none;
-      transition: background var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out), box-shadow var(--sw-t-fast) var(--sw-ease);
+      transition: background var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
     }
     @media (hover: hover) and (pointer: fine) {
       .chips button:hover {
@@ -472,7 +472,7 @@ export class SecurityAlarm extends LitElement {
       padding: 0;
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
-      transition: background var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
+      transition: background var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease);
     }
     .vt button[aria-pressed='true'] {
       background: var(--sw-seg-key, var(--sw-surface));
@@ -840,7 +840,7 @@ export class SecurityAlarm extends LitElement {
       box-shadow: var(--sw-shadow-1);
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
-      transition: background var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
+      transition: background var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease);
     }
     /* ROUND4-LEFTOVERS-2390 (WP9): a keypad is pressed with a finger - its hover only under a fine pointer (a tapped digit kept
        the hover wash), the press scale from the motion tokens (zeroed with reduced motion) */

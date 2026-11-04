@@ -125,6 +125,9 @@ test.describe('ROUND4-LEFTOVERS-2390', () => {
         expect(g!.pill.r, `the pill ends inside the axis at ${w}`).toBeLessThanOrEqual(g!.axis.r + 0.5);
         const covered = g!.labels.filter((x) => x.r > g!.pill.l - 1 && x.l < g!.pill.r + 1).map((x) => x.h);
         expect(covered, `hour labels under the pill at ${w}`).toEqual([]);
+        const xs = [...g!.labels].sort((a, b) => a.l - b.l);
+        const touching = xs.slice(1).filter((x, i) => x.l < xs[i].r + 2).map((x) => x.h);
+        expect(touching, `hour labels that touch their neighbour at ${w}`).toEqual([]);
         expect(g!.labels.length, `the axis keeps its other hours at ${w}`).toBeGreaterThanOrEqual(w < 700 ? 4 : 13);
       }
     });

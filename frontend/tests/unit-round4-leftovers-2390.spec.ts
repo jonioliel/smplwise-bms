@@ -54,6 +54,26 @@ test.describe('D22: the rooms timeline keeps the hour labels clear of the now pi
     }
   });
 
+  test('no two hour labels touch: on a 1024 track the hour beside each edge label is left out, the edges stay', () => {
+    // a 640 px track: 40 px an hour, 34 px labels - 08:00 would sit on 07:00 (aligned to the start) and 22:00 on 23:00
+    const f = axisFit({ nowPct: NOW_1040, hours: 16, axisPx: 640, pillPx: 46, labelPx: 34, fallbackPct: 3 });
+    expect(f.hidden.has(0)).toBe(false);
+    expect(f.hidden.has(16)).toBe(false);
+    expect(f.hidden.has(1)).toBe(true);
+    expect(f.hidden.has(15)).toBe(true);
+    for (const axisPx of [480, 640, 820, 1000]) {
+      for (const labelPx of [30, 34, 42]) {
+        const g = axisFit({ nowPct: NOW_1040, hours: 16, axisPx, pillPx: 46, labelPx, fallbackPct: 3 });
+        const boxes = Array.from({ length: 17 }, (_, k) => k).filter((k) => !g.hidden.has(k)).map((k) => {
+          const x = (k / 16) * axisPx;
+          const l = k === 0 ? 0 : k === 16 ? axisPx - labelPx : x - labelPx / 2;
+          return [l, l + labelPx];
+        });
+        for (let i = 1; i < boxes.length; i++) expect(boxes[i][0] - boxes[i - 1][1], `labels ${i - 1}/${i} at ${axisPx}px, ${labelPx}px labels`).toBeGreaterThanOrEqual(6 - 0.01);
+      }
+    }
+  });
+
   test('near the start and the end of the window the pill stays inside the axis and takes the edge label', () => {
     const early = axisFit({ nowPct: (5 / (16 * 60)) * 100, hours: 16, axisPx: 1000, pillPx: 46, labelPx: 34, fallbackPct: 3 }); // 07:05
     expect(early.pillLeftPx).toBe(0);
