@@ -276,6 +276,14 @@ DEFAULTS: dict[str, str] = {
     "access.talk_button": "classic",  # the talk button: classic (opens the classic panel - stage 1) | hidden
     "access.announce_scope": "scope",  # announcement targets: scope (all stations / a place inside the operator's scope) | station (one station)
     "access.announce_phrases": "",  # the announcement dialog's quick phrases, one per line, up to 8 (empty = the built-in ones)
+    # TTS-DEFAULT-ENGINE-2400 (owner 04.11, answer 1א): the installation's fixed announcement engine and language, applied as the
+    # preselection of EVERY announcement path (the intercom overview, the station drawer, the multi-station composer); each send may
+    # still pick another engine / language for that one announcement. "" = the system default (WisKey's reported default engine, the
+    # behaviour before this setting) / the automatic language (Hebrew when the engine has it, else the engine's default). Validated as
+    # plain ids only: the engine list is WisKey's and may be unreachable at save time; a fixed engine that is not in WisKey's current
+    # list is reported as such by every dialog and is never silently replaced by another engine.
+    "access.tts_engine": "",
+    "access.tts_language": "",
     # CR-036 S18 (owner 2026-10-12: live video and talk in stage 1, behind a per-screen setting, OFF by default): the station
     # drawer's own live video and push-to-talk - off (the still and the classic panel, as before) | video | video_talk.
     # Talk also needs a talk transport from the intercom (W10) and access.call on the station; without them the talk button
@@ -782,6 +790,10 @@ def normalize_tabs(value: Any) -> dict[str, Any]:
 
 
 LEAD_DAYS_PATTERN = r"^(0|[1-9][0-9]?|[12][0-9]{2}|3[0-5][0-9]|36[0-5])$"  # CR-MAINT215: 0-365 days
+# TTS-DEFAULT-ENGINE-2400: the fixed announcement engine / language - "" (system default / automatic) or a plain id: no spaces, no
+# control characters, no markup; the engine id as Home Assistant spells it (an entity id `tts.x`, or a legacy provider name).
+TTS_ENGINE_PATTERN = r"^$|^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
+TTS_LANGUAGE_PATTERN = r"^$|^[A-Za-z]{1,8}([_-][A-Za-z0-9]{1,8}){0,6}$"
 
 
 class SettingsPatch(BaseModel):
@@ -919,6 +931,10 @@ class SettingsPatch(BaseModel):
     access_talk_button: str | None = Field(default=None, pattern="^(classic|hidden)$", alias="access.talk_button")
     access_announce_scope: str | None = Field(default=None, pattern="^(scope|station)$", alias="access.announce_scope")
     access_announce_phrases: str | None = Field(default=None, max_length=2000, alias="access.announce_phrases")  # one phrase per line
+    # TTS-DEFAULT-ENGINE-2400: an HA TTS engine id (`tts.piper`, a legacy provider `google_translate`) or "" (the system default); a
+    # language code (`he`, `en-US`, `zh_Hans`) or "" (automatic). WisKey's own bounds: engine 1..128, language <= 64.
+    access_tts_engine: str | None = Field(default=None, max_length=128, pattern=TTS_ENGINE_PATTERN, alias="access.tts_engine")
+    access_tts_language: str | None = Field(default=None, max_length=64, pattern=TTS_LANGUAGE_PATTERN, alias="access.tts_language")
     access_station_media: str | None = Field(default=None, pattern="^(off|video|video_talk)$", alias="access.station_media")  # CR-036 S18
     access_station_media_provider: str | None = Field(default=None, pattern="^(local|auto)$", alias="access.station_media_provider")  # REL2140 M-3
     access_station_media_max_talk_s: int | None = Field(default=None, ge=1, le=86400, alias="access.station_media_max_talk_s")  # W10CLIENT-295 / WKDIRECT-295

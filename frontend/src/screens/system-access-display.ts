@@ -32,13 +32,18 @@ import { slt } from '../i18n/wiskey-station-listen';
 import { settingsStyles } from '../styles/settings';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { pt } from '../i18n/access-parity';
+import { getIntercomTtsEngines, type IntercomTtsEngines } from '../api/intercom';
+import { TTS_ENGINE_KEY, TTS_LANGUAGE_KEY, languageName, parseTtsFixed, systemDefaultEngine } from '../api/tts-default';
+import { fill as tfill, ttt } from '../i18n/tts-default';
 
 type DisplayKey =
   | (typeof POLICY_KEYS)[keyof typeof POLICY_KEYS]
   | typeof STATION_MEDIA_KEY
   | typeof STATION_MEDIA_PROVIDER_KEY
   | typeof TALK_MAX_KEY
-  | typeof STATION_LISTEN_KEY;
+  | typeof STATION_LISTEN_KEY
+  | typeof TTS_ENGINE_KEY
+  | typeof TTS_LANGUAGE_KEY;
 const DEFAULTS: Record<DisplayKey, string> = {
   [POLICY_KEYS.callHint]: POLICY_DEFAULTS.callHint,
   [POLICY_KEYS.talk]: POLICY_DEFAULTS.talk,
@@ -48,7 +53,12 @@ const DEFAULTS: Record<DisplayKey, string> = {
   [STATION_MEDIA_PROVIDER_KEY]: 'local',
   [TALK_MAX_KEY]: String(TALK_MAX_DEFAULT_S),
   [STATION_LISTEN_KEY]: 'off',
+  [TTS_ENGINE_KEY]: '',
+  [TTS_LANGUAGE_KEY]: '',
 };
+
+/** TTS-DEFAULT-ENGINE-2400: where WisKey's engine list stands for the fixed-engine rows (read only by who may change them). */
+type EnginesState = 'idle' | 'loading' | 'ready' | 'unavailable';
 
 /**
  * CR-036 S12: "תצוגת מסך התחנות" - the stations screen's four display settings as real controls, in Settings › כללי › מתגי מסכי כניסה,
@@ -71,6 +81,12 @@ const DEFAULTS: Record<DisplayKey, string> = {
  * video and talk) while the media setting is not off - until now a `PATCH /settings`-only key. Under its label, one line says in plain
  * Hebrew what WisKey mode still needs (`GET access-control/station-media/readiness`, read only, system administrator): WisKey not
  * reachable, its discovery not listing the video / talk commands, no signed pairing. Saved and audited like the other rows.
+ *
+ * TTS-DEFAULT-ENGINE-2400 (owner 04.11, answer 1א): "מנוע הקראה קבוע" (`access.tts_engine`, '' = the system default, the behaviour before
+ * it) and "שפת ההקראה" (`access.tts_language`, '' = automatic: Hebrew when the engine has it) under the announcement rows - the
+ * preselection of every announcement dialog (api/tts-default.ts). The choices come from WisKey's engine list (`GET intercom/tts/engines`,
+ * read only by who may change the setting); a saved engine WisKey no longer lists stays selected and is named as not available - never
+ * replaced by another. Changing the engine keeps the language only when the new engine supports it. Saved and audited like the other rows.
  */
 @customElement('system-access-display')
 export class SystemAccessDisplay extends LitElement {
@@ -84,6 +100,9 @@ export class SystemAccessDisplay extends LitElement {
   /** WISKEY-TALK-DIAL-2382: what WisKey mode needs (null while unread), or that the check failed. */
   @state() private readiness: StationMediaReadiness | null = null;
   @state() private readinessFailed = false;
+  /** TTS-DEFAULT-ENGINE-2400: WisKey's engine list for the fixed-engine rows. */
+  @state() private engines: IntercomTtsEngines | null = null;
+  @state() private enginesState: EnginesState = 'idle';
   private gen = 0;
 
   static styles = [
@@ -129,6 +148,8 @@ export class SystemAccessDisplay extends LitElement {
       [STATION_MEDIA_PROVIDER_KEY]: parseProvider(settings as Record<string, unknown>),
       [TALK_MAX_KEY]: String(parseTalkMax(settings as Record<string, unknown>)),
       [STATION_LISTEN_KEY]: parseListenMode(settings as Record<string, unknown>),
+      [TTS_ENGINE_KEY]: parseTtsFixed(settings as Record<string, unknown>).engine,
+      [TTS_LANGUAGE_KEY]: parseTtsFixed(settings as Record<string, unknown>).language,
     } as Record<DisplayKey, string>;
   }
 
@@ -145,6 +166,7 @@ export class SystemAccessDisplay extends LitElement {
       this.saved = this.read(r.settings);
       this.canEdit = !!r.can_edit && can('system.configure');
       void this.loadReadiness();
+      if (this.canEdit && this.enginesState === 'idle') void this.loadEngines();
     } catch (err) {
       if (gen !== this.gen) return;
       this.failed = describeError(err);
@@ -161,6 +183,20 @@ export class SystemAccessDisplay extends LitElement {
       if (gen === this.gen) this.readiness = r;
     } catch {
       if (gen === this.gen) this.readinessFailed = true;
+    }
+  }
+
+  /** TTS-DEFAULT-ENGINE-2400: WisKey's engine list, once per visit of the card (a failure keeps the saved choice and says so). */
+  private async loadEngines(): Promise<void> {
+    const gen = this.gen;
+    this.enginesState = 'loading';
+    try {
+      const r = await getIntercomTtsEngines();
+      if (gen !== this.gen) return;
+      this.engines = r.tts ?? null;
+      this.enginesState = r.tts ? 'ready' : 'unavailable';
+    } catch {
+      if (gen === this.gen) this.enginesState = 'unavailable';
     }
   }
 
@@ -190,6 +226,55 @@ export class SystemAccessDisplay extends LitElement {
     else next[key] = value;
     this.draft = next;
     this.message = '';
+    // TTS-DEFAULT-ENGINE-2400: another engine keeps the fixed language only when it supports it (else: automatic)
+    if (key === TTS_ENGINE_KEY) {
+      const lang = this.value(TTS_LANGUAGE_KEY);
+      const langs = this.engineLanguages(value);
+      if (lang && langs.length && !langs.includes(lang)) this.set(TTS_LANGUAGE_KEY, '');
+    }
+  }
+
+  /** The languages of an engine of the list ('' = the system default engine); [] while the list is not known. */
+  private engineLanguages(engineId: string): string[] {
+    const id = engineId || systemDefaultEngine(this.engines);
+    return this.engines?.engines.find((e) => e.engine_id === id)?.supported_languages ?? [];
+  }
+
+  /** TTS-DEFAULT-ENGINE-2400: the fixed engine and language rows. */
+  private ttsRows() {
+    const t = ttt().setting;
+    const ro = !isApi() || !this.canEdit;
+    const engine = this.value(TTS_ENGINE_KEY);
+    const language = this.value(TTS_LANGUAGE_KEY);
+    const list = this.engines?.engines ?? [];
+    const known = this.enginesState === 'ready';
+    const missing = known && !!engine && !list.some((e) => e.engine_id === engine);
+    const def = list.find((e) => e.engine_id === systemDefaultEngine(this.engines));
+    const engineOptions: Array<[string, string]> = [
+      ['', t.systemDefault],
+      ...list.map((e): [string, string] => [e.engine_id, e.name]),
+    ];
+    if (engine && !list.some((e) => e.engine_id === engine)) engineOptions.push([engine, known ? tfill(t.missingOption, { engine }) : engine]);
+    const langs = this.engineLanguages(engine);
+    const languageOptions: Array<[string, string]> = [['', t.languageAuto], ...langs.map((l): [string, string] => [l, `${languageName(l)} · ${l}`])];
+    if (language && !langs.includes(language)) languageOptions.push([language, known && langs.length ? tfill(t.missingLanguageOption, { language }) : language]);
+    const hint = ro
+      ? html`<span class="muted">${t.engineText}</span>`
+      : missing
+        ? html`<span class="msg warn" role="status" data-tts-fixed-missing><sw-icon name="warning" size=${13}></sw-icon>${tfill(t.missing, { engine })}</span>`
+        : this.enginesState === 'unavailable'
+          ? html`<span class="muted" role="status" data-tts-fixed-list="unavailable">${t.listUnavailable}</span>`
+          : known && !list.length
+            ? html`<span class="muted" role="status" data-tts-fixed-list="empty">${t.noEngines}</span>`
+            : html`<span class="muted">${this.enginesState === 'loading' ? t.loading : t.engineText}</span>`;
+    // the 240 px control keeps the owner's short wording; which engine "the system default" is right now is said under the label
+    const now = !engine && def ? html`<span class="muted" data-tts-fixed-default-now>${tfill(t.systemDefaultNow, { name: def.name })}</span>` : nothing;
+    return html`<div class="row" data-access-display-tts-engine><span class="lbl">${t.engine}${hint}${now}</span>
+        ${this.select(TTS_ENGINE_KEY, engineOptions)}</div>
+      ${langs.length || language
+        ? html`<div class="row" data-access-display-tts-language><span class="lbl">${t.language}<span class="muted">${t.languageText}</span></span>
+            ${this.select(TTS_LANGUAGE_KEY, languageOptions)}</div>`
+        : nothing}`;
   }
 
   /** The draft as the server takes it: the talk limit as a number; null while it is not a whole number in the range. */
@@ -277,6 +362,7 @@ export class SystemAccessDisplay extends LitElement {
         : nothing}
       <div class="row"><span class="lbl">${pt('dispAnnounce')}<span class="muted">${pt('dispAnnounceText')}</span></span>
         ${this.select(POLICY_KEYS.announceScope, [['scope', pt('dispAnnounceScope')], ['station', pt('dispAnnounceStation')]])}</div>
+      ${this.ttsRows()}
       <div class="row stack"><span class="lbl">${pt('dispPhrases')}<span class="muted">${pt('dispPhrasesText', { n: MAX_PHRASES, len: MAX_PHRASE_LENGTH })}</span></span>
         <sw-field hint=${[preview.builtIn ? pt('dispPhrasesBuiltIn') : pt('dispPhrasesCount', { n: preview.shown }), preview.dropped ? pt('dispPhrasesDropped', { n: preview.dropped }) : ''].filter(Boolean).join(' · ')}>
           <textarea data-set-access-display=${POLICY_KEYS.phrases} aria-label=${pt('dispPhrases')} maxlength=${PHRASES_STORED_MAX} rows="5" ?disabled=${ro || this.busy} .value=${phrases} @input=${(e: Event) => this.set(POLICY_KEYS.phrases, (e.target as HTMLTextAreaElement).value)}></textarea>

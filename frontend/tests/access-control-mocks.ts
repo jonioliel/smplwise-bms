@@ -262,6 +262,14 @@ export async function installAccessMock(page: Page, opts: MockOptions = {}): Pro
     }
     if (p === 'identity/users') return json(route, { users: [], directory: { paired: false, last_directory_at: null, users: 0 }, revision: 1, can_assign: false, members: [], bindings: [] });
     if (p === 'access/groups') return json(route, { groups: [], can_manage: false, delegated: false });
+    // TTS-DEFAULT-ENGINE-2400: the engine list the display card's "מנוע הקראה קבוע" chooses from (WisKey's tts/engines reply shape)
+    if (p === 'intercom/tts/engines') {
+      if (!holds('access.call') && !holds('system.configure')) return refuse(route, 'access.call');
+      return json(route, {
+        state: 'ready', configured: true, last_error: null, fetched_at: NOW.toISOString(), sync: null,
+        tts: { default: 'tts.local', engines: [{ engine_id: 'tts.local', name: 'מנוע מקומי', supported_languages: ['he', 'en'], default_language: 'he' }, { engine_id: 'tts.cloud', name: 'שירות ענן', supported_languages: ['en'], default_language: 'en' }] },
+      });
+    }
 
     if (!p.startsWith('access-control/')) {
       st.unhandled.push(`${method} ${p}`);
