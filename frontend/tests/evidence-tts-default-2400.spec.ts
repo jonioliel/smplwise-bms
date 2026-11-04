@@ -174,7 +174,7 @@ test.describe('the announcement dialogs', () => {
     const speak = page.locator('wiskey-overview [data-wiskey-speak]').first();
     await expect(speak).toBeVisible({ timeout: 30_000 });
     await speak.click();
-    const dialog = page.locator('wiskey-overview sw-dialog[data-wiskey-tts-dialog] [role="dialog"]');
+    const dialog = page.locator('wiskey-overview sw-dialog[data-wiskey-tts-dialog]');
     await expect(dialog.locator('select[data-wiskey-tts-engine]')).toHaveValue('tts.cloud', { timeout: 15_000 });
     await expect(dialog.locator('select[data-wiskey-tts-language]')).toHaveValue('en');
     await shot(page, info, 'overview-fixed', 'wiskey-overview sw-dialog[data-wiskey-tts-dialog] [role="dialog"]');
