@@ -143,11 +143,44 @@ Routes: `PUT /api/v1/wiskey/managed/keep-runs` is new; `contracts/API_INVENTORY.
 
 ## Tests
 
-TESTS_PLACEHOLDER
+| Run | Where | Tree | Outcome |
+|---|---|---|---|
+| `pytest tests/test_wiskey_install_answers_2400.py tests/test_wiskey_managed_install_2382.py` (before the owner's number 5 arrived; default 3) | workstation, `.venv` Python 3.12 | working tree | 105 passed |
+| `pytest tests/test_wiskey_install_answers_2400.py tests/test_wiskey_managed_install_2382.py tests/test_wiskey_m12_policy_b_native_gate.py tests/test_wiskey_m12_policy_b_owner_switch.py tests/test_wiskey_r3_2272_owner_switch.py tests/test_mac_managed_auto_policy.py` (default 5) | workstation, `.venv` Python 3.12 | = `b20e4ced7` | 187 passed, 3 skipped |
+| `npx playwright test -c playwright.unit.config.ts` unit-wiskey-managed, unit-settings-index, unit-small-ui-bugs-2343, unit-intercom-ops, unit-settings-nav-295, unit-wiskey-installer, unit-empty-state-icons, unit-token-lint (explicit files only) | workstation, Node only | = `b20e4ced7` | 57 passed |
+| `npx tsc --noEmit` | workstation | = `b20e4ced7` | exit 0 |
+| `scripts/release_check.py` | workstation | = `b20e4ced7` | "ready for the owner's approval" (version 2.38.1 everywhere - the train is not bumped) |
+
+The three skips are existing skips of the policy-B files (unchanged).
 
 ## NOT_RUN / open points
 
-NOTRUN_PLACEHOLDER
+NOT_RUN (BLOCKED on the runner): at 07:01 UTC the runner was running a release gate (`release/2382-train`, tier L, Playwright pool,
+load ~35), so by the rule "runner only when no gate runs" no job was sent; two later status reads over SSH did not answer within 120 s
+and 400 s. Therefore:
+
+- `layout-settings-nav-fit-402` and `layout-settings-nav-295` (desktop): the height proof of Q2 is the CSS calculation above, not a
+  measurement. **Must run on the runner before this branch boards the train.**
+- Pixel baselines: the new group header changes the settings column on every DESKTOP page screenshot that shows it (tablet and phone
+  hide the column). Expected to change: `visual-matrix` `settings-*-desktop`, and the page screenshots of `evidence-wiskey-installer`,
+  `pixel-access-status`, `pixel-access-s12`, `pixel-wiskey-messaging` and any other settings-page `toHaveScreenshot(page)` at 1440. Not
+  re-taken (owner rule: a UI branch refreshes its baselines on the runner before joining a train) - suggested job:
+  `run_smart.py spec pilot/WISKEY-INSTALL-ANSWERS-2400 <those specs> --project=desktop` first without `-u`, review the diffs (column
+  only), then `-u` for the failing ones.
+- `evidence-wiskey-managed-2382` (runner-only browser spec of the managed card): not run; its mocked view has no `startup` /
+  `keep_runs`, which the card tolerates (rows hidden).
+- The full backend and frontend suites, the UI build (`build:addon`), `contracts/API_INVENTORY.md` regeneration (one new route).
+- Any lab / Supervisor / Home Assistant run.
+
+Open points for the owner / lead:
+
+1. The start-up path is inert in practice until WisKey ships the Core image verifier (W1): every start-up attempt ends
+   `aborted` / `core_gate_unverified` before anything is stopped (one run record and one audit row per add-on start while the switch is on).
+2. Should a start-up run ever accept the accepted-risk switch? Built: never (recommendation: keep it so - an unattended run should not
+   accept an unverified environment).
+3. The column row is labelled "התקנה ותחזוקה" (the group gives the context; the full name "התקנה ותחזוקת מערכת האינטרקום" is long for
+   the 236 px column and stays a search word).
+4. Arabic / Russian: the new keys and the reworded `lead` / `unattended` fall back to English until a native review.
 
 ## Migration and rollback
 
