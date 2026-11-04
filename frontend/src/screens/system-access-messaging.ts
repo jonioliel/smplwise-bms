@@ -5,6 +5,7 @@ import '../components/sw-card';
 import '../components/sw-field';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
+import './wa-installed-card'; // WISKEY-WA-QUEUE-2400: WisKey template registry, send queue and paced send opt-in
 import { describeError } from '../api/client';
 import {
   getMessagingSettings,
@@ -695,6 +696,8 @@ export class SystemAccessMessaging extends LitElement {
         <sw-button data-msg-revert ?disabled=${!dirty || this.saving} @click=${() => this.revert()}>${mt('revert')}</sw-button>
         <sw-button variant="primary" data-msg-save ?disabled=${!dirty || this.saving} @click=${() => void this.save()}>${this.saving ? mt('saving') : mt('save')}</sw-button>
       </div>
+
+      <wa-installed-card></wa-installed-card>
     </div>`;
   }
 }

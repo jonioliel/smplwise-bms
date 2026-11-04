@@ -44,6 +44,7 @@ from ..services import intercom_adapter, intercom_sync
 from ..services import intercom_authority as ia
 from ..services import intercom_consent as C
 from ..services import intercom_messaging as M
+from ..services import wiskey_wa_queue
 from ..services.intercom_messaging_adapter import MESSAGING, SendResult
 
 router = APIRouter()
@@ -413,7 +414,8 @@ def _consent_path(act: _Act, cfg: dict[str, Any], body: "SendBody", template: di
     link = ""
     details["chars"] = len(text)
     result = MESSAGING.send(act.settings, act.principal.user_id, act.person_id, account, text,
-                            wa_template=C.wa_template(cfg) if cfg["consent_wa_template"] else None)
+                            wa_template=C.wa_template(cfg) if cfg["consent_wa_template"] else None,
+                            paced_v1=wiskey_wa_queue.send_pacing_wanted(act.auth.conn))
     text = ""  # neither the text nor the link is kept anywhere past the send
     M.finish_attempt(act.db, principal=act.principal, message_id=message_id, person_id=act.person_id, outcome=result.outcome, reason=result.code or None, request_id=act.rid,
                      audit_details={**details, **({"wiskey_code": result.wiskey_code} if result.wiskey_code else {})})
@@ -500,7 +502,7 @@ def send_message(request: Request, auth: ia.Authority = Depends(_gate), raw: byt
         )
     except ApiError as exc:
         raise act.refuse(exc) from None
-    result = MESSAGING.send(act.settings, act.principal.user_id, person_id, account, text)
+    result = MESSAGING.send(act.settings, act.principal.user_id, person_id, account, text, paced_v1=wiskey_wa_queue.send_pacing_wanted(act.auth.conn))
     text = ""  # the text is not kept anywhere past the send
     M.finish_attempt(act.db, principal=act.principal, message_id=message_id, person_id=person_id, outcome=result.outcome, reason=result.code or None, request_id=act.rid,
                      audit_details={**act.details, **({"wiskey_code": result.wiskey_code} if result.wiskey_code else {})})

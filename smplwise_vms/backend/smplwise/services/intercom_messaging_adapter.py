@@ -189,6 +189,68 @@ async def _preview_and_send(call: intercom_client.Call, account: str, user_id: s
     return _accepted(frame)
 
 
+# ---------------------------------------------------------------- WISKEY-WA-QUEUE-2400: the versioned paced send (opt-in)
+
+PACED_COMMAND = "whatsapp/send_pacing_v1"
+PACED_CHANNEL = "messaging_paced"  # wiskey_channels.MESSAGING_PACED: `whatsapp/preview` + `whatsapp/send_pacing_v1`
+PACED_SCHEMA = "whatsapp_send_outcome_v1"
+PACED_KEYS = frozenset({"schema_version", "accepted", "error"})
+PACED_ERROR_KEYS = frozenset({"code", "send_state", "throttle_scope", "retry_after_s", "retry_after_source", "cause"})
+PACED_RETRY_MAX_S = 86_400
+
+
+def paced_listed(settings: Settings) -> bool:
+    """WisKey's discovery (`api.commands`) lists the versioned paced send next to the preview, under a compatible contract."""
+    api = intercom_sync.SYNC.api_facts(settings)
+    if api is None:
+        return False
+    min_client = api.get("min_client")
+    if isinstance(min_client, int) and not isinstance(min_client, bool) and min_client > API_CONTRACT:
+        return False
+    commands = api.get("commands")
+    return isinstance(commands, (list, tuple, set, frozenset)) and PACED_COMMAND in commands and "whatsapp/preview" in commands
+
+
+def _paced_answer(frame: Any, trace: dict[str, Any]) -> dict[str, Any]:
+    """`whatsapp/send_pacing_v1`'s closed `whatsapp_send_outcome_v1`. `accepted: true` is the only `sent`. An error whose `send_state`
+    is `not_sent` is a proven pre-effect refusal (IntercomError with WisKey's code; its ledger delay goes to `trace`); `unknown` -
+    which rc.10 answers for EVERY dispatched message, because the Home Assistant service completing is not provider acceptance - and
+    anything malformed is UnclearAnswer (unknown, never retried). An error frame is read as `whatsapp/send`'s."""
+    if isinstance(frame, dict) and frame.get("success") is True:
+        result = frame.get("result")
+        if not (isinstance(result, dict) and set(result) == PACED_KEYS and result["schema_version"] == PACED_SCHEMA):
+            raise UnclearAnswer(PACED_COMMAND, "invalid_response")
+        error = result["error"]
+        if result["accepted"] is True and error is None:
+            return {"accepted": True}
+        if result["accepted"] is not False or not isinstance(error, dict) or set(error) != PACED_ERROR_KEYS or not isinstance(error["code"], str):
+            raise UnclearAnswer(PACED_COMMAND, "invalid_response")
+        code = error["code"][:64]
+        if error["send_state"] == "not_sent":
+            delay = error["retry_after_s"]
+            trace["retry_after_s"] = delay if type(delay) is int and 0 <= delay <= PACED_RETRY_MAX_S else None
+            trace["cause"] = error["cause"] if isinstance(error["cause"], str) else None
+            raise IntercomError(code, PACED_COMMAND)
+        raise UnclearAnswer(PACED_COMMAND, code)
+    if isinstance(frame, dict) and frame.get("success") is False:
+        code = _code(frame)
+        if code in SEND_REFUSED:
+            raise IntercomError(code, PACED_COMMAND)
+        raise UnclearAnswer(PACED_COMMAND, code)
+    raise UnclearAnswer(PACED_COMMAND, "invalid_response")
+
+
+async def _preview_and_send_paced(call: intercom_client.Call, account: str, user_id: str, text: str, trace: dict[str, Any]) -> dict[str, Any]:
+    """`_preview_and_send` with the versioned send: the same token discipline (nothing of the preview but its token is read)."""
+    trace["phase"] = "preview"
+    preview = await call(f"{DOMAIN}/whatsapp/preview", user_id=user_id, account=account, language=LANGUAGE, api_contract=API_CONTRACT)
+    token = _token_of(preview)
+    del preview
+    trace["phase"] = "send"
+    frame = await call(f"{DOMAIN}/{PACED_COMMAND}", user_id=user_id, account=account, token=token, message=text, confirmed=True, api_contract=API_CONTRACT)
+    return _paced_answer(frame, trace)
+
+
 # ---------------------------------------------------------------- what an answer means
 
 # the burst refusals: WisKey's AdminLimiter / Arx's own message lane bucket - wait a moment and it passes
@@ -342,7 +404,8 @@ class MessagingAdapter:
         {person, wiskey_consent}}`. A person WisKey does not know is ApiError 404 `intercom_person_not_found` (from the feed)."""
         return intercom_sync.SYNC.command(settings, "recipient", lambda call: intercom_adapter.users_get(call, person_id), project_recipient, who=who, channel="read")
 
-    def send(self, settings: Settings, who: str, person_id: str, account: str, text: str, *, wa_template: dict[str, Any] | None = None) -> SendResult:
+    def send(self, settings: Settings, who: str, person_id: str, account: str, text: str, *, wa_template: dict[str, Any] | None = None,
+             paced_v1: bool = False) -> SendResult:
         """Hand ONE text to WisKey for ONE person. Never retried, never queued; the text is passed on and not kept.
 
         `wa_template` (WA-CONSENT-LINK): the WhatsApp Business template a FIRST contact outside the 24-hour window must use - `{name,
@@ -350,12 +413,18 @@ class MessagingAdapter:
         FORWARDED: rc.37's `whatsapp/send` takes a text only (ask W11: a template send). Until WisKey has one, the text goes out as today and
         WhatsApp itself decides whether a business-initiated text reaches a person outside the window (TEMPLATE_SEND_SUPPORTED)."""
         del wa_template  # rc.37: no template send (see TEMPLATE_SEND_SUPPORTED)
-        trace = {"phase": "preview"}
+        trace: dict[str, Any] = {"phase": "preview"}
+        # WISKEY-WA-QUEUE-2400: the administrator's opt-in AND WisKey's discovery select the versioned paced send; otherwise as before
+        paced = paced_v1 is True and paced_listed(settings)
+        exchange = _preview_and_send_paced if paced else _preview_and_send
         reply, outcome = intercom_sync.SYNC.message_send(
-            settings, "message", lambda call: _preview_and_send(call, account, person_id, text, trace), lambda _raw: {"accepted": True}, who,
-            not_after=utc() + timedelta(seconds=SEND_WITHIN_S),
+            settings, "message", lambda call: exchange(call, account, person_id, text, trace), lambda _raw: {"accepted": True}, who,
+            not_after=utc() + timedelta(seconds=SEND_WITHIN_S), channel=PACED_CHANNEL if paced else "messaging",
         )
         result = classify(reply, outcome, trace["phase"])
+        if paced and result.outcome == "not_sent" and result.code == "rate_limited" and "retry_after_s" in trace:
+            # WisKey's own ledger said when; its delay replaces the generic burst wait (None = WisKey gave none: no promise)
+            result = SendResult(result.outcome, result.code, result.wiskey_code, trace["retry_after_s"], "account")
         if result.code == "service_unavailable":
             self.forget()  # the next dialog asks again
         return result

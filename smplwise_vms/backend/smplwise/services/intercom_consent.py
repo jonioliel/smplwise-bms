@@ -514,7 +514,9 @@ def _release_one(db: Database, settings: Any, row: dict[str, Any], ApiError: Any
         if exc.code == "message_duplicate":
             return "released", "duplicate", None  # an earlier pass recorded it (a crash between the two rows): never sent twice
         return "retry", exc.code, None
-    result = MESSAGING.send(settings, principal.user_id, row["person_id"], account, text)
+    from .wiskey_wa_queue import send_pacing_wanted
+
+    result = MESSAGING.send(settings, principal.user_id, row["person_id"], account, text, paced_v1=send_pacing_wanted(db))
     text = ""
     M.finish_attempt(db, principal=principal, message_id=message_id, person_id=row["person_id"], outcome=result.outcome, reason=result.code or None, request_id=None,
                      audit_details={**audit_details, **({"wiskey_code": result.wiskey_code} if result.wiskey_code else {})})
