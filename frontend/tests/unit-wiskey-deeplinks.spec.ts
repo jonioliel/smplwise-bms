@@ -199,7 +199,7 @@ test.describe('WISKEY-OPS-VIEWS-2400: the operations views replace five panel li
     const views: Record<string, string> = { 'operations.center': 'operations', 'operations.investigations': 'investigations', 'events.report': 'events', 'health.fleet': 'capacity', 'audit.panel': 'exports' };
     expect(Object.keys(views).sort()).toEqual([...OPS_NATIVE_IDS].sort());
     for (const [id, view] of Object.entries(views)) {
-      expect(DEEP_LINKS[id].native, id).toEqual({ href: `#/system/intercom-operations/${view}`, need: ['access.read'] });
+      expect(DEEP_LINKS[id].native, id).toEqual({ href: `#/system/intercom-operations/${view}`, need: ['access.read'], installation: true });
       expect(linkFor(id), id).toBe(`#/system/intercom-operations/${view}`);
       expect(route(deepLinkHref(id)).kind, id).toBe('embed'); // the panel address is still known (deepLinkHref)
     }
@@ -207,5 +207,8 @@ test.describe('WISKEY-OPS-VIEWS-2400: the operations views replace five panel li
     const audit = deepLinksFor('settings-audit', { panel: false, admin: false, can: holds });
     expect(audit.map((l) => `${l.id}:${l.kind}`)).toEqual(['audit.panel:native', 'events.report:native']);
     expect(deepLinksFor('settings-audit', { panel: true, admin: true, can: () => false })).toEqual([]);
+    // access.read held only on some station scope: the native views (installation-wide) are not offered
+    expect(deepLinksFor('settings-audit', { panel: false, admin: false, can: holds, canInstallation: () => false })).toEqual([]);
+    expect(deepLinksFor('settings-audit', { panel: false, admin: false, can: holds, canInstallation: holds }).map((l) => l.id)).toEqual(['audit.panel', 'events.report']);
   });
 });

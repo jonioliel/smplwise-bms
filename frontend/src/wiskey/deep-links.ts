@@ -50,6 +50,8 @@ export type DeepPlace =
 export interface NativeRoute {
   readonly href: string;
   readonly need?: readonly string[];
+  /** WISKEY-OPS-VIEWS-2400: `need` counts only when held at the installation (the screen's server checks it there). */
+  readonly installation?: boolean;
 }
 
 export interface DeepLinkEntry {
@@ -106,7 +108,7 @@ const tab = (t: string): DeepTarget => Object.freeze({ tab: t, tool: null });
 /** WISKEY-OPS-VIEWS-2400 (plan T11): the native views of Settings › תפעול האינטרקום (screens/system-intercom-ops.ts) - `access.read`, which the
  * server checks at installation scope (routers/access_control_ops.py). The panel link stays in the entry as `target` (deepLinkHref). */
 export const OPS_NATIVE_HREF = '#/system/intercom-operations';
-const OPS_NATIVE = (view: string): NativeRoute => Object.freeze({ href: `${OPS_NATIVE_HREF}/${view}`, need: ['access.read'] });
+const OPS_NATIVE = (view: string): NativeRoute => Object.freeze({ href: `${OPS_NATIVE_HREF}/${view}`, need: ['access.read'], installation: true });
 const tool = (t: string): DeepTarget => Object.freeze({ tab: 'tools', tool: t });
 
 /**
@@ -214,6 +216,8 @@ export interface DeepLinkViewer {
   readonly catalog?: CatalogLike | null;
   /** A permission at any scope (a native screen's `need`); absent = a native link is offered without a permission check here. */
   readonly can?: (permission: string) => boolean;
+  /** A permission at the installation (a native screen whose `need` is installation-only); absent = `can` decides. */
+  readonly canInstallation?: (permission: string) => boolean;
 }
 
 /** The rule of the WisKey area's navigation (shell/nav.ts `tabAllowed` + `ui.hide_wiskey`), as one boolean. */
@@ -242,7 +246,8 @@ export function deepLinksFor(place: string, viewer: DeepLinkViewer, table: Reado
     if (!e) continue;
     let link: DeepLink;
     if (e.native) {
-      if (e.native.need?.length && viewer.can && !e.native.need.some((p) => viewer.can!(p))) continue;
+      const check = e.native.installation && viewer.canInstallation ? viewer.canInstallation : viewer.can;
+      if (e.native.need?.length && check && !e.native.need.some((p) => check(p))) continue;
       link = { id, label: e.label, href: e.native.href, kind: 'native', target: e.target, bridge: e.bridge };
     } else {
       if (!viewer.panel || (e.panelAdmin && !viewer.admin) || !inCatalog(e.target, viewer.catalog)) continue;

@@ -21,6 +21,9 @@ import {
   trendPoints,
 } from '../src/screens/intercom-ops-logic';
 import type { JobRow } from '../src/api/intercom-ops';
+import { SETTINGS_GROUPS, navTree, searchSettings } from '../src/screens/system-index';
+import { AREA_TABS, INTERCOM_OPS_HREF, TAB_PERMISSIONS, INSTALLATION_ONLY_HREFS } from '../src/shell/nav';
+import { DEEP_LINKS } from '../src/wiskey/deep-links';
 
 // WISKEY-OPS-VIEWS-2400 (integration plan T11): the pure part of Settings › תפעול האינטרקום - tabs, words, tones and chart geometry.
 //   npx playwright test -c playwright.unit.config.ts tests/unit-intercom-ops.spec.ts
@@ -152,5 +155,34 @@ test.describe('chart geometry', () => {
   test('day labels are short and need no time-zone math', () => {
     expect(dayLabel('2026-11-03')).toBe('3.11');
     expect(dayLabel('nope')).toBe('nope');
+  });
+});
+
+test.describe('where the area is reached', () => {
+  test('the settings tab row, access.read at installation scope only', () => {
+    expect(INTERCOM_OPS_HREF).toBe('#/system/intercom-operations');
+    expect(AREA_TABS.system.some((t) => t.id === 'intercom-operations' && t.href === INTERCOM_OPS_HREF)).toBe(true);
+    expect(TAB_PERMISSIONS[INTERCOM_OPS_HREF]).toEqual(['access.read']);
+    expect(INSTALLATION_ONLY_HREFS.has(INTERCOM_OPS_HREF)).toBe(true);
+  });
+
+  test('the settings index: found by search, but no new row in the column (it must not scroll - owner decision 402)', () => {
+    const group = SETTINGS_GROUPS.find((g) => g.entries.some((e) => e.href === INTERCOM_OPS_HREF))!;
+    const entries = group.entries.filter((e) => e.tab === 'intercom-operations');
+    expect(entries.length).toBe(6);
+    expect(entries.every((e) => e.sub)).toBe(true);
+    const access = group.entries.find((e) => e.tab === 'access-control' && !e.sub)!;
+    expect(access.ownTabs).toBe(true);
+    expect(navTree(group, null).some((e) => e.tab === 'intercom-operations')).toBe(false);
+    expect(navTree(group, entries[0]).some((e) => e.tab === 'intercom-operations')).toBe(false);
+    expect(searchSettings(SETTINGS_GROUPS, 'תפעול האינטרקום').some((h) => h.entry.href === INTERCOM_OPS_HREF)).toBe(true);
+  });
+
+  test('every native deep link points at a tab of this screen', () => {
+    for (const e of Object.values(DEEP_LINKS)) {
+      if (!e.native) continue;
+      const view = e.native.href.replace(`${INTERCOM_OPS_HREF}/`, '');
+      expect(OPS_TABS as readonly string[]).toContain(view);
+    }
   });
 });

@@ -169,9 +169,8 @@ test.describe('the intercom operations views', () => {
     await open(page, newOpsMock({ fail: new Set(['summary']) }), '/system/intercom-operations', `${ROOT} [data-part-state="error"]`);
   });
 
-  test('the settings column offers the area; a replaced deep link lands on its tab', async ({ page }, info) => {
+  test('a replaced deep link lands on its tab; the tabs switch views', async ({ page }) => {
     await open(page, newOpsMock(), '/system/intercom-operations/events', `${ROOT} [data-ops-tab="events"][aria-current="page"]`);
-    if (info.project.name === 'desktop') await expect(page.locator('sw-app system-nav a[href="#/system/intercom-operations"]').first()).toBeVisible();
     await page.locator(`${ROOT} [data-ops-tab="capacity"]`).click();
     await expect(page.locator(`${ROOT} [data-ops-tab="capacity"]`)).toHaveAttribute('aria-current', 'page');
     await expect(page.locator(`${ROOT} [data-capacity]`)).toBeVisible();
