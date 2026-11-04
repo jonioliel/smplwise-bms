@@ -19289,7 +19289,7 @@
     "test_ids": [
       "AT-BRIDGE-UPDATE-LISTENER-2401-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -19303,7 +19303,8 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit 61d8f1794 (release/2401-train, not on origin/main, not released) - 2026-11-04 (GUIDE-BOARD-2402): in the 2.40.1 gate. merge of fix/BRIDGE-UPDATE-LISTENER-2401 (docs/changes/BRIDGE-UPDATE-LISTENER-2401.md); found by the lab log audit (finding 4)."
+      "commit 61d8f1794 (release/2401-train, not on origin/main, not released) - 2026-11-04 (GUIDE-BOARD-2402): in the 2.40.1 gate. merge of fix/BRIDGE-UPDATE-LISTENER-2401 (docs/changes/BRIDGE-UPDATE-LISTENER-2401.md); found by the lab log audit (finding 4).",
+      "2026-11-05: released in v2.40.1 - merged to main and tagged v2.40.1 (0e8c3109b); REVIEW."
     ],
     "owner": null,
     "commit": null,
@@ -19328,7 +19329,7 @@
     "test_ids": [
       "AT-WALL-PHONE-TOOLBAR-2401-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -19342,7 +19343,8 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit 4d4fdeb7d (release/2401-train, not on origin/main, not released) - 2026-11-04 (GUIDE-BOARD-2402): in the 2.40.1 gate. merge of pilot/WALL-PHONE-TOOLBAR-2401 (docs/changes/WALL-PHONE-TOOLBAR-2401.md). Real phone NOT_RUN."
+      "commit 4d4fdeb7d (release/2401-train, not on origin/main, not released) - 2026-11-04 (GUIDE-BOARD-2402): in the 2.40.1 gate. merge of pilot/WALL-PHONE-TOOLBAR-2401 (docs/changes/WALL-PHONE-TOOLBAR-2401.md). Real phone NOT_RUN.",
+      "2026-11-05: released in v2.40.1 - merged to main and tagged v2.40.1 (0e8c3109b); REVIEW."
     ],
     "owner": null,
     "commit": null,
@@ -19367,7 +19369,7 @@
     "test_ids": [
       "AT-SETTINGS-INTERCOM-CARDS-2401-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -19381,7 +19383,8 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit b8afa129a (release/2401-train, not on origin/main, not released) - 2026-11-04 (GUIDE-BOARD-2402): in the 2.40.1 gate. merge of pilot/SETTINGS-INTERCOM-CARDS-2401 (docs/changes/SETTINGS-INTERCOM-CARDS-2401.md). Other skins and dark NOT_RUN."
+      "commit b8afa129a (release/2401-train, not on origin/main, not released) - 2026-11-04 (GUIDE-BOARD-2402): in the 2.40.1 gate. merge of pilot/SETTINGS-INTERCOM-CARDS-2401 (docs/changes/SETTINGS-INTERCOM-CARDS-2401.md). Other skins and dark NOT_RUN.",
+      "2026-11-05: released in v2.40.1 - merged to main and tagged v2.40.1 (0e8c3109b); REVIEW."
     ],
     "owner": null,
     "commit": null,
@@ -19406,7 +19409,7 @@
     "test_ids": [
       "AT-RELEASE-2401-TRAIN-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -19419,7 +19422,8 @@
       "Version commit, runner gate record, tag v2.40.1"
     ],
     "evidence": [
-      "commit 604305354 (release/2401-train, not on origin/main, not released) - 2026-11-04 (GUIDE-BOARD-2402): in the gate. version commit 604305354, UI rebuild d6e20460f (docs/changes/RELEASE-2401-TRAIN.md on the train); gate, merge to main and tag v2.40.1 pending."
+      "commit 604305354 (release/2401-train, not on origin/main, not released) - 2026-11-04 (GUIDE-BOARD-2402): in the gate. version commit 604305354, UI rebuild d6e20460f (docs/changes/RELEASE-2401-TRAIN.md on the train); gate, merge to main and tag v2.40.1 pending.",
+      "2026-11-05: released in v2.40.1 - merged to main and tagged v2.40.1 (0e8c3109b); REVIEW."
     ],
     "owner": null,
     "commit": null,
@@ -19656,6 +19660,123 @@
     ],
     "evidence": [
       "commit a8c0de013 (docs/GUIDE-BOARD-2402, not on origin/main, not released) - 2026-11-04 (GUIDE-BOARD-2402): guide pages 00, 10, 15 (new), 30, 50, 80, 84 and GUIDE_ALL_HE.html rebuilt; this registry update on the same branch."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "GATE-HYGIENE-2402",
+    "title": "Gate hygiene: whole-package scanners always run, a Windows-only demo check, the bridge-install state reset between tests",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Every backend test that scans the whole package, the router registry or the repository is listed in gate_always_run.json and selected by every gate selection; test_readiness_96 passes on Windows without hiding a leaked handle; bridge_install.STATE never leaks from one test into another (bridge_install and self_update pass in both orders)."
+    ],
+    "requirement_ids": [
+      "R-GATE-HYGIENE-2402-1"
+    ],
+    "test_ids": [
+      "AT-GATE-HYGIENE-2402-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests on an isolated branch",
+      "Change record and known limits"
+    ],
+    "evidence": [
+      "commit 0ff7dac9b (release/2402-train, not on origin/main, not released) - 2026-11-05: merge of chore/GATE-HYGIENE-2402 (docs/changes/GATE-HYGIENE-2402.md) into the 2.40.2 train. The runner install of select_tests.py is the lead's step."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "VIDEO-SUB-FALLBACK-2402",
+    "title": "Live video, automatic quality: a sub stream that gives nothing moves to the main stream on the same transport",
+    "epic": "LIVE",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "frontend",
+    "requires_hardware": false,
+    "acceptance": [
+      "With the automatic quality, a sub stream that gives no media, is refused or never connects moves to the main stream on the same transport (never another transport), shows the tag \"עבר לזרם הראשי\", is remembered per camera for 10 minutes and is audited as profile_fallback; an explicit quality never switches and names the missing stream."
+    ],
+    "requirement_ids": [
+      "R-VIDEO-SUB-FALLBACK-2402-1"
+    ],
+    "test_ids": [
+      "AT-VIDEO-SUB-FALLBACK-2402-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests on an isolated branch",
+      "Change record and known limits"
+    ],
+    "evidence": [
+      "commit cb4b47767 (release/2402-train, not on origin/main, not released) - 2026-11-05: merge of pilot/VIDEO-SUB-FALLBACK-2402 (docs/changes/VIDEO-SUB-FALLBACK-2402.md) into the 2.40.2 train. Lab check (cameras 8 and 10) NOT_RUN."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "SETTINGS-CARDS-ACCORDION-2402",
+    "title": "Intercom settings cards: \"cards opening in place\" as a fourth layout",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "frontend",
+    "requires_hardware": false,
+    "acceptance": [
+      "access.settings_layout accepts accordion besides cards, tabs and list (system.configure, audited, a corrupt value reads as cards); in accordion each card opens under its own header, one at a time, the page may scroll vertically but never sideways; the default (cards) keeps its 2.40.1 fit."
+    ],
+    "requirement_ids": [
+      "R-SETTINGS-CARDS-ACCORDION-2402-1"
+    ],
+    "test_ids": [
+      "AT-SETTINGS-CARDS-ACCORDION-2402-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests on an isolated branch",
+      "Change record and known limits"
+    ],
+    "evidence": [
+      "commit 406bdeeb4 (release/2402-train, not on origin/main, not released) - 2026-11-05: merge of pilot/SETTINGS-CARDS-ACCORDION-2402 (docs/changes/SETTINGS-CARDS-ACCORDION-2402.md) into the 2.40.2 train."
     ],
     "owner": null,
     "commit": null,

@@ -14951,5 +14951,80 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-GATE-HYGIENE-2402-1",
+    "requirement_ids": [
+      "R-GATE-HYGIENE-2402-1"
+    ],
+    "task_ids": [
+      "GATE-HYGIENE-2402"
+    ],
+    "title": "Gate hygiene: whole-package scanners always run, a Windows-only demo check, the bridge-install state reset between tests",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Every backend test that scans the whole package, the router registry or the repository is listed in gate_always_run.json and selected by every gate selection; test_readiness_96 passes on Windows without hiding a leaked handle; bridge_install.STATE never leaks from one test into another (bridge_install and self_update pass in both orders).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-05 (RELEASE-2402-TRAIN); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-VIDEO-SUB-FALLBACK-2402-1",
+    "requirement_ids": [
+      "R-VIDEO-SUB-FALLBACK-2402-1"
+    ],
+    "task_ids": [
+      "VIDEO-SUB-FALLBACK-2402"
+    ],
+    "title": "Live video, automatic quality: a sub stream that gives nothing moves to the main stream on the same transport",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "With the automatic quality, a sub stream that gives no media, is refused or never connects moves to the main stream on the same transport (never another transport), shows the tag \"עבר לזרם הראשי\", is remembered per camera for 10 minutes and is audited as profile_fallback; an explicit quality never switches and names the missing stream.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-05 (RELEASE-2402-TRAIN); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-SETTINGS-CARDS-ACCORDION-2402-1",
+    "requirement_ids": [
+      "R-SETTINGS-CARDS-ACCORDION-2402-1"
+    ],
+    "task_ids": [
+      "SETTINGS-CARDS-ACCORDION-2402"
+    ],
+    "title": "Intercom settings cards: \"cards opening in place\" as a fourth layout",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "access.settings_layout accepts accordion besides cards, tabs and list (system.configure, audited, a corrupt value reads as cards); in accordion each card opens under its own header, one at a time, the page may scroll vertically but never sideways; the default (cards) keeps its 2.40.1 fit.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-05 (RELEASE-2402-TRAIN); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-04T20:52:10.071187+00:00
+Generated: 2026-11-04T22:14:28.683089+00:00
 
-Tasks: 444 | Requirements: 553 | Tests: 570 | Screens: 32
+Tasks: 447 | Requirements: 556 | Tests: 573 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -10,14 +10,14 @@ No VMS implementation or hardware test is implied by this planning registry.
 - BACKLOG: 137
 - BLOCKED: 18
 - DONE: 40
-- IN_PROGRESS: 8
-- REVIEW: 241
+- IN_PROGRESS: 7
+- REVIEW: 245
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 350
+- V1: 353
 - V2: 29
 - V3: 2
 
@@ -478,13 +478,16 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [WISKEY-OPS-ANSWERS-2400](tasks/WISKEY-OPS-ANSWERS-2400.md) | V1 | REVIEW | WisKey operations: owner answers 04.11 (maintenance role, permission label, deploy warning, talk reasons) | — |
 | [WISKEY-INSTALL-ANSWERS-2400](tasks/WISKEY-INSTALL-ANSWERS-2400.md) | V1 | REVIEW | WisKey managed install: owner answers 04.11 (access-control settings group, start-up install switch, kept runs) | — |
 | [RELEASE-2400-TRAIN](tasks/RELEASE-2400-TRAIN.md) | V1 | REVIEW | Release 2.40.0: video transport, fixed TTS engine, installer tools, presence card, owner answers round 18 | — |
-| [BRIDGE-UPDATE-LISTENER-2401](tasks/BRIDGE-UPDATE-LISTENER-2401.md) | V1 | IN_PROGRESS | Bridge 0.10.4: update listener and config-flow reload no longer combine (home system 2026.12) | — |
-| [WALL-PHONE-TOOLBAR-2401](tasks/WALL-PHONE-TOOLBAR-2401.md) | V1 | IN_PROGRESS | Phone camera wall: one row of icon keys, two rows of full labels as a setting | — |
-| [SETTINGS-INTERCOM-CARDS-2401](tasks/SETTINGS-INTERCOM-CARDS-2401.md) | V1 | IN_PROGRESS | "Entrance screen switches" settings tab as folding cards (two tabs or one list as options) | — |
-| [RELEASE-2401-TRAIN](tasks/RELEASE-2401-TRAIN.md) | V1 | IN_PROGRESS | Release 2.40.1: phone wall toolbar, intercom settings cards, bridge 0.10.4 | — |
+| [BRIDGE-UPDATE-LISTENER-2401](tasks/BRIDGE-UPDATE-LISTENER-2401.md) | V1 | REVIEW | Bridge 0.10.4: update listener and config-flow reload no longer combine (home system 2026.12) | — |
+| [WALL-PHONE-TOOLBAR-2401](tasks/WALL-PHONE-TOOLBAR-2401.md) | V1 | REVIEW | Phone camera wall: one row of icon keys, two rows of full labels as a setting | — |
+| [SETTINGS-INTERCOM-CARDS-2401](tasks/SETTINGS-INTERCOM-CARDS-2401.md) | V1 | REVIEW | "Entrance screen switches" settings tab as folding cards (two tabs or one list as options) | — |
+| [RELEASE-2401-TRAIN](tasks/RELEASE-2401-TRAIN.md) | V1 | REVIEW | Release 2.40.1: phone wall toolbar, intercom settings cards, bridge 0.10.4 | — |
 | [WISKEY-LAB-ACTIVATION-0411](tasks/WISKEY-LAB-ACTIVATION-0411.md) | V1 | IN_PROGRESS | WisKey activation on the lab installation (04.11 joint session) | — |
 | [LAB-AUDITS-0411](tasks/LAB-AUDITS-0411.md) | V1 | REVIEW | Read-only lab audits of 04.11: logs and faults, station and camera video, door events and station users | — |
 | [LAB-NVR-DOOR-READONLY-0411](tasks/LAB-NVR-DOOR-READONLY-0411.md) | V1 | REVIEW | Read-only checks of 04.11 evening: recorder sub streams of two panoramic cameras, door contact input on one station | — |
 | [WISKEY-ADDENDUM-GAPS-0411](tasks/WISKEY-ADDENDUM-GAPS-0411.md) | V1 | BLOCKED | WisKey gaps found while building 2.38.2 - 2.40.0 (addendum for the WisKey team) | — |
 | [OWNER-LAB-ACTIONS-0411](tasks/OWNER-LAB-ACTIONS-0411.md) | V1 | BLOCKED | Owner lab actions after 04.11 | — |
 | [GUIDE-BOARD-2402](tasks/GUIDE-BOARD-2402.md) | V1 | IN_PROGRESS | User guide for 2.40.0 / 2.40.1 and the task board after 04.11 | — |
+| [GATE-HYGIENE-2402](tasks/GATE-HYGIENE-2402.md) | V1 | IN_PROGRESS | Gate hygiene: whole-package scanners always run, a Windows-only demo check, the bridge-install state reset between tests | — |
+| [VIDEO-SUB-FALLBACK-2402](tasks/VIDEO-SUB-FALLBACK-2402.md) | V1 | IN_PROGRESS | Live video, automatic quality: a sub stream that gives nothing moves to the main stream on the same transport | — |
+| [SETTINGS-CARDS-ACCORDION-2402](tasks/SETTINGS-CARDS-ACCORDION-2402.md) | V1 | IN_PROGRESS | Intercom settings cards: "cards opening in place" as a fourth layout | — |
