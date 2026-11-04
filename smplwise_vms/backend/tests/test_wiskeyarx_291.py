@@ -225,7 +225,10 @@ def test_n07_arx_sends_api_contract_one_or_omits_it():
     from smplwise.services import intercom_client, intercom_messaging_adapter
 
     assert intercom_client.API_CONTRACT == 1 and intercom_adapter.API_CONTRACT == 1 and intercom_messaging_adapter.API_CONTRACT == 1
-    pattern = re.compile(r"api_contract\s*=\s*(?!API_CONTRACT\b)[^\s,)]|[\"']api_contract[\"']\s*:\s*(?!API_CONTRACT\b)[^\s,}]")
+    # the constant itself, bare or as `intercom_client.API_CONTRACT` (asserted == 1 above; the 2.39.0 write services - station ops,
+    # door tech, profiles, schedule writes - import the module), never a literal or another name
+    const = r"(?!(?:intercom_client\.)?API_CONTRACT\b)"
+    pattern = re.compile(rf"api_contract\s*=\s*{const}[^\s,)]|[\"']api_contract[\"']\s*:\s*{const}[^\s,}}]")
     for path in (BACKEND / "smplwise").rglob("*.py"):
         for line in path.read_text(encoding="utf-8").splitlines():
             if line.lstrip().startswith("#"):

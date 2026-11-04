@@ -390,7 +390,7 @@ def test_the_arx_side_outcomes_are_kept_as_given(env):
 def test_a_probe_that_raises_is_a_fail_with_no_exception_text(env):
     def boom(check, sid):
         if check == "talk":
-            raise RuntimeError("rtsp://user:secret@10.0.0.9/stream")
+            raise RuntimeError("rtsp://user:secret@192.0.2.9/stream")
 
     env.probes.hook = boom
     checks = checks_of(env.run(station_id="st-a"), "st-a")
