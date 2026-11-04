@@ -37,6 +37,20 @@ export function wallScale(screenW: number, screenH: number): number {
   return clamp(Math.min(screenW, screenH) / 800, 1, 1.4);
 }
 
+/**
+ * WALL-FOLLOWUPS-2390: the scale of a wall on a desktop-class browser follows its WINDOW, not the monitor - a desktop window
+ * can be any size on a large screen (a tablet's page always fills its screen, so there the physical screen is the honest input).
+ */
+export function wallScaleFor(cls: 'tablet' | 'phone' | 'desktop', screenW: number, screenH: number, viewportW: number, viewportH: number): number {
+  return cls === 'desktop' ? wallScale(viewportW, viewportH) : wallScale(screenW, screenH);
+}
+
+/** WALL-FOLLOWUPS-2390: on a desktop wall the mouse pointer hides after this long without movement (a parked arrow over the video is a defect). */
+export const CURSOR_IDLE_MS = 3000;
+export function cursorHidden(cls: 'tablet' | 'phone' | 'desktop', movedAtMs: number, nowMs: number): boolean {
+  return cls === 'desktop' && nowMs - movedAtMs >= CURSOR_IDLE_MS;
+}
+
 function autoGrid(preset: Preset, n: number, viewportH: number): WallGrid {
   if (preset === 'single' || n <= 1) return { cols: 1, rows: 1 };
   if (preset === 'tablet-portrait') return { cols: 1, rows: viewportH >= 1800 && n >= 3 ? 3 : 2 };

@@ -37,7 +37,7 @@ import { startRfqQuestions } from '../tickets/rfq-questions-store'; // RFQQUESTI
 import { rt } from '../tickets/rfq-text';
 import '../xsection/sw-fire-bar'; // 2.29.0: the alarm bar (off unless the option fire_ui is on)
 import { setXsOptions, xsOptions } from '../xsection/xs-model';
-import { classifyDevice, readDeviceEnv, wallModeFor } from '../wall/device-class';
+import { classifyDevice, readDeviceEnv, wallModeFor, watchDeviceClass } from '../wall/device-class';
 import { incidentState, onIncidentState, startIncidents } from '../incidents/store';
 import { it as incText } from '../i18n/incidents';
 import '../screens/system-nav'; // SET-polish: the settings' own navigation column and search
@@ -176,6 +176,8 @@ export class SwApp extends LitElement {
   /** Bubble foundation: the skin in force (the bubble skin's phone shell is a dock row: pill stack + home button). */
   @state() private skin = currentSkin();
   private stopDesign?: () => void;
+  /** WALL-FOLLOWUPS-2390: a fold / unfold changes the device class while the page lives; render again so the wall display and the application swap at once */
+  private stopDeviceClass?: () => void;
   private stopTicketNames?: () => void;
   private stopIncidents?: () => void;
   @state() private pickerOpen = false;
@@ -1889,6 +1891,7 @@ export class SwApp extends LitElement {
     this.stopNavSize = onNavSize((sz) => (this.nav = navDims(sz)));
     this.stopUpdateMark = onUpdateState(() => { this.updateMark = updateAvailable(); this.restartMark = restartRequired(); });
     this.stopDesign = onDesign(() => (this.skin = currentSkin())); // the bubble skin renders the phone dock (its own row)
+    this.stopDeviceClass = watchDeviceClass(() => this.requestUpdate());
     this.stopTicketNames = onTicketNames(() => this.requestUpdate()); // CR-038 D33: the rail, the tabs and the crumbs follow a rename at once
     this.stopIncidents = onIncidentState(() => this.requestUpdate()); // CR-LIVEEVENT100: the pill and the red dots follow the open count
     this.stopScreenEdits = onScreenEdits(() => this.requestUpdate()); // a screen registered / dropped its edit mode
@@ -2338,6 +2341,7 @@ export class SwApp extends LitElement {
     this.bannerObs?.disconnect();
     super.disconnectedCallback();
     this.stopDesign?.();
+    this.stopDeviceClass?.();
     this.stopTicketNames?.();
     this.stopIncidents?.();
     this.stopRouter?.();
@@ -3474,8 +3478,10 @@ export class SwApp extends LitElement {
     }
   }
 
-  /** CR-030: an enabled wall user on a tablet-class device gets the wall display INSTEAD of the application (no rail, router or user menu).
-   * The classification is presentation only; the server never looks at it. Phones and desktops get the normal limited application. */
+  /** CR-030: an enabled wall user on a tablet-class device gets the wall display INSTEAD of the application (no rail, router or user menu);
+   * on a desktop-class device only when the profile allows it (WALL-FOLLOWUPS-2390, "wall mode on desktop"). The classification is
+   * presentation only; the server never looks at it. Phones get the normal limited application. Read on every render, so a fold /
+   * unfold (watchDeviceClass above) swaps the two without a reload. */
   private wallMode(): boolean {
     const s = this.session;
     if (s.mode !== 'api' || !wallModeFor(s.me, classifyDevice(readDeviceEnv()))) return false;

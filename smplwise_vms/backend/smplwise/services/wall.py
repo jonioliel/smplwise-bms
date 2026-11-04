@@ -96,6 +96,9 @@ class WallConfig(BaseModel):
     strip: list[Literal["clock", "date", "weather", "alarm", "health"]] = Field(default_factory=lambda: ["clock", "date", "health"], max_length=8)
     state_entities: list[str] = Field(default_factory=list, max_length=MAX_STATE_ENTITIES)
     show_map: bool = False
+    # WALL-FOLLOWUPS-2390: the wall display also takes over a desktop-class browser (a mini-PC behind a wall monitor). Presentation only:
+    # the client decides where the wall mounts; the role and its bindings are the same on every device.
+    desktop: bool = False
     plan: Plan = Field(default_factory=Plan)  # the map band's own plan mode / quality / idle time (CR-029 S5-B)
     theme: Literal["follow", "dark", "light"] = "dark"
     alerts: Alerts = Field(default_factory=Alerts)
@@ -151,9 +154,12 @@ def enabled_profile(conn: sqlite3.Connection, user_id: str) -> sqlite3.Row | Non
 
 
 def me_block(conn: sqlite3.Connection, user_id: str) -> dict[str, Any] | None:
-    """The `wall` entry of GET /me: presence only, never the configuration (that is fetched in wall mode)."""
+    """The `wall` entry of GET /me: presence only, never the configuration (that is fetched in wall mode) - plus `desktop`
+    (WALL-FOLLOWUPS-2390), which the client needs before it mounts anything: whether a desktop-class browser also gets the wall."""
     row = enabled_profile(conn, user_id)
-    return None if row is None else {"enabled": True, "profile_version": int(row["version"])}
+    if row is None:
+        return None
+    return {"enabled": True, "profile_version": int(row["version"]), "desktop": bool(config_of(row).get("desktop", False))}
 
 
 def config_of(row: sqlite3.Row) -> dict[str, Any]:

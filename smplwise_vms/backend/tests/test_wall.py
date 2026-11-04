@@ -45,7 +45,7 @@ def test_create_binds_cameras_and_me_carries_the_flag(settings):
     assert r.status_code == 201, r.text
     assert r.json()["config"]["cameras"] == cams[:2] and r.json()["status"] == "never"
     me = c.get("/api/v1/me", headers=W).json()
-    assert me["wall"] == {"enabled": True, "profile_version": 1}
+    assert me["wall"] == {"enabled": True, "profile_version": 1, "desktop": False}
     assert {(b["scope_type"], b["scope_id"]) for b in me["bindings"]} == {("camera", cams[0]), ("camera", cams[1])}
     cfg = c.get("/api/v1/wall/config", headers=W).json()
     assert [x["id"] for x in cfg["cameras"]] == cams[:2] and cfg["zone"] and cfg["alerts"] == []
@@ -55,6 +55,30 @@ def test_create_binds_cameras_and_me_carries_the_flag(settings):
     with app.state.db.connection() as conn:  # the audit row carries the actor and no secret
         row = conn.execute("SELECT actor_user_id, details_json FROM audit_log WHERE action = 'wall.profile.create'").fetchone()
     assert row is not None and "password" not in (row["details_json"] or "")
+
+
+def test_desktop_flag_reaches_me_and_changes_no_permission(settings):
+    """WALL-FOLLOWUPS-2390: "wall mode on desktop" is a profile flag; /me carries it (the client decides the mount before it
+    fetches the configuration), the change is audited and bumps the version, and nothing about the role or the bindings moves."""
+    app, c, cams = _setup(settings)
+    _add(c, cams)
+    before = c.get("/api/v1/me", headers=W).json()
+    assert wall_service.default_config()["desktop"] is False
+    r = c.patch("/api/v1/wall/profiles/dev-wall", json={"config": {"desktop": True}}, headers=ADMIN)
+    assert r.status_code == 200, r.text
+    assert r.json()["config"]["desktop"] is True and r.json()["version"] == 2
+    assert r.json()["config"]["cameras"] == cams[:2], "a partial patch keeps the rest of the configuration"
+    me = c.get("/api/v1/me", headers=W).json()
+    assert me["wall"] == {"enabled": True, "profile_version": 2, "desktop": True}
+    assert me["bindings"] == before["bindings"] and me["permissions_any"] == before["permissions_any"], "presentation only"
+    assert c.get("/api/v1/wall/config", headers=W).json()["config"]["desktop"] is True
+    assert c.patch("/api/v1/wall/profiles/dev-wall", json={"config": {"desktop": "yes"}}, headers=ADMIN).status_code == 422
+    assert c.patch("/api/v1/wall/profiles/dev-wall", json={"config": {"desktop": True}}, headers=W).status_code == 403, "a wall user cannot switch it"
+    with app.state.db.connection() as conn:
+        rows = [r["details_json"] or "" for r in conn.execute("SELECT details_json FROM audit_log WHERE action = 'wall.profile.update'").fetchall()]
+    assert any("config.desktop" in d for d in rows), rows
+    c.patch("/api/v1/wall/profiles/dev-wall", json={"enabled": False}, headers=ADMIN)
+    assert c.get("/api/v1/me", headers=W).json()["wall"] is None, "a disabled profile has no wall anywhere"
 
 
 def test_patch_rewrites_bindings_and_bumps_the_version(settings):

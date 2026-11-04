@@ -404,10 +404,12 @@ export class SystemWall extends LitElement {
           : nothing}
       </div>`;
     return html`<sw-drawer open modal heading=${p.title} subheading=${p.username} data-wall-drawer @close=${() => { this.editing = null; this.draft = null; }}>
-      <div class="sec"><h3>משתמש</h3>
+      <div class="sec" data-wall-section="user"><h3>משתמש</h3>
         <sw-field label="כותרת"><input type="text" maxlength="40" aria-label="כותרת" data-wall-field="title" .value=${d.title} @input=${(e: Event) => { d.title = (e.target as HTMLInputElement).value; }} /></sw-field>
         ${tog('פעיל', d.enabled, (v) => (d.enabled = v), 'enabled')}
         ${tog('גישה מרחוק', d.remote, (v) => (d.remote = v), 'remote')}
+        ${tog('מסך קיר גם במחשב', c.desktop === true, (v) => (c.desktop = v), 'desktop')}
+        ${c.desktop ? html`<div class="muted" data-wall-desktop-note>מחשב בלי מגע יציג את מסך הקיר במקום המערכת</div>` : nothing}
         <div class="muted">תפקיד: קיוסק (מפה ווידאו חי בלבד)</div>
       </div>
       <div class="sec"><h3>מצלמות ופריסה</h3>

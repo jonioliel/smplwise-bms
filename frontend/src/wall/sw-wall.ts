@@ -9,8 +9,8 @@ import { effectiveTransport, productSettings } from '../api/prefs';
 import { loadSession, session } from '../api/session';
 import type { ProductSettings } from '../api/media';
 import { ackWallAlert, frameUrl, getFrameList, getWallAnnouncement, getWallConfig, getWallStates, wallSocketUrl, type WallAlert, type WallDisplayConfig, type WallState } from '../api/wall';
-import { classifyDevice, readDeviceEnv } from './device-class';
-import { alertView, frameActive, holdProgress, isAwake, needsAttention, pageCameras, pixelShift, reconnectDelayMs, resolveLayout, serverHealth, shuffleOrder, tileHealth, wakesDisplay, wallScale } from './wall-logic';
+import { classifyDevice, readDeviceEnv, watchDeviceClass } from './device-class';
+import { alertView, cursorHidden, frameActive, holdProgress, isAwake, needsAttention, pageCameras, pixelShift, reconnectDelayMs, resolveLayout, serverHealth, shuffleOrder, tileHealth, wakesDisplay, wallScaleFor } from './wall-logic';
 import { timeText } from '../api/day-format';
 import { closeLabel, closeWaitMs, dirOf, headingOf, machineMark, pollMs, sizeOf, visibleNow, type ScreenAnnouncement } from '../announce/screen-overlay';
 
@@ -77,7 +77,17 @@ export class SwWall extends LitElement {
   private tries = new Map<string, number>();
   private nextTry = new Map<string, number>();
   private planLoaded = false;
-  private readonly env = readDeviceEnv();
+  /** The physical device (device-class.ts). WALL-FOLLOWUPS-2390: re-read when the screen changes (a foldable unfolded further, a monitor
+   * swapped), so the scale, the installer panel and the class follow; the shell itself unmounts this element when the class leaves the wall. */
+  @state() private env = readDeviceEnv();
+  private stopDevice?: () => void;
+  /** WALL-FOLLOWUPS-2390: the last mouse movement (a desktop wall hides its pointer after CURSOR_IDLE_MS) */
+  private movedAt = Date.now();
+  private readonly onMove = (e: PointerEvent) => {
+    if (e.pointerType !== 'mouse') return;
+    this.movedAt = Date.now();
+    if (this.hasAttribute('data-cursor-idle')) this.removeAttribute('data-cursor-idle'); // back at once, never on the next tick
+  };
   private readonly onResize = () => {
     this.vw = window.innerWidth;
     this.vh = window.innerHeight;
@@ -897,6 +907,11 @@ export class SwWall extends LitElement {
         animation: none !important;
       }
     }
+    /* WALL-FOLLOWUPS-2390: a desktop wall (mouse, no touch) hides the parked pointer after 3 s without movement; any movement brings it back at once */
+    :host([data-cursor-idle]),
+    :host([data-cursor-idle]) * {
+      cursor: none !important;
+    }
   `;
 
   connectedCallback(): void {
@@ -904,6 +919,8 @@ export class SwWall extends LitElement {
     window.addEventListener('resize', this.onResize);
     window.addEventListener('orientationchange', this.onResize);
     this.addEventListener('pointerdown', this.onTouch);
+    window.addEventListener('pointermove', this.onMove);
+    this.stopDevice = watchDeviceClass((env) => (this.env = env));
     this.timer = window.setInterval(() => this.onTick(), 1000);
     void productSettings().then((s) => (this.settings = s)).catch(() => undefined);
     void this.load();
@@ -915,6 +932,8 @@ export class SwWall extends LitElement {
     window.removeEventListener('resize', this.onResize);
     window.removeEventListener('orientationchange', this.onResize);
     this.removeEventListener('pointerdown', this.onTouch);
+    window.removeEventListener('pointermove', this.onMove);
+    this.stopDevice?.();
     window.clearInterval(this.timer);
     window.clearTimeout(this.retry);
     window.clearTimeout(this.longPress);
@@ -1134,6 +1153,7 @@ export class SwWall extends LitElement {
   private onTick(): void {
     this.now = Date.now();
     this.tick += 1;
+    this.toggleAttribute('data-cursor-idle', cursorHidden(classifyDevice(this.env), this.movedAt, this.now));
     if (this.phase !== 'ready' || !this.data) return;
     const cfg = this.data.config;
     for (const [id, ok] of this.ok) {
@@ -1223,7 +1243,7 @@ export class SwWall extends LitElement {
   }
 
   protected render() {
-    const scale = wallScale(this.env.screenWidth, this.env.screenHeight);
+    const scale = wallScaleFor(classifyDevice(this.env), this.env.screenWidth, this.env.screenHeight, this.vw, this.vh);
     const s = `--s:${scale}`;
     if (this.phase === 'loading') return html`<div class="center" data-wall-state="loading" style=${s}><span class="mark" data-tone="live"><sw-icon name="camera" size="28"></sw-icon></span><p>טוען…</p></div>`;
     if (this.phase === 'no-connection') return html`<div class="center" data-wall-state="no-connection" style=${s}><span class="mark" data-tone="danger"><sw-icon name="warning" size="28"></sw-icon></span><h1>אין חיבור לשרת</h1><p>מנסה שוב אוטומטית</p></div>`;
