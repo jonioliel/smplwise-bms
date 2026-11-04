@@ -8,7 +8,8 @@ from smplwise.services import building_presence as bp
 from test_building_presence_2271 import API, NOW, iso, put_sensor, tag
 from test_presence_history_2280 import cfg_put, off_world  # noqa: F401 - the shared fixture
 
-CARD = {"card_style": "strip", "card_empty_rooms": "hide", "card_details": "hover", "card_all_empty": "last"}
+# PRESENCE-COUNT-2400 (owner round 18, Q26): the default card style is now "count"; the rest of the defaults are unchanged
+CARD = {"card_style": "count", "card_empty_rooms": "hide", "card_details": "hover", "card_all_empty": "last"}
 
 
 def test_card_defaults_follow_the_owner_answers(off_world):  # noqa: F811
@@ -21,7 +22,7 @@ def test_card_defaults_follow_the_owner_answers(off_world):  # noqa: F811
 
 def test_every_option_of_the_mockup_is_accepted_and_nothing_else(off_world):  # noqa: F811
     c, _ = off_world
-    for style in ("strip", "floors", "quiet", "off"):
+    for style in ("count", "strip", "floors", "quiet", "off"):
         assert cfg_put(c, card_style=style).json()["settings"]["card_style"] == style
     assert cfg_put(c, card_empty_rooms="show").json()["settings"]["card_empty_rooms"] == "show"
     assert cfg_put(c, card_details="inline").json()["settings"]["card_details"] == "inline"
@@ -38,7 +39,7 @@ def test_a_corrupt_stored_value_reads_as_the_default(off_world):  # noqa: F811
     with db.connection() as conn:
         set_setting(conn, bp.SETTINGS_KEY, json.dumps({"card_style": "neon", "card_details": 3, "card_all_empty": "count"}))
         cfg = bp.get_config(conn)
-    assert cfg["card_style"] == "strip" and cfg["card_details"] == "hover" and cfg["card_all_empty"] == "count"
+    assert cfg["card_style"] == "count" and cfg["card_details"] == "hover" and cfg["card_all_empty"] == "count"
 
 
 def test_a_room_carries_its_floor_name_or_none(off_world):  # noqa: F811

@@ -22,14 +22,15 @@ const READY = [
 const EMPTY = [room('a', 'לובי', 'clear', '2026-10-31T11:58:00Z'), room('b', 'אופן ספייס', 'clear', '2026-10-31T11:52:00Z'), room('c', 'מטבחון', 'clear', '2026-10-31T10:10:00Z')];
 
 test.describe('settings defaults (owner answers 31.10)', () => {
-  test('an older server without the keys reads as strip / hide / hover / last', () => {
-    expect(cardOptions(cfg)).toEqual({ style: 'strip', emptyRooms: 'hide', details: 'hover', allEmpty: 'last' });
-    expect(cardOptions(undefined)).toEqual({ style: 'strip', emptyRooms: 'hide', details: 'hover', allEmpty: 'last' });
+  // PRESENCE-COUNT-2400 (owner round 18, Q26): the default style is now "count"; the other three defaults are unchanged
+  test('an older server without the keys reads as count / hide / hover / last', () => {
+    expect(cardOptions(cfg)).toEqual({ style: 'count', emptyRooms: 'hide', details: 'hover', allEmpty: 'last' });
+    expect(cardOptions(undefined)).toEqual({ style: 'count', emptyRooms: 'hide', details: 'hover', allEmpty: 'last' });
   });
   test('every option of the mockup is kept; a value the client does not know falls back to the default', () => {
-    for (const style of ['strip', 'floors', 'quiet', 'off'] as const) expect(cardOptions({ ...cfg, card_style: style }).style).toBe(style);
-    expect(cardOptions({ ...cfg, card_empty_rooms: 'show', card_details: 'inline', card_all_empty: 'count' })).toEqual({ style: 'strip', emptyRooms: 'show', details: 'inline', allEmpty: 'count' });
-    expect(cardOptions({ ...cfg, card_style: 'neon' as never, card_details: 3 as never }).style).toBe('strip');
+    for (const style of ['count', 'strip', 'floors', 'quiet', 'off'] as const) expect(cardOptions({ ...cfg, card_style: style }).style).toBe(style);
+    expect(cardOptions({ ...cfg, card_empty_rooms: 'show', card_details: 'inline', card_all_empty: 'count' })).toEqual({ style: 'count', emptyRooms: 'show', details: 'inline', allEmpty: 'count' });
+    expect(cardOptions({ ...cfg, card_style: 'neon' as never, card_details: 3 as never }).style).toBe('count');
     expect(cardOptions({ ...cfg, card_details: 3 as never }).details).toBe('hover');
   });
   test('"no card, the map only" removes the widget; the other styles keep it', () => {

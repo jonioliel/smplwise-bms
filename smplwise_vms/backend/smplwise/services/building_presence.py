@@ -32,23 +32,43 @@ SETTINGS_KEY = "presence.building.config"
 # a bar per floor) / quiet (one sentence) / off (no card, the map only); `card_empty_rooms` hide (only active rooms in the card) / show (empty
 # rooms too, grey, while room is left); `card_details` hover (the time and the empty / unknown names only in the tooltip) / inline;
 # `card_all_empty` last ("<room> · ריק מ־HH:MM", the room that emptied last) / count ("כל N החדרים ריקים").
+# PRESENCE-COUNT-2400 (owner round 18, Q25-26): `count` (the active count large, the names as text, a tick a room - round-16 direction A) is the
+# new default and the first choice; every earlier style stays selectable. An installation that SAVED a style keeps it: a PUT that carries
+# `card_style` stores the marker `card_style_chosen`, and a stored style without the marker is not persisted again (the default follows the
+# release). Stores written before 2.40.0 have no marker and always carried the whole set (the old PUT wrote the default "strip" on any save),
+# so there a stored "strip" is indistinguishable from "never chosen" and reads as the new default; any other stored style was a choice and stays.
 # AREA-PRESENCE-LINE-2351: `area_line` - the devices area screen's presence line (services/area_presence.py); OFF by default (conservative:
 # it may carry people's names to every devices viewer who also holds presence.view).
 DEFAULTS: dict[str, Any] = {"enabled": False, "area_line": False, "hold_seconds": 60, "empty_minutes": 10, "retention_days": 30, "home_display": "chip", "map_tint": True,
-                            "card_style": "strip", "card_empty_rooms": "hide", "card_details": "hover", "card_all_empty": "last"}
+                            "card_style": "count", "card_empty_rooms": "hide", "card_details": "hover", "card_all_empty": "last"}
 LIMITS = {"hold_seconds": (0, 3600), "empty_minutes": (1, 1440), "retention_days": (0, 365)}
-CHOICES = {"home_display": ("card", "chip", "off"), "card_style": ("strip", "floors", "quiet", "off"), "card_empty_rooms": ("hide", "show"),
+CHOICES = {"home_display": ("card", "chip", "off"), "card_style": ("count", "strip", "floors", "quiet", "off"), "card_empty_rooms": ("hide", "show"),
            "card_details": ("hover", "inline"), "card_all_empty": ("last", "count")}
 FLAGS = ("enabled", "map_tint", "area_line")
+STYLE_CHOSEN = "card_style_chosen"  # PRESENCE-COUNT-2400: stored only; never part of the settings the API returns
+LEGACY_DEFAULT_STYLE = "strip"  # the 2.31.0 - 2.39.x default, written on every save before the marker existed
 MAX_SENSORS = 200
 UNKNOWN_STATES = {None, "", "unknown", "unavailable"}
 
 
-def get_config(conn: sqlite3.Connection) -> dict[str, Any]:
+def _stored(conn: sqlite3.Connection) -> dict[str, Any]:
     try:
         stored = json.loads(get_setting(conn, SETTINGS_KEY, "") or "{}")
     except ValueError:
-        stored = {}
+        return {}
+    return stored if isinstance(stored, dict) else {}
+
+
+def _style_chosen(stored: dict[str, Any]) -> bool:
+    """PRESENCE-COUNT-2400: whether the stored card style was picked by an administrator (see the note at DEFAULTS)."""
+    style = stored.get("card_style")
+    if style not in CHOICES["card_style"]:
+        return False
+    return stored.get(STYLE_CHOSEN) is True or style != LEGACY_DEFAULT_STYLE
+
+
+def get_config(conn: sqlite3.Connection) -> dict[str, Any]:
+    stored = _stored(conn)
     out = dict(DEFAULTS)
     if isinstance(stored, dict):
         for k, (lo, hi) in LIMITS.items():
@@ -61,6 +81,8 @@ def get_config(conn: sqlite3.Connection) -> dict[str, Any]:
         for k in FLAGS:
             if isinstance(stored.get(k), bool):
                 out[k] = stored[k]
+        if not _style_chosen(stored):
+            out["card_style"] = DEFAULTS["card_style"]
     return out
 
 
@@ -70,6 +92,7 @@ def is_enabled(conn: sqlite3.Connection) -> bool:
 
 def set_config(conn: sqlite3.Connection, values: dict[str, Any]) -> dict[str, Any]:
     cfg = get_config(conn)
+    chosen = _style_chosen(_stored(conn)) or values.get("card_style") is not None
     for k, (lo, hi) in LIMITS.items():
         if k in values and values[k] is not None:
             v = values[k]
@@ -86,7 +109,12 @@ def set_config(conn: sqlite3.Connection, values: dict[str, Any]) -> dict[str, An
             if not isinstance(values[k], bool):
                 raise ValueError(k)
             cfg[k] = values[k]
-    set_setting(conn, SETTINGS_KEY, json.dumps(cfg, separators=(",", ":")))
+    doc = dict(cfg)
+    if chosen:
+        doc[STYLE_CHOSEN] = True
+    else:
+        doc.pop("card_style", None)  # never chosen: the default keeps following the release
+    set_setting(conn, SETTINGS_KEY, json.dumps(doc, separators=(",", ":")))
     return cfg
 
 

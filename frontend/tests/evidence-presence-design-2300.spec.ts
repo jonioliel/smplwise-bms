@@ -52,10 +52,13 @@ type Mount = (ds: string, layout: string, size: string, card?: Record<string, st
 const mount = (page: Page, ds: string, layout: string, size: string, card: Record<string, string> = {}) =>
   page.evaluate(([d, l, s, c]) => (window as unknown as { pdMountHome: Mount }).pdMountHome(d as string, l as string, s as string, c as Record<string, string>), [ds, layout, size, card] as const);
 
-// PRESENCE-COMPACT-2310: the four card styles (round-9 mockup); the owner's defaults are strip / only active / details on hover / last emptied
+// PRESENCE-COMPACT-2310: the four card styles (round-9 mockup); the owner's defaults are only active / details on hover / last emptied.
+// PRESENCE-COUNT-2400 (owner round 18, Q25-27): "count" (round-16 direction A) is the default style now; strip is set explicitly.
 const STYLES: { name: string; card: Record<string, string> }[] = [
-  { name: 'strip', card: {} },
-  { name: 'strip-show-inline', card: { card_empty_rooms: 'show', card_details: 'inline', card_all_empty: 'count' } },
+  { name: 'count', card: {} },
+  { name: 'count-show-inline', card: { card_style: 'count', card_empty_rooms: 'show', card_details: 'inline', card_all_empty: 'count' } },
+  { name: 'strip', card: { card_style: 'strip' } },
+  { name: 'strip-show-inline', card: { card_style: 'strip', card_empty_rooms: 'show', card_details: 'inline', card_all_empty: 'count' } },
   { name: 'floors', card: { card_style: 'floors' } },
   { name: 'quiet', card: { card_style: 'quiet' } },
 ];
@@ -100,11 +103,24 @@ for (const scheme of ['light', 'dark'] as const) {
             if (ds === 'worst') expect(pills.more).toBe(true);
             if (ds === 'ready' && st.name === 'strip') expect(await page.locator('presence-pills .r[data-tone="neutral"]').count()).toBe(0); // default: only active rooms
           }
+          // PRESENCE-COUNT-2400: count and names - one tick a room up to 40 (the active first), one share bar above, the names as text
+          if (st.name.startsWith('count') && size !== 's' && (ds === 'ready' || ds === 'worst')) {
+            if (ds === 'ready') {
+              await expect(page.locator('[data-building-bar="ticks"] i')).toHaveCount(5);
+              await expect(page.locator('[data-building-bar="ticks"] i[data-t="on"]')).toHaveCount(2);
+              await expect(page.locator('[data-building-bar="ticks"] i[data-t="unk"]')).toHaveCount(1);
+            } else await expect(page.locator('[data-building-bar="share"]')).toHaveCount(1);
+            await expect(page.locator('[data-building-rooms] .nm')).toBeVisible();
+            await expect(page.locator('presence-pills')).toHaveCount(0);
+            if (st.name === 'count') await expect(page.locator('[data-building-rest]')).toHaveCount(0); // default: only active rooms
+          }
+          if (st.name.startsWith('count') && ds === 'unknown') await expect(page.locator('[data-building-presence-big]')).toContainText('–');
+          if (st.name.startsWith('count') && size === 's') await expect(page.locator('[data-building-bar]')).toHaveCount(0);
           // all empty: the default names the room that emptied last; "count" says the sentence only
-          if (ds === 'empty' && st.name === 'strip') await expect(page.locator('[data-building-last]')).toContainText('ריק מ־');
-          if (ds === 'empty' && st.name === 'strip-show-inline') await expect(page.locator('[data-building-last]')).toHaveCount(0);
+          if (ds === 'empty' && (st.name === 'strip' || st.name === 'count')) await expect(page.locator('[data-building-last]')).toContainText('ריק מ־');
+          if (ds === 'empty' && st.name.endsWith('-show-inline')) await expect(page.locator('[data-building-last]')).toHaveCount(0);
           // details: hover = no time in the card (the tooltip carries it); inline = the time in the line
-          if (ds === 'ready' && size === 'm') await expect(page.locator('[data-building-time]')).toHaveCount(st.name === 'strip-show-inline' ? 1 : 0);
+          if (ds === 'ready' && size === 'm') await expect(page.locator('[data-building-time]')).toHaveCount(st.name.endsWith('-show-inline') ? 1 : 0);
           if (st.name === 'floors' && ds === 'ready' && size !== 's') expect(await page.locator('[data-building-floor]').count()).toBeGreaterThan(0);
           expect(await sideScroll(page)).toBeLessThanOrEqual(1);
           await shot(page, `home-${st.name}-${ds}-${size}-${scheme}`, info);
@@ -136,8 +152,8 @@ for (const scheme of ['light', 'dark'] as const) {
         if (st === 'ready') {
           // PRESENCE-COMPACT-2310: the card's four options, every mockup choice selectable, the owner's defaults pressed
           await expect(page.locator('[data-building-card-option]')).toHaveCount(4);
-          for (const k of ['card_style:strip', 'card_empty_rooms:hide', 'card_details:hover', 'card_all_empty:last']) await expect(page.locator(`[data-building-card="${k}"]`)).toHaveAttribute('aria-pressed', 'true');
-          await expect(page.locator('[data-building-card^="card_style:"]')).toHaveCount(4);
+          for (const k of ['card_style:count', 'card_empty_rooms:hide', 'card_details:hover', 'card_all_empty:last']) await expect(page.locator(`[data-building-card="${k}"]`)).toHaveAttribute('aria-pressed', 'true');
+          await expect(page.locator('[data-building-card^="card_style:"]')).toHaveCount(5);
           const put = page.waitForRequest((r) => r.method() === 'PUT' && r.url().endsWith('/presence/building/settings'));
           await page.locator('[data-building-card="card_style:floors"]').click();
           expect((await put).postDataJSON()).toEqual({ card_style: 'floors' });

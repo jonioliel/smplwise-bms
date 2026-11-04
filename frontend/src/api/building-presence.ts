@@ -29,8 +29,10 @@ export interface BuildingPresenceSettings {
   /** AREA-PRESENCE-LINE-2351: the area screen's presence line (OFF by default; older servers omit it = off). */
   area_line?: boolean;
 }
-/** strip = a state word and one row of the active rooms (default); floors = a count and a bar per floor; quiet = one sentence; off = no card, the map only. */
-export type CardStyle = 'strip' | 'floors' | 'quiet' | 'off';
+/** count = the active count in the clock's voice, the active names as text and a tick a room (PRESENCE-COUNT-2400, the default since 2.40.0);
+ * strip = a state word and one row of the active rooms (the 2.31.0 default); floors = a count and a bar per floor; quiet = one sentence;
+ * off = no card, the map only. */
+export type CardStyle = 'count' | 'strip' | 'floors' | 'quiet' | 'off';
 /** hide = only the active rooms in the card (default; the empty ones are on the map and in the area window); show = empty rooms too, grey, while room is left. */
 export type CardEmptyRooms = 'hide' | 'show';
 /** hover = the update time and the empty / unknown rooms only in the tooltip (default); inline = drawn in the card. */
@@ -39,7 +41,7 @@ export type CardDetails = 'hover' | 'inline';
 export type CardAllEmpty = 'last' | 'count';
 /** The server's accepted values (services/building_presence.py CHOICES), the first one the default. */
 export const CARD_CHOICES = {
-  card_style: ['strip', 'floors', 'quiet', 'off'],
+  card_style: ['count', 'strip', 'floors', 'quiet', 'off'],
   card_empty_rooms: ['hide', 'show'],
   card_details: ['hover', 'inline'],
   card_all_empty: ['last', 'count'],
