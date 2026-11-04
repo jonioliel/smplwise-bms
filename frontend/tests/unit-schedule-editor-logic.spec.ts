@@ -122,4 +122,14 @@ test.describe('schedule editor logic', () => {
     expect(sed('refusedBy', { reason: reasonOf('unauthorized') })).toContain('WisKey סירב');
     expect(reasonOf('schedule_writes_unverified')).toContain('לא אומתה');
   });
+
+  test('owner 04.11 (Q11 "a"): the deploy warning says plainly that nothing reaches a station, without a version number', () => {
+    for (const key of ['deployWritesOff', 'confirmDeployWritesOff'] as const) {
+      const he = sed(key);
+      expect(he).toContain('חסום');
+      expect(he).toMatch(/לא (ייכתב|כותב)/);
+      expect(he).not.toMatch(/rc\.?\d|2\.0\.1|\d+\.\d+\.\d+|schedule_|home\s*assistant|\bHA\b/i);
+    }
+    expect(sed('deployWritesOff')).toContain('תיעלם'); // it says the note goes away once writing is enabled
+  });
 });

@@ -63,10 +63,17 @@ test.describe('dial state per media read', () => {
   test('provider local and "WisKey does not list talk" read differently', () => {
     const he = heStationMediaText.dial.reasons;
     expect(he.provider_local).not.toBe(he.not_listed);
-    // the operator drawer never names the integration (UI_COPY_RULES; the evidence spec's BANNED list); the Settings row does, verbatim
-    expect(he.not_listed).toBe('מערכת האינטרקום לא מפרסמת פקודות דיבור ל-Arx');
+    // owner 04.11 (Q21 "b"): the drawer's "no talk" reasons that describe WisKey itself name it, like the Settings row (an exception to
+    // UI_COPY_RULES for exactly these four strings); every other word of the drawer's dial still never names the integration
+    expect(he.not_listed).toBe('WisKey לא מפרסם פקודות דיבור ל-Arx');
     expect(heStationMediaText.source.codes.talk_not_listed).toBe('WisKey לא מפרסם פקודות דיבור ל-Arx');
-    for (const t of [heStationMediaText, enStationMediaText]) expect(JSON.stringify([t.dial.dial, t.dial.talk, t.dial.inCall, t.dial.hangUp, t.dial.classic, ...Object.values(t.dial.reasons)])).not.toMatch(/wiskey/i); // the words, not the keys
+    const NAMED = ['pairing', 'not_listed', 'capabilities_unread', 'wiskey_unavailable'] as const;
+    for (const t of [heStationMediaText, enStationMediaText]) {
+      for (const r of NAMED) expect(t.dial.reasons[r], r).toMatch(/WisKey/);
+      const rest = Object.entries(t.dial.reasons).filter(([k]) => !(NAMED as readonly string[]).includes(k)).map(([, v]) => v);
+      expect(JSON.stringify([t.dial.dial, t.dial.talk, t.dial.inCall, t.dial.hangUp, t.dial.classic, ...rest])).not.toMatch(/wiskey/i); // the words, not the keys
+      expect(JSON.stringify(t.dial)).not.toMatch(/מערכת האינטרקום|the intercom/i);
+    }
     expect(he.unsupported).not.toBe(he.not_listed);
   });
 });

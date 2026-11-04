@@ -74,13 +74,15 @@ test('an unknown or missing reason kind reads as "failed", never as a code', () 
   for (const k of CAPS_REASON_KINDS) expect(capsReasonKind(ready({ wiskey: { ...ready().wiskey, capabilities: caps({ reason_kind: k }) } }))).toBe(k);
 });
 
-test('the drawer names capabilities_unread apart from not_listed, without naming the platform', () => {
+// owner 04.11 (Q21 "b"): this reason names WisKey (the drawer's "no talk" exception); never the home platform
+test('the drawer names capabilities_unread apart from not_listed, naming WisKey and never the home platform', () => {
   expect(TALK_REASONS).toContain('capabilities_unread');
   expect(dialState('video_talk', media('capabilities_unread'))).toEqual({ kind: 'reason', reason: 'capabilities_unread' });
   for (const t of [heStationMediaText, enStationMediaText]) {
     expect(t.dial.reasons.capabilities_unread).toBeTruthy();
     expect(t.dial.reasons.capabilities_unread).not.toBe(t.dial.reasons.not_listed);
-    expect(t.dial.reasons.capabilities_unread).not.toMatch(/wiskey|home assistant/i);
+    expect(t.dial.reasons.capabilities_unread).toMatch(/WisKey/);
+    expect(t.dial.reasons.capabilities_unread).not.toMatch(/home assistant|\bHA\b/i);
     expect(t.source.codes.capabilities_unread).toContain('{kind}');
     for (const k of CAPS_REASON_KINDS) expect(t.source.capsKinds[k], k).toBeTruthy();
   }

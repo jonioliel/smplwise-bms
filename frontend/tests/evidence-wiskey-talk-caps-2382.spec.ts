@@ -12,9 +12,9 @@ import { installStationMediaMock, newMediaMock, type StationMediaMock } from './
 // tests/access-control-mocks.ts: invented stations and answers; no station, no intercom, no go2rtc, no signed read anywhere).
 // What it pins, for the three states of WisKey's signed direct/capabilities when the overview lists no W10 command (WisKey 2.0.1-rc.10):
 //   - W10 only in the signed capabilities: the drawer dials natively (talk available) and the Settings row says WisKey is ready;
-//   - listed in neither: the drawer says the intercom does not publish talk; the row names video and talk as not published;
+//   - listed in neither: the drawer says WisKey does not publish talk; the row names video and talk as not published;
 //   - the signed read refused / failed: the drawer says it could not check (its own reason, apart from "not published"), the row names the
-//     failed signed check with its reason in plain words; the drawer never names the integration.
+//     failed signed check with its reason in plain words; the drawer names WisKey only in its "no talk" reason (owner 04.11, Q21 "b").
 // Evidence images: docs/design/evidence/wiskey-talk-caps-2382/.
 //   run_smart.py <branch> tests/evidence-wiskey-talk-caps-2382.spec.ts --project=desktop --project=mobile
 const SCREEN = 'wiskey-stations';
@@ -64,21 +64,22 @@ test.describe('the drawer when the overview lists no W10 command', () => {
     await openDrawer(page, 'lobby');
     const row = callSection(page).locator('[data-wk-dial="reason"]');
     await expect(row).toHaveAttribute('data-reason', 'not_listed');
-    await expect(row.locator('[data-wk-dial-reason]')).toHaveText('מערכת האינטרקום לא מפרסמת פקודות דיבור ל-Arx');
+    await expect(row.locator('[data-wk-dial-reason]')).toHaveText('WisKey לא מפרסם פקודות דיבור ל-Arx'); // owner 04.11 Q21 "b"
     await expect(row.locator('[data-wk-dial-classic]')).toBeVisible();
     await expect(inDrawer(page, 'wk-talk-button')).toHaveCount(0);
     await shot(page, info, 'drawer-caps-not-listed');
   });
 
-  test('the signed read refused: its own reason, apart from "not published", never naming the integration', async ({ page }, info) => {
+  test('the signed read refused: its own reason, apart from "not published", naming WisKey only in the reason', async ({ page }, info) => {
     await boot(page, { talkReason: 'capabilities_unread' });
     await openDrawer(page, 'lobby');
     const row = callSection(page).locator('[data-wk-dial="reason"]');
     await expect(row).toHaveAttribute('data-reason', 'capabilities_unread');
-    await expect(row.locator('[data-wk-dial-reason]')).toHaveText('לא ניתן היה לבדוק מול מערכת האינטרקום אם דיבור זמין; מוצג וידאו בלבד');
+    const reason = 'לא ניתן היה לבדוק מול WisKey אם דיבור זמין; מוצג וידאו בלבד'; // owner 04.11 Q21 "b"
+    await expect(row.locator('[data-wk-dial-reason]')).toHaveText(reason);
     await expect(row.locator('[data-wk-dial-classic]')).toBeVisible();
     await expect(inDrawer(page, 'wk-talk-button')).toHaveCount(0);
-    expect(await callSection(page).innerText()).not.toMatch(BANNED);
+    expect((await callSection(page).innerText()).replace(reason, '')).not.toMatch(BANNED); // the exception is the reason text only
     await shot(page, info, 'drawer-caps-unread');
   });
 });

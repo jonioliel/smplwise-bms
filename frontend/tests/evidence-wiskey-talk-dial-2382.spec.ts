@@ -13,7 +13,8 @@ import { installStationMediaMock, newMediaMock, type StationMediaMock } from './
 // What it pins:
 //   - the drawer's "חיוג לעמדה" in its three states: talk available (it IS Arx's own talk session - one start request, the in-call duration,
 //     hang up), the provider is Arx's own source (why not + the classic panel as the secondary way), the signed pairing missing (the same);
-//   - "WisKey does not list talk" reads differently from "the source is Arx's own"; the drawer never names the integration;
+//   - "WisKey does not list talk" reads differently from "the source is Arx's own"; the drawer names the integration only in the "no
+//     talk" reasons that describe it (owner 04.11, Q21 "b");
 //   - Settings › תצוגת מסך התחנות: the source row (Arx / WisKey) and its readiness line in plain Hebrew; saving sends only that key.
 // Evidence images: docs/design/evidence/wiskey-talk-dial-2382/.
 //   run_smart.py <branch> tests/evidence-wiskey-talk-dial-2382.spec.ts --project=desktop --project=mobile
@@ -100,14 +101,16 @@ test.describe('dial the station from the drawer', () => {
     await openDrawer(page, 'lobby');
     const row = callSection(page).locator('[data-wk-dial="reason"]');
     await expect(row).toHaveAttribute('data-reason', 'pairing');
-    await expect(row.locator('[data-wk-dial-reason]')).toHaveText('חסר צימוד חתום למערכת האינטרקום, ולכן אין דיבור מהמסך');
+    // owner 04.11 (Q21 "b"): the "no talk" reasons that describe WisKey name it - the exception is the reason text only
+    await expect(row.locator('[data-wk-dial-reason]')).toHaveText('חסר צימוד חתום ל-WisKey, ולכן אין דיבור מהמסך');
     await expect(row.locator('[data-wk-dial-classic]')).toBeVisible();
     await shot(page, info, 'dial-pairing');
     await page.goto('about:blank');
     await boot(page, { talkReason: 'not_listed' });
     await openDrawer(page, 'lobby');
-    await expect(callSection(page).locator('[data-wk-dial-reason]')).toHaveText('מערכת האינטרקום לא מפרסמת פקודות דיבור ל-Arx');
-    expect(await callSection(page).innerText()).not.toMatch(BANNED);
+    const notListed = 'WisKey לא מפרסם פקודות דיבור ל-Arx';
+    await expect(callSection(page).locator('[data-wk-dial-reason]')).toHaveText(notListed);
+    expect((await callSection(page).innerText()).replace(notListed, '')).not.toMatch(BANNED);
   });
 
   test('the setting "video" says talk is off, and an unknown reason is still explained', async ({ page }) => {

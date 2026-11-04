@@ -115,6 +115,10 @@ const he = {
   progressRunning: 'בודק את העמדות…',
   jobLine: '{station}: {status}',
   writesOff: 'WisKey עדיין לא מאשר כתיבה של לוחות זמנים לעמדות - כל עבודה תיעצר ב"חסום" ולא ייכתב דבר לעמדה.',
+  // owner 04.11 (Q11 "a"): shown while the live operations answer says writes are off (never tied to a version number)
+  deployWritesOff:
+    'שימו לב: כרגע פריסה לא משנה דבר בעמדות. WisKey עדיין לא הפעיל כתיבה של לוחות זמנים לעמדות, ולכן פריסה רק יוצרת עבודה ומריצה בדיקה מקדימה. העבודה תיעצר במצב "חסום" ושום דבר לא ייכתב לעמדה. ההודעה תיעלם כש־WisKey יפעיל את הכתיבה.',
+  confirmDeployWritesOff: 'כרגע WisKey לא כותב לוחות זמנים לעמדות: העבודות ייווצרו וייבדקו, ייעצרו במצב "חסום", ושום דבר לא ייכתב לעמדות.',
   jobsTitle: 'עבודות פריסה',
   jobsEmpty: 'אין עבודות פריסה',
   jobRecheck: 'בדיקה שוב',
@@ -161,6 +165,9 @@ const en: Partial<Record<Key, string>> = {
   cancel: 'Cancel',
   close: 'Close',
   refusedBy: 'WisKey refused: {reason}',
+  deployWritesOff:
+    'Note: deploying does not change the stations yet. WisKey has not enabled schedule writing to stations, so a deploy only creates the job and runs its preflight check. The job stops as "blocked" and nothing is written to a station. This note goes away once WisKey enables writing.',
+  confirmDeployWritesOff: 'WisKey does not write schedules to stations yet: the jobs are created and checked, stop as "blocked", and nothing is written to the stations.',
 };
 
 export function sedLang(): 'he' | 'en' {
