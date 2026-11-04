@@ -165,6 +165,8 @@ test.describe('the schedule library editor', () => {
     await page.locator(`${LIB} [data-se-deploy="sch-contractors"]`).click();
     const drawer = `${LIB} sw-drawer[data-se-deploy-drawer="sch-contractors"]`;
     await expect(page.locator(drawer)).toHaveAttribute('open', '');
+    // owner 04.11 (Q11 "a"): the live answer says writes are off -> the drawer says so before anything is picked
+    await expect(page.locator(`${drawer} [data-se-deploy-warning]`)).toContainText('חסום');
     await expect(page.locator(`${drawer} [data-se-pick="entry-c"] input`)).toBeDisabled(); // offline
     await page.locator(`${drawer} [data-se-pick="entry-a"] input`).check();
     await page.locator(`${drawer} [data-se-pick="entry-b"] input`).check();
@@ -181,9 +183,11 @@ test.describe('the schedule library editor', () => {
     await shot(page, info, 'deploy-impact');
     expect(posts(m, 'deploy')).toHaveLength(0);
     await page.locator(`${drawer} [data-se-deploy-go]`).click();
+    await expect(page.locator(`${LIB} sw-dialog[data-se-confirm="deploy"] [data-se-confirm-writes-off]`)).toContainText('לא ייכתב');
     await confirm(page, 'deploy');
     await expect(page.locator(`${drawer} [data-se-progress]`)).toBeVisible();
     await expect(page.locator(`${drawer} [data-se-progress][data-done="true"]`)).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator(`${drawer} [data-se-deploy-warning]`)).toHaveCount(0); // the progress carries its own line
     await expect(page.locator(`${drawer} [data-se-result="entry-a"][data-status="blocked"]`)).toContainText('לא אומתה');
     await expect(page.locator(`${drawer} [data-se-result="entry-b"][data-status="failed"]`)).toContainText('דחתה את פרטי ההתחברות');
     await expect(page.locator(`${drawer} [data-se-writes-off]`)).toBeVisible();
@@ -197,6 +201,18 @@ test.describe('the schedule library editor', () => {
     const before = polled.length;
     await page.waitForTimeout(2600);
     expect(m.gets.filter((g) => g.startsWith('schedules/jobs')).length).toBe(before); // polling stops once every job is final
+  });
+
+  test('writes enabled by the integration: the deploy button stays and no "nothing is written" warning is shown', async ({ page }) => {
+    // owner 04.11 (Q11 "a"): the warning follows the live operations answer (`writes_enabled`), never a version number
+    await boot(page, { writesEnabled: true });
+    await expect(page.locator(`${LIB} [data-se-deploy="sch-contractors"]`)).toBeVisible();
+    await expect(page.locator(`${LIB} [data-se-writes-off]`)).toHaveCount(0);
+    await page.locator(`${LIB} [data-se-deploy="sch-contractors"]`).click();
+    const drawer = `${LIB} sw-drawer[data-se-deploy-drawer="sch-contractors"]`;
+    await expect(page.locator(drawer)).toHaveAttribute('open', '');
+    await expect(page.locator(`${drawer} [data-se-targets]`)).toBeVisible();
+    await expect(page.locator(`${drawer} [data-se-deploy-warning]`)).toHaveCount(0);
   });
 
   test('a claim needs its preview and its confirmation', async ({ page }, info) => {

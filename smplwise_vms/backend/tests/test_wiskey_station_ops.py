@@ -393,6 +393,23 @@ def test_the_last_run_of_each_action_comes_from_the_audit_rows(wx):
     assert v["last_runs"]["health_refresh"] is None
 
 
+# ---------------------------------------------------------------- owner answers 04.11 (WISKEY-OPS-ANSWERS-2400)
+
+def test_owner_0411_maintenance_stays_system_admin_only_and_the_roles_label_names_it():
+    """Q9 "a": of the built-in roles only the system administrator carries `access.stations.manage` (a site administrator, an operator or
+    any other built-in role runs no maintenance); it stays sensitive (never implied by a broader grant), so only a role that names it
+    explicitly - which a system administrator creates - can carry it. Q10 "a": the roles screen's label says it covers maintenance."""
+    from smplwise.rbac import ROLES
+    from smplwise.routers.access import PERMISSION_LABELS, SENSITIVE
+
+    assert {role for role, perms in ROLES.items() if ia.STATIONS_MANAGE in perms} == {"system_admin"}
+    assert ia.STATIONS_MANAGE in SENSITIVE and ia.STATIONS_MANAGE in ia.SENSITIVE_PERMISSIONS
+    label = PERMISSION_LABELS[ia.STATIONS_MANAGE]
+    assert label.startswith("בקרת כניסה: ") and "תחזוקת עמדות" in label
+    for action in ("סנכרון", "סריקה מחדש", "רענון בריאות", "בדיקת שעון"):
+        assert action in label, action
+
+
 # ---------------------------------------------------------------- pure parts
 
 def test_auth_summary_is_closed_and_tolerates_junk():

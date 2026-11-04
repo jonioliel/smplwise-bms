@@ -285,7 +285,9 @@ PERMISSION_LABELS: dict[str, str] = {
     "access.call": "בקרת כניסה: מענה לשיחה מעמדה והכרזה קולית",
     "access.admin.read": "בקרת כניסה: מצב מערכת, סנכרון, התראות ויומן פעולות האינטרקום",
     "access.schedules.manage": "בקרת כניסה: עריכת לוחות זמנים של דלתות",
-    "access.stations.manage": "בקרת כניסה: עריכת הגדרות עמדה (תוכניות דלת, החזקה פתוחה, קודים ציבוריים)",
+    # WISKEY-OPS-ANSWERS-2400 (owner 04.11, Q10 "a"): the label also names the station maintenance this permission gates
+    # (routers/access_control_station_ops.py); built-in holder system_admin only (Q9 "a").
+    "access.stations.manage": "בקרת כניסה: עריכת הגדרות עמדה ותחזוקת עמדות (תוכניות דלת, החזקה פתוחה, קודים ציבוריים; סנכרון, סריקה מחדש, רענון בריאות ובדיקת שעון)",
     "access.groups.manage": "בקרת כניסה: עריכת קבוצות ושדות פרופיל",
     # CR-036 S11 (owner decision 2026-10-12, PG): generating a person's PIN - a personal value shown once to the requesting
     # operator and stored, logged, cached or audited nowhere. Its own permission ON TOP of access.people.manage, in an interactive

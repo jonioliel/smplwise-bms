@@ -1,7 +1,9 @@
 /**
  * Strings of a station's live video and two-way talk in the stations screen's drawer (CR-036 slice S18), Hebrew (the product
  * language) and English, switched by the document's `lang` like i18n/wiskey-stations.ts. UI_COPY_RULES: an operator screen never
- * names the platform or a protocol and never shows an internal code; short words, no explanatory paragraphs.
+ * names the platform or a protocol and never shows an internal code; short words, no explanatory paragraphs. Owner exception 04.11
+ * (Q21 "b"): the drawer's "no talk" reasons that describe WisKey itself name it (`dial.reasons` pairing / not_listed /
+ * capabilities_unread / wiskey_unavailable); the Settings row (`source`) named it already.
  */
 const he = {
   live: {
@@ -51,14 +53,16 @@ const he = {
     inCall: 'בשיחה',
     hangUp: 'ניתוק',
     classic: 'בלוח הקלאסי',
+    // Owner 04.11 (Q21 "b"): an exception to "no platform name on an operator screen", for these "no talk" reasons only - the four that
+    // describe WisKey itself (its signed pairing, the talk commands it publishes, its signed capabilities read, its reachability) name it.
     reasons: {
       off: 'דיבור מהמסך כבוי בהגדרות (וידאו בלבד)',
       provider_local: 'המקור המקומי מציג וידאו בלבד, בלי דיבור',
-      pairing: 'חסר צימוד חתום למערכת האינטרקום, ולכן אין דיבור מהמסך',
-      not_listed: 'מערכת האינטרקום לא מפרסמת פקודות דיבור ל-Arx',
-      capabilities_unread: 'לא ניתן היה לבדוק מול מערכת האינטרקום אם דיבור זמין; מוצג וידאו בלבד',
+      pairing: 'חסר צימוד חתום ל-WisKey, ולכן אין דיבור מהמסך',
+      not_listed: 'WisKey לא מפרסם פקודות דיבור ל-Arx',
+      capabilities_unread: 'לא ניתן היה לבדוק מול WisKey אם דיבור זמין; מוצג וידאו בלבד',
       unsupported: 'העמדה הזו לא מציעה דיבור',
-      wiskey_unavailable: 'מערכת האינטרקום לא זמינה כרגע; מוצג וידאו מהמקור המקומי',
+      wiskey_unavailable: 'WisKey לא זמין כרגע; מוצג וידאו מהמקור המקומי',
       forbidden: 'אין הרשאה לדבר עם העמדה',
       unavailable: 'דיבור אינו זמין כרגע',
     },
@@ -148,11 +152,11 @@ const en: StationMediaText = {
     reasons: {
       off: 'Talk from this screen is off in Settings (video only)',
       provider_local: 'The local source shows video only, without talk',
-      pairing: 'No signed pairing with the intercom, so no talk from this screen',
-      not_listed: 'The intercom does not publish talk commands to Arx',
-      capabilities_unread: 'Could not check with the intercom whether talk is available; video only',
+      pairing: 'No signed pairing with WisKey, so no talk from this screen',
+      not_listed: 'WisKey does not publish talk commands to Arx',
+      capabilities_unread: 'Could not check with WisKey whether talk is available; video only',
       unsupported: 'This station offers no talk',
-      wiskey_unavailable: 'The intercom is not reachable now; the local source shows the video',
+      wiskey_unavailable: 'WisKey is not reachable now; the local source shows the video',
       forbidden: 'No permission to talk to this station',
       unavailable: 'Talk is not available right now',
     },

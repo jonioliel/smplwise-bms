@@ -146,6 +146,15 @@ export class WkScheduleLibrary extends LitElement {
   private pollTimer = 0;
   private pollStarted = 0;
 
+  /** Owner 04.11 (Q11 "a"): the deploy button is shown now, with a plain warning while the integration's LIVE answer says it writes no
+   * schedule to the stations (`operations_list.writes_enabled` false - in WisKey 2.0.1-rc.10 every job ends `blocked` with
+   * `schedule_writes_unverified` / `schedule_ownership_unknown`: the job is created and WisKey's preflight runs, nothing reaches a
+   * station). Read from the operations answer, never from a version number, so the warning goes away once WisKey enables writing. No
+   * operations answer yet (loading, refused): no claim either way. */
+  private get writesOff(): boolean {
+    return this.ops?.writes_enabled === false;
+  }
+
   static styles = css`
     :host {
       display: flex;
@@ -752,6 +761,7 @@ export class WkScheduleLibrary extends LitElement {
             <wk-action-button tone="quiet" icon="download" data-se-export ?busy=${this.busy === 'export'} ?disabled=${!!this.busy || !lib.length} @click=${() => void this.exportFile()}>${sed('exportFile')}</wk-action-button>
           </div>
           ${this.live ? nothing : html`<p class="warn" role="status" data-se-stale>${sed('stale')}</p>`}
+          ${this.writesOff ? html`<p class="warn" role="note" data-se-writes-off>${sed('deployWritesOff')}</p>` : nothing}
           ${this.note && !this.editing && !this.deploying ? this.renderNote() : nothing}
           <div class="rows">${lib.map((s) => this.renderScheduleRow(s))}</div>
         </div>
@@ -823,7 +833,6 @@ export class WkScheduleLibrary extends LitElement {
     return html`<sw-card>
       <div class="block" data-se-jobs>
         <div class="bh"><h3>${sed('jobsTitle')}</h3><span class="n">${jobs.length}</span></div>
-        ${this.ops && !this.ops.writes_enabled ? html`<p class="warn" data-se-writes-off>${sed('writesOff')}</p>` : nothing}
         <div class="rows">
           ${jobs.map((j) => {
             const st = j.status ?? 'unknown';
@@ -923,6 +932,7 @@ export class WkScheduleLibrary extends LitElement {
     return html`<sw-drawer modal open heading=${sed('deployTitle', { name: s.name ?? '' })} data-se-deploy-drawer=${s.id} @close=${(ev: Event) => ev.target === ev.currentTarget && this.closeDeploy()}>
       ${this.note ? this.renderNote() : nothing}
       ${this.progress ? this.renderProgress() : html`
+        ${this.writesOff ? html`<p class="warn" role="note" data-se-deploy-warning>${sed('deployWritesOff')}</p>` : nothing}
         <div class="panel" data-se-targets>
           <h4><sw-icon name="building" size=${14}></sw-icon>${sed('deployStep1')}</h4>
           ${this.stations.length ? nothing : html`<span class="s">${sed('noStations')}</span>`}
@@ -1059,6 +1069,7 @@ export class WkScheduleLibrary extends LitElement {
         const ready = this.targets.filter((t) => t.phase === 'previewed');
         title = sed('confirmDeployTitle', { n: ready.length });
         body = html`<p class="sentence" data-se-sentence>${sed('confirmDeploy')}</p>
+          ${this.writesOff ? html`<p class="sentence warn" data-se-confirm-writes-off>${sed('confirmDeployWritesOff')}</p>` : nothing}
           <ul class="plain">${ready.map((t) => html`<li>${this.stationName(t.stationId)} · ${(t.impact?.station?.doors ?? []).map((d) => d.name).join(', ')}${t.impact?.people?.explicit != null ? ` · ${sed('impactPeople', { explicit: t.impact.people.explicit, implicit: t.impact.people.implicit ?? '—', read: t.impact.people.read ?? '—' })}` : ''}</li>`)}</ul>`;
         break;
       }
