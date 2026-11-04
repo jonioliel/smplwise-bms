@@ -175,7 +175,22 @@ New file: `tests/test_wiskey_join_live_2382.py` (38 tests). It covers:
 - the fallback table;
 - the route recording `transport` on every path.
 
-Results are in the commit message and in the agent report.
+Results (03-04.11, fakes only):
+
+| run | where | result |
+|---|---|---|
+| `test_wiskey_join_live_2382.py` | workstation, .venv Python 3.12.10 | 38 passed |
+| `test_intercom_writes_s11.py` + `test_intercom_people_s7.py` | workstation | 56 passed |
+| `test_fake_doorwin_closed_rule_sr1.py` + `test_wiskey_join_live_2382.py` + `test_wkjoin_295.py` | workstation | 66 passed (after 7c1e4527f) |
+| WisKey / direct-join batch (78 wiskey / wk / direct-join files + intercom people/media/lease files), one process | runner @ 5897cbb6b | 2320 passed, 3 failed, 479 errors: **invalid** - the runner disk filled up (`ENOSPC`: numbered tmp dirs, sqlite) during the run; the 3 failures pass on the workstation |
+| full backend suite, 2 shards | runner @ 5897cbb6b | s1 8931 passed / 3 failed / 388 errors; s2 10075 passed / 383 errors - same disk-full window; one real finding (SR-1 scan, fixed in 7c1e4527f) |
+| rerun of every failed / errored file + the changed test files (84 files), one process | runner @ 7c1e4527f | 2021 passed, 6 skipped, 3 xfailed, 1 failed, 1 error |
+
+- The one remaining failure, `test_calendar_attendees_2343.py::test_whatsapp_channel_through_the_shared_account_on_the_fake_adapter`, fails the
+  same way on the base commit 604fe0c73 (checked on the workstation). It depends on the time of day and is unrelated to this change.
+- The one remaining error, `test_emergency_readiness_295.py::test_history_written_on_change_and_pruned` (`sqlite3.OperationalError: unable to
+  open database file` in fixture setup), is an environment error. That file passes on the workstation (22 passed).
+- The full suite was not re-run after the fix: the runner disk was short, and only the failed and changed files were rerun.
 
 ## 7. Known limits
 
