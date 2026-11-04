@@ -248,14 +248,18 @@ class NativeFeatureHost:
             original_hass = weakref.ref(owner.roots[0])
             original_journal = weakref.ref(owner.roots[9])
             original_grants = lease.policy.stations
+            private = thaw(lease.private_input)
+            release = type(private) is dict and (
+                private.get("kind") in EMERGENCY_EVENT_KINDS and private.get("command") == "release"
+                or private.get("command") == "release_all"
+            )
 
             def startup_current() -> None:
                 hass, journal = original_hass(), original_journal()
                 if hass is None or journal is None:
                     raise Refusal("emergency_recovery_unavailable")
-                require_native_emergency_recovery(hass, journal, original_grants)
+                require_native_emergency_recovery(hass, journal, original_grants, release=release)
 
-            private = thaw(lease.private_input)
             coordinator = (
                 EmergencyEventCoordinator
                 if type(private) is dict and private.get("kind") in EMERGENCY_EVENT_KINDS

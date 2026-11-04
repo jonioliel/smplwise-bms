@@ -333,6 +333,7 @@ COMMANDS = {
     "support/bundle": {},
     "fleet/inventory_export": {"format": str},
     "upgrade/readiness": {},
+    "upgrade/manual_readiness_v1": {},
     "acceptance/get": {"station_id": str},
     "acceptance/update": {"station_id": str, "step": str, "state": str, "revision": int},
     "events/history_inspect": {"station_id": str, "start": str, "end": str},
@@ -1227,6 +1228,10 @@ async def _dispatch_inner(
             "stations": stations,
             "sync": manager.sync_diagnostics(),
         }
+    if command == "upgrade/manual_readiness_v1":
+        from .manual_upgrade_readiness import report
+
+        return await hass.async_add_executor_job(report, hass)
     if command in {"fleet/inventory_export", "upgrade/readiness"}:
         from .access.operational_readiness import (
             export_inventory,

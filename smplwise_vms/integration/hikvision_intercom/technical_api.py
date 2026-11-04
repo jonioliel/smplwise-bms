@@ -82,7 +82,12 @@ async def dispatch_technical(hass: HomeAssistant, command: str, msg: dict[str, A
                     drafts = hass.data[DOMAIN]["hold_open_drafts"]
                     previous = drafts.get(entry.entry_id, msg["door"])
                     if previous:
-                        await drafts.remove(entry.entry_id, msg["door"], previous["revision"])
+                        try:
+                            await drafts.remove(entry.entry_id, msg["door"], previous["revision"])
+                        except Exception as error:
+                            # Program save already committed. A verified error
+                            # reply must not imply no effect or safe replay.
+                            raise AccessError("program_saved_draft_cleanup_unknown") from error
                 else:
                     await programs.action(
                         entry.entry_id, msg["door"], msg["revision"], msg["action"]

@@ -19,7 +19,7 @@ from .access.native_sqlite_backup import joined_thread, read_private
 from .access.repository import AccessRepository
 from .const import DOMAIN
 from .storage import AccessStore
-from .trusted_actions.validation import strict_json
+from .trusted_actions.validation import Refusal, strict_json
 
 
 def selection_directory(hass: HomeAssistant) -> Path:
@@ -59,6 +59,15 @@ async def open_host_repository(hass: HomeAssistant):
             store = AccessStore(hass)
             repository = AccessRepository(store.async_save)
             await repository.async_load(await store.async_load())
+            from .repository_identity import initialize
+
+            try:
+                await initialize(hass, repository, store)
+            except (AccessError, Refusal, OSError, ValueError) as error:
+                # No ECC selection exists: preserve the legacy runtime even
+                # when its identity sidecar is corrupt/partial. Source reads
+                # still refuse; they cannot mint another identity or authority.
+                hass.data.setdefault(DOMAIN, {})["repository_identity_error"] = str(error)
         return repository, selection
     except BaseException:
         if selection is not None:

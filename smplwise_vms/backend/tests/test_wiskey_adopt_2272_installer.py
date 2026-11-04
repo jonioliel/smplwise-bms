@@ -20,6 +20,26 @@ REPO = Path(__file__).resolve().parents[3]
 BUNDLE = REPO / "smplwise_vms" / "integration" / "hikvision_intercom"
 
 
+@pytest.fixture(autouse=True)
+def legacy_pinned_bundle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """WISKEY-MANAGED-INSTALL-2382: the shipped bundle is now WisKey's rc.10 MANAGED bundle, whose pin carries the managed profile, so the
+    unattended path refuses it at the Core gate (policy B, tests/test_wiskey_m12_policy_b_native_gate.py). The staging mechanics tested
+    here (stage, one restart per digest, never replay, foreign refusal) are the legacy-pin rule: the same bytes, re-pinned WITHOUT a
+    profile in a temporary copy (SW_NATIVE_SRC). Nothing in the repository bundle is changed."""
+    import hashlib
+    import json
+
+    root = tmp_path / "legacy_integ"
+    shutil.copytree(BUNDLE, root / "hikvision_intercom", ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    files = wai._tree_files(root / "hikvision_intercom")
+    tree = hashlib.sha256()
+    for name in sorted(files):
+        tree.update(name.encode("utf-8") + b"\0" + files[name].encode("ascii") + b"\n")
+    (root / wai.PIN_NAME).write_text(json.dumps({"files": files, "tree_sha256": tree.hexdigest()}), encoding="utf-8")
+    monkeypatch.setenv("SW_NATIVE_SRC", str(root / "hikvision_intercom"))
+    return root / "hikvision_intercom"
+
+
 @pytest.fixture()
 def ha_cfg(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     cfg = tmp_path / "ha"

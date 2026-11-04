@@ -22,6 +22,8 @@ from .const import DOMAIN
 from .trusted_actions.validation import Refusal
 
 COMMANDS = (
+    "features/emergency_event_status_v1",
+    "features/emergency_secure_v1",
     "features/status",
     "features/start",
     "features/result",
@@ -244,7 +246,12 @@ def _handler(command):
 def register_feature_api(hass):
     """Register real public HA commands even before a source is installed."""
     for command in COMMANDS:
-        websocket_api.async_register_command(hass, _handler(command))
+        from .emergency_status_api import COMMANDS as ADDED_COMMANDS
+        from .emergency_status_api import handler as added_handler
+
+        websocket_api.async_register_command(
+            hass, added_handler(command) if command in ADDED_COMMANDS else _handler(command)
+        )
     table = hass.data[websocket_api.DOMAIN]
     _REGISTERED[hass] = (
         id(table),

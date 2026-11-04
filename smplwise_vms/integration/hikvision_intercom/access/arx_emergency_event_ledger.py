@@ -8,6 +8,7 @@ remain in the original journal; event references never reconstruct them.
 from __future__ import annotations
 
 import asyncio
+import os
 import weakref
 from collections.abc import Callable
 from copy import deepcopy
@@ -274,6 +275,106 @@ class EmergencyEventLedger:
                 for name, reference in value.items()
             }
         )
+
+    def project(self, *, repository_id, verified_peer_ref, query_owner_id, event_ref, targets):
+        """Read original history only; caller must supply its authenticated scope.
+
+        No lease is issued, effect attempted, fence recovered or journal changed.
+        An incomplete attempted phase is reported UNKNOWN while its original
+        recorded phase remains visible. Absence never proves never-sent.
+        """
+        from ..trusted_actions.validation import reference
+
+        for value in (repository_id, verified_peer_ref, query_owner_id, event_ref):
+            reference(value)
+        if type(targets) is not list or not 1 <= len(targets) <= 200:
+            raise Refusal("invalid_fields")
+        signatures = {contract.signature(t) for t in targets}
+        if len(signatures) != len(targets):
+            raise Refusal("invalid_fields")
+        owner, journal = EmergencyEventLedger._owner(self)
+        if repository_id != journal.repository_id:
+            raise Refusal("Unauthorized")
+        EmergencyEventLedger.refresh(self)
+        entries = []
+        foreign = False
+        for row in owner.rows.values():
+            original, body = row["original"], row["body"]
+            if body.get("kind") not in contract.KINDS or body["event_ref"] != event_ref:
+                continue
+            if (
+                original["repository_id"],
+                original["verified_peer_ref"],
+                original["query_owner_id"],
+            ) != (repository_id, verified_peer_ref, query_owner_id):
+                foreign = True
+                continue
+            selected = []
+            for target in body["targets"].values():
+                sig = contract.signature(target["target"])
+                same_door = any(
+                    sig[0] == wanted[0] and sig[2] == wanted[2] for wanted in signatures
+                )
+                if same_door and sig not in signatures:
+                    raise Refusal("emergency_event_target_changed")
+                if sig not in signatures:
+                    continue
+                release = owner.events.get(
+                    contract.scope(original, event_ref, target["target"]), {}
+                ).get("release")
+                release_phase = (
+                    None
+                    if release is None
+                    else owner.rows[release[0]]["body"]["targets"][release[1]]["phase"]
+                )
+                selected.append(
+                    {
+                        "station_id": sig[0],
+                        "api_relay": sig[1],
+                        "physical_relay": sig[2],
+                        "mapping_revision": sig[3],
+                        "recorded_phase": target["phase"],
+                        "outcome": "unknown" if target["phase"] == "attempted" else target["phase"],
+                        "duplicate": target["duplicate"],
+                        "prior_operation": target["prior_operation"],
+                        "recovery_obligation": target["phase"]
+                        in {"attempted", "unknown", "acknowledged"}
+                        and body["command"] == "hold_open"
+                        and release_phase not in {"acknowledged", "tombstone_only"},
+                        "release_recorded": release is not None,
+                        "release_outcome": release_phase,
+                    }
+                )
+            if selected:
+                entries.append(
+                    {
+                        "operation_id": row["key"][1],
+                        "request_id": original["request"]["request_id"],
+                        "revision": row["revision"],
+                        "descriptor_epoch": original["descriptor_epoch"],
+                        "kind": body["kind"],
+                        "command": body["command"],
+                        "trigger": body.get("trigger", "manual"),
+                        "retry_of": body.get("retry_of"),
+                        "targets": selected,
+                    }
+                )
+        if foreign and not entries:
+            raise Refusal("Unauthorized")
+        EmergencyEventLedger._owner(self)
+        return {
+            "contract": "wiskey-emergency-event-status.v1",
+            "schema_version": 1,
+            "event_ref": event_ref,
+            "state": "found" if entries else "not_found",
+            "records": entries,
+            "physical_result": "unknown",
+            "observed_device": None,
+            "replay_available": False,
+            "absence_is_never_sent_proof": False,
+            "reader_boot_id": None,
+            "reader_process_id": os.getpid(),
+        }
 
 
 def journal_changed(journal: FeatureExecutionJournal) -> None:

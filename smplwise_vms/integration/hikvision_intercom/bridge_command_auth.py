@@ -178,7 +178,12 @@ class VerifiedBridgePrincipal:
             and authority.state["entries"].get(epoch.entry.entry_id, {}).get("retired_generation")
             is not None
             and command
-            not in {"installation/retire_v1", "users/service_write_status_v1", "features/result"}
+            not in {
+                "installation/retire_v1",
+                "users/service_write_status_v1",
+                "features/result",
+                "features/emergency_event_status_v1",
+            }
         ):
             raise Refusal("installation_retired")
         now = owner.auth.clock().now
