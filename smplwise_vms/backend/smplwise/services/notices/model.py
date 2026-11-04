@@ -33,6 +33,10 @@ INFO_SOURCE_DOMAINS: dict[str, tuple[str, ...]] = {
     # count of people is not shown on a lobby screen.
     "gym": INFO_ONOFF_DOMAINS + INFO_TEXT_DOMAINS,
 }
+# BOARD-ANSWERS-2400 (owner 04.11, Q16 = A): the rules above are approved, plus "הפוך" per picked ON / OFF entity: its state is read the
+# other way round (parking: on = free instead of on = taken; gym: on = closed / free instead of on = open / in use). Stored per source in
+# `notices.info.<kind>_inverted` (a JSON list of picked entity ids, next to `<kind>_entities`); numbers and lists cannot be inverted.
+INFO_INVERT_DOMAINS = INFO_ONOFF_DOMAINS
 ENTITY_ID_RE = re.compile(r"^([a-z_]{1,40})\.[a-z0-9_]{1,190}$")
 NEWS_SPEEDS = ("slow", "normal", "fast")
 NEWS_FEEDS_MAX = 6
@@ -157,6 +161,9 @@ SETTINGS_DEFAULTS: dict[str, str] = {
     # TV-CHIPS-2381: the sources of the parking / gym chips (JSON lists of entity ids; empty = no chip)
     "notices.info.parking_entities": "[]",
     "notices.info.gym_entities": "[]",
+    # BOARD-ANSWERS-2400 (Q16 = A): the picked on / off entities read the other way round ("הפוך"); JSON lists, a subset of the above
+    "notices.info.parking_inverted": "[]",
+    "notices.info.gym_inverted": "[]",
     # the origin the TV links point to: the LAN listener as the owner mapped it (e.g. http://<host>:18094) or the remote address;
     # empty = the address the manager uses (the Settings screen says so)
     "notices.boards.origin": "",
@@ -501,6 +508,8 @@ def settings_doc(get: Any) -> dict[str, Any]:
         "tv2_defaults": tv2_defaults_doc(lambda k, dflt: raw.get(k, dflt)),
         "parking_entities": info_sources_of("parking", raw["notices.info.parking_entities"]),
         "gym_entities": info_sources_of("gym", raw["notices.info.gym_entities"]),
+        "parking_inverted": info_inverted_of("parking", raw["notices.info.parking_inverted"], info_sources_of("parking", raw["notices.info.parking_entities"])),
+        "gym_inverted": info_inverted_of("gym", raw["notices.info.gym_inverted"], info_sources_of("gym", raw["notices.info.gym_entities"])),
     }
 
 
@@ -523,6 +532,47 @@ def info_sources_of(kind: str, raw: Any) -> list[str]:
     return list(dict.fromkeys(x for x in v if info_source_ok(kind, x)))[:INFO_SOURCE_MAX]
 
 
+def info_invert_ok(kind: str, entity_id: Any) -> bool:
+    """BOARD-ANSWERS-2400: an entity of the chip whose state is on / off - the only kind "הפוך" applies to."""
+    return info_source_ok(kind, entity_id) and str(entity_id).split(".", 1)[0] in INFO_INVERT_DOMAINS
+
+
+def info_inverted_of(kind: str, raw: Any, picked: list[str]) -> list[str]:
+    """BOARD-ANSWERS-2400: the stored "הפוך" list of a chip - only on / off entities that are still picked (a source removed later, or an
+    unreadable value, is simply not inverted)."""
+    try:
+        v = json.loads(raw) if isinstance(raw, str) else raw
+    except ValueError:
+        return []
+    if not isinstance(v, list):
+        return []
+    return [x for x in dict.fromkeys(v) if info_invert_ok(kind, x) and x in picked]
+
+
+def with_info_invert(patch: dict[str, Any], current: dict[str, Any]) -> dict[str, Any]:
+    """BOARD-ANSWERS-2400: completes a settings patch so a chip's "הפוך" list always stays a subset of its sources. An explicit
+    `<kind>_inverted` must name picked on / off entities only (of the new source list when the same patch changes it); a source list
+    sent alone keeps the flags of the entities still in it and drops the rest. `current` = the settings document in force."""
+    out = dict(patch)
+    for kind in INFO_SOURCE_KINDS:
+        ef, xf = f"{kind}_entities", f"{kind}_inverted"
+        if ef not in out and xf not in out:
+            continue
+        ents = out[ef] if ef in out else current.get(ef, [])
+        ents = ents if isinstance(ents, list) else []
+        if xf in out:
+            inv = out[xf]
+            if not isinstance(inv, list) or len(inv) > INFO_SOURCE_MAX:
+                raise Invalid(xf, f"עד {INFO_SOURCE_MAX} ישויות.")
+            if not all(info_invert_ok(kind, x) for x in inv):
+                raise Invalid(xf, "אפשר להפוך רק חיישן או מתג (פעיל / כבוי).")
+            if any(x not in ents for x in inv):
+                raise Invalid(xf, "אפשר להפוך רק ישות שנבחרה כמקור.")
+        else:
+            out[xf] = [x for x in current.get(xf, []) if x in ents]
+    return out
+
+
 SETTINGS_FIELDS: dict[str, str] = {  # API field -> settings key
     "enabled": "notices.enabled", "default_days": "notices.default_days", "default_severity": "notices.default_severity",
     "push_default": "notices.push_default", "reads_names": "notices.reads_names", "retention_days": "notices.retention_days",
@@ -532,6 +582,7 @@ SETTINGS_FIELDS: dict[str, str] = {  # API field -> settings key
     "boards_origin": "notices.boards.origin",
     "conn_total": "notices.boards.conn_total", "conn_per_address": "notices.boards.conn_per_address",
     "parking_entities": "notices.info.parking_entities", "gym_entities": "notices.info.gym_entities",
+    "parking_inverted": "notices.info.parking_inverted", "gym_inverted": "notices.info.gym_inverted",  # BOARD-ANSWERS-2400
 }
 
 
@@ -578,6 +629,13 @@ def settings_values(patch: dict[str, Any]) -> dict[str, str]:
                 raise Invalid(field, f"עד {INFO_SOURCE_MAX} ישויות.")
             if not all(info_source_ok(kind, x) for x in value):
                 raise Invalid(field, "ישות שהסימון לא יכול לקרוא.")
+            out[key] = json.dumps(list(dict.fromkeys(value)))
+        elif field in ("parking_inverted", "gym_inverted"):  # BOARD-ANSWERS-2400 (Q16 = A); subset of the sources: with_info_invert
+            kind = field.split("_")[0]
+            if not isinstance(value, list) or len(value) > INFO_SOURCE_MAX:
+                raise Invalid(field, f"עד {INFO_SOURCE_MAX} ישויות.")
+            if not all(info_invert_ok(kind, x) for x in value):
+                raise Invalid(field, "אפשר להפוך רק חיישן או מתג (פעיל / כבוי).")
             out[key] = json.dumps(list(dict.fromkeys(value)))
         elif field == "building_name":
             out[key] = clean_text(value, field, 60)

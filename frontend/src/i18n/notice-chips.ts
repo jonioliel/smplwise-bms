@@ -24,6 +24,11 @@ const he = {
   noCandidates: 'אין ישויות מתאימות',
   max: 'עד {n} ישויות',
   gone: 'לא נמצאה',
+  // BOARD-ANSWERS-2400 (owner 04.11, Q16 = A): "הפוך" per picked on / off entity
+  invert: 'הפוך',
+  invertOne: 'הפוך: {n}',
+  invertParking: 'הפוך: לחיישן או מתג שבו פעיל = פנוי (במקום פעיל = תפוס).',
+  invertGym: 'הפוך: למתג או חיישן שבו פעיל = סגור, או בחיישן נוכחות פעיל = פנוי.',
 };
 
 type Key = keyof typeof he;
@@ -47,6 +52,10 @@ const en: Record<Key, string> = {
   noCandidates: 'No suitable entities',
   max: 'Up to {n} entities',
   gone: 'Not found',
+  invert: 'Invert',
+  invertOne: 'Invert: {n}',
+  invertParking: 'Invert: for a sensor or switch where on = free (instead of on = taken).',
+  invertGym: 'Invert: for a switch or sensor where on = closed, or an occupancy sensor where on = free.',
 };
 
 export type NcKey = Key;

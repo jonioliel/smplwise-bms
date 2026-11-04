@@ -105,6 +105,9 @@ export interface NoticesSettings {
   /** TV-CHIPS-2381: the entities the parking / gym chips read (absent from an older backend = none) */
   parking_entities?: string[];
   gym_entities?: string[];
+  /** BOARD-ANSWERS-2400 (owner 04.11, Q16 = A): the picked on / off entities read the other way round ("הפוך"); absent = none */
+  parking_inverted?: string[];
+  gym_inverted?: string[];
 }
 
 /** NOTICERSS-295: one entry of the installation's editable list of news sources (`custom` = a raw URL a board stored, not yet in the list). */

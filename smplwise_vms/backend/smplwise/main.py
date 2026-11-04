@@ -1190,7 +1190,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
             notice_listener.SERVER.start(
                 notice_display.DisplayService(lambda: app.state.db.connection(mode="read", label="notices.display"), settings.data_dir,
-                                              touch=notice_display.touch_seen(app.state.db)), settings.www_dir,
+                                              touch=notice_display.touch_seen(app.state.db),
+                                              capture=notice_display.capture_link(app.state.db, settings.data_dir)), settings.www_dir,
                 caps=notice_listener.settings_caps(lambda: app.state.db.connection(mode="read", label="notices.listener")))
         if settings.tickets_public:  # CR-038 S4: the handler page's listener - on the add-on option alone; its own thread, loop and pool
             await run_in_threadpool(tickets_public.start, app.state.db, settings)  # start() waits up to 5 s: never on the main loop (W14)

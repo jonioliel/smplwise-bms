@@ -67,6 +67,29 @@ export function offerable(candidates: readonly SourceEntity[] | null | undefined
   return (candidates ?? []).filter((c) => !list.includes(c.entity_id));
 }
 
+/**
+ * BOARD-ANSWERS-2400 (owner 04.11, Q16 = A): "הפוך" per picked ON / OFF entity - its state is read the other way round (parking: on =
+ * free instead of on = taken; gym: on = closed / free instead of on = open / in use). Numbers and lists cannot be inverted. Saved with
+ * the sources (`parking_inverted` / `gym_inverted`, a subset of the picked list; the server checks it again and drops the flag of a
+ * removed source). System administrators only, like the sources.
+ */
+export const INVERT_DOMAINS = ['binary_sensor', 'input_boolean', 'switch', 'schedule'] as const;
+
+/** The change event of `<notice-info-sources>`: one chip's sources, or one chip's inverted list. */
+export type InfoSourcesPatch = Partial<Record<`${SourceKind}_entities` | `${SourceKind}_inverted`, string[]>>;
+
+/** Whether a picked entity can be inverted (an on / off entity, read from its id: a source the mirror lost keeps its flag visible). */
+export function canInvert(id: string): boolean {
+  return (INVERT_DOMAINS as readonly string[]).includes(id.split('.')[0] ?? '');
+}
+
+/** Turns "הפוך" on or off for one picked entity; the result keeps only picked, invertible entities, in the picked order. */
+export function toggleInvert(picked: readonly string[], inverted: readonly string[], id: string, on: boolean): string[] {
+  const set = new Set(inverted.filter((x) => x !== id));
+  if (on) set.add(id);
+  return picked.filter((x) => set.has(x) && canInvert(x));
+}
+
 /** The name shown for a picked entity: its name in the candidates, else null (the mirror no longer has it). */
 export function sourceName(candidates: readonly SourceEntity[] | null | undefined, id: string): string | null {
   return (candidates ?? []).find((c) => c.entity_id === id)?.name ?? null;

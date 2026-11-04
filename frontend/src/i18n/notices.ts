@@ -149,7 +149,9 @@ const he = {
   copyAsk: 'החלפת הקישור של "{name}"',
   copyAskBody: 'טלוויזיות שמחוברות בקישור הנוכחי יתנתקו. להחליף?',
   copyAsk2: 'החלף קישור',
-  noStoredLink: 'הקישור הנוכחי של הלוח נוצר לפני שהמערכת שמרה עותק שלו, ולכן אי אפשר להעתיק אותו. כדי לקבל קישור צריך להחליף אותו.',
+  // BOARD-ANSWERS-2400 (owner 04.11, Q13 = B): the server keeps the copy the next time the board's TV connects
+  noStoredLink: 'הקישור הנוכחי של הלוח נוצר לפני שהמערכת שמרה עותק שלו. העותק יישמר בפעם הבאה שהטלוויזיה מתחברת, ואז "העתק קישור" יעתיק אותו בלי להחליף. כדי לקבל קישור עכשיו צריך להחליף אותו.',
+  linkPending: 'עותק הקישור יישמר בפעם הבאה שהטלוויזיה מתחברת. עד אז "העתק קישור" מציע רק להחליף אותו.',
   // BOARD-MGMT-2381 (owner 03.11, answer 6A): the manual re-send of a published notice; an edit never re-sends by itself
   resend: 'שלח שוב',
   resendAsk: 'לשלוח שוב את "{title}"?',
@@ -486,7 +488,8 @@ const en: Partial<Record<Key, string>> = {
   infoShow: 'Show the building-status chips on the board', infoOldBoards: 'Old boards are boards saved by version 2.16.0 with an empty chip list. They show no chips, even when the building has elevators or a generator. To show them, tick at least one kind here. Hiding everything does not delete your selection.',
   boardsCard: 'TV boards', newBoard: 'New board', tabGeneral: 'General', tabDisplay: 'Display', tabNotices: 'Notices', preview: 'Preview',
   prev: 'Previous', next: 'Next', pauseToggle: 'Pause / resume', copyLink: 'Copy link', copyAsk: 'Replace the link of "{name}"', copyAskBody: 'TVs connected with the current link will disconnect. Replace it?', copyAsk2: 'Replace link',
-  noStoredLink: 'The current link of this board was made before the system kept a copy of it, so it cannot be copied. To get a link, replace it.',
+  noStoredLink: 'The current link of this board was made before the system kept a copy of it. The copy is kept the next time the TV connects; then "Copy link" copies it without replacing it. To get a link now, replace it.',
+  linkPending: 'A copy of the link is kept the next time the TV connects. Until then "Copy link" can only offer to replace it.',
   resend: 'Send again', resendAsk: 'Send "{title}" again?', resendBody: 'The notice is sent again, as it is now, to {n} recipients, in the channels each one chose.',
   resendBodyNoCount: 'The notice is sent again, as it is now, to its recipients, in the channels each one chose.', resendDone: 'The notice was sent again to {n} recipients',
   resendFailed: 'The notice was not sent again. Try again in a moment.', savedNoResend: 'Saved. The notice was not sent again; to send it to the recipients: "Send again".',
