@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { WM_DEV_MARKED, WM_KEYS, WM_TABLES, wmt, wmtOf } from '../src/i18n/wiskey-managed';
 import { ApiError } from '../src/api/client';
-import { RUNNABLE_PLANS, STEP_ORDER, isFinished, jobTone, managedRefusal, offers, phraseMatches, refusalCode, type ManagedJob, type ManagedView } from '../src/api/wiskey-managed';
+import { KEEP_RUNS_DEFAULT, KEEP_RUNS_RANGE, RUNNABLE_PLANS, STEP_ORDER, isFinished, jobTone, keepRunsOf, managedRefusal, offers, phraseMatches, refusalCode, switchState, type ManagedJob, type ManagedView } from '../src/api/wiskey-managed';
 
 // WISKEY-MANAGED-INSTALL-2382: the words and the pure rules of the "installation and updates" card (#/system/security/wiskey).
 // Node-only:  npx playwright test -c playwright.unit.config.ts tests/unit-wiskey-managed.spec.ts
@@ -109,4 +109,24 @@ test('the closed refusals are told apart and worded from the code, never the ser
   expect(refusalCode(new Error('x'))).toBeNull();
   expect(wmtOf('code_', 'adoption_required', 'he')).toContain('להעביר');
   expect(wmt('unattended', undefined, 'he')).toContain('כבויה');
+});
+
+// WISKEY-INSTALL-ANSWERS-2400 (owner answers of 04.11, round 18): the start-up switch (Q3 = B) and the kept-runs setting (Q8 = B: the last 5).
+test('start-up switch: off when an older server does not send it; the kept-runs number defaults to 5 within 1-10', () => {
+  expect(switchState(view(), 'startup')).toBe('off');
+  expect(switchState(view({ switches: { enabled: 'on', core_risk: 'off', startup: 'on' } }), 'startup')).toBe('on');
+  expect(switchState(null, 'enabled')).toBe('off');
+  expect(KEEP_RUNS_DEFAULT).toBe(5);
+  expect([...KEEP_RUNS_RANGE]).toEqual([1, 10]);
+  expect(keepRunsOf(view())).toBe(5);
+  expect(keepRunsOf(view({ keep_runs: 7 }))).toBe(7);
+  for (const bad of [0, 11, 2.5, Number.NaN]) expect(keepRunsOf(view({ keep_runs: bad }))).toBe(5);
+  expect(keepRunsOf(null)).toBe(5);
+  for (const lang of ['he', 'en'] as const) {
+    for (const k of ['startupTitle', 'startupText', 'keepTitle', 'keepText', 'keepLabel', 'keepSave', 'keepSaved', 'originStartup'] as const) {
+      expect(wmt(k, undefined, lang).length, `${lang}.${k}`).toBeGreaterThan(0);
+    }
+  }
+  expect(wmt('startupText', undefined, 'he')).toContain('גיבוי מלא');
+  expect(wmt('lead', undefined, 'he')).not.toContain('שום דבר לא מותקן מעצמו');
 });

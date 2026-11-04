@@ -1,7 +1,9 @@
 """WISKEY-MANAGED-INSTALL-2382: the owner's screen of "WisKey installs and upgrades through Arx" (services/wiskey_managed_install.py).
 
 - GET  /wiskey/managed            versions (installed, shipped), ownership, plan, the switches, the last run (secret-free, path-free)
-- PUT  /wiskey/managed/switch     `{switch: "enabled" | "core_risk", value: "off" | "on", confirm?: str}` - ON needs the typed phrase
+- PUT  /wiskey/managed/switch     `{switch: "enabled" | "core_risk" | "startup", value: "off" | "on", confirm?: str}` - ON needs the typed
+                                  phrase (owner decision 04.11 Q3 = B: `startup` lets a run also start at add-on start-up; default off)
+- PUT  /wiskey/managed/keep-runs  `{value: 1..10}` - how many recent runs keep their previous tree and private backup (04.11 Q8 = B)
 - POST /wiskey/managed/check      the dry run: preflight, Core gate, full-backup check (reads only)
 - POST /wiskey/managed/adopt      `{confirm: str}` - the owner's conversion of the manual install (private backup, audit, no config write)
 - POST /wiskey/managed/upgrade    202: install / upgrade / convert by plan (never a downgrade)
@@ -52,9 +54,14 @@ def _rid(request: Request) -> str | None:
 
 class SwitchIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    switch: Literal["enabled", "core_risk"]
+    switch: Literal["enabled", "core_risk", "startup"]
     value: str = Field(max_length=8)
     confirm: str | None = Field(default=None, max_length=200)
+
+
+class KeepRunsIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    value: Any = None  # checked by the service (an integer 1..10; never a bool, a string or a float) so the refusal is audited
 
 
 class ConfirmIn(BaseModel):
@@ -102,6 +109,20 @@ def put_switch(body: SwitchIn, request: Request, principal: Principal = Depends(
         for k, before, after in changes:
             audit(conn, actor=principal, action="settings.changed", decision="allowed", resource_type="installation", resource_id=RID,
                   request_id=_rid(request), details={"key": k, "before": before, "after": after})
+        return wmi.view(conn)
+
+
+@router.put(BASE + "/keep-runs")
+def put_keep_runs(body: KeepRunsIn, request: Request, principal: Principal = Depends(current_principal_ro)) -> dict[str, Any]:
+    """Owner decision 04.11 Q8 = B: how many recent managed runs keep their previous tree and private backup (1-10, default 5; system administrator, audited)."""
+    with request.app.state.db.connection(label="wiskey.managed.keep_runs") as conn:
+        _admin_or_403(conn, principal, request, "settings.changed")
+        try:
+            before, after = wmi.set_keep_runs(conn, body.value)
+        except wmi.ManagedRefused as exc:
+            raise _refused(conn, request, principal, "settings.changed", exc) from None
+        audit(conn, actor=principal, action="settings.changed", decision="allowed", resource_type="installation", resource_id=RID,
+              request_id=_rid(request), details={"key": wmi.K_KEEP_RUNS, "before": before, "after": after})
         return wmi.view(conn)
 
 

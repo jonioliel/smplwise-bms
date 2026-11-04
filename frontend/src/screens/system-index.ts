@@ -101,11 +101,14 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     ],
   },
   {
-    id: 'system',
-    label: 'מערכת ותשתית',
-    icon: 'cpu',
+    // WISKEY-INSTALL-ANSWERS-2400 (owner answer 04.11, round 18 Q2 = ג): the intercom's settings are their own group "בקרת כניסה" and the
+    // installer tools are a row of it - not search-only, not a row of "מערכת ותשתית". The group took the access-control screen and the
+    // entrance-screen switches out of "מערכת ותשתית" (two rows less there, one group header more), so the column still fits 1440x900 and
+    // 1366x768 without a scroll (owner decision 402; layout-settings-nav-fit-402).
+    id: 'access-control',
+    label: 'בקרת כניסה',
+    icon: 'door',
     entries: [
-      { tab: 'setup', label: 'חיבורים', href: '#/system/setup', keywords: 'nvr go2rtc wiskey חשבון סיסמה ntp דיסקים הפעלה מחדש חסימות פתיחת דלתות שחרור התקן וירטואלי תבנית template universal פריטים שפותחים דלתות שיוך דלתות' },
       // CR-036 S10: the access-control status page and its segments (docs/changes/CR-036-S8-S10-NOTES.md, "Merging ... with main")
       { ownTabs: true, tab: 'access-control', label: 'בקרת כניסה', href: '#/system/access-control', keywords: 'wiskey אינטרקום תחנות בריאות סנכרון התרעות התנגשויות' },
       { tab: 'access-control', label: 'יומן האינטרקום', href: '#/system/access-control/audit', sub: true, keywords: 'פעולות audit מי עשה מה' },
@@ -113,24 +116,31 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { tab: 'access-control', label: 'מדיניות', href: '#/system/access-control/policy', sub: true, keywords: 'תמונת אירוע מספר עובד שגיאות סנכרון רגיש תיעוד צפייה' },
       { tab: 'access-control', label: 'הודעות', href: '#/system/access-control/messaging', sub: true, keywords: 'וואטסאפ whatsapp תבניות שליחת הודעה הודעה חופשית מכסה נמענים' },
       // WISKEY-OPS-VIEWS-2400 (integration plan T11): the intercom system's operations and fleet views (access.read at the installation).
-      // Sub-entries of בקרת כניסה (a screen with its own tabs), so they are search results only and the column keeps its height (owner
-      // decision 402: the settings column never scrolls); the shell's tab row and the deep links lead to the screen as well.
+      // Sub-entries of בקרת כניסה (a screen with its own tabs), so they are search results only; the shell's tab row and the deep links
+      // lead to the screen as well.
       { sub: true, tab: 'intercom-operations', label: 'תפעול האינטרקום', href: '#/system/intercom-operations', keywords: 'wiskey אינטרקום תפעול פעולות סנכרון חקירות ציר זמן משימות ביטול קיבולת מגמה מלאי צי ייצוא יומן שינויים דוח אירועים מדדים' },
       { tab: 'intercom-operations', label: 'פעולות ומשימות', href: '#/system/intercom-operations/operations', sub: true, keywords: 'סנכרון עריכה מרוכזת ייבוא משימות שגיאות ביטול' },
       { tab: 'intercom-operations', label: 'חקירות', href: '#/system/intercom-operations/investigations', sub: true, keywords: 'ציר זמן כניסות שינויים סנכרון' },
       { tab: 'intercom-operations', label: 'קיבולת ומגמות', href: '#/system/intercom-operations/capacity', sub: true, keywords: 'משתמשים כרטיסים מגבלה צמיחה תחזית' },
       { tab: 'intercom-operations', label: 'דוח אירועים', href: '#/system/intercom-operations/events', sub: true, keywords: 'כניסות נדחו אושרו חריגות לפי יום לפי עמדה' },
       { tab: 'intercom-operations', label: 'ייצוא', href: '#/system/intercom-operations/exports', sub: true, keywords: 'csv מלאי צי יומן שינויים קובץ' },
-      // WISKEY-INSTALLER-NATIVE-2400: WisKey's installer tools, natively (owner decision 03.11, Q7). The 2.40.0 train made them
-      // search-only sub-entries of בקרת כניסה like the operations views above: as a top-level row the "מערכת ותשתית" group
-      // needed a scroll of its own at 1440x900 (owner decision 402). The shell's tab row and the deep links lead to the tools.
-      { sub: true, tab: 'intercom-installer', label: 'התקנה ותחזוקת מערכת האינטרקום', href: '#/system/intercom-installer', keywords: 'wiskey אינטרקום מתקין התקנה תחזוקה שעון ntp שרת זמן עמדה הגדרות טכניות זמן פתיחה שם דלת ממסר הוספת עמדה הסרת עמדה החלפה פלטפורמה ייבוא ייצוא webhook שמירת נתונים שלמות קיבולת' },
+      // WISKEY-INSTALLER-NATIVE-2400: WisKey's installer tools, natively (owner decision 03.11, Q7) - a row of this group (owner 04.11, Q2 = ג).
+      // The screen draws its own tab strip (ownTabs), so its four tools are search results under it.
+      { ownTabs: true, tab: 'intercom-installer', label: 'התקנה ותחזוקה', href: '#/system/intercom-installer', keywords: 'wiskey אינטרקום מתקין התקנה ותחזוקת מערכת האינטרקום תחזוקה שעון ntp שרת זמן עמדה הגדרות טכניות זמן פתיחה שם דלת ממסר הוספת עמדה הסרת עמדה החלפה פלטפורמה ייבוא ייצוא webhook שמירת נתונים שלמות קיבולת' },
       { tab: 'intercom-installer', label: 'שעון האינטרקום', href: '#/system/intercom-installer/clock', sub: true, keywords: 'ntp שעון סטייה שרת זמן' },
       { tab: 'intercom-installer', label: 'הוספה והסרה של עמדות אינטרקום', href: '#/system/intercom-installer/lifecycle', sub: true, keywords: 'הוספת עמדה אשף התחברות מחדש סיסמה כתובת הסרת עמדה החלפת עמדה מכשיר חדש' },
       { tab: 'intercom-installer', label: 'תצורת מערכת האינטרקום', href: '#/system/intercom-installer/platform', sub: true, keywords: 'קיבולת שלמות חלון תחזוקה תור תחזוקה שמירת אירועים webhook מפתח ייצוא ייבוא שינוי בכמה עמדות' },
       { tab: 'intercom-installer', label: 'הגדרות טכניות של עמדה', href: '#/system/intercom-installer/technical', sub: true, keywords: 'שם דלת זמן פתיחה היפוך ממסר סיסמאות יכולות' },
-      { tab: 'general', label: 'גשר Arx', href: `${GEN}?tab=ha`, keywords: 'אינטגרציה צימוד pairing bridge supervisor home assistant' },
       { tab: 'general', label: 'מתגי מסכי כניסה', href: `${GEN}?tab=access-control`, keywords: 'wiskey מוטמע אינטרקום תצוגה מסך תחנות שיחה דיבור הכרזה משפטים בדיקת התאמה השוואה צד לצד' },
+    ],
+  },
+  {
+    id: 'system',
+    label: 'מערכת ותשתית',
+    icon: 'cpu',
+    entries: [
+      { tab: 'setup', label: 'חיבורים', href: '#/system/setup', keywords: 'nvr go2rtc wiskey חשבון סיסמה ntp דיסקים הפעלה מחדש חסימות פתיחת דלתות שחרור התקן וירטואלי תבנית template universal פריטים שפותחים דלתות שיוך דלתות' },
+      { tab: 'general', label: 'גשר Arx', href: `${GEN}?tab=ha`, keywords: 'אינטגרציה צימוד pairing bridge supervisor home assistant' },
       { tab: 'entities', label: 'קטלוג התקנים', href: '#/system/entities', keywords: 'ישויות entities תחומים' },
       // CALENDARS-UI-2310: the calendars module (contract section 16: settings live under "מערכת ותשתית" › "יומנים") and its external connections
       { ownTabs: true, tab: 'calendars', label: 'יומנים', href: '#/system/calendars', keywords: 'יומן חדרים הזמנות אישורים תחזוקה חפיפה אורחים מחיקה מיקום בתפריט calendar booking' },

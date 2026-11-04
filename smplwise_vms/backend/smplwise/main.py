@@ -1181,7 +1181,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         await run_in_threadpool(bridge_install.run_startup, app.state.db, settings)
         from .services import wiskey_managed_install as _wmi
 
-        threading.Thread(target=_wmi.recover_interrupted_safe, args=(app.state.db, settings), name="wiskey-managed-recover", daemon=True).start()  # WISKEY-MANAGED-INSTALL-2382: an Arx restart mid-run never leaves the core stopped
+        threading.Thread(target=_wmi.startup_safe, args=(app.state.db, settings), name="wiskey-managed-recover", daemon=True).start()  # WISKEY-MANAGED-INSTALL-2382: an Arx restart mid-run never leaves the core stopped; WISKEY-INSTALL-ANSWERS-2400 (owner 04.11 Q3 = B): then the start-up run, only with the managed AND start-up switches on
         if settings.cast_relay:  # CR-028: the cast relay listens only when the add-on option is on (the host port mapping is the owner's)
             from .services import cast_relay
 
