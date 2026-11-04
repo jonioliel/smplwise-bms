@@ -26,7 +26,7 @@ const CSS = `
   .o16a .t { flex: 1; min-inline-size: 0; display: flex; flex-direction: column; gap: 3px; }
   .o16a .w { display: flex; align-items: center; gap: 7px; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-semibold); color: var(--sw-heading); white-space: nowrap; }
   .o16a .names { font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
-  .o16a .names i { font-style: normal; color: var(--sw-text-3); padding-inline: 5px; }
+  .o16 .names i { font-style: normal; color: var(--sw-text-3); padding-inline: 5px; }
   .o16a .rail { display: flex; gap: 3px; block-size: 4px; min-inline-size: 0; }
   .o16a .rail i { flex: 1; border-radius: var(--sw-r-pill); background: var(--sw-surface-3); }
   .o16a .rail i.on { background: var(--sw-success); }
@@ -50,7 +50,8 @@ const CSS = `
   .o16b .who { color: var(--sw-text-2); font-size: var(--sw-fs-sm); }
   .o16b .more { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
 
-  /* C - no card: one quiet line at the foot of the clock card */
+  /* C - no card of its own: one quiet line at the foot of the alarm card (the building's state, where the alarm already is; the alarm
+     card's body is centred with room under it, so the row keeps its height) */
   .o16c { display: flex; align-items: center; gap: 8px; min-inline-size: 0; margin-block-start: 2px; padding-block-start: 8px; border-block-start: 1px solid var(--sw-border);
     font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
   .o16c b { font-weight: var(--sw-fw-semibold); color: var(--sw-heading); white-space: nowrap; }
@@ -135,15 +136,16 @@ function optionB(v: View, size: string): HTMLElement {
   else if (v.tone === 'clear') top.append(el('b', {}, 'ריק'), el('span', { class: 'ell' }, ...(v.last ? [bdi(v.last.name), ` התרוקן ב־${hm(v.last.empty_since)}`] : [])));
   else top.append(el('b', {}, 'אין מידע'), el('span', { class: 'ell' }, 'החיישנים לא דיווחו'));
   root.append(top);
-  const cap = size === 's' ? 0 : size === 'l' ? 4 : 3;
+  // the phone's stack gives the card the alarm card's height: two floor lines there
+  const cap = size === 's' ? 0 : size === 'l' ? 4 : window.innerWidth < 700 ? 2 : 3;
   if (cap) {
     const fls = el('div', { class: 'fls' });
     const shown = v.floors.length > cap ? cap - 1 : cap;
     for (const f of v.floors.slice(0, shown)) {
       const cells = el('span', { class: 'cells', 'aria-hidden': 'true' });
       const order = [...f.rooms.filter((r) => r.status === 'occupied'), ...f.rooms.filter((r) => r.status === 'unknown'), ...f.rooms.filter((r) => r.status === 'clear')];
-      for (const r of order.slice(0, 12)) cells.append(el('i', { class: r.status === 'occupied' ? 'on' : r.status === 'unknown' ? 'unk' : '', title: r.name }));
-      if (order.length > 12) cells.append(el('em', {}, `+${NUM.format(order.length - 12)}`));
+      for (const r of order.slice(0, 8)) cells.append(el('i', { class: r.status === 'occupied' ? 'on' : r.status === 'unknown' ? 'unk' : '', title: r.name }));
+      if (order.length > 8) cells.append(el('em', {}, `+${NUM.format(order.length - 8)}`));
       const act = f.rooms.filter((r) => r.status === 'occupied');
       const who = el('span', { class: 'who ell' }, ...act.slice(0, 3).flatMap((r, i) => (i ? [', ', bdi(r.name)] : [bdi(r.name)])), act.length > 3 ? ` +${NUM.format(act.length - 3)}` : '');
       fls.append(el('div', { class: 'f' }, el('bdi', { class: 'fn' }, f.name), cells, who));
@@ -175,10 +177,10 @@ function optionC(v: View): HTMLElement {
   const size = card.getAttribute('data-size') ?? 'm';
   if (opt === 'c') {
     card.style.display = 'none';
-    const clock = sr.querySelector('.wg-clock') as HTMLElement | null;
+    const alarm = sr.querySelector('.wg-alarm') as HTMLElement | null;
     const line = optionC(v);
-    // the lamp's tone rules read data-tone on an .o16 wrapper
-    clock?.append(el('div', { class: 'o16', 'data-tone': v.tone, style: 'gap:0' }, line));
+    // the lamp's tone rules read data-tone on an .o16 wrapper; the line sits on the card's floor, across its width
+    alarm?.append(el('div', { class: 'o16', 'data-tone': v.tone, style: 'gap:0;position:absolute;inset-inline:18px;inset-block-end:12px' }, line));
     return;
   }
   for (const k of [...card.children].slice(1) as HTMLElement[]) k.style.display = 'none'; // keep the real header (title, "במפה")

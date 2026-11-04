@@ -32,13 +32,13 @@ async function draw(page: Page, opt: Opt, ds: string, layout: string, size: stri
   await page.waitForTimeout(250);
 }
 
-/** The band's cards: heights, and whether the presence card (or the clock card for option C) clips its own content. */
+/** The band's cards: heights, and whether the presence card (or the alarm card for option C) clips its own content. */
 async function fit(page: Page, opt: Opt) {
   return page.evaluate((o) => {
     const sr = document.querySelector('home-widgets')?.shadowRoot;
     const cards = [...(sr?.querySelectorAll('.wg') ?? [])] as HTMLElement[];
     const vis = cards.filter((c) => c.offsetParent !== null);
-    const target = (sr?.querySelector(o === 'c' ? '.wg-clock' : '.wg-pres') ?? null) as HTMLElement | null;
+    const target = (sr?.querySelector(o === 'c' ? '.wg-alarm' : '.wg-pres') ?? null) as HTMLElement | null;
     const kids = target ? ([...target.querySelectorAll('*')] as HTMLElement[]).filter((k) => k.offsetParent !== null) : [];
     const tb = target?.getBoundingClientRect();
     const clipped = tb ? kids.filter((k) => { const r = k.getBoundingClientRect(); return r.height > 0 && (r.bottom > tb.bottom + 0.5 || r.top < tb.top - 0.5); }).length : -1;
