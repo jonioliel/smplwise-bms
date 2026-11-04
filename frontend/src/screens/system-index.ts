@@ -236,7 +236,9 @@ export function routeHref(r: RouteState | null): string {
 
 /** The entry the route is on: the exact deep link, else its top-level entry (a sub-page the index does not list). */
 export function activeEntry(groups: SettingsGroup[], r: RouteState | null): SettingsEntry | null {
-  const href = routeHref(r);
+  // SETTINGS-INTERCOM-CARDS-2401: "הכרזות וקול" (layout b's second tab) has no row of its own (owner decision 402): the column marks
+  // "מתגי מסכי כניסה", the tab it was split from
+  const href = routeHref(r).replace('tab=access-voice', 'tab=access-control');
   if (!href) return null;
   const all = groups.flatMap((g) => g.entries);
   const exact = all.find((e) => e.href === href);

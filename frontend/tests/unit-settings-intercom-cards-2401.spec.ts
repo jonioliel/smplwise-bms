@@ -30,6 +30,8 @@ import {
   type FoldSummaryDetail,
 } from '../src/access-control/settings-cards-logic';
 import { enSettingsCardsText, heSettingsCardsText } from '../src/i18n/settings-cards';
+import { SETTINGS_GROUPS, activeEntry } from '../src/screens/system-index';
+import { parseRoute } from '../src/router';
 
 // SETTINGS-INTERCOM-CARDS-2401 (owner 04.11, round 19 Q6 = a): the layout setting of Settings › "מתגי מסכי כניסה" (cards / two tabs / one
 // list), which card is open, the per-user memory of the last open card, the one-line summaries, and the wiring that keeps every existing
@@ -220,7 +222,10 @@ test.describe('wiring (source)', () => {
 
   test('the settings column keeps its rows (owner decision 402): no entry for "הכרזות וקול", the search words lead to the tab', () => {
     const idx = read('screens/system-index.ts');
-    expect(idx).not.toContain('tab=access-voice');
+    expect(SETTINGS_GROUPS.flatMap((g) => g.entries).some((e) => e.href.includes('tab=access-voice'))).toBe(false);
     expect(idx).toContain('כרטיסים סידור הכרזות וקול מנוע הקראה');
+    // layout b's second tab and a card link mark the row of the tab they belong to
+    expect(activeEntry(SETTINGS_GROUPS, parseRoute('#/system/diagnostics?tab=access-voice'))?.label).toBe('מתגי מסכי כניסה');
+    expect(activeEntry(SETTINGS_GROUPS, parseRoute('#/system/diagnostics?tab=access-control&card=calls'))?.label).toBe('מתגי מסכי כניסה');
   });
 });
