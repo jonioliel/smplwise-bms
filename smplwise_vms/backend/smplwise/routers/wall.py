@@ -10,16 +10,16 @@ import asyncio
 import json
 import sqlite3
 import time
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, File, Query, Request, Response, UploadFile, WebSocket
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, ValidationError
 from starlette.concurrency import run_in_threadpool
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
-from ..db import Database, get_setting, now_iso
+from ..db import Database, get_setting, now_iso, set_setting
 from ..errors import ApiError, forbidden, not_found
 from ..rbac import INSTALLATION, Principal, permissions_anywhere, require
 from ..services import revocation, wall, wall_alerts, wall_photos
@@ -181,7 +181,17 @@ class ProfilePatch(BaseModel):
     area_id: str | None = Field(default=None, max_length=200)
     enabled: bool | None = None
     remote_allowed: bool | None = None
+    # "מסך קיר גם במחשב" (WALL-FOLLOWUPS-2390), a column of its own since WALL-ANSWERS-2400 (migration 0204), next to `enabled` and
+    # `remote_allowed`. Strict: "yes" or 1 is a 422, never a silent true. Presentation only: the role and its bindings are the same on
+    # every device.
+    desktop: StrictBool | None = None
     config: dict[str, Any] | None = None  # a partial WallConfig, merged and validated in full
+
+
+class WallSettingsPatch(BaseModel):
+    """WALL-ANSWERS-2400 (owner 04.11, round 18 question 18): installation-wide wall settings."""
+    model_config = ConfigDict(extra="forbid")
+    foldable_open: Literal["tablet", "phone"]  # an unfolded foldable: the wall display like a tablet (default), or the application like a phone
 
 
 def _need_admin(conn: sqlite3.Connection, principal: Principal) -> None:
@@ -231,7 +241,28 @@ def list_profiles(principal: Principal = Depends(current_principal_ro), conn: sq
     _need_admin(conn, principal)
     names = _names(conn)
     rows = conn.execute("SELECT * FROM wall_profiles ORDER BY title COLLATE NOCASE").fetchall()
-    return {"profiles": [wall.profile_dict(conn, r, names) for r in rows], "max_profiles": wall.max_profiles(conn)}
+    return {"profiles": [wall.profile_dict(conn, r, names) for r in rows], "max_profiles": wall.max_profiles(conn), "foldable_open": wall.foldable_open(conn)}
+
+
+@router.get("/wall/settings")
+def wall_settings(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The installation-wide wall settings (administrators only): how an unfolded foldable is classified."""
+    _need_admin(conn, principal)
+    return {"foldable_open": wall.foldable_open(conn)}
+
+
+@router.patch("/wall/settings")
+def patch_wall_settings(body: WallSettingsPatch, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """WALL-ANSWERS-2400: an unfolded foldable is a tablet (the wall display; default) or a phone (the application). Administrators
+    only, audited. Presentation only: it reaches a wall user's browser in GET /me (`wall.foldable_open`) and decides where the wall
+    mounts; it never changes a role, a binding or a permission."""
+    _need_admin(conn, principal)
+    before = wall.foldable_open(conn)
+    if body.foldable_open != before:
+        set_setting(conn, wall.FOLDABLE_OPEN_KEY, body.foldable_open)
+        audit(conn, actor=principal, action="wall.settings.update", decision="allowed", resource_type="setting", resource_id=wall.FOLDABLE_OPEN_KEY, request_id=_rid(request),
+              details={"foldable_open": {"from": before, "to": body.foldable_open}})
+    return {"foldable_open": wall.foldable_open(conn)}
 
 
 @router.get("/wall/candidates")
@@ -332,13 +363,15 @@ def patch_profile(user_id: str, body: ProfilePatch, request: Request, principal:
     area_id = body.area_id if "area_id" in body.model_fields_set else row["area_id"]
     enabled = int(body.enabled) if body.enabled is not None else int(row["enabled"])
     remote = int(body.remote_allowed) if body.remote_allowed is not None else int(row["remote_allowed"])
+    old_desktop = wall.desktop_of(row)
+    desktop = body.desktop if body.desktop is not None else old_desktop
     floor_id = row["floor_id"]
     if cfg["scope"] == "cameras":
         floor_id = None
     elif floor_id is None:
         raise ApiError(422, "validation", "בחירת 'כל הקומה' דורשת קומה שנבחרה בהוספה.")
-    changed = _diff({"title": row["title"], "area_id": row["area_id"], "enabled": bool(row["enabled"]), "remote_allowed": bool(row["remote_allowed"]), "config": old_cfg},
-                    {"title": title, "area_id": area_id, "enabled": bool(enabled), "remote_allowed": bool(remote), "config": cfg})
+    changed = _diff({"title": row["title"], "area_id": row["area_id"], "enabled": bool(row["enabled"]), "remote_allowed": bool(row["remote_allowed"]), "desktop": old_desktop, "config": old_cfg},
+                    {"title": title, "area_id": area_id, "enabled": bool(enabled), "remote_allowed": bool(remote), "desktop": desktop, "config": cfg})
     if not changed:
         return wall.profile_dict(conn, row, _names(conn))
     conn.execute("SAVEPOINT wall_patch")
@@ -346,8 +379,8 @@ def patch_profile(user_id: str, body: ProfilePatch, request: Request, principal:
         if "config.cameras" in changed or "config.scope" in changed:
             _sync_bindings(conn, principal, request, user_id, floor_id=floor_id, cameras=cfg["cameras"])
         conn.execute(
-            "UPDATE wall_profiles SET title = ?, area_id = ?, floor_id = ?, enabled = ?, remote_allowed = ?, config_json = ?, version = version + 1, updated_at = ?, updated_by = ? WHERE user_id = ?",
-            (title, area_id, floor_id, enabled, remote, wall.dumps(cfg), now_iso(), principal.user_id, user_id),
+            "UPDATE wall_profiles SET title = ?, area_id = ?, floor_id = ?, enabled = ?, remote_allowed = ?, desktop = ?, config_json = ?, version = version + 1, updated_at = ?, updated_by = ? WHERE user_id = ?",
+            (title, area_id, floor_id, enabled, remote, int(desktop), wall.dumps(cfg), now_iso(), principal.user_id, user_id),
         )
         if "enabled" in changed:
             audit(conn, actor=principal, action="wall.profile.enable" if enabled else "wall.profile.disable", decision="allowed", resource_type="wall_profile", resource_id=user_id, request_id=_rid(request),

@@ -100,6 +100,12 @@ duplicated all of that for no gain the owner asked for.
 > is superseded. (2) The class is re-read on every physical screen change (fold / unfold), not only on load and
 > `orientationchange`, and the shell swaps in place. (3) A profile flag `desktop` ("wall mode on desktop", the one-hour
 > follow-up of section 13) also mounts the wall on a desktop-class browser.
+>
+> **Amended by WALL-ANSWERS-2400 (2026-11-04, `docs/changes/WALL-ANSWERS-2400.md`; owner answers round 18, questions 18 and 20):**
+> (1) the open-foldable case (amendment (1) above, plus near-square Mobile-UA screens up to a 900 px short side) follows an
+> installation setting `wall.foldable_open` (Settings > wall displays, administrators only, audited): `tablet` (default) as above,
+> or `phone`; no other device changes class. (2) The `desktop` flag is a column of `wall_profiles` (migration 0204), not a key of
+> `config_json`, so a rollback cannot reset a profile's configuration.
 
 Inputs, all read from the physical device and **not from the viewport** (the on-screen keyboard, split screen and rotation
 change the viewport but not these):

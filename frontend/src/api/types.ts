@@ -20,8 +20,9 @@ export interface Me {
   permissions_fingerprint?: string;
   /** T055: /me?known=<fingerprint> - whether it moved since. */
   permissions_changed?: boolean;
-  /** CR-030: presence of an enabled wall profile; `desktop` (WALL-FOLLOWUPS-2390): the wall display also takes over a desktop-class browser. Absent in an answer from before 2.39: read as false. */
-  wall?: { enabled: boolean; profile_version: number; desktop?: boolean } | null;
+  /** CR-030: presence of an enabled wall profile; `desktop` (WALL-FOLLOWUPS-2390): the wall display also takes over a desktop-class browser;
+   * `foldable_open` (WALL-ANSWERS-2400): an unfolded foldable counts as a tablet (default) or a phone. Absent in an older answer: false / tablet. */
+  wall?: { enabled: boolean; profile_version: number; desktop?: boolean; foldable_open?: 'tablet' | 'phone' } | null;
   bootstrap_state: string;
   /** NVR-less mode (owner request 2026-09-29): `ha_only` when the add-on options name no NVR host - the shell hides the
    * NVR areas for everyone. Absent on an older backend (= full). */

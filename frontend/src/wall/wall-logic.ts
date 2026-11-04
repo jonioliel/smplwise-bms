@@ -73,6 +73,17 @@ export function resolveLayout(i: LayoutInput): Layout {
   return { preset, cols: grid.cols, rows: grid.rows, perPage, pages, rotateS, map: preset === 'tablet-portrait' && i.showMap };
 }
 
+/**
+ * Where the status chips (alerts, "המערכת תקינה", the state entities, the "no connection" banner) are drawn: in the top strip, or -
+ * on the portrait preset - in the state band under the cameras (CR-030 section 4.1: "strip, cameras, then the map band + state
+ * band"). Exactly ONE home per preset. WALL-ANSWERS-2400 (owner 04.11, round 18 question 19): the portrait wall used to render the
+ * same list in both places, so every chip - "המערכת תקינה" first of all - appeared twice.
+ */
+export type ChipHome = 'strip' | 'band';
+export function chipHome(preset: Preset): ChipHome {
+  return preset === 'tablet-portrait' ? 'band' : 'strip';
+}
+
 /** The cameras of one page, after the hourly shuffle rotated the order by `shift` cells. */
 export function pageCameras<T>(cams: T[], page: number, perPage: number, shift = 0): T[] {
   if (!cams.length) return [];

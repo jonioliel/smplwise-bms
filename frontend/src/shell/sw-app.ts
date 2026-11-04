@@ -38,7 +38,7 @@ import { rt } from '../tickets/rfq-text';
 import '../xsection/sw-fire-bar'; // 2.29.0: the alarm bar (off unless the option fire_ui is on)
 import '../components/sw-incoming-call'; // WISKEY-INBOUND-CALLS-2382: the incoming door-station call banner (off unless its setting is on)
 import { setXsOptions, xsOptions } from '../xsection/xs-model';
-import { classifyDevice, readDeviceEnv, wallModeFor, watchDeviceClass } from '../wall/device-class';
+import { classifyDevice, classifyOptionsFor, readDeviceEnv, wallModeFor, watchDeviceClass } from '../wall/device-class';
 import { incidentState, onIncidentState, startIncidents } from '../incidents/store';
 import { it as incText } from '../i18n/incidents';
 import '../screens/system-nav'; // SET-polish: the settings' own navigation column and search
@@ -3489,10 +3489,11 @@ export class SwApp extends LitElement {
   /** CR-030: an enabled wall user on a tablet-class device gets the wall display INSTEAD of the application (no rail, router or user menu);
    * on a desktop-class device only when the profile allows it (WALL-FOLLOWUPS-2390, "wall mode on desktop"). The classification is
    * presentation only; the server never looks at it. Phones get the normal limited application. Read on every render, so a fold /
-   * unfold (watchDeviceClass above) swaps the two without a reload. */
+   * unfold (watchDeviceClass above) swaps the two without a reload. WALL-ANSWERS-2400: an unfolded foldable follows the installation's
+   * setting (`me.wall.foldable_open`: tablet = the wall, the default; phone = the application). */
   private wallMode(): boolean {
     const s = this.session;
-    if (s.mode !== 'api' || !wallModeFor(s.me, classifyDevice(readDeviceEnv()))) return false;
+    if (s.mode !== 'api' || !wallModeFor(s.me, classifyDevice(readDeviceEnv(), classifyOptionsFor(s.me)))) return false;
     void import('../wall/sw-wall');
     return true;
   }

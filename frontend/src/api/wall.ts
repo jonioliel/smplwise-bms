@@ -16,8 +16,6 @@ export interface WallConfig {
   strip: string[];
   state_entities: string[];
   show_map: boolean;
-  /** WALL-FOLLOWUPS-2390: the wall display also takes over a desktop-class browser (no touch: a mini-PC behind a wall monitor). Absent = false. */
-  desktop?: boolean;
   /** CR-029 S5-B: how the map band draws the plan - live 3D or the baked stills, at which quality, after how long it idles
    * into the still. "follow" hands a dial to this browser's pin, then the installation (map/wall-plan-mode.ts). Absent in an
    * answer from before the block existed: read it as follow everywhere. */
@@ -53,6 +51,9 @@ export interface WallProfile {
   floor_id: string | null;
   enabled: boolean;
   remote_allowed: boolean;
+  /** "מסך קיר גם במחשב" (WALL-FOLLOWUPS-2390): the wall display also takes over a desktop-class browser (no touch: a mini-PC behind a
+   * wall monitor). A field of the profile, not of `config`, since WALL-ANSWERS-2400 (a rollback cannot reset the configuration). Absent = false. */
+  desktop?: boolean;
   version: number;
   config: WallConfig;
   status: WallStatus;
@@ -73,10 +74,13 @@ export const wallSocketUrl = (): string => {
   return u.toString();
 };
 
-export const listWallProfiles = () => get<{ profiles: WallProfile[]; max_profiles: number }>('wall/profiles');
+/** WALL-ANSWERS-2400: how an unfolded foldable is classified, installation-wide (device-class.ts `FoldableOpen`). */
+export type WallFoldableOpen = 'tablet' | 'phone';
+export const listWallProfiles = () => get<{ profiles: WallProfile[]; max_profiles: number; foldable_open?: WallFoldableOpen }>('wall/profiles');
+export const patchWallSettings = (body: { foldable_open: WallFoldableOpen }) => patch<{ foldable_open: WallFoldableOpen }>('wall/settings', body);
 export const wallCandidates = () => get<{ users: { id: string; username: string; display_name: string }[] }>('wall/candidates');
 export const createWallProfile = (body: { user_id: string; title: string; floor_id?: string | null; area_id?: string | null; cameras?: string[] }) => post<WallProfile>('wall/profiles', body);
-export const patchWallProfile = (userId: string, body: { title?: string; area_id?: string | null; enabled?: boolean; remote_allowed?: boolean; config?: Partial<Record<keyof WallConfig, unknown>> }) =>
+export const patchWallProfile = (userId: string, body: { title?: string; area_id?: string | null; enabled?: boolean; remote_allowed?: boolean; desktop?: boolean; config?: Partial<Record<keyof WallConfig, unknown>> }) =>
   patch<WallProfile>(`wall/profiles/${encodeURIComponent(userId)}`, body);
 export const removeWallProfile = (userId: string) => del(`wall/profiles/${encodeURIComponent(userId)}`);
 

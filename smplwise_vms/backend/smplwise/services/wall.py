@@ -9,7 +9,7 @@ import sqlite3
 import threading
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..db import get_setting, now_iso
 
@@ -96,9 +96,9 @@ class WallConfig(BaseModel):
     strip: list[Literal["clock", "date", "weather", "alarm", "health"]] = Field(default_factory=lambda: ["clock", "date", "health"], max_length=8)
     state_entities: list[str] = Field(default_factory=list, max_length=MAX_STATE_ENTITIES)
     show_map: bool = False
-    # WALL-FOLLOWUPS-2390: the wall display also takes over a desktop-class browser (a mini-PC behind a wall monitor). Presentation only:
-    # the client decides where the wall mounts; the role and its bindings are the same on every device.
-    desktop: StrictBool = False  # strict: "yes" or 1 is a 422, never a silent true
+    # WALL-FOLLOWUPS-2390's `desktop` switch lived here; WALL-ANSWERS-2400 moved it to the column `wall_profiles.desktop`
+    # (migration 0204): an unknown key here makes older code drop the whole configuration to the defaults on a rollback.
+    # Never add a key here that a rollback must survive - give it a column instead.
     plan: Plan = Field(default_factory=Plan)  # the map band's own plan mode / quality / idle time (CR-029 S5-B)
     theme: Literal["follow", "dark", "light"] = "dark"
     alerts: Alerts = Field(default_factory=Alerts)
@@ -154,19 +154,50 @@ def enabled_profile(conn: sqlite3.Connection, user_id: str) -> sqlite3.Row | Non
 
 
 def me_block(conn: sqlite3.Connection, user_id: str) -> dict[str, Any] | None:
-    """The `wall` entry of GET /me: presence only, never the configuration (that is fetched in wall mode) - plus `desktop`
-    (WALL-FOLLOWUPS-2390), which the client needs before it mounts anything: whether a desktop-class browser also gets the wall."""
+    """The `wall` entry of GET /me: presence only, never the configuration (that is fetched in wall mode) - plus what the client
+    needs before it mounts anything: `desktop` (WALL-FOLLOWUPS-2390: a desktop-class browser also gets the wall) and `foldable_open`
+    (WALL-ANSWERS-2400: an unfolded foldable counts as a tablet - the default - or as a phone; installation-wide)."""
     row = enabled_profile(conn, user_id)
     if row is None:
         return None
-    return {"enabled": True, "profile_version": int(row["version"]), "desktop": bool(config_of(row).get("desktop", False))}
+    return {"enabled": True, "profile_version": int(row["version"]), "desktop": desktop_of(row), "foldable_open": foldable_open(conn)}
+
+
+def _stored(row: sqlite3.Row) -> dict[str, Any]:
+    raw = json.loads(row["config_json"] or "{}")
+    return raw if isinstance(raw, dict) else {}
 
 
 def config_of(row: sqlite3.Row) -> dict[str, Any]:
     try:
-        return WallConfig.model_validate(json.loads(row["config_json"] or "{}")).model_dump(by_alias=True)
+        raw = _stored(row)
+        raw.pop("desktop", None)  # WALL-ANSWERS-2400: a row written before migration 0204 (or restored from one) - the switch is a column now
+        return WallConfig.model_validate(raw).model_dump(by_alias=True)
     except Exception:  # noqa: BLE001 - a stored row that no longer validates falls back to the defaults, never a 500 on a wall
         return default_config()
+
+
+def desktop_of(row: sqlite3.Row) -> bool:
+    """"מסך קיר גם במחשב": the column `desktop` (migration 0204); a row from before it still answers from its old config_json key."""
+    if "desktop" in row.keys():
+        return bool(row["desktop"])
+    try:
+        return _stored(row).get("desktop") is True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+# ---- installation-wide wall settings (Settings > wall displays; administrators only, audited by routers/wall.py)
+FOLDABLE_OPEN_KEY = "wall.foldable_open"
+FOLDABLE_OPEN_CHOICES = ("tablet", "phone")
+FOLDABLE_OPEN_DEFAULT = "tablet"  # owner 04.11 (round 18, question 18 = א): an unfolded foldable shows the wall display
+
+
+def foldable_open(conn: sqlite3.Connection) -> str:
+    """How the client classifies an UNFOLDED book-style foldable (device-class.ts): `tablet` (default) or `phone`. Presentation
+    only, like the device class itself: it decides where the wall mounts, never what anyone may do."""
+    value = get_setting(conn, FOLDABLE_OPEN_KEY, FOLDABLE_OPEN_DEFAULT)
+    return value if value in FOLDABLE_OPEN_CHOICES else FOLDABLE_OPEN_DEFAULT
 
 
 def max_profiles(conn: sqlite3.Connection) -> int:
@@ -194,7 +225,7 @@ def profile_dict(conn: sqlite3.Connection, row: sqlite3.Row, names: dict[str, st
     return {
         "user_id": row["user_id"], "username": username, "display_name": display, "title": row["title"],
         "area_id": row["area_id"], "floor_id": row["floor_id"], "enabled": bool(row["enabled"]), "remote_allowed": bool(row["remote_allowed"]),
-        "version": int(row["version"]), "config": cfg, "status": status_of(row), "connections": connected_count(row["user_id"]),
+        "desktop": desktop_of(row), "version": int(row["version"]), "config": cfg, "status": status_of(row), "connections": connected_count(row["user_id"]),
         "last_seen_at": row["last_seen_at"], "last_channel": row["last_channel"], "created_at": row["created_at"], "updated_at": row["updated_at"],
         "camera_names": [(names or {}).get(c, c) for c in cfg.get("cameras", [])],
     }

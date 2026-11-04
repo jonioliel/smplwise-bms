@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { CURSOR_IDLE_MS, cursorHidden, isAwake, pageCameras, pixelShift, reconnectDelayMs, resolveLayout, serverHealth, tileHealth, wallScale, wallScaleFor } from '../src/wall/wall-logic';
+import { CURSOR_IDLE_MS, chipHome, cursorHidden, isAwake, pageCameras, pixelShift, reconnectDelayMs, resolveLayout, serverHealth, tileHealth, wallScale, wallScaleFor } from '../src/wall/wall-logic';
 
 // CR-030 section 4: presets, pages, burn-in, offline ladders and the schedule. Node only.
 const base = { layout: 'auto' as const, grid: 'auto' as const, viewportW: 1280, viewportH: 800, showMap: false, rotateS: 0 };
@@ -117,4 +117,15 @@ test('desktop and foldable layouts: landscape monitors take the landscape grid; 
   expect(resolveLayout({ layout: 'auto', grid: 'auto', cameras: 6, viewportW: 1440, viewportH: 900, showMap: false, rotateS: 0 })).toMatchObject({ preset: 'tablet-landscape', cols: 3, rows: 2, perPage: 6 });
   expect(resolveLayout({ layout: 'auto', grid: 'auto', cameras: 4, viewportW: 690, viewportH: 829, showMap: false, rotateS: 0 })).toMatchObject({ preset: 'tablet-portrait', cols: 1, rows: 2 });
   expect(resolveLayout({ layout: 'auto', grid: 'auto', cameras: 4, viewportW: 829, viewportH: 690, showMap: false, rotateS: 0 })).toMatchObject({ preset: 'tablet-landscape', cols: 2, rows: 2 });
+});
+
+test('the status chips have exactly one home per preset: the strip, or the portrait state band (WALL-ANSWERS-2400)', () => {
+  // regression: the portrait wall drew the same chips in the strip AND the band, so "המערכת תקינה" appeared twice
+  expect(chipHome('tablet-landscape')).toBe('strip');
+  expect(chipHome('single')).toBe('strip');
+  expect(chipHome('tablet-portrait')).toBe('band');
+  const portrait = resolveLayout({ ...base, cameras: 4, viewportW: 800, viewportH: 1280 });
+  expect(chipHome(portrait.preset)).toBe('band');
+  const fold = resolveLayout({ ...base, cameras: 4, viewportW: 690, viewportH: 829 });
+  expect(chipHome(fold.preset), 'an unfolded foldable in portrait too').toBe('band');
 });

@@ -125,6 +125,10 @@ Runner temp: `~/work/pilot-WALL-FOLLOWUPS-2390/.tmp_b` (189 MB) deleted after th
 
 ## 5. Migration and rollback
 
+> **Superseded by WALL-ANSWERS-2400** (`docs/changes/WALL-ANSWERS-2400.md`): the flag moved to the column `wall_profiles.desktop`
+> (migration 0204) and out of `config_json`, so the rollback hazard below no longer exists. The two display bugs listed under
+> "Observed, not changed here" in section 4 are fixed there.
+
 No migration (the flag lives in `config_json`; old rows read as `false`). Rollback = revert the branch commits; a stored
 `desktop: true` is then rejected by the old `WallConfig` (`extra="forbid"`) and `config_of` falls back to the defaults for
 that profile - so before a rollback, switch the flag off on every profile (or accept that those profiles show defaults).
