@@ -122,7 +122,9 @@ export const DEEP_LINKS: Readonly<Record<string, DeepLinkEntry>> = Object.freeze
   'clock.settings': { target: tool('clock_options'), label: 'שעון ו־NTP', rows: [51], bridge: 'Q7' },
   // ---- people
   'people.unmanaged': { target: tab('users'), label: 'משתמשים לא מנוהלים ובדיקת "האם יכול לפתוח"', rows: [25, 29] },
-  'profiles.edit': { target: tool('profile_options'), label: 'עריכת קבוצות ושדות פרופיל', rows: [27], bridge: 'Q4' },
+  // WISKEY-PROFILES-EDIT-2390 (2.39.0 train): the native "קבוצות ושדות" screen took rows 26 / 27 over (the Q4 bridge retired); the
+  // screen itself requires access.people.manage at installation scope, the link needs it somewhere
+  'profiles.edit': { target: tool('profile_options'), label: 'עריכת קבוצות ושדות פרופיל', rows: [26, 27], native: { href: '#/wiskey/profiles', need: ['access.people.manage'] } },
   'people.lifecycle': { target: tool('identity_lifecycle'), label: 'מחזור חיים וחידושים', rows: [28] },
   'access.reviews': { target: tool('access_reviews'), label: 'סקירות הרשאה תקופתיות', rows: [29] },
   'access.compare': { target: tool('access_comparison'), label: 'השוואת הרשאות', rows: [29] },

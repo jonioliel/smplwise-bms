@@ -142,7 +142,7 @@ test.describe('deep links: the people screen', () => {
   test.beforeEach(({}, info) => test.skip(info.project.name !== 'desktop', 'behaviour on one project'));
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
 
-  test('the page actions list the people tools; a tool link opens that tool', async ({ page }) => {
+  test('the page actions list the people tools (groups and fields native); a tool link opens that tool', async ({ page }) => {
     const { hits } = await stubPanel(page, { kiosk: true, panels: true, api: 'v1', catalog: FULL_CATALOG });
     await page.clock.setFixedTime(new Date('2026-10-12T10:00:00Z'));
     await installPeople(page, newPeopleMock('admin'));
@@ -150,10 +150,16 @@ test.describe('deep links: the people screen', () => {
     await expect(page.locator('wiskey-people sw-page')).toHaveAttribute('data-people-phase', 'ready', { timeout: 20_000 });
     const host = page.locator('sw-app wiskey-people wk-deep-links[place="people"]');
     await openList(host);
-    expect(await hrefs(host)).toEqual(expected(['people.unmanaged', 'profiles.edit', 'people.lifecycle', 'access.reviews', 'access.compare', 'people.quality']));
-    await host.locator('[data-wk-deeplink="profiles.edit"]').click();
-    await expect.poll(() => hash(page)).toMatch(/^#\/wiskey\/tools\/profile_options(\?|$)/);
-    await expect.poll(() => lastFrame(hits), { timeout: 15_000 }).toBe('tools/profile_options');
+    // profiles.edit is the native "קבוצות ושדות" screen since WISKEY-PROFILES-EDIT-2390 (2.39.0 train); the rest open the panel
+    expect(await hrefs(host)).toEqual(
+      expected(['people.unmanaged', 'profiles.edit', 'people.lifecycle', 'access.reviews', 'access.compare', 'people.quality']).map((x) =>
+        x.startsWith('profiles.edit=') ? 'profiles.edit=#/wiskey/profiles' : x,
+      ),
+    );
+    await expect(host.locator('[data-wk-deeplink="profiles.edit"]')).toHaveAttribute('data-wk-kind', 'native');
+    await host.locator('[data-wk-deeplink="people.lifecycle"]').click();
+    await expect.poll(() => hash(page)).toMatch(/^#\/wiskey\/tools\/identity_lifecycle(\?|$)/);
+    await expect.poll(() => lastFrame(hits), { timeout: 15_000 }).toBe('tools/identity_lifecycle');
   });
 });
 
