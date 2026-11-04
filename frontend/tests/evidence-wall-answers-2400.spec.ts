@@ -183,6 +183,7 @@ test.describe('question 18: the settings row (Settings > wall displays), adminis
     test.info().annotations.push({ type: 'foldable-hit', description: `${hit} @ ${JSON.stringify(b)}` });
     expect(hit, 'nothing covers the row').toContain('system-wall');
     expect(b.y + b.height, 'the row is on the screen').toBeLessThanOrEqual(page.viewportSize()!.height);
+    await page.waitForTimeout(700); // past the page's entrance fade, so the review shot is the settled page
     await shot(page, `settings-foldable-${info.project.name}`);
     await sel.selectOption('phone');
     await expect.poll(() => st.settingsPatched).toEqual([{ foldable_open: 'phone' }]);
