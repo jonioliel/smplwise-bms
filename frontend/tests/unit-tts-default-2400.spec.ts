@@ -138,7 +138,8 @@ test.describe('every announcement path', () => {
     const src = read('screens/system-access-display.ts');
     expect(src).toContain('TTS_ENGINE_KEY');
     expect(src).toContain('TTS_LANGUAGE_KEY');
-    expect(src).toContain("['', def ? tfill(t.systemDefaultNamed");
+    expect(src).toContain("['', t.systemDefault]");
+    expect(src).toContain('data-tts-fixed-default-now');
     expect(src).toContain('data-tts-fixed-missing');
     expect(src).not.toMatch(/voice/i); // WisKey's tts/start has no voice: none is invented
   });

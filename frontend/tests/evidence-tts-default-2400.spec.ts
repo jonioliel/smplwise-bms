@@ -54,7 +54,8 @@ test.describe('the setting', () => {
     const mock = await settings(page);
     const engine = page.locator(`${DISPLAY} select[data-set-access-display="access.tts_engine"]`);
     await expect(engine).toBeVisible();
-    await expect(engine.locator('option')).toHaveText(['ברירת המחדל של המערכת (מנוע מקומי)', 'מנוע מקומי', 'שירות ענן']);
+    await expect(engine.locator('option')).toHaveText(['ברירת המחדל של המערכת', 'מנוע מקומי', 'שירות ענן']);
+    await expect(page.locator(`${DISPLAY} [data-tts-fixed-default-now]`)).toHaveText('ברירת המחדל כעת: מנוע מקומי');
     await expect(engine).toHaveValue('');
     const language = page.locator(`${DISPLAY} select[data-set-access-display="access.tts_language"]`);
     await expect(language.locator('option')).toHaveText(['אוטומטית (עברית כשיש)', 'עברית · he', 'English · en']);

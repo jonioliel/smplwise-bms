@@ -251,7 +251,7 @@ export class SystemAccessDisplay extends LitElement {
     const missing = known && !!engine && !list.some((e) => e.engine_id === engine);
     const def = list.find((e) => e.engine_id === systemDefaultEngine(this.engines));
     const engineOptions: Array<[string, string]> = [
-      ['', def ? tfill(t.systemDefaultNamed, { name: def.name }) : t.systemDefault],
+      ['', t.systemDefault],
       ...list.map((e): [string, string] => [e.engine_id, e.name]),
     ];
     if (engine && !list.some((e) => e.engine_id === engine)) engineOptions.push([engine, known ? tfill(t.missingOption, { engine }) : engine]);
@@ -267,7 +267,9 @@ export class SystemAccessDisplay extends LitElement {
           : known && !list.length
             ? html`<span class="muted" role="status" data-tts-fixed-list="empty">${t.noEngines}</span>`
             : html`<span class="muted">${this.enginesState === 'loading' ? t.loading : t.engineText}</span>`;
-    return html`<div class="row" data-access-display-tts-engine><span class="lbl">${t.engine}${hint}</span>
+    // the 240 px control keeps the owner's short wording; which engine "the system default" is right now is said under the label
+    const now = !engine && def ? html`<span class="muted" data-tts-fixed-default-now>${tfill(t.systemDefaultNow, { name: def.name })}</span>` : nothing;
+    return html`<div class="row" data-access-display-tts-engine><span class="lbl">${t.engine}${hint}${now}</span>
         ${this.select(TTS_ENGINE_KEY, engineOptions)}</div>
       ${langs.length || language
         ? html`<div class="row" data-access-display-tts-language><span class="lbl">${t.language}<span class="muted">${t.languageText}</span></span>
