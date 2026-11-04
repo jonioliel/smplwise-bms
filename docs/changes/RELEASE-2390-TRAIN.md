@@ -176,3 +176,23 @@ Every rewritten PNG was compared with HEAD as old / new / difference sheets and 
 - NOT_RUN: `evidence-wiskey-people-native` on the runner after its fix (ran on the workstation; the nightly gate held the runner);
   the full backend suite and the release gate (the gate covers them); any lab / WisKey / station / Supervisor contact (none of
   the branches allows it without the owner); the UI build (`build:addon`); the 5 path-length tests on the workstation (pass on the runner).
+
+## 7. Cascade: the finished 2.38.2 train merged in (2026-11-04, workstation only, runner down)
+
+- `git merge --no-ff origin/release/2382-train` (`be6879190`: version 2.38.2 committed, main `83ce74480` merged in). Before it this train
+  held the 2382 head `bc4f5aded`; the merge brings the 12 later 2382 commits (WISKEY-JOIN-LIVE-2382, the quiet-hours test pin, the pairing
+  test isolation, the 2.38.2 version / changelog commit, the main registry audit). `origin/main` is an ancestor after the merge.
+- One textual conflict: `contracts/API_INVENTORY.md` (header line only, 2.38.1 vs 2.38.2), regenerated with `scripts/api_inventory.py`
+  (1771 routes, header 2.38.2). Everything else merged cleanly: version lines take 2.38.2 (no 2.39.0 bump here; it comes separately),
+  `CHANGELOG.md` has the 2.38.2 entry on top and no 2.39.0 entry, the WisKey channel lists / `test_wiskey_channels.py` /
+  `test_pwclean_295.py` / `test_t06_admission_295.py` were not touched by the later 2382 commits, no frontend file and no PNG baseline
+  changed (2382's later commits are backend, docs and registry only).
+- `scripts/project_status.py --write` after the merge: PASS (423 tasks, 532 requirements); the merged generated views differ from a fresh
+  run only by the timestamp, so the merged versions were kept.
+- Local receipts (workstation @ the merge): migrations contiguous 0001..0199 (199 files, no duplicate); `release_check.py` all `[ok]`
+  except the expected missing tag `v2.38.2`; `npx tsc --noEmit` exit 0; targeted backend pytest, 32 files (T06 admission, WisKey
+  channels, pwclean, the migration tests, the 2382 join-live / pairing / intercom-calls / intercom-writes / talk-caps tests, the 2390
+  live-validation / station-people tests, and every test importing `wiskey_direct_join`, `wiskey_feature_status`,
+  `access_control_writes` or `join_state`): 1005 tests, 988 passed, 14 skipped, 3 xfailed, 0 failed (exit 0).
+- Needs the runner (NOT_RUN here): the stations / people / settings pixel set without `-u` on the merged UI, the full backend suite,
+  the evidence / regression specs, the release gate, the UI build (`build:addon`).

@@ -1,5 +1,35 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.38.2 (pilot) - Talk to a door station from Arx, incoming calls, the WisKey connection page, notice board link and re-send
+**After installing:** one additive database migration (0197, the station call log). Going back to 2.38.1 needs the database backup taken before the update. Nothing new turns on by itself: the video and talk source stays "Arx (video only)" and the incoming-call window stays off until an administrator chooses otherwise. One default changes: on a portrait TV, building chips that do not fit now hide by priority in one row (a setting, per installation or per board, returns to two rows; a choice an administrator already saved is kept). The interface is rebuilt with the add-on, so reload the page once after the update.
+- **עברית:** אחרי ההתקנה: מיגרציה אחת של מסד הנתונים, שרק מוסיפה (0197, יומן השיחות של העמדות). חזרה ל-2.38.1 דורשת את הגיבוי של מסד הנתונים שנלקח לפני העדכון. שום דבר חדש לא נדלק מעצמו: מקור הווידאו והדיבור נשאר "Arx (וידאו בלבד)" וחלון השיחה הנכנסת נשאר כבוי עד שמנהל מערכת בוחר אחרת. ברירת מחדל אחת משתנה: בטלוויזיה אנכית, אייקוני מבנה שלא נכנסים מוסתרים עכשיו לפי סדר עדיפות בשורה אחת (הגדרה, להתקנה או ללוח, מחזירה לשתי שורות; בחירה שמנהל כבר שמר נשמרת). הממשק נבנה מחדש עם התוסף, לכן כדאי לטעון את הדף מחדש פעם אחת אחרי העדכון.
+
+### What was added - מה נוסף
+- **English:** Door stations: Settings › Entry screens › Stations screen display has a new row "Video and talk source" - "Arx (video only)" (default) or "WisKey (video and talk)". Under it, one line says what WisKey mode still needs. The choice takes effect within seconds, without restarting the add-on, and each start or stop of the WisKey connection is audited.
+- **עברית:** עמדות כניסה: בהגדרות › מתגי מסכי כניסה › תצוגת מסך התחנות יש שורה חדשה "מקור הווידאו והדיבור" - "Arx (וידאו בלבד)" (ברירת מחדל) או "WisKey (וידאו ודיבור)". מתחתיה שורה אחת אומרת מה עוד חסר למצב WisKey. הבחירה נכנסת לתוקף תוך שניות, בלי הפעלה מחדש של התוסף, וכל הפעלה או עצירה של החיבור ל-WisKey נרשמת ביומן.
+- **English:** The station drawer's "Dial the station" is Arx's own talk when talk is offered: the row shows the call time, the time left, mute and "Hang up", with a small "In the classic panel" link beside it. When talk is not offered, the drawer says why in one sentence. Talk is also found through WisKey's signed capabilities when its overview does not list it.
+- **עברית:** "חיוג לעמדה" בחלונית התחנה הוא עכשיו הדיבור של Arx עצמו כשיש דיבור: השורה מציגה את זמן השיחה, הזמן שנשאר, השתקה ו"ניתוק", וליד הכפתור קישור קטן "בלוח הקלאסי". כשאין דיבור, החלונית אומרת למה במשפט אחד. הדיבור מזוהה גם דרך היכולות החתומות של WisKey כשהסקירה שלו לא מפרסמת אותו.
+- **English:** Incoming calls: a new setting "Incoming-call window" (off by default; everyone with the call right, or chosen roles, for all or chosen stations, with or without sound). When on, a ring at a door station shows a window over every screen with the picture and the keys answer, decline and open the door. Every call is kept in the station's call log - answered (and by whom), declined, missed - for 90 days, with no visitor details.
+- **עברית:** שיחות נכנסות: הגדרה חדשה "חלון שיחה נכנסת" (כבויה כברירת מחדל; לכל מי שיש לו הרשאת שיחה, או לתפקידים נבחרים, לכל העמדות או לעמדות נבחרות, עם צליל או בלי). כשהיא דולקת, צלצול בעמדה מציג חלון מעל כל מסך עם התמונה והמקשים מענה, דחייה ופתיחת דלת. כל שיחה נשמרת ביומן השיחות של העמדה - נענתה (ועל ידי מי), נדחתה, לא נענתה - למשך 90 יום, בלי פרטי מבקרים.
+- **English:** Settings › Diagnostics: a new "Arx to WisKey connection" block for system administrators - whether a pairing key can sign, "Check the signed connection" (two reads only), a guided re-pair, and a "WisKey status" page with the direct connection's state (on, connecting, stopped, or the failure code).
+- **עברית:** הגדרות › אבחון: בלוק חדש "חיבור Arx ל-WisKey" למנהלי מערכת - האם יש מפתח צימוד שחותם, "בדוק חיבור חתום" (שתי קריאות בלבד), צימוד מחדש מודרך, ודף "מצב WisKey" עם מצב החיבור הישיר (מופעל, מתחבר, נעצר, או קוד הכישלון).
+- **English:** Access control: wherever Arx has no screen of its own yet for an intercom tool (schedules, profiles, station technical settings and more), a precise link opens that tool in the intercom window instead of its front page.
+- **עברית:** בקרת כניסה: בכל מקום שבו עדיין אין ל-Arx מסך משלו לכלי של האינטרקום (לוחות זמנים, פרופילים, הגדרות טכניות של עמדה ועוד), קישור מדויק פותח את הכלי עצמו בחלון האינטרקום במקום את העמוד הראשי שלו.
+- **English:** Notice board: "Copy link" now only copies the board's permanent link and never disconnects a paired TV; "Replace link" is its own key, behind a confirmation that says the TVs on the current link will disconnect. A published notice has a new "Send again" (at most once a minute; the inbox keeps one current copy).
+- **עברית:** לוח הודעות: "העתק קישור" רק מעתיק עכשיו את הקישור הקבוע של הלוח ואף פעם לא מנתק טלוויזיה מחוברת; "החלף קישור" הוא מקש נפרד, עם אישור שאומר שהטלוויזיות בקישור הנוכחי יתנתקו. להודעה שפורסמה יש "שלח שוב" חדש (לכל היותר פעם בדקה; בתיבת ההודעות נשמר עותק עדכני אחד).
+
+### What was improved - מה השתפר
+- **English:** Notice board, TV screens: a board's "Building status" list can be reordered (move up / move down); the order is the order on the TV and the priority when chips hide in portrait. Parking and gym chips can take their value from a chosen entity.
+- **עברית:** לוח הודעות, מסכי טלוויזיה: את רשימת "מצב הבניין" של לוח אפשר לסדר (הזזה למעלה / למטה); הסדר הוא הסדר בטלוויזיה וגם העדיפות כשאייקונים מוסתרים במסך אנכי. אייקוני החניה וחדר הכושר יכולים לקבל את הערך שלהם מישות שנבחרה.
+- **English:** Confirmation windows now always open centred on the screen and dim the whole page, in every style (in the glass styles they used to be laid out against the card that opened them).
+- **עברית:** חלונות אישור נפתחים עכשיו תמיד במרכז המסך ומכהים את כל הדף, בכל הסגנונות (בסגנונות הזכוכית הם נפרסו קודם ביחס לכרטיס שפתח אותם).
+- **English:** WisKey 2.0.1-rc.10: Arx's record of WisKey's commands is updated to rc.10, so a change in a later WisKey version is detected.
+- **עברית:** WisKey 2.0.1-rc.10: הרישום של Arx לפקודות של WisKey עודכן ל-rc.10, כך ששינוי בגרסה הבאה של WisKey יזוהה.
+
+### What was fixed - מה תוקן
+- **English:** Notifications raised over an open window now show above it, not behind it.
+- **עברית:** הודעות קופצות שעולות מעל חלון פתוח מוצגות עכשיו מעליו ולא מאחוריו.
+
 ## 2.38.1 (pilot) - Fix: live video, listening and talk in the stations drawer
 **After installing:** no database migration - going back to 2.38.0 is safe. No setting changes its default. The interface is rebuilt with the add-on, so reload the page once after the update.
 - **עברית:** אחרי ההתקנה: אין מיגרציה של מסד הנתונים - חזרה ל-2.38.0 בטוחה. אף הגדרה לא משנה ברירת מחדל. הממשק נבנה מחדש עם התוסף, לכן כדאי לטעון את הדף מחדש פעם אחת אחרי העדכון.

@@ -1089,9 +1089,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             await run_in_threadpool(wiskey_auto_install.activate_software, app.state.db)
         except Exception:  # noqa: BLE001 - start-up never fails on it
             log.warning("wiskey installation activation failed", exc_info=True)
-        _wkjoin = await run_in_threadpool(wiskey_direct_join.startup, app.state.db, settings)
-        if _wkjoin is not None:
-            threading.Thread(target=_wkjoin.recover_now, name="wiskey-join-recover", daemon=True).start()
+        from .services import wiskey_join_live
+
+        # WISKEY-JOIN-LIVE-2382: the same `startup` at once (recovery in the background), then the runtime manager follows the provider
+        # setting and the signing key without a restart (SW_WISKEY_JOIN_LIVE_THREAD=0: no background thread)
+        await run_in_threadpool(wiskey_join_live.MANAGER.boot, app.state.db, settings)
         # DOORLIVE-2310: the door engines go live behind OFF switches - the Direct emergency engine becomes the process's emergency engine (it sends only over
         # the selected join) and an incident still active from before this start is flagged for verification (never re-sent). Changes no switch.
         from .services import door_engine_live
@@ -1274,6 +1276,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import door_engine_live as _del
 
         _del.uninstall()
+        from .services import wiskey_join_live as _wjl
+
+        _wjl.MANAGER.shutdown()  # WISKEY-JOIN-LIVE-2382: the manager's thread ends first, then the join stops cleanly (drained)
         _wkj.shutdown()  # WKINT-295: the existing transports come back; the lineage closes (a no-op when nothing was installed)
         intercom_sync.SYNC.shutdown()
         intercom_sync.SYNC.journal = None  # R5-A6: nothing is sent after shutdown; unresolved rows stay for the next process

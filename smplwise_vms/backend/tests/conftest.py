@@ -16,6 +16,7 @@ os.environ.setdefault("SW_ENERGY_SAMPLER", "0")
 os.environ.setdefault("SW_GENERATOR", "0")
 os.environ.setdefault("SW_ELEVATORS", "0")  # CR-INFRA-ELEVATORS 2.8.0: tests call elevators_runtime.evaluate / tick with explicit instants
 os.environ.setdefault("SW_TEMPERATURE", "0")  # CR-INFRA-TEMPERATURE 2.9.1: tests call temperature_runtime.evaluate / tick with explicit instants
+os.environ.setdefault("SW_WISKEY_JOIN_LIVE_THREAD", "0")  # WISKEY-JOIN-LIVE-2382: tests call wiskey_join_live.MANAGER.evaluate directly
 os.environ.setdefault("SW_SCENARIOS", "0")  # XSCENARIO109-295: tests call scenarios.step / tick with explicit instants
 # CR-023: the bill PDF engine self-check (one child render per app start) stays off; tests call bill_pdf.self_check() directly
 os.environ.setdefault("SW_BILL_PDF_SELFCHECK", "0")
