@@ -106,6 +106,16 @@ Receipts:
 | `python scripts/sync_integration.py --check` | integration mirror is up to date |
 | `python scripts/release_check.py` | every item `[ok]` (one version 2.40.0, bridge copies identical, bridge 0.10.4 = manifest = const) except the expected `[FAIL] git tag v2.40.0 not yet`; RESULT: ready for the owner's approval |
 
+After merging `origin/main` = v2.40.0 (`d6294fc51`, the 2.40.0 UI build and the gate's test fixes, no overlap with this change):
+
+| Command | Result |
+|---|---|
+| `python scripts/sync_integration.py --check` | integration mirror is up to date |
+| `python scripts/release_check.py` | every item `[ok]` (one version 2.40.0, tag v2.40.0 present, bridge copies identical, bridge 0.10.4); RESULT: ready for the owner's approval |
+| `pytest tests/test_bridge_update_listener_2401.py tests/test_bridge_stale_discovery_2383.py` | 44 passed |
+
+The 41-minute bridge set above ran before the merge; the merge touched none of its files.
+
 ### Finding (pre-existing, reported, not changed)
 
 `tests/test_bridge_install.py` leaves `bridge_install.STATE` (installed version, config dir) set for the rest of the process. Run before
