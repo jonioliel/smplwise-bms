@@ -95,6 +95,17 @@ They are re-taken on the runner (see the receipts).
 
 Revert the branch's commits. No migration, no setting, no stored state.
 
-## Receipts
+## Receipts (2026-11-04)
 
-See the commit that adds them below (filled after the runs).
+| What | Where | Command | Result |
+|---|---|---|---|
+| Typecheck | workstation | `npx tsc --noEmit` (frontend) | exit 0 |
+| Unit specs, node only | workstation | `npx playwright test -c playwright.unit.config.ts tests/unit-schedule-editor-logic.spec.ts tests/unit-wiskey-talk-dial-2382.spec.ts tests/unit-wiskey-talk-caps-2382.spec.ts tests/unit-wiskey-station-media.spec.ts tests/unit-wiskey-station-ops.spec.ts` | 32 passed, 8 skipped (the schedule-editor spec runs on the `desktop` project only; it ran on the runner, below) |
+| Backend, targeted | workstation, `.venv` | `python -m pytest -o addopts= -q -p no:cacheprovider tests/test_wiskey_station_ops.py tests/test_intercom_authority.py tests/test_access_permissions_wxperm.py tests/test_wiskey_schedule_writes.py` | 98 passed |
+| Release check | workstation | `python scripts/release_check.py` | RESULT: ready for the owner's approval (exit 0) |
+| Browser specs + baseline re-take | runner @ `73fd19d09`, no gate running at launch (the 2.38.2 gate had ended), 112 GB free | `run_smart.py preview pilot/WISKEY-OPS-ANSWERS-2400 tests/unit-schedule-editor-logic.spec.ts tests/evidence-wiskey-schedule-writes.spec.ts tests/pixel-wiskey-schedule-writes.spec.ts tests/evidence-wiskey-talk-caps-2382.spec.ts tests/evidence-wiskey-talk-dial-2382.spec.ts tests/pixel-wiskey-talk-dial-2382.spec.ts tests/unit-wiskey-talk-dial-2382.spec.ts tests/unit-wiskey-talk-caps-2382.spec.ts --project=desktop --project=mobile --workers=1 --update-snapshots=changed --machine runner` | 83 passed, 15 skipped (by design: the Settings tests desktop only, the node unit spec desktop only), 0 failed; 9 baselines re-generated, reviewed, committed in `4bcb3f566` (`sched-write-manage` x2, `-editor` desktop, `-deploy-impact` x2, `-deploy-done` x2, `talk-dial-classic-pairing` x2; the phone editor baseline did not change) |
+
+NOT_RUN:
+- A verify run of the two pixel specs WITHOUT `--update-snapshots` against the committed baselines: a new 2.38.2 gate started on the
+  runner right after the re-take (07:52 UTC), and no further runner job is launched while a gate runs.
+- The tablet project; the full backend suite; the full release gate; any lab / real WisKey check (forbidden for this task).
