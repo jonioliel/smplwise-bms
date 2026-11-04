@@ -5,7 +5,7 @@ import { liveWsUrl, relayWsUrl, type Transport } from '../api/media';
 import { can, cap, isApi } from '../api/session';
 import { productSettings } from '../api/prefs';
 import { LIVE_ICE_SERVERS } from '../api/video-conn-test';
-import { badgeLabel, decodeLadder, FREEZE_FALLBACK_AFTER, FREEZE_POLL_MS, freezeFallback, freezeStep, lanLadder, mseFirst, noteWebrtcUnreachable, orderLadder, rememberStep, rememberedStep, retryIndex, sameStep, undecodableMessage, webrtcUnreachable, type FreezeMark, type Profile, type StepTransport, type VideoStep } from '../api/video-policy';
+import { badgeLabel, decodeLadder, FREEZE_FALLBACK_AFTER, FREEZE_POLL_MS, freezeFallback, freezeStep, lanLadder, mainFirst, mseFirst, noteSubDown, noteWebrtcUnreachable, orderLadder, rememberStep, rememberedStep, retryIndex, sameStep, subDown, subFallbackStep, undecodableMessage, webrtcUnreachable, type FreezeMark, type Profile, type StepTransport, type SubFallbackReason, type VideoStep } from '../api/video-policy';
 import { H265_ALTERNATE_HE, H265_REFUSAL_CLOSE, H265_UNSUPPORTED_HE, h265Param, h265Reaction, h265Support, normalizePolicy, orderForH265, parseServed, servedTag, streamCodec, transcodeCapHe, type H265Policy, type H265Refusal, type ServedStream } from '../api/h265-support';
 import type { CameraEncoding } from '../api/types';
 
@@ -41,6 +41,12 @@ import type { CameraEncoding } from '../api/types';
  * neither the playhead nor, while paused, the buffer advance for FREEZE_AFTER_MS) is reconnected on the same step; only `auto`
  * moves on to WebRTC after FREEZE_FALLBACK_AFTER freezes in a row. A stream error frame's value goes into the `player-status`
  * event's `code` and the console (the server logs go2rtc's own text, sanitized: services/live_diag.py).
+ *
+ * VIDEO-SUB-FALLBACK-2402 (owner round 20, Q3 = a): with the automatic quality (`autoProfile`) a SUB step that gives no media, never
+ * connects or is refused by go2rtc moves to the MAIN step on the same transport (api/video-policy `subFallbackStep`; never another
+ * transport because of it) and the tile says "עבר לזרם הראשי"; the camera is remembered for the tab (`subDown`, 10 minutes) so a
+ * reconnect opens main directly. The main socket names why (`fallback=`) for the session's audit rows. An explicit quality never
+ * switches: the tile says the stream does not arrive. A cap refusal (4429), a denial or the video server being down is never a reason.
  */
 export type PlayerStatus = 'idle' | 'connecting' | 'playing' | 'ended' | 'error';
 
@@ -76,6 +82,11 @@ export const LIVE_CAP_HINT_OTHER = 'פנה למנהל המערכת';
 
 /** LIVE-H265-2341: how often the snapshot behind the "transcode cap full" notice refreshes. */
 const STILL_REFRESH_MS = 10000;
+
+/** VIDEO-SUB-FALLBACK-2402: the quiet tag of a tile that moved from its sub stream to the main one. */
+export const SUB_FALLBACK_HE = 'עבר לזרם הראשי';
+/** VIDEO-SUB-FALLBACK-2402: an explicit quality whose stream gives nothing (never switched). */
+const NO_MEDIA_HE = (p: Profile) => (p === 'sub' ? 'הזרם המשני לא מגיע מהמצלמה' : 'הזרם הראשי לא מגיע מהמצלמה');
 
 /** VIDEO-TRANSPORT-2400: what a frozen live MSE stream says while it reconnects. */
 const FROZEN_HE = 'הווידאו נעצר · מתחבר מחדש';
@@ -148,6 +159,12 @@ export class SwLivePlayer extends LitElement {
   private freezeTimer: number | undefined;
   private freezeMark: FreezeMark | null = null;
   private freezes = 0;
+  /** VIDEO-SUB-FALLBACK-2402: why the current attempt failed (set where the failure is seen; '' = not a media / connect failure yet) */
+  private failKind: SubFallbackReason | '' = '';
+  /** why a main socket of an automatic-quality tile replaces its sub stream (its `fallback=` parameter) */
+  private fallbackWhy: SubFallbackReason | '' = '';
+  /** this tab remembers the camera's sub stream as giving nothing: the ladder starts on main */
+  private subRemembered = false;
   /** True once fragments were dropped because the look-ahead buffer was full: the media after the buffer is gone. */
   stale = false;
   @state() status: PlayerStatus = 'idle';
@@ -365,6 +382,19 @@ export class SwLivePlayer extends LitElement {
     :host([compact]) .vnotice {
       display: none;
     }
+    /* VIDEO-SUB-FALLBACK-2402: the automatic quality moved this tile to the main stream - quiet, top-start (the badges sit top-end) */
+    .subtag {
+      position: absolute;
+      inset-inline-start: 8px;
+      inset-block-start: 8px;
+      font-size: var(--sw-fs-2xs);
+      font-weight: 500;
+      color: var(--sw-on-video-2);
+      background: var(--sw-video-scrim);
+      border-radius: 999px;
+      padding: 2px 8px;
+      pointer-events: none;
+    }
     /* LIVE-H265-2341: the server played a fallback of an H.265 stream (another profile, or the transcoded H.264 variant) */
     .h265tag {
       position: absolute;
@@ -497,6 +527,7 @@ export class SwLivePlayer extends LitElement {
     this.decodeFailed = false;
     this.lastGood = null; // a new camera / profile / choice (or the viewer's own "reconnect"): the plan starts from its top
     this.freezes = 0;
+    this.noteSubRemembered();
     this.buildChain();
     this.connect();
   }
@@ -519,6 +550,37 @@ export class SwLivePlayer extends LitElement {
     if (this.chainWebrtcDown) this.chain = mseFirst(natural);
     // LIVE-H265-2341: an H.265 stream this browser decodes over MSE only starts there (no WebRTC wait that cannot succeed)
     else if (!remembered) this.chain = orderForH265(natural, this.encoding, h265Support(), this.mode, this.h265Policy);
+    if (this.subRemembered) this.chain = mainFirst(this.chain); // VIDEO-SUB-FALLBACK-2402: no sub attempt while it is remembered dead
+  }
+
+  /** VIDEO-SUB-FALLBACK-2402: does this tab remember the camera's sub stream as giving nothing (automatic quality only)? */
+  private noteSubRemembered() {
+    this.subRemembered = this.subFallbackApplies() && subDown(this.cameraId);
+    this.fallbackWhy = this.subRemembered ? 'sub_remembered' : '';
+  }
+
+  /** The automatic quality of a live catalogue camera whose own profile is sub (the wall's default quality). */
+  private subFallbackApplies(): boolean {
+    return this.autoProfile && this.profile === 'sub' && !!this.cameraId && !this.wsUrl;
+  }
+
+  /** VIDEO-SUB-FALLBACK-2402: the failing SUB step's main twin on the same transport, when the quality is automatic. True when it was
+   * taken (a fresh socket is opening). */
+  private trySubFallback(): boolean {
+    if (!this.subFallbackApplies() || this.status === 'playing') return false;
+    const ladder = this.laddered ? this.steps() : this.chain;
+    const current = this.currentStep ?? this.lanStep;
+    const alt = subFallbackStep(ladder, current);
+    if (!alt) return false;
+    const why: SubFallbackReason = this.failKind || 'sub_connect';
+    noteSubDown(this.cameraId);
+    this.fallbackWhy = why;
+    console.info('sw-live-player: sub stream gave nothing, main stream on the same transport', this.cameraId, why, alt.transport);
+    const i = ladder.findIndex((x) => sameStep(x, alt));
+    if (this.laddered) this.step = i;
+    else this.chainIndex = i;
+    this.connect(); // a fresh socket: go2rtc must not keep the dead consumer of the old one
+    return true;
   }
 
   /** A LAN / Ingress chain is in force (live catalogue camera, no remote plan). */
@@ -547,6 +609,8 @@ export class SwLivePlayer extends LitElement {
     }
     if (this.chainRemembered && this.chainIndex === 0) rememberStep(this.cameraId, this.profile, this.mode, null);
     this.chainRemembered = false;
+    // VIDEO-SUB-FALLBACK-2402: the sub stream itself gives nothing (no media / go2rtc refused it): its main twin on this transport now
+    if (!decode && (this.failKind === 'sub_no_media' || this.failKind === 'sub_error') && this.trySubFallback()) return;
     for (let j = this.chainIndex + 1; j < this.chain.length; j++) {
       // the other profile only once a step proved the stream undecodable - not after a mere connection failure
       if (this.chain[j].profile === this.profile || this.decodeFailed) {
@@ -555,6 +619,8 @@ export class SwLivePlayer extends LitElement {
         return;
       }
     }
+    // VIDEO-SUB-FALLBACK-2402: no sub step left (a connect failure walked the policy's own order first): the main twin
+    if (!this.decodeFailed && this.trySubFallback()) return;
     const message = this.decodeFailed && this.mode === 'webrtc' ? 'WebRTC התחבר אך הדפדפן לא מפענח את הזרם הזה — בחר MSE או אוטומטי' : reason;
     this.fail(message, !this.decodeFailed); // undecodable everywhere: retrying the same chain cannot help
   }
@@ -562,6 +628,7 @@ export class SwLivePlayer extends LitElement {
   /** An MSE step failed before its first frame: the next LAN step, else the error (plans and playback: unchanged). */
   private mseFailed(reason: string, decode = false) {
     if (this.lanChained && this.status !== 'playing') this.chainNext(reason, decode);
+    else if (this.laddered && this.trySubFallback()) return; // VIDEO-SUB-FALLBACK-2402: a remote plan's sub MSE step
     else this.fail(reason);
   }
 
@@ -575,13 +642,18 @@ export class SwLivePlayer extends LitElement {
     const steps = decodeLadder(this.plan);
     // an explicit choice never plays the other transport, whatever plan a screen handed over (owner bug 2026-10-01: WebRTC only;
     // VIDEO-TRANSPORT-2400: MSE only too)
-    if (this.mode === 'webrtc' || this.mode === 'mse') return steps.filter((s) => s.transport === this.mode);
-    return orderForH265(steps, this.encoding, h265Support(), this.mode, this.h265Policy);
+    const own = this.mode === 'webrtc' || this.mode === 'mse' ? steps.filter((s) => s.transport === this.mode) : orderForH265(steps, this.encoding, h265Support(), this.mode, this.h265Policy);
+    return this.subRemembered ? mainFirst(own) : own; // VIDEO-SUB-FALLBACK-2402: no sub attempt while it is remembered dead
   }
 
   /** The step being played or tried (null outside a plan, or when the plan has none left). */
   get currentStep(): VideoStep | null {
     return this.steps()[this.step] ?? null;
+  }
+
+  /** VIDEO-SUB-FALLBACK-2402: an automatic-quality tile of a sub profile plays (or tries) its main stream. */
+  get subFellBack(): boolean {
+    return this.subFallbackApplies() && this.effectiveProfile === 'main';
   }
 
   /** The profile the socket opens: the current step's under a plan, else the `profile` property. */
@@ -608,6 +680,7 @@ export class SwLivePlayer extends LitElement {
     this.capped = false;
     this.transport = '';
     this.served = null;
+    this.failKind = '';
     const step = this.currentStep ?? this.lanStep;
     // a chain-less `auto` live source (a Home Assistant camera on its own relay path) starts on MSE while this tab
     // remembers WebRTC as unreachable (owner 2026-10-05), like a chained camera does
@@ -616,7 +689,7 @@ export class SwLivePlayer extends LitElement {
     this.lastPreferMse = mseNow;
     let ws: WebSocket;
     try {
-      ws = new WebSocket(this.wsUrl || (this.livePath && !this.cameraId ? relayWsUrl(this.livePath) : liveWsUrl(this.cameraId, this.effectiveProfile, this.h265Flag(step?.transport ?? (mseNow || this.mode === 'mse' ? 'mse' : 'webrtc')))));
+      ws = new WebSocket(this.wsUrl || (this.livePath && !this.cameraId ? relayWsUrl(this.livePath) : liveWsUrl(this.cameraId, this.effectiveProfile, this.h265Flag(step?.transport ?? (mseNow || this.mode === 'mse' ? 'mse' : 'webrtc')), this.subFellBack ? this.fallbackWhy || 'sub_error' : '')));
     } catch (err) {
       this.fail('לא ניתן לפתוח חיבור');
       return;
@@ -785,6 +858,7 @@ export class SwLivePlayer extends LitElement {
       const delay = Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** Math.min(this.attempts, 6));
       this.attempts += 1;
       this.retryTimer = window.setTimeout(() => {
+        this.noteSubRemembered(); // VIDEO-SUB-FALLBACK-2402: a sub stream found dead meanwhile is not tried again on the reconnect
         if (this.laddered) {
           // VIDEO-TRANSPORT-2400: a plan restarts from the step that played last (lab audit: it restarted on WebRTC every time)
           this.step = retryIndex(this.steps(), this.lastGood);
@@ -808,6 +882,8 @@ export class SwLivePlayer extends LitElement {
 
   /** CR-008 D7: the current step failed before its first frame - the next step, or the end of the plan. */
   private nextStep(reason: string, decode = false) {
+    // VIDEO-SUB-FALLBACK-2402: the sub stream gives nothing on this transport: its main twin first (never another transport for it)
+    if (!decode && (this.failKind === 'sub_no_media' || this.failKind === 'sub_error') && this.trySubFallback()) return;
     if (decode) this.decodeFailed = true; // proven by the statistics (bytes, no frames), not merely "connected"
     if (this.step + 1 < this.steps().length) {
       this.step += 1;
@@ -991,6 +1067,7 @@ export class SwLivePlayer extends LitElement {
       }
       if (now - started >= cap && !(bytes > 0 && decoded === 0)) {
         stop();
+        if (bytes === 0) this.failKind = 'sub_no_media'; // VIDEO-SUB-FALLBACK-2402: statistics read, not one byte arrived
         // no counter and nothing rendered although bytes arrive (or no statistics while connected): the cap calls it
         // a decode failure; no bytes at all: a connection failure. LAN keeps its earlier rule: connected at the cap
         // with nothing rendered is a decode failure.
@@ -1087,7 +1164,13 @@ export class SwLivePlayer extends LitElement {
       if (this.pendingMime) this.openSourceBuffer(this.pendingMime);
     }, { once: true });
     this.timer = window.setTimeout(() => {
-      if (this.status !== 'playing') this.mseFailed(`לא התקבל וידאו (${this.mseTrace()})`);
+      if (this.status === 'playing') return;
+      // VIDEO-SUB-FALLBACK-2402: no fragment in the bound = the stream gives no media (the automatic quality moves to main; an explicit
+      // one says so in words - the technical trace goes to the console)
+      this.failKind = 'sub_no_media';
+      const live = !!this.cameraId && !this.wsUrl;
+      if (live) console.warn('sw-live-player: no media', this.effectiveProfile, this.mseTrace());
+      this.mseFailed(live ? NO_MEDIA_HE(this.effectiveProfile) : `לא התקבל וידאו (${this.mseTrace()})`);
     }, MSE_TIMEOUT_MS);
   }
 
@@ -1125,6 +1208,8 @@ export class SwLivePlayer extends LitElement {
     // VIDEO-TRANSPORT-2400 (lab audit finding 8): a stream error is never silent - its code reaches the console here and the
     // `player-status` event below; the server logs go2rtc's own text (sanitized) with the session
     if (msg.type === 'error') console.warn('sw-live-player: stream error', msg.value ?? '', this.transport || '-', this.status);
+    // VIDEO-SUB-FALLBACK-2402: go2rtc refused this stream (not the cap, not a denial, not the video server being down)
+    if (msg.type === 'error' && !['remote_live_cap', 'access_lost', 'upstream_unavailable', 'h265_unsupported', 'transcode_cap'].includes(msg.value ?? '')) this.failKind = 'sub_error';
     if (msg.type === 'error' && msg.value === 'remote_live_cap') {
       this.capRefused(msg.max);
       return;
@@ -1156,7 +1241,9 @@ export class SwLivePlayer extends LitElement {
           if (this.transport === 'webrtc') this.webrtcFailed(`שגיאת זרם: ${msg.value ?? ''}`, true);
           else this.mseFailed(`שגיאת זרם: ${msg.value ?? ''}`, true);
         }
+        else if (this.laddered && msg.value !== 'access_lost' && this.status !== 'playing' && this.trySubFallback()) break; // VIDEO-SUB-FALLBACK-2402
         else if (this.laddered && msg.value !== 'access_lost') this.fail(`שגיאה בזרם הווידאו`, true, msg.value ?? undefined);
+        else if (this.lanChained && msg.value !== 'access_lost' && msg.value !== 'upstream_unavailable' && this.status !== 'playing' && this.trySubFallback()) break;
         else this.fail(msg.value === 'upstream_unavailable' ? 'go2rtc לא זמין' : msg.value === 'access_lost' ? 'ההרשאה לצפייה במצלמה הזו הוסרה' : `שגיאת זרם: ${msg.value ?? ''}`, msg.value !== 'access_lost', msg.value ?? undefined);
         break;
       default:
@@ -1335,6 +1422,7 @@ export class SwLivePlayer extends LitElement {
       <span class="status ${this.status}"><i></i><span class="t">${this.status === 'playing' ? `${this.wsUrl ? 'הקלטה' : 'חי'} · ${this.transport === 'webrtc' ? 'WebRTC' : 'MSE'}` : this.status === 'connecting' ? 'מתחבר' : this.status === 'error' ? (this.capped ? 'מכסה' : 'לא זמין') : this.status === 'ended' ? 'הסתיים' : 'תמונה'}</span></span>
       ${this.laddered ? this.renderPlan() : nothing}
       ${this.renderServed()}
+      ${this.subFellBack && this.status !== 'error' ? html`<span class="subtag" data-sub-fallback=${this.fallbackWhy || 'sub_error'}>${SUB_FALLBACK_HE}</span>` : nothing}
       ${this.needsTap && this.status !== 'playing' ? html`<button class="tap" data-tap-to-play @click=${this.tapToPlay}><sw-icon name="live" size=${18}></sw-icon>הקש להפעלה</button>` : nothing}
       ${this.status === 'playing' ? html`<button class="mute" title=${this.muted ? 'הפעל שמע' : 'השתק'} aria-label=${this.muted ? 'הפעל שמע' : 'השתק'} @click=${this.toggleMute}><sw-icon name=${this.muted ? 'volume' : 'mic'} size=${13}></sw-icon></button>` : nothing}
     `;

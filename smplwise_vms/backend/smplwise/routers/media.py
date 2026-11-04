@@ -336,6 +336,19 @@ def _live_plan(conn: sqlite3.Connection, principal: Principal, request: Request,
     return {**pol, "steps": steps, "plan": vt.encode(steps)}
 
 
+# VIDEO-SUB-FALLBACK-2402: why a player opened the MAIN stream of a tile whose quality is automatic (sw-live-player `subFallback`)
+PROFILE_FALLBACKS = ("sub_no_media", "sub_connect", "sub_error", "sub_remembered")
+PROFILE_FALLBACK_PATTERN = "^(" + "|".join(PROFILE_FALLBACKS) + ")$"
+
+
+def profile_fallback_details(profile: str, fallback: str | None) -> dict[str, Any] | None:
+    """The audit details of a sub -> main fallback socket (only a main-profile socket can be one); None otherwise."""
+    if not fallback or fallback not in PROFILE_FALLBACKS or profile != "main":
+        return None
+    log.info("live stream: sub -> main fallback (%s)", fallback)
+    return {"profile_fallback": {"from": "sub", "to": "main", "reason": fallback}}
+
+
 def _tail(resource_id: str) -> str:
     """The last characters of a resource id for a log line (a station id is a device serial - never logged whole)."""
     return ("..." + resource_id[-6:]) if len(resource_id) > 6 else resource_id
@@ -444,6 +457,7 @@ async def _live_relay(
     on_text: Callable[[str], str | None] | None = None,
     on_end: Callable[[str, float], None] | None = None,
     hello: dict[str, Any] | None = None,
+    extra: dict[str, Any] | None = None,
 ) -> None:
     """The part of a live socket that is the same for every source, once the viewer is authorized and both caps passed:
     make the go2rtc stream (sync, thread pool), register the session in the shared budget, relay, audit start / stop.
@@ -505,7 +519,7 @@ async def _live_relay(
 
     reason = "ended"
     try:
-        await run_in_threadpool(_audit, "video.live.start", {"session": session.id, "stream": name})
+        await run_in_threadpool(_audit, "video.live.start", {"session": session.id, "stream": name, **(extra or {})})
         reason = await relay_ws(websocket, client.ws_url(name), client.ws_headers(), on_down, should_stop=lease.should_stop, on_text=observed_text)
         if lease.lost:
             reason = "access_lost"
@@ -530,7 +544,7 @@ async def _live_relay(
             log.warning("live session %s (%s %s): go2rtc error %s: %s", session.id, resource_type, _tail(resource_id), diag_details["upstream_error"],
                         diag_details.get("upstream_error_text", ""))
         await run_in_threadpool(_audit, "video.live.stop", {"session": session.id, "seconds": int(seconds), "bytes_down": session.bytes_down, "reason": reason,
-                                                            **diag_details})
+                                                            **diag_details, **(extra or {})})
         if on_end is not None:
             with contextlib.suppress(Exception):
                 on_end(reason, seconds)
@@ -538,9 +552,13 @@ async def _live_relay(
 
 @router.websocket("/media/live/{camera_id}/ws")
 async def live_ws(websocket: WebSocket, camera_id: str, profile: str = Query("sub", pattern="^(sub|main)$"),
-                  h265: str | None = Query(None, pattern="^(0|1)$")) -> None:
+                  h265: str | None = Query(None, pattern="^(0|1)$"),
+                  fallback: str | None = Query(None, pattern=PROFILE_FALLBACK_PATTERN)) -> None:
     """`h265` (LIVE-H265-2341): whether this browser decodes H.265 over the transport the player is about to use; absent =
-    an older player, the stream as it is."""
+    an older player, the stream as it is. `fallback` (VIDEO-SUB-FALLBACK-2402): this main-profile socket replaces a sub stream that
+    gave no media (`sub_no_media`), never connected (`sub_connect`), was refused by go2rtc (`sub_error`) or is remembered as such for
+    this browser session (`sub_remembered`); recorded on the session's audit rows as `profile_fallback` (a closed set: anything else is
+    refused by the route's validation)."""
     settings: Settings = websocket.app.state.settings
     db: Database = websocket.app.state.db
 
@@ -601,6 +619,7 @@ async def live_ws(websocket: WebSocket, camera_id: str, profile: str = Query("su
             # T055: the relay keeps the camera only while the viewer still holds video.live on it (re-checked on every access
             # change of the user and every leases.RECHECK_S) - a revoke of an unrelated camera no longer ends this stream
             lease=CameraLease(db, principal, camera_id, "video.live"), chain=chain, remote_cap=remote_cap, hello=hello,
+            extra=profile_fallback_details(profile, fallback),
         )
     finally:
         lc.BUDGET.release(token)

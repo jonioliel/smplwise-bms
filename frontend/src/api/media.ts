@@ -305,9 +305,10 @@ export function snapshotUrl(cameraId: string, bust?: number): string {
 
 /** ws(s):// URL of the live relay for a camera, relative to the page (works under Ingress). */
 /** `h265` (LIVE-H265-2341): whether this browser decodes H.265 over the transport of this attempt (api/h265-support.ts);
- * '' = not said (the server plays the stream as it is). */
-export function liveWsUrl(cameraId: string, profile: 'sub' | 'main', h265: '' | '0' | '1' = ''): string {
-  const u = new URL(apiUrl(`media/live/${cameraId}/ws?profile=${profile}${h265 ? `&h265=${h265}` : ''}`));
+ * '' = not said (the server plays the stream as it is). `fallback` (VIDEO-SUB-FALLBACK-2402): why this main socket replaces the sub stream
+ * (sw-live-player; recorded on the session's audit rows). */
+export function liveWsUrl(cameraId: string, profile: 'sub' | 'main', h265: '' | '0' | '1' = '', fallback = ''): string {
+  const u = new URL(apiUrl(`media/live/${cameraId}/ws?profile=${profile}${h265 ? `&h265=${h265}` : ''}${fallback ? `&fallback=${fallback}` : ''}`));
   u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
   return u.toString();
 }

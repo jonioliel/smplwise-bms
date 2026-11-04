@@ -45,7 +45,8 @@ export class SwCameraTile extends LitElement {
   /** CR-008 D7: the camera's stream encodings (a remote plan skips WebRTC for a stream the NVR says cannot play there). */
   @property({ attribute: false }) encoding: CameraEncoding | null = null;
   /** The profile is the installation's default, not the viewer's choice: the player may fall back to the other profile
-   * when this one proves undecodable (sw-live-player `autoProfile`, LAN / Ingress only). */
+   * when this one proves undecodable (sw-live-player `autoProfile`); VIDEO-SUB-FALLBACK-2402: also when its sub stream gives no media or
+   * never connects (the main stream on the same transport), on both channels. */
   @property({ type: Boolean }) autoProfile = false;
   /** NN5-F1B: seconds between refreshes of a camera that has no live stream (a Frigate recorder in F1): the tile re-reads its `poster`
    * itself, never faster than 5 s, never while the tab is hidden or the tile is out of view, and says so ("תמונה מתעדכנת"). 0 = off. */
@@ -515,7 +516,7 @@ export class SwCameraTile extends LitElement {
     }
     const real = this.live && (this.cameraId || this.livePath) ? 'live' : this.poster ? 'poster' : 'scene';
     // CR-008 D7: on the remote channel the tile keeps its own profile (the wall's) but plays it by the remote policy
-    const plan = real === 'live' ? playerPlan(this.profile, this.encoding, this.transport) : { plan: '', preferred: '' as const, gop: '' };
+    const plan = real === 'live' ? playerPlan(this.profile, this.encoding, this.transport, undefined, this.autoProfile) : { plan: '', preferred: '' as const, gop: '' };
     return html`
       ${real === 'live'
         ? html`<sw-live-player .cameraId=${this.cameraId} .livePath=${this.livePath} .profile=${this.profile} .mode=${this.transport} .plan=${plan.plan} .preferred=${plan.preferred} .gop=${plan.gop || encodeGop(this.encoding)} .encoding=${this.encoding} .autoProfile=${this.autoProfile} .poster=${this.poster} .fit=${this.fit} compact></sw-live-player>`
