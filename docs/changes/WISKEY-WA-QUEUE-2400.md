@@ -162,6 +162,16 @@ Runner browser specs: see section 7.
 6. `backend pilot/WISKEY-WA-QUEUE-2400 tests/test_wiskey_wa_queue_2400.py tests/test_wiskey_channels.py tests/test_pwclean_295.py
    tests/test_tplv2_295.py tests/test_wiskey_adopt_2272_features.py` @ `9cffb6105`: **171 passed, 3 skipped**.
 
+7. Same spec job @ `7254ba579` (style tweak; runner load 39, workers reduced): 37 passed, 30 skipped, **1 failed** - the phone
+   worst-case layout guard flagged the nested inline `span.ltr` of a long template name as wider than the card. Fixed in `48c80cb81`
+   (the name is one LTR isolate inside its clipped line, as before the tweak).
+8. **BLOCKED / NOT_RUN at `48c80cb81`:** the re-run of items 3 and 5 at the final head. When it was due, the nightly
+   `release_gate.py main --tier L` was running on the runner, and the rule is no job while a gate runs. The change is one template
+   expression (no layout rule changed); the expected result is item 3's (passed at `ca6a9ccbf` with the same markup) - but it is not
+   measured. Command to run: `run_smart.py spec pilot/WISKEY-WA-QUEUE-2400 tests/evidence-wa-installed-2400.spec.ts
+   tests/evidence-wiskey-messaging-settings.spec.ts tests/layout-wiskey-messaging.spec.ts --project=desktop --project=mobile` and
+   `run_smart.py linux-pixel pilot/WISKEY-WA-QUEUE-2400 tests/pixel-wiskey-messaging.spec.ts --project=desktop --project=mobile`.
+
 Visual review: the runner's render of the settings page with the card (desktop, after the save click) was looked at; Hebrew, RTL,
 no overflow; the layout checks of `evidence-wa-installed-2400` (no horizontal scroll, nothing wider than the card, `direction: rtl`)
 pass on desktop and phone, light and dark, with worst-case long names.
