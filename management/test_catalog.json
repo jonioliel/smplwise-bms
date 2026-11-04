@@ -14426,5 +14426,530 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-RELEASE-2390-TRAIN-1",
+    "requirement_ids": [
+      "R-RELEASE-2390-TRAIN-1"
+    ],
+    "task_ids": [
+      "RELEASE-2390-TRAIN"
+    ],
+    "title": "Release 2.39.0: WisKey operator writes, people completeness, live validation, managed install",
+    "kind": "release gate",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "scripts/release_check.py and the runner gate on the release commit."
+    ],
+    "expected": "Release 2.39.0 = 2.38.2 plus the seven WisKey branches of the 2.39.0 train, gated on the runner, merged to main and tagged v2.39.0.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-BRIDGE-STALE-DISCOVERY-2383-1",
+    "requirement_ids": [
+      "R-BRIDGE-STALE-DISCOVERY-2383-1"
+    ],
+    "task_ids": [
+      "BRIDGE-STALE-DISCOVERY-2383"
+    ],
+    "title": "Fix: a stale discovery no longer puts an old pairing code back into the bridge (bridge 0.10.3)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "After a re-pair and after every home-system restart the bridge keeps the current pairing code; refused bridge pushes are visible in the WisKey connection block; no bridge key rotation starts while WisKey is installed.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-RELEASE-2391-1",
+    "requirement_ids": [
+      "R-RELEASE-2391-1"
+    ],
+    "task_ids": [
+      "RELEASE-2391"
+    ],
+    "title": "Release 2.39.1: the Arx bridge keeps its pairing after a re-pair and after restarts",
+    "kind": "release gate",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "scripts/release_check.py and the runner gate on the release commit."
+    ],
+    "expected": "Release 2.39.1 = 2.39.0 plus BRIDGE-STALE-DISCOVERY-2383, gated on the runner, merged to main and tagged v2.39.1.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-VIDEO-TRANSPORT-2400-1",
+    "requirement_ids": [
+      "R-VIDEO-TRANSPORT-2400-1"
+    ],
+    "task_ids": [
+      "VIDEO-TRANSPORT-2400"
+    ],
+    "title": "Live video: one transport decision executed by every player; personal choice in My account; stalled-picture recovery",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The installation's transport setting is honoured on every surface and channel (remote access and the phone included); only automatic tries more than one way; a per-user choice under My account > Video beats it; a frozen MSE picture reconnects on MSE; station video plays both profiles over either transport.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-TTS-DEFAULT-ENGINE-2400-1",
+    "requirement_ids": [
+      "R-TTS-DEFAULT-ENGINE-2400-1"
+    ],
+    "task_ids": [
+      "TTS-DEFAULT-ENGINE-2400"
+    ],
+    "title": "Announcements: a fixed TTS engine and language, overridable per send",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "A system administrator sets a fixed announcement engine and language; every announcement dialog preselects them; a per-send pick changes only that send; a missing fixed engine is never replaced silently and blocks the send until another engine is picked.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-PRESENCE-COUNT-2400-1",
+    "requirement_ids": [
+      "R-PRESENCE-COUNT-2400-1"
+    ],
+    "task_ids": [
+      "PRESENCE-COUNT-2400"
+    ],
+    "title": "Presence card \"count and names\" as the new default style",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The home presence card shows the active-room count, the active names, a per-room strip and (large card) the floors; it is the default presence style; the other styles stay selectable.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WALL-ANSWERS-2400-1",
+    "requirement_ids": [
+      "R-WALL-ANSWERS-2400-1"
+    ],
+    "task_ids": [
+      "WALL-ANSWERS-2400"
+    ],
+    "title": "Wall displays: owner answers 18-20 (open-foldable setting, portrait health chip once, kiosk header on a phone)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "An open foldable behaves as a wall tablet or as a phone by an installation setting; the portrait wall shows the health chip once; the kiosk header on a phone keeps its height; the desktop wall flag has its own column (migration 0204).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-BOARD-ANSWERS-2400-1",
+    "requirement_ids": [
+      "R-BOARD-ANSWERS-2400-1"
+    ],
+    "task_ids": [
+      "BOARD-ANSWERS-2400"
+    ],
+    "title": "Notice boards: owner answers 12-17 (legacy link kept on TV connect, \"invert\" for parking and gym sources)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "A board saved before the sealed links keeps its link when its TV connects; parking and gym sources have an invert option.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-OPS-ANSWERS-2400-1",
+    "requirement_ids": [
+      "R-WISKEY-OPS-ANSWERS-2400-1"
+    ],
+    "task_ids": [
+      "WISKEY-OPS-ANSWERS-2400"
+    ],
+    "title": "WisKey operations: owner answers 04.11 (maintenance role, permission label, deploy warning, talk reasons)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Station maintenance stays with system administrators and its permission text says what it covers; schedule deployment warns while WisKey station writes are off; no-talk reasons name WisKey when WisKey is the cause.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-INSTALL-ANSWERS-2400-1",
+    "requirement_ids": [
+      "R-WISKEY-INSTALL-ANSWERS-2400-1"
+    ],
+    "task_ids": [
+      "WISKEY-INSTALL-ANSWERS-2400"
+    ],
+    "title": "WisKey managed install: owner answers 04.11 (access-control settings group, start-up install switch, kept runs)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Settings have an access-control group with the installer row; a start-up install switch (off, system administrator, typed confirmation) and a kept-runs count exist; every start-up attempt stops before any change while the platform image cannot be verified.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-RELEASE-2400-TRAIN-1",
+    "requirement_ids": [
+      "R-RELEASE-2400-TRAIN-1"
+    ],
+    "task_ids": [
+      "RELEASE-2400-TRAIN"
+    ],
+    "title": "Release 2.40.0: video transport, fixed TTS engine, installer tools, presence card, owner answers round 18",
+    "kind": "release gate",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "scripts/release_check.py and the runner gate on the release commit."
+    ],
+    "expected": "Release 2.40.0 = 2.39.1 plus the 2.40.0 train branches, gated on the runner, merged to main and tagged v2.40.0.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-BRIDGE-UPDATE-LISTENER-2401-1",
+    "requirement_ids": [
+      "R-BRIDGE-UPDATE-LISTENER-2401-1"
+    ],
+    "task_ids": [
+      "BRIDGE-UPDATE-LISTENER-2401"
+    ],
+    "title": "Bridge 0.10.4: update listener and config-flow reload no longer combine (home system 2026.12)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Bridge 0.10.4 updates its pairing through the supported path, so a re-pair is applied without waiting for the next home-system restart from version 2026.12; the deprecation warning stops after the restart that follows the copy.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WALL-PHONE-TOOLBAR-2401-1",
+    "requirement_ids": [
+      "R-WALL-PHONE-TOOLBAR-2401-1"
+    ],
+    "task_ids": [
+      "WALL-PHONE-TOOLBAR-2401"
+    ],
+    "title": "Phone camera wall: one row of icon keys, two rows of full labels as a setting",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "On a phone the camera-wall toolbar is one row of icon keys (at most 56 px, touch-sized, no sideways scroll, full name on a long press, as the tooltip and as the accessible name); two rows of full labels are an installation setting; no label is ever truncated.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-SETTINGS-INTERCOM-CARDS-2401-1",
+    "requirement_ids": [
+      "R-SETTINGS-INTERCOM-CARDS-2401-1"
+    ],
+    "task_ids": [
+      "SETTINGS-INTERCOM-CARDS-2401"
+    ],
+    "title": "\"Entrance screen switches\" settings tab as folding cards (two tabs or one list as options)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The tab fits 1366x768 without page scroll as folding cards with saved-value summaries, one open card remembered per user; a tab-layout setting switches to two tabs or one list.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-RELEASE-2401-TRAIN-1",
+    "requirement_ids": [
+      "R-RELEASE-2401-TRAIN-1"
+    ],
+    "task_ids": [
+      "RELEASE-2401-TRAIN"
+    ],
+    "title": "Release 2.40.1: phone wall toolbar, intercom settings cards, bridge 0.10.4",
+    "kind": "release gate",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "scripts/release_check.py and the runner gate on the release commit."
+    ],
+    "expected": "Release 2.40.1 = 2.40.0 plus BRIDGE-UPDATE-LISTENER-2401, WALL-PHONE-TOOLBAR-2401 and SETTINGS-INTERCOM-CARDS-2401, gated on the runner, merged to main and tagged v2.40.1.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-LAB-ACTIVATION-0411-1",
+    "requirement_ids": [
+      "R-WISKEY-LAB-ACTIVATION-0411-1"
+    ],
+    "task_ids": [
+      "WISKEY-LAB-ACTIVATION-0411"
+    ],
+    "title": "WisKey activation on the lab installation (04.11 joint session)",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Owner session on the lab installation, one runbook step at a time (private/handoff-package/SESSION_2026-11-04/02_WISKEY_ACTIVATION_HE.md)."
+    ],
+    "expected": "On the lab installation the WisKey link is paired and verified, the station media provider is WisKey, the direct join runs, and talk, listen, live validation and door windows are exercised step by step from the activation runbook with the owner.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-LAB-AUDITS-0411-1",
+    "requirement_ids": [
+      "R-LAB-AUDITS-0411-1"
+    ],
+    "task_ids": [
+      "LAB-AUDITS-0411"
+    ],
+    "title": "Read-only lab audits of 04.11: logs and faults, station and camera video, door events and station users",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Read the audit documents and the redacted evidence; no device action."
+    ],
+    "expected": "Read-only audits of the lab (no write, service call, restart, door or talk action) record findings by severity with redacted evidence, and each finding has an owner (Arx fix, WisKey ask or owner action).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-LAB-NVR-DOOR-READONLY-0411-1",
+    "requirement_ids": [
+      "R-LAB-NVR-DOOR-READONLY-0411-1"
+    ],
+    "task_ids": [
+      "LAB-NVR-DOOR-READONLY-0411"
+    ],
+    "title": "Read-only checks of 04.11 evening: recorder sub streams of two panoramic cameras, door contact input on one station",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Read the audit addendum; no device action."
+    ],
+    "expected": "With the owner's approval (round 19 Q5a, Q3a), read-only reads of the recorder and of one door station explain the missing sub stream and the odd door events, and name the owner's next physical step; nothing is written.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-WISKEY-ADDENDUM-GAPS-0411-1",
+    "requirement_ids": [
+      "R-WISKEY-ADDENDUM-GAPS-0411-1"
+    ],
+    "task_ids": [
+      "WISKEY-ADDENDUM-GAPS-0411"
+    ],
+    "title": "WisKey gaps found while building 2.38.2 - 2.40.0 (addendum for the WisKey team)",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Record the WisKey answer per gap and update the Arx card it affects."
+    ],
+    "expected": "Every WisKey gap recorded by the 2.38.2 - 2.40.0 branches (door technical, live validation, people, profiles, schedules, station maintenance, access diagnostics, conflicts, event cursor, installer, operations, messaging queue, managed install) reaches the WisKey team, and each answer is recorded against the Arx card it unblocks.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-OWNER-LAB-ACTIONS-0411-1",
+    "requirement_ids": [
+      "R-OWNER-LAB-ACTIONS-0411-1"
+    ],
+    "task_ids": [
+      "OWNER-LAB-ACTIONS-0411"
+    ],
+    "title": "Owner lab actions after 04.11",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Owner reports each step; the result is recorded here."
+    ],
+    "expected": "The owner's open lab steps are done and recorded: full backup, 2.40.0 then 2.40.1 installed (one home-system restart for bridge 0.10.4), the video test plan, the two panoramic cameras' sub stream, the door contact check, station users and groups, the WisKey addendum forwarded, the next joint session date.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-GUIDE-BOARD-2402-1",
+    "requirement_ids": [
+      "R-GUIDE-BOARD-2402-1"
+    ],
+    "task_ids": [
+      "GUIDE-BOARD-2402"
+    ],
+    "title": "User guide for 2.40.0 / 2.40.1 and the task board after 04.11",
+    "kind": "acceptance",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "scripts/build_guide.py --check; the backend tests that read the guide pages; scripts/project_status.py."
+    ],
+    "expected": "The Hebrew user guide describes the 2.40.0 / 2.40.1 changes (video transport and the personal choice, the stalled picture, the fixed TTS engine, the intercom settings cards, the phone wall toolbar, the bridge pairing state after 2.39.1); GUIDE_ALL_HE.html is rebuilt from its sources; the task board records the 04.11 releases, lab work and open items; the views are regenerated.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

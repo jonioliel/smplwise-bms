@@ -1,23 +1,23 @@
 # Project status — generated view
 
-Generated: 2026-11-04T06:51:52.734744+00:00
+Generated: 2026-11-04T20:52:10.071187+00:00
 
-Tasks: 423 | Requirements: 532 | Tests: 549 | Screens: 32
+Tasks: 444 | Requirements: 553 | Tests: 570 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
 ## Status counts
-- BACKLOG: 142
-- BLOCKED: 16
+- BACKLOG: 137
+- BLOCKED: 18
 - DONE: 40
-- IN_PROGRESS: 22
-- REVIEW: 203
+- IN_PROGRESS: 8
+- REVIEW: 241
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 329
+- V1: 350
 - V2: 29
 - V3: 2
 
@@ -38,6 +38,8 @@ No VMS implementation or hardware test is implied by this planning registry.
 - WISKEY-LISTEN-2410: Waits for WisKey: the standalone listen downlink contract (plan section 5, Q-WK-5).
 - WISKEY-EMERGENCY-LOCK-2410: Waits for WisKey: emergency secure support (today emergency_secure_unsupported_v1; plan section 5, Q-WK-7).
 - WISKEY-RING-STATION-2410: Waits for WisKey and a device investigation: can the station be rung from the operator side (plan section 5, Q-WK-6).
+- WISKEY-ADDENDUM-GAPS-0411: Owner: forward the addendum to the WisKey team; then waiting for WisKey's answers.
+- OWNER-LAB-ACTIONS-0411: Owner actions on the lab installation and devices (Arx has no write permission for them).
 
 ## Backlog
 | ID | Phase | Status | Task | Depends on |
@@ -434,34 +436,55 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [GATE2380](tasks/GATE2380.md) | V1 | REVIEW | Release gate fixes of 2.38.0 (groups A-B) | — |
 | [STATION-WS-PATH-2381](tasks/STATION-WS-PATH-2381.md) | V1 | REVIEW | Fix: one api/v1 prefix for the station live, listen and talk sockets | — |
 | [RELEASE-2381](tasks/RELEASE-2381.md) | V1 | REVIEW | Release 2.38.1: station sockets fix | — |
-| [RELEASE-2382-TRAIN](tasks/RELEASE-2382-TRAIN.md) | V1 | IN_PROGRESS | Release train 2.38.2 (WisKey activation, TV chips, dialog top layer, board management) | — |
-| [TV-CHIPS-2381](tasks/TV-CHIPS-2381.md) | V1 | IN_PROGRESS | Display: TV footer chips | — |
-| [DIALOG-TOPLAYER-2381](tasks/DIALOG-TOPLAYER-2381.md) | V1 | IN_PROGRESS | Shared dialog in the browser top layer | — |
-| [WISKEY-TALK-DIAL-2382](tasks/WISKEY-TALK-DIAL-2382.md) | V1 | IN_PROGRESS | WisKey A-a: talk end to end, the provider row and native dial | — |
-| [WISKEY-TALK-CAPS-2382](tasks/WISKEY-TALK-CAPS-2382.md) | V1 | IN_PROGRESS | WisKey: choose the W10 provider from the signed direct capabilities | — |
-| [WISKEY-PAIRING-2382](tasks/WISKEY-PAIRING-2382.md) | V1 | IN_PROGRESS | WisKey A-b: pairing status, signed check, guided re-pair, "מצב WisKey" | — |
-| [WISKEY-MANAGED-INSTALL-2382](tasks/WISKEY-MANAGED-INSTALL-2382.md) | V1 | IN_PROGRESS | WisKey A-c: Arx-managed install and upgrade (owner-started, policy B) | — |
-| [WISKEY-INBOUND-CALLS-2382](tasks/WISKEY-INBOUND-CALLS-2382.md) | V1 | IN_PROGRESS | WisKey A-e: inbound station calls in Arx | — |
-| [WISKEY-JOIN-LIVE-2382](tasks/WISKEY-JOIN-LIVE-2382.md) | V1 | IN_PROGRESS | WisKey T1: direct join starts and stops at runtime | — |
-| [WISKEY-RC10-PIN-2382](tasks/WISKEY-RC10-PIN-2382.md) | V1 | IN_PROGRESS | WisKey T2: command contract re-pinned to 2.0.1-rc.10 | — |
-| [WISKEY-STATUS-PAGE-2382](tasks/WISKEY-STATUS-PAGE-2382.md) | V1 | IN_PROGRESS | WisKey T3: "מצב WisKey" status page | — |
-| [WISKEY-STATION-OPS-2390](tasks/WISKEY-STATION-OPS-2390.md) | V1 | IN_PROGRESS | WisKey T4: station maintenance actions (sync, rescan, health and clock refresh) | — |
-| [WISKEY-CONFLICTS-2390](tasks/WISKEY-CONFLICTS-2390.md) | V1 | BACKLOG | WisKey T5: conflicts resolve and fleet alert actions | — |
-| [WISKEY-DOOR-TECH-2390](tasks/WISKEY-DOOR-TECH-2390.md) | V1 | IN_PROGRESS | WisKey T6: door technical writes (hold-open schedules, public codes, programs) | — |
-| [WISKEY-SCHED-WRITE-2390](tasks/WISKEY-SCHED-WRITE-2390.md) | V1 | IN_PROGRESS | WisKey T7: device schedule library writes | — |
-| [WISKEY-PROFILES-EDIT-2390](tasks/WISKEY-PROFILES-EDIT-2390.md) | V1 | IN_PROGRESS | WisKey T8: groups and profile fields editing | — |
-| [WISKEY-PEOPLE-COMPLETE-2390](tasks/WISKEY-PEOPLE-COMPLETE-2390.md) | V1 | IN_PROGRESS | WisKey T9: people completeness (PIN and duplicate checks, unmanaged users) | — |
-| [WISKEY-ACCESS-DIAG-2400](tasks/WISKEY-ACCESS-DIAG-2400.md) | V1 | BACKLOG | WisKey T10: access diagnostics views | — |
-| [WISKEY-OPS-VIEWS-2400](tasks/WISKEY-OPS-VIEWS-2400.md) | V1 | BACKLOG | WisKey T11: operations and fleet views | — |
-| [WISKEY-WA-QUEUE-2400](tasks/WISKEY-WA-QUEUE-2400.md) | V1 | BACKLOG | WisKey T12: messaging completion on the installed client | — |
+| [RELEASE-2382-TRAIN](tasks/RELEASE-2382-TRAIN.md) | V1 | REVIEW | Release train 2.38.2 (WisKey activation, TV chips, dialog top layer, board management) | — |
+| [TV-CHIPS-2381](tasks/TV-CHIPS-2381.md) | V1 | REVIEW | Display: TV footer chips | — |
+| [DIALOG-TOPLAYER-2381](tasks/DIALOG-TOPLAYER-2381.md) | V1 | REVIEW | Shared dialog in the browser top layer | — |
+| [WISKEY-TALK-DIAL-2382](tasks/WISKEY-TALK-DIAL-2382.md) | V1 | REVIEW | WisKey A-a: talk end to end, the provider row and native dial | — |
+| [WISKEY-TALK-CAPS-2382](tasks/WISKEY-TALK-CAPS-2382.md) | V1 | REVIEW | WisKey: choose the W10 provider from the signed direct capabilities | — |
+| [WISKEY-PAIRING-2382](tasks/WISKEY-PAIRING-2382.md) | V1 | REVIEW | WisKey A-b: pairing status, signed check, guided re-pair, "מצב WisKey" | — |
+| [WISKEY-MANAGED-INSTALL-2382](tasks/WISKEY-MANAGED-INSTALL-2382.md) | V1 | REVIEW | WisKey A-c: Arx-managed install and upgrade (owner-started, policy B) | — |
+| [WISKEY-INBOUND-CALLS-2382](tasks/WISKEY-INBOUND-CALLS-2382.md) | V1 | REVIEW | WisKey A-e: inbound station calls in Arx | — |
+| [WISKEY-JOIN-LIVE-2382](tasks/WISKEY-JOIN-LIVE-2382.md) | V1 | REVIEW | WisKey T1: direct join starts and stops at runtime | — |
+| [WISKEY-RC10-PIN-2382](tasks/WISKEY-RC10-PIN-2382.md) | V1 | REVIEW | WisKey T2: command contract re-pinned to 2.0.1-rc.10 | — |
+| [WISKEY-STATUS-PAGE-2382](tasks/WISKEY-STATUS-PAGE-2382.md) | V1 | REVIEW | WisKey T3: "מצב WisKey" status page | — |
+| [WISKEY-STATION-OPS-2390](tasks/WISKEY-STATION-OPS-2390.md) | V1 | REVIEW | WisKey T4: station maintenance actions (sync, rescan, health and clock refresh) | — |
+| [WISKEY-CONFLICTS-2390](tasks/WISKEY-CONFLICTS-2390.md) | V1 | REVIEW | WisKey T5: conflicts resolve and fleet alert actions | — |
+| [WISKEY-DOOR-TECH-2390](tasks/WISKEY-DOOR-TECH-2390.md) | V1 | REVIEW | WisKey T6: door technical writes (hold-open schedules, public codes, programs) | — |
+| [WISKEY-SCHED-WRITE-2390](tasks/WISKEY-SCHED-WRITE-2390.md) | V1 | REVIEW | WisKey T7: device schedule library writes | — |
+| [WISKEY-PROFILES-EDIT-2390](tasks/WISKEY-PROFILES-EDIT-2390.md) | V1 | REVIEW | WisKey T8: groups and profile fields editing | — |
+| [WISKEY-PEOPLE-COMPLETE-2390](tasks/WISKEY-PEOPLE-COMPLETE-2390.md) | V1 | REVIEW | WisKey T9: people completeness (PIN and duplicate checks, unmanaged users) | — |
+| [WISKEY-ACCESS-DIAG-2400](tasks/WISKEY-ACCESS-DIAG-2400.md) | V1 | REVIEW | WisKey T10: access diagnostics views | — |
+| [WISKEY-OPS-VIEWS-2400](tasks/WISKEY-OPS-VIEWS-2400.md) | V1 | REVIEW | WisKey T11: operations and fleet views | — |
+| [WISKEY-WA-QUEUE-2400](tasks/WISKEY-WA-QUEUE-2400.md) | V1 | REVIEW | WisKey T12: messaging completion on the installed client | — |
 | [WISKEY-VISITS-2400](tasks/WISKEY-VISITS-2400.md) | V1 | BACKLOG | WisKey T13: visits and guest templates decision and bridge | — |
-| [WISKEY-CLOCK-VIEW-2400](tasks/WISKEY-CLOCK-VIEW-2400.md) | V1 | IN_PROGRESS | WisKey T14: clock / NTP and WisKey media options view | — |
-| [WISKEY-EVENT-CURSOR-2390](tasks/WISKEY-EVENT-CURSOR-2390.md) | V1 | BACKLOG | WisKey T15: gap-free events after a restart (event cursor) | — |
-| [WISKEY-LIVE-VALIDATION-2390](tasks/WISKEY-LIVE-VALIDATION-2390.md) | V1 | IN_PROGRESS | WisKey T16: live validation screen for commissioning | — |
+| [WISKEY-CLOCK-VIEW-2400](tasks/WISKEY-CLOCK-VIEW-2400.md) | V1 | REVIEW | WisKey T14: clock / NTP and WisKey media options view | — |
+| [WISKEY-EVENT-CURSOR-2390](tasks/WISKEY-EVENT-CURSOR-2390.md) | V1 | REVIEW | WisKey T15: gap-free events after a restart (event cursor) | — |
+| [WISKEY-LIVE-VALIDATION-2390](tasks/WISKEY-LIVE-VALIDATION-2390.md) | V1 | REVIEW | WisKey T16: live validation screen for commissioning | — |
 | [WISKEY-SVC-GRANT-2400](tasks/WISKEY-SVC-GRANT-2400.md) | V1 | BLOCKED | WisKey T17: service-write grant path | — |
-| [WISKEY-DEEPLINKS-2382](tasks/WISKEY-DEEPLINKS-2382.md) | V1 | IN_PROGRESS | WisKey T18: deep links into the embedded panel for everything not native | — |
+| [WISKEY-DEEPLINKS-2382](tasks/WISKEY-DEEPLINKS-2382.md) | V1 | REVIEW | WisKey T18: deep links into the embedded panel for everything not native | — |
 | [WISKEY-ACTIVATION-RUNBOOK-0411](tasks/WISKEY-ACTIVATION-RUNBOOK-0411.md) | V1 | REVIEW | WisKey T19: activation runbook for the 04.11 joint session | — |
 | [WISKEY-LISTEN-2410](tasks/WISKEY-LISTEN-2410.md) | V1 | BLOCKED | WisKey T20: standalone listen to a station | — |
 | [WISKEY-EMERGENCY-LOCK-2410](tasks/WISKEY-EMERGENCY-LOCK-2410.md) | V1 | BLOCKED | WisKey T21: emergency LOCK / secure | — |
 | [WISKEY-RING-STATION-2410](tasks/WISKEY-RING-STATION-2410.md) | V1 | BLOCKED | WisKey T22: operator-initiated ringing call to a station | — |
-| [WISKEY-INSTALLER-NATIVE-2400](tasks/WISKEY-INSTALLER-NATIVE-2400.md) | V1 | IN_PROGRESS | WisKey installer tools natively in Arx (platform, clock, station technical settings) | — |
+| [WISKEY-INSTALLER-NATIVE-2400](tasks/WISKEY-INSTALLER-NATIVE-2400.md) | V1 | REVIEW | WisKey installer tools natively in Arx (platform, clock, station technical settings) | — |
+| [RELEASE-2390-TRAIN](tasks/RELEASE-2390-TRAIN.md) | V1 | REVIEW | Release 2.39.0: WisKey operator writes, people completeness, live validation, managed install | — |
+| [BRIDGE-STALE-DISCOVERY-2383](tasks/BRIDGE-STALE-DISCOVERY-2383.md) | V1 | REVIEW | Fix: a stale discovery no longer puts an old pairing code back into the bridge (bridge 0.10.3) | — |
+| [RELEASE-2391](tasks/RELEASE-2391.md) | V1 | REVIEW | Release 2.39.1: the Arx bridge keeps its pairing after a re-pair and after restarts | — |
+| [VIDEO-TRANSPORT-2400](tasks/VIDEO-TRANSPORT-2400.md) | V1 | REVIEW | Live video: one transport decision executed by every player; personal choice in My account; stalled-picture recovery | — |
+| [TTS-DEFAULT-ENGINE-2400](tasks/TTS-DEFAULT-ENGINE-2400.md) | V1 | REVIEW | Announcements: a fixed TTS engine and language, overridable per send | — |
+| [PRESENCE-COUNT-2400](tasks/PRESENCE-COUNT-2400.md) | V1 | REVIEW | Presence card "count and names" as the new default style | — |
+| [WALL-ANSWERS-2400](tasks/WALL-ANSWERS-2400.md) | V1 | REVIEW | Wall displays: owner answers 18-20 (open-foldable setting, portrait health chip once, kiosk header on a phone) | — |
+| [BOARD-ANSWERS-2400](tasks/BOARD-ANSWERS-2400.md) | V1 | REVIEW | Notice boards: owner answers 12-17 (legacy link kept on TV connect, "invert" for parking and gym sources) | — |
+| [WISKEY-OPS-ANSWERS-2400](tasks/WISKEY-OPS-ANSWERS-2400.md) | V1 | REVIEW | WisKey operations: owner answers 04.11 (maintenance role, permission label, deploy warning, talk reasons) | — |
+| [WISKEY-INSTALL-ANSWERS-2400](tasks/WISKEY-INSTALL-ANSWERS-2400.md) | V1 | REVIEW | WisKey managed install: owner answers 04.11 (access-control settings group, start-up install switch, kept runs) | — |
+| [RELEASE-2400-TRAIN](tasks/RELEASE-2400-TRAIN.md) | V1 | REVIEW | Release 2.40.0: video transport, fixed TTS engine, installer tools, presence card, owner answers round 18 | — |
+| [BRIDGE-UPDATE-LISTENER-2401](tasks/BRIDGE-UPDATE-LISTENER-2401.md) | V1 | IN_PROGRESS | Bridge 0.10.4: update listener and config-flow reload no longer combine (home system 2026.12) | — |
+| [WALL-PHONE-TOOLBAR-2401](tasks/WALL-PHONE-TOOLBAR-2401.md) | V1 | IN_PROGRESS | Phone camera wall: one row of icon keys, two rows of full labels as a setting | — |
+| [SETTINGS-INTERCOM-CARDS-2401](tasks/SETTINGS-INTERCOM-CARDS-2401.md) | V1 | IN_PROGRESS | "Entrance screen switches" settings tab as folding cards (two tabs or one list as options) | — |
+| [RELEASE-2401-TRAIN](tasks/RELEASE-2401-TRAIN.md) | V1 | IN_PROGRESS | Release 2.40.1: phone wall toolbar, intercom settings cards, bridge 0.10.4 | — |
+| [WISKEY-LAB-ACTIVATION-0411](tasks/WISKEY-LAB-ACTIVATION-0411.md) | V1 | IN_PROGRESS | WisKey activation on the lab installation (04.11 joint session) | — |
+| [LAB-AUDITS-0411](tasks/LAB-AUDITS-0411.md) | V1 | REVIEW | Read-only lab audits of 04.11: logs and faults, station and camera video, door events and station users | — |
+| [LAB-NVR-DOOR-READONLY-0411](tasks/LAB-NVR-DOOR-READONLY-0411.md) | V1 | REVIEW | Read-only checks of 04.11 evening: recorder sub streams of two panoramic cameras, door contact input on one station | — |
+| [WISKEY-ADDENDUM-GAPS-0411](tasks/WISKEY-ADDENDUM-GAPS-0411.md) | V1 | BLOCKED | WisKey gaps found while building 2.38.2 - 2.40.0 (addendum for the WisKey team) | — |
+| [OWNER-LAB-ACTIONS-0411](tasks/OWNER-LAB-ACTIONS-0411.md) | V1 | BLOCKED | Owner lab actions after 04.11 | — |
+| [GUIDE-BOARD-2402](tasks/GUIDE-BOARD-2402.md) | V1 | IN_PROGRESS | User guide for 2.40.0 / 2.40.1 and the task board after 04.11 | — |
