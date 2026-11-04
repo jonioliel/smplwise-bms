@@ -7004,7 +7004,8 @@
       "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-033; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 10 h, model opus. External gate: inventory result (only if it finds event-driven items).",
       "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
       "2026-10-11 (REGISTRY-sync-1011): waiting: needs the read-only inventory and WisKey answers W1 and W4 (board status waiting).",
-      "commit f18932f04 (release 2.4.9, on origin/main); also b34fb3454 (release 2.10.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): partly shipped. the D10a enable guard shipped (enabling an automation or schedule never re-arms a WisKey door opener, test_wiskey_door_enable.py); door automations through WisKey were later built as AUTODOORS-295 (merge b34fb3454, off by default). Missing: the disable-and-list conversion of Arx event door jobs (gate test T13) is still open. Status kept BACKLOG (target IN_PROGRESS): the registry rule needs every dependency DONE (WXD9:BACKLOG, WXD7R:BACKLOG)."
+      "commit f18932f04 (release 2.4.9, on origin/main); also b34fb3454 (release 2.10.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): partly shipped. the D10a enable guard shipped (enabling an automation or schedule never re-arms a WisKey door opener, test_wiskey_door_enable.py); door automations through WisKey were later built as AUTODOORS-295 (merge b34fb3454, off by default). Missing: the disable-and-list conversion of Arx event door jobs (gate test T13) is still open. Status kept BACKLOG (target IN_PROGRESS): the registry rule needs every dependency DONE (WXD9:BACKLOG, WXD7R:BACKLOG).",
+      "commit a839ceeba (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WXD10-DOOR-JOBS-2400: disable and list, Arx event door jobs (M1), API only, switch off, on fakes (migration 0205). Status kept BACKLOG: the registry needs every dependency DONE first (WXD9, WXD7R)."
     ],
     "owner": null,
     "commit": "f18932f04",
@@ -7051,7 +7052,8 @@
       "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-033; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 4 h, model opus. External gate: WisKey offers program creation for an Arx operator.",
       "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
       "2026-10-11 (REGISTRY-sync-1011): waiting: needs the read-only inventory and WisKey answers W1 and W4 (board status waiting).",
-      "commit b3cc39a21 (release 2.11.0, on origin/main); also faf5bd4c0 (release 2.24.1, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. hold-open program hand-over: door windows (DOORWIN-295, merge b3cc39a21) and the door-window program written from Arx to WisKey (DOORWRITE-297, merge faf5bd4c0); off by default (doors.windows.enabled) and needs the WisKey direct join. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (WXD9:BACKLOG, WXD7R:BACKLOG)."
+      "commit b3cc39a21 (release 2.11.0, on origin/main); also faf5bd4c0 (release 2.24.1, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. hold-open program hand-over: door windows (DOORWIN-295, merge b3cc39a21) and the door-window program written from Arx to WisKey (DOORWRITE-297, merge faf5bd4c0); off by default (doors.windows.enabled) and needs the WisKey direct join. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (WXD9:BACKLOG, WXD7R:BACKLOG).",
+      "commit a839ceeba (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WXD10-DOOR-JOBS-2400: hold-open hand-over to a weekly door-window draft (M3), API only, switch off, on fakes. Status kept BACKLOG: the registry needs every dependency DONE first (WXD9, WXD7R)."
     ],
     "owner": null,
     "commit": "b3cc39a21",
@@ -17037,10 +17039,11 @@
     ],
     "evidence": [
       "2026-11-02 (REGISTRY-UPDATE-2380): plan private/planning/NEXT_PHASE_DISPLAY_MOBILE_PLAN_2026-11-02.md work package D3 (8-10 h; services/notices/*.py, routers/notices.py, a migration, frontend/src/notices/**, system-notices.ts). Starts after 2.37.0 because system-notices.ts is in round-4 WP8. Open owner questions Q4-Q8.",
-      "commit 6142b9a64 (branch only, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. notice board administration (copy versus replace link, re-send, editor role) built on pilot/BOARD-MGMT-2381 @ 6142b9a64 and merged into release/2382-train (merge 30b92b6a2), not released. Status kept BACKLOG (target IN_PROGRESS): the registry rule needs every dependency DONE (POLISH4-WP8-SETMOD-2370:REVIEW)."
+      "commit 6142b9a64 (branch only, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. notice board administration (copy versus replace link, re-send, editor role) built on pilot/BOARD-MGMT-2381 @ 6142b9a64 and merged into release/2382-train (merge 30b92b6a2), not released. Status kept BACKLOG (target IN_PROGRESS): the registry rule needs every dependency DONE (POLISH4-WP8-SETMOD-2370:REVIEW).",
+      "commit 30b92b6a2 (release 2.38.2, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/BOARD-MGMT-2381 (copy versus replace link, re-send, editor role). Status kept BACKLOG: the registry needs every dependency DONE first (POLISH4-WP8-SETMOD-2370)."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "30b92b6a2",
     "actual_cost_usd": null
   },
   {
@@ -17123,10 +17126,11 @@
     ],
     "evidence": [
       "2026-11-02 (REGISTRY-UPDATE-2380): plan private/planning/NEXT_PHASE_DISPLAY_MOBILE_PLAN_2026-11-02.md work package D5 (3-5 h; system-wall.ts, the wall detection module, wall specs). Starts after 2.37.0 (avoid kiosk-wall.ts, round-4 WP2). Known risks recorded in the plan: stalls above about 6 sub streams, the browser cannot sleep the screen.",
-      "2026-11-04 (REGISTRY-AUDIT-20261103): not implemented. no branch or merge found for the desktop wall mode, foldable detection or the AT221 / AT301 evidence."
+      "2026-11-04 (REGISTRY-AUDIT-20261103): not implemented. no branch or merge found for the desktop wall mode, foldable detection or the AT221 / AT301 evidence.",
+      "commit e6e74c5fb (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WALL-FOLLOWUPS-2390 (desktop wall mode, foldable detection); owner answers 18-20 in 80983c8db. Status kept BACKLOG: the registry needs every dependency DONE first (POLISH4-WP2-LIVEINV-2370, T107)."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "e6e74c5fb",
     "actual_cost_usd": null
   },
   {
@@ -17165,10 +17169,11 @@
     ],
     "evidence": [
       "2026-11-02 (REGISTRY-UPDATE-2380): plan private/planning/NEXT_PHASE_DISPLAY_MOBILE_PLAN_2026-11-02.md work package U1 (10-14 h). The presence card compact redesign shipped as PRESENCE-COMPACT-2310 in 2.31.0, so that part of U1 is a follow-up only if the owner is not satisfied (flagged in the registry update).",
-      "2026-11-04 (REGISTRY-AUDIT-20261103): not implemented. no branch or merge found for the WisKey area polish (WP9), calendars D22 or the compact presence card redesign; fix/A11Y-R4-LEFTOVERS-2380 (2.38.0) covered accessibility leftovers only."
+      "2026-11-04 (REGISTRY-AUDIT-20261103): not implemented. no branch or merge found for the WisKey area polish (WP9), calendars D22 or the compact presence card redesign; fix/A11Y-R4-LEFTOVERS-2380 (2.38.0) covered accessibility leftovers only.",
+      "commit 51044acd5 (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/ROUND4-LEFTOVERS-2390 (WisKey area WP9, calendars D22); the compact presence card is PRESENCE-COUNT-2400. Status kept BACKLOG: the registry needs every dependency DONE first (WISKEY-RC7-ADOPT-2331)."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "51044acd5",
     "actual_cost_usd": null
   },
   {
@@ -17623,7 +17628,7 @@
     "test_ids": [
       "AT-RELEASE-2382-TRAIN-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -17637,10 +17642,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit 9d5b2963b (release/2382-train, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. release/2382-train @ 9d5b2963b holds TALK-DIAL, TALK-CAPS, TV-CHIPS, DIALOG-TOPLAYER, BOARD-MGMT, INBOUND-CALLS, RC10-PIN, DEEPLINKS and PAIRING; no version commit, gate or tag yet."
+      "commit 9d5b2963b (release/2382-train, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. release/2382-train @ 9d5b2963b holds TALK-DIAL, TALK-CAPS, TV-CHIPS, DIALOG-TOPLAYER, BOARD-MGMT, INBOUND-CALLS, RC10-PIN, DEEPLINKS and PAIRING; no version commit, gate or tag yet.",
+      "commit 71a6c240c (release 2.38.2, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. version commit 71a6c240c and UI rebuild c7cc22769 = tag v2.38.2 (docs/changes/RELEASE-2382-TRAIN.md: ten merges, gate fixes, receipts, NOT_RUN). Status IN_PROGRESS -> REVIEW."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "71a6c240c",
     "actual_cost_usd": null
   },
   {
@@ -17662,7 +17668,7 @@
     "test_ids": [
       "AT-TV-CHIPS-2381-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -17676,10 +17682,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit a2710c917 (pilot/TV-CHIPS-2381, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. pilot/TV-CHIPS-2381 @ a2710c917, merged into release/2382-train (merge 779d68d4d), not released."
+      "commit a2710c917 (pilot/TV-CHIPS-2381, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. pilot/TV-CHIPS-2381 @ a2710c917, merged into release/2382-train (merge 779d68d4d), not released.",
+      "commit 779d68d4d (release 2.38.2, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/TV-CHIPS-2381. Status IN_PROGRESS -> REVIEW."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "779d68d4d",
     "actual_cost_usd": null
   },
   {
@@ -17701,7 +17708,7 @@
     "test_ids": [
       "AT-DIALOG-TOPLAYER-2381-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -17715,10 +17722,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit 13b53721a (pilot/DIALOG-TOPLAYER-2381, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. pilot/DIALOG-TOPLAYER-2381 @ 13b53721a, merged into release/2382-train (merge 2b32d3215), not released."
+      "commit 13b53721a (pilot/DIALOG-TOPLAYER-2381, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. pilot/DIALOG-TOPLAYER-2381 @ 13b53721a, merged into release/2382-train (merge 2b32d3215), not released.",
+      "commit 2b32d3215 (release 2.38.2, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/DIALOG-TOPLAYER-2381. Status IN_PROGRESS -> REVIEW."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "2b32d3215",
     "actual_cost_usd": null
   },
   {
@@ -17740,7 +17748,7 @@
     "test_ids": [
       "AT-WISKEY-TALK-DIAL-2382-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -17754,10 +17762,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit 604fe0c73 (pilot/WISKEY-TALK-DIAL-2382, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md 4.1 A-a): pilot/WISKEY-TALK-DIAL-2382 @ 604fe0c73, merged into release/2382-train (merge 2aa7ae42d), not released."
+      "commit 604fe0c73 (pilot/WISKEY-TALK-DIAL-2382, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md 4.1 A-a): pilot/WISKEY-TALK-DIAL-2382 @ 604fe0c73, merged into release/2382-train (merge 2aa7ae42d), not released.",
+      "commit 2aa7ae42d (release 2.38.2, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WISKEY-TALK-DIAL-2382 (provider row, station-media readiness, native dial). Status IN_PROGRESS -> REVIEW."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "2aa7ae42d",
     "actual_cost_usd": null
   },
   {
@@ -17779,7 +17788,7 @@
     "test_ids": [
       "AT-WISKEY-TALK-CAPS-2382-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -17793,10 +17802,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit 670506b99 (pilot/WISKEY-TALK-CAPS-2382, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md finding 2): pilot/WISKEY-TALK-CAPS-2382 @ 670506b99, merged into release/2382-train, not released."
+      "commit 670506b99 (pilot/WISKEY-TALK-CAPS-2382, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md finding 2): pilot/WISKEY-TALK-CAPS-2382 @ 670506b99, merged into release/2382-train, not released.",
+      "commit 9d5b2963b (release 2.38.2, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WISKEY-TALK-CAPS-2382. Status IN_PROGRESS -> REVIEW."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "9d5b2963b",
     "actual_cost_usd": null
   },
   {
@@ -17818,7 +17828,7 @@
     "test_ids": [
       "AT-WISKEY-PAIRING-2382-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -17832,10 +17842,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit 47110f79c (pilot/WISKEY-PAIRING-2382, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md 4.1 A-b): pilot/WISKEY-PAIRING-2382 @ 47110f79c, merged into release/2382-train (merge 30176808e), not released."
+      "commit 47110f79c (pilot/WISKEY-PAIRING-2382, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md 4.1 A-b): pilot/WISKEY-PAIRING-2382 @ 47110f79c, merged into release/2382-train (merge 30176808e), not released.",
+      "commit 30176808e (release 2.38.2, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WISKEY-PAIRING-2382 (connection block, signed check, guided re-pair). Status IN_PROGRESS -> REVIEW."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "30176808e",
     "actual_cost_usd": null
   },
   {
@@ -17857,7 +17868,7 @@
     "test_ids": [
       "AT-WISKEY-MANAGED-INSTALL-2382-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -17871,10 +17882,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit 1e5320327 (pilot/WISKEY-MANAGED-INSTALL-2382, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md 4.1 A-c): pilot/WISKEY-MANAGED-INSTALL-2382 @ 1e5320327 (not merged, not released)."
+      "commit 1e5320327 (pilot/WISKEY-MANAGED-INSTALL-2382, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md 4.1 A-c): pilot/WISKEY-MANAGED-INSTALL-2382 @ 1e5320327 (not merged, not released).",
+      "commit 844d79f68 (release 2.39.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WISKEY-MANAGED-INSTALL-2382 into release/2390-train; owner answers of 04.11 added in 2.40.0 (caea80b2a). Status IN_PROGRESS -> REVIEW."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "844d79f68",
     "actual_cost_usd": null
   },
   {
@@ -17896,7 +17908,7 @@
     "test_ids": [
       "AT-WISKEY-INBOUND-CALLS-2382-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -17910,10 +17922,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit 086bff1a2 (pilot/WISKEY-INBOUND-CALLS-2382, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md 4.1 A-e): pilot/WISKEY-INBOUND-CALLS-2382 @ 086bff1a2, merged into release/2382-train (merge 38d6dfbb5), not released."
+      "commit 086bff1a2 (pilot/WISKEY-INBOUND-CALLS-2382, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md 4.1 A-e): pilot/WISKEY-INBOUND-CALLS-2382 @ 086bff1a2, merged into release/2382-train (merge 38d6dfbb5), not released.",
+      "commit 38d6dfbb5 (release 2.38.2, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WISKEY-INBOUND-CALLS-2382 (incoming-call window, call ledger, migration 0197). Status IN_PROGRESS -> REVIEW."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "38d6dfbb5",
     "actual_cost_usd": null
   },
   {
@@ -17935,7 +17948,7 @@
     "test_ids": [
       "AT-WISKEY-JOIN-LIVE-2382-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -17949,10 +17962,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit 5897cbb6b (pilot/WISKEY-JOIN-LIVE-2382, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T1): pilot/WISKEY-JOIN-LIVE-2382 @ 5897cbb6b (not merged, not released)."
+      "commit 5897cbb6b (pilot/WISKEY-JOIN-LIVE-2382, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T1): pilot/WISKEY-JOIN-LIVE-2382 @ 5897cbb6b (not merged, not released).",
+      "commit 2b0f007b2 (release 2.38.2, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WISKEY-JOIN-LIVE-2382. Status IN_PROGRESS -> REVIEW."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "2b0f007b2",
     "actual_cost_usd": null
   },
   {
@@ -17974,7 +17988,7 @@
     "test_ids": [
       "AT-WISKEY-RC10-PIN-2382-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -17988,10 +18002,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit eb83bebd5 (pilot/WISKEY-RC10-PIN-2382, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T2): pilot/WISKEY-RC10-PIN-2382 @ eb83bebd5, merged into release/2382-train (merge b3bf61ca9), not released."
+      "commit eb83bebd5 (pilot/WISKEY-RC10-PIN-2382, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T2): pilot/WISKEY-RC10-PIN-2382 @ eb83bebd5, merged into release/2382-train (merge b3bf61ca9), not released.",
+      "commit b3bf61ca9 (release 2.38.2, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WISKEY-RC10-PIN-2382. Status IN_PROGRESS -> REVIEW."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "b3bf61ca9",
     "actual_cost_usd": null
   },
   {
@@ -18013,7 +18028,7 @@
     "test_ids": [
       "AT-WISKEY-STATUS-PAGE-2382-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -18027,10 +18042,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit 82bd7c959 (pilot/WISKEY-PAIRING-2382, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T3): the \"מצב WisKey\" rows came with pilot/WISKEY-PAIRING-2382 @ 82bd7c959 (not released). Not checked line by line against the T3 list (per-station entry health with authentication-failure counts, readiness reads, Core gate); there is no separate T3 branch."
+      "commit 82bd7c959 (pilot/WISKEY-PAIRING-2382, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T3): the \"מצב WisKey\" rows came with pilot/WISKEY-PAIRING-2382 @ 82bd7c959 (not released). Not checked line by line against the T3 list (per-station entry health with authentication-failure counts, readiness reads, Core gate); there is no separate T3 branch.",
+      "commit 30176808e (release 2.38.2, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. the WisKey status rows came with the merge of pilot/WISKEY-PAIRING-2382; the join line reads the runtime join (fe73cf9e6). Status IN_PROGRESS -> REVIEW."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "30176808e",
     "actual_cost_usd": null
   },
   {
@@ -18052,7 +18068,7 @@
     "test_ids": [
       "AT-WISKEY-STATION-OPS-2390-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -18066,10 +18082,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit 3cdd9306a (pilot/WISKEY-STATION-OPS-2390, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T4): pilot/WISKEY-STATION-OPS-2390 @ 3cdd9306a (not merged, not released)."
+      "commit 3cdd9306a (pilot/WISKEY-STATION-OPS-2390, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T4): pilot/WISKEY-STATION-OPS-2390 @ 3cdd9306a (not merged, not released).",
+      "commit 3a92fe01c (release 2.39.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WISKEY-STATION-OPS-2390 (docs/changes/RELEASE-2390-TRAIN.md). Status IN_PROGRESS -> REVIEW."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "3a92fe01c",
     "actual_cost_usd": null
   },
   {
@@ -18091,7 +18108,7 @@
     "test_ids": [
       "AT-WISKEY-CONFLICTS-2390-1"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -18105,10 +18122,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "2026-11-04 (REGISTRY-AUDIT-20261103): not implemented. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T5): not started - no branch on origin."
+      "2026-11-04 (REGISTRY-AUDIT-20261103): not implemented. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T5): not started - no branch on origin.",
+      "commit aa33b33f3 (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WISKEY-CONFLICTS-2400 (migration 0202). Status BACKLOG -> REVIEW."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "aa33b33f3",
     "actual_cost_usd": null
   },
   {
@@ -18130,7 +18148,7 @@
     "test_ids": [
       "AT-WISKEY-DOOR-TECH-2390-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -18144,10 +18162,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit e3789536b (pilot/WISKEY-DOOR-TECH-2390, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T6, owner answer Q5a of 2026-11-03): pilot/WISKEY-DOOR-TECH-2390 @ e3789536b (not merged, not released)."
+      "commit e3789536b (pilot/WISKEY-DOOR-TECH-2390, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T6, owner answer Q5a of 2026-11-03): pilot/WISKEY-DOOR-TECH-2390 @ e3789536b (not merged, not released).",
+      "commit 37c9cdae3 (release 2.39.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WISKEY-DOOR-TECH-2390. Status IN_PROGRESS -> REVIEW."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "37c9cdae3",
     "actual_cost_usd": null
   },
   {
@@ -18169,7 +18188,7 @@
     "test_ids": [
       "AT-WISKEY-SCHED-WRITE-2390-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -18183,10 +18202,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit df85fd8f2 (pilot/WISKEY-SCHED-WRITE-2390, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T7; the owner chose full schedule writes on 2026-11-03, answer 4a): pilot/WISKEY-SCHED-WRITE-2390 @ df85fd8f2 (not merged, not released)."
+      "commit df85fd8f2 (pilot/WISKEY-SCHED-WRITE-2390, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T7; the owner chose full schedule writes on 2026-11-03, answer 4a): pilot/WISKEY-SCHED-WRITE-2390 @ df85fd8f2 (not merged, not released).",
+      "commit e0aefe596 (release 2.39.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WISKEY-SCHED-WRITE-2390; station writes stay off until WisKey enables them (2.40.0 wording). Status IN_PROGRESS -> REVIEW."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "e0aefe596",
     "actual_cost_usd": null
   },
   {
@@ -18208,7 +18228,7 @@
     "test_ids": [
       "AT-WISKEY-PROFILES-EDIT-2390-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -18222,10 +18242,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit 31e6c4c6d (pilot/WISKEY-PROFILES-EDIT-2390, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T8): pilot/WISKEY-PROFILES-EDIT-2390 @ 31e6c4c6d (not merged, not released)."
+      "commit 31e6c4c6d (pilot/WISKEY-PROFILES-EDIT-2390, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T8): pilot/WISKEY-PROFILES-EDIT-2390 @ 31e6c4c6d (not merged, not released).",
+      "commit 5858a1552 (release 2.39.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WISKEY-PROFILES-EDIT-2390. Status IN_PROGRESS -> REVIEW."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "5858a1552",
     "actual_cost_usd": null
   },
   {
@@ -18247,7 +18268,7 @@
     "test_ids": [
       "AT-WISKEY-PEOPLE-COMPLETE-2390-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -18261,10 +18282,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit 23f771393 (pilot/WISKEY-PEOPLE-COMPLETE-2390, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T9, owner answer Q3a): pilot/WISKEY-PEOPLE-COMPLETE-2390 @ 23f771393 (not merged, not released)."
+      "commit 23f771393 (pilot/WISKEY-PEOPLE-COMPLETE-2390, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T9, owner answer Q3a): pilot/WISKEY-PEOPLE-COMPLETE-2390 @ 23f771393 (not merged, not released).",
+      "commit 0544fee92 (release 2.39.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WISKEY-PEOPLE-COMPLETE-2390 (migration 0198). Status IN_PROGRESS -> REVIEW."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "0544fee92",
     "actual_cost_usd": null
   },
   {
@@ -18286,7 +18308,7 @@
     "test_ids": [
       "AT-WISKEY-ACCESS-DIAG-2400-1"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -18300,10 +18322,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "2026-11-04 (REGISTRY-AUDIT-20261103): not implemented. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T10): not started - no branch on origin."
+      "2026-11-04 (REGISTRY-AUDIT-20261103): not implemented. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T10): not started - no branch on origin.",
+      "commit cad0bfc88 (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WISKEY-ACCESS-DIAG-2400 (migration 0203). Status BACKLOG -> REVIEW."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "cad0bfc88",
     "actual_cost_usd": null
   },
   {
@@ -18325,7 +18348,7 @@
     "test_ids": [
       "AT-WISKEY-OPS-VIEWS-2400-1"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -18339,10 +18362,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "2026-11-04 (REGISTRY-AUDIT-20261103): not implemented. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T11): not started - no branch on origin."
+      "2026-11-04 (REGISTRY-AUDIT-20261103): not implemented. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T11): not started - no branch on origin.",
+      "commit 452b01501 (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WISKEY-OPS-VIEWS-2400 (migration 0200). Status BACKLOG -> REVIEW."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "452b01501",
     "actual_cost_usd": null
   },
   {
@@ -18364,7 +18388,7 @@
     "test_ids": [
       "AT-WISKEY-WA-QUEUE-2400-1"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -18378,10 +18402,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "2026-11-04 (REGISTRY-AUDIT-20261103): not implemented. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T12): not started - no branch on origin; depends on the managed install."
+      "2026-11-04 (REGISTRY-AUDIT-20261103): not implemented. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T12): not started - no branch on origin; depends on the managed install.",
+      "commit 57ecaa6c8 (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WISKEY-WA-QUEUE-2400. Status BACKLOG -> REVIEW."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "57ecaa6c8",
     "actual_cost_usd": null
   },
   {
@@ -18442,7 +18467,7 @@
     "test_ids": [
       "AT-WISKEY-CLOCK-VIEW-2400-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -18456,10 +18481,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit f83dfed2c (pilot/WISKEY-INSTALLER-NATIVE-2400, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T14): the clock / NTP part is built natively on pilot/WISKEY-INSTALLER-NATIVE-2400 (phase 1 @ f83dfed2c, not released); the media provider check is not built."
+      "commit f83dfed2c (pilot/WISKEY-INSTALLER-NATIVE-2400, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T14): the clock / NTP part is built natively on pilot/WISKEY-INSTALLER-NATIVE-2400 (phase 1 @ f83dfed2c, not released); the media provider check is not built.",
+      "commit b916a04fb (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. the clock / NTP view shipped with the installer tools (merge b916a04fb); the media provider check is the provider row of the connection block (2.38.2, 30176808e). Not checked against the installation. Status IN_PROGRESS -> REVIEW."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "b916a04fb",
     "actual_cost_usd": null
   },
   {
@@ -18481,7 +18507,7 @@
     "test_ids": [
       "AT-WISKEY-EVENT-CURSOR-2390-1"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -18495,10 +18521,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "2026-11-04 (REGISTRY-AUDIT-20261103): not implemented. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T15): not started - no branch on origin."
+      "2026-11-04 (REGISTRY-AUDIT-20261103): not implemented. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T15): not started - no branch on origin.",
+      "commit 90f3e0cf8 (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WISKEY-EVENT-CURSOR-2400 (migration 0201). Status BACKLOG -> REVIEW."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "90f3e0cf8",
     "actual_cost_usd": null
   },
   {
@@ -18520,7 +18547,7 @@
     "test_ids": [
       "AT-WISKEY-LIVE-VALIDATION-2390-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -18534,10 +18561,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit 31ab43f73 (pilot/WISKEY-LIVE-VALIDATION-2390, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T16): pilot/WISKEY-LIVE-VALIDATION-2390 @ 31ab43f73 (not merged, not released)."
+      "commit 31ab43f73 (pilot/WISKEY-LIVE-VALIDATION-2390, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T16): pilot/WISKEY-LIVE-VALIDATION-2390 @ 31ab43f73 (not merged, not released).",
+      "commit d17492bdd (release 2.39.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WISKEY-LIVE-VALIDATION-2390 (migration 0199). Status IN_PROGRESS -> REVIEW."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "d17492bdd",
     "actual_cost_usd": null
   },
   {
@@ -18598,7 +18626,7 @@
     "test_ids": [
       "AT-WISKEY-DEEPLINKS-2382-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -18612,10 +18640,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit dc696f3a2 (pilot/WISKEY-DEEPLINKS-2382, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T18): pilot/WISKEY-DEEPLINKS-2382 @ dc696f3a2, merged into release/2382-train (merge d27c6695c), not released."
+      "commit dc696f3a2 (pilot/WISKEY-DEEPLINKS-2382, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T18): pilot/WISKEY-DEEPLINKS-2382 @ dc696f3a2, merged into release/2382-train (merge d27c6695c), not released.",
+      "commit d27c6695c (release 2.38.2, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WISKEY-DEEPLINKS-2382. Status IN_PROGRESS -> REVIEW."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "d27c6695c",
     "actual_cost_usd": null
   },
   {
@@ -18793,6 +18822,473 @@
     "test_ids": [
       "AT-WISKEY-INSTALLER-NATIVE-2400-1"
     ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests on an isolated branch",
+      "Change record and known limits"
+    ],
+    "evidence": [
+      "commit c91406df5 (pilot/WISKEY-INSTALLER-NATIVE-2400, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. owner answer 7c of 2026-11-03 (all installer tools native in Arx): pilot/WISKEY-INSTALLER-NATIVE-2400 @ c91406df5 with phase 1 clock / NTP (f83dfed2c) and phase 2 station technical settings (420fe30df); not merged, not released.",
+      "commit b916a04fb (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WISKEY-INSTALLER-NATIVE-2400 (docs/changes/RELEASE-2400-TRAIN.md); owner answers in caea80b2a. Status IN_PROGRESS -> REVIEW."
+    ],
+    "owner": null,
+    "commit": "b916a04fb",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "RELEASE-2390-TRAIN",
+    "title": "Release 2.39.0: WisKey operator writes, people completeness, live validation, managed install",
+    "epic": "RELEASE",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Release 2.39.0 = 2.38.2 plus the seven WisKey branches of the 2.39.0 train, gated on the runner, merged to main and tagged v2.39.0."
+    ],
+    "requirement_ids": [
+      "R-RELEASE-2390-TRAIN-1"
+    ],
+    "test_ids": [
+      "AT-RELEASE-2390-TRAIN-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Version commit, runner gate record, tag v2.39.0"
+    ],
+    "evidence": [
+      "commit 3d4335bce (release 2.39.0, on origin/main); also 8216c6359 (release 2.39.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. version commit 3d4335bce, UI rebuild 8216c6359, gate-2 fixes 24d50bf5b = tag v2.39.0 (docs/changes/RELEASE-2390-TRAIN.md: merges, conflicts, gate failures and fixes, receipts, baseline review)."
+    ],
+    "owner": null,
+    "commit": "3d4335bce",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "BRIDGE-STALE-DISCOVERY-2383",
+    "title": "Fix: a stale discovery no longer puts an old pairing code back into the bridge (bridge 0.10.3)",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "After a re-pair and after every home-system restart the bridge keeps the current pairing code; refused bridge pushes are visible in the WisKey connection block; no bridge key rotation starts while WisKey is installed."
+    ],
+    "requirement_ids": [
+      "R-BRIDGE-STALE-DISCOVERY-2383-1"
+    ],
+    "test_ids": [
+      "AT-BRIDGE-STALE-DISCOVERY-2383-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests on an isolated branch",
+      "Change record and known limits"
+    ],
+    "evidence": [
+      "commit 264c6013c (release 2.39.1, on origin/main); also f43eae0a3 (release 2.39.1, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. Arx tracks its discovery message and replaces or removes it when its code is stale; bridge 0.10.3 accepts a discovered code only after Arx confirms it; refused pushes are shown; rotation blocked while WisKey is present (docs/changes/BRIDGE-STALE-DISCOVERY-2383.md, owner procedure in section 5).",
+      "lab (2026-11-04, read only): the defect was found in the lab log audit (a 108-minute window of refused bridge pushes after a re-pair); the lab was repaired by hand the same day and runs 2.39.1. The fix itself was not exercised against the lab."
+    ],
+    "owner": null,
+    "commit": "264c6013c",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "RELEASE-2391",
+    "title": "Release 2.39.1: the Arx bridge keeps its pairing after a re-pair and after restarts",
+    "epic": "RELEASE",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Release 2.39.1 = 2.39.0 plus BRIDGE-STALE-DISCOVERY-2383, gated on the runner, merged to main and tagged v2.39.1."
+    ],
+    "requirement_ids": [
+      "R-RELEASE-2391-1"
+    ],
+    "test_ids": [
+      "AT-RELEASE-2391-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Version commit, runner gate record, tag v2.39.1"
+    ],
+    "evidence": [
+      "commit 0351b5f63 (release 2.39.1, on origin/main); also 2affd5834 (release 2.39.1, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. version commit 0351b5f63, UI rebuild 2affd5834, gate fix 613f4b0ef = tag v2.39.1. The owner installed 2.39.1 on the lab the same day."
+    ],
+    "owner": null,
+    "commit": "0351b5f63",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "VIDEO-TRANSPORT-2400",
+    "title": "Live video: one transport decision executed by every player; personal choice in My account; stalled-picture recovery",
+    "epic": "LIVE",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The installation's transport setting is honoured on every surface and channel (remote access and the phone included); only automatic tries more than one way; a per-user choice under My account > Video beats it; a frozen MSE picture reconnects on MSE; station video plays both profiles over either transport."
+    ],
+    "requirement_ids": [
+      "R-VIDEO-TRANSPORT-2400-1"
+    ],
+    "test_ids": [
+      "AT-VIDEO-TRANSPORT-2400-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests on an isolated branch",
+      "Change record and known limits"
+    ],
+    "evidence": [
+      "commit 4b43b95b7 (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/VIDEO-TRANSPORT-2400 (docs/changes/VIDEO-TRANSPORT-2400.md: the 480-case policy table, the player, the station lease re-open grace, go2rtc error logging; stale wall-cap spec fixed after the gate in d6294fc51). Owner lab test plan (section 9) NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "4b43b95b7",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "TTS-DEFAULT-ENGINE-2400",
+    "title": "Announcements: a fixed TTS engine and language, overridable per send",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "A system administrator sets a fixed announcement engine and language; every announcement dialog preselects them; a per-send pick changes only that send; a missing fixed engine is never replaced silently and blocks the send until another engine is picked."
+    ],
+    "requirement_ids": [
+      "R-TTS-DEFAULT-ENGINE-2400-1"
+    ],
+    "test_ids": [
+      "AT-TTS-DEFAULT-ENGINE-2400-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests on an isolated branch",
+      "Change record and known limits"
+    ],
+    "evidence": [
+      "commit 1879f1095 (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/TTS-DEFAULT-ENGINE-2400 (docs/changes/TTS-DEFAULT-ENGINE-2400.md). Real WisKey / station NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "1879f1095",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "PRESENCE-COUNT-2400",
+    "title": "Presence card \"count and names\" as the new default style",
+    "epic": "DESIGN",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "The home presence card shows the active-room count, the active names, a per-room strip and (large card) the floors; it is the default presence style; the other styles stay selectable."
+    ],
+    "requirement_ids": [
+      "R-PRESENCE-COUNT-2400-1"
+    ],
+    "test_ids": [
+      "AT-PRESENCE-COUNT-2400-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests on an isolated branch",
+      "Change record and known limits"
+    ],
+    "evidence": [
+      "commit 7cbd8930e (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/PRESENCE-COUNT-2400 (owner round 18 Q25-28; docs/changes/PRESENCE-COUNT-2400.md)."
+    ],
+    "owner": null,
+    "commit": "7cbd8930e",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WALL-ANSWERS-2400",
+    "title": "Wall displays: owner answers 18-20 (open-foldable setting, portrait health chip once, kiosk header on a phone)",
+    "epic": "DESIGN",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "An open foldable behaves as a wall tablet or as a phone by an installation setting; the portrait wall shows the health chip once; the kiosk header on a phone keeps its height; the desktop wall flag has its own column (migration 0204)."
+    ],
+    "requirement_ids": [
+      "R-WALL-ANSWERS-2400-1"
+    ],
+    "test_ids": [
+      "AT-WALL-ANSWERS-2400-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests on an isolated branch",
+      "Change record and known limits"
+    ],
+    "evidence": [
+      "commit 80983c8db (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WALL-ANSWERS-2400 (docs/changes/WALL-ANSWERS-2400.md)."
+    ],
+    "owner": null,
+    "commit": "80983c8db",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "BOARD-ANSWERS-2400",
+    "title": "Notice boards: owner answers 12-17 (legacy link kept on TV connect, \"invert\" for parking and gym sources)",
+    "epic": "DESIGN",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "A board saved before the sealed links keeps its link when its TV connects; parking and gym sources have an invert option."
+    ],
+    "requirement_ids": [
+      "R-BOARD-ANSWERS-2400-1"
+    ],
+    "test_ids": [
+      "AT-BOARD-ANSWERS-2400-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests on an isolated branch",
+      "Change record and known limits"
+    ],
+    "evidence": [
+      "commit 15ae3816a (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/BOARD-ANSWERS-2400 (docs/changes/BOARD-ANSWERS-2400.md)."
+    ],
+    "owner": null,
+    "commit": "15ae3816a",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WISKEY-OPS-ANSWERS-2400",
+    "title": "WisKey operations: owner answers 04.11 (maintenance role, permission label, deploy warning, talk reasons)",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Station maintenance stays with system administrators and its permission text says what it covers; schedule deployment warns while WisKey station writes are off; no-talk reasons name WisKey when WisKey is the cause."
+    ],
+    "requirement_ids": [
+      "R-WISKEY-OPS-ANSWERS-2400-1"
+    ],
+    "test_ids": [
+      "AT-WISKEY-OPS-ANSWERS-2400-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests on an isolated branch",
+      "Change record and known limits"
+    ],
+    "evidence": [
+      "commit 8148e8e55 (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WISKEY-OPS-ANSWERS-2400 (docs/changes/WISKEY-OPS-ANSWERS-2400.md)."
+    ],
+    "owner": null,
+    "commit": "8148e8e55",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WISKEY-INSTALL-ANSWERS-2400",
+    "title": "WisKey managed install: owner answers 04.11 (access-control settings group, start-up install switch, kept runs)",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Settings have an access-control group with the installer row; a start-up install switch (off, system administrator, typed confirmation) and a kept-runs count exist; every start-up attempt stops before any change while the platform image cannot be verified."
+    ],
+    "requirement_ids": [
+      "R-WISKEY-INSTALL-ANSWERS-2400-1"
+    ],
+    "test_ids": [
+      "AT-WISKEY-INSTALL-ANSWERS-2400-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests on an isolated branch",
+      "Change record and known limits"
+    ],
+    "evidence": [
+      "commit caea80b2a (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WISKEY-INSTALL-ANSWERS-2400 (docs/changes/WISKEY-INSTALL-ANSWERS-2400.md). Auto-install on discovery stays blocked (owner round 19)."
+    ],
+    "owner": null,
+    "commit": "caea80b2a",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "RELEASE-2400-TRAIN",
+    "title": "Release 2.40.0: video transport, fixed TTS engine, installer tools, presence card, owner answers round 18",
+    "epic": "RELEASE",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Release 2.40.0 = 2.39.1 plus the 2.40.0 train branches, gated on the runner, merged to main and tagged v2.40.0."
+    ],
+    "requirement_ids": [
+      "R-RELEASE-2400-TRAIN-1"
+    ],
+    "test_ids": [
+      "AT-RELEASE-2400-TRAIN-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Version commit, runner gate record, tag v2.40.0"
+    ],
+    "evidence": [
+      "commit ac87047b2 (release 2.40.0, on origin/main); also 36385bcb2 (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. version commit ac87047b2, UI rebuild 36385bcb2, gate fixes 060a36592 and d6294fc51 = tag v2.40.0 (docs/changes/RELEASE-2400-TRAIN.md). Known issue at release: the phone wall toolbar took two rows (fixed in 2.40.1). Not yet installed on the lab."
+    ],
+    "owner": null,
+    "commit": "ac87047b2",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "BRIDGE-UPDATE-LISTENER-2401",
+    "title": "Bridge 0.10.4: update listener and config-flow reload no longer combine (home system 2026.12)",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Bridge 0.10.4 updates its pairing through the supported path, so a re-pair is applied without waiting for the next home-system restart from version 2026.12; the deprecation warning stops after the restart that follows the copy."
+    ],
+    "requirement_ids": [
+      "R-BRIDGE-UPDATE-LISTENER-2401-1"
+    ],
+    "test_ids": [
+      "AT-BRIDGE-UPDATE-LISTENER-2401-1"
+    ],
     "status": "IN_PROGRESS",
     "blocker": null,
     "priority": "P1",
@@ -18807,7 +19303,359 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit c91406df5 (pilot/WISKEY-INSTALLER-NATIVE-2400, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. owner answer 7c of 2026-11-03 (all installer tools native in Arx): pilot/WISKEY-INSTALLER-NATIVE-2400 @ c91406df5 with phase 1 clock / NTP (f83dfed2c) and phase 2 station technical settings (420fe30df); not merged, not released."
+      "commit 61d8f1794 (release/2401-train, not on origin/main, not released) - 2026-11-04 (GUIDE-BOARD-2402): in the 2.40.1 gate. merge of fix/BRIDGE-UPDATE-LISTENER-2401 (docs/changes/BRIDGE-UPDATE-LISTENER-2401.md); found by the lab log audit (finding 4)."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WALL-PHONE-TOOLBAR-2401",
+    "title": "Phone camera wall: one row of icon keys, two rows of full labels as a setting",
+    "epic": "LIVE",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "frontend",
+    "requires_hardware": false,
+    "acceptance": [
+      "On a phone the camera-wall toolbar is one row of icon keys (at most 56 px, touch-sized, no sideways scroll, full name on a long press, as the tooltip and as the accessible name); two rows of full labels are an installation setting; no label is ever truncated."
+    ],
+    "requirement_ids": [
+      "R-WALL-PHONE-TOOLBAR-2401-1"
+    ],
+    "test_ids": [
+      "AT-WALL-PHONE-TOOLBAR-2401-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests on an isolated branch",
+      "Change record and known limits"
+    ],
+    "evidence": [
+      "commit 4d4fdeb7d (release/2401-train, not on origin/main, not released) - 2026-11-04 (GUIDE-BOARD-2402): in the 2.40.1 gate. merge of pilot/WALL-PHONE-TOOLBAR-2401 (docs/changes/WALL-PHONE-TOOLBAR-2401.md). Real phone NOT_RUN."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "SETTINGS-INTERCOM-CARDS-2401",
+    "title": "\"Entrance screen switches\" settings tab as folding cards (two tabs or one list as options)",
+    "epic": "DESIGN",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "frontend",
+    "requires_hardware": false,
+    "acceptance": [
+      "The tab fits 1366x768 without page scroll as folding cards with saved-value summaries, one open card remembered per user; a tab-layout setting switches to two tabs or one list."
+    ],
+    "requirement_ids": [
+      "R-SETTINGS-INTERCOM-CARDS-2401-1"
+    ],
+    "test_ids": [
+      "AT-SETTINGS-INTERCOM-CARDS-2401-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests on an isolated branch",
+      "Change record and known limits"
+    ],
+    "evidence": [
+      "commit b8afa129a (release/2401-train, not on origin/main, not released) - 2026-11-04 (GUIDE-BOARD-2402): in the 2.40.1 gate. merge of pilot/SETTINGS-INTERCOM-CARDS-2401 (docs/changes/SETTINGS-INTERCOM-CARDS-2401.md). Other skins and dark NOT_RUN."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "RELEASE-2401-TRAIN",
+    "title": "Release 2.40.1: phone wall toolbar, intercom settings cards, bridge 0.10.4",
+    "epic": "RELEASE",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Release 2.40.1 = 2.40.0 plus BRIDGE-UPDATE-LISTENER-2401, WALL-PHONE-TOOLBAR-2401 and SETTINGS-INTERCOM-CARDS-2401, gated on the runner, merged to main and tagged v2.40.1."
+    ],
+    "requirement_ids": [
+      "R-RELEASE-2401-TRAIN-1"
+    ],
+    "test_ids": [
+      "AT-RELEASE-2401-TRAIN-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Version commit, runner gate record, tag v2.40.1"
+    ],
+    "evidence": [
+      "commit 604305354 (release/2401-train, not on origin/main, not released) - 2026-11-04 (GUIDE-BOARD-2402): in the gate. version commit 604305354, UI rebuild d6e20460f (docs/changes/RELEASE-2401-TRAIN.md on the train); gate, merge to main and tag v2.40.1 pending."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WISKEY-LAB-ACTIVATION-0411",
+    "title": "WisKey activation on the lab installation (04.11 joint session)",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "On the lab installation the WisKey link is paired and verified, the station media provider is WisKey, the direct join runs, and talk, listen, live validation and door windows are exercised step by step from the activation runbook with the owner."
+    ],
+    "requirement_ids": [
+      "R-WISKEY-LAB-ACTIVATION-0411-1"
+    ],
+    "test_ids": [
+      "AT-WISKEY-LAB-ACTIVATION-0411-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests on an isolated branch",
+      "Change record and known limits"
+    ],
+    "evidence": [
+      "lab (2026-11-04): Arx updated in the lab to 2.38.2, signed check and re-pair, the bridge re-added by hand after a window of refused pushes, the station media provider set to WisKey, the direct join installed, talk tried on stations (some line-busy answers, one TTS error); later the lab was updated to 2.39.1. Source: the read-only log audit (private/planning/LAB_AUDIT_LOGS_2026-11-04_HE.md, gitignored).",
+      "NOT_RUN: door map confirmation, listen, live validation, door windows / emergency and the steps that need 2.40.0 / 2.40.1 on the lab (owner round 19 Q7: next session date open)."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "LAB-AUDITS-0411",
+    "title": "Read-only lab audits of 04.11: logs and faults, station and camera video, door events and station users",
+    "epic": "QA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "qa",
+    "requires_hardware": false,
+    "acceptance": [
+      "Read-only audits of the lab (no write, service call, restart, door or talk action) record findings by severity with redacted evidence, and each finding has an owner (Arx fix, WisKey ask or owner action)."
+    ],
+    "requirement_ids": [
+      "R-LAB-AUDITS-0411-1"
+    ],
+    "test_ids": [
+      "AT-LAB-AUDITS-0411-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests on an isolated branch",
+      "Change record and known limits"
+    ],
+    "evidence": [
+      "lab (2026-11-04, read only): three audit documents written - logs and faults (15 findings), station and camera video (10 findings and the owner questions answered the same day), door events and station users (follow-up) - in private/planning/ (gitignored), redacted evidence in private-evidence/lab-audit-20261104/ (gitignored). Findings turned into BRIDGE-STALE-DISCOVERY-2383 (2.39.1), VIDEO-TRANSPORT-2400 (2.40.0) and BRIDGE-UPDATE-LISTENER-2401 (2.40.1); WisKey asks in WISKEY-ADDENDUM-GAPS-0411; owner steps in OWNER-LAB-ACTIONS-0411.",
+      "NOT_MEASURED (from the audits): request durations in Arx, the Arx database through SSH (protection mode), station clocks and door settings beyond the one evening check."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "LAB-NVR-DOOR-READONLY-0411",
+    "title": "Read-only checks of 04.11 evening: recorder sub streams of two panoramic cameras, door contact input on one station",
+    "epic": "QA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "qa",
+    "requires_hardware": false,
+    "acceptance": [
+      "With the owner's approval (round 19 Q5a, Q3a), read-only reads of the recorder and of one door station explain the missing sub stream and the odd door events, and name the owner's next physical step; nothing is written."
+    ],
+    "requirement_ids": [
+      "R-LAB-NVR-DOOR-READONLY-0411-1"
+    ],
+    "test_ids": [
+      "AT-LAB-NVR-DOOR-READONLY-0411-1"
+    ],
+    "status": "REVIEW",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests on an isolated branch",
+      "Change record and known limits"
+    ],
+    "evidence": [
+      "lab (2026-11-04 evening, read only, owner round 19 Q5a and Q3a): recorder - the sub-stream settings of the two panoramic cameras read as valid, yet a sub-stream request returns no frames (main and other channels play), so the cause is most likely on the camera itself; the fix is a write on the camera or recorder, an owner action. Door station - no NO/NC setting exists over the station API (the door input is set to door status, the exit button on another input); the odd open / not-closed events most likely come from wiring (no contact, or the wrong contact type) - a physical check. Nothing was written. Details: addendum of private/planning/LAB_AUDIT_VIDEO_2026-11-04_HE.md (gitignored)."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "WISKEY-ADDENDUM-GAPS-0411",
+    "title": "WisKey gaps found while building 2.38.2 - 2.40.0 (addendum for the WisKey team)",
+    "epic": "ACCESS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Every WisKey gap recorded by the 2.38.2 - 2.40.0 branches (door technical, live validation, people, profiles, schedules, station maintenance, access diagnostics, conflicts, event cursor, installer, operations, messaging queue, managed install) reaches the WisKey team, and each answer is recorded against the Arx card it unblocks."
+    ],
+    "requirement_ids": [
+      "R-WISKEY-ADDENDUM-GAPS-0411-1"
+    ],
+    "test_ids": [
+      "AT-WISKEY-ADDENDUM-GAPS-0411-1"
+    ],
+    "status": "BLOCKED",
+    "blocker": "Owner: forward the addendum to the WisKey team; then waiting for WisKey's answers.",
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests on an isolated branch",
+      "Change record and known limits"
+    ],
+    "evidence": [
+      "2026-11-04 (GUIDE-BOARD-2402): addendum written - private/planning/WISKEY_GAPS_ADDENDUM_2026-11-04.md and the covering prompt PROMPT_TO_WISKEY_ADDENDUM_2026-11-04_HE.txt (gitignored). Not sent: the owner forwards it to the WisKey team. Lab asks from the audits (door event mapping without a door contact, assignment counts without disabled entries) belong in the same exchange."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "OWNER-LAB-ACTIONS-0411",
+    "title": "Owner lab actions after 04.11",
+    "epic": "OPS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "release",
+    "requires_hardware": false,
+    "acceptance": [
+      "The owner's open lab steps are done and recorded: full backup, 2.40.0 then 2.40.1 installed (one home-system restart for bridge 0.10.4), the video test plan, the two panoramic cameras' sub stream, the door contact check, station users and groups, the WisKey addendum forwarded, the next joint session date."
+    ],
+    "requirement_ids": [
+      "R-OWNER-LAB-ACTIONS-0411-1"
+    ],
+    "test_ids": [
+      "AT-OWNER-LAB-ACTIONS-0411-1"
+    ],
+    "status": "BLOCKED",
+    "blocker": "Owner actions on the lab installation and devices (Arx has no write permission for them).",
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests on an isolated branch",
+      "Change record and known limits"
+    ],
+    "evidence": [
+      "2026-11-04 (GUIDE-BOARD-2402): open owner steps from the audits and round 19: (1) a full backup before 2.40.0 (the platform reports no current full backup); (2) install 2.40.0 and then 2.40.1, reload the page, one home-system restart after the bridge 0.10.4 copy; (3) the video test plan of docs/changes/VIDEO-TRANSPORT-2400.md section 9; (4) re-save or enable the sub stream of the two panoramic cameras on the camera or recorder (a write, owner only); (5) check at one door station whether a door contact is wired to the door-status input, then fix all stations or ask WisKey to ignore door-status events; (6) confirm the limited station user is limited on purpose and add stations 9 and 10 to groups (owner said he will); (7) forward the WisKey addendum; (8) choose the next joint session (round 19 Q7). None is an Arx action; Arx does not write to the recorder, stations or home-system users."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
+  },
+  {
+    "id": "GUIDE-BOARD-2402",
+    "title": "User guide for 2.40.0 / 2.40.1 and the task board after 04.11",
+    "epic": "DOCS",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "docs",
+    "requires_hardware": false,
+    "acceptance": [
+      "The Hebrew user guide describes the 2.40.0 / 2.40.1 changes (video transport and the personal choice, the stalled picture, the fixed TTS engine, the intercom settings cards, the phone wall toolbar, the bridge pairing state after 2.39.1); GUIDE_ALL_HE.html is rebuilt from its sources; the task board records the 04.11 releases, lab work and open items; the views are regenerated."
+    ],
+    "requirement_ids": [
+      "R-GUIDE-BOARD-2402-1"
+    ],
+    "test_ids": [
+      "AT-GUIDE-BOARD-2402-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests on an isolated branch",
+      "Change record and known limits"
+    ],
+    "evidence": [
+      "commit a8c0de013 (docs/GUIDE-BOARD-2402, not on origin/main, not released) - 2026-11-04 (GUIDE-BOARD-2402): guide pages 00, 10, 15 (new), 30, 50, 80, 84 and GUIDE_ALL_HE.html rebuilt; this registry update on the same branch."
     ],
     "owner": null,
     "commit": null,
