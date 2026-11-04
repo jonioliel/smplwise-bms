@@ -601,6 +601,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import access_control_profiles  # WISKEY-PROFILES-EDIT-2390: the groups and profile fields editor (its own file and its own line)
 
     app.include_router(access_control_profiles.router, prefix=api, tags=["access-control"])
+    from .routers import access_control_schedule_writes  # WISKEY-SCHED-WRITE-2390: the device schedule library's writes (its own file and line)
+
+    app.include_router(access_control_schedule_writes.router, prefix=api, tags=["access-control"])
     from .routers import wiskey_lineage as wiskey_lineage_router  # WKR5-295: the WisKey people-write lineage administration (its own line)
 
     app.include_router(wiskey_lineage_router.router, prefix=api, tags=["access-control"])

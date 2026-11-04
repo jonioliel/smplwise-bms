@@ -35,6 +35,7 @@ ADDED_AFTER_CLEANUP = (
     "door_technical",  # WISKEY-DOOR-TECH-2390
     "station_people",  # WISKEY-PEOPLE-COMPLETE-2390
     "profiles",  # WISKEY-PROFILES-EDIT-2390
+    "schedules",  # WISKEY-SCHED-WRITE-2390
 )
 
 
