@@ -28,6 +28,8 @@ DISCOVERY = {"direct/capabilities", "direct/time"}
 
 @pytest.fixture()
 def world(settings):
+    from smplwise.services import bridge_install
+
     bk.reset_for_tests()
     wp.reset_for_tests()
     app = create_app(settings)
@@ -35,7 +37,12 @@ def world(settings):
     c.get("/api/v1/me")
     db = Database(settings.db_path)
     saved = intercom_sync.STATE.wiskey_version
+    # 2.38.2 train: bridge_install.STATE is process-wide; a bridge-install test earlier in the same run left its own installed
+    # version there, and the bridge line then read "update pending" (warn) instead of ok. Each test starts with none installed.
+    saved_installed = bridge_install.STATE.get("installed_version")
+    bridge_install.STATE["installed_version"] = None
     yield {"c": c, "db": db, "settings": settings}
+    bridge_install.STATE["installed_version"] = saved_installed
     intercom_sync.STATE.wiskey_version = saved
     wp.reset_for_tests()
     bk.reset_for_tests()
