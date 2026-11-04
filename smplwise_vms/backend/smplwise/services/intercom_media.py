@@ -603,6 +603,12 @@ def _rid() -> str:
 # - the owner's close (`close_leased_streams`, called by `VideoChannel.close`) and the shutdown (`shutdown_bridge`) cancel and join every
 #   timer generation of that owner.
 LEASE_GRACE_S = 60.0
+# VIDEO-TRANSPORT-2400 (lab audit 2026-11-04, finding 2): the station's last viewer leaving no longer deletes its leased stream at once. It
+# stays registered (idle, no consumer, so go2rtc holds no RTSP session for it) for REOPEN_GRACE_S - within LEASE_GRACE_S, the post-lease
+# window this registry already keeps a viewer-less stream - so a re-open within that time renews it from a FRESH signed lease (WisKey still
+# authorizes every open) without a new go2rtc registration and its frame grab. After the grace the timer retires it as before; a lease
+# WisKey refuses retires the station's idle streams at once (`WiskeyBridgeProvider.video_stream`).
+REOPEN_GRACE_S = 45.0
 LEASE_MAX = 128  # leased streams this process keeps at once (Mac delta: "no room for another stream")
 
 
@@ -620,6 +626,7 @@ class _Lease:
     timer: Any = None
     timers: list[Any] = field(default_factory=list)
     quarantined: bool = False
+    idle_until: float | None = None  # VIDEO-TRANSPORT-2400: set when the station's last viewer left (the re-open grace); None while watched
 
     def __getitem__(self, index: int) -> Any:  # WKLIVE-295 read the record as (station, expires_at)
         return (self.station, self.expires_at)[index]
@@ -642,14 +649,19 @@ def _owned(name: str, rec: _Lease) -> bool:
         return g2._REGISTERED.get(name) == rec.digest
 
 
+def _deadline(rec: _Lease) -> float:
+    """When a viewer-less record is retired: the re-open grace after its last viewer left, else `expires_at + LEASE_GRACE_S`."""
+    return rec.idle_until if rec.idle_until is not None else rec.expires_at + LEASE_GRACE_S
+
+
 def _arm(name: str, rec: _Lease) -> None:
-    """(Re)arms the record's one timer for `expires_at + LEASE_GRACE_S`; a new generation invalidates every earlier one. Under _LEASE_LOCK."""
+    """(Re)arms the record's one timer for its `_deadline`; a new generation invalidates every earlier one. Under _LEASE_LOCK."""
     if rec.timer is not None:
         rec.timer.cancel()
     rec.timers[:] = [t for t in rec.timers if t.is_alive()]
     rec.generation += 1
     generation = rec.generation
-    timer = threading.Timer(max(0.001, rec.expires_at + LEASE_GRACE_S - time.time()), _on_timer, args=(name, rec, generation))
+    timer = threading.Timer(max(0.001, _deadline(rec) - time.time()), _on_timer, args=(name, rec, generation))
     timer.daemon = True
     rec.timer = timer
     rec.timers.append(timer)
@@ -667,7 +679,7 @@ def _on_timer(name: str, rec: _Lease, generation: int) -> None:
         with _LEASE_LOCK:
             if _LEASED.get(name) is not rec or generation != rec.generation or rec.quarantined:
                 return  # a renewed lease, a removed record or an unresolved delete: this generation has nothing to do
-            if time.time() < rec.expires_at + LEASE_GRACE_S:
+            if time.time() < _deadline(rec):
                 _arm(name, rec)
                 return
             _retire(rec.settings, name, rec)
@@ -724,6 +736,7 @@ def _register_lease(settings: Settings, sid: str, profile: str, source: str, exp
                 continue
             if rec.digest == digest and _owned(name, rec):
                 rec.expires_at = max(rec.expires_at, until)
+                rec.idle_until = None  # watched again (VIDEO-TRANSPORT-2400: a re-open within the grace reuses the registration)
                 rec.settings = settings
                 rec.quarantined = False  # a fresh signed lease for the very same source makes the stream valid again
                 _arm(name, rec)
@@ -756,27 +769,51 @@ def _sweep_leased(settings: Settings, *, skip_station: str | None = None, now: f
     gone: list[str] = []
     with _LEASE_LOCK:
         for name, rec in list(_LEASED.items()):
-            if rec.station == skip_station or rec.quarantined or rec.expires_at + LEASE_GRACE_S > now or MEDIA.viewers(rec.station) > 0:
+            if rec.station == skip_station or rec.quarantined or _deadline(rec) > now or MEDIA.viewers(rec.station) > 0:
                 continue
             if _retire(settings, name, rec):
                 gone.append(name)
     return gone
 
 
-def release_leased_streams(settings: Settings, station_id: str) -> list[str]:
+def release_leased_streams(settings: Settings, station_id: str, *, grace_s: float = 0.0) -> list[str]:
     """Called when a viewer of a station has gone: when it was the last one, the station's leased streams are removed from go2rtc (its
     private source is forgotten, nothing else of go2rtc is touched). Never raises. A delete go2rtc does not confirm keeps its record
-    (quarantined, WKF01F02-295) - it is not reported as removed. Returns the removed stream names."""
+    (quarantined, WKF01F02-295) - it is not reported as removed. Returns the removed stream names.
+    `grace_s` (VIDEO-TRANSPORT-2400): instead of removing them now, keep them idle for that long (at most REOPEN_GRACE_S; the timer
+    removes them afterwards unless a viewer came back) - nothing is removed now then."""
     gone: list[str] = []
     try:
         with _LEASE_LOCK:
             if MEDIA.viewers(station_id) > 0:
                 return gone
+            grace = min(max(0.0, float(grace_s)), REOPEN_GRACE_S)
             for name, rec in list(_LEASED.items()):
-                if rec.station == station_id and _retire(settings, name, rec):
+                if rec.station != station_id:
+                    continue
+                if grace > 0 and not rec.quarantined:
+                    rec.idle_until = time.time() + grace
+                    _arm(name, rec)
+                    continue
+                if _retire(settings, name, rec):
                     gone.append(name)
     except Exception as exc:  # noqa: BLE001 - a cleanup problem never breaks the viewer's end
         log.warning("station media: leased streams not released (%s)", type(exc).__name__)
+    return gone
+
+
+def retire_idle_streams(settings: Settings, station_id: str) -> list[str]:
+    """VIDEO-TRANSPORT-2400: removes the station's streams that wait in the re-open grace (no viewer on them: `idle_until` set), whatever
+    the station's other viewers - used when WisKey refuses a fresh lease, so a source WisKey no longer grants is not kept for the grace.
+    Never raises; returns the removed names."""
+    gone: list[str] = []
+    try:
+        with _LEASE_LOCK:
+            for name, rec in list(_LEASED.items()):
+                if rec.station == station_id and rec.idle_until is not None and not rec.quarantined and _retire(settings, name, rec, force=True):
+                    gone.append(name)
+    except Exception as exc:  # noqa: BLE001 - a cleanup problem never breaks the caller
+        log.warning("station media: idle leased streams not retired (%s)", type(exc).__name__)
     return gone
 
 
@@ -1111,6 +1148,7 @@ class WiskeyBridgeProvider:
         except ApiError as exc:
             if exc.status != 503:
                 raise
+            retire_idle_streams(settings, sid)  # VIDEO-TRANSPORT-2400: a refused lease ends the station's idle (grace) streams now
             try:  # REL2140 M-3: a lease WisKey could not give (or go2rtc refused): Arx's own main stream when that path exists
                 name = _local.video_stream(conn, settings, station, "main", actor=actor)
             except Exception:  # noqa: BLE001 - no local path either: WisKey's own refusal stands

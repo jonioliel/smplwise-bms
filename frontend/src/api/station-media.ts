@@ -10,7 +10,7 @@
  * All of it sits behind the administrator setting `access.station_media` (off by default).
  */
 import { get, post } from './client';
-import { relayWsUrl, type Transport } from './media';
+import { relayWsUrl } from './media';
 
 export type StationMediaMode = 'off' | 'video' | 'video_talk';
 export type MediaProfileId = 'sub' | 'main';
@@ -33,6 +33,9 @@ export interface StationMediaVideo {
   paths: Partial<Record<MediaProfileId, string>>;
   max_viewers: number;
   viewers: number;
+  /** VIDEO-TRANSPORT-2400: the viewer's transport policy and, per offered profile, the steps its player walks (`main:mse`, `sub:webrtc,sub:mse`,
+   * `none` = nothing this station offers is allowed); absent from an older server (the drawer then decides the same way itself). */
+  transport?: { choice: 'auto' | 'webrtc' | 'mse'; source: string; channel: 'local' | 'remote'; order: ('webrtc' | 'mse')[]; plans: Partial<Record<MediaProfileId, string>> };
 }
 
 export interface StationMediaTalk {
@@ -122,15 +125,8 @@ export function parseMediaMode(settings: Record<string, unknown> | null | undefi
   return v === 'video' || v === 'video_talk' ? v : 'off';
 }
 
-/** The owner's rule (lab facts 2026-09-14): the sub profile plays WebRTC first with MSE as the fallback (`auto`); the main profile
- * is MSE (Chrome assembles no frame of a main-profile stream over WebRTC). A profile that lacks the preferred transport keeps the
- * one it has. */
-export function playerModeFor(profile: MediaProfile | undefined): Transport {
-  const t = profile?.transports ?? [];
-  if (profile?.id === 'main') return t.includes('mse') ? 'mse' : 'webrtc';
-  if (t.includes('webrtc') && t.includes('mse')) return 'auto';
-  return t.includes('mse') ? 'mse' : 'webrtc';
-}
+/** VIDEO-TRANSPORT-2400: the earlier per-profile rule (`playerModeFor`: main = MSE, sub = WebRTC first, lab facts of 2026-09-14) is gone -
+ * a station plays the viewer's video choice like every camera (api/video-policy.ts `stationPlayer`, the server's `video.transport.plans`). */
 
 /** The profile to start on: the server's default when it is offered, else the first one. */
 export function startProfile(video: StationMediaVideo | null): MediaProfileId | null {

@@ -10,7 +10,8 @@ import { installStationMediaMock, newMediaMock, type StationMediaMock } from './
 // MOCKED backend (tests/wiskey-stations-mocks.ts + tests/wiskey-station-media-mocks.ts: invented stations, a drawn canvas for the
 // live picture, a fake microphone; no station, no intercom, no go2rtc). Desktop / tablet / phone. What it pins:
 //   - OFF by default (`access.station_media`): the drawer is exactly S6's - the still, the classic panel - and no media read is made;
-//   - `video`: the live player on the station's relay path, the sub profile WebRTC first, the main profile MSE, the quality choice;
+//   - `video`: the live player on the station's relay path, the quality choice; VIDEO-TRANSPORT-2400: both profiles follow the viewer's
+//     video choice (automatic: WebRTC first; MSE only / WebRTC only: that transport alone, also on the main profile);
 //     talk stays the classic-panel link;
 //   - `video_talk` with a talk transport: one click starts a full-duplex talk (microphone open for the session), ONE start request,
 //     mute / unmute (pointer and keyboard), end / the server's own end; busy, a blocked microphone, a refused start, a station without talk (the
@@ -66,10 +67,37 @@ test.describe('station media: off by default', () => {
   });
 });
 
+test.describe('station media: the transport follows the video choice (VIDEO-TRANSPORT-2400)', () => {
+  test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
+  const kinds = async (page: Page) => (await sockets(page)).map((s) => [new URL(s.url).search, s.kind]);
+
+  for (const choice of ['mse', 'webrtc'] as const) {
+    test(`installation ${choice} only: both profiles open ${choice} alone`, async ({ page }) => {
+      await boot(page, { mode: 'video', transport: choice });
+      await openDrawer(page, 'gate');
+      await expect(inDrawer(page, 'wk-station-live sw-live-player')).toBeVisible();
+      await expect.poll(() => kinds(page)).toContainEqual(['?profile=sub', choice]);
+      await inDrawer(page, 'wk-station-live [data-wk-quality] button[data-profile="main"]').click();
+      await expect.poll(() => kinds(page)).toContainEqual(['?profile=main', choice]);
+      await page.waitForTimeout(1500);
+      expect(new Set((await kinds(page)).map((k) => k[1]).filter(Boolean)), JSON.stringify(await kinds(page))).toEqual(new Set([choice]));
+    });
+  }
+
+  test('the personal choice wins over the installation (MSE installation, WebRTC personal), with the server plans', async ({ page }) => {
+    await boot(page, { mode: 'video', transport: 'mse', personal: 'webrtc', serverPlans: true });
+    await openDrawer(page, 'gate');
+    await expect.poll(() => kinds(page)).toContainEqual(['?profile=sub', 'webrtc']);
+    await expect(inDrawer(page, 'wk-station-live [data-wk-live-frame]')).toHaveAttribute('data-transport-plan', 'webrtc');
+    await page.waitForTimeout(1000);
+    expect((await kinds(page)).every((k) => k[1] !== 'mse')).toBe(true);
+  });
+});
+
 test.describe('station media: live video', () => {
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
 
-  test('video: the live player on the station path - sub WebRTC first, main MSE - and talk stays the classic link', async ({ page }, info) => {
+  test('video: the live player on the station path - automatic: WebRTC first on both profiles - and talk stays the classic link', async ({ page }, info) => {
     const { mm } = await boot(page, { mode: 'video' });
     await openDrawer(page, 'gate');
     await expect(live(page)).toBeVisible();
@@ -83,7 +111,8 @@ test.describe('station media: live video', () => {
     await expect(inDrawer(page, '[data-wk-classic-link]')).toHaveCount(0); // the still's overlay is gone with the still
     await shot(page, info, 'video-classic-light');
     await inDrawer(page, 'wk-station-live [data-wk-quality] button[data-profile="main"]').click();
-    await expect.poll(async () => (await sockets(page)).map((s) => [new URL(s.url).search, s.kind])).toContainEqual(['?profile=main', 'mse']);
+    // VIDEO-TRANSPORT-2400: no hard-coded "main = MSE" any more - the main profile follows the (automatic) choice too
+    await expect.poll(async () => (await sockets(page)).map((s) => [new URL(s.url).search, s.kind])).toContainEqual(['?profile=main', 'webrtc']);
     await expect(inDrawer(page, 'wk-station-live [data-wk-quality] button[data-profile="main"]')).toHaveAttribute('aria-pressed', 'true');
     const text = (await drawer(page).innerText()) + (await live(page).evaluate((el) => el.shadowRoot?.textContent ?? ''));
     expect(text).not.toMatch(BANNED);

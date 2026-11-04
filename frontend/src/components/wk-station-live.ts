@@ -4,15 +4,20 @@ import './sw-live-player';
 import './wk-talk-button';
 import './wk-listen-button';
 import './wk-action-button';
+import './sw-icon';
 import type { SwLivePlayer } from './sw-live-player';
-import { playerModeFor, startProfile, type MediaProfileId, type StationMedia } from '../api/station-media';
+import { startProfile, type MediaProfileId, type StationMedia } from '../api/station-media';
+import { effectiveTransport, productSettings } from '../api/prefs';
+import { stationPlayer, type TransportChoice } from '../api/video-policy';
 import { smt } from '../i18n/wiskey-station-media';
 
 /**
  * A station's live picture and push-to-talk in the stations screen's drawer (CR-036 slice S18). The picture is the product's one
- * live player (sw-live-player) on the relay path the server named for the station (`livePath`): the sub profile plays WebRTC
- * first with MSE as the fallback, the main profile plays MSE (api/station-media.ts `playerModeFor`). The still stays as the
- * poster until the first frame. Below it: the quality choice (only when the station offers both profiles) and the talk control -
+ * live player (sw-live-player) on the relay path the server named for the station (`livePath`). VIDEO-TRANSPORT-2400: the transport
+ * is the viewer's video choice like every other player - the server's plan for the shown profile (`video.transport.plans`), else the
+ * same decision made here (api/video-policy.ts `stationPlayer`); the earlier hard-coded rule (main = MSE, sub = WebRTC first) is gone,
+ * both Arx's own source and WisKey's lease play over either transport. A choice the station does not offer shows that, never the
+ * other transport. The still stays as the poster until the first frame. Below it: the quality choice (only when the station offers both profiles) and the talk control -
  * the native push-to-talk when the descriptor offers talk and the caller may call, else the classic-panel link (`classicHref`)
  * when the screen's policy shows one. A half-duplex station's sound is muted while the operator holds the floor.
  *
@@ -36,6 +41,8 @@ export class WkStationLive extends LitElement {
   @property({ type: Boolean }) talkHere = true;
 
   @state() private profile: MediaProfileId | null = null;
+  /** VIDEO-TRANSPORT-2400: the viewer's effective choice, for a read without the server's plan (an older server) */
+  @state() private choice: TransportChoice = effectiveTransport(null);
   @query('sw-live-player') private player?: SwLivePlayer;
   private mutedBefore: boolean | null = null;
 
@@ -63,6 +70,24 @@ export class WkStationLive extends LitElement {
     }
     .frame img {
       object-fit: cover;
+    }
+    /* VIDEO-TRANSPORT-2400: the viewer's choice allows nothing this station offers - said on the still, never another transport */
+    .blocked {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-content: center;
+      justify-items: center;
+      gap: var(--sw-s-1);
+      padding: var(--sw-s-3);
+      text-align: center;
+      color: var(--sw-on-video);
+      background: var(--sw-video-scrim-strong);
+      font-size: var(--sw-fs-sm);
+    }
+    .blocked .hint {
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-on-video-2);
     }
     .bar {
       display: flex;
@@ -117,6 +142,9 @@ export class WkStationLive extends LitElement {
   connectedCallback(): void {
     super.connectedCallback();
     window.addEventListener('talk-floor', this.onOuterFloor);
+    void productSettings()
+      .then((s) => (this.choice = effectiveTransport(s)))
+      .catch(() => undefined);
   }
 
   disconnectedCallback(): void {
@@ -158,10 +186,17 @@ export class WkStationLive extends LitElement {
     const prof = v?.profiles.find((p) => p.id === this.profile);
     const path = prof ? v?.paths[prof.id] : undefined;
     const talk = m?.talk;
+    const offered = Object.fromEntries((v?.profiles ?? []).map((p) => [p.id, p.transports]));
+    const run = prof ? stationPlayer(v?.transport?.choice ?? this.choice, prof.id, offered, v?.transport?.plans?.[prof.id] ?? null) : null;
     return html`
-      ${path
-        ? html`<div class="frame" data-wk-live-frame data-profile=${prof!.id}>
-            <sw-live-player .livePath=${path} .profile=${prof!.id} .mode=${playerModeFor(prof)} .poster=${this.poster} data-wk-live-player aria-label=${`${t.live.label} · ${this.stationName}`}></sw-live-player>
+      ${path && run?.blocked
+        ? html`<div class="frame" data-wk-live-frame data-profile=${prof!.id} data-wk-live-blocked>
+            ${this.poster ? html`<img src=${this.poster} alt=${`${t.live.poster} · ${this.stationName}`} decoding="async" />` : nothing}
+            <div class="blocked" role="status"><sw-icon name="offline" size=${18}></sw-icon><span>${t.live.blocked}</span><span class="hint">${t.live.blockedHint}</span></div>
+          </div>`
+        : path && run
+        ? html`<div class="frame" data-wk-live-frame data-profile=${prof!.id} data-transport-plan=${run.plan || run.mode}>
+            <sw-live-player .livePath=${path} .profile=${prof!.id} .mode=${run.mode} .plan=${run.plan} .preferred=${run.plan ? prof!.id : ''} .poster=${this.poster} data-wk-live-player aria-label=${`${t.live.label} · ${this.stationName}`}></sw-live-player>
           </div>`
         : this.poster
           ? html`<div class="frame" data-wk-live-frame data-profile=""><img src=${this.poster} alt=${`${t.live.poster} · ${this.stationName}`} decoding="async" /></div>`

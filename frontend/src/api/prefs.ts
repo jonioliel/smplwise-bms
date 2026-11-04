@@ -1,6 +1,9 @@
-/** Product settings cache + effective transport (product default overridden per browser). */
-import { getSettings, transportOverride, type ProductSettings, type Transport } from './media';
+/** Product settings cache + effective transport (VIDEO-TRANSPORT-2400: the server's decision - the viewer's own choice, else the
+ * installation's; api/video-transport.ts). */
+import { getSettings, type ProductSettings, type Transport } from './media';
 import { isApi } from './session';
+import { cachedVideoPolicy, loadVideoPolicy } from './video-transport';
+import { normalizeChoice } from './video-policy';
 
 let cached: ProductSettings | null = null;
 let cachedAt = 0;
@@ -27,8 +30,10 @@ export async function productSettings(force = false): Promise<ProductSettings> {
   if (!isApi()) return DEFAULTS;
   if (cached && !force && Date.now() - cachedAt < SETTINGS_TTL_MS) return cached;
   if (!inflight) {
-    inflight = getSettings()
-      .then((r) => {
+    // VIDEO-TRANSPORT-2400: the transport policy is read with the settings (same freshness, in parallel) so effectiveTransport() knows
+    // it when the settings arrive; its own failure never fails the settings (loadVideoPolicy resolves null)
+    inflight = Promise.all([getSettings(), loadVideoPolicy()])
+      .then(([r]) => {
         cachedAt = Date.now();
         searchOk = r.search_allowed === true;
         return (cached = r.settings);
@@ -42,9 +47,11 @@ export function invalidateSettings() {
   cached = null;
 }
 
-/** The transport a player opens with: the viewer's own per-browser override, else the installation's choice, else `auto`. */
+/** The transport a player opens with (VIDEO-TRANSPORT-2400): the server's policy for this viewer and channel - the personal choice
+ * (/me/prefs `video.transport`), else the installation's - and, before it is read or from a server without it, the installation's
+ * setting, else `auto`. The pre-2.40.0 per-browser override (`localStorage sw.transport`) is never consulted here. */
 export function effectiveTransport(settings: ProductSettings | null): Transport {
-  return transportOverride() || settings?.['media.transport_default'] || TRANSPORT_DEFAULT;
+  return cachedVideoPolicy()?.choice ?? normalizeChoice(settings?.['media.transport_default']) ?? TRANSPORT_DEFAULT;
 }
 
 /** The installation's choice as the settings screen and the camera page name it (owner 2026-10-05: "MSE בלבד" is a deliberate choice). */

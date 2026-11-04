@@ -5,7 +5,7 @@ import { liveWsUrl, relayWsUrl, type Transport } from '../api/media';
 import { can, cap, isApi } from '../api/session';
 import { productSettings } from '../api/prefs';
 import { LIVE_ICE_SERVERS } from '../api/video-conn-test';
-import { badgeLabel, decodeLadder, lanLadder, mseFirst, noteWebrtcUnreachable, orderLadder, rememberStep, rememberedStep, sameStep, undecodableMessage, webrtcUnreachable, type Profile, type StepTransport, type VideoStep } from '../api/video-policy';
+import { badgeLabel, decodeLadder, FREEZE_FALLBACK_AFTER, FREEZE_POLL_MS, freezeFallback, freezeStep, lanLadder, mseFirst, noteWebrtcUnreachable, orderLadder, rememberStep, rememberedStep, retryIndex, sameStep, undecodableMessage, webrtcUnreachable, type FreezeMark, type Profile, type StepTransport, type VideoStep } from '../api/video-policy';
 import { H265_ALTERNATE_HE, H265_REFUSAL_CLOSE, H265_UNSUPPORTED_HE, h265Param, h265Reaction, h265Support, normalizePolicy, orderForH265, parseServed, servedTag, streamCodec, transcodeCapHe, type H265Policy, type H265Refusal, type ServedStream } from '../api/h265-support';
 import type { CameraEncoding } from '../api/types';
 
@@ -33,6 +33,14 @@ import type { CameraEncoding } from '../api/types';
  * later. A stream that connected but did not decode keeps the GOP-sized decode grace (the first decodable frame is the next
  * key frame on MSE too) and the 24 h per-camera memory. `webrtc` / `mse` players never fall back and never consult the
  * memory. The remote plan (CR-008 D7) keeps its own first-frame cap: a mobile link may need longer than the LAN bound.
+ *
+ * VIDEO-TRANSPORT-2400 (owner decisions 2026-11-04): the player only EXECUTES the server's decision (api/video-transport.ts,
+ * api/video-policy.ts `planSteps`): `mode` is the viewer's effective choice and an explicit `mse` / `webrtc` keeps only its own
+ * transport's steps of any plan a screen hands over - nothing here substitutes the other transport. An automatic retry starts
+ * from the step that played last (`lastGood`), not from the top of the plan. A live MSE stream that stops moving (`freezeStep`:
+ * neither the playhead nor, while paused, the buffer advance for FREEZE_AFTER_MS) is reconnected on the same step; only `auto`
+ * moves on to WebRTC after FREEZE_FALLBACK_AFTER freezes in a row. A stream error frame's value goes into the `player-status`
+ * event's `code` and the console (the server logs go2rtc's own text, sanitized: services/live_diag.py).
  */
 export type PlayerStatus = 'idle' | 'connecting' | 'playing' | 'ended' | 'error';
 
@@ -68,6 +76,9 @@ export const LIVE_CAP_HINT_OTHER = 'פנה למנהל המערכת';
 
 /** LIVE-H265-2341: how often the snapshot behind the "transcode cap full" notice refreshes. */
 const STILL_REFRESH_MS = 10000;
+
+/** VIDEO-TRANSPORT-2400: what a frozen live MSE stream says while it reconnects. */
+const FROZEN_HE = 'הווידאו נעצר · מתחבר מחדש';
 
 /** Recorded playback: how much media may wait ahead of a paused or slowed playhead before fragments are dropped. */
 const MAX_AHEAD_S = 25;
@@ -131,6 +142,12 @@ export class SwLivePlayer extends LitElement {
   private chainWebrtcDown = false;
   /** a WebRTC step of this chain never connected (a network fact, remembered per tab - not per camera) */
   private chainConnectFailed = false;
+  /** VIDEO-TRANSPORT-2400: the step that played last in this player (an automatic retry starts there); reset by `reconnect()` */
+  private lastGood: VideoStep | null = null;
+  /** VIDEO-TRANSPORT-2400: the frozen-MSE watch (its timer, the last progress sample, the freezes in a row) */
+  private freezeTimer: number | undefined;
+  private freezeMark: FreezeMark | null = null;
+  private freezes = 0;
   /** True once fragments were dropped because the look-ahead buffer was full: the media after the buffer is gone. */
   stale = false;
   @state() status: PlayerStatus = 'idle';
@@ -478,6 +495,8 @@ export class SwLivePlayer extends LitElement {
     this.disconnect();
     this.step = 0;
     this.decodeFailed = false;
+    this.lastGood = null; // a new camera / profile / choice (or the viewer's own "reconnect"): the plan starts from its top
+    this.freezes = 0;
     this.buildChain();
     this.connect();
   }
@@ -554,8 +573,10 @@ export class SwLivePlayer extends LitElement {
   private steps(): VideoStep[] {
     if (!this.laddered) return [];
     const steps = decodeLadder(this.plan);
-    // an explicit WebRTC choice never plays MSE, whatever plan a screen handed over (owner bug 2026-10-01)
-    return this.mode === 'webrtc' ? steps.filter((s) => s.transport === 'webrtc') : orderForH265(steps, this.encoding, h265Support(), this.mode, this.h265Policy);
+    // an explicit choice never plays the other transport, whatever plan a screen handed over (owner bug 2026-10-01: WebRTC only;
+    // VIDEO-TRANSPORT-2400: MSE only too)
+    if (this.mode === 'webrtc' || this.mode === 'mse') return steps.filter((s) => s.transport === this.mode);
+    return orderForH265(steps, this.encoding, h265Support(), this.mode, this.h265Policy);
   }
 
   /** The step being played or tried (null outside a plan, or when the plan has none left). */
@@ -660,6 +681,7 @@ export class SwLivePlayer extends LitElement {
     this.generation += 1;
     window.clearTimeout(this.timer);
     window.clearTimeout(this.retryTimer);
+    this.stopFreezeWatch();
     this.stopFirstFrameWatch?.();
     this.needsTap = false;
     this.pendingMime = '';
@@ -764,11 +786,19 @@ export class SwLivePlayer extends LitElement {
       this.attempts += 1;
       this.retryTimer = window.setTimeout(() => {
         if (this.laddered) {
-          this.step = 0; // a plan starts over: WebRTC first again whenever the connection allows
+          // VIDEO-TRANSPORT-2400: a plan restarts from the step that played last (lab audit: it restarted on WebRTC every time)
+          this.step = retryIndex(this.steps(), this.lastGood);
           this.decodeFailed = false;
         }
         if (this.lanChained) {
-          this.buildChain(); // a LAN chain starts over too (a remembered step first again)
+          this.buildChain(); // a LAN chain starts over too (a remembered step first again) ...
+          if (this.lastGood) {
+            const ordered = orderLadder(this.chain, this.lastGood); // ... and the step that played last in this player before it
+            if (ordered !== this.chain) {
+              this.chain = ordered;
+              this.chainRemembered = false;
+            }
+          }
           this.decodeFailed = false;
         }
         this.connect(this.lastPreferMse);
@@ -1092,6 +1122,9 @@ export class SwLivePlayer extends LitElement {
     } catch {
       return;
     }
+    // VIDEO-TRANSPORT-2400 (lab audit finding 8): a stream error is never silent - its code reaches the console here and the
+    // `player-status` event below; the server logs go2rtc's own text (sanitized) with the session
+    if (msg.type === 'error') console.warn('sw-live-player: stream error', msg.value ?? '', this.transport || '-', this.status);
     if (msg.type === 'error' && msg.value === 'remote_live_cap') {
       this.capRefused(msg.max);
       return;
@@ -1123,7 +1156,7 @@ export class SwLivePlayer extends LitElement {
           if (this.transport === 'webrtc') this.webrtcFailed(`שגיאת זרם: ${msg.value ?? ''}`, true);
           else this.mseFailed(`שגיאת זרם: ${msg.value ?? ''}`, true);
         }
-        else if (this.laddered && msg.value !== 'access_lost') this.fail(`שגיאה בזרם הווידאו`);
+        else if (this.laddered && msg.value !== 'access_lost') this.fail(`שגיאה בזרם הווידאו`, true, msg.value ?? undefined);
         else this.fail(msg.value === 'upstream_unavailable' ? 'go2rtc לא זמין' : msg.value === 'access_lost' ? 'ההרשאה לצפייה במצלמה הזו הוסרה' : `שגיאת זרם: ${msg.value ?? ''}`, msg.value !== 'access_lost', msg.value ?? undefined);
         break;
       default:
@@ -1196,6 +1229,10 @@ export class SwLivePlayer extends LitElement {
     this.needsTap = false;
     this.attempts = 0;
     this.status = 'playing';
+    // VIDEO-TRANSPORT-2400: the step an automatic retry starts from, and the frozen-MSE watch of a live stream
+    this.lastGood = this.currentStep ?? this.lanStep ?? null;
+    if (this.transport === 'mse' && !this.wsUrl && !this.recorded) this.startFreezeWatch();
+    else this.stopFreezeWatch();
     if (this.lanChained) {
       // remember the step that plays when it is not the chain's own first (and forget the camera when that one plays);
       // MSE reached because WebRTC could not CONNECT (or was remembered as unreachable) is a fact about the network, not
@@ -1207,6 +1244,50 @@ export class SwLivePlayer extends LitElement {
       if (step?.transport === 'webrtc' && this.mode === 'auto') noteWebrtcUnreachable(false); // WebRTC works again: forget
     }
     this.dispatchEvent(new CustomEvent('player-status', { detail: { status: 'playing', transport: this.transport, profile: this.served?.profile ?? this.effectiveProfile, ...(this.served && this.served.kind !== 'native' ? { fallback: this.served.kind } : {}) }, bubbles: true, composed: true }));
+  }
+
+  /** VIDEO-TRANSPORT-2400 (lab audit finding 5): watches a playing live MSE stream; `freezeStep` judges every FREEZE_POLL_MS. */
+  private startFreezeWatch() {
+    this.stopFreezeWatch();
+    const gen = this.generation;
+    const tick = () => {
+      if (gen !== this.generation || this.status !== 'playing' || this.transport !== 'mse') return;
+      const v = this.video;
+      const end = v && v.buffered.length ? v.buffered.end(v.buffered.length - 1) : 0;
+      const r = freezeStep(this.freezeMark, { t: v?.currentTime ?? 0, end, now: performance.now(), paused: !!v?.paused, hidden: document.hidden });
+      this.freezeMark = r.mark;
+      if (r.frozen) {
+        this.mseFrozen();
+        return;
+      }
+      this.freezeTimer = window.setTimeout(tick, FREEZE_POLL_MS);
+    };
+    this.freezeTimer = window.setTimeout(tick, FREEZE_POLL_MS);
+  }
+
+  private stopFreezeWatch() {
+    window.clearTimeout(this.freezeTimer);
+    this.freezeTimer = undefined;
+    this.freezeMark = null;
+  }
+
+  /** A live MSE stream froze: reconnect the same step (any choice); `auto` only moves on to WebRTC after repeated freezes. */
+  private mseFrozen() {
+    this.stopFreezeWatch();
+    this.freezes += 1;
+    if (this.freezes >= FREEZE_FALLBACK_AFTER && this.mode === 'auto') {
+      const ladder = this.laddered ? this.steps() : this.lanChained ? this.chain : [];
+      const alt = freezeFallback(ladder, this.currentStep ?? this.lanStep, this.mode);
+      if (alt) {
+        this.lastGood = alt;
+        this.freezes = 0;
+      } else if (!ladder.length) {
+        this.lastPreferMse = false; // a chain-less `auto` source (a station, a Home Assistant camera): WebRTC first on the retry
+        this.freezes = 0;
+      }
+    }
+    console.warn('sw-live-player: live MSE stream frozen', this.freezes);
+    this.fail(FROZEN_HE, true, 'frozen');
   }
 
   /** CR-008 D7: the announcement when the plan fell back (another profile, or MSE through the tunnel). */

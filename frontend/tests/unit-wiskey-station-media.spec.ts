@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { ApiError } from '../src/api/client';
-import { parseMediaMode, playerModeFor, startProfile, type MediaProfile, type TalkStartReply } from '../src/api/station-media';
+import { parseMediaMode, startProfile, type MediaProfile, type TalkStartReply } from '../src/api/station-media';
+import { stationPlayer } from '../src/api/video-policy';
+import type { Me } from '../src/api/types';
 import { aLaw, Downsampler, FramePacker, muLaw, to16 } from '../src/wiskey/g711';
 import { MicFailure, type MicHandle } from '../src/wiskey/talk-mic';
 import { IDLE_END_MS, outcomeOfClose, problemOfOutcome, startProblem, TalkSession, type SocketLike, type TalkDeps } from '../src/wiskey/talk-session';
@@ -48,12 +50,15 @@ test.describe('G.711 frames', () => {
 test.describe('live view choices', () => {
   const prof = (id: 'sub' | 'main', transports: ('webrtc' | 'mse')[]): MediaProfile => ({ id, codec: 'h264', transports, width: null, height: null, fps: null });
 
-  test('sub plays WebRTC first with MSE behind it; main plays MSE (the lab facts)', () => {
-    expect(playerModeFor(prof('sub', ['webrtc', 'mse']))).toBe('auto');
-    expect(playerModeFor(prof('main', ['mse', 'webrtc']))).toBe('mse');
-    expect(playerModeFor(prof('main', ['webrtc']))).toBe('webrtc');
-    expect(playerModeFor(prof('sub', ['mse']))).toBe('mse');
-    expect(playerModeFor(prof('sub', ['webrtc']))).toBe('webrtc');
+  test('VIDEO-TRANSPORT-2400: a station plays the viewer choice on either profile (no hard-coded main = MSE rule)', () => {
+    const local = { channel: 'local', remote: null } as unknown as Me;
+    const both = { main: ['mse', 'webrtc'], sub: ['webrtc', 'mse'] } as const;
+    expect(stationPlayer('mse', 'main', both, null, local)).toEqual({ mode: 'mse', plan: '', blocked: false });
+    expect(stationPlayer('webrtc', 'main', both, null, local)).toEqual({ mode: 'webrtc', plan: '', blocked: false });
+    expect(stationPlayer('auto', 'main', both, null, local)).toEqual({ mode: 'auto', plan: '', blocked: false });
+    expect(stationPlayer('auto', 'sub', { sub: ['mse'] }, null, local)).toEqual({ mode: 'mse', plan: '', blocked: false }); // only MSE offered: MSE only
+    expect(stationPlayer('webrtc', 'sub', { sub: ['mse'] }, null, local).blocked).toBe(true);
+    void prof;
   });
 
   test('the start profile is the server default when offered', () => {

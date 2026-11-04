@@ -573,12 +573,16 @@ def test_full_app_lifecycle_media_and_talk_with_downlink_leaves_no_task_socket_t
         assert world.station.by_command(w10.TALK_CLOSE) and not world.station.talks and not world.station.station_talk
 
         await live.disconnect()
-        assert not im._LEASED and name not in world.go2rtc.streams, "the last viewer took the leased stream out of go2rtc"
+        # VIDEO-TRANSPORT-2400: the last viewer leaves the leased stream idle for the re-open grace (no consumer); the owner's close at
+        # shutdown takes it out of go2rtc
+        rec = im._LEASED.get(name)
+        assert rec is not None and rec.idle_until is not None and name in world.go2rtc.streams, "the re-open grace keeps the idle stream"
         mid = media_tasks(await settle_tasks(before, 2.0))
         assert mid == [], f"media tasks still pending after both sessions ended: {mid}"
 
         await a.shutdown()
         assert im._bridge is None and not bridge_threads_alive(), "shutdown closed the provider and stopped its loop thread"
+        assert not im._LEASED and name not in world.go2rtc.streams, "the shutdown took the idle leased stream out of go2rtc"
         leaked = await settle_tasks(before, 3.0)
         return {"leaked": sorted(describe_task(t) for t in leaked), "sockets_before": sockets_before, "talk": t}
 
@@ -1169,7 +1173,9 @@ def test_two_viewers_renew_one_owned_stream_and_the_last_viewer_retires_it_and_i
     assert not any(t.is_alive() for t in out["timers"]) and not lease_timers_alive()
 
 
-def test_an_unconfirmed_delete_is_quarantined_and_the_shutdown_retires_it_once_go2rtc_confirms(world, app):
+def test_an_unconfirmed_delete_is_quarantined_and_the_shutdown_retires_it_once_go2rtc_confirms(world, app, monkeypatch):
+    monkeypatch.setattr(im, "REOPEN_GRACE_S", 0.0)  # VIDEO-TRANSPORT-2400: no re-open grace - the viewer's end deletes at once
+
     async def scenario() -> dict[str, Any]:
         a = Asgi(app)
         await a.startup()
@@ -1193,10 +1199,12 @@ def test_an_unconfirmed_delete_is_quarantined_and_the_shutdown_retires_it_once_g
     assert im._bridge is None and not bridge_threads_alive() and not lease_timers_alive()
 
 
-def test_a_shutdown_with_go2rtc_still_refusing_keeps_the_exact_owner_and_record_and_joins_the_timers(world, app):
+def test_a_shutdown_with_go2rtc_still_refusing_keeps_the_exact_owner_and_record_and_joins_the_timers(world, app, monkeypatch):
     """The documented unresolved case: go2rtc refuses the delete at the viewer's end AND at shutdown. The provider (the exact owner) and
     the quarantined record stay; no timer is left running. The bridge loop thread is NOT stopped in this case (the owner stays) - recorded
     as `bridge_thread_alive`, by design of `VideoChannel.close` (it raises before `runner.stop()`)."""
+    monkeypatch.setattr(im, "REOPEN_GRACE_S", 0.0)  # VIDEO-TRANSPORT-2400: no re-open grace - the viewer's end deletes at once
+
     async def scenario() -> dict[str, Any]:
         a = Asgi(app)
         await a.startup()
@@ -1221,6 +1229,7 @@ def test_a_shutdown_with_go2rtc_still_refusing_keeps_the_exact_owner_and_record_
 
 def test_a_lease_timer_never_deletes_under_a_viewer_and_the_viewer_end_does(world, app, monkeypatch):
     monkeypatch.setattr(im, "LEASE_GRACE_S", 0.0)
+    monkeypatch.setattr(im, "REOPEN_GRACE_S", 0.0)  # VIDEO-TRANSPORT-2400: no re-open grace - the viewer's end deletes at once
 
     async def scenario() -> dict[str, Any]:
         world.station.lease_s = 1.0

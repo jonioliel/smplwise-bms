@@ -9,6 +9,7 @@ import { nativeCan } from '../arx/native-app';
 import '../components/sw-passkeys'; // USR2 phase 4: renders nothing unless the caller is an Arx-only identity
 import { t } from '../i18n/he';
 import './sw-wiskey-prefs';
+import './sw-video-prefs';
 import './sw-home-personal';
 import { can, canAnywhere } from '../api/session';
 import { WISKEY_HIDDEN } from './nav';
@@ -34,7 +35,8 @@ export function openAlertsText(n: number): string {
  * - first: a header (avatar, name, role; on the phone the status pills that lived in the top bar), התראות (opens the notification
  *   center, CR-018: `open-notifications`; a count chip only when there are unread notifications), עריכת המסך הראשי (the home screen's layout editor: system.configure only), מערכת (a user holding a settings permission), החשבון שלי, and a destructive-styled
  *   יציאה at the foot (the remote channel only: under the local entry the platform owns the sign-in);
- * - החשבון שלי: סדר הלשוניות, הגדרות התראות, הכניסות שלי, החלף שרת (inside the Android app).
+ * - החשבון שלי: סדר הלשוניות, הגדרות התראות, וידאו (VIDEO-TRANSPORT-2400: the viewer's own live transport), הכניסות שלי, החלף שרת
+ *   (inside the Android app).
  * The shell owns the open state; this element reports `close` and `nav-order` (open the tab-order dialog).
  */
 @customElement('sw-user-menu')
@@ -70,6 +72,8 @@ export class SwUserMenu extends LitElement {
   @state() private sessionsOpen = false;
   /** The WisKey start choices section (WisKey rc.37) loads only while it is open. */
   @state() private wiskeyOpen = false;
+  /** VIDEO-TRANSPORT-2400: החשבון שלי › וידאו (the viewer's own live transport) */
+  @state() private videoOpen = false;
   /** The personal home screen section (screen.personalize) loads only while it is open. */
   @state() private homeOpen = false;
   /** K11: the optional second factor section loads only while it is open. */
@@ -427,6 +431,7 @@ export class SwUserMenu extends LitElement {
   private closeSections() {
     this.sessionsOpen = false;
     this.wiskeyOpen = false;
+    this.videoOpen = false;
     this.homeOpen = false;
     this.factorOpen = false;
     this.deviceOpen = false;
@@ -471,13 +476,15 @@ export class SwUserMenu extends LitElement {
     const home = this.api && !this.gated && canAnywhere('screen.personalize');
     // TKSTAFF1 (security review F3 / F4): the user's own mobile for no-login work links - for a user who may hold tickets
     const staff = this.api && !this.gated && ticketsEnabled() && canAnywhere('tickets.view');
-    return { order: !this.gated, prefs: !this.gated, sessions: this.api, factor: this.api, android, device: this.api && nativeCan('deviceStatus'), wiskey, home, staff };
+    // VIDEO-TRANSPORT-2400: the viewer's own live-video transport - for a user who may watch live video somewhere
+    const video = this.api && !this.gated && canAnywhere('video.live');
+    return { order: !this.gated, prefs: !this.gated, sessions: this.api, factor: this.api, android, device: this.api && nativeCan('deviceStatus'), wiskey, home, staff, video };
   }
 
   private renderMain() {
     const alerts = this.alerts;
     const acc = this.accountItems();
-    const hasAccount = acc.order || acc.prefs || acc.sessions || acc.factor || acc.android || acc.device || acc.wiskey || acc.home || acc.staff;
+    const hasAccount = acc.order || acc.prefs || acc.sessions || acc.factor || acc.android || acc.device || acc.wiskey || acc.home || acc.staff || acc.video;
     return html`
       <header data-user-menu-header>
         <sw-avatar name=${this.name} size=${40}></sw-avatar>
@@ -549,6 +556,12 @@ export class SwUserMenu extends LitElement {
           ? html`<li><details data-my-home @toggle=${(e: Event) => (this.homeOpen = (e.currentTarget as HTMLDetailsElement).open)}>
               <summary><span class="ic"><sw-icon name="dashboard" size=${18}></sw-icon></span><span class="txt">המסך שלי</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
               <div class="sessions">${this.open && this.homeOpen ? html`<sw-home-personal></sw-home-personal>` : nothing}</div>
+            </details></li>`
+          : nothing}
+        ${acc.video
+          ? html`<li><details data-my-video @toggle=${(e: Event) => (this.videoOpen = (e.currentTarget as HTMLDetailsElement).open)}>
+              <summary><span class="ic"><sw-icon name="live" size=${18}></sw-icon></span><span class="txt">וידאו</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
+              <div class="sessions">${this.open && this.videoOpen ? html`<sw-video-prefs></sw-video-prefs>` : nothing}</div>
             </details></li>`
           : nothing}
         ${acc.wiskey
