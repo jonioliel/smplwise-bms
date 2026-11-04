@@ -37,6 +37,9 @@ import {
   type IntercomTtsStatus,
 } from '../api/intercom';
 import { formatTime, t, UTC_ZONE } from './wiskey-format';
+import { productSettings } from '../api/prefs';
+import { TTS_FIXED_NONE, languageFor, languageName, parseTtsFixed, resolveTtsPick, type TtsFixed } from '../api/tts-default';
+import { fill as tfill, ttt } from '../i18n/tts-default';
 import { timeText } from '../api/day-format';
 
 /** WisKey's door filter (wiskey-v4-overview.ts `WiskeyDoorFilter`). */
@@ -202,6 +205,12 @@ export class WiskeyOverview extends LitElement {
   @state() private ttsBusy = false;
   @state() private ttsError = '';
   @state() private ttsStatus: Record<string, IntercomTtsStatus> = {};
+  /** TTS-DEFAULT-ENGINE-2400: the installation's fixed choice, what it preselected, and what of it is missing right now. */
+  @state() private ttsFixed: TtsFixed = TTS_FIXED_NONE;
+  @state() private ttsPreselected = '';
+  @state() private ttsMissingEngine: string | null = null;
+  @state() private ttsMissingLanguage: string | null = null;
+  private enginesAt = 0;
   private armTimer = 0;
   /** Cache-buster of the camera stills (media.ts snapshotUrl convention); bumped every POSTER_MS. */
   @state() private posterBust = Date.now();
@@ -394,16 +403,19 @@ export class WiskeyOverview extends LitElement {
     this.speakFor = station;
     this.ttsMessage = '';
     this.ttsError = '';
-    if (!this.engines) void this.loadEngines();
+    // TTS-DEFAULT-ENGINE-2400: every opening starts from the fixed engine / language again (the last opening's pick was for that one)
+    if (!this.engines || Date.now() - this.enginesAt > 60_000) void this.loadEngines();
+    else void this.applyFixed();
   }
 
   private async loadEngines() {
     this.enginesNote = '';
+    this.enginesAt = Date.now();
     try {
       const r = await getIntercomTtsEngines();
       if (r.tts) {
         this.engines = r.tts;
-        this.pickEngine(r.tts.default && r.tts.engines.some((e) => e.engine_id === r.tts!.default) ? r.tts.default : (r.tts.engines[0]?.engine_id ?? ''));
+        await this.applyFixed();
         if (!r.tts.engines.length) this.enginesNote = 'אין בתשתית המערכת מנוע הקראה (TTS) ש־WisKey יכול להשתמש בו.';
       } else {
         this.enginesNote = r.state === 'unsupported' ? 'גרסת WisKey המותקנת אינה תומכת בהכרזות.' : `רשימת מנועי ההקראה אינה זמינה כרגע (${r.last_error ?? r.state}).`;
@@ -413,12 +425,28 @@ export class WiskeyOverview extends LitElement {
     }
   }
 
-  /** WisKey's own choice of language (tts-controls.ts:354-366): Hebrew when the engine has it, else its default. */
+  /** TTS-DEFAULT-ENGINE-2400: the preselection - the installation's fixed engine and language (api/tts-default.ts); a fixed engine WisKey
+   * does not list right now selects nothing and is named in the dialog, never replaced by another engine. */
+  private async applyFixed() {
+    try {
+      this.ttsFixed = parseTtsFixed((await productSettings()) as unknown as Record<string, unknown>);
+    } catch {
+      this.ttsFixed = TTS_FIXED_NONE;
+    }
+    const pick = resolveTtsPick(this.engines, this.ttsFixed);
+    this.ttsEngine = pick.engine;
+    this.ttsLanguage = pick.language;
+    this.ttsPreselected = pick.engine;
+    this.ttsMissingEngine = pick.missingEngine;
+    this.ttsMissingLanguage = pick.missingLanguage;
+  }
+
+  /** The sender's pick for this announcement only: the fixed language when the engine supports it, else WisKey's own choice
+   * (tts-controls.ts:354-366): Hebrew when the engine has it, else its default. */
   private pickEngine(engineId: string) {
     this.ttsEngine = engineId;
-    const e = this.engines?.engines.find((x) => x.engine_id === engineId);
-    const langs = e?.supported_languages ?? [];
-    this.ttsLanguage = langs.includes('he') ? 'he' : langs.includes('iw') ? 'iw' : (e?.default_language ?? langs[0] ?? '');
+    this.ttsLanguage = languageFor(this.engines, engineId, this.ttsFixed);
+    this.ttsMissingLanguage = null;
   }
 
   private async speak() {
@@ -497,12 +525,18 @@ export class WiskeyOverview extends LitElement {
     const langs = engine?.supported_languages ?? [];
     const length = this.ttsMessage.split(/\s+/).filter(Boolean).join(' ').length;
     const ready = !!engine && length > 0 && length <= TTS_MAX && !this.ttsBusy;
+    const tt = ttt().dialog;
     return html`<sw-dialog open heading="הכרזה בעמדה" subheading=${station.name} data-wiskey-tts-dialog @close=${() => (this.speakFor = null)}>
       <div class="form">
+        ${this.ttsMissingEngine ? html`<div class="note warn" role="status" data-wiskey-tts-engine-missing>${tfill(tt.missingEngine, { engine: this.ttsMissingEngine })}</div>` : nothing}
+        ${this.ttsMissingLanguage && this.ttsLanguage
+          ? html`<div class="note warn" role="status" data-wiskey-tts-language-missing>${tfill(tt.missingLanguage, { language: languageName(this.ttsMissingLanguage), auto: languageName(this.ttsLanguage) })}</div>`
+          : nothing}
         ${this.engines?.engines.length
-          ? html`<sw-field label="מנוע הקראה (תשתית המערכת)">
+          ? html`<sw-field label="מנוע הקראה (תשתית המערכת)" hint=${this.ttsEngine && this.ttsPreselected && this.ttsEngine !== this.ttsPreselected ? tt.overridden : ''}>
                 <select data-wiskey-tts-engine .value=${this.ttsEngine} @change=${(e: Event) => this.pickEngine((e.target as HTMLSelectElement).value)}>
-                  ${this.engines.engines.map((x) => html`<option value=${x.engine_id} ?selected=${x.engine_id === this.ttsEngine}>${x.name}</option>`)}
+                  ${!this.ttsEngine ? html`<option value="" selected disabled>${tt.pickEngine}</option>` : nothing}
+                  ${this.engines.engines.map((x) => html`<option value=${x.engine_id} ?selected=${x.engine_id === this.ttsEngine}>${x.engine_id === this.ttsFixed.engine ? `${x.name} · ${tt.fixedTag}` : x.name}</option>`)}
                 </select>
               </sw-field>
               ${langs.length
@@ -965,6 +999,10 @@ export class WiskeyOverview extends LitElement {
     .note.err {
       background: var(--sw-danger-soft);
       color: var(--sw-danger-text);
+    }
+    .note.warn {
+      background: var(--sw-warning-soft);
+      color: var(--sw-warning-text);
     }
     .note.info {
       background: var(--sw-surface-2);

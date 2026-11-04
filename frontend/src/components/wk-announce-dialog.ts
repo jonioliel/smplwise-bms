@@ -7,11 +7,14 @@ import './wk-action-button';
 import { announceToStations, type AnnounceOutcome, type AccessStation } from '../api/access-stations';
 import { describeError } from '../api/client';
 import { getIntercomTtsEngines, type IntercomTtsEngines, type IntercomTtsStatus } from '../api/intercom';
+import { productSettings } from '../api/prefs';
+import { TTS_FIXED_NONE, languageFor, languageName, parseTtsFixed, resolveTtsPick, type TtsFixed } from '../api/tts-default';
 import { fill, ws } from '../i18n/wiskey-stations';
+import { fill as tfill, ttt } from '../i18n/tts-default';
 import { TTS_MAX, announceChoices, collapseText, speechSeconds, ttsLength, ttsStateText, type AnnounceScope, type PlaceMap, type TargetChoice } from '../screens/wiskey-stations-logic';
 
-const LANGUAGE_NAMES: Record<string, string> = { he: 'עברית', iw: 'עברית', en: 'English', ar: 'العربية', ru: 'Русский' };
-const languageName = (code: string): string => LANGUAGE_NAMES[code.toLowerCase().split('-')[0]] ?? code.toUpperCase();
+/** How long WisKey's engine list is reused between two openings before it is read again (a fixed engine may come back, or go). */
+const ENGINES_TTL_MS = 60_000;
 
 type Tone = 'ok' | 'warn' | 'err';
 
@@ -24,6 +27,10 @@ type Tone = 'ok' | 'warn' | 'err';
  * station after the other, each exactly once, never retried. The wording never claims the speaker played it: "sent", and playback
  * at the station is "not verified". An unknown outcome locks the composer (no one-click resend into an ambiguous state).
  * Local playback ("האזנה") is not offered: the platform's speech proxy is not reachable from here (a W? of the design).
+ *
+ * TTS-DEFAULT-ENGINE-2400: every opening preselects the installation's fixed engine and language (api/tts-default.ts `resolveTtsPick`,
+ * the setting read through GET /settings); "עוד" lets the sender pick another for this announcement only. A fixed engine WisKey does not
+ * list right now is never replaced: no engine is selected, "עוד" opens by itself with the plain note, and sending waits for a pick.
  */
 @customElement('wk-announce-dialog')
 export class WkAnnounceDialog extends LitElement {
@@ -50,7 +57,13 @@ export class WkAnnounceDialog extends LitElement {
   @state() private retryAt = 0;
   @state() private more = false;
   @state() private sent: string[] = [];
+  /** TTS-DEFAULT-ENGINE-2400: the installation's fixed choice, the engine it preselected, and what of it is missing right now. */
+  @state() private fixed: TtsFixed = TTS_FIXED_NONE;
+  @state() private preselected = '';
+  @state() private missingEngine: string | null = null;
+  @state() private missingLanguage: string | null = null;
   private loadedEngines = false;
+  private enginesAt = 0;
   private timer = 0;
 
   static styles = css`
@@ -178,6 +191,9 @@ export class WkAnnounceDialog extends LitElement {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
+    .engine .result {
+      grid-column: 1 / -1;
+    }
     .result {
       padding: var(--sw-s-2) var(--sw-s-3);
       border-radius: var(--sw-r-sm);
@@ -214,7 +230,10 @@ export class WkAnnounceDialog extends LitElement {
   }
 
   protected updated(changed: PropertyValues<this>) {
-    if (changed.has('open') && this.open && !this.loadedEngines) void this.loadEngines();
+    if (changed.has('open') && this.open) {
+      if (!this.loadedEngines || Date.now() - this.enginesAt > ENGINES_TTL_MS) void this.loadEngines();
+      else void this.applyFixed();
+    }
   }
 
   private reset() {
@@ -243,12 +262,13 @@ export class WkAnnounceDialog extends LitElement {
 
   private async loadEngines() {
     this.loadedEngines = true;
+    this.enginesAt = Date.now();
     this.enginesNote = '';
     try {
       const r = await getIntercomTtsEngines();
       if (r.tts && r.tts.engines.length) {
         this.engines = r.tts;
-        this.pickEngine(r.tts.default && r.tts.engines.some((e) => e.engine_id === r.tts!.default) ? r.tts.default : r.tts.engines[0].engine_id);
+        await this.applyFixed();
       } else if (r.tts) {
         this.enginesNote = ws().announceDlg.noEngine;
       } else {
@@ -260,12 +280,30 @@ export class WkAnnounceDialog extends LitElement {
     }
   }
 
-  /** WisKey's own choice of language (tts-controls.ts): Hebrew when the engine has it, else its default. */
+  /** TTS-DEFAULT-ENGINE-2400: the preselection of this opening - the fixed engine and language (the system default and the automatic
+   * language when none is fixed). A settings read that fails keeps the behaviour before the setting. */
+  private async applyFixed() {
+    if (!this.engines?.engines.length) return;
+    try {
+      this.fixed = parseTtsFixed((await productSettings()) as unknown as Record<string, unknown>);
+    } catch {
+      this.fixed = TTS_FIXED_NONE;
+    }
+    const pick = resolveTtsPick(this.engines, this.fixed);
+    this.engine = pick.engine;
+    this.language = pick.language;
+    this.preselected = pick.engine;
+    this.missingEngine = pick.missingEngine;
+    this.missingLanguage = pick.missingLanguage;
+    if (pick.missingEngine) this.more = true; // the engine choice is where the user acts on it
+  }
+
+  /** The sender's own pick for this announcement: the fixed language when that engine supports it, else WisKey's own choice (Hebrew when
+   * the engine has it, else its default). */
   private pickEngine(engineId: string) {
     this.engine = engineId;
-    const e = this.engines?.engines.find((x) => x.engine_id === engineId);
-    const langs = e?.supported_languages ?? [];
-    this.language = langs.includes('he') ? 'he' : langs.includes('iw') ? 'iw' : (e?.default_language ?? langs[0] ?? '');
+    this.language = languageFor(this.engines, engineId, this.fixed);
+    this.missingLanguage = null;
   }
 
   private busySeconds(): number {
@@ -350,6 +388,7 @@ export class WkAnnounceDialog extends LitElement {
 
   render() {
     const t = ws().announceDlg;
+    const tt = ttt().dialog;
     const choices = this.choices();
     const cur = this.current();
     const len = ttsLength(this.message);
@@ -384,16 +423,21 @@ export class WkAnnounceDialog extends LitElement {
         </div>
         <div class="prev" data-wk-announce-preview>
           <sw-icon name="volume" size=${15}></sw-icon>
-          <span>${fill(t.preview, { lang: languageName(this.language || 'he'), voice: t.voiceDefault, n: speechSeconds(this.message) })}</span>
+          <span>${fill(t.preview, { lang: this.engine || !this.missingEngine ? languageName(this.language || 'he') : '—', voice: t.voiceDefault, n: speechSeconds(this.message) })}</span>
           <span class="sp"></span>
           <wk-action-button tone="quiet" data-wk-announce-more aria-expanded=${String(this.more)} @click=${() => (this.more = !this.more)}>${t.more}</wk-action-button>
         </div>
+        ${this.missingEngine ? html`<div class="result warn" role="status" data-wk-announce-engine-missing>${tfill(tt.missingEngine, { engine: this.missingEngine })}</div>` : nothing}
         ${this.more
           ? html`<div class="engine" data-wk-announce-engine>
+                ${this.missingLanguage && this.language
+                  ? html`<div class="result warn" role="status" data-wk-announce-language-missing>${tfill(tt.missingLanguage, { language: languageName(this.missingLanguage), auto: languageName(this.language) })}</div>`
+                  : nothing}
                 ${this.engines?.engines.length
                   ? html`<sw-field label=${t.engine}>
                         <select data-wk-engine .value=${this.engine} @change=${(e: Event) => this.pickEngine((e.target as HTMLSelectElement).value)}>
-                          ${this.engines.engines.map((x) => html`<option value=${x.engine_id} ?selected=${x.engine_id === this.engine}>${x.name}</option>`)}
+                          ${!this.engine ? html`<option value="" selected disabled>${tt.pickEngine}</option>` : nothing}
+                          ${this.engines.engines.map((x) => html`<option value=${x.engine_id} ?selected=${x.engine_id === this.engine}>${x.engine_id === this.fixed.engine ? `${x.name} · ${tt.fixedTag}` : x.name}</option>`)}
                         </select>
                       </sw-field>
                       ${langs.length
@@ -404,6 +448,7 @@ export class WkAnnounceDialog extends LitElement {
                           </sw-field>`
                         : nothing}`
                   : html`<span class="note">${this.enginesNote || t.enginesLoading}</span>`}
+                ${this.engine && this.preselected && this.engine !== this.preselected ? html`<span class="note" style="grid-column:1/-1" data-wk-announce-override>${tt.overridden}</span>` : nothing}
                 <span class="note" style="grid-column:1/-1">${t.external}</span>
               </div>`
           : !this.engines && this.enginesNote

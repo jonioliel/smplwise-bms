@@ -580,9 +580,26 @@ _caller_ro = read_gate(lambda conn, principal: ia.require_anywhere(conn, princip
 
 
 def _caller(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
-    """The same `access.call` gate for the body-less read of the TTS engines."""
+    """The same `access.call` gate for the body-less read of the TTS engines. TTS-DEFAULT-ENGINE-2400: or `system.configure` on the
+    installation - the system administrator choosing the fixed announcement engine in Settings reads the same list (names and
+    languages only; speaking still needs `access.call` on the station's chain)."""
+    if authorize(conn, principal, "system.configure", INSTALLATION).allowed:
+        return principal
     ia.require_anywhere(conn, principal, ia.CALL, getattr(request.state, "correlation_id", None))
     return principal
+
+
+TTS_FIXED_ENGINE_KEY = "access.tts_engine"  # TTS-DEFAULT-ENGINE-2400 (routers/settings.py)
+
+
+def tts_engine_choice(conn: sqlite3.Connection, engine_id: str) -> str:
+    """TTS-DEFAULT-ENGINE-2400: how this announcement's engine relates to the installation's fixed engine, for the audit row only -
+    `fixed` (the fixed engine), `override` (a fixed engine is set and the sender picked another for this send), `no_fixed` (the
+    setting is the system default). Never changes what is sent."""
+    fixed = str(get_setting(conn, TTS_FIXED_ENGINE_KEY, "") or "")
+    if not fixed:
+        return "no_fixed"
+    return "fixed" if engine_id == fixed else "override"
 
 
 def _call_station(act: "_Action") -> None:
@@ -1060,7 +1077,7 @@ def tts_speak(request: Request, station_id: str, principal: Principal = Depends(
     act = _Action(request, conn, principal, "intercom.tts", station_id)
     body: TtsBody = _parse(act, TtsBody, raw)
     message = intercom_client.collapse(body.message)
-    act.details.update(engine_id=body.engine_id, language=body.language, length_bucket=tts_length_bucket(len(message)))
+    act.details.update(engine_id=body.engine_id, language=body.language, length_bucket=tts_length_bucket(len(message)), engine_choice=tts_engine_choice(conn, body.engine_id))
     if not 1 <= len(message) <= intercom_client.TTS_MESSAGE_MAX:
         raise act.refuse(ApiError(422, "validation", f"ההודעה חייבת להכיל 1-{intercom_client.TTS_MESSAGE_MAX} תווים."))
     not_after = _envelope(act, body)
