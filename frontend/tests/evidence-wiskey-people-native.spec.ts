@@ -84,7 +84,9 @@ test.describe('the data path: typed reads only, filters are the server\'s', () =
     await expect(drawer(page).locator('[data-person-section="details"]')).toBeVisible();
     const used = new Set(st.hits.map((h) => h.split('?')[0].replace(/^(GET|POST|PUT|PATCH|DELETE) /, '')));
     for (const path of used) if (/people|stations|groups|features/.test(path)) expect(path, path).toMatch(/^access-control\//);
-    expect([...used].some((p) => /^intercom\//.test(p))).toBe(false);
+    // the shell's incoming-call banner (WISKEY-INBOUND-CALLS-2382, any screen, a caller with access.call) reads its own typed
+    // intercom/calls/active - not the people screen's data path; every other intercom/ route stays banned here
+    expect([...used].filter((p) => /^intercom\//.test(p) && p !== 'intercom/calls/active')).toEqual([]);
     expect(used.has('access-control/people')).toBe(true);
     expect(used.has('access-control/people/p1')).toBe(true);
   });
