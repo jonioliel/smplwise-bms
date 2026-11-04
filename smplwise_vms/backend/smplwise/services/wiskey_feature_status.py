@@ -29,7 +29,10 @@ R: dict[str, tuple[str, str, str]] = {  # code -> (kind, text, how to turn it on
     "key_unreadable": ("PAIR", "לא ניתן לפענח את מפתח הגשר במכונה הזו.", "צימוד מחדש בבלוק \"חיבור Arx ל-WisKey\" למעלה."),
     "key_rotated": ("PAIR", "מפתח הגשר הוחלף; החיבור הישיר של WisKey (גרסה 1) לא מקבל מפתח עם מזהה מפתח.",
                     "צימוד מחדש בבלוק \"חיבור Arx ל-WisKey\" למעלה, עם כיבוי החלפת מפתח הגשר."),
-    "join_not_started": ("RUN", "החיבור הישיר לא פעיל בתהליך הנוכחי: Arx מפעיל אותו רק כשהוא עולה.", "הפעילו מחדש את Arx אחרי ש\"מקור הווידאו והדיבור\" הוא WisKey ומפתח הצימוד תקין."),
+    "join_not_started": ("RUN", "החיבור הישיר לא פעיל כרגע.",
+                         "Arx מפעיל אותו לבד, בלי הפעלה מחדש, כש\"מקור הווידאו והדיבור\" הוא WisKey ומפתח הצימוד תקין; אם זה לא קורה - \"בדוק חיבור חתום\" בבלוק \"חיבור Arx ל-WisKey\" למעלה."),
+    "join_starting": ("RUN", "החיבור הישיר {what} כעת.", "אין צורך בהפעלה מחדש: רעננו את הדף בעוד רגע."),
+    "join_error": ("RUN", "החיבור הישיר נכשל ({error}); Arx ינסה שוב לבד.", "\"בדוק חיבור חתום\" בבלוק \"חיבור Arx ל-WisKey\" למעלה."),
     "not_proven": ("PAIR", "עוד לא הוכח ש־WisKey מקבל את החתימה של Arx.", "\"בדוק חיבור חתום\" בבלוק \"חיבור Arx ל-WisKey\" למעלה."),
     "refused": ("PAIR", "WisKey דחה את החתימה של Arx בבדיקה האחרונה.", "ראו את ההנחיות בבלוק \"חיבור Arx ל-WisKey\" למעלה."),
     "feed_not_listed": ("WK", "Arx בוחר ב־WisKey לפי רשימת הפקודות שבערוץ השירות, ושם פקודות המדיה לא מופיעות ({why}).",
@@ -65,6 +68,16 @@ def _reason(code: str, **fmt: Any) -> dict[str, Any]:
     return {"code": code, "kind": kind, "text": text.format(**fmt) if fmt else text, "fix": fix}
 
 
+def _join_live() -> dict[str, Any]:
+    """WISKEY-JOIN-LIVE-2382: the runtime join's state (`wiskey_join_live.join_state`, no I/O, never raises); {} when unreadable."""
+    try:
+        from . import wiskey_join_live
+
+        return wiskey_join_live.join_state()
+    except Exception:  # noqa: BLE001 - the page falls back to "installed or not"
+        return {}
+
+
 class Facts:
     """The shared facts of one status read, computed once."""
 
@@ -75,6 +88,7 @@ class Facts:
         self.provider = intercom_media.provider_choice(conn)
         self.key = wp.key_facts(conn, getattr(settings, "data_dir", None))["state"]
         self.join = wiskey_direct_join.installed() is not None
+        self.live = _join_live()
         self.managed = bool(wai.switch_on(conn))
         self.owner_on = bool(wai.owner_on_permitted())
         self.feed_video, self.feed_talk, self.feed_reason = wp.feed_listing(settings)
@@ -96,8 +110,14 @@ class Facts:
             out.append(_reason("provider_local"))
         if self.key != "ok":
             out.append(_reason("key_" + self.key))
-        if not out and not self.join:
-            out.append(_reason("join_not_started"))
+        if not out:  # WISKEY-JOIN-LIVE-2382: the join starts / stops at runtime - say where it is now
+            live = self.live.get("state")
+            if live in ("starting", "connecting", "stopping"):
+                out.append(_reason("join_starting", what={"starting": "מופעל", "connecting": "מתחבר", "stopping": "נעצר"}[live]))
+            elif live == "error":
+                out.append(_reason("join_error", error=self.live.get("last_error") or "unknown"))
+            elif not self.join:
+                out.append(_reason("join_not_started"))
         if self.key == "ok":
             if self.accepted is False:
                 out.append(_reason("refused"))

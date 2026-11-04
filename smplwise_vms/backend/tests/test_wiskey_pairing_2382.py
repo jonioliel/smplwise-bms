@@ -396,6 +396,26 @@ def test_features_follow_the_pairing_and_the_switches(world, monkeypatch):
     assert _features(world["c"].get(API).json())["door_windows"]["state"] == "on"
 
 
+def test_the_join_line_follows_the_runtime_join(world, monkeypatch):
+    """2.38.2 train (WISKEY-JOIN-LIVE-2382): the join starts and stops at runtime, so the direct-join row says where it is now
+    (starting / connecting / stopping, a failure with its code) and never asks for a restart."""
+    from smplwise.services import wiskey_join_live as live
+
+    _pair(world)
+    _server()
+    with world["db"].connection() as conn:
+        set_setting(conn, "access.station_media_provider", "auto")
+    reasons = _features(world["c"].get(API).json())["direct_api"]["reasons"]
+    assert [r["code"] for r in reasons][:1] == ["join_not_started"] and "הפעלה מחדש" in reasons[0]["fix"] and "בלי" in reasons[0]["fix"]
+    monkeypatch.setattr(live.MANAGER, "state", live.CONNECTING)
+    reasons = _features(world["c"].get(API).json())["direct_api"]["reasons"]
+    assert reasons[0]["code"] == "join_starting" and "מתחבר" in reasons[0]["text"]
+    monkeypatch.setattr(live.MANAGER, "state", live.ERROR)
+    monkeypatch.setattr(live.MANAGER, "last_error", "wiskey_direct_not_connected")
+    reasons = _features(world["c"].get(API).json())["direct_api"]["reasons"]
+    assert reasons[0]["code"] == "join_error" and "wiskey_direct_not_connected" in reasons[0]["text"]
+
+
 def test_a_broken_feature_check_is_unknown_not_on(world, monkeypatch):
     from smplwise.services import intercom_doors
 
