@@ -47,7 +47,8 @@ export const calCss = css`
   .btn.icon { inline-size: var(--sw-ctl-h-lg); padding: 0; }
   .btn[disabled] { opacity: var(--sw-disabled-opacity); cursor: default; transform: none; }
   .btn:focus-visible, .tab:focus-visible, .chipb:focus-visible { outline: var(--sw-focus-w) solid var(--sw-focus); outline-offset: var(--sw-focus-offset); }
-  @media (hover: hover) { .btn:not([disabled]):hover { background: var(--sw-hover-wash); } .btn.pri:not([disabled]):hover { background: var(--sw-accent-hover); } }
+  /* ROUND4-LEFTOVERS-2390 (D22 review): hover only under a fine hovering pointer (a tablet with a mouse-emulating stylus kept it) */
+  @media (hover: hover) and (pointer: fine) { .btn:not([disabled]):hover { background: var(--sw-hover-wash); } .btn.pri:not([disabled]):hover { background: var(--sw-accent-hover); } }
   .chipb { font: inherit; font-size: var(--sw-fs-md); display: inline-flex; align-items: center; gap: 6px; min-block-size: var(--sw-ctl-h-lg); padding: 0 16px;
     border-radius: var(--sw-r-pill); border: 1px solid var(--sw-border); background: var(--sw-surface-solid); color: var(--sw-heading); cursor: pointer; white-space: nowrap; }
   .chipb[aria-pressed='true'] { background: var(--sw-heading); color: var(--sw-surface-solid); border-color: var(--sw-heading); font-weight: var(--sw-fw-semibold); }

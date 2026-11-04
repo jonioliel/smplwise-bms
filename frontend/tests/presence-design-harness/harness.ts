@@ -8,6 +8,7 @@ import '../../src/screens/system-building-presence';
 import { defaultConfig, resolveWidgets, type HomeData, type WidgetId } from '../../src/api/home-config';
 import type { BuildingPresenceSettings, BuildingSnapshot, OccupancyStatus } from '../../src/api/building-presence';
 import { presenceWidgetAvailable } from '../../src/api/building-presence-logic';
+import './round16-options'; // ROUND4-LEFTOVERS-2390: the owner's round-16 compact directions (pdOption16), drawn only when a spec asks
 
 export type PresenceDataset = 'ready' | 'empty' | 'unknown' | 'one' | 'worst' | 'error' | 'loading';
 

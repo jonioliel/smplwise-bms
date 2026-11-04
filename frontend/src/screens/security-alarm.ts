@@ -139,11 +139,21 @@ export class SecurityAlarm extends LitElement {
       align-items: center;
       gap: 6px;
       min-block-size: var(--sw-ctl-h-lg);
-      transition: background var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease);
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: background var(--sw-t-fast) var(--sw-ease), border-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease),
+        transform var(--sw-t-press) var(--sw-ease);
     }
-    .switcher button:hover {
-      background: var(--sw-surface-2);
-      color: var(--sw-text);
+    /* ROUND4-LEFTOVERS-2390 (WP9): the panel switcher's hover only under a fine hovering pointer (it stuck after a tap on a
+       touch screen), and a press on pointer-down like the filter chips */
+    @media (hover: hover) and (pointer: fine) {
+      .switcher button:hover {
+        background: var(--sw-surface-2);
+        color: var(--sw-text);
+      }
+    }
+    .switcher button:active {
+      transform: scale(var(--sw-press-scale));
     }
     .switcher button[aria-pressed='true'] {
       background: var(--sw-accent-soft);
@@ -396,7 +406,7 @@ export class SecurityAlarm extends LitElement {
       -webkit-tap-highlight-color: transparent;
       user-select: none;
       -webkit-user-select: none;
-      transition: background var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out), box-shadow var(--sw-t-fast) var(--sw-ease);
+      transition: background var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease), box-shadow var(--sw-t-fast) var(--sw-ease);
     }
     @media (hover: hover) and (pointer: fine) {
       .chips button:hover {
@@ -414,7 +424,7 @@ export class SecurityAlarm extends LitElement {
       font-weight: var(--sw-fw-bold);
     }
     .chips button[aria-pressed='true'] .n {
-      background: rgba(255, 255, 255, 0.22);
+      background: color-mix(in srgb, currentColor 22%, transparent);
       color: inherit;
     }
     .chips button .n {
@@ -462,7 +472,7 @@ export class SecurityAlarm extends LitElement {
       padding: 0;
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
-      transition: background var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease-out);
+      transition: background var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease);
     }
     .vt button[aria-pressed='true'] {
       background: var(--sw-seg-key, var(--sw-surface));
@@ -762,6 +772,14 @@ export class SecurityAlarm extends LitElement {
         inline-size: 44px;
         block-size: 44px;
       }
+      .switcher button {
+        min-block-size: 44px;
+      }
+    }
+    @media (pointer: coarse) {
+      details.unpaired summary {
+        min-block-size: 44px;
+      }
     }
     details.unpaired {
       font-size: var(--sw-fs-sm);
@@ -820,14 +838,20 @@ export class SecurityAlarm extends LitElement {
       color: var(--sw-text);
       cursor: pointer;
       box-shadow: var(--sw-shadow-1);
-      transition: background var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease);
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      transition: background var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-press) var(--sw-ease);
     }
-    .keys button:hover {
-      background: var(--sw-surface-2);
+    /* ROUND4-LEFTOVERS-2390 (WP9): a keypad is pressed with a finger - its hover only under a fine pointer (a tapped digit kept
+       the hover wash), the press scale from the motion tokens (zeroed with reduced motion) */
+    @media (hover: hover) and (pointer: fine) {
+      .keys button:hover {
+        background: var(--sw-surface-2);
+      }
     }
     .keys button:active {
       background: var(--sw-accent-soft);
-      transform: scale(0.97);
+      transform: scale(var(--sw-press-scale));
     }
     .keys button[data-key='clear'],
     .keys button[data-key='back'] {

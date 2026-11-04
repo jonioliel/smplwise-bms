@@ -47,7 +47,7 @@ const overlayCss = css`
     padding: 8px 16px calc(18px + env(safe-area-inset-bottom, 0px)); max-block-size: 90vh; display: flex; flex-direction: column; gap: 11px; overflow: auto; overscroll-behavior: contain;
     transform: translateY(100%); transition: transform 280ms var(--sw-ease-drawer); }
   .sheet.in { transform: none; }
-  .grab { inline-size: 40px; block-size: 5px; border-radius: 3px; background: var(--sw-border-strong); margin: 2px auto 4px; flex: none; }
+  .grab { inline-size: 40px; block-size: 5px; border-radius: var(--sw-r-pill); background: var(--sw-border-strong); margin: 2px auto 4px; flex: none; }
   .st { display: flex; gap: 8px; padding: 9px 11px; border-radius: var(--sw-r-lg); font-size: var(--sw-fs-sm); line-height: 1.42; }
   .st > sw-icon { margin-block-start: 2px; flex: none; }
   .st b { display: block; color: var(--sw-heading); font-size: var(--sw-fs-md); }
@@ -62,6 +62,8 @@ const overlayCss = css`
   kbd { font: inherit; font-size: var(--sw-fs-2xs); border: 1px solid var(--sw-border-strong); border-block-end-width: 2px; border-radius: var(--sw-r-2xs); padding: 0 4px; background: var(--sw-surface-2); }
   .kb { margin-inline-start: auto; font-size: var(--sw-fs-xs); color: var(--sw-text-3); white-space: nowrap; }
   .x { inline-size: 32px; min-block-size: 32px; border: 0; background: transparent; }
+  /* ROUND4-LEFTOVERS-2390 (D22 review): the popover also opens on a touch tablet - its close key is a 44 px target there */
+  @media (pointer: coarse) { .x { inline-size: 44px; min-block-size: 44px; } }
   @media (prefers-reduced-motion: reduce) {
     .pop, .pop.in { transform: none; }
     .sheet, .sheet.in { transform: none; transition: opacity 200ms ease; }
@@ -127,6 +129,7 @@ export class CalQuickCreate extends LitElement {
     .step button { inline-size: 28px; block-size: 28px; border: 0; border-radius: 50%; background: transparent; cursor: pointer; font-size: var(--sw-fs-lg); line-height: 1; color: var(--sw-heading); }
     .step button:active { background: var(--sw-surface-3); }
     .step b { min-inline-size: 26px; text-align: center; }
+    @media (pointer: coarse) { .step button { inline-size: 44px; block-size: 44px; } }
     .lockl { display: inline-flex; gap: 5px; align-items: center; color: var(--sw-text-3); font-size: var(--sw-fs-xs); }
     .rs { font-size: var(--sw-fs-sm); color: var(--sw-text-2); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
     .rs .bad { color: var(--sw-danger-text); }

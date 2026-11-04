@@ -24,7 +24,6 @@ const ALLOW_HEX: Record<string, string> = {
   'screens/devices-schedules.ts': 'the summary bar swatches',
   'screens/bubble-demo.ts': 'the style guide demo',
   'screens/styleguide-screen.ts': 'the style guide swatches',
-  'screens/wiskey-overview.ts': 'the WisKey embed frame',
   'screens/scenes-panel.ts': 'the scene glyphs',
   'components/sw-second-factor.ts': 'the QR code is black on white by definition',
   'components/sw-scene.ts': 'the scene canvas',
