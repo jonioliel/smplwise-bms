@@ -87,6 +87,7 @@ TEXT = {
     "provider_feed_no_talk": "ערוץ השירות מפרסם את פקודות הווידאו אבל לא את פקודות הדיבור, ולכן דיבור לא עובר דרך WisKey.",
     "rotation_off": "החלפת מפתח הגשר כבויה; קוד הצימוד המקורי נשאר בתוקף.",
     "rotation_risk": "החלפת מפתח הגשר מופעלת. החלפה תמחק את קוד הצימוד המקורי מהגשר, ו־WisKey יפסיק לקבל את Arx.",
+    "rotation_blocked_wiskey": "החלפת מפתח הגשר חסומה כל עוד WisKey מותקן: WisKey מאמת את Arx רק מול קוד הצימוד המקורי, וההחלפה מוחקת אותו מהגשר.",
     "rotation_done": "מפתח הגשר כבר הוחלף; זה מה שמנתק את WisKey (ראו \"מפתח הצימוד\").",
     "no_error": "אין שגיאה.",
     "error": "{code}",
@@ -346,6 +347,9 @@ def _rotation_line(conn: Any, k: dict[str, Any]) -> dict[str, Any]:
     facts = {"enabled": br.mode(conn) == "on", "active": br.active_row(conn) is not None}
     if k["state"] == "rotated":
         return _line("rotation", WARN, "rotation_done", facts=facts)
+    facts["blocked_by_wiskey"] = br.wiskey_present()
+    if facts["enabled"] and br.go_live_permitted() and facts["blocked_by_wiskey"]:
+        return _line("rotation", OK, "rotation_blocked_wiskey", facts=facts)  # BRIDGE-STALE-DISCOVERY-2383: the safe default
     if facts["enabled"] and br.go_live_permitted():
         return _line("rotation", WARN, "rotation_risk", facts=facts)
     return _line("rotation", OK, "rotation_off", facts=facts)

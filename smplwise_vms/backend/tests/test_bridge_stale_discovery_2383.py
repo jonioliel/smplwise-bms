@@ -681,3 +681,100 @@ def test_refused_directory_pushes_show_up_in_the_pairing_block(world):
     bd.reset_for_tests()
     bd.note_directory_refused("bridge_stale")
     assert bd.directory_refusals() is None
+
+
+# ====================================================================== bridge 0.10.3: its own refused pushes are seen
+
+class _Log:
+    def __init__(self) -> None:
+        self.lines: list[tuple[str, str]] = []
+
+    def _add(self, level: str, msg: str, *args: Any) -> None:
+        self.lines.append((level, msg % args if args else msg))
+
+    def warning(self, msg: str, *args: Any) -> None:
+        self._add("warning", msg, *args)
+
+    def info(self, msg: str, *args: Any) -> None:
+        self._add("info", msg, *args)
+
+    def debug(self, msg: str, *args: Any) -> None:
+        self._add("debug", msg, *args)
+
+
+def test_bridge_push_health_warns_once_with_the_fix_and_reports_recovery():
+    ph_mod = _load("push_health")
+    clock = {"t": 1_000_000.0}
+    log = _Log()
+    ph = ph_mod.PushHealth(log, now=lambda: clock["t"])
+    assert ph.state()["reason"] == "unknown"
+    ph.note(200)
+    assert ph.state()["reason"] == "ok" and log.lines == []
+    for _ in range(5):
+        clock["t"] += 60
+        ph.note(401)
+    warnings = [m for lvl, m in log.lines if lvl == "warning"]
+    assert len(warnings) == 1 and "re-pair" in warnings[0] and "401" in warnings[0], "one warning, with the fix"
+    st = ph.state()
+    assert st["reason"] == "addon_refused_signature" and st["count"] == 5 and st["status"] == 401 and st["since"]
+    clock["t"] += ph_mod.REMIND_S
+    ph.note(401)
+    assert len([1 for lvl, _ in log.lines if lvl == "warning"]) == 2, "a reminder at most once an hour"
+    clock["t"] += 60
+    ph.note(200)
+    assert log.lines[-1][0] == "info" and "again" in log.lines[-1][1] and ph.state()["reason"] == "ok" and ph.state()["count"] == 0
+    ph.note(None, "ClientConnectorError")
+    ph.note(500)
+    assert ph.state()["reason"] == "addon_error" and [lvl for lvl, _ in log.lines[-2:]] == ["debug", "debug"]
+
+
+def test_bridge_diagnostics_and_wiring_carry_no_secret():
+    diag = _load("diagnostics")
+    ph = _load("push_health").PushHealth(_Log())
+    ph.note(401)
+    code = _code()
+    entry = types.SimpleNamespace(entry_id="e1", data={"pairing_code": code, "addon_url": URL})
+    hass = types.SimpleNamespace(data={"smplwise_bridge_push_health": {"e1": ph}})
+    out = asyncio.run(diag.async_get_config_entry_diagnostics(hass, entry))
+    assert out["directory_push"]["reason"] == "addon_refused_signature" and out["pairing_code_in_entry"] is True and out["version"] == "0.10.3"
+    assert code not in json.dumps(out) and URL not in json.dumps(out)
+    assert asyncio.run(diag.async_get_config_entry_diagnostics(types.SimpleNamespace(data={}), entry))["directory_push"] == {"reason": "not_loaded"}
+    src = (BRIDGE_DIR / "__init__.py").read_text(encoding="utf-8")
+    push = src.split("async def push_directory", 1)[1].split("async def sync_directory", 1)[0]
+    assert "push_health.note(resp.status)" in push and "push_health.note(None, type(exc).__name__)" in push
+
+
+# ====================================================================== rotation vs WisKey: the safe default
+
+def test_no_rotation_starts_while_wiskey_is_present(world, monkeypatch):
+    from smplwise.services import intercom_sync
+
+    with world["db"].connection() as conn:
+        set_setting(conn, "bridge.secret", _code())
+        set_setting(conn, "bridge.paired_at", now_iso())
+    monkeypatch.setattr(bridge_rotation, "peer_available", lambda peer=None: True)
+    assert bridge_rotation.wiskey_present() is False
+    with world["db"].connection(mode="read") as conn:
+        assert bridge_rotation.view(conn, world["settings"].data_dir)["blocked_by"] is None
+    # the component in Home Assistant's config directory
+    (world["cfg"] / "custom_components" / "hikvision_intercom").mkdir(parents=True)
+    assert bridge_rotation.wiskey_present() is True
+    with world["db"].connection(mode="read") as conn:
+        v = bridge_rotation.view(conn, world["settings"].data_dir)
+        assert v["blocked_by"] == "wiskey_present" and v["can_start"] is False and v["automatic"] == "off"
+        assert bridge_rotation.auto_due(conn, None, 10**10) is False  # type: ignore[arg-type]
+    with pytest.raises(bridge_rotation.RotationRefused) as exc:
+        bridge_rotation.Engine(world["db"], world["settings"].data_dir, settings=world["settings"]).start(None, "routine")
+    assert exc.value.code == "wiskey_present"
+    with world["db"].connection(mode="read") as conn:
+        assert not bk.adopted(conn), "nothing was adopted or rotated"
+    r = world["c"].post("/api/v1/system/bridge-key/rotations", json={"mode": "routine", "confirm": True})
+    assert r.status_code == 409 and r.json()["code"] == "wiskey_present" and "WisKey" in r.json()["user_message"]
+    line = {ln["key"]: ln for ln in world["c"].get("/api/v1/system/wiskey-pairing").json()["lines"]}["rotation"]
+    assert line["reason"] == "rotation_blocked_wiskey" and line["state"] == "ok" and line["facts"]["blocked_by_wiskey"] is True
+    # the service feed alone is enough too
+    import shutil
+
+    shutil.rmtree(world["cfg"] / "custom_components" / "hikvision_intercom")
+    monkeypatch.setattr(intercom_sync.STATE, "wiskey_version", "2.0.1")
+    assert bridge_rotation.wiskey_present() is True

@@ -101,6 +101,7 @@ from . import media_policy, runnable, service_identity
 from .media_query_service import async_handle_media_query
 from .schedule_service import async_handle_schedule, execute_refusal
 from .keyset import CAPABILITY as ROTATION_CAPABILITY, KeySet, Persister as KeyPersister
+from .push_health import PushHealth
 from .stream_source_service import async_handle_stream_source
 
 # WKA-295: the names above that make up the capture lease's public port (the root re-export). Nothing else of this module is part of it.
@@ -377,6 +378,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     keyset = KeySet(entry.data.get(CONF_PAIRING_CODE) or "", await store.async_load())
     verifier = keyset
     session = async_get_clientsession(hass)
+    # 0.10.3 (BRIDGE-STALE-DISCOVERY-2383): a refused push is a warning with the fix, and part of the entry's diagnostics (diagnostics.py)
+    push_health = PushHealth(_LOGGER)
+    hass.data.setdefault(f"{DOMAIN}_push_health", {})[entry.entry_id] = push_health
 
     def service_user_id() -> Any:
         """0.9.0 (USR2 P3): the service identity, read live from the options (an HA administrator sets it inside Home Assistant)."""
@@ -593,8 +597,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                                                                                 "local_identity_extended": local_extended(),
                                                                                 "local_identity_runnable": sorted(runnable_ids()),
                                                                                 "service_policy_restricted": policy_restricted}), timeout=10) as resp:
+                push_health.note(resp.status)
                 if resp.status != 200:
-                    _LOGGER.debug("directory push answered %s", resp.status)
                     return 0
                 try:  # 0.7.0 (CR-028): the add-on's signed cast origin (or null) - verified with the pairing secret in cast_service.note_origin
                     answer = await resp.json(content_type=None)
@@ -602,7 +606,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 except Exception:  # noqa: BLE001 - an older add-on answers without it: the origin stays unknown and no cast is played
                     pass
         except Exception as exc:  # noqa: BLE001
-            _LOGGER.debug("directory push failed: %s", type(exc).__name__)
+            push_health.note(None, type(exc).__name__)
             return 0
         return len(users)
 
@@ -714,6 +718,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_remove(DOMAIN, SERVICE_LEASE_EVENT)
     hass.services.async_remove(DOMAIN, SERVICE_LEASE_REQUEST)
     lease_service.async_detach_bridge(hass, entry.entry_id)  # LEASELIFE-295: the consumer stays registered; in-flight answers are not relayed
+    hass.data.get(f"{DOMAIN}_push_health", {}).pop(entry.entry_id, None)
     return True
 
 

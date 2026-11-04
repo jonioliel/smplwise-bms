@@ -105,6 +105,28 @@ def go_live_permitted() -> bool:
     return GO_LIVE_PERMITTED is True
 
 
+def wiskey_present() -> bool:
+    """BRIDGE-STALE-DISCOVERY-2383 (rotation vs WisKey): WisKey verifies Arx's signatures ONLY against `pairing_code` of the loaded bridge entry
+    (no key id in its v1 envelope), and the bridge blanks that field after the first completed rotation (keyset.py HA-06) - so a rotation
+    disconnects WisKey from Arx. Until WisKey verifies a key id, no rotation starts (by click or by the worker) where WisKey is present: the
+    service feed reported a WisKey version, its component is in Home Assistant's config directory, or the manual WisKey owner profile is
+    there. Read only; an unreadable directory counts as absent."""
+    try:
+        from . import intercom_sync
+
+        if intercom_sync.STATE.wiskey_version:
+            return True
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        from . import bridge_install
+
+        cfg = bridge_install.ha_config_dir()
+        return bool(cfg and ((cfg / "custom_components" / "hikvision_intercom").is_dir() or bridge_install._manual_owner_profile(cfg)))
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def mode(conn: sqlite3.Connection) -> str:
     """`on` unless an administrator turned it off (activation slice: the default is on - the rotation then needs no manual step)."""
     try:
@@ -253,6 +275,8 @@ class Engine:
             raise RotationRefused("rotation_off")
         if not go_live_permitted():
             raise RotationRefused("rotation_not_permitted")
+        if wiskey_present():
+            raise RotationRefused("wiskey_present")
         if not peer_available(self.peer):
             raise RotationRefused("peer_unavailable")
         if active_row(conn) is not None:
@@ -656,6 +680,8 @@ def view(conn: sqlite3.Connection, data_dir: Path, peer: peers.Peer | None = Non
         blocked = "rotation_off"
     elif not go_live_permitted():
         blocked = "rotation_not_permitted"
+    elif wiskey_present():
+        blocked = "wiskey_present"
     elif not available:
         blocked = "peer_unavailable"
     elif active is not None:
@@ -696,7 +722,7 @@ def automatic_state(conn: sqlite3.Connection, available: bool) -> str:
     """For the card: `waiting_for_bridge` (the bridge has not announced support - it needs the update), `scheduled` (will start by itself),
     `awaiting_click` (the bridge is ready; the FIRST rotation needs one click of a system administrator), `idle` (nothing to do until the
     reminder interval), `off` (switch off)."""
-    if mode(conn) != "on" or not go_live_permitted():
+    if mode(conn) != "on" or not go_live_permitted() or wiskey_present():
         return "off"
     if not available:
         return "waiting_for_bridge"
@@ -740,6 +766,8 @@ def _backoff_s(conn: sqlite3.Connection) -> tuple[float, float | None]:
 
 def auto_due(conn: sqlite3.Connection, peer: peers.Peer, now: float) -> bool:
     if mode(conn) != "on" or not go_live_permitted() or not peer_available(peer) or not auto_wanted(conn, now):
+        return False
+    if wiskey_present():
         return False
     if active_row(conn) is not None:
         return False
