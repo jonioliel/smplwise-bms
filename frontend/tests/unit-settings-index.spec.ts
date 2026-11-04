@@ -11,7 +11,13 @@ const all = SETTINGS_GROUPS.flatMap((g) => g.entries);
 test('every top-level settings tab has an entry, every entry names an existing tab, deep links are unique', () => {
   const tabs = new Set(AREA_TABS.system.map((t) => t.id));
   for (const e of all) expect(tabs.has(e.tab), `${e.label} -> ${e.tab}`).toBe(true);
-  for (const t of AREA_TABS.system) expect(all.some((e) => e.tab === t.id && !e.sub), `tab ${t.id} has a top-level entry`).toBe(true);
+  // owner decision 402 (the column never scrolls): the operations views (WISKEY-OPS-VIEWS-2400) and the installer tools (WISKEY-INSTALLER-NATIVE-2400,
+  // 2.40.0 train) are search-only sub-entries under the access-control screen; the tab row and the deep links lead to them
+  const SEARCH_ONLY = ['intercom-operations', 'intercom-installer'];
+  for (const t of AREA_TABS.system) {
+    if (SEARCH_ONLY.includes(t.id)) expect(all.some((e) => e.tab === t.id) && all.filter((e) => e.tab === t.id).every((e) => e.sub), `tab ${t.id}: search-only entries`).toBe(true);
+    else expect(all.some((e) => e.tab === t.id && !e.sub), `tab ${t.id} has a top-level entry`).toBe(true);
+  }
   const hrefs = all.map((e) => e.href);
   expect(new Set(hrefs).size).toBe(hrefs.length);
   for (const e of all) expect(e.href.startsWith('#/'), e.href).toBe(true);

@@ -121,6 +121,14 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { tab: 'intercom-operations', label: 'קיבולת ומגמות', href: '#/system/intercom-operations/capacity', sub: true, keywords: 'משתמשים כרטיסים מגבלה צמיחה תחזית' },
       { tab: 'intercom-operations', label: 'דוח אירועים', href: '#/system/intercom-operations/events', sub: true, keywords: 'כניסות נדחו אושרו חריגות לפי יום לפי עמדה' },
       { tab: 'intercom-operations', label: 'ייצוא', href: '#/system/intercom-operations/exports', sub: true, keywords: 'csv מלאי צי יומן שינויים קובץ' },
+      // WISKEY-INSTALLER-NATIVE-2400: WisKey's installer tools, natively (owner decision 03.11, Q7). The 2.40.0 train made them
+      // search-only sub-entries of בקרת כניסה like the operations views above: as a top-level row the "מערכת ותשתית" group
+      // needed a scroll of its own at 1440x900 (owner decision 402). The shell's tab row and the deep links lead to the tools.
+      { sub: true, tab: 'intercom-installer', label: 'התקנה ותחזוקת מערכת האינטרקום', href: '#/system/intercom-installer', keywords: 'wiskey אינטרקום מתקין התקנה תחזוקה שעון ntp שרת זמן עמדה הגדרות טכניות זמן פתיחה שם דלת ממסר הוספת עמדה הסרת עמדה החלפה פלטפורמה ייבוא ייצוא webhook שמירת נתונים שלמות קיבולת' },
+      { tab: 'intercom-installer', label: 'שעון האינטרקום', href: '#/system/intercom-installer/clock', sub: true, keywords: 'ntp שעון סטייה שרת זמן' },
+      { tab: 'intercom-installer', label: 'הוספה והסרה של עמדות אינטרקום', href: '#/system/intercom-installer/lifecycle', sub: true, keywords: 'הוספת עמדה אשף התחברות מחדש סיסמה כתובת הסרת עמדה החלפת עמדה מכשיר חדש' },
+      { tab: 'intercom-installer', label: 'תצורת מערכת האינטרקום', href: '#/system/intercom-installer/platform', sub: true, keywords: 'קיבולת שלמות חלון תחזוקה תור תחזוקה שמירת אירועים webhook מפתח ייצוא ייבוא שינוי בכמה עמדות' },
+      { tab: 'intercom-installer', label: 'הגדרות טכניות של עמדה', href: '#/system/intercom-installer/technical', sub: true, keywords: 'שם דלת זמן פתיחה היפוך ממסר סיסמאות יכולות' },
       { tab: 'general', label: 'גשר Arx', href: `${GEN}?tab=ha`, keywords: 'אינטגרציה צימוד pairing bridge supervisor home assistant' },
       { tab: 'general', label: 'מתגי מסכי כניסה', href: `${GEN}?tab=access-control`, keywords: 'wiskey מוטמע אינטרקום תצוגה מסך תחנות שיחה דיבור הכרזה משפטים בדיקת התאמה השוואה צד לצד' },
       { tab: 'entities', label: 'קטלוג התקנים', href: '#/system/entities', keywords: 'ישויות entities תחומים' },
@@ -137,12 +145,6 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { tab: 'tickets', get label() { return tt('setTabDepartments'); }, href: '#/system/tickets?tab=departments', sub: true },
       { tab: 'tickets', get label() { return tt('setTabPermissions'); }, href: '#/system/tickets?tab=permissions', sub: true },
       { tab: 'messaging-accounts', label: 'ערוץ ההודעות', href: '#/system/messaging-accounts', keywords: 'וואטסאפ whatsapp חשבון חשבונות מספר שולח קוד אימות שימושים קצב שליחה sms' }, // CR-038 S5a
-      // WISKEY-INSTALLER-NATIVE-2400: WisKey's installer tools, natively (owner decision 03.11, Q7)
-      { ownTabs: true, tab: 'intercom-installer', label: 'התקנה ותחזוקת מערכת האינטרקום', href: '#/system/intercom-installer', keywords: 'wiskey אינטרקום מתקין התקנה תחזוקה שעון ntp שרת זמן עמדה הגדרות טכניות זמן פתיחה שם דלת ממסר הוספת עמדה הסרת עמדה החלפה פלטפורמה ייבוא ייצוא webhook שמירת נתונים שלמות קיבולת' },
-      { tab: 'intercom-installer', label: 'שעון האינטרקום', href: '#/system/intercom-installer/clock', sub: true, keywords: 'ntp שעון סטייה שרת זמן' },
-      { tab: 'intercom-installer', label: 'הוספה והסרה של עמדות אינטרקום', href: '#/system/intercom-installer/lifecycle', sub: true, keywords: 'הוספת עמדה אשף התחברות מחדש סיסמה כתובת הסרת עמדה החלפת עמדה מכשיר חדש' },
-      { tab: 'intercom-installer', label: 'תצורת מערכת האינטרקום', href: '#/system/intercom-installer/platform', sub: true, keywords: 'קיבולת שלמות חלון תחזוקה תור תחזוקה שמירת אירועים webhook מפתח ייצוא ייבוא שינוי בכמה עמדות' },
-      { tab: 'intercom-installer', label: 'הגדרות טכניות של עמדה', href: '#/system/intercom-installer/technical', sub: true, keywords: 'שם דלת זמן פתיחה היפוך ממסר סיסמאות יכולות' },
       { tab: 'fleet-report', label: 'דיווח בריאות', href: '#/system/fleet-report', keywords: 'דוח יומי smplwise fleet צי קוד רישום חתימה שקט לא מדווחת מה נשלח' }, // CR-FLEET215 (readiness and demo mode: the readiness tab, READYFLEET-295)
       { tab: 'general', label: 'בריאות ועבודות', href: `${GEN}?tab=health`, keywords: 'דיאגנוסטיקה מצב רכיבים תור' },
       { tab: 'general', label: 'גיבוי ושחזור', href: `${GEN}?tab=backup`, keywords: 'backup restore שחזור קובץ zip' },
