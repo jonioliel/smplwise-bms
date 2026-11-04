@@ -120,10 +120,15 @@ DOOR_TECHNICAL = frozenset({
 # station user through its own sync - a device write). Same socket and identity as `service`; never a generic proxy.
 STATION_PEOPLE = frozenset({"stations/inventory", "users/data_quality", "users/duplicate_check", "users/pin_check",
                             "users/adopt", "users/ignore", "users/delete_unmanaged"})
+# WISKEY-PROFILES-EDIT-2390 (plan 2026-11-03 T8): the groups and profile fields editor (services/wiskey_profiles.py): WisKey's impact
+# preview and the apply of a reviewed policy (non-READ, `management: manage`, `api_contract` on both frames), the compare of two policy
+# versions and the group suggestions for one person (both READ). `profiles/settings_update` (the direct save without the review) is on
+# NO list. Same socket and identity as `service`, a guard of its own, so the service channel's write list stays the reviewed one.
+PROFILES = frozenset({"profiles/settings_preview", "profiles/settings_apply", "profiles/versions_compare", "users/group_suggestions"})
 
 ALLOWLISTS: dict[str, frozenset[str]] = {"background": BACKGROUND, "service": SERVICE, "read": READ, "technical": TECHNICAL, "messaging": MESSAGING,
-                                         "readback": READBACK, "pacing": PACING, "maintenance": MAINTENANCE, "door_technical": DOOR_TECHNICAL, "station_people": STATION_PEOPLE}
-ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing", "maintenance", "door_technical", "station_people")  # the guards the service session builds for the adapters (intercom_sync on_ready)
+                                         "readback": READBACK, "pacing": PACING, "maintenance": MAINTENANCE, "door_technical": DOOR_TECHNICAL, "station_people": STATION_PEOPLE, "profiles": PROFILES}
+ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing", "maintenance", "door_technical", "station_people", "profiles")  # the guards the service session builds for the adapters (intercom_sync on_ready)
 
 # Home Assistant's own frames a channel may send besides WisKey commands (the auth handshake is written by ha_client itself):
 # `get_config` tells "WisKey not loaded yet" from "not installed"; the service feed watches the stations' entities.
@@ -138,6 +143,7 @@ HA_FRAMES: dict[str, frozenset[str]] = {
     "maintenance": frozenset(),
     "door_technical": frozenset(),
     "station_people": frozenset(),
+    "profiles": frozenset(),
 }
 
 
@@ -181,4 +187,5 @@ def describe() -> dict[str, Any]:
         "maintenance": {"commands": sorted(MAINTENANCE), "in_use": True},
         "door_technical": {"commands": sorted(DOOR_TECHNICAL), "in_use": True},
         "station_people": {"commands": sorted(STATION_PEOPLE), "in_use": True},
+        "profiles": {"commands": sorted(PROFILES), "in_use": True},
     }
