@@ -115,6 +115,7 @@ export const LAZY_SCREENS: Readonly<Record<string, Loader>> = {
   'system-storage': () => import('../screens/system-storage'),
   'system-update': () => import('../screens/system-update'),
   'system-notifications': () => import('../screens/system-notifications'),
+  'system-wiskey-validation': () => import('../screens/system-wiskey-validation'), // WISKEY-LIVE-VALIDATION-2390
   'screens-index': () => import('../screens/screens-index'),
   'styleguide-screen': () => import('../screens/styleguide-screen'),
   'bubble-demo': () => import('../screens/bubble-demo'),

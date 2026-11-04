@@ -2845,6 +2845,7 @@ export class SwApp extends LitElement {
         if (s[1] === 'setup') return html`<system-setup></system-setup>`;
         if (s[1] === 'wizard') return html`<system-wizard></system-wizard>`;
         if (s[1] === 'readiness') return html`<system-readiness></system-readiness>`; // הגדרות › מוכנות (CR-READY96)
+        if (s[1] === 'wiskey-validation') return html`<system-wiskey-validation></system-wiskey-validation>`; // WISKEY-LIVE-VALIDATION-2390: הגדרות › בדיקת קבלה לעמדות
         if (s[1] === 'security') return html`<system-security .sub=${s[2] ?? ''} .panelId=${r.params.get('panel') ?? ''}></system-security>`;
         if (s[1] === 'storage') return html`<system-storage></system-storage>`;
         if (s[1] === 'update') return html`<system-update></system-update>`; // הגדרות › עדכונים (CR-021, system.update)

@@ -404,7 +404,7 @@ SPECS: dict[str, FeatureSpec] = {
     "door_automations": FeatureSpec("door_automations", ("automation",), True),
     "people_csv": FeatureSpec("people_csv", ("human",), False, needs_rows=True),
     "live_media": FeatureSpec("live_media", ("human",), True, media=True),
-    "live_validation": FeatureSpec("live_validation", ("human",), False),
+    "live_validation": FeatureSpec("live_validation", ("human",), True),  # WISKEY-LIVE-VALIDATION-2390: WisKey binds every step to a granted station (1..64 targets)
 }
 assert set(SPECS) == set(fx.FEATURES)
 
