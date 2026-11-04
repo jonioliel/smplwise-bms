@@ -12,6 +12,7 @@ import '../components/sw-card';
 import '../components/sw-icon';
 import '../components/wk-action-button';
 import '../components/wk-deep-links';
+import '../components/wk-station-maintenance'; // WISKEY-STATION-OPS-2390: the drawer's maintenance block (its own component)
 import type { TableColumn } from '../components/sw-table';
 import type { AccessStation, StationCodes, StationPrograms } from '../api/access-stations';
 import { callLogSection } from '../components/wk-call-history'; // WISKEY-INBOUND-CALLS-2382: the station's recent calls
@@ -408,6 +409,7 @@ function technical(v: ViewCtx, s: AccessStation): TemplateResult | typeof nothin
       ${s.errors?.scan_error ? html`<dt>${t.tech.scanError}</dt><dd><code>${s.errors.scan_error}</code></dd>` : nothing}
     </dl>
     <wk-deep-links place="station"></wk-deep-links>
+    <wk-station-maintenance .station=${s} ?live=${v.live}></wk-station-maintenance>
   </section>`;
 }
 
