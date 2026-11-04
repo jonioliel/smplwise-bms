@@ -25,7 +25,9 @@ HISTORICAL = ("signed_person_writes", "person_writes/resolve_create", "wiskey-si
               "wiskey-create-resolution-draft1", "signed_person_completion_read_v1", "person_create_resolution_v1")
 
 # sha256 of the canonical command catalog, computed on release/2200 @ 47ca1a2c0 BEFORE the cleanup
-CATALOG_SHA256 = "0fdcbd37b67f8506178c35a8aea233f0080a0ed5895259c7430aa16f7f1abafe"
+# (was 0fdcbd37b67f8506178c35a8aea233f0080a0ed5895259c7430aa16f7f1abafe; WISKEY-WA-QUEUE-2400 recomputed it after the ADDITIVE
+# `messaging_paced` channel {whatsapp/preview, whatsapp/send_pacing_v1} - no existing list changed)
+CATALOG_SHA256 = "6374182933549b31621891c30f57a751e9c1fbd3d131d2a50936463a7d7fb169"
 PEOPLE_CATALOG_FIXTURE_SHA256 = "92ffc92b384fe0f667b66221076cfaf6b8259ffb28dd50c4c8cc2d7f83cf5e68"
 MIGRATION_0145_SHA256 = "b0fb6fd086a47430fc170008f233d2aa753d8d2140bf8c7bebbe60ab74aefa3f"
 

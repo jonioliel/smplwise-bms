@@ -87,15 +87,21 @@ READBACK = frozenset({"users/access_state", "users/access_state_v2", "schedules/
 # only when WisKey's discovery (`overview.api.commands`) lists it (services/intercom_messaging_adapter.py `refresh_pacing`); it is on its own
 # channel so that the messaging channel stays exactly the pinned three and nothing else can ride the pacing guard.
 PACING = frozenset({"whatsapp/pacing_status_v1"})
+# WISKEY-WA-QUEUE-2400 (T12): WisKey's VERSIONED paced free-text send. `whatsapp/send_pacing_v1` takes the same token / text as
+# `whatsapp/send` and answers the closed `whatsapp_send_outcome_v1` (a not_sent with WisKey's own ledger delay, or an honest unknown).
+# Used only when the administrator opted in (`messaging.wa_installed` {send_pacing_v1}, default OFF) AND WisKey's discovery lists it;
+# `whatsapp/preview` rides along because the token it issues binds the send (same coroutine, same slot). Its own channel so the
+# `messaging` channel keeps exactly its three commands; additive: no existing list changes.
+MESSAGING_PACED = frozenset({"whatsapp/preview", "whatsapp/send_pacing_v1"})
 # WKDIRECT-295 (S6): the `media` channel of AVW10-295 is REMOVED. WisKey's six W10 commands are no channel's allow-list any more: they
 # leave Arx only as signed `bridge` envelopes (services/wiskey_media_bridge.py - the direct API or the signed Home Assistant path), never
 # as an unsigned frame on the feed's session. `W10_COMMANDS` names them so a test can prove no guard lets one through.
 W10_COMMANDS = frozenset(wiskey_media_contract.COMMANDS)
-UNPINNED_CHANNELS = frozenset({"readback", "pacing"})
+UNPINNED_CHANNELS = frozenset({"readback", "pacing", "messaging_paced"})
 
 ALLOWLISTS: dict[str, frozenset[str]] = {"background": BACKGROUND, "service": SERVICE, "read": READ, "technical": TECHNICAL, "messaging": MESSAGING,
-                                         "readback": READBACK, "pacing": PACING}
-ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing")  # the guards the service session builds for the adapters (intercom_sync on_ready)
+                                         "readback": READBACK, "pacing": PACING, "messaging_paced": MESSAGING_PACED}
+ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing", "messaging_paced")  # the guards the service session builds for the adapters (intercom_sync on_ready)
 
 # Home Assistant's own frames a channel may send besides WisKey commands (the auth handshake is written by ha_client itself):
 # `get_config` tells "WisKey not loaded yet" from "not installed"; the service feed watches the stations' entities.
@@ -107,6 +113,7 @@ HA_FRAMES: dict[str, frozenset[str]] = {
     "messaging": frozenset(),
     "readback": frozenset(),
     "pacing": frozenset(),
+    "messaging_paced": frozenset(),
 }
 
 
@@ -147,4 +154,5 @@ def describe() -> dict[str, Any]:
         "messaging": {"commands": sorted(MESSAGING), "in_use": True},
         "readback": {"commands": sorted(READBACK), "in_use": True},
         "pacing": {"commands": sorted(PACING), "in_use": True},
+        "messaging_paced": {"commands": sorted(MESSAGING_PACED), "in_use": True},
     }

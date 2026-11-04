@@ -5,6 +5,7 @@ import type { Page, Route } from '@playwright/test';
 import { installAccessMock, type AccessMock, type MockOptions } from './access-control-mocks';
 import { settingsProblems } from '../src/access-control/messaging-templates';
 import type { MessagingLimits } from '../src/api/access-messaging';
+import { installWaInstalled } from './wa-installed-mock';
 
 // CR-036 WA: the mock layer of the Settings page "הודעות" (Settings > access control > messages). The app runs for real; the rest of the
 // access-control reads are tests/access-control-mocks.ts's, and this adds the two routes of the page - GET and PUT
@@ -95,5 +96,6 @@ export async function installMessagingSettings(page: Page, opts: MockOptions = {
     };
     return json(route, reply());
   });
+  await installWaInstalled(page); // WISKEY-WA-QUEUE-2400: the installed-client card below the form (its own stateful mock)
   return { access, ms };
 }

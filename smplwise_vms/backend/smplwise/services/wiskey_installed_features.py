@@ -90,20 +90,37 @@ MIGRATION = "0194_wiskey_installed_features.sql"
 class TemplateJobs:
     """Arx's side of WisKey's durable queue: a local row BEFORE the enqueue leaves (so a lost answer is never enqueued again), then
     WisKey's job document. Only ids, states and codes are kept - never a phone number, a parameter value or a template body. The table
-    is migration 0194's (`MIGRATION`)."""
+    is migration 0194's (`MIGRATION`).
 
-    def __init__(self, conn: sqlite3.Connection) -> None:
+    WISKEY-WA-QUEUE-2400: `conn` may also be the application's `Database` (anything with `write_aside`): each write is then one short
+    write transaction of its own (no transaction and no write lock is held while WisKey answers) and each read a read connection. A raw
+    sqlite3 connection keeps the original behaviour (commit_now after each write)."""
+
+    def __init__(self, conn: Any) -> None:
         self.conn = conn
+        self._db = conn if hasattr(conn, "write_aside") and not isinstance(conn, sqlite3.Connection) else None
+
+    def _one(self, sql: str, args: tuple[Any, ...]) -> Any:
+        if self._db is None:
+            return self.conn.execute(sql, args).fetchone()
+        with self._db.connection(mode="read", label="wiskey template jobs read") as c:
+            return c.execute(sql, args).fetchone()
+
+    def _write(self, sql: str, args: tuple[Any, ...]) -> None:
+        if self._db is None:
+            self.conn.execute(sql, args)
+            commit_now(self.conn, keep_reading=False)
+            return
+        with self._db.write_aside(label="wiskey template jobs") as w:
+            w.execute(sql, args)
 
     def row(self, operation_id: str) -> dict[str, Any] | None:
-        r = self.conn.execute("SELECT operation_id, request_id, state, outcome, code FROM wiskey_template_jobs WHERE operation_id = ?",
-                              (operation_id,)).fetchone()
+        r = self._one("SELECT operation_id, request_id, state, outcome, code FROM wiskey_template_jobs WHERE operation_id = ?", (operation_id,))
         return None if r is None else dict(zip(("operation_id", "request_id", "state", "outcome", "code"), r))
 
     def _note(self, view: JobView) -> None:
-        self.conn.execute("UPDATE wiskey_template_jobs SET state = ?, outcome = ?, code = ?, updated_at = ? WHERE operation_id = ?",
-                          (view.state, view.outcome, view.code, _now(), view.operation_id))
-        commit_now(self.conn, keep_reading=False)
+        self._write("UPDATE wiskey_template_jobs SET state = ?, outcome = ?, code = ?, updated_at = ? WHERE operation_id = ?",
+                    (view.state, view.outcome, view.code, _now(), view.operation_id))
 
     async def enqueue(self, client: Any, template: Mapping[str, Any], *, ttl_s: int, template_id: str | None = None,
                       person_id: str | None = None) -> JobView:
@@ -116,17 +133,17 @@ class TemplateJobs:
             return JobView(op, seen["state"], seen["outcome"], seen["code"])
         try:
             now = _now()
-            self.conn.execute("INSERT INTO wiskey_template_jobs (operation_id, request_id, template_id, person_id, state, outcome, code, "
-                              "created_at, updated_at) VALUES (?, ?, ?, ?, 'unknown', 'unknown', 'enqueue_in_flight', ?, ?)",
-                              (op, req, template_id, person_id, now, now))
-            commit_now(self.conn, keep_reading=False)
+            self._write("INSERT INTO wiskey_template_jobs (operation_id, request_id, template_id, person_id, state, outcome, code, "
+                        "created_at, updated_at) VALUES (?, ?, ?, ?, 'unknown', 'unknown', 'enqueue_in_flight', ?, ?)",
+                        (op, req, template_id, person_id, now, now))
         except sqlite3.IntegrityError:
             # review M7: a concurrent enqueue of the same operation won the row - its record is the answer (never a false not_sent);
             # a request id recorded for ANOTHER operation leaves this one unknown
-            try:
-                rollback_now(self.conn)
-            except sqlite3.Error:
-                pass
+            if self._db is None:
+                try:
+                    rollback_now(self.conn)
+                except sqlite3.Error:
+                    pass
             seen = self.row(op)
             if seen is not None:
                 return JobView(op, seen["state"], seen["outcome"], seen["code"])

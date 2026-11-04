@@ -201,6 +201,33 @@ def send_template_v2(request: Request, auth: ia.Authority = Depends(base._gate),
     act = base._Act(request, auth, person_id)
     body: SendV2Body = act.parse(SendV2Body, raw)
     act.details.update(client_request_id=body.client_request_id, kind="template_v2", template_id=body.template_id)
+    ctx, message_id = admit_and_record(act, body)
+    tpl, account = ctx["tpl"], ctx["account"]
+    request_id, operation_id = flow.request_ids(body.client_request_id)
+    sender = flow.build_sender(act.db)
+    try:
+        result = sender.send_v2(template_id=tpl.id, account=account, account_key=f"wiskey:{account}", person_id=person_id,
+                                recipient_key=f"person:{person_id}", request_id=request_id, operation_id=operation_id,
+                                person_revision=ctx["revision"], window="unknown")
+        verdict = flow.verdict_of(result)
+    except Exception:  # noqa: BLE001 - after the record: an exception may be after the hand-over: unknown, never not_sent
+        base.log.warning("template v2: the send raised after the attempt was recorded")
+        verdict = flow.Verdict("unknown", "send_error")
+    M.finish_attempt(act.db, principal=act.principal, message_id=message_id, person_id=person_id, outcome=verdict.outcome,
+                     reason=verdict.code, request_id=act.rid, audit_details={**act.details, "result_version": contract.SCHEMA_VERSION})
+    if verdict.outcome != "sent":
+        raise _error_for_verdict(verdict)
+    return {**base._feed(act.settings), "message": {"id": message_id, "sent_at": M.iso(M.utc()), "outcome": "sent", "delivery": "unknown"}}
+
+
+def admit_and_record(act: base._Act, body: Any, before_record: Any = None) -> tuple[dict[str, Any], str]:
+    """The people-message admission of a template send, then the attempt row - shared by the v2 route above and the installed-client
+    route (routers/access_control_wa_queue.py, WISKEY-WA-QUEUE-2400) so both refuse exactly alike. `body` carries `confirmed`,
+    `template_id`, `preview_token` and `client_request_id`. Every refusal is an audited `denied` row (nothing recorded, nothing sent).
+    `before_record(ctx)` (optional) runs after every admission check and before the record: it may refuse (raise `act.refuse(...)`).
+    Returns (context, message id) once the attempt is recorded."""
+    person_id = act.person_id
+    auth = act.auth
     if body.confirmed is not True:
         raise act.refuse(ApiError(409, "confirmation_required", "שליחת הודעה דורשת אישור מפורש."))
     cfg = M.read_settings(auth.conn)
@@ -222,6 +249,8 @@ def send_template_v2(request: Request, auth: ia.Authority = Depends(base._gate),
     if body.preview_token != ctx["token"]:
         raise act.refuse(ApiError(409, "template_v2_preview_stale", "התבנית או כרטיס האדם השתנו מאז התצוגה המקדימה. הסתכלו שוב ואשרו.", details={"reason": "preview_token"}))
     act.details.update(template_revision=tpl.wiskey_revision)
+    if before_record is not None:
+        before_record(ctx)
     try:  # the attempt is recorded BEFORE anything is handed on: no record, no message
         message_id = M.begin_attempt(
             act.db, principal=act.principal, person_id=person_id, kind="template", template_id=tpl.id, template_label=tpl.name[:128],
@@ -229,18 +258,4 @@ def send_template_v2(request: Request, auth: ia.Authority = Depends(base._gate),
             request_id=act.rid, cfg=cfg, audit_details=dict(act.details), phone=person.get("phone"), station_ids=ia.person_station_ids(person))
     except ApiError as exc:
         raise act.refuse(exc) from None
-    request_id, operation_id = flow.request_ids(body.client_request_id)
-    sender = flow.build_sender(act.db)
-    try:
-        result = sender.send_v2(template_id=tpl.id, account=account, account_key=f"wiskey:{account}", person_id=person_id,
-                                recipient_key=f"person:{person_id}", request_id=request_id, operation_id=operation_id,
-                                person_revision=ctx["revision"], window="unknown")
-        verdict = flow.verdict_of(result)
-    except Exception:  # noqa: BLE001 - after the record: an exception may be after the hand-over: unknown, never not_sent
-        base.log.warning("template v2: the send raised after the attempt was recorded")
-        verdict = flow.Verdict("unknown", "send_error")
-    M.finish_attempt(act.db, principal=act.principal, message_id=message_id, person_id=person_id, outcome=verdict.outcome,
-                     reason=verdict.code, request_id=act.rid, audit_details={**act.details, "result_version": contract.SCHEMA_VERSION})
-    if verdict.outcome != "sent":
-        raise _error_for_verdict(verdict)
-    return {**base._feed(act.settings), "message": {"id": message_id, "sent_at": M.iso(M.utc()), "outcome": "sent", "delivery": "unknown"}}
+    return ctx, message_id

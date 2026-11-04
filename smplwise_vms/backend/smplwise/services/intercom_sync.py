@@ -1428,6 +1428,7 @@ class IntercomSync:
         project: Callable[[Any], dict[str, Any]],
         who: str,
         not_after: datetime.datetime | None = None,
+        channel: str = "messaging",
     ) -> tuple[dict[str, Any], str]:
         """CR-036 WA: one WhatsApp send (WisKey `whatsapp/preview` + `whatsapp/send` in ONE coroutine, so both ride the same slot and
         the same token) in the message lane, on the `messaging` channel's guard - never queued, never retried. Unlike `action` it
@@ -1435,7 +1436,9 @@ class IntercomSync:
         (nothing reached WisKey), `refused` (WisKey answered with a proven pre-effect refusal, code in `reply["last_error"]`) or
         `unknown` (sent, no usable answer: timeout, a dropped session, or a code that may come after the provider call) - because
         the caller (services/intercom_messaging.py) has its own table of what each WisKey code means for a message."""
-        return self._execute(settings, key, send, project, who, MESSAGE_TIMEOUT_S, lane="message", not_after=not_after, channel="messaging")
+        if channel not in ("messaging", "messaging_paced"):  # WISKEY-WA-QUEUE-2400: only the two message channels ride the message lane
+            raise ValueError(f"not a message channel: {channel!r}")
+        return self._execute(settings, key, send, project, who, MESSAGE_TIMEOUT_S, lane="message", not_after=not_after, channel=channel)
 
     def capture_read(
         self,
