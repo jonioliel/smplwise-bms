@@ -362,16 +362,33 @@ of the gate was touched; that 40 s `tsc` may have added to the gate's load (it r
 
 1. **Owner question - the camera wall's phone toolbar** (8.5): (a) keep the two-row bar (whole labels, DROPDOWNFIT-295) and set the
    spec's bound to two rows; (b) one row again with shorter labels or icon-only selects (a design change of the bar); (c) leave as is.
-2. **TTS-DEFAULT-ENGINE on the runner** - see 8.8.
+2. **SR-1 program-write pin** - known red until main v2.39.1 is merged (8.9).
 3. Main will become v2.39.1 (`fix/BRIDGE-STALE-DISCOVERY-2383`); it is merged here only when the coordinator says so.
    `pilot/VIDEO-TRANSPORT-2400` comes later.
 4. NOT_RUN: the full backend suite, the full unit sweep (432 files), `layout-access-s12` (TTS NOT_RUN), the release gate,
    `build:addon`, Windows pixel baselines, any lab / WisKey / station / Home Assistant / device contact (none allowed).
    `management/tasks.json` / `test_catalog.json` not edited.
 
-### 8.8 TTS-DEFAULT-ENGINE-2400 on the runner
+### 8.8 TTS-DEFAULT-ENGINE-2400 on the runner (after the hotfix gate had ended)
 
-NOT_RUN yet: the hotfix gate is running on the runner. To run when it has ended: `pixel-access-s12` (its re-taken desktop 1440
-display / parity images were taken on a train without the "בקרת כניסה" group and show the settings column, so they are expected to
-need a re-take), `pixel-wiskey-stations`, `pixel-wiskey-station-media`, `visual-matrix` without refresh; `evidence-tts-default-2400`,
-`evidence-access-s12`, `evidence-wxmedset`, `evidence-wiskey-stations` (`spec` job).
+Runner re-checked before each job: `gate_status.json` `fail` (the hotfix gate of `fix/BRIDGE-STALE-DISCOVERY-2383` had finished
+12:45 UTC), no `release_gate` process, 105-106 GB free.
+
+| Job | SHA | Result |
+|---|---|---|
+| Pixel **without** refresh: `pixel-access-s12`, `pixel-wiskey-stations`, `pixel-wiskey-station-media`, `visual-matrix`, desktop + mobile + tablet, workers 1 (`preview`) | 82598a1fe | **131 passed, 28 skipped, 0 failed** |
+| `spec` job: `evidence-tts-default-2400`, `evidence-access-s12`, `evidence-wxmedset`, `evidence-wiskey-stations`, desktop + mobile + tablet | 82598a1fe | **181 passed, 53 skipped, 0 failed** |
+
+TTS' nine re-taken `pixel-access-s12` images hold on the merged train without a re-take: the display / parity / checklist images are
+screenshots of the card element (`page.locator(target)`), not of the page, so the new settings-column group does not reach them (the
+one full-page S12 image, `s12-classic-audit-person-1440`, was re-taken in `2cec97a47`). No baseline re-taken for TTS.
+
+### 8.9 Known red: `test_fake_doorwin_closed_rule_sr1.py::test_program_writes_are_pinned`
+
+Run on the train @ 82598a1fe (workstation, `.venv`): 4 passed, **1 failed** - the program-write sites differ from `ENGINE_WRITES` by
+exactly four pairs, all from main v2.39.0 (WISKEY-DOOR-TECH-2390): `services/wiskey_channels.py` and `services/wiskey_door_tech.py` x
+`stations/technical_program_save` / `stations/technical_program_action`. Coordinator 04.11: the lead reviewed them against SR-1; the
+test-only fix is `613f4b0ef` on `fix/BRIDGE-STALE-DISCOVERY-2383` and arrives with main v2.39.1 (merged here when the coordinator says
+so; not cherry-picked). None of the eight 2.40.0 branches adds a `technical_program_save` / `technical_program_action` site (WXD10's
+`door_conversion.py` included), and the file's other four pins (open sites, Home Assistant lock-service sites, timer-shaped modules)
+pass, so no `ENGINE_WRITES` entry is owed by this train.
