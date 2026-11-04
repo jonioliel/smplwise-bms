@@ -81,6 +81,14 @@ ENGINE_WRITES: frozenset[tuple[str, str]] = frozenset({
     # selects them (`join.selected(name)`) and whether the catalog lists them; it never calls them (its only call is `features/status`).
     ("smplwise/services/wiskey_selected_readonly.py", "stations/technical_program_save"),
     ("smplwise/services/wiskey_selected_readonly.py", "stations/technical_program_action"),
+    # WISKEY-DOOR-TECH-2390 (owner Q5 = a of 2026-11-03; reviewed against SR-1 in BRIDGE-STALE-DISCOVERY-2383): the stations drawer's door
+    # program save / pause / remove - a system administrator's explicit action, confirmed, audited, sent once, never queued or retried;
+    # `enabled` hands the hold-open windows to WisKey itself, so no Arx timer opens a door. wiskey_channels.py only lists the two
+    # commands in the closed `door_technical` guard (what may be sent), it never calls them. Neither module is timer-shaped.
+    ("smplwise/services/wiskey_door_tech.py", "stations/technical_program_save"),
+    ("smplwise/services/wiskey_door_tech.py", "stations/technical_program_action"),
+    ("smplwise/services/wiskey_channels.py", "stations/technical_program_save"),
+    ("smplwise/services/wiskey_channels.py", "stations/technical_program_action"),
 })
 TIMER_SHAPED = re.compile(r"(^door_windows_watch|_watch$|watchdog|scheduler|_tick$|_ticker$|_jobs?$|^notify_sources$)")
 

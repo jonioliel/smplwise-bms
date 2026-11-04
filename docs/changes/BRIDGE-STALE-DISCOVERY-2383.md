@@ -205,3 +205,12 @@ Arx לא מעתיק את הגשר בהתקנה ידנית. כשנוח, העתי�
 
 Revert the branch commits. The two new settings rows are ignored by an older Arx; a bridge 0.10.3 entry keeps working with an older Arx
 (the ping it sends is the existing one).
+
+## 8. Release gate receipt (2.39.1)
+
+Gate 2 of `2affd5834` (fast tier, 67 min): one failure, `tests/test_fake_doorwin_closed_rule_sr1.py::test_program_writes_are_pinned`, and
+it fails on main v2.39.0 as well. The SR-1 pin of door-program write sites did not list the four sites WISKEY-DOOR-TECH-2390 added in
+2.39.0 (`wiskey_door_tech.py` sends `technical_program_save` / `_action`; `wiskey_channels.py` lists them in the closed `door_technical`
+guard). Reviewed by the lead against SR-1: an administrator's confirmed, audited, single-shot action from the stations drawer, no
+Arx timer, neither module timer-shaped; the pin now lists them (test-only change). The 2.39.0 gates did not select this whole-package
+scanner test (a selection miss, which the nightly full tier on main covers).
