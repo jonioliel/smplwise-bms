@@ -1,0 +1,229 @@
+# RELEASE-2400-TRAIN: assembly of the 2.40.0 train (WisKey installer, operations, conflicts, access diagnostics, event cursor, WhatsApp queue; wall and round-4 leftovers)
+
+Branch `release/2400-train`, cut from `origin/release/2390-train` @ `bee36c9e6` (the 2.39.0 train, itself on the 2.38.2 train; both still
+being finalised by their own owners - nothing was pushed to them). No version bump (every version line stays 2.38.1, the base's), no
+changelog entry, no UI rebuild (`smplwise_vms/www` is still 2.38.1's), no tag, no merge to `main`. This document is the input for the
+version commit and the runner gate.
+
+## 1. Merged (one `--no-ff` merge commit each, in this order)
+
+| # | Branch (change doc in `docs/changes/`) | Tip | Cut from | Merge commit | Conflicts |
+|---|---|---|---|---|---|
+| 1 | `pilot/WISKEY-INSTALLER-NATIVE-2400` - installer tools, channel `installer`, settings area "התקנה ותחזוקת מערכת האינטרקום" | 2a854b2a5 | main v2.38.0 | b916a04fb | channels (3 files), `main.py` |
+| 2 | `pilot/WISKEY-OPS-VIEWS-2400` - operations and fleet views, channel `operations`, migration **0200**, settings area "תפעול האינטרקום" | 01a092fd5 | 2.38.2 train | 452b01501 | channels (3), `main.py`, `nav.ts`, `sw-app.ts`, `lazy-screens.ts`, `unit-wiskey-deeplinks` |
+| 3 | `pilot/WISKEY-EVENT-CURSOR-2400` - gap-free door events across restarts, migration **0201** | dea002ed4 | 2.38.2 train | 90f3e0cf8 | none |
+| 4 | `pilot/WISKEY-CONFLICTS-2400` - conflicts and fleet alerts acted on in Arx, channel `triage`, migration 0198 -> **0202** | a1c684b44 | 2.38.2 train | aa33b33f3 | channels (3), `main.py`, shell (3), `deep-links.ts`, `wk-deep-links.ts`, deep-link specs (2), 2 PNG |
+| 5 | `pilot/WISKEY-ACCESS-DIAG-2400` - "אבחון הרשאות", channels `diagnostics` + `access_review`, migration 0198 -> **0203** | f2274279a | 2.38.2 train | cad0bfc88 | channels (3), `main.py`, shell (3), `deep-links.ts`, deep-link specs (2), 2 PNG |
+| 6 | `pilot/WALL-FOLLOWUPS-2390` - wall desktop mode, foldable detection | 4410f031c | main v2.38.1 | e6e74c5fb | none |
+| 7 | `pilot/ROUND4-LEFTOVERS-2390` - WP9 (WisKey area) and calendars D22 | 864df4640 | 2.38.2 train | 51044acd5 | none |
+| 8 | `pilot/WISKEY-WA-QUEUE-2400` - WhatsApp completion on the installed WisKey client, channel `messaging_paced` (coordinator 04.11: merge it) | 7b57898de | 2.38.2 train | 57ecaa6c8 | channels (3), `contracts/API_INVENTORY.md` |
+
+Train commits on top:
+
+| Commit | Kind | What |
+|---|---|---|
+| f21342be3 | product (deep links) + stale specs | installer natives replace the Q7 bridges (1.2); five specs follow (2.1) |
+| 718ad0bee | generated | API inventory 1771 -> 1837 routes (3) |
+| 370111535 | **product fix** | the merged screens pass the source lints (2.2) |
+| 7b21f5bcc | **product fix** + stale spec | the settings column keeps fitting: installer entries search-only (2.3) |
+| 6e1f891f9 | baselines | 16 PNG re-taken on the merged UI (5) |
+| a792c1901 | stale spec (security pin) | the signing-caller pin knows the event resume sender and the WhatsApp queue (2.4) |
+| 94a3501c7 | baselines | 2 `pixel-access-status` forbidden PNG re-taken (5) |
+| (this document) | docs | RELEASE-2400-TRAIN |
+
+### 1.1 Conflict resolutions
+
+- **`services/wiskey_channels.py`** (1, 2, 4, 5, 8): every branch adds closed allow-lists on the same lines. All kept, in merge order
+  after the 2.39.0 train's five: constants `INSTALLER`, `OPERATIONS`, `TRIAGE`, `DIAGNOSTICS`, `ACCESS_REVIEW`, `MESSAGING_PACED` (each with
+  its comment), one `ALLOWLISTS` and one `ADAPTER_CHANNELS` (`read, technical, messaging, readback, pacing, maintenance, door_technical,
+  station_people, profiles, schedules, installer, operations, triage, diagnostics, access_review, messaging_paced`), `HA_FRAMES` and
+  `describe()`. WA-QUEUE's `UNPINNED_CHANNELS` gains `messaging_paced`; its second definition (a "both" side) was removed so there is one.
+  `platform/capacity` sits on both `installer` and `operations` (OPS-VIEWS: "one command on two guards is fine").
+- **`tests/test_wiskey_channels.py`**: the adapter-channel tuple and the live-guard map list all sixteen, same order.
+- **`tests/test_pwclean_295.py`**: the 2.39.0 train's rule kept - one `ADDED_AFTER_CLEANUP` tuple entry per channel and branch, left out of
+  the catalog, the ORIGINAL pre-cleanup hash `0fdcbd37...abafe` stays. Each branch had done it its own way and each is replaced by an entry:
+  INSTALLER `k != "installer"`; OPS-VIEWS `CATALOG_SHA256_WITH_OPERATIONS` (`b9ae08da...5ac59`) + `ADDED_CHANNELS` + a second assert;
+  CONFLICTS a second `ADDED_AFTER_CLEANUP = frozenset({"triage"})` that **auto-merged** above the function and would have shadowed the
+  tuple (removed); ACCESS-DIAG an inline `("diagnostics", "access_review")` (two entries); WA-QUEUE a recomputed `CATALOG_SHA256`
+  (`63741829...fb169`). The branches' own values are recorded in the comment.
+- **`main.py`**: the train's station-ops / profiles / schedule-writes / station-people routers plus `access_control_triage`,
+  `access_control_diag`, `wiskey_installer`, `access_control_ops` (and WA-QUEUE's `access_control_wa_queue`, auto-merged): all mounted.
+- **Shell** (`shell/nav.ts` `TAB_PERMISSIONS`, `INSTALLATION_ONLY_HREFS`, `wiskeyActiveTab`; `shell/sw-app.ts`; `shell/lazy-screens.ts`):
+  every side kept - `intercom-installer`, `intercom-operations` (settings), `profiles`, `conflicts` / `alerts`, `access-diag` (WisKey area).
+- **`wiskey/deep-links.ts`**: OPS-VIEWS' native `health.fleet` (capacity view, label "קיבולת ומגמות של העמדות") with CONFLICTS' native
+  `alerts.act` and new `conflicts.resolve`; `DeepLinkViewer` keeps both `canInstallation` (OPS) and `area` (CONFLICTS) and `deepLinksFor`
+  applies both rules; `PLACES.stations` = CONFLICTS' two + ACCESS-DIAG's `access.scenario` / `stations.permission_audit`.
+  `components/wk-deep-links.ts` passes `canInstallation` and `area`.
+- **Deep-link specs** (`unit-wiskey-deeplinks`, `evidence-wiskey-deeplinks`): the expectations of all branches combined.
+- **Migrations**: see 3.
+- **Pixel baselines**: `pixel-wiskey-deeplinks` `deeplinks-classic-stations-menu-{1440-desktop,390-mobile}` were changed by OPS-VIEWS,
+  CONFLICTS and ACCESS-DIAG; the train's side was kept at both merges and they were re-taken on the runner (5).
+  WA-QUEUE's re-taken `pixel-wiskey-messaging` `settings-classic-errors-1440` merged without a conflict (the 2.39.0 train had not
+  touched that one image); it is checked in the no-refresh run.
+- **`contracts/API_INVENTORY.md`** (8): train's side, then regenerated (3).
+- **Nothing from the base reverted**: a script compared, for every merge, each line the merge removed from the train with the lines the
+  merged branch removed from its own merge base. The only extra removals are the train's union lines (the channel tuples / lists, the
+  pwclean comment, `INSTALLATION_ONLY_HREFS`, the combined deep-link expectations and `PLACES.stations`, `wk-deep-links` viewer). EVENT-CURSOR,
+  WALL-FOLLOWUPS (cut from main 2.38.1, 120 commits behind) and ROUND4: 0 extra removed lines.
+
+### 1.2 Deep links registered (`f21342be3`)
+
+`frontend/src/wiskey/deep-links.ts` - INSTALLER-NATIVE asked for these "once the link map merges":
+
+| Capability | Native route | Need | Was |
+|---|---|---|---|
+| `clock.settings` | `#/system/intercom-installer/clock` | `system.configure` at the installation | Q7 bridge `tools/clock_options` |
+| `stations.technical` (label "הגדרות טכניות של עמדה") | `#/system/intercom-installer/technical` | same | Q7 bridge `devices` tab |
+| `stations.lifecycle` (new, row 50, label "הוספה והסרה של עמדות אינטרקום", on the stations screen) | `#/system/intercom-installer/lifecycle` | same | - (panel target `tools/platform_center`) |
+| `platform.center` (label "תצורת מערכת האינטרקום") | `#/system/intercom-installer/platform` | same | Q7 bridge `tools/platform_center` |
+
+The Q7 bridges are retired; `BRIDGED` is `schedules.edit` (Q4) only. OPS-VIEWS keys (`operations.center`, `operations.investigations`,
+`events.report`, `health.fleet`, `audit.panel`), CONFLICTS (`alerts.act`, `conflicts.resolve`) and ACCESS-DIAG (`access.reviews`,
+`access.compare`, `people.quality`, `access.scenario`, `stations.permission_audit`) came registered from their branches and are kept.
+The panel addresses stay in every entry (`deepLinkHref`). The installer tools live in Settings, so they stay when the WisKey area is
+hidden (CONFLICTS' area rule hides only natives under `#/wiskey/`).
+
+## 2. Failures found and fixed
+
+### 2.1 Specs made stale by the merges (`f21342be3`, spec only)
+
+| Spec | Why stale | Change |
+|---|---|---|
+| `unit-wiskey-deeplinks` | four natives more (1.2), `BRIDGED` | installer map, places, `BRIDGED = [schedules.edit]`, an installer describe |
+| `unit-intercom-ops` "every native deep link points at a tab of this screen" | written when only OPS had natives; profiles (2.39.0), triage, access-diag and installer natives have their own routes | checks only links under `#/system/intercom-operations/` |
+| `unit-wiskey-triage-2400` (area hidden) | expected no native at all; the area rule only hides natives under `#/wiskey/`, the Settings views stay | expects the installer and capacity links |
+| `unit-wiskey-access-diag` | OPS' capacity view also follows `access.read` and joins the stations menu | expects `health.fleet:native` first |
+| `evidence-wiskey-deeplinks` | stations list (+ lifecycle); the drawer's clock / technical links are native, so the "a tool link opens the tool" check clicks the panel's sync tab; the station-settings link now opens `#/system/intercom-installer/technical`; hidden-area list keeps the installer tools | as said |
+
+### 2.2 Source lints over the merged screens (`370111535`, product fix)
+
+The full unit run (432 files, explicit lists in 5 batches) failed 3 specs; none of the branches ran them over all of `src`:
+
+| Spec | Defect | Fix |
+|---|---|---|
+| `unit-date-format-module` (DATEFMT60-295) | `installer-platform.ts`: the maintenance window's 2 time inputs without the Hebrew `lang` | `lang=${dateInputLang()}` |
+| `unit-empty-state-icons` | 8 empty `sw-state-panel`s without a topical icon (`installer-technical`, `system-intercom-installer`, 6 in `system-intercom-ops`) | `door`, `wrench`, `wrench` / `door` / `activity` / `list` / `history` / `users` |
+| `unit-token-lint` (radius scale) | `system-intercom-ops.ts` meter bar and fill: `border-radius: 4px` on an 8 px bar | `var(--sw-r-pill)` (same shape) |
+
+### 2.3 The settings column scrolled (`7b21f5bcc`, product fix + stale spec)
+
+`layout-settings-nav-fit-402` (owner decision 402: the settings column never scrolls) failed on the merged tree: the "מערכת ותשתית"
+group needed 866 px for 852 at 1440x900 (workstation render). INSTALLER-NATIVE (cut from main) added a top-level row to the group that
+OPS-VIEWS had already found full (7 px over with one more row, so OPS made its entries search-only). The installer's five entries are
+now search-only sub-entries right after OPS' entries, under the access-control screen (`ownTabs`); the shell's tab row ("התקנת
+האינטרקום") and the deep links reach the tools. `unit-settings-index` "every top-level settings tab has an entry" knows the two
+search-only tabs - it already failed since OPS-VIEWS (that branch did not run it). Owner question 6.1. On the runner (evidence run @ 94a3501c7) the
+layout spec passed at 1440x900 and 1366x768.
+
+### 2.4 The signing-caller pin (`a792c1901`, stale spec - security review asked)
+
+The runner's backend run @ 6e1f891f9 failed 1 test: `test_t06_admission_295::test_the_only_modules_that_reach_a_signing_call_are_the_known_ones`.
+Two new modules reach the signing seam and neither branch ran the pin: `wiskey_event_resume.py` (EVENT-CURSOR: `BridgeSigner.command_proof`
+of `events/resume_v1` {cursor, limit} on the service feed's socket, its own one-command sender) and `wiskey_wa_queue.py` (WA-QUEUE:
+`port.call` over the direct join's signed port, only while the join selects the command). Both added to the pinned set with their reasons,
+and a new test pins by name what each may send (`events/resume_v1`; `DIRECT_COMMANDS` = template registry / enqueue / job / cancel /
+send_v3, the paced send not among them - it is the `messaging_paced` channel). The admission decision is the branches' (their change docs
+2.2 / 2.1); `docs/changes/T06-ADMISSION-MAPPING-295.md` was not edited: the lead's review (6.2).
+
+### 2.5 Not product faults, recorded
+
+- `evidence-settings-cards-2380` (20 tests, desktop / tablet / mobile) failed in the `preview` job: the spec imports `/src/api/session.ts`
+  at run time, which only a vite dev server serves. In the `spec` job (dev server) on the runner: 20 passed, 4 skipped. A harness
+  choice, not a defect; the 2.39.0 train's list did not hold this spec.
+- A unit run rewrites 18 `docs/evidence/USR2/*.png` files on the workstation as a side effect; restored with `git checkout` after each run
+  (not committed).
+- Kept from the branches: the floating shell pill over the lifecycle wizard card's corner in `installer-lifecycle-wizard-card-390` is the
+  same in the old and new image (INSTALLER-NATIVE's own baseline).
+
+## 3. Migrations, release check, API inventory
+
+Map (file -> train number):
+
+| Branch | Built as | Train | File |
+|---|---|---|---|
+| 2.39.0 train (PEOPLE-COMPLETE) | 0198 | 0198 | `0198_wiskey_station_people.sql` (unchanged) |
+| 2.39.0 train (LIVE-VALIDATION) | 0199 | 0199 | `0199_wiskey_live_validation.sql` (unchanged) |
+| OPS-VIEWS | 0200 | 0200 | `0200_wiskey_capacity_samples.sql` (unchanged) |
+| EVENT-CURSOR | 0201 | 0201 | `0201_wiskey_event_cursor.sql` (unchanged) |
+| CONFLICTS | 0198 | **0202** | `0202_wiskey_conflict_reviews.sql` (`git mv`; header and the two references in `services/wiskey_triage.py` follow) |
+| ACCESS-DIAG | 0198 | **0203** | `0203_wiskey_access_review_decisions.sql` (`git mv`; header follows) |
+
+Both renumbered files depend on nothing but their own tables (no code names a migration number; tests read the tables). INSTALLER,
+WALL, ROUND4 and WA-QUEUE add no migration. The branch change docs keep their own numbers as written (history).
+
+- `scripts/release_check.py` (project venv) @ 94a3501c7: `migrations contiguous: 203 files, last 0203_wiskey_access_review_decisions.sql`,
+  one version 2.38.1 everywhere (incl. the API inventory), RESULT: ready for the owner's approval (the 2.40.0 version commit is not part
+  of this train).
+- `test_migrations_263_upgrade` (contiguous and final), `test_wiskey_s5_migration_upgrade` (0192..0196 once each, then every later file
+  once), `test_migrations`, `test_db_gate`, `test_db_template`, `test_release_check`: passed on the workstation and on the runner (4).
+- `contracts/API_INVENTORY.md` regenerated with `scripts/api_inventory.py` (project venv): **1837 routes** (1771 + 66: INSTALLER +33,
+  ACCESS-DIAG +12, OPS-VIEWS +10, WA-QUEUE +6, CONFLICTS +5); none removed; version line 2.38.1.
+
+## 4. Receipts
+
+Runner jobs: `private/runner/run_smart.py <job> release/2400-train ... --machine=runner` from the train worktree. Before **every** job:
+`~/smplwise-results/gate_status.json` not `running`, no `release_gate` process, `df -h /` >= 30 GB free (83 / 80 / 72 / 76 / 73 / 73 GB
+seen). When the train was ready the nightly `release_gate.py main --tier L` was running (started 02:21 UTC); no runner job was started
+until it had ended (06:19 local). The runner worktree `~/work/release-2400-train` is this train's only; the backend job and the pixel
+job ran together at the same SHA (6e1f891f9). `.tmp_*` removed after the runs (4.3 GB, then 640 MB).
+
+| Check | Where / SHA | Result |
+|---|---|---|
+| `tsc --noEmit -p tsconfig.json` | workstation @ the merged tree + f21342be3 | 0 errors |
+| the same | workstation @ 94a3501c7 | 0 errors |
+| Unit: the deep-link / triage / ops / access-diag specs (4 files) | workstation @ f21342be3 | 61 passed |
+| Unit: every `tests/unit-*.spec.ts` (432 files, explicit lists, 5 batches, `--workers=2`) | workstation @ 718ad0bee | 3968 passed, 8 skipped, **4 failed** (2.2, 2.3) |
+| Unit: the 4 failed + neighbours (8 files) | workstation @ the fixes | 69 passed |
+| Unit: every `tests/unit-*.spec.ts` again (432 files, 5 batches) | workstation @ 94a3501c7 | **3972 passed, 8 skipped, 0 failed** |
+| `layout-settings-nav-fit-402` + `layout-settings-nav-295`, desktop, local vite dev | workstation @ 718ad0bee / after 7b21f5bcc | 1 failed (866 > 852) / **3 passed**, 4 skipped |
+| Backend targeted (18 files: the 9 new suites, channels, pwclean, migrations x3, release check, pairing, notify core, wall) | workstation @ 718ad0bee, project venv | **330 passed, 3 skipped** (20 min) |
+| Pixel `--update-snapshots=changed`: `pixel-wiskey-deeplinks`, `evidence-intercom-ops`, `evidence-wiskey-installer`, desktop + mobile, workers 1 | runner @ 7b21f5bcc | 92 passed; **16 PNG** written (5) |
+| Pixel **without** refresh: all 25 `pixel-*` + `evidence-intercom-ops` + `evidence-wiskey-installer` + `visual-matrix`, desktop + mobile + tablet, workers 1 | runner @ 6e1f891f9 | 483 passed, 340 skipped, **2 failed** (`pixel-access-status` forbidden 1440 / 390) |
+| Backend targeted (51 files: the 9 new suites; wall / wall alerts / kiosk; notify core; pairing; channels, pwclean, contract, adapter, authority, wire, fake WisKey x2; messaging: eccact readback, pacing coverage, tplv2, adopt-2272 features + contrib, rc10 pin, W11 template send, intercom messaging x2, consent link, owner26 callers, wkjoin, registry startup; migrations x3, db gate, db template, release check; capabilities, guard-first, T06 admission; the 2.39.0 suites station ops, door tech, station people, profiles, schedule writes, live validation; backup) | runner @ 6e1f891f9 | 1454 passed, 4 skipped, 3 xfailed, **1 failed** (2.4), 25 min |
+| Pixel `--update-snapshots=changed`: `pixel-access-status`, desktop + mobile | runner @ a792c1901 | 14 passed; 2 PNG written (5) |
+| Evidence + regression, `preview`, desktop + mobile + tablet (35 specs: the merged branches' evidence specs - triage, access-diag, wall follow-ups, presence round 16, WA installed, messaging settings, layout messaging, deep links; nav fit, nav 295, calendars nav, nav size; pairing; stations, stations layout, station ops, people, people native, people writes, people layout, station people; messaging; wall, wall plan, wall phone, wall alerts; calendars views / manage / settings; settings cards; switch-UI; live validation; talk dial; incoming call - and `pixel-access-status` without refresh) | runner @ 94a3501c7 | 864 passed, 571 skipped (project skips), **20 failed** - all `evidence-settings-cards-2380` (2.5) |
+| `evidence-settings-cards-2380`, `spec` job (dev server), desktop + mobile + tablet | runner @ 94a3501c7 | **20 passed, 4 skipped** |
+| Backend after the pin (T06 admission, channels, pwclean, event cursor, WA queue, release check) | runner @ 94a3501c7 | **193 passed, 3 skipped, 3 xfailed** |
+| `scripts/release_check.py` | workstation @ 94a3501c7 | ready (3) |
+
+WA-QUEUE's final head (`48c80cb81`, not re-run on its branch because of the nightly gate): its evidence specs
+(`evidence-wa-installed-2400`, `evidence-wiskey-messaging-settings`, `layout-wiskey-messaging`) passed in the evidence run, and
+`pixel-wiskey-messaging` (incl. its re-taken `settings-classic-errors-1440`) passed without refresh in the pixel run, on the merged train.
+
+## 5. Baseline review (18 PNG)
+
+Every rewritten PNG was compared with HEAD as old / new / difference sheets and crops of the changed region.
+
+- `pixel-wiskey-deeplinks` stations-menu 1440 / 390 (the conflicted pair): the merged menu with 8 links - technical settings and
+  lifecycle (native, chevron), sync (panel, window icon), conflicts, alerts, capacity, "האם יכול לפתוח את הדלת עכשיו", station audit.
+  On the phone the list stays inside the screen.
+- `pixel-wiskey-deeplinks` drawer 1440 / 390: same four links; technical settings ("הגדרות טכניות של עמדה") and clock are native now.
+- `evidence-intercom-ops` empty 1440 / 390: the empty state's icon is the topical `list` instead of the preset (2.2); overview 1440: the
+  settings tab row holds the installer tab too and is scrolled one tab further.
+- `evidence-wiskey-installer` clock / lifecycle / platform / technical 1440: the settings column marks "בקרת כניסה" (the installer row is
+  search-only, 2.3) and the tab row holds the operations tab; 390: the tab strip shows its scroll arrow. Lifecycle wizard card 390: the
+  card is captured whole (the old image had the shell's top band over its first 78 px).
+- `pixel-access-status` forbidden 1440 / 390: the persona without the status page holds `access.read` at the installation, so it now sees
+  OPS-VIEWS' "תפעול האינטרקום" tab and the "מערכת ותשתית" group; the forbidden card is unchanged (moved down with the header).
+- Not moved (no-refresh run): stations, station media, people, people writes, messaging (incl. WA-QUEUE's re-taken image), schedules,
+  schedule writes, door tech, talk dial, incoming call, access events / S12, triage, access diag, wall plan, wall follow-ups, round-4
+  leftovers, the other pixel specs and the visual matrix.
+
+## 6. What remains
+
+1. **Owner question - the installer's place in the settings column** (2.3): (a) keep it search-only under "בקרת כניסה" (as now, like
+   the operations views); (b) a top-level row, and the column gets denser at 1440x900 (a design change of the column); (c) another group.
+2. **Lead review - the two new signing callers** (2.4): admission rows for `events/resume_v1` and the WA queue's five template
+   commands in `docs/changes/T06-ADMISSION-MAPPING-295.md` (the pin test now names them; the mapping document was not edited).
+3. The deep-link list's heading still says "פתיחה בחלון האינטרקום" although most entries in the stations menu and the drawer are native
+   now (cosmetic; owner / design call).
+4. `schedules.edit` stays the only (Q4) bridge; `stations.lifecycle` is offered on the stations screen only (not in Settings › status).
+5. **The 2.38.2 train moved again** after the 2.39.0 train's cut (`954cb6c7e` JOIN-LIVE, `bbe75bd75` its document) and is not in
+   `release/2390-train` @ bee36c9e6 (nor here). `git merge-tree` of it into this train: no conflict. It comes in through the 2.39.0
+   train's owner, then here, before the 2.40.0 gate.
+6. Each branch's open WisKey asks and owner questions stand as written in its change doc (Q-WK-11 service-identity permissions for
+   every new write channel: installer, operations cancel, triage, access_review, messaging_paced).
+7. `management/tasks.json` / `test_catalog.json` not edited by this train.
+8. NOT_RUN: the full backend suite and the release gate (the gate covers them); any lab / WisKey / station / Home Assistant / phone
+   contact (no branch allows it without the owner); the UI build (`build:addon`); Windows pixel
+   baselines; the dark scheme and the non-classic skins in pixel (structural smoke only, as the specs define).
