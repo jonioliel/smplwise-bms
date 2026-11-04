@@ -227,3 +227,24 @@ Every rewritten PNG was compared with HEAD as old / new / difference sheets and 
 8. NOT_RUN: the full backend suite and the release gate (the gate covers them); any lab / WisKey / station / Home Assistant / phone
    contact (no branch allows it without the owner); the UI build (`build:addon`); Windows pixel
    baselines; the dark scheme and the non-classic skins in pixel (structural smoke only, as the specs define).
+
+## 7. Cascade: the 2.39.0 train with the final 2.38.2 merged in (2026-11-04, workstation only, runner down)
+
+- `git merge --no-ff origin/release/2390-train` (`c336273e9`). The 2.39.0 train had just merged the final 2.38.2 train
+  (`be6879190`, merge commit `e67993e44`, version 2.38.2, main `83ce74480`), so this brings the 2382 commits after `bc4f5aded`
+  (WISKEY-JOIN-LIVE-2382 and its document, the quiet-hours test pin, the pairing test isolation, the 2.38.2 version / changelog commit,
+  the main registry audit) and the 2.39.0 train's cascade note. Point 5 of section 6 is closed by this merge.
+- One textual conflict: `contracts/API_INVENTORY.md` (header line only, 2.38.1 vs 2.38.2), regenerated with `scripts/api_inventory.py`
+  (1837 routes, header 2.38.2). Auto-merged and reviewed: `main.py` (the JOIN-LIVE manager replaces the direct `wiskey_direct_join.startup`
+  call at start-up and stops first at shutdown; the module's `JOIN` global, which this train's WA queue and door engine read, is kept),
+  `tests/conftest.py` (`SW_WISKEY_JOIN_LIVE_THREAD=0`), `test_wiskey_pairing_2382.py`. Version lines stay 2.38.2 (no 2.40.0 bump here),
+  `CHANGELOG.md` head is the 2.38.2 entry; no frontend file, no PNG baseline and no channel list changed.
+- `scripts/project_status.py --write` after the merge: PASS (423 tasks, 532 requirements); the generated views differ from the merged
+  ones only by the timestamp, so the merged versions were kept.
+- Local receipts (workstation @ the merge): migrations contiguous 0001..0203 (203 files, no duplicate); `release_check.py` all `[ok]`
+  except the expected missing tag `v2.38.2`; `npx tsc --noEmit` exit 0; targeted backend pytest, 41 files (T06 admission, WisKey
+  channels, pwclean, the migration tests, the 2382 join-live / pairing / intercom-calls / intercom-writes / talk-caps tests, the 2390
+  live-validation / station-people tests, the nine test files this train added, and every test importing `wiskey_direct_join`,
+  `wiskey_feature_status`, `access_control_writes` or `join_state`): **1191 passed, 15 skipped, 3 xfailed, 0 failed** (48 min).
+- Needs the runner (NOT_RUN here): the pixel set without `-u` on the merged UI (stations / people / settings / access control),
+  the full backend suite, the evidence / regression specs, the release gate, the UI build (`build:addon`).
