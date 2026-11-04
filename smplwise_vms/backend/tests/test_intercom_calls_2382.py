@@ -213,6 +213,9 @@ def test_the_writer_upserts_and_start_up_closes_orphans(settings, book):
 @pytest.fixture()
 def world(settings, monkeypatch):
     intercom_calls.BOOK.reset()
+    # 2.38.2 train: the ring's sound follows the installation's quiet hours on the WALL clock (default 22:00-07:00 local), so every test
+    # that expects "ring" failed when run at night. Outside quiet hours by default; the quiet-hours test switches it on itself.
+    monkeypatch.setattr(nsettings, "in_quiet_hours", lambda *a, **k: False)
     fake = FakeWisKeyFeed([station(GATE, "שער ראשי"), station(SIDE, "דלת צד")]).install(monkeypatch)
     app = create_app(settings)
     c = TestClient(app)
