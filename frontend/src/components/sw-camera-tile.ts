@@ -439,6 +439,7 @@ export class SwCameraTile extends LitElement {
        data-subchip): the name's row stops short of it, so a long name ends in its ellipsis before the chip instead of under it */
     sw-live-player[data-subchip] ~ .foot {
       padding-inline-end: 22px;
+      pointer-events: none; /* the row's box spans the chip's corner: a press there reaches the chip (the row holds no control) */
     }
     .foot .label {
       position: static;
