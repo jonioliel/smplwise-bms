@@ -1,17 +1,17 @@
 # Project status — generated view
 
-Generated: 2026-11-04T22:14:28.683089+00:00
+Generated: 2026-11-05T09:33:51.277365+00:00
 
 Tasks: 447 | Requirements: 556 | Tests: 573 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
 ## Status counts
-- BACKLOG: 137
+- BACKLOG: 123
 - BLOCKED: 18
 - DONE: 40
-- IN_PROGRESS: 7
-- REVIEW: 245
+- IN_PROGRESS: 3
+- REVIEW: 263
 
 ## Release scope counts
 - BETA: 20
@@ -142,25 +142,25 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [T096](tasks/T096.md) | V1 | BLOCKED | התראות באפליקציית Android (CR-012) — השכמת FCM דרך ממסר, חלופת UnifiedPush | T092 |
 | [T097](tasks/T097.md) | V1 | BACKLOG | חלל משותף לשתי קומות (CR-009) — אולם בגובה כפול, שלם בכל קומה | T085 |
 | [T098](tasks/T098.md) | V1 | REVIEW | מולטימדיה - מסכים ושלט (CR-015): מסך המסכים, השלט, כרטיסי מדיה באזורים ובמסך הראשי | — |
-| [T099](tasks/T099.md) | V1 | BACKLOG | מולטימדיה שלב 2 - נגנים, רמקולים וקבוצות (CR-016): כרטיסים, חלונית נגן, קבוצות, מועדפים ותחנות | — |
-| [T100](tasks/T100.md) | V1 | BACKLOG | אוטומציות, סצנות וסקריפטים (CR-017): צפייה, הרצה, בונה בעברית, שמירה בטוחה דרך רכיב החיבור | — |
-| [T101](tasks/T101.md) | V1 | BACKLOG | התראות (CR-018): מרכז התראות אחד, מקורות מובנים, Push וטלפונים, העדפות אישיות, אישור והסלמה | — |
-| [T102](tasks/T102.md) | V1 | BACKLOG | תזמונים (CR-014): מסך תזמונים מעל רכיב התזמונים, הרשאות, ביטול ושחזור, אימות חי במעבדה | — |
+| [T099](tasks/T099.md) | V1 | REVIEW | מולטימדיה שלב 2 - נגנים, רמקולים וקבוצות (CR-016): כרטיסים, חלונית נגן, קבוצות, מועדפים ותחנות | — |
+| [T100](tasks/T100.md) | V1 | REVIEW | אוטומציות, סצנות וסקריפטים (CR-017): צפייה, הרצה, בונה בעברית, שמירה בטוחה דרך רכיב החיבור | — |
+| [T101](tasks/T101.md) | V1 | REVIEW | התראות (CR-018): מרכז התראות אחד, מקורות מובנים, Push וטלפונים, העדפות אישיות, אישור והסלמה | — |
+| [T102](tasks/T102.md) | V1 | REVIEW | תזמונים (CR-014): מסך תזמונים מעל רכיב התזמונים, הרשאות, ביטול ושחזור, אימות חי במעבדה | — |
 | [T103](tasks/T103.md) | V1 | REVIEW | אפליקציית הטלפון - צד השרת (CR-027): רישום מכשירים, נוכחות וחיישנים, דחיפה דרך הממסר; כבוי כברירת מחדל | — |
 | [T104](tasks/T104.md) | V1 | REVIEW | שידור וידאו למסכים (CR-028): מחקר, תוכנית בשלבים והכנה לקריאה בלבד - עמודת 'שידור' בהגדרות המולטימדיה | — |
-| [T105](tasks/T105.md) | V1 | BACKLOG | Provision-ISR: מקליטים ומצלמות (CR-025) - מתאם API v1 לקריאה, חיפוש, השמעה, ייצוא, אירועים | — |
-| [T106](tasks/T106.md) | V1 | BACKLOG | ניטור בריאות מקליטים (CR-026): שבעה מקורות התראה, הגדרות פר מקליט, עומק ל-Provision-ISR | — |
+| [T105](tasks/T105.md) | V1 | REVIEW | Provision-ISR: מקליטים ומצלמות (CR-025) - מתאם API v1 לקריאה, חיפוש, השמעה, ייצוא, אירועים | — |
+| [T106](tasks/T106.md) | V1 | REVIEW | ניטור בריאות מקליטים (CR-026): שבעה מקורות התראה, הגדרות פר מקליט, עומק ל-Provision-ISR | — |
 | [T107](tasks/T107.md) | V2 | REVIEW | מסך קיר לטאבלט קבוע (CR-030, WDM / WDX): משתמש קיר שמזוהה לפי טאבלט | — |
 | [T108](tasks/T108.md) | V2 | REVIEW | גנרטורים (CR-031, GEN1): זיהוי לפי התקן, תרשים זרימת הספק, התראות וניתוב, היסטוריה | — |
-| [T109](tasks/T109.md) | V1 | BACKLOG | מתגים מוגנים (CR-019): ברירת מחדל 'כלול', הצעת סיווג, רשימת סקירה בהגדרות | — |
-| [T110](tasks/T110.md) | V1 | BACKLOG | הגדרות מצלמות ב-NVR (CR-020): טבלת מצלמות, כתיבה מוגנת (SVC / קידוד), שינוי לכמה מצלמות | — |
-| [T111](tasks/T111.md) | V1 | BACKLOG | עדכון והפעלה מחדש מתוך Arx (CR-021): בדיקת גרסה, עדכון באישור אחד, מסך מצב ששורד הפעלה מחדש | — |
-| [T112](tasks/T112.md) | V1 | BACKLOG | חיבור ה-NVR בתוך Arx (CR-022): סוג NVR, בדיקת חיבור לקריאה בלבד, שמירה מוצפנת, הפעלה מחדש | — |
-| [T113](tasks/T113.md) | V1 | BACKLOG | מוני חשמל וחיובי צריכה (CR-023): מונים, חשבונות, תעו״ז, קריאות ידניות וכיול, PDF | — |
-| [T114](tasks/T114.md) | V1 | BACKLOG | וריאנטים נוספים לסקין בועה (BV1): אריחי שעון ומזג אוויר, יומן, משגר מהיר, מחוונים אנכיים, מראה בלי משטח | — |
-| [T115](tasks/T115.md) | V1 | BACKLOG | בחירת מצלמות להשוואה כתפריט נפתח (CMP1 / CMP2): הקלטות › השוואה וניגון מסונכרן | — |
+| [T109](tasks/T109.md) | V1 | REVIEW | מתגים מוגנים (CR-019): ברירת מחדל 'כלול', הצעת סיווג, רשימת סקירה בהגדרות | — |
+| [T110](tasks/T110.md) | V1 | REVIEW | הגדרות מצלמות ב-NVR (CR-020): טבלת מצלמות, כתיבה מוגנת (SVC / קידוד), שינוי לכמה מצלמות | — |
+| [T111](tasks/T111.md) | V1 | REVIEW | עדכון והפעלה מחדש מתוך Arx (CR-021): בדיקת גרסה, עדכון באישור אחד, מסך מצב ששורד הפעלה מחדש | — |
+| [T112](tasks/T112.md) | V1 | REVIEW | חיבור ה-NVR בתוך Arx (CR-022): סוג NVR, בדיקת חיבור לקריאה בלבד, שמירה מוצפנת, הפעלה מחדש | — |
+| [T113](tasks/T113.md) | V1 | REVIEW | מוני חשמל וחיובי צריכה (CR-023): מונים, חשבונות, תעו״ז, קריאות ידניות וכיול, PDF | — |
+| [T114](tasks/T114.md) | V1 | REVIEW | וריאנטים נוספים לסקין בועה (BV1): אריחי שעון ומזג אוויר, יומן, משגר מהיר, מחוונים אנכיים, מראה בלי משטח | — |
+| [T115](tasks/T115.md) | V1 | REVIEW | בחירת מצלמות להשוואה כתפריט נפתח (CMP1 / CMP2): הקלטות › השוואה וניגון מסונכרן | — |
 | [T116](tasks/T116.md) | V1 | BACKLOG | מקליטי Frigate (CR-029, NN5): צפייה וניגון (F1) ושליטה מוגנת (F2), כבוי כברירת מחדל | — |
-| [T117](tasks/T117.md) | V1 | BACKLOG | הכרזות קוליות (MU2): השמעת שורה מוקלדת ברמקולים מותרים, מגבלות קצב, יומן | — |
+| [T117](tasks/T117.md) | V1 | REVIEW | הכרזות קוליות (MU2): השמעת שורה מוקלדת ברמקולים מותרים, מגבלות קצב, יומן | — |
 | [T118](tasks/T118.md) | V1 | REVIEW | הצעת הורדה לאפליקציית Android במסך הכניסה מרחוק (כבויה כברירת מחדל) | — |
 | [WXD0](tasks/WXD0.md) | V1 | REVIEW | WisKey CR-033: Trusted-bridge fakes and vector oracle | — |
 | [WXD1](tasks/WXD1.md) | V1 | BACKLOG | WisKey CR-033: WisKey door map (explicit, single relay, manual) | WXD0 |
@@ -487,7 +487,7 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [LAB-NVR-DOOR-READONLY-0411](tasks/LAB-NVR-DOOR-READONLY-0411.md) | V1 | REVIEW | Read-only checks of 04.11 evening: recorder sub streams of two panoramic cameras, door contact input on one station | — |
 | [WISKEY-ADDENDUM-GAPS-0411](tasks/WISKEY-ADDENDUM-GAPS-0411.md) | V1 | BLOCKED | WisKey gaps found while building 2.38.2 - 2.40.0 (addendum for the WisKey team) | — |
 | [OWNER-LAB-ACTIONS-0411](tasks/OWNER-LAB-ACTIONS-0411.md) | V1 | BLOCKED | Owner lab actions after 04.11 | — |
-| [GUIDE-BOARD-2402](tasks/GUIDE-BOARD-2402.md) | V1 | IN_PROGRESS | User guide for 2.40.0 / 2.40.1 and the task board after 04.11 | — |
-| [GATE-HYGIENE-2402](tasks/GATE-HYGIENE-2402.md) | V1 | IN_PROGRESS | Gate hygiene: whole-package scanners always run, a Windows-only demo check, the bridge-install state reset between tests | — |
-| [VIDEO-SUB-FALLBACK-2402](tasks/VIDEO-SUB-FALLBACK-2402.md) | V1 | IN_PROGRESS | Live video, automatic quality: a sub stream that gives nothing moves to the main stream on the same transport | — |
-| [SETTINGS-CARDS-ACCORDION-2402](tasks/SETTINGS-CARDS-ACCORDION-2402.md) | V1 | IN_PROGRESS | Intercom settings cards: "cards opening in place" as a fourth layout | — |
+| [GUIDE-BOARD-2402](tasks/GUIDE-BOARD-2402.md) | V1 | REVIEW | User guide for 2.40.0 / 2.40.1 and the task board after 04.11 | — |
+| [GATE-HYGIENE-2402](tasks/GATE-HYGIENE-2402.md) | V1 | REVIEW | Gate hygiene: whole-package scanners always run, a Windows-only demo check, the bridge-install state reset between tests | — |
+| [VIDEO-SUB-FALLBACK-2402](tasks/VIDEO-SUB-FALLBACK-2402.md) | V1 | REVIEW | Live video, automatic quality: a sub stream that gives nothing moves to the main stream on the same transport | — |
+| [SETTINGS-CARDS-ACCORDION-2402](tasks/SETTINGS-CARDS-ACCORDION-2402.md) | V1 | REVIEW | Intercom settings cards: "cards opening in place" as a fourth layout | — |
