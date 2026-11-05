@@ -613,6 +613,10 @@ export class SystemDiagnostics extends LitElement {
     .afold-body > * {
       --sw-card-pad: 14px;
     }
+    /* SKIN-QA-2403: a short window in a skin with a taller page head (sw-fold-cards FOLD_TIGHT_ROOM) - the rows one more step denser */
+    sw-fold-cards.afolds[tight] .afold-body {
+      --sw-set-row-pad: 6px 12px;
+    }
   `, bubbleChrome];
 
   connectedCallback() {

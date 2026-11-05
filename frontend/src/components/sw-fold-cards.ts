@@ -15,6 +15,14 @@ export interface FoldCard {
 export const FOLD_WIDE_MIN = 820;
 /** What stays free under the open card of a wide list: the page's bottom padding and a little air. */
 export const FOLD_BOTTOM_RESERVE = 32;
+/**
+ * SKIN-QA-2403: below this room for the open card (px) a wide list is drawn a step tighter - the headers' column at its 232 px minimum
+ * (the open card gets the width back, so its rows wrap less) and the host's rows a step denser (`tight` on the host). At 1366x768 the
+ * skins with a taller page head (domus, tesla: the cards start ~22 px lower than in classic) left the switches and the WisKey-area cards
+ * 9-25 px short, so they scrolled inside. Decided by the window and the page head only - never by the open card - so the column never
+ * jumps when another card is opened. Classic at 1366x768 has 531 px and 1440x900 has 640+: both stay as they were.
+ */
+export const FOLD_TIGHT_ROOM = 520;
 
 /**
  * SETTINGS-INTERCOM-CARDS-2401 (owner 04.11, round 19 Q6 = a): collapsible cards, ONE open at a time. Each card's header is a button with
@@ -78,6 +86,9 @@ export class SwFoldCards extends LitElement {
     }
     .list.wide .head {
       grid-column: 1;
+    }
+    :host([tight]) .list.wide {
+      grid-template-columns: 232px minmax(0, 1fr);
     }
     .list.wide ::slotted(:not([hidden])) {
       grid-column: 2;
@@ -268,12 +279,14 @@ export class SwFoldCards extends LitElement {
     }
     if (!this.wide) {
       this.style.removeProperty('--fold-room');
+      this.removeAttribute('tight');
       body?.removeAttribute('data-fold-scroll');
       return;
     }
     // the page's own bottom padding (sw-page: 24 px) and a little air stay below the open card
     const room = Math.max(240, Math.floor(window.innerHeight - this.getBoundingClientRect().top - FOLD_BOTTOM_RESERVE));
     this.style.setProperty('--fold-room', `${room}px`);
+    this.toggleAttribute('tight', room < FOLD_TIGHT_ROOM);
     if (!body) return;
     // measured without the inner scroll first, so a card that shrank gives the scroll back
     body.removeAttribute('data-fold-scroll');

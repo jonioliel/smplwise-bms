@@ -31,6 +31,8 @@ export interface TextTarget {
   /** 'text' (4.5 / 3 for large text) or 'icon' (3, non-text contrast) */
   kind: 'text' | 'icon';
   rect: { x: number; y: number; w: number; h: number };
+  /** the sample points inside the box that are not covered by anything else (a sticky bar, a floating shell control) */
+  points: [number, number][];
   /** the text overflows its own box (cut, or ended with an ellipsis) */
   cut: boolean;
   ellipsis: boolean;
@@ -113,8 +115,8 @@ export async function collectTargets(root: Locator, opts: { icons?: boolean; ski
         return false;
       };
       /** Not covered by something else (a floating shell control, a sticky bar): the element (or its flat-tree kin) is what is hit. */
-      const uncovered = (el: Element, r: DOMRect) => {
-        const h = hitAt(Math.min(vw - 1, Math.max(0, r.left + r.width / 2)), Math.min(vh - 1, Math.max(0, r.top + r.height / 2)));
+      const uncoveredAt = (el: Element, x: number, y: number) => {
+        const h = hitAt(Math.min(vw - 1, Math.max(0, x)), Math.min(vh - 1, Math.max(0, y)));
         return !!h && (h === el || flatContains(el, h) || flatContains(h, el));
       };
       const visible = (r: DOMRect) => r.width > 0.5 && r.height > 0.5 && r.right > 0 && r.bottom > 0 && r.left < vw && r.top < vh;
@@ -133,7 +135,7 @@ export async function collectTargets(root: Locator, opts: { icons?: boolean; ski
           if (r - l < 1) return;
           rect = new DOMRect(l, rect.top, r - l, rect.height);
         }
-        if (!uncovered(el, rect)) return;
+
         const fill = cs.getPropertyValue('-webkit-text-fill-color');
         const colorStr = kind === 'text' && fill && !fill.includes('rgba(0, 0, 0, 0)') && fill !== cs.color ? fill : cs.color;
         const m = colorStr.match(/rgba?\(([^)]+)\)/);
@@ -144,6 +146,18 @@ export async function collectTargets(root: Locator, opts: { icons?: boolean; ski
         const cut = kind === 'text' && (own.overflow.includes('hidden') || own.overflowX === 'hidden' || own.overflow.includes('clip')) && host.scrollWidth > host.clientWidth + 1;
         const x = Math.max(0, rect.left);
         const y = Math.max(0, rect.top);
+        const w = Math.min(vw, rect.right) - x;
+        const h = Math.min(vh, rect.bottom) - y;
+        const cols = Math.max(3, Math.min(8, Math.round(w / 12)));
+        const points: [number, number][] = [];
+        for (let i = 0; i < cols; i++) {
+          for (const fy of [0.3, 0.5, 0.7]) {
+            const px = x + 1 + ((w - 2) * (i + 0.5)) / cols;
+            const py = y + h * fy;
+            if (uncoveredAt(el, px, py)) points.push([px, py]);
+          }
+        }
+        if (points.length < 2) return;
         out.push({
           key: name(el),
           text: text.replace(/\s+/g, ' ').trim().slice(0, 48),
@@ -152,7 +166,8 @@ export async function collectTargets(root: Locator, opts: { icons?: boolean; ski
           size: parseFloat(cs.fontSize) || 0,
           weight: Number(cs.fontWeight) || 400,
           kind,
-          rect: { x, y, w: Math.min(vw, rect.right) - x, h: Math.min(vh, rect.bottom) - y },
+          rect: { x, y, w, h },
+          points,
           cut,
           ellipsis: own.textOverflow === 'ellipsis' && cut,
         });
@@ -254,12 +269,9 @@ export async function measureContrast(page: Page, targets: TextTarget[]): Promis
     const fg = [t.color[0], t.color[1], t.color[2], t.color[3] * t.opacity];
     if (fg[3] < 0.02) continue;
     const samples: number[] = [];
-    const cols = Math.max(3, Math.min(8, Math.round(t.rect.w / 12)));
-    for (let i = 0; i < cols; i++) {
-      for (const fy of [0.3, 0.5, 0.7]) {
-        const bg = px(t.rect.x + 1 + ((t.rect.w - 2) * (i + 0.5)) / cols, t.rect.y + t.rect.h * fy);
-        samples.push(ratio(over(fg, bg), bg));
-      }
+    for (const [x, y] of t.points) {
+      const bg = px(x, y);
+      samples.push(ratio(over(fg, bg), bg));
     }
     samples.sort((a, b) => a - b);
     const r = samples[Math.min(1, samples.length - 1)];
