@@ -206,6 +206,8 @@ export class SwLivePlayer extends LitElement {
       block-size: 100%;
       background: var(--sw-video-bg);
       overflow: hidden;
+      /* SKIN-QA-2403: the tile's own width decides whether the top-start tag shares the top row with a top-end badge (.subtag below) */
+      container: swlp / inline-size;
     }
     video,
     img.poster {
@@ -398,6 +400,14 @@ export class SwLivePlayer extends LitElement {
       border-radius: 999px;
       padding: 2px 8px;
       pointer-events: none;
+    }
+    /* SKIN-QA-2403: on a narrow tile (a phone wall of three columns, the remote channel) the tag and the top-end profile badge met in the
+       middle of the top row - the tag steps down to a second row under the badge's height; wide tiles keep both on the top row */
+    @container swlp (max-width: 240px) {
+      .vbadge ~ .subtag,
+      .h265tag ~ .subtag {
+        inset-block-start: 30px;
+      }
     }
     /* LIVE-H265-2341: the server played a fallback of an H.265 stream (another profile, or the transcoded H.264 variant) */
     .h265tag {
