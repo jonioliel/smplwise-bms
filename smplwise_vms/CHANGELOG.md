@@ -1,5 +1,25 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.40.3 (pilot) - No video requests in an installation without video, the kiosk and display wall fall back to the main stream, and readability fixes in every skin
+**אחרי ההתקנה:** אין מיגרציה של מסד הנתונים - חזרה ל-2.40.2 בטוחה. אף הגדרה לא משנה ברירת מחדל. גשר Arx נשאר 0.10.4, ולכן אין צורך בהפעלה מחדש של Home Assistant. הממשק נבנה מחדש עם התוסף, לכן כדאי לטעון את הדף מחדש פעם אחת אחרי העדכון.
+- **English:** After installing: no database migration - going back to 2.40.2 is safe. No setting changes its default. The Arx bridge stays 0.10.4, so no Home Assistant restart is needed. The interface is rebuilt with the add-on, so reload the page once after the update.
+
+### מה תוקן - What was fixed
+- **עברית:** בהתקנה בלי וידאו (בלי מקליט ובלי שרת וידאו) הממשק כבר לא פונה לשרת כדי לקרוא את הגדרת העברת הווידאו. הבקשה נשלחת רק כשיש וידאו חי בהתקנה, ורק אחרי שהכניסה הושלמה. החלק "וידאו" ב"החשבון שלי" מוצג רק כשיש וידאו חי.
+- **English:** In an installation without video (no recorder and no video server) the interface no longer asks the server for the video transport setting. The request is sent only when the installation has live video, and only after sign-in has completed. The "Video" part of "My account" is shown only when there is live video.
+- **עברית:** התג "עבר לזרם הראשי" על אריח מצלמה קריא עכשיו בכל הסגנונות, בהיר וכהה, גם מעל תמונה בהירה. בגישה מרחוק הוא כבר לא מסתיר את תג הזרם שבאותה פינה; באריח צר מאוד הוא מפנה את המקום לתג הזרם, שכבר אומר שזה הזרם הראשי.
+- **English:** The "moved to the main stream" tag on a camera tile is now readable in every skin, light and dark, also over a bright picture. With remote access it no longer covers the stream badge in the same corner; on a very narrow tile it gives way to the stream badge, which already says it is the main stream.
+- **עברית:** סרגל קיר המצלמות בטלפון: כפתור הקיוסק בתצוגת שתי השורות גדל לגודל מגע מלא (44 פיקסלים), וכפתורי האיכות ומספר המצלמות בשורת האייקונים מגיבים ללחיצה כמו שאר הכפתורים.
+- **English:** The camera wall toolbar on a phone: the kiosk key in the two-row view grew to a full touch size (44 pixels), and the quality and camera-count keys in the icon row respond to a press like the other keys.
+- **עברית:** הלשונית "מתגי מסכי כניסה": בסגנונות השקופים ובמצב כהה כותרות הכרטיסים קריאות יותר והכותרת הפתוחה בולטת יותר, ובמסך 1366x768 בסגנונות Domus ו-Tesla הכרטיס הפתוח כבר לא נגלל בתוכו.
+- **English:** The "Entrance screen switches" tab: in the translucent skins and in dark mode the card headers are easier to read and the open header stands out more, and at 1366x768 in the Domus and Tesla skins the open card no longer scrolls inside itself.
+
+### מה השתפר - What was improved
+- **עברית:** הקיוסק וקיר התצוגה (מסך קיר בטאבלט) עוברים גם הם לזרם הראשי כשהזרם המשני של מצלמה לא שולח תמונה, באותה דרך העברה ועם אותו תג קטן "עבר לזרם הראשי", כמו קיר המצלמות באיכות האוטומטית. המעבר נזכר לאותה מצלמה 10 דקות.
+- **English:** The kiosk and the display wall (a wall display on a tablet) also move to the main stream when a camera's sub stream sends no picture, on the same transport and with the same small "moved to the main stream" tag, as the camera wall does with the automatic quality. The move is remembered for that camera for 10 minutes.
+- **עברית:** לוח המשימות של הפרויקט עודכן לגרסאות 2.40.x.
+- **English:** The project's task board is brought up to date for the 2.40.x versions.
+
 ## 2.40.2 (pilot) - A camera whose sub stream sends nothing moves to the main stream, a fourth layout for the intercom settings tab, and the user guide for 2.40.x
 **אחרי ההתקנה:** אין מיגרציה של מסד הנתונים - חזרה ל-2.40.1 בטוחה. אף הגדרה לא משנה ברירת מחדל. גשר Arx נשאר 0.10.4, ולכן אין צורך בהפעלה מחדש של Home Assistant. הממשק נבנה מחדש עם התוסף, לכן כדאי לטעון את הדף מחדש פעם אחת אחרי העדכון.
 - **English:** After installing: no database migration - going back to 2.40.1 is safe. No setting changes its default. The Arx bridge stays 0.10.4, so no Home Assistant restart is needed. The interface is rebuilt with the add-on, so reload the page once after the update.
