@@ -11,7 +11,7 @@ import { t } from '../i18n/he';
 import './sw-wiskey-prefs';
 import './sw-video-prefs';
 import './sw-home-personal';
-import { can, canAnywhere } from '../api/session';
+import { can, canAnywhere, cap } from '../api/session';
 import { WISKEY_HIDDEN } from './nav';
 import { ticketsEnabled } from '../tickets/gate';
 import { REMOTE } from '../arx/pre-gate';
@@ -477,7 +477,7 @@ export class SwUserMenu extends LitElement {
     // TKSTAFF1 (security review F3 / F4): the user's own mobile for no-login work links - for a user who may hold tickets
     const staff = this.api && !this.gated && ticketsEnabled() && canAnywhere('tickets.view');
     // VIDEO-TRANSPORT-2400: the viewer's own live-video transport - for a user who may watch live video somewhere
-    const video = this.api && !this.gated && canAnywhere('video.live');
+    const video = this.api && !this.gated && canAnywhere('video.live') && cap('live_video'); // VIDEO-2403: no live video, no transport choice
     return { order: !this.gated, prefs: !this.gated, sessions: this.api, factor: this.api, android, device: this.api && nativeCan('deviceStatus'), wiskey, home, staff, video };
   }
 

@@ -115,3 +115,76 @@ test.describe('sub stream gives nothing (VIDEO-SUB-FALLBACK-2402)', () => {
     await expect(player(page).locator('[data-sub-fallback]')).toHaveCount(0);
   });
 });
+
+// VIDEO-2403 (owner round 21, Q1 = a): the kiosk and the display wall have no quality choice - they count as automatic and follow the
+// same rules (same transport, the tag, the tab's 10-minute memory).
+test.describe('kiosk and display wall count as automatic (VIDEO-2403)', () => {
+  test.beforeEach(async ({}, testInfo) => {
+    testInfo.skip(testInfo.project.name !== 'desktop', 'layout-independent player logic');
+    testInfo.setTimeout(90_000);
+  });
+
+  test('kiosk, MSE only: the sub stream sends no media, the tile moves to main over MSE and says so', async ({ page }) => {
+    await setup(page, { channel: 'local', transport: 'mse', rtc: {} });
+    await page.goto('/?design=a#/kiosk/all');
+    await page.waitForSelector('kiosk-wall');
+    const kp = page.locator('kiosk-wall sw-camera-tile sw-live-player');
+    await expect(kp).toHaveCount(1, { timeout: 15000 });
+    await expect.poll(() => sockets(page), { timeout: 40000 }).toEqual(['sub:mse', 'main:mse']);
+    await expect(kp.locator('[data-sub-fallback]')).toHaveText('עבר לזרם הראשי', { timeout: 5000 });
+  });
+
+  test('display wall (a wall user on a tablet), MSE only: the same move, MSE only', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.addInitScript(() => {
+      Object.defineProperty(window.screen, 'width', { get: () => 1280 });
+      Object.defineProperty(window.screen, 'height', { get: () => 800 });
+      Object.defineProperty(navigator, 'maxTouchPoints', { get: () => 5 });
+      Object.defineProperty(navigator, 'userAgentData', { get: () => ({ mobile: false }) });
+      const mm = window.matchMedia.bind(window);
+      window.matchMedia = (q: string) => (/pointer:\s*coarse|hover:\s*none/.test(q) ? ({ ...mm('all'), matches: true, media: q } as MediaQueryList) : mm(q));
+      (window as unknown as Record<string, unknown>).__rtc = {};
+    });
+    await page.addInitScript(FAKE_MEDIA);
+    await page.routeWebSocket(/\/api\/v1\/wall\/ws/, (ws) => {
+      ws.onMessage(() => {});
+      ws.send(JSON.stringify({ version: 1, type: 'hello', payload: { version: 1, state: 'ok' } }));
+    });
+    await page.routeWebSocket(/\/api\/v1\/me\/ws/, () => {});
+    await page.routeWebSocket(/\/api\/v1\/ha\/ws/, () => {});
+    const cfg = {
+      cameras: ['c8'], scope: 'cameras', layout: 'auto', grid: 'auto', rotate_s: 0, stream: 'sub', strip: ['clock'], state_entities: [], show_map: false, theme: 'dark',
+      alerts: { enabled: false, categories: [], min_severity: 'alert', ack_allowed: false, takeover_timeout_s: 120, sound: false },
+      frame: { enabled: false, folder: null, idle_min: 10, interval_s: 30, fit: 'contain', clock: true, motion: 'none' },
+      burn_in: { shift: false, dim_after_min: 30, dim_to: 0.6, shuffle_h: 1 },
+      schedule: { windows: [], wake_on_alert_severity: 'critical', wake_on_touch: true },
+      offline: { show_last_frame_s: 60, then: 'clock' },
+    };
+    await page.route('**/api/v1/**', async (route) => {
+      const p = new URL(route.request().url()).pathname.replace(/^.*\/api\/v1\//, '');
+      const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
+      const perms = ['map.read', 'video.live', 'wall.view'];
+      if (p === 'me') {
+        return json({
+          channel: 'local', remote: null, user: { id: 'u-wall', username: 'reception', display_name: 'קבלה', source: 'ingress' }, active: true,
+          bindings: [{ id: 'b1', role_id: 'kiosk', role_name: 'קיוסק', scope_type: 'floor', scope_id: 'f1', scope_name: 'x', effect: 'allow' }],
+          permissions_installation: [], permissions_any: perms, has_access: true, permission_revision: 1, permissions_fingerprint: 'fp', permissions_changed: false,
+          bootstrap_state: 'done', mode: 'full', wall: { enabled: true, profile_version: 1 },
+        });
+      }
+      if (p === 'me/prefs') return json({ prefs: {}, stored: [], updated_at: null });
+      if (p === 'settings') return json({ settings: { 'ui.design': 'a', 'ui.skin': 'classic', 'ui.scheme': 'dark', 'ui.start_route': 'devices', 'media.transport_default': 'mse' }, can_edit: false });
+      if (p === 'media/video-policy') return json({ choice: 'mse', source: 'installation', explicit: true, installation: 'mse', personal: null, channel: 'local', order: ['mse'], remote: null });
+      if (p === 'wall/config') return json({ title: 'קבלה', area_id: null, floor_id: null, version: 1, config: cfg, cameras: [{ id: 'c8', name: 'Pano' }], server_time: new Date().toISOString(), zone: 'Asia/Jerusalem', alerts: [] });
+      if (p.startsWith('wall/states')) return json({ states: [] });
+      if (p === 'health/summary') return json({ status: 'ok', items: [], checked_at: '2026-11-05T00:00:00Z', version: 'test' });
+      if (p.startsWith('rules/alerts')) return json({ alerts: [], unacked: 0 });
+      if (/^cameras\/[^/]+\/snapshot\.jpg$/.test(p)) return route.fulfill({ status: 200, contentType: 'image/jpeg', body: GIF });
+      return json({}, 200);
+    });
+    await page.goto('/?design=a#/');
+    await expect(page.locator('sw-app sw-wall')).toHaveCount(1, { timeout: 15000 });
+    await expect.poll(() => sockets(page), { timeout: 45000 }).toEqual(['sub:mse', 'main:mse']);
+    await expect(page.locator('sw-wall sw-camera-tile sw-live-player [data-sub-fallback]')).toHaveText('עבר לזרם הראשי', { timeout: 5000 });
+  });
+});

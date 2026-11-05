@@ -46,7 +46,8 @@ export class SwCameraTile extends LitElement {
   @property({ attribute: false }) encoding: CameraEncoding | null = null;
   /** The profile is the installation's default, not the viewer's choice: the player may fall back to the other profile
    * when this one proves undecodable (sw-live-player `autoProfile`); VIDEO-SUB-FALLBACK-2402: also when its sub stream gives no media or
-   * never connects (the main stream on the same transport), on both channels. */
+   * never connects (the main stream on the same transport), on both channels. VIDEO-2403 (owner round 21, Q1 = a): the kiosk and the display
+   * wall set it too (they have no quality choice: automatic). */
   @property({ type: Boolean }) autoProfile = false;
   /** NN5-F1B: seconds between refreshes of a camera that has no live stream (a Frigate recorder in F1): the tile re-reads its `poster`
    * itself, never faster than 5 s, never while the tab is hidden or the tile is out of view, and says so ("תמונה מתעדכנת"). 0 = off. */

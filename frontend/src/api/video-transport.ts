@@ -12,6 +12,7 @@
  */
 import { get } from './client';
 import { putMyPrefs } from './me-prefs';
+import { cap, isApi } from './session';
 import { normalizeChoice, type TransportChoice, type VideoPolicy } from './video-policy';
 
 export const LEGACY_TRANSPORT_KEY = 'sw.transport';
@@ -98,6 +99,9 @@ async function fetchPolicy(): Promise<VideoPolicy | null> {
 
 /** Reads the policy again (shared while one read is in flight); null when the server does not answer one. */
 export function loadVideoPolicy(): Promise<VideoPolicy | null> {
+  // VIDEO-2403 (nightly evidence-nn1-p2, installation A): /media/... is a media-server route - never asked while the installation has no
+  // live video (NN1: the shell is hidden from it; CAPABILITIES.md section 4); nothing plays there, the settings' choice stands
+  if (!isApi() || !cap('live_video')) return Promise.resolve((cached = null)); // (before /me answered: not yet either)
   if (!inflight) {
     inflight = fetchPolicy()
       .then((p) => {
