@@ -730,6 +730,10 @@ def bridge_directory(message: dict[str, Any], request: Request, conn: sqlite3.Co
     from ..services import schedule_identity
 
     schedule_identity.note_directory_push(conn, message)
+    # DOOR-BRIDGE-BLOCK-2404 (bridge 0.10.5): the bridge's own WisKey door block setting - state only, audited when it changes
+    from ..services import door_execute_guard
+
+    door_execute_guard.note_directory_push(conn, message)
     # CR-028 (bridge 0.7.0): the cast origin the bridge may let a TV fetch from - signed with the pairing secret under its own purpose (a
     # captured call of another kind can never pass for it); null while casting is not ready. Older bridges ignore the key.
     from ..services import cast_sessions

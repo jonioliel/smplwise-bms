@@ -13,10 +13,11 @@ from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service_info.hassio import HassioServiceInfo
 
-from .const import CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_LOCAL_IDENTITY_EXTENDED, CONF_LOCAL_IDENTITY_RUNNABLE, CONF_PAIRING_CODE, CONF_SERVICE_USER_ID, CONF_WISKEY_AUTO_INSTALL, DEFAULT_ADDON_URL, DOMAIN, VERSION
+from .const import CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_LOCAL_IDENTITY_EXTENDED, CONF_LOCAL_IDENTITY_RUNNABLE, CONF_PAIRING_CODE, CONF_SERVICE_USER_ID, CONF_WISKEY_AUTO_INSTALL, CONF_WISKEY_EXECUTE_POLICY, DEFAULT_ADDON_URL, DOMAIN, VERSION
 from .runnable import RUNNABLE_DOMAINS, parse_runnable, selector_value
 from .service_identity import options_error
 from .signing import sign
+from .wiskey_door_block import POLICIES as DOOR_POLICIES, policy as door_policy
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -142,6 +143,8 @@ class SmplwiseBridgeOptionsFlow(config_entries.OptionsFlow):
         service_user = str(options.get(CONF_SERVICE_USER_ID) or "")
         extended = bool(options.get(CONF_LOCAL_IDENTITY_EXTENDED, False))
         runnable_list = selector_value(options.get(CONF_LOCAL_IDENTITY_RUNNABLE))
+        # 0.10.5 (DOOR-BRIDGE-BLOCK-2404, CR-033 D5a): the WisKey door block - `blocked` unless an administrator chose `allowed` here
+        door_now = door_policy(options)
         errors: dict[str, str] = {}
         if user_input is not None:
             new = bool(user_input.get(CONF_DELEGATED_AUTHORING, False))
@@ -161,15 +164,20 @@ class SmplwiseBridgeOptionsFlow(config_entries.OptionsFlow):
             if err:
                 errors[CONF_SERVICE_USER_ID] = err
             service_user = typed  # shown again as typed when the form returns with an error
+            door_now = door_policy({CONF_WISKEY_EXECUTE_POLICY: user_input.get(CONF_WISKEY_EXECUTE_POLICY, door_now)})  # anything but `allowed` = blocked
             if not errors:
                 changed_at = options.get(CONF_DELEGATED_CHANGED_AT)
                 if new != current:
                     changed_at = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
                 return self.async_create_entry(title="", data={**options, CONF_DELEGATED_AUTHORING: new, CONF_DELEGATED_CHANGED_AT: changed_at, CONF_SERVICE_USER_ID: typed or None,
-                                                             CONF_LOCAL_IDENTITY_EXTENDED: extended, CONF_LOCAL_IDENTITY_RUNNABLE: sorted(runnable_ids or ())})
+                                                             CONF_LOCAL_IDENTITY_EXTENDED: extended, CONF_LOCAL_IDENTITY_RUNNABLE: sorted(runnable_ids or ()),
+                                                             CONF_WISKEY_EXECUTE_POLICY: door_now})
         schema = vol.Schema({vol.Optional(CONF_DELEGATED_AUTHORING, default=current): bool, vol.Optional(CONF_SERVICE_USER_ID, default=service_user): str,
                              vol.Optional(CONF_LOCAL_IDENTITY_EXTENDED, default=extended): bool,
                              # suggested_value, not default: with a default, clearing every item would bring the old list back
                              vol.Optional(CONF_LOCAL_IDENTITY_RUNNABLE, description={"suggested_value": runnable_list}):
-                                 selector.EntitySelector(selector.EntitySelectorConfig(domain=list(RUNNABLE_DOMAINS), multiple=True))})
+                                 selector.EntitySelector(selector.EntitySelectorConfig(domain=list(RUNNABLE_DOMAINS), multiple=True)),
+                             vol.Optional(CONF_WISKEY_EXECUTE_POLICY, default=door_now):
+                                 selector.SelectSelector(selector.SelectSelectorConfig(options=list(DOOR_POLICIES), translation_key=CONF_WISKEY_EXECUTE_POLICY,
+                                                                                       mode=selector.SelectSelectorMode.DROPDOWN))})
         return self.async_show_form(step_id="init", data_schema=schema, errors=errors)

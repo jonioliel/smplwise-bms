@@ -155,11 +155,15 @@ Other new codes (not 403): 409 `intercom_lock_unmapped`, `intercom_release_in_pr
 - **D5a, add-on side, done:** `services/door_execute_guard.py` + the hook in `ha_client.call_bridge_execute` (behaviour 10).
   Same code as the bridge 0.8.1 contract (`wiskey_door_execute_blocked`) so the screens need no second mapping;
   `ha_actions.bridge_status` already maps the bridge's answer to `failed`.
-- **D5a, bridge side, NOT built:** the `execute` refusal inside `custom_components/smplwise_bridge` (and its mirror), the
-  `wiskey_execute_policy` entry option (default `blocked`), the signed `bridge_policy.set` message, the Arx setting
-  `bridge.wiskey_execute_policy`. Reason: it changes the bridge's behaviour and must ship with the bridge version bump to 0.8.1
-  (lesson of bridge 0.8.0: an unversioned bridge change never reaches installed bridges), and version files were out of scope
-  here. Release order stays CR-033 5.5: the add-on carrying D4 first, then bridge 0.8.1.
+- **D5a, bridge side, NOT built here** (built later, see the update below): the `execute` refusal inside
+  `custom_components/smplwise_bridge` (and its mirror), the `wiskey_execute_policy` entry option (default `blocked`), the signed
+  `bridge_policy.set` message, the Arx setting `bridge.wiskey_execute_policy`. Reason: it changes the bridge's behaviour and must ship
+  with the bridge version bump to 0.8.1 (lesson of bridge 0.8.0: an unversioned bridge change never reaches installed bridges), and
+  version files were out of scope here. Release order stays CR-033 5.5: the add-on carrying D4 first, then bridge 0.8.1.
+- **Update 2026-11-05 (DOOR-BRIDGE-BLOCK-2404):** the bridge side shipped as bridge **0.10.5** (the planned "0.8.1" number was long
+  passed). The setting is the bridge's options-flow field `wiskey_execute_policy` (an HA administrator sets it inside Home Assistant),
+  not a signed `bridge_policy.set` message from Arx - a recorded deviation, see `docs/changes/DOOR-BRIDGE-BLOCK-2404.md` section 2.
+  The add-on records the bridge's reported value as `bridge.wiskey_execute_policy` (read-only state).
 - **D5b, Arx acceptance path, proven on the fake WisKey consumer** (FakeTrustedBridge = the DTO v3 reference model): the
   signature binds actor, command, station, relay and request id (any change -> rejected, nothing dispatched); a replay is
   answered from the store and never dispatched twice, and is refused after the 30 s lifetime; `unknown` (unconfirmed,
@@ -185,7 +189,8 @@ Known red on this branch: `tests/test_release_check.py::test_repository_is_relea
 only failure of the local merged-tree run (848 passed, 1 failed, 38 related files).
 
 Still OPEN on fakes (never counted as covered): T13 (the D10a conversion itself), T19's fake HA with `context.user_id` /
-`parent_id` and concurrent runs, T24 bridge side.
+`parent_id` and concurrent runs, T24 bridge side. (Update: T13 closed in 2.40.0 by WXD10-DOOR-JOBS-2400; T19's fake-HA part and T24 bridge side closed by
+DOOR-BRIDGE-BLOCK-2404 - `OPEN` in `test_wiskey_door_gate.py` is empty.)
 
 ## 6. For the integrator of the next release
 

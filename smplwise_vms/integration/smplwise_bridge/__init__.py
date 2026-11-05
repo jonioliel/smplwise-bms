@@ -63,6 +63,12 @@ It does two things and nothing else:
    its metadata (versions), disk evidence (file hashes, names only) and - always - `native_image_attestation: unavailable` /
    `image_provenance: unavailable`. No grant, no signature, no key set, no service, no installer or repository access, nothing written.
    The add-on's reader (wiskey_core_runtime_gate) treats it as observation only: without an image verifier it is never `supported`.
+17. The WisKey door block (0.10.5, DOOR-BRIDGE-BLOCK-2404, CR-033 slice D5a, owner decision 20; wiskey_door_block.py): `execute` refuses
+   `lock.*` and `button.press` on a door of the WisKey intercom component (registry platform `hikvision_intercom` / `smplwise_intercom`,
+   directly or as a group member; where WisKey exists, also a lock the registry does not know) with `wiskey_door_execute_blocked` and calls
+   nothing - unless an HA administrator set the options-flow field `wiskey_execute_policy` to `allowed` (default `blocked`, read live).
+   Each refusal is a warning in the log and the event `smplwise_bridge_door_execute_refused` (names and fixed tokens only). The policy
+   travels to the add-on with the directory push. WisKey's own direct path never goes through this bridge and is not affected.
 """
 from __future__ import annotations
 
@@ -97,7 +103,7 @@ from . import lease_service
 from .lease_contract import LeaseDTO
 from .lease_service import (LeaseCapability, LeaseConsumer, LeaseRegistration, LeaseUnavailable, async_get_capability, async_register_consumer,
                             is_bridge_capability)
-from . import media_policy, runnable, service_identity
+from . import media_policy, runnable, service_identity, wiskey_door_block
 from .media_query_service import async_handle_media_query
 from .schedule_service import async_handle_schedule, execute_refusal
 from .keyset import CAPABILITY as ROTATION_CAPABILITY, KeySet, Persister as KeyPersister
@@ -394,6 +400,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         """0.9.2 (SVCIDENT3): the scripts / scenes / automations Arx-only users may run, read live from the options (empty by default; malformed = empty)."""
         return runnable.allowlist(entry.options.get(CONF_LOCAL_IDENTITY_RUNNABLE))
 
+    def door_policy() -> str:
+        """0.10.5 (DOOR-BRIDGE-BLOCK-2404): the WisKey door block's administrator setting, read live from the options (default `blocked`)."""
+        return wiskey_door_block.policy(entry.options)
+
     # 0.10.4 (BRIDGE-UPDATE-LISTENER-2401): the pairing this setup was built from; the entry listener below compares against it
     loaded_pairing = [pairing_fields(entry.data)]
 
@@ -443,6 +453,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if blocked:
             _LOGGER.warning("smplwise_bridge.execute %s.%s refused: %s", domain, service, blocked)
             return {"ok": False, "error": blocked}
+        # 0.10.5 (DOOR-BRIDGE-BLOCK-2404, CR-033 D5a): a WisKey door is never opened (or locked) through execute while the
+        # administrator setting is `blocked` (the default); judged before anything is called, for every caller and identity
+        policy_now = door_policy()
+        door_blocked = wiskey_door_block.refusal(domain, data, lambda: er.async_get(hass), hass.states.get, policy_now)
+        if door_blocked:
+            _LOGGER.warning("smplwise_bridge.execute %s.%s refused: %s (%s, policy %s, request %s)", domain, service, wiskey_door_block.BLOCKED_CODE,
+                            door_blocked, policy_now, str(msg.get("request_id") or "")[:64])
+            try:  # the audit row inside Home Assistant (logbook / event bus), attributed to the person the message named
+                hass.bus.async_fire(wiskey_door_block.EVENT_REFUSED, wiskey_door_block.event_data(msg.get("request_id"), domain, service, data, door_blocked, policy_now),
+                                    context=Context(user_id=user.id))
+            except Exception as exc:  # noqa: BLE001 - the refusal stands whatever the event bus does
+                _LOGGER.warning("smplwise_bridge.execute refusal event not fired (%s)", type(exc).__name__)
+            return wiskey_door_block.answer(msg.get("request_id"), door_blocked)
         if media_policy.is_media(domain, service):
             # 0.4.0 (CR-015): the media services are judged here independently of the add-on (media_policy.py); the answer names the refusal only
             def _attributes(entity_id: str) -> Any:
@@ -601,7 +624,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                                                                                 "service_identity": True, "service_user_id": service_identity.configured_id(service_user_id()),
                                                                                 "local_identity_extended": local_extended(),
                                                                                 "local_identity_runnable": sorted(runnable_ids()),
-                                                                                "service_policy_restricted": policy_restricted}), timeout=10) as resp:
+                                                                                "service_policy_restricted": policy_restricted,
+                                                                                # 0.10.5 (DOOR-BRIDGE-BLOCK-2404): the WisKey door block's setting - state for the add-on, never a request
+                                                                                "wiskey_execute_policy": door_policy()}), timeout=10) as resp:
                 push_health.note(resp.status)
                 if resp.status != 200:
                     return 0
@@ -674,7 +699,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         (config_flow._discovered_for_existing, 0.10.3) therefore updates the entry WITHOUT a flow reload, and this listener reloads it:
         - a new pairing (add-on address, pairing code or the automatic-install flag differ from what this setup was built from) -> one
           reload, exactly what the flow's reload did: the fresh setup takes the K-02 re-pair path (keyset.KeySet.repaired);
-        - anything else - the options (the delegation switch, the service identity, the runnable list, all read live) or the bridge's own
+        - anything else - the options (the delegation switch, the service identity, the runnable list, the WisKey door block's policy (0.10.5),
+          all read live) or the bridge's own
           code wipe (HA-06) - reloads nothing and tells the add-on now instead of at the next minute, as before."""
         current = pairing_fields(updated.data)
         if current != loaded_pairing[0]:
