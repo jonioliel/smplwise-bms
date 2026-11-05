@@ -4209,7 +4209,8 @@
       "pre-evidence (2026-09-22, 0.1.77, same evening as round 5): the owner caught, live, that the camera screen's video had no height cap - on design A (no page max-width) a 16:9 box at full viewport width grows taller than the screen, hiding the controls and the just-shipped settings accordion behind a scroll. Fixed with max-block-size on the video box (width now follows from the ratio); verified visually in the browser pane at 1920x1000 - controls and the accordion summary visible with no scroll. Same evening: free-text event search + wider date ranges (T062's last open corner, see its own evidence) and the NVR connections card redesign (round-4 item 1.1, previously deferred) - clear per-section headers (icon, label, rule) instead of bare bold text, and the page groups NVR-related cards apart from go2rtc/HA/storage.",
       "0.1.79 (2026-09-22): full-system review at the owner's request - every screen walked in the browser at 1440 and 375 (sideways-scroll and error-panel probe per route), backend suite green twice (175 tests), tsc clean, the demo fixture chain green (129/129 after every UI change), and all 86 live evidence specs run in one sweep with the owner's NVR/HA/go2rtc unreachable from the workstation the whole evening (ConnectTimeout on ISAPI, timeout on the HA websocket): 42 passed, 43 failed, 1 conditional skip. Of the 43: 36 BLOCKED on device data (14 wait for a fresh event the dev database never received, 19 need an ISAPI/go2rtc answer, 3 need HA connected) - recorded as BLOCKED, not as regressions; 3 real product gaps the blocked environment exposed and 0.1.79 fixes (investigate-playback dropped the day's events and case bookmarks together with a failed recordings search; system-storage hid the local evidence-signing card inside its 'NVR reachable' branch; the 'NVR disconnected' system banner sat at the topbar's z-index later in the DOM and painted over the Ctrl+K results, so their first rows could not be clicked - Playwright's call log named the interceptor, sw-app.ts sysbanner now sits one level under the topbar); 4 specs out of date against the product (custom-roles now removes stale dev-guard bindings a run that died before cleanup left behind - they hid the expected 403; owner-round1 reads the ack-all count after the remembered filters applied and checks the inner native button, the only element Playwright treats as disabled; owner-round5 asserts the kiosk popup instead of a target attribute the 0.1.76 button no longer has; owner-round11 addresses input[type=range] beside the new number field). Re-run of the 7 touched spec files after the rebuild (17 tests): 15 passed, the 2 left are still device-bound (owner-round11 notify permissions need nvr/notify from the NVR; owner-round5 row hover needs an event). Walk fixes shipped: reason_of() replaces the literal 'ApiError' on the storage/health screens, sw-table wraps long cell text on phones (audit 644px and entities 484px at 375 wide), the playback control bar wraps and hides the refused x2/x4 speeds on phones, duplicate history.ha_secondary settings entry removed. Record: docs/operations/TEST_ROUND_RESULTS_2026-09-22_HE.md; round-6 owner checklist artifact (0.1.78 + 0.1.79 items plus the device-only flows the sweep could not reach).",
       "0.1.80 (2026-09-22, second session while the owner was away, brief: find every bug, incomplete or inconvenient implementation): a least-privilege walk - three throwaway dev principals bound to viewer / operator / editor plus one with no binding, all 32 routes opened as each in real Chrome (live_review.cjs --devuser) with screenshots, failed requests, console and page errors per route: the no-binding user meets the 'no role yet' gate on every route; viewer / operator / editor render all 32 screens with zero page errors and are sent to 16 / 9 / 15 routes they lack permission for (34 / 17 / 33 refused requests) - the navigation does not hide categories by permission (a product decision, left for the owner) and live-camera asks for OSD / schedules / smart data regardless of nvr.config.* (noise only). Found and fixed: (1) pydantic validation errors left FastAPI's bare {{\"detail\": [...]}} envelope, which no screen reads - the settings save with an out-of-range audit retention failed silently; a global RequestValidationError handler now returns the product envelope (code validation, Hebrew message naming field + rule, raw errors in details; test in test_janitor.py); (2) sw-dialog never moved keyboard focus into itself on open; (3) 13 screens showed a viewer 'something broke / retry' on a 403 - sw-state-panel now renders the lock without a retry for a refused request even when the screen only kept the message; (4) the overview events KPI showed 0 to a user without events.read - now a dash with 'no permission'; (5) the round-6 checklist pointed at the wrong settings tab for audit retention. Probed and clean: create buttons locked until a name is typed (case / rule / site), Esc closes dialogs, wall columns persist and reset, bogus event / case / camera ids get a not-found or forbidden panel, future-time history map opens. Noted, not changed: an unknown floor id silently opens the first floor. Runs: backend 175 green (after regenerating the API inventory for the release check), tsc clean, lp_verify.cjs in real Chrome confirms all four fixes live (viewer lock panel without retry, dash KPI, dialog focus in the name field, the Hebrew validation message beside the save button), evidence specs access / custom-roles / owner-round1 green and review-fixes' overview-KPIs test still BLOCKED on an event, demo fixture chain 129/129. Record: docs/operations/TEST_ROUND_RESULTS_2026-09-22_HE.md section 5; round-6 checklist section 4.",
-      "0.1.81 (2026-09-22): the two decisions the owner took on the least-privilege walk - (1.a) the shell hides tabs and areas the user has no permission for: /me gained permissions_any (union of the allow bindings at any scope minus an installation-wide deny; rbac.permissions_anywhere), nav.ts maps every tab to the permission its screen's first request needs (TAB_PERMISSIONS) and visibleAreas() drops a rail entry whose tabs are all gone (live always stays) and opens an area on its first visible tab; (2) live-camera skips the OSD / schedules / smart reads unless canReadNvrConfig() (mirrors nvr_write._require_read). tests/test_me_permissions.py; nav_verify.cjs in real Chrome: viewer = live + map, operator = + investigate without rules, editor = live + map, administrator = all; cam_calls.cjs: 0 NVR-config requests as viewer / operator, unchanged as admin. Backend suite green, tsc clean, both bundles rebuilt."
+      "0.1.81 (2026-09-22): the two decisions the owner took on the least-privilege walk - (1.a) the shell hides tabs and areas the user has no permission for: /me gained permissions_any (union of the allow bindings at any scope minus an installation-wide deny; rbac.permissions_anywhere), nav.ts maps every tab to the permission its screen's first request needs (TAB_PERMISSIONS) and visibleAreas() drops a rail entry whose tabs are all gone (live always stays) and opens an area on its first visible tab; (2) live-camera skips the OSD / schedules / smart reads unless canReadNvrConfig() (mirrors nvr_write._require_read). tests/test_me_permissions.py; nav_verify.cjs in real Chrome: viewer = live + map, operator = + investigate without rules, editor = live + map, administrator = all; cam_calls.cjs: 0 NVR-config requests as viewer / operator, unchanged as admin. Backend suite green, tsc clean, both bundles rebuilt.",
+      "commit 259939ad0 (release 2.11.0, on origin/main); also 8956f3017 (release 0.1.65, on origin/main) - 2026-11-05 (BOARD-HYGIENE-2403): privacy masks shipped (merge of pilot/MASKUI-295: editor under Settings > Security, write switch nvr.privacy_mask_write) and the motion grid write (0.1.65). Smart-event regions are not evidenced. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (T012, T045, T055)."
     ],
     "owner": null,
     "commit": null,
@@ -5188,7 +5189,8 @@
       "2026-09-29 (0.1.141, merge of pilot/CR008-video-policy 59a71bd): step 6 - remote player ladder main·WebRTC -> MSE (remote.mse_fallback) / other profile, RTP-statistics judgement (decoded frames = success, hidden tab not judged, tap-to-play on refused autoplay, frozen-tab clock), NVR codec check via GET /ISAPI/Streaming/channels stored in camera capabilities (H.264+SVC, H.265, MJPEG, B-frames = not WebRTC-safe), settings/health/wizard surfaces. Tests: test_stream_codecs.py, remote-video spec 30/30; Opus reviews M1-M3 + F1-F4 fixed. Owner checks: SVC off on main streams, wall/map profile decision.",
       "2026-09-29 (0.1.142, merge of pilot/CR008-hardening 035e20e + pilot/CR008-pwa-standalone 42d1a12 + pilot/test-wiskey-spec-sw 57178f1): P2 hardening - sessions list/revoke (per sign-in, migration 0035 revoked chains, in-memory set, WS close), narrow HA refresh-token deletion (Arx client_id only, 8 s cap), roles-screen counts, audit channel filter, remote.max_live_streams per sign-in (429 / WS 4429), strict CSP report-only + /csp-report + enforce switch guarded, idle re-check single-flight with 30 s backoff, pen-test checklist; PWA safe-area/maskable/shortcuts; SW iframe navigation fix. Tests: hardening 38 + remote 59 + push 12, Playwright 7; Opus review (4M+7L fixed) + re-review.",
       "2026-09-29 (0.1.144): owner report from the Android app - only 4 of 11 wall cameras played from outside; root cause remote.max_live_streams default 4 (0.1.142). Hotfix pilot/hotfix-remote-live-cap 0d8e662: default 16, cap refusal text on every path, wall streams visible tiles within the budget with snapshot tiles beyond it, remote.wall_profile + per-device quality switch. Android own-WebView shell merged (pilot/CR008-android-shell 2.0.2, two Opus security reviews); the owner installed 2.0.0-2.0.1 and confirmed sign-in and the app lock on his phone.",
-      "2026-11-02 (REGISTRY-UPDATE-2380): shipped; every commit named in this card is contained in v2.7.2, the first release tag in git (releases before it carry no tag). AT184-AT186 are NOT_RUN. The status stays BACKLOG only because the dependency T011 is not DONE (registry rule), exactly as for the other shipped cards."
+      "2026-11-02 (REGISTRY-UPDATE-2380): shipped; every commit named in this card is contained in v2.7.2, the first release tag in git (releases before it carry no tag). AT184-AT186 are NOT_RUN. The status stays BACKLOG only because the dependency T011 is not DONE (registry rule), exactly as for the other shipped cards.",
+      "commit 239489c40 (release 0.1.140, on origin/main); also c9b57e579 (release 0.1.142, on origin/main) - 2026-11-05 (BOARD-HYGIENE-2403): implementation merges of pilot/CR008-arx-mvp and pilot/CR008-hardening, both contained in v2.7.2. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (T011)."
     ],
     "owner": null,
     "commit": null,
@@ -5536,7 +5538,7 @@
       "AT206",
       "AT207"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -5554,10 +5556,11 @@
     ],
     "evidence": [
       "2026-10-01: architecture proposed on branch pilot/CR016-media-players-arch (public web research only; no device, HA, MA or lab contact; nothing implemented or run). Awaiting the owner's answers.",
-      "2026-10-01 (0.1.150): CR-016 shipped - speaker/player/receiver cards, the player panel, live and saved groups, the merge wizard, non-physical kinds, media.group, bridge 0.5.0 (player services + read-only media_query), migration 0044; works with and without Music Assistant."
+      "2026-10-01 (0.1.150): CR-016 shipped - speaker/player/receiver cards, the player panel, live and saved groups, the merge wizard, non-physical kinds, media.group, bridge 0.5.0 (player services + read-only media_query), migration 0044; works with and without Music Assistant.",
+      "commit 869161de4 (release 0.1.150, on origin/main) - 2026-11-05 (BOARD-HYGIENE-2403): shipped; CR-016 speakers, players and groups (release commit 869161de4); the direct Music Assistant connection followed in phase 2b (86b6fa23b). Moved BACKLOG -> REVIEW: REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE; the registration's 'partial' meant the live acceptance, not missing scope. AT205, AT206, AT207 stay NOT_RUN."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "869161de4",
     "actual_cost_usd": null
   },
   {
@@ -5591,7 +5594,7 @@
       "AT211",
       "AT212"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -5608,10 +5611,11 @@
     ],
     "evidence": [
       "2026-10-01: architecture proposed on branch pilot/CR017-automations-arch (public web research of HA core/frontend source and docs, and the anonymised read-only probe docs/research/AUTOMATIONS_PROBE_2026-10-01.md on branch pilot/automations-probe; no HA, lab or device contact by this task; nothing implemented or run). Awaiting the owner's answers.",
-      "2026-10-05 (TASKS-SYNC-2, housekeeping): partial - CR-017 (automations, scenes and scripts) is in the repository and shipped: release 0.1.152 (release commit df4fd3b8; smplwise_vms/CHANGELOG.md section 0.1.152 'Automations, scenes and scripts'), migration 0048_automations.sql, docs/changes/CR-017-AUTOMATIONS-SCENES-SCRIPTS.md, guide page commit 9b04714e. Tests in the repository: smplwise_vms/backend/tests/test_automations_*.py, test_automation_model.py / _policy.py / _text.py (fake HA); Playwright frontend/tests/evidence-automations-builder.spec.ts, evidence-automations-list.spec.ts, unit-automation*.spec.ts. Not proven: writes against the owner's real Home Assistant beyond what the release recorded. Evidence is not acceptance; status stays BACKLOG."
+      "2026-10-05 (TASKS-SYNC-2, housekeeping): partial - CR-017 (automations, scenes and scripts) is in the repository and shipped: release 0.1.152 (release commit df4fd3b8; smplwise_vms/CHANGELOG.md section 0.1.152 'Automations, scenes and scripts'), migration 0048_automations.sql, docs/changes/CR-017-AUTOMATIONS-SCENES-SCRIPTS.md, guide page commit 9b04714e. Tests in the repository: smplwise_vms/backend/tests/test_automations_*.py, test_automation_model.py / _policy.py / _text.py (fake HA); Playwright frontend/tests/evidence-automations-builder.spec.ts, evidence-automations-list.spec.ts, unit-automation*.spec.ts. Not proven: writes against the owner's real Home Assistant beyond what the release recorded. Evidence is not acceptance; status stays BACKLOG.",
+      "commit df4fd3b8e (release 0.1.152, on origin/main) - 2026-11-05 (BOARD-HYGIENE-2403): shipped; CR-017 automations, scenes and scripts (release commit df4fd3b8e, migration 0048). Moved BACKLOG -> REVIEW: REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE; the registration's 'partial' meant the live acceptance, not missing scope. AT208, AT209, AT210, AT211, AT212 stay NOT_RUN."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "df4fd3b8e",
     "actual_cost_usd": null
   },
   {
@@ -5639,7 +5643,7 @@
       "AT212",
       "AT213"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -5657,10 +5661,11 @@
     "evidence": [
       "2026-10-01: architecture proposed on branch pilot/CR018-notifications-arch (repository inventory and public web research only; no device, HA, WisKey or lab contact; nothing implemented or run). Awaiting the owner's answers.",
       "2026-10-05 (TASKS-SYNC-2, housekeeping): partial - CR-018 (notification centre) is in the repository and shipped: release 0.1.151 (release commit 4293badf; smplwise_vms/CHANGELOG.md section 0.1.151), migrations 0045_notifications / 0046_notify_settings / 0047_notify_policies (renumbered at commit 03897e09), docs/changes/CR-018-NOTIFICATIONS.md; later extended by the recorder-health sources (CR-026) and the phone-app channel (CR-027, commit 748d2b2f). Tests in the repository: smplwise_vms/backend/tests/test_notify_core.py, test_notify_channels.py, test_notify_sources.py, test_notify_email.py, test_notify_payload_golden.py; Playwright frontend/tests/evidence-notifications.spec.ts, unit-notifications.spec.ts. Not proven: delivery to real phones or mail on the owner's installation. Evidence is not acceptance; status stays BACKLOG.",
-      "2026-10-06 (TASKS-SYNC-3, registry update): no change in scope. The phone-app channel of the notification core is released (2.0.2) and the Android app that consumes it exists only as the unmerged import branch pilot/android-v4-import (head 6b8751cc, debug build, mock-tested; see T096 and T103). Delivery to a real phone remains NOT_RUN. Status stays BACKLOG."
+      "2026-10-06 (TASKS-SYNC-3, registry update): no change in scope. The phone-app channel of the notification core is released (2.0.2) and the Android app that consumes it exists only as the unmerged import branch pilot/android-v4-import (head 6b8751cc, debug build, mock-tested; see T096 and T103). Delivery to a real phone remains NOT_RUN. Status stays BACKLOG.",
+      "commit 4293badf1 (release 0.1.151, on origin/main) - 2026-11-05 (BOARD-HYGIENE-2403): shipped; CR-018 notification centre (release commit 4293badf1); Companion phones are a later step by owner decision 3ג (CR-018 section 6.3). Moved BACKLOG -> REVIEW: REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE; the registration's 'partial' meant the live acceptance, not missing scope. AT211, AT212, AT213 stay NOT_RUN."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "4293badf1",
     "actual_cost_usd": null
   },
   {
@@ -5688,7 +5693,7 @@
       "AT215",
       "AT216"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -5711,10 +5716,11 @@
       "Test files present in the repository (this card registration did not run them): 21 backend files matching *schedul* under smplwise_vms/backend/tests and 6 frontend specs matching *schedul* under frontend/tests. No acceptance test is marked PASS in test_catalog.json: AT214-AT216 are NOT_RUN until a run is recorded against a commit.",
       "Open: recorded live acceptance on the lab (phase-0 checklist write steps need the owner's approval); an alarm action that needs a panel code cannot be scheduled; direct edits inside the component bypass product permissions (flagged external).",
       "2026-10-02: card registered retroactively by the cleanup task pilot/playback-cap-cleanup; CR-014 had no card before, only mentions in T100/T101.",
-      "2026-10-31 (TASKS-SYNC-3110): no agent works on it; last activity 2026-10-23; parts already shipped stay shipped. Moved from IN_PROGRESS to BACKLOG so the board shows only live work"
+      "2026-10-31 (TASKS-SYNC-3110): no agent works on it; last activity 2026-10-23; parts already shipped stay shipped. Moved from IN_PROGRESS to BACKLOG so the board shows only live work",
+      "commit c656372b1 (release 0.1.147, on origin/main) - 2026-11-05 (BOARD-HYGIENE-2403): shipped; CR-014 schedules (merge c656372b1 of pilot/CR014-s1-backend, contained in v2.7.2). Moved BACKLOG -> REVIEW: REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE; the registration's 'partial' meant the live acceptance, not missing scope. AT214, AT215, AT216 stay NOT_RUN."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "c656372b1",
     "actual_cost_usd": null
   },
   {
@@ -5832,7 +5838,7 @@
     "test_ids": [
       "AT219"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -5850,10 +5856,11 @@
       "2026-10-05 (TASKS-SYNC, housekeeping): card registered retroactively by the TASKS-SYNC housekeeping task. commit 2cd7c8d9 / 9a5f733f / 7db43ce2 and the merge 18bad5b9 (pilot/provision-wiring into integ/0163): the adapter, the wiring and the security fixes (Digest-to-Basic downgrade refused, vendor extras validated, exports bound to their recorder, Hikvision ISAPI refused for other vendors); released in 0.1.163 (release commit e6819da8; smplwise_vms/CHANGELOG.md section 0.1.163 'Provision-ISR recorders (CR-025)'); the alarm-server write refusal on a v1 NVR in 2.0.3 (commit a90df7ff).",
       "Tests in the repository: smplwise_vms/backend/tests/test_provision_isr.py, test_provision_isr_p2.py, test_provision_playback.py, test_provision_wiring.py, test_provision_p3_wiring.py, test_provision_tls_pin.py, test_provision_vendor_guard.py, test_provision_push_*.py; Playwright frontend/tests/evidence-provision-connection.spec.ts. All against fake devices.",
       "Not proven by the repository: a real write to a Provision recorder (the owner does the first one, runbook in CR-025 section 6.6), drop recovery on a real network, v2 paths (P4). AT219 stays NOT_RUN as a recorded acceptance.",
-      "2026-10-31 (TASKS-SYNC-3110): no agent works on it; last activity 2026-10-05; parts already shipped stay shipped. Moved from IN_PROGRESS to BACKLOG so the board shows only live work"
+      "2026-10-31 (TASKS-SYNC-3110): no agent works on it; last activity 2026-10-05; parts already shipped stay shipped. Moved from IN_PROGRESS to BACKLOG so the board shows only live work",
+      "commit 18bad5b9c (release 0.1.163, on origin/main) - 2026-11-05 (BOARD-HYGIENE-2403): shipped; CR-025 Provision-ISR API v1 adapter (merge 18bad5b9c, release commit e6819da82); v2 paths are outside this card. Moved BACKLOG -> REVIEW: REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE; the registration's 'partial' meant the live acceptance, not missing scope. AT219 stay NOT_RUN."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "18bad5b9c",
     "actual_cost_usd": null
   },
   {
@@ -5875,7 +5882,7 @@
     "test_ids": [
       "AT220"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -5893,10 +5900,11 @@
       "2026-10-05 (TASKS-SYNC, housekeeping): card registered retroactively by the TASKS-SYNC housekeeping task. commit 45255e6e (merge of pilot/nvr-health into integ/200), released in 2.0.0 (release commit 50056b25; smplwise_vms/CHANGELOG.md section 2.0.0 'Recorder health monitoring (CR-026)'); the owner decisions of 2026-10-05 and the live read-only pass on the owner's Provision NVR are recorded in the CR (commit b7981fbd).",
       "Tests in the repository: smplwise_vms/backend/tests/test_recorder_health.py, test_recorder_health_nn6.py, test_health_report.py, test_health_summary.py (fake devices).",
       "Not proven by the repository: Hikvision health detail (planned after Provision); behaviour over time on the owner's installation. AT220 stays NOT_RUN as a recorded acceptance.",
-      "2026-10-31 (TASKS-SYNC-3110): no agent works on it; last activity 2026-10-05; parts already shipped stay shipped. Moved from IN_PROGRESS to BACKLOG so the board shows only live work"
+      "2026-10-31 (TASKS-SYNC-3110): no agent works on it; last activity 2026-10-05; parts already shipped stay shipped. Moved from IN_PROGRESS to BACKLOG so the board shows only live work",
+      "commit 45255e6eb (release 2.0.0, on origin/main) - 2026-11-05 (BOARD-HYGIENE-2403): shipped; CR-026 recorder health (merge 45255e6eb, release commit 50056b251). Moved BACKLOG -> REVIEW: REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE; the registration's 'partial' meant the live acceptance, not missing scope. AT220 stay NOT_RUN."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "45255e6eb",
     "actual_cost_usd": null
   },
   {
@@ -6000,7 +6008,7 @@
     "test_ids": [
       "AT223"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -6017,10 +6025,11 @@
     "evidence": [
       "2026-10-05 (TASKS-SYNC-2, housekeeping): card registered retroactively. partial - CR-019 S1-S4 are in the repository and shipped in 0.1.153 (release commit ff59ef6f; smplwise_vms/CHANGELOG.md section 0.1.153 'Protected switches'; merge c53c6d18 of pilot/switch-model; commit 0b95ca7f 'the default is included - the classifier only suggests protection'; S3 review list commit 20e4f1bf; S4 docs commit 07ce4d53), migration 0049_switch_protection.sql.",
       "Tests in the repository: smplwise_vms/backend/tests/test_switch_protection_classifier.py, test_switch_protection_migration.py, test_switch_protection_reach_guard.py; Playwright frontend/tests/unit-protected-switches.spec.ts, evidence-protected-switches.spec.ts (mocked / fixture backend).",
-      "Not proven by the repository: behaviour on the owner's real switch inventory (the release notes warn that right after the update 'turn everything off' reaches every switch until the owner protects what must stay). AT223 stays NOT_RUN as a recorded acceptance."
+      "Not proven by the repository: behaviour on the owner's real switch inventory (the release notes warn that right after the update 'turn everything off' reaches every switch until the owner protects what must stay). AT223 stays NOT_RUN as a recorded acceptance.",
+      "commit c53c6d18a (release 0.1.153, on origin/main) - 2026-11-05 (BOARD-HYGIENE-2403): shipped; CR-019 protected switches S1-S4 (merge c53c6d18a, release commit ff59ef6f9). Moved BACKLOG -> REVIEW: REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE; the registration's 'partial' meant the live acceptance, not missing scope. AT223 stay NOT_RUN."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "c53c6d18a",
     "actual_cost_usd": null
   },
   {
@@ -6042,7 +6051,7 @@
     "test_ids": [
       "AT224"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -6059,10 +6068,11 @@
     "evidence": [
       "2026-10-05 (TASKS-SYNC-2, housekeeping): card registered retroactively. partial - CR-020 is in the repository and shipped in four steps: S1 read-only table in 0.1.153 (merge 92cfdba1 of pilot/cr020-s1; release commit ff59ef6f), S2 guarded write in 0.1.158 (merge b5c9a17c of pilot/CR020-s2-b, migration 0050_nvr_stream_changes.sql; release commit 07d629a6), S2C multi-camera SVC off in 0.1.159 (merges 8aa27600 backend and 78306931 UI; release commit 31b474ed), bulk encoding change in 0.1.162 (merge 74997a4a of pilot/nvr-bulk-encoding, backend 59d4d056, UI 06d0ac88; release commit c7432361). smplwise_vms/CHANGELOG.md sections 0.1.153 / 0.1.158 / 0.1.159 / 0.1.162.",
       "Tests in the repository (fake NVR only): smplwise_vms/backend/tests/test_nvr_cameras_settings.py, test_nvr_stream_document.py, test_nvr_stream_write.py, test_nvr_stream_write_locks.py, test_nvr_stream_rollback.py, test_nvr_stream_review_fixes.py, test_nvr_stream_batch*.py, test_nvr_encoding_plan.py, test_nvr_encoding_batch.py; Playwright frontend/tests/evidence-nvr-encoding-batch.spec.ts, layout-nvr-encoding-batch.spec.ts, pixel-nvr-encoding-batch.spec.ts, unit-nvr-encoding-logic.spec.ts.",
-      "Not proven by the repository: any real write to a camera or recorder - the release notes state that no real write was made; the first real bulk encoding change is a lab session the owner runs. AT224 stays NOT_RUN as a recorded acceptance."
+      "Not proven by the repository: any real write to a camera or recorder - the release notes state that no real write was made; the first real bulk encoding change is a lab session the owner runs. AT224 stays NOT_RUN as a recorded acceptance.",
+      "commit 74997a4a2 (release 0.1.162, on origin/main) - 2026-11-05 (BOARD-HYGIENE-2403): shipped; CR-020 camera settings S1 92cfdba15, S2 b5c9a17ca, bulk encoding 74997a4a2 (release commit c7432361b). Moved BACKLOG -> REVIEW: REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE; the registration's 'partial' meant the live acceptance, not missing scope. AT224 stay NOT_RUN."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "74997a4a2",
     "actual_cost_usd": null
   },
   {
@@ -6084,7 +6094,7 @@
     "test_ids": [
       "AT225"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -6101,10 +6111,11 @@
     "evidence": [
       "2026-10-05 (TASKS-SYNC-2, housekeeping): card registered retroactively. partial - CR-021 S1-S3 are in the repository and shipped in 0.1.159 (merge 5e4370bf of pilot/CR021-s3-merged, migration 0051_self_update.sql; security-review fixes 5a086664, screens 3c6e727a; release commit 31b474ed; smplwise_vms/CHANGELOG.md section 0.1.159 'Updates and restarts from inside Arx').",
       "Tests in the repository (fake infrastructure only): smplwise_vms/backend/tests/test_self_update.py, test_self_update_s3.py, test_self_update_s3_fixes.py; Playwright frontend/tests/evidence-system-update.spec.ts, evidence-system-update-apply.spec.ts, evidence-system-update-fixture.spec.ts, layout-update-screens.spec.ts; scripts/self_update_probe.py.",
-      "Not proven by the repository: a real in-app update, a real platform restart and Arx restart, and the one-time manual install that grants the manager role (lab sessions with the owner, CR-021 section 13.5 checklist). AT225 stays NOT_RUN as a recorded acceptance."
+      "Not proven by the repository: a real in-app update, a real platform restart and Arx restart, and the one-time manual install that grants the manager role (lab sessions with the owner, CR-021 section 13.5 checklist). AT225 stays NOT_RUN as a recorded acceptance.",
+      "commit 5e4370bfe (release 0.1.159, on origin/main) - 2026-11-05 (BOARD-HYGIENE-2403): shipped; CR-021 self-update S1-S3 (merge 5e4370bfe, release commit 31b474edf). Moved BACKLOG -> REVIEW: REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE; the registration's 'partial' meant the live acceptance, not missing scope. AT225 stay NOT_RUN."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "5e4370bfe",
     "actual_cost_usd": null
   },
   {
@@ -6126,7 +6137,7 @@
     "test_ids": [
       "AT226"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -6143,10 +6154,11 @@
     "evidence": [
       "2026-10-05 (TASKS-SYNC-2, housekeeping): card registered retroactively. partial - CR-022 is in the repository and shipped in 0.1.159 (merge 88eb0790 of pilot/nn4-final-fixes into integ/0159, migration 0052_recorder_connections.sql; three security reviews, last fix 352bb11c; release commit 31b474ed; smplwise_vms/CHANGELOG.md section 0.1.159 'The NVR connection inside Arx'). Later generalised per recorder by CR-024 (T058).",
       "Tests in the repository (fake NVR only): smplwise_vms/backend/tests/test_nvr_connection.py, test_nvr_less.py; Playwright frontend/tests/evidence-nvr-connection.spec.ts, evidence-nvr-connection-live.spec.ts.",
-      "Not proven by the repository: AT-022-16 - one restart and the one-time options import on the owner's real installation (on the owner's word). AT226 stays NOT_RUN as a recorded acceptance."
+      "Not proven by the repository: AT-022-16 - one restart and the one-time options import on the owner's real installation (on the owner's word). AT226 stays NOT_RUN as a recorded acceptance.",
+      "commit 88eb0790f (release 0.1.159, on origin/main) - 2026-11-05 (BOARD-HYGIENE-2403): shipped; CR-022 NVR connection in Arx (merge 88eb0790f, release commit 31b474edf). Moved BACKLOG -> REVIEW: REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE; the registration's 'partial' meant the live acceptance, not missing scope. AT226 stay NOT_RUN."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "88eb0790f",
     "actual_cost_usd": null
   },
   {
@@ -6168,7 +6180,7 @@
     "test_ids": [
       "AT227"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -6185,10 +6197,11 @@
     "evidence": [
       "2026-10-05 (TASKS-SYNC-2, housekeeping): card registered retroactively. partial - CR-023 is in the repository and shipped: meters, accounts, bills and the PDF in 0.1.160 (merge d33d21d2 of pilot/elec-server; PDF commit 2c50229d; release commit c41dfa2a; migrations renumbered to 0053 / 0054 at merge d484ac8e); price correction and meter device name in 0.1.161 (f45c84ca); meter rename in 0.1.162 (c7432361); EL5 time-of-use tariffs (commit 7a6c7170) and the EL8 fix of the bill PDF in the real add-on image in 2.0.1 (fc6f5269); Cyrillic / Arabic names in bill PDFs and the meter-readings backup switch (55bd584e) in 2.0.2 (bf522a1b); EL6 manual readings and calibration (commit 1724e08e, merge 51059bcc, migration 0058) in 2.0.3 (567a7a78). smplwise_vms/CHANGELOG.md sections 0.1.160 / 2.0.1 / 2.0.2 / 2.0.3.",
       "Tests in the repository (fake meters only): smplwise_vms/backend/tests/test_energy_counter.py, test_energy_store.py, test_energy_api.py, test_energy_billing_engine.py, test_energy_billing_api.py, test_energy_tou_engine.py, test_energy_tou_billing.py, test_energy_manual_readings.py, test_bill_pdf.py, test_energy_bill_pdf_pipeline.py, test_energy_integration.py; Playwright frontend/tests/electricity-*.spec.ts, evidence-electricity-*.spec.ts, layout-electricity*.spec.ts. The 2.0.1 CHANGELOG records the bill PDF produced inside the add-on image rebuilt on the runner (evidence under docs/evidence/).",
-      "Not proven by the repository: a real energy sensor or real customer, real Israeli time-of-use prices, the PDF time on the owner's ARM hardware, the first real bill. AT227 stays NOT_RUN as a recorded acceptance."
+      "Not proven by the repository: a real energy sensor or real customer, real Israeli time-of-use prices, the PDF time on the owner's ARM hardware, the first real bill. AT227 stays NOT_RUN as a recorded acceptance.",
+      "commit d33d21d2a (release 0.1.160, on origin/main) - 2026-11-05 (BOARD-HYGIENE-2403): shipped; CR-023 meters, accounts, bills and PDF (merge d33d21d2a, release commit c41dfa2ae) with time-of-use and PDF fixes in 2.0.1. Moved BACKLOG -> REVIEW: REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE; the registration's 'partial' meant the live acceptance, not missing scope. AT227 stay NOT_RUN."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "d33d21d2a",
     "actual_cost_usd": null
   },
   {
@@ -6210,7 +6223,7 @@
     "test_ids": [
       "AT228"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -6227,10 +6240,11 @@
     "evidence": [
       "2026-10-05 (TASKS-SYNC-2, housekeeping): card registered retroactively. partial - BV1 is in the repository and shipped in 2.0.2 (merge a81c208b of pilot/BV1-bubble-tiles into integ/202; release commit bf522a1b; smplwise_vms/CHANGELOG.md section 2.0.2 'More Bubble variants (BV1)'); agenda-tile layout fix b7bbdb9b, launcher / guide commit e91dc355, evidence screenshots 4858a7ee at 1440 / 820 / 390, light and dark; the agenda test pins the route clock in 4db5168a (2.0.3).",
       "Tests in the repository: Playwright frontend/tests/unit-bv1-tiles.spec.ts, evidence-bv1-tiles.spec.ts, layout-bv1-tiles.spec.ts (mocks in bv1-mocks.ts); backend smplwise_vms/backend/tests/test_home_config.py follows the BV1 additions (commit 0b7b1dd5).",
-      "Not proven by the repository: behaviour with the owner's real calendar entities on a wall tablet. The item named LV1 (live count) has no trace in the repository and is not recorded here. AT228 stays NOT_RUN as a recorded acceptance."
+      "Not proven by the repository: behaviour with the owner's real calendar entities on a wall tablet. The item named LV1 (live count) has no trace in the repository and is not recorded here. AT228 stays NOT_RUN as a recorded acceptance.",
+      "commit a81c208b7 (release 2.0.2, on origin/main) - 2026-11-05 (BOARD-HYGIENE-2403): shipped; BV1 Bubble variants (merge a81c208b7, release commit bf522a1bd). Moved BACKLOG -> REVIEW: REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE; the registration's 'partial' meant the live acceptance, not missing scope. AT228 stay NOT_RUN."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "a81c208b7",
     "actual_cost_usd": null
   },
   {
@@ -6252,7 +6266,7 @@
     "test_ids": [
       "AT229"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -6269,10 +6283,11 @@
     "evidence": [
       "2026-10-05 (TASKS-SYNC-2, housekeeping): card registered retroactively. partial - CMP1 shipped in 2.0.2 (merge 21e3d465 of pilot/compare-dropdown into integ/202; release commit bf522a1b) and CMP2 in 2.0.3 (merge 05979c84 of pilot/compare-polish into integ/203; release commit 567a7a78); smplwise_vms/CHANGELOG.md sections 2.0.2 / 2.0.3.",
       "Tests in the repository: Playwright frontend/tests/compare-dropdown.spec.ts, layout-compare-dropdown.spec.ts, sync-dropdown.spec.ts, layout-sync-dropdown.spec.ts, unit-multi-select.spec.ts, evidence-sync.spec.ts.",
-      "Not proven by the repository: use on the owner's installation with two real recorders (cross-recorder synced playback stays experimental). AT229 stays NOT_RUN as a recorded acceptance."
+      "Not proven by the repository: use on the owner's installation with two real recorders (cross-recorder synced playback stays experimental). AT229 stays NOT_RUN as a recorded acceptance.",
+      "commit 05979c843 (release 2.0.3, on origin/main) - 2026-11-05 (BOARD-HYGIENE-2403): shipped; CMP1 (merge 21e3d465e, 2.0.2) and CMP2 (merge 05979c843, release commit 567a7a782). Moved BACKLOG -> REVIEW: REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE; the registration's 'partial' meant the live acceptance, not missing scope. AT229 stay NOT_RUN."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "05979c843",
     "actual_cost_usd": null
   },
   {
@@ -6338,7 +6353,7 @@
     "test_ids": [
       "AT231"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -6355,10 +6370,11 @@
       "2026-10-06 (TASKS-SYNC-3, housekeeping): card registered retroactively. partial - released in 2.2.0 (merge 1da0dfba of pilot/MU2-announcements, head 9778cb46; CHANGELOG section 'Voice announcements'), migration 0067. Release 2.2.0 (main f0b42dd0; integration branch integ/220, gated head eaeceba3): tier L gate on the Linux test machine PASS (backend 5868 passed / 0 failed / 3 flaky that pass alone, preview 5959 passed / 0 failed, dev 619 passed, pixel 12 passed, fixture 15 passed, tsc / build / release_check ok; docs/release/2.2.0-INTEGRATION-NOTES.md). All of this is fixture / mocked / in-process evidence; nothing was run against a real device on the owner's installation. Tests in the repository: smplwise_vms/backend/tests/test_announcements.py (media layer faked); Playwright frontend/tests/evidence-announcements.spec.ts (mocked backend).",
       "Not proven / NOT_RUN: a spoken announcement on a real speaker through the owner's text-to-speech engine; the per-speaker test button on real players; behaviour on installations without a text-to-speech engine. AT231 stays NOT_RUN.",
       "2026-10-07 (TASKS-SYNC-4, registry update): partial - announcement extras (ANN2) released in 2.3.0 (merge c9f0fbbd of pilot/ANN2-announce-extras, head 4d96d078, migration 0070_announce_extras; widens one value list and keeps every row): per-announcement volume (clamped and restored), pause / resume of playing music, quiet hours (suppress or lower; critical always spoken), rule actions with volume and a critical flag, and the 'announce' notification channel (notifications spoken in a chosen room by category and minimum severity, same limits and audit). Off by default, including the channel in every notification policy. Review items of 2.2.0 fixed in 2.2.1: announcement rules re-check the saver's permission on every run, markup is stripped from announcement text, the cooldown holds per speaker. Release 2.2.1 (main 1ab56acf; integration branch integ/221, gated head 27459040): tier L gate on the Linux test machine PASS on the second run (backend 5956 passed / 0 failed / 1 flaky that passes alone, preview 5988 passed, dev 621 passed, pixel 16 passed, fixture 15 passed, tsc / build / release_check ok; the first run was red on two unit-android-download cases, fixed and re-gated; docs/release/2.2.1-INTEGRATION-NOTES.md). Release 2.3.0 (main 383a03d9; integration branch integ/230, gated head 560b246f): tier L gate on the Linux test machine PASS (backend 6070 passed / 0 failed, preview 6011 passed / 1 flaky that passes alone, dev 620 passed / 1 flaky, pixel 16 passed, fixture 15 passed, tsc / build / release_check ok; visual step warning-only 72 pass / 0 differ; docs/release/2.3.0-INTEGRATION-NOTES.md). All of this is fixture / mocked / in-process evidence; nothing was run against a real device on the owner's installation. Tests in the repository: smplwise_vms/backend/tests/test_announce_extras.py (30 test functions), test_announcements.py, test_security_review_220.py (media layer faked).",
-      "Not proven / NOT_RUN: a spoken announcement, volume restore and music pause / resume on a real speaker through the owner's text-to-speech engine; the quiet-hours behaviour and the announce channel on the owner's installation. AT231 and AT239 stay NOT_RUN."
+      "Not proven / NOT_RUN: a spoken announcement, volume restore and music pause / resume on a real speaker through the owner's text-to-speech engine; the quiet-hours behaviour and the announce channel on the owner's installation. AT231 and AT239 stay NOT_RUN.",
+      "commit 1da0dfba5 (release 2.2.0, on origin/main) - 2026-11-05 (BOARD-HYGIENE-2403): shipped; MU2 announcements (merge 1da0dfba5), extras ANN2 2.3.0 (c9f0fbbdd), stage A ANNOUNCE-295 v2.20.1 (0d128d733), stage B screens v2.23.0 (b6b1bad75), translation v2.25.0 (6d3dc4710), fixed TTS engine v2.40.0 (1879f1095). Moved BACKLOG -> REVIEW: REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE; the registration's 'partial' meant the live acceptance, not missing scope. AT231 stay NOT_RUN."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "1da0dfba5",
     "actual_cost_usd": null
   },
   {
@@ -7113,7 +7129,8 @@
       "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
       "Its dependency list names WXD5B, which waits on deferred WXH1; drop or re-plan with the owner if rotation stays deferred.",
       "2026-10-11 (REGISTRY-sync-1011): pending: gate T1..T26 on fakes after the other door-path rows.",
-      "commit f18932f04 (release 2.4.9, on origin/main); also 22cc4b257 (release 2.4.9, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): partly shipped. door-path gate T1..T26 on fakes shipped (test_wiskey_door_gate.py maps every named test). Missing: T13 (event door job conversion), the fake-HA part of T19 (context user / parent and concurrent runs) and T24 (bridge side) are still open. Status kept BACKLOG (target IN_PROGRESS): the registry rule needs every dependency DONE (WXD0:REVIEW, WXD1:BACKLOG, WXD2:REVIEW, WXD3:BACKLOG, WXD4:BACKLOG, WXD5A:BACKLOG, WXD5B:BACKLOG, WXD6:BACKLOG, WXD7:BACKLOG, WXD7R:BACKLOG, WXD8:BACKLOG, WXD9:BACKLOG, WXD10A:BACKLOG, WXD10B:BACKLOG)."
+      "commit f18932f04 (release 2.4.9, on origin/main); also 22cc4b257 (release 2.4.9, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): partly shipped. door-path gate T1..T26 on fakes shipped (test_wiskey_door_gate.py maps every named test). Missing: T13 (event door job conversion), the fake-HA part of T19 (context user / parent and concurrent runs) and T24 (bridge side) are still open. Status kept BACKLOG (target IN_PROGRESS): the registry rule needs every dependency DONE (WXD0:REVIEW, WXD1:BACKLOG, WXD2:REVIEW, WXD3:BACKLOG, WXD4:BACKLOG, WXD5A:BACKLOG, WXD5B:BACKLOG, WXD6:BACKLOG, WXD7:BACKLOG, WXD7R:BACKLOG, WXD8:BACKLOG, WXD9:BACKLOG, WXD10A:BACKLOG, WXD10B:BACKLOG).",
+      "commit a839ceeba (release 2.40.0, on origin/main) - 2026-11-05 (BOARD-HYGIENE-2403): T13 (event door job conversion) closed by WXD10-DOOR-JOBS-2400 (docs/changes/WXD10-DOOR-JOBS-2400.md: row T13 removed from OPEN in test_wiskey_door_gate.py). Still open: T19 (fake-HA part) and T24 (bridge side). Status kept BACKLOG."
     ],
     "owner": null,
     "commit": "f18932f04",
@@ -9469,7 +9486,8 @@
     ],
     "evidence": [
       "2026-10-11 (REGISTRY-sync-1011): board 2.9.0 (S15+S16 merged), 32 h. Owner decision 2026-10-11 (CR-036 answer 2): allowed now; every live test needs the owner approval.",
-      "commit 18a6f2e53 (release 2.4.9, on origin/main); also faf5bd4c0 (release 2.24.1, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): partly shipped. person and card writes (S11, integ/249) and door-window program writes (DOORWRITE-297) shipped. Missing: door technical writes (hold-open schedules, public codes, programs on the classic channel) are in flight on pilot/WISKEY-DOOR-TECH-2390 @ e3789536b (not released). Status kept BACKLOG (target IN_PROGRESS): the registry rule needs every dependency DONE (WXN11:BACKLOG)."
+      "commit 18a6f2e53 (release 2.4.9, on origin/main); also faf5bd4c0 (release 2.24.1, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): partly shipped. person and card writes (S11, integ/249) and door-window program writes (DOORWRITE-297) shipped. Missing: door technical writes (hold-open schedules, public codes, programs on the classic channel) are in flight on pilot/WISKEY-DOOR-TECH-2390 @ e3789536b (not released). Status kept BACKLOG (target IN_PROGRESS): the registry rule needs every dependency DONE (WXN11:BACKLOG).",
+      "commit 37c9cdae3 (release 2.39.0, on origin/main) - 2026-11-05 (BOARD-HYGIENE-2403): door technical writes shipped: merge of pilot/WISKEY-DOOR-TECH-2390 (tip e3789536b is an ancestor of origin/main; docs/changes/WISKEY-DOOR-TECH-2390.md, system administrators only, confirmation and audit per write). The 'Missing' of the 2026-11-04 audit line is closed. Live WisKey tests NOT_RUN (owner approval). Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (WXN11:BACKLOG)."
     ],
     "owner": null,
     "commit": "18a6f2e53",
@@ -19645,7 +19663,7 @@
     "test_ids": [
       "AT-GUIDE-BOARD-2402-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -19659,10 +19677,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit a8c0de013 (docs/GUIDE-BOARD-2402, not on origin/main, not released) - 2026-11-04 (GUIDE-BOARD-2402): guide pages 00, 10, 15 (new), 30, 50, 80, 84 and GUIDE_ALL_HE.html rebuilt; this registry update on the same branch."
+      "commit a8c0de013 (docs/GUIDE-BOARD-2402, not on origin/main, not released) - 2026-11-04 (GUIDE-BOARD-2402): guide pages 00, 10, 15 (new), 30, 50, 80, 84 and GUIDE_ALL_HE.html rebuilt; this registry update on the same branch.",
+      "commit 488735490 (release 2.40.2, on origin/main) - 2026-11-05 (BOARD-HYGIENE-2403): released in v2.40.2 (release commit ccb77f28d = tag v2.40.2); IN_PROGRESS -> REVIEW: REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Merge of docs/GUIDE-BOARD-2402 @ 3308bd1fa."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "488735490",
     "actual_cost_usd": null
   },
   {
@@ -19684,7 +19703,7 @@
     "test_ids": [
       "AT-GATE-HYGIENE-2402-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -19698,10 +19717,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit 0ff7dac9b (release/2402-train, not on origin/main, not released) - 2026-11-05: merge of chore/GATE-HYGIENE-2402 (docs/changes/GATE-HYGIENE-2402.md) into the 2.40.2 train. The runner install of select_tests.py is the lead's step."
+      "commit 0ff7dac9b (release/2402-train, not on origin/main, not released) - 2026-11-05: merge of chore/GATE-HYGIENE-2402 (docs/changes/GATE-HYGIENE-2402.md) into the 2.40.2 train. The runner install of select_tests.py is the lead's step.",
+      "commit 0ff7dac9b (release 2.40.2, on origin/main) - 2026-11-05 (BOARD-HYGIENE-2403): released in v2.40.2 (release commit ccb77f28d = tag v2.40.2); IN_PROGRESS -> REVIEW: REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. The runner install of scripts/gate/select_tests.py is the coordinator's step (NOT_RUN in this record)."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "0ff7dac9b",
     "actual_cost_usd": null
   },
   {
@@ -19723,7 +19743,7 @@
     "test_ids": [
       "AT-VIDEO-SUB-FALLBACK-2402-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -19737,10 +19757,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit cb4b47767 (release/2402-train, not on origin/main, not released) - 2026-11-05: merge of pilot/VIDEO-SUB-FALLBACK-2402 (docs/changes/VIDEO-SUB-FALLBACK-2402.md) into the 2.40.2 train. Lab check (cameras 8 and 10) NOT_RUN."
+      "commit cb4b47767 (release/2402-train, not on origin/main, not released) - 2026-11-05: merge of pilot/VIDEO-SUB-FALLBACK-2402 (docs/changes/VIDEO-SUB-FALLBACK-2402.md) into the 2.40.2 train. Lab check (cameras 8 and 10) NOT_RUN.",
+      "commit cb4b47767 (release 2.40.2, on origin/main) - 2026-11-05 (BOARD-HYGIENE-2403): released in v2.40.2 (release commit ccb77f28d = tag v2.40.2); IN_PROGRESS -> REVIEW: REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. Lab check of the sub -> main fallback NOT_RUN; kiosk, display wall and camera page do not fall back (open point for the owner)."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "cb4b47767",
     "actual_cost_usd": null
   },
   {
@@ -19762,7 +19783,7 @@
     "test_ids": [
       "AT-SETTINGS-CARDS-ACCORDION-2402-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -19776,10 +19797,11 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit 406bdeeb4 (release/2402-train, not on origin/main, not released) - 2026-11-05: merge of pilot/SETTINGS-CARDS-ACCORDION-2402 (docs/changes/SETTINGS-CARDS-ACCORDION-2402.md) into the 2.40.2 train."
+      "commit 406bdeeb4 (release/2402-train, not on origin/main, not released) - 2026-11-05: merge of pilot/SETTINGS-CARDS-ACCORDION-2402 (docs/changes/SETTINGS-CARDS-ACCORDION-2402.md) into the 2.40.2 train.",
+      "commit 406bdeeb4 (release 2.40.2, on origin/main) - 2026-11-05 (BOARD-HYGIENE-2403): released in v2.40.2 (release commit ccb77f28d = tag v2.40.2); IN_PROGRESS -> REVIEW: REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. The accordion in skins other than classic light NOT_RUN."
     ],
     "owner": null,
-    "commit": null,
+    "commit": "406bdeeb4",
     "actual_cost_usd": null
   }
 ]
