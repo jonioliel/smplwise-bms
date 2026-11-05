@@ -157,7 +157,8 @@ export async function collectTargets(root: Locator, opts: { icons?: boolean; ski
             if (uncoveredAt(el, px, py)) points.push([px, py]);
           }
         }
-        if (points.length < 2) return;
+        // a text partly under a sticky bar or a floating control is passing under it (its shade too): not measured where it is covered
+        if (points.length < 2 || points.length < cols * 3) return;
         out.push({
           key: name(el),
           text: text.replace(/\s+/g, ' ').trim().slice(0, 48),

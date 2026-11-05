@@ -48,14 +48,14 @@ function keep(all: Map<string, ContrastRow & { where: string }>, rows: ContrastR
 /**
  * Shortfalls of SHARED components that every screen draws, not of these surfaces - reported in docs/changes/SKIN-QA-2403.md §4 for the
  * owner (a fix changes every screen that uses them), listed in each result file under `known`, not counted as this spec's defects:
- *   K1  sw-badge `filled` kind live (the pairing verdict): inverse ink on --sw-success, 1.8-3.5:1 in every skin (no --sw-on-success token);
+ *   K1  sw-badge `filled` kind live (the pairing card's verdict, 'מצומד: ...'): inverse ink on --sw-success, 1.8-3.5:1 in every skin (no --sw-on-success token);
  *   K2  sw-button primary in classic dark: the classic raised-key gradient under white ink, 4.1-4.3:1.
  */
-const KNOWN: { id: string; test: (r: ContrastRow, skin: string, scheme: string) => boolean }[] = [
-  { id: 'K1', test: (r) => /sw-badge>span\.t$/.test(r.key) && r.text.startsWith('מצב:') },
+const KNOWN: { id: string; test: (r: ContrastRow & { where: string }, skin: string, scheme: string) => boolean }[] = [
+  { id: 'K1', test: (r) => /div\.top>sw-badge>span\.t$/.test(r.key) && r.text.startsWith('מצומד') },
   { id: 'K2', test: (r, skin, scheme) => skin === 'classic' && scheme === 'dark' && /sw-button$/.test(r.key) && r.ratio >= 4 },
 ];
-const knownOf = (r: ContrastRow, skin: string, scheme: string) => KNOWN.find((k) => k.test(r, skin, scheme))?.id ?? '';
+const knownOf = (r: ContrastRow & { where: string }, skin: string, scheme: string) => KNOWN.find((k) => k.test(r, skin, scheme))?.id ?? '';
 const contrastProblems = (all: Map<string, ContrastRow & { where: string }>, skin: string, scheme: string) =>
   failing([...all.values()]).filter((r) => !knownOf(r, skin, scheme)).map((r) => `${r.where}: "${r.text}" ${r.ratio} < ${r.need} (${r.key}, ${r.size}px/${r.weight})`);
 const knownRows = (all: Map<string, ContrastRow & { where: string }>, skin: string, scheme: string) =>
