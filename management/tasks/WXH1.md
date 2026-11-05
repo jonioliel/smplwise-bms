@@ -2,7 +2,7 @@
 
 > Generated card. Edit management/tasks.json, then run this script with --write.
 
-**Phase:** V1 | **Priority:** P2 | **Status:** BLOCKED
+**Phase:** V1 | **Priority:** P2 | **Status:** REVIEW
 
 **Owner role:** backend | **Hardware:** False
 
@@ -33,6 +33,3 @@
 
 ## Guardrails
 Read AGENTS.md and the linked master chapters. Inspect legacy code before replacement. No production configuration writes, physical commands, spending, or claims of passing unrun tests. Record commit, environment, commands and evidence.
-
-## Blocker
-Not a work blocker any more: The owner lifted the 2026-10-10 deferral on 2026-10-20 (private/planning/OWNER_DECISIONS_2026-10-20_NIGHT.md, round 4 item 4: "HMAC key rotation: build now (activation only after a Fable review)"); built as HMACROT-295 / HMACACT-295 / HMACACT2-295, docs/changes/CR-WISKEY-HMAC-ROTATION-295.md. The status stays BLOCKED only because the registry rule needs every dependency DONE (owner acceptance).

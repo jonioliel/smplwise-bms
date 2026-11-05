@@ -136,7 +136,7 @@
       "AT006"
     ],
     "status": "BLOCKED",
-    "blocker": "Excluded from G0 by owner decision 2026-09-22 - not to be worked (see the evidence entry).",
+    "blocker": "Excluded - OBSOLETE by owner decision 2026-11-05 (round 22, Q2 = א on the BOARD-HYGIENE-2403 candidates; relayed by the coordinator, no written answers file): superseded by the owner's exclusion of 2026-09-22 (docs/architecture/DECISIONS.md. Not to be worked; the card is kept.",
     "priority": "P0",
     "model_policy": {
       "implementation": "balanced",
@@ -151,7 +151,8 @@
       "Technical review record"
     ],
     "evidence": [
-      "EXCLUDED - owner decision 2026-09-22 (\"the new part has already proved itself; this stage is not needed\"): no trace capture from the legacy add-on and no characterization diff will be produced. Six test rounds on the owner's installation (TEST_ROUND_RESULTS_2026-09-17_HE.md, _2026-09-22_HE.md) are the acceptance basis instead; docs/legacy/KNOWN_QUIRKS.md keeps the quirks found by reading the legacy code; the migration dry run and the rollout / rollback runbook (T070) stand. Recorded in docs/architecture/DECISIONS.md and in the V1 release package (known limit 8). This line is an exclusion record, not implementation evidence."
+      "EXCLUDED - owner decision 2026-09-22 (\"the new part has already proved itself; this stage is not needed\"): no trace capture from the legacy add-on and no characterization diff will be produced. Six test rounds on the owner's installation (TEST_ROUND_RESULTS_2026-09-17_HE.md, _2026-09-22_HE.md) are the acceptance basis instead; docs/legacy/KNOWN_QUIRKS.md keeps the quirks found by reading the legacy code; the migration dry run and the rollout / rollback runbook (T070) stand. Recorded in docs/architecture/DECISIONS.md and in the V1 release package (known limit 8). This line is an exclusion record, not implementation evidence.",
+      "EXCLUDED - OBSOLETE by owner decision 2026-11-05 (round 22, Q2 = א on the BOARD-HYGIENE-2403 candidates; relayed by the coordinator, no written answers file): superseded by the owner's exclusion of 2026-09-22 (docs/architecture/DECISIONS.md; docs/release/RELEASE_PACKAGE_V1.md known limit 8): six test rounds on the installation replaced the legacy golden traces. Marked through the registry's exclusion mechanism (status BLOCKED, blocker starting 'Excluded', this EXCLUDED line), because the registry has no OBSOLETE status; the card is kept, not deleted. Status BLOCKED -> BLOCKED. - 2026-11-05 (BOARD-RULE-2404)"
     ],
     "owner": null,
     "commit": null,
@@ -186,7 +187,7 @@
       "AT008"
     ],
     "status": "BLOCKED",
-    "blocker": "Excluded from G0 by owner decision 2026-09-22 - not to be worked (see the evidence entry).",
+    "blocker": "Excluded - OBSOLETE by owner decision 2026-11-05 (round 22, Q2 = א on the BOARD-HYGIENE-2403 candidates; relayed by the coordinator, no written answers file): superseded by the owner's exclusion of 2026-09-22 (docs/architecture/DECISIONS.md. Not to be worked; the card is kept.",
     "priority": "P0",
     "model_policy": {
       "implementation": "balanced",
@@ -201,7 +202,8 @@
       "Technical review record"
     ],
     "evidence": [
-      "EXCLUDED - owner decision 2026-09-22 (\"the new part has already proved itself; this stage is not needed\"): no trace capture from the legacy add-on and no characterization diff will be produced. Six test rounds on the owner's installation (TEST_ROUND_RESULTS_2026-09-17_HE.md, _2026-09-22_HE.md) are the acceptance basis instead; docs/legacy/KNOWN_QUIRKS.md keeps the quirks found by reading the legacy code; the migration dry run and the rollout / rollback runbook (T070) stand. Recorded in docs/architecture/DECISIONS.md and in the V1 release package (known limit 8). This line is an exclusion record, not implementation evidence."
+      "EXCLUDED - owner decision 2026-09-22 (\"the new part has already proved itself; this stage is not needed\"): no trace capture from the legacy add-on and no characterization diff will be produced. Six test rounds on the owner's installation (TEST_ROUND_RESULTS_2026-09-17_HE.md, _2026-09-22_HE.md) are the acceptance basis instead; docs/legacy/KNOWN_QUIRKS.md keeps the quirks found by reading the legacy code; the migration dry run and the rollout / rollback runbook (T070) stand. Recorded in docs/architecture/DECISIONS.md and in the V1 release package (known limit 8). This line is an exclusion record, not implementation evidence.",
+      "EXCLUDED - OBSOLETE by owner decision 2026-11-05 (round 22, Q2 = א on the BOARD-HYGIENE-2403 candidates; relayed by the coordinator, no written answers file): superseded by the owner's exclusion of 2026-09-22 (docs/architecture/DECISIONS.md; docs/release/RELEASE_PACKAGE_V1.md known limit 8): no characterization diff against the legacy add-on. Marked through the registry's exclusion mechanism (status BLOCKED, blocker starting 'Excluded', this EXCLUDED line), because the registry has no OBSOLETE status; the card is kept, not deleted. Status BLOCKED -> BLOCKED. - 2026-11-05 (BOARD-RULE-2404)"
     ],
     "owner": null,
     "commit": null,
@@ -6486,7 +6488,7 @@
     "test_ids": [
       "AT250"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -6506,7 +6508,8 @@
       "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
       "In progress on branch pilot/WXD-wave1 (wave 1; at registration the branch carried no commits beyond main e7201c92). Kept BACKLOG because the registry requires every dependency of an IN_PROGRESS row to be DONE; it is part of the same branch.",
       "2026-10-11 (REGISTRY-sync-1011): done on branch pilot/WXD-wave1 @ 11eecbcf (see WXD0: reverted from 2.4.5, ships later). Left BACKLOG only because the validator needs DONE dependencies for any other status.",
-      "commit 22cc4b257 (release 2.4.9, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. the door map (migration 0078, Settings \"שיוך דלתות\") - CR-033 door path merged through pilot/WXD-integration @ 5777be0e (merge 22cc4b257 into integ/249; wave 1 11eecbcf - first merged into integ/245 and reverted there by 9065a130 -, D6/D8 492f706d, D7/D9 079cd363, review fixes 9d7fd40e); docs/changes/CR-033-INTEGRATION-NOTES.md; fakes only, the trusted door transport flag stays off. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (WXD0:REVIEW)."
+      "commit 22cc4b257 (release 2.4.9, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. the door map (migration 0078, Settings \"שיוך דלתות\") - CR-033 door path merged through pilot/WXD-integration @ 5777be0e (merge 22cc4b257 into integ/249; wave 1 11eecbcf - first merged into integ/245 and reverted there by 9065a130 -, D6/D8 492f706d, D7/D9 079cd363, review fixes 9d7fd40e); docs/changes/CR-033-INTEGRATION-NOTES.md; fakes only, the trusted door transport flag stays off. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (WXD0:REVIEW).",
+      "commit 22cc4b257 (release 2.4.9, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now WXD0:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT250 keep their recorded status (no test run here)."
     ],
     "owner": null,
     "commit": "22cc4b257",
@@ -6579,7 +6582,7 @@
     "test_ids": [
       "AT252"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -6599,7 +6602,8 @@
       "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
       "In progress on branch pilot/WXD-wave1 (wave 1; at registration the branch carried no commits beyond main e7201c92). Kept BACKLOG because the registry requires every dependency of an IN_PROGRESS row to be DONE; it is part of the same branch.",
       "2026-10-11 (REGISTRY-sync-1011): done on branch pilot/WXD-wave1 @ 11eecbcf (see WXD0: reverted from 2.4.5, ships later). Left BACKLOG only because the validator needs DONE dependencies for any other status.",
-      "commit 22cc4b257 (release 2.4.9, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. one door rule (services/door_authority.py), door_opener role and grant card - CR-033 door path merged through pilot/WXD-integration @ 5777be0e (merge 22cc4b257 into integ/249; wave 1 11eecbcf - first merged into integ/245 and reverted there by 9065a130 -, D6/D8 492f706d, D7/D9 079cd363, review fixes 9d7fd40e); docs/changes/CR-033-INTEGRATION-NOTES.md; fakes only, the trusted door transport flag stays off. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (WXD1:BACKLOG, WXD2:REVIEW)."
+      "commit 22cc4b257 (release 2.4.9, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. one door rule (services/door_authority.py), door_opener role and grant card - CR-033 door path merged through pilot/WXD-integration @ 5777be0e (merge 22cc4b257 into integ/249; wave 1 11eecbcf - first merged into integ/245 and reverted there by 9065a130 -, D6/D8 492f706d, D7/D9 079cd363, review fixes 9d7fd40e); docs/changes/CR-033-INTEGRATION-NOTES.md; fakes only, the trusted door transport flag stays off. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (WXD1:BACKLOG, WXD2:REVIEW).",
+      "commit 22cc4b257 (release 2.4.9, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now WXD1:REVIEW, WXD2:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT252 keep their recorded status (no test run here)."
     ],
     "owner": null,
     "commit": "22cc4b257",
@@ -6627,7 +6631,7 @@
     "test_ids": [
       "AT253"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -6647,7 +6651,8 @@
       "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
       "In progress on branch pilot/WXD-wave1 (wave 1; at registration the branch carried no commits beyond main e7201c92). Kept BACKLOG because the registry requires every dependency of an IN_PROGRESS row to be DONE; it is part of the same branch.",
       "2026-10-11 (REGISTRY-sync-1011): done on branch pilot/WXD-wave1 @ 11eecbcf (see WXD0: reverted from 2.4.5, ships later). Left BACKLOG only because the validator needs DONE dependencies for any other status.",
-      "commit 22cc4b257 (release 2.4.9, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. services/trusted_door.py: interim mode through the station release and the signed door_open client with audit fields (transport, mode, entry_point, door_request_id, body_sha256) and the \"sent\" wording; the signed mode cannot be switched on until a bridge offers door_open (MIN_BRIDGE_FOR_TRUSTED_PATH is None) - CR-033 door path merged through pilot/WXD-integration @ 5777be0e (merge 22cc4b257 into integ/249; wave 1 11eecbcf - first merged into integ/245 and reverted there by 9065a130 -, D6/D8 492f706d, D7/D9 079cd363, review fixes 9d7fd40e); docs/changes/CR-033-INTEGRATION-NOTES.md; fakes only, the trusted door transport flag stays off. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (WXD0:REVIEW, WXD3:BACKLOG)."
+      "commit 22cc4b257 (release 2.4.9, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. services/trusted_door.py: interim mode through the station release and the signed door_open client with audit fields (transport, mode, entry_point, door_request_id, body_sha256) and the \"sent\" wording; the signed mode cannot be switched on until a bridge offers door_open (MIN_BRIDGE_FOR_TRUSTED_PATH is None) - CR-033 door path merged through pilot/WXD-integration @ 5777be0e (merge 22cc4b257 into integ/249; wave 1 11eecbcf - first merged into integ/245 and reverted there by 9065a130 -, D6/D8 492f706d, D7/D9 079cd363, review fixes 9d7fd40e); docs/changes/CR-033-INTEGRATION-NOTES.md; fakes only, the trusted door transport flag stays off. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (WXD0:REVIEW, WXD3:BACKLOG).",
+      "commit 22cc4b257 (release 2.4.9, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now WXD0:REVIEW, WXD3:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT253 keep their recorded status (no test run here)."
     ],
     "owner": null,
     "commit": "22cc4b257",
@@ -6722,8 +6727,8 @@
     "test_ids": [
       "AT255"
     ],
-    "status": "BACKLOG",
-    "blocker": null,
+    "status": "BLOCKED",
+    "blocker": "Excluded - OBSOLETE by owner decision 2026-11-05 (round 22, Q2 = א on the BOARD-HYGIENE-2403 candidates; relayed by the coordinator, no written answers file): superseded by door actions go over the WisKey direct join (docs/changes/DOORLIVE-2310.md, owner decisions 2026-10-30), not a bridge door_open / door_open_status service. Not to be worked; the card is kept.",
     "priority": "P1",
     "model_policy": {
       "implementation": "deep",
@@ -6742,7 +6747,8 @@
       "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
       "Depends on WXH1, which is deferred by the owner (key rotation not to be built until asked); this row cannot start before the owner asks for rotation or re-plans the dependency.",
       "2026-10-11 (REGISTRY-sync-1011): waiting: needs the WisKey side; also depends on WXH1 (deferred).",
-      "commit f18932f04 (release 2.4.9, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): partly shipped. the Arx acceptance path for door_open / door_open_status is proven on the fake WisKey consumer (test_wiskey_door_signed.py). Missing: bridge-side door_open / door_open_status not built (waits for the WisKey consumer W1); door actions now go through the WisKey direct join (door_engine_live, WISKEY-JOIN-LIVE-2382) instead. Status kept BACKLOG (target IN_PROGRESS): the registry rule needs every dependency DONE (WXH1:BLOCKED, WXD4:BACKLOG)."
+      "commit f18932f04 (release 2.4.9, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): partly shipped. the Arx acceptance path for door_open / door_open_status is proven on the fake WisKey consumer (test_wiskey_door_signed.py). Missing: bridge-side door_open / door_open_status not built (waits for the WisKey consumer W1); door actions now go through the WisKey direct join (door_engine_live, WISKEY-JOIN-LIVE-2382) instead. Status kept BACKLOG (target IN_PROGRESS): the registry rule needs every dependency DONE (WXH1:BLOCKED, WXD4:BACKLOG).",
+      "EXCLUDED - OBSOLETE by owner decision 2026-11-05 (round 22, Q2 = א on the BOARD-HYGIENE-2403 candidates; relayed by the coordinator, no written answers file): superseded by door actions go over the WisKey direct join (docs/changes/DOORLIVE-2310.md, owner decisions 2026-10-30), not a bridge door_open / door_open_status service; the Arx acceptance path shipped in 2.4.9 (f18932f04) stays in the code. Marked through the registry's exclusion mechanism (status BLOCKED, blocker starting 'Excluded', this EXCLUDED line), because the registry has no OBSOLETE status; the card is kept, not deleted. Status BACKLOG -> BLOCKED. - 2026-11-05 (BOARD-RULE-2404)"
     ],
     "owner": null,
     "commit": "f18932f04",
@@ -6769,7 +6775,7 @@
     "test_ids": [
       "AT256"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -6788,7 +6794,8 @@
       "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-033; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 2 h, model sonnet. External gate: -.",
       "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
       "2026-10-11 (REGISTRY-sync-1011): done on branch pilot/WXD-d6-d8 @ 492f706d (D6 lock block and D8 editor block). Not integrated. Left BACKLOG (dependency rule).",
-      "commit 492f706de (release 2.4.9, on origin/main); also 22cc4b257 (release 2.4.9, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. WisKey locks refuse lock.lock and lock-all - CR-033 door path merged through pilot/WXD-integration @ 5777be0e (merge 22cc4b257 into integ/249; wave 1 11eecbcf - first merged into integ/245 and reverted there by 9065a130 -, D6/D8 492f706d, D7/D9 079cd363, review fixes 9d7fd40e); docs/changes/CR-033-INTEGRATION-NOTES.md; fakes only, the trusted door transport flag stays off. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (WXD1:BACKLOG)."
+      "commit 492f706de (release 2.4.9, on origin/main); also 22cc4b257 (release 2.4.9, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. WisKey locks refuse lock.lock and lock-all - CR-033 door path merged through pilot/WXD-integration @ 5777be0e (merge 22cc4b257 into integ/249; wave 1 11eecbcf - first merged into integ/245 and reverted there by 9065a130 -, D6/D8 492f706d, D7/D9 079cd363, review fixes 9d7fd40e); docs/changes/CR-033-INTEGRATION-NOTES.md; fakes only, the trusted door transport flag stays off. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (WXD1:BACKLOG).",
+      "commit 492f706de (release 2.4.9, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now WXD1:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT256 keep their recorded status (no test run here)."
     ],
     "owner": null,
     "commit": "492f706de",
@@ -6815,7 +6822,7 @@
     "test_ids": [
       "AT257"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -6834,7 +6841,8 @@
       "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-033; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 6 h, model opus. External gate: -.",
       "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
       "2026-10-11 (REGISTRY-sync-1011): done on branch pilot/WXD-d7-d9 @ 079cd363 (D7 read-only inventory and D9 run guard). Not integrated. Left BACKLOG (dependency rule).",
-      "commit 079cd363a (release 2.4.9, on origin/main); also 22cc4b257 (release 2.4.9, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. read-only door-path inventory and report - CR-033 door path merged through pilot/WXD-integration @ 5777be0e (merge 22cc4b257 into integ/249; wave 1 11eecbcf - first merged into integ/245 and reverted there by 9065a130 -, D6/D8 492f706d, D7/D9 079cd363, review fixes 9d7fd40e); docs/changes/CR-033-INTEGRATION-NOTES.md; fakes only, the trusted door transport flag stays off. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (WXD1:BACKLOG)."
+      "commit 079cd363a (release 2.4.9, on origin/main); also 22cc4b257 (release 2.4.9, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. read-only door-path inventory and report - CR-033 door path merged through pilot/WXD-integration @ 5777be0e (merge 22cc4b257 into integ/249; wave 1 11eecbcf - first merged into integ/245 and reverted there by 9065a130 -, D6/D8 492f706d, D7/D9 079cd363, review fixes 9d7fd40e); docs/changes/CR-033-INTEGRATION-NOTES.md; fakes only, the trusted door transport flag stays off. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (WXD1:BACKLOG).",
+      "commit 079cd363a (release 2.4.9, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now WXD1:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT257 keep their recorded status (no test run here)."
     ],
     "owner": null,
     "commit": "079cd363a",
@@ -6861,7 +6869,7 @@
     "test_ids": [
       "AT258"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -6881,7 +6889,8 @@
       "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
       "2026-10-11 (REGISTRY-sync-1011): owner-approved read on the installation: pending the owner approval; no live read has been made.",
       "2026-11-04 (REGISTRY-AUDIT-20261103): not implemented. the owner-approved inventory read on the installation has never been run; no record of it in git, docs/changes or the handoff notes. Needs the owner's approval for a read of the Arx database on the installation.",
-      "lab (2026-11-04): the owner-approved read-only inventory ran against the lab Home Assistant data with the WXD7 analyser (door_path.inventory, main @ 83ce74480): 0 door-opening items (no event-driven, no schedule, no unknown). The Arx database itself was not read (not reachable read-only). Summary: private/planning/WXD7R_INVENTORY_2026-11-04_HE.md. The owner closed WXD7R on that basis (2026-11-04, answer 1a). Status kept BACKLOG (target DONE): the registry rule needs every dependency DONE (WXD7, WXD1, WXD0 are not) and a PASS acceptance test with commit and environment (AT258 stays NOT_RUN: the run read Home Assistant data, not the Arx database named in its entry gate). WXD10A and WXD10B stay BACKLOG: the owner wants them built."
+      "lab (2026-11-04): the owner-approved read-only inventory ran against the lab Home Assistant data with the WXD7 analyser (door_path.inventory, main @ 83ce74480): 0 door-opening items (no event-driven, no schedule, no unknown). The Arx database itself was not read (not reachable read-only). Summary: private/planning/WXD7R_INVENTORY_2026-11-04_HE.md. The owner closed WXD7R on that basis (2026-11-04, answer 1a). Status kept BACKLOG (target DONE): the registry rule needs every dependency DONE (WXD7, WXD1, WXD0 are not) and a PASS acceptance test with commit and environment (AT258 stays NOT_RUN: the run read Home Assistant data, not the Arx database named in its entry gate). WXD10A and WXD10B stay BACKLOG: the owner wants them built.",
+      "2026-11-05 (BOARD-RULE-2404) (lab run of 2026-11-04 recorded above, closed by the owner): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now WXD7:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT258 keep their recorded status (no test run here)."
     ],
     "owner": null,
     "commit": null,
@@ -6908,7 +6917,7 @@
     "test_ids": [
       "AT259"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -6927,7 +6936,8 @@
       "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-033; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 3 h, model sonnet. External gate: -.",
       "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
       "2026-10-11 (REGISTRY-sync-1011): done on branch pilot/WXD-d6-d8 @ 492f706d (D6 lock block and D8 editor block). Not integrated. Left BACKLOG (dependency rule).",
-      "commit 492f706de (release 2.4.9, on origin/main); also 22cc4b257 (release 2.4.9, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. editor block doors.editor_block = blocked by default - CR-033 door path merged through pilot/WXD-integration @ 5777be0e (merge 22cc4b257 into integ/249; wave 1 11eecbcf - first merged into integ/245 and reverted there by 9065a130 -, D6/D8 492f706d, D7/D9 079cd363, review fixes 9d7fd40e); docs/changes/CR-033-INTEGRATION-NOTES.md; fakes only, the trusted door transport flag stays off. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (WXD7:BACKLOG)."
+      "commit 492f706de (release 2.4.9, on origin/main); also 22cc4b257 (release 2.4.9, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. editor block doors.editor_block = blocked by default - CR-033 door path merged through pilot/WXD-integration @ 5777be0e (merge 22cc4b257 into integ/249; wave 1 11eecbcf - first merged into integ/245 and reverted there by 9065a130 -, D6/D8 492f706d, D7/D9 079cd363, review fixes 9d7fd40e); docs/changes/CR-033-INTEGRATION-NOTES.md; fakes only, the trusted door transport flag stays off. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (WXD7:BACKLOG).",
+      "commit 492f706de (release 2.4.9, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now WXD7:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT259 keep their recorded status (no test run here)."
     ],
     "owner": null,
     "commit": "492f706de",
@@ -6955,7 +6965,7 @@
     "test_ids": [
       "AT260"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -6974,7 +6984,8 @@
       "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-033; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 6 h, model opus. External gate: -.",
       "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
       "2026-10-11 (REGISTRY-sync-1011): done on branch pilot/WXD-d7-d9 @ 079cd363 (D7 read-only inventory and D9 run guard). Not integrated. Left BACKLOG (dependency rule).",
-      "commit 079cd363a (release 2.4.9, on origin/main); also 22cc4b257 (release 2.4.9, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. run guard for Arx-started runs (R-17) - CR-033 door path merged through pilot/WXD-integration @ 5777be0e (merge 22cc4b257 into integ/249; wave 1 11eecbcf - first merged into integ/245 and reverted there by 9065a130 -, D6/D8 492f706d, D7/D9 079cd363, review fixes 9d7fd40e); docs/changes/CR-033-INTEGRATION-NOTES.md; fakes only, the trusted door transport flag stays off. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (WXD4:BACKLOG, WXD7:BACKLOG)."
+      "commit 079cd363a (release 2.4.9, on origin/main); also 22cc4b257 (release 2.4.9, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. run guard for Arx-started runs (R-17) - CR-033 door path merged through pilot/WXD-integration @ 5777be0e (merge 22cc4b257 into integ/249; wave 1 11eecbcf - first merged into integ/245 and reverted there by 9065a130 -, D6/D8 492f706d, D7/D9 079cd363, review fixes 9d7fd40e); docs/changes/CR-033-INTEGRATION-NOTES.md; fakes only, the trusted door transport flag stays off. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (WXD4:BACKLOG, WXD7:BACKLOG).",
+      "commit 079cd363a (release 2.4.9, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now WXD4:REVIEW, WXD7:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT260 keep their recorded status (no test run here)."
     ],
     "owner": null,
     "commit": "079cd363a",
@@ -7002,7 +7013,7 @@
     "test_ids": [
       "AT261"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -7022,7 +7033,8 @@
       "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
       "2026-10-11 (REGISTRY-sync-1011): waiting: needs the read-only inventory and WisKey answers W1 and W4 (board status waiting).",
       "commit f18932f04 (release 2.4.9, on origin/main); also b34fb3454 (release 2.10.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): partly shipped. the D10a enable guard shipped (enabling an automation or schedule never re-arms a WisKey door opener, test_wiskey_door_enable.py); door automations through WisKey were later built as AUTODOORS-295 (merge b34fb3454, off by default). Missing: the disable-and-list conversion of Arx event door jobs (gate test T13) is still open. Status kept BACKLOG (target IN_PROGRESS): the registry rule needs every dependency DONE (WXD9:BACKLOG, WXD7R:BACKLOG).",
-      "commit a839ceeba (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WXD10-DOOR-JOBS-2400: disable and list, Arx event door jobs (M1), API only, switch off, on fakes (migration 0205). Status kept BACKLOG: the registry needs every dependency DONE first (WXD9, WXD7R)."
+      "commit a839ceeba (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WXD10-DOOR-JOBS-2400: disable and list, Arx event door jobs (M1), API only, switch off, on fakes (migration 0205). Status kept BACKLOG: the registry needs every dependency DONE first (WXD9, WXD7R).",
+      "commit a839ceeba (release 2.40.0, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now WXD9:REVIEW, WXD7R:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT261 keep their recorded status (no test run here)."
     ],
     "owner": null,
     "commit": "f18932f04",
@@ -7050,7 +7062,7 @@
     "test_ids": [
       "AT262"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -7070,7 +7082,8 @@
       "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
       "2026-10-11 (REGISTRY-sync-1011): waiting: needs the read-only inventory and WisKey answers W1 and W4 (board status waiting).",
       "commit b3cc39a21 (release 2.11.0, on origin/main); also faf5bd4c0 (release 2.24.1, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. hold-open program hand-over: door windows (DOORWIN-295, merge b3cc39a21) and the door-window program written from Arx to WisKey (DOORWRITE-297, merge faf5bd4c0); off by default (doors.windows.enabled) and needs the WisKey direct join. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (WXD9:BACKLOG, WXD7R:BACKLOG).",
-      "commit a839ceeba (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WXD10-DOOR-JOBS-2400: hold-open hand-over to a weekly door-window draft (M3), API only, switch off, on fakes. Status kept BACKLOG: the registry needs every dependency DONE first (WXD9, WXD7R)."
+      "commit a839ceeba (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WXD10-DOOR-JOBS-2400: hold-open hand-over to a weekly door-window draft (M3), API only, switch off, on fakes. Status kept BACKLOG: the registry needs every dependency DONE first (WXD9, WXD7R).",
+      "commit a839ceeba (release 2.40.0, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now WXD9:REVIEW, WXD7R:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT262 keep their recorded status (no test run here)."
     ],
     "owner": null,
     "commit": "b3cc39a21",
@@ -7292,8 +7305,8 @@
     "test_ids": [
       "AT267"
     ],
-    "status": "BLOCKED",
-    "blocker": "Not a work blocker any more: The owner lifted the 2026-10-10 deferral on 2026-10-20 (private/planning/OWNER_DECISIONS_2026-10-20_NIGHT.md, round 4 item 4: \"HMAC key rotation: build now (activation only after a Fable review)\"); built as HMACROT-295 / HMACACT-295 / HMACACT2-295, docs/changes/CR-WISKEY-HMAC-ROTATION-295.md. The status stays BLOCKED only because the registry rule needs every dependency DONE (owner acceptance).",
+    "status": "REVIEW",
+    "blocker": null,
     "priority": "P2",
     "model_policy": {
       "implementation": "deep",
@@ -7312,7 +7325,8 @@
       "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
       "DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row. (BLOCKED is used because the registry has no DEFERRED state.)",
       "2026-10-11 (REGISTRY-sync-1011): owner decision kept on 2026-10-11 (board WXROT: deferred, do not build now). Status stays BLOCKED with the blocker text.",
-      "commit 02361bed8 (release 2.11.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. bridge multi-key verifier and rotate service (bridge 0.9.5 keyset.py, HA service smplwise_bridge.rotate), merge of pilot/HMACACT-295. The owner lifted the 2026-10-10 deferral on 2026-10-20 (private/planning/OWNER_DECISIONS_2026-10-20_NIGHT.md, round 4 item 4: \"HMAC key rotation: build now (activation only after a Fable review)\"); built as HMACROT-295 / HMACACT-295 / HMACACT2-295, docs/changes/CR-WISKEY-HMAC-ROTATION-295.md. Status kept BLOCKED (target REVIEW): the registry rule needs every dependency DONE (WXH0:REVIEW)."
+      "commit 02361bed8 (release 2.11.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. bridge multi-key verifier and rotate service (bridge 0.9.5 keyset.py, HA service smplwise_bridge.rotate), merge of pilot/HMACACT-295. The owner lifted the 2026-10-10 deferral on 2026-10-20 (private/planning/OWNER_DECISIONS_2026-10-20_NIGHT.md, round 4 item 4: \"HMAC key rotation: build now (activation only after a Fable review)\"); built as HMACROT-295 / HMACACT-295 / HMACACT2-295, docs/changes/CR-WISKEY-HMAC-ROTATION-295.md. Status kept BLOCKED (target REVIEW): the registry rule needs every dependency DONE (WXH0:REVIEW).",
+      "commit 02361bed8 (release 2.11.0, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BLOCKED -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now WXH0:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT267 keep their recorded status (no test run here). The former blocker text said it was not a work blocker (dependency rule only); it is cleared."
     ],
     "owner": null,
     "commit": "02361bed8",
@@ -7339,8 +7353,8 @@
     "test_ids": [
       "AT268"
     ],
-    "status": "BLOCKED",
-    "blocker": "Not a work blocker any more: The owner lifted the 2026-10-10 deferral on 2026-10-20 (private/planning/OWNER_DECISIONS_2026-10-20_NIGHT.md, round 4 item 4: \"HMAC key rotation: build now (activation only after a Fable review)\"); built as HMACROT-295 / HMACACT-295 / HMACACT2-295, docs/changes/CR-WISKEY-HMAC-ROTATION-295.md. The status stays BLOCKED only because the registry rule needs every dependency DONE (owner acceptance).",
+    "status": "REVIEW",
+    "blocker": null,
     "priority": "P2",
     "model_policy": {
       "implementation": "deep",
@@ -7359,7 +7373,8 @@
       "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
       "DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row. (BLOCKED is used because the registry has no DEFERRED state.)",
       "2026-10-11 (REGISTRY-sync-1011): owner decision kept on 2026-10-11 (board WXROT: deferred, do not build now). Status stays BLOCKED with the blocker text.",
-      "commit cf71fca04 (release 2.10.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. Arx key set with key ids and the staged rotation engine (services/bridge_rotation.py, bridge_keys.py; migration 0135). The owner lifted the 2026-10-10 deferral on 2026-10-20 (private/planning/OWNER_DECISIONS_2026-10-20_NIGHT.md, round 4 item 4: \"HMAC key rotation: build now (activation only after a Fable review)\"); built as HMACROT-295 / HMACACT-295 / HMACACT2-295, docs/changes/CR-WISKEY-HMAC-ROTATION-295.md. Status kept BLOCKED (target REVIEW): the registry rule needs every dependency DONE (WXH0:REVIEW)."
+      "commit cf71fca04 (release 2.10.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. Arx key set with key ids and the staged rotation engine (services/bridge_rotation.py, bridge_keys.py; migration 0135). The owner lifted the 2026-10-10 deferral on 2026-10-20 (private/planning/OWNER_DECISIONS_2026-10-20_NIGHT.md, round 4 item 4: \"HMAC key rotation: build now (activation only after a Fable review)\"); built as HMACROT-295 / HMACACT-295 / HMACACT2-295, docs/changes/CR-WISKEY-HMAC-ROTATION-295.md. Status kept BLOCKED (target REVIEW): the registry rule needs every dependency DONE (WXH0:REVIEW).",
+      "commit cf71fca04 (release 2.10.0, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BLOCKED -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now WXH0:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT268 keep their recorded status (no test run here). The former blocker text said it was not a work blocker (dependency rule only); it is cleared."
     ],
     "owner": null,
     "commit": "cf71fca04",
@@ -7676,7 +7691,7 @@
     "test_ids": [
       "AT275"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -7697,7 +7712,8 @@
       "ID note: \"CR-029\" is used twice in the repository: CR-029-FRIGATE-PROVIDER (T116) and CR-029-PLAN-STUDIO-6-REALISTIC-3D. Recorded, not resolved here.",
       "The port work for S0 and S4 is on branch pilot/ST7-port-s0-s4 (see docs/changes/CR-029-ST7-PORT-NOTES.md there); not merged to main.",
       "2026-10-11 (REGISTRY-sync-1011): done on the same branch pilot/ST7-port-s0-s4 @ 0298e10d. Left BACKLOG only because the validator requires a non-BACKLOG task to have DONE dependencies (ST7S0 is not DONE yet).",
-      "commit 273f3bb83 (release 2.4.7, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. Plan Studio 6 (CR-029) S4: eye-level walk core; merge of pilot/ST7-port-s0-s4 into integ/247. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (ST7S0:REVIEW)."
+      "commit 273f3bb83 (release 2.4.7, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. Plan Studio 6 (CR-029) S4: eye-level walk core; merge of pilot/ST7-port-s0-s4 into integ/247. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (ST7S0:REVIEW).",
+      "commit 273f3bb83 (release 2.4.7, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now ST7S0:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT275 keep their recorded status (no test run here)."
     ],
     "owner": null,
     "commit": "273f3bb83",
@@ -7724,7 +7740,7 @@
     "test_ids": [
       "AT276"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -7744,7 +7760,8 @@
       "Owner decision: ship all Studio 6 slices in one version (no release A / B split).",
       "ID note: \"CR-029\" is used twice in the repository: CR-029-FRIGATE-PROVIDER (T116) and CR-029-PLAN-STUDIO-6-REALISTIC-3D. Recorded, not resolved here.",
       "2026-10-11 (REGISTRY-sync-1011): done on branch pilot/ST7-port-s1-s2 @ b0961cba (S1 + S2 together). Status left BACKLOG (dependency rule, see ST7S4).",
-      "commit b4763b21a (release 2.4.7, on origin/main); also 8ba9e8542 (release 2.4.7, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. Plan Studio 6 (CR-029) S1: material library (CC0 assets with frontend/public/plan3d/MANIFEST.json) and level-3 realistic rendering in two styles; merge of pilot/ST7-port-s1-s2 into integ/247. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (ST7S0:REVIEW)."
+      "commit b4763b21a (release 2.4.7, on origin/main); also 8ba9e8542 (release 2.4.7, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. Plan Studio 6 (CR-029) S1: material library (CC0 assets with frontend/public/plan3d/MANIFEST.json) and level-3 realistic rendering in two styles; merge of pilot/ST7-port-s1-s2 into integ/247. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (ST7S0:REVIEW).",
+      "commit b4763b21a (release 2.4.7, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now ST7S0:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT276 keep their recorded status (no test run here)."
     ],
     "owner": null,
     "commit": "b4763b21a",
@@ -7771,7 +7788,7 @@
     "test_ids": [
       "AT277"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -7791,7 +7808,8 @@
       "Owner decision: ship all Studio 6 slices in one version (no release A / B split).",
       "ID note: \"CR-029\" is used twice in the repository: CR-029-FRIGATE-PROVIDER (T116) and CR-029-PLAN-STUDIO-6-REALISTIC-3D. Recorded, not resolved here.",
       "2026-10-11 (REGISTRY-sync-1011): done on branch pilot/ST7-port-s1-s2 @ b0961cba. Status left BACKLOG (dependency rule).",
-      "commit b4763b21a (release 2.4.7, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. Plan Studio 6 (CR-029) S2: sun, sky, time of day, lamps; merge of pilot/ST7-port-s1-s2 into integ/247. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (ST7S1:BACKLOG)."
+      "commit b4763b21a (release 2.4.7, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. Plan Studio 6 (CR-029) S2: sun, sky, time of day, lamps; merge of pilot/ST7-port-s1-s2 into integ/247. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (ST7S1:BACKLOG).",
+      "commit b4763b21a (release 2.4.7, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now ST7S1:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT277 keep their recorded status (no test run here)."
     ],
     "owner": null,
     "commit": "b4763b21a",
@@ -7818,7 +7836,7 @@
     "test_ids": [
       "AT278"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -7838,7 +7856,8 @@
       "Owner decision: ship all Studio 6 slices in one version (no release A / B split).",
       "ID note: \"CR-029\" is used twice in the repository: CR-029-FRIGATE-PROVIDER (T116) and CR-029-PLAN-STUDIO-6-REALISTIC-3D. Recorded, not resolved here.",
       "2026-10-11 (REGISTRY-sync-1011): pending (touch on the phone, kiosk idle to stills, wall screen override); 12 h on the board.",
-      "commit 48ec6591f (release 2.4.7, on origin/main); also 2d28bf062 (release 2.4.7, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. Plan Studio 6 (CR-029) S5: touch walk, minimap, saved positions as a route (S5-A, pilot/ST7-s5-touch) and the idle wall display / kiosk (S5-B, pilot/ST7-s5-kiosk). Not tried on a real tablet (NOT_RUN). Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (ST7S4:BACKLOG)."
+      "commit 48ec6591f (release 2.4.7, on origin/main); also 2d28bf062 (release 2.4.7, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. Plan Studio 6 (CR-029) S5: touch walk, minimap, saved positions as a route (S5-A, pilot/ST7-s5-touch) and the idle wall display / kiosk (S5-B, pilot/ST7-s5-kiosk). Not tried on a real tablet (NOT_RUN). Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (ST7S4:BACKLOG).",
+      "commit 48ec6591f (release 2.4.7, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now ST7S4:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT278 keep their recorded status (no test run here)."
     ],
     "owner": null,
     "commit": "48ec6591f",
@@ -7866,7 +7885,7 @@
     "test_ids": [
       "AT279"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -7886,7 +7905,8 @@
       "Owner decision: ship all Studio 6 slices in one version (no release A / B split).",
       "ID note: \"CR-029\" is used twice in the repository: CR-029-FRIGATE-PROVIDER (T116) and CR-029-PLAN-STUDIO-6-REALISTIC-3D. Recorded, not resolved here.",
       "2026-10-11 (REGISTRY-sync-1011): done on branch pilot/ST7-port-s3-stills @ c2d3097e (migrations 0074 + 0075_plan_bakes), including the owner answers of 2026-10-11 (plan.bakes.bake_trigger). Status left BACKLOG (dependency rule).",
-      "commit 6b9176a60 (release 2.4.7, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. Plan Studio 6 (CR-029) S3: stills, room masks and lightmaps, plan_bakes (migration 0075); merge of pilot/ST7-port-s3-stills into integ/247. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (ST7S1:BACKLOG, ST7S2:BACKLOG)."
+      "commit 6b9176a60 (release 2.4.7, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. Plan Studio 6 (CR-029) S3: stills, room masks and lightmaps, plan_bakes (migration 0075); merge of pilot/ST7-port-s3-stills into integ/247. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (ST7S1:BACKLOG, ST7S2:BACKLOG).",
+      "commit 6b9176a60 (release 2.4.7, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now ST7S1:REVIEW, ST7S2:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT279 keep their recorded status (no test run here)."
     ],
     "owner": null,
     "commit": "6b9176a60",
@@ -7918,7 +7938,7 @@
     "test_ids": [
       "AT280"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -7938,7 +7958,8 @@
       "Owner decision: ship all Studio 6 slices in one version (no release A / B split).",
       "ID note: \"CR-029\" is used twice in the repository: CR-029-FRIGATE-PROVIDER (T116) and CR-029-PLAN-STUDIO-6-REALISTIC-3D. Recorded, not resolved here.",
       "2026-10-11 (REGISTRY-sync-1011): pending (R178 performance gate on the runner, evidence, registry rows); 10 h on the board.",
-      "commit 19abaceba (release 2.4.7, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. Plan Studio 6 (CR-029) S7: performance gate spec, determinism, owner checklist and runbook (pilot/ST7-s7-perf). The real-phone evidence row is left to the owner (NOT_RUN). Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (ST7S0:REVIEW, ST7S1:BACKLOG, ST7S2:BACKLOG, ST7S3:BACKLOG, ST7S4:BACKLOG, ST7S5:BACKLOG)."
+      "commit 19abaceba (release 2.4.7, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. Plan Studio 6 (CR-029) S7: performance gate spec, determinism, owner checklist and runbook (pilot/ST7-s7-perf). The real-phone evidence row is left to the owner (NOT_RUN). Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (ST7S0:REVIEW, ST7S1:BACKLOG, ST7S2:BACKLOG, ST7S3:BACKLOG, ST7S4:BACKLOG, ST7S5:BACKLOG).",
+      "commit 19abaceba (release 2.4.7, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now ST7S0:REVIEW, ST7S1:REVIEW, ST7S2:REVIEW, ST7S3:REVIEW, ST7S4:REVIEW, ST7S5:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT280 keep their recorded status (no test run here)."
     ],
     "owner": null,
     "commit": "19abaceba",
@@ -8970,7 +8991,7 @@
     "test_ids": [
       "AT306"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -8986,7 +9007,8 @@
     ],
     "evidence": [
       "2026-10-11 (REGISTRY-sync-1011): owner approved starting; waits for the 2.4.6 release. Branches: pilot/ST7-port-s0-s4 @ 0298e10d (0074_plan_view_prefs), pilot/ST7-port-s1-s2 @ b0961cba, pilot/ST7-port-s3-stills @ c2d3097e (0074 + 0075_plan_bakes). Owner decision: all slices ship in one version. The WisKey door path (WXD) must use migrations 0076+.",
-      "commit ca8d90459 (release 2.4.7, on origin/main); also 273f3bb83 (release 2.4.7, on origin/main), 6b9176a60 (release 2.4.7, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. Plan Studio 6 (CR-029) integrated and released in 2.4.7 (not 2.4.6 as the title says) with migrations 0074 and 0075; release commit ca8d90459 (UI built from integ/247). Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (ST7S0:REVIEW, ST7S4:BACKLOG, ST7S1:BACKLOG, ST7S2:BACKLOG, ST7S3:BACKLOG)."
+      "commit ca8d90459 (release 2.4.7, on origin/main); also 273f3bb83 (release 2.4.7, on origin/main), 6b9176a60 (release 2.4.7, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. Plan Studio 6 (CR-029) integrated and released in 2.4.7 (not 2.4.6 as the title says) with migrations 0074 and 0075; release commit ca8d90459 (UI built from integ/247). Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (ST7S0:REVIEW, ST7S4:BACKLOG, ST7S1:BACKLOG, ST7S2:BACKLOG, ST7S3:BACKLOG).",
+      "commit ca8d90459 (release 2.4.7, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now ST7S0:REVIEW, ST7S4:REVIEW, ST7S1:REVIEW, ST7S2:REVIEW, ST7S3:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT306 keep their recorded status (no test run here)."
     ],
     "owner": null,
     "commit": "ca8d90459",
@@ -9174,8 +9196,8 @@
     "test_ids": [
       "AT311"
     ],
-    "status": "BACKLOG",
-    "blocker": null,
+    "status": "BLOCKED",
+    "blocker": "Excluded - OBSOLETE by owner decision 2026-11-05 (round 22, Q2 = א on the BOARD-HYGIENE-2403 candidates; relayed by the coordinator, no written answers file): superseded by private/planning/OWNER_DECISIONS_2026-10-20_NIGHT.md round 1 item 7 (package install from Arx frozen) and round 4 item 6. Not to be worked; the card is kept.",
     "priority": "P2",
     "model_policy": {
       "implementation": "balanced",
@@ -9189,7 +9211,8 @@
     ],
     "evidence": [
       "2026-10-11 (REGISTRY-sync-1011): done on branch pilot/WISKEY-importer @ 9d37d25a (fixtures and fakes only). OWNER DECISION, binding: a REAL WisKey import is FORBIDDEN until the owner says so (WisKey development is not finished); no real WisKey package or content may be read, copied or imported, and no install / bridge_install call may be made.",
-      "2026-11-04 (REGISTRY-AUDIT-20261103): superseded by an owner decision. not shipped: the importer stage 1 exists only on origin/pilot/WISKEY-importer @ 9d37d25a (not an ancestor of origin/main). Owner decisions 2026-10-20 (private/planning/OWNER_DECISIONS_2026-10-20_NIGHT.md): round 1 item 7 \"package install/update from Arx: frozen\"; round 4 item 6 \"Package install from Arx: defer (superseded by 8)\". The install path came back as the Arx-managed install (WISKEY-RC7-ADOPT-2331 policy B in 2.37.1, WISKEY-MANAGED-INSTALL-2382 in flight). Moved from REVIEW to BACKLOG: REVIEW means shipped. Status REVIEW -> BACKLOG."
+      "2026-11-04 (REGISTRY-AUDIT-20261103): superseded by an owner decision. not shipped: the importer stage 1 exists only on origin/pilot/WISKEY-importer @ 9d37d25a (not an ancestor of origin/main). Owner decisions 2026-10-20 (private/planning/OWNER_DECISIONS_2026-10-20_NIGHT.md): round 1 item 7 \"package install/update from Arx: frozen\"; round 4 item 6 \"Package install from Arx: defer (superseded by 8)\". The install path came back as the Arx-managed install (WISKEY-RC7-ADOPT-2331 policy B in 2.37.1, WISKEY-MANAGED-INSTALL-2382 in flight). Moved from REVIEW to BACKLOG: REVIEW means shipped. Status REVIEW -> BACKLOG.",
+      "EXCLUDED - OBSOLETE by owner decision 2026-11-05 (round 22, Q2 = א on the BOARD-HYGIENE-2403 candidates; relayed by the coordinator, no written answers file): superseded by private/planning/OWNER_DECISIONS_2026-10-20_NIGHT.md round 1 item 7 (package install from Arx frozen) and round 4 item 6; the install path became the Arx-managed install (docs/changes/WISKEY-MANAGED-INSTALL-2382.md); the importer stays unmerged on origin/pilot/WISKEY-importer @ 9d37d25a. Marked through the registry's exclusion mechanism (status BLOCKED, blocker starting 'Excluded', this EXCLUDED line), because the registry has no OBSOLETE status; the card is kept, not deleted. Status BACKLOG -> BLOCKED. - 2026-11-05 (BOARD-RULE-2404)"
     ],
     "owner": null,
     "commit": "9d37d25a",
@@ -9299,7 +9322,7 @@
     "test_ids": [
       "AT314"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -9315,7 +9338,8 @@
     ],
     "evidence": [
       "2026-10-11 (REGISTRY-sync-1011): pending; board: depends on the station chain of the door path.",
-      "commit 24e126d40 (release 2.4.8, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. S3+S4 (permissions, station and field filtering, adapter, read channel): merge of pilot/WISKEY-native-s3-s4 into integ/248. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (WXN01:REVIEW, WXD2:REVIEW, WXD3:BACKLOG)."
+      "commit 24e126d40 (release 2.4.8, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. S3+S4 (permissions, station and field filtering, adapter, read channel): merge of pilot/WISKEY-native-s3-s4 into integ/248. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (WXN01:REVIEW, WXD2:REVIEW, WXD3:BACKLOG).",
+      "commit 24e126d40 (release 2.4.8, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now WXN01:REVIEW, WXD2:REVIEW, WXD3:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT314 keep their recorded status (no test run here)."
     ],
     "owner": null,
     "commit": "24e126d40",
@@ -9342,7 +9366,7 @@
     "test_ids": [
       "AT315"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -9358,7 +9382,8 @@
     ],
     "evidence": [
       "2026-10-11 (REGISTRY-sync-1011): pending; board: needs the design model.",
-      "commit 8e3ae8aba (branch only, not on origin/main, not released); also c73611a00 (release 2.4.8, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. S5 design of the station, people, schedule and status screens: the design lives on origin/pilot/WISKEY-screens-design @ 8e3ae8ab (not merged); the screens built from it shipped (S6 stations merge c73611a00 into integ/248). Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (WXN01:REVIEW)."
+      "commit 8e3ae8aba (branch only, not on origin/main, not released); also c73611a00 (release 2.4.8, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. S5 design of the station, people, schedule and status screens: the design lives on origin/pilot/WISKEY-screens-design @ 8e3ae8ab (not merged); the screens built from it shipped (S6 stations merge c73611a00 into integ/248). Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (WXN01:REVIEW).",
+      "2026-11-05 (BOARD-RULE-2404) (lab run of 2026-11-04 recorded above, closed by the owner): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now WXN01:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT315 keep their recorded status (no test run here)."
     ],
     "owner": null,
     "commit": "c73611a00",
@@ -9386,7 +9411,7 @@
     "test_ids": [
       "AT316"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -9402,7 +9427,8 @@
     ],
     "evidence": [
       "2026-10-11 (REGISTRY-sync-1011): pending; 29 h on the board.",
-      "commit c73611a00 (release 2.4.8, on origin/main); also daaafded2 (release 2.4.8, on origin/main), 47897530f (release 2.4.8, on origin/main), 30d5189cb (release 2.4.9, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. S6 stations and doors, S7 people, S8-S10 events / status / groups (integ/248) and S9 schedules (integ/249); notes docs/changes/CR-036-S6/S7/S8-S10/S9-NOTES.md. Fakes only. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (WXN34:BACKLOG, WXN5:BACKLOG)."
+      "commit c73611a00 (release 2.4.8, on origin/main); also daaafded2 (release 2.4.8, on origin/main), 47897530f (release 2.4.8, on origin/main), 30d5189cb (release 2.4.9, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. S6 stations and doors, S7 people, S8-S10 events / status / groups (integ/248) and S9 schedules (integ/249); notes docs/changes/CR-036-S6/S7/S8-S10/S9-NOTES.md. Fakes only. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (WXN34:BACKLOG, WXN5:BACKLOG).",
+      "commit c73611a00 (release 2.4.8, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now WXN34:REVIEW, WXN5:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT316 keep their recorded status (no test run here)."
     ],
     "owner": null,
     "commit": "c73611a00",
@@ -16796,7 +16822,7 @@
     "test_ids": [
       "AT-APP-TEAM-R11-2380-1"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -16811,7 +16837,8 @@
     ],
     "evidence": [
       "2026-11-02 (REGISTRY-UPDATE-2380): plan private/planning/NEXT_PHASE_DISPLAY_MOBILE_PLAN_2026-11-02.md work package M1 (3 h). Open owner question Q10: the 30.10 status prompt is not evidenced as sent or answered (send R11 instead / as a reminder / answered elsewhere). Untracked files in the main checkout at the time of writing: mobile/ios-shell/HANDOFF_IOS_CODEX.md, HANDOFF_IOS_ADDENDUM_2_DECISIONS.md, HANDOFF_IOS_ADDENDUM_SENSORS_PUSH.md, CODEX_PROMPT_IOS_HE.txt, EMPLOYEE_NOTICE_DRAFT_HE.md, brand/, and mobile/android-shell/HANDOFF_ANDROID_ADDENDUM_SENSORS_PUSH.md.",
-      "commit b9ebb682c (release 2.38.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. the app-team R11 package (documents) merged from docs/APP-TEAMS-R11-2380 into release/2380-train. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (T103:REVIEW)."
+      "commit b9ebb682c (release 2.38.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. the app-team R11 package (documents) merged from docs/APP-TEAMS-R11-2380 into release/2380-train. Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (T103:REVIEW).",
+      "commit b9ebb682c (release 2.38.0, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now T103:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT-APP-TEAM-R11-2380-1 keep their recorded status (no test run here)."
     ],
     "owner": null,
     "commit": "b9ebb682c",
@@ -17044,7 +17071,7 @@
     "test_ids": [
       "AT-BOARD-ADMIN-2380-1"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -17060,7 +17087,8 @@
     "evidence": [
       "2026-11-02 (REGISTRY-UPDATE-2380): plan private/planning/NEXT_PHASE_DISPLAY_MOBILE_PLAN_2026-11-02.md work package D3 (8-10 h; services/notices/*.py, routers/notices.py, a migration, frontend/src/notices/**, system-notices.ts). Starts after 2.37.0 because system-notices.ts is in round-4 WP8. Open owner questions Q4-Q8.",
       "commit 6142b9a64 (branch only, not on origin/main, not released) - 2026-11-04 (REGISTRY-AUDIT-20261103): in flight. notice board administration (copy versus replace link, re-send, editor role) built on pilot/BOARD-MGMT-2381 @ 6142b9a64 and merged into release/2382-train (merge 30b92b6a2), not released. Status kept BACKLOG (target IN_PROGRESS): the registry rule needs every dependency DONE (POLISH4-WP8-SETMOD-2370:REVIEW).",
-      "commit 30b92b6a2 (release 2.38.2, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/BOARD-MGMT-2381 (copy versus replace link, re-send, editor role). Status kept BACKLOG: the registry needs every dependency DONE first (POLISH4-WP8-SETMOD-2370)."
+      "commit 30b92b6a2 (release 2.38.2, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/BOARD-MGMT-2381 (copy versus replace link, re-send, editor role). Status kept BACKLOG: the registry needs every dependency DONE first (POLISH4-WP8-SETMOD-2370).",
+      "commit 30b92b6a2 (release 2.38.2, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now POLISH4-WP8-SETMOD-2370:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT-BOARD-ADMIN-2380-1 keep their recorded status (no test run here)."
     ],
     "owner": null,
     "commit": "30b92b6a2",
@@ -17131,7 +17159,7 @@
     "test_ids": [
       "AT-WALL-FOLLOWUPS-2380-1"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -17147,7 +17175,8 @@
     "evidence": [
       "2026-11-02 (REGISTRY-UPDATE-2380): plan private/planning/NEXT_PHASE_DISPLAY_MOBILE_PLAN_2026-11-02.md work package D5 (3-5 h; system-wall.ts, the wall detection module, wall specs). Starts after 2.37.0 (avoid kiosk-wall.ts, round-4 WP2). Known risks recorded in the plan: stalls above about 6 sub streams, the browser cannot sleep the screen.",
       "2026-11-04 (REGISTRY-AUDIT-20261103): not implemented. no branch or merge found for the desktop wall mode, foldable detection or the AT221 / AT301 evidence.",
-      "commit e6e74c5fb (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WALL-FOLLOWUPS-2390 (desktop wall mode, foldable detection); owner answers 18-20 in 80983c8db. Status kept BACKLOG: the registry needs every dependency DONE first (POLISH4-WP2-LIVEINV-2370, T107)."
+      "commit e6e74c5fb (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/WALL-FOLLOWUPS-2390 (desktop wall mode, foldable detection); owner answers 18-20 in 80983c8db. Status kept BACKLOG: the registry needs every dependency DONE first (POLISH4-WP2-LIVEINV-2370, T107).",
+      "commit e6e74c5fb (release 2.40.0, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now POLISH4-WP2-LIVEINV-2370:REVIEW, T107:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT-WALL-FOLLOWUPS-2380-1 keep their recorded status (no test run here)."
     ],
     "owner": null,
     "commit": "e6e74c5fb",
@@ -17174,7 +17203,7 @@
     "test_ids": [
       "AT-ROUND4-LEFTOVERS-2380-1"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -17190,7 +17219,8 @@
     "evidence": [
       "2026-11-02 (REGISTRY-UPDATE-2380): plan private/planning/NEXT_PHASE_DISPLAY_MOBILE_PLAN_2026-11-02.md work package U1 (10-14 h). The presence card compact redesign shipped as PRESENCE-COMPACT-2310 in 2.31.0, so that part of U1 is a follow-up only if the owner is not satisfied (flagged in the registry update).",
       "2026-11-04 (REGISTRY-AUDIT-20261103): not implemented. no branch or merge found for the WisKey area polish (WP9), calendars D22 or the compact presence card redesign; fix/A11Y-R4-LEFTOVERS-2380 (2.38.0) covered accessibility leftovers only.",
-      "commit 51044acd5 (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/ROUND4-LEFTOVERS-2390 (WisKey area WP9, calendars D22); the compact presence card is PRESENCE-COUNT-2400. Status kept BACKLOG: the registry needs every dependency DONE first (WISKEY-RC7-ADOPT-2331)."
+      "commit 51044acd5 (release 2.40.0, on origin/main) - 2026-11-04 (GUIDE-BOARD-2402): shipped. merge of pilot/ROUND4-LEFTOVERS-2390 (WisKey area WP9, calendars D22); the compact presence card is PRESENCE-COUNT-2400. Status kept BACKLOG: the registry needs every dependency DONE first (WISKEY-RC7-ADOPT-2331).",
+      "commit 51044acd5 (release 2.40.0, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now WISKEY-RC7-ADOPT-2331:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT-ROUND4-LEFTOVERS-2380-1 keep their recorded status (no test run here)."
     ],
     "owner": null,
     "commit": "51044acd5",
@@ -17217,7 +17247,7 @@
     "test_ids": [
       "AT-RELEASE-2380-TRAIN-1"
     ],
-    "status": "BACKLOG",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P2",
     "model_policy": {
@@ -17232,7 +17262,8 @@
     ],
     "evidence": [
       "2026-11-02 (REGISTRY-UPDATE-2380): plan private/planning/NEXT_PHASE_DISPLAY_MOBILE_PLAN_2026-11-02.md section 4; starts after 2.37.0 merges. Members: MOBILE-CONTRACT-V22-2380, APP-SERVER-LEFTOVERS-2380, PUSH-GOLIVE-KIT-2380, TV-FIT-2380 and the later D3, D4, D5 code.",
-      "commit 11b416701 (release 2.38.0, on origin/main); also efc12d0e3 (release 2.38.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. release 2.38.0 (version, changelog and API inventory commit 11b416701; UI rebuilt efc12d0e3 = tag v2.38.0). Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (RELEASE-2370-TRAIN:REVIEW)."
+      "commit 11b416701 (release 2.38.0, on origin/main); also efc12d0e3 (release 2.38.0, on origin/main) - 2026-11-04 (REGISTRY-AUDIT-20261103): shipped. release 2.38.0 (version, changelog and API inventory commit 11b416701; UI rebuilt efc12d0e3 = tag v2.38.0). Status kept BACKLOG (target REVIEW): the registry rule needs every dependency DONE (RELEASE-2370-TRAIN:REVIEW).",
+      "commit 11b416701 (release 2.38.0, on origin/main) - 2026-11-05 (BOARD-RULE-2404): shipped (BOARD-HYGIENE-2403 class SHIPPED); moved BACKLOG -> REVIEW under the dependency rule of the owner's decision 2026-11-05 (round 22, Q1 = ב: REVIEW needs every dependency in REVIEW or DONE); dependencies now RELEASE-2370-TRAIN:REVIEW. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written before DONE. AT-RELEASE-2380-TRAIN-1 keep their recorded status (no test run here)."
     ],
     "owner": null,
     "commit": "11b416701",

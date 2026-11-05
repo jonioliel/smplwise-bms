@@ -20,6 +20,22 @@ TEST_STATES = {'NOT_RUN','PASS','FAIL','BLOCKED','NOT_APPLICABLE'}
 def load(root: Path, name: str):
     return json.loads((root / 'management' / name).read_text(encoding='utf-8'))
 
+# Dependency rule (BOARD-RULE-2404, owner decision 2026-11-05 round 22 Q1 = ב): a card may stand in REVIEW (= shipped, formal
+# acceptance still to be recorded) when every dependency is in REVIEW or DONE. READY, IN_PROGRESS, VALIDATION and DONE still need
+# every dependency DONE (MASTER_SPEC_HE.md chapter 35: Ready needs closed dependencies). BACKLOG and BLOCKED have no dependency rule.
+DEPENDENCY_RULE = {'READY': {'DONE'}, 'IN_PROGRESS': {'DONE'}, 'REVIEW': {'REVIEW', 'DONE'}, 'VALIDATION': {'DONE'}, 'DONE': {'DONE'}}
+
+def dependency_error(task, index):
+    """The registry error for `task` under DEPENDENCY_RULE, or None. `index` maps task id -> task."""
+    allowed = DEPENDENCY_RULE.get(task['status'])
+    if not allowed:
+        return None
+    unmet = [x for x in task['dependencies'] if index.get(x, {}).get('status') not in allowed]
+    if not unmet:
+        return None
+    need = ' or '.join(sorted(allowed, reverse=True))
+    return f"{task['id']}: dependencies not {need} ({', '.join(unmet)})"
+
 def validate(root: Path):
     tasks, reqs, tests, screens = [load(root, n) for n in ['tasks.json','requirements.json','test_catalog.json','screens.json']]
     errors=[]
@@ -37,8 +53,8 @@ def validate(root: Path):
         check(t['dependencies'],ti,t['id']);check(t['requirement_ids'],ri,t['id']);check(t['test_ids'],ai,t['id']);check(t['screens'],si,t['id'])
         if t['status'] not in STATES:errors.append(f"{t['id']}: invalid status")
         if t['status']=='BLOCKED' and not t.get('blocker'):errors.append(f"{t['id']}: missing blocker")
-        if t['status'] in ['READY','IN_PROGRESS','REVIEW','VALIDATION','DONE']:
-            if any(ti.get(x,{}).get('status')!='DONE' for x in t['dependencies']):errors.append(f"{t['id']}: dependencies not DONE")
+        dep_error=dependency_error(t,ti)
+        if dep_error:errors.append(dep_error)
         if t['status']=='DONE':
             if not t.get('commit') or not t.get('evidence'):errors.append(f"{t['id']}: DONE requires commit and evidence")
             for test_id in t['test_ids']:
@@ -80,7 +96,7 @@ def load_manifest(root):
 def generate(root,tasks,reqs,tests,screens):
     timestamp=dt.datetime.now(dt.timezone.utc).isoformat()
     counts=Counter(t['status'] for t in tasks);tc=Counter(t['phase'] for t in tasks)
-    status=['# Project status — generated view',f'\nGenerated: {timestamp}\n',f"Tasks: {len(tasks)} | Requirements: {len(reqs)} | Tests: {len(tests)} | Screens: {len(screens)}", '\nNo VMS implementation or hardware test is implied by this planning registry.\n','## Status counts']
+    status=['# Project status — generated view',f'\nGenerated: {timestamp}\n',f"Tasks: {len(tasks)} | Requirements: {len(reqs)} | Tests: {len(tests)} | Screens: {len(screens)}", '\nNo VMS implementation or hardware test is implied by this planning registry.\n','Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DONE; READY, IN_PROGRESS, VALIDATION and DONE need every dependency DONE. OBSOLETE cards are BLOCKED with a blocker starting "Excluded - OBSOLETE" and an EXCLUDED evidence line (the registry has no OBSOLETE status).\n','## Status counts']
     status += [f'- {k}: {v}' for k,v in sorted(counts.items())]
     status += ['\n## Release scope counts']+[f'- {k}: {v}' for k,v in sorted(tc.items())]
     status += ['\n## Blockers']+[f"- {t['id']}: {t['blocker']}" for t in tasks if t['status']=='BLOCKED']

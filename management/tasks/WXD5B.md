@@ -2,7 +2,7 @@
 
 > Generated card. Edit management/tasks.json, then run this script with --write.
 
-**Phase:** V1 | **Priority:** P1 | **Status:** BACKLOG
+**Phase:** V1 | **Priority:** P1 | **Status:** BLOCKED
 
 **Owner role:** backend | **Hardware:** False
 
@@ -33,3 +33,6 @@
 
 ## Guardrails
 Read AGENTS.md and the linked master chapters. Inspect legacy code before replacement. No production configuration writes, physical commands, spending, or claims of passing unrun tests. Record commit, environment, commands and evidence.
+
+## Blocker
+Excluded - OBSOLETE by owner decision 2026-11-05 (round 22, Q2 = א on the BOARD-HYGIENE-2403 candidates; relayed by the coordinator, no written answers file): superseded by door actions go over the WisKey direct join (docs/changes/DOORLIVE-2310.md, owner decisions 2026-10-30), not a bridge door_open / door_open_status service. Not to be worked; the card is kept.
