@@ -15,6 +15,14 @@ export interface FoldCard {
 export const FOLD_WIDE_MIN = 820;
 /** What stays free under the open card of a wide list: the page's bottom padding and a little air. */
 export const FOLD_BOTTOM_RESERVE = 32;
+/**
+ * SKIN-QA-2403: below this room for the open card (px) a wide list is drawn a step tighter - the headers' column at its 232 px minimum
+ * (the open card gets the width back, so its rows wrap less) and the host's rows a step denser (`tight` on the host). At 1366x768 the
+ * skins with a taller page head (domus, tesla: the cards start ~22 px lower than in classic) left the switches and the WisKey-area cards
+ * 9-25 px short, so they scrolled inside. Decided by the window and the page head only - never by the open card - so the column never
+ * jumps when another card is opened. Classic at 1366x768 has 531 px and 1440x900 has 640+: both stay as they were.
+ */
+export const FOLD_TIGHT_ROOM = 520;
 
 /**
  * SETTINGS-INTERCOM-CARDS-2401 (owner 04.11, round 19 Q6 = a): collapsible cards, ONE open at a time. Each card's header is a button with
@@ -79,6 +87,9 @@ export class SwFoldCards extends LitElement {
     .list.wide .head {
       grid-column: 1;
     }
+    :host([tight]) .list.wide {
+      grid-template-columns: 232px minmax(0, 1fr);
+    }
     .list.wide ::slotted(:not([hidden])) {
       grid-column: 2;
       grid-row: 1 / span var(--fold-span, 2);
@@ -119,7 +130,12 @@ export class SwFoldCards extends LitElement {
       margin: 0;
       border: 1px solid var(--sw-border);
       border-radius: var(--sw-r-md);
-      background: var(--sw-card-bg, var(--sw-surface));
+      /* SKIN-QA-2403: a header is drawn as the skin draws its cards - in the glass skins (domus, crystal, soft) the sheen over the
+         translucent surface and the backdrop blur, so the words do not sit on the raw canvas (the city / bloom picture showed through);
+         in the solid skins the sheen is transparent and the blur none, so classic, tesla and infra draw exactly what they drew */
+      background: var(--sw-glass-sheen), var(--sw-perf-glass-bg, var(--sw-card-bg, var(--sw-surface)));
+      -webkit-backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur));
+      backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur));
       color: inherit;
       font: inherit;
       text-align: start;
@@ -174,7 +190,10 @@ export class SwFoldCards extends LitElement {
     }
     .head[aria-expanded='true'] {
       border-color: color-mix(in srgb, var(--sw-accent) 45%, var(--sw-border));
-      background: var(--sw-accent-soft);
+      /* SKIN-QA-2403: the accent tint is laid OVER the header's surface; alone, a translucent tint (every dark scheme, the glass skins)
+         left the open header see-through (its accent title fell to 4.3:1 on soft / domus light). Where the tint is opaque (classic
+         light) nothing changes. */
+      background: linear-gradient(var(--sw-accent-soft), var(--sw-accent-soft)), var(--sw-perf-glass-bg, var(--sw-card-bg, var(--sw-surface)));
     }
     .head[aria-expanded='true'] .t {
       color: var(--sw-accent-text, var(--sw-accent));
@@ -260,12 +279,14 @@ export class SwFoldCards extends LitElement {
     }
     if (!this.wide) {
       this.style.removeProperty('--fold-room');
+      this.removeAttribute('tight');
       body?.removeAttribute('data-fold-scroll');
       return;
     }
     // the page's own bottom padding (sw-page: 24 px) and a little air stay below the open card
     const room = Math.max(240, Math.floor(window.innerHeight - this.getBoundingClientRect().top - FOLD_BOTTOM_RESERVE));
     this.style.setProperty('--fold-room', `${room}px`);
+    this.toggleAttribute('tight', room < FOLD_TIGHT_ROOM);
     if (!body) return;
     // measured without the inner scroll first, so a card that shrank gives the scroll back
     body.removeAttribute('data-fold-scroll');

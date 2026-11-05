@@ -206,6 +206,8 @@ export class SwLivePlayer extends LitElement {
       block-size: 100%;
       background: var(--sw-video-bg);
       overflow: hidden;
+      /* SKIN-QA-2403: the tile's own width decides whether the top-start tag shares the top row with a top-end badge (.subtag below) */
+      container: swlp / inline-size;
     }
     video,
     img.poster {
@@ -389,11 +391,33 @@ export class SwLivePlayer extends LitElement {
       inset-block-start: 8px;
       font-size: var(--sw-fs-2xs);
       font-weight: 500;
-      color: var(--sw-on-video-2);
+      /* SKIN-QA-2403: the full on-video ink, as the status pill beside it - the 72 % ink read at 3.3:1 when the picture under the scrim is
+         bright (a sunlit yard, a white wall; the tile's picture is never known). Still quiet: weight 500, the smallest size, no icon. */
+      color: var(--sw-on-video);
       background: var(--sw-video-scrim);
+      -webkit-backdrop-filter: var(--sw-perf-blur, blur(6px));
+      backdrop-filter: var(--sw-perf-blur, blur(6px));
       border-radius: 999px;
       padding: 2px 8px;
       pointer-events: none;
+    }
+    /* SKIN-QA-2403: the remote channel's profile badge (.vbadge) is "direction: ltr", so its inline END is the right edge - the same
+       corner as this tag's inline start in the RTL shell: the two lay on top of each other on every remote tile. The tag steps down
+       to a second row under the badge. The H.265 tag sits at the real end (left): it meets the tag only on a narrow tile. */
+    .vbadge ~ .subtag {
+      inset-block-start: 30px;
+    }
+    @container swlp (max-width: 240px) {
+      .h265tag ~ .subtag {
+        inset-block-start: 30px;
+      }
+    }
+    /* a tile this narrow (a phone wall of three columns: ~116 x 65 px) has no second row free of the camera's name; the profile badge
+       already reads "main·..." there, so the tag gives way to it */
+    @container swlp (max-width: 160px) {
+      .vbadge ~ .subtag {
+        display: none;
+      }
     }
     /* LIVE-H265-2341: the server played a fallback of an H.265 stream (another profile, or the transcoded H.264 variant) */
     .h265tag {
