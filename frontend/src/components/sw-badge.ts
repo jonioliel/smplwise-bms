@@ -133,6 +133,8 @@ export class SwBadge extends LitElement {
     }
     :host([filled][kind='live']) {
       background: var(--sw-success);
+      /* SKIN-QA-FOLLOWUP-2404: dark ink on the green (white read 1.8-3.5:1); the dot follows (currentColor) */
+      color: var(--sw-on-success);
     }
     :host([filled][kind='recorded']),
     :host([filled][kind='historic']) {
