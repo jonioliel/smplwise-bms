@@ -158,8 +158,12 @@ def search(
             ok = next((fid for fid, home in pairs if fid in ent_floors and home not in denied_homes), None)
             if ok:
                 ent_placed[rid] = ok
-    for e in conn.execute("SELECT entity_id, name, original_name, domain, area_name FROM ha_entities WHERE disabled = 0 AND " + dsvc.NOT_SCHEDULER_SQL + " ORDER BY name, entity_id").fetchall():
-        if not (_contains(e["name"], needle) or _contains(e["original_name"], needle) or _contains(e["entity_id"], needle) or _contains(e["area_name"], needle)):
+    # HA-2026-11-COMPAT-2404: `name` is the full name Home Assistant shows; the state's friendly name (the pre-2026.11 name while
+    # Home Assistant keeps a compat name) finds an entity by the name the operator knew before the migration
+    for e in conn.execute("SELECT entity_id, name, original_name, domain, area_name, CASE WHEN json_valid(attributes_json) THEN json_extract(attributes_json, '$.friendly_name') END AS friendly_name "
+                          "FROM ha_entities WHERE disabled = 0 AND " + dsvc.NOT_SCHEDULER_SQL + " ORDER BY name, entity_id").fetchall():
+        if not (_contains(e["name"], needle) or _contains(e["original_name"], needle) or _contains(e["entity_id"], needle) or _contains(e["area_name"], needle)
+                or _contains(e["friendly_name"] if isinstance(e["friendly_name"], str) else None, needle)):
             continue
         fid = ent_placed.get(e["entity_id"])
         if ent_floors is not None and (fid is None or fid not in ent_floors) and e["entity_id"] not in ent_mapped:

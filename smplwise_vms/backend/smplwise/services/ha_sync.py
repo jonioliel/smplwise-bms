@@ -376,6 +376,14 @@ def apply_registry(conn: sqlite3.Connection, maps: dict[str, dict[str, Any]]) ->
         except sqlite3.OperationalError as exc:
             if "config_entry_id" not in str(exc):
                 raise
+        # HA-2026-11-COMPAT-2404: the entity's own name part and the main-entity mark (migration 0206; a separate statement
+        # for the same reason). A map without them (an older caller) leaves the stored values as they are.
+        if "short_name" in m:
+            try:
+                conn.execute("UPDATE ha_entities SET short_name = ?, main_entity = ? WHERE entity_id = ?", (m.get("short_name") or None, 1 if m.get("main_entity") else 0, eid))
+            except sqlite3.OperationalError as exc:
+                if "short_name" not in str(exc) and "main_entity" not in str(exc):
+                    raise
         n += 1
     return n
 
@@ -527,6 +535,8 @@ def entity_row(r: sqlite3.Row) -> dict[str, Any]:
     d["disabled"] = bool(d["disabled"])
     d["hidden"] = bool(d["hidden"])
     d["available"] = bool(d["available"])
+    if "main_entity" in d:  # HA-2026-11-COMPAT-2404 (migration 0206): HA's "main entity of the device"
+        d["main_entity"] = bool(d["main_entity"])
     d["fresh"] = STATE.connected and d.get("state_seen_at") is not None
     return d
 

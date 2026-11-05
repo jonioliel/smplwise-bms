@@ -288,8 +288,13 @@ class Ctx:
     def device_name(self, device_id: str) -> str | None:
         """The name of a Home Assistant device (a wall switch a `device` trigger belongs to) from the mirror, for the label of its locked block."""
         if device_id not in self._device_names:
-            row = self.conn.execute("SELECT COALESCE(NULLIF(name_by_user, ''), NULLIF(name, '')) FROM ha_devices WHERE device_id = ? AND removed_at IS NULL", (device_id,)).fetchone()
-            self._device_names[device_id] = row[0] if row and row[0] else None
+            from . import ha_naming
+
+            # HA-2026-11-COMPAT-2404: a child device (one gang of a multi-gang switch) is named with its parent
+            row = self.conn.execute("SELECT d.device_id, d.name, d.name_by_user, d.parent_device_id, d.next_name_part, p.device_id AS p_id, p.name AS p_name, "
+                                    "p.name_by_user AS p_name_by_user FROM ha_devices d LEFT JOIN ha_devices p ON p.device_id = d.parent_device_id AND p.removed_at IS NULL "
+                                    "WHERE d.device_id = ? AND d.removed_at IS NULL", (device_id,)).fetchone()
+            self._device_names[device_id] = (ha_naming.mirror_row_label(row) or None) if row else None
         return self._device_names[device_id]
 
     def scope_info(self) -> dict[str, Any]:

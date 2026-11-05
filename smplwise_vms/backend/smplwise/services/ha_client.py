@@ -496,15 +496,25 @@ def _device_name(device: dict[str, Any] | None) -> str:
 
 
 def registry_maps(entities: list[dict[str, Any]], devices: list[dict[str, Any]], areas: list[dict[str, Any]], floors: list[dict[str, Any]]) -> dict[str, Any]:
-    """Resolve area/floor names per entity (entity area, else its device's area)."""
+    """Resolve names and area/floor per entity: the entity's own area, else its device's, else - for a child device without
+    an area of its own - its parent device's (HA-2026-11-COMPAT-2404, core `dr.async_get_effective_area_id`).
+
+    `name` is the name Home Assistant shows for the entity, composed by the rule of the listing's shape (services/ha_naming.py:
+    the 2026.11 registry, the 2026.9/10 one, an older one); `short_name` is the entity's own part (the device's name for a main
+    entity) for screens that show the device beside it; `main_entity` marks the "main entity of the device"."""
+    from . import ha_naming
+
     area_by_id = {a["area_id"]: a for a in areas}
     floor_by_id = {f["floor_id"]: f for f in floors}
-    device_by_id = {d["id"]: d for d in devices}
+    device_by_id = {d["id"]: d for d in devices if isinstance(d, dict) and d.get("id")}
+    shape = ha_naming.registry_shape(entities)
     out: dict[str, dict[str, Any]] = {}
     for e in entities:
-        area_id = e.get("area_id") or (device_by_id.get(e.get("device_id") or "", {}) or {}).get("area_id")
+        device = device_by_id.get(e.get("device_id") or "")
+        area_id = e.get("area_id") or ha_naming.effective_area_id(device, device_by_id)
         area = area_by_id.get(area_id or "", {}) if area_id else {}
         floor_id = area.get("floor_id") if area else None
+        names = ha_naming.entity_names(e, device_by_id, shape)
         out[e["entity_id"]] = {
             "registry_id": e.get("id"),
             "unique_id": e.get("unique_id"),
@@ -517,10 +527,12 @@ def registry_maps(entities: list[dict[str, Any]], devices: list[dict[str, Any]],
             "area_name": area.get("name") if area else None,
             "ha_floor_id": floor_id,
             "ha_floor_name": (floor_by_id.get(floor_id or "", {}) or {}).get("name") if floor_id else None,
-            # HA names an entity that has neither a name of its own nor an original one (a device's main feature, e.g. a
-            # climate, has_entity_name=True) after its device - so does this, rather than showing the raw entity id
-            # until a state arrives
-            "name": e.get("name") or e.get("original_name") or _device_name(device_by_id.get(e.get("device_id") or "")),
+            # an entity that has neither a name of its own nor an original one (a device's main feature, e.g. a climate)
+            # goes by its device's name - so does this, rather than showing the raw entity id until a state arrives
+            "name": names["display"],
+            "short_name": names["short"],
+            "main_entity": 1 if names["main_entity"] else 0,
+            "naming": shape,
             "original_name": e.get("original_name"),
             "icon": e.get("icon"),
             "entity_category": e.get("entity_category"),

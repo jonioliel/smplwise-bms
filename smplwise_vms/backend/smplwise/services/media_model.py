@@ -517,6 +517,18 @@ def build(
         for j in ids:
             if h is not None and j != h:
                 merge(h, j, "device", False)
+    # rung 1 also covers a child device (HA-2026-11-COMPAT-2404, core 2026.9+): a lightweight logical part of its parent, the
+    # same physical device - its endpoints join the parent's (and those of the parent's other children)
+    by_root: dict[str, list[int]] = {}
+    for did, ids in by_dev.items():
+        parent = (dev_by_id.get(did) or {}).get("parent_device_id")
+        root = parent if isinstance(parent, str) and parent and not (dev_by_id.get(parent) or {}).get("parent_device_id") else did
+        h = hub(ids)
+        if h is not None:
+            by_root.setdefault(root, []).append(h)
+    for hubs in by_root.values():
+        for j in hubs[1:]:
+            merge(hubs[0], j, "device", False)
 
     # rung 2: the Music Assistant loop - an MA-created entity whose player id is an HA media_player entity id
     media_ids = {e.ref.lower(): i for i, e in enumerate(eps) if e.domain == "media_player"}
@@ -745,7 +757,10 @@ def build(
                 e.role = "ma_export"
         anchor = _choose_anchor(ep_list, existing_anchors.get(key), ents)
         platforms = {e.platform or "" for e in ep_list}
-        metas = [dev_by_id[d] for d in sorted({ents[e.ref].get("device_id") for e in ep_list if ents[e.ref].get("device_id") in dev_by_id})]
+        meta_ids = {ents[e.ref].get("device_id") for e in ep_list if ents[e.ref].get("device_id") in dev_by_id}
+        # a child device has no manufacturer / model of its own: its parent's describe it (HA-2026-11-COMPAT-2404)
+        meta_ids |= {p for p in (dev_by_id[d].get("parent_device_id") for d in list(meta_ids)) if isinstance(p, str) and p in dev_by_id}
+        metas = [dev_by_id[d] for d in sorted(meta_ids)]
         kind = kind_of([ents[e.ref] for e in ep_list], metas)
         _build_audio_roles(ep_list, ents, kind)
         for e in ep_list:
