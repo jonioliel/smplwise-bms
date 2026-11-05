@@ -119,7 +119,12 @@ export class SwFoldCards extends LitElement {
       margin: 0;
       border: 1px solid var(--sw-border);
       border-radius: var(--sw-r-md);
-      background: var(--sw-card-bg, var(--sw-surface));
+      /* SKIN-QA-2403: a header is drawn as the skin draws its cards - in the glass skins (domus, crystal, soft) the sheen over the
+         translucent surface and the backdrop blur, so the words do not sit on the raw canvas (the city / bloom picture showed through);
+         in the solid skins the sheen is transparent and the blur none, so classic, tesla and infra draw exactly what they drew */
+      background: var(--sw-glass-sheen), var(--sw-perf-glass-bg, var(--sw-card-bg, var(--sw-surface)));
+      -webkit-backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur));
+      backdrop-filter: var(--sw-perf-blur, var(--sw-glass-blur));
       color: inherit;
       font: inherit;
       text-align: start;
@@ -174,7 +179,10 @@ export class SwFoldCards extends LitElement {
     }
     .head[aria-expanded='true'] {
       border-color: color-mix(in srgb, var(--sw-accent) 45%, var(--sw-border));
-      background: var(--sw-accent-soft);
+      /* SKIN-QA-2403: the accent tint is laid OVER the header's surface; alone, a translucent tint (every dark scheme, the glass skins)
+         left the open header see-through (its accent title fell to 4.3:1 on soft / domus light). Where the tint is opaque (classic
+         light) nothing changes. */
+      background: linear-gradient(var(--sw-accent-soft), var(--sw-accent-soft)), var(--sw-perf-glass-bg, var(--sw-card-bg, var(--sw-surface)));
     }
     .head[aria-expanded='true'] .t {
       color: var(--sw-accent-text, var(--sw-accent));

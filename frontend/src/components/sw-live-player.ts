@@ -389,8 +389,12 @@ export class SwLivePlayer extends LitElement {
       inset-block-start: 8px;
       font-size: var(--sw-fs-2xs);
       font-weight: 500;
-      color: var(--sw-on-video-2);
+      /* SKIN-QA-2403: the full on-video ink, as the status pill beside it - the 72 % ink read at 3.3:1 when the picture under the scrim is
+         bright (a sunlit yard, a white wall; the tile's picture is never known). Still quiet: weight 500, the smallest size, no icon. */
+      color: var(--sw-on-video);
       background: var(--sw-video-scrim);
+      -webkit-backdrop-filter: var(--sw-perf-blur, blur(6px));
+      backdrop-filter: var(--sw-perf-blur, blur(6px));
       border-radius: 999px;
       padding: 2px 8px;
       pointer-events: none;

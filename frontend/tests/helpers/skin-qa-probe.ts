@@ -84,7 +84,8 @@ export async function collectTargets(root: Locator, opts: { icons?: boolean; ski
       };
       const exempt = (el: Element) => {
         for (let e: Element | null = el; e; e = flatParent(e)) {
-          if (e.matches(':disabled, [aria-disabled="true"], [inert], [hidden]')) return true;
+          // WCAG 1.4.3 exempts inactive controls: a native :disabled, a custom control's `disabled` attribute (sw-button), aria-disabled
+          if (e.matches(':disabled, [disabled], [aria-disabled="true"], [inert], [hidden]')) return true;
           if (o.skip && e.matches(o.skip)) return true;
         }
         return false;
@@ -97,12 +98,42 @@ export async function collectTargets(root: Locator, opts: { icons?: boolean; ski
         }
         return parts.join('>');
       };
+      // the element really drawn at a point (through the shadow roots)
+      const hitAt = (x: number, y: number): Element | null => {
+        let el = document.elementFromPoint(x, y);
+        while (el?.shadowRoot) {
+          const inner = el.shadowRoot.elementFromPoint(x, y);
+          if (!inner || inner === el) break;
+          el = inner;
+        }
+        return el;
+      };
+      const flatContains = (a: Element, b: Element) => {
+        for (let e: Element | null = b; e; e = flatParent(e)) if (e === a) return true;
+        return false;
+      };
+      /** Not covered by something else (a floating shell control, a sticky bar): the element (or its flat-tree kin) is what is hit. */
+      const uncovered = (el: Element, r: DOMRect) => {
+        const h = hitAt(Math.min(vw - 1, Math.max(0, r.left + r.width / 2)), Math.min(vh - 1, Math.max(0, r.top + r.height / 2)));
+        return !!h && (h === el || flatContains(el, h) || flatContains(h, el));
+      };
       const visible = (r: DOMRect) => r.width > 0.5 && r.height > 0.5 && r.right > 0 && r.bottom > 0 && r.left < vw && r.top < vh;
       // `styleEl`: where the glyphs take their style from - a slotted text node inherits from its slot (the flat tree), not from the
       // light-DOM element that holds it (sw-button's label is drawn in the button's own colour)
-      const push = (el: Element, rect: DOMRect, text: string, kind: 'text' | 'icon', styleEl: Element = el) => {
+      const push = (el: Element, rect0: DOMRect, text: string, kind: 'text' | 'icon', styleEl: Element = el) => {
         const cs = getComputedStyle(styleEl);
         if (cs.visibility === 'hidden') return;
+        // a text that overflows its clipping box (an ellipsis line) is measured on the part drawn, inside the box
+        let rect = rect0;
+        const own0 = getComputedStyle(el);
+        if (/hidden|clip/.test(own0.overflow) || /hidden|clip/.test(own0.overflowX)) {
+          const b = el.getBoundingClientRect();
+          const l = Math.max(rect.left, b.left);
+          const r = Math.min(rect.right, b.right);
+          if (r - l < 1) return;
+          rect = new DOMRect(l, rect.top, r - l, rect.height);
+        }
+        if (!uncovered(el, rect)) return;
         const fill = cs.getPropertyValue('-webkit-text-fill-color');
         const colorStr = kind === 'text' && fill && !fill.includes('rgba(0, 0, 0, 0)') && fill !== cs.color ? fill : cs.color;
         const m = colorStr.match(/rgba?\(([^)]+)\)/);

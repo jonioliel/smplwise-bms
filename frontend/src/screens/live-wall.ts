@@ -295,8 +295,9 @@ export class LiveWall extends LitElement {
     }
     .pbar .kiosk {
       flex: none;
-      inline-size: 40px;
-      block-size: 40px;
+      /* SKIN-QA-2403: 44 px in the two-row mode too (it was 40 px there; the icon row already had 44) - the phone's touch target */
+      inline-size: 44px;
+      block-size: 44px;
       display: grid;
       place-items: center;
       border: 1px solid var(--sw-border-strong);
@@ -335,6 +336,12 @@ export class LiveWall extends LitElement {
       touch-action: manipulation;
       user-select: none;
       -webkit-user-select: none;
+      transition: transform var(--sw-t-press) var(--sw-ease-out);
+    }
+    /* SKIN-QA-2403: a picker key sinks on press like the kiosk key and the columns key beside it (the skin's press scale; 1 in the flat
+       skins, which draw no press) - it had no pressed state, so a tap on quality / count gave no feedback until the picker opened */
+    .pbar[data-mode='icons'] .ikey:active {
+      transform: scale(var(--sw-press-scale, 0.95));
     }
     .pbar[data-mode='icons'] .ikey[data-capsule] {
       inline-size: 46px;
@@ -417,7 +424,9 @@ export class LiveWall extends LitElement {
       padding: 6px 10px;
       border-radius: var(--sw-r-sm);
       background: var(--sw-heading);
-      color: var(--sw-surface);
+      /* SKIN-QA-2403: the solid surface - the glass skins' --sw-surface is translucent, which made the words see-through (crystal dark:
+         3.3:1 on the bubble) */
+      color: var(--sw-surface-solid);
       font-size: var(--sw-fs-sm);
       font-weight: var(--sw-fw-semibold);
       line-height: 1.35;
@@ -503,7 +512,8 @@ export class LiveWall extends LitElement {
     }
     @media (prefers-reduced-motion: reduce) {
       .layouts button:active,
-      .pbar .kiosk:active {
+      .pbar .kiosk:active,
+      .pbar[data-mode='icons'] .ikey:active {
         transform: none;
       }
     }

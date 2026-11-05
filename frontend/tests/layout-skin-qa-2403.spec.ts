@@ -161,7 +161,20 @@ test.describe('SKIN-QA-2403 · Settings › "מתגי מסכי כניסה" in ev
             log.push(`${id} @${w}x${h}: page v ${s.vertical} / side ${s.sideways} · body ${g.bodyTop}-${g.bodyBottom} inner ${g.bodyInner}${g.bodyScroll ? ' (scrolls)' : ''} · last header ${g.lastHead} · heads ${Math.min(...g.headH)}-${Math.max(...g.headH)} px`);
             if (s.vertical > 1) bad.push(`${id} @${w}x${h}: the page scrolls ${s.vertical} px`);
             if (s.sideways > 1) bad.push(`${id} @${w}x${h}: sideways scroll ${s.sideways} px`);
-            if (g.bodyScroll || g.bodyInner > 1) bad.push(`${id} @${w}x${h}: the open card scrolls inside (${g.bodyInner} px)`);
+            if (g.bodyScroll || g.bodyInner > 1) {
+              bad.push(`${id} @${w}x${h}: the open card scrolls inside (${g.bodyInner} px)`);
+              // what the card is made of (to see which part of the skin makes it taller than in classic)
+              const parts = await page.evaluate((cid) => {
+                const diag = document.querySelector('sw-app')?.shadowRoot?.querySelector('system-diagnostics');
+                const body = diag?.shadowRoot?.querySelector(`.afold-body[data-access-fold="${cid}"]`);
+                const card = body?.querySelector('sw-card');
+                const inner = card?.shadowRoot?.querySelector('.body, .card, section, div') as HTMLElement | null;
+                const cs = inner ? getComputedStyle(inner) : null;
+                return { pad: cs ? `${cs.paddingTop} ${cs.paddingBottom}` : '', kids: [...(card?.children ?? [])].map((k) => `${k.className || k.tagName.toLowerCase()}:${Math.round(k.getBoundingClientRect().height)}`) };
+              }, id);
+              log.push(`  ${id} parts: ${JSON.stringify(parts)}`);
+              await shot(page, info, `settings-cards-${id}-${skin}-${scheme}-${w}-inner`);
+            }
             if (g.bodyBottom > g.win) bad.push(`${id} @${w}x${h}: the open card ends at ${g.bodyBottom} > ${g.win}`);
             if (g.lastHead > g.win) bad.push(`${id} @${w}x${h}: the last header ends at ${g.lastHead} > ${g.win}`);
             if (!g.heads.includes('validation') && g.lastHead + HEAD_SLOT > g.win) bad.push(`${id} @${w}x${h}: no room for the acceptance-check header`);
@@ -206,7 +219,7 @@ test.describe('SKIN-QA-2403 · Settings › "מתגי מסכי כניסה" in ev
           await page.mouse.move(0, 0);
           await expect(head).toHaveAttribute('aria-expanded', 'true');
           await page.waitForTimeout(350);
-          await head.evaluate((el) => el.scrollIntoView({ block: 'start' }));
+          await head.evaluate((el) => el.scrollIntoView({ block: 'center' }));
           await page.waitForTimeout(150);
           const s = await pageScroll(page);
           const g = await foldGeometry(page);
@@ -274,7 +287,7 @@ test.describe('SKIN-QA-2403 · Settings › "מתגי מסכי כניסה" in ev
           if ((await head.getAttribute('aria-expanded')) !== 'true') await head.click();
           await expect(head).toHaveAttribute('aria-expanded', 'true');
           await page.waitForTimeout(350);
-          await head.evaluate((el) => el.scrollIntoView({ block: 'start' }));
+          await head.evaluate((el) => el.scrollIntoView({ block: 'center' }));
           await page.waitForTimeout(150);
           g = await foldGeometry(page);
           const s = await pageScroll(page);
