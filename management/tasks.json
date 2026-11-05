@@ -19953,5 +19953,44 @@
     "owner": null,
     "commit": "cb4b47767",
     "actual_cost_usd": null
+  },
+  {
+    "id": "HA-2026-11-COMPAT-2404",
+    "title": "Home Assistant 2026.11 entity names and child devices",
+    "epic": "HA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "Arx shows the entity name Home Assistant shows (device + name, by next_name_part on 2026.11, the legacy friendly name on 2026.9/10), keeps the short part and the main-entity flag (migration 0206), places a child device without its own area in its parent's area, and pairs alarm zones on the full name and on the friendly name, so nothing collapses to a bare part after the Home Assistant 2026.11 upgrade."
+    ],
+    "requirement_ids": [
+      "R-HA-2026-11-COMPAT-2404-1"
+    ],
+    "test_ids": [
+      "AT-HA-2026-11-COMPAT-2404-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests on an isolated branch",
+      "Change record and known limits"
+    ],
+    "evidence": [
+      "commit ab9416e09 (release/2404-train, not on origin/main, not released) - 2026-11-05: merge of fix/HA-2026-11-COMPAT-2404 (docs/changes/HA-2026-11-COMPAT-2404.md) into the 2.40.4 train. Lab check after the Home Assistant 2026.11 upgrade NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "cb4b47767",
+    "actual_cost_usd": null
   }
 ]

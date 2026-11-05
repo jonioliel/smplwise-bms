@@ -15105,5 +15105,30 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-HA-2026-11-COMPAT-2404-1",
+    "requirement_ids": [
+      "R-HA-2026-11-COMPAT-2404-1"
+    ],
+    "task_ids": [
+      "HA-2026-11-COMPAT-2404"
+    ],
+    "title": "Home Assistant 2026.11 entity names and child devices",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Arx shows the entity name Home Assistant shows (device + name, by next_name_part on 2026.11, the legacy friendly name on 2026.9/10), keeps the short part and the main-entity flag (migration 0206), places a child device without its own area in its parent's area, and pairs alarm zones on the full name and on the friendly name, so nothing collapses to a bare part after the Home Assistant 2026.11 upgrade.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-05 (RELEASE-2404-TRAIN); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

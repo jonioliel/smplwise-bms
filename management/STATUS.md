@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-05T14:38:32.026328+00:00
+Generated: 2026-11-05T14:39:06.946699+00:00
 
-Tasks: 450 | Requirements: 559 | Tests: 576 | Screens: 32
+Tasks: 451 | Requirements: 560 | Tests: 577 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,14 +12,14 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BACKLOG: 96
 - BLOCKED: 18
 - DONE: 40
-- IN_PROGRESS: 6
+- IN_PROGRESS: 7
 - REVIEW: 290
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 356
+- V1: 357
 - V2: 29
 - V3: 2
 
@@ -496,3 +496,4 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [VIDEO-2403](tasks/VIDEO-2403.md) | V1 | IN_PROGRESS | Live video: no video-policy read without live video; the kiosk and the display wall count as automatic quality | — |
 | [SKIN-QA-2403](tasks/SKIN-QA-2403.md) | V1 | IN_PROGRESS | The 2.40.1 / 2.40.2 surfaces in every skin, light and dark: fallback tag, phone toolbar, intercom settings cards | — |
 | [BOARD-HYGIENE-2403](tasks/BOARD-HYGIENE-2403.md) | V1 | IN_PROGRESS | Task board hygiene after v2.40.2 | — |
+| [HA-2026-11-COMPAT-2404](tasks/HA-2026-11-COMPAT-2404.md) | V1 | IN_PROGRESS | Home Assistant 2026.11 entity names and child devices | — |

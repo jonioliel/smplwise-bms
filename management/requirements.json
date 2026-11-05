@@ -9973,5 +9973,21 @@
     "test_ids": [
       "AT-BOARD-HYGIENE-2403-1"
     ]
+  },
+  {
+    "id": "R-HA-2026-11-COMPAT-2404-1",
+    "title": "Home Assistant 2026.11 entity names and child devices",
+    "statement": "Arx shows the entity name Home Assistant shows (device + name, by next_name_part on 2026.11, the legacy friendly name on 2026.9/10), keeps the short part and the main-entity flag (migration 0206), places a child device without its own area in its parent's area, and pairs alarm zones on the full name and on the friendly name, so nothing collapses to a bare part after the Home Assistant 2026.11 upgrade.",
+    "task_ids": [
+      "HA-2026-11-COMPAT-2404"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-HA-2026-11-COMPAT-2404-1"
+    ]
   }
 ]
