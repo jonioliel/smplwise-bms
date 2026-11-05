@@ -51,6 +51,11 @@ const contrastProblems = (all: Map<string, ContrastRow & { where: string }>) =>
 const cutTitles = (all: Map<string, ContrastRow & { where: string }>) =>
   [...all.values()].filter((r) => r.cut && /span\.t\b/.test(r.key)).map((r) => `${r.where}: header title cut "${r.text}"`);
 
+/** The press must follow the skin: its `--sw-press-scale` (0.97 in classic, domus, infra, soft; 1 = no press scale in the flat crystal / tesla). */
+const pressScale = (page: Page) => page.evaluate(() => Number(getComputedStyle(document.documentElement).getPropertyValue('--sw-press-scale').trim() || '1'));
+const scaleOf = (transform: string) => (transform === 'none' ? 1 : Number(transform.match(/matrix\(([-\d.]+)/)?.[1] ?? 1));
+const pressFollows = (transform: string, token: number) => Math.abs(scaleOf(transform) - token) < 0.011;
+
 const headLoc = (page: Page, id: string) => page.locator(`${FOLDS} [data-fold-toggle="${id}"]`);
 
 async function openCards(page: Page, skin: string, scheme: Scheme, layout: 'cards' | 'accordion' | 'tabs' | 'list' = 'cards', hash = ACCESS) {
@@ -94,6 +99,7 @@ async function headerStates(page: Page, id: string) {
   await head.evaluate((el) => (el as HTMLElement).blur());
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  const token = await pressScale(page);
   await page.mouse.down();
   await page.waitForTimeout(140);
   const pressed = await style();
@@ -111,6 +117,7 @@ async function headerStates(page: Page, id: string) {
     focusRing: focus.outline,
     ringRatio: Math.round(ringRatio * 100) / 100,
     pressed: pressed.transform,
+    token,
   };
 }
 
@@ -174,7 +181,7 @@ test.describe('SKIN-QA-2403 · Settings › "מתגי מסכי כניסה" in ev
             if (states.hoverDelta < 8) bad.push(`hover on a header changes nothing visible (delta ${states.hoverDelta})`);
             if (!states.focusVisible || !/solid/.test(states.focusRing)) bad.push(`keyboard focus on a header draws no ring (${states.focusRing})`);
             else if (states.ringRatio < 3) bad.push(`the header's focus ring reads at ${states.ringRatio} < 3`);
-            if (!/matrix\(0\.9/.test(states.pressed)) bad.push(`pressing a header gives no feedback (${states.pressed})`);
+            if (!pressFollows(states.pressed, states.token)) bad.push(`pressing a header does not follow the skin's press (${states.pressed}, token ${states.token})`);
           }
         }
         bad.push(...contrastProblems(all), ...cutTitles(all));
@@ -428,6 +435,7 @@ test.describe('SKIN-QA-2403 · the camera wall: phone toolbar and the tile tag',
         await bar.locator('[data-wall-quality]').evaluate((sel) => (sel as HTMLElement).blur());
         // pressing a key gives feedback (the kiosk key and a picker key)
         await page.emulateMedia({ reducedMotion: 'no-preference' });
+        const token = await pressScale(page);
         for (const sel of ['[data-open-kiosk]', '.ikey:has([data-wall-count-select])']) {
           const k = bar.locator(sel).first();
           const b = (await k.boundingBox())!;
@@ -439,7 +447,7 @@ test.describe('SKIN-QA-2403 · the camera wall: phone toolbar and the tile tag',
           await page.mouse.move(b.x + b.width / 2, b.y + 200);
           await page.mouse.up();
           await page.keyboard.press('Escape');
-          if (!/matrix\(0\.9/.test(pressed)) bad.push(`icons: pressing ${sel} gives no feedback (${pressed})`);
+          if (!pressFollows(pressed, token)) bad.push(`icons: pressing ${sel} does not follow the skin's press (${pressed}, token ${token})`);
         }
         await page.emulateMedia({ reducedMotion: 'reduce' });
         await page.waitForTimeout(300);

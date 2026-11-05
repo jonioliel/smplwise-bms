@@ -98,8 +98,10 @@ export async function collectTargets(root: Locator, opts: { icons?: boolean; ski
         return parts.join('>');
       };
       const visible = (r: DOMRect) => r.width > 0.5 && r.height > 0.5 && r.right > 0 && r.bottom > 0 && r.left < vw && r.top < vh;
-      const push = (el: Element, rect: DOMRect, text: string, kind: 'text' | 'icon') => {
-        const cs = getComputedStyle(el);
+      // `styleEl`: where the glyphs take their style from - a slotted text node inherits from its slot (the flat tree), not from the
+      // light-DOM element that holds it (sw-button's label is drawn in the button's own colour)
+      const push = (el: Element, rect: DOMRect, text: string, kind: 'text' | 'icon', styleEl: Element = el) => {
+        const cs = getComputedStyle(styleEl);
         if (cs.visibility === 'hidden') return;
         const fill = cs.getPropertyValue('-webkit-text-fill-color');
         const colorStr = kind === 'text' && fill && !fill.includes('rgba(0, 0, 0, 0)') && fill !== cs.color ? fill : cs.color;
@@ -107,20 +109,21 @@ export async function collectTargets(root: Locator, opts: { icons?: boolean; ski
         const p = m ? m[1].split(/[\s,/]+/).filter(Boolean).map(Number) : [0, 0, 0, 1];
         const color: [number, number, number, number] = [p[0], p[1], p[2], p.length > 3 ? p[3] : 1];
         const host = el as HTMLElement;
-        const cut = kind === 'text' && (cs.overflow.includes('hidden') || cs.overflowX === 'hidden' || cs.overflow.includes('clip')) && host.scrollWidth > host.clientWidth + 1;
+        const own = getComputedStyle(el);
+        const cut = kind === 'text' && (own.overflow.includes('hidden') || own.overflowX === 'hidden' || own.overflow.includes('clip')) && host.scrollWidth > host.clientWidth + 1;
         const x = Math.max(0, rect.left);
         const y = Math.max(0, rect.top);
         out.push({
           key: name(el),
           text: text.replace(/\s+/g, ' ').trim().slice(0, 48),
           color,
-          opacity: opacityOf(el),
+          opacity: opacityOf(styleEl),
           size: parseFloat(cs.fontSize) || 0,
           weight: Number(cs.fontWeight) || 400,
           kind,
           rect: { x, y, w: Math.min(vw, rect.right) - x, h: Math.min(vh, rect.bottom) - y },
           cut,
-          ellipsis: cs.textOverflow === 'ellipsis' && cut,
+          ellipsis: own.textOverflow === 'ellipsis' && cut,
         });
       };
       const walk = (node: Element | ShadowRoot) => {
@@ -151,7 +154,7 @@ export async function collectTargets(root: Locator, opts: { icons?: boolean; ski
                 const t = Math.min(...rects.map((r) => r.top));
                 const rr = Math.max(...rects.map((r) => r.right));
                 const b = Math.max(...rects.map((r) => r.bottom));
-                push(el, new DOMRect(l, t, rr - l, b - t), n.textContent ?? '', 'text');
+                push(el, new DOMRect(l, t, rr - l, b - t), n.textContent ?? '', 'text', (n as Text).assignedSlot ?? el);
               }
             }
           }
