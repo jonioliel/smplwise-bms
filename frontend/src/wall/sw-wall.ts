@@ -1319,7 +1319,7 @@ export class SwWall extends LitElement {
 
   private alertCamera(a: WallAlert, transport: ReturnType<typeof effectiveTransport>, name?: string) {
     const cam = a.camera_id ? this.data?.cameras.find((c) => c.id === a.camera_id) : undefined;
-    return cam ? html`<sw-camera-tile dark noDemo name=${name ?? cam.name} state="live" live cameraId=${cam.id} profile="sub" transport=${transport}></sw-camera-tile>` : nothing;
+    return cam ? html`<sw-camera-tile dark noDemo name=${name ?? cam.name} state="live" live cameraId=${cam.id} profile="sub" autoProfile transport=${transport}></sw-camera-tile>` : nothing;
   }
 
   /** Section 5.4: "ראיתי" (local) and, only when the profile allows it, "אישור" with a 1.5 s press-and-hold. */
@@ -1392,7 +1392,7 @@ export class SwWall extends LitElement {
     const drop = this.drop.get(c.id) ?? null;
     const health = ok === false ? tileHealth(drop, this.now, 0, showLastFrameS) : 'live';
     return html`<div class="tile" data-wall-tile=${c.id} data-health=${health} @player-status=${(e: CustomEvent<{ status?: string }>) => this.onPlayer(c.id, e)}>
-      ${keyed(`${c.id}:${this.epoch.get(c.id) ?? 0}`, html`<sw-camera-tile dark noDemo name=${c.name} state=${health === 'live' ? 'live' : 'stale'} ?live=${health !== 'lost'} cameraId=${c.id} profile="sub" transport=${transport}></sw-camera-tile>`)}
+      ${keyed(`${c.id}:${this.epoch.get(c.id) ?? 0}`, html`<sw-camera-tile dark noDemo name=${c.name} state=${health === 'live' ? 'live' : 'stale'} ?live=${health !== 'lost'} cameraId=${c.id} profile="sub" autoProfile transport=${transport}></sw-camera-tile>`)}
       ${health === 'stale' ? html`<span class="badge" data-wall-badge>אין וידאו${drop ? ` · ${this.hhmmss(drop)}` : ''}</span>` : nothing}
       ${health === 'lost' ? html`<div class="lost" data-wall-lost><b>${c.name}</b><span>אין וידאו</span></div>` : nothing}
     </div>`;
