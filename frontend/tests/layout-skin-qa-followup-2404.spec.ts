@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { PICKER_SKINS } from './helpers/frozen-skins';
 import { collectTargets, failing, measureContrast, over, pageScroll, parseRgba, ratio } from './helpers/skin-qa-probe';
 import { openWall, tagFacts } from './helpers/skin-qa-wall';
+import { FOLDS, installCardsMock, openAccess } from './settings-cards-mocks';
 
 // SKIN-QA-FOLLOWUP-2404 (owner round 22, Q4: "it has to work"): on a tile narrower than 160 px - a phone wall of three columns on the
 // remote channel, where the profile badge holds the top row and the camera's name the bottom one - the "moved to the main stream" tag is
@@ -110,4 +111,35 @@ test.describe('SKIN-QA-FOLLOWUP-2404 · the fallback chip on a narrow remote til
     await expect(page.locator('live-wall sw-camera-tile[data-cam="c1"] sw-live-player')).toHaveAttribute('data-subchip', '');
     expect(t.overlaps).toEqual([]);
   });
+});
+
+// Q5 (owner round 22): the filled success badge - the pairing verdict "מצומד" in Settings › "מתגי מסכי כניסה" - in every skin and scheme:
+// dark ink on the green, >= 4.5:1 measured on the rendered pixels; an element image per skin and scheme as evidence.
+test.describe('SKIN-QA-FOLLOWUP-2404 · the filled success badge', () => {
+  test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
+  for (const skin of PICKER_SKINS) {
+    for (const scheme of ['light', 'dark'] as const) {
+      test(`${skin} ${scheme}: the pairing verdict reads >= 4.5:1`, async ({ page }, info) => {
+        test.skip(info.project.name !== 'desktop', 'one size is enough for a badge');
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await installCardsMock(page);
+        await openAccess(page, undefined, { skin, scheme });
+        const head = page.locator(`${FOLDS} [data-fold-toggle="pairing"]`);
+        await head.click({ timeout: 30_000 });
+        const badge = page.locator('sw-app system-diagnostics system-wiskey-pairing sw-badge[data-wkp-verdict]');
+        await expect(badge).toBeVisible({ timeout: 20_000 });
+        await expect(badge).toHaveAttribute('kind', 'live');
+        await page.mouse.move(0, 0);
+        await page.waitForTimeout(300);
+        const rows = await measureContrast(page, await collectTargets(badge));
+        const ink = await badge.evaluate((el) => getComputedStyle(el).color);
+        fs.mkdirSync(OUT, { recursive: true });
+        await badge.screenshot({ path: path.join(OUT, `badge-verdict-${skin}-${scheme}-${info.project.name}.png`) });
+        save(info, `badge-verdict-${skin}-${scheme}`, { rows, ink });
+        console.log(`SKIN-QA-FOLLOWUP-2404 badge ${skin} ${scheme}: ink ${ink}, ${rows.map((r) => r.ratio).join('/')}`);
+        expect(rows.length, 'the verdict text was measured').toBeGreaterThan(0);
+        expect(failing(rows), `badge ${skin} ${scheme}`).toEqual([]);
+      });
+    }
+  }
 });

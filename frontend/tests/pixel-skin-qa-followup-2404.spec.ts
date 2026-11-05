@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import { openWall, tagFacts } from './helpers/skin-qa-wall';
+import { FOLDS, installCardsMock, openAccess } from './settings-cards-mocks';
 import { settlePage } from './pixel-settle';
 
 // SKIN-QA-FOLLOWUP-2404 pixel baselines: the "moved to the main stream" CHIP on a narrow remote tile (a phone wall of three columns at
@@ -33,6 +34,27 @@ test.describe('pixel: SKIN-QA-FOLLOWUP-2404', () => {
       await page.mouse.move(0, 0);
       await settlePage(page, { timeout: 8_000 }).catch(() => undefined);
       await expect(tile).toHaveScreenshot(file, { maxDiffPixels: 20, animations: 'disabled' });
+    });
+  }
+
+  // Q5: the filled success badge (no existing baseline draws it): the pairing verdict "מצומד", classic light and dark, as an element image
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`classic ${scheme} is pixel-stable: the filled success badge (the pairing verdict)`, async ({ page }, info) => {
+      test.skip(info.project.name !== 'desktop', 'one size');
+      const file = `badge-verdict-classic-${scheme}.png`;
+      if (noBaseline(info, file)) {
+        info.annotations.push({ type: 'skipped-pixel', description: `${file}: no baseline on ${process.platform}` });
+        test.skip(true, `${file}: no baseline on ${process.platform}`);
+      }
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await installCardsMock(page);
+      await openAccess(page, undefined, { scheme });
+      await page.locator(`${FOLDS} [data-fold-toggle="pairing"]`).click({ timeout: 30_000 });
+      const badge = page.locator('sw-app system-diagnostics system-wiskey-pairing sw-badge[data-wkp-verdict]');
+      await expect(badge).toBeVisible({ timeout: 20_000 });
+      await page.mouse.move(0, 0);
+      await settlePage(page, { timeout: 8_000 }).catch(() => undefined);
+      await expect(badge).toHaveScreenshot(file, { maxDiffPixels: 10, animations: 'disabled' });
     });
   }
 });
