@@ -401,12 +401,22 @@ export class SwLivePlayer extends LitElement {
       padding: 2px 8px;
       pointer-events: none;
     }
-    /* SKIN-QA-2403: on a narrow tile (a phone wall of three columns, the remote channel) the tag and the top-end profile badge met in the
-       middle of the top row - the tag steps down to a second row under the badge's height; wide tiles keep both on the top row */
+    /* SKIN-QA-2403: the remote channel's profile badge (.vbadge) is "direction: ltr", so its inline END is the right edge - the same
+       corner as this tag's inline start in the RTL shell: the two lay on top of each other on every remote tile. The tag steps down
+       to a second row under the badge. The H.265 tag sits at the real end (left): it meets the tag only on a narrow tile. */
+    .vbadge ~ .subtag {
+      inset-block-start: 30px;
+    }
     @container swlp (max-width: 240px) {
-      .vbadge ~ .subtag,
       .h265tag ~ .subtag {
         inset-block-start: 30px;
+      }
+    }
+    /* a tile this narrow (a phone wall of three columns: ~116 x 65 px) has no second row free of the camera's name; the profile badge
+       already reads "main·..." there, so the tag gives way to it */
+    @container swlp (max-width: 160px) {
+      .vbadge ~ .subtag {
+        display: none;
       }
     }
     /* LIVE-H265-2341: the server played a fallback of an H.265 stream (another profile, or the transcoded H.264 variant) */

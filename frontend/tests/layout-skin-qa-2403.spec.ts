@@ -561,15 +561,37 @@ test.describe('SKIN-QA-2403 · the camera wall: phone toolbar and the tile tag',
     }
   }
 
-  test('remote channel, a phone wall of three columns: the tag and the profile badge do not collide', async ({ page }, info) => {
-    test.skip(info.project.name !== 'mobile', 'the narrowest tile');
+  test('remote channel: the tag steps under the profile badge (both sit at the right); a three-column phone tile leaves the badge alone', async ({ page }, info) => {
+    test.skip(info.project.name !== 'mobile', 'the phone walls');
     test.setTimeout(120_000);
-    await openWall(page, 'classic', 'light', { cols: 3, channel: 'remote' });
+    // two columns (~180 px tiles): the tag is drawn, under the profile badge, covering nothing
+    await openWall(page, 'classic', 'light', { cols: 2, channel: 'remote' });
     const t = await tagFacts(page, 'c1');
-    await shot(page, info, 'wall-phone-remote-tag-classic-light');
-    save(info, 'wall-phone-remote', { t });
-    console.log(`SKIN-QA-2403 remote tag: ${JSON.stringify(t.others.map((o) => o.cls))}, overlaps ${t.overlaps.join(', ') || 'none'}`);
+    await shot(page, info, 'wall-phone-remote-2col-tag-classic-light');
+    console.log(`SKIN-QA-2403 remote tag (2 columns): ${JSON.stringify(t.others.map((o) => o.cls))}, overlaps ${t.overlaps.join(', ') || 'none'}`);
+    expect(t.others.some((o) => /vbadge/.test(o.cls)), 'the remote channel draws the profile badge').toBe(true);
     expect(t.overlaps, 'the tag covers another overlay').toEqual([]);
     expect(t.tag.r <= t.tile.r + 0.5 && t.tag.x >= t.tile.x - 0.5, 'the tag stays inside its tile').toBe(true);
+    // three columns (~116 x 65 px): no free row - the tag gives way to the badge, which already says "main"
+    await page.goto('about:blank');
+    await openWall(page, 'classic', 'light', { cols: 3, channel: 'remote' });
+    const player = page.locator('live-wall sw-camera-tile[data-cam="c1"] sw-live-player');
+    await expect.poll(() => player.evaluate((p) => (p as unknown as { status: string }).status), { timeout: 20_000 }).toBe('playing');
+    await expect(player.locator('[data-video-badge]')).toContainText('main');
+    await expect(player.locator('[data-sub-fallback]')).toBeHidden();
+    await shot(page, info, 'wall-phone-remote-3col-classic-light');
+    save(info, 'wall-phone-remote', { t });
+  });
+
+  test('remote channel, desktop wall: the tag and the profile badge do not lie on each other', async ({ page }, info) => {
+    test.skip(info.project.name !== 'desktop', 'the desktop wall');
+    test.setTimeout(120_000);
+    await openWall(page, 'classic', 'dark', { channel: 'remote' });
+    const t = await tagFacts(page, 'c1');
+    await shot(page, info, 'wall-desktop-remote-tag-classic-dark');
+    save(info, 'wall-desktop-remote', { t });
+    expect(t.others.some((o) => /vbadge/.test(o.cls)), 'the remote channel draws the profile badge').toBe(true);
+    expect(t.overlaps, 'the tag covers another overlay').toEqual([]);
+    expect(Math.abs(t.tile.r - t.tag.r), 'top-start (right) corner').toBeLessThanOrEqual(12);
   });
 });
