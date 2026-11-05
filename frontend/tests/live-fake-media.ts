@@ -8,10 +8,11 @@
  *      hang      never changes state and never delivers a byte (UDP to go2rtc blocked: the Ingress / Cloudflare path
  *                before the browser's own ICE timeout) - the player's connect bound must decide
  *      nodecode  connects, bytes arrive, no frame ever decodes
+ *      still     as ok, but the picture is one unchanging grey (SKIN-QA-FOLLOWUP-2404: pixel baselines of a playing tile)
  * Shared by evidence-webrtc-only.spec.ts (owner bug 2026-10-01) and evidence-webrtc-first.spec.ts (owner decision 2026-10-05).
  * What it does not prove: real go2rtc media.
  */
-export type RtcMode = 'ok' | 'fail' | 'hang' | 'nodecode';
+export type RtcMode = 'ok' | 'fail' | 'hang' | 'nodecode' | 'still';
 
 export interface LiveSocketEntry {
   profile: string;
@@ -108,7 +109,7 @@ export const FAKE_MEDIA = () => {
       const ctx = c.getContext('2d')!;
       let n = 0;
       this.timers.push(window.setInterval(() => {
-        ctx.fillStyle = n++ % 2 ? '#1d4ed8' : '#16a34a';
+        ctx.fillStyle = this.mode === 'still' ? '#7a8088' : n++ % 2 ? '#1d4ed8' : '#16a34a';
         ctx.fillRect(0, 0, 320, 180);
         this.bytes += 4000;
         this.frames += 1;
@@ -120,7 +121,7 @@ export const FAKE_MEDIA = () => {
       if (this.mode === 'hang') return; // nothing ever happens: no state change, no byte
       if (this.mode === 'fail') return this.later(60, () => this.state('failed'));
       this.later(60, () => this.state('connected'));
-      if (this.mode === 'ok') return this.later(80, () => this.play());
+      if (this.mode === 'ok' || this.mode === 'still') return this.later(80, () => this.play());
       if (this.mode === 'nodecode') return this.timers.push(window.setInterval(() => (this.bytes += 4000), 100));
     }
     close() {

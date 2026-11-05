@@ -375,6 +375,10 @@ export function paletteTokens(pal: Palette, scheme: Scheme): Record<string, stri
       t[`${n}-text`] = s.state[text];
     }
   }
+  // SKIN-QA-FOLLOWUP-2404: the ink of a filled success badge - the token's near-black green, or white where the palette's green is too
+  // deep for it (e.g. #047e39), whichever reads better
+  const success = C('state.success');
+  t['--sw-on-success'] = ratio([4, 20, 11, 1], success) >= ratio([255, 255, 255, 1], success) ? '#04140b' : '#ffffff';
   t['--sw-offline'] = s.state.off;
   t['--sw-offline-soft'] = rgbaStr(C('state.off'), dark ? 0.2 : 0.14);
   t['--sw-offline-text'] = s.textMuted;

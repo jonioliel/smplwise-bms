@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { PICKER_SKINS } from './helpers/frozen-skins';
 import { collectTargets, failing, measureContrast, over, parseRgba, pageScroll, pixelAt, ratio, type ContrastRow } from './helpers/skin-qa-probe';
 import { ACCESS, D, FOLDS, foldGeometry, installCardsMock, openAccess } from './settings-cards-mocks';
-import { FAKE_MEDIA } from './live-fake-media';
+import { openWall, tagFacts } from './helpers/skin-qa-wall';
 
 // SKIN-QA-2403: the 2.40.1 / 2.40.2 surfaces in EVERY skin the product ships (the picker's skins: classic, domus, tesla, crystal, infra,
 // soft - the frozen bubble is drawn as domus and is not offered) x light / dark. Until now they were checked in classic light only (the
@@ -46,15 +46,11 @@ function keep(all: Map<string, ContrastRow & { where: string }>, rows: ContrastR
   }
 }
 /**
- * Shortfalls of SHARED components that every screen draws, not of these surfaces - reported in docs/changes/SKIN-QA-2403.md §4 for the
- * owner (a fix changes every screen that uses them), listed in each result file under `known`, not counted as this spec's defects:
- *   K1  sw-badge `filled` kind live (the pairing card's verdict, 'מצומד: ...'): inverse ink on --sw-success, 1.8-3.5:1 in every skin (no --sw-on-success token);
- *   K2  sw-button primary in classic dark: the classic raised-key gradient under white ink, 4.1-4.3:1.
+ * Shortfalls of SHARED components that every screen draws, not of these surfaces, listed in each result file under `known` and not counted
+ * as this spec's defects. Empty since SKIN-QA-FOLLOWUP-2404 (owner round 22): K1 (the filled success badge: now dark ink, --sw-on-success)
+ * and K2 (the classic dark primary key: its top no longer whitened) are fixed and measured like every other text again.
  */
-const KNOWN: { id: string; test: (r: ContrastRow & { where: string }, skin: string, scheme: string) => boolean }[] = [
-  { id: 'K1', test: (r) => /div\.top>sw-badge>span\.t$/.test(r.key) && r.text.startsWith('מצומד') },
-  { id: 'K2', test: (r, skin, scheme) => skin === 'classic' && scheme === 'dark' && /sw-button$/.test(r.key) && r.ratio >= 4 },
-];
+const KNOWN: { id: string; test: (r: ContrastRow & { where: string }, skin: string, scheme: string) => boolean }[] = [];
 const knownOf = (r: ContrastRow & { where: string }, skin: string, scheme: string) => KNOWN.find((k) => k.test(r, skin, scheme))?.id ?? '';
 const contrastProblems = (all: Map<string, ContrastRow & { where: string }>, skin: string, scheme: string) =>
   failing([...all.values()]).filter((r) => !knownOf(r, skin, scheme)).map((r) => `${r.where}: "${r.text}" ${r.ratio} < ${r.need} (${r.key}, ${r.size}px/${r.weight})`);
@@ -324,98 +320,6 @@ test.describe('SKIN-QA-2403 · Settings › "מתגי מסכי כניסה" in ev
 });
 
 // ---------------------------------------------------------------------------------------------------------------- the camera wall
-const GIF = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
-const ENCODING = { main: { codec: 'H.264', webrtc: 'ok', gov_length: 50, fps: 25 }, sub: { codec: 'H.264', webrtc: 'ok', gov_length: 50, fps: 25 } };
-const CAMS = 4;
-
-/** The wall with 4 live cameras (drawn video, tests/live-fake-media.ts); cameras c1 and c2 are remembered as "sub gives nothing", so they
- * open on main and carry the tag. `bar` = the installation's ui.wall_phone_bar; `cols` = the columns chosen on this device (0 = auto). */
-async function openWall(page: Page, skin: string, scheme: Scheme, o: { bar?: 'icons' | 'labels'; cols?: number; channel?: 'local' | 'remote' } = {}) {
-  const channel = o.channel ?? 'local';
-  await page.addInitScript(
-    (x) => {
-      try {
-        localStorage.setItem('sw.wall.count', '4');
-        localStorage.removeItem('sw.wall.quality');
-        if (x.cols) localStorage.setItem('sw.wall.cols', String(x.cols));
-        else localStorage.removeItem('sw.wall.cols');
-        localStorage.removeItem('sw.live.works');
-        const now = Date.now();
-        sessionStorage.setItem('sw.live.sub_down', JSON.stringify({ c1: now, c2: now }));
-      } catch {
-        /* storage unavailable */
-      }
-      (window as unknown as Record<string, unknown>).__rtc = { sub: 'ok', main: 'ok' };
-    },
-    { cols: o.cols ?? 0 },
-  );
-  await page.addInitScript(FAKE_MEDIA);
-  await page.route('**/api/v1/**', async (route) => {
-    const p = new URL(route.request().url()).pathname.replace(/^.*\/api\/v1\//, '');
-    const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
-    if (p === 'me') {
-      const perms = ['video.live', 'sources.configure'];
-      return json({
-        user: { id: 'u', username: 'dana', display_name: 'Dana', source: channel === 'remote' ? 'remote' : 'ingress' },
-        channel,
-        remote: channel === 'remote' ? { 'remote.policy': 'flag', 'remote.session': 'rolling_90d', 'remote.idle_lock_minutes': 720, 'remote.default_profile': 'main', 'remote.mse_fallback': 'true' } : null,
-        bindings: [], permissions_installation: perms, permissions_any: perms, has_access: true, permission_revision: 1, bootstrap_state: 'done',
-      });
-    }
-    if (p === 'media/video-policy') return json({ choice: 'webrtc', source: 'installation', explicit: true, installation: 'webrtc', personal: null, channel, order: ['webrtc'], remote: channel === 'remote' ? { default_profile: 'main', mse_fallback: true } : null });
-    if (p === 'cameras') {
-      const cameras = Array.from({ length: CAMS }, (_, i) => ({
-        id: `c${i + 1}`, recorder_id: 'r', channel: i + 1, name: `מצלמה ${i + 1}`, name_source: 'nvr', alias: null, enabled: true, sort_order: i, grid_col_span: 1, main_track: 1, sub_track: 2,
-        status: 'online', last_seen_at: null, can_view_live: true, encoding: ENCODING,
-      }));
-      return json({ cameras, recorder: null, can_sync: true, media: {} });
-    }
-    if (p === 'settings') {
-      return json({ settings: { 'media.transport_default': 'webrtc', 'media.max_live_sessions': 16, 'media.wall_profile': 'sub', 'media.video_notices': 'false', 'snapshots.max_age_s': 60, 'remote.max_live_streams': 16, 'remote.wall_profile': 'sub', 'remote.mse_fallback': 'true', 'ui.wall_phone_bar': o.bar ?? 'icons' }, can_edit: false });
-    }
-    if (p === 'health/summary') return json({ status: 'ok', items: [], checked_at: '2026-11-04T00:00:00Z', version: 'test' });
-    if (/^cameras\/[^/]+\/snapshot\.jpg$/.test(p)) return route.fulfill({ status: 200, contentType: 'image/jpeg', body: GIF });
-    if (p === 'me/prefs') return json({ prefs: { 'nav.order': ['devices', 'security', 'explore', 'wiskey'] }, stored: [], updated_at: null });
-    return json({ code: 'not_found', user_message: 'לא נמצא', retryable: false, correlation_id: '', details: {} }, 404);
-  });
-  await page.goto('about:blank');
-  await page.goto(`/?design=a&look=performance:full&skin=${skin}&scheme=${scheme}#/live/wall`);
-  await page.waitForSelector('live-wall');
-  await expect(page.locator('html')).toHaveAttribute('data-skin', skin);
-  await expect(page.locator('html')).toHaveAttribute('data-theme', scheme);
-  await expect(page.locator('live-wall sw-camera-tile[data-cam]')).toHaveCount(CAMS, { timeout: 15_000 });
-  await page.evaluate(() => document.fonts.ready);
-}
-
-/** The tag of a tile: its box, the tile's, every other overlay drawn on the tile, and its contrast (rendered, and the worst case: the
- * scrim over a pure white / black picture). */
-async function tagFacts(page: Page, cam: string) {
-  const tag = page.locator(`live-wall sw-camera-tile[data-cam="${cam}"] sw-live-player [data-sub-fallback]`);
-  await expect(tag).toBeVisible({ timeout: 20_000 });
-  await expect.poll(() => page.locator(`live-wall sw-camera-tile[data-cam="${cam}"] sw-live-player`).evaluate((p) => (p as unknown as { status: string }).status), { timeout: 20_000 }).toBe('playing');
-  const f = await tag.evaluate((el) => {
-    const player = (el.getRootNode() as ShadowRoot).host as HTMLElement;
-    const tile = (player.getRootNode() as ShadowRoot).host as HTMLElement;
-    const box = (e: Element) => {
-      const r = e.getBoundingClientRect();
-      return { x: r.left, y: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height };
-    };
-    const others = [
-      ...[...(player.shadowRoot?.querySelectorAll('.status, .vbadge, .h265tag, .plan, .served, .mute, .vnotice, .tap') ?? [])],
-      ...[...(tile.shadowRoot?.querySelectorAll('.label, .demo, .pill, .stamp, .meta') ?? [])],
-    ].filter((e) => e.getBoundingClientRect().width > 0).map((e) => ({ cls: e.className, ...box(e) }));
-    const cs = getComputedStyle(el);
-    return { tag: box(el), tile: box(tile), others, color: cs.color, bg: cs.backgroundColor, size: parseFloat(cs.fontSize), weight: Number(cs.fontWeight), text: el.textContent ?? '' };
-  });
-  const overlaps = f.others.filter((o) => o.x < f.tag.r && o.r > f.tag.x && o.y < f.tag.b && o.b > f.tag.y).map((o) => o.cls);
-  const fg = parseRgba(f.color);
-  const scrim = parseRgba(f.bg);
-  const worst = Math.min(...[[255, 255, 255], [0, 0, 0], [128, 128, 128]].map((pic) => {
-    const bg = over(scrim, pic);
-    return ratio(over(fg, bg), bg);
-  }));
-  return { ...f, overlaps, worst: Math.round(worst * 100) / 100 };
-}
 
 test.describe('SKIN-QA-2403 · the camera wall: phone toolbar and the tile tag', () => {
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
@@ -561,7 +465,7 @@ test.describe('SKIN-QA-2403 · the camera wall: phone toolbar and the tile tag',
     }
   }
 
-  test('remote channel: the tag steps under the profile badge (both sit at the right); a three-column phone tile leaves the badge alone', async ({ page }, info) => {
+  test('remote channel: the tag steps under the profile badge (both sit at the right)', async ({ page }, info) => {
     test.skip(info.project.name !== 'mobile', 'the phone walls');
     test.setTimeout(120_000);
     // two columns (~180 px tiles): the tag is drawn, under the profile badge, covering nothing
@@ -572,14 +476,7 @@ test.describe('SKIN-QA-2403 · the camera wall: phone toolbar and the tile tag',
     expect(t.others.some((o) => /vbadge/.test(o.cls)), 'the remote channel draws the profile badge').toBe(true);
     expect(t.overlaps, 'the tag covers another overlay').toEqual([]);
     expect(t.tag.r <= t.tile.r + 0.5 && t.tag.x >= t.tile.x - 0.5, 'the tag stays inside its tile').toBe(true);
-    // three columns (~116 x 65 px): no free row - the tag gives way to the badge, which already says "main"
-    await page.goto('about:blank');
-    await openWall(page, 'classic', 'light', { cols: 3, channel: 'remote' });
-    const player = page.locator('live-wall sw-camera-tile[data-cam="c1"] sw-live-player');
-    await expect.poll(() => player.evaluate((p) => (p as unknown as { status: string }).status), { timeout: 20_000 }).toBe('playing');
-    await expect(player.locator('[data-video-badge]')).toContainText('main');
-    await expect(player.locator('[data-sub-fallback]')).toBeHidden();
-    await shot(page, info, 'wall-phone-remote-3col-classic-light');
+    // three columns (~116 x 65 px): the chip - tests/layout-skin-qa-followup-2404.spec.ts (SKIN-QA-FOLLOWUP-2404, owner round 22)
     save(info, 'wall-phone-remote', { t });
   });
 

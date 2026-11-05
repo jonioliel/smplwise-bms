@@ -85,6 +85,13 @@ const STILL_REFRESH_MS = 10000;
 
 /** VIDEO-SUB-FALLBACK-2402: the quiet tag of a tile that moved from its sub stream to the main one. */
 export const SUB_FALLBACK_HE = 'עבר לזרם הראשי';
+/** SKIN-QA-FOLLOWUP-2404: below this player width (px) the fallback tag is a 20 px chip at the bottom-end corner (see .subtag). */
+export const SUB_CHIP_MAX = 160;
+/** The chip's long press, with the wall phone bar's timings (wall-phone-bar.ts KEY_HINT_*): the hold, how long the words show, and the
+ * movement that makes it a scroll. */
+export const SUB_HINT_PRESS_MS = 450;
+export const SUB_HINT_SHOW_MS = 2500;
+export const SUB_HINT_MOVE_PX = 10;
 /** VIDEO-SUB-FALLBACK-2402: an explicit quality whose stream gives nothing (never switched). */
 const NO_MEDIA_HE = (p: Profile) => (p === 'sub' ? 'הזרם המשני לא מגיע מהמצלמה' : 'הזרם הראשי לא מגיע מהמצלמה');
 
@@ -412,12 +419,71 @@ export class SwLivePlayer extends LitElement {
         inset-block-start: 30px;
       }
     }
-    /* a tile this narrow (a phone wall of three columns: ~116 x 65 px) has no second row free of the camera's name; the profile badge
-       already reads "main·..." there, so the tag gives way to it */
-    @container swlp (max-width: 160px) {
-      .vbadge ~ .subtag {
-        display: none;
-      }
+    /* SKIN-QA-FOLLOWUP-2404 (owner round 22: the fallback stays visible on every tile): a tile narrower than SUB_CHIP_MAX (a phone wall
+       of three columns, ~116 x 65 px) has no free row for the words - not beside the remote profile badge (top-start), not under it (the
+       camera's name). The tag becomes a CHIP: a 20 px circle with the "up" glyph (stepped up from the sub stream to the main one) in the
+       bottom-end corner, on the name's row, opposite the name (sw-camera-tile keeps the name clear of it). The words stay in the DOM,
+       visually hidden (the accessible name); they are the tooltip under a mouse and show in a bubble on a long press. */
+    .subtag .subico {
+      display: none;
+    }
+    :host([data-subchip]) .subtag,
+    :host([data-subchip]) .vbadge ~ .subtag,
+    :host([data-subchip]) .h265tag ~ .subtag {
+      inset-block-start: auto;
+      inset-inline-start: auto;
+      inset-inline-end: 6px;
+      inset-block-end: 6px;
+      display: grid;
+      place-items: center;
+      box-sizing: border-box;
+      inline-size: 20px;
+      block-size: 20px;
+      padding: 0;
+      border-radius: 50%;
+      pointer-events: auto;
+      cursor: default;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    /* a finger-sized area for the long press, drawn nowhere (a short tap passes on to the tile) */
+    :host([data-subchip]) .subtag::after {
+      content: '';
+      position: absolute;
+      inset: -8px;
+    }
+    :host([data-subchip]) .subtag .subico {
+      display: inline-flex;
+    }
+    :host([data-subchip]) .subtag .subtxt {
+      position: absolute;
+      inline-size: 1px;
+      block-size: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    /* the long-press words: over the tile, above the chip; they wrap rather than run off a narrow tile */
+    .subhint {
+      position: absolute;
+      inset-inline-end: 6px;
+      inset-block-end: 32px;
+      z-index: 2;
+      box-sizing: border-box;
+      max-inline-size: calc(100% - 12px);
+      padding: 4px 8px;
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-video-scrim-strong);
+      color: var(--sw-on-video);
+      font-size: var(--sw-fs-xs);
+      font-weight: 500;
+      line-height: 1.3;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      pointer-events: none;
     }
     /* LIVE-H265-2341: the server played a fallback of an H.265 stream (another profile, or the transcoded H.264 variant) */
     .h265tag {
@@ -456,9 +522,24 @@ export class SwLivePlayer extends LitElement {
 
   /** Owner 2026-10-01: the notes about how the stream plays (media.video_notices, default off); the badge keeps the same text as its tooltip. */
   @state() private showNotices = false;
+  /** SKIN-QA-FOLLOWUP-2404: the player is narrower than SUB_CHIP_MAX (the fallback tag is drawn as a chip there). */
+  @state() private narrow = false;
+  /** SKIN-QA-FOLLOWUP-2404: the chip's words are shown (a long press). */
+  @state() private subHint = false;
+  private sizeRo: ResizeObserver | null = null;
+  private hintPress: { x: number; y: number; timer: number } | null = null;
+  private hintHide = 0;
+  private swallowClick = false;
 
   connectedCallback() {
     super.connectedCallback();
+    if (typeof ResizeObserver === 'function') {
+      this.sizeRo = new ResizeObserver(() => {
+        const narrow = this.getBoundingClientRect().width < SUB_CHIP_MAX;
+        if (narrow !== this.narrow) this.narrow = narrow;
+      });
+      this.sizeRo.observe(this);
+    }
     void productSettings()
       .then((s) => {
         this.showNotices = s['media.video_notices'] === 'true';
@@ -473,11 +554,58 @@ export class SwLivePlayer extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    this.sizeRo?.disconnect();
+    this.sizeRo = null;
+    this.endHintPress();
+    window.clearTimeout(this.hintHide);
     this.disconnect();
   }
 
+  /** SKIN-QA-FOLLOWUP-2404: the fallback is drawn as the chip (reflected as `data-subchip`; sw-camera-tile keeps the name clear of it). */
+  private get subChip(): boolean {
+    return this.narrow && this.subFellBack && this.status !== 'error';
+  }
+
+  private endHintPress() {
+    if (this.hintPress) window.clearTimeout(this.hintPress.timer);
+    this.hintPress = null;
+  }
+
+  /** A long press on the chip shows its words. */
+  private onChipDown = (e: PointerEvent) => {
+    this.endHintPress();
+    this.swallowClick = false;
+    const timer = window.setTimeout(() => {
+      this.hintPress = null;
+      this.swallowClick = true; // the release that ends a long press does not also open the camera
+      this.subHint = true;
+      window.clearTimeout(this.hintHide);
+      this.hintHide = window.setTimeout(() => (this.subHint = false), SUB_HINT_SHOW_MS);
+    }, SUB_HINT_PRESS_MS);
+    this.hintPress = { x: e.clientX, y: e.clientY, timer };
+  };
+
+  private onChipMove = (e: PointerEvent) => {
+    if (this.hintPress && Math.hypot(e.clientX - this.hintPress.x, e.clientY - this.hintPress.y) > SUB_HINT_MOVE_PX) this.endHintPress();
+  };
+
+  private onChipUp = () => this.endHintPress();
+
+  private onChipClick = (e: Event) => {
+    if (!this.swallowClick) return;
+    this.swallowClick = false;
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  private onChipMenu = (e: Event) => {
+    if (this.subChip) e.preventDefault(); // no text-selection / context menu under a long press
+  };
+
   /** The first render (properties set) and every later change of camera/profile/mode/active (re)connects. */
   protected updated(changed: Map<string, unknown>) {
+    this.toggleAttribute('data-subchip', this.subChip);
+    if (!this.subChip && this.subHint) this.subHint = false;
     if (changed.has('active') || changed.has('cameraId') || changed.has('livePath') || changed.has('profile') || changed.has('mode') || changed.has('wsUrl') || changed.has('plan') || changed.has('preferred') || changed.has('autoProfile')) {
       this.endStill();
       if (!this.active || (!this.cameraId && !this.wsUrl && !this.livePath)) this.disconnect();
@@ -1446,7 +1574,12 @@ export class SwLivePlayer extends LitElement {
       <span class="status ${this.status}"><i></i><span class="t">${this.status === 'playing' ? `${this.wsUrl ? 'הקלטה' : 'חי'} · ${this.transport === 'webrtc' ? 'WebRTC' : 'MSE'}` : this.status === 'connecting' ? 'מתחבר' : this.status === 'error' ? (this.capped ? 'מכסה' : 'לא זמין') : this.status === 'ended' ? 'הסתיים' : 'תמונה'}</span></span>
       ${this.laddered ? this.renderPlan() : nothing}
       ${this.renderServed()}
-      ${this.subFellBack && this.status !== 'error' ? html`<span class="subtag" data-sub-fallback=${this.fallbackWhy || 'sub_error'}>${SUB_FALLBACK_HE}</span>` : nothing}
+      ${this.subFellBack && this.status !== 'error'
+        ? html`<span class="subtag" data-sub-fallback=${this.fallbackWhy || 'sub_error'} title=${SUB_FALLBACK_HE} @pointerdown=${this.onChipDown} @pointermove=${this.onChipMove}
+              @pointerup=${this.onChipUp} @pointercancel=${this.onChipUp} @pointerleave=${this.onChipUp} @click=${this.onChipClick} @contextmenu=${this.onChipMenu}
+              ><sw-icon class="subico" name="arrowUp" size=${12} aria-hidden="true"></sw-icon><span class="subtxt">${SUB_FALLBACK_HE}</span></span
+            >${this.subHint && this.subChip ? html`<span class="subhint" role="status" data-sub-fallback-hint>${SUB_FALLBACK_HE}</span>` : nothing}`
+        : nothing}
       ${this.needsTap && this.status !== 'playing' ? html`<button class="tap" data-tap-to-play @click=${this.tapToPlay}><sw-icon name="live" size=${18}></sw-icon>הקש להפעלה</button>` : nothing}
       ${this.status === 'playing' ? html`<button class="mute" title=${this.muted ? 'הפעל שמע' : 'השתק'} aria-label=${this.muted ? 'הפעל שמע' : 'השתק'} @click=${this.toggleMute}><sw-icon name=${this.muted ? 'volume' : 'mic'} size=${13}></sw-icon></button>` : nothing}
     `;

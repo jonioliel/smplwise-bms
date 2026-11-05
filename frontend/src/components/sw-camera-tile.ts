@@ -435,6 +435,11 @@ export class SwCameraTile extends LitElement {
       inset-inline: 8px;
       inset-block-end: 6px;
     }
+    /* SKIN-QA-FOLLOWUP-2404: the player draws its "moved to main" chip at the bottom-end corner of a narrow tile (sw-live-player
+       data-subchip): the name's row stops short of it, so a long name ends in its ellipsis before the chip instead of under it */
+    sw-live-player[data-subchip] ~ .foot {
+      padding-inline-end: 22px;
+    }
     .foot .label {
       position: static;
       flex: 0 1 auto;
