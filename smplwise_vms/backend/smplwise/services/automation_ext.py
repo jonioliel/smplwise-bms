@@ -508,14 +508,20 @@ def wall_devices(ctx: Any) -> list[dict[str, Any]]:
     for _iid, _name, d in _other_automations(ctx, None):
         for key, _p in button_keys(d):
             ids.add(key.split("|", 1)[0])
+    from . import ha_naming
+
     out = []
     for did in sorted(ids):
-        r = conn.execute("SELECT d.device_id, COALESCE(NULLIF(d.name_by_user, ''), NULLIF(d.name, '')) AS name, d.area_id, a.name AS area_name, f.name AS floor_name "
+        # HA-2026-11-COMPAT-2404: a child device (one gang of a multi-gang switch) is named with its parent, as Home Assistant
+        # names its entities; its area is the effective one the mirror keeps (its own, else its parent's)
+        r = conn.execute("SELECT d.device_id, d.name, d.name_by_user, d.parent_device_id, d.next_name_part, d.area_id, a.name AS area_name, f.name AS floor_name, "
+                         "p.device_id AS p_id, p.name AS p_name, p.name_by_user AS p_name_by_user "
                          "FROM ha_devices d LEFT JOIN ha_areas a ON a.area_id = d.area_id LEFT JOIN ha_floors f ON f.floor_id = a.floor_id "
+                         "LEFT JOIN ha_devices p ON p.device_id = d.parent_device_id AND p.removed_at IS NULL "
                          "WHERE d.device_id = ? AND d.removed_at IS NULL", (did,)).fetchone()
         if r is None or not device_reachable(ctx, did):
             continue
-        out.append({"device_id": did, "name": r["name"] or did, "area": r["area_name"], "floor": r["floor_name"]})
+        out.append({"device_id": did, "name": ha_naming.mirror_row_label(r) or did, "area": r["area_name"], "floor": r["floor_name"]})
     out.sort(key=lambda x: (x["floor"] or "", x["area"] or "", x["name"]))
     return out
 

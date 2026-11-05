@@ -195,11 +195,17 @@ def is_audio_endpoint(conn: sqlite3.Connection, entity_id: str) -> bool:
 def apply_devices(conn: sqlite3.Connection, listing: list[dict[str, Any]]) -> int:
     """Mirror HA's device registry listing (the registry refresh already fetches it). Only a row whose content changed is written;
     a device absent from the listing is marked removed. Private values are normalised here and stored only in this table.
-    Returns the number of rows written."""
+    HA-2026-11-COMPAT-2404: a child device keeps its `parent_device_id`, and `area_id` is the device's effective area - its own,
+    else its parent's (core `dr.async_get_effective_area_id`) - so every reader of the mirror places a child device where Home
+    Assistant does. Returns the number of rows written."""
+    from . import ha_naming
+
     now = now_iso()
     seen: set[str] = set()
     written = 0
+    has_parent_col = "parent_device_id" in {r[1] for r in conn.execute("PRAGMA table_info(ha_devices)").fetchall()}
     existing = {r["device_id"]: r for r in conn.execute("SELECT * FROM ha_devices").fetchall()}
+    by_id = {d.get("id") or d.get("device_id"): d for d in listing if isinstance(d, dict) and isinstance(d.get("id") or d.get("device_id"), str)}
     for d in listing:
         device_id = d.get("id") or d.get("device_id")
         if not isinstance(device_id, str) or not device_id:
@@ -207,17 +213,23 @@ def apply_devices(conn: sqlite3.Connection, listing: list[dict[str, Any]]) -> in
         seen.add(device_id)
         conns = json.dumps(mm.normalise_connections(d.get("connections")), ensure_ascii=False, separators=(",", ":"))
         idents = json.dumps(mm.normalise_identifiers(d.get("identifiers")), ensure_ascii=False, separators=(",", ":"))
+        area = ha_naming.effective_area_id(d, by_id)
+        parent = d.get("parent_device_id") if isinstance(d.get("parent_device_id"), str) and d.get("parent_device_id") else None
+        npart = ha_naming.device_next_name_part(d) if parent else None
         vals = (d.get("name") if isinstance(d.get("name"), str) else None, d.get("name_by_user") if isinstance(d.get("name_by_user"), str) else None,
                 d.get("manufacturer") if isinstance(d.get("manufacturer"), str) else None, d.get("model") if isinstance(d.get("model"), str) else None,
-                d.get("via_device_id") if isinstance(d.get("via_device_id"), str) else None, d.get("area_id") if isinstance(d.get("area_id"), str) else None, conns, idents)
+                d.get("via_device_id") if isinstance(d.get("via_device_id"), str) else None, area if isinstance(area, str) else None, conns, idents)
         row = existing.get(device_id)
-        if row is not None and row["removed_at"] is None and (row["name"], row["name_by_user"], row["manufacturer"], row["model"], row["via_device_id"], row["area_id"], row["connections_json"], row["identifiers_json"]) == vals:
+        same_parent = not has_parent_col or (row is not None and row["parent_device_id"] == parent and row["next_name_part"] == npart)
+        if row is not None and row["removed_at"] is None and same_parent and (row["name"], row["name_by_user"], row["manufacturer"], row["model"], row["via_device_id"], row["area_id"], row["connections_json"], row["identifiers_json"]) == vals:
             continue
         conn.execute(
             "INSERT INTO ha_devices(device_id, name, name_by_user, manufacturer, model, via_device_id, area_id, connections_json, identifiers_json, updated_at, removed_at) VALUES (?,?,?,?,?,?,?,?,?,?,NULL) "
             "ON CONFLICT(device_id) DO UPDATE SET name = excluded.name, name_by_user = excluded.name_by_user, manufacturer = excluded.manufacturer, model = excluded.model, via_device_id = excluded.via_device_id, "
             "area_id = excluded.area_id, connections_json = excluded.connections_json, identifiers_json = excluded.identifiers_json, updated_at = excluded.updated_at, removed_at = NULL",
             (device_id, *vals, now))
+        if has_parent_col:
+            conn.execute("UPDATE ha_devices SET parent_device_id = ?, next_name_part = ? WHERE device_id = ?", (parent, npart, device_id))
         written += 1
     for device_id in [k for k, r in existing.items() if k not in seen and r["removed_at"] is None]:
         conn.execute("UPDATE ha_devices SET removed_at = ?, updated_at = ? WHERE device_id = ?", (now, now, device_id))
@@ -233,6 +245,7 @@ def _load_ha_devices(conn: sqlite3.Connection) -> list[dict[str, Any]]:
         except ValueError:
             conns, idents = [], []
         out.append({"device_id": r["device_id"], "name": r["name"], "name_by_user": r["name_by_user"], "area_id": r["area_id"], "via_device_id": r["via_device_id"],
+                    "parent_device_id": r["parent_device_id"] if "parent_device_id" in r.keys() else None,
                     "manufacturer": r["manufacturer"], "model": r["model"], "connections": [tuple(x) for x in conns], "identifiers": [tuple(x) for x in idents]})
     return out
 

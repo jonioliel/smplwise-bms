@@ -176,7 +176,9 @@ def _has_bypass_marker(e: dict[str, Any]) -> bool:
     uid = (e.get("unique_id") or "").lower()
     if "bypass" in uid:
         return True
-    n = (e.get("name") or e.get("original_name") or "").casefold()
+    # HA-2026-11-COMPAT-2404: the composed name, the entity's own part and the state's friendly name (the pre-2026.11 name
+    # while Home Assistant keeps a compat name) - a word in any of them marks the control
+    n = " ".join(str(v) for v in (e.get("name"), e.get("short_name"), e.get("original_name"), (e.get("attributes") or {}).get("friendly_name")) if v).casefold()
     return "bypass" in n or "עקיפ" in n or "עקוף" in n
 
 
@@ -290,8 +292,13 @@ def _pair(zones: list[dict[str, Any]], controls: list[dict[str, Any]], platform:
     # 3. the same stem: entity id, then unique id
     _pair_unique(zones, controls, lambda e, _c: stem(object_id(e["entity_id"])), "entity_id", pairs)
     _pair_unique(zones, controls, lambda e, _c: stem(e.get("unique_id")), "unique_id", pairs)
-    # 4. the same name without the bypass words
+    # 4. the same name without the bypass words. HA-2026-11-COMPAT-2404: `name` is the FULL name Home Assistant shows (device +
+    # entity, services/ha_naming.py), never the short entity part alone - after the 2026.11 migration many zones are just
+    # "Motion" on their own devices, and a short name would pair a zone with another zone's control. Then 4b the state's
+    # friendly name: Home Assistant keeps the pre-migration full name there while it holds a compat name (a name that did not
+    # start with its device's name), so a zone and a control renamed by the same pattern still meet.
     _pair_unique(zones, controls, lambda e, _c: name_key(e.get("name") or e.get("original_name") or (e.get("attributes") or {}).get("friendly_name")), "name", pairs)
+    _pair_unique(zones, controls, lambda e, _c: name_key((e.get("attributes") or {}).get("friendly_name")), "name", pairs)  # the same UI label: a name match
     # 5. the zone number
     _pair_unique(zones, controls, lambda e, _c: zone_number(e), "zone_number", pairs)
     return pairs

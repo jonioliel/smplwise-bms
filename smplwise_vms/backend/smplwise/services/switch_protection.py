@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import datetime as dt
 import re
+import sqlite3
 import unicodedata
 from typing import Any, Iterable
 
@@ -189,8 +190,22 @@ def _device_lookup(conn: Any, devices: Iterable[dict[str, Any]] | None) -> dict[
     """device id -> {name, name_by_user, manufacturer, model}: from the registry listing the refresh just read (the device
     mirror is written after the reconcile), else from the mirror."""
     if devices is not None:
-        return {d["id"]: d for d in devices if isinstance(d, dict) and d.get("id")}
-    return {r["device_id"]: dict(r) for r in conn.execute("SELECT device_id, name, name_by_user, manufacturer, model FROM ha_devices WHERE removed_at IS NULL").fetchall()}
+        out = {d["id"]: dict(d) for d in devices if isinstance(d, dict) and d.get("id")}
+    else:
+        try:
+            rows = conn.execute("SELECT device_id, name, name_by_user, manufacturer, model, parent_device_id FROM ha_devices WHERE removed_at IS NULL").fetchall()
+        except sqlite3.OperationalError:  # a mirror before migration 0206 has no parent_device_id
+            rows = conn.execute("SELECT device_id, name, name_by_user, manufacturer, model FROM ha_devices WHERE removed_at IS NULL").fetchall()
+        out = {r["device_id"]: dict(r) for r in rows}
+    # HA-2026-11-COMPAT-2404: a child device (one socket of a power strip) has no manufacturer / model of its own - its parent's
+    # describe the hardware, so the classifier reads them (a sensitive parent keeps every one of its sockets suggested)
+    for d in out.values():
+        parent = out.get(d.get("parent_device_id") or "")
+        if parent is not None:
+            for k in ("manufacturer", "model"):
+                if not d.get(k) and parent.get(k):
+                    d[k] = parent[k]
+    return out
 
 
 def _siblings(conn: Any) -> dict[str, list[dict[str, Any]]]:
