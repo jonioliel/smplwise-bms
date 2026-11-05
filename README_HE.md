@@ -28,6 +28,10 @@ python scripts/project_status.py --write
 
 הכלי מקומי, ללא רשת וללא הפעלת agents. הוא מחדש `PROJECT_BOARD.html`, STATUS, TRACEABILITY וכרטיסי משימות. לוח HTML הוא Snapshot לקריאה, לא מערכת שמפעילה את Codex. Python 3.10 ומעלה.
 
+כלל התלויות (החלטת הבעלים 05.11, סבב 22, שאלה 1 = ב; `docs/changes/BOARD-RULE-2404.md`): כרטיס יכול לעמוד ב־REVIEW (= שוחרר, רישום הקבלה הפורמלי עוד חסר) כאשר כל התלויות שלו ב־REVIEW או ב־DONE. ‏READY, ‏IN_PROGRESS, ‏VALIDATION ו־DONE עדיין דורשים שכל התלויות יהיו DONE. ל־BACKLOG ול־BLOCKED אין כלל תלויות. הכלל ממומש ב־`dependency_error` שב־`scripts/project_status.py` ונבדק ב־`smplwise_vms/backend/tests/test_board_rule_2404.py`.
+
+כרטיס מיושן (OBSOLETE): אין סטטוס כזה ברישום. כרטיס שהבעלים קבע שהוא מיושן נשאר ברישום ולא נמחק: סטטוס BLOCKED, ‏blocker שמתחיל ב־`Excluded - OBSOLETE` ושורת ראיה שמתחילה ב־`EXCLUDED - OBSOLETE` עם מקור ההחלטה. ‏`scripts/progress.py` מוציא כרטיס כזה מהמכנה ומציג אותו בנפרד.
+
 ## מבנה
 
 `MASTER_SPEC_HE.md` — 40 פרקים; `AGENTS.md` — גבולות פעולה; `docs/design/` — נכסי מקור וחוזה עיצוב; `docs/security/` — זהות, קבוצות ו־RBAC; `docs/changes/` — שינוי מאושר; `docs/legacy/` — חמישה מסמכים היסטוריים, לא המקור הפעיל; `contracts/` — חוזי תכנון ו־fixtures; `management/` — משימות/דרישות/בדיקות; `prompts/` — הפעלה ו־AI תוכניות; `templates/` — החלטות ותיעוד.
