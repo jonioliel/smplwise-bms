@@ -1,7 +1,9 @@
 """The add-on's own `execute` block for WisKey doors (CR-033 5.3 / T3, slice D5a prep on the Arx side).
 
-Bridge 0.8.1 (decision 20) will refuse `smplwise_bridge.execute` for a lock of the WisKey platform with the code
-`wiskey_door_execute_blocked`, and refuse a lock target its registry does not know (fail closed). This module is the
+Bridge 0.10.5 (DOOR-BRIDGE-BLOCK-2404; planned as "0.8.1" in CR-033 decision 20) refuses `smplwise_bridge.execute` for a
+lock / button of the WisKey platform with the code `wiskey_door_execute_blocked`, and - where WisKey exists - a lock target
+its registry does not know (fail closed), unless the bridge's own administrator setting `wiskey_execute_policy` (in Home
+Assistant's options flow of the bridge) says `allowed`. This module is the
 same contract on the add-on side, at the ONE function that sends `execute` (`ha_client.call_bridge_execute`): whatever
 route, bulk run, schedule or media path built the payload, a WisKey door never leaves through `execute` - it opens only
 through the one door path (routers/access_control.open_door: the door authority, the trusted door transport). It does
@@ -13,7 +15,10 @@ Refused (nothing is sent, `details.outcome = not_sent`):
 - where any WisKey door exists: a `lock` target the mirror does not know or whose platform is still unknown (the window
   between a state event and the registry sync, review I9).
 
-Everything else passes untouched and without a database read (only `lock` / `button` payloads are looked at)."""
+Everything else passes untouched and without a database read (only `lock` / `button` payloads are looked at).
+
+`note_directory_push` records the bridge's reported policy (bridge >= 0.10.5) as read-only state with an audit row when it
+changes; it never decides anything here."""
 from __future__ import annotations
 
 import logging
@@ -26,7 +31,11 @@ from . import intercom_doors
 
 log = logging.getLogger("smplwise.doors")
 
-BLOCKED_CODE = "wiskey_door_execute_blocked"  # the bridge 0.8.1 answer code, used verbatim on the add-on side
+BLOCKED_CODE = "wiskey_door_execute_blocked"  # the bridge's answer code (0.10.5), used verbatim on the add-on side
+# DOOR-BRIDGE-BLOCK-2404: what the bridge last reported for its own door block (its directory push): `blocked` | `allowed`; empty = the
+# bridge never reported it (older than 0.10.5). Runtime state only - never restored from a backup, never a request.
+BRIDGE_POLICY_KEY = "bridge.wiskey_execute_policy"
+BRIDGE_POLICIES = ("blocked", "allowed")
 DOOR_DOMAINS = frozenset({"lock", "button"})
 BLOCKED_TEXT = "דלת אינטרקום נפתחת רק מכפתור הדלת. הפקודה לא נשלחה."
 
@@ -85,3 +94,21 @@ def check_payload(settings: Settings, payload: dict[str, Any]) -> None:
     if reason:
         log.warning("door execute guard: %s.%s not sent (%s)", domain, payload.get("service"), reason)
         raise blocked(reason)
+
+
+def note_directory_push(conn: sqlite3.Connection, message: dict[str, Any]) -> None:
+    """The bridge's door block setting travels with each signed directory push (bridge >= 0.10.5): recorded, and audited when it
+    changes (`bridge.wiskey_execute_policy_seen`). Anything but exactly `allowed` is recorded as `blocked` (the bridge's own rule)."""
+    if "wiskey_execute_policy" not in message:
+        return
+    from ..audit import audit
+    from ..db import get_setting, set_setting
+
+    value = "allowed" if message.get("wiskey_execute_policy") == "allowed" else "blocked"
+    previous = get_setting(conn, BRIDGE_POLICY_KEY) or ""
+    if value == previous:
+        return
+    set_setting(conn, BRIDGE_POLICY_KEY, value)
+    audit(conn, actor=None, action="bridge.wiskey_execute_policy_seen", decision="allowed", resource_type="installation", resource_id="wiskey_execute_policy",
+          details={"policy": value, "previous": previous or None})
+    log.info("bridge reports its WisKey door block as %s (was %s)", value, previous or "unreported")

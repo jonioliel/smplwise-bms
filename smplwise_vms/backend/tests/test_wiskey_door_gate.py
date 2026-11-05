@@ -116,6 +116,11 @@ DOOR_GATE: dict[str, list[str]] = {
         "test_wiskey_door_inventory.py::test_d9_a_converted_run_needs_the_door_permission_of_the_real_operator",
         "test_wiskey_door_inventory.py::test_d9_tiles_never_run_a_chain_that_reaches_a_wiskey_door",
         "test_security_review_wxd_fixes.py::test_m3_a_template_switch_wrapper_is_judged_as_a_possible_door",
+        # DOOR-BRIDGE-BLOCK-2404: the fake-HA part - Context user_id / parent_id, concurrent runs, a permission change mid-run (DR-8)
+        "test_wxd11_t19_fake_ha_context.py::test_t19_ha_context_carries_the_caller_the_door_path_carries_the_person",
+        "test_wxd11_t19_fake_ha_context.py::test_t19_an_unconverted_door_item_never_runs_so_ha_sees_no_context_at_all",
+        "test_wxd11_t19_fake_ha_context.py::test_t19_concurrent_runs_keep_their_own_context_doors_and_request_ids",
+        "test_wxd11_t19_fake_ha_context.py::test_t19_a_permission_revoked_mid_run_stops_the_next_door_before_it_is_sent",
     ],
     "T20 covers, switches, buttons and ordinary locks unchanged": [
         "test_wiskey_door_gate.py::test_t20_covers_switches_buttons_and_ordinary_locks_still_use_execute",
@@ -127,11 +132,18 @@ DOOR_GATE: dict[str, list[str]] = {
         "test_wiskey_door_path.py::test_d1_door_map_fill_order_and_refusals",
         "test_wiskey_door_gate.py::test_t23_a_mapped_row_stops_resolving_when_the_registry_station_changes",
     ],
-    "T24 execute blocked for WisKey doors (add-on side; the bridge 0.8.1 side is OPEN)": [
+    "T24 execute blocked for WisKey doors (add-on side, and the bridge side in bridge 0.10.5 - planned as 0.8.1)": [
         "test_wiskey_door_signed.py::test_d5a_execute_refuses_every_wiskey_door_whoever_built_the_payload",
         "test_wiskey_door_signed.py::test_d5a_without_a_wiskey_door_an_unknown_lock_is_not_judged",
         "test_wiskey_door_signed.py::test_d5a_other_domains_never_read_the_mirror_and_an_unreadable_mirror_refuses_locks",
         "test_wiskey_door_signed.py::test_d5a_the_bridge_081_answer_is_a_failure_never_pending",
+        # DOOR-BRIDGE-BLOCK-2404 (WXD5A): the REAL bridge refuses under `blocked`, allows under `allowed`, refuses an unknown registry
+        # entry, and the policy changes without an entry reload (CR-033 11.3 "New T24")
+        "test_door_bridge_block_2404.py::test_t24_blocked_by_default_refuses_every_wiskey_door_and_calls_nothing",
+        "test_door_bridge_block_2404.py::test_t24_allowed_lets_the_door_through_and_the_change_needs_no_reload",
+        "test_door_bridge_block_2404.py::test_t24_an_unknown_lock_is_refused_only_where_wiskey_exists",
+        "test_door_bridge_block_2404.py::test_t24_a_registry_that_cannot_be_read_refuses_doors_only",
+        "test_door_bridge_block_2404.py::test_t24_end_to_end_the_bridge_refuses_what_a_stale_mirror_let_through",
     ],
     "T25 the editor block on save": [
         "test_wiskey_d6_d8.py::test_t25_typed_builder_refuses_a_new_door_step_on_the_server",
@@ -156,11 +168,10 @@ DOOR_GATE: dict[str, list[str]] = {
     "decision 22: sent, never opened": ["test_wiskey_door_gate.py::test_sent_never_opened_on_any_door_reply_or_door_screen"],
 }
 
-# Rows that fakes cannot close yet (listed in docs/changes/CR-033-INTEGRATION-NOTES.md, never counted as covered).
-OPEN = {
-    "T19": "a fake HA that models context.user_id / parent_id, concurrent runs and a permission change mid-run (DR-8 gate)",
-    "T24": "the bridge-side 0.8.1 execute block and its signed policy message (needs the bridge version bump)",
-}
+# Rows that fakes cannot close yet (listed in docs/changes/CR-033-INTEGRATION-NOTES.md, never counted as covered). Empty since
+# DOOR-BRIDGE-BLOCK-2404: T13 closed in 2.40.0 (WXD10-DOOR-JOBS-2400), T19 (fake-HA part) and T24 (bridge side) here. Live acceptance
+# on the lab (DR-8: the flag on, the owner's one-door test) is NOT a fake row and stays an owner-approved step.
+OPEN: dict[str, str] = {}
 
 
 def _tests_in(file: str) -> set[str]:

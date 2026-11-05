@@ -1,6 +1,10 @@
 """Constants for the SMPLWISE bridge."""
 DOMAIN = "smplwise_bridge"
-VERSION = "0.10.4"
+VERSION = "0.10.5"
+# 0.10.5 (DOOR-BRIDGE-BLOCK-2404, CR-033 slice D5a, owner decision 20): `execute` refuses `lock.*` / `button.press` on a WisKey door
+# (wiskey_door_block.py) unless the options-flow field `wiskey_execute_policy` says `allowed`; default `blocked`. Every refusal is
+# logged and fired as the event `smplwise_bridge_door_execute_refused` (names and fixed tokens only). The directory push reports the
+# policy. WisKey's direct path and every other service are unchanged. Needs one Home Assistant restart (by the owner) to load.
 # 0.10.4 (BRIDGE-UPDATE-LISTENER-2401): Home Assistant 2026.12 refuses a config flow that reloads an entry which has an update listener
 # (deprecated since 2026.6, logged at every lab start). The discovery re-pair path now updates the entry without a flow reload and the
 # entry's own update listener schedules the one reload (a new pairing only); options and the code wipe still reload nothing.
@@ -81,5 +85,8 @@ CONF_SERVICE_USER_ID = "service_user_id"
 CONF_LOCAL_IDENTITY_EXTENDED = "local_identity_extended"
 # 0.9.2 (SVCIDENT3): the scripts / scenes / automations Arx-only users may run (entity ids), set by an HA administrator in the options flow; empty by default.
 CONF_LOCAL_IDENTITY_RUNNABLE = "local_identity_runnable"
+# 0.10.5 (DOOR-BRIDGE-BLOCK-2404): the administrator setting of the WisKey door block (`blocked` | `allowed`, default `blocked`); the
+# rule lives in wiskey_door_block.py
+CONF_WISKEY_EXECUTE_POLICY = "wiskey_execute_policy"
 DIRECTORY_INTERVAL_S = 60
 SIGNATURE_WINDOW_S = 60

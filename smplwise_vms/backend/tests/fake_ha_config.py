@@ -94,6 +94,14 @@ class FakeHaConfig:
         self._run_counter = 0
         self.subscribed: set[str] = set()
         self.hold_script_runs = False  # True: a started script stays `current: 1` until `finish_script_runs()`
+        # WXD11 T19 (DOOR-BRIDGE-BLOCK-2404): opt-in model of Home Assistant's Context for runs. Off (the default) every run keeps the old
+        # shape (`{"id": ctx..., "parent_id": None, "user_id": <caller>}`). On: a script run takes the CALLING context as it is (same id,
+        # same user_id - HA's script entity runs with the service call's context, and a nested `script.turn_on` step passes the run's
+        # context on); an automation's `trigger` starts a NEW context whose parent_id is the calling context's id and whose user_id is None
+        # (HA's automation entity builds `Context(parent_id=...)`). Every step a run applies is recorded in `step_calls` with its context.
+        self.model_context = False
+        self.step_calls: list[dict[str, Any]] = []
+        self._call_context: Any = None
         self.floors = dict(seed.FLOORS)
         self.areas = dict(seed.AREAS)
 
@@ -214,7 +222,7 @@ class FakeHaConfig:
             self.add_run("script", key, self.scripts[key], minutes_ago=90)
 
     def add_run(self, domain: str, item_id: str, config: dict[str, Any], *, trigger_index: int = 0, minutes_ago: float = 0, user_id: str | None = None, fail_step: str | None = None,
-                variables: dict[str, Any] | None = None, conditions_pass: bool = True) -> dict[str, Any]:
+                variables: dict[str, Any] | None = None, conditions_pass: bool = True, context: dict[str, Any] | None = None) -> dict[str, Any]:
         """One stored run in HA's shape (V-SRC `trace/get`): `trace` = path -> list of steps with `timestamp`, `changed_variables`, `result`, `error`."""
         start = self.now() - dt.timedelta(minutes=minutes_ago)
         self._run_counter += 1
@@ -255,7 +263,8 @@ class FakeHaConfig:
                     break
         run = {"run_id": run_id, "domain": domain, "item_id": item_id, "state": "stopped", "script_execution": "failed_runtime" if failed else "finished" if conditions_pass else "failed_conditions",
                "last_step": last, "timestamp": {"start": stamp(), "finish": stamp(1.0)}, "trigger": description,
-               "trace": steps, "config": copy.deepcopy(config), "context": {"id": f"ctx{self._run_counter:08d}", "parent_id": None, "user_id": user_id},
+               "trace": steps, "config": copy.deepcopy(config),
+               "context": dict(context) if context is not None else {"id": f"ctx{self._run_counter:08d}", "parent_id": None, "user_id": user_id},
                "blueprint_inputs": None, **({"error": "Entity not found"} if failed else {})}
         runs = self.traces.setdefault((domain, item_id), [])
         runs.append(run)
@@ -515,9 +524,12 @@ class FakeHaConfig:
     def entity_registry_entry(self, entity_id: str) -> dict[str, Any] | None:
         return next((r for r in self.registry if r["entity_id"] == entity_id), None)
 
-    def call_service(self, domain: str, service: str, data: dict[str, Any] | None = None, *, user_id: str | None = None) -> dict[str, Any]:
+    def call_service(self, domain: str, service: str, data: dict[str, Any] | None = None, *, user_id: str | None = None, context: Any = None) -> dict[str, Any]:
         data = copy.deepcopy(data or {})
         self.calls.append({"domain": domain, "service": service, "data": copy.deepcopy(data), "user_id": user_id})
+        # T19 model: the calling context as Home Assistant hands it on (id / parent_id / user_id); None when the caller named only a user
+        self._call_context = None if context is None else {"id": getattr(context, "id", None), "parent_id": getattr(context, "parent_id", None),
+                                                           "user_id": getattr(context, "user_id", user_id)}
         failure = self.fail_next.pop(f"call:{domain}.{service}", None)
         if isinstance(failure, Exception):
             raise failure
@@ -566,11 +578,12 @@ class FakeHaConfig:
                 ok = bool(skip) or self._conditions_hold(cfg)
                 st["attributes"]["last_triggered"] = self.iso()
                 self._event("automation_triggered", {"name": st["attributes"].get("friendly_name"), "entity_id": eid, "source": "service call"}, user_id)
+                run_ctx = self._run_context("automation")
                 if cid:
-                    run = self.add_run("automation", cid, cfg, user_id=user_id, conditions_pass=ok)
+                    run = self.add_run("automation", cid, cfg, user_id=user_id, conditions_pass=ok, context=run_ctx)
                     run["trigger"] = "manual"
                 if ok:
-                    self._apply_actions(cfg.get("actions") or [])
+                    self._apply_actions(cfg.get("actions") or [], run_ctx)
             else:
                 raise FakeServiceError(f"service automation.{service} not found")
         return {}
@@ -594,8 +607,9 @@ class FakeHaConfig:
             st["attributes"]["current"] = 1 if self.hold_script_runs else 0
             st["state"] = "on" if self.hold_script_runs else "off"
             self._event("script_started", {"name": st["attributes"].get("friendly_name"), "entity_id": eid}, user_id)
-            self.add_run("script", key, self.scripts[key], user_id=user_id, variables=data.get("variables"))
-            self._apply_actions(self.scripts[key].get("sequence") or [])
+            run_ctx = self._run_context("script")
+            self.add_run("script", key, self.scripts[key], user_id=user_id, variables=data.get("variables"), context=run_ctx)
+            self._apply_actions(self.scripts[key].get("sequence") or [], run_ctx)
         return {}
 
     def finish_script_runs(self) -> None:
@@ -651,20 +665,43 @@ class FakeHaConfig:
         else:
             st["state"] = str(value)
 
-    def _apply_actions(self, steps: list[Any]) -> None:
-        """A tiny effect model for typed device services so the world changes visibly (turn_on / turn_off / open / close / alarm)."""
+    def _run_context(self, domain: str) -> dict[str, Any] | None:
+        """T19 model (only with `model_context`): the context a run of `domain` gets from the calling context."""
+        call = self._call_context
+        if not self.model_context or call is None:
+            return None
+        if domain == "automation":
+            self._run_counter += 1
+            return {"id": f"actx{self._run_counter:08d}", "parent_id": call["id"], "user_id": None}
+        return dict(call)
+
+    def _apply_actions(self, steps: list[Any], ctx: dict[str, Any] | None = None, depth: int = 0) -> None:
+        """A tiny effect model for typed device services so the world changes visibly (turn_on / turn_off / open / close / alarm).
+        With `model_context` (T19) every service step of a run is recorded in `step_calls` with the run's context, parallel branches
+        are walked, and a `script.turn_on` step runs that script in the SAME context (Home Assistant hands it on), up to 5 levels."""
         for s in steps:
             if not isinstance(s, dict):
                 continue
-            for sub in (s.get("sequence") or [], (s.get("repeat") or {}).get("sequence") or [], s.get("then") or [], s.get("default") or []):
-                self._apply_actions(sub)
+            nested = [s.get("sequence") or [], (s.get("repeat") or {}).get("sequence") or [], s.get("then") or [], s.get("default") or []]
+            if self.model_context and ctx is not None:
+                nested.append(s.get("parallel") or [])
+            for sub in nested:
+                self._apply_actions(sub, ctx, depth)
             for o in s.get("choose") or []:
-                self._apply_actions((o or {}).get("sequence") or [])
+                self._apply_actions((o or {}).get("sequence") or [], ctx, depth)
             svc = s.get("action") or s.get("service")
             if not isinstance(svc, str) or "." not in svc:
                 continue
             tgt = (s.get("target") or {}).get("entity_id") or s.get("entity_id") or []
             ids = [tgt] if isinstance(tgt, str) else list(tgt)
+            if self.model_context and ctx is not None:
+                self.step_calls.append({"action": svc, "entity_ids": list(ids), "context": dict(ctx)})
+                if svc == "script.turn_on" and depth < 5:
+                    for eid in ids:
+                        key = eid.split(".", 1)[1] if isinstance(eid, str) and eid.startswith("script.") else None
+                        if key in self.scripts:
+                            self.add_run("script", key, self.scripts[key], user_id=ctx.get("user_id"), context=ctx)
+                            self._apply_actions(self.scripts[key].get("sequence") or [], ctx, depth + 1)
             word = {"turn_on": "on", "turn_off": "off", "open_cover": "open", "close_cover": "closed", "lock": "locked", "unlock": "unlocked", "alarm_disarm": "disarmed",
                     "alarm_arm_away": "armed_away", "alarm_arm_home": "armed_home", "alarm_arm_night": "armed_night"}.get(svc.split(".")[1])
             for eid in ids:
@@ -783,9 +820,9 @@ class FakeUnauthorized(Exception):
 class FakeContext:
     _n = 0
 
-    def __init__(self, user_id: str | None = None) -> None:
+    def __init__(self, user_id: str | None = None, parent_id: str | None = None) -> None:
         FakeContext._n += 1
-        self.user_id, self.id = user_id, f"bctx{FakeContext._n:05d}"
+        self.user_id, self.id, self.parent_id = user_id, f"bctx{FakeContext._n:05d}", parent_id
 
 
 class FakeUser:
@@ -886,7 +923,7 @@ class FakeBridgeHass:
                     raise FakeUnauthorized()
         if service == "reload" and self.pull_on_reload:
             self.pull_files()
-        self.fake.call_service(domain, service, data, user_id=uid)
+        self.fake.call_service(domain, service, data, user_id=uid, context=context)
 
     # states and the registry
     def _state(self, entity_id: str) -> Any:
