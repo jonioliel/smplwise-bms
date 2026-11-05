@@ -15026,5 +15026,80 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-VIDEO-2403-1",
+    "requirement_ids": [
+      "R-VIDEO-2403-1"
+    ],
+    "task_ids": [
+      "VIDEO-2403"
+    ],
+    "title": "Live video: no video-policy read without live video; the kiosk and the display wall count as automatic quality",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The client asks GET /media/video-policy only after /me answered and only with the live_video capability (installation A sends no media request: evidence-nn1-p2:208 passes on every device); the kiosk and the display wall tiles fall back from a sub stream that gives nothing to the main stream on the same transport, as the wall's automatic quality.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-05 (RELEASE-2403-TRAIN); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-SKIN-QA-2403-1",
+    "requirement_ids": [
+      "R-SKIN-QA-2403-1"
+    ],
+    "task_ids": [
+      "SKIN-QA-2403"
+    ],
+    "title": "The 2.40.1 / 2.40.2 surfaces in every skin, light and dark: fallback tag, phone toolbar, intercom settings cards",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "In every picker skin in light and dark the fallback tag, the phone wall toolbar and the intercom settings cards meet contrast (4.5:1 text, 3:1 large text, icons and focus rings), 44 px touch targets, the no-scroll fit at 1440x900 / 1366x768 and RTL placement; the tag never covers another overlay.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-05 (RELEASE-2403-TRAIN); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-BOARD-HYGIENE-2403-1",
+    "requirement_ids": [
+      "R-BOARD-HYGIENE-2403-1"
+    ],
+    "task_ids": [
+      "BOARD-HYGIENE-2403"
+    ],
+    "title": "Task board hygiene after v2.40.2",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Every BACKLOG and BLOCKED card at v2.40.2 is checked against git; shipped cards move only where the registry rules allow, with evidence; obsolete candidates are listed for the owner, never marked.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-05 (RELEASE-2403-TRAIN); NOT_RUN (the receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

@@ -19803,5 +19803,122 @@
     "owner": null,
     "commit": "406bdeeb4",
     "actual_cost_usd": null
+  },
+  {
+    "id": "VIDEO-2403",
+    "title": "Live video: no video-policy read without live video; the kiosk and the display wall count as automatic quality",
+    "epic": "LIVE",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "frontend",
+    "requires_hardware": false,
+    "acceptance": [
+      "The client asks GET /media/video-policy only after /me answered and only with the live_video capability (installation A sends no media request: evidence-nn1-p2:208 passes on every device); the kiosk and the display wall tiles fall back from a sub stream that gives nothing to the main stream on the same transport, as the wall's automatic quality."
+    ],
+    "requirement_ids": [
+      "R-VIDEO-2403-1"
+    ],
+    "test_ids": [
+      "AT-VIDEO-2403-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests on an isolated branch",
+      "Change record and known limits"
+    ],
+    "evidence": [
+      "commit 818e2a7d4 (release/2403-train, not on origin/main, not released) - 2026-11-05: merge of pilot/VIDEO-2403 (docs/changes/VIDEO-2403.md) into the 2.40.3 train. Lab check NOT_RUN."
+    ],
+    "owner": null,
+    "commit": "cb4b47767",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "SKIN-QA-2403",
+    "title": "The 2.40.1 / 2.40.2 surfaces in every skin, light and dark: fallback tag, phone toolbar, intercom settings cards",
+    "epic": "DESIGN",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "frontend",
+    "requires_hardware": false,
+    "acceptance": [
+      "In every picker skin in light and dark the fallback tag, the phone wall toolbar and the intercom settings cards meet contrast (4.5:1 text, 3:1 large text, icons and focus rings), 44 px touch targets, the no-scroll fit at 1440x900 / 1366x768 and RTL placement; the tag never covers another overlay."
+    ],
+    "requirement_ids": [
+      "R-SKIN-QA-2403-1"
+    ],
+    "test_ids": [
+      "AT-SKIN-QA-2403-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests on an isolated branch",
+      "Change record and known limits"
+    ],
+    "evidence": [
+      "commit 41d8a2e72 (release/2403-train, not on origin/main, not released) - 2026-11-05: merge of pilot/SKIN-QA-2403 (docs/changes/SKIN-QA-2403.md) into the 2.40.3 train. Shared-component findings K1 / K2 left for the owner."
+    ],
+    "owner": null,
+    "commit": "cb4b47767",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "BOARD-HYGIENE-2403",
+    "title": "Task board hygiene after v2.40.2",
+    "epic": "QA",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "Every BACKLOG and BLOCKED card at v2.40.2 is checked against git; shipped cards move only where the registry rules allow, with evidence; obsolete candidates are listed for the owner, never marked."
+    ],
+    "requirement_ids": [
+      "R-BOARD-HYGIENE-2403-1"
+    ],
+    "test_ids": [
+      "AT-BOARD-HYGIENE-2403-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests on an isolated branch",
+      "Change record and known limits"
+    ],
+    "evidence": [
+      "commit dc142795c (release/2403-train, not on origin/main, not released) - 2026-11-05: merge of chore/BOARD-HYGIENE-2403 (docs/changes/BOARD-HYGIENE-2403.md) into the 2.40.3 train; the views regenerated on the train."
+    ],
+    "owner": null,
+    "commit": "cb4b47767",
+    "actual_cost_usd": null
   }
 ]

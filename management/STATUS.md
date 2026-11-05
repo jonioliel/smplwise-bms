@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-05T09:33:51.277365+00:00
+Generated: 2026-11-05T12:05:49.521714+00:00
 
-Tasks: 447 | Requirements: 556 | Tests: 573 | Screens: 32
+Tasks: 450 | Requirements: 559 | Tests: 576 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -10,14 +10,14 @@ No VMS implementation or hardware test is implied by this planning registry.
 - BACKLOG: 123
 - BLOCKED: 18
 - DONE: 40
-- IN_PROGRESS: 3
+- IN_PROGRESS: 6
 - REVIEW: 263
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 353
+- V1: 356
 - V2: 29
 - V3: 2
 
@@ -491,3 +491,6 @@ No VMS implementation or hardware test is implied by this planning registry.
 | [GATE-HYGIENE-2402](tasks/GATE-HYGIENE-2402.md) | V1 | REVIEW | Gate hygiene: whole-package scanners always run, a Windows-only demo check, the bridge-install state reset between tests | — |
 | [VIDEO-SUB-FALLBACK-2402](tasks/VIDEO-SUB-FALLBACK-2402.md) | V1 | REVIEW | Live video, automatic quality: a sub stream that gives nothing moves to the main stream on the same transport | — |
 | [SETTINGS-CARDS-ACCORDION-2402](tasks/SETTINGS-CARDS-ACCORDION-2402.md) | V1 | REVIEW | Intercom settings cards: "cards opening in place" as a fourth layout | — |
+| [VIDEO-2403](tasks/VIDEO-2403.md) | V1 | IN_PROGRESS | Live video: no video-policy read without live video; the kiosk and the display wall count as automatic quality | — |
+| [SKIN-QA-2403](tasks/SKIN-QA-2403.md) | V1 | IN_PROGRESS | The 2.40.1 / 2.40.2 surfaces in every skin, light and dark: fallback tag, phone toolbar, intercom settings cards | — |
+| [BOARD-HYGIENE-2403](tasks/BOARD-HYGIENE-2403.md) | V1 | IN_PROGRESS | Task board hygiene after v2.40.2 | — |
