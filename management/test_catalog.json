@@ -6991,12 +6991,14 @@
       "Run the slice tests named in its change request on fakes / fixtures; no live device."
     ],
     "expected": "Bridge 0.8.1 execute block for WisKey doors (admin setting) (CR-033, plan slice WXD5A), built and tested on fakes and fixtures only; entry gate: release order: WXD4 must be released first. Nothing here authorises a live door test, key action or release without a separate owner approval.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+    "status": "PASS",
+    "commit": "4b11810d7",
+    "environment": "workstation, Windows, Python 3.12 (.venv), fakes and fixtures only; no lab, no Home Assistant, no WisKey",
+    "evidence": [
+      "docs/changes/DOOR-BRIDGE-BLOCK-2404.md section 4: test_door_bridge_block_2404 21 passed; test_wxd11_t19_fake_ha_context 4 passed; door-path + fake-HA set 38 files 903 passed 0 failed; bridge set 1319 passed 5 skipped 0 failed; sync_integration --check up to date; release_check ok (workstation, fakes only)"
+    ],
+    "executed_at": "2026-11-05",
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built. 2026-11-05 DOOR-BRIDGE-BLOCK-2404: PASS on fakes only; live acceptance (DR-8) NOT_RUN."
   },
   {
     "id": "AT255",
@@ -7207,12 +7209,14 @@
       "Run the slice tests named in its change request on fakes / fixtures; no live device."
     ],
     "expected": "Door-path gate T1..T26 on fakes (CR-033, plan slice WXD11), built and tested on fakes and fixtures only; entry gate: -. Nothing here authorises a live door test, key action or release without a separate owner approval.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built."
+    "status": "PASS",
+    "commit": "4b11810d7",
+    "environment": "workstation, Windows, Python 3.12 (.venv), fakes and fixtures only; no lab, no Home Assistant, no WisKey",
+    "evidence": [
+      "docs/changes/DOOR-BRIDGE-BLOCK-2404.md section 4: test_door_bridge_block_2404 21 passed; test_wxd11_t19_fake_ha_context 4 passed; door-path + fake-HA set 38 files 903 passed 0 failed; bridge set 1319 passed 5 skipped 0 failed; sync_integration --check up to date; release_check ok (workstation, fakes only)"
+    ],
+    "executed_at": "2026-11-05",
+    "notes": "Registered 2026-10-10 (REGISTRY-wiskey-rows). NOT_RUN: the slice is not built. 2026-11-05 DOOR-BRIDGE-BLOCK-2404: PASS on fakes only; live acceptance (DR-8) NOT_RUN."
   },
   {
     "id": "AT264",
