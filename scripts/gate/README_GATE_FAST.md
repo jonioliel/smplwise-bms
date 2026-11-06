@@ -100,7 +100,7 @@ What `branch_check.sh <branch>` does, and does not:
   a release gate started by hand gets "lock busy" (exit 3) - start gates when `entry_status.json` is `done`.
 * The run is the gate's own engine and selection, unforked: it stages `release_gate.py` + aux files from `~/` into `~/gate2/` exactly
   like `release_gate2.sh`, plans shards/slots with `gate2_select.py plan`, then runs
-  `release_gate.py <branch> --tier L --schedule v2 --select-base origin/main --no-visual` with `GATE_SELECT_ENABLE=1`
+  `release_gate.py <branch> --tier L --schedule v2 --select-base origin/main` with `GATE_SELECT_ENABLE=1` (T074: the visual step runs and blocks as in the release gate; `--no-visual` is added only when the plan prints `visual: skip`)
   (the diff is `origin/main...<branch>`, i.e. from the merge base; the always-run core is included; heavy unchanged sweeps are deferred
   to the nightly as in a gate). Limit: `ENTRY_TOTAL_SECS`, else the derived select cap, else 5400 s.
 * Verdict: **GREEN** = engine pass, or red only through ACTIVE quarantine entries (listed); **RED** = any failure outside the quarantine,

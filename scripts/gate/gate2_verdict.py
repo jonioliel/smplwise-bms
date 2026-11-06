@@ -23,7 +23,10 @@ import re
 import sys
 from pathlib import Path
 
-TEST_CATS = {"backend", "preview", "dev", "pixel", "fixture"}
+# T074: `visual` (a visual-matrix case that differed on the first run AND on its retry alone) is a test category: it can be quarantined
+# with a ticket like any flaky test, and the all-quarantined re-run re-checks it (release_gate.py VISUAL_RERUN_CASES). `visual-run`
+# (the step could not run at all) is not: it stays a hard failure.
+TEST_CATS = {"backend", "preview", "dev", "pixel", "fixture", "visual"}
 
 
 MAX_QUARANTINE_DAYS = 7      # owner decision 30.10 night (ENTRY-CHECK-2310): expiry at most 7 days after `added` (was 21)
@@ -153,6 +156,12 @@ def summary_md(report: dict, sel: dict | None, c: dict, probs: list[str], branch
                       "```", f"~/gate2/release_gate2.sh {branch or report.get('branch')} --after {rpath}", "```", "",
                       "It runs the failed tests' files + everything the fix touches + the core, on the new head, with the same guards. "
                       "The release decision is this report plus that re-run; the full tier of the untouched rest is this report's."]
+        if any(i.get("category") == "visual" for i in c["real"]):
+            lines += ["", "Visual failures (T074): an INTENDED change -> re-take the linux baselines of those screens on the runner "
+                      "(`node scripts/visual.mjs accept --screens <ids>`, docs/operations/VISUAL_REGRESSION.md step 5), review the images and commit them "
+                      "with the code; an "
+                      "UNINTENDED one -> fix the code. The --after run re-checks every touched screen against the committed baselines. "
+                      "A render that is flaky (differs, then matches alone) is already FLAKY, not FAIL; quarantine is for one that flakes twice in a row."]
     return "\n".join(lines) + "\n"
 
 

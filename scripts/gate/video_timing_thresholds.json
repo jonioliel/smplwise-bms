@@ -1,0 +1,13 @@
+{
+ "_comment": "T074 time-to-camera / time-to-recording limits read by video_timing.py (docs/changes/T074-VISUAL-METRICS-2405.md). Per metric a nearest-rank percentile limit in ms (p50 / p90 / p95 / max); per ratio a max (0..1). A check with fewer than min_samples samples is INSUFFICIENT: not evaluated and never a pass. The nightly runs the report WITHOUT --enforce until the lead calibrates these from real samples (status below); the values are NOT derived from a measurement.",
+ "status": "PROVISIONAL (2026-11-06, T074): not calibrated - report only; replace with p90 x 1.5 of the first 7 days of real samples and set status to calibrated",
+ "min_samples": 5,
+ "limits": {
+  "live.mse.first_media_ms": {"p90": 4000},
+  "live.webrtc.answer_ms": {"p90": 2000},
+  "playback.start.first_media_ms": {"p90": 8000},
+  "playback.seek.first_media_ms": {"p90": 6000},
+  "live.no_media_ratio": {"max": 0.25},
+  "playback.no_media_ratio": {"max": 0.25}
+ }
+}

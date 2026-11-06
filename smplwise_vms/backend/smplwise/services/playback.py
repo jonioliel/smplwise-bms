@@ -36,6 +36,7 @@ UPSTREAM_CLOSE_TIMEOUT_S = 1.5  # the relay's close handshake with go2rtc, bound
 SEEK_LOCK_WAIT_S = 15.0  # one seek per session at a time; a second one waits for the first (never two generations in flight)
 SEEK_RATE_WINDOW_S = 60.0
 DEFAULT_MAX_SEEKS_PER_MIN = 30  # the `playback.max_seeks_per_min` setting's default
+SEEK_MEDIA_KEEP = 20  # T074: how many seek timings one session keeps for its stop row (the newest)
 
 
 class RelayHandle:
@@ -75,6 +76,13 @@ class PlaybackSession:
     bytes_down: int = 0
     ws_open: bool = False
     first_frame_at: float | None = None  # wall-clock when the first media bytes were relayed (this generation)
+    # T074 (docs/changes/T074-VISUAL-METRICS-2405.md): time to recording. `gen_started` = when this generation was asked for (the
+    # create request for generation 0, the seek request for every later one); the first relayed media byte of the generation is
+    # measured against it. Numbers only - never a frame, a URL or a name.
+    gen_started: float = field(default_factory=time.monotonic)
+    gen_media_ms: int | None = None  # this generation's request -> first media byte (ms); reset by a seek
+    first_media_ms: int | None = None  # generation 0: the start request -> first media byte (the "time to recording")
+    seek_media_ms: list[int] = field(default_factory=list)  # every later generation: seek request -> first media byte (last SEEK_MEDIA_KEEP)
     recorder_id: str = "nvr-1"  # CR-024: the camera's recorder - the playback source is built from ITS connection
     # CR-024 experimental cross-recorder sync: the recorder's clock minus this server's (s); the RTSP request asks for
     # [start + offset, end + offset] in `tz_name`, the recorder's own zone. 0 everywhere else (the proven path).
@@ -199,6 +207,32 @@ def create(settings: Settings, principal: Any, camera: Any, start: dt.datetime, 
     return session
 
 
+def note_first_media(session: PlaybackSession, generation: int, now: float | None = None) -> int | None:
+    """T074: the first relayed media byte of `generation` arrived. Records the generation's request -> first media time once
+    (generation 0 -> `first_media_ms`, a later one -> `seek_media_ms`) and returns it; None when the socket's generation is no longer
+    the session's (a seek landed meanwhile: that byte belongs to nobody's measurement) or the generation was already measured."""
+    with REGISTRY.lock:
+        if generation != session.generation or session.gen_media_ms is not None:
+            return None
+        ms = max(0, int(((time.monotonic() if now is None else now) - session.gen_started) * 1000))
+        session.gen_media_ms = ms
+        if generation == 0:
+            session.first_media_ms = ms
+        else:
+            session.seek_media_ms.append(ms)
+            del session.seek_media_ms[:-SEEK_MEDIA_KEEP]
+        return ms
+
+
+def media_timing(session: PlaybackSession) -> dict[str, Any]:
+    """The T074 fields of a `video.playback.stop` audit row: numbers only. `first_media_ms` is ALWAYS written (null = the start
+    never relayed media), so a reader tells "no media" from a row of an older version that measured nothing."""
+    out: dict[str, Any] = {"first_media_ms": session.first_media_ms}
+    if session.seek_media_ms:
+        out["seek_media_ms"] = list(session.seek_media_ms)
+    return out
+
+
 def _settle_after_stream(settings: Settings, session: PlaybackSession) -> None:
     """The stream took seconds to create; if the session was closed meanwhile (user left, group closed, lease
     expired) it must not come back to life — that would run a relay stream against the playback quota until the
@@ -294,6 +328,8 @@ def seek(settings: Settings, session: PlaybackSession, start: dt.datetime, segme
             session.requested_at = start
             session.end_at = min(segment_end, start + MAX_SPAN)
             session.first_frame_at = None
+            session.gen_started = time.monotonic()  # T074: the seek request is the start of this generation's time to media
+            session.gen_media_ms = None
             session.bytes_down = 0
             session.stream = ""
             session.touch()

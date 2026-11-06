@@ -8,10 +8,16 @@ load time ("Unsupported decorator location: field") and wrote an EMPTY report th
     (backend_finish());
   * each category's passed count is compared with gate_baselines.json (the previous accepted release); below GATE_DROP_THRESHOLD
     (default 0.70) of the baseline is a FAIL unless the run started with --allow-count-drop "<reason>" (check_baselines());
-  * M074 visual step, ON BY DEFAULT in every tier as a WARNING (differences are a report section, the verdict is unchanged);
-    --visual-block makes differences fail the gate, --no-visual (or GATE_VISUAL=off) switches the step off, --visual-base <ref>
-    (default origin/main) selects the touched screens: runs `visual.mjs run --touched` on the dist preview against the committed
-    linux baselines; the matrix spec then leaves the pixel group;
+  * M074 visual step, ON BY DEFAULT in every tier and BLOCKING since T074 (docs/changes/T074-VISUAL-METRICS-2405.md): runs
+    `visual.mjs run --touched` on the dist preview against the committed linux baselines (the matrix spec then leaves the pixel
+    group). The flaky-render policy: a case that differs is re-captured ONCE alone after the first run; matching on the retry =
+    FLAKY (reported, not a failure - the engine's "failed once, passed alone" rule), differing twice = FAIL (category `visual`,
+    quarantinable like any test through gate2_quarantine.json, ticket + at most 7 days). No linux baseline = SKIPPED_NO_BASELINE
+    (never a pass, a summary warning). The step not running at all (no preview, no results) = FAIL `visual-run` (a hard failure, never
+    quarantined). In a gate-2 quarantine re-run (GATE2_RERUN_ONLY=1) the step re-checks exactly the first run's visual failures,
+    whatever the flags say. --visual (or GATE_VISUAL=warn) = the old warning-only step (rollback), --no-visual (or GATE_VISUAL=off)
+    switches it off, --visual-block = the default, --visual-base <ref> (default origin/main) selects the touched screens;
+    GATE_VISUAL_SCOPE=all compares every screen instead (the nightly's warn-only drift check on main);
   * the final report lists every category with its counts, its baseline and the ratio.
 
 Partial runs for the nightly (scripts/gate/nightly_tests.sh drives this engine; a release gate never sets them):
@@ -50,14 +56,19 @@ ABORT = threading.Event()   # set when main() leaves its run section (normally o
 
 BR, TIER = "", "L"        # set by main_cli()
 def visual_from_env(v):
-    """GATE_VISUAL: unset/'warn' -> warn (the default), 'block' -> block, 'off'/'none' -> step disabled."""
+    """GATE_VISUAL: unset/'block' -> block (the default since T074), 'warn' -> warning only, 'off'/'none' -> step disabled."""
     v = (v or "").strip().lower()
-    return "" if v in ("off", "none") else (v if v in ("warn", "block") else "warn")
+    return "" if v in ("off", "none") else (v if v in ("warn", "block") else "block")
 
 
-VISUAL = visual_from_env(os.environ.get("GATE_VISUAL"))  # "warn" (default, --visual), "block" (--visual-block) or "" (--no-visual): the M074 visual-diff matrix step
+VISUAL = visual_from_env(os.environ.get("GATE_VISUAL"))  # "block" (default, --visual-block), "warn" (--visual) or "" (--no-visual): the M074 visual-diff matrix step
 VISUAL_BASE = os.environ.get("GATE_VISUAL_BASE", "origin/main")   # --touched is computed against this ref (the previous release)
-VISUAL_INFO = {}          # filled by run_visual(); written to the report as a warning section
+# T074: "touched" (default: the screens the change touches) or "all" (every screen - the nightly's warn-only drift check on main, where
+# nothing is touched; a font or browser update on the runner shows there before a release gate meets it)
+VISUAL_SCOPE = "all" if (os.environ.get("GATE_VISUAL_SCOPE") or "").strip().lower() == "all" else "touched"
+VISUAL_INFO = {}          # filled by run_visual(); written to the report's visual section
+VISUAL_RERUN_CASES = None  # gate-2 quarantine re-run: the first run's visual FAIL case ids (only those are re-checked); None = normal run
+VISUAL_RUN_CAT = "visual-run"   # the visual step could not run in block mode: a hard failure (not a test category, never quarantined)
 ALLOW_DROP = ""           # --allow-count-drop "<reason>": waives the baseline check; the waiver is written into the report
 DROP_THRESHOLD = float(os.environ.get("GATE_DROP_THRESHOLD", "0.70"))
 BASELINE_NAME = "gate_baselines.json"
@@ -124,7 +135,7 @@ ADDON_BUILD = (os.environ.get("GATE_ADDON_BUILD") or "auto").strip().lower()   #
 ADDON_BUILD_SECS = int(os.environ.get("GATE_ADDON_BUILD_SECS") or "600")         # the stage's budget (the script's ADDON_BUILD_SECS)
 ADDON_BUILD_SCRIPT = "scripts/gate/addon_build_check.sh"
 ADDON_BUILD_CAT = "addon_build"
-OPTIONAL_CATS = {ADDON_BUILD_CAT}   # no count baseline: an optional stage that may be NOT_RUN on a machine without docker
+OPTIONAL_CATS = {ADDON_BUILD_CAT, "visual", VISUAL_RUN_CAT}   # no count baseline: an optional stage (no docker), or a count that follows the touched screens
 COSTS_DIR = os.environ.get("GATE_COSTS_DIR") or ""
 SELECT_BASE = os.environ.get("GATE_SELECT_BASE") or ""   # --select-base <ref>: diff-based selection (select_tests.py); "" = full tier
 REDUCED_CATS = {}        # category -> "n of m files" when a selection left files out (filled by apply_selection())
@@ -1356,6 +1367,8 @@ def visual_block(wt, fe, logd, dead):
     vp, ok = start_vite(fe, "preview", port, logd, dead)
     if not ok:
         VISUAL_INFO.update(mode=VISUAL, error="vite preview did not start for the visual step")
+        if VISUAL == "block":   # T074: a blocking step that could not run is not a pass
+            count(VISUAL_RUN_CAT, "fail"); item(VISUAL_RUN_CAT, "visual matrix: vite preview", "FAIL", VISUAL_INFO["error"])
     else:
         status("running", f"visual matrix ({VISUAL})")
         run_visual(wt, fe, f"http://127.0.0.1:{port}/", logd)
@@ -1696,6 +1709,19 @@ def write_early_report(bad):
     Path(str(base) + ".md").write_text("\n".join(md) + "\n", encoding="utf-8")
 
 
+def visual_case_id(r):
+    """The report id of one visual case (also the quarantine `match` target): `screen / state / scheme / project`."""
+    return f"{r.get('screen')} / {r.get('state')} / {r.get('scheme')} / {r.get('project')}"
+
+
+def parse_visual_case(ident):
+    """`screen / state / scheme / project` -> dict, or None for anything else (e.g. the `visual matrix: ...` run failures)."""
+    parts = [x.strip() for x in str(ident).split(" / ")]
+    if len(parts) != 4 or not all(parts):
+        return None
+    return dict(zip(("screen", "state", "scheme", "project"), parts))
+
+
 def summarize_visual(rows):
     """rows = visual.mjs results.json. Returns {pass, diff, error, nobase, diffs:[label,...]}."""
     c = {"pass": 0, "diff": 0, "error": 0, "nobase": 0, "diffs": []}
@@ -1707,32 +1733,112 @@ def summarize_visual(rows):
             c["nobase"] += 1
         else:
             c["error" if st == "error" else "diff"] += 1
-            c["diffs"].append(f"{r.get('screen')} / {r.get('state')} / {r.get('scheme')} / {r.get('project')}")
+            c["diffs"].append(visual_case_id(r))
     return c
 
 
-def run_visual(wt, fe, base_url, logd):
-    """Optional M074 step: the visual matrix for the screens this branch touches (vs VISUAL_BASE) against the committed linux baselines.
-    Warn mode (default) never changes the verdict: differences are a report section only. Block mode counts them as failures."""
-    out = logd / "visual"
-    rc, to = run(["node", "scripts/visual.mjs", "run", "--touched", "--base", VISUAL_BASE, "--out", str(out)], fe, logd / "visual.log",
+def judge_visual(first, retry):
+    """T074 flaky-render policy. `first` = the rows of the run, `retry` = the rows of the re-capture of the differing cases alone
+    (None when the retry produced no results). Per case: pass -> pass; no-baseline -> nobase (never a pass); differs or errors on the
+    first run -> FLAKY when the retry matches the baseline, FAIL when the retry differs again, errors, misses the case or did not run.
+    Returns {"pass": n, "nobase": [ids], "flaky": [ids], "fail": [(id, reason)]}."""
+    out = {"pass": 0, "nobase": [], "flaky": [], "fail": []}
+    again = {visual_case_id(r): r.get("status") for r in (retry or [])}
+    for r in first:
+        cid, st = visual_case_id(r), r.get("status")
+        if st == "pass":
+            out["pass"] += 1
+        elif st == "no-baseline":
+            out["nobase"].append(cid)
+        elif retry is None:
+            out["fail"].append((cid, f"{st} on the first run; the retry alone produced no results (see visual-retry.log)"))
+        elif again.get(cid) == "pass":
+            out["flaky"].append(cid)
+        else:
+            out["fail"].append((cid, f"{st} on the first run and {again.get(cid) or 'missing'} on the retry alone "
+                                     "(see visual/index.html and visual-retry/index.html)"))
+    return out
+
+
+def visual_selection_args(cases):
+    """visual.mjs arguments that capture at least `cases` (ids): their screens on their projects (other states / schemes of those
+    screens are captured too and ignored by the caller)."""
+    parsed = [x for x in (parse_visual_case(c) for c in cases) if x]
+    return ["--screens", ",".join(sorted({x["screen"] for x in parsed})), "--projects", ",".join(sorted({x["project"] for x in parsed}))]
+
+
+def rerun_visual_cases(report_path):
+    """Gate-2 quarantine re-run: the visual FAIL case ids of the first report (only those are re-checked)."""
+    try:
+        d = json.loads(Path(report_path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    return sorted({i["id"] for i in d.get("items", []) if i.get("category") == "visual" and i.get("status") == "FAIL" and parse_visual_case(i.get("id"))})
+
+
+def _visual_rows(fe, logd, sel_args, name, base_url):
+    """One visual.mjs run into logd/<name>/. Returns (rows or None, rc, timed_out, log text)."""
+    out = logd / name
+    rc, to = run(["node", "scripts/visual.mjs", "run", *sel_args, "--out", str(out)], fe, logd / f"{name}.log",
                  env={"SW_BASE_URL": base_url}, timeout=min(1500, left()))
     rj = out / "results.json"
+    txt = (logd / f"{name}.log").read_text(errors="replace") if (logd / f"{name}.log").exists() else ""
     if not rj.exists():
-        txt = (logd / "visual.log").read_text(errors="replace") if (logd / "visual.log").exists() else ""
-        if "no screen is touched" in txt:
+        return None, rc, to, txt
+    try:
+        return json.loads(rj.read_text()), rc, to, txt
+    except ValueError:
+        return None, rc, to, txt
+
+
+def run_visual(wt, fe, base_url, logd):
+    """The M074 visual matrix for the screens this branch touches (vs VISUAL_BASE) against the committed linux baselines.
+    Warn mode never changes the verdict (differences are a report section only). Block mode (the default since T074) applies
+    judge_visual(): one re-capture of the differing cases alone, FLAKY when it matches, FAIL when it differs again."""
+    out = logd / "visual"
+    rerun = VISUAL_RERUN_CASES is not None
+    if rerun:
+        if not VISUAL_RERUN_CASES:
+            return
+        sel = visual_selection_args(VISUAL_RERUN_CASES)
+    elif VISUAL_SCOPE == "all":
+        sel = ["--all"]
+    else:
+        sel = ["--touched", "--base", VISUAL_BASE]
+    rows, rc, to, txt = _visual_rows(fe, logd, sel, "visual", base_url)
+    if rows is None:
+        if not rerun and "no screen is touched" in txt:
             VISUAL_INFO.update(mode=VISUAL, touched=0, summary="no screen touched by this change")
             return
         VISUAL_INFO.update(mode=VISUAL, error=f"visual.mjs produced no results (rc={rc}, timeout={to}); see visual.log")
         if VISUAL == "block":
-            count("visual", "fail"); item("visual", "visual matrix", "FAIL", VISUAL_INFO["error"])
+            count(VISUAL_RUN_CAT, "fail"); item(VISUAL_RUN_CAT, "visual matrix: no results", "FAIL", VISUAL_INFO["error"])
         return
-    c = summarize_visual(json.loads(rj.read_text()))
-    VISUAL_INFO.update(mode=VISUAL, base=VISUAL_BASE, counts={k: v for k, v in c.items() if k != "diffs"}, diffs=c["diffs"], report=str(out / "summary.md"), html=str(out / "index.html"))
-    if VISUAL == "block":
-        count("visual", "pass", c["pass"]); count("visual", "skipped", c["nobase"])
-        for d in c["diffs"]:
-            count("visual", "fail"); item("visual", d, "FAIL", "pixel difference vs baseline (see visual/index.html)")
+    if rerun:   # only the quarantined cases count; one the run did not produce is an error, never a pass
+        want = set(VISUAL_RERUN_CASES)
+        have = {visual_case_id(r): r for r in rows}
+        rows = [have.get(cid) or dict(parse_visual_case(cid), status="error") for cid in sorted(want)]
+    c = summarize_visual(rows)
+    VISUAL_INFO.update(mode=VISUAL, scope=VISUAL_SCOPE, base=VISUAL_BASE, counts={k: v for k, v in c.items() if k != "diffs"}, diffs=c["diffs"], report=str(out / "summary.md"),
+                       html=str(out / "index.html"), rerun_only=sorted(VISUAL_RERUN_CASES) if rerun else None)
+    if VISUAL != "block":
+        return
+    retry = None
+    if c["diffs"]:
+        status("running", f"visual matrix: re-capturing {len(c['diffs'])} differing case(s) alone")
+        retry, rrc, rto, _ = _visual_rows(fe, logd, visual_selection_args(c["diffs"]), "visual-retry", base_url)
+        VISUAL_INFO.update(retry={"cases": len(c["diffs"]), "rc": rrc, "timeout": rto, "results": retry is not None,
+                                  "report": str(logd / "visual-retry" / "summary.md")})
+    j = judge_visual(rows, retry)
+    VISUAL_INFO.update(flaky=j["flaky"], failed=[cid for cid, _ in j["fail"]], nobase=j["nobase"])
+    count("visual", "pass", j["pass"])
+    count("visual", "skipped", len(j["nobase"]))
+    for cid in j["nobase"]:
+        item("visual", cid, "SKIPPED_NO_BASELINE", "no linux baseline: not compared (node scripts/visual.mjs accept --screens <id> on the runner)")
+    for cid in j["flaky"]:
+        count("visual", "flaky"); item("visual", cid, "FLAKY", "differed on the first run, matched the baseline on the retry alone")
+    for cid, why in j["fail"]:
+        count("visual", "fail"); item("visual", cid, "FAIL", why)
 
 
 def load_baseline(wt=None):
@@ -1859,13 +1965,27 @@ def write_reports(sha, verdict, extra):
         md += [f"- [{i['category']}] {i['id']}" + (f" - {i['reason']}" if i["reason"] else "") for i in lst] or ["- (אין)"]
     if VISUAL_INFO:
         v = VISUAL_INFO
-        md += ["", f"## ויזואלי (M074, מצב {v.get('mode')}{' - לא חוסם' if v.get('mode') == 'warn' else ''})", ""]
+        blocking = v.get("mode") == "block"
+        md += ["", f"## ויזואלי (M074, מצב {v.get('mode')}{' - חוסם (T074)' if blocking else ' - לא חוסם'})", ""]
         if v.get("error"):
-            md += [f"> אזהרה: {v['error']}"]
+            md += [f"> {'כשל' if blocking else 'אזהרה'}: {v['error']}"]
         elif "counts" in v:
             c = v["counts"]
-            md += [f"- עבר {c['pass']} | שונה {c['diff']} | שגיאה {c['error']} | בלי baseline {c['nobase']} | מול {v.get('base')}", f"- דוח: {v.get('report')} (index.html לצידו)"]
-            md += [f"> אזהרה: הבדל ויזואלי: {d}" for d in v.get("diffs", [])]
+            md += [f"- ריצה ראשונה: עבר {c['pass']} | שונה {c['diff']} | שגיאה {c['error']} | בלי baseline {c['nobase']} | מול {v.get('base')}",
+                   f"- דוח: {v.get('report')} (index.html לצידו)"]
+            if v.get("rerun_only") is not None:
+                md += [f"- הרצה חוזרת של הסגר (gate 2): נבדקו רק {len(v['rerun_only'])} המקרים שנכשלו בריצה הראשונה"]
+            if blocking:
+                if v.get("retry"):
+                    r = v["retry"]
+                    md += [f"- צילום חוזר בודד של {r['cases']} המקרים השונים: {'יש תוצאות' if r['results'] else 'אין תוצאות'} (rc={r['rc']}); דוח: {r['report']}"]
+                md += [f"- FLAKY (שונה בריצה הראשונה, תואם בצילום החוזר; לא נכשל): {len(v.get('flaky', []))}",
+                       f"- נכשל (שונה פעמיים; ניתן להסגר עם כרטיס, עד 7 ימים): {len(v.get('failed', []))}"]
+                md += [f"> כשל ויזואלי: {d}" for d in v.get("failed", [])]
+                md += [f"> FLAKY ויזואלי: {d}" for d in v.get("flaky", [])]
+                md += [f"> אזהרה: בלי baseline של linux (לא הושווה): {d}" for d in v.get("nobase", [])]
+            else:
+                md += [f"> אזהרה: הבדל ויזואלי: {d}" for d in v.get("diffs", [])]
         else:
             md += [f"- {v.get('summary')}"]
     if extra.get("addon_build"):
@@ -2083,6 +2203,8 @@ def main():
             extra["baseline_warnings"] = ["early layout stage failed (fail-fast): the gate stopped early, the count-drop check was NOT applied"]
         else:
             extra["baseline_warnings"] = check_baselines(baseline, TIER) if baseline else ["no gate_baselines.json found: the count-drop check was NOT applied"]
+    if VISUAL_INFO:   # T074: the visual section in the JSON too (the nightly summary and gate2 read it)
+        extra["visual"] = dict(VISUAL_INFO)
     verdict = compute_verdict(hard_fail)
     for h in hard_fail:
         item("gate", h, "FAIL", "")
@@ -2099,6 +2221,9 @@ def main():
             pass
     if VISUAL_INFO.get("diffs") and VISUAL != "block":
         summary += f" | WARNING (non-blocking): {len(VISUAL_INFO['diffs'])} visual difference(s), see the report's visual section"
+    if VISUAL == "block" and (VISUAL_INFO.get("flaky") or VISUAL_INFO.get("nobase")):
+        summary += (f" | WARNING: visual {len(VISUAL_INFO.get('flaky', []))} flaky render(s), {len(VISUAL_INFO.get('nobase', []))} case(s) without a "
+                    "linux baseline (not compared), see the report's visual section")
     if TIMEDEP:
         summary += f" | WARNING: {len(TIMEDEP)} time-of-day (quiet hours) tests not really verified, re-run in daytime"
     if hard_fail:
@@ -2210,7 +2335,7 @@ def seed_from(logs_dir, source):
 def main_cli(argv):
     if argv[:1] == ["--seed-from"] and len(argv) >= 2:
         return seed_from(argv[1], argv[2] if len(argv) > 2 else "")
-    global BR, TIER, TAG, ALLOW_DROP, VISUAL, VISUAL_BASE, SCHEDULE, SELECT_BASE, RESUME
+    global BR, TIER, TAG, ALLOW_DROP, VISUAL, VISUAL_BASE, VISUAL_RERUN_CASES, SCHEDULE, SELECT_BASE, RESUME
     args = list(argv)
     plan_root = None
     while args:
@@ -2252,6 +2377,11 @@ def main_cli(argv):
             return 0
         else:
             BR = a
+    if os.environ.get("GATE2_RERUN_ONLY") == "1" and os.environ.get("GATE2_AFTER_REPORT"):
+        # T074: the gate-2 quarantine re-run re-checks EVERY first-run failure, the visual ones included, whatever release_gate2.sh
+        # passed (it always passed --no-visual): exactly those cases, blocking; no visual step when the first run had none
+        VISUAL_RERUN_CASES = rerun_visual_cases(os.environ["GATE2_AFTER_REPORT"])
+        VISUAL = "block" if VISUAL_RERUN_CASES else ""
     if LANE:   # GATELANES-297: the timing lane runs only its tagged tests - no visual step, no diff selection
         VISUAL, SELECT_BASE = "", ""
     if SCHEDULE not in ("v1", "v2"):

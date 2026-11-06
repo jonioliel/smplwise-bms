@@ -523,8 +523,10 @@ async def _live_relay(
         reason = await relay_ws(websocket, client.ws_url(name), client.ws_headers(), on_down, should_stop=lease.should_stop, on_text=observed_text)
         if lease.lost:
             reason = "access_lost"
-        log.info("live session %s ended: %s (transport %s, first media %s ms)", session.id, reason, diag.transport or "-",
-                 diag.ttff_ms if diag.ttff_ms is not None else "-")
+        # T074: `answer N ms` appended (WebRTC media flows outside this socket, so its first media is "-"; the answer is the
+        # server-side time-to-camera proxy). scripts/gate/video_timing.py parses this line; keep the prefix stable.
+        log.info("live session %s ended: %s (transport %s, first media %s ms, answer %s ms)", session.id, reason, diag.transport or "-",
+                 diag.ttff_ms if diag.ttff_ms is not None else "-", diag.answer_ms if diag.answer_ms is not None else "-")
     except Exception as exc:  # upstream refused / dropped
         reason = "upstream_failure"
         log.warning("live session %s upstream failure: %s", session.id, type(exc).__name__)

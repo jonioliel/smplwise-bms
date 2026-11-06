@@ -140,7 +140,8 @@ def close_session(session_id: str, request: Request, principal: Principal = Depe
     session = _owned(conn, principal, session_id)
     pb.close(settings_of(request), session)
     audit(conn, actor=principal, action="video.playback.stop", decision="allowed", resource_type="camera", resource_id=session.camera_id,
-          request_id=getattr(request.state, "correlation_id", None), details={"session": session.id, "generation": session.generation, "bytes_down": session.bytes_down})
+          request_id=getattr(request.state, "correlation_id", None), details={"session": session.id, "generation": session.generation, "bytes_down": session.bytes_down,
+                                                                               **pb.media_timing(session)})
     return {"id": session.id, "state": session.state}
 
 
@@ -152,7 +153,8 @@ def close_session_beacon(session_id: str, request: Request, principal: Principal
         return {"id": session.id, "state": session.state}
     pb.close(settings_of(request), session)
     audit(conn, actor=principal, action="video.playback.stop", decision="allowed", resource_type="camera", resource_id=session.camera_id,
-          request_id=getattr(request.state, "correlation_id", None), details={"session": session.id, "generation": session.generation, "bytes_down": session.bytes_down, "via": "beacon"})
+          request_id=getattr(request.state, "correlation_id", None), details={"session": session.id, "generation": session.generation, "bytes_down": session.bytes_down, "via": "beacon",
+                                                                               **pb.media_timing(session)})
     return {"id": session.id, "state": session.state}
 
 
@@ -195,6 +197,8 @@ async def playback_ws(websocket: WebSocket, session_id: str, generation: int = Q
         if session.first_frame_at is None:
             session.first_frame_at = time.time()
             session.state = "playing"
+        if session.gen_media_ms is None and session.generation == my_gen:
+            pb.note_first_media(session, my_gen)  # T074: time to recording (generation 0) / time to seek (later generations), once
 
     def superseded() -> bool:
         return session.generation != my_gen or session.state in ("closed", "expired", "failed")
@@ -237,4 +241,8 @@ async def playback_ws(websocket: WebSocket, session_id: str, generation: int = Q
                 session.state = "paused"
         with contextlib.suppress(Exception):
             await websocket.close(code=4403 if reason == "access_lost" else 4410 if reason == "superseded" else 1000)
-        log.info("playback session %s g%s socket closed: %s (%d bytes)", session.id, my_gen, reason, session.bytes_down)
+        # T074: the same shape as the live socket's line (`first media N ms`, scripts/gate/video_timing.py reads both); the time runs
+        # from this generation's request (create / seek), not from the socket's open
+        gen_ms = session.gen_media_ms if session.generation == my_gen else None
+        log.info("playback session %s g%s socket closed: %s (%d bytes, first media %s ms)", session.id, my_gen, reason, session.bytes_down,
+                 gen_ms if gen_ms is not None else "-")

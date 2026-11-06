@@ -21,11 +21,24 @@ const MATRIX = path.join(FRONTEND, 'tests', 'visual', 'matrix.json');
 
 export const loadMatrix = (file = MATRIX) => JSON.parse(fs.readFileSync(file, 'utf8'));
 
+// T074: the visual step blocks the release gate, so a baseline refresh must be verified too: a changed baseline image touches its
+// own screen, a change of the spec or of this driver touches every screen.
+export const SNAPSHOT_DIR = 'frontend/tests/visual-matrix.spec.ts-snapshots/';
+export const HARNESS_FILES = ['frontend/tests/visual-matrix.spec.ts', 'frontend/scripts/visual.mjs'];
+
+/** The screen a baseline file belongs to (`<screen>-<state>-<scheme>-<project>-<platform>.png`), or null. */
+export function screenOfBaseline(file, matrix) {
+  const name = file.slice(file.lastIndexOf('/') + 1);
+  const hit = matrix.screens.find((s) => s.states.some((st) => name.startsWith(`${s.id}-${st}-`)));
+  return hit ? hit.id : null;
+}
+
 /** Screens affected by a list of repo-relative changed files (forward slashes). */
 export function selectTouched(changed, matrix) {
   const files = changed.map((f) => f.replace(/\\/g, '/'));
-  if (files.some((f) => matrix.shared.some((p) => f.startsWith(p)))) return matrix.screens.map((s) => s.id);
-  return matrix.screens.filter((s) => files.some((f) => s.sources.some((p) => f.startsWith(p)))).map((s) => s.id);
+  if (files.some((f) => HARNESS_FILES.includes(f) || matrix.shared.some((p) => f.startsWith(p)))) return matrix.screens.map((s) => s.id);
+  const fromBaselines = new Set(files.filter((f) => f.startsWith(SNAPSHOT_DIR)).map((f) => screenOfBaseline(f, matrix)).filter(Boolean));
+  return matrix.screens.filter((s) => fromBaselines.has(s.id) || files.some((f) => s.sources.some((p) => f.startsWith(p)))).map((s) => s.id);
 }
 
 export function parseArgs(argv) {
