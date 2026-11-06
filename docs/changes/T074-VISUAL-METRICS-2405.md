@@ -121,7 +121,7 @@ Backend tests run from `smplwise_vms/backend` with `-q -p no:cacheprovider -o ad
 | `bash -n` on `release_gate2.sh`, `branch_check.sh`, `nightly_tests.sh` | rc 0 |
 | `python scripts/release_check.py --root .` | rc 0, `RESULT: ready for the owner's approval` |
 
-`selftest_gate.py` (the engine self-test; POSIX only) gained four visual checks and the new default - result in section 6.
+`selftest_gate.py` (the engine self-test; POSIX only) gained four visual checks and the new default - run on the runner, section 6.
 
 ## 5. Runner install (the lead, quiet window only - nothing on the runner was written by this branch)
 
@@ -155,7 +155,7 @@ ssh runner 'cd ~/gate2 && python3 selftest_entry_check.py && python3 gate_quaran
 
 - `python scripts/project_status.py --write`: rc 0, `PASS: planning registry links, dependency graph and original design hashes; 451 tasks, 560 requirements.`; the regenerated views are in the commit (`PROJECT_BOARD.html`, `management/STATUS.md`).
 - `python scripts/release_check.py --root .`: rc 0, `RESULT: ready for the owner's approval`, no `[FAIL]`.
-- Runner self-tests: see below (run after the first commit, streamed to a temporary directory on the runner, nothing installed).
+- Runner self-tests (2026-11-06, after commit `19ef4fe7c`; `git archive` of `scripts/gate` streamed into a `mktemp -d` directory on the runner and removed after, nothing installed or written in `~/`; checked first: no gate / entry check / nightly process, `gate_status.json` = `release/2404-train eab715e53 pass done`): `selftest_gate.py` **SELFTEST PASSED** (rc 0, includes the four new T074 visual checks; the add-on build cases SKIP without a checkout, as before), `selftest_gate_fast.py` **SELFTEST PASSED** (rc 0), `selftest_entry_check.py` **SELFTEST PASSED** (rc 0).
 
 ## 7. NOT_RUN
 
