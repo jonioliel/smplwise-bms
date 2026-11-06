@@ -1,0 +1,38 @@
+{
+ "schema": "smplwise-t006-seek-plan/1",
+ "_comment": "T006 (AT011 + the cleanup part of AT012): the lab measurement that closes the card (docs/changes/T070-T006-2406.md, LAB-T006-01). The owner plays ONE recording of ONE camera in the Arx recordings player (single camera, not compare mode) and seeks to the points below by typing the time in the player's time field (seconds included); scripts/lab/t006_seek_collect.py evaluates the add-on's own audit rows and log lines plus the OSD readings the lead types from the owner's screenshots. Thresholds are proposals until the owner approves them (T006-Q1); the timing limits equal the PROVISIONAL T074 values (scripts/gate/video_timing_thresholds.json).",
+ "tz": "Asia/Jerusalem",
+ "date_rule": "yesterday in Asia/Jerusalem (the run date minus one day); never a DST change day; the whole day recorded continuously on the chosen camera",
+ "camera_rule": "one channel the NVR records continuously (workingstatus record=1) whose OSD shows the date and the time WITH seconds; recommended: the channel of track 401 (KNOWN_QUIRKS T2 used it)",
+ "base_local": "10:00:00",
+ "hold_s": 20,
+ "points": [
+  {"id": "P0", "offset": "+00:00:00", "kind": "start", "why": "generation 0: the start request"},
+  {"id": "P1", "offset": "+00:10:00", "kind": "forward_round", "why": "a round forward jump"},
+  {"id": "P2", "offset": "+00:10:07", "kind": "forward_short", "why": "7 s forward: below one GOP on most profiles, not keyframe aligned"},
+  {"id": "P3", "offset": "+00:47:31", "kind": "forward_odd", "why": "odd seconds, another file region"},
+  {"id": "P4", "offset": "+00:05:13", "kind": "backward", "why": "a backward seek"},
+  {"id": "P5", "offset": "+02:30:44", "kind": "forward_far", "why": "hours ahead, certainly another NVR file"},
+  {"id": "P6", "offset": "+00:00:29", "kind": "backward_far", "why": "back near the start"},
+  {"id": "P7", "offset": "+07:15:02", "kind": "beyond_window", "why": "beyond the first request's 6 h RTSP window (MAX_SPAN)"}
+ ],
+ "thresholds": {
+  "gop_s_default": 4,
+  "offset_late_tolerance_s": 2,
+  "offset_early_extra_s": 2,
+  "wrong_recording_s": 60,
+  "request_match_tolerance_s": 1,
+  "start_first_media_max_ms": 8000,
+  "seek_first_media_p90_ms": 6000,
+  "seek_first_media_max_ms": 10000,
+  "min_measured_seeks": 7
+ },
+ "threshold_rules": [
+  "offset = OSD time - Arx player time read on the SAME screenshot (the player shows session.requested_at + media time, so the difference is the keyframe offset of the rendered media; a negative value = the media starts at an earlier keyframe)",
+  "a point passes when -(gop_s + offset_early_extra_s) <= offset <= offset_late_tolerance_s (after subtracting the camera's live OSD drift when it was measured)",
+  "|offset| >= wrong_recording_s is a WRONG RECORDING (a time-zone shift when it is within 60 s of a whole number of hours)",
+  "every plan point must appear as the session's start / a seek generation whose start_at equals the requested instant within request_match_tolerance_s (no moved_to_next_segment)",
+  "timing: start first media <= start_first_media_max_ms; seek first media nearest-rank p90 <= seek_first_media_p90_ms and max <= seek_first_media_max_ms over at least min_measured_seeks measured seeks",
+  "cleanup (AT012 part): after the session is closed, no smplwise_pb_ stream of the session is left in go2rtc, and the set of non-smplwise streams is unchanged"
+ ]
+}
