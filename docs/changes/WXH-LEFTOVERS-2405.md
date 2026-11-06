@@ -136,7 +136,30 @@ CR-034 asks how WisKey learns, without key material, that a generation change co
 
 ### Receipts
 
-RECEIPTS_PLACEHOLDER
+All on the runner through `private/runner/run_smart.py` (gate_status checked first: no release gate running), except where marked.
+
+| What | Where / commit | Result |
+|---|---|---|
+| `test_wxh_leftovers_2405.py` (23 cases) + `test_fake_doorwin_closed_rule_sr1.py` (5) | workstation, `b5aa0548c` | 28 passed |
+| Backend selection, 25 files: the new file, SR-1, every bridge-key / rotation / harness file, stale discovery, bridge install / lease / 080 / service identity / update listener, cast sessions, notify core / sources / channels / payload golden, quiet hours, backup / backup sensitive, WisKey pairing, self-update S3, release check | runner, `b5aa0548c` | 724 passed, 2 failed, 1 error |
+| Same selection without the new file, on `main` (`eab715e53`) for comparison | runner | 702 passed, **the same 2 failed** |
+| The three affected files alone (`test_notify_channels`, `test_wiskey_pairing_2382`, `test_self_update_s3`) | runner, `b5aa0548c` | 93 passed |
+| Backend selection again | runner, `68bed91b3` | 724 passed, the same 2 failed, 1 error |
+| `unit-bridge-key.spec.ts` (node only) | workstation, explicit file | 8 passed |
+| `evidence-wxh-leftovers-2405`, `evidence-bridge-key`, `evidence-breakui-bridgekey`, `unit-bridge-key` (desktop / tablet / mobile) | runner, `b5aa0548c` | 96 passed, 3 failed (my mock: the card reloads after a PUT and the mock answered the old state; fixed in `68bed91b3`) |
+| `evidence-wxh-leftovers-2405` | runner, `68bed91b3` | 24 passed |
+| `tsc --noEmit` | workstation | exit 0 |
+| `scripts/release_check.py` | workstation | RESULT: ready for the owner's approval (2.40.4, unchanged) |
+
+Classification of the non-passes:
+- `test_notify_channels::test_release_route_accepts_and_audits_the_notification_origin` and
+  `test_wiskey_pairing_2382::test_rotation_switch_on_is_a_warning_with_a_fix`: fail identically on `main` `eab715e53` in this selection and
+  pass when their files run alone - an order dependency that predates this branch (not touched here; worth a ticket).
+- The one setup ERROR per run hit a different test each time (`test_self_update_s3::test_a_restart_loop_never_ends_in_success`:
+  `sqlite3.OperationalError: unable to open database file`; then `test_wxh_leftovers_2405::test_owner_contacts_...`: `FileExistsError` on
+  the runner worktree's `.tmp_b`) - the runner's temp-directory set-up with two workers, not the code; both tests pass in the other runs.
+- Not run: the full backend suite, the pixel baselines (the banner renders nothing without an open notice, so no baseline should move -
+  NOT verified), the evidence screenshots (`SW_SHOTS=1` is not passed by the runner job: NOT_RUN), any live run.
 
 ## 8. WXH4 - the owner decisions it waits for (not built)
 
