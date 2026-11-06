@@ -1,0 +1,2 @@
+function r(e){switch(e){case"ha_restarting":return"תשתית המערכת מופעלת מחדש, מתחבר שוב...";case"ha_unreachable":return"אין קשר עם תשתית המערכת, מנסה שוב...";case"ha_not_configured":return"החיבור לתשתית המערכת עדיין לא הוגדר";case"ha_auth_failed":case"ha_unauthorized":case"ha_forbidden":return"תשתית המערכת דחתה את ההרשאה";default:return e?"החיבור לתשתית המערכת נפסק, מנסה שוב...":""}}function n(e){const a=r(e);return a?`מנותק · ${a}`:"מנותק"}export{r as a,n as s};
+//# sourceMappingURL=ha-sync-status-9DcgxODD.js.map

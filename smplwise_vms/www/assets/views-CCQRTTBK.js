@@ -1,0 +1,2 @@
+import{g as o,bc as a,b8 as c,bb as t}from"./index-BKxQRAkH.js";const n=()=>o("views"),l=s=>c("views",s),w=(s,e)=>a(`views/${s}`,e),r=s=>t(`views/${s}`),m=s=>`#/live/wall?cameras=${encodeURIComponent(s.cameras.join(","))}`,p=s=>`#/kiosk/all?cameras=${encodeURIComponent(s.cameras.join(","))}&cols=${s.cols}&rows=${s.rows}`;export{l as c,r as d,p as k,n as l,w as u,m as w};
+//# sourceMappingURL=views-CCQRTTBK.js.map
