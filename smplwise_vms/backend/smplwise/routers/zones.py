@@ -355,7 +355,8 @@ def list_members(zone_id: str, request: Request, principal: Principal = Depends(
     """"חברים בחלל המשותף" (owner 2026-09-30): whoever reaches ANY floor that shows the room sees, of its members, exactly
     what their own permissions allow per member - a camera through camera_scope (a deny on the camera, and later the
     per-person camera permissions, hide it), a device through its entity's visibility - never more because it is shared.
-    Each member names the floors it is anchored on (a floor the reader may not read is "קומה אחרת"). `can_manage`: the
+    Each member names the floors it is anchored on (a floor the reader may not read is "קומה אחרת", without its id), and
+    `floors` lists only the room's floors the reader may read (integration review L6). `can_manage`: the
     share rights on every floor (add / remove); then `candidates` lists the anchors of the room's floors that are not
     members yet (the ones the reader sees). A WisKey station (CR-009 §13) is listed only for a reader who holds
     `access.read` (installation scope, as the WisKey screens require) and only by name - never its state, people, events,
@@ -401,7 +402,9 @@ def list_members(zone_id: str, request: Request, principal: Principal = Depends(
         placed.setdefault((a["resource_type"], a["resource_id"]), [])
         if a["floor_id"] not in placed[(a["resource_type"], a["resource_id"])]:
             placed[(a["resource_type"], a["resource_id"])].append(a["floor_id"])
-    fl = lambda fid: {"floor_id": fid, "name": names.get(fid, "") if reach.get(fid) is not None else shared_spaces.OTHER_FLOOR}  # noqa: E731
+    # integration review L6 (T097): a floor the reader may not read is "קומה אחרת" with no id in a member's floors, and the
+    # room's own floor list names only the floors the reader may read - per viewer, like the members themselves
+    fl = lambda fid: {"floor_id": fid, "name": names.get(fid, "")} if reach.get(fid) is not None else {"floor_id": None, "name": shared_spaces.OTHER_FLOOR}  # noqa: E731
     members = []
     keys: set[tuple[str, str]] = set()
     for m in shared_spaces.member_rows(conn, zone_id):
@@ -411,7 +414,7 @@ def list_members(zone_id: str, request: Request, principal: Principal = Depends(
             continue
         members.append({"resource_type": key[0], "resource_id": key[1], "kind": _member_kind(*key), "name": label(*key), "added_at": m["added_at"],
                         "floors": [fl(f) for f in placed.get(key, [])]})
-    out: dict[str, Any] = {"zone_id": zone_id, "floors": [fl(f) for f in group.floors], "members": members, "can_manage": manage}
+    out: dict[str, Any] = {"zone_id": zone_id, "floors": [fl(f) for f in group.floors if reach.get(f) is not None], "members": members, "can_manage": manage}
     if manage:
         cand = [{"resource_type": k[0], "resource_id": k[1], "kind": _member_kind(*k), "name": label(*k), "floors": [fl(f) for f in fs]}
                 for k, fs in sorted(placed.items()) if k not in keys and visible(*k)]
