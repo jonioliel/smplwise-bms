@@ -46,6 +46,7 @@
   "test_wiskeyarx_291.py": "package walk: Arx sends api contract one or omits it",
   "test_wkpeer_295.py": "package walk: only the seam modules mint sealed values",
   "test_wxd10_door_jobs.py": "package walk: the restore pass has one caller and sends no door command",
+  "test_wxh_leftovers_2405.py": "package walk: no module calls the bridge-key emergency notice (the revocation is WXH4, not built)",
   "test_xsecfollow_297.py": "app.router.routes: what is mounted on the remote channel",
   "test_zones_nvr.py": "app.routes: the zones endpoint has no write route"
  },
