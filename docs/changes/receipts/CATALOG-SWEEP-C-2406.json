@@ -1,0 +1,3322 @@
+{
+ "id": "CATALOG-SWEEP-C-2406",
+ "scope": "management/test_catalog.json entries with status NOT_RUN and kind acceptance / release gate / manual/visual",
+ "catalog_commit": "eadc5b080",
+ "catalog_edited": false,
+ "nightly": {
+  "branch": "main",
+  "sha": "eab715e53",
+  "tier": "L",
+  "state": "pass",
+  "started": "2026-11-06T02:00:05+0000",
+  "finished": "2026-11-06T04:08:03+0000",
+  "summary": "PASS in 127m: tsc 1p/0f/0flaky/0known/100%of-baseline; build 1p/0f/0flaky/0known/100%of-baseline; release_check 1p/0f/0flaky/0known/100%of-baseline; dev 1049p/0f/1flaky/0known/112%of-baseline; preview 19547p/0f/10flaky/0known/131%of-baseline; fixture 28p/0f/0flaky/0known/187%of-baseline; pixel 309p/0f/4flaky/0known/179%of-baseline; backend 20818p/0f/2flaky/0known/118%of-baseline",
+  "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+  "per_file_index": "built read-only from runner:~/smplwise-results/nightly/gate_main_eab715e53.logs (backend_s*.xml junit, pw_*.json Playwright reports); counts are first-attempt results per file",
+  "quarantine": {
+   "updated": "2026-11-06T04:08:03+0000",
+   "gate": "main@eab715e53",
+   "entries": [
+    {
+     "id": "tests/test_remote_auth_first.py::test_the_flood_does_not_queue_behind_a_writer_nor_delay_the_next_one",
+     "category": "backend",
+     "gates": [
+      "main@2de8db001",
+      "main@d53670a7c",
+      "main@83ce74480",
+      "main@eab715e53"
+     ],
+     "streak_from": "main@d53670a7c"
+    },
+    {
+     "id": "tests/test_wk4adopt_295.py::test_wr4_01_as_delivered_the_event_is_lost_and_only_arxs_own_deadline_ends_the_channel",
+     "category": "backend",
+     "gates": [
+      "main@2de8db001",
+      "main@d53670a7c",
+      "main@83ce74480",
+      "main@ccb77f28d"
+     ],
+     "streak_from": "main@83ce74480"
+    },
+    {
+     "id": "pixel-access-s12.spec.ts:49 [mobile] pixel: CR-036 S12 > classic is pixel-stable: the display card and a parity report",
+     "category": "pixel",
+     "gates": [
+      "main@d53670a7c",
+      "main@ccb77f28d",
+      "main@eab715e53"
+     ],
+     "streak_from": "main@ccb77f28d"
+    },
+    {
+     "id": "pixel-access-s12.spec.ts:49 [mobile] pixel: CR-036 S12 > domus is pixel-stable: the display card and a parity report",
+     "category": "pixel",
+     "gates": [
+      "main@ccb77f28d",
+      "main@eab715e53"
+     ],
+     "streak_from": "main@ccb77f28d"
+    }
+   ]
+  }
+ },
+ "method": "Each entry: read the catalog row, the task row in management/tasks.json and the change record(s) of its branch; every test file named in those records was looked up in the nightly per-file index; release gates were matched to the runner gate report on the exact tag commit; nothing was run against the lab or any device.",
+ "classes": {
+  "COVERED-AUTO": "proven by automated tests (receipts: nightly per-file counts, runner gate reports, tags)",
+  "LAB": "needs the real installation, devices or a phone (steps in the 07.11 lab runbook)",
+  "OWNER": "needs an owner judgement or decision",
+  "BLOCKED-WISKEY": "waits on the WisKey team"
+ },
+ "counts": {
+  "total": 57,
+  "COVERED-AUTO": 25,
+  "LAB": 17,
+  "OWNER": 7,
+  "BLOCKED-WISKEY": 8
+ },
+ "lab_runbook": "private/design-system-2026-10-27/lab-0711/index.html (gitignored; owner-facing, Hebrew)",
+ "findings": [
+  "GUIDE_ALL_HE.html is stale on release/2405-train @ eadc5b080: WXH-LEFTOVERS-2405 (b5aa0548c) edited docs/user-guide/he without running scripts/build_guide.py. The check passes on ccb77f28d (2.40.2) and eab715e53 (2.40.4). Fix on the train before the 2.40.5 tag.",
+  "The 2.40.4 release gate on eab715e53 first failed only on quarantined tests and passed on the quarantine re-run (runner:~/smplwise-results/gate_release-2404-train_eab715e53.gate2-rerun.md); the nightly on the same commit passed outright."
+ ],
+ "entries": [
+  {
+   "id": "AT181",
+   "kind": "manual/visual",
+   "task": "T091",
+   "catalog_status": "NOT_RUN",
+   "title": "תיעוד בעברית 1 — מדריך למשתמש עם צילומי מסך",
+   "class": "OWNER",
+   "reason": "T091 is BACKLOG (requested 2026-09-28, never scheduled). Measured on eadc5b080: scripts/docs_he_check.py reports 11 drifted mirrors, 42 mirrors without a header and 293 sources without a mirror; frontend/tests/guide-screenshots.spec.ts exists but is opt-in (SW_GUIDE=1) and was skipped in the nightly (76 skipped). The acceptance is a reading review of a guide that is not complete; whether the full Hebrew mirror and role training are still wanted, and when, is the owner's call.",
+   "receipts": [
+    {
+     "kind": "workstation command",
+     "command": "python scripts/docs_he_check.py",
+     "commit": "eadc5b080",
+     "result": "rc 0; Summary: 11 mirror(s) drifted, 42 mirror(s) without a header, 75 original(s), 293 source(s) with no mirror yet"
+    }
+   ]
+  },
+  {
+   "id": "AT182",
+   "kind": "manual/visual",
+   "task": "T091",
+   "catalog_status": "NOT_RUN",
+   "title": "תיעוד בעברית 2 — מראה עברית לתיעוד התפעולי",
+   "class": "OWNER",
+   "reason": "T091 is BACKLOG (requested 2026-09-28, never scheduled). Measured on eadc5b080: scripts/docs_he_check.py reports 11 drifted mirrors, 42 mirrors without a header and 293 sources without a mirror; frontend/tests/guide-screenshots.spec.ts exists but is opt-in (SW_GUIDE=1) and was skipped in the nightly (76 skipped). The acceptance is a reading review of a guide that is not complete; whether the full Hebrew mirror and role training are still wanted, and when, is the owner's call.",
+   "receipts": [
+    {
+     "kind": "workstation command",
+     "command": "python scripts/docs_he_check.py",
+     "commit": "eadc5b080",
+     "result": "rc 0; Summary: 11 mirror(s) drifted, 42 mirror(s) without a header, 75 original(s), 293 source(s) with no mirror yet"
+    }
+   ]
+  },
+  {
+   "id": "AT183",
+   "kind": "manual/visual",
+   "task": "T091",
+   "catalog_status": "NOT_RUN",
+   "title": "תיעוד בעברית 3 — הדרכת עובדים לפי תפקיד",
+   "class": "OWNER",
+   "reason": "T091 is BACKLOG (requested 2026-09-28, never scheduled). Measured on eadc5b080: scripts/docs_he_check.py reports 11 drifted mirrors, 42 mirrors without a header and 293 sources without a mirror; frontend/tests/guide-screenshots.spec.ts exists but is opt-in (SW_GUIDE=1) and was skipped in the nightly (76 skipped). The acceptance is a reading review of a guide that is not complete; whether the full Hebrew mirror and role training are still wanted, and when, is the owner's call.",
+   "receipts": [
+    {
+     "kind": "workstation command",
+     "command": "python scripts/docs_he_check.py",
+     "commit": "eadc5b080",
+     "result": "rc 0; Summary: 11 mirror(s) drifted, 42 mirror(s) without a header, 75 original(s), 293 source(s) with no mirror yet"
+    }
+   ]
+  },
+  {
+   "id": "AT-RELEASE-2360-TRAIN-1",
+   "kind": "release gate",
+   "task": "RELEASE-2360-TRAIN",
+   "catalog_status": "NOT_RUN",
+   "title": "Release train 2.36.0 (building scope, mapping, labels, feed review, GDrive ready, home edit drawer, presence line, xs widget)",
+   "class": "COVERED-AUTO",
+   "reason": "Tagged v2.36.0 on main; the runner release gate passed on the tag commit; contained in the green nightly.",
+   "tests_in_nightly": [
+    {
+     "file": "offbox-backup-ui.spec.ts",
+     "nightly_passed": 24,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_remote_access.py",
+     "nightly_passed": 66,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "git tag",
+     "tag": "v2.36.0",
+     "commit": "053eb1eca",
+     "ancestor_of_nightly_sha": true
+    },
+    {
+     "kind": "runner release gate",
+     "report": "runner:~/smplwise-results/gate_release-2360-train_053eb1eca.md",
+     "gate2": "runner:~/smplwise-results/gate_release-2360-train_053eb1eca.gate2.md",
+     "verdict": "PASS (gate-2 engine verdict pass)",
+     "sha": "053eb1eca"
+    },
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ]
+  },
+  {
+   "id": "AT-RELEASE-2361-TRAIN-1",
+   "kind": "release gate",
+   "task": "RELEASE-2361-TRAIN",
+   "catalog_status": "NOT_RUN",
+   "title": "Release train 2.36.1 (camera H.264 verification)",
+   "class": "COVERED-AUTO",
+   "reason": "Tagged v2.36.1; runner gate PASS on the tag commit; in the nightly.",
+   "tests_in_nightly": [
+    {
+     "file": "evidence-calendars-settings-2310.spec.ts",
+     "nightly_passed": 85,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 20
+    },
+    {
+     "file": "evidence-nvr-verify-report-2361.spec.ts",
+     "nightly_passed": 4,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "git tag",
+     "tag": "v2.36.1",
+     "commit": "89999a5f9",
+     "ancestor_of_nightly_sha": true
+    },
+    {
+     "kind": "runner release gate",
+     "report": "runner:~/smplwise-results/gate_release-2361-train_89999a5f9.md",
+     "gate2": "runner:~/smplwise-results/gate_release-2361-train_89999a5f9.gate2.md",
+     "verdict": "PASS (gate-2 engine verdict pass)",
+     "sha": "89999a5f9"
+    },
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ]
+  },
+  {
+   "id": "AT-RELEASE-2370-TRAIN-1",
+   "kind": "release gate",
+   "task": "RELEASE-2370-TRAIN",
+   "catalog_status": "NOT_RUN",
+   "title": "Release train 2.37.0 (polish round 4, transit check, unlock reason)",
+   "class": "COVERED-AUTO",
+   "reason": "Tagged v2.37.0; runner gate PASS on the tag commit (after the GATE2370-A..D fixes); in the nightly.",
+   "tests_in_nightly": [
+    {
+     "file": "layout-home-edit-bar-wp4.spec.ts",
+     "nightly_passed": 2,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_transit_check_wp8.py",
+     "nightly_passed": 7,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_unlock_reason_2370.py",
+     "nightly_passed": 13,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-token-lint.spec.ts",
+     "nightly_passed": 21,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "git tag",
+     "tag": "v2.37.0",
+     "commit": "88dc0b287",
+     "ancestor_of_nightly_sha": true
+    },
+    {
+     "kind": "runner release gate",
+     "report": "runner:~/smplwise-results/gate_release-2370-train_88dc0b287.md",
+     "gate2": "runner:~/smplwise-results/gate_release-2370-train_88dc0b287.gate2.md",
+     "verdict": "PASS (gate-2 engine verdict pass)",
+     "sha": "88dc0b287"
+    },
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ]
+  },
+  {
+   "id": "AT-RELEASE-2380-TRAIN-1",
+   "kind": "release gate",
+   "task": "RELEASE-2380-TRAIN",
+   "catalog_status": "NOT_RUN",
+   "title": "Release train 2.38.0 (display and mobile server; features off by default)",
+   "class": "COVERED-AUTO",
+   "reason": "Tagged v2.38.0 (UI rebuild efc12d0e3); runner gate PASS on 0c9bed381 and on the tag commit; in the nightly.",
+   "tests_in_nightly": [
+    {
+     "file": "pixel-bustimes-295.spec.ts",
+     "nightly_passed": 10,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 10
+    },
+    {
+     "file": "pixel-notice-tv-mock.spec.ts",
+     "nightly_passed": 10,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 20
+    },
+    {
+     "file": "pixel-notice-tv-portrait-chips.spec.ts",
+     "nightly_passed": 47,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 81
+    },
+    {
+     "file": "unit-arx-local-login.spec.ts",
+     "nightly_passed": 36,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-settings-rows-2380.spec.ts",
+     "nightly_passed": 36,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "git tag",
+     "tag": "v2.38.0",
+     "commit": "efc12d0e3",
+     "ancestor_of_nightly_sha": true
+    },
+    {
+     "kind": "runner release gate",
+     "report": "runner:~/smplwise-results/gate_release-2380-train_0c9bed381.md",
+     "gate2": "runner:~/smplwise-results/gate_release-2380-train_0c9bed381.gate2.md",
+     "verdict": "PASS (gate-2 engine verdict pass)",
+     "sha": "0c9bed381"
+    },
+    {
+     "kind": "runner release gate",
+     "report": "runner:~/smplwise-results/gate_release-2380-train_efc12d0e3.md",
+     "gate2": "runner:~/smplwise-results/gate_release-2380-train_efc12d0e3.gate2.md",
+     "verdict": "PASS (gate-2 engine verdict pass)",
+     "sha": "efc12d0e3"
+    },
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ]
+  },
+  {
+   "id": "AT-RELEASE-2371-WISKEY-1",
+   "kind": "release gate",
+   "task": "RELEASE-2371-WISKEY",
+   "catalog_status": "NOT_RUN",
+   "title": "Release 2.37.1: WisKey alignment (rc.39 native component, one restart decision, readiness, station still)",
+   "class": "COVERED-AUTO",
+   "reason": "Tagged v2.37.1 = 4062e4c73; the runner gate ran on that exact commit (pilot/WISKEY-S5-PREMERGE) and passed; in the nightly. Activation on the installation is a separate card (AT-WISKEY-LAB-ACTIVATION-0411-1).",
+   "tests_in_nightly": [
+    {
+     "file": "test_bkpfix_295.py",
+     "nightly_passed": 4,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_bridge_cast_policy.py",
+     "nightly_passed": 28,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_extid_followups.py",
+     "nightly_passed": 20,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_lovelace_card.py",
+     "nightly_passed": 5,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_mac_managed_auto_policy.py",
+     "nightly_passed": 8,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_migrations.py",
+     "nightly_passed": 4,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_migrations_263_upgrade.py",
+     "nightly_passed": 2,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_no_ip_literals.py",
+     "nightly_passed": 2,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_t06_admission_295.py",
+     "nightly_passed": 63,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "test_wiskey_adopt_2272_review.py",
+     "nightly_passed": 41,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_m12_policy_b_native_gate.py",
+     "nightly_passed": 31,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_m12_policy_b_owner_switch.py",
+     "nightly_passed": 34,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_m12_s3_maintenance.py",
+     "nightly_passed": 51,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 1
+    },
+    {
+     "file": "test_wiskey_native_bundle_2272.py",
+     "nightly_passed": 7,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_r2_align_2272_contracts.py",
+     "nightly_passed": 9,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 1
+    },
+    {
+     "file": "test_wiskey_rc7_adopt_2331.py",
+     "nightly_passed": 32,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_relay_map_writer_2310.py",
+     "nightly_passed": 20,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_s4_core_observer.py",
+     "nightly_passed": 31,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_s5_migration_upgrade.py",
+     "nightly_passed": 4,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wkr5_295.py",
+     "nightly_passed": 31,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "git tag",
+     "tag": "v2.37.1",
+     "commit": "4062e4c73",
+     "ancestor_of_nightly_sha": true
+    },
+    {
+     "kind": "runner release gate",
+     "report": "runner:~/smplwise-results/gate_pilot-WISKEY-S5-PREMERGE_4062e4c73.md",
+     "gate2": "runner:~/smplwise-results/gate_pilot-WISKEY-S5-PREMERGE_4062e4c73.gate2.md",
+     "verdict": "PASS (gate-2 engine verdict pass)",
+     "sha": "4062e4c73"
+    },
+    {
+     "kind": "receipts in git",
+     "path": "docs/changes/receipts/WISKEY-S6-RELEASE-PREP/"
+    },
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ]
+  },
+  {
+   "id": "AT-GATE2370-1",
+   "kind": "acceptance",
+   "task": "GATE2370",
+   "catalog_status": "NOT_RUN",
+   "title": "Release gate fixes of 2.37.0 (groups A-D)",
+   "class": "COVERED-AUTO",
+   "reason": "The four gate-fix merges (cd8ce1ae4, 38c77d9cd, 1d3a7df6e, 01c1eaabe) are in v2.37.0, whose runner gate passed on 88dc0b287 after a failing first gate on b0fa0dc86.",
+   "tests_in_nightly": [
+    {
+     "file": "layout-home-edit-bar-wp4.spec.ts",
+     "nightly_passed": 2,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_transit_check_wp8.py",
+     "nightly_passed": 7,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_unlock_reason_2370.py",
+     "nightly_passed": 13,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-token-lint.spec.ts",
+     "nightly_passed": 21,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "runner release gate",
+     "report": "runner:~/smplwise-results/gate_release-2370-train_b0fa0dc86.md",
+     "gate2": "runner:~/smplwise-results/gate_release-2370-train_b0fa0dc86.gate2.md",
+     "verdict": "FAIL (before the fixes)",
+     "sha": "b0fa0dc86",
+     "note": "first gate: FAIL (the failures these fixes address)"
+    },
+    {
+     "kind": "runner release gate",
+     "report": "runner:~/smplwise-results/gate_release-2370-train_88dc0b287.md",
+     "gate2": "runner:~/smplwise-results/gate_release-2370-train_88dc0b287.gate2.md",
+     "verdict": "PASS (gate-2 engine verdict pass)",
+     "sha": "88dc0b287"
+    },
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ]
+  },
+  {
+   "id": "AT-TV-SETTINGS-2380-1",
+   "kind": "acceptance",
+   "task": "TV-SETTINGS-2380",
+   "catalog_status": "NOT_RUN",
+   "title": "Display: notice TV settings rows (2.38.0)",
+   "class": "COVERED-AUTO",
+   "reason": "The settings rows and the server contract are pinned by backend tests that pass in the nightly. The real-TV safe margin is an owner choice after a TV session (optional step C10), not this acceptance.",
+   "tests_in_nightly": [
+    {
+     "file": "test_notice_boardv2_297.py",
+     "nightly_passed": 9,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_notice_tvsettings_2380.py",
+     "nightly_passed": 33,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ],
+   "lab_runbook_steps": [
+    "C10"
+   ]
+  },
+  {
+   "id": "AT-DARK-SEG-ALL-2380-1",
+   "kind": "acceptance",
+   "task": "DARK-SEG-ALL-2380",
+   "catalog_status": "NOT_RUN",
+   "title": "Dark mode: readable chosen option of every segmented switch",
+   "class": "COVERED-AUTO",
+   "reason": "Readable selected option in dark mode: browser evidence spec over the switches plus the unit contrast/token beds, all green in the nightly.",
+   "tests_in_nightly": [
+    {
+     "file": "evidence-dark-seg-all-2380.spec.ts",
+     "nightly_passed": 30,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-dark-polish-beds.spec.ts",
+     "nightly_passed": 21,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-token-lint.spec.ts",
+     "nightly_passed": 21,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ]
+  },
+  {
+   "id": "AT-PUSH-RELAY-SAFE-2380-1",
+   "kind": "acceptance",
+   "task": "PUSH-RELAY-SAFE-2380",
+   "catalog_status": "NOT_RUN",
+   "title": "Push relay safety: push stays off while the relay is not live",
+   "class": "COVERED-AUTO",
+   "reason": "Push cannot be switched on while the relay is not live: backend push / relay tests green in the nightly.",
+   "tests_in_nightly": [
+    {
+     "file": "test_app_server_leftovers_2380.py",
+     "nightly_passed": 13,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_critical_sound.py",
+     "nightly_passed": 9,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_docs_config_consistency.py",
+     "nightly_passed": 7,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_mobile_push.py",
+     "nightly_passed": 53,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_secrets_store.py",
+     "nightly_passed": 15,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_secrets_transitional_263.py",
+     "nightly_passed": 9,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_self_update_s3_fixes.py",
+     "nightly_passed": 25,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_tickets_app_push.py",
+     "nightly_passed": 8,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ]
+  },
+  {
+   "id": "AT-A11Y-R4-LEFTOVERS-2380-1",
+   "kind": "acceptance",
+   "task": "A11Y-R4-LEFTOVERS-2380",
+   "catalog_status": "NOT_RUN",
+   "title": "Accessibility leftovers of polish round 4",
+   "class": "COVERED-AUTO",
+   "reason": "The runner a11y specs named in the change record ran in the nightly and passed (evidence-plan-studio-4 and evidence-tabs-live are live-only and were skipped; the remaining 19 files carry the proof).",
+   "tests_in_nightly": [
+    {
+     "file": "a11y-dialog-focus-2310.spec.ts",
+     "nightly_passed": 6,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "a11y-polished-2342.spec.ts",
+     "nightly_passed": 9,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "a11y-r4-leftovers-2380.spec.ts",
+     "nightly_passed": 3,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "evidence-infra-tabs.spec.ts",
+     "nightly_passed": 48,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "evidence-protected-switches.spec.ts",
+     "nightly_passed": 11,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "evidence-pwa-push.spec.ts",
+     "nightly_passed": 8,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 2
+    },
+    {
+     "file": "evidence-shell.spec.ts",
+     "nightly_passed": 54,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "evidence-switch-light-dimmer-2331.spec.ts",
+     "nightly_passed": 12,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "evidence-switchui-295.spec.ts",
+     "nightly_passed": 16,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "evidence-tabs-pair.spec.ts",
+     "nightly_passed": 13,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "evidence-tabs-scroll-2331.spec.ts",
+     "nightly_passed": 21,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "evidence-tabs-styles.spec.ts",
+     "nightly_passed": 18,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "evidence-tabs-ui.spec.ts",
+     "nightly_passed": 24,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "evidence-tabset-293.spec.ts",
+     "nightly_passed": 9,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "layout-a11y-295.spec.ts",
+     "nightly_passed": 6,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 1
+    },
+    {
+     "file": "pixel-walk-touch.spec.ts",
+     "nightly_passed": 6,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 8
+    },
+    {
+     "file": "unit-a11y-polished-lint.spec.ts",
+     "nightly_passed": 18,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-a11y-r4-leftovers-2380.spec.ts",
+     "nightly_passed": 51,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-switch-contrast-2380.spec.ts",
+     "nightly_passed": 12,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ]
+  },
+  {
+   "id": "AT-GATE2380-1",
+   "kind": "acceptance",
+   "task": "GATE2380",
+   "catalog_status": "NOT_RUN",
+   "title": "Release gate fixes of 2.38.0 (groups A-B)",
+   "class": "COVERED-AUTO",
+   "reason": "The gate-fix merges f9c6fe109 and 7557c21dd are in v2.38.0, whose runner gate passed on 0c9bed381 / efc12d0e3 after a failing gate on ab6c2f715.",
+   "tests_in_nightly": [
+    {
+     "file": "pixel-bustimes-295.spec.ts",
+     "nightly_passed": 10,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 10
+    },
+    {
+     "file": "pixel-notice-tv-mock.spec.ts",
+     "nightly_passed": 10,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 20
+    },
+    {
+     "file": "pixel-notice-tv-portrait-chips.spec.ts",
+     "nightly_passed": 47,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 81
+    },
+    {
+     "file": "unit-arx-local-login.spec.ts",
+     "nightly_passed": 36,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-settings-rows-2380.spec.ts",
+     "nightly_passed": 36,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "runner release gate",
+     "report": "runner:~/smplwise-results/gate_release-2380-train_ab6c2f715.md",
+     "gate2": "runner:~/smplwise-results/gate_release-2380-train_ab6c2f715.gate2.md",
+     "verdict": "FAIL (before the fixes)",
+     "sha": "ab6c2f715"
+    },
+    {
+     "kind": "runner release gate",
+     "report": "runner:~/smplwise-results/gate_release-2380-train_0c9bed381.md",
+     "gate2": "runner:~/smplwise-results/gate_release-2380-train_0c9bed381.gate2.md",
+     "verdict": "PASS (gate-2 engine verdict pass)",
+     "sha": "0c9bed381"
+    },
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ]
+  },
+  {
+   "id": "AT-STATION-WS-PATH-2381-1",
+   "kind": "acceptance",
+   "task": "STATION-WS-PATH-2381",
+   "catalog_status": "NOT_RUN",
+   "title": "Fix: one api/v1 prefix for the station live, listen and talk sockets",
+   "class": "LAB",
+   "reason": "The Ingress path is proven by unit-station-ws-path-2381.spec.ts (9 passed in the nightly) and the gate of v2.38.1; the remote path (/arx/ on the phone) has no test and no record. The owner saw live station video after 2.38.1 on 2026-11-03 (session note, not a record).",
+   "tests_in_nightly": [
+    {
+     "file": "unit-station-ws-path-2381.spec.ts",
+     "nightly_passed": 9,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ],
+   "lab_runbook_steps": [
+    "D3"
+   ]
+  },
+  {
+   "id": "AT-RELEASE-2381-1",
+   "kind": "release gate",
+   "task": "RELEASE-2381",
+   "catalog_status": "NOT_RUN",
+   "title": "Release 2.38.1: station sockets fix",
+   "class": "COVERED-AUTO",
+   "reason": "Tagged v2.38.1 = 2dce5d48f; the runner gate ran on that commit (fix/STATION-WS-PATH-2381) and passed; in the nightly.",
+   "tests_in_nightly": [
+    {
+     "file": "unit-station-ws-path-2381.spec.ts",
+     "nightly_passed": 9,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "git tag",
+     "tag": "v2.38.1",
+     "commit": "2dce5d48f",
+     "ancestor_of_nightly_sha": true
+    },
+    {
+     "kind": "runner release gate",
+     "report": "runner:~/smplwise-results/gate_fix-STATION-WS-PATH-2381_2dce5d48f.md",
+     "gate2": "runner:~/smplwise-results/gate_fix-STATION-WS-PATH-2381_2dce5d48f.gate2.md",
+     "verdict": "PASS (gate-2 engine verdict pass)",
+     "sha": "2dce5d48f"
+    },
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ]
+  },
+  {
+   "id": "AT-RELEASE-2382-TRAIN-1",
+   "kind": "release gate",
+   "task": "RELEASE-2382-TRAIN",
+   "catalog_status": "NOT_RUN",
+   "title": "Release train 2.38.2 (WisKey activation, TV chips, dialog top layer, board management)",
+   "class": "COVERED-AUTO",
+   "reason": "Tagged v2.38.2; runner gate PASS on the tag commit f5fbbe7b2 (the first gate on c7cc22769 failed and was fixed); in the nightly.",
+   "tests_in_nightly": [
+    {
+     "file": "test_nvr_less.py",
+     "nightly_passed": 54,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_t06_admission_295.py",
+     "nightly_passed": 63,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "test_wiskey_adopt_2272_installer.py",
+     "nightly_passed": 9,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_adopt_2272_review.py",
+     "nightly_passed": 41,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_pairing_2382.py",
+     "nightly_passed": 32,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "git tag",
+     "tag": "v2.38.2",
+     "commit": "f5fbbe7b2",
+     "ancestor_of_nightly_sha": true
+    },
+    {
+     "kind": "runner release gate",
+     "report": "runner:~/smplwise-results/gate_release-2382-train_f5fbbe7b2.md",
+     "gate2": "runner:~/smplwise-results/gate_release-2382-train_f5fbbe7b2.gate2.md",
+     "verdict": "PASS (gate-2 engine verdict pass)",
+     "sha": "f5fbbe7b2"
+    },
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ]
+  },
+  {
+   "id": "AT-TV-CHIPS-2381-1",
+   "kind": "acceptance",
+   "task": "TV-CHIPS-2381",
+   "catalog_status": "NOT_RUN",
+   "title": "Display: TV footer chips",
+   "class": "COVERED-AUTO",
+   "reason": "Footer chips: backend, unit, evidence and pixel specs green in the nightly.",
+   "tests_in_nightly": [
+    {
+     "file": "evidence-notices.spec.ts",
+     "nightly_passed": 81,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "evidence-tv-chips-2381.spec.ts",
+     "nightly_passed": 6,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "pixel-bustimes-295.spec.ts",
+     "nightly_passed": 10,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 10
+    },
+    {
+     "file": "pixel-notice-tv-mock.spec.ts",
+     "nightly_passed": 10,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 20
+    },
+    {
+     "file": "pixel-notice-tv-portrait-chips.spec.ts",
+     "nightly_passed": 47,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 81
+    },
+    {
+     "file": "test_docs_config_consistency.py",
+     "nightly_passed": 7,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_notice_boardv2_297.py",
+     "nightly_passed": 9,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_notice_tvchips_2381.py",
+     "nightly_passed": 36,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_notice_tvsettings_2380.py",
+     "nightly_passed": 33,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_notices_106.py",
+     "nightly_passed": 43,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_notices_info_295.py",
+     "nightly_passed": 14,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-settings-rows-2380.spec.ts",
+     "nightly_passed": 36,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-tv-chips-2381.spec.ts",
+     "nightly_passed": 24,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-tv-fit-2380.spec.ts",
+     "nightly_passed": 21,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ]
+  },
+  {
+   "id": "AT-DIALOG-TOPLAYER-2381-1",
+   "kind": "acceptance",
+   "task": "DIALOG-TOPLAYER-2381",
+   "catalog_status": "NOT_RUN",
+   "title": "Shared dialog in the browser top layer",
+   "class": "COVERED-AUTO",
+   "reason": "Top-layer dialog: evidence, pixel and unit specs green in the nightly (Chromium). A glance on a physical phone is optional step B8 (residual, not required by the acceptance).",
+   "tests_in_nightly": [
+    {
+     "file": "evidence-dialog-toplayer-2381.spec.ts",
+     "nightly_passed": 15,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "pixel-dialog-toplayer-2381.spec.ts",
+     "nightly_passed": 4,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 1
+    },
+    {
+     "file": "unit-dialog-toplayer-2381.spec.ts",
+     "nightly_passed": 18,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ],
+   "lab_runbook_steps": [
+    "B8"
+   ]
+  },
+  {
+   "id": "AT-WISKEY-TALK-DIAL-2382-1",
+   "kind": "acceptance",
+   "task": "WISKEY-TALK-DIAL-2382",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey A-a: talk end to end, the provider row and native dial",
+   "class": "LAB",
+   "reason": "Talk end to end needs a real station, the WisKey W10 path and a person at both ends; automated specs cover the provider row and dial wiring only.",
+   "tests_in_nightly": [
+    {
+     "file": "evidence-wiskey-station-media.spec.ts",
+     "nightly_passed": 58,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 8
+    },
+    {
+     "file": "pixel-wiskey-station-media.spec.ts",
+     "nightly_passed": 24,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 10
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ],
+   "lab_runbook_steps": [
+    "D4",
+    "D6",
+    "D7"
+   ]
+  },
+  {
+   "id": "AT-WISKEY-TALK-CAPS-2382-1",
+   "kind": "acceptance",
+   "task": "WISKEY-TALK-CAPS-2382",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey: choose the W10 provider from the signed direct capabilities",
+   "class": "COVERED-AUTO",
+   "reason": "Provider selection from the signed direct/capabilities read is proven against rc.10-shaped captures (backend + unit + evidence specs green in the nightly). The real talk on the lab is AT-WISKEY-TALK-DIAL-2382-1 (step D6/D7).",
+   "tests_in_nightly": [
+    {
+     "file": "evidence-wiskey-talk-caps-2382.spec.ts",
+     "nightly_passed": 13,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 8
+    },
+    {
+     "file": "evidence-wiskey-talk-dial-2382.spec.ts",
+     "nightly_passed": 21,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 6
+    },
+    {
+     "file": "test_station_media_readiness_2382.py",
+     "nightly_passed": 29,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_t06_admission_295.py",
+     "nightly_passed": 63,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "test_wiskey_talk_caps_2382.py",
+     "nightly_passed": 28,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-wiskey-talk-caps-2382.spec.ts",
+     "nightly_passed": 12,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-wiskey-talk-dial-2382.spec.ts",
+     "nightly_passed": 21,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ],
+   "lab_runbook_steps": [
+    "D7"
+   ]
+  },
+  {
+   "id": "AT-WISKEY-PAIRING-2382-1",
+   "kind": "acceptance",
+   "task": "WISKEY-PAIRING-2382",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey A-b: pairing status, signed check, guided re-pair, \"מצב WisKey\"",
+   "class": "COVERED-AUTO",
+   "reason": "Pairing state, signed check and guided re-pair: test_wiskey_pairing_2382 (32 passed) and the admission suite in the nightly; the screens were used on the lab on 2026-11-04 (signed check and re-pair, recorded on AT-WISKEY-LAB-ACTIVATION-0411-1). Step D1 re-reads the state after the update.",
+   "tests_in_nightly": [
+    {
+     "file": "test_t06_admission_295.py",
+     "nightly_passed": 63,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "test_wiskey_pairing_2382.py",
+     "nightly_passed": 32,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ],
+   "lab_runbook_steps": [
+    "D1"
+   ]
+  },
+  {
+   "id": "AT-WISKEY-MANAGED-INSTALL-2382-1",
+   "kind": "acceptance",
+   "task": "WISKEY-MANAGED-INSTALL-2382",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey A-c: Arx-managed install and upgrade (owner-started, policy B)",
+   "class": "BLOCKED-WISKEY",
+   "reason": "The managed path is fake-backed and green in the nightly, but a real run is unsafe until WisKey ships the Core image verifier (W1): the Core gate never says \"supported\" and a run needs the accepted-risk switch. Not in the 07.11 session.",
+   "tests_in_nightly": [
+    {
+     "file": "evidence-wiskey-managed-2382.spec.ts",
+     "nightly_passed": 20,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_self_update.py",
+     "nightly_passed": 24,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_self_update_s3.py",
+     "nightly_passed": 42,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_managed_install_2382.py",
+     "nightly_passed": 67,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-wiskey-managed.spec.ts",
+     "nightly_passed": 24,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ]
+  },
+  {
+   "id": "AT-WISKEY-INBOUND-CALLS-2382-1",
+   "kind": "acceptance",
+   "task": "WISKEY-INBOUND-CALLS-2382",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey A-e: inbound station calls in Arx",
+   "class": "LAB",
+   "reason": "A real ring from a station, the banner latency and real pick up / reject on real transitions were never run (mocks only).",
+   "tests_in_nightly": [
+    {
+     "file": "evidence-incoming-call.spec.ts",
+     "nightly_passed": 35,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 4
+    },
+    {
+     "file": "pixel-incoming-call.spec.ts",
+     "nightly_passed": 8,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_access_permissions_wxperm.py",
+     "nightly_passed": 21,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_intercom.py",
+     "nightly_passed": 182,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_intercom_calls_2382.py",
+     "nightly_passed": 17,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_notify_sources.py",
+     "nightly_passed": 37,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_security_review_wxd_fixes.py",
+     "nightly_passed": 23,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-incoming-calls.spec.ts",
+     "nightly_passed": 39,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ],
+   "lab_runbook_steps": [
+    "D8"
+   ]
+  },
+  {
+   "id": "AT-WISKEY-JOIN-LIVE-2382-1",
+   "kind": "acceptance",
+   "task": "WISKEY-JOIN-LIVE-2382",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey T1: direct join starts and stops at runtime",
+   "class": "COVERED-AUTO",
+   "reason": "Runtime re-evaluation and teardown of the direct join: test_wiskey_join_live_2382 (38 passed) and neighbours in the nightly; the join state is shown on the status page (read in step D2).",
+   "tests_in_nightly": [
+    {
+     "file": "test_calendar_attendees_2343.py",
+     "nightly_passed": 20,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_emergency_readiness_295.py",
+     "nightly_passed": 22,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_fake_doorwin_closed_rule_sr1.py",
+     "nightly_passed": 5,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_intercom_people_s7.py",
+     "nightly_passed": 15,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_intercom_writes_s11.py",
+     "nightly_passed": 41,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_join_live_2382.py",
+     "nightly_passed": 38,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wkjoin_295.py",
+     "nightly_passed": 23,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ],
+   "lab_runbook_steps": [
+    "D2"
+   ]
+  },
+  {
+   "id": "AT-WISKEY-RC10-PIN-2382-1",
+   "kind": "acceptance",
+   "task": "WISKEY-RC10-PIN-2382",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey T2: command contract re-pinned to 2.0.1-rc.10",
+   "class": "COVERED-AUTO",
+   "reason": "Pure contract pin: test_wiskey_rc10_pin (91 passed) and the contract suites in the nightly.",
+   "tests_in_nightly": [
+    {
+     "file": "test_alignment_controller.py",
+     "nightly_passed": 7,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_contract.py",
+     "nightly_passed": 53,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_mac_adopt_298.py",
+     "nightly_passed": 45,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_rc10_pin.py",
+     "nightly_passed": 91,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 1
+    },
+    {
+     "file": "test_wkr5_295.py",
+     "nightly_passed": 31,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ]
+  },
+  {
+   "id": "AT-WISKEY-STATUS-PAGE-2382-1",
+   "kind": "acceptance",
+   "task": "WISKEY-STATUS-PAGE-2382",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey T3: \"מצב WisKey\" status page",
+   "class": "LAB",
+   "reason": "The status rows came with the pairing branch; nobody checked the real page line by line against the T3 list (per-station entry health, readiness, Core gate). The lead does that on the lab page.",
+   "tests_in_nightly": [
+    {
+     "file": "test_t06_admission_295.py",
+     "nightly_passed": 63,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ],
+   "lab_runbook_steps": [
+    "D2"
+   ]
+  },
+  {
+   "id": "AT-WISKEY-STATION-OPS-2390-1",
+   "kind": "acceptance",
+   "task": "WISKEY-STATION-OPS-2390",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey T4: station maintenance actions (sync, rescan, health and clock refresh)",
+   "class": "LAB",
+   "reason": "Sync / rescan / health / clock refresh never reached a real WisKey; Q-WK-11 (service identity permission) is proven only by trying on one station, with approval.",
+   "tests_in_nightly": [
+    {
+     "file": "evidence-wiskey-station-media.spec.ts",
+     "nightly_passed": 58,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 8
+    },
+    {
+     "file": "evidence-wiskey-station-ops.spec.ts",
+     "nightly_passed": 27,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "evidence-wiskey-stations.spec.ts",
+     "nightly_passed": 134,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 7
+    },
+    {
+     "file": "layout-wiskey-stations.spec.ts",
+     "nightly_passed": 3,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "pixel-wiskey-stations.spec.ts",
+     "nightly_passed": 17,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "test_eccact_readback_295.py",
+     "nightly_passed": 17,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_pwclean_295.py",
+     "nightly_passed": 15,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wa_pacing_coverage_295.py",
+     "nightly_passed": 39,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_channels.py",
+     "nightly_passed": 41,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "test_wiskey_contract.py",
+     "nightly_passed": 53,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_diagnostics.py",
+     "nightly_passed": 14,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_station_ops.py",
+     "nightly_passed": 26,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wkdirect_295.py",
+     "nightly_passed": 53,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-wiskey-station-ops.spec.ts",
+     "nightly_passed": 21,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ],
+   "lab_runbook_steps": [
+    "D10"
+   ]
+  },
+  {
+   "id": "AT-WISKEY-CONFLICTS-2390-1",
+   "kind": "acceptance",
+   "task": "WISKEY-CONFLICTS-2390",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey T5: conflicts resolve and fleet alert actions",
+   "class": "LAB",
+   "reason": "Conflicts review / resolve and fleet alert actions are fake-backed; the first real review is read-only, a resolve needs the owner's approval (Q-WK-11 unproven).",
+   "tests_in_nightly": [
+    {
+     "file": "evidence-wiskey-deeplinks.spec.ts",
+     "nightly_passed": 10,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 1
+    },
+    {
+     "file": "evidence-wiskey-pairing-2382.spec.ts",
+     "nightly_passed": 20,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 10
+    },
+    {
+     "file": "evidence-wiskey-triage-2400.spec.ts",
+     "nightly_passed": 20,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 10
+    },
+    {
+     "file": "pixel-access-status.spec.ts",
+     "nightly_passed": 14,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 2
+    },
+    {
+     "file": "pixel-wiskey-deeplinks.spec.ts",
+     "nightly_passed": 4,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "pixel-wiskey-stations.spec.ts",
+     "nightly_passed": 17,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "pixel-wiskey-triage-2400.spec.ts",
+     "nightly_passed": 6,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_capabilities.py",
+     "nightly_passed": 3,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_eccact_readback_295.py",
+     "nightly_passed": 17,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_intercom_adapter.py",
+     "nightly_passed": 33,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_migrations_263_upgrade.py",
+     "nightly_passed": 2,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_notify_core.py",
+     "nightly_passed": 27,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_plan_routes_unique.py",
+     "nightly_passed": 1,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_pwclean_295.py",
+     "nightly_passed": 15,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_quiet103.py",
+     "nightly_passed": 15,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_release_check.py",
+     "nightly_passed": 3,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_secfix2_pub07_guard_first.py",
+     "nightly_passed": 35,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wa_pacing_coverage_295.py",
+     "nightly_passed": 39,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_channels.py",
+     "nightly_passed": 41,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "test_wiskey_contract.py",
+     "nightly_passed": 53,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_diagnostics.py",
+     "nightly_passed": 14,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_triage_2400.py",
+     "nightly_passed": 22,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wkdirect_295.py",
+     "nightly_passed": 53,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-wiskey-deeplinks.spec.ts",
+     "nightly_passed": 51,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-wiskey-stations-nav.spec.ts",
+     "nightly_passed": 21,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-wiskey-triage-2400.spec.ts",
+     "nightly_passed": 51,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ],
+   "lab_runbook_steps": [
+    "D15"
+   ]
+  },
+  {
+   "id": "AT-WISKEY-DOOR-TECH-2390-1",
+   "kind": "acceptance",
+   "task": "WISKEY-DOOR-TECH-2390",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey T6: door technical writes (hold-open schedules, public codes, programs)",
+   "class": "LAB",
+   "reason": "Door technical writes are fake-backed. In the session: read views and one hold-open draft save / delete (rc.10 keeps drafts inactive). The public code write and program save / pause stay out of this session unless the owner decides otherwise, so this card may close only partly.",
+   "tests_in_nightly": [
+    {
+     "file": "evidence-wiskey-door-tech.spec.ts",
+     "nightly_passed": 14,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 7
+    },
+    {
+     "file": "evidence-wiskey-stations.spec.ts",
+     "nightly_passed": 134,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 7
+    },
+    {
+     "file": "layout-wiskey-stations.spec.ts",
+     "nightly_passed": 3,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "pixel-wiskey-door-tech.spec.ts",
+     "nightly_passed": 4,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "pixel-wiskey-stations.spec.ts",
+     "nightly_passed": 17,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "test_eccact_readback_295.py",
+     "nightly_passed": 17,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_intercom_adapter.py",
+     "nightly_passed": 33,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_pwclean_295.py",
+     "nightly_passed": 15,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wa_pacing_coverage_295.py",
+     "nightly_passed": 39,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_channels.py",
+     "nightly_passed": 41,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "test_wiskey_contract.py",
+     "nightly_passed": 53,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_door_tech.py",
+     "nightly_passed": 31,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wkdirect_295.py",
+     "nightly_passed": 53,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-wiskey-door-tech.spec.ts",
+     "nightly_passed": 24,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ],
+   "lab_runbook_steps": [
+    "E3",
+    "E5"
+   ]
+  },
+  {
+   "id": "AT-WISKEY-SCHED-WRITE-2390-1",
+   "kind": "acceptance",
+   "task": "WISKEY-SCHED-WRITE-2390",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey T7: device schedule library writes",
+   "class": "BLOCKED-WISKEY",
+   "reason": "Station schedule writes stay off until WisKey enables them (rc.10: schedule_writes_unverified).",
+   "tests_in_nightly": [
+    {
+     "file": "evidence-access-schedules.spec.ts",
+     "nightly_passed": 25,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 2
+    },
+    {
+     "file": "evidence-wiskey-schedule-writes.spec.ts",
+     "nightly_passed": 16,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 8
+    },
+    {
+     "file": "layout-access-schedules.spec.ts",
+     "nightly_passed": 8,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "pixel-access-schedules.spec.ts",
+     "nightly_passed": 14,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 2
+    },
+    {
+     "file": "pixel-wiskey-schedule-writes.spec.ts",
+     "nightly_passed": 8,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_access_control_wire.py",
+     "nightly_passed": 23,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_capabilities.py",
+     "nightly_passed": 3,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_db_gate.py",
+     "nightly_passed": 31,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_eccact_readback_295.py",
+     "nightly_passed": 17,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_intercom_adapter.py",
+     "nightly_passed": 33,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_plan_routes_unique.py",
+     "nightly_passed": 1,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_pwclean_295.py",
+     "nightly_passed": 15,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_secfix2_pub07_guard_first.py",
+     "nightly_passed": 35,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_channels.py",
+     "nightly_passed": 41,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "test_wiskey_contract.py",
+     "nightly_passed": 53,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_schedule_writes.py",
+     "nightly_passed": 24,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wkdirect_295.py",
+     "nightly_passed": 53,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-schedule-editor-logic.spec.ts",
+     "nightly_passed": 8,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ]
+  },
+  {
+   "id": "AT-WISKEY-PROFILES-EDIT-2390-1",
+   "kind": "acceptance",
+   "task": "WISKEY-PROFILES-EDIT-2390",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey T8: groups and profile fields editing",
+   "class": "LAB",
+   "reason": "Groups / profile preview, apply and versions compare never ran on a real WisKey; the owner's pending step (stations 9 and 10 into groups) is a natural real case.",
+   "tests_in_nightly": [
+    {
+     "file": "evidence-access-status.spec.ts",
+     "nightly_passed": 26,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 1
+    },
+    {
+     "file": "evidence-wiskey-profiles.spec.ts",
+     "nightly_passed": 33,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "pixel-wiskey-people.spec.ts",
+     "nightly_passed": 22,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 1
+    },
+    {
+     "file": "test_pwclean_295.py",
+     "nightly_passed": 15,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_channels.py",
+     "nightly_passed": 41,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "test_wiskey_profiles.py",
+     "nightly_passed": 35,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-wiskey-profiles.spec.ts",
+     "nightly_passed": 36,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ],
+   "lab_runbook_steps": [
+    "D14"
+   ]
+  },
+  {
+   "id": "AT-WISKEY-PEOPLE-COMPLETE-2390-1",
+   "kind": "acceptance",
+   "task": "WISKEY-PEOPLE-COMPLETE-2390",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey T9: people completeness (PIN and duplicate checks, unmanaged users)",
+   "class": "LAB",
+   "reason": "PIN and duplicate checks and the unmanaged-users list need the real stations' users (the lab has one limited station user the owner keeps on purpose).",
+   "tests_in_nightly": [
+    {
+     "file": "evidence-station-people-2390.spec.ts",
+     "nightly_passed": 9,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 15
+    },
+    {
+     "file": "test_pwclean_295.py",
+     "nightly_passed": 15,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_channels.py",
+     "nightly_passed": 41,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "test_wiskey_station_people_2390.py",
+     "nightly_passed": 18,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-station-people-2390.spec.ts",
+     "nightly_passed": 33,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ],
+   "lab_runbook_steps": [
+    "D13"
+   ]
+  },
+  {
+   "id": "AT-WISKEY-ACCESS-DIAG-2400-1",
+   "kind": "acceptance",
+   "task": "WISKEY-ACCESS-DIAG-2400",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey T10: access diagnostics views",
+   "class": "LAB",
+   "reason": "Read-only views against real WisKey data; none was opened on the lab.",
+   "tests_in_nightly": [
+    {
+     "file": "evidence-wiskey-access-diag.spec.ts",
+     "nightly_passed": 15,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 9
+    },
+    {
+     "file": "evidence-wiskey-deeplinks.spec.ts",
+     "nightly_passed": 10,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 1
+    },
+    {
+     "file": "pixel-wiskey-access-diag.spec.ts",
+     "nightly_passed": 10,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "pixel-wiskey-deeplinks.spec.ts",
+     "nightly_passed": 4,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_access_control_wire.py",
+     "nightly_passed": 23,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_eccact_readback_295.py",
+     "nightly_passed": 17,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_fake_wiskey.py",
+     "nightly_passed": 21,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_intercom_adapter.py",
+     "nightly_passed": 33,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_intercom_authority.py",
+     "nightly_passed": 27,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_pwclean_295.py",
+     "nightly_passed": 15,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_release_check.py",
+     "nightly_passed": 3,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wa_pacing_coverage_295.py",
+     "nightly_passed": 39,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_access_diag.py",
+     "nightly_passed": 18,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_channels.py",
+     "nightly_passed": 41,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "unit-wiskey-access-diag.spec.ts",
+     "nightly_passed": 42,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-wiskey-deeplinks.spec.ts",
+     "nightly_passed": 51,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ],
+   "lab_runbook_steps": [
+    "D12"
+   ]
+  },
+  {
+   "id": "AT-WISKEY-OPS-VIEWS-2400-1",
+   "kind": "acceptance",
+   "task": "WISKEY-OPS-VIEWS-2400",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey T11: operations and fleet views",
+   "class": "LAB",
+   "reason": "Read-only operations / fleet views against real WisKey data; none was opened on the lab.",
+   "tests_in_nightly": [
+    {
+     "file": "layout-settings-nav-fit-402.spec.ts",
+     "nightly_passed": 3,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 6
+    },
+    {
+     "file": "test_pwclean_295.py",
+     "nightly_passed": 15,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_channels.py",
+     "nightly_passed": 41,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "test_wiskey_ops_views_2400.py",
+     "nightly_passed": 32,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ],
+   "lab_runbook_steps": [
+    "D12"
+   ]
+  },
+  {
+   "id": "AT-WISKEY-WA-QUEUE-2400-1",
+   "kind": "acceptance",
+   "task": "WISKEY-WA-QUEUE-2400",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey T12: messaging completion on the installed client",
+   "class": "BLOCKED-WISKEY",
+   "reason": "Policy B (the lab's manual-upgrade profile) disables WisKey's installed queue: template registry, enqueue, job, cancel and send_v3 answer installation_unavailable on the lab.",
+   "tests_in_nightly": [
+    {
+     "file": "evidence-wa-installed-2400.spec.ts",
+     "nightly_passed": 8,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 7
+    },
+    {
+     "file": "evidence-wiskey-messaging-settings.spec.ts",
+     "nightly_passed": 21,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "layout-wiskey-messaging.spec.ts",
+     "nightly_passed": 8,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 16
+    },
+    {
+     "file": "pixel-wiskey-messaging.spec.ts",
+     "nightly_passed": 24,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "test_db_gate.py",
+     "nightly_passed": 31,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_eccact_readback_295.py",
+     "nightly_passed": 17,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_intercom_consent_link.py",
+     "nightly_passed": 35,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_intercom_messaging.py",
+     "nightly_passed": 127,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_intercom_messaging_review265.py",
+     "nightly_passed": 59,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_pwclean_295.py",
+     "nightly_passed": 15,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_release_check.py",
+     "nightly_passed": 3,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_tplv2_295.py",
+     "nightly_passed": 38,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wa_pacing_coverage_295.py",
+     "nightly_passed": 39,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wa_template_send_w11.py",
+     "nightly_passed": 88,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_adopt_2272_contrib.py",
+     "nightly_passed": 39,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_adopt_2272_features.py",
+     "nightly_passed": 38,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_channels.py",
+     "nightly_passed": 41,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "test_wiskey_contract.py",
+     "nightly_passed": 53,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_owner26_callers_297.py",
+     "nightly_passed": 20,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_rc10_pin.py",
+     "nightly_passed": 91,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 1
+    },
+    {
+     "file": "test_wiskey_wa_queue_2400.py",
+     "nightly_passed": 49,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wkjoin_295.py",
+     "nightly_passed": 23,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-wa-installed.spec.ts",
+     "nightly_passed": 21,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ]
+  },
+  {
+   "id": "AT-WISKEY-VISITS-2400-1",
+   "kind": "acceptance",
+   "task": "WISKEY-VISITS-2400",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey T13: visits and guest templates decision and bridge",
+   "class": "OWNER",
+   "reason": "Not built; waits for the owner's question Q6 (map WisKey visits / guest templates onto Arx visitors, or retire them; recommendation a: Arx's own flow only)."
+  },
+  {
+   "id": "AT-WISKEY-CLOCK-VIEW-2400-1",
+   "kind": "acceptance",
+   "task": "WISKEY-CLOCK-VIEW-2400",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey T14: clock / NTP and WisKey media options view",
+   "class": "LAB",
+   "reason": "Clock drift / NTP and the provider check shipped in 2.40.0 but were \"not checked against the installation\".",
+   "tests_in_nightly": [
+    {
+     "file": "evidence-wiskey-installer.spec.ts",
+     "nightly_passed": 52,
+     "nightly_failed_first_attempt": 1,
+     "nightly_skipped": 19
+    },
+    {
+     "file": "test_capabilities.py",
+     "nightly_passed": 3,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_pwclean_295.py",
+     "nightly_passed": 15,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_channels.py",
+     "nightly_passed": 41,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "test_wiskey_contract.py",
+     "nightly_passed": 53,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_diagnostics.py",
+     "nightly_passed": 14,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_installer_clock.py",
+     "nightly_passed": 20,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_installer_lifecycle.py",
+     "nightly_passed": 11,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_installer_platform.py",
+     "nightly_passed": 8,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_installer_technical.py",
+     "nightly_passed": 9,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-settings-index.spec.ts",
+     "nightly_passed": 18,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-wiskey-installer.spec.ts",
+     "nightly_passed": 27,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ],
+   "lab_runbook_steps": [
+    "D11"
+   ]
+  },
+  {
+   "id": "AT-WISKEY-EVENT-CURSOR-2390-1",
+   "kind": "acceptance",
+   "task": "WISKEY-EVENT-CURSOR-2390",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey T15: gap-free events after a restart (event cursor)",
+   "class": "LAB",
+   "reason": "\"No door event missed across restarts\" is proven on fakes; the real proof is comparing WisKey's events with Arx's feed across the session's one Home Assistant restart.",
+   "tests_in_nightly": [
+    {
+     "file": "test_migrations_263_upgrade.py",
+     "nightly_passed": 2,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_event_cursor_2400.py",
+     "nightly_passed": 22,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_pairing_2382.py",
+     "nightly_passed": 32,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_s5_migration_upgrade.py",
+     "nightly_passed": 4,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ],
+   "lab_runbook_steps": [
+    "G1",
+    "G3"
+   ]
+  },
+  {
+   "id": "AT-WISKEY-LIVE-VALIDATION-2390-1",
+   "kind": "acceptance",
+   "task": "WISKEY-LIVE-VALIDATION-2390",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey T16: live validation screen for commissioning",
+   "class": "LAB",
+   "reason": "The commissioning screen needs a real station and one witnessed door pulse, approved by the owner.",
+   "tests_in_nightly": [
+    {
+     "file": "evidence-wiskey-live-validation-2390.spec.ts",
+     "nightly_passed": 16,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 5
+    },
+    {
+     "file": "test_door_automation_295.py",
+     "nightly_passed": 93,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_eccact_features_295.py",
+     "nightly_passed": 33,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_t06_work_states_297.py",
+     "nightly_passed": 60,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_w031_295.py",
+     "nightly_passed": 5,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_live_validation_2390.py",
+     "nightly_passed": 58,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_s5_migration_upgrade.py",
+     "nightly_passed": 4,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wkcap_295.py",
+     "nightly_passed": 42,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wkpeer_295.py",
+     "nightly_passed": 109,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-wiskey-live-validation-2390.spec.ts",
+     "nightly_passed": 15,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ],
+   "lab_runbook_steps": [
+    "E6"
+   ]
+  },
+  {
+   "id": "AT-WISKEY-SVC-GRANT-2400-1",
+   "kind": "acceptance",
+   "task": "WISKEY-SVC-GRANT-2400",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey T17: service-write grant path",
+   "class": "BLOCKED-WISKEY",
+   "reason": "Waits for WisKey to publish a service-write grant writer (native_service_grants_v1 has no writer on a manual install)."
+  },
+  {
+   "id": "AT-WISKEY-DEEPLINKS-2382-1",
+   "kind": "acceptance",
+   "task": "WISKEY-DEEPLINKS-2382",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey T18: deep links into the embedded panel for everything not native",
+   "class": "COVERED-AUTO",
+   "reason": "Every non-native capability has a link to the exact panel tab: unit (51), evidence and pixel specs green in the nightly.",
+   "tests_in_nightly": [
+    {
+     "file": "evidence-access-schedules.spec.ts",
+     "nightly_passed": 25,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 2
+    },
+    {
+     "file": "evidence-wiskey-deeplinks.spec.ts",
+     "nightly_passed": 10,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 1
+    },
+    {
+     "file": "pixel-wiskey-deeplinks.spec.ts",
+     "nightly_passed": 4,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-wiskey-deeplinks.spec.ts",
+     "nightly_passed": 51,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ]
+  },
+  {
+   "id": "AT-WISKEY-ACTIVATION-RUNBOOK-0411-1",
+   "kind": "acceptance",
+   "task": "WISKEY-ACTIVATION-RUNBOOK-0411",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey T19: activation runbook for the 04.11 joint session",
+   "class": "OWNER",
+   "reason": "The runbook exists (private/handoff-package/SESSION_2026-11-04/02_WISKEY_ACTIVATION_HE.md, gitignored) and was used on 04.11; its open steps are folded into the 07.11 lab runbook (private/design-system-2026-10-27/lab-0711/index.html). Accepting it as done is the owner's judgement."
+  },
+  {
+   "id": "AT-WISKEY-LISTEN-2410-1",
+   "kind": "acceptance",
+   "task": "WISKEY-LISTEN-2410",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey T20: standalone listen to a station",
+   "class": "BLOCKED-WISKEY",
+   "reason": "WisKey publishes no station audio downlink outside a call."
+  },
+  {
+   "id": "AT-WISKEY-EMERGENCY-LOCK-2410-1",
+   "kind": "acceptance",
+   "task": "WISKEY-EMERGENCY-LOCK-2410",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey T21: emergency LOCK / secure",
+   "class": "BLOCKED-WISKEY",
+   "reason": "WisKey answers emergency_secure_unsupported_v1; door_engine_live keeps lock_supported = False."
+  },
+  {
+   "id": "AT-WISKEY-RING-STATION-2410-1",
+   "kind": "acceptance",
+   "task": "WISKEY-RING-STATION-2410",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey T22: operator-initiated ringing call to a station",
+   "class": "BLOCKED-WISKEY",
+   "reason": "WisKey has no command that rings a station (media/call is read-only; media/signal is answer / reject / hang up)."
+  },
+  {
+   "id": "AT-WISKEY-INSTALLER-NATIVE-2400-1",
+   "kind": "acceptance",
+   "task": "WISKEY-INSTALLER-NATIVE-2400",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey installer tools natively in Arx (platform, clock, station technical settings)",
+   "class": "LAB",
+   "reason": "Installer tools are fake-backed; the read views (clock / NTP, station technical settings) are checked on the lab. The Home Assistant reconfigure flow against a real core stays out of the session (a write on the HA entry).",
+   "tests_in_nightly": [
+    {
+     "file": "evidence-wiskey-installer.spec.ts",
+     "nightly_passed": 52,
+     "nightly_failed_first_attempt": 1,
+     "nightly_skipped": 19
+    },
+    {
+     "file": "test_capabilities.py",
+     "nightly_passed": 3,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_pwclean_295.py",
+     "nightly_passed": 15,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_channels.py",
+     "nightly_passed": 41,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "test_wiskey_contract.py",
+     "nightly_passed": 53,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_diagnostics.py",
+     "nightly_passed": 14,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_installer_clock.py",
+     "nightly_passed": 20,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_installer_lifecycle.py",
+     "nightly_passed": 11,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_installer_platform.py",
+     "nightly_passed": 8,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_installer_technical.py",
+     "nightly_passed": 9,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-settings-index.spec.ts",
+     "nightly_passed": 18,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-wiskey-installer.spec.ts",
+     "nightly_passed": 27,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ],
+   "lab_runbook_steps": [
+    "D11"
+   ]
+  },
+  {
+   "id": "AT-RELEASE-2390-TRAIN-1",
+   "kind": "release gate",
+   "task": "RELEASE-2390-TRAIN",
+   "catalog_status": "NOT_RUN",
+   "title": "Release 2.39.0: WisKey operator writes, people completeness, live validation, managed install",
+   "class": "COVERED-AUTO",
+   "reason": "Tagged v2.39.0; runner gate PASS on the tag commit a8eac3176 (first gate on 8216c6359 failed, fixed); in the nightly.",
+   "tests_in_nightly": [
+    {
+     "file": "evidence-station-people-2390.spec.ts",
+     "nightly_passed": 9,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 15
+    },
+    {
+     "file": "evidence-wiskey-people-native.spec.ts",
+     "nightly_passed": 55,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 2
+    },
+    {
+     "file": "evidence-wiskey-stations.spec.ts",
+     "nightly_passed": 134,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 7
+    },
+    {
+     "file": "test_pwclean_295.py",
+     "nightly_passed": 15,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_t06_admission_295.py",
+     "nightly_passed": 63,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "test_wiskey_channels.py",
+     "nightly_passed": 41,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "test_wiskey_door_tech.py",
+     "nightly_passed": 31,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_live_validation_2390.py",
+     "nightly_passed": 58,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_station_ops.py",
+     "nightly_passed": 26,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "git tag",
+     "tag": "v2.39.0",
+     "commit": "a8eac3176",
+     "ancestor_of_nightly_sha": true
+    },
+    {
+     "kind": "runner release gate",
+     "report": "runner:~/smplwise-results/gate_release-2390-train_a8eac3176.md",
+     "gate2": "runner:~/smplwise-results/gate_release-2390-train_a8eac3176.gate2.md",
+     "verdict": "PASS (gate-2 engine verdict pass)",
+     "sha": "a8eac3176"
+    },
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ]
+  },
+  {
+   "id": "AT-RELEASE-2391-1",
+   "kind": "release gate",
+   "task": "RELEASE-2391",
+   "catalog_status": "NOT_RUN",
+   "title": "Release 2.39.1: the Arx bridge keeps its pairing after a re-pair and after restarts",
+   "class": "COVERED-AUTO",
+   "reason": "Tagged v2.39.1 = 613f4b0ef; runner gate PASS on that commit (fix/BRIDGE-STALE-DISCOVERY-2383; the run on 2affd5834 failed and was fixed by 613f4b0ef); in the nightly.",
+   "tests_in_nightly": [
+    {
+     "file": "test_bridge_stale_discovery_2383.py",
+     "nightly_passed": 31,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_fake_doorwin_closed_rule_sr1.py",
+     "nightly_passed": 5,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-bridge-stale-discovery-2383.spec.ts",
+     "nightly_passed": 6,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "git tag",
+     "tag": "v2.39.1",
+     "commit": "613f4b0ef",
+     "ancestor_of_nightly_sha": true
+    },
+    {
+     "kind": "runner release gate",
+     "report": "runner:~/smplwise-results/gate_fix-BRIDGE-STALE-DISCOVERY-2383_613f4b0ef.md",
+     "gate2": "runner:~/smplwise-results/gate_fix-BRIDGE-STALE-DISCOVERY-2383_613f4b0ef.gate2.md",
+     "verdict": "PASS (gate-2 engine verdict pass)",
+     "sha": "613f4b0ef"
+    },
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ]
+  },
+  {
+   "id": "AT-RELEASE-2400-TRAIN-1",
+   "kind": "release gate",
+   "task": "RELEASE-2400-TRAIN",
+   "catalog_status": "NOT_RUN",
+   "title": "Release 2.40.0: video transport, fixed TTS engine, installer tools, presence card, owner answers round 18",
+   "class": "COVERED-AUTO",
+   "reason": "Tagged v2.40.0; runner gate PASS on the tag commit d6294fc51 (first gate on 36385bcb2 failed, fixed); in the nightly.",
+   "tests_in_nightly": [
+    {
+     "file": "test_fake_doorwin_closed_rule_sr1.py",
+     "nightly_passed": 5,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_pwclean_295.py",
+     "nightly_passed": 15,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_readiness_96.py",
+     "nightly_passed": 21,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_t06_admission_295.py",
+     "nightly_passed": 63,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "test_wiskey_channels.py",
+     "nightly_passed": 41,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "test_wiskey_pairing_2382.py",
+     "nightly_passed": 32,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_wiskey_station_ops.py",
+     "nightly_passed": 26,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "git tag",
+     "tag": "v2.40.0",
+     "commit": "d6294fc51",
+     "ancestor_of_nightly_sha": true
+    },
+    {
+     "kind": "runner release gate",
+     "report": "runner:~/smplwise-results/gate_release-2400-train_d6294fc51.md",
+     "gate2": "runner:~/smplwise-results/gate_release-2400-train_d6294fc51.gate2.md",
+     "verdict": "PASS (gate-2 engine verdict pass)",
+     "sha": "d6294fc51"
+    },
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ]
+  },
+  {
+   "id": "AT-RELEASE-2401-TRAIN-1",
+   "kind": "release gate",
+   "task": "RELEASE-2401-TRAIN",
+   "catalog_status": "NOT_RUN",
+   "title": "Release 2.40.1: phone wall toolbar, intercom settings cards, bridge 0.10.4",
+   "class": "COVERED-AUTO",
+   "reason": "Tagged v2.40.1; runner gate PASS on the tag commit 0e8c3109b (first gate on d6e20460f failed, fixed); in the nightly. The lab items of 2.40.1 (bridge warning gone, phone long press) are in the lab runbook, not in this release card.",
+   "tests_in_nightly": [
+    {
+     "file": "evidence-wiskey-installer.spec.ts",
+     "nightly_passed": 52,
+     "nightly_failed_first_attempt": 1,
+     "nightly_skipped": 19
+    },
+    {
+     "file": "pixel-settings-intercom-cards-2401.spec.ts",
+     "nightly_passed": 3,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "test_bridge_install.py",
+     "nightly_passed": 5,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "unit-wall-phone-bar-2401.spec.ts",
+     "nightly_passed": 48,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "git tag",
+     "tag": "v2.40.1",
+     "commit": "0e8c3109b",
+     "ancestor_of_nightly_sha": true
+    },
+    {
+     "kind": "runner release gate",
+     "report": "runner:~/smplwise-results/gate_release-2401-train_0e8c3109b.md",
+     "gate2": "runner:~/smplwise-results/gate_release-2401-train_0e8c3109b.gate2.md",
+     "verdict": "PASS (gate-2 engine verdict pass)",
+     "sha": "0e8c3109b"
+    },
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ]
+  },
+  {
+   "id": "AT-WISKEY-LAB-ACTIVATION-0411-1",
+   "kind": "acceptance",
+   "task": "WISKEY-LAB-ACTIVATION-0411",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey activation on the lab installation (04.11 joint session)",
+   "class": "LAB",
+   "reason": "Done on 2026-11-04: update, signed check, re-pair, provider WisKey, direct join, a talk attempt. Still NOT_RUN: door map, live validation, door windows / emergency view, talk on 2.40.x. Listen is BLOCKED-WISKEY (AT-WISKEY-LISTEN-2410-1) and is excluded from this card's session scope.",
+   "lab_runbook_steps": [
+    "D1",
+    "D6",
+    "E1",
+    "E4",
+    "E6"
+   ]
+  },
+  {
+   "id": "AT-LAB-AUDITS-0411-1",
+   "kind": "acceptance",
+   "task": "LAB-AUDITS-0411",
+   "catalog_status": "NOT_RUN",
+   "title": "Read-only lab audits of 04.11: logs and faults, station and camera video, door events and station users",
+   "class": "OWNER",
+   "reason": "The three read-only audits were written on 2026-11-04 (private/planning/LAB_AUDIT_*_2026-11-04_HE.md, gitignored) and each finding has an owner. There is nothing to run; the owner accepts the findings and their routing."
+  },
+  {
+   "id": "AT-LAB-NVR-DOOR-READONLY-0411-1",
+   "kind": "acceptance",
+   "task": "LAB-NVR-DOOR-READONLY-0411",
+   "catalog_status": "NOT_RUN",
+   "title": "Read-only checks of 04.11 evening: recorder sub streams of two panoramic cameras, door contact input on one station",
+   "class": "OWNER",
+   "reason": "The read-only reads were done on 2026-11-04 evening (addendum of LAB_AUDIT_VIDEO_2026-11-04_HE.md) and named the owner's next physical steps (cameras 8 / 10 sub stream, door contact), which are steps C11 and E2. Accepting the read-only result is the owner's judgement.",
+   "lab_runbook_steps": [
+    "C11",
+    "E2"
+   ]
+  },
+  {
+   "id": "AT-WISKEY-ADDENDUM-GAPS-0411-1",
+   "kind": "acceptance",
+   "task": "WISKEY-ADDENDUM-GAPS-0411",
+   "catalog_status": "NOT_RUN",
+   "title": "WisKey gaps found while building 2.38.2 - 2.40.0 (addendum for the WisKey team)",
+   "class": "BLOCKED-WISKEY",
+   "reason": "The addendum is written (private/planning/WISKEY_GAPS_ADDENDUM_2026-11-04.md); the card closes when the WisKey team answers each gap. The owner forwards it."
+  },
+  {
+   "id": "AT-OWNER-LAB-ACTIONS-0411-1",
+   "kind": "acceptance",
+   "task": "OWNER-LAB-ACTIONS-0411",
+   "catalog_status": "NOT_RUN",
+   "title": "Owner lab actions after 04.11",
+   "class": "LAB",
+   "reason": "The owner's steps: full backup, install the latest version, one Home Assistant restart for the bridge, the video plan, cameras 8 / 10 sub stream, the door contact check, stations 9 / 10 into groups. Forwarding the WisKey addendum and choosing the next session date are not lab steps.",
+   "lab_runbook_steps": [
+    "A2",
+    "A4",
+    "B1",
+    "B2",
+    "B3",
+    "B4",
+    "C1",
+    "C3",
+    "C11",
+    "D14",
+    "E2",
+    "G2"
+   ]
+  },
+  {
+   "id": "AT-GUIDE-BOARD-2402-1",
+   "kind": "acceptance",
+   "task": "GUIDE-BOARD-2402",
+   "catalog_status": "NOT_RUN",
+   "title": "User guide for 2.40.0 / 2.40.1 and the task board after 04.11",
+   "class": "COVERED-AUTO",
+   "reason": "scripts/build_guide.py --check passes on the release commit of 2.40.2 (ccb77f28d) and on the nightly commit eab715e53; the backend tests that read guide pages pass in the nightly. FINDING: on the 2.40.5 train (eadc5b080) the check fails (\"GUIDE_ALL_HE.html is stale\") because WXH-LEFTOVERS-2405 (b5aa0548c) edited a guide page without rebuilding GUIDE_ALL_HE.html; the 2.40.5 train should run scripts/build_guide.py before its tag.",
+   "tests_in_nightly": [
+    {
+     "file": "pixel-settings-intercom-cards-2401.spec.ts",
+     "nightly_passed": 3,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 3
+    },
+    {
+     "file": "test_bridge_key_activation_295.py",
+     "nightly_passed": 30,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    },
+    {
+     "file": "test_extid_followups.py",
+     "nightly_passed": 20,
+     "nightly_failed_first_attempt": 0,
+     "nightly_skipped": 0
+    }
+   ],
+   "receipts": [
+    {
+     "kind": "workstation command",
+     "command": "python -I scripts/build_guide.py --check (on a git archive of the commit)",
+     "commit": "ccb77f28d",
+     "result": "GUIDE_ALL_HE.html is up to date (rc 0)"
+    },
+    {
+     "kind": "workstation command",
+     "command": "python -I scripts/build_guide.py --check (on a git archive of the commit)",
+     "commit": "eab715e53",
+     "result": "GUIDE_ALL_HE.html is up to date (rc 0)"
+    },
+    {
+     "kind": "workstation command",
+     "command": "python scripts/build_guide.py --check",
+     "commit": "eadc5b080",
+     "result": "GUIDE_ALL_HE.html is stale: run scripts/build_guide.py (rc 1) - finding for the 2.40.5 train"
+    },
+    {
+     "kind": "nightly",
+     "report": "runner:~/smplwise-results/nightly/gate_main_eab715e53.md",
+     "sha": "eab715e53",
+     "verdict": "PASS (tier L)"
+    }
+   ]
+  }
+ ]
+}
