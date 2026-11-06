@@ -46,13 +46,14 @@ async function setup(page: Page, body: unknown, banner = false) {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await installFrigate(page, newFrigateMock({ perms: ADMIN }));
   const calls: { method: string; path: string; body: unknown }[] = [];
+  let current = body as Record<string, unknown>; // the server keeps what a PUT saved (the card reloads with a GET after every change)
   await page.route('**/api/v1/system/bridge-key**', async (route) => {
     const req = route.request();
     const p = new URL(req.url()).pathname;
     calls.push({ method: req.method(), path: p, body: req.method() === 'GET' ? null : req.postDataJSON() });
     if (p.endsWith('/notice')) return json(route, { show: banner, open: banner ? 1 : 0, contacts_set: false });
-    if (req.method() === 'PUT') return json(route, status({ owner_contacts: CONTACTS((req.postDataJSON() as { user_ids: string[] }).user_ids) }));
-    return json(route, body);
+    if (req.method() === 'PUT') current = { ...current, owner_contacts: CONTACTS((req.postDataJSON() as { user_ids: string[] }).user_ids) };
+    return json(route, current);
   });
   return calls;
 }
