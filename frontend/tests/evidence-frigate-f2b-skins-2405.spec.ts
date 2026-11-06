@@ -12,7 +12,8 @@ import { isFoundation, PICKER_SKINS } from './helpers/frozen-skins';
 // and its per-skin shots were taken in bubble, frozen since 2026-10-26. This spec closes that gap; it changes no screen.
 //
 // Per skin and scheme: the management card's F2b tabs (profiles with the automatic profile, exports, cases, manual events, supervision)
-// and the classes tab (PTZ stays out while the server says ptz_released: false), the export create dialog with the supervision box,
+// and the classes tab (PTZ stays out while the server says ptz_released: false; a folded export / case row keeps its state and origin as a
+// tag - the one defect this walk found, fixed on this branch), the export create dialog with the supervision box,
 // the typed-name delete dialog (a protected action: the button waits for the exact name), and the review drawer's export dialog.
 // Each state: no page error, no sideways overflow of the page, the layout guard (escape / overflow / clipped) over the card or the
 // dialog, no platform name. Foundation skins (infra, soft: not yet in the per-skin matrix, SKINFOUND-297) are walked the same way;
@@ -97,6 +98,21 @@ for (const skin of PICKER_SKINS) {
         const fx = box.locator('[data-frigate-exports]');
         await expect(fx.locator('[data-fx-row]')).toHaveCount(2);
         await expect(fx.locator('[data-fx-row="exp-fr-1"] [data-fx-delete-btn]')).toHaveCount(0);
+        // regression (this branch): a folded row keeps what its hidden columns said - the export still being written, and that a
+        // Frigate-made row is not Arx's (why it has no rename / delete); the wide table says it in its own columns instead
+        const folded = !(await fx.locator('.tbl .h').first().isVisible());
+        const frState = fx.locator('[data-fx-row="exp-fr-1"] [data-fx-fold-state]');
+        const frOrigin = fx.locator('[data-fx-row="exp-fr-1"] [data-fx-fold-origin]');
+        if (folded) {
+          await expect(frState).toBeVisible();
+          await expect(frState).toHaveText('בתהליך');
+          await expect(frOrigin).toBeVisible();
+          await expect(frOrigin).toContainText('Frigate');
+          await expect(fx.locator('[data-fx-row="exp-arx-1"] [data-fx-fold-origin]')).toHaveCount(0);
+        } else {
+          await expect(frState).toBeHidden();
+          await expect(frOrigin).toBeHidden();
+        }
         await look(page, ctx('exports'), CARD, found, box);
         await shot(page, box, `exports-${skin}-${scheme}`);
         // the create dialog: the first export of this recorder carries the supervision box and waits for it
@@ -123,6 +139,10 @@ for (const skin of PICKER_SKINS) {
         // cases
         await tab(box, 'תיקים').click();
         await expect(box.locator('[data-frigate-cases] [data-fc-row]')).toHaveCount(2);
+        const fcOrigin = box.locator('[data-frigate-cases] [data-fc-row="case-fr-1"] [data-fc-fold-origin]');
+        if (await box.locator('[data-frigate-cases] .tbl .h').first().isVisible()) await expect(fcOrigin).toBeHidden();
+        else await expect(fcOrigin).toContainText('Frigate');
+        await expect(box.locator('[data-frigate-cases] [data-fc-row="case-arx-1"] [data-fc-fold-origin]')).toHaveCount(0);
         await look(page, ctx('cases'), CARD, found, box);
         if (shotAll) await shot(page, box, `cases-${skin}-${scheme}`);
         // manual events: the form on one camera, nothing open yet

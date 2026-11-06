@@ -169,7 +169,7 @@ export class FrigateCasesPanel extends LitElement {
           : html`<b title=${x.name}>${x.name || x.id}</b>`}
         ${ren ? supervisedBox(this.first, 'case_rename', ren.supervised, (v) => (this.renaming = { ...ren, supervised: v }), 'case_rename') : nothing}
       </div>
-      <div class="c sub muted" role="cell" title=${x.description}>${x.description || dateText(x.created_at, this.tz || undefined)}</div>
+      <div class="c sub muted" role="cell" title=${x.description}>${x.arx_created ? nothing : html`<span class="fold" data-fc-fold-origin>${e.foreign} ·&nbsp;</span>`}${x.description || dateText(x.created_at, this.tz || undefined)}</div>
       <div class="c ltr muted" role="cell">${dateText(x.created_at, this.tz || undefined)}</div>
       <div class="c muted" role="cell">${x.arx_created ? e.arx : e.foreign}</div>
       <div class="c acts" role="cell">

@@ -150,6 +150,21 @@ export const adminStyles = css`
     .tbl .r .acts {
       grid-area: acts;
     }
+    .tbl .r .fold {
+      display: inline;
+    }
+    .tbl .r .fold.chip {
+      display: inline-flex;
+    }
+  }
+  /* FRIGATE-F2B-2405: what a folded row would lose with its hidden columns (an export still being written, a Frigate-made row
+     that is not Arx's to rename or delete) comes back as a tag on the sub line, drawn only while folded */
+  .tbl .fold {
+    display: none;
+    vertical-align: baseline;
+  }
+  .tbl .fold.chip {
+    margin-inline-end: var(--sw-s-1);
   }
   .empty {
     padding: var(--sw-s-4);
