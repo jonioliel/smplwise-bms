@@ -1,0 +1,10 @@
+# WXH-like 25-file selection, workstation, branch code before the leak fixes (modules loaded at start), with a leak-probe hook
+# probe: tests after which intercom_sync.STATE.wiskey_version / SYNC.has_copy() / STATE.state / SW_HA_CONFIG_DIR changed
+tests/test_bridge_key_pause_295.py::test_every_unfinished_state_pauses_a_door_open_and_nothing_is_sent[prepared]: (None, False, 'idle', None) -> (None, True, 'ready', None)
+tests/test_notify_sources.py::test_the_real_intercom_cache_store_signals_a_ring: (None, True, 'ready', None) -> ('4.2.0', True, 'ready', None)
+tests/test_notify_sources.py::test_the_app_starts_and_stops_the_monitor: ('4.2.0', True, 'ready', None) -> ('4.2.0', True, 'ha_not_configured', None)
+
+# short test summary (pytest -q; ~744 other tests passed)
+=========================== short test summary info ===========================
+FAILED tests/test_notify_channels.py::test_release_route_accepts_and_audits_the_notification_origin
+FAILED tests/test_wiskey_pairing_2382.py::test_rotation_switch_on_is_a_warning_with_a_fix

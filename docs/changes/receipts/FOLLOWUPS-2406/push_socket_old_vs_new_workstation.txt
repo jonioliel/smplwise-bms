@@ -1,0 +1,11 @@
+# workstation (Windows, Python 3.12, 8 logical CPUs: default executor = 12 threads), branch 46b4cb579's test
+# test_followups_2406.py::test_a_state_push_is_not_held_up_by_other_idle_sockets run twice in one session:
+#  - as committed (push_queue.next_item, no thread per socket)
+#  - through a temporary wrapper test (not committed) that monkeypatched push_queue.next_item back to the old
+#    `asyncio.wait_for(loop.run_in_executor(None, q.get, True, 30), timeout=31)`
+E       AssertionError: heartbeat
+E       assert 'heartbeat' == 'ha_sync_state'
+PASSED tests/test_followups_2406.py::test_a_state_push_is_not_held_up_by_other_idle_sockets
+FAILED tests/test_zz_tmp_oldwait.py::test_old_wait - AssertionError: heartbeat
+1 failed, 1 passed, 7 deselected, 1 warning in 94.85s (0:01:34)
+# old wait: the /ha/ws socket's first frame was the 30 s heartbeat - the published state was starved behind 34 idle /events/ws waits.
