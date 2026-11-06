@@ -329,7 +329,9 @@ _sub_lock = threading.Lock()
 
 
 def subscribe() -> queue.Queue:
-    q: queue.Queue = queue.Queue(maxsize=200)
+    from .push_queue import PushQueue  # FOLLOWUPS-2406: the /events/ws handler waits on it without a thread
+
+    q: queue.Queue = PushQueue(maxsize=200)
     with _sub_lock:
         _subscribers.append(q)
     return q

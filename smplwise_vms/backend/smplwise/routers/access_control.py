@@ -50,6 +50,7 @@ from ..errors import ApiError, forbidden
 from ..rbac import INSTALLATION, STATION, Principal, authorize, note_grant, require
 from ..services import bridge_rotation, capture_lease, capture_lease_route, door_authority, ha_bridge, lease_events, trusted_door
 from ..services import go2rtc as g2
+from ..services import push_queue
 from ..services import intercom_adapter, intercom_client, intercom_sync, wiskey_background_feed, wiskey_camera, wiskey_diagnostics
 from ..services import intercom_authority as ia
 from ..services import intercom_writes as iw
@@ -2119,7 +2120,7 @@ async def intercom_ws(websocket: WebSocket) -> None:
         await websocket.accept()
         while True:
             try:
-                msg = await asyncio.wait_for(asyncio.get_event_loop().run_in_executor(None, q.get, True, 30), timeout=31)
+                msg = await push_queue.next_item(q, 30)  # FOLLOWUPS-2406: no executor thread held per socket
             except (asyncio.TimeoutError, queue.Empty):
                 msg = None
             if time.time() - last_check > RECHECK_S:

@@ -221,3 +221,55 @@ test('a strip that fits shows no arrow', async ({ page }) => {
   expect(p.more).toBeNull();
   expect(p.arrows).toEqual(['hidden', 'hidden']);
 });
+
+test('FOLLOWUPS-2406: the automatic reveal does not depend on the widths the strip passed through', async ({ page }) => {
+  // The shell's top strip changes width while it settles (the title-row chips from 1100 px, the fit pump); which width the first
+  // resize callback saw used to decide the final scroll position (installer-lifecycle-1440 drew the strip scrolled in 1 of 2 runs).
+  await go(page, 'general');
+  const r = await page.evaluate(async () => {
+    const frames = () => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(res, 120))));
+    const make = (width: number) => {
+      const box = document.createElement('div');
+      box.style.cssText = `position:fixed;top:0;right:0;z-index:99;width:${width}px`;
+      const el = document.createElement('sw-tabs') as HTMLElement & { items: unknown[]; active: string };
+      el.items = Array.from({ length: 12 }, (_, i) => ({ id: `t${i}`, label: `לשונית מספר ${i + 1}` }));
+      el.active = 't7';
+      box.appendChild(el);
+      document.body.appendChild(box);
+      return { box, el };
+    };
+    const scrollOf = (el: HTMLElement) => Math.round(el.shadowRoot!.querySelector<HTMLElement>('[data-tabs-viewport]')!.scrollLeft);
+    const overflow = (el: HTMLElement) => {
+      const vp = el.shadowRoot!.querySelector<HTMLElement>('[data-tabs-viewport]')!;
+      return vp.scrollWidth - vp.clientWidth;
+    };
+    // straight to the final width
+    const fresh = make(560);
+    await frames();
+    const direct = scrollOf(fresh.el);
+    const directOverflow = overflow(fresh.el);
+    fresh.box.remove();
+    // narrow first (the reveal scrolls further), then the final width
+    const moved = make(260);
+    await frames();
+    const narrow = scrollOf(moved.el);
+    moved.box.style.width = '560px';
+    await frames();
+    const settled = scrollOf(moved.el);
+    // after the person scrolled, a resize only keeps the active tab in view (it does not jump back)
+    moved.el.shadowRoot!.querySelector<HTMLElement>('[data-tabs-viewport]')!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+    moved.box.style.width = '300px';
+    await frames();
+    moved.box.style.width = '560px';
+    await frames();
+    const vp = moved.el.shadowRoot!.querySelector<HTMLElement>('[data-tabs-viewport]')!.getBoundingClientRect();
+    const on = moved.el.shadowRoot!.querySelector<HTMLElement>('.on')!.getBoundingClientRect();
+    const afterManual = on.left >= vp.left - 1 && on.right <= vp.right + 1;
+    moved.box.remove();
+    return { direct, directOverflow, narrow, settled, afterManual };
+  });
+  expect(r.directOverflow, 'the final width still overflows (otherwise the check proves nothing)').toBeGreaterThan(20);
+  expect(r.narrow, 'the narrow width needed a further scroll').not.toBe(r.direct);
+  expect(r.settled).toBe(r.direct);
+  expect(r.afterManual, 'the active tab stays in view after a manual scroll and a resize').toBe(true);
+});

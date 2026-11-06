@@ -161,7 +161,7 @@ def feed(settings, monkeypatch):
 
     s = replace(settings, ha_url="http://ha.local:8123", ha_token="t")
     intercom_sync.SYNC.reset()
-    # the normal reconnect backoff, shortened so a test sees several attempts; RETRY_ABSENT_S stays five minutes
+    # the normal reconnect backoff, shortened so a test sees several attempts; the absent re-probe ladder stays 15 s / 30 s / 60 s
     monkeypatch.setattr(intercom_sync, "RETRY_S", 0.05)
     monkeypatch.setattr(intercom_sync, "RETRY_MAX_S", 0.2)
     fakes: list[FakeHa] = []
@@ -265,7 +265,52 @@ def test_not_installed_when_wiskey_is_absent(feed):
     assert body["state"] == "not_installed" and body["configured"] is True
     assert body["overview"] is None and body["fresh"] is False and body["last_error"] == "unknown_command"
     time.sleep(0.4)
-    assert len(fakes) == 1, "an absent integration is re-probed after RETRY_ABSENT_S, not on the short backoff"
+    assert len(fakes) == 1, "an absent integration is re-probed on the absent ladder (15 s first), not on the short backoff"
+
+
+def test_absent_re_probe_ladder_values():
+    """FOLLOWUPS-2406: the production ladder is 15 s, 30 s, then 60 s for as long as WisKey stays absent (it was a flat
+    five minutes, so a WisKey back after a long absence waited up to five minutes)."""
+    assert [intercom_sync.absent_delay(n) for n in range(1, 7)] == [15.0, 30.0, 60.0, 60.0, 60.0, 60.0]
+    assert intercom_sync.absent_delay(0) == 15.0, "a zero count never means 'no wait'"
+    assert intercom_sync.absent_delay(500) == 60.0 and intercom_sync.absent_delay(100_000) == 60.0, "capped, no float overflow after days absent"
+
+
+def test_absent_wiskey_is_re_probed_on_the_ladder_and_comes_back_by_itself(feed, monkeypatch):
+    """FOLLOWUPS-2406: with HA up and WisKey absent, each re-probe waits longer (first, double, then the cap) and the
+    first probe after WisKey is back turns the feed `ready` without a restart. The ladder is scaled down (0.15 s /
+    0.6 s cap) with the same shape as production's 15 s / 60 s."""
+    app, s, install = feed
+    monkeypatch.setattr(intercom_sync, "RETRY_ABSENT_FIRST_S", 0.15)
+    monkeypatch.setattr(intercom_sync, "RETRY_ABSENT_S", 0.6)
+    back = {"yes": False}
+    probes: list[float] = []
+
+    def script(msg: dict[str, Any], fake: FakeHa) -> list[Any]:
+        if msg["type"] == "hikvision_intercom/overview":
+            probes.append(time.monotonic())
+            if not back["yes"]:
+                return [fail(msg, "unknown_command")]
+        if msg["type"] == "get_config":
+            return [ha_config(msg)]  # HA RUNNING: unknown_command means not installed
+        return normal(msg, fake)
+
+    fakes = install(script)
+    intercom_sync.SYNC.start(s)
+    wait_for(lambda: len(probes) >= 5, timeout=10)
+    assert intercom_sync.STATE.state == "not_installed"
+    gaps = [b - a for a, b in zip(probes, probes[1:])]
+    # 0.15, 0.3, 0.6, 0.6 (+ connect overhead): each wait at least its step, and the cap really caps
+    for gap, step in zip(gaps, (0.15, 0.3, 0.6, 0.6)):
+        assert gap >= step * 0.9, (gaps, "a re-probe came before its step")
+    assert gaps[1] > gaps[0] * 1.5 and gaps[2] > gaps[1] * 1.5, (gaps, "the wait grows")
+    assert gaps[3] < 0.6 * 3 * sw_time_factor(), (gaps, "capped, not doubling on")
+    assert all(f.types()[:2] == ["auth", "hikvision_intercom/overview"] for f in fakes), "each probe is one overview on a fresh socket"
+
+    back["yes"] = True  # WisKey installed / loaded again
+    wait_for(lambda: intercom_sync.STATE.state == "ready", timeout=5)
+    body = TestClient(app).get("/api/v1/intercom/overview").json()
+    assert body["state"] == "ready" and body["fresh"] is True and body["overview"]["stations"], "back without a restart"
 
 
 def test_ha_restart_is_not_read_as_not_installed(feed):
@@ -335,7 +380,7 @@ def test_wiskey_gone_after_ready_is_concluded_after_a_few_quick_probes(feed):
         body = TestClient(app).get("/api/v1/intercom/overview").json()
         assert body["overview"] is None and body["last_error"] == "unknown_command", "now it is gone: the copy is dropped"
         time.sleep(0.4)
-        assert len(fakes) == 1 + intercom_sync.ABSENT_AFTER_READY, "and from here on the five-minute re-probe"
+        assert len(fakes) == 1 + intercom_sync.ABSENT_AFTER_READY, "and from here on the absent ladder (15 s first)"
     finally:
         intercom_sync.unsubscribe(q)
 
