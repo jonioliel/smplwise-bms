@@ -81,6 +81,10 @@ test.describe('pixel: the person writes', () => {
     await compare(page, info, 'ask-reason');
     await page.locator(`${ACTIONS} [data-action-confirm]`).click();
     await expect(page.locator(`${ACTIONS} [data-action-result="saved"]`)).toBeVisible();
+    // PIXEL-DRIFT-2405: after a saved write the list reads the rows again, 800 ms later (NOTICE_COALESCE_MS, one refetch for a burst).
+    // The screenshot raced that refetch: the baseline caught the row behind the dialog already "מושבת", a quick run caught it still
+    // "פעיל" (176 px under the scrim, inside the tolerance, so it never failed). Wait for the refreshed row, as the baseline shows it.
+    await expect(page.locator(`${SCREEN} [data-person-row="p8"] sw-badge[label="מושבת"]`).first()).toBeAttached();
     await compare(page, info, 'saved');
     await page.locator(`${ACTIONS} [data-action-close]`).click();
     await expect(page.locator('wiskey-person-drawer [data-person-result="saved"]')).toBeVisible();
