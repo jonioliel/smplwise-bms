@@ -18747,7 +18747,8 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "2026-11-04 (REGISTRY-AUDIT-20261103): written (document, not in git). WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T19): written as private/handoff-package/SESSION_2026-11-04/02_WISKEY_ACTIVATION_HE.md (local, gitignored, updated 03.11 evening); its own status line says NOT_RUN - nothing was run against the installation."
+      "2026-11-04 (REGISTRY-AUDIT-20261103): written (document, not in git). WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T19): written as private/handoff-package/SESSION_2026-11-04/02_WISKEY_ACTIVATION_HE.md (local, gitignored, updated 03.11 evening); its own status line says NOT_RUN - nothing was run against the installation.",
+      "commit 443476275 (pilot/V1-REMAINING-2406, not on origin/main, not released) - 2026-11-06 (V1-REMAINING-2406): the ladder in the repository, generic and updated to 2.40.5: docs/operations/WISKEY_ACTIVATION_RUNBOOK.md (door map, provider, signed pairing check, video_talk, listen, station acceptance run, door windows / emergency; screen, writes, expected status rows and reason codes, rollback and approval wording per step) and the drift test smplwise_vms/backend/tests/test_wiskey_activation_runbook.py (16 passed on the workstation; every key, row, reason, pairing line, check, route and label checked against the code, plus a leak scan). Change record docs/changes/V1-REMAINING-2406.md section 3. The runbook itself is NOT_RUN (no session ran it)."
     ],
     "owner": null,
     "commit": null,
