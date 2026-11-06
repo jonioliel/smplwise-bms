@@ -1,6 +1,6 @@
 # Project status — generated view
 
-Generated: 2026-11-06T08:17:05.747345+00:00
+Generated: 2026-11-06T07:46:03.721482+00:00
 
 Tasks: 451 | Requirements: 560 | Tests: 577 | Screens: 32
 
@@ -28,10 +28,10 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - T004: Excluded - OBSOLETE by owner decision 2026-11-05 (round 22, Q2 = א on the BOARD-HYGIENE-2403 candidates; relayed by the coordinator, no written answers file): superseded by the owner's exclusion of 2026-09-22 (docs/architecture/DECISIONS.md. Not to be worked; the card is kept.
 - T096: Real FCM / APNs delivery needs the owner's Firebase project and Apple account (docs/operations/ARX_PUSH_RELAY_DEPLOY_HE.md); the relay Worker is not deployed. The CR-012 wake design is treated as superseded by the CR-027 relay (the CR-012 document itself still says "Proposed"); the go-live work is PUSH-GOLIVE-KIT-2380.
 - WXD5B: Excluded - OBSOLETE by owner decision 2026-11-05 (round 22, Q2 = א on the BOARD-HYGIENE-2403 candidates; relayed by the coordinator, no written answers file): superseded by door actions go over the WisKey direct join (docs/changes/DOORLIVE-2310.md, owner decisions 2026-10-30), not a bridge door_open / door_open_status service. Not to be worked; the card is kept.
-- WXH3: Not a work blocker: the Arx part is built on pilot/WXH-LEFTOVERS-2405 (not merged). BLOCKED only because the registry rule needs every dependency DONE (WXH2 is REVIEW).
+- WXH3: Not a work blocker any more: The owner lifted the 2026-10-10 deferral on 2026-10-20 (private/planning/OWNER_DECISIONS_2026-10-20_NIGHT.md, round 4 item 4: "HMAC key rotation: build now (activation only after a Fable review)"); built as HMACROT-295 / HMACACT-295 / HMACACT2-295, docs/changes/CR-WISKEY-HMAC-ROTATION-295.md. The status stays BLOCKED only because the registry rule needs every dependency DONE (owner acceptance).
 - WXH4: Waits for two owner decisions (CR-WISKEY-HMAC-ROTATION-295 section 16.3: delivery of the new key and who may reveal it) and a bridge release; the 2026-10-10 deferral itself was lifted on 2026-10-20.
-- WXH5: Not a work blocker: the watchdog is built on pilot/WXH-LEFTOVERS-2405 (not merged). BLOCKED by the registry rule (WXH2 REVIEW) and by WXH4 (owner decisions).
-- WXH6: The Arx side is built on pilot/WXH-LEFTOVERS-2405 (not merged). Still open: the bridge side (a bridge release) and WisKey's high-water mechanism; BLOCKED also by the registry rule (WXH1 REVIEW, WXH4 BLOCKED).
+- WXH5: Not a work blocker any more: The owner lifted the 2026-10-10 deferral on 2026-10-20 (private/planning/OWNER_DECISIONS_2026-10-20_NIGHT.md, round 4 item 4: "HMAC key rotation: build now (activation only after a Fable review)"); built as HMACROT-295 / HMACACT-295 / HMACACT2-295, docs/changes/CR-WISKEY-HMAC-ROTATION-295.md. The status stays BLOCKED only because the registry rule needs every dependency DONE (owner acceptance).
+- WXH6: Not a work blocker any more: The owner lifted the 2026-10-10 deferral on 2026-10-20 (private/planning/OWNER_DECISIONS_2026-10-20_NIGHT.md, round 4 item 4: "HMAC key rotation: build now (activation only after a Fable review)"); built as HMACROT-295 / HMACACT-295 / HMACACT2-295, docs/changes/CR-WISKEY-HMAC-ROTATION-295.md. The status stays BLOCKED only because the registry rule needs every dependency DONE (owner acceptance).
 - WXH7: Not a work blocker any more: The owner lifted the 2026-10-10 deferral on 2026-10-20 (private/planning/OWNER_DECISIONS_2026-10-20_NIGHT.md, round 4 item 4: "HMAC key rotation: build now (activation only after a Fable review)"); built as HMACROT-295 / HMACACT-295 / HMACACT2-295, docs/changes/CR-WISKEY-HMAC-ROTATION-295.md. The status stays BLOCKED only because the registry rule needs every dependency DONE (owner acceptance).
 - WXIMP: Excluded - OBSOLETE by owner decision 2026-11-05 (round 22, Q2 = א on the BOARD-HYGIENE-2403 candidates; relayed by the coordinator, no written answers file): superseded by private/planning/OWNER_DECISIONS_2026-10-20_NIGHT.md round 1 item 7 (package install from Arx frozen) and round 4 item 6. Not to be worked; the card is kept.
 - REAL-TV-SESSION-2380: Waits for the owner (question Q2: a lab TV in a joint session this week, an Android TV box only, or fix blind); TV-FIT-2380 shipped in 2.38.0 (merge 571891e9d).

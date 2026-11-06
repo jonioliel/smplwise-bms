@@ -255,7 +255,7 @@ export class FrigateExportsPanel extends LitElement {
           : html`<b title=${x.name}>${x.name || x.id}</b>`}
         ${ren ? supervisedBox(this.first, 'export_rename', ren.supervised, (v) => (this.renaming = { ...ren, supervised: v }), 'export_rename') : nothing}
       </div>
-      <div class="c sub muted" role="cell">${this.camName(x.camera_id, x.camera)} · ${dateText(x.date, this.tz || undefined)}</div>
+      <div class="c sub muted" role="cell">${x.in_progress ? html`<span class="chip warn fold" data-fx-fold-state>${t.inProgress}</span>` : nothing}${x.arx_created ? nothing : html`<span class="fold" data-fx-fold-origin>${t.foreign} ·&nbsp;</span>`}${this.camName(x.camera_id, x.camera)} · ${dateText(x.date, this.tz || undefined)}</div>
       <div class="c ltr muted" role="cell">${dateText(x.date, this.tz || undefined)}</div>
       <div class="c" role="cell"><span class=${`chip ${x.in_progress ? 'warn' : 'ok'}`} data-fx-state=${x.in_progress ? 'progress' : 'ready'}>${x.in_progress ? t.inProgress : t.ready}</span></div>
       <div class="c muted" role="cell">${x.arx_created ? t.arx : t.foreign}</div>
