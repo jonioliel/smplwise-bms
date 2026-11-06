@@ -8,6 +8,7 @@ option `bootstrap_admin_username`; the grant happens once and is recorded in the
 """
 from __future__ import annotations
 
+import logging
 import sqlite3
 from typing import Callable
 
@@ -17,7 +18,7 @@ from .audit import audit
 from .config import Settings
 import time
 
-from .db import Database, commit_now, database_of, get_setting, new_id, now_iso, permission_revision, read_mode, release, set_setting, unlocked
+from .db import Database, commit_now, database_of, get_setting, is_storage_full, new_id, now_iso, permission_revision, read_mode, release, set_setting, unlocked
 from .errors import unauthenticated
 from .rbac import LOCAL_ID_PREFIX, Principal
 from .remote_channel import is_remote
@@ -167,8 +168,16 @@ def touch_user(conn: sqlite3.Connection, principal: Principal, force: bool = Fal
                                          last_seen_at = excluded.last_seen_at"""
     args = (principal.user_id, principal.username, principal.display_name, principal.source, now, now)
     if db is not None and read_mode(conn):
-        with db.write_aside() as w:
-            w.execute(sql, args)
+        try:
+            with db.write_aside() as w:
+                w.execute(sql, args)
+        except sqlite3.OperationalError as exc:
+            if not is_storage_full(exc):
+                raise
+            # T035 (outage run): a full data disk must not fail a READ (the status pill, a live view) for the sake of a last-seen
+            # stamp; it is tried again on the next request
+            logging.getLogger("smplwise.auth").warning("the last-seen stamp of a user could not be written (the data disk is full)")
+            return False
     else:
         conn.execute(sql, args)
     touched[key] = stamp

@@ -316,6 +316,16 @@ def is_busy(exc: BaseException) -> bool:
     return isinstance(exc, sqlite3.OperationalError) and ("locked" in text or "busy" in text)
 
 
+SQLITE_FULL = getattr(sqlite3, "SQLITE_FULL", 13)
+
+
+def is_storage_full(exc: BaseException) -> bool:
+    """T035: SQLite could not write because the data disk is full (SQLITE_FULL, "database or disk is full")."""
+    if not isinstance(exc, sqlite3.OperationalError):
+        return False
+    return getattr(exc, "sqlite_errorcode", None) == SQLITE_FULL or "disk is full" in str(exc).lower()
+
+
 def _caller(depth: int) -> str:
     try:
         f = sys._getframe(depth)

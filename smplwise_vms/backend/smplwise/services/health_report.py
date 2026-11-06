@@ -23,6 +23,7 @@ from ..mode import NVR_LESS_LABEL, installation_mode, is_ha_only
 
 PROBE_TTL_S = 20
 HA_GRACE_S = 60  # NVR-less mode: a Home Assistant disconnection longer than this is an error
+STORAGE_ERROR_FREE = 512 * 1024**2  # less free space than this on /data is an error (the report's storage check and the top-bar summary)
 STARTED = time.time()
 _probe_lock = threading.Lock()
 _probe_cache: dict[str, tuple[float, dict[str, Any]]] = {}
@@ -163,7 +164,7 @@ def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> d
         du = shutil.disk_usage(settings.data_dir)
         sizes = {"plans": _dir_size(settings.plans_dir), "thumbs": _dir_size(settings.data_dir / "thumbs"), "backups": _dir_size(settings.data_dir / "backups"), "exports": _dir_size(settings.data_dir / "exports"), "imported": _dir_size(settings.data_dir / "imported")}
         free_ratio = du.free / du.total if du.total else 1
-        st = "error" if du.free < 512 * 1024**2 else "warn" if (du.free < 2 * 1024**3 or free_ratio < 0.10) else "ok"
+        st = "error" if du.free < STORAGE_ERROR_FREE else "warn" if (du.free < 2 * 1024**3 or free_ratio < 0.10) else "ok"
         checks.append(_check("storage", "אחסון התוסף (/data)", st, f"פנוי {_fmt_bytes(du.free)} מתוך {_fmt_bytes(du.total)} · תוכניות {_fmt_bytes(sizes['plans'])} · תמונות אירועים {_fmt_bytes(sizes['thumbs'])} · גיבויים {_fmt_bytes(sizes['backups'])} · ייצוא {_fmt_bytes(sizes['exports'])} · ראיות מיובאות {_fmt_bytes(sizes['imported'])}", free=du.free, total=du.total, **sizes))
     except OSError as exc:
         checks.append(_check("storage", "אחסון התוסף (/data)", "error", f"לא ניתן לקרוא את שטח הדיסק ({type(exc).__name__})"))
@@ -356,7 +357,11 @@ def summary(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
             items.append({"id": "go2rtc", "status": "warn", "label": "סנכרון הזרמים ל־go2rtc נכשל"})
     else:
         items.append({"id": "nvr", "status": "warn", "label": "ה־NVR לא הוגדר"})
-    if is_ha_only(settings):
+    hs_now = ha_sync.STATE
+    if ha_client.configured(settings) and not hs_now.connected and hs_now.last_error == "ha_forbidden":
+        # T035 (outage run): the platform refused the add-on's token - this does not heal by waiting, so it is said plainly
+        items.append({"id": "ha", "status": "error", "label": "תשתית המערכת דחתה את הרשאת הגישה של התוסף — מצבי התקנים אינם מתעדכנים ופקודות לא יישלחו עד לחידוש ההרשאה"})
+    elif is_ha_only(settings):
         # NVR-less mode: Home Assistant is the whole product - missing, or down past a minute, is an error
         hs = ha_sync.STATE
         if not ha_client.configured(settings):
@@ -373,6 +378,11 @@ def summary(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
             items.append({"id": "ha", "status": "warn", "label": "אין חיבור לתשתית המערכת"})
     if thumbnails.STATE.get("last_error") == "ffmpeg_missing":
         items.append({"id": "thumbnails", "status": "warn", "label": "ffmpeg חסר — אין תמונות אירועים"})
+    try:  # T035 (outage run): a full data disk reaches every operator, not only the administrator's health report (same threshold)
+        if shutil.disk_usage(settings.data_dir).free < STORAGE_ERROR_FREE:
+            items.append({"id": "storage", "status": "error", "label": "אחסון התוסף כמעט מלא — שמירות, תיעוד פעולות ופקודות עלולים להיכשל"})
+    except OSError:
+        pass
     backups = backup_svc.list_backups(settings)
     last_age = _age_s(backups[0]["created_at"]) if backups else None
     if not backups:

@@ -6,6 +6,7 @@ import asyncio
 import logging
 import os
 import mimetypes
+import sqlite3
 import threading
 from pathlib import Path
 
@@ -17,7 +18,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import __version__, correlation_id
 from .config import DEV_NVR_PLACEHOLDER, Settings, load_settings
-from .db import Database
+from .db import Database, is_storage_full
 from .errors import ApiError, validation_payload
 from .mode import is_ha_only
 from . import recorder_scope
@@ -540,6 +541,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.exception_handler(ApiError)
     async def api_error(request: Request, exc: ApiError):
         return JSONResponse(status_code=exc.status, content=exc.payload(getattr(request.state, "correlation_id", "")))
+
+    @app.exception_handler(sqlite3.OperationalError)
+    async def storage_full(request: Request, exc: sqlite3.OperationalError):
+        # T035 (outage run): a full data disk reaches the operator as a clear, enveloped answer instead of a bare 500. Every
+        # other database error keeps its old path (re-raised: the server error and its trace, exactly as before).
+        if not is_storage_full(exc):
+            raise exc
+        log.error("the data disk is full: %s %s could not be saved", request.method, request.url.path)
+        return JSONResponse(status_code=507, content={"code": "storage_full", "user_message": "אחסון התוסף מלא, ולכן לא ניתן לשמור. יש לפנות מקום בדיסק של התוסף.",
+                                                      "retryable": False, "correlation_id": getattr(request.state, "correlation_id", ""), "details": {"storage": "full"}})
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error(request: Request, exc: StarletteHTTPException):
