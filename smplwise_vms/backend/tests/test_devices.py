@@ -1717,6 +1717,30 @@ def test_bulk_lights_and_screens_on_and_the_only_narrowing(bulk_app):
     assert c.post("/api/v1/devices/actions", json=_bulk(scope="building", id="*", kind="lights_off", only=[f"light.x{i}" for i in range(501)])).status_code == 422
 
 
+def test_review_l8_the_preview_takes_a_long_only_list_as_a_post_body(bulk_app):
+    """Integration review L8 (T097): a narrowed tiles panel's `only` (up to 500 ids, the run's cap) does not fit a GET query
+    behind HA Ingress, so the preview also answers POST with the same fields as JSON - the same reply and digest as the GET,
+    the same permission, the same caps, and nothing is sent."""
+    app, s, c, fake = bulk_app
+    q = {"scope": "building", "id": "*", "kind": "lights_off"}
+    got = c.get("/api/v1/devices/actions/preview", params={**q, "only": "light.lobby"}).json()
+    posted = c.post("/api/v1/devices/actions/preview", json={**q, "only": ["light.lobby"]})
+    assert posted.status_code == 200, posted.text
+    assert posted.json()["digest"] == got["digest"] and [t["entity_id"] for t in posted.json()["targets"]] == ["light.lobby"]
+    assert c.post("/api/v1/devices/actions/preview", json=q).json()["digest"] == c.get("/api/v1/devices/actions/preview", params=q).json()["digest"]
+    # 500 long ids - a query of ~30 KB - narrow exactly like a short list, and the narrowing still cannot widen
+    many = [f"light.{'x' * 50}{i}" for i in range(499)] + ["light.lobby"]
+    big = c.post("/api/v1/devices/actions/preview", json={**q, "only": many})
+    assert big.status_code == 200 and [t["entity_id"] for t in big.json()["targets"]] == ["light.lobby"] and big.json()["digest"] == got["digest"]
+    # the run's caps and a closed body
+    assert c.post("/api/v1/devices/actions/preview", json={**q, "only": [f"light.x{i}" for i in range(501)]}).status_code == 422
+    assert c.post("/api/v1/devices/actions/preview", json={**q, "confirmed": True}).status_code == 422
+    # the same permission as the GET: an operator (no devices.control_bulk) is refused
+    bind(c, s, "op", "operator", "installation", "*")
+    assert c.post("/api/v1/devices/actions/preview", json=q, headers=as_user("op")).status_code == 403
+    assert fake.calls == []
+
+
 def test_area_section_turn_all_on_mirrors_turn_all_off(bulk_app):
     """ALLON (owner 2026-10-10, "like there is turn-all-off there must be turn-all-on"): the area section's "הדלק הכל" is
     switches_on / lights_on at scope "area" - the same preview -> confirmed run as "כבה הכל": a protected switch (a boiler,

@@ -1099,6 +1099,26 @@ def test_review_l5_force_deleting_the_home_floor_ends_the_room_too(settings):
     assert not any(a.get("shared") for a in c.get(f"/api/v1/floors/{w['f3']}/map").json()["anchors"])
 
 
+def test_review_l6_the_members_reply_names_only_the_floors_the_reader_may_read(settings):
+    """Integration review L6 (T097): the room's floor list in the members reply is per viewer - a floor-3 viewer gets floor 3
+    only; a member anchored on floor 2 says "קומה אחרת" for it, without its id. The admin still gets both floors by id."""
+    w = _world(settings)
+    c = w["c"]
+    _share(w)
+    c.get("/api/v1/me", headers=as_user("dana"))
+    _binding(settings, "dana", "viewer", "floor", w["f3"])
+    url = f"/api/v1/zones/{w['hall']}/share/members"
+    admin = c.get(url).json()
+    assert [f["floor_id"] for f in admin["floors"]] == [w["f2"], w["f3"]] and ss.OTHER_FLOOR not in {f["name"] for f in admin["floors"]}
+    d = c.get(url, headers=as_user("dana"))
+    assert d.status_code == 200, d.text
+    body = d.json()
+    assert [f["floor_id"] for f in body["floors"]] == [w["f3"]], "floor 2 is not listed to a floor-3 viewer"
+    camh = next(m for m in body["members"] if m["resource_id"] == w["cams"]["camH"])
+    assert camh["floors"] == [{"floor_id": None, "name": ss.OTHER_FLOOR}], "no id of a floor she may not read"
+    assert w["f2"] not in json.dumps(body), "floor 2's id appears nowhere in her reply"
+
+
 # ------------------------------------------------ integration-review lows (SS1, 2.0.3)
 
 

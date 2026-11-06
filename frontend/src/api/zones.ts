@@ -116,8 +116,8 @@ export const removeShareMember = (zoneId: string, resourceType: ShareMember['res
   del(`zones/${zoneId}/share/members/${resourceType}/${encodeURIComponent(resourceId)}`);
 
 /** One member of a shared space as the READER may see it (owner 2026-09-30: each member filtered by the reader's own
- * permissions - a camera they may not view is not listed). `floors`: where it is anchored ("קומה אחרת" for a floor the
- * reader may not read). */
+ * permissions - a camera they may not view is not listed). `floors`: where it is anchored ("קומה אחרת" and no id for a
+ * floor the reader may not read - integration review L6). */
 export interface ShareMember {
   /** 'wiskey_station' (CR-009 §13): a WisKey station listed by name - not placed on any map, it grants no reach. */
   resource_type: 'camera' | 'ha_entity' | 'wiskey_station';
@@ -125,10 +125,11 @@ export interface ShareMember {
   kind: 'camera' | 'door' | 'device' | 'station';
   name: string;
   added_at?: string;
-  floors: { floor_id: string; name: string }[];
+  floors: { floor_id: string | null; name: string }[];
 }
 export interface ShareMembers {
   zone_id: string;
+  /** Only the room's floors the reader may read (integration review L6). */
   floors: { floor_id: string; name: string }[];
   members: ShareMember[];
   /** The share rights on every floor of the room: add and remove. Without them the list is read-only. */

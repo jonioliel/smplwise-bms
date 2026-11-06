@@ -922,8 +922,33 @@ def bulk_preview(
 ) -> dict[str, Any]:
     """Exactly what `POST /devices/actions` would send for this scope and kind, per entity - the confirmation dialog
     states it (count by domain, what is skipped as already off / unavailable, what is never included). Sends nothing."""
+    return _preview(conn, principal, scope, id, kind, position, _only(only), switches, building)
+
+
+class BulkPreviewBody(BaseModel):
+    """The preview's query as a JSON body (integration review L8): the tiles panel's `only` can hold up to 500 entity ids, a
+    query string too long for HA Ingress's request line. The same fields and caps as the run's body (BulkBody)."""
+    model_config = ConfigDict(extra="forbid")
+    scope: Scope
+    id: str = Field(min_length=1, max_length=255)
+    kind: Kind
+    position: int | None = Field(None, ge=0, le=100)
+    only: list[Annotated[str, Field(min_length=1, max_length=255)]] | None = Field(None, max_length=500)
+    switches: Literal["typed", "all"] = "typed"
+    building: str | None = Field(None, min_length=1, max_length=64)
+
+
+@router.post("/devices/actions/preview")
+def bulk_preview_post(body: BulkPreviewBody, principal: Principal = Depends(_bulk_reader), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """`GET /devices/actions/preview` with its fields in a JSON body - the client uses it when the query would be long (a
+    narrowed tiles panel's `only`). Read-only like the GET: the same permission, the same reply, sends nothing."""
+    return _preview(conn, principal, body.scope, body.id, body.kind, body.position, set(body.only) if body.only is not None else None, body.switches, body.building)
+
+
+def _preview(conn: sqlite3.Connection, principal: Principal, scope: Scope, id: str, kind: Kind, position: int | None, only: set[str] | None,  # noqa: A002
+             switches: Literal["typed", "all"], building: str | None) -> dict[str, Any]:
     try:
-        return bulk.resolve(conn, principal, scope, id, kind, position, _only(only), switches, building)
+        return bulk.resolve(conn, principal, scope, id, kind, position, only, switches, building)
     except ApiError as exc:
         if exc.status == 403:
             audit(conn, actor=principal, action=bulk.AUDIT_ACTION, decision="denied", resource_type=f"devices_{scope}", resource_id=id, reason=exc.code,

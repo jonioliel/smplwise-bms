@@ -147,7 +147,10 @@ function commandId(): string {
 /** SWITCH-LIGHT-DIMMER-2331: `switches: 'all'` (lights kinds only) - the set takes every switch.* too (the synoptic floor lights popup). */
 export async function previewBulk(scope: BulkScope, id: string, kind: BulkKind, position?: number, only?: string[], switches?: 'typed' | 'all', building?: string) {
   const sentAt = Date.now();
-  const p = await get<BulkPreview>(`devices/actions/preview?${previewQuery(scope, id, kind, position, only, switches, building)}`);
+  const query = previewQuery(scope, id, kind, position, only, switches, building);
+  const p = previewViaPost(query)
+    ? await post<BulkPreview>('devices/actions/preview', previewBody(scope, id, kind, position, only, switches, building))
+    : await get<BulkPreview>(`devices/actions/preview?${query}`);
   const receivedAt = Date.now();
   // the server read its clock somewhere during the round trip: assume the middle (error <= half the round trip)
   if (typeof p.server_time_ms === 'number') serverOffsetMs = p.server_time_ms - (sentAt + receivedAt) / 2;
@@ -163,6 +166,28 @@ export function previewQuery(scope: BulkScope, id: string, kind: BulkKind, posit
   if (switches === 'all') q.set('switches', 'all');
   if (building) q.set('building', building);
   return q.toString();
+}
+
+/** Integration review L8 (T097): HA Ingress caps the request line (about 8 KiB, its own path prefix included), and a narrowed tiles
+ * panel's `only` can hold up to 500 entity ids. A preview query longer than this goes as `POST /devices/actions/preview` with the
+ * same fields as JSON (the same reply); a shorter one stays the GET it always was. */
+export const PREVIEW_GET_MAX = 2000;
+
+export function previewViaPost(query: string): boolean {
+  return query.length > PREVIEW_GET_MAX;
+}
+
+/** The POST preview's body: the fields of previewQuery, `switches` and `building` only when previewQuery would send them. */
+export function previewBody(scope: BulkScope, id: string, kind: BulkKind, position?: number, only?: string[], switches?: 'typed' | 'all', building?: string) {
+  return {
+    scope,
+    id,
+    kind,
+    ...(position !== undefined ? { position } : {}),
+    ...(only ? { only } : {}),
+    ...(switches === 'all' ? { switches } : {}),
+    ...(building ? { building } : {}),
+  };
 }
 
 /** The physical request. `confirmed: true` is stated here and nowhere else: only the dialog's confirm button calls
