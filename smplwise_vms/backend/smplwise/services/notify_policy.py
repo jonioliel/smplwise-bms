@@ -21,7 +21,7 @@ from ..db import now_iso
 SEVERITIES = ("info", "alert", "critical")
 SEVERITY_RANK = {"info": 0, "alert": 1, "critical": 2}
 CATEGORIES = ("safety", "alerts", "doors", "device_faults", "automations", "system", "security", "tickets", "maintenance", "building")  # building: NOTICEPUSH-295 (the notice board's push, services/notices/push.py); tickets: CR-038 (services/tickets/notify_sources.py); maintenance: CR-MAINT215 (owner answer 24.10 q20)
-RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator", "ticket_managers", "ticket_assignee", "rfq_managers", "elevator", "temperature", "energy_bills", "water", "maintenance", "scenario", "notice", "calendar_attendee")  # calendar_attendee: CAL-ATTENDEES-2343 (services/calendar/attendee_notices.py); notice: NOTICEPUSH-295 (the notice's audience, services/notices/push.py); scenario: XSCENARIO109-295; maintenance: CR-MAINT215 (services/maintenance/reminders.py)  # water: CR-WATER78 slice 2 (services/water_alerts.py)  # energy_bills: ELECBILL77 (holders of energy.bills); elevator: the recipients chosen in Settings > Infrastructure > Elevators (services/elevator_alerts.py)  # rfq_managers: TKRFQ5 (services/tickets/rfq_notify.py); ticket_*: CR-038 (services/tickets/notify_bridge.py); generator: the routing saved on the generator screen (services/generator_alerts.py)
+RECIPIENT_RULES = ("scope", "managers", "initiator", "users", "generator", "ticket_managers", "ticket_assignee", "rfq_managers", "elevator", "temperature", "energy_bills", "water", "maintenance", "scenario", "notice", "calendar_attendee", "bridge_key_owner")  # bridge_key_owner: WXH-LEFTOVERS-2405 (services/bridge_key_notice.py: the owner contacts and every system administrator); calendar_attendee: CAL-ATTENDEES-2343 (services/calendar/attendee_notices.py); notice: NOTICEPUSH-295 (the notice's audience, services/notices/push.py); scenario: XSCENARIO109-295; maintenance: CR-MAINT215 (services/maintenance/reminders.py)  # water: CR-WATER78 slice 2 (services/water_alerts.py)  # energy_bills: ELECBILL77 (holders of energy.bills); elevator: the recipients chosen in Settings > Infrastructure > Elevators (services/elevator_alerts.py)  # rfq_managers: TKRFQ5 (services/tickets/rfq_notify.py); ticket_*: CR-038 (services/tickets/notify_bridge.py); generator: the routing saved on the generator screen (services/generator_alerts.py)
 CHANNELS_V1 = ("inbox", "webpush", "email", "app", "announce", "whatsapp")  # app = the SmplWise Arx phone app through the push relay (CR-027); announce = a spoken announcement (ANN2, services/announce_channel.py); whatsapp = the user's own number through the tickets module's WhatsApp infrastructure (NOTIFWA, services/notify_whatsapp.py)
 CHANNELS_RESERVED = ("ha_mobile",)
 NO_WHATSAPP_SOURCES = ("notify.whatsapp_number",)  # NOTIFWA re-review R2: a notice about the WhatsApp number never goes to WhatsApp
@@ -239,6 +239,16 @@ SOURCES: tuple[Source, ...] = (
     _s("security.local_passkey_clone", "חשד לשכפול מפתח גישה", "security", "alert", "חשד לשכפול מפתח גישה",
        "מפתח גישה (passkey) של משתמש Arx דיווח על מונה נמוך מהידוע - ייתכן שהוא שוכפל. הכניסה נדחתה. פרטים באודיט ובהגדרות › משתמשי Arx.",
        window_s=3600, who="managers", subject="system", resolves=False),
+    # WXH-LEFTOVERS-2405 (CR-034 sections 7, 8 and 12; services/bridge_key_notice.py): the bridge-key notices, to the owner contacts
+    # (`security.owner_contacts`) and every other system administrator (rule `bridge_key_owner`, a `system` subject). Content-free: never a
+    # key, a key id, a person or an address - the audit rows carry who and which rotation. `attention` is the watchdog's report of a
+    # condition that already fails closed (it resolves itself when the condition ends); `revoked` is the emergency revocation's notice
+    # (CR-034 section 8; the revocation itself is WXH4, not built - nothing emits it yet). E-mail and the phone app are on by default.
+    _s("security.bridge_key_attention", "מפתח הגשר דורש טיפול", "security", "alert", "מפתח הגשר דורש טיפול", "{detail}", who="bridge_key_owner",
+       email=True, app=True, subject="system", resolve_notice=True, resolve_text="מפתח הגשר תקין שוב"),
+    _s("security.bridge_key_revoked", "ביטול חירום של מפתח הגשר", "security", "critical", "בוטל מפתח הגשר",
+       "מנהל מערכת ביטל את מפתח הגשר. כל הפעולות דרך תשתית המערכת מושבתות עד צימוד מחדש. פרטים באודיט.", who="bridge_key_owner", email=True,
+       app=True, subject="system", resolves=False),
     # WISKEY-CONFLICTS-2400 (services/wiskey_triage.AlertFeed): a WisKey fleet alert (station offline, sync stalled / conflict / error, event
     # gap, clock drift) - one open row per station + kind, resolved when WisKey stops reporting it or it is snoozed. Signalled ONLY while the
     # setting `access.wiskey_alerts_notify` is on (default off; listed only then). To the managers (a `system` subject). The station's

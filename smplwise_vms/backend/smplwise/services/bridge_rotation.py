@@ -713,7 +713,55 @@ def view(conn: sqlite3.Connection, data_dir: Path, peer: peers.Peer | None = Non
         "can_start": blocked is None,
         "blocked_by": blocked,
         "automatic": automatic_state(conn, available),
+        **_leftovers_view(conn),
     }
+
+
+def _leftovers_view(conn: sqlite3.Connection) -> dict[str, Any]:
+    """WXH-LEFTOVERS-2405: the owner contacts, the watchdog's current conditions, the notice banner and the capability status the bridge is
+    handed (read only)."""
+    from . import bridge_key_notice, bridge_key_watchdog
+
+    status = key_status(conn)
+    reported = peers.reported_key_generation(conn)
+    return {
+        "owner_contacts": bridge_key_notice.view(conn),
+        "notice_banner": bridge_key_notice.banner(conn),
+        "watchdog": bridge_key_watchdog.view(conn),
+        "hand_over": {"key_generation": status["key_generation"], "last_rotation": status["last_rotation"],
+                      "anchor_decrease_available": status["anchor_decrease_available"],
+                      "bridge_generation": reported["generation"] if reported else None},
+    }
+
+
+# ---------------------------------------------------------------- capability status hand-over (WXH-LEFTOVERS-2405, CR-034 section 2 item 3)
+
+KEY_STATUS_PROTOCOL = "smplwise-key-status-v1"
+
+
+def key_status(conn: sqlite3.Connection) -> dict[str, Any]:
+    """What Arx hands the bridge, signed, in every answer to its directory push, for the bridge to pass on through the capability's status
+    (CR-034 section 2 item 3: WisKey must learn, WITHOUT any key material, that a generation change completed with V1c). Generation numbers,
+    the last finished rotation's id / mode / outcome / time and its anchor eligibility (R-25) - never a key, a key id, a salt or a proof.
+    `anchor_decrease_available` stays False: the decrease needs WisKey's high-water mechanism, which does not exist (R-25, the safe default)."""
+    gen: int | None = None
+    if _has_tables(conn):
+        cur = conn.execute("SELECT generation FROM bridge_keys WHERE state = 'current'").fetchone()
+        gen = int(cur["generation"]) if cur else None
+    if gen is None and get_setting(conn, "bridge.secret"):
+        gen = 0  # the plain pairing code, not adopted yet: generation 0 (`g0-legacy` once adopted)
+    last = None
+    try:
+        r = conn.execute(f"SELECT * FROM bridge_rotations WHERE state IN ({','.join('?' * (len(TERMINAL) + 1))}) ORDER BY started_at DESC, rowid DESC LIMIT 1",
+                         (*TERMINAL, "needs_repair")).fetchone()
+    except sqlite3.OperationalError:
+        r = None
+    if r is not None:
+        last = {"rotation_id": r["id"], "mode": r["mode"], "state": r["state"], "gen_from": r["gen_from"], "gen_to": r["gen_to"],
+                "verified_old_rejected": r["state"] == "verified", "anchor_eligible": bool(r["anchor_eligible"]) and r["state"] == "verified",
+                "completed_at": r["ended_at"]}
+    return {"protocol": KEY_STATUS_PROTOCOL, "key_generation": gen, "rotation_active": active_row(conn) is not None, "last_rotation": last,
+            "anchor_decrease_available": False}
 
 
 # ---------------------------------------------------------------- automatic start and the worker (HMACACT-295)
@@ -789,6 +837,7 @@ def worker_pass(db: Database, settings: Any, peer: peers.Peer | None = None, now
 
         bridge_discovery.retire(db, settings, sweep=False)
         acted = engine.tick()
+        _watch(db, now)
         if acted is not None:
             return acted
         with db.connection(mode="read") as conn:
@@ -802,6 +851,17 @@ def worker_pass(db: Database, settings: Any, peer: peers.Peer | None = None, now
     except Exception:  # noqa: BLE001 - a worker pass never takes the process down; the next pass looks again
         log.warning("bridge key rotation worker pass failed", exc_info=True)
         return None
+
+
+def _watch(db: Database, now: Callable[[], float]) -> None:
+    """WXH-LEFTOVERS-2405: after the engine's own round, the watchdog REPORTS conditions that already fail closed (services/bridge_key_watchdog:
+    read, audit, notice - it never starts, resumes or repairs a rotation and never calls the bridge). Never raises."""
+    try:
+        from . import bridge_key_watchdog
+
+        bridge_key_watchdog.check(db, now())
+    except Exception:  # noqa: BLE001
+        log.warning("bridge key watchdog failed", exc_info=True)
 
 
 async def worker_loop(db: Database, settings: Any, first_delay_s: float = 45.0) -> None:

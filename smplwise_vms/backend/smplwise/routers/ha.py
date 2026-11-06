@@ -664,6 +664,8 @@ def pairing(request: Request, principal: Principal = Depends(current_principal),
 @router.post("/ha/bridge/ping")
 def bridge_ping(message: dict[str, Any], conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Called by the integration during its config flow: proves the pairing code and marks the bridge paired."""
+    if "purpose" in message:  # WXH-LEFTOVERS-2405: `purpose` marks a message Arx signs FOR the bridge (cast origin, key status) - never a ping
+        raise ApiError(422, "bridge_bad_request", "גוף הודעה לא תקין.")
     ha_bridge.verify_message(conn, message)
     _lease_repair("repair")  # CR-WISKEY-LEASE-REVOCATION-EVENT T9: (re-)paired - every capture lease goes, a new stream
     set_setting(conn, "bridge.paired_at", now_iso())
@@ -686,6 +688,7 @@ def bridge_directory(message: dict[str, Any], request: Request, conn: sqlite3.Co
     if message.get("protocol") is not None or message.get("op") is not None or not isinstance(message.get("users"), list):
         raise ApiError(422, "bridge_bad_request", "גוף הודעה לא תקין.")
     peer_mod.note_capability(conn, message.get("rotation"))  # HMACACT-295: the bridge (0.9.5+) announces its key-rotation support in the signed push
+    peer_mod.note_key_generation(conn, message.get("key_generation"))  # WXH-LEFTOVERS-2405: a bridge that reports its key generation (state only)
     users = message.get("users") or []
     now = now_iso()
     # USR2 R11: an id of the Arx-only form (`l_...`) is never a Home Assistant user - a push naming one is ignored for it, so the
@@ -739,7 +742,13 @@ def bridge_directory(message: dict[str, Any], request: Request, conn: sqlite3.Co
     from ..services import cast_sessions
 
     origin = cast_sessions.announced_origin(conn, settings_of(request))
-    return {"ok": True, "users": len(ids), "cast": ha_bridge.sign(ha_bridge.signing_key(conn) or "", {"purpose": "cast_origin", "cast_origin": origin})}
+    key = ha_bridge.signing_key(conn) or ""
+    # WXH-LEFTOVERS-2405 (CR-034 section 2 item 3): the key-status record the bridge hands on through the capability's status - signed under
+    # its own purpose with the current key, never key material; an older bridge ignores the field (it reads `cast` only)
+    from ..services import bridge_rotation
+
+    return {"ok": True, "users": len(ids), "cast": ha_bridge.sign(key, {"purpose": "cast_origin", "cast_origin": origin}),
+            "key_status": ha_bridge.sign(key, {"purpose": "key_status", **bridge_rotation.key_status(conn)})}
 
 
 def _apply_directory_to_users(conn: sqlite3.Connection, request: Request, pushed: dict[str, dict[str, Any]]) -> None:

@@ -59,6 +59,23 @@ const he = {
   autoIdle: 'המפתח הוחלף. אין צורך בפעולה.',
   autoAwaitClick: 'הגשר מוכן. החלפת המפתח הראשונה מתחילה בלחיצה אחת.',
   startFirst: 'התחלת החלפה',
+  // WXH-LEFTOVERS-2405: owner contacts, the watchdog, the hand-over and the Settings banner
+  ownerContacts: 'בעלי המערכת להתראות',
+  ownerNone: 'לא נבחרו. התראות על מפתח הגשר נשלחות לכל מנהלי המערכת.',
+  ownerAdd: 'הוספת מנהל מערכת',
+  ownerRemove: 'הסרה',
+  ownerInvalid: 'כבר אינו מנהל מערכת',
+  ownerReach: 'התראה על מפתח הגשר תגיע ל־{n} מנהלי מערכת',
+  wd_overlap_overdue: 'ההחלפה לא הסתיימה בזמן. Arx כבר לא מקבל את המפתח הישן.',
+  wd_needs_repair: 'ההחלפה נעצרה ודורשת השלמה.',
+  wd_verify_failed: 'לא אושר שהגשר ביטל את המפתח הישן. מומלץ צימוד מחדש.',
+  wd_generation_mismatch: 'הגשר מדווח על דור מפתח {b}, ו־Arx על דור {a}. מומלץ צימוד מחדש.',
+  bridgeGen: 'דור המפתח שהגשר מדווח',
+  bridgeGenNone: 'הגשר לא מדווח',
+  anchorUnavailable: 'הקטנת עוגן השעון אינה זמינה עדיין: WisKey עוד לא מקבל את הדיווח הזה.',
+  bannerText: 'התראת אבטחה על מפתח הגשר ממתינה לאישור, ולא נבחרו בעלי מערכת להתראות.',
+  bannerOpen: 'למרכז ההתראות',
+  bannerContacts: 'לבחירת בעלי מערכת',
 };
 type Key = keyof typeof he;
 
@@ -116,6 +133,22 @@ const en: Partial<Record<Key, string>> = {
   autoIdle: 'The key has been rotated. Nothing to do.',
   autoAwaitClick: 'The bridge is ready. The first key rotation starts with one click.',
   startFirst: 'Start rotation',
+  ownerContacts: 'Owner contacts',
+  ownerNone: 'None chosen. Bridge-key notices go to every system administrator.',
+  ownerAdd: 'Add a system administrator',
+  ownerRemove: 'Remove',
+  ownerInvalid: 'No longer a system administrator',
+  ownerReach: 'A bridge-key notice reaches {n} system administrators',
+  wd_overlap_overdue: 'The rotation did not finish in time. Arx no longer accepts the old key.',
+  wd_needs_repair: 'The rotation stopped and needs to be completed.',
+  wd_verify_failed: 'It was not confirmed that the bridge dropped the old key. Re-pairing is recommended.',
+  wd_generation_mismatch: 'The bridge reports key generation {b}, Arx has generation {a}. Re-pairing is recommended.',
+  bridgeGen: 'Key generation reported by the bridge',
+  bridgeGenNone: 'Not reported',
+  anchorUnavailable: 'Lowering the clock anchor is not available yet: WisKey does not take this report yet.',
+  bannerText: 'A bridge-key security notice is waiting to be acknowledged, and no owner contacts are chosen.',
+  bannerOpen: 'Open notifications',
+  bannerContacts: 'Choose owner contacts',
 };
 
 // initial translation - needs a native review (dev-marked)
@@ -173,6 +206,22 @@ const ar: Partial<Record<Key, string>> = {
   autoIdle: 'تم تبديل المفتاح. لا حاجة لأي إجراء.',
   autoAwaitClick: 'الجسر جاهز. يبدأ أول تبديل للمفتاح بنقرة واحدة.',
   startFirst: 'بدء التبديل',
+  ownerContacts: 'جهات اتصال المالك',
+  ownerNone: 'لم يتم الاختيار. تُرسل إشعارات مفتاح الجسر إلى جميع مديري النظام.',
+  ownerAdd: 'إضافة مدير نظام',
+  ownerRemove: 'إزالة',
+  ownerInvalid: 'لم يعد مدير نظام',
+  ownerReach: 'يصل إشعار مفتاح الجسر إلى {n} من مديري النظام',
+  wd_overlap_overdue: 'لم ينتهِ التبديل في الوقت المحدد. لم يعد Arx يقبل المفتاح القديم.',
+  wd_needs_repair: 'توقف التبديل ويجب إكماله.',
+  wd_verify_failed: 'لم يتم التأكد من أن الجسر ألغى المفتاح القديم. يوصى بإعادة الاقتران.',
+  wd_generation_mismatch: 'يبلغ الجسر عن جيل المفتاح {b}، ولدى Arx الجيل {a}. يوصى بإعادة الاقتران.',
+  bridgeGen: 'جيل المفتاح الذي يبلغ عنه الجسر',
+  bridgeGenNone: 'لا يبلغ',
+  anchorUnavailable: 'خفض مرساة الساعة غير متاح بعد: WisKey لا يستقبل هذا التقرير بعد.',
+  bannerText: 'إشعار أمني عن مفتاح الجسر ينتظر التأكيد، ولم يتم اختيار جهات اتصال للمالك.',
+  bannerOpen: 'إلى مركز الإشعارات',
+  bannerContacts: 'اختيار جهات اتصال المالك',
 };
 
 // initial translation - needs a native review (dev-marked)
@@ -230,6 +279,22 @@ const ru: Partial<Record<Key, string>> = {
   autoIdle: 'Ключ заменён. Действий не требуется.',
   autoAwaitClick: 'Мост готов. Первая замена ключа запускается одним нажатием.',
   startFirst: 'Начать замену',
+  ownerContacts: 'Контакты владельца',
+  ownerNone: 'Не выбраны. Уведомления о ключе моста получают все администраторы системы.',
+  ownerAdd: 'Добавить администратора системы',
+  ownerRemove: 'Убрать',
+  ownerInvalid: 'Больше не администратор системы',
+  ownerReach: 'Уведомление о ключе моста получат администраторы системы: {n}',
+  wd_overlap_overdue: 'Замена не завершилась вовремя. Arx больше не принимает старый ключ.',
+  wd_needs_repair: 'Замена остановилась и требует завершения.',
+  wd_verify_failed: 'Не подтверждено, что мост удалил старый ключ. Рекомендуется повторное сопряжение.',
+  wd_generation_mismatch: 'Мост сообщает поколение ключа {b}, у Arx поколение {a}. Рекомендуется повторное сопряжение.',
+  bridgeGen: 'Поколение ключа по данным моста',
+  bridgeGenNone: 'Не сообщается',
+  anchorUnavailable: 'Снижение якоря часов пока недоступно: WisKey ещё не принимает этот отчёт.',
+  bannerText: 'Уведомление безопасности о ключе моста ждёт подтверждения, а контакты владельца не выбраны.',
+  bannerOpen: 'К центру уведомлений',
+  bannerContacts: 'Выбрать контакты владельца',
 };
 
 export type BktKey = Key;
@@ -250,7 +315,7 @@ export function bkt(key: Key, vars?: Record<string, string | number>, lang: BktL
 }
 
 /** A state / blocked-by code as text (an unknown code falls back to the code itself). */
-export function bktCode(prefix: 'st_' | 'bl_', code: string | null | undefined, lang: BktLang = bktLang()): string {
+export function bktCode(prefix: 'st_' | 'bl_' | 'wd_', code: string | null | undefined, lang: BktLang = bktLang()): string {
   if (!code) return '';
   const k = `${prefix}${code}` as Key;
   return k in he ? bkt(k, undefined, lang) : code;

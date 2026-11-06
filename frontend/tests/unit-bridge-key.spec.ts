@@ -61,3 +61,37 @@ test('the doors-paused line exists in all four languages and the card shows it i
   expect(src.match(/data-bridge-key-doors-paused/g)?.length).toBe(1);
   expect(src).toContain("bkt('doorsPaused')");
 });
+
+// WXH-LEFTOVERS-2405: the owner contacts, the watchdog lines, the hand-over row and the Settings banner.
+test('the watchdog codes have words in every column; an unknown code falls back to itself', () => {
+  for (const code of ['overlap_overdue', 'needs_repair', 'verify_failed', 'generation_mismatch']) {
+    for (const lang of ['he', 'en', 'ar', 'ru'] as const) expect(bktCode('wd_', code, lang), `${lang}.${code}`).not.toBe(code);
+  }
+  expect(bktCode('wd_', 'something_new', 'en')).toBe('something_new');
+  expect(bkt('wd_generation_mismatch', { a: 2, b: 3 }, 'en')).toBe('The bridge reports key generation 3, Arx has generation 2. Re-pairing is recommended.');
+  expect(bkt('ownerReach', { n: 2 }, 'en')).toBe('A bridge-key notice reaches 2 system administrators');
+});
+
+test('the card edits the owner contacts with a select (no free text) and shows each watchdog line once', () => {
+  const src = readFileSync(new URL('../src/components/sw-bridge-key-card.ts', import.meta.url), 'utf8');
+  expect(src).toContain('data-bridge-key-owners');
+  expect(src).toContain('data-bridge-key-owner-add');
+  expect(src).toContain('setOwnerContacts(');
+  expect(src.match(/data-bridge-key-watchdog=/g)?.length).toBe(1);
+  expect(src).not.toMatch(/<input|<textarea/);
+  const api = readFileSync(new URL('../src/api/bridge-key.ts', import.meta.url), 'utf8');
+  expect(api).toContain("'system/bridge-key/owner-contacts', { user_ids: userIds }");
+  expect(api).toContain("get<NoticeBanner>('system/bridge-key/notice')");
+});
+
+test('the banner is local, read only, and drawn only in the Settings area', () => {
+  const src = readFileSync(new URL('../src/components/sw-bridge-key-banner.ts', import.meta.url), 'utf8');
+  expect(src).toContain('onRemote()');
+  expect(src).toContain("can('system.configure')");
+  expect(src).not.toMatch(/\b(post|put|del)\(/);
+  expect(src).not.toMatch(/localStorage|sessionStorage|indexedDB|material|secret/);
+  const app = readFileSync(new URL('../src/shell/sw-app.ts', import.meta.url), 'utf8');
+  const line = app.split('\n').find((l) => l.includes('<sw-bridge-key-banner>')) ?? '';
+  expect(line).toContain("area !== 'system'");
+  expect(app.match(/<sw-bridge-key-banner>/g)?.length).toBe(1);
+});

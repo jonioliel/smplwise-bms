@@ -11,6 +11,10 @@ token or group grants anything here.
   the interval after which the automatic worker rotates again; 0 = only the first rotation, which retires the legacy pairing secret).
 - `POST /system/bridge-key/rotations` - needs `bridge.key.rotate` (HMACACT2-295; system_admin only, still with the system-administrator check). `{mode: routine | hard_cut, confirm: true}`: runs the staged rotation (section 5).
 - `POST /system/bridge-key/rotations/{id}/resume` - needs `bridge.key.rotate`; drives a rotation left mid-way (crash, `needs_repair`).
+- `PUT  /system/bridge-key/owner-contacts` - WXH-LEFTOVERS-2405 (CR-034 section 7): `{user_ids: [...]}`, up to five active system
+  administrators who are "the owner" for the bridge-key notices (`security.owner_contacts`); `[]` clears it. Audited `settings.changed`.
+- `GET  /system/bridge-key/notice` - WXH-LEFTOVERS-2405: whether the bridge-key notice banner is up on the Settings screens (an open notice
+  while no owner contact is set). Read only: never drives a rotation.
 
 The switch and the reminder are never taken from a backup (services/backup.SETTINGS_KEEP)."""
 from __future__ import annotations
@@ -26,6 +30,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import database_of, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, is_system_admin, require
+from ..services import bridge_key_notice as bkn
 from ..services import bridge_rotation as br
 
 router = APIRouter()
@@ -45,6 +50,7 @@ MESSAGES = {
     "no_key": "אין מפתח גשר פעיל.",
     "not_found": "ההחלפה לא נמצאה.",
     "validation": "בקשה לא תקינה.",
+    "contact_not_admin": "אפשר לבחור רק מנהלי מערכת פעילים.",
 }
 
 
@@ -154,3 +160,29 @@ def resume_rotation(rotation_id: str, request: Request, principal: Principal = D
     except br.RotationRefused as exc:
         raise _refused(exc) from None
     return {"rotation": br.public(rot)}
+
+
+class ContactsBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    user_ids: list[str]
+
+
+@router.put("/system/bridge-key/owner-contacts")
+def put_owner_contacts(body: ContactsBody, request: Request, principal: Principal = Depends(current_principal),
+                       conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """WXH-LEFTOVERS-2405: the owner contacts for the bridge-key notices (system administrator; active system administrators only)."""
+    _gate(conn, request, principal, "settings.changed")
+    try:
+        bkn.set_contacts(conn, body.user_ids, actor=principal, request_id=_rid(request))
+    except bkn.ContactsInvalid as exc:
+        audit(conn, actor=principal, action="settings.changed", decision="denied", resource_type="installation", resource_id="*", request_id=_rid(request),
+              reason=exc.code, details={"key": bkn.CONTACTS_KEY})
+        raise ApiError(422, exc.code, MESSAGES.get(exc.code, MESSAGES["validation"])) from None
+    return br.view(conn, request.app.state.settings.data_dir, _peer(request))
+
+
+@router.get("/system/bridge-key/notice")
+def get_bridge_key_notice(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """WXH-LEFTOVERS-2405: the Settings banner of an open bridge-key notice while no owner contact is set (read only)."""
+    _gate(conn, request, principal, "bridge.key.read")
+    return bkn.banner(conn)

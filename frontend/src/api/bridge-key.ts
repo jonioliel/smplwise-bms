@@ -56,6 +56,46 @@ export interface BridgeKeyStatus {
   automatic: 'waiting_for_bridge' | 'awaiting_click' | 'scheduled' | 'idle' | 'off';
   /** F3B K-01: the server's own answer (HMACACT2-295 `door_commands_paused`); absent on a server that does not send it. */
   door_commands_paused?: boolean;
+  /** WXH-LEFTOVERS-2405 (CR-034 section 7): who is "the owner" for the bridge-key notices; absent on an older server. */
+  owner_contacts?: OwnerContacts;
+  /** WXH-LEFTOVERS-2405: the Settings banner (an open bridge-key notice while no owner contact is set). */
+  notice_banner?: NoticeBanner;
+  /** WXH-LEFTOVERS-2405: the conditions the watchdog reports now (codes and times only). */
+  watchdog?: WatchdogCondition[];
+  /** WXH-LEFTOVERS-2405 (CR-034 section 2 item 3): the key status the bridge is handed (generations and outcomes, never a key). */
+  hand_over?: HandOver;
+}
+
+export interface OwnerContacts {
+  ids: string[];
+  users: { id: string; name: string; valid: boolean }[];
+  candidates: { id: string; name: string }[];
+  set: boolean;
+  max: number;
+  recipients: number;
+}
+
+export interface NoticeBanner {
+  show: boolean;
+  open: number;
+  contacts_set: boolean;
+}
+
+export type WatchdogCode = 'overlap_overdue' | 'needs_repair' | 'verify_failed' | 'generation_mismatch';
+
+export interface WatchdogCondition {
+  code: WatchdogCode;
+  rotation_id?: string;
+  since?: string;
+  arx_generation?: number;
+  bridge_generation?: number;
+}
+
+export interface HandOver {
+  key_generation: number | null;
+  last_rotation: { rotation_id: string; mode: RotationMode; state: RotationState; verified_old_rejected: boolean; anchor_eligible: boolean; completed_at: string | null } | null;
+  anchor_decrease_available: boolean;
+  bridge_generation: number | null;
 }
 
 export const ACTIVE_STATES: readonly RotationState[] = ['prepared', 'publishing', 'published', 'confirmed', 'switching', 'switched', 'retiring'];
@@ -63,6 +103,8 @@ export const ACTIVE_STATES: readonly RotationState[] = ['prepared', 'publishing'
 export const getBridgeKey = () => get<BridgeKeyStatus>('system/bridge-key');
 export const setBridgeKeySettings = (body: { enabled?: boolean; reminder_days?: number }) => put<BridgeKeyStatus>('system/bridge-key/settings', body);
 export const startRotation = (mode: RotationMode) => post<{ rotation: Rotation }>('system/bridge-key/rotations', { mode, confirm: true });
+export const setOwnerContacts = (userIds: string[]) => put<BridgeKeyStatus>('system/bridge-key/owner-contacts', { user_ids: userIds });
+export const getNoticeBanner = () => get<NoticeBanner>('system/bridge-key/notice');
 export const resumeRotation = (id: string) => post<{ rotation: Rotation }>(`system/bridge-key/rotations/${encodeURIComponent(id)}/resume`);
 
 /**
