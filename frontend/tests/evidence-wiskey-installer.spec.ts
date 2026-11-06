@@ -321,11 +321,20 @@ test.describe('the intercom installer: add, reconnect, remove', () => {
     await compare(page, info, 'installer-lifecycle');
   });
 
+  // PIXEL-DRIFT-2405 (INSTALLER-WIZARD-PIXEL-2404): on the phone the wizard card (~785 px) is taller than the shell's scrolling <main>
+  // (781 px), so the element screenshot's "scroll into view if needed" lands on the card's top edge when <main> starts above the card
+  // and 77 px lower (the shell header painted over the card's top) when <main> starts below it. Where <main> started depended on the
+  // click on "add a station": clicked while the screen was still settling, Playwright retried ("element is not stable") and a retry
+  // FORCES a scroll alignment, which left <main> scrolled past the card (scrollTop 794 instead of 0). That happened in about 1 of 3 runs
+  // on a quiet runner and in most runs under full-gate load: always the same 952 px. The fix: click a settled page, and put <main> back
+  // at its top before the screenshot, so the screenshot always scrolls from the same place (the place the baseline was taken from).
   test('classic is pixel-stable: the connection step of the wizard', async ({ page }, info) => {
     await openLife(page, newInstallerMock());
+    await settlePage(page);
     await page.locator(`${LIFE} [data-add-start]`).click();
     await page.waitForSelector(`${LIFE} [data-wizard="user"]`);
     await page.locator(`${LIFE} [data-flow-field="host"]`).fill('lobby.local');
+    await page.evaluate(() => document.querySelector('sw-app')?.shadowRoot?.querySelector('main')?.scrollTo({ top: 0, behavior: 'instant' }));
     await settlePage(page);
     await compareEl(page, info, `${LIFE} sw-card[data-wizard="user"]`, 'installer-lifecycle-wizard-card');
   });
