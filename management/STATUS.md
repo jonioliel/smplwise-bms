@@ -1,6 +1,6 @@
 # Project status — generated view
 
-Generated: 2026-11-06T10:43:24.160104+00:00
+Generated: 2026-11-06T12:55:19.630292+00:00
 
 Tasks: 451 | Requirements: 560 | Tests: 577 | Screens: 32
 
@@ -12,8 +12,8 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BACKLOG: 96
 - BLOCKED: 18
 - DONE: 40
-- IN_PROGRESS: 7
-- REVIEW: 290
+- IN_PROGRESS: 3
+- REVIEW: 294
 
 ## Release scope counts
 - BETA: 20
@@ -493,7 +493,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [GATE-HYGIENE-2402](tasks/GATE-HYGIENE-2402.md) | V1 | REVIEW | Gate hygiene: whole-package scanners always run, a Windows-only demo check, the bridge-install state reset between tests | — |
 | [VIDEO-SUB-FALLBACK-2402](tasks/VIDEO-SUB-FALLBACK-2402.md) | V1 | REVIEW | Live video, automatic quality: a sub stream that gives nothing moves to the main stream on the same transport | — |
 | [SETTINGS-CARDS-ACCORDION-2402](tasks/SETTINGS-CARDS-ACCORDION-2402.md) | V1 | REVIEW | Intercom settings cards: "cards opening in place" as a fourth layout | — |
-| [VIDEO-2403](tasks/VIDEO-2403.md) | V1 | IN_PROGRESS | Live video: no video-policy read without live video; the kiosk and the display wall count as automatic quality | — |
-| [SKIN-QA-2403](tasks/SKIN-QA-2403.md) | V1 | IN_PROGRESS | The 2.40.1 / 2.40.2 surfaces in every skin, light and dark: fallback tag, phone toolbar, intercom settings cards | — |
-| [BOARD-HYGIENE-2403](tasks/BOARD-HYGIENE-2403.md) | V1 | IN_PROGRESS | Task board hygiene after v2.40.2 | — |
-| [HA-2026-11-COMPAT-2404](tasks/HA-2026-11-COMPAT-2404.md) | V1 | IN_PROGRESS | Home Assistant 2026.11 entity names and child devices | — |
+| [VIDEO-2403](tasks/VIDEO-2403.md) | V1 | REVIEW | Live video: no video-policy read without live video; the kiosk and the display wall count as automatic quality | — |
+| [SKIN-QA-2403](tasks/SKIN-QA-2403.md) | V1 | REVIEW | The 2.40.1 / 2.40.2 surfaces in every skin, light and dark: fallback tag, phone toolbar, intercom settings cards | — |
+| [BOARD-HYGIENE-2403](tasks/BOARD-HYGIENE-2403.md) | V1 | REVIEW | Task board hygiene after v2.40.2 | — |
+| [HA-2026-11-COMPAT-2404](tasks/HA-2026-11-COMPAT-2404.md) | V1 | REVIEW | Home Assistant 2026.11 entity names and child devices | — |
