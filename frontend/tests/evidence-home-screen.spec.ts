@@ -577,17 +577,19 @@ test.describe('the home screen against the devices fixture backend', () => {
       // the order by keyboard: the grip's arrow keys (right / up = earlier)
       await b.locator('[data-home-grip="weather"]').focus();
       await page.keyboard.press('ArrowRight');
-      expect(await cardIds(page)).toEqual(['weather', 'clock', 'shabbat', 'alarm', 'quick']);
+      await expect.poll(() => cardIds(page), { timeout: 5000 }).toEqual(['weather', 'clock', 'shabbat', 'alarm', 'quick']);
       await expect(b.locator('[data-home-grip="weather"]')).toBeFocused(); // the focus stays with the moved card
       await page.keyboard.press('ArrowLeft');
-      expect(await cardIds(page)).toEqual(['clock', 'weather', 'shabbat', 'alarm', 'quick']);
+      await expect.poll(() => cardIds(page), { timeout: 5000 }).toEqual(['clock', 'weather', 'shabbat', 'alarm', 'quick']);
       // the order by drag: the quick actions onto the clock
+      // FIXTURE-SPECS-2405: each reorder re-renders the band; the order is polled, not read once right after the key / drop (a busy runner
+      // read the old order once, right after the drop)
       await b.locator('[data-home-widget="quick"]').dragTo(b.locator('[data-home-widget="clock"]'), { sourcePosition: { x: 40, y: 30 }, targetPosition: { x: 40, y: 30 } });
-      expect(await cardIds(page)).toEqual(['quick', 'clock', 'weather', 'shabbat', 'alarm']);
+      await expect.poll(() => cardIds(page), { timeout: 5000 }).toEqual(['quick', 'clock', 'weather', 'shabbat', 'alarm']);
       // and the panel's own up / down buttons
       await b.locator('[data-home-wearlier="alarm"]').click();
       await b.locator('[data-home-wearlier="alarm"]').click();
-      expect(await cardIds(page)).toEqual(['quick', 'clock', 'alarm', 'weather', 'shabbat']);
+      await expect.poll(() => cardIds(page), { timeout: 5000 }).toEqual(['quick', 'clock', 'alarm', 'weather', 'shabbat']);
       // a heading of its own, from the card's settings button
       await b.locator('[data-home-widget-settings="clock"]').click();
       await expect(b.locator('[data-home-wbody="clock"]')).toBeVisible();
