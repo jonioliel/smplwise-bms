@@ -1,0 +1,40 @@
+# T035 outage suite - runner receipt (run 4), extracted from the run_smart console output
+# command: private/runner/run_smart.py backend chore/T035-OUTAGE-RUN-2405 tests/test_outage_run_t035.py -rA -p no:randomly --machine runner
+[run_smart] backend chore/T035-OUTAGE-RUN-2405 -> שרת הריצה (אובונטו) (workers=2): המחשב נבחר ידנית (עומס 1.0, זיכרון פנוי 12.7GB)
+== backend chore/T035-OUTAGE-RUN-2405 @ 384b5acb4 in /home/sw/work/chore-T035-OUTAGE-RUN-2405
+
+## T035_SCENARIO records
+{"audit_outcomes": ["ok", "not_sent", "not_sent", "ok"], "during": [503, "intercom_unavailable", "הפקודה לא נשלחה: תשתית המערכת אינה זמינה כרגע."], "feed_states": ["ha_unavailable", "connecting/wiskey_loading", "ready"], "loading": [503, "intercom_unavailable"], "recovered_without_manual_step": true, "scenario": "S01 HA restart (door path)", "unlock_frames": 2}
+{"audit_outcomes": ["not_sent", "ok"], "recovered_without_manual_step": true, "release": [503, "intercom_unavailable"], "scenario": "S02 HA unreachable (door path)", "summary_item": {"id": "ha", "label": "הסנכרון עם תשתית המערכת מנותק; מצבי ישויות עלולים להיות מיושנים", "status": "warn"}, "unlock_frames": 1}
+{"connect_error": [503, "ha_unavailable", "failed", "retryable"], "delivered": 2, "read_timeout": [504, "action_outcome_unknown", "unknown", "not retryable"], "rows": [["click-connect", "failed"], ["click-timeout", "unknown"], ["9f37e28540c54408", "pending"]], "scenario": "S02 HA unreachable (bridge execute)"}
+{"feed_last_error": "ha_forbidden", "manual_step": "a valid token (add-on restart / owner's new token)", "recovered_after_token_restored": true, "release": [503, "intercom_unavailable"], "scenario": "S03 HA token revoked (door path)", "summary_item": {"id": "ha", "label": "תשתית המערכת דחתה את הרשאת הגישה של התוסף — מצבי התקנים אינם מתעדכנים ופקודות לא יישלחו עד לחידוש ההרשאה", "status": "error"}, "unlock_frames": 0}
+{"answer": [503, "ha_forbidden"], "delivered": 1, "row": "failed/ha_forbidden", "scenario": "S03 HA token revoked (bridge execute)"}
+{"beyond_window": [503, "not_installed", "copy dropped"], "known_limit": "beyond the window the re-probe waits RETRY_ABSENT_S (production 300 s)", "recovered_without_manual_step": true, "scenario": "S04 WisKey restarting", "unlock_frames": 1, "within_window": [503, "connecting", "copy kept, not fresh"]}
+{"audit_outcomes": ["unknown"], "no_answer": [504, "intercom_outcome_unknown"], "scenario": "S04 WisKey unavailable", "second_press": [409, "intercom_release_in_progress"], "station_offline": [409, "intercom_station_offline"], "unlock_frames": 1}
+{"attempts_while_down": 15, "coverage_gap": {"reason": "ConnectError", "seconds": 0}, "device_requests": ["GET /ISAPI/Event/notification/alertStream"], "recovered_without_manual_step": true, "scenario": "S05 NVR down (alert stream)", "seconds": {"back_seen": 0.84, "down_seen": 0.12, "total": 1.0}, "summary_item": {"id": "nvr", "label": "NVR מנותק — אין התראות חיות; וידאו חי והקלטות עשויים להיכשל", "status": "error"}}
+{"cameras_kept": 1, "foreign_streams_untouched": true, "go2rtc_down_report": "go2rtc אינו זמין (go2rtc_unavailable).", "go2rtc_down_summary": {"id": "go2rtc", "label": "סנכרון הזרמים ל־go2rtc נכשל", "status": "warn"}, "nvr_down": {"id": "discovery", "label": "גילוי המצלמות האחרון נכשל; משתמשים ברשימה הקודמת", "status": "warn"}, "recovered_without_manual_step": true, "scenario": "S05 NVR + go2rtc down (discovery / streams)"}
+{"expired": [409, "expired"], "recovered_without_manual_step": true, "resubmitted": [409, "intercom_duplicate_command", "הפקודה הזו כבר נשלחה (אותו מזהה פקודה), ולכן לא נשלחה שוב."], "scenario": "S06 remote tunnel drop (door path)", "unlock_frames": 2}
+{"delivered": 1, "first": "pending", "resubmitted_same_record": true, "scenario": "S06 remote tunnel drop (device action)"}
+{"delivered": 1, "door": [507, "storage_full", "אחסון התוסף מלא, ולכן לא ניתן לשמור. יש לפנות מקום בדיסק של התוסף."], "recovered_without_manual_step": "yes, once space is freed (freeing space is the owner's step)", "scenario": "S07 disk full", "summary_item": {"id": "storage", "label": "אחסון התוסף כמעט מלא — שמירות, תיעוד פעולות ופקודות עלולים להיכשל", "status": "error"}, "tile": [507, "storage_full", "אחסון התוסף מלא, ולכן הפקודה לא נרשמה ולא נשלחה. יש לפנות מקום בדיסק של התוסף."], "unlock_frames": 1}
+{"audit": "attempt row only", "crashed_answer": 500, "frames_after_restart": 0, "frames_before_restart": 1, "resubmitted": [409, "intercom_duplicate_command"], "scenario": "S08 add-on restart mid-write (door release)"}
+{"crashed_answer": 500, "resent_after_restart": 0, "row_after_restart": "unknown", "scenario": "S08 add-on restart mid-write (device action)"}
+{"after_hold": "readback_required", "after_readback": "admitted", "right_after_restart": "outcome_pending", "scenario": "S08 add-on restart mid-write (WisKey person write)"}
+
+## result
+PASSED tests/test_outage_run_t035.py::test_s01_ha_restart_door_path
+PASSED tests/test_outage_run_t035.py::test_s02_ha_unreachable_door_path_and_summary
+PASSED tests/test_outage_run_t035.py::test_s02_bridge_execute_transport_failures_are_told_apart
+PASSED tests/test_outage_run_t035.py::test_s03_token_revoked
+PASSED tests/test_outage_run_t035.py::test_s03_bridge_execute_refused_token
+PASSED tests/test_outage_run_t035.py::test_s04_wiskey_restarting
+PASSED tests/test_outage_run_t035.py::test_s04_wiskey_unavailable_station_offline_and_no_answer
+PASSED tests/test_outage_run_t035.py::test_s05_nvr_down_alert_stream
+PASSED tests/test_outage_run_t035.py::test_s05_nvr_and_go2rtc_down_discovery_and_streams
+PASSED tests/test_outage_run_t035.py::test_s06_tunnel_drop_door_path
+PASSED tests/test_outage_run_t035.py::test_s06_tunnel_drop_device_action
+PASSED tests/test_outage_run_t035.py::test_s07_disk_full
+PASSED tests/test_outage_run_t035.py::test_s08_restart_mid_door_release
+PASSED tests/test_outage_run_t035.py::test_s08_restart_mid_device_action
+PASSED tests/test_outage_run_t035.py::test_s08_restart_mid_wiskey_person_write
+15 passed, 1 warning in 21.62s
+רץ על שרת הריצה (אובונטו) כי המחשב נבחר ידנית (עומס 1.0, זיכרון פנוי 12.7GB)

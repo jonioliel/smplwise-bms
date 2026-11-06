@@ -1,0 +1,10 @@
+# T035 run 3 - the frontend unit spec on the runner, branch head 384b5acb4
+# command: private/runner/run_smart.py spec chore/T035-OUTAGE-RUN-2405 tests/unit-ha-sync-status.spec.ts --project=desktop --machine runner
+[run_smart] spec chore/T035-OUTAGE-RUN-2405 -> שרת הריצה (אובונטו) (workers=2): המחשב נבחר ידנית (עומס 1.2, זיכרון פנוי 13.4GB)
+== spec chore/T035-OUTAGE-RUN-2405 @ 384b5acb4 in /home/sw/work/chore-T035-OUTAGE-RUN-2405
+Running 3 tests using 1 worker
+  ✓  1 [desktop] › tests/unit-ha-sync-status.spec.ts:6:1 › restart code reads as a plain Hebrew reconnect message (3ms)
+  ✓  2 [desktop] › tests/unit-ha-sync-status.spec.ts:10:1 › unknown technical names never reach the screen (2ms)
+  ✓  3 [desktop] › tests/unit-ha-sync-status.spec.ts:19:1 › a refused token (ha_forbidden) says so instead of promising a reconnect (1ms)
+  3 passed (418ms)
+רץ על שרת הריצה (אובונטו) כי המחשב נבחר ידנית (עומס 1.2, זיכרון פנוי 13.4GB)

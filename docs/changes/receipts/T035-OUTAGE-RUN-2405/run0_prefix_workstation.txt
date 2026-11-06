@@ -1,0 +1,21 @@
+# T035 run 0 - the same suite on the BASE code (origin/main eab715e53, no fixes), workstation (Windows, Python 3.12), temporary detached worktree
+# command: python -m pytest -o addopts="" -q -p no:cacheprovider tests/test_outage_run_t035.py -rfE
+# the three failures are the defects D1, D3, D2 of docs/changes/T035-OUTAGE-RUN-2405.md
+        nothing (failed, retryable); a read timeout comes AFTER the command left - HA may have opened the lock - so the record is
+        `unknown` and the answer is a non-retryable 504 that says so (T035 fix: it was recorded `failed`, shown "נכשל", and
+        assert far["delivered"] == [] and action_rows(s)[-1]["status"] == "failed", "never reached HA: failed is the truth"
+E       AssertionError: {'code': 'ha_unavailable', 'user_message': 'תשתית המערכת אינה זמינה כרגע.', 'retryable': True, 'correlation_id': 'ba95eae4cdd7', ...}
+E       assert (503 == 504)
+E        +  where 503 = <Response [503 Service Unavailable]>.status_code
+E       AssertionError: {'id': 'ha', 'status': 'warn', 'label': 'הסנכרון עם תשתית המערכת מנותק; מצבי ישויות עלולים להיות מיושנים'}
+E       assert ('warn' == 'error'
+E         
+E         - error
+E         + warn)
+E       AssertionError: Internal Server Error
+E       assert (500 == 507)
+E        +  where 500 = <Response [500 Internal Server Error]>.status_code
+FAILED tests/test_outage_run_t035.py::test_s02_bridge_execute_transport_failures_are_told_apart
+FAILED tests/test_outage_run_t035.py::test_s03_token_revoked - AssertionError...
+FAILED tests/test_outage_run_t035.py::test_s07_disk_full - AssertionError: In...
+3 failed, 12 passed, 1 warning in 96.00s (0:01:36)
