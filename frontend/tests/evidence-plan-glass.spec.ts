@@ -23,9 +23,20 @@ const WALL = (id: string, polyline: [number, number][], kind = 'exterior', extra
 
 async function clickPlan(page: Page, screen: string, x: number, y: number) {
   const canvas = page.locator(`${screen} sw-plan-canvas`);
-  const box = (await canvas.boundingBox())!;
-  const s = await canvas.evaluate((el, p) => (el as unknown as { toScreen: (a: number, b: number) => { x: number; y: number } }).toScreen(p[0], p[1]), [x, y] as [number, number]);
-  await page.mouse.click(box.x + s.x, box.y + s.y);
+  const at = async () => {
+    const box = (await canvas.boundingBox())!;
+    const s = await canvas.evaluate((el, p) => (el as unknown as { toScreen: (a: number, b: number) => { x: number; y: number } }).toScreen(p[0], p[1]), [x, y] as [number, number]);
+    return { x: box.x + s.x, y: box.y + s.y };
+  };
+  let pt = await at();
+  // FIXTURE-SPECS-2405: an element screenshot (the studio panel's, now taller than the viewport) scrolls the page, and a click computed from
+  // the canvas box then lands above the viewport on nothing. Bring the canvas back to the top of the view first.
+  const vh = page.viewportSize()?.height ?? 900;
+  if (pt.y < 0 || pt.y > vh) {
+    await canvas.evaluate((el) => el.scrollIntoView({ block: 'start' }));
+    pt = await at();
+  }
+  await page.mouse.click(pt.x, pt.y);
 }
 async function expectEnabled(l: Locator, timeout = 30000): Promise<void> {
   await expect(l).toBeAttached({ timeout });
