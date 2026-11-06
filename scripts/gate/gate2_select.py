@@ -290,13 +290,17 @@ def _full(path: str, pats: list[str]) -> bool:
 
 
 def failed_files(report: Path) -> dict[str, set[str]]:
-    """{'backend': {test_x.py}, 'frontend': {x.spec.ts}} of every FAIL item of a gate report (the --after re-run)."""
+    """{'backend': {test_x.py}, 'frontend': {x.spec.ts}, 'visual': {'screen / state / scheme / project'}} of every FAIL item of a
+    gate report (the --after re-run). `visual` (T074): the visual-matrix cases that failed; they keep the visual step on."""
     d = json.loads(Path(report).read_text(encoding="utf-8"))
-    out = {"backend": set(), "frontend": set()}
+    out = {"backend": set(), "frontend": set(), "visual": set()}
     for i in d.get("items", []):
         if i.get("status") != "FAIL":
             continue
         ident = i.get("id", "")
+        if i.get("category") == "visual":
+            out["visual"].add(ident)
+            continue
         m = re.match(r"tests/(test_[^:]+\.py)", ident)
         if i.get("category") == "backend" and m:
             out["backend"].add(m.group(1))
@@ -348,6 +352,23 @@ def _graph_with_esbuild(orig):
     return g
 
 
+VISUAL_HARNESS = ("frontend/tests/visual/", "frontend/tests/visual-matrix.spec.ts", "frontend/scripts/visual.mjs", "frontend/playwright.config")
+
+
+def visual_decision(paths: list[str], fe_src_changed: bool, after: dict | None) -> str:
+    """T074: whether the (blocking) visual step runs. release_gate2.sh / branch_check.sh pass --no-visual only on `skip ...`.
+    It runs when a frontend/src file changed, when the visual harness or a baseline image changed (the touched mode maps a baseline
+    to its screen), or when the --after report has visual failures to re-check; otherwise nothing it compares can differ."""
+    if fe_src_changed:
+        return "run: a frontend/src file changed (visual.mjs --touched picks the screens)"
+    harness = sorted(p for p in paths if p.startswith(VISUAL_HARNESS))
+    if harness:
+        return f"run: the visual harness / baselines changed ({len(harness)} files, e.g. {harness[0]})"
+    if after and after.get("visual"):
+        return f"run: {len(after['visual'])} visual failure(s) of the --after report to re-check"
+    return "skip: no frontend/src, visual harness or baseline change and no visual failure to re-check"
+
+
 def rerun_only_selection(root: Path, after: dict) -> dict:
     """Only the failed files of a red gate (the automatic re-run of quarantined failures on the same sha): no core, no mapping."""
     root = Path(root).resolve()
@@ -358,7 +379,8 @@ def rerun_only_selection(root: Path, after: dict) -> dict:
     why = "failed in the red gate (re-run only)"
     return {"policy": "gate2-rerun-only", "changed_files": 0, "version_only_ignored": [], "full": {"backend": [], "frontend": []},
             "notes": [], "pixel": "only failed pixel specs", "deferred_to_nightly": {}, "heavy_secs": HEAVY_SECS,
-            "after": {"backend": b, "frontend": f},
+            "visual": "run: the engine re-checks only the first run's visual failures (none -> no visual step)",
+            "after": {"backend": b, "frontend": f, "visual": sorted(after.get("visual", ()))},
             "backend": {"selected": b, "dropped": sorted(set(all_tests) - set(b)), "why": {n: why for n in b}, "total": len(all_tests)},
             "frontend": {"selected": f, "dropped": sorted(set(all_specs) - set(f)), "why": {n: why for n in f}, "total": len(all_specs)}}
 
@@ -607,6 +629,7 @@ def select_gate2(root: Path, base: str, head: str = "HEAD", after: dict | None =
         pixel_note = f"no frontend/src change: {len(dropped_px)} pixel specs not run"
     else:
         pixel_note = f"mapped pixel specs only: {len(pixel_specs & fsel)} of {len(pixel_specs)}"
+    visual_note = visual_decision([p for _, p in changes], fe_src_changed, after)
     # ---- the --after re-run: the failed files of the red gate
     if after:
         for n in after.get("backend", ()):
@@ -640,6 +663,7 @@ def select_gate2(root: Path, base: str, head: str = "HEAD", after: dict | None =
         "full": {k: sorted(set(v)) for k, v in full.items()},
         "notes": notes,
         "pixel": pixel_note,
+        "visual": visual_note,
         "deferred_to_nightly": deferred,
         "heavy_secs": HEAVY_SECS,
         "after": {k: sorted(v) for k, v in (after or {}).items() if k != "sha"} if after else None,
@@ -769,6 +793,7 @@ def _print_plan(root: Path, base: str, head: str, sel: dict, est: dict, full_est
     for n in sel["notes"][:20]:
         print(f"  hub: {n}")
     print(f"  pixel: {sel['pixel']}")
+    print(f"  visual: {sel.get('visual', 'run (no decision recorded)')}")
     print(f"  backend : {len(b['selected'])}/{b['total']} files, {est['backend_work_s'] / 60:.0f} of {full_est['backend_work_s'] / 60:.0f} shard-min, "
           f"{est['backend_shards']} shards, largest shard ~{est['backend_wall_s'] / 60:.0f} min")
     print(f"  frontend: {len(f['selected'])}/{f['total']} specs ({est['rest']} preview, {est['dev']} dev, {est['fixture']} fixture, {est['pixel_specs']} pixel), "

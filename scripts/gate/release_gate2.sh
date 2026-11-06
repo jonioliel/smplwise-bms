@@ -18,12 +18,14 @@
 #      from the v1 install (GATE2_V1_DIR, default ~) - the engine is byte-identical to v1's, only select_tests.py is the gate-2 shim
 #   3. checks the nightly safety net (gate2_select.py nightly); not healthy -> full tier, said in the output
 #   4. plans the run on the engine's own worktree (~/work/gate-<branch>): selection, GATE_BACKEND_SHARDS / GATE_PW_SLOTS split of
-#      one CPU budget, --no-visual when no frontend/src file changed
+#      one CPU budget, --no-visual only when the plan says `visual: skip` (T074: no frontend/src, visual harness or baseline change
+#      and no visual failure of an --after report; the visual step is BLOCKING by default, docs/changes/T074-VISUAL-METRICS-2405.md)
 #   5. keeps an earlier report of the same branch+sha as gate_<b>_<sha>.pre-gate2.* (the engine would overwrite it)
 #   6. runs the engine: --tier L --schedule v2 --select-base <base>, GATE_SELECT_ENABLE=1, total limit GATE_TOTAL_SECS
 #      (default 7200 s; 12000 s for --full)
 #   7. gate2_verdict.py: gate_<b>_<sha>.gate2.md (quarantine applied, next step); when EVERY failure is quarantined it re-runs
-#      only those tests on the same sha once (the first report is kept as .gate2-first.json)
+#      only those tests on the same sha once (the first report is kept as .gate2-first.json); quarantined VISUAL cases are re-checked
+#      by the engine itself in that re-run (GATE2_RERUN_ONLY overrides the --no-visual below, T074)
 # Exit: 0 pass, 1 fail, 2 usage, 3 lock busy.
 set -uo pipefail
 export PATH="$HOME/smplwisebms/.venv/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
@@ -145,7 +147,7 @@ if [ "$FULL" = 0 ]; then
     : "${GATE_BACKEND_SHARDS:=${KN% *}}"; : "${GATE_PW_SLOTS:=${KN#* }}"
     export GATE_BACKEND_SHARDS GATE_PW_SLOTS
   fi
-  printf '%s\n' "$PLAN" | grep -q "pixel: no frontend/src change" && ENGINE+=(--no-visual)
+  printf '%s\n' "$PLAN" | grep -q "^  visual: skip" && ENGINE+=(--no-visual)   # T074 (was: "pixel: no frontend/src change")
   ENGINE+=(--select-base "$BASE")
   export GATE_SELECT_ENABLE=1
   : "${GATE_TOTAL_SECS:=$(derived_cap select 7200)}"

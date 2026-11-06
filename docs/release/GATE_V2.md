@@ -70,7 +70,7 @@ The mapping is the GATESPEED-293 `select_tests.py` mapping, reused, with a diffe
 
 ### 2.2 Pixel only for UI changes
 A `toHaveScreenshot` spec (and the visual matrix) runs only when a `frontend/src` file changed and the spec is mapped to it.
-All of them run when the design/styles layer changed. With no frontend change, none runs and `--no-visual` is passed.
+All of them run when the design/styles layer changed. With no frontend change, none runs and `--no-visual` is passed. T074 (2026-11-06, `docs/changes/T074-VISUAL-METRICS-2405.md`): the visual step is BLOCKING and `--no-visual` is passed only when the plan prints `visual: skip` (no `frontend/src`, visual harness or baseline change, no visual failure of an `--after` report); a twice-differing case is a `visual` failure that the quarantine accepts (category `visual`), and the all-quarantined re-run re-checks those cases.
 
 ### 2.3 Heavy sweeps to the nightly
 A spec whose recorded cost is above `GATE2_HEAVY_SECS` (900 worker-seconds) and that did not change is **deferred** to the

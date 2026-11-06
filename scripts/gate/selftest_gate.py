@@ -218,7 +218,25 @@ fin, bp = g.write_reports("abc1234", g.compute_verdict([]), {})
 md = Path(str(bp) + ".md").read_text()
 check("visual: warn mode lists the difference in the report and does not fail the verdict", "sites / ready / dark / desktop" in md and "## פסק דין: **עבר**" in md, md[:500])
 g.VISUAL, g.VISUAL_INFO = "", {}
-check("visual: warn by default, block / off from GATE_VISUAL", (g.visual_from_env(None), g.visual_from_env("block"), g.visual_from_env("off")) == ("warn", "block", ""), "")
+check("visual (T074): block by default, warn / off from GATE_VISUAL", (g.visual_from_env(None), g.visual_from_env("warn"), g.visual_from_env("off")) == ("block", "warn", ""), "")
+# T074 flaky-render policy: differs then matches alone = FLAKY (green); differs twice = FAIL; no retry results = FAIL; no baseline = skipped
+row = lambda scr, st: {"screen": scr, "state": "ready", "scheme": "light", "project": "desktop", "status": st}   # noqa: E731
+j = g.judge_visual([row("a", "pass"), row("b", "diff"), row("c", "diff"), row("d", "no-baseline"), row("e", "error")],
+                   [row("b", "pass"), row("c", "diff"), row("e", "pass")])
+check("visual (T074): judge_visual pass / flaky / fail / no-baseline",
+      (j["pass"], j["flaky"], [x for x, _ in j["fail"]], j["nobase"]) == (1, ["b / ready / light / desktop", "e / ready / light / desktop"],
+                                                                           ["c / ready / light / desktop"], ["d / ready / light / desktop"]), j)
+check("visual (T074): no retry results -> every first-run difference fails", [x for x, _ in g.judge_visual([row("b", "diff")], None)["fail"]] == ["b / ready / light / desktop"], "")
+reset()
+g.COUNTS["preview"] = {"pass": 5, "fail": 0, "flaky": 0, "known": 0, "skipped": 0}
+g.COUNTS["visual"] = {"pass": 1, "fail": 1, "flaky": 1, "known": 0, "skipped": 0}
+g.VISUAL = "block"
+g.VISUAL_INFO.update(mode="block", base="origin/main", counts={"pass": 1, "diff": 2, "error": 0, "nobase": 0}, diffs=["b", "c"], report="x/summary.md",
+                     retry={"cases": 2, "rc": 1, "timeout": False, "results": True, "report": "x/visual-retry/summary.md"}, flaky=["b"], failed=["c"], nobase=[])
+fin, bp = g.write_reports("abc1235", g.compute_verdict([]), {})
+md = Path(str(bp) + ".md").read_text()
+check("visual (T074): block mode fails the verdict on a twice-differing case and lists flaky and failed", "## פסק דין: **נכשל**" in md and "כשל ויזואלי: c" in md and "FLAKY ויזואלי: b" in md, md[:600])
+g.VISUAL, g.VISUAL_INFO = "", {}
 
 # ---- nightly partial runs: a skipped category is not "0 of N"; GATE_COSTS_DIR feeds the chunk balance
 reset()

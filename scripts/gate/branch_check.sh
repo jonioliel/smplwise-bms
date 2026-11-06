@@ -13,8 +13,10 @@
 #   2. holds the machine (gate_holder.py kind "entry": agent test runs through run_guarded.sh are refused while it runs)
 #   3. stages the engine into this directory exactly like release_gate2.sh (release_gate.py + aux files from ~/, select_tests.py
 #      as select_tests_v1.py; this directory's select_tests.py is the gate-2 shim)
-#   4. runs release_gate.py <branch> --tier L --schedule v2 --select-base origin/main --no-visual with GATE_SELECT_ENABLE=1 and
-#      GATE_RESULTS_DIR=~/smplwise-results/entry (the engine's full report: entry/gate_<b>_<sha>.{md,json,logs})
+#   4. runs release_gate.py <branch> --tier L --schedule v2 --select-base origin/main with GATE_SELECT_ENABLE=1 and
+#      GATE_RESULTS_DIR=~/smplwise-results/entry (the engine's full report: entry/gate_<b>_<sha>.{md,json,logs}); the visual step is ON
+#      and blocking like in the release gate (T074: a UI branch fixes or re-takes its baselines BEFORE it boards a train), --no-visual
+#      only when the plan says `visual: skip` (no plan, ENTRY_SKIP_PLAN=1 or a failed plan: it runs)
 #   5. branch_check.py writes ~/smplwise-results/entry_<b>_<sha>.md (short, Hebrew + English) and entry_<b>_<sha>.json
 # Verdict: GREEN (engine pass, or red only through ACTIVE quarantine entries) -> exit 0; RED or NOT_RUN -> exit 1; usage -> 2.
 # Install: scripts/gate/README_GATE_FAST.md ("Entry check"). Env: ENTRY_TOTAL_SECS (engine limit), ENTRY_LOCK_SLICE (poll, 30 s),
@@ -119,10 +121,12 @@ else
   git -C "$WT" checkout -q -f --detach "origin/$BR" || { verdict "$ERES/none.json" "$SHA0" "git checkout in $WT failed"; exit 1; }
 fi
 SHA="$(git -C "$WT" rev-parse --short HEAD)"
+VIS=()
 BASE_SHA="$(git -C "$WT" rev-parse --short "$(git -C "$WT" merge-base HEAD "$BASE" 2>/dev/null || echo "$BASE")" 2>/dev/null)"
 if [ "${ENTRY_SKIP_PLAN:-0}" != 1 ]; then
   PLAN="$(nice -n 10 "$PY3" "$G/gate2_select.py" plan --root "$WT" --base "$BASE" --head HEAD 2>&1)"
   printf '%s\n' "$PLAN" | sed -n '/^GATE2 dry-run/,/ESTIMATE/p' | head -30
+  printf '%s\n' "$PLAN" | grep -q "^  visual: skip" && VIS=(--no-visual)   # T074: the visual step runs unless nothing it compares changed
   KN="$(printf '%s\n' "$PLAN" | sed -n 's/.*knobs for this run: GATE_BACKEND_SHARDS=\([0-9]*\) GATE_PW_SLOTS=\([0-9]*\).*/\1 \2/p')"
   if [ -n "$KN" ]; then
     : "${GATE_BACKEND_SHARDS:=${KN% *}}"; : "${GATE_PW_SLOTS:=${KN#* }}"
@@ -137,7 +141,7 @@ for e in json md selection.json; do [ -e "$R.$e" ] && mv -f "$R.$e" "$R.prev.$e"
 export GATE_RESULTS_DIR="$ERES" GATE_COSTS_DIR="$RES" GATE_SELECT_ENABLE=1 GATE_SCHEDULE=v2 GATE_TOTAL_SECS="$TOTAL" \
        GATE2_COSTS="${GATE2_COSTS:-$G/gate2_costs.json}"
 echo "branch_check: $BR @ $SHA vs $BASE ($BASE_SHA), shards=${GATE_BACKEND_SHARDS:-default} slots=${GATE_PW_SLOTS:-default}, limit ${TOTAL}s"
-timeout -k 30 "$TOTAL" "$PY3" "$G/release_gate.py" "$BR" --tier L --schedule v2 --select-base "$BASE" --no-visual
+timeout -k 30 "$TOTAL" "$PY3" "$G/release_gate.py" "$BR" --tier L --schedule v2 --select-base "$BASE" ${VIS[@]+"${VIS[@]}"}
 erc=$?
 
 # ------------------------------------------------------------------ 5. the verdict

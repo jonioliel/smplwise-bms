@@ -13,7 +13,7 @@
 # preview those hang until the 60 s test timeout: 151 tests x 60 s plus one 40 min layout-electricity sweep = about 3.2 h of
 # worker time, 71 percent of all the worker time spent. The release gate classifies the specs (dev / one project / fixture / pixel
 # / rest), runs the groups as parallel Playwright processes with --workers=3 and finishes the same suite in about 60 min.
-# So the nightly now runs the release gate ENGINE (tier L, no visual step) for each branch, with its own results directory
+# So the nightly now runs the release gate ENGINE (tier L; since T074 with the visual step on every screen) for each branch, with its own results directory
 # (~/smplwise-results/nightly/: never the dashboard's gate_status.json or gate_*.md) and a per-branch budget inside the hard limit.
 #
 # Hard limit (FIX1, 2026-10-08): the whole run (after the lock is won) is killed after SW_NIGHTLY_MAX_MIN minutes (default 240): the
@@ -148,9 +148,14 @@ for BR in "${BRANCHES[@]}"; do
   # GATESPEED-293: SW_NIGHTLY_SCHEDULE=v2 runs the nightly on the v2 schedule (6 shards on tmpfs, one Playwright pool); default v1.
   # The nightly is the safety net of --select-base, so it must FINISH: in 2026-10-16..20 every nightly hit the 117 min engine
   # budget (the backend was cut, e.g. 3564 of ~12000 tests on 10-20); raise SW_NIGHTLY_MAX_MIN / SW_NIGHTLY_BRANCH_MAX_MIN or use v2
-  GATE_SCHEDULE="$SCHEDULE" GATE_TABLET_FULL=1 GATE_RESULTS_DIR="$NRES" GATE_COSTS_DIR="$RESULTS" GATE_TOTAL_SECS="$BUDGET" GATE_VISUAL=off \
+  # T074: the visual matrix runs as the engine's visual step on EVERY screen (GATE_VISUAL_SCOPE=all) and all three viewports, with the
+  # flaky-render retry. Before, with --no-visual, visual-matrix.spec.ts ran inside the pixel group (desktop + mobile, no retry), also
+  # blocking - so the nightly stays as strict and gains tablet and the retry. SW_NIGHTLY_VISUAL=warn makes it a report section only,
+  # SW_NIGHTLY_VISUAL=off is the rollback (the old run: --no-visual, the spec back in the pixel group).
+  VMODE="${SW_NIGHTLY_VISUAL:-block}"; NV=(); case "$VMODE" in warn|block) ;; *) VMODE=off; NV=(--no-visual);; esac
+  GATE_SCHEDULE="$SCHEDULE" GATE_TABLET_FULL=1 GATE_RESULTS_DIR="$NRES" GATE_COSTS_DIR="$RESULTS" GATE_TOTAL_SECS="$BUDGET" GATE_VISUAL="$VMODE" GATE_VISUAL_SCOPE=all \
   GATE_SKIP_BACKEND=$([ "$FO" -eq 1 ] && echo 1 || echo 0) GATE_SKIP_DEV=$([ "$ND" -eq 1 ] && echo 1 || echo 0) \
-    timeout -k 30 "$BUDGET" python3 "$ENGINE" "$BR" --tier L --no-visual > "$LOGD/engine.log" 2>&1; ERC=$?
+    timeout -k 30 "$BUDGET" python3 "$ENGINE" "$BR" --tier L ${NV[@]+"${NV[@]}"} > "$LOGD/engine.log" 2>&1; ERC=$?
   END=$(date +%s)
   # pytest scratch of the finished run (about 3 GB; runner_cleanup.sh only sweeps the top-level *.logs)
   rm -rf "$REP.logs"/tmp_b* 2>/dev/null
@@ -172,6 +177,14 @@ print("- tsc: " + ("OK" if c.get("tsc", {}).get("pass") else "FAILED"))
 for k, label in (("backend", "backend (3 shards)"), ("preview", "playwright preview"), ("dev", "playwright dev-server specs"),
                  ("fixture", "playwright fixture specs"), ("pixel", "pixel baselines"), ("release_check", "release_check")):
     print(line(k, label))
+v = d.get("visual") or {}
+if v.get("counts"):   # T074: every screen against the linux baselines (block: a twice-differing case fails, a retry-match is FLAKY)
+    vc = v["counts"]
+    print(f"- visual matrix ({v.get('mode')}, {v.get('scope')} screens): first run {vc['pass']} pass, {vc['diff']} differ, {vc['error']} error, "
+          f"{vc['nobase']} without a linux baseline; flaky {len(v.get('flaky', []))}, failed {len(v.get('failed', []))}"
+          + (f"; differing: {', '.join(v.get('diffs', [])[:8])}" if v.get("diffs") else ""))
+elif v:
+    print(f"- visual matrix: {v.get('error') or v.get('summary')}")
 print("- phases (min): " + ", ".join(f"{p['name']} {p['seconds'] // 60}" for p in d.get("phases", [])))
 fails = [i for i in d.get("items", []) if i["status"] == "FAIL"]
 print(); print(f"## Failures ({len(fails)}, first 40)")
@@ -188,6 +201,23 @@ P
   GQ="${SW_GATE2_DIR:-$HOME/gate2}/gate_quarantine.py"
   if [ -f "$GQ" ]; then
     { echo; python3 "$GQ" md --file "${SW_QUARANTINE_FILE:-$(dirname "$GQ")/gate2_quarantine.json}"; } >> "$OUT" 2>>"$LOGD/engine.log"
+  fi
+  # T074 (docs/changes/T074-VISUAL-METRICS-2405.md): time to camera / time to recording, from what the lead dropped into
+  # ~/smplwise-results/video_timing/ (an add-on log *.log, audit API exports *.json, a database copy *.sqlite; read-only, no device is
+  # touched). Report only - no --enforce while the limits are PROVISIONAL; no input = a NOT_RUN line, never a pass.
+  VT="${SW_VIDEO_TIMING_PY:-$(dirname "$ENGINE")/video_timing.py}"; VTIN="${SW_VIDEO_TIMING_DIR:-$RESULTS/video_timing}"
+  if [ "$BR" = "main" ] && [ -f "$VT" ]; then
+    VARGS=(); VFILES=""
+    for f in "$VTIN"/*.log "$VTIN"/*.json "$VTIN"/*.sqlite; do
+      [ -f "$f" ] || continue
+      case "$f" in *.log) VARGS+=(--log "$f");; *.json) VARGS+=(--audit-json "$f");; *.sqlite) VARGS+=(--db "$f");; esac
+      VFILES="$VFILES $(basename "$f") ($(date -r "$f" +%F))"
+    done
+    if [ "${#VARGS[@]}" -gt 0 ]; then
+      { echo; python3 "$VT" report "${VARGS[@]}" --json "$NRES/video_timing_$(date +%F).json"; echo "- input files:$VFILES"; } >> "$OUT" 2>>"$LOGD/engine.log"
+    else
+      { echo; echo "## Time to camera / time to recording (T074): NOT_RUN - no input in $VTIN"; } >> "$OUT"
+    fi
   fi
   # GATESPEED-293 safety net: this FULL run (no selection) against the release gates that ran a diff selection
   # (--select-base): every nightly red in a file such a run dropped is listed in <date>_selection-audit.md

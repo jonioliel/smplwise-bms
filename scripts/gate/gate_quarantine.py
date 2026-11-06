@@ -10,7 +10,7 @@ expiry of at most 7 days after it was added (gate2_verdict.MAX_QUARANTINE_DAYS).
 explains nothing any more (its test counts as a failure again) and every gate / nightly / entry-check report lists it.
 
   gate_quarantine.py list   [--results DIR] [--file FILE] [--known known_issues.json]
-  gate_quarantine.py add    --match <substring of the test id> --category backend|preview|dev|pixel|fixture|* --ticket T --owner O --reason R [--days 7]
+  gate_quarantine.py add    --match <substring of the test id> --category backend|preview|dev|pixel|fixture|visual|* --ticket T --owner O --reason R [--days 7]
   gate_quarantine.py remove --match <the entry's match> [--category C] --reason "<why: fixed in T / not flaky>"   -> moved to "history"
   gate_quarantine.py check  [--file FILE]      rc 0 = every entry valid and active; rc 1 = an invalid or expired entry (listed)
   gate_quarantine.py md     [--file FILE]      the markdown section the reports carry (nightly_tests.sh appends it)

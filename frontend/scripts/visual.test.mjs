@@ -23,6 +23,15 @@ test('touched: a screen source selects only that screen', () => {
   assert.deepEqual(selectTouched(['backend/app/x.py', 'docs/a.md'], matrix), []);
 });
 
+test('touched (T074): a re-taken baseline selects its own screen, the spec or the driver selects every screen', () => {
+  assert.deepEqual(selectTouched(['frontend/tests/visual-matrix.spec.ts-snapshots/live-wall-ready-dark-mobile-linux.png'], matrix), ['live-wall']);
+  // devices-home vs devices-building: the state in the name keeps prefixes apart
+  assert.deepEqual(selectTouched(['frontend/tests/visual-matrix.spec.ts-snapshots/devices-home-dialog-light-desktop-linux.png'], matrix), ['devices-home']);
+  assert.deepEqual(selectTouched(['frontend/tests/visual-matrix.spec.ts-snapshots/gone-screen-ready-light-desktop-linux.png'], matrix), []);
+  assert.equal(selectTouched(['frontend/tests/visual-matrix.spec.ts'], matrix).length, matrix.screens.length);
+  assert.equal(selectTouched(['frontend/scripts/visual.mjs'], matrix).length, matrix.screens.length);
+});
+
 test('touched: shared styles/components select every screen', () => {
   assert.equal(selectTouched(['frontend/src/styles/tokens.css'], matrix).length, matrix.screens.length);
   assert.equal(selectTouched(['frontend\\src\\components\\sw-button.ts'], matrix).length, matrix.screens.length);
