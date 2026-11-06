@@ -1,5 +1,37 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.40.5 (pilot) - Safer outages, owner contacts for bridge-key alerts, a large room fits the area screen, and fixes
+**אחרי ההתקנה:** אין מיגרציה של מסד הנתונים - חזרה ל-2.40.4 בטוחה. אף הגדרה קיימת לא משנה ברירת מחדל. גשר Arx נשאר 0.10.5, ולכן אין צורך בהפעלה מחדש של Home Assistant. הממשק נבנה מחדש עם התוסף, לכן כדאי לטעון את הדף מחדש פעם אחת אחרי העדכון.
+- **English:** After installing: no database migration - going back to 2.40.4 is safe. No existing setting changes its default. The Arx bridge stays 0.10.5, so no Home Assistant restart is needed. The interface is rebuilt with the add-on, so reload the page once after the update.
+
+### מה תוקן - What was fixed
+- **עברית:** תקלות חיבור: פקודת דלת או התקן שהחיבור שלה נפל אחרי שהיא כבר יצאה מדווחת עכשיו כ"לא ידוע - בדקו את ההתקן", ואף פעם לא מוצעת לשליחה חוזרת עיוורת (לפני כן היא הוצגה כ"נכשל" עם הצעה לנסות שוב, בזמן שייתכן שההתקן כבר ביצע אותה).
+- **English:** Connection faults: a door or device command whose link dropped after it had already left is now reported as "unknown - check the device", and is never offered for a blind retry (before, it showed as "failed" with an offer to try again, while the device may already have carried it out).
+- **עברית:** דיסק מלא: כשהדיסק מלא Arx אומר זאת בבירור - בתשובה עם הסבר בעברית ובתג בסרגל העליון - ומסרב לפעולות שצריכות לרשום משהו, כולל פקודות דלת והתקן, כי בלי רישום אין פקודה. המסכים עדיין נטענים ואפשר לקרוא בהם. כשמתפנה מקום הכול חוזר לעבוד, ושום דבר שנדחה לא נשלח מאוחר יותר.
+- **English:** Full disk: when the disk is full Arx says so clearly - in its answer, with an explanation in Hebrew, and with a chip in the top bar - and refuses actions that need to record something, door and device commands included, because without a record there is no command. Screens still load and can be read. When space is freed everything works again, and nothing that was refused is sent later.
+- **עברית:** אסימון גישה של התוסף שבוטל: הסרגל העליון ושורת הסנכרון אומרים עכשיו שהגישה נדחתה ושצריך לתקן אותה, במקום "מנסה שוב".
+- **English:** A revoked add-on access token: the top bar and the sync line now say that access was refused and needs fixing, instead of "retrying".
+- **עברית:** מפת הקומה: כפתורי המעגלים שהאור בהם דולק אטומים עכשיו (לא שקופים), כך שהם קריאים מעל התוכנית בכל הסגנונות.
+- **English:** Floor map: the circuit buttons whose light is on are now opaque (not see-through), so they are readable over the plan in every skin.
+- **עברית:** מסך אזור: חדר גדול (עשרות התקנים) נכנס במסך בלי גלילה - המסך נעשה צפוף יותר בהדרגה כשצריך - וכפתורי "הדלק הכל" ו"כבה הכל" של חלק עוברים לשורה נפרדת כשאין מספיק מקום.
+- **English:** Area screen: a large room (dozens of devices) fits the screen without scrolling - the screen becomes denser step by step when needed - and a section's "turn all on" and "turn all off" keys move to their own row when there is not enough room.
+- **עברית:** מרחב משותף: רשימת החברים של חדר שנמצא בכמה קומות מציגה רק את הקומות שהמשתמש רשאי לראות.
+- **English:** Shared space: the member list of a room on several floors shows only the floors the user may see.
+- **עברית:** פעולות מרוכזות: תצוגה מקדימה של פעולה על הרבה התקנים יחד עובדת גם כשהרשימה ארוכה מאוד.
+- **English:** Bulk actions: the preview of an action on many devices at once works also when the list is very long.
+- **עברית:** Frigate: בטבלאות הייצוא והתיקים, כשהשורות מקופלות במסך צר, תג המצב (למשל ייצוא שעדיין נכתב) מוצג בשורה במקום להיעלם.
+- **English:** Frigate: in the exports and cases tables, when the rows are folded on a narrow screen, the state tag (for example an export still being written) shows in the row instead of disappearing.
+
+### מה נוסף - What was added
+- **עברית:** אנשי קשר של הבעלים: בכרטיס מפתח הגשר בהגדרות אפשר לבחור עד חמישה מנהלי מערכת שהם "הבעלים". כשמפתח הגשר צריך טיפול, הם מקבלים התראה ראשונים (ואחריהם שאר מנהלי המערכת), בדואר ובאפליקציה. כל עוד לא נבחר איש קשר, התראה פתוחה על מפתח הגשר מוצגת כשורה בראש מסכי ההגדרות. רק מנהל מערכת, בחיבור מקומי, משנה את הרשימה, והשינוי נרשם ביומן.
+- **English:** Owner contacts: The bridge key card in Settings lets you choose up to five system administrators who are "the owner". When the bridge key needs attention they are alerted first (and then the other system administrators), by e-mail and in the app. As long as no contact is chosen, an open bridge-key alert shows as a line at the top of the Settings screens. Only a system administrator, on a local session, changes the list, and the change is logged.
+- **עברית:** זמני הניגון ביומן: ניגון הקלטה רושם כמה זמן עבר עד שהתמונה הופיעה, ושורת הווידאו החי רושמת את זמן התשובה, כדי שאפשר יהיה למדוד ולהשוות.
+- **English:** Playback timing in the log: playing a recording logs how long it took until the picture appeared, and the live video line logs the answer time, so they can be measured and compared.
+
+### מה השתפר - What was improved
+- **עברית:** תחזוקה של הבדיקות ושל בדיקת השחרור, בלי שינוי שנראה למשתמש.
+- **English:** Maintenance of the tests and of the release check, with no change a user can see.
+
 ## 2.40.4 (pilot) - Required before upgrading Home Assistant to 2026.11: entity names as Home Assistant shows them; the bridge blocks intercom door commands; readability fixes
 **אחרי ההתקנה:** **יש להתקין את הגרסה הזו לפני שמשדרגים את Home Assistant ל-2026.11.** מיגרציה אחת של מסד הנתונים, שרק מוסיפה ורצה לבד בהפעלה הראשונה (0206: שם קצר וסימון "ישות ראשית" לישויות, והתקן אב ו"חלק השם הבא" להתקנים). אין חזרה ל-2.40.3 בלי הגיבוי של מסד הנתונים שנלקח לפני העדכון. גשר Arx מתעדכן ל-0.10.5: בהתקנה רגילה Arx מעתיק אותו בעצמו, ואחרי ההעתקה צריך הפעלה מחדש אחת של Home Assistant (השורה של הגשר תבקש אותה). בהתקנה שבה WisKey הותקן ידנית, Arx לא מעתיק את הגשר: מעתיקים ידנית את התיקייה custom_components/smplwise_bridge בגרסה 0.10.5 מחבילת הגרסה ומפעילים מחדש את Home Assistant פעם אחת. הממשק נבנה מחדש עם התוסף, לכן כדאי לטעון את הדף מחדש פעם אחת אחרי העדכון.
 - **English:** After installing: **install this version before upgrading Home Assistant to 2026.11.** One additive database migration that runs by itself at the first start (0206: a short name and a "main entity" mark for entities, a parent device and the "next name part" for devices). Going back to 2.40.3 is not possible without the database backup taken before the update. The Arx bridge is updated to 0.10.5: on a regular installation Arx copies it by itself, and one Home Assistant restart is needed after the copy (the bridge row asks for it). On an installation where WisKey was installed by hand, Arx does not copy the bridge: copy the folder custom_components/smplwise_bridge in version 0.10.5 from the release package by hand and restart Home Assistant once. The interface is rebuilt with the add-on, so reload the page once after the update.
