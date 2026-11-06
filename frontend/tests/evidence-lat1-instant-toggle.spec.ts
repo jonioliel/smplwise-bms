@@ -129,8 +129,9 @@ test.describe('LAT1: a switch flips at the tap and confirms on the pushed state'
     const lat = await readLat(page);
     console.log(`LAT1 mocked answer 600 ms, push-only confirmation: ${JSON.stringify(lat)}`);
     expect(lat.visual!).toBeLessThan(250);
-    await page.unroute('**/api/v1/ha/entities/*/actions');
-    await page.unroute('**/api/v1/ha/actions/*');
+    // FIXTURE-SPECS-2405: the push now confirms well inside the mocked 600 ms answer, so the test used to unroute while that handler was still
+    // sleeping and its late fulfill failed ("Route is already handled!"); wait for the running handlers to finish before the routes go
+    await page.unrouteAll({ behavior: 'wait' });
     await seed(request);
   });
 

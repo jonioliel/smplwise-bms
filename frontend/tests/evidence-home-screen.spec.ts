@@ -164,19 +164,31 @@ test.describe('the home screen against the devices fixture backend', () => {
     if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `${name}-${WIDTH[info.project.name] ?? info.project.name}.png`) });
   }
 
-  /** Every element that scrolls vertically and has something to scroll (through shadow roots). */
-  async function scrolls(page: Page): Promise<string[]> {
-    return page.evaluate(() => {
+  /** Every element that scrolls vertically and has something to scroll (through shadow roots), except those matching `except`. */
+  async function scrolls(page: Page, except = ''): Promise<string[]> {
+    return page.evaluate((ex) => {
       const out: string[] = [];
       const walk = (root: Document | ShadowRoot) => {
         for (const el of Array.from(root.querySelectorAll('*'))) {
           const cs = getComputedStyle(el);
-          if ((cs.overflowY === 'auto' || cs.overflowY === 'scroll') && el.scrollHeight > el.clientHeight + 1) out.push(`${el.tagName.toLowerCase()} ${el.scrollHeight}/${el.clientHeight}`);
+          if ((cs.overflowY === 'auto' || cs.overflowY === 'scroll') && el.scrollHeight > el.clientHeight + 1 && !(ex && el.matches(ex))) out.push(`${el.tagName.toLowerCase()} ${el.scrollHeight}/${el.clientHeight}`);
           if (el.shadowRoot) walk(el.shadowRoot);
         }
       };
       walk(document);
       return out;
+    }, except);
+  }
+
+  /** HOME-295 (2026-10-26): on a wide screen the floor tree is the one panel that may scroll inside itself - the screen sizes it to the
+   * height left under the summary (devices-building.ts: its max-block-size), so a site with more areas than that height never makes
+   * the PAGE scroll. Measured: the tree carries that cap and ends inside the viewport. */
+  async function treeCapped(page: Page): Promise<{ capped: boolean; bottom: number; vh: number } | null> {
+    return page.evaluate(() => {
+      const b = document.querySelector('sw-app')?.shadowRoot?.querySelector('devices-building')?.shadowRoot;
+      const tree = b?.querySelector<HTMLElement>('.split > nav.tree');
+      if (!tree) return null;
+      return { capped: tree.style.maxBlockSize !== '', bottom: Math.round(tree.getBoundingClientRect().bottom), vh: window.innerHeight };
     });
   }
 
@@ -267,7 +279,14 @@ test.describe('the home screen against the devices fixture backend', () => {
             expect(Math.max(...tops) - Math.min(...tops), 'one row').toBeLessThanOrEqual(3);
             expect(box.height, 'about 90 px').toBeLessThanOrEqual(130);
           }
-          expect(await scrolls(page), `${dir} ${view} ${w}x${h}`).toEqual([]);
+          // FIXTURE-SPECS-2405: the page never scrolls; the floor tree may scroll inside its own capped panel (HOME-295, after this spec was
+          // written: the shell's sub-navigation row and the bolder summary tiles left the owner's 12-row tree 58 px short at 1440x900)
+          expect(await scrolls(page, '.split > nav.tree'), `${dir} ${view} ${w}x${h}`).toEqual([]);
+          const tc = await treeCapped(page);
+          if (tc) {
+            expect(tc.capped, `${dir} ${view} ${w}x${h}: the tree is sized to the height left`).toBe(true);
+            expect(tc.bottom, `${dir} ${view} ${w}x${h}: the tree ends inside the viewport`).toBeLessThanOrEqual(tc.vh);
+          }
           expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), `${dir} ${view} ${w}x${h} sideways`).toBeLessThanOrEqual(0);
           if (w === 1440) await shot(page, `home-${dir}-${view}`, testInfo);
           if (w === 1920 && view === 'cards') await page.screenshot({ path: SHOTS ? path.join(SHOTS, `home-${dir}-cards-1920.png`) : path.join(process.cwd(), 'test-results', `home-${dir}-1920.png`) });
@@ -441,13 +460,21 @@ test.describe('the home screen against the devices fixture backend', () => {
       await expect(b.locator('[data-home-phone-size="clock"] option[value=""]')).toHaveText('אוטומטי (בינוני)');
       await b.locator('[data-home-phone-size="weather"]').selectOption('s');
       await expect(b.locator('[data-home-widget="weather"]')).toHaveAttribute('data-size', 's');
+      // FIXTURE-SPECS-2405: since HOME-EDIT-DRAWER-2351 (2026-11-02) the edit panel is a non-modal bottom sheet over the lower half of a phone;
+      // the cards' own controls sit under it, so (as a user does) the sheet is closed, the card is edited, and the edit bar's
+      // "הגדרות המסך" key opens the sheet again - still in edit mode, nothing saved in between
+      await b.locator('[data-home-drawer-close]').click();
+      await expect(b.locator('[data-home-drawer]')).toBeHidden();
+      await expect(b.locator('[data-layout-bar]')).toBeVisible();
       // the card's own controls edit the phone values here: size ...
       await b.locator('[data-home-size="clock:l"]').click();
       await expect(b.locator('[data-home-widget="clock"]')).toHaveAttribute('data-size', 'l');
       // ... and hide (the phone only)
       await b.locator('[data-home-hide="quick"]').click();
       await expect(b.locator('[data-home-ghost="quick"]')).toHaveAttribute('data-home-avail', 'off');
-      // the row's own switch
+      // the row's own switch (in the sheet)
+      await b.locator('[data-home-drawer-toggle]').click();
+      await expect(b.locator('[data-home-drawer]')).toBeVisible();
       await b.locator('[data-home-phone-on="alarm"]').uncheck();
       await expect(b.locator('[data-home-ghost="alarm"]')).toBeVisible();
       await savedWait(page);
@@ -550,17 +577,19 @@ test.describe('the home screen against the devices fixture backend', () => {
       // the order by keyboard: the grip's arrow keys (right / up = earlier)
       await b.locator('[data-home-grip="weather"]').focus();
       await page.keyboard.press('ArrowRight');
-      expect(await cardIds(page)).toEqual(['weather', 'clock', 'shabbat', 'alarm', 'quick']);
+      await expect.poll(() => cardIds(page), { timeout: 5000 }).toEqual(['weather', 'clock', 'shabbat', 'alarm', 'quick']);
       await expect(b.locator('[data-home-grip="weather"]')).toBeFocused(); // the focus stays with the moved card
       await page.keyboard.press('ArrowLeft');
-      expect(await cardIds(page)).toEqual(['clock', 'weather', 'shabbat', 'alarm', 'quick']);
+      await expect.poll(() => cardIds(page), { timeout: 5000 }).toEqual(['clock', 'weather', 'shabbat', 'alarm', 'quick']);
       // the order by drag: the quick actions onto the clock
+      // FIXTURE-SPECS-2405: each reorder re-renders the band; the order is polled, not read once right after the key / drop (a busy runner
+      // read the old order once, right after the drop)
       await b.locator('[data-home-widget="quick"]').dragTo(b.locator('[data-home-widget="clock"]'), { sourcePosition: { x: 40, y: 30 }, targetPosition: { x: 40, y: 30 } });
-      expect(await cardIds(page)).toEqual(['quick', 'clock', 'weather', 'shabbat', 'alarm']);
+      await expect.poll(() => cardIds(page), { timeout: 5000 }).toEqual(['quick', 'clock', 'weather', 'shabbat', 'alarm']);
       // and the panel's own up / down buttons
       await b.locator('[data-home-wearlier="alarm"]').click();
       await b.locator('[data-home-wearlier="alarm"]').click();
-      expect(await cardIds(page)).toEqual(['quick', 'clock', 'alarm', 'weather', 'shabbat']);
+      await expect.poll(() => cardIds(page), { timeout: 5000 }).toEqual(['quick', 'clock', 'alarm', 'weather', 'shabbat']);
       // a heading of its own, from the card's settings button
       await b.locator('[data-home-widget-settings="clock"]').click();
       await expect(b.locator('[data-home-wbody="clock"]')).toBeVisible();
@@ -886,7 +915,10 @@ test.describe('the home screen against the devices fixture backend', () => {
       await p.locator(`${menu} [data-my-home] summary`).click();
       const mine = p.locator(`${menu} sw-home-personal`);
       await expect(mine.locator('[data-home-personal-dir]')).toHaveCount(4, { timeout: 15000 }); // "ברירת מחדל" + a / b / c
-      await expect(mine.locator('[data-home-personal-widget]')).toHaveCount(6); // clock, weather, Shabbat, alarm, quick actions and (CR-015) the media widget
+      // clock, weather, Shabbat, alarm, quick actions, (CR-015) the media widget and (BV1, 2026-10-05) the agenda and the quick launcher; the
+      // conditional widgets (elevators, temperature, generators, doors, notices, presence, cross-section) are not offered on this seeded site
+      await expect(mine.locator('[data-home-personal-widget]')).toHaveCount(8);
+      expect(await mine.locator('[data-home-personal-widget]').evaluateAll((els) => els.map((e) => e.getAttribute('data-home-personal-widget')))).toEqual(['clock', 'weather', 'shabbat', 'alarm', 'quick', 'media', 'agenda', 'launcher']);
       await shot(p, 'home-personal', testInfo);
       // a direction of their own
       await mine.locator('[data-home-personal-dir="c"]').click();
@@ -946,7 +978,9 @@ test.describe('the home screen against the devices fixture backend', () => {
     await page.locator(me).click();
     await expect(page.locator(item)).toHaveCount(1);
     await expect(page.locator(`${item} .txt`)).toHaveText('תצוגה');
-    await expect(page.locator(`${item} [data-menu-view-option]`)).toHaveText(['כרטיסים', 'אריחים']);
+    // K88 (2026-10-05, owner Q2): the installation's default `plan.surfaces` includes "devices", so the live plan is the third view here
+    expect((await settings(request))['plan.surfaces']).toContain('devices');
+    await expect(page.locator(`${item} [data-menu-view-option]`)).toHaveText(['כרטיסים', 'אריחים', 'תוכנית']);
     await expect(page.locator(`${item} [data-menu-view-option="cards"]`)).toHaveAttribute('aria-pressed', 'true');
     await shot(page, 'home-menu-view', testInfo);
     // a pick changes the screen at once and the menu stays open; the choice is this browser's own (localStorage), as before
@@ -993,14 +1027,26 @@ test.describe('the home screen against the devices fixture backend', () => {
         const refresh = b.querySelector('sw-button[data-devices-refresh]');
         const page = b.querySelector('sw-page')!.shadowRoot!;
         const kp = b.querySelector('.kpis')!.getBoundingClientRect();
-        return { gap: Math.round((first?.getBoundingClientRect().top ?? 0) - kp.bottom), first: y(first), refresh: y(refresh), h1: y(page.querySelector('h1')), sub: y(page.querySelector('.sub')), header: Math.round(page.querySelector('header')!.getBoundingClientRect().height) };
+        // HOME295 (2026-10-26): the phone's floor switch (the tree button + the floor segments) sits between the summary tiles and the floors
+        const sw = b.querySelector('[data-phone-floors]')?.getBoundingClientRect() ?? null;
+        const mid = (el: Element | null) => (el ? Math.round(el.getBoundingClientRect().top + el.getBoundingClientRect().height / 2) : null);
+        const under = sw ? sw.bottom : kp.bottom;
+        const block = first?.closest('section.fcard, .floor-head') ?? first; // the floor's own block: the card (cards) or the floor row (tiles)
+        return { gap: Math.round((first?.getBoundingClientRect().top ?? 0) - under), blockGap: Math.round((block?.getBoundingClientRect().top ?? 0) - under), toSwitch: sw ? Math.round(sw.top - kp.bottom) : null, switchH: sw ? Math.round(sw.height) : null, first: y(first), refresh: mid(refresh), h1: mid(page.querySelector('h1')), sub: mid(page.querySelector('.sub')), header: Math.round(page.querySelector('header')!.getBoundingClientRect().height) };
       });
       testInfo.annotations.push({ type: `first-floor-y-${view}`, description: String(m.first) });
       testInfo.annotations.push({ type: `kpis-to-first-floor-`, description: String(m.gap) });
       // measured on the same 390x844 site before / after this change (the seeded 3-floor site): the first floor heading at y=508 / 465 (cards) and 497 / 454 (tiles);
-      // the row that held the view choice (about 43 px with its gap) is gone, so the floors start right under the summary tiles
-      expect(m.gap, `${view}: the first floor starts right under the summary tiles`).toBeLessThanOrEqual(view === 'cards' ? 40 : 30);
-      expect(Math.abs(m.refresh! - m.sub!), 'the refresh icon is on the subtitle line').toBeLessThanOrEqual(30);
+      // the row that held the view choice (about 43 px with its gap) is gone, so the floors start right under the summary tiles.
+      // FIXTURE-SPECS-2405: since HOME295 (2026-10-26) the phone's floor switch is the one row between them (one gap above it, one below), and the
+      // home's header is the title alone (no subtitle): the refresh icon is measured against the title's line
+      if (m.switchH !== null) {
+        expect(m.toSwitch!, `${view}: the floor switch starts right under the summary tiles`).toBeLessThanOrEqual(30);
+        expect(m.switchH, `${view}: the floor switch is one row`).toBeLessThanOrEqual(48);
+      }
+      if (m.switchH === null) expect(m.gap, `${view}: the first floor starts right under the summary tiles`).toBeLessThanOrEqual(view === 'cards' ? 40 : 30);
+      else expect(m.blockGap, `${view}: the first floor's block starts one gap under the floor switch (no empty row: a row is about 43 px)`).toBeLessThanOrEqual(24);
+      expect(Math.abs(m.refresh! - (m.sub ?? m.h1)!), 'the refresh icon is on the title line').toBeLessThanOrEqual(30);
       expect(m.header, 'the header is the title and the subtitle only').toBeLessThanOrEqual(90);
       await expect(page.locator('devices-building [data-toolbar]')).toHaveCount(0);
       await shot(page, `home-phone-${view}`, testInfo);

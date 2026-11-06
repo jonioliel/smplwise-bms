@@ -65,6 +65,8 @@ test('text on the fills a HUD panel lays over its surface (a chip, a hover, a se
     ['--sw-accent-text', ['--sw-accent-soft'], 'a pressed editor rail tool (an icon, no text)', 3],
     ['--sw-text', ['--sw-stale-soft'], 'the banner: text on the amber tone laid over the surface', 4.5],
     ['--sw-text', ['--sw-hover-wash'], 'a washed row', 4.5],
+    ['--sw-heading', ['--sw-lit-soft'], 'a circuit button switched on: its name on the lit tone laid over the surface (FIXTURE-SPECS-2405)', 4.5],
+    ['--sw-text', ['--sw-lit-soft'], 'a circuit button switched on: its count line', 4.5],
   ];
   const fails: string[] = [];
   for (const id of SKIN_IDS) {

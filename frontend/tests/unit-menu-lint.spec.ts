@@ -286,6 +286,29 @@ test('every registered HUD panel paints var(--sw-menu-surface) (or re-points the
   expect(HUD_SURFACES.filter((h) => !hosts.has(h.file)).map((h) => `${h.file} | ${h.selector}`)).toEqual([]);
 });
 
+test('a state of a registered HUD panel (switched on, selected, pressed, hovered) keeps the opaque surface: a soft tone is laid OVER var(--sw-menu-surface), never painted on its own', () => {
+  // FIXTURE-SPECS-2405: `.circuits .circuit.on` painted var(--sw-lit-soft) alone (alpha 0.32): a circuit switched on showed the plan through it
+  // (evidence-hud-opaque-live.spec.ts:75 read alpha 0.32 in every skin x scheme). The registered rule was clean; its state variant was not scanned.
+  const bad: string[] = [];
+  let seen = 0;
+  for (const m of HUD_SURFACES) {
+    if ((m as { via?: string }).via === 'fill' || (m as { via?: string }).via === 'surface-token') continue;
+    for (const r of rulesByFile.get(m.file) ?? []) {
+      for (const sel of r.selectors) {
+        if (sel === m.selector || !sel.startsWith(m.selector)) continue;
+        const rest = sel.slice(m.selector.length);
+        if (!/^(\.[\w-]+|:[\w-]+(\([^)]*\))?|\[[^\]]+\])+$/.test(rest)) continue; // the same element in a state, not a descendant
+        if (/::/.test(rest)) continue;
+        seen++;
+        for (const b of backgrounds(r.body)) if (TRANSLUCENT.test(b)) bad.push(`${m.file} | ${sel}: background: ${b.slice(0, 80)} - lay the tone over the surface: linear-gradient(<tone>, <tone>), var(--sw-menu-surface)`);
+        for (const f of blurs(r.body)) if (f !== 'none') bad.push(`${m.file} | ${sel}: backdrop-filter: ${f.slice(0, 60)} - a HUD panel does not blur`);
+      }
+    }
+  }
+  expect(seen, 'the scan finds the state variants of the HUD panels (the circuit button switched on, among others)').toBeGreaterThan(3);
+  expect(bad, bad.join('\n')).toEqual([]);
+});
+
 test('a registered HUD panel is edged by the strong border (or a hairline of a colour of its own) - never by the menu hairline or the plain border, which Bubble draws as nothing', () => {
   // Bubble is borderless: --sw-border is transparent and --sw-menu-border is its surface colour. An opaque panel in #f6f7fc on the plan's #f4f6fa ground with
   // such a hairline has no edge at all (its chip shape vanishes), so a HUD panel takes --sw-border-strong, the edge every skin tunes for a floating surface

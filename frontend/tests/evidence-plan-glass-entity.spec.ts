@@ -187,7 +187,10 @@ test.describe.serial('window wall: panels linked to entities', () => {
       await page.goto('about:blank');
       await page.goto(`/?design=a#/explore/floors/${ids.floor}`);
       const host = page.locator(MAP);
-      await expect(host.locator('[data-view-3d]')).toBeEnabled({ timeout: 30000 });
+      // the toggle is an <sw-button>: toBeEnabled() does not read the `disabled` attribute of a custom element, so it passed at once and the
+      // click landed while the 3D view was still loading (the button is disabled then) - wait for the attribute itself to go
+      await expect(host.locator('[data-view-3d]')).toBeAttached({ timeout: 30000 });
+      await expect(host.locator('[data-view-3d]')).not.toHaveAttribute('disabled', '', { timeout: 30000 });
       await host.locator('[data-view-3d]').click();
       const el = host.locator('sw-plan-3d[data-floor-3d]');
       await expect(el).toHaveAttribute('data-ready', '', { timeout: 30000 });

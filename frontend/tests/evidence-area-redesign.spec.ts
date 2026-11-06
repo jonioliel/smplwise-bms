@@ -295,6 +295,20 @@ test.describe('the area screen redesign', () => {
         await expect(area(page).locator('sw-card[data-card="lighting"]')).toBeVisible({ timeout: 30000 });
         await page.waitForTimeout(400);
         expect(await scrolls(page), `${d} ${w}x${h}`).toEqual([]);
+        // FIXTURE-SPECS-2405: in the sections direction a section's bulk keys stay in its title column - they ran into the first tiles
+        // since "הדלק הכל" joined "כבה הכל"
+        if (d === 'sections') {
+          const into = await area(page).locator('sw-card[row]').evaluateAll((cards) =>
+            cards.flatMap((c) => {
+              const keys = c.querySelector('.sec-bulk')?.getBoundingClientRect();
+              const body = c.shadowRoot?.querySelector('.body')?.getBoundingClientRect();
+              if (!keys || !body || !keys.width) return [];
+              const overlap = Math.min(keys.right, body.right) - Math.max(keys.left, body.left);
+              return overlap > 1 && keys.bottom > body.top && keys.top < body.bottom ? [`${c.getAttribute('data-card')}: ${Math.round(overlap)} px`] : [];
+            }),
+          );
+          expect(into, `${w}x${h}: the bulk keys overlap the section's tiles`).toEqual([]);
+        }
         await shot(page, `area-${d}-${w}`, testInfo);
       }
     }

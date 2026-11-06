@@ -22,7 +22,7 @@ import { productSettings } from '../api/prefs';
 import { ALARM_HE, assignEntityArea, CARD_EMPTY, CARD_IDS, climateWord, HVAC_ACTION_HE, getDevicesArea, getDevicesTree, getEntityRows, type CardId, type DeviceArea, type DeviceAreaDetail, type DeviceCard, type DeviceRow, type DeviceTree, type EntityRow, isDimmable } from '../api/devices';
 import { AREA_DESIGN_KEY, AREA_DESIGN_LABEL, AREA_DESIGNS, mainSlotOf, mainStrip, PERSONALIZE_PERMISSION, resolveAreaDesign, SECTION_BULK, sectionBulkActions, type AreaDesign, type BulkLook } from './devices-area-design';
 import type { BulkKind } from '../api/device-bulk';
-import { alarmTone, REFRESH_WINDOW_MS, STRUCTURE_FLASH_MS } from './devices-building';
+import { alarmTone, FIT_MIN_WIDTH, REFRESH_WINDOW_MS, scrollParentOf, STRUCTURE_FLASH_MS } from './devices-building';
 import './devices-bulk';
 import './devices-camera-card';
 import type { BulkRequest, DevicesBulkDialog } from './devices-bulk';
@@ -415,6 +415,79 @@ const AREA_DESIGN = css`
   :host([data-area-design='sections']) .grid:not(.lay-grid) > sw-card .cover-group {
     grid-column: 1 / -1;
   }
+  /* FIXTURE-SPECS-2405: in the sections direction the title column is 110-140 px (sw-card [row]); since "הדלק הכל" joined "כבה הכל"
+     (ALLON, 2026-10-10) the two keys side by side (about 176 px) ran into the section's first tiles. They wrap inside the column. */
+  :host([data-area-design='sections']) .grid:not(.lay-grid) > sw-card .sec-bulk {
+    flex-wrap: wrap;
+    max-inline-size: 100%;
+  }
+  /* FIXTURE-SPECS-2405: the fit steps (measureFit) - only while the automatic layout would make the page scroll on a desktop-width
+     screen; the look is the same, the air between and inside the cards is what gives. Step 1: */
+  :host([data-fit='1']) sw-page,
+  :host([data-fit='2']) sw-page {
+    gap: 6px;
+  }
+  :host([data-fit='1']) .sec-strip {
+    padding: 6px 12px;
+  }
+  :host([data-fit='1']) .sec-chip {
+    min-block-size: 26px;
+  }
+  :host([data-fit='1']) .msens {
+    padding-block: 6px;
+  }
+  :host([data-fit='1']) .tile {
+    min-block-size: 46px;
+    padding: 5px 10px;
+  }
+  :host([data-fit='1']) .tiles {
+    gap: 5px;
+  }
+  :host([data-fit='1']) .row {
+    padding-block: 4px;
+  }
+  :host([data-area-design='tiles'][data-fit='1']) .grid:not(.lay-grid) > sw-card {
+    margin-block-end: 8px;
+    padding: 8px 12px 10px;
+  }
+  :host([data-area-design='tiles'][data-fit='1']) .grid:not(.lay-grid) > sw-card > header,
+  :host([data-area-design='tiles'][data-fit='2']) .grid:not(.lay-grid) > sw-card > header {
+    margin-block-end: 6px;
+  }
+  :host([data-area-design='sections'][data-fit='1']) .grid:not(.lay-grid),
+  :host([data-area-design='sections'][data-fit='2']) .grid:not(.lay-grid) {
+    gap: 6px 12px;
+  }
+  :host([data-area-design='sections'][data-fit='1']) .grid:not(.lay-grid) > sw-card {
+    padding: 7px 12px;
+  }
+  /* step 2: the tightest */
+  :host([data-fit='2']) .sec-strip {
+    padding: 4px 10px;
+  }
+  :host([data-fit='2']) .sec-chip {
+    min-block-size: 24px;
+  }
+  :host([data-fit='2']) .msens {
+    padding: 4px 10px;
+  }
+  :host([data-fit='2']) .tile {
+    min-block-size: 42px;
+    padding: 4px 8px;
+  }
+  :host([data-fit='2']) .tiles {
+    gap: 4px;
+  }
+  :host([data-fit='2']) .row {
+    padding-block: 3px;
+  }
+  :host([data-area-design='tiles'][data-fit='2']) .grid:not(.lay-grid) > sw-card {
+    margin-block-end: 6px;
+    padding: 6px 10px 8px;
+  }
+  :host([data-area-design='sections'][data-fit='2']) .grid:not(.lay-grid) > sw-card {
+    padding: 5px 10px;
+  }
   /* a phone: one column of folding sections */
   @media (max-width: 599px) {
     :host([data-area-design]) .grid:not(.lay-grid) {
@@ -587,6 +660,10 @@ const AREA_GLASS = css`
 export class DevicesArea extends LitElement {
   @property() areaId = '';
   @state() private detail: DeviceAreaDetail | null = null;
+  /** FIXTURE-SPECS-2405: the fit step (0 = as designed, 1 / 2 = packed tighter) - see measureFit. Reflected on the host as data-fit. */
+  @state() private fit: 0 | 1 | 2 = 0;
+  private fitKey = '';
+  private fitRaf = 0;
   @state() private error = '';
   @state() private forbidden = false;
   @state() private notFound = false;
@@ -679,6 +756,8 @@ export class DevicesArea extends LitElement {
   }
 
   protected updated() {
+    if (this.getAttribute('data-fit') !== String(this.fit)) this.setAttribute('data-fit', String(this.fit));
+    if (!this.fitRaf) this.fitRaf = window.requestAnimationFrame(this.measureFit);
     // the layout arrives after the area: fetch what its custom cards / main strips list that is not this area's own
     const d = this.detail;
     if (!d) return;
@@ -686,6 +765,39 @@ export class DevicesArea extends LitElement {
     const want = this.lay.listedEntityIds().filter((id) => !own.has(id)).join(',');
     if (want !== this.extraKey && !(want === '' && this.extra.size === 0)) void this.loadExtra();
   }
+
+  /**
+   * FIXTURE-SPECS-2405 (owner decisions 2026-09-30, the area redesign: a 30-device room fits 1440x900 and 1920x1080 without a vertical
+   * scroll; owner rule 2026-10-24: a control screen does not scroll). The shell's sub-navigation row and the bolder cards of later
+   * rounds made the owner's room taller than a 1440x900 page (55 px in the tiles direction, 37 in the sections one). Like the home
+   * screen (devices-building.ts measureFit), the automatic layout is packed one step tighter at a time while the page area still
+   * scrolls on a desktop-width screen; the steps restart from the loosest whenever the viewport, the area, the direction or its
+   * devices change. A phone scrolls as usual, and so do the layout editor and an owner-arranged grid (its rows are the owner's).
+   */
+  private measureFit = () => {
+    this.fitRaf = 0;
+    const d = this.detail;
+    if (!d || !this.isConnected) return;
+    const eligible = window.innerWidth >= FIT_MIN_WIDTH && !this.phone && !this.lay.editing && !this.lay.gridOn('cards');
+    if (!eligible) {
+      if (this.fit !== 0) this.fit = 0;
+      return;
+    }
+    const key = [window.innerWidth, window.innerHeight, this.areaId, this.design, this.entityIds.size].join('|');
+    if (key !== this.fitKey) {
+      this.fitKey = key;
+      if (this.fit !== 0) {
+        this.fit = 0; // measured again after this render
+        return;
+      }
+    }
+    const sc = scrollParentOf(this);
+    if (sc && sc.scrollHeight - sc.clientHeight > 1 && this.fit < 2) this.fit = (this.fit + 1) as 1 | 2;
+  };
+
+  private onFitResize = () => {
+    this.requestUpdate();
+  };
 
   /** A custom card's devices: the rows of the area it lists (one that left the area is skipped), in the order it lists. */
   private customRows(key: string): DeviceRow[] {
@@ -1078,6 +1190,7 @@ export class DevicesArea extends LitElement {
     } catch {
       this.phoneMq = null;
     }
+    window.addEventListener('resize', this.onFitResize);
     if (!isApi()) return;
     if (!canAnywhere('devices.read')) {
       this.forbidden = true;
@@ -1114,6 +1227,9 @@ export class DevicesArea extends LitElement {
     window.clearInterval(this.presenceTimer);
     this.presenceTimer = 0;
     this.phoneMq?.removeEventListener('change', this.onPhone);
+    window.removeEventListener('resize', this.onFitResize);
+    if (this.fitRaf) window.cancelAnimationFrame(this.fitRaf);
+    this.fitRaf = 0;
   }
 
   private onPhone = () => {

@@ -104,6 +104,12 @@ def seed() -> None:
 
 def main() -> None:
     ha_user_auth._dial = CORE.dial  # type: ignore[assignment]
+    # The fixture plays the tunnel: in production cloudflared connects from the hassio network (a trusted proxy) and each remote
+    # device arrives with its own CF-Connecting-IP. Here the browser contexts connect from loopback, so loopback is the proxy.
+    # Since PUB-01 (2026-10-20) a header from an untrusted peer is ignored, and without this every spec's sign-ins shared ONE
+    # per-address bucket (10 a minute): evidence-arx-sessions, run right after evidence-arx-second-factor, was refused with
+    # "יותר מדי ניסיונות כניסה" (FIXTURE-SPECS-2405). The product rule is unchanged; only this fake's peer is trusted.
+    ha_user_auth._TRUSTED_PROXIES = [*ha_user_auth._TRUSTED_PROXIES, *ha_user_auth._ratelimit.parse_trusted_cidrs(["127.0.0.0/8"])]  # type: ignore[attr-defined]
     seed()
     CORE.serve(FAKE_PORT)
     print(f"arx_fake_ha: fake Home Assistant core on http://127.0.0.1:{FAKE_PORT}; Arx on http://127.0.0.1:{PORT}/arx/", flush=True)

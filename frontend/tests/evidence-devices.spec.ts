@@ -2402,7 +2402,13 @@ test.describe('Electricity and devices (CR-007 slice 1 read-only, slice 2 single
       if (desktop) expect(await a.locator('.lay-item[data-lay-key="card:covers"]').evaluate((e) => (e as HTMLElement).style.gridRow)).toContain(`${back.desktop.layout.items['card:covers'].y + 1}`);
 
       // the building without media players (disabled in Home Assistant): no "מסכים דולקים" counter, no media pill
-      const noMedia = ENTITIES.map((e) => (e.entity_id.startsWith('media_player.') ? { ...e, disabled_by: 'user' } : e));
+      // The fixture backend is shared by every spec of the `devices` group: the media players other specs seeded (evidence-area-redesign's
+      // media_player.ar2_tv, evidence-home-screen's media_player.home1_tv) are still enabled and count in the building. Disable those too.
+      const foreignMedia = ((await (await request.get('/api/v1/ha/entities?limit=2000')).json()).entities as { entity_id: string }[])
+        .map((e) => e.entity_id)
+        .filter((id) => id.startsWith('media_player.') && !ENTITIES.some((e) => e.entity_id === id))
+        .map((entity_id) => ({ entity_id, area_id: null, disabled_by: 'user' }));
+      const noMedia = [...ENTITIES.map((e) => (e.entity_id.startsWith('media_player.') ? { ...e, disabled_by: 'user' } : e)), ...foreignMedia];
       expect((await request.post('/api/v1/ha/dev/registry', { data: { entities: noMedia, devices: [], areas: AREAS, floors: FLOORS } })).status()).toBe(200);
       const tree = await (await request.get('/api/v1/devices/tree')).json();
       expect(tree.building.media).toBe(0);

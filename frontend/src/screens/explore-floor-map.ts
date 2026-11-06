@@ -1366,7 +1366,8 @@ export class ExploreFloorMap extends LitElement {
       transition: background var(--sw-t-hover) var(--sw-ease-color), border-color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
     }
     .circuits .circuit.on {
-      background: var(--sw-lit-soft);
+      /* the lit tone laid over the opaque surface: a circuit switched on must not show the plan through it (--sw-lit-soft alone is alpha 0.32) */
+      background: linear-gradient(var(--sw-lit-soft), var(--sw-lit-soft)), var(--sw-menu-surface);
       border-color: color-mix(in srgb, var(--sw-map-lit) 60%, var(--sw-border-strong));
       font-weight: var(--sw-fw-semibold);
       color: var(--sw-heading);
