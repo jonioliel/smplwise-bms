@@ -63,6 +63,7 @@ def note_capability(conn: sqlite3.Connection, announced: Any) -> None:
 def clear_capability(conn: sqlite3.Connection) -> None:
     set_setting(conn, SETTING_CAP, "")
     set_setting(conn, SETTING_CAP_AT, "")
+    set_setting(conn, "bridge.peer_key_generation", "")  # WXH-LEFTOVERS-2405: a new pairing forgets the old bridge's reported generation too
 
 
 def announced_capability(conn: sqlite3.Connection, now: float | None = None) -> str | None:
@@ -75,6 +76,36 @@ def announced_capability(conn: sqlite3.Connection, now: float | None = None) -> 
     except ValueError:
         return None
     return CAPABILITY if ((time.time() if now is None else now) - seen) <= CAPABILITY_TTL_S else None
+
+
+SETTING_GEN = "bridge.peer_key_generation"
+SETTING_GEN_AT = "bridge.peer_key_generation_at"
+
+
+def note_key_generation(conn: sqlite3.Connection, announced: Any) -> None:
+    """WXH-LEFTOVERS-2405 (CR-034 section 2 item 3): the key generation a VERIFIED directory push reports (a bridge that predates it sends
+    none - nothing is recorded and nothing is compared). State only, for the watchdog's `generation_mismatch`; never a request."""
+    if isinstance(announced, bool) or not isinstance(announced, int) or not 0 <= announced <= 1_000_000:
+        return
+    set_setting(conn, SETTING_GEN, str(announced))
+    set_setting(conn, SETTING_GEN_AT, datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"))
+
+
+def reported_key_generation(conn: sqlite3.Connection, now: float | None = None) -> dict[str, Any] | None:
+    """{generation, at} while the bridge's report is fresh (the capability's TTL), else None."""
+    try:
+        raw, at = get_setting(conn, SETTING_GEN), get_setting(conn, SETTING_GEN_AT) or ""
+    except sqlite3.Error:
+        return None
+    if not raw or not str(raw).isdigit():
+        return None
+    try:
+        seen = datetime.strptime(at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp()
+    except ValueError:
+        return None
+    if ((time.time() if now is None else now) - seen) > CAPABILITY_TTL_S:
+        return None
+    return {"generation": int(raw), "at": at}
 
 
 class HaServicePeer:

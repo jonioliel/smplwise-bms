@@ -279,6 +279,9 @@ SETTINGS_KEEP_PREFIXES = SETTINGS_KEEP_PREFIXES + ("wiskey.installation.",)
 SETTINGS_KEEP_PREFIXES = SETTINGS_KEEP_PREFIXES + ("wiskey.managed.",)
 # OFFBOX-RESTORE-2300 (owner 2026-10-30): the restore defaults and the local safety-archive switch are this installation's policy
 SETTINGS_KEEP = SETTINGS_KEEP | {"backup.offbox_restore_scope", "backup.local_restore_scope", "backup.safety_before_local_restore"}
+# WXH-LEFTOVERS-2405 (CR-034 section 7): who is "the owner" for the bridge-key notices is security policy (an archive must never redirect
+# them), and the watchdog's record of what it reported plus the bridge's last reported key generation are runtime state of THIS box
+SETTINGS_KEEP = SETTINGS_KEEP | {"security.owner_contacts", "bridge.watchdog", "bridge.peer_key_generation", "bridge.peer_key_generation_at"}
 
 
 def _kept_setting(key: Any) -> bool:

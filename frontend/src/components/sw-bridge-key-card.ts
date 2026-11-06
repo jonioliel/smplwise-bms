@@ -7,7 +7,7 @@ import './sw-toggle';
 import type { StateKind } from './sw-badge';
 import { onRemote } from '../api/session';
 import { describeError } from '../api/client';
-import { ACTIVE_STATES, doorsPaused, getBridgeKey, resumeRotation, setBridgeKeySettings, startRotation, type BridgeKeyStatus, type RotationMode } from '../api/bridge-key';
+import { ACTIVE_STATES, doorsPaused, getBridgeKey, resumeRotation, setBridgeKeySettings, setOwnerContacts, startRotation, type BridgeKeyStatus, type RotationMode, type WatchdogCondition } from '../api/bridge-key';
 import { bkt, bktCode, bktLang } from '../i18n/bridge-key';
 
 function when(iso: string | null | undefined): string {
@@ -100,6 +100,35 @@ export class SwBridgeKeyCard extends LitElement {
       color: var(--sw-success-text, var(--sw-text-2));
       font-size: var(--sw-fs-sm);
     }
+    .chips {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      min-inline-size: 0;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      min-inline-size: 0;
+      overflow-wrap: anywhere;
+      font-size: var(--sw-fs-sm);
+      padding-inline-start: 10px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-sm);
+    }
+    .chip.invalid {
+      color: var(--sw-text-2);
+      text-decoration: line-through;
+    }
+    .alert {
+      color: var(--sw-danger-text);
+      font-size: var(--sw-fs-sm);
+      padding-block: 6px;
+      min-inline-size: 0;
+      overflow-wrap: anywhere;
+    }
     @media (max-width: 767px) and (pointer: coarse) {
       select {
         min-block-size: 44px;
@@ -157,11 +186,42 @@ export class SwBridgeKeyCard extends LitElement {
   }
 
   private overall(s: BridgeKeyStatus): [StateKind, string] {
+    if (s.watchdog?.length) return ['error', bkt('stateAttention')];
     if (s.rotation && ACTIVE_STATES.includes(s.rotation.state)) return ['partial', bkt('stateRotating')];
     if (s.last && (s.last.state === 'needs_repair' || s.last.state === 'verify_failed')) return ['error', bkt('stateAttention')];
     if (s.key && s.key.readable === false) return ['error', bkt('stateAttention')];
     if (!s.enabled) return ['neutral', bkt('stateOff')];
     return ['live', bkt('stateReady')];
+  }
+
+  /** WXH-LEFTOVERS-2405 (CR-034 section 7): the owner contacts - active system administrators who are told first about the bridge key. */
+  private renderOwners(s: BridgeKeyStatus) {
+    const oc = s.owner_contacts;
+    if (!oc) return nothing;
+    const save = (ids: string[]) => void this.run(async () => { await setOwnerContacts(ids); this.saved = true; });
+    const free = oc.candidates.filter((c) => !oc.ids.includes(c.id));
+    return html`<div class="row" data-bridge-key-owners>
+        <span class="lbl">${bkt('ownerContacts')}</span>
+        <span class="acts">
+          <span class="chips">${oc.users.map((u) => html`<span class="chip ${u.valid ? '' : 'invalid'}" data-bridge-key-owner=${u.id} title=${u.valid ? '' : bkt('ownerInvalid')}>${u.name}
+            <sw-button size="sm" variant="ghost" ?disabled=${this.busy} aria-label=${`${bkt('ownerRemove')} ${u.name}`} data-bridge-key-owner-remove
+              @click=${() => save(oc.ids.filter((x) => x !== u.id))}>${bkt('ownerRemove')}</sw-button></span>`)}</span>
+          ${free.length && oc.ids.length < oc.max
+            ? html`<select aria-label=${bkt('ownerAdd')} ?disabled=${this.busy} data-bridge-key-owner-add
+                @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; if (v) save([...oc.ids, v]); }}>
+                <option value="" selected>${bkt('ownerAdd')}</option>
+                ${free.map((c) => html`<option value=${c.id}>${c.name}</option>`)}
+              </select>`
+            : nothing}
+        </span>
+      </div>
+      <div class="note" data-bridge-key-owners-note>${oc.set ? bkt('ownerReach', { n: oc.recipients }) : bkt('ownerNone')}</div>`;
+  }
+
+  /** WXH-LEFTOVERS-2405: what the watchdog reports now (conditions that already fail closed) - one short line each. */
+  private watchLine(c: WatchdogCondition): string {
+    if (c.code === 'generation_mismatch') return bkt('wd_generation_mismatch', { a: c.arx_generation ?? '', b: c.bridge_generation ?? '' });
+    return bktCode('wd_', c.code);
   }
 
   private renderAsk() {
@@ -213,6 +273,7 @@ export class SwBridgeKeyCard extends LitElement {
           : nothing}
       </div>
       ${doorsPaused(s) ? html`<div class="note" role="status" data-bridge-key-doors-paused>${bkt('doorsPaused')}</div>` : nothing}
+      ${(s.watchdog ?? []).map((c) => html`<div class="alert" role="alert" data-bridge-key-watchdog=${c.code}>${this.watchLine(c)}</div>`)}
       <div class="note" data-bridge-key-hygiene>${bkt('hygieneNote')}</div>
       ${rot?.retire_at ? html`<div class="note" role="status">${bkt('retireAt', { t: when(rot.retire_at) })}</div>` : nothing}
       <div class="row">
@@ -225,6 +286,16 @@ export class SwBridgeKeyCard extends LitElement {
           </select>
         </span>
       </div>
+      ${this.renderOwners(s)}
+      ${s.hand_over
+        ? html`<div class="row" data-bridge-key-hand-over>
+            <span class="lbl">${bkt('bridgeGen')}</span>
+            <span class="val">${s.hand_over.bridge_generation ?? bkt('bridgeGenNone')}</span>
+          </div>
+          ${s.hand_over.last_rotation?.anchor_eligible && !s.hand_over.anchor_decrease_available
+            ? html`<div class="note" data-bridge-key-anchor>${bkt('anchorUnavailable')}</div>`
+            : nothing}`
+        : nothing}
       ${this.renderAsk()}
       <div class="row">
         <span class="val" data-bridge-key-blocked>${blocked}</span>

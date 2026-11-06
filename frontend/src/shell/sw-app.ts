@@ -10,6 +10,7 @@ import '../components/sw-avatar';
 import './sw-user-menu';
 import './sw-nav-order';
 import '../components/nvr-restart-banner';
+import '../components/sw-bridge-key-banner'; // WXH-LEFTOVERS-2405: the bridge-key notice line on every Settings screen while no owner contact is set
 import { UPDATE_HREF, onUpdateState, refreshUpdateMarker, updateAvailable, restartRequired } from './update-marker';
 import { openAlertsText } from './sw-user-menu';
 import { loadNavOrder, navOrder, onNavOrder, resetNavOrder, saveNavOrder } from './nav-order';
@@ -3299,6 +3300,7 @@ export class SwApp extends LitElement {
         ${this.renderHomeBrand(editor)}
         ${this.renderSetupHint()}
         ${this.embedded() || this.gated || this.session.mode !== 'api' ? nothing : html`<nvr-restart-banner></nvr-restart-banner>`}
+        ${area !== 'system' || editor || this.embedded() || this.gated || this.session.mode !== 'api' ? nothing : html`<sw-bridge-key-banner></sw-bridge-key-banner>`}
         ${this.renderGate() || html`
           ${this.renderChrome(section, tabs, editor, rowMode, rowStyle, showSections)}
           <div class="screen" ?data-settings=${this.settingsNav(area, editor)}>${this.settingsNav(area, editor) ? html`<system-nav ?compact=${this.phone}></system-nav>` : nothing}${this.session.mode === 'loading' ? nothing : this.renderScreen()}</div>`}

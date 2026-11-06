@@ -209,6 +209,10 @@ def recipients_for(conn: sqlite3.Connection, policy: dict[str, Any], n: dict[str
         from .tickets import rfq_notify
 
         candidates = rfq_notify.recipient_users(conn, n)
+    elif rule == "bridge_key_owner":  # WXH-LEFTOVERS-2405 (CR-034 section 7): the owner contacts first, then every other system administrator
+        from . import bridge_key_notice
+
+        candidates = bridge_key_notice.recipient_users(conn, n)
     else:
         candidates = list(rec.get("user_ids") or [])
     out = []
