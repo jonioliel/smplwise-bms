@@ -10,6 +10,7 @@ export function syncErrorText(code: string | null | undefined): string {
       return 'החיבור לתשתית המערכת עדיין לא הוגדר';
     case 'ha_auth_failed':
     case 'ha_unauthorized':
+    case 'ha_forbidden': // T035: the add-on's token was refused (revoked / replaced) - waiting does not heal it
       return 'תשתית המערכת דחתה את ההרשאה';
     default:
       return code ? 'החיבור לתשתית המערכת נפסק, מנסה שוב...' : '';

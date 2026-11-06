@@ -21,7 +21,7 @@ from starlette.concurrency import run_in_threadpool
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..config import Settings
-from ..db import Database, bump_permission_revision, get_setting, now_iso, retry_locked, set_setting
+from ..db import Database, bump_permission_revision, get_setting, is_storage_full, now_iso, retry_locked, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, permissions_anywhere, require
 from ..services import bridge_install, bridge_rotation_peer as peer_mod, building_scope, device_activity, door_authority, door_path_guard, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, intercom_doors, media_store
@@ -210,6 +210,11 @@ def run_action(entity_id: str, body: ActionBody, request: Request, response: Res
 
 
 PENDING_WAIT_S = 2.0  # SEC246 L3: the longest wait for the command's record before the command is refused (503 busy, nothing sent)
+# T035: the httpx failures that happen before the request could leave (the connection was never made) - nothing reached Home
+# Assistant. Any other transport failure of `execute` may follow a delivered command (services/device_bulk.py reads the same names).
+NOT_SENT_TRANSPORT_ERRORS = frozenset({"ConnectError", "ConnectTimeout"})
+OUTCOME_UNKNOWN_TEXT = "לא ידוע אם הפקודה בוצעה: הקשר עם תשתית המערכת נפסק אחרי שהפקודה נשלחה. בדקו את מצב ההתקן לפני ניסיון נוסף."
+STORAGE_FULL_TEXT = "אחסון התוסף מלא, ולכן הפקודה לא נרשמה ולא נשלחה. יש לפנות מקום בדיסק של התוסף."
 # LAT1 ran the calls on an 8-worker dispatch pool (to overlap them with the pending record); SEC246 L3 records first, so the
 # call runs in the request's own thread and only the bound stays: at most 8 single-entity calls in flight at once
 _DISPATCH_SLOTS = threading.BoundedSemaphore(8)
@@ -365,6 +370,8 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
         except Exception as exc:  # noqa: BLE001 - nothing was sent; the server log is the trace of the refused attempt
             log.warning("ha.action %s NOT sent (the record could not be written: %s): user=%s entity=%s action=%s request=%s",
                         aid, type(exc).__name__, principal.user_id, entity_id, body.allowed_action_id, rid)
+            if is_storage_full(exc):  # T035: a full data disk is not "busy" - pressing again will not help
+                raise ApiError(507, "storage_full", STORAGE_FULL_TEXT, details={"sent": False}) from None
             raise ApiError(503, "busy", "המערכת עסוקה כרגע והפקודה לא נשלחה. נסו שוב בעוד רגע.", retryable=True,
                            details={"sent": False, "retry_after_s": 2})
         # the record is durable: the command leaves now, from this thread (record-first leaves nothing to overlap with the
@@ -374,14 +381,23 @@ def _run_action(entity_id: str, body: ActionBody, request: Request, principal: P
             with _DISPATCH_SLOTS:
                 result = timing.timed("bridge", ha_client.call_bridge_execute, settings, payload)
         except ApiError as exc:
+            # T035 (outage run): a transport error AFTER the connection was made (a read timeout, a dropped socket) may follow a
+            # delivered command - the record says `unknown`, never `failed`, and the answer is not retryable, so nobody presses
+            # again on a door that may already be open (the bulk path and the door path read the same transport names)
+            maybe_sent = exc.code == "ha_unavailable" and (exc.details or {}).get("error") not in NOT_SENT_TRANSPORT_ERRORS
+            row_status = "unknown" if maybe_sent else "failed"
+
             def _failed() -> None:
                 with db.write_aside(label="ha.action failed") as w:
                     w.execute(insert_sql, row_args)
-                    w.execute("UPDATE ha_actions SET status = 'failed', error = ?, responded_at = ? WHERE id = ?", (exc.code, now_iso(), aid))
+                    w.execute("UPDATE ha_actions SET status = ?, error = ?, responded_at = ? WHERE id = ?", (row_status, exc.code, now_iso(), aid))
                     audit(w, actor=principal, action="ha.action", decision="allowed", resource_type="ha_entity", resource_id=entity_id, reason=exc.code,
-                          request_id=rid, details={"action": body.allowed_action_id, "id": aid, "status": "failed"})
+                          request_id=rid, details={"action": body.allowed_action_id, "id": aid, "status": row_status})
 
             retry_locked(_failed, what="ha.action failed row", attempts=3, base_s=0.25)
+            if maybe_sent:
+                raise ApiError(504, "action_outcome_unknown", OUTCOME_UNKNOWN_TEXT, retryable=False,
+                               details={"outcome": "unknown", "action_id": aid, "error": (exc.details or {}).get("error")}) from None
             raise
         status, error = ha_actions.bridge_status(result)
         ok = status == "pending"

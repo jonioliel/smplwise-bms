@@ -15,3 +15,8 @@ test('unknown technical names never reach the screen', () => {
   expect(syncErrorText(null)).toBe('');
   expect(syncDisconnectedText(null)).toBe('מנותק');
 });
+
+test('a refused token (ha_forbidden) says so instead of promising a reconnect', () => {
+  expect(syncErrorText('ha_forbidden')).toBe('תשתית המערכת דחתה את ההרשאה');
+  expect(syncDisconnectedText('ha_forbidden')).not.toContain('מנסה שוב');
+});

@@ -1,0 +1,7 @@
+# T035 run 2 - the full backend suite on the runner (two shards), branch head 384b5acb4
+# command: private/runner/run_smart.py backend chore/T035-OUTAGE-RUN-2405 --machine runner
+[run_smart] backend chore/T035-OUTAGE-RUN-2405 -> שרת הריצה (אובונטו) (workers=2): המחשב נבחר ידנית (עומס 3.8, זיכרון פנוי 12.7GB)
+== backend chore/T035-OUTAGE-RUN-2405 @ 384b5acb4 in /home/sw/work/chore-T035-OUTAGE-RUN-2405
+shard 1: 9698 passed, 12 skipped, 1 warning in 9860.14s (2:44:20)
+shard 2: 11139 passed, 14 skipped, 3 xfailed, 2 warnings in 9610.00s (2:40:10)
+רץ על שרת הריצה (אובונטו) כי המחשב נבחר ידנית (עומס 3.8, זיכרון פנוי 12.7GB)
