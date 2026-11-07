@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-07T14:07:25.451323+00:00
+Generated: 2026-11-07T14:07:56.103002+00:00
 
-Tasks: 453 | Requirements: 563 | Tests: 580 | Screens: 32
+Tasks: 454 | Requirements: 564 | Tests: 581 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,14 +12,14 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BACKLOG: 95
 - BLOCKED: 20
 - DONE: 40
-- IN_PROGRESS: 4
+- IN_PROGRESS: 5
 - REVIEW: 294
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 359
+- V1: 360
 - V2: 29
 - V3: 2
 
@@ -501,3 +501,4 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [HA-2026-11-COMPAT-2404](tasks/HA-2026-11-COMPAT-2404.md) | V1 | REVIEW | Home Assistant 2026.11 entity names and child devices | — |
 | [PY-CONSTRAINTS-2407](tasks/PY-CONSTRAINTS-2407.md) | V1 | BACKLOG | Python constraints lock file for the add-on + Supervisor build check | — |
 | [CAMERA-REBOOT-2407](tasks/CAMERA-REBOOT-2407.md) | V1 | IN_PROGRESS | Reboot one camera through its NVR (legacy parity P09) | — |
+| [RECORDED-DAYS-MONTH-2407](tasks/RECORDED-DAYS-MONTH-2407.md) | V1 | IN_PROGRESS | Recordings: month view of the days with recordings (legacy monthly calendar parity) | — |

@@ -207,6 +207,51 @@ def parse_search_response(xml: str, track_id: int) -> SearchPage:
     return SearchPage(matches=matches, total=total, status=status or ("OK" if matches else "NO MATCHES"))
 
 
+class DailyDistributionUnsupported(Exception):
+    """The device answered `dailyDistribution` with something that is not a day list (404, 400 notSupport, a
+    ResponseStatus, unparsable XML): the caller derives the month from the recording search instead."""
+
+
+def daily_distribution(settings: Settings, track_id: int, year: int, month: int) -> dict[int, bool]:
+    """`POST /ISAPI/ContentMgmt/record/tracks/<track>/dailyDistribution` (legacy add-on 1.5.27 main.py 2778-2807, the
+    same body): {day of month: recorded} in the device's wall-clock month. A read-only query - nothing is written.
+    Raises DailyDistributionUnsupported when the device does not offer it; 401/403 and network errors stay ApiErrors."""
+    body = (
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<trackDailyParam version="2.0" xmlns="http://www.isapi.org/ver20/XMLSchema">'
+        f"<year>{int(year)}</year><monthOfYear>{int(month)}</monthOfYear>"
+        "</trackDailyParam>"
+    )
+    with _client(settings) as client:
+        try:
+            r = client.post(f"/ISAPI/ContentMgmt/record/tracks/{int(track_id)}/dailyDistribution", content=body.encode("utf-8"), headers={"Content-Type": "application/xml"})
+        except httpx.HTTPError as exc:
+            raise ApiError(503, "source_unavailable", "ה־NVR אינו זמין כרגע.", retryable=True, details={"op": "daily_distribution", "error": type(exc).__name__}) from exc
+    if r.status_code in (401, 403):
+        raise ApiError(503, "source_forbidden", "ה־NVR דחה את פרטי הגישה.", details={"op": "daily_distribution", "status": r.status_code})
+    if r.status_code != 200:
+        raise DailyDistributionUnsupported(f"status {r.status_code}")
+    return parse_daily_distribution(r.text)
+
+
+def parse_daily_distribution(xml: str) -> dict[int, bool]:
+    """`trackDailyDistribution` -> {dayOfMonth: record == true}."""
+    try:
+        root = xmlsafe.parse(xml)
+    except Exception as exc:  # noqa: BLE001 - an unparsable answer means "not offered", never "no recordings"
+        raise DailyDistributionUnsupported("unparsable") from exc
+    if _local(root.tag) != "trackDailyDistribution":
+        raise DailyDistributionUnsupported(_local(root.tag))
+    out: dict[int, bool] = {}
+    for el in root.iter():
+        if _local(el.tag) != "day":
+            continue
+        dom = _text(el, "dayOfMonth")
+        if dom.isdigit() and 1 <= int(dom) <= 31:
+            out[int(dom)] = _text(el, "record").lower() == "true"
+    return out
+
+
 def device_info(settings: Settings) -> dict[str, str]:
     with _client(settings) as client:
         xml = _get(client, "/ISAPI/System/deviceInfo")

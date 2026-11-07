@@ -160,3 +160,17 @@ export const reportGroupSync = (id: string, stats: SyncStats) =>
 
 /** JPEG frame from the recording at a UTC instant (T044); 404 when there is no picture there. */
 export const frameUrl = (cameraId: string, atIso: string) => apiUrl(`cameras/${cameraId}/frame?at=${encodeURIComponent(atIso)}`);
+
+/** RECORDED-DAYS-MONTH-2407: local dates of one month (YYYY-MM, the installation's zone) with any recording of a camera. */
+export interface RecordedDaysResponse {
+  camera_id: string;
+  month: string;
+  timezone: string;
+  days: string[];
+  source: 'daily_distribution' | 'segment_search' | 'record_dates' | 'future';
+  coverage: 'complete' | 'partial';
+  through: string | null;
+  searched_at: string;
+  note: string;
+}
+export const recordedDays = (cameraId: string, month: string) => get<RecordedDaysResponse>(`cameras/${cameraId}/recordings/days?month=${month}`);

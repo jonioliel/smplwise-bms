@@ -103,6 +103,12 @@ def playback_url(settings: Settings, recorder_id: str, channel: int, start, end,
     return rtsp_playback_url(settings, int(channel), start, end, tz_name, recorder_id=recorder_id)
 
 
+def record_days(settings: Settings, recorder_id: str, channel: int, tz_name: str):
+    """Local dates (device wall clock) with any recording on a Provision channel (SearchRecordDate: every month at once)."""
+    _enabled(settings)
+    return playback_service(settings, recorder_id, tz_name).record_days(int(channel))
+
+
 def export_files(settings: Settings, recorder_id: str, channel: int, start, end, tz_name: str):
     _enabled(settings)
     return playback_service(settings, recorder_id, tz_name).export_files(int(channel), start, end)
