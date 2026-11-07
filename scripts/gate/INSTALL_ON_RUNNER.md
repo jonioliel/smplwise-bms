@@ -95,6 +95,19 @@ Report: section "addon_build" and `gate_<b>_<sha>.logs/addon_build.{log,json}`. 
 
 `GATE_ADDON_BUILD_SECS` (600) is the stage's budget; the script is killed 30 s after it.
 
+**Python lock (PY-CONSTRAINTS-LOCK-2407).** Before the engine probe the script checks `smplwise_vms/backend/constraints.txt`
+with `scripts/lock_python.py` using the runner's `python3` (Ubuntu 24.04: CPython 3.12, the image's minor version):
+`lock_static` (offline: every requirement pinned and satisfied), `lock_wheels` (PyPI JSON: a CPython 3.12 musllinux wheel per pin
+for amd64 and aarch64) and `lock_pip` (a clean `python3 -m venv`, then `pip install --dry-run --report -r requirements.txt
+-c constraints.txt` for musllinux / CPython 3.12, compared with the lock; needs the `python3.12-venv` package, otherwise NOT_RUN).
+These run **without docker too**: a wrong lock fails the stage even while the image build itself is NOT_RUN. With docker, step
+`constraints_match` also compares the image's installed distributions with the lock. `ADDON_BUILD_LOCK=static` limits the lock
+part to the offline check (the hermetic tests use it). Run only the lock part by hand (no build, about 1 minute):
+
+```
+bash ~/work/gate-<branch>/scripts/gate/addon_build_check.sh --root ~/work/gate-<branch> --lock-only
+```
+
 **State on 2026-11-01 (read-only probe):** the runner has **no docker** (`docker: command not found`). `podman` 4.9.3 is installed,
 but `podman version` did not answer within 60 s while a gate was running, so the script does not use podman unless
 `ADDON_BUILD_ENGINE=podman` is set on purpose. Until docker is installed the stage reports NOT_RUN in every gate.
