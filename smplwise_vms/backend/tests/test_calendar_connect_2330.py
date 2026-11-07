@@ -417,7 +417,7 @@ def test_ics_parser_reads_folding_zones_rules_and_all_day():
         ics.parse(b"<html>not a calendar</html>")
 
 
-@pytest.mark.parametrize("url", ["http://cal.example.com/a.ics", "https://localhost/a.ics", "https://10.0.0.5/a.ics", "https://user:pw@cal.example.com/a.ics",
+@pytest.mark.parametrize("url", ["http://cal.example.com/a.ics", "https://localhost/a.ics", "https://10.255.0.5/a.ics", "https://user:pw@cal.example.com/a.ics",
                                  "https://cal.example.com:8443/a.ics", "https://printer.local/a.ics"])
 def test_ics_address_rules(cc, url):
     enable(cc)

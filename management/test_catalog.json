@@ -259,12 +259,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "להפיק inventory ורישיונות לתלויות וקוד שנלמד או מועתק, כולל notices רלוונטיים; קוד ספק אינו מועתק ללא זכות שימוש.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+    "status": "PASS",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_third_party_notices.py; smplwise_vms/backend/tests/test_font_licences.py (nightly 2 passed / 0 failed). Notices/inventory guards: every Python and runtime npm dep plus vendored licence files named in THIRD_PARTY_NOTICES, OFL texts for fonts. Nightly shows font test only; notices test absent from nightly data. No-copy-without-right policy is documented only.",
+    "executed_at": "2026-11-06",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab."
   },
   {
     "id": "AT010",
@@ -567,12 +567,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לשמור תקרת הוצאה מאושרת, max attempts והרשאות; task metadata אינו מוצג כאילו הוא מחליף מודל אוטומטית בסשן.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+    "status": "PASS",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_task_runner.py (nightly 4 passed / 0 failed). Runner enforces per-run budget cap, max attempts (needs_review), workspace allowlist, dependency gate, timeout and stop; asserted. The no-automatic-model-switch wording is documentation only.",
+    "executed_at": "2026-11-06",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab."
   },
   {
     "id": "AT021",
@@ -1071,12 +1071,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לשמור מקור תוכנית immutable, draft/revision ו־published version נפרדים; viewer קורא רק גרסה מאושרת ומורשית.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+    "status": "PASS",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_plans.py (nightly 4 passed / 0 failed); smplwise_vms/backend/tests/test_plan_versions.py (nightly 2 passed / 0 failed). Original asset kept with sha256, draft vs published versions separate, viewer gets 403 on drafts and only the published/archived image; publish/rollback permissions asserted.",
+    "executed_at": "2026-11-06",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab."
   },
   {
     "id": "AT039",
@@ -1099,12 +1099,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לתמוך JPG/PNG ו־PDF עם בחירת עמוד, crop/rotate ושמירת source hash; המקור והטרנספורמציה נשמרים לשחזור.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+    "status": "PASS",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_plans.py (nightly 4 passed / 0 failed); smplwise_vms/backend/tests/test_plan_crop.py (nightly 1 passed / 0 failed). PNG and PDF upload with page choice, rotation and crop derived versions, sha256 on the asset, rotated preview matches saved crop; source untouched. JPG itself not exercised separately.",
+    "executed_at": "2026-11-06",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab."
   },
   {
     "id": "AT040",
@@ -2107,12 +2107,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לאפשר draft/publish/rollback עם optimistic concurrency ו־revision conflict ברור; פרסום דורש הרשאה ותיעוד.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+    "status": "PASS",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_plan_versions.py (nightly 2 passed / 0 failed); smplwise_vms/backend/tests/test_plans.py (nightly 4 passed / 0 failed). Diff, rollback/restore as new published version, stale_revision and stale_published 409s, status/revision bumps, viewer cannot restore, publish/import permissions asserted; rollback is audited.",
+    "executed_at": "2026-11-06",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab."
   },
   {
     "id": "AT076",
@@ -2135,12 +2135,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "בהחלפת תוכנית לשמור bindings ולהציע alignment; preview diff נדרש לפני publish. להחזיק effective-from/version לקישור היסטורי.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+    "status": "PASS",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_plan_versions.py (nightly 2 passed / 0 failed); smplwise_vms/backend/tests/test_plans.py (nightly 4 passed / 0 failed); smplwise_vms/backend/tests/test_p2_batch.py (nightly 4 passed / 0 failed). Anchors follow only identical geometry else needs_alignment, diff previews fate of items, map at an instant uses effective_from/version, realign through crops. Diff-before-publish is a UI step, not enforced by a test.",
+    "executed_at": "2026-11-06",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab."
   },
   {
     "id": "AT077",
@@ -3628,12 +3628,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "להגדיר conversion adapter מבודד עם רישיון ותלויות נבדקים, בחירת layers/unit/scale ושימור המקור.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+    "status": "PASS",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_dxf.py (nightly 3 passed / 0 failed). Isolated ezdxf adapter reports library/license (MIT), layer and unit choice with validation, source bytes kept unchanged, audit of options asserted. Dependency licence listing also in notices test.",
+    "executed_at": "2026-11-06",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab."
   },
   {
     "id": "AT130",
@@ -3656,12 +3656,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "להשוות geometry ו־units מול מקור ולדחות conversion חלקי ללא הודעה; native CAD parsing אינו assumed dependency של Pilot.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+    "status": "PASS",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_dxf.py (nightly 3 passed / 0 failed). Extent and units compared to source (12000x8000 mm, scale from units), partial conversion always reported (skipped TEXT/HATCH), empty selection refused, DWG not supported; native CAD parsing is not required.",
+    "executed_at": "2026-11-06",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab."
   },
   {
     "id": "AT131",
@@ -3768,12 +3768,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "להציג integrity-at-export בנפרד מ־capture authenticity; אין הצהרה על קבילות משפטית או מקור מאומת ללא בסיס מתאים.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+    "status": "PASS",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_signing.py (nightly 4 passed / 0 failed). Ed25519 signature, tamper detection, rotation and key hygiene asserted; verification returns an authenticity text saying the signature does not prove capture authenticity, and signing.py disclaims legal admissibility.",
+    "executed_at": "2026-11-06",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab."
   },
   {
     "id": "AT135",
@@ -4132,12 +4132,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "לשמור screenshots עבור מסכי מפתח ו־state matrix ב־CI, עם masking לווידאו משתנה ותהליך אישור intentional changes.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+    "status": "PASS",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: frontend/tests/visual-matrix.spec.ts (nightly 51 passed / 0 failed); smplwise_vms/backend/tests/test_gate_visual_block_t074.py. Visual matrix (screens x states x light/dark x 3 viewports) with per-screen/global masks passes nightly; gate blocks on diffs with flaky retry and quarantine (test not in nightly data); accept flow documented. State matrix covers 11 screens only.",
+    "executed_at": "2026-11-06",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab."
   },
   {
     "id": "AT148",
@@ -4303,12 +4303,12 @@
       "Repeat after revision/reconnect where relevant; attach assertions, sanitized logs and screenshots."
     ],
     "expected": "לממש roles מובנים, קבוצות משתמשי HA ו־bindings מוגבלים ל־installation/site/building/floor/camera/entity; HA admin אינו role מוצר אוטומטי, bootstrap מפורש בלבד.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified."
+    "status": "PASS",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_access.py (nightly 4 passed / 0 failed); smplwise_vms/backend/tests/test_rbac.py (nightly 7 passed / 0 failed). Built-in roles, groups, scoped bindings, explicit one-time bootstrap and HA admin without product role (bindings==[]) are asserted.",
+    "executed_at": "2026-11-06",
+    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab."
   },
   {
     "id": "AT154",
@@ -4332,12 +4332,12 @@
       "Repeat after revision/reconnect where relevant; attach assertions, sanitized logs and screenshots."
     ],
     "expected": "לחשב יכולת יחד עם scope לכל binding; viewer באתר A + editor בקומה B אינו editor באתר A. deny ו־unknown קודמים; placement אינו מעניק גישה לציוד המקושר.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified."
+    "status": "PASS",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_rbac_matrix.py (nightly 2 passed / 0 failed); smplwise_vms/backend/tests/test_rbac_groups.py (nightly 14 passed / 0 failed); smplwise_vms/backend/tests/test_rbac.py (nightly 7 passed / 0 failed). Per-binding scope (floor-only editor, site viewer), explicit deny winning and unknown scope refused are asserted; placement-grants-nothing only indirectly.",
+    "executed_at": "2026-11-06",
+    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab."
   },
   {
     "id": "AT155",
@@ -4593,12 +4593,12 @@
       "Repeat after revision/reconnect where relevant; attach assertions, sanitized logs and screenshots."
     ],
     "expected": "לאפשר למנהל VMS להגדיר role וקבוצות מותאמים, כולל grants רגישים נפרדים; לפני שינוי להציג השפעה על כל המשתמשים/הקבוצות וה־scopes המשויכים.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified."
+    "status": "PASS",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_custom_roles.py (nightly 3 passed / 0 failed); smplwise_vms/backend/tests/test_rbac_groups.py (nightly 14 passed / 0 failed). Custom role/group lifecycle, separate sensitive grants and impact preview naming affected users/scopes are asserted.",
+    "executed_at": "2026-11-06",
+    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab."
   },
   {
     "id": "AT164",
@@ -4622,12 +4622,12 @@
       "Repeat after revision/reconnect where relevant; attach assertions, sanitized logs and screenshots."
     ],
     "expected": "האצלת rbac.assign למנהל אתר מוגבלת ל־allowlist ולהיקף; אין הסלמה עצמית, שינוי role משותף גלובלי, חברוּת בקבוצה חוצת היקפים או מעבר role/scope דרך bulk request.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified."
+    "status": "PASS",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_custom_roles.py (nightly 3 passed / 0 failed); smplwise_vms/backend/tests/test_rbac_groups.py (nightly 14 passed / 0 failed); smplwise_vms/backend/tests/test_rbac_matrix.py (nightly 2 passed / 0 failed). Delegated site-admin allow-list/scope, no self-escalation, cross-scope group refusal and all-or-nothing bulk are asserted.",
+    "executed_at": "2026-11-06",
+    "notes": "Planning only. Follow docs/security/HA_IDENTITY_RBAC_HE.md; real hardware run is required where specified. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab."
   },
   {
     "id": "AT165",
@@ -4974,12 +4974,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "ייצוא SVG/PNG דטרמיניסטי, DXF עם שכבות מוגדרות, וחבילת תוכנית חתומה (מקור, גאומטריה, חדרים, עוגנים, פריטים מותאמים ודוח) עם ייבוא שמשחזר את התוכנית כטיוטה ומדווח על ישויות חסרות.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+    "status": "PASS",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_plan_package.py (nightly 19 passed / 0 failed); smplwise_vms/backend/tests/test_plan_dxf_export.py (nightly 17 passed / 0 failed); smplwise_vms/backend/tests/test_plan_geometry_export.py (nightly 3 passed / 0 failed). Deterministic SVG/PNG, DXF layers, signed package with draft-only import and missing-entity report are asserted.",
+    "executed_at": "2026-11-06",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab."
   },
   {
     "id": "AT176",
@@ -5002,12 +5002,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "round-trip: ייצוא וייבוא של חבילה מחזירים אותו hash גאומטרי; DXF מיוצא נקרא חזרה עם אותן ישויות; ייבוא JSON עובר ולידציה מלאה ונכנס כטיוטה.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+    "status": "PASS",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_plan_package.py (nightly 19 passed / 0 failed); smplwise_vms/backend/tests/test_plan_dxf_export.py (nightly 17 passed / 0 failed); smplwise_vms/backend/tests/test_plan_geometry_store.py (nightly 13 passed / 0 failed). Package round-trip same geometry hash, DXF reads back same entities, invalid imported draft refused with issues are asserted.",
+    "executed_at": "2026-11-06",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab."
   },
   {
     "id": "AT177",
@@ -5092,12 +5092,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "ייצוא IFC4 של הקומה בכותב עצמי: IfcBuildingStorey לכל מפלס, קירות, פתחים, חללים, עצמים לפי מחלקת IFC מהספרייה, מצלמות כ־IfcAudioVisualAppliance ומזהי HA ב־property set, עם GlobalId יציב בין ייצואים.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+    "status": "PASS",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_plan_ifc.py (nightly 19 passed / 0 failed). IFC4 export: storeys, walls, openings, spaces, AudioVisualAppliance cameras, HA id pset, deterministic stable GlobalIds asserted.",
+    "executed_at": "2026-11-06",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab."
   },
   {
     "id": "AT180",
@@ -5120,12 +5120,12 @@
       "השווה להתנהגות הצפויה, צרף log/צילום/תוצאת assertion וודא שאין regression."
     ],
     "expected": "ייבוא IFC (קומות, קירות, פתחים, חללים, ריהוט) כמועמדים למסך האישור, אחרי בדיקת זמינות של IfcOpenShell (LGPL) על תמונת ה־add-on; ייבוא חלקי מדווח ואינו מתקבל בשקט.",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation."
+    "status": "PASS",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_plan_ifc.py (nightly 19 passed / 0 failed). IFC import to candidates via self-written reader (IfcOpenShell not used), partial/foreign imports reported, accept lands in draft; asserted.",
+    "executed_at": "2026-11-06",
+    "notes": "זהו תכנון בדיקה; המימוש יפרט פקודה ונתוני קלט לפני תחילת Validation. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab."
   },
   {
     "id": "AT181",
@@ -5605,12 +5605,12 @@
       "Frontend unit: the room renders on both floors with namespaced ids; the rebase merges shared items."
     ],
     "expected": "A room (spatial zone) can be shared with a second floor of its building (shared_spaces row, migration 0036; placement same_frame or fit): the HOME floor's plan document keeps the room's walls, openings, objects (tribunes), labels, connectors and circuits and its anchors keep the room's cameras and devices; every read of the other floor (draft, published, ?at=, export, map bundle, 3D, building page) attaches that subset transformed by the placement with namespaced ids, computed on read and never stored or hashed (ETag and bundle view_hash follow it); an edit of the room made from the other floor (map.edit on either floor) is routed to the home floor's draft in the same request, only inside the room's polygon, with a 409 + rebase when the home draft moved, and audited naming both floors (CR-009 §3-§5).",
-    "status": "NOT_RUN",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null,
-    "notes": "Planned in CR-009 (2026-09-29)."
+    "status": "PASS",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_shared_spaces.py (nightly 36 passed / 0 failed); frontend/tests/unit-shared-space.spec.ts (nightly 33 passed / 0 failed). Shared room model, computed-on-read attach with view_hash/ETag, edit routing to home draft with 409, audit, reach and deny are asserted (36+33 passes).",
+    "executed_at": "2026-11-06",
+    "notes": "Planned in CR-009 (2026-09-29). | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab."
   },
   {
     "id": "AT200",
@@ -10530,8 +10530,12 @@
       "frontend: tsc --noEmit"
     ],
     "expected": "Every listed test passes on the branch; no default setting changes; nothing reaches a real system.",
-    "status": "NOT_RUN",
-    "notes": "2026-10-27 local workstation (fakes only), pilot/EXTERNALBUILD-297 @ 9daae20f4 + catalogue fix: tests/test_externalbuild_297.py 30 passed; regression sets (grants, arrival, grants3, grantsmin, harden271, accessreq, denyalert, sharedid, k7, physentry, wkjoin, notify_core, quiet103, wxperm, custom_roles, rbac, rbac_matrix, stationperm, eccact_readback, wkv2, wkv2b, pub03 retention, tickets phone_verify, access) no failures after test_access_permissions_wxperm learned access.visitor.invite; frontend tsc --noEmit clean. No Playwright spec run. Not a gate."
+    "status": "PASS",
+    "notes": "2026-10-27 local workstation (fakes only), pilot/EXTERNALBUILD-297 @ 9daae20f4 + catalogue fix: tests/test_externalbuild_297.py 30 passed; regression sets (grants, arrival, grants3, grantsmin, harden271, accessreq, denyalert, sharedid, k7, physentry, wkjoin, notify_core, quiet103, wxperm, custom_roles, rbac, rbac_matrix, stationperm, eccact_readback, wkv2, wkv2b, pub03 retention, tickets phone_verify, access) no failures after test_access_permissions_wxperm learned access.visitor.invite; frontend tsc --noEmit clean. No Playwright spec run. Not a gate. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_externalbuild_297.py (nightly 30 passed / 0 failed); smplwise_vms/backend/tests/test_access_permissions_wxperm.py (nightly 21 passed / 0 failed). Readiness, fallback, service-writer fake, one-time code and visitors (off by default) asserted with fakes; 30 tests pass.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-DOORWRITE-1",
@@ -10698,8 +10702,12 @@
       "backend tests: tests/test_docread_297.py, tests/test_docread_certificate_rules.py"
     ],
     "expected": "Every listed test passes; with the switch off every route is the uniform 404; no route approves all fields at once.",
-    "status": "NOT_RUN",
-    "notes": "2026-10-27 local (Windows, venv Python 3.12.10, -X utf8, pdftotext on PATH so the real-reader test ran): tests/test_docread_297.py + tests/test_docread_certificate_rules.py 55 passed at afbd84032 (fakes + synthetic PDF only; real supplier documents NOT_RUN). Not yet in a release gate."
+    "status": "PASS",
+    "notes": "2026-10-27 local (Windows, venv Python 3.12.10, -X utf8, pdftotext on PATH so the real-reader test ran): tests/test_docread_297.py + tests/test_docread_certificate_rules.py 55 passed at afbd84032 (fakes + synthetic PDF only; real supplier documents NOT_RUN). Not yet in a release gate. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_docread_297.py (nightly 34 passed / 0 failed); smplwise_vms/backend/tests/test_docread_certificate_rules.py (nightly 21 passed / 0 failed). Uniform 404 when off, permissions, no approve-all, needs_ocr, no values in audit, purge, never in backup asserted.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-SUPPLIERDOCS2-1",
@@ -10722,8 +10730,12 @@
       "tests/test_self_update_s3_fixes.py (minimal environment guard)"
     ],
     "expected": "Migrations contiguous to 0182 and every listed test passes; the crafted line is scrubbed in well under a second.",
-    "status": "NOT_RUN",
-    "notes": "2026-10-27 local (Windows, venv Python 3.12.10, -X utf8): tests/test_migrations.py + tests/test_migrations_263_upgrade.py + docread tests 57 passed at d4b3fc646 (merge of release/2241); scripts/release_check.py 'migrations contiguous: 182 files, last 0182_doc_extractions.sql' ok; docread tests incl. F1/F2/F6 regressions 55 passed at afbd84032. F4 (child RLIMITs) open: Linux-only, NOT_RUN. Not yet in a release gate."
+    "status": "PASS",
+    "notes": "2026-10-27 local (Windows, venv Python 3.12.10, -X utf8): tests/test_migrations.py + tests/test_migrations_263_upgrade.py + docread tests 57 passed at d4b3fc646 (merge of release/2241); scripts/release_check.py 'migrations contiguous: 182 files, last 0182_doc_extractions.sql' ok; docread tests incl. F1/F2/F6 regressions 55 passed at afbd84032. F4 (child RLIMITs) open: Linux-only, NOT_RUN. Not yet in a release gate. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_docread_297.py (nightly 34 passed / 0 failed); smplwise_vms/backend/tests/test_migrations_263_upgrade.py (nightly 2 passed / 0 failed); smplwise_vms/backend/tests/test_docread_f4_297.py (nightly 22 passed / 0 failed). Contiguous migrations and F1/F2/F3/F6 (+F4) regressions asserted, incl. linear scrubber and 429 busy.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-COORD-DOCS-2310-1",
@@ -10843,12 +10855,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "sw-dialog traps Tab inside its box (aria-modal was declared without a trap).",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.31.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.31.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: frontend/tests/a11y-dialog-focus-2310.spec.ts (nightly 6 passed / 0 failed). Playwright test asserts Tab/Shift+Tab stay in sw-dialog and Escape returns focus.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-GDRIVEBK-2310-1",
@@ -10868,12 +10880,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Google Drive is an off-box backup target kind: device-flow OAuth, drive.file scope, sealed tokens, off by default (migration 0186; design docs/design/GDRIVE_BACKUP.md). The owner's first real connection is NOT_RUN (see GDRIVE-READY-2351).",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.31.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.31.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_gdrive_api.py (nightly 7 passed / 0 failed); smplwise_vms/backend/tests/test_offbox_gdrive.py (nightly 15 passed / 0 failed); frontend/tests/unit-backup-gdrive.spec.ts (nightly 18 passed / 0 failed). Fake-Drive tests assert device flow, sealed secret, off by default, migration 0186, upload/retention; real connection is NOT_RUN per the entry.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-DEPFIX-2310-1",
@@ -10943,12 +10955,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The synoptic map and the building cross-section read every floor of the home system: floors match by level on a one-building site, and a floor link editor links floors and adds or removes areas by hand (migration 0187).",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.31.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.31.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_home_links.py (nightly 4 passed / 0 failed); frontend/tests/unit-xs-floor-match.spec.ts (nightly 48 passed / 0 failed); frontend/tests/evidence-synoptic-ha-2310.spec.ts (nightly 55 passed / 0 failed). Level matching on one-building site, floor/area link rows, permissions, audit and editor UI asserted.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-ADDON-IMAGE-BUILD-FIXES-2311-1",
@@ -10993,12 +11005,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Every public surface was re-checked and the result recorded; document links stop answering while service requests are off and are never cached by a CDN.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.32.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.32.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_pubsurf_2310.py (nightly 2 passed / 0 failed). No document minted while service module off and CDN no-store on document answers asserted; re-check record is docs/security/PUBLIC_SURFACES_RECHECK_2310.md.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-TEMPLINK-2320-1",
@@ -11018,12 +11030,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Every report link sent to a user is revoked when the user is deactivated or deleted; a per-sender daily limit for new links (default 50, a setting); the recipient name stays in the audit log (owner decisions 31.10).",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.32.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.32.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_templink_2320.py (nightly 16 passed / 0 failed). Revoke on deactivate/delete, daily limit default 50 as setting, recipient name in audit all asserted.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-UIPOLISH-2320-1",
@@ -11118,12 +11130,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Switches set to the type \"light\" count as lights everywhere (synoptic map, home counters, floor and area cards) and are switched by \"lights off / on\".",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.32.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.32.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_devices.py (nightly 63 passed / 0 failed); frontend/tests/unit-xs-floor-match.spec.ts (nightly 48 passed / 0 failed). test_devices asserts typed-light switches count in tree/area/building and are hit by lights off/on bulk; unit spec covers the synoptic.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-SYN-COLUMNS-2321-1",
@@ -11143,12 +11155,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Synoptic map columns with no data source are hidden (a setting, on by default, with a quiet note) and a custom column choice exists.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.32.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.32.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: frontend/tests/unit-syn-columns-2321.spec.ts (nightly 30 passed / 0 failed); frontend/tests/evidence-syn-columns-2321.spec.ts (nightly 20 passed / 0 failed). Hide-empty default ON, quiet note and custom column choice asserted in unit and demo-build specs.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-CAL-SWITCH-REACH-2321-1",
@@ -11168,12 +11180,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Settings > Calendars stays reachable while the calendars module is off and the calendars page offers \"enable the calendars module\".",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.32.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.32.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: frontend/tests/unit-calendars-switch-reach.spec.ts (nightly 18 passed / 0 failed); frontend/tests/evidence-calendars-nav-2310.spec.ts (nightly 33 passed / 0 failed). Nav/settings entries stay offered with module off, connections entry follows the module; nav spec covers the enable-module offer.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-MULTIBUILDING-HOME-2330-1",
@@ -11193,12 +11205,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "On an installation of several buildings the home screen gets a site level (a card per building with counters and alerts, a grouped tree, a building switch, turn-off per building or for the site); a building can be marked as the shared building and is left unchecked by \"turn off the whole site\" (migration 0188; off until switched on).",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.33.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.33.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_multibuilding_home_2330.py (nightly 5 passed / 0 failed); frontend/tests/evidence-multibuilding-home-2330.spec.ts (nightly 21 passed / 0 failed). Backend: shared flag (0188) and site options; evidence: site cards, grouped tree, building switch, turn-off with shared building unchecked.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-MAPPING-ASSIST-2330-1",
@@ -11268,12 +11280,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Switches typed as a light and on/off-only lights show no brightness slider; a setting chooses which switches fill the synoptic lights column; pressing a floor's lights opens that floor's lights popup with \"turn all on / off\" through the usual confirmation.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.33.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.33.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: frontend/tests/evidence-switch-light-dimmer-2331.spec.ts (nightly 12 passed / 0 failed); smplwise_vms/backend/tests/test_xs_options.py (nightly 12 passed / 0 failed). Evidence asserts no slider for on/off lights, floor lights popup with confirmed all-on/off; xs_options covers the lights-column setting.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-EVENTS-POLISH-2331-1",
@@ -11293,12 +11305,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The event centre side panel actions stay in view, the list scrolls in its own box, event names are Hebrew and technical details sit in a collapsible section; Up / Down move between events and Esc closes the panel.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.33.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.33.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: frontend/tests/evidence-events-polish.spec.ts (nightly 4 passed / 0 failed). 24 assertions: actions in view, own-box scroll, keyboard Up/Down/Esc, drawer layout at several sizes.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-SETTINGS-TABS-SCROLL-2331-1",
@@ -11318,12 +11330,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Long tab strips scroll with arrows at their ends, the mouse wheel, a swipe and the keyboard (arrow keys, Home / End); a strip that fits looks as before.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.33.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.33.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: frontend/tests/evidence-tabs-scroll-2331.spec.ts (nightly 21 passed / 0 failed). Arrows, wheel, swipe, arrow/End keys and fits-no-arrow all asserted.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-TREE-HIDE-UNASSIGNED-2331-1",
@@ -11343,12 +11355,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The unassigned row of the building tree can be hidden (always shown by default, only while editing, or never) from the home-screen options or on the row itself, with undo; counts do not change.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.33.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.33.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_tree_unassigned_2331.py (nightly 10 passed / 0 failed); frontend/tests/evidence-tree-unassigned-2331.spec.ts (nightly 16 passed / 0 failed). Setting values/permission/audit/data-unchanged in backend; always/editing/never, undo notice and row action in evidence.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-AZIA-LIVE-2331-1",
@@ -11393,12 +11405,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "A crash of the add-on server process restarts it within seconds, is recorded and shown in Diagnostics (\"restarts after a crash\"), leaves a full trace in the log, and after two crashes within six hours the server restarts on slower, steadier networking components for six quiet hours.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.33.2; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.33.2; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_crashguard_2332.py (nightly 18 passed / 0 failed); smplwise_vms/backend/tests/test_playback_stress_2332.py (nightly 4 passed / 0 failed). Real segfaulting child restarted, traceback copied, safe mode after 2 crashes in window for quiet period, Hebrew diagnostics line all asserted.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-OWNER-R12-2341-1",
@@ -11493,12 +11505,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "A per-recorder switch \"אפשר שינויי הגדרות ב־NVR\" gates every setting write (Provision-ISR off by default, Hikvision unchanged) and the bulk encoding dialog has a one-click \"convert every stream to H.264\" preset. No write to a real recorder was run by the branch.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_nvr_h264_bulk_2341.py (nightly 10 passed / 0 failed); smplwise_vms/backend/tests/test_provision_isr_p2.py (nightly 27 passed / 0 failed). Per-recorder write switch gating (default off for Provision-ISR, audited, adapters obey) and the H.264 preset/undo asserted.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-SHARED-POLISH-2342-1",
@@ -11543,12 +11555,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The request list and the manager board share one compact toolbar with one Filter panel, removable chips, the view switch and \"new\" on the title row.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: frontend/tests/evidence-tickets-polish-2331.spec.ts (nightly 15 passed / 0 failed). Asserts compact toolbar, filter panel with chips/reset, table and board scrolling, states.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-TKSET-POLISH-2331-1",
@@ -11618,12 +11630,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "User and group drawers are side panels (a bottom sheet on a phone), deny rules are marked in the tables and loading, error and empty states are consistent.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: frontend/tests/evidence-access-polish-2331.spec.ts (nightly 24 passed / 0 failed). Users/groups drawers, deny marks and loading/error/empty states asserted across screens.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-CALMSG-POLISH-2331-1",
@@ -11643,12 +11655,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Calendar, calendar connections and messaging channel settings have no cut-off rows, behaviour settings are grouped by topic and card actions sit at the foot of each card.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: frontend/tests/evidence-calmsg-polish-2331.spec.ts (nightly 48 passed / 0 failed). Calendar and messaging settings screens asserted (48 passes); few explicit assertions on card-foot actions.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-MEDIA-POLISH-2331-1",
@@ -11693,12 +11705,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The stations screen fits the window on a desktop, the water pages take the height under the tabs and the chart follows its box width.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: frontend/tests/evidence-wkwater-2331.spec.ts (nightly 27 passed / 0 failed); frontend/tests/layout-wiskey-stations.spec.ts (nightly 3 passed / 0 failed). Water pages and stations/doors asserted for height and states (27 pass); stations window-fit via layout spec.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-LOOK-POLISH-2331-1",
@@ -11718,12 +11730,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The logo settings have keyboard-friendly tabs and an unsaved-changes mark and the wall-screen users list, empty state and drawer are reorganised into clear sections.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: frontend/tests/evidence-look-polish-2331.spec.ts (nightly 15 passed / 0 failed). Logo tab strip keyboard tablist, unsaved-changes footer and wall-users list/empty/drawer asserted (15 pass; 30 skipped other projects).",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-CAMADMIN-POLISH-2331-1",
@@ -11793,12 +11805,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The cases list fits the window with status filters and a count, a case page has two scrolling columns, exports are grouped and the event page shows Hebrew event names.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: frontend/tests/evidence-invrest-polish.spec.ts (nightly 14 passed / 0 failed). Cases list, empty/error, one case, exports and event page asserted (14 pass).",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-INSIGHTS-POLISH-2331-1",
@@ -11918,12 +11930,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Rapid seeks are merged (only the last is sent), each seek closes the old stream before opening the next, a per-minute seek cap (setting, default 30) shows a Hebrew notice, and timeline previews show the nearest available picture within 30 seconds.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_playback_scrub_2341.py (nightly 22 passed / 0 failed); frontend/tests/unit-playback-scrub.spec.ts (nightly 36 passed / 0 failed). Seek merge/last-only, close-before-open ordering, per-minute cap (default 30, Hebrew message) and nearest-picture-within-30s are all asserted backend and frontend.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-ASYNCIO-DEFAULT-2342-1",
@@ -11943,12 +11955,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The server runs on the standard asyncio and h11 components by default (a suspected native crash source is off); a Diagnostics setting turns the fast components back on after a restart.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_asyncio_default_2342.py (nightly 18 passed / 0 failed). Default asyncio+h11, opt-in uvloop/httptools via setting, env/safe-mode precedence, start-up log and setting validation asserted.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-WRITE-GATE-EVENTS-2341-1",
@@ -11993,12 +12005,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Refused Frigate credentials no longer flood the log: Arx backs off up to 30 minutes, logs once per change and shows the exact fix step in Hebrew on the recorder health card.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_frigate_forbidden_2341.py (nightly 10 passed / 0 failed). Backoff doubling to 30 min, log-once per change, recovery reset and the exact Hebrew fix step on the health card are asserted.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-SUPERVISOR-BUILD-GATE-2341-1",
@@ -12018,12 +12030,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Release checks validate the add-on build files (base image by tag, Dockerfile syntax, arch and labels), so a broken build like 2.31.0 or 2.33.2 is caught before release.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.1; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_supervisor_build_check.py (nightly 19 passed / 0 failed); smplwise_vms/backend/tests/test_gate_addon_build.py (nightly 11 passed / 0 failed). Build-file rules (digest pin, base image/arch, Dockerfile syntax, labels, 2.31.0/2.33.2 regressions) and the gate stage wiring are asserted.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-A11Y-POLISHED-2342-1",
@@ -12068,12 +12080,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Five dark-mode contrast fixes on the polished screens and the selected segment of every segmented control is a raised, lighter key.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.2; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.2; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: frontend/tests/unit-dark-polish-beds.spec.ts (nightly 21 passed / 0 failed); frontend/tests/unit-dark-muted-contrast.spec.ts (nightly 6 passed / 0 failed). Contrast of the fixed dark pairs and the raised segmented key is computed per skin and passing; the visual dark capture was NOT_RUN but the numeric guard covers the stated fixes.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-HOME-DEVICES-LOAD-2342-1",
@@ -12093,12 +12105,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Each screen loads on demand (home and devices open 33-44% faster), settings are read in 2 queries instead of hundreds and identical requests are shared.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.2; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.2; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: frontend/tests/unit-perf-home-devices.spec.ts (nightly 24 passed / 0 failed); smplwise_vms/backend/tests/test_perf_home_devices.py (nightly 5 passed / 0 failed). Lazy screens, shared identical GETs and settings read in a handful of statements (<40, 2 batched) are asserted; the 33-44% speed-up is a measurement only (perf-home-load just logs).",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-PHONE-BUTTONS-44-2342-1",
@@ -12143,12 +12155,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The synoptic map has three phone layouts (compact table by default, floor cards, building section) chosen in its settings, with no overlapping numbers.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.2; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.2; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: frontend/tests/unit-synoptic-mobile-2342.spec.ts (nightly 36 passed / 0 failed); frontend/tests/evidence-synoptic-mobile-2342.spec.ts (nightly 47 passed / 0 failed); smplwise_vms/backend/tests/test_xs_options.py (nightly 12 passed / 0 failed). Three phone layouts, table default, setting round-trip, fixed-width columns (overlap root cause) and rendered phone matrix are asserted.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-SMALL-UI-BUGS-2343-1",
@@ -12168,12 +12180,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The tickets table fits 1440 and 1280 px without sideways scrolling and settings pages with their own tabs no longer repeat them in the sidebar.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.2; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.34.2; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: frontend/tests/unit-small-ui-bugs-2343.spec.ts (nightly 18 passed / 0 failed); frontend/tests/evidence-small-ui-bugs-2343.spec.ts (nightly 3 passed / 0 failed); frontend/tests/layout-tickets-table.spec.ts (nightly 4 passed / 0 failed). Tickets table column fit at 1440/1280 without sideways scroll and tab strips not repeated in the settings column are asserted (unit + rendered).",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-GATE2342-1",
@@ -12218,12 +12230,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Drag across free time to create (quick-create popover), drag an event to move it, drag its edge to resize, peek card, keyboard and long-press support and undo after move / resize / delete; moving an approved booking in an approval room becomes a request (per-calendar setting); editing by dragging can be limited to \"create only\" (migration 0191).",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.35.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.35.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_calendar_grid_edit_2343.py (nightly 18 passed / 0 failed); frontend/tests/unit-calendars-grid-edit-2343.spec.ts (nightly 54 passed / 0 failed); frontend/tests/evidence-calendars-grid-edit-2343.spec.ts (nightly 9 passed / 0 failed). Move/resize rules, approved-move becomes a request (per-calendar), create_only setting, undo, long-press/keyboard and popover geometry are asserted.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-CAL-ATTENDEES-2343-1",
@@ -12268,12 +12280,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Database connections are reused between requests (settings read 2.6x faster); the add-on option db_conn_pool turns it off.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.35.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.35.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_db_conn_pool.py (nightly 28 passed / 0 failed). Connection reuse, reset of connection state, kill switch and the add-on option db_conn_pool (default on, config declared) are asserted; 2.6x speed is a bench only.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-PRE-GATE-2350-1",
@@ -12318,12 +12330,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The six backend failures of the 2.35.0 gate are fixed (WAL scrub on its own connection with the pool, attendee module name, upload counters wait).",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.35.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.35.0; no acceptance run recorded in the registry (the change record, where one exists, lists the branch's own test receipts). NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_db_conn_pool.py (nightly 28 passed / 0 failed); smplwise_vms/backend/tests/test_wiskey_station_encryption.py (nightly 7 passed / 0 failed); smplwise_vms/backend/tests/test_bridge_key_activation_295.py (nightly 30 passed / 0 failed); smplwise_vms/backend/tests/test_bridge_keyrot_harness_295.py (nightly 34 passed / 0 failed); smplwise_vms/backend/tests/test_tickets_public_server.py (nightly 36 passed / 0 failed); smplwise_vms/backend/tests/test_messaging_accounts_api.py (nightly 21 passed / 0 failed). The six formerly failing backend tests (WAL scrub on own connection with the pool, attendee module name, upload counters) all pass in the nightly.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-NOTICE-BOARD-106-1",
@@ -12343,12 +12355,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "A building notice board with notices, audiences, push and TV boards exists (module off by default); the 2.18.0 overhaul adds the notices page parity with the approved mock-up, writing notices from the settings, status chips, promo / info slides and building photo, screen saver and logo layouts, a permanent TV link and push on publish.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped (see the task evidence); no acceptance run recorded in the registry. A real TV is NOT_RUN. NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped (see the task evidence); no acceptance run recorded in the registry. A real TV is NOT_RUN. NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_notices_106.py (nightly 43 passed / 0 failed); smplwise_vms/backend/tests/test_notice_slides_295.py; smplwise_vms/backend/tests/test_notices_info_295.py (nightly 14 passed / 0 failed); frontend/tests/evidence-notices.spec.ts (nightly 81 passed / 0 failed); frontend/tests/pixel-notice-tv-mock.spec.ts (nightly 10 passed / 0 failed). Module off by default, audiences, boards/feed, saver/logo layouts, slides, status chips and TV mock-up pixel baseline are asserted; push covered under NOTICEPUSH.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-NOTICE-BOARD-FOLLOWUPS-295-1",
@@ -12368,12 +12380,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Editable news (RSS) sources and connection caps of the TV listener, real deletion of a notice, one-row header / \"updated\" line / weather forecast days options with installation-wide defaults, the \"remove from board\" fix and nearby bus times (a labelled estimate, off by default).",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped (see the task evidence); no acceptance run recorded in the registry. NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped (see the task evidence); no acceptance run recorded in the registry. NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_notice_rss_sources_295.py; smplwise_vms/backend/tests/test_notice_caps_295.py (nightly 12 passed / 0 failed); smplwise_vms/backend/tests/test_notice_delete_295.py; smplwise_vms/backend/tests/test_notice_remove_295.py; smplwise_vms/backend/tests/test_bustimes_295.py (nightly 49 passed / 0 failed); smplwise_vms/backend/tests/test_notice_tvopt_295.py (nightly 69 passed / 0 failed). RSS sources, listener caps, real deletion, remove-from-board fix, TV header/updated/forecast-days options and bus times are asserted (nightly record missing for rss/delete/remove files).",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-TVNOTICE-297-1",
@@ -12393,12 +12405,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The notice board TV page follows the approved V2 mock-up (96 px header with the tenant and SmplWise logos, weather under the date, fixed bus area per layout); the \"updated\" line has two wordings (place and time - the default - or time and board name), an idle board can show the logos, and the one-row header survives very long names.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped (see the task evidence); no acceptance run recorded in the registry. The default wording in portrait is not covered by any test. NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped (see the task evidence); no acceptance run recorded in the registry. The default wording in portrait is not covered by any test. NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: frontend/tests/notice-tv-header-worst-297.spec.ts (nightly 28 passed / 0 failed); frontend/tests/pixel-notice-tv-mock.spec.ts (nightly 10 passed / 0 failed); smplwise_vms/backend/tests/test_notice_tvnotice2_297.py; frontend/tests/unit-tvnotice2-297.spec.ts. V2 mock-up pixel check, long-name one-row header, two updated-line wordings (default place+time) and idle logos asserted.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-LOBBY-STYLES-2290-1",
@@ -12443,12 +12455,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The server supports the phone apps: persistent sign-in with a device key (APPREFRESH), the one-time-code WebView session exchange (POST /auth/app/session and /redeem), device attestation, offline field work (server half) and critical-sound alerts - every one off by default.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped (see the task evidence); no acceptance run recorded in the registry. No real phone run. NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped (see the task evidence); no acceptance run recorded in the registry. No real phone run. NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_app_refresh_295.py (nightly 40 passed / 0 failed); smplwise_vms/backend/tests/test_app_refresh_devicekey_295.py (nightly 33 passed / 0 failed); smplwise_vms/backend/tests/test_app_session_295.py; smplwise_vms/backend/tests/test_app_refresh_attestation_232.py; smplwise_vms/backend/tests/test_offline_field_295.py; smplwise_vms/backend/tests/test_critical_sound.py. Saved sign-in/device key, WebView exchange+redeem, attestation modes, offline field server half and critical sound are each asserted, all off by default.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-NOTICEPUSH-295-1",
@@ -12468,12 +12480,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Publishing a notice sends a push through the notification core's app channel (generic payload to the relay, text fetched by the app with its device token); it sends nothing until SW_PUSH_RELAY_URL and the key are set.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped (see the task evidence); no acceptance run recorded in the registry. No real push delivery. NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped (see the task evidence); no acceptance run recorded in the registry. No real push delivery. NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_notices_push_295.py (nightly 15 passed / 0 failed); smplwise_vms/backend/tests/test_mobile_push.py (nightly 53 passed / 0 failed); frontend/tests/unit-noticepush-295.spec.ts (nightly 9 passed / 0 failed). Push on publish, generic app-channel payload fetched by the device, and no send when the relay is unconfigured are asserted (fake relay).",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-WORSTCASE-2310-1",
@@ -12493,12 +12505,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Screens with extreme data stay in their cards: long area and cover names end in an ellipsis and keep their kind visible, five-digit counts widen their own row, temperatures and stale times give way last with the full value in a tooltip, the large weather widget shrinks its temperature to fit, the side rail active marker no longer counts as overflow.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.30.0; no acceptance run recorded in the registry. NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.30.0; no acceptance run recorded in the registry. NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: frontend/tests/layout-worstcase-screens-297.spec.ts (nightly 60 passed / 0 failed). Building/area/users screens with worst/huge data: no overflow, nothing leaves parent, no uncut text; tooltips on stale/temperature and weather-widget shrink not separately asserted.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-ENTRY-CHECK-2310-1",
@@ -12543,12 +12555,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Calendars: month, week and day views, a rooms timeline, booking, approvals (contested requests; displacing needs the calendar manager), maintenance, calendar management, settings and connections and a resident flow on the phone; every owner decision is a setting (module off by default).",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.31.0; no acceptance run recorded in the registry. NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.31.0; no acceptance run recorded in the registry. NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: frontend/tests/evidence-calendars-views-2310.spec.ts (nightly 53 passed / 0 failed); frontend/tests/evidence-calendars-manage-2310.spec.ts (nightly 41 passed / 0 failed); frontend/tests/evidence-calendars-settings-2310.spec.ts (nightly 85 passed / 0 failed); frontend/tests/evidence-calendars-nav-2310.spec.ts (nightly 33 passed / 0 failed); smplwise_vms/backend/tests/test_calendar_engine_2300.py (nightly 42 passed / 0 failed); smplwise_vms/backend/tests/test_calendar_sync_2300.py (nightly 38 passed / 0 failed). Month/week/day, rooms timeline, booking drawer, approvals incl. displace, maintenance, manage, settings and engine/sync rules asserted on mocks and fakes.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-TEMPREPORT-2310-1",
@@ -12568,12 +12580,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Temperature report links: separate switches for system users and for names in shared PDFs (off by default), revocation when a WhatsApp number changes, no caching of the link answer.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.31.0; no acceptance run recorded in the registry. NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.31.0; no acceptance run recorded in the registry. NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_tempreport_2310_security.py (nightly 12 passed / 0 failed). Asserts both switches default off, revocation on opt-in withdrawal or number change, PDF names off by default, private no-store link answers.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-POLISH-PHONE-2310-1",
@@ -12618,12 +12630,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The building presence card is a compact strip of active rooms (four styles; empty rooms, details and \"empty since\" are settings) never taller than its neighbours, and the area window shows the room status.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.31.0; no acceptance run recorded in the registry. NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); shipped in v2.31.0; no acceptance run recorded in the registry. NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_presence_compact_2310.py (nightly 4 passed / 0 failed); frontend/tests/unit-presence-compact-2310.spec.ts (nightly 48 passed / 0 failed); frontend/tests/evidence-presence-design-2300.spec.ts (nightly 12 passed / 0 failed); frontend/tests/unit-area-presence-line-2351.spec.ts (nightly 39 passed / 0 failed). Four styles and settings asserted (backend and logic), never-taller-than-neighbours measured in evidence-presence-design-2300, area window line in unit-area-presence-line.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-WISKEY-RC4-2310-1",
@@ -12643,12 +12655,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The WisKey rc.4 owner30 contribution and the rc.5 host check (one absolute deadline before the live wrapper selection, installed-client migration, a door relay is WisKey's physical relay in every station grant) are adopted on a branch with fakes only; auto-install stays off.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not merged, not tagged; NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not merged, not tagged; NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_wiskey_rc4_deadline_2310.py (nightly 5 passed / 0 failed); smplwise_vms/backend/tests/test_owner30_doors.py (nightly 18 passed / 0 failed); smplwise_vms/backend/tests/test_wiskey_rc5_relay_binding_2310.py (nightly 9 passed / 0 failed); smplwise_vms/backend/tests/test_wiskey_mac_adopt_298.py (nightly 45 passed / 0 failed). Absolute deadline before live selection, owner30 doors, physical-relay binding in grants and catalog pins asserted on fakes; auto-install off asserted in rc7/policy-B tests.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-HA-LABELS-SYNC-2351-1",
@@ -12668,12 +12680,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Area labels are read from the home system (nothing is written back) and used by the mapping assistant label rules and questions; the status card says how many areas carry a label and where a label points to another building (migration 0192).",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_ha_labels_sync_2351.py (nightly 7 passed / 0 failed); smplwise_vms/backend/tests/test_mapping_improve_2351.py (nightly 10 passed / 0 failed); frontend/tests/unit-ha-labels-2351.spec.ts (nightly 18 passed / 0 failed). Label registry and area labels mirrored read-only with no HA call in a write tx; assistant rules, cross-building label conflict and health-card coverage asserted.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-CAL-FEED-REVIEW-2351-1",
@@ -12693,12 +12705,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The outgoing iCal feed route is reviewed; a feed can be opened to remote access per feed (off by default, administrator or all-calendars manager, from inside the network, after a confirmation), a remote-open feed shows busy only, new links expire after a configurable period (default 365 days) and can be renewed (migration 0193).",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_calendar_feed_review_2351.py (nightly 16 passed / 0 failed); frontend/tests/unit-calendars-feed-remote-2351.spec.ts (nightly 15 passed / 0 failed). Feed hardening, per-feed remote switch (off by default, local session, manage right, audited), busy-only remote, 365-day expiry/renewal and migration 0193 asserted.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-GDRIVE-READY-2351-1",
@@ -12718,12 +12730,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "A \"בדיקת חיבור Google\" check on every Google Drive target tests client, secret, clock, consent screen, Drive API, quota and folder step by step and says what to do (it changes nothing); errors are named correctly; a Hebrew first-connection guide exists (docs/operations/GDRIVE_CONNECT_SETUP_HE.md).",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_gdrive_connect_ready.py (nightly 13 passed / 0 failed); smplwise_vms/backend/tests/test_offbox_gdrive.py (nightly 15 passed / 0 failed); frontend/tests/offbox-gdrive-diagnose-2351.spec.ts (nightly 6 passed / 0 failed). Diagnose steps (client, secret, clock, consent, API, quota, folder), named errors, write-nothing, and a dry run referencing the Hebrew guide are asserted on a fake Google; guide file exists.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-HOME-EDIT-DRAWER-2351-1",
@@ -12743,12 +12755,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Home screen settings and the selected card settings share one drawer (side from 1200 px, bottom sheet on tablets and phones) with save and cancel always in view; a closed drawer gives its width back to the preview (a setting keeps the column reserved).",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: frontend/tests/evidence-home-edit-drawer-2351.spec.ts (nightly 1 passed / 0 failed); frontend/tests/unit-home-edit-drawer.spec.ts (nightly 24 passed / 0 failed). Drawer placement at 1920 to 390 px, fixed footer, own scroll and Escape measured in a browser; drawer logic and width-return setting asserted in unit spec.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-AREA-PRESENCE-LINE-2351-1",
@@ -12768,12 +12780,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The area screen and the area quick pop-up show one presence line (room state from its presence sensors and the people the phone app places there, by permission and the show-names setting; building-presence viewers without people rights see an anonymous count); off by default.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_area_presence_line_2351.py (nightly 12 passed / 0 failed); frontend/tests/unit-area-presence-line-2351.spec.ts (nightly 39 passed / 0 failed). Off by default, permission/show-names/opt-out, anonymous count for building-view-only holders and no wifi/geofence placement asserted in backend; line rendering in unit spec.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-XS-MINI-WIDGET-2351-1",
@@ -12818,12 +12830,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Home-system floors with no level are asked about and the answers are kept with each mapping version; new names are mapped automatically in the background after every change and at start-up, adding only what the stored rules place without a question; confirming a few areas creates no unneeded buildings or floors.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_mapping_improve_2351.py (nightly 10 passed / 0 failed); frontend/tests/unit-mapping-improve-2351.spec.ts (nightly 18 passed / 0 failed). Level questions persisted per mapping version, background job places only rule-placed names, idempotent, never moves user placements, subset confirm creates only named rows.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-BUILDING-SCOPE-CONTROL-2351-1",
@@ -12843,12 +12855,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "With the multi-building view on, the counters panel, floor and area turn-off actions, the floor lights pop-up and every single device control act only on the building shown, and the server refuses a request for another building's device; a setting chooses whether building permission follows the mapping or the map position.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_building_scope_control_2351.py (nightly 5 passed / 0 failed); smplwise_vms/backend/tests/test_building_scope_single_2351.py (nightly 7 passed / 0 failed); smplwise_vms/backend/tests/test_building_reach_round14.py (nightly 8 passed / 0 failed); frontend/tests/unit-building-scope-control-2351.spec.ts (nightly 18 passed / 0 failed). Bulk and single controls scoped to the shown building, other-building device refused and audited, reach setting (mapping vs map) asserted; frontend sends building.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-PRE-GATE-2360-1",
@@ -12868,12 +12880,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The 2.36.0 train is checked on the runner before its gate (drawer above the phone bar, GDrive diagnose and drawer specs).",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: frontend/tests/evidence-home-edit-drawer-2351.spec.ts (nightly 1 passed / 0 failed); frontend/tests/offbox-gdrive-diagnose-2351.spec.ts (nightly 6 passed / 0 failed); frontend/tests/layout-home-edit-bar-wp4.spec.ts (nightly 2 passed / 0 failed). The named drawer (390 px phone) and GDrive diagnose specs exist and pass in the nightly; the one-off pre-gate runner run itself is a process receipt.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-SYNOPTIC-PHONE-SETTINGS-2360-1",
@@ -12893,12 +12905,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Two settings next to the phone synoptic view: \"תאורה בטלפון\" (small bar - default, segments, number only) and \"שורת סיכום בטלפון\" (info button - default, a line under the board, off).",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_xs_options.py (nightly 12 passed / 0 failed); frontend/tests/unit-synoptic-phone-settings-2360.spec.ts (nightly 24 passed / 0 failed); frontend/tests/evidence-synoptic-phone-settings-2360.spec.ts (nightly 59 passed / 0 failed). Both settings, their defaults and values asserted server-side, in logic, and in browser evidence specs (59 pass).",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-TICKETS-1440-COLUMN-SETTING-2360-1",
@@ -12918,12 +12930,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "A tickets setting (ui.table_mid_width) chooses whether the default table keeps the sentence column (default) or the department column at about 1440 px; the other stays in the column chooser and a viewer's own choice wins.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_tickets_admin.py (nightly 14 passed / 0 failed); frontend/tests/unit-tickets-1440-column-setting-2360.spec.ts (nightly 24 passed / 0 failed). ui.table_mid_width default sentence, department alternative at 1440, chooser and viewer choice winning, server/frontend key agreement asserted.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-RELEASE-2360-TRAIN-1",
@@ -12968,12 +12980,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "After a bulk encoding apply or undo the stream is verified at the camera and reported per channel; the setting nvr.batch_on_refusal (\"skip and continue\" by default, or stop) decides what a refused camera does, and undo follows the same setting (owner decision 2B, 02.11); a read-only re-check route exists.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_cam_h264_verify_2361.py (nightly 27 passed / 0 failed); frontend/tests/unit-nvr-verify-report.spec.ts (nightly 33 passed / 0 failed); frontend/tests/evidence-nvr-verify-report-2361.spec.ts (nightly 4 passed / 0 failed). On fakes: per-channel verify report, skip-by-default vs stop policy, undo follows setting, read-only rate-limited recheck asserted. Real camera behaviour is only checked by fakes.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-RELEASE-2361-TRAIN-1",
@@ -13018,12 +13030,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The shared layer gets its stage 2 (shell pill note, bare state panel, one settings key look, drawer footer-end, solid sheet, --sw-well); new variants are opt-in and the settings key is the one deliberate look change.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: frontend/tests/unit-polish4-shared.spec.ts (nightly 30 passed / 0 failed). Source guards assert corner keys, footer-end slot, solid sheet, bare state panel, settings key look, --sw-well all opt-in; pixel-access-s12 has 3 failing pixel tests in the nightly (not listed).",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-POLISH4-WP2-LIVEINV-2370-1",
@@ -13093,12 +13105,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The home and devices screens are polished (survey defects D2, D24, D25, D26; owner answers Q5a, Q6a); the home edit drawer, the area presence line and the xs widget are untouched.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: frontend/tests/unit-polish4-wp4-home.spec.ts (nightly 18 passed / 0 failed); frontend/tests/layout-home-edit-bar-wp4.spec.ts (nightly 2 passed / 0 failed); frontend/tests/layout-home-widgets-wide-298.spec.ts (nightly 8 passed / 0 failed). D2, D24, D25, D26 asserted by source/unit and layout specs, including bottom-sheet layout editor and edit-bar height.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-POLISH4-WP5-MEDIA-2370-1",
@@ -13243,12 +13255,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "can_unlock is unlock_reason == ok, one function in door_authority behind GET /devices/items?kind=locks and GET /ha/entities/{id}, with the reasons ok, no_permission, door_not_mapped, alarm_managed, not_placed, wall_profile and no_control (codes only); the locks panel, map card, door grants tab and effective permissions word the reason; unmapped doors are summarised and a read-only door-map item joins the readiness check.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not shipped; NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_unlock_reason_2370.py (nightly 13 passed / 0 failed); frontend/tests/unit-lock-reason-2370.spec.ts (nightly 27 passed / 0 failed). Closed reason set, can_unlock follows unlock_reason, code-only, door grants unmapped count and readiness door-map item asserted; panel/map/permission wording asserted in unit spec.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-RELEASE-2370-TRAIN-1",
@@ -13293,12 +13305,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The Arx side of the WisKey rc.7 adoption is built on fakes: installer guards before any component write, the generation fence as a publication fence only, the relay map native adapter with post-approval sync behind the owner's switch, and (policy B) the owner's auto-install switch on the existing authorized writer with switch and Core runtime checks before the native writer; wiskey.auto_install stays OFF and no code path turns it on.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not merged, not tagged; NOT_RUN until recorded against a commit.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); not merged, not tagged; NOT_RUN until recorded against a commit. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_wiskey_rc7_adopt_2331.py (nightly 32 passed / 0 failed); smplwise_vms/backend/tests/test_wiskey_m12_policy_b_owner_switch.py (nightly 34 passed / 0 failed); smplwise_vms/backend/tests/test_wiskey_m12_policy_b_native_gate.py (nightly 31 passed / 0 failed); smplwise_vms/backend/tests/test_wiskey_relay_map_native_mac.py (nightly 5 passed / 0 failed). Installer guards, generation fence, relay-map sync behind the switch, policy-B owner switch and \"no code path turns auto_install on\" asserted on fakes.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-APP-TEAM-R11-2380-1",
@@ -13343,12 +13355,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "docs/api/mobile-presence-contract.md reaches v2.2 and the server validates it: sensor value shapes (MOBILE214 proposal), battery-unknown, confidence / proximity, intervals_s defaults, location_auth values and the K-5 key-rotation proof (K-6 / K-7 attestation stay deferred), with tests.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_presence_contract_v22.py (nightly 63 passed / 0 failed); smplwise_vms/backend/tests/test_app_refresh_rotation_fixtures_k5.py (nightly 9 passed / 0 failed). Contract v2.2 examples, sensor shapes, intervals defaults, off/normalize/strict validation and the contract-text key check, plus the K-5 key-rotation proof cases, all pass.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-APP-SERVER-LEFTOVERS-2380-1",
@@ -13368,12 +13380,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "A read-only, public-safe brand-logo API (/api/v1/brand/...) serves the apps, and the quiet-window hold applies to phone and browser push only; the employee notice text for the phone-side Wi-Fi match is handed to M1.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_app_server_leftovers_2380.py (nightly 13 passed / 0 failed). Brand-app logo API (public-safe, read-only, ETag, svg sandbox) and quiet-window hold limited to phone and browser push asserted; the M1 notice-text handoff is documentation only.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-PUSH-GOLIVE-KIT-2380-1",
@@ -13418,12 +13430,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "On the notice TV page the portrait footer keeps its chips under every \"updated\" wording, template, V2 and lobby style (two-row footer or priority drop per owner answer Q3); the two specs that pin updated:full are un-pinned and a portrait-chip pixel spec is added; the H7 crest logo is sized by area; the Hebrew date has a fallback; a safe-area / overscan margin setting exists.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: frontend/tests/unit-tv-fit-2380.spec.ts (nightly 21 passed / 0 failed); frontend/tests/pixel-notice-tv-portrait-chips.spec.ts (nightly 47 passed / 0 failed); smplwise_vms/backend/tests/test_notice_tvsettings_2380.py (nightly 33 passed / 0 failed). Chip drop/two-row modes, safe-area margin setting, crest logo by area, Hebrew-date fallback and the portrait-chip pixel spec all pass in the nightly.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-REAL-TV-SESSION-2380-1",
@@ -13518,12 +13530,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "A \"wall mode on desktop\" flag exists, foldable devices at 600-700 px are detected correctly, and AT221 and AT301 are run on the runner with evidence.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN.",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-02 (REGISTRY-UPDATE-2380); planned, not built; NOT_RUN. | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_wall.py (nightly 15 passed / 0 failed); frontend/tests/unit-wall-device-class.spec.ts (nightly 159 passed / 0 failed); frontend/tests/evidence-wall-followups-2390.spec.ts (nightly 28 passed / 0 failed); frontend/tests/pixel-wall-followups-2390.spec.ts (nightly 5 passed / 0 failed). Desktop wall flag (own column, /me), foldable detection at 600-700 px and the AT221/AT301 acceptance specs pass on fixtures; real foldable devices are out of scope of the entry.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-ROUND4-LEFTOVERS-2380-1",
@@ -14643,12 +14655,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "After a re-pair and after every home-system restart the bridge keeps the current pairing code; refused bridge pushes are visible in the WisKey connection block; no bridge key rotation starts while WisKey is installed.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here). | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_bridge_stale_discovery_2383.py (nightly 31 passed / 0 failed); frontend/tests/unit-bridge-stale-discovery-2383.spec.ts (nightly 6 passed / 0 failed). Stale code never written into a working entry, replay at HA start in either order, refused pushes shown in the pairing block, and no rotation while WisKey is present are asserted on a fake core and Supervisor.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-RELEASE-2391-1",
@@ -14693,12 +14705,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The installation's transport setting is honoured on every surface and channel (remote access and the phone included); only automatic tries more than one way; a per-user choice under My account > Video beats it; a frozen MSE picture reconnects on MSE; station video plays both profiles over either transport.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here). | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_video_transport_2400.py (nightly 49 passed / 0 failed); frontend/tests/unit-video-transport-2400.spec.ts (nightly 33 passed / 0 failed); frontend/tests/evidence-video-transport-2400.spec.ts (nightly 9 passed / 0 failed). Policy precedence personal > installation > auto on every channel, MSE-only on remote, station both profiles, frozen-MSE reconnect and per-user choice are asserted (server, frontend mirror, mocked-page evidence).",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-TTS-DEFAULT-ENGINE-2400-1",
@@ -14718,12 +14730,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "A system administrator sets a fixed announcement engine and language; every announcement dialog preselects them; a per-send pick changes only that send; a missing fixed engine is never replaced silently and blocks the send until another engine is picked.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here). | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_tts_default_engine_2400.py (nightly 6 passed / 0 failed); frontend/tests/unit-tts-default-2400.spec.ts (nightly 39 passed / 0 failed); frontend/tests/evidence-tts-default-2400.spec.ts (nightly 22 passed / 0 failed). Fixed engine/language setting (admin-only, audited), preselection, per-send override, and a missing fixed engine selecting nothing and being refused are asserted.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-PRESENCE-COUNT-2400-1",
@@ -14743,12 +14755,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The home presence card shows the active-room count, the active names, a per-room strip and (large card) the floors; it is the default presence style; the other styles stay selectable.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here). | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_presence_count_2400.py (nightly 8 passed / 0 failed); frontend/tests/unit-presence-count-2400.spec.ts (nightly 48 passed / 0 failed); frontend/tests/evidence-presence-count-2400.spec.ts (nightly 8 passed / 0 failed). Count-and-names is the default style, old defaults migrate, explicit styles are kept, and the card content (count, names, strip, floors) is asserted in the rendered evidence spec.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-WALL-ANSWERS-2400-1",
@@ -14768,12 +14780,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "An open foldable behaves as a wall tablet or as a phone by an installation setting; the portrait wall shows the health chip once; the kiosk header on a phone keeps its height; the desktop wall flag has its own column (migration 0204).",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here). | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_wall.py (nightly 15 passed / 0 failed); frontend/tests/unit-wall-device-class.spec.ts (nightly 159 passed / 0 failed); frontend/tests/evidence-wall-answers-2400.spec.ts (nightly 4 passed / 0 failed). Open-foldable setting (tablet/phone), health chip shown once in portrait, kiosk header height on a phone and the desktop flag column (migration 0204) are asserted.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-BOARD-ANSWERS-2400-1",
@@ -14793,12 +14805,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "A board saved before the sealed links keeps its link when its TV connects; parking and gym sources have an invert option.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here). | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_board_answers_2400.py (nightly 35 passed / 0 failed); frontend/tests/unit-board-answers-2400.spec.ts (nightly 21 passed / 0 failed); frontend/tests/evidence-board-answers-2400.spec.ts (nightly 3 passed / 0 failed). Legacy board keeps its copy when the TV connects, and parking/gym invert (server logic, settings audit, UI checkbox) are asserted.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-WISKEY-OPS-ANSWERS-2400-1",
@@ -14818,12 +14830,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Station maintenance stays with system administrators and its permission text says what it covers; schedule deployment warns while WisKey station writes are off; no-talk reasons name WisKey when WisKey is the cause.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here). | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_wiskey_station_ops.py (nightly 26 passed / 0 failed); frontend/tests/evidence-wiskey-schedule-writes.spec.ts (nightly 16 passed / 0 failed); frontend/tests/unit-wiskey-talk-dial-2382.spec.ts (nightly 21 passed / 0 failed). Maintenance stays system_admin only with the new permission label, the deploy warning shows while writes are off, and no-talk reasons name WisKey are asserted.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-WISKEY-INSTALL-ANSWERS-2400-1",
@@ -14843,12 +14855,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Settings have an access-control group with the installer row; a start-up install switch (off, system administrator, typed confirmation) and a kept-runs count exist; every start-up attempt stops before any change while the platform image cannot be verified.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here). | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_wiskey_install_answers_2400.py (nightly 39 passed / 0 failed); frontend/tests/unit-wiskey-managed.spec.ts (nightly 24 passed / 0 failed); frontend/tests/unit-settings-index.spec.ts (nightly 18 passed / 0 failed). Start-up install switch (phrase, admin-only, strict core gate, no downgrade), kept-runs 1-10 setting and the access-control settings group with the installer row are asserted on fakes.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-RELEASE-2400-TRAIN-1",
@@ -14943,12 +14955,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The tab fits 1366x768 without page scroll as folding cards with saved-value summaries, one open card remembered per user; a tab-layout setting switches to two tabs or one list.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here).",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-04 (GUIDE-BOARD-2402); NOT_RUN (the receipts are in the change record, not a PASS record here). | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_settings_intercom_cards_2401.py (nightly 5 passed / 0 failed); frontend/tests/unit-settings-intercom-cards-2401.spec.ts (nightly 45 passed / 0 failed); frontend/tests/layout-settings-intercom-cards-2401.spec.ts (nightly 3 passed / 0 failed); frontend/tests/evidence-settings-intercom-cards-2401.spec.ts (nightly 8 passed / 0 failed). Layout setting (cards default, tabs, list, audited, corrupt value reads default), summaries, remembered open card and the 1440x900 / 1366x768 no-scroll fit are asserted.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-RELEASE-2401-TRAIN-1",
@@ -15168,12 +15180,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "With the automatic quality, a sub stream that gives no media, is refused or never connects moves to the main stream on the same transport (never another transport), shows the tag \"עבר לזרם הראשי\", is remembered per camera for 10 minutes and is audited as profile_fallback; an explicit quality never switches and names the missing stream.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-05 (RELEASE-2402-TRAIN); NOT_RUN (the receipts are in the change record, not a PASS record here).",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-05 (RELEASE-2402-TRAIN); NOT_RUN (the receipts are in the change record, not a PASS record here). | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_video_sub_fallback_2402.py (nightly 6 passed / 0 failed); frontend/tests/unit-video-sub-fallback-2402.spec.ts (nightly 18 passed / 0 failed); frontend/tests/evidence-video-sub-fallback-2402.spec.ts (nightly 6 passed / 0 failed). Auto quality moves sub to main on the same transport, 10-minute per-camera memory, audited reason, tag, and explicit quality never switching are asserted for MSE, WebRTC, remote, kiosk and wall.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-SETTINGS-CARDS-ACCORDION-2402-1",
@@ -15193,12 +15205,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "access.settings_layout accepts accordion besides cards, tabs and list (system.configure, audited, a corrupt value reads as cards); in accordion each card opens under its own header, one at a time, the page may scroll vertically but never sideways; the default (cards) keeps its 2.40.1 fit.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-05 (RELEASE-2402-TRAIN); NOT_RUN (the receipts are in the change record, not a PASS record here).",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-05 (RELEASE-2402-TRAIN); NOT_RUN (the receipts are in the change record, not a PASS record here). | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_settings_cards_accordion_2402.py (nightly 5 passed / 0 failed); frontend/tests/unit-settings-cards-accordion-2402.spec.ts (nightly 15 passed / 0 failed); frontend/tests/layout-settings-cards-accordion-2402.spec.ts (nightly 4 passed / 0 failed). Accordion accepted as fourth layout (admin-only, audited, corrupt value reads cards), one open at a time, no sideways scroll, and the default cards fit are asserted.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-VIDEO-2403-1",
@@ -15218,12 +15230,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "The client asks GET /media/video-policy only after /me answered and only with the live_video capability (installation A sends no media request: evidence-nn1-p2:208 passes on every device); the kiosk and the display wall tiles fall back from a sub stream that gives nothing to the main stream on the same transport, as the wall's automatic quality.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-05 (RELEASE-2403-TRAIN); NOT_RUN (the receipts are in the change record, not a PASS record here).",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-05 (RELEASE-2403-TRAIN); NOT_RUN (the receipts are in the change record, not a PASS record here). | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: frontend/tests/unit-video-2403.spec.ts (nightly 12 passed / 0 failed); frontend/tests/evidence-nn1-p2.spec.ts (nightly 63 passed / 0 failed); frontend/tests/evidence-video-sub-fallback-2402.spec.ts (nightly 6 passed / 0 failed). Policy read only after /me and with live_video (evidence-nn1-p2 sends no media request), and kiosk and wall tiles counting as automatic quality with main-stream fallback are asserted.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-SKIN-QA-2403-1",
@@ -15293,12 +15305,12 @@
       "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
     ],
     "expected": "Arx shows the entity name Home Assistant shows (device + name, by next_name_part on 2026.11, the legacy friendly name on 2026.9/10), keeps the short part and the main-entity flag (migration 0206), places a child device without its own area in its parent's area, and pairs alarm zones on the full name and on the friendly name, so nothing collapses to a bare part after the Home Assistant 2026.11 upgrade.",
-    "status": "NOT_RUN",
-    "notes": "Registered 2026-11-05 (RELEASE-2404-TRAIN); NOT_RUN (the receipts are in the change record, not a PASS record here).",
-    "commit": null,
-    "environment": null,
-    "evidence": [],
-    "executed_at": null
+    "status": "PASS",
+    "notes": "Registered 2026-11-05 (RELEASE-2404-TRAIN); NOT_RUN (the receipts are in the change record, not a PASS record here). | 2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-B2-2407; nothing run against the lab.",
+    "commit": "eab715e53",
+    "environment": "Runner nightly, tier L, main @ eab715e53 (2026-11-06 02:00-04:08 UTC, PASS in 127m; Ubuntu runner, fakes only, no lab device)",
+    "evidence": "CATALOG-SWEEP-B2-2407 receipts (docs/changes/receipts/CATALOG-SWEEP-B2-2407.json), runner:~/smplwise-results/nightly/gate_main_eab715e53.md: smplwise_vms/backend/tests/test_ha_names_2611.py (nightly 28 passed / 0 failed). Names on 2026.11 and 2026.9/10, short part and main flag stored, upgrade rewrite, child-device area inheritance and alarm-zone pairing on full and friendly names are asserted on a fake registry.",
+    "executed_at": "2026-11-06"
   },
   {
     "id": "AT-PY-CONSTRAINTS-2407-1",

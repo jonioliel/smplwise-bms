@@ -112,7 +112,7 @@ def test_the_domain_name_of_a_hand_added_feed_is_replaced_by_the_list_name(clien
     {"name": "x", "url": "https://user:pw@feeds.example.com/rss"},  # credentials
     {"name": "x", "url": "https://feeds.example.com:8443/rss"},     # port
     {"name": "x", "url": "https://127.0.0.1/rss"},                  # loopback literal
-    {"name": "x", "url": "https://10.0.0.5/rss"},                   # private literal
+    {"name": "x", "url": "https://10.255.0.5/rss"},                   # private literal
     {"name": "x", "url": "https://localhost/rss"},                  # local name
     {"name": "x", "url": "https://feeds.example.com/r ss"},         # whitespace
     {"name": "x", "url": "https://feeds.example.com/" + "a" * 400}, # too long

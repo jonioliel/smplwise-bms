@@ -109,8 +109,8 @@ def test_refused_urls(url, code):
 
 
 @pytest.mark.parametrize("answers", [
-    ["10.0.0.5"], ["127.0.0.1"], ["169.254.169.254"], ["::1"], ["fe80::1"], ["fc00::1"], ["::ffff:192.168.0.1"], ["ff02::1"],
-    [PUBLIC, "10.0.0.5"],  # one bad answer among good ones refuses the name
+    ["10.255.0.5"], ["127.0.0.1"], ["169.254.169.254"], ["::1"], ["fe80::1"], ["fc00::1"], ["::ffff:192.168.0.1"], ["ff02::1"],
+    [PUBLIC, "10.255.0.5"],  # one bad answer among good ones refuses the name
     ["2606:2800:220:1:248:1893:25c8:1946", "::1"],
     [],  # no answer
     ["not-an-address"],
@@ -130,7 +130,7 @@ def test_a_public_name_and_a_public_literal_pass():
 def test_fetch_connects_to_the_checked_address_only():
     """DNS rebinding: the name answers public to the check and private afterwards; the connection goes to the CHECKED address
     and the name is never resolved a second time for the same hop."""
-    res = resolver({"feeds.example.com": [[PUBLIC], ["10.0.0.5"]]})
+    res = resolver({"feeds.example.com": [[PUBLIC], ["10.255.0.5"]]})
     connect, log = transport([FakeResp(body=b"<rss>ok</rss>")])
     assert sources.fetch_feed("https://feeds.example.com/rss", resolve=res, connect=connect) == b"<rss>ok</rss>"
     assert [e for e in log if e[0] == "connect"] == [("connect", "feeds.example.com", PUBLIC, 443)]
@@ -139,7 +139,7 @@ def test_fetch_connects_to_the_checked_address_only():
 
 
 def test_rebinding_at_the_check_is_refused_and_nothing_connects():
-    res = resolver({"evil.example.com": [["10.0.0.5"]]})
+    res = resolver({"evil.example.com": [["10.255.0.5"]]})
     connect, log = transport([])
     with pytest.raises(sources.FetchRefused):
         sources.fetch_feed("https://evil.example.com/rss", resolve=res, connect=connect)

@@ -34,15 +34,18 @@ def _tests_text(tests: list) -> str:
 def covered() -> dict[str, tuple[str, str]]:
     """id -> (sweep, evidence text)."""
     out: dict[str, tuple[str, str]] = {}
-    for sweep in ("A", "B"):
-        for e in json.loads((RECEIPTS / f"CATALOG-SWEEP-{sweep}-2406.json").read_text(encoding="utf-8")):
+    for sweep, name in (("A", "CATALOG-SWEEP-A-2406"), ("B", "CATALOG-SWEEP-B-2406"), ("B2", "CATALOG-SWEEP-B2-2407")):
+        path = RECEIPTS / f"{name}.json"
+        if not path.is_file():
+            continue
+        for e in json.loads(path.read_text(encoding="utf-8")):
             if e.get("class") == "COVERED":
-                out[e["id"]] = (sweep, f"{_tests_text(e.get('tests') or [])}. {e.get('note') or ''}".strip())
+                out[e["id"]] = (name, f"{_tests_text(e.get('tests') or [])}. {e.get('note') or ''}".strip())
     c = json.loads((RECEIPTS / "CATALOG-SWEEP-C-2406.json").read_text(encoding="utf-8"))
     for e in c["entries"]:
         if e.get("class") == "COVERED-AUTO":
             rec = "; ".join(f"{r.get('kind')}: {r.get('report') or r.get('tag') or r.get('file') or json.dumps(r, ensure_ascii=False)}{' ' + r['verdict'] if r.get('verdict') else ''}" for r in (e.get("receipts") or []))
-            out[e["id"]] = ("C", f"{rec}. {e.get('reason') or ''}".strip())
+            out[e["id"]] = ("CATALOG-SWEEP-C-2406", f"{rec}. {e.get('reason') or ''}".strip())
     return out
 
 
@@ -61,9 +64,9 @@ def main(argv: list[str]) -> int:
         t["status"] = "PASS"
         t["commit"] = NIGHTLY_SHA
         t["environment"] = ENVIRONMENT
-        t["evidence"] = f"CATALOG-SWEEP-{sweep}-2406 receipts (docs/changes/receipts/CATALOG-SWEEP-{sweep}-2406.json), {NIGHTLY_REPORT}: {ev}"[:1800]
+        t["evidence"] = f"{sweep} receipts (docs/changes/receipts/{sweep}.json), {NIGHTLY_REPORT}: {ev}"[:1800]
         t["executed_at"] = "2026-11-06"
-        note = f"2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by CATALOG-SWEEP-{sweep}-2406; nothing run against the lab."
+        note = f"2026-11-07 (CATALOG-APPLY-2406): COVERED by automated tests in the nightly, classified by {sweep}; nothing run against the lab."
         t["notes"] = f"{t['notes']} | {note}" if t.get("notes") else note
         changed += 1
     missing = sorted(set(cov) - {t["id"] for t in cat})
