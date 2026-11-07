@@ -61,7 +61,7 @@ Direct requirements are in **bold**.
 | watchfiles | 1.3.0 | MIT | uvicorn extra (reload; unused in production) |
 | python-dotenv | 1.2.4 | BSD-3-Clause | uvicorn extra |
 | PyYAML | 6.0.3 | MIT | uvicorn extra |
-| click | 8.5.0 | BSD-3-Clause | uvicorn command line |
+| click | 8.5.1 | BSD-3-Clause | uvicorn command line |
 | **websockets** | 15.0.1 | BSD-3-Clause | Home Assistant WebSocket, go2rtc / WisKey relays |
 | **python-multipart** | 0.0.32 | Apache-2.0 | uploads |
 | **pillow** | 13.0.0 | MIT-CMU (HPND) | image decode / re-encode |
