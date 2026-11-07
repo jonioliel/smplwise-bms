@@ -170,11 +170,46 @@ def test_the_two_rc10_rows_route_as_rc10_registers_them():
     assert PREFIX + "installation/core_runtime_v1" in core_gate.COMMANDS
 
 
+# Commands Arx ASKED WisKey for that rc.10 does not have. Each one sits on an UNPINNED channel, is gated off by default by an
+# administrator switch AND by WisKey listing the command in its discovery (fail closed), and leaves this list the day a pinned WisKey
+# release carries it (test_every_asked_command_is_really_missing_from_rc10_and_gated_off fails then). Never add a command rc.10 has.
+ASKED_NOT_IN_RC10: dict[str, tuple[str, str]] = {
+    # command: (channel, why)
+    "visits/record_external_v1": ("visits_push", "WISKEY-VISITS-2407: the record of an Arx invitation in WisKey - the ask in "
+                                  "docs/changes/WISKEY-VISITS-2407.md section 4; off by default (access.visitors.wiskey_push) and "
+                                  "offered only when WisKey's discovery lists the command"),
+}
+
+
 @pytest.mark.parametrize("channel", sorted(ch.ALLOWLISTS))
 def test_every_channel_command_is_an_rc10_command_including_the_formerly_unpinned_ones(channel: str):
-    """rc.10's public table now holds the readback and pacing reads that post-dated the rc.37 pin (UNPINNED_CHANNELS)."""
+    """rc.10's public table now holds the readback and pacing reads that post-dated the rc.37 pin (UNPINNED_CHANNELS). The only
+    exceptions are the explicit asks of ASKED_NOT_IN_RC10, on their own unpinned channel."""
     for command in ch.ALLOWLISTS[channel]:
+        if command in ASKED_NOT_IN_RC10 and ASKED_NOT_IN_RC10[command][0] == channel:
+            continue
         assert command in COMMANDS or command in SEPARATE, f"{channel}: {command} is not an rc.10 command"
+
+
+def test_every_asked_command_is_really_missing_from_rc10_and_gated_off():
+    import sqlite3
+
+    from smplwise.services import wiskey_visits as wv
+
+    for command, (channel, why) in ASKED_NOT_IN_RC10.items():
+        assert why.strip(), command
+        assert command not in EVERY_COMMAND, f"{command} is in rc.10 now - drop it from ASKED_NOT_IN_RC10"
+        assert command in ch.ALLOWLISTS[channel] and channel in ch.UNPINNED_CHANNELS, (command, channel)
+    # the one ask today: the administrator's switch is off on a fresh store, and an rc.10-shaped discovery does not offer the feature
+    assert wv.RECORD in ASKED_NOT_IN_RC10 and wv.PUSH_CHANNEL == ASKED_NOT_IN_RC10[wv.RECORD][0]
+    conn = sqlite3.connect(":memory:")
+    try:
+        conn.execute("CREATE TABLE settings(key TEXT PRIMARY KEY, value TEXT)")  # a store with no row for the switch = never set
+        assert wv.switch_on(conn) is False
+    finally:
+        conn.close()
+    rc10_api = {"min_client": SURFACE["api"]["min_client"], "commands": sorted(EVERY_COMMAND)}
+    assert wv.feature_state(rc10_api, "push") == (False, "push_not_offered")
 
 
 @pytest.mark.parametrize("channel", ["background", "read", "readback", "pacing"])

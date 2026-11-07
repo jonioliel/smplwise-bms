@@ -562,6 +562,8 @@ BLOCKED_ON_REMOTE = {("POST", "/api/v1/ha/bridge/ping"), ("POST", "/api/v1/ha/br
                      ("POST", "/api/v1/system/bridge-key/rotations"), ("POST", "/api/v1/system/bridge-key/rotations/{rotation_id}/resume"),
                      # WXH-LEFTOVERS-2405: the owner contacts and the Settings banner of a bridge-key notice (the same local-only prefix)
                      ("PUT", "/api/v1/system/bridge-key/owner-contacts"), ("GET", "/api/v1/system/bridge-key/notice"),
+                     # WXH4-EMERGENCY-REVOKE-2407: the emergency revoke and its one-time reveal are local-only by design (the same prefix)
+                     ("POST", "/api/v1/system/bridge-key/revoke"), ("POST", "/api/v1/system/bridge-key/revoke/reveal"),
                      # WISKEY-PAIRING-2382: the Arx <-> WisKey pairing block (its repair answer carries a new pairing code) is local-only
                      ("GET", "/api/v1/system/wiskey-pairing"), ("POST", "/api/v1/system/wiskey-pairing/probe"),
                      ("POST", "/api/v1/system/wiskey-pairing/repair")}

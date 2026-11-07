@@ -27,7 +27,8 @@ HISTORICAL = ("signed_person_writes", "person_writes/resolve_create", "wiskey-si
 # sha256 of the canonical command catalog, computed on release/2200 @ 47ca1a2c0 BEFORE the cleanup (without ADDED_AFTER_CLEANUP; the 2.39.0
 # train recomputed it: with `station_people` in the catalog it is 38db8b1c...bb031, the value WISKEY-PEOPLE-COMPLETE-2390 pinned;
 # the 2.40.0 train: with only `operations` in the catalog it is b9ae08da...5ac59, the value WISKEY-OPS-VIEWS-2400 pinned;
-# with only `messaging_paced` in the catalog it is 63741829...fb169, the value WISKEY-WA-QUEUE-2400 pinned)
+# with only `messaging_paced` in the catalog it is 63741829...fb169, the value WISKEY-WA-QUEUE-2400 pinned;
+# the 2.40.7 train: with only `visits` + `visits_push` in the catalog it is 1e2c1de5...db526, the value the WISKEY-VISITS-2407 merge produced)
 CATALOG_SHA256 = "0fdcbd37b67f8506178c35a8aea233f0080a0ed5895259c7430aa16f7f1abafe"
 PEOPLE_CATALOG_FIXTURE_SHA256 = "92ffc92b384fe0f667b66221076cfaf6b8259ffb28dd50c4c8cc2d7f83cf5e68"
 MIGRATION_0145_SHA256 = "b0fb6fd086a47430fc170008f233d2aa753d8d2140bf8c7bebbe60ab74aefa3f"
@@ -44,6 +45,8 @@ ADDED_AFTER_CLEANUP = (
     "diagnostics",  # WISKEY-ACCESS-DIAG-2400
     "access_review",  # WISKEY-ACCESS-DIAG-2400
     "messaging_paced",  # WISKEY-WA-QUEUE-2400
+    "visits",  # WISKEY-VISITS-2407 (2.40.7): the two visit reads
+    "visits_push",  # WISKEY-VISITS-2407 (2.40.7): the one record command (the ask, not in WisKey rc.10)
 )
 
 

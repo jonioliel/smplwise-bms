@@ -257,7 +257,7 @@ export class SwRecordedMonth extends LitElement {
     }
     .day[aria-current='date'] {
       background: var(--sw-accent);
-      color: var(--sw-text-inverse, #fff);
+      color: var(--sw-text-inverse);
       font-weight: var(--sw-fw-bold);
     }
     .day:disabled {

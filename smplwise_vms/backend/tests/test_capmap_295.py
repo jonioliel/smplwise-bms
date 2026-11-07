@@ -128,9 +128,29 @@ def test_the_receiver_symbol_exists_and_its_dto_has_exactly_the_nine_keys():
     assert cm.WIRE_KEYS == blc.WIRE_KEYS
 
 
+# The vectors file is WisKey's delivery, pinned byte-identical (test_wkcapwire_295), so its `source_files` hashes are never edited and
+# WisKey cannot be asked to re-make vectors for every Arx change. A later revision of a source file is accepted only as a REVIEWED
+# successor: (file, the hash it was made from, the new hash, why the behaviour the vectors pin is unchanged). Any further edit fails
+# again until it is reviewed the same way; a change that does alter the pinned behaviour needs new vectors, not an entry here.
+REVIEWED_SUCCESSORS: tuple[tuple[str, str, str, str], ...] = (
+    ("smplwise_vms/backend/smplwise/services/ha_bridge.py",
+     "db190dbed8b9b231d758a932abe917e0bf09a506c81bbb4088a1164466b2b52f",
+     "6bc46f37912f95086ad881e6e86a61c9fbfe7404d806ced33291c0e9078868e3",
+     "2.40.7 WXH4-EMERGENCY-REVOKE-2407: signing_key() and verify_message() gain a revoked-key gate in front of the unchanged code "
+     "(_raw_signing_key is the old body verbatim); with no revocation recorded both take exactly the old path. The revoked state is new "
+     "and outside these vectors (it is covered by the bridge-key revocation tests)."),
+)
+
+
 def test_the_receiver_source_is_the_one_the_vectors_were_made_from():
+    successors = {(rel, old): new for rel, old, new, why in REVIEWED_SUCCESSORS if why.strip()}
     for rel, want in CAP["source_files"].items():
-        assert hashlib.sha256((REPO / rel).read_bytes()).hexdigest() == want, f"{rel} drifted from the vectors' provenance"
+        accepted = {want}
+        while (rel, want) in successors:
+            want = successors[(rel, want)]
+            accepted.add(want)
+        got = hashlib.sha256((REPO / rel).read_bytes()).hexdigest()
+        assert got == want, f"{rel} drifted from the vectors' provenance (accepted chain {sorted(accepted)}; review it into REVIEWED_SUCCESSORS)"
 
 
 # ---------------------------------------------------------------- the projection equals the original DTO9 and the real receiver's DTO
