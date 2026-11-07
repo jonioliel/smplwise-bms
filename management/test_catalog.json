@@ -15130,5 +15130,30 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-RECORDED-DAYS-MONTH-2407-1",
+    "requirement_ids": [
+      "R-RECORDED-DAYS-MONTH-2407-1"
+    ],
+    "task_ids": [
+      "RECORDED-DAYS-MONTH-2407"
+    ],
+    "title": "Recordings: month view of the days with recordings",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record against the commit recorded here."
+    ],
+    "expected": "The playback screen offers a month view beside the date field: the days of a local month (installation IANA zone) with any recording of the camera are marked, future days are disabled, a tapped day opens that day; Hebrew, RTL, no scrolling inside the card, phone bottom sheet. Backend GET /api/v1/cameras/{id}/recordings/days?month=YYYY-MM is read-only on the recorder (Hikvision dailyDistribution, fallback derived from the bounded recording search with honest partial coverage; Provision-ISR SearchRecordDate), uses the camera's own recorder (multi-NVR), is cached (60 s current month, 1 h past) and bounded, and never asks the device for a future month.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-07 (RECORDED-DAYS-MONTH-2407); NOT_RUN (the workstation receipts are in the change record, not a PASS record here). The LAB step on the owner's NVR is NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

@@ -20002,5 +20002,46 @@
     "owner": null,
     "commit": "cb4b47767",
     "actual_cost_usd": null
+  },
+  {
+    "id": "RECORDED-DAYS-MONTH-2407",
+    "title": "Recordings: month view of the days with recordings (legacy monthly calendar parity)",
+    "epic": "VIDEO",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [
+      "SC12"
+    ],
+    "owner_role": "fullstack",
+    "requires_hardware": false,
+    "acceptance": [
+      "The playback screen offers a month view beside the date field: the days of a local month (installation IANA zone) with any recording of the camera are marked, future days are disabled, a tapped day opens that day; Hebrew, RTL, no scrolling inside the card, phone bottom sheet. Backend GET /api/v1/cameras/{id}/recordings/days?month=YYYY-MM is read-only on the recorder (Hikvision dailyDistribution, fallback derived from the bounded recording search with honest partial coverage; Provision-ISR SearchRecordDate), uses the camera's own recorder (multi-NVR), is cached (60 s current month, 1 h past) and bounded, and never asks the device for a future month."
+    ],
+    "requirement_ids": [
+      "R-RECORDED-DAYS-MONTH-2407-1"
+    ],
+    "test_ids": [
+      "AT-RECORDED-DAYS-MONTH-2407-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests on an isolated branch",
+      "Change record and known limits"
+    ],
+    "evidence": [
+      "2026-11-07: branch pilot/RECORDED-DAYS-MONTH-2407 from origin/main a4652fda5 (2.40.5); docs/changes/RECORDED-DAYS-MONTH-2407.md. Workstation: backend tests/test_recorded_days.py + neighbours and frontend unit-recorded-month.spec.ts (counts in the change record); fakes only, no lab contact. LAB step (dailyDistribution on the owner's NVR) NOT_RUN. Not merged, not released."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
   }
 ]

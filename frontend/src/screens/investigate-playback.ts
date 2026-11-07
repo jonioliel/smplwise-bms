@@ -17,6 +17,8 @@ import '../components/sw-timeline';
 import '../components/sw-live-player';
 import '../components/sw-state-panel';
 import '../components/sw-case-picker';
+import '../components/sw-recorded-month';
+import type { MonthLoader } from '../components/sw-recorded-month';
 import { BOOKMARK_LABEL, clipAround, listBookmarks, type Bookmark, type NewCaseItem } from '../api/cases';
 import { minuteLabel, secondLabel } from '../components/sw-timeline';
 import type { SwLivePlayer } from '../components/sw-live-player';
@@ -29,7 +31,7 @@ import { onPlaybackDisplay, showPlaybackItem } from '../api/playback-display';
 import { navigate } from '../router';
 import { describeError, ApiError } from '../api/client';
 import { closeGroup, closePlayback, createGroup, createPlayback, dateInZone, frameUrl, instantInZone, minuteInZone, playbackWsUrl, recordingsForDay, seekGroup, seekPlayback, type PlaybackGroup, type PlaybackSession, type RecordingsResponse } from '../api/recordings';
-import { reportGroupSync, type SyncStats } from '../api/recordings';
+import { recordedDays, reportGroupSync, type SyncStats } from '../api/recordings';
 import { createExport, estimateExport, formatBytes, type ExportEstimate, type ExportJob } from '../api/exports';
 import { cameraEvents, markerKind, EVENT_LABEL, type VmsEvent } from '../api/events';
 import type { TimelineBookmark, TimelineEvent } from '../components/sw-timeline';
@@ -50,6 +52,12 @@ const FINAL_CODES: (number | string)[] = [4401, 4403, 4410, 4429, 'access_lost',
 type PlayerDetail = { status: string; transport?: string; error?: string; code?: number | string };
 /** PLAYBACK-SCRUB-2341: how long the pointer rests on the timeline before its picture is asked for (requests are de-duplicated). */
 const PREVIEW_REST_MS = 120;
+
+/** The demo skeleton's month (no backend): recorded every day up to the demo date except two quiet days. */
+const DEMO_MONTH: MonthLoader = async (month) => ({
+  days: month === '2026-09' ? Array.from({ length: 14 }, (_, i) => `2026-09-${String(i + 1).padStart(2, '0')}`).filter((d) => d !== '2026-09-06' && d !== '2026-09-07') : [],
+  coverage: 'complete',
+});
 
 function hms(minute: number): string {
   return secondLabel(Math.max(0, Math.min(1439.983, minute)));
@@ -701,6 +709,26 @@ export class InvestigatePlayback extends LitElement {
     this.error = '';
     this.notice = '';
     await this.loadRecordings();
+  }
+
+  /** RECORDED-DAYS-MONTH-2407: the month view's loader, one per camera (a new camera = a new loader = a fresh month cache). */
+  private monthLoaderFor = '';
+  private monthLoaderFn: MonthLoader | null = null;
+  private get monthLoader(): MonthLoader | null {
+    if (!this.cameraId) return null;
+    if (this.monthLoaderFor !== this.cameraId || !this.monthLoaderFn) {
+      const cam = this.cameraId;
+      this.monthLoaderFor = cam;
+      this.monthLoaderFn = async (month) => {
+        try {
+          const r = await recordedDays(cam, month);
+          return { days: r.days, coverage: r.coverage };
+        } catch (err) {
+          throw new Error(describeError(err));
+        }
+      };
+    }
+    return this.monthLoaderFn;
   }
 
   private async setDate(date: string) {
@@ -1564,6 +1592,7 @@ export class InvestigatePlayback extends LitElement {
             ? html`<sw-field><select aria-label="מצלמה" @change=${(e: Event) => this.selectCamera((e.target as HTMLSelectElement).value)}>${(this.cams ?? []).map((c) => html`<option value=${c.id} ?selected=${c.id === this.cameraId}>${cameraLabel(c)}</option>`)}</select></sw-field>`
             : html`<sw-field><select aria-label="מצלמה" @change=${(e: Event) => (this.demoCamera = (e.target as HTMLSelectElement).value)}>${demoWall.map((c) => html`<option value=${c.id} ?selected=${c.id === this.demoCamera}>${c.name}</option>`)}</select></sw-field>`}
           <sw-field><input type="date" lang=${dateInputLang()} .value=${api ? this.date : '2026-09-14'} max=${today} data-ltr aria-label="תאריך" @change=${(e: Event) => api && this.setDate((e.target as HTMLInputElement).value)} /></sw-field>
+          <sw-recorded-month data-recorded-month .value=${api ? this.date : '2026-09-14'} .today=${today} .loader=${api ? this.monthLoader : DEMO_MONTH} ?disabled=${api && !this.cameraId} @pick=${(e: CustomEvent<{ date: string }>) => api && void this.setDate(e.detail.date)}></sw-recorded-month>
           <sw-field style="inline-size:132px"><input type="time" lang=${dateInputLang()} step="1" .value=${api ? hms(this.cursor) : minuteLabel(this.cursor)} data-ltr aria-label="שעה" @change=${(e: Event) => { const v = (e.target as HTMLInputElement).value; if (api) void this.onSeek(new CustomEvent('seek', { detail: { minute: parseHms(v) } })); else { const [h, m] = v.split(':').map(Number); this.cursor = h * 60 + m; this.generation += 1; } }} /></sw-field>
         </div>
         ${api ? nothing : html`<sw-button slot="actions" variant="ghost" iconOnly icon="download" label="ייצוא קטע"></sw-button><sw-button slot="actions" variant="ghost" iconOnly icon="link" label="שיתוף"></sw-button><sw-button slot="actions" variant="ghost" iconOnly icon="more" label="עוד"></sw-button>`}

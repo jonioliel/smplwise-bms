@@ -12,7 +12,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import Principal, require
-from ..services import recordings
+from ..services import recorded_days, recordings
 from ..services.access import camera_allowed, require_camera
 from ..services.timeutil import iso_utc, local_day_bounds, parse_utc, zone
 from .settings import read_settings
@@ -54,4 +54,23 @@ def camera_recordings(
         result = recordings.search_segments(settings_of(request), conn, cam, start, end, tz_name)
     out = recordings.as_dict(result)
     out.update({"camera_id": cam["id"], "from": iso_utc(start), "to": iso_utc(end), "track_id": cam["main_track"]})
+    return out
+
+
+@router.get("/cameras/{camera_id}/recordings/days")
+def camera_recorded_days(
+    camera_id: str,
+    request: Request,
+    principal: Principal = Depends(current_principal_ro),
+    conn: sqlite3.Connection = Depends(get_read_conn),
+    month: str = Query(..., pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
+) -> dict[str, Any]:
+    """RECORDED-DAYS-MONTH-2407: the local dates of `month` (YYYY-MM, the installation's zone) on which the camera has any
+    recording - the month view of the playback screen. Read-only on the NVR, cached (services/recorded_days.py)."""
+    cam = camera_for_playback(conn, principal, camera_id)
+    tz_name = read_settings(conn)["time.zone"]
+    with unlocked(conn):
+        result = recorded_days.days_in_month(settings_of(request), cam, month, tz_name)
+    out = recorded_days.as_dict(result)
+    out["camera_id"] = cam["id"]
     return out

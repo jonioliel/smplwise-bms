@@ -9989,5 +9989,23 @@
     "test_ids": [
       "AT-HA-2026-11-COMPAT-2404-1"
     ]
+  },
+  {
+    "id": "R-RECORDED-DAYS-MONTH-2407-1",
+    "title": "Recordings: month view of the days with recordings (legacy monthly calendar parity)",
+    "statement": "The playback screen offers a month view beside the date field: the days of a local month (installation IANA zone) with any recording of the camera are marked, future days are disabled, a tapped day opens that day; Hebrew, RTL, no scrolling inside the card, phone bottom sheet. Backend GET /api/v1/cameras/{id}/recordings/days?month=YYYY-MM is read-only on the recorder (Hikvision dailyDistribution, fallback derived from the bounded recording search with honest partial coverage; Provision-ISR SearchRecordDate), uses the camera's own recorder (multi-NVR), is cached (60 s current month, 1 h past) and bounded, and never asks the device for a future month.",
+    "task_ids": [
+      "RECORDED-DAYS-MONTH-2407"
+    ],
+    "chapters": [],
+    "screens": [
+      "SC12"
+    ],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-RECORDED-DAYS-MONTH-2407-1"
+    ]
   }
 ]
