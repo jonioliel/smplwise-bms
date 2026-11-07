@@ -111,7 +111,13 @@ async function headerStates(page: Page, id: string) {
   const token = await pressScale(page);
   await page.mouse.down();
   await page.waitForTimeout(140);
-  const pressed = await style();
+  let pressed = await style();
+  // 2.40.6 gate: on a loaded runner (load 48) the press transition had not reached the token at 140 ms (identity matrix read).
+  // Keep sampling while the button is held, up to ~1 s; a header with no press still fails (the scale never moves).
+  for (let i = 0; i < 9 && !pressFollows(pressed.transform, token); i++) {
+    await page.waitForTimeout(100);
+    pressed = await style();
+  }
   await page.mouse.move(0, 0);
   await page.mouse.up();
   await page.emulateMedia({ reducedMotion: 'reduce' });

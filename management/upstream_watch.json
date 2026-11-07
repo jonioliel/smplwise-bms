@@ -3574,7 +3574,7 @@
         }
       ],
       "current": {
-        "version": "6.4.3",
+        "version": "6.4.5",
         "source": "frontend/package-lock.json",
         "verify": false
       },
@@ -4111,7 +4111,7 @@
         }
       ],
       "current": {
-        "version": "4.151.1",
+        "version": "4.158.0",
         "source": "services/push-relay/package-lock.json",
         "verify": true,
         "constraint": "4.151.1"

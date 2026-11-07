@@ -1341,7 +1341,7 @@ def fixture_block(wt, fe, logd, cls):
     data = Path(tempfile.mkdtemp(prefix="gate_data_", dir=str(logd)))
     fx = spawn([PY, "frontend/tests/fixtures/devices_fake_ha.py"], wt, logd / "fixture_devices.log",
                env={"SW_PORT": str(api), "SW_DATA_DIR": str(data), "SW_DEV_USER": "joni", "SW_BOOTSTRAP_ADMIN": "joni"})
-    up = wait_http(f"http://127.0.0.1:{api}/healthz", 90)
+    up = wait_http(f"http://127.0.0.1:{api}/healthz", 240)  # 2.40.6 gate: the fake backend took >90 s to start under load 48
     port = free_port()
     vp, ok = (None, False)
     if up:
