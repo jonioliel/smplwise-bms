@@ -35,4 +35,4 @@
 Read AGENTS.md and the linked master chapters. Inspect legacy code before replacement. No production configuration writes, physical commands, spending, or claims of passing unrun tests. Record commit, environment, commands and evidence.
 
 ## Blocker
-The Arx side is built on pilot/WXH-LEFTOVERS-2405 (not merged). Still open: the bridge side (a bridge release) and WisKey's high-water mechanism; BLOCKED also by the registry rule (WXH1 REVIEW, WXH4 BLOCKED).
+Still open: the bridge side of the key-status hand-over (a bridge release) and WisKey's high-water mechanism. The Arx side is released in v2.40.5 (b5aa0548c).

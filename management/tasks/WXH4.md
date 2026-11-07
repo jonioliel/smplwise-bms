@@ -2,7 +2,7 @@
 
 > Generated card. Edit management/tasks.json, then run this script with --write.
 
-**Phase:** V1 | **Priority:** P2 | **Status:** BLOCKED
+**Phase:** V1 | **Priority:** P2 | **Status:** REVIEW
 
 **Owner role:** backend | **Hardware:** False
 
@@ -33,6 +33,3 @@
 
 ## Guardrails
 Read AGENTS.md and the linked master chapters. Inspect legacy code before replacement. No production configuration writes, physical commands, spending, or claims of passing unrun tests. Record commit, environment, commands and evidence.
-
-## Blocker
-Built on pilot/WXH4-EMERGENCY-REVOKE-2407 (fakes only, not merged, not released): waits for the review and merge, a release with bridge 0.10.6, one Home Assistant restart by the owner, and its dependencies WXH2 / WXH3 reaching DONE (registry rule). The owner's six decisions of 07.11 are built (docs/changes/WXH4-EMERGENCY-REVOKE-2407.md).

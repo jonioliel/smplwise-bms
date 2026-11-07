@@ -1,6 +1,6 @@
 # Project status — generated view
 
-Generated: 2026-11-07T14:08:08.761414+00:00
+Generated: 2026-11-07T18:16:57.638409+00:00
 
 Tasks: 454 | Requirements: 564 | Tests: 581 | Screens: 32
 
@@ -9,11 +9,11 @@ No VMS implementation or hardware test is implied by this planning registry.
 Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DONE; READY, IN_PROGRESS, VALIDATION and DONE need every dependency DONE. OBSOLETE cards are BLOCKED with a blocker starting "Excluded - OBSOLETE" and an EXCLUDED evidence line (the registry has no OBSOLETE status); a dependency on an OBSOLETE card counts as satisfied under every rule (BOARD-DECISIONS-2407, owner decision 2026-11-07).
 
 ## Status counts
-- BACKLOG: 94
-- BLOCKED: 20
+- BACKLOG: 91
+- BLOCKED: 17
 - DONE: 40
-- IN_PROGRESS: 6
-- REVIEW: 294
+- IN_PROGRESS: 3
+- REVIEW: 303
 
 ## Release scope counts
 - BETA: 20
@@ -30,11 +30,8 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - WXD5B: Excluded - OBSOLETE by owner decision 2026-11-05 (round 22, Q2 = א on the BOARD-HYGIENE-2403 candidates; relayed by the coordinator, no written answers file): superseded by door actions go over the WisKey direct join (docs/changes/DOORLIVE-2310.md, owner decisions 2026-10-30), not a bridge door_open / door_open_status service. Not to be worked; the card is kept.
 - WXG0: Excluded - OBSOLETE by owner decision 2026-11-07, relayed by the lead; no written answers file: superseded: the WX3 gate tool checks a WisKey SOURCE folder under the 2026-10-05 rule "WisKey packages nothing"; since WISKEY-MANAGED-INSTALL-2382 Arx installs a WisKey-built bundle checked byte-exact against its MANAGED_MANIFEST.json behind the Core provenance gate, which takes the tool's place (answer to question 1 of docs/changes/V1-REMAINING-2406.md). Not to be worked; the card is kept.
 - WXG1: Excluded - OBSOLETE by owner decision 2026-11-07, relayed by the lead; no written answers file: superseded: the WX3 gate tool checks a WisKey SOURCE folder under the 2026-10-05 rule "WisKey packages nothing"; since WISKEY-MANAGED-INSTALL-2382 Arx installs a WisKey-built bundle checked byte-exact against its MANAGED_MANIFEST.json behind the Core provenance gate, which takes the tool's place (answer to question 1 of docs/changes/V1-REMAINING-2406.md). Not to be worked; the card is kept.
-- WXH3: Not a work blocker: the Arx part is built on pilot/WXH-LEFTOVERS-2405 (not merged). BLOCKED only because the registry rule needs every dependency DONE (WXH2 is REVIEW).
-- WXH4: Built on pilot/WXH4-EMERGENCY-REVOKE-2407 (fakes only, not merged, not released): waits for the review and merge, a release with bridge 0.10.6, one Home Assistant restart by the owner, and its dependencies WXH2 / WXH3 reaching DONE (registry rule). The owner's six decisions of 07.11 are built (docs/changes/WXH4-EMERGENCY-REVOKE-2407.md).
-- WXH5: Not a work blocker: the watchdog is built on pilot/WXH-LEFTOVERS-2405 (not merged). BLOCKED by the registry rule (WXH2 REVIEW) and by WXH4 (owner decisions).
-- WXH6: The Arx side is built on pilot/WXH-LEFTOVERS-2405 (not merged). Still open: the bridge side (a bridge release) and WisKey's high-water mechanism; BLOCKED also by the registry rule (WXH1 REVIEW, WXH4 BLOCKED).
-- WXH7: Not a work blocker any more: The owner lifted the 2026-10-10 deferral on 2026-10-20 (private/planning/OWNER_DECISIONS_2026-10-20_NIGHT.md, round 4 item 4: "HMAC key rotation: build now (activation only after a Fable review)"); built as HMACROT-295 / HMACACT-295 / HMACACT2-295, docs/changes/CR-WISKEY-HMAC-ROTATION-295.md. The status stays BLOCKED only because the registry rule needs every dependency DONE (owner acceptance).
+- WXH6: Still open: the bridge side of the key-status hand-over (a bridge release) and WisKey's high-water mechanism. The Arx side is released in v2.40.5 (b5aa0548c).
+- WXH7: Waits for WXH6 (bridge side and WisKey high-water mechanism); the gate rows for WXH3 / WXH4 / WXH5 / the Arx part of WXH6 exist (v2.40.5 and the 2.40.7 train).
 - WXIMP: Excluded - OBSOLETE by owner decision 2026-11-05 (round 22, Q2 = א on the BOARD-HYGIENE-2403 candidates; relayed by the coordinator, no written answers file): superseded by private/planning/OWNER_DECISIONS_2026-10-20_NIGHT.md round 1 item 7 (package install from Arx frozen) and round 4 item 6. Not to be worked; the card is kept.
 - REAL-TV-SESSION-2380: Waits for the owner (question Q2: a lab TV in a joint session this week, an Android TV box only, or fix blind); TV-FIT-2380 shipped in 2.38.0 (merge 571891e9d).
 - CAST-FIRST-TEST-2380: A device action needs the owner's explicit approval (question Q9: approve one camera to one lab TV in a joint session, or later).
@@ -171,7 +168,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [WXD2](tasks/WXD2.md) | V1 | REVIEW | WisKey CR-033: Access control station scope and placement | — |
 | [WXD3](tasks/WXD3.md) | V1 | REVIEW | WisKey CR-033: One door authority rule, door opener role, grant card | WXD1, WXD2 |
 | [WXD4](tasks/WXD4.md) | V1 | REVIEW | WisKey CR-033: trusted_door transport (interim + signed), audit fields, "sent" | WXD0, WXD3 |
-| [WXD5A](tasks/WXD5A.md) | V1 | BACKLOG | WisKey CR-033: Bridge 0.8.1 execute block for WisKey doors (admin setting) | WXD4 |
+| [WXD5A](tasks/WXD5A.md) | V1 | REVIEW | WisKey CR-033: Bridge 0.8.1 execute block for WisKey doors (admin setting) | WXD4 |
 | [WXD5B](tasks/WXD5B.md) | V1 | BLOCKED | WisKey CR-033: Bridge door_open / door_open_status | WXH1, WXD4 |
 | [WXD6](tasks/WXD6.md) | V1 | REVIEW | WisKey CR-033: WisKey locks without lock.lock / lock-all | WXD1 |
 | [WXD7](tasks/WXD7.md) | V1 | REVIEW | WisKey CR-033: Read-only door-path inventory and report | WXD1 |
@@ -180,15 +177,15 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [WXD9](tasks/WXD9.md) | V1 | REVIEW | WisKey CR-033: Run guard for Arx-started runs (R-17) | WXD4, WXD7 |
 | [WXD10A](tasks/WXD10A.md) | V1 | REVIEW | WisKey CR-033: Arx event door jobs (M1), disable-and-list | WXD9, WXD7R |
 | [WXD10B](tasks/WXD10B.md) | V1 | REVIEW | WisKey CR-033: Hold-open program hand-over (M3) | WXD9, WXD7R |
-| [WXD11](tasks/WXD11.md) | V1 | BACKLOG | WisKey CR-033: Door-path gate T1..T26 on fakes | WXD0, WXD1, WXD2, WXD3, WXD4, WXD5A, WXD5B, WXD6, WXD7, WXD7R, WXD8, WXD9, WXD10A, WXD10B |
+| [WXD11](tasks/WXD11.md) | V1 | REVIEW | WisKey CR-033: Door-path gate T1..T26 on fakes | WXD0, WXD1, WXD2, WXD3, WXD4, WXD5A, WXD5B, WXD6, WXD7, WXD7R, WXD8, WXD9, WXD10A, WXD10B |
 | [WXG0](tasks/WXG0.md) | V1 | BLOCKED | WisKey CR-034: Merge WX3 gate tool to main | — |
 | [WXG1](tasks/WXG1.md) | V1 | BLOCKED | WisKey CR-034: Gate: impact block, exit 5, gate:allow | WXG0 |
 | [WXH0](tasks/WXH0.md) | V1 | REVIEW | WisKey CR-034: Rotation fakes | — |
 | [WXH1](tasks/WXH1.md) | V1 | REVIEW | WisKey CR-034: Bridge multi-key verifier and rotate service | WXH0 |
 | [WXH2](tasks/WXH2.md) | V1 | REVIEW | WisKey CR-034: Arx key set and rotation state machine | WXH0 |
-| [WXH3](tasks/WXH3.md) | V1 | BLOCKED | WisKey CR-034: bridge.key.rotate, owner contacts, emergency notice | WXH2 |
-| [WXH4](tasks/WXH4.md) | V1 | BLOCKED | WisKey CR-034: Fresh-key re-pair with verification, emergency revocation | WXH2, WXH3 |
-| [WXH5](tasks/WXH5.md) | V1 | BLOCKED | WisKey CR-034: Maintenance screen and watchdog | WXH2, WXH4 |
+| [WXH3](tasks/WXH3.md) | V1 | REVIEW | WisKey CR-034: bridge.key.rotate, owner contacts, emergency notice | WXH2 |
+| [WXH4](tasks/WXH4.md) | V1 | REVIEW | WisKey CR-034: Fresh-key re-pair with verification, emergency revocation | WXH2, WXH3 |
+| [WXH5](tasks/WXH5.md) | V1 | REVIEW | WisKey CR-034: Maintenance screen and watchdog | WXH2, WXH4 |
 | [WXH6](tasks/WXH6.md) | V1 | BLOCKED | WisKey CR-034: Anchor eligibility and capability status hand-over | WXH1, WXH4 |
 | [WXH7](tasks/WXH7.md) | V1 | BLOCKED | WisKey CR-034: Rotation gate on fakes | WXH1, WXH2, WXH3, WXH4, WXH5, WXH6 |
 | [ST7S0](tasks/ST7S0.md) | V2 | REVIEW | Plan Studio 6 S0: plan document 2.2 schema, material library, resolver, look settings | — |
@@ -460,7 +457,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [WISKEY-ACCESS-DIAG-2400](tasks/WISKEY-ACCESS-DIAG-2400.md) | V1 | REVIEW | WisKey T10: access diagnostics views | — |
 | [WISKEY-OPS-VIEWS-2400](tasks/WISKEY-OPS-VIEWS-2400.md) | V1 | REVIEW | WisKey T11: operations and fleet views | — |
 | [WISKEY-WA-QUEUE-2400](tasks/WISKEY-WA-QUEUE-2400.md) | V1 | REVIEW | WisKey T12: messaging completion on the installed client | — |
-| [WISKEY-VISITS-2400](tasks/WISKEY-VISITS-2400.md) | V1 | IN_PROGRESS | WisKey T13: visits and guest templates decision and bridge | — |
+| [WISKEY-VISITS-2400](tasks/WISKEY-VISITS-2400.md) | V1 | REVIEW | WisKey T13: visits and guest templates decision and bridge | — |
 | [WISKEY-CLOCK-VIEW-2400](tasks/WISKEY-CLOCK-VIEW-2400.md) | V1 | REVIEW | WisKey T14: clock / NTP and WisKey media options view | — |
 | [WISKEY-EVENT-CURSOR-2390](tasks/WISKEY-EVENT-CURSOR-2390.md) | V1 | REVIEW | WisKey T15: gap-free events after a restart (event cursor) | — |
 | [WISKEY-LIVE-VALIDATION-2390](tasks/WISKEY-LIVE-VALIDATION-2390.md) | V1 | REVIEW | WisKey T16: live validation screen for commissioning | — |
@@ -499,6 +496,6 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [SKIN-QA-2403](tasks/SKIN-QA-2403.md) | V1 | REVIEW | The 2.40.1 / 2.40.2 surfaces in every skin, light and dark: fallback tag, phone toolbar, intercom settings cards | — |
 | [BOARD-HYGIENE-2403](tasks/BOARD-HYGIENE-2403.md) | V1 | REVIEW | Task board hygiene after v2.40.2 | — |
 | [HA-2026-11-COMPAT-2404](tasks/HA-2026-11-COMPAT-2404.md) | V1 | REVIEW | Home Assistant 2026.11 entity names and child devices | — |
-| [PY-CONSTRAINTS-2407](tasks/PY-CONSTRAINTS-2407.md) | V1 | BACKLOG | Python constraints lock file for the add-on + Supervisor build check | — |
-| [CAMERA-REBOOT-2407](tasks/CAMERA-REBOOT-2407.md) | V1 | IN_PROGRESS | Reboot one camera through its NVR (legacy parity P09) | — |
-| [RECORDED-DAYS-MONTH-2407](tasks/RECORDED-DAYS-MONTH-2407.md) | V1 | IN_PROGRESS | Recordings: month view of the days with recordings (legacy monthly calendar parity) | — |
+| [PY-CONSTRAINTS-2407](tasks/PY-CONSTRAINTS-2407.md) | V1 | REVIEW | Python constraints lock file for the add-on + Supervisor build check | — |
+| [CAMERA-REBOOT-2407](tasks/CAMERA-REBOOT-2407.md) | V1 | REVIEW | Reboot one camera through its NVR (legacy parity P09) | — |
+| [RECORDED-DAYS-MONTH-2407](tasks/RECORDED-DAYS-MONTH-2407.md) | V1 | REVIEW | Recordings: month view of the days with recordings (legacy monthly calendar parity) | — |
