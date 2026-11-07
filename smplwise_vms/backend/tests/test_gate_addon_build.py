@@ -53,6 +53,7 @@ def fake_docker(monkeypatch, tmp_path):
     d.chmod(d.stat().st_mode | stat.S_IEXEC)
     monkeypatch.setenv("PATH", f"{b}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.setenv("FAKE_DOCKER_ARGV", str(tmp_path / "argv.txt"))
+    monkeypatch.setenv("ADDON_BUILD_LOCK", "static")   # PY-CONSTRAINTS-LOCK-2407: hermetic - the offline lock check only
     return tmp_path / "argv.txt"
 
 
@@ -136,12 +137,16 @@ def test_real_script_with_a_fake_docker(g, fake_docker, monkeypatch, tmp_path, m
         assert f"BUILD_FROM={amd}" in build and "BUILD_ARCH=amd64" in build and "BUILD_VERSION=" in build
         assert "--no-cache" not in build and build.rstrip().endswith(str(ROOT / "smplwise_vms")), "cached layers; the add-on folder is the context"
         assert all("--network none" in ln for ln in argv.splitlines() if ln.startswith("docker run ")), "smoke steps never reach the network"
-        assert [s["name"] for s in out["steps"]] == ["build", "import_smplwise", "import_server", "server_healthz", "system_tools"]
+        assert [s["name"] for s in out["steps"]] == ["lock_static", "lock_wheels", "lock_pip", "build", "import_smplwise", "import_server",
+                                                     "server_healthz", "system_tools", "constraints_match"]
+        assert [s["result"] for s in out["steps"]][:3] == ["PASS", "NOT_RUN", "NOT_RUN"], "ADDON_BUILD_LOCK=static: offline only"
+        assert "open('/app/constraints.txt'" in argv, "constraints_match reads the lock inside the image"
     if mode == "buildfail":
         assert any("exit code: 127" in ln for ln in out["log_tail"])
     if mode == "nodaemon":
         assert "docker" in out["reason"] and g.ITEMS[-1]["status"] == "SKIPPED_NOT_RUN"
         assert "docker build" not in argv, "nothing is built (or installed) without an engine"
+        assert [s["name"] for s in out["steps"]][:1] == ["lock_static"] and "lock_static:PASS" in out["reason"], "the lock is checked anyway"
 
 
 @posix

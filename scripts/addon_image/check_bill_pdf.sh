@@ -35,6 +35,7 @@ sudo -n cp -a "$WORK/base" "$WORK/nopdf"; sudo -n cp -a "$WORK/base" "$FULL"
 CTX="$WORK/ctx-nopdf"; mkdir -p "$CTX/backend"
 sed -E 's/ pango$//' smplwise_vms/Dockerfile > "$CTX/Dockerfile"
 grep -vE '^(weasyprint|fpdf2|uharfbuzz)' smplwise_vms/backend/requirements.txt > "$CTX/backend/requirements.txt"
+cp smplwise_vms/backend/constraints.txt "$CTX/backend/constraints.txt"   # PY-CONSTRAINTS-LOCK-2407: the Dockerfile copies it; pins of absent packages are inert
 ln -s "$REPO/smplwise_vms/backend/smplwise" "$CTX/backend/smplwise"
 for d in www integration run.sh; do ln -s "$REPO/smplwise_vms/$d" "$CTX/$d"; done
 step build_baseline $T build --context "$CTX" "$WORK/nopdf"
@@ -88,7 +89,7 @@ if [ "$ok" = 1 ] && grep -q '"active": *"weasyprint"' "$OUT/billing_settings.jso
 else log "   FAIL (see addon_server.log)"; FAIL=1; fi
 
 # --- 4. aarch64: every package must exist as a binary wheel for musllinux aarch64 (no emulation here, no compiler in the image)
-step aarch64_wheels inimg sh -c "pip download --no-cache-dir -q --only-binary=:all: --platform musllinux_1_2_aarch64 --platform musllinux_1_1_aarch64 --platform any --python-version 3.12 --implementation cp -r /app/requirements.txt -d /tmp/wheels-aarch64 && ls /tmp/wheels-aarch64 | grep -E '^(weasyprint|fpdf2|uharfbuzz|cffi|fonttools|brotli|zopfli|pillow)' "
+step aarch64_wheels inimg sh -c "pip download --no-cache-dir -q --only-binary=:all: --platform musllinux_1_2_aarch64 --platform musllinux_1_1_aarch64 --platform any --python-version 3.12 --implementation cp -r /app/requirements.txt -c /app/constraints.txt -d /tmp/wheels-aarch64 && ls /tmp/wheels-aarch64 | grep -E '^(weasyprint|fpdf2|uharfbuzz|cffi|fonttools|brotli|zopfli|pillow)' "
 
 log "== result: $([ "$FAIL" = 0 ] && echo ALL PASS || echo FAILURES)"
 sudo -n chown -R "$(id -u):$(id -g)" "$OUT"

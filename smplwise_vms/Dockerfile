@@ -11,7 +11,11 @@ RUN apk add --no-cache poppler-utils jpeg zlib libpng ffmpeg pango
 
 WORKDIR /app
 COPY backend/requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+# PY-CONSTRAINTS-LOCK-2407: constraints.txt pins every package of the resolved set (direct and transitive) for CPython 3.12 on
+# musl, amd64 and aarch64 alike, so the Supervisor's install-time resolution installs exactly the locked versions.
+# Regenerate with scripts/lock_python.py; scripts/gate/addon_build_check.sh compares the installed set with it.
+COPY backend/constraints.txt /app/constraints.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt -c /app/constraints.txt
 
 COPY backend/smplwise /app/smplwise
 COPY www /app/www
