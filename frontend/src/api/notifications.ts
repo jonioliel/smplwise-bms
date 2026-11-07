@@ -169,7 +169,7 @@ export interface NotifyPolicy {
   /** A quiet "resolved" update (default false; true for critical). */
   resolve_notice: boolean;
   /** `initiator` = the bulk starter / the account's owner. */
-  recipients: { rule: 'scope' | 'managers' | 'initiator' | 'users' | 'generator' | 'ticket_managers' | 'ticket_assignee' | 'rfq_managers' | 'elevator' | 'temperature' | 'energy_bills' | 'water' | 'maintenance' | 'scenario' | 'notice' | 'calendar_attendee'; user_ids?: string[] }; // elevator: CR-INFRA-ELEVATORS 2.8.0; energy_bills: ELECBILL77; maintenance: CR-MAINT215
+  recipients: { rule: 'scope' | 'managers' | 'initiator' | 'users' | 'generator' | 'ticket_managers' | 'ticket_assignee' | 'rfq_managers' | 'elevator' | 'temperature' | 'energy_bills' | 'water' | 'maintenance' | 'scenario' | 'notice' | 'calendar_attendee' | 'bridge_key_owner'; user_ids?: string[] }; // bridge_key_owner: WXH-LEFTOVERS-2405; elevator: CR-INFRA-ELEVATORS 2.8.0; energy_bills: ELECBILL77; maintenance: CR-MAINT215
   /** inbox is fixed on; ha_mobile is fixed false (reserved); whatsapp is a real channel since NOTIFWA (off by default). */
   channels: { inbox: true; webpush: boolean; email: boolean; app?: boolean; announce?: boolean; ha_mobile: false; whatsapp: boolean };
   revision: number;
@@ -1032,6 +1032,7 @@ export const RECIPIENT_LABEL: Record<NotifyPolicy['recipients']['rule'], string>
   notice: 'קהל היעד של ההודעה', // NOTICEPUSH-295: the audience chosen when the notice was written
   calendar_attendee: 'המוזמן לאירוע ביומן', // CAL-ATTENDEES-2343: exactly the attendee the notice is about
   scenario: 'הנמענים שנבחרו בתרחיש', // XSCENARIO109-295: the recipients chosen on the scenario's notify action (or the default list in Settings)
+  bridge_key_owner: 'אנשי הקשר של הבעלים וכל מנהלי המערכת', // WXH-LEFTOVERS-2405: the owner contacts first, then every other system administrator (services/bridge_key_notice.py)
 };
 export const RECIPIENT_LABEL_EN: Record<NotifyPolicy['recipients']['rule'], string> = {
   scope: 'Everyone who can see it', managers: 'Managers', initiator: 'The initiator / account owner', users: 'Selected users',
@@ -1044,6 +1045,7 @@ export const RECIPIENT_LABEL_EN: Record<NotifyPolicy['recipients']['rule'], stri
   notice: 'The audience of the notice',
   calendar_attendee: 'The attendee of the calendar entry',
   scenario: 'The recipients chosen on the scenario',
+  bridge_key_owner: 'The owner contacts and every system administrator',
 };
 export const recipientsText = (r: NotifyPolicy['recipients']): string => (r.rule === 'users' ? `${RECIPIENT_LABEL.users} (${r.user_ids?.length ?? 0})` : RECIPIENT_LABEL[r.rule]);
 export interface ChannelCell {
