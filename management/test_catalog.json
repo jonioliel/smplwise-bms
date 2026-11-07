@@ -15299,5 +15299,55 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-PY-CONSTRAINTS-2407-1",
+    "requirement_ids": [
+      "R-PY-CONSTRAINTS-2407-1"
+    ],
+    "task_ids": [
+      "PY-CONSTRAINTS-2407"
+    ],
+    "title": "Python constraints lock file for the add-on",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Runner only; no live device, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or the build check listed in the change record against the commit recorded here."
+    ],
+    "expected": "The add-on installs its Python packages with a committed constraints lock file (pip -c) that pins every direct and transitive package, per supported architecture (musllinux wheels, with hashes), generated on the runner; the five range pins of requirements.txt (tzdata, numpy, cryptography, ezdxf, uharfbuzz) resolve to the locked versions, and a test fails when requirements.txt and the lock file disagree.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-07 (BOARD-DECISIONS-2407, owner decision 7.2); stub, nothing built or run.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-PY-CONSTRAINTS-2407-2",
+    "requirement_ids": [
+      "R-PY-CONSTRAINTS-2407-2"
+    ],
+    "task_ids": [
+      "PY-CONSTRAINTS-2407"
+    ],
+    "title": "Supervisor build check with the lock file",
+    "kind": "build",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Runner only; no live device, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or the build check listed in the change record against the commit recorded here."
+    ],
+    "expected": "A Supervisor-equivalent build check (the add-on Dockerfile built from the base image the Supervisor uses, on the runner) installs with the lock file and imports the backend, so a lock that breaks the Supervisor build (as the base-image digest pin did in v2.31.0) is caught before a release; the check is part of the release gate or the release checklist.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-07 (BOARD-DECISIONS-2407, owner decision 7.2); stub, nothing built or run.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

@@ -30,7 +30,7 @@ python scripts/project_status.py --write
 
 כלל התלויות (החלטת הבעלים 05.11, סבב 22, שאלה 1 = ב; `docs/changes/BOARD-RULE-2404.md`): כרטיס יכול לעמוד ב־REVIEW (= שוחרר, רישום הקבלה הפורמלי עוד חסר) כאשר כל התלויות שלו ב־REVIEW או ב־DONE. ‏READY, ‏IN_PROGRESS, ‏VALIDATION ו־DONE עדיין דורשים שכל התלויות יהיו DONE. ל־BACKLOG ול־BLOCKED אין כלל תלויות. הכלל ממומש ב־`dependency_error` שב־`scripts/project_status.py` ונבדק ב־`smplwise_vms/backend/tests/test_board_rule_2404.py`.
 
-כרטיס מיושן (OBSOLETE): אין סטטוס כזה ברישום. כרטיס שהבעלים קבע שהוא מיושן נשאר ברישום ולא נמחק: סטטוס BLOCKED, ‏blocker שמתחיל ב־`Excluded - OBSOLETE` ושורת ראיה שמתחילה ב־`EXCLUDED - OBSOLETE` עם מקור ההחלטה. ‏`scripts/progress.py` מוציא כרטיס כזה מהמכנה ומציג אותו בנפרד.
+כרטיס מיושן (OBSOLETE): אין סטטוס כזה ברישום. כרטיס שהבעלים קבע שהוא מיושן נשאר ברישום ולא נמחק: סטטוס BLOCKED, ‏blocker שמתחיל ב־`Excluded - OBSOLETE` ושורת ראיה שמתחילה ב־`EXCLUDED - OBSOLETE` עם מקור ההחלטה. ‏`scripts/progress.py` מוציא כרטיס כזה מהמכנה ומציג אותו בנפרד. תלות בכרטיס מיושן נחשבת כמסופקת בכל אחד מהכללים שלמעלה (החלטת הבעלים 07.11; `docs/changes/BOARD-DECISIONS-2407.md`; ‏`is_obsolete` ב־`scripts/project_status.py`, נבדק ב־`smplwise_vms/backend/tests/test_board_decisions_2407.py`).
 
 ## מבנה
 

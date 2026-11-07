@@ -1,16 +1,16 @@
 # Project status — generated view
 
-Generated: 2026-11-07T09:19:35.655155+00:00
+Generated: 2026-11-07T11:53:43.036400+00:00
 
-Tasks: 451 | Requirements: 560 | Tests: 577 | Screens: 32
+Tasks: 452 | Requirements: 562 | Tests: 579 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
-Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DONE; READY, IN_PROGRESS, VALIDATION and DONE need every dependency DONE. OBSOLETE cards are BLOCKED with a blocker starting "Excluded - OBSOLETE" and an EXCLUDED evidence line (the registry has no OBSOLETE status).
+Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DONE; READY, IN_PROGRESS, VALIDATION and DONE need every dependency DONE. OBSOLETE cards are BLOCKED with a blocker starting "Excluded - OBSOLETE" and an EXCLUDED evidence line (the registry has no OBSOLETE status); a dependency on an OBSOLETE card counts as satisfied under every rule (BOARD-DECISIONS-2407, owner decision 2026-11-07).
 
 ## Status counts
-- BACKLOG: 96
-- BLOCKED: 18
+- BACKLOG: 95
+- BLOCKED: 20
 - DONE: 40
 - IN_PROGRESS: 3
 - REVIEW: 294
@@ -19,7 +19,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 357
+- V1: 358
 - V2: 29
 - V3: 2
 
@@ -28,6 +28,8 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - T004: Excluded - OBSOLETE by owner decision 2026-11-05 (round 22, Q2 = א on the BOARD-HYGIENE-2403 candidates; relayed by the coordinator, no written answers file): superseded by the owner's exclusion of 2026-09-22 (docs/architecture/DECISIONS.md. Not to be worked; the card is kept.
 - T096: Real FCM / APNs delivery needs the owner's Firebase project and Apple account (docs/operations/ARX_PUSH_RELAY_DEPLOY_HE.md); the relay Worker is not deployed. The CR-012 wake design is treated as superseded by the CR-027 relay (the CR-012 document itself still says "Proposed"); the go-live work is PUSH-GOLIVE-KIT-2380.
 - WXD5B: Excluded - OBSOLETE by owner decision 2026-11-05 (round 22, Q2 = א on the BOARD-HYGIENE-2403 candidates; relayed by the coordinator, no written answers file): superseded by door actions go over the WisKey direct join (docs/changes/DOORLIVE-2310.md, owner decisions 2026-10-30), not a bridge door_open / door_open_status service. Not to be worked; the card is kept.
+- WXG0: Excluded - OBSOLETE by owner decision 2026-11-07, relayed by the lead; no written answers file: superseded: the WX3 gate tool checks a WisKey SOURCE folder under the 2026-10-05 rule "WisKey packages nothing"; since WISKEY-MANAGED-INSTALL-2382 Arx installs a WisKey-built bundle checked byte-exact against its MANAGED_MANIFEST.json behind the Core provenance gate, which takes the tool's place (answer to question 1 of docs/changes/V1-REMAINING-2406.md). Not to be worked; the card is kept.
+- WXG1: Excluded - OBSOLETE by owner decision 2026-11-07, relayed by the lead; no written answers file: superseded: the WX3 gate tool checks a WisKey SOURCE folder under the 2026-10-05 rule "WisKey packages nothing"; since WISKEY-MANAGED-INSTALL-2382 Arx installs a WisKey-built bundle checked byte-exact against its MANAGED_MANIFEST.json behind the Core provenance gate, which takes the tool's place (answer to question 1 of docs/changes/V1-REMAINING-2406.md). Not to be worked; the card is kept.
 - WXH3: Not a work blocker: the Arx part is built on pilot/WXH-LEFTOVERS-2405 (not merged). BLOCKED only because the registry rule needs every dependency DONE (WXH2 is REVIEW).
 - WXH4: Waits for two owner decisions (CR-WISKEY-HMAC-ROTATION-295 section 16.3: delivery of the new key and who may reveal it) and a bridge release; the 2026-10-10 deferral itself was lifted on 2026-10-20.
 - WXH5: Not a work blocker: the watchdog is built on pilot/WXH-LEFTOVERS-2405 (not merged). BLOCKED by the registry rule (WXH2 REVIEW) and by WXH4 (owner decisions).
@@ -51,7 +53,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [T003](tasks/T003.md) | G0 | BLOCKED | לכידת Golden traces מהמערכת הישנה | T001, T002 |
 | [T004](tasks/T004.md) | G0 | BLOCKED | בדיקות Characterization והשוואת התנהגות | T003 |
 | [T005](tasks/T005.md) | G0 | IN_PROGRESS | ביקורת סודות, רישיונות ותלויות | T001 |
-| [T006](tasks/T006.md) | G0 | BACKLOG | הוכחת Playback ו־Seek מוקדמת | T003 |
+| [T006](tasks/T006.md) | G0 | BACKLOG | הוכחת Playback ו־Seek מוקדמת | — |
 | [T007](tasks/T007.md) | G0 | REVIEW | נעילת Design tokens ורכיבי בסיס | — |
 | [T008](tasks/T008.md) | G0 | BACKLOG | ארכיטקטורה, ADR וחוזים נעולים | T001, T005, T006 |
 | [T009](tasks/T009.md) | PILOT | BACKLOG | שלד מאגר, HA Add-on/App ו־CI | T002, T008 |
@@ -115,7 +117,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [T067](tasks/T067.md) | V2 | BACKLOG | חתימת ראיות וניהול מפתחות | T050, T055 |
 | [T068](tasks/T068.md) | V1 | BACKLOG | Load/Soak ותקציב משאבים | T042, T048, T051, T057, T058 |
 | [T069](tasks/T069.md) | V1 | BACKLOG | בדיקות אבטחה של קבצים ורשת | T011, T020, T048, T055, T060 |
-| [T070](tasks/T070.md) | V1 | BACKLOG | מיגרציה הדרגתית והקבלה מול הישן | T004, T036, T055, T068 |
+| [T070](tasks/T070.md) | V1 | BACKLOG | מיגרציה הדרגתית והקבלה מול הישן | T036, T055, T068 |
 | [T071](tasks/T071.md) | V1 | BACKLOG | Onboarding, מדריך מפעיל ותמיכה | T036, T038, T048, T056, T055 |
 | [T072](tasks/T072.md) | V1 | BACKLOG | קבלה ושחרור V1 | T050, T054, T055, T058, T061, T066, T068, T069, T070, T071, T074, T075, T082 |
 | [T073](tasks/T073.md) | V2 | BACKLOG | Runner מקומי אופציונלי למשימות Codex | T010, T009 |
@@ -179,8 +181,8 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [WXD10A](tasks/WXD10A.md) | V1 | REVIEW | WisKey CR-033: Arx event door jobs (M1), disable-and-list | WXD9, WXD7R |
 | [WXD10B](tasks/WXD10B.md) | V1 | REVIEW | WisKey CR-033: Hold-open program hand-over (M3) | WXD9, WXD7R |
 | [WXD11](tasks/WXD11.md) | V1 | BACKLOG | WisKey CR-033: Door-path gate T1..T26 on fakes | WXD0, WXD1, WXD2, WXD3, WXD4, WXD5A, WXD5B, WXD6, WXD7, WXD7R, WXD8, WXD9, WXD10A, WXD10B |
-| [WXG0](tasks/WXG0.md) | V1 | BACKLOG | WisKey CR-034: Merge WX3 gate tool to main | — |
-| [WXG1](tasks/WXG1.md) | V1 | BACKLOG | WisKey CR-034: Gate: impact block, exit 5, gate:allow | WXG0 |
+| [WXG0](tasks/WXG0.md) | V1 | BLOCKED | WisKey CR-034: Merge WX3 gate tool to main | — |
+| [WXG1](tasks/WXG1.md) | V1 | BLOCKED | WisKey CR-034: Gate: impact block, exit 5, gate:allow | WXG0 |
 | [WXH0](tasks/WXH0.md) | V1 | REVIEW | WisKey CR-034: Rotation fakes | — |
 | [WXH1](tasks/WXH1.md) | V1 | REVIEW | WisKey CR-034: Bridge multi-key verifier and rotate service | WXH0 |
 | [WXH2](tasks/WXH2.md) | V1 | REVIEW | WisKey CR-034: Arx key set and rotation state machine | WXH0 |
@@ -497,3 +499,4 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [SKIN-QA-2403](tasks/SKIN-QA-2403.md) | V1 | REVIEW | The 2.40.1 / 2.40.2 surfaces in every skin, light and dark: fallback tag, phone toolbar, intercom settings cards | — |
 | [BOARD-HYGIENE-2403](tasks/BOARD-HYGIENE-2403.md) | V1 | REVIEW | Task board hygiene after v2.40.2 | — |
 | [HA-2026-11-COMPAT-2404](tasks/HA-2026-11-COMPAT-2404.md) | V1 | REVIEW | Home Assistant 2026.11 entity names and child devices | — |
+| [PY-CONSTRAINTS-2407](tasks/PY-CONSTRAINTS-2407.md) | V1 | BACKLOG | Python constraints lock file for the add-on + Supervisor build check | — |

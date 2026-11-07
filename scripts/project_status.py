@@ -24,13 +24,30 @@ def load(root: Path, name: str):
 # acceptance still to be recorded) when every dependency is in REVIEW or DONE. READY, IN_PROGRESS, VALIDATION and DONE still need
 # every dependency DONE (MASTER_SPEC_HE.md chapter 35: Ready needs closed dependencies). BACKLOG and BLOCKED have no dependency rule.
 DEPENDENCY_RULE = {'READY': {'DONE'}, 'IN_PROGRESS': {'DONE'}, 'REVIEW': {'REVIEW', 'DONE'}, 'VALIDATION': {'DONE'}, 'DONE': {'DONE'}}
+# BOARD-DECISIONS-2407 (owner decision 2026-11-07): a dependency on an OBSOLETE card counts as satisfied under every rule above.
+# The registry has no OBSOLETE status; OBSOLETE = status BLOCKED, a blocker starting OBSOLETE_BLOCKER_PREFIX and at least one
+# evidence line starting "EXCLUDED". A card that is only BLOCKED, or "Excluded" without OBSOLETE, still counts as unmet.
+OBSOLETE_BLOCKER_PREFIX = 'Excluded - OBSOLETE'
+
+def is_obsolete(task):
+    """True when `task` is marked OBSOLETE by the registry convention (see OBSOLETE_BLOCKER_PREFIX)."""
+    if not task or task.get('status') != 'BLOCKED':
+        return False
+    if not str(task.get('blocker') or '').startswith(OBSOLETE_BLOCKER_PREFIX):
+        return False
+    return any(isinstance(line, str) and line.startswith('EXCLUDED') for line in task.get('evidence') or [])
+
+def dependency_met(dep_id, allowed, index):
+    """Whether dependency `dep_id` satisfies a card whose rule allows the statuses in `allowed`."""
+    dep = index.get(dep_id)
+    return dep is not None and (dep.get('status') in allowed or is_obsolete(dep))
 
 def dependency_error(task, index):
     """The registry error for `task` under DEPENDENCY_RULE, or None. `index` maps task id -> task."""
     allowed = DEPENDENCY_RULE.get(task['status'])
     if not allowed:
         return None
-    unmet = [x for x in task['dependencies'] if index.get(x, {}).get('status') not in allowed]
+    unmet = [x for x in task['dependencies'] if not dependency_met(x, allowed, index)]
     if not unmet:
         return None
     need = ' or '.join(sorted(allowed, reverse=True))
@@ -96,7 +113,7 @@ def load_manifest(root):
 def generate(root,tasks,reqs,tests,screens):
     timestamp=dt.datetime.now(dt.timezone.utc).isoformat()
     counts=Counter(t['status'] for t in tasks);tc=Counter(t['phase'] for t in tasks)
-    status=['# Project status — generated view',f'\nGenerated: {timestamp}\n',f"Tasks: {len(tasks)} | Requirements: {len(reqs)} | Tests: {len(tests)} | Screens: {len(screens)}", '\nNo VMS implementation or hardware test is implied by this planning registry.\n','Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DONE; READY, IN_PROGRESS, VALIDATION and DONE need every dependency DONE. OBSOLETE cards are BLOCKED with a blocker starting "Excluded - OBSOLETE" and an EXCLUDED evidence line (the registry has no OBSOLETE status).\n','## Status counts']
+    status=['# Project status — generated view',f'\nGenerated: {timestamp}\n',f"Tasks: {len(tasks)} | Requirements: {len(reqs)} | Tests: {len(tests)} | Screens: {len(screens)}", '\nNo VMS implementation or hardware test is implied by this planning registry.\n','Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DONE; READY, IN_PROGRESS, VALIDATION and DONE need every dependency DONE. OBSOLETE cards are BLOCKED with a blocker starting "Excluded - OBSOLETE" and an EXCLUDED evidence line (the registry has no OBSOLETE status); a dependency on an OBSOLETE card counts as satisfied under every rule (BOARD-DECISIONS-2407, owner decision 2026-11-07).\n','## Status counts']
     status += [f'- {k}: {v}' for k,v in sorted(counts.items())]
     status += ['\n## Release scope counts']+[f'- {k}: {v}' for k,v in sorted(tc.items())]
     status += ['\n## Blockers']+[f"- {t['id']}: {t['blocker']}" for t in tasks if t['status']=='BLOCKED']

@@ -9989,5 +9989,37 @@
     "test_ids": [
       "AT-HA-2026-11-COMPAT-2404-1"
     ]
+  },
+  {
+    "id": "R-PY-CONSTRAINTS-2407-1",
+    "title": "Python constraints lock file for the add-on",
+    "statement": "The add-on installs its Python packages with a committed constraints lock file (pip -c) that pins every direct and transitive package, per supported architecture (musllinux wheels, with hashes), generated on the runner; the five range pins of requirements.txt (tzdata, numpy, cryptography, ezdxf, uharfbuzz) resolve to the locked versions, and a test fails when requirements.txt and the lock file disagree.",
+    "task_ids": [
+      "PY-CONSTRAINTS-2407"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-PY-CONSTRAINTS-2407-1"
+    ]
+  },
+  {
+    "id": "R-PY-CONSTRAINTS-2407-2",
+    "title": "Supervisor build check with the lock file",
+    "statement": "A Supervisor-equivalent build check (the add-on Dockerfile built from the base image the Supervisor uses, on the runner) installs with the lock file and imports the backend, so a lock that breaks the Supervisor build (as the base-image digest pin did in v2.31.0) is caught before a release; the check is part of the release gate or the release checklist.",
+    "task_ids": [
+      "PY-CONSTRAINTS-2407"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-PY-CONSTRAINTS-2407-2"
+    ]
   }
 ]
