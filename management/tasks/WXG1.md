@@ -2,7 +2,7 @@
 
 > Generated card. Edit management/tasks.json, then run this script with --write.
 
-**Phase:** V1 | **Priority:** P1 | **Status:** BACKLOG
+**Phase:** V1 | **Priority:** P1 | **Status:** BLOCKED
 
 **Owner role:** backend | **Hardware:** False
 
@@ -33,3 +33,6 @@
 
 ## Guardrails
 Read AGENTS.md and the linked master chapters. Inspect legacy code before replacement. No production configuration writes, physical commands, spending, or claims of passing unrun tests. Record commit, environment, commands and evidence.
+
+## Blocker
+Excluded - OBSOLETE by owner decision 2026-11-07, relayed by the lead; no written answers file: superseded: the WX3 gate tool checks a WisKey SOURCE folder under the 2026-10-05 rule "WisKey packages nothing"; since WISKEY-MANAGED-INSTALL-2382 Arx installs a WisKey-built bundle checked byte-exact against its MANAGED_MANIFEST.json behind the Core provenance gate, which takes the tool's place (answer to question 1 of docs/changes/V1-REMAINING-2406.md). Not to be worked; the card is kept.

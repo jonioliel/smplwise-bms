@@ -257,7 +257,8 @@
       "2026-09-22 (0.1.81): audit re-run at the current release, as the card's cadence rule asks - pip-audit clean over the 11 backend requirements, npm audit 0 (7 prod / 70 dev packages, runtime dependency still lit only), tracked-tree grep for credentials / tokens / lab addresses / serials / MACs 0 hits (legacy/ scanned separately, 0). Inventory gained cryptography (Apache-2.0 OR BSD-3, evidence signing) and ezdxf (MIT, DXF import), which arrived after the first audit; docs/security/DEPENDENCY_AND_SECRETS_AUDIT.md §2 and the new §6 re-scan log. Both acceptance criteria are evidenced at the current tree; what remains is the owner's sign-off.",
       "2026-10-31 (TASKS-SYNC-3110): refresh for v2.29.0 running on chore/DEPAUDIT-2310 (dependencies, licences, vulnerability scan, secrets scan)",
       "2026-10-31 (v2.29.0, branch chore/DEPAUDIT-2310): full refresh of docs/security/DEPENDENCY_AND_SECRETS_AUDIT.md - inventory of the resolved backend set (paramiko LGPL-2.1, WeasyPrint stack, fpdf2 LGPL-3.0 added), frontend runtime (lit, three, qrcode-generator), Workers, Android shell, bundled fonts / CC0 3D assets / MIT WisKey catalogue; pip-audit: pillow 12.3.0 39 advisories (fix 13.0.0, HIGH, release blocker by the audit rule) and paramiko 4.0.0 CVE-2026-44405; npm audit --omit=dev 0; Workers dev tooling 2 critical; tracked-tree scan of 13,826 files: 0 live secrets / lab identifiers, test_no_ip_literals pass; fixed: Heebo OFL text shipped next to the UI fonts (tests/test_font_licences.py), stray genalert_msg.txt removed. Findings H1 / M1-M3 / L1-L7 / I1-I4 in section 7; owner and counsel decisions in section 8.",
-      "2026-11-02 (REGISTRY-UPDATE-2380): the 2.29.0 refresh findings were closed in code by DEPFIX-2310 (Pillow 13.0.0, paramiko 5.1.0, format-restricted image decodes; H1, M1, M2) and DEPHARDEN-2310 (Worker tooling, base-image digest pin; M3, L2), both shipped in v2.31.0. The digest pin broke the Supervisor build and was reverted to the tag in v2.31.1, so L2 (base image pinned by digest) is NOT in effect. The owner / counsel decisions of section 8 and the sign-off remain open; AT009 and AT010 stay as they were."
+      "2026-11-02 (REGISTRY-UPDATE-2380): the 2.29.0 refresh findings were closed in code by DEPFIX-2310 (Pillow 13.0.0, paramiko 5.1.0, format-restricted image decodes; H1, M1, M2) and DEPHARDEN-2310 (Worker tooling, base-image digest pin; M3, L2), both shipped in v2.31.0. The digest pin broke the Supervisor build and was reverted to the tag in v2.31.1, so L2 (base image pinned by digest) is NOT in effect. The owner / counsel decisions of section 8 and the sign-off remain open; AT009 and AT010 stay as they were.",
+      "2026-11-07 (BOARD-DECISIONS-2407): owner decisions on the secret-scan findings of docs/changes/T005-AUDIT-2406.md section 3 (owner decision 2026-11-07, relayed by the lead; no written answers file): N3 (the lab-address value in 4 tracked tests) - replace it with a documentation value; the lead does this on the 2.40.6 train (not in this branch's base 51ac656a2); N4 (2 password-like literals in history blobs only) - the owner checks the two values himself and rotates if either was real; N5 (private/ content in the public git history) - handled by the licence + private repo plan (private development repository), no history rewrite now; N1 (no Python lock / constraints file) - new card PY-CONSTRAINTS-2407 (owner decision 7.2). AT009 / AT010 stay not marked: N3 lands on the train, N4 waits for the owner's check. Status IN_PROGRESS unchanged."
     ],
     "owner": null,
     "commit": null,
@@ -268,9 +269,7 @@
     "title": "הוכחת Playback ו־Seek מוקדמת",
     "epic": "MEDIA",
     "phase": "G0",
-    "dependencies": [
-      "T003"
-    ],
+    "dependencies": [],
     "chapters": [
       20,
       21,
@@ -314,7 +313,8 @@
       "pre-evidence (G0): go2rtc 1.9.14 API PUT persists to config, DELETE removes — private-evidence/go2rtc-probes/*/verdict.json; ADR-013",
       "pre-evidence (segment 3, 2026-09-14): the RTSP playback path through go2rtc is proven on the lab NVR (Streaming/tracks/<track>?starttime=&endtime= in local compact time, HTTP-port playbackURI not used); first frame 2-4 s after the request in Chrome; media anchor still unverified (precision keyframe_limited) - PTS-to-source mapping measurement remains open",
       "lab (2026-09-15): export path decided by evidence - RTSP playback via go2rtc for viewing, ISAPI download by file + ffmpeg remux for export (container is Hikvision PS, not MP4); media anchor still unverified",
-      "2026-11-06 (T070-T006-2406, docs/changes/T070-T006-2406.md section 4): the closing lab measurement is defined - scripts/lab/t006_seek_plan.json (one continuously recorded camera, yesterday, start 10:00:00 + 7 seeks incl. backward, sub-GOP and beyond the 6 h window; OSD vs player time on the same screenshot = keyframe offset; pass within [-(GOP+2), +2] s, T074 timing start <= 8000 ms, seek p90 <= 6000 / max <= 10000 ms, cleanup of smplwise_pb_ streams with foreign streams untouched; thresholds proposed, owner approval pending) and the read-only collector scripts/lab/t006_seek_collect.py (audit JSON + log + OSD CSV + go2rtc lists; exit 0/1/3, never PASS without OSD). Tests: test_t006_seek_collect.py 10 passed. NOT_RUN: the lab run (LAB-T006-01); AT011/AT012 NOT_RUN; status stays BACKLOG."
+      "2026-11-06 (T070-T006-2406, docs/changes/T070-T006-2406.md section 4): the closing lab measurement is defined - scripts/lab/t006_seek_plan.json (one continuously recorded camera, yesterday, start 10:00:00 + 7 seeks incl. backward, sub-GOP and beyond the 6 h window; OSD vs player time on the same screenshot = keyframe offset; pass within [-(GOP+2), +2] s, T074 timing start <= 8000 ms, seek p90 <= 6000 / max <= 10000 ms, cleanup of smplwise_pb_ streams with foreign streams untouched; thresholds proposed, owner approval pending) and the read-only collector scripts/lab/t006_seek_collect.py (audit JSON + log + OSD CSV + go2rtc lists; exit 0/1/3, never PASS without OSD). Tests: test_t006_seek_collect.py 10 passed. NOT_RUN: the lab run (LAB-T006-01); AT011/AT012 NOT_RUN; status stays BACKLOG.",
+      "2026-11-07 (BOARD-DECISIONS-2407): dependencies T003 removed (owner decision 2026-11-07, relayed by the lead; no written answers file). Both are OBSOLETE (owner exclusion 2026-09-22, marked 2026-11-05 in BOARD-RULE-2404); the legacy comparison they stood for is done in the lab session now. Dependencies now: none. Status BACKLOG unchanged; acceptance tests unchanged."
     ],
     "owner": null,
     "commit": null,
@@ -3874,7 +3874,6 @@
     "epic": "LEGACY",
     "phase": "V1",
     "dependencies": [
-      "T004",
       "T036",
       "T055",
       "T068"
@@ -3917,7 +3916,8 @@
     "evidence": [
       "pre-evidence (2026-09-17): scripts/migrate_legacy.py — migration dry run from the legacy Hikvision NVR Panel 1.5.27: reads the add-on options, /config/hikvision_nvr_override.json (NVR overrides, camera_names, recording display offset, manual_recording) and the JSONL event store; maps every option to its VMS place (PINs -> HA users + roles), matches legacy aliases to VMS cameras by channel (set_alias / same / keep_vms_alias / no_vms_camera / vms_only), computes the legacy's effective display offset and warns when it is not 0 (the VMS shows NVR wall-clock times, T014), names what is not migrated (manual recording = NVR write, legacy events), lists feature parity, a six-step rollout and the rollback (start the legacy again; the NVR is never written); secrets never printed, hosts masked; the only write is --apply-aliases to the VMS (empty aliases only, --force-aliases to overwrite). Shadow comparison ran against the dev VMS with a synthetic legacy config (report under private-evidence/migration/). tests/test_migrate_legacy.py; docs/operations/MIGRATION_FROM_LEGACY_HE.md. Open: golden traces / characterization (T003/T004) need the owner's access to the legacy add-on; the staged rollout itself runs on the owner's installation",
       "2026-09-22: the legacy parity comparison is no longer gated on T003/T004 - the owner excluded both (the new adapter proved itself in six test rounds on the installation). What remains for this card is the staged rollout with a real rollback on the owner's installation and the decommission approval; the dry run, the mapping and the runbook are in place.",
-      "2026-11-06 (T070-T006-2406, branch docs/T070-T006-2406 from release/2405-train a8e1ef724, not merged; docs/changes/T070-T006-2406.md): static parity check scripts/legacy_parity.py (legacy surface extracted from the 1.5.27 source: 47 routes, 14 option keys, 0 HA entities/services; docs/legacy/PARITY_MAP.json 25 capabilities; checks C1-C8 PASS: every route claimed once, Arx routes in the API inventory, evidence present, gaps decided, options mapped to current Arx targets, HA exposure, go2rtc names disjoint, distinct slugs) - report docs/legacy/PARITY_REPORT.md; status counts better 8 / same 6 / replaced 5 / dropped 3 / partial 1 / missing 2 (camera reboot, recorded-days summary: owner questions). migrate_legacy.py fixed: the NVR connection maps to Settings > Connections > NVR (not the deprecated nvr_password option). Migration plan, cutover/rollback and LAB-T070-01..07 in the change doc. Tests (workstation): test_legacy_parity_t070.py 10 + test_migrate_legacy.py 3 passed. NOT_RUN: every LAB item; AT139/AT140 NOT_RUN; status stays BACKLOG."
+      "2026-11-06 (T070-T006-2406, branch docs/T070-T006-2406 from release/2405-train a8e1ef724, not merged; docs/changes/T070-T006-2406.md): static parity check scripts/legacy_parity.py (legacy surface extracted from the 1.5.27 source: 47 routes, 14 option keys, 0 HA entities/services; docs/legacy/PARITY_MAP.json 25 capabilities; checks C1-C8 PASS: every route claimed once, Arx routes in the API inventory, evidence present, gaps decided, options mapped to current Arx targets, HA exposure, go2rtc names disjoint, distinct slugs) - report docs/legacy/PARITY_REPORT.md; status counts better 8 / same 6 / replaced 5 / dropped 3 / partial 1 / missing 2 (camera reboot, recorded-days summary: owner questions). migrate_legacy.py fixed: the NVR connection maps to Settings > Connections > NVR (not the deprecated nvr_password option). Migration plan, cutover/rollback and LAB-T070-01..07 in the change doc. Tests (workstation): test_legacy_parity_t070.py 10 + test_migrate_legacy.py 3 passed. NOT_RUN: every LAB item; AT139/AT140 NOT_RUN; status stays BACKLOG.",
+      "2026-11-07 (BOARD-DECISIONS-2407): dependencies T004 removed (owner decision 2026-11-07, relayed by the lead; no written answers file). Both are OBSOLETE (owner exclusion 2026-09-22, marked 2026-11-05 in BOARD-RULE-2404); the legacy comparison they stood for is done in the lab session now. Dependencies now: T036, T055, T068. Status BACKLOG unchanged; acceptance tests unchanged."
     ],
     "owner": null,
     "commit": null,
@@ -7178,8 +7178,8 @@
     "test_ids": [
       "AT264"
     ],
-    "status": "BACKLOG",
-    "blocker": null,
+    "status": "BLOCKED",
+    "blocker": "Excluded - OBSOLETE by owner decision 2026-11-07, relayed by the lead; no written answers file: superseded: the WX3 gate tool checks a WisKey SOURCE folder under the 2026-10-05 rule \"WisKey packages nothing\"; since WISKEY-MANAGED-INSTALL-2382 Arx installs a WisKey-built bundle checked byte-exact against its MANAGED_MANIFEST.json behind the Core provenance gate, which takes the tool's place (answer to question 1 of docs/changes/V1-REMAINING-2406.md). Not to be worked; the card is kept.",
     "priority": "P1",
     "model_policy": {
       "implementation": "balanced",
@@ -7197,7 +7197,8 @@
       "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-034; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 1 h, model sonnet. External gate: -.",
       "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
       "2026-11-04 (REGISTRY-AUDIT-20261103): not implemented. the WX3 gate tool (test_wiskey_gate.py, branch origin/pilot/WX3-hmac-rotation @ ef18041c) was never merged to main; nothing in scripts/ implements it.",
-      "Open: 2026-11-06 (V1-REMAINING-2406): owner question, not built. The WX3 tool checks a WisKey SOURCE folder under the 2026-10-05 rule \"WisKey packages nothing\"; since WISKEY-MANAGED-INSTALL-2382 Arx installs a WisKey-built bundle checked byte-exact against its MANAGED_MANIFEST.json, behind the Core provenance gate. Whether the tool is still wanted (merge as a pre-adoption static scan of the bundle, or mark OBSOLETE) is the owner's call: docs/changes/V1-REMAINING-2406.md question 1."
+      "Open: 2026-11-06 (V1-REMAINING-2406): owner question, not built. The WX3 tool checks a WisKey SOURCE folder under the 2026-10-05 rule \"WisKey packages nothing\"; since WISKEY-MANAGED-INSTALL-2382 Arx installs a WisKey-built bundle checked byte-exact against its MANAGED_MANIFEST.json, behind the Core provenance gate. Whether the tool is still wanted (merge as a pre-adoption static scan of the bundle, or mark OBSOLETE) is the owner's call: docs/changes/V1-REMAINING-2406.md question 1.",
+      "EXCLUDED - OBSOLETE by owner decision 2026-11-07, relayed by the lead; no written answers file: superseded: the WX3 gate tool checks a WisKey SOURCE folder under the 2026-10-05 rule \"WisKey packages nothing\"; since WISKEY-MANAGED-INSTALL-2382 Arx installs a WisKey-built bundle checked byte-exact against its MANAGED_MANIFEST.json behind the Core provenance gate, which takes the tool's place (answer to question 1 of docs/changes/V1-REMAINING-2406.md). Marked through the registry's exclusion mechanism (status BLOCKED, blocker starting 'Excluded - OBSOLETE', this EXCLUDED line); the card is kept, not deleted. Status BACKLOG -> BLOCKED. Acceptance test AT264 unchanged. - 2026-11-07 (BOARD-DECISIONS-2407)"
     ],
     "owner": null,
     "commit": null,
@@ -7224,8 +7225,8 @@
     "test_ids": [
       "AT265"
     ],
-    "status": "BACKLOG",
-    "blocker": null,
+    "status": "BLOCKED",
+    "blocker": "Excluded - OBSOLETE by owner decision 2026-11-07, relayed by the lead; no written answers file: superseded: the WX3 gate tool checks a WisKey SOURCE folder under the 2026-10-05 rule \"WisKey packages nothing\"; since WISKEY-MANAGED-INSTALL-2382 Arx installs a WisKey-built bundle checked byte-exact against its MANAGED_MANIFEST.json behind the Core provenance gate, which takes the tool's place (answer to question 1 of docs/changes/V1-REMAINING-2406.md). Not to be worked; the card is kept.",
     "priority": "P1",
     "model_policy": {
       "implementation": "balanced",
@@ -7243,7 +7244,8 @@
       "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-034; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 4 h, model sonnet. External gate: WisKey authors the impact block for installation candidates.",
       "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
       "2026-11-04 (REGISTRY-AUDIT-20261103): not implemented. impact block, exit-5 rename and the gate:allow(code) marker are not implemented (depends on WXG0 and on WisKey authoring the impact block).",
-      "Open: 2026-11-06 (V1-REMAINING-2406): follows WXG0 (owner question 1 of docs/changes/V1-REMAINING-2406.md); the arx-impact/1 block also needs WisKey to author it for every installation candidate."
+      "Open: 2026-11-06 (V1-REMAINING-2406): follows WXG0 (owner question 1 of docs/changes/V1-REMAINING-2406.md); the arx-impact/1 block also needs WisKey to author it for every installation candidate.",
+      "EXCLUDED - OBSOLETE by owner decision 2026-11-07, relayed by the lead; no written answers file: superseded: the WX3 gate tool checks a WisKey SOURCE folder under the 2026-10-05 rule \"WisKey packages nothing\"; since WISKEY-MANAGED-INSTALL-2382 Arx installs a WisKey-built bundle checked byte-exact against its MANAGED_MANIFEST.json behind the Core provenance gate, which takes the tool's place (answer to question 1 of docs/changes/V1-REMAINING-2406.md). Marked through the registry's exclusion mechanism (status BLOCKED, blocker starting 'Excluded - OBSOLETE', this EXCLUDED line); the card is kept, not deleted. Status BACKLOG -> BLOCKED. Acceptance test AT265 unchanged. - 2026-11-07 (BOARD-DECISIONS-2407)"
     ],
     "owner": null,
     "commit": null,
@@ -20018,6 +20020,49 @@
     ],
     "owner": null,
     "commit": "cb4b47767",
+    "actual_cost_usd": null
+  },
+  {
+    "id": "PY-CONSTRAINTS-2407",
+    "title": "Python constraints lock file for the add-on + Supervisor build check",
+    "epic": "SECURITY",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "release",
+    "requires_hardware": false,
+    "acceptance": [
+      "The add-on installs its Python packages with a committed constraints lock file (pip -c) that pins every direct and transitive package, per supported architecture (musllinux wheels, with hashes), generated on the runner; the five range pins of requirements.txt (tzdata, numpy, cryptography, ezdxf, uharfbuzz) resolve to the locked versions, and a test fails when requirements.txt and the lock file disagree.",
+      "A Supervisor-equivalent build check (the add-on Dockerfile built from the base image the Supervisor uses, on the runner) installs with the lock file and imports the backend, so a lock that breaks the Supervisor build (as the base-image digest pin did in v2.31.0) is caught before a release; the check is part of the release gate or the release checklist."
+    ],
+    "requirement_ids": [
+      "R-PY-CONSTRAINTS-2407-1",
+      "R-PY-CONSTRAINTS-2407-2"
+    ],
+    "test_ids": [
+      "AT-PY-CONSTRAINTS-2407-1",
+      "AT-PY-CONSTRAINTS-2407-2"
+    ],
+    "status": "BACKLOG",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Constraints lock file(s), generator script and drift test on an isolated branch",
+      "Supervisor build check on the runner and its place in the release gate / checklist",
+      "Change record and known limits"
+    ],
+    "evidence": [
+      "2026-11-07 (BOARD-DECISIONS-2407): card created by owner decision 2026-11-07, relayed by the lead; no written answers file 7.2, from finding N1 of docs/changes/T005-AUDIT-2406.md (no Python lock / constraints file: 5 range pins and every transitive package resolve at install time on each Supervisor). Not started; needs the runner for the per-arch lock and the Supervisor build test. Acceptance tests NOT_RUN."
+    ],
+    "owner": null,
+    "commit": null,
     "actual_cost_usd": null
   }
 ]
