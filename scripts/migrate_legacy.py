@@ -33,37 +33,46 @@ from typing import Any
 SECRET_KEYS = {"nvr_password", "app_pin", "technician_pin", "go2rtc_api_password"}
 IP_RE = re.compile(r"^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$")
 
-# legacy option -> where it goes in the VMS
+# legacy option -> where it goes in Arx. The target is typed so scripts/legacy_parity.py (C5) can verify it against the
+# current Arx: `option:<key>` = an Arx add-on option (smplwise_vms/config.yaml, not a DEPRECATED transitional one),
+# `connection:<field>` = Settings > Connections > NVR (CR-022: PUT /api/v1/nvr/connection, tested before it is saved,
+# stored by Arx with the password encrypted; the add-on options are only a one-time first-start import),
+# `setting:<key>` = an Arx setting, `secrets:<name>` = Settings > Connections > Secrets, `none` = no counterpart.
 OPTION_MAP: list[tuple[str, str, str]] = [
-    ("nvr_ip", "nvr_host", "Add-on option — same NVR host"),
-    ("nvr_port", "nvr_http_port", "Add-on option — ISAPI HTTP port"),
-    ("nvr_rtsp_port", "nvr_rtsp_port", "Add-on option — RTSP port"),
-    ("nvr_user", "nvr_username", "Add-on option — a read-only NVR user is enough (the VMS never writes to the NVR)"),
-    ("nvr_password", "nvr_password", "Add-on option (never printed)"),
-    ("go2rtc_url", "go2rtc_url", "Add-on option — the same go2rtc add-on; the VMS uses only the smplwise_ stream namespace"),
-    ("go2rtc_ingress_path", "—", "Not needed: the VMS relays media through its own WebSocket, the browser never talks to go2rtc"),
-    ("app_pin", "—", "Replaced by Home Assistant identity: every person signs in to HA; the VMS grants roles per user"),
-    ("technician_pin", "—", "Replaced by roles: system_admin (or a custom role) instead of a technician PIN"),
-    ("pin_length", "—", "Not applicable (no PINs)"),
-    ("session_minutes", "—", "Not applicable: sessions are Home Assistant's"),
-    ("snapshot_seconds", "snapshots.max_age_s", "Different meaning: the VMS caches a snapshot up to N s (settings › media), the legacy refreshed every N s"),
-    ("log_level", "log_level", "Add-on option"),
-    ("event_search_debug", "—", "Not needed: the VMS keeps its own events with ingest diagnostics (הגדרות › חיבורים)"),
+    ("nvr_ip", "connection:host", "Settings > Connections > NVR - the same NVR host (a save is tested first; restart the add-on once)"),
+    ("nvr_port", "connection:http_port", "Settings > Connections > NVR - the ISAPI HTTP port (90 on the lab NVR)"),
+    ("nvr_rtsp_port", "connection:rtsp_port", "Settings > Connections > NVR - the RTSP port"),
+    ("nvr_user", "connection:username", "Settings > Connections > NVR - prefer a dedicated NVR user; read-only is enough while the NVR-writes switch stays off"),
+    ("nvr_password", "connection:password", "Settings > Connections > NVR - stored encrypted by Arx, never printed or returned (the nvr_password add-on option is a deprecated transitional field)"),
+    ("go2rtc_url", "option:go2rtc_url", "Add-on option - the same go2rtc add-on; Arx uses only the smplwise_ stream namespace"),
+    ("go2rtc_ingress_path", "none", "Not needed: Arx relays media through its own WebSocket, the browser never talks to go2rtc"),
+    ("app_pin", "none", "Replaced by Home Assistant identity: every person signs in to HA; Arx grants roles per user"),
+    ("technician_pin", "none", "Replaced by roles: system_admin (or a custom role) instead of a technician PIN"),
+    ("pin_length", "none", "Not applicable (no PINs)"),
+    ("session_minutes", "none", "Not applicable: sessions are Home Assistant's"),
+    ("snapshot_seconds", "setting:snapshots.max_age_s", "Different meaning: Arx caches a snapshot up to N s (settings > media), the legacy refreshed every N s"),
+    ("log_level", "option:log_level", "Add-on option"),
+    ("event_search_debug", "none", "Not needed: Arx keeps its own events with ingest diagnostics (Settings > Connections)"),
 ]
 
+# legacy feature -> Arx counterpart -> status (same / better / partial / replaced / missing / dropped); the full, checked table
+# is docs/legacy/PARITY_MAP.json (scripts/legacy_parity.py check)
 FEATURES: list[tuple[str, str, str]] = [
-    ("Live grid (screens, picker, HD/SD)", "לייב › כל המצלמות + תצוגות שמורות; מצלמה בודדת ראשי/משני", "same"),
-    ("Recordings search, timeline, playback", "חקירה › הקלטות (timeline, seek, compare up to 4, slow motion, frame step)", "same"),
-    ("Download / export MP4", "חקירה › ייצוא (jobs, retention, hash) + evidence bundles", "same"),
-    ("Snapshots", "Camera snapshots with cache (settings › media)", "same"),
-    ("Events (disabled in the legacy)", "חקירה › מרכז אירועים: NVR alert stream + recording-derived + HA sensors; requires Notify Surveillance Center on the NVR for live alerts", "better"),
+    ("Live grid (screens, picker, HD/SD)", "Live > all cameras + saved views; single camera main/sub", "same"),
+    ("Recordings search, timeline, playback", "Investigate > recordings (timeline, seek generations, compare up to 4, slow motion, frame step)", "better"),
+    ("Download / export MP4", "Investigate > exports (jobs, retention, hash) + evidence bundles", "better"),
+    ("Snapshots", "Camera snapshots with cache (settings > media)", "same"),
+    ("Events (disabled in the legacy)", "Investigate > event center: NVR alert stream + recording-derived + HA sensors; requires Notify Surveillance Center on the NVR for live alerts", "better"),
     ("Camera aliases", "Aliases on cameras (this tool can copy them)", "same"),
-    ("Manual recording start/stop", "Not in the VMS pilot (a write to the NVR; needs the owner's write approval, T075/T045 track)", "missing"),
-    ("Camera / NVR reboot", "Not in the VMS pilot (physical action; write approval pending)", "missing"),
-    ("Storage: HDD list, SMART / bad-sector tests", "הגדרות › אחסון shows disks and retention read-only; tests need write approval", "partial"),
-    ("PIN gate + technician gate", "Home Assistant identity + VMS roles, custom roles with sensitive grants", "replaced"),
-    ("Themes (dark / graphite / light)", "Two designs (SW A / SW B) per user, light first", "replaced"),
-    ("Floor maps, zones, spatial search, cases, rules, kiosk, Lovelace card", "New in the VMS", "new"),
+    ("Manual recording start/stop", "Camera > record start/stop behind the sensitive nvr.record.manual permission (an NVR write)", "same"),
+    ("NVR reboot", "Settings > NVR system behind nvr.system.reboot with a typed confirmation", "same"),
+    ("Camera (IPC) reboot", "No counterpart in Arx", "missing"),
+    ("Storage: HDD list, SMART / bad-sector tests", "Settings > storage + NVR system (disks, S.M.A.R.T.); a SMART test behind nvr.storage.test; no bad-sector test", "partial"),
+    ("Recorded days per month (daily distribution)", "No month summary; the recordings list is per day / range", "missing"),
+    ("PIN gate + technician gate", "Home Assistant identity + Arx roles, custom roles with sensitive grants", "replaced"),
+    ("Themes (dark / graphite / light)", "Arx designs and light / dark per user", "replaced"),
+    ("Raw ISAPI proxy, go2rtc HTTP proxy, RTSP URL with credentials to the browser", "Not carried over (security, REUSE_MATRIX rows 10, 27, 28)", "dropped"),
+    ("Floor maps, zones, spatial search, cases, rules, kiosk, Lovelace card", "New in Arx", "new"),
 ]
 
 
@@ -204,7 +213,7 @@ def build_report(options: dict[str, Any], override: dict[str, Any], events: dict
             value = "set" if eff.get(legacy_key) else "empty"
         else:
             value = eff.get(legacy_key)
-        opt_rows.append({"legacy": legacy_key, "present": present, "value": value, "vms": vms_key, "note": note})
+        opt_rows.append({"legacy": legacy_key, "present": present, "value": value, "vms": vms_key, "note": note})  # vms_key is typed (OPTION_MAP)
     nvr = {"host": mask_host(eff.get("nvr_ip")), "http_port": eff.get("nvr_port"), "rtsp_port": eff.get("nvr_rtsp_port"), "user": eff.get("nvr_user"), "password": "set" if str(eff.get("nvr_password") or "").strip() else "empty"}
     if vms_options:
         same_host = str(vms_options.get("nvr_host", "")).strip() == str(eff.get("nvr_ip", "")).strip()
@@ -228,21 +237,22 @@ def build_report(options: dict[str, Any], override: dict[str, Any], events: dict
         "recommended": ["viewer at the installation for everyone who only watched with the shared PIN", "operator where people acknowledged events or exported video", "system_admin for the technician PIN holder"],
     }
     manual = override.get("manual_recording") or []
-    manual_info = {"rows": len(manual) if isinstance(manual, list) else 0, "vms": "not migrated — manual recording is a write to the NVR and is not in the pilot (needs the owner's write approval)"}
+    manual_info = {"rows": len(manual) if isinstance(manual, list) else 0, "vms": "not migrated - Arx has manual recording (camera > record, behind nvr.record.manual) but a legacy row is a running NVR command with a legacy auto-stop timer; stop it in the legacy UI before the cutover"}
     if manual_info["rows"]:
-        warnings.append(f"{manual_info['rows']} manual-recording rows in the legacy override are not migrated (NVR write)")
-    events_info = {**events, "vms": "not imported — the VMS derives motion events from recordings and stores NVR alerts itself; the legacy JSONL stays in /config as an archive"}
+        warnings.append(f"{manual_info['rows']} manual-recording rows in the legacy override: stop them in the legacy UI before stopping the legacy add-on (its auto-stop timer dies with it and the NVR would keep recording)")
+    events_info = {**events, "vms": "not imported - Arx derives motion events from recordings and stores NVR alerts itself; the legacy JSONL stays in /config as an archive"}
+    # the staged plan in full: docs/operations/LEGACY_MIGRATION_PLAN.md (T070)
     rollout = [
         "1. Keep the legacy add-on installed and running; install SmplWise Arx next to it (different slug, different Ingress panel).",
-        "2. Point the VMS at the same NVR with a read-only NVR user (options), the same go2rtc; restart the add-on once for the bridge.",
-        "3. Run this dry run; fix what it flags (missing cameras → סנכרון מה־NVR; aliases → --apply-aliases; time → confirm one known event).",
-        "4. Shadow period: both add-ons run; compare a day of recordings, a known event time and the live wall in both; nothing on the NVR changes.",
-        "5. Give people HA users and VMS roles; stop the legacy add-on (do not uninstall) once parity is confirmed by the owner.",
-        "6. Decommission only on written approval, after a project backup (הגדרות › גיבוי) — keep /config/hikvision_nvr_override.json and the event store as archive.",
+        "2. In Arx: Settings > Connections > NVR - the same NVR (tested before saving), the same go2rtc; restart the add-on once. Turn the NVR-writes switch OFF for the shadow period.",
+        "3. Run this dry run; fix what it flags (missing cameras -> sync from the NVR; aliases -> --apply-aliases; time -> confirm one known event).",
+        "4. Shadow period: both add-ons run; compare a day of recordings, a known event time, the live wall and one export in both; nothing on the NVR changes.",
+        "5. Give people HA users and Arx roles; stop running legacy manual recordings; stop the legacy add-on (do not uninstall) once the owner confirms parity.",
+        "6. Decommission only on written approval, after an Arx project backup and a Home Assistant backup that includes the legacy add-on - keep /config/hikvision_nvr_override.json and the event store as archive.",
     ]
     rollback = [
-        "Start the legacy add-on again (its options and /config files are untouched by the migration) — the NVR was never written to.",
-        "The VMS can stay installed and stopped; a pre-upgrade backup of the VMS project exists in /data/backups for every version step.",
+        "Start the legacy add-on again (its options and /config files are untouched by the migration; the legacy go2rtc streams hik_ch* / pb_* are outside the Arx namespace and never touched).",
+        "Arx can stay installed and stopped; a pre-upgrade backup of the Arx project exists in /data/backups for every version step.",
     ]
     return {
         "schema": "smplwise-migration-dry-run/1",

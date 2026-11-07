@@ -1,0 +1,335 @@
+{
+ "schema": "smplwise-legacy-surface/1",
+ "legacy": {
+  "name": "Hikvision NVR Panel",
+  "version": "1.5.27",
+  "slug": "hikvision_nvr",
+  "ingress_port": "8099",
+  "map": [
+   "config:rw"
+  ]
+ },
+ "routes": [
+  {
+   "method": "POST",
+   "path": "/api/auth/pin",
+   "line": 2063,
+   "handler": "auth_pin"
+  },
+  {
+   "method": "POST",
+   "path": "/api/auth/tech",
+   "line": 2082,
+   "handler": "auth_tech"
+  },
+  {
+   "method": "POST",
+   "path": "/api/auth/logout",
+   "line": 2099,
+   "handler": "logout"
+  },
+  {
+   "method": "GET",
+   "path": "/api/auth/status",
+   "line": 2108,
+   "handler": "auth_status"
+  },
+  {
+   "method": "GET",
+   "path": "/api/auth/tech/status",
+   "line": 2112,
+   "handler": "auth_tech_status"
+  },
+  {
+   "method": "GET",
+   "path": "/api/config",
+   "line": 2118,
+   "handler": "pub_config"
+  },
+  {
+   "method": "POST",
+   "path": "/api/config/recording-display",
+   "line": 2141,
+   "handler": "recording_display_config_set"
+  },
+  {
+   "method": "GET",
+   "path": "/api/nvr/config",
+   "line": 2163,
+   "handler": "nvr_config_get"
+  },
+  {
+   "method": "GET",
+   "path": "/api/nvr/camera-names",
+   "line": 2169,
+   "handler": "camera_names_get"
+  },
+  {
+   "method": "POST",
+   "path": "/api/nvr/camera-names",
+   "line": 2174,
+   "handler": "camera_names_set"
+  },
+  {
+   "method": "POST",
+   "path": "/api/nvr/cameras/{channel_id}/rename",
+   "line": 2184,
+   "handler": "camera_rename"
+  },
+  {
+   "method": "POST",
+   "path": "/api/nvr/config",
+   "line": 2195,
+   "handler": "nvr_config_set"
+  },
+  {
+   "method": "GET",
+   "path": "/api/nvr/test",
+   "line": 2201,
+   "handler": "nvr_test"
+  },
+  {
+   "method": "GET",
+   "path": "/api/isapi/{path:path}",
+   "line": 2225,
+   "handler": "isapi_proxy"
+  },
+  {
+   "method": "GET",
+   "path": "/api/snapshot/{ch}",
+   "line": 2231,
+   "handler": "snapshot"
+  },
+  {
+   "method": "GET",
+   "path": "/api/nvr/channel-status",
+   "line": 2258,
+   "handler": "channel_status"
+  },
+  {
+   "method": "POST",
+   "path": "/api/nvr/cameras/{channel_id}/reboot",
+   "line": 2286,
+   "handler": "camera_reboot"
+  },
+  {
+   "method": "POST",
+   "path": "/api/nvr/reboot",
+   "line": 2293,
+   "handler": "nvr_reboot"
+  },
+  {
+   "method": "GET",
+   "path": "/api/nvr/storage",
+   "line": 2318,
+   "handler": "storage_status"
+  },
+  {
+   "method": "GET",
+   "path": "/api/nvr/storage/deep",
+   "line": 2344,
+   "handler": "storage_deep_status"
+  },
+  {
+   "method": "POST",
+   "path": "/api/nvr/storage/hdd/{hdd_id}/smart/start",
+   "line": 2375,
+   "handler": "storage_smart_start"
+  },
+  {
+   "method": "POST",
+   "path": "/api/nvr/storage/hdd/{hdd_id}/bad-sectors/start",
+   "line": 2380,
+   "handler": "storage_bad_sectors_start"
+  },
+  {
+   "method": "GET",
+   "path": "/api/nvr/maintenance",
+   "line": 2384,
+   "handler": "maintenance_status"
+  },
+  {
+   "method": "GET",
+   "path": "/api/nvr/record/manual/status",
+   "line": 2453,
+   "handler": "manual_record_status"
+  },
+  {
+   "method": "GET",
+   "path": "/api/nvr/events",
+   "line": 2457,
+   "handler": "nvr_events"
+  },
+  {
+   "method": "GET",
+   "path": "/api/nvr/events/live",
+   "line": 2508,
+   "handler": "nvr_events_live"
+  },
+  {
+   "method": "POST",
+   "path": "/api/nvr/events/search",
+   "line": 2521,
+   "handler": "nvr_events_search"
+  },
+  {
+   "method": "POST",
+   "path": "/api/nvr/pictures/search",
+   "line": 2590,
+   "handler": "nvr_pictures_search"
+  },
+  {
+   "method": "GET",
+   "path": "/api/nvr/events/picture",
+   "line": 2638,
+   "handler": "nvr_event_picture"
+  },
+  {
+   "method": "GET",
+   "path": "/api/nvr/record/tracks",
+   "line": 2679,
+   "handler": "record_tracks"
+  },
+  {
+   "method": "POST",
+   "path": "/api/nvr/record/manual/start/{track_id}",
+   "line": 2742,
+   "handler": "manual_record_start"
+  },
+  {
+   "method": "POST",
+   "path": "/api/nvr/record/manual/stop/{track_id}",
+   "line": 2769,
+   "handler": "manual_record_stop"
+  },
+  {
+   "method": "POST",
+   "path": "/api/recordings/daily-distribution",
+   "line": 2778,
+   "handler": "daily_distribution"
+  },
+  {
+   "method": "GET",
+   "path": "/api/stream/{track_id}",
+   "line": 2809,
+   "handler": "stream_proxy"
+  },
+  {
+   "method": "POST",
+   "path": "/api/go2rtc/add",
+   "line": 2902,
+   "handler": "go2rtc_add"
+  },
+  {
+   "method": "POST",
+   "path": "/api/go2rtc/playback",
+   "line": 2913,
+   "handler": "go2rtc_playback"
+  },
+  {
+   "method": "GET",
+   "path": "/api/go2rtc/streams",
+   "line": 2938,
+   "handler": "go2rtc_streams"
+  },
+  {
+   "method": "WS",
+   "path": "/api/go2rtc/api/ws",
+   "line": 2947,
+   "handler": "go2rtc_ws_proxy"
+  },
+  {
+   "method": "DELETE",
+   "path": "/api/go2rtc/{path:path}",
+   "line": 3008,
+   "handler": "go2rtc_proxy"
+  },
+  {
+   "method": "GET",
+   "path": "/api/go2rtc/{path:path}",
+   "line": 3008,
+   "handler": "go2rtc_proxy"
+  },
+  {
+   "method": "OPTIONS",
+   "path": "/api/go2rtc/{path:path}",
+   "line": 3008,
+   "handler": "go2rtc_proxy"
+  },
+  {
+   "method": "POST",
+   "path": "/api/go2rtc/{path:path}",
+   "line": 3008,
+   "handler": "go2rtc_proxy"
+  },
+  {
+   "method": "PUT",
+   "path": "/api/go2rtc/{path:path}",
+   "line": 3008,
+   "handler": "go2rtc_proxy"
+  },
+  {
+   "method": "GET",
+   "path": "/api/live-stream-url/{channel}",
+   "line": 3072,
+   "handler": "live_stream_url"
+  },
+  {
+   "method": "POST",
+   "path": "/api/recordings/search",
+   "line": 3081,
+   "handler": "rec_search"
+  },
+  {
+   "method": "GET",
+   "path": "/",
+   "line": 3181,
+   "handler": "spa"
+  },
+  {
+   "method": "GET",
+   "path": "/{full_path:path}",
+   "line": 3182,
+   "handler": "spa"
+  }
+ ],
+ "options": [
+  "nvr_ip",
+  "nvr_port",
+  "nvr_rtsp_port",
+  "nvr_user",
+  "nvr_password",
+  "app_pin",
+  "technician_pin",
+  "pin_length",
+  "session_minutes",
+  "snapshot_seconds",
+  "go2rtc_url",
+  "go2rtc_ingress_path",
+  "log_level",
+  "event_search_debug"
+ ],
+ "home_assistant": {
+  "entities": [],
+  "services": [],
+  "api_use": {
+   "supervisor_api": 0,
+   "supervisor_token": 0,
+   "core_states": 0,
+   "core_services": 0,
+   "core_websocket": 0,
+   "mqtt_discovery": 0
+  },
+  "note": "an Ingress add-on only: no integration, no entity, no service; api_use counts Supervisor / Core API patterns in the source"
+ },
+ "go2rtc_stream_prefixes": [
+  "hik_ch",
+  "pb_"
+ ],
+ "persisted_files": [
+  "/config/hikvision_nvr_event_store.jsonl",
+  "/config/hikvision_nvr_override.json",
+  "/tmp/addon_config.json"
+ ],
+ "privacy": "route paths, option keys and file paths only - no option default, credential, host or PIN"
+}

@@ -1,0 +1,211 @@
+{
+ "schema": "smplwise-legacy-parity-map/1",
+ "_comment": "T070 (docs/changes/T070-T006-2406.md): every route of the legacy Hikvision NVR Panel 1.5.27 (docs/legacy/legacy_surface_v1.5.27.json) is claimed by exactly one capability here; scripts/legacy_parity.py check verifies the claims against contracts/API_INVENTORY.md, the evidence files and the Arx add-on config. Routes are 'METHOD path' exactly as the inventory / the legacy decorators write them. Statuses: same / better / partial / replaced / missing / dropped (definitions in the script). `lab` names the LAB items of the migration plan that prove the row on the owner's installation.",
+ "legacy": {"name": "Hikvision NVR Panel", "version": "1.5.27", "slug": "hikvision_nvr"},
+ "capabilities": [
+  {
+   "id": "P01", "capability": "Sign-in: shared PIN, technician PIN, session cookie",
+   "legacy_routes": ["POST /api/auth/pin", "POST /api/auth/tech", "POST /api/auth/logout", "GET /api/auth/status", "GET /api/auth/tech/status"],
+   "arx_routes": ["GET /api/v1/me", "WS /api/v1/me/ws", "GET /api/v1/access/roles", "POST /api/v1/access/bindings"],
+   "arx_surface": "Home Assistant identity (Ingress) + Settings > users and permissions",
+   "status": "replaced", "notes": "one HA user per person, role AND scope per binding (HA_IDENTITY_RBAC_HE.md); REUSE_MATRIX row 19",
+   "evidence": ["smplwise_vms/backend/tests/test_me_permissions.py", "smplwise_vms/backend/tests/test_rbac_camera_scope.py"], "evidence_grep": "/api/v1/me",
+   "lab": ["LAB-T070-06"]
+  },
+  {
+   "id": "P02", "capability": "Public UI configuration (PIN length, snapshot interval, go2rtc Ingress path, display offset)",
+   "legacy_routes": ["GET /api/config"],
+   "arx_routes": ["GET /api/v1/settings", "GET /api/v1/me"],
+   "status": "replaced", "notes": "per-installation settings + the caller's own permissions; nothing about go2rtc reaches the browser",
+   "evidence": ["smplwise_vms/backend/tests/test_media.py"], "evidence_grep": "/api/v1/settings",
+   "lab": []
+  },
+  {
+   "id": "P03", "capability": "Recording display offset (auto / manual / auto+manual)",
+   "legacy_routes": ["POST /api/config/recording-display"],
+   "arx_routes": ["GET /api/v1/settings", "GET /api/v1/cameras/{camera_id}/recordings"],
+   "status": "replaced", "notes": "no offset: NVR wall-clock times converted per instant with the IANA zone (time.zone); KNOWN_QUIRKS T1/T2/T5",
+   "evidence": ["smplwise_vms/backend/tests/test_recordings.py"], "evidence_grep": "nvr_wall_to_utc",
+   "lab": ["LAB-T070-03"]
+  },
+  {
+   "id": "P04", "capability": "NVR connection: read, save, test",
+   "legacy_routes": ["GET /api/nvr/config", "POST /api/nvr/config", "GET /api/nvr/test"],
+   "arx_routes": ["GET /api/v1/nvr/connection", "PUT /api/v1/nvr/connection", "POST /api/v1/nvr/connection/test"],
+   "arx_surface": "Settings > Connections > NVR",
+   "status": "better", "notes": "tested before it is saved, password encrypted and never returned (the legacy GET returned the stored NVR password to any PIN holder); CR-022",
+   "evidence": ["smplwise_vms/backend/tests/test_nvr_connection.py"], "evidence_grep": "/nvr/connection",
+   "lab": ["LAB-T070-02"]
+  },
+  {
+   "id": "P05", "capability": "Camera display names (aliases), rename",
+   "legacy_routes": ["GET /api/nvr/camera-names", "POST /api/nvr/camera-names", "POST /api/nvr/cameras/{channel_id}/rename"],
+   "arx_routes": ["GET /api/v1/cameras", "PATCH /api/v1/cameras/{camera_id}"],
+   "status": "same", "notes": "migrated by scripts/migrate_legacy.py --apply-aliases (empty Arx aliases only; VMS-local write, audited)",
+   "evidence": ["smplwise_vms/backend/tests/test_cameras.py", "smplwise_vms/backend/tests/test_migrate_legacy.py"], "evidence_grep": "alias",
+   "lab": ["LAB-T070-02"]
+  },
+  {
+   "id": "P06", "capability": "Raw ISAPI GET proxy for any signed-in user",
+   "legacy_routes": ["GET /api/isapi/{path:path}"],
+   "arx_routes": [],
+   "status": "dropped", "decision": "security: no raw device proxy in the product (spec chapter 32; REUSE_MATRIX row 27)",
+   "evidence": [], "lab": []
+  },
+  {
+   "id": "P07", "capability": "Camera snapshot (3 URL fallbacks)",
+   "legacy_routes": ["GET /api/snapshot/{ch}"],
+   "arx_routes": ["GET /api/v1/cameras/{camera_id}/snapshot.jpg"],
+   "status": "same", "notes": "per-camera authorization and cache",
+   "evidence": ["smplwise_vms/backend/tests/test_media.py"], "evidence_grep": "snapshot.jpg",
+   "lab": ["LAB-T070-04"]
+  },
+  {
+   "id": "P08", "capability": "Channel status (online / offline)",
+   "legacy_routes": ["GET /api/nvr/channel-status"],
+   "arx_routes": ["GET /api/v1/nvr/cameras", "GET /api/v1/health/summary"],
+   "status": "same",
+   "evidence": ["smplwise_vms/backend/tests/test_nvr_cameras_settings.py", "smplwise_vms/backend/tests/test_health_summary.py"], "evidence_grep": "/api/v1/nvr/cameras",
+   "lab": ["LAB-T070-04"]
+  },
+  {
+   "id": "P09", "capability": "Camera (IPC) reboot through the NVR",
+   "legacy_routes": ["POST /api/nvr/cameras/{channel_id}/reboot"],
+   "arx_routes": [],
+   "status": "missing", "decision": "OPEN - owner question T070-Q2 (recommendation: accept the gap; a physical action, rarely used, rebuild only on request behind a sensitive permission)",
+   "evidence": [], "lab": []
+  },
+  {
+   "id": "P10", "capability": "NVR reboot",
+   "legacy_routes": ["POST /api/nvr/reboot"],
+   "arx_routes": ["POST /api/v1/nvr/reboot"],
+   "status": "same", "notes": "behind nvr.system.reboot with a typed second confirmation, audited",
+   "evidence": ["smplwise_vms/backend/tests/test_nvr_system.py"], "evidence_grep": "/nvr/reboot",
+   "lab": []
+  },
+  {
+   "id": "P11", "capability": "Storage: disk list and deep status",
+   "legacy_routes": ["GET /api/nvr/storage", "GET /api/nvr/storage/deep"],
+   "arx_routes": ["GET /api/v1/storage", "GET /api/v1/nvr/system"],
+   "status": "same", "notes": "disks, retention measured vs estimated, S.M.A.R.T. read-only",
+   "evidence": ["smplwise_vms/backend/tests/test_storage.py", "smplwise_vms/backend/tests/test_nvr_system.py"], "evidence_grep": "/api/v1/storage",
+   "lab": ["LAB-T070-04"]
+  },
+  {
+   "id": "P12", "capability": "Disk tests: S.M.A.R.T. and bad sectors",
+   "legacy_routes": ["POST /api/nvr/storage/hdd/{hdd_id}/smart/start", "POST /api/nvr/storage/hdd/{hdd_id}/bad-sectors/start"],
+   "arx_routes": ["POST /api/v1/nvr/storage/{hdd_id}/smart-test"],
+   "status": "partial", "notes": "S.M.A.R.T. test behind nvr.storage.test; no bad-sector test (an hours-long device write) - not requested since",
+   "evidence": ["smplwise_vms/backend/tests/test_nvr_system.py"], "evidence_grep": "smart-test",
+   "lab": []
+  },
+  {
+   "id": "P13", "capability": "Maintenance aggregate (device, channels, storage, capabilities, tracks)",
+   "legacy_routes": ["GET /api/nvr/maintenance"],
+   "arx_routes": ["GET /api/v1/health/report", "GET /api/v1/recorders/{recorder_id}/health", "GET /api/v1/nvr/system"],
+   "status": "better", "notes": "separate health states per subsystem instead of one blob (chapter 30)",
+   "evidence": ["smplwise_vms/backend/tests/test_health_report.py", "smplwise_vms/backend/tests/test_nvr_system.py"], "evidence_grep": "/api/v1/health/report",
+   "lab": ["LAB-T070-04"]
+  },
+  {
+   "id": "P14", "capability": "Manual recording: status, start (with auto-stop), stop",
+   "legacy_routes": ["GET /api/nvr/record/manual/status", "POST /api/nvr/record/manual/start/{track_id}", "POST /api/nvr/record/manual/stop/{track_id}"],
+   "arx_routes": ["GET /api/v1/cameras/{camera_id}/record", "POST /api/v1/cameras/{camera_id}/record/start", "POST /api/v1/cameras/{camera_id}/record/stop"],
+   "status": "same", "notes": "an NVR write behind nvr.record.manual; legacy rows are NOT migrated - a running legacy manual recording is stopped in the legacy UI before the cutover",
+   "evidence": ["smplwise_vms/backend/tests/test_nvr_write.py"], "evidence_grep": "/record/start",
+   "lab": ["LAB-T070-07"]
+  },
+  {
+   "id": "P15", "capability": "Events: list, live, search (disabled in production by EVENTS_ENABLED = False)",
+   "legacy_routes": ["GET /api/nvr/events", "GET /api/nvr/events/live", "POST /api/nvr/events/search"],
+   "arx_routes": ["GET /api/v1/cameras/{camera_id}/events", "WS /api/v1/events/ws"],
+   "arx_surface": "Investigate > event center",
+   "status": "better", "notes": "the legacy screen was switched off; Arx stores NVR alerts + recording-derived + HA sensor events",
+   "evidence": ["smplwise_vms/backend/tests/test_events.py"], "evidence_grep": "/api/v1/events",
+   "lab": []
+  },
+  {
+   "id": "P16", "capability": "Picture search and event picture (disabled with the events)",
+   "legacy_routes": ["POST /api/nvr/pictures/search", "GET /api/nvr/events/picture"],
+   "arx_routes": ["GET /api/v1/cameras/{camera_id}/events"],
+   "arx_surface": "Investigate > event center (event thumbnails)",
+   "status": "replaced", "notes": "no NVR picture search; event thumbnails instead (the legacy feature never ran in production)",
+   "evidence": ["smplwise_vms/backend/tests/test_events.py"], "evidence_grep": "/api/v1/cameras",
+   "lab": []
+  },
+  {
+   "id": "P17", "capability": "Recording tracks, record profile, search profile",
+   "legacy_routes": ["GET /api/nvr/record/tracks"],
+   "arx_routes": ["POST /api/v1/cameras/sync", "GET /api/v1/nvr/cameras"],
+   "status": "better", "notes": "track discovery instead of the <ch>01 formula (KNOWN_QUIRKS S7); REUSE_MATRIX row 4",
+   "evidence": ["smplwise_vms/backend/tests/test_cameras.py"], "evidence_grep": "/cameras/sync",
+   "lab": ["LAB-T070-02"]
+  },
+  {
+   "id": "P18", "capability": "Recorded days per month (daily distribution chips)",
+   "legacy_routes": ["POST /api/recordings/daily-distribution"],
+   "arx_routes": [],
+   "status": "missing", "decision": "OPEN - owner question T070-Q3 (recommendation: accept for the cutover, add a month view of recorded days later as its own small card)",
+   "evidence": [], "lab": []
+  },
+  {
+   "id": "P19", "capability": "Recording search (paged, deduplicated) and the timeline",
+   "legacy_routes": ["POST /api/recordings/search"],
+   "arx_routes": ["GET /api/v1/cameras/{camera_id}/recordings"],
+   "arx_surface": "Investigate > recordings",
+   "status": "better", "notes": "coverage / partial reporting, the IANA zone, one search per NVR at a time (KNOWN_QUIRKS S2)",
+   "evidence": ["smplwise_vms/backend/tests/test_recordings.py"], "evidence_grep": "/recordings",
+   "lab": ["LAB-T070-03"]
+  },
+  {
+   "id": "P20", "capability": "MP4 download of a recording (ISAPI download by file)",
+   "legacy_routes": ["GET /api/stream/{track_id}"],
+   "arx_routes": ["POST /api/v1/exports", "GET /api/v1/exports/{job_id}", "GET /api/v1/exports/{job_id}/download"],
+   "arx_surface": "Investigate > exports",
+   "status": "better", "notes": "durable jobs, remux of the Hikvision PS container, hash, retention",
+   "evidence": ["smplwise_vms/backend/tests/test_exports.py"], "evidence_grep": "/api/v1/exports",
+   "lab": ["LAB-T070-05"]
+  },
+  {
+   "id": "P21", "capability": "Live view: go2rtc stream create, list, WebSocket relay",
+   "legacy_routes": ["POST /api/go2rtc/add", "GET /api/go2rtc/streams", "WS /api/go2rtc/api/ws"],
+   "arx_routes": ["GET /api/v1/media/live/{camera_id}", "WS /api/v1/media/live/{camera_id}/ws", "GET /api/v1/media/streams", "POST /api/v1/media/streams/sync"],
+   "arx_surface": "Live > all cameras / single camera",
+   "status": "better", "notes": "smplwise_ namespace only, per-camera authorization on the relay, no credentials in stream names",
+   "evidence": ["smplwise_vms/backend/tests/test_media.py", "smplwise_vms/backend/tests/test_janitor.py"], "evidence_grep": "/media/",
+   "lab": ["LAB-T070-04"]
+  },
+  {
+   "id": "P22", "capability": "Playback: a go2rtc stream per click (no in-stream seek)",
+   "legacy_routes": ["POST /api/go2rtc/playback"],
+   "arx_routes": ["POST /api/v1/playback/sessions", "POST /api/v1/playback/sessions/{session_id}/seek", "WS /api/v1/playback/sessions/{session_id}/ws", "DELETE /api/v1/playback/sessions/{session_id}"],
+   "arx_surface": "Investigate > recordings player",
+   "status": "better", "notes": "session + seek generations, ordered cleanup, time to media measured (T074); the media anchor is T006",
+   "evidence": ["smplwise_vms/backend/tests/test_playback_scrub_2341.py", "smplwise_vms/backend/tests/test_playback_timing_t074.py"], "evidence_grep": "/playback/sessions",
+   "lab": ["LAB-T070-03", "LAB-T006-01"]
+  },
+  {
+   "id": "P23", "capability": "Generic go2rtc HTTP proxy (any method, CORS *)",
+   "legacy_routes": ["DELETE /api/go2rtc/{path:path}", "GET /api/go2rtc/{path:path}", "OPTIONS /api/go2rtc/{path:path}", "POST /api/go2rtc/{path:path}", "PUT /api/go2rtc/{path:path}"],
+   "arx_routes": [],
+   "status": "dropped", "decision": "security: only the signalling / MSE / snapshot paths Arx owns are exposed (REUSE_MATRIX row 10)",
+   "evidence": [], "lab": []
+  },
+  {
+   "id": "P24", "capability": "Live RTSP URL with credentials to the browser (the RTSP copy button)",
+   "legacy_routes": ["GET /api/live-stream-url/{channel}"],
+   "arx_routes": [],
+   "status": "dropped", "decision": "security: credentials never reach the browser (REUSE_MATRIX row 28)",
+   "evidence": [], "lab": []
+  },
+  {
+   "id": "P25", "capability": "The single-page UI (Ingress panel 'NVR')",
+   "legacy_routes": ["GET /", "GET /{full_path:path}"],
+   "arx_routes": [],
+   "arx_surface": "Arx Ingress panel (smplwise_vms/www), RTL Hebrew, desktop / tablet / mobile",
+   "status": "replaced", "notes": "live grid 1-16 with ordering, single player main/sub, timeline and themes rebuilt (REUSE_MATRIX rows 22-25)",
+   "evidence": ["frontend/src/screens/live-wall.ts", "frontend/src/screens/investigate-playback.ts"], "evidence_grep": "customElement",
+   "lab": ["LAB-T070-04", "LAB-T070-06"]
+  }
+ ]
+}
