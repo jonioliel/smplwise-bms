@@ -12,7 +12,8 @@
   the administrators acknowledges it in the notification center (CR-034 section 7).
 
 Nothing here starts, resumes or stops a rotation, touches a key, or sends anything to the bridge. `emergency` is the notice of the
-emergency revocation (CR-034 section 8); the revocation itself is WXH4 (not built), so no route calls it yet.
+emergency revocation (CR-034 section 8), sent by services/bridge_key_revocation.revoke (WXH4-EMERGENCY-REVOKE-2407). Owner decision 4 of
+07.11: that notice NAMES the administrator who revoked (the body's `{name}`); every other bridge-key notice stays content-free.
 """
 from __future__ import annotations
 
@@ -116,7 +117,7 @@ def recipient_users(conn: sqlite3.Connection, n: dict[str, Any] | None = None) -
 # ---------------------------------------------------------------- notices
 
 def queue(conn: sqlite3.Connection, source: str, dedupe_key: str, *, severity: str | None = None, detail: str = "", code: str,
-          rotation_id: str | None = None, actor: Any = None, initiator_user_id: str | None = None) -> str:
+          rotation_id: str | None = None, actor: Any = None, initiator_user_id: str | None = None, params: dict[str, Any] | None = None) -> str:
     """Queue one bridge-key notice in the caller's transaction. Returns the pipeline's outcome, or `failed`. Never raises."""
     from . import notify
 
@@ -126,7 +127,7 @@ def queue(conn: sqlite3.Connection, source: str, dedupe_key: str, *, severity: s
         try:
             res = notify.emit_full(conn, notify.Signal(
                 source=source, subject_kind="system", subject_id=SUBJECT_ID, severity=severity, dedupe_key=dedupe_key,
-                params={"detail": detail} if detail else {}, origin={"rotation_id": rotation_id} if rotation_id else {},
+                params={**({"detail": detail} if detail else {}), **(params or {})}, origin={"rotation_id": rotation_id} if rotation_id else {},
                 initiator_user_id=initiator_user_id, link="#/system/setup"))
             outcome = res.action
             if res.id:
@@ -168,11 +169,15 @@ def resolve(conn: sqlite3.Connection, source: str, dedupe_key: str) -> str:
         return "failed"
 
 
-def emergency(conn: sqlite3.Connection, *, actor: Any, revocation_id: str) -> str:
-    """CR-034 section 8 step 2: the emergency revocation's notice, queued in the SAME transaction as the revocation (WXH4, not built). One
-    row per revocation (never folded into an older one); the acknowledge closes it."""
+REVOKER_FALLBACK = "מנהל מערכת"
+
+
+def emergency(conn: sqlite3.Connection, *, actor: Any, revocation_id: str, name: str | None = None) -> str:
+    """CR-034 section 8 step 2: the emergency revocation's notice, queued in the SAME transaction as the revocation
+    (services/bridge_key_revocation.revoke). One row per revocation (never folded into an older one); the acknowledge closes it. Owner
+    decision 4 (07.11): the body names the administrator who revoked (`name`; "a system administrator" when none is known)."""
     return queue(conn, SOURCE_REVOKED, f"{SOURCE_REVOKED}:{revocation_id}", severity="critical", code="emergency_revocation", rotation_id=revocation_id,
-                 actor=actor, initiator_user_id=getattr(actor, "user_id", None))
+                 actor=actor, initiator_user_id=getattr(actor, "user_id", None), params={"name": (name or "").strip()[:60] or REVOKER_FALLBACK})
 
 
 def banner(conn: sqlite3.Connection) -> dict[str, Any]:

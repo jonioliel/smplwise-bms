@@ -4,6 +4,7 @@ import './sw-card';
 import './sw-button';
 import './sw-badge';
 import './sw-toggle';
+import './sw-bridge-key-revoke'; // WXH4-EMERGENCY-REVOKE-2407: the emergency revocation and the re-pair
 import type { StateKind } from './sw-badge';
 import { onRemote } from '../api/session';
 import { describeError } from '../api/client';
@@ -186,6 +187,7 @@ export class SwBridgeKeyCard extends LitElement {
   }
 
   private overall(s: BridgeKeyStatus): [StateKind, string] {
+    if (s.revocation?.state === 'revoked') return ['error', bkt('stateRevoked')];
     if (s.watchdog?.length) return ['error', bkt('stateAttention')];
     if (s.rotation && ACTIVE_STATES.includes(s.rotation.state)) return ['partial', bkt('stateRotating')];
     if (s.last && (s.last.state === 'needs_repair' || s.last.state === 'verify_failed')) return ['error', bkt('stateAttention')];
@@ -309,6 +311,7 @@ export class SwBridgeKeyCard extends LitElement {
             @click=${() => (this.asking = 'hard_cut')}>${bkt('hardCut')}</sw-button>
         </span>
       </div>
+      <sw-bridge-key-revoke .status=${s} data-bridge-key-revoke-section @changed=${() => void this.load()}></sw-bridge-key-revoke>
       ${this.error ? html`<p class="err" role="alert">${this.error}</p>` : nothing}
       ${this.saved ? html`<p class="ok" role="status">${bkt('saved')}</p>` : nothing}
     </sw-card>`;

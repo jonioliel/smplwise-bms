@@ -35,4 +35,4 @@
 Read AGENTS.md and the linked master chapters. Inspect legacy code before replacement. No production configuration writes, physical commands, spending, or claims of passing unrun tests. Record commit, environment, commands and evidence.
 
 ## Blocker
-Waits for two owner decisions (CR-WISKEY-HMAC-ROTATION-295 section 16.3: delivery of the new key and who may reveal it) and a bridge release; the 2026-10-10 deferral itself was lifted on 2026-10-20.
+Built on pilot/WXH4-EMERGENCY-REVOKE-2407 (fakes only, not merged, not released): waits for the review and merge, a release with bridge 0.10.6, one Home Assistant restart by the owner, and its dependencies WXH2 / WXH3 reaching DONE (registry rule). The owner's six decisions of 07.11 are built (docs/changes/WXH4-EMERGENCY-REVOKE-2407.md).

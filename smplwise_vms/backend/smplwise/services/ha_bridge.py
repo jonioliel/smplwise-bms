@@ -73,7 +73,18 @@ def is_paired_secret(conn: sqlite3.Connection) -> bool:
 
 def signing_key(conn: sqlite3.Connection) -> str | None:
     """The key to sign with: the plain pairing secret before the key set exists, afterwards the current key (a `BridgeKey`). None when
-    nothing can sign (not paired, or the sealed key cannot be opened on this machine - fail closed: the bridge refuses an empty signature)."""
+    nothing can sign (not paired, or the sealed key cannot be opened on this machine - fail closed: the bridge refuses an empty signature).
+
+    WXH4-EMERGENCY-REVOKE-2407: None while the bridge key is revoked and the bridge has not proved the new code yet - every outbound bridge
+    operation (doors, devices, casts, leases, WisKey) is blocked until the re-pair."""
+    from . import bridge_key_revocation
+
+    if bridge_key_revocation.is_revoked(conn):
+        return None
+    return _raw_signing_key(conn)
+
+
+def _raw_signing_key(conn: sqlite3.Connection) -> str | None:
     data_dir = _data_dir(conn)
     if data_dir is not None and bk.adopted(conn):
         try:
@@ -135,10 +146,20 @@ def verify(secret: str | None, message: dict[str, Any], now: float | None = None
 _WIRE_CODE = {"stale": ("bridge_stale", "ההודעה מהגשר ישנה מדי."), "replay": ("bridge_replay", "הודעה חוזרת.")}
 
 
-def verify_message(conn: sqlite3.Connection, message: dict[str, Any], now: float | None = None) -> None:
+def verify_message(conn: sqlite3.Connection, message: dict[str, Any], now: float | None = None, *, pairing: bool = False) -> None:
     """Verify one inbound bridge message: against the key set once it is adopted (every key that may verify now; a kid-less message only
     against `g0-legacy` inside its window), else against the plain pairing secret. Raises ApiError(401). One wire code for everything
-    that did not prove a key (`bridge_bad_signature`); `bridge_stale` / `bridge_replay` only for a message that did."""
+    that did not prove a key (`bridge_bad_signature`); `bridge_stale` / `bridge_replay` only for a message that did.
+
+    WXH4-EMERGENCY-REVOKE-2407: while the key is revoked every inbound message is refused (`bridge_revoked`) except the bridge's pairing
+    ping (`pairing=True`, routers/ha.bridge_ping), which verifies against the NEW plain code only (the key set was wiped by the revocation)."""
+    from . import bridge_key_revocation
+
+    if bridge_key_revocation.is_revoked(conn):
+        if not pairing:
+            raise ApiError(401, bridge_key_revocation.REVOKED_CODE, bridge_key_revocation.REVOKED_TEXT)
+        verify(get_setting(conn, "bridge.secret"), message, now)
+        return
     data_dir = _data_dir(conn)
     if data_dir is not None and bk.adopted(conn):
         try:
@@ -147,7 +168,7 @@ def verify_message(conn: sqlite3.Connection, message: dict[str, Any], now: float
             code, text = _WIRE_CODE.get(exc.code, ("bridge_bad_signature", "חתימת הגשר לא תואמת."))
             raise ApiError(401, code, text) from None
         return
-    verify(signing_key(conn), message, now)
+    verify(_raw_signing_key(conn), message, now)
 
 
 # ---------------------------------------------------------------- allow-listed actions

@@ -64,6 +64,39 @@ export interface BridgeKeyStatus {
   watchdog?: WatchdogCondition[];
   /** WXH-LEFTOVERS-2405 (CR-034 section 2 item 3): the key status the bridge is handed (generations and outcomes, never a key). */
   hand_over?: HandOver;
+  /** WXH4-EMERGENCY-REVOKE-2407: the emergency revocation (names and times only, never the code); absent on an older server. */
+  revocation?: Revocation;
+}
+
+export interface Revocation {
+  state: 'none' | 'revoked' | 'repaired';
+  id: string | null;
+  revoked_at: string | null;
+  revoked_by_name: string | null;
+  repaired_at: string | null;
+  reveals: number;
+  last_reveal_at: string | null;
+  /** The confirm dialog warns (and the server wants the acknowledgement) while WisKey is installed. */
+  wiskey_present: boolean;
+  /** The new code reaches the bridge by itself (the automatic re-pair path is open). */
+  announce_path: boolean;
+  paired_at: string | null;
+  /** This administrator has an authenticator of their own, so the reveal's re-authentication can pass. */
+  step_up_ready?: boolean;
+}
+
+export interface RevokeResult {
+  revoked: boolean;
+  revocation_id: string;
+  announced: boolean;
+  notice: string;
+  status: BridgeKeyStatus;
+}
+
+export interface RevealResult {
+  pairing_code: string;
+  addon_url: string;
+  revocation_id: string;
 }
 
 export interface OwnerContacts {
@@ -105,6 +138,10 @@ export const setBridgeKeySettings = (body: { enabled?: boolean; reminder_days?: 
 export const startRotation = (mode: RotationMode) => post<{ rotation: Rotation }>('system/bridge-key/rotations', { mode, confirm: true });
 export const setOwnerContacts = (userIds: string[]) => put<BridgeKeyStatus>('system/bridge-key/owner-contacts', { user_ids: userIds });
 export const getNoticeBanner = () => get<NoticeBanner>('system/bridge-key/notice');
+/** WXH4: the emergency revocation. `wiskeyAcknowledged`: the dialog's WisKey warning was confirmed (the server refuses without it while WisKey is installed). */
+export const revokeBridgeKey = (wiskeyAcknowledged: boolean) => post<RevokeResult>('system/bridge-key/revoke', { confirm: true, wiskey_acknowledged: wiskeyAcknowledged });
+/** WXH4: the new pairing code, after a fresh re-authentication with the administrator's own authenticator code (audited by the server). */
+export const revealNewCode = (code: string) => post<RevealResult>('system/bridge-key/revoke/reveal', { code });
 export const resumeRotation = (id: string) => post<{ rotation: Rotation }>(`system/bridge-key/rotations/${encodeURIComponent(id)}/resume`);
 
 /**

@@ -13,6 +13,14 @@
       "hassio_confirm": {
         "title": "צימוד ל־Add-on של SmplWise Arx",
         "description": "ה־Add-on {addon} הכריז על עצמו עם קוד הצימוד שלו. אשר כדי לאפשר ל־VMS להריץ פעולות מרשימת ההיתר בזהות ה־Home Assistant שלך."
+      },
+      "reconfigure": {
+        "title": "צימוד מחדש ל־Add-on של SmplWise Arx",
+        "description": "לשימוש אחרי שמפתח הגשר בוטל ב־Add-on והקוד החדש לא הגיע לבד. ב־Add-on פתחו את מסך מפתח הגשר, אשרו בקוד מאפליקציית האימות והעתיקו את קוד הצימוד החדש. הקוד מוחל רק כשה־Add-on מקבל אותו.",
+        "data": {
+          "addon_url": "כתובת ה־Add-on (ברשת הפנימית של Home Assistant)",
+          "pairing_code": "קוד צימוד חדש"
+        }
       }
     },
     "error": {
@@ -26,7 +34,9 @@
       "single_instance_allowed": "אפשר להגדיר גשר אחד בלבד.",
       "cannot_connect": "לא ניתן להגיע לתוסף בהתקנה האוטומטית.",
       "invalid_auth": "קוד הצימוד של ההתקנה האוטומטית נדחה.",
-      "unknown": "ההתקנה האוטומטית נכשלה."
+      "unknown": "ההתקנה האוטומטית נכשלה.",
+      "reconfigure_successful": "הגשר צומד מחדש עם הקוד החדש ונטען מחדש עכשיו.",
+      "reconfigure_missing": "רשומת הגשר לצימוד מחדש לא נמצאה."
     }
   },
   "options": {

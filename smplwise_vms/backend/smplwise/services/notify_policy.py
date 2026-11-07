@@ -7,7 +7,8 @@ severity, category, how long the condition must hold (`after_s`), the fold windo
 (`recipients`) and on which channels.
 
 Titles and bodies are built here from templates and place parameters: ids and names of places and devices, never a person,
-a visitor or an image.
+a visitor or an image. One owner-approved exception (WXH4-EMERGENCY-REVOKE-2407, decision 4 of 07.11): the emergency revocation of
+the bridge key names the system administrator who revoked it.
 """
 from __future__ import annotations
 
@@ -243,11 +244,13 @@ SOURCES: tuple[Source, ...] = (
     # (`security.owner_contacts`) and every other system administrator (rule `bridge_key_owner`, a `system` subject). Content-free: never a
     # key, a key id, a person or an address - the audit rows carry who and which rotation. `attention` is the watchdog's report of a
     # condition that already fails closed (it resolves itself when the condition ends); `revoked` is the emergency revocation's notice
-    # (CR-034 section 8; the revocation itself is WXH4, not built - nothing emits it yet). E-mail and the phone app are on by default.
+    # (CR-034 section 8; WXH4-EMERGENCY-REVOKE-2407, services/bridge_key_revocation.py). Owner decision 4 of 07.11: the revocation notice is
+    # the ONE exception to "never a person" - its body names the administrator who revoked (`{name}`). Owner decision 5: both sources are
+    # ordinary policies an administrator may switch off. E-mail and the phone app are on by default.
     _s("security.bridge_key_attention", "מפתח הגשר דורש טיפול", "security", "alert", "מפתח הגשר דורש טיפול", "{detail}", who="bridge_key_owner",
        email=True, app=True, subject="system", resolve_notice=True, resolve_text="מפתח הגשר תקין שוב"),
     _s("security.bridge_key_revoked", "ביטול חירום של מפתח הגשר", "security", "critical", "בוטל מפתח הגשר",
-       "מנהל מערכת ביטל את מפתח הגשר. כל הפעולות דרך תשתית המערכת מושבתות עד צימוד מחדש. פרטים באודיט.", who="bridge_key_owner", email=True,
+       "{name} ביטל את מפתח הגשר. כל הפעולות דרך תשתית המערכת מושבתות עד צימוד מחדש. פרטים באודיט.", who="bridge_key_owner", email=True,
        app=True, subject="system", resolves=False),
     # WISKEY-CONFLICTS-2400 (services/wiskey_triage.AlertFeed): a WisKey fleet alert (station offline, sync stalled / conflict / error, event
     # gap, clock drift) - one open row per station + kind, resolved when WisKey stops reporting it or it is snoozed. Signalled ONLY while the

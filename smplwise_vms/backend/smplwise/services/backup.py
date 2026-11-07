@@ -282,6 +282,9 @@ SETTINGS_KEEP = SETTINGS_KEEP | {"backup.offbox_restore_scope", "backup.local_re
 # WXH-LEFTOVERS-2405 (CR-034 section 7): who is "the owner" for the bridge-key notices is security policy (an archive must never redirect
 # them), and the watchdog's record of what it reported plus the bridge's last reported key generation are runtime state of THIS box
 SETTINGS_KEEP = SETTINGS_KEEP | {"security.owner_contacts", "bridge.watchdog", "bridge.peer_key_generation", "bridge.peer_key_generation_at"}
+# WXH4-EMERGENCY-REVOKE-2407: an emergency revocation of the bridge key is THIS box's security state - a restore can neither lift it (the
+# bridge operations stay blocked until the bridge proves the new code) nor invent one
+SETTINGS_KEEP = SETTINGS_KEEP | {"bridge.revocation"}
 
 
 def _kept_setting(key: Any) -> bool:

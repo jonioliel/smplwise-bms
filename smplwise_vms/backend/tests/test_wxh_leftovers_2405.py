@@ -214,7 +214,7 @@ def test_a_failing_notice_never_undoes_the_callers_work(world, monkeypatch):
     assert sent[-1]["decision"] == "denied" and sent[-1]["reason"] == "failed"
 
 
-def test_the_emergency_notice_is_one_row_per_revocation_and_no_route_sends_it(world):
+def test_the_emergency_notice_is_one_row_per_revocation_and_only_the_revocation_sends_it(world):
     w = world
     with w["db"].connection() as conn:
         assert bkn.emergency(conn, actor=None, revocation_id="rev-1") == "created"
@@ -222,10 +222,13 @@ def test_the_emergency_notice_is_one_row_per_revocation_and_no_route_sends_it(wo
     rows = _notices(w)
     assert len(rows) == 2 and {r["severity"] for r in rows} == {"critical"} and {r["source"] for r in rows} == {bkn.SOURCE_REVOKED}
     assert all("מפתח" in r["title"] for r in rows)
-    # the revocation is WXH4: no router calls the notice yet
+    # WXH4-EMERGENCY-REVOKE-2407: the revocation service is the one caller of the notice (no router calls it directly)
+    callers = []
     for path in (BACKEND / "smplwise").rglob("*.py"):
         text = path.read_text(encoding="utf-8")
-        assert "bkn.emergency(" not in text and "bridge_key_notice.emergency(" not in text, path
+        if "bkn.emergency(" in text or "bridge_key_notice.emergency(" in text:
+            callers.append(path.relative_to(BACKEND).as_posix())
+    assert callers == ["smplwise/services/bridge_key_revocation.py"]
 
 
 def test_the_banner_shows_an_open_notice_while_no_contact_is_set(world):

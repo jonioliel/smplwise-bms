@@ -1,6 +1,6 @@
 # Project status — generated view
 
-Generated: 2026-11-06T10:43:24.160104+00:00
+Generated: 2026-11-07T12:58:43.668540+00:00
 
 Tasks: 451 | Requirements: 560 | Tests: 577 | Screens: 32
 
@@ -29,7 +29,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - T096: Real FCM / APNs delivery needs the owner's Firebase project and Apple account (docs/operations/ARX_PUSH_RELAY_DEPLOY_HE.md); the relay Worker is not deployed. The CR-012 wake design is treated as superseded by the CR-027 relay (the CR-012 document itself still says "Proposed"); the go-live work is PUSH-GOLIVE-KIT-2380.
 - WXD5B: Excluded - OBSOLETE by owner decision 2026-11-05 (round 22, Q2 = א on the BOARD-HYGIENE-2403 candidates; relayed by the coordinator, no written answers file): superseded by door actions go over the WisKey direct join (docs/changes/DOORLIVE-2310.md, owner decisions 2026-10-30), not a bridge door_open / door_open_status service. Not to be worked; the card is kept.
 - WXH3: Not a work blocker: the Arx part is built on pilot/WXH-LEFTOVERS-2405 (not merged). BLOCKED only because the registry rule needs every dependency DONE (WXH2 is REVIEW).
-- WXH4: Waits for two owner decisions (CR-WISKEY-HMAC-ROTATION-295 section 16.3: delivery of the new key and who may reveal it) and a bridge release; the 2026-10-10 deferral itself was lifted on 2026-10-20.
+- WXH4: Built on pilot/WXH4-EMERGENCY-REVOKE-2407 (fakes only, not merged, not released): waits for the review and merge, a release with bridge 0.10.6, one Home Assistant restart by the owner, and its dependencies WXH2 / WXH3 reaching DONE (registry rule). The owner's six decisions of 07.11 are built (docs/changes/WXH4-EMERGENCY-REVOKE-2407.md).
 - WXH5: Not a work blocker: the watchdog is built on pilot/WXH-LEFTOVERS-2405 (not merged). BLOCKED by the registry rule (WXH2 REVIEW) and by WXH4 (owner decisions).
 - WXH6: The Arx side is built on pilot/WXH-LEFTOVERS-2405 (not merged). Still open: the bridge side (a bridge release) and WisKey's high-water mechanism; BLOCKED also by the registry rule (WXH1 REVIEW, WXH4 BLOCKED).
 - WXH7: Not a work blocker any more: The owner lifted the 2026-10-10 deferral on 2026-10-20 (private/planning/OWNER_DECISIONS_2026-10-20_NIGHT.md, round 4 item 4: "HMAC key rotation: build now (activation only after a Fable review)"); built as HMACROT-295 / HMACACT-295 / HMACACT2-295, docs/changes/CR-WISKEY-HMAC-ROTATION-295.md. The status stays BLOCKED only because the registry rule needs every dependency DONE (owner acceptance).

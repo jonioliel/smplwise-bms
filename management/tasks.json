@@ -7456,7 +7456,7 @@
       "AT270"
     ],
     "status": "BLOCKED",
-    "blocker": "Waits for two owner decisions (CR-WISKEY-HMAC-ROTATION-295 section 16.3: delivery of the new key and who may reveal it) and a bridge release; the 2026-10-10 deferral itself was lifted on 2026-10-20.",
+    "blocker": "Built on pilot/WXH4-EMERGENCY-REVOKE-2407 (fakes only, not merged, not released): waits for the review and merge, a release with bridge 0.10.6, one Home Assistant restart by the owner, and its dependencies WXH2 / WXH3 reaching DONE (registry rule). The owner's six decisions of 07.11 are built (docs/changes/WXH4-EMERGENCY-REVOKE-2407.md).",
     "priority": "P2",
     "model_policy": {
       "implementation": "deep",
@@ -7476,7 +7476,8 @@
       "DEFERRED by the owner (2026-10-10): key rotation (CR-034 H slices) is not to be built until the owner asks. Do not start, branch or schedule this row. (BLOCKED is used because the registry has no DEFERRED state.)",
       "2026-10-11 (REGISTRY-sync-1011): owner decision kept on 2026-10-11 (board WXROT: deferred, do not build now). Status stays BLOCKED with the blocker text.",
       "2026-11-04 (REGISTRY-AUDIT-20261103): not implemented. fresh-key re-pair with verification and emergency revocation are not built: only a feasibility note exists (docs/changes/CR-WISKEY-HMAC-ROTATION-295.md section 16.3), which needs two owner decisions (delivery path of the new key, who may reveal it) and a bridge release.",
-      "2026-11-06 (WXH-LEFTOVERS-2405): not built. The owner decisions it waits for are listed in docs/changes/WXH-LEFTOVERS-2405.md section 8 (delivery of the fresh code, who may reveal it, emergency while WisKey is installed, the notice naming the administrator, whether the notices can be switched off, whether the button needs an owner contact). The notice it needs (`bridge_key_notice.emergency`) and the owner contacts now exist on pilot/WXH-LEFTOVERS-2405."
+      "2026-11-06 (WXH-LEFTOVERS-2405): not built. The owner decisions it waits for are listed in docs/changes/WXH-LEFTOVERS-2405.md section 8 (delivery of the fresh code, who may reveal it, emergency while WisKey is installed, the notice naming the administrator, whether the notices can be switched off, whether the button needs an owner contact). The notice it needs (`bridge_key_notice.emergency`) and the owner contacts now exist on pilot/WXH-LEFTOVERS-2405.",
+      "2026-11-07 (WXH4-EMERGENCY-REVOKE-2407, branch pilot/WXH4-EMERGENCY-REVOKE-2407, not merged, not released; docs/changes/WXH4-EMERGENCY-REVOKE-2407.md): built on fakes per the owner's six decisions of 07.11 - POST /system/bridge-key/revoke (key set wiped, fresh pairing code announced through the existing re-pair path, every bridge operation blocked until the bridge proves the new code, audited bridge.key.revoked with name + time, the notice names the administrator, WisKey warning acknowledged, no owner-contact requirement), POST /system/bridge-key/revoke/reveal (any system administrator, own authenticator code as step-up, every reveal audited), the card section with the confirm and reveal dialogs (he/en), bridge 0.10.6 Reconfigure (manual re-pair, ping first, HA 2026.11/12 reload rule), mirror updated. Receipts (workstation): test_wxh4_emergency_revoke_2407.py 22 passed; 24-file backend selection 898 passed / 5 skipped / 0 failed; unit-bridge-key 12 passed; tsc 0. NOT_RUN: full backend suite, evidence/pixel suites and screenshots, runner gate, any live/lab run, a real HA 2026.11/12 core."
     ],
     "owner": null,
     "commit": null,
