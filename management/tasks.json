@@ -5512,7 +5512,8 @@
     "evidence": [
       "2026-09-30: owner approved mockup v2 (branch pilot/media-mockup) for development with two additions (editable screens page like the home editor; media cards on area screens); every recommendation of decisions-HE.md adopted. Architecture on branch pilot/CR015-media-arch: CR-015 + MEDIA_API.md + the S0 client; frontend tsc clean and unit-media-screens.spec.ts 9 passed (mock adapter only). No backend, device, HA or lab contact; nothing else run.",
       "2026-10-01 (0.1.149): CR-015 shipped - media devices model with dedupe, the screens page with editor and personal override, the remote (4 profiles), area card and home widget, settings, permissions media.*, bridge 0.4.0 media policy, migrations 0041/0042.",
-      "2026-11-02 (REGISTRY-UPDATE-2380): shipped; the CR-015 commits are contained in v2.7.2 (first tag in git). Moved from READY to REVIEW = shipped. AT202-AT204 are NOT_RUN. Open (NEXT_PHASE plan section 2): brand behaviours (Samsung art mode, LG on/off) never checked live; the map-card TV control question is unanswered."
+      "2026-11-02 (REGISTRY-UPDATE-2380): shipped; the CR-015 commits are contained in v2.7.2 (first tag in git). Moved from READY to REVIEW = shipped. AT202-AT204 are NOT_RUN. Open (NEXT_PHASE plan section 2): brand behaviours (Samsung art mode, LG on/off) never checked live; the map-card TV control question is unanswered.",
+      "commit 4de4b740d (release 0.1.149, on origin/main) - 2026-11-06 (V1-REMAINING-2406): CR-015 shipped in 0.1.149 (release commit 4de4b740d; merges of pilot/CR015-s1-backend 80b68ca45, -s2-screens 2e10257a8, -s3-remote eddee06e8, -s4-evidence ef9d7ef82); first version tag containing it v2.7.2. The earlier lines named the release but no commit id. Open as recorded: brand behaviours never checked live (lab), the map-card TV control question (owner). REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written and the live acceptance stays NOT_RUN as recorded above."
     ],
     "owner": null,
     "commit": null,
@@ -7193,7 +7194,8 @@
     "evidence": [
       "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-034; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 1 h, model sonnet. External gate: -.",
       "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
-      "2026-11-04 (REGISTRY-AUDIT-20261103): not implemented. the WX3 gate tool (test_wiskey_gate.py, branch origin/pilot/WX3-hmac-rotation @ ef18041c) was never merged to main; nothing in scripts/ implements it."
+      "2026-11-04 (REGISTRY-AUDIT-20261103): not implemented. the WX3 gate tool (test_wiskey_gate.py, branch origin/pilot/WX3-hmac-rotation @ ef18041c) was never merged to main; nothing in scripts/ implements it.",
+      "Open: 2026-11-06 (V1-REMAINING-2406): owner question, not built. The WX3 tool checks a WisKey SOURCE folder under the 2026-10-05 rule \"WisKey packages nothing\"; since WISKEY-MANAGED-INSTALL-2382 Arx installs a WisKey-built bundle checked byte-exact against its MANAGED_MANIFEST.json, behind the Core provenance gate. Whether the tool is still wanted (merge as a pre-adoption static scan of the bundle, or mark OBSOLETE) is the owner's call: docs/changes/V1-REMAINING-2406.md question 1."
     ],
     "owner": null,
     "commit": null,
@@ -7238,7 +7240,8 @@
     "evidence": [
       "2026-10-10 (REGISTRY-wiskey-rows): proposed row from docs/changes/WISKEY-CR033-CR034-IMPLEMENTATION-PLAN.md (branch pilot/WISKEY-CRs, section 4). Status is PROPOSED in the plan until the owner approves CR-034; the registry has no PROPOSED state, so the row is BACKLOG. Estimate 4 h, model sonnet. External gate: WisKey authors the impact block for installation candidates.",
       "Stage 1 of WisKey (owner decision): absorb WisKey so that the screens and the intercom integration run through Arx; a later stage may replace more of WisKey.",
-      "2026-11-04 (REGISTRY-AUDIT-20261103): not implemented. impact block, exit-5 rename and the gate:allow(code) marker are not implemented (depends on WXG0 and on WisKey authoring the impact block)."
+      "2026-11-04 (REGISTRY-AUDIT-20261103): not implemented. impact block, exit-5 rename and the gate:allow(code) marker are not implemented (depends on WXG0 and on WisKey authoring the impact block).",
+      "Open: 2026-11-06 (V1-REMAINING-2406): follows WXG0 (owner question 1 of docs/changes/V1-REMAINING-2406.md); the arx-impact/1 block also needs WisKey to author it for every installation candidate."
     ],
     "owner": null,
     "commit": null,
@@ -12298,7 +12301,8 @@
       "scripts/gate/gate_baselines.json, scripts/gate/release_gate.py (budget message)"
     ],
     "evidence": [
-      "2026-10-27 test machine, pilot/GATEAUDIT-297 (not a gate; load average 20-52 from other jobs): tsc ok @27834e8ba; visual matrix accept of 7 screens (38 files) then run --all 72 pass / 0 differ, repeats 48/0 x2; changed specs @a06719d44 on the dev server 160 passed / 69 skipped / 11 failed (goto timeouts at load ~50), those two specs again on the dist preview 89 passed / 13 skipped / 0 failed; the 14 bubble-related specs the 2.23.2 gate dropped 381 passed / 103 skipped / 2 failed (fleet-report goto timeout at dev-server cold start), fleet-report on the preview 20 passed / 10 skipped / 0 failed; selftest_gate.py SELFTEST PASSED (41 OK). Report: docs/testing/GATE_AUDIT_2026-10-27.md."
+      "2026-10-27 test machine, pilot/GATEAUDIT-297 (not a gate; load average 20-52 from other jobs): tsc ok @27834e8ba; visual matrix accept of 7 screens (38 files) then run --all 72 pass / 0 differ, repeats 48/0 x2; changed specs @a06719d44 on the dev server 160 passed / 69 skipped / 11 failed (goto timeouts at load ~50), those two specs again on the dist preview 89 passed / 13 skipped / 0 failed; the 14 bubble-related specs the 2.23.2 gate dropped 381 passed / 103 skipped / 2 failed (fleet-report goto timeout at dev-server cold start), fleet-report on the preview 20 passed / 10 skipped / 0 failed; selftest_gate.py SELFTEST PASSED (41 OK). Report: docs/testing/GATE_AUDIT_2026-10-27.md.",
+      "commit df8547fc2 (release 2.24.0, on origin/main) - 2026-11-06 (V1-REMAINING-2406): merge of GATEAUDIT-297 into the 2.24.0 assembly (implementation commits 27834e8ba, 781cc523d, a06719d44, report 344b9f054); tag v2.24.0. The earlier line recorded the runner results but no commit on origin/main. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written and the live acceptance stays NOT_RUN as recorded above."
     ],
     "owner": null,
     "commit": null,
@@ -14911,7 +14915,8 @@
       "Change record docs/changes/PLAYBACK-SCRUB-2341.md"
     ],
     "evidence": [
-      "2026-11-02 (REGISTRY-UPDATE-2380): branch fix/PLAYBACK-SCRUB-2341 merged at 24ac00bfe into main; first release tag containing it: v2.34.1 (tagged 2026-11-02; smplwise_vms/CHANGELOG.md section 2.34.1). Change record: docs/changes/PLAYBACK-SCRUB-2341.md. The branch was merged through release/2341-train (no merge commit named after it). Status REVIEW = shipped; no acceptance run is recorded in this registry, so AT-PLAYBACK-SCRUB-2341-1 stays NOT_RUN."
+      "2026-11-02 (REGISTRY-UPDATE-2380): branch fix/PLAYBACK-SCRUB-2341 merged at 24ac00bfe into main; first release tag containing it: v2.34.1 (tagged 2026-11-02; smplwise_vms/CHANGELOG.md section 2.34.1). Change record: docs/changes/PLAYBACK-SCRUB-2341.md. The branch was merged through release/2341-train (no merge commit named after it). Status REVIEW = shipped; no acceptance run is recorded in this registry, so AT-PLAYBACK-SCRUB-2341-1 stays NOT_RUN.",
+      "commit 24ac00bfe (release 2.34.1, on origin/main) - 2026-11-06 (V1-REMAINING-2406): the coalesced seeks and hole-free hover previews (fix/PLAYBACK-SCRUB-2341 through release/2341-train); tag v2.34.1. The earlier line named the commit without the `commit` word. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written and the live acceptance stays NOT_RUN as recorded above."
     ],
     "owner": null,
     "commit": null,
@@ -15734,7 +15739,8 @@
     ],
     "evidence": [
       "2026-11-02 (REGISTRY-UPDATE-2380): shipped in v2.14.0 (persistent sign-in, server), v2.15.0 (device key spec), v2.19.0 (WebView session and attestation, offline field work, critical sound) and v2.20.1 (session-exchange fixes owed to the app teams); CHANGELOG sections 2.14.0, 2.15.0, 2.19.0, 2.20.1. Records: docs/changes/CR-APPREFRESH295.md, APPREFRESH-DEVICEKEY-SPEC.md, APPREFRESH-SESSION-EXCHANGE-SPEC.md, CR-ATTEST232.md, CRITSOUND-SPEC.md. Status REVIEW = shipped.",
-      "NOT_RUN: a supervised run on a real phone (session-exchange 303 proof, saved sign-in on the lab server); the session-exchange switch was never turned on."
+      "NOT_RUN: a supervised run on a real phone (session-exchange 303 proof, saved sign-in on the lab server); the session-exchange switch was never turned on.",
+      "commit c9193b6e8 (release 2.14.0, on origin/main); also 070872563 (release 2.19.0, on origin/main) - 2026-11-06 (V1-REMAINING-2406): app refresh tokens slice 1 (APPREFRESH-295, tag v2.14.0) and the WebView session exchange (merge 2948baa00 of pilot/SESSIONEXCH2-295; attestation 37a4c08d6; tag v2.19.0). The earlier line named the releases but no commit id. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written and the live acceptance stays NOT_RUN as recorded above."
     ],
     "owner": null,
     "commit": null,
@@ -18741,7 +18747,8 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "2026-11-04 (REGISTRY-AUDIT-20261103): written (document, not in git). WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T19): written as private/handoff-package/SESSION_2026-11-04/02_WISKEY_ACTIVATION_HE.md (local, gitignored, updated 03.11 evening); its own status line says NOT_RUN - nothing was run against the installation."
+      "2026-11-04 (REGISTRY-AUDIT-20261103): written (document, not in git). WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T19): written as private/handoff-package/SESSION_2026-11-04/02_WISKEY_ACTIVATION_HE.md (local, gitignored, updated 03.11 evening); its own status line says NOT_RUN - nothing was run against the installation.",
+      "commit 443476275 (pilot/V1-REMAINING-2406, not on origin/main, not released) - 2026-11-06 (V1-REMAINING-2406): the ladder in the repository, generic and updated to 2.40.5: docs/operations/WISKEY_ACTIVATION_RUNBOOK.md (door map, provider, signed pairing check, video_talk, listen, station acceptance run, door windows / emergency; screen, writes, expected status rows and reason codes, rollback and approval wording per step) and the drift test smplwise_vms/backend/tests/test_wiskey_activation_runbook.py (16 passed on the workstation; every key, row, reason, pairing line, check, route and label checked against the code, plus a leak scan). Change record docs/changes/V1-REMAINING-2406.md section 3. The runbook itself is NOT_RUN (no session ran it)."
     ],
     "owner": null,
     "commit": null,
@@ -19365,7 +19372,8 @@
     ],
     "evidence": [
       "commit 61d8f1794 (release/2401-train, not on origin/main, not released) - 2026-11-04 (GUIDE-BOARD-2402): in the 2.40.1 gate. merge of fix/BRIDGE-UPDATE-LISTENER-2401 (docs/changes/BRIDGE-UPDATE-LISTENER-2401.md); found by the lab log audit (finding 4).",
-      "2026-11-05: released in v2.40.1 - merged to main and tagged v2.40.1 (0e8c3109b); REVIEW."
+      "2026-11-05: released in v2.40.1 - merged to main and tagged v2.40.1 (0e8c3109b); REVIEW.",
+      "commit 61d8f1794 (release 2.40.1, on origin/main) - 2026-11-06 (V1-REMAINING-2406): merge of fix/BRIDGE-UPDATE-LISTENER-2401, now on origin/main; tag v2.40.1 (release commit 0e8c3109b). The first line's \"not on origin/main\" annotation dates from the gate. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written and the live acceptance stays NOT_RUN as recorded above."
     ],
     "owner": null,
     "commit": null,
@@ -19405,7 +19413,8 @@
     ],
     "evidence": [
       "commit 4d4fdeb7d (release/2401-train, not on origin/main, not released) - 2026-11-04 (GUIDE-BOARD-2402): in the 2.40.1 gate. merge of pilot/WALL-PHONE-TOOLBAR-2401 (docs/changes/WALL-PHONE-TOOLBAR-2401.md). Real phone NOT_RUN.",
-      "2026-11-05: released in v2.40.1 - merged to main and tagged v2.40.1 (0e8c3109b); REVIEW."
+      "2026-11-05: released in v2.40.1 - merged to main and tagged v2.40.1 (0e8c3109b); REVIEW.",
+      "commit 4d4fdeb7d (release 2.40.1, on origin/main) - 2026-11-06 (V1-REMAINING-2406): merge of pilot/WALL-PHONE-TOOLBAR-2401, now on origin/main; tag v2.40.1 (release commit 0e8c3109b). Real phone NOT_RUN as recorded. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written and the live acceptance stays NOT_RUN as recorded above."
     ],
     "owner": null,
     "commit": null,
@@ -19445,7 +19454,8 @@
     ],
     "evidence": [
       "commit b8afa129a (release/2401-train, not on origin/main, not released) - 2026-11-04 (GUIDE-BOARD-2402): in the 2.40.1 gate. merge of pilot/SETTINGS-INTERCOM-CARDS-2401 (docs/changes/SETTINGS-INTERCOM-CARDS-2401.md). Other skins and dark NOT_RUN.",
-      "2026-11-05: released in v2.40.1 - merged to main and tagged v2.40.1 (0e8c3109b); REVIEW."
+      "2026-11-05: released in v2.40.1 - merged to main and tagged v2.40.1 (0e8c3109b); REVIEW.",
+      "commit b8afa129a (release 2.40.1, on origin/main) - 2026-11-06 (V1-REMAINING-2406): merge of pilot/SETTINGS-INTERCOM-CARDS-2401, now on origin/main; tag v2.40.1 (release commit 0e8c3109b). Other skins and dark NOT_RUN as recorded. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written and the live acceptance stays NOT_RUN as recorded above."
     ],
     "owner": null,
     "commit": null,
@@ -19484,7 +19494,8 @@
     ],
     "evidence": [
       "commit 604305354 (release/2401-train, not on origin/main, not released) - 2026-11-04 (GUIDE-BOARD-2402): in the gate. version commit 604305354, UI rebuild d6e20460f (docs/changes/RELEASE-2401-TRAIN.md on the train); gate, merge to main and tag v2.40.1 pending.",
-      "2026-11-05: released in v2.40.1 - merged to main and tagged v2.40.1 (0e8c3109b); REVIEW."
+      "2026-11-05: released in v2.40.1 - merged to main and tagged v2.40.1 (0e8c3109b); REVIEW.",
+      "commit 604305354 (release 2.40.1, on origin/main) - 2026-11-06 (V1-REMAINING-2406): version commit of release 2.40.1, now on origin/main; UI rebuild and tag v2.40.1 = 0e8c3109b. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written and the live acceptance stays NOT_RUN as recorded above."
     ],
     "owner": null,
     "commit": null,
@@ -19866,7 +19877,7 @@
     "test_ids": [
       "AT-VIDEO-2403-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -19880,7 +19891,8 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit 818e2a7d4 (release/2403-train, not on origin/main, not released) - 2026-11-05: merge of pilot/VIDEO-2403 (docs/changes/VIDEO-2403.md) into the 2.40.3 train. Lab check NOT_RUN."
+      "commit 818e2a7d4 (release/2403-train, not on origin/main, not released) - 2026-11-05: merge of pilot/VIDEO-2403 (docs/changes/VIDEO-2403.md) into the 2.40.3 train. Lab check NOT_RUN.",
+      "commit 818e2a7d4 (release 2.40.3, on origin/main) - 2026-11-06 (V1-REMAINING-2406): merge of pilot/VIDEO-2403, released in v2.40.3 (tag commit dbb9e18a5); IN_PROGRESS -> REVIEW (no dependencies). Lab check NOT_RUN as recorded. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written and the live acceptance stays NOT_RUN as recorded above."
     ],
     "owner": null,
     "commit": "cb4b47767",
@@ -19905,7 +19917,7 @@
     "test_ids": [
       "AT-SKIN-QA-2403-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -19919,7 +19931,8 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit 41d8a2e72 (release/2403-train, not on origin/main, not released) - 2026-11-05: merge of pilot/SKIN-QA-2403 (docs/changes/SKIN-QA-2403.md) into the 2.40.3 train. Shared-component findings K1 / K2 left for the owner."
+      "commit 41d8a2e72 (release/2403-train, not on origin/main, not released) - 2026-11-05: merge of pilot/SKIN-QA-2403 (docs/changes/SKIN-QA-2403.md) into the 2.40.3 train. Shared-component findings K1 / K2 left for the owner.",
+      "commit 41d8a2e72 (release 2.40.3, on origin/main) - 2026-11-06 (V1-REMAINING-2406): merge of pilot/SKIN-QA-2403, released in v2.40.3 (tag commit dbb9e18a5); IN_PROGRESS -> REVIEW (no dependencies). Shared-component findings K1 / K2 stay with the owner (answered in round 22, built by SKIN-QA-FOLLOWUP-2404). REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written and the live acceptance stays NOT_RUN as recorded above."
     ],
     "owner": null,
     "commit": "cb4b47767",
@@ -19944,7 +19957,7 @@
     "test_ids": [
       "AT-BOARD-HYGIENE-2403-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -19958,7 +19971,8 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit dc142795c (release/2403-train, not on origin/main, not released) - 2026-11-05: merge of chore/BOARD-HYGIENE-2403 (docs/changes/BOARD-HYGIENE-2403.md) into the 2.40.3 train; the views regenerated on the train."
+      "commit dc142795c (release/2403-train, not on origin/main, not released) - 2026-11-05: merge of chore/BOARD-HYGIENE-2403 (docs/changes/BOARD-HYGIENE-2403.md) into the 2.40.3 train; the views regenerated on the train.",
+      "commit dc142795c (release 2.40.3, on origin/main) - 2026-11-06 (V1-REMAINING-2406): merge of chore/BOARD-HYGIENE-2403, released in v2.40.3 (tag commit dbb9e18a5); IN_PROGRESS -> REVIEW (no dependencies). Its two owner questions were answered on 2026-11-05 and applied by BOARD-RULE-2404. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written and the live acceptance stays NOT_RUN as recorded above."
     ],
     "owner": null,
     "commit": "cb4b47767",
@@ -19983,7 +19997,7 @@
     "test_ids": [
       "AT-HA-2026-11-COMPAT-2404-1"
     ],
-    "status": "IN_PROGRESS",
+    "status": "REVIEW",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -19997,7 +20011,8 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "commit ab9416e09 (release/2404-train, not on origin/main, not released) - 2026-11-05: merge of fix/HA-2026-11-COMPAT-2404 (docs/changes/HA-2026-11-COMPAT-2404.md) into the 2.40.4 train. Lab check after the Home Assistant 2026.11 upgrade NOT_RUN."
+      "commit ab9416e09 (release/2404-train, not on origin/main, not released) - 2026-11-05: merge of fix/HA-2026-11-COMPAT-2404 (docs/changes/HA-2026-11-COMPAT-2404.md) into the 2.40.4 train. Lab check after the Home Assistant 2026.11 upgrade NOT_RUN.",
+      "commit ab9416e09 (release 2.40.4, on origin/main) - 2026-11-06 (V1-REMAINING-2406): merge of fix/HA-2026-11-COMPAT-2404, released in v2.40.4 (tag commit eab715e53); IN_PROGRESS -> REVIEW (no dependencies). Lab check after the Home Assistant 2026.11 upgrade NOT_RUN as recorded. REVIEW = shipped; the formal acceptance record (tests PASS tied to a commit) is still to be written and the live acceptance stays NOT_RUN as recorded above."
     ],
     "owner": null,
     "commit": "cb4b47767",
