@@ -86,7 +86,18 @@ POLL_S = 30.0
 VIEW_WINDOW_S = 2 * POLL_S  # a GET within this window counts as someone looking (a socket-less client GETs every 30 s)
 RETRY_S = 5.0  # reconnect backoff: 5 s doubling to RETRY_MAX_S
 RETRY_MAX_S = 60.0
-RETRY_ABSENT_S = 300.0  # WisKey missing or refusing us: re-probe every five minutes, not every few seconds
+# WisKey missing or refusing us while HA itself answers: re-probe on a slow ladder, not every few seconds - 15 s, 30 s,
+# then every RETRY_ABSENT_S. FOLLOWUPS-2406: it was a flat five minutes, so a WisKey back after a long absence (an HA
+# restart that loaded it late, an update) waited up to five minutes; one `overview` a minute on an open socket is cheap.
+RETRY_ABSENT_FIRST_S = 15.0
+RETRY_ABSENT_S = 60.0  # the ladder's cap
+
+
+def absent_delay(probes: int) -> float:
+    """The wait before the next re-probe after `probes` consecutive absent answers (1 = the first): 15, 30, 60, 60 ..."""
+    return min(RETRY_ABSENT_S, RETRY_ABSENT_FIRST_S * 2 ** min(16, max(0, probes - 1)))  # the exponent capped: no float overflow after days
+
+
 ABSENT_AFTER_READY = 3  # after a ready session, `unknown_command` with HA RUNNING must repeat this often to mean "removed"
 LOADING = "wiskey_loading"  # IntercomError code: HA does not know WisKey's commands yet, but may still be loading it
 STATION_WATCH_KEYS = ("online", "ringing", "call_status")
@@ -249,7 +260,9 @@ _sub_lock = threading.Lock()
 
 
 def subscribe() -> queue.Queue:
-    q: queue.Queue = queue.Queue(maxsize=100)
+    from .push_queue import PushQueue  # FOLLOWUPS-2406: the /intercom/ws handler waits on it without a thread
+
+    q: queue.Queue = PushQueue(maxsize=100)
     with _sub_lock:
         _subscribers.append(q)
     return q
@@ -1640,9 +1653,11 @@ class IntercomSync:
             stop_evt.set()
 
         asyncio.create_task(watch_stop())
+        absent = 0  # consecutive "not installed" / "forbidden" answers on a working HA socket (the re-probe ladder)
         while not self.stop.is_set():
             delay = backoff
             short = False  # HA is answering but WisKey is still loading: retry soon, whatever the backoff had reached
+            was_absent, absent = absent, 0
             try:
                 await self._session(stop_evt)
                 backoff = RETRY_S
@@ -1657,7 +1672,8 @@ class IntercomSync:
                 elif exc.not_installed or exc.code == "unauthorized":
                     self._drop()
                     self._set_state("not_installed" if exc.not_installed else "forbidden", exc.code)
-                    delay = RETRY_ABSENT_S
+                    absent = was_absent + 1
+                    delay = absent_delay(absent)
                 else:
                     self._set_state("error", exc.code)
                 if STATE.last_error != self._logged_error:  # an absent integration is logged once, not every probe
@@ -1668,15 +1684,15 @@ class IntercomSync:
                     break
                 code = exc.code if isinstance(exc, ApiError) else type(exc).__name__
                 self._set_state("ha_unavailable", code)
-                log.warning("WisKey feed disconnected: %s (retry in %.0fs)", code, delay)
+                if code == "ha_forbidden":  # FOLLOWUPS-2406: a refused token waits on ha_client's slow shared ladder
+                    delay = max(delay, ha_client.refused_wait(self.settings.ha_token))
+                if not (isinstance(exc, ApiError) and exc.details.get("held")):  # a held attempt never reached HA
+                    log.warning("WisKey feed disconnected: %s (retry in %.0fs)", code, delay)
             if STATE.connected:
                 STATE.reconnects += 1
                 _lease_hook("feed_reconnect")  # CR-WISKEY-LEASE-REVOCATION-EVENT T8: a feed reconnect revokes every live capture lease
             STATE.connected = False
-            try:
-                await asyncio.wait_for(stop_evt.wait(), timeout=delay)
-            except asyncio.TimeoutError:
-                pass
+            await ha_client.wait_or_reset(delay, stop_evt)  # a reset of the refused-token ladder ends the wait at once
             backoff = RETRY_S if short else min(RETRY_MAX_S, backoff * 2)
         STATE.connected = False
 

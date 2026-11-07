@@ -25,7 +25,7 @@ from ..db import Database, bump_permission_revision, get_setting, is_storage_ful
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, permissions_anywhere, require
 from ..services import bridge_install, bridge_rotation_peer as peer_mod, building_scope, device_activity, door_authority, door_path_guard, ha_actions, ha_bridge, ha_client, ha_scope, ha_sync, intercom_doors, media_store
-from ..services import bridge_discovery, service_identity
+from ..services import bridge_discovery, push_queue, service_identity
 from ..services import devices as dsvc
 from ..services.timeutil import iso_utc, parse_utc
 from .media import _principal_for_ws
@@ -838,7 +838,7 @@ async def ha_ws(websocket: WebSocket) -> None:
     try:
         while True:
             try:
-                msg = await asyncio.wait_for(asyncio.get_event_loop().run_in_executor(None, q.get, True, 30), timeout=31)
+                msg = await push_queue.next_item(q, 30)  # FOLLOWUPS-2406: no executor thread held per socket
             except (asyncio.TimeoutError, queue.Empty):
                 seq += 1
                 await websocket.send_text(json.dumps({"version": 1, "type": "heartbeat", "sequence": seq, "subscription_id": principal.user_id, "occurred_at": now_iso(), "received_at": now_iso(), "payload": {"sync": ha_sync.STATE.as_dict()}}))

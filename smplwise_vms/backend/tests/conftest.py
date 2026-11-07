@@ -299,6 +299,43 @@ def _storage_report_cache_is_per_test():
     storage.invalidate()
 
 
+@pytest.fixture(autouse=True)
+def _ha_token_refusals_are_per_test():
+    """FOLLOWUPS-2406: `ha_client` keeps a process-wide ledger of tokens Home Assistant refused (keyed by a hash of the token) and
+    holds the next WebSocket session with such a token for up to 15 minutes. The fakes all use the token "t": a refusal scripted
+    in one test must not hold the next test's session."""
+    from smplwise.services import ha_client
+
+    ha_client.reset_refusals()
+    yield
+    ha_client.reset_refusals()
+
+
+def _intercom_feed_idle() -> None:
+    from smplwise.services import intercom_sync
+
+    thread = intercom_sync.SYNC.thread
+    if thread is not None and thread.is_alive():
+        return  # a feed a test started is still winding down: never pulled from under it
+    intercom_sync.STATE.reset()
+    with intercom_sync.SYNC._cache_lock:
+        cached = intercom_sync.SYNC._cache is not None
+    if cached:
+        intercom_sync.SYNC._drop()
+
+
+@pytest.fixture(autouse=True)
+def _intercom_feed_state_is_per_test():
+    """FOLLOWUPS-2406: the WisKey feed's STATE (state, WisKey version, counters) and its served copy are process-wide. A test that
+    put a copy there (tests/fake_trusted_bridge.FakeWisKeyFeed before this fix: a copy without `station-1`) or stored an overview
+    on a private IntercomSync (its `_store` writes the module STATE: WisKey 4.2.0) left it to every later test of the worker:
+    test_notify_channels::test_release_route_* got 404 before the origin was audited, and test_wiskey_pairing_2382's rotation
+    line read "WisKey present". Both failed in a combined run and passed alone. Put back to idle before and after each test."""
+    _intercom_feed_idle()
+    yield
+    _intercom_feed_idle()
+
+
 def _pristine_ha_link() -> dict:
     from smplwise.services import ha_sync
 

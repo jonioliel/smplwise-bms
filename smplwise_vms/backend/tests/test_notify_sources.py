@@ -324,7 +324,11 @@ def test_a_second_ring_inside_a_minute_folds_and_a_lost_end_is_swept(w, clock):
     assert w.one("door.ring")["state"] == "resolved"
 
 
-def test_the_real_intercom_cache_store_signals_a_ring(w, clock):
+def test_the_real_intercom_cache_store_signals_a_ring(w, clock, monkeypatch):
+    # FOLLOWUPS-2406: `_store` writes the module-wide feed STATE (the WisKey version, the counters) even on a private IntercomSync;
+    # it is put back after the test (the version left here read as "WisKey present" in test_wiskey_pairing_2382's rotation line)
+    for key, value in vars(intercom_sync.STATE).items():
+        monkeypatch.setattr(intercom_sync.STATE, key, value)
     sync = intercom_sync.IntercomSync()
     ov = copy.deepcopy(OVERVIEW)
     sync._store(ov)

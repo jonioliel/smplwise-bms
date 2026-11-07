@@ -111,9 +111,12 @@ class FakeWisKeyFeed:
     def install(self, monkeypatch: Any) -> "FakeWisKeyFeed":
         sync = intercom_sync.SYNC
         sync.reset()
+        # FOLLOWUPS-2406: through monkeypatch, so the copy and the `ready` state go with the test. Set directly, they stayed in the
+        # process: every later test saw a WisKey copy without its station (the release route answered 404 before it recorded the
+        # notification origin - test_notify_channels::test_release_route_* failed after the bridge-key files).
         with sync._cache_lock:
-            sync._cache = intercom_sync.project_overview(copy.deepcopy(self.raw))
-        intercom_sync.STATE.state = "ready"
+            monkeypatch.setattr(sync, "_cache", intercom_sync.project_overview(copy.deepcopy(self.raw)))
+        monkeypatch.setattr(intercom_sync.STATE, "state", "ready")
         monkeypatch.setattr(sync, "served", lambda settings: ("ready", sync._cache))
         monkeypatch.setattr(sync, "action", self.action)
         return self

@@ -325,6 +325,9 @@ def apply_live(app: Any, name: str, value: str | None) -> None:
     their start-up copy until the next start (`restart_required`)."""
     spec = _spec(name)
     _set_env(spec, value, True)
+    from . import ha_client
+
+    ha_client.reset_refusals()  # FOLLOWUPS-2406: a saved secret may be the new token - a refused one is not held any longer
     if spec.field is None:
         return
     app.state.settings = _with_values(app.state.settings, {name: value})

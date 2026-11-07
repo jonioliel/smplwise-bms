@@ -314,7 +314,10 @@ def test_s02_bridge_execute_transport_failures_are_told_apart(bridge):
 def test_s03_token_revoked(feed, monkeypatch, ha_state_saved):
     """HA refuses the add-on's token: every reconnect is answered `auth_invalid`. Nothing is sent, the summary says the access
     was refused (an error, not "reconnecting" - waiting does not heal a revoked token), and once a valid token is back the feed
-    returns by itself, without a replay."""
+    returns by itself, without a replay. FOLLOWUPS-2406: the retries wait on ha_client's slow refused-token ladder (30 s doubling
+    to 15 minutes in production; scaled down here to 0.1 s doubling to 0.4 s)."""
+    monkeypatch.setattr(ha_client, "REFUSED_FIRST_S", 0.1)
+    monkeypatch.setattr(ha_client, "REFUSED_MAX_S", 0.4)
     gate: dict[str, Any] = {}
     app, s, fakes, c = start_feed(feed, monkeypatch, gate)
     gate["revoked"] = True
@@ -328,7 +331,7 @@ def test_s03_token_revoked(feed, monkeypatch, ha_state_saved):
     assert item["status"] == "error" and "דחתה את הרשאת הגישה" in item["label"], item
     tries = len(fakes)
     time.sleep(0.5)
-    assert len(fakes) > tries, "it keeps trying on its backoff (it does not give up)"
+    assert len(fakes) > tries, "it keeps trying on its (slow) backoff (it does not give up)"
     gate["revoked"] = False  # a valid token again (the add-on restarted with a fresh Supervisor token / the owner's new token)
     wait_for(lambda: intercom_sync.STATE.state == "ready", what="token back")
     ha_state_saved.connected, ha_state_saved.last_error = True, None
@@ -353,8 +356,8 @@ def test_s03_bridge_execute_refused_token(bridge):
 
 def test_s04_wiskey_restarting(feed, monkeypatch):
     """WisKey reloads while HA keeps RUNNING. (a) back within the re-probe window: the feed stays `connecting` with the copy and
-    returns to ready by itself; (b) away longer: concluded `not_installed` (copy dropped), re-probed on RETRY_ABSENT_S (five
-    minutes in production, shortened here) and back by itself. Every release in between is refused, never sent later."""
+    returns to ready by itself; (b) away longer: concluded `not_installed` (copy dropped), re-probed on the absent ladder
+    (15 s, 30 s, then RETRY_ABSENT_S = 60 s in production since FOLLOWUPS-2406; capped short here) and back by itself. Every release in between is refused, never sent later."""
     monkeypatch.setattr(intercom_sync, "ABSENT_AFTER_READY", 1000)
     gate: dict[str, Any] = {}
     app, s, fakes, c = start_feed(feed, monkeypatch, gate)
@@ -380,7 +383,7 @@ def test_s04_wiskey_restarting(feed, monkeypatch):
     assert unlocks(fakes) == 0 and release(c).status_code == 200 and unlocks(fakes) == 1
     record("S04 WisKey restarting", within_window=[a.status_code, a.json()["details"].get("state"), "copy kept, not fresh"],
            beyond_window=[b.status_code, b.json()["details"].get("state"), "copy dropped"], unlock_frames=unlocks(fakes),
-           recovered_without_manual_step=True, known_limit=f"beyond the window the re-probe waits RETRY_ABSENT_S (production {300.0:.0f} s)")
+           recovered_without_manual_step=True, known_limit="beyond the window the re-probe waits 15 s, 30 s, then 60 s (production ladder, FOLLOWUPS-2406)")
 
 
 def test_s04_wiskey_unavailable_station_offline_and_no_answer(feed, monkeypatch):

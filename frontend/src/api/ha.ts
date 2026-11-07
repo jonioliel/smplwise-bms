@@ -127,6 +127,10 @@ export interface HaSyncState {
   /** The last registry refresh that actually changed floors / areas / entities. */
   last_structure_at?: string | null;
   registry_events?: number;
+  /** FOLLOWUPS-2406: the platform refused the add-on's token this many times in a row (0 while accepted). */
+  auth_refusals?: number;
+  /** FOLLOWUPS-2406: when the next, rate-limited attempt with the refused token is due (UTC), or null. */
+  next_attempt_at?: string | null;
 }
 
 export interface HaStatus {

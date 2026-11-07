@@ -406,6 +406,15 @@ export class SwTabs extends LitElement {
   private resizeObs: ResizeObserver | null = null;
   private observedRow: Element | null = null;
   private onScroll = () => this.updateFade();
+  /** FOLLOWUPS-2406: the person moved this strip (wheel, swipe, an arrow, the arrow keys) since its tabs were set. Until then the
+   * automatic reveal is path-independent: it starts from the start edge every time, so the scroll position depends only on the
+   * strip's final width - not on which of the shell's intermediate placements (the title-row chips from 1100 px, the fit pump)
+   * a resize callback happened to see first. Once the person scrolled, a reveal only nudges the active tab into view. */
+  private manual = false;
+  private itemsKey = '';
+  private onPointerDown = () => {
+    this.manual = true;
+  };
 
   connectedCallback() {
     super.connectedCallback();
@@ -464,6 +473,7 @@ export class SwTabs extends LitElement {
     const vp = this.viewport;
     if (!e || !vp) return;
     const left = pageDelta(side, this.rtl, e);
+    this.manual = true;
     if (left) vp.scrollBy({ left, behavior: this.smooth });
   }
 
@@ -478,6 +488,7 @@ export class SwTabs extends LitElement {
     const left = wheelDelta(dx, dy, this.rtl, e, 1);
     if (!left) return;
     ev.preventDefault();
+    this.manual = true;
     vp.scrollBy({ left, behavior: 'instant' as ScrollBehavior });
   };
 
@@ -499,6 +510,7 @@ export class SwTabs extends LitElement {
     ev.preventDefault();
     const el = tabs[next];
     el.focus({ preventScroll: true });
+    this.manual = true;
     this.reveal(el, this.smooth);
   };
 
@@ -519,6 +531,12 @@ export class SwTabs extends LitElement {
       if (this.observedRow) this.resizeObs?.unobserve(this.observedRow);
       if (row) this.resizeObs?.observe(row);
       this.observedRow = row;
+    }
+    if (changed.has('items')) {
+      // another set of tabs (not merely a new array with a changed count or badge): back to the path-independent reveal
+      const key = this.items.map((i) => i.id).join('|');
+      if (key !== this.itemsKey) this.manual = false;
+      this.itemsKey = key;
     }
     if (changed.has('active') || changed.has('items') || changed.has('variant') || changed.has('underline') || changed.has('adaptive')) this.revealActive();
     this.updateFade();
@@ -560,10 +578,15 @@ export class SwTabs extends LitElement {
     if (left) vp.scrollBy({ left, behavior });
   }
 
-  /** The active tab, on load, on a route / selection change and when the box or the font changes. */
+  /** The active tab, on load, on a route / selection change and when the box or the font changes. Until the person scrolled the
+   * strip, from the start edge (scrollLeft 0 is the start in both directions), so the outcome is the same whatever width an earlier
+   * call saw - both steps run in one task, before any paint, so nothing flickers. */
   private revealActive() {
     const on = this.renderRoot.querySelector<HTMLElement>('.on');
-    if (on) this.reveal(on, 'instant' as ScrollBehavior);
+    if (!on) return;
+    const vp = this.viewport;
+    if (vp && !this.manual && vp.scrollLeft !== 0) vp.scrollLeft = 0;
+    this.reveal(on, 'instant' as ScrollBehavior);
   }
 
   private choose(item: TabItem) {
@@ -596,7 +619,7 @@ export class SwTabs extends LitElement {
         : html`<button type="button" role="tab" class=${it.id === this.active ? 'on' : ''} aria-selected=${it.id === this.active} tabindex=${i === stop ? 0 : -1} @click=${() => this.choose(it)}>${label(it)}</button>`,
     )}</div>`;
     // SETTINGS-TABS-SCROLL-2331: the viewport scrolls (swipe, wheel, the arrows, the arrow keys); the two arrows sit over its ends
-    return html`<div class="vp" part="viewport" data-tabs-viewport @scroll=${this.onScroll} @wheel=${{ handleEvent: this.onWheel, passive: false }}>${row}</div><div class="arr start" data-tabs-arrow="start" aria-hidden="true" @click=${() => this.step('start')}><span class="knob"><sw-icon name="chevronBack" size=${14}></sw-icon></span></div><div class="arr end" data-tabs-arrow="end" aria-hidden="true" @click=${() => this.step('end')}><span class="knob"><sw-icon name="chevron" size=${14}></sw-icon></span></div>`;
+    return html`<div class="vp" part="viewport" data-tabs-viewport @scroll=${this.onScroll} @pointerdown=${this.onPointerDown} @wheel=${{ handleEvent: this.onWheel, passive: false }}>${row}</div><div class="arr start" data-tabs-arrow="start" aria-hidden="true" @click=${() => this.step('start')}><span class="knob"><sw-icon name="chevronBack" size=${14}></sw-icon></span></div><div class="arr end" data-tabs-arrow="end" aria-hidden="true" @click=${() => this.step('end')}><span class="knob"><sw-icon name="chevron" size=${14}></sw-icon></span></div>`;
   }
 }
 

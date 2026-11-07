@@ -395,6 +395,118 @@ def call_bridge_stream_source(settings: Settings, payload: dict[str, Any], timeo
     return {k: answer[k] for k in ("ok", "request_id", "error", "stream_source") if isinstance(answer, dict) and k in answer}
 
 
+# FOLLOWUPS-2406: a token Home Assistant REFUSED at the WebSocket `auth` step (`auth_invalid`) is not tried again on the
+# reconnect loops' normal back-off (at least once a minute, by three loops): Home Assistant's IP ban
+# (`http: login_attempts_threshold`) counts failed logins, so a revoked token retried for hours could get the add-on's
+# address banned. After a refusal every WebSocket session with THAT token waits on one shared, slow ladder - 30 s, 60 s,
+# 120 s ... capped at REFUSED_MAX_S (15 minutes) - and only one attempt is let through per step, whichever loop asks
+# first; a session asked for in between is refused at once with the same `ha_forbidden` (details `held: true`), without
+# contacting Home Assistant. The ledger is keyed by a hash of the token (never the token), so a NEW token is never held;
+# `auth_ok` forgets it, and `reset_refusals()` (the add-on restarted the platform, a secret was saved) clears it all and
+# wakes the waiting loops at once. REST calls are not gated: they are made on demand, at a person's pace.
+REFUSED_FIRST_S = 30.0
+REFUSED_MAX_S = 900.0
+_refusals_lock = threading.Lock()
+_refusals: dict[str, dict[str, Any]] = {}  # token hash -> {"count", "next" (monotonic), "since" (wall clock)}
+_refusals_generation = 0  # bumped by reset_refusals(): a loop waiting out a refusal wakes when it changes
+
+
+def _token_key(token: str | None) -> str:
+    import hashlib
+
+    return hashlib.sha256((token or "").encode("utf-8")).hexdigest()[:24]
+
+
+def refused_step(count: int) -> float:
+    """The wait after the `count`-th consecutive refusal (1 = the first): 30, 60, 120, 240, 480, 900, 900 ..."""
+    return min(REFUSED_MAX_S, REFUSED_FIRST_S * 2 ** min(32, max(0, count - 1)))
+
+
+def refused_wait(token: str | None) -> float:
+    """Seconds until a session with this token may contact Home Assistant again (0 = not held)."""
+    with _refusals_lock:
+        entry = _refusals.get(_token_key(token))
+        return 0.0 if entry is None else max(0.0, entry["next"] - _monotonic())
+
+
+def refusal_state(token: str | None) -> dict[str, Any] | None:
+    """{refusals, since, next_attempt_at} for a refused token (wall-clock ISO times), None when it is not refused."""
+    import datetime as _dt
+
+    with _refusals_lock:
+        entry = _refusals.get(_token_key(token))
+        if entry is None:
+            return None
+        wait = max(0.0, entry["next"] - _monotonic())
+        nxt = _dt.datetime.now(_dt.timezone.utc) + _dt.timedelta(seconds=wait)
+        return {"refusals": entry["count"], "since": entry["since"], "next_attempt_at": nxt.isoformat(timespec="seconds").replace("+00:00", "Z")}
+
+
+def _claim_attempt(token: str | None) -> float:
+    """0 = go ahead (for a refused token: this caller takes the one attempt of the current step, the others keep waiting);
+    otherwise the seconds still to wait."""
+    with _refusals_lock:
+        entry = _refusals.get(_token_key(token))
+        if entry is None:
+            return 0.0
+        now = _monotonic()
+        if now < entry["next"]:
+            return entry["next"] - now
+        entry["next"] = now + refused_step(entry["count"])  # reserved: one attempt per step, whatever its outcome
+        return 0.0
+
+
+def note_refused(token: str | None) -> None:
+    import datetime as _dt
+
+    with _refusals_lock:
+        key = _token_key(token)
+        entry = _refusals.setdefault(key, {"count": 0, "next": 0.0, "since": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")})
+        entry["count"] += 1
+        entry["next"] = _monotonic() + refused_step(entry["count"])
+        count, wait = entry["count"], entry["next"] - _monotonic()
+    log.warning("Home Assistant refused the add-on's token (%d in a row); the next attempt in %.0f s", count, wait)
+
+
+def note_accepted(token: str | None) -> None:
+    with _refusals_lock:
+        _refusals.pop(_token_key(token), None)
+
+
+def reset_refusals() -> None:
+    """A new token or setting may have arrived (the add-on restarted the platform, a secret was saved): forget every refusal
+    and wake the loops that wait one out."""
+    global _refusals_generation
+    with _refusals_lock:
+        _refusals.clear()
+        _refusals_generation += 1
+
+
+def refusals_generation() -> int:
+    return _refusals_generation
+
+
+async def wait_or_reset(delay: float, stop: asyncio.Event) -> None:
+    """Sleep `delay` seconds, ending early when `stop` is set or reset_refusals() was called meanwhile."""
+    gen = _refusals_generation
+    loop = asyncio.get_running_loop()
+    end = loop.time() + delay
+    while not stop.is_set() and _refusals_generation == gen:
+        left = end - loop.time()
+        if left <= 0:
+            return
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=min(1.0, left))
+        except asyncio.TimeoutError:
+            pass
+
+
+def _monotonic() -> float:
+    import time
+
+    return time.monotonic()
+
+
 async def ws_session(
     settings: Settings,
     on_ready: Callable[[Callable[[str, dict[str, Any]], Any]], Any],
@@ -417,6 +529,10 @@ async def ws_session(
     dial does (services/ha_user_auth._dial). The token is never logged."""
     import websockets
 
+    auth_token = token or settings.ha_token
+    held = _claim_attempt(auth_token)
+    if held > 0:  # FOLLOWUPS-2406: this token was refused; Home Assistant is not asked again before its step
+        raise ApiError(503, "ha_forbidden", "תשתית המערכת דחתה את האסימון.", details={"held": True, "retry_in_s": int(held) + 1})
     kw: dict[str, Any] = {}
     target = url or _ws_url(settings)
     if internal_tls and target.startswith("wss://"):
@@ -430,10 +546,13 @@ async def ws_session(
         hello = json.loads(await ws.recv())
         if hello.get("type") != "auth_required":
             raise RuntimeError("unexpected hello")
-        await ws.send(json.dumps({"type": "auth", "access_token": token or settings.ha_token}))
+        await ws.send(json.dumps({"type": "auth", "access_token": auth_token}))
         auth = json.loads(await ws.recv())
         if auth.get("type") != "auth_ok":
+            if auth.get("type") == "auth_invalid":  # a refusal (anything else is a broken handshake, not counted)
+                note_refused(auth_token)
             raise ApiError(503, "ha_forbidden", "תשתית המערכת דחתה את האסימון.")
+        note_accepted(auth_token)
         counter = {"id": 0}
         pending: dict[int, asyncio.Future] = {}
 

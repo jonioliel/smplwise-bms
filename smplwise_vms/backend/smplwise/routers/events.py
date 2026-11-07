@@ -21,7 +21,7 @@ from ..db import Database, database_of, new_id, now_iso
 from ..errors import ApiError
 from ..mode import is_ha_only
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..services import correlation, events_cache, events_derive, events_ingest, revocation, spotlights, thumbnails
+from ..services import correlation, events_cache, events_derive, events_ingest, push_queue, revocation, spotlights, thumbnails
 from ..services.access import RowScope, camera_allowed, require_camera, row_scope
 from ..services.timeutil import iso_utc, local_day_bounds, parse_utc, zone
 from .media import _principal_for_ws
@@ -869,7 +869,7 @@ async def events_ws(websocket: WebSocket) -> None:
     try:
         while True:
             try:
-                ev = await asyncio.wait_for(asyncio.get_event_loop().run_in_executor(None, q.get, True, 30), timeout=31)
+                ev = await push_queue.next_item(q, 30)  # FOLLOWUPS-2406: no executor thread held per socket
             except (asyncio.TimeoutError, queue.Empty):
                 seq += 1
                 await websocket.send_text(json.dumps({"version": 1, "type": "heartbeat", "sequence": seq, "subscription_id": principal.user_id, "occurred_at": now_iso(), "received_at": now_iso(), "payload": {"ingest": events_ingest.STATE.as_dict()}}))

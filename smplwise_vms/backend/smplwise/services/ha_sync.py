@@ -123,6 +123,10 @@ class SyncState:
         self.last_registry_error: str | None = None  # the listing that failed on the last refresh (mirror kept)
         self.last_structure_at: str | None = None  # the last refresh that actually changed floors / areas / entities
         self.registry_events = 0  # registry-updated events seen since start
+        # FOLLOWUPS-2406: the platform refused the add-on's token - how many times in a row, and when the next (slow,
+        # rate-limited) attempt is due; 0 / None while the token is accepted
+        self.auth_refusals = 0
+        self.next_attempt_at: str | None = None
 
     def __setattr__(self, name: str, value: Any) -> None:
         # when the connection was lost (monotonic): the NVR-less health reports an HA outage past a grace period
@@ -140,7 +144,7 @@ class SyncState:
 
     def as_dict(self) -> dict[str, Any]:
         return {k: getattr(self, k) for k in ("connected", "last_snapshot_at", "last_event_at", "last_registry_at", "last_error", "reconnects", "sequence", "entities", "started_at", "ha_version",
-                                              "last_registry_error", "last_structure_at", "registry_events")}
+                                              "last_registry_error", "last_structure_at", "registry_events", "auth_refusals", "next_attempt_at")}
 
 
 STATE = SyncState()
@@ -183,14 +187,18 @@ _reset_backoff = threading.Event()
 
 
 def note_restart_initiated() -> None:
-    """The add-on itself restarted the platform: the next wait ends now and the back-off starts over."""
+    """The add-on itself restarted the platform: the next wait ends now and the back-off starts over (a refused token is tried
+    again at once too - FOLLOWUPS-2406)."""
+    ha_client.reset_refusals()
     _reset_backoff.set()
 _subscribers: list[queue.Queue] = []
 _sub_lock = threading.Lock()
 
 
 def subscribe() -> queue.Queue:
-    q: queue.Queue = queue.Queue(maxsize=500)
+    from .push_queue import PushQueue  # FOLLOWUPS-2406: the /ha/ws handler waits on it without a thread
+
+    q: queue.Queue = PushQueue(maxsize=500)
     with _sub_lock:
         _subscribers.append(q)
     return q
@@ -799,20 +807,30 @@ class HaSync:
                 STATE.last_error = classify_failure(exc)
                 if down_since is None:
                     down_since = time.monotonic()
-                log.warning("HA sync disconnected: %s (%s; retry in %.0fs)", STATE.last_error, type(exc).__name__, backoff)
+                held = isinstance(exc, ApiError) and bool((exc.details or {}).get("held"))
+                if STATE.last_error == "ha_forbidden":
+                    # FOLLOWUPS-2406: a refused token waits on ha_client's slow shared ladder (up to 15 minutes), not on the
+                    # 60 s cap - every refused `auth` can count toward the platform's IP ban
+                    backoff = max(backoff, ha_client.refused_wait(self.settings.ha_token))
+                refusal = ha_client.refusal_state(self.settings.ha_token)
+                STATE.auth_refusals = refusal["refusals"] if refusal else 0
+                STATE.next_attempt_at = refusal["next_attempt_at"] if refusal else None
+                if not held:  # a held attempt never reached the platform: nothing new to log
+                    log.warning("HA sync disconnected: %s (%s; retry in %.0fs)", STATE.last_error, type(exc).__name__, backoff)
             if STATE.connected:
                 STATE.reconnects += 1
             STATE.connected = False
             publish({"type": "ha_sync_state", "connected": False})
             # a restart started by the add-on itself cuts the wait short (polled: the loop has no cross-thread wake-up)
             waited = 0.0
-            while waited < backoff and not _reset_backoff.is_set() and not stop_evt.is_set():
+            generation = ha_client.refusals_generation()
+            while waited < backoff and not _reset_backoff.is_set() and not stop_evt.is_set() and ha_client.refusals_generation() == generation:
                 try:
                     await asyncio.wait_for(stop_evt.wait(), timeout=min(1.0, backoff - waited))
                 except asyncio.TimeoutError:
                     pass
                 waited += 1.0
-            if _reset_backoff.is_set():
+            if _reset_backoff.is_set() or ha_client.refusals_generation() != generation:
                 _reset_backoff.clear()
                 backoff, down_since = BACKOFF_START_S, time.monotonic()
                 continue
@@ -925,6 +943,7 @@ class HaSync:
                 raise RuntimeError("subscribe_events refused")
             STATE.connected = True
             STATE.last_error = None
+            STATE.auth_refusals, STATE.next_attempt_at = 0, None
             ready_seen[0] = True
             lost, self._ha_lost_at = self._ha_lost_at, None
             if lost:  # the platform came back after a drop: a "restart needed" reason that was added before the drop is satisfied

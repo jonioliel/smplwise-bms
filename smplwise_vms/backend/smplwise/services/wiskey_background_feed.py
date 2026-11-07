@@ -197,9 +197,11 @@ class BackgroundFeed:
             stop_evt.set()
 
         asyncio.create_task(watch_stop())
+        absent = 0  # the same re-probe ladder as the main feed (FOLLOWUPS-2406)
         while not self.stop.is_set():
             delay = backoff
             short = False
+            was_absent, absent = absent, 0
             try:
                 await self._session(stop_evt)
                 backoff = sync.RETRY_S
@@ -212,7 +214,8 @@ class BackgroundFeed:
                 elif exc.not_installed or exc.code == "unauthorized":
                     self._drop()
                     self._set_state("not_installed" if exc.not_installed else "forbidden", exc.code)
-                    delay = sync.RETRY_ABSENT_S
+                    absent = was_absent + 1
+                    delay = sync.absent_delay(absent)
                 else:
                     self._set_state("error", exc.code)
                 if self.status["last_error"] != self._logged:
@@ -223,14 +226,14 @@ class BackgroundFeed:
                     break
                 code = exc.code if isinstance(exc, ApiError) else type(exc).__name__
                 self._set_state("ha_unavailable", code)
-                log.warning("WisKey background feed disconnected: %s (retry in %.0fs)", code, delay)
+                if code == "ha_forbidden":  # FOLLOWUPS-2406: a refused token waits on ha_client's slow shared ladder
+                    delay = max(delay, ha_client.refused_wait(self.settings.wiskey_background_token))
+                if not (isinstance(exc, ApiError) and exc.details.get("held")):  # a held attempt never reached HA
+                    log.warning("WisKey background feed disconnected: %s (retry in %.0fs)", code, delay)
             if self.status["connected"]:
                 self.status["reconnects"] += 1
             self.status["connected"] = False
-            try:
-                await asyncio.wait_for(stop_evt.wait(), timeout=delay)
-            except asyncio.TimeoutError:
-                pass
+            await ha_client.wait_or_reset(delay, stop_evt)  # a reset of the refused-token ladder ends the wait at once
             backoff = sync.RETRY_S if short else min(sync.RETRY_MAX_S, backoff * 2)
         self.status["connected"] = False
 
