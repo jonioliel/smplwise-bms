@@ -12,7 +12,7 @@ from collections.abc import Callable
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
@@ -22,7 +22,7 @@ from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..recorder_scope import PRIMARY, camera_settings
 from .recorders import recorder_settings
-from ..services import nvr, nvr_schedule, nvr_settings, nvr_system, nvr_write
+from ..services import camera_reboot, nvr, nvr_schedule, nvr_settings, nvr_system, nvr_write
 from ..services.access import require_camera
 from ..services.timeutil import zone
 from .settings import read_settings
@@ -36,7 +36,7 @@ def _rid(request: Request) -> str | None:
 
 
 NVR_PERMISSIONS = ("nvr.config.events", "nvr.config.detection", "nvr.config.privacy", "nvr.config.smart", "nvr.config.schedule",
-                   "nvr.config.osd", "nvr.config.time", "nvr.record.manual", "nvr.record.lock", "nvr.alarm_output", "nvr.storage.test", "nvr.system.reboot")
+                   "nvr.config.osd", "nvr.config.time", "nvr.record.manual", "nvr.record.lock", "nvr.alarm_output", "nvr.storage.test", "nvr.system.reboot", "nvr.camera.reboot")
 
 
 def _require_read(conn: sqlite3.Connection, principal: Principal) -> None:
@@ -330,6 +330,46 @@ def reboot_nvr(body: RebootIn, request: Request, principal: Principal = Depends(
     settings = recorder_settings(request, conn, recorder_id)
     with unlocked(conn):
         return nvr_system.reboot(settings, conn, principal, request_id=_rid(request))
+
+
+# ---------------------------------------------------------------- CAMERA-REBOOT-2407: reboot one camera through its NVR
+
+def _camera_row(conn: sqlite3.Connection, camera_id: str) -> sqlite3.Row:
+    cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
+    if not cam:
+        raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
+    return cam
+
+
+@router.get("/cameras/{camera_id}/reboot")
+def camera_reboot_status(camera_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Whether the caller may reboot this camera now and, if not, why (`not_supported` / `no_permission` / `writes_off` /
+    `cooldown`). Readable by whoever sees the camera live; nothing is sent to a device."""
+    require_camera(conn, principal, camera_id, "video.live")  # T055: 403 before 404
+    cam = _camera_row(conn, camera_id)
+    permitted = (authorize(conn, principal, camera_reboot.PERMISSION, INSTALLATION).allowed
+                 and authorize(conn, principal, camera_reboot.PERMISSION, ("camera", camera_id)).allowed)
+    return camera_reboot.state(conn, camera_settings(settings_of(request), cam), camera_id, permitted=permitted)
+
+
+class CameraRebootIn(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)  # only the JSON literal true confirms ("yes", 1 are refused)
+    confirm: bool = False
+
+
+@router.post("/cameras/{camera_id}/reboot", status_code=201)
+def camera_reboot_run(camera_id: str, body: CameraRebootIn, request: Request, principal: Principal = Depends(current_principal),
+                      conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Reboot the camera behind this NVR channel (legacy parity P09). Sensitive permission + camera scope, Hikvision only, the
+    NVR-writes switch on, `confirm: true`, rate limited, audited and recorded (services/camera_reboot.py)."""
+    require(conn, principal, camera_reboot.PERMISSION, INSTALLATION)
+    require_camera(conn, principal, camera_id, camera_reboot.PERMISSION)  # T055: a denied camera is refused (403 before 404)
+    cam = _camera_row(conn, camera_id)
+    settings = camera_settings(settings_of(request), cam)
+    ticket = camera_reboot.prepare(settings, conn, principal, cam, confirm=body.confirm, request_id=_rid(request))
+    with unlocked(conn):  # the device call outside the write lock; the reserved row is already committed
+        outcome = camera_reboot.send(settings, ticket["path"])
+    return camera_reboot.finish(settings, conn, principal, ticket, outcome, request_id=_rid(request))
 
 
 # CR-022: GET / PUT /nvr/connection moved to routers/nvr_connection.py (stored in Arx, encrypted password, restart to apply);

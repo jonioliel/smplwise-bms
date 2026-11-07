@@ -41,7 +41,7 @@ PERMISSION = nc.PERMISSION  # system.configure
 NAME_MAX = 60
 READ_PERMISSIONS = ("system.configure", "nvr.configure", "nvr.config.write", "nvr.config.events", "nvr.config.detection", "nvr.config.privacy",
                     "nvr.config.smart", "nvr.config.schedule", "nvr.config.osd", "nvr.config.time", "nvr.record.manual", "nvr.record.lock",
-                    "nvr.alarm_output", "nvr.storage.test", "nvr.system.reboot")
+                    "nvr.alarm_output", "nvr.storage.test", "nvr.system.reboot", "nvr.camera.reboot")
 
 
 class AddIn(nc.SaveIn):
