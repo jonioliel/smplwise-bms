@@ -1,5 +1,25 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.40.7 (pilot) - Emergency revoke of the bridge key, camera reboot, recorded-days calendar, WisKey visit links, locked Python versions
+**אחרי ההתקנה:** יש מיגרציה אחת: טבלה חדשה לקישורי ביקור של WisKey. היא רק מוסיפה טבלה ולא משנה נתונים. הגשר מתעדכן ל-0.10.6, ולכן צריך להפעיל מחדש את Home Assistant פעם אחת אחרי העדכון.
+- **English:** After installing: one migration - a new table for WisKey visit links (adds a table, changes no data). The bridge moves to 0.10.6, so Home Assistant needs one restart after the update.
+
+### מה נוסף - What was added
+- **עברית:** ביטול חירום של מפתח הגשר: מנהל המערכת יכול לבטל מיד את המפתח שמחבר בין Arx לבין Home Assistant ולקבל מפתח חדש. הצגת הקוד החדש דורשת קוד מאפליקציית האימות בטלפון.
+- **English:** Emergency revoke of the bridge key: a system administrator can revoke the key that links Arx and Home Assistant at once and get a new one; showing the new code needs a code from the authenticator app.
+- **עברית:** הפעלה מחדש של מצלמה בודדת דרך המקליט, מתוך מסך המצלמה. נדרשים הרשאה ייעודית, המתג "שינויים במקליט" ואישור. אפשר פעם אחת ב-5 דקות לכל מצלמה, ועד שלוש פעמים ב-10 דקות לכל משתמש.
+- **English:** Reboot one camera through its recorder from the camera screen: a dedicated permission, the recorder-changes switch and a confirmation; once per 5 minutes per camera and up to three times per 10 minutes per user.
+- **עברית:** לוח חודשי של ימים מוקלטים: בחלון ההקלטות רואים באילו ימים בחודש יש הקלטה.
+- **English:** A monthly calendar of recorded days: the recordings view shows which days of the month have recordings.
+- **עברית:** ביקורים של WisKey: Arx הוא המקום היחיד לניהול אורחים. ביקורים שנוצרו בלוח של WisKey מוצגים בקריאה בלבד, ותבניות האורחים של WisKey מוצעות בטופס ההזמנה. שליחת הזמנה של Arx לרישום ביקור ב-WisKey כבויה כברירת מחדל, וממתינה לפקודה חדשה מצד WisKey.
+- **English:** WisKey visits: Arx is the one place to manage guests. Visits created in WisKey's own panel are shown read-only, and WisKey's guest templates are offered in the invite form. Pushing an Arx invitation as a WisKey visit record is off by default and waits for a new WisKey command.
+
+### מה השתנה - What changed
+- **עברית:** הפעלה מחדש של המקליט כולו דורשת עכשיו גם את המתג "שינויים במקליט", כמו כל שינוי אחר במקליט. כשהמתג כבוי, הכפתור חסום והבקשה נדחית לפני שנשלח משהו.
+- **English:** Restarting the whole recorder now also needs the recorder-changes switch, like every other change to the recorder; with the switch off the button is disabled and the request is refused before anything is sent.
+- **עברית:** גרסאות כל רכיבי השרת נעולות, כך שבנייה חוזרת של אותה גרסה נותנת תמיד אותה תוצאה.
+- **English:** Every server component version is locked, so rebuilding the same release always gives the same result.
+
 ## 2.40.6 (pilot) - No long database locks under heavy event load, faster WisKey return, licence notices, and fixes
 **אחרי ההתקנה:** יש מיגרציה אחת: אינדקס חדש לטבלת האירועים. הוא נבנה פעם אחת בהפעלה הראשונה, וזה לוקח כמה שניות לפי גודל הטבלה. הוא רק מוסיף אינדקס ולא משנה נתונים, ולכן החזרה ל-2.40.5 היא דרך גיבוי התוסף, כמו תמיד. אף הגדרה קיימת לא משנה ברירת מחדל. גשר Arx נשאר 0.10.5, ולכן אין צורך להפעיל מחדש את Home Assistant. הממשק נבנה מחדש עם התוסף, לכן כדאי לטעון את הדף מחדש פעם אחת אחרי העדכון.
 - **English:** After installing: one migration - a new index on the events table, built once at the first start (a few seconds, depending on the table size). It only adds an index and changes no data; going back to 2.40.5 is through the add-on backup, as always. No existing setting changes its default. The Arx bridge stays 0.10.5, so no Home Assistant restart is needed. The interface is rebuilt with the add-on, so reload the page once after the update.
