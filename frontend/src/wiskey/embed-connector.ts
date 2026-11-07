@@ -1,4 +1,10 @@
 /**
+ * @license
+ * Adapted from the WisKey embed-api-v1 reference client. MIT License.
+ * Copyright (c) 2026 Hikvision Intercom Manager contributors
+ * The full notice ships in THIRD_PARTY_NOTICES.md of the add-on and in src/wiskey/LICENSE-embed-api-v1.txt.
+ */
+/**
  * WisKey embed API v1 connector (WisKey 2.0.0-rc.19+; contract `docs/integrations/wiskey/embed-api-v1/WISKEY_EMBED_API_V1.md`).
  *
  * A typed port of the WisKey developers' reference adapter (`embed-api-v1/examples/wiskey-embed-client.mjs`), kept

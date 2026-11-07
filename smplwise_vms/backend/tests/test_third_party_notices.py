@@ -123,3 +123,18 @@ def test_no_private_material_is_tracked() -> None:
         or re.search(r"(^|/)\.env(\.[^/]+)?$", p) and not p.endswith(".env.example")
     ]
     assert not bad, f"private material is tracked: {bad}"
+
+
+def test_the_addon_ships_the_notices_and_the_bundle_keeps_the_wiskey_mit_line() -> None:
+    """LICENSE-2310 (2.40.6): the add-on folder carries a byte-identical copy of THIRD_PARTY_NOTICES.md (the Dockerfile copies
+    it into the image), and the adapted WisKey client keeps an @license MIT header that the built UI bundle preserves."""
+    addon_copy = REPO / "smplwise_vms" / "THIRD_PARTY_NOTICES.md"
+    assert addon_copy.read_bytes() == NOTICES.read_bytes(), "smplwise_vms/THIRD_PARTY_NOTICES.md differs from the root file"
+    assert "COPY THIRD_PARTY_NOTICES.md" in (REPO / "smplwise_vms" / "Dockerfile").read_text(encoding="utf-8")
+    head = (REPO / "frontend" / "src" / "wiskey" / "embed-connector.ts").read_text(encoding="utf-8")[:400]
+    assert "@license" in head and "MIT License" in head and "Hikvision Intercom Manager contributors" in head
+    www = REPO / "smplwise_vms" / "www" / "assets"
+    if not www.is_dir():
+        pytest.skip("no built UI in this checkout")
+    hits = [p.name for p in www.glob("*.js") if "Hikvision Intercom Manager contributors" in p.read_text(encoding="utf-8", errors="replace")]
+    assert hits, "the built UI bundle lost the WisKey MIT notice"

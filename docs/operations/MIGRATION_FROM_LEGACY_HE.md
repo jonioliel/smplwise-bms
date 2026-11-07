@@ -9,7 +9,7 @@ Source: original
 
 | בישן | איפה | ב־VMS |
 |---|---|---|
-| חיבור ל־NVR (כתובת, פורטים, משתמש, סיסמה) | `options.json` של ה־Add-on + `/config/hikvision_nvr_override.json` | אפשרויות ה־Add-on של ה־VMS (`nvr_host`, `nvr_http_port`, `nvr_rtsp_port`, `nvr_username`, `nvr_password`) — מומלץ משתמש NVR לקריאה בלבד |
+| חיבור ל־NVR (כתובת, פורטים, משתמש, סיסמה) | `options.json` של ה־Add-on + `/config/hikvision_nvr_override.json` | מסך **הגדרות > חיבורים > NVR** (כתובת, פורטים, משתמש וסיסמה; הסיסמה נשמרת מוצפנת בתוך Arx ונבדקת לפני השמירה). אפשרות התוסף `nvr_password` הוסרה מגרסה 2.6.3 — מומלץ משתמש NVR לקריאה בלבד |
 | go2rtc | `go2rtc_url` | `go2rtc_url`; ה־VMS משתמש רק בזרמים בשם `smplwise_*` |
 | PIN משותף + PIN טכנאי | `app_pin`, `technician_pin` | **אין PIN**: כל אדם נכנס עם משתמש Home Assistant משלו; ה־VMS נותן תפקידים (הגדרות › משתמשים והרשאות) |
 | שמות מצלמות (aliases) | `camera_names` ב־override | כינויים על המצלמות ב־VMS — הכלי מעתיק אותם לפי מספר ערוץ |

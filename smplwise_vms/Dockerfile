@@ -19,6 +19,8 @@ COPY www /app/www
 COPY www-public /app/www-public
 # CR-021 S4: the running version's `[platform-restart]` marker is read from the add-on's own notes (services/release_notes.py).
 COPY CHANGELOG.md /app/CHANGELOG.md
+# LICENSE-2310 (2.40.6): the third-party notices (WisKey MIT among them) ship with the add-on, a copy of the repository root file.
+COPY THIRD_PARTY_NOTICES.md /app/THIRD_PARTY_NOTICES.md
 # The bridge integration ships in the image and is copied into Home Assistant's custom_components at start-up.
 # WISKEY-ADOPT-2272: the same folder carries the source-pinned WisKey native integration (integration/hikvision_intercom, pin
 # file integration/hikvision_intercom.pin.json); services/wiskey_auto_install.py stages it next to the bridge.
