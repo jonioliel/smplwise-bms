@@ -18500,7 +18500,7 @@
     "test_ids": [
       "AT-WISKEY-VISITS-2400-1"
     ],
-    "status": "BACKLOG",
+    "status": "IN_PROGRESS",
     "blocker": null,
     "priority": "P1",
     "model_policy": {
@@ -18514,7 +18514,8 @@
       "Change record and known limits"
     ],
     "evidence": [
-      "2026-11-04 (REGISTRY-AUDIT-20261103): not implemented. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T13): not started; waits for the owner question Q6 (recommendation a: Arx's own flow only)."
+      "2026-11-04 (REGISTRY-AUDIT-20261103): not implemented. WisKey full integration (private/planning/WISKEY_FULL_INTEGRATION_PLAN_2026-11-03.md T13): not started; waits for the owner question Q6 (recommendation a: Arx's own flow only).",
+      "2026-11-07 (WISKEY-VISITS-2407, branch pilot/WISKEY-VISITS-2407, not merged): owner decision 07.11 option b built per docs/changes/WISKEY-VISITS-2407.md - WisKey visits (visits/list) read only in Arx with origin marking, guest templates (guest_templates/get) as invite presets, and the record of an Arx invitation in WisKey behind a capability check (visits/record_external_v1 is NOT in WisKey rc.10: the ask A1-A3 in section 4; Hebrew reason shown, nothing sent) and the administrator switch access.visitors.wiskey_push (default off). Single writer: committed 'sending' claim + the feed's R3-06 target gate; unknown settled only by a reconcile read. Fakes only; backend tests/test_wiskey_visits_2407.py and frontend tests/unit-wiskey-visits.spec.ts (counts in the change record); UI screenshots, the runner gate and the LAB steps NOT_RUN. Status BACKLOG -> IN_PROGRESS (stays there until WisKey ships A1 and a train merges the branch)."
     ],
     "owner": null,
     "commit": null,

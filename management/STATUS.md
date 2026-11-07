@@ -1,6 +1,6 @@
 # Project status — generated view
 
-Generated: 2026-11-07T14:07:56.103002+00:00
+Generated: 2026-11-07T14:08:08.761414+00:00
 
 Tasks: 454 | Requirements: 564 | Tests: 581 | Screens: 32
 
@@ -9,10 +9,10 @@ No VMS implementation or hardware test is implied by this planning registry.
 Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DONE; READY, IN_PROGRESS, VALIDATION and DONE need every dependency DONE. OBSOLETE cards are BLOCKED with a blocker starting "Excluded - OBSOLETE" and an EXCLUDED evidence line (the registry has no OBSOLETE status); a dependency on an OBSOLETE card counts as satisfied under every rule (BOARD-DECISIONS-2407, owner decision 2026-11-07).
 
 ## Status counts
-- BACKLOG: 95
+- BACKLOG: 94
 - BLOCKED: 20
 - DONE: 40
-- IN_PROGRESS: 5
+- IN_PROGRESS: 6
 - REVIEW: 294
 
 ## Release scope counts
@@ -460,7 +460,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [WISKEY-ACCESS-DIAG-2400](tasks/WISKEY-ACCESS-DIAG-2400.md) | V1 | REVIEW | WisKey T10: access diagnostics views | — |
 | [WISKEY-OPS-VIEWS-2400](tasks/WISKEY-OPS-VIEWS-2400.md) | V1 | REVIEW | WisKey T11: operations and fleet views | — |
 | [WISKEY-WA-QUEUE-2400](tasks/WISKEY-WA-QUEUE-2400.md) | V1 | REVIEW | WisKey T12: messaging completion on the installed client | — |
-| [WISKEY-VISITS-2400](tasks/WISKEY-VISITS-2400.md) | V1 | BACKLOG | WisKey T13: visits and guest templates decision and bridge | — |
+| [WISKEY-VISITS-2400](tasks/WISKEY-VISITS-2400.md) | V1 | IN_PROGRESS | WisKey T13: visits and guest templates decision and bridge | — |
 | [WISKEY-CLOCK-VIEW-2400](tasks/WISKEY-CLOCK-VIEW-2400.md) | V1 | REVIEW | WisKey T14: clock / NTP and WisKey media options view | — |
 | [WISKEY-EVENT-CURSOR-2390](tasks/WISKEY-EVENT-CURSOR-2390.md) | V1 | REVIEW | WisKey T15: gap-free events after a restart (event cursor) | — |
 | [WISKEY-LIVE-VALIDATION-2390](tasks/WISKEY-LIVE-VALIDATION-2390.md) | V1 | REVIEW | WisKey T16: live validation screen for commissioning | — |
