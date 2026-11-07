@@ -386,17 +386,23 @@ def store_alert(conn: sqlite3.Connection, alert: ParsedAlert, tz_name: str, came
     rec_sql, rec_args = _recorder_clause(conn, recorder_id)
     if alert.state == "inactive":
         # close the most recent open row of this camera/type (bursts may span buckets)
+        # the last-seen term is implied by the occurred_at one (ended_at is never before occurred_at); it is there so the
+        # lookup walks idx_events_alert_open (0207) over the last 10 minutes only, never the open rows of all time
+        since = iso_utc(occurred - dt.timedelta(minutes=10))
         open_row = conn.execute(
-            "SELECT * FROM events WHERE source = 'alertstream' AND type = ? AND COALESCE(camera_id, '') = ?" + rec_sql + " AND state = 'active' AND occurred_at >= ? ORDER BY occurred_at DESC LIMIT 1",
-            (etype, cam_key, *rec_args, iso_utc(occurred - dt.timedelta(minutes=10))),
+            "SELECT * FROM events WHERE source = 'alertstream' AND type = ? AND COALESCE(camera_id, '') = ?" + rec_sql + " AND state = 'active' AND COALESCE(ended_at, occurred_at) >= ? AND occurred_at >= ? ORDER BY occurred_at DESC LIMIT 1",
+            (etype, cam_key, *rec_args, since, since),
         ).fetchone()
         if open_row is None:
             return None  # an inactive without a known active: nothing to show
         conn.execute("UPDATE events SET state = 'inactive', ended_at = ? WHERE id = ?", (iso_utc(occurred), open_row["id"]))
         return row_to_event(conn.execute("SELECT * FROM events WHERE id = ?", (open_row["id"],)).fetchone())
     # active: merge into a row that is still open and was last seen within the window
+    # T068-INGEST-LOCK-2406: served by idx_events_alert_open (0207) - a range over the rows seen inside the window. Before it
+    # this was a scan of the whole events table under the write lock on every new burst (holds of up to 17.5 s in the soak).
+    # `+occurred_at`: the sort is over a handful of rows; the time index must not be picked for it (it walks every row).
     prev = conn.execute(
-        "SELECT * FROM events WHERE source = 'alertstream' AND type = ? AND COALESCE(camera_id, '') = ?" + rec_sql + " AND state = 'active' AND COALESCE(ended_at, occurred_at) >= ? ORDER BY occurred_at DESC LIMIT 1",
+        "SELECT * FROM events WHERE source = 'alertstream' AND type = ? AND COALESCE(camera_id, '') = ?" + rec_sql + " AND state = 'active' AND COALESCE(ended_at, occurred_at) >= ? ORDER BY +occurred_at DESC LIMIT 1",
         (etype, cam_key, *rec_args, iso_utc(occurred - dt.timedelta(seconds=DEDUP_WINDOW_S))),
     ).fetchone()
     if prev is not None:

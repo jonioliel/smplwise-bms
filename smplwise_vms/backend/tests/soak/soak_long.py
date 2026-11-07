@@ -169,7 +169,9 @@ class FakeHaWiskey(FakeHa):
             await ws.send(json.dumps({"type": "auth_ok", "ha_version": "soak"}))
             pusher = asyncio.create_task(self._push(ws, subs))
             listings = {"config/entity_registry/list": [{"entity_id": e, "area_id": None, "device_id": None, "name": None, "platform": "soak"} for e in self.states],
-                        "config/device_registry/list": [], "config/area_registry/list": [{"area_id": "hall", "name": "Hall", "floor_id": None}], "config/floor_registry/list": []}
+                        "config/device_registry/list": [], "config/area_registry/list": [{"area_id": "hall", "name": "Hall", "floor_id": None}], "config/floor_registry/list": [],
+                        # T068-INGEST-LOCK-2406: without it every registry refresh logged "label registry listing failed" (96x in the long run)
+                        "config/label_registry/list": []}
             async for raw in ws:
                 m = json.loads(raw)
                 mid, kind = m.get("id"), str(m.get("type") or "")
