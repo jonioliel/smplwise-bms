@@ -220,6 +220,10 @@ PRE_STORAGE: dict[str, frozenset[str]] = {
     "users/temporary_cancel": _CANCEL_REFUSED,
     "cards/add": _CARD_REFUSED,
     "cards/remove": _CARD_REFUSED,
+    # WISKEY-VISITS-2407: the record of an Arx invitation (services/wiskey_visits.py). NOT in WisKey rc.10 - these are the codes the ask
+    # (docs/changes/WISKEY-VISITS-2407.md section 4) requires WisKey to raise BEFORE its store is written; every other code stays unknown.
+    "visits/record_external_v1": frozenset({"installation_unavailable", "writes_disabled", "visit_record_stale", "revision_conflict", "user_not_found",
+                                            "visit_user_not_temporary", "storage_stopping"}),
 }
 # Card capture (CR-005 phase 2 slice A2), verified against the WisKey source (access/enrollment.py CardEnrollment,
 # websocket.py:524-539 dispatch, access/manager.py _station / _driver, access/repository.py get):

@@ -8,6 +8,7 @@ import '../components/sw-dropdown';
 import '../components/sw-state-panel';
 import '../access-external/identity-card';
 import '../access-external/request-dialog';
+import '../access-external/wiskey-visits-panel'; // WISKEY-VISITS-2407: visits / guest templates / the record of an invitation
 import type { RouteState } from '../router';
 import type { DropdownItem } from '../components/sw-dropdown';
 import { ApiError, describeError } from '../api/client';
@@ -1027,6 +1028,7 @@ export class AccessExternalScreen extends LitElement {
           <sw-dropdown tall label=${xt('set_hour')} .items=${hours} .value=${String(d.digest_hour)} @change=${(e: CustomEvent<{ id: string }>) => (this.draft = { ...d, digest_hour: Number(e.detail.id) })}></sw-dropdown></div></section>
         <section class="sec"><h4>${xt('set_name')}</h4>${seg('name_sync', [['manual', 'ns_manual'], ['auto', 'ns_auto']])}</section>
         <section class="sec"><h4>${xt('set_arrival')}</h4>${seg('arrival_after_grant', [['off', 'ar_off'], ['on', 'ar_on']])}</section>
+        <section class="sec" data-visits-section><h4>${xt('set_visits')}</h4><wiskey-visits-panel></wiskey-visits-panel></section>
       </div>
       ${this.dlgError ? html`<p class="err-line" role="alert">${this.dlgError}</p>` : nothing}
       <div class="dfoot"><span class="sp"></span><sw-button variant="ghost" @click=${() => (this.dialog = null)}>${xt('back')}</sw-button>

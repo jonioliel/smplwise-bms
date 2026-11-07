@@ -824,6 +824,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import access_visitors as access_visitors_router
 
     app.include_router(access_visitors_router.router, prefix=api, tags=["access"])  # EXTERNALBUILD-297 / CR-VISITOR105: visitor invitations (off by default)
+    from .routers import access_wiskey_visits  # WISKEY-VISITS-2407: WisKey visits / guest templates / the record of an Arx invitation (its own line)
+
+    app.include_router(access_wiskey_visits.router, prefix=api, tags=["access"])
     from .routers import wiskey_switches as wiskey_switches_router
 
     app.include_router(wiskey_switches_router.router, prefix=api, tags=["access"])  # SMALLFIXA-295 (review 3 G-01/G-03): the wiskey.acr5_* switch writer (system administrator)

@@ -97,7 +97,7 @@ MESSAGING_PACED = frozenset({"whatsapp/preview", "whatsapp/send_pacing_v1"})
 # leave Arx only as signed `bridge` envelopes (services/wiskey_media_bridge.py - the direct API or the signed Home Assistant path), never
 # as an unsigned frame on the feed's session. `W10_COMMANDS` names them so a test can prove no guard lets one through.
 W10_COMMANDS = frozenset(wiskey_media_contract.COMMANDS)
-UNPINNED_CHANNELS = frozenset({"readback", "pacing", "messaging_paced"})
+UNPINNED_CHANNELS = frozenset({"readback", "pacing", "messaging_paced", "visits_push"})
 # WISKEY-STATION-OPS-2390 (plan 2026-11-03 T4): a station's maintenance from the stations drawer and its list action
 # (services/wiskey_station_ops.py): queue the station's sync, re-read its capabilities and inventory, refresh its health report, read its
 # clock again. All four are station-scoped and non-READ in the pinned catalog (`api_contract` on every frame); none sets anything on the
@@ -200,9 +200,18 @@ DIAGNOSTICS = frozenset({
 })
 ACCESS_REVIEW = frozenset({"users/access_review_decide"})
 
+# WISKEY-VISITS-2407 (card WISKEY-VISITS-2400, owner 07.11 option "ב"): WisKey's visits shown in Arx and Arx's invitations recorded in WisKey
+# (services/wiskey_visits.py). `visits` holds two READS (the catalog classifies both READ): the visit list (read only in Arx) and the guest
+# templates (presets of Arx's invite form). `visits_push` holds ONE write, `visits/record_external_v1` - the record of an Arx invitation, an
+# idempotent upsert keyed by the invitation id; it is NOT in WisKey rc.10 (the ask, docs/changes/WISKEY-VISITS-2407.md), so the channel is
+# unpinned and the feature stays off until WisKey lists the command. Never on any channel: `visits/create` / `request` / `decide` /
+# `operators` and `guest_templates/upsert` / `delete` (WisKey's own two-person visit flow; Arx's single identity cannot be its approver).
+VISITS = frozenset({"visits/list", "guest_templates/get"})
+VISITS_PUSH = frozenset({"visits/record_external_v1"})
+
 ALLOWLISTS: dict[str, frozenset[str]] = {"background": BACKGROUND, "service": SERVICE, "read": READ, "technical": TECHNICAL, "messaging": MESSAGING,
-                                         "readback": READBACK, "pacing": PACING, "maintenance": MAINTENANCE, "door_technical": DOOR_TECHNICAL, "station_people": STATION_PEOPLE, "profiles": PROFILES, "schedules": SCHEDULES, "installer": INSTALLER, "operations": OPERATIONS, "triage": TRIAGE, "diagnostics": DIAGNOSTICS, "access_review": ACCESS_REVIEW, "messaging_paced": MESSAGING_PACED}
-ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing", "maintenance", "door_technical", "station_people", "profiles", "schedules", "installer", "operations", "triage", "diagnostics", "access_review", "messaging_paced")  # the guards the service session builds for the adapters (intercom_sync on_ready)
+                                         "readback": READBACK, "pacing": PACING, "maintenance": MAINTENANCE, "door_technical": DOOR_TECHNICAL, "station_people": STATION_PEOPLE, "profiles": PROFILES, "schedules": SCHEDULES, "installer": INSTALLER, "operations": OPERATIONS, "triage": TRIAGE, "diagnostics": DIAGNOSTICS, "access_review": ACCESS_REVIEW, "messaging_paced": MESSAGING_PACED, "visits": VISITS, "visits_push": VISITS_PUSH}
+ADAPTER_CHANNELS = ("read", "technical", "messaging", "readback", "pacing", "maintenance", "door_technical", "station_people", "profiles", "schedules", "installer", "operations", "triage", "diagnostics", "access_review", "messaging_paced", "visits", "visits_push")  # the guards the service session builds for the adapters (intercom_sync on_ready)
 
 # Home Assistant's own frames a channel may send besides WisKey commands (the auth handshake is written by ha_client itself):
 # `get_config` tells "WisKey not loaded yet" from "not installed"; the service feed watches the stations' entities.
@@ -225,6 +234,8 @@ HA_FRAMES: dict[str, frozenset[str]] = {
     "diagnostics": frozenset(),
     "access_review": frozenset(),
     "messaging_paced": frozenset(),
+    "visits": frozenset(),
+    "visits_push": frozenset(),
 }
 
 
@@ -276,4 +287,6 @@ def describe() -> dict[str, Any]:
         "diagnostics": {"commands": sorted(DIAGNOSTICS), "in_use": True},
         "access_review": {"commands": sorted(ACCESS_REVIEW), "in_use": True},
         "messaging_paced": {"commands": sorted(MESSAGING_PACED), "in_use": True},
+        "visits": {"commands": sorted(VISITS), "in_use": True},
+        "visits_push": {"commands": sorted(VISITS_PUSH), "in_use": True},
     }
