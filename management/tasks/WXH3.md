@@ -2,7 +2,7 @@
 
 > Generated card. Edit management/tasks.json, then run this script with --write.
 
-**Phase:** V1 | **Priority:** P2 | **Status:** BLOCKED
+**Phase:** V1 | **Priority:** P2 | **Status:** REVIEW
 
 **Owner role:** backend | **Hardware:** False
 
@@ -33,6 +33,3 @@
 
 ## Guardrails
 Read AGENTS.md and the linked master chapters. Inspect legacy code before replacement. No production configuration writes, physical commands, spending, or claims of passing unrun tests. Record commit, environment, commands and evidence.
-
-## Blocker
-Not a work blocker: the Arx part is built on pilot/WXH-LEFTOVERS-2405 (not merged). BLOCKED only because the registry rule needs every dependency DONE (WXH2 is REVIEW).
