@@ -10021,5 +10021,21 @@
     "test_ids": [
       "AT-PY-CONSTRAINTS-2407-2"
     ]
+  },
+  {
+    "id": "R-CAMERA-REBOOT-2407-1",
+    "title": "Reboot one camera through its NVR (legacy parity P09)",
+    "statement": "A holder of the sensitive permission nvr.camera.reboot (installation and camera scope) can reboot one camera from the camera's settings: Hikvision only (the legacy request GET /ISAPI/ContentMgmt/InputProxy/channels/{ch}/reboot through the NVR, one PUT only when the device proves the GET was not executed), refused while the NVR-writes switch is off, after a confirmation dialog, rate limited per camera and per user, recorded in the NVR change log and audited; Provision-ISR is refused as unsupported; the button is disabled with a plain reason when the permission is missing or NVR changes are off.",
+    "task_ids": [
+      "CAMERA-REBOOT-2407"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CAMERA-REBOOT-2407-1"
+    ]
   }
 ]

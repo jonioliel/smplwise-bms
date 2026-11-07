@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-07T14:06:18.303782+00:00
+Generated: 2026-11-07T14:07:25.451323+00:00
 
-Tasks: 452 | Requirements: 562 | Tests: 579 | Screens: 32
+Tasks: 453 | Requirements: 563 | Tests: 580 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,14 +12,14 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BACKLOG: 95
 - BLOCKED: 20
 - DONE: 40
-- IN_PROGRESS: 3
+- IN_PROGRESS: 4
 - REVIEW: 294
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 358
+- V1: 359
 - V2: 29
 - V3: 2
 
@@ -500,3 +500,4 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [BOARD-HYGIENE-2403](tasks/BOARD-HYGIENE-2403.md) | V1 | REVIEW | Task board hygiene after v2.40.2 | — |
 | [HA-2026-11-COMPAT-2404](tasks/HA-2026-11-COMPAT-2404.md) | V1 | REVIEW | Home Assistant 2026.11 entity names and child devices | — |
 | [PY-CONSTRAINTS-2407](tasks/PY-CONSTRAINTS-2407.md) | V1 | BACKLOG | Python constraints lock file for the add-on + Supervisor build check | — |
+| [CAMERA-REBOOT-2407](tasks/CAMERA-REBOOT-2407.md) | V1 | IN_PROGRESS | Reboot one camera through its NVR (legacy parity P09) | — |

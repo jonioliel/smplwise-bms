@@ -215,6 +215,8 @@ PERMISSION_LABELS: dict[str, str] = {
     "nvr.alarm_output": "NVR: הפעלת יציאת אזעקה",
     "nvr.storage.test": "NVR: בדיקת דיסק",
     "nvr.system.reboot": "NVR: הפעלה מחדש",
+    # CAMERA-REBOOT-2407 (owner decision 2026-11-07): reboot ONE camera through its NVR channel; sensitive, camera-scoped.
+    "nvr.camera.reboot": "NVR: הפעלה מחדש של מצלמה",
     "rules.ha_notify": "חוקים: התראה דרך Home Assistant (notify)",
     # access.read is granted broadly in roles.json (viewer and above, not kiosk) on purpose: a product decision mirroring
     # map.read's own breadth, recorded as a deviation in docs/changes/CR-005-ACCESS-CONTROL-INTEGRATION.md (T054). Since

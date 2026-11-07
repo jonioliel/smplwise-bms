@@ -99,3 +99,13 @@ export interface CameraSmart { camera_id: string; channel: number; can_write: bo
 export const cameraSmart = (cameraId: string) => get<CameraSmart>(`cameras/${cameraId}/smart`);
 export const setSmart = (cameraId: string, body: { line?: { enabled?: boolean; lines?: Partial<SmartLine>[] }; field?: { enabled?: boolean; regions?: Partial<SmartRegion>[] } }) => put<Record<string, NvrChange & { enable_refused?: boolean }>>(`cameras/${cameraId}/smart`, body);
 export const writeChannelName = (cameraId: string, name?: string) => post<NvrChange & { name: string }>(`cameras/${cameraId}/osd/name`, name ? { name } : {});
+
+// ---- CAMERA-REBOOT-2407: reboot ONE camera through its NVR channel (sensitive permission, NVR-writes switch, confirmation) ----
+/** Why the action is not available now: the recorder type has none / the permission is missing / NVR changes are off / it just ran. */
+export type CameraRebootReason = 'not_supported' | 'no_permission' | 'writes_off' | 'cooldown';
+export interface CameraRebootState {
+  camera_id: string; supported: boolean; permitted: boolean; writes_enabled: boolean; can_reboot: boolean;
+  reason: CameraRebootReason | null; cooldown_s: number; recorder_id: string;
+}
+export const cameraRebootState = (cameraId: string) => get<CameraRebootState>(`cameras/${encodeURIComponent(cameraId)}/reboot`);
+export const rebootCamera = (cameraId: string) => post<NvrChange & { camera_id: string; cooldown_s: number }>(`cameras/${encodeURIComponent(cameraId)}/reboot`, { confirm: true });

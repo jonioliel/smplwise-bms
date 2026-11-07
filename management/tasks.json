@@ -20065,5 +20065,44 @@
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
+  },
+  {
+    "id": "CAMERA-REBOOT-2407",
+    "title": "Reboot one camera through its NVR (legacy parity P09)",
+    "epic": "NVR",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "backend",
+    "requires_hardware": false,
+    "acceptance": [
+      "A holder of the sensitive permission nvr.camera.reboot (installation and camera scope) can reboot one camera from the camera's settings: Hikvision only (the legacy request GET /ISAPI/ContentMgmt/InputProxy/channels/{ch}/reboot through the NVR, one PUT only when the device proves the GET was not executed), refused while the NVR-writes switch is off, after a confirmation dialog, rate limited per camera and per user, recorded in the NVR change log and audited; Provision-ISR is refused as unsupported; the button is disabled with a plain reason when the permission is missing or NVR changes are off."
+    ],
+    "requirement_ids": [
+      "R-CAMERA-REBOOT-2407-1"
+    ],
+    "test_ids": [
+      "AT-CAMERA-REBOOT-2407-1"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P2",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "medium",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests on an isolated branch",
+      "Change record and known limits"
+    ],
+    "evidence": [
+      "branch pilot/CAMERA-REBOOT-2407 (not merged, not released) - 2026-11-07: owner decision of 07.11; docs/changes/CAMERA-REBOOT-2407.md. Fake-NVR backend tests and the frontend unit spec run on the workstation; the owner-approved reboot of one lab camera NOT_RUN."
+    ],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
   }
 ]

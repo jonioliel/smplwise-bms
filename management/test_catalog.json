@@ -15361,5 +15361,30 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-CAMERA-REBOOT-2407-1",
+    "requirement_ids": [
+      "R-CAMERA-REBOOT-2407-1"
+    ],
+    "task_ids": [
+      "CAMERA-REBOOT-2407"
+    ],
+    "title": "Reboot one camera through its NVR (legacy parity P09)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record (tests/test_camera_reboot_2407.py, frontend tests/unit-camera-reboot-2407.spec.ts) against the commit recorded here; the lab step (LAB-CAMERA-REBOOT-2407) needs the owner's approval."
+    ],
+    "expected": "A holder of the sensitive permission nvr.camera.reboot (installation and camera scope) can reboot one camera from the camera's settings: Hikvision only (the legacy request GET /ISAPI/ContentMgmt/InputProxy/channels/{ch}/reboot through the NVR, one PUT only when the device proves the GET was not executed), refused while the NVR-writes switch is off, after a confirmation dialog, rate limited per camera and per user, recorded in the NVR change log and audited; Provision-ISR is refused as unsupported; the button is disabled with a plain reason when the permission is missing or NVR changes are off.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-07 (CAMERA-REBOOT-2407); NOT_RUN as a catalog record (the workstation receipts are in the change record, not a PASS record here). Lab reboot of one camera NOT_RUN.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

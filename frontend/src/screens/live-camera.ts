@@ -14,6 +14,9 @@ import '../components/sw-state-panel';
 import type { SwLivePlayer } from '../components/sw-live-player';
 import { demoScene, demoWall } from '../fixtures/catalog';
 import { navigate } from '../router';
+import { cameraRebootState, rebootCamera, type CameraRebootState } from '../api/nvr';
+import { crt } from '../i18n/camera-reboot';
+import { rebootErrorText, rebootView } from './camera-reboot-logic';
 import { cameraSchedules, cameraSmart, osdStatus, recordStart, recordStatus, recordStop, setArming, setMotion, setOsd, setRecordSchedule, setSmart, writeChannelName, type ArmingKind, type CameraSchedules, type CameraSmart, type OsdStatus, type RecordStatus, type WeekRange } from '../api/nvr';
 import '../components/sw-week-grid';
 import '../components/sw-dialog';
@@ -90,6 +93,11 @@ export class LiveCamera extends LitElement {
   @state() private recBusy = false;
   @state() private recMsg = '';
   private recTimer = 0;
+  /** CAMERA-REBOOT-2407: may this user restart the camera now (and why not); read only for NVR-config readers. */
+  @state() private reboot: CameraRebootState | null = null;
+  @state() private rebootOpen = false;
+  @state() private rebootBusy = false;
+  @state() private rebootMsg = '';
 
   private async loadSchedules() {
     if (!this.cam || !isApi()) return;
@@ -377,6 +385,55 @@ export class LiveCamera extends LitElement {
         <sw-field><select aria-label="פורמט תאריך" data-osd-date-style ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction('פורמט תאריך', () => setOsd(this.cam!.id, { date_style: (e.target as HTMLSelectElement).value }))}>${o.date_styles.map((d) => html`<option value=${d} ?selected=${d === o.datetime!.date_style}>${d}</option>`)}</select></sw-field>` : nothing}
       ${this.osdMsg ? html`<span data-osd-msg>${this.osdMsg}</span>` : nothing}
     </div>`;
+  }
+
+  // ---------------------------------------------------------------- CAMERA-REBOOT-2407: restart this camera through the NVR
+
+  private async loadReboot() {
+    if (!this.cam || !isApi() || !canReadNvrConfig()) {
+      this.reboot = null; // the action is for NVR administrators; nothing to read for anyone else
+      return;
+    }
+    try {
+      this.reboot = await cameraRebootState(this.cam.id);
+    } catch {
+      this.reboot = null;
+    }
+  }
+
+  private async runReboot() {
+    if (!this.cam || this.rebootBusy) return;
+    this.rebootBusy = true;
+    this.rebootMsg = '';
+    try {
+      await rebootCamera(this.cam.id);
+      this.rebootMsg = crt('done');
+    } catch (err) {
+      this.rebootMsg = rebootErrorText(err); // never retried: the press is the one confirmation
+    } finally {
+      this.rebootBusy = false;
+      this.rebootOpen = false;
+      await this.loadReboot();
+    }
+  }
+
+  private renderReboot() {
+    const v = rebootView(this.reboot, this.rebootBusy);
+    if (!v.shown || !this.cam) return nothing;
+    const cam = this.cam;
+    return html`<div class="note" style="margin-block-start:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-camera-reboot data-enabled=${v.enabled ? 'yes' : 'no'}>
+      <span>${crt('lead')}</span>
+      <sw-button size="sm" variant="danger" icon="refresh" ?disabled=${!v.enabled} title=${v.reason || nothing} aria-describedby=${v.reason ? 'camera-reboot-reason' : nothing}
+        data-camera-reboot-open @click=${() => { this.rebootMsg = ''; this.rebootOpen = true; }}>${this.rebootBusy ? crt('sending') : crt('button')}</sw-button>
+      ${v.reason ? html`<span class="muted" id="camera-reboot-reason" data-camera-reboot-reason>${v.reason}</span>` : nothing}
+      ${this.rebootMsg ? html`<span role="status" data-camera-reboot-msg>${this.rebootMsg}</span>` : nothing}
+    </div>
+    ${this.rebootOpen
+      ? html`<sw-dialog open heading=${crt('dialogTitle')} subheading=${crt('dialogSub', { name: cam.name, channel: cam.channel ?? '—' })} data-camera-reboot-dialog @close=${() => (this.rebootOpen = false)}>
+          <p>${crt('dialogText')}</p>
+          <div slot="footer"><sw-button variant="danger" ?disabled=${this.rebootBusy} data-camera-reboot-run @click=${() => void this.runReboot()}>${crt('confirm')}</sw-button><sw-button variant="ghost" @click=${() => (this.rebootOpen = false)}>${crt('cancel')}</sw-button></div>
+        </sw-dialog>`
+      : nothing}`;
   }
 
   private async loadRecord() {
@@ -1078,6 +1135,7 @@ export class LiveCamera extends LitElement {
     if (changed.has('cam') && this.cam && isApi() && !this.zonesBusy && (!this.zones || this.zones.camera_id !== this.cam.id)) {
       void this.loadRecord();
       void this.loadOsd();
+      void this.loadReboot();
       void this.loadSchedules();
       this.zonesError = '';
       void this.loadZones();
@@ -1379,6 +1437,7 @@ export class LiveCamera extends LitElement {
     const caps = this.renderCaps();
     const record = this.renderRecord();
     const osd = this.renderOsd();
+    const reboot = this.renderReboot();
     return html`<details class="acc-root" data-camera-settings>
       <summary><sw-icon class="chev" name="chevron" size=${16}></sw-icon>הגדרות מצלמה</summary>
       <div class="acc-body">
@@ -1419,6 +1478,12 @@ export class LiveCamera extends LitElement {
           <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>אזורי זיהוי ומסכות — כפי שמוגדר ב־NVR</span></summary>
           <div class="acc-content">${this.renderZones(cam)}</div>
         </details>
+        ${reboot !== nothing
+          ? html`<details class="acc" data-acc-reboot ?open=${this.rebootOpen || !!this.rebootMsg}>
+              <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>${crt('section')}</span></summary>
+              <div class="acc-content">${reboot}</div>
+            </details>`
+          : nothing}
         <details class="acc" data-acc-more>
           <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>מצלמות נוספות</span></summary>
           <div class="acc-content tiles">
