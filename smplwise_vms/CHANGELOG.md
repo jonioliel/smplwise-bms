@@ -1,5 +1,27 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.40.6 (pilot) - No long database locks under heavy event load, faster WisKey return, licence notices, and fixes
+**אחרי ההתקנה:** יש מיגרציה אחת: אינדקס חדש לטבלת האירועים. הוא נבנה פעם אחת בהפעלה הראשונה, וזה לוקח כמה שניות לפי גודל הטבלה. הוא רק מוסיף אינדקס ולא משנה נתונים, ולכן החזרה ל-2.40.5 היא דרך גיבוי התוסף, כמו תמיד. אף הגדרה קיימת לא משנה ברירת מחדל. גשר Arx נשאר 0.10.5, ולכן אין צורך להפעיל מחדש את Home Assistant. הממשק נבנה מחדש עם התוסף, לכן כדאי לטעון את הדף מחדש פעם אחת אחרי העדכון.
+- **English:** After installing: one migration - a new index on the events table, built once at the first start (a few seconds, depending on the table size). It only adds an index and changes no data; going back to 2.40.5 is through the add-on backup, as always. No existing setting changes its default. The Arx bridge stays 0.10.5, so no Home Assistant restart is needed. The interface is rebuilt with the add-on, so reload the page once after the update.
+
+### מה תוקן - What was fixed
+- **עברית:** עומס אירועים: כל התראה חדשה מהמקליט חיפשה התראה פתוחה של אותה מצלמה בכל טבלת האירועים, בזמן שהכתיבה למסד נעולה. ככל שהטבלה גדלה, זה לקח יותר זמן. בבדיקת עומס של 15.5 שעות הנעילה נמשכה עד 17 שניות. פעולות אחרות שכותבות, כמו טיפול בדלת חירום ומעליות, נכשלו 27 פעמים עם "מסד נעול", והיו 7 שגיאות שרת. עכשיו החיפוש נעשה באינדקס ולוקח אלפיות שנייה בכל גודל של טבלה.
+- **English:** Event load: every new recorder alert looked for the camera's open alert across the whole events table while holding the database write lock, so the cost grew with the table. In a 15.5-hour load run the lock was held up to 17 seconds, and other writers (the emergency-door handling and the elevators among them) failed 27 times with "database is locked", with 7 server errors. The lookup now uses an index and takes milliseconds at any table size.
+- **עברית:** WisKey שחוזר אחרי היעדרות ארוכה: Arx בודק שוב אחרי 15 שניות, אחר כך אחרי 30, ואז כל דקה. קודם הוא חיכה עד 5 דקות.
+- **English:** WisKey coming back after a long absence: Arx checks again after 15 s, then 30 s, then every minute (before: up to 5 minutes).
+- **עברית:** אסימון גישה של התוסף שנדחה: במקום שלושה ניסיונות התחברות בדקה בלי סוף, יש עכשיו קצב איטי אחד ומשותף, שמתחיל ב-30 שניות ומגיע עד 15 דקות. כך Home Assistant לא חוסם את הכתובת בגלל ניסיונות כושלים. אחרי שהאסימון מתוקן, Arx מתחבר מיד.
+- **English:** A refused add-on access token: instead of three login attempts a minute for ever, one shared slow ladder (30 s doubling to 15 minutes), so Home Assistant does not ban the address for failed logins; after the token is fixed Arx connects at once.
+- **עברית:** סרגל הלשוניות העליון: הוא לפעמים הוצג גלול הצידה. עכשיו הלשונית הפעילה תמיד גלויה.
+- **English:** The top tab strip was sometimes drawn scrolled sideways; the active tab is now always shown.
+- **עברית:** כרטיס מזג האוויר במסך הבית: לפעמים הוא נטען לאט כשהיו הרבה חיבורים חיים. התיקון: חיבורים חיים כבר לא תופסים את עובדי הרקע של השרת.
+- **English:** The home-screen weather card sometimes loaded slowly while many live connections were open: live connections no longer hold the server's background workers.
+- **עברית:** מדריך המעבר מהתוסף הישן: חיבור ה-NVR מוגדר במסך **הגדרות > חיבורים > NVR**, ולא באפשרות התוסף הישנה.
+- **English:** The guide for moving from the legacy add-on: the NVR connection is set in **Settings > Connections > NVR**, not in the old add-on option.
+
+### מה נוסף - What was added
+- **עברית:** הודעות רישיון: קובץ ההודעות של צד שלישי, ובהן רישיון MIT של WisKey, נכלל עכשיו בתוסף עצמו. הודעת הרישיון של רכיב WisKey נשמרת גם בממשק הבנוי.
+- **English:** Licence notices: the third-party notices file (with WisKey's MIT notice) now ships inside the add-on, and the WisKey component's licence line is kept in the built interface.
+
 ## 2.40.5 (pilot) - Safer outages, owner contacts for bridge-key alerts, a large room fits the area screen, and fixes
 **אחרי ההתקנה:** אין מיגרציה של מסד הנתונים - חזרה ל-2.40.4 בטוחה. אף הגדרה קיימת לא משנה ברירת מחדל. גשר Arx נשאר 0.10.5, ולכן אין צורך בהפעלה מחדש של Home Assistant. הממשק נבנה מחדש עם התוסף, לכן כדאי לטעון את הדף מחדש פעם אחת אחרי העדכון.
 - **English:** After installing: no database migration - going back to 2.40.4 is safe. No existing setting changes its default. The Arx bridge stays 0.10.5, so no Home Assistant restart is needed. The interface is rebuilt with the add-on, so reload the page once after the update.
