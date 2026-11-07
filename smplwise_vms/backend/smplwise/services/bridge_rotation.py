@@ -271,6 +271,8 @@ class Engine:
     # ------------------------------------------------------------ start
 
     def preflight(self, conn: sqlite3.Connection) -> None:
+        if _revoked(conn):  # WXH4-EMERGENCY-REVOKE-2407: no rotation between an emergency revocation and the re-pair
+            raise RotationRefused("bridge_revoked")
         if mode(conn) != "on":
             raise RotationRefused("rotation_off")
         if not go_live_permitted():
@@ -592,6 +594,9 @@ class Engine:
     def resume(self, rotation_id: str) -> dict[str, Any]:
         with self.db.connection(mode="read") as conn:
             rot = rotation_row(conn, rotation_id)
+            revoked = _revoked(conn)
+        if revoked:  # WXH4-EMERGENCY-REVOKE-2407: nothing is driven between an emergency revocation and the re-pair
+            raise RotationRefused("bridge_revoked")
         if rot is None:
             raise RotationRefused("not_found", 404)
         if rot["state"] == "needs_repair":
@@ -676,7 +681,9 @@ def view(conn: sqlite3.Connection, data_dir: Path, peer: peers.Peer | None = Non
     last = hist[0] if hist else None
     available = peer_available(peer)
     blocked = None
-    if mode(conn) != "on":
+    if _revoked(conn):
+        blocked = "bridge_revoked"
+    elif mode(conn) != "on":
         blocked = "rotation_off"
     elif not go_live_permitted():
         blocked = "rotation_not_permitted"
@@ -714,7 +721,24 @@ def view(conn: sqlite3.Connection, data_dir: Path, peer: peers.Peer | None = Non
         "blocked_by": blocked,
         "automatic": automatic_state(conn, available),
         **_leftovers_view(conn),
+        "revocation": _revocation_view(conn),
     }
+
+
+def _revoked(conn: sqlite3.Connection) -> bool:
+    from . import bridge_key_revocation
+
+    return bridge_key_revocation.is_revoked(conn)
+
+
+def _revocation_view(conn: sqlite3.Connection) -> dict[str, Any]:
+    """WXH4-EMERGENCY-REVOKE-2407: the emergency revocation's state for the card (names and times only, never the code), with what the
+    confirm dialog and the re-pair step need: whether WisKey is installed, whether the new code reaches the bridge by itself, whether the
+    caller can pass the step-up (filled in by the router)."""
+    from . import bridge_discovery, bridge_key_revocation
+
+    return {**bridge_key_revocation.view(conn), "wiskey_present": wiskey_present(), "announce_path": bridge_discovery.path_open(conn),
+            "paired_at": get_setting(conn, "bridge.paired_at") or None}
 
 
 def _leftovers_view(conn: sqlite3.Connection) -> dict[str, Any]:
@@ -813,6 +837,8 @@ def _backoff_s(conn: sqlite3.Connection) -> tuple[float, float | None]:
 
 
 def auto_due(conn: sqlite3.Connection, peer: peers.Peer, now: float) -> bool:
+    if _revoked(conn):
+        return False
     if mode(conn) != "on" or not go_live_permitted() or not peer_available(peer) or not auto_wanted(conn, now):
         return False
     if wiskey_present():

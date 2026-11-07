@@ -662,6 +662,18 @@ def _lease_repair(reason: str) -> None:
 @router.get("/ha/bridge/pairing")
 def pairing(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), regenerate: bool = False) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
+    from ..services import bridge_key_revocation as bkr
+
+    if bkr.is_revoked(conn):
+        # WXH4-EMERGENCY-REVOKE-2407 (owner decision 2): after an emergency revocation the new code is shown only on the bridge-key screen,
+        # to a system administrator after a fresh re-authentication (audited) - never here; a further new code is a further revocation
+        if regenerate:
+            audit(conn, actor=principal, action="bridge.pairing.regenerate", decision="denied", resource_type="installation", resource_id="*",
+                  reason=bkr.REVOKED_CODE, request_id=getattr(request.state, "correlation_id", None))
+            raise ApiError(409, bkr.REVOKED_CODE, "מפתח הגשר בוטל בחירום. קוד חדש נוצר ומוצג רק במסך מפתח הגשר, אחרי אימות מחדש.")
+        host = socket.gethostname()
+        return {"pairing_code": None, "revoked": True, "key_set": False, "addon_host": host, "addon_url": f"http://{host}:8099", "paired_at": None,
+                "announced": False, "announce_path": bridge_discovery.path_open(conn)}
     secret = ha_bridge.ensure_pairing(conn, regenerate=regenerate)
     if regenerate:
         _lease_repair("repair")  # CR-WISKEY-LEASE-REVOCATION-EVENT T9: a new pairing key - every capture lease goes, a new stream
@@ -682,7 +694,10 @@ def bridge_ping(message: dict[str, Any], conn: sqlite3.Connection = Depends(get_
     """Called by the integration during its config flow: proves the pairing code and marks the bridge paired."""
     if "purpose" in message:  # WXH-LEFTOVERS-2405: `purpose` marks a message Arx signs FOR the bridge (cast origin, key status) - never a ping
         raise ApiError(422, "bridge_bad_request", "גוף הודעה לא תקין.")
-    ha_bridge.verify_message(conn, message)
+    ha_bridge.verify_message(conn, message, pairing=True)  # WXH4: while revoked, only the NEW code verifies, and only here
+    from ..services import bridge_key_revocation
+
+    bridge_key_revocation.on_paired(conn, message.get("version"))  # WXH4-EMERGENCY-REVOKE-2407: the new code proved - the revocation ends
     _lease_repair("repair")  # CR-WISKEY-LEASE-REVOCATION-EVENT T9: (re-)paired - every capture lease goes, a new stream
     set_setting(conn, "bridge.paired_at", now_iso())
     set_setting(conn, "bridge.integration_version", str(message.get("version") or ""))

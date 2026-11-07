@@ -13,6 +13,14 @@
       "hassio_confirm": {
         "title": "Pair with the SmplWise Arx add-on",
         "description": "The add-on {addon} announced itself with its pairing code. Confirm to let the VMS run allow-listed actions in your own Home Assistant identity."
+      },
+      "reconfigure": {
+        "title": "Re-pair with the SmplWise Arx add-on",
+        "description": "Use this after the bridge key was revoked in the add-on and the new pairing code did not arrive by itself. In the add-on, open the bridge-key screen, confirm with your authenticator code and copy the new pairing code. The code is applied only when the add-on accepts it.",
+        "data": {
+          "addon_url": "Add-on address (inside Home Assistant's network)",
+          "pairing_code": "New pairing code"
+        }
       }
     },
     "error": {
@@ -26,7 +34,9 @@
       "single_instance_allowed": "Only one bridge can be configured.",
       "cannot_connect": "The add-on could not be reached for the automatic installation.",
       "invalid_auth": "The pairing code of the automatic installation was refused.",
-      "unknown": "The automatic installation failed."
+      "unknown": "The automatic installation failed.",
+      "reconfigure_successful": "The bridge was re-paired with the new code and reloads now.",
+      "reconfigure_missing": "The bridge entry to re-pair was not found."
     }
   },
   "options": {

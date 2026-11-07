@@ -15,6 +15,15 @@ token or group grants anything here.
   administrators who are "the owner" for the bridge-key notices (`security.owner_contacts`); `[]` clears it. Audited `settings.changed`.
 - `GET  /system/bridge-key/notice` - WXH-LEFTOVERS-2405: whether the bridge-key notice banner is up on the Settings screens (an open notice
   while no owner contact is set). Read only: never drives a rotation.
+- `POST /system/bridge-key/revoke` - WXH4-EMERGENCY-REVOKE-2407 (CR-034 section 8): needs `bridge.key.rotate` (system_admin only) and the
+  system-administrator check; `{confirm: true, wiskey_acknowledged}` (the latter must be true while WisKey is installed: the dialog warned
+  that door opening through WisKey stops until the re-pair - owner decision 3). Never refused for want of an owner contact (decision 6).
+  The key set is wiped, a fresh pairing code made and announced to the bridge through the existing re-pair path; every bridge operation is
+  blocked until the bridge proves the new code (services/bridge_key_revocation.py). Audited `bridge.key.revoked` (name + time); the notice
+  names the administrator (decision 4).
+- `POST /system/bridge-key/revoke/reveal` - WXH4: `{code}` = the caller's OWN current authenticator code (the step-up: a fresh
+  re-authentication, owner decision 2). Any system administrator; answers the new pairing code for the manual entry in the bridge, only
+  while the revocation waits for the re-pair. Every reveal and every refused attempt is audited (`bridge.key.code_revealed`).
 
 The switch and the reminder are never taken from a backup (services/backup.SETTINGS_KEEP)."""
 from __future__ import annotations
@@ -23,7 +32,7 @@ import sqlite3
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
@@ -31,7 +40,9 @@ from ..db import database_of, set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, is_system_admin, require
 from ..services import bridge_key_notice as bkn
+from ..services import bridge_key_revocation as bkr
 from ..services import bridge_rotation as br
+from ..services import second_factor as sf
 
 router = APIRouter()
 CONFIGURE = "system.configure"
@@ -51,6 +62,15 @@ MESSAGES = {
     "not_found": "ההחלפה לא נמצאה.",
     "validation": "בקשה לא תקינה.",
     "contact_not_admin": "אפשר לבחור רק מנהלי מערכת פעילים.",
+    # WXH4-EMERGENCY-REVOKE-2407
+    "bridge_revoked": bkr.REVOKED_TEXT,
+    "confirm_required": "יש לאשר את הביטול.",
+    "wiskey_ack_required": "WisKey מותקן: יש לאשר שפתיחת דלתות דרך WisKey תיפסק עד הצימוד מחדש.",
+    "revoke_busy": "שלב של החלפת מפתח רץ כרגע. נסו שוב בעוד כמה שניות.",
+    "not_revoked": "אין ביטול חירום שממתין לצימוד מחדש.",
+    "no_code": "אין קוד צימוד חדש להצגה.",
+    "step_up_unavailable": "כדי להציג את הקוד צריך אימות מחדש בקוד מאפליקציית האימות שלך, ולחשבון שלך עוד לא הוגדר אימות דו־שלבי. הפעל אותו בחשבון שלך ונסה שוב.",
+    "step_up_required": "הזן את הקוד הנוכחי מאפליקציית האימות שלך.",
 }
 
 
@@ -85,12 +105,20 @@ def _refused(exc: br.RotationRefused) -> ApiError:
 @router.get("/system/bridge-key")
 def get_bridge_key(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _gate(conn, request, principal, "bridge.key.read")
-    if not (br.mode(conn) == "on" and br.go_live_permitted()):
-        return br.view(conn, request.app.state.settings.data_dir, _peer(request))
+    if not (br.mode(conn) == "on" and br.go_live_permitted()) or bkr.is_revoked(conn):
+        return _with_step_up(conn, principal, br.view(conn, request.app.state.settings.data_dir, _peer(request)))
     engine = _engine(request, conn, principal)
     engine.tick()
     with engine.db.connection(mode="read") as fresh:  # the request's snapshot predates the tick
-        return br.view(fresh, request.app.state.settings.data_dir, _peer(request))
+        return _with_step_up(fresh, principal, br.view(fresh, request.app.state.settings.data_dir, _peer(request)))
+
+
+def _with_step_up(conn: sqlite3.Connection, principal: Principal, view: dict[str, Any]) -> dict[str, Any]:
+    """WXH4: whether THIS administrator can pass the reveal's step-up (an active authenticator of their own) - a hint for the card only."""
+    rev = view.get("revocation")
+    if isinstance(rev, dict):
+        view["revocation"] = {**rev, "step_up_ready": sf.is_enrolled(conn, principal.user_id)}
+    return view
 
 
 class SettingsBody(BaseModel):
@@ -186,3 +214,88 @@ def get_bridge_key_notice(request: Request, principal: Principal = Depends(curre
     """WXH-LEFTOVERS-2405: the Settings banner of an open bridge-key notice while no owner contact is set (read only)."""
     _gate(conn, request, principal, "bridge.key.read")
     return bkn.banner(conn)
+
+
+# ---------------------------------------------------------------- WXH4-EMERGENCY-REVOKE-2407: emergency revocation + fresh-key re-pair
+
+class RevokeBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    confirm: bool
+    wiskey_acknowledged: bool = False
+
+
+@router.post("/system/bridge-key/revoke")
+def revoke_bridge_key(body: RevokeBody, request: Request, principal: Principal = Depends(current_principal_ro),
+                      conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The emergency revocation (system administrator). Runs in a write transaction of its own, under the rotation lock, so no rotation step
+    interleaves; the new code is announced after the commit (a Supervisor call never runs inside a transaction)."""
+    from ..services import bridge_install
+
+    _gate(conn, request, principal, "bridge.key.revoked", ROTATE)
+    if body.confirm is not True:
+        raise ApiError(422, "confirm_required", MESSAGES["confirm_required"])
+    present = br.wiskey_present()
+    if present and body.wiskey_acknowledged is not True:
+        audit(conn, actor=principal, action="bridge.key.revoked", decision="denied", resource_type="bridge_key", resource_id="*", reason="wiskey_ack_required",
+              request_id=_rid(request))
+        raise ApiError(409, "wiskey_ack_required", MESSAGES["wiskey_ack_required"])
+    settings = request.app.state.settings
+    db = database_of(conn) or request.app.state.db
+    if not br._LOCK.acquire(timeout=bkr.LOCK_WAIT_S):
+        audit(conn, actor=principal, action="bridge.key.revoked", decision="denied", resource_type="bridge_key", resource_id="*", reason="revoke_busy",
+              request_id=_rid(request))
+        raise ApiError(409, "revoke_busy", MESSAGES["revoke_busy"], retryable=True)
+    try:
+        with db.connection(label="bridge key emergency revocation") as w:
+            out = bkr.revoke(w, actor=principal, request_id=_rid(request), wiskey_present=present)
+    finally:
+        br._LOCK.release()
+    bkr.after_revoke(db, settings)
+    announced = bridge_install.announce_discovery(db, settings)  # the existing re-pair path (owner decision 1); False when it is closed
+    with db.connection(mode="read") as fresh:
+        view = _with_step_up(fresh, principal, br.view(fresh, settings.data_dir, _peer(request)))
+    return {"revoked": True, "revocation_id": out.get("id"), "announced": announced, "notice": out.get("notice"), "status": view}
+
+
+class RevealBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    code: str | None = Field(default=None, max_length=16)
+
+
+@router.post("/system/bridge-key/revoke/reveal")
+def reveal_new_code(request: Request, body: RevealBody | None = None, principal: Principal = Depends(current_principal),
+                    conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """The new pairing code after an emergency revocation, for the manual entry in the bridge. Any system administrator, after a fresh
+    re-authentication with their OWN current authenticator code (owner decision 2). Every outcome is audited."""
+    from ..services import bridge_install
+    from ..services import ha_user_auth as hua
+
+    _gate(conn, request, principal, "bridge.key.code_revealed")
+
+    def denied(reason: str) -> None:
+        audit(conn, actor=principal, action="bridge.key.code_revealed", decision="denied", resource_type="bridge_key",
+              resource_id=(bkr.state(conn) or {}).get("id") or "*", reason=reason, request_id=_rid(request),
+              details={"actor_name": bkr.actor_name(conn, principal), "step_up": "totp"})
+
+    if not bkr.is_revoked(conn):
+        denied("not_revoked")
+        raise ApiError(409, "not_revoked", MESSAGES["not_revoked"])
+    if not sf.is_enrolled(conn, principal.user_id):
+        denied("step_up_unavailable")
+        raise ApiError(403, "step_up_unavailable", MESSAGES["step_up_unavailable"])
+    code = (request.headers.get(hua.SECOND_FACTOR_HEADER) or (body.code if body else None) or "").strip()
+    if not code:
+        denied("step_up_required")
+        raise ApiError(403, "step_up_required", MESSAGES["step_up_required"])
+    try:
+        sf.verify(conn, request.app.state.settings, principal.user_id, code)
+    except sf.SecondFactorError as exc:
+        denied(f"step_up_{exc.code}")
+        raise ApiError(429 if exc.code == "locked" else 403 if exc.code == "invalid" else 409, f"second_factor_{exc.code}", exc.message,
+                       retryable=exc.code == "locked") from None
+    try:
+        pairing_code = bkr.reveal(conn, actor=principal, request_id=_rid(request))
+    except bkr.RevocationRefused as exc:
+        denied(exc.code)
+        raise ApiError(exc.status, exc.code, MESSAGES.get(exc.code, MESSAGES["validation"])) from None
+    return {"pairing_code": pairing_code, "addon_url": bridge_install.addon_url(), "revocation_id": (bkr.state(conn) or {}).get("id")}

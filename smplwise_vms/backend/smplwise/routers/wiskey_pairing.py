@@ -76,6 +76,12 @@ def pairing_repair(body: RepairBody, request: Request, principal: Principal = De
         raise ApiError(403, "not_system_admin", "רק מנהל מערכת יכול לצמד מחדש את Arx ו־WisKey.")
     if body.confirm is not True:
         raise ApiError(422, "confirm_required", "יש לאשר את הצימוד מחדש.")
+    from ..services import bridge_key_revocation as bkr
+
+    if bkr.is_revoked(conn):  # WXH4-EMERGENCY-REVOKE-2407: the code of an emergency re-pair is revealed only on the bridge-key screen (step-up)
+        audit(conn, actor=principal, action="wiskey.pairing.repair", decision="denied", resource_type="installation", resource_id="*", reason=bkr.REVOKED_CODE,
+              request_id=_rid(request))
+        raise ApiError(409, bkr.REVOKED_CODE, "מפתח הגשר בוטל בחירום: הצימוד מחדש ממשיך ממסך מפתח הגשר.")
     settings = settings_of(request)
     before = wp.status(conn, settings)
     reason = before["repair"]["reason"]

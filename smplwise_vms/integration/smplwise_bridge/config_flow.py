@@ -110,6 +110,52 @@ class SmplwiseBridgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         _LOGGER.info("SMPLWISE Bridge: a discovery offered a pairing code the add-on did not accept (%s); the existing entry is kept unchanged", err)
         return self.async_abort(reason="already_configured")
 
+    def _entry_to_reconfigure(self) -> config_entries.ConfigEntry | None:
+        """The entry a Reconfigure flow was opened for (Home Assistant's own helper where the core has it, else the context's entry id)."""
+        getter = getattr(self, "_get_reconfigure_entry", None)
+        if getter is not None:
+            try:
+                return getter()
+            except Exception:  # noqa: BLE001 - an older core: fall back to the context
+                pass
+        entry_id = (self.context or {}).get("entry_id")
+        return self.hass.config_entries.async_get_entry(entry_id) if entry_id else None
+
+    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None):
+        """0.10.6 (WXH4-EMERGENCY-REVOKE-2407): the manual re-pair - the fallback when the add-on's new pairing code cannot reach this
+        entry by itself (after an emergency revocation of the bridge key in the add-on, with the automatic discovery path closed).
+
+        An administrator types the add-on address and the NEW pairing code the add-on shows (after its own re-authentication). The code is
+        taken only when the add-on accepts it - one signed ping with that code, the same `_try_pair` as a first install and as the discovery
+        re-pair path (0.10.3); a refused or unreachable code changes nothing and the form says why. Accepted -> the entry's data is updated;
+        the loaded entry's update listener (0.10.4, `entry_updated`) schedules its one reload, which takes the K-02 re-pair path (a fresh key
+        set from the new code; the old key is never used again). An entry without a listener (not loaded / waiting for a retry) is reloaded
+        here through the core's scheduler - never a flow reload on top of an update listener (refused from Home Assistant 2026.12). The
+        options (service identity, delegation, runnable list, WisKey door block) are kept. Never logs a code."""
+        entry = self._entry_to_reconfigure()
+        if entry is None:
+            return self.async_abort(reason="reconfigure_missing")
+        data = dict(getattr(entry, "data", None) or {})
+        errors: dict[str, str] = {}
+        url_now = str(data.get(CONF_ADDON_URL) or DEFAULT_ADDON_URL)
+        if user_input is not None:
+            url = str(user_input.get(CONF_ADDON_URL) or "").strip().rstrip("/") or url_now.rstrip("/")
+            code = str(user_input.get(CONF_PAIRING_CODE) or "").strip()
+            url_now = url
+            err = "invalid_auth" if not code else await self._try_pair(url, code)
+            if err is None:
+                self.hass.config_entries.async_update_entry(entry, data={**data, CONF_ADDON_URL: url, CONF_PAIRING_CODE: code})
+                if not getattr(entry, "update_listeners", None):
+                    schedule = getattr(self.hass.config_entries, "async_schedule_reload", None)
+                    if schedule is not None:
+                        schedule(entry.entry_id)
+                _LOGGER.info("SMPLWISE Bridge: re-paired by hand with a pairing code the add-on accepted")
+                return self.async_abort(reason="reconfigure_successful")
+            _LOGGER.info("SMPLWISE Bridge: a pairing code typed in Reconfigure was not accepted by the add-on (%s); the entry is unchanged", err)
+            errors["base"] = err
+        schema = vol.Schema({vol.Required(CONF_ADDON_URL, default=url_now): str, vol.Required(CONF_PAIRING_CODE): str})
+        return self.async_show_form(step_id="reconfigure", data_schema=schema, errors=errors)
+
     async def async_step_hassio_confirm(self, user_input: dict[str, Any] | None = None):
         assert self._discovered is not None
         errors: dict[str, str] = {}

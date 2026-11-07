@@ -16,9 +16,11 @@ from typing import Any, Callable
 
 REMIND_S = 3600  # while refusals go on, the warning is repeated at most once an hour
 
+# 0.10.6 (WXH4-EMERGENCY-REVOKE-2407): the manual fix is Reconfigure (config_flow.async_step_reconfigure), no longer delete-and-add
 REFUSED_TEXT = ("SMPLWISE Bridge: the add-on refuses this bridge's signed updates (401) - the pairing code in this entry is not the add-on's "
-                "current one. In the add-on: Settings > \"Arx - WisKey connection\" > re-pair; if the new code is not delivered automatically, "
-                "delete this integration and add it again with the address and code the add-on shows.")
+                "current one (a re-pair, or an emergency revocation of the bridge key in the add-on). The new code normally arrives by itself; "
+                "if it does not, open Settings > Devices & services > SMPLWISE Bridge > Reconfigure and enter the address and the new code the "
+                "add-on shows on its bridge-key screen.")
 
 
 def _iso(at: float) -> str:

@@ -1,6 +1,11 @@
 """Constants for the SMPLWISE bridge."""
 DOMAIN = "smplwise_bridge"
-VERSION = "0.10.5"
+VERSION = "0.10.6"
+# 0.10.6 (WXH4-EMERGENCY-REVOKE-2407, CR-034 section 8, owner decisions of 07.11): the manual re-pair - Settings > Devices & services >
+# SMPLWISE Bridge > Reconfigure takes the add-on address and a NEW pairing code (after an emergency revocation of the bridge key in the
+# add-on, when its automatic discovery cannot reach this entry). The code is applied only when the add-on accepts it (one signed ping, as
+# the 0.10.3 discovery path); the entry's own update listener reloads it once (0.10.4 rule, Home Assistant 2026.11 / 2026.12). A refused
+# push now names Reconfigure as the fix (push_health.py). Nothing else changes. Needs one Home Assistant restart (by the owner) to load.
 # 0.10.5 (DOOR-BRIDGE-BLOCK-2404, CR-033 slice D5a, owner decision 20): `execute` refuses `lock.*` / `button.press` on a WisKey door
 # (wiskey_door_block.py) unless the options-flow field `wiskey_execute_policy` says `allowed`; default `blocked`. Every refusal is
 # logged and fired as the event `smplwise_bridge_door_execute_refused` (names and fixed tokens only). The directory push reports the

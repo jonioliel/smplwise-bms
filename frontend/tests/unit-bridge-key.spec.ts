@@ -95,3 +95,51 @@ test('the banner is local, read only, and drawn only in the Settings area', () =
   expect(line).toContain("area !== 'system'");
   expect(app.match(/<sw-bridge-key-banner>/g)?.length).toBe(1);
 });
+
+// WXH4-EMERGENCY-REVOKE-2407: the emergency revocation, its confirm dialog and the reveal with a fresh re-authentication.
+const REV_KEYS = ['stateRevoked', 'rvTitle', 'rvButton', 'rvDlgTitle', 'rvDlg1', 'rvDlg2', 'rvDlg3', 'rvDlg4', 'rvWiskeyWarn', 'rvWiskeyAck', 'rvConfirm',
+  'rvRevoked', 'rvAuto', 'rvManual', 'rvRepaired', 'rvReveal', 'rvStepUp', 'rvStepUpNone', 'rvCodeLabel', 'rvSteps', 'bl_bridge_revoked'] as const;
+
+test('the revocation words exist in Hebrew and English (and the dev-marked columns), naming the revoker and the time', () => {
+  for (const k of REV_KEYS) {
+    expect(BKT_TABLES.he[k], `he.${k}`).toBeTruthy();
+    expect(BKT_TABLES.en[k], `en.${k}`).toBeTruthy();
+  }
+  expect(bkt('rvRevoked', { t: '07/11/26 10:00', name: 'Dana' }, 'en')).toBe('The bridge key was revoked at 07/11/26 10:00 by Dana. Every operation through the bridge is stopped until the re-pair.');
+  expect(bkt('rvRevoked', { t: 'x', name: 'דנה' }, 'he')).toContain('בידי דנה');
+  expect(bktCode('bl_', 'bridge_revoked', 'en')).toBe('Revoked in an emergency, waiting for the re-pair');
+  expect(bkt('rvWiskeyWarn', undefined, 'en')).toContain('WisKey');
+  expect(bkt('rvWiskeyWarn')).toContain('WisKey');
+});
+
+test('the confirm dialog warns about WisKey and waits for the acknowledgement; the button never waits for an owner contact', () => {
+  const src = readFileSync(new URL('../src/components/sw-bridge-key-revoke.ts', import.meta.url), 'utf8');
+  expect(src).toContain("bkt('rvWiskeyWarn')");
+  expect(src).toContain('?disabled=${this.busy || (wiskey && !this.ack)}');
+  expect(src).toContain('revokeBridgeKey(!!rev?.wiskey_present && this.ack)');
+  const open = src.split('\n').find((l) => l.includes('data-bridge-key-revoke-open')) ?? '';
+  expect(open).toContain('?disabled=${this.busy}');
+  expect(open).not.toMatch(/owner|contacts/);
+  const card = readFileSync(new URL('../src/components/sw-bridge-key-card.ts', import.meta.url), 'utf8');
+  expect(card.match(/<sw-bridge-key-revoke /g)?.length).toBe(1);
+  expect(card).toContain("s.revocation?.state === 'revoked'");
+});
+
+test('the new code is shown only after the re-authentication, held in memory only, and never put in storage or the address', () => {
+  const src = readFileSync(new URL('../src/components/sw-bridge-key-revoke.ts', import.meta.url), 'utf8');
+  expect(src).not.toMatch(/localStorage|sessionStorage|indexedDB|location\.|history\.|console\./);
+  expect(src).toContain('autocomplete="one-time-code"');
+  expect(src).toContain('revealNewCode(this.otp.trim())');
+  expect(src).toContain('this.shown = null; // the revealed code never outlives the element');
+  expect(src.match(/shown\.pairing_code/g)?.length).toBe(2); // shown once, copied once
+  const api = readFileSync(new URL('../src/api/bridge-key.ts', import.meta.url), 'utf8');
+  expect(api).toContain("post<RevealResult>('system/bridge-key/revoke/reveal', { code })");
+  expect(api).toContain("{ confirm: true, wiskey_acknowledged: wiskeyAcknowledged }");
+  expect(api).not.toMatch(/material|value_enc/);
+});
+
+test('no home-system branding in the revocation words', () => {
+  for (const lang of ['he', 'en', 'ar', 'ru'] as const) {
+    for (const k of REV_KEYS) expect(BKT_TABLES[lang][k] ?? '', `${lang}.${k}`).not.toMatch(/Home Assistant|\bHA\b|Ingress|Companion/i);
+  }
+});

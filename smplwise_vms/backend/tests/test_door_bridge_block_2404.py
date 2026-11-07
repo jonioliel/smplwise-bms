@@ -179,11 +179,11 @@ def test_bridge_version_0_10_5_and_the_bundled_copy_is_identical():
     spec.loader.exec_module(sync)
     assert sync.differences() == [], "run python scripts/sync_integration.py"
     for root in (SRC, MIRROR):
-        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.10.5", root
+        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.10.6", root
         const = (root / "const.py").read_text(encoding="utf-8")
-        assert 'VERSION = "0.10.5"' in const and "DOOR-BRIDGE-BLOCK-2404" in const.split('VERSION = "0.10.5"', 1)[1].split("# 0.10.4", 1)[0]
-        assert "Needs one Home Assistant restart (by the owner)" in const.split('VERSION = "0.10.5"', 1)[1].split("# 0.10.4", 1)[0]
-        assert "const VERSION = '0.10.5';" in (root / "www" / "smplwise-card.js").read_text(encoding="utf-8")
+        assert 'VERSION = "0.10.6"' in const and "DOOR-BRIDGE-BLOCK-2404" in const.split('VERSION = "0.10.6"', 1)[1].split("# 0.10.4", 1)[0]
+        assert "Needs one Home Assistant restart (by the owner)" in const.split('VERSION = "0.10.6"', 1)[1].split("# 0.10.4", 1)[0]
+        assert "const VERSION = '0.10.6';" in (root / "www" / "smplwise-card.js").read_text(encoding="utf-8")
         assert (root / "wiskey_door_block.py").read_bytes() == (SRC / "wiskey_door_block.py").read_bytes()
 
 

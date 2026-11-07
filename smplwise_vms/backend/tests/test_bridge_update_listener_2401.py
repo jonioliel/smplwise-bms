@@ -63,9 +63,9 @@ def test_no_flow_reload_is_combined_with_the_update_listener(root: Path):
 
 def test_bridge_version_is_0_10_4_and_both_copies_are_identical():
     for root in COPIES:
-        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.10.5"
-        assert 'VERSION = "0.10.5"' in (root / "const.py").read_text(encoding="utf-8")
-        assert "const VERSION = '0.10.5';" in (root / "www" / "smplwise-card.js").read_text(encoding="utf-8")
+        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.10.6"
+        assert 'VERSION = "0.10.6"' in (root / "const.py").read_text(encoding="utf-8")
+        assert "const VERSION = '0.10.6';" in (root / "www" / "smplwise-card.js").read_text(encoding="utf-8")
     src, mirror = COPIES
     names = sorted(p.relative_to(src).as_posix() for p in src.rglob("*") if p.is_file() and "__pycache__" not in p.parts)
     assert names == sorted(p.relative_to(mirror).as_posix() for p in mirror.rglob("*") if p.is_file() and "__pycache__" not in p.parts)

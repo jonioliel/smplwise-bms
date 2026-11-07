@@ -215,14 +215,14 @@ def _code() -> str:
     return secrets.token_urlsafe(24)
 
 
-# ---------------------------------------------------------------- the bridge (0.10.3 behaviour, version 0.10.5 - DOOR-BRIDGE-BLOCK-2404)
+# ---------------------------------------------------------------- the bridge (0.10.3 behaviour, version 0.10.6 - WXH4-EMERGENCY-REVOKE-2407)
 
 def test_bridge_version_is_0_10_3_in_both_copies():
     const = _load("const")
-    assert const.VERSION == "0.10.5"
+    assert const.VERSION == "0.10.6"
     for root in (BRIDGE_DIR, ROOT / "smplwise_vms" / "integration" / "smplwise_bridge"):
-        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.10.5"
-        assert "const VERSION = '0.10.5';" in (root / "www" / "smplwise-card.js").read_text(encoding="utf-8")
+        assert json.loads((root / "manifest.json").read_text(encoding="utf-8"))["version"] == "0.10.6"
+        assert "const VERSION = '0.10.6';" in (root / "www" / "smplwise-card.js").read_text(encoding="utf-8")
         assert "_discovered_for_existing" in (root / "config_flow.py").read_text(encoding="utf-8")
 
 
@@ -747,7 +747,7 @@ def test_bridge_diagnostics_and_wiring_carry_no_secret():
     entry = types.SimpleNamespace(entry_id="e1", data={"pairing_code": code, "addon_url": URL})
     hass = types.SimpleNamespace(data={"smplwise_bridge_push_health": {"e1": ph}})
     out = asyncio.run(diag.async_get_config_entry_diagnostics(hass, entry))
-    assert out["directory_push"]["reason"] == "addon_refused_signature" and out["pairing_code_in_entry"] is True and out["version"] == "0.10.5"
+    assert out["directory_push"]["reason"] == "addon_refused_signature" and out["pairing_code_in_entry"] is True and out["version"] == "0.10.6"
     assert code not in json.dumps(out) and URL not in json.dumps(out)
     assert asyncio.run(diag.async_get_config_entry_diagnostics(types.SimpleNamespace(data={}), entry))["directory_push"] == {"reason": "not_loaded"}
     src = (BRIDGE_DIR / "__init__.py").read_text(encoding="utf-8")
