@@ -218,3 +218,26 @@ def test_a_clock_write_that_leaves_the_device_off_is_reported(monkeypatch):
     assert audited == ["nvr.clock.verify_failed"]
     monkeypatch.setattr(nvr_system, "time_status", lambda *a, **k: {"drift_s": 2})
     assert nvr_system.sync_clock(None, None, None, client=object(), tz=ZoneInfo("Asia/Jerusalem"))["status"] == "applied"
+
+
+def test_nvr_reboot_needs_the_writes_switch(settings, monkeypatch):
+    """Owner 07.11 (2א): one rule for every change to the recorder - with the NVR-writes switch off the whole-NVR reboot is
+    refused (409 nvr_writes_off, audited) before the typed word is checked and before anything is sent; the system card says so."""
+    fake = FakeNvr()
+    monkeypatch.setattr(nvr_write, "_client", fake.client)
+    monkeypatch.setattr(nvr_system, "_client", fake.client)
+    with TestClient(create_app(settings)) as c:
+        assert c.get("/api/v1/nvr/system").json()["can"]["reboot"] is True
+        assert c.patch("/api/v1/recorders/nvr-1/writes", json={"enabled": False}).status_code == 200
+        st = c.get("/api/v1/nvr/system").json()
+        assert st["writes_enabled"] is False and st["can"]["reboot"] is False
+        r = c.post("/api/v1/nvr/reboot", json={"confirm": "RESTART"})
+        assert r.status_code == 409 and r.json()["code"] == "nvr_writes_off"
+        assert c.post("/api/v1/nvr/reboot", json={"confirm": "no"}).json()["code"] == "nvr_writes_off", "the switch is checked first"
+        assert fake.commands == []
+        audit = c.get("/api/v1/audit?prefix=nvr.&limit=50").json()
+        rows = audit if isinstance(audit, list) else next((v for v in audit.values() if isinstance(v, list)), [])
+        assert any(e.get("reason") == "nvr_writes_off" and e.get("decision") == "denied" for e in rows), rows[:2]
+        assert c.patch("/api/v1/recorders/nvr-1/writes", json={"enabled": True, "confirm": True}).status_code == 200
+        assert c.post("/api/v1/nvr/reboot", json={"confirm": "RESTART"}).status_code == 201
+        assert fake.commands[-1][0] == "/ISAPI/System/reboot"

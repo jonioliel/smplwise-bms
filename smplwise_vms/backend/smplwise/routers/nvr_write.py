@@ -246,6 +246,8 @@ def system_status(request: Request, principal: Principal = Depends(current_princ
         return {"time": None, "disks": [], "outputs": [], "errors": {}, "can": {k: False for k in _can(conn, principal)}, "recorder_id": recorder_id,
                 "supported": False, "reason": "not_supported_for_recorder", "vendor": vendor}
     out: dict[str, Any] = {"time": None, "disks": [], "outputs": [], "errors": {}, "can": _can(conn, principal), "recorder_id": recorder_id, "supported": True}
+    out["writes_enabled"] = camera_reboot.writes_on(settings)  # owner 07.11 (2א): the NVR reboot also needs the writes switch
+    out["can"]["reboot"] = out["can"]["reboot"] and out["writes_enabled"]
     tz = zone(read_settings(conn)["time.zone"])
     with unlocked(conn):
         client = nvr_write._client(settings)
@@ -325,9 +327,16 @@ def reboot_nvr(body: RebootIn, request: Request, principal: Principal = Depends(
                recorder_id: str = Query(PRIMARY, max_length=40)) -> dict[str, Any]:
     """The typed word is the second confirmation the owner asked for (no live video / recording for 1-2 minutes)."""
     require(conn, principal, "nvr.system.reboot", INSTALLATION)
+    settings = recorder_settings(request, conn, recorder_id)
+    if str(settings.nvr_vendor or "").strip().lower() in nvr.ISAPI_VENDORS and not camera_reboot.writes_on(settings):
+        # another vendor keeps its own 409 vendor_unsupported from the device layer (nothing built, nothing sent).
+        # Owner 07.11 (2א): one rule for every change to the recorder - the NVR reboot also needs the writes switch, like the
+        # camera reboot. Refused before the typed word is checked and before anything is sent.
+        audit(conn, actor=principal, action="nvr.write", decision="denied", resource_type="nvr", resource_id="system", reason="nvr_writes_off",
+              request_id=_rid(request), details={"kind": "reboot", "recorder_id": recorder_id})
+        raise ApiError(409, "nvr_writes_off", "שינויים ב־NVR כבויים. אפשר להפעיל אותם בהגדרות החיבור של ה־NVR.", details={"recorder_id": recorder_id})
     if body.confirm.strip().upper() != "RESTART":
         raise ApiError(422, "confirm_required", "יש להקליד RESTART כדי להפעיל מחדש.")
-    settings = recorder_settings(request, conn, recorder_id)
     with unlocked(conn):
         return nvr_system.reboot(settings, conn, principal, request_id=_rid(request))
 
