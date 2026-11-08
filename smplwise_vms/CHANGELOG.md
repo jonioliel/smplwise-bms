@@ -1,5 +1,19 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.41.1 (pilot) - Camera screens without a recorder, WebRTC server notice, cameras on the floor map
+**אחרי ההתקנה:** אין מיגרציה, אין עדכון לגשר ואין צורך להפעיל מחדש את Home Assistant.
+- **English:** After installing: no migration, no bridge update and no Home Assistant restart.
+
+### מה נוסף - What was added
+- **עברית:** במערכת בלי מקליט, מסכי המצלמות (שידור חי, קיר, מסך מצלמה, כרטיסי מצלמה באזורים) מוצגים כשיש לפחות מצלמה אחת ללא מקליט. הקלטות, ניגון והגדרות מקליט נשארים מוסתרים.
+- **English:** In an installation without a recorder the camera screens (live, wall, camera screen, area camera cards) appear once at least one camera without a recorder exists; recordings, playback and recorder settings stay hidden.
+- **עברית:** כשאין שרת WebRTC, במקום וידאו ריק מוצגת הודעה ברורה עם קישור להגדרות החיבורים. הוספת מצלמה ללא מקליט ו"בדוק זרם" חסומות עד שמגדירים שרת.
+- **English:** Without a WebRTC server a clear notice with a link to the connection settings replaces the empty player; adding a camera without a recorder and "Test stream" are blocked until a server is set.
+- **עברית:** מצלמות ללא מקליט מוצגות בשכבת המצלמות של מפת הקומה וניתנות למיקום בעורך המפה.
+- **English:** Cameras without a recorder appear on the floor map's camera layer and can be placed in the plan editor.
+- **עברית:** סקריפט ניקוי כונן לתחנת הפיתוח (מציג קודם, מוחק רק באישור).
+- **English:** A workstation disk-cleanup script (lists first, removes only when asked).
+
 ## 2.41.0 (pilot) - Video source per camera, cameras without a recorder
 **אחרי ההתקנה:** יש מיגרציה אחת: טבלה חדשה למקורות וידאו של מצלמות. היא רק מוסיפה טבלה ולא משנה נתונים. אין עדכון לגשר ואין צורך להפעיל מחדש את Home Assistant.
 - **English:** After installing: one migration - a new table for camera video sources (adds a table, changes no data). No bridge update and no Home Assistant restart.
