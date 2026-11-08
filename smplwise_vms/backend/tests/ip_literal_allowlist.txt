@@ -40,3 +40,4 @@ docs/changes/receipts/WISKEY-*/*.junit.xml                    # WisKey receipts;
 docs/evidence/WISKEY-RC4-2310/round*/shard_*.junit.xml         # WisKey rc.4 receipts; same test ids as above
 smplwise_vms/backend/tests/test_legacy_parity_t070.py     # T070: a synthetic legacy add-on options file (10.1.2.3), never a lab address; the parity check reads its shape
 smplwise_vms/backend/tests/test_wiskey_activation_runbook.py     # the runbook redaction test proves a private literal (10.1.2.3, synthetic) is refused
+smplwise_vms/backend/tests/test_camera_sources_2410.py     # CAMERA-STREAM-SOURCES-2410: the manual camera source must refuse a link-local host

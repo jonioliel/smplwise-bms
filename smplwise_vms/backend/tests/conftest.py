@@ -25,6 +25,7 @@ os.environ.setdefault("SW_MAPPING_AUTO_STARTUP", "0")  # MAPPING-IMPROVE-2351: t
 os.environ.setdefault("SW_RECORDER_HEALTH", "0")
 # CAMHEALTH091: the camera image health poller stays off; tests call camera_image_health.record / sample / poll_once / tick directly
 os.environ.setdefault("SW_CAMERA_IMAGE_HEALTH", "0")
+os.environ.setdefault("SW_CAMERA_SOURCE_HEALTH", "0")  # CAMERA-STREAM-SOURCES-2410: the tests call check_once directly
 # NN5: the Frigate event loop (WebSocket + polling) stays off in app tests; they call frigate_events.poll_reviews / run_loop explicitly
 os.environ.setdefault("SW_FRIGATE_EVENTS", "0")
 # CR-021 S4: the start-up read of the running release's [platform-restart] marker stays off (a flagged release must not add a
