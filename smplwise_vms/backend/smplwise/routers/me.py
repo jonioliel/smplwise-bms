@@ -129,7 +129,7 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
         "mode": installation_mode(settings_of(request)),
         # NN1 (capabilities.py): what this installation has - booleans for everyone, the recorder detail only for whoever
         # may read the NVR configuration. Not authorisation: every route checks its own permission first.
-        "capabilities": resolve_capabilities(settings_of(request)).as_dict(with_recorders=may_see_recorders(permissions_anywhere(conn, principal))),
+        "capabilities": resolve_capabilities(settings_of(request), conn).as_dict(with_recorders=may_see_recorders(permissions_anywhere(conn, principal))),
     }
 
 

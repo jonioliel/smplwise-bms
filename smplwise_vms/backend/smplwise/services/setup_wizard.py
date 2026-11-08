@@ -917,7 +917,7 @@ def build_state(settings: Settings, conn: sqlite3.Connection, identity_source: s
     required = [s for s in ordered if s["status"] != "not_applicable"]  # a step skipped on purpose is not counted
     done = sum(1 for s in required if s["status"] == "done")
     nxt = next((s["id"] for s in required if s["status"] != "done"), None)
-    caps = resolve_capabilities(settings)
+    caps = resolve_capabilities(settings, conn)  # NVRLESS-CAMERAS-2411: cameras without a recorder count
     must = [s for s in required if not s["optional"]]  # TKWIZHINT: the shell hint and `ready` follow the required steps only
     must_done = sum(1 for s in must if s["status"] == "done")
     must_next = next((s["id"] for s in must if s["status"] != "done"), None)

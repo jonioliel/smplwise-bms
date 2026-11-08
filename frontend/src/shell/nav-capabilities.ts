@@ -22,7 +22,9 @@ export function applyCapabilities(c: Capabilities | null | undefined): Capabilit
 }
 
 const NVR: Need[] = ['nvr'];
-const NVR_VIDEO: Need[] = ['nvr', 'supported'];
+/** NVRLESS-CAMERAS-2411 (owner decision 2א): the camera screens need cameras - an NVR, or a camera without a recorder - not an NVR. */
+const CAMERAS: Need[] = ['cameras_available'];
+const CAMERA_VIDEO: Need[] = ['cameras_available', 'supported'];
 
 const EVENT_SEGMENTS = new Set(['events', 'reviews', 'rules', 'search', 'cases', 'exports']);
 
@@ -30,9 +32,11 @@ const EVENT_SEGMENTS = new Set(['events', 'reviews', 'rules', 'search', 'cases',
 export function needsOfSegments(s: string[]): Need[] {
   switch (s[0]) {
     case 'kiosk':
-      return NVR_VIDEO; // the wall
+      return CAMERA_VIDEO; // the wall
     case 'live':
-      return s[1] === 'cameras' ? NVR : NVR_VIDEO; // the camera page needs the NVR; overview, wall and saved views need video as well
+      // the camera page needs cameras; overview, wall and saved views need video as well. Without an NVR they show the cameras
+      // without a recorder only (api/camera-visibility.ts); the recorder-only areas below keep needing the recorder.
+      return s[1] === 'cameras' ? CAMERAS : CAMERA_VIDEO;
     case 'investigate':
       if (s[1] === 'health') return NVR; // camera health
       // NVRLESS-295: the events LIST also serves an installation with no recorder (the sensor events list); its detail page, the
@@ -77,5 +81,5 @@ export type BlockKind = 'no_nvr' | 'no_media';
 
 /** Which neutral panel a blocked route gets: no recorder at all, or a recorder installation without its media server. */
 export function blockKind(m: Need[]): BlockKind {
-  return !CAPS.nvr || m.some((n) => n === 'nvr' || n === 'events_recorder' || n === 'events_any') ? 'no_nvr' : 'no_media';
+  return !CAPS.nvr || m.some((n) => n === 'nvr' || n === 'cameras_available' || n === 'events_recorder' || n === 'events_any') ? 'no_nvr' : 'no_media';
 }

@@ -11,7 +11,8 @@ import '../components/sw-scene';
 import '../components/sw-camera-tile';
 import { demoEvents, demoHealth, demoScene, demoSites, demoWall, eventTypeLabel } from '../fixtures/catalog';
 import { navigate } from '../router';
-import { isApi, session } from '../api/session';
+import { cap, isApi, session, webrtcServer } from '../api/session';
+import { WEBRTC_REQUIRED_SHORT, WEBRTC_REQUIRED_TEXT, WEBRTC_SETTINGS_HREF, isStandaloneRow } from '../api/camera-visibility';
 import { ApiError, get } from '../api/client';
 import { listCameras } from '../api/maps';
 import { eventsSummary, listEvents, thumbnailUrl, EVENT_LABEL, EVENT_TONE as API_EVENT_TONE, type EventsSummary, type VmsEvent } from '../api/events';
@@ -142,7 +143,10 @@ export class LiveOverview extends LitElement {
     const out: Spot[] = [];
     const cams = this.cams ?? [];
     for (const c of cams.filter((x) => x.status === 'offline')) {
-      out.push({ kind: 'critical', title: `מצלמה מנותקת: ${c.name}`, meta: `ערוץ ${c.channel}${c.last_seen_at ? ` · נראתה לאחרונה ${this.fmtTime(c.last_seen_at)}` : ''}`, why: 'מוצג כי ה־NVR מדווח שהערוץ אינו מחובר', link: `#/live/cameras/${c.id}` });
+      const seen = c.last_seen_at ? ` · נראתה לאחרונה ${this.fmtTime(c.last_seen_at)}` : '';
+      // NVRLESS-CAMERAS-2411: a camera without a recorder has no channel and no recorder that reports it
+      if (isStandaloneRow(c)) out.push({ kind: 'critical', title: `מצלמה מנותקת: ${c.name}`, meta: `מצלמה ללא מקליט${seen}`, why: 'מוצג כי המצלמה אינה עונה בכתובת הווידאו שלה', link: `#/live/cameras/${c.id}` });
+      else out.push({ kind: 'critical', title: `מצלמה מנותקת: ${c.name}`, meta: `ערוץ ${c.channel}${seen}`, why: 'מוצג כי ה־NVR מדווח שהערוץ אינו מחובר', link: `#/live/cameras/${c.id}` });
     }
     for (const it of (this.health?.items ?? []).filter((i) => i.status !== 'ok')) {
       out.push({ kind: it.status === 'error' ? 'critical' : 'alert', title: it.label, meta: `בדיקת מערכת · ${STATUS_LABEL[it.status]}`, why: 'מוצג כי בדיקת הבריאות של ה־Add-on מדווחת על כך', link: '#/system/diagnostics' });
@@ -188,7 +192,7 @@ export class LiveOverview extends LitElement {
       <sw-page heading=${`${greeting(hour)}${name ? `, ${name}` : ''}`} subheading=${h ? `מצב המערכת: ${STATUS_LABEL[h.status]}${firstIssue ? ` · ${firstIssue.label}` : ' · כל הבדיקות תקינות'}` : 'קורא את מצב המערכת…'}>
         <div slot="actions" class="date">${this.now.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: this.tz })}<br />${timeText(this.now, { timeZone: this.tz })}</div>
         <div class="kpis" data-overview-kpis>
-          <sw-kpi data-overview-tile="cameras" icon="camera" tone=${cams.length && online === cams.length ? 'live' : online ? 'stale' : 'offline'} value=${`${online}/${cams.length}`} label="מצלמות" detail=${this.recorder ? `מחוברות · ${this.recorder.model ?? this.recorder.name}` : 'מחוברות'} layout=${layout} href="#/system/devices?sort=offline" hint="פתח את רשימת המצלמות"></sw-kpi>
+          <sw-kpi data-overview-tile="cameras" icon="camera" tone=${cams.length && online === cams.length ? 'live' : online ? 'stale' : 'offline'} value=${`${online}/${cams.length}`} label="מצלמות" detail=${!webrtcServer() ? WEBRTC_REQUIRED_SHORT : this.recorder ? `מחוברות · ${this.recorder.model ?? this.recorder.name}` : 'מחוברות'} layout=${layout} href=${!webrtcServer() ? WEBRTC_SETTINGS_HREF : cap('nvr') ? '#/system/devices?sort=offline' : '#/live/wall'} hint=${webrtcServer() ? 'פתח את רשימת המצלמות' : WEBRTC_REQUIRED_TEXT} ?data-webrtc-required=${!webrtcServer()}></sw-kpi>
           <sw-kpi data-overview-tile="sites" icon="building" value=${String(sites.length)} label="אתרים" detail=${`${floors.length} קומות · ${floors.filter((f) => f.has_plan).length} עם תוכנית`} tone="neutral" layout=${layout} href="#/explore/sites" hint="פתח את האתרים"></sw-kpi>
           <sw-kpi data-overview-tile="events" icon="bell" value=${this.summaryDenied ? '—' : String(this.summary?.today.total ?? 0)} label="אירועים" detail=${this.summaryDenied ? 'ללא הרשאה לאירועים' : 'היום'} tone="neutral" badge=${this.summary?.today.unacked ? `${this.summary.today.unacked} לבדיקה` : ''} layout=${layout} href=${`#/investigate/events?date=${dateInZone(this.now, this.tz)}`} hint="פתח את אירועי היום"></sw-kpi>
           <sw-kpi data-overview-tile="health" icon="shield" tone=${tone} value=${h ? STATUS_LABEL[h.status] : '…'} label="מצב מערכת" detail=${firstIssue ? firstIssue.label : 'NVR, go2rtc, תשתית המערכת ואחסון'} layout=${layout} href="#/system/diagnostics?tab=health" hint="פתח את פרטי הבריאות"></sw-kpi>
@@ -199,7 +203,7 @@ export class LiveOverview extends LitElement {
             </div>`
           : nothing}
         <div class="row2">
-          ${st && tot
+          ${st && tot && cap('nvr') /* NVRLESS-CAMERAS-2411: the recorder's storage card stays a recorder card */
             ? html`<sw-card heading="אחסון" subheading=${st.cached ? 'מהמטמון · נמדד מול ה־NVR' : 'נמדד מול ה־NVR'}>
                 <div class="donut">
                   <svg viewBox="0 0 84 84" role="img" aria-label=${`אחסון בשימוש ${usedPct ?? 0}%`}>

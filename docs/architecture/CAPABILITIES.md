@@ -27,12 +27,13 @@ call from the connection settings; **configured, not reachable**: a go2rtc or Ho
 | `nvr` | An NVR host is configured (`nvr_host()`; the developer placeholder host counts, as it does for `mode = full`). |
 | `go2rtc` | A go2rtc address is configured (`go2rtc_url()`). |
 | `ha` | Home Assistant connection configured (`ha_url` and token). |
-| `live_video` | `go2rtc` AND a live source: a recorder with live, WisKey credentials, or Home Assistant (opted-in HA cameras). |
+| `live_video` | `go2rtc` AND a live source: a recorder with live, WisKey credentials, Home Assistant (opted-in HA cameras), or a camera without a recorder (NVRLESS-CAMERAS-2411). |
 | `playback` | `go2rtc` AND a recorder whose adapter declares `playback != none`. |
 | `events_recorder` | A recorder whose adapter declares `events != none` (Hikvision alertStream). |
 | `events_ha` | `ha` (HA security events are recorded with `source = ha`; shown in the event centre of a recorder installation, and alone in the read-only sensor events list `investigate-ha-events` when there is no recorder with events: NVRLESS-295, pseudo-need `events_any`). |
 | `ha_cameras_still` | `ha`. |
 | `ha_cameras_live` | `ha` AND `go2rtc` (per-camera opt-in by an administrator stays a separate, stored choice). |
+| `cameras_available` | NVRLESS-CAMERAS-2411 (owner decision 2א, 08.11): `nvr` OR at least one catalogue camera of the pseudo-recorder `standalone` (a camera without a recorder, CAMERA-STREAM-SOURCES-2410). A configuration fact read from the catalogue (`resolve(settings, conn)`; without a connection: `nvr`). The shell's camera screens follow it; the recorder-only areas keep following `nvr` / `playback` / `events_recorder`. |
 | `supported` / `unsupported_reason` | `false` / `nvr_without_go2rtc` when `nvr` AND NOT `go2rtc` (D2); otherwise `true` / `null`. |
 | `recorders[]` | One entry per configured recorder (CR-024: `nvr-1` and every further recorder loaded at start-up): `{id, vendor, live, playback, events, write_encodings}` from that recorder's adapter `RecorderCapabilities`. `nvr` is true when any recorder is configured. |
 
@@ -115,8 +116,8 @@ Without a backend (demo) everything is on; a backend that sends no block is read
 
 | Route | Needs | A | B | C | D |
 |---|---|---|---|---|---|
-| Live overview, all cameras, saved views, kiosk wall | `nvr`, `supported` | panel "no NVR" | panel "no NVR" | panel "needs a media server" | screen |
-| Camera page | `nvr` | panel | panel | screen (the player opens no socket without `live_video`) | screen |
+| Live overview, all cameras, saved views, kiosk wall (since NVRLESS-CAMERAS-2411: `cameras_available`, `supported`; A / B with a camera without a recorder: screen) | `nvr`, `supported` | panel "no NVR" | panel "no NVR" | panel "needs a media server" | screen |
+| Camera page (since NVRLESS-CAMERAS-2411: `cameras_available`; A / B with a camera without a recorder: screen) | `nvr` | panel | panel | screen (the player opens no socket without `live_video`) | screen |
 | Reviews, rules, search, cases, exports, event detail | `events_recorder` | panel | panel | screen | screen |
 | Events list | `events_recorder` or `events_ha` | sensor list | sensor list | screen | screen |
 | Playback, synchronised playback, historical map | `playback` | panel | panel | panel "needs a media server" | screen |

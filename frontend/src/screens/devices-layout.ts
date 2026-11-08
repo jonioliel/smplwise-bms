@@ -7,6 +7,7 @@ import '../components/sw-icon';
 import type { IconName } from '../components/sw-icon';
 import { api, ApiError, describeError, post, put } from '../api/client';
 import { can, canAnywhere, cap, isApi } from '../api/session';
+import { visibleRecorderGroups } from '../api/camera-visibility';
 import { CARD_QUALITIES, CARD_QUALITY_LABEL, cameraSources, isCardQuality, type CardQuality } from '../api/camera-card';
 import { cameraCardDefinition } from './devices-camera-card';
 import { registerScreenEdit } from '../shell/screen-edit';
@@ -761,7 +762,8 @@ export class DevicesLayoutController implements ReactiveController {
     if (this.camCount === null && canAnywhere('video.live')) {
       void cameraSources().then(
         (s) => {
-          this.camCount = (cap('nvr') ? s.recorders.reduce((n, r) => n + r.cameras.length, 0) : 0) + s.ha_cameras.length; // NN1 D5: no NVR channels without an NVR
+          // NN1 D5: no NVR channels without an NVR; NVRLESS-CAMERAS-2411: cameras without a recorder are offered all the same
+          this.camCount = visibleRecorderGroups(s.recorders, cap('nvr')).reduce((n, r) => n + r.cameras.length, 0) + s.ha_cameras.length;
           this.update();
         },
         () => {

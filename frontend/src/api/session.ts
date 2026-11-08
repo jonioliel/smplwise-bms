@@ -6,6 +6,7 @@
 import { ApiError, apiUrl, get } from './client';
 import { ALL_CAPABILITIES, resolveCapabilities, type Capabilities, type CapabilityName } from './capabilities';
 import type { Me } from './types';
+import { webrtcServerReady } from './camera-visibility';
 import { isRemoteChannel } from '../arx/channel';
 import { syncNativeSession, type NativeSignOutReason } from '../arx/native-app';
 import { setBrandView } from '../design/brand-logo';
@@ -150,6 +151,9 @@ export const cap = (name: CapabilityName): boolean => session.mode !== 'api' || 
 
 /** No NVR in this installation: its areas (live, cameras, events, recordings, cases, exports) are hidden and their URLs show a notice. */
 export const nvrLess = () => !cap('nvr');
+
+/** NVRLESS-CAMERAS-2411: is the video (WebRTC) server configured? Always true without a backend. */
+export const webrtcServer = (): boolean => session.mode !== 'api' || webrtcServerReady(session.capabilities);
 
 /** false for a recorder installation without its media server (never "ready", D2). Always true without a backend. */
 export const installationSupported = (): boolean => session.mode !== 'api' || session.capabilities.supported;

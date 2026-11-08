@@ -7,7 +7,7 @@
  * Without a backend (the static demo) every capability is on. An older backend that sends no `capabilities` block is read
  * through its `mode` (`ha_only` = no NVR), which is what the shell did before this block existed.
  */
-export type CapabilityName = 'nvr' | 'go2rtc' | 'ha' | 'live_video' | 'playback' | 'events_recorder' | 'events_ha' | 'ha_cameras_still' | 'ha_cameras_live';
+export type CapabilityName = 'nvr' | 'go2rtc' | 'ha' | 'live_video' | 'playback' | 'events_recorder' | 'events_ha' | 'ha_cameras_still' | 'ha_cameras_live' | 'cameras_available';
 
 export interface RecorderCaps {
   id: string;
@@ -22,20 +22,27 @@ export interface Capabilities extends Record<CapabilityName, boolean> {
   /** false (with `unsupported_reason`) when the installation has an NVR but no media server: it never reaches "ready". */
   supported: boolean;
   unsupported_reason: string | null;
+  /** NVRLESS-CAMERAS-2411: the video (WebRTC) server is configured (same value as `go2rtc`; absent from an older backend). */
+  webrtc_server_configured?: boolean;
   /** Only for callers who may read the NVR configuration. */
   recorders?: RecorderCaps[];
 }
 
 export const ALL_CAPABILITIES: Capabilities = {
   nvr: true, go2rtc: true, ha: true, live_video: true, playback: true, events_recorder: true, events_ha: true, ha_cameras_still: true, ha_cameras_live: true,
+  cameras_available: true,
   supported: true, unsupported_reason: null,
 };
 
-/** The capability set of a `/me` answer (see the file header for the two fallbacks). */
+/** The capability set of a `/me` answer (see the file header for the two fallbacks). NVRLESS-CAMERAS-2411: a block without
+ * `cameras_available` (a backend before 2.41.x) has cameras exactly when it has an NVR. */
 export function resolveCapabilities(me: { capabilities?: Partial<Capabilities> | null; mode?: 'full' | 'ha_only' } | null | undefined): Capabilities {
   if (!me) return ALL_CAPABILITIES;
-  if (me.capabilities) return { ...ALL_CAPABILITIES, ...me.capabilities };
-  if (me.mode === 'ha_only') return { ...ALL_CAPABILITIES, nvr: false, live_video: false, playback: false, events_recorder: false };
+  if (me.capabilities) {
+    const merged = { ...ALL_CAPABILITIES, ...me.capabilities };
+    return typeof me.capabilities.cameras_available === 'boolean' ? merged : { ...merged, cameras_available: merged.nvr };
+  }
+  if (me.mode === 'ha_only') return { ...ALL_CAPABILITIES, nvr: false, live_video: false, playback: false, events_recorder: false, cameras_available: false };
   return ALL_CAPABILITIES;
 }
 
