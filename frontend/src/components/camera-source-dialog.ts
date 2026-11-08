@@ -86,8 +86,8 @@ export class CameraSourceDialog extends LitElement {
       transform: scale(0.97);
     }
     .seg button[aria-checked='true'] {
-      background: var(--sw-surface-solid, var(--sw-surface));
-      color: var(--sw-text);
+      background: var(--sw-seg-key, var(--sw-surface));
+      color: var(--sw-seg-key-ink, var(--sw-accent, var(--sw-text)));
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.16);
     }
     .lead,
