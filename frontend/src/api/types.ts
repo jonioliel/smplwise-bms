@@ -177,6 +177,12 @@ export interface Camera {
   live_kind?: 'stream' | 'still';
   /** NN5-F1B: seconds between refreshes of the still (the tile never goes below 5). */
   still_refresh_s?: number;
+  /** CAMERA-STREAM-SOURCES-2410: where the video comes from - the recorder (default) or the camera's own RTSP address. */
+  video_source?: 'nvr' | 'manual';
+  /** CAMERA-STREAM-SOURCES-2410: a camera without a recorder - live and snapshots only (no recordings, playback, NVR events or reboot). */
+  standalone?: boolean;
+  /** CAMERA-STREAM-SOURCES-2410: the area a camera without a recorder belongs to (a home-platform area id), if one was chosen. */
+  area_id?: string | null;
 }
 
 /** One stream's encoding as the NVR reports it (services/stream_codecs.py); `webrtc` = can a browser decode it there. */
