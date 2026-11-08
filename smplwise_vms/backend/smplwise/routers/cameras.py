@@ -134,9 +134,15 @@ def list_cameras(request: Request, principal: Principal = Depends(current_princi
     off = {rid for rid in present if is_disabled(rid)}  # CR-024: a disabled recorder's cameras are not offered for live / snapshots
     vendors = recorder_vendors(conn)
     kinds = frigate_live_kinds(settings_of(request), [r for r in visible if vendors.get(r["recorder_id"]) == "frigate"])
+    from ..services import camera_sources
+
+    manual = camera_sources.manual_ids(conn)  # CAMERA-STREAM-SOURCES-2410: `video_source` and `standalone` are added, nothing renamed
+    areas = camera_sources.areas(conn)
     return {
         "cameras": disambiguate([dict(camera_row(r), can_view_live=live_ok[r["id"]] and r["recorder_id"] not in off, recorder_enabled=r["recorder_id"] not in off,
-                                      recorder_name=names.get(r["recorder_id"]) if multi else None, **({"live_kind": kinds[r["id"]]} if r["id"] in kinds else {}))
+                                      recorder_name=names.get(r["recorder_id"]) if multi else None, **({"live_kind": kinds[r["id"]] if r["id"] not in manual else "stream"} if r["id"] in kinds else {}),
+                                      video_source="manual" if r["id"] in manual else "nvr", standalone=r["recorder_id"] == camera_sources.STANDALONE,
+                                      **({"area_id": areas.get(r["id"])} if r["recorder_id"] == camera_sources.STANDALONE else {}))
                                  for r in visible], names),
         # TKFRIGLIVE: `vendor` lets a screen skip what a recorder cannot answer (the NVR system card never asks a Frigate recorder)
         "recorders": [{"id": rid, "name": names.get(rid) or rid, "vendor": vendors.get(rid) or None} for rid in present],
@@ -152,8 +158,13 @@ def snapshot(camera_id: str, request: Request, principal: Principal = Depends(cu
     served with X-Snapshot-Stale when the NVR is unreachable. Same permission as live video."""
     settings = settings_of(request)
     require_camera(conn, principal, camera_id, "video.live")  # T055: 403 before 404 - an unknown id tells a scoped user nothing
-    ensure_nvr(settings_of(request))  # NVR-less mode: 409 after the permission check
-    cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
+    from ..services import camera_sources
+
+    # CAMERA-STREAM-SOURCES-2410: a camera with its own RTSP address (or without a recorder) is pictured from that address, NVR or not
+    cam = camera_sources.with_source(conn, conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone())
+    manual = camera_sources.manual_of(cam) is not None
+    if not manual:
+        ensure_nvr(settings_of(request))  # NVR-less mode: 409 after the permission check
     if not cam:
         raise not_found("המצלמה לא נמצאה.")
     from ..mode import recorder_unavailable
@@ -169,7 +180,7 @@ def snapshot(camera_id: str, request: Request, principal: Principal = Depends(cu
     from ..services.recorders import frigate_io
 
     rs = camera_settings(settings, cam)
-    is_frigate = frigate_io.handles(rs)
+    is_frigate = frigate_io.handles(rs) and not manual
     if is_frigate:  # 2.27.3: a Frigate still is not held for the whole configured age (the screens refresh every ~10 s), and an old copy has a cap
         max_age = frigate_io.file_max_age(max_age)
         stale_ok = stale_ok and frigate_io.stale_servable(now_ts() - path.stat().st_mtime)
@@ -179,7 +190,9 @@ def snapshot(camera_id: str, request: Request, principal: Principal = Depends(cu
             with unlocked(conn):
                 from ..services.recorders import vendor_io
 
-                if frigate_io.handles(rs):  # NN5 F1: the latest frame of a Frigate camera through its adapter (credentials stay server-side)
+                if manual:  # CAMERA-STREAM-SOURCES-2410: one frame of the manual source's own stream (by name; the health records it)
+                    data = camera_sources.snapshot(settings, cam)
+                elif frigate_io.handles(rs):  # NN5 F1: the latest frame of a Frigate camera through its adapter (credentials stay server-side)
                     data = frigate_io.snapshot(rs, cam["recorder_id"], cam["source_ref"] or str(cam["channel"]))
                 else:
                     data = vendor_io.snapshot(rs, cam["recorder_id"], cam["channel"]) if vendor_io.handles(rs) else nvr.fetch_snapshot(rs, cam["channel"])

@@ -153,7 +153,8 @@ def redact_source(name: str, url: str) -> str:
     """A source as `GET /media/streams` may show it: credentials hidden always, and for a WisKey station stream the
     whole address too (the station host is never served, security review N1): rtsp://***/Streaming/Channels/101. A
     Home Assistant camera's source shows the scheme only (redact_ha_source)."""
-    if name.startswith(HA_STREAM_PREFIX):
+    if name.startswith(HA_STREAM_PREFIX) or name.startswith(f"{STREAM_PREFIX}cam_"):
+        # CAMERA-STREAM-SOURCES-2410: a camera's own RTSP address may carry a secret in its query too - the scheme only, like an HA camera's
         return redact_ha_source(url)
     if name.startswith(f"{STREAM_PREFIX}wiskey_"):
         return re.sub(r"://[^/\s]*", "://***", url, count=1)

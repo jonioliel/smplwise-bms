@@ -80,6 +80,10 @@ SOURCES: tuple[Source, ...] = (
     # problem kind. The sampling job is OFF by default (Settings > Health), so nothing fires until it is switched on; recipients here.
     _s("camera.image", "תמונת מצלמה לא תקינה", "device_faults", "alert", "בעיה בתמונת המצלמה", "{name}: {detail}.", who="managers", push=False,
        subject="camera", resolve_text="התמונה תקינה"),
+    # CAMERA-STREAM-SOURCES-2410 (services/camera_sources.py, owner answer 5): a camera whose video comes from its own RTSP address (manual source)
+    # and that address stopped answering. No fallback to the recorder: the row stays until the source works again, is changed or removed.
+    _s("camera.source", "מקור וידאו ידני לא עובד", "device_faults", "alert", "מקור הווידאו של המצלמה לא עובד", "{name}: {detail}.", after_s=120,
+       who="managers", push=False, subject="camera", resolve_text="המקור חזר לעבוד"),
     _s("device.unavailable", "התקן לא זמין", "device_faults", "info", "התקן לא זמין", "{name} לא זמין.", after_s=900, push=False, resolve_text="ההתקן חזר"),
     # CR-INFRA-ELEVATORS 2.8.0 (services/elevators_runtime.py): one source per alerting role, judged on that role's sensor. Owner decision 2026-10-18:
     # OFF by default, nobody, inbox only - the master / per-state switches, the recipients and the channels are chosen in Settings > Infrastructure >

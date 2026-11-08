@@ -187,8 +187,8 @@ def save_thresholds(conn: sqlite3.Connection, changes: dict[str, Any]) -> dict[s
 def camera_choices(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     """NN6B: the enabled cameras the per-camera choice can name (id, name, recorder), in recorder and channel order."""
     return [{"id": str(r["id"]), "name": _camera_name(r, int(r["channel"])), "recorder_id": str(r["recorder_id"]), "channel": int(r["channel"])}
-            for r in conn.execute("SELECT id, recorder_id, channel, alias, name_source FROM cameras WHERE enabled = 1 ORDER BY recorder_id, channel LIMIT ?",
-                                  (CAMERA_MAX,)).fetchall()]
+            for r in conn.execute("SELECT id, recorder_id, channel, alias, name_source FROM cameras WHERE enabled = 1 AND recorder_id <> 'standalone' ORDER BY recorder_id, channel LIMIT ?",
+                                  (CAMERA_MAX,)).fetchall()]  # CAMERA-STREAM-SOURCES-2410: a camera without a recorder records nothing
 
 
 def ranges() -> dict[str, dict[str, int]]:

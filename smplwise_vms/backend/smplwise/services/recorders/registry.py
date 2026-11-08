@@ -20,6 +20,9 @@ from .hikvision import HikvisionAdapter
 DEFAULT_RECORDER = "nvr-1"
 DEFAULT_VENDOR = "hikvision"
 NO_NVR = "none"  # the installer's explicit "no NVR" choice (a pseudo-vendor, never an adapter)
+# CAMERA-STREAM-SOURCES-2410: the pseudo-recorder of the cameras without a recorder (services/camera_sources.STANDALONE). Not a recorder:
+# never read, never listed among the recorders, never given an adapter.
+STANDALONE = "standalone"
 
 # vendor tag -> constructor(recorder_id, settings). Other vendors register here when their adapter exists.
 VENDORS: dict[str, Callable[[str, Settings], RecorderAdapter]] = {DEFAULT_VENDOR: HikvisionAdapter}
@@ -114,10 +117,10 @@ def recorder_ids(conn: sqlite3.Connection) -> list[str]:
     not created its row yet."""
     try:
         rows = conn.execute("SELECT id, removed_at FROM recorders ORDER BY sort_order, id").fetchall()
-        ids = [r["id"] for r in rows if not r["removed_at"]]
+        ids = [r["id"] for r in rows if not r["removed_at"] and r["id"] != STANDALONE]
     except sqlite3.OperationalError:  # a database before migration 0055
         rows = conn.execute("SELECT id FROM recorders ORDER BY id").fetchall()
-        ids = [r["id"] for r in rows]
+        ids = [r["id"] for r in rows if r["id"] != STANDALONE]
     if DEFAULT_RECORDER not in {r["id"] for r in rows}:
         ids.insert(0, DEFAULT_RECORDER)  # the first recorder exists before its first discovery creates its row (CR-024)
     return ids

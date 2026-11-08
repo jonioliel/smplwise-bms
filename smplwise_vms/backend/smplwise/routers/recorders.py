@@ -169,7 +169,7 @@ def recorder_view(conn: sqlite3.Connection, request: Request, rid: str, row: sql
 
 def _ids(conn: sqlite3.Connection, include_removed: bool) -> list[tuple[str, sqlite3.Row | None]]:
     sql = "SELECT * FROM recorders" + ("" if include_removed else " WHERE removed_at IS NULL") + " ORDER BY sort_order, id"
-    rows = conn.execute(sql).fetchall()
+    rows = [r for r in conn.execute(sql).fetchall() if r["id"] != registry.STANDALONE]  # CAMERA-STREAM-SOURCES-2410: not a recorder
     out: list[tuple[str, sqlite3.Row | None]] = [(r["id"], r) for r in rows]
     if not any(rid == PRIMARY for rid, _ in out) and _primary_present(conn):
         out.insert(0, (PRIMARY, None))

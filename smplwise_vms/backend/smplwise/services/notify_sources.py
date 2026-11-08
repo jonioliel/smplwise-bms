@@ -297,8 +297,15 @@ def tick(db: Database, settings: Settings, now: dt.datetime | None = None) -> di
         with db.connection(label="notify.camera_images") as conn:
             return camera_image_health.tick(conn, now)
 
+    def camera_sources() -> Any:
+        from . import camera_sources as csrc  # CAMERA-STREAM-SOURCES-2410: a failing manual source -> camera.source (no device I/O here)
+
+        with db.connection(label="notify.camera_sources") as conn:
+            return csrc.tick(conn, now)
+
     group("recorders", recorders)
     group("camera_images", camera_images)
+    group("camera_sources", camera_sources)
     group("update", lambda: update_tick(db, settings, now.timestamp()))
     return out
 
@@ -374,7 +381,8 @@ def cameras_tick(conn: sqlite3.Connection, now: dt.datetime) -> dict[str, dict[s
                     WHERE e.camera_id = c.id AND e.source = 'alertstream' AND e.type = 'offline' AND e.state = 'active' AND e.occurred_at >= ?) AS loss_at,
                   (SELECT e.id FROM events e WHERE e.camera_id = c.id AND e.source = 'alertstream' AND e.type = 'offline' AND e.state = 'active' AND e.occurred_at >= ?
                     ORDER BY e.occurred_at DESC LIMIT 1) AS loss_event
-           FROM cameras c WHERE c.enabled = 1 ORDER BY c.recorder_id, c.channel LIMIT 500""",  # CR-024: every recorder's cameras
+           FROM cameras c WHERE c.enabled = 1 AND c.recorder_id <> 'standalone' ORDER BY c.recorder_id, c.channel LIMIT 500""",  # CR-024: every recorder's cameras
+        # (CAMERA-STREAM-SOURCES-2410: a camera without a recorder has no discovery; its manual source raises `camera.source` instead)
         (cutoff, cutoff),
     ).fetchall()
     due: dict[str, notify.Signal] = {}

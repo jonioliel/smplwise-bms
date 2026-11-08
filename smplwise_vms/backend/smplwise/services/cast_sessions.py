@@ -405,7 +405,9 @@ def _camera(conn: sqlite3.Connection, camera_id: str) -> sqlite3.Row:
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
     if not cam["enabled"]:
         raise ApiError(409, "camera_disabled", "המצלמה מושבתת במערכת.")
-    return cam
+    from . import camera_sources
+
+    return camera_sources.with_source(conn, cam)  # CAMERA-STREAM-SOURCES-2410: a manual source is cast from its own stream
 
 
 def _camera_name(cam: sqlite3.Row) -> str:
