@@ -42,34 +42,56 @@ cameras" instead of "has an NVR".
 7. **Older backend**: a capability block without `cameras_available` is read as `cameras_available = nvr` (`resolveCapabilities`), the
    `ha_only` mode fallback and `applyNvrLess(true)` as `false`. So with zero cameras without a recorder and no NVR nothing changes.
 
+8. **WebRTC (video) server required** (owner answer Q1):
+   - Backend: `camera_sources.ensure_webrtc_server` - `POST /cameras/standalone` and `POST /cameras/source/test` answer 409
+     `webrtc_server_required` ("כדי להוסיף מצלמה או לבדוק זרם נדרש שרת WebRTC. אפשר להגדיר אותו בהגדרות ← חיבורים.",
+     `details.settings_href: "#/system/setup"`) when `go2rtc_url` is empty - after the permission (403 first), before the raw body is
+     parsed, so no URL is looked at and nothing is written. The no-go2rtc stream test of `test_camera_sources_2410.py` now expects this
+     code (was `media_not_configured`; the service-level check stays as a second line).
+   - Capability block: `webrtc_server_configured` (= `go2rtc`), not a new capability name; nothing renamed.
+   - Frontend (`api/camera-visibility.ts`: the texts, `webrtcServerReady`, `sourceControls`; `session.webrtcServer()`): the wall shows a
+     panel with the notice and a "להגדרות ← חיבורים" action instead of the grid; the camera screen shows the notice and the link in
+     place of the player; the overview's cameras tile reads "נדרש שרת WebRTC" and opens the settings page; the "מצלמות ללא מקליט" card's
+     add button, the dialog's add (save) button and its "test stream" button are disabled with the same explanation (the edit dialog can
+     still save an existing camera's addresses - the owner named add and test only).
+9. **Floor map** (owner answer Q2 "א"): without an NVR the floor map keeps the camera anchors of cameras without a recorder
+   (`mapCameraAnchors`, ids from `listCameras()`, which returns only them there) and offers its camera layer when `cameras_available`
+   (`mapCameraLayerShown`); the selected camera's "recordings" button is not shown for such a camera. The plan editor's camera tool and
+   layer follow `cameras_available`, its anchors keep the cameras without a recorder, and its camera list offers only them without an NVR
+   (leftover NVR rows stay out, D5). The multi-camera selection (wall / playback) stays hidden without an NVR, as before. With an NVR
+   nothing changes.
+
 ## Owner decisions (08.11, final)
 
 | # | Decision | Where |
 |---|---|---|
 | 2א | No NVR: show the camera screens when at least one camera without a recorder exists - live, the camera list / wall, the camera screen, the area camera cards and picker. Recorder-only areas stay hidden (or show their existing short "no recorder" note). Zero such cameras and no NVR: nothing changes. | sections 1-7 |
 | 1א | Adding a camera without a recorder with an area does NOT add a camera card to that area automatically. Left as is: the area is stored and shown, the camera is offered in the area's camera-card picker, placing the card stays a layout edit. | no code change (recorded here and in the 2410 doc) |
+| Q1 (08.11, second round) | No NVR and no go2rtc: "show, but a WebRTC server is required". With a camera without a recorder the camera screens STILL appear (`cameras_available` unchanged). Without go2rtc the wall, the camera screen and the overview's cameras tile show "כדי להציג וידאו נדרש שרת WebRTC. אפשר להגדיר אותו בהגדרות ← חיבורים." with a link to `#/system/setup` (הגדרות › חיבורים, the go2rtc card). Adding a camera without a recorder and "test stream" are disabled with the same explanation, and the server refuses them: 409 `webrtc_server_required`, after the permission and before the body is parsed. The UI reads `webrtc_server_configured` next to `cameras_available`. | section 8 |
+| Q2 (08.11, second round), answer א | The floor map draws cameras without a recorder on its camera layer in an installation without an NVR, like NVR cameras; recorder-only actions (recordings / playback) stay hidden for them; NVR installations unchanged. | section 9 |
 
 ## Decisions taken here (recorded, not asked)
 
 - **A backend flag, not client guessing**: the shell could have inferred "has standalone cameras" from `GET /cameras`, but the navigation
   is drawn from `/me` before any screen loads; a flag on the capability block keeps the one-table model of NN1.
-- **The flag does not require go2rtc**: the owner's rule is "at least one camera without a recorder exists". In installation A (no NVR,
-  no go2rtc) with such a camera the screens appear but the player shows its existing "no live video" state (`live_video` false) and no
-  snapshot can be taken (the source needs go2rtc; not exercised here). Open question below.
-- **Floor map / plan editor not changed**: the owner's list did not name the map. Without an NVR the map still hides the camera layer,
-  tool and anchors (`nvrLess()`); a camera without a recorder placed on a map is therefore not drawn there in an installation without an
-  NVR. Follow-up below.
+- **The flag does not require go2rtc** (confirmed by the owner, Q1): the screens appear and say that a WebRTC server is required
+  (section 8).
+- **`webrtc_server_configured` is an extra key, not a capability name**: it has the value of `go2rtc`, so the route table and
+  `ensure_capability` keep using `go2rtc`; the existing flag-matrix tests are untouched by it.
 - **`nvrLess()` kept** for the NVR-specific places (NVR settings tabs, storage, diagnostics, setup); only the camera surfaces moved.
 
 ## Files
 
 Backend: `smplwise/capabilities.py`, `smplwise/services/camera_sources.py` (`standalone_count`), `smplwise/routers/me.py`,
-`smplwise/routers/health.py`, `smplwise/services/health_report.py`, `smplwise/services/setup_wizard.py`;
-`tests/test_nvrless_cameras_2411.py` (new), `tests/test_installation_capabilities.py` (expected flags gain `cameras_available`).
+`smplwise/routers/health.py`, `smplwise/services/health_report.py`, `smplwise/services/setup_wizard.py`,
+`smplwise/routers/camera_sources.py` (the 409 gate); `tests/test_nvrless_cameras_2411.py` (new), `tests/test_installation_capabilities.py`
+(expected flags gain `cameras_available`), `tests/test_camera_sources_2410.py` (the no-go2rtc stream test expects `webrtc_server_required`).
 
 Frontend: `src/api/camera-visibility.ts` (new), `src/api/capabilities.ts`, `src/api/maps.ts`, `src/shell/nav-capabilities.ts`,
 `src/shell/nav.ts` (`applyNvrLess`), `src/screens/devices-camera-card.ts`, `src/screens/devices-camera-picker.ts`,
-`src/screens/devices-layout.ts`, `src/screens/live-overview.ts`, `src/components/standalone-cameras-card.ts`;
+`src/screens/devices-layout.ts`, `src/screens/live-overview.ts`, `src/components/standalone-cameras-card.ts`, `src/api/session.ts`
+(`webrtcServer`), `src/screens/live-wall.ts`, `src/screens/live-camera.ts`, `src/components/camera-source-dialog.ts`,
+`src/screens/explore-floor-map.ts`, `src/screens/explore-plan-editor.ts`;
 `tests/unit-nvrless-cameras-2411.spec.ts` (new), `tests/unit-capabilities.spec.ts` (installations A / B say `cameras_available: false`;
 the live needs read `cameras_available`), `tests/nn1-p2-mocks.ts` (`cameras_available: nvr`).
 
@@ -90,6 +112,19 @@ main checkout's, not committed). Backend commands from `smplwise_vms/backend`, f
 | `npx playwright test -c playwright.unit.config.ts tests/unit-nvrless-cameras-2411.spec.ts tests/unit-capabilities.spec.ts tests/unit-nvr-cameras-logic.spec.ts tests/unit-tabs-config.spec.ts tests/unit-security-public.spec.ts tests/unit-wiskey-switches.spec.ts tests/unit-camera-sources-2410.spec.ts` | **59 passed** |
 | lint / screen specs: `unit-a11y-polished-lint, unit-dark-polish-beds, unit-date-format-module, unit-empty-state-icons, unit-menu-lint, unit-page-background, unit-token-lint, unit-uxfix-rtl, unit-video-2403, unit-tickets-gate-295, unit-camera-reboot-2407, unit-cast-logic` | **87 passed** |
 
+Second round (after the owner answers, sections 8-9), same workstation and tools, after the code commits:
+
+| Command | Result |
+|---|---|
+| `python -m pytest tests/test_nvrless_cameras_2411.py tests/test_installation_capabilities.py tests/test_camera_sources_2410.py` | **127 passed** (27 + 52 + 48; 10 new tests for the 409 and the flag) |
+| the same 12 guard files as above | **240 passed** |
+| `npx tsc --noEmit` | exit 0 |
+| the same 7 unit specs as above | **63 passed** (4 new: the flag, the notice and link, the disabled add / test, the map layer gating) |
+| the same 12 lint / screen specs as above | **87 passed** |
+
+The related backend suites (301 above) were not re-run in the second round: NOT_RUN for this round (the second round touched only the
+two camera-source routes, the capability block's extra key and the frontend).
+
 ## NOT_RUN
 
 - The full frontend unit run (every spec; over an hour on the workstation), the pixel suite, the evidence (screenshot) suites, the full
@@ -105,13 +140,16 @@ main checkout's, not committed). Backend commands from `smplwise_vms/backend`, f
   before), or has no NVR and no camera without a recorder (`mode: ha_only`, or a block without the flag, or `nn1-p2-mocks.ts` with
   `cameras_available: nvr`) - the same screens and panels as before. The live overview's storage card and cameras tile change only
   without an NVR, where the overview was blocked before.
-- **New evidence to add** (not built here): the installation-B-plus-camera walk listed under NOT_RUN.
+- **New evidence to add** (not built here): the installation-B-plus-camera walk listed under NOT_RUN; installation A (no go2rtc) with a
+  camera without a recorder: the wall panel, the camera screen notice, the overview tile "נדרש שרת WebRTC", the disabled add / test on
+  הגדרות › אבטחה › NVR; the floor map camera layer without an NVR.
+- **Possibly affected evidence**: any evidence mock whose capability block has `go2rtc: false` and renders the "מצלמות ללא מקליט" card
+  or the source dialog (`evidence-nvr-cameras`, `evidence-security-*`, `evidence-nn1-p2` in installations A / C): the add button and the
+  test button are now disabled there with the notice. Pixel baselines: none of them renders these screens (as in the 2410 doc).
 
-## Open questions (minimal)
+## Open questions
 
-1. Should `cameras_available` also require go2rtc (installation A with a camera without a recorder would then keep the camera screens
-   hidden, since nothing can stream there)? Today: it does not, per the owner's wording.
-2. Should the floor map draw cameras without a recorder (layer, anchors, plan-editor camera tool) in an installation without an NVR?
+None. Both questions of the first round were answered by the owner on 08.11 (Q1: show + WebRTC server required; Q2: א).
 
 ## Rollback
 
