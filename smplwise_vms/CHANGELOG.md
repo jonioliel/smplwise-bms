@@ -1,5 +1,23 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.41.0 (pilot) - Video source per camera, cameras without a recorder
+**אחרי ההתקנה:** יש מיגרציה אחת: טבלה חדשה למקורות וידאו של מצלמות. היא רק מוסיפה טבלה ולא משנה נתונים. אין עדכון לגשר ואין צורך להפעיל מחדש את Home Assistant.
+- **English:** After installing: one migration - a new table for camera video sources (adds a table, changes no data). No bridge update and no Home Assistant restart.
+
+### מה נוסף - What was added
+- **עברית:** מקור וידאו לכל מצלמה: בהגדרות המצלמה בוחרים אם הווידאו מגיע מהמקליט (ברירת המחדל, כמו היום) או מכתובת RTSP ידנית לזרם הראשי ולזרם המשני. אם ממלאים כתובת אחת, היא משמשת לשניהם.
+- **English:** A video source per camera: in the camera settings choose whether video comes from the recorder (the default, as today) or from a manual RTSP address for the main and the sub stream; one filled address serves both.
+- **עברית:** מצלמות ללא מקליט: בהגדרות המקליט אפשר להוסיף מצלמה עם שם, אזור וכתובות RTSP. היא מופיעה בכל המסכים כמו כל מצלמה, עם שידור חי ותמונות בלבד: בלי הקלטות, ניגון או אירועים מהמקליט.
+- **English:** Cameras without a recorder: add a camera with a name, an area and RTSP addresses in the recorder settings; it appears on every screen like any camera, with live video and snapshots only - no recordings, playback or recorder events.
+- **עברית:** כפתור "בדוק זרם" מציג תמונה, רזולוציה וסוג קידוד לפני השמירה, או הודעת שגיאה ברורה.
+- **English:** A "Test stream" button shows a frame, the resolution and the codec before saving, or a clear error.
+- **עברית:** כשמקור ידני מפסיק לעבוד, המצלמה נשארת עליו ומתקבלת התראה. כשהמקור חוזר לעבוד, ההתראה נסגרת.
+- **English:** When a manual source stops working the camera stays on it and an alert is raised; it clears when the source works again.
+
+### אבטחה - Security
+- **עברית:** הכתובות נשמרות מוצפנות כמו סיסמת המקליט ולא מוצגות שוב אחרי השמירה. השינויים דורשים הרשאת הגדרת מערכת ונרשמים ביומן, בלי הכתובת עצמה. כל כתובת עוברת את מדיניות המקורות: RTSP בלבד, ובלי הפניה לשרת הווידאו עצמו.
+- **English:** Addresses are stored encrypted like the recorder password and never shown again after saving; changes need the system-configure permission and are audited without the address; every address passes the source policy (RTSP only, never the video server itself).
+
 ## 2.40.7 (pilot) - Emergency revoke of the bridge key, camera reboot, recorded-days calendar, WisKey visit links, locked Python versions
 **אחרי ההתקנה:** יש מיגרציה אחת: טבלה חדשה לקישורי ביקור של WisKey. היא רק מוסיפה טבלה ולא משנה נתונים. הגשר מתעדכן ל-0.10.6, ולכן צריך להפעיל מחדש את Home Assistant פעם אחת אחרי העדכון.
 - **English:** After installing: one migration - a new table for WisKey visit links (adds a table, changes no data). The bridge moves to 0.10.6, so Home Assistant needs one restart after the update.
