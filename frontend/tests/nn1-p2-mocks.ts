@@ -31,6 +31,7 @@ export function capabilities(combo: Combo, ha: HaState = 'connected') {
     events_ha: haOn,
     ha_cameras_still: haOn,
     ha_cameras_live: haOn && go2rtc,
+    cameras_available: nvr, // NVRLESS-CAMERAS-2411: these installations have no camera without a recorder
     supported: !unsupported,
     unsupported_reason: unsupported ? 'nvr_without_go2rtc' : null,
     recorders: nvr ? [{ id: 'nvr-1', vendor: 'hikvision', live: true, playback: true, events: true, write_encodings: true }] : [],

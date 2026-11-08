@@ -7,6 +7,7 @@ import { describeError } from '../api/client';
 import { cameraSources, disableHaLive, enableHaLive, sameSource, type CameraSource, type CameraSources, type PickerHaCamera } from '../api/camera-card';
 import { bidi } from '../i18n/bidi';
 import { cap } from '../api/session';
+import { visibleRecorderGroups } from '../api/camera-visibility';
 
 /** `camera-picked`: the user chose a camera. `detail.name` is the camera's own name (a title for the card, if it has none). */
 export interface CameraPickedDetail {
@@ -210,7 +211,7 @@ export class DevicesCameraPicker extends LitElement {
     const d = this.data;
     if (!d) return html`<sw-state-panel compact data-camera-picker-state="loading" state="loading"></sw-state-panel>`;
     const stills = d.ha_cameras.filter((h) => h.mode === 'still_only');
-    const recorders = cap('nvr') ? d.recorders : []; // NN1 D5: leftover camera rows of a removed NVR are not offered
+    const recorders = visibleRecorderGroups(d.recorders, cap('nvr')); // NN1 D5: leftover camera rows of a removed NVR are not offered (cameras without a recorder are: NVRLESS-CAMERAS-2411)
     const total = recorders.reduce((n, r) => n + r.cameras.length, 0) + stills.length;
     if (!total) return html`<sw-state-panel icon="camera" compact data-camera-picker-state="empty" state="empty" heading="אין מצלמות זמינות לך" hint="מצלמות מופיעות כאן לפי ההרשאות שלך."></sw-state-panel>`;
     const groups = recorders.map((r) => ({ r, cams: r.cameras.filter((c) => this.match(`${c.name} ${c.channel}`)) })).filter((g) => g.cams.length);

@@ -4,7 +4,8 @@
  */
 import { svg, type SVGTemplateResult } from 'lit';
 import { del, get, patch, post, put, resourceUrl, upload } from './client';
-import { isApi } from './session';
+import { cap, isApi } from './session';
+import { visibleCameras, visibleRecorderGroups } from './camera-visibility';
 import { markStillCameras } from './frigate';
 import { resolveBundleBakes } from './bakes';
 import type { BundleBakes } from '../map/still-bake';
@@ -228,6 +229,8 @@ export const listCameras = () => get<{ cameras: Camera[]; recorders?: { id: stri
   // NN5-F1B: cameras of a Frigate recorder without a restream are stills (live_kind), so the live screens do not open a stream for them
   .then(async (r) => {
     await markStillCameras(r.cameras);
+    // NVRLESS-CAMERAS-2411: without an NVR the leftover rows of a removed NVR stay invisible (NN1 D5); cameras without a recorder show
+    if (isApi() && !cap('nvr')) return { ...r, cameras: visibleCameras(r.cameras, false), recorders: r.recorders ? visibleRecorderGroups(r.recorders, false) : r.recorders, recorder: null };
     return r;
   });
 export const syncCameras = () => post<{ channels: number; created: number; updated: number; recorder: { model: string | null; firmware: string | null } }>('cameras/sync');

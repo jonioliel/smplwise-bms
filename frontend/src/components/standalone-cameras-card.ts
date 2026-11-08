@@ -11,6 +11,7 @@ import './sw-dialog';
 import './sw-badge';
 import './camera-source-dialog';
 import { listCameras } from '../api/maps';
+import { cap, isApi, loadSession } from '../api/session';
 import { removeStandaloneCamera } from '../api/camera-sources';
 import type { Camera } from '../api/types';
 import { cst } from '../i18n/camera-sources';
@@ -82,6 +83,13 @@ export class StandaloneCamerasCard extends LitElement {
     }
   }
 
+  /** NVRLESS-CAMERAS-2411: without an NVR the camera screens follow "is there a camera without a recorder" (`cameras_available` on
+   * /me), so the first one added or the last one removed re-reads the session and the navigation follows at once. */
+  private async changed() {
+    await this.load();
+    if (isApi() && !cap('nvr')) void loadSession();
+  }
+
   private async runRemove() {
     const cam = this.removing;
     if (!cam || this.busy) return;
@@ -90,7 +98,7 @@ export class StandaloneCamerasCard extends LitElement {
       await removeStandaloneCamera(cam.id);
       this.msg = cst('removed');
       this.removing = null;
-      await this.load();
+      await this.changed();
     } catch (err) {
       this.msg = sourceErrorText(err);
     } finally {
@@ -118,7 +126,7 @@ export class StandaloneCamerasCard extends LitElement {
       </div>
     </sw-card>
     <camera-source-dialog mode="add" .open=${this.adding} @close=${() => (this.adding = false)}
-      @saved=${() => { this.msg = cst('added'); void this.load(); }}></camera-source-dialog>
+      @saved=${() => { this.msg = cst('added'); void this.changed(); }}></camera-source-dialog>
     <camera-source-dialog mode="edit" .open=${!!this.editing} camera-id=${this.editing?.id ?? ''} camera-name=${this.editing?.name ?? ''}
       @close=${() => (this.editing = null)} @saved=${() => { this.msg = cst('saved'); void this.load(); }}></camera-source-dialog>
     ${this.removing

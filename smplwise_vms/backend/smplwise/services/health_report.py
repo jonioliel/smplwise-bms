@@ -171,7 +171,7 @@ def build(settings: Settings, conn: sqlite3.Connection, probe: bool = True) -> d
 
     # devices (probed, cached)
     ha_only = is_ha_only(settings)
-    caps = resolve_capabilities(settings)
+    caps = resolve_capabilities(settings, conn)  # NVRLESS-CAMERAS-2411: cameras without a recorder count
     if ha_only:
         # NVR-less mode (mode.py): the NVR is not part of this installation - a neutral "off", never a warning; go2rtc is
         # optional (WisKey station video) and is probed only when it is configured

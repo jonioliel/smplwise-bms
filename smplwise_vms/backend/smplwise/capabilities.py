@@ -15,13 +15,15 @@ Rules (owner decisions 2026-10-03):
 """
 from __future__ import annotations
 
+import sqlite3
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from .config import Settings
 from .errors import ApiError
 
-CAPABILITY_NAMES = ("nvr", "go2rtc", "ha", "live_video", "playback", "events_recorder", "events_ha", "ha_cameras_still", "ha_cameras_live")
+CAPABILITY_NAMES = ("nvr", "go2rtc", "ha", "live_video", "playback", "events_recorder", "events_ha", "ha_cameras_still", "ha_cameras_live",
+                    "cameras_available")
 NVR_WITHOUT_GO2RTC = "nvr_without_go2rtc"
 
 # operator language, no infrastructure branding (shown in the wizard, the health pill and 409 answers)
@@ -93,6 +95,10 @@ class Capabilities:
     events_ha: bool
     ha_cameras_still: bool
     ha_cameras_live: bool
+    # NVRLESS-CAMERAS-2411 (owner decision 2א, 08.11): the installation has catalogue cameras to show - an NVR, or at least one
+    # camera without a recorder (pseudo-recorder `standalone`). The shell's camera screens (live, wall, camera screen, area camera
+    # cards) follow this flag instead of `nvr`; the recorder-only areas keep following `nvr` / `playback` / `events_recorder`.
+    cameras_available: bool
     supported: bool
     unsupported_reason: str | None
     recorders: tuple[RecorderCaps, ...] = field(default_factory=tuple)
@@ -127,17 +133,32 @@ def _recorders(settings: Settings) -> tuple[RecorderCaps, ...]:
     return tuple(out)
 
 
-def resolve(settings: Settings) -> Capabilities:
-    """The capability set of this installation, from its connection settings. Pure apart from reading `settings`."""
+def standalone_cameras(conn: sqlite3.Connection | None) -> bool:
+    """NVRLESS-CAMERAS-2411: does the catalogue hold a camera without a recorder? A configuration fact like the connection
+    settings (an administrator adds / removes such a camera), never a reachability fact. Without a connection: no."""
+    if conn is None:
+        return False
+    from .services.camera_sources import standalone_count
+
+    return standalone_count(conn) > 0
+
+
+def resolve(settings: Settings, conn: sqlite3.Connection | None = None) -> Capabilities:
+    """The capability set of this installation, from its connection settings and - when the caller passes a database
+    connection - whether cameras without a recorder exist (NVRLESS-CAMERAS-2411). Without `conn` the answer is the one of an
+    installation with no such camera (the callers that build the capability BLOCK - /me, /health, /health/report, /setup/state -
+    all pass it)."""
     from .recorder_scope import any_configured
 
     has_nvr = nvr_host(settings) is not None or any_configured(settings)
     has_go2rtc = go2rtc_url(settings) is not None
     has_ha = ha_configured(settings)
+    has_standalone = standalone_cameras(conn)
     recorders = _recorders(settings) if has_nvr else ()
     unsupported = NVR_WITHOUT_GO2RTC if (has_nvr and not has_go2rtc) else None
-    # a live source: an NVR channel, a WisKey station or a Home Assistant camera (opted in per camera by an administrator)
-    live_source = any(r.live for r in recorders) or wiskey_configured(settings) or has_ha
+    # a live source: an NVR channel, a WisKey station, a Home Assistant camera (opted in per camera by an administrator) or a
+    # camera without a recorder (its own RTSP address through go2rtc)
+    live_source = any(r.live for r in recorders) or wiskey_configured(settings) or has_ha or has_standalone
     return Capabilities(
         nvr=has_nvr,
         go2rtc=has_go2rtc,
@@ -148,6 +169,7 @@ def resolve(settings: Settings) -> Capabilities:
         events_ha=has_ha,
         ha_cameras_still=has_ha,
         ha_cameras_live=has_ha and has_go2rtc,
+        cameras_available=has_nvr or has_standalone,
         supported=unsupported is None,
         unsupported_reason=unsupported,
         recorders=recorders,
@@ -175,11 +197,11 @@ def capability_unavailable(name: str) -> ApiError:
 MEDIA_BACKED = frozenset({"go2rtc", "live_video", "playback", "ha_cameras_live"})
 
 
-def ensure_capability(settings: Settings, name: str) -> None:
+def ensure_capability(settings: Settings, name: str, conn: sqlite3.Connection | None = None) -> None:
     """409 `capability_unavailable` (`details.capability`) when this installation lacks `name`. Always AFTER the
     handler's own identity and permission checks, and after `mode.ensure_nvr` (an NVR-less installation keeps its
     `nvr_not_configured` answer)."""
     if name not in CAPABILITY_NAMES:
         raise ValueError(f"unknown capability {name!r}")
-    if not getattr(resolve(settings), name):
+    if not getattr(resolve(settings, conn), name):
         raise capability_unavailable(name)

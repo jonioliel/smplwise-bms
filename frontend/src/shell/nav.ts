@@ -281,7 +281,7 @@ export { applyCapabilities };
 
 /** Compatibility (NVR-less mode): `on` = an installation with no NVR. */
 export function applyNvrLess(on: boolean): boolean {
-  applyCapabilities(on ? { ...ALL_CAPABILITIES, nvr: false, live_video: false, playback: false, events_recorder: false } : null);
+  applyCapabilities(on ? { ...ALL_CAPABILITIES, nvr: false, live_video: false, playback: false, events_recorder: false, cameras_available: false } : null);
   return on;
 }
 

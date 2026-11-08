@@ -74,7 +74,8 @@ def combo_settings(settings, combo: str, ha: str, monkeypatch=None, **extra):
 def expected_flags(combo: str, ha: str) -> dict[str, bool]:
     nvr, go, h = combo in ("C", "D"), combo in ("B", "D"), ha != "none"
     return {"nvr": nvr, "go2rtc": go, "ha": h, "live_video": go and (nvr or h), "playback": go and nvr, "events_recorder": nvr,
-            "events_ha": h, "ha_cameras_still": h, "ha_cameras_live": go and h}
+            "events_ha": h, "ha_cameras_still": h, "ha_cameras_live": go and h,
+            "cameras_available": nvr}  # NVRLESS-CAMERAS-2411: no camera without a recorder here, so cameras = an NVR
 
 
 def leftover_camera(app) -> None:

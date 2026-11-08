@@ -259,6 +259,14 @@ def manual_ids(conn: sqlite3.Connection) -> set[str]:
         return set()
 
 
+def standalone_count(conn: sqlite3.Connection) -> int:
+    """How many cameras without a recorder this installation has (NVRLESS-CAMERAS-2411: the `cameras_available` capability)."""
+    try:
+        return int(conn.execute("SELECT COUNT(*) FROM cameras WHERE recorder_id = ?", (STANDALONE,)).fetchone()[0])
+    except sqlite3.OperationalError:  # a database without the catalogue (never in practice; the capability block must not fail)
+        return 0
+
+
 def areas(conn: sqlite3.Connection) -> dict[str, str | None]:
     """camera id -> the area of a camera without a recorder (None when none was chosen)."""
     try:

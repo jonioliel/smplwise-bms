@@ -101,8 +101,8 @@ def health(request: Request, principal: Principal = Depends(current_principal), 
         # CR-008 P3: Web Push worker counters and subscription totals (no endpoints, no user ids)
         **({"push": _push_view(conn), "remote": _remote_view(conn, settings)} if diagnostics else {}),
         # NN1 (capabilities.py): the derived capability set and whether this is a supported installation
-        "capabilities": resolve_capabilities(settings).as_dict(with_recorders=may_see_recorders(permissions_anywhere(conn, principal))),
-        "installation": installation_block(resolve_capabilities(settings)),
+        "capabilities": resolve_capabilities(settings, conn).as_dict(with_recorders=may_see_recorders(permissions_anywhere(conn, principal))),
+        "installation": installation_block(resolve_capabilities(settings, conn)),
         # CR-024: one entry per recorder this process runs - discovery and alert-stream state only (no address, no credential)
         # security review L2: per-recorder state (incl. error codes) only for who may see recorders, like the capability block
         "recorders": _recorders_view(settings) if may_see_recorders(permissions_anywhere(conn, principal)) else [],

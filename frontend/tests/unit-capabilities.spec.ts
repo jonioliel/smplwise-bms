@@ -8,8 +8,8 @@ import type { RouteState } from '../src/router';
 // A = no NVR, no media server; B = media server only; C = NVR without a media server (unsupported); D = both.
 const caps = (o: Partial<Capabilities>): Capabilities => ({ ...ALL_CAPABILITIES, ...o });
 const COMBOS: Record<'A' | 'B' | 'C' | 'D', Capabilities> = {
-  A: caps({ nvr: false, go2rtc: false, live_video: false, playback: false, events_recorder: false, ha_cameras_live: false }),
-  B: caps({ nvr: false, go2rtc: true, live_video: true, playback: false, events_recorder: false }),
+  A: caps({ nvr: false, go2rtc: false, live_video: false, playback: false, events_recorder: false, ha_cameras_live: false, cameras_available: false }),
+  B: caps({ nvr: false, go2rtc: true, live_video: true, playback: false, events_recorder: false, cameras_available: false }),
   C: caps({ nvr: true, go2rtc: false, live_video: false, playback: false, events_recorder: true, ha_cameras_live: false, supported: false, unsupported_reason: 'nvr_without_go2rtc' }),
   D: ALL_CAPABILITIES,
 };
@@ -70,9 +70,9 @@ test('the route table: every shell href is offered (or not) per installation', (
 
 test('segments of an href, and what a route needs', () => {
   expect(segmentsOfHref('#/investigate/playback/sync?x=1')).toEqual(['investigate', 'playback', 'sync']);
-  expect(needsOfSegments(['live'])).toEqual(['nvr', 'supported']);
-  expect(needsOfSegments(['live', 'cameras', 'c1'])).toEqual(['nvr']);
-  expect(needsOfSegments(['kiosk'])).toEqual(['nvr', 'supported']);
+  expect(needsOfSegments(['live'])).toEqual(['cameras_available', 'supported']); // NVRLESS-CAMERAS-2411: cameras, not an NVR
+  expect(needsOfSegments(['live', 'cameras', 'c1'])).toEqual(['cameras_available']);
+  expect(needsOfSegments(['kiosk'])).toEqual(['cameras_available', 'supported']);
   expect(needsOfSegments(['investigate'])).toEqual(['playback']); // the bare URL opens playback
   expect(needsOfSegments(['investigate', 'events'])).toEqual(['events_any']); // NVRLESS-295: either source opens the list
   expect(needsOfSegments(['investigate', 'events', 'ev-1'])).toEqual(['events_recorder']); // the detail page needs the recorder
@@ -83,7 +83,7 @@ test('segments of an href, and what a route needs', () => {
 
 test('direct URLs: the missing needs and the panel kind (no recorder vs a recorder without its media server)', () => {
   applyCapabilities(COMBOS.A);
-  expect(routeMissing(route('/live/wall'))).toEqual(['nvr']);
+  expect(routeMissing(route('/live/wall'))).toEqual(['cameras_available']);
   expect(blockKind(routeMissing(route('/live/wall')))).toBe('no_nvr');
   expect(blockKind(routeMissing(route('/investigate/playback')))).toBe('no_nvr'); // no NVR at all: not "needs a media server"
   applyCapabilities(COMBOS.C);

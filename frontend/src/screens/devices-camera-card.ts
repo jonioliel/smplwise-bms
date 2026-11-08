@@ -14,6 +14,7 @@ import { snapshotRefreshMs } from '../api/live-budget';
 import { playerPlan } from '../api/video-policy';
 import { navigate } from '../router';
 import { cap, isApi } from '../api/session';
+import { nvrSourceShown } from '../api/camera-visibility';
 import { bidi } from '../i18n/bidi';
 import { CARD_QUALITY_LABEL, HA_LIVE_CHANGED, cardBudget, cardProfile, isCameraSource, liveCapOf, resolveCameraSource, sameSource, stillUrl, wallProfileOf, type CameraResolved, type CameraSource, type CardQuality } from '../api/camera-card';
 
@@ -515,7 +516,8 @@ export class DevicesCameraCard extends LitElement {
 
   render() {
     // NN1 (D5): an NVR channel is not drawn without an NVR - the rows stay, invisible, and come back with the NVR
-    if (isApi() && this.source?.kind === 'nvr' && !cap('nvr')) return nothing;
+    // NVRLESS-CAMERAS-2411: a camera without a recorder (pseudo-recorder `standalone`) is drawn with or without an NVR
+    if (isApi() && !nvrSourceShown(this.source, cap('nvr'))) return nothing;
     if (this.phase === 'loading') return this.message('loading', 'camera', 'טוען מצלמה…');
     if (this.phase === 'error') {
       return html`<div class="msg" data-camera-state="error">
