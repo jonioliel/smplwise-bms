@@ -17,10 +17,14 @@ import { navigate } from '../router';
 import { cameraRebootState, rebootCamera, type CameraRebootState } from '../api/nvr';
 import { crt } from '../i18n/camera-reboot';
 import { rebootErrorText, rebootView } from './camera-reboot-logic';
+import '../components/camera-source-dialog';
+import { getCameraSource, type CameraSource } from '../api/camera-sources';
+import { cst } from '../i18n/camera-sources';
+import { healthLine, recorderActions, sourceSummary } from './camera-source-logic';
 import { cameraSchedules, cameraSmart, osdStatus, recordStart, recordStatus, recordStop, setArming, setMotion, setOsd, setRecordSchedule, setSmart, writeChannelName, type ArmingKind, type CameraSchedules, type CameraSmart, type OsdStatus, type RecordStatus, type WeekRange } from '../api/nvr';
 import '../components/sw-week-grid';
 import '../components/sw-dialog';
-import { canAnywhere, canReadNvrConfig, isApi, onRemote } from '../api/session';
+import { can, canAnywhere, canReadNvrConfig, isApi, onRemote } from '../api/session';
 import { cameraCapabilities, cameraZones, snapshotUrl, type CameraCapabilities, type CameraZones, type ProductSettings, type Transport } from '../api/media';
 import { cachedVideoPolicy, setPersonalTransport } from '../api/video-transport';
 import '../components/sw-chip';
@@ -98,6 +102,36 @@ export class LiveCamera extends LitElement {
   @state() private rebootOpen = false;
   @state() private rebootBusy = false;
   @state() private rebootMsg = '';
+  /** CAMERA-STREAM-SOURCES-2410: the camera's video source (system.configure only) and its dialog. */
+  @state() private source: CameraSource | null = null;
+  @state() private sourceOpen = false;
+  @state() private sourceMsg = '';
+
+  private async loadSource() {
+    if (!this.cam || !isApi() || !can('system.configure')) {
+      this.source = null;
+      return;
+    }
+    try {
+      this.source = await getCameraSource(this.cam.id);
+    } catch {
+      this.source = null;
+    }
+  }
+
+  /** CAMERA-STREAM-SOURCES-2410: the "video source" row of the camera's settings - the current source, its health, and the dialog. */
+  private renderSource(cam: Camera) {
+    if (!this.source) return nothing;
+    const h = healthLine(this.source);
+    return html`<div class="note" style="margin-block-start:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-camera-source=${this.source.mode}>
+      <span>${sourceSummary(this.source, cam)}</span>
+      ${h ? html`<span data-camera-source-health=${h.tone} style=${h.tone === 'bad' ? 'color:var(--sw-danger-text, var(--sw-danger))' : h.tone === 'ok' ? 'color:var(--sw-success-text, var(--sw-success))' : ''}>${h.text}</span>` : nothing}
+      <sw-button size="sm" variant="ghost" icon="edit" data-camera-source-open @click=${() => { this.sourceMsg = ''; this.sourceOpen = true; }}>${cst('change')}</sw-button>
+      ${this.sourceMsg ? html`<span role="status" data-camera-source-msg>${this.sourceMsg}</span>` : nothing}
+    </div>
+    <camera-source-dialog mode="edit" .open=${this.sourceOpen} camera-id=${cam.id} camera-name=${cam.name} @close=${() => (this.sourceOpen = false)}
+      @saved=${() => { this.sourceMsg = cst('saved'); void this.loadSource(); this.posterBust = Date.now(); this.player?.reconnect(); }}></camera-source-dialog>`;
+  }
 
   private async loadSchedules() {
     if (!this.cam || !isApi()) return;
@@ -1132,7 +1166,9 @@ export class LiveCamera extends LitElement {
 
   protected updated(changed: Map<string, unknown>) {
     if (changed.has('cameraId') && changed.get('cameraId') !== undefined) void this.load();
-    if (changed.has('cam') && this.cam && isApi() && !this.zonesBusy && (!this.zones || this.zones.camera_id !== this.cam.id)) {
+    if (changed.has('cam') && this.cam && isApi()) void this.loadSource();
+    // CAMERA-STREAM-SOURCES-2410: a camera without a recorder has nothing of a recorder to read (recording, OSD, reboot, schedules, zones)
+    if (changed.has('cam') && this.cam && isApi() && !this.cam.standalone && !this.zonesBusy && (!this.zones || this.zones.camera_id !== this.cam.id)) {
       void this.loadRecord();
       void this.loadOsd();
       void this.loadReboot();
@@ -1140,7 +1176,7 @@ export class LiveCamera extends LitElement {
       this.zonesError = '';
       void this.loadZones();
     }
-    if (changed.has('cam') && this.cam && isApi() && (!this.caps || this.caps.camera_id !== this.cam.id)) void this.loadCaps();
+    if (changed.has('cam') && this.cam && isApi() && !this.cam.standalone && (!this.caps || this.caps.camera_id !== this.cam.id)) void this.loadCaps();
     if (changed.has('cam') && this.cam) void this.loadCastTargets();
   }
 
@@ -1364,7 +1400,7 @@ export class LiveCamera extends LitElement {
           ? html`<sw-camera-tile data-live-still name=${cam.name} state="live" cameraId=${cam.id} poster=${snapshotUrl(cam.id)} .stillRefresh=${cam.still_refresh_s ?? 10} noDemo></sw-camera-tile>`
           : canView
           ? html`<sw-live-player .cameraId=${cam.id} .profile=${this.profile} .mode=${this.transport} .plan=${plan.plan} .preferred=${plan.preferred} .gop=${plan.gop} .encoding=${cam.encoding ?? null} .poster=${poster} @player-status=${this.onPlayer}></sw-live-player>`
-          : html`<div class="center"><div><sw-icon name="offline" size=${32}></sw-icon><span data-camera-off-reason>${cam.recorder_enabled === false ? 'ה־NVR של המצלמה מושבת' : cam.status === 'offline' ? 'המצלמה מנותקת מה־NVR (לפי הסנכרון האחרון)' : 'אין הרשאת צפייה חיה במצלמה זו'}</span></div></div>`}
+          : html`<div class="center"><div><sw-icon name="offline" size=${32}></sw-icon><span data-camera-off-reason>${cam.recorder_enabled === false ? 'ה־NVR של המצלמה מושבת' : cam.status === 'offline' && cam.video_source === 'manual' ? cst('offline') : cam.status === 'offline' ? 'המצלמה מנותקת מה־NVR (לפי הסנכרון האחרון)' : 'אין הרשאת צפייה חיה במצלמה זו'}</span></div></div>`}
       </div>
       ${canView && cam.live_kind === 'still' ? html`<div class="note" data-live-still-note>${fx().live.stillExplain.replace('{n}', String(cam.still_refresh_s ?? 10))}</div>` : nothing}
       <div class="controls" data-player=${this.playerStatus === 'playing' ? 'playing' : this.playerStatus === 'error' ? 'error' : 'connecting'}>
@@ -1438,9 +1474,18 @@ export class LiveCamera extends LitElement {
     const record = this.renderRecord();
     const osd = this.renderOsd();
     const reboot = this.renderReboot();
+    const source = this.renderSource(cam);
+    const rec = recorderActions(cam);
     return html`<details class="acc-root" data-camera-settings>
       <summary><sw-icon class="chev" name="chevron" size=${16}></sw-icon>הגדרות מצלמה</summary>
       <div class="acc-body">
+        ${source !== nothing
+          ? html`<details class="acc" data-acc-source ?open=${this.sourceOpen || !!this.sourceMsg || this.source?.health?.state === 'failing'}>
+              <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>${cst('section')}</span>${this.source?.mode === 'manual' ? html`<sw-badge kind=${this.source.health?.state === 'failing' ? 'offline' : 'neutral'} label=${cst('manual')}></sw-badge>` : nothing}</summary>
+              <div class="acc-content">${source}</div>
+            </details>`
+          : nothing}
+        ${!rec.recording ? html`<div class="note" data-camera-standalone-note>${cst('standaloneNote')} ${rec.reason}</div>` : nothing}
         ${record !== nothing
           ? html`<details class="acc" data-acc-record ?open=${!!this.rec?.active}>
               <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>הקלטה ידנית</span>${this.rec?.active ? html`<sw-badge kind="live" label="פעילה"></sw-badge>` : nothing}</summary>
@@ -1452,10 +1497,12 @@ export class LiveCamera extends LitElement {
           <div class="acc-content">
             <dl>
               <dt>מצב</dt><dd><sw-badge kind=${cam.status === 'online' ? 'live' : cam.status === 'offline' ? 'offline' : 'unknown'}></sw-badge></dd>
-              <dt>ערוץ</dt><dd>${cam.channel} · <span class="ltr">track ${cam.main_track ?? '?'}</span></dd>
-              <dt>שם ב־NVR</dt><dd>${cam.name_source || '—'}</dd>
+              ${cam.standalone
+                ? html`<dt>${cst('section')}</dt><dd>${cst('manual')} · ${cst('noRecorder')}</dd>`
+                : html`<dt>ערוץ</dt><dd>${cam.channel} · <span class="ltr">track ${cam.main_track ?? '?'}</span></dd>
+              <dt>שם ב־NVR</dt><dd>${cam.name_source || '—'}</dd>`}
               <dt>זרם ראשי</dt><dd>${stream ? `${stream.resolution ?? ''} · ${stream.fps ?? '?'} fps · ${stream.bitrate_kbps ?? '?'} kbps` : 'לא נבדק'}</dd>
-              <dt>זמן מקור</dt><dd>NVR · <span class="ltr">Asia/Jerusalem</span></dd>
+              ${cam.standalone ? nothing : html`<dt>זמן מקור</dt><dd>NVR · <span class="ltr">Asia/Jerusalem</span></dd>`}
               <dt>נראתה לאחרונה</dt><dd>${cam.last_seen_at ? cam.last_seen_at.replace('T', ' ').replace('Z', ' UTC') : '—'}</dd>
             </dl>
             ${caps}
@@ -1467,7 +1514,7 @@ export class LiveCamera extends LitElement {
               <div class="acc-content">${osd}</div>
             </details>`
           : nothing}
-        <details class="acc" data-acc-schedules>
+        ${!rec.recording ? nothing : html`<details class="acc" data-acc-schedules>
           <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>לוחות זימון והקלטה — כפי שמוגדר ב־NVR</span></summary>
           <div class="acc-content">
             <div class="note">מתי כל זיהוי פעיל ומתי הערוץ מקליט (רציף / תנועה / אירוע) · עריכה דורשת הרשאה רגישה ונרשמת עם החזר</div>
@@ -1477,7 +1524,7 @@ export class LiveCamera extends LitElement {
         <details class="acc" data-acc-zones>
           <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>אזורי זיהוי ומסכות — כפי שמוגדר ב־NVR</span></summary>
           <div class="acc-content">${this.renderZones(cam)}</div>
-        </details>
+        </details>`}
         ${reboot !== nothing
           ? html`<details class="acc" data-acc-reboot ?open=${this.rebootOpen || !!this.rebootMsg}>
               <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>${crt('section')}</span></summary>
@@ -1559,13 +1606,13 @@ export class LiveCamera extends LitElement {
   render() {
     const api = isApi();
     const title = api ? this.cam?.name ?? 'מצלמה' : (demoWall.find((c) => c.id === this.cameraId) ?? demoWall[0]).name;
-    const sub = api ? (this.cam ? `ערוץ ${this.cam.channel} · ${this.cam.name_source || ''}` : '') : `${(demoWall.find((c) => c.id === this.cameraId) ?? demoWall[0]).floor} · נתוני הדגמה`;
+    const sub = api ? (this.cam ? (this.cam.standalone ? cst('noRecorder') : `ערוץ ${this.cam.channel} · ${this.cam.name_source || ''}`) : '') : `${(demoWall.find((c) => c.id === this.cameraId) ?? demoWall[0]).floor} · נתוני הדגמה`;
     return html`
       <sw-page heading=${title} subheading=${sub} crumbs="מצלמות | שידור חי" backHref="/live/wall">
         ${this.cam ? html`<sw-badge slot="actions" kind=${this.cam.status === 'online' ? 'live' : this.cam.status === 'offline' ? 'offline' : 'unknown'}></sw-badge>` : nothing}
         ${api && this.cam && this.canConfigure ? html`<sw-button slot="actions" variant="ghost" icon="edit" data-camera-rename @click=${() => { this.renameMsg = ''; this.renameTo = this.cam?.alias ?? this.cam?.name ?? ''; }}>שנה שם</sw-button>` : nothing}
         ${this.renderRename()}
-        <a slot="actions" href=${api && this.cam ? `#/investigate/playback?camera=${this.cam.id}` : '#/investigate/playback'}><sw-button icon="history">הקלטות</sw-button></a>
+        ${api && this.cam?.standalone ? nothing : html`<a slot="actions" href=${api && this.cam ? `#/investigate/playback?camera=${this.cam.id}` : '#/investigate/playback'}><sw-button icon="history">הקלטות</sw-button></a>`}
         <a slot="actions" href="#/explore/floors/f0"><sw-button variant="ghost" iconOnly icon="map" label="במפה"></sw-button></a>
         ${api && this.cam && mapTicketsOn() ? html`<sw-button slot="actions" variant="ghost" icon="plus" data-camera-ticket @click=${() => (this.mapTicket = true)}>${mapCreateLabel()}</sw-button>` : nothing}
         ${this.mapTicket && this.cam ? html`<ticket-map-create open .element=${{ pick: { resource: { type: 'camera', id: this.cam.id } }, name: this.cam.alias || this.cam.name, floorName: '' }} @close=${() => (this.mapTicket = false)}></ticket-map-create>` : nothing}

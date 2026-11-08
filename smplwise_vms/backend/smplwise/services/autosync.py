@@ -267,9 +267,25 @@ def ensure_streams(settings: Settings, conn: sqlite3.Connection, actor: Any | No
     from .recorders import frigate_restream
 
     stale: list[str] = []  # TKFRIGLIVE: our streams of a Frigate camera that has no restream (any more): removed by exact name
+    from . import camera_sources
+
+    # CAMERA-STREAM-SOURCES-2410: a camera with its own RTSP address gets ITS streams (`smplwise_cam_<id>_<profile>`), never the recorder's;
+    # a camera without a recorder is never built from a recorder connection
+    cams = [camera_sources.with_source(conn, c) for c in cams]
     with unlocked(conn):
         plans: dict[str, dict[str, dict[str, str]] | None] = {}  # F-1: one discovery per Frigate recorder and run
         for cam in cams:
+            if camera_sources.manual_of(cam) is not None:
+                for profile in ("sub", "main"):
+                    try:
+                        name, outcome = camera_sources.ensure_stream_outcome(settings, cam, profile)
+                    except ApiError as exc:
+                        log.info("manual camera source skipped: %s", exc.code)  # never the address; the source's health records it
+                        result["skipped"] += 1
+                        continue
+                    result[outcome] += 1
+                    result["streams"].append(name)
+                continue
             rs = settings_for(settings, cam["recorder_id"])
             if frigate_io.handles(rs):
                 # TKFRIGLIVE: a Frigate camera gets live video only through Frigate's own restream (read-only toward Frigate); without

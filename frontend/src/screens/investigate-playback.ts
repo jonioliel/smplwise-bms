@@ -655,7 +655,7 @@ export class InvestigatePlayback extends LitElement {
     try {
       const [settings, list] = await Promise.all([productSettings(), listCameras()]);
       this.tz = settings['time.zone'] ?? 'Asia/Jerusalem';
-      this.cams = list.cameras.filter((c) => c.enabled && c.recorder_enabled !== false);
+      this.cams = list.cameras.filter((c) => c.enabled && c.recorder_enabled !== false && !c.standalone); // CAMERA-STREAM-SOURCES-2410: nothing recorded
       this.crossSync = String(settings['playback.cross_recorder_sync'] ?? 'false') === 'true';
       this.stall = new StallWatch(stallOptionsFromSettings(settings as unknown as Record<string, unknown>));
       const first = this.cams.find((c) => c.id === this.cameraId) ?? this.cams[0];

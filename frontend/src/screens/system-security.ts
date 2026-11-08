@@ -11,10 +11,11 @@ import './system-security-cameras';
 import './system-security-privacy-masks';
 import './system-security-public';
 import './system-security-wiskey';
-import '../incidents/settings-form'; // CR-LIVEEVENT100: הגדרות › אבטחה › מצב אירוע חי
+import '../incidents/settings-form';
+import '../components/standalone-cameras-card'; // CAMERA-STREAM-SOURCES-2410: הגדרות › אבטחה › NVR › מצלמות ללא מקליט // CR-LIVEEVENT100: הגדרות › אבטחה › מצב אירוע חי
 import { alarmPresence, onAlarmPresence, refreshAlarmPresence } from '../api/alarm-presence';
 import { describeError, get } from '../api/client';
-import { canNav, isApi, nvrLess } from '../api/session';
+import { can, canNav, isApi, nvrLess } from '../api/session';
 import { SECURITY_CAMERAS_HREF, SECURITY_SETTINGS_TABS, applyAlarmPresent, tabAllowed, tabStyleOf, visibleTabs } from '../shell/nav';
 import { TabsModeController } from '../shell/tabs-mode';
 import { SkinController } from '../design/skin';
@@ -202,6 +203,7 @@ export class SystemSecurityNvr extends LitElement {
           ? html`<div class="actions">${links.map((l) => html`<sw-button size="sm" variant="ghost" @click=${() => (window.location.hash = l.href)}>${l.label}</sw-button>`)}</div>`
           : nothing}
       </sw-card>
+      ${can('system.configure') ? html`<standalone-cameras-card></standalone-cameras-card>` : nothing}
     </sw-page>`;
   }
 }

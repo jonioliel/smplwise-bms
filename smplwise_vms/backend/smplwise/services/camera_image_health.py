@@ -424,7 +424,17 @@ def _cameras(conn: sqlite3.Connection) -> list[sqlite3.Row]:
         gone = set()
     rows = conn.execute("SELECT id, recorder_id, channel, alias, name_source, enabled FROM cameras WHERE enabled = 1 ORDER BY recorder_id, channel LIMIT ?",
                         (EXCLUDED_MAX,)).fetchall()
-    return [r for r in rows if r["recorder_id"] not in gone and not is_disabled(r["recorder_id"])]
+    from . import camera_sources
+
+    manual = camera_sources.manual_ids(conn)  # CAMERA-STREAM-SOURCES-2410: a camera with its own RTSP address is sampled from ITS stream
+    return [{**dict(r), "manual": str(r["id"]) in manual} for r in rows if r["recorder_id"] not in gone and not is_disabled(r["recorder_id"])]
+
+
+def _get(row: Any, key: str) -> Any:
+    try:
+        return row[key]
+    except (KeyError, IndexError, TypeError):
+        return None
 
 
 def _name(row: Any) -> str:
@@ -474,7 +484,12 @@ def sample(settings: Settings, row: Any, th: dict[str, Any], client: Any, listin
         data, source = cached[0], "cache"
     else:
         try:
-            name = g2.stream_name(str(row["recorder_id"]), int(row["channel"]), "sub")
+            if _get(row, "manual"):  # CAMERA-STREAM-SOURCES-2410: the manual source's own stream (`smplwise_cam_<id>_sub`), by name only
+                from . import camera_sources
+
+                name = camera_sources.stream_name(str(row["id"]), "sub")
+            else:
+                name = g2.stream_name(str(row["recorder_id"]), int(row["channel"]), "sub")
         except ValueError:
             name = None
         info = (listing or {}).get(name) if name else None

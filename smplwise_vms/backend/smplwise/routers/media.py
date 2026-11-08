@@ -131,6 +131,13 @@ def _stream_for(conn: sqlite3.Connection, camera_id: str) -> sqlite3.Row:
 
 
 def ensure_camera_stream(settings: Settings, cam: sqlite3.Row, profile: str) -> str:
+    from ..services import camera_sources
+
+    if camera_sources.manual_of(cam) is not None:
+        # CAMERA-STREAM-SOURCES-2410: the camera's own RTSP address (a `with_source` row) - its `smplwise_cam_` stream, never the recorder's
+        return camera_sources.ensure_stream(settings, cam, profile)
+    if camera_sources.is_standalone(cam):  # a camera without a recorder that was not given its source: never a recorder connection
+        raise ApiError(409, "source_missing", camera_sources.MSG["source_missing"])
     name = g2.stream_name(cam["recorder_id"], cam["channel"], profile)
     client = g2.Go2rtc(settings)
     from ..recorder_scope import camera_settings
@@ -170,6 +177,25 @@ def ensure_camera_stream(settings: Settings, cam: sqlite3.Row, profile: str) -> 
     return name
 
 
+def _base_name(cam: Any, profile: str) -> str:
+    """The camera's own go2rtc stream name of `profile`: `smplwise_cam_<id>_<profile>` for a manual source (CAMERA-STREAM-SOURCES-2410),
+    else the recorder channel's `smplwise_<recorder>_ch<n>_<profile>`."""
+    from ..services import camera_sources
+
+    if camera_sources.manual_of(cam) is not None:
+        return camera_sources.stream_name(str(cam["id"]), profile)
+    return g2.stream_name(cam["recorder_id"], cam["channel"], profile)
+
+
+def transcode_name(cam: Any, profile: str) -> str:
+    """LIVE-H265-2341's H.264 variant of the camera's own stream (`<base>_h264`), for a manual source too."""
+    from ..services import camera_sources
+
+    if camera_sources.manual_of(cam) is not None:
+        return camera_sources.transcode_name(str(cam["id"]), profile)
+    return lc.transcode_stream_name(cam["recorder_id"], cam["channel"], profile)
+
+
 def live_choice(settings: Settings, cam: sqlite3.Row, profile: str, can_h265: bool | None, policy: str, max_transcodes: int) -> lc.Choice:
     """LIVE-H265-2341: which stream this viewer gets (services/live_codec.py). The registry's codecs first; a profile the
     registry does not know is looked up in what go2rtc's producer reported (read-only `GET /api/streams`) - only when the
@@ -178,7 +204,7 @@ def live_choice(settings: Settings, cam: sqlite3.Row, profile: str, can_h265: bo
     if can_h265 is False and lc.normalize_policy(policy) != "off" and (codecs.get(profile) is None or codecs.get(lc.other_profile(profile)) is None):
         try:
             listed = g2.Go2rtc(settings).list_streams()
-            observed = {p: getattr(listed.get(g2.stream_name(cam["recorder_id"], cam["channel"], p)), "video_codec", None) for p in lc.PROFILES}
+            observed = {p: getattr(listed.get(_base_name(cam, p)), "video_codec", None) for p in lc.PROFILES}
             codecs = lc.merge_observed(codecs, observed)
         except (ApiError, ValueError):
             pass  # go2rtc not reachable for the listing: the registry alone decides (the socket's own open reports an outage)
@@ -191,7 +217,7 @@ def ensure_live_stream(settings: Settings, cam: sqlite3.Row, choice: lc.Choice) 
     base = ensure_camera_stream(settings, cam, choice.profile)
     if choice.kind != "transcode":
         return base
-    name = lc.transcode_stream_name(cam["recorder_id"], cam["channel"], choice.profile)
+    name = transcode_name(cam, choice.profile)
     g2.Go2rtc(settings).ensure_stream(name, lc.transcode_source(base))
     return name
 
@@ -290,8 +316,12 @@ def video_policy(request: Request, principal: Principal = Depends(current_princi
 def live_info(camera_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), profile: str = Query("sub", pattern="^(sub|main)$")) -> dict[str, Any]:
     """What the player needs before opening the socket: permission, transport default and the relay path."""
     require_camera(conn, principal, camera_id, "video.live")  # T055: 403 before 404
-    ensure_nvr(settings_of(request))  # NVR-less mode: 409 after the permission check
-    cam = _stream_for(conn, camera_id)
+    from ..services import camera_sources
+
+    cam = camera_sources.with_source(conn, conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone())
+    if camera_sources.manual_of(cam) is None:
+        ensure_nvr(settings_of(request))  # NVR-less mode: 409 after the permission check (CAMERA-STREAM-SOURCES-2410: not for a manual source)
+    cam = camera_sources.with_source(conn, _stream_for(conn, camera_id))
     s = read_settings(conn)
     chain = _remote_chain(request)
     refusal = remote_cap_refusal(chain, s["remote.max_live_streams"])
@@ -576,6 +606,9 @@ async def live_ws(websocket: WebSocket, camera_id: str, profile: str = Query("su
             cam = conn.execute("SELECT * FROM cameras WHERE id = ?", (camera_id,)).fetchone()
             if not cam or not cam["enabled"]:
                 return None, None, 0, 0
+            from ..services import camera_sources
+
+            cam = camera_sources.with_source(conn, cam)  # CAMERA-STREAM-SOURCES-2410: a manual source streams from its own address
             decision = camera_decision(conn, principal, camera_id, "video.live")
             if not decision.allowed:
                 audit(conn, actor=principal, action="video.live", decision="denied", resource_type="camera", resource_id=camera_id, reason=decision.reason, under=decision)
@@ -606,7 +639,7 @@ async def live_ws(websocket: WebSocket, camera_id: str, profile: str = Query("su
         return
     token = uuid.uuid4().hex
     if choice.kind == "transcode":
-        tname = lc.transcode_stream_name(cam["recorder_id"], cam["channel"], choice.profile)
+        tname = transcode_name(cam, choice.profile)
         max_tc = h265_conf.get("max", lc.DEFAULT_MAX_TRANSCODES)
         if not lc.BUDGET.acquire(token, tname, max_tc):
             log.info("live stream for camera %s (%s): transcode cap %s reached", camera_id, profile, max_tc)

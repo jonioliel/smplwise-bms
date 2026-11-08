@@ -131,6 +131,12 @@ def janitor_tick(db: Database, settings: Settings) -> None:
         ha_camera_streams.reconcile(db, settings)
     except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
         log.warning("ha live reconcile failed", exc_info=True)
+    try:  # CAMERA-STREAM-SOURCES-2410: delete `smplwise_cam_` streams no manual source wants (throttled; nothing outside that shape)
+        from .services import camera_sources
+
+        camera_sources.reconcile(db, settings)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("camera sources reconcile failed", exc_info=True)
     try:  # CR-023: electricity retention (hourly inside; energy.db only, its own gate)
         from .services import energy_sampler
 
@@ -574,6 +580,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(plan_view_router.router, prefix=api, tags=["plans"])  # CR-029 S0: a person's own realistic-3D look dials
     app.include_router(plan_catalog.router, prefix=api, tags=["catalog"])
     app.include_router(anchors.router, prefix=api, tags=["anchors"])
+    from .routers import camera_sources as camera_sources_router
+
+    app.include_router(camera_sources_router.router, prefix=api, tags=["cameras"])  # CAMERA-STREAM-SOURCES-2410: a camera's video source, cameras without a recorder
     app.include_router(cameras.router, prefix=api, tags=["cameras"])
     app.include_router(settings_router.router, prefix=api, tags=["settings"])
     app.include_router(ui_background.router, prefix=api, tags=["settings"])  # CRY: the background pictures behind the glass
@@ -1189,6 +1198,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             from .services import camera_image_health
 
             camera_image_health.POLLER.start(app.state.db, settings)  # CAMHEALTH091: idle until switched on in Settings; samples the cache or existing sub streams only
+        from .services import camera_sources
+
+        camera_sources.POLLER.start(app.state.db, settings)  # CAMERA-STREAM-SOURCES-2410: one frame per manual source every 5 min (none without one)
         from .services.transit import poller as transit_poller
 
         transit_poller.POLLER.start(app.state.db, settings)  # BUSTIMES-295: idle until the module is on and a board shows transit; the only caller of the third party
@@ -1342,6 +1354,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         from .services import camera_image_health
 
         await _in_thread(camera_image_health.POLLER.shutdown)
+        from .services import camera_sources
+
+        await _in_thread(camera_sources.POLLER.shutdown)
         from .services.transit import poller as transit_poller
 
         await _in_thread(transit_poller.POLLER.shutdown)

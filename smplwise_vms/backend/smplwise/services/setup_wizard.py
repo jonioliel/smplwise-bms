@@ -626,7 +626,8 @@ def _go2rtc_problem(code: str, detail: str | None = None) -> dict[str, Any]:
 
 
 def _expected_streams(conn: sqlite3.Connection) -> list[str]:
-    return [g2.stream_name(r["recorder_id"], r["channel"], p) for r in conn.execute("SELECT recorder_id, channel FROM cameras WHERE enabled = 1 ORDER BY channel") for p in ("sub", "main")]
+    # CAMERA-STREAM-SOURCES-2410: the recorder channels' streams only (a camera without a recorder has its own `smplwise_cam_` streams)
+    return [g2.stream_name(r["recorder_id"], r["channel"], p) for r in conn.execute("SELECT recorder_id, channel FROM cameras WHERE enabled = 1 AND recorder_id <> 'standalone' ORDER BY channel") for p in ("sub", "main")]
 
 
 def go2rtc_background(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
