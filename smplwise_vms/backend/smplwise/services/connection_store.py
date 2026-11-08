@@ -328,6 +328,29 @@ def open_lineage_record(data_dir: Path, operation_id: str, field: str, blob: str
     return _open(_Home(data_dir), _lineage_aad(operation_id, field), blob)
 
 
+# ---------------------------------------------------------------- a camera's own RTSP addresses (CAMERA-STREAM-SOURCES-2410, services/camera_sources.py)
+# The same key file and `v1:` format; associated data `"camera_source|<camera id>|<main|sub>"` - an address moved to another camera, the
+# other profile or any other store does not decrypt. The camera id is the product's own row id shape (db.ID_RE).
+
+CAMERA_SOURCE_PROFILES = frozenset({"main", "sub"})
+
+
+def _camera_source_aad(camera_id: str, profile: str) -> bytes:
+    import re as _re
+
+    if profile not in CAMERA_SOURCE_PROFILES or not isinstance(camera_id, str) or not _re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,63}", camera_id):
+        raise SecretError("not a secret field")
+    return f"camera_source|{camera_id}|{profile}".encode("utf-8")
+
+
+def seal_camera_source(data_dir: Path, camera_id: str, profile: str, plaintext: str) -> str:
+    return _seal(_Home(data_dir), _camera_source_aad(camera_id, profile), plaintext)
+
+
+def open_camera_source(data_dir: Path, camera_id: str, profile: str, blob: str) -> str:
+    return _open(_Home(data_dir), _camera_source_aad(camera_id, profile), blob)
+
+
 # ---------------------------------------------------------------- rows
 
 def get_row(conn: sqlite3.Connection, recorder_id: str = DEFAULT_RECORDER) -> sqlite3.Row | None:
@@ -627,8 +650,8 @@ def further_recorders(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     """CR-024: the recorders other than the primary that this process loads: not removed (a disabled one is loaded too and kept
     in `recorder_scope.DISABLED`, so enabling it applies at once). Empty before 0055."""
     try:
-        return conn.execute("SELECT id, enabled FROM recorders WHERE id <> ? AND removed_at IS NULL ORDER BY sort_order, id",
-                            (DEFAULT_RECORDER,)).fetchall()
+        return conn.execute("SELECT id, enabled FROM recorders WHERE id <> ? AND id <> 'standalone' AND removed_at IS NULL ORDER BY sort_order, id",
+                            (DEFAULT_RECORDER,)).fetchall()  # CAMERA-STREAM-SOURCES-2410: the cameras without a recorder are not a recorder
     except sqlite3.OperationalError:
         return []
 
