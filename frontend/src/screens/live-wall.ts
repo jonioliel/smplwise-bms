@@ -16,7 +16,8 @@ import { demoScene, demoWall } from '../fixtures/catalog';
 import { navigate } from '../router';
 import { registerScreenEdit } from '../shell/screen-edit';
 import { PhoneWidth, phoneRestricted } from '../shell/phone';
-import { isApi } from '../api/session';
+import { isApi, webrtcServer } from '../api/session';
+import { WEBRTC_REQUIRED_SHORT, WEBRTC_REQUIRED_TEXT, WEBRTC_SETTINGS_HREF, WEBRTC_SETTINGS_LABEL } from '../api/camera-visibility';
 import { snapshotUrl, type ProductSettings, type Transport } from '../api/media';
 import { listCameras, updateCamera } from '../api/maps';
 import { effectiveTransport, productSettings } from '../api/prefs';
@@ -1026,6 +1027,8 @@ export class LiveWall extends LitElement {
     if (!cams || !enabled) return html`<sw-state-panel state="loading"></sw-state-panel>`;
     if (!cams.length && hiddenCount) return html`<sw-state-panel icon="camera" state="empty" heading="כל המצלמות מוסתרות בקיר" data-wall-all-hidden></sw-state-panel>`; // the arrangement dialog (user menu) brings them back
     if (!cams.length) return html`<sw-state-panel icon="camera" state="empty" heading="אין מצלמות זמינות" hint="המצלמות מתגלות אוטומטית מה־NVR בהפעלה ובכל 10 דקות. אם הרשימה ריקה: בדקו את פרטי ה־NVR בהגדרות ‹ חיבורים, או הריצו סנכרון ידני; ייתכן גם שאין לך הרשאה למצלמות."><div style="margin-block-start:10px"><sw-button @click=${() => navigate('/system/devices')}>למצלמות</sw-button></div></sw-state-panel>`;
+    // NVRLESS-CAMERAS-2411 (owner, 08.11): no video server - a clear notice instead of a wall of broken players
+    if (!webrtcServer()) return html`<sw-state-panel icon="camera" state="empty" heading=${WEBRTC_REQUIRED_SHORT} hint=${WEBRTC_REQUIRED_TEXT} actionLabel=${WEBRTC_SETTINGS_LABEL} data-webrtc-required @action=${() => (window.location.hash = WEBRTC_SETTINGS_HREF)}></sw-state-panel>`;
     const wanted = this.cameras ? this.cameras.split(',').filter(Boolean) : [];
     // a selection from the map is an explicit choice: it still shows a camera hidden in the wall
     const pool = wanted.length ? enabled.filter((c) => wanted.includes(c.id)) : cams;

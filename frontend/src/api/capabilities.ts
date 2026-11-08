@@ -22,6 +22,8 @@ export interface Capabilities extends Record<CapabilityName, boolean> {
   /** false (with `unsupported_reason`) when the installation has an NVR but no media server: it never reaches "ready". */
   supported: boolean;
   unsupported_reason: string | null;
+  /** NVRLESS-CAMERAS-2411: the video (WebRTC) server is configured (same value as `go2rtc`; absent from an older backend). */
+  webrtc_server_configured?: boolean;
   /** Only for callers who may read the NVR configuration. */
   recorders?: RecorderCaps[];
 }

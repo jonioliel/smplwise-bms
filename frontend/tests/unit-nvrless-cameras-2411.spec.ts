@@ -1,6 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { ALL_CAPABILITIES, resolveCapabilities, type Capabilities } from '../src/api/capabilities';
-import { STANDALONE_RECORDER, isStandaloneRow, nvrSourceShown, visibleCameras, visibleRecorderGroups } from '../src/api/camera-visibility';
+import {
+  STANDALONE_RECORDER, WEBRTC_REQUIRED_ADD_TEXT, WEBRTC_REQUIRED_SHORT, WEBRTC_REQUIRED_TEXT, WEBRTC_SETTINGS_HREF, isStandaloneRow, mapCameraAnchors,
+  mapCameraLayerShown, nvrSourceShown, sourceControls, visibleCameras, visibleRecorderGroups, webrtcServerReady,
+} from '../src/api/camera-visibility';
 import { applyCapabilities, blockKind, capHiddenHref, routeMissing } from '../src/shell/nav-capabilities';
 import { SECTION_TABS, applyNvrLess, visibleTabs, type Can } from '../src/shell/nav';
 import type { RouteState } from '../src/router';
@@ -122,4 +125,51 @@ test('camera picker groups and camera card sources without an NVR', () => {
   expect(nvrSourceShown({ kind: 'nvr', recorder_id: 'nvr-1' }, true)).toBe(true);
   expect(nvrSourceShown({ kind: 'ha', recorder_id: undefined }, false)).toBe(true); // a Home Assistant camera is not an NVR row
   expect(nvrSourceShown(null, false)).toBe(true);
+});
+
+// ---------------------------------------------------------------- owner answers 08.11: "show, but a WebRTC server is required"; map "א"
+
+test('the WebRTC server flag: the block value, else go2rtc (an older backend), else on (the demo)', () => {
+  expect(webrtcServerReady(null)).toBe(true);
+  expect(webrtcServerReady({ go2rtc: false })).toBe(false);
+  expect(webrtcServerReady({ go2rtc: true })).toBe(true);
+  expect(webrtcServerReady({ go2rtc: true, webrtc_server_configured: false })).toBe(false); // the block wins
+  expect(webrtcServerReady({ go2rtc: false, webrtc_server_configured: true })).toBe(true);
+  expect(webrtcServerReady(INST.AS)).toBe(false); // ALL_CAPABILITIES carries no flag: go2rtc decides
+  expect(webrtcServerReady(INST.BS)).toBe(true);
+});
+
+test('without the server the camera screens still appear (owner: show), and the notice names the server and the settings page', () => {
+  applyCapabilities(INST.AS);
+  expect(capHiddenHref('#/live/wall')).toBe(false);
+  expect(capHiddenHref('#/live/cameras/sa1')).toBe(false);
+  expect(WEBRTC_REQUIRED_TEXT).toBe('כדי להציג וידאו נדרש שרת WebRTC. אפשר להגדיר אותו בהגדרות ← חיבורים.');
+  expect(WEBRTC_REQUIRED_ADD_TEXT).toContain('נדרש שרת WebRTC');
+  expect(WEBRTC_SETTINGS_HREF).toBe('#/system/setup'); // הגדרות › חיבורים: the go2rtc card lives there
+  expect(capHiddenHref(WEBRTC_SETTINGS_HREF)).toBe(false); // the link always opens
+  for (const s of [WEBRTC_REQUIRED_TEXT, WEBRTC_REQUIRED_ADD_TEXT, WEBRTC_REQUIRED_SHORT]) expect(s).not.toMatch(/Home Assistant|go2rtc/);
+});
+
+test('add and test are disabled without the server, with the same explanation; with it the old rules apply', () => {
+  expect(sourceControls(false, { ready: true, testing: false })).toEqual({ canAdd: false, canTest: false, note: WEBRTC_REQUIRED_ADD_TEXT });
+  expect(sourceControls(true, { ready: true, testing: false })).toEqual({ canAdd: true, canTest: true, note: '' });
+  expect(sourceControls(true, { ready: false, testing: false }).canTest).toBe(false); // an address is still needed
+  expect(sourceControls(true, { ready: true, testing: true }).canTest).toBe(false); // one test at a time
+});
+
+test('the floor map camera layer: NVR installations unchanged; without an NVR only cameras without a recorder', () => {
+  const anchors = [
+    { id: 'a1', resource_type: 'camera', resource_id: 'cam-nvr' },
+    { id: 'a2', resource_type: 'camera', resource_id: 'sa1' },
+    { id: 'a3', resource_type: 'ha_entity', resource_id: 'light.hall' },
+    { id: 'a4', resource_type: 'camera', resource_id: null },
+  ];
+  const ids = new Set(['sa1']);
+  expect(mapCameraAnchors(anchors, true, ids)).toEqual(anchors);
+  expect(mapCameraAnchors(anchors, true, new Set())).toEqual(anchors);
+  expect(mapCameraAnchors(anchors, false, ids).map((a) => a.id)).toEqual(['a2', 'a3']);
+  expect(mapCameraAnchors(anchors, false, new Set()).map((a) => a.id)).toEqual(['a3']); // as before 2411: no camera drawn
+  expect(mapCameraLayerShown(true, true)).toBe(true);
+  expect(mapCameraLayerShown(false, true)).toBe(true);
+  expect(mapCameraLayerShown(false, false)).toBe(false);
 });

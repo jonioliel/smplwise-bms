@@ -25,6 +25,8 @@ import {
 import { getDevicesTree } from '../api/devices';
 import { cst } from '../i18n/camera-sources';
 import { draftReady, isMasked, sourceErrorText, testLine, urlProblem } from '../screens/camera-source-logic';
+import { sourceControls } from '../api/camera-visibility';
+import { webrtcServer } from '../api/session';
 
 interface AreaOption {
   id: string;
@@ -268,18 +270,19 @@ export class CameraSourceDialog extends LitElement {
     const masked = isMasked(this.main) || isMasked(this.sub);
     const ready = draftReady(this.main, this.sub);
     const t = this.test;
+    const ctl = sourceControls(webrtcServer(), { ready: ready.ok, testing: this.testing }); // NVRLESS-CAMERAS-2411: the test needs the video server
     return html`
       ${this.urlField(cst('mainUrl'), this.main, (v) => (this.main = v), 'main')}
       ${this.urlField(cst('subUrl'), this.sub, (v) => (this.sub = v), 'sub')}
       <p class="note">${cst('urlHint')}${masked ? html` ${cst('passwordKept')}` : nothing}</p>
       <div class="test">
-        <sw-button size="sm" variant="ghost" icon="live" ?disabled=${!ready.ok || this.testing} data-source-test @click=${() => void this.runTest()}>${this.testing ? cst('testing') : cst('test')}</sw-button>
+        <sw-button size="sm" variant="ghost" icon="live" ?disabled=${!ctl.canTest} data-source-test @click=${() => void this.runTest()}>${this.testing ? cst('testing') : cst('test')}</sw-button>
         ${t
           ? html`<div class="result" role="status" data-source-test-result=${t.ok ? 'ok' : 'fail'}>
               ${t.ok ? html`<img src=${t.preview} alt="" />` : nothing}
               <span class=${t.ok ? 'ok' : 'fail'}>${testLine(t)}</span>
             </div>`
-          : html`<span class="note">${cst('testEncourage')}</span>`}
+          : html`<span class="note" ?data-webrtc-required=${!!ctl.note}>${ctl.note || cst('testEncourage')}</span>`}
       </div>`;
   }
 
@@ -287,7 +290,7 @@ export class CameraSourceDialog extends LitElement {
     if (!this.open) return nothing;
     const add = this.mode === 'add';
     const ready = this.choice === 'nvr' ? { ok: true, reason: '' } : draftReady(this.main, this.sub);
-    const canSave = !this.loading && !this.busy && ready.ok && (!add || !!this.name.trim());
+    const canSave = !this.loading && !this.busy && ready.ok && (!add || (!!this.name.trim() && sourceControls(webrtcServer(), { ready: true, testing: false }).canAdd));
     return html`<sw-dialog open heading=${add ? cst('addTitle') : cst('dialogTitle')} subheading=${add ? cst('addLead') : cst('dialogSub', { name: this.cameraName })}
         data-camera-source-dialog=${this.mode} @close=${() => this.close()}>
       <div class="body">

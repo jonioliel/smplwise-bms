@@ -24,7 +24,8 @@ import { healthLine, recorderActions, sourceSummary } from './camera-source-logi
 import { cameraSchedules, cameraSmart, osdStatus, recordStart, recordStatus, recordStop, setArming, setMotion, setOsd, setRecordSchedule, setSmart, writeChannelName, type ArmingKind, type CameraSchedules, type CameraSmart, type OsdStatus, type RecordStatus, type WeekRange } from '../api/nvr';
 import '../components/sw-week-grid';
 import '../components/sw-dialog';
-import { can, canAnywhere, canReadNvrConfig, isApi, onRemote } from '../api/session';
+import { can, canAnywhere, canReadNvrConfig, isApi, onRemote, webrtcServer } from '../api/session';
+import { WEBRTC_REQUIRED_TEXT, WEBRTC_SETTINGS_HREF, WEBRTC_SETTINGS_LABEL } from '../api/camera-visibility';
 import { cameraCapabilities, cameraZones, snapshotUrl, type CameraCapabilities, type CameraZones, type ProductSettings, type Transport } from '../api/media';
 import { cachedVideoPolicy, setPersonalTransport } from '../api/video-transport';
 import '../components/sw-chip';
@@ -1398,6 +1399,8 @@ export class LiveCamera extends LitElement {
       <div class="video ${canView ? '' : 'off'}">
         ${canView && cam.live_kind === 'still'
           ? html`<sw-camera-tile data-live-still name=${cam.name} state="live" cameraId=${cam.id} poster=${snapshotUrl(cam.id)} .stillRefresh=${cam.still_refresh_s ?? 10} noDemo></sw-camera-tile>`
+          : canView && !webrtcServer() // NVRLESS-CAMERAS-2411 (owner, 08.11): no video server - say so instead of an empty player
+          ? html`<div class="center" data-webrtc-required><div><sw-icon name="camera" size=${32}></sw-icon><span>${WEBRTC_REQUIRED_TEXT}</span> <a href=${WEBRTC_SETTINGS_HREF}>${WEBRTC_SETTINGS_LABEL}</a></div></div>`
           : canView
           ? html`<sw-live-player .cameraId=${cam.id} .profile=${this.profile} .mode=${this.transport} .plan=${plan.plan} .preferred=${plan.preferred} .gop=${plan.gop} .encoding=${cam.encoding ?? null} .poster=${poster} @player-status=${this.onPlayer}></sw-live-player>`
           : html`<div class="center"><div><sw-icon name="offline" size=${32}></sw-icon><span data-camera-off-reason>${cam.recorder_enabled === false ? 'ה־NVR של המצלמה מושבת' : cam.status === 'offline' && cam.video_source === 'manual' ? cst('offline') : cam.status === 'offline' ? 'המצלמה מנותקת מה־NVR (לפי הסנכרון האחרון)' : 'אין הרשאת צפייה חיה במצלמה זו'}</span></div></div>`}

@@ -25,7 +25,9 @@ import { PhoneWidth, phoneRestricted } from '../shell/phone';
 import { cameraState, entityName, loadMap, updateAnchor, type MapBundle } from '../api/maps';
 import { snapshotUrl, type Transport } from '../api/media';
 import { entryFloor, findFloor, loadTree, type CatalogTree } from '../api/catalog';
-import { can, canAnywhere, isApi, nvrLess } from '../api/session';
+import { can, canAnywhere, cap, isApi, nvrLess } from '../api/session';
+import { listCameras } from '../api/maps';
+import { isStandaloneRow, mapCameraAnchors, mapCameraLayerShown } from '../api/camera-visibility';
 import { dimmedActionTitle, mapCardGrantNote } from './lock-reason';
 import { getBuildingPresence, type BuildingSnapshot } from '../api/building-presence';
 import { POLL_MS as PRESENCE_POLL_MS, zoneChip, zoneTone } from '../api/building-presence-logic';
@@ -162,6 +164,8 @@ export class ExploreFloorMap extends LitElement {
   @state() private selectedZoneId: string | null = null;
 
   @state() private bundle: MapBundle | null = null;
+  /** NVRLESS-CAMERAS-2411: without an NVR, the ids of the cameras without a recorder (their anchors stay on the camera layer). */
+  private standaloneIds: Set<string> = new Set();
   @state() private tree: CatalogTree | null = null;
   @state() private loadError = '';
   @state() private noFloors = false;
@@ -1754,8 +1758,13 @@ export class ExploreFloorMap extends LitElement {
       this.levelFilter = null;
       const loaded = await loadMap(this.floorId);
       // NVR-less mode: cameras left over from an earlier NVR (a restored backup, an NVR removed from the options) are not
-      // drawn - their live view and history are not available; entities, rooms, structure and the 3D are unaffected
-      this.bundle = nvrLess() ? { ...loaded, anchors: loaded.anchors.filter((a) => a.resource_type !== 'camera') } : loaded;
+      // drawn - their live view and history are not available; entities, rooms, structure and the 3D are unaffected.
+      // NVRLESS-CAMERAS-2411 (owner answer "א", 08.11): cameras without a recorder ARE drawn (listCameras() returns only them here).
+      if (nvrLess() && cap('cameras_available')) {
+        const list = await listCameras().catch(() => ({ cameras: [] as { id: string; standalone?: boolean; recorder_id?: string }[] }));
+        this.standaloneIds = new Set(list.cameras.filter(isStandaloneRow).map((c) => c.id));
+      } else this.standaloneIds = new Set();
+      this.bundle = nvrLess() ? { ...loaded, anchors: mapCameraAnchors(loaded.anchors, false, this.standaloneIds) } : loaded;
       const b = this.bundle;
       void productSettings()
         .then((s) => {
@@ -2921,7 +2930,7 @@ export class ExploreFloorMap extends LitElement {
       body = a.resource_type === 'camera' ? this.apiCameraBody(a, b.floorName) : this.apiEntityBody(a, b.floorName);
       footer = html`${a.resource_type === 'camera'
           ? html`<sw-button variant="primary" size="sm" icon="expand" ?disabled=${cameraState(a) === 'offline' || a.camera?.recorder_enabled === false} @click=${() => a.camera && navigate(`/live/cameras/${a.camera.id}`)}>צפייה מלאה</sw-button>
-            <sw-button size="sm" icon="history" ?disabled=${!a.camera || a.camera.recorder_enabled === false} @click=${() => a.camera && navigate('/investigate/playback', { camera: a.camera.id })}>${t('camera.recordings')}</sw-button>`
+            ${this.standaloneIds.has(a.resource_id) || isStandaloneRow(a.camera) ? nothing /* NVRLESS-CAMERAS-2411: no recordings for a camera without a recorder */ : html`<sw-button size="sm" icon="history" ?disabled=${!a.camera || a.camera.recorder_enabled === false} @click=${() => a.camera && navigate('/investigate/playback', { camera: a.camera.id })}>${t('camera.recordings')}</sw-button>`}`
           : nothing}
         ${mapTicketsOn() ? html`<sw-button variant="ghost" size="sm" icon="plus" data-map-ticket @click=${() => (this.ticketFor = { pick: { element: { floor_id: a.floor_id || b.floorId, kind: 'anchor', id: a.id } }, name: entityName(a), floorName: b.floorName, entityId: a.resource_type === 'ha_entity' ? a.resource_id : undefined })}>${mapCreateLabel()}</sw-button>` : nothing}
         ${mayOpenHere(incidentsModuleOn()) ? html`<sw-button variant="ghost" size="sm" icon="warning" data-map-incident ?disabled=${this.incidentBusy} @click=${() => void this.openIncidentHere(a.id)}>${incText('openHere')}</sw-button>` : nothing}
@@ -3268,7 +3277,7 @@ export class ExploreFloorMap extends LitElement {
         <div class="spacer"></div>
         <div class="tools" data-tools>
           <div class="layers" role="group" aria-label=${t('floor.layers')}>
-            ${LAYERS.filter((l) => (l.id !== 'cameras' || !nvrLess()) && (l.id !== 'photo' || !!b?.floorImages)).map((l) => html`<button class=${this.layers.has(l.id) ? 'on' : ''} title=${l.label()} aria-label=${l.label()} aria-pressed=${this.layers.has(l.id)} @click=${() => this.toggleLayer(l.id)}><sw-icon name=${l.icon} size=${14}></sw-icon></button>`)}
+            ${LAYERS.filter((l) => (l.id !== 'cameras' || mapCameraLayerShown(!nvrLess(), cap('cameras_available'))) && (l.id !== 'photo' || !!b?.floorImages)).map((l) => html`<button class=${this.layers.has(l.id) ? 'on' : ''} title=${l.label()} aria-label=${l.label()} aria-pressed=${this.layers.has(l.id)} @click=${() => this.toggleLayer(l.id)}><sw-icon name=${l.icon} size=${14}></sw-icon></button>`)}
           </div>
           <sw-button icon="cube" aria-pressed=${this.shows3d} data-view-3d ?disabled=${!this.shows3d && (!this.can3d || this.threeState === 'loading')}
             title=${!webglAvailable() ? WEBGL_UNAVAILABLE_HE : !this.hasScene ? 'אין מבנה מפורסם לקומה הזו' : 'מקש 3'} @click=${() => this.toggle3d()}>${this.shows3d ? '2D' : '3D'}</sw-button>
