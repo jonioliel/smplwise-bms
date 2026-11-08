@@ -140,6 +140,9 @@ rules live in the unit specs above.
 
 ## Open questions (minimal)
 
+Both answered by the owner on 08.11 (1א: no automatic card, left as is; 2א: show the camera screens) - see
+`docs/changes/NVRLESS-CAMERAS-2411.md`.
+
 1. Should choosing an area for a camera without a recorder also add its camera card to that area's layout automatically? (Today: the
    area is stored and shown; placing the card stays a layout edit.)
 2. NVR-less installations: the backend is ready; showing the camera screens in the UI's NVR-less mode when cameras without a recorder
