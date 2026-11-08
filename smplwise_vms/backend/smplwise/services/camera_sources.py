@@ -94,6 +94,7 @@ MSG = {
     "name_required": "יש להזין שם למצלמה.",
     "area_invalid": "האזור שנבחר אינו תקין.",
     "media_not_configured": "שירות הווידאו לא הוגדר; אי אפשר לבדוק את הזרם.",
+    "webrtc_server_required": "כדי להוסיף מצלמה או לבדוק זרם נדרש שרת WebRTC. אפשר להגדיר אותו בהגדרות ← חיבורים.",
     "source_unreadable": "כתובת המקור השמורה אינה קריאה; יש להזין אותה מחדש.",
     "source_missing": "למצלמה אין מקור וידאו מוגדר.",
     "rate_limited": "יותר מדי בדיקות ברצף; נסו שוב בעוד דקה.",
@@ -257,6 +258,14 @@ def manual_ids(conn: sqlite3.Connection) -> set[str]:
         return {str(r[0]) for r in conn.execute("SELECT camera_id FROM camera_stream_sources").fetchall()}
     except sqlite3.OperationalError:
         return set()
+
+
+def ensure_webrtc_server(settings: Settings) -> None:
+    """NVRLESS-CAMERAS-2411 (owner, 08.11: "show, but a WebRTC server is required"): adding a camera without a recorder and the
+    stream test need go2rtc. 409 `webrtc_server_required` (stable code, fixed Hebrew text) - the caller has checked the permission
+    and has not looked at any address yet."""
+    if not (settings.go2rtc_url or "").strip():
+        raise ApiError(409, "webrtc_server_required", MSG["webrtc_server_required"], details={"settings_href": "#/system/setup"})
 
 
 def standalone_count(conn: sqlite3.Connection) -> int:

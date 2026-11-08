@@ -7,6 +7,8 @@
 - `POST /cameras/source/test` - `{url, camera_id?, profile}`: one frame through a throwaway go2rtc stream -> preview, resolution, codec,
   or `{ok: false, code, message}` with a fixed Hebrew text. Six a minute per person.
 - `POST /cameras/standalone` - `{name, area_id?, main_url, sub_url}`: a camera without a recorder (live + snapshots only).
+  NVRLESS-CAMERAS-2411 (owner, 08.11): the stream test and the add answer 409 `webrtc_server_required` when go2rtc (the WebRTC /
+  video server) is not configured - after the permission, before the body is parsed (no URL is looked at).
 - `DELETE /cameras/standalone/{camera_id}` - removes such a camera (its source, row and map placements; go2rtc streams deleted).
 
 Every route needs `system.configure` (the permission of the recorder connection settings), checked on a read connection BEFORE the
@@ -84,6 +86,7 @@ def test_source(request: Request, principal: Principal = Depends(_admin_ro), raw
                 conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Test an address before saving: one frame -> a small preview, the resolution and the codec, or a fixed Hebrew error."""
     require(conn, principal, PERMISSION, INSTALLATION)
+    svc.ensure_webrtc_server(settings_of(request))  # NVRLESS-CAMERAS-2411: before any URL handling
     body: TestIn = _parse(request, raw, TestIn)
     return svc.test_stream(conn, settings_of(request), principal, url=body.url, camera_id=body.camera_id, profile=body.profile, request_id=_rid(request))
 
@@ -93,6 +96,7 @@ def create_standalone(request: Request, principal: Principal = Depends(_admin_ro
                       conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Add a camera without a recorder: live video and snapshots from its own RTSP addresses."""
     require(conn, principal, PERMISSION, INSTALLATION)
+    svc.ensure_webrtc_server(settings_of(request))  # NVRLESS-CAMERAS-2411: before any URL handling
     body: StandaloneIn = _parse(request, raw, StandaloneIn)
     return svc.create_standalone(conn, settings_of(request), principal, name=body.name, area_id=body.area_id, main_url=body.main_url, sub_url=body.sub_url,
                                  request_id=_rid(request))

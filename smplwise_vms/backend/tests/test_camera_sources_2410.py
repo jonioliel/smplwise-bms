@@ -387,7 +387,7 @@ def test_the_stream_test_is_rate_limited(world):
 def test_the_stream_test_needs_go2rtc(world):
     world.app.state.settings = replace(world.s, go2rtc_url=None)
     r = world.c.post(f"{API}/cameras/source/test", json={"url": MAIN})
-    assert r.status_code == 409 and r.json()["code"] == "media_not_configured"
+    assert r.status_code == 409 and r.json()["code"] == "webrtc_server_required"  # NVRLESS-CAMERAS-2411 (was media_not_configured)
 
 
 # ---------------------------------------------------------------- live and snapshots from the manual source

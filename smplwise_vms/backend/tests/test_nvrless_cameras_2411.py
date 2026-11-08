@@ -177,3 +177,57 @@ def test_the_camera_list_serves_cameras_without_a_recorder_in_an_installation_wi
     sa = [cam for cam in body["cameras"] if cam["id"] == "sa1"]
     assert len(sa) == 1 and sa[0]["standalone"] is True
     assert "standalone" in [r["id"] for r in body["recorders"]]
+
+# ---------------------------------------------------------------- owner answer 08.11: "show, but a WebRTC server is required"
+
+@pytest.mark.parametrize("combo", COMBOS)
+def test_webrtc_server_configured_rides_next_to_cameras_available(combo, settings, monkeypatch, fake):
+    app = create_app(combo_settings(settings, combo))
+    add_standalone(app)
+    c = TestClient(app)
+    want = combo in ("B", "D")
+    for path in ("/api/v1/me", "/api/v1/health", "/api/v1/health/report?fresh=1", "/api/v1/setup/state"):
+        caps = c.get(path).json()["capabilities"]
+        assert caps["webrtc_server_configured"] is want and caps["go2rtc"] is want, path
+        assert caps["cameras_available"] is True, "the camera screens still appear without the server (owner: show)"
+
+
+BODIES = {
+    "/api/v1/cameras/source/test": {"url": "rtsp://127.0.0.1/forbidden", "profile": "main"},  # a URL the policy would refuse
+    "/api/v1/cameras/standalone": {"name": "כניסה", "main_url": "rtsp://127.0.0.1/forbidden"},
+}
+
+
+@pytest.mark.parametrize("path", sorted(BODIES))
+def test_add_and_stream_test_answer_409_webrtc_server_required_before_any_url_handling(path, settings, monkeypatch, fake):
+    s = combo_settings(settings, "A")
+    app = create_app(s)
+    c = TestClient(app)
+    for body in (BODIES[path], {"url": "not a url at all"}, {"unexpected": True}):
+        r = c.post(path, json=body)
+        assert r.status_code == 409, (body, r.text)
+        j = r.json()
+        assert j["code"] == "webrtc_server_required" and "WebRTC" in j["user_message"] and "חיבורים" in j["user_message"]
+        assert "127.0.0.1" not in r.text
+    r = c.post(path, content=b"{broken json", headers={"content-type": "application/json"})
+    assert r.status_code == 409 and r.json()["code"] == "webrtc_server_required", "checked before the body is parsed"
+    with app.state.db.connection() as conn:
+        assert cs.standalone_count(conn) == 0, "nothing was written"
+
+
+@pytest.mark.parametrize("path", sorted(BODIES))
+def test_the_permission_comes_before_the_webrtc_server_check(path, settings, monkeypatch, fake):
+    s = combo_settings(settings, "A")
+    c = TestClient(create_app(s))
+    c.get("/api/v1/me")
+    bind(c, s, "ron", "viewer", "installation", "*")
+    r = c.post(path, json=BODIES[path], headers=as_user("ron"))
+    assert r.status_code == 403, "an unauthorised caller learns nothing about the installation"
+
+
+@pytest.mark.parametrize("path", sorted(BODIES))
+def test_with_a_webrtc_server_the_routes_go_on_to_the_url_checks(path, settings, monkeypatch, fake):
+    c = TestClient(create_app(combo_settings(settings, "B")))
+    r = c.post(path, json=BODIES[path])
+    assert r.status_code == 422, r.text  # the source policy refuses the loopback address - the go2rtc check let it through
+    assert r.json()["code"] != "webrtc_server_required"

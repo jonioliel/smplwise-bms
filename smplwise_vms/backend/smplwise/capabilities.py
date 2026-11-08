@@ -109,7 +109,10 @@ class Capabilities:
     def as_dict(self, *, with_recorders: bool) -> dict[str, Any]:
         """The JSON block of /me, /health, /health/report and /setup/state. `recorders` (vendor and per-recorder abilities)
         only for a caller who may read the NVR configuration; never a host, serial number, MAC address or credential."""
-        out: dict[str, Any] = {**self.flags(), "supported": self.supported, "unsupported_reason": self.unsupported_reason}
+        out: dict[str, Any] = {**self.flags(), "supported": self.supported, "unsupported_reason": self.unsupported_reason,
+                               # NVRLESS-CAMERAS-2411: the video (WebRTC) server the camera screens need, under the name the UI
+                               # reads next to `cameras_available` (same value as `go2rtc`; nothing renamed)
+                               "webrtc_server_configured": self.go2rtc}
         if with_recorders:
             out["recorders"] = [asdict(r) for r in self.recorders]
         return out
