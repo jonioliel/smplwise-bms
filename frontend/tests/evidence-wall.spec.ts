@@ -271,6 +271,8 @@ test.describe('CR-030 wall display (mocked backend)', () => {
     await install(page, newMock());
     await asDevice(page, TABLET_L);
     await page.goto('/?design=a#/');
+    // gate 2.41.0: under runner load the evaluate ran before the wall rendered (querySelector('.wall') was null); wait for it first
+    await expect(page.locator('sw-wall .wall')).toBeVisible();
     const m = await page.locator('sw-wall').evaluate((el) => new DOMMatrix(getComputedStyle(el.shadowRoot!.querySelector('.wall') as HTMLElement).transform));
     expect(Math.abs(m.e)).toBeLessThanOrEqual(2);
     expect(Math.abs(m.f)).toBeLessThanOrEqual(2);
