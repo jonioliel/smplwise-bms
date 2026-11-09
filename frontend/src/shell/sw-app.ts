@@ -69,6 +69,7 @@ import { refreshGeneratorVisibility } from '../generator/access'; // CR-031: the
 import { onTicketNames, setTicketNames } from '../tickets/naming'; // CR-038 D33: the tickets module's configurable name
 import { isTicketId } from '../tickets/model';
 import { can, canNav, isApi, loadSession, onRemote, onSession, watchPermissions, type Session } from '../api/session';
+import { nvrLessHint } from '../api/camera-visibility'; // EVIDENCE-CAMERAS-2412: the no-NVR panel with cameras without a recorder
 import { SENSOR_LABEL } from '../api/presence'; // CR-027: the names of the sensors a required-sensors gate names
 import { productSettings, searchAllowed } from '../api/prefs';
 import { applyTimelineColors } from '../api/timeline-colors';
@@ -3033,7 +3034,7 @@ export class SwApp extends LitElement {
     if (kind === 'no_media') return html`<sw-page heading="וידאו אינו זמין"><sw-state-panel icon="camera" data-capability-panel="no_media" state="empty" heading="האזור הזה דורש שרת מדיה" hint=${UNSUPPORTED_NVR_WITHOUT_GO2RTC} actionLabel="לחיבורים" @action=${() => (window.location.hash = '#/system/setup')}></sw-state-panel></sw-page>`;
     // CR-022: the NVR connection lives in Arx settings now (מערכת › חיבורים); only a holder of system.configure is offered the way there
     return html`<sw-page heading="מצב ללא NVR"><sw-state-panel icon="camera" data-nvr-less data-capability-panel="no_nvr" state="empty" heading="האזור הזה דורש NVR"
-      hint="ההתקנה פועלת במצב ללא NVR: לייב, מצלמות, אירועים, הקלטות, תיקים וייצוא אינם זמינים; המפה, חשמל והתקנים ו־WisKey עובדים כרגיל."
+      hint=${nvrLessHint(this.session.capabilities.cameras_available)}
       actionLabel=${can('system.configure') ? 'לחיבורים' : ''} @action=${() => (window.location.hash = '#/system/setup')}></sw-state-panel></sw-page>`;
   }
 

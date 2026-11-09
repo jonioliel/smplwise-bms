@@ -61,7 +61,7 @@ export class CameraSourceDialog extends LitElement {
     .body {
       display: grid;
       gap: 12px;
-      min-inline-size: min(560px, 86vw);
+      min-inline-size: min(560px, 100%); /* EVIDENCE-CAMERAS-2412: never wider than its box (was 86vw) */
     }
     .seg {
       display: inline-flex;
@@ -291,7 +291,8 @@ export class CameraSourceDialog extends LitElement {
     const add = this.mode === 'add';
     const ready = this.choice === 'nvr' ? { ok: true, reason: '' } : draftReady(this.main, this.sub);
     const canSave = !this.loading && !this.busy && ready.ok && (!add || (!!this.name.trim() && sourceControls(webrtcServer(), { ready: true, testing: false }).canAdd));
-    return html`<sw-dialog open heading=${add ? cst('addTitle') : cst('dialogTitle')} subheading=${add ? cst('addLead') : cst('dialogSub', { name: this.cameraName })}
+    // EVIDENCE-CAMERAS-2412: `wide` - the body asks for 560 px, the default box is 440 px (the address fields were cut off)
+    return html`<sw-dialog open wide heading=${add ? cst('addTitle') : cst('dialogTitle')} subheading=${add ? cst('addLead') : cst('dialogSub', { name: this.cameraName })}
         data-camera-source-dialog=${this.mode} @close=${() => this.close()}>
       <div class="body">
         ${add

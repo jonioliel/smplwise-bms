@@ -53,3 +53,39 @@ export function mapCameraAnchors<T extends { resource_type: string; resource_id?
 
 /** Does the floor map offer its camera layer at all? With an NVR, or without one when a camera without a recorder exists. */
 export const mapCameraLayerShown = (hasNvr: boolean, camerasAvailable: boolean): boolean => hasNvr || camerasAvailable;
+
+/** EVIDENCE-CAMERAS-2412: the hint of the "this area needs an NVR" panel (a direct URL to a recorder-only area). With a camera without
+ * a recorder the live screens and the cameras ARE available, so the panel must not say they are not (the 2.41.1 text did). */
+export const NVR_LESS_HINT = 'ההתקנה פועלת במצב ללא NVR: לייב, מצלמות, אירועים, הקלטות, תיקים וייצוא אינם זמינים; המפה, חשמל והתקנים ו־WisKey עובדים כרגיל.';
+export const NVR_LESS_HINT_WITH_CAMERAS = 'ההתקנה פועלת במצב ללא NVR: הקלטות, ניגון, תיקים וייצוא אינם זמינים. מצלמות ללא מקליט מוצגות בלייב; המפה, חשמל והתקנים ו־WisKey עובדים כרגיל.';
+export const nvrLessHint = (camerasAvailable: boolean): string => (camerasAvailable ? NVR_LESS_HINT_WITH_CAMERAS : NVR_LESS_HINT);
+
+/** EVIDENCE-CAMERAS-2412: the floor map card and the plan editor said "NVR · ch N" / "שם ב־NVR" / "צילום מה־NVR" for a camera without a
+ * recorder too. These are the words for such a camera; an NVR camera keeps its existing words (callers branch on isStandaloneRow). */
+export const STANDALONE_LABEL = 'מצלמה ללא מקליט';
+const STATUS_HE: Record<string, string> = { online: 'מחוברת', offline: 'מנותקת' };
+/** A camera's status in words (the plan editor's camera list printed the raw `offline` / `unknown`). */
+export const cameraStatusText = (status: string | null | undefined): string => STATUS_HE[status ?? ''] ?? 'מצב לא ידוע';
+/** The plan editor's camera list: the line under the name. */
+export const editorCameraMeta = (c: { standalone?: boolean; recorder_id?: string | null; channel: number; status: string }): string =>
+  isStandaloneRow(c) ? `${STANDALONE_LABEL} · ${cameraStatusText(c.status)}` : `ch ${c.channel} · ${c.status}`;
+/** The plan editor's camera inspector: the "source" value. */
+export const editorCameraSource = (c: { standalone?: boolean; recorder_id?: string | null; channel: number }): string =>
+  isStandaloneRow(c) ? STANDALONE_LABEL : `NVR · ch ${c.channel}`;
+/** The floor map card's note under a camera without a recorder (its picture comes from the camera, not from an NVR). */
+export const standaloneMapNote = (state: 'offline' | 'still'): string =>
+  state === 'offline' ? 'המצלמה אינה עונה בכתובת הווידאו שלה.' : 'תמונה: צילום מהמצלמה (מתרענן).';
+/** The floor map card's picture area of an offline camera without a recorder (the NVR camera's says "not connected to the NVR"). */
+export const STANDALONE_OFFLINE_TILE = 'המצלמה אינה עונה בכתובת הווידאו שלה';
+
+/** EVIDENCE-CAMERAS-2412: what the camera screen draws in place of the video. Without the WebRTC server the notice wins over a stored
+ * "offline" status too: such a status is left over from before the server was removed (nothing can check the camera without it), and
+ * the 2.41.1 screen said "the camera does not answer" instead of the owner's "a WebRTC server is required" (answer Q1). */
+export type CameraPane = 'still' | 'webrtc_required' | 'player' | 'off';
+export function cameraPane(c: { can_view_live?: boolean; status?: string | null; live_kind?: string | null }, webrtc: boolean): CameraPane {
+  const allowed = c.can_view_live !== false;
+  const canView = allowed && c.status !== 'offline';
+  if (canView && c.live_kind === 'still') return 'still';
+  if (allowed && !webrtc && c.live_kind !== 'still') return 'webrtc_required';
+  return canView ? 'player' : 'off';
+}

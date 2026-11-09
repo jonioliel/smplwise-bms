@@ -27,7 +27,7 @@ import { snapshotUrl, type Transport } from '../api/media';
 import { entryFloor, findFloor, loadTree, type CatalogTree } from '../api/catalog';
 import { can, canAnywhere, cap, isApi, nvrLess } from '../api/session';
 import { listCameras } from '../api/maps';
-import { isStandaloneRow, mapCameraAnchors, mapCameraLayerShown } from '../api/camera-visibility';
+import { STANDALONE_LABEL, STANDALONE_OFFLINE_TILE, isStandaloneRow, mapCameraAnchors, mapCameraLayerShown, standaloneMapNote } from '../api/camera-visibility';
 import { dimmedActionTitle, mapCardGrantNote } from './lock-reason';
 import { getBuildingPresence, type BuildingSnapshot } from '../api/building-presence';
 import { POLL_MS as PRESENCE_POLL_MS, zoneChip, zoneTone } from '../api/building-presence-logic';
@@ -2886,19 +2886,22 @@ export class ExploreFloorMap extends LitElement {
     const canLive = st === 'live' && !!cam && cam.can_view_live !== false && cam.live_kind !== 'still'; // NN5-F1B: a Frigate camera without a restream is a refreshing still
     const recorderOff = cam?.recorder_enabled === false; // CR-024: its recorder is disabled - no picture at all
     const zone = this.zoneOf(a);
-    const where = zone ? `${floorName} / ${zone}` : `${floorName} · ערוץ ${cam?.channel ?? '?'}`;
+    const standalone = this.standaloneIds.has(a.resource_id) || isStandaloneRow(cam); // EVIDENCE-CAMERAS-2412: no NVR words for it
+    const where = zone ? `${floorName} / ${zone}` : standalone ? floorName : `${floorName} · ערוץ ${cam?.channel ?? '?'}`;
     return html`
       ${recorderOff
         ? html`<div class="off" data-recorder-off><div><sw-icon name="offline" size=${22}></sw-icon><div>ה־NVR של המצלמה מושבת</div></div></div>`
         : st === 'offline'
-        ? html`<div class="off"><div><sw-icon name="offline" size=${22}></sw-icon><div>${t('camera.offlineReason')}</div></div></div>`
+        ? html`<div class="off"><div><sw-icon name="offline" size=${22}></sw-icon><div>${standalone ? STANDALONE_OFFLINE_TILE : t('camera.offlineReason')}</div></div></div>`
         : html`<sw-camera-tile name="" state=${st === 'live' ? 'live' : 'unknown'} scene=${scene} poster=${cam ? snapshotUrl(cam.id, cam.live_kind === 'still' ? undefined : Date.now()) : ''} .stillRefresh=${cam?.live_kind === 'still' && st === 'live' ? cam.still_refresh_s ?? 10 : 0} ?live=${canLive && !!this.liveTransport} .cameraId=${canLive ? cam.id : ''} transport=${this.liveTransport ?? 'auto'} data-live=${canLive ? '1' : '0'} @click=${() => cam && navigate(`/live/cameras/${cam.id}`)}></sw-camera-tile>`}
       <div class="statusrow"><sw-badge kind=${st}></sw-badge><span data-where>${where}</span></div>
       <dl class="meta">
-        <dt>שם ב־NVR</dt><dd>${cam?.name_source || '—'}${cam ? html` · <span class="ltr">ch ${cam.channel}</span>` : nothing}</dd>
+        ${standalone
+          ? html`<dt>מקור</dt><dd data-standalone-source>${STANDALONE_LABEL}</dd>`
+          : html`<dt>שם ב־NVR</dt><dd>${cam?.name_source || '—'}${cam ? html` · <span class="ltr">ch ${cam.channel}</span>` : nothing}</dd>`}
         <dt>נראתה לאחרונה</dt><dd>${cam?.last_seen_at ? cam.last_seen_at.replace('T', ' ').replace('Z', ' UTC') : 'לא נבדק'}</dd>
       </dl>
-      ${recorderOff ? nothing : html`<div class="note">${canLive ? 'הזרם נפתח לכרטיס הזה בלבד ונסגר איתו; "צפייה מלאה" פותחת את המצלמה במסך מלא.' : st === 'offline' ? 'המצלמה מנותקת לפי ה־NVR.' : 'תמונה: צילום מה־NVR (מתרענן).'}</div>`}
+      ${recorderOff ? nothing : html`<div class="note">${canLive ? 'הזרם נפתח לכרטיס הזה בלבד ונסגר איתו; "צפייה מלאה" פותחת את המצלמה במסך מלא.' : st === 'offline' ? (standalone ? standaloneMapNote('offline') : 'המצלמה מנותקת לפי ה־NVR.') : standalone ? standaloneMapNote('still') : 'תמונה: צילום מה־NVR (מתרענן).'}</div>`}
     `;
   }
 

@@ -25,7 +25,7 @@ import { cameraSchedules, cameraSmart, osdStatus, recordStart, recordStatus, rec
 import '../components/sw-week-grid';
 import '../components/sw-dialog';
 import { can, canAnywhere, canReadNvrConfig, isApi, onRemote, webrtcServer } from '../api/session';
-import { WEBRTC_REQUIRED_TEXT, WEBRTC_SETTINGS_HREF, WEBRTC_SETTINGS_LABEL } from '../api/camera-visibility';
+import { WEBRTC_REQUIRED_TEXT, WEBRTC_SETTINGS_HREF, WEBRTC_SETTINGS_LABEL, cameraPane } from '../api/camera-visibility';
 import { cameraCapabilities, cameraZones, snapshotUrl, type CameraCapabilities, type CameraZones, type ProductSettings, type Transport } from '../api/media';
 import { cachedVideoPolicy, setPersonalTransport } from '../api/video-transport';
 import '../components/sw-chip';
@@ -636,6 +636,13 @@ export class LiveCamera extends LitElement {
       display: grid;
       justify-items: center;
       gap: 6px;
+    }
+    /* EVIDENCE-CAMERAS-2412: the "no WebRTC server" link was the browser's default blue on the dark video area */
+    .center[data-webrtc-required] a {
+      color: inherit;
+      font-weight: 600;
+      text-decoration: underline;
+      text-underline-offset: 3px;
     }
     .cast-status {
       display: flex;
@@ -1391,17 +1398,18 @@ export class LiveCamera extends LitElement {
     if (this.error) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>`;
     if (!cam) return html`<sw-state-panel state="forbidden" heading="המצלמה לא זמינה" hint="המצלמה לא נמצאה או שאין לך הרשאת צפייה בה."></sw-state-panel>`;
     const canView = cam.can_view_live !== false && cam.status !== 'offline';
+    const pane = cameraPane(cam, webrtcServer()); // EVIDENCE-CAMERAS-2412: no video server - the notice also over a stale offline status
     const poster = snapshotUrl(cam.id, this.posterBust);
     const stream = cam.stream;
     const remote = remoteVideoFor(this.transport);
     const plan = playerPlan(this.profile, cam.encoding, this.transport);
     return html`
-      <div class="video ${canView ? '' : 'off'}">
-        ${canView && cam.live_kind === 'still'
+      <div class="video ${pane === 'off' ? 'off' : ''}">
+        ${pane === 'still'
           ? html`<sw-camera-tile data-live-still name=${cam.name} state="live" cameraId=${cam.id} poster=${snapshotUrl(cam.id)} .stillRefresh=${cam.still_refresh_s ?? 10} noDemo></sw-camera-tile>`
-          : canView && !webrtcServer() // NVRLESS-CAMERAS-2411 (owner, 08.11): no video server - say so instead of an empty player
+          : pane === 'webrtc_required' // NVRLESS-CAMERAS-2411 (owner, 08.11): no video server - say so instead of an empty player
           ? html`<div class="center" data-webrtc-required><div><sw-icon name="camera" size=${32}></sw-icon><span>${WEBRTC_REQUIRED_TEXT}</span> <a href=${WEBRTC_SETTINGS_HREF}>${WEBRTC_SETTINGS_LABEL}</a></div></div>`
-          : canView
+          : pane === 'player'
           ? html`<sw-live-player .cameraId=${cam.id} .profile=${this.profile} .mode=${this.transport} .plan=${plan.plan} .preferred=${plan.preferred} .gop=${plan.gop} .encoding=${cam.encoding ?? null} .poster=${poster} @player-status=${this.onPlayer}></sw-live-player>`
           : html`<div class="center"><div><sw-icon name="offline" size=${32}></sw-icon><span data-camera-off-reason>${cam.recorder_enabled === false ? 'ה־NVR של המצלמה מושבת' : cam.status === 'offline' && cam.video_source === 'manual' ? cst('offline') : cam.status === 'offline' ? 'המצלמה מנותקת מה־NVR (לפי הסנכרון האחרון)' : 'אין הרשאת צפייה חיה במצלמה זו'}</span></div></div>`}
       </div>
