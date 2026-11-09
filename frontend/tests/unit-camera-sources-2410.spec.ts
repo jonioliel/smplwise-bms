@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { CS_KEYS, CS_TABLES, cst } from '../src/i18n/camera-sources';
 import { draftReady, healthLine, isMasked, recorderActions, sourceErrorText, sourceSummary, testLine, urlProblem } from '../src/screens/camera-source-logic';
 import { ApiError } from '../src/api/client';
+import { ltrIsolate } from '../src/i18n/bidi';
 
 // CAMERA-STREAM-SOURCES-2410: a camera's video source and the cameras without a recorder - the words (he / en), the rough address check,
 // the words of a refusal (never the server's code), the stream-test line, the health line and what a camera without a recorder can do.
@@ -55,8 +56,8 @@ test('a refusal is said in words, never as the server code', () => {
 });
 
 test('the stream test line: resolution and codec, or the server fixed text', () => {
-  expect(testLine({ ok: true, width: 1920, height: 1080, codec: 'h264', codec_label: 'H.264', preview: 'data:' })).toBe(cst('testOk', { res: '1920×1080', codec: ' · H.264' }));
-  expect(testLine({ ok: true, width: 640, height: 360, codec: null, codec_label: null, preview: 'data:' })).toBe(cst('testOk', { res: '640×360', codec: '' }));
+  expect(testLine({ ok: true, width: 1920, height: 1080, codec: 'h264', codec_label: 'H.264', preview: 'data:' })).toBe(cst('testOk', { res: ltrIsolate('1920×1080'), codec: ' · H.264' }));
+  expect(testLine({ ok: true, width: 640, height: 360, codec: null, codec_label: null, preview: 'data:' })).toBe(cst('testOk', { res: ltrIsolate('640×360'), codec: '' }));
   expect(testLine({ ok: false, code: 'auth_failed', message: 'המצלמה דחתה' })).toBe('המצלמה דחתה');
 });
 

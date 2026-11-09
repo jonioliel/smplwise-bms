@@ -42,13 +42,19 @@ export class StandaloneCamerasCard extends LitElement {
     }
     li {
       display: flex;
+      flex-wrap: wrap; /* EVIDENCE-CAMERAS-2412: at 390 px the three actions ran 46 px past the screen edge; they wrap under the name */
       align-items: center;
-      gap: 10px;
+      gap: 4px 10px;
       min-block-size: 40px;
     }
+    li .acts {
+      display: flex;
+      gap: 4px;
+      margin-inline-start: auto;
+    }
     li .name {
-      flex: 1;
-      min-inline-size: 0;
+      flex: 1 1 8em;
+      min-inline-size: 7em; /* EVIDENCE-CAMERAS-2412: the actions wrap before the name shrinks to one letter */
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -116,9 +122,9 @@ export class StandaloneCamerasCard extends LitElement {
           ? html`<ul>${this.cams.map((c) => html`<li data-standalone-camera=${c.id}>
               <sw-badge kind=${c.status === 'online' ? 'live' : c.status === 'offline' ? 'offline' : 'unknown'}></sw-badge>
               <span class="name">${c.name}</span>
-              <sw-button size="sm" variant="ghost" icon="live" @click=${() => (window.location.hash = `#/live/cameras/${c.id}`)}>${cst('view')}</sw-button>
+              <span class="acts"><sw-button size="sm" variant="ghost" icon="live" @click=${() => (window.location.hash = `#/live/cameras/${c.id}`)}>${cst('view')}</sw-button>
               <sw-button size="sm" variant="ghost" icon="edit" data-standalone-edit @click=${() => (this.editing = c)}>${cst('edit')}</sw-button>
-              <sw-button size="sm" variant="ghost" icon="close" data-standalone-remove @click=${() => { this.msg = ''; this.removing = c; }}>${cst('remove')}</sw-button>
+              <sw-button size="sm" variant="ghost" icon="close" data-standalone-remove @click=${() => { this.msg = ''; this.removing = c; }}>${cst('remove')}</sw-button></span>
             </li>`)}</ul>`
           : html`<p class="note" data-standalone-empty>${cst('listEmpty')}</p>`}
       <div class="actions">

@@ -6,6 +6,7 @@
 import type { Camera } from '../api/types';
 import type { CameraSource, StreamTest } from '../api/camera-sources';
 import { cst, type CsKey } from '../i18n/camera-sources';
+import { ltrIsolate } from '../i18n/bidi';
 
 export const MASK = '***';
 
@@ -52,7 +53,8 @@ export function sourceErrorText(err: unknown): string {
 /** The one line a stream test leaves: `הזרם תקין · 1920×1080 · H.264`, or the server's fixed Hebrew text. */
 export function testLine(r: StreamTest): string {
   if (!r.ok) return r.message;
-  const res = r.width && r.height ? `${r.width}×${r.height}` : '';
+  // EVIDENCE-CAMERAS-2412: one left-to-right run - in the right-to-left line the bare `1920×1080` was drawn as `1080×1920`
+  const res = r.width && r.height ? ltrIsolate(`${r.width}×${r.height}`) : '';
   const codec = r.codec_label ? `${res ? ' · ' : ''}${r.codec_label}` : '';
   return cst('testOk', { res, codec });
 }

@@ -40,7 +40,7 @@ import { otherFloorOf, parseTarget, type LinkTargetFloor } from '../map/connecto
 import { productSettings } from '../api/prefs';
 import { CAMERA_SUGGEST_DEFAULTS, sanitizeSettings, suggestCameras, type CameraSuggestSettings, type CameraSuggestion } from '../map/camera-suggest';
 import { cap } from '../api/session';
-import { isStandaloneRow, visibleCameras } from '../api/camera-visibility';
+import { editorCameraMeta, editorCameraSource, isStandaloneRow, visibleCameras } from '../api/camera-visibility';
 import { createItem, exportUrl as catalogExportUrl, importItems, itemOf, loadLibrary, lookupMaterialsOf, lookupOf, type CatalogItem, type CatalogLibrary } from '../api/plan-catalog';
 import { applyAnchorPositions, distanceM, effectiveScale, isClosedOutline, MAX_STAIR_STEPS, sampledWall, wallLengthPx, nearestWall, pointOnWall, rebuildStair, snapPoint, STAIR_GOING_M, type StairShape, type GeomConnector, type AnchorPosition, type CatalogLookup, type ConnectorKind, type GeometryDoc, type GeomOpening, type GeomWall, type Pt, type GeomObject } from '../map/geometry';
 import { addCurveWall, MAX_CURVE_POINTS, bendSegment, curvePointAt, curvePreview, insertCurvePoint, moveCurvePoint, removeCurvePoint, roundCorner, setSegmentRadius, straightenSegment } from '../map/curve-ops';
@@ -5396,7 +5396,7 @@ export class ExplorePlanEditor extends LitElement {
     const fov = a.field_of_view_degrees ?? 0;
     return html`<sw-card heading="הגדרות מצלמה" subheading="גרירה במפה, ידיות לכיוון ולשדה הראייה, או הזנה מדויקת">
       <div class="kv"><span class="k">מצלמה</span><strong>${this.anchorName(a)}</strong></div>
-      <div class="kv"><span class="k">מקור</span><span class="ltr">${cam ? `NVR · ch ${cam.channel}` : a.resource_id}</span></div>
+      <div class="kv"><span class="k">מקור</span><span class=${cam && isStandaloneRow(cam) ? '' : 'ltr'}>${cam ? editorCameraSource(cam) : a.resource_id}</span></div>
       <sw-field label="כיוון מבט (°)" style="margin-block-start:10px"><input type="number" step="1" min="0" max="359" data-ltr .value=${String(Math.round(a.rotation_degrees))} @change=${(e: Event) => this.apply(a.id, { rotation_degrees: ((Number((e.target as HTMLInputElement).value) % 360) + 360) % 360 })} /></sw-field>
       <div class="two">
         <sw-field label="מיקום X (%)"><input type="number" step="0.1" min="0" max="100" data-ltr .value=${(a.position.x * 100).toFixed(1)} @change=${(e: Event) => this.apply(a.id, { position: { x: Math.min(1, Math.max(0, Number((e.target as HTMLInputElement).value) / 100)), y: a.position.y } })} /></sw-field>
@@ -5456,7 +5456,7 @@ export class ExplorePlanEditor extends LitElement {
       const available = visibleCameras(b.cameras, cap('nvr')).filter((c) => !anchoredIds.has(c.id));
       return html`<sw-card heading="הוספת מצלמה" subheading="בחר מצלמה ואז לחץ על התוכנית במקום המבוקש">
         ${available.length
-          ? html`<div class="list">${available.map((c) => html`<button class=${this.placing?.kind === 'camera' && this.placing.camera.id === c.id ? 'on' : ''} @click=${() => (this.placing = { kind: 'camera', camera: c })}><span>${c.name}</span><span class="ltr">ch ${c.channel} · ${c.status}</span></button>`)}</div>`
+          ? html`<div class="list">${available.map((c) => html`<button class=${this.placing?.kind === 'camera' && this.placing.camera.id === c.id ? 'on' : ''} @click=${() => (this.placing = { kind: 'camera', camera: c })}><span>${c.name}</span><span class=${isStandaloneRow(c) ? '' : 'ltr'}>${editorCameraMeta(c)}</span></button>`)}</div>`
           : html`<div class="note">${b.cameras.length ? 'כל המצלמות הרשומות כבר מוצבות על הקומה.' : 'אין מצלמות רשומות עדיין; הגילוי מה־NVR רץ אוטומטית.'}</div><div style="margin-block-start:8px"><sw-button size="sm" @click=${() => navigate('/system/devices')}>למצלמות</sw-button></div>`}
       </sw-card>`;
     }
