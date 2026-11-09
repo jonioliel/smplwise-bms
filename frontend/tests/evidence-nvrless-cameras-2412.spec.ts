@@ -2,6 +2,7 @@ import { test, expect, type APIRequestContext, type Page, type TestInfo } from '
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { settle } from './helpers/settle';
 
 // EVIDENCE-CAMERAS-2412: the screenshots 2.41.0 (CAMERA-STREAM-SOURCES-2410) and 2.41.1 (NVRLESS-CAMERAS-2411) left NOT_RUN.
 // Against the REAL backend with fake devices only - no camera, NVR, go2rtc or Home Assistant is reachable; every camera address is a
@@ -238,6 +239,7 @@ test.describe('EVIDENCE-CAMERAS-2412', () => {
       await shot(page, 'editor-camera-tool', info);
       await facts(page, info, 'editor-camera-tool');
       const canvas = ed.locator('sw-plan-canvas');
+      await settle(page);
       const box = (await canvas.boundingBox())!;
       await page.mouse.click(box.x + box.width * 0.3, box.y + box.height * 0.75);
       await expect.poll(async () => ((await (await api.get(`api/v1/floors/${fl}/anchors`)).json()).anchors as { resource_id: string }[]).some((a) => a.resource_id === second.id), { timeout: 15000 }).toBe(true);
