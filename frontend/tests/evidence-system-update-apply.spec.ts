@@ -507,15 +507,21 @@ test.describe('the restarts card (CR-021 S3)', () => {
     await expect(dlg).toContainText('להפעיל מחדש את Arx?');
     await shot(page, 'restart-arx-dialog');
     mock.meDown = true; // the process ends right after the answer
+    // TEST-DEBT-2412: count from before the confirm, and bring Arx back only once the card has SEEN it down (a refused `me`), not
+    // after a fixed 3.5 s - under gate load the card's first 3 s poll could land after it, so it never saw "down" and waited for
+    // the 15 s settle time instead, past this test's window (2.41.1, tablet).
+    let loads = 0;
+    let refused = 0;
+    page.on('load', () => (loads += 1));
+    page.on('requestfailed', (r) => { if (new URL(r.url()).pathname.replace(/^.*\/api\/v1\//, '') === 'me') refused += 1; });
     await card(page).locator('[data-restart-confirm]').click();
     await expect(card(page).locator('[data-restart-phase="waiting"]')).toContainText('המערכת מופעלת מחדש');
     expect(mock.arxRestarts).toBe(1);
     await shot(page, 'restart-arx-waiting');
-    let loads = 0;
-    page.on('load', () => (loads += 1));
-    await page.waitForTimeout(3500);
+    await expect.poll(() => refused, { timeout: 20_000 }).toBeGreaterThan(0);
+    expect(loads).toBe(0); // no reload while Arx is down
     mock.meDown = false; // Arx is back
-    await expect.poll(() => loads, { timeout: 15000 }).toBe(1);
+    await expect.poll(() => loads, { timeout: 20_000 }).toBe(1);
   });
 
   test('restart Arx: a system that does not return shows the manual line and "בדקו שוב"', async ({ page }) => {

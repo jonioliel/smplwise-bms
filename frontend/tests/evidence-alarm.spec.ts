@@ -115,6 +115,9 @@ test.describe('CR-010 navigation: אבטחה › לייב | חקירה | אזע�
 
   test('the general settings keep no alarm tab (it is under אבטחה)', async ({ page }) => {
     await open(page, '/system/diagnostics');
+    // TEST-DEBT-2412: a "not" assertion on a tab row that has not rendered yet fails with "element(s) not found" (gate 2.41.0 under
+    // load): wait for the row itself first, then check what it does not hold
+    await expect(page.locator('sw-app system-diagnostics sw-tabs').first()).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('sw-app system-diagnostics sw-tabs').first()).not.toContainText('אזעקה');
   });
 

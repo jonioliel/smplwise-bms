@@ -85,7 +85,7 @@ test.describe('the kiosk idle swap', () => {
     await expect.poll(() => frames(el), { timeout: 15_000 }).toBeGreaterThan(frozen);
     await expect(el.locator('.idle-still[data-on]')).toHaveCount(0);
     const evs = await idleEvents(page);
-    expect(evs.map((e) => `${e.idle}:${e.reason}`)).toEqual(['true:timeout', 'false:input']);
+    expect(evs.map((e) => `${e.idle}:${e.reason}`).slice(0, 2)).toEqual(['true:timeout', 'false:input']); // TEST-DEBT-2412: as below
     // and it idles again 2 s after the last input
     await expect(el).toHaveAttribute('data-idle', '', { timeout: 10_000 });
   });
@@ -102,7 +102,9 @@ test.describe('the kiosk idle swap', () => {
     await el.evaluate((n) => { (n as unknown as Kiosk).changeKey = 'lit:z1'; }); // a room lit
     await expect(el).not.toHaveAttribute('data-idle', '');
     await expect.poll(() => frames(el), { timeout: 15_000 }).toBeGreaterThan(frozen);
-    expect((await idleEvents(page)).map((e) => e.reason)).toEqual(['timeout', 'change']);
+    // TEST-DEBT-2412: only the first two events are this step's; under gate load the frame poll above can outlast the 2 s quiet
+    // period, so the next (correct) 'timeout' may already be logged - the line below asserts that one anyway
+    expect((await idleEvents(page)).map((e) => e.reason).slice(0, 2)).toEqual(['timeout', 'change']);
     await expect(el).toHaveAttribute('data-idle', '', { timeout: 10_000 }); // quiet again
   });
 

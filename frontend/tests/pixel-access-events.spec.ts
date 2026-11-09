@@ -29,7 +29,7 @@ async function open(page: Page, opts: MockOptions, skin: string, ready: string, 
 async function compare(page: Page, info: Parameters<typeof noBaseline>[0] & { project: { name: string } }, name: string) {
   const file = `${name}-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
   if (noBaseline(info, file)) test.info().annotations.push({ type: 'skipped-pixel', description: `${file}: no baseline on ${process.platform}` });
-  else await expect(page).toHaveScreenshot(file, { maxDiffPixels: 40, animations: 'disabled' });
+  else await expect(page).toHaveScreenshot(file, { maxDiffPixels: 40, animations: 'disabled', timeout: 15_000 }) // TEST-DEBT-2412: 5 s default ran out under gate load;
 }
 
 test.describe('pixel: the entry log', () => {

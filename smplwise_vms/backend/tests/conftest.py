@@ -105,6 +105,18 @@ def sw_load_factor(samples: int = 5, spin_s: float = 0.05, cap: float = 12.0) ->
     return min(max(ratios[len(ratios) // 2], 1.0), cap) * sw_time_factor()
 
 
+def warm_routes(client) -> None:
+    """Build FastAPI's per-app route state up front, outside a timed window (TEST-DEBT-2412).
+
+    Since fastapi 0.141 each included router of an app builds its route state (dependants, compiled paths, pydantic
+    adapters) lazily, on the first request that is matched against it, under one lock. A path that matches nothing walks
+    every router, so one such request builds them all: about 4-10 s on a busy workstation or runner, paid once per
+    `create_app`. A test that times "the answer is immediate" from a fresh app measured that build instead of the answer
+    (test_nvr_less 409 routes, the remote flood, the setup check deadline). Call this before such a timed request."""
+    for path in ("/api/v1/__sw_warm_routes__", "/arx/api/v1/__sw_warm_routes__"):
+        client.get(path)
+
+
 def sw_perf_enabled() -> bool:
     """True when `SW_PERF=1` asks for the strict, original wall-clock bound on a performance test.
 

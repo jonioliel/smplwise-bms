@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 
 import pytest
-from conftest import enable_search, as_user, bind, png_bytes, seed_tree, sw_time_factor
+from conftest import enable_search, as_user, bind, png_bytes, seed_tree, sw_time_factor, warm_routes
 from fastapi.testclient import TestClient
 
 from smplwise.db import Database, now_iso, set_setting
@@ -351,6 +351,7 @@ def test_nvr_routes_answer_409_nvr_not_configured(method, path, body, ha_only, m
     leftover_camera(app)
     c = TestClient(app)
     c.get("/api/v1/me")  # the first request of a fresh app (bootstrap grant) is not what is measured
+    warm_routes(c)  # TEST-DEBT-2412: nor FastAPI's lazy per-router build (4-10 s under load), which the timed request used to pay
     path = resolve(c, path)
     t0 = time.time()
     r = c.request(method, path, json=body)

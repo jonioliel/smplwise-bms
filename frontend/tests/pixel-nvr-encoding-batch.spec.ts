@@ -60,7 +60,7 @@ test.describe('pixel: the bulk encoding change', () => {
       await toSettings(page, skin);
       const shot = async (name: string) => {
         if (noBaseline(info, name)) test.info().annotations.push({ type: 'skipped-pixel', description: `${name}: no baseline on ${process.platform}` });
-        else await expect(page.locator(BOX)).toHaveScreenshot(name, { maxDiffPixels: 40, animations: 'disabled' });
+        else await expect(page.locator(BOX)).toHaveScreenshot(name, { maxDiffPixels: 40, animations: 'disabled', timeout: 15_000 }) // TEST-DEBT-2412: 5 s default ran out under gate load;
       };
       const width = info.project.name === 'mobile' ? '390' : '1440';
       await check(() => shot(`enc-${skin}-dialog-settings-${width}.png`), BOX);

@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-07T19:28:08.827417+00:00
+Generated: 2026-11-09T14:46:47.519460+00:00
 
-Tasks: 454 | Requirements: 564 | Tests: 581 | Screens: 32
+Tasks: 456 | Requirements: 566 | Tests: 583 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -13,13 +13,14 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BLOCKED: 17
 - DONE: 40
 - IN_PROGRESS: 3
-- REVIEW: 303
+- READY: 1
+- REVIEW: 304
 
 ## Release scope counts
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 360
+- V1: 362
 - V2: 29
 - V3: 2
 
@@ -499,3 +500,5 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [PY-CONSTRAINTS-2407](tasks/PY-CONSTRAINTS-2407.md) | V1 | REVIEW | Python constraints lock file for the add-on + Supervisor build check | — |
 | [CAMERA-REBOOT-2407](tasks/CAMERA-REBOOT-2407.md) | V1 | REVIEW | Reboot one camera through its NVR (legacy parity P09) | — |
 | [RECORDED-DAYS-MONTH-2407](tasks/RECORDED-DAYS-MONTH-2407.md) | V1 | REVIEW | Recordings: month view of the days with recordings (legacy monthly calendar parity) | — |
+| [TEST-DEBT-2412](tasks/TEST-DEBT-2412.md) | V1 | REVIEW | Test debt: wall-clock backend tests and the flaky items of the 2.41.0 / 2.41.1 release gates | — |
+| [FLAKY-S12-PIXEL-2412](tasks/FLAKY-S12-PIXEL-2412.md) | V1 | READY | Flaky pixel test: CR-036 S12 phone cards render 15-23 px taller under gate load (quarantined until 2026-11-16) | — |

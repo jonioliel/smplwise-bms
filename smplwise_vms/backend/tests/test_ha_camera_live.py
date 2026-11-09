@@ -606,7 +606,10 @@ def test_a_failing_stream_makes_the_next_open_read_the_source_again(live, monkey
     with live.c.websocket_connect(f"/api/v1/media/live-ha/{ENTITY}/ws") as ws:
         ws.receive_text()
     assert live.go.store[STREAM] == [URL]  # nothing re-read yet
-    monkeypatch.setattr(media, "relay_ws", _fake_relay([]))
+    # TEST-DEBT-2412: the healthy second session is one the VIEWER ends (client_closed). With the default "upstream_closed" a session
+    # go2rtc closes at once marks the camera stale again (note_session_end, correct behaviour) - and whether that teardown ran before
+    # the client's close cancelled it was a race the gate's load sometimes lost (`ENTITY in _STALE` below, 2.41.0).
+    monkeypatch.setattr(media, "relay_ws", _fake_relay([], reason="client_closed"))
     with live.c.websocket_connect(f"/api/v1/media/live-ha/{ENTITY}/ws"):
         pass
     assert live.bridge.calls == [ENTITY, ENTITY] and live.go.store[STREAM] == [URL2]

@@ -10055,5 +10055,37 @@
     "test_ids": [
       "AT-RECORDED-DAYS-MONTH-2407-1"
     ]
+  },
+  {
+    "id": "R-TEST-DEBT-2412-1",
+    "title": "Test debt: wall-clock backend tests and the flaky items of the 2.41.0 / 2.41.1 release gates",
+    "statement": "The test_nvr_less / test_setup_wizard timing failures are fixed at their cause (FastAPI's lazy per-router build measured inside the timed window); every flaky item of the 2.41.0 and 2.41.1 gates is either fixed at a named cause or quarantined with a ticket and an expiry of at most 7 days; changed test files pass 3 runs in a row locally (docs/changes/TEST-DEBT-2412.md).",
+    "task_ids": [
+      "TEST-DEBT-2412"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-TEST-DEBT-2412-1"
+    ]
+  },
+  {
+    "id": "R-FLAKY-S12-PIXEL-2412-1",
+    "title": "Flaky pixel test: CR-036 S12 phone cards render 15-23 px taller under gate load (quarantined until 2026-11-16)",
+    "statement": "The cause of the taller s12 display / parity cards on the phone under gate load is found (the diff images of a failing run are kept), the spec waits for the settled state or the product is fixed, the quarantine entry `[mobile] pixel: CR-036 S12` is removed with gate_quarantine.py remove, and the spec passes in two full gates.",
+    "task_ids": [
+      "FLAKY-S12-PIXEL-2412"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-FLAKY-S12-PIXEL-2412-1"
+    ]
   }
 ]
