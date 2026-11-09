@@ -375,15 +375,24 @@ def cameras_tick(conn: sqlite3.Connection, now: dt.datetime) -> dict[str, dict[s
     ts = now.timestamp()
     hold = int((get_policy(conn, "camera.offline") or {}).get("after_s") or 0)
     cutoff = iso_utc(now - dt.timedelta(hours=24))
+    # SOAK-DBGROWTH-2412: this runs under the write lock every 30 s. `e.camera_id = c.id` walked idx_events_camera_time over
+    # EVERY event of the camera in the last 24 h (8k rows per camera in the soak: ~110 ms idle, a 61.9 s hold on a starved
+    # disk). The lookup is now served by idx_events_alert_open (0207), the open alert-stream rows of one kind: the
+    # COALESCE terms match the index expressions (`+c.id`: no column affinity, or the expression index is not usable), the
+    # last-seen term is implied by the occurred_at one (ended_at is never before occurred_at), `+e.occurred_at` keeps the
+    # time index out of the sort. Same rows, same answer.
     rows = conn.execute(
         """SELECT c.id, c.recorder_id, c.alias, c.name_source, c.channel, c.status, c.last_seen_at,
                   (SELECT MAX(COALESCE(e.ended_at, e.occurred_at)) FROM events e
-                    WHERE e.camera_id = c.id AND e.source = 'alertstream' AND e.type = 'offline' AND e.state = 'active' AND e.occurred_at >= ?) AS loss_at,
-                  (SELECT e.id FROM events e WHERE e.camera_id = c.id AND e.source = 'alertstream' AND e.type = 'offline' AND e.state = 'active' AND e.occurred_at >= ?
-                    ORDER BY e.occurred_at DESC LIMIT 1) AS loss_event
+                    WHERE e.source = 'alertstream' AND e.type = 'offline' AND COALESCE(e.camera_id, '') = +c.id AND e.state = 'active'
+                      AND COALESCE(e.ended_at, e.occurred_at) >= ? AND e.occurred_at >= ?) AS loss_at,
+                  (SELECT e.id FROM events e
+                    WHERE e.source = 'alertstream' AND e.type = 'offline' AND COALESCE(e.camera_id, '') = +c.id AND e.state = 'active'
+                      AND COALESCE(e.ended_at, e.occurred_at) >= ? AND e.occurred_at >= ?
+                    ORDER BY +e.occurred_at DESC LIMIT 1) AS loss_event
            FROM cameras c WHERE c.enabled = 1 AND c.recorder_id <> 'standalone' ORDER BY c.recorder_id, c.channel LIMIT 500""",  # CR-024: every recorder's cameras
         # (CAMERA-STREAM-SOURCES-2410: a camera without a recorder has no discovery; its manual source raises `camera.source` instead)
-        (cutoff, cutoff),
+        (cutoff, cutoff, cutoff, cutoff),
     ).fetchall()
     due: dict[str, notify.Signal] = {}
     active: set[str] = set()

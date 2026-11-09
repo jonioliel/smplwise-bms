@@ -272,9 +272,28 @@ def _type_reason(t: str, days: int) -> str:
     return TYPE_REASON.get(t, "סוג האירוע לא הופיע ב־{days} הימים האחרונים; המערכת מציגה רק סוגים שהמקורות שלה מפיקים בפועל").format(days=days)
 
 
+def _facet_rows(conn: sqlite3.Connection, since: str) -> list[sqlite3.Row]:
+    """(type, source, severity, camera_id, n) of the events that occurred at or after `since`. SOAK-DBGROWTH-2412: whole UTC
+    days come from events_facet_days (migration 0210, kept by triggers in the same transaction as every event write), only
+    the first, partial day is counted from the events table - the numbers of the old GROUP BY over every row of the
+    period, at the cost of one day of events instead of all of them (~490 ms at 677k rows in the soak, linear)."""
+    first_day = since[:10]
+    next_day = (dt.date.fromisoformat(first_day) + dt.timedelta(days=1)).isoformat()  # "YYYY-MM-DD" sorts before any time of that day
+    return conn.execute(
+        "SELECT type, source, severity, camera_id, SUM(n) AS n FROM ("
+        " SELECT type, source, severity, NULLIF(camera_key, '') AS camera_id, n FROM events_facet_days WHERE day > ?"
+        " UNION ALL SELECT type, source, severity, camera_id, 1 AS n FROM events WHERE occurred_at >= ? AND occurred_at < ?"
+        ") GROUP BY type, source, severity, camera_id",
+        (first_day, since, next_day),
+    ).fetchall()
+
+
 def _types_present(conn: sqlite3.Connection, days: int) -> dict[str, int]:
     since = iso_utc(dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days))
-    return {r["type"]: r["n"] for r in conn.execute("SELECT type, COUNT(*) AS n FROM events WHERE occurred_at >= ? GROUP BY type", (since,)).fetchall()}
+    out: dict[str, int] = {}
+    for r in _facet_rows(conn, since):
+        out[r["type"]] = out.get(r["type"], 0) + r["n"]
+    return out
 
 
 def _place_filter(conn: sqlite3.Connection, site_id: str | None, building_id: str | None, floor_id: str | None, zone_id: str | None) -> tuple[set[str], set[str], dict[str, str] | None] | None:
@@ -336,7 +355,7 @@ def _facets(conn: sqlite3.Connection, wide: bool, ids: RowScope, days: int, floo
     types: dict[str, int] = {}
     sources: dict[str, int] = {}
     severities: dict[str, int] = {}
-    for r in conn.execute("SELECT type, source, severity, camera_id, COUNT(*) AS n FROM events WHERE occurred_at >= ? GROUP BY type, source, severity, camera_id", (since,)).fetchall():
+    for r in _facet_rows(conn, since):
         if not _visible(dict(r), wide, ids):
             continue
         types[r["type"]] = types.get(r["type"], 0) + r["n"]

@@ -69,8 +69,10 @@ def _recorders_view(settings: Any) -> list[dict[str, Any]]:
 
 
 @router.get("/health")
-def health(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
-    """The add-on's own cached state. A system.configure holder also gets `process` (uptime, threads, open fds, RSS) and the db file sizes."""
+def health(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The add-on's own cached state. A system.configure holder also gets `process` (uptime, threads, open fds, RSS) and the db file sizes.
+    SOAK-DBGROWTH-2412: a read - it writes nothing, yet it ran under the write lock (BEGIN IMMEDIATE) with a COUNT(*) over the
+    whole events table inside; on a starved host that held every writer for up to 22 s."""
     settings = settings_of(request)
     diagnostics = authorize(conn, principal, "system.configure", INSTALLATION).allowed
     stats = process_stats.snapshot(settings.db_path) if diagnostics else {}
