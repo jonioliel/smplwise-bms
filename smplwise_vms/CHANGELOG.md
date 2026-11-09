@@ -1,5 +1,21 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.41.2 (pilot) - Faster events screen, fewer database waits, camera screen fixes
+**אחרי ההתקנה:** עדכון אוטומטי של מסד הנתונים (0210, ספירת אירועים יומית, כשנייה בהפעלה הראשונה). אין עדכון לגשר ואין צורך להפעיל מחדש את Home Assistant.
+- **English:** After installing: an automatic database update (0210, per-day event counts, about one second on the first start). No bridge update and no Home Assistant restart.
+
+### מה תוקן - What was fixed
+- **עברית:** מסנני מסך האירועים נבנים מספירה יומית מוכנה במקום לספור את כל 90 הימים בכל פנייה. במבחן עומס של 17 שעות הזמן ירד מכחצי שנייה לפחות מ-5 אלפיות שנייה, עם אותם מספרים.
+- **English:** The events screen filters are built from ready per-day counts instead of counting all 90 days on every request; in a 17-hour soak the time fell from about half a second to under 5 ms, with identical numbers.
+- **עברית:** בדיקת התקלות של המצלמות (כל 30 שניות) ובדיקת התקינות כבר לא מחזיקות את מסד הנתונים נעול בזמן קריאה ארוכה. במחשב עמוס זה גרם להמתנות של עד דקה ולבקשות שנכשלו.
+- **English:** The camera fault check (every 30 s) and the health check no longer hold the database lock during a long read; on a busy machine that caused waits of up to a minute and failed requests.
+- **עברית:** מסכי המצלמות של 2.41.x: חלון מקור הווידאו לא חותך שדות, הרזולוציה מוצגת נכון, מצלמה ללא מקליט לא מתוארת כמצלמת מקליט במפה ובעורך, ההודעה "נדרש שרת WebRTC" גוברת על מצב ישן, וכפתור "הסר" לא יוצא מהמסך בטלפון.
+- **English:** The 2.41.x camera screens: the video source dialog no longer clips its fields, the resolution reads correctly, a camera without a recorder is no longer described as a recorder camera on the map and in the editor, the "WebRTC server required" notice wins over a stale status, and the "Remove" button stays on screen on a phone.
+
+### פנימי - Internal
+- **עברית:** בדיקות שהיו תלויות בזמן או בסדר ההרצה תוקנו בשורשן; שלוש בדיקות פיקסלים בטלפון בהסגר עד 16.11. לוח המשימות עודכן לפי מה ששוחרר.
+- **English:** Tests that depended on timing or run order were fixed at their cause; three phone pixel tests are quarantined until 16.11. The task board was brought up to date with what shipped.
+
 ## 2.41.1 (pilot) - Camera screens without a recorder, WebRTC server notice, cameras on the floor map
 **אחרי ההתקנה:** אין מיגרציה, אין עדכון לגשר ואין צורך להפעיל מחדש את Home Assistant.
 - **English:** After installing: no migration, no bridge update and no Home Assistant restart.
