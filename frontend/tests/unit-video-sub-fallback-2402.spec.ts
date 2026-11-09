@@ -67,8 +67,17 @@ test.describe('the per-tab memory', () => {
 
 test('the main socket names why (closed values, for the session audit rows)', () => {
   const g = globalThis as unknown as { document?: { baseURI: string } };
-  g.document ??= { baseURI: 'http://x/' }; // node: the page address the URL is built against
-  const u = new URL(liveWsUrl('c8', 'main', '', 'sub_no_media'), 'http://x/');
-  expect(u.searchParams.get('fallback')).toBe('sub_no_media');
-  expect(new URL(liveWsUrl('c8', 'sub'), 'http://x/').searchParams.has('fallback')).toBe(false);
+  // node: the page address the URL is built against. TEST-DEBT-2412: the stub is removed again in the finally - left on globalThis it
+  // made every later unit spec in the same worker (unit-wiskey-stations, unit-wxsch, unit-wxunblk, unit-wxmedset: their i18n reads
+  // `document.documentElement.lang` once `document` exists) fail with "Cannot read properties of undefined (reading 'lang')".
+  const before = g.document;
+  g.document ??= { baseURI: 'http://x/' };
+  try {
+    const u = new URL(liveWsUrl('c8', 'main', '', 'sub_no_media'), 'http://x/');
+    expect(u.searchParams.get('fallback')).toBe('sub_no_media');
+    expect(new URL(liveWsUrl('c8', 'sub'), 'http://x/').searchParams.has('fallback')).toBe(false);
+  } finally {
+    if (before === undefined) delete g.document;
+    else g.document = before;
+  }
 });

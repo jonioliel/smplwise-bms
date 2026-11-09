@@ -10,7 +10,7 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-from conftest import sw_load_factor
+from conftest import sw_load_factor, warm_routes
 from fake_ha_core import make_jwt
 from smplwise import auth as auth_mod
 from smplwise import db as db_mod
@@ -117,6 +117,9 @@ def test_an_unauthenticated_remote_flood_never_touches_the_gate(arx, spy):
 
 def test_the_flood_does_not_queue_behind_a_writer_nor_delay_the_next_one(arx, spy):
     db = arx.app.state.db
+    # TEST-DEBT-2412: the flood's first requests used to pay FastAPI's lazy per-router build of this fresh app (4-10 s under the gate's
+    # load, all four threads behind its one lock): flood_s 5.8-8.0 s in 2.41.0 / 2.41.1 / nightly. Built here, outside the timed window.
+    warm_routes(TestClient(arx.app))
     holding, release = threading.Event(), threading.Event()
     got: dict[str, float] = {}
 

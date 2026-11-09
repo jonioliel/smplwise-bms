@@ -378,8 +378,14 @@ test.describe('SKIN-QA-2403 · the camera wall: phone toolbar and the tile tag',
           // a real press (a synthetic event does not set :active); released away from the key, so nothing opens
           await page.mouse.move(b.x + 3, b.y + 3);
           await page.mouse.down();
-          await page.waitForTimeout(160);
-          const pressed = await k.evaluate((el) => getComputedStyle(el).transform);
+          // TEST-DEBT-2412: read the press once its transition has ended - under gate load a single read at a fixed 160 ms caught it
+          // half way (scale 0.987 for a 0.97 token). A press that never reaches the token still fails after the 3 s budget.
+          let pressed = '';
+          for (const end = Date.now() + 3_000; ;) {
+            await page.waitForTimeout(80);
+            pressed = await k.evaluate((el) => getComputedStyle(el).transform);
+            if (pressFollows(pressed, token) || Date.now() > end) break;
+          }
           await page.mouse.move(b.x + b.width / 2, b.y + 200);
           await page.mouse.up();
           await page.keyboard.press('Escape');

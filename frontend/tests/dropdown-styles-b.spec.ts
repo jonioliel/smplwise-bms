@@ -589,6 +589,9 @@ test.describe('the settings sub-tabs follow the tabs mode and the style of the s
           const t = find(document);
           return t ? { variant: t.getAttribute('data-variant'), style: t.getAttribute('dd-style'), n: (t as unknown as { items: unknown[] }).items.length } : null;
         }, sel);
+      // TEST-DEBT-2412: the tabs render after the screen's lazy chunk; under gate load a single read after openShell's fixed wait
+      // found nothing yet (null) - wait for them first
+      await expect.poll(facts, { timeout: 15_000 }).not.toBeNull();
       const before = await facts();
       expect(before).not.toBeNull();
       expect(before!.variant).not.toBe('dropdown');
@@ -597,7 +600,7 @@ test.describe('the settings sub-tabs follow the tabs mode and the style of the s
         await m.saveOwnDdStyle(null, { settings: 'tonal' });
         await m.saveOwnTabsMode(null, { settings: 'dropdown' });
       }, MODE_URL);
-      await page.waitForTimeout(700);
+      await expect.poll(async () => (await facts())?.variant, { timeout: 15_000 }).toBe('dropdown'); // TEST-DEBT-2412: was a fixed 700 ms
       const after = await facts();
       expect(after!.variant).toBe('dropdown');
       expect(after!.style).toBe('tonal');

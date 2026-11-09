@@ -35,6 +35,9 @@ test.describe('settings › מולטימדיה: the players sections (mocked bac
   });
 
   test('the sections in order; the players with their counts; screenshots', async ({ page }) => {
+    // TEST-DEBT-2412: two full-page captures (1440x4600 and 390x7600) do not fit the default 60 s under gate load (timed out in the
+    // 390 capture in 2.41.0 and 2.41.1, mobile); the work is the same, only the budget is the slow one (x3)
+    test.slow();
     await install(page, st);
     await open(page, '/system/multimedia');
     await expect(sys(page).locator('[data-mm-players]')).toBeVisible();

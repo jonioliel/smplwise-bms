@@ -14,7 +14,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
-from conftest import as_user, bind, png_bytes, seed_tree
+from conftest import as_user, bind, png_bytes, seed_tree, warm_routes
 from fastapi.testclient import TestClient
 
 from smplwise.db import Database, now_iso, set_setting
@@ -352,6 +352,7 @@ def test_a_slow_device_is_cut_off_at_the_check_deadline(settings, fake, monkeypa
     c = TestClient(create_app(devices(settings)))
     monkeypatch.setattr(wizard, "CHECK_DEADLINE_S", 0.5)
     fake.nvr["delay_s"] = 1.0
+    warm_routes(c)  # TEST-DEBT-2412: FastAPI's lazy per-router build of a fresh app is not the check's deadline
     t0 = time.monotonic()
     nvr = step_of(check(c, "nvr").json(), "nvr")
     assert time.monotonic() - t0 < 5, "the request does not wait for every device call"

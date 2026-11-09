@@ -372,6 +372,9 @@ test.describe('tickets table evidence', () => {
   });
 
   test('density: compact rows, remembered', async ({ page }) => {
+    // TEST-DEBT-2412: five page loads and four evidence captures in one test; under gate load (2.41.1, mobile) the default 60 s ran out
+    // in the fourth load. Same work, the slow budget (x3).
+    test.slow();
     for (const skin of ['classic', 'domus'])
       for (const scheme of ['light', 'dark'] as const) {
         await go(page, '/tickets/mine', { board: { view: 'table', density: 'compact' } }, scheme, skin);

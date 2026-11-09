@@ -361,6 +361,12 @@ test.describe('the bottom sheet in full (mockup scope)', () => {
         for (const s of ['auto', 'pill']) {
           await chip(page, s).click();
           await page.waitForTimeout(700);
+          // TEST-DEBT-2412: the sheet slides up from below the screen; under gate load 700 ms was not always the end of the slide
+          // ("inside" false, domus/dark/auto in 2.41.0). Wait until it has settled inside the screen; one that never does still fails below.
+          await expect
+            .poll(() => pop(page, s).evaluate((el) => { const b = el.getBoundingClientRect(); return b.left >= -1 && b.right <= document.documentElement.clientWidth + 1 && b.bottom <= window.innerHeight + 1; }), { timeout: 10_000 })
+            .toBe(true)
+            .catch(() => undefined);
           const r = await pop(page, s).evaluate((el) => {
             const root = el.getRootNode() as ShadowRoot;
             const cs = getComputedStyle(el);

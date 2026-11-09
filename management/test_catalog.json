@@ -15411,5 +15411,55 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-TEST-DEBT-2412-1",
+    "requirement_ids": [
+      "R-TEST-DEBT-2412-1"
+    ],
+    "task_ids": [
+      "TEST-DEBT-2412"
+    ],
+    "title": "Test debt: wall-clock backend tests and the flaky items of the 2.41.0 / 2.41.1 release gates",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The test_nvr_less / test_setup_wizard timing failures are fixed at their cause (FastAPI's lazy per-router build measured inside the timed window); every flaky item of the 2.41.0 and 2.41.1 gates is either fixed at a named cause or quarantined with a ticket and an expiry of at most 7 days; changed test files pass 3 runs in a row locally (docs/changes/TEST-DEBT-2412.md).",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-09 (TEST-DEBT-2412); NOT_RUN (the local receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-FLAKY-S12-PIXEL-2412-1",
+    "requirement_ids": [
+      "R-FLAKY-S12-PIXEL-2412-1"
+    ],
+    "task_ids": [
+      "FLAKY-S12-PIXEL-2412"
+    ],
+    "title": "Flaky pixel test: CR-036 S12 phone cards render 15-23 px taller under gate load (quarantined until 2026-11-16)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The cause of the taller s12 display / parity cards on the phone under gate load is found (the diff images of a failing run are kept), the spec waits for the settled state or the product is fixed, the quarantine entry `[mobile] pixel: CR-036 S12` is removed with gate_quarantine.py remove, and the spec passes in two full gates.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-09 (TEST-DEBT-2412); NOT_RUN (the local receipts are in the change record, not a PASS record here).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]
