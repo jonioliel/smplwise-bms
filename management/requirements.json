@@ -10039,6 +10039,134 @@
     ]
   },
   {
+    "id": "R-CAMERA-STREAM-SOURCES-2410-1",
+    "title": "Video source per camera and cameras without a recorder (2.41.0)",
+    "statement": "A holder of system.configure can set a camera's video source to the recorder (default, unchanged) or to manual main / sub RTSP addresses served through go2rtc streams smplwise_cam_<id>_<main|sub>; can add and remove a camera without a recorder (live and snapshots only, recording / playback / NVR sections hidden with a short explanation); a Test stream button returns one frame, resolution and codec or a fixed error; credentials are stored encrypted and never returned; a failing manual source stays and raises the camera.source notification; every change is audited.",
+    "task_ids": [
+      "CAMERA-STREAM-SOURCES-2410"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-CAMERA-STREAM-SOURCES-2410-1"
+    ]
+  },
+  {
+    "id": "R-NVRLESS-CAMERAS-2411-1",
+    "title": "Camera screens without a recorder, WebRTC server notice, cameras on the floor map (2.41.1)",
+    "statement": "The capability cameras_available (nvr OR at least one camera without a recorder) gates the live overview, wall, saved views, kiosk and camera screen instead of nvr; live_video counts a camera without a recorder only when go2rtc exists; without a WebRTC server (go2rtc) adding a camera or testing a stream is disabled with a notice; cameras without a recorder can be placed on the floor map.",
+    "task_ids": [
+      "NVRLESS-CAMERAS-2411"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-NVRLESS-CAMERAS-2411-1"
+    ]
+  },
+  {
+    "id": "R-DISK-CLEANUP-2411-1",
+    "title": "Workstation disk-cleanup script after a release (dry run first)",
+    "statement": "scripts/disk_cleanup.ps1 lists what it would remove (merged clean worktrees, test temp caches, old session temp) and removes only when asked; junctions are unlinked before any removal; nothing outside those classes is touched.",
+    "task_ids": [
+      "DISK-CLEANUP-2411"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P3",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-DISK-CLEANUP-2411-1"
+    ]
+  },
+  {
+    "id": "R-SOAK-DBGROWTH-2412-1",
+    "title": "Soak findings: event facets from per-day counts, write-lock holds off notify.faults and /health",
+    "statement": "From the 17.7 h soak of 2.40.7: GET /events/facets reads per-day counts (migration 0210 events_facet_days, kept by triggers) with the same numbers; the notify.faults camera tick walks the open-alert index; GET /health runs on a read connection; no write-lock hold grows with the events table; regression tests cover each.",
+    "task_ids": [
+      "SOAK-DBGROWTH-2412"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P1",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-SOAK-DBGROWTH-2412-1"
+    ]
+  },
+  {
+    "id": "R-EVIDENCE-CAMERAS-2412-1",
+    "title": "Evidence screenshots for the 2.41.x camera screens (with and without a recorder)",
+    "statement": "Evidence (screenshot) runs on the runner for the 2.41.0 / 2.41.1 camera screens: installation with an NVR (unchanged), installation with go2rtc and no NVR plus one camera without a recorder (rail, overview, wall, camera screen, area camera card / picker, floor map), the video source dialog and the NVR page card; Hebrew RTL at desktop and phone widths; findings recorded.",
+    "task_ids": [
+      "EVIDENCE-CAMERAS-2412"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-EVIDENCE-CAMERAS-2412-1"
+    ]
+  },
+  {
+    "id": "R-LAB-CHECKS-2412-1",
+    "title": "Owner manual lab checks for the 2.41.0 / 2.41.1 cameras",
+    "statement": "On the lab, with the owner's approval: one camera with a manual RTSP source and one camera without a recorder through the real go2rtc (live, snapshot, Test stream result and error wording, camera.source notification when the source fails), and an installation view without an NVR showing the camera screens; results recorded without secrets or lab addresses.",
+    "task_ids": [
+      "LAB-CHECKS-2412"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-LAB-CHECKS-2412-1"
+    ]
+  },
+  {
+    "id": "R-PRIVATE-REPO-2412-1",
+    "title": "Move development to a private repository (public add-on repository kept)",
+    "statement": "Following the owner's answers: development moves to a private repository, the public repository keeps only what the owner approves (the add-on distribution), CI / runner / release scripts point at the right remotes, and the move is documented with rollback; no history rewrite without the owner's approval.",
+    "task_ids": [
+      "PRIVATE-REPO-2412"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P2",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-PRIVATE-REPO-2412-1"
+    ]
+  },
+  {
+    "id": "R-ONVIF-DISCOVERY-2412-1",
+    "title": "ONVIF discovery of cameras without a recorder (later)",
+    "statement": "Cameras on the local network can be discovered over ONVIF and offered as cameras without a recorder (RTSP addresses filled from the profile), read-only until an administrator saves; scope and timing to be set by the owner.",
+    "task_ids": [
+      "ONVIF-DISCOVERY-2412"
+    ],
+    "chapters": [],
+    "screens": [],
+    "phase": "V1",
+    "priority": "P3",
+    "status": "PLANNED",
+    "test_ids": [
+      "AT-ONVIF-DISCOVERY-2412-1"
+    ]
+  },
+  {
     "id": "R-RECORDED-DAYS-MONTH-2407-1",
     "title": "Recordings: month view of the days with recordings (legacy monthly calendar parity)",
     "statement": "The playback screen offers a month view beside the date field: the days of a local month (installation IANA zone) with any recording of the camera are marked, future days are disabled, a tapped day opens that day; Hebrew, RTL, no scrolling inside the card, phone bottom sheet. Backend GET /api/v1/cameras/{id}/recordings/days?month=YYYY-MM is read-only on the recorder (Hikvision dailyDistribution, fallback derived from the bounded recording search with honest partial coverage; Provision-ISR SearchRecordDate), uses the camera's own recorder (multi-NVR), is cached (60 s current month, 1 h past) and bounded, and never asks the device for a future month.",

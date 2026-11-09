@@ -15388,6 +15388,206 @@
     "executed_at": null
   },
   {
+    "id": "AT-CAMERA-STREAM-SOURCES-2410-1",
+    "requirement_ids": [
+      "R-CAMERA-STREAM-SOURCES-2410-1"
+    ],
+    "task_ids": [
+      "CAMERA-STREAM-SOURCES-2410"
+    ],
+    "title": "Video source per camera and cameras without a recorder (2.41.0)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "A holder of system.configure can set a camera's video source to the recorder (default, unchanged) or to manual main / sub RTSP addresses served through go2rtc streams smplwise_cam_<id>_<main|sub>; can add and remove a camera without a recorder (live and snapshots only, recording / playback / NVR sections hidden with a short explanation); a Test stream button returns one frame, resolution and codec or a fixed error; credentials are stored encrypted and never returned; a failing manual source stays and raises the camera.source notification; every change is audited.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-09 (TASKS-SYNC-2412); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-NVRLESS-CAMERAS-2411-1",
+    "requirement_ids": [
+      "R-NVRLESS-CAMERAS-2411-1"
+    ],
+    "task_ids": [
+      "NVRLESS-CAMERAS-2411"
+    ],
+    "title": "Camera screens without a recorder, WebRTC server notice, cameras on the floor map (2.41.1)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "The capability cameras_available (nvr OR at least one camera without a recorder) gates the live overview, wall, saved views, kiosk and camera screen instead of nvr; live_video counts a camera without a recorder only when go2rtc exists; without a WebRTC server (go2rtc) adding a camera or testing a stream is disabled with a notice; cameras without a recorder can be placed on the floor map.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-09 (TASKS-SYNC-2412); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-DISK-CLEANUP-2411-1",
+    "requirement_ids": [
+      "R-DISK-CLEANUP-2411-1"
+    ],
+    "task_ids": [
+      "DISK-CLEANUP-2411"
+    ],
+    "title": "Workstation disk-cleanup script after a release (dry run first)",
+    "kind": "tooling",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "scripts/disk_cleanup.ps1 lists what it would remove (merged clean worktrees, test temp caches, old session temp) and removes only when asked; junctions are unlinked before any removal; nothing outside those classes is touched.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-09 (TASKS-SYNC-2412); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-SOAK-DBGROWTH-2412-1",
+    "requirement_ids": [
+      "R-SOAK-DBGROWTH-2412-1"
+    ],
+    "task_ids": [
+      "SOAK-DBGROWTH-2412"
+    ],
+    "title": "Soak findings: event facets from per-day counts, write-lock holds off notify.faults and /health",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "From the 17.7 h soak of 2.40.7: GET /events/facets reads per-day counts (migration 0210 events_facet_days, kept by triggers) with the same numbers; the notify.faults camera tick walks the open-alert index; GET /health runs on a read connection; no write-lock hold grows with the events table; regression tests cover each.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-09 (TASKS-SYNC-2412); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-EVIDENCE-CAMERAS-2412-1",
+    "requirement_ids": [
+      "R-EVIDENCE-CAMERAS-2412-1"
+    ],
+    "task_ids": [
+      "EVIDENCE-CAMERAS-2412"
+    ],
+    "title": "Evidence screenshots for the 2.41.x camera screens (with and without a recorder)",
+    "kind": "evidence",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Evidence (screenshot) runs on the runner for the 2.41.0 / 2.41.1 camera screens: installation with an NVR (unchanged), installation with go2rtc and no NVR plus one camera without a recorder (rail, overview, wall, camera screen, area camera card / picker, floor map), the video source dialog and the NVR page card; Hebrew RTL at desktop and phone widths; findings recorded.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-09 (TASKS-SYNC-2412); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-LAB-CHECKS-2412-1",
+    "requirement_ids": [
+      "R-LAB-CHECKS-2412-1"
+    ],
+    "task_ids": [
+      "LAB-CHECKS-2412"
+    ],
+    "title": "Owner manual lab checks for the 2.41.0 / 2.41.1 cameras",
+    "kind": "lab",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "On the lab, with the owner's approval: one camera with a manual RTSP source and one camera without a recorder through the real go2rtc (live, snapshot, Test stream result and error wording, camera.source notification when the source fails), and an installation view without an NVR showing the camera screens; results recorded without secrets or lab addresses.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-09 (TASKS-SYNC-2412); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-PRIVATE-REPO-2412-1",
+    "requirement_ids": [
+      "R-PRIVATE-REPO-2412-1"
+    ],
+    "task_ids": [
+      "PRIVATE-REPO-2412"
+    ],
+    "title": "Move development to a private repository (public add-on repository kept)",
+    "kind": "process",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Following the owner's answers: development moves to a private repository, the public repository keeps only what the owner approves (the add-on distribution), CI / runner / release scripts point at the right remotes, and the move is documented with rollback; no history rewrite without the owner's approval.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-09 (TASKS-SYNC-2412); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-ONVIF-DISCOVERY-2412-1",
+    "requirement_ids": [
+      "R-ONVIF-DISCOVERY-2412-1"
+    ],
+    "task_ids": [
+      "ONVIF-DISCOVERY-2412"
+    ],
+    "title": "ONVIF discovery of cameras without a recorder (later)",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only unless the owner approves a lab step; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests or checks named in the change record against the commit recorded here."
+    ],
+    "expected": "Cameras on the local network can be discovered over ONVIF and offered as cameras without a recorder (RTSP addresses filled from the profile), read-only until an administrator saves; scope and timing to be set by the owner.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-09 (TASKS-SYNC-2412); NOT_RUN as a catalog record.",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
     "id": "AT-RECORDED-DAYS-MONTH-2407-1",
     "requirement_ids": [
       "R-RECORDED-DAYS-MONTH-2407-1"
