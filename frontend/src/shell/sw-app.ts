@@ -27,7 +27,7 @@ import { badgeLabel, badgeOf, parseNotificationLink } from '../components/notify
 import { inAndroidShell } from '../arx/android-app';
 import { DESKTOP_ONLY, STRUCTURE_DESKTOP_ONLY, phoneRestricted, routeGuardKind, onMobileOptions, setInstallationMobileOptions, type MobileKind } from './phone';
 import '../screens/devices-building';
-import { loadPendingScreens, loadScreen, pendingScreens, waitingScreenTags, warmHomeDrillDown } from './lazy-screens'; // PERF-HOME-DEVICES-2342: the route screens are lazy chunks (the home screen stays in the entry chunk)
+import { loadPendingScreens, loadScreen, pendingScreens, setScreenWarmup, waitingScreenTags, warmCommonScreens, warmHomeDrillDown } from './lazy-screens'; // PERF-HOME-DEVICES-2342: the route screens are lazy chunks (the home screen stays in the entry chunk)
 // CR-017 S4's editors (<automation-builder>, <script-editor>, <scene-editor>) come with the list that mounts them (devices-automations imports them: PERF-HOME-DEVICES-2342)
 import '../screens/system-cast'; // CR-028: <system-cast>, <cast-my-screens> (#/multimedia/cast)
 import { refreshInsightsVisibility } from '../insights/access'; // CR-INSIGHT215
@@ -1948,6 +1948,7 @@ export class SwApp extends LitElement {
         void productSettings().then((ps) => {
           HIDDEN_HREFS.clear();
           setInstallationNavSize(ps['ui.nav_size']); // the installation's default size of the navigation
+          setScreenWarmup(ps['server.startup_warmup']); // WARMUP-POLISH-2421: the idle warm-up of the common screens (on unless "false")
           setInstallationDesign(ps['ui.skin'], ps['ui.scheme'], ps['ui.motion'], ps['ui.rail_tone']); // the installation's skin, light / dark choice (design foundation), motion (MOTIONSETTING-297) and rail tone (SKINCOMP-297)
           setInstallationLook(ps['ui.look']); // the installation's look dials (Bubble foundation)
           setInstallationBackground(ps['ui.background'], ps['ui.background_images']); // CRY: the background artwork and the uploaded pictures' stamps
@@ -2290,6 +2291,7 @@ export class SwApp extends LitElement {
     loadPendingScreens(this.renderRoot, () => this.requestUpdate());
     this.toggleAttribute('data-shell-ready', this.session.mode !== 'loading' && (this.session.mode !== 'api' || this.startResolved) && pendingScreens() === 0);
     if (this.hasAttribute('data-shell-ready') && isHomeRoute(this.route)) warmHomeDrillDown();
+    if (this.hasAttribute('data-shell-ready')) warmCommonScreens(); // WARMUP-POLISH-2421: the common screens' chunks, idle, one at a time
     this.syncSearchOutside();
     this.syncSysPopOutside();
     this.applyNavSize();

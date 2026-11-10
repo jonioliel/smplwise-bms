@@ -141,6 +141,11 @@ export class SwCard extends LitElement {
       overflow-y: auto;
       scrollbar-width: thin;
     }
+    /* WARMUP-POLISH-2421: a fill card whose screen pages its items instead (the live overview's attention card): the body never
+       scrolls; the screen shows only what fits */
+    :host([fill][clip]) .body {
+      overflow: hidden;
+    }
   `;
 
   private toggle() {

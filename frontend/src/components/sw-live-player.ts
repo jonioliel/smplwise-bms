@@ -67,8 +67,16 @@ const FIRST_FRAME_CAP_MS = 30000;
 const DECODE_GRACE_MS = 10000;
 const DECODE_GRACE_MIN_MS = 6000;
 const DECODE_GRACE_MAX_MS = 20000;
-/** The relay's go2rtc is down (error `upstream_unavailable`, close 4503): no step of a plan can help. */
-const VIDEO_SERVER_DOWN = 'שרת הווידאו אינו זמין';
+/** The relay's media server is down (error `upstream_unavailable`, close 4503): no step of a plan can help. WARMUP-POLISH-2421: the
+ * same plain words on every tile (a LAN tile used to show the internal component's name). */
+export const VIDEO_SERVER_DOWN = 'שרת הווידאו אינו זמין';
+/** WARMUP-POLISH-2421: the socket to the video relay has not opened in this bound - the server does not answer (no media server, a
+ * proxy holding the upgrade): the tile says so, keeps its snapshot, offers a retry and retries by itself as after any failure. */
+export const SOCKET_OPEN_MS = 10000;
+/** WARMUP-POLISH-2421: the safety net of one attempt - no state may stay on "מתחבר…" longer than this (every step's own bound - the
+ * WebRTC connect / first-frame watch, the MSE first fragment - is shorter; this only catches a path none of them covers). */
+export const CONNECTING_CAP_MS = 60000;
+export const CONNECT_TIMEOUT_HE = 'שרת הווידאו אינו עונה';
 /** go2rtc starts the fMP4 stream at the next key frame; the lab NVR's GOP is ~8 s. */
 const MSE_TIMEOUT_MS = 20000;
 /** Automatic reconnect after a transient failure (not after 4401/4403/4429): 3 s, 6 s, 12 s … max 30 s. */
@@ -199,6 +207,11 @@ export class SwLivePlayer extends LitElement {
   private queue: ArrayBuffer[] = [];
   private timer: number | undefined;
   private retryTimer: number | undefined;
+  /** WARMUP-POLISH-2421: the socket-open bound and the connecting cap of the current attempt */
+  private openTimer: number | undefined;
+  private capTimer: number | undefined;
+  /** WARMUP-POLISH-2421: the error is one a viewer can retry by hand (the server did not answer): the tile shows "נסה שוב" */
+  @state() private offerRetry = false;
   private generation = 0;
   private triedWebrtc = false;
   private pendingMime = '';
@@ -289,6 +302,20 @@ export class SwLivePlayer extends LitElement {
     .center .hint {
       font-size: var(--sw-fs-2xs);
       opacity: 0.75;
+    }
+    /* WARMUP-POLISH-2421: the viewer's retry when the video server does not answer */
+    .center .again {
+      margin-block-start: 2px;
+      padding: 6px 14px;
+      min-block-size: 32px;
+      border: 1px solid var(--sw-video-line);
+      border-radius: 999px;
+      background: var(--sw-video-scrim-strong);
+      color: var(--sw-on-video);
+      font: inherit;
+      font-size: var(--sw-fs-xs);
+      font-weight: 600;
+      cursor: pointer;
     }
     .spin {
       inline-size: 22px;
@@ -829,6 +856,7 @@ export class SwLivePlayer extends LitElement {
     const gen = (this.generation += 1);
     this.status = 'connecting';
     this.error = '';
+    this.offerRetry = false;
     this.capped = false;
     this.transport = '';
     this.served = null;
@@ -848,8 +876,16 @@ export class SwLivePlayer extends LitElement {
     }
     ws.binaryType = 'arraybuffer';
     this.ws = ws;
+    // WARMUP-POLISH-2421: never an endless "מתחבר…" - a socket that does not open, or an attempt no step's own bound ended
+    this.openTimer = window.setTimeout(() => {
+      if (gen === this.generation && ws.readyState === WebSocket.CONNECTING) this.connectTimedOut();
+    }, SOCKET_OPEN_MS);
+    this.capTimer = window.setTimeout(() => {
+      if (gen === this.generation && this.status === 'connecting') this.connectTimedOut();
+    }, CONNECTING_CAP_MS);
     ws.onopen = () => {
       if (gen !== this.generation) return;
+      window.clearTimeout(this.openTimer);
       if (step) {
         if (step.transport === 'mse') this.startMse();
         else this.startWebrtc();
@@ -887,7 +923,7 @@ export class SwLivePlayer extends LitElement {
         this.dispatchEvent(new CustomEvent('player-status', { detail: { status: 'ended', code: ev.code }, bubbles: true, composed: true }));
         return;
       }
-      const reason = ev.code === 4403 ? 'אין הרשאת צפייה' : ev.code === 4429 ? 'הגיע למכסת הזרמים' : ev.code === 4503 ? (this.laddered ? VIDEO_SERVER_DOWN : 'go2rtc לא זמין') : ev.code === 4401 ? 'נדרשת הזדהות' : ev.code === 4404 ? 'סשן הניגון פג' : ev.code === 4410 ? 'הסשן הוחלף' : this.status === 'playing' ? 'החיבור נותק' : 'החיבור נסגר';
+      const reason = ev.code === 4403 ? 'אין הרשאת צפייה' : ev.code === 4429 ? 'הגיע למכסת הזרמים' : ev.code === 4503 ? VIDEO_SERVER_DOWN : ev.code === 4401 ? 'נדרשת הזדהות' : ev.code === 4404 ? 'סשן הניגון פג' : ev.code === 4410 ? 'הסשן הוחלף' : this.status === 'playing' ? 'החיבור נותק' : 'החיבור נסגר';
       this.fail(reason, this.retry && ev.code !== 4401 && ev.code !== 4403 && ev.code !== 4404 && ev.code !== 4410, ev.code); // a quota hit retries later; a denial does not
     };
   }
@@ -906,6 +942,8 @@ export class SwLivePlayer extends LitElement {
     this.generation += 1;
     window.clearTimeout(this.timer);
     window.clearTimeout(this.retryTimer);
+    window.clearTimeout(this.openTimer);
+    window.clearTimeout(this.capTimer);
     this.stopFreezeWatch();
     this.stopFirstFrameWatch?.();
     this.needsTap = false;
@@ -1001,10 +1039,23 @@ export class SwLivePlayer extends LitElement {
 
   /** `code`: the socket's close code, or the relay's error value - carried in the event so a recording screen can tell a lost
    * connection (resume automatically, 2.0.0) from a denial or a superseded generation (never). */
+  /** WARMUP-POLISH-2421: the server did not answer in time - the plain message with a retry button; retried by itself as well. */
+  private connectTimedOut() {
+    this.fail(CONNECT_TIMEOUT_HE, true, 'connect_timeout');
+    this.offerRetry = true;
+  }
+
+  /** WARMUP-POLISH-2421: the viewer's own "נסה שוב" - a fresh attempt now (the automatic retry's backoff starts over). */
+  private retryNow = () => {
+    this.attempts = 0;
+    this.reconnect();
+  };
+
   private fail(message: string, retryable = true, code?: number | string) {
     this.teardown(); // release the relay session and the upstream stream right away
     this.status = 'error';
     this.error = message;
+    this.offerRetry = message === VIDEO_SERVER_DOWN;
     this.dispatchEvent(new CustomEvent('player-status', { detail: { status: 'error', error: message, ...(code !== undefined ? { code } : {}) }, bubbles: true, composed: true }));
     if (retryable && this.retry && this.active && (this.cameraId || this.wsUrl || this.livePath)) {
       const delay = Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** Math.min(this.attempts, 6));
@@ -1069,7 +1120,14 @@ export class SwLivePlayer extends LitElement {
     this.transport = 'webrtc';
     this.webrtcConnected = false;
     const gen = this.generation;
-    const pc = new RTCPeerConnection({ iceServers: LIVE_ICE_SERVERS });
+    let pc: RTCPeerConnection;
+    try {
+      pc = new RTCPeerConnection({ iceServers: LIVE_ICE_SERVERS });
+    } catch {
+      // WARMUP-POLISH-2421: no WebRTC in this browser (or it refused the peer connection): the MSE path, never a stuck spinner
+      this.webrtcFailed('WebRTC לא נתמך בדפדפן');
+      return;
+    }
     this.pc = pc;
     pc.ontrack = (ev) => {
       if (gen !== this.generation) return;
@@ -1396,7 +1454,7 @@ export class SwLivePlayer extends LitElement {
         else if (this.laddered && msg.value !== 'access_lost' && this.status !== 'playing' && this.trySubFallback()) break; // VIDEO-SUB-FALLBACK-2402
         else if (this.laddered && msg.value !== 'access_lost') this.fail(`שגיאה בזרם הווידאו`, true, msg.value ?? undefined);
         else if (this.lanChained && msg.value !== 'access_lost' && msg.value !== 'upstream_unavailable' && this.status !== 'playing' && this.trySubFallback()) break;
-        else this.fail(msg.value === 'upstream_unavailable' ? 'go2rtc לא זמין' : msg.value === 'access_lost' ? 'ההרשאה לצפייה במצלמה הזו הוסרה' : `שגיאת זרם: ${msg.value ?? ''}`, msg.value !== 'access_lost', msg.value ?? undefined);
+        else this.fail(msg.value === 'upstream_unavailable' ? VIDEO_SERVER_DOWN : msg.value === 'access_lost' ? 'ההרשאה לצפייה במצלמה הזו הוסרה' : `שגיאת זרם: ${msg.value ?? ''}`, msg.value !== 'access_lost', msg.value ?? undefined);
         break;
       default:
         break;
@@ -1567,7 +1625,7 @@ export class SwLivePlayer extends LitElement {
       ${this.stillNotice ? nothing : this.status === 'error' && this.capped
         ? html`<div class="center" data-live-cap><div><sw-icon name="lock" size=${this.compact ? 16 : 22}></sw-icon><span data-player-error>${this.error}</span><span class="hint" data-live-cap-hint>${can('system.configure') ? LIVE_CAP_HINT_ADMIN : LIVE_CAP_HINT_OTHER}</span></div></div>`
         : this.status === 'error'
-          ? html`<div class="center"><div><sw-icon name="offline" size=${22}></sw-icon><span data-player-error>${this.error}</span></div></div>`
+          ? html`<div class="center"><div><sw-icon name="offline" size=${22}></sw-icon><span data-player-error>${this.error}</span>${this.offerRetry && !this.compact ? html`<button class="again" data-player-retry @click=${this.retryNow}>נסה שוב</button>` : nothing}</div></div>`
           : nothing}
       ${this.status === 'ended' ? html`<div class="center"><div><sw-icon name="history" size=${22}></sw-icon><span>הקטע הסתיים</span></div></div>` : nothing}
       ${this.status === 'idle' && !this.poster ? html`<div class="center"><div><sw-icon name="camera" size=${22}></sw-icon><span>לא מחובר</span></div></div>` : nothing}

@@ -118,6 +118,7 @@ export interface ProductSettings {
   'playback.cross_recorder_sync'?: string;
   /** ASYNCIO-DEFAULT-2342: "שרת: רכיב תקשורת מהיר" - uvloop + httptools instead of asyncio + h11 ('true' | 'false', default 'false'; applies after a restart). */
   'server.fast_network'?: string;
+  'server.startup_warmup'?: string; // WARMUP-POLISH-2421: the start-up warm-up (server caches + idle screen chunks), "true" by default
   'exports.max_mb'?: number;
   /** BACKUP-HASH-ENC: the minimum length of the backup password (8-64, default 12; 8 is the server's hard floor). */
   'backup.password_min'?: number;
