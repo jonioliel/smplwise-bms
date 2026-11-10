@@ -1,5 +1,21 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.42.0 (pilot) - The home interface
+**אחרי ההתקנה:** עדכון אוטומטי של מסד הנתונים (0211, הגדרות הממשק הביתי). כל משתמש קיים נשאר על הממשק המלא; שום דבר לא משתנה עד שמנהל קובע אחרת. אין עדכון לגשר ואין צורך להפעיל מחדש את Home Assistant.
+- **English:** After installing: an automatic database update (0211, home interface settings). Every existing user stays on the full interface; nothing changes until an administrator says otherwise. No bridge update and no Home Assistant restart.
+
+### חדש - New
+- **עברית:** ממשק ביתי: ממשק שני, פשוט וידידותי, שמתחיל מהחדר. סצנות בנגיעה, אורות ומפסקים, מיזוג, תריסים, דלתות ואינטרקום, מצלמות, חשמל, התראות, אזעקה ו"פעיל עכשיו", בלי גלילה בטאבלט, בטלפון ובמחשב.
+- **English:** The home interface: a second, simple, room-first interface. One-tap scenes, lights and switches, climate, shutters, doors and intercom, cameras, energy, alerts, alarm and "active now", with no scrolling on a tablet, a phone or a desktop.
+- **עברית:** בניהול המשתמשים, לשונית "ממשק ביתי": לכל משתמש ממשק ברירת מחדל, האם מותר לו לעבור, "ביתי בלבד" (נאכף גם בשרת), חדרים ונושאים גלויים, ומסך קיר נעול לחדר שלו עם קוד יציאה.
+- **English:** User management has a "home interface" tab: per user a default interface, whether they may switch, "home only" (enforced by the server too), visible rooms and categories, and a wall panel locked to its room with an exit code.
+- **עברית:** "כיבוי הכל", כיבוי חדר וכיבוי הבית לעולם לא מכבים מפסק שאינו תאורה (דוד, מקרר, משאבה). מקרר ומקפיא מבקשים אישור.
+- **English:** "All off", room off and house off never turn off a switch that is not a light (boiler, fridge, pump); a fridge or freezer asks first.
+- **עברית:** שבע ערכות נושא (קלאסי, אוקיינוס, חול, שזיף, חצות, נורדי, פסטל), כהה ובהיר, לבחירת כל משתמש.
+- **English:** Seven themes (classic, ocean, sand, plum, midnight, nordic, pastel), dark and light, chosen per user.
+- **עברית:** שיחה נכנסת מהאינטרקום במסך מלא עם תמונה חיה, דיבור כשהעמדה מאפשרת, ופתיחת דלת עם אישור.
+- **English:** An incoming intercom call fills the screen with live video, talk where the station allows it, and door opening with a confirmation.
+
 ## 2.41.2 (pilot) - Faster events screen, fewer database waits, camera screen fixes
 **אחרי ההתקנה:** עדכון אוטומטי של מסד הנתונים (0210, ספירת אירועים יומית, כשנייה בהפעלה הראשונה). אין עדכון לגשר ואין צורך להפעיל מחדש את Home Assistant.
 - **English:** After installing: an automatic database update (0210, per-day event counts, about one second on the first start). No bridge update and no Home Assistant restart.
