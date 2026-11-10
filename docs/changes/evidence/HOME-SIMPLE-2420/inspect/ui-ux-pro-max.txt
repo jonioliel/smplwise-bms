@@ -1,0 +1,73 @@
+$ python -X utf8 search.py "smart home room control tablet wall panel" --design-system -p "SmplWise Arx"
+╔═════════════════════════════════════════════════════════════════════════════════════════╗
+║  TARGET: SmplWise Arx - RECOMMENDED DESIGN SYSTEM                                       ║
+╚═════════════════════════════════════════════════════════════════════════════════════════╝
+┌─────────────────────────────────────────────────────────────────────────────────────────┐
+├─── PATTERN ─────────────────────────────────────────────────────────────────────────────┤
+│  Name: Real-Time / Operations Landing                                                   │
+│     Conversion: Offer a demo or sandbox and show trust signals. Label telemetry as      │
+│     live only when backed by a current source, with update time and stale state.        │
+│     Provide pause/hide or update-frequency controls for tickers and previews, stop      │
+│     offscreen/hidden work, support keyboard controls, and render a static final         │
+│     snapshot under reduced motion.                                                      │
+│     CTA: Primary CTA in nav + After metrics                                             │
+│     Sections:                                                                           │
+│       1. Hero (product + live preview or status)                                        │
+│       2. Key metrics/indicators                                                         │
+│       3. How it works                                                                   │
+│       4. CTA (Start trial / Contact)                                                    │
+├─── STYLE ───────────────────────────────────────────────────────────────────────────────┤
+│  Name: Glassmorphism                                                                    │
+│     Mode Support: Light supported | Dark supported                                      │
+│     Keywords: Frosted glass, transparent, blurred background, layered, vibrant          │
+│     background, light source, depth, multi-layer                                        │
+│     Best For: Modern SaaS, financial dashboards, high-end corporate, lifestyle apps,    │
+│     modal overlays, navigation                                                          │
+│     Performance: cost:low|drivers:none | Accessibility:                                 │
+│     risk:conditional|requires:contrast-text-4.5,keyboard,visible-focus,reduced-motion   │
+├─── COLORS ──────────────────────────────────────────────────────────────────────────────┤
+│     Primary:           #1E293B    (--color-primary)                                     │
+│     On Primary:        #FFFFFF    (--color-on-primary)                                  │
+│     Secondary:         #334155    (--color-secondary)                                   │
+│     On Secondary:      #FFFFFF    (--color-on-secondary)                                │
+│     Accent/CTA:        #22C55E    (--color-accent)                                      │
+│     On Accent/CTA:     #0F172A    (--color-on-accent)                                   │
+│     Background:        #0F172A    (--color-background)                                  │
+│     Foreground:        #F8FAFC    (--color-foreground)                                  │
+│     Card:              #1B2336    (--color-card)                                        │
+│     Card Foreground:   #F8FAFC    (--color-card-foreground)                             │
+│     Muted:             #272F42    (--color-muted)                                       │
+│     Muted Foreground:  #94A3B8    (--color-muted-foreground)                            │
+│     Border:            #475569    (--color-border)                                      │
+
+$ python -X utf8 search.py "touch targets no scroll paging kiosk" --domain ux
+## UI Pro Max Search Results
+**Domain:** ux | **Query:** touch targets no scroll paging kiosk
+**Source:** ux-guidelines.csv | **Found:** 3 results
+
+### Result 1
+- **Category:** Touch
+- **Issue:** Touch Spacing
+- **Platform:** Mobile
+- **Description:** Adjacent touch targets need adequate spacing
+- **Do:** Minimum 8px gap between touch targets
+- **Don't:** Tightly packed clickable elements
+- **Code Example Good:** gap-2 between buttons
+- **Code Example Bad:** gap-0 or gap-1
+- **Severity:** Medium
+
+### Result 2
+- **Category:** Responsive
+- **Issue:** Touch Friendly
+- **Platform:** Web
+- **Description:** Mobile layouts need touch-sized targets
+- **Do:** Increase touch targets on mobile
+- **Don't:** Same tiny buttons on mobile
+- **Code Example Good:** Larger buttons on mobile
+- **Code Example Bad:** Desktop-sized targets on mobile
+- **Severity:** High
+
+### Result 3
+- **Category:** Navigation
+- **Issue:** Smooth Scroll
+- **Platform:** Web

@@ -8,7 +8,7 @@
 // `tickets` (CR-038, 2026-10-13): the optional tickets module - #/tickets/<mine|department|all>[?t=<id>], #/tickets/<id> (full screen).
 // `calendars` (CALENDARS-UI-2310): the calendars module's rail address - #/calendars/<cal|rooms|approvals|maint|manage>[/<id>] (the same screens
 // answer at #/devices/calendars/... as a tab of the home area; shell/nav.ts CALENDARS_HREF).
-export type Mode = 'live' | 'explore' | 'investigate' | 'system' | 'wiskey' | 'devices' | 'security' | 'multimedia' | 'infra' | 'tickets' | 'calendars';
+export type Mode = 'live' | 'explore' | 'investigate' | 'system' | 'wiskey' | 'devices' | 'security' | 'multimedia' | 'infra' | 'tickets' | 'calendars' | 'home';
 
 export interface RouteState {
   path: string;
@@ -17,7 +17,7 @@ export interface RouteState {
   mode: Mode | null;
 }
 
-const MODES: Mode[] = ['live', 'explore', 'investigate', 'system', 'wiskey', 'devices', 'security', 'multimedia', 'infra', 'tickets', 'calendars'];
+const MODES: Mode[] = ['live', 'explore', 'investigate', 'system', 'wiskey', 'devices', 'security', 'multimedia', 'infra', 'tickets', 'calendars', 'home'];
 
 export function parseRoute(hash: string = window.location.hash): RouteState {
   const raw = hash.replace(/^#/, '') || '/explore/floors/f0';

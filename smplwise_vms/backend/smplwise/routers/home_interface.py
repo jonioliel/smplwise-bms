@@ -131,6 +131,7 @@ def build_overview(conn: sqlite3.Connection, principal: Principal) -> dict[str, 
             if "doors" in modules:
                 r["locks"].append(_pick(row, LOCK_FIELDS))
     return {
+        "weather": _weather(conn),
         "floors": floors,
         "rooms": [rooms[rid] for f in floors for rid in f["rooms"]],
         "can_bulk": bool(flags["building"]),
@@ -138,6 +139,26 @@ def build_overview(conn: sqlite3.Connection, principal: Principal) -> dict[str, 
         "modules": sorted(modules),
         "policy": pol,
     }
+
+
+WEATHER_HE = {"sunny": "בהיר", "clear-night": "לילה בהיר", "partlycloudy": "מעונן חלקית", "cloudy": "מעונן", "rainy": "גשום", "pouring": "גשם חזק",
+              "lightning": "סערה", "lightning-rainy": "סערה וגשם", "snowy": "שלג", "snowy-rainy": "שלג וגשם", "hail": "ברד", "fog": "ערפל", "windy": "רוח",
+              "windy-variant": "רוח ועננים", "exceptional": "מזג אוויר חריג"}
+
+
+def _weather(conn: sqlite3.Connection) -> dict[str, Any] | None:
+    """The outside temperature and condition of the installation's first available weather entity (the strip's weather line), or None."""
+    import json
+
+    r = conn.execute("SELECT state, attributes_json FROM ha_entities WHERE domain = 'weather' AND removed_at IS NULL AND disabled = 0 AND available = 1 ORDER BY entity_id LIMIT 1").fetchone()
+    if r is None:
+        return None
+    try:
+        a = json.loads(r["attributes_json"] or "{}")
+    except ValueError:
+        a = {}
+    t = a.get("temperature")
+    return {"t": round(t) if isinstance(t, (int, float)) and not isinstance(t, bool) else None, "text": WEATHER_HE.get(r["state"] or "", "")}
 
 
 @router.get("/home/overview")
