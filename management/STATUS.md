@@ -1,8 +1,8 @@
 # Project status — generated view
 
-Generated: 2026-11-09T15:51:42.177893+00:00
+Generated: 2026-11-10T14:16:08.186357+00:00
 
-Tasks: 464 | Requirements: 574 | Tests: 591 | Screens: 32
+Tasks: 465 | Requirements: 579 | Tests: 596 | Screens: 32
 
 No VMS implementation or hardware test is implied by this planning registry.
 
@@ -12,7 +12,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BACKLOG: 92
 - BLOCKED: 19
 - DONE: 208
-- IN_PROGRESS: 5
+- IN_PROGRESS: 6
 - READY: 1
 - REVIEW: 139
 
@@ -20,7 +20,7 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 - BETA: 20
 - G0: 8
 - PILOT: 35
-- V1: 370
+- V1: 371
 - V2: 29
 - V3: 2
 
@@ -512,3 +512,4 @@ Dependency rule (BOARD-RULE-2404): REVIEW needs every dependency in REVIEW or DO
 | [RECORDED-DAYS-MONTH-2407](tasks/RECORDED-DAYS-MONTH-2407.md) | V1 | REVIEW | Recordings: month view of the days with recordings (legacy monthly calendar parity) | — |
 | [TEST-DEBT-2412](tasks/TEST-DEBT-2412.md) | V1 | REVIEW | Test debt: wall-clock backend tests and the flaky items of the 2.41.0 / 2.41.1 release gates | — |
 | [FLAKY-S12-PIXEL-2412](tasks/FLAKY-S12-PIXEL-2412.md) | V1 | READY | Flaky pixel test: CR-036 S12 phone cards render 15-23 px taller under gate load (quarantined until 2026-11-16) | — |
+| [T120](tasks/T120.md) | V1 | IN_PROGRESS | Home interface (HOME-SIMPLE-2420): a second, simpler room-centred interface next to the full one, per-person interface policy | — |

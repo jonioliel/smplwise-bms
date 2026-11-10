@@ -15661,5 +15661,130 @@
     "environment": null,
     "evidence": [],
     "executed_at": null
+  },
+  {
+    "id": "AT-T120-1",
+    "requirement_ids": [
+      "R-T120-1"
+    ],
+    "task_ids": [
+      "T120"
+    ],
+    "title": "Home interface: A per-person interface policy (default home|full, may switch, home only, wall panel locked",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "A per-person interface policy (default home|full, may switch, home only, wall panel locked to a room with an admin exit code, visible rooms and categories) set by an administrator (rbac.assign) in user management; new regular users open the home interface, administrators the full one; existing users keep the full interface after the upgrade.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-10 (HOME-SIMPLE-2420); NOT_RUN until the change record's receipts are reviewed (local receipts are not a PASS record).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-T120-2",
+    "requirement_ids": [
+      "R-T120-2"
+    ],
+    "task_ids": [
+      "T120"
+    ],
+    "title": "Home interface: A home-only person is refused (403 home_interface_only, audited) on every API area outside",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "A home-only person is refused (403 home_interface_only, audited) on every API area outside the home interface, on the server; the switch to the full interface is refused when the policy locks it.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-10 (HOME-SIMPLE-2420); NOT_RUN until the change record's receipts are reviewed (local receipts are not a PASS record).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-T120-3",
+    "requirement_ids": [
+      "R-T120-3"
+    ],
+    "task_ids": [
+      "T120"
+    ],
+    "title": "Home interface: The home interface (room-centred, Hebrew RTL, no Home Assistant branding or internal terms",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "The home interface (room-centred, Hebrew RTL, no Home Assistant branding or internal terms) shows real floors/rooms, lights (dimmers) and on/off switches, climate, shutters, doors and the intercom call, cameras, electricity, alerts and scenes through the existing control paths; room / house off reaches lights and light-typed switches only.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-10 (HOME-SIMPLE-2420); NOT_RUN until the change record's receipts are reviewed (local receipts are not a PASS record).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-T120-4",
+    "requirement_ids": [
+      "R-T120-4"
+    ],
+    "task_ids": [
+      "T120"
+    ],
+    "title": "Home interface: Favourites per person (an administrator may seed a starting set), favourite rooms, hidden ",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "Favourites per person (an administrator may seed a starting set), favourite rooms, hidden rooms, what opens first, theme; scenes edited by administrators only.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-10 (HOME-SIMPLE-2420); NOT_RUN until the change record's receipts are reviewed (local receipts are not a PASS record).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
+  },
+  {
+    "id": "AT-T120-5",
+    "requirement_ids": [
+      "R-T120-5"
+    ],
+    "task_ids": [
+      "T120"
+    ],
+    "title": "Home interface: No scrolling on the control screens at 1280x800, 390x844 and 1440x900; touch targets of at",
+    "kind": "unit/integration",
+    "preconditions": [
+      "Build tied to a recorded commit",
+      "Fakes and fixtures only; no live device, door, recorder or home-system action"
+    ],
+    "procedure": [
+      "Run the tests listed in the change record or the release gate that covers this task, against the commit recorded here."
+    ],
+    "expected": "No scrolling on the control screens at 1280x800, 390x844 and 1440x900; touch targets of at least 56 px on the tablet.",
+    "status": "NOT_RUN",
+    "notes": "Registered 2026-11-10 (HOME-SIMPLE-2420); NOT_RUN until the change record's receipts are reviewed (local receipts are not a PASS record).",
+    "commit": null,
+    "environment": null,
+    "evidence": [],
+    "executed_at": null
   }
 ]

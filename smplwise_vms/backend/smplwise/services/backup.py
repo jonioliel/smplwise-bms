@@ -67,6 +67,9 @@ PROJECT_TABLES = PROJECT_TABLES + MAINTENANCE_TABLES
 # LOGOS-295 (migration 0166): the company logo, base64 text so it travels as JSON with its stamps (the `brand.*` settings). An archive
 # written before the table restores no logo and no error; a replace restore of an archive that has the table brings both back with the same stamps.
 PROJECT_TABLES = PROJECT_TABLES + ["brand_assets"]
+# HOME-SIMPLE-2420 (migration 0211): each person's home-interface favourites and layout, and the administrator's starting favourites.
+# Presentation only (no permission, no device command). An archive written before the tables restores none: people see the defaults.
+PROJECT_TABLES = PROJECT_TABLES + ["home_user_prefs", "home_favourites_seed"]
 # USR2 (owner answer Q8): the Arx-only identities' password hashes travel with the access part of a project backup (a restore to a
 # new host keeps the users) - the rows hold PHC hashes only, and since BACKUP-HASH-ENC (owner 2026-10-17) the hash column travels
 # ONLY inside the encrypted sensitive section (backup_sensitive.py; an export without a backup password leaves it out); sessions, links, the failure counters and the TOTP secrets
@@ -75,7 +78,9 @@ PROJECT_TABLES = PROJECT_TABLES + ["brand_assets"]
 # USR2 phase 4: the passkeys' PUBLIC keys (auth_webauthn_credentials) travel the same way; WebAuthn challenges exist in memory only.
 ACCESS_TABLES = ["users", "auth_local_credentials", "auth_webauthn_credentials", "identity_links", "groups", "group_members", "bindings", "custom_roles",
                  # CR-033: where stations sit (station scope), which relay each WisKey lock is, and the door grant card's own bindings
-                 "intercom_station_placement", "intercom_door_map", "door_grant_bindings"]
+                 "intercom_station_placement", "intercom_door_map", "door_grant_bindings",
+                 # HOME-SIMPLE-2420 (migration 0211): who sees the home or the full interface, home-only and wall-panel locks
+                 "home_interface_policy"]
 # USR2-FIX F9 (CR-USR2 §1a.6 "failure counters never travel in a backup"): the per-account failure counter, the ceiling lock and
 # who last unlocked it are columns of auth_local_credentials. They are left out of every archive and ignored in an archive that
 # has them (an older one), so a restored row starts with the column defaults (no failures, no lock).
