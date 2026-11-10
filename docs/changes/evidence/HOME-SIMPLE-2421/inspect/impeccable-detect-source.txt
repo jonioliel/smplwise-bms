@@ -1,0 +1,2 @@
+$ impeccable.cmd detect --json sw-home.ts home-styles-extra.ts sw-home-admin.ts home-wall.ts
+[]

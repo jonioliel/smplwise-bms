@@ -2,13 +2,17 @@
 // (also enforced by the server), the wall-panel lock with its room, and which rooms / categories the home interface shows. Plus the
 // wall panels' exit code and the starting favourites (the administrator's own favourites, copied for everyone who never edited theirs).
 // rbac.assign (the role assigner's own permission); every change is audited by the server. Never touches the home system's users.
+// HOME-SIMPLE-2421: three sub-tabs - people, the installation settings (default interface of new people, wall-panel exit, room
+// wallpaper) and the switch classification (light / not a light / protected: the system suggests by name, the administrator approves;
+// many at once, filtered by suggestion / class / room). The classification needs system.configure (its stores are Settings').
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
-import { describeError, get, put } from '../api/client';
+import { describeError, get, post, put } from '../api/client';
 import { getHomePrefs, getOverview, type HomeModule, type Interface, type Overview } from './home-api';
 import '../components/sw-button';
 import '../components/sw-toggle';
 import '../components/sw-view-switch';
+import '../components/sw-tabs';
 import '../components/sw-state-panel';
 
 interface PolicyRow {
@@ -16,6 +20,16 @@ interface PolicyRow {
   default_interface: Interface; may_switch: boolean; home_only: boolean; kiosk: boolean; kiosk_area_id: string | null;
   rooms: string[] | null; modules: HomeModule[] | null; configured: boolean; admin: boolean;
 }
+type SwitchClass = 'light' | 'not_light' | 'protected';
+interface SwitchRow {
+  entity_id: string; name: string; area_id: string | null; area_name: string | null; floor_name: string | null; state: string | null; available: boolean;
+  class: SwitchClass; suggest: SwitchClass | null; suggest_reason: string | null; locked: string | null;
+}
+interface InstallSettings { default_mode: 'full_all' | 'home_regular' | 'choose'; kiosk_exit: 'code' | 'none'; wallpaper: 'none' | 'gallery' | 'gallery_image' }
+const CLASS_LABEL: Record<SwitchClass, string> = { light: 'תאורה', not_light: 'לא תאורה', protected: 'מוגן' };
+const LOCKED_LABEL: Record<string, string> = { alarm_managed: 'נשלט ממסך האזעקה', media_managed: 'נשלט ממסך המולטימדיה', doors_layer: 'בשכבת הדלתות' };
+const PAGE = 20;
+
 interface Policies { users: PolicyRow[]; modules: HomeModule[]; seed: Record<string, unknown[]>; kiosk_code_set: boolean }
 
 const MODULE_LABEL: Record<HomeModule, string> = {
@@ -46,6 +60,29 @@ export class SwHomeAdmin extends LitElement {
     .msg { margin-block: 8px; font-size: var(--sw-fs-sm, 13px); } .msg.err { color: var(--sw-danger); } .msg.ok { color: var(--sw-success); }
     .extra { display: grid; gap: 10px; margin-block-start: 16px; }
     .inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .subtabs { margin-block-end: 16px; }
+    .opts { display: grid; gap: 6px; }
+    .opt { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border-radius: var(--sw-r-md, 8px); cursor: pointer; }
+    .opt:hover { background: var(--sw-surface-2); }
+    .opt input { margin-block-start: 3px; accent-color: var(--sw-accent); inline-size: 16px; block-size: 16px; }
+    .opt b { display: block; font-weight: 600; }
+    .filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-block-end: 10px; }
+    .bulk { position: sticky; inset-block-start: 0; z-index: 1; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 10px; margin-block-end: 8px;
+      border-radius: var(--sw-r-md, 8px); background: var(--sw-accent-soft); color: var(--sw-accent-text); }
+    .bulk[hidden] { display: none; }
+    .bulk .count { font-weight: 600; margin-inline-end: auto; }
+    table { inline-size: 100%; border-collapse: collapse; font-size: var(--sw-fs-sm, 13px); }
+    th, td { text-align: start; padding: 8px 6px; border-block-end: 1px solid var(--sw-border); vertical-align: middle; }
+    th { color: var(--sw-text-3); font-weight: 600; font-size: var(--sw-fs-xs, 12px); }
+    td.c { inline-size: 32px; }
+    td input, th input { inline-size: 16px; block-size: 16px; accent-color: var(--sw-accent); }
+    tr[aria-selected='true'] td { background: var(--sw-surface-2); }
+    .cls { font-size: var(--sw-fs-xs, 12px); padding: 2px 8px; border-radius: 999px; background: var(--sw-surface-2); color: var(--sw-text-2); white-space: nowrap; }
+    .cls.light { background: var(--sw-accent-soft); color: var(--sw-accent-text); }
+    .cls.protected { background: var(--sw-surface-3, var(--sw-surface-2)); color: var(--sw-heading); font-weight: 600; }
+    .sug { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .sug .why { color: var(--sw-text-3); font-size: var(--sw-fs-xs, 12px); }
+    .pager { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-block-start: 8px; color: var(--sw-text-3); font-size: var(--sw-fs-sm, 13px); }
   `;
 
   @state() private data: Policies | null = null;
@@ -55,6 +92,14 @@ export class SwHomeAdmin extends LitElement {
   @state() private message = '';
   @state() private busy = false;
   @state() private code = '';
+  @state() private sub: 'users' | 'install' | 'switches' = 'users';
+  @state() private inst: InstallSettings | null = null;
+  @state() private sw: SwitchRow[] | null = null;
+  @state() private swError = '';
+  @state() private swSel = new Set<string>();
+  @state() private swFilter: 'all' | 'suggested' | SwitchClass = 'all';
+  @state() private swArea = '';
+  @state() private swPage = 0;
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -63,8 +108,9 @@ export class SwHomeAdmin extends LitElement {
 
   private async load() {
     try {
-      const [p, ov] = await Promise.all([get<Policies>('home/policies'), getOverview().catch(() => null)]);
+      const [p, ov, st] = await Promise.all([get<Policies>('home/policies'), getOverview().catch(() => null), get<{ settings: InstallSettings }>('home/settings').catch(() => null)]);
       this.data = p;
+      this.inst = st?.settings ?? null;
       this.rooms = ov?.rooms ?? [];
       if (!this.sel && p.users[0]) this.sel = p.users[0].user_id;
       this.error = '';
@@ -108,12 +154,128 @@ export class SwHomeAdmin extends LitElement {
     }
   }
 
+  private async loadSwitches() {
+    try {
+      this.sw = (await get<{ switches: SwitchRow[] }>('home/switches')).switches;
+      this.swError = '';
+    } catch (err) {
+      this.swError = describeError(err);
+    }
+  }
+
+  private async saveInstall(patch: Partial<InstallSettings>) {
+    this.message = '';
+    try {
+      this.inst = (await put<{ settings: InstallSettings }>('home/settings', patch)).settings;
+      this.message = 'נשמר. משתמשים קיימים לא הושפעו.';
+    } catch (err) {
+      this.error = describeError(err);
+    }
+  }
+
+  private swVisible(): SwitchRow[] {
+    return (this.sw ?? []).filter((r) => (this.swFilter === 'all' ? true : this.swFilter === 'suggested' ? !!r.suggest : r.class === this.swFilter) && (!this.swArea || (r.area_id ?? '') === this.swArea));
+  }
+
+  private async mark(mark: SwitchClass, ids: string[]) {
+    if (!ids.length) return;
+    this.busy = true;
+    this.message = '';
+    try {
+      const r = await post<{ changed: number; refused: number }>('home/switches', { entity_ids: ids, mark });
+      this.message = `סומנו ${r.changed} כ"${CLASS_LABEL[mark]}".${r.refused ? ` ${r.refused} לא שונו (נשלטים ממסך אחר).` : ''}`;
+      this.swSel = new Set();
+      await this.loadSwitches();
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private async approveSelected() {
+    const rows = (this.sw ?? []).filter((r) => this.swSel.has(r.entity_id) && r.suggest);
+    for (const c of ['light', 'protected', 'not_light'] as SwitchClass[]) {
+      const ids = rows.filter((r) => r.suggest === c).map((r) => r.entity_id);
+      if (ids.length) await this.mark(c, ids);
+    }
+  }
+
+  private installPane() {
+    const i = this.inst;
+    if (!i) return html`<sw-state-panel state="loading"></sw-state-panel>`;
+    const opt = <K extends keyof InstallSettings>(k: K, v: InstallSettings[K], title: string, note: string) => html`<label class="opt"><input type="radio" name=${k} .checked=${i[k] === v} data-install=${`${k}:${v}`} @change=${() => this.saveInstall({ [k]: v } as Partial<InstallSettings>)}><span><b>${title}</b><span class="note">${note}</span></span></label>`;
+    return html`<div class="grid">
+      <section class="card" aria-label="ממשק למשתמשים חדשים"><h3>ממשק למשתמשים חדשים</h3><p class="note">חל רק על מי שעוד לא הוגדר. משתמשים קיימים נשארים עם מה שיש להם.</p><div class="opts">
+        ${opt('default_mode', 'full_all', 'ממשק מלא לכולם', 'ברירת המחדל. כל אחד יכול לעבור לממשק הביתי מהתפריט האישי.')}
+        ${opt('default_mode', 'home_regular', 'ביתי למשתמשים רגילים, מלא למנהלים', 'מנהל = מנהל מערכת או מי שרשאי להגדיר את המערכת.')}
+        ${opt('default_mode', 'choose', 'בחירה בכניסה הראשונה', 'בכניסה הראשונה מוצג מסך בחירה בין שני הממשקים, והבחירה נשמרת.')}
+      </div></section>
+      <section class="card" aria-label="מסכי קיר ורקע"><h3>מסכי קיר</h3><div class="opts">
+        ${opt('kiosk_exit', 'code', 'נעול, יציאה בקוד מנהל', 'ברירת המחדל. לחיצה ארוכה על השעון מבקשת את הקוד.')}
+        ${opt('kiosk_exit', 'none', 'נעול לממשק הביתי ולחדר שלו, בלי יציאה', 'אין תפריט אישי ואין דרך לצאת מהמסך עצמו. משנים רק מכאן.')}
+      </div>
+      <h3 style="margin-block-start:16px">רקע לחדרים</h3><div class="opts">
+        ${opt('wallpaper', 'none', 'בלי רקע', 'ברירת המחדל: מסך נקי.')}
+        ${opt('wallpaper', 'gallery', 'גלריה מוכנה', 'כל משתמש בוחר רקע מעומעם לכל חדר מתוך גלריה מובנית.')}
+        ${opt('wallpaper', 'gallery_image', 'גלריה ותמונה אישית', 'בנוסף אפשר להעלות תמונה לחדר (JPEG או PNG, עד 2 MB). התמונה נשמרת בשרת ונראית רק למי שהעלה אותה.')}
+      </div></section></div>`;
+  }
+
+  private switchesPane() {
+    if (this.swError) return html`<sw-state-panel state="error" hint=${this.swError} actionLabel="נסה שוב" @action=${() => this.loadSwitches()}></sw-state-panel>`;
+    if (!this.sw) return html`<sw-state-panel state="loading"></sw-state-panel>`;
+    const vis = this.swVisible();
+    const pages = Math.max(1, Math.ceil(vis.length / PAGE));
+    const pg = Math.min(this.swPage, pages - 1);
+    const rows = vis.slice(pg * PAGE, pg * PAGE + PAGE);
+    const areas = [...new Map(this.sw.filter((r) => r.area_id).map((r) => [r.area_id!, r.area_name ?? r.area_id!])).entries()];
+    const sel = this.swSel;
+    const allVis = vis.length > 0 && vis.every((r) => sel.has(r.entity_id));
+    const suggested = this.sw.filter((r) => r.suggest).length;
+    const setSel = (next: Set<string>) => { this.swSel = next; };
+    const toggle = (id: string, on: boolean) => { const n = new Set(sel); if (on) n.add(id); else n.delete(id); setSel(n); };
+    const selSuggested = [...sel].filter((id) => this.sw!.find((r) => r.entity_id === id)?.suggest).length;
+    return html`<section class="card" aria-label="סיווג מפסקים" data-home-switches>
+      <h3>סיווג מפסקים</h3>
+      <p class="note">תאורה נכבית ב"כיבוי החדר" וב"כיבוי הכל". "לא תאורה" (דוד, מקרר, משאבה...) לא נכבה בכיבוי כללי. "מוגן" גם מבקש אישור לפני כיבוי ידני ולא נכלל בשום פעולה קבוצתית. המערכת מציעה לפי השם, ואתם מאשרים.</p>
+      <div class="filters">
+        <sw-tabs segmented group-label="סינון" data-sw-filter .items=${[{ id: 'all', label: 'הכל', count: this.sw.length }, { id: 'suggested', label: 'הצעות', count: suggested }, { id: 'light', label: 'תאורה' }, { id: 'not_light', label: 'לא תאורה' }, { id: 'protected', label: 'מוגן' }]} .active=${this.swFilter} @change=${(e: CustomEvent<{ id: string }>) => { this.swFilter = e.detail.id as typeof this.swFilter; this.swPage = 0; }}></sw-tabs>
+        <select aria-label="חדר" data-sw-area @change=${(e: Event) => { this.swArea = (e.target as HTMLSelectElement).value; this.swPage = 0; }}><option value="">כל החדרים</option>${areas.map(([id, name]) => html`<option value=${id} ?selected=${this.swArea === id}>${name}</option>`)}</select>
+      </div>
+      <div class="bulk" ?hidden=${!sel.size} role="toolbar" aria-label="פעולה על המסומנים" data-sw-bulk>
+        <span class="count">${sel.size} מסומנים</span>
+        ${selSuggested ? html`<sw-button size="sm" variant="primary" ?disabled=${this.busy} data-sw-approve @click=${() => this.approveSelected()}>אישור ההצעות (${selSuggested})</sw-button>` : nothing}
+        <sw-button size="sm" ?disabled=${this.busy} data-sw-mark="light" @click=${() => this.mark('light', [...sel])}>תאורה</sw-button>
+        <sw-button size="sm" ?disabled=${this.busy} data-sw-mark="not_light" @click=${() => this.mark('not_light', [...sel])}>לא תאורה</sw-button>
+        <sw-button size="sm" ?disabled=${this.busy} data-sw-mark="protected" @click=${() => this.mark('protected', [...sel])}>מוגן</sw-button>
+        <sw-button size="sm" variant="ghost" @click=${() => setSel(new Set())}>ניקוי</sw-button>
+      </div>
+      ${vis.length ? html`<table>
+        <thead><tr><th class="c"><input type="checkbox" aria-label="סמן את כל המוצגים" data-sw-all .checked=${allVis} @change=${(e: Event) => { const on = (e.target as HTMLInputElement).checked; const n = new Set(sel); for (const r of vis) { if (on) n.add(r.entity_id); else n.delete(r.entity_id); } setSel(n); }}></th><th>שם</th><th>חדר</th><th>עכשיו</th><th>הצעה</th></tr></thead>
+        <tbody>${rows.map((r) => html`<tr data-sw-row=${r.entity_id} aria-selected=${String(sel.has(r.entity_id))}>
+          <td class="c"><input type="checkbox" aria-label=${'סמן ' + r.name} .checked=${sel.has(r.entity_id)} @change=${(e: Event) => toggle(r.entity_id, (e.target as HTMLInputElement).checked)}></td>
+          <td><b>${r.name}</b>${r.locked ? html`<div class="note">${LOCKED_LABEL[r.locked] ?? ''}</div>` : nothing}</td>
+          <td>${r.area_name ?? html`<span class="note">בלי חדר</span>`}</td>
+          <td><span class="cls ${r.class}">${CLASS_LABEL[r.class]}</span></td>
+          <td>${r.suggest ? html`<span class="sug"><sw-button size="sm" ?disabled=${this.busy} data-sw-accept=${r.entity_id} @click=${() => this.mark(r.suggest!, [r.entity_id])}>${CLASS_LABEL[r.suggest]}</sw-button><span class="why">${r.suggest_reason ?? ''}</span></span>` : html`<span class="note">—</span>`}</td>
+        </tr>`)}</tbody></table>
+        ${pages > 1 ? html`<div class="pager"><sw-button size="sm" variant="ghost" ?disabled=${pg === 0} @click=${() => { this.swPage = pg - 1; }}>הקודם</sw-button><span>${pg + 1} מתוך ${pages}</span><sw-button size="sm" variant="ghost" ?disabled=${pg >= pages - 1} @click=${() => { this.swPage = pg + 1; }}>הבא</sw-button></div>` : nothing}`
+        : html`<p class="note">אין מפסקים שמתאימים לסינון.</p>`}
+    </section>`;
+  }
+
   render() {
     if (this.error && !this.data) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>`;
     if (!this.data) return html`<sw-state-panel state="loading"></sw-state-panel>`;
     const u = this.data.users.find((x) => x.user_id === this.sel) ?? this.data.users[0];
-    return html`
-      ${this.message ? html`<p class="msg ok" role="status">${this.message}</p>` : nothing}${this.error ? html`<p class="msg err" role="alert">${this.error}</p>` : nothing}
+    const tabs = html`<div class="subtabs"><sw-tabs variant="underline-compact" group-label="ממשק ביתי" data-home-subtabs .items=${[{ id: 'users', label: 'משתמשים' }, { id: 'install', label: 'הגדרות התקנה' }, { id: 'switches', label: 'סיווג מפסקים' }]} .active=${this.sub}
+      @change=${(e: CustomEvent<{ id: string }>) => { this.sub = e.detail.id as typeof this.sub; this.message = ''; this.error = ''; if (this.sub === 'switches' && !this.sw) void this.loadSwitches(); }}></sw-tabs></div>`;
+    const msgs = html`${this.message ? html`<p class="msg ok" role="status">${this.message}</p>` : nothing}${this.error ? html`<p class="msg err" role="alert">${this.error}</p>` : nothing}`;
+    if (this.sub === 'install') return html`${tabs}${msgs}${this.installPane()}`;
+    if (this.sub === 'switches') return html`${tabs}${msgs}${this.switchesPane()}`;
+    return html`${tabs}
+      ${msgs}
       <div class="grid">
         <section class="card" aria-label="משתמשים"><div class="users">${this.data.users.map((x) => html`<button class="u" data-home-user=${x.user_id} aria-current=${String(x.user_id === u?.user_id)} @click=${() => { this.sel = x.user_id; this.message = ''; }}><b>${x.display_name}</b><span class="chip ${x.default_interface === 'home' ? 'home' : ''}">${x.kiosk ? 'מסך קיר' : x.home_only ? 'ביתי בלבד' : x.default_interface === 'home' ? 'ביתי' : 'מלא'}</span><span class="note">${x.home_only || !x.may_switch ? 'נעול' : 'מחליף'}</span></button>`)}</div></section>
         ${u ? this.detail(u) : nothing}

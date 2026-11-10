@@ -71,13 +71,14 @@ def _policy(c: TestClient, user: str, **body):
 
 # ---------------------------------------------------------------- defaults
 
-def test_defaults_home_for_regular_user_full_for_admin(app):
+def test_defaults_full_for_everyone(app):
+    """HOME-SIMPLE-2421 (owner): a person nobody configured opens the full interface (2.42.0: home for a regular user); both may switch."""
     c = _client(app)
     bind(c, app[1], "dana", "operator", "installation", "*")
     admin = c.get("/api/v1/me").json()["interface"]
     assert admin["interface"] == "full" and admin["may_switch"] is True and admin["home_only"] is False and admin["configured"] is False
     user = c.get("/api/v1/me", headers=as_user("dana")).json()["interface"]
-    assert user["interface"] == "home" and user["default_interface"] == "home" and user["may_switch"] is True and user["home_only"] is False
+    assert user["interface"] == "full" and user["default_interface"] == "full" and user["may_switch"] is True and user["home_only"] is False
 
 
 def test_migration_keeps_existing_users_on_the_full_interface(tmp_path: Path):
@@ -277,3 +278,152 @@ def test_gate_passes_on_a_database_from_before_0211():
     conn.row_factory = sqlite3.Row
     p = type("P", (), {"user_id": "u1"})()
     hi.enforce(conn, p, "/api/v1/cameras")  # must not raise
+
+
+# ---------------------------------------------------------------- HOME-SIMPLE-2421
+
+def test_new_default_is_full_for_everyone_and_the_setting_changes_it(app):
+    c = _client(app)
+    bind(c, app[1], "dana", "operator", "installation", "*")
+    assert c.get("/api/v1/home/settings").json()["settings"] == {"default_mode": "full_all", "kiosk_exit": "code", "wallpaper": "none"}
+    user = c.get("/api/v1/me", headers=as_user("dana")).json()["interface"]
+    assert user["interface"] == "full" and user["default_interface"] == "full" and user["choose"] is False
+    assert c.put("/api/v1/home/settings", json={"default_mode": "home_regular"}).status_code == 200
+    assert c.get("/api/v1/me", headers=as_user("dana")).json()["interface"]["interface"] == "home"
+    assert c.get("/api/v1/me").json()["interface"]["interface"] == "full"  # the administrator keeps the full interface
+    assert c.put("/api/v1/home/settings", json={"default_mode": "choose"}).status_code == 200
+    me = c.get("/api/v1/me", headers=as_user("dana")).json()["interface"]
+    assert me["choose"] is True and me["interface"] == "home"  # the choice screen lives in the home interface
+    r = c.put("/api/v1/me/interface", headers=as_user("dana"), json={"interface": "full"})
+    assert r.status_code == 200 and r.json()["interface"] == "full" and r.json()["choose"] is False
+    assert c.put("/api/v1/home/settings", json={"default_mode": "nope"}).status_code == 422
+    assert c.put("/api/v1/home/settings", headers=as_user("dana"), json={"default_mode": "full_all"}).status_code == 403
+    with app[0].state.db.connection() as conn:
+        rows = conn.execute("SELECT action, details_json FROM audit_log WHERE action = 'home_interface.settings.set'").fetchall()
+    assert len(rows) == 2
+
+
+def test_existing_people_keep_their_interface_when_the_default_changes(app):
+    """A person with a policy row is never moved by the installation setting; freeze_legacy_defaults keeps the 2.42.0 default of
+    people who arrived without one (home for a regular user, full for an administrator)."""
+    c = _client(app)
+    bind(c, app[1], "dana", "operator", "installation", "*")
+    bind(c, app[1], "rami", "operator", "installation", "*")
+    with app[0].state.db.connection() as conn:
+        conn.execute("DELETE FROM home_interface_policy")
+        assert hi.freeze_legacy_defaults(conn) >= 3
+        assert hi.freeze_legacy_defaults(conn) == 0
+    assert c.get("/api/v1/me", headers=as_user("dana")).json()["interface"]["interface"] == "home"
+    assert c.get("/api/v1/me").json()["interface"]["interface"] == "full"
+    assert c.put("/api/v1/home/settings", json={"default_mode": "choose"}).status_code == 200
+    assert c.get("/api/v1/me", headers=as_user("rami")).json()["interface"]["choose"] is False
+
+
+def test_switch_classification_suggests_and_the_admin_marks_many(app):
+    c = _client(app)
+    body = c.get("/api/v1/home/switches").json()
+    rows = {r["entity_id"]: r for r in body["switches"]}
+    assert set(rows) == {"switch.living_strip", "switch.boiler", "switch.fridge"}
+    assert all(r["class"] == "not_light" for r in rows.values())
+    assert rows["switch.boiler"]["suggest"] == "protected" and rows["switch.boiler"]["suggest_reason"]
+    assert rows["switch.living_strip"]["suggest"] == "light"  # "strip" is a lighting word
+    r = c.post("/api/v1/home/switches", json={"entity_ids": ["switch.living_strip"], "mark": "light"})
+    assert r.status_code == 200 and r.json()["changed"] == 1
+    r = c.post("/api/v1/home/switches", json={"entity_ids": ["switch.boiler", "switch.fridge", "switch.nope"], "mark": "protected"})
+    assert r.status_code == 200 and r.json()["changed"] == 2 and r.json()["refused"] == 1
+    rows = {r["entity_id"]: r for r in c.get("/api/v1/home/switches").json()["switches"]}
+    assert rows["switch.living_strip"]["class"] == "light" and rows["switch.living_strip"]["suggest"] is None
+    assert rows["switch.boiler"]["class"] == "protected" and rows["switch.fridge"]["class"] == "protected"
+    living = next(x for x in c.get("/api/v1/home/overview").json()["rooms"] if x["id"] == "living")
+    assert "switch.living_strip" in {x["entity_id"] for x in living["lights"]}
+    assert all(x["protected"] for x in living["switches"])
+    # back: a light marked "not a light" leaves the lights list; protection removed from the fridge
+    assert c.post("/api/v1/home/switches", json={"entity_ids": ["switch.living_strip", "switch.fridge"], "mark": "not_light"}).json()["changed"] == 2
+    rows = {r["entity_id"]: r for r in c.get("/api/v1/home/switches").json()["switches"]}
+    assert rows["switch.living_strip"]["class"] == "not_light" and rows["switch.fridge"]["class"] == "not_light"
+    with app[0].state.db.connection() as conn:
+        assert conn.execute("SELECT COUNT(*) FROM audit_log WHERE action = 'home_interface.switch_class.batch'").fetchone()[0] == 3
+    bind(c, app[1], "dana", "operator", "installation", "*")
+    assert c.get("/api/v1/home/switches", headers=as_user("dana")).status_code == 403
+    assert c.post("/api/v1/home/switches", headers=as_user("dana"), json={"entity_ids": ["switch.boiler"], "mark": "light"}).status_code == 403
+
+
+def test_house_off_and_room_off_never_reach_a_protected_or_not_light_switch_after_bulk_marking(app):
+    c = _client(app)
+    c.post("/api/v1/home/switches", json={"entity_ids": ["switch.living_strip"], "mark": "light"})
+    c.post("/api/v1/home/switches", json={"entity_ids": ["switch.boiler"], "mark": "protected"})
+    for scope, sid in (("building", "*"), ("area", "living")):
+        text = c.get(f"/api/v1/devices/actions/preview?scope={scope}&id={sid}&kind=lights_off").text
+        assert "switch.living_strip" in text and "switch.boiler" not in text and "switch.fridge" not in text
+
+
+def test_kiosk_exit_setting_none_closes_the_exit(app):
+    c = _client(app)
+    bind(c, app[1], "wall", "operator", "installation", "*")
+    assert _policy(c, "wall", kiosk=True, kiosk_area_id="living").status_code == 200
+    c.put("/api/v1/home/kiosk-code", json={"code": "4321"})
+    assert c.put("/api/v1/home/settings", json={"kiosk_exit": "none"}).status_code == 200
+    assert c.get("/api/v1/me", headers=as_user("wall")).json()["interface"]["kiosk_exit"] == "none"
+    r = c.post("/api/v1/home/kiosk/exit", headers=as_user("wall"), json={"code": "4321"})
+    assert r.status_code == 403 and r.json()["code"] == "kiosk_no_exit"
+    c.put("/api/v1/home/settings", json={"kiosk_exit": "code"})
+    assert c.post("/api/v1/home/kiosk/exit", headers=as_user("wall"), json={"code": "4321"}).json() == {"ok": True}
+
+
+def _png(w: int = 40, h: int = 30) -> bytes:
+    import io
+
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (w, h), (40, 60, 90)).save(buf, "PNG")
+    return buf.getvalue()
+
+
+def test_wallpaper_gallery_choice_is_validated_per_person(app):
+    c = _client(app)
+    assert c.put("/api/v1/home/prefs", json={"layout": {"wallpapers": {"living": "g:dusk"}}}).json()["layout"]["wallpapers"] == {"living": "g:dusk"}
+    assert c.put("/api/v1/home/prefs", json={"layout": {"wallpapers": {"living": "g:nope"}}}).status_code == 422
+    assert c.put("/api/v1/home/prefs", json={"layout": {"wallpapers": {"living": "https://x"}}}).status_code == 422
+    assert c.put("/api/v1/home/prefs", json={"layout": {"wallpapers": {"living": ""}}}).json()["layout"]["wallpapers"] == {}
+
+
+def test_wallpaper_personal_picture_only_when_enabled_and_only_its_owner(app):
+    c = _client(app)
+    bind(c, app[1], "dana", "operator", "installation", "*")
+    files = {"file": ("w.png", _png(), "image/png")}
+    r = c.put("/api/v1/home/wallpaper/living", files=files)
+    assert r.status_code == 403 and r.json()["code"] == "wallpaper_image_off"
+    assert c.put("/api/v1/home/settings", json={"wallpaper": "gallery_image"}).status_code == 200
+    r = c.put("/api/v1/home/wallpaper/living", files={"file": ("w.png", _png(), "image/png")})
+    assert r.status_code == 200, r.text
+    assert r.json()["layout"]["wallpapers"] == {"living": "img"}
+    got = c.get("/api/v1/home/wallpaper/living")
+    assert got.status_code == 200 and got.headers["content-type"] in ("image/jpeg", "image/png") and got.headers["cache-control"].startswith("private")
+    assert c.get("/api/v1/home/wallpaper/living", headers=as_user("dana")).status_code == 404  # another person's picture is never served
+    bad = c.put("/api/v1/home/wallpaper/living", files={"file": ("w.gif", b"GIF89a....", "image/gif")})
+    assert bad.status_code == 422 and bad.json()["code"] == "image_refused"
+    big = c.put("/api/v1/home/wallpaper/living", files={"file": ("w.png", b"\x89PNG\r\n\x1a\n" + b"0" * (hi.WALL_IMAGE_BYTES + 10), "image/png")})
+    assert big.status_code in (413, 422)
+    assert c.delete("/api/v1/home/wallpaper/living").json()["layout"]["wallpapers"] == {}
+    assert c.get("/api/v1/home/wallpaper/living").status_code == 404
+    c.put("/api/v1/home/wallpaper/living", files={"file": ("w.png", _png(), "image/png")})
+    c.put("/api/v1/home/settings", json={"wallpaper": "none"})
+    assert c.get("/api/v1/home/wallpaper/living").status_code == 404  # turned off for the installation: not served
+
+
+def test_migration_0212_creates_the_picture_table(tmp_path: Path):
+    sql = (Path(hi.__file__).resolve().parents[1] / "migrations" / "0212_home_interface_2421.sql").read_text(encoding="utf-8")
+    conn = sqlite3.connect(tmp_path / "m.db")
+    conn.executescript(sql)
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(home_room_image)").fetchall()]
+    assert cols == ["user_id", "room_key", "mime", "data_b64", "bytes", "updated_at"]
+
+
+def test_overview_locks_carry_the_unlock_reason(app):
+    c = _client(app)
+    living = next(x for x in c.get("/api/v1/home/overview").json()["rooms"] if x["id"] == "living")
+    lock = next(x for x in living["locks"] if x["entity_id"] == "lock.front")
+    # the same reason the devices panel says for this caller (the one function door_authority.unlock_reason)
+    panel = c.get("/api/v1/ha/entities/lock.front").json()
+    assert lock["unlock_reason"] == panel["unlock_reason"] and lock["can_unlock"] is (panel["unlock_reason"] == "ok")
