@@ -90,7 +90,7 @@ go2rtc or Home Assistant.
 | frontend unit: `unit-warmup-polish-2421.spec.ts` (new, 9) + `unit-perf-home-devices.spec.ts` (incl. lazy-tags-check) + `unit-video-conn-test.spec.ts` | **35 passed** |
 | `evidence-warmup-polish-2421.spec.ts` (new, 7: card at 1024x768 / 1280x800 / 1440x900 + below desktop, idle prefetch, socket never opens + retry, no WebRTC -> MSE), desktop project, against the Vite dev server (`SW_BASE_URL`) | **7 passed** |
 | `evidence-nvrless-cameras-2412`, `evidence-nvr-less`, `evidence-capabilities`, `evidence-perf-plan-shell`, `perf-home-load`, desktop + tablet, dev server | **10 passed, 36 skipped** (live / fixture-only) |
-| `layout-noscroll-297`, `evidence-noscroll-295`, `layout-overview-pages-297`, all projects, dev server | see section 6 |
+| `layout-noscroll-297`, `evidence-noscroll-295`, `layout-overview-pages-297`, all projects, dev server | **48 passed, 95 skipped, 1 failed** - the failure was `tickets-overview-worst at 1920x1080` (another screen; timed out under the loaded workstation) and **passed on a rerun** (`--last-failed`: 1 passed) |
 | `scripts/gate/lint_spec_waits.py` on the two new specs | 0 findings |
 | Pixel baselines, the runner's built preview, the full gate | **NOT_RUN** (no build here; the runner gate should run the specs above on the preview and refresh any live-overview / player baselines: the attention card now shows one-line rows and a pager on a desktop) |
 | The lab / real add-on host | **NOT_RUN** (not allowed in this task) |
