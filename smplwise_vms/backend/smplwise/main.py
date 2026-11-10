@@ -1249,6 +1249,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     log.warning("janitor tick failed: %s", type(exc).__name__, exc_info=True)
 
         app.state.janitor = asyncio.create_task(loop())
+        from .services import startup_warmup
+
+        # WARMUP-POLISH-2421: the bounded read-only warm-up of what the first screens read (its own daemon thread, a few seconds from
+        # now; never blocks readiness; off with server.startup_warmup = "false" or SW_STARTUP_WARMUP=0)
+        app.state.startup_warmup = startup_warmup.start(app.state.db, app)
         if settings.remote_access:  # CR-008: re-validate remote sessions against HA (revocation within 60 s)
             from .services import ha_user_auth
 

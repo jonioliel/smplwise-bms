@@ -1430,7 +1430,7 @@ export class LiveCamera extends LitElement {
             ? html`<span class="note" data-remote-video-policy>גישה מרחוק: ${this.transport === 'mse' ? 'MSE בלבד' : this.transport === 'webrtc' ? 'WebRTC בלבד · בלי MSE' : `WebRTC תחילה${remote.mseFallback ? ' · MSE רק כמוצא אחרון' : ' · בלי MSE'}`}</span>`
             : nothing}
         </div>
-        ${this.playerStatus === 'playing' && this.settings?.['media.video_notices'] !== 'true' ? nothing : html`<div class="note">${this.playerStatus === 'playing' ? `מנגן דרך ${this.playerTransport === 'webrtc' ? 'WebRTC' : 'MSE'}` : this.playerStatus === 'error' ? 'הזרם לא זמין' : 'מתחבר…'}</div>`}
+        ${this.playerStatus === 'playing' && this.settings?.['media.video_notices'] !== 'true' ? nothing : html`<div class="note">${this.playerStatus === 'playing' ? `מנגן דרך ${this.playerTransport === 'webrtc' ? 'WebRTC' : 'MSE'}` : this.playerStatus === 'error' ? 'הזרם לא זמין' : this.playerStatus === 'ended' ? 'הסתיים' : 'מתחבר…'}</div>`}
       </div>
       ${this.renderCast(cam)}
       <frigate-camera-control camera-id=${cam.id} recorder-id=${cam.recorder_id} data-live-frigate-control></frigate-camera-control>

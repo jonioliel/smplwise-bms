@@ -28,6 +28,7 @@ import { liveTileKnobs } from '../styles/tile-knobs';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { syncErrorText } from '../api/ha-sync-status';
+import { attentionFit } from './live-overview-logic';
 import { timeText } from '../api/day-format';
 
 /** GET /api/v1/health — connection facts used for the attention list. */
@@ -77,6 +78,13 @@ export class LiveOverview extends LitElement {
   @state() private tz = 'Asia/Jerusalem';
   @state() private now = new Date();
   @state() private loaded = false;
+  /** WARMUP-POLISH-2421 (owner rule: a control screen never scrolls): how many attention items fit the card on a desktop (null: all
+   * of them, or not measured yet) and the page of them shown; the card pages instead of scrolling inside. */
+  @state() private spotFit: number | null = null;
+  @state() private spotPage = 0;
+  private spotMeasure = true;
+  private spotObserver: ResizeObserver | null = null;
+  private spotCount = -1;
   /** UXREST-295: every call of the first read failed (server away): an error with a retry, not zeros and "reading the system state" for ever. */
   @state() private loadFailed = false;
   private timer = 0;
@@ -93,6 +101,8 @@ export class LiveOverview extends LitElement {
   }
 
   disconnectedCallback() {
+    this.spotObserver?.disconnect();
+    this.spotObserver = null;
     window.clearInterval(this.timer);
     window.clearInterval(this.clockTimer);
     super.disconnectedCallback();
@@ -244,17 +254,7 @@ export class LiveOverview extends LitElement {
                 )
               : html`<div class="muted">${this.loaded ? 'אין אירועים ב־24 השעות האחרונות' : 'טוען…'}</div>`}
           </sw-card>
-          <sw-card fill heading="דורש תשומת לב" subheading="כל פריט מסביר מדוע הוא מוצג">
-            ${spots.length
-              ? spots.map(
-                  (s) => html`<div class="spot ${s.kind}" data-overview-spot>
-                    <div class="ic"><sw-icon name=${s.kind === 'critical' ? 'offline' : s.kind === 'info' ? 'info' : 'warning'} size=${15}></sw-icon></div>
-                    <div><div class="t">${s.title}</div><div class="muted">${s.meta}</div><div class="why">${s.why}</div></div>
-                    <div class="actions"><a href=${s.link}><sw-button size="sm">פתח</sw-button></a></div>
-                  </div>`,
-                )
-              : html`<div class="muted" data-overview-calm>${this.loaded ? 'הכול תקין — אין פריטים שדורשים תשומת לב כרגע.' : 'בודק…'}</div>`}
-          </sw-card>
+          ${this.renderAttention(spots, html`<div class="muted" data-overview-calm>${this.loaded ? 'הכול תקין — אין פריטים שדורשים תשומת לב כרגע.' : 'בודק…'}</div>`)}
         </div>
       </sw-page>
     `;
@@ -471,6 +471,47 @@ export class LiveOverview extends LitElement {
       margin-inline-start: auto;
       align-self: center;
     }
+    .spot .sbody {
+      min-inline-size: 0;
+      flex: 1 1 auto;
+    }
+    /* WARMUP-POLISH-2421: the attention pager (a desktop card pages its items instead of scrolling) */
+    .spotpager {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      block-size: 30px;
+      margin-block-start: 4px;
+      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      font-variant-numeric: tabular-nums;
+    }
+    .spotpager button {
+      display: grid;
+      place-items: center;
+      inline-size: 28px;
+      block-size: 28px;
+      border: 1px solid var(--sw-border);
+      border-radius: var(--sw-r-sm);
+      background: var(--sw-surface);
+      color: var(--sw-text);
+      cursor: pointer;
+      padding: 0;
+    }
+    .spotpager button:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+    @media (min-width: 1024px) {
+      /* one line each for the meta and the reason on a desktop (the full text is the tooltip): more items fit before the pager */
+      .spot .sbody > .muted,
+      .spot .sbody > .why {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+    }
     .seeall {
       color: var(--sw-accent-text);
       text-decoration: none;
@@ -662,6 +703,74 @@ export class LiveOverview extends LitElement {
     }
   `];
 
+
+  /** WARMUP-POLISH-2421: the attention card. On a desktop (>= 1024 px, where the page fits the viewport) the items that do not fit
+   * the card's height are paged ("1-2 מתוך 3" with previous / next) instead of scrolling inside the card; below that the page scrolls
+   * as before and every item is shown. */
+  private renderAttention(spots: Spot[], calm: unknown) {
+    if (spots.length !== this.spotCount) {
+      this.spotCount = spots.length;
+      this.spotMeasure = true;
+    }
+    const fit = this.spotFit !== null && this.spotFit < spots.length ? this.spotFit : null;
+    const pages = fit ? Math.ceil(spots.length / fit) : 1;
+    const page = Math.min(this.spotPage, pages - 1);
+    const shown = fit ? spots.slice(page * fit, page * fit + fit) : spots;
+    return html`<sw-card fill clip data-overview-attention heading="דורש תשומת לב" subheading="כל פריט מסביר מדוע הוא מוצג">
+      ${spots.length
+        ? shown.map(
+            (s) => html`<div class="spot ${s.kind}" data-overview-spot>
+              <div class="ic"><sw-icon name=${s.kind === 'critical' ? 'offline' : s.kind === 'info' ? 'info' : 'warning'} size=${15}></sw-icon></div>
+              <div class="sbody"><div class="t" title=${s.title}>${s.title}</div><div class="muted" title=${s.meta}>${s.meta}</div><div class="why" title=${s.why}>${s.why}</div></div>
+              <div class="actions"><a href=${s.link}><sw-button size="sm">פתח</sw-button></a></div>
+            </div>`,
+          )
+        : calm}
+      ${fit
+        ? html`<div class="spotpager" data-overview-spot-pager>
+            <button type="button" data-spot-prev aria-label="הפריטים הקודמים" ?disabled=${page === 0} @click=${() => (this.spotPage = page - 1)}><sw-icon name="chevron" size=${14}></sw-icon></button>
+            <span data-overview-spot-range>${fit === 1 ? String(page + 1) : bidi(`${page * fit + 1}–${Math.min(spots.length, page * fit + fit)}`)} מתוך ${spots.length}</span>
+            <button type="button" data-spot-next aria-label="הפריטים הבאים" ?disabled=${page >= pages - 1} @click=${() => (this.spotPage = page + 1)}><sw-icon name="chevronBack" size=${14}></sw-icon></button>
+          </div>`
+        : nothing}
+    </sw-card>`;
+  }
+
+  protected updated() {
+    const card = this.renderRoot.querySelector<HTMLElement>('sw-card[data-overview-attention]');
+    if (!card) return;
+    const pageEl = this.renderRoot.querySelector<HTMLElement>('sw-page');
+    if (!this.spotObserver && pageEl && typeof ResizeObserver !== 'undefined') {
+      // the page's box follows the viewport on a desktop (block-size: 100%), not what the card shows - no measure loop
+      this.spotObserver = new ResizeObserver(() => {
+        this.spotMeasure = true;
+        this.requestUpdate();
+      });
+      this.spotObserver.observe(pageEl);
+    }
+    if (!this.spotMeasure) return;
+    if (this.spotFit !== null) {
+      this.spotFit = null; // a new measure starts from every item rendered (the next update measures)
+      return;
+    }
+    requestAnimationFrame(() => this.measureSpots());
+  }
+
+  /** WARMUP-POLISH-2421: count the attention items that fit (every item rendered, after layout). */
+  private measureSpots() {
+    if (!this.spotMeasure || this.spotFit !== null) return;
+    this.spotMeasure = false;
+    const card = this.renderRoot.querySelector<HTMLElement>('sw-card[data-overview-attention]');
+    const desktop = typeof matchMedia === 'function' && matchMedia('(min-width: 1024px)').matches;
+    const body = card?.shadowRoot?.querySelector<HTMLElement>('.body');
+    const items = card ? [...card.querySelectorAll<HTMLElement>('[data-overview-spot]')] : [];
+    if (!desktop || !body || !items.length) return;
+    const pad = parseFloat(getComputedStyle(body).paddingBottom || '0') || 0;
+    const fit = attentionFit(body.getBoundingClientRect().top + body.clientHeight - pad, items.map((el) => el.getBoundingClientRect().bottom));
+    if (fit < items.length) this.spotFit = fit;
+  }
+
+
   render() {
     if (isApi()) return this.renderApi();
     const online = demoWall.filter((c) => c.state === 'live' || c.state === 'stale').length;
@@ -721,15 +830,7 @@ export class LiveOverview extends LitElement {
               </div>`,
             )}
           </sw-card>
-          <sw-card fill heading="דורש תשומת לב" subheading="כל פריט מסביר מדוע הוא מוצג">
-            ${spotlights.map(
-              (s) => html`<div class="spot ${s.kind}">
-                <div class="ic"><sw-icon name=${s.kind === 'critical' ? 'offline' : 'warning'} size=${15}></sw-icon></div>
-                <div><div class="t">${s.title}</div><div class="muted">${s.meta}</div><div class="why">${s.why}</div></div>
-                <div class="actions"><a href=${s.link}><sw-button size="sm">פתח</sw-button></a></div>
-              </div>`,
-            )}
-          </sw-card>
+          ${this.renderAttention(spotlights as Spot[], nothing)}
         </div>
       </sw-page>
     `;

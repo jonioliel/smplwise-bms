@@ -39,6 +39,7 @@ os.environ.setdefault("SW_ACCESS_GRANTS_WORKER", "0")
 os.environ.setdefault("SW_TRANSIT", "0")
 # CR-039 DOORWIN-295: the door-windows watchdog thread stays off; tests call door_windows.WORKER.run_once / sync / watch with explicit instants
 os.environ.setdefault("SW_DOORWIN_WORKER", "0")
+os.environ.setdefault("SW_STARTUP_WARMUP", "0")  # WARMUP-POLISH-2421: no warm-up thread in the test apps (tests call startup_warmup.run)
 # WISKEY-EVENT-CURSOR-2400: the service feed's events/resume_v1 pump stays off; tests drive wiskey_event_resume.step / pass_once / run with a fake WisKey
 os.environ.setdefault("SW_WISKEY_EVENT_RESUME", "0")
 

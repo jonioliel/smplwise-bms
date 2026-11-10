@@ -240,6 +240,72 @@ export function warmHomeDrillDown(): void {
   else setTimeout(run, 1500);
 }
 
+/**
+ * WARMUP-POLISH-2421 (owner-approved): after the first screen is up, fetch the chunks of the screens people open next while the
+ * browser is idle - one chunk at a time, each in its own idle slot, at most WARM_SCREENS.length chunks per page, so the first tap on a
+ * common tab does not wait for the network (the cold start after an add-on update is the slow case: the service worker holds none of
+ * the new chunk names yet). Nothing renders from it, nothing is counted by pendingScreens, and a failed fetch never reloads the page.
+ * Off with the `server.startup_warmup` setting ("false"), on a data-saver connection, and in a hidden tab (it waits for the next call).
+ */
+export const WARM_SCREENS: readonly string[] = ['devices-area', 'live-overview', 'live-wall', 'live-camera', 'devices-synoptic', 'investigate-events'];
+let warmupOn = true;
+let warmQueue: string[] | null = null;
+
+/** The installation's `server.startup_warmup` setting (anything but "false" keeps it on). */
+export function setScreenWarmup(value: unknown): void {
+  warmupOn = String(value ?? 'true') !== 'false';
+}
+
+/** Whether the idle warm-up may run here: the setting, the browser's data-saver flag and a visible tab. */
+export function screenWarmupAllowed(on = warmupOn, nav: unknown = typeof navigator !== 'undefined' ? navigator : undefined, doc: unknown = typeof document !== 'undefined' ? document : undefined): boolean {
+  if (!on) return false;
+  if ((nav as { connection?: { saveData?: boolean } } | undefined)?.connection?.saveData) return false;
+  return (doc as { visibilityState?: string } | undefined)?.visibilityState !== 'hidden';
+}
+
+/** The chunks the warm-up would still fetch, in order (the current route's own drill-down first; landed or defined tags skipped). */
+export function warmOrder(first: readonly string[] = []): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const tag of [...first, ...WARM_SCREENS]) {
+    if (seen.has(tag) || !LAZY_SCREENS[tag] || isDefined(tag) || landed.has(tag)) continue;
+    seen.add(tag);
+    out.push(tag);
+  }
+  return out;
+}
+
+const whenIdle = (run: () => void): void => {
+  const idle = (globalThis as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+  if (idle) idle(run, { timeout: 4000 });
+  else setTimeout(run, 1500);
+};
+
+/** Start the idle warm-up of the common screens once per page (see WARM_SCREENS). `first`: tags to warm before the common list. */
+export function warmCommonScreens(first: readonly string[] = []): void {
+  if (warmQueue || !screenWarmupAllowed()) return;
+  warmQueue = warmOrder(first);
+  const next = (): void => {
+    const tag = warmQueue?.shift();
+    if (!tag) return;
+    if (!screenWarmupAllowed()) {
+      warmQueue?.unshift(tag); // switched off or the tab went to the background: stop here (a hidden tab resumes on the next call)
+      warmQueue = warmupOn ? warmQueue : [];
+      if (warmupOn) {
+        const resume = () => {
+          document.removeEventListener('visibilitychange', resume);
+          whenIdle(next);
+        };
+        if (typeof document !== 'undefined') document.addEventListener('visibilitychange', resume);
+      }
+      return;
+    }
+    // already defined meanwhile (the viewer opened it): nothing to fetch, go on; else the next one after this one settled
+    if (!loadScreen(tag, () => whenIdle(next), true) && !loads.has(tag)) whenIdle(next);
+  };
+  whenIdle(next);
+}
+
 /** Put a parked element back where its comment is, upgraded first when its chunk defined it (see the header). */
 function unpark(el: Element, mark: Comment): void {
   if (!mark.isConnected) return; // the render moved on (another route, another floor): the element went with its place
