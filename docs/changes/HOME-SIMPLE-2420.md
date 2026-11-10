@@ -117,11 +117,12 @@ research/CONTROL4_UI_NOTES.md) plus the lead's defaults (switch rules, themes) o
 | `pytest tests/test_backup.py tests/test_backup_sensitive.py tests/test_body_limit.py tests/test_me_permissions.py tests/test_migrations.py tests/test_migrations_263_upgrade.py tests/test_rbac_matrix.py tests/test_user_prefs.py tests/test_devices.py tests/test_presence*.py tests/test_home_interface.py` | 0 | all passed (the -q addopts prints no summary; exit 0, no F/E) |
 | `npx tsc --noEmit` | 0 | clean |
 | `npx playwright test -c playwright.unit.config.ts tests/unit-home-simple-logic.spec.ts` | 0 | 6 passed |
-| `npx playwright test tests/home-simple-2420.spec.ts --project=desktop` | see below | 3 size sweeps (18 screens each: no scroll, scrollTop 0, RTL, >= 56 px targets on the tablet / 44 on the phone, no forbidden words) + behaviour + admin |
+| `npx playwright test tests/home-simple-2420.spec.ts --project=desktop` (after `npm run build`) | 0 | 14 passed: 3 size sweeps (18 screens each: no scroll, scrollTop 0, RTL, >= 56 px targets on the tablet / 44 on the phone, no forbidden words) + 10 behaviour + 1 admin page |
+| related unit specs (user menu, nav, settings nav, kiosk idle, home screen, search access, ...: 14 files) | 0 | 94 passed |
 | `python scripts/gate/lint_spec_waits.py frontend/tests/home-simple-2420.spec.ts` | 0 | 0 findings |
 | `node scripts/lazy-tags-check.mjs` | 0 | OK |
 
-The final counts of the last runs are in the report to the lead. NOT_RUN: the full backend suite, the full Playwright suite and the
+NOT_RUN: the whole `playwright.unit.config.ts` run (started, it collects 11 202 tests including page specs that need a server; stopped after 2 260 - not a result); the full backend suite, the full Playwright suite and the
 pixel baselines (runner, via the lead); any live run against the lab; real tablet / phone.
 
 ## Design skills (SKILLS_BRIEF.md)
