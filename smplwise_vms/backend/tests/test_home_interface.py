@@ -269,3 +269,11 @@ def test_kiosk_exit_code(app):
     for _ in range(hi.KIOSK_TRIES):
         c.post("/api/v1/home/kiosk/exit", headers=as_user("wall"), json={"code": "9999"})
     assert c.post("/api/v1/home/kiosk/exit", headers=as_user("wall"), json={"code": "4321"}).status_code == 429
+
+
+def test_gate_passes_on_a_database_from_before_0211():
+    """A database without the policy table (before migration 0211) has no home-only person: the gate lets the request through."""
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    p = type("P", (), {"user_id": "u1"})()
+    hi.enforce(conn, p, "/api/v1/cameras")  # must not raise

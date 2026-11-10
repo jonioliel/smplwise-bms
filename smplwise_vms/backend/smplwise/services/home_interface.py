@@ -260,7 +260,13 @@ def enforce(conn: sqlite3.Connection, principal: Principal, path: str, request_i
     read for everyone else. Never applies to a system administrator (set_policy refuses that combination; this is the second lock)."""
     if home_allowed(path, root_path):
         return
-    r = conn.execute("SELECT home_only, kiosk FROM home_interface_policy WHERE user_id = ?", (principal.user_id,)).fetchone()
+    try:
+        r = conn.execute("SELECT home_only, kiosk FROM home_interface_policy WHERE user_id = ?", (principal.user_id,)).fetchone()
+    except sqlite3.OperationalError as exc:
+        # A database from before migration 0211 (no policy table yet) has no home-only person: nothing to refuse.
+        if "no such table" in str(exc):
+            return
+        raise
     if r is None or not (r["home_only"] or r["kiosk"]):
         return
     if is_system_admin(conn, principal.user_id):
