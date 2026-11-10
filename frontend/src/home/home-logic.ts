@@ -43,6 +43,12 @@ export function doorsText(doors: HDoor[]): string {
   return u.length === 1 ? `${u[0].name} ${u[0].kind === 'gate' ? 'פתוח' : 'פתוחה'}` : `${u.length} דלתות פתוחות`;
 }
 
+// HOME-SIMPLE-2421 (lab 2.42.0): why a door offers no "open" here (the server's unlock_reason, the devices panel's own rule), in calm words
+const DOOR_NO_OPEN: Record<string, string> = {
+  door_not_mapped: 'הדלת עדיין לא משויכת לעמדה', no_permission: 'אין הרשאה לפתוח', no_control: 'אין הרשאה לפתוח', not_placed: 'אין הרשאה לפתוח את הדלת הזו',
+  wall_profile: 'מסך קיר לא פותח דלתות', alarm_managed: 'נשלטת ממסך האזעקה',
+};
+export const doorNoOpenText = (reason: string): string => DOOR_NO_OPEN[reason] ?? 'אי אפשר לפתוח מכאן כרגע';
 export const doorState = (d: HDoor): string => (d.kind === 'gate' ? (d.locked ? 'סגור' : 'פתוח') : d.locked ? 'נעולה' : 'פתוחה');
 
 export function shadeText(pos: number | null, moving = false, state: string | null = null): string {

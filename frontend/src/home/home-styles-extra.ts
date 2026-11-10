@@ -18,4 +18,19 @@ export const homeExtraStyles = css`
   .st-pill { position: relative; }
   .st-pill::after { content: ''; position: absolute; inset: -6px 0; }
   .hsw:disabled, .lamp:disabled { opacity: .45; cursor: default; }
+  /* HOME-SIMPLE-2421: a door the door rule does not let this person open - a quiet line instead of the button */
+  .dno { max-inline-size: 16ch; font-size: var(--f-sm); color: var(--hs-text-3); text-align: end; line-height: 1.3; }
+  /* HOME-SIMPLE-2421: the room wallpaper - the picture / gallery field under a scrim of the theme's own background (contrast kept) */
+  .hs.walled { position: relative; isolation: isolate; }
+  .hs.walled::before, .hs.walled::after { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; }
+  .hs.walled::before { background: var(--hs-wall); background-size: cover; background-position: center; }
+  .hs.walled::after { background: color-mix(in oklab, var(--hs-bg) 76%, transparent); }
+  .wall-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; flex: 1 1 auto; min-block-size: 0; align-content: start; }
+  .wall-opt { display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 8px; padding: 8px; min-block-size: 96px; text-align: start; position: relative; }
+  .wall-pv { display: block; border-radius: 10px; min-block-size: 56px; background: var(--hs-wall, var(--hs-surface-3)); border: 1px solid var(--hs-border); }
+  .wall-opt[aria-checked='true'] { outline: 2px solid var(--hs-accent); outline-offset: 2px; }
+  .wall-opt .tick { position: absolute; inset-block-start: 12px; inset-inline-end: 12px; opacity: 0; }
+  .wall-opt[aria-checked='true'] .tick { opacity: 1; color: var(--hs-accent-text); }
+  [data-wall-upload] { cursor: pointer; }
+  @media (max-width: 700px) { .wall-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 `;

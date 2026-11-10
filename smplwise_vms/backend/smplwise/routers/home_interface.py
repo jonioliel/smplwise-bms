@@ -16,15 +16,19 @@ from __future__ import annotations
 import sqlite3
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, File, Request, Response, UploadFile
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..rbac import INSTALLATION, Principal, require
+from ..services import device_bulk as bulk
+from ..services import device_types
 from ..services import devices as svc
+from ..services import door_authority, intercom_doors
 from ..services import ha_scope
 from ..services import home_interface as hi
+from ..services import switch_protection
 
 router = APIRouter()
 
@@ -63,7 +67,7 @@ LIGHT_FIELDS = ("entity_id", "name", "domain", "state", "available", "active", "
 CLIMATE_FIELDS = ("entity_id", "name", "domain", "state", "available", "active", "can_control", "climate_kind", "hvac_mode", "hvac_modes", "hvac_action",
                   "current_temperature", "target_temperature", "min_temp", "max_temp", "target_temp_step", "preset_mode", "preset_modes", "unit")
 COVER_FIELDS = ("entity_id", "name", "domain", "state", "available", "active", "can_control", "position", "moving")
-LOCK_FIELDS = ("entity_id", "name", "domain", "state", "available", "active", "can_control", "locked", "wiskey_door")
+LOCK_FIELDS = ("entity_id", "name", "domain", "state", "available", "active", "can_control", "locked", "wiskey_door", "alarm_managed")
 
 
 def _pick(row: dict[str, Any], fields: tuple[str, ...]) -> dict[str, Any]:
@@ -83,14 +87,14 @@ def build_overview(conn: sqlite3.Connection, principal: Principal) -> dict[str, 
 
     media_managed = media_store.managed_entities(conn)
     flags = dev._bulk_flags(conn, principal, reads)
-    from ..services import device_bulk as bulk
-
     switch_policy = bulk.SwitchPolicy(conn, managed=managed)
     allowed_rooms = set(pol["rooms"]) if pol["rooms"] is not None else None
     if allowed_rooms is not None and pol["kiosk_area_id"]:
         allowed_rooms.add(pol["kiosk_area_id"])
     modules = set(pol["modules"]) if pol["modules"] is not None else set(hi.MODULES)
     rooms: dict[str, dict[str, Any]] = {}
+    unlock_scope = None
+    wiskey_ids: set[str] = set()
     floors = []
     for f in tree["floors"]:
         kept = []
@@ -129,7 +133,19 @@ def build_overview(conn: sqlite3.Connection, principal: Principal) -> dict[str, 
                 r["shades"].append(_pick(row, COVER_FIELDS))
         elif domain == "lock":
             if "doors" in modules:
-                r["locks"].append(_pick(row, LOCK_FIELDS))
+                lk = _pick(row, LOCK_FIELDS)
+                # HOME-SIMPLE-2421 (lab 2.42.0): why the open is (not) offered - THE rule of the devices panel and the single-entity view
+                # (door_authority.unlock_reason); the home interface offers "open" only when it is "ok" (the action route decides again)
+                if unlock_scope is None:
+                    unlock_scope = door_authority.UnlockScope(conn, principal)
+                    wiskey_ids = intercom_doors.wiskey_lock_ids(conn)
+                is_wk = eid in wiskey_ids
+                lk["wiskey_door"] = bool(lk.get("wiskey_door")) or is_wk
+                lk["unlock_reason"] = door_authority.unlock_reason(conn, principal, eid, wiskey=is_wk, alarm_managed=eid in managed or bool(lk.get("alarm_managed")),
+                                                                  can_control=bool(row.get("can_control")), scope=unlock_scope)
+                lk["can_unlock"] = lk["unlock_reason"] == "ok"
+                lk.pop("alarm_managed", None)
+                r["locks"].append(lk)
     return {
         "weather": _weather(conn),
         "floors": floors,
@@ -276,3 +292,213 @@ def kiosk_exit(body: KioskExitBody, request: Request, principal: Principal = Dep
     if not ok:
         raise hi.HomeInterfaceError(403, "wrong_code", "הקוד שגוי.")
     return {"ok": True}
+
+
+# ---------------------------------------------------------------- HOME-SIMPLE-2421: installation settings
+
+class InstallBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    default_mode: Literal["full_all", "home_regular", "choose"] | None = None
+    kiosk_exit: Literal["code", "none"] | None = None
+    wallpaper: Literal["none", "gallery", "gallery_image"] | None = None
+
+
+@router.get("/home/settings")
+def get_install_settings(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The home interface's installation settings: default interface of new people, wall-panel exit, room wallpaper. rbac.assign."""
+    require(conn, principal, ADMIN, INSTALLATION)
+    return {"settings": hi.install_settings(conn), "values": {k: list(v) for k, v in hi.INSTALL_VALUES.items()}, "gallery": list(hi.GALLERY)}
+
+
+@router.put("/home/settings")
+def put_install_settings(body: InstallBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Change the home interface's installation settings. Existing people keep their policy rows. rbac.assign; audited."""
+    require(conn, principal, ADMIN, INSTALLATION)
+    data = body.model_dump(exclude_none=True)
+    before = hi.install_settings(conn)
+    out = hi.set_install_settings(conn, data)
+    audit(conn, actor=principal, action="home_interface.settings.set", decision="allowed", resource_type="setting", resource_id="home.*", request_id=_rid(request),
+          details={"before": {k: before[k] for k in data}, "after": {k: out[k] for k in data}})
+    return {"settings": out}
+
+
+# ---------------------------------------------------------------- HOME-SIMPLE-2421: switch classification (suggest, the administrator approves)
+
+SWITCH_CLASSES = ("light", "not_light", "protected")
+# a name-based type that is an appliance, not a lamp (services/device_activity: the boiler / tap / heater / fan words)
+APPLIANCE_KINDS = frozenset({"water_heater", "valve", "heater", "fan"})
+
+
+def _switch_rows(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    """Every switch with its class now (light = typed a light; protected = an administrator's protection; else not_light), the class
+    the system suggests from its name (None = nothing to suggest) and why, and whether a protection change is refused (`locked`)."""
+    from . import devices as dev
+
+    all_entities = svc.load_entities(conn)
+    entities = [e for e in all_entities if e["domain"] == "switch" and not svc.is_scheduler(conn, e["entity_id"])]
+    floors, areas = svc.load_structure(conn, all_entities)
+    types = {r["entity_id"]: r for r in device_types.listing(conn, entities, floors, areas)}
+    prot = {r["entity_id"]: dict(r) for r in conn.execute("SELECT * FROM device_bulk_protected").fetchall()}
+    policy = bulk.SwitchPolicy(conn)
+    media_managed = dev._media_managed(conn)
+    out = []
+    for e in entities:
+        eid = e["entity_id"]
+        t = types.get(eid) or {}
+        p = prot.get(eid) or {}
+        suggested_protect = p.get("source") == "auto" and not p.get("reviewed")
+        protected = bool(p) and not suggested_protect
+        cls = "protected" if protected else "light" if t.get("set") == "light" else "not_light"
+        name = e.get("name") or e.get("original_name") or eid
+        suggest, why = None, None
+        if suggested_protect:
+            suggest, why = "protected", switch_protection.category_label(p.get("category")) or "לפי השם"
+        elif t.get("auto") in APPLIANCE_KINDS:
+            suggest, why = "protected", "השם נשמע כמו מכשיר ולא כמו תאורה"
+        elif switch_protection.has_light_word(switch_protection.normalize(name)):
+            suggest, why = "light", "השם כולל מילה של תאורה"
+        if suggest == cls:
+            suggest, why = None, None
+        locked = "alarm_managed" if eid in policy.alarm_managed else "media_managed" if eid in media_managed else "doors_layer" if eid in policy.door_layer else None
+        out.append({"entity_id": eid, "name": name, "area_id": e.get("area_id"), "area_name": e.get("area_name"), "floor_name": t.get("floor_name"),
+                    "state": e.get("state"), "available": bool(e.get("available")), "class": cls, "suggest": suggest, "suggest_reason": why, "locked": locked})
+    out.sort(key=lambda r: ((r["area_name"] or "~").casefold(), r["name"].casefold(), r["entity_id"]))
+    return out
+
+
+@router.get("/home/switches")
+def list_switch_classes(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
+    """The administrator's switch classification list (light / not a light / protected, with the system's suggestions). system.configure:
+    the permission of Settings > device types and protected switches, whose stores this writes."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    rows = _switch_rows(conn)
+    return {"switches": rows, "summary": {"switches": len(rows), "suggested": sum(1 for r in rows if r["suggest"]),
+                                          **{c: sum(1 for r in rows if r["class"] == c) for c in SWITCH_CLASSES}}}
+
+
+class SwitchClassBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    entity_ids: list[str] = Field(min_length=1, max_length=500)
+    mark: Literal["light", "not_light", "protected"]
+
+
+@router.post("/home/switches")
+def set_switch_classes(body: SwitchClassBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Mark many switches at once: `light` (device type light, protection removed), `not_light` (a light type dropped - back to
+    automatic, or `switch` when the name alone would make it a light - and protection removed), `protected` (not a light, and out of
+    every group action). Writes the existing stores (device_type_override, device_bulk_protected) through their own functions - one
+    audit row per change there - plus one summary row `home_interface.switch_class.batch`. system.configure. Refused per id:
+    not_switch and, for a protection change, alarm_managed / media_managed / doors_layer."""
+    require(conn, principal, "system.configure", INSTALLATION)
+    from . import devices as dev
+
+    rid = _rid(request)
+    policy = bulk.SwitchPolicy(conn)
+    media_managed = dev._media_managed(conn)
+    rows = {r["entity_id"]: r for r in _switch_rows(conn)}
+    by_id = {e["entity_id"]: e for e in svc.load_entities(conn)}
+    results = []
+    changed = 0
+    for eid in dict.fromkeys(body.entity_ids):
+        row = rows.get(eid)
+        if row is None:
+            results.append({"entity_id": eid, "ok": False, "reason": "not_switch", "changed": False})
+            continue
+        want_protect = body.mark == "protected"
+        is_protected = row["class"] == "protected"
+        if want_protect != is_protected:
+            why = dev._protect_refusal(conn, eid, "protect", policy, media_managed)
+            if why:
+                results.append({"entity_id": eid, "ok": False, "reason": why, "changed": False})
+                continue
+        did = False
+        fixed = device_types.overrides(conn).get(eid)
+        if body.mark == "light":
+            did |= device_types.set_kind(conn, principal, eid, "light", request_id=rid, batch=True)
+        else:
+            auto = device_types.auto_kind(by_id[eid]) if eid in by_id else None
+            if fixed == "light" or (fixed is None and auto == "light"):
+                did |= device_types.set_kind(conn, principal, eid, "switch" if auto == "light" else "auto", request_id=rid, batch=True)
+        if want_protect and not is_protected:
+            p, _c = switch_protection.status(conn, eid)
+            if p and p.get("source") == "auto" and not p.get("reviewed"):
+                did |= switch_protection.approve(conn, principal, eid, request_id=rid)
+            else:
+                did |= switch_protection.set_protected(conn, principal, eid, True, batch=True, request_id=rid)
+        elif not want_protect and is_protected:
+            did |= switch_protection.set_protected(conn, principal, eid, False, batch=True, request_id=rid)
+        changed += int(did)
+        results.append({"entity_id": eid, "ok": True, "reason": None, "changed": did})
+    audit(conn, actor=principal, action="home_interface.switch_class.batch", decision="allowed", resource_type="installation", resource_id="*", request_id=rid,
+          details={"mark": body.mark, "requested": len(results), "changed": changed, "refused": [r["entity_id"] for r in results if not r["ok"]][:100]})
+    return {"results": results, "changed": changed, "refused": sum(1 for r in results if not r["ok"])}
+
+
+# ---------------------------------------------------------------- HOME-SIMPLE-2421: the person's own room wallpaper picture
+
+WALL_REFUSED = {
+    "logo_too_large": "התמונה גדולה מ-2 MB.", "logo_type": "אפשר להעלות JPEG או PNG בלבד.", "logo_dimensions": "מידות התמונה אינן נתמכות.",
+    "logo_undecodable": "התמונה לא ניתנת לקריאה.", "logo_empty": "הקובץ ריק.",
+}
+
+
+def _wall_room(conn: sqlite3.Connection, room_key: str) -> None:
+    if not hi.ROOM_KEY_RE.match(room_key):
+        raise hi.HomeInterfaceError(422, "validation", "החדר אינו תקין.")
+
+
+@router.put("/home/wallpaper/{room_key}")
+async def put_wallpaper(room_key: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal),
+                        conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Upload the caller's own picture for one room's screen (JPEG / PNG, <= 2 MB; re-encoded: pixels rebuilt, EXIF dropped, long side
+    <= 1920 px). Only when the installation offers personal pictures (403 wallpaper_image_off). Audited (never the picture)."""
+    import base64
+
+    from ..db import now_iso
+    from ..services.bill_pdf_logo import LogoError, sanitize_image
+
+    _wall_room(conn, room_key)
+    if hi.install_settings(conn)["wallpaper"] != "gallery_image":
+        raise hi.HomeInterfaceError(403, "wallpaper_image_off", "תמונה אישית לרקע אינה פעילה בהתקנה הזו.")
+    raw = await file.read(hi.WALL_IMAGE_BYTES + 1)
+    try:
+        mime, data = sanitize_image(raw, max_bytes=hi.WALL_IMAGE_BYTES, max_side=hi.WALL_IMAGE_SIDE)
+    except LogoError as exc:
+        raise hi.HomeInterfaceError(422, "image_refused", WALL_REFUSED.get(str(exc), "התמונה נדחתה."), details={"reason": str(exc)}) from None
+    conn.execute(
+        """INSERT INTO home_room_image (user_id, room_key, mime, data_b64, bytes, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT(user_id, room_key) DO UPDATE SET mime = excluded.mime, data_b64 = excluded.data_b64, bytes = excluded.bytes, updated_at = excluded.updated_at""",
+        (principal.user_id, room_key, mime, base64.b64encode(data).decode("ascii"), len(data), now_iso()),
+    )
+    walls = dict(hi.get_prefs(conn, principal.user_id)["layout"].get("wallpapers") or {})
+    walls[room_key] = "img"
+    prefs = hi.set_prefs(conn, principal.user_id, {"layout": {"wallpapers": walls}})
+    audit(conn, actor=principal, action="home_interface.wallpaper.set", decision="allowed", resource_type="user", resource_id=principal.user_id, request_id=_rid(request),
+          details={"room": room_key, "bytes": len(data), "mime": mime})
+    return {"ok": True, "bytes": len(data), "layout": prefs["layout"]}
+
+
+@router.get("/home/wallpaper/{room_key}")
+def get_wallpaper(room_key: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
+    """The caller's own picture for one room (never another person's). 404 when there is none or the installation turned pictures off."""
+    import base64
+
+    _wall_room(conn, room_key)
+    r = conn.execute("SELECT mime, data_b64 FROM home_room_image WHERE user_id = ? AND room_key = ?", (principal.user_id, room_key)).fetchone()
+    if r is None or hi.install_settings(conn)["wallpaper"] != "gallery_image":
+        raise hi.HomeInterfaceError(404, "not_found", "אין תמונה.")
+    return Response(base64.b64decode(r["data_b64"]), media_type=r["mime"], headers={"Cache-Control": "private, max-age=300", "X-Content-Type-Options": "nosniff"})
+
+
+@router.delete("/home/wallpaper/{room_key}")
+def delete_wallpaper(room_key: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+    """Remove the caller's own picture for one room (the room goes back to no wallpaper)."""
+    _wall_room(conn, room_key)
+    conn.execute("DELETE FROM home_room_image WHERE user_id = ? AND room_key = ?", (principal.user_id, room_key))
+    walls = dict(hi.get_prefs(conn, principal.user_id)["layout"].get("wallpapers") or {})
+    if walls.get(room_key) == "img":
+        walls.pop(room_key)
+    prefs = hi.set_prefs(conn, principal.user_id, {"layout": {"wallpapers": walls}})
+    audit(conn, actor=principal, action="home_interface.wallpaper.delete", decision="allowed", resource_type="user", resource_id=principal.user_id, request_id=_rid(request),
+          details={"room": room_key})
+    return {"ok": True, "layout": prefs["layout"]}

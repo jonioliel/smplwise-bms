@@ -23,6 +23,12 @@ export interface InterfacePolicy {
   configured: boolean;
   admin: boolean;
   kiosk_code_set: boolean;
+  /** HOME-SIMPLE-2421: the installation asks this person to choose at the first sign-in (the welcome screen saves it) */
+  choose?: boolean;
+  /** HOME-SIMPLE-2421: 'none' = a wall panel never leaves its room (no exit code) */
+  kiosk_exit?: 'code' | 'none';
+  /** HOME-SIMPLE-2421: the room wallpaper the installation offers */
+  wallpaper?: 'none' | 'gallery' | 'gallery_image';
 }
 
 // ---------------------------------------------------------------- wire shapes (GET /home/overview)
@@ -43,7 +49,7 @@ export interface WireClimate extends WireRow {
   preset_mode: string | null; preset_modes: string[] | null; unit: string | null;
 }
 export interface WireCover extends WireRow { position: number | null; moving: boolean }
-export interface WireLock extends WireRow { locked: boolean; wiskey_door: boolean }
+export interface WireLock extends WireRow { locked: boolean; wiskey_door: boolean; unlock_reason?: string; can_unlock?: boolean }
 export interface WireRoom {
   id: string; name: string; floor_id: string; temperature: number | null; open_count: number; can_bulk: boolean;
   lights: WireLight[]; switches: WireLight[]; climate: WireClimate[]; shades: WireCover[]; locks: WireLock[];
@@ -69,6 +75,8 @@ export interface HomeLayout {
   theme?: string | null;
   big_text?: boolean;
   welcomed?: boolean;
+  /** HOME-SIMPLE-2421: per room, 'g:<gallery name>' or 'img' (the person's own picture) */
+  wallpapers?: Record<string, string>;
 }
 export interface HomePrefs { favourites: Record<string, Fav[]>; layout: HomeLayout; seed: Record<string, Fav[]> }
 
@@ -87,7 +95,7 @@ export interface HZone {
   min: number; max: number; step: number; can: boolean; ok: boolean; unit: string; action: string | null;
 }
 export interface HShade { id: string; name: string; pos: number | null; state: string | null; moving: boolean; can: boolean; ok: boolean; room: string }
-export interface HDoor { id: string; name: string; locked: boolean; can: boolean; ok: boolean; wiskey: boolean; room: string; kind: 'door' | 'gate' }
+export interface HDoor { id: string; name: string; locked: boolean; can: boolean; ok: boolean; wiskey: boolean; room: string; kind: 'door' | 'gate'; /** HOME-SIMPLE-2421: why opening is not offered (null = it is) */ noOpen: string | null }
 export interface HRoom {
   id: string; name: string; floor: string; temp: number | null; canBulk: boolean;
   lights: HLight[]; loads: HLoad[]; zones: HZone[]; shades: HShade[]; doors: HDoor[]; cams: string[];
@@ -141,7 +149,7 @@ export function adaptOverview(ov: Overview, cameras: HCamera[]): Pick<HomeData, 
       min: c.min_temp ?? 16, max: c.max_temp ?? 30, step: c.target_temp_step ?? 1, can: c.can_control && c.available, ok: c.available, unit: c.unit ?? '°C', action: c.hvac_action,
     }));
     const shades: HShade[] = r.shades.map((s) => ({ id: s.entity_id, name: s.name, pos: s.position ?? (s.state === 'open' ? 100 : s.state === 'closed' ? 0 : null), state: s.state, moving: s.moving, can: s.can_control && s.available, ok: s.available, room: r.id }));
-    const doors: HDoor[] = r.locks.map((d) => ({ id: d.entity_id, name: d.name, locked: d.locked, can: d.can_control && d.available, ok: d.available, wiskey: d.wiskey_door, room: r.id, kind: GATE_WORDS.test(d.name) ? 'gate' : 'door' }));
+    const doors: HDoor[] = r.locks.map((d) => ({ id: d.entity_id, name: d.name, locked: d.locked, can: d.can_control && d.available, ok: d.available, wiskey: d.wiskey_door, room: r.id, kind: GATE_WORDS.test(d.name) ? 'gate' : 'door', noOpen: d.unlock_reason && d.unlock_reason !== 'ok' ? d.unlock_reason : null }));
     return { id: r.id, name: r.name, floor: r.floor_id, temp: r.temperature, canBulk: r.can_bulk, lights, loads, zones, shades, doors, cams: cameras.filter((c) => c.room === r.id).map((c) => c.id) };
   });
   const floors = ov.floors.map((f) => ({ id: f.id, name: f.name, short: shortFloor(f.name) }));

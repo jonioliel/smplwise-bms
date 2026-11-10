@@ -3,9 +3,10 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  activeText, defaultFavs, doorsText, favOk, favWidth, greeting, homeBarText, keptNote, lightsText, masterLevel, onCount, packPages, paged, roomLights, shadeText,
+  activeText, defaultFavs, doorNoOpenText, doorsText, favOk, favWidth, greeting, homeBarText, keptNote, lightsText, masterLevel, onCount, packPages, paged, roomLights, shadeText,
   type FavWorld,
 } from '../src/home/home-logic';
+import { GALLERY, galleryCss } from '../src/home/home-wall';
 import type { HDoor, HLight, HLoad, HRoom, HZone } from '../src/home/home-api';
 
 // HOME-SIMPLE-2420: the home interface's pure rules (src/home/home-logic.ts) and two source checks: the home interface never names
@@ -27,7 +28,7 @@ test('the words: lights, rooms, doors, shutters', () => {
   expect(roomLights(R('a', { lights: [L('x', false)] }))).toBe('חשוך');
   expect(activeText(R('a', { lights: [L('x', true), L('y', true)], zones: [Z('cool', 22)] }))).toBe('2 אורות · מיזוג 22°');
   expect(activeText(R('a', { zones: [Z('off')] }))).toBe('הכל כבוי');
-  const d = (name: string, locked: boolean, kind: 'door' | 'gate' = 'door'): HDoor => ({ id: name, name, locked, can: true, ok: true, wiskey: false, room: 'r1', kind });
+  const d = (name: string, locked: boolean, kind: 'door' | 'gate' = 'door'): HDoor => ({ id: name, name, locked, can: true, ok: true, wiskey: false, room: 'r1', kind, noOpen: null });
   expect(doorsText([])).toBe('אין דלתות מחוברות');
   expect(doorsText([d('דלת הכניסה', true)])).toBe('כל הדלתות נעולות');
   expect(doorsText([d('שער החניה', false, 'gate')])).toBe('שער החניה פתוח');
@@ -71,7 +72,7 @@ test('default favourites follow what the room has; a stale favourite is dropped'
 });
 
 test('no home interface source names the platform or an internal term in what it shows', () => {
-  for (const f of ['sw-home.ts', 'home-logic.ts']) {
+  for (const f of ['sw-home.ts', 'home-logic.ts', 'home-wall.ts', 'sw-home-admin.ts']) {
     const text = src(f).split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
     const shown = [...text.matchAll(/[>'"`]([^<>'"`]*[֐-׿][^<>'"`]*)[<'"`]/g)].map((m) => m[1]).join(' ');
     for (const w of ['Home Assistant', 'go2rtc', 'NVR', 'WebRTC', 'ישות', 'entity']) expect(shown, `${f} shows ${w}`).not.toContain(w);
@@ -93,4 +94,22 @@ test('the switch glyph is an on/off toggle (a pill with its knob), not an exclam
   expect(line).toContain('rx="5"');
   expect(line).toContain('<circle');
   expect(line).not.toMatch(/v4"|v\d+"\/><circle cx="12"/);
+});
+
+test('HOME-SIMPLE-2421: a door that may not be opened says why, in calm words; never an open button', () => {
+  expect(doorNoOpenText('door_not_mapped')).toBe('הדלת עדיין לא משויכת לעמדה');
+  expect(doorNoOpenText('no_permission')).toBe('אין הרשאה לפתוח');
+  expect(doorNoOpenText('something_new')).toBe('אי אפשר לפתוח מכאן כרגע');
+  const home = src('sw-home.ts');
+  expect(home).toContain('(d.locked || d.wiskey) && d.noOpen ?');
+});
+
+test('HOME-SIMPLE-2421: the wallpaper gallery is CSS only (no picture files, no addresses) and matches the server list', () => {
+  const server = ['dusk', 'tide', 'dune', 'moss', 'ember', 'slate', 'aurora', 'linen'];
+  expect(GALLERY.map((g) => g.id)).toEqual(server);
+  for (const g of GALLERY) {
+    expect(galleryCss(g.id)).toContain('gradient(');
+    expect(galleryCss(g.id)).not.toMatch(/url\(|https?:/);
+  }
+  expect(galleryCss('nope')).toBe('');
 });

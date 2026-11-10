@@ -434,6 +434,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     applied = app.state.db.migrate()
     if applied:
         log.info("applied migrations %s", applied)
+    if 212 in (applied or []):  # HOME-SIMPLE-2421: people who arrived under 2.42.0 keep the interface default they had
+        try:
+            from .services import home_interface as _hi
+
+            with app.state.db.connection(label="home_interface.freeze_legacy_defaults") as conn:
+                frozen = _hi.freeze_legacy_defaults(conn)
+            if frozen:
+                log.info("home interface: kept the 2.42.0 default of %s person(s)", frozen)
+        except Exception:  # noqa: BLE001 - never block the start; such a person then gets the new default (full)
+            log.exception("could not keep the 2.42.0 home interface defaults")
     try:  # LAZYMIC-295: the remote channel's microphone policy follows this installation's settings from the first response
         from . import remote_channel as _rc
 

@@ -58,12 +58,14 @@ const scene = (id: string, name: string, areas: { id: string; name: string }[] =
 
 export interface HomeMock { calls: { method: string; path: string; body: unknown }[]; ring: (on: boolean) => void }
 
-export async function mockHome(page: Page, opts: { ds?: HomeDataset; policy?: Record<string, unknown>; perms?: string[]; layout?: Record<string, unknown>; ringing?: boolean } = {}): Promise<HomeMock> {
+export async function mockHome(page: Page, opts: { ds?: HomeDataset; policy?: Record<string, unknown>; perms?: string[]; layout?: Record<string, unknown>; ringing?: boolean; lockReasons?: Record<string, string> } = {}): Promise<HomeMock> {
   const mock: HomeMock = { calls: [], ring: () => undefined };
   const ds = opts.ds ?? 'demo';
   const perms = opts.perms ?? ['alarm.view', 'alarm.arm', 'alarm.disarm', 'devices.read', 'devices.control', 'ha.entity.control', 'devices.control_bulk', 'video.live', 'map.read', 'energy.view', 'access.call', 'access.doors.open'];
   const ringing = { active: !!opts.ringing };
   const ov = overview(ds, opts.policy);
+  // HOME-SIMPLE-2421: every lock carries the server's unlock_reason (the door rule); 'ok' unless the spec says otherwise
+  for (const r of ov.rooms) for (const l of r.locks as { entity_id: string; unlock_reason?: string; can_unlock?: boolean }[]) { l.unlock_reason = opts.lockReasons?.[l.entity_id] ?? 'ok'; l.can_unlock = l.unlock_reason === 'ok'; }
   const prefs = { favourites: {}, layout: { welcomed: true, ...(opts.layout ?? {}) }, seed: {} };
   await page.route('**/api/v1/**', (r) => json(r, { code: 'not_found', user_message: 'לא נמצא', retryable: false, correlation_id: 'mock', details: {} }, 404));
   await page.route('**/api/v1/me?**', (r) => json(r, me(perms, ov.policy)));

@@ -15,11 +15,12 @@ import {
 } from './home-api';
 import {
   MODES, PRESETS, activeRooms, activeText, defaultFavs, doorState, doorsText, favHeight, favOk, favWidth, floorName, greeting, homeBarText,
-  homeScenes, keptNote, lightsText, loadsOn, masterLevel, onCount, onWord, packPages, paged, roomLights, sameFav, shadeText, zoneOn,
+  doorNoOpenText, homeScenes, keptNote, lightsText, loadsOn, masterLevel, onCount, onWord, packPages, paged, roomLights, sameFav, shadeText, zoneOn,
   type FavWorld,
 } from './home-logic';
 import * as act from './home-actions';
-import { post, describeError } from '../api/client';
+import { api, apiUrl, post, describeError } from '../api/client';
+import { GALLERY, galleryCss, switchUserMode } from './home-wall';
 import { notify } from '../api/notifications';
 import { snapshotUrl } from '../api/media';
 import { getCallLog, type CallLogRow } from '../api/intercom-calls';
@@ -30,7 +31,6 @@ import { canAnywhere } from '../api/session';
 import { getIntercomOverview } from '../api/intercom';
 import { getStationMedia, type StationMediaTalk } from '../api/station-media';
 import { get } from '../api/client';
-import { REMOTE } from '../arx/pre-gate';
 import { logout as arxLogout } from '../arx/auth';
 import './sw-home-call';
 import type { HomeCallsState, SwHomeCall } from './sw-home-call';
@@ -54,6 +54,7 @@ type Ovl =
   | { type: 'kiosk'; code: string; error: string }
   | { type: 'code'; title: string; code: string; error: string; run: (code: string) => void }
   | { type: 'talk' }
+  | { type: 'switchHost' }
   | null;
 
 const NAV: [string, string, string, string][] = [['r/home', 'הבית שלי', 'home', 'home'], ['scenes', 'סצנות', 'scenes', 'scenes'], ['active', 'פעיל עכשיו', 'pulse', 'active'], ['alerts', 'התראות', 'bell', 'alerts'], ['settings/favs', 'הגדרות', 'sliders', 'settings']];
@@ -92,6 +93,7 @@ export class SwHome extends LitElement {
   @state() private floor = '';
   @state() private page: Record<string, number> = {};
   @state() private ovl: Ovl = null;
+  @state() private wallStamp = 0;
   @state() private toastMsg: { text: string; undo: (() => void) | null } | null = null;
   @state() private armed: string | null = null;
   @state() private sceneRun: string | null = null;
@@ -276,7 +278,7 @@ export class SwHome extends LitElement {
       const l = this.prefs.layout;
       const pol = this.pol();
       if (pol?.kiosk && pol.kiosk_area_id) return { name: 'r', arg: pol.kiosk_area_id };
-      if (pol?.may_switch && !l.welcomed) return { name: 'welcome', arg: '' };
+      if (pol?.choose || (pol?.may_switch && !l.welcomed)) return { name: 'welcome', arg: '' };
       if ((l.start === 'last' || l.start === 'fixed') && l.start_room) return { name: 'r', arg: l.start_room };
       // owner decision: a wall panel opens its own room, a phone opens "הבית שלי"
       return { name: 'r', arg: 'home' };
@@ -507,7 +509,7 @@ export class SwHome extends LitElement {
       }, 550);
     }
     const clock = path.find((n) => n instanceof HTMLElement && n.classList?.contains('hs-now'));
-    if (clock && this.pol()?.kiosk) {
+    if (clock && this.pol()?.kiosk && this.pol()?.kiosk_exit !== 'none') {
       this.holdT = window.setTimeout(() => { this.held = true; this.ovl = { type: 'kiosk', code: '', error: '' }; }, 1200);
     }
   };
@@ -794,7 +796,21 @@ export class SwHome extends LitElement {
   a_codeGo() { const o = this.ovl; if (o?.type === 'code' && o.code) o.run(o.code); }
   a_talk() { if (this.talkTo) this.ovl = { type: 'talk' }; }
   a_ring() { (this.renderRoot.querySelector('sw-home-call') as SwHomeCall | null)?.unhideRinging(); }
-  a_switchUser() { this.ovl = null; void arxLogout('logout'); }
+  a_switchUser() {
+    const mode = switchUserMode();
+    if (mode === 'arx') { this.ovl = null; void arxLogout('logout'); return; }
+    this.ovl = { type: 'switchHost' };
+  }
+  /** HOME-SIMPLE-2421: inside the home system the sign-in is the host's own: open its account page (same origin, the top window), where
+   * the person signs out and the next person signs in. Arx signs nobody out and touches no user. */
+  a_switchHostGo() {
+    this.ovl = null;
+    try {
+      (window.top ?? window).location.assign('/profile/general');
+    } catch {
+      window.location.assign('/profile/general');
+    }
+  }
   a_kioskKey(el: HTMLElement) {
     const o = this.ovl;
     if (o?.type !== 'kiosk') return;
@@ -995,7 +1011,7 @@ export class SwHome extends LitElement {
   }
 
   private doorBody(d: HDoor, withStar: boolean) {
-    return html`<span class="di" data-tone=${d.locked ? 'ok' : 'warn'}>${hi(d.locked ? 'lock' : 'unlock')}</span><span class="dn"><b class="clamp2">${d.name}</b><span class="dst" data-tone=${d.locked ? 'ok' : 'warn'}><i class="dot"></i>${d.ok ? doorState(d) : 'לא זמינה כרגע'}</span></span>${d.locked || d.wiskey ? html`<button class="hbtn" data-act="doorAsk" data-door=${d.id} ?disabled=${!d.can}>פתח</button>` : html`<button class="hbtn" data-act="doorLock" data-door=${d.id} ?disabled=${!d.can}>נעל</button>`}${withStar ? this.star({ t: 'door', id: d.id }) : nothing}`;
+    return html`<span class="di" data-tone=${d.locked ? 'ok' : 'warn'}>${hi(d.locked ? 'lock' : 'unlock')}</span><span class="dn"><b class="clamp2">${d.name}</b><span class="dst" data-tone=${d.locked ? 'ok' : 'warn'}><i class="dot"></i>${d.ok ? doorState(d) : 'לא זמינה כרגע'}</span></span>${(d.locked || d.wiskey) && d.noOpen ? html`<span class="dno clamp2" data-door-reason=${d.noOpen}>${doorNoOpenText(d.noOpen)}</span>` : d.locked || d.wiskey ? html`<button class="hbtn" data-act="doorAsk" data-door=${d.id} ?disabled=${!d.can}>פתח</button>` : html`<button class="hbtn" data-act="doorLock" data-door=${d.id} ?disabled=${!d.can}>נעל</button>`}${withStar ? this.star({ t: 'door', id: d.id }) : nothing}`;
   }
 
   private loadIcon(x: HLoad): string {
@@ -1266,7 +1282,8 @@ export class SwHome extends LitElement {
   }
 
   private sSettings(tab: string) {
-    const t = ['favs', 'rooms', 'scenes', 'themes', 'view'].includes(tab) ? tab : 'favs';
+    const wallOn = (this.pol()?.wallpaper ?? 'none') !== 'none';
+    const t = ['favs', 'rooms', 'scenes', 'themes', 'view', ...(wallOn ? ['wall'] : [])].includes(tab) ? tab : 'favs';
     const r = this.ctx();
     const w = this.world();
     let body: unknown = nothing;
@@ -1289,13 +1306,15 @@ export class SwHome extends LitElement {
       const list = this.phone ? paged(THEMES, 4, this.pg('themes')) : { items: THEMES, pages: 1 };
       body = html`<div class="bar wrap"><p class="hint">הצבעים של הממשק הביתי שלי. צבעי המצב (תקין, שים לב, אזעקה) נשארים זהים בכל ערכה.</p>${this.seg('theme', [['dark', 'כהה'], ['light', 'בהיר']], scheme, 'מראה')}</div>
         <div class="theme-grid" role="radiogroup" aria-label="ערכת נושא">${list.items.map(([id, name, line, n]) => html`<button class="tile thm" role="radio" aria-checked=${String(id === curT)} data-act="hs" data-v=${id}><span class="thm-pv" data-hs-theme=${id} data-hs-scheme=${n === 1 ? 'dark' : scheme} aria-hidden="true"><i class="pv-a"></i><i class="pv-b"></i><i class="pv-c"></i><i class="pv-d"></i></span><span class="thm-t"><b>${name}</b><span class="muted clamp2">${line}</span></span>${hi('check', 'tick')}</button>`)}</div>${this.pager('themes', list.pages)}`;
+    } else if (t === 'wall') {
+      body = this.wallSettings();
     } else {
       const l = this.prefs.layout;
       const tn = THEMES.find((x) => x[0] === (this.getAttribute('data-hs-theme') ?? 'classic'))?.[1] ?? '';
       body = html`<div class="set-view"><section class="tile pane"><h2>הממשק שלי</h2>${this.faceChoice('home')}</section>
         <section class="tile pane"><h2>תצוגה</h2><div class="setrow flat"><span class="sname">מה נפתח ראשון</span>${this.seg('start', [['home', 'הבית שלי'], ['last', 'החדר האחרון'], ['fixed', 'חדר קבוע']], l.start ?? 'home', 'מסך פתיחה')}</div><div class="setrow flat"><span class="sname"><b>ערכת נושא</b><span class="muted">${tn}, ${this.getAttribute('data-hs-scheme') === 'light' ? 'בהיר' : 'כהה'}</span></span><a class="hbtn" href=${this.href('settings/themes')}>${hi('palette')}<span class="bt">החלפה</span></a></div><div class="setrow flat"><span class="sname"><b>כתב גדול</b><span class="muted">מגדיל גם את האריחים</span></span>${this.sw(!!l.big_text, 'bigText', 'כתב גדול')}</div></section></div>`;
     }
-    return html`${this.headT('הגדרות', 'המועדפים, החדרים והתצוגה שלי', this.seg('setTab', [['favs', 'מועדפים'], ['rooms', 'חדרים'], ['scenes', 'סצנות'], ['themes', this.phone ? 'צבעים' : 'ערכות נושא'], ['view', 'תצוגה']], t, 'נושא'))}${body}`;
+    return html`${this.headT('הגדרות', 'המועדפים, החדרים והתצוגה שלי', this.seg('setTab', [['favs', 'מועדפים'], ['rooms', 'חדרים'], ['scenes', 'סצנות'], ['themes', this.phone ? 'צבעים' : 'ערכות נושא'], ...(wallOn ? [['wall', 'רקע'] as [string, string]] : []), ['view', 'תצוגה']], t, 'נושא'))}${body}`;
   }
 
   private sWelcome() {
@@ -1334,7 +1353,7 @@ export class SwHome extends LitElement {
       const scheme = this.getAttribute('data-hs-scheme');
       return html`<div class="hscrim clear" data-act="close"></div><section class="sheet umenu" role="dialog" aria-modal="true" aria-label="התפריט האישי"><header class="menu-h"><span class="av lg">${(this.userName || '?').slice(0, 1)}</span><span class="mh-t"><b class="clamp1">${this.userFull || this.userName}</b><span class="muted">${this.role}</span></span><button class="rb" data-act="close" aria-label="סגור">${hi('x')}</button></header>
         <h3>הממשק שלי</h3>${this.faceChoice('home')}
-        <div class="menu-rows"><a class="mrow" href=${this.href('settings/favs')} data-act="closeNav">${hi('sliders')}<span>ההגדרות שלי</span>${hi('fwd')}</a><button class="mrow" data-act="theme" data-v=${scheme === 'dark' ? 'light' : 'dark'}>${hi(scheme === 'dark' ? 'sun' : 'night')}<span>${scheme === 'dark' ? 'מראה בהיר' : 'מראה כהה'}</span></button>${REMOTE ? html`<button class="mrow" data-act="switchUser" data-home-switch-user>${hi('user')}<span>החלף משתמש</span>${hi('fwd')}</button>` : nothing}</div></section>`;
+        <div class="menu-rows"><a class="mrow" href=${this.href('settings/favs')} data-act="closeNav">${hi('sliders')}<span>ההגדרות שלי</span>${hi('fwd')}</a><button class="mrow" data-act="theme" data-v=${scheme === 'dark' ? 'light' : 'dark'}>${hi(scheme === 'dark' ? 'sun' : 'night')}<span>${scheme === 'dark' ? 'מראה בהיר' : 'מראה כהה'}</span></button>${switchUserMode() ? html`<button class="mrow" data-act="switchUser" data-home-switch-user>${hi('user')}<span>החלף משתמש</span>${hi('fwd')}</button>` : nothing}</div></section>`;
     }
     if (o.type === 'zones') {
       const zs = this.zonesOf(this.scopeRooms()).slice(0, 6);
@@ -1356,11 +1375,67 @@ export class SwHome extends LitElement {
       const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'del', '0', 'go'];
       return html`<div class="hscrim" data-act="close"></div><section class="sheet dialog kiosk-pad" role="dialog" aria-modal="true" aria-label=${o.title}><span class="dlg-ic">${hi('shield')}</span><h2 class="clamp2">${o.title}</h2><p class="muted">${o.error || 'הקלידו את הקוד.'}</p><p class="kp-dots num" aria-live="polite">${o.code.replace(/./g, '•') || ' '}</p><div class="kp-grid">${keys.map((k) => k === 'go' ? html`<button class="hbtn strong" data-act="codeGo" ?disabled=${!o.code}>אישור</button>` : k === 'del' ? html`<button class="hbtn" data-act="codeKey" data-k="del" aria-label="מחק">${hi('back')}</button>` : html`<button class="hbtn num" data-act="codeKey" data-k=${k}>${k}</button>`)}</div><div class="dlg-acts"><button class="hbtn" data-act="close">ביטול</button></div></section>`;
     }
+    if (o.type === 'switchHost') {
+      return html`<div class="hscrim" data-act="close"></div><section class="sheet dialog" role="alertdialog" aria-modal="true" aria-label="החלפת משתמש" data-home-switch-host><span class="dlg-ic">${hi('user')}</span><h2>החלפת משתמש</h2><p class="muted">הכניסה כאן היא של מערכת הבית. נפתח את דף החשבון שלה: שם יוצאים, והאדם הבא נכנס בשם שלו.</p><div class="dlg-acts"><button class="hbtn strong" data-act="switchHostGo">לדף החשבון</button><button class="hbtn" data-act="close">ביטול</button></div></section>`;
+    }
     if (o.type === 'kiosk') {
       const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'del', '0', 'go'];
       return html`<div class="hscrim" data-act="close"></div><section class="sheet dialog kiosk-pad" role="dialog" aria-modal="true" aria-label="יציאה ממסך הקיר"><span class="dlg-ic">${hi('lock')}</span><h2>קוד מנהל</h2><p class="muted">${o.error || 'הקוד פותח את מסך הקיר לחמש דקות.'}</p><p class="kp-dots num" aria-live="polite">${o.code.replace(/./g, '•') || ' '}</p><div class="kp-grid">${keys.map((k) => k === 'go' ? html`<button class="hbtn strong" data-act="kioskGo" ?disabled=${o.code.length < 4}>אישור</button>` : k === 'del' ? html`<button class="hbtn" data-act="kioskKey" data-k="del" aria-label="מחק">${hi('back')}</button>` : html`<button class="hbtn num" data-act="kioskKey" data-k=${k}>${k}</button>`)}</div><div class="dlg-acts"><button class="hbtn" data-act="close">ביטול</button></div></section>`;
     }
     return nothing;
+  }
+
+  // ---------------------------------------------------------------- HOME-SIMPLE-2421: the room wallpaper
+
+  /** The wallpaper of a room for this person ('g:<name>' / 'img'), or null: none, or the installation does not offer it. */
+  private wallOf(room: string): string | null {
+    const mode = this.pol()?.wallpaper ?? 'none';
+    const v = this.prefs.layout.wallpapers?.[room];
+    if (mode === 'none' || !v) return null;
+    if (v === 'img') return mode === 'gallery_image' ? v : null;
+    return GALLERY.some((g) => 'g:' + g.id === v) ? v : null;
+  }
+
+  private wallBg(room: string): string {
+    const v = this.wallOf(room);
+    if (v === 'img') return `url("${apiUrl('home/wallpaper/' + encodeURIComponent(room))}?v=${this.wallStamp}") center / cover no-repeat`;
+    return galleryCss(v?.slice(2) ?? '');
+  }
+
+  private wallSettings() {
+    const room = this.room;
+    const r = this.ctx();
+    const cur = this.prefs.layout.wallpapers?.[room] ?? '';
+    const withImg = this.pol()?.wallpaper === 'gallery_image';
+    const opts: [string, string, string][] = [['', 'בלי רקע', ''], ...GALLERY.map((g) => ['g:' + g.id, g.name, galleryCss(g.id)] as [string, string, string])];
+    const pg = paged(opts, this.phone ? 6 : 9, this.pg('wall'));
+    return html`<div class="bar wrap"><p class="hint">הרקע של ${r ? r.name : 'הבית שלי'}. הוא מעומעם מאחורי הכפתורים, כדי שהכתב יישאר ברור.</p>${withImg ? html`<label class="hbtn" data-wall-upload>${hi('plus')}<span class="bt">${cur === 'img' ? 'החלפת התמונה שלי' : 'תמונה שלי'}</span><input type="file" accept="image/jpeg,image/png" hidden @change=${(e: Event) => this.uploadWall(e)}></label>${cur === 'img' ? html`<button class="hbtn" data-act="wallDel">${hi('x')}<span class="bt">הסרת התמונה</span></button>` : nothing}` : nothing}</div>
+      <div class="wall-grid" role="radiogroup" aria-label="רקע לחדר">${pg.items.map(([id, name, bg]) => html`<button class="tile wall-opt" role="radio" aria-checked=${String(id === cur)} data-act="wall" data-v=${id} data-wall-opt=${id || 'none'}><span class="wall-pv" style=${bg ? `--hs-wall:${bg}` : nothing} aria-hidden="true"></span><b class="clamp1">${name}</b>${hi('check', 'tick')}</button>`)}</div>${this.pager('wall', pg.pages)}`;
+  }
+
+  a_wall(el: HTMLElement) {
+    const v = el.dataset.v ?? '';
+    this.saveLayout({ wallpapers: { ...(this.prefs.layout.wallpapers ?? {}), [this.room]: v } });
+  }
+
+  a_wallDel() {
+    void api<{ layout: HomeLayout }>(`home/wallpaper/${encodeURIComponent(this.room)}`, { method: 'DELETE' })
+      .then((r) => { this.prefs = { ...this.prefs, layout: r.layout }; this.toast('התמונה הוסרה'); })
+      .catch((err) => this.toast(describeError(err)));
+  }
+
+  private uploadWall(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const f = input.files?.[0];
+    input.value = '';
+    if (!f) return;
+    if (!/^image\/(jpeg|png)$/.test(f.type)) return this.toast('אפשר להעלות JPEG או PNG בלבד.');
+    if (f.size > 2_000_000) return this.toast('התמונה גדולה מ-2 MB.');
+    const form = new FormData();
+    form.append('file', f);
+    void api<{ layout: HomeLayout }>(`home/wallpaper/${encodeURIComponent(this.room)}`, { method: 'PUT', body: form })
+      .then((r) => { this.wallStamp = Date.now(); this.prefs = { ...this.prefs, layout: r.layout }; this.toast('התמונה נשמרה כרקע'); })
+      .catch((err) => this.toast(describeError(err)));
   }
 
   // ---------------------------------------------------------------- render
@@ -1382,7 +1457,7 @@ export class SwHome extends LitElement {
     const anim = this.path !== this.lastRoute;
     this.lastRoute = this.path;
     return html`<div class="app-root" @click=${this.onClick} @input=${this.onInput} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove} @pointerup=${this.onPointerUp} @pointercancel=${() => { window.clearTimeout(this.holdT); this.swipe = null; }} @keydown=${this.onKey}>
-      <div class=${'hs v2' + (this.kioskLocked() ? ' kiosk' : '')} data-screen=${name}>${this.strip(name)}${this.nav(cur)}<main class=${'hs-main' + (anim ? ' enter' : '')} id="main">${screen}</main>${this.nowBar()}</div>
+      <div class=${'hs v2' + (this.kioskLocked() ? ' kiosk' : '') + (name === 'r' && this.wallOf(this.room) ? ' walled' : '')} data-screen=${name} data-wall=${name === 'r' ? this.wallOf(this.room) ?? nothing : nothing} style=${name === 'r' && this.wallOf(this.room) ? `--hs-wall:${this.wallBg(this.room)}` : nothing}>${this.strip(name)}${this.nav(cur)}<main class=${'hs-main' + (anim ? ' enter' : '')} id="main">${screen}</main>${this.nowBar()}</div>
       <div class="ovl">${this.ovlHtml()}</div>${this.toasts()}
       <sw-home-call data-hs-theme=${this.getAttribute('data-hs-theme') ?? 'classic'} data-hs-scheme=${this.getAttribute('data-hs-scheme') ?? 'dark'} ?data-hs-big=${this.hasAttribute('data-hs-big')} @home-calls=${(e: CustomEvent<HomeCallsState>) => { this.calls = e.detail; }}></sw-home-call></div>`;
   }

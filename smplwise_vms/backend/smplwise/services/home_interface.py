@@ -49,6 +49,23 @@ KIOSK_TRIES = 5
 KIOSK_WINDOW_S = 300.0
 GATE_AUDIT_EVERY_S = 300.0
 
+# HOME-SIMPLE-2421 (owner 2026-11-10): installation settings of the home interface (settings rows; rbac.assign; audited)
+# - default_mode: the interface of a person nobody configured yet: full for everyone (the default), home for regular users and full
+#   for administrators (the 2.42.0 rule), or a choice screen at the first sign-in.
+# - kiosk_exit: a wall panel leaves with the administrator's code (the default), or never (locked to its room, no exit at all).
+# - wallpaper: the room screens' background: none (the default), the built-in gallery, or the gallery plus a personal picture per room.
+INSTALL_KEYS = {"default_mode": "home.default_mode", "kiosk_exit": "home.kiosk_exit", "wallpaper": "home.wallpaper"}
+INSTALL_VALUES: dict[str, tuple[str, ...]] = {
+    "default_mode": ("full_all", "home_regular", "choose"),
+    "kiosk_exit": ("code", "none"),
+    "wallpaper": ("none", "gallery", "gallery_image"),
+}
+LEGACY_FROZEN_BY = "migration:0212"
+# the built-in gallery (drawn by the frontend from CSS gradients only - no picture files); the server only checks the names
+GALLERY = ("dusk", "tide", "dune", "moss", "ember", "slate", "aurora", "linen")
+WALL_RE = re.compile(r"^(g:[a-z0-9-]{1,32}|img)$")
+WALL_IMAGE_BYTES, WALL_IMAGE_SIDE = 2_000_000, 1920
+
 API_PREFIX = "/api/v1"
 # What a home-only person may call: the routes the home interface itself uses (plus sign-in, health and the phone app's own
 # registration). Exact routes and whole-segment prefixes only, never a substring (the presence gate's rule).
@@ -89,9 +106,29 @@ def is_admin(conn: sqlite3.Connection, user_id: str) -> bool:
     return authorize(conn, p, "system.configure", INSTALLATION).allowed
 
 
-def default_policy(admin: bool) -> dict[str, Any]:
-    """The owner's decision for a person nobody configured yet: home for a regular user, full for an administrator; both may switch."""
-    return {"default_interface": "full" if admin else "home", "may_switch": True, "home_only": False, "kiosk": False, "kiosk_area_id": None,
+def install_settings(conn: sqlite3.Connection) -> dict[str, str]:
+    """The installation settings of the home interface; an unknown or missing value reads as the default (the first one listed)."""
+    out = {}
+    for k, key in INSTALL_KEYS.items():
+        v = get_setting(conn, key)
+        out[k] = v if v in INSTALL_VALUES[k] else INSTALL_VALUES[k][0]
+    return out
+
+
+def set_install_settings(conn: sqlite3.Connection, body: dict[str, Any]) -> dict[str, str]:
+    for k, v in body.items():
+        if k not in INSTALL_KEYS or v not in INSTALL_VALUES[k]:
+            raise HomeInterfaceError(422, "validation", "ערך לא מוכר בהגדרות הממשק הביתי.")
+    for k, v in body.items():
+        set_setting(conn, INSTALL_KEYS[k], v)
+    return install_settings(conn)
+
+
+def default_policy(admin: bool, mode: str = "full_all") -> dict[str, Any]:
+    """A person nobody configured yet. HOME-SIMPLE-2421 (owner): full for everyone by default; `home_regular` is the 2.42.0 rule
+    (home for a regular user, full for an administrator); `choose` opens the choice screen first (see effective). All may switch."""
+    home = mode == "home_regular" and not admin
+    return {"default_interface": "home" if home else "full", "may_switch": True, "home_only": False, "kiosk": False, "kiosk_area_id": None,
             "rooms": None, "modules": None, "current_interface": None}
 
 
@@ -123,11 +160,16 @@ def effective(conn: sqlite3.Connection, user_id: str) -> dict[str, Any]:
     """The policy that applies to this person now, and `interface`: the one to open. home_only / kiosk force home and no switch."""
     stored = stored_policy(conn, user_id)
     admin = is_admin(conn, user_id)
-    pol = stored if stored is not None else default_policy(admin)
+    inst = install_settings(conn)
+    pol = stored if stored is not None else default_policy(admin, inst["default_mode"])
     home_only = bool(pol["home_only"])
     may_switch = bool(pol["may_switch"]) and not home_only
     default = "home" if home_only else pol["default_interface"]
     current = pol.get("current_interface") if may_switch else None
+    # `choose`: a person nobody configured, who never chose, opens the home interface's choice screen (which saves the choice)
+    choose = stored is None and inst["default_mode"] == "choose"
+    if choose:
+        current = "home"
     return {
         "default_interface": default,
         "may_switch": may_switch,
@@ -140,7 +182,25 @@ def effective(conn: sqlite3.Connection, user_id: str) -> dict[str, Any]:
         "configured": stored is not None,
         "admin": admin,
         "kiosk_code_set": bool(get_setting(conn, KIOSK_CODE_KEY)),
+        "choose": choose,
+        "kiosk_exit": inst["kiosk_exit"],
+        "wallpaper": inst["wallpaper"],
     }
+
+
+def freeze_legacy_defaults(conn: sqlite3.Connection) -> int:
+    """HOME-SIMPLE-2421, once (main.py, in the start that applied migration 0212): a person who arrived under 2.42.0 without a policy
+    row had the 2.42.0 default (home for a regular user, full for an administrator). The new default (full for everyone) must not
+    move them, so each such person gets an explicit row with what they had. Returns the number of rows written."""
+    n = 0
+    for u in conn.execute("SELECT id FROM users WHERE id NOT IN (SELECT user_id FROM home_interface_policy)").fetchall():
+        legacy = default_policy(is_admin(conn, u["id"]), "home_regular")
+        conn.execute(
+            "INSERT INTO home_interface_policy (user_id, default_interface, may_switch, home_only, kiosk, updated_at, updated_by) VALUES (?, ?, 1, 0, 0, ?, ?)",
+            (u["id"], legacy["default_interface"], now_iso(), LEGACY_FROZEN_BY),
+        )
+        n += 1
+    return n
 
 
 def _clean_list(v: Any, allowed: tuple[str, ...] | None, what: str) -> list[str] | None:
@@ -162,7 +222,7 @@ def set_policy(conn: sqlite3.Connection, actor: Principal, user_id: str, body: d
     made home-only (nobody locks the installation's own administrator out of the full interface), and kiosk implies home-only."""
     if conn.execute("SELECT 1 FROM users WHERE id = ?", (user_id,)).fetchone() is None:
         raise HomeInterfaceError(404, "not_found", "המשתמש לא נמצא.")
-    cur = stored_policy(conn, user_id) or default_policy(is_admin(conn, user_id))
+    cur = stored_policy(conn, user_id) or default_policy(is_admin(conn, user_id), install_settings(conn)["default_mode"])
     merged = {**cur}
     for k in ("default_interface", "may_switch", "home_only", "kiosk", "kiosk_area_id"):
         if k in body and body[k] is not None:
@@ -203,13 +263,13 @@ def set_current(conn: sqlite3.Connection, user_id: str, interface: str) -> dict[
     if interface not in INTERFACES:
         raise HomeInterfaceError(422, "validation", "ממשק לא מוכר.")
     eff = effective(conn, user_id)
-    if interface != eff["interface"] and not eff["may_switch"]:
+    if interface != eff["interface"] and not eff["may_switch"] and not eff["choose"]:
         raise HomeInterfaceError(403, "interface_locked", "הממשק נקבע על ידי מנהל הבית.")
     if eff["home_only"] and interface == "full":
         raise HomeInterfaceError(403, "interface_locked", "הממשק נקבע על ידי מנהל הבית.")
     stored = stored_policy(conn, user_id)
     if stored is None:
-        base = default_policy(eff["admin"])
+        base = default_policy(eff["admin"], install_settings(conn)["default_mode"])
         conn.execute(
             "INSERT INTO home_interface_policy (user_id, default_interface, may_switch, home_only, kiosk, current_interface, updated_at, updated_by) VALUES (?, ?, 1, 0, 0, ?, ?, ?)",
             (user_id, base["default_interface"], interface, now_iso(), user_id),
@@ -347,6 +407,20 @@ def clean_layout(v: Any) -> dict[str, Any]:
     for k in ("big_text", "welcomed"):
         if k in v:
             out[k] = bool(v[k])
+    if "wallpapers" in v:  # HOME-SIMPLE-2421: {room_key: "g:<gallery name>" | "img"}; an empty value = no wallpaper
+        w = v["wallpapers"]
+        if not isinstance(w, dict) or len(w) > MAX_ROOM_LIST:
+            raise HomeInterfaceError(422, "validation", "רקעי החדרים אינם תקינים.")
+        clean: dict[str, str] = {}
+        for key, val in w.items():
+            if not isinstance(key, str) or not ROOM_KEY_RE.match(key):
+                raise HomeInterfaceError(422, "validation", "החדר אינו תקין.")
+            if val is None or val == "":
+                continue
+            if not isinstance(val, str) or not WALL_RE.match(val) or (val.startswith("g:") and val[2:] not in GALLERY):
+                raise HomeInterfaceError(422, "validation", "הרקע אינו מוכר.")
+            clean[key] = val
+        out["wallpapers"] = clean
     return out
 
 
@@ -412,6 +486,8 @@ def set_kiosk_code(conn: sqlite3.Connection, code: str | None) -> bool:
 
 def check_kiosk_code(conn: sqlite3.Connection, user_id: str, code: str) -> bool:
     """True when `code` is the exit code. At most KIOSK_TRIES wrong codes per person per KIOSK_WINDOW_S (then 429)."""
+    if install_settings(conn)["kiosk_exit"] == "none":
+        raise HomeInterfaceError(403, "kiosk_no_exit", "מסך הקיר נעול לחדר שלו. היציאה ממנו סגורה בהגדרות ההתקנה.")
     now = time.monotonic()
     with _LOCK:
         fails = [t for t in _KIOSK_FAILS.get(user_id, []) if now - t < KIOSK_WINDOW_S]
