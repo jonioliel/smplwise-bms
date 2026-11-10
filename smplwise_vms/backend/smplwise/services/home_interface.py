@@ -57,7 +57,7 @@ HOME_ALLOWED_EXACT = frozenset((
     "/notifications/devices", "/notifications/categories",
     "/devices/tree", "/devices/items", "/devices/entities", "/devices/actions", "/devices/actions/preview",
     "/automations", "/automations/status", "/cameras", "/energy/meters", "/energy/consumption",
-    "/intercom/calls", "/intercom/calls/active", "/intercom/ws", "/alarm/panels", "/ha/ws",
+    "/intercom/calls", "/intercom/calls/active", "/intercom/ws", "/intercom/overview", "/energy/tariffs", "/alarm/panels", "/ha/ws",
 ))
 HOME_ALLOWED_PREFIXES = (
     "/me/", "/home/", "/auth/", "/presence/", "/health/", "/notifications/",

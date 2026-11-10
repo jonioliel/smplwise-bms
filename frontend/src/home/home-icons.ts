@@ -47,7 +47,7 @@ const P: Record<string, string> = {
   scenes: '<path d="M12 3v3.5"/><path d="M12 17.5V21"/><path d="M3 12h3.5"/><path d="M17.5 12H21"/><path d="m12 8 1.3 2.7L16 12l-2.7 1.3L12 16l-1.3-2.7L8 12l2.7-1.3z"/>',
   size: '<path d="M4 9.5V4h5.5"/><path d="M20 14.5V20h-5.5"/><path d="m4 4 6.5 6.5"/><path d="m20 20-6.5-6.5"/>',
   hold: '<rect x="8" y="5" width="3" height="14" rx="1"/><rect x="13" y="5" width="3" height="14" rx="1"/>',
-  switch: '<rect x="6.5" y="3.5" width="11" height="17" rx="3"/><path d="M12 7.5v4"/><circle cx="12" cy="15.6" r="1.1"/>',
+  switch: '<rect x="2.5" y="7" width="19" height="10" rx="5"/><circle cx="16.5" cy="12" r="2.6"/>',
   fridge: '<rect x="6" y="3" width="12" height="18" rx="2.5"/><path d="M6 10h12"/><path d="M9.5 6v1.5"/><path d="M9.5 13v2.5"/>',
   pump: '<circle cx="12" cy="12" r="6.5"/><path d="M12 5.5v13"/><path d="M5.5 12h13"/><path d="M3 12h2.5"/><path d="M18.5 12H21"/>',
   palette: '<path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.4 0 2-1 1.5-2.2-.6-1.4.3-2.8 1.8-2.8H17a3.5 3.5 0 0 0 3.5-3.5c0-4.7-3.8-8.5-8.5-8.5z"/><circle cx="8" cy="11" r="1"/><circle cx="11" cy="7.5" r="1"/><circle cx="15.2" cy="8.5" r="1"/>',

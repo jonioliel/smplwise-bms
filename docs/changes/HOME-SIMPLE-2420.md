@@ -77,7 +77,7 @@ research/CONTROL4_UI_NOTES.md) plus the lead's defaults (switch rules, themes) o
 | Mockup element | Status | Notes |
 |---|---|---|
 | Strip: back, room name = room picker, favourite-room arrows + dots, clock, date, weather, doors pill, alerts bell + count, avatar menu | built | weather from the first available weather entity (none = no weather line) |
-| Strip: "מחכים בדלת" pending-call pill | not built | the existing call banner shows the call; an ignored call is in "מי הגיע" |
+| Strip: "מחכים בדלת" pending-call pill | built (slice 7) | shown while a ringing call was ignored; a tap shows the call sheet again |
 | Side navigation (הבית שלי, סצנות, פעיל עכשיו, התראות, הגדרות), phone bottom bar | built | items hidden when the category is off for the person |
 | "Now" bar: room / house text, active room chips, master dimmer, room off / house off | built | |
 | Swipe between favourite rooms; long press = add to favourites | built | not tried on a real tablet / phone |
@@ -88,22 +88,26 @@ research/CONTROL4_UI_NOTES.md) plus the lead's defaults (switch rules, themes) o
 | Rooms: floors in columns (tablet / desktop), floor tabs (phone), room lamp, hearts | built | |
 | Lighting: lights / switches / scenes tabs, room-floor-house scope, all / on filter, turn all off, stars, paging | built | |
 | Climate: dial, up / down, presets, modes, zone list, phone zone sheet | built | presets are Arx values (23 / 26 / 22) clamped to the device's range; modes = the device's own |
-| Climate: "החזק כך" (hold) | not built | no generic platform concept to map it to |
+| Climate: "החזק כך" (hold) | not built (lead: leave out) | no generic platform concept to map it to: a thermostat's schedule hold is device-specific, and Arx has no climate schedule of its own to suspend |
+| Switch glyph | fixed (slice 7) | the rocker drawn as an on/off toggle (a pill with its knob), no longer a line and a dot that read as "!" |
 | Shutters: open / stop / close, open all / close all, open filter | built | open / close need a second tap (the server's movement confirmation); "all" asks once |
 | Doors: list, open with confirmation, lock, not-locked filter | built | |
-| Doors: "דבר עם הכניסה", "הדגמה" | not built | outgoing talk is not offered without a call; the demo button is mockup-only |
+| Doors: "דבר עם הכניסה" | built (slice 7) | the existing outbound talk of the station drawer (`wk-talk-button dial`, the same talk session and permission), offered only for an online entrance whose media offers talk, with its live picture |
+| Doors: "הדגמה" | not applicable | mockup-only demo button |
 | "מי הגיע" visitors | built (partly) | from the intercom call log (station, time, who answered / opened); no picture - the log keeps no frames |
-| Intercom call overlay (ring, answer, talk, open + confirm, opened, ignore) | built differently | the existing `sw-incoming-call` banner (its paths, permissions, audit) instead of the mockup's full-screen overlay |
+| Intercom call overlay (ring, answer, talk, open + confirm, ignore) | built (slice 7) | `sw-home-call` is the existing `sw-incoming-call` (same signalling, ring, answer + two-way talk, reject, release with confirmation, hide) drawn as the mockup's full-screen sheet inside #/home; live picture from the station's own relay path, the still without video.live; "ענה ודבר" only where the station offers talk from Arx (otherwise the sheet says so and offers open / ignore - it never leaves the home interface); the banner is not shown inside #/home |
 | Cameras: grid, room / house, offline state, full screen with previous / next | built | grid = refreshed stills, full screen and the favourite = live (`sw-camera-tile`) |
 | Energy: today / week, chart with the usual line, tooltip, by room | built | usual = mean of the 7 days before (hourly) / 4 weeks before (daily), up to 12 meters; by room = meters by area |
-| Energy: "בערך ₪" cost | not built | the tariffs need energy.bills / energy.manage, which a family member does not hold |
+| Energy: "בערך ₪" cost | built (slice 7) | shown only to a person who already holds energy.bills / energy.manage (the tariffs' own read permission; no new permission), from the fixed tariff's current price; hidden for everyone else and for a time-of-use tariff |
 | Alerts: waiting / all, acknowledge, done | built | the mockup's custom actions ("כבה את הדוד") are not offered: the notification carries no such action |
-| Scenes: home + room scenes, one tap | built | no "active scene" highlight (the platform has no such state) |
+| Scenes: home + room scenes, one tap, run toast | built | |
+| Active scene highlight | built (slice 7) | the scene this person ran in this session, else the scene the platform ran last today (the scene list's own `last_run`) |
 | Active now + non-light switches row + house off | built | |
 | Settings: favourites, rooms (heart + show), themes, view (interface choice, what opens first, theme, big text) | built | |
 | Settings: scenes + the simplified scene edit dialog | partly | the list is built; editing is for administrators only and opens the full scene editor (the platform's scenes are captured states, not the dialog's abstract options) |
 | Welcome choice | built | shown once to a person who may switch |
-| Personal menu: interface choice, my settings, light / dark | built | "החלף משתמש" not built (sign-in belongs to the home system) |
+| Personal menu: interface choice, my settings, light / dark | built | |
+| Personal menu: "החלף משתמש" | built (slice 7), remote sign-in only | the existing Arx sign-out (`arx/auth.logout`), which returns to the sign-in page; inside Home Assistant the sign-in is the home system's own, so the row is not shown there (no new authentication) |
 | Full-interface admin page (users, default, may switch, wall panel, categories, rooms) | built | in user management (product components), plus exit code and starting favourites |
 | Wall panel locked to its room, no personal menu, exit | built | exit: long press on the clock, the administrator's code, 5 minutes |
 | Media, per-room wallpaper | not built | decision (no media module; calm screen) |
@@ -117,7 +121,10 @@ research/CONTROL4_UI_NOTES.md) plus the lead's defaults (switch rules, themes) o
 | `pytest tests/test_backup.py tests/test_backup_sensitive.py tests/test_body_limit.py tests/test_me_permissions.py tests/test_migrations.py tests/test_migrations_263_upgrade.py tests/test_rbac_matrix.py tests/test_user_prefs.py tests/test_devices.py tests/test_presence*.py tests/test_home_interface.py` | 0 | all passed (the -q addopts prints no summary; exit 0, no F/E) |
 | `npx tsc --noEmit` | 0 | clean |
 | `npx playwright test -c playwright.unit.config.ts tests/unit-home-simple-logic.spec.ts` | 0 | 6 passed |
-| `npx playwright test tests/home-simple-2420.spec.ts --project=desktop` (after `npm run build`) | 0 | 14 passed: 3 size sweeps (18 screens each: no scroll, scrollTop 0, RTL, >= 56 px targets on the tablet / 44 on the phone, no forbidden words) + 10 behaviour + 1 admin page |
+| slice 7: `npx playwright test tests/home-simple-2420.spec.ts --project=desktop` (after `npm run build`) | 0 | 22 passed (adds: the call sheet at the 3 sizes - no scroll, scrollTop 0, 56 px buttons on the tablet; door from the call with its confirmation; ignore -> "מחכים בדלת" -> the call again; the active scene + toast; the cost only with the tariff permission; "דבר עם הכניסה") |
+| slice 7: unit (home logic incl. the switch glyph, user menu, incoming calls, kiosk idle, nav) | 0 | 49 passed |
+| slice 7: `npx playwright test tests/evidence-incoming-call.spec.ts --project=desktop` (the full interface's banner, unchanged) | 0 | 12 passed, 1 skipped |
+| before slice 7: `npx playwright test tests/home-simple-2420.spec.ts --project=desktop` (after `npm run build`) | 0 | 14 passed: 3 size sweeps (18 screens each: no scroll, scrollTop 0, RTL, >= 56 px targets on the tablet / 44 on the phone, no forbidden words) + 10 behaviour + 1 admin page |
 | related unit specs (user menu, nav, settings nav, kiosk idle, home screen, search access, ...: 14 files) | 0 | 94 passed |
 | `python scripts/gate/lint_spec_waits.py frontend/tests/home-simple-2420.spec.ts` | 0 | 0 findings |
 | `node scripts/lazy-tags-check.mjs` | 0 | OK |
@@ -138,7 +145,7 @@ Evidence in `docs/changes/evidence/HOME-SIMPLE-2420/inspect/`:
   them (its own inspect/ folder, themes-contrast.txt). `review-animations` cannot be run by an agent.
 
 Side-by-side with the mockup (same sizes, mockup on the left, built on the right, mocked backend):
-`docs/changes/evidence/HOME-SIMPLE-2420/compare/<tablet|phone|desktop>-<screen>.jpg` (51 images). Differences seen: the camera picture
+`docs/changes/evidence/HOME-SIMPLE-2420/compare/<tablet|phone|desktop>-<screen>.jpg` (51 images, plus `<size>-call.jpg` for the call sheet). Differences seen: the camera picture
 is the real tile (a "connecting" state with the mock), no active-scene highlight, the hold switch absent, otherwise the same structure,
 sizes and colours.
 
@@ -155,7 +162,7 @@ server-side restriction for home-only people (they would see the full interface 
 ## Known limits / open questions
 
 1. The owner may still change any lead default (defaults for new users, room-off = lights + A/C, presets 23/26/22).
-2. A home-only person keeps only the API areas listed in `HOME_ALLOWED_*`; a full-interface feature added later is refused for them
+2. A home-only person keeps only the API areas listed in `HOME_ALLOWED_*` (slice 7 added `/intercom/overview` and `/energy/tariffs`, both still permission-checked); a full-interface feature added later is refused for them
    until listed (safe by default).
 3. Live control was exercised only against mocks; first lab run should check one light, one switch, one shutter, the door (with the
    owner's approval) and the bulk off on a real room.

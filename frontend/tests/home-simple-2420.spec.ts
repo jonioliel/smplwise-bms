@@ -191,6 +191,98 @@ test.describe('HOME-SIMPLE-2420 behaviour', () => {
   });
 });
 
+// ---------------------------------------------------------------- slice 7: the call sheet, the waiting pill, the active scene, the cost, the talk
+
+test.describe('HOME-SIMPLE-2420 slice 7', () => {
+  test.beforeEach(({}, info) => test.skip(info.project.name !== 'desktop', 'sizes are set per test'));
+
+  for (const size of SIZES) {
+    test(`the incoming call sheet fills the screen without scrolling - ${size.id}`, async ({ page }) => {
+      await page.setViewportSize({ width: size.width, height: size.height });
+      await open(page, 'r/home', 'demo', { ringing: true });
+      const sheet = inHome(page).locator('sw-home-call section.call');
+      await expect(sheet).toBeVisible();
+      await expect(sheet).toContainText('מישהו ב');
+      await expect(sheet.locator('[data-call-answer]')).toContainText('ענה ודבר');
+      await expect(sheet.locator('[data-call-door]')).toContainText('פתח דלת');
+      await expect(sheet.locator('[data-call-ignore]')).toContainText('התעלם');
+      await expect(sheet.locator('sw-camera-tile')).toHaveCount(1);
+      await settle(page);
+      const g = await page.evaluate(() => {
+        const call = document.querySelector('sw-app')!.shadowRoot!.querySelector('sw-home')!.shadowRoot!.querySelector('sw-home-call')!.shadowRoot!;
+        const sec = call.querySelector('section.call') as HTMLElement;
+        const r = sec.getBoundingClientRect();
+        const doc = document.scrollingElement!;
+        const small = Array.from(call.querySelectorAll('button')).map((b) => b.getBoundingClientRect()).filter((x) => x.height && x.height < 56).length;
+        return { over: doc.scrollHeight - doc.clientHeight, top: doc.scrollTop, inside: sec.scrollHeight - sec.clientHeight, w: r.width, h: r.height, small };
+      });
+      expect(g.over).toBeLessThanOrEqual(1);
+      expect(g.top).toBe(0);
+      expect(g.inside).toBeLessThanOrEqual(1);
+      if (size.id === 'tablet') expect(g.small).toBe(0);
+      await page.screenshot({ path: `${SHOTS}/${size.id}-call.png` });
+    });
+  }
+
+  test('open the door from the call: a confirmation, then the existing release route with its confirmation', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const m = await open(page, 'r/home', 'demo', { ringing: true });
+    const sheet = inHome(page).locator('sw-home-call section.call');
+    await sheet.locator('[data-call-door]').click();
+    await expect(sheet).toContainText('לפתוח את דלת הכניסה?');
+    expect(m.calls.filter((c) => c.path === 'intercom/release')).toEqual([]);
+    await sheet.locator('[data-call-door-yes]').click();
+    await expect.poll(() => m.calls.filter((c) => c.path === 'intercom/release').map((c) => (c.body as { confirmed: boolean; lock: number }))).toEqual([expect.objectContaining({ confirmed: true, lock: 0 })]);
+  });
+
+  test('ignore leaves "מחכים בדלת" in the strip; a tap shows the call again', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.addInitScript(() => sessionStorage.removeItem('sw.calls.hidden'));
+    await open(page, 'r/home', 'demo', { ringing: true });
+    await inHome(page).locator('sw-home-call [data-call-ignore]').click();
+    await expect(inHome(page).locator('sw-home-call section.call')).toHaveCount(0);
+    const pill = inHome(page).locator('.st-pill.call');
+    await expect(pill).toContainText('מחכים בדלת');
+    await pill.click();
+    await expect(inHome(page).locator('sw-home-call section.call')).toBeVisible();
+  });
+
+  test('the scene just run is shown as on, with its toast', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.addInitScript(() => sessionStorage.removeItem('home.lastScene'));
+    await open(page, 'r/home');
+    const evening = inHome(page).locator('.wg-btn.scene[data-scene="evening"]');
+    await expect(evening).toHaveAttribute('aria-pressed', 'false');
+    await evening.click();
+    await expect(evening).toHaveAttribute('aria-pressed', 'true');
+    await expect(inHome(page).locator('.toast2')).toContainText('סצנת ערב הופעלה');
+  });
+
+  test('the cost estimate shows only with the tariff read permission', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await mockHome(page);
+    await page.goto('/#/home/energy');
+    await expect(inHome(page).locator('.hs-head')).toContainText('קוט״ש');
+    await expect(inHome(page).locator('[data-energy-cost]')).toHaveCount(0);
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await mockHome(page, { perms: ['devices.read', 'devices.control', 'energy.view', 'energy.bills'] });
+    await page.goto('about:blank');
+    await page.goto('/#/home/energy');
+    await expect(inHome(page).locator('[data-energy-cost]')).toContainText('₪');
+  });
+
+  test('"דבר עם הכניסה" opens the existing talk control of the entrance', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await open(page, 'doors');
+    await inHome(page).locator('[data-act="talk"]').click();
+    await expect(inHome(page).locator('section.call')).toContainText('מדברים עם דלת הכניסה');
+    await expect(inHome(page).locator('section.call wk-talk-button')).toHaveCount(1);
+    await settle(page);
+    const top = await page.evaluate(() => document.scrollingElement!.scrollTop);
+    expect(top).toBe(0);
+  });
+});
+
 test.describe('HOME-SIMPLE-2420 administrator page', () => {
   test.beforeEach(({}, info) => test.skip(info.project.name !== 'desktop', 'one size'));
 

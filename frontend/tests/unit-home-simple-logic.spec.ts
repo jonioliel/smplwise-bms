@@ -86,3 +86,11 @@ test('the off sweeps reach lights only: lightsOff never touches a load (a non-li
   expect(body).not.toContain('loads');
   expect(body).not.toContain('all_off');
 });
+
+test('the switch glyph is an on/off toggle (a pill with its knob), not an exclamation mark', () => {
+  const icons = src('home-icons.ts');
+  const line = icons.split('\n').find((l) => l.trimStart().startsWith('switch:')) ?? '';
+  expect(line).toContain('rx="5"');
+  expect(line).toContain('<circle');
+  expect(line).not.toMatch(/v4"|v\d+"\/><circle cx="12"/);
+});

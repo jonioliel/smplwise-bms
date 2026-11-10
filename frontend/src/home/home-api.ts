@@ -94,7 +94,7 @@ export interface HRoom {
 }
 export interface HFloor { id: string; name: string; short: string }
 export interface HCamera { id: string; name: string; ok: boolean; room: string | null }
-export interface HScene { id: string; name: string; rooms: string[]; canRun: boolean; canEdit: boolean; sensitive: boolean; icon: string; does: string }
+export interface HScene { id: string; name: string; rooms: string[]; canRun: boolean; canEdit: boolean; sensitive: boolean; icon: string; does: string; lastRun?: string | null }
 export interface HAlert { id: string; tone: 'warn' | 'info' | 'ok'; icon: string; text: string; when: string; open: boolean; canAck: boolean; link: string; door: Notification['door'] }
 export interface HEnergy { today: number[]; usual: number[]; week: [string, number | null, number][]; byRoom: [string, number][]; price: number | null }
 
@@ -170,7 +170,7 @@ export async function loadScenes(): Promise<HScene[]> {
       .filter((s: AutoItem) => !s.hidden && s.state !== 'invalid' && s.can.run)
       .map((s: AutoItem) => ({
         id: s.id, name: s.name, rooms: s.areas.map((a) => a.id), canRun: s.can.run, canEdit: s.can.edit && can('scene.manage'), sensitive: s.sensitive,
-        icon: SCENE_ICON.find(([re]) => re.test(s.name))?.[1] ?? 'scenes', does: s.description || s.sentence || '',
+        icon: SCENE_ICON.find(([re]) => re.test(s.name))?.[1] ?? 'scenes', does: s.description || s.sentence || '', lastRun: s.last_run?.at ?? null,
       }));
   } catch {
     return [];

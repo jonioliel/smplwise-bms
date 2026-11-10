@@ -27,6 +27,14 @@ import { subscribeHa } from '../api/ha';
 import { relTime } from './home-api';
 import { alarmPanels, panelAction, type AlarmAction, type AlarmPanel } from '../api/alarm';
 import { canAnywhere } from '../api/session';
+import { getIntercomOverview } from '../api/intercom';
+import { getStationMedia, type StationMediaTalk } from '../api/station-media';
+import { get } from '../api/client';
+import { REMOTE } from '../arx/pre-gate';
+import { logout as arxLogout } from '../arx/auth';
+import './sw-home-call';
+import type { HomeCallsState, SwHomeCall } from './sw-home-call';
+import '../components/wk-talk-button';
 import '../components/sw-camera-tile';
 
 export const THEMES: [string, string, string, 1 | 2][] = [
@@ -45,6 +53,7 @@ type Ovl =
   | { type: 'ask'; title: string; text: string; yes: string; run: () => void }
   | { type: 'kiosk'; code: string; error: string }
   | { type: 'code'; title: string; code: string; error: string; run: (code: string) => void }
+  | { type: 'talk' }
   | null;
 
 const NAV: [string, string, string, string][] = [['r/home', 'הבית שלי', 'home', 'home'], ['scenes', 'סצנות', 'scenes', 'scenes'], ['active', 'פעיל עכשיו', 'pulse', 'active'], ['alerts', 'התראות', 'bell', 'alerts'], ['settings/favs', 'הגדרות', 'sliders', 'settings']];
@@ -92,6 +101,13 @@ export class SwHome extends LitElement {
   @state() private kioskUntil = 0;
   @state() private welcomePick: 'home' | 'full' = 'home';
   @state() private panels: AlarmPanel[] = [];
+  @state() private calls: HomeCallsState = { ringing: 0, waiting: 0 };
+  /** The entrance this person may talk to without a call (the station drawer's "dial", the same talk session) - null = not offered. */
+  @state() private talkTo: { id: string; name: string; talk: StationMediaTalk; video: string } | null = null;
+  /** The last scene this person ran in this session (else the scene the platform ran last, from its own run record). */
+  @state() private lastScene: string | null = (() => { try { return sessionStorage.getItem('home.lastScene'); } catch { return null; } })();
+  /** The price per kWh of the installation's fixed tariff - only for a person who may already read the tariffs (no new permission). */
+  @state() private price: number | null = null;
 
   private stopHa: (() => void) | null = null;
   private refreshT = 0;
@@ -148,10 +164,40 @@ export class SwHome extends LitElement {
         ]);
         this.data = { ...this.data, scenes, alerts, energy };
         if (mods.has('security') && canAnywhere('alarm.view')) void this.loadPanels();
+        if (mods.has('doors') && canAnywhere('access.call')) void this.loadTalk();
+        if (mods.has('energy') && (canAnywhere('energy.bills') || canAnywhere('energy.manage'))) void this.loadPrice();
         if (mods.has('doors')) void getCallLog(null, 8).then((p) => { this.visitors = p.calls; }).catch(() => undefined);
       }
     } catch (err) {
       this.error = describeError(err);
+    }
+  }
+
+  private async loadTalk() {
+    try {
+      const feed = await getIntercomOverview();
+      for (const s of (feed as unknown as { stations?: { id: string; name: string; online: boolean }[] }).stations ?? []) {
+        if (!s.online) continue;
+        const m = await getStationMedia(s.id).catch(() => null);
+        if (m?.talk?.available) {
+          const video = m.video?.allowed ? m.video.paths.sub ?? m.video.paths.main ?? '' : '';
+          this.talkTo = { id: s.id, name: s.name, talk: m.talk, video };
+          return;
+        }
+      }
+    } catch {
+      this.talkTo = null;
+    }
+  }
+
+  private async loadPrice() {
+    try {
+      const r = await get<{ items: { kind: string; current: { price?: string | null } | null }[] }>('energy/tariffs');
+      const fixed = r.items.find((x) => x.kind === 'fixed' && x.current?.price);
+      const v = fixed ? parseFloat(String(fixed.current?.price)) : NaN;
+      this.price = Number.isFinite(v) && v > 0 ? v : null;
+    } catch {
+      this.price = null;
     }
   }
 
@@ -549,6 +595,8 @@ export class SwHome extends LitElement {
     const runIt = () => {
       this.sceneRun = s.id;
       window.setTimeout(() => { this.sceneRun = null; }, 620);
+      this.lastScene = s.id;
+      try { sessionStorage.setItem('home.lastScene', s.id); } catch { /* storage unavailable: this page only */ }
       void this.outcome(act.applyScene(s), `סצנת ${s.name} הופעלה`);
     };
     if (s.sensitive) this.ovl = { type: 'ask', title: `להפעיל את ${s.name}?`, text: 'הסצנה הזו משנה גם דברים רגישים.', yes: 'כן, הפעל', run: runIt };
@@ -744,6 +792,9 @@ export class SwHome extends LitElement {
     this.ovl = { ...o, code: k === 'del' ? o.code.slice(0, -1) : o.code.length < 12 ? o.code + k : o.code, error: '' };
   }
   a_codeGo() { const o = this.ovl; if (o?.type === 'code' && o.code) o.run(o.code); }
+  a_talk() { if (this.talkTo) this.ovl = { type: 'talk' }; }
+  a_ring() { (this.renderRoot.querySelector('sw-home-call') as SwHomeCall | null)?.unhideRinging(); }
+  a_switchUser() { this.ovl = null; void arxLogout('logout'); }
   a_kioskKey(el: HTMLElement) {
     const o = this.ovl;
     if (o?.type !== 'kiosk') return;
@@ -849,6 +900,7 @@ export class SwHome extends LitElement {
       ${fr.length > 1 && !locked ? html`<div class="tb-fav" role="group" aria-label="חדרים מועדפים"><button class="rb" data-act="roomStep" data-d="-1" aria-label="החדר המועדף הקודם">${hi('back')}</button><span class="dots" aria-hidden="true">${fr.map((_, i) => html`<i class=${i === at ? 'on' : ''}></i>`)}</span><button class="rb" data-act="roomStep" data-d="1" aria-label="החדר המועדף הבא">${hi('fwd')}</button></div>` : nothing}
       <div class="hs-now"><span class="time num">${HE_TIME.format(this.now)}</span><span class="date">${HE_WEEKDAY.format(this.now)}</span>${this.d.weather && this.d.weather.t != null ? html`<span class="wx" title="מזג האוויר בחוץ">${hi('sun')}<span class="num">${this.d.weather.t}°</span><span class="wxt ellip">${this.d.weather.text}</span></span>` : nothing}</div>
       <div class="hs-status">
+        ${this.calls.waiting ? html`<button class="st-pill call" data-act="ring">${hi('bell')}<span>מחכים בדלת</span></button>` : nothing}
         ${this.d.modules.has('doors') ? html`<a class="st-pill" href=${this.href('doors')} data-tone=${!doors.length ? 'neutral' : u.length ? 'warn' : 'ok'}><i class="dot"></i><span>${doorsText(doors)}</span></a>` : nothing}
         ${this.d.modules.has('alerts') ? html`<a class="st-btn" href=${this.href('alerts')} aria-label=${'התראות' + (a ? ': ' + a + ' דורשות טיפול' : '')}>${hi('bell')}${a ? html`<b class="count num">${a}</b>` : nothing}</a>` : nothing}
         <button class="st-me" data-act="menu" aria-haspopup="dialog" aria-label=${'התפריט של ' + this.userName}><span class="av">${(this.userName || '?').slice(0, 1)}</span></button>
@@ -909,7 +961,7 @@ export class SwHome extends LitElement {
     let body: unknown = nothing;
     if (f.t === 'scene') {
       const s = this.d.scenes.find((x) => x.id === f.id) as HScene;
-      body = html`<button class="wg-btn scene${this.sceneRun === s.id ? ' run' : ''}" data-act="scene" data-scene=${s.id}>${hi(s.icon)}<span class="sn clamp2">${s.name}</span></button>`;
+      body = html`<button class="wg-btn scene${this.sceneRun === s.id ? ' run' : ''}" data-act="scene" data-scene=${s.id} aria-pressed=${String(this.activeScene() === s.id)}>${hi(s.icon)}<span class="sn clamp2">${s.name}</span></button>`;
     } else if (f.t === 'light') {
       const l = this.findLight(f.id ?? '') as HLight;
       const far = this.room !== l.room;
@@ -1034,8 +1086,16 @@ export class SwHome extends LitElement {
     return [...own, ...homeScenes(this.world()).filter((s) => !own.includes(s))];
   }
 
+  /** The scene shown as on: the one this person ran in this session, else the one the platform ran most recently today. */
+  private activeScene(): string | null {
+    if (this.lastScene && this.d.scenes.some((s) => s.id === this.lastScene)) return this.lastScene;
+    const today = new Date().toDateString();
+    const runs = this.d.scenes.filter((s) => s.lastRun && new Date(s.lastRun).toDateString() === today).sort((a, b) => Date.parse(b.lastRun ?? '') - Date.parse(a.lastRun ?? ''));
+    return runs[0]?.id ?? null;
+  }
+
   private sceneCard(s: HScene, big: boolean) {
-    return html`<div class="tile lcard sc${big ? ' big' : ''}" data-ft="scene" data-fid=${s.id}><button class="lamp go${this.sceneRun === s.id ? ' run' : ''}" data-act="scene" data-scene=${s.id} aria-label=${'הפעל: ' + s.name}>${hi(s.icon)}</button><span class="ln"><b class="clamp1">${s.name}</b><span class="muted clamp1">${s.does || (s.rooms.length === 1 ? 'רק ב' + (this.roomById(s.rooms[0])?.name ?? 'חדר אחד') : 'סצנה של הבית')}</span></span>${this.star({ t: 'scene', id: s.id })}</div>`;
+    return html`<div class="tile lcard sc${big ? ' big' : ''}" data-ft="scene" data-fid=${s.id}><button class="lamp go${this.sceneRun === s.id ? ' run' : ''}" data-act="scene" data-scene=${s.id} aria-pressed=${String(this.activeScene() === s.id)} aria-label=${'הפעל: ' + s.name}>${hi(s.icon)}</button><span class="ln"><b class="clamp1">${s.name}</b><span class="muted clamp1">${s.does || (s.rooms.length === 1 ? 'רק ב' + (this.roomById(s.rooms[0])?.name ?? 'חדר אחד') : 'סצנה של הבית')}</span></span>${this.star({ t: 'scene', id: s.id })}</div>`;
   }
 
   private dial(z: HZone) {
@@ -1091,7 +1151,7 @@ export class SwHome extends LitElement {
       const tone = v.door_opened_at || v.outcome === 'answered' ? 'ok' : v.outcome === 'missed' ? 'warn' : 'neutral';
       return html`<div class="vrow"><span class="vp vp-ic">${hi('bell')}</span><span class="vn"><b class="clamp1">צלצול</b><span class="muted clamp1">${v.station_name}</span></span><span class="vr"><span class="num">${relTime(v.rang_at)}</span><span class="vres" data-tone=${tone}>${result}</span></span></div>`;
     };
-    return html`${this.head(this.phone ? 'דלתות' : 'דלתות ואינטרקום', doorsText(all), this.onlySeg('doorsOnly', this.doorsOnly, 'לא נעולות'))}
+    return html`${this.head(this.phone ? 'דלתות' : 'דלתות ואינטרקום', doorsText(all), html`${this.onlySeg('doorsOnly', this.doorsOnly, 'לא נעולות')}${this.talkTo ? html`<button class="hbtn" data-act="talk">${hi('phone')}<span class="bt">דבר עם הכניסה</span></button>` : nothing}`)}
       <div class="doors-body"><section class="door-list" aria-label="דלתות">${pgD.items.length ? pgD.items.map((d) => html`<div class="tile drow" data-ft="door" data-fid=${d.id}>${this.doorBody(d, true)}</div>`) : this.empty('door', this.doorsOnly && all.length ? 'כל הדלתות נעולות' : 'אין דלתות מחוברות', this.doorsOnly && all.length ? 'אין מה לנעול כרגע.' : 'כשתחובר דלת או אינטרקום, אפשר יהיה לפתוח ולראות מי הגיע.')}${this.pager('doors', pgD.pages)}</section>
       <section class="tile pane visitors" aria-label="מי הגיע"><div class="bar"><h2>מי הגיע</h2>${this.pager('visitors', pgV.pages)}</div>${pgV.items.length ? pgV.items.map(vis) : html`<p class="muted">עוד לא הגיע אף אחד היום.</p>`}</section></div>`;
   }
@@ -1121,7 +1181,7 @@ export class SwHome extends LitElement {
     const br = E.byRoom;
     const brMax = Math.max(...br.map((b) => b[1]), 0.1);
     const weekday = new Intl.DateTimeFormat('he-IL', { weekday: 'long', timeZone: 'Asia/Jerusalem' }).format(this.now);
-    return html`${this.head(html`${day ? 'היום' : 'השבוע'}: <span class="num">${tot.toFixed(1)}</span> קוט״ש`, usualSame > 0 ? (diff === 0 ? 'כמו ביום רגיל' : html`<span class="num">${Math.abs(diff)}%</span> ${diff < 0 ? 'פחות' : 'יותר'} מ${day ? weekday + ' רגיל' : 'שבוע רגיל'}`) : '', this.seg('period', [['day', 'היום'], ['week', 'השבוע']], this.period, 'תקופה'))}
+    return html`${this.head(html`${day ? 'היום' : 'השבוע'}: <span class="num">${tot.toFixed(1)}</span> קוט״ש`, html`${usualSame > 0 ? (diff === 0 ? 'כמו ביום רגיל' : html`<span class="num">${Math.abs(diff)}%</span> ${diff < 0 ? 'פחות' : 'יותר'} מ${day ? weekday + ' רגיל' : 'שבוע רגיל'}`) : ''}${this.price != null ? html` · בערך <span class="num" data-energy-cost>₪${(tot * this.price).toFixed(2)}</span>` : nothing}`, this.seg('period', [['day', 'היום'], ['week', 'השבוע']], this.period, 'תקופה'))}
       <div class="en-body"><section class="tile pane chart" aria-label=${'צריכה לפי ' + (day ? 'שעה' : 'יום')}><div class="bar"><h2>${day ? 'לפי שעה' : 'לפי יום'}</h2><div class="legend"><span><i class="k today"></i>${day ? 'היום' : 'השבוע'}</span><span><i class="k usual"></i>${day ? 'יום רגיל' : 'שבוע רגיל'}</span></div></div>
         <div class="plot" style=${`--n:${rows.length}`} @pointerover=${this.tipOver} @pointerleave=${this.tipOff} @focusin=${this.tipOver} @focusout=${this.tipOff}><div class="yax">${ticks.map((v) => html`<span style=${`bottom:${v / top * 100}%`}><em class="num">${v}</em></span>`)}</div>
           <div class="cols">${rows.map((r) => html`<div class=${'col' + (r[1] == null ? ' future' : '')} tabindex="0" data-tip=${`${r[0]}|${r[1] == null ? '' : r[1].toFixed(1)}|${r[2].toFixed(1)}`}>${r[1] == null ? nothing : html`<i class="b" style=${`height:${Math.max(1.5, r[1] / top * 100)}%`}></i>`}<i class="u" style=${`bottom:${r[2] / top * 100}%`}></i></div>`)}</div>
@@ -1274,7 +1334,7 @@ export class SwHome extends LitElement {
       const scheme = this.getAttribute('data-hs-scheme');
       return html`<div class="hscrim clear" data-act="close"></div><section class="sheet umenu" role="dialog" aria-modal="true" aria-label="התפריט האישי"><header class="menu-h"><span class="av lg">${(this.userName || '?').slice(0, 1)}</span><span class="mh-t"><b class="clamp1">${this.userFull || this.userName}</b><span class="muted">${this.role}</span></span><button class="rb" data-act="close" aria-label="סגור">${hi('x')}</button></header>
         <h3>הממשק שלי</h3>${this.faceChoice('home')}
-        <div class="menu-rows"><a class="mrow" href=${this.href('settings/favs')} data-act="closeNav">${hi('sliders')}<span>ההגדרות שלי</span>${hi('fwd')}</a><button class="mrow" data-act="theme" data-v=${scheme === 'dark' ? 'light' : 'dark'}>${hi(scheme === 'dark' ? 'sun' : 'night')}<span>${scheme === 'dark' ? 'מראה בהיר' : 'מראה כהה'}</span></button></div></section>`;
+        <div class="menu-rows"><a class="mrow" href=${this.href('settings/favs')} data-act="closeNav">${hi('sliders')}<span>ההגדרות שלי</span>${hi('fwd')}</a><button class="mrow" data-act="theme" data-v=${scheme === 'dark' ? 'light' : 'dark'}>${hi(scheme === 'dark' ? 'sun' : 'night')}<span>${scheme === 'dark' ? 'מראה בהיר' : 'מראה כהה'}</span></button>${REMOTE ? html`<button class="mrow" data-act="switchUser" data-home-switch-user>${hi('user')}<span>החלף משתמש</span>${hi('fwd')}</button>` : nothing}</div></section>`;
     }
     if (o.type === 'zones') {
       const zs = this.zonesOf(this.scopeRooms()).slice(0, 6);
@@ -1285,6 +1345,12 @@ export class SwHome extends LitElement {
       const here = this.favs(this.room).some((x) => sameFav(x, o.f));
       const r = this.ctx();
       return html`<div class="hscrim" data-act="close"></div><section class="sheet dialog" role="dialog" aria-modal="true" aria-label="מועדפים"><span class="dlg-ic">${hi('star')}</span><h2 class="clamp2">${o.label}</h2><p class="muted">מועדף מופיע במסך החדר, בנגיעה אחת.</p><div class="pick-list wide"><button class="mrow" data-act="holdFav" data-k=${this.room}>${hi('star')}<span>${here ? 'הסר מהמועדפים של ' : 'הוסף למועדפים של '}${r ? r.name : 'הבית שלי'}</span></button>${r ? html`<button class="mrow" data-act="holdFav" data-k="home">${hi('home')}<span>הוסף ל"הבית שלי"</span></button>` : nothing}<button class="mrow" data-act="close">${hi('x')}<span>ביטול</span></button></div></section>`;
+    }
+    if (o.type === 'talk') {
+      const s = this.talkTo;
+      if (!s) return nothing;
+      return html`<div class="hscrim solid"></div><section class="call" role="dialog" aria-modal="true" aria-label=${'דבר עם ' + s.name}><div class="call-video">${s.video ? html`<sw-camera-tile class="scene-pic" dark noDemo fit="cover" state="live" live .livePath=${s.video} profile="sub"></sw-camera-tile>` : html`<div class="cam-off big">${hi('camoff')}<span>אין תמונה מהכניסה הזו</span></div>`}</div>
+        <div class="call-side"><p class="ring-line">${hi('phone')}שיחה יוצאת</p><h1>מדברים עם ${s.name}</h1><p class="sub">נגיעה פותחת את המיקרופון. השיחה נסגרת בנגיעה נוספת.</p><div class="call-acts"><wk-talk-button dial idleLabel="דבר עם הכניסה" .stationId=${s.id} .talk=${s.talk}></wk-talk-button><button class="hbtn xl" data-act="close">סגור</button></div></div></section>`;
     }
     if (o.type === 'code') {
       const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'del', '0', 'go'];
@@ -1317,7 +1383,8 @@ export class SwHome extends LitElement {
     this.lastRoute = this.path;
     return html`<div class="app-root" @click=${this.onClick} @input=${this.onInput} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove} @pointerup=${this.onPointerUp} @pointercancel=${() => { window.clearTimeout(this.holdT); this.swipe = null; }} @keydown=${this.onKey}>
       <div class=${'hs v2' + (this.kioskLocked() ? ' kiosk' : '')} data-screen=${name}>${this.strip(name)}${this.nav(cur)}<main class=${'hs-main' + (anim ? ' enter' : '')} id="main">${screen}</main>${this.nowBar()}</div>
-      <div class="ovl">${this.ovlHtml()}</div>${this.toasts()}</div>`;
+      <div class="ovl">${this.ovlHtml()}</div>${this.toasts()}
+      <sw-home-call data-hs-theme=${this.getAttribute('data-hs-theme') ?? 'classic'} data-hs-scheme=${this.getAttribute('data-hs-scheme') ?? 'dark'} ?data-hs-big=${this.hasAttribute('data-hs-big')} @home-calls=${(e: CustomEvent<HomeCallsState>) => { this.calls = e.detail; }}></sw-home-call></div>`;
   }
 
   private toasts() {

@@ -3516,11 +3516,11 @@ export class SwApp extends LitElement {
     return true;
   }
 
-  /** HOME-SIMPLE-2420: the home interface - its own shell (no rail, no tabs), the intercom call banner kept on top. */
+  /** HOME-SIMPLE-2420: the home interface - its own shell (no rail, no tabs); its own full-screen call sheet (sw-home-call) replaces the banner there. */
   private renderHome(bar: unknown) {
     void import('../home/sw-home');
     const me = this.session.me;
-    return html`${bar}<sw-incoming-call></sw-incoming-call><sw-home .path=${(this.route?.segments ?? []).slice(1).join('/')} .userName=${(me?.user.display_name || me?.user.username || '').split(' ')[0]}
+    return html`${bar}<sw-home .path=${(this.route?.segments ?? []).slice(1).join('/')} .userName=${(me?.user.display_name || me?.user.username || '').split(' ')[0]}
       .userFull=${me?.user.display_name || me?.user.username || ''} .role=${this.userRole} .policy=${me?.interface ?? null}></sw-home>`;
   }
 
