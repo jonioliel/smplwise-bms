@@ -63,6 +63,8 @@ export class SwUserMenu extends LitElement {
   @property() restartHref = '';
   /** "עריכת המסך הראשי": the home screen in its layout-edit mode (the shell decides who may; '' = no item). */
   @property() editHomeHref = '';
+  /** HOME-SIMPLE-2420: the switch to the home interface ('' = this person may not switch). */
+  @property() homeHref = '';
   /** UI round 1c (shell/screen-edit.ts): the edit modes the CURRENT screen registered that this user may enter ("עריכת פריסה", ...). */
   @property({ attribute: false }) screenEdits: { id: string; label: string; icon: string }[] = [];
   /** shell/screen-view.ts: the CURRENT screen's view choices (the home screen's cards | tiles), each an inline two-option control. */
@@ -508,6 +510,10 @@ export class SwUserMenu extends LitElement {
             <span class="seg" role="group" aria-labelledby=${`mv-${v.id}`}>${v.options.map((o) => html`<button type="button" data-menu-view-option=${o.value} aria-pressed=${String(v.current === o.value)} @click=${() => this.dispatchEvent(new CustomEvent('screen-view', { detail: { id: v.id, value: o.value }, bubbles: true, composed: true }))}>${o.label}</button>`)}</span>
           </li>`,
         )}
+        ${this.homeHref
+          ? html`<li><a href=${this.homeHref} data-menu-home-interface @click=${(e: MouseEvent) => this.go(e)}>
+              <span class="ic"><sw-icon name="home" size=${18}></sw-icon></span><span class="txt">לממשק הביתי</span></a></li>`
+          : nothing}
         ${this.editHomeHref
           ? html`<li><a href=${this.editHomeHref} data-menu-edit-home @click=${(e: MouseEvent) => this.go(e)}>
               <span class="ic"><sw-icon name="edit" size=${18}></sw-icon></span><span class="txt">עריכת המסך הראשי</span></a></li>`

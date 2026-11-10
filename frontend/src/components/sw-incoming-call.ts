@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
+import { LitElement, html, css, nothing, type CSSResultGroup, type TemplateResult } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import './sw-icon';
 import './wk-action-button';
@@ -42,32 +42,32 @@ type Note = { text: string; tone: 'ok' | 'warn' | 'error' };
  */
 @customElement('sw-incoming-call')
 export class SwIncomingCall extends LitElement {
-  @state() private active: ActiveCalls | null = null;
-  @state() private tick = 0;
-  @state() private front = 0;
-  @state() private muted = false;
-  @state() private notes: Record<string, Note> = {};
-  @state() private busy: Record<string, string> = {};
-  @state() private doorAsk: string | null = null;
-  @state() private picture = Date.now();
-  private fetchedAt = 0;
-  private hiddenCalls = new Set<string>();
-  private talking = new Set<string>();
+  @state() protected active: ActiveCalls | null = null;
+  @state() protected tick = 0;
+  @state() protected front = 0;
+  @state() protected muted = false;
+  @state() protected notes: Record<string, Note> = {};
+  @state() protected busy: Record<string, string> = {};
+  @state() protected doorAsk: string | null = null;
+  @state() protected picture = Date.now();
+  protected fetchedAt = 0;
+  protected hiddenCalls = new Set<string>();
+  protected talking = new Set<string>();
   /** Calls whose "answer" opened the station (no talk here): kept in view with the reason, even over their open drawer. */
-  private kept = new Set<string>();
-  private sessions = new Map<string, TalkSession>();
-  private media = new Map<string, StationMedia | null | Promise<StationMedia | null>>();
-  private route: RouteState | null = null;
-  private ringer = new Ringer();
-  private socketUp = false;
-  private stops: Array<() => void> = [];
-  private pollTimer = 0;
-  private clockTimer = 0;
-  private pictureTimer = 0;
-  private started = false;
-  private loading = false;
+  protected kept = new Set<string>();
+  protected sessions = new Map<string, TalkSession>();
+  protected media = new Map<string, StationMedia | null | Promise<StationMedia | null>>();
+  protected route: RouteState | null = null;
+  protected ringer = new Ringer();
+  protected socketUp = false;
+  protected stops: Array<() => void> = [];
+  protected pollTimer = 0;
+  protected clockTimer = 0;
+  protected pictureTimer = 0;
+  protected started = false;
+  protected loading = false;
 
-  static styles = css`
+  static styles: CSSResultGroup = css`
     :host {
       display: contents;
     }
@@ -329,7 +329,7 @@ export class SwIncomingCall extends LitElement {
   }
 
   /** Only a signed-in user who may take calls somewhere ever asks the server (the banner is off for everyone else). */
-  private maybeStart(): void {
+  protected maybeStart(): void {
     if (this.started || !isApi() || !canAnywhere('access.call')) return;
     this.started = true;
     this.stops.push(
@@ -346,13 +346,13 @@ export class SwIncomingCall extends LitElement {
     void this.refresh();
   }
 
-  private schedule(): void {
+  protected schedule(): void {
     window.clearTimeout(this.pollTimer);
     const a = this.active;
     this.pollTimer = window.setTimeout(() => void this.refresh(), pollDelay(!!a?.enabled, this.socketUp, !!a?.calls.length));
   }
 
-  private async refresh(): Promise<void> {
+  protected async refresh(): Promise<void> {
     if (this.loading) return;
     this.loading = true;
     try {
@@ -374,7 +374,7 @@ export class SwIncomingCall extends LitElement {
   }
 
   /** A call left the server's list (ended, answered elsewhere, no longer offered): its talk ends with it. */
-  private ended(callId: string): void {
+  protected ended(callId: string): void {
     const s = this.sessions.get(callId);
     if (s) {
       s.dispose();
@@ -388,7 +388,7 @@ export class SwIncomingCall extends LitElement {
   }
 
   /** The station's media descriptor (talk or not, and why) - read once per station while its call is shown. */
-  private mediaOf(stationId: string): Promise<StationMedia | null> {
+  protected mediaOf(stationId: string): Promise<StationMedia | null> {
     const have = this.media.get(stationId);
     if (have instanceof Promise) return have;
     if (have !== undefined) return Promise.resolve(have);
@@ -400,12 +400,12 @@ export class SwIncomingCall extends LitElement {
     return p;
   }
 
-  private shown(): IncomingCall[] {
+  protected shown(): IncomingCall[] {
     return visibleCalls(this.active, this.hiddenCalls, this.route, new Set([...this.talking, ...this.kept]));
   }
 
   /** The ring, the clocks and the picture follow what is shown. */
-  private sync(): void {
+  protected sync(): void {
     const shown = this.shown();
     this.ringer.set(shouldRing(this.active, shown, this.muted));
     const any = shown.length > 0;
@@ -422,17 +422,17 @@ export class SwIncomingCall extends LitElement {
 
   // ------------------------------------------------------------------ actions
 
-  private note(callId: string, n: Note | null): void {
+  protected note(callId: string, n: Note | null): void {
     const { [callId]: _old, ...rest } = this.notes;
     this.notes = n ? { ...rest, [callId]: n } : rest;
   }
 
-  private setBusy(callId: string, what: string | null): void {
+  protected setBusy(callId: string, what: string | null): void {
     const { [callId]: _old, ...rest } = this.busy;
     this.busy = what ? { ...rest, [callId]: what } : rest;
   }
 
-  private talkFor(c: IncomingCall, t: StationMediaTalk): TalkSession {
+  protected talkFor(c: IncomingCall, t: StationMediaTalk): TalkSession {
     const have = this.sessions.get(c.call_id);
     if (have) return have;
     const frameBytes = Math.max(80, Math.round(((t.sample_rate ?? 8000) * (t.frame_ms ?? 20)) / 1000));
@@ -452,7 +452,7 @@ export class SwIncomingCall extends LitElement {
     return s;
   }
 
-  private async answer(c: IncomingCall): Promise<void> {
+  protected async answer(c: IncomingCall): Promise<void> {
     if (this.busy[c.call_id]) return;
     const t = ict();
     const have = this.media.get(c.station_id);
@@ -484,7 +484,7 @@ export class SwIncomingCall extends LitElement {
     await opening;
   }
 
-  private async signal(c: IncomingCall, command: 'reject' | 'hangUp'): Promise<void> {
+  protected async signal(c: IncomingCall, command: 'reject' | 'hangUp'): Promise<void> {
     if (this.busy[c.call_id]) return;
     this.setBusy(c.call_id, command);
     if (command === 'hangUp') this.sessions.get(c.call_id)?.end();
@@ -499,7 +499,7 @@ export class SwIncomingCall extends LitElement {
     }
   }
 
-  private async openDoor(c: IncomingCall, lock: number): Promise<void> {
+  protected async openDoor(c: IncomingCall, lock: number): Promise<void> {
     const t = ict();
     this.doorAsk = null;
     this.setBusy(c.call_id, 'door');
@@ -513,7 +513,7 @@ export class SwIncomingCall extends LitElement {
     }
   }
 
-  private hide(c: IncomingCall): void {
+  protected hide(c: IncomingCall): void {
     this.hiddenCalls.add(c.call_id);
     this.kept.delete(c.call_id);
     try {
@@ -528,14 +528,14 @@ export class SwIncomingCall extends LitElement {
 
   // ------------------------------------------------------------------ view
 
-  private picture_(c: IncomingCall): TemplateResult {
+  protected picture_(c: IncomingCall): TemplateResult {
     const t = ict().banner;
     if (!c.online) return html`<div class="pic" data-call-picture="offline"><span class="none"><sw-icon name="offline" size=${22}></sw-icon>${t.offline}</span></div>`;
     if (!c.has_camera || !c.still) return html`<div class="pic" data-call-picture="none"><span class="none"><sw-icon name="camera" size=${22}></sw-icon>${t.noPicture}</span></div>`;
     return html`<div class="pic" data-call-picture="still"><img src=${intercomSnapshotUrl(c.station_id, this.picture)} alt=${fill(t.pictureAlt, { name: c.station_name })} decoding="async" /></div>`;
   }
 
-  private talkLine(c: IncomingCall): TemplateResult | typeof nothing {
+  protected talkLine(c: IncomingCall): TemplateResult | typeof nothing {
     const s = this.sessions.get(c.call_id);
     if (!s) return nothing;
     const t = ict().banner;
@@ -548,7 +548,7 @@ export class SwIncomingCall extends LitElement {
     </div>`;
   }
 
-  private soundLine(): TemplateResult | typeof nothing {
+  protected soundLine(): TemplateResult | typeof nothing {
     const a = this.active;
     const t = ict().banner;
     if (!a || this.muted) return nothing;
@@ -557,7 +557,7 @@ export class SwIncomingCall extends LitElement {
     return nothing;
   }
 
-  private doorPart(c: IncomingCall): TemplateResult | typeof nothing {
+  protected doorPart(c: IncomingCall): TemplateResult | typeof nothing {
     if (!c.can_open_door || !c.locks.length) return nothing;
     const t = ict().banner;
     const ask = this.doorAsk?.startsWith(`${c.call_id}/`) ? Number(this.doorAsk.split('/')[1]) : null;
@@ -575,7 +575,7 @@ export class SwIncomingCall extends LitElement {
     return nothing;
   }
 
-  private doorButtons(c: IncomingCall): TemplateResult[] {
+  protected doorButtons(c: IncomingCall): TemplateResult[] {
     if (!c.can_open_door || !c.online) return [];
     const t = ict().banner;
     const sending = this.busy[c.call_id] === 'door';

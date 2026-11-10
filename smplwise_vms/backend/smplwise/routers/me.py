@@ -29,6 +29,15 @@ ME_RECHECK_S = 15.0
 ME_HEARTBEAT_S = 30.0
 
 
+def _interface_block(conn: sqlite3.Connection, principal: Principal) -> dict | None:
+    from ..services import home_interface
+
+    try:
+        return home_interface.effective(conn, principal.user_id)
+    except sqlite3.Error:  # an add-on whose migration has not run yet: no block, the shell keeps the full interface
+        return None
+
+
 def _active(conn: sqlite3.Connection, principal: Principal) -> bool:
     row = conn.execute("SELECT active FROM users WHERE id = ?", (principal.user_id,)).fetchone()
     return row is None or bool(row["active"])
@@ -106,6 +115,9 @@ def me(request: Request, principal: Principal = Depends(current_principal_ro), c
                     "incidents": incidents_svc.module_on(conn),  # CR-LIVEEVENT100: the live event mode switch (OFF by default)
                     # FIX2200 (owner 2026-10-25): the voice announcements switch - the הכרזות tab hides while it is off (OFF by default)
                     "announce": get_setting(conn, "announce.enabled") == "true"},
+        # HOME-SIMPLE-2420: which interface opens (home / full), whether the personal menu offers the switch, the home-only and
+        # wall-panel locks (the server enforces home-only itself: services/home_interface.enforce)
+        "interface": _interface_block(conn, principal),
         "wall": wall_service.me_block(conn, principal.user_id),  # CR-030: presence only; the configuration is fetched in wall mode
         "channel": channel,
         "remote": remote,

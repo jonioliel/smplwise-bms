@@ -20722,5 +20722,54 @@
     "owner": null,
     "commit": null,
     "actual_cost_usd": null
+  },
+  {
+    "id": "T120",
+    "title": "Home interface (HOME-SIMPLE-2420): a second, simpler room-centred interface next to the full one, per-person interface policy",
+    "epic": "UX",
+    "phase": "V1",
+    "dependencies": [],
+    "chapters": [],
+    "screens": [],
+    "owner_role": "engineering",
+    "requires_hardware": false,
+    "acceptance": [
+      "A per-person interface policy (default home|full, may switch, home only, wall panel locked to a room with an admin exit code, visible rooms and categories) set by an administrator (rbac.assign) in user management; new regular users open the home interface, administrators the full one; existing users keep the full interface after the upgrade.",
+      "A home-only person is refused (403 home_interface_only, audited) on every API area outside the home interface, on the server; the switch to the full interface is refused when the policy locks it.",
+      "The home interface (room-centred, Hebrew RTL, no Home Assistant branding or internal terms) shows real floors/rooms, lights (dimmers) and on/off switches, climate, shutters, doors and the intercom call, cameras, electricity, alerts and scenes through the existing control paths; room / house off reaches lights and light-typed switches only.",
+      "Favourites per person (an administrator may seed a starting set), favourite rooms, hidden rooms, what opens first, theme; scenes edited by administrators only.",
+      "No scrolling on the control screens at 1280x800, 390x844 and 1440x900; touch targets of at least 56 px on the tablet."
+    ],
+    "requirement_ids": [
+      "R-T120-1",
+      "R-T120-2",
+      "R-T120-3",
+      "R-T120-4",
+      "R-T120-5"
+    ],
+    "test_ids": [
+      "AT-T120-1",
+      "AT-T120-2",
+      "AT-T120-3",
+      "AT-T120-4",
+      "AT-T120-5"
+    ],
+    "status": "IN_PROGRESS",
+    "blocker": null,
+    "priority": "P1",
+    "model_policy": {
+      "implementation": "balanced",
+      "review": "balanced",
+      "effort": "high",
+      "escalation": "Triage the failure; at most 2 repair attempts, then explicit review. No automatic spending authorization."
+    },
+    "deliverables": [
+      "Implementation and regression tests on pilot/HOME-SIMPLE-2420",
+      "Change record docs/changes/HOME-SIMPLE-2420.md with the built / not built table and known limits"
+    ],
+    "evidence": [],
+    "owner": null,
+    "commit": null,
+    "actual_cost_usd": null
   }
 ]

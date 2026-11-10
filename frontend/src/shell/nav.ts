@@ -1320,6 +1320,7 @@ export function areaOf(r: RouteState | null): AreaId | null {
   if (r.mode === 'live' || r.mode === 'investigate' || r.mode === 'security') return 'security';
   if (r.mode === 'devices' && r.segments[1] === 'notices') return 'notices'; // NOTICEADD-295: the rail's notice board entry
   if (r.mode === 'calendars') return 'calendars'; // CALENDARS-UI-2310: the rail entry (the home tab's address stays in the home area)
+  if (r.mode === 'home') return null; // HOME-SIMPLE-2420: the home interface has its own shell, no rail area
   return r.mode;
 }
 

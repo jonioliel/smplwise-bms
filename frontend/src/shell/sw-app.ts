@@ -83,6 +83,7 @@ import { BUBBLE_SCREENS_ENABLED } from '../design/skins'; // BUBBLECLEAN-297
 import { loadBackgroundPref, setInstallationBackground } from '../design/background';
 import { setCustomPalettes } from '../design/palette';
 import { getDevicesTree, type DeviceTree } from '../api/devices';
+import { put } from '../api/client';
 import { DEMO_DEVICES_TREE } from '../screens/devices-building';
 import '../components/sw-sheet';
 import '../components/sw-cast-pill'; // CR-028: the global "משדר N" pill in the floating action row
@@ -1871,6 +1872,8 @@ export class SwApp extends LitElement {
 
   /** Replace the bare address with the start screen, now - not on the next hashchange, so no other screen mounts in between. */
   private land(path: string) {
+    // HOME-SIMPLE-2420: a person whose interface is the home one lands there (a default address only)
+    if (this.session.me?.interface?.interface === 'home' && this.session.mode === 'api') path = '/home';
     this.landedDefault = false;
     window.location.replace(`#${path}`);
     this.route = parseRoute(`#${path}`);
@@ -2668,6 +2671,7 @@ export class SwApp extends LitElement {
 
   /** Demo-only routes land on their real counterpart once a backend is known (F1 F3 F4 F5 F6 F10). */
   private redirectDemo(route: RouteState): boolean {
+    if (this.enforceHome(route)) return true;
     if (this.enforceKiosk(route)) return true;
     // routes that moved (the alarm, camera health, the alarm management): with or without a backend, query kept
     const moved = legacyRedirect(route, this.legacyAccess());
@@ -2691,6 +2695,15 @@ export class SwApp extends LitElement {
   private get kioskOnly(): boolean {
     const b = (this.session.me?.bindings ?? []).filter((x) => x.effect !== 'deny');
     return this.session.mode === 'api' && b.length > 0 && b.every((x) => x.role_id === 'kiosk');
+  }
+
+  /** HOME-SIMPLE-2420: a home-only person (or a wall panel of the home interface) never opens the full interface; the server refuses
+   * its API areas too (services/home_interface.enforce). */
+  private enforceHome(route: RouteState): boolean {
+    const i = this.session.mode === 'api' ? this.session.me?.interface : null;
+    if (!i?.home_only || route.segments[0] === 'home') return false;
+    window.location.replace('#/home');
+    return true;
   }
 
   private enforceKiosk(route: RouteState): boolean {
@@ -3147,6 +3160,7 @@ export class SwApp extends LitElement {
   /** A menu item's navigation: close the overlay, drop its history entry first (Back then returns to the screen the
    * user was on, not to a duplicate of it), then go. */
   private navigateFromOverlay(href: string) {
+    if (href === '#/home') void put('me/interface', { interface: 'home' }).catch(() => undefined); // HOME-SIMPLE-2420: the choice is remembered for the next visit
     this.closeMenu(false, false);
     this.orderOpen = false;
     this.centerOpen = false;
@@ -3245,6 +3259,7 @@ export class SwApp extends LitElement {
     return html`<sw-user-menu .open=${this.menuOpen} .name=${this.userName} .role=${this.userRole} .api=${api} .gated=${noTabs} .alerts=${badge.item ? badge.count : null}
         .notifyCenter=${!!this.notifySummary} .alertsHot=${badge.dot} @open-notifications=${() => this.openCenter()}
         .settingsHref=${settings?.href ?? ''} .updateHref=${!this.gated && api && this.updateMark && can('system.update') ? UPDATE_HREF : ''} .restartHref=${!this.gated && api && this.restartMark && can('system.update') ? UPDATE_HREF : ''} .editHomeHref=${this.canEditHome() ? '#/devices/building?edit=1' : ''}
+        .homeHref=${!this.gated && api && this.session.me?.interface?.may_switch ? '#/home' : ''}
         .screenEdits=${this.gated ? [] : screenEdits().map((a) => ({ id: a.id, label: a.label, icon: a.icon ?? 'edit' }))}
         .screenViews=${this.gated ? [] : screenViews()}
         @screen-view=${(e: CustomEvent<{ id: string; value: string }>) => findScreenView(e.detail.id)?.set(e.detail.value)}
@@ -3501,11 +3516,20 @@ export class SwApp extends LitElement {
     return true;
   }
 
+  /** HOME-SIMPLE-2420: the home interface - its own shell (no rail, no tabs); its own full-screen call sheet (sw-home-call) replaces the banner there. */
+  private renderHome(bar: unknown) {
+    void import('../home/sw-home');
+    const me = this.session.me;
+    return html`${bar}<sw-home .path=${(this.route?.segments ?? []).slice(1).join('/')} .userName=${(me?.user.display_name || me?.user.username || '').split(' ')[0]}
+      .userFull=${me?.user.display_name || me?.user.username || ''} .role=${this.userRole} .policy=${me?.interface ?? null}></sw-home>`;
+  }
+
   render() {
     // 2.29.0: the red fire-alarm bar sits over every screen (the wall display, the kiosk and the embed included); it draws nothing unless the option `fire_ui` is on and an alarm is reported
     const bar = html`<sw-fire-bar .home=${this.route?.mode === 'devices'}></sw-fire-bar>`;
     if (this.wallMode()) return html`${bar}<sw-wall></sw-wall>`;
     if (this.route?.segments[0] === 'kiosk') return html`${bar}<main style="block-size:100dvh">${this.renderScreen()}</main>`;
+    if (this.route?.segments[0] === 'home' && this.session.mode !== 'loading') return this.renderHome(bar);
     if (this.embedded()) return html`${bar}<main class="embed" style="block-size:100dvh;overflow:auto">${this.renderScreen()}</main>`;
     return html`${bar}<sw-incoming-call></sw-incoming-call>${this.renderA()}`;
   }

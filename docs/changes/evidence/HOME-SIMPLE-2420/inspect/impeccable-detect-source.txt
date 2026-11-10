@@ -1,0 +1,2 @@
+$ impeccable.cmd detect --json /c/cloude/smplwise-homesimple/frontend/src/home/sw-home.ts /c/cloude/smplwise-homesimple/frontend/src/home/home-styles.ts /c/cloude/smplwise-homesimple/frontend/src/home/home-styles-extra.ts /c/cloude/smplwise-homesimple/frontend/src/home/sw-home-admin.ts
+[]

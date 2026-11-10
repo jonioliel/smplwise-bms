@@ -263,6 +263,12 @@ def _principal(request: Request, conn: sqlite3.Connection) -> Principal:
 
     presence.enforce(conn, principal, request.scope.get("path") or "", request.headers.get("user-agent"), getattr(request.state, "correlation_id", None),
                      root_path=request.scope.get("root_path") or "")
+    # HOME-SIMPLE-2420: a person an administrator limited to the home interface reaches only its own API areas (403
+    # home_interface_only elsewhere, audited) - a restriction on top of the role model, never a grant
+    from .services import home_interface
+
+    home_interface.enforce(conn, principal, request.scope.get("path") or "", getattr(request.state, "correlation_id", None),
+                           root_path=request.scope.get("root_path") or "")
     return principal
 
 

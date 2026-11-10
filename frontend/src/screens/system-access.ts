@@ -79,6 +79,7 @@ import { accessControlPermissionLabel } from '../access-control/access'; // CR-0
 import { customRoleSensitive, legacyFiltered } from './system-access-logic'; // WXPERM: legacy permission names in the role editor
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { secondaryIdentity } from './user-identity'; // UXREST2-295: name and username shown once when equal
+import '../home/sw-home-admin'; // HOME-SIMPLE-2420: the home interface tab
 
 const TABS = [
   { id: 'users', label: 'משתמשים', count: demoUsers.length },
@@ -472,7 +473,8 @@ export class SystemAccess extends LitElement {
     const want = parseRoute().params.get('tab') ?? '';
     const known = TABS.some((t) => t.id === want)
       || (want === 'ha-users' && (!isApi() || can('users.ha_manage'))) // USR1: the tab exists only with the permission
-      || (want === 'local' && isApi() && can('identity.directory.read')); // USR2: the Arx-only identities tab
+      || (want === 'local' && isApi() && can('identity.directory.read')) // USR2: the Arx-only identities tab
+      || (want === 'home' && isApi() && can('rbac.assign')); // HOME-SIMPLE-2420: who sees the home or the full interface
     if (known && want !== this.tab) this.setTab(want);
   }
 
@@ -1245,6 +1247,8 @@ export class SystemAccess extends LitElement {
       ...(can('users.ha_manage') ? [{ id: 'ha-users', label: ht('tab') }] : []),
       // USR2: the Arx-only identities - for holders of identity.directory.read (system administrators)
       ...(can('identity.directory.read') ? [{ id: 'local', label: lit('tab') }] : []),
+      // HOME-SIMPLE-2420: the interface each person sees (home / full), the switch, home only, wall panels - the role assigner's own permission
+      ...(can('rbac.assign') ? [{ id: 'home', label: 'ממשק ביתי' }] : []),
     ];
     const sub = dir.delegated && !this.groupsMeta.can_manage
       ? `מנהל אתר · שיוך תפקידים מרשימת ההאצלה בתוך ההיקף שלך בלבד · ${dir.users.length} משתמשים פעילים · רוויזיית הרשאות ${dir.revision}`
@@ -1255,7 +1259,7 @@ export class SystemAccess extends LitElement {
         <sw-tabs data-access-tabs .variant=${this.tabsMode.props('').variant} ?adaptive=${this.tabsMode.props('').adaptive} dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel} group-label="הרשאות" .items=${tabs} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.setTab(e.detail.id)}></sw-tabs>
         <div class="notice"><sw-icon name="shield" size=${14}></sw-icon>שיוך כאן אינו משנה דבר ב־Home Assistant: לא קבוצות HA, לא דגל מנהל, לא סיסמאות. ${can('users.ha_manage') ? 'משתמש חדש נוצר בלשונית "משתמשי מערכת הבית" (תמיד כמשתמש רגיל) או במסך של מערכת הבית.' : 'אין "הוספת משתמש" — משתמשים נוצרים ב־HA בלבד.'}</div>
         ${this.message || this.error ? html`<div class="bar">${this.message ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}${this.error ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}</div>` : nothing}
-        ${this.tab === 'users' ? this.renderUsersApi() : this.tab === 'groups' ? this.renderGroupsApi() : this.tab === 'roles' ? this.renderRolesApi() : this.tab === 'effective' ? this.renderEffectiveApi() : this.tab === 'doors' ? html`<sw-door-grants data-door-grants></sw-door-grants>` : this.tab === 'ha-users' ? html`<sw-ha-users data-ha-users-tab></sw-ha-users>` : this.tab === 'local' ? html`<system-local-users data-local-users-tab .roles=${localRoles(this.roles.roles)} .scopes=${this.scopeOptions}></system-local-users>` : this.renderAuditApi()}
+        ${this.tab === 'users' ? this.renderUsersApi() : this.tab === 'groups' ? this.renderGroupsApi() : this.tab === 'roles' ? this.renderRolesApi() : this.tab === 'effective' ? this.renderEffectiveApi() : this.tab === 'doors' ? html`<sw-door-grants data-door-grants></sw-door-grants>` : this.tab === 'ha-users' ? html`<sw-ha-users data-ha-users-tab></sw-ha-users>` : this.tab === 'home' ? html`<sw-home-admin data-home-admin-tab></sw-home-admin>` : this.tab === 'local' ? html`<system-local-users data-local-users-tab .roles=${localRoles(this.roles.roles)} .scopes=${this.scopeOptions}></system-local-users>` : this.renderAuditApi()}
       </sw-page>
     `;
   }

@@ -1,0 +1,23 @@
+$ node C:/Users/jon/.claude/skills/taste-skill/scripts/lint.mjs --app frontend/src/home/home-styles.ts frontend/src/home/home-styles-extra.ts frontend/src/home/sw-home.ts
+TASTESKILL · LINT   3 file(s)
+
+WARN
+  [shadow] Shadow. Elements at rest carry none; only real overlays (menu, dialog, sticky bar) may.  (11×)
+      frontend/src/home/home-styles.ts:2  shadow
+      frontend/src/home/home-styles.ts:102  box-shadow:
+      frontend/src/home/home-styles.ts:338  box-shadow:
+      frontend/src/home/home-styles.ts:342  box-shadow:
+      frontend/src/home/home-styles.ts:396  box-shadow:
+      frontend/src/home/home-styles.ts:428  box-shadow:
+      … 5 more
+  [copy] Stock marketing phrase. Say the specific thing the product does.  (3×)
+      frontend/src/home/sw-home.ts:852  unlock
+      frontend/src/home/sw-home.ts:904  unlock
+      frontend/src/home/sw-home.ts:1210  unlock
+  [numbering] Zero-padding in script. Fine for a clock, a date or a price; if it builds 01 / 02 / 03 labels, remove it.  (1×)
+      frontend/src/home/sw-home.ts:1070  padStart(2, '0')
+  [em-dash] Em-dash habit. Use a full stop or a comma; keep at most one or two on a page.  (1×)
+      (all files):0  8 em dashes
+
+RESULT: 0 FAIL, 16 WARN
+Interface fragments marked data-ui keep their own borders and shadows. Any other line that must keep a flagged pattern for a real reason can carry the comment taste-skill-ignore.
