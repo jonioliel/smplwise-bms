@@ -1,5 +1,21 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.42.1 (pilot) - Home interface settings, faster first screen
+
+### חדש - New
+- ממשק ביתי, הגדרות התקנה: איזה ממשק מקבל משתמש חדש (ברירת מחדל: מלא לכולם; או ביתי למשתמשים ומלא למנהלים; או בחירה בכניסה הראשונה), מסך קיר בלי יציאה, ותמונת רקע לחדר (ללא / אוסף מוכן / אוסף ותמונה אישית). - Home interface installation settings: the interface a new user gets (default: full for everyone; or home for users and full for admins; or a choice at first sign-in), a wall panel with no exit, and room wallpaper (none / ready-made gallery / gallery and a personal image).
+- סיווג מפסקים: המערכת מציעה לפי השם מפסק "מוגן" או "תאורה", המנהל מאשר, בוחר כמה יחד ומסמן גם מפסקים שלא הוצעו. - Switch classification: the system suggests "protected" or "light" from the name; the admin approves, multi-selects and can mark switches that were not suggested.
+- "החלף משתמש" גם מתוך מערכת הבית. - "Switch user" also inside the home system.
+- טעינה מוקדמת ברקע אחרי הפעלה: המסך הראשון נפתח מהר יותר אחרי עדכון (אפשר לכבות בהגדרות). - Background warm-up after start: the first screen opens faster after an update (can be turned off in settings).
+
+### תוקן - Fixed
+- דלת שאינה משויכת לעמדה לא מציגה כפתור פתיחה בממשק הביתי, אלא את הסיבה. - A door not linked to a station shows the reason, not an open button, in the home interface.
+- כרטיס "דורש תשומת לב" לא נגלל יותר במסכים רחבים: הוא מחולק לעמודים. - The attention card no longer scrolls on wide screens: it pages.
+- נגן המצלמה: הודעה ברורה כששרת הווידאו לא זמין או לא עונה, עם "נסה שוב", במקום "מתחבר…" בלי סוף. - Camera player: a clear message with "try again" when the video server is unavailable or not answering, instead of an endless "connecting".
+
+### התקנה - Install
+- מיגרציה 0212 רצה אוטומטית. משתמשים קיימים נשארים על הממשק שהיה להם. אין עדכון לגשר ואין צורך בהפעלה מחדש של מערכת הבית. - Migration 0212 runs automatically. Existing users keep their interface. No bridge update and no home-system restart.
+
 ## 2.42.0 (pilot) - The home interface
 **אחרי ההתקנה:** עדכון אוטומטי של מסד הנתונים (0211, הגדרות הממשק הביתי). כל משתמש קיים נשאר על הממשק המלא; שום דבר לא משתנה עד שמנהל קובע אחרת. אין עדכון לגשר ואין צורך להפעיל מחדש את Home Assistant.
 - **English:** After installing: an automatic database update (0211, home interface settings). Every existing user stays on the full interface; nothing changes until an administrator says otherwise. No bridge update and no Home Assistant restart.
