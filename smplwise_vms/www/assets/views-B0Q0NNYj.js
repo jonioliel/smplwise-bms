@@ -1,0 +1,2 @@
+import{g as a,bA as o,ae as t,bz as c}from"./index-CmpXuSwg.js";const n=()=>a("views"),l=s=>t("views",s),w=(s,e)=>o(`views/${s}`,e),r=s=>c(`views/${s}`),m=s=>`#/live/wall?cameras=${encodeURIComponent(s.cameras.join(","))}`,p=s=>`#/kiosk/all?cameras=${encodeURIComponent(s.cameras.join(","))}&cols=${s.cols}&rows=${s.rows}`;export{l as c,r as d,p as k,n as l,w as u,m as w};
+//# sourceMappingURL=views-B0Q0NNYj.js.map
