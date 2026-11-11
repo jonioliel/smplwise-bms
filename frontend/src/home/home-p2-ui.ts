@@ -4,6 +4,9 @@ import { html, nothing } from 'lit';
 import { describeError } from '../api/client';
 import type { HomeHost } from './home-ext';
 import { getFamily, type FamilyInfo } from './home-p2-api';
+import { moreTiles } from './more-registry';
+
+const P2_TILES = new Set(['presence', 'calendar', 'notices', 'tickets', 'schedules', 'weather', 'notif']);
 
 export type P2Mod = 'presence' | 'calendar' | 'booking' | 'notices' | 'transit' | 'tickets' | 'schedules' | 'sceneNew' | 'weather' | 'notif';
 
@@ -13,7 +16,13 @@ const fam: { info: FamilyInfo | null; at: number; loading: boolean } = { info: n
 export function warmFamily(h: HomeHost, force = false): void {
   if (fam.loading || (!force && fam.info && Date.now() - fam.at < 180_000)) return;
   fam.loading = true;
-  void getFamily().then((f) => { fam.info = f; fam.at = Date.now(); }).catch(() => undefined).finally(() => { fam.loading = false; h.requestUpdate(); });
+  const first = !fam.info;
+  void getFamily().then((f) => { fam.info = f; fam.at = Date.now(); }).catch(() => undefined).finally(() => {
+    fam.loading = false;
+    // the hub warmed its tiles before this person's features were known: warm the family tiles now (each load is throttled)
+    if (first && fam.info) for (const t of moreTiles(h)) if (P2_TILES.has(t.id)) t.warm?.(h);
+    h.requestUpdate();
+  });
 }
 
 /** The person's home category is on (the administrator's page; `null` = every category). */
@@ -115,4 +124,16 @@ export function errText(e: unknown): string {
 
 export function iso(d: Date): string {
   return d.toISOString().replace(/\.\d{3}Z$/, 'Z');
+}
+
+/** For the hub tiles' `visible`: starts loading what the person may see (once) and answers true, so `seen(h) && has(...)` reads well. */
+export function seen(h: HomeHost): boolean {
+  warmFamily(h);
+  return true;
+}
+
+/** A family screen the person may not see: "loading" until the feature map is known, then the "not switched on for you" panel. */
+export function offScreen(h: HomeHost, title: string) {
+  if (!familyKnown()) { warmFamily(h); return html`${h.head(title, '')}${h.empty('home', 'טוענים…', '')}`; }
+  return html`${h.head(title, '')}${h.empty('lock', 'המסך הזה לא זמין', 'מנהל הבית לא הפעיל אותו עבורך. אפשר לבקש ממנו.')}`;
 }

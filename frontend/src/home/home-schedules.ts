@@ -10,7 +10,7 @@ import { registerMoreTile } from './more-registry';
 import { httpAutomations, type Item } from '../api/automations';
 import { ApiError } from '../api/client';
 import { newSceneSchedule, rid, sceneScheduleOp, sceneSchedules, type SceneSchedule } from './home-p2-api';
-import { DAY_KEY, DAY_LETTER, canManageSchedules, errText, has, plural, stepper, sw, warmFamily } from './home-p2-ui';
+import { DAY_KEY, DAY_LETTER, canManageSchedules, errText, has, plural, stepper, sw, warmFamily, seen, offScreen } from './home-p2-ui';
 
 interface Scene { entity: string; name: string }
 const st: { items: SceneSchedule[]; scenes: Scene[]; canCreate: boolean; at: number; loading: boolean; error: string; busy: boolean; draft: { scene: string; at: number; days: number[]; crid: string } } =
@@ -40,7 +40,7 @@ function whenOf(s: SceneSchedule): string {
 
 registerMoreTile({
   id: 'schedules', order: 80, href: 'schedules', label: 'תזמונים', icon: 'clock',
-  visible: () => has('schedules'),
+  visible: (h) => seen(h) && has('schedules'),
   warm: (h) => load(h),
   line: () => { const n = st.items.filter((s) => s.enabled).length; return { text: !st.items.length ? 'עוד אין תזמונים' : plural(n, 'תזמון אחד פעיל', 'תזמונים פעילים') }; },
 });
@@ -72,7 +72,8 @@ registerScreen((h: HomeHost) => ({
   names: ['schedules'],
   enter: () => { warmFamily(h); load(h, true); },
   render() {
-    if (!has('schedules')) return html`${h.head('תזמונים', '')}${h.empty('lock', 'המסך הזה לא זמין', 'מנהל הבית לא הפעיל אותו עבורך. אפשר לבקש ממנו.')}`;
+    if (!has('schedules')) return offScreen(h, 'תזמונים');
+    if (!st.at && !st.loading && !st.error) load(h); // a deep link: the feature map arrived after enter()
     if (st.error && !st.at) return html`${h.head('תזמונים', '')}${h.empty('x', 'לא הצלחנו לטעון את התזמונים', st.error)}`;
     const can = st.canCreate && canManageSchedules() && !h.kioskLocked();
     const n = st.items.filter((s) => s.enabled).length;

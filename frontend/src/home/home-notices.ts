@@ -8,7 +8,7 @@ import { hi } from './home-icons';
 import { paged } from './home-logic';
 import { registerMoreTile } from './more-registry';
 import { getBuses, listNotices, readNotice, type Buses, type Notice } from './home-p2-api';
-import { errText, has, plural, warmFamily, whenText } from './home-p2-ui';
+import { errText, has, plural, warmFamily, whenText, seen, offScreen } from './home-p2-ui';
 
 const st: { list: Notice[]; bus: Buses | null; tab: 'new' | 'all'; at: number; loading: boolean; error: string } = { list: [], bus: null, tab: 'new', at: 0, loading: false, error: '' };
 
@@ -26,7 +26,7 @@ const important = (n: Notice) => n.pinned || n.severity === 'important' || n.sev
 
 registerMoreTile({
   id: 'notices', order: 60, href: 'notices', label: 'לוח הודעות', icon: 'board',
-  visible: () => has('notices'),
+  visible: (h) => seen(h) && has('notices'),
   warm: (h) => load(h),
   line: () => { const n = unread(); return n ? { text: plural(n, 'הודעה חדשה', 'הודעות חדשות'), tone: 'info', badge: n } : { text: 'אין הודעות חדשות' }; },
 });
@@ -43,7 +43,8 @@ registerScreen((h: HomeHost) => ({
   names: ['notices'],
   enter: () => { warmFamily(h); load(h, true); },
   render() {
-    if (!has('notices')) return html`${h.head('לוח הודעות', '')}${h.empty('lock', 'המסך הזה לא זמין', 'מנהל הבית לא הפעיל אותו עבורך. אפשר לבקש ממנו.')}`;
+    if (!has('notices')) return offScreen(h, 'לוח הודעות');
+    if (!st.at && !st.loading && !st.error) load(h); // a deep link: the feature map arrived after enter()
     if (st.error && !st.at) return html`${h.head('לוח הודעות', '')}${h.empty('x', 'לא הצלחנו לטעון את הלוח', st.error)}`;
     const n = unread();
     const tab = n ? st.tab : 'all';

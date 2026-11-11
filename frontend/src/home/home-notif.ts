@@ -5,7 +5,7 @@ import { html, nothing } from 'lit';
 import { registerScreen, type HomeHost } from './home-ext';
 import { registerMoreTile } from './more-registry';
 import { getNotify, putNotify, type NotifyMe } from './home-p2-api';
-import { errText, has, stepper, sw, warmFamily } from './home-p2-ui';
+import { errText, has, stepper, sw, warmFamily, seen } from './home-p2-ui';
 
 const st: { me: NotifyMe | null; at: number; loading: boolean; error: string; busy: boolean } = { me: null, at: 0, loading: false, error: '', busy: false };
 const toMin = (s: string) => Number(s.slice(0, 2)) * 60 + Number(s.slice(3, 5));
@@ -27,7 +27,7 @@ function save(h: HomeHost, body: Parameters<typeof putNotify>[0], ok: string) {
 
 registerMoreTile({
   id: 'notif', order: 90, href: 'notif', label: 'ההתראות שלי', icon: 'bell',
-  visible: () => has('notif'),
+  visible: (h) => seen(h) && has('notif'),
   warm: (h) => load(h),
   line: () => ({ text: st.me?.dnd.enabled ? 'מצב "לא להפריע" פועל' : 'מה מגיע אליי לטלפון' }),
 });

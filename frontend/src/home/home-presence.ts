@@ -5,7 +5,7 @@ import { registerScreen, type HomeHost } from './home-ext';
 import { paged } from './home-logic';
 import { registerMoreTile } from './more-registry';
 import { getPresence, setHidden, type PresenceHome } from './home-p2-api';
-import { errText, has, plural, sw, warmFamily, whenText } from './home-p2-ui';
+import { errText, has, plural, sw, warmFamily, whenText, seen, offScreen } from './home-p2-ui';
 
 const st: { data: PresenceHome | null; at: number; loading: boolean; error: string } = { data: null, at: 0, loading: false, error: '' };
 
@@ -21,7 +21,7 @@ const homeCount = (d: PresenceHome) => d.home_count ?? d.people.filter((p) => p.
 
 registerMoreTile({
   id: 'presence', order: 50, href: 'presence', label: 'מי בבית', icon: 'people',
-  visible: () => has('presence'),
+  visible: (h) => seen(h) && has('presence'),
   warm: (h) => load(h),
   line: () => {
     const d = st.data;
@@ -36,7 +36,8 @@ registerScreen((h: HomeHost) => ({
   names: ['presence'],
   enter: () => { warmFamily(h); load(h, true); },
   render() {
-    if (!has('presence')) return html`${h.head('מי בבית', '')}${h.empty('lock', 'המסך הזה לא זמין', 'מנהל הבית לא הפעיל אותו עבורך. אפשר לבקש ממנו.')}`;
+    if (!has('presence')) return offScreen(h, 'מי בבית');
+    if (!st.at && !st.loading && !st.error) load(h); // a deep link: the feature map arrived after enter()
     const d = st.data;
     if (!d) return html`${h.head('מי בבית', '')}${st.error ? h.empty('x', 'לא הצלחנו לטעון', st.error) : h.empty('people', 'טוענים…', '')}`;
     const people = d.people;

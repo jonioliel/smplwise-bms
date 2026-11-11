@@ -8,7 +8,7 @@ import { hi } from './home-icons';
 import { paged } from './home-logic';
 import { registerMoreTile } from './more-registry';
 import { cancelEvent, createEvent, listCalendars, myCalendar, occurrences, roomsDay, type Calendar, type Occurrence, type RoomDay } from './home-p2-api';
-import { errText, has, iso, localInstant, plural, stepper, timeOf, warmFamily, weekDays, whenText, ymd } from './home-p2-ui';
+import { errText, has, iso, localInstant, plural, stepper, timeOf, warmFamily, weekDays, whenText, ymd, seen, offScreen } from './home-p2-ui';
 
 interface Draft { title: string; day: string; from: number; to: number; cal: string; room: string }
 const st: {
@@ -67,7 +67,7 @@ function roomFree(r: RoomDay, now: Date): string {
 
 registerMoreTile({
   id: 'calendar', order: 55, href: 'calendar', label: 'יומן', icon: 'cal',
-  visible: () => has('calendar'),
+  visible: (h) => seen(h) && has('calendar'),
   warm: (h) => load(h),
   line: (h) => {
     const now = h.now.getTime();
@@ -85,7 +85,8 @@ registerScreen((h: HomeHost) => ({
   names: ['calendar'],
   enter: (_n, arg) => { warmFamily(h); if (arg === 'book' || arg === 'day') st.tab = arg; load(h, true); },
   render(_name, arg) {
-    if (!has('calendar')) return html`${h.head('יומן', '')}${h.empty('lock', 'המסך הזה לא זמין', 'מנהל הבית לא הפעיל אותו עבורך. אפשר לבקש ממנו.')}`;
+    if (!has('calendar')) return offScreen(h, 'יומן');
+    if (!st.at && !st.loading && !st.error) load(h); // a deep link: the feature map arrived after enter()
     const locked = h.kioskLocked();
     const tabs: [string, string][] = [['day', 'היומן שלנו'], ...(has('booking') && roomCals().length && !locked ? [['book', 'חדרים משותפים'] as [string, string]] : [])];
     if (arg === 'book' || arg === 'day') st.tab = arg as 'day' | 'book';

@@ -8,7 +8,7 @@ import { hi } from './home-icons';
 import { paged } from './home-logic';
 import { registerMoreTile } from './more-registry';
 import { myTickets, newTicket, rid, ticketNote, type Ticket, type TicketCat } from './home-p2-api';
-import { errText, has, plural, warmFamily, whenText } from './home-p2-ui';
+import { errText, has, plural, warmFamily, whenText, seen, offScreen } from './home-p2-ui';
 
 const STEPS = ['התקבלה', 'בטיפול', 'טופלה'];
 const st: {
@@ -38,7 +38,7 @@ export function openNewTicket(h: HomeHost, where = '') {
 
 registerMoreTile({
   id: 'tickets', order: 65, href: 'tickets', label: 'פניות שירות', icon: 'wrench',
-  visible: () => has('tickets'),
+  visible: (h) => seen(h) && has('tickets'),
   warm: (h) => load(h),
   line: () => { const n = open().length; return { text: n ? plural(n, 'פנייה אחת פתוחה', 'פניות פתוחות') : 'אין פניות פתוחות' }; },
 });
@@ -48,7 +48,8 @@ registerScreen((h: HomeHost) => ({
   names: ['tickets'],
   enter: () => { warmFamily(h); load(h, true); },
   render() {
-    if (!has('tickets')) return html`${h.head('פניות שירות', '')}${h.empty('lock', 'המסך הזה לא זמין', 'מנהל הבית לא הפעיל אותו עבורך. אפשר לבקש ממנו.')}`;
+    if (!has('tickets')) return offScreen(h, 'פניות שירות');
+    if (!st.at && !st.loading && !st.error) load(h); // a deep link: the feature map arrived after enter()
     if (st.error && !st.at) return html`${h.head('פניות שירות', '')}${h.empty('x', 'לא הצלחנו לטעון את הפניות', st.error)}`;
     const n = open().length;
     const list = st.tab === 'open' ? open() : st.items;

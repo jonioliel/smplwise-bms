@@ -5,7 +5,7 @@ import { registerScreen, type HomeHost } from './home-ext';
 import { hi } from './home-icons';
 import { registerMoreTile } from './more-registry';
 import { getWeather, type Weather } from './home-p2-api';
-import { DAY_NAME, errText, has, warmFamily, weekdayIx, ymd } from './home-p2-ui';
+import { DAY_NAME, errText, has, warmFamily, weekdayIx, ymd, seen } from './home-p2-ui';
 
 const st: { w: Weather | null; at: number; loading: boolean; error: string } = { w: null, at: 0, loading: false, error: '' };
 // the feed's condition names (services/notices/sources.CONDITIONS) -> the home icons
@@ -23,7 +23,7 @@ function load(h: HomeHost, force = false) {
 
 registerMoreTile({
   id: 'weather', order: 85, href: 'weather', label: 'מזג אוויר', icon: 'sun',
-  visible: () => has('weather'),
+  visible: (h) => seen(h) && has('weather'),
   warm: (h) => load(h),
   line: (h) => { const t = st.w?.now.t ?? h.d.weather?.t; return { text: t != null ? html`<span class="num">${t}°</span> ${st.w?.now.text ?? h.d.weather?.text ?? ''}` : 'אין נתונים כרגע' }; },
 });
