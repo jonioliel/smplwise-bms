@@ -66,8 +66,8 @@ export interface St7Mock {
   canEdit: boolean;
 }
 
-const SITE_VIEW = { style: 'auto', furniture: 'models', textures: 'files', wall_display: 'live', time_source: 'clock', mouse_mode: 'drag', quality: 'auto', kiosk_idle_s: 30, eye_m: 1.65, dpr_cap: 1.25, section_cut: true, show_temps: false, motion: true, walk_guard: true };
-const PERSONAL = ['style', 'default_view', 'time_source', 'mouse_mode', 'quality', 'eye_m', 'dpr_cap', 'section_cut', 'show_temps', 'motion', 'walk_guard'];
+const SITE_VIEW = { style: 'auto', furniture: 'models', textures: 'files', wall_display: 'live', time_source: 'clock', mouse_mode: 'drag', quality: 'auto', kiosk_idle_s: 30, eye_m: 1.65, dpr_cap: 1.25, section_cut: true, show_temps: false, motion: true, walk_guard: true, backdrop: 'sky' };
+const PERSONAL = ['style', 'default_view', 'time_source', 'mouse_mode', 'quality', 'eye_m', 'dpr_cap', 'section_cut', 'show_temps', 'motion', 'walk_guard', 'backdrop'];
 
 export function freshMock(over: Partial<St7Mock> = {}): St7Mock {
   return {

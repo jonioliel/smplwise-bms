@@ -27,9 +27,11 @@ export interface PlanViewDials {
   motion: boolean;
   /** The walk drops one rung for the session after it ran under 24 fps (CR-029 section 3.4); off: a hint only. */
   walk_guard: boolean;
+  /** PLAN3D-REALISM2-2433: the realistic orbit views' backdrop - the sun's sky or the dark studio gradient. */
+  backdrop: 'sky' | 'studio';
 }
-export type PersonalDial = 'style' | 'default_view' | 'time_source' | 'mouse_mode' | 'quality' | 'eye_m' | 'dpr_cap' | 'section_cut' | 'show_temps' | 'motion' | 'walk_guard';
-export const PERSONAL_DIALS: readonly PersonalDial[] = ['style', 'default_view', 'time_source', 'mouse_mode', 'quality', 'eye_m', 'dpr_cap', 'section_cut', 'show_temps', 'motion', 'walk_guard'];
+export type PersonalDial = 'style' | 'default_view' | 'time_source' | 'mouse_mode' | 'quality' | 'eye_m' | 'dpr_cap' | 'section_cut' | 'show_temps' | 'motion' | 'walk_guard' | 'backdrop';
+export const PERSONAL_DIALS: readonly PersonalDial[] = ['style', 'default_view', 'time_source', 'mouse_mode', 'quality', 'eye_m', 'dpr_cap', 'section_cut', 'show_temps', 'motion', 'walk_guard', 'backdrop'];
 export const CHOICES = {
   style: ['auto', 'light', 'dark'],
   default_view: ['schematic', 'realistic'],
@@ -40,12 +42,13 @@ export const CHOICES = {
   mouse_mode: ['drag', 'lock', 'auto'],
   quality: ['auto', 'realistic', 'lite', 'full', 'schematic'],
   kiosk_idle_s: [0, 10, 30, 120, 600],
+  backdrop: ['sky', 'studio'],
 } as const;
 export const RANGES = { eye_m: [1.2, 2.0, 0.05], dpr_cap: [1.0, 2.0, 0.25] } as const;
 /** The owner's 2026-10-09 answers (services/plan_view.DEFAULT). */
 export const DEFAULT_VIEW: PlanViewDials = {
   style: 'auto', default_view: 'schematic', furniture: 'models', textures: 'files', wall_display: 'live', time_source: 'clock', mouse_mode: 'drag', quality: 'auto',
-  kiosk_idle_s: 30, eye_m: 1.65, dpr_cap: 1.25, section_cut: true, show_temps: false, motion: true, walk_guard: true,
+  kiosk_idle_s: 30, eye_m: 1.65, dpr_cap: 1.25, section_cut: true, show_temps: false, motion: true, walk_guard: true, backdrop: 'sky',
 };
 /** The home's location as the server last read it from the home's configuration (services/site_location.py). */
 export interface HomeLocation {
@@ -81,10 +84,12 @@ export const DIAL_HE: Record<keyof PlanViewDials, string> = {
   style: 'סגנון חזותי', default_view: 'תצוגת ברירת מחדל', furniture: 'ריהוט', textures: 'טקסטורות', wall_display: 'מסך קיר', time_source: 'שעה ביום',
   mouse_mode: 'מבט בעכבר בסיור', quality: 'איכות', kiosk_idle_s: 'מעבר לתמונה מוכנה במסך קיר', eye_m: 'גובה עין', dpr_cap: 'חדות מרבית',
   section_cut: 'חיתוך קירות במבט מלמעלה', show_temps: 'טמפרטורות בחדרים', motion: 'אנימציות', walk_guard: 'הורדת איכות אוטומטית בסיור',
+  backdrop: 'רקע מאחורי הבית',
 };
 export const CHOICE_HE: Record<string, string> = {
   auto: 'אוטומטי', light: 'אדריכלי בהיר', dark: 'תאום דיגיטלי כהה', schematic: 'סכמטי', realistic: 'ריאליסטי', models: 'דגמים', procedural: 'גאומטרי',
   files: 'קבצי חומרים', live: 'תלת־ממד חי', stills: 'תמונות מוכנות', clock: 'לפי שעון האתר', manual: 'ידני', drag: 'גרירה', lock: 'נעילת סמן', lite: 'ריאליסטי קל', full: 'מלא',
+  sky: 'שמיים', studio: 'סטודיו כהה',
 };
 
 let cache: PlanViewPrefs | null = null;

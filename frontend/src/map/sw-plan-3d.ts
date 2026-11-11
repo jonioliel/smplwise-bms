@@ -256,8 +256,10 @@ export class SwPlan3d extends LitElement {
    * viewer's dial and the page's scheme. null = as usual. */
   @property({ attribute: false }) themeForce: 'light' | 'dark' | null = null;
   /** PLAN3D-REALISM-2432: the realistic level's backdrop in the orbit views - the sun's sky, or the dark `studio` sky gradient
-   * (no horizon band). Not a stored dial yet (owner question); reflected as data-backdrop for the stylesheet. */
-  @property({ reflect: true, attribute: 'data-backdrop' }) backdrop: 'sky' | 'studio' = 'sky';
+   * (no horizon band). PLAN3D-REALISM2-2433: the stored `backdrop` dial (installation <- own, api/plan-view.ts) decides; this
+   * property is the host's override (null = the dial). The backdrop in force is reflected as data-backdrop for the stylesheet. */
+  @property({ attribute: false }) backdrop: 'sky' | 'studio' | null = null;
+  @property({ reflect: true, attribute: 'data-backdrop' }) shownBackdrop: 'sky' | 'studio' = 'sky';
   /** ST7HIST: a fixed instant (UTC ms) the realistic level's sun is drawn for - the history map's cursor, the event's time.
    * Set: the site clock does not tick the sun and the time pill is not shown (the screen owns the time; a slider here would
    * contradict the replayed states). null = the site clock / the slider, as on the live map. */
@@ -1059,6 +1061,7 @@ export class SwPlan3d extends LitElement {
           this.site = resolveSite(p.location, s['time.zone']);
           const d = p.dials;
           this.viewDials = { ...d, mouse_mode: this.lockGate.effectiveMode(d.mouse_mode) }; // pointer lock only where this page can have it
+          this.shownBackdrop = this.backdrop ?? (d.backdrop === 'studio' ? 'studio' : 'sky'); // PLAN3D-REALISM2-2433: before the first build
           this.dialsReady = true;
         })
         .finally(() => { if (this.isConnected && !this.view) this.init(); });
@@ -1114,6 +1117,7 @@ export class SwPlan3d extends LitElement {
    * token other than text-3: open, on, stale), the rest counted in a "+N" hint - hundreds of pills would be hundreds
    * of elements repositioned every frame. */
   protected willUpdate(changed: PropertyValues<this>): void {
+    if (changed.has('backdrop')) this.shownBackdrop = this.backdrop ?? (this.viewDials.backdrop === 'studio' ? 'studio' : 'sky'); // PLAN3D-REALISM2-2433: the override, else the dial
     if (!(changed.has('description') || changed.has('activeLevel') || changed.has('selectedId') || (changed as Map<string, unknown>).has('hover') || (changed as Map<string, unknown>).has('walkState'))) return;
     const parts = this.description?.parts ?? [];
     const chips = parts.filter((p) => p.kind === 'chip');
@@ -1230,7 +1234,7 @@ export class SwPlan3d extends LitElement {
 
   /** The realistic level's dials for the view (the rung, the style by the theme, the content, the cut). */
   private realSettings() {
-    return { rung: this.rung === 'realistic' ? ('realistic' as const) : ('lite' as const), style: styleFor(this.themeForce ?? this.viewDials.style, this.uiTheme()), furniture: this.viewDials.furniture, textures: this.viewDials.textures, sectionCut: this.viewDials.section_cut, backdrop: this.backdrop };
+    return { rung: this.rung === 'realistic' ? ('realistic' as const) : ('lite' as const), style: styleFor(this.themeForce ?? this.viewDials.style, this.uiTheme()), furniture: this.viewDials.furniture, textures: this.viewDials.textures, sectionCut: this.viewDials.section_cut, backdrop: this.shownBackdrop };
   }
 
   private uiTheme(): 'light' | 'dark' {
@@ -1489,8 +1493,8 @@ export class SwPlan3d extends LitElement {
       this.view.setRealSettings({ style: this.realSettings().style }); // the page's theme observer does the same when the scheme flips
       this.applySun();
     }
-    if (changed.has('backdrop') && changed.get('backdrop') !== undefined && this.view) {
-      this.view.setRealSettings({ backdrop: this.backdrop }); // PLAN3D-REALISM-2432
+    if (changed.has('shownBackdrop') && changed.get('shownBackdrop') !== undefined && this.view) {
+      this.view.setRealSettings({ backdrop: this.shownBackdrop }); // PLAN3D-REALISM-2432
       this.applySun();
     }
     if (changed.has('changeKey') && changed.get('changeKey') !== undefined) this.kioskIdle?.change();
