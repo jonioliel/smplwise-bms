@@ -155,6 +155,27 @@ Every level-3 baseline changes (baked AO, fresnel glass on the realistic rung, t
 `history-l3-lite-day-*`, `history-l3-lite-night-*`, `history-l3-realistic-day-*` (12 files). Any settings-card picture of the
 realistic-view card (one new row). Levels 1-2 baselines do not change. Stills baked after this change look like the new level 3.
 
+## Baselines refreshed on the runner
+
+Linux runner (SwiftShader, the gate's renderer), desktop / tablet / mobile, workers=1, commit `fc3a39307`:
+
+- `run_smart.py preview pilot/PLAN3D-REALISM2-2433 tests/evidence-replay-3d.spec.ts tests/pixel-walk-touch.spec.ts
+  tests/visual-matrix.spec.ts -u --workers=1 --machine runner`: 108 passed, 12 skipped; the 12 level-3 pictures of
+  `frontend/tests/evidence-replay-3d.spec.ts-snapshots/` rewritten (`event-l3-lite-*`, `history-l3-lite-day-*`,
+  `history-l3-lite-night-*`, `history-l3-realistic-day-*`, x 3 projects). `pixel-walk-touch` and `visual-matrix` did not change.
+- `unit-plan-3d-determinism.spec.ts` with `SW_UPDATE_VISUAL=1`: the 42 pictures of `docs/evidence/T087/visual/` rewritten.
+  They are byte-identical to the ones re-taken on `pilot/PLAN3D-POLISH-2430` (`abfbd6e63`): levels 1-2 change only through
+  the merged polish (framing, room names as DOM plates), not through this round.
+- Looked at, pair by pair: the look (AO, glass, grade, roughness) and the polish framing; no missing geometry or material.
+- Not committed: the `evidence-st7-ui.spec.ts` pictures (`docs/design/evidence/st7-ui/`). They are evidence and not compared
+  baselines, and the re-shot differs from the stored set mostly by unrelated app changes since it was taken (layout, the
+  side rail, the editor pages). The crop does not reach the new backdrop row either. Re-shoot them deliberately if the
+  card needs a picture.
+- Before / after copies (gitignored): `private-evidence/baselines-3d/REALISM2-2433/{before,after}/<file>.png`; in git the
+  before is `956f7b700:<path>`, the after is the same path at `fc3a39307`.
+- Proof without `-u` on `fc3a39307`: the same preview run 108 passed, 12 skipped, 0 failed; `unit-plan-3d-determinism`
+  with `SW_REQUIRE_VISUAL=1` 12 passed.
+
 ## Observed, not changed
 
 - Studio backdrop, day, both before and after: a few bright lamp discs float over the plan near ceiling height after the both-levels
