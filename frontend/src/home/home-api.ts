@@ -9,7 +9,8 @@ import { httpAutomations, type Item as AutoItem } from '../api/automations';
 import { can, canAnywhere } from '../api/session';
 
 export type Interface = 'home' | 'full';
-export type HomeModule = 'lights' | 'climate' | 'shades' | 'doors' | 'cameras' | 'energy' | 'alerts' | 'scenes' | 'security';
+export type HomeModule = 'lights' | 'climate' | 'shades' | 'doors' | 'cameras' | 'energy' | 'alerts' | 'scenes' | 'security'
+  | 'presence' | 'calendar' | 'notices' | 'tickets' | 'schedules'; // HOME-V3-P2-2431: the family and building categories
 
 export interface InterfacePolicy {
   default_interface: Interface;
