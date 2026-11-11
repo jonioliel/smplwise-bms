@@ -19,7 +19,7 @@ const PDF = '%PDF-1.4\n% home bill\n%%EOF\n';
 const inHome = (page: Page) => page.locator('sw-home');
 const ok = (r: Route, body: unknown, status = 200) => r.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 
-async function open(page: Page, route: string, o: P3Opts = {}, more?: (p: Page) => Promise<void>) {
+async function open(page: Page, route: string, o: P3Opts = {}, more?: (p: Page) => Promise<unknown>) {
   const mock = await mockP3(page, { perms: PERMS, ...o });
   if (more) await more(page); // registered after the mocks: Playwright asks the newest route first
   const pdf: string[] = [];
