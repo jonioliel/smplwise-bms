@@ -47,7 +47,7 @@ export function overview(ds: HomeDataset = 'demo', policy: Record<string, unknow
     floors.splice(1);
     floors[0].rooms = ['living', 'kitchen'];
   }
-  return { weather: { t: 22, text: 'בהיר' }, floors, rooms, can_bulk: true, scoped: false, modules: ['alerts', 'cameras', 'climate', 'doors', 'energy', 'lights', 'scenes', 'security', 'shades'], policy: pol };
+  return { weather: { t: 22, text: 'בהיר' }, floors, rooms, can_bulk: true, scoped: false, modules: ['alerts', 'cameras', 'climate', 'doors', 'energy', 'intercom', 'lights', 'log', 'recordings', 'scenes', 'security', 'shades'], policy: pol }; // HOME-V3-FOLLOWUP-A-2431: the server's default (every category) holds the recordings, the house log and the intercom
 }
 
 const scene = (id: string, name: string, areas: { id: string; name: string }[] = [], description = '') => ({
