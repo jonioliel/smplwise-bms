@@ -991,6 +991,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import home_interface as home_interface_router  # HOME-SIMPLE-2420: the home interface (policy, rooms, favourites, wall panel exit)
 
     app.include_router(home_interface_router.router, prefix=api, tags=["home"])
+    from .routers import home_v3 as home_v3_router  # HOME-V3-P1-2430: room wallpapers for everyone, the doors a guest may be given
+
+    app.include_router(home_v3_router.router, prefix=api, tags=["home"])
     from .services.tickets.messaging import RUNTIME as tickets_messaging  # CR-038 S5b: the ticket message channel (outbox, inbound)
 
     tickets_messaging.configure(settings, app.state.db)

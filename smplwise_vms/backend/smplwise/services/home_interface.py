@@ -86,6 +86,21 @@ HOME_ALLOWED_PREFIXES = (
 )
 # inside an allowed prefix, the administrative leaves stay refused (a home-only person never edits a device's type, protection or area)
 HOME_REFUSED_SUFFIXES = ("/device-type", "/bulk-protected", "/bulk-on", "/climate-kind", "/area")
+# Routes a home-only person may READ only (GET / HEAD): the same path also carries a write the home interface never makes.
+HOME_READ_ONLY_EXACT: frozenset[str] = frozenset()
+HOME_READ_ONLY_PREFIXES: tuple[str, ...] = ()
+# Routes allowed only to a home-only person whose policy carries the named per-person flag: {flag: (exact, prefixes, refused leaves)}.
+HOME_FLAG_ROUTES: dict[str, tuple[frozenset[str], tuple[str, ...], tuple[str, ...]]] = {}
+
+# HOME-V3-P1-2430 (mockup v3, phase 1: security and intercom). Every route still checks its own permission.
+HOME_ALLOWED_EXACT = HOME_ALLOWED_EXACT | {"/alarm/me", "/alarm/me/pin", "/playback/sessions"}
+HOME_ALLOWED_PREFIXES = HOME_ALLOWED_PREFIXES + ("/playback/sessions/",)
+HOME_READ_ONLY_EXACT = HOME_READ_ONLY_EXACT | {"/events", "/intercom/people"}
+HOME_READ_ONLY_PREFIXES = HOME_READ_ONLY_PREFIXES + ("/events/",)
+# the guest invitation (services/access_visitors): only for a person the home administrator marked; the visitor settings, the
+# installation-wide revoke and the visitor-entrance flag stay refused
+HOME_FLAG_ROUTES["guests"] = (frozenset({"/access/visitors"}), ("/access/visitors/",),
+                              ("/access/visitors/settings", "/access/visitors/revoke-all", "/access/visitors/entrances"))
 
 _LOCK = threading.Lock()
 _GATE_AUDITED: dict[str, float] = {}
@@ -129,7 +144,7 @@ def default_policy(admin: bool, mode: str = "full_all") -> dict[str, Any]:
     (home for a regular user, full for an administrator); `choose` opens the choice screen first (see effective). All may switch."""
     home = mode == "home_regular" and not admin
     return {"default_interface": "home" if home else "full", "may_switch": True, "home_only": False, "kiosk": False, "kiosk_area_id": None,
-            "rooms": None, "modules": None, "current_interface": None}
+            "rooms": None, "modules": None, "current_interface": None, "guests": False}
 
 
 def _loads(v: str | None) -> Any:
@@ -153,7 +168,8 @@ def stored_policy(conn: sqlite3.Connection, user_id: str) -> dict[str, Any] | No
     return {"default_interface": r["default_interface"], "may_switch": bool(r["may_switch"]), "home_only": bool(r["home_only"]) or bool(r["kiosk"]),
             "kiosk": bool(r["kiosk"]), "kiosk_area_id": r["kiosk_area_id"],
             "rooms": rooms if isinstance(rooms, list) else None, "modules": modules if isinstance(modules, list) else None,
-            "current_interface": r["current_interface"], "updated_at": r["updated_at"], "updated_by": r["updated_by"]}
+            "current_interface": r["current_interface"], "updated_at": r["updated_at"], "updated_by": r["updated_by"],
+            "guests": bool(r["guests"]) if "guests" in r.keys() else False}
 
 
 def effective(conn: sqlite3.Connection, user_id: str) -> dict[str, Any]:
@@ -185,7 +201,16 @@ def effective(conn: sqlite3.Connection, user_id: str) -> dict[str, Any]:
         "choose": choose,
         "kiosk_exit": inst["kiosk_exit"],
         "wallpaper": inst["wallpaper"],
+        # HOME-V3-P1-2430: the administrator marked this person for guest invitations; the room wallpapers set for everyone
+        "guests": bool(pol.get("guests")),
+        "room_wallpapers": _room_walls(conn, inst["wallpaper"]),
     }
+
+
+def _room_walls(conn: sqlite3.Connection, mode: str) -> dict[str, str]:
+    from . import home_v3
+
+    return home_v3.room_wallpapers(conn, mode)
 
 
 def freeze_legacy_defaults(conn: sqlite3.Connection) -> int:
@@ -224,7 +249,7 @@ def set_policy(conn: sqlite3.Connection, actor: Principal, user_id: str, body: d
         raise HomeInterfaceError(404, "not_found", "המשתמש לא נמצא.")
     cur = stored_policy(conn, user_id) or default_policy(is_admin(conn, user_id), install_settings(conn)["default_mode"])
     merged = {**cur}
-    for k in ("default_interface", "may_switch", "home_only", "kiosk", "kiosk_area_id"):
+    for k in ("default_interface", "may_switch", "home_only", "kiosk", "kiosk_area_id", "guests"):
         if k in body and body[k] is not None:
             merged[k] = body[k]
     if "rooms" in body:
@@ -245,15 +270,16 @@ def set_policy(conn: sqlite3.Connection, actor: Principal, user_id: str, body: d
     may_switch = bool(merged["may_switch"]) and not home_only
     current = merged.get("current_interface") if may_switch else None
     conn.execute(
-        """INSERT INTO home_interface_policy (user_id, default_interface, may_switch, home_only, kiosk, kiosk_area_id, rooms_json, modules_json, current_interface, updated_at, updated_by)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """INSERT INTO home_interface_policy (user_id, default_interface, may_switch, home_only, kiosk, kiosk_area_id, rooms_json, modules_json, current_interface, updated_at, updated_by, guests)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(user_id) DO UPDATE SET default_interface = excluded.default_interface, may_switch = excluded.may_switch, home_only = excluded.home_only,
              kiosk = excluded.kiosk, kiosk_area_id = excluded.kiosk_area_id, rooms_json = excluded.rooms_json, modules_json = excluded.modules_json,
-             current_interface = excluded.current_interface, updated_at = excluded.updated_at, updated_by = excluded.updated_by""",
+             current_interface = excluded.current_interface, updated_at = excluded.updated_at, updated_by = excluded.updated_by,
+             guests = excluded.guests""",
         (user_id, default, int(may_switch), int(home_only), int(kiosk), merged.get("kiosk_area_id") if kiosk else None,
          json.dumps(merged["rooms"]) if merged.get("rooms") is not None else None,
          json.dumps(merged["modules"]) if merged.get("modules") is not None else None,
-         current, now_iso(), actor.user_id),
+         current, now_iso(), actor.user_id, int(bool(merged.get("guests")))),
     )
     return effective(conn, user_id)
 
@@ -285,8 +311,19 @@ def list_policies(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     for u in conn.execute("SELECT id, username, display_name, source FROM users WHERE active = 1 ORDER BY COALESCE(display_name, username)").fetchall():
         eff = effective(conn, u["id"])
         out.append({"user_id": u["id"], "username": u["username"], "display_name": u["display_name"] or u["username"], "source": u["source"],
-                    "system_admin": is_system_admin(conn, u["id"]), **{k: eff[k] for k in ("default_interface", "may_switch", "home_only", "kiosk", "kiosk_area_id", "rooms", "modules", "configured", "admin")}})
+                    "system_admin": is_system_admin(conn, u["id"]), **{k: eff[k] for k in ("default_interface", "may_switch", "home_only", "kiosk", "kiosk_area_id", "rooms", "modules", "configured", "admin", "guests")},
+                    "can_invite": holds_anywhere(conn, u["id"], "access.visitor.invite")})
     return out
+
+
+def holds_anywhere(conn: sqlite3.Connection, user_id: str, permission: str) -> bool:
+    """HOME-V3-P1-2430: whether the person holds a permission on any scope (the administrator's page says when a mark has no effect)."""
+    from ..rbac import permissions_anywhere
+
+    try:
+        return permission in set(permissions_anywhere(conn, Principal(user_id=user_id, username="", display_name="", source="")))
+    except Exception:  # noqa: BLE001 - a display hint only, never an authorization
+        return False
 
 
 # ---------------------------------------------------------------- the server-side gate
@@ -298,8 +335,9 @@ def api_route_of(path: str, root_path: str = "") -> str | None:
     return _route(path, root_path)
 
 
-def home_allowed(path: str, root_path: str = "") -> bool:
-    """True for the API routes the home interface uses. A non-API path (the page itself, assets) is not this gate's concern."""
+def home_allowed(path: str, root_path: str = "", method: str = "GET") -> bool:
+    """True for the API routes the home interface uses. A non-API path (the page itself, assets) is not this gate's concern.
+    HOME-V3-P1-2430: the read-only routes are allowed for GET / HEAD only."""
     rest = api_route_of(path, root_path)
     if rest is None:
         p = path or ""
@@ -310,24 +348,43 @@ def home_allowed(path: str, root_path: str = "") -> bool:
     rest_cmp = rest[:-1] if len(rest) > 1 and rest.endswith("/") else rest
     if rest_cmp in HOME_ALLOWED_EXACT:
         return True
+    if (method or "GET").upper() in ("GET", "HEAD") and (rest_cmp in HOME_READ_ONLY_EXACT or any(rest.startswith(p) for p in HOME_READ_ONLY_PREFIXES)):
+        return True
     if not any(rest.startswith(p) for p in HOME_ALLOWED_PREFIXES):
         return False
     return not any(rest_cmp.endswith(s) for s in HOME_REFUSED_SUFFIXES)
 
 
-def enforce(conn: sqlite3.Connection, principal: Principal, path: str, request_id: str | None = None, *, root_path: str = "") -> None:
+def flag_route(path: str, root_path: str = "") -> str | None:
+    """HOME-V3-P1-2430: the per-person flag a route needs (HOME_FLAG_ROUTES), or None when it is not a flagged route."""
+    rest = api_route_of(path, root_path)
+    if rest is None:
+        return None
+    rest_cmp = rest[:-1] if len(rest) > 1 and rest.endswith("/") else rest
+    for flag, (exact, prefixes, refused) in HOME_FLAG_ROUTES.items():
+        if any(rest_cmp == r or rest_cmp.startswith(r + "/") for r in refused):
+            continue
+        if rest_cmp in exact or any(rest.startswith(p) for p in prefixes):
+            return flag
+    return None
+
+
+def enforce(conn: sqlite3.Connection, principal: Principal, path: str, request_id: str | None = None, *, root_path: str = "", method: str = "GET") -> None:
     """Refuse (403 `home_interface_only`) a home-only person's request outside the home interface's own routes. One cheap primary-key
     read for everyone else. Never applies to a system administrator (set_policy refuses that combination; this is the second lock)."""
-    if home_allowed(path, root_path):
+    if home_allowed(path, root_path, method):
         return
     try:
-        r = conn.execute("SELECT home_only, kiosk FROM home_interface_policy WHERE user_id = ?", (principal.user_id,)).fetchone()
+        r = conn.execute("SELECT * FROM home_interface_policy WHERE user_id = ?", (principal.user_id,)).fetchone()
     except sqlite3.OperationalError as exc:
         # A database from before migration 0211 (no policy table yet) has no home-only person: nothing to refuse.
         if "no such table" in str(exc):
             return
         raise
     if r is None or not (r["home_only"] or r["kiosk"]):
+        return
+    flag = flag_route(path, root_path)
+    if flag and flag in r.keys() and r[flag]:
         return
     if is_system_admin(conn, principal.user_id):
         return

@@ -29,6 +29,10 @@ export interface InterfacePolicy {
   kiosk_exit?: 'code' | 'none';
   /** HOME-SIMPLE-2421: the room wallpaper the installation offers */
   wallpaper?: 'none' | 'gallery' | 'gallery_image';
+  /** HOME-V3-P1-2430: the home administrator marked this person for guest invitations (never a grant by itself) */
+  guests?: boolean;
+  /** HOME-V3-P1-2430: the administrator's wallpaper per room for everyone ('g:<gallery>' | 'img') */
+  room_wallpapers?: Record<string, string>;
 }
 
 // ---------------------------------------------------------------- wire shapes (GET /home/overview)
