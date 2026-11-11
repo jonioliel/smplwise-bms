@@ -250,6 +250,9 @@ export class SwPlan3d extends LitElement {
   /** CR-029 S5-B: the look the host forces (a wall's own theme, CR-030): the realistic level's style and sky follow it instead of the
    * viewer's dial and the page's scheme. null = as usual. */
   @property({ attribute: false }) themeForce: 'light' | 'dark' | null = null;
+  /** PLAN3D-REALISM-2432: the realistic level's backdrop in the orbit views - the sun's sky, or the dark `studio` sky gradient
+   * (no horizon band). Not a stored dial yet (owner question); reflected as data-backdrop for the stylesheet. */
+  @property({ reflect: true, attribute: 'data-backdrop' }) backdrop: 'sky' | 'studio' = 'sky';
   /** ST7HIST: a fixed instant (UTC ms) the realistic level's sun is drawn for - the history map's cursor, the event's time.
    * Set: the site clock does not tick the sun and the time pill is not shown (the screen owns the time; a slider here would
    * contradict the replayed states). null = the site clock / the slider, as on the live map. */
@@ -380,6 +383,10 @@ export class SwPlan3d extends LitElement {
        canvas carries the style's grade and the vignette (LOOK_SPEC section 1, G2) */
     :host([data-quality='3']) {
       background: linear-gradient(180deg, var(--sky-top, #cfdff2) 0%, var(--sky-hor, #eef3f9) 62%, var(--sky-bot, #d4d8dd) 100%);
+    }
+    /* PLAN3D-REALISM-2432: the studio backdrop - a dark sky gradient with a soft glow behind the model */
+    :host([data-quality='3'][data-backdrop='studio']) {
+      background: radial-gradient(ellipse 80% 70% at 50% 46%, var(--sky-hor, #3a4a63) 0%, var(--sky-top, #1b2536) 58%, var(--sky-bot, #0d121b) 100%);
     }
     :host([data-quality='3']) .stage canvas {
       filter: contrast(1.06) saturate(1.05);
@@ -1165,7 +1172,7 @@ export class SwPlan3d extends LitElement {
 
   /** The realistic level's dials for the view (the rung, the style by the theme, the content, the cut). */
   private realSettings() {
-    return { rung: this.rung === 'realistic' ? ('realistic' as const) : ('lite' as const), style: styleFor(this.themeForce ?? this.viewDials.style, this.uiTheme()), furniture: this.viewDials.furniture, textures: this.viewDials.textures, sectionCut: this.viewDials.section_cut };
+    return { rung: this.rung === 'realistic' ? ('realistic' as const) : ('lite' as const), style: styleFor(this.themeForce ?? this.viewDials.style, this.uiTheme()), furniture: this.viewDials.furniture, textures: this.viewDials.textures, sectionCut: this.viewDials.section_cut, backdrop: this.backdrop };
   }
 
   private uiTheme(): 'light' | 'dark' {
@@ -1422,6 +1429,10 @@ export class SwPlan3d extends LitElement {
     if (changed.has('themeForce')) this.minimapPalette = null;
     if (changed.has('themeForce') && changed.get('themeForce') !== undefined && this.view) {
       this.view.setRealSettings({ style: this.realSettings().style }); // the page's theme observer does the same when the scheme flips
+      this.applySun();
+    }
+    if (changed.has('backdrop') && changed.get('backdrop') !== undefined && this.view) {
+      this.view.setRealSettings({ backdrop: this.backdrop }); // PLAN3D-REALISM-2432
       this.applySun();
     }
     if (changed.has('changeKey') && changed.get('changeKey') !== undefined) this.kioskIdle?.change();

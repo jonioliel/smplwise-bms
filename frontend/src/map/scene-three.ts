@@ -20,7 +20,8 @@
 import { ACESFilmicToneMapping, AmbientLight, BoxGeometry, BufferGeometry, CanvasTexture, Color, CylinderGeometry, DirectionalLight, DoubleSide, Euler, Float32BufferAttribute, FogExp2, GLTFExporter, Group, HemisphereLight, InstancedMesh, LineBasicMaterial, LineSegments, Matrix4, Mesh, MeshBasicMaterial, MeshLambertMaterial, MeshStandardMaterial, NeutralToneMapping, NoToneMapping, Object3D, OrbitControls, OrthographicCamera, PCFShadowMap, PCFSoftShadowMap, PMREMGenerator, PerspectiveCamera, Plane, PlaneGeometry, PointLight, Quaternion, Raycaster, SRGBColorSpace, Scene, ShapeUtils, Sprite, SpriteMaterial, Vector2, Vector3, WebGLRenderer, type WebGLRenderTarget } from './three-bundle';
 import type { SceneDescription, ScenePart, Vec3 } from './scene-builder';
 import { CUTAWAY_HEIGHT_M, ISO_DIR, PERSP_DIR, azimuthDeg, clampThumb, cutBox, cutawayIds, isoFrame, levelExtent, quantiseAzimuth, sceneExtent, type Extent, type IsoFrame } from './scene-frame';
-import { DEFAULT_REAL, REAL_KINDS, RealMaterials, disposeDeep, RealModels, backdropColors, buildExterior, buildReal, lampColor, paintSky, assetBase, type Exterior, type RealBuilt, type RealSettings } from './scene-real';
+import { DEFAULT_REAL, REAL_KINDS, RealMaterials, disposeDeep, RealModels, backdropColors, buildExterior, buildReal, lampColor, paintSky, assetBase, glowPlanOf, applyBackdrop, type Exterior, type RealBuilt, type RealSettings } from './scene-real';
+import type { GlowRoom } from './room-glow';
 import { DEFAULT_SITE, lightRecipe, poolLamps, sunPosition, type LightRecipe, type SunPosition } from './sun';
 import { LOOK_STYLES, type LookStyle } from './look-style';
 import { DEFAULT_DPR_CAP, pixelRatioFor, type Rung } from './quality-ladder';
@@ -429,6 +430,8 @@ export class SceneView {
   private rig: { hemi: HemisphereLight; sun: DirectionalLight; moon: DirectionalLight; rim: DirectionalLight } | null = null;
   private clipPlane = new Plane(new Vector3(0, -1, 0), 0);
   private poolKey = '';
+  /** PLAN3D-REALISM-2432: the room glow's weights of the graph being replaced (setDescription -> realise). */
+  private glowCarry: Map<string, { room: GlowRoom; lit: number; presence: number }> | null = null;
   /** The walk's interior fill (the room's daylight factor, eased); null outside a room or outside the walk. */
   private interior: { target: number; value: number } | null = null;
   /** Door leaves / shutters moving toward their new state (LOOK_SPEC section 8: 350 ms ease-in-out). */
@@ -747,8 +750,7 @@ export class SceneView {
     } else this.scene.fog = null;
     if (this.exterior) {
       paintSky(this.exterior, r, sunLightDir(sp), this.real.style);
-      const disc = this.exterior.disc.material as MeshBasicMaterial;
-      disc.color.setHex(st.ground.disc).lerp(new Color(st.ground.discNight), r.night);
+      applyBackdrop(this.exterior, this.real.backdrop ?? 'sky', !!this.walking, r, this.real.style); // PLAN3D-REALISM-2432 (the ground disc's colour with it)
       // the environment (IBL) is prefiltered from the dome; again only when the sun moved a degree (a slider drag is cheap)
       const q = Math.round(sp.elevation) * 1000 + Math.round(sp.azimuth / 5);
       if (q !== this.envElevation) {
@@ -761,6 +763,7 @@ export class SceneView {
       this.scene.environment = this.envTarget?.texture ?? null;
     }
     this.applyLamps();
+    this.realBuilt?.glow?.setLook(this.real.style, r.night); // PLAN3D-REALISM-2432
     this.post?.setLook(this.real.style, r.night);
     this.renderer.shadowMap.needsUpdate = true;
     this.invalidate();
@@ -821,6 +824,7 @@ export class SceneView {
     // the GTAO normal / depth pass is cut too (ST7-odd: it drew the occlusion of the full-height walls over the sky)
     this.cutPlanes = on ? [this.clipPlane] : null;
     this.post?.setClip(this.cutPlanes);
+    this.realBuilt?.glow?.setClip(this.cutPlanes); // PLAN3D-REALISM-2432
     const caps = this.realBuilt?.caps;
     if (caps) for (const c of caps.children) c.visible = on && c.userData.level === top!.id && (!c.userData.edge || LOOK_STYLES[this.real.style].cut.edge !== null);
     this.renderer.shadowMap.needsUpdate = true;
@@ -853,7 +857,7 @@ export class SceneView {
       this.envElevation = null;
       this.recolour(); // R3 G2: the state plates and frames take the style's colours
       if (!rebuild) this.applyTime(); // re-tinted and re-lit: no geometry rebuild (LOOK_SPEC section 1)
-    }
+    } else if (before.backdrop !== this.real.backdrop && !rebuild) this.applyTime(); // PLAN3D-REALISM-2432: the backdrop
     if (rebuild) {
       this.realMats?.setRung(this.real.rung);
       this.realMats?.setSource(this.real.textures);
@@ -883,7 +887,7 @@ export class SceneView {
 
   /** The CSS backdrop stops of the sky behind the canvas (the element paints them). */
   skyBackdrop(): [string, string, string] {
-    return backdropColors(this.recipe, this.real.style);
+    return backdropColors(this.recipe, this.real.style, this.real.backdrop ?? 'sky');
   }
 
   /** The walk entered a room: its daylight factor drives the interior fill (eased dt x 3); null: outside / no room. */
@@ -1011,8 +1015,8 @@ export class SceneView {
   private statePart(p: ScenePart): ScenePart | null {
     if (p.kind !== 'tint') return p;
     if (p.id.endsWith('#lit')) return null;
-    if (p.id.endsWith('#presence-ring')) return { ...p, opacity: Math.round(p.opacity * 0.45 * 1e4) / 1e4 };
-    if (p.id.endsWith('#presence')) return { ...p, opacity: Math.round(p.opacity * 0.35 * 1e4) / 1e4 };
+    // PLAN3D-REALISM-2432: the presence plate and ring give way to the room glow's cool edge and wash (scene-real buildReal)
+    if (p.id.endsWith('#presence-ring') || p.id.endsWith('#presence')) return null;
     return p;
   }
 
@@ -1140,7 +1144,8 @@ export class SceneView {
       this.realMats.setStyle(this.real.style);
       this.realMats.setRung(this.real.rung);
       this.realMats.setSource(this.real.textures);
-      const built = buildReal({ desc, real: desc.real, parts, settings: this.real, heavy: desc.parts.length > HIDE_SMALL_ABOVE_PARTS, mats: this.realMats, models: this.realModels });
+      const glow = { night: this.recipe.night, prev: this.motion ? this.glowCarry : null, now: performance.now() }; // PLAN3D-REALISM-2432
+      const built = buildReal({ desc, real: desc.real, parts, settings: this.real, heavy: desc.parts.length > HIDE_SMALL_ABOVE_PARTS, mats: this.realMats, models: this.realModels, glow });
       out.real = built;
       out.root.add(built.root);
       for (const [o, ps] of built.lookup) out.lookup.set(o, ps as ScenePart[]);
@@ -1255,6 +1260,7 @@ export class SceneView {
         const mesh = this.tints.get(p.id);
         if (sp && mesh && !Array.isArray(mesh.material)) mesh.material.opacity = sp.opacity;
       }
+      this.realBuilt?.glow?.updateWeights(glowPlanOf(desc, desc.parts)); // PLAN3D-REALISM-2432: the presence fade step
       this.desc = desc;
       this.invalidate();
       return;
@@ -1264,6 +1270,7 @@ export class SceneView {
     for (const [id, o] of this.realBuilt?.leaves ?? []) before.set(id, { p: o.position.clone(), q: o.quaternion.clone(), sy: o.scale.y });
     for (const [id, s] of this.realBuilt?.shutters ?? []) before.set(id, { p: s.mesh.position.clone(), q: s.mesh.quaternion.clone(), sy: s.mesh.scale.y });
     this.anims = [];
+    this.glowCarry = this.realBuilt ? (this.realBuilt.glow?.state() ?? new Map()) : null; // PLAN3D-REALISM-2432: a lit / presence change fades from here
     this.clear();
     this.markShadows(); // a new graph: new casters
     this.recolour();
@@ -1824,7 +1831,8 @@ export class SceneView {
     const flying = this.walking ? this.stepFly() : this.controls.update(); // true while damping still moves the camera
     const animating = this.stepAnims();
     const easing = this.stepInterior();
-    const moving = flying || animating || easing;
+    const glowing = this.realBuilt?.glow?.tick(performance.now(), this.motion) ?? false; // PLAN3D-REALISM-2432
+    const moving = flying || animating || easing || glowing;
     if (this.hideSmall) {
       const show = this.walking ? true : this.active === this.ortho ? this.ortho.top / (this.ortho.zoom || 1) < HIDE_SMALL_DISTANCE_M / 2 : this.persp.position.distanceTo(this.controls.target) < HIDE_SMALL_DISTANCE_M;
       for (const g of this.smallGroups) {

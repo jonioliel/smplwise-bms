@@ -9,8 +9,8 @@ import { houseInput } from './lookdev/house';
  *
  * - G1: the merged structure's normals are unit vectors on the world axes (the round-2 port skewed them by the part's position).
  * - G3: the ground disc of the realistic rung faces up (a zero-height box faced down).
- * - G2: at level 3 the lit plate is not drawn, the presence plate and ring are thinned, the open-door frame is an emitter in the
- *   style's colour and follows a style switch.
+ * - G2: at level 3 the lit plate is not drawn, the presence plate and ring give way to the room glow (PLAN3D-REALISM-2432: lit
+ *   pools and washes, the cool presence edge), the open-door frame is an emitter in the style's colour and follows a style switch.
  * - G4: every room has a ceiling plate facing down at its ceiling height (the walk sees a ceiling; the cut removes it).
  * - G10: on a phone-wide stage the realistic level caps the entity pills at eight and says how many it hid.
  */
@@ -106,13 +106,21 @@ test('G2 / G3: no lit plate at level 3, thinned presence plates, an emissive ope
   expect(litIds.length).toBeGreaterThan(0);
   const tints = await materialsOf(el, 'room:');
   expect(tints.filter((t) => t.name.endsWith('#lit'))).toEqual([]);
-  const plate = desc.parts.find((p) => p.id === 'room:r-living#presence-ring')!;
-  const drawn = tints.find((t) => t.name === 'room:r-living#presence-ring')!;
-  expect(drawn.opacity).toBeCloseTo(Math.round(plate.opacity * 0.45 * 1e4) / 1e4, 4);
-  expect(drawn.color).toBe('2767ed'); // the light style's presence colour
-  const office = tints.find((t) => t.name === 'room:r-office#presence')!;
-  const officePart = desc.parts.find((p) => p.id === 'room:r-office#presence')!;
-  expect(office.opacity, `office plate ${JSON.stringify(tints)}`).toBeCloseTo(Math.round(officePart.opacity * 0.35 * 1e4) / 1e4, 4);
+  // PLAN3D-REALISM-2432: the presence plate and ring give way to the room glow (room-glow-mesh.ts): no presence tint is drawn,
+  // every lit room has its floor pool and wall wash, an occupied room its cool edge in the style's presence colour
+  expect(tints.filter((t) => t.name.includes('#presence'))).toEqual([]);
+  expect(desc.parts.some((p) => p.id === 'room:r-living#presence-ring')).toBe(true);
+  const litZones = litIds.map((id) => id.slice('room:'.length, -'#lit'.length));
+  const glow = await materialsOf(el, 'glow:');
+  for (const z of litZones) {
+    expect(glow.some((g) => g.name === `glow:${z}#lit-floor`), `lit floor of ${z}: ${glow.map((g) => g.name).join(' ')}`).toBe(true);
+    expect(glow.some((g) => g.name === `glow:${z}#lit-wall`)).toBe(true);
+  }
+  // (the house replaced the demo graph: a lit room may still be fading in - poll until it settles)
+  await expect.poll(async () => (await materialsOf(el, 'glow:')).find((g) => g.name === `glow:${litZones[0]}#lit-floor`)!.opacity, { timeout: 10_000 }).toBeGreaterThan(0.2);
+  const edge = glow.find((g) => g.name === 'glow:r-living#pres-edge')!;
+  expect(edge.color).toBe('2767ed'); // the light style's presence colour
+  await expect.poll(async () => (await materialsOf(el, 'glow:')).find((g) => g.name === 'glow:r-office#pres-fill')?.opacity ?? 0, { timeout: 10_000 }).toBeGreaterThan(0);
   // the open-door frames are instanced per (shape, token, opacity): the group's mesh carries the token in its name
   const frames = await materialsOf(el, 'box|danger|');
   expect(frames.length).toBeGreaterThan(0);
@@ -126,7 +134,7 @@ test('G2 / G3: no lit plate at level 3, thinned presence plates, an emissive ope
   // (a realistic frame takes seconds on SwiftShader at 390 px: the element's update lands when the frame is done)
   await expect.poll(() => el.evaluate((n) => (n as unknown as Probe).view.getRealSettings().style), { timeout: 90_000 }).toBe('dark');
   await expect.poll(async () => (await materialsOf(el, 'box|danger|'))[0]?.color, { timeout: 60_000 }).toBe('ff6b62');
-  expect((await materialsOf(el, 'room:')).find((t) => t.name === 'room:r-living#presence-ring')!.color).toBe('38bdf8');
+  expect((await materialsOf(el, 'glow:')).find((t) => t.name === 'glow:r-living#pres-edge')!.color).toBe('38bdf8');
   const disc = await normalsOf(el, 'ground');
   expect(disc.normals).toEqual(['0,1,0']);
 });
