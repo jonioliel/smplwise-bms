@@ -41,6 +41,9 @@ import { homeV3Styles } from './home-styles-v3';
 import { buildScreens, type ExtOvl, type HomeScreen } from './home-ext';
 import { moreChild, moreTiles } from './more-registry';
 import './home-v3-p1';
+// HOME-V3-P3-2432: phase 3 (media + systems) lives in its own files; these few hooks are the only edits here
+import { P3, type P3Host, type P3Ovl } from './home-p3';
+import { homeP3Styles } from './home-p3-styles';
 
 export const THEMES: [string, string, string, 1 | 2][] = [
   ['classic', 'קלאסי', 'פחם חם וכחול. המראה שאושר.', 2], ['ocean', 'אוקיינוס', 'כחול ים עמוק ותכלת צלול.', 2], ['sand', 'חול', 'אבן חמה וחימר.', 2],
@@ -61,6 +64,7 @@ type Ovl =
   | { type: 'talk' }
   | { type: 'switchHost' }
   | ExtOvl
+  | P3Ovl
   | null;
 
 const NAV: [string, string, string, string][] = [['r/home', 'הבית שלי', 'home', 'home'], ['scenes', 'סצנות', 'scenes', 'scenes'], ['active', 'פעיל עכשיו', 'pulse', 'active'], ['more', 'עוד', 'grid', 'more'], ['alerts', 'התראות', 'bell', 'alerts'], ['settings/favs', 'הגדרות', 'sliders', 'settings']];
@@ -72,7 +76,7 @@ const HE_TIME = new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-d
 
 @customElement('sw-home')
 export class SwHome extends LitElement {
-  static styles = [homeMockupStyles, homeV3Styles, homeExtraStyles];
+  static styles = [homeMockupStyles, homeV3Styles, homeExtraStyles, homeP3Styles]; // HOME-V3-P3-2432 last: its rules refine the shared v3 ones
 
   /** The route below #/home (e.g. "r/living", "lights", "settings/themes"). */
   @property() path = '';
@@ -131,6 +135,8 @@ export class SwHome extends LitElement {
   readonly ext: HomeScreen[] = buildScreens(this);
   /** shared scratch state of the v3 modules (each keeps its own key) */
   readonly extState: Record<string, unknown> = {};
+  /** HOME-V3-P3-2432: media, announcements, bill, water, house systems, map (home-p3.ts). */
+  readonly p3 = new P3(this as unknown as P3Host);
 
   // ---------------------------------------------------------------- lifecycle and data
 
@@ -180,6 +186,7 @@ export class SwHome extends LitElement {
         if (mods.has('doors') && canAnywhere('access.call')) void this.loadTalk();
         if (mods.has('energy') && (canAnywhere('energy.bills') || canAnywhere('energy.manage'))) void this.loadPrice();
         if (mods.has('doors')) void getCallLog(null, 8).then((p) => { this.visitors = p.calls; }).catch(() => undefined);
+        void this.p3.load();
       }
     } catch (err) {
       this.error = describeError(err);
@@ -821,6 +828,7 @@ export class SwHome extends LitElement {
   }
   a_codeGo() { const o = this.ovl; if (o?.type === 'code' && o.code) o.run(o.code); }
   a_talk() { if (this.talkTo) this.ovl = { type: 'talk' }; }
+  a_p3Announce() { this.p3.openAnnounce(); } // HOME-V3-P3-2432: the hub's "כריזה בבית" tile
   a_ring() { (this.renderRoot.querySelector('sw-home-call') as SwHomeCall | null)?.unhideRinging(); }
   a_switchUser() {
     const mode = switchUserMode();
@@ -1000,6 +1008,7 @@ export class SwHome extends LitElement {
     }
     const sc = r ? this.d.scenes.filter((s) => s.rooms.includes(r.id)) : this.d.scenes;
     if (mods.has('scenes') && this.d.scenes.length) out.push(['scenes', 'סצנות', 'scenes', r ? (sc.length ? sc.length + ' בחדר' : 'של הבית') : this.d.scenes.length + ' בבית', '']);
+    out.push(...this.p3.roomChips(r)); // HOME-V3-P3-2432: "מדיה" when the room has a speaker or a screen
     const shown = out.slice(0, 8);
     // HOME-V3-P1-2430: the intercom chip opens the intercom screen when it is offered; "עוד" is the ninth category of the home screen
     const ic = shown.find((x) => x[5] === 'intercom');
@@ -1242,7 +1251,7 @@ export class SwHome extends LitElement {
     const br = E.byRoom;
     const brMax = Math.max(...br.map((b) => b[1]), 0.1);
     const weekday = new Intl.DateTimeFormat('he-IL', { weekday: 'long', timeZone: 'Asia/Jerusalem' }).format(this.now);
-    return html`${this.head(html`${day ? 'היום' : 'השבוע'}: <span class="num">${tot.toFixed(1)}</span> קוט״ש`, html`${usualSame > 0 ? (diff === 0 ? 'כמו ביום רגיל' : html`<span class="num">${Math.abs(diff)}%</span> ${diff < 0 ? 'פחות' : 'יותר'} מ${day ? weekday + ' רגיל' : 'שבוע רגיל'}`) : ''}${this.price != null ? html` · בערך <span class="num" data-energy-cost>₪${(tot * this.price).toFixed(2)}</span>` : nothing}`, this.seg('period', [['day', 'היום'], ['week', 'השבוע']], this.period, 'תקופה'))}
+    return html`${this.head(html`${day ? 'היום' : 'השבוע'}: <span class="num">${tot.toFixed(1)}</span> קוט״ש`, html`${usualSame > 0 ? (diff === 0 ? 'כמו ביום רגיל' : html`<span class="num">${Math.abs(diff)}%</span> ${diff < 0 ? 'פחות' : 'יותר'} מ${day ? weekday + ' רגיל' : 'שבוע רגיל'}`) : ''}${this.price != null ? html` · בערך <span class="num" data-energy-cost>₪${(tot * this.price).toFixed(2)}</span>` : nothing}`, html`${this.p3.energyActs()}${this.seg('period', [['day', 'היום'], ['week', 'השבוע']], this.period, 'תקופה')}`)}
       <div class="en-body"><section class="tile pane chart" aria-label=${'צריכה לפי ' + (day ? 'שעה' : 'יום')}><div class="bar"><h2>${day ? 'לפי שעה' : 'לפי יום'}</h2><div class="legend"><span><i class="k today"></i>${day ? 'היום' : 'השבוע'}</span><span><i class="k usual"></i>${day ? 'יום רגיל' : 'שבוע רגיל'}</span></div></div>
         <div class="plot" style=${`--n:${rows.length}`} @pointerover=${this.tipOver} @pointerleave=${this.tipOff} @focusin=${this.tipOver} @focusout=${this.tipOff}><div class="yax">${ticks.map((v) => html`<span style=${`bottom:${v / top * 100}%`}><em class="num">${v}</em></span>`)}</div>
           <div class="cols">${rows.map((r) => html`<div class=${'col' + (r[1] == null ? ' future' : '')} tabindex="0" data-tip=${`${r[0]}|${r[1] == null ? '' : r[1].toFixed(1)}|${r[2].toFixed(1)}`}>${r[1] == null ? nothing : html`<i class="b" style=${`height:${Math.max(1.5, r[1] / top * 100)}%`}></i>`}<i class="u" style=${`bottom:${r[2] / top * 100}%`}></i></div>`)}</div>
@@ -1370,6 +1379,7 @@ export class SwHome extends LitElement {
     const o = this.ovl;
     if (!o) return nothing;
     if (o.type === 'ext') return this.ext.find((m) => m.id === o.mod)?.ovl?.(o) ?? nothing;
+    if (o.type === 'p3') return this.p3.ovl(o);
     if (o.type === 'cam') {
       const c = this.d.cameras.find((x) => x.id === o.id) ?? this.d.cameras[0];
       if (!c) return nothing;

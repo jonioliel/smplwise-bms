@@ -1,6 +1,7 @@
 // HOME-SIMPLE-2420: what the home interface reads, and the view model it draws. Every read is an existing route (or the home
 // interface's own /home/* routes); every control goes through the existing control paths (home-actions.ts). Nothing here knows
 // a device protocol; the names the person sees are the names the installation gave the devices.
+import type { HomeModuleP3 } from './home-p3-logic'; // HOME-V3-P3-2432
 import { get, put } from '../api/client';
 import { listCameras } from '../api/maps';
 import { listMeters, meterSeries } from '../api/electricity-meters';
@@ -9,7 +10,7 @@ import { httpAutomations, type Item as AutoItem } from '../api/automations';
 import { can, canAnywhere } from '../api/session';
 
 export type Interface = 'home' | 'full';
-export type HomeModule = 'lights' | 'climate' | 'shades' | 'doors' | 'cameras' | 'energy' | 'alerts' | 'scenes' | 'security';
+export type HomeModule = 'lights' | 'climate' | 'shades' | 'doors' | 'cameras' | 'energy' | 'alerts' | 'scenes' | 'security' | HomeModuleP3;
 
 export interface InterfacePolicy {
   default_interface: Interface;

@@ -1,0 +1,12 @@
+$ node lint.mjs --app home-p3.ts home-p3-media.ts home-p3-announce.ts home-p3-bills.ts home-p3-water.ts home-p3-systems.ts home-p3-map.ts home-p3-styles.ts home-p3-icons.ts
+TASTESKILL · LINT   9 file(s)
+
+WARN
+  [shadow] Shadow. Elements at rest carry none; only real overlays (menu, dialog, sticky bar) may.  (4×)
+      home-p3-styles.ts:32  box-shadow:
+      home-p3-styles.ts:40  box-shadow:
+      home-p3-styles.ts:69  box-shadow:
+      home-p3-styles.ts:76  box-shadow:
+
+RESULT: 0 FAIL, 4 WARN
+Interface fragments marked data-ui keep their own borders and shadows. Any other line that must keep a flagged pattern for a real reason can carry the comment taste-skill-ignore.

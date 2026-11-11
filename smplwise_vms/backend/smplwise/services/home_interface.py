@@ -34,6 +34,10 @@ INTERFACES = ("home", "full")
 # the home interface's categories an administrator can hide (the mockup's admin page; "scenes" and "security" added: the alarm panel
 # is shown only where Arx already has the alarm integration and the person holds alarm.view)
 MODULES = ("lights", "climate", "shades", "doors", "cameras", "energy", "alerts", "scenes", "security")
+# HOME-V3-P3-2432 (mockup v3, phase 3): music and screens, announcements, the electricity bill, water, the house systems (view only) and
+# the home map. Each is still shown only where its own module is on and the person holds its own permission (checked by its own route).
+MODULES_P3 = ("media", "announce", "bills", "water", "systems", "map")
+MODULES = MODULES + MODULES_P3
 ROOM_KEY_RE = re.compile(r"^[A-Za-z0-9_.:\-]{1,128}$")
 FAV_TYPES = ("scene", "light", "switch", "climate", "shade", "cam", "door", "allLights", "energy", "security")
 FAV_ID_RE = re.compile(r"^[A-Za-z0-9_.:\-]{1,200}$")
@@ -101,6 +105,23 @@ HOME_READ_ONLY_PREFIXES = HOME_READ_ONLY_PREFIXES + ("/events/",)
 # installation-wide revoke and the visitor-entrance flag stay refused
 HOME_FLAG_ROUTES["guests"] = (frozenset({"/access/visitors"}), ("/access/visitors/",),
                               ("/access/visitors/settings", "/access/visitors/revoke-all", "/access/visitors/entrances"))
+
+# HOME-V3-P3-2432: the reads and controls of phase 3, as exact routes and whole-path patterns (no prefix: a prefix would also open the
+# administrative leaves next to them). Not here on purpose: the emergency announcement and the announcement setup / templates / history /
+# test (full interface only), the media administration and layout, the generator test and every generator / elevator / temperature /
+# water / billing write.
+HOME_ALLOWED_EXACT_P3 = frozenset((
+    "/multimedia/status", "/multimedia/devices", "/multimedia/groups", "/multimedia/groups/join", "/multimedia/groups/leave",
+    "/announcements", "/announcements/areas",
+    "/energy/accounts",
+    "/infra/water/status", "/infra/water/meters", "/infra/water/consumption", "/infra/water/events/summary",
+    "/generator/devices/live", "/infra/elevators", "/infra/temperature",
+))
+HOME_ALLOWED_EXACT = HOME_ALLOWED_EXACT | HOME_ALLOWED_EXACT_P3
+HOME_ALLOWED_PATTERNS_P3 = (
+    re.compile(r"/multimedia/devices/[^/]+(/commands|/artwork|/library)?"),
+    re.compile(r"/energy/accounts/[^/]+/(status|periods)"),
+)
 
 _LOCK = threading.Lock()
 _GATE_AUDITED: dict[str, float] = {}
@@ -349,6 +370,8 @@ def home_allowed(path: str, root_path: str = "", method: str = "GET") -> bool:
     if rest_cmp in HOME_ALLOWED_EXACT:
         return True
     if (method or "GET").upper() in ("GET", "HEAD") and (rest_cmp in HOME_READ_ONLY_EXACT or any(rest.startswith(p) for p in HOME_READ_ONLY_PREFIXES)):
+        return True
+    if any(p.fullmatch(rest_cmp) for p in HOME_ALLOWED_PATTERNS_P3):  # HOME-V3-P3-2432
         return True
     if not any(rest.startswith(p) for p in HOME_ALLOWED_PREFIXES):
         return False
