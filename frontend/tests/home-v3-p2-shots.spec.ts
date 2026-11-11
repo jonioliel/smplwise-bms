@@ -24,6 +24,7 @@ async function theme(page: Page, t: string, scheme: string) {
 }
 
 async function shoot(page: Page, route: string, act: string | undefined, file: string, t: string, scheme: string) {
+  await page.goto('/#/home/r/home'); // a route change closes a sheet left open by the previous shot
   await page.goto(`/#/home/${route}`);
   await page.locator('sw-home').waitFor();
   await settle(page);
