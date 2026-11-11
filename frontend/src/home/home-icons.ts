@@ -53,6 +53,40 @@ const P: Record<string, string> = {
   palette: '<path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.4 0 2-1 1.5-2.2-.6-1.4.3-2.8 1.8-2.8H17a3.5 3.5 0 0 0 3.5-3.5c0-4.7-3.8-8.5-8.5-8.5z"/><circle cx="8" cy="11" r="1"/><circle cx="11" cy="7.5" r="1"/><circle cx="15.2" cy="8.5" r="1"/>',
 };
 
+// HOME-V3-P1-2430: the icons the round-27 mockup v3 added (same set, same grid), for every v3 screen
+Object.assign(P, {
+  grid: '<circle cx="6" cy="6" r="1.8"/><circle cx="12" cy="6" r="1.8"/><circle cx="18" cy="6" r="1.8"/><circle cx="6" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="18" cy="12" r="1.8"/><circle cx="6" cy="18" r="1.8"/><circle cx="12" cy="18" r="1.8"/><circle cx="18" cy="18" r="1.8"/>',
+  cal: '<rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17"/><path d="M8 3v4"/><path d="M16 3v4"/>',
+  board: '<rect x="4" y="3.5" width="16" height="17" rx="2.5"/><path d="M8 8.5h8"/><path d="M8 12.5h8"/><path d="M8 16.5h5"/>',
+  wrench: '<path d="M14.5 6.5a4 4 0 0 0 5 5L11 20a2.1 2.1 0 0 1-3-3z"/><path d="M14.5 6.5 17 4"/>',
+  music: '<path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/>',
+  horn: '<path d="M4 10v4h3l7 4V6l-7 4z"/><path d="M17.5 9.5a4 4 0 0 1 0 5"/><path d="M19.8 7a7.5 7.5 0 0 1 0 10"/>',
+  bill: '<path d="M6 3.5h12v17l-3-2-3 2-3-2-3 2z"/><path d="M9 8.5h6"/><path d="M9 12.5h6"/>',
+  gen: '<rect x="3.5" y="7" width="17" height="11" rx="2.5"/><path d="M7 18v2.5"/><path d="M17 18v2.5"/><path d="m12.8 9.5-2.6 3.4h3.6l-2.6 3.4"/>',
+  lift: '<rect x="5" y="3.5" width="14" height="17" rx="2.5"/><path d="M12 3.5v17"/><path d="m8 10 1.5-2 1.5 2"/><path d="m13 14 1.5 2 1.5-2"/>',
+  people: '<circle cx="9" cy="8.5" r="3"/><path d="M3.5 19.5a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="9.5" r="2.3"/><path d="M16 14.6a4.5 4.5 0 0 1 4.8 4.4"/>',
+  cloud: '<path d="M7 18.5a4 4 0 0 1-.6-8A5.5 5.5 0 0 1 17 9.6a4.5 4.5 0 0 1 .5 8.9z"/>',
+  rain: '<path d="M7 15.5a4 4 0 0 1-.6-8A5.5 5.5 0 0 1 17 6.6a4.5 4.5 0 0 1 .5 8.9z"/><path d="M9 18.5 8 21"/><path d="M13 18.5 12 21"/><path d="M17 18.5 16 21"/>',
+  play: '<path d="M8 5.5v13l10.5-6.5z"/>',
+  pause: '<path d="M8.5 5.5v13"/><path d="M15.5 5.5v13"/>',
+  next: '<path d="M6 6v12l9-6z"/><path d="M18 6v12"/>',
+  prev: '<path d="M18 6v12l-9-6z"/><path d="M6 6v12"/>',
+  rew: '<path d="M11 7 5 12l6 5z"/><path d="M19 7l-6 5 6 5z"/>',
+  ffw: '<path d="m13 7 6 5-6 5z"/><path d="m5 7 6 5-6 5z"/>',
+  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  key: '<circle cx="8" cy="15" r="4"/><path d="m11 12 8.5-8.5"/><path d="m16 7 2.5 2.5"/>',
+  film: '<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><path d="M8 5v14"/><path d="M16 5v14"/><path d="M3.5 12h4.5"/><path d="M16 12h4.5"/>',
+  vol: '<path d="M4 10v4h3l5 4V6l-5 4z"/><path d="M16 9a4.5 4.5 0 0 1 0 6"/>',
+  tv: '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8.5 20.5h7"/>',
+  spark: '<path d="M12 4v4"/><path d="M12 16v4"/><path d="M4 12h4"/><path d="M16 12h4"/><path d="m6.5 6.5 2.5 2.5"/><path d="m15 15 2.5 2.5"/>',
+  photo: '<rect x="3.5" y="5.5" width="17" height="13.5" rx="2.5"/><circle cx="9" cy="10.5" r="1.6"/><path d="m5 17 5-4.5 3.5 3 2.5-2 3.5 3.5"/>',
+  guest: '<circle cx="10" cy="8" r="3.5"/><path d="M3.5 20a6.5 6.5 0 0 1 11.5-4"/><path d="M18 14v6"/><path d="M15 17h6"/>',
+  list: '<path d="M8 6.5h12"/><path d="M8 12h12"/><path d="M8 17.5h12"/><path d="M4 6.5h.01"/><path d="M4 12h.01"/><path d="M4 17.5h.01"/>',
+  del: '<path d="M5 7h14"/><path d="M9.5 7V4.5h5V7"/><path d="M7 7l1 13h8l1-13"/>',
+  ok2: '<circle cx="12" cy="12" r="8.5"/><path d="m8 12.5 3 3 5-6"/>',
+  wind: '<path d="M3 9h10a2.5 2.5 0 1 0-2.5-2.5"/><path d="M3 14h14a2.5 2.5 0 1 1-2.5 2.5"/>',
+});
+
 export type HomeIcon = keyof typeof P;
 
 export function hi(name: string, cls = ''): TemplateResult {

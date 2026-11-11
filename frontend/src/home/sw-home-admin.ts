@@ -7,7 +7,8 @@
 // many at once, filtered by suggestion / class / room). The classification needs system.configure (its stores are Settings').
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
-import { describeError, get, post, put } from '../api/client';
+import { api, apiUrl, describeError, get, post, put } from '../api/client';
+import { GALLERY, galleryCss } from './home-wall';
 import { getHomePrefs, getOverview, type HomeModule, type Interface, type Overview } from './home-api';
 import '../components/sw-button';
 import '../components/sw-toggle';
@@ -19,6 +20,8 @@ interface PolicyRow {
   user_id: string; username: string; display_name: string; source: string; system_admin: boolean;
   default_interface: Interface; may_switch: boolean; home_only: boolean; kiosk: boolean; kiosk_area_id: string | null;
   rooms: string[] | null; modules: HomeModule[] | null; configured: boolean; admin: boolean;
+  /** HOME-V3-P1-2430: may invite a guest from the home interface; can_invite = holds the visitor-invite permission somewhere */
+  guests?: boolean; can_invite?: boolean;
 }
 type SwitchClass = 'light' | 'not_light' | 'protected';
 interface SwitchRow {
@@ -39,6 +42,13 @@ const MODULE_LABEL: Record<HomeModule, string> = {
 @customElement('sw-home-admin')
 export class SwHomeAdmin extends LitElement {
   static styles = css`
+    /* HOME-V3-P1-2430: a room's wallpaper for everyone */
+    .walls { display: flex; flex-wrap: wrap; gap: 8px; margin-block-start: 10px; }
+    .wopt { display: grid; gap: 4px; justify-items: center; inline-size: 88px; padding: 6px; border: 1px solid var(--sw-border); border-radius: 10px; background: var(--sw-surface); color: var(--sw-text); font: inherit; font-size: 13px; cursor: pointer; min-block-size: 44px; }
+    .wopt[aria-pressed="true"] { outline: 2px solid var(--sw-accent); outline-offset: 1px; }
+    .wpv { inline-size: 72px; block-size: 44px; border-radius: 6px; background: var(--sw-surface-2); }
+    .up { display: inline-flex; align-items: center; min-block-size: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--sw-border); cursor: pointer; }
+
     :host { display: block; }
     .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: var(--sw-gap-lg, 20px); align-items: start; }
     @media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
@@ -219,7 +229,68 @@ export class SwHomeAdmin extends LitElement {
         ${opt('wallpaper', 'none', 'בלי רקע', 'ברירת המחדל: מסך נקי.')}
         ${opt('wallpaper', 'gallery', 'גלריה מוכנה', 'כל משתמש בוחר רקע מעומעם לכל חדר מתוך גלריה מובנית.')}
         ${opt('wallpaper', 'gallery_image', 'גלריה ותמונה אישית', 'בנוסף אפשר להעלות תמונה לחדר (JPEG או PNG, עד 2 MB). התמונה נשמרת בשרת ונראית רק למי שהעלה אותה.')}
-      </div></section></div>`;
+      </div></section>${this.roomWallPane()}</div>`;
+  }
+
+  // ---------------------------------------------------------------- HOME-V3-P1-2430: a room's wallpaper for everyone (owner decision 16b)
+
+  @state() private walls: Record<string, string> | null = null;
+  @state() private wallRoom = '';
+  @state() private wallStamp = 0;
+
+  private wallsLoading = false;
+
+  private async loadWalls() {
+    if (this.wallsLoading) return;
+    this.wallsLoading = true;
+    try {
+      this.walls = (await get<{ walls: Record<string, string> }>('home/room-wallpapers')).walls;
+    } catch {
+      this.walls = {};
+    }
+    this.wallsLoading = false;
+  }
+
+  private async setWall(room: string, value: string) {
+    this.busy = true;
+    try {
+      this.walls = (await put<{ walls: Record<string, string> }>(`home/room-wallpapers/${encodeURIComponent(room)}`, { value })).walls;
+      this.message = 'הרקע נשמר';
+    } catch (err) {
+      this.message = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private async uploadWall(room: string, e: Event) {
+    const input = e.target as HTMLInputElement;
+    const f = input.files?.[0];
+    input.value = '';
+    if (!f) return;
+    if (!/^image\/(jpeg|png)$/.test(f.type) || f.size > 2_000_000) { this.message = 'אפשר להעלות JPEG או PNG עד 2 MB.'; return; }
+    const form = new FormData();
+    form.append('file', f);
+    try {
+      this.walls = (await api<{ walls: Record<string, string> }>(`home/room-wallpapers/${encodeURIComponent(room)}/image`, { method: 'PUT', body: form })).walls;
+      this.wallStamp = Date.now();
+      this.message = 'התמונה נשמרה כרקע לכולם';
+    } catch (err) {
+      this.message = describeError(err);
+    }
+  }
+
+  private roomWallPane() {
+    const mode = this.inst?.wallpaper ?? 'none';
+    if (mode === 'none') return nothing;
+    if (this.walls == null) { void this.loadWalls(); return html`<section class="card"><sw-state-panel state="loading"></sw-state-panel></section>`; }
+    const room = this.wallRoom || this.rooms[0]?.id || '';
+    const cur = this.walls[room] ?? '';
+    const opts: [string, string, string][] = [['', 'בלי רקע', ''], ...GALLERY.map((g) => ['g:' + g.id, g.name, galleryCss(g.id)] as [string, string, string])];
+    return html`<section class="card" aria-label="רקע לחדר לכולם" data-home-room-walls><h3>רקע לחדר לכולם</h3><p class="note">למשל למסכי קיר. רקע שאדם בחר לעצמו גובר על זה, חוץ ממסך קיר: שם הרקע שנבחר כאן תמיד מוצג.</p>
+      <div class="inline"><select aria-label="חדר" @change=${(e: Event) => { this.wallRoom = (e.target as HTMLSelectElement).value; }}>${this.rooms.map((r) => html`<option value=${r.id} ?selected=${r.id === room}>${r.name}${this.walls![r.id] ? ' ·' : ''}</option>`)}</select>
+      ${mode === 'gallery_image' && room ? html`<label class="up"><input type="file" accept="image/jpeg,image/png" hidden data-home-room-wall-upload @change=${(e: Event) => this.uploadWall(room, e)}><span>${cur === 'img' ? 'החלפת התמונה' : 'תמונה לחדר'}</span></label>` : nothing}</div>
+      <div class="walls">${opts.map(([id, name, bg]) => html`<button class="wopt" aria-pressed=${String(id === cur)} data-home-room-wall=${id || 'none'} ?disabled=${this.busy || !room} @click=${() => this.setWall(room, id)}><span class="wpv" style=${bg ? `background:${bg}` : nothing}></span>${name}</button>`)}${cur === 'img' ? html`<button class="wopt" aria-pressed="true"><span class="wpv" style=${`background:url("${apiUrl('home/room-wallpapers/' + encodeURIComponent(room) + '/image')}?v=${this.wallStamp}") center / cover`}></span>תמונה</button>` : nothing}</div></section>`;
   }
 
   private switchesPane() {
@@ -305,6 +376,7 @@ export class SwHomeAdmin extends LitElement {
       <div class="srow"><div><b>ממשק ביתי בלבד</b><div class="note">${u.system_admin ? 'מנהל מערכת תמיד רשאי לממשק המלא.' : 'לא יכול לפתוח את הממשק המלא. השרת מסרב גם לבקשות שלו לאזורים של הממשק המלא.'}</div></div><sw-toggle label="ממשק ביתי בלבד" labelHidden ?checked=${u.home_only} ?disabled=${u.system_admin || this.busy} @change=${(e: CustomEvent<{ checked: boolean }>) => this.save(u, { home_only: e.detail.checked, ...(e.detail.checked ? {} : { kiosk: false }) })}></sw-toggle></div>
       <div class="srow"><div><b>מצב מסך קיר</b><div class="note">נשאר תמיד בממשק הביתי ובחדר שלו, בלי תפריט אישי. יוצאים עם קוד המנהל.</div></div>
         <div class="inline">${u.kiosk || rooms.length ? html`<select aria-label="החדר של מסך הקיר" ?disabled=${u.system_admin} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; if (v) void this.save(u, { kiosk: true, kiosk_area_id: v }); }}><option value="">${u.kiosk ? 'חדר' : 'בחרו חדר'}</option>${rooms.map((r) => html`<option value=${r.id} ?selected=${u.kiosk_area_id === r.id}>${r.name}</option>`)}</select>` : nothing}<sw-toggle label="מצב מסך קיר" labelHidden ?checked=${u.kiosk} ?disabled=${u.system_admin || this.busy || (!u.kiosk && !u.kiosk_area_id)} @change=${(e: CustomEvent<{ checked: boolean }>) => this.save(u, { kiosk: e.detail.checked, kiosk_area_id: u.kiosk_area_id })}></sw-toggle></div></div>
+      <div class="srow"><div><b>רשאי להזמין אורחים</b><div class="note">${u.can_invite ? 'מופיע בממשק הביתי תחת אינטרקום: אורח מקבל קוד זמני לדלת. דורש שהזמנת מבקרים מופעלת בהתקנה.' : 'הסימון לבדו לא מספיק: צריך גם הרשאה להזמנת מבקרים (משתמשים והרשאות), והזמנת מבקרים מופעלת בהתקנה.'}</div></div><sw-toggle label="רשאי להזמין אורחים" labelHidden data-home-guests ?checked=${!!u.guests} ?disabled=${this.busy} @change=${(e: CustomEvent<{ checked: boolean }>) => this.save(u, { guests: e.detail.checked })}></sw-toggle></div>
       <div class="cols">
         <div><b>מה מופיע בממשק הביתי</b>${this.data!.modules.map((m) => html`<label class="chk"><input type="checkbox" .checked=${modOn(m)} @change=${(e: Event) => { const next = toggleList(u.modules, this.data!.modules, m, (e.target as HTMLInputElement).checked); void this.save(u, next == null ? { all_modules: true } : { modules: next }); }}><span>${MODULE_LABEL[m]}</span></label>`)}</div>
         <div><b>חדרים שהמשתמש רואה</b>${rooms.length ? rooms.map((r) => html`<label class="chk"><input type="checkbox" .checked=${roomOn(r.id)} @change=${(e: Event) => { const next = toggleList(u.rooms, rooms.map((x) => x.id), r.id, (e.target as HTMLInputElement).checked); void this.save(u, next == null ? { all_rooms: true } : { rooms: next }); }}><span>${r.name}</span></label>`) : html`<p class="note">עוד אין חדרים.</p>`}</div>

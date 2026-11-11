@@ -33,4 +33,14 @@ export const homeExtraStyles = css`
   .wall-opt[aria-checked='true'] .tick { opacity: 1; color: var(--hs-accent-text); }
   [data-wall-upload] { cursor: pointer; }
   @media (max-width: 700px) { .wall-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  /* HOME-V3-P1-2430: product-only pieces of the v3 screens (the rest is home-styles-v3.ts, ported from the mockup) */
+  .pb-days { display: inline-flex; align-items: center; gap: 6px; }
+  .pb-days .pbd { min-inline-size: 7ch; text-align: center; font-weight: 600; color: var(--hs-heading); }
+  .pb-pic sw-live-player { position: absolute; inset: 0; inline-size: 100%; block-size: 100%; }
+  .pb-pic { position: relative; }
+  .crow .vp.vp-ic { block-size: 64px; border-radius: 12px; }
+  .crow .vp.vp-ic .hi { inline-size: 28px; block-size: 28px; }
+  .fld2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; inline-size: 100%; }
+  .pinsheet .rb.play { color: var(--hs-on-accent, #fff); }
+  @media (max-width: 700px) { .fld2 { grid-template-columns: minmax(0, 1fr); gap: 6px; } .pb-days .pbd { min-inline-size: 5ch; font-size: 14px; } }
 `;
