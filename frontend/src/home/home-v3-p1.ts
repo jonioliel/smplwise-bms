@@ -3,4 +3,5 @@
 import './home-more';
 import './home-recordings';
 import './home-diary';
+import './home-intercom';
 import './home-alarm';
