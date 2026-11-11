@@ -68,7 +68,7 @@ export interface LightmapSet {
   recipe: string;
 }
 
-interface Occluder {
+export interface Occluder {
   c: Vec3;
   half: Vec3;
   cos: number;
@@ -100,7 +100,7 @@ export function hemisphere(n: number = SAMPLES): Vec3[] {
   return out;
 }
 
-function occluderOf(p: ScenePart): Occluder | null {
+export function occluderOf(p: ScenePart): Occluder | null {
   if (!OCCLUDER_KINDS.has(p.kind)) return null;
   if (p.shape !== 'box' && p.shape !== 'cylinder') return null;
   if (p.opacity < 0.5) return null;
@@ -140,8 +140,17 @@ export function rayBox(o: Vec3, d: Vec3, b: Occluder): number {
   return t0 > 1e-4 ? t0 : 1e-4; // a start inside the box counts as an immediate hit
 }
 
-/** A uniform grid of the occluders' footprints (CELL_M cells) for the rays. */
-class Grid {
+/** PLAN3D-REALISM2-2433: whether a point lies inside an oriented box occluder (the AO volume skips such texels). */
+export function pointInOccluder(p: Vec3, b: Occluder): boolean {
+  const rx = p[0] - b.c[0];
+  const rz = p[2] - b.c[2];
+  const lx = rx * b.cos - rz * b.sin;
+  const lz = rx * b.sin + rz * b.cos;
+  return Math.abs(lx) <= b.half[0] && Math.abs(p[1] - b.c[1]) <= b.half[1] && Math.abs(lz) <= b.half[2];
+}
+
+/** A uniform grid of the occluders' footprints (CELL_M cells) for the rays (exported for the AO volume, ao-volume.ts). */
+export class OccluderGrid {
   readonly cells = new Map<number, number[]>();
   readonly x0: number;
   readonly z0: number;
@@ -173,6 +182,13 @@ class Grid {
   }
   private cz(z: number): number {
     return Math.min(this.nz - 1, Math.max(0, Math.floor((z - this.z0) / CELL_M)));
+  }
+  /** PLAN3D-REALISM2-2433: whether a point lies inside any occluder of its cell. */
+  contains(p: Vec3): boolean {
+    const list = this.cells.get(this.cz(p[2]) * this.nx + this.cx(p[0]));
+    if (!list) return false;
+    for (const i of list) if (pointInOccluder(p, this.occ[i])) return true;
+    return false;
   }
   /** The nearest hit within `reach` (a 2D DDA over the cells the ray's footprint crosses), or Infinity. */
   cast(o: Vec3, d: Vec3, reach: number): number {
@@ -262,7 +278,7 @@ export async function bakeLightmap(desc: SceneDescription, levelId: string, opts
   const lv = desc.levels.find((l) => l.id === levelId);
   const y = (lv?.elevation_m ?? e.y0) + 0.02;
   const occ = desc.parts.filter((p) => p.level_id === levelId).map(occluderOf).filter((o): o is Occluder => !!o);
-  const grid = new Grid(occ, e.x0, e.z0, e.x1, e.z1);
+  const grid = new OccluderGrid(occ, e.x0, e.z0, e.x1, e.z1);
   const dirs = hemisphere(samples);
   const lamps = lampsOf(desc, levelId);
   const rgba = new Uint8ClampedArray(width * height * 4);

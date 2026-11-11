@@ -26,6 +26,9 @@ import { DEFAULT_SITE, lightRecipe, poolLamps, sunPosition, type LightRecipe, ty
 import { LOOK_STYLES, type LookStyle } from './look-style';
 import { DEFAULT_DPR_CAP, pixelRatioFor, type Rung } from './quality-ladder';
 import type { PostChain } from './post-chain';
+import { aoVolumeInput, aoVolumeKey, type AoVolume } from './ao-volume'; // PLAN3D-REALISM2-2433
+import { AO_LOOK, applyVolume, createAoUniforms, disposeAoUniforms } from './ao-shading'; // PLAN3D-REALISM2-2433
+import { loadVolume } from './ao-cache'; // PLAN3D-REALISM2-2433
 
 export type ScenePreset = 'top' | 'iso' | 'persp' | { camera: string };
 /** 1 schematic, 2 full, 3 realistic (the rung - realistic or lite - is RealSettings.rung). */
@@ -457,6 +460,14 @@ export class SceneView {
   private poolKey = '';
   /** PLAN3D-REALISM-2432: the room glow's weights of the graph being replaced (setDescription -> realise). */
   private glowCarry: Map<string, { room: GlowRoom; lit: number; presence: number }> | null = null;
+  // PLAN3D-REALISM2-2433 S1: the baked AO volume of the shown levels' static geometry (ao-volume.ts), shared by every level-3
+  // material through one uniform set; `aoKey` = the geometry hash it was baked for, `aoPending` counts a bake in flight (the
+  // visual tests wait for realPending 0, so every capture has it: deterministic), `aoEnabled` the A/B switch of the evidence.
+  private readonly aoUniforms = createAoUniforms();
+  private aoKey: string | null = null;
+  private aoPending = 0;
+  private aoEnabled = true;
+  private aoLast: { key: string; source: string; ms: number; dims: number[]; bytes: number; bakeMs: number } | null = null;
   /** The walk's interior fill (the room's daylight factor, eased); null outside a room or outside the walk. */
   private interior: { target: number; value: number } | null = null;
   /** Door leaves / shutters moving toward their new state (LOOK_SPEC section 8: 350 ms ease-in-out). */
@@ -988,7 +999,7 @@ export class SceneView {
 
   /** Assets still loading (textures, models) - the visual tests wait for 0 before a capture. */
   get realPending(): number {
-    return (this.realMats?.pending ?? 0) + (this.realModels?.pending ?? 0) + (this.postLoading ? 1 : 0);
+    return (this.realMats?.pending ?? 0) + (this.realModels?.pending ?? 0) + (this.postLoading ? 1 : 0) + this.aoPending; // PLAN3D-REALISM2-2433: a bake in flight
   }
 
   /** The post chain's passes (tests; [] without one). */
@@ -1004,6 +1015,62 @@ export class SceneView {
   /** The realistic graph's counters (the perf report). */
   get realStats(): RealBuilt['stats'] | null {
     return this.realBuilt?.stats ?? null;
+  }
+
+  /** PLAN3D-REALISM2-2433 S1: bake (or read from this browser's cache) the AO volume of the description's static geometry when
+   * it changed; until it arrives the materials draw without it (strength 0). A newer description supersedes a bake in flight. */
+  private requestBakedAo(desc: SceneDescription): void {
+    const input = aoVolumeInput(desc);
+    const key = aoVolumeKey(input);
+    if (key === this.aoKey) return;
+    this.aoKey = key;
+    applyVolume(this.aoUniforms, null);
+    this.post?.setBakedAo(false);
+    this.aoPending++;
+    const t0 = performance.now();
+    loadVolume(input, key)
+      .then(({ volume, source }) => {
+        if (this.disposed || this.aoKey !== key) return;
+        this.setVolume(volume);
+        this.aoLast = volume ? { key, source, ms: Math.round(performance.now() - t0), dims: [...volume.plan.dims], bytes: volume.data.length, bakeMs: volume.stats.ms } : null;
+      })
+      .catch((err) => console.warn('sw-plan-3d: baked AO failed, drawing without it', err))
+      .finally(() => {
+        this.aoPending--;
+        if (this.disposed) return;
+        this.opts.onAsset?.();
+        this.invalidate();
+      });
+  }
+
+  private setVolume(volume: AoVolume | null): void {
+    applyVolume(this.aoUniforms, volume);
+    if (!this.aoEnabled) this.aoUniforms.swAoStrength.value = 0;
+    this.post?.setBakedAo(!!volume && this.aoEnabled);
+  }
+
+  /** PLAN3D-REALISM2-2433: the baked AO on / off (the evidence's A/B; on by default). GTAO steps back up while it is off. */
+  setBakedAo(on: boolean): void {
+    this.aoEnabled = on;
+    const has = this.aoLast !== null && this.aoUniforms.swAoVol.value.image.width > 1;
+    this.aoUniforms.swAoStrength.value = on && has ? AO_LOOK.strength : 0;
+    this.post?.setBakedAo(on && has);
+    this.invalidate();
+  }
+
+  /** The baked AO now (tests, the perf report): null before the first bake of a level-3 graph. */
+  get bakedAo(): { key: string; source: string; ms: number; dims: number[]; bytes: number; bakeMs: number; strength: number; gtao: { samples: number; blend: number } | null } | null {
+    return this.aoLast ? { ...this.aoLast, strength: this.aoUniforms.swAoStrength.value, gtao: this.post?.gtaoState ?? null } : null;
+  }
+
+  /** The grade uniforms of the post chain (tests; null without a chain). */
+  get postGrade(): PostChain['grade'] | null {
+    return this.post?.grade ?? null;
+  }
+
+  /** The level-3 roughness factors by library id (tests, the evidence). */
+  get realRoughness(): Record<string, number> {
+    return this.realMats?.roughnessOf() ?? {};
   }
 
   /** Load the post chain chunk for the rung (once; a rung change re-creates the chain). */
@@ -1022,6 +1089,7 @@ export class SceneView {
         this.post = new PostChain(this.renderer, this.scene, this.active, rung, w, h, this.real.style);
         this.post.setLook(this.real.style, this.recipe.night);
         this.post.setClip(this.cutPlanes); // the chain may arrive after the cut was applied
+        this.post.setBakedAo(this.aoEnabled && this.aoUniforms.swAoStrength.value > 0); // PLAN3D-REALISM2-2433
         this.postRung = rung;
       })
       .catch((err) => console.warn('sw-plan-3d: post chain failed to load, drawing without it', err))
@@ -1230,6 +1298,7 @@ export class SceneView {
     // layer below keeps the level-2 path. A thumbnail (`plain`) draws the level-2 silhouette.
     if (this.quality === 3 && !plain && desc.real) {
       this.realMats ??= new RealMaterials(this.opts.assetBase ?? assetBase(), () => this.onRealAsset());
+      this.realMats.ao = this.aoUniforms; // PLAN3D-REALISM2-2433
       this.realModels ??= new RealModels(this.opts.assetBase ?? assetBase(), () => this.onRealAsset());
       this.realMats.setStyle(this.real.style);
       this.realMats.setRung(this.real.rung);
@@ -1371,6 +1440,7 @@ export class SceneView {
     this.builtModels = this.realModels?.version ?? 0;
     const built = this.realise(desc.parts, desc);
     this.realBuilt = built.real;
+    if (built.real) this.requestBakedAo(desc); // PLAN3D-REALISM2-2433
     if (built.real && this.extent) {
       this.exterior = buildExterior(this.extent, this.real.style, this.real.rung === 'realistic');
       this.root.add(this.exterior.root);
@@ -2164,6 +2234,7 @@ export class SceneView {
 
   dispose(): void {
     this.disposed = true;
+    disposeAoUniforms(this.aoUniforms); // PLAN3D-REALISM2-2433
     cancelAnimationFrame(this.raf);
     this.raf = 0;
     const canvas = this.renderer.domElement;

@@ -6,9 +6,14 @@
  *
  * - Materials (RealMaterials): one MeshStandardMaterial per (library id, variant), tinted by the style's palette
  *   (materials.json `tint`), with the CC0 files (colour detail, NormalGL, AO + roughness packed) when the texture source is
- *   `files` - loaded lazily, per id, a failed file falls back to the plain tint. Glass: MeshPhysicalMaterial (transmission)
- *   on the top rung only, the cheap translucent standard glass on every other rung (LOOK_SPEC section 2). A style switch
+ *   `files` - loaded lazily, per id, a failed file falls back to the plain tint. Glass: the translucent standard glass with a
+ *   fresnel edge and the kept environment reflection on both rungs (PLAN3D-REALISM2-2433 S3, ao-shading.injectGlassFresnel;
+ *   was MeshPhysicalMaterial transmission on the top rung - a second render of the opaque scene every frame). A style switch
  *   re-tints; it never rebuilds.
+ * - PLAN3D-REALISM2-2433 S1: every opaque material reads the view's baked AO volume (ao-shading.injectBakedAo, `ao`).
+ * - PLAN3D-REALISM2-2433 S6: a packed roughness map is normalised by its own mean (`roughMean`), so the library's `roughness`
+ *   is the surface's mean roughness with the file loaded too (the file's own values replaced it: tiles at .35 drew at the
+ *   file's mean); textures sample with 8x anisotropy (the iso views see the floors at a grazing angle).
  * - Geometry: the walls, plates, lintels, sills, heads, room floors, connectors and the static detail families are MERGED
  *   per (level, material) with box-mapped UVs in metres (mesh-utils.boxUv): one draw per material per level, picking by
  *   triangle ranges. Objects and repeated family parts are INSTANCED per (shape, size, bevel, material) (LOOK_SPEC section
@@ -22,7 +27,7 @@
  *   prefiltered into the environment (IBL) on time change.
  * No HDRI, no path tracer, no KTX2, no Draco; the post chain lives in its own lazy chunk (post-chain.ts).
  */
-import { BackSide, BoxGeometry, BufferAttribute, BufferGeometry, CanvasTexture, ClampToEdgeWrapping, Color, CylinderGeometry, DoubleSide, Euler, Float32BufferAttribute, Group, InstancedMesh, LineBasicMaterial, LineSegments, Matrix3, Matrix4, Mesh, MeshBasicMaterial, MeshPhysicalMaterial, MeshStandardMaterial, NoColorSpace, Object3D, Plane, PlaneGeometry, Quaternion, RepeatWrapping, RoundedBoxGeometry, SRGBColorSpace, Scene, ShapeUtils, SphereGeometry, Texture, TextureLoader, Vector2, Vector3 } from './three-bundle';
+import { BackSide, BoxGeometry, BufferAttribute, BufferGeometry, CanvasTexture, ClampToEdgeWrapping, Color, CylinderGeometry, DoubleSide, Euler, Float32BufferAttribute, Group, InstancedMesh, LineBasicMaterial, LineSegments, Matrix3, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, NoColorSpace, Object3D, Plane, PlaneGeometry, Quaternion, RepeatWrapping, RoundedBoxGeometry, SRGBColorSpace, Scene, ShapeUtils, SphereGeometry, Texture, TextureLoader, Vector2, Vector3 } from './three-bundle';
 import type { SceneDescription, ScenePart, Vec3 } from './scene-builder';
 import type { RealWorld } from './scene-real-builder';
 import { MATERIALS, type MaterialDef } from './material-resolve';
@@ -32,6 +37,7 @@ import { boxUv, creaseNormals, fitModel, jitter, readGlb, type GlbModel } from '
 import { kelvinRgb, type LightRecipe } from './sun';
 import { planGlow, type GlowRoom } from './room-glow';
 import { RoomGlow } from './room-glow-mesh';
+import { injectBakedAo, injectGlassFresnel, type AoUniforms } from './ao-shading';
 
 export type RealRung = 'realistic' | 'lite';
 export interface RealSettings {
@@ -87,6 +93,10 @@ export class RealMaterials {
   private readonly mats = new Map<string, { id: string; variant: string; m: MeshStandardMaterial }>();
   private pendingLoads = 0;
   private clip: Plane[] | null = null;
+  /** PLAN3D-REALISM2-2433 S6: the mean of each packed roughness file's G channel (read once the file decoded). */
+  private readonly roughMean = new Map<string, number>();
+  /** PLAN3D-REALISM2-2433 S1: the view's baked AO uniforms (null: no patch). */
+  ao: AoUniforms | null = null;
   style: StyleId = 'light';
   source: 'files' | 'procedural' = 'files';
   rung: RealRung = 'lite';
@@ -102,7 +112,11 @@ export class RealMaterials {
     let t = this.textures.get(url);
     if (t) return t;
     this.pendingLoads++;
-    t = this.loader.load(url, () => { this.pendingLoads--; this.onLoad(); }, undefined, () => {
+    t = this.loader.load(url, (tex) => {
+      this.pendingLoads--;
+      if (!srgb && url.endsWith('rough_ao.jpg')) this.measureRoughness(url, tex);
+      this.onLoad();
+    }, undefined, () => {
       this.pendingLoads--;
       this.failed.add(url);
       // a failed file falls back to the plain tint for that id (LOOK_SPEC section 13: nothing else changes)
@@ -112,9 +126,47 @@ export class RealMaterials {
     t.wrapS = RepeatWrapping;
     t.wrapT = RepeatWrapping;
     t.colorSpace = srgb ? SRGBColorSpace : NoColorSpace;
-    t.anisotropy = 4;
+    t.anisotropy = 8;
     this.textures.set(url, t);
     return t;
+  }
+
+  /** S6: the file's mean roughness (G of a 16 x 16 reduction); every material on the file takes the library mean again. */
+  private measureRoughness(url: string, tex: Texture): void {
+    try {
+      const img = tex.image as CanvasImageSource & { width: number; height: number };
+      const c = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(16, 16) : Object.assign(document.createElement('canvas'), { width: 16, height: 16 });
+      const g = c.getContext('2d') as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
+      if (!g || !img?.width) return;
+      g.drawImage(img, 0, 0, 16, 16);
+      const px = g.getImageData(0, 0, 16, 16).data;
+      let sum = 0;
+      for (let i = 1; i < px.length; i += 4) sum += px[i];
+      const mean = sum / (px.length / 4) / 255;
+      if (!(mean > 0.02)) return;
+      this.roughMean.set(url, mean);
+      for (const e of this.mats.values()) if (e.m.roughnessMap === tex) this.fitRoughness(e.m, e.id, e.variant);
+    } catch {
+      /* a tainted or undecodable image keeps the file's own roughness */
+    }
+  }
+
+  /** The roughness factor that makes the file's mean the library's (x the floor sheen); the file's own until it is measured. */
+  private fitRoughness(m: MeshStandardMaterial, id: string, variant: string): void {
+    const def = BY_ID.get(id);
+    let mean: number | undefined;
+    for (const [u, v] of this.roughMean) if (this.textures.get(u) === m.roughnessMap) mean = v;
+    let r = mean ? roughnessFactor(def?.roughness ?? 1, mean) : 1;
+    if (variant.startsWith('slot:')) r = Number(variant.slice(5));
+    if (variant === 'floor') r *= LOOK_STYLES[this.style].rig.floorSheen;
+    m.roughness = r;
+  }
+
+  /** The roughness factors now, by library id (tests, the evidence). */
+  roughnessOf(): Record<string, number> {
+    const out: Record<string, number> = {};
+    for (const e of this.mats.values()) if (e.variant === 'std' || e.variant === 'floor') out[`${e.id}|${e.variant}`] = Math.round(e.m.roughness * 1000) / 1000;
+    return out;
   }
 
   private tint(def: MaterialDef | undefined): number {
@@ -123,7 +175,7 @@ export class RealMaterials {
 
   /** The material of a library id; `variant`: 'std' | 'floor' | 'nomap' (kit models: no UVs) | 'glass' | 'slot:<roughness>'. */
   get(id: string, variant = 'std', clipped = true): MeshStandardMaterial {
-    const key = `${id}|${variant}|${clipped ? 1 : 0}|${this.rung === 'realistic' && variant === 'glass' ? 'phys' : ''}`;
+    const key = `${id}|${variant}|${clipped ? 1 : 0}`;
     const have = this.mats.get(key);
     if (have) return have.m;
     const def = BY_ID.get(id);
@@ -131,11 +183,9 @@ export class RealMaterials {
     if (variant === 'glass' || def?.glass) {
       const g = LOOK_STYLES[this.style].glass;
       const frosted = id === 'glass_frosted';
-      if (this.rung === 'realistic' && !frosted) {
-        m = new MeshPhysicalMaterial({ color: g.tint, transmission: 0.92, roughness: 0.05, ior: 1.5, clearcoat: 0.6, thickness: 0.01, transparent: true, opacity: 1, envMapIntensity: g.env, side: DoubleSide });
-      } else {
-        m = new MeshStandardMaterial({ color: frosted ? 0xdfe9f3 : g.tint, transparent: true, opacity: frosted ? 0.62 : g.opacity, roughness: 0.05, metalness: 0, envMapIntensity: 1.4, depthWrite: false, side: DoubleSide, forceSinglePass: true });
-      }
+      // S3: one glass on both rungs - translucent standard, a fresnel edge and the environment's reflection kept (no transmission pass)
+      m = new MeshStandardMaterial({ color: frosted ? 0xdfe9f3 : g.tint, transparent: true, opacity: frosted ? 0.62 : g.opacity, roughness: frosted ? 0.35 : 0.04, metalness: 0, envMapIntensity: frosted ? 1.0 : g.env, depthWrite: false, side: DoubleSide, forceSinglePass: true });
+      if (!frosted) injectGlassFresnel(m);
     } else {
       const metal = def?.metalness ?? 0;
       m = new MeshStandardMaterial({ color: this.tint(def), roughness: def?.roughness ?? 1, metalness: metal, envMapIntensity: metal > 0.5 ? 1.0 : 0.7 });
@@ -154,8 +204,12 @@ export class RealMaterials {
           m.roughness = 1;
         }
       }
-      if (variant.startsWith('slot:')) m.roughness = Number(variant.slice(5));
-      if (variant === 'floor') m.roughness *= LOOK_STYLES[this.style].rig.floorSheen;
+      if (m.roughnessMap) this.fitRoughness(m, id, variant);
+      else {
+        if (variant.startsWith('slot:')) m.roughness = Number(variant.slice(5));
+        if (variant === 'floor') m.roughness *= LOOK_STYLES[this.style].rig.floorSheen;
+      }
+      if (this.ao) injectBakedAo(m, this.ao);
     }
     m.userData.materialId = id;
     if (clipped) m.clippingPlanes = this.clip;
@@ -173,11 +227,14 @@ export class RealMaterials {
       if (e.variant === 'glass' || def?.glass) {
         if (e.id !== 'glass_frosted') e.m.color.setHex(g.tint);
         e.m.envMapIntensity = g.env;
-        if (!(e.m instanceof MeshPhysicalMaterial) && e.id !== 'glass_frosted') e.m.opacity = g.opacity;
+        if (e.id !== 'glass_frosted') e.m.opacity = g.opacity;
         continue;
       }
       e.m.color.setHex(this.tint(def));
-      if (e.variant === 'floor') e.m.roughness = (e.m.map ? 1 : def?.roughness ?? 1) * LOOK_STYLES[style].rig.floorSheen;
+      if (e.variant === 'floor') {
+        if (e.m.roughnessMap) this.fitRoughness(e.m, e.id, e.variant);
+        else e.m.roughness = (def?.roughness ?? 1) * LOOK_STYLES[style].rig.floorSheen;
+      }
     }
   }
 
@@ -207,6 +264,15 @@ export class RealMaterials {
     this.mats.clear();
     this.textures.clear();
   }
+}
+
+/** S6: the roughness factor that moves a file of mean `mean` toward the library's `target`, within ROUGH_FACTOR: the CC0 files
+ * run glossier than the library (oak .42 for .85, the wall tiles .17 for .35), and the full factor flattened the softbox
+ * highlights the floors carry; the clamp keeps a lacquered sheen on wood and tiles and brings fabric and plaster to matte. */
+export const ROUGH_FACTOR: readonly [number, number] = [0.75, 1.5];
+export function roughnessFactor(target: number, mean: number): number {
+  if (!(mean > 0.02)) return 1;
+  return Math.round(Math.min(ROUGH_FACTOR[1], Math.max(ROUGH_FACTOR[0], target / mean)) * 1000) / 1000;
 }
 
 // ---------------------------------------------------------------- models
