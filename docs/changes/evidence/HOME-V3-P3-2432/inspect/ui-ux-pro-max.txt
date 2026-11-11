@@ -1,0 +1,109 @@
+$ python -X utf8 search.py "smart home media player remote control touch panel" --domain ux
+## UI Pro Max Search Results
+**Domain:** ux | **Query:** smart home media player remote control touch panel
+**Source:** ux-guidelines.csv | **Found:** 3 results
+
+### Result 1
+- **Category:** Touch
+- **Issue:** Touch Spacing
+- **Platform:** Mobile
+- **Description:** Adjacent touch targets need adequate spacing
+- **Do:** Minimum 8px gap between touch targets
+- **Don't:** Tightly packed clickable elements
+- **Code Example Good:** gap-2 between buttons
+- **Code Example Bad:** gap-0 or gap-1
+- **Severity:** Medium
+
+### Result 2
+- **Category:** Touch
+- **Issue:** Touch Target Size
+- **Platform:** Mobile
+- **Description:** Touch target guidance depends on platform and web context
+- **Do:** Use 44pt on iOS and 48dp on Android; for web use the separate WCAG Target Size rule
+- **Don't:** Treat one unit or minimum as universal across platforms
+- **Code Example Good:** iOS 44pt; Android 48dp; Web 24 CSS px plus WCAG exceptions
+- **Code Example Bad:** w-6 h-6 buttons
+- **Severity:** High
+
+### Result 3
+- **Category:** Sustainability
+- **Issue:** Auto-Play Video
+- **Platform:** Web
+- **Description:** Autoplaying media consumes data and creates motion barriers
+- **Do:** Prefer click-to-play; provide pause and captions; stop off-screen and honor reduced motion
+- **Don't:** Auto-play high-resolution loops without pause or captions
+- **Code Example Good:** <video controls preload="none"><track kind="captions" /></video>
+- **Code Example Bad:** autoplay loop
+- **Severity:** Medium
+
+
+$ python -X utf8 search.py "utility bill water usage dashboard read only" --domain ux
+## UI Pro Max Search Results
+**Domain:** ux | **Query:** utility bill water usage dashboard read only
+**Source:** ux-guidelines.csv | **Found:** 3 results
+
+### Result 1
+- **Category:** Accessibility
+- **Issue:** Color Only
+- **Platform:** All
+- **Description:** Don't convey information by color alone
+- **Do:** Use icons/text in addition to color
+- **Don't:** Red/green only for error/success
+- **Code Example Good:** Red text + error icon
+- **Code Example Bad:** Red border only for error
+- **Severity:** High
+
+### Result 2
+- **Category:** Typography
+- **Issue:** Line Length
+- **Platform:** Web
+- **Description:** Long lines are hard to read
+- **Do:** Limit to 65-75 characters per line
+- **Don't:** Full-width text on large screens
+- **Code Example Good:** max-w-prose
+- **Code Example Bad:** Full viewport width text
+- **Severity:** Medium
+
+### Result 3
+- **Category:** Layout
+- **Issue:** Container Width
+- **Platform:** Web
+- **Description:** Content too wide is hard to read
+- **Do:** Limit max-width for text content (65-75ch)
+- **Don't:** Let text span full viewport width
+- **Code Example Good:** max-w-prose or max-w-3xl
+- **Code Example Bad:** Full width paragraphs
+- **Severity:** Medium
+
+
+$ python -X utf8 search.py "floor plan schematic map" --domain chart
+## UI Pro Max Search Results
+**Domain:** chart | **Query:** floor plan schematic map treemap
+**Source:** charts.csv | **Found:** 3 results
+
+### Result 1
+- **Data Type:** Hierarchical / Nested Data
+- **Keywords:** hierarchy, nested, treemap, parent, children, breakdown, drill, accessible chart, keyboard accessible chart
+- **Best Chart Type:** Treemap
+- **Secondary Options:** Sunburst, Nested Donut, Icicle
+- **When to Use:** Showing size relationships within a hierarchy; overview of proportional structure (e.g., budget breakdown)
+- **When NOT to Use:** Hierarchy depth > 3 levels (too complex to read); user needs to compare sibling values precisely
+- **Data Volume Threshold:** <200 nodes: SVG; 200–1000: Canvas; >1000: paginate or pre-filter before rendering
+- **Color Guidance:** Parent nodes: distinct hues. Children: lighter shades of same hue. White separator borders: 2–3px
+- **Accessibility Grade:** deprecated: use Accessibility Risk
+- **Accessibility Risk:** risk:high
+- **Accessibility Notes:** Label hierarchy nodes and use borders/patterns as well as hue; make the tree table the primary accessible view. Do not rely on color alone.
+- **A11y Fallback:** Collapsible tree table plus hierarchy summary; treemap remains supplementary. Keyboard: focus reveals hover values; Enter/Space drills or expands; Back collapses/returns.
+- **Library Recommendation:** D3.js, Recharts, ApexCharts
+- **Interactive Level:** Hover + Drilldown
+
+### Result 2
+- **Data Type:** Geographic Data
+- **Keywords:** geographic, map, location, region, geo, spatial, choropleth, accessible chart, keyboard accessible chart
+- **Best Chart Type:** Choropleth Map or Bubble Map
+- **Secondary Options:** Geographic Heat Map
+- **When to Use:** Data has a regional/location dimension; spatial distribution is the core insight for the user
+- **When NOT to Use:** Regions have very different sizes making visual comparison misleading (use bar); mobile-primary context
+- **Data Volume Threshold:** <1000 regions: SVG; ≥1000: Canvas/WebGL (Deck.gl); global maps: tile-based rendering
+- **Color Guidance:** Single color gradient per region group. Categorized colors for discrete types. Legend with clear scale breaks
+- **Accessibility Grade:** deprecated: use Accessibility Risk

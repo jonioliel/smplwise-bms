@@ -1,0 +1,2 @@
+$ impeccable.cmd detect --json home-p3.ts home-p3-media.ts home-p3-announce.ts home-p3-bills.ts home-p3-water.ts home-p3-systems.ts home-p3-map.ts home-p3-styles.ts
+[]
