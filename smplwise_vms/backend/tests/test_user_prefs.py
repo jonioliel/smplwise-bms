@@ -161,3 +161,16 @@ def test_setup_hint_dismissal_is_per_user_validated_and_resettable(settings):
     assert c.get("/api/v1/me/prefs", headers=as_user("dana")).json()["prefs"]["setup.hint"] is None
     r = c.put("/api/v1/me/prefs", json={"setup.hint": None})
     assert r.json()["prefs"]["setup.hint"] is None and "setup.hint" not in r.json()["stored"]
+
+
+def test_plan_wizard_choices_default_null_validate_and_reset(client: TestClient):
+    """PLAN3D-R28-WIZARD-2433: the plan wizard's own choices - a partial object, null = the recommended defaults (the frontend's)."""
+    assert client.get("/api/v1/me/prefs").json()["prefs"]["plan.wizard"] is None
+    r = client.put("/api/v1/me/prefs", json={"plan.wizard": {"auto_accept": 90, "review_min": 40, "unreviewed": "reject", "kit": "office", "furniture": False, "auto_place": True}})
+    assert r.status_code == 200
+    assert r.json()["prefs"]["plan.wizard"] == {"auto_accept": 90, "review_min": 40, "unreviewed": "reject", "kit": "office", "furniture": False, "auto_place": True}
+    for bad in ({"auto_accept": 100}, {"auto_accept": 60, "review_min": 70}, {"kit": "lobby"}, {"unreviewed": "maybe"}, {"furniture": 1}, {"colour": "red"}, "x", {"auto_accept": True}):
+        assert client.put("/api/v1/me/prefs", json={"plan.wizard": bad}).status_code == 422, bad
+    assert client.get("/api/v1/me/prefs").json()["prefs"]["plan.wizard"]["kit"] == "office"  # a refused write changed nothing
+    r = client.put("/api/v1/me/prefs", json={"plan.wizard": None})
+    assert r.json()["prefs"]["plan.wizard"] is None and "plan.wizard" not in r.json()["stored"]
