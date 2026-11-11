@@ -79,12 +79,14 @@ test.describe('distance and the near room', () => {
   });
 
   test('the near room fills half the stage with its point in the middle; the largest wins', () => {
-    const p = (id: string, extent: number): RoomPill => ({ id, name: id, level_id: 'L0', open: 0, presence: false, lit: 0, temp: null, devices: [], pos: [0, 0, 0], extent });
-    const pills = [p('a', 6), p('b', 4)];
+    const p = (id: string, extent: number, x = 0): RoomPill => ({ id, name: id, level_id: 'L0', open: 0, presence: false, lit: 0, temp: null, devices: [], pos: [x, 0, 0], extent });
+    const pills = [p('a', 6), p('b', 4, 30)];
     const at = new Map([['a', { x: 640, y: 400, pxPerM: 80 }], ['b', { x: 600, y: 380, pxPerM: 80 }]]);
     expect(nearRoom(pills, at, 1280, 800)).toBe('a');
     expect(nearRoom(pills, new Map([['a', { x: 640, y: 400, pxPerM: 20 }]]), 1280, 800)).toBeNull();
     expect(nearRoom(pills, new Map([['a', { x: 40, y: 400, pxPerM: 80 }]]), 1280, 800)).toBeNull(); // at the edge
+    // the overview of a small floor: a big room fills half the stage, but the whole floor fits - nothing is near
+    expect(nearRoom([p('a', 6), p('b', 4, 5)], new Map([['a', { x: 640, y: 400, pxPerM: 80 }]]), 1280, 800)).toBeNull();
   });
 });
 

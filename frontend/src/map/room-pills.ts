@@ -188,17 +188,37 @@ export const FAR_PX_PER_M = 14;
  * middle of the stage (NEAR_CENTRE of each axis). */
 export const NEAR_SHARE = 0.5;
 export const NEAR_CENTRE = 0.7;
+/** ... and only while the camera is closer than the overview: the floor (the pills' rooms together) spans more than this many
+ * times the stage's longer side. At the overview of a small floor a big room fills half the stage too - it is not "near". */
+export const NEAR_ZOOM = 1.2;
+
+/** The floor's larger side (metres) from the pills: their points widened by half their rooms' extents. */
+export function floorExtent(pills: readonly RoomPill[]): number {
+  if (!pills.length) return 0;
+  let x0 = Infinity;
+  let x1 = -Infinity;
+  let z0 = Infinity;
+  let z1 = -Infinity;
+  for (const p of pills) {
+    x0 = Math.min(x0, p.pos[0] - p.extent / 2);
+    x1 = Math.max(x1, p.pos[0] + p.extent / 2);
+    z0 = Math.min(z0, p.pos[2] - p.extent / 2);
+    z1 = Math.max(z1, p.pos[2] + p.extent / 2);
+  }
+  return Math.max(x1 - x0, z1 - z0);
+}
 
 /** far / mid for a scale (px per metre) and a stage width: a phone-wide stage is always far. */
 export function pillLod(pxPerM: number, stageW: number, phoneW: number): PillLod {
   return stageW > 0 && stageW < phoneW ? 'far' : pxPerM > 0 && pxPerM < FAR_PX_PER_M ? 'far' : 'mid';
 }
 
-/** The near room: the largest on the screen among those that fill NEAR_SHARE of the stage with their point near its middle;
- * null when none does. `at` is the projected point and the px-per-metre at it, per pill id. */
+/** The near room: the largest on the screen among those that fill NEAR_SHARE of the stage with their point near its middle,
+ * while the camera is zoomed in past the overview (NEAR_ZOOM); null when none does. `at` is the projected point and the px-per-metre at it, per pill id. */
 export function nearRoom(pills: readonly RoomPill[], at: ReadonlyMap<string, { x: number; y: number; pxPerM: number }>, stageW: number, stageH: number): string | null {
   const short = Math.min(stageW, stageH);
   if (!(short > 0)) return null;
+  const floor = floorExtent(pills);
   const mx = (stageW * (1 - NEAR_CENTRE)) / 2;
   const my = (stageH * (1 - NEAR_CENTRE)) / 2;
   let best: string | null = null;
@@ -207,7 +227,7 @@ export function nearRoom(pills: readonly RoomPill[], at: ReadonlyMap<string, { x
     const a = at.get(p.id);
     if (!a) continue;
     const px = p.extent * a.pxPerM;
-    if (px < short * NEAR_SHARE || a.x < mx || a.x > stageW - mx || a.y < my || a.y > stageH - my) continue;
+    if (px < short * NEAR_SHARE || floor * a.pxPerM < NEAR_ZOOM * Math.max(stageW, stageH) || a.x < mx || a.x > stageW - mx || a.y < my || a.y > stageH - my) continue;
     if (px > bestPx || (px === bestPx && best !== null && p.id < best)) {
       best = p.id;
       bestPx = px;

@@ -53,12 +53,12 @@ test.describe('pixel: the round 28 3D map overlays', () => {
     // the summarised devices have no pill of their own
     await expect(el.locator('[data-3d-label="a-light"]')).toHaveCount(0);
     await settlePage(page);
-    await check(info, el, 'r28-pills-desktop.png');
+    await check(info, el, 'r28-pills.png');
     await el.locator('[data-room-pill="z-west"]').click();
     await expect(el.locator('[data-room-pop="z-west"]')).toBeVisible();
     await expect(el.locator('[data-room-pop="z-west"] [data-rp-device]')).toHaveCount(4);
     await settlePage(page);
-    await check(info, el, 'r28-pills-popover-desktop.png');
+    await check(info, el, 'r28-pills-popover.png');
     // the room card opens from the popover
     const opened = el.evaluate((n) => new Promise<string>((res) => n.addEventListener('room-open', (e) => res((e as CustomEvent<{ id: string }>).detail.id), { once: true })));
     await el.locator('[data-room-pop-card]').click();
@@ -73,12 +73,12 @@ test.describe('pixel: the round 28 3D map overlays', () => {
     const el = await plan3d(page, spread, { levelTags: levelTags(spread, names, r28Rooms(), null), roomPills: [], preset: 'iso' });
     await expect(el.locator('[data-level-tag]')).toHaveCount(2);
     await settlePage(page);
-    await check(info, el, 'r28-stack-open-desktop.png');
+    await check(info, el, 'r28-stack-open.png');
     const focus = spreadDescription(r28Desc(null), 'L0');
     await el.evaluate((n, a) => { const w = n as unknown as Record<string, unknown>; w.description = a.d; w.levelTags = a.t; }, { d: focus, t: levelTags(spread, names, r28Rooms(), 'L0') });
     await expect(el.locator('[data-level-column] [data-stack-enter]')).toBeVisible();
     await settlePage(page);
-    await check(info, el, 'r28-stack-focus-desktop.png');
+    await check(info, el, 'r28-stack-focus.png');
   });
 
   for (const shape of ['side', 'peek', 'full'] as const) {
@@ -110,7 +110,9 @@ test.describe('pixel: the round 28 3D map overlays', () => {
       }, { m: model, shape });
       const box = page.locator('#r28-box');
       await expect(box.locator('sw-room-card [data-room-close]')).toBeVisible();
-      if (shape !== 'side') await expect(box.locator('sw-room-card [data-room-opening="cover.s"]')).toBeVisible();
+      // the low sheet shows what is open, the full one its first tab (the lights)
+      if (shape === 'peek') await expect(box.locator('sw-room-card [data-room-opening="cover.s"]')).toBeVisible();
+      if (shape === 'full') await expect(box.locator('sw-room-card [data-room-light="light.a"]')).toBeVisible();
       await page.waitForTimeout(400); // the entry animation (the compare runs with animations disabled; the box is steady after it)
       await settlePage(page);
       await check(info, box, `r28-room-card-${shape}.png`);

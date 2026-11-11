@@ -298,6 +298,11 @@ export class SwRoomCard extends LitElement {
       font-weight: 600;
       color: var(--sw-text-2);
     }
+    .quick button:disabled,
+    footer button:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
     .quick button.on {
       color: var(--sw-warning-text);
     }
