@@ -105,7 +105,7 @@ test('the studio backdrop: dark stops easing from day to night; the sky backdrop
   expect(lum(n[0])).toBeLessThan(lum(d[0]));
   for (const s of [...d, ...n]) expect(lum(s)).toBeLessThan(3 * 110); // dark
   expect(backdropColors(day, 'light')).toEqual(backdropColors(day, 'light', 'sky'));
-  expect(STUDIO.disc.light).toBeGreaterThan(STUDIO.discNight.light);
+  expect(STUDIO.discScale).toBeLessThan(1); // the studio plinth is smaller than the sky's ground disc
 });
 
 test('the environment softboxes: bright overhead by day, a warm low panel at night, the dark style dimmer', () => {
