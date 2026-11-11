@@ -302,6 +302,17 @@ def _bridge_push_refusals_are_per_test():
 
 
 @pytest.fixture(autouse=True)
+def _media_reach_is_per_test():
+    """HEALTH-GO2RTC-2430: `media_reach.REACH` (is the video service reachable) is process state fed by every go2rtc call. A test whose
+    fake go2rtc refuses connections must not leave the next test's /health `degraded`."""
+    from smplwise.services import media_reach
+
+    media_reach.REACH.reset()
+    yield
+    media_reach.REACH.reset()
+
+
+@pytest.fixture(autouse=True)
 def _storage_report_cache_is_per_test():
     """`services.storage` keeps a process-wide 10-minute report cache, and the start-up warm-up fills it from a daemon thread that
     can finish after its test is over. Without this, a report built for another test's settings (an NVR, disks) leaks into the next

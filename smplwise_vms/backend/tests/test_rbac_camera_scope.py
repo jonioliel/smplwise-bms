@@ -189,7 +189,8 @@ def test_camera_on_two_floors_and_unanchored(world):
 def _ws_close_code(c: TestClient, url: str, h: dict[str, str]) -> int:
     with pytest.raises(WebSocketDisconnect) as ei:
         with c.websocket_connect(url, headers=dict(h)) as ws:  # the client adds upgrade headers to the dict it is given
-            ws.receive_text()
+            for _ in range(5):  # HEALTH-GO2RTC-2430: a 4503 now follows one `{"type":"error",...}` frame (the reason survives HA ingress)
+                ws.receive_text()
     return ei.value.code
 
 

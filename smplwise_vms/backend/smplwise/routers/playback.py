@@ -31,7 +31,7 @@ from ..services.access import require_camera
 from ..services.leases import CameraLease
 from ..services.relay import relay_ws
 from ..services.timeutil import UTC, iso_utc, parse_utc
-from .media import _principal_for_ws
+from .media import _json_dumps_error, _principal_for_ws, refuse_media
 from .recordings import camera_for_playback
 from .settings import read_settings
 
@@ -182,7 +182,7 @@ async def playback_ws(websocket: WebSocket, session_id: str, generation: int = Q
         await websocket.close(code=4410)  # superseded generation: the client must reconnect with the new one
         return
     if not settings.go2rtc_url:
-        await websocket.close(code=4503)
+        await refuse_media(websocket, settings, "media_not_configured")  # HEALTH-GO2RTC-2430: the reason survives HA ingress
         return
 
     my_gen = generation
@@ -230,7 +230,7 @@ async def playback_ws(websocket: WebSocket, session_id: str, generation: int = Q
         reason = "upstream_failure"
         log.warning("playback session %s upstream failure: %s", session.id, type(exc).__name__)
         with contextlib.suppress(Exception):
-            await websocket.send_text('{"type":"error","value":"upstream_unavailable"}')
+            await websocket.send_text(_json_dumps_error("upstream_unavailable", settings))
     finally:
         if session.generation == my_gen:
             session.ws_open = False
