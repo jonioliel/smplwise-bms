@@ -19,7 +19,9 @@ import { buildScene, type SceneDescription, type SceneInput } from '../src/map/s
  * 1. ALWAYS (functional and determinism; any renderer, SwiftShader included):
  *    - the 1,000-object floor: the same input gives the same description (node) and the same scene graph after a full
  *      rebuild at all three levels (1 schematic, 2 full, 3 realistic lite);
- *    - the default stays schematic without any choice (R178, second half), and `auto` with a realistic start falls
+ *    - the default stays schematic without any choice (R178, second half; amended 2026-11-11, PLAN3D-POLISH-2430: `auto` itself
+ *      now starts at realistic lite on a capable GPU - quality-ladder.gpuClass, unit-plan3d-polish-2430.spec.ts - while "no
+ *      setting at all" stays schematic, which is what this demo checks), and `auto` with a realistic start falls
  *      realistic -> lite -> full -> schematic by the frame-budget probe, one rung per probe, and says so;
  *    - the texture budget: the library's decoded textures on the 1,000-object floor stay at or under 512 px and under
  *      the device class cap (48 MB phone / 128 MB elsewhere, CR-029 section 3.4); the over-budget swap to 256 px variants
@@ -468,6 +470,7 @@ test.describe('functional and determinism (always)', () => {
     await expect(el).toHaveAttribute('data-rung', 'schematic');
     await expect(el).toHaveAttribute('data-quality', '1');
     await el.evaluate((n) => {
+      (n as unknown as { gpu: string }).gpu = 'weak'; // the start comes from default_view below, whatever GPU runs the spec
       const w = window as unknown as { __rungs: string[] };
       w.__rungs = [];
       new MutationObserver(() => w.__rungs.push(String((n as HTMLElement).getAttribute('data-rung')))).observe(n, { attributes: true, attributeFilter: ['data-rung'] });

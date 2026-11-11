@@ -19,7 +19,7 @@
  */
 import { ACESFilmicToneMapping, AmbientLight, BoxGeometry, BufferGeometry, CanvasTexture, Color, CylinderGeometry, DirectionalLight, DoubleSide, Euler, Float32BufferAttribute, FogExp2, GLTFExporter, Group, HemisphereLight, InstancedMesh, LineBasicMaterial, LineSegments, Matrix4, Mesh, MeshBasicMaterial, MeshLambertMaterial, MeshStandardMaterial, NeutralToneMapping, NoToneMapping, Object3D, OrbitControls, OrthographicCamera, PCFShadowMap, PCFSoftShadowMap, PMREMGenerator, PerspectiveCamera, Plane, PlaneGeometry, PointLight, Quaternion, Raycaster, SRGBColorSpace, Scene, ShapeUtils, Sprite, SpriteMaterial, Vector2, Vector3, WebGLRenderer, type WebGLRenderTarget } from './three-bundle';
 import type { SceneDescription, ScenePart, Vec3 } from './scene-builder';
-import { CUTAWAY_HEIGHT_M, ISO_DIR, PERSP_DIR, azimuthDeg, clampThumb, cutBox, cutawayIds, isoFrame, levelExtent, quantiseAzimuth, sceneExtent, type Extent, type IsoFrame } from './scene-frame';
+import { CUTAWAY_HEIGHT_M, ISO_DIR, NO_INSETS, PERSP_DIR, azimuthDeg, clampThumb, contentExtent, cutBox, cutawayIds, glowPoolWanted, insetFractions, isoFitFrame, isoFrame, levelExtent, perspFit, quantiseAzimuth, sceneExtent, type Extent, type FrameInsets, type IsoFrame } from './scene-frame';
 import { DEFAULT_REAL, REAL_KINDS, RealMaterials, disposeDeep, RealModels, backdropColors, buildExterior, buildReal, lampColor, paintSky, assetBase, glowPlanOf, applyBackdrop, type Exterior, type RealBuilt, type RealSettings } from './scene-real';
 import type { GlowRoom } from './room-glow';
 import { DEFAULT_SITE, lightRecipe, poolLamps, sunPosition, type LightRecipe, type SunPosition } from './sun';
@@ -76,6 +76,10 @@ export interface SceneViewOptions {
    * rung draws its first frame at it (a cap handed over after construction would find the canvas already allocated at the default);
    * `setRealSettings({ dprCap })` moves it later. Default DEFAULT_DPR_CAP. Only the realistic rung reads it (quality-ladder.pixelRatioFor). */
   dprCap?: number;
+  /** PLAN3D-POLISH-2430: 'content' (the live element) frames the overview presets on what the floor draws, fitted into the stage less
+   * its overlays (setFrameInsets), again on a resize until the person moves the camera. Absent / 'plates': the frame of before on
+   * the floor plates (the stills, the skin control image and the thumbnails depend on it). */
+  fit?: 'plates' | 'content';
   /** Where the plan3d assets are served (default: plan3d/ next to index.html). */
   assetBase?: string;
   /** The realistic level asks for a frame after an asset (texture, model, post chunk) arrived. */
@@ -170,10 +174,26 @@ const NIGHT_MOON_INTENSITY = 0.55;
 const NIGHT_EXPOSURE = 0.9;
 const NIGHT_GLOW_FACTOR = 2.6;
 const NIGHT_AMBIENT = 0x8ea0cc;
+/** PLAN3D-POLISH-2430, night readability: the moon lights the -x side, so the faces the overview cameras see (+x / +z) sank into the
+ * navy sky and the outer walls vanished. A faint cool fill from the camera's side (no shadow) keeps the outlines readable; the lit
+ * rooms stay the brightest thing in the picture. Levels 1-2 only (level 3 has its own rig). */
+const NIGHT_FILL_COLOR = 0x9db2e8;
+const NIGHT_FILL_INTENSITY = 0.55;
+const NIGHT_FILL_SCHEMATIC = 0.35;
+const NIGHT_FILL_DIR: Vec3 = [0.55, 0.45, 0.7];
 const THUMB_W = 160;
 const THUMB_H = 100;
 
 const rad = (d: number): number => (d * Math.PI) / 180;
+const SKY_TMP = new Vector3();
+const extentKey = (e: Extent): string => [e.x0, e.x1, e.z0, e.z1, e.y0, e.y1].map((v) => v.toFixed(2)).join(',');
+/** The night fill of levels 1-2 (NIGHT_FILL_*): a shadowless directional light from the overview cameras' side. */
+function nightFill(intensity: number): DirectionalLight {
+  const fill = new DirectionalLight(NIGHT_FILL_COLOR, intensity);
+  fill.name = 'night-fill';
+  fill.position.set(NIGHT_FILL_DIR[0] * 10, NIGHT_FILL_DIR[1] * 10, NIGHT_FILL_DIR[2] * 10);
+  return fill;
+}
 /** The direction the level-3 sun light comes from: the solar direction, never further below the horizon than -0.2 (the
  * twilight sun still lights from a sensible side; the light itself is off below -3 deg). */
 function sunLightDir(sp: SunPosition): Vec3 {
@@ -360,7 +380,8 @@ export class SceneView {
   private aoMaterial: MeshBasicMaterial | null = null;
   private readonly raycaster = new Raycaster();
   /** A fixed pool of point lights for the glows: a lamp switching on moves a light and sets its intensity, it never
-   * changes the number of lights (which would recompile every lit shader). */
+   * changes the number of lights (which would recompile every lit shader). PLAN3D-POLISH-2430: the pool is in the scene only
+   * where it lights something (syncGlowPool) - eight dark point lights still cost every lit fragment their loop. */
   private readonly glowPool: PointLight[] = [];
   private readonly lights = new Group();
   private sun: DirectionalLight | null = null;
@@ -384,6 +405,10 @@ export class SceneView {
   private selectedId: string | null = null;
   private preset: ScenePreset = 'iso';
   private orthoFrame: IsoFrame | null = null;
+  /** PLAN3D-POLISH-2430: the overlays' pixels along each edge of the stage (SceneViewOptions.fit 'content'). */
+  private frameInsetsPx: FrameInsets = { ...NO_INSETS };
+  /** The person moved the camera since the last preset: a resize keeps their view (no re-fit). */
+  private userCamera = false;
   /** The azimuth the cutaway was last applied for (null = nothing cut). */
   private cutAzimuth: number | null = null;
   private cutNow = new Set<string>();
@@ -461,13 +486,11 @@ export class SceneView {
     this.controls.dampingFactor = 0.12;
     this.controls.maxPolarAngle = ORBIT_MAX_POLAR;
     this.controls.addEventListener('change', this.invalidate);
+    this.controls.addEventListener('start', this.onUserCamera); // an orbit, a pan or a zoom by the person: the fit no longer follows the stage
     this.scene.add(this.lights);
     this.applyQuality();
-    for (let i = 0; i < MAX_GLOW_LIGHTS; i++) {
-      const light = new PointLight(0xffffff, 0, 1, 2);
-      this.glowPool.push(light);
-      this.scene.add(light);
-    }
+    for (let i = 0; i < MAX_GLOW_LIGHTS; i++) this.glowPool.push(new PointLight(0xffffff, 0, 1, 2));
+    this.syncGlowPool();
     this.scene.add(this.root);
     canvas.addEventListener('pointerdown', this.onDown);
     canvas.addEventListener('pointerup', this.onUp);
@@ -562,6 +585,7 @@ export class SceneView {
     if (q === this.quality) return;
     this.quality = q;
     this.applyQuality();
+    this.syncGlowPool();
     for (const { material } of this.materials.values()) material.dispose();
     this.materials.clear();
     if (this.desc) {
@@ -614,6 +638,7 @@ export class SceneView {
       this.lights.add(sun.target);
       this.sun = sun;
       this.fitSun();
+      if (night) this.lights.add(nightFill(NIGHT_FILL_INTENSITY));
     } else {
       this.renderer.shadowMap.enabled = false;
       this.renderer.toneMapping = NoToneMapping;
@@ -622,6 +647,7 @@ export class SceneView {
       const sun = night ? new DirectionalLight(NIGHT_MOON_COLOR, 0.5) : new DirectionalLight(0xffffff, 1.4);
       sun.position.set(1, 2, 1.2);
       this.lights.add(sun);
+      if (night) this.lights.add(nightFill(NIGHT_FILL_SCHEMATIC));
     }
   }
 
@@ -675,9 +701,72 @@ export class SceneView {
     this.renderer.shadowMap.needsUpdate = true;
   }
 
-  /** The WebGL context came back: three restored its state, the shadow map is drawn afresh with the next frame. */
+  /** PLAN3D-POLISH-2430: the glow pool is in the scene where it can light something - the lit levels (2 and 3: the glows of
+   * level 2, the lamp pool of level 3) always, the schematic level only while a glow holds one of its lights. Adding or
+   * removing the pool changes the light count (one shader recompile), so it moves only on a level switch or when the
+   * schematic floor's first lamp goes on / its last goes off - never per state push. */
+  private syncGlowPool(): void {
+    const want = glowPoolWanted(this.quality, this.glowPool.some((l) => l.intensity > 0));
+    for (const light of this.glowPool) {
+      if (want && light.parent !== this.scene) this.scene.add(light);
+      else if (!want && light.parent) light.removeFromParent();
+    }
+  }
+
+  /** The glow pool's lights now in the scene (tests: none at an unlit schematic floor). */
+  get glowLightsInScene(): number {
+    return this.glowPool.filter((l) => l.parent === this.scene).length;
+  }
+
+  /** How often the context came back (tests). */
+  restoredCount = 0;
+
+  private onUserCamera = (): void => {
+    this.userCamera = true;
+  };
+
+  /** The live fit follows the stage: re-fit the overview preset now when the person has not moved the camera. */
+  private refit(): void {
+    if (this.opts.fit !== 'content' || this.userCamera || this.walking || typeof this.preset !== 'string' || !this.desc) return;
+    this.setPreset(this.preset);
+  }
+  /** The content extent the last live fit framed (refit on a new description only when it changed). */
+  private fittedKey = '';
+
+  /** The overlay insets as fractions of the stage now (tests: the free part the building must fill). */
+  frameInsetFractions(): FrameInsets {
+    const m = this.opts.mount;
+    return insetFractions(this.frameInsetsPx, m.clientWidth || 1, m.clientHeight || 1);
+  }
+
+  /** PLAN3D-POLISH-2430: the stage's overlay pixels per edge (the element's bar, the host's top controls); the overview presets
+   * keep the building out from under them. */
+  setFrameInsets(px: FrameInsets): void {
+    const p = this.frameInsetsPx;
+    if (p.top === px.top && p.right === px.right && p.bottom === px.bottom && p.left === px.left) return;
+    this.frameInsetsPx = { ...px };
+    this.refit();
+  }
+
+  /** The WebGL context came back: three re-creates its programs, buffers and textures from the scene as it draws, but what
+   * was RENDERED into a target is gone - the shadow map, the prefiltered environment (PMREM) and the post chain's targets
+   * (PLAN3D-POLISH-2430). The shadow map is drawn afresh; at level 3 the environment is prefiltered again from the dome and
+   * the post chain is built again for the rung, so the realistic picture comes back too, not only its geometry. */
   private onRestored = (): void => {
+    this.restoredCount++;
     this.markShadows();
+    if (!this.disposed && this.quality === 3) {
+      this.post?.dispose();
+      this.post = null;
+      this.postRung = null;
+      this.envTarget?.dispose();
+      this.envTarget = null;
+      this.pmrem?.dispose();
+      this.pmrem = null;
+      this.envElevation = null;
+      this.ensurePost();
+      this.applyTime();
+    }
     this.invalidate();
   };
 
@@ -1097,6 +1186,7 @@ export class SceneView {
       return mesh;
     }
     if (DOM_LABEL_KINDS.has(p.kind)) return null; // the element draws chips and entity pills as DOM at the projected point
+    if (p.kind === 'label' && this.opts.fit === 'content') return null; // PLAN3D-POLISH-2430: the live element draws the room / plan names as DOM plates
     if (p.shape === 'sprite') return this.label(p);
     return null; // lights come from the pool (setDescription)
   }
@@ -1316,10 +1406,17 @@ export class SceneView {
       light.distance = Math.max(p.size[0], 1);
       light.position.set(p.position[0], p.position[1], p.position[2]);
     }
+    this.syncGlowPool();
     this.hideSmall = desc.parts.length > HIDE_SMALL_ABOVE_PARTS;
     if (!this.hideSmall) for (const g of this.smallGroups) g.visible = true;
     this.fitSun();
     if (!this.framed) this.framed = this.setPreset('iso');
+    else if (this.opts.fit === 'content') {
+      // PLAN3D-POLISH-2430: another level shown on its own (or every level again) frames what is drawn now; a live state push
+      // draws the same extent and moves nothing, and a camera the person moved stays where they put it
+      const key = extentKey(contentExtent(desc));
+      if (key !== this.fittedKey) this.refit();
+    }
     this.updateCutaway();
     if (this.quality === 3) {
       this.ensurePost();
@@ -1430,7 +1527,20 @@ export class SceneView {
     // the distance at which a w x h rectangle facing the camera fills the view (the aspect of the mount counts)
     const fit = (w: number, h: number): number => Math.max(h, w / (this.persp.aspect || 1), 4) / (2 * Math.tan(rad(this.persp.fov / 2)));
     const top = Math.max(0, ...d.levels.map((l) => l.elevation_m + l.ceiling_height_m));
-    if (preset === 'top') {
+    // PLAN3D-POLISH-2430: the live element frames what the floor draws, in the stage less its overlays (scene-frame.contentExtent /
+    // isoFitFrame / perspFit); the off-screen views (stills, skin control, thumbnails) keep the frame of before on the plates
+    const live = this.opts.fit === 'content' && typeof preset === 'string' ? contentExtent(d) : null;
+    if (live) this.fittedKey = extentKey(live);
+    const mount = this.opts.mount;
+    const insets = live ? insetFractions(this.frameInsetsPx, mount.clientWidth || 1, mount.clientHeight || 1) : NO_INSETS;
+    if (typeof preset === 'string') this.userCamera = false;
+    if (live && (preset === 'top' || preset === 'persp')) {
+      this.useCamera(this.persp);
+      this.controls.maxPolarAngle = ORBIT_MAX_POLAR;
+      const p = perspFit(live, preset === 'top' ? [0, 1, 0] : PERSP_DIR, this.persp.fov, this.persp.aspect || 1, insets);
+      this.persp.position.set(p.position[0], p.position[1], p.position[2] + (preset === 'top' ? 0.001 : 0));
+      this.controls.target.set(p.target[0], p.target[1], p.target[2]);
+    } else if (preset === 'top') {
       this.useCamera(this.persp);
       this.controls.maxPolarAngle = ORBIT_MAX_POLAR;
       this.persp.position.set(cx, top + fit(W, D) * 1.2, cz + 0.001);
@@ -1438,7 +1548,7 @@ export class SceneView {
     } else if (preset === 'iso') {
       this.useCamera(this.ortho);
       this.controls.maxPolarAngle = ORBIT_MAX_POLAR;
-      const f = isoFrame(e, this.persp.aspect || 1);
+      const f = live ? isoFitFrame(live, this.persp.aspect || 1, insets) : isoFrame(e, this.persp.aspect || 1);
       this.orthoFrame = f;
       this.ortho.zoom = 1;
       this.applyOrthoFrame();
@@ -1609,11 +1719,12 @@ export class SceneView {
     if (this.walking || this.quality !== 2 || !e || typeof this.preset !== 'string') return null; // the walk sees walls full height (section 4.6)
     const cam = this.active.position;
     if (cam.y <= e.y1) return null;
-    const cx = (e.x0 + e.x1) / 2;
-    const cz = (e.z0 + e.z1) / 2;
-    const off = Math.hypot(cam.x - cx, cam.z - cz);
+    // PLAN3D-POLISH-2430: the view direction (camera - orbit target), not the bearing from the extent's centre - the live fit slides
+    // the target off the centre (the free part of the stage), and the overview's azimuth must stay the preset's own (45 deg for iso)
+    const t = this.controls.target;
+    const off = Math.hypot(cam.x - t.x, cam.z - t.z);
     if (off < 0.5) return null; // straight above: no side faces the camera
-    return quantiseAzimuth(azimuthDeg(cam.x, cam.z, cx, cz));
+    return quantiseAzimuth(azimuthDeg(cam.x, cam.z, t.x, t.z));
   }
 
   /** Write a part's box: the kept box of a cut, its own box again, or - hidden (h = 0) - a point parked at `y` (one
@@ -1821,6 +1932,7 @@ export class SceneView {
     this.persp.aspect = w / h;
     this.persp.updateProjectionMatrix();
     this.applyOrthoFrame();
+    this.refit(); // the live fit follows the stage until the person moves the camera
     this.invalidate();
   }
 
@@ -1868,8 +1980,45 @@ export class SceneView {
 
   /** Render the frame: through the post chain at level 3 once it loaded, else straight (levels 1-2 always straight). The
    * lamp pool follows the camera by distance bucket (no change: no work). */
+  /**
+   * PLAN3D-POLISH-2430 (the sky arc): seen from the overview height in perspective, the exterior's fixed rings showed as an arc
+   * across the top of the frame - the sky dome's ground / sky seam (a circle at y 0 round the building), the 55 m hill band and
+   * the ground disc's fading rim. In perspective the dome now follows the camera (its seam is the true horizon: a straight line at
+   * eye level, out of frame from above), the hill band shows only near eye level (the walk, a low orbit) and the ground disc
+   * grows so its rim lies past the frame's top ray. The orthographic overview keeps the exterior as built (nothing changes there).
+   */
+  private followSky(): void {
+    const ext = this.exterior;
+    if (!ext) return;
+    const home = (ext.root.userData.home ??= { dome: ext.dome.position.clone(), band: ext.band.position.clone(), discScale: ext.disc.scale.x, bandH: (ext.band.geometry as { parameters?: { height?: number } }).parameters?.height ?? 7 }) as { dome: Vector3; band: Vector3; discScale: number; bandH: number };
+    const cam = this.active.position;
+    if (this.active !== this.persp) {
+      ext.dome.position.copy(home.dome);
+      ext.band.position.copy(home.band);
+      ext.band.visible = true;
+      ext.disc.scale.setScalar(home.discScale);
+      return;
+    }
+    ext.dome.position.set(cam.x, cam.y, cam.z);
+    const ground = home.band.y - home.bandH / 2;
+    const height = cam.y - ground;
+    ext.band.visible = height < home.bandH * 2.5;
+    ext.band.position.set(cam.x, home.band.y, cam.z);
+    // the ground under the frame's top ray: its distance from the camera (the horizon in view: the dome's reach)
+    const dir = this.persp.getWorldDirection(SKY_TMP);
+    const pitch = Math.asin(Math.max(-1, Math.min(1, -dir.y)));
+    const top = pitch - rad(this.persp.fov / 2);
+    const reach = top > 0.02 && height > 0 ? Math.min(380, height / Math.tan(top)) : 380;
+    const g = (ext.disc.geometry as { parameters?: { width?: number } }).parameters?.width ?? 1;
+    const off = Math.hypot(cam.x - ext.disc.position.x, cam.z - ext.disc.position.z);
+    // the alpha map is opaque to 55 % of the radius: that much must reach past the top ray's ground point
+    const want = (reach + off) / 0.55 / (g / 2);
+    ext.disc.scale.setScalar(Math.max(home.discScale, Math.min(want, 800 / (g / 2))));
+  }
+
   private drawFrame(): void {
     if (this.quality === 3) {
+      this.followSky();
       const c = this.active.position;
       const lamps = this.desc?.real?.lamps ?? [];
       if (lamps.length > MAX_GLOW_LIGHTS && poolLamps(lamps, [c.x, c.y, c.z], MAX_GLOW_LIGHTS).map((l) => l.id).join(',') !== this.poolKey) this.applyLamps();
@@ -2025,6 +2174,7 @@ export class SceneView {
     canvas.removeEventListener('pointercancel', this.onCancel);
     canvas.removeEventListener('webglcontextrestored', this.onRestored);
     this.controls.removeEventListener('change', this.invalidate);
+    this.controls.removeEventListener('start', this.onUserCamera);
     this.controls.dispose();
     window.clearTimeout(this.realRebuildTimer);
     this.clear();
