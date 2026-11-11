@@ -216,3 +216,185 @@ export function cutBox(p: ScenePart, levelElevation: number, cutHeight = CUTAWAY
   const kept = top - base;
   return { y: base + kept / 2, h: kept };
 }
+
+// ---- PLAN3D-POLISH-2430: the live view's framing - the drawn building, not the plan sheet, fitted into the free part of the stage
+
+/** What the live view frames: the parts that draw the building (structure, openings, furniture, rooms, cameras). The floor
+ * plates are left out - the default level's plate is the whole plan sheet, so a plan drawn with wide white margins framed
+ * its margins too and the building filled about half the stage. */
+const CONTENT_KINDS: ReadonlySet<ScenePart['kind']> = new Set(['wall', 'lintel', 'sill', 'head', 'door', 'window', 'object', 'connector', 'camera', 'room', 'marker']);
+/** The margin around the drawn building, metres (the plates' own pad is 0.5 m). */
+export const CONTENT_PAD_M = 0.3;
+/** The live presets' padding over the fitted box (the stage margin itself is in the insets, in pixels). */
+export const LIVE_PAD = 1.03;
+
+/** The extent of what the description draws (CONTENT_KINDS, padded by CONTENT_PAD_M), never past the plates' extent; the
+ * plates' extent when nothing is drawn. The heights are the levels' (sceneExtent). */
+export function contentExtent(desc: SceneDescription): Extent {
+  const plates = sceneExtent(desc);
+  let x0 = Infinity;
+  let z0 = Infinity;
+  let x1 = -Infinity;
+  let z1 = -Infinity;
+  const take = (x: number, z: number) => {
+    if (x < x0) x0 = x;
+    if (x > x1) x1 = x;
+    if (z < z0) z0 = z;
+    if (z > z1) z1 = z;
+  };
+  for (const p of desc.parts) {
+    if (!CONTENT_KINDS.has(p.kind)) continue;
+    if (p.shape === 'prism') {
+      for (const q of p.polygon ?? []) take(p.position[0] + q[0], p.position[2] + q[1]);
+      continue;
+    }
+    if (p.shape !== 'box' && p.shape !== 'cylinder') continue;
+    // a box turned by its yaw: the footprint's corners (a cylinder's footprint is its square)
+    const t = rad(p.rotation[1]);
+    const c = Math.abs(Math.cos(t));
+    const s = Math.abs(Math.sin(t));
+    const hx = (p.size[0] * c + p.size[2] * s) / 2;
+    const hz = (p.size[0] * s + p.size[2] * c) / 2;
+    take(p.position[0] - hx, p.position[2] - hz);
+    take(p.position[0] + hx, p.position[2] + hz);
+  }
+  if (!Number.isFinite(x0)) return plates;
+  const out: Extent = { x0: Math.max(plates.x0, x0 - CONTENT_PAD_M), z0: Math.max(plates.z0, z0 - CONTENT_PAD_M), x1: Math.min(plates.x1, x1 + CONTENT_PAD_M), z1: Math.min(plates.z1, z1 + CONTENT_PAD_M), y0: plates.y0, y1: plates.y1 };
+  return out.x1 - out.x0 > 1e-3 && out.z1 - out.z0 > 1e-3 ? out : plates;
+}
+
+/** The stage's covered edges (the overlays the building should not sit under): pixels in, fractions of the stage out. */
+export interface FrameInsets {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+export const NO_INSETS: FrameInsets = { top: 0, right: 0, bottom: 0, left: 0 };
+
+/** Pixel insets of a w x h stage as fractions, scaled down so the free part keeps at least 40 % of each side. */
+export function insetFractions(px: FrameInsets, w: number, h: number): FrameInsets {
+  if (!(w > 0 && h > 0)) return NO_INSETS;
+  const side = (a: number, b: number, size: number): [number, number] => {
+    let fa = Math.max(0, a) / size;
+    let fb = Math.max(0, b) / size;
+    if (fa + fb > 0.6) {
+      const k = 0.6 / (fa + fb);
+      fa *= k;
+      fb *= k;
+    }
+    return [fa, fb];
+  };
+  const [left, right] = side(px.left, px.right, w);
+  const [top, bottom] = side(px.top, px.bottom, h);
+  return { top, right, bottom, left };
+}
+
+type V3 = [number, number, number];
+const corners = (e: Extent): V3[] => {
+  const out: V3[] = [];
+  for (const x of [e.x0, e.x1]) for (const y of [e.y0, e.y1]) for (const z of [e.z0, e.z1]) out.push([x, y, z]);
+  return out;
+};
+
+/** The isometric frame that fits an extent into the free part of the stage (`insets`, fractions), padded, at the stage's
+ * aspect: the frustum is as small as the projected box allows and the target is moved so the box sits centred in the free
+ * part. With no insets the target is the extent's centre, as in isoFrame (which the stills and the control images keep). */
+export function isoFitFrame(e: Extent, aspect: number, insets: FrameInsets = NO_INSETS, pad = LIVE_PAD): IsoFrame {
+  const a = aspect > 0 && Number.isFinite(aspect) ? aspect : 1;
+  const c: V3 = [(e.x0 + e.x1) / 2, (e.y0 + e.y1) / 2, (e.z0 + e.z1) / 2];
+  let r0 = Infinity;
+  let r1 = -Infinity;
+  let u0 = Infinity;
+  let u1 = -Infinity;
+  for (const p of corners(e)) {
+    const v: V3 = [p[0] - c[0], p[1] - c[1], p[2] - c[2]];
+    const r = dot(v, ISO_RIGHT);
+    const u = dot(v, ISO_UP);
+    r0 = Math.min(r0, r);
+    r1 = Math.max(r1, r);
+    u0 = Math.min(u0, u);
+    u1 = Math.max(u1, u);
+  }
+  const fw = Math.max(0.2, 1 - insets.left - insets.right);
+  const fh = Math.max(0.2, 1 - insets.top - insets.bottom);
+  const halfH = Math.max(((Math.max(u1 - u0, 2) / 2) * pad) / fh, ((Math.max(r1 - r0, 2) / 2) * pad) / (fw * a));
+  const halfW = halfH * a;
+  // the free part's centre in NDC; the target slides so the box's centre lands on it
+  const nx = insets.left - insets.right;
+  const ny = insets.bottom - insets.top;
+  const sr = (r0 + r1) / 2 - nx * halfW;
+  const su = (u0 + u1) / 2 - ny * halfH;
+  const target: V3 = [c[0] + ISO_RIGHT[0] * sr + ISO_UP[0] * su, c[1] + ISO_RIGHT[1] * sr + ISO_UP[1] * su, c[2] + ISO_RIGHT[2] * sr + ISO_UP[2] * su];
+  const diag = Math.hypot(e.x1 - e.x0, e.y1 - e.y0, e.z1 - e.z0);
+  return { target, halfW, halfH, dist: Math.max(diag * 2, 20) };
+}
+
+/** A perspective camera that fits an extent into the free part of the stage: it looks along -`dir` (from target + dir * d), at
+ * the nearest distance whose projection of the box's eight corners fits the free part, padded, then slides (camera and target
+ * together) so the projected box sits centred in it. `dir` straight down is the top preset (screen up = -z, north). */
+export function perspFit(e: Extent, dir: V3, fovDeg: number, aspect: number, insets: FrameInsets = NO_INSETS, pad = LIVE_PAD): { position: V3; target: V3 } {
+  const a = aspect > 0 && Number.isFinite(aspect) ? aspect : 1;
+  const n = Math.hypot(dir[0], dir[1], dir[2]) || 1;
+  const d0: V3 = [dir[0] / n, dir[1] / n, dir[2] / n];
+  const f: V3 = [-d0[0], -d0[1], -d0[2]];
+  // right = forward x world up; straight down: +x (three's lookAt from a hair south of the target gives the same)
+  const rl = Math.hypot(f[2], f[0]);
+  const R: V3 = rl < 1e-6 ? [1, 0, 0] : [-f[2] / rl, 0, f[0] / rl];
+  const U: V3 = [R[1] * f[2] - R[2] * f[1], R[2] * f[0] - R[0] * f[2], R[0] * f[1] - R[1] * f[0]];
+  const t = Math.tan(rad(fovDeg) / 2);
+  const c: V3 = [(e.x0 + e.x1) / 2, (e.y0 + e.y1) / 2, (e.z0 + e.z1) / 2];
+  const pts = corners(e);
+  const fw = Math.max(0.2, 1 - insets.left - insets.right);
+  const fh = Math.max(0.2, 1 - insets.top - insets.bottom);
+  const nx = insets.left - insets.right;
+  const ny = insets.bottom - insets.top;
+  // the corners' NDC from a camera at C (looking along f)
+  const project = (C: V3) => {
+    let x0 = Infinity;
+    let x1 = -Infinity;
+    let y0 = Infinity;
+    let y1 = -Infinity;
+    let near = Infinity;
+    for (const p of pts) {
+      const v: V3 = [p[0] - C[0], p[1] - C[1], p[2] - C[2]];
+      const z = dot(v, f);
+      near = Math.min(near, z);
+      const x = dot(v, R) / (Math.max(z, 1e-3) * t * a);
+      const y = dot(v, U) / (Math.max(z, 1e-3) * t);
+      x0 = Math.min(x0, x);
+      x1 = Math.max(x1, x);
+      y0 = Math.min(y0, y);
+      y1 = Math.max(y1, y);
+    }
+    return { near, x0, x1, y0, y1 };
+  };
+  // at distance d: slide the camera (twice: a slide changes the perspective a little) so the box sits centred in the free part
+  const place = (d: number) => {
+    const shift: V3 = [0, 0, 0];
+    let pr = project([c[0] + d0[0] * d, c[1] + d0[1] * d, c[2] + d0[2] * d]);
+    for (let k = 0; k < 3; k++) {
+      const sx = ((pr.x0 + pr.x1) / 2 - nx) * d * t * a;
+      const sy = ((pr.y0 + pr.y1) / 2 - ny) * d * t;
+      for (let q = 0; q < 3; q++) shift[q] += R[q] * sx + U[q] * sy;
+      pr = project([c[0] + d0[0] * d + shift[0], c[1] + d0[1] * d + shift[1], c[2] + d0[2] * d + shift[2]]);
+    }
+    const ok = pr.near > 0.5 && (pr.x1 - pr.x0) * pad <= 2 * fw && (pr.y1 - pr.y0) * pad <= 2 * fh;
+    return { shift, ok };
+  };
+  const diag = Math.hypot(e.x1 - e.x0, e.y1 - e.y0, e.z1 - e.z0);
+  let lo = 0.5;
+  let hi = Math.max(10, diag * 20);
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (place(mid).ok) hi = mid;
+    else lo = mid;
+  }
+  const d = Math.max(hi, 4 / (2 * t)); // never closer than a 4 m box would sit (the old fit's floor)
+  const { shift } = place(d);
+  return { position: [c[0] + d0[0] * d + shift[0], c[1] + d0[1] * d + shift[1], c[2] + d0[2] * d + shift[2]], target: [c[0] + shift[0], c[1] + shift[1], c[2] + shift[2]] };
+}
+
+/** PLAN3D-POLISH-2430 (item 6): the glow pool belongs in the scene at the lit levels (2 and 3), and at the schematic level
+ * only while a glow holds one of its lights. */
+export const glowPoolWanted = (quality: number, anyLit: boolean): boolean => quality >= 2 || anyLit;
