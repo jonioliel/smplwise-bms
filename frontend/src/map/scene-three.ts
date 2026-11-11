@@ -1712,11 +1712,12 @@ export class SceneView {
     if (this.walking || this.quality !== 2 || !e || typeof this.preset !== 'string') return null; // the walk sees walls full height (section 4.6)
     const cam = this.active.position;
     if (cam.y <= e.y1) return null;
-    const cx = (e.x0 + e.x1) / 2;
-    const cz = (e.z0 + e.z1) / 2;
-    const off = Math.hypot(cam.x - cx, cam.z - cz);
+    // PLAN3D-POLISH-2430: the view direction (camera - orbit target), not the bearing from the extent's centre - the live fit slides
+    // the target off the centre (the free part of the stage), and the overview's azimuth must stay the preset's own (45 deg for iso)
+    const t = this.controls.target;
+    const off = Math.hypot(cam.x - t.x, cam.z - t.z);
     if (off < 0.5) return null; // straight above: no side faces the camera
-    return quantiseAzimuth(azimuthDeg(cam.x, cam.z, cx, cz));
+    return quantiseAzimuth(azimuthDeg(cam.x, cam.z, t.x, t.z));
   }
 
   /** Write a part's box: the kept box of a cut, its own box again, or - hidden (h = 0) - a point parked at `y` (one

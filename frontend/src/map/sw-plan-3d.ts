@@ -1179,8 +1179,11 @@ export class SwPlan3d extends LitElement {
     // ST7-odd: two pills whose points project close together never cover one another - the upper one is raised to a stack
     // (pill-layout.ts). A pill's size is read once per text (one layout read for a new pill, none per frame).
     const boxes: PillBox[] = [];
-    // PLAN3D-POLISH-2430: the room plates and the temperature chips (centred on their points) take part too, so a room's name, its
-    // reading and an entity pill never cover one another
+    // PLAN3D-POLISH-2430: first the pills among themselves (as before: the lowest keeps its place); then the room plates stack
+    // around everything already placed - the temperature chips on their points and the pills where the first pass put them - so a
+    // room's name never covers its reading or a pill (the chips and the pills never move for a plate)
+    const plates: PillBox[] = [];
+    const fixedBoxes: PillBox[] = [];
     for (const s of shown) {
       const key = `${s.p.id}|${s.p.text ?? ''}`;
       let size = this.pillSizes.get(key);
@@ -1188,10 +1191,16 @@ export class SwPlan3d extends LitElement {
         size = { w: s.el.offsetWidth, h: s.el.offsetHeight };
         if (size.w > 0 && size.h > 0) this.pillSizes.set(key, size);
       }
-      const centred = s.p.kind === 'chip' || s.p.kind === 'label';
-      boxes.push({ id: s.p.id, x: s.x, y: centred ? s.y + size.h / 2 : s.y - PILL_GAP_PX, w: size.w, h: size.h });
+      if (s.p.kind === 'label') plates.push({ id: s.p.id, x: s.x, y: s.y + size.h / 2, w: size.w, h: size.h });
+      else if (s.p.kind === 'chip') fixedBoxes.push({ id: s.p.id, x: s.x, y: s.y + size.h / 2, w: size.w, h: size.h });
+      else boxes.push({ id: s.p.id, x: s.x, y: s.y - PILL_GAP_PX, w: size.w, h: size.h });
     }
-    const raised = boxes.length > 1 ? resolvePillOverlaps(boxes, PILL_STACK_GAP_PX) : null;
+    const raised = new Map<string, number>(boxes.length > 1 ? resolvePillOverlaps(boxes, PILL_STACK_GAP_PX) : []);
+    if (plates.length) {
+      const placedPills = boxes.map((b) => ({ ...b, y: b.y + (raised.get(b.id) ?? 0) }));
+      const fixed = new Set([...fixedBoxes, ...placedPills].map((b) => b.id));
+      for (const [id, up] of resolvePillOverlaps([...fixedBoxes, ...placedPills, ...plates], PILL_STACK_GAP_PX, fixed)) if (!fixed.has(id)) raised.set(id, up);
+    }
     for (const { el, p, x, y } of shown) {
       // a chip / room plate is centred on its point (the room's centroid); a pill stands on its point, bottom edge a gap above it
       const up = Math.round(raised?.get(p.id) ?? 0);
