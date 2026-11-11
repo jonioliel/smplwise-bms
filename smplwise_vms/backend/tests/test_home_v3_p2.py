@@ -35,7 +35,7 @@ def _reset():
 
 @pytest.mark.parametrize("path", [
     "/api/v1/calendar/occurrences", "/api/v1/calendar/rooms/day", "/api/v1/calendar/events", "/api/v1/calendar/events/evt_12/cancel",
-    "/api/v1/calendar/events/evt_12/withdraw", "/api/v1/calendar/calendars", "/api/v1/notices", "/api/v1/notices/ntc_1", "/api/v1/notices/ntc_1/read",
+    "/api/v1/calendar/events/evt_12/withdraw", "/api/v1/calendar/calendars", "/api/v1/notices", "/api/v1/notices/ntc_1/read",
     "/api/v1/automations/scene", "/api/v1/automations/scene/capture", "/api/v1/home/presence", "/api/v1/home/tickets/t1/notes", "/api/v1/home/schedules/s1/run",
     "/api/v1/me/calendar",
 ])
@@ -50,6 +50,14 @@ def test_family_routes_are_allowed_for_a_home_only_person(path):
 ])
 def test_family_administration_stays_refused_for_a_home_only_person(path):
     assert not hi.home_allowed(path)
+
+
+def test_family_reads_are_get_only():
+    """The same paths create a notice or a calendar: a home-only person may only read them."""
+    for path in ("/api/v1/notices", "/api/v1/calendar/calendars", "/api/v1/calendar/occurrences"):
+        assert hi.home_allowed(path, method="GET") and not hi.home_allowed(path, method="POST"), path
+    assert not hi.home_allowed("/api/v1/notices/ntc_1", method="PATCH") and not hi.home_allowed("/api/v1/notices/ntc_1", method="GET")
+    assert hi.home_allowed("/api/v1/calendar/events", method="POST")
 
 
 def test_new_home_categories_exist():
