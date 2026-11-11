@@ -28,7 +28,7 @@ import { buildScene, type SceneDescription, type SceneInput } from '../src/map/s
  *      is NOT BUILT and is listed as a `fixme` so it shows in every report;
  *    - the lever table switches really change the scene as documented: textures (dial `textures`), normal maps
  *      (measurement harness: the product has no dial), lamp shadow (product: never; harness: the strongest pool lamp),
- *      DPR (dial `dpr_cap` on the realistic rung; the lite rung is pinned at 1), the rung (post passes, physical glass).
+ *      DPR (dial `dpr_cap` on the realistic rung; the lite rung is pinned at 1), the rung (post passes; one fresnel glass on both rungs, no physical glass since PLAN3D-REALISM2-2433).
  *
  * 2. OPT-IN (the measurement): runs only when SW_PERF_GATE=1 AND the machine is quiet (1-minute load average per core
  *    <= SW_PERF_MAX_LOAD, default 0.30, where the platform has one; sampled CPU busy <= SW_PERF_MAX_BUSY %, default 25,
@@ -551,18 +551,32 @@ test.describe('functional and determinism (always)', () => {
     expect(await harnessLampShadow(el, false)).toBe(0);
     // DPR: the realistic rung draws at min(base, cap); the lite rung is pinned at 1 whatever the cap (checked last)
     const base = await page.evaluate(() => Math.min(2, window.devicePixelRatio || 1));
-    // the rung: lite = MSAA + bloom, standard glass; realistic = + GTAO, physical (transmission) glass
-    const physical = () => el.evaluate((n) => { let c = 0; (n as unknown as Probe).view.scene.traverse((o) => { const m = o.material as { type?: string } | undefined; if (m?.type === 'MeshPhysicalMaterial') c++; }); return c; });
+    // the rung: lite = MSAA + bloom; realistic = + GTAO. Glass is the same on both rungs since PLAN3D-REALISM2-2433 S3 (owner
+    // approved 11.11): the translucent standard glass with the fresnel edge and the kept reflection - no MeshPhysicalMaterial
+    // transmission pass on any rung (it was a second render of the opaque scene every frame on the realistic rung).
+    const glassCount = () => el.evaluate((n) => {
+      let physical = 0;
+      let fresnel = 0;
+      (n as unknown as Probe).view.scene.traverse((o) => {
+        const m = o.material as { type?: string; userData?: { swGlass?: boolean } } | undefined;
+        if (m?.type === 'MeshPhysicalMaterial') physical++;
+        if (m?.userData?.swGlass) fresnel++;
+      });
+      return { physical, fresnel };
+    });
     expect(await el.evaluate((n) => (n as unknown as Probe).view.renderer.getPixelRatio())).toBe(1);
     expect(await el.evaluate((n) => (n as unknown as Probe).view.postPasses)).toEqual(['render-msaa2', 'bloom', 'output']);
-    expect(await physical()).toBe(0);
+    const liteGlass = await glassCount();
+    expect(liteGlass.physical).toBe(0);
+    expect(liteGlass.fresnel).toBeGreaterThan(0);
     await el.locator(CHIP['3']).click();
     await expect(el).toHaveAttribute('data-rung', 'realistic');
     await expect.poll(() => el.evaluate((n) => (n as unknown as Probe).view.realPending), { timeout: 120_000 }).toBe(0);
     await expect.poll(() => el.evaluate((n) => (n as unknown as Probe).view.postPasses), { timeout: 60_000 }).toEqual(['render-msaa2', 'gtao', 'bloom', 'output']);
-    const glass = await physical();
-    console.log(`S7 levers: realistic rung, ${glass} objects with physical glass`);
-    expect(glass).toBeGreaterThan(0);
+    const glass = await glassCount();
+    console.log(`S7 levers: realistic rung, ${glass.fresnel} objects with fresnel glass, ${glass.physical} with physical glass`);
+    expect(glass.physical).toBe(0);
+    expect(glass.fresnel).toBeGreaterThan(0);
     for (const cap of [1.5, 1]) {
       await applyDprCap(el, page, cap);
       const ratio = await el.evaluate((n) => (n as unknown as Probe).view.renderer.getPixelRatio());
@@ -667,7 +681,7 @@ test.describe('R178 gate and the lever table - opt-in (SW_PERF_GATE=1 on a quiet
     await expect.poll(() => el.evaluate((n) => (n as unknown as Probe).view.realPending), { timeout: 120_000 }).toBe(0);
     for (const cap of [1, 1.25, 1.5, 2]) {
       await applyDprCap(el, page, cap);
-      await row(`L3 realistic, DPR cap ${cap}`, 'product dial dpr_cap (GTAO + physical glass + bloom, sun shadow 2048)');
+      await row(`L3 realistic, DPR cap ${cap}`, 'product dial dpr_cap (GTAO + fresnel glass + bloom, sun shadow 2048)');
     }
     await showAt(el, '2', d2);
     await settledGraph(el, page);
