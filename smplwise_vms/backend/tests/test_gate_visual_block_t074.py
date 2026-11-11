@@ -24,7 +24,7 @@ import gate_quarantine as gq  # noqa: E402
 @pytest.fixture()
 def g(monkeypatch, tmp_path):
     """A fresh engine module per test (its globals are state), an empty results directory, no GATE_VISUAL / re-run env."""
-    for k in ("GATE_VISUAL", "GATE_VISUAL_BASE", "GATE2_RERUN_ONLY", "GATE2_AFTER_REPORT", "GATE_LANE", "GATE_SCHEDULE"):
+    for k in ("GATE_VISUAL", "GATE_VISUAL_BASE", "GATE_VISUAL_SCOPE", "GATE2_RERUN_ONLY", "GATE2_AFTER_REPORT", "GATE_LANE", "GATE_SCHEDULE"):
         monkeypatch.delenv(k, raising=False)
     monkeypatch.setenv("GATE_RESULTS_DIR", str(tmp_path / "results"))
     monkeypatch.setenv("GATE_HOME", str(tmp_path / "home"))
