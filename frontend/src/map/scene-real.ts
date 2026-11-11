@@ -27,7 +27,7 @@
  *   prefiltered into the environment (IBL) on time change.
  * No HDRI, no path tracer, no KTX2, no Draco; the post chain lives in its own lazy chunk (post-chain.ts).
  */
-import { BackSide, BoxGeometry, BufferAttribute, BufferGeometry, CanvasTexture, ClampToEdgeWrapping, Color, CylinderGeometry, DoubleSide, Euler, Float32BufferAttribute, Group, InstancedMesh, LineBasicMaterial, LineSegments, Matrix3, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, NoColorSpace, Object3D, Plane, PlaneGeometry, Quaternion, RepeatWrapping, RoundedBoxGeometry, SRGBColorSpace, Scene, ShapeUtils, SphereGeometry, Texture, TextureLoader, Vector2, Vector3 } from './three-bundle';
+import { BackSide, BoxGeometry, BufferAttribute, BufferGeometry, CanvasTexture, ClampToEdgeWrapping, Color, CylinderGeometry, DataTexture, DoubleSide, Euler, Float32BufferAttribute, Group, InstancedMesh, LinearFilter, LinearMipmapLinearFilter, LineBasicMaterial, RGBAFormat, UnsignedByteType, LineSegments, Matrix3, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, NoColorSpace, Object3D, Plane, PlaneGeometry, Quaternion, RepeatWrapping, RoundedBoxGeometry, SRGBColorSpace, Scene, ShapeUtils, SphereGeometry, Texture, TextureLoader, Vector2, Vector3 } from './three-bundle';
 import type { SceneDescription, ScenePart, Vec3 } from './scene-builder';
 import type { RealWorld } from './scene-real-builder';
 import { MATERIALS, type MaterialDef } from './material-resolve';
@@ -38,6 +38,7 @@ import { kelvinRgb, type LightRecipe } from './sun';
 import { planGlow, type GlowRoom } from './room-glow';
 import { RoomGlow } from './room-glow-mesh';
 import { injectBakedAo, injectGlassFresnel, type AoUniforms } from './ao-shading';
+import { DEFAULT_FLOOR_FINISH, FINISH_DEFS, finishMaterial, finishPixelsCached, isFinishMaterial, type FloorFinish } from './floor-finish';
 
 export type RealRung = 'realistic' | 'lite';
 export interface RealSettings {
@@ -49,11 +50,15 @@ export interface RealSettings {
   /** PLAN3D-REALISM-2432: what stands behind the model in the orbit views - `sky` (the sun's sky, the horizon band) or
    * `studio` (a dark sky gradient, no horizon: the architectural-render look). Optional: older callers keep `sky`. */
   backdrop?: Backdrop;
+  /** PLAN3D-REALISM2-2433: what the living floors are made of (floor-finish.ts; the installation dial `floor_finish`).
+   * Optional: older callers get the default (marble). */
+  floorFinish?: FloorFinish;
 }
 export type Backdrop = 'sky' | 'studio';
-export const DEFAULT_REAL: RealSettings = { rung: 'lite', style: 'light', furniture: 'models', textures: 'files', sectionCut: true, backdrop: 'sky' };
+export const DEFAULT_REAL: RealSettings = { rung: 'lite', style: 'light', furniture: 'models', textures: 'files', sectionCut: true, backdrop: 'sky', floorFinish: DEFAULT_FLOOR_FINISH };
 
-const BY_ID = new Map(MATERIALS.map((m) => [m.id, m]));
+// the library and the two generated floor finishes (render-time ids, floor-finish.ts)
+const BY_ID = new Map([...MATERIALS, ...FINISH_DEFS].map((m) => [m.id, m]));
 const rad = (d: number): number => (d * Math.PI) / 180;
 /** Kinds the realistic level draws itself (structure and objects); everything else keeps SceneView's level-2 path. */
 export const REAL_KINDS = new Set(['floor', 'wall', 'lintel', 'sill', 'head', 'door', 'window', 'object', 'connector', 'camera', 'room']);
@@ -131,6 +136,27 @@ export class RealMaterials {
     return t;
   }
 
+  /** PLAN3D-REALISM2-2433: the generated colour map of a floor finish (floor-finish.ts) - one mip-mapped DataTexture per
+   * finish, kept with the loaded files (disposed with them). */
+  private finishMap(id: string): Texture {
+    const key = `finish:${id}`;
+    let t = this.textures.get(key);
+    if (t) return t;
+    const { data, size } = finishPixelsCached(id);
+    const d = new DataTexture(data, size, size, RGBAFormat, UnsignedByteType);
+    d.wrapS = RepeatWrapping;
+    d.wrapT = RepeatWrapping;
+    d.colorSpace = SRGBColorSpace;
+    d.magFilter = LinearFilter;
+    d.minFilter = LinearMipmapLinearFilter;
+    d.generateMipmaps = true;
+    d.anisotropy = 8;
+    d.needsUpdate = true;
+    d.name = key;
+    this.textures.set(key, (t = d));
+    return t;
+  }
+
   /** S6: the file's mean roughness (G of a 16 x 16 reduction); every material on the file takes the library mean again. */
   private measureRoughness(url: string, tex: Texture): void {
     try {
@@ -203,7 +229,7 @@ export class RealMaterials {
           m.aoMapIntensity = 0.6;
           m.roughness = 1;
         }
-      }
+      } else if (variant !== 'nomap' && this.source === 'files' && isFinishMaterial(id)) m.map = this.finishMap(id); // PLAN3D-REALISM2-2433
       if (m.roughnessMap) this.fitRoughness(m, id, variant);
       else {
         if (variant.startsWith('slot:')) m.roughness = Number(variant.slice(5));
@@ -479,6 +505,12 @@ export interface RealBuildInput {
   glow?: { night: number; prev: ReturnType<RoomGlow['state']> | null; now: number };
 }
 
+/** PLAN3D-REALISM2-2433: the material a room floor draws in - a floor the document leaves open (`finish`) takes the
+ * installation's finish (wood / marble / ceramic, floor-finish.ts), every other its resolved material. */
+export function roomFloorMaterial(f: Pick<RealWorld['floors'][number], 'material' | 'finish'>, settings: Pick<RealSettings, 'floorFinish'>): string {
+  return f.finish ? finishMaterial(settings.floorFinish ?? DEFAULT_FLOOR_FINISH) : f.material;
+}
+
 /** Realise the structure and the objects of a level-3 description (module note). Deterministic for equal input and
  * equal loaded assets. */
 export function buildReal(inp: RealBuildInput): RealBuilt {
@@ -584,7 +616,8 @@ export function buildReal(inp: RealBuildInput): RealBuilt {
   for (const f of real.floors) {
     if (!levels.has(f.level_id)) continue;
     const geo = plateGeometry(f.polygon, f.y, 0.006);
-    if (geo) bucket(f.level_id, f.material, 'floor', 'floor').push(geo, new Matrix4(), { id: f.id, kind: 'room', userData: { id: f.zone, kind: 'zone' } });
+    const material = roomFloorMaterial(f, settings);
+    if (geo) bucket(f.level_id, material, 'floor', 'floor').push(geo, new Matrix4(), { id: f.id, kind: 'room', userData: { id: f.zone, kind: 'zone' } });
   }
   // ---- room ceilings (R3 G4): the plate's underside, cut away by the section plane in the orbit views, seen in the walk
   for (const c of real.ceilings ?? []) {

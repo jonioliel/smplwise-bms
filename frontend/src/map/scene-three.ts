@@ -941,7 +941,8 @@ export class SceneView {
     if (capMoved) this.realDprCap = dprCap;
     this.real = { ...this.real, ...rest };
     if (this.quality !== 3) return;
-    const rebuild = before.rung !== this.real.rung || before.furniture !== this.real.furniture || before.textures !== this.real.textures;
+    // PLAN3D-REALISM2-2433: the floor finish swaps the room floors' material (merged per material): realised again
+    const rebuild = before.rung !== this.real.rung || before.furniture !== this.real.furniture || before.textures !== this.real.textures || before.floorFinish !== this.real.floorFinish;
     if (before.style !== this.real.style) {
       this.realMats?.setStyle(this.real.style);
       const st = LOOK_STYLES[this.real.style];

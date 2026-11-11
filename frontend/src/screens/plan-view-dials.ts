@@ -9,10 +9,10 @@ export type SiteDial = Exclude<keyof PlanViewDials, 'default_view'>;
 export type FlagDial = 'section_cut' | 'show_temps' | 'motion' | 'walk_guard';
 
 /** The installation-only dials: content and display choices a person never overrides (services/plan_view.py USER_DIALS). */
-export const PLAN_VIEW_SITE_ONLY: readonly SiteDial[] = ['furniture', 'textures', 'wall_display', 'kiosk_idle_s'];
+export const PLAN_VIEW_SITE_ONLY: readonly SiteDial[] = ['furniture', 'textures', 'floor_finish', 'wall_display', 'kiosk_idle_s'];
 export const PLAN_VIEW_FLAGS: readonly FlagDial[] = ['section_cut', 'show_temps', 'motion', 'walk_guard'];
 /** The dials in the order the card shows them. */
-export const PLAN_VIEW_CARD_DIALS: readonly (keyof PlanViewDials)[] = ['style', 'backdrop', 'default_view', 'furniture', 'textures', 'section_cut', 'show_temps', 'motion', 'time_source', 'eye_m', 'mouse_mode', 'walk_guard', 'quality', 'dpr_cap', 'wall_display', 'kiosk_idle_s'];
+export const PLAN_VIEW_CARD_DIALS: readonly (keyof PlanViewDials)[] = ['style', 'backdrop', 'default_view', 'furniture', 'textures', 'floor_finish', 'section_cut', 'show_temps', 'motion', 'time_source', 'eye_m', 'mouse_mode', 'walk_guard', 'quality', 'dpr_cap', 'wall_display', 'kiosk_idle_s'];
 
 /** One line under each dial, in plain Hebrew (the settings screen is the only place that explains). */
 export const HINT_HE: Record<keyof PlanViewDials, string> = {
@@ -32,5 +32,6 @@ export const HINT_HE: Record<keyof PlanViewDials, string> = {
   motion: 'דלתות נפתחות, אור משתנה ותנועת מצלמה',
   walk_guard: 'כשהסיור רץ לאט, האיכות יורדת דרגה עד סוף הסיור',
   backdrop: 'בתצוגה הריאליסטית: שמיים לפי השעה, או רקע כהה בהדרגה בלי קו אופק (מראה של הדמיה אדריכלית)',
+  floor_finish: 'בתצוגה הריאליסטית: ממה עשויה רצפת חדרי המגורים - שיש, קרמיקה יוקרתית או פרקט עץ (חדרים רטובים, חניה וגינה נשארים כפי שהם)',
 };
 export const KIOSK_HE: Record<number, string> = { 0: 'לעולם לא', 10: '10 שניות', 30: '30 שניות', 120: '2 דקות', 600: '10 דקות' };

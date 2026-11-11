@@ -23,6 +23,7 @@ import './walk-hud';
 import type { SwWalkHud, WalkHudField, WalkHudGoto, WalkHudRoute } from './walk-hud';
 import { WalkTouchUi } from './walk-touch-ui';
 import { DEFAULT_VIEW, planViewPrefs, type PlanViewDials } from '../api/plan-view';
+import { DEFAULT_FLOOR_FINISH } from './floor-finish';
 import { RUNG_HE, asMode, autoStart, drawnRung, levelRung, probes, rungLevel, RUNGS, nextDown, type GpuClass, type QualityMode, type Rung } from './quality-ladder';
 import { styleFor } from './look-style';
 import { pillInk } from './pill-ink';
@@ -1234,7 +1235,7 @@ export class SwPlan3d extends LitElement {
 
   /** The realistic level's dials for the view (the rung, the style by the theme, the content, the cut). */
   private realSettings() {
-    return { rung: this.rung === 'realistic' ? ('realistic' as const) : ('lite' as const), style: styleFor(this.themeForce ?? this.viewDials.style, this.uiTheme()), furniture: this.viewDials.furniture, textures: this.viewDials.textures, sectionCut: this.viewDials.section_cut, backdrop: this.shownBackdrop };
+    return { rung: this.rung === 'realistic' ? ('realistic' as const) : ('lite' as const), style: styleFor(this.themeForce ?? this.viewDials.style, this.uiTheme()), furniture: this.viewDials.furniture, textures: this.viewDials.textures, sectionCut: this.viewDials.section_cut, backdrop: this.shownBackdrop, floorFinish: this.viewDials.floor_finish ?? DEFAULT_FLOOR_FINISH };
   }
 
   private uiTheme(): 'light' | 'dark' {
