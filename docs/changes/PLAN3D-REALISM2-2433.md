@@ -246,7 +246,9 @@ Runner, `2f98a1fc7`, `run_smart.py preview` (desktop / tablet / mobile, workers 
 `evidence-replay-3d.spec.ts-snapshots/` (`event-l3-lite-*`, `history-l3-lite-day-*`, `history-l3-lite-night-*`,
 `history-l3-realistic-day-*`): their history fixture's rooms set no floor, so they now draw the default marble - the intended
 change. Re-taken with `-u --workers=1` on the runner and looked at (marble floors, nothing else moved); committed.
-`pixel-wall-plan.spec.ts` [desktop] is a schematic (level 1) view: the floor finish does not reach it.
+`pixel-wall-plan.spec.ts` [desktop] is a schematic (level 1) view: the floor finish does not reach it; its baseline was re-taken for the
+polish room plates / framing (e569e93d0). Proof without `-u` at e569e93d0: `pixel-wall-plan`, `evidence-replay-3d`, `unit-plan-3d-view`
+(3 projects, workers 1) - 59 passed, 16 skipped, 0 failed.
 
 ## Observed, not changed
 
