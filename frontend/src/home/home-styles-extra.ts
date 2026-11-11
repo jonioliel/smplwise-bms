@@ -42,5 +42,10 @@ export const homeExtraStyles = css`
   .crow .vp.vp-ic .hi { inline-size: 28px; block-size: 28px; }
   .fld2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; inline-size: 100%; }
   .pinsheet .rb.play { color: var(--hs-on-accent, #fff); }
+  /* the v3 sheets keep the home interface's touch target (the mockup drew 54 px; the tablet rule is the full --hit) */
+  @media (min-width: 701px) {
+    .ovl .sheet.v3 .rb, .ovl .sheet.v3 .hbtn, .ovl .sheet.v3 .chip2, .ovl .sheet.v3 .seg button { min-block-size: 56px; }
+    .ovl .sheet.v3 .rb { min-inline-size: 56px; }
+  }
   @media (max-width: 700px) { .fld2 { grid-template-columns: minmax(0, 1fr); gap: 6px; } .pb-days .pbd { min-inline-size: 5ch; font-size: 14px; } }
 `;

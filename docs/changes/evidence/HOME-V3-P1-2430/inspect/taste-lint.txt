@@ -1,0 +1,4 @@
+$ node taste-skill/scripts/lint.mjs --app home-more.ts home-recordings.ts home-diary.ts home-intercom.ts home-alarm.ts home-styles-extra.ts
+RESULT: 0 FAIL, 4 WARN
+  [numbering] padStart(2, '0') x3 - the clock of the recordings axis (00:00 .. 24:00) and the guest sheet's hours (kept: a clock)
+  [copy] "unlock" in home-alarm.ts:132 - an icon name (hi('unlock')), not copy (false positive)
