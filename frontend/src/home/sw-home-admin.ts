@@ -5,6 +5,7 @@
 // HOME-SIMPLE-2421: three sub-tabs - people, the installation settings (default interface of new people, wall-panel exit, room
 // wallpaper) and the switch classification (light / not a light / protected: the system suggests by name, the administrator approves;
 // many at once, filtered by suggestion / class / room). The classification needs system.configure (its stores are Settings').
+import { P3_MODULE_LABEL } from './home-p3-logic'; // HOME-V3-P3-2432
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { describeError, get, post, put } from '../api/client';
@@ -34,6 +35,7 @@ interface Policies { users: PolicyRow[]; modules: HomeModule[]; seed: Record<str
 
 const MODULE_LABEL: Record<HomeModule, string> = {
   lights: 'תאורה', climate: 'אקלים', shades: 'תריסים', doors: 'דלתות ואינטרקום', cameras: 'מצלמות', energy: 'חשמל', alerts: 'התראות', scenes: 'סצנות', security: 'אבטחה',
+  ...P3_MODULE_LABEL, // HOME-V3-P3-2432
 };
 
 @customElement('sw-home-admin')

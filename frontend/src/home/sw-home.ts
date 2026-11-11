@@ -36,6 +36,10 @@ import './sw-home-call';
 import type { HomeCallsState, SwHomeCall } from './sw-home-call';
 import '../components/wk-talk-button';
 import '../components/sw-camera-tile';
+// HOME-V3-P3-2432: phase 3 (media + systems) lives in its own files; these few hooks are the only edits here
+import { P3, type P3Host, type P3Ovl } from './home-p3';
+import { isP3Screen, P3_SCREENS } from './home-p3-logic';
+import { homeP3Styles } from './home-p3-styles';
 
 export const THEMES: [string, string, string, 1 | 2][] = [
   ['classic', 'קלאסי', 'פחם חם וכחול. המראה שאושר.', 2], ['ocean', 'אוקיינוס', 'כחול ים עמוק ותכלת צלול.', 2], ['sand', 'חול', 'אבן חמה וחימר.', 2],
@@ -55,10 +59,12 @@ type Ovl =
   | { type: 'code'; title: string; code: string; error: string; run: (code: string) => void }
   | { type: 'talk' }
   | { type: 'switchHost' }
+  | P3Ovl
   | null;
 
 const NAV: [string, string, string, string][] = [['r/home', 'הבית שלי', 'home', 'home'], ['scenes', 'סצנות', 'scenes', 'scenes'], ['active', 'פעיל עכשיו', 'pulse', 'active'], ['alerts', 'התראות', 'bell', 'alerts'], ['settings/favs', 'הגדרות', 'sliders', 'settings']];
 const SCREENS = ['r', 'rooms', 'lights', 'climate', 'shades', 'doors', 'cameras', 'energy', 'alerts', 'scenes', 'active', 'settings', 'welcome', 'security'];
+SCREENS.push(...P3_SCREENS); // HOME-V3-P3-2432
 const ALARM_WORD: Record<string, string> = { disarmed: 'לא דרוך', armed_home: 'דרוך, יש מישהו בבית', armed_away: 'דרוך, אין איש בבית', armed_night: 'דרוך ללילה', armed_vacation: 'דרוך לחופשה', armed_custom_bypass: 'דרוך חלקית', arming: 'נדרך', disarming: 'מנטרל', pending: 'ממתין לקוד', triggered: 'אזעקה!' };
 const ARM_LABEL: Record<string, string> = { arm_home: 'דריכה בבית', arm_away: 'דריכה ביציאה', arm_night: 'דריכת לילה', arm_vacation: 'דריכה לחופשה', arm_custom_bypass: 'דריכה חלקית', disarm: 'ניטרול' };
 const KIOSK_UNLOCK_MS = 5 * 60_000;
@@ -67,7 +73,7 @@ const HE_TIME = new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-d
 
 @customElement('sw-home')
 export class SwHome extends LitElement {
-  static styles = [homeMockupStyles, homeExtraStyles];
+  static styles = [homeMockupStyles, homeExtraStyles, homeP3Styles];
 
   /** The route below #/home (e.g. "r/living", "lights", "settings/themes"). */
   @property() path = '';
@@ -122,6 +128,8 @@ export class SwHome extends LitElement {
   private down = { x: 0, y: 0 };
   private saveT = 0;
   private lastRoute = '';
+  /** HOME-V3-P3-2432: media, announcements, bill, water, house systems, map (home-p3.ts). */
+  readonly p3 = new P3(this as unknown as P3Host);
 
   // ---------------------------------------------------------------- lifecycle and data
 
@@ -169,6 +177,7 @@ export class SwHome extends LitElement {
         if (mods.has('doors') && canAnywhere('access.call')) void this.loadTalk();
         if (mods.has('energy') && (canAnywhere('energy.bills') || canAnywhere('energy.manage'))) void this.loadPrice();
         if (mods.has('doors')) void getCallLog(null, 8).then((p) => { this.visitors = p.calls; }).catch(() => undefined);
+        void this.p3.load();
       }
     } catch (err) {
       this.error = describeError(err);
@@ -795,6 +804,7 @@ export class SwHome extends LitElement {
   }
   a_codeGo() { const o = this.ovl; if (o?.type === 'code' && o.code) o.run(o.code); }
   a_talk() { if (this.talkTo) this.ovl = { type: 'talk' }; }
+  a_p3Announce() { this.p3.openAnnounce(); } // HOME-V3-P3-2432: the hub's "כריזה בבית" tile
   a_ring() { (this.renderRoot.querySelector('sw-home-call') as SwHomeCall | null)?.unhideRinging(); }
   a_switchUser() {
     const mode = switchUserMode();
@@ -966,6 +976,7 @@ export class SwHome extends LitElement {
     }
     const sc = r ? this.d.scenes.filter((s) => s.rooms.includes(r.id)) : this.d.scenes;
     if (mods.has('scenes') && this.d.scenes.length) out.push(['scenes', 'סצנות', 'scenes', r ? (sc.length ? sc.length + ' בחדר' : 'של הבית') : this.d.scenes.length + ' בבית', '']);
+    out.push(...this.p3.roomChips(r)); // HOME-V3-P3-2432: "מדיה" when the room has a speaker or a screen
     const shown = out.slice(0, 8);
     return { n: shown.length, t: shown.map(([h, label, icon, st, tone, key]) => html`<a class="chip3" href=${this.href(h)} data-cat=${key ?? h}>${hi(icon, tone === 'lit' ? 'lit' : '')}<span class="c3-t"><b>${label}</b><span class="c3-s" data-tone=${tone === 'ok' || tone === 'warn' ? tone : nothing}>${tone === 'ok' || tone === 'warn' ? html`<i class="dot"></i>` : nothing}<span>${st}</span></span></span></a>`) };
   }
@@ -1197,7 +1208,7 @@ export class SwHome extends LitElement {
     const br = E.byRoom;
     const brMax = Math.max(...br.map((b) => b[1]), 0.1);
     const weekday = new Intl.DateTimeFormat('he-IL', { weekday: 'long', timeZone: 'Asia/Jerusalem' }).format(this.now);
-    return html`${this.head(html`${day ? 'היום' : 'השבוע'}: <span class="num">${tot.toFixed(1)}</span> קוט״ש`, html`${usualSame > 0 ? (diff === 0 ? 'כמו ביום רגיל' : html`<span class="num">${Math.abs(diff)}%</span> ${diff < 0 ? 'פחות' : 'יותר'} מ${day ? weekday + ' רגיל' : 'שבוע רגיל'}`) : ''}${this.price != null ? html` · בערך <span class="num" data-energy-cost>₪${(tot * this.price).toFixed(2)}</span>` : nothing}`, this.seg('period', [['day', 'היום'], ['week', 'השבוע']], this.period, 'תקופה'))}
+    return html`${this.head(html`${day ? 'היום' : 'השבוע'}: <span class="num">${tot.toFixed(1)}</span> קוט״ש`, html`${usualSame > 0 ? (diff === 0 ? 'כמו ביום רגיל' : html`<span class="num">${Math.abs(diff)}%</span> ${diff < 0 ? 'פחות' : 'יותר'} מ${day ? weekday + ' רגיל' : 'שבוע רגיל'}`) : ''}${this.price != null ? html` · בערך <span class="num" data-energy-cost>₪${(tot * this.price).toFixed(2)}</span>` : nothing}`, html`${this.p3.energyActs()}${this.seg('period', [['day', 'היום'], ['week', 'השבוע']], this.period, 'תקופה')}`)}
       <div class="en-body"><section class="tile pane chart" aria-label=${'צריכה לפי ' + (day ? 'שעה' : 'יום')}><div class="bar"><h2>${day ? 'לפי שעה' : 'לפי יום'}</h2><div class="legend"><span><i class="k today"></i>${day ? 'היום' : 'השבוע'}</span><span><i class="k usual"></i>${day ? 'יום רגיל' : 'שבוע רגיל'}</span></div></div>
         <div class="plot" style=${`--n:${rows.length}`} @pointerover=${this.tipOver} @pointerleave=${this.tipOff} @focusin=${this.tipOver} @focusout=${this.tipOff}><div class="yax">${ticks.map((v) => html`<span style=${`bottom:${v / top * 100}%`}><em class="num">${v}</em></span>`)}</div>
           <div class="cols">${rows.map((r) => html`<div class=${'col' + (r[1] == null ? ' future' : '')} tabindex="0" data-tip=${`${r[0]}|${r[1] == null ? '' : r[1].toFixed(1)}|${r[2].toFixed(1)}`}>${r[1] == null ? nothing : html`<i class="b" style=${`height:${Math.max(1.5, r[1] / top * 100)}%`}></i>`}<i class="u" style=${`bottom:${r[2] / top * 100}%`}></i></div>`)}</div>
@@ -1330,6 +1341,7 @@ export class SwHome extends LitElement {
   private ovlHtml(): unknown {
     const o = this.ovl;
     if (!o) return nothing;
+    if (o.type === 'p3') return this.p3.ovl(o);
     if (o.type === 'cam') {
       const c = this.d.cameras.find((x) => x.id === o.id) ?? this.d.cameras[0];
       if (!c) return nothing;
@@ -1453,7 +1465,7 @@ export class SwHome extends LitElement {
     const cur = name === 'r' ? (this.room === 'home' ? 'home' : '') : name;
     const screen = name === 'r' ? this.sRoom() : name === 'rooms' ? this.sRooms() : name === 'lights' ? this.sLights() : name === 'climate' ? this.sClimate() : name === 'shades' ? this.sShades()
       : name === 'doors' ? this.sDoors() : name === 'cameras' ? this.sCameras() : name === 'energy' ? this.sEnergy() : name === 'alerts' ? this.sAlerts() : name === 'scenes' ? this.sScenes()
-      : name === 'active' ? this.sActive() : name === 'security' ? this.sSecurity() : this.sSettings(r.arg);
+      : name === 'active' ? this.sActive() : name === 'security' ? this.sSecurity() : isP3Screen(name) ? this.p3.screen(name) : this.sSettings(r.arg);
     const anim = this.path !== this.lastRoute;
     this.lastRoute = this.path;
     return html`<div class="app-root" @click=${this.onClick} @input=${this.onInput} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove} @pointerup=${this.onPointerUp} @pointercancel=${() => { window.clearTimeout(this.holdT); this.swipe = null; }} @keydown=${this.onKey}>
