@@ -34,6 +34,7 @@ INTERFACES = ("home", "full")
 # the home interface's categories an administrator can hide (the mockup's admin page; "scenes" and "security" added: the alarm panel
 # is shown only where Arx already has the alarm integration and the person holds alarm.view)
 MODULES = ("lights", "climate", "shades", "doors", "cameras", "energy", "alerts", "scenes", "security")
+MODULES = MODULES + ("presence", "calendar", "notices", "tickets", "schedules")  # HOME-V3-P2-2431: family and building screens
 ROOM_KEY_RE = re.compile(r"^[A-Za-z0-9_.:\-]{1,128}$")
 FAV_TYPES = ("scene", "light", "switch", "climate", "shade", "cam", "door", "allLights", "energy", "security")
 FAV_ID_RE = re.compile(r"^[A-Za-z0-9_.:\-]{1,200}$")
@@ -86,6 +87,16 @@ HOME_ALLOWED_PREFIXES = (
 )
 # inside an allowed prefix, the administrative leaves stay refused (a home-only person never edits a device's type, protection or area)
 HOME_REFUSED_SUFFIXES = ("/device-type", "/bulk-protected", "/bulk-on", "/climate-kind", "/area")
+# HOME-V3-P2-2431: the modules' own routes the family screens use (calendar, shared-room booking, the notice board, a new scene from
+# the current state), as exact routes and whole-route patterns - never a module's whole prefix (its administration stays refused).
+HOME_ALLOWED_EXACT = HOME_ALLOWED_EXACT | frozenset((
+    "/calendar/calendars", "/calendar/occurrences", "/calendar/rooms/day", "/calendar/availability", "/calendar/events", "/calendar/module",
+    "/notices", "/notices/module", "/automations/scene",
+))
+HOME_ALLOWED_PATTERNS = (
+    re.compile(r"^/calendar/events/[A-Za-z0-9_\-]{1,64}(/cancel|/withdraw)?$"),
+    re.compile(r"^/notices/(?!boards$|tv-defaults$|promo-slides$|audience$)[A-Za-z0-9_\-]{1,64}(/read)?$"),
+)
 
 _LOCK = threading.Lock()
 _GATE_AUDITED: dict[str, float] = {}
@@ -308,7 +319,7 @@ def home_allowed(path: str, root_path: str = "") -> bool:
             p = p[len(rp):]
         return not p.startswith(API_PREFIX + "/")  # a malformed API path is refused; anything outside /api/v1 is not judged here
     rest_cmp = rest[:-1] if len(rest) > 1 and rest.endswith("/") else rest
-    if rest_cmp in HOME_ALLOWED_EXACT:
+    if rest_cmp in HOME_ALLOWED_EXACT or any(p.match(rest_cmp) for p in HOME_ALLOWED_PATTERNS):
         return True
     if not any(rest.startswith(p) for p in HOME_ALLOWED_PREFIXES):
         return False
