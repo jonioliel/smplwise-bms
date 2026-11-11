@@ -229,6 +229,7 @@ class PolicyBody(BaseModel):
     modules: list[str] | None = None
     all_rooms: bool = False
     all_modules: bool = False
+    guests: bool | None = None  # HOME-V3-P1-2430: may invite a guest from the home interface (never a grant)
 
 
 @router.put("/home/policies/{user_id}")
@@ -243,8 +244,8 @@ def put_policy(user_id: str, body: PolicyBody, request: Request, principal: Prin
     before = hi.stored_policy(conn, user_id)
     out = hi.set_policy(conn, principal, user_id, data)
     audit(conn, actor=principal, action="home_interface.policy.set", decision="allowed", resource_type="user", resource_id=user_id, request_id=_rid(request),
-          details={"before": {k: before.get(k) for k in ("default_interface", "may_switch", "home_only", "kiosk")} if before else None,
-                   "after": {k: out[k] for k in ("default_interface", "may_switch", "home_only", "kiosk", "kiosk_area_id")}})
+          details={"before": {k: before.get(k) for k in ("default_interface", "may_switch", "home_only", "kiosk", "guests")} if before else None,
+                   "after": {k: out[k] for k in ("default_interface", "may_switch", "home_only", "kiosk", "kiosk_area_id", "guests")}})
     return out
 
 

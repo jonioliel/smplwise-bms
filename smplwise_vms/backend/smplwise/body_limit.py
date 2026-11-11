@@ -231,6 +231,7 @@ LIMITS: list[tuple[frozenset[str], re.Pattern[str], Callable[[Settings], int], s
     (frozenset({"PUT"}), re.compile(rf"/api/v1/notices/promo-slides/{_ID}/image"), _notice_slide_image, "notice_slide_image"),
     (frozenset({"PUT"}), re.compile(rf"/api/v1/notices/boards/{_ID}/photo"), _notice_photo, "notice_photo"),
     (frozenset({"PUT"}), re.compile(rf"/api/v1/home/wallpaper/{_ID}"), _home_wallpaper, "home_wallpaper"),
+    (frozenset({"PUT"}), re.compile(rf"/api/v1/home/room-wallpapers/{_ID}/image"), _home_wallpaper, "home_wallpaper"),  # HOME-V3-P1-2430
     (frozenset({"PUT"}), re.compile(rf"/api/v1/notices/news-sources/{_ID}/logo"), _notice_news_logo, "notice_news_logo"),
     (frozenset({"POST"}), re.compile(r"/api/v1/backups/upload"), _backup_upload, "backup_upload"),
     (frozenset({"POST"}), re.compile(r"/api/v1/cases/bundles/(verify|import)"), lambda _s: _cases_ceiling(), "evidence_bundle"),
