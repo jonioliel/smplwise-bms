@@ -58,6 +58,38 @@ async function pinLobby(page: Page, info: TestInfo, shot: keyof typeof LOBBY_TOP
   await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
 }
 
+/**
+ * WISKEY-PIXEL-QUAR-2431 (was quarantined as WKWATER-POLISH-2331-pixel): the door-settings shot scrolled the drawer's own scroll box
+ * ONCE, right after the codes row appeared - before the drawer had settled. Whatever still changed height above the section after
+ * that moment (the drawer's live still decoding, the slide-in, a late Lit update) moved the section, so the drawer showed a different
+ * slice than the baseline: it failed in loaded gates (about 19-21k px, desktop and phone) and passed alone. Now the drawer is aligned
+ * only on a settled page, the page behind is pinned, and both are re-applied until one pass moves nothing (a fixed point), so the
+ * picture no longer depends on when the late parts arrived.
+ */
+async function pinSettingsEnd(page: Page, info: TestInfo) {
+  const section = page.locator(`${SCREEN} sw-drawer [data-wk-dsec="settings"]`);
+  for (let pass = 0; pass < 5; pass++) {
+    await settlePage(page);
+    const moved = await section.evaluate((el) => {
+      // up the flat tree: a slotted node continues at its slot (the drawer's scroll box is in sw-drawer's shadow root)
+      const up = (x: Node): Node | null => (x instanceof Element && x.assignedSlot ? x.assignedSlot : x instanceof ShadowRoot ? x.host : x.parentNode);
+      for (let n = up(el); n; n = up(n)) {
+        if (n instanceof HTMLElement && n.scrollHeight > n.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(n).overflowY)) {
+          const before = n.scrollTop;
+          n.scrollTop = Math.max(0, Math.round(before + el.getBoundingClientRect().bottom - n.getBoundingClientRect().bottom));
+          return Math.abs(n.scrollTop - before);
+        }
+      }
+      throw new Error('the drawer scroll container was not found');
+    });
+    const main = await page.evaluate(() => document.querySelector('sw-app')?.shadowRoot?.querySelector('main')?.scrollTop ?? -1);
+    await pinLobby(page, info, 'release');
+    const mainAfter = await page.evaluate(() => document.querySelector('sw-app')?.shadowRoot?.querySelector('main')?.scrollTop ?? -1);
+    if (moved < 1 && main === mainAfter) return;
+  }
+  throw new Error('the door settings drawer did not come to rest at a fixed scroll in 5 passes');
+}
+
 async function shoot(page: Page, info: TestInfo, name: string) {
   await settlePage(page);
   const file = `${name}-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
@@ -103,18 +135,8 @@ test.describe('pixel: the stations and doors screen', () => {
     // WISKEY-DOOR-TECH-2390: the section grew by the "שינויים טכניים" row. A fixed picture: the section's end at the end of the drawer's
     // OWN scroll container (never the page behind it), and the page behind the drawer pinned like the release shot (STATIONS-FLAKE-2270)
     await expect(page.locator(`${SCREEN} sw-drawer wk-door-tech [data-wk-dt-open]`)).toBeVisible();
-    await page.locator(`${SCREEN} sw-drawer [data-wk-dsec="settings"]`).evaluate((el) => {
-      // up the flat tree: a slotted node continues at its slot (the drawer's scroll box is in sw-drawer's shadow root)
-      const up = (x: Node): Node | null => (x instanceof Element && x.assignedSlot ? x.assignedSlot : x instanceof ShadowRoot ? x.host : x.parentNode);
-      for (let n = up(el); n; n = up(n)) {
-        if (n instanceof HTMLElement && n.scrollHeight > n.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(n).overflowY)) {
-          n.scrollTop += el.getBoundingClientRect().bottom - n.getBoundingClientRect().bottom;
-          return;
-        }
-      }
-      throw new Error('the drawer scroll container was not found');
-    });
-    await pinLobby(page, info, 'release');
+    await expect(page.locator(`${SCREEN} sw-drawer [data-wk-dsec="settings"] [data-wk-fetch]`)).toHaveCount(0);
+    await pinSettingsEnd(page, info);
     await shoot(page, info, 'stations-classic-settings');
   });
 
