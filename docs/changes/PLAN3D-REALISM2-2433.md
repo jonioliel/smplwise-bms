@@ -176,6 +176,78 @@ Linux runner (SwiftShader, the gate's renderer), desktop / tablet / mobile, work
 - Proof without `-u` on `fc3a39307`: the same preview run 108 passed, 12 skipped, 0 failed; `unit-plan-3d-determinism`
   with `SW_REQUIRE_VISUAL=1` 12 passed.
 
+## Entry check 2f43ae087 (RED) and the owner's answers of 2026-11-11
+
+Entry check `entry_pilot-PLAN3D-REALISM2-2433_2f43ae087.md` on the runner: 4 failures outside the quarantine, plus the expired
+`pixel-wiskey-stations.spec.ts:87` quarantine (ticket WKWATER-POLISH-2331-pixel, fixed on main by another branch; not touched here).
+
+- `evidence-plan-studio-6.spec.ts:520` [desktop] [mobile], "the lever table switches": it counted `MeshPhysicalMaterial` objects
+  on the realistic rung and expected more than 0. S3 above removed the transmission glass on purpose (one translucent glass with a
+  fresnel edge on both rungs), and the owner approved that glass on 2026-11-11. The test pinned the old behaviour: it now asserts
+  no physical glass on either rung and fresnel glass (`userData.swGlass`) on both. Commit 7e807aa92.
+- `unit-plan-3d-view.spec.ts:201` [mobile], "a click goes through a translucent upper plate": reproduced locally. The floor point
+  `[1.2, 0, 4.4]` is 0.6 m from the lobby's south wall. Since the live framing (PLAN3D-POLISH-2430, merged into this branch) the
+  top camera stands over the free part of the stage rather than over the plan's middle; on the narrow mobile stage the 3 m wall
+  then leans over that point, so the click hit the wall `dw0`, which is also what the picture shows there (a probe screenshot put
+  the point on the wall line). The product is right; the test now clicks an open bit of the lobby floor (`[2.55, 0, 2.85]`, about
+  1.9 m from every wall, between the chairs and 0.6 m from the lamp) and checks that it projects. Desktop / tablet / mobile pass
+  locally. Commit 7e807aa92.
+- `pixel-wall-plan.spec.ts:54` [desktop], "the live schematic view in the map band, dark wall": 8748 px differ. The actual picture
+  carries the room name plates and the polish framing - both from PLAN3D-POLISH-2430 (room names approved: top floor only, which
+  this one-floor plan is). A legitimate change: the baseline was re-taken on the runner (see below).
+
+Owner answers applied:
+
+- Night lighting, the presence edge, contact shadows, the fresnel glass, the warmer night / cooler shadow grade and the less glossy
+  floors: approved as built, nothing changed.
+- Backdrop: `sky` stays the default at install (`plan_view.DEFAULT`, `DEFAULT_VIEW`, `DEFAULT_REAL`, the element's fallback all say
+  `sky`, unchanged); the display setting switches it.
+- Auto quality on an unknown GPU stays `full`; room names on the top floor only; the 52 px floor-button strip stays. No change.
+- Furniture merging: after this branch is merged, not here.
+- Floors: a new floor-finish dial, below.
+
+### Floor finish (owner 2026-11-11: marble or luxury ceramic)
+
+What: the installation dial `floor_finish` - `wood` / `marble` / `ceramic`, default **marble** - in the 3D settings card next to the
+textures ("ריצוף": פרקט עץ / שיש / קרמיקה יוקרתית). An installation dial (content, like `furniture` / `textures`), not a personal
+one. No migration (`plan.view` is one JSON value); an older stored value without the key reads the default.
+
+Which floors: `scene-real-builder.takesFinish` - a room floor whose material the document does not set (no own `floor_material_id`
+on the room or on its level) and whose tags pick no special floor in the resolver's rules (wet rooms, parking, garden, office,
+sports keep theirs). That is the floors that drew the residential oak or the level's bare concrete. A floor set in Plan Studio
+keeps its pick. The description keeps the resolved material and adds `finish: true` (older readers and `wood` draw it as before).
+
+How (`map/floor-finish.ts`): two generated, tileable colour maps from a seeded periodic value noise, a pure function of the finish
+(same bytes every run): marble 512 px over 2.4 m (2 x 2 slabs, soft clouding, two thin vein families, 1 px slab joints), ceramic
+256 px over 1.2 m (2 x 2 large-format 0.6 m tiles, 2 px joints, a slight per-tile tone and a fine speckle). One mip-mapped
+`DataTexture` per finish, 8x anisotropy, no normal map, no extra pass: the floor stays one merged draw per level and material.
+GPU memory: 1.4 MB (marble) / 0.35 MB (ceramic) with the mips. Generation: once per session, measured 155-470 ms (marble) and
+60-150 ms (ceramic) on the workstation (a loaded weak PC; the low-frequency marble fields are sampled from a 128 x 128 grid).
+`wood` draws the library oak files. The geometric texture source (`textures: procedural`) draws the finish as its plain tint.
+Roughness 0.32 (marble, honed) / 0.40 (ceramic), times the style's floor sheen - in line with the approved less glossy floors.
+
+Evidence: `evidence/PLAN3D-REALISM2-2433/floors/{marble,ceramic,wood}-{iso,persp}-day.png` - the look-dev house with its dry rooms
+(living, study, entrance, corridors, gallery) left to the finish, headless Chromium 1280 x 800 (`harness/floors.spec.ts`).
+Frame cost in the same run (`floors/perf.md`, median of 3 x 30 frames, a software renderer): 70.9-75.6 ms for all three finishes,
+equal within noise.
+
+Known limits: the Plan Studio material picker still shows the resolver's default (concrete / oak) for a room left to the finish;
+picking marble or ceramic per room is not offered (the finish is per installation). The marble map is generated on the main
+thread (a one-off hitch of a few hundred ms on a slow device at the first realistic build).
+
+Tests: `frontend/tests/unit-plan3d-floor-finish.spec.ts` (5: the dial lists and defaults, which floors, the drawn material per
+finish, the maps per texture source and style, determinism / opacity / seamless repeat / bounded time - passed locally, desktop
+project), `smplwise_vms/backend/tests/test_plan_view_settings.py` (defaults, accept / refuse, site-only; not run locally - no
+backend deps on the workstation; the entry check runs it).
+
+Runner, `2f98a1fc7`, `run_smart.py preview` (desktop / tablet / mobile, workers 2, during a release gate): `unit-plan-3d-view`,
+`evidence-plan-studio-6`, `unit-plan3d-floor-finish`, `unit-studio6-ui`, `unit-plan3d-real`, `evidence-replay-3d`,
+`pixel-walk-touch`, `visual-matrix` - 180 passed, 21 skipped, 6 failed. The 6 failures are the 12 level-3 pictures of
+`evidence-replay-3d.spec.ts-snapshots/` (`event-l3-lite-*`, `history-l3-lite-day-*`, `history-l3-lite-night-*`,
+`history-l3-realistic-day-*`): their history fixture's rooms set no floor, so they now draw the default marble - the intended
+change. Re-taken with `-u --workers=1` on the runner and looked at (marble floors, nothing else moved); committed.
+`pixel-wall-plan.spec.ts` [desktop] is a schematic (level 1) view: the floor finish does not reach it.
+
 ## Observed, not changed
 
 - Studio backdrop, day, both before and after: a few bright lamp discs float over the plan near ceiling height after the both-levels
