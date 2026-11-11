@@ -69,14 +69,20 @@ test.describe('pixel: the round 28 3D map overlays', () => {
     test.skip(info.project.name !== 'desktop', 'the desktop layout');
     test.setTimeout(120_000);
     const names = new Map([['L0', 'קרקע'], ['L1', 'עליון']]);
+    // as the floor map hands it in: spread, the rooms grouped, the pills summarised but hidden (the tags speak)
     const spread = spreadDescription(r28Desc(null));
-    const el = await plan3d(page, spread, { levelTags: levelTags(spread, names, r28Rooms(), null), roomPills: [], preset: 'iso' });
+    const g = groupDescription(spread, r28Rooms(), DEFAULT_PILL_PREFS);
+    const el = await plan3d(page, g.desc, { levelTags: levelTags(spread, names, r28Rooms(), null), roomPills: g.pills, pillsHidden: true, preset: 'iso' });
     await expect(el.locator('[data-level-tag]')).toHaveCount(2);
+    await expect(el.locator('[data-room-pill]')).toHaveCount(0);
+    await expect(el.locator('[data-3d-label="a-light"]')).toHaveCount(0);
     await settlePage(page);
     await check(info, el, 'r28-stack-open.png');
-    const focus = spreadDescription(r28Desc(null), 'L0');
-    await el.evaluate((n, a) => { const w = n as unknown as Record<string, unknown>; w.description = a.d; w.levelTags = a.t; }, { d: focus, t: levelTags(spread, names, r28Rooms(), 'L0') });
+    // the focused level: its rooms get their pills
+    const focus = groupDescription(spreadDescription(r28Desc(null), 'L0'), r28Rooms(), DEFAULT_PILL_PREFS);
+    await el.evaluate((n, a) => { const w = n as unknown as Record<string, unknown>; w.description = a.d; w.roomPills = a.p; w.pillsHidden = false; w.levelTags = a.t; }, { d: focus.desc, p: focus.pills, t: levelTags(spread, names, r28Rooms(), 'L0') });
     await expect(el.locator('[data-level-column] [data-stack-enter]')).toBeVisible();
+    await expect(el.locator('[data-room-pill]')).toHaveCount(2);
     await settlePage(page);
     await check(info, el, 'r28-stack-focus.png');
   });
