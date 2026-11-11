@@ -882,9 +882,10 @@ export function applyBackdrop(ext: Exterior, backdrop: Backdrop, walking: boolea
 export const STUDIO = {
   day: { light: ['#1b2536', '#3a4a63', '#0d121b'], dark: ['#0c121d', '#1e2b40', '#05080d'] },
   night: { light: ['#080d18', '#1f2e4a', '#03050a'], dark: ['#05080f', '#142037', '#020306'] },
-  disc: { light: 0x1d2431, dark: 0x121822 },
+  // (the realistic rung's disc is lit by the sun: these read about three times brighter by day)
+  disc: { light: 0x0b0f16, dark: 0x080b11 },
   discNight: { light: 0x0e141f, dark: 0x090d15 },
-  discScale: 0.5,
+  discScale: 0.42,
 } as const;
 
 /** Paint the dome's vertex colours from the recipe and the style (LOOK_SPEC section 1 sky scale, ground tint; a sun disc). */
