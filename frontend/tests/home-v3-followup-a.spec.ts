@@ -80,8 +80,11 @@ test.describe('HOME-V3-FOLLOWUP-A-2431 bill file', () => {
     const { pdf } = await open(page, 'bills');
     // the periods arrive oldest first; the latest previous bill (b1) is the card's
     const [tab] = await Promise.all([page.waitForEvent('popup'), inHome(page).locator('.bill-now [data-p3-bill-open="b1"]').click()]);
+    // the tab shows the file (a browser with a PDF viewer) or hands it over as a download (headless / a phone without one)
+    let handed = false;
+    tab.on('download', () => { handed = true; });
     await expect.poll(() => pdf).toEqual(['energy/bills/b1/pdf']);
-    await expect.poll(() => tab.url()).toMatch(/^blob:/);
+    await expect.poll(() => handed || tab.url().startsWith('blob:'), { timeout: 15_000 }).toBe(true);
     await tab.close();
     const row = inHome(page).locator('.blr [data-p3-bill-open="b2"]');
     await expect(row).toHaveAttribute('aria-label', /^הצג חשבון /);
