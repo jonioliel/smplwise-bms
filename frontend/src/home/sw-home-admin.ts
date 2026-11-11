@@ -38,6 +38,7 @@ interface Policies { users: PolicyRow[]; modules: HomeModule[]; seed: Record<str
 
 const MODULE_LABEL: Record<HomeModule, string> = {
   lights: 'תאורה', climate: 'אקלים', shades: 'תריסים', doors: 'דלתות ואינטרקום', cameras: 'מצלמות', energy: 'חשמל', alerts: 'התראות', scenes: 'סצנות', security: 'אבטחה',
+  presence: 'מי בבית', calendar: 'יומן וחדרים משותפים', notices: 'לוח הודעות', tickets: 'פניות שירות', schedules: 'תזמונים', // HOME-V3-P2-2431
   ...P3_MODULE_LABEL, // HOME-V3-P3-2432
 };
 

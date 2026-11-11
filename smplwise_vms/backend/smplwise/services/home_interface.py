@@ -34,6 +34,7 @@ INTERFACES = ("home", "full")
 # the home interface's categories an administrator can hide (the mockup's admin page; "scenes" and "security" added: the alarm panel
 # is shown only where Arx already has the alarm integration and the person holds alarm.view)
 MODULES = ("lights", "climate", "shades", "doors", "cameras", "energy", "alerts", "scenes", "security")
+MODULES = MODULES + ("presence", "calendar", "notices", "tickets", "schedules")  # HOME-V3-P2-2431: family and building screens
 # HOME-V3-P3-2432 (mockup v3, phase 3): music and screens, announcements, the electricity bill, water, the house systems (view only) and
 # the home map. Each is still shown only where its own module is on and the person holds its own permission (checked by its own route).
 MODULES_P3 = ("media", "announce", "bills", "water", "systems", "map")
@@ -105,6 +106,15 @@ HOME_READ_ONLY_PREFIXES = HOME_READ_ONLY_PREFIXES + ("/events/",)
 # installation-wide revoke and the visitor-entrance flag stay refused
 HOME_FLAG_ROUTES["guests"] = (frozenset({"/access/visitors"}), ("/access/visitors/",),
                               ("/access/visitors/settings", "/access/visitors/revoke-all", "/access/visitors/entrances"))
+# HOME-V3-P2-2431: the modules' own routes the family screens use (calendar, shared-room booking, the notice board, a new scene from
+# the current state), as exact routes and whole-route patterns - never a module's whole prefix (its administration stays refused).
+# The reads are GET-only (the same paths also create a notice or a calendar); the writes the screens make are listed exactly.
+HOME_READ_ONLY_EXACT = HOME_READ_ONLY_EXACT | {"/notices", "/notices/module", "/calendar/calendars", "/calendar/occurrences", "/calendar/rooms/day", "/calendar/module"}
+HOME_ALLOWED_EXACT = HOME_ALLOWED_EXACT | {"/calendar/events", "/calendar/availability", "/automations/scene"}
+HOME_ALLOWED_PATTERNS = (
+    re.compile(r"^/calendar/events/[A-Za-z0-9_\-]{1,64}/(cancel|withdraw)$"),
+    re.compile(r"^/notices/(?!boards$|tv-defaults$|promo-slides$|audience$)[A-Za-z0-9_\-]{1,64}/read$"),
+)
 
 # HOME-V3-P3-2432: the reads and controls of phase 3, as exact routes and whole-path patterns (no prefix: a prefix would also open the
 # administrative leaves next to them). Not here on purpose: the emergency announcement and the announcement setup / templates / history /
@@ -367,7 +377,7 @@ def home_allowed(path: str, root_path: str = "", method: str = "GET") -> bool:
             p = p[len(rp):]
         return not p.startswith(API_PREFIX + "/")  # a malformed API path is refused; anything outside /api/v1 is not judged here
     rest_cmp = rest[:-1] if len(rest) > 1 and rest.endswith("/") else rest
-    if rest_cmp in HOME_ALLOWED_EXACT:
+    if rest_cmp in HOME_ALLOWED_EXACT or any(p.match(rest_cmp) for p in HOME_ALLOWED_PATTERNS):
         return True
     if (method or "GET").upper() in ("GET", "HEAD") and (rest_cmp in HOME_READ_ONLY_EXACT or any(rest.startswith(p) for p in HOME_READ_ONLY_PREFIXES)):
         return True
