@@ -1,0 +1,1528 @@
+﻿node.exe : [WebServer] (node:28584) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+At line:1 char:1
++ & "C:\Users\jon\AppData\Roaming\fnm\node-versions\v24.21.0\installati ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([WebServer] (no... env being set.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+
+Running 8 tests using 1 worker
+
+(node:29524) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1/8] [desktop] › tests\home-v3-p2-shots.spec.ts:42:5 › HOME-V3-P2-2431 evidence shots › screens desktop
+[WebServer] 14:55:26 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:55:27 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:55:28 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:55:29 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:55:32 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:55:33 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:55:40 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:55:41 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 14:55:47 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 14:55:49 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 14:55:53 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:55:56 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 14:56:01 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:56:07 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:56:10 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:56:16 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:56:28 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:56:29 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:56:46 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:56:51 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:56:56 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 14:57:01 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:57:10 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 14:57:17 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:57:25 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 14:57:27 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 14:57:29 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 14:57:29 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:57:33 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 14:57:41 [vite] ws proxy error:
+
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 14:57:47 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:57:49 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:57:53 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:58:01 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:58:07 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 14:58:09 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 14:58:13 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 14:58:21 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 14:58:27 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 14:58:29 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:58:31 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 14:58:37 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:58:48 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 14:59:06 [vite] ws proxy error:
+
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 14:59:08 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:59:13 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:59:18 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 14:59:29 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 14:59:35 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:59:46 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:59:48 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:59:55 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:00:03 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:00:11 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:00:15 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:00:23 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:00:28 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:00:32 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:00:38 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:00:40 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:00:47 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:01:06 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:01:10 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:01:15 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:01:21 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:01:27 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:01:29 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:01:33 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:01:40 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:01:41 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:01:47 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:01:49 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:01:53 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:02:01 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:02:07 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:02:09 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:02:13 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:02:21 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:02:27 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:02:30 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:02:35 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:02:41 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:02:48 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:03:05 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:03:10 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:03:15 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:03:23 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:03:30 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:03:34 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:03:41 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:03:43 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:03:49 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:03:56 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:04:05 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:04:10 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:04:14 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:04:20 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:04:31 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:04:36 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:04:44 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:04:47 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:04:50 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:04:57 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:05:04 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:05:09 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:05:15 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:05:22 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+  1) [desktop] › tests\home-v3-p2-shots.spec.ts:42:5 › HOME-V3-P2-2431 evidence shots › screens desktop 
+
+    Test timeout of 600000ms exceeded.
+
+    Error: locator.click: Test timeout of 600000ms exceeded.
+    Call log:
+      - waiting for locator('sw-home').locator('[data-act="p2CalNew"]').first()
+        - locator resolved to <button class="hbtn strong" data-act="p2CalNew">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="hscrim" data-act="close"></div> from <div class="ovl">…</div> subtree intercepts pointer events
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="hscrim" data-act="close"></div> from <div class="ovl">…</div> subtree intercepts pointer events
+        - retrying click action
+          - waiting 100ms
+        1119 × waiting for element to be visible, enabled and stable
+             - element is visible, enabled and stable
+             - scrolling into view if needed
+             - done scrolling
+             - <div class="hscrim" data-act="close"></div> from <div class="ovl">…</div> subtree intercepts pointer events
+           - retrying click action
+             - waiting 500ms
+
+
+      29 |   await settle(page);
+      30 |   await theme(page, t, scheme);
+    > 31 |   if (act) await page.locator('sw-home').locator(`[data-act="${act}"]`).first().click();
+         |                                                                                 ^
+      32 |   await settle(page);
+      33 |   await page.screenshot({ path: `${OUT}/${file}.png` });
+      34 | }
+        at shoot (C:\cloude\smplwise-homev3p2\frontend\tests\home-v3-p2-shots.spec.ts:31:81)
+        at C:\cloude\smplwise-homev3p2\frontend\tests\home-v3-p2-shots.spec.ts:46:76
+
+    Error Context: test-results\home-v3-p2-shots-HOME-V3-P-ff99a-dence-shots-screens-desktop-desktop\error-context.md
+
+
+(node:26544) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[2/8] [desktop] › tests\home-v3-p2-shots.spec.ts:49:5 › HOME-V3-P2-2431 evidence shots › worst and empty desktop
+[WebServer] 15:05:35 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:05:36 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:05:37 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:05:38 [vite] ws proxy error:
+
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:05:41 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:05:42 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[3/8] [desktop] › tests\home-v3-p2-shots.spec.ts:42:5 › HOME-V3-P2-2431 evidence shots › screens tablet
+[WebServer] 15:05:46 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:05:47 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:05:48 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:05:49 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:05:52 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:05:53 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:06:00 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:06:01 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:06:07 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:06:09 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:06:13 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:06:17 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:06:21 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:06:27 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:06:29 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:06:35 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:06:45 [vite] ws proxy error:
+
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:06:50 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:06:53 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:06:55 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:07:03 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:07:11 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:07:16 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:07:24 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:07:28 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:07:35 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:07:40 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:07:47 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:07:49 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:07:53 [vite] ws proxy error:
+
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:07:53 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:08:01 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:08:07 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:08:09 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:08:13 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:08:21 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:08:27 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:08:29 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:08:33 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:08:41 [vite] ws proxy error:
+
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:08:47 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:08:50 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:08:55 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:08:56 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:09:08 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:09:25 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:09:31 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:09:36 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:09:42 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:09:51 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:09:56 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:09:56 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:10:05 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:10:08 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:10:13 [vite] ws proxy error:
+
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:10:19 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:10:28 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:10:32 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:10:38 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:10:51 [vite] ws proxy error:
+
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:10:59 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:11:08 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:11:12 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:11:19 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:11:28 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:11:34 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:11:40 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:11:50 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:11:53 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:12:01 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:12:02 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:12:08 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:12:12 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:12:18 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:12:31 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:12:51 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:12:58 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:13:04 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:13:06 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:13:11 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:13:16 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:13:22 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:13:30 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:13:36 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:13:44 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:13:50 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:13:54 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:14:00 [vite] ws proxy error:
+
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:14:08 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:14:09 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:14:14 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:14:22 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:14:29 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:14:34 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:14:42 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:14:51 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:14:57 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:15:03 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:15:08 [vite] ws proxy error:
+
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:15:12 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:15:13 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:15:17 [vite] ws proxy error:
+
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:15:27 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+  2) [desktop] › tests\home-v3-p2-shots.spec.ts:42:5 › HOME-V3-P2-2431 evidence shots › screens tablet 
+
+    Test timeout of 600000ms exceeded.
+
+    Error: locator.click: Test timeout of 600000ms exceeded.
+    Call log:
+      - waiting for locator('sw-home').locator('[data-act="p2CalNew"]').first()
+        - locator resolved to <button class="hbtn strong" data-act="p2CalNew">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="hscrim" data-act="close"></div> from <div class="ovl">…</div> subtree intercepts pointer events
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="hscrim" data-act="close"></div> from <div class="ovl">…</div> subtree intercepts pointer events
+        - retrying click action
+          - waiting 100ms
+        1119 × waiting for element to be visible, enabled and stable
+             - element is visible, enabled and stable
+             - scrolling into view if needed
+             - done scrolling
+             - <div class="hscrim" data-act="close"></div> from <div class="ovl">…</div> subtree intercepts pointer events
+           - retrying click action
+             - waiting 500ms
+
+
+      29 |   await settle(page);
+      30 |   await theme(page, t, scheme);
+    > 31 |   if (act) await page.locator('sw-home').locator(`[data-act="${act}"]`).first().click();
+         |                                                                                 ^
+      32 |   await settle(page);
+      33 |   await page.screenshot({ path: `${OUT}/${file}.png` });
+      34 | }
+        at shoot (C:\cloude\smplwise-homev3p2\frontend\tests\home-v3-p2-shots.spec.ts:31:81)
+        at C:\cloude\smplwise-homev3p2\frontend\tests\home-v3-p2-shots.spec.ts:46:76
+
+    Error Context: test-results\home-v3-p2-shots-HOME-V3-P-39f03-idence-shots-screens-tablet-desktop\error-context.md
+
+
+
+(node:27908) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[4/8] [desktop] › tests\home-v3-p2-shots.spec.ts:49:5 › HOME-V3-P2-2431 evidence shots › worst and empty tablet
+
+[WebServer] 15:15:47 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:15:47 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:15:49 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:15:49 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[5/8] [desktop] › tests\home-v3-p2-shots.spec.ts:42:5 › HOME-V3-P2-2431 evidence shots › screens phone
+
+[WebServer] 15:15:52 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:15:52 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:15:54 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:15:54 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:15:58 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:15:58 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:16:06 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:16:06 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:16:12 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:16:14 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:16:18 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:16:22 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:16:26 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:16:33 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:16:35 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:16:41 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:16:51 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:16:57 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:16:57 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:17:01 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:17:06 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:17:16 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:17:20 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:17:27 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:17:37 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:17:42 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:17:47 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:17:52 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:17:54 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:17:58 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:17:58 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:18:06 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:18:12 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:18:14 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:18:18 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:18:26 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:18:32 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:18:34 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:18:38 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:18:46 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:18:52 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:18:56 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:19:00 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:19:02 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:19:15 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:19:33 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:19:54 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:20:00 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:20:03 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:20:08 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:20:14 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:20:21 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:20:31 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:20:37 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:20:42 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:20:49 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:20:55 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:21:01 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:21:07 [vite] ws proxy error:
+
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:21:09 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:21:15 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:21:22 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:21:28 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:21:34 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:21:38 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:21:45 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:21:52 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:21:54 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:21:58 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:22:06 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:22:07 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:22:12 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:22:14 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:22:18 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:22:26 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:22:32 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:22:35 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:22:39 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:22:47 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:22:52 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:22:55 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:23:00 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:23:10 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:23:11 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:23:14 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:23:18 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:23:24 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:23:33 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:23:39 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:23:45 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:23:56 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:24:01 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:24:07 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:24:15 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:24:15 [vite] ws proxy error:
+
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:24:21 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:24:29 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:24:33 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:24:40 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:24:48 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:24:53 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:24:57 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:25:03 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+
+[WebServer] 15:25:14 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:25:20 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:25:34 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+  3) [desktop] › tests\home-v3-p2-shots.spec.ts:42:5 › HOME-V3-P2-2431 evidence shots › screens phone 
+
+    Test timeout of 600000ms exceeded.
+
+    Error: locator.click: Test timeout of 600000ms exceeded.
+    Call log:
+      - waiting for locator('sw-home').locator('[data-act="p2CalNew"]').first()
+        - locator resolved to <button class="hbtn strong" data-act="p2CalNew">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="hscrim" data-act="close"></div> from <div class="ovl">…</div> subtree intercepts pointer events
+        - retrying click action
+        - waiting 20ms
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="hscrim" data-act="close"></div> from <div class="ovl">…</div> subtree intercepts pointer events
+        - retrying click action
+          - waiting 100ms
+        1037 × waiting for element to be visible, enabled and stable
+             - element is visible, enabled and stable
+             - scrolling into view if needed
+             - done scrolling
+             - <div class="hscrim" data-act="close"></div> from <div class="ovl">…</div> subtree intercepts pointer events
+           - retrying click action
+             - waiting 500ms
+
+
+      29 |   await settle(page);
+      30 |   await theme(page, t, scheme);
+    > 31 |   if (act) await page.locator('sw-home').locator(`[data-act="${act}"]`).first().click();
+         |                                                                                 ^
+      32 |   await settle(page);
+      33 |   await page.screenshot({ path: `${OUT}/${file}.png` });
+      34 | }
+        at shoot (C:\cloude\smplwise-homev3p2\frontend\tests\home-v3-p2-shots.spec.ts:31:81)
+        at C:\cloude\smplwise-homev3p2\frontend\tests\home-v3-p2-shots.spec.ts:46:76
+
+    Error Context: test-results\home-v3-p2-shots-HOME-V3-P-0d531-vidence-shots-screens-phone-desktop\error-context.md
+
+
+
+
+(node:17064) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[6/8] [desktop] › tests\home-v3-p2-shots.spec.ts:49:5 › HOME-V3-P2-2431 evidence shots › worst and empty phone
+[WebServer] 15:25:54 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:25:54 [vite] ws proxy error:
+
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:25:56 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:25:56 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[7/8] [desktop] › tests\home-v3-p2-shots.spec.ts:58:3 › HOME-V3-P2-2431 evidence shots › seven themes
+[WebServer] 15:26:02 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:26:02 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:26:04 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:26:04 [vite] ws proxy error:
+
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 15:26:08 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:26:08 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[8/8] [desktop] › tests\home-v3-p2-shots.spec.ts:65:3 › HOME-V3-P2-2431 evidence shots › wall panel
+[WebServer] 15:26:09 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 15:26:09 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+  3 failed
+    [desktop] › tests\home-v3-p2-shots.spec.ts:42:5 › HOME-V3-P2-2431 evidence shots › screens desktop 
+    [desktop] › tests\home-v3-p2-shots.spec.ts:42:5 › HOME-V3-P2-2431 evidence shots › screens tablet 
+    [desktop] › tests\home-v3-p2-shots.spec.ts:42:5 › HOME-V3-P2-2431 evidence shots › screens phone 
+  5 passed (30.8m)
