@@ -31,7 +31,7 @@ registerScreen((h: HomeHost) => ({
     return html`${h.head('עוד בבית', 'כל מה שהבית יודע לעשות, מעבר לחדרים', h.pager('hub', pg.pages))}
       <div class="hub">${pg.items.map((t) => {
         const l = t.line(h);
-        return html`<a class="tile hubt" href=${h.href(t.href)} data-mod=${t.id}>${l.badge ? html`<b class="count num">${l.badge}</b>` : nothing}${hi(t.icon)}<b class="hl clamp1">${t.label}</b><span class="hs2 clamp2" data-tone=${l.tone ?? nothing}>${l.tone ? html`<i class="dot"></i>` : nothing}${l.text}</span></a>`;
+        return html`<a class="tile hubt" href=${h.href(t.href)} data-mod=${t.id} data-act=${t.act?.(h) ?? nothing}>${l.badge ? html`<b class="count num">${l.badge}</b>` : nothing}${hi(t.icon)}<b class="hl clamp1">${t.label}</b><span class="hs2 clamp2" data-tone=${l.tone ?? nothing}>${l.tone ? html`<i class="dot"></i>` : nothing}${l.text}</span></a>`;
       })}</div>`;
   },
 }));

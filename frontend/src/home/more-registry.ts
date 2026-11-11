@@ -22,6 +22,8 @@ export interface MoreTile {
   icon: string;
   visible(h: HomeHost): boolean;
   line(h: HomeHost): MoreLine;
+  /** a sheet the tile opens instead of its route (a sw-home / module `data-act` name), when it has one */
+  act?(h: HomeHost): string | undefined;
   /** load what the live line needs (called when the hub opens) */
   warm?(h: HomeHost): void;
 }

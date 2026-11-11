@@ -41,6 +41,7 @@ import { homeV3Styles } from './home-styles-v3';
 import { buildScreens, type ExtOvl, type HomeScreen } from './home-ext';
 import { moreChild, moreTiles } from './more-registry';
 import './home-v3-p1';
+import './home-p3-ext'; // RELEASE-2430-TRAIN: phase 3's screens and hub tiles join the registry
 // HOME-V3-P3-2432: phase 3 (media + systems) lives in its own files; these few hooks are the only edits here
 import { P3, type P3Host, type P3Ovl } from './home-p3';
 import { homeP3Styles } from './home-p3-styles';

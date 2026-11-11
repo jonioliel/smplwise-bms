@@ -291,4 +291,22 @@ test.describe('HOME-V3-P3-2432 behaviour', () => {
     const none = await (async () => { await open(page, 'r/home', { modules: ['lights', 'climate', 'shades', 'doors', 'cameras', 'energy', 'alerts', 'scenes', 'security'] }); return page.evaluate(() => (document.querySelector('sw-app')!.shadowRoot!.querySelector('sw-home') as unknown as { p3: { tiles(): unknown[] } }).p3.tiles().length); })();
     expect(none).toBe(0);
   });
+  test('RELEASE-2430-TRAIN: the phase 3 tiles join the "עוד" hub after phase 1, the announcement tile opens its sheet, the strip goes back to the hub (bill and water: to electricity)', async ({ page }) => {
+    await open(page, 'more', { water: 'leak', systems: 'bad' });
+    const P3_IDS = ['p3-media', 'p3-announce', 'p3-bills', 'p3-water', 'p3-systems', 'p3-map'];
+    const ids = () => inHome(page).locator('.hubt').evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.mod ?? ''));
+    await expect.poll(async () => (await ids()).filter((id) => id.startsWith('p3-'))).toEqual(P3_IDS);
+    expect((await ids()).slice(-P3_IDS.length)).toEqual(P3_IDS); // order 100+: after every phase 1 tile
+    await expect(inHome(page).locator('.hubt[data-mod="p3-media"]')).toContainText('2 חדרים מנגנים');
+    await expect(inHome(page).locator('.hubt[data-mod="p3-water"] .hs2')).toHaveAttribute('data-tone', 'warn');
+    await expect(inHome(page).locator('.hubt[data-mod="p3-water"]')).toContainText('חשד לנזילה');
+    await shadowClick(page, '.hubt[data-mod="p3-announce"]');
+    await expect(inHome(page).locator('[data-p3-sheet="announce"]')).toBeVisible();
+    expect(new URL(page.url()).hash).toBe('#/home/more'); // the tile opens the sheet, it does not navigate
+    await page.goto('about:blank');
+    await page.goto('/#/home/systems');
+    await expect(inHome(page).locator('.tb-back')).toHaveAttribute('href', '#/home/more');
+    await go(page, 'bills');
+    await expect(inHome(page).locator('.tb-back')).toHaveAttribute('href', '#/home/energy');
+  });
 });
