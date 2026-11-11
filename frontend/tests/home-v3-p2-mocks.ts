@@ -73,7 +73,7 @@ export async function mockP2(page: Page, o: P2Opts = {}): Promise<HomeMock> {
   await page.route('**/api/v1/home/weather', (r) => json(r, { weather: o.empty ? null : {
     now: { t: 22, condition: 'sun', text: 'בהיר', feels: 23, wind: 12, wind_unit: 'km/h', humidity: 40, rain: 0 },
     hours: ['20:00', '21:00', '22:00', '23:00', '00:00', '01:00'].map((h, i) => ({ at: h, t: 21 - i, condition: i < 3 ? 'night' : 'cloud' })),
-    days: Array.from({ length: 5 }, (_, i) => ({ date: new Date(Date.now() + i * 86_400_000).toISOString().slice(0, 10), t: 24 - i, lo: 15 - i, condition: i === 2 ? 'rain' : 'sun' })),
+    days: Array.from({ length: 5 }, (_, i) => ({ date: new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date(Date.now() + i * 86_400_000)) /* HOME-V3-FOLLOWUP-A-2431: the installation's date, not UTC's (00:00-02:00 lost a day) */, t: 24 - i, lo: 15 - i, condition: i === 2 ? 'rain' : 'sun' })),
   } }));
   // tickets
   const tk = (id: string, title: string, step: number, status: string, place: string) => ({ id, number: id, title, excerpt: '', status, step, category: { id: 'c1', name: 'אינסטלציה' }, place_text: place, created_at: at(-100), last_activity_at: at(-50), eta_at: null, waiting_on: null, closed_at: null, department: 'אחזקה' });
