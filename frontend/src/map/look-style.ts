@@ -44,7 +44,10 @@ export const LOOK_STYLES: Readonly<Record<StyleId, LookStyle>> = {
     id: 'light',
     he: 'אדריכלי בהיר',
     rig: {
-      exposureDay: 0.62, exposureNight: 0.9, sunScale: 1.3, skyScale: 1.0, envDay: 0.5, envNight: 0.22, hemiScale: 0.36, interiorFill: [0.5, 0.85],
+      // PLAN3D-REALISM-2432: a little more sun and less flat fill by day (the environment's softboxes now carry part of the
+      // fill and the highlights), a little more environment at night so the shell stays readable (was sun 1.3, env .5 / .22,
+      // hemi .36)
+      exposureDay: 0.62, exposureNight: 0.9, sunScale: 1.45, skyScale: 1.0, envDay: 0.44, envNight: 0.3, hemiScale: 0.3, interiorFill: [0.5, 0.85],
       shadowRadius: 8, rim: null, floorSheen: 1.0, fog: { color: '#dfe6ee', density: 0.028 },
       lampEmissiveDay: 1.0, lampEmissiveNight: 2.0, lampPoolDay: 0.5, lampPoolNight: 1.0, moonScale: 0.5,
     },

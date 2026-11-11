@@ -386,7 +386,7 @@ export class SwPlan3d extends LitElement {
     }
     /* PLAN3D-REALISM-2432: the studio backdrop - a dark sky gradient with a soft glow behind the model */
     :host([data-quality='3'][data-backdrop='studio']) {
-      background: radial-gradient(ellipse 80% 70% at 50% 46%, var(--sky-hor, #3a4a63) 0%, var(--sky-top, #1b2536) 58%, var(--sky-bot, #0d121b) 100%);
+      background: radial-gradient(ellipse 95% 85% at 50% 44%, var(--sky-hor, #3a4a63) 0%, var(--sky-top, #1b2536) 62%, var(--sky-bot, #0d121b) 100%);
     }
     :host([data-quality='3']) .stage canvas {
       filter: contrast(1.06) saturate(1.05);

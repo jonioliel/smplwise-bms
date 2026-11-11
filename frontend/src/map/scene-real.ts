@@ -881,7 +881,7 @@ export function applyBackdrop(ext: Exterior, backdrop: Backdrop, walking: boolea
 /** The studio backdrop's colours: the CSS stops [top, centre glow, bottom] by day and night, the ground disc per style. */
 export const STUDIO = {
   day: { light: ['#1b2536', '#3a4a63', '#0d121b'], dark: ['#0c121d', '#1e2b40', '#05080d'] },
-  night: { light: ['#070b14', '#1a2740', '#03050a'], dark: ['#04070d', '#111c30', '#020306'] },
+  night: { light: ['#080d18', '#1f2e4a', '#03050a'], dark: ['#05080f', '#142037', '#020306'] },
   disc: { light: 0x1d2431, dark: 0x121822 },
   discNight: { light: 0x0e141f, dark: 0x090d15 },
   discScale: 0.5,
