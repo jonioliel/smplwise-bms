@@ -1246,6 +1246,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 await asyncio.sleep(30)
                 try:
                     await run_in_threadpool(janitor_tick, app.state.db, settings)
+                    if settings.go2rtc_url:  # HEALTH-GO2RTC-2430: the light reachability check (a probe only when due, backoff-bounded)
+                        from .services import media_reach
+
+                        await run_in_threadpool(media_reach.REACH.tick, settings)
                     if not ha_only and autosync.PERIODIC.due():
                         await discover("periodic")
                 except Exception as exc:  # never let the janitor die

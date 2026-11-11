@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import __version__
+from . import media_reach
 from ..capabilities import NVR_WITHOUT_GO2RTC, UNSUPPORTED_ACTIONS, UNSUPPORTED_MESSAGES, go2rtc_url, installation_block
 from ..capabilities import resolve as resolve_capabilities
 from ..config import Settings
@@ -336,7 +337,7 @@ def _restarts_check(settings: Settings) -> dict[str, Any] | None:
 def summary(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
     """Cheap status for every signed-in user (top-bar pill): only cached job states and the backup age, never a
     network probe. `items` lists what is wrong in operator words; `status` is the worst of them."""
-    items: list[dict[str, str]] = []
+    items: list[dict[str, Any]] = []
     nvr = bool(settings.nvr_host and settings.nvr_user)
     ing = events_ingest.STATE
     if is_ha_only(settings):
@@ -353,10 +354,15 @@ def summary(settings: Settings, conn: sqlite3.Connection) -> dict[str, Any]:
         if not go2rtc_url(settings):
             # NN1, owner decision 2026-10-03: an NVR without go2rtc is not a supported installation (operator wording)
             items.append({"id": "go2rtc", "status": "error", "label": "שרת המדיה (go2rtc) לא הוגדר — אין וידאו חי ואין ניגון הקלטות; התקנה עם NVR אינה נתמכת בלעדיו"})
-        elif ds.get("streams_last_error"):
+        elif ds.get("streams_last_error") and not media_reach.REACH.unreachable(settings):  # unreachable: the item below says it all
             items.append({"id": "go2rtc", "status": "warn", "label": "סנכרון הזרמים ל־go2rtc נכשל"})
     else:
         items.append({"id": "nvr", "status": "warn", "label": "ה־NVR לא הוגדר"})
+    if media_reach.REACH.unreachable(settings):
+        # HEALTH-GO2RTC-2430 (lab 11.11: two days of silent "ok"): the video service did not answer the add-on's last contact - every
+        # live, playback and snapshot path is down. Operator wording, no component name; system.health raises the administrators'
+        # notice once this held for the policy's after_s (300 s) and resolves it on recovery (notify_sources.HEALTH_ITEMS).
+        items.append({"id": "video_service", "status": "error", "label": "שירות הווידאו לא זמין — אין וידאו חי ואין ניגון הקלטות", "since": media_reach.REACH.view(settings)["since"]})
     hs_now = ha_sync.STATE
     if ha_client.configured(settings) and not hs_now.connected and hs_now.last_error == "ha_forbidden":
         # T035 (outage run): the platform refused the add-on's token - this does not heal by waiting, so it is said plainly

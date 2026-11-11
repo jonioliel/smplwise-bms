@@ -313,7 +313,9 @@ def tick(db: Database, settings: Settings, now: dt.datetime | None = None) -> di
 # ---------------------------------------------------------------- health, NVR, backups
 
 # summary() item ids that mean the system itself is unwell (CR section 5). The NVR has its own source; these are `system.health`.
-HEALTH_ITEMS = {"ha": "תשתית המערכת מנותקת", "go2rtc": "שירות הווידאו לא מסתנכרן", "discovery": "גילוי המצלמות נכשל", "thumbnails": "תמונות האירועים אינן נוצרות"}
+HEALTH_ITEMS = {"ha": "תשתית המערכת מנותקת", "go2rtc": "שירות הווידאו לא מסתנכרן", "discovery": "גילוי המצלמות נכשל", "thumbnails": "תמונות האירועים אינן נוצרות",
+                # HEALTH-GO2RTC-2430: the video service did not answer for the policy's after_s (5 minutes); resolved when it answers again
+                "video_service": "שירות הווידאו לא זמין"}
 
 
 def _backup_facts(settings: Settings) -> dict[str, Any]:
