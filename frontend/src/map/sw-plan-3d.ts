@@ -26,6 +26,10 @@ import { DEFAULT_VIEW, planViewPrefs, type PlanViewDials } from '../api/plan-vie
 import { RUNG_HE, asMode, autoStart, drawnRung, levelRung, probes, rungLevel, RUNGS, nextDown, type QualityMode, type Rung } from './quality-ladder';
 import { styleFor } from './look-style';
 import { pillInk } from './pill-ink';
+import { RoomPillLayer, roomPillStyles } from './room-pill-view';
+import { DEFAULT_PILL_PREFS, type RoomPill, type RoomPillPrefs } from './room-pills';
+import type { LevelTag } from './stack-layout';
+import { FocusMover, focusPose, type CameraPose, type FocusInset } from './room-focus';
 import { HUD_EDGE, HUD_MINIMAP, HUD_MINIMAP_PHONE, HUD_PHONE_MAX, HUD_PILL_ROW, type HudCorner } from './hud-layout';
 import { t } from '../i18n/he';
 import { TIME_BAND_HE, hourLabel, resolveSite, siteInstant, siteLocal, timeBand, type ResolvedSite } from './sun';
@@ -254,6 +258,20 @@ export class SwPlan3d extends LitElement {
    * Set: the site clock does not tick the sun and the time pill is not shown (the screen owns the time; a slider here would
    * contradict the replayed states). null = the site clock / the slider, as on the live map. */
   @property({ attribute: false }) sunAt: number | null = null;
+  /** PLAN3D-R28-UI-2433 (round 28): one pill per room (room-pills.ts groupDescription - the host drops the rooms' names and temperature
+   * chips from the description it hands in), the pill settings, the spread levels' tags (stack-layout.ts), the room the room card is
+   * open on with the stage edges the card covers (the camera centres the room in the rest; null puts the camera back), and the
+   * spread view's always-dark backdrop (`map.stack_backdrop` = dark). Empty / null: the element behaves as before. */
+  @property({ attribute: false }) roomPills: RoomPill[] = [];
+  @property({ attribute: false }) pillPrefs: RoomPillPrefs = DEFAULT_PILL_PREFS;
+  @property({ attribute: false }) levelTags: LevelTag[] = [];
+  /** The pills are summarised but not drawn (every level as a building or spread, no level in focus: the level tags speak). */
+  @property({ type: Boolean }) pillsHidden = false;
+  @property({ attribute: false, hasChanged: (a: unknown, b: unknown) => JSON.stringify(a ?? null) !== JSON.stringify(b ?? null) }) focusRoom: { id: string; pos: Vec3; extent: number; inset: FocusInset } | null = null;
+  @property({ type: Boolean, reflect: true, attribute: 'data-stack-dark' }) stackDark = false;
+  private readonly pillLayer = new RoomPillLayer(this);
+  private focusFrom: CameraPose | null = null;
+  private readonly focusMover = new FocusMover((p) => this.applyPose(p));
   /** The walk: off, asked of the host (waiting for a description with `walk`), or on. */
   @state() private walkState: 'off' | 'requested' | 'on' = 'off';
   /** The walk's numbers for the walk bar (x, z, heading, level), refreshed at most ~8 times a second. */
@@ -350,7 +368,7 @@ export class SwPlan3d extends LitElement {
   private settingsAsked = false;
   private ownAsked = false;
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: block;
       position: relative;
@@ -898,7 +916,7 @@ export class SwPlan3d extends LitElement {
         transition: none;
       }
     }
-  `;
+  `, roomPillStyles];
 
   protected firstUpdated(): void {
     this.watchBar();
@@ -1066,10 +1084,14 @@ export class SwPlan3d extends LitElement {
    * token other than text-3: open, on, stale), the rest counted in a "+N" hint - hundreds of pills would be hundreds
    * of elements repositioned every frame. */
   protected willUpdate(changed: PropertyValues<this>): void {
-    if (!(changed.has('description') || changed.has('activeLevel') || changed.has('selectedId') || (changed as Map<string, unknown>).has('hover') || (changed as Map<string, unknown>).has('walkState'))) return;
+    this.syncPillLayer(changed);
+    if (!(changed.has('description') || changed.has('activeLevel') || changed.has('selectedId') || (changed as Map<string, unknown>).has('hover') || (changed as Map<string, unknown>).has('walkState') || changed.has('roomPills') || changed.has('pillPrefs') || (changed as Map<string, unknown>).has('pillNear'))) return;
     const parts = this.description?.parts ?? [];
     const chips = parts.filter((p) => p.kind === 'chip');
     let pills = parts.filter((p) => p.kind === 'entity' && (!this.activeLevel || p.level_id === this.activeLevel));
+    // PLAN3D-R28-UI-2433: a device of a pilled room is summarised by its room's pill (the near room's devices stand on their own);
+    // the selected and the hovered device always keep their pill
+    if (this.roomPills.length) pills = pills.filter((p) => p.userData.id === this.selectedId || p.userData.id === this.hover?.id || !this.pillLayer.summarised(p.userData.id));
     this.hiddenPills = 0;
     if (this.walkState === 'on') {
       // the walk shows no pill cloud at eye level (CR-029 section 4.6): only the selected and the hovered entity
@@ -1100,7 +1122,9 @@ export class SwPlan3d extends LitElement {
       this.view.setSelected(this.selectedId);
       this.setAttribute('data-selected', this.selectedId ?? '');
     }
+    if ((changed.has('preset') && changed.get('preset') !== undefined) || reframe) this.focusFrom = null; // PLAN3D-R28-UI-2433: a new framing is the pose to return to
     if (changed.has('preset') && changed.get('preset') !== undefined) this.applyPreset(this.preset);
+    if (changed.has('focusRoom')) this.syncFocus();
     // the first update lists every initial property, `continuous` included: it must not stop a probe init() just
     // started (the probe restores the property's value when it ends)
     if (changed.has('continuous') && !this.probe) this.view.setContinuous(this.continuous);
@@ -1112,8 +1136,68 @@ export class SwPlan3d extends LitElement {
   /** Place every DOM label at its part's projected point (hidden behind the camera), matched by the part id it carries
    * (never by DOM order: Lit may reuse elements across a description change). Imperative: it runs per drawn frame while
    * the camera moves, without a Lit render. */
+  /** PLAN3D-R28-UI-2433: hand the room pill layer what it draws (room-pill-view.ts). */
+  private syncPillLayer(changed: PropertyValues<this>): void {
+    const l = this.pillLayer;
+    l.pills = this.roomPills;
+    l.hidden = this.pillsHidden;
+    l.tags = this.levelTags;
+    l.prefs = this.pillPrefs;
+    l.selected = this.focusRoom?.id ?? null;
+    l.active = this.walkState !== 'on' && !this.kiosk;
+    l.phoneW = PHONE_STAGE_PX;
+    if (changed.has('roomPills') && l.pop && !this.roomPills.some((p) => p.id === l.pop)) l.closePop();
+  }
+
+  /** The orbit pose now (the iso preset draws through the orthographic camera, every other view through the perspective one). */
+  private currentPose(): CameraPose | null {
+    const v = this.view;
+    if (!v) return null;
+    const cam = this.preset === 'iso' ? v.ortho : v.persp;
+    const t = v.controls.target;
+    return { position: [cam.position.x, cam.position.y, cam.position.z], target: [t.x, t.y, t.z], zoom: cam.zoom };
+  }
+
+  private applyPose(p: CameraPose): void {
+    const v = this.view;
+    if (!v || this.walkState === 'on') return;
+    const cam = this.preset === 'iso' ? v.ortho : v.persp;
+    cam.position.set(p.position[0], p.position[1], p.position[2]);
+    v.controls.target.set(p.target[0], p.target[1], p.target[2]);
+    if (cam.zoom !== p.zoom) {
+      cam.zoom = p.zoom;
+      cam.updateProjectionMatrix();
+    }
+    v.controls.update();
+  }
+
+  /** PLAN3D-R28-UI-2433 (room.html): the room card opened - centre its room in the stage less the card, a little closer; closed -
+   * back to the pose from before (unless a preset reframed in between). */
+  private syncFocus(): void {
+    const v = this.view;
+    if (!v || this.walkState === 'on') return;
+    const motion = this.viewDials.motion !== false;
+    const f = this.focusRoom;
+    const from = this.currentPose();
+    if (!from) return;
+    if (!f) {
+      if (this.focusFrom) this.focusMover.move(from, this.focusFrom, motion);
+      this.focusFrom = null;
+      return;
+    }
+    if (typeof this.preset !== 'string') return; // a camera's own view stays the camera's
+    const iso = this.preset === 'iso';
+    const cam = iso ? v.ortho : v.persp;
+    cam.updateMatrixWorld();
+    const e = cam.matrixWorld.elements;
+    this.focusFrom ??= from;
+    const to = focusPose(from, f.pos, f.extent, f.inset, { right: [e[0], e[1], e[2]], up: [e[4], e[5], e[6]], orthoHalfH: iso ? v.ortho.top : null, fov: v.persp.fov, stageW: this.clientWidth, stageH: this.clientHeight });
+    this.focusMover.move(from, to, motion);
+  }
+
   private layoutOverlays(): void {
     const view = this.view;
+    if (view) this.pillLayer.layout(view, this.clientWidth, this.clientHeight); // PLAN3D-R28-UI-2433: the room pills and the level tags
     if (!view || !this.overlays.length) return;
     // PERF3D-295: the label elements are listed once per Lit render (updated() drops the list), projected in one batch (no box
     // read per point), and a style is written only when its value changed - a frame used to read the mount's box between label
@@ -1959,6 +2043,7 @@ export class SwPlan3d extends LitElement {
             ? html`<span class="more" data-3d-more=${this.hiddenPills} title="ישויות ללא מצב מיוחד מוסתרות במבט הכללי; בחירה ברשימה או במפלס מציגה אותן">+${this.hiddenPills} ישויות</span>`
             : nothing}</div>`
         : nothing}
+      ${this.pillLayer.render()}
       ${this.renderStrip()}
       ${this.renderWalk()}
       <div class="bar" role="group" aria-label="תצוגות מוכנות" data-3d-bar>

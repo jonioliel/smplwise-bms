@@ -82,6 +82,15 @@ export interface ProductSettings {
   'map.shared_levels'?: 'show' | 'hide';
   /** The view a floor map opens in (live map, history map, event page). */
   'map.default_view'?: '2d' | '3d';
+  /** PLAN3D-R28-UI-2433 (round 28, the 3D map): the open questions as settings, at the recommended answers (routers/settings.py). */
+  'map.room_pills'?: 'room' | 'room_always' | 'device';
+  'map.room_pill_tap'?: 'popover' | 'card';
+  'map.room_pill_quiet'?: 'name' | 'hide' | 'bubble';
+  'map.room_card_place'?: 'side' | 'float' | 'sheet_tablet';
+  'map.room_card_confirm'?: 'system' | 'bulk';
+  'map.room_card_camera'?: 'snapshot' | 'live' | 'none';
+  'map.stack_backdrop'?: 'theme' | 'dark';
+  'map.stack_pick'?: 'two_tap' | 'one_tap';
   /** CR-006: the 3D quality level a browser opens with ('1' schematic, '2' shadows, materials and the cutaway); each
    * browser may override it (sw.plan3d.quality) and drops to 1 by itself when level 2 misses the frame budget. */
   'plan.quality'?: 'auto' | '1' | '2';
