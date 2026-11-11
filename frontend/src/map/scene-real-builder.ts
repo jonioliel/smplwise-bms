@@ -18,7 +18,7 @@
  * Rounded to 0.1 mm like every part; sorted by id.
  */
 import type { GeomLevel, GeomOpening, GeomWall, GeometryDoc, Primitive, DoorPrim, WindowPrim } from './geometry';
-import { resolveMaterials, type CatalogMaterialLookup, type ResolvedMaterials } from './material-resolve';
+import { canonicalMaterial, resolveMaterials, roomFloorByTags, type CatalogMaterialLookup, type ResolvedMaterials } from './material-resolve';
 import { MODEL_MAP } from './plan3d-assets';
 import { daylightFactor } from './look-style';
 import type { ScenePart, SceneInput, Vec3 } from './scene-builder';
@@ -49,6 +49,9 @@ export interface RealFloor {
   y: number;
   polygon: [number, number][];
   material: string;
+  /** PLAN3D-REALISM2-2433: the floor takes the installation's floor finish (floor-finish.ts) - the document sets no floor
+   * for the room or its level and the room is a dry living room or untagged. Absent: `material` as resolved. */
+  finish?: true;
 }
 /** R3 G4: a room's ceiling plate (CR-029 section 5.2 `ceiling`, default true): the walk sees a ceiling, not the sky;
  * the orbit views cut it away with the section plane. */
@@ -157,6 +160,15 @@ const WIN_FRAME = 0.06;
 const SILL_T = 0.03;
 const HANDLE_Y = 1.02;
 const SHUTTER_BOX = 0.22;
+
+/** PLAN3D-REALISM2-2433: does a room floor take the installation's floor finish (floor-finish.ts)? Not when the document sets
+ * the floor (the room's or its level's own material) or the room's tags pick a special floor (wet room, parking, garden,
+ * office, sports); the residential oak and the untagged rooms (the level's bare concrete) take it. */
+export function takesFinish(room: GeometryDoc['rooms'][number] | undefined, level: GeomLevel | undefined): boolean {
+  if (canonicalMaterial(room?.floor_material_id) || canonicalMaterial(level?.floor_material_id)) return false;
+  const byTags = roomFloorByTags(room?.tags);
+  return byTags === null || byTags === 'oak';
+}
 
 /** Builds the realistic part (module note). */
 export function buildReal(ctx: RealContext, catalog: CatalogMaterialLookup): RealWorld {
@@ -288,9 +300,11 @@ export function buildReal(ctx: RealContext, catalog: CatalogMaterialLookup): Rea
     const lv = ctx.level(z.level_id);
     const poly = z.polygon.map((q): [number, number] => [r4(ctx.m(q.x * input.width)), r4(ctx.m(q.y * input.height))]);
     const room = resolved.rooms[z.id];
-    out.floors.push({ id: `rfloor:${z.id}`, zone: z.id, level_id: lv.id, y: r4(lv.elevation_m), polygon: poly, material: room?.floor ?? levelFloor(lv.id) });
-    // R3 G4: the ceiling at the room's own height (else the level's), unless the document says the room has none
     const docRoom = doc.rooms.find((r) => r.id === z.id);
+    const floor: RealFloor = { id: `rfloor:${z.id}`, zone: z.id, level_id: lv.id, y: r4(lv.elevation_m), polygon: poly, material: room?.floor ?? levelFloor(lv.id) };
+    if (takesFinish(docRoom, doc.levels.find((l) => l.id === lv.id))) floor.finish = true;
+    out.floors.push(floor);
+    // R3 G4: the ceiling at the room's own height (else the level's), unless the document says the room has none
     const ceilH = typeof docRoom?.ceiling_height_m === 'number' && docRoom.ceiling_height_m > 0 ? docRoom.ceiling_height_m : lv.ceiling_height_m;
     if (room?.has_ceiling !== false) out.ceilings!.push({ id: `rceil:${z.id}`, zone: z.id, level_id: lv.id, y: r4(lv.elevation_m + ceilH), polygon: poly, material: room?.ceiling ?? resolved.levels[lv.id]?.ceiling ?? 'plaster_ceiling' });
     let glass = 0;

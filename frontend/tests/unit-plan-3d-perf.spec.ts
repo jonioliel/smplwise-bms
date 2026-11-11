@@ -51,13 +51,16 @@ test.describe('liveOnlyChange (node)', () => {
     expect(liveOnlyChange(base, next)).toBe(true);
     expect(tintOnlyChange(base, next)).toBe(false); // the old rule rebuilt for it
   });
-  test('a new meter reading changes nothing the 3D draws: an equal description (the host keeps the shown one)', () => {
+  // PLAN3D-POLISH-2430: the pill now carries the reading (api/ha stateLabel - before, the builder's on/off map dropped every
+  // number, so a meter push happened to draw nothing): a new reading changes only its pill, a live change - the graph stays
+  test('a new meter reading changes only its pill (the reading): a live change, the graph stays', () => {
     const next = scene({ power: '133' });
     expect(next).not.toBe(base);
-    expect(diff(base, next)).toEqual([]);
-    expect(sameScene(base, next)).toBe(true);
-    // an equal description handed to the view is still realised again (the view's own contract: the replay spec's determinism check)
-    expect(liveOnlyChange(base, next)).toBe(false);
+    expect(diff(base, next)).toEqual(['ent:sensor.power']);
+    expect(next.parts.find((p) => p.id === 'ent:sensor.power')?.text).toBe('מונה · 133');
+    expect(sameScene(base, next)).toBe(false);
+    expect(liveOnlyChange(base, next)).toBe(true);
+    expect(sameScene(base, scene({ power: '120' }))).toBe(true); // the same reading: an equal description (the host keeps the shown one)
     expect(sameScene(base, scene({ temp: '22.5' }))).toBe(false);
     expect(sameScene(base, scene({ lock: 'unlocked' }))).toBe(false);
   });
@@ -149,7 +152,7 @@ test('a new reading on a label: no rebuild of the graph, the chip and the pill s
   const b0 = await builds(el);
   await setDescription(el, scene({ temp: '22.5', lock: 'unlocked' }));
   await expect(el.locator('[data-3d-chip="z0"]')).toHaveText('22.5°');
-  await expect(el.locator('[data-3d-label="lock.main_door"]')).toContainText('לא נעול');
+  await expect(el.locator('[data-3d-label="lock.main_door"]')).toContainText('פתוח'); // PLAN3D-POLISH-2430: the shared state words (api/ha stateLabel)
   expect(await builds(el), 'the graph was kept').toBe(b0);
   // the labels stand at their projected points
   const host = (await el.boundingBox())!;

@@ -85,7 +85,13 @@ export function creaseNormals(pos: ArrayLike<number>, creaseRad: number): Float3
       const n = fn[t];
       if (n[0] * own[0] + n[1] * own[1] + n[2] * own[2] >= cos) { x += n[0]; y += n[1]; z += n[2]; }
     }
-    const l = Math.hypot(x, y, z) || 1;
+    const l = Math.hypot(x, y, z);
+    if (!(l > 1e-9)) {
+      // PLAN3D-REALISM2-2433: a degenerate (zero-area) triangle has no face normal; a zero normal made the lighting NaN, and
+      // the bloom spread it over the whole frame (the kit's bookcaseOpen blanked the perspective view). Up is harmless there.
+      out[v * 3 + 1] = 1;
+      continue;
+    }
     out[v * 3] = x / l;
     out[v * 3 + 1] = y / l;
     out[v * 3 + 2] = z / l;

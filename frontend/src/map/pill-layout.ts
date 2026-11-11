@@ -21,11 +21,20 @@ const EPS = 1e-6;
 /** The vertical shift (stage pixels, zero or negative = raised) of every pill so that none overlaps another, as a map
  * by id. `gap` is the clear space kept between two stacked pills. A pill whose size is unknown (w or h 0) is not moved
  * and blocks nothing. */
-export function resolvePillOverlaps(pills: readonly PillBox[], gap = 2): Map<string, number> {
+export function resolvePillOverlaps(pills: readonly PillBox[], gap = 2, fixed?: ReadonlySet<string>): Map<string, number> {
   const out = new Map<string, number>();
   const order = pills.filter((p) => p.w > 0 && p.h > 0).slice().sort((a, b) => b.y - a.y || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const placed: { l: number; r: number; t: number; b: number }[] = [];
+  // PLAN3D-POLISH-2430: `fixed` boxes (the temperature chips) keep their points and are placed first: the others stack around them
+  if (fixed?.size) {
+    for (const p of order) {
+      if (!fixed.has(p.id)) continue;
+      placed.push({ l: p.x - p.w / 2, r: p.x + p.w / 2, t: p.y - p.h, b: p.y });
+      out.set(p.id, 0);
+    }
+  }
   for (const p of order) {
+    if (out.has(p.id)) continue;
     const l = p.x - p.w / 2;
     const r = p.x + p.w / 2;
     let b = p.y;
