@@ -233,16 +233,17 @@ registerScreen((h: HomeHost) => {
     render(_n, _arg) {
       if (!intercomOk(h)) return html`${h.head('אינטרקום', '')}${h.empty('lock', 'המסך הזה לא זמין', 'מנהל הבית לא הפעיל אותו עבורך. אפשר לבקש ממנו.')}`;
       const ts = tabs();
-      if (!ts.some(([v]) => v === st.tab)) st.tab = 'calls';
-      const sg = ts.length > 1 ? h.seg('icTab', ts, st.tab, 'תצוגה') : nothing;
-      if (st.tab === 'guests') {
+      // a deep link to a tab that is not offered (yet: the guests load after the first paint) shows the calls, without forgetting the tab
+      const tab = ts.some(([v]) => v === st.tab) ? st.tab : 'calls';
+      const sg = ts.length > 1 ? h.seg('icTab', ts, tab, 'תצוגה') : nothing;
+      if (tab === 'guests') {
         const live = st.guests.filter((g) => guestState(g).live);
         const pg = paged(live, h.phone ? 3 : 4, h.pg('gst'));
         return html`${h.headT('אורחים', live.length ? 'קוד זמני לדלת, לשעות שתבחרו' : 'נותנים לאורח קוד זמני לדלת', sg, html`${h.pager('gst', pg.pages)}<button class="hbtn strong" data-act="guestNew" ?disabled=${!st.doors.length}>${hi('guest')}<span class="bt">הזמן אורח</span></button>`)}
           <div class="alert-list">${pg.items.length ? pg.items.map((g) => { const s = guestState(g); return html`<div class="tile arow grow" data-guest=${g.id}><span class="ai" data-tone=${s.tone} style="background:var(--cs);color:var(--ct)">${hi('key')}</span><span class="at"><b class="clamp1">${g.visitor.name ?? 'אורח'}</b><span class="muted clamp2 gw">${g.doors.map((x) => x.name).join(', ')} · <span class="num">${dm(g.valid_from)}</span></span><span class="dst" data-tone=${s.tone}><i class="dot"></i><span class="clamp1">${s.text}</span></span></span><span class="row-acts"><button class="hbtn" data-act="guestShow" data-id=${g.id}>${hi('key')}<span class="bt">פרטים</span></button><button class="rb" data-act="guestDelAsk" data-id=${g.id} aria-label=${'בטל את ההזמנה של ' + (g.visitor.name ?? 'האורח')}>${hi('del')}</button></span></div>`; })
             : h.empty('guest', st.doors.length ? 'אין אורחים מוזמנים' : 'אין דלת שאפשר להזמין אליה', st.doors.length ? 'מזמינים אורח, בוחרים דלת ושעות, והוא מקבל קוד זמני לטלפון.' : 'מנהל הבית צריך לאפשר לך להזמין אורחים לדלת.')}</div>`;
       }
-      if (st.tab === 'people') {
+      if (tab === 'people') {
         const pg = paged(st.people, h.phone ? 4 : 6, h.pg('ppl'));
         const until = (p: Person) => (!p.active ? 'לא פעיל' : p.valid_until ? `עד ${new Date(p.valid_until).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric', timeZone: 'Asia/Jerusalem' })}` : 'קבוע');
         const doors = (p: Person) => { const n = p.stations.filter((s) => s.enabled).reduce((a, s) => a + Math.max(1, s.doors.length), 0); return n === 0 ? 'אין דלתות' : n === 1 ? 'דלת אחת' : `${n} דלתות`; };
