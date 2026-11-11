@@ -30,7 +30,9 @@ log = logging.getLogger("smplwise.media_reach")
 OK_REFRESH_S = 60.0  # reachable: re-probe only when no call reached go2rtc for this long
 BACKOFF_BASE_S = 10.0  # unreachable: the first re-probe after this, then doubling ...
 BACKOFF_MAX_S = 60.0  # ... up to this
-ATTENTION_AFTER_S = 300  # the administrators' notice (system.health "video_service") once unreachable this long - the policy's after_s
+# the administrators' notice (system.health "video_service") once unreachable this long. HEALTH-GO2RTC-FOLLOWUP-2431 (owner 11.11): the default
+# of the administrator setting media.video_notice_after_min (15 minutes; services/video_services.notice_after_min), no longer the policy's 300 s
+ATTENTION_AFTER_S = 900
 
 REACHABLE, UNREACHABLE, NOT_CONFIGURED, UNKNOWN = "reachable", "unreachable", "not_configured", "unknown"
 
@@ -60,6 +62,9 @@ class Reach:
             self.last_contact: float | None = None  # wall clock of the last outcome of either kind
             self.next_probe_at = 0.0
             self.probes = 0
+            # HEALTH-GO2RTC-FOLLOWUP-2431: counts outcomes; tick() compares it, not last_contact - on Windows two outcomes within one
+            # clock tick (~15 ms) carry the same time.time(), and an answer was then taken for "no outcome" (a flaky test, a wrong backoff)
+            self.contacts = 0
 
     # ------------------------------------------------------------ outcomes
 
@@ -71,6 +76,7 @@ class Reach:
                     log.info("video service reachable again after %d failed contacts", self.failures)
                 self.state, self.since = REACHABLE, now
             self.last_ok_at = self.last_contact = now
+            self.contacts += 1
             self.failures = 0
             self.next_probe_at = now + OK_REFRESH_S
 
@@ -82,6 +88,7 @@ class Reach:
                 self.state, self.since = UNREACHABLE, now
             self.failures += 1
             self.last_error, self.last_error_at, self.last_contact = error, now, now
+            self.contacts += 1
             self.next_probe_at = now + self.backoff_s()
 
     def backoff_s(self) -> float:
@@ -108,13 +115,13 @@ class Reach:
             from .go2rtc import Go2rtc
 
             self.probes += 1
-            before = self.last_contact
+            before = self.contacts
             try:
                 Go2rtc(settings).info()  # its outcome is recorded by the client itself (any answer = reachable)
             except Exception:  # noqa: BLE001 - a probe never raises
                 pass
             with self._lock:
-                if self.last_contact == before:  # neither an answer nor a connection failure (a slow answer): try again later
+                if self.contacts == before:  # neither an answer nor a connection failure (a slow answer): try again later
                     self.next_probe_at = (time.time() if now is None else now) + BACKOFF_BASE_S
             return True
         finally:

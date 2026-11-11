@@ -45,6 +45,8 @@ import { localSafetyOn, safetyBody, scopeFromSetting } from '../api/backup-offbo
 import { KIND_LABEL, TABLE_LABEL, backupDownloadUrl, createBackup, deleteBackup, fmtBytes, getMeterBackup, listBackups, restoreBackup, setMeterBackup, uploadBackup, type BackupEntry, type MeterBackupSetting } from '../api/backup';
 import '../components/sw-dialog';
 import { STATUS_KIND, STATUS_LABEL, fmtUptime, healthReport, type HealthReport } from '../api/health';
+import { NOTICE_AFTER_CHOICES, noticeAfterLabel, noticeAfterValue } from '../api/video-services';
+import '../components/sw-video-service-picker';
 import { applyWiskeyUi, applyWiskeyHidden, applySnapshotHidden, type WiskeyScreen } from '../shell/nav';
 import { setInstallWiskeyView } from '../wiskey/wiskey-prefs';
 import { getSkinsStatus, runSkinsTest, type SkinsStatus, type SkinsTestResult } from '../api/skins';
@@ -1219,11 +1221,20 @@ export class SystemDiagnostics extends LitElement {
           <sw-field class="ctl"><select data-set-fast-network ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('server.fast_network', (e.target as HTMLSelectElement).value)}>
             <option value="false" ?selected=${String(this.value('server.fast_network') ?? 'false') !== 'true'}>כבוי</option><option value="true" ?selected=${String(this.value('server.fast_network') ?? 'false') === 'true'}>פעיל</option>
           </select></sw-field></div>
+        <div class="row" data-set-video-notice-row><span class="lbl">התראה על שירות וידאו לא זמין<span class="muted">כמה זמן שירות הווידאו לא עונה לפני שמנהלי המערכת מקבלים התראה. הפסקה קצרה (הפעלה מחדש של השירות) לא שולחת התראה</span></span>
+          <sw-field class="ctl"><select data-set-video-notice-after ?disabled=${!api || !this.canEdit} @change=${(e: Event) => this.set('media.video_notice_after_min', Number((e.target as HTMLSelectElement).value))}>
+            ${NOTICE_AFTER_CHOICES.map((m) => html`<option value=${m} ?selected=${noticeAfterValue(this.value('media.video_notice_after_min')) === m}>אחרי ${noticeAfterLabel(m)}</option>`)}
+          </select></sw-field></div>
         ${this.renderSaveRow({ tab: 'media', disabled: !dirty || this.busy || !api, onSave: () => this.save() })}
         ${!api ? html`<div class="muted">נתוני הדגמה: ההגדרות נשמרות רק מול השרת.</div>` : nothing}
       </sw-card>
       ${NVR ? nothing : html`<system-timeline-colors></system-timeline-colors>`}
       ${this.renderSkins()}
+      <sw-card heading="שירות וידאו" subheading="שירותי הווידאו שנמצאו בהתקנה, מצבם, ובאיזה מהם המערכת משתמשת" data-video-services-card>
+        ${!api || !this.canEdit
+          ? html`<div class="muted">${api ? 'נדרשת הרשאת מנהל מערכת.' : 'נתוני הדגמה.'}</div>`
+          : html`<sw-video-service-picker @video-service-changed=${() => this.loadMedia()}></sw-video-service-picker>`}
+      </sw-card>
       <sw-card heading="go2rtc" subheading="זרמים של המוצר בשרת החיצוני (קריאה); זרמים זרים אינם מוצגים ואינם משתנים">
         ${!api || !this.canEdit
           ? html`<div class="muted">${api ? 'נדרשת הרשאת מנהל מערכת.' : 'נתוני הדגמה.'}</div>`

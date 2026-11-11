@@ -24,6 +24,9 @@ owner answers of 2026-10-03):
   * `GET  /backups`, `POST /core/stop`, `POST /core/start`   WISKEY-MANAGED-INSTALL-2382: the owner-started WisKey run
                                         (services/wiskey_managed_install.py) reads the backup list (never creates, restores or downloads
                                         one) and stops / starts the core around the verified component swap. No body on any of the three.
+  * `GET  /addons`, `GET /addons/{addon}/info`   HEALTH-GO2RTC-FOLLOWUP-2431: READ which installed add-ons are a go2rtc video service
+                                        (services/video_services.py). `{addon}` must be one of the go2rtc slugs the last listing showed
+                                        (remember_video_addons), never this add-on; no body, no other method on such a path.
 
 Security review of 2026-10-04: the update slug must equal the slug the infrastructure reported for THIS add-on (`GET /addons/self/info`,
 remembered by `send`), so no other add-on (`core_ssh` ...) can ever be addressed; before that read no update call is possible.
@@ -74,6 +77,8 @@ P_DISCOVERY_ITEM = "/discovery/{uuid}"
 P_BACKUPS = "/backups"            # WISKEY-MANAGED-INSTALL-2382: read the platform's backup list (a recent full backup is required)
 P_CORE_STOP = "/core/stop"        # WISKEY-MANAGED-INSTALL-2382: stop the core before the WisKey component swap
 P_CORE_START = "/core/start"      # WISKEY-MANAGED-INSTALL-2382: start it again after the swap / the rollback
+P_ADDONS = "/addons"              # HEALTH-GO2RTC-FOLLOWUP-2431: READ the installed add-ons list (services/video_services.py: which are go2rtc)
+P_ADDON_INFO = "/addons/{addon}/info"  # HEALTH-GO2RTC-FOLLOWUP-2431: READ one listed go2rtc add-on's info (hostname, state, version, image)
 
 # The whole outgoing surface of the add-on towards its infrastructure. Anything else raises ProbeRefused before a socket is opened.
 ALLOWED: frozenset[tuple[str, str]] = frozenset({
@@ -84,6 +89,7 @@ ALLOWED: frozenset[tuple[str, str]] = frozenset({
     ("POST", P_DISCOVERY),                                                   # the bridge announcement (services/ha_client.py)
     ("DELETE", P_DISCOVERY_ITEM),                                            # BRIDGE-STALE-DISCOVERY-2383: Arx's own stale announcement
     ("GET", P_BACKUPS), ("POST", P_CORE_STOP), ("POST", P_CORE_START),        # WISKEY-MANAGED-INSTALL-2382: the owner-started WisKey run
+    ("GET", P_ADDONS), ("GET", P_ADDON_INFO),                                 # HEALTH-GO2RTC-FOLLOWUP-2431: which video services run (read only)
 })
 # The calls that carry a JSON body, with the exact keys they may carry. Every other call sends no body.
 BODY_KEYS: dict[tuple[str, str], frozenset[str]] = {
@@ -94,6 +100,15 @@ BODY_KEYS: dict[tuple[str, str], frozenset[str]] = {
 }
 SLUG_RE = re.compile(r"[a-z0-9_]{1,64}")
 _SELF_SLUG: str | None = None    # the slug GET /addons/self/info last reported for this add-on (never stored, never returned)
+# HEALTH-GO2RTC-FOLLOWUP-2431: the slugs the last `GET /addons` listing showed as go2rtc add-ons (services/video_services.is_go2rtc). Only
+# these may be read with GET /addons/{addon}/info - never another add-on, never this one; no other method on an `{addon}` path exists.
+_LISTED_VIDEO: set[str] = set()
+
+
+def remember_video_addons(slugs: Any) -> None:
+    """Keep the go2rtc add-on slugs of the last listing (SLUG_RE only, at most 16)."""
+    _LISTED_VIDEO.clear()
+    _LISTED_VIDEO.update([s for s in (slugs or []) if isinstance(s, str) and SLUG_RE.fullmatch(s)][:16])
 
 # The add-on options (config.yaml `schema`); a test keeps this equal to the manifest. Kinds: str (required string), str? (string or
 # null), port, bool, bool?, remote_path, log_level, cleared (a deprecated `password?` option: only "" / null may be written).
@@ -207,10 +222,18 @@ def remember_self(data: dict[str, Any] | None) -> None:
     _SELF_SLUG = slug if isinstance(slug, str) and SLUG_RE.fullmatch(slug) else None
 
 
-def check_allowed(method: str, path: str, body: dict[str, Any] | None = None, slug: str | None = None, uuid: str | None = None) -> str:
+def check_allowed(method: str, path: str, body: dict[str, Any] | None = None, slug: str | None = None, uuid: str | None = None,
+                  addon: str | None = None) -> str:
     """The allow-list, the body shape, the slug and the discovery uuid, checked BEFORE anything is opened. Returns the concrete path."""
     if (method, path) not in ALLOWED:
         raise ProbeRefused(f"{method} {path}")
+    if "{addon}" in path:  # HEALTH-GO2RTC-FOLLOWUP-2431: a read of one listed go2rtc add-on, nothing else
+        if (body is not None or slug is not None or uuid is not None or not isinstance(addon, str) or not SLUG_RE.fullmatch(addon)
+                or addon not in _LISTED_VIDEO or addon == _SELF_SLUG):
+            raise ProbeRefused(f"{method} {path}: addon")
+        return path.replace("{addon}", addon)
+    if addon is not None:
+        raise ProbeRefused(f"{method} {path}: addon")
     keys = BODY_KEYS.get((method, path))
     if body is not None:
         if keys is None or not isinstance(body, dict) or not set(body) <= keys:
@@ -241,9 +264,9 @@ def check_allowed(method: str, path: str, body: dict[str, Any] | None = None, sl
 
 
 def send(method: str, path: str, *, base: str, token: str, transport: Any = None, body: dict[str, Any] | None = None, slug: str | None = None,
-         timeout: float | None = None, uuid: str | None = None) -> Reply:
+         timeout: float | None = None, uuid: str | None = None, addon: str | None = None) -> Reply:
     """The single place a request to the infrastructure is made. `path` is an ALLOWED template. Never raises for a network or HTTP problem."""
-    concrete = check_allowed(method, path, body, slug, uuid)
+    concrete = check_allowed(method, path, body, slug, uuid, addon)
     import httpx
 
     try:
@@ -268,12 +291,14 @@ def send(method: str, path: str, *, base: str, token: str, transport: Any = None
     return Reply("ok", r.status_code, data)
 
 
-def call(settings: Settings, method: str, path: str, *, body: dict[str, Any] | None = None, slug: str | None = None, timeout: float | None = None) -> Reply:
+def call(settings: Settings, method: str, path: str, *, body: dict[str, Any] | None = None, slug: str | None = None, timeout: float | None = None,
+         addon: str | None = None) -> Reply:
     """One allow-listed request with this module's seams (BASE_URL / TOKEN / TRANSPORT)."""
-    check_allowed(method, path, body, slug)
+    check_allowed(method, path, body, slug, addon=addon)
     if not configured(settings):
         return Reply("unreachable")
-    return send(method, path, base=BASE_URL or DEFAULT_BASE, token=_token() or "", transport=TRANSPORT, body=body, slug=slug, timeout=timeout)
+    return send(method, path, base=BASE_URL or DEFAULT_BASE, token=_token() or "", transport=TRANSPORT, body=body, slug=slug, timeout=timeout,
+                addon=addon)
 
 
 @dataclass(frozen=True)

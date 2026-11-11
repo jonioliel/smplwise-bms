@@ -65,6 +65,8 @@ export interface ProductSettings {
   'media.wall_profile': 'sub' | 'main';
   /** Owner 2026-10-01: 'true' shows the live player's notes about how it plays (banner, remote-policy hint, "מנגן דרך" line); default 'false'. */
   'media.video_notices'?: 'true' | 'false';
+  /** HEALTH-GO2RTC-FOLLOWUP-2431 (owner 11.11): minutes the video service must stay unreachable before the administrators' notice - 1 | 5 | 15 | 30 | 60, default 15. */
+  'media.video_notice_after_min'?: number;
   /** LIVE-H265-2341: an H.265 stream this browser cannot decode - auto (the other profile, else transcoded) | sub | transcode | off. */
   'media.h265_policy'?: 'auto' | 'sub' | 'transcode' | 'off';
   /** LIVE-H265-2341: distinct transcoded streams at once (0 = never). */

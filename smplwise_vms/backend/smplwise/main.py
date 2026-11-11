@@ -516,6 +516,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # TKSECRETS2: the in-app secrets store (go2rtc / WisKey / OpenAI / push relay secrets): the one-time move of legacy add-on
     # options into it, then its values overlaid - before the NVR overlay, so every recorder's settings inherit them
     settings = secrets_store.apply_at_startup(app.state.db, settings)
+    from .services import video_services
+
+    # HEALTH-GO2RTC-FOLLOWUP-2431: the administrator's choice of video service takes precedence over the add-on option go2rtc_url (overlaid
+    # before the NVR overlay, so every recorder inherits it); the option's own value is kept for "back to the add-on option"
+    settings, app.state.go2rtc_option_url = video_services.apply_at_startup(app.state.db, settings)
     from .services import wiskey_camera
 
     wiskey_camera.apply_at_startup(app.state.db, settings)  # TKWISECRYPT: seal any plaintext per-station WisKey camera password
@@ -762,6 +767,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import app_secrets as app_secrets_router  # TKSECRETS2: the in-app secrets store (its own line)
 
     app.include_router(app_secrets_router.router, prefix=api, tags=["settings"])
+    from .routers import video_services as video_services_router  # HEALTH-GO2RTC-FOLLOWUP-2431: which go2rtc services run, and the choice
+
+    app.include_router(video_services_router.router, prefix=api, tags=["settings"])
     from .routers import recorders as recorders_router
 
     app.include_router(recorders_router.router, prefix=api, tags=["nvr"])  # CR-024: recorders (multi-NVR) - list, add, edit, remove, connection, health
@@ -1242,11 +1250,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             while True:
                 await asyncio.sleep(30)
                 try:
-                    await run_in_threadpool(janitor_tick, app.state.db, settings)
-                    if settings.go2rtc_url:  # HEALTH-GO2RTC-2430: the light reachability check (a probe only when due, backoff-bounded)
+                    # HEALTH-GO2RTC-FOLLOWUP-2431: the LIVE settings - a video service chosen in Settings applies to the playback
+                    # leases and orphan sweep (stream deletes on the right service) and to the reachability probe without a restart
+                    live = app.state.settings
+                    await run_in_threadpool(janitor_tick, app.state.db, live)
+                    if live.go2rtc_url:  # HEALTH-GO2RTC-2430: the light reachability check (a probe only when due, backoff-bounded)
                         from .services import media_reach
 
-                        await run_in_threadpool(media_reach.REACH.tick, settings)
+                        await run_in_threadpool(media_reach.REACH.tick, live)
                     if not ha_only and autosync.PERIODIC.due():
                         await discover("periodic")
                 except Exception as exc:  # never let the janitor die

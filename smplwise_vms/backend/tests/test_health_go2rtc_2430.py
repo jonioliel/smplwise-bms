@@ -172,16 +172,17 @@ def w(settings, clock) -> World:  # noqa: F811
     return World(settings, clock)
 
 
-def test_admin_notice_after_five_minutes_and_resolved_on_recovery(w, clock):  # noqa: F811
+def test_admin_notice_after_fifteen_minutes_and_resolved_on_recovery(w, clock):  # noqa: F811
+    # HEALTH-GO2RTC-FOLLOWUP-2431 (owner 11.11, answer 1): 15 minutes by default (was the policy's 5); the delay itself is a setting
     def run(on: bool):
         summary = {"status": "error" if on else "ok", "items": [{"id": "video_service", "status": "error", "label": "x"}] if on else []}
         with w.db.connection() as conn:
             return notify_sources.health_tick(conn, summary, {"known": True, "none": False, "age_s": 3600.0}, clock.now)
 
     run(True)
-    clock.advance(seconds=290)
+    clock.advance(seconds=890)
     run(True)
-    assert w.rows("system.health") == [], "held for the policy's 5 minutes: a short go2rtc restart makes no row"
+    assert w.rows("system.health") == [], "held for the default 15 minutes: a short go2rtc restart makes no row"
     clock.advance(seconds=20)
     run(True)
     rows = w.rows("system.health")
@@ -189,7 +190,7 @@ def test_admin_notice_after_five_minutes_and_resolved_on_recovery(w, clock):  # 
     assert "go2rtc" not in rows[0]["body"] and w.recipients(rows[0]["id"]) == {"joni"}
     run(False)
     assert {r["subject_id"]: r["state"] for r in w.rows("system.health")} == {"video_service": "resolved"}
-    assert media_reach.ATTENTION_AFTER_S == 300
+    assert media_reach.ATTENTION_AFTER_S == 900
 
 
 # ---------------------------------------------------------------- the live socket says why before it closes
