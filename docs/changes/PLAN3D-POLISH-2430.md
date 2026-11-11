@@ -150,3 +150,18 @@ Revert the branch's commits; no data, setting or migration is involved.
 4. איחוד הרהיטים לחיסכון בציור (סעיף 9) לא נעשה בגלל עבודת הריאליזם שרצה במקביל.
    א. לעשות אחרי שענף הריאליזם ימוזג
    ב. לוותר
+
+## Entry check 5b127e991 (RED) - fixes
+
+`entry_pilot-PLAN3D-POLISH-2430_5b127e991.md`: 3 failures outside the quarantine, plus the expired `pixel-wiskey-stations.spec.ts:87`
+quarantine (fixed on main by another branch; not touched here). The same two 3D failures came up on `pilot/PLAN3D-REALISM2-2433`
+(which merges this branch) and were fixed the same way there.
+
+- `unit-plan-3d-view.spec.ts:201` [mobile]: the floor point `[1.2, 0, 4.4]` lies 0.6 m from the lobby's south wall; with this
+  branch's live framing the top camera stands over the free part of the stage, and on the narrow mobile stage the 3 m wall leans
+  over the point, so the click correctly hit the wall `dw0`. The test now clicks an open floor point (`[2.55, 0, 2.85]`). e6a21b078.
+- `pixel-wall-plan.spec.ts:54` [desktop]: the live schematic band shows this branch's room name plates and framing - a legitimate
+  change; baseline re-taken on the runner, byte-identical to the realism2 one. 7be31c888.
+- `tests/test_body_limit.py::test_a_cut_multipart_upload_leaves_the_temp_dir_empty`: unrelated to this branch (no backend change
+  here); treated as a flake, left to the re-run.
+Proof without `-u` on the runner at 7be31c888: `pixel-wall-plan` + `unit-plan-3d-view` (3 projects), 32 passed, 16 skipped, 0 failed.
