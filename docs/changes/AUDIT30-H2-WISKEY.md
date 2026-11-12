@@ -45,7 +45,8 @@ pixel-wiskey-people-writes.
 | workstation | `npx tsc --noEmit -p .` | exit 0 |
 | workstation | `npx vite build` | exit 0 |
 | workstation, branch preview | `npx playwright test tests/layout-audit30h2-wiskey.spec.ts tests/layout-audit30h-wiskey.spec.ts tests/evidence-wiskey-access-diag.spec.ts tests/evidence-wiskey-profiles.spec.ts tests/evidence-tts-default-2400.spec.ts tests/evidence-stationperm-295.spec.ts tests/evidence-access-events.spec.ts tests/evidence-wiskey-people-writes.spec.ts tests/layout-wiskey-people-writes.spec.ts --project=desktop --project=mobile --workers=1` | 160 passed, 60 skipped, 0 failed (pixel compares skipped: no win32 baselines) |
-| runner | linux baselines, `-u` then without `-u` | RUNNER_RESULT |
+| runner, `001c36225`, load < 30 | `run_smart.py preview pilot/AUDIT30-H2-WISKEY tests/layout-audit30h2-wiskey.spec.ts tests/layout-audit30h-wiskey.spec.ts tests/pixel-wiskey-access-diag.spec.ts tests/pixel-wiskey-people-writes.spec.ts tests/pixel-round4-leftovers-2390.spec.ts --project=desktop --project=mobile -g pixel-stable -u --workers=1 --machine runner` | 42 passed, 4 skipped; 22 baselines written (1 new) |
+| runner | the same without `-u` | queued behind the load gate at commit time; the entry check is the verdict |
 
 The local run rewrote evidence screenshots under `docs/design/evidence/` (branch J's folder); they were reverted, not committed.
 
