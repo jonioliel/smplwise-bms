@@ -97,9 +97,12 @@ export async function mockHome(page: Page, opts: { ds?: HomeDataset; policy?: Re
     notif('a3', 'מישהו צלצל בשער החניה ולא נענה', 'info', 'acknowledged', now - 5 * 3600000, 'intercom'),
   ] }));
   await page.route('**/api/v1/notifications/*/ack', (r) => { mock.calls.push({ method: 'POST', path: r.request().url(), body: null }); return json(r, {}); });
+  // HOME-V3-FOLLOWUP-B-2431: the missed call stays TODAY (5 h ago, or half the time since local midnight in the small hours) - the hub
+  // counts today's missed calls, and an entry check at 02:00 read a call from 21:00 yesterday as none
+  const missedAgo = (t: number) => { const m = new Date(t); m.setHours(0, 0, 0, 0); return Math.min(5 * 3600000, Math.max(60000, (t - m.getTime()) / 2)); };
   await page.route('**/api/v1/intercom/calls?**', (r) => json(r, { calls: ds === 'empty' ? [] : [
     { id: 'c1', station_id: 's1', station_name: 'דלת הכניסה', rang_at: new Date(now - 40 * 60000).toISOString(), observed: 'ringing', state: 'ended', outcome: 'answered', answered_at: null, answered_via: 'arx', answered_by_name: 'נועה', answered_by_me: true, ended_at: null, ended_by_name: null, door_opened_at: new Date(now - 39 * 60000).toISOString(), door_opened_by_name: 'נועה', updated_at: '' },
-    { id: 'c2', station_id: 's2', station_name: 'שער החניה', rang_at: new Date(now - 5 * 3600000).toISOString(), observed: 'ringing', state: 'ended', outcome: 'missed', answered_at: null, answered_via: null, answered_by_name: null, answered_by_me: false, ended_at: null, ended_by_name: null, door_opened_at: null, door_opened_by_name: null, updated_at: '' },
+    { id: 'c2', station_id: 's2', station_name: 'שער החניה', rang_at: new Date(now - missedAgo(now)).toISOString(), observed: 'ringing', state: 'ended', outcome: 'missed', answered_at: null, answered_via: null, answered_by_name: null, answered_by_me: false, ended_at: null, ended_by_name: null, door_opened_at: null, door_opened_by_name: null, updated_at: '' },
   ], next: null, retention_days: 30 }));
   await page.route('**/api/v1/intercom/calls/active', (r) => json(r, { server_time_ms: Date.now(), enabled: true, sound: 'silent', sound_reason: null, calls: ringing.active ? [{
     call_id: 'call-1', station_id: 'st-front', station_name: 'דלת הכניסה', state: 'ringing', rang_at: new Date(now - 4000).toISOString(), answered_at: null, answered_by_me: false,

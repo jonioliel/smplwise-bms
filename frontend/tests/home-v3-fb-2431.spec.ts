@@ -115,15 +115,18 @@ test.describe('HOME-V3-FOLLOWUP-B-2431 wall calendar event and ticket photos', (
     await expect(home(page).locator('.toast2').filter({ hasText: 'התמונה לא צורפה' })).toBeVisible();
   });
 
-  test('an open ticket keeps "add note" only, and the module off leaves no ticket action', async ({ page }) => {
+  test('an open ticket keeps "add note" only', async ({ page }) => {
     await open(page, 'tickets');
     await home(page).locator('[data-act="p2Ticket"]').first().click();
     const sheet = home(page).locator('[data-sheet="ticket"]');
     await expect(sheet.locator('[data-act="p2TkNote"]')).toHaveCount(1);
     await expect(sheet.locator('.tkpick, input[type="file"]')).toHaveCount(0);
-    await page.unrouteAll({ behavior: 'ignoreErrors' });
+  });
+
+  test('the tickets module off leaves no ticket action and no photo picker', async ({ page }) => {
     await open(page, 'tickets', { features: { tickets: { on: false, create: false, view: false } } });
-    await expect(home(page).locator('[data-act="p2TkNew"], .tkpick')).toHaveCount(0);
+    await expect(home(page).locator('[data-act="p2TkNew"], .tkpick, input[type="file"]')).toHaveCount(0);
+    await expect(home(page).locator('.empty h2')).toHaveText('המסך הזה לא זמין');
   });
 
   for (const [size, w, h] of [['desktop', 1280, 800], ['tablet', 1024, 768], ['phone', 390, 844]] as [string, number, number][]) {
