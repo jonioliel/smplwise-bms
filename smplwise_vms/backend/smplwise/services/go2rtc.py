@@ -202,6 +202,16 @@ def _fold_codec(name: str) -> str:
     return {"hevc": "h265", "avc": "h264", "jpeg": "mjpeg"}.get(n, n)
 
 
+def _reached(_response: httpx.Response) -> None:
+    """HEALTH-GO2RTC-2430: any HTTP answer from go2rtc - whatever its status - proves it is reachable (services/media_reach.py)."""
+    from .media_reach import REACH
+
+    REACH.record_ok()
+
+
+_REACH_HOOKS = {"response": [_reached]}
+
+
 class Go2rtc:
     def __init__(self, settings: Settings):
         if not settings.go2rtc_url:
@@ -210,9 +220,13 @@ class Go2rtc:
         self.auth = (settings.go2rtc_user, settings.go2rtc_password) if settings.go2rtc_user else None
 
     def _client(self) -> httpx.Client:
-        return httpx.Client(base_url=self.base, auth=self.auth, timeout=6.0, verify=_verify())
+        return httpx.Client(base_url=self.base, auth=self.auth, timeout=6.0, verify=_verify(), event_hooks=_REACH_HOOKS)
 
     def _wrap(self, exc: httpx.HTTPError, what: str) -> ApiError:
+        from .media_reach import REACH, is_connection_failure
+
+        if is_connection_failure(exc):  # HEALTH-GO2RTC-2430: /health says the video service is down, not just "configured"
+            REACH.record_failure(type(exc).__name__)
         return ApiError(503, "media_unavailable", "go2rtc אינו זמין כרגע.", retryable=True, details={"op": what, "error": type(exc).__name__})
 
     def info(self) -> dict:
@@ -254,7 +268,7 @@ class Go2rtc:
         if not name.startswith(STREAM_PREFIX) or name.startswith(HA_STREAM_PREFIX) or not NAME_RE.match(name):
             raise ValueError("refusing to probe a stream outside the smplwise_ namespace")
         try:
-            with httpx.Client(base_url=self.base, auth=self.auth, timeout=timeout_s, verify=_verify()) as c:
+            with httpx.Client(base_url=self.base, auth=self.auth, timeout=timeout_s, verify=_verify(), event_hooks=_REACH_HOOKS) as c:
                 r = c.get("/api/streams", params={"src": name, "video": "all"})
         except httpx.HTTPError as exc:
             raise self._wrap(exc, "probe") from exc
@@ -313,7 +327,7 @@ class Go2rtc:
         body = bytearray()
         too_large = False
         try:
-            with httpx.Client(base_url=self.base, auth=self.auth, timeout=20.0, verify=_verify()) as c:
+            with httpx.Client(base_url=self.base, auth=self.auth, timeout=20.0, verify=_verify(), event_hooks=_REACH_HOOKS) as c:
                 with c.stream("GET", "/api/frame.jpeg", params=params) as r:
                     status = r.status_code
                     if status == 200:

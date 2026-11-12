@@ -1,5 +1,54 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.43.2 (pilot) - Plan wizard: a floor plan picture to a 3D floor; wall panel calendar event, ticket photos
+
+### חדש - New
+- אשף "תוכנית חדשה מתמונה": מתמונה או PDF של תוכנית קומה לקומה בתלת־ממד עם המכשירים שלה, בשבעה שלבים - העלאה, זיהוי (מקומי, שום דבר לא יוצא מההתקנה), בדיקה לפי רמת ביטחון, חדרים, סגנון, מכשירים ומצלמות, וסיום. כל מה שהאשף יוצר נשאר ניתן לעריכה בסטודיו התוכניות, ושום דבר לא מגיע למפה לפני הפרסום. "חזרה" שומרת את התוכנית שהועלתה, ואפשר להמשיך טיוטה של האשף שלא הסתיימה. ההגדרות (סף קבלה אוטומטית, ערכת סגנון, הצבה אוטומטית) אישיות, בכפתור ההגדרות של האשף. - The "new plan from a picture" wizard: from a picture or PDF of a floor plan to a 3D floor with its devices, in seven steps - upload, detection (local, nothing leaves the installation), review by confidence, rooms, style, devices and cameras, and done. Everything the wizard makes stays editable in the Plan Studio, and nothing reaches the map before it is published. "Back" keeps the uploaded plan, and an unfinished wizard draft can be resumed. Its settings (auto-accept threshold, style kit, automatic placement) are personal, under the wizard's settings button.
+- מסך קיר: אפשר להוסיף אירוע ליומן המשפחתי, ורק את זה (בלי הזמנת חדרים, ביטול או משיכה); השרת מסרב לכל כתיבה אחרת ליומן ממסך קיר. - Wall panel: it can add an event to the family calendar, and only that (no room booking, cancelling or withdrawing); the server refuses every other calendar write from a wall panel.
+- פנייה חדשה בממשק הביתי: אפשר לצרף עד 3 תמונות (JPEG / PNG, עד 8MB), רק לפנייה שפתחתי ורק בדקות הראשונות; התמונות נשמרות בלי נתוני מיקום. - A new ticket in the home interface: up to 3 photos can be attached (JPEG / PNG, up to 8 MB), only to a ticket I opened and only in its first minutes; photos are stored without location data.
+
+### תוקן - Fixed
+- בדיקות בלבד, ללא שינוי במוצר: צילום המסך של הגדרות הדלת בעמדות WisKey יציב (סיבת השורש תוקנה) ובדיקת העלאה קטועה לא נכשלת עוד תחת עומס. - Tests only, no product change: the WisKey stations door-settings screenshot is stable (root cause fixed) and the cut-upload test no longer fails under load.
+
+### התקנה - Install
+- אין מיגרציה חדשה, אין עדכון לגשר ואין צורך בהפעלה מחדש של מערכת הבית. - No new migration, no bridge update and no home-system restart.
+
+## 2.43.1 (pilot) - Home interface v3 phase 2: family and building; realistic 3D map
+
+### חדש - New
+- ממשק ביתי, משפחה ובניין: מי בבית (ואפשרות להסתתר מהאחרים), יומן משפחתי והוספת אירוע, הזמנת חדרים משותפים, לוח הודעות עם "קראתי", אוטובוסים קרובים, פניות שירות (רק הפניות שפתחתי), מזג אוויר, ההתראות שלי ו"לא להפריע" (התראות אזעקה, דלתות ובטיחות תמיד עוברות), תזמוני סצנות וסצנה חדשה מהמצב עכשיו. כל מסך מופיע רק כשהמודול שלו פעיל ויש לאדם הרשאה. - Home interface, family and building: who is home (and hiding yourself from the others), the family calendar and adding an event, booking shared rooms, the notice board with "read", nearby buses, service tickets (only the ones I opened), weather, my notifications and "do not disturb" (alarm, door and safety notices always come through), scene schedules and a new scene from the current state. Each screen appears only when its module is on and the person holds its permission.
+- הקלטות, יומן הבית ואינטרקום הם עכשיו קטגוריות נפרדות ברשימה של כל אדם (פעילות כברירת מחדל); כשמנהל הבית מסתיר אחת מהן, גם השרת מסרב לה. - Recordings, the house log and the intercom are now their own categories in each person's list (on by default); when the home administrator hides one, the server refuses it too.
+- הזמנת אורחים: מתג למנהל המערכת בדף הממשק הביתי (כבוי בהתקנה). - Guest invitations: a switch for the system administrator on the home interface page (off at install).
+- כרטיס החשבון: "הצג חשבון אחרון" וכפתור לכל חשבון קודם פותחים את קובץ החשבון עצמו (רק חשבון שהונפק, נשלח או שולם). - The bill card: "show latest bill" and a button on every earlier bill open the bill file itself (only an issued, sent or paid bill).
+- מפת התלת־ממד: התוויות על המכשירים אומרות את המצב במילים הנכונות (דלת "פתוחה", "תנועה", טמפרטורה), שמות החדרים קריאים, הקומה ממוסגרת לפי מה שמצויר בה, הלילה קריא יותר, אין קשת שמיים בראש המסך, והמפה חוזרת לבד אחרי אובדן הקשר הגרפי. במחשב חזק המצב האוטומטי מתחיל ב"מציאותי קל". - 3D map: device labels use the right state words (door "open", "motion", temperature), room names are readable, the floor is framed on what it draws, night is easier to read, no sky arc across the top, and the map recovers by itself after a graphics context loss. On a capable computer the automatic quality starts at "realistic lite".
+- מפת התלת־ממד במצב המציאותי: הצללה רכה בפינות ובמגע עם הרצפה, חתך קירות סגור, זכוכית חלונות אמיתית יותר, גוון צבע אחיד, רקע סטודיו שניתן לכוון בהגדרות התלת־ממד, וחומרים משופרים. - 3D map, realistic mode: soft shading in corners and where things meet the floor, closed wall cuts, more lifelike window glass, a consistent colour grade, a studio backdrop adjustable in the 3D settings, and better materials.
+
+### תוקן - Fixed
+- בדיקות בלבד, ללא שינוי במוצר: כשלים בבדיקות הלילה תוקנו - nightly test failures fixed. - Tests only, no product change.
+
+### התקנה - Install
+- מיגרציות 0214 (שעות "לא להפריע") ו־0215 (הקטגוריות החדשות נוספות לרשימות שמנהל הבית קבע בעבר; האינטרקום רק למי שהדלתות היו פעילות אצלו) רצות אוטומטית. - Migrations 0214 (the "do not disturb" hours) and 0215 (the new categories join the lists the home administrator set before; the intercom only where doors were on) run automatically.
+- אין עדכון לגשר ואין צורך בהפעלה מחדש של מערכת הבית. - No bridge update and no home-system restart.
+
+## 2.43.0 (pilot) - Home interface v3: security, intercom, media and house systems
+
+### חדש - New
+- ממשק ביתי, מסך "עוד": כל היכולות הנוספות של הבית במקום אחד, כל אחת עם שורת מצב חיה; מופיעות רק יכולות שהופעלו לאדם ושיש לו הרשאה אליהן. - Home interface, "More" screen: every additional capability of the home in one place, each with a live status line; only capabilities switched on for the person and that they are permitted to use appear.
+- הקלטות בממשק הביתי: מצלמה אחת, יום אחד, ציר זמן פשוט משמאל לימין, "מה קרה כאן" ו"חזרה לחי". - Recordings in the home interface: one camera, one day, a simple left-to-right timeline, "what happened here" and "back to live".
+- יומן הבית: מה קרה בבית ב־7 הימים האחרונים במילים פשוטות (תנועה ואנשים במצלמות, דלתות, צלצול), עם "צפה בהקלטה". - Home diary: what happened at home in the last 7 days in simple words (movement and people at the cameras, doors, the doorbell), with "watch the recording".
+- אינטרקום בממשק הביתי: יומן שיחות, "דבר עם הכניסה", מי רשאי להיכנס (צפייה בלבד) והזמנת אורח עם קוד זמני לדלת - רק לאנשים שמנהל הבית סימן, ורק כשהזמנת אורחים מופעלת במערכת (כבויה כברירת מחדל). הקוד עצמו לא מוצג לעולם למזמין. - Intercom in the home interface: call log, "talk to the entrance", who may come in (view only) and inviting a guest with a temporary door code - only for people the home administrator marked, and only when guest invitations are switched on (off by default). The code itself is never shown to the host.
+- מסך אזעקה חדש: מצב גדול וברור, חיישנים פתוחים, דריכה בלחיצה ואישור, ניטרול עם קוד, ושינוי הקוד האישי. - New alarm screen: a large clear state, open sensors, arming with one tap and a confirmation, disarming with the code, and changing your personal code.
+- מוזיקה ומסכים: מה מתנגן בכל חדר, שליטה, עוצמה, שלט למסך וקיבוץ רמקולים; כריזה בבית לחדרים נבחרים (לא כריזת חירום). - Music and screens: what is playing in each room, controls, volume, a screen remote and speaker groups; a home announcement to chosen rooms (not the emergency announcement).
+- חשבון החשמל ותחזית לסוף התקופה, צריכת מים וחשד לנזילה, מערכות הבית (גנרטור, מעליות, טמפרטורות) ומפת הבית לפי קומות - קריאה בלבד. - The electricity bill with a forecast to the end of the period, water use and a suspected leak, house systems (generator, elevators, temperatures) and a home map by floor - read only.
+- מנהל הבית יכול לקבוע רקע לחדר לכולם; הרקע האישי של אדם גובר, חוץ ממסך קיר שבו הרקע של המנהל תמיד מוצג. - The home administrator can set a room wallpaper for everyone; a person's own wallpaper wins, except on a wall panel where the administrator's always shows.
+
+### תוקן - Fixed
+- שירות הווידאו: כששרת הווידאו לא זמין, המערכת אומרת זאת בבירור - בדיקת התקינות מדווחת "פגום", מסכי החי והנגן מציגים הודעה אחת ברורה וחוזרים לבד כשהשירות חוזר, ומנהלים מקבלים התראה אחרי 5 דקות. קודם הווידאו יכול היה ליפול בשקט. - Video service: when the video server is unavailable the system says so clearly - the health check reports "degraded", the live and player screens show one clear message and recover by themselves when the service returns, and administrators get a notice after 5 minutes. Before, video could go down silently.
+
+### התקנה - Install
+- מיגרציה 0213 רצה אוטומטית (סימון "רשאי להזמין אורחים", כבוי לכולם). שום דבר לא משתנה למשתמשים קיימים עד שהמנהל מפעיל. אין עדכון לגשר ואין צורך בהפעלה מחדש של מערכת הבית. - Migration 0213 runs automatically (the "may invite guests" mark, off for everyone). Nothing changes for existing users until the administrator switches it on. No bridge update and no home-system restart.
+- מי שמנהל הבית קבע לו בעבר רשימת קטגוריות לא יראה את הקטגוריות החדשות עד שיסומנו לו. - A person whose category list the home administrator set before will not see the new categories until they are marked for them.
+
 ## 2.42.1 (pilot) - Home interface settings, faster first screen
 
 ### חדש - New

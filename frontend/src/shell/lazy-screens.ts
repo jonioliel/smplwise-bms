@@ -34,6 +34,7 @@ export const LAZY_SCREENS: Readonly<Record<string, Loader>> = {
   'explore-presence': () => import('../screens/explore-presence'),
   'explore-floors': () => import('../screens/explore-floors'),
   'explore-plan-import': () => import('../screens/explore-plan-import'),
+  'plan-wizard-screen': () => import('../plan-wizard/plan-wizard'), // PLAN3D-R28-WIZARD-2433
   'explore-plan-editor': () => import('../screens/explore-plan-editor'),
   'explore-entities': () => import('../screens/explore-entities'),
   'wiskey-overview': () => import('../screens/wiskey-overview'),

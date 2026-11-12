@@ -231,6 +231,7 @@ LIMITS: list[tuple[frozenset[str], re.Pattern[str], Callable[[Settings], int], s
     (frozenset({"PUT"}), re.compile(rf"/api/v1/notices/promo-slides/{_ID}/image"), _notice_slide_image, "notice_slide_image"),
     (frozenset({"PUT"}), re.compile(rf"/api/v1/notices/boards/{_ID}/photo"), _notice_photo, "notice_photo"),
     (frozenset({"PUT"}), re.compile(rf"/api/v1/home/wallpaper/{_ID}"), _home_wallpaper, "home_wallpaper"),
+    (frozenset({"PUT"}), re.compile(rf"/api/v1/home/room-wallpapers/{_ID}/image"), _home_wallpaper, "home_wallpaper"),  # HOME-V3-P1-2430
     (frozenset({"PUT"}), re.compile(rf"/api/v1/notices/news-sources/{_ID}/logo"), _notice_news_logo, "notice_news_logo"),
     (frozenset({"POST"}), re.compile(r"/api/v1/backups/upload"), _backup_upload, "backup_upload"),
     (frozenset({"POST"}), re.compile(r"/api/v1/cases/bundles/(verify|import)"), lambda _s: _cases_ceiling(), "evidence_bundle"),
@@ -241,6 +242,7 @@ LIMITS: list[tuple[frozenset[str], re.Pattern[str], Callable[[Settings], int], s
     (frozenset({"POST"}), re.compile(r"/api/v1/catalog/import"), _const(CATALOG_IMPORT_MAX), "catalog_import"),
     (frozenset({"POST"}), re.compile(r"/api/v1/csp-report"), _csp_report, "csp_report"),
     (frozenset({"POST"}), re.compile(rf"/api/v1/tickets/{_ID}/attachments"), _ticket_attachment, "ticket_attachment"),
+    (frozenset({"POST"}), re.compile(rf"/api/v1/home/tickets/{_ID}/photos"), _ticket_attachment, "home_ticket_photo"),  # HOME-V3-FOLLOWUP-B-2431
     (frozenset({"POST"}), re.compile(rf"/api/v1/tickets/{_ID}/costs/files"), _ticket_cost_file, "ticket_cost_file"),
     (frozenset({"POST"}), re.compile(rf"/api/v1/tickets/rfqs/{_ID}/attachments"), _rfq_attachment, "rfq_attachment"),
     (frozenset({"POST"}), re.compile(rf"/api/v1/maintenance/tasks/{_ID}/files"), _maintenance_file, "maintenance_file"),
