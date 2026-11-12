@@ -29,6 +29,9 @@ export const elecCss = css`
   sw-button {
     --sw-ctl-h-sm: var(--elec-key-md);
     --sw-ctl-h-md: var(--elec-key-md);
+    /* a skin that draws the key at a fixed height (crystal 34 / 30 px) still gets the hit area: the host is an inline flex box, so its
+       inner button stretches to this height */
+    min-block-size: var(--elec-key-md);
   }
   :host([data-skin='bubble']) {
     --elec-touch: var(--sw-touch-desktop);
