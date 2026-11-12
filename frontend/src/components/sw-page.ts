@@ -9,7 +9,13 @@ import { navigate } from '../router';
  * `backHref` (owner round 4, 1.11/2.6): a drill-down screen reached by clicking into something (a camera, an
  * event, an editor) has no way back except the browser's own back button - invisible in most mobile/kiosk/HA
  * Ingress contexts. Setting it (a bare router path, e.g. "/live/wall", no leading "#") renders an explicit,
- * always-visible back control before the heading. */
+ * always-visible back control before the heading.
+ *
+ * AUDIT30-B2-PAGE-ACTION (design audit round 30, finding 8; owner gate Q5, option א): slot `primary` - the ONE primary action of the
+ * screen ("חדש", "קריאה חדשה"). 768 px and up it sits in the header row at the end of the actions; up to 767 px it floats as one
+ * action above the bottom navigation (52 px pill with its label, or a 52 px circle for an icon-only button, --sw-shadow-3, a 0.97
+ * press in --sw-t-fast, no hover lift). Empty slot = nothing rendered; the `actions` slot is unchanged.
+ *   <sw-page heading="יומנים"><sw-button slot="primary" variant="primary" icon="plus" label="חדש"></sw-button> ...</sw-page> */
 @customElement('sw-page')
 export class SwPage extends LitElement {
   @property() heading = '';
@@ -18,6 +24,12 @@ export class SwPage extends LitElement {
   @property() backHref = '';
   @property({ type: Boolean, reflect: true }) wide = false;
   @property({ type: Boolean, reflect: true }) flush = false;
+
+  /** AUDIT30-B2: the host carries `has-primary` while the primary slot holds an element (the phone keeps room for the floating action). */
+  private onPrimarySlot = (e: Event) => {
+    const has = (e.target as HTMLSlotElement).assignedElements().some((el) => !el.hasAttribute('hidden'));
+    this.toggleAttribute('has-primary', has);
+  };
 
   static styles = css`
     :host {
@@ -100,6 +112,14 @@ export class SwPage extends LitElement {
       gap: 8px;
       align-items: center;
     }
+    /* ---- AUDIT30-B2-PAGE-ACTION (finding 8, Q5 = א): the primary action ---- */
+    .primary {
+      display: none;
+      align-items: center;
+    }
+    :host([has-primary]) .primary {
+      display: flex;
+    }
     .body {
       display: flex;
       flex-direction: column;
@@ -110,6 +130,35 @@ export class SwPage extends LitElement {
     @media (max-width: 767px) {
       :host {
         padding: 12px 12px 16px;
+      }
+      /* the floating action: above the bottom navigation and the home indicator, at the end side, below drawers and dialogs */
+      :host([has-primary]) .primary {
+        position: fixed;
+        inset-block-end: calc(var(--sw-bottomnav-h) + 12px + env(safe-area-inset-bottom));
+        inset-inline-end: 14px;
+        z-index: calc(var(--sw-z-drawer) - 1);
+        border-radius: var(--sw-r-pill);
+        box-shadow: var(--sw-shadow-3);
+        transition: transform var(--sw-t-fast) var(--sw-ease);
+        -webkit-tap-highlight-color: transparent;
+      }
+      :host([has-primary]) .primary:active {
+        transform: scale(0.97);
+      }
+      /* the slotted key becomes the 52 px pill (or circle when icon-only): its own size / radius tokens, scoped to it */
+      ::slotted([slot='primary']) {
+        --sw-ctl-h-sm: 52px;
+        --sw-ctl-h-md: 52px;
+        --sw-ctl-h-lg: 52px;
+        --sw-r-xs: var(--sw-r-pill);
+        --sw-r-sm: var(--sw-r-pill);
+        --sw-fs-sm: var(--sw-fs-md);
+        --sw-fs-xs: var(--sw-fs-md);
+        --sw-hover-lift: 0px;
+      }
+      /* the last row of the page stays reachable above the floating action */
+      :host([has-primary]) .body {
+        padding-block-end: calc(52px + 12px);
       }
       h1 {
         font-size: var(--sw-h1-phone, var(--sw-fs-xl));
@@ -132,7 +181,7 @@ export class SwPage extends LitElement {
             : ''}
           ${this.subheading ? html`<div class="sub">${this.subheading}</div>` : ''}
         </div>
-        <div class="actions"><slot name="actions"></slot></div>
+        <div class="actions"><slot name="actions"></slot><div class="primary" part="primary" data-page-primary><slot name="primary" @slotchange=${this.onPrimarySlot}></slot></div></div>
       </header>
       <div class="body"><slot></slot></div>
     `;
