@@ -338,6 +338,7 @@ for (const scheme of ['light', 'dark'] as const) {
 const EVIDENCE = new URL('../../docs/design/evidence/AUDIT30-B-SHARED/', import.meta.url);
 test('evidence shots: the gallery at 1440 / 768 / 375, light and dark', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop', 'one set of shots');
+  test.setTimeout(240_000); // six views, each a fresh app load (a busy runner needed more than the default 60 s)
   fs.mkdirSync(EVIDENCE, { recursive: true });
   for (const scheme of ['light', 'dark'] as const) {
     for (const [w, h] of [[1440, 900], [768, 1024], [375, 812]] as const) {
