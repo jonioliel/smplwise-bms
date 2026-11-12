@@ -830,7 +830,9 @@ test.describe('S3 integration: the routes and the shared dialog', () => {
     // "תזמון חדש" opens the create dialog
     await page.evaluate(() => (window.location.hash = '#/devices/schedules'));
     await page.locator('devices-schedules [data-new-schedule]').first().click();
-    await expect(page.locator('devices-schedules schedule-create-dialog [data-create-dialog]')).toBeVisible();
+    // AUDIT30-I3: the dialog is the shared sw-dialog (its box lives in the top layer; the host element itself has no box)
+    await expect(page.locator('devices-schedules schedule-create-dialog [data-create-dialog]')).toHaveAttribute('open', '');
+    await expect(page.locator('devices-schedules schedule-create-dialog [data-template="ac"]')).toBeVisible();
     await page.locator('devices-schedules schedule-create-dialog [data-template="ac"]').click();
     await page.locator('devices-schedules schedule-create-dialog [data-create-continue]').click();
     await expect.poll(() => page.evaluate(() => window.location.hash)).toBe('#/devices/schedules/new/edit?template=ac');
