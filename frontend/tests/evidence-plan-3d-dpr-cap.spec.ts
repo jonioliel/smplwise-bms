@@ -234,7 +234,7 @@ test('SceneView: the post chain follows a cap changed while the realistic rung d
   const draws = () => page.evaluate(() => Number.isFinite((window as unknown as Win).__dprViews[0].view.benchFrames(2)));
   await expect.poll(pending, { timeout: 240_000 }).toBe(0);
   let c = await snap();
-  expect(c.passes).toEqual(['render-msaa2', 'gtao', 'bloom', 'output']);
+  expect(c.passes).toEqual(['render-msaa2', 'gtao', 'ssr', 'bloom', 'output']);
   expectBuffer(c, 1.25);
   expectPost(c, 1.25);
   for (const cap of [1, 1.75, 2, 1.5]) {
@@ -254,7 +254,7 @@ test('SceneView: the post chain follows a cap changed while the realistic rung d
   await set({ rung: 'realistic' });
   await expect.poll(pending, { timeout: 240_000 }).toBe(0);
   c = await snap();
-  expect(c.passes).toEqual(['render-msaa2', 'gtao', 'bloom', 'output']);
+  expect(c.passes).toEqual(['render-msaa2', 'gtao', 'ssr', 'bloom', 'output']);
   expectBuffer(c, 1.5);
   expectPost(c, 1.5);
   // a cap set below level 3 reaches a chain that was built earlier: back at level 3 the chain is at the canvas's ratio
@@ -307,7 +307,7 @@ test('the walk: the realistic rung keeps the cap through the walk guard\'s drop 
   await expect(el).toHaveAttribute('data-rung', 'realistic');
   await expect.poll(() => el.evaluate((n) => (n as unknown as Probe).view.realPending), { timeout: 240_000 }).toBe(0);
   c = await canvasOf(el);
-  expect(c.passes).toEqual(['render-msaa2', 'gtao', 'bloom', 'output']);
+  expect(c.passes).toEqual(['render-msaa2', 'gtao', 'ssr', 'bloom', 'output']);
   expectBuffer(c, 1.5);
   expectPost(c, 1.5);
 });

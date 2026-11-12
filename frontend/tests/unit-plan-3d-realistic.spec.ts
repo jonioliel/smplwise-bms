@@ -99,7 +99,7 @@ test('level 3 is additive and carries its rungs: lite and realistic post chains,
     await page.waitForTimeout(300);
     const f = await frameInfo(el);
     console.log(`perf realistic ${preset}: ${f.calls} draw calls, ${f.triangles} triangles, passes ${f.passes.join(' > ')}`);
-    expect(f.passes).toEqual(['render-msaa2', 'gtao', 'bloom', 'output']);
+    expect(f.passes).toEqual(['render-msaa2', 'gtao', 'ssr', 'bloom', 'output']);
   }
   // back at level 2: exactly the graph of before (the realistic level leaves nothing behind)
   await el.locator('[data-preset-iso]').click();
