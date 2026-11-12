@@ -33,6 +33,12 @@ No new literals (colours, radii, sizes, durations all `--sw-*` tokens), no new n
    (`onSheetCancel`). `components/sw-dialog.ts` is in no branch's "Owns" list, so the hook cannot be added here. The builder keeps its
    native modal `<dialog>` and became opaque on the dialog tokens (the visible part of #11). "תזמון חדש" uses `wide` instead of `size="lg"`.
 
+### Lead decisions (2026-11-12)
+
+- Contradiction 1 (I1): **keep** the severity pill as it is (DARK-SEG-ALL-2380 stands).
+- Contradiction 2 (I3): **keep** the opaque native builder sheet. Follow-up (not in this branch): give `components/sw-dialog.ts` a
+  cancelable close request (e.g. a `beforeclose` event with `preventDefault`) in its own branch, then host the builder in it.
+
 ## Measurements (audit probe, `tools/shoot.mjs` + `analyze.mjs` run from a copy of the folder)
 
 Before = the audit's own numbers (v2.43.1, `data/summary.json`; area at 1366 from FIXES I5). After = this branch, built with
