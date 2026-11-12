@@ -38,7 +38,7 @@ async function compare(page: Page, info: Parameters<typeof noBaseline>[0] & { pr
   else await expect(home(page).locator(sel)).toHaveScreenshot(file, { maxDiffPixels: 40, animations: 'disabled', caret: 'hide', timeout: 15_000 });
 }
 
-test.describe('pixel: home follow-up B (wall event, ticket photos)', () => {
+test.describe('pixel-stable: home follow-up B (wall event, ticket photos)', () => {
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
   test.beforeEach(({}, info) => {
     test.skip(info.project.name === 'tablet', 'desktop and phone only');
