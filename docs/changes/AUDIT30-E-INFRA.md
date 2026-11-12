@@ -56,7 +56,7 @@ Updated for the new structure: `electricity-meters.spec.ts` (no area row; tree s
 `toBeDisabled` does not see a custom element), `layout-header-logo-295.spec.ts`, `unit-uxfix-nav-295.spec.ts` (the h1 source check
 now looks for `<sw-page heading=`).
 
-Results: see section 5 (filled from the actual runs).
+Results: section 5.
 
 ## 4. Not done here / after B
 
@@ -71,9 +71,25 @@ Results: see section 5 (filled from the actual runs).
 - Screenshots at 768 / 375 and dark were shot by the probe (`shots/` of the copy) and looked at for the meters, generator and
   temperature screens; no new truncation seen. Elevators: only the one-tab row was removed (not measured with data, as in the audit).
 
-## 5. Test runs
+## 5. Test runs (all actually run; workstation = Windows, Chromium, desktop project)
 
-(see below)
+| Run | Where / code | Result |
+|---|---|---|
+| `npx tsc --noEmit` | workstation, 14c31cd88 | exit 0, no errors |
+| unit specs: `unit-uxfix-nav-295`, `unit-lead-reserve`, `unit-infra-pages`, `unit-tabset-registry`, `unit-water-nav`, `unit-temperature`, `unit-a11y-polished-lint` (`-c playwright.unit.config.ts`) | workstation, 14c31cd88 | 48 passed |
+| `layout-audit30-e-infra.spec.ts` (preview build) | workstation, 14c31cd88 | 26 passed (the 4 pixel cases only annotate: no Windows baseline) |
+| `electricity-meters`, `electricity-meter-rename`, `electricity-readings`, `electricity-meter-device-name`, `evidence-generator`, `evidence-temperature`, `evidence-wkwater-2331`, `evidence-elevators`, `layout-uxfix-nav-295`, `evidence-genlog-092`, `evidence-genalert`, `evidence-infra-tabs`, `layout-electricity-meters` (preview build) | workstation, 14c31cd88 | 107 passed, 4 skipped |
+| `layout-noscroll-1366.spec.ts --grep "generator\|temperature"` (every skin under test + classic dark, 1366 and 1440) | workstation, 14c31cd88 | 4 passed |
+| `electricity-bills`, `electricity-wizard`, `electricity-accounts`, `electricity-tou`, `layout-header-logo-295` (Vite dev server, harness) | workstation, 14c31cd88 | all passed except `layout-electricity` (below) |
+| `layout-electricity.spec.ts` (the module's hit-area guard) | workstation, 14c31cd88 | **failed** in every skin: 28 px small keys (< 32 px) and 34 px keys at 320 px (< 44 px). Fixed in 6d3d641c5 / cb970d7f3 |
+| `layout-electricity.spec.ts` + `layout-audit30-e-infra.spec.ts` (dev server) | workstation, 6d3d641c5 | 29 passed, 1 failed (crystal: its skin draws sw-button at fixed px) |
+| `layout-electricity.spec.ts --grep "crystal\|tesla"` | workstation, cb970d7f3 | 2 passed |
+| `layout-audit30-e-infra.spec.ts -u` (all cases) | runner, 14c31cd88 | 26 passed (baselines discarded: pre-fix keys) |
+| `layout-audit30-e-infra.spec.ts -g pixel-stable -u --workers=1` | runner, 6d3d641c5 | 4 passed, 4 Linux baselines written and committed |
+| Pixel comparison against the committed baselines (without -u) | - | NOT_RUN separately (runner overloaded, lead rule: one job); the runner entry check runs it |
+
+Evidence specs rewrite tracked screenshots under `docs/design/evidence/` and `docs/evidence/` when run on Windows; those were
+restored, not committed.
 
 ## 6. Rollback
 
