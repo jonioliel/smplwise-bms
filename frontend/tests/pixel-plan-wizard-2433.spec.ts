@@ -1,6 +1,7 @@
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
 import fs from 'node:fs';
 import { settlePage } from './pixel-settle';
+import { settle } from './helpers/settle';
 
 // PLAN3D-R28-WIZARD-2433 pixel baselines and layout checks: the plan wizard (#/explore/floors/<id>/wizard) on the demo sample house -
 // the seven steps of the round 28 mockup - desktop 1440 and tablet 1024, classic light. Demo mode (no backend; nothing is sent). The 3D
@@ -101,6 +102,7 @@ test.describe('pixel: the plan wizard', () => {
     await side.locator('[data-dev-row="light.floor_lamp"]').click();
     await expect(side.locator('[data-wz-dev-sel]')).toContainText('מנורת רצפה סלון');
     const plan = page.locator(`${W} [data-wz-canvas] svg.plan`);
+    await settle(page); // measure the plan at rest after the row click
     const box = (await plan.boundingBox())!;
     await page.mouse.click(box.x + box.width * 0.62, box.y + box.height * 0.3);
     await expect(side.locator('.dev.todo')).toHaveCount(1);
