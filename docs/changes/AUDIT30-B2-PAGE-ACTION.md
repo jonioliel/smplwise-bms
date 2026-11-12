@@ -42,7 +42,9 @@ html`<sw-page heading="יומנים">
 | workstation | `npx tsc --noEmit` | pass |
 | workstation | `npx playwright test -c playwright.unit.config.ts tests/unit-audit30b2-page-action.spec.ts tests/unit-audit30b-shared.spec.ts` | **9 passed** |
 | workstation | `SW_BASE_URL=<local vite preview> npx playwright test tests/evidence-audit30b2-page-action.spec.ts --project=desktop --project=tablet --project=mobile` | **10 passed, 5 skipped** (project skips by design; the 2 pixel tests have no win32 baseline: comparison skipped, annotated) |
-| runner | RUNNER_PLACEHOLDER | |
+| runner | `run_smart.py preview pilot/AUDIT30-B2-PAGE-ACTION tests/evidence-audit30b2-page-action.spec.ts -g pixel-stable --update-snapshots=changed --workers=1` @ `36d3be631` (started when the 1-min load was 16) | 2 passed, 4 skipped; 2 new Linux baselines (desktop, phone) |
+| runner | proof without `-u`, the whole spec, `--workers=1` @ `5d18816c8` (load 13) | **10 passed, 5 skipped** |
+| runner | entry check `~/gate2/branch_check.sh pilot/AUDIT30-B2-PAGE-ACTION` | queued; verdict NOT known at the time of writing |
 
 Measured (phone, 390 x 844): the wrapper is `fixed`, 14 px from the left (RTL end) edge, 62 px above the bottom (bottom nav 50 + 12),
 the key 52 px high (76-78 px wide with "חדש"; icon-only 52 x 52), body padding 64 px. Desktop / tablet: `static`, inside the header
