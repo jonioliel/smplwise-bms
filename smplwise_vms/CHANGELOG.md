@@ -1,5 +1,21 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.43.3 (pilot) - Realistic 3D map, round 3: floor reflections, marble and porcelain floors; zoom buttons
+
+### חדש - New
+- מפת התלת־ממד במצב המציאותי: השתקפויות ברצפות מבריקות (שיש, קרמיקה, אריחים), רצפות שיש בהתאמת עורקים ופורצלן בלוחות גדולים, צללי מגע רכים מתחת לרהיטים, וצורות רהיטים מדויקות יותר. ההשתקפויות הן הגדרה אישית בכרטיס הגדרות התלת־ממד ("השתקפויות ברצפה", פעילה כברירת מחדל); כשהן כבויות המפה נראית בדיוק כמו קודם. - 3D map, realistic mode: reflections on polished floors (marble, ceramic, tiles), book-matched marble and large-format porcelain floors, soft contact shadows under the furniture and more accurate furniture shapes. Reflections are a personal setting on the 3D settings card ("floor reflections", on by default); with them off the map looks exactly as before.
+- מפת התלת־ממד: כפתורי + / - לזום בפינת המסך, מול סרגל התצוגה. - 3D map: + / - zoom buttons in the corner opposite the view bar.
+
+### שופר - Improved
+- מפת התלת־ממד: הרהיטים מצוירים מאוחדים לפי קומה וחומר, כך שקומה מרוהטת נטענת ומתעדכנת מהר יותר במחשב חלש. - 3D map: furniture is drawn merged per level and material, so a furnished floor loads and redraws faster on a weak computer.
+
+### תוקן - Fixed
+- מפת התלת־ממד: רקע "סטודיו כהה" מכסה גם את השמיים והקרקע של המצב המציאותי (קודם נשאר שם מראה השמיים הבהירים). - 3D map: the "dark studio" backdrop also covers the realistic mode's sky and ground (the light sky look stayed there before).
+- פנייה חדשה בממשק הביתי: כפתור הסרת התמונה נשאר בתוך חלון הפנייה. - A new ticket in the home interface: the photo remove button stays inside the ticket sheet.
+
+### התקנה - Install
+- אין מיגרציה חדשה, אין עדכון לגשר ואין צורך בהפעלה מחדש של מערכת הבית. - No new migration, no bridge update and no home-system restart.
+
 ## 2.43.2 (pilot) - Plan wizard: a floor plan picture to a 3D floor; wall panel calendar event, ticket photos
 
 ### חדש - New
