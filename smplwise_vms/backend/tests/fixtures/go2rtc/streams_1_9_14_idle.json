@@ -1,0 +1,6 @@
+{
+  "_note": "GO2RTC-STREAM-SYNC-2436: the shape of go2rtc 1.9.14 GET /api/streams for idle on-demand streams (lab audit 04.11, go2rtc 1.9.14: producers [{url}] with the source as written, consumers null). Synthetic values only: example.invalid hosts, placeholder credentials; one foreign stream.",
+  "smplwise_nvr-1_ch1_main": {"producers": [{"url": "rtsp://viewer:p%40ss%3Aword@nvr.example.invalid:554/Streaming/Channels/101"}], "consumers": null},
+  "smplwise_nvr-1_ch1_sub": {"producers": [{"url": "rtsp://viewer:p%40ss%3Aword@nvr.example.invalid:554/Streaming/Channels/102"}], "consumers": null},
+  "door_station_1": {"producers": [{"url": "rtsp://door:secret@door.example.invalid:554/Streaming/Channels/101"}], "consumers": null}
+}

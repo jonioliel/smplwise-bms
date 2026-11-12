@@ -123,7 +123,8 @@ def _probe_go2rtc(settings: Settings) -> dict[str, Any]:
         return {"status": "error", "detail": f"go2rtc אינו זמין ({reason_of(exc)}).", "configured": True, "error": reason_of(exc)}
     ours = [s for s in streams if s.startswith(STREAM_PREFIX)]
     online = sum(1 for s in ours if streams[s].online)
-    return {"status": "ok", "detail": f"גרסה {info.get('version', '?')} · {len(ours)} זרמים שלנו ({online} פעילים) · {len(streams) - len(ours)} זרמים זרים לא נגעו", "configured": True, "version": info.get("version"), "streams": len(ours), "online": online, "foreign": len(streams) - len(ours)}
+    idle = sum(1 for s in ours if streams[s].state == "idle")  # GO2RTC-STREAM-SYNC-2436: ready, connected when someone watches
+    return {"status": "ok", "detail": f"גרסה {info.get('version', '?')} · {len(ours)} זרמים שלנו ({online} פעילים כעת, {idle} מוכנים) · {len(streams) - len(ours)} זרמים זרים לא נגעו", "configured": True, "version": info.get("version"), "streams": len(ours), "online": online, "idle": idle, "foreign": len(streams) - len(ours)}
 
 
 VIDEO_REASON = {"h265": "H.265", "mjpeg": "MJPEG", "b_frames": "B-frames", "svc": "SVC"}

@@ -7,6 +7,7 @@ import { frameSaysDown, isDownState, videoService, VIDEO_SERVICE_DOWN_HE, VIDEO_
 import { productSettings } from '../api/prefs';
 import { LIVE_ICE_SERVERS } from '../api/video-conn-test';
 import { badgeLabel, decodeLadder, FREEZE_FALLBACK_AFTER, FREEZE_POLL_MS, freezeFallback, freezeStep, lanLadder, mainFirst, mseFirst, noteSubDown, noteWebrtcUnreachable, orderLadder, rememberStep, rememberedStep, retryIndex, sameStep, subDown, subFallbackStep, undecodableMessage, webrtcUnreachable, type FreezeMark, type Profile, type StepTransport, type SubFallbackReason, type VideoStep } from '../api/video-policy';
+import { frameSaysReplaced, replacedCloseCode } from '../api/socket-replaced';
 import { H265_ALTERNATE_HE, H265_REFUSAL_CLOSE, H265_UNSUPPORTED_HE, h265Param, h265Reaction, h265Support, normalizePolicy, orderForH265, parseServed, servedTag, streamCodec, transcodeCapHe, type H265Policy, type H265Refusal, type ServedStream } from '../api/h265-support';
 import type { CameraEncoding } from '../api/types';
 
@@ -219,6 +220,8 @@ export class SwLivePlayer extends LitElement {
   private unsubService: (() => void) | undefined;
   /** HEALTH-GO2RTC-2430: the current socket delivered a frame (text or media) - a close without one is checked against the server */
   private gotFrame = false;
+  /** GO2RTC-STREAM-SYNC-2436: this socket's server said `{"type":"replaced"}` - its close (1000 through HA ingress) is the 4410. */
+  private replacedSaid = false;
   private generation = 0;
   private triedWebrtc = false;
   private pendingMime = '';
@@ -871,6 +874,7 @@ export class SwLivePlayer extends LitElement {
     this.offerRetry = false;
     this.serviceDown = false;
     this.gotFrame = false;
+    this.replacedSaid = false;
     this.capped = false;
     this.transport = '';
     this.served = null;
@@ -915,9 +919,11 @@ export class SwLivePlayer extends LitElement {
     ws.onerror = () => {
       /* `close` always follows and carries the code; deciding there keeps the auto fallback in one place */
     };
-    ws.onclose = (ev) => {
+    ws.onclose = (raw) => {
       if (gen !== this.generation) return;
       if (this.status === 'error') return;
+      // GO2RTC-STREAM-SYNC-2436 (lab 12.11): HA ingress turns the relay's 4410 into a plain 1000; the frame before it keeps the meaning
+      const ev: { code: number } = { code: replacedCloseCode(this.replacedSaid, raw.code) };
       // HEALTH-GO2RTC-2430 (lab 11.11): HA ingress delivers the relay's 4503 as a plain close 1000. A socket that closes before any
       // frame, or with a bare 4503, asks the server whether the video service is down before deciding (a failed check: as before)
       if (!this.gotFrame && (ev.code === 4503 || (ev.code < 4000 && this.status === 'connecting'))) {
@@ -933,7 +939,7 @@ export class SwLivePlayer extends LitElement {
   }
 
   /** The socket closed and the video service is not known to be down: the transport ladder, the end of a recording, or the error. */
-  private closed(ev: CloseEvent) {
+  private closed(ev: { code: number }) {
     if (H265_REFUSAL_CLOSE[ev.code] && this.cameraId && !this.wsUrl) {
       this.h265Refused(H265_REFUSAL_CLOSE[ev.code]); // the close without its message (a proxy dropped it): the same reaction
       return;
@@ -1492,6 +1498,10 @@ export class SwLivePlayer extends LitElement {
     if (msg.type === 'error' && !['remote_live_cap', 'access_lost', 'upstream_unavailable', 'h265_unsupported', 'transcode_cap'].includes(msg.value ?? '')) this.failKind = 'sub_error';
     if (msg.type === 'error' && msg.value === 'remote_live_cap') {
       this.capRefused(msg.max);
+      return;
+    }
+    if (frameSaysReplaced(msg)) {
+      this.replacedSaid = true; // the close that follows is a 4410, whatever code reaches the browser
       return;
     }
     if (msg.type === 'arx/stream') {
