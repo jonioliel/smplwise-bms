@@ -72,7 +72,9 @@ All on the workstation against `vite preview` of this branch's build (`SW_BASE_U
 | `evidence-automations-list` + `evidence-schedules-list` + `evidence-audit30i-devices` (after fc97c0b14) | **98 passed** |
 | `evidence-sys-audit-quickfix-2437` + `evidence-k88-plan-advanced` + `evidence-schedules-editor` | 63 passed, 2 skipped, **1 failed**: the S3 integration test looked for a visible box on the sw-dialog host. Test updated (17f38e6ad), rerun: **1 passed** |
 | runner: the same seven specs (`run_smart.py preview ... --project=desktop --workers=1 --machine runner`, @ 39290c40b) | **NOT_RUN**: the runner's `tsc` was OOM-killed ("Killed") while six audit branches shared it |
-| runner: pixel baselines `tests/visual-matrix.spec.ts --project=desktop/tablet/mobile -g "vm (devices-schedules|map-floor|settings-notifications) " -u --workers=1` | **BLOCKED**: the runner stopped answering ssh ("Connection timed out during banner exchange") for 30+ minutes; the 18 affected `*-linux.png` baselines are NOT refreshed |
+| runner: pixel baselines `tests/visual-matrix.spec.ts --project=desktop/tablet/mobile -g "vm (devices-schedules|map-floor|settings-notifications) " -u --workers=1` | first attempts BLOCKED (ssh banner timeouts, OOM-killed build); at 23:28 (load 20.6 < 30, the lead's rule) **refreshed: 18 `*-linux.png`**, committed bd52dc3f5 |
+| runner: proof run, the same command without `-u` @ bd52dc3f5 | **18 passed** (40.8 s) |
+| runner: entry check `~/gate2/branch_check.sh pilot/AUDIT30-I-DEVICES` | queued 23:35, FIFO position 18 of 18; verdict pending |
 
 ## Skills (SKILLS_BRIEF.md)
 
