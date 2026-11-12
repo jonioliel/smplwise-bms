@@ -85,7 +85,10 @@ take a row of cards off every page.
 | `evidence-media-players -g "editor of saved groups" --project=mobile` | workstation, vite preview of the build | 1 passed |
 | `evidence-mobile-scroll-players --project=mobile` (after the adaptation) | workstation, vite preview | 4 passed |
 | `evidence-mobile-scroll evidence-mobile-scroll-players evidence-tabs-dropdown evidence-tabs-pair-scroll --project=desktop --project=mobile --workers=2` @ `d77fdb6c6` | workstation, Vite dev server | 50 passed, 0 failed, 22 skipped (project skips by design) |
-VISUAL_ROWS
+| `run_smart.py preview <branch> visual-matrix.spec.ts -g multimedia-screens -u --workers=1` @ `d77fdb6c6` | runner | 5 passed (re-taken), 1 failed: desktop light, `waitForSelector('sw-app')` 60 s timeout on the overloaded runner (load > 70) |
+| same, `-g "multimedia-screens ready light" --project=desktop -u` | runner | 1 passed (re-taken); the six baselines committed in `56c526d04`; the main checkout stayed clean |
+| proof run of the six without `-u` | runner | NOT_RUN: runner load average 161 (lead rule: start only below 30); left to the entry check (`~/gate2/branch_check.sh`, queued) |
+| `audit30-d-multimedia.spec.ts` after the last code commit | - | ran on the runner at `31284be6c` (13 passed / 5 skipped); `d77fdb6c6` and later change only tests, docs and baselines |
 
 ## Known limits
 
