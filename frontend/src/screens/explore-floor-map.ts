@@ -11,6 +11,7 @@ import '../components/sw-field';
 import '../components/sw-camera-tile';
 import '../components/sw-state-panel';
 import '../components/sw-dialog';
+import '../components/sw-page';
 import '../map/sw-plan-canvas';
 import { polygonCentroid, type PlanMarker, type MarkerSelectDetail, type PlanView, type SwPlanCanvas } from '../map/sw-plan-canvas';
 import { ADJACENT_LABEL, parsePicks, serializePicks, suggestAdjacent, type AdjacentSuggestion } from '../map/adjacent-cameras';
@@ -249,6 +250,15 @@ export class ExploreFloorMap extends LitElement {
       block-size: 100%;
       min-block-size: 0;
     }
+    /* AUDIT30-I4: the sw-page frame fills the screen; the counts line sits under the title row with the old inset */
+    sw-page.fpage {
+      flex: 1;
+      min-block-size: 0;
+    }
+    .fsub {
+      padding: 0 16px 8px;
+      margin: 0;
+    }
     .head {
       display: flex;
       flex-wrap: wrap;
@@ -275,13 +285,6 @@ export class ExploreFloorMap extends LitElement {
     }
     .crumbs sw-icon {
       color: var(--sw-border-strong);
-    }
-    h1 {
-      margin: 0;
-      font-size: var(--sw-fs-2xl);
-      font-weight: var(--sw-fw-semibold);
-      line-height: 1.2;
-      letter-spacing: -0.01em;
     }
     .sub {
       color: var(--sw-text-3);
@@ -1059,9 +1062,6 @@ export class ExploreFloorMap extends LitElement {
         border-inline: 0;
         box-shadow: none;
       }
-      h1 {
-        font-size: var(--sw-fs-xl);
-      }
       .legend {
         display: none;
       }
@@ -1141,14 +1141,14 @@ export class ExploreFloorMap extends LitElement {
       .tools sw-button[icon='edit'] {
         display: none;
       }
+      /* AUDIT30-I4: the tools sit in sw-page's actions (content-sized): capped so the title row stays one line */
       .tools {
         flex-wrap: nowrap;
         overflow-x: auto;
-        max-inline-size: 100%;
+        max-inline-size: 60vw;
       }
-      h1 {
-        font-size: var(--sw-fs-lg);
-        white-space: nowrap;
+      sw-page.fpage {
+        --sw-h1: var(--sw-fs-lg);
       }
       .stage {
         min-block-size: 200px;
@@ -1286,12 +1286,6 @@ export class ExploreFloorMap extends LitElement {
        with a 14/700 floor chip and a legend in the body ink with 10 px dots. Every "on" state is a FILLED field: an active layer and the
        selected side-list row are the accent field, a lit circuit is the warm lit field over its whole button (not a glowing dot alone).
        Press feedback on pointer-down for every pressable HUD control; hover only with a fine pointer (emil-design-eng, mobile-native). */
-    h1 {
-      font-size: var(--sw-fs-3xl);
-      font-weight: var(--sw-fw-bold);
-      color: var(--sw-heading);
-      letter-spacing: -0.02em;
-    }
     .sub {
       font-weight: var(--sw-fw-medium);
       color: var(--sw-text-2);
@@ -3265,22 +3259,18 @@ export class ExploreFloorMap extends LitElement {
     const current = floors.find((f) => f.id === this.floorId);
     const cameraCount = b ? (b.source === 'demo' ? current?.cameraCount ?? 0 : b.anchors.filter((a) => a.resource_type === 'camera').length) : 0;
     const apiFloor = this.tree?.source === 'api' ? this.tree.sites.flatMap((s) => (s.buildings ?? []).flatMap((x) => x.floors ?? [])).find((f) => f.id === this.floorId) : null;
+    // AUDIT30-I4 (#6, #8): the page frame is the product's <sw-page> (flush: the map takes the whole body); the title is its H1 on the
+    // --sw-h1 tokens, the crumbs its crumbs slot, the tools its actions; the counts line stays a light-DOM row so the short landscape
+    // viewport can still drop it
+    const title = this.embedded ? '' : b ? `${b.buildingName} – ${b.floorName}` : 'מפת קומה';
     return html`
-      <div class="head lead-head" data-head>
-        ${this.embedded ? nothing : html`<div>
-          <div class="crumbs">
+      <sw-page flush wide class="fpage" data-head heading=${title}>
+        ${this.embedded ? nothing : html`<div class="crumbs" slot="crumbs">
             <a href="#/explore/sites">${b?.siteName ?? 'אתרים'}</a><sw-icon name="chevron" size=${11}></sw-icon>
             <a href="#/explore/buildings/${b?.source === 'api' ? apiFloor?.building_id ?? 'bld-a' : 'bld-a'}/floors">${b?.buildingName ?? ''}</a><sw-icon name="chevron" size=${11}></sw-icon>
             <span>${b?.floorName ?? ''}</span>
-          </div>
-          <h1>${b ? `${b.buildingName} – ${b.floorName}` : 'מפת קומה'}</h1>
-          <div class="sub">
-            <span>${cameraCount} מצלמות${b && b.source === 'api' ? ` · ${b.anchors.length - cameraCount} התקנים${b.zones.length ? ` · ${b.zones.length} אזורים` : ''}` : ''}${b?.source === 'demo' ? ' · נתוני הדגמה' : b?.planStatus === 'published' ? ' · תוכנית מפורסמת' : ''}</span>
-            ${apiFloor?.draft_version_id ? html`<sw-badge kind="stale" label="טיוטת תוכנית ממתינה לפרסום"></sw-badge>` : nothing}
-          </div>
-        </div>`}
-        <div class="spacer"></div>
-        <div class="tools" data-tools>
+          </div>`}
+        <div class="tools" slot="actions" data-tools>
           <div class="layers" role="group" aria-label=${t('floor.layers')}>
             ${LAYERS.filter((l) => (l.id !== 'cameras' || mapCameraLayerShown(!nvrLess(), cap('cameras_available'))) && (l.id !== 'photo' || !!b?.floorImages)).map((l) => html`<button class=${this.layers.has(l.id) ? 'on' : ''} title=${l.label()} aria-label=${l.label()} aria-pressed=${this.layers.has(l.id)} @click=${() => this.toggleLayer(l.id)}><sw-icon name=${l.icon} size=${14}></sw-icon></button>`)}
           </div>
@@ -3291,8 +3281,12 @@ export class ExploreFloorMap extends LitElement {
           ${b && b.source === 'api' ? html`<sw-button icon="list" aria-pressed=${this.sideList} data-sidelist-toggle @click=${() => this.toggleSideList()}>רשימה</sw-button>${nvrLess() || this.embedded ? nothing : html`<sw-button icon="grid" aria-pressed=${this.multi} data-multi-toggle @click=${() => this.setMulti(!this.multi)}>בחירת מצלמות</sw-button>`}` : nothing}`}
           ${this.embedded ? nothing : html`<sw-field style="min-inline-size:280px"><select aria-label=${t('floor.switcher')} @change=${(e: Event) => navigate(`/explore/floors/${(e.target as HTMLSelectElement).value}`)}>${floors.map((f) => html`<option value=${f.id} ?selected=${f.id === this.floorId}>${bidi(f.name)} · ${f.cameraCount} מצלמות${f.hasPlan ? '' : ' · אין תוכנית'}</option>`)}</select></sw-field>`}
         </div>
-      </div>
-      <div class="stage" data-stage>${this.renderStage()}</div>
+        ${this.embedded ? nothing : html`<div class="sub fsub">
+            <span>${cameraCount} מצלמות${b && b.source === 'api' ? ` · ${b.anchors.length - cameraCount} התקנים${b.zones.length ? ` · ${b.zones.length} אזורים` : ''}` : ''}${b?.source === 'demo' ? ' · נתוני הדגמה' : b?.planStatus === 'published' ? ' · תוכנית מפורסמת' : ''}</span>
+            ${apiFloor?.draft_version_id ? html`<sw-badge kind="stale" label="טיוטת תוכנית ממתינה לפרסום"></sw-badge>` : nothing}
+          </div>`}
+        <div class="stage" data-stage>${this.renderStage()}</div>
+      </sw-page>
     `;
   }
 }

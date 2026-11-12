@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-page';
 import '../components/sw-state-panel';
 import '../map/sw-plan-canvas';
 import { describeError } from '../api/client';
@@ -58,15 +59,13 @@ export class ExplorePresence extends LitElement {
   private bundleFor = '';
 
   static styles = [leadReserveStyles, css`
+    /* AUDIT30-I4 (#6, #8): the page frame is the product's <sw-page> (its padding, its title on the --sw-h1 tokens instead of a local
+       30 / 700 H1, the subtitle line, the actions at the end of the title row); the host only gives it the height of the screen */
     :host {
-      display: flex; flex-direction: column; gap: 12px; padding: 14px var(--sw-page-pad) 14px; max-inline-size: var(--sw-content-max);
-      inline-size: 100%; box-sizing: border-box; min-block-size: 0; overflow: hidden;
+      display: flex; flex-direction: column; inline-size: 100%; box-sizing: border-box; min-block-size: 0; overflow: hidden;
     }
-    .top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; flex: none; }
-    .top h1 { margin: 0; font-size: var(--sw-fs-3xl); line-height: 1.2; }
-    .top .sub { margin: 2px 0 0; color: var(--sw-text-2); font-size: var(--sw-fs-base); }
-    .top .sp { flex: 1; }
-    .top .meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    sw-page { flex: 1; min-block-size: 0; padding-block-end: 14px; gap: 12px; }
+    .meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     .btn {
       display: inline-flex; align-items: center; gap: 6px; block-size: 34px; padding: 0 12px; border-radius: var(--sw-r-sm); border: 1px solid var(--sw-border);
       background: var(--sw-surface); color: var(--sw-text); font: inherit; font-size: var(--sw-fs-sm); cursor: pointer; text-decoration: none;
@@ -142,8 +141,7 @@ export class ExplorePresence extends LitElement {
       .body[data-view='map'] .listpanel, .body[data-view='list'] .mappanel { display: none; }
     }
     @media (max-width: 600px) {
-      :host { padding: 10px 12px; gap: 10px; }
-      .top h1 { font-size: var(--sw-fs-2xl); }
+      sw-page { gap: 10px; }
       .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
       .kpi { padding: 8px 10px; }
       .kpi b { font-size: var(--sw-fs-xl); }
@@ -151,8 +149,6 @@ export class ExplorePresence extends LitElement {
     /* R5-MAPS-297 (impeccable bolder, HOMEFABLE pattern): the counters carry display digits (26/700) and the pressed counter is a FILLED
        field in its own colour (not a 2 px ring); the map panel is the hero (large radius, shadow 2), the people rows are wells with a
        600 name; press feedback on pointer-down for the counters, the chips and the keys; hover only with a fine pointer. */
-    .top h1 { font-weight: var(--sw-fw-bold); color: var(--sw-heading); letter-spacing: -0.02em; }
-    .top .sub { font-weight: var(--sw-fw-medium); }
     .kpi {
       border-radius: var(--sw-r-lg); padding: 12px 16px;
       transition: background var(--sw-t-hover) var(--sw-ease-color), border-color var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
@@ -325,31 +321,31 @@ export class ExplorePresence extends LitElement {
     if (!ok) return html`<sw-state-panel state="forbidden" data-state="forbidden"></sw-state-panel>`;
     const d = this.data;
     const manage = !isApi() || can('system.configure');
-    const top = html`<div class="top lead-head"><div><h1>${pt('title')}</h1>
-        <p class="sub" data-presence-sub>${!d ? '' : d.enabled ? pt('subtitle', { n: d.totals.inside, ago: agoLabel(d.generated_at) }) : pt('subtitleOff')}</p></div><span class="sp"></span>
-      <div class="meta">
+    const sub = !d ? '' : d.enabled ? pt('subtitle', { n: d.totals.inside, ago: agoLabel(d.generated_at) }) : pt('subtitleOff');
+    const actions = html`<div class="meta" slot="actions">
         <button type="button" class="btn" data-presence-refresh ?disabled=${this.busy} @click=${() => void this.load()}><sw-icon name="refresh" size="16"></sw-icon>${pt('refresh')}</button>
         ${manage ? html`<a class="btn" href=${PRESENCE_PLACES_HREF} data-presence-places><sw-icon name="system" size="16"></sw-icon>${pt('places')}</a>` : nothing}
-      </div></div>`;
+      </div>`;
+    const page = (body: unknown) => html`<sw-page heading=${pt('title')} subheading=${sub} data-presence-sub=${sub}>${actions}${body}</sw-page>`;
     if (!d) {
       return this.error
-        ? html`${top}<sw-state-panel state="error" heading=${pt('loadError')} hint=${this.error} data-state="error"></sw-state-panel>`
-        : html`${top}<div class="skl" style="block-size:160px" data-state="loading"></div>`;
+        ? page(html`<sw-state-panel state="error" heading=${pt('loadError')} hint=${this.error} data-state="error"></sw-state-panel>`)
+        : page(html`<div class="skl" style="block-size:160px" data-state="loading"></div>`);
     }
     if (!d.enabled) {
-      return html`${top}<div class="empty" data-state="off"><div class="art"><sw-icon name="users" size="34"></sw-icon></div><h2>${pt('offTitle')}</h2><p>${pt('offBody')}</p>
-        ${manage ? html`<a href=${PRESENCE_SETTINGS_HREF} data-presence-settings>${pt('offLink')}</a>` : nothing}</div>`;
+      return page(html`<div class="empty" data-state="off"><div class="art"><sw-icon name="users" size="34"></sw-icon></div><h2>${pt('offTitle')}</h2><p>${pt('offBody')}</p>
+        ${manage ? html`<a href=${PRESENCE_SETTINGS_HREF} data-presence-settings>${pt('offLink')}</a>` : nothing}</div>`);
     }
     if (!d.configured.sites && !d.configured.beacons && !d.configured.wifi_sites) {
-      return html`${top}<div class="empty" data-state="no-places"><div class="art"><sw-icon name="map" size="34"></sw-icon></div><h2>${pt('noPlacesTitle')}</h2><p>${pt('noPlacesBody')}</p>
-        ${manage ? html`<a href=${PRESENCE_PLACES_HREF} data-presence-places-empty>${pt('noPlacesLink')}</a>` : nothing}</div>`;
+      return page(html`<div class="empty" data-state="no-places"><div class="art"><sw-icon name="map" size="34"></sw-icon></div><h2>${pt('noPlacesTitle')}</h2><p>${pt('noPlacesBody')}</p>
+        ${manage ? html`<a href=${PRESENCE_PLACES_HREF} data-presence-places-empty>${pt('noPlacesLink')}</a>` : nothing}</div>`);
     }
-    return html`${top}${this.kpis(d)}
+    return page(html`${this.kpis(d)}
       <div class="seg" role="group" data-presence-seg>
         <button type="button" aria-pressed=${String(this.phoneView === 'map')} @click=${() => { this.phoneView = 'map'; }}>${pt('mapView')}</button>
         <button type="button" aria-pressed=${String(this.phoneView === 'list')} @click=${() => { this.phoneView = 'list'; }}>${pt('listView')}</button>
       </div>
-      <div class="body" data-view=${this.phoneView}>${this.mapPanel(d)}${this.listPanel(d)}</div>`;
+      <div class="body" data-view=${this.phoneView}>${this.mapPanel(d)}${this.listPanel(d)}</div>`);
   }
 }
 

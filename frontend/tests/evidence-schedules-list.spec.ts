@@ -144,7 +144,8 @@ test.describe('the schedules list (demo mode)', () => {
     await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'מפה סינופטית', 'קברניט']); // NOTICEADD-295: the notice board left the home tab row (a rail entry now); FIX2200: הכרזות hides while announce.enabled is off (the demo too) (unit-schedules-nav)
     await expect(page.locator('sw-app .subnav sw-tabs a[aria-current="page"]')).toHaveText('קברניט');
     await expect(cardsOf(page)).toHaveCount(14);
-    await expect(scr(page).locator('h1[data-sched-title]')).toHaveText('תזמונים');
+    await expect(scr(page).locator('sw-page[data-sched-title]')).toHaveAttribute('heading', 'תזמונים'); // AUDIT30-I4: the title is sw-page's H1
+    await expect(scr(page).locator('sw-page[data-sched-title] h1')).toHaveText('תזמונים');
     await expect(scr(page).locator('[data-state-filter="enabled"] small')).toHaveText('11');
     await expect(scr(page).locator('[data-state-filter="all"] small')).toHaveText('14');
     await expect(scr(page).locator('[data-upcoming]').first()).toBeVisible();

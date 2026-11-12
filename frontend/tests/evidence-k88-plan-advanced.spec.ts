@@ -208,7 +208,7 @@ test.describe('phone pass', () => {
     await expect(map.locator('sw-plan-canvas [data-zone]')).toHaveCount(2);
     await expect(map.locator('.crumbs')).toBeHidden();
     await expect(map.locator('[data-tools] sw-field')).toBeHidden();
-    const head = await map.locator('[data-head]').boundingBox();
+    const head = await map.locator('[data-head] header').boundingBox(); // AUDIT30-I4: the title row of the sw-page frame
     expect(head!.height).toBeLessThan(64);
     const stage = await map.locator('[data-stage]').boundingBox();
     expect(stage!.height).toBeGreaterThan(200);
