@@ -31,6 +31,7 @@ import { REFUSED_MS, RELEASE_MS, allocateLive, effectiveLiveCap, sameSet, snapsh
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { KEY_HINT_MOVE_PX, KEY_HINT_PRESS_MS, KEY_HINT_SHOW_MS, colsBadge, countBadge, keyHint, wallPhoneBarMode, type WallPhoneBarMode } from './wall-phone-bar';
+import { t as vt } from '../i18n/he';
 
 /** The wall's quality choice of THIS device (`sub` = רגילה, `main` = גבוהה); unset = follow the installation setting. */
 export const WALL_QUALITY_KEY = 'sw.wall.quality';
@@ -1013,7 +1014,7 @@ export class LiveWall extends LitElement {
   }
 
   private recorderControl(phone: boolean, title = '') {
-    return html`<select aria-label="NVR" data-wall-recorder title=${title || nothing} @change=${(e: Event) => this.setRecorder((e.target as HTMLSelectElement).value)}>
+    return html`<select aria-label=${vt('videoCopy.recorder')} data-wall-recorder title=${title || nothing} @change=${(e: Event) => this.setRecorder((e.target as HTMLSelectElement).value)}>
       <option value="" ?selected=${!this.recorderFilter}>${phone ? 'כל ה־NVR' : 'NVR: הכול'}</option>
       ${this.recorders.map((r) => html`<option value=${r.id} ?selected=${r.id === this.recorderFilter}>${r.name}</option>`)}
     </select>`;
@@ -1203,7 +1204,7 @@ export class LiveWall extends LitElement {
     const quality = keyHint('איכות', this.stream === 'auto' ? 'אוטו' : this.stream === 'sub' ? 'רגילה' : 'גבוהה');
     const choice = countChoiceId(this.count, total);
     const count = keyHint('מספר מצלמות', this.cameras ? 'נבחרו במפה' : choice === COUNT_ALL_ID ? `כל המצלמות (${total})` : `${choice} מצלמות`);
-    const recorder = keyHint('NVR', this.recorders.find((r) => r.id === this.recorderFilter)?.name ?? 'כל ה־NVR');
+    const recorder = keyHint(vt('videoCopy.recorder'), this.recorders.find((r) => r.id === this.recorderFilter)?.name ?? vt('videoCopy.recorderAll'));
     return html`<div slot="actions" class="pbar" data-wall-phone-bar data-mode="icons"
       @pointerdown=${this.onKeyPress} @pointermove=${this.onKeyMove} @pointerup=${this.onKeyRelease} @pointercancel=${this.onKeyRelease} @click=${this.onKeyClick} @contextmenu=${this.onKeyMenu}>
       ${this.iconKey('aperture', quality, '', this.qualityControl(quality))}

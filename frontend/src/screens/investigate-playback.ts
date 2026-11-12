@@ -43,6 +43,7 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { dateInputLang, timeText } from '../api/day-format';
+import { t as vt } from '../i18n/he';
 
 type Filter = 'all' | 'motion' | 'person' | 'vehicle' | 'door';
 const FINISHED = ['closed', 'expired', 'failed'];
@@ -1581,7 +1582,8 @@ export class InvestigatePlayback extends LitElement {
     const api = isApi();
     const cam = api ? this.cams?.find((c) => c.id === this.cameraId) : demoWall.find((c) => c.id === this.demoCamera) ?? demoWall[0];
     const heading = cam?.name ?? 'הקלטות';
-    const sub = api ? `${this.date} ${hms(this.cursor)} · אזור זמן ${this.tz}` : `14.09.2026 ${minuteLabel(this.cursor)} · אזור זמן האתר Asia/Jerusalem · נתוני הדגמה`;
+    // AUDIT30-G-VIDEO (finding 15): the clock is the site's own time; the zone id is not operator copy
+    const sub = api ? `${this.date} ${hms(this.cursor)}` : `14.09.2026 ${minuteLabel(this.cursor)} · ${vt('videoCopy.playbackDemoSub')}`;
     const crumbs = api ? 'הקלטות' : `הקלטות | ${(cam as { floor?: string })?.floor ?? ''}`;
     const today = api ? dateInZone(new Date(), this.tz) : '2026-09-14';
     return html`

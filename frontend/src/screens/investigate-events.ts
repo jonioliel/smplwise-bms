@@ -28,6 +28,7 @@ import { techDetailsStyles } from '../styles/tech-details';
 import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { dateInputLang, timeText, dayMonthText } from '../api/day-format';
 import { describeDeviceText, precisionLabel, rawCodeLabel, spanText } from '../i18n/event-codes';
+import { t as vt } from '../i18n/he';
 
 /** EVENTS-POLISH-2331: a phone (the drawer is a full-screen modal sheet there) and a wide desktop (the drawer docks beside the list). */
 const NARROW = '(max-width: 767px)';
@@ -1333,7 +1334,7 @@ export class InvestigateEvents extends LitElement {
       <div class="filters">
         <sw-field class="q"><input type="search" data-events-q placeholder="חיפוש: מצלמה, התקן, פרטי אירוע" aria-label="חיפוש חופשי" .value=${this.q} @input=${(e: Event) => this.onSearchInput((e.target as HTMLInputElement).value)} /></sw-field>
         ${this.recorders.length > 1
-          ? html`<sw-field><select aria-label="NVR" data-filter-recorder @change=${(e: Event) => { this.recorderId = (e.target as HTMLSelectElement).value; this.cameraId = ''; void this.load(); }}><option value="" ?selected=${!this.recorderId}>כל ה־NVR</option>${this.recorders.map((r) => html`<option value=${r.id} ?selected=${r.id === this.recorderId}>${r.name}</option>`)}</select></sw-field>`
+          ? html`<sw-field><select aria-label=${vt('videoCopy.recorder')} data-filter-recorder @change=${(e: Event) => { this.recorderId = (e.target as HTMLSelectElement).value; this.cameraId = ''; void this.load(); }}><option value="" ?selected=${!this.recorderId}>${vt('videoCopy.recorderAll')}</option>${this.recorders.map((r) => html`<option value=${r.id} ?selected=${r.id === this.recorderId}>${r.name}</option>`)}</select></sw-field>`
           : nothing}
         <sw-field><select aria-label="מצלמה" @change=${(e: Event) => { this.cameraId = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="" ?selected=${!this.cameraId}>כל המצלמות</option>${(this.cams ?? []).filter((c) => !this.recorderId || c.recorder_id === this.recorderId).map((c) => html`<option value=${c.id} ?selected=${c.id === this.cameraId}>${c.name}</option>`)}</select></sw-field>
         <sw-field><select aria-label="סוג" @change=${(e: Event) => { this.type = (e.target as HTMLSelectElement).value; void this.load(); }}><option value="" ?selected=${!this.type}>כל סוגי האירועים</option>${(Object.keys(EVENT_LABEL) as EventKind[]).map((t) => html`<option value=${t} ?selected=${t === this.type}>${EVENT_LABEL[t]}</option>`)}</select></sw-field>
@@ -1502,7 +1503,7 @@ export class InvestigateEvents extends LitElement {
     const reload = () => void this.load();
     const today = dateInZone(new Date(), this.tz);
     if (this.q.trim()) out.push({ key: 'q', label: `"${this.q.trim()}"`, clear: () => { this.q = ''; reload(); } });
-    if (this.recorderId) out.push({ key: 'recorder', label: this.recorders.find((r) => r.id === this.recorderId)?.name ?? 'NVR', clear: () => { this.recorderId = ''; reload(); } });
+    if (this.recorderId) out.push({ key: 'recorder', label: this.recorders.find((r) => r.id === this.recorderId)?.name ?? vt('videoCopy.recorder'), clear: () => { this.recorderId = ''; reload(); } });
     if (this.cameraId) out.push({ key: 'camera', label: this.cams?.find((c) => c.id === this.cameraId)?.name ?? 'מצלמה', clear: () => { this.cameraId = ''; reload(); } });
     if (this.type) out.push({ key: 'type', label: EVENT_LABEL[this.type as EventKind] ?? this.type, clear: () => { this.type = ''; reload(); } });
     if (this.date && this.date !== today) out.push({ key: 'date', label: `עד ${this.date.split('-').reverse().join('.')}`, clear: () => { this.date = today; reload(); } });

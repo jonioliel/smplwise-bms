@@ -26,6 +26,7 @@ import { describeError, get } from '../api/client';
 import type { Camera } from '../api/types';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { t as vt } from '../i18n/he';
 
 interface Row {
   id: string;
@@ -49,6 +50,12 @@ const SCENES: SceneKind[] = ['entrance', 'lobby', 'corridor', 'hall', 'parking',
 const CELL_CAM = 'display:flex;align-items:center;gap:12px;min-inline-size:0';
 const CELL_PIC = 'inline-size:72px;block-size:44px;flex:none;border-radius:var(--sw-r-sm);overflow:hidden;';
 /** A state as a filled pill: the tone's tint behind a dot and a bold word (the HOMEFABLE "status is a field" rule). */
+/** AUDIT30-G-VIDEO (finding 10): a measured value (rate, frame rate, stream format) in the product face with tabular figures, its own
+ *  left-to-right isolate. sw-table's `ltr` column sets the monospace face, which is for identifiers only. */
+const CELL_NUM = 'font-variant-numeric:tabular-nums;color:var(--sw-text-2)';
+function numCell(v: unknown) {
+  return html`<span class="ltr" data-health-num style=${CELL_NUM}>${String(v ?? '')}</span>`;
+}
 function statePill(state: string, tone: string, text: string, attr: 'cam' | 'cih' = 'cam') {
   const style = `display:inline-flex;align-items:center;gap:7px;min-block-size:26px;padding:0 11px;border-radius:var(--sw-r-pill);background:color-mix(in srgb, ${tone} 20%, var(--sw-surface));color:var(--sw-heading);font-size:var(--sw-fs-sm);font-weight:var(--sw-fw-bold);white-space:nowrap`;
   const dot = html`<i style=${`--c:${tone};inline-size:8px;block-size:8px;border-radius:50%;background:${tone};flex:none`}></i>`;
@@ -76,6 +83,8 @@ export class SystemDevices extends LitElement {
   @state() private formChannel = 1;
   @state() private formAlias = '';
   @state() private alias = '';
+  /** AUDIT30-G-VIDEO (finding 5, FIXES G1): the recorder facts open in a drawer from the header; the table keeps the page's height. */
+  @state() private recorderOpen = false;
   /** CAMHEALTH091: the camera picture check (dark / blurred / frozen / shifted) - the compact card, the picture column and its filter. */
   @state() private image: ImageHealth | null = null;
   @state() private imageFilter: ImageKind | null = null;
@@ -208,6 +217,10 @@ export class SystemDevices extends LitElement {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
       gap: 10px;
+    }
+    sw-drawer .nvr {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px 12px;
     }
     .nvr div {
       font-size: var(--sw-fs-sm);
@@ -383,7 +396,7 @@ export class SystemDevices extends LitElement {
     try {
       await updateCamera(id, { alias: this.alias.trim() || undefined });
       await this.reload();
-      this.message = 'הכינוי נשמר (שם ה־NVR לא השתנה)';
+      this.message = 'הכינוי נשמר (השם במקליט לא השתנה)';
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -396,7 +409,7 @@ export class SystemDevices extends LitElement {
       return this.cameras.map((c) => ({
         id: c.id,
         name: c.name,
-        sub: `ערוץ ${c.channel}${c.name_source && c.alias ? ` · NVR: ${c.name_source}` : ''}`,
+        sub: `ערוץ ${c.channel}${c.name_source && c.alias ? ` · במקליט: ${c.name_source}` : ''}`,
         state: c.status === 'online' ? 'live' : c.status === 'offline' ? 'offline' : 'unknown',
         fps: c.stream?.fps ? String(c.stream.fps) : '—',
         bitrate: c.stream?.bitrate_kbps ? `${(c.stream.bitrate_kbps / 1024).toFixed(1)} Mbps` : '—',
@@ -464,9 +477,9 @@ export class SystemDevices extends LitElement {
   private columns: TableColumn[] = [
     { key: 'name', label: 'מצלמה', render: (r) => html`<div class="cam" style=${CELL_CAM}>${r.api && (r.api as { status?: string }).status === 'online' ? html`<img class="snap" src=${snapshotUrl(String(r.id))} alt="" loading="lazy" style=${CELL_PIC + 'object-fit:cover;background:var(--sw-surface-3);display:block'} @error=${(e: Event) => ((e.target as HTMLImageElement).style.visibility = 'hidden')} />` : r.scene ? html`<sw-scene kind=${r.scene as SceneKind} style=${CELL_PIC}></sw-scene>` : html`<div class="none" style=${CELL_PIC + 'display:grid;place-items:center;color:var(--sw-offline-text);background:color-mix(in srgb, var(--sw-offline) 22%, var(--sw-surface-3))'}><sw-icon name=${r.state === 'forbidden' ? 'lock' : 'offline'} size=${16}></sw-icon></div>`}<div style="min-inline-size:0"><b style="display:block;font-size:var(--sw-fs-md);font-weight:var(--sw-fw-bold);color:var(--sw-heading)">${String(r.name)}</b><small style="display:block;color:var(--sw-text-2);font-size:var(--sw-fs-xs)">${String(r.sub)}</small></div></div>` },
     { key: 'state', label: 'מצב', render: (r) => statePill(String(r.state), r.state === 'live' ? 'var(--sw-live)' : r.state === 'offline' ? 'var(--sw-danger)' : r.state === 'unknown' ? 'var(--sw-unknown)' : 'var(--sw-stale)', r.state === 'live' ? 'מחוברת' : r.state === 'offline' ? 'מנותקת' : r.state === 'stale' ? 'לא מעודכן' : r.state === 'forbidden' ? 'ללא הרשאה' : 'לא נבדק') },
-    { key: 'fps', label: 'FPS', ltr: true },
-    { key: 'bitrate', label: 'קצב', ltr: true },
-    { key: 'firmware', label: 'זרם ראשי', ltr: true },
+    { key: 'fps', label: 'FPS', render: (r) => numCell(r.fps) },
+    { key: 'bitrate', label: 'קצב', render: (r) => numCell(r.bitrate) },
+    { key: 'firmware', label: 'זרם ראשי', render: (r) => numCell(r.firmware) },
     { key: 'image', label: cit('column'), render: (r) => this.imageCell(this.imageOf(String(r.id))) },
     { key: 'lastEvent', label: 'נראתה לאחרונה' },
     { key: 'net', label: 'רשת', render: (r) => this.net(r.state === 'live' ? 4 : r.state === 'stale' ? 2 : 0) },
@@ -493,10 +506,30 @@ export class SystemDevices extends LitElement {
     const rows = this.perPage ? sorted.slice((page - 1) * this.perPage, page * this.perPage) : sorted;
     const cam = all.find((c) => c.id === this.selected);
     const api = !!this.cameras;
+    const demoRecorder = !api && !isApi();
+    const recorderFacts = demoRecorder
+      ? html`<div class="nvr" data-health-recorder>
+          <div><span>דגם</span>DS-76xx (הדגמה)</div>
+          <div><span>קושחה</span><span class="ltr">V4.84.x</span></div>
+          <div><span>ערוצים</span>10/16</div>
+          <div><span>דיסק</span>1 · תקין · 30% פנוי</div>
+          <div><span>שעון</span>NTP · סטייה 2 שנ׳</div>
+          <div><span>חיפוש במקביל</span>1 (מגבלת מכשיר)</div>
+        </div>`
+      : this.recorder
+        ? html`<div class="nvr" data-health-recorder>
+            <div><span>דגם</span>${this.recorder.model ?? 'לא נבדק'}</div>
+            <div><span>קושחה</span><span class="ltr">${this.recorder.firmware ?? '—'}</span></div>
+            <div><span>סנכרון אחרון</span>${this.recorder.last_seen_at ? this.recorder.last_seen_at.replace('T', ' ').replace('Z', ' UTC') : '—'}</div>
+            <div><span>גישה</span>קריאה בלבד</div>
+          </div>`
+        : null;
+    const recorderName = demoRecorder ? vt('videoCopy.recorderMain') : (this.recorder?.name ?? vt('videoCopy.recorder'));
     return html`
-      <sw-page heading="בריאות מצלמות" subheading=${api ? `${this.recorder?.name ?? 'NVR'}${this.recorder?.model ? ` · ${this.recorder.model}` : ''} · ${all.length} מצלמות רשומות · גילוי לקריאה בלבד` : isApi() ? 'קורא את רשימת המצלמות · גילוי לקריאה בלבד' : 'NVR ראשי · 10 ערוצים · יכולות לפי בדיקה בפועל · נתוני הדגמה'}>
-        ${api && this.canSync ? html`<sw-button slot="actions" icon="refresh" ?disabled=${this.busy} @click=${() => this.sync()}>${this.busy ? 'מסנכרן…' : 'סנכרון מה־NVR (קריאה)'}</sw-button>` : html`<sw-button slot="actions" icon="refresh" ?disabled=${api || isApi()}>בדיקת יכולות (קריאה)</sw-button>`}
-        ${api && this.discovery ? html`<div style="font-size:var(--sw-fs-xs);color:${this.discovery.cameras_last_error ? 'var(--sw-danger)' : 'var(--sw-text-3)'};margin-block-end:8px">גילוי אוטומטי מה־NVR כל ${Math.round(this.discovery.interval_s / 60)} דק׳ · ${this.discovery.cameras_last_error ? `נכשל: ${this.discovery.cameras_last_error}` : this.discovery.cameras_last_ok ? `הצליח ${this.discovery.cameras_last_ok.replace('T', ' ').replace('Z', ' UTC')}` : 'טרם רץ'}${this.discovery.streams_last_error ? ` · זרמי go2rtc: ${this.discovery.streams_last_error}` : ''}</div>` : nothing}
+      <sw-page heading="בריאות מצלמות" subheading=${api ? `${this.recorder?.name ?? vt('videoCopy.recorder')}${this.recorder?.model ? ` · ${this.recorder.model}` : ''} · ${all.length} מצלמות רשומות · גילוי לקריאה בלבד` : isApi() ? 'קורא את רשימת המצלמות · גילוי לקריאה בלבד' : vt('videoCopy.healthDemoSub')}>
+        ${api && this.canSync ? html`<sw-button slot="actions" icon="refresh" ?disabled=${this.busy} @click=${() => this.sync()}>${this.busy ? 'מסנכרן…' : vt('videoCopy.syncFromRecorder')}</sw-button>` : html`<sw-button slot="actions" icon="refresh" ?disabled=${api || isApi()}>בדיקת יכולות (קריאה)</sw-button>`}
+        ${recorderFacts ? html`<sw-button slot="actions" icon="info" data-health-recorder-open aria-haspopup="dialog" aria-expanded=${String(this.recorderOpen)} @click=${() => (this.recorderOpen = true)}>${vt('videoCopy.recorderDetails')}</sw-button>` : nothing}
+        ${api && this.discovery ? html`<div style="font-size:var(--sw-fs-xs);color:${this.discovery.cameras_last_error ? 'var(--sw-danger)' : 'var(--sw-text-3)'};margin-block-end:8px">גילוי אוטומטי מהמקליט כל ${Math.round(this.discovery.interval_s / 60)} דק׳ · ${this.discovery.cameras_last_error ? `נכשל: ${this.discovery.cameras_last_error}` : this.discovery.cameras_last_ok ? `הצליח ${this.discovery.cameras_last_ok.replace('T', ' ').replace('Z', ' UTC')}` : 'טרם רץ'}${this.discovery.streams_last_error ? ` · זרמי go2rtc: ${this.discovery.streams_last_error}` : ''}</div>` : nothing}
         ${api && this.canSync ? html`<sw-button slot="actions" variant="primary" icon="plus" @click=${() => { this.dialog = true; this.formAlias = ''; this.formChannel = (all.length ? Math.max(...all.map((c) => c.channel)) : 0) + 1; }}>רישום ידני</sw-button>` : nothing}
         ${this.message ? html`<div class="ok">${this.message}</div>` : nothing}
         ${this.error && !(isApi() && !api) ? html`<div class="err">${this.error}</div>` : nothing}
@@ -516,14 +549,14 @@ export class SystemDevices extends LitElement {
               ? html`<sw-state-panel state="error" heading="רשימת המצלמות לא נטענה" hint=${this.error} actionLabel="נסה שוב" data-cam-error @action=${() => void this.reload()}></sw-state-panel>`
               : html`<sw-state-panel state="loading" heading="טוען מצלמות…" data-cam-loading></sw-state-panel>`
             : api && !all.length
-            ? html`<sw-state-panel icon="camera" state="empty" heading="אין מצלמות רשומות" hint="הגדירו את פרטי ה־NVR בהגדרות ‹ חיבורים ולחצו 'סנכרון מה־NVR', או רשמו ערוץ ידנית."></sw-state-panel>`
+            ? html`<sw-state-panel icon="camera" state="empty" heading="אין מצלמות רשומות" hint="הגדירו את פרטי המקליט בהגדרות ‹ חיבורים ולחצו 'סנכרון מהמקליט', או רשמו ערוץ ידנית."></sw-state-panel>`
             : html`<sw-table focus-rows .columns=${this.shownColumns} .rows=${rows} .selected=${this.selected} @row-select=${(e: CustomEvent<{ id: string }>) => { this.selected = e.detail.id; this.alias = all.find((c) => c.id === e.detail.id)?.api?.alias ?? ''; }}></sw-table>
               ${pages > 1 ? html`<div class="pagerow"><sw-pager data-health-pager .page=${page} .pages=${pages} @page-change=${(e: CustomEvent<{ page: number }>) => (this.page = e.detail.page)}></sw-pager></div>` : nothing}`}
           ${cam
             ? html`<sw-drawer open heading=${cam.name} subheading=${cam.sub} @close=${() => (this.selected = null)}>
-                <sw-field label="כינוי מקומי" hint="שינוי כינוי אינו משנה OSD; שם ה־NVR נשמר בנפרד"><input .value=${api ? this.alias : cam.name} ?disabled=${!api || !this.canSync} @input=${(e: Event) => (this.alias = (e.target as HTMLInputElement).value)} /></sw-field>
+                <sw-field label="כינוי מקומי" hint="שינוי כינוי אינו משנה את הכיתוב על התמונה; השם במקליט נשמר בנפרד"><input .value=${api ? this.alias : cam.name} ?disabled=${!api || !this.canSync} @input=${(e: Event) => (this.alias = (e.target as HTMLInputElement).value)} /></sw-field>
                 <dl>
-                  <dt>שם ב־NVR</dt><dd>${api ? cam.api?.name_source || '—' : `Camera ${cam.channel}`}</dd>
+                  <dt>${vt('videoCopy.nameOnRecorder')}</dt><dd>${api ? cam.api?.name_source || '—' : `Camera ${cam.channel}`}</dd>
                   <dt>Tracks</dt><dd><span class="ltr">${api ? `${cam.api?.main_track ?? '?'} / ${cam.api?.sub_track ?? '?'}` : `${cam.channel}01 / ${cam.channel}02`}</span></dd>
                   <dt>מצב</dt><dd><sw-badge kind=${cam.state}></sw-badge></dd>
                   <dt>נראתה לאחרונה</dt><dd>${cam.lastEvent}</dd>
@@ -542,30 +575,12 @@ export class SystemDevices extends LitElement {
               </sw-drawer>`
             : nothing}
         </div>
-        ${!api && !isApi()
-          ? html`<sw-card heading="NVR ראשי">
-              <div class="nvr">
-                <div><span>דגם</span>DS-76xx (הדגמה)</div>
-                <div><span>קושחה</span><span class="ltr">V4.84.x</span></div>
-                <div><span>ערוצים</span>10/16</div>
-                <div><span>דיסק</span>1 · תקין · 30% פנוי</div>
-                <div><span>שעון</span>NTP · סטייה 2 שנ׳</div>
-                <div><span>חיפוש במקביל</span>1 (מגבלת מכשיר)</div>
-              </div>
-            </sw-card>`
-          : this.recorder
-            ? html`<sw-card heading=${this.recorder.name}>
-                <div class="nvr">
-                  <div><span>דגם</span>${this.recorder.model ?? 'לא נבדק'}</div>
-                  <div><span>קושחה</span><span class="ltr">${this.recorder.firmware ?? '—'}</span></div>
-                  <div><span>סנכרון אחרון</span>${this.recorder.last_seen_at ? this.recorder.last_seen_at.replace('T', ' ').replace('Z', ' UTC') : '—'}</div>
-                  <div><span>גישה</span>קריאה בלבד (ISAPI)</div>
-                </div>
-              </sw-card>`
-            : nothing}
+        ${this.recorderOpen && recorderFacts
+          ? html`<sw-drawer open heading=${recorderName} subheading=${vt('videoCopy.recorderDetails')} data-health-recorder-drawer @close=${() => (this.recorderOpen = false)}>${recorderFacts}</sw-drawer>`
+          : nothing}
         ${this.dialog
-          ? html`<sw-dialog open heading="רישום מצלמה ידני" subheading="כשה־NVR לא מוגדר עדיין; הסנכרון יעדכן שם ומצב" @close=${() => (this.dialog = false)}>
-              <sw-field label="מספר ערוץ ב־NVR"><input type="number" min="1" max="256" data-ltr .value=${String(this.formChannel)} @input=${(e: Event) => (this.formChannel = Number((e.target as HTMLInputElement).value))} /></sw-field>
+          ? html`<sw-dialog open heading="רישום מצלמה ידני" subheading="כשהמקליט לא מוגדר עדיין; הסנכרון יעדכן שם ומצב" @close=${() => (this.dialog = false)}>
+              <sw-field label="מספר ערוץ במקליט"><input type="number" min="1" max="256" data-ltr .value=${String(this.formChannel)} @input=${(e: Event) => (this.formChannel = Number((e.target as HTMLInputElement).value))} /></sw-field>
               <sw-field label="כינוי"><input .value=${this.formAlias} @input=${(e: Event) => (this.formAlias = (e.target as HTMLInputElement).value)} placeholder="למשל: כניסה ראשית" /></sw-field>
               ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
               <sw-button slot="footer" variant="ghost" @click=${() => (this.dialog = false)}>ביטול</sw-button>

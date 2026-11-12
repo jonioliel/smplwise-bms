@@ -1573,7 +1573,7 @@ export class LiveCamera extends LitElement {
                 : html`<dt>ערוץ</dt><dd>${cam.channel} · <span class="ltr">track ${cam.main_track ?? '?'}</span></dd>
               <dt>שם ב־NVR</dt><dd>${cam.name_source || '—'}</dd>`}
               <dt>זרם ראשי</dt><dd>${stream ? `${stream.resolution ?? ''} · ${stream.fps ?? '?'} fps · ${stream.bitrate_kbps ?? '?'} kbps` : 'לא נבדק'}</dd>
-              ${cam.standalone ? nothing : html`<dt>זמן מקור</dt><dd>NVR · <span class="ltr">Asia/Jerusalem</span></dd>`}
+              ${cam.standalone ? nothing : html`<dt>זמן מקור</dt><dd>${tr('videoCopy.sourceTime')}</dd>`}
               <dt>נראתה לאחרונה</dt><dd>${cam.last_seen_at ? cam.last_seen_at.replace('T', ' ').replace('Z', ' UTC') : '—'}</dd>
             </dl>
             ${caps}
@@ -1650,7 +1650,7 @@ export class LiveCamera extends LitElement {
       </div>
       ${cam.ptz
         ? html`<div class="modes">
-            <sw-chip icon="bookmark" ?selected=${this.ptzMode === 'presets'} @click=${() => (this.ptzMode = 'presets')}>Presets</sw-chip>
+            <sw-chip icon="bookmark" ?selected=${this.ptzMode === 'presets'} @click=${() => (this.ptzMode = 'presets')}>${tr('videoCopy.presets')}</sw-chip>
             <sw-chip icon="target" ?selected=${this.ptzMode === 'track'} @click=${() => (this.ptzMode = 'track')}>מעקב אוטומטי</sw-chip>
             <sw-chip icon="route" ?selected=${this.ptzMode === 'patrol'} @click=${() => (this.ptzMode = 'patrol')}>סיור</sw-chip>
           </div>`
