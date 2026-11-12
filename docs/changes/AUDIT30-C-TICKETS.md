@@ -35,11 +35,58 @@ Build of the base (`dist-before`) and of this branch (`dist-after`), `vite previ
 t-board,t-mine,t-overview,t-rfqs,t-handlers,s-tickets --wait 2600`, then `--vps contract --schemes light` (1366x768), then
 `node tools/analyze.mjs`.
 
-BEFORE_AFTER_TABLE
+Columns as `analyze.mjs` prints them: `pg` = sw-page count, `scr D/T/P` = the largest page-sized scroller (px of overflow) at
+desktop 1440x900 / tablet / phone, `btn` = button kinds / buttons off the standard, `rad` = elements with an off-scale radius,
+`con` = contrast failures light / dark, `touch` = targets under 44 px on the phone. The 1366x768 column is the `contract` viewport.
+
+| Screen | pg | scr D (1440) | 1366x768 page scroller | btn | rad | con L/D | touch | Before -> after |
+|---|---|---|---|---|---|---|---|---|
+| t-board | 0 -> **1** | 0 -> 0 | none -> none | 4/5 -> 4/5 | 15 -> 15 | 0/0 -> 0/0 | 4 -> 4 | phone overflow (P) 2900 -> 2715 |
+| t-mine | 0 -> **1** | 0 -> 0 | none -> none | 3/3 -> 3/3 | 8 -> 8 | 0/0 -> 0/0 | 5 -> 5 | P 1674 -> 1696 |
+| t-overview | 0 -> **1** | 0 -> 0 | none -> none | 2/4 -> 2/4 | 2 -> 2 | 0/0 -> 0/0 | 1 -> 1 | T 2561 -> 2536 |
+| t-rfqs | 0 -> **1** | 0 -> 0 | 64 -> 38 | 3/5 -> 3/5 | 0 -> 0 | 0/0 -> 0/0 | 3 -> 3 | P 871 -> 795 |
+| t-handlers | 0 -> **1** | 84 -> 71 | 216 -> 203 | 3/2 -> 3/2 | 6 -> 6 | 0/0 -> 0/0 | 6 -> 7 | |
+| s-tickets | 0 -> **1** | 2150 -> 1954 | 4307 -> 4104 | 4/1 -> **3/1** | 0 -> 10 | 0/0 -> 0/0 | 11 -> **2** | settings page: the one screen DESIGN.md lets scroll |
+
+Reading the numbers:
+- **pg 0 -> 1 on all six** (finding #6 / #18). The h1 is the frame's (30/800 in classic, unchanged size).
+- **Contrast stays 0/0** in both schemes; on the base SYS-AUDIT-QUICKFIX had already cleared finding #3 for the settings tab (1:1 in
+  the audited v2.43.1). The selected keys are now the Blue Wash pair (see the spec's checks below).
+- **s-tickets touch 11 -> 2**: the pill fields and the glass tab keys under 44 px on a phone are gone (fields 44 px under a coarse
+  pointer, sw-tabs' own targets).
+- **s-tickets rad 0 -> 10** is the probe reading the field radius as `--sw-r-sm` resolves inside the glass host: `styles/devices-themes.ts`
+  line 193 maps `--sw-r-sm` to `--dv-radius-sm` (14 px, off the classic scale 4/7/10/16...). The pill (999 px) it replaced is not counted
+  by the probe. The rule here uses the token; the value is branch A's glass bridge (A2 leaves the shape knobs alone), recorded for A.
+  The board tree rows (t-board `rad 15`, unchanged count) read 14 px for the same reason (they were 28 px).
+- **btn kinds** on board / list stay 4 / 3 (FIXES accept: <= 2): the glass `.btn` keys (34 / 38 px pills) and the tree row (role=button)
+  are counted as kinds; unifying the glass `.btn` with sw-button is the shared-component / glass-bridge work (A / B), not this branch.
+- **No -apple-system** in the family column on any of the six (the base already carries Heebo on the glass screens).
+- **C9**: 1366x768 board and mine: no page-sized scroller before or after (NOSCROLL-1366-2437 pages them; kept). The tablet numbers (T) are
+  the inner `.scr` region, which Q7 option 1 allows.
+
+The audit probe was run against `dist-after` built from `a4dca5ae4` (the two later commits change only the settings card footer when
+no save key shows and the phone board's switch row; the spec below covers both).
 
 ## 3. Tests
 
-TESTS_TABLE
+Workstation (the runner was overloaded and reserved for the 2.43.3 release gate and the baseline refresh, per the lead), the branch
+built with `vite build` and served with `vite preview` on a free port, `SW_BASE_URL=http://127.0.0.1:<port>/`.
+
+| Command | Result |
+|---|---|
+| `npx tsc --noEmit` | exit 0 |
+| `npx vite build` | built |
+| `npx playwright test tests/evidence-audit30c-tickets.spec.ts tests/unit-token-lint.spec.ts --project=desktop --project=mobile --workers=2` | 31 passed, 3 skipped (desktop-only / phone-only cases; the pixel comparisons are skipped on Windows, no win32 baseline) |
+| `npx playwright test tests/evidence-tickets-board.spec.ts tests/evidence-tickets.spec.ts tests/evidence-tickets-ui4.spec.ts tests/evidence-tickets-ui6.spec.ts tests/evidence-sys-audit-quickfix-2437.spec.ts tests/evidence-tickets-polish-2331.spec.ts tests/evidence-tickets-s5b.spec.ts tests/evidence-tickets-handlers.spec.ts tests/evidence-tickets-s2.spec.ts --project=desktop --project=mobile --workers=2` | 161 passed, 2 failed, 3 skipped; the two failures (phone: the strip tooltip now in the sheet; the list's first card 380 px under the frame's actions row) were adapted and re-run: 3 passed + 1 passed |
+| `npx playwright test tests/layout-noscroll-1366.spec.ts tests/layout-a11y-295.spec.ts tests/layout-tickets-board.spec.ts -g tickets --project=desktop --workers=2` | 5 passed, 2 skipped, 4 failed: `layout-tickets-board` found the count "3" escaping its key in the phone sheet's state strip (320-390 px); fixed (`7f4e9c0b1`), classic re-run 1 passed (180 checks, 0 findings) |
+| `layout-tickets-board.spec.ts` all skins after the fix | LAYOUT_ALL_SKINS |
+| Runner: `run_smart.py preview pilot/AUDIT30-C-TICKETS tests/evidence-audit30c-tickets.spec.ts --project=desktop --project=mobile -u --workers=1 --machine runner` | RUNNER_U |
+| Runner proof run without `-u` | RUNNER_PROOF |
+
+Regression test per fix: `tests/evidence-audit30c-tickets.spec.ts` (#3/#18 dark tab + gender contrast and Blue Wash, #4 chip colours,
+#6 one sw-page and no own h1 on five screens, #9 phone strip in the sheet and the actions on screen, #14 tree row radius / height /
+colour, #16 field radius and save-only-when-dirty, #17 heading step, #5 no page scroll at 1366x768; two `pixel-stable` tests: board and
+settings, light and dark, 1440 and 390).
 
 ## 4. Contradictions recorded
 

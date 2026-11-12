@@ -110,7 +110,7 @@ async function compare(page: Page, name: string) {
   const info = test.info();
   const file = `${name}-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
   if (noBaseline(info, file)) info.annotations.push({ type: 'skipped-pixel', description: `${file}: no baseline on ${process.platform}` });
-  else await expect(page).toHaveScreenshot(file, { maxDiffPixels: 60, animations: 'disabled' });
+  else await expect(page).toHaveScreenshot(file, { maxDiffPixels: 60, animations: 'disabled', timeout: 20_000 }); // a loaded runner needs more than 5 s for two equal frames
 }
 
 test.describe('AUDIT30-C-TICKETS', () => {

@@ -1,44 +1,44 @@
 {
   "board-390x844.png": {
-    "firstItemTop": 681,
-    "toolbarRows": 2,
-    "pageScroll": 2813,
+    "firstItemTop": 584,
+    "toolbarRows": 1,
+    "pageScroll": 2661,
     "viewport": "390x844"
   },
   "list-cards-390x844.png": {
-    "firstItemTop": 358,
+    "firstItemTop": 380,
     "toolbarRows": 2,
-    "pageScroll": 1622,
+    "pageScroll": 1644,
     "viewport": "390x844"
   },
   "list-chips-390x844.png": {
-    "firstItemTop": 418,
+    "firstItemTop": 440,
     "toolbarRows": 3,
-    "pageScroll": 1969,
+    "pageScroll": 1991,
     "viewport": "390x844"
   },
   "list-empty-390x844.png": {
-    "firstItemTop": 301,
+    "firstItemTop": 322,
     "toolbarRows": 2,
     "pageScroll": 0,
     "viewport": "390x844"
   },
   "list-error-390x844.png": {
-    "firstItemTop": 144,
+    "firstItemTop": 146,
     "toolbarRows": 0,
     "pageScroll": 0,
     "viewport": "390x844"
   },
   "list-filter-open-390x844.png": {
-    "firstItemTop": 1047,
+    "firstItemTop": 380,
     "toolbarRows": 3,
-    "pageScroll": 2311,
+    "pageScroll": 1644,
     "viewport": "390x844"
   },
   "list-table-390x844.png": {
-    "firstItemTop": 495,
+    "firstItemTop": 517,
     "toolbarRows": 2,
-    "pageScroll": 839,
+    "pageScroll": 860,
     "viewport": "390x844"
   }
 }
