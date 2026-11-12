@@ -617,7 +617,7 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
     }
   });
 
-  test('quiet hours: switch, times, days, the pass-through matrix; equal times are refused before the server is asked', async ({ page }, info) => {
+  test('quiet hours: switch, times, days, the pass-through matrix; equal times are refused before the server is asked', async ({ page }) => {
     await openSettings(page, { quietNow: true });
     await tab(page, 'quiet');
     const q = sec(page, 'quiet');
@@ -811,7 +811,7 @@ test.describe('הגדרות › התראות (notify.manage)', () => {
     await shot(page, `settings-user-${vp(info)}-light`);
   });
 
-  test('mail not configured: "לא מוגדר", an empty form, the test waits for a saved configuration; the channel card says so', async ({ page }, info) => {
+  test('mail not configured: "לא מוגדר", an empty form, the test waits for a saved configuration; the channel card says so', async ({ page }) => {
     await openSettings(page, { emailConfigured: false });
     await tab(page, 'mail');
     const m = sec(page, 'mail');

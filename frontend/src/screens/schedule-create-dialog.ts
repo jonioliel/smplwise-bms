@@ -94,6 +94,7 @@ export class ScheduleCreateDialog extends LitElement {
       gap: 16px;
       padding-block-start: 4px;
     }
+    .tpls {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
       gap: 10px;
@@ -277,7 +278,6 @@ export class ScheduleCreateDialog extends LitElement {
     }
     .foot .sp {
       flex: 1;
-    }
     }
     @media (pointer: coarse) {
       .chip,
