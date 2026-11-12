@@ -72,11 +72,11 @@ test.describe('bill page: every state', () => {
     await shot(page, info, 'bill-draft-opening');
     await page.locator('[data-card="opening"] [data-opening-enter]').nth(1).click();
     const dlg = page.locator('[data-dialog="opening"]');
-    await expect(dlg.locator('[data-confirm]')).toBeDisabled();
+    await expect(dlg.locator('[data-confirm]')).toHaveAttribute('disabled', '');
     await dlg.locator('[data-opening-value]').fill('12a');
-    await expect(dlg.locator('[data-confirm]')).toBeDisabled();
+    await expect(dlg.locator('[data-confirm]')).toHaveAttribute('disabled', '');
     await dlg.locator('[data-opening-value]').fill('1234.5');
-    await expect(dlg.locator('[data-confirm]')).toBeEnabled();
+    await expect(dlg.locator('[data-confirm]')).not.toHaveAttribute('disabled', '');
     await shot(page, info, 'bill-draft-opening-dialog');
     await noOverflow(page);
     errs.expectNone();
@@ -198,11 +198,11 @@ test.describe('bill actions and dialogs', () => {
     await screen(page, 'bill');
     await page.locator('[data-act="void"]').click();
     const d = page.locator('[data-dialog="void"]');
-    await expect(d.locator('[data-confirm]')).toBeDisabled();
+    await expect(d.locator('[data-confirm]')).toHaveAttribute('disabled', '');
     await d.locator('[data-reason]').fill('x');
     await d.locator('[data-reason]').fill('');
     await expect(d.locator('[data-reason-error]')).toContainText('צריך לכתוב סיבה');
-    await expect(d.locator('[data-confirm]')).toBeDisabled();
+    await expect(d.locator('[data-confirm]')).toHaveAttribute('disabled', '');
     await shot(page, info, 'dialog-void-required');
     await d.locator('[data-reason]').fill('נשלח ללקוח הלא נכון');
     await d.locator('[data-confirm]').click();
@@ -310,12 +310,12 @@ test.describe('generate a bill', () => {
     await page.locator('[data-create-bill]').click();
     const d = page.locator('[data-bill-create]');
     await expect(d.locator('.alert.err')).toContainText('כבר קיים חיוב 2026-09-0001');
-    await expect(d.locator('[data-create]')).toBeDisabled();
+    await expect(d.locator('[data-create]')).toHaveAttribute('disabled', '');
     await shot(page, info, 'dialog-generate-overlap');
     // the current period up to today is free
     await tap(d.locator('[data-period="current"]'));
     await expect(d.locator('.alert.err')).toHaveCount(0);
-    await expect(d.locator('[data-create]')).toBeEnabled();
+    await expect(d.locator('[data-create]')).not.toHaveAttribute('disabled', '');
   });
 
   test('another range: validation, an overlap with the range, then a draft is created and opened', async ({ page }, info) => {
@@ -327,7 +327,7 @@ test.describe('generate a bill', () => {
     await d.locator('[data-range-from]').fill('2026-10-03');
     await d.locator('[data-range-to]').fill('2026-10-01');
     await expect(d.locator('.alert.err')).toContainText('אחרי תאריך ההתחלה');
-    await expect(d.locator('[data-create]')).toBeDisabled();
+    await expect(d.locator('[data-create]')).toHaveAttribute('disabled', '');
     await d.locator('[data-range-from]').fill('2026-09-15');
     await d.locator('[data-range-to]').fill('2026-10-02');
     await expect(d.locator('.alert.err')).toContainText('2026-09-0001');

@@ -5,6 +5,7 @@
  * never touches an issued bill; open drafts show it after "חישוב מחדש". Holders of energy.manage edit; the others read.
  */
 import { html, nothing } from 'lit';
+import '../components/sw-button';
 import { customElement, state } from 'lit/decorators.js';
 import { elec, elecErrorText, elecToday, type CalendarDay, type CalendarYear } from '../api/electricity-billing';
 import { energyAccess } from './access';
@@ -102,19 +103,19 @@ export class ElecSettingsCalendar extends ElecBase {
       ${this.note ? alertBox('info', this.note) : nothing}
       <div class="card ${this.phone ? '' : 'flush'}">
         <div class="hd"><b class="h3">ימים מיוחדים</b>
-          <div class="row" role="group" aria-label="שנה"><button type="button" class="btn ghost sm ic" aria-label="השנה הקודמת" data-year-prev @click=${() => this.setYear(this.year - 1)}>→</button><b class="num" data-year>${this.year}</b><button type="button" class="btn ghost sm ic" aria-label="השנה הבאה" data-year-next @click=${() => this.setYear(this.year + 1)}>←</button></div>
+          <div class="row" role="group" aria-label="שנה"><sw-button variant="ghost" size="sm" iconOnly icon="chevronBack" label="השנה הקודמת" data-year-prev @click=${() => this.setYear(this.year - 1)}></sw-button><b class="num" data-year>${this.year}</b><sw-button variant="ghost" size="sm" iconOnly icon="chevron" label="השנה הבאה" data-year-next @click=${() => this.setYear(this.year + 1)}></sw-button></div>
           <span class="sp"></span>
           <div class="seg" role="group" aria-label="מקור החגים"><button type="button" data-generator="israel" aria-pressed=${d.generator === 'israel'} ?disabled=${!edit || this.busy} @click=${() => d.generator !== 'israel' && void this.run(() => elec().setCalendarGenerator('israel', d.revision, this.year))}>חגי ישראל מחושבים</button><button type="button" data-generator="none" aria-pressed=${d.generator === 'none'} ?disabled=${!edit || this.busy} @click=${() => d.generator !== 'none' && void this.run(() => elec().setCalendarGenerator('none', d.revision, this.year))}>ימים ידניים בלבד</button></div>
         </div>
         ${!rows.length ? html`<div class="mut" style="padding:0 16px 16px" data-calendar-empty>אין ימים מיוחדים בשנה הזו.</div>`
           : this.phone
             ? html`<div class="list" data-calendar>${rows.map((x) => html`<div class="li" data-day=${x.date} data-kind=${x.kind} style="flex-wrap:wrap"><div class="grow"><div class="t1">${x.name_he || x.kind_he}</div><div class="t2">${n(fmtDate(x.date))} · יום ${weekday(x.date)} · ${x.source === 'manual' ? 'ידני' : 'מחושב'}</div></div>${this.kindCell(x, edit)}
-                ${edit && x.source === 'manual' ? html`<button type="button" class="btn ghost sm" data-restore=${x.date} ?disabled=${this.busy} @click=${() => this.restore(x)}>${x.generated ? 'החזרה לחישוב' : 'הסרה'}</button>` : nothing}</div>`)}</div>`
+                ${edit && x.source === 'manual' ? html`<sw-button variant="ghost" size="sm" data-restore=${x.date} ?disabled=${this.busy} @click=${() => this.restore(x)}>${x.generated ? 'החזרה לחישוב' : 'הסרה'}</sw-button>` : nothing}</div>`)}</div>`
             : html`<div class="scrollx"><table class="t" data-calendar><thead><tr><th>תאריך</th><th>יום</th><th>שם</th><th>נחשב</th><th>מקור</th><th></th></tr></thead><tbody>
               ${rows.map((x) => html`<tr data-day=${x.date} data-kind=${x.kind}><td class="num" style="text-align:start">${fmtDate(x.date)}</td><td>${weekday(x.date)}</td><td class="b">${x.name_he || (x.generated?.name_he ?? '')}</td><td>${this.kindCell(x, edit)}</td>
                 <td>${x.source === 'manual' ? html`<span class="chip c-warn nodot">ידני</span>` : html`<span class="chip c-mut nodot">מחושב</span>`}</td>
                 <td>${edit ? (x.source === 'manual'
-                  ? html`<button type="button" class="btn ghost sm" data-restore=${x.date} ?disabled=${this.busy} @click=${() => this.restore(x)}>${x.generated ? 'החזרה לחישוב' : 'הסרה'}</button>`
+                  ? html`<sw-button variant="ghost" size="sm" data-restore=${x.date} ?disabled=${this.busy} @click=${() => this.restore(x)}>${x.generated ? 'החזרה לחישוב' : 'הסרה'}</sw-button>`
                   : nothing) : nothing}</td></tr>`)}</tbody></table></div>`}
       </div>
       ${edit ? html`<div class="card" data-calendar-add><div class="hd"><b class="h3">הוספת יום</b></div>
@@ -123,7 +124,7 @@ export class ElecSettingsCalendar extends ElecBase {
           <div class="fld"><label for="ck">נחשב</label><select id="ck" data-add-kind @change=${(e: Event) => (this.add = { ...this.add, kind: (e.target as HTMLSelectElement).value as CalendarDay['kind'] })}>${KINDS.map((k) => html`<option value=${k.id} .selected=${k.id === this.add.kind}>${k.label}</option>`)}</select></div>
           <div class="fld wide"><label for="cn">שם (לא חובה)</label><input id="cn" data-add-name maxlength="60" .value=${this.add.name} @input=${(e: Event) => (this.add = { ...this.add, name: (e.target as HTMLInputElement).value })} /></div>
         </div>
-        <div class="row" style="margin-block-start:12px"><button type="button" class="btn pri" data-add-day ?disabled=${this.busy} @click=${() => this.addDay()}>הוספה</button></div></div>` : nothing}
+        <div class="row" style="margin-block-start:12px"><sw-button variant="primary" data-add-day ?disabled=${this.busy} @click=${() => this.addDay()}>הוספה</sw-button></div></div>` : nothing}
       <div class="mut">${d.note_he}</div>
     </div>`;
   }

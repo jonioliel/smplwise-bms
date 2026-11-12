@@ -44,10 +44,10 @@ test.describe('electricity evidence: meters, add, retention, permissions', () =>
     await shoot(page, '/infra/electricity/bills', 'meters-viewonly-forbidden', 'sw-app infra-electricity [data-state="forbidden"]', { perms: PERMS.view });
     await shoot(page, '/infra/electricity/meters', 'meters-area-filter', `${P} [data-state="ready"]`, {}, 'light', 'classic', async (p) => {
       if (phone(p)) await p.locator(`${P} [data-area-select]`).selectOption('a-bakery');
-      else await p.locator(`${P} [data-area-tree] [data-area="a-bakery"]`).click();
+      else await p.locator(`${P} [data-area-tree] [data-place-pick="a-bakery"]`).click();
       await expect(p.locator(P)).toBeVisible();
     });
-    if (!phone(page)) await shoot(page, '/infra/electricity/meters', 'meters-floor-collapsed', `${P} [data-state="ready"]`, {}, 'light', 'classic', async (p) => void (await p.locator(`${P} [data-area-tree] [data-floor="f-0"]`).click()));
+    if (!phone(page)) await shoot(page, '/infra/electricity/meters', 'meters-floor-collapsed', `${P} [data-state="ready"]`, {}, 'light', 'classic', async (p) => void (await p.locator(`${P} [data-area-tree] [data-place-fold="floor:f-0"]`).click()));
   });
 
   test('meter card and add a meter', async ({ page }) => {

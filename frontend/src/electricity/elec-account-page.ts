@@ -5,6 +5,7 @@
  * and the bills tab only with the bills permission.
  */
 import { html, nothing } from 'lit';
+import '../components/sw-button';
 import { customElement, property, state } from 'lit/decorators.js';
 import { elec, elecErrorText, type AccountHistory, type AccountStatus, type BillSummary, type HistoryRow } from '../api/electricity-billing';
 import { energyAccess, type EnergyAccess } from './access';
@@ -86,7 +87,7 @@ export class ElecAccountPage extends ElecBase {
         <div><b class="h2" data-account-name>${a?.name ?? ''}</b>
           <div class="mut">${a ? html`${perms.bills ? html`<a class="lnk" href=${href.customer(a.customer.id)}>${a.customer.name}</a>` : a.customer.name} · ${periodLabel(a.period_months, a.period_anchor_day, a.period_anchor_month)}` : ''}</div></div>
         <span class="sp"></span>
-        ${perms.bills && a ? html`<button type="button" class="btn pri" data-create-bill @click=${() => (this.createOpen = true)}>הפקת חיוב</button>` : nothing}
+        ${perms.bills && a ? html`<sw-button variant="primary" data-create-bill @click=${() => (this.createOpen = true)}>הפקת חיוב</sw-button>` : nothing}
         ${perms.manage && a ? html`<a class="btn" data-edit-account href=${href.account(a.id, 'edit')}>עריכה</a>` : nothing}
       </div>
       <div class="seg" style="align-self:flex-start" role="tablist" aria-label="חלקי החשבון">

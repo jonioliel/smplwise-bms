@@ -1,4 +1,5 @@
 import { LitElement, html, nothing } from 'lit';
+import '../../components/sw-button';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../../components/sw-icon';
 import '../../components/sw-state-panel';
@@ -161,7 +162,7 @@ export class WaterBillsPage extends LitElement {
     if (this.st === 'loading') return html`<div class="page" data-water="bills" data-state="loading">${skeletonCard(7)}</div>`;
     if (this.st === 'error') return html`<div class="page" data-water="bills" data-state="error"><sw-state-panel state="error" heading=${wt('loadBillsError')} actionLabel=${wt('retry')} @action=${() => void this.loadList()}></sw-state-panel></div>`;
     if (!this.all.length) {
-      return html`<div class="page" data-water="bills" data-state="empty"><sw-state-panel icon="list" state="empty" heading=${wt('emptyBills')}><button type="button" class="btn pri" @click=${() => navigate('/infra/water/accounts')}>${wt('toAccounts')}</button></sw-state-panel></div>`;
+      return html`<div class="page" data-water="bills" data-state="empty"><sw-state-panel icon="list" state="empty" heading=${wt('emptyBills')}><sw-button variant="primary" @click=${() => navigate('/infra/water/accounts')}>${wt('toAccounts')}</sw-button></sw-state-panel></div>`;
     }
     const cnt = (s: BillState) => this.all.filter((b) => b.state === s).length;
     const q = this.q.trim();
@@ -175,7 +176,7 @@ export class WaterBillsPage extends LitElement {
           ${STATES.map((s) => html`<button type="button" data-filter=${s} aria-pressed=${this.filter === s ? 'true' : 'false'} @click=${() => (this.filter = s)}>${BILL_STATE[s].label} <span class="num">${cnt(s)}</span></button>`)}</div>
         <label class="inp"><sw-icon name="search" size="16"></sw-icon><input type="search" data-bill-search placeholder=${wt('billSearch')} aria-label=${wt('billSearch')} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /></label>
         <span class="sp"></span>
-        <button class="btn" type="button" data-csv ?disabled=${!list.length} @click=${() => this.exportCsv(list)}><sw-icon name="download" size="15"></sw-icon>${wt('csv')}</button>
+        <sw-button icon="download" data-csv ?disabled=${!list.length} @click=${() => this.exportCsv(list)}>${wt('csv')}</sw-button>
       </div>
       <div class="tiles" data-tiles>
         <div class="tile"><div class="k">${wt('tBillDrafts')}</div><div class="v"><span class="num" data-bt="draft">${cnt('draft')}</span></div></div>
@@ -229,7 +230,7 @@ export class WaterBillsPage extends LitElement {
       const dng = a === 'void' || a === 'delete';
       const pri = a === 'issue' || a === 'paid';
       const run = () => (a === 'recalculate' ? void this.act(() => waterBilling.recalculate(b)) : this.open(a as Dlg));
-      return html`<button type="button" class="btn ${pri ? 'pri' : ''} ${dng ? 'dng' : ''}" data-act=${a} ?disabled=${this.busy} @click=${run}>${wt(ACTION_KEY[a] ?? 'aIssue')}</button>`;
+      return html`<sw-button variant=${dng ? 'danger' : pri ? 'primary' : 'secondary'} data-act=${a} ?disabled=${this.busy} @click=${run}>${wt(ACTION_KEY[a] ?? 'aIssue')}</sw-button>`;
     };
     const side = html`<div class="col">
       <div class="card"><div class="hd"><b>${wt('details')}</b></div><dl class="kv" data-bill-details>
@@ -256,33 +257,33 @@ export class WaterBillsPage extends LitElement {
 
   private dialogs(b: Bill) {
     const err = this.error && this.dlg ? html`<div class="alert err" role="alert">${this.error}</div>` : nothing;
-    const cancel = html`<button slot="actions" type="button" class="btn" @click=${() => (this.dlg = '')}>${wt('cancel')}</button>`;
+    const cancel = html`<sw-button slot="actions" @click=${() => (this.dlg = '')}>${wt('cancel')}</sw-button>`;
     const empty = !this.reason.trim();
     return html`
       <elec-dialog heading=${wt('dIssueTitle')} ?open=${this.dlg === 'issue'} data-dialog="issue" @close=${() => (this.dlg = '')}>
         <div>${wt('dIssueBody')}</div><dl class="kv"><dt>${wt('colAccount')}</dt><dd>${b.account_name}</dd><dt>${wt('pPeriod')}</dt><dd class="num">${range(b.period)}</dd><dt>${wt('pTotal')}</dt><dd class="num">${fmtIls(b.total)}</dd></dl>${err}
-        <button slot="actions" type="button" class="btn pri" data-confirm ?disabled=${this.busy} @click=${() => void this.act(() => waterBilling.issue(b))}>${wt('aIssue')}</button>${cancel}
+        <sw-button variant="primary" slot="actions" data-confirm ?disabled=${this.busy} @click=${() => void this.act(() => waterBilling.issue(b))}>${wt('aIssue')}</sw-button>${cancel}
       </elec-dialog>
       <elec-dialog heading=${wt('dVoidTitle')} ?open=${this.dlg === 'void'} data-dialog="void" @close=${() => (this.dlg = '')}>
         <div>${wt('dVoidBody')}</div>
         <div class="fld"><label for="wvr">${wt('dVoidReason')}</label><textarea id="wvr" data-reason aria-required="true" .value=${this.reason} @input=${(e: Event) => (this.reason = (e.target as HTMLTextAreaElement).value)}></textarea></div>${err}
-        <button slot="actions" type="button" class="btn dng pri" data-confirm ?disabled=${this.busy || empty} @click=${() => void this.act(() => waterBilling.void(b, this.reason.trim()))}>${wt('aVoid')}</button>${cancel}
+        <sw-button variant="danger" slot="actions" data-confirm ?disabled=${this.busy || empty} @click=${() => void this.act(() => waterBilling.void(b, this.reason.trim()))}>${wt('aVoid')}</sw-button>${cancel}
       </elec-dialog>
       <elec-dialog heading=${wt('dCorrectTitle')} ?open=${this.dlg === 'correct'} data-dialog="correct" @close=${() => (this.dlg = '')}>
         <div>${wt('dCorrectBody')}</div>${err}
-        <button slot="actions" type="button" class="btn pri" data-confirm ?disabled=${this.busy} @click=${() => void this.act(() => waterBilling.correct(b))}>${wt('dCorrectGo')}</button>${cancel}
+        <sw-button variant="primary" slot="actions" data-confirm ?disabled=${this.busy} @click=${() => void this.act(() => waterBilling.correct(b))}>${wt('dCorrectGo')}</sw-button>${cancel}
       </elec-dialog>
       <elec-dialog heading=${wt('dSentTitle')} ?open=${this.dlg === 'sent'} data-dialog="sent" @close=${() => (this.dlg = '')}>
         <div class="fld"><span class="lbl">${wt('dSentHow')}</span><div class="seg" role="group" aria-label=${wt('dSentHow')}>${(['email', 'hand', 'other'] as How[]).map((h) => html`<button type="button" data-how=${h} aria-pressed=${this.how === h ? 'true' : 'false'} @click=${() => (this.how = h)}>${wt(HOW_KEY[h])}</button>`)}</div></div>${err}
-        <button slot="actions" type="button" class="btn pri" data-confirm ?disabled=${this.busy} @click=${() => void this.act(() => waterBilling.markSent(b, this.how))}>${wt('save')}</button>${cancel}
+        <sw-button variant="primary" slot="actions" data-confirm ?disabled=${this.busy} @click=${() => void this.act(() => waterBilling.markSent(b, this.how))}>${wt('save')}</sw-button>${cancel}
       </elec-dialog>
       <elec-dialog heading=${wt('dPaidTitle')} ?open=${this.dlg === 'paid'} data-dialog="paid" @close=${() => (this.dlg = '')}>
         <div class="fld"><label for="wpr">${wt('dPaidRef')}</label><input id="wpr" class="ltr" data-reference placeholder=${wt('optional')} .value=${this.ref} @input=${(e: Event) => (this.ref = (e.target as HTMLInputElement).value)} /></div>${err}
-        <button slot="actions" type="button" class="btn pri" data-confirm ?disabled=${this.busy} @click=${() => void this.act(() => waterBilling.markPaid(b, this.ref.trim()))}>${wt('save')}</button>${cancel}
+        <sw-button variant="primary" slot="actions" data-confirm ?disabled=${this.busy} @click=${() => void this.act(() => waterBilling.markPaid(b, this.ref.trim()))}>${wt('save')}</sw-button>${cancel}
       </elec-dialog>
       <elec-dialog heading=${wt('dDeleteTitle')} ?open=${this.dlg === 'delete'} data-dialog="delete" @close=${() => (this.dlg = '')}>
         <div>${wt('dDeleteBody')}</div>${err}
-        <button slot="actions" type="button" class="btn dng pri" data-confirm ?disabled=${this.busy} @click=${() => void this.act(async () => { await waterBilling.deleteDraft(b); navigate(BASE); })}>${wt('aDelete')}</button>${cancel}
+        <sw-button variant="danger" slot="actions" data-confirm ?disabled=${this.busy} @click=${() => void this.act(async () => { await waterBilling.deleteDraft(b); navigate(BASE); })}>${wt('aDelete')}</sw-button>${cancel}
       </elec-dialog>`;
   }
 

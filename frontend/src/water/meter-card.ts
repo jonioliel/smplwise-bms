@@ -267,18 +267,18 @@ export class WaterMeterCard extends LitElement {
     return html`<h3 class="sec">${wt('openAlerts')}</h3>
       <div class="list" data-open-alerts>${this.alerts.map((e) => html`<div class="li" data-alert=${e.id}>
         <div class="grow"><div class="t1">${eventKindLabel(e.kind)} · ${eventValue(e)}</div><div class="t2 wrap">${wt('colSince')} <span class="num">${fmtTime(e.opened_at)}</span>${e.snoozed_until ? html` · ${wt('snoozedUntil', { t: fmtTime(e.snoozed_until) })}` : nothing}</div></div>
-        ${this.canAck ? html`<span class="acts">${e.can_ack ? html`<button class="btn sm pri" type="button" data-ack ?disabled=${this.busy} @click=${() => this.ack(e)}>${wt('ack')}</button>` : nothing}
+        ${this.canAck ? html`<span class="acts">${e.can_ack ? html`<sw-button variant="primary" size="sm" data-ack ?disabled=${this.busy} @click=${() => this.ack(e)}>${wt('ack')}</sw-button>` : nothing}
           ${e.can_snooze ? html`<water-snooze .settings=${this.snooze ?? { durations: [60], default: 60, max: 60 }} ?disabled=${this.busy} @snooze=${(ev: CustomEvent<{ minutes: number }>) => this.doSnooze(e, ev.detail.minutes)}></water-snooze>` : nothing}</span>` : nothing}
       </div>`)}</div>`;
   }
 
   private renderReadings() {
     if (!this.canManage) return nothing;
-    return html`<div class="row"><h3 class="sec">${wt('readings')}</h3><span class="sp"></span><button class="btn sm" type="button" data-reading @click=${() => this.openDlg('reading')}>${wt('manualReading')}</button></div>
+    return html`<div class="row"><h3 class="sec">${wt('readings')}</h3><span class="sp"></span><sw-button size="sm" data-reading @click=${() => this.openDlg('reading')}>${wt('manualReading')}</sw-button></div>
       ${this.readings.length
         ? html`<div class="list" data-readings>${this.readings.slice(0, 5).map((r) => html`<div class="li"><div class="grow"><div class="t1"><span class="num">${m3OfL(r.litres)}</span> ${wt('m3')}</div>
             <div class="t2">${fmtDateTime(r.read_at)} · ${r.voided_at ? wt('readingVoided') : r.effect === 'allocation' ? wt('effAllocation') : wt('effRecorded')}${r.note ? ` · ${r.note}` : ''}</div></div>
-            ${r.voided_at ? nothing : html`<button class="btn sm ghost" type="button" data-undo-reading ?disabled=${this.busy} @click=${() => void this.act(() => water.undoManual(this.meterId, r.id), () => void this.loadReadings())}>${wt('readingUndo')}</button>`}</div>`)}</div>`
+            ${r.voided_at ? nothing : html`<sw-button variant="ghost" size="sm" data-undo-reading ?disabled=${this.busy} @click=${() => void this.act(() => water.undoManual(this.meterId, r.id), () => void this.loadReadings())}>${wt('readingUndo')}</sw-button>`}</div>`)}</div>`
         : html`<div class="mut">${wt('noReadings')}</div>`}`;
   }
 

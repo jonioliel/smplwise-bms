@@ -158,7 +158,7 @@ export class WaterUsagePage extends LitElement {
     return html`<div class="row head">
       <div class="seg ranges" role="group" aria-label=${wt('range')} data-ranges>${(['today', '7d', '30d', 'prev'] as Range[]).map((r) => html`<button type="button" aria-pressed=${this.range === r ? 'true' : 'false'} data-range=${r} @click=${() => this.setRange(r)}>${wt(RANGE_KEY[r])}</button>`)}</div>
       <span class="sp"></span>
-      <button class="btn" type="button" data-csv ?disabled=${this.phase !== 'ready' || !this.data?.items.length} @click=${() => this.csv()}><sw-icon name="download" size="15"></sw-icon>${wt('csv')}</button>
+      <sw-button icon="download" data-csv ?disabled=${this.phase !== 'ready' || !this.data?.items.length} @click=${() => this.csv()}>${wt('csv')}</sw-button>
     </div>`;
   }
 

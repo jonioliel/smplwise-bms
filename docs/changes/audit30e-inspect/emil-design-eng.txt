@@ -1,0 +1,7 @@
+emil-design-eng (Skill tool, loaded 2026-11-12) - review checklist applied to the branch E diff:
+| Before | After | Why |
+| --- | --- | --- |
+| local .btn press: scale + background swap, 32-36 px | sw-button: scale(var(--sw-press-scale)) on the press curve, hover gated to (hover: hover) and (pointer: fine) | one press answer for every key; no sticky hover on touch |
+| .seg thumb r(sm-2)=8px in an r-sm track | pill thumb in a pill track (sw-view-switch shape), 28 px in 34 px | nested radii read as one control; on the button scale |
+| meters tree: selected row = filled accent + primary shadow | sw-place-tree: accent-soft wash + accent ink | a filter selection is state, not a call to action (Blue Wash) |
+Noted, not changed (not branch E's file): components/sw-place-tree.ts has `button:hover` without the (hover: hover) gate.

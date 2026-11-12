@@ -18,9 +18,14 @@ export const elecCss = css`
     min-inline-size: 0;
     /* the smallest hit area: 32 px on a desktop, the touch dial in the bubble skin, 44 px from 1100 px down (the layout guard's rule) */
     --elec-touch: 32px;
+    /* AUDIT30-E1 (round-30 audit #8): the keys that stay local (links styled as buttons, split and menu buttons, the segmented
+       control's thumb) sit on the shared button scale - the small key at --sw-ctl-h-sm, the default at --sw-ctl-h-md, radius
+       --sw-r-sm - and grow to the touch size where the module asks for it (bubble, 1100 px and below) */
+    --elec-key-sm: var(--sw-ctl-h-sm);
   }
   :host([data-skin='bubble']) {
     --elec-touch: var(--sw-touch-desktop);
+    --elec-key-sm: var(--elec-touch);
   }
   *,
   *::before,
@@ -215,7 +220,7 @@ export const elecCss = css`
     align-items: center;
     justify-content: center;
     gap: 6px;
-    min-block-size: max(36px, var(--elec-touch));
+    min-block-size: max(var(--sw-ctl-h-md), var(--elec-touch));
     padding: 0 16px;
     border-radius: var(--sw-r-sm);
     border: 1px solid var(--sw-border);
@@ -279,7 +284,7 @@ export const elecCss = css`
     box-shadow: none;
   }
   .btn.sm {
-    min-block-size: max(30px, var(--elec-touch));
+    min-block-size: var(--elec-key-sm);
     padding: 0 10px;
     font-size: var(--sw-fs-sm);
   }
@@ -289,7 +294,7 @@ export const elecCss = css`
   }
   /* an icon-only button (✕, ←, →): square, never narrower than the hit area */
   .btn.ic {
-    min-inline-size: max(30px, var(--elec-touch));
+    min-inline-size: var(--elec-key-sm);
     padding: 0 6px;
   }
   input,
@@ -446,13 +451,15 @@ export const elecCss = css`
     padding: 3px;
     gap: 2px;
     background: var(--sw-surface-3);
-    border-radius: var(--sw-r-sm);
+    /* AUDIT30-E1: a pill track with pill thumbs (the shared sw-view-switch shape); the thumb is the small key (28 px in a 34 px
+       track, both on the button scale) - it was 32 px with a radius of r-sm minus 2 (8 px), off the scale */
+    border-radius: var(--sw-r-pill);
     max-inline-size: 100%;
     flex-wrap: wrap;
   }
   .seg button {
-    padding: 5px 12px;
-    border-radius: calc(var(--sw-r-sm) - 2px);
+    padding: 0 12px;
+    border-radius: var(--sw-r-pill);
     color: var(--sw-text-2);
     cursor: pointer;
     font: inherit;
@@ -460,7 +467,7 @@ export const elecCss = css`
     white-space: nowrap;
     border: 0;
     background: transparent;
-    min-block-size: max(30px, var(--elec-touch));
+    min-block-size: var(--elec-key-sm);
   }
   .seg button[aria-pressed='true'] {
     background: var(--sw-seg-key, var(--sw-surface-solid));
@@ -1135,6 +1142,7 @@ export const elecCss = css`
     :host,
     :host([data-skin='bubble']) {
       --elec-touch: 44px;
+      --elec-key-sm: 44px;
     }
 
     .page {
