@@ -83,7 +83,7 @@ export function materialDef(id: string | null | undefined): MaterialDef | undefi
   return c ? BY_ID.get(c) : undefined;
 }
 
-function roomFloorByTags(tags: unknown): string | null {
+export function roomFloorByTags(tags: unknown): string | null {
   if (!Array.isArray(tags)) return null;
   const folded = tags.filter((t): t is string => typeof t === 'string').map((t) => t.toLowerCase());
   for (const [material, words] of ROOM_FLOOR_RULES) if (folded.some((t) => words.some((w) => t.includes(w)))) return material;

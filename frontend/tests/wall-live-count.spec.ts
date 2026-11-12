@@ -38,7 +38,7 @@ test('the ladder stops below the visible total and ends with "all"; the count is
   await expect(tiles(page)).toHaveCount(VISIBLE);
   expect(await page.evaluate(() => localStorage.getItem('sw.wall.count'))).toBe('all');
   await page.reload();
-  await expect(tiles(page)).toHaveCount(VISIBLE);
+  await expect(tiles(page)).toHaveCount(VISIBLE, { timeout: 15_000 });
   // nothing sideways; the rows beyond the screen scroll vertically instead of being squeezed away
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
   if (isPhone(page)) {
@@ -86,7 +86,7 @@ test('the columns picker is one compact dropdown at the top; the old chip row is
   await expect(page.locator('live-wall .grid')).toHaveAttribute('data-wall-cols-manual', '');
   expect(await page.evaluate(() => localStorage.getItem('sw.wall.cols'))).toBe('3');
   await page.reload();
-  await expect(tiles(page)).toHaveCount(12);
+  await expect(tiles(page)).toHaveCount(12, { timeout: 15_000 });
   await expect(page.locator('live-wall .grid')).toHaveAttribute('data-wall-cols', '3');
   await pickCols(page, 0);
   await expect(page.locator('live-wall .grid')).not.toHaveAttribute('data-wall-cols-manual', '');

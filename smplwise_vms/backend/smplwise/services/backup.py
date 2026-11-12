@@ -73,6 +73,8 @@ PROJECT_TABLES = PROJECT_TABLES + ["home_user_prefs", "home_favourites_seed"]
 # HOME-SIMPLE-2421 (migration 0212): each person's own room wallpaper picture (base64 text, re-encoded on upload). An archive written
 # before the table restores none: the room shows the gallery choice or no wallpaper.
 PROJECT_TABLES = PROJECT_TABLES + ["home_room_image"]
+# HOME-V3-P2-2431 (migration 0214): each person's own "do not disturb" night window. An archive written before the table restores none.
+PROJECT_TABLES = PROJECT_TABLES + ["home_notify_quiet"]
 # USR2 (owner answer Q8): the Arx-only identities' password hashes travel with the access part of a project backup (a restore to a
 # new host keeps the users) - the rows hold PHC hashes only, and since BACKUP-HASH-ENC (owner 2026-10-17) the hash column travels
 # ONLY inside the encrypted sensitive section (backup_sensitive.py; an export without a backup password leaves it out); sessions, links, the failure counters and the TOTP secrets

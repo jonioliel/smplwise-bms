@@ -1,3 +1,4 @@
+import { contentExtent, perspFit, type FrameInsets } from '../src/map/scene-frame';
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { demoSceneInput } from '../src/fixtures/demo-3d';
 import { buildScene, type SceneDescription } from '../src/map/scene-builder';
@@ -109,10 +110,13 @@ test('the presets place the camera: top above the middle of the plan, a camera p
   await expect(el).toHaveAttribute('data-preset', 'top');
   const top = await el.evaluate((n) => {
     const e = n as unknown as Probe;
-    return { pos: { ...e.view.camera.position }, size: e.description.size, ceilings: e.description.levels.map((l) => l.elevation_m + l.ceiling_height_m) };
+    const v = e.view as unknown as { persp: { fov: number; aspect: number }; frameInsetFractions: () => FrameInsets };
+    return { pos: { ...e.view.camera.position }, size: e.description.size, ceilings: e.description.levels.map((l) => l.elevation_m + l.ceiling_height_m), desc: e.description, fov: v.persp.fov, aspect: v.persp.aspect, insets: v.frameInsetFractions() };
   });
-  expect(top.pos.x).toBeCloseTo(top.size[0] / 2, 2);
-  expect(top.pos.z).toBeCloseTo(top.size[1] / 2, 2);
+  // PLAN3D-POLISH-2430: straight above the middle of what the floor draws, slid into the free part of the stage (scene-frame.perspFit)
+  const want = perspFit(contentExtent(top.desc), [0, 1, 0], top.fov, top.aspect, top.insets);
+  expect(top.pos.x).toBeCloseTo(want.position[0], 2);
+  expect(top.pos.z).toBeCloseTo(want.position[2] + 0.001, 2);
   expect(top.pos.y).toBeGreaterThan(Math.max(...top.ceilings));
   await el.locator('[data-preset-camera]').selectOption('cam-1');
   await expect(el).toHaveAttribute('data-preset', 'camera');
@@ -219,7 +223,12 @@ test('a click goes through a translucent upper plate to the level below; the low
   // the two-level one once more before the floor click
   await el.evaluate((n, d) => { (n as unknown as { description: unknown }).description = d; }, JSON.parse(JSON.stringify(two)));
   await expect(el).toHaveAttribute('data-parts', String(two.parts.length));
-  const floorAt = await el.evaluate((n) => (n as unknown as { toScreen: (p: [number, number, number]) => { x: number; y: number } | null }).toScreen([1.2, 0, 4.4]));
+  // an open bit of the lobby floor (room 0: x 0.67..5.67 m, z 0.67..5 m): between the chair columns and rows, 0.6 m off the
+  // lamp, ~1.9 m from every wall. It was [1.2, 0, 4.4], 0.6 m from the lobby's south wall: since the live framing
+  // (PLAN3D-POLISH-2430) the top camera stands over the free part of the stage rather than the plan's middle, and on the
+  // narrow mobile stage that 3 m wall leans over the point - the click rightly hit the wall (dw0), not the floor.
+  const floorAt = await el.evaluate((n) => (n as unknown as { toScreen: (p: [number, number, number]) => { x: number; y: number } | null }).toScreen([2.55, 0, 2.85]));
+  expect(floorAt, 'the floor point projects into the view').toBeTruthy();
   const box = (await el.boundingBox())!;
   await page.mouse.click(box.x + floorAt!.x, box.y + floorAt!.y);
   await expect(el).toHaveAttribute('data-selected', '');

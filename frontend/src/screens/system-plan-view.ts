@@ -397,8 +397,9 @@ export class SystemPlanView extends LitElement {
       </div>
       <h4 class="sub">מראה</h4>
       ${this.choiceRow('style')}
+      ${this.choiceRow('backdrop')}
       ${this.choiceRow('default_view')}
-      ${own ? nothing : html`${this.choiceRow('furniture')}${this.choiceRow('textures')}`}
+      ${own ? nothing : html`${this.choiceRow('furniture')}${this.choiceRow('textures')}${this.choiceRow('floor_finish')}`}
       ${this.flagRow('section_cut')}
       ${this.flagRow('show_temps')}
       ${this.flagRow('motion')}

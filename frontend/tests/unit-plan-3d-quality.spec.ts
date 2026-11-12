@@ -1,7 +1,7 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { demoSceneInput } from '../src/fixtures/demo-3d';
 import { buildScene, type SceneDescription } from '../src/map/scene-builder';
-import { CUTAWAY_HEIGHT_M, ISO_DIR, cutawayIds, quantiseAzimuth } from '../src/map/scene-frame';
+import { CUTAWAY_HEIGHT_M, ISO_DIR, contentExtent, cutawayIds, isoFitFrame, quantiseAzimuth, type FrameInsets } from '../src/map/scene-frame';
 
 // CR-006 slice 1a, the 3D element in headless Chromium (SwiftShader) on the style guide's demo floor: the quality chips
 // switch the realisation (level 2: hemisphere + shadow sun, standard materials, the contact occlusion, the cutaway;
@@ -202,8 +202,13 @@ test('the isometric preset is a true isometric on an orthographic camera; the pe
   expect(dir[1] / len).toBeCloseTo(ISO_DIR[1], 6);
   expect(dir[2] / len).toBeCloseTo(ISO_DIR[2], 6);
   const d = buildScene(demoSceneInput('f0')!);
-  expect(iso.target.x).toBeCloseTo(d.size[0] / 2, 3); // the plate is the whole plan: its centre
-  expect(iso.target.z).toBeCloseTo(d.size[1] / 2, 3);
+  // PLAN3D-POLISH-2430: the live element frames what the floor draws (contentExtent, not the whole-plan plate) in the stage less its
+  // overlays - the target is isoFitFrame's for the element's aspect and insets
+  const fitIn = await el.evaluate((n) => { const v = (n as unknown as { view: { persp: { aspect: number }; frameInsetFractions: () => FrameInsets } }).view; return { aspect: v.persp.aspect, insets: v.frameInsetFractions() }; });
+  const fitted = isoFitFrame(contentExtent(d), fitIn.aspect, fitIn.insets);
+  expect(iso.target.x).toBeCloseTo(fitted.target[0], 3);
+  expect(iso.target.y).toBeCloseTo(fitted.target[1], 3);
+  expect(iso.target.z).toBeCloseTo(fitted.target[2], 3);
   await el.locator('[data-preset-persp]').click();
   await expect(el).toHaveAttribute('data-preset', 'persp');
   const persp = await el.evaluate((n) => {

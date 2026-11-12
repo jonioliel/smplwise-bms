@@ -1,0 +1,9 @@
+﻿tsc exit 0
+✓ built in 48.19s
+build exit 0
+pw exit 0
+  ok 9 [unit] › tests\unit-home-simple-logic.spec.ts:107:1 › HOME-SIMPLE-2421: the wallpaper gallery is CSS only (no picture files, no addresses) and matches the server list (10ms)
+
+  9 passed (2.4s)
+unit exit 0
+shots exit 1

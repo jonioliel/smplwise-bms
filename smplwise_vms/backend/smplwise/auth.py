@@ -268,7 +268,7 @@ def _principal(request: Request, conn: sqlite3.Connection) -> Principal:
     from .services import home_interface
 
     home_interface.enforce(conn, principal, request.scope.get("path") or "", getattr(request.state, "correlation_id", None),
-                           root_path=request.scope.get("root_path") or "")
+                           root_path=request.scope.get("root_path") or "", method=request.scope.get("method") or "GET")
     return principal
 
 

@@ -6,9 +6,14 @@
  *
  * - Materials (RealMaterials): one MeshStandardMaterial per (library id, variant), tinted by the style's palette
  *   (materials.json `tint`), with the CC0 files (colour detail, NormalGL, AO + roughness packed) when the texture source is
- *   `files` - loaded lazily, per id, a failed file falls back to the plain tint. Glass: MeshPhysicalMaterial (transmission)
- *   on the top rung only, the cheap translucent standard glass on every other rung (LOOK_SPEC section 2). A style switch
+ *   `files` - loaded lazily, per id, a failed file falls back to the plain tint. Glass: the translucent standard glass with a
+ *   fresnel edge and the kept environment reflection on both rungs (PLAN3D-REALISM2-2433 S3, ao-shading.injectGlassFresnel;
+ *   was MeshPhysicalMaterial transmission on the top rung - a second render of the opaque scene every frame). A style switch
  *   re-tints; it never rebuilds.
+ * - PLAN3D-REALISM2-2433 S1: every opaque material reads the view's baked AO volume (ao-shading.injectBakedAo, `ao`).
+ * - PLAN3D-REALISM2-2433 S6: a packed roughness map is normalised by its own mean (`roughMean`), so the library's `roughness`
+ *   is the surface's mean roughness with the file loaded too (the file's own values replaced it: tiles at .35 drew at the
+ *   file's mean); textures sample with 8x anisotropy (the iso views see the floors at a grazing angle).
  * - Geometry: the walls, plates, lintels, sills, heads, room floors, connectors and the static detail families are MERGED
  *   per (level, material) with box-mapped UVs in metres (mesh-utils.boxUv): one draw per material per level, picking by
  *   triangle ranges. Objects and repeated family parts are INSTANCED per (shape, size, bevel, material) (LOOK_SPEC section
@@ -22,7 +27,7 @@
  *   prefiltered into the environment (IBL) on time change.
  * No HDRI, no path tracer, no KTX2, no Draco; the post chain lives in its own lazy chunk (post-chain.ts).
  */
-import { BackSide, BoxGeometry, BufferAttribute, BufferGeometry, CanvasTexture, ClampToEdgeWrapping, Color, CylinderGeometry, DoubleSide, Euler, Float32BufferAttribute, Group, InstancedMesh, LineBasicMaterial, LineSegments, Matrix3, Matrix4, Mesh, MeshBasicMaterial, MeshPhysicalMaterial, MeshStandardMaterial, NoColorSpace, Object3D, Plane, PlaneGeometry, Quaternion, RepeatWrapping, RoundedBoxGeometry, SRGBColorSpace, Scene, ShapeUtils, SphereGeometry, Texture, TextureLoader, Vector2, Vector3 } from './three-bundle';
+import { BackSide, BoxGeometry, BufferAttribute, BufferGeometry, CanvasTexture, ClampToEdgeWrapping, Color, CylinderGeometry, DataTexture, DoubleSide, Euler, Float32BufferAttribute, Group, InstancedMesh, LinearFilter, LinearMipmapLinearFilter, LineBasicMaterial, RGBAFormat, UnsignedByteType, LineSegments, Matrix3, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, NoColorSpace, Object3D, Plane, PlaneGeometry, Quaternion, RepeatWrapping, RoundedBoxGeometry, SRGBColorSpace, Scene, ShapeUtils, SphereGeometry, Texture, TextureLoader, Vector2, Vector3 } from './three-bundle';
 import type { SceneDescription, ScenePart, Vec3 } from './scene-builder';
 import type { RealWorld } from './scene-real-builder';
 import { MATERIALS, type MaterialDef } from './material-resolve';
@@ -30,6 +35,10 @@ import { LOOK_STYLES, type StyleId } from './look-style';
 import { MODEL_MAP, SLOT_ROUGHNESS, modelUrl, textureUrls, PLAN3D_BASE, type ModelEntry } from './plan3d-assets';
 import { boxUv, creaseNormals, fitModel, jitter, readGlb, type GlbModel } from './mesh-utils';
 import { kelvinRgb, type LightRecipe } from './sun';
+import { planGlow, type GlowRoom } from './room-glow';
+import { RoomGlow } from './room-glow-mesh';
+import { injectBakedAo, injectGlassFresnel, type AoUniforms } from './ao-shading';
+import { DEFAULT_FLOOR_FINISH, FINISH_DEFS, finishMaterial, finishPixelsCached, isFinishMaterial, type FloorFinish } from './floor-finish';
 
 export type RealRung = 'realistic' | 'lite';
 export interface RealSettings {
@@ -38,10 +47,18 @@ export interface RealSettings {
   furniture: 'models' | 'procedural';
   textures: 'files' | 'procedural';
   sectionCut: boolean;
+  /** PLAN3D-REALISM-2432: what stands behind the model in the orbit views - `sky` (the sun's sky, the horizon band) or
+   * `studio` (a dark sky gradient, no horizon: the architectural-render look). Optional: older callers keep `sky`. */
+  backdrop?: Backdrop;
+  /** PLAN3D-REALISM2-2433: what the living floors are made of (floor-finish.ts; the installation dial `floor_finish`).
+   * Optional: older callers get the default (marble). */
+  floorFinish?: FloorFinish;
 }
-export const DEFAULT_REAL: RealSettings = { rung: 'lite', style: 'light', furniture: 'models', textures: 'files', sectionCut: true };
+export type Backdrop = 'sky' | 'studio';
+export const DEFAULT_REAL: RealSettings = { rung: 'lite', style: 'light', furniture: 'models', textures: 'files', sectionCut: true, backdrop: 'sky', floorFinish: DEFAULT_FLOOR_FINISH };
 
-const BY_ID = new Map(MATERIALS.map((m) => [m.id, m]));
+// the library and the two generated floor finishes (render-time ids, floor-finish.ts)
+const BY_ID = new Map([...MATERIALS, ...FINISH_DEFS].map((m) => [m.id, m]));
 const rad = (d: number): number => (d * Math.PI) / 180;
 /** Kinds the realistic level draws itself (structure and objects); everything else keeps SceneView's level-2 path. */
 export const REAL_KINDS = new Set(['floor', 'wall', 'lintel', 'sill', 'head', 'door', 'window', 'object', 'connector', 'camera', 'room']);
@@ -62,7 +79,14 @@ export interface RealBuilt {
   /** The lamp bodies' bulb materials by lamp id (emissive while on). */
   bulbs: Map<string, MeshStandardMaterial>;
   caps: Object3D | null;
+  /** PLAN3D-REALISM-2432: the lit / presence room glow (room-glow-mesh.ts); null without a lit or occupied room. */
+  glow: RoomGlow | null;
   stats: { meshes: number; instanced: number; merged: number; models: number };
+}
+
+/** PLAN3D-REALISM-2432: the glow plan of the parts a realisation draws (their state tints, the levels, the lamps). */
+export function glowPlanOf(desc: SceneDescription, parts: readonly ScenePart[]): GlowRoom[] {
+  return planGlow(parts, desc.levels, desc.real?.lamps ?? []);
 }
 
 // ---------------------------------------------------------------- materials
@@ -74,6 +98,10 @@ export class RealMaterials {
   private readonly mats = new Map<string, { id: string; variant: string; m: MeshStandardMaterial }>();
   private pendingLoads = 0;
   private clip: Plane[] | null = null;
+  /** PLAN3D-REALISM2-2433 S6: the mean of each packed roughness file's G channel (read once the file decoded). */
+  private readonly roughMean = new Map<string, number>();
+  /** PLAN3D-REALISM2-2433 S1: the view's baked AO uniforms (null: no patch). */
+  ao: AoUniforms | null = null;
   style: StyleId = 'light';
   source: 'files' | 'procedural' = 'files';
   rung: RealRung = 'lite';
@@ -89,7 +117,11 @@ export class RealMaterials {
     let t = this.textures.get(url);
     if (t) return t;
     this.pendingLoads++;
-    t = this.loader.load(url, () => { this.pendingLoads--; this.onLoad(); }, undefined, () => {
+    t = this.loader.load(url, (tex) => {
+      this.pendingLoads--;
+      if (!srgb && url.endsWith('rough_ao.jpg')) this.measureRoughness(url, tex);
+      this.onLoad();
+    }, undefined, () => {
       this.pendingLoads--;
       this.failed.add(url);
       // a failed file falls back to the plain tint for that id (LOOK_SPEC section 13: nothing else changes)
@@ -99,9 +131,68 @@ export class RealMaterials {
     t.wrapS = RepeatWrapping;
     t.wrapT = RepeatWrapping;
     t.colorSpace = srgb ? SRGBColorSpace : NoColorSpace;
-    t.anisotropy = 4;
+    t.anisotropy = 8;
     this.textures.set(url, t);
     return t;
+  }
+
+  /** PLAN3D-REALISM2-2433: the generated colour map of a floor finish (floor-finish.ts) - one mip-mapped DataTexture per
+   * finish, kept with the loaded files (disposed with them). */
+  private finishMap(id: string): Texture {
+    const key = `finish:${id}`;
+    let t = this.textures.get(key);
+    if (t) return t;
+    const { data, size } = finishPixelsCached(id);
+    const d = new DataTexture(data, size, size, RGBAFormat, UnsignedByteType);
+    d.wrapS = RepeatWrapping;
+    d.wrapT = RepeatWrapping;
+    d.colorSpace = SRGBColorSpace;
+    d.magFilter = LinearFilter;
+    d.minFilter = LinearMipmapLinearFilter;
+    d.generateMipmaps = true;
+    d.anisotropy = 8;
+    d.needsUpdate = true;
+    d.name = key;
+    this.textures.set(key, (t = d));
+    return t;
+  }
+
+  /** S6: the file's mean roughness (G of a 16 x 16 reduction); every material on the file takes the library mean again. */
+  private measureRoughness(url: string, tex: Texture): void {
+    try {
+      const img = tex.image as CanvasImageSource & { width: number; height: number };
+      const c = typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(16, 16) : Object.assign(document.createElement('canvas'), { width: 16, height: 16 });
+      const g = c.getContext('2d') as CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null;
+      if (!g || !img?.width) return;
+      g.drawImage(img, 0, 0, 16, 16);
+      const px = g.getImageData(0, 0, 16, 16).data;
+      let sum = 0;
+      for (let i = 1; i < px.length; i += 4) sum += px[i];
+      const mean = sum / (px.length / 4) / 255;
+      if (!(mean > 0.02)) return;
+      this.roughMean.set(url, mean);
+      for (const e of this.mats.values()) if (e.m.roughnessMap === tex) this.fitRoughness(e.m, e.id, e.variant);
+    } catch {
+      /* a tainted or undecodable image keeps the file's own roughness */
+    }
+  }
+
+  /** The roughness factor that makes the file's mean the library's (x the floor sheen); the file's own until it is measured. */
+  private fitRoughness(m: MeshStandardMaterial, id: string, variant: string): void {
+    const def = BY_ID.get(id);
+    let mean: number | undefined;
+    for (const [u, v] of this.roughMean) if (this.textures.get(u) === m.roughnessMap) mean = v;
+    let r = mean ? roughnessFactor(def?.roughness ?? 1, mean) : 1;
+    if (variant.startsWith('slot:')) r = Number(variant.slice(5));
+    if (variant === 'floor') r *= LOOK_STYLES[this.style].rig.floorSheen;
+    m.roughness = r;
+  }
+
+  /** The roughness factors now, by library id (tests, the evidence). */
+  roughnessOf(): Record<string, number> {
+    const out: Record<string, number> = {};
+    for (const e of this.mats.values()) if (e.variant === 'std' || e.variant === 'floor') out[`${e.id}|${e.variant}`] = Math.round(e.m.roughness * 1000) / 1000;
+    return out;
   }
 
   private tint(def: MaterialDef | undefined): number {
@@ -110,7 +201,7 @@ export class RealMaterials {
 
   /** The material of a library id; `variant`: 'std' | 'floor' | 'nomap' (kit models: no UVs) | 'glass' | 'slot:<roughness>'. */
   get(id: string, variant = 'std', clipped = true): MeshStandardMaterial {
-    const key = `${id}|${variant}|${clipped ? 1 : 0}|${this.rung === 'realistic' && variant === 'glass' ? 'phys' : ''}`;
+    const key = `${id}|${variant}|${clipped ? 1 : 0}`;
     const have = this.mats.get(key);
     if (have) return have.m;
     const def = BY_ID.get(id);
@@ -118,11 +209,9 @@ export class RealMaterials {
     if (variant === 'glass' || def?.glass) {
       const g = LOOK_STYLES[this.style].glass;
       const frosted = id === 'glass_frosted';
-      if (this.rung === 'realistic' && !frosted) {
-        m = new MeshPhysicalMaterial({ color: g.tint, transmission: 0.92, roughness: 0.05, ior: 1.5, clearcoat: 0.6, thickness: 0.01, transparent: true, opacity: 1, envMapIntensity: g.env, side: DoubleSide });
-      } else {
-        m = new MeshStandardMaterial({ color: frosted ? 0xdfe9f3 : g.tint, transparent: true, opacity: frosted ? 0.62 : g.opacity, roughness: 0.05, metalness: 0, envMapIntensity: 1.4, depthWrite: false, side: DoubleSide, forceSinglePass: true });
-      }
+      // S3: one glass on both rungs - translucent standard, a fresnel edge and the environment's reflection kept (no transmission pass)
+      m = new MeshStandardMaterial({ color: frosted ? 0xdfe9f3 : g.tint, transparent: true, opacity: frosted ? 0.62 : g.opacity, roughness: frosted ? 0.35 : 0.04, metalness: 0, envMapIntensity: frosted ? 1.0 : g.env, depthWrite: false, side: DoubleSide, forceSinglePass: true });
+      if (!frosted) injectGlassFresnel(m);
     } else {
       const metal = def?.metalness ?? 0;
       m = new MeshStandardMaterial({ color: this.tint(def), roughness: def?.roughness ?? 1, metalness: metal, envMapIntensity: metal > 0.5 ? 1.0 : 0.7 });
@@ -140,9 +229,13 @@ export class RealMaterials {
           m.aoMapIntensity = 0.6;
           m.roughness = 1;
         }
+      } else if (variant !== 'nomap' && this.source === 'files' && isFinishMaterial(id)) m.map = this.finishMap(id); // PLAN3D-REALISM2-2433
+      if (m.roughnessMap) this.fitRoughness(m, id, variant);
+      else {
+        if (variant.startsWith('slot:')) m.roughness = Number(variant.slice(5));
+        if (variant === 'floor') m.roughness *= LOOK_STYLES[this.style].rig.floorSheen;
       }
-      if (variant.startsWith('slot:')) m.roughness = Number(variant.slice(5));
-      if (variant === 'floor') m.roughness *= LOOK_STYLES[this.style].rig.floorSheen;
+      if (this.ao) injectBakedAo(m, this.ao);
     }
     m.userData.materialId = id;
     if (clipped) m.clippingPlanes = this.clip;
@@ -160,11 +253,14 @@ export class RealMaterials {
       if (e.variant === 'glass' || def?.glass) {
         if (e.id !== 'glass_frosted') e.m.color.setHex(g.tint);
         e.m.envMapIntensity = g.env;
-        if (!(e.m instanceof MeshPhysicalMaterial) && e.id !== 'glass_frosted') e.m.opacity = g.opacity;
+        if (e.id !== 'glass_frosted') e.m.opacity = g.opacity;
         continue;
       }
       e.m.color.setHex(this.tint(def));
-      if (e.variant === 'floor') e.m.roughness = (e.m.map ? 1 : def?.roughness ?? 1) * LOOK_STYLES[style].rig.floorSheen;
+      if (e.variant === 'floor') {
+        if (e.m.roughnessMap) this.fitRoughness(e.m, e.id, e.variant);
+        else e.m.roughness = (def?.roughness ?? 1) * LOOK_STYLES[style].rig.floorSheen;
+      }
     }
   }
 
@@ -194,6 +290,15 @@ export class RealMaterials {
     this.mats.clear();
     this.textures.clear();
   }
+}
+
+/** S6: the roughness factor that moves a file of mean `mean` toward the library's `target`, within ROUGH_FACTOR: the CC0 files
+ * run glossier than the library (oak .42 for .85, the wall tiles .17 for .35), and the full factor flattened the softbox
+ * highlights the floors carry; the clamp keeps a lacquered sheen on wood and tiles and brings fabric and plaster to matte. */
+export const ROUGH_FACTOR: readonly [number, number] = [0.75, 1.5];
+export function roughnessFactor(target: number, mean: number): number {
+  if (!(mean > 0.02)) return 1;
+  return Math.round(Math.min(ROUGH_FACTOR[1], Math.max(ROUGH_FACTOR[0], target / mean)) * 1000) / 1000;
 }
 
 // ---------------------------------------------------------------- models
@@ -395,13 +500,22 @@ export interface RealBuildInput {
   heavy: boolean;
   mats: RealMaterials;
   models: RealModels;
+  /** PLAN3D-REALISM-2432: the room glow's night factor and the previous graph's glow weights (a change fades from them;
+   * null: no fade, the first build or motion off). Absent: no glow (a caller that does not draw the state layer). */
+  glow?: { night: number; prev: ReturnType<RoomGlow['state']> | null; now: number };
+}
+
+/** PLAN3D-REALISM2-2433: the material a room floor draws in - a floor the document leaves open (`finish`) takes the
+ * installation's finish (wood / marble / ceramic, floor-finish.ts), every other its resolved material. */
+export function roomFloorMaterial(f: Pick<RealWorld['floors'][number], 'material' | 'finish'>, settings: Pick<RealSettings, 'floorFinish'>): string {
+  return f.finish ? finishMaterial(settings.floorFinish ?? DEFAULT_FLOOR_FINISH) : f.material;
 }
 
 /** Realise the structure and the objects of a level-3 description (module note). Deterministic for equal input and
  * equal loaded assets. */
 export function buildReal(inp: RealBuildInput): RealBuilt {
   const { real, settings, mats, models } = inp;
-  const out: RealBuilt = { root: new Group(), lookup: new Map(), leaves: new Map(), shutters: new Map(), bulbs: new Map(), caps: null, stats: { meshes: 0, instanced: 0, merged: 0, models: 0 } };
+  const out: RealBuilt = { root: new Group(), lookup: new Map(), leaves: new Map(), shutters: new Map(), bulbs: new Map(), caps: null, glow: null, stats: { meshes: 0, instanced: 0, merged: 0, models: 0 } };
   out.root.name = 'real';
   const levels = new Set(inp.desc.levels.map((l) => l.id));
   const heavy = inp.heavy;
@@ -502,7 +616,8 @@ export function buildReal(inp: RealBuildInput): RealBuilt {
   for (const f of real.floors) {
     if (!levels.has(f.level_id)) continue;
     const geo = plateGeometry(f.polygon, f.y, 0.006);
-    if (geo) bucket(f.level_id, f.material, 'floor', 'floor').push(geo, new Matrix4(), { id: f.id, kind: 'room', userData: { id: f.zone, kind: 'zone' } });
+    const material = roomFloorMaterial(f, settings);
+    if (geo) bucket(f.level_id, material, 'floor', 'floor').push(geo, new Matrix4(), { id: f.id, kind: 'room', userData: { id: f.zone, kind: 'zone' } });
   }
   // ---- room ceilings (R3 G4): the plate's underside, cut away by the section plane in the orbit views, seen in the walk
   for (const c of real.ceilings ?? []) {
@@ -653,6 +768,16 @@ export function buildReal(inp: RealBuildInput): RealBuilt {
     out.caps = g;
     out.root.add(g);
   }
+  // ---- the room glow (PLAN3D-REALISM-2432): lit pools and washes, presence edges - from the state tints of these parts
+  if (inp.glow) {
+    const rooms = glowPlanOf(inp.desc, inp.parts);
+    // the previous weights count only for the same levels (a level switch shows other rooms: no fade, no ghost of the last)
+    const prev = inp.glow.prev && [...inp.glow.prev.values()].every((r) => levels.has(r.room.level_id)) ? inp.glow.prev : null;
+    if (rooms.length || (prev && prev.size)) {
+      out.glow = new RoomGlow(rooms, settings.style, inp.glow.night, prev, inp.glow.now);
+      out.root.add(out.glow.root);
+    }
+  }
   unitBox.dispose();
   out.stats.meshes += out.root.children.length;
   return out;
@@ -755,6 +880,8 @@ export interface Exterior {
   disc: Mesh;
   contact: Mesh;
   band: Mesh;
+  /** The environment's softboxes (in domeScene only). */
+  softboxes: Mesh[];
 }
 /** The ground disc, the building's contact shadow and the horizon band around an extent, plus the sky dome. */
 export function buildExterior(extent: { x0: number; x1: number; y0: number; z0: number; z1: number }, style: StyleId, lit: boolean): Exterior {
@@ -793,15 +920,72 @@ export function buildExterior(extent: { x0: number; x1: number; y0: number; z0: 
   dome.position.set(cx, 0, cz);
   const domeScene = new Scene();
   domeScene.add(new Mesh(domeGeo, dome.material));
+  // PLAN3D-REALISM-2432: the studio softboxes of the environment (IBL) only - a wide panel overhead and two at the sides
+  // (paintSky sets their strength by the time of day). The LDR sky alone gave the materials a flat, even reflection; the
+  // panels give the floors and the glass soft highlights and the walls a gentle top-down gradient, the way an
+  // architectural render's area lights do. Never seen directly (the dome scene is only prefiltered), no runtime cost.
+  const softboxes: Mesh[] = [];
+  const panel = (w: number, h: number, pos: [number, number, number]) => {
+    const m = new Mesh(new PlaneGeometry(w, h), new MeshBasicMaterial({ color: 0xffffff, side: DoubleSide, toneMapped: false, fog: false }));
+    m.position.set(...pos);
+    m.lookAt(0, 0, 0);
+    m.userData.ownMaterial = true;
+    softboxes.push(m);
+    domeScene.add(m);
+  };
+  panel(260, 260, [0, 180, 0]);
+  panel(220, 90, [-200, 60, 60]);
+  panel(160, 70, [170, 40, -150]);
   for (const m of [dome, band, disc, contact]) m.userData.ownMaterial = true;
   // ST7-odd: the backdrop (sky, horizon, the ground plate and its contact shade) stays out of the GTAO normal / depth
   // pass (post-chain SkipAoPass): the ground seen just over a cut wall's top lies metres behind it, and the pass darkened
   // it against the wall top as a grey halo along every cut wall; as background (depth 1) the pass leaves it alone. The
   // building's contact with the ground is the radial shade of `contact`, not screen-space occlusion.
   for (const m of [dome, band, disc, contact]) m.userData.skipAO = true;
+  dome.userData.extra = softboxes; // disposed with the dome (disposeDeep): they live in domeScene, not under root
   root.add(dome, band, disc, contact);
-  return { root, dome, domeScene, disc, contact, band };
+  return { root, dome, domeScene, disc, contact, band, softboxes };
 }
+
+/** PLAN3D-REALISM-2432: the softbox strengths of the environment for a recipe and a style: a bright neutral overhead panel by
+ * day, a dim cool one and a warm low one at night (the lit interiors' bounce). Pure. */
+export function softboxLevels(r: Pick<LightRecipe, 'day' | 'night'>, style: StyleId): [number, number, number][] {
+  const k = style === 'dark' ? 0.55 : 1;
+  const d = Math.max(0, Math.min(1, r.day));
+  const n = Math.max(0, Math.min(1, r.night));
+  const top = (1.25 * d + 0.06 * n) * k;
+  const side = (0.55 * d + 0.03 * n) * k;
+  const warm = (0.35 * d + 0.22 * n) * k;
+  return [[top, top, top * 1.02], [side * 0.96, side, side * 1.06], [warm, warm * 0.78, warm * 0.55]];
+}
+
+/** PLAN3D-REALISM-2432: the backdrop of the orbit views. The LDR dome went through the post chain's tone mapping with the
+ * scene and read as flat grey behind the model; in the orbit views it is hidden and the element's CSS gradient (backdropColors,
+ * never tone-mapped) is the sky - the dome stays for the walk (eye level: the horizon matters) and always feeds the IBL. The
+ * `studio` backdrop also drops the horizon band and darkens the ground disc into the gradient. */
+export function applyBackdrop(ext: Exterior, backdrop: Backdrop, walking: boolean, r: LightRecipe, style: StyleId): void {
+  const st = LOOK_STYLES[style];
+  ext.dome.visible = walking;
+  ext.band.visible = walking || backdrop === 'sky';
+  const disc = ext.disc.material as MeshBasicMaterial;
+  const studio = backdrop === 'studio' && !walking;
+  // the ground disc reaches far past the footprint (it IS the backdrop of an iso view): in the studio it shrinks to a dark
+  // plinth just past the building, so the gradient stands behind the model
+  ext.disc.scale.setScalar(studio ? STUDIO.discScale : 1);
+  if (studio) disc.color.setHex(STUDIO.disc[style]).lerp(new Color(STUDIO.discNight[style]), r.night);
+  else disc.color.setHex(st.ground.disc).lerp(new Color(st.ground.discNight), r.night);
+  (ext.contact.material as MeshBasicMaterial).opacity = backdrop === 'studio' && !walking ? Math.min(0.8, st.ground.contact * 1.6) : st.ground.contact;
+}
+
+/** The studio backdrop's colours: the CSS stops [top, centre glow, bottom] by day and night, the ground disc per style. */
+export const STUDIO = {
+  day: { light: ['#1b2536', '#3a4a63', '#0d121b'], dark: ['#0c121d', '#1e2b40', '#05080d'] },
+  night: { light: ['#080d18', '#1f2e4a', '#03050a'], dark: ['#05080f', '#142037', '#020306'] },
+  // (the realistic rung's disc is lit by the sun: these read about three times brighter by day)
+  disc: { light: 0x0b0f16, dark: 0x080b11 },
+  discNight: { light: 0x0e141f, dark: 0x090d15 },
+  discScale: 0.42,
+} as const;
 
 /** Paint the dome's vertex colours from the recipe and the style (LOOK_SPEC section 1 sky scale, ground tint; a sun disc). */
 export function paintSky(ext: Exterior, r: LightRecipe, sunDir: [number, number, number], style: StyleId): void {
@@ -826,11 +1010,24 @@ export function paintSky(ext: Exterior, r: LightRecipe, sunDir: [number, number,
     col.setXYZ(i, Math.min(1, c[0] + discAmt * r.sunColor[0]), Math.min(1, c[1] + discAmt * r.sunColor[1]), Math.min(1, c[2] + discAmt * r.sunColor[2]));
   }
   col.needsUpdate = true;
+  // PLAN3D-REALISM-2432: the environment's softboxes follow the time of day (softboxLevels)
+  softboxLevels(r, style).forEach((v, i) => {
+    const m = ext.softboxes?.[i];
+    if (m) (m.material as MeshBasicMaterial).color.setRGB(v[0], v[1], v[2]);
+  });
 }
 
 /** The CSS backdrop stops [top, horizon, bottom]: the style's colours mixed 50 % with the recipe (LOOK_SPEC section 1). */
-export function backdropColors(r: LightRecipe, style: StyleId): [string, string, string] {
+export function backdropColors(r: LightRecipe, style: StyleId, backdrop: Backdrop = 'sky'): [string, string, string] {
   const s = LOOK_STYLES[style];
+  if (backdrop === 'studio') {
+    // PLAN3D-REALISM-2432: the dark sky gradient, the day stops eased into the night ones by the night factor
+    const hex = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+    const d = STUDIO.day[style];
+    const n = STUDIO.night[style];
+    const t = Math.max(0, Math.min(1, r.night));
+    return [0, 1, 2].map((i) => `rgb(${hex(d[i]).map((v, j) => Math.round(v + (hex(n[i])[j] - v) * t)).join(', ')})`) as [string, string, string];
+  }
   const hex = (h: string) => [parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255];
   const css = (c: number[]) => `rgb(${c.map((v) => Math.round(Math.max(0, Math.min(1, v)) * 255)).join(', ')})`;
   const mix = (a: number[], b: number[]) => css(a.map((v, i) => (v + b[i]) / 2));
@@ -856,6 +1053,10 @@ export function disposeDeep(root: Object3D): void {
       if (!m.userData.shared) m.geometry?.dispose();
       const mat = m.material;
       if (m.userData.ownMaterial && mat && !Array.isArray(mat)) mat.dispose();
+      for (const x of (m.userData.extra as Mesh[] | undefined) ?? []) {
+        x.geometry.dispose();
+        (x.material as MeshBasicMaterial).dispose();
+      }
     }
   });
 }

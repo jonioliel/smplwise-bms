@@ -45,7 +45,7 @@ import { defaultLevelId } from '../map/studio-ops';
 import { DEFAULT_PRESENCE_FADE_MIN, isLightEntity, isOpeningEntity, isPresenceEntity, layerSignature, parsePresenceFade, presenceStepMs, roomStates, temperatureText, type PresenceFade, type RoomStateLayer, type StateEntity, type StateOpening } from '../map/room-state';
 import { loadLibrary, lookup3dOf, lookupMaterialsOf, lookupOf } from '../api/plan-catalog';
 import type { CatalogMaterialLookup } from '../map/material-resolve';
-import { buildScene, type Catalog3DLookup, type SceneAnchor, type SceneDescription, type SceneInput } from '../map/scene-builder';
+import { buildScene, entityMeta, type Catalog3DLookup, type SceneAnchor, type SceneDescription, type SceneInput } from '../map/scene-builder';
 import { sameScene } from '../map/scene-equal';
 import type { ScenePreset } from '../map/scene-three'; // type only: the three chunk stays out of the entry bundle
 import { modeFromWire, type QualityMode } from '../map/quality-mode';
@@ -1981,6 +1981,7 @@ export class ExploreFloorMap extends LitElement {
       id: a.id, resource_type: a.resource_type, resource_id: a.resource_id, x: a.position.x, y: a.position.y, rotation: a.rotation_degrees, fov: a.field_of_view_degrees ?? null, radius: a.coverage_radius ?? null,
       polygon: a.coverage_polygon ?? null, level_id: a.level_id ?? null, layer_id: a.layer_id, label: entityName(a), state: a.resource_type === 'ha_entity' ? states[a.resource_id] ?? null : null,
       online: a.resource_type === 'camera' ? (a.camera ? a.camera.status === 'online' : null) : null, mount_height_m: a.mount_height_m ?? null, tilt_deg: a.tilt_deg ?? null,
+      ...(a.resource_type === 'ha_entity' && a.entity ? { entity_meta: entityMeta(a.entity) } : {}),
     };
   }
 
@@ -2034,7 +2035,8 @@ export class ExploreFloorMap extends LitElement {
   private sceneStatesKey(b: MapBundle, layer: RoomStateLayer | null): string {
     if (b.source === 'demo') return '';
     const cams = b.anchors.filter((a) => a.resource_type === 'camera').map((a) => `${a.id}:${a.camera?.status ?? ''}`).join(',');
-    return JSON.stringify([this.entityStates3d, this.circuitStates3d, cams, this.syncConnected, layerSignature(layer)]); // the signature: never presenceAge (it ticks per second)
+    const metas = b.anchors.filter((a) => a.resource_type === 'ha_entity' && a.entity).map((a) => [a.id, entityMeta(a.entity)]); // PLAN3D-POLISH-2430: the pill words read the unit / brightness too
+    return JSON.stringify([this.entityStates3d, this.circuitStates3d, cams, this.syncConnected, layerSignature(layer), metas]); // the signature: never presenceAge (it ticks per second)
   }
 
   /** The floor has something to show in 3D - a cheap test for the toggle; the scene itself is built only in 3D. */

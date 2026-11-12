@@ -17,6 +17,29 @@ const SETTINGS = '/system/diagnostics?tab=access-control';
 const noBaseline = (info: { snapshotPath: (...name: string[]) => string; config: { updateSnapshots: string } }, name: string) =>
   !['all', 'changed'].includes(info.config.updateSnapshots) && !fs.existsSync(info.snapshotPath(name));
 
+/**
+ * FLAKY-S12-PIXEL-2412: the display card is `ready` (saved settings in) before two more answers shape it - WisKey's engine list (the
+ * "system default is now ..." line and the language row) and the read-only readiness line of the media source ("checking" -> its final
+ * sentence). Under load they land after the screenshot's first frame and the phone card (390 px, where those lines wrap) came out
+ * 15-23 px taller than its baseline. Wait until fonts are ready, the card has no "checking" line and its height is the same for 20
+ * consecutive animation frames (restarted on every change).
+ */
+async function cardLayoutStable(page: Page, card: string): Promise<void> {
+  await page.evaluate(() => document.fonts.ready);
+  await page.locator(`${D} system-access-display [data-access-display-readiness="checking"]`).waitFor({ state: 'detached', timeout: 20_000 }).catch(() => undefined);
+  const el = page.locator(card);
+  const deadline = Date.now() + 15_000;
+  let last = -1;
+  let same = 0;
+  while (same < 20 && Date.now() < deadline) {
+    await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => r())));
+    const box = await el.boundingBox();
+    const h = box ? Math.round(box.height * 100) : -2;
+    same = h === last ? same + 1 : 0;
+    last = h;
+  }
+}
+
 async function open(page: Page, opts: MockOptions, skin: string, ready: string, hash = SETTINGS, mode: ParityMock['mode'] = 'ready') {
   const mock = await installAccessMock(page, opts);
   await installParityMock(page, mock, mode);
@@ -49,6 +72,7 @@ test.describe('pixel: CR-036 S12', () => {
     test(pixelTitle(skin, 'the display card and a parity report'), async ({ page }, info) => {
       const check = skinCheck(page, skin);
       await open(page, {}, skin, `${D} system-access-display sw-card[data-access-display="ready"]`);
+      await cardLayoutStable(page, `${D} system-access-display sw-card`);
       await check(() => compare(page, info, `s12-${skin}-display`, `${D} system-access-display sw-card`), `${D} system-access-display sw-card`);
       await page.locator(`${D} system-access-parity sw-button[data-parity-run]`).click();
       await page.mouse.move(0, 0); // TTS-DEFAULT-ENGINE-2400: no row of the report under the pointer (the taller display card above moved it there)
