@@ -44,7 +44,7 @@ test.describe('pixel: home v3 audit fixes (round 30)', () => {
   test.beforeEach(({}, info) => test.skip(info.project.name === 'tablet', 'desktop and phone only'));
 
   for (const scheme of ['light', 'dark'] as const) {
-    test(`phone: recordings, alarm, cameras ${scheme}`, async ({ page }, info) => {
+    test(`pixel-stable: phone: recordings, alarm, cameras ${scheme}`, async ({ page }, info) => {
       test.skip(info.project.name !== 'mobile', 'phone screens');
       await open(page, 'playback/cam1', {}, scheme);
       await expect(home(page).locator('.hs-head .pb-days')).toBeVisible();
@@ -56,7 +56,7 @@ test.describe('pixel: home v3 audit fixes (round 30)', () => {
       await compare(page, info, '#main', `auditfix-cameras-${scheme}-390.png`);
     });
 
-    test(`portrait tablet 768 room and wall recordings head ${scheme}`, async ({ page }, info) => {
+    test(`pixel-stable: portrait tablet 768 room and wall recordings head ${scheme}`, async ({ page }, info) => {
       test.skip(info.project.name !== 'desktop', 'viewport set here');
       await page.setViewportSize({ width: 768, height: 1024 });
       await open(page, 'r/living', {}, scheme);
