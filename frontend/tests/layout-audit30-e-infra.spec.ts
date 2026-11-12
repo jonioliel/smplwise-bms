@@ -258,8 +258,8 @@ test.describe('AUDIT30-E-INFRA: sources', () => {
 
   test('E1: the local keys that stay sit on the shared scale (control-height tokens, pill segmented control)', () => {
     const css = read('electricity/styles.ts');
-    expect(css).toContain('min-block-size: max(var(--sw-ctl-h-md), var(--elec-touch));');
-    expect(css).toContain('--elec-key-sm: var(--sw-ctl-h-sm);');
+    expect(css).toContain('--elec-key-md: max(var(--sw-ctl-h-md), var(--elec-touch));');
+    expect(css).toContain('--elec-key-sm: var(--elec-key-md);'); // never below the module's hit area (layout-electricity.spec.ts)
     expect(css).not.toContain('calc(var(--sw-r-sm) - 2px)');
   });
 
