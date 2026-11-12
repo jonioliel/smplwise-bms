@@ -134,7 +134,8 @@ export class InvestigateIncidents extends LitElement {
        the height the shell gives (no page scroll, owner rule 2026-10-24) */
     sw-page.screen { flex: 1; min-block-size: 0; block-size: 100%; }
     sw-badge { flex: none; }
-    [data-incident-status] { margin-block-end: 6px; }
+    .eyebrow { display: flex; align-items: center; gap: 8px; margin-block-end: 6px; }
+    .eyebrow .clock { display: none; }
     .chip { display: inline-flex; align-items: center; gap: 5px; border-radius: var(--sw-r-pill); padding: 2px 9px; line-height: 1.5; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-medium); background: var(--sw-surface-2); color: var(--sw-text-2); white-space: nowrap; }
     .chip[data-look] { background: var(--c-soft); color: var(--c-text); }
     .chip .d { inline-size: 7px; block-size: 7px; border-radius: 50%; background: var(--c, var(--sw-text-3)); }
@@ -233,6 +234,13 @@ export class InvestigateIncidents extends LitElement {
     @media (max-width: 767px) {
       div.screen { padding: 8px 12px 8px; gap: 8px; }
       .acts { gap: 6px; }
+      /* the phone keeps the old header height: the clock rides beside the status (not a row of its own), sw-page's padding and
+         gaps one step denser (the board below must not overflow, layout-incidents) */
+      sw-page.screen { padding: 8px 12px 8px; gap: 8px; }
+      .eyebrow { margin-block-end: 4px; }
+      .eyebrow .clock { display: inline-flex; }
+      sw-page[data-incident] .acts > .clock { display: none; }
+      .meta { flex-wrap: nowrap; gap: 6px; }
       .clock { padding: 3px 8px; font-size: var(--sw-fs-sm); }
       .map { margin: 0 12px 12px; }
       .panel .hd { padding: 10px 12px 6px; }
@@ -628,7 +636,10 @@ export class InvestigateIncidents extends LitElement {
     const steps = d.steps.length + (d.pending.length ? 1 : 0);
     const since = elapsed(d.opened_at, d.closed_at ? new Date(d.closed_at).getTime() : this.now);
     return html`<sw-page class="screen" wide data-incident=${d.id} data-status=${d.status} data-part=${this.pane} heading=${d.title} subheading=${sub}>
-      <sw-badge slot="crumbs" filled kind=${open ? 'error' : 'offline'} label=${`${open ? it('statusOpen') : it('statusClosed')} · ${since}`} data-incident-status data-incident-elapsed=${since}></sw-badge>
+      <div slot="crumbs" class="eyebrow">
+        <sw-badge filled kind=${open ? 'error' : 'offline'} label=${`${open ? it('statusOpen') : it('statusClosed')} · ${since}`} data-incident-status data-incident-elapsed=${since}></sw-badge>
+        ${this.setting('incident.header_clock') ? this.renderClock() : nothing}
+      </div>
       <div slot="actions" class="acts">
         ${this.setting('incident.header_clock') ? this.renderClock() : nothing}
         <div class="meta">
