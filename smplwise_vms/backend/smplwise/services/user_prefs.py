@@ -167,6 +167,44 @@ def _setup_hint(value: Any) -> dict[str, Any]:
 VALIDATORS["setup.hint"] = _setup_hint
 DEFAULTS["setup.hint"] = None
 
+# `plan.wizard` (PLAN3D-R28-WIZARD-2433, round 28 questions 10-11): the user's own choices for the guided "new plan from a picture"
+# wizard (frontend/src/plan-wizard/) - what goes in without review (auto_accept, percent), the floor under which a detected item never
+# goes in without approval (review_min), what an unreviewed item in between becomes (as_detected | reject), the style kit chosen first,
+# whether starter furniture is placed and whether devices are placed by their area. A partial object; null = the recommended defaults.
+# Presentation of the wizard only: every write it leads to is still authorized by its own endpoint.
+PLAN_WIZARD_KITS: tuple[str, ...] = ("apartment", "office", "empty")
+
+
+def _plan_wizard(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError("plan.wizard must be an object")
+    known = {"auto_accept", "review_min", "unreviewed", "kit", "furniture", "auto_place"}
+    if set(value) - known:
+        raise ValueError("plan.wizard has unknown keys: " + ", ".join(sorted(set(value) - known)))
+    out: dict[str, Any] = {}
+    for key in ("auto_accept", "review_min"):
+        if key in value:
+            v = value[key]
+            if isinstance(v, bool) or not isinstance(v, int) or not 5 <= v <= 99:
+                raise ValueError(f"plan.wizard {key} must be a whole percent 5..99")
+            out[key] = v
+    if out.get("review_min", 0) >= out.get("auto_accept", 100):
+        raise ValueError("plan.wizard review_min must be below auto_accept")
+    if "unreviewed" in value:
+        out["unreviewed"] = _choice("plan.wizard unreviewed", ("as_detected", "reject"))(value["unreviewed"])
+    if "kit" in value:
+        out["kit"] = _choice("plan.wizard kit", PLAN_WIZARD_KITS)(value["kit"])
+    for key in ("furniture", "auto_place"):
+        if key in value:
+            if not isinstance(value[key], bool):
+                raise ValueError(f"plan.wizard {key} must be true or false")
+            out[key] = value[key]
+    return out
+
+
+VALIDATORS["plan.wizard"] = _plan_wizard
+DEFAULTS["plan.wizard"] = None
+
 PERSONAL_HOME_KEY = "home.personal"
 VALIDATORS[PERSONAL_HOME_KEY] = home_config.normalise_personal
 DEFAULTS[PERSONAL_HOME_KEY] = None
