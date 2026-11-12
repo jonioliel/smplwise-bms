@@ -207,6 +207,11 @@ export class SystemTickets extends LitElement {
       display: block;
       min-inline-size: 0;
     }
+    /* AUDIT30-C-TICKETS (#16, Q11 option 1): a card's save key shows only when the card has a change; its footer (the hairline and the
+       room) goes with it */
+    .foot:not(:has(> :not([hidden]))) {
+      display: none;
+    }
     .sgrid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));

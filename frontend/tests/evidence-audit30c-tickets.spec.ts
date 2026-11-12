@@ -91,6 +91,18 @@ async function contrast(page: Page, selector: string): Promise<number[]> {
   });
 }
 
+/** A length token as the element's own tree resolves it (the glass host bridges the radius scale: --sw-r-sm is 14 px there). */
+async function lengthToken(page: Page, selector: string, token: string): Promise<number> {
+  return page.locator(selector).first().evaluate((el, tok) => {
+    const probe = document.createElement('span');
+    probe.style.cssText = `position:absolute;border-top-left-radius:var(${tok})`;
+    el.parentNode!.appendChild(probe);
+    const v = parseFloat(getComputedStyle(probe).borderTopLeftRadius);
+    probe.remove();
+    return v;
+  }, token);
+}
+
 const noBaseline = (info: { snapshotPath: (...name: string[]) => string; config: { updateSnapshots: string } }, name: string) =>
   !['all', 'changed'].includes(info.config.updateSnapshots) && !fs.existsSync(info.snapshotPath(name));
 
@@ -155,7 +167,8 @@ test.describe('AUDIT30-C-TICKETS', () => {
       const cs = getComputedStyle(el);
       return { radius: parseFloat(cs.borderTopLeftRadius), h: el.getBoundingClientRect().height };
     });
-    expect(g.radius, 'row radius (was 28 px)').toBeLessThanOrEqual(10);
+    expect(g.radius, 'row radius = --sw-r-sm').toBe(await lengthToken(page, row, '--sw-r-sm'));
+    expect(g.radius, 'row radius (was --sw-r-lg, 28 px)').toBeLessThan(28);
     expect(Math.round(g.h)).toBe(36);
     const c = await colours(page, row, '--sw-accent-soft', '--sw-accent-text');
     expect(c.bg).toBe(c.want.bg);
@@ -176,7 +189,8 @@ test.describe('AUDIT30-C-TICKETS', () => {
       return v;
     });
     expect(h2).toBe(xl);
-    expect(h1 - h2, 'heading step').toBeGreaterThanOrEqual(6);
+    // the phone title is --sw-h1-phone (a smaller step); the desktop title 30 px
+    expect(h1 - h2, 'heading step').toBeGreaterThanOrEqual(isPhone(page) ? 2 : 6);
   });
 
   test('#9: on a phone the board state strip is in the filter sheet, not a row above the cards', async ({ page }) => {
@@ -209,7 +223,8 @@ test.describe('AUDIT30-C-TICKETS', () => {
     await tickets(page, '/system/tickets');
     await page.waitForSelector(`${S} [data-card="links"]`);
     const f = await page.locator(`${S} input.in`).first().evaluate((el) => ({ radius: parseFloat(getComputedStyle(el).borderTopLeftRadius), h: el.getBoundingClientRect().height }));
-    expect(f.radius, 'field radius (was 999 px)').toBeLessThanOrEqual(10);
+    expect(f.radius, 'field radius = --sw-r-sm').toBe(await lengthToken(page, `${S} input.in`, '--sw-r-sm'));
+    expect(f.radius, 'field radius (was 999 px)').toBeLessThan(28);
     if (!isPhone(page)) expect(f.h, 'field height (was 44 px)').toBeLessThanOrEqual(38);
     const save = page.locator(`${S} sw-button[data-inst-links-save]`);
     await expect(save).toBeHidden();
