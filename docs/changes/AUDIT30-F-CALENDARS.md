@@ -86,7 +86,15 @@ Not run here: the whole frontend suite, the backend suite (no backend change), t
 
 ### Pixel baselines
 
-PIXEL_SECTION
+On the runner (Ubuntu), from the pushed branch:
+
+| Step | Command | Outcome |
+|---|---|---|
+| refresh | `run_smart.py preview pilot/AUDIT30-F-CALENDARS tests/pixel-round4-leftovers-2390.spec.ts tests/audit30-f-calendars.spec.ts --project=desktop --project=mobile -u --workers=1 --machine runner` @ `c2cbe9590` | 47 passed, 7 skipped; 26 Linux baselines written back (12 new `a30f-*`, 14 refreshed `cal-rooms-*` / `cal-manage-*`: the page frame moved) |
+| check | the same without `-u` @ `356906571` (baselines committed) | 47 passed, 0 failed, 7 skipped |
+
+(A first check was run before the baseline commit reached origin, at `c2cbe9590`, and failed 10 compares against the old baselines, as
+expected; it is superseded by the check above.)
 
 
 ## Design skills (SKILLS_BRIEF.md)
