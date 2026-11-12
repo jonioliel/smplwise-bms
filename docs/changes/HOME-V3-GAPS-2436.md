@@ -95,12 +95,16 @@ Run on the workstation (Windows, Python 3.12 venv, Node 24), 2026-11-12:
 | `pytest tests/test_home_v3_gaps_2436.py` | 0 | 3 passed (confirmed alarm changes of the last week only, newest first, names / me, no code in the answer; no alarm.view -> 403, kiosk role -> 403, floor scope without the panel -> nothing; home-only category refusals and allowed; no write method) |
 | `npx tsc --noEmit` | 0 | clean |
 | `npx vite build` | 0 | built |
-| `npx playwright test tests/home-v3-gaps-2436.spec.ts --project=desktop` (own port 4436) | see the closing report | 12 tests: alerts head + menu row, no diary link without the log category, the code row end to end (PUT body), no row without arm / disarm, the plumber ticket end to end (subject + POST), no button without a leak / with tickets off, report a fault, the diary alarm filter, no filter and no request without the alarm category, the no-scroll / targets / words / RTL sweep at 1280x800, 1024x768, 390x844 |
+| `npx playwright test tests/home-v3-gaps-2436.spec.ts tests/pixel-home-gaps-2436.spec.ts --project=desktop --project=mobile` (own port 4436) | 0 | 24 passed, 12 skipped (the gap spec runs in the desktop project only; the pixel checks have no win32 baseline and annotate a skip) - 12 tests: alerts head + menu row, no diary link without the log category, the code row end to end (PUT body), no row without arm / disarm, the plumber ticket end to end (subject + POST), no button without a leak / with tickets off, report a fault, the diary alarm filter, no filter and no request without the alarm category, the no-scroll / targets / words / RTL sweep at 1280x800, 1024x768, 390x844 |
 | `python scripts/gate/lint_spec_waits.py frontend/tests/home-v3-gaps-2436.spec.ts` | 0 | 0 findings |
+| `pytest` subset: test_home_v3_gaps_2436, test_home_v3_p1, _p2, _p3, test_home_v3_followup_a, test_home_interface, test_alarm, test_rbac_matrix, test_plan_routes_unique, test_me_permissions | 0 | 133 tests, 0 failures, 0 errors (junit totals) |
+| impeccable `detect --json` on the 8 changed / new home sources | 0 | `[]` (`evidence/HOME-V3-GAPS-2436/inspect/`) |
 
 Pixel baselines: `frontend/tests/pixel-home-gaps-2436.spec.ts` (notifications with the code row, the diary's alarm filter, the fault
-sheet; desktop 1440 + phone 390; light + dark), generated on the runner from this branch (see the commit that adds the `-snapshots/`
-folder). Test data is time-independent: every mock stamp is relative to the test's clock (`now`), the pixel spec fixes the clock.
+sheet; desktop 1440 + phone 390; light + dark), generated on the runner from this branch (`run_smart.py preview ... -u --workers=1 --machine runner`). The first set
+(ad1f52c42) failed its own check run: the spec wrote the theme attributes after load and raced the layout's apply (light shots drawn
+dark, different tests each run). The spec now serves the theme through the stored layout; baselines re-taken @ 23a49c3ed (7 of 12
+changed), then checked twice without `-u` on the runner @ 478f0a556: 24 passed, 12 skipped each run (pixel + gap spec, desktop + mobile). Test data is time-independent: every mock stamp is relative to the test's clock (`now`), the pixel spec fixes the clock.
 
 NOT_RUN on the workstation: the full backend suite and the full Playwright suite (the entry check runs them on the runner); a lab run
 (no real panel action was sent; the log reads stored rows only).
