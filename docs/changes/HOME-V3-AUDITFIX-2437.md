@@ -80,4 +80,27 @@ lines (the phone / wide boundary queries, the phone day stepper, two easing fall
 Spec: `frontend/tests/home-v3-auditfix-2437.spec.ts` (desktop project, sizes per test; mocked backend, stamps relative to the clock).
 Existing specs updated for the new call-log words: `home-v3-p1.spec.ts`, `unit-home-v3-p1.spec.ts`.
 
-Results: see the section below (filled from the actual runs).
+Pixel spec: `frontend/tests/pixel-home-auditfix-2437.spec.ts` (mobile 390: phone recordings head, alarm, cameras; desktop project at 768x1024:
+the portrait-tablet room; at 1280x800: the recordings head with the named camera stepper; light and dark). The gaps pixel spec's
+new-ticket sheet changed (category icons) and its baselines were refreshed here.
+
+All runs on the runner (`private/runner/run_smart.py ... --machine runner`; the workstation was saturated, a local `tsc` did not finish):
+
+| Run | Commit | Result |
+|---|---|---|
+| `tsc` | abaad1d66 | tsc ok |
+| `preview` audit spec, desktop (vite build + preview) | abaad1d66 / 8584daffb | 19 passed, 3 failed -> the truncation check measured height (descenders); fixed to width, the 3 re-run: 3 passed |
+| `preview` related: audit spec, home-v3-p1, unit-home-v3-p1, home-v3-p2, home-v3-p3, home-v3-gaps-2436, unit-home-simple-logic, home-simple-2420, home-simple-2421, home-v3-followup-a, unit-home-v3-p3-logic (all projects) | 8584daffb | 188 passed, 1 failed (home-v3-p2 presence: "(אני)" is now beside the name, spec updated), 249 skipped (per-project skips) |
+| pixel `-u --workers=1`, desktop + mobile | caf56ba2e | 16 passed; 10 new + 7 refreshed baselines, committed dcac2025c |
+| pixel re-run without `-u` | dcac2025c | 4-5 failed by 49-213 px: bold Hebrew glyphs rasterise in one of two ways run to run on the loaded runner (also hit an untouched GAPS baseline). Font faces now loaded before each shot (b35cb4396); one gaps baseline re-taken; the audit spec's tolerance 250 px |
+| pixel re-run without `-u`, twice | 991b65e77 | 16 passed, 4 skipped (tablet project) - both runs |
+| final functional re-run: audit spec, home-v3-p1, home-v3-p2, unit-home-v3-p1, unit-home-simple-logic (all projects) | 991b65e77 | 100 passed, 107 skipped (per-project skips), 0 failed |
+
+Not run / not verified: a physical phone, portrait tablet or wall panel; real video (the "חי" path is covered only as "מתחבר" - no stream
+plays under mocks); the other five colour themes on the new rules; keyboard order; contrast measurement; the sheet exit was checked for
+"no second sheet in queries", not filmed frame by frame.
+
+## Rollback
+
+Revert the branch's commits; no data, migration or setting to undo. The stored `arx-home-paint` key in a browser is harmless without
+`public/home-paint.js`.
