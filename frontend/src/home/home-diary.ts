@@ -13,22 +13,24 @@ import { getCallLog } from '../api/intercom-calls';
 import { canAnywhere } from '../api/session';
 import { diaryWord } from './home-v3-words';
 import { playbackHref } from './home-recordings';
+import { alarmChangeText, alarmLogOk, getAlarmLog } from './home-gaps-alarm'; // HOME-V3-GAPS-2436: the "אזעקה" filter
 
-interface Row { id: string; at: string; text: string; icon: string; kind: 'cam' | 'door'; cam: string | null }
+interface Row { id: string; at: string; text: string; icon: string; kind: 'cam' | 'door' | 'alarm'; cam: string | null; panel?: string }
 
-const st: { rows: Row[]; tab: 'all' | 'cam' | 'door'; loaded: boolean; loading: boolean; error: string; at: number } = { rows: [], tab: 'all', loaded: false, loading: false, error: '', at: 0 };
+const st: { rows: Row[]; tab: 'all' | 'cam' | 'door' | 'alarm'; loaded: boolean; loading: boolean; error: string; at: number; alarm: boolean } = { rows: [], tab: 'all', alarm: false, loaded: false, loading: false, error: '', at: 0 };
 
 // HOME-V3-FOLLOWUP-A-2431 (owner answer 1): the house log is its own category of the per-person list
-const diaryOk = (h: HomeHost) => h.d.modules.has('log') && (canAnywhere('events.read') || (h.d.modules.has('doors') && canAnywhere('access.read')));
+export const diaryOk = (h: HomeHost) => h.d.modules.has('log') && (canAnywhere('events.read') || (h.d.modules.has('doors') && canAnywhere('access.read')));
 
 async function load(h: HomeHost, force = false) {
   if (st.loading || (!force && st.loaded && Date.now() - st.at < 60_000)) return;
   st.loading = true;
   const from = new Date(Date.now() - 7 * 86_400_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
   const to = new Date(Date.now() + 60_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
-  const [evs, calls] = await Promise.all([
+  const [evs, calls, alarm] = await Promise.all([
     canAnywhere('events.read') ? listEvents({ from, to, limit: 200 }).then((r) => r.events).catch(() => null) : Promise.resolve([]),
     h.d.modules.has('doors') && canAnywhere('access.read') ? getCallLog(null, 40).then((p) => p.calls).catch(() => []) : Promise.resolve([]),
+    alarmLogOk(h) ? getAlarmLog().then((r) => r.items).catch(() => []) : Promise.resolve([]),
   ]);
   const rows: Row[] = [];
   for (const e of evs ?? []) {
@@ -36,6 +38,8 @@ async function load(h: HomeHost, force = false) {
     if (w) rows.push({ id: 'e' + e.id, at: e.occurred_at, text: w.text, icon: w.icon, kind: w.kind, cam: e.camera_id });
   }
   for (const c of calls) rows.push({ id: 'c' + c.id, at: c.rang_at, text: `צלצול ב${c.station_name || 'כניסה'}`, icon: 'bell', kind: 'door', cam: null });
+  for (const a of alarm) rows.push({ id: 'a' + a.panel + a.at, at: a.at, text: alarmChangeText(a), icon: 'shield', kind: 'alarm', cam: null, panel: a.panel });
+  st.alarm = alarm.length > 0;
   rows.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
   st.rows = rows;
   st.error = evs === null && !calls.length ? 'לא הצלחנו לטעון את היומן. נסו שוב בעוד רגע.' : '';
@@ -87,9 +91,13 @@ registerScreen((h: HomeHost) => ({
     const pg = paged(list, h.phone ? 5 : 8, h.pg('ev'));
     const n = todayCount();
     const watch = h.recOk();
-    const tabs = h.seg('evTab', [['all', 'הכל'], ['door', 'דלתות'], ['cam', 'מצלמות']], st.tab, 'סינון');
+    // HOME-V3-GAPS-2436: "אזעקה" (mockup) when the person may view an alarm and the alarm category is on
+    const showAlarm = alarmLogOk(h) && (st.alarm || h.panels.length > 0);
+    if (!showAlarm && st.tab === 'alarm') st.tab = 'all';
+    const tabs = h.seg('evTab', [['all', 'הכל'], ['door', 'דלתות'], ['cam', 'מצלמות'], ...(showAlarm ? [['alarm', 'אזעקה'] as [string, string]] : [])], st.tab, 'סינון');
+    const panelName = (id?: string) => (h.panels.length > 1 ? h.panels.find((p) => p.entity_id === id)?.name ?? '' : '');
     const sub = !st.loaded ? '' : n ? (n === 1 ? 'אירוע אחד היום' : `${n} אירועים היום`) : 'לא קרה שום דבר מיוחד היום';
     return html`${h.headT('יומן הבית', sub, tabs, h.pager('ev', pg.pages))}
-      <div class="card-grid evg">${!st.loaded ? html`<div class="empty loading" aria-busy="true">${hi('list')}<h2>טוענים…</h2></div>` : st.error ? h.empty('list', 'היומן לא זמין כרגע', st.error) : pg.items.length ? pg.items.map((e) => html`<div class="tile evrow" data-diary=${e.kind}><span class="ai">${hi(e.icon)}</span><span class="at"><b class="clamp2">${e.text}</b><span class="muted num-r">${relTime(e.at)}</span></span>${e.cam && watch ? html`<button class="rb" data-act="evWatch" data-cam=${e.cam} data-at=${e.at} aria-label="צפה בהקלטה">${hi('play')}</button>` : nothing}</div>`) : h.empty('list', 'אין אירועים להצגה', 'כשמשהו יקרה בבית, דלת שנפתחה או תנועה במצלמה, הוא יופיע כאן.')}</div>`;
+      <div class="card-grid evg">${!st.loaded ? html`<div class="empty loading" aria-busy="true">${hi('list')}<h2>טוענים…</h2></div>` : st.error ? h.empty('list', 'היומן לא זמין כרגע', st.error) : pg.items.length ? pg.items.map((e) => html`<div class="tile evrow" data-diary=${e.kind}><span class="ai">${hi(e.icon)}</span><span class="at"><b class="clamp2">${e.text}</b><span class="muted num-r">${relTime(e.at)}${e.kind === 'alarm' && panelName(e.panel) ? ' · ' + panelName(e.panel) : ''}</span></span>${e.cam && watch ? html`<button class="rb" data-act="evWatch" data-cam=${e.cam} data-at=${e.at} aria-label="צפה בהקלטה">${hi('play')}</button>` : nothing}</div>`) : h.empty('list', 'אין אירועים להצגה', 'כשמשהו יקרה בבית, דלת שנפתחה או תנועה במצלמה, הוא יופיע כאן.')}</div>`;
   },
 }));

@@ -53,6 +53,19 @@ function load(h: HomeHost, force = false) {
 }
 
 const open = () => st.items.filter((t) => t.step < 2);
+/** HOME-V3-GAPS-2436: a new ticket may be opened from another screen (a leak, the house systems): the module is on, the person may open
+ * one (the route's own `can_create`), not on a locked wall panel. Starts loading the first time (the answer arrives with a redraw). */
+export function canNewTicket(h: Pick<HomeHost, 'kioskLocked' | 'requestUpdate'>): boolean {
+  if (!has('tickets') || h.kioskLocked()) return false;
+  load(h as HomeHost); // load() only redraws the host
+  return st.canCreate;
+}
+/** HOME-V3-GAPS-2436: the new-ticket sheet from another screen, the subject picked by name when one matches (e.g. plumbing for a leak). */
+export function newTicketFor(h: HomeHost, where: string, subject?: RegExp) {
+  openNewTicket(h, where);
+  const i = subject ? st.cats.findIndex((c) => subject.test(c.name)) : -1;
+  if (i >= 0) st.draft.cat = i;
+}
 const word = (t: Ticket) => (t.status === 'cancelled' ? 'בוטלה' : STEPS[t.step]);
 const tone = (t: Ticket) => (t.step === 2 ? 'ok' : t.step === 1 ? 'info' : 'neutral');
 const steps = (t: Ticket) => html`<span class="steps" aria-label=${'מצב: ' + word(t)}>${STEPS.map((_, i) => html`<i class=${i <= t.step ? 'on' : ''}></i>`)}</span>`;
