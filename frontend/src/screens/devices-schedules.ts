@@ -219,6 +219,17 @@ export class DevicesSchedules extends LitElement {
     .dh-row.fl {
       display: flex;
     }
+    /* on a desktop the floor chips stay in the title row (sw-page's actions, as before the frame change: the list keeps its rows);
+       a long floor list scrolls sideways inside its own strip */
+    .dh-row.tr {
+      display: flex;
+      align-items: center;
+      gap: var(--sw-s-3);
+      min-inline-size: 0;
+    }
+    .dh-row.tr .rooms {
+      max-inline-size: 50vw;
+    }
     /* AUDIT30-I2 (#4, owner Q3 option a): the chosen floor chip is the Blue Wash pair (the shared media rule paints it --dv-text) */
     .rc[aria-pressed='true'] {
       background: var(--sw-accent-soft);
@@ -1644,13 +1655,13 @@ export class DevicesSchedules extends LitElement {
     const sc = stateCounts(all);
     // POLISH-295: "דורשים בדיקה" is a quiet chip beside the state filter (an administrator's), not a banner across the screen
     const attention = scr.admin ? this.status?.counts.attention ?? 0 : 0;
-    return html`${tools && all.length && !this.phone ? html`<div class="vwrap" slot="actions">${this.viewSwitch()}</div>` : nothing}
-    <header class="dh" data-sched-header>
-      ${tools && floors.length ? html`<div class="dh-row fl">
-        <div class="rooms" role="group" aria-label="קומות">
+    const rooms = tools && floors.length ? html`<div class="rooms" role="group" aria-label="קומות">
           <button type="button" class="rc" aria-pressed=${String(!f.floor)} data-floor="" @click=${() => this.setFilter({ floor: '' })}>הכל</button>
           ${floors.map((x) => html`<button type="button" class="rc" aria-pressed=${String(f.floor === x.value)} data-floor=${x.value} @click=${() => this.setFilter({ floor: x.value })}>${bidi(x.label)}</button>`)}
-        </div></div>` : nothing}
+        </div>` : nothing;
+    return html`${!this.phone ? html`<div class="dh-row tr" slot="actions">${rooms}${tools && all.length ? html`<div class="vwrap">${this.viewSwitch()}</div>` : nothing}</div>` : nothing}
+    <header class="dh" data-sched-header>
+      ${this.phone && rooms !== nothing ? html`<div class="dh-row fl">${rooms}</div>` : nothing}
       ${tools ? html`<div class="dh-det" data-sched-toolbar>
         ${this.renderSegments()}
         ${all.length ? html`<div class="seg sm stf" role="radiogroup" aria-label="סינון לפי מצב" ?data-open=${this.filtersOpen}>${STATE_SEGMENTS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id || 'all'} @click=${() => this.setFilter({ state: s.id as StateFilter })}>${s.label}<small>${sc[s.id]}</small></button>`)}</div>` : nothing}

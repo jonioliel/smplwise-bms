@@ -35,7 +35,23 @@ No new literals (colours, radii, sizes, durations all `--sw-*` tokens), no new n
 
 ## Measurements (audit probe, `tools/shoot.mjs` + `analyze.mjs` run from a copy of the folder)
 
-MEASURE_TABLE
+Before = the audit's own numbers (v2.43.1, `data/summary.json`; area at 1366 from FIXES I5). After = this branch, built with
+`npx vite build`, served by `vite preview` on a free local port, shot with `node tools/shoot.mjs --base <preview> --routes
+area,schedules,automations,floor,presence,s-notifications --wait 2600` and again with `--vps contract --schemes light` (1366x768), then
+`node tools/analyze.mjs`, all from a copy of the audit folder (the owner's copy untouched).
+
+| Screen | H1 (fs/fw) before -> after | sw-page | Page scroll 1440 / 1024 / 390 before -> after | 1366x768 after | Contrast L / D | Dialog before -> after |
+|---|---|---|---|---|---|---|
+| Area `/devices/areas/living` | 18/600 -> 18/600 | 1 -> 1 | D100 T1301 P1830 -> **D0** T1301 P1830 | **0** (was 232) | 0 / 0 | - |
+| Schedules | 30/800 -> 30/800 | **0 -> 1** | 0 / 0 / 0 -> 0 / 0 / 0 | 0 | 0 / 0 | own `div` overlay, bg `rgba(255,255,255,.64)`, 760 px -> **`sw-dialog`**, bg `rgb(255,255,255)`, 722 px, no blur |
+| Automations | 30/800 -> 30/800 | **0 -> 1** | 0 / 0 / 0 -> 0 / 0 / 0 | 0 | 0 / 0 | builder `dialog`, bg 92 % alpha, `blur(40px) saturate(1.8)`, r 28 -> bg `rgb(255,255,255)`, **no blur**, r 22 (`--sw-r-xl`) |
+| Floor map | 30/**700** -> 30/800 (the `--sw-h1` tokens) | **0 -> 1** | 0 / 0 / 0 -> 0 / 0 / 0 | 0 | 0 / 0 | - |
+| Presence | 30/**700** -> 30/800 | **0 -> 1** | 0 / 0 / 0 -> 0 / 0 / 0 | 0 | 0 / 0 | - |
+| Notification settings | 30/800 -> 30/800 | **0 -> 1** | **D6699** T5852 P8386 -> **D1422** T5860 P8394 (the longest tab, "מקורות"; tablet and phone already showed one section) | 1554 (settings are the one screen allowed to scroll) | 0 / 0 | - |
+
+Native controls on the notification settings: `select` 9 -> 8 visible (one tab at a time), `table` 1 -> 1 (existing, Branch B's
+sw-table). Off-scale type 0 % on all six. Screenshots (all six screens, 1440 / 1024 / 390, light and dark, 1366 light, the dialogs):
+`docs/design/evidence/AUDIT30-I-DEVICES/after/`.
 
 ## Tests
 
