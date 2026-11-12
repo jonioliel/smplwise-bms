@@ -100,6 +100,26 @@ baselines are Linux / runner-renderer specific).
 - Not expected to change: the 2D map, the stills (`still-bake`), the skin control image and the level thumbnails (they keep
   the plate frame and the label sprites).
 
+## Baselines refreshed on the runner
+
+Linux runner (SwiftShader, the gate's renderer), desktop / tablet / mobile, workers=1, commit `abfbd6e63`:
+
+- `run_smart.py preview pilot/PLAN3D-POLISH-2430 tests/evidence-replay-3d.spec.ts tests/pixel-walk-touch.spec.ts
+  tests/visual-matrix.spec.ts -u --workers=1 --machine runner`: 108 passed, 12 skipped; 12 files rewritten, all in
+  `frontend/tests/evidence-replay-3d.spec.ts-snapshots/` (`event-l3-lite-*`, `history-l3-lite-day-*`, `history-l3-lite-night-*`,
+  `history-l3-realistic-day-*`, x 3 projects). `pixel-walk-touch` and `visual-matrix` (no 3D-map screen) did not change.
+- `unit-plan-3d-determinism.spec.ts` with `SW_UPDATE_VISUAL=1` on the dist preview: all 42 pictures of
+  `docs/evidence/T087/visual/` (`plan-3d-l{1,2}-{iso,persp,top}[-state]-*`, `plan-3d-element-l{1,2}-*`) rewritten;
+  `renderer-*.json` unchanged (same renderer).
+- Looked at, pair by pair: the change is the framing (the drawn floor fitted into the stage less the bar, so on a short stage
+  the building sits above the bar's band) and the room names (DOM plates, so they no longer appear in the canvas-only
+  captures; the element pictures show the plates). No missing geometry, material or lighting break. The lookdev pictures
+  (`lookdev-studio6.spec.ts`) are written to `private-evidence/` and are not baselines.
+- Before / after copies (gitignored): `private-evidence/baselines-3d/POLISH-2430/{before,after}/<file>.png`; in git the
+  before is `890377a71:<path>`, the after is the same path at `abfbd6e63`.
+- Proof without `-u` on `abfbd6e63`: the same preview run 108 passed, 12 skipped, 0 failed; `unit-plan-3d-determinism`
+  with `SW_REQUIRE_VISUAL=1` (the comparison must run) 12 passed.
+
 ## Known limits
 
 - The evidence spec's level-change step (a click on the strip's second level) printed the same box as the resize step just
@@ -130,3 +150,18 @@ Revert the branch's commits; no data, setting or migration is involved.
 4. איחוד הרהיטים לחיסכון בציור (סעיף 9) לא נעשה בגלל עבודת הריאליזם שרצה במקביל.
    א. לעשות אחרי שענף הריאליזם ימוזג
    ב. לוותר
+
+## Entry check 5b127e991 (RED) - fixes
+
+`entry_pilot-PLAN3D-POLISH-2430_5b127e991.md`: 3 failures outside the quarantine, plus the expired `pixel-wiskey-stations.spec.ts:87`
+quarantine (fixed on main by another branch; not touched here). The same two 3D failures came up on `pilot/PLAN3D-REALISM2-2433`
+(which merges this branch) and were fixed the same way there.
+
+- `unit-plan-3d-view.spec.ts:201` [mobile]: the floor point `[1.2, 0, 4.4]` lies 0.6 m from the lobby's south wall; with this
+  branch's live framing the top camera stands over the free part of the stage, and on the narrow mobile stage the 3 m wall leans
+  over the point, so the click correctly hit the wall `dw0`. The test now clicks an open floor point (`[2.55, 0, 2.85]`). e6a21b078.
+- `pixel-wall-plan.spec.ts:54` [desktop]: the live schematic band shows this branch's room name plates and framing - a legitimate
+  change; baseline re-taken on the runner, byte-identical to the realism2 one. 7be31c888.
+- `tests/test_body_limit.py::test_a_cut_multipart_upload_leaves_the_temp_dir_empty`: unrelated to this branch (no backend change
+  here); treated as a flake, left to the re-run.
+Proof without `-u` on the runner at 7be31c888: `pixel-wall-plan` + `unit-plan-3d-view` (3 projects), 32 passed, 16 skipped, 0 failed.
