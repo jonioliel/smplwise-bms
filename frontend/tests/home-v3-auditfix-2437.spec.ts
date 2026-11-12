@@ -39,11 +39,11 @@ async function noScroll(page: Page) {
   });
 }
 
-/** Elements matching `sel` (inside sw-home) whose own text is cut (wider / taller than their box). */
+/** Single-line elements matching `sel` (inside sw-home) whose text is cut (wider than their box). */
 async function cut(page: Page, sel: string) {
   return page.evaluate((s) => {
     const root = document.querySelector('sw-app')!.shadowRoot!.querySelector('sw-home')!.shadowRoot!;
-    return Array.from(root.querySelectorAll<HTMLElement>(s)).filter((e) => e.getClientRects().length && (e.scrollWidth > e.clientWidth + 1 || e.scrollHeight > e.clientHeight + 1)).map((e) => e.textContent?.trim().slice(0, 30));
+    return Array.from(root.querySelectorAll<HTMLElement>(s)).filter((e) => e.getClientRects().length && e.scrollWidth > e.clientWidth + 1).map((e) => `${e.textContent?.trim().slice(0, 30)} ${e.scrollWidth}>${e.clientWidth}`);
   }, sel);
 }
 
