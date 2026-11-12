@@ -78,7 +78,7 @@ test.describe('calendars management views (demo)', () => {
         await d.locator('[data-room="class2"]').click();
         await expect(d.locator('[data-overlaps]')).toBeVisible();
         await expect(d.locator('[data-maint-drawer]')).toHaveAttribute('data-mode', mode);
-        const save = d.locator('[data-maint-save]');
+        const save = d.locator('[data-maint-save] button'); // AUDIT30-F3: the shared sw-button; its native button carries the disabled state
         if (mode === 'block') await expect(save).toBeDisabled();
         else await expect(save).toBeEnabled();
         if (mode === 'ask') {
@@ -87,7 +87,7 @@ test.describe('calendars management views (demo)', () => {
           await expect(d.locator('[data-alternatives]')).toBeVisible();
           await d.locator('[data-decision="override_notify"]').click();
         }
-        if (mode === 'first_holds') await expect(save).toContainText('שמירה כממתין להחלטה');
+        if (mode === 'first_holds') await expect(d.locator('[data-maint-save]')).toContainText('שמירה כממתין להחלטה');
         await fits(page);
         await shot(page, `maint-drawer-${mode}`, scheme);
       }

@@ -5,6 +5,9 @@ import '../components/sw-icon';
 import '../components/sw-toggle';
 import '../components/sw-dialog';
 import '../components/sw-state-panel';
+import '../components/sw-page';
+import '../components/sw-card';
+import '../components/sw-tabs';
 import { describeError } from '../api/client';
 import { calendarsApi, type CalSettings, type Calendar, type CalendarsApi, type OverlapMode } from '../api/calendars';
 import { attendeesApi, type AttendeePolicy, type AttendeeSettings } from '../api/calendar-attendees';
@@ -12,8 +15,6 @@ import type { RouteState } from '../router';
 import { refreshCalendars } from '../calendars/access';
 import { APPROVAL_LABEL, OVERLAP_LABEL, OVERLAP_SHORT, ROLE_HINT, ROLE_LABEL, STRICTNESS, TYPE_LABEL, colorVar, pageOf, rowsThatFit } from '../calendars/model';
 import { calCss } from '../calendars/styles';
-import { leadReserveStyles } from '../styles/lead-reserve';
-import { tablistKeydown } from '../components/a11y-keys';
 
 type Tab = 'overlap' | 'behavior' | 'approval' | 'perm' | 'retention';
 const TABS: [Tab, string, string][] = [['overlap', 'חפיפת תחזוקה', 'חפיפה'], ['behavior', 'התנהגות', 'התנהגות'], ['approval', 'אישור לכל יומן', 'אישור'], ['perm', 'הרשאות', 'הרשאות'], ['retention', 'פרטי אורחים', 'אורחים']];
@@ -99,14 +100,13 @@ const OVERLAP_HINT: Record<OverlapMode, string> = {
  */
 @customElement('system-calendars')
 export class SystemCalendars extends LitElement {
-  static styles = [calCss, leadReserveStyles, liftedReset, css`
-    :host { display: flex; flex-direction: column; min-block-size: 0; flex: 1; padding: 14px var(--sw-page-pad) 20px; gap: 12px; overflow: hidden; }
-    /* CALMSG-POLISH-2331: the page title reads like every settings page (sw-page): the "הגדרות" crumb, the skin's h1 scale */
-    h1 { margin: 0; font-family: var(--sw-font-heading, var(--sw-font)); font-size: var(--sw-h1, var(--sw-fs-2xl)); font-weight: var(--sw-h1-weight, var(--sw-fw-bold));
-      letter-spacing: var(--sw-h1-tracking, -0.01em); line-height: 1.2; color: var(--sw-heading); }
-    .ttl { display: flex; flex-direction: column; gap: 2px; min-inline-size: 0; }
-    .crumb { font-size: var(--sw-fs-xs); color: var(--sw-text-3); }
-    .head { display: flex; align-items: flex-end; gap: 10px 16px; flex-wrap: wrap; padding-inline-end: var(--sw-float-reserve, 0px); }
+  static styles = [calCss, liftedReset, css`
+    /* AUDIT30-F4 (#18, owner Q11 option A assumed): one settings structure - the shared page (crumb, title, the module switch at the row's
+       end), underline tabs, the tab's content in one card. The card fills the page and pages its rows (no page scroll, owner rule 2026-10-24). */
+    :host { display: flex; flex-direction: column; min-block-size: 0; flex: 1; overflow: hidden; }
+    sw-page { flex: 1; min-block-size: 0; }
+    .tabcard { flex: 1; min-block-size: 0; }
+    .cardin { display: flex; flex-direction: column; gap: 12px; block-size: 100%; min-block-size: 0; overflow: hidden; }
     .tabhead { display: flex; align-items: flex-end; gap: 8px 16px; flex-wrap: wrap; min-inline-size: 0; }
     .tabhead h2 + .lead { margin-block-start: 4px; }
     .groups { flex-wrap: wrap; }
@@ -136,8 +136,7 @@ export class SystemCalendars extends LitElement {
     table.t tbody tr { transition: background var(--sw-t-hover) var(--sw-ease-color); }
     @media (hover: hover) { table.t tbody tr:hover td { background: var(--sw-hover-wash); } }
     .modsw { display: inline-flex; align-items: center; gap: 10px; font-size: var(--sw-fs-md); color: var(--sw-text-2); }
-    .panel { flex: 1; }
-    .tabs { align-self: flex-start; flex: none; }
+    .tabs { flex: none; }
     h2 { margin: 0; font-size: var(--sw-fs-xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading); }
     h3 { margin: 4px 0 0; font-size: var(--sw-fs-md); font-weight: var(--sw-fw-bold); color: var(--sw-heading); }
     .lead { margin: -4px 0 0; color: var(--sw-text-3); font-size: var(--sw-fs-sm); }
@@ -189,20 +188,16 @@ export class SystemCalendars extends LitElement {
     .linkrow { text-decoration: none; color: inherit; }
     @media (max-width: 1179px) { .rolechips { display: none; } }
     @media (max-width: 699px) {
-      :host { padding: 10px var(--sw-page-pad-phone); gap: 10px; }
-      .panel { padding: 12px; gap: 10px; }
+      .cardin { gap: 10px; }
       .twocol { grid-template-columns: minmax(0, 1fr); gap: 12px; align-content: start; }
       .col { gap: 5px; }
       .opt { padding: 9px 12px; align-items: center; }
       .opt small { display: none; }
       .opt .rad { margin-block-start: 0; }
       .wide-only { display: none; }
-      .tabs { align-self: stretch; }
-      .tabs button { flex: 1; padding: 6px 2px; }
       .row .ctl { inline-size: 100%; }
       .row .seg { flex-wrap: wrap; border-radius: var(--sw-r-lg); }
       .lead { display: none; }
-      .crumb { display: none; }
       .tabhead { flex-direction: column; align-items: stretch; }
       .toast { inset-block-end: calc(var(--sw-bottomnav-h) + 16px + env(safe-area-inset-bottom)); }
     }
@@ -460,22 +455,21 @@ export class SystemCalendars extends LitElement {
   }
 
   render() {
-    if (this.error) return html`<sw-state-panel state="error" data-calset-state="error" heading="לא הצלחנו לטעון את הגדרות היומנים" hint=${this.error} actionLabel="לנסות שוב" @action=${() => void this.load()}></sw-state-panel>`;
-    if (!this.s) return html`<div class="panel" data-calset-state="loading" role="status" aria-label="טוען">${[0, 1, 2, 3].map(() => html`<div class="skel" style="block-size:56px"></div>`)}</div>`;
+    if (this.error) return html`<sw-page crumbs="הגדרות" heading="יומנים" wide><sw-state-panel state="error" data-calset-state="error" heading="לא הצלחנו לטעון את הגדרות היומנים" hint=${this.error} actionLabel="לנסות שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
+    if (!this.s) return html`<sw-page crumbs="הגדרות" heading="יומנים" wide><div class="panel" data-calset-state="loading" role="status" aria-label="טוען">${[0, 1, 2, 3].map(() => html`<div class="skel" style="block-size:56px"></div>`)}</div></sw-page>`;
     const tab = this.tab;
     return html`
-      <div class="head lead-head">
-        <div class="ttl"><span class="crumb">הגדרות</span><h1>יומנים</h1></div><span class="sp"></span>
-        <label class="modsw"><span>מודול היומנים</span><sw-toggle data-calset="enabled" label="מודול היומנים פעיל" labelHidden ?checked=${this.s.enabled} ?disabled=${!this.canEdit}
+      <sw-page crumbs=${this.phone ? '' : 'הגדרות' /* the phone drops the crumb, as before: the rows get the height */} heading="יומנים" wide data-calset-page>
+        <label class="modsw" slot="actions"><span class="wide-only">מודול היומנים</span><sw-toggle data-calset="enabled" label="מודול היומנים פעיל" labelHidden ?checked=${this.s.enabled} ?disabled=${!this.canEdit}
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.save({ enabled: e.detail.checked })}></sw-toggle><b>${this.s.enabled ? 'פעיל' : 'כבוי'}</b></label>
-      </div>
       ${this.canEdit ? nothing : html`<div class="ro" data-calset-ro>צפייה בלבד: שינוי ההגדרות דורש את ההרשאה "יומנים: הגדרות".</div>`}
       ${this.saveError ? html`<div class="err" role="alert" data-calset-error>${this.saveError}</div>` : nothing}
-      <section class="panel" data-calset-tab=${tab}>
-        <div class="seg tabs" role="tablist" aria-label="הגדרות היומנים" @keydown=${tablistKeydown}>${TABS.map(([id, he, short]) => html`<button type="button" role="tab" aria-pressed=${String(tab === id)} aria-selected=${String(tab === id)}
-          data-calset-tabbtn=${id} @click=${() => (location.hash = `#/system/calendars?tab=${id}`)}>${this.phone ? short : he}</button>`)}</div>
-        ${tab === 'overlap' ? this.overlapTab() : tab === 'behavior' ? this.behaviorTab() : tab === 'approval' ? this.approvalTab() : tab === 'perm' ? this.permTab() : this.retentionTab()}
-      </section>
+        <sw-tabs class="tabs" variant="underline" group-label="הגדרות היומנים" data-calset-tabs ?short-labels=${this.phone}
+          .items=${TABS.map(([id, he, short]) => ({ id, label: he, short, href: `#/system/calendars?tab=${id}` }))} .active=${tab}></sw-tabs>
+        <sw-card class="tabcard" fill clip data-calset-tab=${tab}><div class="cardin">
+          ${tab === 'overlap' ? this.overlapTab() : tab === 'behavior' ? this.behaviorTab() : tab === 'approval' ? this.approvalTab() : tab === 'perm' ? this.permTab() : this.retentionTab()}
+        </div></sw-card>
+      </sw-page>
       ${this.dialogs()}
       ${this.toastText ? html`<div class="toast" role="status" data-calset-toast ${liftRef() /* DIALOG-TOPLAYER-2381: above an open sw-dialog */}>${this.toastText}</div>` : nothing}`;
   }
