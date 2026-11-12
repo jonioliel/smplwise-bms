@@ -34,10 +34,16 @@ INTERFACES = ("home", "full")
 # the home interface's categories an administrator can hide (the mockup's admin page; "scenes" and "security" added: the alarm panel
 # is shown only where Arx already has the alarm integration and the person holds alarm.view)
 MODULES = ("lights", "climate", "shades", "doors", "cameras", "energy", "alerts", "scenes", "security")
+MODULES = MODULES + ("presence", "calendar", "notices", "tickets", "schedules")  # HOME-V3-P2-2431: family and building screens
 # HOME-V3-P3-2432 (mockup v3, phase 3): music and screens, announcements, the electricity bill, water, the house systems (view only) and
 # the home map. Each is still shown only where its own module is on and the person holds its own permission (checked by its own route).
 MODULES_P3 = ("media", "announce", "bills", "water", "systems", "map")
 MODULES = MODULES + MODULES_P3
+# HOME-V3-FOLLOWUP-A-2431 (owner answer 1, 2026-11-11): the recordings, the house log and the intercom become their own categories in
+# the per-person list (on by default: a person without a list sees them; migration 0215 adds them to the stored lists). Until now the
+# intercom was shown under "doors" and the recordings under "cameras" (the recordings still need the cameras category: they play a camera).
+MODULES_FA = ("recordings", "log", "intercom")
+MODULES = MODULES + MODULES_FA
 ROOM_KEY_RE = re.compile(r"^[A-Za-z0-9_.:\-]{1,128}$")
 FAV_TYPES = ("scene", "light", "switch", "climate", "shade", "cam", "door", "allLights", "energy", "security")
 FAV_ID_RE = re.compile(r"^[A-Za-z0-9_.:\-]{1,200}$")
@@ -105,6 +111,15 @@ HOME_READ_ONLY_PREFIXES = HOME_READ_ONLY_PREFIXES + ("/events/",)
 # installation-wide revoke and the visitor-entrance flag stay refused
 HOME_FLAG_ROUTES["guests"] = (frozenset({"/access/visitors"}), ("/access/visitors/",),
                               ("/access/visitors/settings", "/access/visitors/revoke-all", "/access/visitors/entrances"))
+# HOME-V3-P2-2431: the modules' own routes the family screens use (calendar, shared-room booking, the notice board, a new scene from
+# the current state), as exact routes and whole-route patterns - never a module's whole prefix (its administration stays refused).
+# The reads are GET-only (the same paths also create a notice or a calendar); the writes the screens make are listed exactly.
+HOME_READ_ONLY_EXACT = HOME_READ_ONLY_EXACT | {"/notices", "/notices/module", "/calendar/calendars", "/calendar/occurrences", "/calendar/rooms/day", "/calendar/module"}
+HOME_ALLOWED_EXACT = HOME_ALLOWED_EXACT | {"/calendar/events", "/calendar/availability", "/automations/scene"}
+HOME_ALLOWED_PATTERNS = (
+    re.compile(r"^/calendar/events/[A-Za-z0-9_\-]{1,64}/(cancel|withdraw)$"),
+    re.compile(r"^/notices/(?!boards$|tv-defaults$|promo-slides$|audience$)[A-Za-z0-9_\-]{1,64}/read$"),
+)
 
 # HOME-V3-P3-2432: the reads and controls of phase 3, as exact routes and whole-path patterns (no prefix: a prefix would also open the
 # administrative leaves next to them). Not here on purpose: the emergency announcement and the announcement setup / templates / history /
@@ -122,6 +137,18 @@ HOME_ALLOWED_PATTERNS_P3 = (
     re.compile(r"/multimedia/devices/[^/]+(/commands|/artwork|/library)?"),
     re.compile(r"/energy/accounts/[^/]+/(status|periods)"),
 )
+
+# HOME-V3-FOLLOWUP-A-2431 (owner answer 4): the bill card's "show bill" opens the bill file itself - GET only, one whole route (never
+# the /energy/bills/ prefix: issue / paid / void / recalculate stay refused). The route keeps its own energy.bills check, and for a
+# home-only person it also refuses a draft or void bill and a hidden "bills" category (home_bill_file_check, called by the route).
+HOME_READ_ONLY_PATTERNS_FA = (re.compile(r"/energy/bills/[A-Za-z0-9_\-]{1,64}/pdf"),)
+# A home-only person whose administrator hid one of these categories is refused its routes (403 `home_module_off`): the recordings'
+# playback sessions and the house log's event list. The intercom's routes are not gated here on purpose: an incoming door call must
+# still ring on every screen (sw-home-call); the category hides the intercom screen and its chip only.
+HOME_MODULE_ROUTES: dict[str, tuple[frozenset[str], tuple[str, ...]]] = {
+    "recordings": (frozenset({"/playback/sessions"}), ("/playback/sessions/",)),
+    "log": (frozenset({"/events"}), ("/events/",)),
+}
 
 _LOCK = threading.Lock()
 _GATE_AUDITED: dict[str, float] = {}
@@ -367,11 +394,13 @@ def home_allowed(path: str, root_path: str = "", method: str = "GET") -> bool:
             p = p[len(rp):]
         return not p.startswith(API_PREFIX + "/")  # a malformed API path is refused; anything outside /api/v1 is not judged here
     rest_cmp = rest[:-1] if len(rest) > 1 and rest.endswith("/") else rest
-    if rest_cmp in HOME_ALLOWED_EXACT:
+    if rest_cmp in HOME_ALLOWED_EXACT or any(p.match(rest_cmp) for p in HOME_ALLOWED_PATTERNS):
         return True
     if (method or "GET").upper() in ("GET", "HEAD") and (rest_cmp in HOME_READ_ONLY_EXACT or any(rest.startswith(p) for p in HOME_READ_ONLY_PREFIXES)):
         return True
     if any(p.fullmatch(rest_cmp) for p in HOME_ALLOWED_PATTERNS_P3):  # HOME-V3-P3-2432
+        return True
+    if (method or "GET").upper() in ("GET", "HEAD") and any(p.fullmatch(rest_cmp) for p in HOME_READ_ONLY_PATTERNS_FA):  # HOME-V3-FOLLOWUP-A-2431
         return True
     if not any(rest.startswith(p) for p in HOME_ALLOWED_PREFIXES):
         return False
@@ -392,10 +421,43 @@ def flag_route(path: str, root_path: str = "") -> str | None:
     return None
 
 
+def module_route(path: str, root_path: str = "") -> str | None:
+    """HOME-V3-FOLLOWUP-A-2431: the home category a route belongs to (HOME_MODULE_ROUTES), or None."""
+    rest = api_route_of(path, root_path)
+    if rest is None:
+        return None
+    rest_cmp = rest[:-1] if len(rest) > 1 and rest.endswith("/") else rest
+    for mod, (exact, prefixes) in HOME_MODULE_ROUTES.items():
+        if rest_cmp in exact or any(rest.startswith(p) for p in prefixes):
+            return mod
+    return None
+
+
+def home_bill_file_check(conn: sqlite3.Connection, principal: Principal, bill: sqlite3.Row) -> None:
+    """HOME-V3-FOLLOWUP-A-2431 (owner answer 4): the bill file for a home-only person - only a bill the home interface shows (issued,
+    sent or paid; never a draft or a void one) and only while the person's "bills" category is on. The route already checked
+    energy.bills. Anyone who is not home-only is not judged here (the full interface's own rules apply)."""
+    try:
+        r = _row(conn, principal.user_id)
+    except sqlite3.OperationalError:
+        return
+    if r is None or not (r["home_only"] or r["kiosk"]) or is_system_admin(conn, principal.user_id):
+        return
+    mods = _loads(r["modules_json"])
+    if isinstance(mods, list) and "bills" not in mods:
+        raise HomeInterfaceError(403, "home_module_off", "המסך הזה לא הופעל עבורך.")
+    if bill["state"] not in ("issued", "sent", "paid"):  # services/energy_billing.ISSUED_STATES
+        raise HomeInterfaceError(403, "home_interface_only", "החשבון הזה לא מוצג בממשק הביתי.")
+
+
 def enforce(conn: sqlite3.Connection, principal: Principal, path: str, request_id: str | None = None, *, root_path: str = "", method: str = "GET") -> None:
     """Refuse (403 `home_interface_only`) a home-only person's request outside the home interface's own routes. One cheap primary-key
-    read for everyone else. Never applies to a system administrator (set_policy refuses that combination; this is the second lock)."""
-    if home_allowed(path, root_path, method):
+    read for everyone else. Never applies to a system administrator (set_policy refuses that combination; this is the second lock).
+    HOME-V3-FOLLOWUP-A-2431: an allowed route of a category the administrator hid for this home-only person (HOME_MODULE_ROUTES) is
+    refused 403 `home_module_off`."""
+    allowed = home_allowed(path, root_path, method)
+    mod = module_route(path, root_path) if allowed else None
+    if allowed and mod is None:
         return
     try:
         r = conn.execute("SELECT * FROM home_interface_policy WHERE user_id = ?", (principal.user_id,)).fetchone()
@@ -406,6 +468,11 @@ def enforce(conn: sqlite3.Connection, principal: Principal, path: str, request_i
         raise
     if r is None or not (r["home_only"] or r["kiosk"]):
         return
+    if allowed:
+        mods = _loads(r["modules_json"])
+        if not isinstance(mods, list) or mod in mods or is_system_admin(conn, principal.user_id):
+            return
+        raise HomeInterfaceError(403, "home_module_off", "המסך הזה לא הופעל עבורך.")
     flag = flag_route(path, root_path)
     if flag and flag in r.keys() and r[flag]:
         return

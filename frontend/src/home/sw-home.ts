@@ -45,6 +45,8 @@ import './home-p3-ext'; // RELEASE-2430-TRAIN: phase 3's screens and hub tiles j
 // HOME-V3-P3-2432: phase 3 (media + systems) lives in its own files; these few hooks are the only edits here
 import { P3, type P3Host, type P3Ovl } from './home-p3';
 import { homeP3Styles } from './home-p3-styles';
+// HOME-V3-P2-2431: the family and building screens (home-v3-p2.ts); two hooks below: the scenes screen's buttons, the wall panel's chips
+import { sceneScreenActs, wallChips } from './home-v3-p2';
 
 export const THEMES: [string, string, string, 1 | 2][] = [
   ['classic', 'קלאסי', 'פחם חם וכחול. המראה שאושר.', 2], ['ocean', 'אוקיינוס', 'כחול ים עמוק ותכלת צלול.', 2], ['sand', 'חול', 'אבן חמה וחימר.', 2],
@@ -186,7 +188,7 @@ export class SwHome extends LitElement {
         if (mods.has('security') && canAnywhere('alarm.view')) void this.loadPanels();
         if (mods.has('doors') && canAnywhere('access.call')) void this.loadTalk();
         if (mods.has('energy') && (canAnywhere('energy.bills') || canAnywhere('energy.manage'))) void this.loadPrice();
-        if (mods.has('doors')) void getCallLog(null, 8).then((p) => { this.visitors = p.calls; }).catch(() => undefined);
+        if (mods.has('doors') || mods.has('intercom')) void getCallLog(null, 8).then((p) => { this.visitors = p.calls; }).catch(() => undefined);
         void this.p3.load();
       }
     } catch (err) {
@@ -343,7 +345,7 @@ export class SwHome extends LitElement {
     return { rooms: this.visRooms(), cameras: d.cameras, scenes: d.scenes, hasEnergy: !!d.energy && d.energy.today.length > 0, hasSecurity: false };
   }
 
-  private visRooms(): HRoom[] {
+  visRooms(): HRoom[] {
     const hidden = new Set(this.prefs.layout.hidden_rooms ?? []);
     return this.d.rooms.filter((r) => !hidden.has(r.id));
   }
@@ -949,7 +951,7 @@ export class SwHome extends LitElement {
       ${sub ? (this.extBack(name) ? html`<a class="tb-back" href=${this.href(this.extBack(name) as string)} aria-label="חזרה">${hi('back')}</a>` : html`<a class="tb-back" href=${this.href('r/' + this.room)} aria-label=${'חזרה אל ' + (r ? r.name : 'הבית שלי')}>${hi('back')}</a>`) : nothing}
       ${locked ? html`<span class="tb-room">${roomTitle}</span>` : html`<a class="tb-room" href=${this.href('rooms')} aria-label=${'החלפת חדר. עכשיו: ' + (r ? r.name : 'הבית שלי')}>${roomTitle}${hi('down')}</a>`}
       ${fr.length > 1 && !locked ? html`<div class="tb-fav" role="group" aria-label="חדרים מועדפים"><button class="rb" data-act="roomStep" data-d="-1" aria-label="החדר המועדף הקודם">${hi('back')}</button><span class="dots" aria-hidden="true">${fr.map((_, i) => html`<i class=${i === at ? 'on' : ''}></i>`)}</span><button class="rb" data-act="roomStep" data-d="1" aria-label="החדר המועדף הבא">${hi('fwd')}</button></div>` : nothing}
-      <div class="hs-now"><span class="time num">${HE_TIME.format(this.now)}</span><span class="date">${HE_WEEKDAY.format(this.now)}</span>${this.d.weather && this.d.weather.t != null ? html`<span class="wx" title="מזג האוויר בחוץ">${hi('sun')}<span class="num">${this.d.weather.t}°</span><span class="wxt ellip">${this.d.weather.text}</span></span>` : nothing}</div>
+      <div class="hs-now"><span class="time num">${HE_TIME.format(this.now)}</span><span class="date">${HE_WEEKDAY.format(this.now)}</span>${this.d.weather && this.d.weather.t != null ? (this.extFor('weather') ? html`<a class="wx" href=${this.href('weather')} aria-label="מזג האוויר בחוץ">${hi('sun')}<span class="num">${this.d.weather.t}°</span><span class="wxt ellip">${this.d.weather.text}</span></a>` : html`<span class="wx" title="מזג האוויר בחוץ">${hi('sun')}<span class="num">${this.d.weather.t}°</span><span class="wxt ellip">${this.d.weather.text}</span></span>`) : nothing}</div>
       <div class="hs-status">
         ${this.calls.waiting ? html`<button class="st-pill call" data-act="ring">${hi('bell')}<span>מחכים בדלת</span></button>` : nothing}
         ${this.d.modules.has('doors') ? html`<a class="st-pill" href=${this.href('doors')} data-tone=${!doors.length ? 'neutral' : u.length ? 'warn' : 'ok'}><i class="dot"></i><span>${doorsText(doors)}</span></a>` : nothing}
@@ -1000,7 +1002,7 @@ export class SwHome extends LitElement {
     if (dh.length && mods.has('doors')) { const u = dh.filter((d) => !d.locked).length; out.push(['doors', 'דלתות', u ? 'unlock' : 'lock', u ? (u === 1 ? 'אחת פתוחה' : u + ' פתוחות') : 'נעול', u ? 'warn' : 'ok']); }
     const cams = r ? this.d.cameras.filter((c) => r.cams.includes(c.id)) : this.d.cameras;
     if (cams.length && mods.has('cameras')) { const bad = cams.filter((c) => !c.ok).length; out.push(['cameras', 'מצלמות', 'cam', r ? (bad ? 'לא זמינה' : 'חי') : bad ? `${cams.length - bad} מתוך ${cams.length}` : cams.length + ' פועלות', '']); }
-    if (!r && mods.has('doors') && this.visitors.length) out.push(['doors', 'אינטרקום', 'phone', `${this.visitors.length} ביקורים`, '', 'intercom']);
+    if (!r && mods.has('intercom') && this.visitors.length) out.push(['doors', 'אינטרקום', 'phone', `${this.visitors.length} ביקורים`, '', 'intercom']);
     if (!r && this.d.energy && this.d.energy.today.length && mods.has('energy')) out.push(['energy', 'חשמל', 'bolt', html`<span class="num">${this.d.energy.today.reduce((a, b) => a + b, 0).toFixed(1)}</span> קוט״ש`, '']);
     if (!r && this.panels.length && mods.has('security')) {
       const armed = this.panels.some((p) => p.state && p.state !== 'disarmed');
@@ -1010,6 +1012,7 @@ export class SwHome extends LitElement {
     const sc = r ? this.d.scenes.filter((s) => s.rooms.includes(r.id)) : this.d.scenes;
     if (mods.has('scenes') && this.d.scenes.length) out.push(['scenes', 'סצנות', 'scenes', r ? (sc.length ? sc.length + ' בחדר' : 'של הבית') : this.d.scenes.length + ' בבית', '']);
     out.push(...this.p3.roomChips(r)); // HOME-V3-P3-2432: "מדיה" when the room has a speaker or a screen
+    if (r && this.kioskLocked()) out.push(...wallChips(this)); // HOME-V3-P2-2431: a wall panel also shows the notice board and the calendar
     const shown = out.slice(0, 8);
     // HOME-V3-P1-2430: the intercom chip opens the intercom screen when it is offered; "עוד" is the ninth category of the home screen
     const ic = shown.find((x) => x[5] === 'intercom');
@@ -1298,7 +1301,7 @@ export class SwHome extends LitElement {
     const list = r ? [...homeScenes(this.world()), ...this.d.scenes.filter((s) => s.rooms.length === 1 && s.rooms[0] === r.id)] : this.d.scenes;
     const pg = paged(list, this.phone ? 4 : 8, this.pg('scenes'));
     const canEdit = this.d.scenes.some((s) => s.canEdit);
-    return html`${this.head('סצנות', r ? `של הבית ושל ${r.name}. נגיעה מפעילה.` : 'נגיעה אחת מפעילה כמה דברים יחד.', canEdit ? html`<a class="hbtn" href=${this.href('settings/scenes')}>${hi('edit')}<span class="bt">עריכת סצנות</span></a>` : nothing)}
+    return html`${this.head('סצנות', r ? `של הבית ושל ${r.name}. נגיעה מפעילה.` : 'נגיעה אחת מפעילה כמה דברים יחד.', html`${sceneScreenActs(this)}${canEdit ? html`<a class="hbtn" href=${this.href('settings/scenes')}>${hi('edit')}<span class="bt">עריכת סצנות</span></a>` : nothing}`)}
       <div class="card-grid">${pg.items.length ? pg.items.map((s) => this.sceneCard(s, true)) : this.empty('scenes', 'עוד אין סצנות', 'מנהל הבית יכול להגדיר סצנות שמפעילות כמה דברים יחד.')}</div>${this.pager('scenes', pg.pages)}`;
   }
 
@@ -1373,7 +1376,7 @@ export class SwHome extends LitElement {
 
   /** HOME-V3-P1-2430: recordings are offered while the cameras category is on and the person may play recordings */
   recOk(): boolean {
-    return this.d.modules.has('cameras') && this.d.cameras.length > 0 && canAnywhere('video.playback');
+    return this.d.modules.has('cameras') && this.d.modules.has('recordings') && this.d.cameras.length > 0 && canAnywhere('video.playback'); // HOME-V3-FOLLOWUP-A-2431: its own category
   }
 
   private ovlHtml(): unknown {

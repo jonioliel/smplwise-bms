@@ -10,7 +10,10 @@ import { httpAutomations, type Item as AutoItem } from '../api/automations';
 import { can, canAnywhere } from '../api/session';
 
 export type Interface = 'home' | 'full';
-export type HomeModule = 'lights' | 'climate' | 'shades' | 'doors' | 'cameras' | 'energy' | 'alerts' | 'scenes' | 'security' | HomeModuleP3;
+export type HomeModule = 'lights' | 'climate' | 'shades' | 'doors' | 'cameras' | 'energy' | 'alerts' | 'scenes' | 'security'
+  | 'presence' | 'calendar' | 'notices' | 'tickets' | 'schedules' // HOME-V3-P2-2431: the family and building categories
+  | HomeModuleP3 // HOME-V3-P3-2432
+  | 'recordings' | 'log' | 'intercom'; // HOME-V3-FOLLOWUP-A-2431: their own categories (were under cameras / doors)
 
 export interface InterfacePolicy {
   default_interface: Interface;

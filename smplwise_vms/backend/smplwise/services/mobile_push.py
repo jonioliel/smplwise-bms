@@ -389,6 +389,16 @@ def attempt_job(notifier: "push.PushNotifier | None", db: Database, job: _Job) -
     return result
 
 
+def _dnd_holds(conn: Any, user_id: str, category: str, at: Any, tz_name: str) -> bool:
+    """HOME-V3-P2-2431: the person's own night window (home interface > my notifications) holds this push - never a critical category
+    or one of home_family.DND_PASS (the alarm and the doors); the caller already let critical severity and escalations through."""
+    from . import home_family
+
+    if category in CRITICAL_CATEGORIES or category in home_family.DND_PASS:
+        return False
+    return home_family.dnd_active(conn, user_id, at, tz_name)
+
+
 class AppPushChannel(notify_channels.Channel):
     name = CHANNEL
 
@@ -416,6 +426,9 @@ class AppPushChannel(notify_channels.Channel):
                 continue
             if not ready:
                 out.append(notify_channels.Target(self.name, uid, ref, "skipped", "channel_unavailable"))
+                continue
+            if d.severity != "critical" and d.mode != "escalate" and _dnd_holds(conn, uid, d.n["category"], d.now, d.tz):  # HOME-V3-P2-2431
+                out.append(notify_channels.Target(self.name, uid, ref, "skipped", "dnd"))
                 continue
             if d.severity != "critical" and d.mode != "escalate" and not push.take_token(uid, "app"):
                 push.STATS["rate_limited"] += 1

@@ -1,0 +1,410 @@
+﻿
+Running 15 tests using 1 worker
+
+
+node.exe : (node:22256) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+At line:1 char:1
++ & "C:\Users\jon\AppData\Roaming\fnm\node-versions\v24.21.0\installati ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ((node:22256) Wa... env being set.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[1/15] [desktop] › tests\home-v3-p2.spec.ts:44:3 › HOME-V3-P2-2431 family and building › the hub lists the family tiles with live lines
+  1) [desktop] › tests\home-v3-p2.spec.ts:44:3 › HOME-V3-P2-2431 family and building › the hub lists the family tiles with live lines 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('sw-home').locator('.hubt[data-mod="presence"]')
+    Expected: 1
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('sw-home').locator('.hubt[data-mod="presence"]') with timeout 5000ms
+      - waiting for locator('sw-home').locator('.hubt[data-mod="presence"]')
+        13 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      44 |   test('the hub lists the family tiles with live lines', async ({ page }) => {
+      45 |     await open(page, 'more');
+    > 46 |     for (const id of ['presence', 'calendar', 'notices', 'tickets', 'schedules', 'weather', 'notif']) await expect(home(page).locator(`.hubt[data-mod="${id}"]`)).toHaveCount(1);
+         |                                                                                                                                                                   ^
+      47 |     await expect(home(page).locator('.hubt[data-mod="notices"] .count')).toHaveText('2');
+      48 |     await expect(home(page).locator('.hubt[data-mod="presence"] .hs2')).toContainText('3 בבית');
+      49 |   });
+        at C:\cloude\smplwise-homev3p2\frontend\tests\home-v3-p2.spec.ts:46:163
+
+    Error Context: test-results\home-v3-p2-HOME-V3-P2-2431-07c08-amily-tiles-with-live-lines-desktop\error-context.md
+
+
+(node:10552) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[2/15] [desktop] › tests\home-v3-p2.spec.ts:51:3 › HOME-V3-P2-2431 family and building › a switched-off module or a hidden category leaves no tile and no screen
+  2) [desktop] › tests\home-v3-p2.spec.ts:51:3 › HOME-V3-P2-2431 family and building › a switched-off module or a hidden category leaves no tile and no screen 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('sw-home').locator('.hubt[data-mod="notices"]')
+    Expected: 1
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('sw-home').locator('.hubt[data-mod="notices"]') with timeout 5000ms
+      - waiting for locator('sw-home').locator('.hubt[data-mod="notices"]')
+        12 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      52 |     await open(page, 'more', { features: { tickets: { on: false, create: false, view: false }, presence: { on: false, can: true } }, modules: ['lights', 'climate', 'shades', 'doors', 'cameras', 'energy', 'alerts', 'scenes', 'security', 'notices'] });
+      53 |     for (const id of ['tickets', 'presence', 'calendar', 'schedules']) await expect(home(page).locator(`.hubt[data-mod="${id}"]`)).toHaveCount(0);
+    > 54 |     await expect(home(page).locator('.hubt[data-mod="notices"]')).toHaveCount(1);
+         |                                                                   ^
+      55 |     await page.goto('/#/home/tickets');
+      56 |     await settle(page);
+      57 |     await expect(home(page).locator('[data-act="p2TkNew"]')).toHaveCount(0);
+        at C:\cloude\smplwise-homev3p2\frontend\tests\home-v3-p2.spec.ts:54:67
+
+    Error Context: test-results\home-v3-p2-HOME-V3-P2-2431-9d8cc-eaves-no-tile-and-no-screen-desktop\error-context.md
+
+
+(node:25400) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[3/15] [desktop] › tests\home-v3-p2.spec.ts:61:3 › HOME-V3-P2-2431 family and building › who is home: the household, and my own hide switch
+  3) [desktop] › tests\home-v3-p2.spec.ts:61:3 › HOME-V3-P2-2431 family and building › who is home: the household, and my own hide switch 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('sw-home').locator('.prow')
+    Expected: 4
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('sw-home').locator('.prow') with timeout 5000ms
+      - waiting for locator('sw-home').locator('.prow')
+        11 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      61 |   test('who is home: the household, and my own hide switch', async ({ page }) => {
+      62 |     const m = await open(page, 'presence');
+    > 63 |     await expect(home(page).locator('.prow')).toHaveCount(4);
+         |                                               ^
+      64 |     await expect(home(page).locator('.prow[data-person="me"] b')).toContainText('(אני)');
+      65 |     await home(page).locator('[data-act="p2ShowMe"]').click();
+      66 |     await expect.poll(() => m.calls.filter((c) => c.path === 'home/presence/me').map((c) => JSON.stringify(c.body))).toContain('{"hidden":true}');
+        at C:\cloude\smplwise-homev3p2\frontend\tests\home-v3-p2.spec.ts:63:47
+
+    Error Context: test-results\home-v3-p2-HOME-V3-P2-2431-faf7d-hold-and-my-own-hide-switch-desktop\error-context.md
+
+
+(node:27420) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+
+
+(Use `node --trace-warnings ...` to show where the warning was created)
+[4/15] [desktop] › tests\home-v3-p2.spec.ts:71:3 › HOME-V3-P2-2431 family and building › calendar: the day, a new event from the sheet
+  4) [desktop] › tests\home-v3-p2.spec.ts:71:3 › HOME-V3-P2-2431 family and building › calendar: the day, a new event from the sheet 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('sw-home').locator('.week .wd')
+    Expected: 7
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('sw-home').locator('.week .wd') with timeout 5000ms
+      - waiting for locator('sw-home').locator('.week .wd')
+        11 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      71 |   test('calendar: the day, a new event from the sheet', async ({ page }) => {
+      72 |     const m = await open(page, 'calendar');
+    > 73 |     await expect(home(page).locator('.week .wd')).toHaveCount(7);
+         |                                                   ^
+      74 |     await expect(home(page).locator('.cev').first()).toBeVisible();
+      75 |     await home(page).locator('[data-act="p2CalNew"]').click();
+      76 |     const sheet = home(page).locator('[data-sheet="calNew"]');
+        at C:\cloude\smplwise-homev3p2\frontend\tests\home-v3-p2.spec.ts:73:51
+
+    Error Context: test-results\home-v3-p2-HOME-V3-P2-2431-d998e--a-new-event-from-the-sheet-desktop\error-context.md
+
+
+(node:13552) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[5/15] [desktop] › tests\home-v3-p2.spec.ts:88:3 › HOME-V3-P2-2431 family and building › shared rooms: book a room, cancel my booking with a confirmation
+  5) [desktop] › tests\home-v3-p2.spec.ts:88:3 › HOME-V3-P2-2431 family and building › shared rooms: book a room, cancel my booking with a confirmation 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('sw-home').locator('.door-list .arow')
+    Expected: 2
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('sw-home').locator('.door-list .arow') with timeout 5000ms
+      - waiting for locator('sw-home').locator('.door-list .arow')
+        11 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      88 |   test('shared rooms: book a room, cancel my booking with a confirmation', async ({ page }) => {
+      89 |     const m = await open(page, 'calendar/book');
+    > 90 |     await expect(home(page).locator('.door-list .arow')).toHaveCount(2);
+         |                                                          ^
+      91 |     await home(page).locator('[data-act="p2BookNew"][data-id="room-club"]').click();
+      92 |     await home(page).locator('[data-sheet="bookNew"] [data-act="p2CalSave"]').click();
+      93 |     await expect.poll(() => m.calls.filter((c) => c.path === 'calendar/events').map((c) => (c.body as { kind: string }).kind)).toContain('booking');
+        at C:\cloude\smplwise-homev3p2\frontend\tests\home-v3-p2.spec.ts:90:58
+
+    Error Context: test-results\home-v3-p2-HOME-V3-P2-2431-6e9eb-booking-with-a-confirmation-desktop\error-context.md
+
+
+(node:28144) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+[6/15] [desktop] › tests\home-v3-p2.spec.ts:99:3 › HOME-V3-P2-2431 family and building › notice board: buses line, open a notice and mark it read; a long notice scrolls only inside its sheet
+  6) [desktop] › tests\home-v3-p2.spec.ts:99:3 › HOME-V3-P2-2431 family and building › notice board: buses line, open a notice and mark it read; a long notice scrolls only inside its sheet 
+
+    Error: expect(locator).toContainText(expected) failed
+
+    Locator: locator('sw-home').locator('.transit')
+    Expected substring: "קו 18"
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toContainText" locator('sw-home').locator('.transit') with timeout 5000ms
+      - waiting for locator('sw-home').locator('.transit')
+
+
+       99 |   test('notice board: buses line, open a notice and mark it read; a long notice scrolls only inside its sheet', async ({ page }) => {
+      100 |     const m = await open(page, 'notices', { worst: true });
+    > 101 |     await expect(home(page).locator('.transit')).toContainText('קו 18');
+          |                                                  ^
+      102 |     await home(page).locator('[data-act="p2Notice"]').first().click();
+      103 |     const body = home(page).locator('[data-sheet="notice"] .n-body');
+      104 |     await expect(body).toBeVisible();
+        at C:\cloude\smplwise-homev3p2\frontend\tests\home-v3-p2.spec.ts:101:50
+
+    Error Context: test-results\home-v3-p2-HOME-V3-P2-2431-1770c-rolls-only-inside-its-sheet-desktop\error-context.md
+
+
+(node:13964) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[7/15] [desktop] › tests\home-v3-p2.spec.ts:112:3 › HOME-V3-P2-2431 family and building › service requests: only mine, a new ticket from the sheet, a note
+  7) [desktop] › tests\home-v3-p2.spec.ts:112:3 › HOME-V3-P2-2431 family and building › service requests: only mine, a new ticket from the sheet, a note 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('sw-home').locator('.tkrow')
+    Expected: 2
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('sw-home').locator('.tkrow') with timeout 5000ms
+      - waiting for locator('sw-home').locator('.tkrow')
+        11 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      112 |   test('service requests: only mine, a new ticket from the sheet, a note', async ({ page }) => {
+      113 |     const m = await open(page, 'tickets');
+    > 114 |     await expect(home(page).locator('.tkrow')).toHaveCount(2); // the open ones
+          |                                                ^
+      115 |     await home(page).locator('[data-act="p2TkNew"]').click();
+      116 |     const sheet = home(page).locator('[data-sheet="tkNew"]');
+      117 |     await sheet.locator('[data-act="p2TkCat"]').nth(1).click();
+        at C:\cloude\smplwise-homev3p2\frontend\tests\home-v3-p2.spec.ts:114:48
+
+    Error Context: test-results\home-v3-p2-HOME-V3-P2-2431-0e8fd-icket-from-the-sheet-a-note-desktop\error-context.md
+
+
+(node:15280) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[8/15] [desktop] › tests\home-v3-p2.spec.ts:131:3 › HOME-V3-P2-2431 family and building › weather: now, hours and days; the strip opens it
+  8) [desktop] › tests\home-v3-p2.spec.ts:131:3 › HOME-V3-P2-2431 family and building › weather: now, hours and days; the strip opens it 
+
+    Test timeout of 60000ms exceeded.
+
+    Error: locator.click: Test timeout of 60000ms exceeded.
+    Call log:
+      - waiting for locator('sw-home').locator('a.wx')
+
+
+      131 |   test('weather: now, hours and days; the strip opens it', async ({ page }) => {
+      132 |     await open(page, 'r/home');
+    > 133 |     await home(page).locator('a.wx').click();
+          |                                      ^
+      134 |     await settle(page);
+      135 |     await expect(home(page).locator('.wx-now .huge')).toHaveText('22°');
+      136 |     await expect(home(page).locator('.wxc')).toHaveCount(6);
+        at C:\cloude\smplwise-homev3p2\frontend\tests\home-v3-p2.spec.ts:133:38
+
+    Error Context: test-results\home-v3-p2-HOME-V3-P2-2431-3739c-and-days-the-strip-opens-it-desktop\error-context.md
+
+
+(node:27592) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[9/15] [desktop] › tests\home-v3-p2.spec.ts:141:3 › HOME-V3-P2-2431 family and building › my notifications: switch a kind off, "do not disturb" and its hours
+  9) [desktop] › tests\home-v3-p2.spec.ts:141:3 › HOME-V3-P2-2431 family and building › my notifications: switch a kind off, "do not disturb" and its hours 
+
+    Test timeout of 60000ms exceeded.
+
+    Error: locator.click: Test timeout of 60000ms exceeded.
+    Call log:
+      - waiting for locator('sw-home').locator('[data-act="p2NfTog"][data-id="building"]')
+
+
+      142 |     const m = await open(page, 'notif');
+      143 |     await expect(home(page).locator('[data-act="p2NfTog"][data-id="safety"]')).toHaveCount(0); // a safety notification is never muted
+    > 144 |     await home(page).locator('[data-act="p2NfTog"][data-id="building"]').click();
+          |                                                                          ^
+      145 |     await expect.poll(() => m.calls.filter((c) => c.path === 'home/notify').map((c) => JSON.stringify(c.body))).toContain(JSON.stringify({ muted: ['building', 'alerts'] }));
+      146 |     await home(page).locator('[data-act="p2Dnd"]').click();
+      147 |     await expect.poll(() => m.calls.filter((c) => c.path === 'home/notify').map((c) => JSON.stringify(c.body))).toContain(JSON.stringify({ dnd: { enabled: true } }));
+        at C:\cloude\smplwise-homev3p2\frontend\tests\home-v3-p2.spec.ts:144:74
+
+    Error Context: test-results\home-v3-p2-HOME-V3-P2-2431-9b3d0-o-not-disturb-and-its-hours-desktop\error-context.md
+
+
+(node:8012) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[10/15] [desktop] › tests\home-v3-p2.spec.ts:151:3 › HOME-V3-P2-2431 family and building › schedules: pause one, run one, a new scene schedule
+  10) [desktop] › tests\home-v3-p2.spec.ts:151:3 › HOME-V3-P2-2431 family and building › schedules: pause one, run one, a new scene schedule 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('sw-home').locator('.srow')
+    Expected: 3
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('sw-home').locator('.srow') with timeout 5000ms
+      - waiting for locator('sw-home').locator('.srow')
+        12 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      151 |   test('schedules: pause one, run one, a new scene schedule', async ({ page }) => {
+      152 |     const m = await open(page, 'schedules');
+    > 153 |     await expect(home(page).locator('.srow')).toHaveCount(3);
+          |                                               ^
+      154 |     await home(page).locator('[data-act="p2SchTog"][data-id="s1"]').click();
+      155 |     await expect.poll(() => m.calls.map((c) => c.path)).toContain('home/schedules/s1/disable');
+      156 |     await home(page).locator('[data-act="p2SchRun"][data-id="s2"]').click();
+        at C:\cloude\smplwise-homev3p2\frontend\tests\home-v3-p2.spec.ts:153:47
+
+    Error Context: test-results\home-v3-p2-HOME-V3-P2-2431-fd5d9-un-one-a-new-scene-schedule-desktop\error-context.md
+
+
+(node:28616) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[11/15] [desktop] › tests\home-v3-p2.spec.ts:168:3 › HOME-V3-P2-2431 family and building › a new scene from the current state, from the scenes screen
+  11) [desktop] › tests\home-v3-p2.spec.ts:168:3 › HOME-V3-P2-2431 family and building › a new scene from the current state, from the scenes screen 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('sw-home').locator('.hs-head a[href$="/schedules"]')
+    Expected: 1
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('sw-home').locator('.hs-head a[href$="/schedules"]') with timeout 5000ms
+      - waiting for locator('sw-home').locator('.hs-head a[href$="/schedules"]')
+        10 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      168 |   test('a new scene from the current state, from the scenes screen', async ({ page }) => {
+      169 |     const m = await open(page, 'scenes');
+    > 170 |     await expect(home(page).locator('.hs-head a[href$="/schedules"]')).toHaveCount(1);
+          |                                                                        ^
+      171 |     await home(page).locator('[data-act="p2CapNew"]').click();
+      172 |     await home(page).locator('[data-sheet="capNew"] input.inp').fill('ערב סרט');
+      173 |     await home(page).locator('[data-act="p2CapSave"]').click();
+        at C:\cloude\smplwise-homev3p2\frontend\tests\home-v3-p2.spec.ts:170:72
+
+    Error Context: test-results\home-v3-p2-HOME-V3-P2-2431-044f2-tate-from-the-scenes-screen-desktop\error-context.md
+
+
+
+
+(node:27304) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[12/15] [desktop] › tests\home-v3-p2.spec.ts:179:3 › HOME-V3-P2-2431 family and building › a wall panel locked to its room shows the notice board and the calendar, without creating
+  12) [desktop] › tests\home-v3-p2.spec.ts:179:3 › HOME-V3-P2-2431 family and building › a wall panel locked to its room shows the notice board and the calendar, without creating 
+
+    Error: expect(locator).toHaveCount(expected) failed
+
+    Locator:  locator('sw-home').locator('.chip3[data-cat="notices"]')
+    Expected: 1
+    Received: 0
+    Timeout:  5000ms
+
+    Call log:
+      - Expect "toHaveCount" locator('sw-home').locator('.chip3[data-cat="notices"]') with timeout 5000ms
+      - waiting for locator('sw-home').locator('.chip3[data-cat="notices"]')
+        13 × locator resolved to 0 elements
+           - unexpected value "0"
+
+
+      179 |   test('a wall panel locked to its room shows the notice board and the calendar, without creating', async ({ page }) => {
+      180 |     await open(page, 'r/living', { kiosk: true });
+    > 181 |     await expect(home(page).locator('.chip3[data-cat="notices"]')).toHaveCount(1);
+          |                                                                    ^
+      182 |     await expect(home(page).locator('.chip3[data-cat="calendar"]')).toHaveCount(1);
+      183 |     await home(page).locator('.chip3[data-cat="calendar"]').click();
+      184 |     await settle(page);
+        at C:\cloude\smplwise-homev3p2\frontend\tests\home-v3-p2.spec.ts:181:68
+
+    Error Context: test-results\home-v3-p2-HOME-V3-P2-2431-751d0-e-calendar-without-creating-desktop\error-context.md
+
+
+(node:25680) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[13/15] [desktop] › tests\home-v3-p2.spec.ts:191:5 › HOME-V3-P2-2431 family and building › no scrolling at desktop 1280x800 on every family screen (worst case)
+[14/15] [desktop] › tests\home-v3-p2.spec.ts:191:5 › HOME-V3-P2-2431 family and building › no scrolling at tablet 1024x768 on every family screen (worst case)
+[15/15] [desktop] › tests\home-v3-p2.spec.ts:191:5 › HOME-V3-P2-2431 family and building › no scrolling at phone 390x844 on every family screen (worst case)
+  12 failed
+    [desktop] › tests\home-v3-p2.spec.ts:44:3 › HOME-V3-P2-2431 family and building › the hub lists the family tiles with live lines 
+    [desktop] › tests\home-v3-p2.spec.ts:51:3 › HOME-V3-P2-2431 family and building › a switched-off module or a hidden category leaves no tile and no screen 
+    [desktop] › tests\home-v3-p2.spec.ts:61:3 › HOME-V3-P2-2431 family and building › who is home: the household, and my own hide switch 
+    [desktop] › tests\home-v3-p2.spec.ts:71:3 › HOME-V3-P2-2431 family and building › calendar: the day, a new event from the sheet 
+    [desktop] › tests\home-v3-p2.spec.ts:88:3 › HOME-V3-P2-2431 family and building › shared rooms: book a room, cancel my booking with a confirmation 
+    [desktop] › tests\home-v3-p2.spec.ts:99:3 › HOME-V3-P2-2431 family and building › notice board: buses line, open a notice and mark it read; a long notice scrolls only inside its sheet 
+    [desktop] › tests\home-v3-p2.spec.ts:112:3 › HOME-V3-P2-2431 family and building › service requests: only mine, a new ticket from the sheet, a note 
+    [desktop] › tests\home-v3-p2.spec.ts:131:3 › HOME-V3-P2-2431 family and building › weather: now, hours and days; the strip opens it 
+    [desktop] › tests\home-v3-p2.spec.ts:141:3 › HOME-V3-P2-2431 family and building › my notifications: switch a kind off, "do not disturb" and its hours 
+    [desktop] › tests\home-v3-p2.spec.ts:151:3 › HOME-V3-P2-2431 family and building › schedules: pause one, run one, a new scene schedule 
+    [desktop] › tests\home-v3-p2.spec.ts:168:3 › HOME-V3-P2-2431 family and building › a new scene from the current state, from the scenes screen 
+    [desktop] › tests\home-v3-p2.spec.ts:179:3 › HOME-V3-P2-2431 family and building › a wall panel locked to its room shows the notice board and the calendar, without creating 
+  3 passed (7.7m)
