@@ -1,0 +1,2 @@
+import{g as a,aa as r,au as i}from"./index-D7IzA1Sh.js";import{b as g,d as l}from"./plan-view-DRsyaloS.js";const u=()=>a("skins/status"),c=()=>r("skins/test"),k=t=>a(`floors/${t}/skins`);function f(t,o,e,n){const s=new FormData;return s.set("state",o),s.set("geometry_key",e),s.set("recipe",g),s.set("file",new Blob([l(n)],{type:"image/png"}),`control-${o}.png`),i(`floors/${t}/skins/control-image`,s)}export{u as a,k as g,c as r,f as u};
+//# sourceMappingURL=skins-C7UDV2HJ.js.map
