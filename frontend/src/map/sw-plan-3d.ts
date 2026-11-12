@@ -26,7 +26,7 @@ import { DEFAULT_VIEW, planViewPrefs, type PlanViewDials } from '../api/plan-vie
 import { DEFAULT_FLOOR_FINISH } from './floor-finish';
 import { RUNG_HE, asMode, autoStart, drawnRung, levelRung, probes, rungLevel, RUNGS, nextDown, type GpuClass, type QualityMode, type Rung } from './quality-ladder';
 import { styleFor } from './look-style';
-import { ZOOM_CSS, renderZoom } from './zoom-buttons'; // PLAN3D-FURNMERGE-2434
+import { ZOOM_CSS, renderZoom, watchZoomRoom } from './zoom-buttons'; // PLAN3D-FURNMERGE-2434
 import { pillInk } from './pill-ink';
 import { HUD_EDGE, HUD_MINIMAP, HUD_MINIMAP_PHONE, HUD_PHONE_MAX, HUD_PILL_ROW, type HudCorner } from './hud-layout';
 import { t } from '../i18n/he';
@@ -342,6 +342,7 @@ export class SwPlan3d extends LitElement {
   private view: SceneView | null = null;
   private ro?: ResizeObserver;
   private barRo?: ResizeObserver;
+  private zoomRo?: ResizeObserver; // PLAN3D-FURNMERGE-2434
   /** The preset is applied once with the first description (the screen's choice), then only when the property changes:
    * a live state push replaces the description and must not snap the camera back. */
   private presetApplied = false;
@@ -946,12 +947,15 @@ export class SwPlan3d extends LitElement {
     const bar = this.renderRoot.querySelector<HTMLElement>('.bar');
     if (!bar || typeof ResizeObserver === 'undefined') return;
     this.barRo?.disconnect();
+    this.zoomRo?.disconnect();
     this.barRo = new ResizeObserver(() => {
       const h = Math.ceil(bar.getBoundingClientRect().height);
       if (h > 0) this.style.setProperty('--bar-h', `${h}px`);
       this.syncFrameInsets();
     });
     this.barRo.observe(bar);
+    this.zoomRo?.disconnect();
+    this.zoomRo = watchZoomRoom(this, bar); // PLAN3D-FURNMERGE-2434: the zoom group only where the bar's row leaves it room
   }
 
   /** PLAN3D-POLISH-2430: the stage edges the overview presets keep the building out of - the bar along the bottom (its measured
@@ -989,6 +993,7 @@ export class SwPlan3d extends LitElement {
     this.cornerSent = undefined;
     this.ro?.disconnect();
     this.barRo?.disconnect();
+    this.zoomRo?.disconnect();
     cancelAnimationFrame(this.thumbPass);
     this.thumbPass = 0;
     this.endProbe(false);

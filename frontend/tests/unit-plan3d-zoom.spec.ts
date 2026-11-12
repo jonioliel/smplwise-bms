@@ -17,12 +17,18 @@ interface Probe {
   minFps: number;
   setTimeHour: (h: number) => void;
 }
-async function openDemo(page: Page): Promise<Locator> {
+/** The style guide's demo (a 720 px card: its bar fills the row, so no zoom group); `full` stretches it over the
+ * viewport, the size of the map screen's stage. */
+async function openDemo(page: Page, full = true): Promise<Locator> {
   await page.goto('/#/styleguide');
   await page.locator('styleguide-screen [data-3d-demo-load]').click();
   const el = page.locator('styleguide-screen sw-plan-3d');
   await expect(el).toHaveAttribute('data-ready', '', { timeout: 60000 });
   await el.evaluate((n) => { (n as unknown as Probe).minFps = 0; });
+  if (full) {
+    await el.evaluate((n) => { const s = (n as HTMLElement).style; s.position = 'fixed'; s.inset = '0'; s.inlineSize = '100vw'; s.blockSize = '100vh'; s.zIndex = '1000'; });
+    await page.waitForTimeout(400);
+  }
   return el;
 }
 const zoomNow = (el: Locator) => el.evaluate((n) => { const v = (n as unknown as Probe).view; return v.camera.isOrthographicCamera ? v.camera.zoom : 1 / v.camera.position.distanceTo(v.controls.target); });
@@ -38,8 +44,10 @@ test('the zoom buttons: labelled, in the corner opposite the bar, closer and far
   // the corner opposite the bar's start (RTL: the bar starts at the right, the zoom stands at the left), never over a chip
   const z = (await zoom.boundingBox())!;
   const host = (await el.boundingBox())!;
+  const place = await el.getAttribute('data-zoom-room');
+  expect(['row', 'above']).toContain(place);
   expect(z.x - host.x).toBeLessThan(40);
-  expect(host.y + host.height - (z.y + z.height)).toBeLessThan(40);
+  expect(host.y + host.height - (z.y + z.height)).toBeLessThan(place === 'row' ? 40 : 140);
   for (const chip of await el.locator('[data-3d-bar] > *').all()) {
     const b = await chip.boundingBox();
     if (!b) continue;
@@ -68,12 +76,17 @@ test('the zoom buttons: labelled, in the corner opposite the bar, closer and far
   await expect.poll(() => zoomNow(el)).toBeGreaterThan(k0 * 1.3);
 });
 
-test('the zoom buttons are hidden on a phone and on the wall display', async ({ page }, info) => {
+test('the zoom buttons are hidden on a phone, in a narrow card and on the wall display', async ({ page }, info) => {
   const el = await openDemo(page);
   if (info.project.name === 'mobile') await expect(el.locator('[data-3d-zoom]')).toBeHidden();
   else {
     await expect(el.locator('[data-3d-zoom]')).toBeVisible();
     await el.evaluate((n) => (n as HTMLElement).setAttribute('kiosk', ''));
+    await expect(el.locator('[data-3d-zoom]')).toBeHidden();
+    await el.evaluate((n) => (n as HTMLElement).removeAttribute('kiosk'));
+    await expect(el.locator('[data-3d-zoom]')).toBeVisible();
+    // a narrow element (an event's card): none
+    await el.evaluate((n) => { (n as HTMLElement).style.inlineSize = '600px'; });
     await expect(el.locator('[data-3d-zoom]')).toBeHidden();
   }
 });

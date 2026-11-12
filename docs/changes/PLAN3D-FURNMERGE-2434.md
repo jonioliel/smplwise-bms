@@ -76,17 +76,25 @@ case) the draw count is what matters. Pictures before / after (`house-L0-iso-3`,
 ## 2. + / - zoom buttons
 
 As the round-28 mockup (`map3d/app/pills.html`, `arx.js` `hud(sc.stage, 'bl', ...)`): a group of two icon buttons (sw-icon `minus`,
-`plus`) in the bottom corner opposite the view bar - the left edge in the RTL shell, on the bar's row; the bar now wraps 92 px before
-it (min-width 641 px), the floor strip stands on the bar's other side, the notes above the bar row. One press = 1.35x closer or
-farther, eased over 180 ms (at once with motion off): the iso camera's zoom (0.4..8 of the preset's fit), the perspective eye along
-its line to the orbit target (1.2 m .. 4x the building's diagonal). A preset click returns to the preset's framing; the live fit
-stops following the stage after a zoom, as after a wheel zoom. Hebrew labels "התקרבות" / "התרחקות" (`aria-label` + `title`), the group
-`role="group" aria-label="זום"`, real buttons (keyboard Enter / Space), focus ring. Hidden on a phone (<= 640 px: a pinch zooms; the
-mockup hides it there too), in the walk and in the kiosk view. The element's own edits are four lines; the CSS and the template are in
-`zoom-buttons.ts` so pilot/PLAN3D-R28-UI-2433's overlay edits of `sw-plan-3d.ts` merge without conflict (expected: the `static
-styles = [css` line and the closing `` `, ZOOM_CSS]; `` line only if that branch rewrites them).
+`plus`) in the bottom corner opposite the view bar - the left edge in the RTL shell. Where it stands (`zoom-buttons.zoomPlace`,
+kept on the host as `data-zoom-room` by a ResizeObserver on the element and the bar): on the bar's row when the row leaves 100 px
+free (a wide map stage), else just above the bar's row (a tablet: the product's bar carries every mode chip and fills the row;
+that corner's notes move up over it), and not at all on an element under 700 px (a phone - a pinch zooms, the mockup hides it there
+too - or an event's card). The bar never wraps for it, so no view's framing moves: a first version shrank the bar by the group's
+width, which re-wrapped the bar of the narrow event / history cards and moved 5 level-3 pixel baselines (runner proof below);
+that was replaced by this placement and the baselines stay as they are. The floor strip stands on the bar's other side.
 
-Evidence: `after/zoom-0.png`, `zoom-in-2.png`, `zoom-out-1.png`, `zoom-persp-in-1.png`; every after picture shows the group.
+One press = 1.35x closer or farther, eased over 180 ms (at once with motion off): the iso camera's zoom (0.4..8 of the preset's
+fit), the perspective eye along its line to the orbit target (1.2 m .. 4x the building's diagonal). A preset click returns to the
+preset's framing; the live fit stops following the stage after a zoom, as after a wheel zoom. Hebrew labels "התקרבות" / "התרחקות"
+(`aria-label` + `title`), the group `role="group" aria-label="זום"`, real buttons (keyboard Enter / Space), focus ring. Hidden in the
+walk and in the kiosk view. The element's own edits are a few lines (import, the styles array, one render line, the observer
+next to the bar's); the CSS, the template and the placement are in `zoom-buttons.ts`, so pilot/PLAN3D-R28-UI-2433's overlay edits of
+`sw-plan-3d.ts` should merge cleanly (a conflict is possible only on the `static styles = [css` / `` `, ZOOM_CSS]; `` lines or the
+`watchBar` hunk if that branch rewrites them).
+
+Evidence: `after/zoom-0.png`, `zoom-in-2.png`, `zoom-out-1.png`, `zoom-persp-in-1.png` (full-viewport desktop: on the row),
+`zoom-place-tablet.png` (above the bar), `zoom-place-desktop.png`.
 
 ## 3. The studio ("dark") backdrop over the realistic level's sky
 
@@ -120,8 +128,8 @@ New unit tests: merge on vs off - same triangle total, same pickable part set, f
 merged kit tiles, deterministic graph; a ray at every instanced object of the old graph finds the same part in the merged graph by the
 view's range rule; the keep-instanced rule; the studio backdrop (lit disc glow, band, plinth scale, walk dome dark while the
 environment's dome keeps the sun's sky, back to sky, the unlit lite disc). Page tests: the zoom group (labels, placement opposite the
-bar and clear of every chip, closer / farther in iso and perspective, a preset restores the framing, keyboard), hidden on a phone and
-in the kiosk view, the level-3 graph carries merged furniture and a click on a merged object selects it.
+bar and clear of every chip, closer / farther in iso and perspective, a preset restores the framing, keyboard), hidden on a phone,
+on a narrow element and in the kiosk view, the level-3 graph carries merged furniture and a click on a merged object selects it.
 
 ## Runner
 
