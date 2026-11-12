@@ -39,6 +39,9 @@ const C_TIME = 'font-weight:var(--sw-fw-semibold);font-size:var(--sw-fs-md);font
 const C_DOT = 'inline-size:8px;block-size:8px;border-radius:50%;flex:none;background:';
 /** Where an event came from, in the operator's words (the raw source key stays in the technical details). */
 const SOURCE_WORDS: Record<VmsEvent['source'], string> = { alertstream: 'התראה מה־NVR', recording: 'נגזר מקובץ הקלטה', ha: 'חיישן התקן', system: 'מערכת' };
+/** SYS-AUDIT-QUICKFIX-2437 (audit round 30, finding 15): the demo rows' source keys in plain Hebrew - never the home system's brand
+ * (owner rule: no Home Assistant naming on an operator screen) nor the bare device acronym. */
+const DEMO_SOURCE_WORDS: Record<string, string> = { HA: 'מערכת הבית', NVR: 'מקליט' };
 
 const TONE: Record<DemoEvent['type'], string> = { person: 'var(--sw-tl-person)', vehicle: 'var(--sw-tl-vehicle)', motion: 'var(--sw-tl-motion)', line: 'var(--sw-tl-line)', offline: 'var(--sw-tl-offline)', door: 'var(--sw-tl-door)' };
 const SCENE: Record<string, string> = { 'כניסה ראשית': 'entrance', 'חצר אחורית': 'backyard', מחסן: 'warehouse', לובי: 'lobby', 'חניה מקורה': 'parking', 'מסדרון מזרחי': 'corridor' };
@@ -1306,7 +1309,7 @@ export class InvestigateEvents extends LitElement {
     { key: 'thumb', label: '', width: '104px', render: (r) => (r.type === 'offline' || r.type === 'door' ? html`<div class="thumb none" style="inline-size:88px;block-size:56px;border-radius:8px;background:var(--sw-surface-3);display:grid;place-items:center;color:var(--sw-text-3)"><sw-icon name=${r.type === 'offline' ? 'offline' : 'door'} size=${14}></sw-icon></div>` : html`<sw-scene class="thumb" style="display:block;inline-size:88px;block-size:56px;border-radius:8px;overflow:hidden;box-shadow:var(--sw-shadow-thumb)" kind=${(SCENE[String(r.camera)] ?? 'lobby') as 'lobby'}></sw-scene>`) },
     { key: 'title', label: 'אירוע', render: (r) => html`<span class="ty" style="--tone:${TONE[r.type as DemoEvent['type']]}"><i></i>${eventTypeLabel[r.type as DemoEvent['type']]}</span><div class="sub">${String(r.title)} · ${r.acked ? 'טופל' : html`<span style="color:var(--sw-warning-text);font-weight:var(--sw-fw-semibold)">ממתין לטיפול</span>`}</div>` },
     { key: 'camera', label: 'מצלמה', render: (r) => html`${String(r.camera)}<div class="sub">${String(r.floor)}</div>` },
-    { key: 'time', label: 'זמן', render: (r) => html`<span style="font-weight:700;font-size:var(--sw-fs-md);font-variant-numeric:tabular-nums;color:var(--sw-heading)">${String(r.time)}</span><div class="sub ltr">${String(r.source)}</div>` },
+    { key: 'time', label: 'זמן', render: (r) => html`<span style="font-weight:700;font-size:var(--sw-fs-md);font-variant-numeric:tabular-nums;color:var(--sw-heading)">${String(r.time)}</span><div class="sub">${DEMO_SOURCE_WORDS[String(r.source)] ?? String(r.source)}</div>` },
     { key: 'severity', label: 'חומרה', render: (r) => html`<sw-badge filled kind=${r.severity === 'critical' ? 'error' : r.severity === 'alert' ? 'stale' : 'neutral'} label=${{ info: 'מידע', alert: 'התראה', critical: 'קריטי' }[r.severity as DemoEvent['severity']]}></sw-badge>` },
     { key: 'more', label: '', width: '40px', render: () => html`<sw-button variant="ghost" size="sm" iconOnly icon="more" label="עוד"></sw-button>` },
   ];
@@ -1547,7 +1550,7 @@ export class InvestigateEvents extends LitElement {
                 <div><dt>טיפול</dt><dd>${ev.acked ? 'טופל בידי יוני, 09:50' : 'ממתין'}</dd></div>
                 <div><dt>קומה</dt><dd>${ev.floor}</dd></div>
                 <div><dt>כיסוי הקלטה</dt><dd>${ev.type === 'offline' ? 'אין' : 'קיים · 10 שנ׳ לפני/אחרי'}</dd></div>
-                <div class="wide"><dt>מקור</dt><dd><span class="ltr">${ev.source}</span> · raw: <span class="ltr">${ev.type}</span></dd></div>
+                <div class="wide"><dt>מקור</dt><dd>${DEMO_SOURCE_WORDS[ev.source] ?? ev.source} · raw: <span class="ltr">${ev.type}</span></dd></div>
               </dl>
               <div slot="footer" class="acts">
                 <a href="#/investigate/playback"><sw-button variant="primary" size="sm" icon="history">להקלטה</sw-button></a>

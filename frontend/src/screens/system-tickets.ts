@@ -153,7 +153,10 @@ export class SystemTickets extends LitElement {
       --sw-seg-h: var(--sw-touch-desktop);
       --sw-seg-divider: 0 solid transparent;
       --sw-seg-on-bg: var(--mm-seg-thumb);
-      --sw-seg-on-fg: var(--dv-text);
+      /* SYS-AUDIT-QUICKFIX-2437 (audit round 30, finding 3): the label on the thumb is the thumb's own ink (--mm-seg-fg-on, POLISH2-295),
+         as on every other glass segment - --dv-text is near-white in dark and the chosen tab / gender read white on white (1:1). In
+         light both are --dv-text (no change). */
+      --sw-seg-on-fg: var(--mm-seg-fg-on, var(--dv-text));
       --sw-seg-on-shadow: var(--dv-shadow-control);
     }
     /* MGRDASH: the "busy" threshold fields of the manager overview card (tickets/overview-settings.ts) */

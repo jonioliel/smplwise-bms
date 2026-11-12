@@ -54,7 +54,7 @@ export const remoteTokens = css`
     --mr-glow-alpha: 0.36;
     --mr-ease: cubic-bezier(0.22, 1, 0.36, 1);
     --mr-motion: 240ms;
-    --mr-font: -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', 'Noto Sans Hebrew', 'Heebo', Roboto, Arial, sans-serif;
+    --mr-font: var(--sw-font); /* SYS-AUDIT-QUICKFIX-2437: the product face in both schemes (was the OS stack in light) */
     color-scheme: light;
   }
   :host([data-devices-scheme='dark']) {

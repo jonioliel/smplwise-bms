@@ -124,7 +124,9 @@ export class InvestigateIncidents extends LitElement {
     .meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     .clock { display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 4px 12px; background: var(--sw-surface-3); color: var(--sw-heading); font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-md); }
     .clock sw-icon { color: var(--sw-text-3); }
-    .badge { display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 3px 11px; white-space: nowrap; background: var(--c); color: var(--sw-text-inverse); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); line-height: 1.4; }
+    .badge { display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 3px 11px; white-space: nowrap; background: var(--c-text, var(--sw-text-2)); color: var(--sw-surface-solid); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); line-height: 1.4; }
+    /* SYS-AUDIT-QUICKFIX-2437 (audit round 30, finding 12): the filled status field is the state's contrast-proven ink with the panel
+       colour as its label ("נסגר" read 2.54:1, "פעיל" 3.76:1 as white on the bare state colour), the same pair as sw-badge[filled] */
     .badge.sm { padding: 1px 9px; font-size: var(--sw-fs-xs); }
     .chip { display: inline-flex; align-items: center; gap: 5px; border-radius: var(--sw-r-pill); padding: 2px 9px; line-height: 1.5; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-medium); background: var(--sw-surface-2); color: var(--sw-text-2); white-space: nowrap; }
     .chip[data-look] { background: var(--c-soft); color: var(--c-text); }
