@@ -1,6 +1,7 @@
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
 import fs from 'node:fs';
 import { settlePage } from './pixel-settle';
+import { settle } from './helpers/settle';
 
 // PLAN3D-R28-WIZARD2-2434: the plan wizard's second round on the demo sample house - cameras in the devices step, "back" to the
 // upload keeps the version (and another file asks before the earlier draft is discarded), the resume card. Demo mode (nothing is
@@ -41,7 +42,7 @@ async function overflow(page: Page) {
   }, W);
 }
 
-test.describe('the plan wizard, round 2', () => {
+test.describe('the plan wizard, round 2 (pixel-stable)', () => {
   test.skip(process.env.SW_LIVE === '1', 'demo-mode spec');
   test.beforeEach(({}, info) => test.skip(info.project.name === 'mobile', 'desktop and tablet (the phone shows the desktop-only state)'));
 
@@ -58,6 +59,7 @@ test.describe('the plan wizard, round 2', () => {
     await shoot(page, info, 'wizard2-cameras');
     await side.locator('[data-dev-row="demo-cam-entry"]').click();
     const plan = page.locator(`${W} [data-wz-canvas] svg.plan`);
+    await settle(page); // measure the plan at rest after the row click
     const box = (await plan.boundingBox())!;
     await page.mouse.click(box.x + box.width * 0.2, box.y + box.height * 0.8);
     await expect(page.locator(`${W} [data-dev="demo-cam-entry"][data-dev-kind="camera"] rect`)).toHaveCount(1);

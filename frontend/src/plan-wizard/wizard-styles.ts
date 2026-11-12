@@ -771,14 +771,18 @@ export const wizardStyles = css`
     transform: scale(0.97);
   }
   .seg button[aria-selected='true'] {
-    background: var(--sw-surface);
-    color: var(--sw-text);
-    box-shadow: var(--sw-shadow-1);
+    /* DARK-SEG-ALL-2380: the chosen key reads the key tokens (in dark the light pill + its ink); light keeps the card surface */
+    background: var(--sw-seg-key, var(--sw-surface));
+    color: var(--sw-seg-key-ink, var(--sw-text));
+    box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1));
   }
   .seg .num {
     font-size: var(--sw-fs-xs);
     color: var(--sw-text-3);
     font-variant-numeric: tabular-nums;
+  }
+  .seg button[aria-selected='true'] .num {
+    color: var(--sw-seg-key-ink, var(--sw-text-3));
   }
   .card.resume {
     display: grid;
