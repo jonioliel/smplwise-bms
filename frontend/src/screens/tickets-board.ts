@@ -350,7 +350,13 @@ export class TicketsBoard extends LitElement {
     }
     @media (max-width: 767px) {
       .dh-row {
-        grid-template-areas: 'r r r';
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+      }
+      .dh-row > [data-board-pane] {
+        align-self: flex-start;
       }
       /* the state strip (in the "סינון" sheet on a phone): three a row (nothing hidden behind a scroll, every count readable) */
       .fpop .seg.stf {
@@ -677,8 +683,10 @@ export class TicketsBoard extends LitElement {
           <button type="button" role="radio" aria-checked=${String(!handlersPane)} data-pane="cards" @click=${() => this.go({ pane: 'cards' })}>${tt('area')}</button>
           <button type="button" role="radio" aria-checked=${String(handlersPane)} data-pane="handlers" @click=${() => this.go({ pane: 'handlers' })}>${tt('hdTitle')}</button>
         </div>` : nothing;
+    // a phone: the board / handlers switch takes a row of its own above the floor chips (it chooses the pane they filter), so the frame's
+    // title row keeps only the view switch and "+"
     const actions = html`<div class="pact" slot="actions">
-      ${paneSwitch}
+      ${this.phone ? nothing : paneSwitch}
       ${tools && !handlersPane ? html`${listViewSwitch('board', true, this.pickMode)}
         ${canCreate ? html`<button type="button" class="btn primary newbtn" data-new aria-label=${tt('newTitle')} @click=${() => writeHref(boardHref(this.r, { create: true }), false)}>${tIcon('plus')}<span class="lbl">${tt('newShort')}</span></button>` : nothing}` : nothing}
     </div>`;
@@ -688,12 +696,14 @@ export class TicketsBoard extends LitElement {
           ${stripItems(ui.closed_strip, d.counts).map((s) => html`<button type="button" role="radio" aria-checked=${String(this.r.state === s.id)} data-state=${s.id} title=${this.stripTip(s.id)} @click=${() => this.go({ state: s.id })}>${s.label}<small>${s.count}</small></button>`)}
         </div>` : nothing;
     const panel = this.filterOpen ? filterPanel(this.panelBody(layout, this.phone ? strip : nothing), chips.length, this.resetFilters, () => (this.filterOpen = false)) : nothing;
+    const chipsRow = floor.length > 0 && !handlersPane;
     return html`${actions}<header class="dh" data-board-header>
-      ${floor.length && !handlersPane ? html`<div class="dh-row">
-        <div class="rooms" role="group" aria-label=${bt('floors')} data-floor-chips>
+      ${chipsRow || (this.phone && paneSwitch !== nothing) ? html`<div class="dh-row">
+        ${this.phone ? paneSwitch : nothing}
+        ${chipsRow ? html`<div class="rooms" role="group" aria-label=${bt('floors')} data-floor-chips>
           <button type="button" class="rc" aria-pressed=${String(!this.r.place)} data-place="" @click=${() => this.go({ place: '' })}>${bt('allFloors')}</button>
           ${floor.map((n) => html`<button type="button" class="rc" aria-pressed=${String(this.r.place === n.key)} data-place=${n.key} @click=${() => this.go({ place: n.key })}>${bidi(placeLabel(n))}<small>${n.count}</small></button>`)}
-        </div>
+        </div>` : nothing}
       </div>` : nothing}
       ${tools && !handlersPane ? html`<div class="dh-det tb" role="group" aria-label=${lt('lfGroup')} data-toolbar>
         ${this.phone ? nothing : strip}

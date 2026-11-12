@@ -198,6 +198,13 @@ test.describe('AUDIT30-C-TICKETS', () => {
     await board(page);
     await page.waitForSelector(`${B} ticket-card`);
     await expect(page.locator(`${B} [data-toolbar] > [data-state-strip]`)).toHaveCount(0);
+    // the frame's actions (view switch, "+") stay inside the screen; the board / handlers switch is its own row under the title
+    const vw = page.viewportSize()!.width;
+    for (const sel of [`${B} [data-new]`, `${B} .vsw`, `${B} [data-board-pane]`]) {
+      const box = (await page.locator(sel).first().boundingBox())!;
+      expect(box.x, `${sel} left edge`).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width, `${sel} right edge`).toBeLessThanOrEqual(vw);
+    }
     await page.locator(`${B} [data-filter-toggle]`).click();
     await expect(page.locator(`${B} [data-filter-panel] [data-state-strip] [data-state="all"]`)).toBeVisible();
     await page.locator(`${B} [data-filter-panel] [data-state="stuck"]`).click();
