@@ -810,7 +810,7 @@ export class MediaPlayerPanel extends LitElement {
     if (!d) {
       return this.phase === 'error'
         ? html`<div class="r" data-pn-state="error"><div class="errbox">${ic('warning')}<b>לא ניתן לטעון את הנגן</b><button type="button" class="btn" @click=${() => void this.load(true)}>נסו שוב</button></div></div>`
-        : html`<div class="r" data-pn-state="loading" aria-busy="true"><span class="skl" style="block-size:132px;border-radius:22px"></span><span class="skl" style="block-size:66px;border-radius:33px"></span><span class="skl" style="block-size:44px"></span><span class="skl" style="block-size:160px;border-radius:18px"></span></div>`;
+        : html`<div class="r" data-pn-state="loading" aria-busy="true"><span class="skl" style="block-size:132px;border-radius:var(--sw-r-2xl)"></span><span class="skl" style="block-size:66px;border-radius:var(--sw-r-pill)"></span><span class="skl" style="block-size:44px"></span><span class="skl" style="block-size:160px;border-radius:var(--sw-r-xl)"></span></div>`;
     }
     const mode = panelMode(d);
     const vo = viewOnly(d);
@@ -940,7 +940,7 @@ export class MediaPlayerPanel extends LitElement {
     const one = from.length === 1;
     const pend = this.pend.has('transfer');
     return html`<div class="ctas" data-pn-transfer><button type="button" class=${classMap({ btn: true, quiet: true, pend })} aria-haspopup=${one ? 'false' : 'menu'} aria-expanded=${one ? nothing : String(this.trMenu)} ?disabled=${pend}
-        @click=${() => (one ? this.onTransfer(from[0]) : (this.trMenu = !this.trMenu))}>${ic('transfer')}העבר את המוזיקה לכאן${one ? html`<small>· מ${bidi(leaderLabel(from[0]))}</small>` : nothing}${pend ? html`<span class="pendring" style="inset:-4px;border-radius:999px"></span>` : nothing}</button>
+        @click=${() => (one ? this.onTransfer(from[0]) : (this.trMenu = !this.trMenu))}>${ic('transfer')}העבר את המוזיקה לכאן${one ? html`<small>· מ${bidi(leaderLabel(from[0]))}</small>` : nothing}${pend ? html`<span class="pendring" style="inset:-4px;border-radius:var(--sw-r-pill)"></span>` : nothing}</button>
       ${!one && this.trMenu ? html`<div class="pop" role="menu">${from.map((x) => html`<button type="button" role="menuitem" data-pn-transfer-from=${x.key} @click=${() => this.onTransfer(x)}><span class="gi" style=${`--a1:${tint(x.live.now.hue).a1};--a2:${tint(x.live.now.hue).a2}`}>${gl(x.live.now.kind === 'station' ? 'radio' : x.live.now.glyph)}</span>${bidi(leaderLabel(x))}<span class="cnt">${bidi(x.live.now.title)}</span></button>`)}</div>` : nothing}</div>`;
   }
 

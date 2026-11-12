@@ -9,6 +9,7 @@ import '../components/sw-dialog';
 import '../components/media-screen-card';
 import '../components/media-bulk-dialog';
 import '../components/sw-pager';
+import '../components/sw-page';
 import { PageFit } from './multimedia-page-fit';
 import './multimedia-edit-panel';
 import type { MediaBulkDialog } from '../components/media-bulk-dialog';
@@ -112,24 +113,23 @@ export class MultimediaScreens extends LitElement {
       font-size: var(--sw-fs-md);
       line-height: 1.5;
     }
+    /* AUDIT30-D3 (audit round 30 #6): the page frame is the shared <sw-page class="page" wide> - the title, the one-line summary under
+       it and the floor menu at the end of the title row come from it (its padding is --sw-page-pad; --mm-pad mirrors it for the
+       edge-to-edge bars below). Below it, the filter bar (.dh) and the cards. */
     .page {
-      padding: 0 36px 44px;
-      display: flex;
-      flex-direction: column;
-      gap: 26px;
-      min-block-size: 100%;
+      --mm-pad: var(--sw-page-pad);
     }
-    /* the header: a large title, rooms, the floor menu; it sticks and compacts while scrolling */
+    /* the filter bar: the room chips, the pager, the state filter, the search; it sticks and compacts while the page scrolls */
     .dh {
       position: sticky;
       inset-block-start: 0;
       z-index: 15;
-      margin-inline: -36px;
-      padding: 16px 36px 4px;
-      padding-inline-end: calc(36px + var(--sw-float-reserve, 0px));
+      margin-inline: calc(-1 * var(--mm-pad));
+      padding: var(--sw-s-1) var(--mm-pad);
       display: flex;
-      flex-direction: column;
-      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--sw-s-2) var(--sw-s-3);
     }
     /* Compacting is purely visual: it never changes the header's height in the flow. A header that shrank at scrollTop ~60
        moved every card under the finger (and, with the scroll clamped, fell back under the threshold and expanded again: the
@@ -163,22 +163,13 @@ export class MultimediaScreens extends LitElement {
     .dh-row {
       display: flex;
       align-items: center;
-      gap: 12px 18px;
+      gap: var(--sw-s-3);
+      flex: 1 1 320px;
       min-inline-size: 0;
     }
-    h1 {
-      margin: 0;
-      font-family: var(--sw-font-heading);
-      font-size: var(--mm-fs-page-title);
-      font-weight: var(--sw-h1-weight, 700);
-      letter-spacing: var(--sw-h1-tracking, -0.6px);
-      line-height: 1.2;
-      color: var(--sw-heading, var(--sw-text));
-      flex: none;
-      transition: font-size var(--mm-motion) var(--mm-ease);
-    }
-    .dh.compact h1 {
-      font-size: var(--mm-fs-page-title-compact);
+    /* the bar is not the page's first row any more (sw-page's title row is, and it keeps the shell's lead reserve itself) */
+    :host .page .dh .dh-row {
+      padding-inline-start: 0;
     }
     .rooms {
       flex: 1 1 auto;
@@ -189,6 +180,8 @@ export class MultimediaScreens extends LitElement {
       overflow-x: auto;
       scrollbar-width: none;
       padding: 6px 18px;
+      /* the first chip lines up with the title above: the fade's room hangs outside the text edge */
+      margin-inline-start: -18px;
       -webkit-mask-image: linear-gradient(90deg, transparent, #000 18px, #000 calc(100% - 18px), transparent);
       mask-image: linear-gradient(90deg, transparent, #000 18px, #000 calc(100% - 18px), transparent);
       user-select: none;
@@ -202,8 +195,9 @@ export class MultimediaScreens extends LitElement {
     }
     .rc {
       flex: none;
-      block-size: 38px;
-      padding-inline: 17px;
+      /* AUDIT30-D1: the chip is a control of the shared height (34 in the classic skin; 44 on touch below) */
+      block-size: var(--sw-ctl-h-md);
+      padding-inline: 14px;
       border-radius: var(--dv-radius-control);
       border: 1px solid var(--dv-border);
       background: var(--dv-surface-2);
@@ -213,7 +207,7 @@ export class MultimediaScreens extends LitElement {
       font-weight: 500;
       color: var(--dv-text-2);
       white-space: nowrap;
-      transition: background var(--mm-motion), color var(--mm-motion), transform var(--sw-t-press, 120ms) var(--sw-ease-out, ease-out);
+      transition: background var(--mm-motion), color var(--mm-motion), transform var(--sw-t-press) var(--sw-ease-out);
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
     }
@@ -227,16 +221,27 @@ export class MultimediaScreens extends LitElement {
     .rc:active {
       transform: scale(var(--sw-press-scale, 0.97));
     }
+    /* AUDIT30-D1 (audit round 30 #4, owner question 3 answer a): the chosen room is the product's one selected look - the soft accent
+       fill with the accent ink (Blue Wash), no border, no shadow; it was a black pill (--dv-text fill) */
     .rc[aria-pressed='true'] {
-      background: var(--dv-text);
+      background: var(--sw-accent-soft);
       border-color: transparent;
-      color: var(--mm-text-inverse);
-      font-weight: 600;
-      box-shadow: var(--dv-shadow-control);
+      color: var(--sw-accent-text);
+      font-weight: var(--sw-fw-semibold);
+      box-shadow: none;
+    }
+    .rc:focus-visible {
+      outline: 2px solid var(--dv-focus);
+      outline-offset: 2px;
     }
     .flwrap {
       position: relative;
       flex: none;
+    }
+    .pacts {
+      display: flex;
+      align-items: center;
+      gap: var(--sw-s-2);
     }
     .dh-det {
       display: flex;
@@ -245,19 +250,14 @@ export class MultimediaScreens extends LitElement {
       flex-wrap: wrap;
       transition: opacity var(--mm-motion), visibility var(--mm-motion);
     }
+    .dh-det {
+      flex: 0 1 auto;
+      min-inline-size: 0;
+    }
     .dh.compact .dh-det {
       opacity: 0;
       visibility: hidden;
       pointer-events: none;
-    }
-    .amb {
-      font-size: var(--sw-fs-md);
-      color: var(--dv-text-2);
-    }
-    .amb em {
-      font-style: normal;
-      color: var(--dv-text);
-      font-weight: 600;
     }
     .search {
       display: flex;
@@ -309,13 +309,13 @@ export class MultimediaScreens extends LitElement {
       gap: 12px;
       padding-inline: 4px;
     }
-    /* R5-MEDIA-ENERGY-297 (HOMEFABLE type scale): the floor heading is 20 px / 800 in the heading ink */
-    /* loop 2 (visible-difference test): the floor is the page's section object - its heading steps up to 26 px / 800 */
+    /* AUDIT30-D2 (audit round 30 #17): the floor heading sits one tier under the page title (the 26-30 px / 800 heading competed
+       with the title, so the screen read as having several); it is the section step of the scale, semibold */
     .sh h2 {
       margin: 0;
-      font-size: var(--sw-fs-3xl);
-      font-weight: 800;
-      letter-spacing: -0.03em;
+      font-size: var(--sw-fs-xl);
+      font-weight: var(--sw-fw-semibold);
+      letter-spacing: -0.01em;
       line-height: 1.2;
       color: var(--sw-heading, var(--dv-text));
     }
@@ -327,7 +327,7 @@ export class MultimediaScreens extends LitElement {
       gap: 2px;
       border-radius: var(--sw-r-sm);
       min-block-size: 28px;
-      transition: transform var(--sw-t-press, 120ms) var(--sw-ease-out, ease-out);
+      transition: transform var(--sw-t-press) var(--sw-ease-out);
     }
     .shlink .ic {
       font-size: var(--sw-fs-2xl);
@@ -394,7 +394,7 @@ export class MultimediaScreens extends LitElement {
       color: var(--dv-text);
       font-size: var(--sw-fs-xs);
       font-weight: 700;
-      transition: background var(--mm-motion), transform var(--sw-t-press, 120ms) var(--sw-ease-out, ease-out);
+      transition: background var(--mm-motion), transform var(--sw-t-press) var(--sw-ease-out);
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
     }
@@ -495,48 +495,29 @@ export class MultimediaScreens extends LitElement {
     }
     @media (prefers-reduced-motion: reduce) {
       .dh::before,
-      h1,
       .shlink .ic,
       .dh-det {
         transition: none;
       }
     }
     @media (max-width: 767px) {
+      /* sw-page's phone padding */
       .page {
-        padding: 0 14px 26px;
-        gap: 18px;
+        --mm-pad: var(--sw-s-3);
       }
       .dh {
-        margin-inline: -14px;
-        padding: 12px 14px 2px;
-        padding-inline-end: 14px;
-        gap: 10px;
+        flex-direction: column;
+        align-items: stretch;
+        flex-wrap: nowrap;
       }
+      /* stuck at the top, the room row is what stays: it keeps clear of the shell's floating search / status corner */
       .dh-row {
-        display: grid;
-        /* the third column keeps the row clear of the shell's floating search / status corner */
-        grid-template-columns: minmax(0, 1fr) auto var(--sw-float-reserve, 0px);
-        grid-template-areas: 't f .' 'r r r';
-        gap: 10px;
-      }
-      .dh-row h1 {
-        grid-area: t;
-      }
-      .dh-row .flwrap {
-        grid-area: f;
+        flex: none;
+        padding-inline-end: var(--sw-float-reserve, 0px);
       }
       .dh-row .rooms {
-        grid-area: r;
-        margin-inline: -14px;
-        padding-inline: 14px;
-      }
-      .dh.compact .rooms {
-        opacity: 0;
-        visibility: hidden;
-        pointer-events: none;
-      }
-      .amb {
-        display: none;
+        margin-inline: calc(-1 * var(--mm-pad));
+        padding-inline: var(--mm-pad);
       }
       .dh-det .seg {
         overflow-x: auto;
@@ -560,14 +541,6 @@ export class MultimediaScreens extends LitElement {
       }
     }
     @media (min-width: 768px) and (max-width: 1023px) {
-      .page {
-        padding-inline: 24px;
-      }
-      .dh {
-        margin-inline: -24px;
-        padding-inline: 24px;
-        padding-inline-end: calc(24px + var(--sw-float-reserve, 0px));
-      }
       .sgrid > .l {
         grid-column: auto;
       }
@@ -587,7 +560,6 @@ export class MultimediaScreens extends LitElement {
         block-size: 100%;
         min-block-size: 0;
         padding-block-end: 0;
-        gap: var(--sw-s-4);
       }
       :host([data-fit]) .scr {
         display: block;
@@ -595,8 +567,8 @@ export class MultimediaScreens extends LitElement {
         min-block-size: 0;
         overflow: hidden;
         /* the region spans the page's side padding, so a card's shadow and focus ring are never cut at the sides */
-        margin-inline: -36px;
-        padding: var(--sw-s-1) 36px var(--sw-s-5);
+        margin-inline: calc(-1 * var(--mm-pad));
+        padding: var(--sw-s-1) var(--mm-pad) var(--sw-s-5);
       }
       :host([data-fit]) .groups {
         gap: var(--sw-s-5);
@@ -692,7 +664,7 @@ export class MultimediaScreens extends LitElement {
     if (!dh) return;
     const top = dh.getBoundingClientRect().top;
     let bottom = 0;
-    for (const el of dh.querySelectorAll<HTMLElement>(this.phone ? ':scope > .dh-row > h1, :scope > .dh-row > .flwrap' : ':scope > .dh-row > *')) bottom = Math.max(bottom, el.getBoundingClientRect().bottom - top);
+    for (const el of dh.querySelectorAll<HTMLElement>(':scope > .dh-row > *')) bottom = Math.max(bottom, el.getBoundingClientRect().bottom - top);
     const h = `${Math.ceil(bottom + (this.phone ? 8 : 10))}px`;
     if (bottom && dh.style.getPropertyValue('--mm-bar-h') !== h) dh.style.setProperty('--mm-bar-h', h);
   }
@@ -976,30 +948,41 @@ export class MultimediaScreens extends LitElement {
     return m === 'dropdown' || (m === 'hybrid' && items > HYBRID_MAX_ITEMS);
   }
 
-  private header(): TemplateResult {
-    const f = this.filters;
+  /** AUDIT30-D3: the one-line summary under the title (sw-page's subheading); the phone keeps its header short and has none */
+  private summary(): string {
+    if (this.phone || this.editing || this.phase !== 'ready' || !this.devices.length) return '';
+    const c = countsOf(this.devices);
+    return `${c.on} פועלים מתוך ${c.total}${c.un ? ` · ${c.un} לא זמין` : ''}`;
+  }
+
+  /** AUDIT30-D3: the floor menu sits at the end of sw-page's title row (slot "actions"). */
+  private floorAction(): TemplateResult | typeof nothing {
     const floors = floorsOf(this.devices, this.display());
+    const showFloor = floors.length > 1 || !!this.filters.floor;
+    const tools = !this.editing && this.phase === 'ready' && this.devices.length > 0;
+    return tools && showFloor ? html`<div slot="actions" class="pacts">${this.floorChip(floors)}</div>` : nothing;
+  }
+
+  /** The filter bar under the title: rooms, the pager, the state filter, the search (sticky and compacting while the page scrolls). */
+  private header(): TemplateResult | typeof nothing {
+    const f = this.filters;
     const rooms = roomsOf(this.devices, f.floor);
     const c = countsOf(this.devices);
-    const showFloor = floors.length > 1 || !!f.floor;
     const tools = !this.editing && this.phase === 'ready' && this.devices.length > 0;
-    return html`<header class=${classMap({ dh: true, compact: this.compactHeader })} data-mm-header>
+    if (!tools) return nothing;
+    return html`<div class=${classMap({ dh: true, compact: this.compactHeader })} data-mm-header>
       <div class="dh-row">
-        <h1>מסכים</h1>
-        ${tools && this.roomsAsDropdown(rooms.length + 1) ? html`<span class="grow" data-rooms-in-shell></span>` : tools ? html`<div class="rooms" role="group" aria-label="חדרים" @pointerdown=${this.roomsDrag}>
+        ${this.roomsAsDropdown(rooms.length + 1) ? html`<span class="grow" data-rooms-in-shell></span>` : html`<div class="rooms" role="group" aria-label="חדרים" @pointerdown=${this.roomsDrag}>
           <button type="button" class="rc" aria-pressed=${String(!f.area)} data-room="" @click=${() => this.setFilters({ area: '' })}>הכל</button>
           ${rooms.map((r) => html`<button type="button" class="rc" aria-pressed=${String(f.area === r.id)} data-room=${r.id} @click=${() => this.setFilters({ area: r.id })}>${nameText(r.name)}</button>`)}
-        </div>` : html`<span class="grow"></span>`}
-        ${tools && showFloor ? this.floorChip(floors) : nothing}
+        </div>`}
       </div>
-      ${tools ? html`<div class="dh-det">
-        <span class="amb"><em><span class="n">${c.on}</span></em> פועלים מתוך <span class="n">${c.total}</span>${c.un ? html` · <span class="n">${c.un}</span> לא זמין` : nothing}</span>
-        <span class="grow"></span>
+      <div class="dh-det">
         ${this.fit.pages > 1 ? html`<sw-pager data-mm-pager .page=${this.fit.page} .pages=${this.fit.pages} @page-change=${(e: CustomEvent<{ page: number }>) => this.fit.go(e.detail.page)}></sw-pager>` : nothing}
         <div class="seg sm" role="radiogroup" aria-label="סינון לפי מצב">${STATE_FILTERS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id} @click=${() => this.setFilters({ state: s.id as StateFilter })}>${s.label}${s.id === 'on' ? html` <small>${c.on}</small>` : s.id === 'un' && c.un ? html` <small>${c.un}</small>` : nothing}</button>`)}</div>
         <label class="search">${mIcon('search')}<span class="vh">חיפוש מסך</span><input type="search" data-search placeholder="חיפוש מסך או חדר" .value=${f.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></label>
-      </div>` : nothing}
-    </header>`;
+      </div>
+    </div>`;
   }
 
   /** The floor filter as the capsule-capable dropdown (0.1.164): the same component, style, size, ring and panel width as every other dropdown of the multimedia group. */
@@ -1102,13 +1085,14 @@ export class MultimediaScreens extends LitElement {
 
   render() {
     const body = this.body(); // first: it tells the pager in the header how many cards there are
-    return html`<div class="page" data-screen="multimedia">
+    return html`<sw-page class="page" wide heading="מסכים" subheading=${this.summary()} data-screen="multimedia">
+      ${this.floorAction()}
       ${this.header()}
       ${this.editing && this.draft
         ? html`<div class="editing-stack">${this.editBar()}</div>
           <div class="edit-layout"><multimedia-edit-panel class="edit-side" .draft=${this.draft} .devices=${this.devices} .scope=${this.scope} .floors=${floorsOf(this.devices, this.draft)} @layout-draft=${(e: CustomEvent<MediaLayout>) => this.patchDraft(e.detail)}></multimedia-edit-panel><div class="edit-cards">${body}</div></div>`
         : html`<div class="scr" data-mm-region>${body}</div>`}
-    </div>
+    </sw-page>
     <media-bulk-dialog @bulk-done=${() => void this.load()}></media-bulk-dialog>
     ${this.confirmDialog()}
     ${this.remoteKey ? html`<media-remote .deviceKey=${this.remoteKey} .open=${true} @close=${() => this.closeRemote()}></media-remote>` : nothing}

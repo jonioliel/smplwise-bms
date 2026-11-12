@@ -1,0 +1,9 @@
+$ Skill tool: emil-design-eng (loaded 2026-11-12, AUDIT30-D)
+Applied to the multimedia chrome:
+| Before | After | Why |
+| `.rc[aria-pressed=true]` black fill (--dv-text) + shadow | --sw-accent-soft fill, --sw-accent-text, no shadow | state is a colour change, not a heavy object; one selected look across the product (Q3 a) |
+| `transition: transform var(--sw-t-press, 120ms) var(--sw-ease-out, ease-out)` | `var(--sw-t-press) var(--sw-ease-out)` | press feedback 100-160 ms ease-out stays; the duration now comes only from the token (ui.motion can zero it) |
+| spinners `0.8s` / `900ms` raw | `calc(var(--sw-t-med) * 4)` (800 ms) | a fast spinner reads as faster loading; one token family |
+| hover rules | kept under (hover: hover) and (pointer: fine) | touch devices never stick in hover |
+| `.rc:active scale(0.97)` | kept | pressable elements confirm the press |
+Rejected: adding stagger / enter motion to the floor sections (seen tens of times a day; no purpose).

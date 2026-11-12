@@ -196,7 +196,7 @@ export class MediaScreenCard extends LitElement {
       inset-inline: 14px;
       inset-block-end: 7px;
       block-size: 3px;
-      border-radius: 3px;
+      border-radius: var(--sw-r-pill);
       background: rgba(255, 255, 255, 0.25);
       z-index: 3;
       overflow: hidden;
@@ -206,7 +206,7 @@ export class MediaScreenCard extends LitElement {
       block-size: 100%;
       inline-size: var(--p, 0%);
       background: var(--sw-on-video);
-      border-radius: 3px;
+      border-radius: var(--sw-r-pill);
     }
     .shot .ctr {
       position: absolute;
@@ -246,7 +246,7 @@ export class MediaScreenCard extends LitElement {
       border-radius: 50%;
       border: 3px solid rgba(255, 255, 255, 0.35);
       border-top-color: var(--sw-on-video);
-      animation: mm-spin 0.8s linear infinite;
+      animation: mm-spin calc(var(--sw-t-med) * 4) linear infinite;
     }
     .shot[disabled] {
       cursor: default;
