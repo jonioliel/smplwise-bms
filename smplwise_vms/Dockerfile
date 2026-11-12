@@ -46,6 +46,6 @@ ENV SW_WWW_DIR=/app/www \
     PYTHONUNBUFFERED=1 \
     PYTHONFAULTHANDLER=1
 
-LABEL io.hass.version="2.43.1" io.hass.type="addon" io.hass.arch="amd64|aarch64"
+LABEL io.hass.version="2.43.2" io.hass.type="addon" io.hass.arch="amd64|aarch64"
 
 CMD [ "/run.sh" ]

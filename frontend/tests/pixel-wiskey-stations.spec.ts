@@ -30,15 +30,23 @@ const readyCards = async (page: Page) => {
 };
 
 /**
- * STATIONS-FLAKE-2270: a modal shot shows the page behind it, so the scroll of the shell's scroll container (`sw-app` main; the
- * document itself never scrolls) is part of the picture - and it was left to Playwright's click. The click scrolls its target into
- * view from wherever the target is at that moment: during the screen's entrance (R5 motion: every card fades in from a 6 px rise,
- * held there by `animation-fill-mode: both` through its stagger delay) the same click centres the card 6 px lower, and a click
- * attempt that is retried scrolls again with another alignment (end / center / start). So the page behind the dialog sat at one of
- * several offsets from run to run (seen: 588 / 594 / 957 on the phone's release shot, 220 / 588 on the announcement shot).
+ * STATIONS-FLAKE-2270: a modal shot shows the page behind it, so the scroll of the screen's scroll containers is part of the
+ * picture - and it was left to Playwright's click. The click scrolls its target into view from wherever the target is at that
+ * moment: during the screen's entrance (R5 motion: every card fades in from a 6 px rise, held there by `animation-fill-mode: both`
+ * through its stagger delay) the same click centres the card 6 px lower, and a click attempt that is retried scrolls again with
+ * another alignment (end / center / start). So the page behind the dialog sat at one of several offsets from run to run (seen:
+ * 588 / 594 / 957 on the phone's release shot, 220 / 588 on the announcement shot).
  * Now: wait until the entrance has finished (settlePage: no running animation, layout quiet), put the lobby card at a fixed
- * place in the scroll container before the click (so the click has nothing to scroll), and put it back there before the shot (so a
- * retried click cannot leave its own scroll in the picture). The offsets are the ones the Linux baselines were taken at.
+ * place before the click (so the click has nothing to scroll), and put it back there before the shot (so a retried click cannot
+ * leave its own scroll in the picture). The offsets are the ones the Linux baselines were taken at.
+ *
+ * WISKEY-PIXEL-QUAR-2431 (quarantined as WKWATER-POLISH-2331-pixel until 2026-11-09): since WKWATER-POLISH-2331 the desktop screen
+ * fits the window and the card GRID is a scroll box of its own (wiskey-stations-css.ts, `.main > .grid { overflow-y: auto }`
+ * from 768 px up); the shell's `main` no longer scrolls there. The pin above only set `main`, so the grid's scroll stayed whatever
+ * the click on the lobby card's "open" button left: under load (the card still 6 px low in its entrance) that click scrolled the
+ * grid by 7 px, and the door-settings shot failed with 20,872 px - the drawer identical, every card behind the scrim 7 px higher
+ * (reproduced on the runner: 6 of 8 desktop runs at --repeat-each=8 --workers=6). Now the grid is pinned too: at its top, where
+ * every desktop baseline was taken. On a phone the grid does not scroll (the page does), so nothing changes there.
  */
 const LOBBY = `${SCREEN} [data-wk-grid] [data-wk-station="lobby"]`;
 const LOBBY_TOP: Record<'release' | 'announce', Record<string, number>> = {
@@ -50,12 +58,32 @@ async function pinLobby(page: Page, info: TestInfo, shot: keyof typeof LOBBY_TOP
   await settlePage(page);
   const y = LOBBY_TOP[shot][info.project.name];
   await page.locator(LOBBY).evaluate((card, at) => {
+    const grid = card.closest('[data-wk-grid]');
+    if (grid instanceof HTMLElement && /auto|scroll/.test(getComputedStyle(grid).overflowY)) grid.scrollTop = 0;
     const main = document.querySelector('sw-app')?.shadowRoot?.querySelector('main');
     if (!main) throw new Error('the shell scroll container (sw-app main) is missing');
     const top = card.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop;
     main.scrollTop = Math.max(0, Math.round(top - at));
   }, y);
   await page.evaluate(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
+}
+
+/** The door-settings shot: the settings section's end at the end of the drawer's OWN scroll box (aligned on a settled page, so a
+ * late height change above the section cannot move it afterwards), then the page behind pinned like the release shot. */
+async function pinSettingsEnd(page: Page, info: TestInfo) {
+  await settlePage(page);
+  await page.locator(`${SCREEN} sw-drawer [data-wk-dsec="settings"]`).evaluate((el) => {
+    // up the flat tree: a slotted node continues at its slot (the drawer's scroll box is in sw-drawer's shadow root)
+    const up = (x: Node): Node | null => (x instanceof Element && x.assignedSlot ? x.assignedSlot : x instanceof ShadowRoot ? x.host : x.parentNode);
+    for (let n = up(el); n; n = up(n)) {
+      if (n instanceof HTMLElement && n.scrollHeight > n.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(n).overflowY)) {
+        n.scrollTop += el.getBoundingClientRect().bottom - n.getBoundingClientRect().bottom;
+        return;
+      }
+    }
+    throw new Error('the drawer scroll container was not found');
+  });
+  await pinLobby(page, info, 'release');
 }
 
 async function shoot(page: Page, info: TestInfo, name: string) {
@@ -103,18 +131,8 @@ test.describe('pixel: the stations and doors screen', () => {
     // WISKEY-DOOR-TECH-2390: the section grew by the "שינויים טכניים" row. A fixed picture: the section's end at the end of the drawer's
     // OWN scroll container (never the page behind it), and the page behind the drawer pinned like the release shot (STATIONS-FLAKE-2270)
     await expect(page.locator(`${SCREEN} sw-drawer wk-door-tech [data-wk-dt-open]`)).toBeVisible();
-    await page.locator(`${SCREEN} sw-drawer [data-wk-dsec="settings"]`).evaluate((el) => {
-      // up the flat tree: a slotted node continues at its slot (the drawer's scroll box is in sw-drawer's shadow root)
-      const up = (x: Node): Node | null => (x instanceof Element && x.assignedSlot ? x.assignedSlot : x instanceof ShadowRoot ? x.host : x.parentNode);
-      for (let n = up(el); n; n = up(n)) {
-        if (n instanceof HTMLElement && n.scrollHeight > n.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(n).overflowY)) {
-          n.scrollTop += el.getBoundingClientRect().bottom - n.getBoundingClientRect().bottom;
-          return;
-        }
-      }
-      throw new Error('the drawer scroll container was not found');
-    });
-    await pinLobby(page, info, 'release');
+    await expect(page.locator(`${SCREEN} sw-drawer [data-wk-dsec="settings"] [data-wk-fetch]`)).toHaveCount(0);
+    await pinSettingsEnd(page, info);
     await shoot(page, info, 'stations-classic-settings');
   });
 

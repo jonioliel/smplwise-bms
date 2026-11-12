@@ -176,15 +176,17 @@ test.describe('HOME-V3-P2-2431 family and building', () => {
     expect(cap.entity_ids.every((e) => /^(light|switch|cover)\./.test(e))).toBe(true); // lights and shades by default, never a lock
   });
 
-  test('a wall panel locked to its room shows the notice board and the calendar, without creating', async ({ page }) => {
+  // HOME-V3-FOLLOWUP-B-2431 (owner answer 11.11): the wall panel may now ADD a family event (its own route); it still books no room
+  test('a wall panel locked to its room shows the notice board and the calendar, adds an event, books nothing', async ({ page }) => {
     await open(page, 'r/living', { kiosk: true });
     await expect(home(page).locator('.chip3[data-cat="notices"]')).toHaveCount(1);
     await expect(home(page).locator('.chip3[data-cat="calendar"]')).toHaveCount(1);
     await home(page).locator('.chip3[data-cat="calendar"]').click();
     await settle(page);
     await expect(home(page).locator('.cev').first()).toBeVisible();
-    await expect(home(page).locator('[data-act="p2CalNew"]')).toHaveCount(0);
+    await expect(home(page).locator('[data-act="p2CalNew"]')).toHaveCount(1);
     await expect(home(page).locator('[data-act="p2CalTab"]')).toHaveCount(0);
+    await expect(home(page).locator('[data-act="p2BookNew"]')).toHaveCount(0);
   });
 
   for (const [size, w, h] of SIZES) {

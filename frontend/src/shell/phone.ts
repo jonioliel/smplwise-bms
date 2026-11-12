@@ -121,7 +121,7 @@ export function phoneRestricted(kind: MobileKind): boolean {
  */
 export function routeGuardKind(segments: readonly string[]): MobileKind | null {
   const [mode, a, b, c] = segments;
-  if (mode === 'explore' && a === 'floors' && b && (c === 'edit' || c === 'import')) return 'structure';
+  if (mode === 'explore' && a === 'floors' && b && (c === 'edit' || c === 'import' || c === 'wizard')) return 'structure';
   if (mode === 'system') {
     if (a === 'access') return 'permissions';
     if (a === 'schedules' || a === 'automations' || a === 'entities' || (a === 'security' && b === 'manage')) return 'settings_writes';

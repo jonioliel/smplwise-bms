@@ -1000,6 +1000,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from .routers import home_family as home_family_router  # HOME-V3-P2-2431: family and building screens of the home interface
 
     app.include_router(home_family_router.router, prefix=api, tags=["home"])
+    from .routers import home_wall_events as home_wall_events_router  # HOME-V3-FOLLOWUP-B-2431: a wall panel adds a family calendar event
+    from .routers import home_ticket_photo as home_ticket_photo_router  # HOME-V3-FOLLOWUP-B-2431: a photo on a new home ticket
+
+    app.include_router(home_wall_events_router.router, prefix=api, tags=["home"])
+    app.include_router(home_ticket_photo_router.router, prefix=api, tags=["home"])
     from .services.tickets.messaging import RUNTIME as tickets_messaging  # CR-038 S5b: the ticket message channel (outbox, inbound)
 
     tickets_messaging.configure(settings, app.state.db)
