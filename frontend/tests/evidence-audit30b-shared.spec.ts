@@ -52,7 +52,7 @@ async function mountGallery(page: Page) {
         <sw-chip selected count="12">הכול</sw-chip><sw-chip count="3">פתוחות</sw-chip><sw-chip dot="var(--sw-danger)">דחוף</sw-chip><sw-chip disabled>סגורות</sw-chip>
       </div>
       <div data-g="kpis" style="display:grid;grid-template-columns:repeat(auto-fill,220px);gap:10px;align-items:start">
-        <sw-kpi data-k="unit" layout="compact" icon="info" label="היום" value="1,284" unit='קוט"ש'></sw-kpi>
+        <sw-kpi data-k="unit" layout="compact" icon="info" label="היום" value="284" unit='קוט"ש'></sw-kpi>
         <sw-kpi data-k="sec" layout="compact" icon="camera" label="פעילות" value="8" secondary="מתוך 12"></sw-kpi>
         <sw-kpi data-k="warn" layout="compact" tone="warn" icon="info" label="דורש בדיקה" value="3" detail="2 ממתינות"></sw-kpi>
         <sw-kpi data-k="alarm" layout="compact" tone="alarm" dot="alarm" label="תקלות" value="1" detail="מעלית 2"></sw-kpi>
