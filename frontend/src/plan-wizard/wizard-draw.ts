@@ -107,6 +107,11 @@ export function devicesOverlay(list: readonly Placement[], W: number, H: number,
     const x = f(d.x! * W);
     const y = f(d.y! * H);
     const on = d.entity_id === selected;
-    return svg`<g data-dev=${d.entity_id}>${on ? svg`<circle cx=${x} cy=${y} r="30" fill="var(--sw-accent)" fill-opacity=".16" stroke="var(--sw-accent)" stroke-width="3"/>` : nothing}<circle cx=${x} cy=${y} r="15" fill=${d.where === 'manual' ? 'var(--wz-check)' : 'var(--wz-sure)'} stroke="#fff" stroke-width="4"/></g>`;
+    const fill = d.where === 'manual' ? 'var(--wz-check)' : 'var(--wz-sure)';
+    // a camera is a rounded square (PLAN3D-R28-WIZARD2-2434), a device a dot: the two read apart on the plan
+    const mark = d.resource === 'camera'
+      ? svg`<rect x=${f(d.x! * W - 15)} y=${f(d.y! * H - 15)} width="30" height="30" rx="7" fill=${fill} stroke="#fff" stroke-width="4"/>`
+      : svg`<circle cx=${x} cy=${y} r="15" fill=${fill} stroke="#fff" stroke-width="4"/>`;
+    return svg`<g data-dev=${d.entity_id} data-dev-kind=${d.resource ?? 'ha_entity'}>${on ? svg`<circle cx=${x} cy=${y} r="30" fill="var(--sw-accent)" fill-opacity=".16" stroke="var(--sw-accent)" stroke-width="3"/>` : nothing}${mark}</g>`;
   })}</g>`;
 }

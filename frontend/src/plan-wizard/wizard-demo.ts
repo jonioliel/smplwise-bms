@@ -5,7 +5,7 @@
  */
 import type { DetectResult } from '../api/geometry';
 import type { GeometryDoc, GeomOpening, GeomWall, OpeningKind, Pt, Swing, WallKind } from '../map/geometry';
-import type { PlaceEntity } from './wizard-model';
+import type { PlaceCamera, PlaceEntity } from './wizard-model';
 
 export const DEMO_W = 1000;
 export const DEMO_H = 900;
@@ -109,4 +109,11 @@ export const DEMO_ENTITIES: PlaceEntity[] = [
   { entity_id: 'light.office', name: 'תאורת חדר עבודה', domain: 'light', device_class: null, area_id: 'office' },
   { entity_id: 'light.floor_lamp', name: 'מנורת רצפה סלון', domain: 'light', device_class: null, area_id: null },
   { entity_id: 'binary_sensor.smoke_corridor', name: 'גלאי עשן מסדרון', domain: 'binary_sensor', device_class: 'smoke', area_id: null },
+];
+
+/** PLAN3D-R28-WIZARD2-2434: the installation's cameras of the sample house (demo mode only; nothing is sent). */
+export const DEMO_CAMERAS: PlaceCamera[] = [
+  { id: 'demo-cam-entry', name: 'מצלמת כניסה' },
+  { id: 'demo-cam-terrace', name: 'מצלמת מרפסת' },
+  { id: 'demo-cam-yard', name: 'מצלמת חצר' },
 ];

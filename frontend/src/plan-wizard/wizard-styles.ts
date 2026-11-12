@@ -200,6 +200,12 @@ export const wizardStyles = css`
     block-size: 10px;
     border-radius: 50%;
   }
+  .legend i.sq {
+    inline-size: 10px;
+    block-size: 10px;
+    border-radius: 3px;
+    border: 2px solid var(--sw-text-3);
+  }
   /* the scanning band: a full-height layer whose last 90 px carry the light, moved by its own height (no layout per frame) */
   .scan {
     position: absolute;
@@ -733,6 +739,69 @@ export const wizardStyles = css`
   .dev[aria-pressed='true'] {
     border-color: var(--sw-accent);
   }
+  /* PLAN3D-R28-WIZARD2-2434: a placed camera, devices / cameras switch, the resume and kept-plan cards, the replace dialog */
+  .dev.set .w {
+    color: var(--sw-accent-text);
+  }
+  .seg {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+    padding: 2px;
+    border-radius: var(--sw-r-md);
+    background: var(--sw-surface-2);
+  }
+  .seg button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    block-size: 34px;
+    border: 0;
+    border-radius: calc(var(--sw-r-md) - 2px);
+    background: transparent;
+    color: var(--sw-text-2);
+    font: inherit;
+    font-size: var(--sw-fs-sm);
+    font-weight: var(--sw-fw-semibold);
+    cursor: pointer;
+    transition: background-color 150ms ease, color 150ms ease, transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  .seg button:active {
+    transform: scale(0.97);
+  }
+  .seg button[aria-selected='true'] {
+    background: var(--sw-surface);
+    color: var(--sw-text);
+    box-shadow: var(--sw-shadow-1);
+  }
+  .seg .num {
+    font-size: var(--sw-fs-xs);
+    color: var(--sw-text-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .card.resume {
+    display: grid;
+    gap: 6px;
+    border-color: var(--sw-accent);
+    background: var(--sw-accent-soft);
+    font-size: var(--sw-fs-sm);
+  }
+  .card.resume span {
+    color: var(--sw-text-2);
+  }
+  .card.resume .side-actions {
+    margin-block-start: 4px;
+  }
+  .dlg-p {
+    margin: 0 0 8px;
+    font-size: var(--sw-fs-sm);
+    line-height: 1.55;
+    max-inline-size: 60ch;
+  }
+  .dlg-p.soft {
+    color: var(--sw-text-3);
+  }
   .grow {
     flex: 1;
     min-block-size: 0;
@@ -896,6 +965,7 @@ export const wizardStyles = css`
     .preset,
     .dev,
     .gear,
+    .seg button,
     .pager button {
       transition: none;
     }

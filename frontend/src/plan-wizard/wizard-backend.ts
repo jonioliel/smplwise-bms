@@ -4,10 +4,10 @@
  * plan assets and versions (api/maps.ts), detection, accept, calibration and the draft (api/geometry.ts), room detection and
  * zones (api/zones.ts), the device catalogue (api/ha.ts) and map anchors. Every one is authorized by its own route.
  */
-import { get, put } from '../api/client';
+import { ApiError, get, put } from '../api/client';
 import { acceptDetection, calibrate, calibrateEstimate, detectStructure, getGeometry, saveGeometryDraft, type AcceptRequest, type CalibrationHint, type DetectResult } from '../api/geometry';
-import { createAnchor, createVersion, publishVersion, uploadAsset } from '../api/maps';
-import { acceptZones, deleteZone, detectZones, updateZone, type ZoneKind } from '../api/zones';
+import { createAnchor, createVersion, deleteVersion, listVersions, loadMap, publishVersion, uploadAsset } from '../api/maps';
+import { acceptZones, deleteZone, detectZones, listZones, updateZone, type ZoneKind } from '../api/zones';
 import { listEntities } from '../api/ha';
 import { loadLibrary, lookup3dOf, lookupMaterialsOf } from '../api/plan-catalog';
 import { isApi } from '../api/session';
@@ -15,8 +15,8 @@ import { resourceUrl } from '../api/client';
 import type { GeometryDoc } from '../map/geometry';
 import type { Catalog3DLookup } from '../map/scene-builder';
 import type { CatalogMaterialLookup } from '../map/material-resolve';
-import { DEMO_AREAS, DEMO_ENTITIES, demoBaseDoc, demoDetect, demoRooms, demoTruthDoc } from './wizard-demo';
-import { normalizePrefs, type PlaceEntity, type WizardPrefs } from './wizard-model';
+import { DEMO_AREAS, DEMO_CAMERAS, DEMO_ENTITIES, demoBaseDoc, demoDetect, demoRooms, demoTruthDoc } from './wizard-demo';
+import { normalizePrefs, type PlaceCamera, type PlaceEntity, type WizardPrefs } from './wizard-model';
 import { planDrawingDataUrl } from './wizard-draw';
 
 export interface Draft {
@@ -46,11 +46,34 @@ export interface VersionInfo {
   height: number;
 }
 export interface PlacedDevice {
+  /** A device (`ha_entity`, the default) or a camera. */
+  resource_type?: 'ha_entity' | 'camera';
   entity_id: string;
   x: number;
   y: number;
   level_id: string | null;
 }
+/** What the placement after the publish did: every item tried once, a refused one named with the server's code. */
+export interface PublishResult {
+  placed: number;
+  failed: number;
+  refused: { id: string; code: string }[];
+  /** Nothing was placed because the floor has another open draft (the server would put the items on it, not on this plan). */
+  blocked?: 'other_draft';
+}
+/** A wizard draft the person left mid-way (the newest draft of the floor, made by the wizard). */
+export interface ResumeInfo {
+  version: VersionInfo;
+  createdAt: string;
+}
+/** A room of a resumed draft: the zone the wizard made earlier, its name and tags. */
+export interface ResumedRoom extends CreatedRoom {
+  name: string;
+  tags: string[];
+}
+/** The note the wizard leaves on its plan versions: how it knows its own drafts (resume, discard). */
+export const WIZARD_NOTE = 'אשף תוכנית חדשה';
+
 export interface SceneCatalog {
   lookup3d: Catalog3DLookup | null;
   materials: CatalogMaterialLookup | null;
@@ -74,7 +97,15 @@ export interface WizardBackend {
   saveDraft(versionId: string, doc: GeometryDoc, revision: number): Promise<Draft>;
   entities(): Promise<PlaceEntity[]>;
   catalog(): Promise<SceneCatalog>;
-  publish(versionId: string, devices: PlacedDevice[]): Promise<{ placed: number; failed: number }>;
+  /** PLAN3D-R28-WIZARD2-2434: the cameras this person may place here and that are not on this floor yet. */
+  cameras(): Promise<PlaceCamera[]>;
+  publish(versionId: string, devices: PlacedDevice[]): Promise<PublishResult>;
+  /** The floor's newest draft when the wizard made it (null otherwise, or when the floor has no draft). */
+  resumable(): Promise<ResumeInfo | null>;
+  /** The draft's own rooms (the floor's automatic zones of that version). */
+  resumeRooms(versionId: string): Promise<ResumedRoom[]>;
+  /** Discard an abandoned wizard draft: its rooms first, then the draft version (the server refuses a non-draft). */
+  discard(versionId: string, zoneIds: string[]): Promise<void>;
 }
 
 const PREFS_KEY = 'plan.wizard';
@@ -99,9 +130,8 @@ class ApiBackend implements WizardBackend {
     return { assetId: a.id, name: a.original_name, pages: a.pages.map((p) => ({ page: p.page, url: resourceUrl(p.preview_url) })) };
   }
   async createVersion(assetId: string, page: number) {
-    const v = await createVersion(this.floorId, { asset_id: assetId, page, rotation: 0, crop: null, notes: 'אשף תוכנית חדשה' });
-    const url = (v as unknown as { image_url?: string }).image_url ?? '';
-    return { versionId: v.id, imageUrl: url ? resourceUrl(url) : '', width: v.width_px, height: v.height_px };
+    const v = await createVersion(this.floorId, { asset_id: assetId, page, rotation: 0, crop: null, notes: WIZARD_NOTE });
+    return versionInfo(v);
   }
   async draft(versionId: string) {
     const r = await getGeometry(versionId, { draft: true });
@@ -155,21 +185,55 @@ class ApiBackend implements WizardBackend {
       return { lookup3d: null, materials: null };
     }
   }
-  async publish(versionId: string, devices: PlacedDevice[]) {
+  async cameras() {
+    const m = await loadMap(this.floorId, true);
+    const here = new Set(m.anchors.filter((a) => a.resource_type === 'camera').map((a) => a.resource_id));
+    // the bundle's list for an editor is exactly the cameras it may place (placement.edit on their chain, T055)
+    return (m.cameras ?? []).filter((c) => !here.has(c.id)).map((c) => ({ id: c.id, name: c.name || c.id }));
+  }
+  async publish(versionId: string, devices: PlacedDevice[]): Promise<PublishResult> {
     await publishVersion(versionId); // publishing the version publishes its structure too (routers/plan_geometry.py)
+    if (!devices.length) return { placed: 0, failed: 0, refused: [] };
+    // the server puts a new anchor on the floor's newest DRAFT when there is one (routers/anchors.py _editor_version): with
+    // another draft still open the items would not stand on this plan - none is placed, and the person is told why
+    const others = await listVersions(this.floorId).then((r) => r.versions.filter((v) => v.status === 'draft' && v.id !== versionId)).catch(() => []);
+    if (others.length) return { placed: 0, failed: devices.length, refused: devices.map((d) => ({ id: d.entity_id, code: 'other_draft' })), blocked: 'other_draft' };
     let placed = 0;
-    let failed = 0;
+    const refused: { id: string; code: string }[] = [];
     // one by one, never retried: a refused anchor (no placement right in that scope, already placed meanwhile) is counted, not hidden
     for (const d of devices) {
       try {
-        await createAnchor(this.floorId, { resource_type: 'ha_entity', resource_id: d.entity_id, x: d.x, y: d.y, level_id: d.level_id });
+        await createAnchor(this.floorId, { resource_type: d.resource_type ?? 'ha_entity', resource_id: d.entity_id, x: d.x, y: d.y, level_id: d.level_id });
         placed += 1;
-      } catch {
-        failed += 1;
+      } catch (err) {
+        refused.push({ id: d.entity_id, code: err instanceof ApiError ? err.code : 'error' });
       }
     }
-    return { placed, failed };
+    return { placed, failed: refused.length, refused };
   }
+  async resumable(): Promise<ResumeInfo | null> {
+    const r = await listVersions(this.floorId);
+    const newest = r.versions.filter((v) => v.status === 'draft').sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
+    return newest && newest.notes === WIZARD_NOTE ? { version: versionInfo(newest), createdAt: newest.created_at } : null;
+  }
+  async resumeRooms(versionId: string): Promise<ResumedRoom[]> {
+    const r = await listZones(this.floorId);
+    return r.zones.filter((z) => z.plan_version_id === versionId && z.source === 'auto')
+      .map((z) => ({ id: z.id, revision: z.revision, polygon: z.polygon, level_id: z.level_id ?? null, name: z.name, tags: z.tags ?? [] }));
+  }
+  async discard(versionId: string, zoneIds: string[]) {
+    for (const id of zoneIds) {
+      await deleteZone(id).catch((err) => {
+        if (!(err instanceof ApiError && err.status === 404)) throw err; // a room removed meanwhile is already gone
+      });
+    }
+    await deleteVersion(versionId);
+  }
+}
+
+function versionInfo(v: { id: string; width_px: number; height_px: number }): VersionInfo {
+  const url = (v as unknown as { image_url?: string }).image_url ?? '';
+  return { versionId: v.id, imageUrl: url ? resourceUrl(url) : '', width: v.width_px, height: v.height_px };
 }
 
 /** Demo mode: the sample house, the answers a moment later, nothing stored but the choices (per browser). */
@@ -241,12 +305,26 @@ class DemoBackend implements WizardBackend {
   async catalog() {
     return { lookup3d: null, materials: null };
   }
+  async cameras() {
+    return DEMO_CAMERAS;
+  }
   async publish(_v: string, devices: PlacedDevice[]) {
     await this.wait(300);
-    return { placed: devices.length, failed: 0 };
+    return { placed: devices.length, failed: 0, refused: [] };
+  }
+  /** `?resume=1` (screenshots): the sample house left mid-way, as if the person had gone away after the review. */
+  constructor(private readonly resume = false) {}
+  async resumable() {
+    return this.resume ? { version: await this.createVersion(), createdAt: '2026-11-12T08:30:00Z' } : null;
+  }
+  async resumeRooms() {
+    return [];
+  }
+  async discard() {
+    await this.wait(100);
   }
 }
 
-export function wizardBackend(floorId: string): WizardBackend {
-  return isApi() ? new ApiBackend(floorId) : new DemoBackend();
+export function wizardBackend(floorId: string, demoResume = false): WizardBackend {
+  return isApi() ? new ApiBackend(floorId) : new DemoBackend(demoResume);
 }

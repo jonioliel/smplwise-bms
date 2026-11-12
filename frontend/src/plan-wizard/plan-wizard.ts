@@ -21,10 +21,11 @@ import { fromResult, rescale, type CandidateSet } from '../map/candidates';
 import { effectiveScale, type GeometryDoc } from '../map/geometry';
 import { buildScene, type SceneDescription } from '../map/scene-builder';
 import { MATERIALS } from '../map/material-resolve';
-import { wizardBackend, type CreatedRoom, type Draft, type SceneCatalog, type UploadedPlan, type VersionInfo, type WizardBackend } from './wizard-backend';
+import { wizardBackend, type CreatedRoom, type Draft, type PublishResult, type ResumeInfo, type SceneCatalog, type UploadedPlan, type VersionInfo, type WizardBackend } from './wizard-backend';
 import {
-  KITS, OPENING_CHOICES, ROOM_TYPES, WALL_CHOICES, WHERE_HE, WIZARD_DEFAULTS, applyKit, bandCounts, bandOf, detectedChoice, detectedText, fallbackRoomName,
-  guessRoomType, kitFloor, kitOf, longestWall, normalizePrefs, placeByArea, reviewQueue, roomType, selection, type Choice, type KitId, type Placement, type WizardPrefs,
+  CAMERA_PLACED_HE, KITS, OPENING_CHOICES, ROOM_TYPES, WALL_CHOICES, WHERE_HE, WIZARD_DEFAULTS, applyKit, bandCounts, bandOf, cameraPlacements, detectedChoice, detectedText,
+  fallbackRoomName, guessRoomType, isCamera, kitFloor, kitOf, longestWall, normalizePrefs, placeByArea, reviewQueue, roomType, roomTypeOfTags, selection, type Choice, type KitId,
+  type Placement, type WizardPrefs,
 } from './wizard-model';
 import { candidateGeometry, detectOverlay, devicesOverlay, itemPoint, roomColour, roomsOverlay, type CandidateGeometry } from './wizard-draw';
 import { wizardStyles } from './wizard-styles';
@@ -41,6 +42,16 @@ interface RoomRow {
   typeId: string;
 }
 type Phase = 'idle' | 'run' | 'done' | 'error';
+/** What waits for the person's yes before the abandoned wizard draft is discarded: another file, or another page of the PDF. */
+type Replace = { kind: 'file'; file: File } | { kind: 'page' };
+const REFUSAL_HE: Record<string, string> = { forbidden: 'אין הרשאה', already_placed: 'כבר הוצב', validation: 'לא קיים', not_placeable: 'לא ניתן להצבה' };
+const fmtWhen = (iso: string): string => {
+  try {
+    return new Date(iso).toLocaleString('he-IL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return '';
+  }
+};
 
 const tint = (id: string, dark: boolean): string => {
   const m = MATERIALS.find((x) => x.id === id) as unknown as { tint?: { light: string; dark: string } } | undefined;
@@ -55,6 +66,8 @@ export class PlanWizardScreen extends LitElement {
   @property() floorId = '';
   /** Demo mode only (`?step=`): open the sample house at that step, the steps before it done (the screenshots' entry). */
   @property({ type: Number }) demoStep = 0;
+  /** Demo mode only (`?resume=1`): the sample house as a wizard draft left mid-way (the resume card's screenshot). */
+  @property({ type: Boolean }) demoResume = false;
 
   @state() private step = 1;
   @state() private prefs: WizardPrefs = { ...WIZARD_DEFAULTS };
@@ -68,6 +81,12 @@ export class PlanWizardScreen extends LitElement {
   @state() private uploaded: UploadedPlan | null = null;
   @state() private page = 1;
   @state() private version: VersionInfo | null = null;
+  /** The page `version` was made from (a PDF's other page is another version). */
+  private versionPage = 1;
+  /** PLAN3D-R28-WIZARD2-2434: the floor's newest draft is a wizard draft left mid-way: offer to continue it. */
+  @state() private resumeInfo: ResumeInfo | null = null;
+  /** A new file / page waits for the yes to discard the earlier wizard draft. */
+  @state() private replace: Replace | null = null;
   // detection
   @state() private phases: { structure: Phase; rooms: Phase } = { structure: 'idle', rooms: 'idle' };
   @state() private elapsed = 0;
@@ -96,8 +115,9 @@ export class PlanWizardScreen extends LitElement {
   @state() private skipped: Set<string> = new Set();
   @state() private selDev: string | null = null;
   @state() private devPage = 0;
+  @state() private devTab: 'devices' | 'cameras' = 'devices';
   // done
-  @state() private done: { placed: number; failed: number } | null = null;
+  @state() private done: PublishResult | null = null;
 
   private backend: WizardBackend | null = null;
   private timer: number | undefined;
@@ -137,7 +157,7 @@ export class PlanWizardScreen extends LitElement {
 
   private async init() {
     const token = ++this.token;
-    this.backend = wizardBackend(this.floorId);
+    this.backend = wizardBackend(this.floorId, this.demoResume);
     const b = this.backend;
     try {
       const [prefs, tree] = await Promise.all([b.prefs(), loadTree()]);
@@ -152,6 +172,11 @@ export class PlanWizardScreen extends LitElement {
           siblings: (hit.building.floors ?? []).map((f) => ({ id: f.id, name: f.name })),
         };
       } else this.floor = { name: '', crumb: '', hasPlan: false, siblings: [] };
+      // a wizard draft left mid-way (the floor's newest draft carries the wizard's note): offer to continue it here
+      if (!(b.demo && this.demoStep > 1)) {
+        const info = await b.resumable().catch(() => null);
+        if (token === this.token && !this.version) this.resumeInfo = info;
+      }
     } catch (err) {
       if (token === this.token) this.error = describeError(err);
     }
@@ -173,9 +198,20 @@ export class PlanWizardScreen extends LitElement {
 
   // ------------------------------------------------------------ step 1: upload
 
+  /** The wizard draft a new upload would leave behind: the one of this pass, or the one offered for resume. */
+  private get ownDraft(): string | null {
+    return this.version?.versionId ?? this.resumeInfo?.version.versionId ?? null;
+  }
+
   private async onFile(file: File | undefined, holdDetection = false) {
     const b = this.backend;
     if (!file || !b || this.busy) return;
+    if (this.ownDraft) {
+      // another plan replaces the wizard's earlier draft: it is discarded first (asked), never left behind - a draft left open
+      // would receive the devices placed after the publish (anchors go to the floor's newest draft)
+      this.replace = { kind: 'file', file };
+      return;
+    }
     this.busy = true;
     this.error = '';
     try {
@@ -194,8 +230,90 @@ export class PlanWizardScreen extends LitElement {
     const b = this.backend;
     if (!b || !this.uploaded) return;
     this.version = await b.createVersion(this.uploaded.assetId, this.page);
+    this.versionPage = this.page;
     this.step = 2;
     await this.runDetect(holdDetection);
+  }
+
+  /** "Back" kept the version: the same plan is detected again on it - no second draft. */
+  private reuseVersion() {
+    if (this.busy || !this.version) return;
+    this.step = 2;
+    void this.runDetect();
+  }
+
+  /** The person said yes: the earlier wizard draft (its rooms, then the version) goes, then the new file / page goes on. */
+  private async confirmReplace() {
+    const b = this.backend;
+    const r = this.replace;
+    const vid = this.ownDraft;
+    if (!b || !r || !vid || this.busy) return;
+    this.busy = true;
+    this.error = '';
+    try {
+      const zones = this.version ? this.created.map((c) => c.id) : (await b.resumeRooms(vid)).map((z) => z.id);
+      await b.discard(vid, zones);
+      this.version = null;
+      this.resumeInfo = null;
+      this.created = [];
+      this.rooms = [];
+      this.set = null;
+      this.result = null;
+      this.draft = null;
+      this.replace = null;
+    } catch (err) {
+      this.replace = null;
+      this.error = `הטיוטה הקודמת לא נמחקה, ולכן התוכנית החדשה לא הועלתה: ${describeError(err)}`;
+      return;
+    } finally {
+      this.busy = false;
+    }
+    if (r.kind === 'file') await this.onFile(r.file);
+    else await this.pickPage();
+  }
+
+  // ------------------------------------------------------------ resume
+
+  /** Continue a wizard draft left mid-way: no structure yet -> the detection again; else the rooms step with its own rooms. */
+  private async resumeWizard() {
+    const b = this.backend;
+    const info = this.resumeInfo;
+    if (!b || !info || this.busy) return;
+    this.busy = true;
+    this.error = '';
+    const token = this.token;
+    try {
+      this.version = info.version;
+      this.uploaded = { assetId: '', name: 'התוכנית מהטיוטה', pages: [{ page: 1, url: '' }] };
+      this.resumeInfo = null;
+      const draft = await b.draft(info.version.versionId);
+      if (token !== this.token) return;
+      this.draft = draft;
+      if (!draft.doc.walls.length) {
+        this.busy = false;
+        this.step = 2;
+        await this.runDetect();
+        return;
+      }
+      const mine = await b.resumeRooms(info.version.versionId);
+      if (token !== this.token) return;
+      if (mine.length) {
+        this.created = mine.map(({ id, revision, polygon, level_id }) => ({ id, revision, polygon, level_id }));
+        this.rooms = mine.map((z) => ({ polygon: z.polygon, name: z.name, typeId: roomTypeOfTags(z.tags) }));
+      } else {
+        const found = await b.detectRooms().catch(() => ({ rooms: [], existingAuto: 0 }));
+        this.rooms = found.rooms.map((c) => ({ polygon: c.polygon, name: c.name, typeId: guessRoomType(c.name) ?? 'other' }));
+        this.existingAuto = found.existingAuto;
+      }
+      this.phases = { structure: 'done', rooms: 'done' };
+      this.areas = await b.areas().catch(() => []);
+      this.roomsPage = 0;
+      this.step = 4;
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
   }
 
   private async pickPage() {
@@ -465,10 +583,13 @@ export class PlanWizardScreen extends LitElement {
     const mine = ents.filter((e) => (e.area_id ? linked.has(e.area_id) : b.demo));
     // the ones a person places by hand go first, as in the mockup: they are what is left to do
     const list = placeByArea(mine, rooms, openings, this.prefs.auto_place);
-    this.placements = [...list.filter((p) => p.where === 'manual'), ...list.filter((p) => p.where !== 'manual')];
+    // PLAN3D-R28-WIZARD2-2434: the cameras this person may place here wait for a click each (no area to place them by)
+    const cams = await b.cameras().catch(() => []);
+    this.placements = [...list.filter((p) => p.where === 'manual'), ...list.filter((p) => p.where !== 'manual'), ...cameraPlacements(cams)];
     this.skipped = new Set();
     this.selDev = null;
     this.devPage = 0;
+    this.devTab = 'devices';
   }
 
   private placeAt(e: MouseEvent) {
@@ -504,6 +625,12 @@ export class PlanWizardScreen extends LitElement {
     return this.placements.filter((d) => d.x !== null && d.y !== null && d.where !== 'manual' && !this.skipped.has(d.entity_id));
   }
 
+  /** A camera taken off the plan again waits for a place (it is not placed unless it has one). */
+  private unplace(id: string) {
+    this.placements = this.placements.map((d) => (d.entity_id === id ? { ...d, x: null, y: null, where: 'manual' } : d));
+    this.selDev = null;
+  }
+
   // ------------------------------------------------------------ step 7: publish
 
   private async publish() {
@@ -514,7 +641,7 @@ export class PlanWizardScreen extends LitElement {
     this.error = '';
     try {
       const level = this.draft?.doc.levels.find((l) => l.is_default)?.id ?? this.draft?.doc.levels[0]?.id ?? null;
-      this.done = await b.publish(v.versionId, this.toPlace.map((d) => ({ entity_id: d.entity_id, x: d.x!, y: d.y!, level_id: level })));
+      this.done = await b.publish(v.versionId, this.toPlace.map((d) => ({ resource_type: d.resource ?? 'ha_entity', entity_id: d.entity_id, x: d.x!, y: d.y!, level_id: level })));
       if (!this.done.failed) navigate(`/explore/floors/${this.floorId}`);
     } catch (err) {
       this.error = describeError(err);
@@ -532,18 +659,25 @@ export class PlanWizardScreen extends LitElement {
   private back() {
     if (this.busy || this.step <= 1) return;
     this.error = '';
-    // step 2 is a run, not a place: back from the review goes to the upload
-    this.step = this.step === 3 ? 1 : this.step - 1;
-    if (this.step === 1) {
-      this.version = null;
-      this.uploaded = null;
-      this.phases = { structure: 'idle', rooms: 'idle' };
+    // step 2 is a run, not a place: back from the review goes to the upload. The version is KEPT (PLAN3D-R28-WIZARD2-2434):
+    // "continue" detects the same plan again on it, and another file / page asks first to discard it - never a second draft
+    // left behind
+    const to = this.step === 3 ? 1 : this.step - 1;
+    if (to === 3 && !this.set) {
+      // a resumed draft has no review in the page: the detection runs again (accept replaces its automatic items)
+      this.step = 2;
+      void this.runDetect();
+      return;
     }
+    this.step = to;
+    if (this.step === 1) this.phases = { structure: 'idle', rooms: 'idle' };
   }
 
   private next() {
     if (this.busy) return;
-    if (this.step === 1 && this.uploaded && this.uploaded.pages.length > 1) void this.pickPage();
+    if (this.step === 1 && this.version && (!this.uploaded || this.uploaded.pages.length < 2 || this.page === this.versionPage)) this.reuseVersion();
+    else if (this.step === 1 && this.version) this.replace = { kind: 'page' };
+    else if (this.step === 1 && this.uploaded && this.uploaded.pages.length > 1) void this.pickPage();
     else if (this.step === 2 && this.phases.structure === 'error') void this.runDetect();
     else if (this.step === 3) void this.confirmReview();
     else if (this.step === 4) void this.saveRooms();
@@ -608,7 +742,8 @@ export class PlanWizardScreen extends LitElement {
         <div class="wz-side" data-wz-side>${this.renderSide(W, H)}</div>
         ${this.renderFoot()}
       </div>
-      ${this.prefsOpen ? this.renderPrefs() : nothing}`;
+      ${this.prefsOpen ? this.renderPrefs() : nothing}
+      ${this.replace ? this.renderReplace() : nothing}`;
   }
 
   private renderSteps() {
@@ -697,7 +832,7 @@ export class PlanWizardScreen extends LitElement {
     // step 6
     const overlay = svg`${roomsOverlay(this.created.map((c) => ({ polygon: c.polygon })), W, H, 'faint', null)}${devicesOverlay(this.placements.filter((d) => !this.skipped.has(d.entity_id)), W, H, this.selDev)}`;
     return html`<div class="sheet">${this.planSvg(W, H, overlay, { click: (e) => this.placeAt(e), placing: !!this.selDev })}</div>
-      <div class="legend"><span><i class="dot" style="background:var(--wz-sure)"></i>הוצב</span><span><i class="dot" style="background:var(--wz-check)"></i>ממתין למקום</span></div>`;
+      <div class="legend"><span><i class="dot" style="background:var(--wz-sure)"></i>הוצב</span><span><i class="dot" style="background:var(--wz-check)"></i>ממתין למקום</span>${this.placements.some(isCamera) ? html`<span><i class="sq"></i>מצלמה</span>` : nothing}</div>`;
   }
 
   private renderSide(W: number, H: number) {
@@ -708,7 +843,12 @@ export class PlanWizardScreen extends LitElement {
     const step = this.step;
     if (step === 1) {
       const multi = this.uploaded && this.uploaded.pages.length > 1;
+      const info = this.resumeInfo;
+      const kept = this.version;
       return html`<h2>העלאת תוכנית</h2><p>המערכת תזהה קירות, דלתות, חלונות וחדרים, ואתה תאשר. כמה דקות לקומה.</p>
+        ${info ? html`<div class="card resume" data-wz-resume><b>יש כאן טיוטה של האשף שלא הסתיימה</b><span>${fmtWhen(info.createdAt) ? `התחלת אותה ב־${fmtWhen(info.createdAt)}. ` : ''}אפשר להמשיך מהמקום שעצרת.</span>
+            <div class="side-actions"><sw-button variant="primary" icon="history" data-wz-resume-go ?disabled=${this.busy} @click=${() => void this.resumeWizard()}>המשך באשף</sw-button><sw-button variant="ghost" @click=${() => this.toStudio()}>פתח בסטודיו</sw-button></div></div>` : nothing}
+        ${kept && !info ? html`<div class="card resume" data-wz-kept><b>התוכנית שהעלית נשמרה</b><span>"המשך" יזהה אותה שוב, בלי טיוטה נוספת. קובץ אחר יחליף אותה.</span></div>` : nothing}
         <div class="card"><div class="kv">
           <b>לאיזו קומה?</b>
           <select style="inline-size:160px" aria-label="הקומה" data-wz-floor .value=${this.floorId} @change=${(e: Event) => navigate(`/explore/floors/${(e.target as HTMLSelectElement).value}/wizard`)}>
@@ -721,7 +861,7 @@ export class PlanWizardScreen extends LitElement {
         </div></div>
         ${multi
           ? html`<div class="card"><b>באיזה עמוד התוכנית?</b><div class="side-actions" style="margin-block-start:8px">${this.uploaded!.pages.map((p) => html`<button class="opt" style="inline-size:64px" aria-pressed=${p.page === this.page ? 'true' : 'false'} @click=${() => (this.page = p.page)}>${p.page}</button>`)}</div></div>`
-          : html`<div class="card soft hide-ph"><b>כדי שהזיהוי יצליח</b><div class="tips"><span>סריקה ישרה וחדה, בלי צל או קיפול.</span><span>קירות כהים על רקע בהיר.</span><span>ריהוט וכיתוב על התוכנית לא מפריעים.</span></div></div>`}
+          : info || kept ? nothing : html`<div class="card soft hide-ph"><b>כדי שהזיהוי יצליח</b><div class="tips"><span>סריקה ישרה וחדה, בלי צל או קיפול.</span><span>קירות כהים על רקע בהיר.</span><span>ריהוט וכיתוב על התוכנית לא מפריעים.</span></div></div>`}
         ${this.floor?.hasPlan ? html`<div class="side-actions"><sw-button variant="ghost" icon="edit" @click=${() => this.toStudio()}>שרטוט ידני בסטודיו</sw-button></div>` : nothing}`;
     }
     if (step === 2) {
@@ -813,21 +953,41 @@ export class PlanWizardScreen extends LitElement {
 
   private sideDevices() {
     const size = this.small ? DEVS_PAGE_SMALL : DEVS_PAGE;
-    const list = this.placements;
+    const cams = this.placements.filter(isCamera);
+    const devs = this.placements.filter((d) => !isCamera(d));
+    const tab = cams.length ? this.devTab : 'devices';
+    const list = tab === 'cameras' ? cams : devs;
     const pages = Math.max(1, Math.ceil(list.length / size));
     const page = Math.min(this.devPage, pages - 1);
-    const auto = list.filter((d) => d.where !== 'manual').length;
-    const sel = this.selDev ? list.find((d) => d.entity_id === this.selDev) : null;
+    const auto = devs.filter((d) => d.where !== 'manual').length;
+    const camsSet = cams.filter((d) => d.where !== 'manual').length;
+    const sel = this.selDev ? this.placements.find((d) => d.entity_id === this.selDev) : null;
+    const pick = (t: 'devices' | 'cameras') => {
+      this.devTab = t;
+      this.devPage = 0;
+      this.selDev = null;
+    };
+    const intro = tab === 'cameras'
+      ? `${camsSet} מתוך ${cams.length} מצלמות סומנו. בחר מצלמה ולחץ על המפה במקום שבו היא מותקנת; מצלמה שלא תסמן לא תוצב.`
+      : devs.length ? `${auto} מתוך ${devs.length} הוצבו לבד, לפי האזור והסוג. את השאר בוחרים ומסמנים על המפה.` : 'אין התקנים שמחכים למקום באזורים של החדרים האלה. אפשר להציב התקנים אחר כך מהמפה.';
     return html`<h2>מיקום התקנים</h2>
-      <p>${list.length ? `${auto} מתוך ${list.length} הוצבו לבד, לפי האזור והסוג. את השאר בוחרים ומסמנים על המפה.` : 'אין התקנים שמחכים למקום באזורים של החדרים האלה. אפשר להציב התקנים אחר כך מהמפה.'}</p>
-      <div class="devs" data-wz-devs>${list.slice(page * size, page * size + size).map((d) => {
+      ${cams.length ? html`<div class="seg" role="tablist" aria-label="מה מציבים" data-wz-dev-tabs>
+          <button role="tab" data-wz-tab="devices" aria-selected=${tab === 'devices' ? 'true' : 'false'} @click=${() => pick('devices')}><sw-icon name="sensor" size="15"></sw-icon>התקנים<span class="num">${devs.length}</span></button>
+          <button role="tab" data-wz-tab="cameras" aria-selected=${tab === 'cameras' ? 'true' : 'false'} @click=${() => pick('cameras')}><sw-icon name="camera" size="15"></sw-icon>מצלמות<span class="num">${camsSet ? `${camsSet}/${cams.length}` : cams.length}</span></button>
+        </div>` : nothing}
+      <p>${intro}</p>
+      <div class="devs" data-wz-devs role=${cams.length ? 'tabpanel' : nothing}>${list.slice(page * size, page * size + size).map((d) => {
+        const cam = isCamera(d);
         const off = this.skipped.has(d.entity_id);
-        const todo = d.where === 'manual' && !off;
-        return html`<button class="dev ${todo ? 'todo' : ''} ${off ? 'off' : ''}" data-dev-row=${d.entity_id} aria-pressed=${this.selDev === d.entity_id ? 'true' : 'false'} @click=${() => (this.selDev = this.selDev === d.entity_id ? null : d.entity_id)}>
-          <sw-icon name=${iconOf(d.domain)} size="16"></sw-icon><span class="nm">${d.name}</span><span class="w">${off ? WHERE_HE.none : WHERE_HE[d.where]}</span></button>`;
+        const todo = !cam && d.where === 'manual' && !off;
+        const where = off ? WHERE_HE.none : cam && d.where !== 'manual' ? CAMERA_PLACED_HE : WHERE_HE[d.where];
+        return html`<button class="dev ${todo ? 'todo' : ''} ${off ? 'off' : ''} ${cam && d.where !== 'manual' ? 'set' : ''}" data-dev-row=${d.entity_id} aria-pressed=${this.selDev === d.entity_id ? 'true' : 'false'} @click=${() => (this.selDev = this.selDev === d.entity_id ? null : d.entity_id)}>
+          <sw-icon name=${iconOf(d.domain)} size="16"></sw-icon><span class="nm">${d.name}</span><span class="w">${where}</span></button>`;
       })}</div>
-      ${sel ? html`<div class="card soft" data-wz-dev-sel><b>${sel.name}</b>: לחץ על המפה כדי ${sel.where === 'manual' ? 'להציב' : 'להזיז'}.<div class="side-actions" style="margin-block-start:8px"><sw-button size="sm" variant="ghost" @click=${() => this.toggleSkip(sel.entity_id)}>${this.skipped.has(sel.entity_id) ? 'להציב בכל זאת' : 'לא להציב'}</sw-button></div></div>` : nothing}
-      <div class="rnote"><span>רק התקנים מהקטלוג המאושר, שעוד לא על אף מפה</span>${pages > 1 ? html`<span class="pager"><button aria-label="הקודם" ?disabled=${page <= 0} @click=${() => (this.devPage = page - 1)}><sw-icon name="chevron" size="16"></sw-icon></button><span class="num">${page + 1} / ${pages}</span><button aria-label="הבא" ?disabled=${page >= pages - 1} @click=${() => (this.devPage = page + 1)}><sw-icon name="chevronBack" size="16"></sw-icon></button></span>` : nothing}</div>`;
+      ${sel ? html`<div class="card soft" data-wz-dev-sel><b>${sel.name}</b>: לחץ על המפה כדי ${sel.where === 'manual' ? 'להציב' : 'להזיז'}.${isCamera(sel)
+        ? sel.where !== 'manual' ? html`<div class="side-actions" style="margin-block-start:8px"><sw-button size="sm" variant="ghost" @click=${() => this.unplace(sel.entity_id)}>הסר מהמפה</sw-button></div>` : nothing
+        : html`<div class="side-actions" style="margin-block-start:8px"><sw-button size="sm" variant="ghost" @click=${() => this.toggleSkip(sel.entity_id)}>${this.skipped.has(sel.entity_id) ? 'להציב בכל זאת' : 'לא להציב'}</sw-button></div>`}</div>` : nothing}
+      <div class="rnote"><span>${tab === 'cameras' ? 'רק מצלמות שמותר לך להציב, שעוד לא בקומה הזו' : 'רק התקנים מהקטלוג המאושר, שעוד לא על אף מפה'}</span>${pages > 1 ? html`<span class="pager"><button aria-label="הקודם" ?disabled=${page <= 0} @click=${() => (this.devPage = page - 1)}><sw-icon name="chevron" size="16"></sw-icon></button><span class="num">${page + 1} / ${pages}</span><button aria-label="הבא" ?disabled=${page >= pages - 1} @click=${() => (this.devPage = page + 1)}><sw-icon name="chevronBack" size="16"></sw-icon></button></span>` : nothing}</div>`;
   }
 
   private sideDone() {
@@ -838,19 +998,40 @@ export class PlanWizardScreen extends LitElement {
         <span>קירות</span><b class="num">${doc?.walls.length ?? 0}</b>
         <span>דלתות, חלונות ומעברים</span><b class="num">${doc?.openings.length ?? 0}</b>
         <span>חדרים</span><b class="num">${this.created.length}</b>
-        <span>התקנים שיוצבו</span><b class="num">${this.toPlace.length}</b>
+        <span>התקנים שיוצבו</span><b class="num">${this.toPlace.filter((d) => !isCamera(d)).length}</b>
+        ${this.placements.some(isCamera) ? html`<span>מצלמות שיוצבו</span><b class="num" data-wz-cams-count>${this.toPlace.filter(isCamera).length}</b>` : nothing}
         <span>סגנון</span><b>${kitOf(this.kit).he}</b>
         <span>קנה מידה</span><b>${cal === 'measured' ? 'נמדד' : 'משוער'}</b>
       </div></div>
-      ${this.done?.failed ? html`<div class="card err">${this.done.placed} התקנים הוצבו, ${this.done.failed} לא הוצבו (אין הרשאה או שכבר הוצבו בינתיים). אפשר להציב אותם מהמפה.<div><sw-button size="sm" @click=${() => navigate(`/explore/floors/${this.floorId}`)}>פתח את המפה</sw-button></div></div>` : nothing}
+      ${this.done?.failed ? html`<div class="card err" data-wz-refused>${this.refusedText(this.done)}<div><sw-button size="sm" @click=${() => navigate(`/explore/floors/${this.floorId}`)}>פתח את המפה</sw-button></div></div>` : nothing}
       <div class="card soft hide-ph">רוצה לדייק קיר, להזיז רהיט או להוסיף מצלמה? הכול פתוח לעריכה בסטודיו התוכניות. התקנים מוצבים רק בפרסום מכאן.</div>
       <sw-button data-wz-studio @click=${() => this.toStudio()}>המשך עריכה בסטודיו</sw-button>`;
+  }
+
+  /** The publish placed some items and refused others: how many, and the first few by name with the reason. */
+  private refusedText(d: PublishResult): string {
+    if (d.blocked === 'other_draft') return `התוכנית פורסמה, אבל ${d.failed} פריטים לא הוצבו: לקומה יש טיוטה נוספת פתוחה, והם היו נשמרים עליה. פרסם או מחק אותה בסטודיו, ואז הצב מהמפה.`;
+    const name = (id: string) => this.placements.find((p) => p.entity_id === id)?.name ?? id;
+    const shown = d.refused.slice(0, 3).map((r) => `${name(r.id)} (${REFUSAL_HE[r.code] ?? 'נדחה'})`).join(', ');
+    const more = d.refused.length > 3 ? ` ועוד ${d.refused.length - 3}` : '';
+    return `${d.placed} הוצבו, ${d.failed} לא הוצבו: ${shown}${more}. אפשר להציב אותם מהמפה.`;
+  }
+
+  private renderReplace() {
+    return html`<sw-dialog open heading="להחליף את התוכנית?" subheading="טיוטה אחת של האשף לכל קומה" data-wz-replace-dialog @close=${() => (this.replace = null)}>
+      <p class="dlg-p">הטיוטה הקודמת של האשף, עם הקירות, הפתחים והחדרים שאישרת בה, תימחק לפני שהתוכנית החדשה תיטען. היא לא פורסמה ושום דבר לא הוצב עליה.</p>
+      <p class="dlg-p soft">כדי להמשיך עם אותה תוכנית, בחר "ביטול" ואז "המשך".</p>
+      <div slot="footer" style="display:flex;gap:8px;justify-content:flex-end">
+        <sw-button variant="ghost" data-wz-replace-cancel ?disabled=${this.busy} @click=${() => (this.replace = null)}>ביטול</sw-button>
+        <sw-button variant="danger" data-wz-replace-go ?disabled=${this.busy} aria-busy=${this.busy ? 'true' : 'false'} @click=${() => void this.confirmReplace()}>${this.busy ? 'מוחק…' : 'מחק את הטיוטה והמשך'}</sw-button>
+      </div>
+    </sw-dialog>`;
   }
 
   private renderFoot() {
     const step = this.step;
     const multi = step === 1 && this.uploaded && this.uploaded.pages.length > 1;
-    const hint = step === 1 ? 'אפשר להעלות קומה אחת בכל פעם'
+    const hint = step === 1 ? (this.version ? 'אותה תוכנית, אותה טיוטה' : 'אפשר להעלות קומה אחת בכל פעם')
       : step === 2 ? 'בדרך כלל 5 עד 20 שניות'
       : step === 3 ? (this.prefs.unreviewed === 'as_detected' ? 'מה שלא תבדוק: "לבדיקה" ייכנס כמו שזוהה, "בספק" לא ייכנס' : 'מה שלא תבדוק לא ייכנס לתוכנית')
       : step === 4 ? 'חדר בלי שם יקבל "חדר 7", ואפשר לשנות אחר כך'
@@ -858,7 +1039,7 @@ export class PlanWizardScreen extends LitElement {
       : step === 6 ? 'אפשר לדלג ולהציב התקנים אחר כך מהמפה'
       : 'אפשר לחזור ולתקן כל שלב';
     const label = step === 1 ? (multi ? 'המשך' : 'המשך') : step === 2 ? (this.phases.structure === 'error' ? 'נסה שוב' : 'מזהה…') : step === 3 ? 'אשר והמשך' : step === 7 ? 'פרסם ופתח במפה' : 'המשך';
-    const disabled = this.busy || (step === 1 && !multi) || (step === 2 && this.phases.structure !== 'error');
+    const disabled = this.busy || (step === 1 && !multi && !this.version) || (step === 2 && this.phases.structure !== 'error');
     return html`<div class="wz-foot">
       ${step > 1 ? html`<sw-button size="lg" data-wz-back ?disabled=${this.busy || step === 2} @click=${() => this.back()}>חזרה</sw-button>` : html`<sw-button size="lg" variant="ghost" @click=${() => navigate(`/explore/floors/${this.floorId}`)}>ביטול</sw-button>`}
       <span class="hint">${hint}</span><span class="sp"></span>

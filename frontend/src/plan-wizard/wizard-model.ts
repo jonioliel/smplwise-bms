@@ -397,9 +397,12 @@ export interface PlaceOpening {
 }
 export type PlaceWhere = 'door' | 'window' | 'centre' | 'manual' | 'none';
 export interface Placement {
+  /** The resource's id: an entity id (always `domain.object`) or a camera id (never has a dot). */
   entity_id: string;
   name: string;
   domain: string;
+  /** What the anchor is (POST floors/{id}/anchors `resource_type`); absent = a device of the catalogue. */
+  resource?: 'ha_entity' | 'camera';
   room: string | null;
   x: number | null;
   y: number | null;
@@ -463,4 +466,27 @@ function nudge(o: { x: number; y: number }, c: { x: number; y: number }, f: numb
   return { x: round5(o.x + (c.x - o.x) * f), y: round5(o.y + (c.y - o.y) * f) };
 }
 
+export interface PlaceCamera {
+  id: string;
+  name: string;
+}
+
+/**
+ * PLAN3D-R28-WIZARD2-2434: the cameras the person may place on this floor. A camera has no area to place it by, so each one
+ * waits to be selected and clicked onto the plan ('manual'); one that is not given a place is simply not placed.
+ */
+export function cameraPlacements(cameras: readonly PlaceCamera[]): Placement[] {
+  return cameras.map((c) => ({ entity_id: c.id, name: c.name, domain: 'camera', resource: 'camera', room: null, x: null, y: null, where: 'manual' }));
+}
+
+export const isCamera = (p: Pick<Placement, 'resource'>): boolean => p.resource === 'camera';
+
 export const WHERE_HE: Record<PlaceWhere, string> = { door: 'ליד הדלת שזוהתה', window: 'ליד החלון שזוהה', centre: 'מרכז החדר', manual: 'בחר ולחץ על המפה', none: 'לא יוצב' };
+/** A camera the person clicked onto the plan (its `where` turns from 'manual' to 'centre' internally). */
+export const CAMERA_PLACED_HE = 'הוצבה במקום שסימנת';
+
+/** The rooms of a wizard draft read back from the floor's zones (resume): the type from the zone's tags. */
+export function roomTypeOfTags(tags: readonly string[] | null | undefined): string {
+  const t = ROOM_TYPES.find((r) => r.tags.length && r.tags.every((x) => tags?.includes(x)));
+  return t?.id ?? 'other';
+}
