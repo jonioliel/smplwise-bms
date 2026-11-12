@@ -129,9 +129,9 @@ def test_a_refused_listing_says_forbidden(osettings, sup):
 def test_hostname_rule_and_url_shape():
     assert vs.hostname_of("a1_go2rtc", {}) == "a1-go2rtc"
     assert vs.hostname_of("a1_go2rtc", {"hostname": "x.example.com"}) == "a1-go2rtc", "a dotted name is never used"
-    assert vs.hostname_of("a1_go2rtc", {"hostname": "10.0.0.5"}) == "a1-go2rtc"
+    assert vs.hostname_of("a1_go2rtc", {"hostname": "192.0.2.17"}) == "a1-go2rtc"
     assert vs.display_address("http://user:secret@host.invalid:1984/path") == "host.invalid:1984"
-    assert vs.URL_RE.fullmatch("http://a889bffc-go2rtc:1984") and not vs.URL_RE.fullmatch("http://10.0.0.5:1984")
+    assert vs.URL_RE.fullmatch("http://a889bffc-go2rtc:1984") and not vs.URL_RE.fullmatch("http://192.0.2.17:1984")
 
 
 # ---------------------------------------------------------------- the API
@@ -184,7 +184,7 @@ def test_select_refuses_an_unknown_slug_a_typed_address_and_no_supervisor(osetti
 def test_a_corrupt_stored_choice_leaves_the_option_in_force(osettings):
     app = create_app(osettings)
     with app.state.db.connection() as conn:
-        set_setting(conn, vs.K_SELECTION, '{"slug": "x_go2rtc", "url": "http://10.1.2.3:1984"}')
+        set_setting(conn, vs.K_SELECTION, '{"slug": "x_go2rtc", "url": "http://192.0.2.18:1984"}')
     assert create_app(osettings).state.settings.go2rtc_url == OPTION_URL
 
 

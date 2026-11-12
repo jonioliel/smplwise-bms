@@ -41,20 +41,20 @@ export class SwVideoServicePicker extends LitElement {
   static styles = css`
     :host { display: block; direction: rtl; font: inherit; color: inherit; }
     .list { display: grid; gap: 6px; }
-    .cand { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--sw-r-md, 10px); background: var(--sw-surface-2, rgba(127, 127, 127, 0.08)); min-width: 0; }
-    .cand[data-current] { outline: 1px solid var(--sw-accent, #3b82f6); }
+    .cand { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--sw-r-md); background: var(--sw-surface-2); min-width: 0; }
+    .cand[data-current] { outline: 1px solid var(--sw-accent); }
     .main { flex: 1; min-width: 0; display: grid; gap: 2px; }
     .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .line, .muted { color: var(--sw-text-2, #6b7280); font-size: var(--sw-fs-xs, 12px); }
-    .addr { direction: ltr; unicode-bidi: isolate; font-family: var(--sw-mono, ui-monospace, monospace); font-size: 11px; }
+    .line, .muted { color: var(--sw-text-2); font-size: var(--sw-fs-xs); }
+    .addr { direction: ltr; unicode-bidi: isolate; font-family: var(--sw-font-mono); font-size: var(--sw-fs-xs); }
     .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-block-end: 8px; flex-wrap: wrap; }
-    .confirm { display: grid; gap: 6px; padding: 8px 10px; border-radius: var(--sw-r-md, 10px); background: var(--sw-warning-soft, rgba(234, 179, 8, 0.12)); font-size: 13px; }
+    .confirm { display: grid; gap: 6px; padding: 8px 10px; border-radius: var(--sw-r-md); background: var(--sw-warning-soft); font-size: var(--sw-fs-base); }
     .confirm .end, .end { display: flex; gap: 6px; flex-wrap: wrap; }
-    .ok { color: var(--sw-success, #16a34a); font-size: 13px; }
-    .err { color: var(--sw-danger, #dc2626); font-size: 13px; }
+    .ok { color: var(--sw-success-text); font-size: var(--sw-fs-base); }
+    .err { color: var(--sw-danger-text); font-size: var(--sw-fs-base); }
     :host([compact]) .cand { padding: 4px 8px; gap: 6px; background: rgba(0, 0, 0, 0.25); }
-    :host([compact]) .name { font-size: var(--sw-fs-xs, 12px); }
-    :host([compact]) .line { font-size: 11px; color: inherit; opacity: 0.8; }
+    :host([compact]) .name { font-size: var(--sw-fs-xs); }
+    :host([compact]) .line { font-size: var(--sw-fs-xs); color: inherit; opacity: 0.8; }
   `;
 
   connectedCallback() {

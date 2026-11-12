@@ -49,7 +49,8 @@ async function mount(page: Page, compact: boolean) {
     el.id = 'picker';
     el.compact = c;
     el.dir = 'rtl';
-    el.style.cssText = 'position:fixed;inset:20px auto auto 20px;width:520px;z-index:99999;background:#fff;color:#111;padding:12px';
+    // a fixed box is never scrolled into view: it must fit the viewport (mobile is 390 px wide; the confirm buttons sit at the RTL start)
+    el.style.cssText = 'position:fixed;inset:20px auto auto 20px;width:min(520px, calc(100vw - 64px));box-sizing:border-box;z-index:99999;background:#fff;color:#111;padding:12px';
     document.body.append(el);
   }, compact);
 }
