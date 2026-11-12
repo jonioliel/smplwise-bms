@@ -32,6 +32,9 @@ async function open(page: Page, route: string, o: GapOpts, scheme: 'light' | 'da
 
 async function compare(page: Page, info: Parameters<typeof noBaseline>[0] & { project: { name: string } }, sel: string, name: string) {
   const file = `${name}-${info.project.name === 'mobile' ? '390' : '1440'}.png`;
+  // HOME-V3-AUDITFIX-2437: every Heebo weight / subset loaded before the shot - a bold Hebrew glyph drawn before its file arrived
+  // (a lazily loaded unicode-range face) differed run to run on a loaded runner
+  await page.evaluate(async () => { await Promise.all(['400', '500', '600', '700'].map((w) => document.fonts.load(`${w} 16px Heebo`, 'אבג abc 123'))); await document.fonts.ready; });
   await settle(page);
   if (noBaseline(info, file)) test.info().annotations.push({ type: 'skipped-pixel', description: `${file}: no baseline on ${process.platform}` });
   else await expect(home(page).locator(sel)).toHaveScreenshot(file, { maxDiffPixels: 40, animations: 'disabled', caret: 'hide', timeout: 15_000 });
