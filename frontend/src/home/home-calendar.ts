@@ -1,12 +1,14 @@
 // HOME-V3-P2-2431: "יומן" - the family's day and the shared rooms (mockup v3 `S.calendar`, sheets `calNew` / `bookNew`). The calendar
 // module's own routes only: GET /calendar/calendars, /calendar/occurrences, /calendar/rooms/day, /me/calendar, POST /calendar/events and
 // /calendar/events/{id}/cancel|withdraw - every one checks its own permission (calendar.view / calendar.book and the calendar's role).
-// A wall panel locked to its room shows the day (owner decision round 27 q12 "ב") but creates nothing. Lists page; nothing scrolls.
+// A wall panel locked to its room shows the day (owner decision round 27 q12 "ב") and may ADD an event to the family calendar (owner
+// answer 11.11, HOME-V3-FOLLOWUP-B-2431: POST /home/wall/events) - no room booking, no cancel. Lists page; nothing scrolls.
 import { html, nothing } from 'lit';
 import { registerScreen, type ExtOvl, type HomeHost } from './home-ext';
 import { hi } from './home-icons';
 import { paged } from './home-logic';
 import { registerMoreTile } from './more-registry';
+import { wallEvent } from './home-fb-api';
 import { cancelEvent, createEvent, listCalendars, myCalendar, occurrences, roomsDay, type Calendar, type Occurrence, type RoomDay } from './home-p2-api';
 import { errText, has, iso, localInstant, plural, stepper, timeOf, warmFamily, weekDays, whenText, ymd, seen, offScreen } from './home-p2-ui';
 
@@ -103,7 +105,7 @@ registerScreen((h: HomeHost) => ({
     const day = st.day && days.some((d) => d[2] === st.day) ? st.day : today;
     const list = st.occ.filter((o) => dayOf(o) === day);
     const pg = paged(list, h.phone ? 4 : 6, h.pg('cal'));
-    const canNew = !locked && family().some(bookable);
+    const canNew = family().some(bookable); // HOME-V3-FOLLOWUP-B-2431: a wall panel too (its own route below)
     const d0 = days.find((d) => d[2] === day)!;
     return html`${h.headT(day === today ? 'היום ביומן' : `יום ${d0[0]}, ${d0[1]} בחודש`, list.length ? plural(list.length, 'אירוע אחד', 'אירועים') : 'יום פנוי', sg,
       html`${h.pager('cal', pg.pages)}${canNew ? html`<button class="hbtn strong" data-act="p2CalNew">${hi('plus')}<span class="bt">אירוע חדש</span></button>` : nothing}`)}
@@ -163,7 +165,10 @@ registerScreen((h: HomeHost) => ({
       if (!title) return h.toast('כתבו מה האירוע.');
       st.busy = true;
       h.requestUpdate();
-      void createEvent({ calendar_id: bk ? d.room : d.cal, kind: bk ? 'booking' : 'event', title, start: iso(localInstant(d.day, d.from)), end: iso(localInstant(d.day, d.to)) })
+      const start = iso(localInstant(d.day, d.from));
+      const end = iso(localInstant(d.day, d.to));
+      // HOME-V3-FOLLOWUP-B-2431: a wall panel's one calendar write is its own route (the module's routes are refused to it)
+      void (h.kioskLocked() && !bk ? wallEvent({ calendar_id: d.cal || undefined, title, start, end }) : createEvent({ calendar_id: bk ? d.room : d.cal, kind: bk ? 'booking' : 'event', title, start, end }))
         .then((r) => {
           h.ovl = null;
           h.toast(bk ? (r.state === 'pending' ? 'הבקשה נשלחה. נודיע כשתאושר.' : 'החדר הוזמן') : 'האירוע נוסף ליומן');

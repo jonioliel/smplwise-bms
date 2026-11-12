@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import { settle } from './helpers/settle';
 import { mockGaps, type GapOpts } from './home-v3-gaps-mocks';
 
-// HOME-V3-GAPS-2436 pixel baselines: the screens this branch changed - "ההתראות שלי" with the personal alarm code row, the home diary's
+// HOME-V3-GAPS-2436 pixel baselines (titles carry `pixel-stable`: the gate's pixel shard runs only those): the screens this branch changed - "ההתראות שלי" with the personal alarm code row, the home diary's
 // "אזעקה" filter, "מערכות הבית" with "דווח על תקלה" and the new-ticket sheet opened from a leak - desktop 1440 and phone 390, light
 // and dark, mocked backend, a fixed clock and mock stamps relative to that clock (never an hour of the real day). Baselines are per OS:
 // the Linux ones are generated on the runner with `--update-snapshots`; on an OS without a baseline the check is skipped, not failed.
@@ -47,20 +47,20 @@ test.describe('pixel: home v3 gaps (alarm code row, diary alarm filter, report a
   });
 
   for (const scheme of ['light', 'dark'] as const) {
-    test(`my notifications with the alarm code ${scheme}`, async ({ page }, info) => {
+    test(`pixel-stable: my notifications with the alarm code ${scheme}`, async ({ page }, info) => {
       await open(page, 'notif', {}, scheme);
       await expect(home(page).locator('[data-gap-pin]')).toBeVisible();
       await compare(page, info, '#main', `home-gaps-notif-${scheme}`);
     });
 
-    test(`diary alarm filter ${scheme}`, async ({ page }, info) => {
+    test(`pixel-stable: diary alarm filter ${scheme}`, async ({ page }, info) => {
       await open(page, 'events', {}, scheme);
       await home(page).locator('[data-act="evTab"][data-v="alarm"]').click();
       await expect(home(page).locator('[data-diary="alarm"]')).toHaveCount(3);
       await compare(page, info, '#main', `home-gaps-diary-alarm-${scheme}`);
     });
 
-    test(`house systems with report a fault ${scheme}`, async ({ page }, info) => {
+    test(`pixel-stable: house systems with report a fault ${scheme}`, async ({ page }, info) => {
       await open(page, 'systems', { systems: 'bad' }, scheme);
       await home(page).locator('[data-gap-ticket="fault"]').click();
       await expect(home(page).locator('[data-sheet="tkNew"]')).toBeVisible();
