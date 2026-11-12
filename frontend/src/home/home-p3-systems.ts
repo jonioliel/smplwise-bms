@@ -6,6 +6,7 @@ import { html, nothing } from 'lit';
 import type { P3 } from './home-p3';
 import { ELEVATOR_WORD, GEN_WORD, SUPPLY_WORD, TEMP_OK, plural } from './home-p3-logic';
 import { shownState } from '../elevators/model';
+import { gapTicketButton } from './home-gaps'; // HOME-V3-GAPS-2436: "דווח על תקלה"
 
 export function sSystems(p: P3) {
   const h = p.h;
@@ -42,6 +43,6 @@ export function sSystems(p: P3) {
       return html`<div class="sysr one"><b class="clamp1">${t.name}</b><span class="st" data-tone=${t.stale || t.status === 'offline' || t.status === 'unknown' ? 'neutral' : ok ? 'ok' : 'warn'}><i class="dot"></i><b class="num">${v == null ? '—' : Math.round(v) + '°'}</b></span></div>`;
     })}</section>`);
   }
-  return html`${h.head('מערכות הבית', b ? plural(b, 'דבר אחד דורש תשומת לב', 'דברים דורשים תשומת לב') : 'הכל תקין')}
+  return html`${h.head('מערכות הבית', b ? plural(b, 'דבר אחד דורש תשומת לב', 'דברים דורשים תשומת לב') : 'הכל תקין', gapTicketButton(h, 'fault'))}
     <div class=${'sys-grid n' + panes.length} data-p3-systems>${panes}</div><p class="foot-note">${ic('lock')}המסך הזה לצפייה בלבד. הפעלה והגדרות נעשות בממשק המלא.</p>`;
 }

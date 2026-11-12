@@ -1,0 +1,12 @@
+emil-design-eng review checklist applied to the HOME-V3-GAPS-2436 additions (2026-11-12).
+No new CSS and no new motion: every added control reuses an existing, approved class of the home port.
+
+| Item | Finding | Result |
+| --- | --- | --- |
+| Head icon buttons (alerts: notif / diary; systems: report a fault) | `.hbtn` with `.bt` label; label hidden in the head at every size (existing rule), so each carries an aria-label | kept; aria-label added to "דווח על תקלה" |
+| Press feedback | `.hbtn`, `.rb`, `.mrow`, `.seg button` already scale(.97) on :active (home-styles.ts) | nothing to add |
+| Code row on "ההתראות שלי" | `.tile.setrow` + `.hbtn`, the mockup's own row; opens the alarm screen's existing pin sheet (same entry animation) | consistent |
+| Diary "אזעקה" segment | fourth item of the existing `.seg`; 40 px with the 4 px ::after hit extension on a phone (existing rule) | fits 390 px without scrolling |
+| Plumber button in the leak card | `.hbtn.strong`, the mockup's primary; only when a ticket can be opened | as mockup |
+| New-ticket sheet from another screen | the tickets module's own sheet (modal, centred, existing transition) | no new transition |
+| Night hours on a phone | the end hour was clipped in one row; now one row per hour | fixed |
