@@ -107,11 +107,16 @@ const rules = `
 :host(sw-button) button, :host(sw-chip) button { background: linear-gradient(180deg, var(--sw-surface), var(--sw-surface-2)) var(--sw-surface); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); }
 /* SKIN-QA-FOLLOWUP-2404 (owner round 22, Q6 = a): the key's top catches the skin's highlight instead of a fixed white - the same opaque
    white in light (unchanged), the faint 7 % one in dark, where the whitened top under the white label read 4.1:1 (now >= 4.5:1) */
-:host(sw-button[variant='primary']) button, :host(sw-chip[selected]) button { background: linear-gradient(180deg, color-mix(in srgb, var(--sw-accent) 86%, var(--sw-highlight)), var(--sw-accent-hover)) var(--sw-accent-hover); border-color: var(--sw-accent-hover); box-shadow: var(--sw-shadow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 -1px 0 rgba(0, 0, 0, 0.14); }
+:host(sw-button[variant='primary']) button { background: linear-gradient(180deg, color-mix(in srgb, var(--sw-accent) 86%, var(--sw-highlight)), var(--sw-accent-hover)) var(--sw-accent-hover); border-color: var(--sw-accent-hover); box-shadow: var(--sw-shadow-primary), inset 0 1px 0 rgba(255, 255, 255, 0.28), inset 0 -1px 0 rgba(0, 0, 0, 0.14); }
 :host(sw-button[variant='ghost']) button { background: transparent; box-shadow: none; }
 :host(sw-button[variant='danger']) button { background: linear-gradient(180deg, var(--sw-surface), var(--sw-danger-soft)); }
 :host(sw-button) button:active:not(:disabled), :host(sw-chip) button:active:not(:disabled) { background: var(--sw-surface-2); box-shadow: inset 0 2px 3px rgba(16, 24, 40, 0.14); }
-:host(sw-button[variant='primary']) button:active:not(:disabled), :host(sw-chip[selected]) button:active:not(:disabled) { background: var(--sw-accent-hover); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.26); }
+:host(sw-button[variant='primary']) button:active:not(:disabled) { background: var(--sw-accent-hover); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.26); }
+/* AUDIT30-B-SHARED (audit round 30, finding 4; owner gate Q3, option א assumed): the SELECTED chip is no longer a raised accent key - it is
+   the one soft selected field of the whole product (sw-chip.ts chipSelected): accent-soft, accent ink, no edge, flat, no hover lift */
+:host(sw-chip[selected]) button { background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent; box-shadow: none; }
+:host(sw-chip[selected]) button:active:not(:disabled) { background: color-mix(in srgb, var(--sw-accent) 14%, var(--sw-accent-soft)); box-shadow: none; }
+@media (hover: hover) and (pointer: fine) { :host(sw-chip[selected]) button:hover:not(:disabled) { background: color-mix(in srgb, var(--sw-accent) 14%, var(--sw-accent-soft)); border-color: transparent; transform: none; box-shadow: none; } }
 @media (hover: hover) and (pointer: fine) { :host(sw-button:not([variant='ghost'])) button:hover:not(:disabled), :host(sw-chip) button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--sw-shadow-2), inset 0 1px 0 var(--sw-highlight); } }
 /* classic 2 - panels are objects: the light top edge over the ladder's first step; the home widgets, the floor cards and the tree too */
 :host(sw-card), :host(sw-kpi), :host(sw-table), :host(devices-building) section.fcard, :host(devices-building) nav.tree, :host(home-widgets) .wg { box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight); }

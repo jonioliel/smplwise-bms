@@ -3,6 +3,28 @@ import { customElement, property } from 'lit/decorators.js';
 import './sw-icon';
 import type { IconName } from './sw-icon';
 
+/**
+ * AUDIT30-B-SHARED (design audit round 30, finding 4; owner gate Q3, recommended option א assumed until the owner answers): ONE selected
+ * state for every chip / filter pill in the product - a soft accent field with the accent ink, no edge, a step heavier, no raised key.
+ * (Measured before: black, navy, full-accent and soft fills on five screens; the classic skin drew the shared chip as a filled key.)
+ * A screen that still owns a local chip imports this fragment instead of copying values:
+ *   import { chipSelected } from '../components/sw-chip';
+ *   css`.rc[aria-pressed='true'] { ${chipSelected} }`
+ * The label / field pair is >= 4.5:1 in every live skin, light and dark (tests/unit-audit30b-shared.spec.ts).
+ */
+export const chipSelected = css`
+  background: var(--sw-accent-soft);
+  color: var(--sw-accent-text);
+  border-color: transparent;
+  font-weight: var(--sw-fw-semibold);
+  box-shadow: none;
+`;
+/** The pressed / hovered selected chip: the same soft field one accent step deeper (tokens only). */
+export const chipSelectedHover = css`
+  background: color-mix(in srgb, var(--sw-accent) 14%, var(--sw-accent-soft));
+  border-color: transparent;
+`;
+
 // Selectable chip / filter pill (boards: "All | Motion | Person | Vehicle" with colour dots).
 @customElement('sw-chip')
 export class SwChip extends LitElement {
@@ -62,8 +84,7 @@ export class SwChip extends LitElement {
         background: var(--sw-surface-2);
       }
       :host([selected]) button:hover:not(:disabled) {
-        background: var(--sw-accent-hover);
-        border-color: var(--sw-accent-hover);
+        ${chipSelectedHover}
       }
     }
     button:active:not(:disabled) {
@@ -76,10 +97,12 @@ export class SwChip extends LitElement {
     .count {
       font-variant-numeric: tabular-nums;
     }
+    /* AUDIT30-B-SHARED (finding 4, Q3 = א assumed): the soft selected field (was the full accent fill with inverse ink) */
     :host([selected]) button {
-      background: var(--sw-accent);
-      border-color: var(--sw-accent);
-      color: var(--sw-text-inverse);
+      ${chipSelected}
+    }
+    :host([selected]) button:active:not(:disabled) {
+      ${chipSelectedHover}
     }
     .d {
       inline-size: 7px;
@@ -89,14 +112,14 @@ export class SwChip extends LitElement {
       flex-shrink: 0;
     }
     :host([selected]) .d {
-      outline: 2px solid color-mix(in srgb, var(--sw-text-inverse) 70%, transparent);
+      outline: 2px solid var(--sw-surface-solid, var(--sw-surface));
     }
     .count {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
     :host([selected]) .count {
-      color: var(--sw-text-inverse); /* UXREST-295: the 80 % mix read 3.7:1 on the accent fill; the count is the quieter figure by its brackets and size */
+      color: var(--sw-accent-text); /* UXREST-295 / AUDIT30-B: the count takes the label's own ink on the soft field; it is the quieter figure by its brackets and size */
     }
     button:disabled {
       cursor: default;
