@@ -11,6 +11,7 @@ import '../tickets/intake-queue'; // CR-INTAKE99: free-text requests waiting for
 import './tickets-table'; // CR-038 S6b (D24): the board's table view
 import '../tickets/my-numbers'; // MGRDASH: a handler's own numbers at the top of "שלי" (owner decision, question 4 b)
 import '../components/sw-pager';
+import '../components/sw-page';
 import { PAGED_MQ, gridCols, packPages, rowGap } from './tickets-pages';
 import type { TicketsTable } from './tickets-table';
 import { boardPrefs, saveBoardPrefs, type BoardView } from '../api/tickets-table';
@@ -45,6 +46,7 @@ import { LiveRefresh } from '../tickets/live-refresh';
 import { tIcon } from '../tickets/icons';
 import { onTicketNames, setTicketNames } from '../tickets/naming';
 import type { TicketCardAction } from '../tickets/ticket-card';
+import { ticketChipSelected } from '../tickets/chip-selected'; // AUDIT30-C-TICKETS: one selected chip look (#4)
 
 type Screen = 'loading' | 'ready' | 'error' | 'forbidden' | 'off';
 
@@ -114,7 +116,6 @@ export class TicketsList extends LitElement {
   /** POLISH-LEFTOVERS-2341: the table view's server-side filters live here (the one "סינון" panel edits them; <tickets-table .extra>) */
   @state() private tableExtra: ExtraFilters = { ...NO_TABLE_FILTERS };
   @state() private tableHolders: { key: string; name: string }[] = [];
-  @state() private compactHeader = false;
   /** TICKETS-POLISH-2331: the "סינון" panel - Escape, a press outside, the focus in and back */
   readonly panelCtl = new FilterPanelController(this, () => this.filterOpen, (open) => (this.filterOpen = open));
   private countSeq = 0;
@@ -226,6 +227,18 @@ export class TicketsList extends LitElement {
       z-index: 40;
       box-shadow: var(--dv-shadow-2);
     }
+    /* AUDIT30-C-TICKETS (#6): sw-page is the frame (its header row: the title, the actions slot); the toolbar under it no longer sticks or
+       compacts - the title it compacted moved into the frame (on a phone the page scrolls, the toolbar with it) */
+    .pact {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .dh {
+      position: static;
+      padding-block-start: 0;
+    }
     .qchips {
       display: inline-flex;
       align-items: center;
@@ -234,13 +247,6 @@ export class TicketsList extends LitElement {
       margin-inline-start: auto;
     }
     @media (max-width: 767px) {
-      .dh-row {
-        grid-template-areas: 't p .';
-        grid-template-columns: minmax(0, 1fr) auto var(--sw-float-reserve, 0px);
-      }
-      .dh-row .pact {
-        grid-area: p;
-      }
       .qchips {
         order: 2;
         margin-inline-start: 0;
@@ -249,14 +255,13 @@ export class TicketsList extends LitElement {
         inset-block-end: calc(84px + env(safe-area-inset-bottom, 0px));
       }
     }
-  `];
+  `, ticketChipSelected];
 
   connectedCallback() {
     super.connectedCallback();
     applyAutomationsGlass(this);
     this.phoneMq.addEventListener('change', this.onPhone);
     this.pagedMq.addEventListener('change', this.onPaged);
-    this.addEventListener('scroll', this.onScroll, { passive: true });
     this.offNames = onTicketNames(() => this.requestUpdate());
     this.clock = window.setInterval(() => (this.now = new Date()), 60_000);
     this.live.start();
@@ -270,7 +275,6 @@ export class TicketsList extends LitElement {
     this.fitObserver?.disconnect();
     this.fitObserver = null;
     this.fitBox = null;
-    this.removeEventListener('scroll', this.onScroll);
     this.offNames?.();
     window.clearInterval(this.clock);
     this.live.stop();
@@ -288,14 +292,6 @@ export class TicketsList extends LitElement {
       ${this.pageCount > 1 ? html`<sw-pager data-tickets-pager .page=${at} .pages=${this.pageCount} @page-change=${(e: CustomEvent<{ page: number }>) => (this.cardPage = e.detail.page)}></sw-pager>` : nothing}
     </span>`;
   }
-
-  /** TKUI4: the large title compacts while the page scrolls (the schedules page's rule: a layer over the title row, never a change of height) */
-  private onScroll = () => {
-    // TICKETS-POLISH-2331: only a scrolling PAGE compacts the header (a phone). From a tablet up the list scrolls in its own region under a
-    // header that never moves, so the toolbar stays usable (it used to fade out while the region scrolled, for no room gained).
-    const compact = this.scrollTop > 40 && !this.filterOpen; // the open sheet keeps its toolbar (and itself) on screen
-    if (compact !== this.compactHeader) this.compactHeader = compact;
-  };
 
   protected updated(): void {
     measureHeaderBar(this.renderRoot, this.phone);
@@ -614,15 +610,14 @@ export class TicketsList extends LitElement {
     const pending = !this.meta && this.screen === 'loading';
     const f = this.r.filters;
     const panel = this.filterOpen ? filterPanel(this.panelBody(cards, withCount), chips.length, this.resetFilters, () => (this.filterOpen = false)) : nothing;
-    return html`<header class=${`dh${this.compactHeader ? ' compact' : ''}`} data-tickets-header>
-      <div class="dh-row">
-        <h1 data-tickets-title>${tt('area')}</h1>
-        ${tools ? html`<div class="pact">
+    // AUDIT30-C-TICKETS (#6): the title is sw-page's; the view switch and "+ חדשה" are its actions (#8 / B6: "+ חדשה" moves to the
+    // `primary` slot once branch B adds it). Under the frame's header: ONE toolbar.
+    return html`${tools ? html`<div class="pact" slot="actions">
           ${listViewSwitch(this.cal ? 'calendar' : cards ? 'cards' : 'table', !!this.meta?.can.manage, this.pickMode)}
           ${pending ? html`<span class="btn primary newbtn" aria-hidden="true" style="visibility:hidden">${tIcon('plus')}<span class="lbl">${tt('newShort')}</span></span>` : nothing}
           ${canCreate ? html`<button type="button" class="btn primary newbtn" data-new aria-label=${tt('newTitle')} @click=${() => writeHref(listHref(this.r.scope, this.r.filters, { create: true }), false)}>${tIcon('plus')}<span class="lbl">${tt('newShort')}</span></button>` : nothing}
         </div>` : nothing}
-      </div>
+    <header class="dh" data-tickets-header>
       ${tools ? html`<div class="dh-det tb" role="group" aria-label=${lt('lfGroup')} data-toolbar>
         <div class="seg sm scope" role="radiogroup" aria-label=${lt('lsScopeGroup')} data-scope-seg>
           ${this.scopes().map((sc) => html`<button type="button" role="radio" aria-checked=${String(this.r.scope === sc)} data-scope=${sc} @click=${() => writeHref(listHref(sc, f), false)}>${scopeLabel(sc)}${withCount(c.scopes[sc])}</button>`)}
@@ -710,13 +705,13 @@ export class TicketsList extends LitElement {
     const drawerOpen = !!this.r.ticketId && this.screen === 'ready';
     this.pageCount = 1;
     const body = this.body(); // first: it counts the pages the toolbar's pager shows
-    return html`<div class="page" data-screen="tickets-list" data-scope=${this.r.scope}>
+    return html`<sw-page class="page" wide data-screen="tickets-list" data-scope=${this.r.scope} heading=${tt('area')} data-tickets-title=${tt('area')}>
       ${this.header()}
       <div class=${`scr${this.view === 'table' && !this.cal && this.screen === 'ready' ? ' fill' : ''}${this.pagedCards() ? ' paged' : ''}`} data-tickets-scroll>
         ${this.r.scope === 'mine' && this.screen === 'ready' ? html`<tickets-my-numbers .module=${this.module} .manager=${!!this.meta?.can.manage} .source=${this.items}></tickets-my-numbers>` : nothing}
         ${body}
       </div>
-    </div>
+    </sw-page>
     ${this.drawerUsed && this.module?.enabled ? html`<ticket-detail mode="drawer" .open=${drawerOpen} .ticketId=${this.r.ticketId} .detailMode=${ui?.detail ?? 'drawer_fullscreen'} .scope=${this.r.scope} .focusTimeline=${this.route?.params.get('view') === 'timeline'} .initialTab=${this.route?.params.get('tab') ?? ''}
       .defaultTab=${ui?.detail_tab ?? ''} .sizeSetting=${ui?.drawer_size ?? ''} .sheetSetting=${ui?.phone_sheet ?? ''} .cameraViewfinder=${ui?.camera_viewfinder === true} .assignContact=${parseAssignParam(this.route?.params.get('assign'))}
       @assign-consumed=${() => writeHref(listHref(this.r.scope, this.r.filters, { t: this.r.ticketId }), true)}

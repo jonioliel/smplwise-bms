@@ -8,6 +8,7 @@ import '../tickets/ticket-create';
 import '../tickets/board-tree';
 import './tickets-handlers'; // CR-DEPT-MANAGER-HANDLERS: the board's "מטפלים וספקים" pane
 import '../components/sw-pager';
+import '../components/sw-page';
 import { PAGED_MQ, gridCols, packPages, rowGap, type PackGroup, type PackSection, type PageSection } from './tickets-pages';
 import { automationsStyles } from '../styles/automations-glass';
 import { mediaPageStyles, measureHeaderBar } from '../styles/media-page';
@@ -41,6 +42,7 @@ import { loadMeter, todayEntries } from '../tickets/board-today';
 import { lt } from '../tickets/list-text';
 import { oldestOpenText } from '../tickets/elapsed-model';
 import { ticketBoardV5Styles, ticketListFrameStyles } from '../tickets/list-styles';
+import { ticketChipSelected } from '../tickets/chip-selected'; // AUDIT30-C-TICKETS: one selected chip look (#4)
 
 type Screen = 'loading' | 'ready' | 'error' | 'forbidden' | 'off';
 
@@ -83,7 +85,6 @@ export class TicketsBoard extends LitElement {
   @state() private toast: { text: string; tone: 'ok' | 'bad' } | null = null;
   /** TKUI4: the card filters over the held cards (TICKETS-POLISH-2331: in the one "סינון" panel), and the title that compacts while the page scrolls */
   @state() private filters: CardFilters = { ...NO_CARD_FILTERS };
-  @state() private compactHeader = false;
   /** TICKETS-POLISH-2331: the "סינון" panel - Escape, a press outside, the focus in and back */
   readonly panelCtl = new FilterPanelController(this, () => this.filterOpen, (open) => (this.filterOpen = open));
   private pendingQ: string | null = null;
@@ -238,6 +239,29 @@ export class TicketsBoard extends LitElement {
     .scr {
       display: contents;
     }
+    /* AUDIT30-C-TICKETS (#6): the page is sw-page (its own header row: the title and the actions slot). The frame's own gap and
+       padding give way to the glass page's (.page, styles/media-page.ts); the toolbar header under it no longer sticks or compacts - the
+       title it compacted moved into the frame (on a phone the page scrolls, the toolbar with it). */
+    .pact {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .dh {
+      position: static;
+      padding-block-start: 0;
+    }
+    .dh:empty {
+      display: none;
+    }
+    /* AUDIT30-C-TICKETS (#17): a group's heading is a section title (--sw-fs-xl), a clear step below the page title - it was
+       --sw-fs-3xl / 800 (26 px) under a 30 px title */
+    .fsec > .sh h2 {
+      font-size: var(--sw-fs-xl);
+      font-weight: var(--sw-fw-bold);
+      letter-spacing: -0.01em;
+    }
     @media (min-width: 768px) {
       :host {
         overflow: hidden;
@@ -313,10 +337,10 @@ export class TicketsBoard extends LitElement {
       /* a portrait tablet: "סינון" and "+ חדשה" are icon buttons (their names stay in aria-label), and the toolbar may take a second line
          rather than run past the screen's edge (the layout guard found both labels cut by the board at 768) */
       .tb .filterbtn .lbl,
-      .dh-row .pact .newbtn .lbl {
+      .pact .newbtn .lbl {
         display: none;
       }
-      .dh-row .pact .newbtn {
+      .pact .newbtn {
         min-inline-size: 44px;
         justify-content: center;
       }
@@ -326,25 +350,10 @@ export class TicketsBoard extends LitElement {
     }
     @media (max-width: 767px) {
       .dh-row {
-        grid-template-areas: 't p .' 'b b b' 'r r r';
-        grid-template-columns: minmax(0, 1fr) auto var(--sw-float-reserve, 0px);
+        grid-template-areas: 'r r r';
       }
-      .dh-row .pact {
-        grid-area: p;
-      }
-      /* the manager's "board / handlers" switch takes a whole row of its own, above the floor chips (it chooses the pane they filter); it
-         folds away with the floor chips while the header is compact */
-      .dh-row > [data-board-pane] {
-        grid-area: b;
-        justify-self: start;
-      }
-      .dh.compact .dh-row > [data-board-pane] {
-        opacity: 0;
-        visibility: hidden;
-        pointer-events: none;
-      }
-      /* the state strip: three a row (nothing hidden behind a scroll, every count readable) */
-      .tb > .seg.stf {
+      /* the state strip (in the "סינון" sheet on a phone): three a row (nothing hidden behind a scroll, every count readable) */
+      .fpop .seg.stf {
         grid-auto-flow: row;
         grid-template-columns: repeat(3, minmax(0, 1fr));
       }
@@ -352,14 +361,13 @@ export class TicketsBoard extends LitElement {
         inset-block-end: calc(84px + env(safe-area-inset-bottom, 0px));
       }
     }
-  `];
+  `, ticketChipSelected];
 
   connectedCallback() {
     super.connectedCallback();
     applyAutomationsGlass(this);
     this.phoneMq.addEventListener('change', this.onPhone);
     this.pagedMq.addEventListener('change', this.onPaged);
-    this.addEventListener('scroll', this.onScroll, { passive: true });
     this.offNames = onTicketNames(() => this.requestUpdate());
     this.live.start();
     void this.boot();
@@ -372,18 +380,11 @@ export class TicketsBoard extends LitElement {
     this.fitObserver?.disconnect();
     this.fitObserver = null;
     this.fitBox = null;
-    this.removeEventListener('scroll', this.onScroll);
     this.offNames?.();
     this.live.stop();
     window.clearTimeout(this.qTimer);
     window.clearTimeout(this.toastTimer);
   }
-
-  private onScroll = () => {
-    // TICKETS-POLISH-2331: only a scrolling PAGE compacts the header (a phone); from a tablet up the board scrolls in its own region
-    const compact = this.scrollTop > 40 && !this.filterOpen; // the open sheet keeps its toolbar (and itself) on screen
-    if (compact !== this.compactHeader) this.compactHeader = compact;
-  };
 
   protected updated(): void {
     measureHeaderBar(this.renderRoot, this.phone);
@@ -637,10 +638,11 @@ export class TicketsBoard extends LitElement {
   };
 
   /** The "סינון" panel of the board: the departments with their counts, the floors tree (D19 "chips + tree in the filter"), the card filters. */
-  private panelBody(layout: ReturnType<typeof floorsLayout>): TemplateResult {
+  private panelBody(layout: ReturnType<typeof floorsLayout>, strip: TemplateResult | typeof nothing = nothing): TemplateResult {
     const d = this.data;
     const depts = d?.departments ?? [];
     return html`
+      ${strip === nothing ? nothing : panelSection(bt('stateStrip'), strip, 'state')}
       ${depts.length > 1 ? panelSection(lt('tbDept'), html`<div class="fchips" role="group" aria-label=${tt('departmentsGroup')} data-dept-chips>
         <button type="button" class="rc" aria-pressed=${String(!this.r.dept)} data-dept="" @click=${() => this.go({ dept: '' })}>${tt('allDepartments')}<small>${depts.reduce((s, x) => s + x.count, 0)}</small></button>
         ${depts.map((x) => html`<button type="button" class="rc" aria-pressed=${String(this.r.dept === x.id)} data-dept=${x.id} @click=${() => this.go({ dept: x.id })}>${bidi(x.name)}<small>${x.count}</small></button>`)}
@@ -668,27 +670,33 @@ export class TicketsBoard extends LitElement {
     const floor = d && layout.chips ? floorChips(d.tree) : [];
     const handlersPane = this.r.pane === 'handlers';
     const chips = this.chips();
-    const panel = this.filterOpen ? filterPanel(this.panelBody(layout), chips.length, this.resetFilters, () => (this.filterOpen = false)) : nothing;
-    return html`<header class=${`dh${this.compactHeader ? ' compact' : ''}`} data-board-header>
-      <div class="dh-row">
-        <h1 data-tickets-title>${tt('area')}</h1>
-        ${this.meta?.can.manage ? html`<div class="seg sm" role="radiogroup" aria-label=${tt('dmPaneGroup')} data-board-pane>
+    // AUDIT30-C-TICKETS (#6): the title is sw-page's (the one page frame); the board / handlers switch, the view switch and "+ חדשה" sit in
+    // its actions slot (#8 / B6: "+ חדשה" moves to sw-page's `primary` slot once branch B adds it). Below the frame's header: the floor
+    // chips (when D19 puts them there) and ONE toolbar.
+    const paneSwitch = this.meta?.can.manage ? html`<div class="seg sm" role="radiogroup" aria-label=${tt('dmPaneGroup')} data-board-pane>
           <button type="button" role="radio" aria-checked=${String(!handlersPane)} data-pane="cards" @click=${() => this.go({ pane: 'cards' })}>${tt('area')}</button>
           <button type="button" role="radio" aria-checked=${String(handlersPane)} data-pane="handlers" @click=${() => this.go({ pane: 'handlers' })}>${tt('hdTitle')}</button>
-        </div>` : nothing}
-        ${floor.length && !handlersPane ? html`<div class="rooms" role="group" aria-label=${bt('floors')} data-floor-chips>
+        </div>` : nothing;
+    const actions = html`<div class="pact" slot="actions">
+      ${paneSwitch}
+      ${tools && !handlersPane ? html`${listViewSwitch('board', true, this.pickMode)}
+        ${canCreate ? html`<button type="button" class="btn primary newbtn" data-new aria-label=${tt('newTitle')} @click=${() => writeHref(boardHref(this.r, { create: true }), false)}>${tIcon('plus')}<span class="lbl">${tt('newShort')}</span></button>` : nothing}` : nothing}
+    </div>`;
+    // AUDIT30-C-TICKETS (#9, Q14 option 1): on a phone the state strip goes into the one "סינון" sheet (with the departments): at most two
+    // rows of keys above the cards
+    const strip = d ? html`<div class="seg sm stf" role="radiogroup" aria-label=${bt('stateStrip')} data-state-strip>
+          ${stripItems(ui.closed_strip, d.counts).map((s) => html`<button type="button" role="radio" aria-checked=${String(this.r.state === s.id)} data-state=${s.id} title=${this.stripTip(s.id)} @click=${() => this.go({ state: s.id })}>${s.label}<small>${s.count}</small></button>`)}
+        </div>` : nothing;
+    const panel = this.filterOpen ? filterPanel(this.panelBody(layout, this.phone ? strip : nothing), chips.length, this.resetFilters, () => (this.filterOpen = false)) : nothing;
+    return html`${actions}<header class="dh" data-board-header>
+      ${floor.length && !handlersPane ? html`<div class="dh-row">
+        <div class="rooms" role="group" aria-label=${bt('floors')} data-floor-chips>
           <button type="button" class="rc" aria-pressed=${String(!this.r.place)} data-place="" @click=${() => this.go({ place: '' })}>${bt('allFloors')}</button>
           ${floor.map((n) => html`<button type="button" class="rc" aria-pressed=${String(this.r.place === n.key)} data-place=${n.key} @click=${() => this.go({ place: n.key })}>${bidi(placeLabel(n))}<small>${n.count}</small></button>`)}
-        </div>` : nothing}
-        ${tools && !handlersPane ? html`<div class="pact">
-          ${listViewSwitch('board', true, this.pickMode)}
-          ${canCreate ? html`<button type="button" class="btn primary newbtn" data-new aria-label=${tt('newTitle')} @click=${() => writeHref(boardHref(this.r, { create: true }), false)}>${tIcon('plus')}<span class="lbl">${tt('newShort')}</span></button>` : nothing}
-        </div>` : nothing}
-      </div>
+        </div>
+      </div>` : nothing}
       ${tools && !handlersPane ? html`<div class="dh-det tb" role="group" aria-label=${lt('lfGroup')} data-toolbar>
-        ${d ? html`<div class="seg sm stf" role="radiogroup" aria-label=${bt('stateStrip')} data-state-strip>
-          ${stripItems(ui.closed_strip, d.counts).map((s) => html`<button type="button" role="radio" aria-checked=${String(this.r.state === s.id)} data-state=${s.id} title=${this.stripTip(s.id)} @click=${() => this.go({ state: s.id })}>${s.label}<small>${s.count}</small></button>`)}
-        </div>` : nothing}
+        ${this.phone ? nothing : strip}
         <label class="search">${tIcon('search')}<span class="vh">${tt('searchShort')}</span><input type="search" data-search maxlength="80" placeholder=${this.phone ? tt('searchShort') : tt('search')} .value=${this.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></label>
         <span class="fanchor">
           ${filterToggle(this.filterOpen, chips.length, () => (this.filterOpen = !this.filterOpen), layout.treeInFilter ? 'board' : '')}
@@ -881,10 +889,10 @@ export class TicketsBoard extends LitElement {
     const drawerOpen = !!this.r.ticketId && this.screen === 'ready';
     this.pageCount = 1;
     const body = this.body(); // first: it counts the pages the toolbar's pager shows
-    return html`<div class="page" data-screen="tickets-board">
+    return html`<sw-page class="page" wide data-screen="tickets-board" heading=${tt('area')} data-tickets-title=${tt('area')}>
       ${this.header()}
       <div class=${`scr${this.pagedBoard() ? ' paged' : ''}`} data-board-scroll>${body}</div>
-    </div>
+    </sw-page>
     ${this.drawerUsed && this.module?.enabled ? html`<ticket-detail mode="drawer" .open=${drawerOpen} .ticketId=${this.r.ticketId} .detailMode=${ui?.detail ?? 'drawer_fullscreen'} .scope=${'department'} .focusTimeline=${this.route?.params.get('view') === 'timeline'} .initialTab=${this.route?.params.get('tab') ?? ''}
       .defaultTab=${ui?.detail_tab ?? ''} .sizeSetting=${ui?.drawer_size ?? ''} .sheetSetting=${ui?.phone_sheet ?? ''} .cameraViewfinder=${ui?.camera_viewfinder === true} .assignContact=${parseAssignParam(this.route?.params.get('assign'))}
       @assign-consumed=${() => writeHref(boardHref(this.r, { t: this.r.ticketId }), true)}

@@ -188,11 +188,12 @@ export const ticketTableStyles = css`
       background: var(--dv-surface-3);
     }
   }
+  /* AUDIT30-C-TICKETS (#4, Q3 option 1): Blue Wash, never the black key */
   .rc[aria-pressed='true'],
   .pop button.rc[aria-pressed='true'],
   .pop button.rc[aria-pressed='true']:hover {
-    background: var(--dv-text);
-    color: var(--dv-surface-solid);
+    background: var(--sw-accent-soft);
+    color: var(--sw-accent-text);
     border-color: transparent;
   }
 

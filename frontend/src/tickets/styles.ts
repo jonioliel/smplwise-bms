@@ -580,9 +580,10 @@ export const ticketFormStyles = css`
     font-size: var(--sw-fs-base);
     font-weight: 600;
   }
+  /* AUDIT30-C-TICKETS (#4, Q3 option 1): Blue Wash, never the black key */
   .prio .rc[aria-checked='true'] {
-    background: var(--dv-text);
-    color: var(--dv-backdrop-solid, var(--dv-surface-solid));
+    background: var(--sw-accent-soft);
+    color: var(--sw-accent-text);
     border-color: transparent;
   }
   .similar {

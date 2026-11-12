@@ -109,27 +109,23 @@ test.describe('tickets list v5 evidence', () => {
     await shot(page, 'frame-department');
   });
 
-  test('the page title compacts while the page scrolls (a layer over the title row, no change of height)', async ({ page }) => {
+  test('the page title belongs to the frame (sw-page) and the toolbar never compacts or sticks over the cards', async ({ page }) => {
+    // AUDIT30-C-TICKETS (#6): the title moved into sw-page; the toolbar under it is in the flow (a phone scrolls it away with the page,
+    // from a tablet up the cards scroll in their own region under it) - there is no compacting layer left
     await goList(page, '/tickets/mine');
     await page.waitForSelector(`${L} ticket-card`);
+    await expect(page.locator(`${L} sw-page[data-tickets-title]`)).toHaveAttribute('heading', /.+/);
     const header = page.locator(`${L} [data-tickets-header]`);
-    await expect(header).not.toHaveClass(/compact/);
     const before = (await header.boundingBox())?.height ?? 0;
-    // NOSCROLL-297 / TICKETS-POLISH-2331: from a tablet up the cards scroll in their own region (.scr) under a header that never compacts
-    // (the toolbar stays usable); on a phone the page scrolls and the title compacts
-    const inner = await page.locator(L).evaluate((h) => {
+    await page.locator(L).evaluate((h) => {
       const region = h.shadowRoot?.querySelector<HTMLElement>('.scr');
       const own = !!region && getComputedStyle(region).display !== 'contents';
       ((own ? region : h) as HTMLElement).scrollTop = 400;
-      return own;
     });
-    if (inner) {
-      await page.waitForTimeout(200);
-      await expect(header).not.toHaveClass(/compact/);
-      return;
-    }
-    await expect(header).toHaveClass(/compact/);
-    expect(Math.abs(((await header.boundingBox())?.height ?? 0) - before), 'compacting never changes the header height').toBeLessThanOrEqual(1);
+    await page.waitForTimeout(200);
+    await expect(header).not.toHaveClass(/compact/);
+    expect(await header.evaluate((h) => getComputedStyle(h).position)).toBe('static');
+    expect(Math.abs(((await header.boundingBox())?.height ?? 0) - before)).toBeLessThanOrEqual(1);
   });
 
   test('the filter row: hidden until asked for, narrows the held cards, counts its choices, clears', async ({ page }) => {
