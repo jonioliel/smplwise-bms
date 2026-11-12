@@ -18,20 +18,20 @@ type Scheme = 'light' | 'dark';
 const noBaseline = (info: { snapshotPath: (...name: string[]) => string; config: { updateSnapshots: string } }, name: string) =>
   !['all', 'changed'].includes(info.config.updateSnapshots) && !fs.existsSync(info.snapshotPath(name));
 
-async function open(page: Page, hash: string, scheme: Scheme = 'light') {
+async function open(page: Page, hash: string, scheme: Scheme = 'light', skin = 'classic') {
   await page.route('**/api/v1/**', (route) => route.abort()); // demo mode
   await page.emulateMedia({ colorScheme: scheme, reducedMotion: 'reduce' });
   await page.goto('about:blank');
-  await page.goto(`/?design=a&fit=off&skin=classic&scheme=${scheme}#${hash}`);
+  await page.goto(`/?design=a&fit=off&skin=${skin}&scheme=${scheme}#${hash}`);
   await page.waitForSelector('sw-app');
   if (scheme === 'dark') await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
   await page.waitForTimeout(1200);
 }
 
 /** visit routes until every shared component of the branch is registered */
-async function register(page: Page, scheme: Scheme = 'light') {
+async function register(page: Page, scheme: Scheme = 'light', skin = 'classic') {
   for (const hash of ['/investigate/health', '/investigate/events', '/system/audit', '/investigate/cases']) {
-    await open(page, hash, scheme);
+    await open(page, hash, scheme, skin);
     const missing = await page.evaluate(() => ['sw-chip', 'sw-kpi', 'sw-table', 'sw-field', 'sw-badge'].filter((n) => !customElements.get(n)));
     if (!missing.length) return;
   }
@@ -155,6 +155,16 @@ for (const scheme of ['light', 'dark'] as const) {
     const off = await contrastIn(page, `document.querySelector('#b30 sw-chip:not([selected])').shadowRoot.querySelector('button')`);
     expect(off.image).toContain('linear-gradient');
   });
+
+  // regression (runner pixel diff, wk-overview domus): every skin's selected chip label stays >= 4.5:1 on whatever field that skin draws
+  for (const skin of ['domus', 'tesla', 'crystal', 'infra', 'soft'] as const) {
+    test(`finding 4 regression: the selected chip reads >= 4.5:1 in ${skin} (${scheme})`, async ({ page }) => {
+      await register(page, scheme, skin);
+      await mountGallery(page);
+      const sel = await contrastIn(page, `document.querySelector('#b30 sw-chip[selected]').shadowRoot.querySelector('button')`);
+      expect(sel.ratio, `${skin}/${scheme} ${sel.bg} ${sel.image}`).toBeGreaterThanOrEqual(4.5);
+    });
+  }
 
   test(`finding 12: every filled badge on events, cases and incidents reads >= 4.5:1 (${scheme})`, async ({ page }) => {
     const bad: string[] = [];

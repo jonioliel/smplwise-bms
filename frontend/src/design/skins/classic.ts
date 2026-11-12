@@ -114,6 +114,7 @@ const rules = `
 :host(sw-button[variant='primary']) button:active:not(:disabled) { background: var(--sw-accent-hover); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.26); }
 /* AUDIT30-B-SHARED (audit round 30, finding 4; owner gate Q3, option א assumed): the SELECTED chip is no longer a raised accent key - it is
    the one soft selected field of the whole product (sw-chip.ts chipSelected): accent-soft, accent ink, no edge, flat, no hover lift */
+:host(sw-chip[selected]) { --sw-chip-on-count: var(--sw-accent-text); --sw-chip-dot-ring: var(--sw-surface-solid); }
 :host(sw-chip[selected]) button { background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent; box-shadow: none; }
 :host(sw-chip[selected]) button:active:not(:disabled) { background: color-mix(in srgb, var(--sw-accent) 14%, var(--sw-accent-soft)); box-shadow: none; }
 @media (hover: hover) and (pointer: fine) { :host(sw-chip[selected]) button:hover:not(:disabled) { background: color-mix(in srgb, var(--sw-accent) 14%, var(--sw-accent-soft)); border-color: transparent; transform: none; box-shadow: none; } }

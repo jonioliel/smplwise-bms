@@ -34,10 +34,10 @@ test('finding 4: the shared selected chip is the soft accent field, >= 4.5:1 in 
   const s = flat('components/sw-chip.ts');
   // the exported fragment and its use on the chip itself
   expect(s).toMatch(/export const chipSelected = css` background: var\(--sw-accent-soft\); color: var\(--sw-accent-text\); border-color: transparent; font-weight: var\(--sw-fw-semibold\); box-shadow: none; `;/);
-  expect(s).toContain(':host([selected]) button { ${chipSelected} }');
-  // the old full-accent fill with inverse ink is gone from the chip
-  expect(s).not.toMatch(/:host\(\[selected\]\) button \{ background: var\(--sw-accent\);/);
-  expect(s).not.toContain('var(--sw-text-inverse)');
+  // regression (runner, pixel-round4-leftovers wk-overview domus): the component's own selected state keeps the accent key with inverse
+  // ink - domus rule 6 repaints only the background of the selected chip and relies on this ink; a soft-field ink there was accent on accent
+  expect(s).toContain(':host([selected]) button { background: var(--sw-accent); border-color: var(--sw-accent); color: var(--sw-text-inverse); }');
+  expect(s).toContain('color: var(--sw-chip-on-count, var(--sw-text-inverse));');
   const rows: string[] = [];
   const fails: string[] = [];
   for (const id of SKIN_IDS) {
@@ -62,6 +62,11 @@ test('finding 4: classic rule 1 no longer paints the selected chip as the raised
   expect(rules).not.toMatch(/sw-chip\[selected\]\) button \{ background: linear-gradient/);
   expect(rules).not.toMatch(/:host\(sw-chip\[selected\]\) button:active:not\(:disabled\) \{ background: var\(--sw-accent-hover\)/);
   expect(rules).toContain(':host(sw-chip[selected]) button { background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent; box-shadow: none; }');
+  // the count and the dot ring follow the soft field (white on the soft field would vanish)
+  expect(rules).toContain(':host(sw-chip[selected]) { --sw-chip-on-count: var(--sw-accent-text); --sw-chip-dot-ring: var(--sw-surface-solid); }');
+  // classic draws exactly the exported fragment's pair
+  const frag = flat('components/sw-chip.ts');
+  expect(frag).toContain('background: var(--sw-accent-soft); color: var(--sw-accent-text); border-color: transparent;');
   // no hover lift on the selected chip (the unselected key keeps its lift)
   expect(rules).toMatch(/:host\(sw-chip\[selected\]\) button:hover:not\(:disabled\) \{[^}]*transform: none; box-shadow: none; \}/);
   expect(rules).toContain(':host(sw-chip) button:hover:not(:disabled) { transform: translateY(-1px);');
