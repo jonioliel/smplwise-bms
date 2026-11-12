@@ -2,6 +2,8 @@ import { LitElement, html, css, nothing, type PropertyValues, type TemplateResul
 import { customElement, property, state } from 'lit/decorators.js';
 import './sw-badge';
 import './sw-dialog';
+import './sw-dropdown';
+import type { DropdownChange } from './sw-dropdown';
 import './sw-icon';
 import './wk-action-button';
 import { getStationCodes, getStationPrograms, type AccessStation, type Period, type StationCodes, type StationProgram, type StationPrograms, type WeekdayName } from '../api/access-stations';
@@ -233,7 +235,8 @@ export class WkDoorTech extends LitElement {
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: var(--sw-s-2) var(--sw-s-3);
     }
-    label.f {
+    label.f,
+    div.f {
       display: flex;
       flex-direction: column;
       gap: 4px;
@@ -241,8 +244,7 @@ export class WkDoorTech extends LitElement {
       color: var(--sw-text-2);
       min-inline-size: 0;
     }
-    input,
-    select {
+    input {
       box-sizing: border-box;
       inline-size: 100%;
       min-block-size: var(--sw-ctl-h-md, 36px);
@@ -864,9 +866,10 @@ export class WkDoorTech extends LitElement {
     return html`<form class="confirm" data-wk-dt-code-form=${f.slot} data-action=${f.action} autocomplete="off" @submit=${(e: Event) => void this.sendCode(e)}>
       <h5>${fill(title, { slot })}</h5>
       ${doors.length > 1
-        ? html`<label class="f">${t.codes.door}<select data-wk-dt-code-door @change=${(e: Event) => (this.codeForm = { ...f, door: Number((e.target as HTMLSelectElement).value) })}>
-            ${doors.map((d) => html`<option value=${d} ?selected=${d === f.door}>${this.doorName(d)}</option>`)}
-          </select></label>`
+        ? html`<div class="f"><span>${t.codes.door}</span>
+            <sw-dropdown block data-wk-dt-code-door label=${t.codes.door} .value=${String(f.door)}
+              .items=${doors.map((d) => ({ id: String(d), label: this.doorName(d) }))}
+              @change=${(e: CustomEvent<DropdownChange>) => (this.codeForm = { ...f, door: Number(e.detail.id) })}></sw-dropdown></div>`
         : nothing}
       ${f.action === 'set'
         ? html`<div class="grid2">
