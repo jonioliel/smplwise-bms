@@ -291,7 +291,10 @@ test.describe('tickets list v5 evidence', () => {
     await goBoard(page, '/tickets/board');
     await page.waitForSelector(`${B} ticket-card`);
     await expect(page.locator(`${B} ticket-card ticket-elapsed [data-elapsed="open"]`).first()).toHaveText(/פתוחה/);
+    // AUDIT30-C-TICKETS (#9): on a phone the state strip is in the "סינון" sheet
+    if (isPhone(page)) await page.locator(`${B} [data-filter-toggle]`).click();
     await expect(page.locator(`${B} [data-state="all"]`)).toHaveAttribute('title', /הוותיקה פתוחה/);
+    if (isPhone(page)) await page.locator(`${B} [data-filter-toggle]`).click(); // the sheet closes again
     await page.locator(`${B} [data-closed-toggle]`).click();
     await shot(page, 'board-clock');
     if (isPhone(page)) return;
