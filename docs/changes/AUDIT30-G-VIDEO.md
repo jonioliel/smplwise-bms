@@ -39,8 +39,16 @@ Not mirrored: no video, plan or timeline geometry was touched.
 
 ### Not changed (recorded)
 
-- `live-camera.ts` still names "NVR" in about 30 administrator strings (schedule / smart rules / motion / OSD writes, capability
-  notes). The audit did not list them; translating them touches many evidence specs. Left for an owner answer (question 1 below).
+- Lead answer 2026-11-12, Q1 = **א**: the remaining operator "NVR" strings were translated on this branch too (commit `bd7614fe7`):
+  91 occurrences in `live-camera.ts` (41: schedule / smart rules / motion / OSD writes, capability notes, rename dialog),
+  `live-overview.ts`, `live-wall.ts`, `investigate-{cases,event-detail,events,exports,history-map,playback,rules,search}.ts` and
+  `i18n/he.ts` (`camera.offlineReason`); Hebrew forms with their prefixes (ה־/ל־/מה־/ב־NVR -> המקליט / למקליט / מהמקליט / במקליט,
+  "כל ה־NVR" -> "כל המקליטים"). Comments and identifiers are untouched. Guard: the source test in `evidence-audit30g-video` (90
+  Hebrew lines with "NVR" on the base, 0 now). Specs that asserted the old words: `evidence-multi-nvr`, `evidence-video`,
+  `screenshots` (one line each).
+- Left: the demo fixture row "NVR (הקלטה)" on the live overview comes from `src/fixtures/catalog.ts`, which is not a branch G file;
+  the browser check exempts exactly that string. The settings screens (NVR connection, cameras settings, security tabs) belong to
+  other owners and keep their wording.
 - The video timestamps (`live-camera.ts .stamp`, `investigate-playback.ts .stamp / .drift`) stay monospace: they are on-video
   clock read-outs (OSD family), counted by the probe as mono 1 each.
 - The probe's "con L3 / L6" on the single camera and the wall are white labels on video tiles measured against the page because the
@@ -91,8 +99,18 @@ Runner (`private/runner/run_smart.py preview pilot/AUDIT30-G-VIDEO ... --workers
 |---|---|
 | `pixel-audit30g-video` desktop + mobile `-u` @ `4d68ca6e4` | 16 passed, 16 new linux baselines |
 | `pixel-audit30g-video` + `layout-noscroll-1366` + `evidence-audit30g-video`, desktop + mobile, no `-u` @ `b373a3405` | 74 passed, 26 skipped (mobile-only skips of the desktop guards) |
-| `pixel-audit30g-video` desktop + mobile `-u` @ `3ecf93519` (phone frame changed) | **BLOCKED**: the runner stopped answering ssh (banner-exchange timeout, also for four other audit branches' jobs) for more than an hour; the job never started its tests |
-| the same without `-u` | NOT_RUN (same reason). The four mobile live-event baselines (`incidents-*-390-mobile-linux.png`) that `3ecf93519` made stale were removed, so those four cases skip with a `skipped-pixel` annotation until re-taken; the 12 other baselines are unaffected (desktop rules unchanged, health untouched) |
+| `pixel-audit30g-video` desktop + mobile `-u` @ `3ecf93519` (phone frame changed), after the runner came back | 26 passed; the 4 phone live-event baselines re-generated (commit `2bf108ed3`) |
+| `--update-snapshots=changed` @ `2bf108ed3` (after the NVR copy commit `bd7614fe7`): `pixel-audit30g-video` + `pixel-wall-followups-2390` + `pixel-skin-qa-2403` (`--grep=pixel-stable`, desktop / mobile / tablet); `visual-matrix --grep=live-wall` | 26 passed, 0 rewritten; 6 passed, 0 rewritten (the copy change moves no baseline) |
+| proof without `-u` @ `2bf108ed3`: the same two jobs, then `evidence-audit30g-video` + `layout-incidents` (desktop) | 26 passed / 28 skipped (tablet and smoke-only skins); 6 passed; 38 passed |
+
+Runner etiquette (lead rule 2026-11-12 evening): every job started only after `uptime` showed a 1-minute load below 30 and no job of
+this branch running; one job at a time, one worker, scoped with `--grep`; nothing was killed on the runner. The runner worktree of
+this branch had an untracked `docs/changes/evidence/AUDIT30-G-VIDEO/` (left by a job stopped while the runner hung) that blocked its
+checkout, so two update runs used `3ecf93519`; that folder (this branch's own evidence copies) was removed there and the runs were
+repeated at the head.
+
+Workstation, after the NVR commit: `tsc --noEmit` exit 0; `evidence-audit30g-video` desktop (Vite dev server) 21 passed, 1 failed
+(`/live`: the fixture row "NVR (הקלטה)", exempted) -> `-g "finding 15"` 13 passed.
 
 Not run: `evidence-incidents` / `evidence-sys-audit-quickfix-2437` after `3ecf93519` (they ran green before it; the change is the
 phone header only), the tablet project, the full suite (the runner entry check runs the selection). The visual matrix was not
