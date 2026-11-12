@@ -1026,6 +1026,9 @@ def _pdf_failed(request: Request, bid: str, code: str) -> None:
 @router.get("/energy/bills/{bid}/pdf")
 def bill_pdf(bid: str, request: Request, copy: bool = False, principal: Principal = Depends(_bills), conn: sqlite3.Connection = Depends(get_read_conn)) -> Response:
     bill = eb.get_bill(conn, bid)
+    from ..services import home_interface as hi
+
+    hi.home_bill_file_check(conn, principal, bill)  # HOME-V3-FOLLOWUP-A-2431: a home-only person gets an issued bill only
     data_dir = settings_of(request).data_dir
     snap = json.loads(bill["snapshot_json"])
     watermark = "draft" if bill["state"] == "draft" else ("void" if bill["state"] == "void" else ("copy" if copy else None))

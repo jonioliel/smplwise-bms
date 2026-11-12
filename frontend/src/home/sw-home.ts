@@ -188,7 +188,7 @@ export class SwHome extends LitElement {
         if (mods.has('security') && canAnywhere('alarm.view')) void this.loadPanels();
         if (mods.has('doors') && canAnywhere('access.call')) void this.loadTalk();
         if (mods.has('energy') && (canAnywhere('energy.bills') || canAnywhere('energy.manage'))) void this.loadPrice();
-        if (mods.has('doors')) void getCallLog(null, 8).then((p) => { this.visitors = p.calls; }).catch(() => undefined);
+        if (mods.has('doors') || mods.has('intercom')) void getCallLog(null, 8).then((p) => { this.visitors = p.calls; }).catch(() => undefined);
         void this.p3.load();
       }
     } catch (err) {
@@ -1002,7 +1002,7 @@ export class SwHome extends LitElement {
     if (dh.length && mods.has('doors')) { const u = dh.filter((d) => !d.locked).length; out.push(['doors', 'דלתות', u ? 'unlock' : 'lock', u ? (u === 1 ? 'אחת פתוחה' : u + ' פתוחות') : 'נעול', u ? 'warn' : 'ok']); }
     const cams = r ? this.d.cameras.filter((c) => r.cams.includes(c.id)) : this.d.cameras;
     if (cams.length && mods.has('cameras')) { const bad = cams.filter((c) => !c.ok).length; out.push(['cameras', 'מצלמות', 'cam', r ? (bad ? 'לא זמינה' : 'חי') : bad ? `${cams.length - bad} מתוך ${cams.length}` : cams.length + ' פועלות', '']); }
-    if (!r && mods.has('doors') && this.visitors.length) out.push(['doors', 'אינטרקום', 'phone', `${this.visitors.length} ביקורים`, '', 'intercom']);
+    if (!r && mods.has('intercom') && this.visitors.length) out.push(['doors', 'אינטרקום', 'phone', `${this.visitors.length} ביקורים`, '', 'intercom']);
     if (!r && this.d.energy && this.d.energy.today.length && mods.has('energy')) out.push(['energy', 'חשמל', 'bolt', html`<span class="num">${this.d.energy.today.reduce((a, b) => a + b, 0).toFixed(1)}</span> קוט״ש`, '']);
     if (!r && this.panels.length && mods.has('security')) {
       const armed = this.panels.some((p) => p.state && p.state !== 'disarmed');
@@ -1376,7 +1376,7 @@ export class SwHome extends LitElement {
 
   /** HOME-V3-P1-2430: recordings are offered while the cameras category is on and the person may play recordings */
   recOk(): boolean {
-    return this.d.modules.has('cameras') && this.d.cameras.length > 0 && canAnywhere('video.playback');
+    return this.d.modules.has('cameras') && this.d.modules.has('recordings') && this.d.cameras.length > 0 && canAnywhere('video.playback'); // HOME-V3-FOLLOWUP-A-2431: its own category
   }
 
   private ovlHtml(): unknown {

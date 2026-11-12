@@ -39,10 +39,41 @@ export function effectiveMode(chosen: QualityMode | null, dial: QualityMode | nu
   return chosen ?? dial ?? 'auto';
 }
 
-/** Where `auto` starts: realistic when the person's default view is realistic (owner Q11: a personal choice), else the
- * installation's level (plan.quality 1 / 2). */
-export function autoStart(defaultView: 'schematic' | 'realistic', installLevel: ViewLevel | null): Rung {
+/** How able the device's GPU looks for the realistic-lite rung (PLAN3D-POLISH-2430, gpuClass below). */
+export type GpuClass = 'capable' | 'weak' | 'unknown';
+export interface GpuFacts {
+  /** The unmasked renderer string (WEBGL_debug_renderer_info), else the masked one; '' when none was readable. */
+  renderer: string;
+  webgl2: boolean;
+  maxTexture: number;
+  /** navigator.hardwareConcurrency / deviceMemory (GB); null where the browser does not say. */
+  cores: number | null;
+  memoryGb: number | null;
+}
+/** Software rasterisers and GPUs known to be too weak for the lit levels. */
+const WEAK_GPU = /swiftshader|llvmpipe|softpipe|software|basic render|mesa offscreen|mali-[34]\d\d\b|mali-t\d|adreno[^0-9]*[1-5]\d\d\b|powervr|\bsgx|intel.*(\bgma\b|(?<!u)hd graphics)/i;
+/** GPU families that draw the realistic-lite rung (textures, IBL, a 1024 sun shadow, bloom, DPR 1) at its frame budget. */
+const CAPABLE_GPU = /nvidia|geforce|quadro|\brtx\b|radeon|apple (m\d|gpu)|adreno[^0-9]*([6-9]\d\d|\d{4})\b|mali-g(5[27]|[6-9]\d)|immortalis|xclipse|intel.*(iris|\barc\b|uhd graphics (6[2-9]\d|7\d\d)|\bxe\b)/i;
+/**
+ * The GPU class from what the browser tells (PLAN3D-POLISH-2430, owner decision 2026-11-11: `auto` starts at realistic lite on
+ * capable devices). Weak: a software renderer or a known weak family, no WebGL 2, a texture limit under 4096, or fewer than 4 cores /
+ * under 4 GB where the browser says. Capable: a known able family with WebGL 2 and those minimums. Everything else (a masked
+ * renderer, an unlisted family) is unknown - it keeps the start of before; the frame-budget probe still steps any start down.
+ */
+export function gpuClass(f: GpuFacts): GpuClass {
+  const r = f.renderer || '';
+  if (WEAK_GPU.test(r)) return 'weak';
+  if (!f.webgl2 || f.maxTexture < 4096) return 'weak';
+  if ((f.cores !== null && f.cores < 4) || (f.memoryGb !== null && f.memoryGb < 4)) return 'weak';
+  return CAPABLE_GPU.test(r) ? 'capable' : 'unknown';
+}
+
+/** Where `auto` starts: realistic when the person's default view is realistic (owner Q11: a personal choice); realistic lite on a
+ * capable GPU (owner 2026-11-11, PLAN3D-POLISH-2430); else the installation's level (plan.quality 1 / 2) as before. A rung the
+ * person chose is never `auto` (drawnRung), so this never overrides a choice; the probe lowers any start one rung at a time. */
+export function autoStart(defaultView: 'schematic' | 'realistic', installLevel: ViewLevel | null, gpu: GpuClass = 'unknown'): Rung {
   if (defaultView === 'realistic') return 'realistic';
+  if (gpu === 'capable') return 'lite';
   return levelRung(installLevel ?? 1);
 }
 

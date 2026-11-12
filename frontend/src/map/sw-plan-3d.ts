@@ -5,7 +5,7 @@ import '../components/sw-chip';
 import { SceneView, renderControlImage, WALK_ENTRY_MS, type QualityLevel, type SceneHit, type ScenePreset } from './scene-three';
 import { CONTROL_BACKDROP, CONTROL_H, CONTROL_W, controlColor } from './skin-control';
 import { keepIsos, type SceneDescription, type ScenePart, type Vec3 } from './scene-builder';
-import { WEBGL_UNAVAILABLE_HE } from './webgl';
+import { WEBGL_UNAVAILABLE_HE, detectGpuClass } from './webgl';
 import { productSettings } from '../api/prefs';
 import type { LevelDots } from './room-state';
 import { PROBE_FALLBACK_MS, PROBE_FIRST_FRAME_MS, PROBE_MS, PROBE_WARM_FRAMES, SETTINGS_WAIT_MS, withTimeout } from './timing';
@@ -23,7 +23,8 @@ import './walk-hud';
 import type { SwWalkHud, WalkHudField, WalkHudGoto, WalkHudRoute } from './walk-hud';
 import { WalkTouchUi } from './walk-touch-ui';
 import { DEFAULT_VIEW, planViewPrefs, type PlanViewDials } from '../api/plan-view';
-import { RUNG_HE, asMode, autoStart, drawnRung, levelRung, probes, rungLevel, RUNGS, nextDown, type QualityMode, type Rung } from './quality-ladder';
+import { DEFAULT_FLOOR_FINISH } from './floor-finish';
+import { RUNG_HE, asMode, autoStart, drawnRung, levelRung, probes, rungLevel, RUNGS, nextDown, type GpuClass, type QualityMode, type Rung } from './quality-ladder';
 import { styleFor } from './look-style';
 import { pillInk } from './pill-ink';
 import { HUD_EDGE, HUD_MINIMAP, HUD_MINIMAP_PHONE, HUD_PHONE_MAX, HUD_PILL_ROW, type HudCorner } from './hud-layout';
@@ -188,6 +189,11 @@ const writeStore = (store: 'local' | 'session', key: string, value: string | nul
   }
 };
 /** How a mode is stored per browser: the level digits for schematic / full (the stored values of before), names otherwise. */
+/** PLAN3D-POLISH-2430: the framing margins of the overview presets (CSS px): every edge, and the top band the host's floor buttons /
+ * level chips stand in on a stage at least FRAME_TALL_STAGE_PX tall. */
+const FRAME_MARGIN_PX = 12;
+const FRAME_TOP_PX = 52;
+const FRAME_TALL_STAGE_PX = 480;
 const storedMode = (m: QualityMode): string => (m === 'schematic' ? '1' : m === 'full' ? '2' : m);
 
 /**
@@ -250,6 +256,11 @@ export class SwPlan3d extends LitElement {
   /** CR-029 S5-B: the look the host forces (a wall's own theme, CR-030): the realistic level's style and sky follow it instead of the
    * viewer's dial and the page's scheme. null = as usual. */
   @property({ attribute: false }) themeForce: 'light' | 'dark' | null = null;
+  /** PLAN3D-REALISM-2432: the realistic level's backdrop in the orbit views - the sun's sky, or the dark `studio` sky gradient
+   * (no horizon band). PLAN3D-REALISM2-2433: the stored `backdrop` dial (installation <- own, api/plan-view.ts) decides; this
+   * property is the host's override (null = the dial). The backdrop in force is reflected as data-backdrop for the stylesheet. */
+  @property({ attribute: false }) backdrop: 'sky' | 'studio' | null = null;
+  @property({ reflect: true, attribute: 'data-backdrop' }) shownBackdrop: 'sky' | 'studio' = 'sky';
   /** ST7HIST: a fixed instant (UTC ms) the realistic level's sun is drawn for - the history map's cursor, the event's time.
    * Set: the site clock does not tick the sun and the time pill is not shown (the screen owns the time; a slider here would
    * contradict the replayed states). null = the site clock / the slider, as on the live map. */
@@ -302,6 +313,9 @@ export class SwPlan3d extends LitElement {
    * person's / installation's `plan.view.quality` dial). A chosen rung sticks: the probe never lowers it (owner
    * 2026-10-10), it only offers the hint. */
   @state() private chosen: QualityMode | null = cachedOwnMode();
+  /** The device's GPU class (webgl.ts detectGpuClass, read once per page): `auto` starts at realistic lite when capable. A test may
+   * set it before the view is built. */
+  @state() gpu: GpuClass = detectGpuClass();
   /** The installation's mode (plan.quality: auto | 2 | 1). */
   @state() private installMode: QualityMode | null = null;
   /** The `auto` mode's session fallback: the rung the probe lowered it to (null = none). */
@@ -368,7 +382,9 @@ export class SwPlan3d extends LitElement {
     }
     /* K88 night mode: a night sky whatever the theme (the dark theme's own sky tokens are its night) */
     :host([data-night]) {
-      background: linear-gradient(180deg, #060b18 0%, #152442 100%);
+      /* PLAN3D-POLISH-2430: a faint ground glow under the building (the stage's lower middle) so the outer walls' outline reads
+         against the night sky; the sky stays dark at the edges */
+      background: radial-gradient(ellipse 60% 42% at 50% 60%, rgba(86, 116, 178, 0.34) 0%, rgba(86, 116, 178, 0) 100%), linear-gradient(180deg, #060b18 0%, #152442 100%);
     }
     /* the night sky is dark whatever the theme: the bar and the strip stand on its own opaque navy (a translucent backdrop showed the scene through the chips' row) */
     :host([data-night]) .bar,
@@ -380,6 +396,10 @@ export class SwPlan3d extends LitElement {
        canvas carries the style's grade and the vignette (LOOK_SPEC section 1, G2) */
     :host([data-quality='3']) {
       background: linear-gradient(180deg, var(--sky-top, #cfdff2) 0%, var(--sky-hor, #eef3f9) 62%, var(--sky-bot, #d4d8dd) 100%);
+    }
+    /* PLAN3D-REALISM-2432: the studio backdrop - a dark sky gradient with a soft glow behind the model */
+    :host([data-quality='3'][data-backdrop='studio']) {
+      background: radial-gradient(ellipse 95% 85% at 50% 44%, var(--sky-hor, #3a4a63) 0%, var(--sky-top, #1b2536) 62%, var(--sky-bot, #0d121b) 100%);
     }
     :host([data-quality='3']) .stage canvas {
       filter: contrast(1.06) saturate(1.05);
@@ -618,7 +638,8 @@ export class SwPlan3d extends LitElement {
       overflow: hidden;
     }
     .chip,
-    .lbl {
+    .lbl,
+    .room {
       position: absolute;
       left: 0;
       top: 0;
@@ -635,6 +656,19 @@ export class SwPlan3d extends LitElement {
       direction: rtl;
       white-space: nowrap;
       display: none;
+    }
+    /* PLAN3D-POLISH-2430: a room's name plate - one step larger than the chips and the pills, the body ink on the opaque menu
+       surface (readable in both themes, over the day and the night picture), never a target (a click goes to the room under it) */
+    .room {
+      padding: 2px 10px;
+      font-size: var(--sw-fs-sm);
+      font-weight: 600;
+      color: var(--sw-text);
+    }
+    :host([data-night]:not([data-quality='3'])) .room {
+      background: #0f1729;
+      border-color: #33456b;
+      color: #e8eefb;
     }
     /* an entity pill: its state token as the colour (stale / live / text-3), a click selects the entity as its
        sprite used to; the selected one carries the accent ring the 3D outline gives a box */
@@ -914,8 +948,22 @@ export class SwPlan3d extends LitElement {
     this.barRo = new ResizeObserver(() => {
       const h = Math.ceil(bar.getBoundingClientRect().height);
       if (h > 0) this.style.setProperty('--bar-h', `${h}px`);
+      this.syncFrameInsets();
     });
     this.barRo.observe(bar);
+  }
+
+  /** PLAN3D-POLISH-2430: the stage edges the overview presets keep the building out of - the bar along the bottom (its measured
+   * height), the host's floor buttons / level chips / notes along the top on a stage tall enough to have them, a margin elsewhere.
+   * The wall display's bare view has no bar: only the margin. */
+  private syncFrameInsets(): void {
+    if (!this.view) return;
+    const bare = this.kiosk;
+    const bar = bare ? null : this.renderRoot.querySelector<HTMLElement>('.bar');
+    const barH = bar ? Math.ceil(bar.getBoundingClientRect().height) : 0;
+    const h = this.clientHeight;
+    const top = !bare && h >= FRAME_TALL_STAGE_PX ? FRAME_TOP_PX : FRAME_MARGIN_PX;
+    this.view.setFrameInsets({ top, right: FRAME_MARGIN_PX, bottom: barH ? barH + 12 + 4 : FRAME_MARGIN_PX, left: FRAME_MARGIN_PX });
   }
 
   connectedCallback(): void {
@@ -966,8 +1014,9 @@ export class SwPlan3d extends LitElement {
 
   /** Where `auto` starts: realistic when the person's default view is realistic, else the installation's plan.quality. */
   private get autoStartRung(): Rung {
-    // auto = full, dropping on a sustained low rate (the hotfix's rule); realistic when the person's default view is realistic
-    return autoStart(this.viewDials.default_view, 2);
+    // auto = full, dropping on a sustained low rate (the hotfix's rule); realistic when the person's default view is realistic;
+    // realistic lite on a capable GPU (owner 2026-11-11, PLAN3D-POLISH-2430) - the probe still steps it down on a slow device
+    return autoStart(this.viewDials.default_view, 2, this.gpu);
   }
 
   /** The rung that draws (quality-ladder.drawnRung): a chosen rung as it is; `auto` from its start, or its fallback. */
@@ -1013,6 +1062,7 @@ export class SwPlan3d extends LitElement {
           this.site = resolveSite(p.location, s['time.zone']);
           const d = p.dials;
           this.viewDials = { ...d, mouse_mode: this.lockGate.effectiveMode(d.mouse_mode) }; // pointer lock only where this page can have it
+          this.shownBackdrop = this.backdrop ?? (d.backdrop === 'studio' ? 'studio' : 'sky'); // PLAN3D-REALISM2-2433: before the first build
           this.dialsReady = true;
         })
         .finally(() => { if (this.isConnected && !this.view) this.init(); });
@@ -1035,7 +1085,9 @@ export class SwPlan3d extends LitElement {
         night: this.night,
         real: this.realSettings(),
         dprCap: this.viewDials.dpr_cap, // with the construction, not after it: a view that starts at the realistic rung draws its first frame at the person's cap
+        fit: 'content', // PLAN3D-POLISH-2430: the presets frame the drawn floor in the stage less its overlays (syncFrameInsets)
       });
+      this.syncFrameInsets();
       this.toggleAttribute('data-night', this.night);
     } catch (err) {
       console.warn('sw-plan-3d: WebGL failed to start', err);
@@ -1050,7 +1102,7 @@ export class SwPlan3d extends LitElement {
     this.startClock();
     this.watchTheme();
     this.notifyRealistic();
-    this.ro = new ResizeObserver(() => this.view?.resize());
+    this.ro = new ResizeObserver(() => { this.view?.resize(); this.syncFrameInsets(); });
     this.ro.observe(this);
     this.presetApplied = false;
     this.setAttribute('data-quality', String(this.quality));
@@ -1066,9 +1118,15 @@ export class SwPlan3d extends LitElement {
    * token other than text-3: open, on, stale), the rest counted in a "+N" hint - hundreds of pills would be hundreds
    * of elements repositioned every frame. */
   protected willUpdate(changed: PropertyValues<this>): void {
+    if (changed.has('backdrop')) this.shownBackdrop = this.backdrop ?? (this.viewDials.backdrop === 'studio' ? 'studio' : 'sky'); // PLAN3D-REALISM2-2433: the override, else the dial
     if (!(changed.has('description') || changed.has('activeLevel') || changed.has('selectedId') || (changed as Map<string, unknown>).has('hover') || (changed as Map<string, unknown>).has('walkState'))) return;
     const parts = this.description?.parts ?? [];
     const chips = parts.filter((p) => p.kind === 'chip');
+    // PLAN3D-POLISH-2430: the room and plan names are DOM plates too (the view draws no sprite for them in the live element): a
+    // readable size at every zoom, RTL, the theme's tokens. With every level shown only the top level's (the one in view); none in the walk.
+    const levels = this.description?.levels ?? [];
+    const topLevel = levels.length ? levels.reduce((a, b) => (b.elevation_m > a.elevation_m ? b : a)).id : null;
+    const rooms = this.walkState === 'on' ? [] : parts.filter((p) => p.kind === 'label' && (this.activeLevel ? p.level_id === this.activeLevel : !topLevel || p.level_id === topLevel || p.level_id === null));
     let pills = parts.filter((p) => p.kind === 'entity' && (!this.activeLevel || p.level_id === this.activeLevel));
     this.hiddenPills = 0;
     if (this.walkState === 'on') {
@@ -1079,7 +1137,7 @@ export class SwPlan3d extends LitElement {
       this.hiddenPills = pills.length - keep.length;
       pills = keep;
     }
-    this.overlays = [...chips, ...pills];
+    this.overlays = [...rooms, ...chips, ...pills];
     this.overlayById = new Map(this.overlays.map((p) => [p.id, p]));
   }
 
@@ -1133,20 +1191,32 @@ export class SwPlan3d extends LitElement {
     // ST7-odd: two pills whose points project close together never cover one another - the upper one is raised to a stack
     // (pill-layout.ts). A pill's size is read once per text (one layout read for a new pill, none per frame).
     const boxes: PillBox[] = [];
+    // PLAN3D-POLISH-2430: first the pills among themselves (as before: the lowest keeps its place); then the room plates stack
+    // around everything already placed - the temperature chips on their points and the pills where the first pass put them - so a
+    // room's name never covers its reading or a pill (the chips and the pills never move for a plate)
+    const plates: PillBox[] = [];
+    const fixedBoxes: PillBox[] = [];
     for (const s of shown) {
-      if (s.p.kind === 'chip') continue;
       const key = `${s.p.id}|${s.p.text ?? ''}`;
       let size = this.pillSizes.get(key);
       if (!size) {
         size = { w: s.el.offsetWidth, h: s.el.offsetHeight };
         if (size.w > 0 && size.h > 0) this.pillSizes.set(key, size);
       }
-      boxes.push({ id: s.p.id, x: s.x, y: s.y - PILL_GAP_PX, w: size.w, h: size.h });
+      if (s.p.kind === 'label') plates.push({ id: s.p.id, x: s.x, y: s.y + size.h / 2, w: size.w, h: size.h });
+      else if (s.p.kind === 'chip') fixedBoxes.push({ id: s.p.id, x: s.x, y: s.y + size.h / 2, w: size.w, h: size.h });
+      else boxes.push({ id: s.p.id, x: s.x, y: s.y - PILL_GAP_PX, w: size.w, h: size.h });
     }
-    const raised = boxes.length > 1 ? resolvePillOverlaps(boxes, PILL_STACK_GAP_PX) : null;
+    const raised = new Map<string, number>(boxes.length > 1 ? resolvePillOverlaps(boxes, PILL_STACK_GAP_PX) : []);
+    if (plates.length) {
+      const placedPills = boxes.map((b) => ({ ...b, y: b.y + (raised.get(b.id) ?? 0) }));
+      const fixed = new Set([...fixedBoxes, ...placedPills].map((b) => b.id));
+      for (const [id, up] of resolvePillOverlaps([...fixedBoxes, ...placedPills, ...plates], PILL_STACK_GAP_PX, fixed)) if (!fixed.has(id)) raised.set(id, up);
+    }
     for (const { el, p, x, y } of shown) {
-      // a chip is centred on its point (the room's centroid); a pill stands on its point, bottom edge a gap above it
-      setStyle(el, 'transform', p.kind === 'chip' ? `translate(${x}px, ${y}px) translate(-50%, -50%)` : `translate(${x}px, ${y - PILL_GAP_PX + Math.round(raised?.get(p.id) ?? 0)}px) translate(-50%, -100%)`);
+      // a chip / room plate is centred on its point (the room's centroid); a pill stands on its point, bottom edge a gap above it
+      const up = Math.round(raised?.get(p.id) ?? 0);
+      setStyle(el, 'transform', p.kind === 'chip' || p.kind === 'label' ? `translate(${x}px, ${y + up}px) translate(-50%, -50%)` : `translate(${x}px, ${y - PILL_GAP_PX + up}px) translate(-50%, -100%)`);
     }
   }
   /** The label elements of the last render with their parts (layoutOverlays; dropped by every update). */
@@ -1165,7 +1235,7 @@ export class SwPlan3d extends LitElement {
 
   /** The realistic level's dials for the view (the rung, the style by the theme, the content, the cut). */
   private realSettings() {
-    return { rung: this.rung === 'realistic' ? ('realistic' as const) : ('lite' as const), style: styleFor(this.themeForce ?? this.viewDials.style, this.uiTheme()), furniture: this.viewDials.furniture, textures: this.viewDials.textures, sectionCut: this.viewDials.section_cut };
+    return { rung: this.rung === 'realistic' ? ('realistic' as const) : ('lite' as const), style: styleFor(this.themeForce ?? this.viewDials.style, this.uiTheme()), furniture: this.viewDials.furniture, textures: this.viewDials.textures, sectionCut: this.viewDials.section_cut, backdrop: this.shownBackdrop, floorFinish: this.viewDials.floor_finish ?? DEFAULT_FLOOR_FINISH };
   }
 
   private uiTheme(): 'light' | 'dark' {
@@ -1422,6 +1492,10 @@ export class SwPlan3d extends LitElement {
     if (changed.has('themeForce')) this.minimapPalette = null;
     if (changed.has('themeForce') && changed.get('themeForce') !== undefined && this.view) {
       this.view.setRealSettings({ style: this.realSettings().style }); // the page's theme observer does the same when the scheme flips
+      this.applySun();
+    }
+    if (changed.has('shownBackdrop') && changed.get('shownBackdrop') !== undefined && this.view) {
+      this.view.setRealSettings({ backdrop: this.shownBackdrop }); // PLAN3D-REALISM-2432
       this.applySun();
     }
     if (changed.has('changeKey') && changed.get('changeKey') !== undefined) this.kioskIdle?.change();
@@ -1953,7 +2027,9 @@ export class SwPlan3d extends LitElement {
       ${!this.ready && !this.error ? html`<div class="spinner" data-3d-spinner>טוען תלת-ממד…</div>` : nothing}
       ${this.error ? html`<div class="spinner err" data-3d-error>${this.error}</div>` : nothing}
       ${this.overlays.length
-        ? html`<div class="overlay">${this.overlays.map((p) => p.kind === 'chip'
+        ? html`<div class="overlay">${this.overlays.map((p) => p.kind === 'label'
+            ? html`<span class="room" aria-hidden="true" data-3d-room=${p.userData.id} data-3d-part=${p.id}>${p.text ?? ''}</span>`
+            : p.kind === 'chip'
             ? html`<span class="chip" aria-hidden="true" data-3d-chip=${p.userData.id} data-3d-chip-part=${p.id} data-3d-part=${p.id}>${p.text ?? ''}</span>`
             : html`<button type="button" class="lbl" tabindex="-1" data-3d-label=${p.userData.id} data-3d-part=${p.id} aria-pressed=${this.selectedId === p.userData.id ? 'true' : 'false'} style=${`--lbl: ${pillInk(p.color)}`} @click=${() => this.emitSelect({ id: p.userData.id, kind: p.userData.kind, partId: p.id })}>${p.text ?? ''}</button>`)}${this.hiddenPills
             ? html`<span class="more" data-3d-more=${this.hiddenPills} title="ישויות ללא מצב מיוחד מוסתרות במבט הכללי; בחירה ברשימה או במפלס מציגה אותן">+${this.hiddenPills} ישויות</span>`

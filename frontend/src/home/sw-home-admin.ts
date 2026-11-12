@@ -9,6 +9,7 @@ import { P3_MODULE_LABEL } from './home-p3-logic'; // HOME-V3-P3-2432
 import { LitElement, css, html, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { api, apiUrl, describeError, get, post, put } from '../api/client';
+import { session } from '../api/session';
 import { GALLERY, galleryCss } from './home-wall';
 import { getHomePrefs, getOverview, type HomeModule, type Interface, type Overview } from './home-api';
 import '../components/sw-button';
@@ -30,6 +31,9 @@ interface SwitchRow {
   class: SwitchClass; suggest: SwitchClass | null; suggest_reason: string | null; locked: string | null;
 }
 interface InstallSettings { default_mode: 'full_all' | 'home_regular' | 'choose'; kiosk_exit: 'code' | 'none'; wallpaper: 'none' | 'gallery' | 'gallery_image' }
+/** HOME-V3-FOLLOWUP-A-2431 (owner answer 2): the visitor-invitation switch (GET|PUT access/visitors/settings, system administrator only;
+ *  OFF at install). `effective` is false while the installation's external access is off too. 'denied' = the viewer may not change it. */
+interface VisitorSwitch { visitors: 'on' | 'off'; effective: boolean; external_grants: 'on' | 'off' }
 const CLASS_LABEL: Record<SwitchClass, string> = { light: 'תאורה', not_light: 'לא תאורה', protected: 'מוגן' };
 const LOCKED_LABEL: Record<string, string> = { alarm_managed: 'נשלט ממסך האזעקה', media_managed: 'נשלט ממסך המולטימדיה', doors_layer: 'בשכבת הדלתות' };
 const PAGE = 20;
@@ -37,9 +41,10 @@ const PAGE = 20;
 interface Policies { users: PolicyRow[]; modules: HomeModule[]; seed: Record<string, unknown[]>; kiosk_code_set: boolean }
 
 const MODULE_LABEL: Record<HomeModule, string> = {
-  lights: 'תאורה', climate: 'אקלים', shades: 'תריסים', doors: 'דלתות ואינטרקום', cameras: 'מצלמות', energy: 'חשמל', alerts: 'התראות', scenes: 'סצנות', security: 'אבטחה',
-  ...P3_MODULE_LABEL, // HOME-V3-P3-2432
+  lights: 'תאורה', climate: 'אקלים', shades: 'תריסים', doors: 'דלתות', cameras: 'מצלמות', energy: 'חשמל', alerts: 'התראות', scenes: 'סצנות', security: 'אבטחה',
   presence: 'מי בבית', calendar: 'יומן וחדרים משותפים', notices: 'לוח הודעות', tickets: 'פניות שירות', schedules: 'תזמונים', // HOME-V3-P2-2431
+  ...P3_MODULE_LABEL, // HOME-V3-P3-2432
+  recordings: 'הקלטות', log: 'יומן הבית', intercom: 'אינטרקום', // HOME-V3-FOLLOWUP-A-2431 (owner answer 1)
 };
 
 @customElement('sw-home-admin')
@@ -107,6 +112,7 @@ export class SwHomeAdmin extends LitElement {
   @state() private code = '';
   @state() private sub: 'users' | 'install' | 'switches' = 'users';
   @state() private inst: InstallSettings | null = null;
+  @state() private vis: VisitorSwitch | 'denied' | null = null;
   @state() private sw: SwitchRow[] | null = null;
   @state() private swError = '';
   @state() private swSel = new Set<string>();
@@ -130,6 +136,44 @@ export class SwHomeAdmin extends LitElement {
     } catch (err) {
       this.error = describeError(err);
     }
+    void this.loadVisitors();
+  }
+
+  private async loadVisitors() {
+    // only a system administrator reads the switch (asking otherwise would only write a refused read to the audit)
+    const me = this.data?.users.find((x) => x.user_id === session.me?.user.id);
+    if (!me?.system_admin) {
+      this.vis = this.data ? 'denied' : null;
+      return;
+    }
+    try {
+      this.vis = await get<VisitorSwitch>('access/visitors/settings');
+    } catch {
+      this.vis = 'denied'; // only a system administrator reads / changes the switch (the route says so, audited)
+    }
+  }
+
+  private async saveVisitors(on: boolean) {
+    this.message = '';
+    this.busy = true;
+    try {
+      this.vis = await put<VisitorSwitch>('access/visitors/settings', { visitors: on ? 'on' : 'off' });
+      this.message = on ? (this.vis.effective ? 'הזמנת אורחים הופעלה.' : 'נשמר. הזמנת אורחים תפעל רק כשגם הגישה החיצונית מופעלת.') : 'הזמנת אורחים כובתה.';
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private visitorsCard() {
+    const v = this.vis;
+    if (v === null) return nothing;
+    const on = v !== 'denied' && v.visitors === 'on';
+    const note = v === 'denied' ? 'רק מנהל מערכת יכול להפעיל או לכבות.' : !on ? 'כבוי (ברירת המחדל בהתקנה). כשמופעל, רק מי שסומן "רשאי להזמין אורחים" ויש לו הרשאה יכול להזמין.'
+      : v.effective ? 'מופעל. רק מי שסומן "רשאי להזמין אורחים" ויש לו הרשאה יכול להזמין. קוד האורח לא מוצג למזמין.' : 'מופעל, אבל לא פועל עדיין: צריך להפעיל גם את הגישה החיצונית בהגדרות הגישה.';
+    return html`<section class="card" aria-label="הזמנת אורחים" data-home-visitors><h3>הזמנת אורחים</h3>
+      <div class="srow"><div><b>הזמנת אורחים מהממשק הביתי</b><div class="note">${note}</div></div><sw-toggle label="הזמנת אורחים מהממשק הביתי" labelHidden data-home-visitors-switch ?checked=${on} ?disabled=${v === 'denied' || this.busy} @change=${(e: CustomEvent<{ checked: boolean }>) => this.saveVisitors(e.detail.checked)}></sw-toggle></div></section>`;
   }
 
   private async save(u: PolicyRow, body: Record<string, unknown>) {
@@ -232,7 +276,7 @@ export class SwHomeAdmin extends LitElement {
         ${opt('wallpaper', 'none', 'בלי רקע', 'ברירת המחדל: מסך נקי.')}
         ${opt('wallpaper', 'gallery', 'גלריה מוכנה', 'כל משתמש בוחר רקע מעומעם לכל חדר מתוך גלריה מובנית.')}
         ${opt('wallpaper', 'gallery_image', 'גלריה ותמונה אישית', 'בנוסף אפשר להעלות תמונה לחדר (JPEG או PNG, עד 2 MB). התמונה נשמרת בשרת ונראית רק למי שהעלה אותה.')}
-      </div></section>${this.roomWallPane()}</div>`;
+      </div></section>${this.roomWallPane()}${this.visitorsCard()}</div>`;
   }
 
   // ---------------------------------------------------------------- HOME-V3-P1-2430: a room's wallpaper for everyone (owner decision 16b)

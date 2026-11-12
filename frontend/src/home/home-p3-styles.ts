@@ -50,6 +50,9 @@ export const homeP3Styles = css`
   .bill-fc { display: grid; gap: 2px; margin-block-start: 10px; padding-block-start: 14px; border-block-start: 1px solid var(--hs-border); }
   .blr { grid-template-columns: minmax(0, 1fr) auto; }
   .blr .at { display: grid; gap: 4px; min-inline-size: 0; }
+  /* HOME-V3-FOLLOWUP-A-2431: "הצג חשבון" (the latest bill in the card, an icon per previous bill) */
+  .blr:has(.bill-open) { grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; }
+  .bill-now .bill-open { align-self: flex-start; margin-block-start: 4px; }
   .wbars { flex: 1; min-block-size: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr); gap: 10px; }
   .wb { display: grid; grid-template-rows: 20px minmax(0, 1fr) 22px; justify-items: center; gap: 4px; min-block-size: 0; font-size: var(--f-sm); color: var(--hs-text-2); }
   .wb i { inline-size: min(64%, 56px); align-self: end; border-radius: 8px 8px 3px 3px; background: var(--viz-today); } .wb.future i { background: var(--hs-surface-3); block-size: 4px !important; }

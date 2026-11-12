@@ -18,7 +18,8 @@ interface Row { id: string; at: string; text: string; icon: string; kind: 'cam' 
 
 const st: { rows: Row[]; tab: 'all' | 'cam' | 'door'; loaded: boolean; loading: boolean; error: string; at: number } = { rows: [], tab: 'all', loaded: false, loading: false, error: '', at: 0 };
 
-const diaryOk = (h: HomeHost) => canAnywhere('events.read') || (h.d.modules.has('doors') && canAnywhere('access.read'));
+// HOME-V3-FOLLOWUP-A-2431 (owner answer 1): the house log is its own category of the per-person list
+const diaryOk = (h: HomeHost) => h.d.modules.has('log') && (canAnywhere('events.read') || (h.d.modules.has('doors') && canAnywhere('access.read')));
 
 async function load(h: HomeHost, force = false) {
   if (st.loading || (!force && st.loaded && Date.now() - st.at < 60_000)) return;

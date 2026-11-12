@@ -34,7 +34,8 @@ const st = {
   draft: null as Draft | null, verifyCode: '', verifyError: '', verifySent: false,
 };
 
-const intercomOk = (h: HomeHost) => h.d.modules.has('doors') && canAnywhere('access.read');
+// HOME-V3-FOLLOWUP-A-2431 (owner answer 1): the intercom is its own category of the per-person list (was: under "doors")
+const intercomOk = (h: HomeHost) => h.d.modules.has('intercom') && canAnywhere('access.read');
 const guestsOk = (h: HomeHost) => !!h.pol()?.guests && canAnywhere('access.visitor.invite');
 const peopleOk = () => canAnywhere('access.people.read');
 const today = (iso: string) => new Date(iso).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' }) === new Date().toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' });

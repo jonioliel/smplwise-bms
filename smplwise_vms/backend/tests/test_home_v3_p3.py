@@ -47,10 +47,8 @@ def _client(app) -> TestClient:  # noqa: F811
 
 def test_the_six_new_categories_are_known_and_on_by_default(app):  # noqa: F811
     assert all(m in hi.MODULES for m in P3)
-    base = ("lights", "climate", "shades", "doors", "cameras", "energy", "alerts", "scenes", "security")
-    # HOME-V3-FOLLOWUP-B-2431 (P2 + P3 merged): the original nine first, phase 2's family categories next, phase 3's six last
-    assert hi.MODULES[: len(base)] == base and hi.MODULES[len(hi.MODULES) - len(P3):] == tuple(P3)
-    assert set(hi.MODULES[len(base): len(hi.MODULES) - len(P3)]) <= {"presence", "calendar", "notices", "tickets", "schedules"}
+    # HOME-V3-FOLLOWUP-A-2431 (merge of phase 2): phase 2's five and the follow-up's three join the list too; the first nine stay first
+    assert hi.MODULES[:9] == ("lights", "climate", "shades", "doors", "cameras", "energy", "alerts", "scenes", "security")
     c = _client(app)
     assert set(P3) <= set(c.get("/api/v1/home/overview").json()["modules"])
     assert set(P3) <= set(c.get("/api/v1/home/policies").json()["modules"])
