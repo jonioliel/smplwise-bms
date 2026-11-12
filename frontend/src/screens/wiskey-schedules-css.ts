@@ -93,7 +93,9 @@ export const schedulesCss = css`
     text-align: start;
     cursor: pointer;
   }
-  /* R5-SECURITY: a hover only under a fine pointer; the chosen door is a filled accent field, 700; the row sinks on pointer-down */
+  /* R5-SECURITY: a hover only under a fine pointer; the row sinks on pointer-down.
+     AUDIT30-H (finding 14): the chosen door is Blue Wash + Blue Ink + semibold, no border (DESIGN.md: a selected tree / list row),
+     not a solid accent field */
   @media (hover: hover) and (pointer: fine) {
     .doors button:hover {
       background: var(--sw-hover-wash);
@@ -108,9 +110,9 @@ export const schedulesCss = css`
     transform: scale(var(--sw-press-scale));
   }
   .doors button[aria-current='true'] {
-    background: var(--sw-accent);
-    color: var(--sw-text-inverse);
-    font-weight: var(--sw-fw-bold);
+    background: var(--sw-accent-soft);
+    color: var(--sw-accent-text);
+    font-weight: var(--sw-fw-semibold);
   }
   .doors .station {
     color: var(--sw-heading, var(--sw-text));
