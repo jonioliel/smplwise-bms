@@ -28,13 +28,15 @@ async function open(page: Page, route: string, o: GapOpts, scheme: 'light' | 'da
   await settle(page);
 }
 
+// 250 px: on the loaded runner a few bold Hebrew glyphs rasterise in one of two ways from run to run (~100-210 px on a 768x1024 shot, seen
+// with the same baseline and every font face loaded); a layout change moves thousands of pixels
 async function compare(page: Page, info: Parameters<typeof noBaseline>[0], sel: string, file: string) {
   // HOME-V3-AUDITFIX-2437: every Heebo weight / subset loaded before the shot - a bold Hebrew glyph drawn before its file arrived
   // (a lazily loaded unicode-range face) differed run to run on a loaded runner
   await page.evaluate(async () => { await Promise.all(['400', '500', '600', '700'].map((w) => document.fonts.load(`${w} 16px Heebo`, 'אבג abc 123'))); await document.fonts.ready; });
   await settle(page);
   if (noBaseline(info, file)) test.info().annotations.push({ type: 'skipped-pixel', description: `${file}: no baseline on ${process.platform}` });
-  else await expect(home(page).locator(sel)).toHaveScreenshot(file, { maxDiffPixels: 40, animations: 'disabled', caret: 'hide', timeout: 15_000 });
+  else await expect(home(page).locator(sel)).toHaveScreenshot(file, { maxDiffPixels: 250, animations: 'disabled', caret: 'hide', timeout: 15_000 });
 }
 
 test.describe('pixel: home v3 audit fixes (round 30)', () => {
