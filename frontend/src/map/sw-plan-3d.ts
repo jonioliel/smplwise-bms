@@ -26,6 +26,7 @@ import { DEFAULT_VIEW, planViewPrefs, type PlanViewDials } from '../api/plan-vie
 import { DEFAULT_FLOOR_FINISH } from './floor-finish';
 import { RUNG_HE, asMode, autoStart, drawnRung, levelRung, probes, rungLevel, RUNGS, nextDown, type GpuClass, type QualityMode, type Rung } from './quality-ladder';
 import { styleFor } from './look-style';
+import { ZOOM_CSS, renderZoom } from './zoom-buttons'; // PLAN3D-FURNMERGE-2434
 import { pillInk } from './pill-ink';
 import { HUD_EDGE, HUD_MINIMAP, HUD_MINIMAP_PHONE, HUD_PHONE_MAX, HUD_PILL_ROW, type HudCorner } from './hud-layout';
 import { t } from '../i18n/he';
@@ -364,7 +365,7 @@ export class SwPlan3d extends LitElement {
   private settingsAsked = false;
   private ownAsked = false;
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: block;
       position: relative;
@@ -932,7 +933,7 @@ export class SwPlan3d extends LitElement {
         transition: none;
       }
     }
-  `;
+  `, ZOOM_CSS];
 
   protected firstUpdated(): void {
     this.watchBar();
@@ -2060,6 +2061,7 @@ export class SwPlan3d extends LitElement {
         <!-- ST7-odd: a surface like the chips beside it - a ghost control over the rendered picture faded into whatever lay behind it -->
         <sw-button size="sm" icon="download" data-export-gltf ?disabled=${!this.ready || this.exporting} @click=${() => this.download()}>${this.exporting ? 'מייצא…' : 'ייצוא glTF'}</sw-button>
       </div>
+      ${renderZoom(this.ready && !this.error, (f) => this.view?.zoomBy(f))}
       ${this.description?.estimated ? html`<div class="note" data-3d-estimated>≈ מידות משוערות (התוכנית לא כוילה)</div>` : nothing}
       ${this.fallback ? html`<div class="note fb" role="status" data-3d-fallback>${fallbackHe(this.rung)}</div>` : nothing}
       ${this.perfHint

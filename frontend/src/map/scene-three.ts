@@ -20,7 +20,7 @@
 import { ACESFilmicToneMapping, AmbientLight, BoxGeometry, BufferGeometry, CanvasTexture, Color, CylinderGeometry, DirectionalLight, DoubleSide, Euler, Float32BufferAttribute, FogExp2, GLTFExporter, Group, HemisphereLight, InstancedMesh, LineBasicMaterial, LineSegments, Matrix4, Mesh, MeshBasicMaterial, MeshLambertMaterial, MeshStandardMaterial, NeutralToneMapping, NoToneMapping, Object3D, OrbitControls, OrthographicCamera, PCFShadowMap, PCFSoftShadowMap, PMREMGenerator, PerspectiveCamera, Plane, PlaneGeometry, PointLight, Quaternion, Raycaster, SRGBColorSpace, Scene, ShapeUtils, Sprite, SpriteMaterial, Vector2, Vector3, WebGLRenderer, type WebGLRenderTarget } from './three-bundle';
 import type { SceneDescription, ScenePart, Vec3 } from './scene-builder';
 import { CUTAWAY_HEIGHT_M, ISO_DIR, NO_INSETS, PERSP_DIR, azimuthDeg, clampThumb, contentExtent, cutBox, cutawayIds, glowPoolWanted, insetFractions, isoFitFrame, isoFrame, levelExtent, perspFit, quantiseAzimuth, sceneExtent, type Extent, type FrameInsets, type IsoFrame } from './scene-frame';
-import { DEFAULT_REAL, REAL_KINDS, RealMaterials, disposeDeep, RealModels, backdropColors, buildExterior, buildReal, lampColor, paintSky, assetBase, glowPlanOf, applyBackdrop, type Exterior, type RealBuilt, type RealSettings } from './scene-real';
+import { DEFAULT_REAL, REAL_KINDS, RealMaterials, disposeDeep, RealModels, backdropColors, buildExterior, buildReal, lampColor, paintSky, assetBase, glowPlanOf, applyBackdrop, STUDIO, type Exterior, type RealBuilt, type RealSettings } from './scene-real';
 import type { GlowRoom } from './room-glow';
 import { DEFAULT_SITE, lightRecipe, poolLamps, sunPosition, type LightRecipe, type SunPosition } from './sun';
 import { LOOK_STYLES, type LookStyle } from './look-style';
@@ -124,6 +124,10 @@ export const FULL_CONFIG: HeavyConfig = { objectShadows: true, lambertObjects: f
 export const HEAVY_CONFIG: HeavyConfig = { objectShadows: false, lambertObjects: true, shadowMapPx: 1024, occlusion: true };
 /** The contact occlusion under a part reaches this far past its footprint. */
 export const AO_SPREAD_M = 0.28;
+/** PLAN3D-FURNMERGE-2434: the zoom buttons' ease and the iso camera's zoom bounds (1 = the preset's fit). */
+const ZOOM_MS = 180;
+const ZOOM_MIN = 0.4;
+const ZOOM_MAX = 8;
 /** One outline box per part of the selected item, up to this many (a long wall is a few boxes, a tribune a few rows). */
 const MAX_OUTLINE_PARTS = 64;
 const CLICK_SLOP_PX = 6;
@@ -476,6 +480,8 @@ export class SceneView {
   private readonly basePixelRatio: number;
   /** Fired with the latest renderer counters after a level-3 frame (the perf report). */
   lastFrameInfo: { calls: number; triangles: number } = { calls: 0, triangles: 0 };
+  /** PLAN3D-FURNMERGE-2434: level 3 merges the static furniture per level and material (false: instanced as before - tests, the A/B). */
+  mergeFurniture = true;
 
   constructor(private readonly opts: SceneViewOptions) {
     this.quality = opts.quality ?? 1;
@@ -846,6 +852,7 @@ export class SceneView {
     if (this.walking) {
       const f = S.fog;
       const col = new Color(f.color).multiplyScalar(1 - r.night * 0.6);
+      if (this.real.backdrop === 'studio') col.set(backdropColors(r, this.real.style, 'studio')[2]); // PLAN3D-FURNMERGE-2434: the far ground fades into the dark sky
       this.scene.fog = new FogExp2(col.getHex(), f.density);
     } else this.scene.fog = null;
     if (this.exterior) {
@@ -1305,7 +1312,7 @@ export class SceneView {
       this.realMats.setRung(this.real.rung);
       this.realMats.setSource(this.real.textures);
       const glow = { night: this.recipe.night, prev: this.motion ? this.glowCarry : null, now: performance.now() }; // PLAN3D-REALISM-2432
-      const built = buildReal({ desc, real: desc.real, parts, settings: this.real, heavy: desc.parts.length > HIDE_SMALL_ABOVE_PARTS, mats: this.realMats, models: this.realModels, glow });
+      const built = buildReal({ desc, real: desc.real, parts, settings: this.real, heavy: desc.parts.length > HIDE_SMALL_ABOVE_PARTS, mats: this.realMats, models: this.realModels, glow, mergeFurniture: this.mergeFurniture });
       out.real = built;
       out.root.add(built.root);
       for (const [o, ps] of built.lookup) out.lookup.set(o, ps as ScenePart[]);
@@ -1557,6 +1564,39 @@ export class SceneView {
   }
 
   /** Put a camera in charge of the controls (the orthographic one for the isometric preset). */
+  /** PLAN3D-FURNMERGE-2434: the + / - buttons. `factor` > 1 comes closer: the orthographic (iso) camera's zoom, else the
+   * perspective eye along its line to the orbit target - eased over ZOOM_MS (at once without motion), within bounds
+   * relative to the drawn building; never in the walk. The live fit stops following the stage, as after a wheel zoom. */
+  zoomBy(factor: number): void {
+    if (this.walking || !(factor > 0) || factor === 1) return;
+    this.userCamera = true;
+    const e = this.extent;
+    const span = e ? Math.max(4, Math.hypot(e.x1 - e.x0, e.z1 - e.z0)) : 20;
+    const t0 = performance.now();
+    const cam = this.active;
+    const ortho = cam === this.ortho;
+    const fromZoom = this.ortho.zoom;
+    const toZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, fromZoom * factor));
+    const off = this.persp.position.clone().sub(this.controls.target);
+    const fromDist = off.length();
+    const toDist = Math.min(span * 4, Math.max(1.2, fromDist / factor));
+    const id = ++this.zoomGen;
+    const step = () => {
+      if (id !== this.zoomGen || this.disposed || this.active !== cam) return;
+      const k = this.motion ? Math.min(1, (performance.now() - t0) / ZOOM_MS) : 1;
+      const ease = 1 - Math.pow(1 - k, 3);
+      if (ortho) {
+        this.ortho.zoom = fromZoom + (toZoom - fromZoom) * ease;
+        this.ortho.updateProjectionMatrix();
+      } else this.persp.position.copy(this.controls.target).addScaledVector(off, (fromDist + (toDist - fromDist) * ease) / (fromDist || 1));
+      this.controls.update();
+      this.invalidate();
+      if (k < 1) requestAnimationFrame(step);
+    };
+    step();
+  }
+  private zoomGen = 0;
+
   private useCamera(cam: PerspectiveCamera | OrthographicCamera): void {
     if (cam === this.active) return;
     this.active = cam;
@@ -1604,6 +1644,7 @@ export class SceneView {
     if (live) this.fittedKey = extentKey(live);
     const mount = this.opts.mount;
     const insets = live ? insetFractions(this.frameInsetsPx, mount.clientWidth || 1, mount.clientHeight || 1) : NO_INSETS;
+    this.zoomGen++; // PLAN3D-FURNMERGE-2434: a zoom step in flight stops at a preset
     if (typeof preset === 'string') this.userCamera = false;
     if (live && (preset === 'top' || preset === 'persp')) {
       this.useCamera(this.persp);
@@ -2061,19 +2102,23 @@ export class SceneView {
   private followSky(): void {
     const ext = this.exterior;
     if (!ext) return;
-    const home = (ext.root.userData.home ??= { dome: ext.dome.position.clone(), band: ext.band.position.clone(), discScale: ext.disc.scale.x, bandH: (ext.band.geometry as { parameters?: { height?: number } }).parameters?.height ?? 7 }) as { dome: Vector3; band: Vector3; discScale: number; bandH: number };
+    const home = (ext.root.userData.home ??= { dome: ext.dome.position.clone(), band: ext.band.position.clone(), bandH: (ext.band.geometry as { parameters?: { height?: number } }).parameters?.height ?? 7 }) as { dome: Vector3; band: Vector3; bandH: number };
+    // PLAN3D-FURNMERGE-2434: the studio backdrop holds in every orbit view - no hill band, the ground a plinth just past the
+    // building (this per-frame pass showed the band and grew the disc to the horizon in perspective, over the dark gradient)
+    const studio = this.real.backdrop === 'studio' && !this.walking;
+    const discScale = studio ? STUDIO.discScale : 1;
     const cam = this.active.position;
-    if (this.active !== this.persp) {
-      ext.dome.position.copy(home.dome);
+    if (this.active !== this.persp || studio) {
+      ext.dome.position.copy(this.active === this.persp ? cam : home.dome);
       ext.band.position.copy(home.band);
-      ext.band.visible = true;
-      ext.disc.scale.setScalar(home.discScale);
+      ext.band.visible = !studio;
+      ext.disc.scale.setScalar(discScale);
       return;
     }
     ext.dome.position.set(cam.x, cam.y, cam.z);
     const ground = home.band.y - home.bandH / 2;
     const height = cam.y - ground;
-    ext.band.visible = height < home.bandH * 2.5;
+    ext.band.visible = height < home.bandH * 2.5 && this.real.backdrop !== 'studio'; // (the walk under a studio sky: no hills)
     ext.band.position.set(cam.x, home.band.y, cam.z);
     // the ground under the frame's top ray: its distance from the camera (the horizon in view: the dome's reach)
     const dir = this.persp.getWorldDirection(SKY_TMP);
@@ -2084,7 +2129,7 @@ export class SceneView {
     const off = Math.hypot(cam.x - ext.disc.position.x, cam.z - ext.disc.position.z);
     // the alpha map is opaque to 55 % of the radius: that much must reach past the top ray's ground point
     const want = (reach + off) / 0.55 / (g / 2);
-    ext.disc.scale.setScalar(Math.max(home.discScale, Math.min(want, 800 / (g / 2))));
+    ext.disc.scale.setScalar(Math.max(discScale, Math.min(want, 800 / (g / 2))));
   }
 
   private drawFrame(): void {
