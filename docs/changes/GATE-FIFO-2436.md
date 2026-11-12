@@ -44,7 +44,9 @@ Its `--max-wait` (12 h default) would then end it as NOT_RUN ("queue limit reach
 - `python3 selftest_entry_check.py` (temp copy of `scripts/gate`): SELFTEST PASSED.
 - Read-only check against the real process table: the queue block counted 7 pre-FIFO checks ahead of a new check, matching the 7
   running `branch_check.sh` processes.
-- Not run: the entry check of this branch (queued on the runner after the install, see below); a real FIFO handover between two
+- Live, after the install: this branch's entry check (`~/pre/entry_gatefifo.log` on the runner) logged "position 8 of 8, 7 older
+  pre-FIFO check(s) ahead" and wrote `position`/`queue_len`/`legacy_ahead` to `entry_status.json` and its ticket to `entry_queue.json`.
+- Not run: the entry check of this branch itself (queued behind the 7 old checks); a real FIFO handover between two
   real entry checks (happens once new checks queue).
 
 ## Install on the runner (done 2026-11-12)
