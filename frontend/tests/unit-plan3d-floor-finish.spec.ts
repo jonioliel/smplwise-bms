@@ -98,7 +98,7 @@ test('the generated maps: one DataTexture per finish with the files source, none
   expect([rough.image.width, nrm.image.width]).toEqual([512, 512]);
   expect(m.aoMap).toBe(m.roughnessMap);
   expect(mats.get(FINISH_MARBLE, 'floor', false).map).toBe(m.map); // one texture per finish
-  expect((mats.get(FINISH_CERAMIC, 'floor').map as unknown as { image: { width: number } }).image.width).toBe(256);
+  expect((mats.get(FINISH_CERAMIC, 'floor').map as unknown as { image: { width: number } }).image.width).toBe(512); // PLAN3D-LEVEL3-2435: 1.2 m tiles
   const geo = new RealMaterials('/', () => {});
   geo.source = 'procedural';
   expect(geo.get(FINISH_MARBLE, 'floor').map).toBeNull();
@@ -127,7 +127,9 @@ test('the generated pixels: deterministic, opaque, tileable, cheap', () => {
     let inner = 0;
     for (let k = 0; k < size; k++) {
       seam = Math.max(seam, step((k * size + size - 1) * 4, (k * size) * 4), step(((size - 1) * size + k) * 4, k * 4));
-      inner = Math.max(inner, step((k * size + size / 2 - 1) * 4, (k * size + size / 2) * 4), step(((size / 2 - 1) * size + k) * 4, ((size / 2) * size + k) * 4));
+      // PLAN3D-LEVEL3-2435: the reference step is taken at the quarter lines - the book-matched marble mirrors its second slab,
+      // so the middle column is a mirror line with almost no step
+      inner = Math.max(inner, step((k * size + size / 4 - 1) * 4, (k * size + size / 4) * 4), step(((size / 4 - 1) * size + k) * 4, ((size / 4) * size + k) * 4));
     }
     expect(seam, `${id}: seam across the repeat (inner step ${inner})`).toBeLessThanOrEqual(Math.max(inner * 1.5, 12));
     // a light floor (the iso views read it as stone, not as a dark slab)

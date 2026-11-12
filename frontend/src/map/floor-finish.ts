@@ -11,7 +11,7 @@
  *
  * The marble and ceramic textures are generated here (no binary asset): one tileable colour map each, computed once per
  * session from a seeded periodic value noise - a pure function of the kind (deterministic, the same bytes every run) - and
- * uploaded as a single mip-mapped DataTexture (256 px ceramic, 512 px marble: under 1.4 MB of GPU memory with the mips). No
+ * uploaded as a single mip-mapped DataTexture (512 px each; PLAN3D-LEVEL3-2435: ceramic was 256 px of 0.6 m tiles). No
  * normal map, no extra pass: the floor stays one draw per level, the cost of a plain textured floor. The `procedural`
  * texture source (the geometric look) draws the finish as its plain tint, like every library material without its files.
  */
@@ -35,12 +35,12 @@ export function finishMaterial(finish: FloorFinish | undefined): string {
 
 /**
  * The two generated finishes as library-shaped entries (tint per style multiplies the generated map; tile_m is the span of
- * one texture repeat: marble 2 x 2 slabs of 1.2 m, ceramic 2 x 2 tiles of 0.6 m). Roughness: honed / satin rather than
+ * one texture repeat: marble 2 x 2 slabs of 1.2 m, ceramic 2 x 2 large-format tiles of 1.2 m - PLAN3D-LEVEL3-2435, was 0.6 m). Roughness: honed / satin rather than
  * mirror polish (the owner approved the less glossy floors of this branch; the style's floor sheen multiplies it).
  */
 export const FINISH_DEFS: readonly MaterialDef[] = [
   { id: FINISH_MARBLE, group: 'floor', he: 'שיש', tile_m: 2.4, tint: { light: '#ffffff', dark: '#868b95' }, roughness: 0.32, metalness: 0, normal: 0, set: null, aliases: [] },
-  { id: FINISH_CERAMIC, group: 'floor', he: 'קרמיקה יוקרתית', tile_m: 1.2, tint: { light: '#ffffff', dark: '#80848c' }, roughness: 0.4, metalness: 0, normal: 0, set: null, aliases: [] },
+  { id: FINISH_CERAMIC, group: 'floor', he: 'קרמיקה יוקרתית', tile_m: 2.4, tint: { light: '#ffffff', dark: '#80848c' }, roughness: 0.4, metalness: 0, normal: 0, set: null, aliases: [] },
 ];
 export const isFinishMaterial = (id: string): boolean => id === FINISH_MARBLE || id === FINISH_CERAMIC;
 
@@ -115,14 +115,14 @@ function sample(f: Float32Array, u: number, v: number): number {
 
 /** Square RGBA8 pixels (sRGB) of a finish; `size` is a power of two (mip-mapped repeat); `joints` false leaves the slab /
  * tile joints out (the seam test). Pure and deterministic. */
-export function finishPixels(id: string, size = id === FINISH_CERAMIC ? 256 : 512, joints = true): Uint8Array {
+export function finishPixels(id: string, size = 512, joints = true): Uint8Array {
   const out = new Uint8Array(size * size * 4);
   const marble = id !== FINISH_CERAMIC;
   // marble: warm white Carrara-like ground, soft grey clouding, two families of thin veins; ceramic: a warm greige porcelain
-  const ground = marble ? [239, 237, 232] : [221, 214, 203];
-  const shade = marble ? [212, 211, 209] : [204, 196, 184];
+  const ground = marble ? [239, 237, 232] : [214, 207, 196];
+  const shade = marble ? [212, 211, 209] : [198, 191, 180];
   const vein = marble ? [146, 146, 150] : [190, 182, 170];
-  const grout = marble ? [214, 211, 205] : [168, 161, 151];
+  const grout = marble ? [214, 211, 205] : [160, 154, 146];
   const half = size / 2;
   // the marble's low-frequency fields (clouding, the two vein warps) on a 128 x 128 periodic grid, sampled bilinearly: a
   // tenth of the noise work of a per-texel evaluation for fields that change over tens of texels
@@ -133,7 +133,9 @@ export function finishPixels(id: string, size = id === FINISH_CERAMIC ? 256 : 51
   for (let py = 0; py < size; py++) {
     const v = py / size;
     for (let px = 0; px < size; px++) {
-      const u = px / size;
+      // PLAN3D-LEVEL3-2435: the marble slabs are book-matched - the second slab of each row the mirror of the first (the
+      // luxury lay of a real slab pair; continuous across the middle and across the repeat)
+      const u = marble && px >= half ? (size - px) / size : px / size;
       let r: number;
       let g: number;
       let b: number;
@@ -174,8 +176,8 @@ export function finishPixels(id: string, size = id === FINISH_CERAMIC ? 256 : 51
         g = mix(shade[1], ground[1], k) + (k - 0.5) * 6;
         b = mix(shade[2], ground[2], k) + (k - 0.5) * 6;
       }
-      // the joints on the tile / slab edges: marble 1 px (a tight slab joint), ceramic 2 px (texels 0-1 and half..half+1)
-      const jw = marble ? 1 : 2;
+      // the joints on the tile / slab edges: marble 1 px (a tight slab joint), ceramic 1 px since PLAN3D-LEVEL3-2435 (512 px over 2.4 m: a rectified joint)
+      const jw = 1;
       if (joints && (px % half < jw || py % half < jw)) {
         const j = marble ? 0.55 : 0.9;
         r = mix(r, grout[0], j);
@@ -198,12 +200,12 @@ export function finishPixels(id: string, size = id === FINISH_CERAMIC ? 256 : 51
  * light), both the colour map's size and repeat. Polished marble ~0.15 roughness (the veins a little duller), the porcelain
  * ~0.2, the joints matte (0.75-0.85); the style's floor sheen multiplies them as before. Pure and deterministic.
  */
-export function finishSurfacePixels(id: string, size = id === FINISH_CERAMIC ? 256 : 512): { rough: Uint8Array; normal: Uint8Array } {
+export function finishSurfacePixels(id: string, size = 512): { rough: Uint8Array; normal: Uint8Array } {
   const marble = id !== FINISH_CERAMIC;
   const rough = new Uint8Array(size * size * 4);
   const normal = new Uint8Array(size * size * 4);
   const half = size / 2;
-  const jw = marble ? 1 : 2;
+  const jw = 1;
   const colour = finishPixelsCached(id).data;
   // the joint's depth profile across the edge: groove, bevel, flat (texel distance from the slab / tile edge)
   const depth = (k: number): number => (k <= 0 ? 1 : k === 1 ? 0.45 : 0);
@@ -219,7 +221,7 @@ export function finishSurfacePixels(id: string, size = id === FINISH_CERAMIC ? 2
       const joint = px % half < jw || py % half < jw;
       // the slab body: duller where the colour map is darker (a vein, a cloud), a fine tone
       const lum = (colour[i] * 0.2126 + colour[i + 1] * 0.7152 + colour[i + 2] * 0.0722) / 255;
-      const body = marble ? 0.17 + (0.93 - lum) * 0.35 : 0.21 + (0.86 - lum) * 0.2;
+      const body = marble ? 0.17 + (0.93 - lum) * 0.35 : 0.26 + (0.84 - lum) * 0.2;
       const r = joint ? (marble ? 0.75 : 0.85) : Math.min(0.45, Math.max(0.08, body));
       rough[i] = joint ? 205 : 255;
       rough[i + 1] = Math.round(r * 255);

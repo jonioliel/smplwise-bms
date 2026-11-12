@@ -95,7 +95,7 @@ test('the generated surface: polished body, matte joints, joint normals only, de
     // the normal map is flat away from the joints and tilts on the bevel
     const flat = at(half / 2, half / 2);
     expect([a.normal[flat], a.normal[flat + 1]]).toEqual([128, 128]);
-    const jw = id === FINISH_CERAMIC ? 2 : 1;
+    const jw = 1;
     const bevel = at(jw, half / 2);
     expect(Math.abs(a.normal[bevel] - 128)).toBeGreaterThan(20);
     for (let i = 3; i < a.normal.length; i += 4) if (a.normal[i] !== 255 || a.rough[i] !== 255) throw new Error(`${id}: alpha at ${i}`);
