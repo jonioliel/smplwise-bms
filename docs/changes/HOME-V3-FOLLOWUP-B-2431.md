@@ -1,7 +1,8 @@
 # HOME-V3-FOLLOWUP-B-2431 - home interface v3 follow-up B: wall panel calendar event, ticket photo
 
 Branch `pilot/HOME-V3-FOLLOWUP-B-2431` from `origin/release/2430-train` (60d20c9de, v2.43.0) with `origin/pilot/HOME-V3-P2-2431`
-(85f4c5e0a, migration 0214) merged in (93efee343). Owner answers of 2026-11-11, questions 1-3. No migration, no version bump, no
+(85f4c5e0a, migration 0214) merged in (93efee343). Owner answers of 2026-11-11, questions 1-3. No migration of its own (the
+parallel branch FOLLOWUP-A owns 0215; a later one from this branch would be 0216), no version bump, no
 CHANGELOG, API inventory not regenerated. Nothing in `private/`, `secrets/`, `management/*.json` or the lab was touched. The parallel
 branch `pilot/HOME-V3-FOLLOWUP-A-2431` (per-person lists, the visitor-invite switch, new categories, the bill button) is not touched:
 this branch's code lives in new files, with small hooks in `home-calendar.ts`, `home-tickets.ts`, `home-styles-v3.ts`, `main.py`,
@@ -56,7 +57,28 @@ No change: an open ticket keeps "הוסף הערה" only; the photo route refuse
 
 ## Tests
 
-(see the report below)
+Run (workstation, Windows, Python 3.12 venv):
+
+* `pytest tests/test_home_followup_b_2431.py` - 11 tests, all passed (gate unit test; wall event added to the family calendar,
+  audited `via: wall_panel`; room / booking / availability / cancel / withdraw refused 403 `kiosk_calendar_add_only`; extra fields 422;
+  notice posting refused; a home-only resident keeps the module route and is refused the wall route; role / category / module-off;
+  validation; photo stored without EXIF / GPS, PNG accepted; SVG 415, a lying file refused by the pipeline, a member who did not open
+  the ticket 404, the module route refused to home-only while the home route works; 3-photo cap; window passed and a taken ticket 409
+  `ticket_not_new` while the note still works; tickets module off 404).
+* `pytest tests/test_home_followup_b_2431.py tests/test_home_v3_p3.py tests/test_home_v3_p2.py tests/test_home_v3_p1.py
+  tests/test_home_interface.py tests/test_home_interface_doors_2421.py tests/test_body_limit.py tests/test_plan_routes_unique.py
+  tests/test_raw_body_order.py tests/test_tickets_attachments.py` - exit 0, no FAILED / ERROR line (this repo's pytest output omits
+  the count line). Before the fix `test_home_v3_p3::test_the_six_new_categories_are_known_and_on_by_default` failed on the P2+P3
+  merged MODULES list; the test now pins the base nine first and phase 3's six last.
+* `npx tsc --noEmit` (frontend, includes tests/) - exit 0.
+
+The project has no vitest; UI tests are Playwright specs: `tests/home-v3-fb-2431.spec.ts` (wall event through its own route, a
+resident through the module route, photo pick / preview / remove / cap / send order, refused photo toast, open ticket note only,
+module off, no scroll at 3 sizes) and `tests/pixel-home-fb-2431.spec.ts` (new baselines: wall event sheet and ticket sheet with
+photos, desktop 1440 + phone 390, light + dark; no home v3 screen had pixel baselines before).
+
+NOT_RUN: both Playwright specs and the pixel baselines (the runner was overloaded during the 2.43.0 release gate - SSH timed out on
+two attempts; the lead asked to hold runner jobs until the gate ends), the full backend suite, a lab run.
 
 ## Rollback
 
