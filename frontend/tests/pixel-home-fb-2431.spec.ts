@@ -18,16 +18,16 @@ const noBaseline = (info: { snapshotPath: (...name: string[]) => string; config:
 
 async function open(page: Page, route: string, o: P2Opts, scheme: 'light' | 'dark') {
   await mockP2(page, { empty: true, ...o });
+  // the scheme comes from the person's own layout (sw-home applyLayout re-applies it on every render)
+  const layout = { welcomed: true, theme: scheme === 'dark' ? 'midnight' : 'classic', scheme };
+  await page.route('**/api/v1/home/prefs', (r) => (r.request().method() === 'GET'
+    ? r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ favourites: {}, layout, seed: {} }) }) : r.fallback()));
   await page.clock.setFixedTime(NOW);
   await page.goto('about:blank');
   await page.goto(`/#/home/${route}`);
   await home(page).waitFor();
   await expect.poll(() => page.evaluate(() => !!document.querySelector('sw-app')?.shadowRoot?.querySelector('sw-home')?.shadowRoot?.querySelector('.hs.v2'))).toBe(true);
-  await page.evaluate(([s]) => {
-    const h = document.querySelector('sw-app')?.shadowRoot?.querySelector('sw-home') as HTMLElement | null;
-    h?.setAttribute('data-hs-theme', s === 'dark' ? 'midnight' : 'classic');
-    h?.setAttribute('data-hs-scheme', s);
-  }, [scheme]);
+  await expect(home(page)).toHaveAttribute('data-hs-scheme', scheme);
   await settle(page);
 }
 
@@ -38,7 +38,7 @@ async function compare(page: Page, info: Parameters<typeof noBaseline>[0] & { pr
   else await expect(home(page).locator(sel)).toHaveScreenshot(file, { maxDiffPixels: 40, animations: 'disabled', caret: 'hide', timeout: 15_000 });
 }
 
-test.describe('pixel: home follow-up B (wall event, ticket photos)', () => {
+test.describe('pixel-stable: home follow-up B (wall event, ticket photos)', () => {
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
   test.beforeEach(({}, info) => {
     test.skip(info.project.name === 'tablet', 'desktop and phone only');

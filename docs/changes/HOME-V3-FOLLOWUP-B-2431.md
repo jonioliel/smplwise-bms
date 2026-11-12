@@ -14,6 +14,13 @@ this branch's code lives in new files, with small hooks in `home-calendar.ts`, `
 chips). `MODULES` order: phase 2's categories first, phase 3's six stay the tail (`test_home_v3_p3` pins the tail). The train will meet
 the same four conflicts when P2 joins it; this branch's resolution can be reused.
 
+## Merge of main (v2.43.1) into the branch
+
+`origin/main` ab7894837 (v2.43.1: P2 and follow-up A, migration 0215) merged in as 7cb2cca6c. Conflicts in `home-api.ts`,
+`sw-home-admin.ts`, `home-simple-mocks.ts`, `services/home_interface.py` and `test_home_v3_p3.py`: main's version kept (it already
+holds the P2 resolution and follow-up A's own hour-independent intercom mock, which replaces this branch's), plus this branch's kiosk
+calendar gate in `home_interface.py`. Migrations end at follow-up A's 0215; this branch adds none.
+
 ## What changed
 
 ### 1. Wall panel: add an event to the family calendar (owner q1)
@@ -77,7 +84,17 @@ resident through the module route, photo pick / preview / remove / cap / send or
 module off, no scroll at 3 sizes) and `tests/pixel-home-fb-2431.spec.ts` (new baselines: wall event sheet and ticket sheet with
 photos, desktop 1440 + phone 390, light + dark; no home v3 screen had pixel baselines before).
 
-NOT_RUN: both Playwright specs and the pixel baselines (the runner was overloaded during the 2.43.0 release gate - SSH timed out on
+Entry checks (runner): 5eb975d08 RED (3: this branch's module-off case sharing a page, the P2 wall-panel test expecting no "new
+event", the P1 intercom hub line read at 02:00 - also red on follow-up A); fixed in 17da5c7ff -> GREEN. After the main merge and the
+remove-button fix, re-queued (see the lead's report).
+
+Pixel baselines: `tests/pixel-home-fb-2431.spec.ts`, 8 Linux files, generated with `run_smart.py preview ... -u --workers=1` at
+5198835c5 and checked without `-u` at 10edf1847: 8 passed. The first `-u` run showed the photo remove buttons at full hit size over the
+previews and identical light / dark ticket shots; fixed (5198835c5) before the kept baselines were made.
+
+After the main merge (local): the targeted pytest set plus `test_home_v3_followup_a.py` exit 0, no failure; `tsc --noEmit` exit 0.
+
+Earlier NOT_RUN (now superseded): both Playwright specs and the pixel baselines (the runner was overloaded during the 2.43.0 release gate - SSH timed out on
 two attempts; the lead asked to hold runner jobs until the gate ends), the full backend suite, a lab run.
 
 ## Rollback

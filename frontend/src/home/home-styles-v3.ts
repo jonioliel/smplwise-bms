@@ -180,8 +180,8 @@ textarea.inp { padding-block: 12px; resize: none; line-height: 1.4; } .inp::plac
 .tkph { display: flex; align-items: center; gap: 10px; inline-size: 100%; min-inline-size: 0; } .tkph .muted { min-inline-size: 0; }
 .tkph .ph { position: relative; flex: none; inline-size: 64px; block-size: 64px; border-radius: 12px; overflow: hidden; background: var(--hs-surface-3); }
 .tkph .ph img { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; }
-.ovl .tkph .ph .rb { position: absolute; inset-block-start: 2px; inset-inline-end: 2px; inline-size: 32px; block-size: 32px; min-inline-size: 32px; background: var(--hs-surface-solid); }
-.ovl .tkph .ph .rb .hi { inline-size: 16px; block-size: 16px; }
+.sheet .tkph .ph .rb { position: absolute; inset-block-start: 4px; inset-inline-end: 4px; inline-size: 30px; block-size: 30px; min-inline-size: 30px; min-block-size: 30px; padding: 0; background: var(--hs-surface-solid); }
+.sheet .tkph .ph .rb .hi { inline-size: 16px; block-size: 16px; }
 .sheet.v3.center { justify-items: center; text-align: center; }
 .code { font-size: 44px; font-weight: 600; letter-spacing: .06em; color: var(--hs-heading); line-height: 1.3; }
 .ovl .hbtn.talk { inline-size: 100%; } .ovl .hbtn.talk[aria-pressed="true"] { background: var(--hs-danger-soft); color: var(--hs-danger-text); }
