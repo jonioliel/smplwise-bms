@@ -360,8 +360,21 @@ export class TicketsBoard extends LitElement {
       }
       /* the state strip (in the "סינון" sheet on a phone): three a row (nothing hidden behind a scroll, every count readable) */
       .fpop .seg.stf {
+        inline-size: 100%;
+        box-sizing: border-box;
+        display: grid;
         grid-auto-flow: row;
         grid-template-columns: repeat(3, minmax(0, 1fr));
+        border-radius: var(--sw-r-xl);
+      }
+      /* a key keeps its count inside it (the guard: a "3" escaped its key by 3-12 px at 320-390); the label truncates first */
+      .fpop .seg.stf button {
+        min-block-size: 44px;
+        min-inline-size: 0;
+        padding-inline: 6px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       .flt {
         inset-block-end: calc(84px + env(safe-area-inset-bottom, 0px));
