@@ -119,9 +119,9 @@ export function finishPixels(id: string, size = id === FINISH_CERAMIC ? 256 : 51
   const out = new Uint8Array(size * size * 4);
   const marble = id !== FINISH_CERAMIC;
   // marble: warm white Carrara-like ground, soft grey clouding, two families of thin veins; ceramic: a warm greige porcelain
-  const ground = marble ? [236, 233, 227] : [221, 214, 203];
-  const shade = marble ? [196, 196, 198] : [204, 196, 184];
-  const vein = marble ? [150, 152, 158] : [190, 182, 170];
+  const ground = marble ? [239, 237, 232] : [221, 214, 203];
+  const shade = marble ? [212, 211, 209] : [204, 196, 184];
+  const vein = marble ? [146, 146, 150] : [190, 182, 170];
   const grout = marble ? [214, 211, 205] : [168, 161, 151];
   const half = size / 2;
   // the marble's low-frequency fields (clouding, the two vein warps) on a 128 x 128 periodic grid, sampled bilinearly: a
@@ -129,6 +129,7 @@ export function finishPixels(id: string, size = id === FINISH_CERAMIC ? 256 : 51
   const cloudF = marble ? field((u, v) => fbm(u, v, 4, 4, 11)) : null;
   const warp1F = marble ? field((u, v) => fbm(u, v, 3, 4, 29)) : null;
   const warp2F = marble ? field((u, v) => fbm(u, v, 5, 3, 47)) : null;
+  const modF = marble ? field((u, v) => fbm(u, v, 2, 3, 61)) : null; // PLAN3D-LEVEL3-2435: where each vein family shows
   for (let py = 0; py < size; py++) {
     const v = py / size;
     for (let px = 0; px < size; px++) {
@@ -137,25 +138,31 @@ export function finishPixels(id: string, size = id === FINISH_CERAMIC ? 256 : 51
       let g: number;
       let b: number;
       if (marble) {
+        // PLAN3D-LEVEL3-2435: Carrara-like veining - a soft cloud, a main vein family whose strength comes and goes along the
+        // slab (a sharp core in a soft feathered halo), a thinner cross family and a fine grain; the round-1 veins were one
+        // even-width dark line everywhere and read as a map's contour lines at a close view
         const cloud = sample(cloudF!, u, v);
         const warp = sample(warp1F!, u, v);
-        // veins: |sin| of a tileable diagonal phase (whole periods across the square) warped by the noise
-        const p1 = Math.abs(Math.sin(Math.PI * (2 * u + 1 * v + warp * 1.4)));
-        const p2 = Math.abs(Math.sin(Math.PI * (1 * u - 3 * v + sample(warp2F!, u, v) * 1.8)));
-        // (1 - p)^18 and ^34 by squaring (Math.pow per texel was the larger part of the cost)
-        const q1 = 1 - p1;
+        const presence = sample(modF!, u, v);
+        const q1 = 1 - Math.abs(Math.sin(Math.PI * (2 * u + 1 * v + warp * 1.6)));
+        const q2 = 1 - Math.abs(Math.sin(Math.PI * (1 * u - 3 * v + sample(warp2F!, u, v) * 2.2)));
         const q1s = q1 * q1;
-        const q16 = q1s * q1s * (q1s * q1s) * (q1s * q1s * (q1s * q1s));
-        const q2 = 1 - p2;
+        const q1_4 = q1s * q1s;
+        const q1_16 = q1_4 * q1_4 * q1_4 * q1_4;
         const q2s = q2 * q2;
-        const q8 = q2s * q2s * (q2s * q2s);
-        const v1 = q16 * q1s * 0.62;
-        const v2 = q8 * q8 * q8 * q8 * q2s * 0.4;
+        const q2_8 = q2s * q2s * q2s * q2s;
+        const q2_32 = q2_8 * q2_8 * q2_8 * q2_8;
+        const on1 = clamp01((presence - 0.34) * 3.2);
+        const on2 = clamp01((0.62 - presence) * 3.0);
+        const q1_32 = q1_16 * q1_16;
+        const v1 = (q1_32 * 0.55 + q1_4 * q1s * 0.22) * on1;
+        const v2 = (q2_32 * q2_8 * 0.34 + q2_8 * 0.1) * on2;
         const veinK = clamp01(v1 + v2);
-        const cloudK = clamp01((cloud - 0.45) * 1.6) * 0.35;
-        r = mix(mix(ground[0], shade[0], cloudK), vein[0], veinK);
-        g = mix(mix(ground[1], shade[1], cloudK), vein[1], veinK);
-        b = mix(mix(ground[2], shade[2], cloudK), vein[2], veinK);
+        const cloudK = clamp01((cloud - 0.4) * 1.6) * 0.5;
+        const grain = (vnoise(u, v, 96, 101) - 0.5) * 0.035;
+        r = mix(mix(ground[0], shade[0], cloudK), vein[0], veinK) * (1 + grain);
+        g = mix(mix(ground[1], shade[1], cloudK), vein[1], veinK) * (1 + grain);
+        b = mix(mix(ground[2], shade[2], cloudK), vein[2], veinK) * (1 + grain);
       } else {
         // 2 x 2 tiles, each its own slight tone (the batch shade of real porcelain), a fine low-contrast stone speckle
         const tx = px < half ? 0 : 1;
@@ -183,6 +190,62 @@ export function finishPixels(id: string, size = id === FINISH_CERAMIC ? 256 : 51
     }
   }
   return out;
+}
+
+/**
+ * PLAN3D-LEVEL3-2435: the surface of a finish - a packed map (R = ambient occlusion: 1, a little less in the joint; G = roughness)
+ * and a tangent-space normal map (only the joints: a 1 px groove with a bevel either side, so the slab / tile edges catch the
+ * light), both the colour map's size and repeat. Polished marble ~0.15 roughness (the veins a little duller), the porcelain
+ * ~0.2, the joints matte (0.75-0.85); the style's floor sheen multiplies them as before. Pure and deterministic.
+ */
+export function finishSurfacePixels(id: string, size = id === FINISH_CERAMIC ? 256 : 512): { rough: Uint8Array; normal: Uint8Array } {
+  const marble = id !== FINISH_CERAMIC;
+  const rough = new Uint8Array(size * size * 4);
+  const normal = new Uint8Array(size * size * 4);
+  const half = size / 2;
+  const jw = marble ? 1 : 2;
+  const colour = finishPixelsCached(id).data;
+  // the joint's depth profile across the edge: groove, bevel, flat (texel distance from the slab / tile edge)
+  const depth = (k: number): number => (k <= 0 ? 1 : k === 1 ? 0.45 : 0);
+  // texels from the nearest joint: 0 inside the groove (texels 0 .. jw-1 of each half), 1 on the bevel either side
+  const dist = (p: number): number => {
+    const m = p % half;
+    return Math.min(Math.max(m - jw + 1, 0), half - m);
+  };
+  const h = (px: number, py: number): number => Math.max(depth(dist(((px % size) + size) % size)), depth(dist(((py % size) + size) % size)));
+  for (let py = 0; py < size; py++) {
+    for (let px = 0; px < size; px++) {
+      const i = (py * size + px) * 4;
+      const joint = px % half < jw || py % half < jw;
+      // the slab body: duller where the colour map is darker (a vein, a cloud), a fine tone
+      const lum = (colour[i] * 0.2126 + colour[i + 1] * 0.7152 + colour[i + 2] * 0.0722) / 255;
+      const body = marble ? 0.17 + (0.93 - lum) * 0.35 : 0.21 + (0.86 - lum) * 0.2;
+      const r = joint ? (marble ? 0.75 : 0.85) : Math.min(0.45, Math.max(0.08, body));
+      rough[i] = joint ? 205 : 255;
+      rough[i + 1] = Math.round(r * 255);
+      rough[i + 2] = 0;
+      rough[i + 3] = 255;
+      // the normal from the height's slope (the groove is a dent: height = -depth)
+      const dx = (h(px + 1, py) - h(px - 1, py)) * 0.5;
+      const dy = (h(px, py + 1) - h(px, py - 1)) * 0.5;
+      const nx = dx * 0.9;
+      const ny = -dy * 0.9;
+      const inv = 1 / Math.hypot(nx, ny, 1);
+      normal[i] = Math.round((nx * inv * 0.5 + 0.5) * 255);
+      normal[i + 1] = Math.round((ny * inv * 0.5 + 0.5) * 255);
+      normal[i + 2] = Math.round((inv * 0.5 + 0.5) * 255);
+      normal[i + 3] = 255;
+    }
+  }
+  return { rough, normal };
+}
+
+const surfaceCache = new Map<string, { rough: Uint8Array; normal: Uint8Array }>();
+/** finishSurfacePixels, computed once per session per finish. */
+export function finishSurfaceCached(id: string): { rough: Uint8Array; normal: Uint8Array; size: number } {
+  let d = surfaceCache.get(id);
+  if (!d) surfaceCache.set(id, (d = finishSurfacePixels(id)));
+  return { ...d, size: Math.round(Math.sqrt(d.rough.length / 4)) };
 }
 
 const cache = new Map<string, Uint8Array>();

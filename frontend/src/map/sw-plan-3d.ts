@@ -1241,7 +1241,7 @@ export class SwPlan3d extends LitElement {
 
   /** The realistic level's dials for the view (the rung, the style by the theme, the content, the cut). */
   private realSettings() {
-    return { rung: this.rung === 'realistic' ? ('realistic' as const) : ('lite' as const), style: styleFor(this.themeForce ?? this.viewDials.style, this.uiTheme()), furniture: this.viewDials.furniture, textures: this.viewDials.textures, sectionCut: this.viewDials.section_cut, backdrop: this.shownBackdrop, floorFinish: this.viewDials.floor_finish ?? DEFAULT_FLOOR_FINISH };
+    return { rung: this.rung === 'realistic' ? ('realistic' as const) : ('lite' as const), style: styleFor(this.themeForce ?? this.viewDials.style, this.uiTheme()), furniture: this.viewDials.furniture, textures: this.viewDials.textures, sectionCut: this.viewDials.section_cut, backdrop: this.shownBackdrop, floorFinish: this.viewDials.floor_finish ?? DEFAULT_FLOOR_FINISH, reflections: this.viewDials.floor_reflections !== false };
   }
 
   private uiTheme(): 'light' | 'dark' {

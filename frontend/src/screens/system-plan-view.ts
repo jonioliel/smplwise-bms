@@ -400,6 +400,7 @@ export class SystemPlanView extends LitElement {
       ${this.choiceRow('backdrop')}
       ${this.choiceRow('default_view')}
       ${own ? nothing : html`${this.choiceRow('furniture')}${this.choiceRow('textures')}${this.choiceRow('floor_finish')}`}
+      ${this.flagRow('floor_reflections')}
       ${this.flagRow('section_cut')}
       ${this.flagRow('show_temps')}
       ${this.flagRow('motion')}

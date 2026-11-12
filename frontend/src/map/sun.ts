@@ -220,3 +220,11 @@ export function poolLamps<T extends { id: string; position: [number, number, num
   const bucket = (l: T) => Math.floor(Math.hypot(l.position[0] - camera[0], l.position[1] - camera[1], l.position[2] - camera[2]) / bucketM);
   return [...lit].sort((a, b) => bucket(a) - bucket(b) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)).slice(0, Math.max(0, n));
 }
+
+/** PLAN3D-LEVEL3-2435: the realistic rung's sun penumbra (m) and its PCF radius in texels for a shadow box of half-size `r` (m)
+ * drawn into `px` texels, within 2 .. the style's cap. */
+export const SHADOW_PENUMBRA_M = 0.07;
+export function shadowPenumbraTexels(r: number, px: number, cap: number): number {
+  const texel = (2 * r) / Math.max(1, px);
+  return Math.round(Math.min(cap, Math.max(2, SHADOW_PENUMBRA_M / texel)) * 100) / 100;
+}

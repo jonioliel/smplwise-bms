@@ -27,7 +27,7 @@
  *   prefiltered into the environment (IBL) on time change.
  * No HDRI, no path tracer, no KTX2, no Draco; the post chain lives in its own lazy chunk (post-chain.ts).
  */
-import { BackSide, BoxGeometry, BufferAttribute, BufferGeometry, CanvasTexture, ClampToEdgeWrapping, Color, CylinderGeometry, DataTexture, DoubleSide, Euler, Float32BufferAttribute, Group, InstancedMesh, LinearFilter, LinearMipmapLinearFilter, LineBasicMaterial, RGBAFormat, UnsignedByteType, LineSegments, Matrix3, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, NoColorSpace, Object3D, Plane, PlaneGeometry, Quaternion, RepeatWrapping, RoundedBoxGeometry, SRGBColorSpace, Scene, ShapeUtils, SphereGeometry, Texture, TextureLoader, Vector2, Vector3 } from './three-bundle';
+import { BackSide, BoxGeometry, BufferAttribute, BufferGeometry, CanvasTexture, ClampToEdgeWrapping, Color, CylinderGeometry, DataTexture, DoubleSide, Euler, Float32BufferAttribute, Group, InstancedBufferAttribute, InstancedMesh, LinearFilter, LinearMipmapLinearFilter, LineBasicMaterial, RGBAFormat, UnsignedByteType, LineSegments, Matrix3, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, NoColorSpace, Object3D, Plane, PlaneGeometry, Quaternion, RepeatWrapping, RoundedBoxGeometry, SRGBColorSpace, Scene, ShapeUtils, SphereGeometry, Texture, TextureLoader, Vector2, Vector3 } from './three-bundle';
 import type { SceneDescription, ScenePart, Vec3 } from './scene-builder';
 import type { RealWorld } from './scene-real-builder';
 import { MATERIALS, type MaterialDef } from './material-resolve';
@@ -38,7 +38,8 @@ import { kelvinRgb, type LightRecipe } from './sun';
 import { planGlow, type GlowRoom } from './room-glow';
 import { RoomGlow } from './room-glow-mesh';
 import { injectBakedAo, injectGlassFresnel, type AoUniforms } from './ao-shading';
-import { DEFAULT_FLOOR_FINISH, FINISH_DEFS, finishMaterial, finishPixelsCached, isFinishMaterial, type FloorFinish } from './floor-finish';
+import { floorReflectivity, injectFloorReflect } from './floor-reflect';
+import { DEFAULT_FLOOR_FINISH, FINISH_DEFS, finishMaterial, finishPixelsCached, finishSurfaceCached, isFinishMaterial, type FloorFinish } from './floor-finish';
 
 export type RealRung = 'realistic' | 'lite';
 export interface RealSettings {
@@ -53,9 +54,12 @@ export interface RealSettings {
   /** PLAN3D-REALISM2-2433: what the living floors are made of (floor-finish.ts; the installation dial `floor_finish`).
    * Optional: older callers get the default (marble). */
   floorFinish?: FloorFinish;
+  /** PLAN3D-LEVEL3-2435: the floor reflections of the realistic rung (floor-reflect.ts; the dial `floor_reflections`). Optional:
+   * older callers get them (true). */
+  reflections?: boolean;
 }
 export type Backdrop = 'sky' | 'studio';
-export const DEFAULT_REAL: RealSettings = { rung: 'lite', style: 'light', furniture: 'models', textures: 'files', sectionCut: true, backdrop: 'sky', floorFinish: DEFAULT_FLOOR_FINISH };
+export const DEFAULT_REAL: RealSettings = { rung: 'lite', style: 'light', furniture: 'models', textures: 'files', sectionCut: true, backdrop: 'sky', floorFinish: DEFAULT_FLOOR_FINISH, reflections: true };
 
 // the library and the two generated floor finishes (render-time ids, floor-finish.ts)
 const BY_ID = new Map([...MATERIALS, ...FINISH_DEFS].map((m) => [m.id, m]));
@@ -65,6 +69,10 @@ export const REAL_KINDS = new Set(['floor', 'wall', 'lintel', 'sill', 'head', 'd
 /** What is cut by the section plane (decals, caps, ground, sprites and lines are not). */
 const CLIPPED_KINDS = new Set(['wall', 'lintel', 'sill', 'head', 'door', 'window', 'object', 'connector', 'camera', 'ceiling']);
 const MAX_BLOB_BASE_M = 0.5;
+/** PLAN3D-LEVEL3-2435: the generated finishes' joint normal strength. */
+const FINISH_NORMAL = 0.8;
+/** PLAN3D-LEVEL3-2435: the generated finishes' environment (sky) reflection (the library floors 0.7). */
+const FINISH_ENV = 0.35;
 const CREASE = rad(35);
 
 type Pickable = Pick<ScenePart, 'id' | 'kind' | 'userData'>;
@@ -139,15 +147,23 @@ export class RealMaterials {
 
   /** PLAN3D-REALISM2-2433: the generated colour map of a floor finish (floor-finish.ts) - one mip-mapped DataTexture per
    * finish, kept with the loaded files (disposed with them). */
-  private finishMap(id: string): Texture {
-    const key = `finish:${id}`;
+  private finishMap(id: string, kind: 'color' | 'rough' | 'normal' = 'color'): Texture {
+    const key = kind === 'color' ? `finish:${id}` : `finish:${id}:${kind}`;
     let t = this.textures.get(key);
     if (t) return t;
-    const { data, size } = finishPixelsCached(id);
+    let data: Uint8Array;
+    let size: number;
+    if (kind === 'color') ({ data, size } = finishPixelsCached(id));
+    else {
+      // PLAN3D-LEVEL3-2435: the generated surface (floor-finish.finishSurfacePixels): roughness / AO and the joints' normals
+      const sf = finishSurfaceCached(id);
+      data = kind === 'rough' ? sf.rough : sf.normal;
+      size = sf.size;
+    }
     const d = new DataTexture(data, size, size, RGBAFormat, UnsignedByteType);
     d.wrapS = RepeatWrapping;
     d.wrapT = RepeatWrapping;
-    d.colorSpace = SRGBColorSpace;
+    d.colorSpace = kind === 'color' ? SRGBColorSpace : NoColorSpace;
     d.magFilter = LinearFilter;
     d.minFilter = LinearMipmapLinearFilter;
     d.generateMipmaps = true;
@@ -234,13 +250,26 @@ export class RealMaterials {
           m.aoMapIntensity = 0.6;
           m.roughness = 1;
         }
-      } else if (variant !== 'nomap' && this.source === 'files' && isFinishMaterial(id)) m.map = this.finishMap(id); // PLAN3D-REALISM2-2433
+      } else if (variant !== 'nomap' && this.source === 'files' && isFinishMaterial(id)) {
+        m.map = this.finishMap(id); // PLAN3D-REALISM2-2433
+        // PLAN3D-LEVEL3-2435: polished body, matte joints with a bevel (the map holds the roughness itself: factor 1 x the sheen)
+        m.roughnessMap = this.finishMap(id, 'rough');
+        m.aoMap = m.roughnessMap;
+        m.aoMapIntensity = 0.5;
+        m.normalMap = this.finishMap(id, 'normal');
+        m.normalScale = new Vector2(FINISH_NORMAL, FINISH_NORMAL);
+        m.roughness = 1;
+        // the outdoor sky the environment is prefiltered from does not stand over an indoor floor: a polished floor took it as
+        // a white sheen over the whole room in the iso views; the SSR pass brings the room's own reflections
+        m.envMapIntensity = FINISH_ENV;
+      }
       if (m.roughnessMap) this.fitRoughness(m, id, variant);
       else {
         if (variant.startsWith('slot:')) m.roughness = Number(variant.slice(5));
         if (variant === 'floor') m.roughness *= LOOK_STYLES[this.style].rig.floorSheen;
       }
       if (this.ao) injectBakedAo(m, this.ao);
+      if (variant === 'floor') injectFloorReflect(m, floorReflectivity(id)); // PLAN3D-LEVEL3-2435
     }
     m.userData.materialId = id;
     if (vc) m.vertexColors = true;
@@ -379,6 +408,39 @@ export function radialTexture(): CanvasTexture {
   radial ??= canvasTex(128, 128, (ctx) => { const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64); g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(0.45, 'rgba(0,0,0,0.75)'); g.addColorStop(0.8, 'rgba(0,0,0,0.18)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 128); });
   return radial;
 }
+/** PLAN3D-LEVEL3-2435: the contact shadow of a floor-standing object of size [w, h, d]: the footprint's half extents, the
+ * margin it fades over (a taller object reaches farther: 4 cm for a rug, ~16 cm for a cabinet or a sofa) and the corner radius
+ * (a cylinder is a disc). Pure (tests). */
+export function contactBlob(size: readonly number[], round: boolean): { hx: number; hz: number; margin: number; corner: number } {
+  const hx = Math.max(size[0], 0.02) / 2;
+  const hz = Math.max(size[2], 0.02) / 2;
+  const margin = Math.round((0.04 + 0.12 * Math.min(1, Math.max(0, size[1]))) * 1000) / 1000;
+  const corner = round ? Math.min(hx, hz) : Math.min(0.04, hx, hz);
+  return { hx, hz, margin, corner };
+}
+
+/** PLAN3D-LEVEL3-2435: the contact blob's alpha from its instance's footprint (`aBox` = half x, half z, margin, corner radius in
+ * metres; the plate is the footprint grown by the margin): the signed distance to the rounded footprint, 1 inside and on the
+ * outline, falling as (1 - d / margin)^2 outside. */
+export const CONTACT_GLSL = `
+float swContact(vec2 p, vec4 b) {
+  vec2 q = abs(p) - b.xy + b.w;
+  float d = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - b.w;
+  if (d > 0.0) { float t = 1.0 - clamp(d / max(b.z, 1e-3), 0.0, 1.0); return t * t; }
+  return 1.0;
+}`;
+function injectContactBlob(m: MeshBasicMaterial): void {
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute vec4 aBox;\nvarying vec2 vSwLocal;\nvarying vec4 vSwBox;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSwLocal = position.xz * 2.0 * (aBox.xy + aBox.z);\nvSwBox = aBox;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>\nvarying vec2 vSwLocal;\nvarying vec4 vSwBox;\n${CONTACT_GLSL}`)
+      .replace('#include <alphatest_fragment>', 'diffuseColor.a *= swContact(vSwLocal, vSwBox);\n#include <alphatest_fragment>');
+  };
+  m.customProgramCacheKey = () => 'sw-contact-blob';
+}
+
 /** The junction strip: black at v = 0 (the wall), .45 at 35 %, transparent at v = 1. */
 function stripTexture(): CanvasTexture {
   if (!strip) {
@@ -800,19 +862,35 @@ export function buildReal(inp: RealBuildInput): RealBuilt {
     mesh.name = 'ao-strips';
     mesh.renderOrder = 1;
     mesh.userData.ownMaterial = true;
+    mesh.userData.skipAO = true; // PLAN3D-LEVEL3-2435: a decal (see the blobs below)
     out.root.add(mesh);
   }
   const blobs = inp.parts.filter((p) => p.kind === 'object' && (p.shape === 'box' || p.shape === 'cylinder') && p.position[1] - p.size[1] / 2 <= (elev.get(p.level_id ?? '') ?? 0) + MAX_BLOB_BASE_M);
   if (blobs.length) {
-    const m = new MeshBasicMaterial({ map: radialTexture(), color: 0x000000, transparent: true, opacity: style.post.blobAlpha, depthWrite: false });
-    const plane = new BoxGeometry(1, 0, 1);
+    // PLAN3D-LEVEL3-2435: a soft rounded-footprint contact shadow (contactBlob) instead of the radial ellipse: dark along the
+    // object's own outline, fading over a margin that grows with its height - an ellipse 1.3x the footprint left the corners
+    // of a sofa or a cabinet without any contact and spread a faint halo far past a rug
+    const m = new MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: style.post.blobAlpha, depthWrite: false });
+    injectContactBlob(m);
+    const plane = new PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
     const mesh = new InstancedMesh(plane, m, blobs.length);
-    blobs.forEach((p, i) => mesh.setMatrixAt(i, new Matrix4().compose(new Vector3(p.position[0], p.position[1] - p.size[1] / 2 + 0.008, p.position[2]), new Quaternion().setFromEuler(new Euler(0, rad(p.rotation[1]), 0, 'YXZ')), new Vector3(p.size[0] * 1.3 + 0.1, 1, p.size[2] * 1.3 + 0.1))));
+    const box = new Float32Array(blobs.length * 4);
+    blobs.forEach((p, i) => {
+      const b = contactBlob(p.size, p.shape === 'cylinder');
+      box.set([b.hx, b.hz, b.margin, b.corner], i * 4);
+      // over a rug (<= 2 cm) when the object stands on one: a decal under the rug's top never showed
+      const lift = p.size[1] > 0.1 ? 0.024 : 0.006;
+      mesh.setMatrixAt(i, new Matrix4().compose(new Vector3(p.position[0], p.position[1] - p.size[1] / 2 + lift, p.position[2]), new Quaternion().setFromEuler(new Euler(0, rad(p.rotation[1]), 0, 'YXZ')), new Vector3(2 * (b.hx + b.margin), 1, 2 * (b.hz + b.margin))));
+    });
+    plane.setAttribute('aBox', new InstancedBufferAttribute(box, 4));
     mesh.instanceMatrix.needsUpdate = true;
     mesh.computeBoundingSphere();
     mesh.name = 'ao-blobs';
     mesh.renderOrder = 1;
     mesh.userData.ownMaterial = true;
+    // PLAN3D-LEVEL3-2435: a decal stays out of GTAO's normal / depth pass - the flat plate 6 mm over the floor drew there as a
+    // surface of its own and the occlusion filled every blob's rectangle with a flat grey (the "rug shadow" rectangles)
+    mesh.userData.skipAO = true;
     out.root.add(mesh);
   }
 

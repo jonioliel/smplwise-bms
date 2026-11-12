@@ -90,7 +90,13 @@ test('the generated maps: one DataTexture per finish with the files source, none
   expect(map?.isDataTexture).toBe(true);
   expect([map.image.width, map.image.height]).toEqual([512, 512]);
   expect(map.generateMipmaps).toBe(true);
-  expect(m.normalMap).toBeNull(); // no normal map: the cost of a plain textured floor
+  // PLAN3D-LEVEL3-2435: the generated surface - roughness / AO packed and the joints' normals, the colour map's size
+  const rough = m.roughnessMap as unknown as { isDataTexture?: boolean; image: { width: number } };
+  const nrm = m.normalMap as unknown as { isDataTexture?: boolean; image: { width: number } };
+  expect(rough?.isDataTexture).toBe(true);
+  expect(nrm?.isDataTexture).toBe(true);
+  expect([rough.image.width, nrm.image.width]).toEqual([512, 512]);
+  expect(m.aoMap).toBe(m.roughnessMap);
   expect(mats.get(FINISH_MARBLE, 'floor', false).map).toBe(m.map); // one texture per finish
   expect((mats.get(FINISH_CERAMIC, 'floor').map as unknown as { image: { width: number } }).image.width).toBe(256);
   const geo = new RealMaterials('/', () => {});

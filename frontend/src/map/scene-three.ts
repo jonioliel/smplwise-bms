@@ -22,7 +22,7 @@ import type { SceneDescription, ScenePart, Vec3 } from './scene-builder';
 import { CUTAWAY_HEIGHT_M, ISO_DIR, NO_INSETS, PERSP_DIR, azimuthDeg, clampThumb, contentExtent, cutBox, cutawayIds, glowPoolWanted, insetFractions, isoFitFrame, isoFrame, levelExtent, perspFit, quantiseAzimuth, sceneExtent, type Extent, type FrameInsets, type IsoFrame } from './scene-frame';
 import { DEFAULT_REAL, REAL_KINDS, RealMaterials, disposeDeep, RealModels, backdropColors, buildExterior, buildReal, lampColor, paintSky, assetBase, glowPlanOf, applyBackdrop, STUDIO, type Exterior, type RealBuilt, type RealSettings } from './scene-real';
 import type { GlowRoom } from './room-glow';
-import { DEFAULT_SITE, lightRecipe, poolLamps, sunPosition, type LightRecipe, type SunPosition } from './sun';
+import { DEFAULT_SITE, lightRecipe, poolLamps, shadowPenumbraTexels, sunPosition, type LightRecipe, type SunPosition } from './sun';
 import { LOOK_STYLES, type LookStyle } from './look-style';
 import { DEFAULT_DPR_CAP, pixelRatioFor, type Rung } from './quality-ladder';
 import type { PostChain } from './post-chain';
@@ -701,6 +701,9 @@ export class SceneView {
       sun.shadow.map?.dispose();
       sun.shadow.map = null;
     }
+    // PLAN3D-LEVEL3-2435: the realistic rung's penumbra in metres, not in texels - the blur was 8 texels of whatever the extent
+    // gave (9 cm on a house, 25 cm on a hall); now ~7 cm wherever the map's texels allow (shadowPenumbraTexels)
+    if (this.quality === 3 && this.real.rung === 'realistic') sun.shadow.radius = shadowPenumbraTexels(r, px, LOOK_STYLES[this.real.style].rig.shadowRadius);
     const cam = sun.shadow.camera;
     cam.left = -r;
     cam.right = r;
@@ -966,6 +969,7 @@ export class SceneView {
       this.recolour(); // R3 G2: the state plates and frames take the style's colours
       if (!rebuild) this.applyTime(); // re-tinted and re-lit: no geometry rebuild (LOOK_SPEC section 1)
     } else if (before.backdrop !== this.real.backdrop && !rebuild) this.applyTime(); // PLAN3D-REALISM-2432: the backdrop
+    this.post?.setReflections(this.real.reflections !== false); // PLAN3D-LEVEL3-2435: a pass switch, no rebuild
     if (rebuild) {
       this.realMats?.setRung(this.real.rung);
       this.realMats?.setSource(this.real.textures);
@@ -1013,6 +1017,11 @@ export class SceneView {
   /** The post chain's passes (tests; [] without one). */
   get postPasses(): string[] {
     return this.post?.passes ?? [];
+  }
+
+  /** PLAN3D-LEVEL3-2435: the floor reflections drawn now (tests: the realistic rung with the dial on). */
+  get floorReflections(): boolean {
+    return this.post?.reflections ?? false;
   }
 
   /** The section plane constants the post chain's GTAO pass clips with (null: no chain, no GTAO or nothing cut; tests). */
@@ -1098,6 +1107,7 @@ export class SceneView {
         this.post.setLook(this.real.style, this.recipe.night);
         this.post.setClip(this.cutPlanes); // the chain may arrive after the cut was applied
         this.post.setBakedAo(this.aoEnabled && this.aoUniforms.swAoStrength.value > 0); // PLAN3D-REALISM2-2433
+        this.post.setReflections(this.real.reflections !== false); // PLAN3D-LEVEL3-2435
         this.postRung = rung;
       })
       .catch((err) => console.warn('sw-plan-3d: post chain failed to load, drawing without it', err))

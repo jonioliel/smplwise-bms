@@ -572,7 +572,7 @@ test.describe('functional and determinism (always)', () => {
     await el.locator(CHIP['3']).click();
     await expect(el).toHaveAttribute('data-rung', 'realistic');
     await expect.poll(() => el.evaluate((n) => (n as unknown as Probe).view.realPending), { timeout: 120_000 }).toBe(0);
-    await expect.poll(() => el.evaluate((n) => (n as unknown as Probe).view.postPasses), { timeout: 60_000 }).toEqual(['render-msaa2', 'gtao', 'bloom', 'output']);
+    await expect.poll(() => el.evaluate((n) => (n as unknown as Probe).view.postPasses), { timeout: 60_000 }).toEqual(['render-msaa2', 'gtao', 'ssr', 'bloom', 'output']);
     const glass = await glassCount();
     console.log(`S7 levers: realistic rung, ${glass.fresnel} objects with fresnel glass, ${glass.physical} with physical glass`);
     expect(glass.physical).toBe(0);
