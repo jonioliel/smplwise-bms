@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { NOW } from './access-control-mocks';
 import { installDiagMock, type DiagOptions } from './wiskey-access-diag-mocks';
+import { pickOption } from './helpers/wk-choose';
 
 // WISKEY-ACCESS-DIAG-2400 (plan task T10): "אבחון הרשאות" behind the real shell against the MOCKED backend (tests/wiskey-access-diag-mocks.ts,
 // layered over access-control-mocks.ts) - no access-control system, no station, no door. What it pins:
@@ -42,7 +43,7 @@ test.describe('אבחון הרשאות', () => {
     await expect(page.locator(`${SCREEN} [data-diag-tab="scenario"]`)).toHaveAttribute('aria-current', 'page');
     await expect(page.locator(`${SCREEN} sw-button[data-diag-check]`)).toHaveAttribute('disabled', '');
     await pick(page, 'scenario', 'דנה', 'p1');
-    await page.locator(`${SCREEN} select[data-diag-door="scenario"]`).selectOption('entry-b:2');
+    await pickOption(page.locator(`${SCREEN} [data-diag-door="scenario"]`), 'entry-b:2');
     await page.locator(`${SCREEN} sw-button[data-diag-check]`).click();
     const answer = page.locator(`${SCREEN} [data-diag-answer]`);
     await expect(answer).toHaveAttribute('data-diag-answer', 'no');
@@ -78,8 +79,8 @@ test.describe('אבחון הרשאות', () => {
     await expect(result.locator('[data-diag-row="entry-b:1"] [data-diag-relation]')).toHaveAttribute('label', 'רק דנה לוי');
     await expect(result).toContainText('חסימה אישית בעמדה הזו');
     await page.locator(`${SCREEN} [data-diag-kind="doors"]`).click();
-    await page.locator(`${SCREEN} select[data-diag-door="left"]`).selectOption('entry-a:1');
-    await page.locator(`${SCREEN} select[data-diag-door="right"]`).selectOption('entry-b:1');
+    await pickOption(page.locator(`${SCREEN} [data-diag-door="left"]`), 'entry-a:1');
+    await pickOption(page.locator(`${SCREEN} [data-diag-door="right"]`), 'entry-b:1');
     await page.locator(`${SCREEN} sw-button[data-diag-run]`).click();
     await expect(page.locator(`${SCREEN} [data-diag-door-comparison] [data-diag-person]`)).toHaveCount(3);
     expect(decodeURIComponent(mock.reads.find((r) => r.startsWith('/compare-doors'))!)).toContain('left=entry-a:1&right=entry-b:1');
@@ -97,7 +98,7 @@ test.describe('אבחון הרשאות', () => {
     await expect(dialog.locator('[data-diag-decide]')).toBeVisible();
     await expect(dialog.locator('sw-button[data-diag-decide-go]')).toHaveAttribute('disabled', ''); // no reason yet
     await dialog.locator('[data-diag-decision="followup"]').click();
-    await dialog.locator('select[data-diag-cadence]').selectOption('30');
+    await pickOption(dialog.locator('[data-diag-cadence]'), '30');
     await dialog.locator('textarea[data-diag-reason]').fill('לבדוק מול רשימת הקבלנים');
     await dialog.locator('sw-button[data-diag-decide-go]').click();
     await expect(dialog.locator('[data-diag-confirm]')).toContainText('למעקב את ההרשאה של דנה לוי לכניסה ראשית');

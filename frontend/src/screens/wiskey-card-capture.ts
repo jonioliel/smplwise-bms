@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { live } from 'lit/directives/live.js';
+import '../components/sw-dropdown';
+import type { DropdownChange } from '../components/sw-dropdown';
 import '../components/sw-button';
 import '../components/sw-dialog';
 import '../components/sw-field';
@@ -317,15 +319,14 @@ export class WiskeyCardCapture extends LitElement {
     return html`<p class="muted">${t('capture_hint')}</p>
       <div class="grid2">
         <sw-field label=${t('station')}>
-          <select data-wiskey-capture-station .value=${live(this.station)} ?disabled=${this.busy === 'start'} @change=${(e: Event) => void this.readReaders((e.target as HTMLSelectElement).value)}>
-            <option value="" disabled>${t('select_station')}</option>
-            ${usable.map((s) => html`<option value=${s.id} ?selected=${s.id === this.station}>${s.name}</option>`)}
-          </select>
+          <sw-dropdown block data-wiskey-capture-station label=${t('station')} placeholder=${t('select_station')} .value=${this.station}
+            .items=${usable.map((s) => ({ id: s.id, label: s.name }))} ?inert=${this.busy === 'start'} aria-disabled=${(this.busy === 'start') ? 'true' : nothing} style=${(this.busy === 'start') ? 'opacity: var(--sw-disabled-opacity)' : ''}
+            @change=${(e: CustomEvent<DropdownChange>) => void this.readReaders(e.detail.id)}></sw-dropdown>
         </sw-field>
         <sw-field label=${t('capture_reader')}>
-          <select aria-label=${t('capture_reader')} data-wiskey-capture-reader .value=${live(String(this.reader))} ?disabled=${!this.readers?.length} @change=${(e: Event) => (this.reader = Number((e.target as HTMLSelectElement).value))}>
-            ${(this.readers ?? []).map((id) => html`<option value=${id} ?selected=${id === this.reader}>${id === 0 ? t('capture_default_reader') : id}</option>`)}
-          </select>
+          <sw-dropdown block label=${t('capture_reader')} data-wiskey-capture-reader .value=${String(this.reader)}
+            .items=${(this.readers ?? []).map((id) => ({ id: String(id), label: id === 0 ? t('capture_default_reader') : String(id) }))} ?inert=${!this.readers?.length} aria-disabled=${(!this.readers?.length) ? 'true' : nothing} style=${(!this.readers?.length) ? 'opacity: var(--sw-disabled-opacity)' : ''}
+            @change=${(e: CustomEvent<DropdownChange>) => (this.reader = Number(e.detail.id))}></sw-dropdown>
         </sw-field>
       </div>
       ${usable.length ? nothing : html`<p class="note err" data-wiskey-capture-no-station>אין כרגע אינטרקום מחובר עם מנעול מנוהל שאפשר לקרוא בו כרטיס.</p>`}

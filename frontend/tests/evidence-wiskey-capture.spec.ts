@@ -1,5 +1,6 @@
 import { test, expect, request as pwRequest, type APIRequestContext, type Page } from '@playwright/test';
 import { useSmplwiseWiskeyScreens } from './wiskey-ui-mode';
+import { pickOption } from './helpers/wk-choose';
 
 // The SMPLWISE WisKey screens, not the embedded WisKey panel (the default since the 2026-09-28 decision).
 useSmplwiseWiskeyScreens();
@@ -84,7 +85,7 @@ test.describe('WisKey card capture against the fixture WisKey (CR-005 phase 2 A2
   }
 
   async function startAt(page: Page, station: string) {
-    await cap(page, 'station').selectOption(station);
+    await pickOption(cap(page, 'station'), station);
     await expect(cap(page, 'next').locator('button')).toBeEnabled({ timeout: 15000 });
     await cap(page, 'next').click();
     await expect(state(page)).toHaveAttribute('data-wiskey-capture-step', 'confirm');
@@ -163,9 +164,9 @@ test.describe('WisKey card capture against the fixture WisKey (CR-005 phase 2 A2
     await expect(cap(page, 'station')).toHaveValue('gate');
     await expect(cap(page, 'station').locator('option:not([disabled])')).toHaveCount(3); // gate, lobby, office (store is offline)
     await expect(cap(page, 'reader').locator('option')).toHaveText(['קורא ברירת המחדל בתחנה']);
-    await cap(page, 'station').selectOption('lobby');
+    await pickOption(cap(page, 'station'), 'lobby');
     await expect(cap(page, 'reader').locator('option')).toHaveText(['1', '2'], { timeout: 15000 });
-    await cap(page, 'reader').selectOption('2');
+    await pickOption(cap(page, 'reader'), '2');
     await cap(page, 'next').click();
     // the confirmation step: what happens at the door, what the person must do
     await expect(cap(page, 'confirm-step')).toContainText('להפעיל את קורא הכרטיסים בעמדה לובי?');
@@ -268,7 +269,7 @@ test.describe('WisKey card capture against the fixture WisKey (CR-005 phase 2 A2
 
   test('a station that advertises no card collection is said so; nothing is started there', async ({ page }) => {
     await openCapture(page);
-    await cap(page, 'station').selectOption('office');
+    await pickOption(cap(page, 'station'), 'office');
     await expect(cap(page, 'error')).toHaveAttribute('data-wiskey-capture-error', 'capture_unsupported', { timeout: 15000 });
     await expect(cap(page, 'error')).toContainText('האינטרקום אינו מפרסם יכולת נתמכת לקריאת כרטיס');
     await expect(cap(page, 'next').locator('button')).toBeDisabled();

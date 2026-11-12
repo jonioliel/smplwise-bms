@@ -2,6 +2,8 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { live } from 'lit/directives/live.js';
 import { repeat } from 'lit/directives/repeat.js';
+import '../components/sw-dropdown';
+import type { DropdownChange } from '../components/sw-dropdown';
 import '../components/sw-badge';
 import '../components/sw-button';
 import '../components/sw-dialog';
@@ -680,9 +682,9 @@ export class WiskeyPersonEditor extends LitElement {
     return html`<fieldset data-wiskey-editor-section="category">
       <legend><sw-icon name="users" size=${16}></sw-icon>${wt('cat.label')}</legend>
       <sw-field label=${wt('cat.field')}>
-        <select data-wiskey-editor-category .value=${live(d.category)} @change=${(e: Event) => this.patch('category', (e.target as HTMLSelectElement).value as Category)}>
-          ${(['staff', 'visitor', 'contractor'] as const).map((c) => html`<option value=${c} ?selected=${c === d.category}>${wt(`cat.${c}` as WritesKey)}</option>`)}
-        </select>
+        <sw-dropdown block data-wiskey-editor-category label=${wt('cat.field')} .value=${d.category}
+          .items=${(['staff', 'visitor', 'contractor'] as const).map((c) => ({ id: c, label: wt(`cat.${c}` as WritesKey) }))}
+          @change=${(e: CustomEvent<DropdownChange>) => this.patch('category', e.detail.id as Category)}></sw-dropdown>
       </sw-field>
       ${guest && this.sensitive
         ? html`<div class="grid2">
@@ -711,19 +713,16 @@ export class WiskeyPersonEditor extends LitElement {
         ? html`<p class="muted" data-wiskey-editor-timing-native>${wt('timing.native_locked')}</p>`
         : html`<div class="grid2">
             <sw-field label=${wt('timing.mode')}>
-              <select data-wiskey-editor-timing-select .value=${live(f.mode)} @change=${(e: Event) => this.setTiming({ mode: (e.target as HTMLSelectElement).value as TimingForm['mode'] })}>
-                <option value="none" ?selected=${f.mode === 'none'}>${wt('timing.none')}</option>
-                <option value="weekly" ?selected=${f.mode === 'weekly'}>${wt('timing.weekly')}</option>
-                <option value="dates" ?selected=${f.mode === 'dates'}>${wt('timing.dates')}</option>
-              </select>
+              <sw-dropdown block data-wiskey-editor-timing-select label=${wt('timing.mode')} .value=${f.mode}
+                .items=${[{ id: 'none', label: wt('timing.none') }, { id: 'weekly', label: wt('timing.weekly') }, { id: 'dates', label: wt('timing.dates') }]}
+                @change=${(e: CustomEvent<DropdownChange>) => this.setTiming({ mode: e.detail.id as TimingForm['mode'] })}></sw-dropdown>
             </sw-field>
             ${f.mode === 'none'
               ? nothing
               : html`<sw-field label=${wt('timing.enforce')}>
-                  <select data-wiskey-editor-timing-enforce .value=${live(f.enforce)} @change=${(e: Event) => this.setTiming({ enforce: (e.target as HTMLSelectElement).value as TimingForm['enforce'] })}>
-                    <option value="draft" ?selected=${f.enforce === 'draft'}>${wt('timing.enforce_draft')}</option>
-                    <option value="ha" ?selected=${f.enforce === 'ha'}>${wt('timing.enforce_ha')}</option>
-                  </select>
+                  <sw-dropdown block data-wiskey-editor-timing-enforce label=${wt('timing.enforce')} .value=${f.enforce}
+                    .items=${[{ id: 'draft', label: wt('timing.enforce_draft') }, { id: 'ha', label: wt('timing.enforce_ha') }]}
+                    @change=${(e: CustomEvent<DropdownChange>) => this.setTiming({ enforce: e.detail.id as TimingForm['enforce'] })}></sw-dropdown>
                 </sw-field>`}
           </div>
           ${f.mode === 'weekly'
@@ -770,10 +769,9 @@ export class WiskeyPersonEditor extends LitElement {
     return html`<fieldset data-wiskey-editor-section="validity">
       <legend><sw-icon name="calendar" size=${16}></sw-icon>${t('validity')}</legend>
       <sw-field label=${t('user_timing_mode')}>
-        <select data-wiskey-editor-validity-mode .value=${live(this.timed ? 'period' : 'always')} @change=${(e: Event) => (this.timed = (e.target as HTMLSelectElement).value === 'period')}>
-          <option value="always">${t('permanent')}</option>
-          <option value="period">${t('period')}</option>
-        </select>
+        <sw-dropdown block data-wiskey-editor-validity-mode label=${t('user_timing_mode')} .value=${this.timed ? 'period' : 'always'}
+          .items=${[{ id: 'always', label: t('permanent') }, { id: 'period', label: t('period') }]}
+          @change=${(e: CustomEvent<DropdownChange>) => (this.timed = e.detail.id === 'period')}></sw-dropdown>
       </sw-field>
       ${this.timed
         ? html`<div class="grid2">

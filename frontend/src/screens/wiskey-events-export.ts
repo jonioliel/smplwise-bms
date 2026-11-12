@@ -1,5 +1,7 @@
 import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import '../components/sw-dropdown';
+import type { DropdownChange } from '../components/sw-dropdown';
 import '../components/sw-dialog';
 import '../components/sw-button';
 import '../components/sw-field';
@@ -145,10 +147,9 @@ export class WiskeyEventsExport extends LitElement {
       <p class="muted" data-ev-export-logged>${ev('exLogged')}</p>
       ${this.needStation
         ? html`<sw-field label=${ev('exStation')}>
-            <select data-ev-export-station .value=${this.station} ?disabled=${busy} @change=${(e: Event) => (this.station = (e.target as HTMLSelectElement).value)}>
-              <option value="" ?selected=${!this.station}>${ev('exStationPick')}</option>
-              ${this.stations.map((s) => html`<option value=${s.id} ?selected=${s.id === this.station}>${s.name}</option>`)}
-            </select>
+            <sw-dropdown block data-ev-export-station label=${ev('exStation')} .value=${this.station}
+              .items=${[{ id: '', label: ev('exStationPick') }, ...this.stations.map((s) => ({ id: s.id, label: s.name }))]} ?inert=${busy} aria-disabled=${(busy) ? 'true' : nothing} style=${(busy) ? 'opacity: var(--sw-disabled-opacity)' : ''}
+              @change=${(e: CustomEvent<DropdownChange>) => (this.station = e.detail.id)}></sw-dropdown>
           </sw-field>`
         : nothing}
       ${done

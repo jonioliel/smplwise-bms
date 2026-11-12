@@ -1,5 +1,7 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import '../components/sw-dropdown';
+import type { DropdownChange } from '../components/sw-dropdown';
 import '../components/sw-page';
 import '../components/sw-button';
 import '../components/sw-badge';
@@ -444,28 +446,27 @@ export class WiskeyProfilesScreen extends LitElement {
       </div>
       ${this.problem(problems, `fields.${i}.label`)}${this.problem(problems, `fields.${i}.id`)}
       <div class="grid">
-        <label class="f"><span>${pft('type')}</span>
-          <select data-pf-field-type .value=${f.type} @change=${(e: Event) => this.setField(i, { type: (e.target as HTMLSelectElement).value as ProfileField['type'] })}>
-            ${FIELD_TYPES.map((t) => html`<option value=${t} ?selected=${f.type === t}>${pftDynamic(`type_${t}`, 'type_text')}</option>`)}
-          </select></label>
+        <div class="f"><span>${pft('type')}</span>
+          <sw-dropdown block data-pf-field-type label=${pft('type')} .value=${f.type}
+            .items=${FIELD_TYPES.map((t) => ({ id: t, label: pftDynamic(`type_${t}`, 'type_text') }))}
+            @change=${(e: CustomEvent<DropdownChange>) => this.setField(i, { type: e.detail.id as ProfileField['type'] })}></sw-dropdown></div>
         <label class="ck"><input type="checkbox" .checked=${f.required} data-pf-field-required @change=${(e: Event) => this.setField(i, { required: (e.target as HTMLInputElement).checked })} />
           ${pft('required')}</label>
         <label class="ck"><input type="checkbox" .checked=${f.unique} data-pf-field-unique @change=${(e: Event) => this.setField(i, { unique: (e.target as HTMLInputElement).checked })} />
           ${pft('unique')}</label>
-        <label class="f"><span>${pft('dependsOn')}</span>
-          <select data-pf-field-parent @change=${(e: Event) => {
-            const v = (e.target as HTMLSelectElement).value;
-            this.setField(i, { depends_on: v ? { field_id: v, value: '' } : null });
-          }}>
-            <option value="" ?selected=${!f.depends_on}>${pft('dependsNone')}</option>
-            ${parents.map((p) => html`<option value=${p.id} ?selected=${f.depends_on?.field_id === p.id}>${p.label}</option>`)}
-          </select></label>
+        <div class="f"><span>${pft('dependsOn')}</span>
+          <sw-dropdown block data-pf-field-parent label=${pft('dependsOn')} .value=${f.depends_on?.field_id ?? ''}
+            .items=${[{ id: '', label: pft('dependsNone') }, ...parents.map((p) => ({ id: p.id, label: p.label }))]}
+            @change=${(e: CustomEvent<DropdownChange>) => {
+              const v = e.detail.id;
+              this.setField(i, { depends_on: v ? { field_id: v, value: '' } : null });
+            }}></sw-dropdown></div>
         ${f.depends_on
           ? html`<label class="f"><span>${pft('dependsValue')}</span>
               ${parent?.type === 'select'
-                ? html`<select data-pf-field-parent-value @change=${(e: Event) => this.setField(i, { depends_on: { field_id: f.depends_on!.field_id, value: (e.target as HTMLSelectElement).value } })}>
-                    <option value="" ?selected=${!f.depends_on.value}>—</option>
-                    ${parent.options.map((o) => html`<option value=${o} ?selected=${f.depends_on?.value === o}>${o}</option>`)}</select>`
+                ? html`<sw-dropdown block data-pf-field-parent-value label=${pft('dependsValue')} .value=${f.depends_on.value}
+                    .items=${[{ id: '', label: '—' }, ...parent.options.map((o) => ({ id: o, label: o }))]}
+                    @change=${(e: CustomEvent<DropdownChange>) => this.setField(i, { depends_on: { field_id: f.depends_on!.field_id, value: e.detail.id } })}></sw-dropdown>`
                 : html`<input type="text" maxlength="100" .value=${f.depends_on.value} data-pf-field-parent-value
                     @input=${(e: Event) => this.setField(i, { depends_on: { field_id: f.depends_on!.field_id, value: (e.target as HTMLInputElement).value } })} />`}</label>`
           : nothing}
