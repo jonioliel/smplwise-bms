@@ -1,6 +1,7 @@
 // HOME-SIMPLE-2420: what the home interface reads, and the view model it draws. Every read is an existing route (or the home
 // interface's own /home/* routes); every control goes through the existing control paths (home-actions.ts). Nothing here knows
 // a device protocol; the names the person sees are the names the installation gave the devices.
+import type { HomeModuleP3 } from './home-p3-logic'; // HOME-V3-P3-2432
 import { get, put } from '../api/client';
 import { listCameras } from '../api/maps';
 import { listMeters, meterSeries } from '../api/electricity-meters';
@@ -9,7 +10,10 @@ import { httpAutomations, type Item as AutoItem } from '../api/automations';
 import { can, canAnywhere } from '../api/session';
 
 export type Interface = 'home' | 'full';
-export type HomeModule = 'lights' | 'climate' | 'shades' | 'doors' | 'cameras' | 'energy' | 'alerts' | 'scenes' | 'security';
+export type HomeModule = 'lights' | 'climate' | 'shades' | 'doors' | 'cameras' | 'energy' | 'alerts' | 'scenes' | 'security'
+  | 'presence' | 'calendar' | 'notices' | 'tickets' | 'schedules' // HOME-V3-P2-2431: the family and building categories
+  | HomeModuleP3 // HOME-V3-P3-2432
+  | 'recordings' | 'log' | 'intercom'; // HOME-V3-FOLLOWUP-A-2431: their own categories (were under cameras / doors)
 
 export interface InterfacePolicy {
   default_interface: Interface;
@@ -29,6 +33,10 @@ export interface InterfacePolicy {
   kiosk_exit?: 'code' | 'none';
   /** HOME-SIMPLE-2421: the room wallpaper the installation offers */
   wallpaper?: 'none' | 'gallery' | 'gallery_image';
+  /** HOME-V3-P1-2430: the home administrator marked this person for guest invitations (never a grant by itself) */
+  guests?: boolean;
+  /** HOME-V3-P1-2430: the administrator's wallpaper per room for everyone ('g:<gallery>' | 'img') */
+  room_wallpapers?: Record<string, string>;
 }
 
 // ---------------------------------------------------------------- wire shapes (GET /home/overview)

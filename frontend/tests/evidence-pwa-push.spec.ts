@@ -137,6 +137,7 @@ test.describe('PWA shell (CR-008 P3)', () => {
   });
 
   test('a new release: update notice, new worker, old cache deleted', async ({ page }) => {
+    test.slow(); // the nightly (2.42.x) timed out here under load: three times the default timeout
     // The worker names its cache after the build (the add-on version), so a new release is a changed arx-sw.js. The
     // browser fetches the worker script itself (not routable), so this test serves dist/ from its own tiny server and
     // swaps the script for a "next release" copy half-way.

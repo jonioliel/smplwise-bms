@@ -667,7 +667,8 @@ export class ExploreFloors extends LitElement {
               : html`<sw-button variant="ghost" icon="edit" @click=${() => this.openDialog({ kind: 'rename', floor: sel })}>עריכה</sw-button>
                 <sw-button variant="ghost" icon="link" data-home-link-btn @click=${() => this.openDialog({ kind: 'home', floor: sel })}>${xt('homeLinkBtn')}</sw-button>
                 <sw-button variant="ghost" icon="trash" @click=${() => this.openDialog({ kind: 'delete', floor: sel, force: false })}>מחיקה</sw-button>
-                <sw-button icon="upload" @click=${() => navigate(`/explore/floors/${sel.id}/import`)}>${sel.has_plan ? 'תוכנית חדשה' : 'העלאת תוכנית'}</sw-button>`}
+                <sw-button icon="upload" @click=${() => navigate(`/explore/floors/${sel.id}/import`)}>${sel.has_plan ? 'תוכנית חדשה' : 'העלאת תוכנית'}</sw-button>
+                <sw-button icon="sparkle" data-plan-wizard @click=${() => navigate(`/explore/floors/${sel.id}/wizard`)}>תוכנית מתמונה</sw-button>`}
             ${sel.has_plan || sel.draft_version_id ? nothing : html`<sw-button variant="ghost" icon="mail" data-architect-request @click=${() => openArchitectRequest()}>בקשה לאדריכל</sw-button>`}
             ${sigOf.get(sel.id) && metrics.light && this.lightsAllowed(sigOf.get(sel.id)!) ? html`<sw-button variant="ghost" icon="light" data-floor-lights-open=${sel.id} @click=${() => (this.lightsOf = sigOf.get(sel.id)!)}>${xt('floorLightsBtn')}</sw-button>` : nothing}
             <sw-button variant="primary" icon="map" @click=${() => navigate(`/explore/floors/${sel.id}`)}>פתח את ${sel.name}</sw-button>

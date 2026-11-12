@@ -146,7 +146,7 @@ test.describe('HOME-SIMPLE-2420 behaviour', () => {
 
   test('the alarm arms with one confirmation through the alarm route', async ({ page }) => {
     const m = await open(page, 'security');
-    await inHome(page).locator('[data-act="alarm"][data-v="arm_away"]').click();
+    await inHome(page).locator('[data-act="almArm"][data-v="arm_away"]').click(); // HOME-V3-P1-2430: the alarm screen follows mockup v3
     await inHome(page).locator('[data-act="askYes"]').click();
     await expect.poll(() => m.calls.filter((c) => c.path === 'alarm/actions').map((c) => JSON.stringify(c.body))).toContainEqual(expect.stringContaining('"action":"arm_away","confirmed":true'));
   });
