@@ -42,6 +42,8 @@ test.describe('pixel: AUDIT30-A-GLASS-BRIDGE', () => {
     await open(page, '/tickets/board', 'dark');
     await page.mouse.move(0, 0);
     await settlePage(page, { timeout: 8_000 }).catch(() => undefined);
-    await expect(page).toHaveScreenshot(file, { maxDiffPixelRatio: 0.004, animations: 'disabled' });
+    // threshold 0.02 (per pixel; Playwright's default 0.2): the fix is a hue shift of dark surfaces (panel (22,23,27) -> (16,22,36)) that
+    // the default tolerance cannot see - checked: a base-build baseline passed against this branch at 0.2
+    await expect(page).toHaveScreenshot(file, { threshold: 0.02, maxDiffPixelRatio: 0.004, animations: 'disabled' });
   });
 });
