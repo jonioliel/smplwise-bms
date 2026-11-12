@@ -17,16 +17,16 @@ const noBaseline = (info: { snapshotPath: (...name: string[]) => string; config:
 
 async function open(page: Page, route: string, o: GapOpts, scheme: 'light' | 'dark') {
   await mockGaps(page, { now: NOW.getTime(), ...o });
+  // the theme comes from the person's stored layout, as in the product: writing the host attributes after load raced the layout's own
+  // apply (the first runner check saw light shots drawn dark)
+  const layout = { welcomed: true, theme: scheme === 'dark' ? 'midnight' : 'classic', scheme };
+  await page.route('**/api/v1/home/prefs', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ favourites: {}, layout, seed: {} }) }));
   await page.clock.setFixedTime(NOW);
   await page.goto('about:blank');
   await page.goto(`/#/home/${route}`);
   await home(page).waitFor();
   await expect.poll(() => page.evaluate(() => !!document.querySelector('sw-app')?.shadowRoot?.querySelector('sw-home')?.shadowRoot?.querySelector('.hs.v2'))).toBe(true);
-  await page.evaluate(([s]) => {
-    const h = document.querySelector('sw-app')?.shadowRoot?.querySelector('sw-home') as HTMLElement | null;
-    h?.setAttribute('data-hs-theme', s === 'dark' ? 'midnight' : 'classic');
-    h?.setAttribute('data-hs-scheme', s);
-  }, [scheme]);
+  await expect.poll(() => page.evaluate(() => document.querySelector('sw-app')?.shadowRoot?.querySelector('sw-home')?.getAttribute('data-hs-scheme'))).toBe(scheme);
   await settle(page);
 }
 
