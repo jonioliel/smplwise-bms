@@ -197,12 +197,12 @@ def _multipart(boundary: str, name: str, filename: str, payload_chunks: list[byt
 def test_a_cut_multipart_upload_leaves_the_temp_dir_empty(settings, tmp_path, monkeypatch):
     """The plan upload over the limit: the multipart parser had spooled past 1 MiB (a temp FILE) when the body was cut;
     it is closed and gone, and nothing reached the plans folder."""
-    spool = tmp_path / "spool"
-    spool.mkdir()
-    monkeypatch.setattr(tempfile, "tempdir", str(spool))
     s = dataclasses.replace(settings, max_upload_bytes=2 * MiB)
     app = create_app(s)
     floor = seed_tree(TestClient(app))["floor2"]
+    spool = tmp_path / "spool"
+    spool.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(spool))
     boundary = "swBodyLimit"
     chunks = _multipart(boundary, "file", "plan.png", [b"\x89PNG" + b"\x00" * (256 * 1024 - 4)] + [b"\x00" * (256 * 1024)] * 23)  # 6 MiB
     path = f"/api/v1/floors/{floor}/plan-assets"

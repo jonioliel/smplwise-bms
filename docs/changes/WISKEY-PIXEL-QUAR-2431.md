@@ -51,3 +51,13 @@ NOT_RUN: a full gate; the entry check is queued on the runner (`~/pre/entry_wkpi
 
 Nothing to change in the repository. The runner entry `pixel-wiskey-stations.spec.ts:87` (WKWATER-POLISH-2331-pixel) should be
 moved to `history` by the lead with `removed_reason` "root cause fixed on pilot/WISKEY-PIXEL-QUAR-2431 (grid scroll pin)".
+
+## 6. Backend test fixed on the way (entry check failure)
+
+The entry check at 80db91c8e failed `tests/test_body_limit.py::test_a_cut_multipart_upload_leaves_the_temp_dir_empty` (twice).
+It was **broken on main too**, not a load flake: on the runner, main @ a5618fad6 failed it 3/3 alone and in the whole file.
+Cause: the test pointed `tempfile.tempdir` at its spool directory BEFORE building the app; when it is the first test of the
+process to use the database, the lazily built test-database template (`tests/db_template.py`, `mkdtemp(prefix="sw_db_template_")`)
+lands in the spool and the "spool is empty" assertion fails. The nightly full run builds the template earlier, so it hid this.
+Fix: build the app and seed the tree first, then redirect `tempfile.tempdir` (only the upload's spool is under test).
+Runner, patched copy of main: 3/3 passed alone, the whole file 12 passed.
