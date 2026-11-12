@@ -98,6 +98,20 @@ What `branch_check.sh <branch>` does, and does not:
   release gate (`~/.gate-pending`) and a pending nightly (`~/.nightly-pending`). `~/smplwise-results/entry_status.json` says
   `queued` / `running` / `done`. Queue limit `--max-wait SECS` (default 12 h, `0` = none) -> NOT_RUN, exit 1. While an entry check runs,
   a release gate started by hand gets "lock busy" (exit 3) - start gates when `entry_status.json` is `done`.
+* **FIFO queue (GATE-FIFO-2436)**: `flock -w` alone was a lottery (a check queued at 21:53 waited 10 h while later ones ran first). Each
+  check writes a ticket `~/.smplwise-queue/<epoch_ns>-<pid>-<branch>` and only the OLDEST live ticket tries the lock; the others sleep
+  `ENTRY_LOCK_SLICE`. The ticket is kept while the check runs (it is position 1) and removed on exit; a ticket whose pid is gone, or whose
+  pid now belongs to a process that is not a branch check, is pruned by the next waiter. Pre-FIFO checks (started by the old script, no
+  ticket) are found with `ps` (`branch_check.sh` in the command line, the top process of each check, started earlier) and count as ahead,
+  so they are not starved; they still pick among themselves by the old lottery. The release gates (`flock -n`, no wait), the nightly
+  (`~/.nightly-pending`) and a pending gate (`~/.gate-pending`) keep their place: the queue yields to both pending files exactly as before.
+  The "queued" log line and `entry_status.json` carry `position` / `queue_len` / `legacy_ahead` (logged on every change and every 10 min);
+  a waiter no longer overwrites a `running` state in the shared `entry_status.json`; `~/smplwise-results/entry_queue.json` lists the
+  tickets in order. Env: `ENTRY_QUEUE_DIR`, `ENTRY_PROC_PAT` (ERE for a branch-check command line), `ENTRY_LEGACY_SCAN=0` (no `ps` scan).
+  Test: `bash scripts/gate/tests/test_branch_check_fifo.sh` (Linux: flock, ps, /proc; it sources the real queue block of the script).
+* **Installing a new `branch_check.sh` while checks wait**: bash reads a script while it runs, so NEVER edit `~/gate2/branch_check.sh`
+  in place. Copy to `~/gate2/branch_check.sh.new`, `chmod +x`, then `mv -f ~/gate2/branch_check.sh.new ~/gate2/branch_check.sh`
+  (atomic rename; running checks keep the old inode).
 * The run is the gate's own engine and selection, unforked: it stages `release_gate.py` + aux files from `~/` into `~/gate2/` exactly
   like `release_gate2.sh`, plans shards/slots with `gate2_select.py plan`, then runs
   `release_gate.py <branch> --tier L --schedule v2 --select-base origin/main` with `GATE_SELECT_ENABLE=1` (T074: the visual step runs and blocks as in the release gate; `--no-visual` is added only when the plan prints `visual: skip`)
@@ -130,5 +144,5 @@ ssh runner 'chmod +x ~/gate2/branch_check.sh ~/nightly_tests.sh; cd ~/gate2 && p
 `gate2_quarantine.json` on the runner is the live list: do NOT overwrite it with the repository copy once entries exist; run
 `gate_quarantine.py check` after the copy to see entries that the 7-day rule now marks invalid.
 
-Not validated on the runner: the real queue with `flock -w`, the real engine under `--select-base origin/main`, wall times, the nightly
+Not validated on the runner (ENTRY-CHECK-2310 text; the FIFO queue was tested on the runner in GATE-FIFO-2436): the real queue with `flock -w`, the real engine under `--select-base origin/main`, wall times, the nightly
 quarantine section in a real summary.
