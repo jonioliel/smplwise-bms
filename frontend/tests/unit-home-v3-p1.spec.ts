@@ -19,9 +19,9 @@ test('the diary speaks family words and leaves the technical events out', () => 
 
 test('a call result: who opened, who answered, missed', () => {
   const base = { outcome: null, answered_by_name: null, door_opened_by_name: null, door_opened_at: null };
-  expect(callResult({ ...base, door_opened_by_name: 'נועה' })).toEqual({ text: 'נועה פתח/ה את הדלת', tone: 'ok' });
+  expect(callResult({ ...base, door_opened_by_name: 'נועה' })).toEqual({ text: 'הדלת נפתחה · נועה', tone: 'ok' });
   expect(callResult({ ...base, outcome: 'missed' }).tone).toBe('warn');
-  expect(callResult({ ...base, outcome: 'answered', answered_by_name: 'יוסי' }).text).toBe('יוסי ענה/תה');
+  expect(callResult({ ...base, outcome: 'answered', answered_by_name: 'יוסי' }).text).toBe('נענתה · יוסי');
 });
 
 test('a guest invitation state: waiting for approval, the number to confirm, live, ended', () => {

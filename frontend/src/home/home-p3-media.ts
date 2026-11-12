@@ -30,7 +30,8 @@ export function sMedia(p: P3) {
   };
   const acts = html`${locked ? nothing : h.scopeSeg()}${p.canAnnounce() ? html`<button class="hbtn" data-p3-announce @click=${() => p.openAnnounce()}>${ic('horn')}<span class="bt">כריזה</span></button>` : nothing}<button class="hbtn" ?disabled=${!on} @click=${stopAll}>${ic('stop')}<span class="bt">עצור הכל</span></button>`;
   const where = locked ? 'ב' + (h.ctx()?.name ?? '') : h.scopeWord();
-  if (!m) return html`${h.head('מוזיקה ומסכים', where, acts)}${p.empty('music', 'אין רמקולים או מסכים ' + where, h.ctx() && !locked ? 'בחרו "כל הבית" כדי לראות את שאר המכשירים.' : 'כשיחוברו רמקול או טלוויזיה, אפשר יהיה לשלוט בהם מכאן.')}`;
+  // HOME-V3-AUDITFIX-2437 (audit item 27): with no speaker or screen there is nothing to announce on - the head offers neither button
+  if (!m) return html`${h.head('מוזיקה ומסכים', where, locked ? nothing : h.scopeSeg())}${p.empty('music', 'אין רמקולים או מסכים ' + where, h.ctx() && !locked ? 'בחרו "כל הבית" כדי לראות את שאר המכשירים.' : 'כשיחוברו רמקול או טלוויזיה, אפשר יהיה לשלוט בהם מכאן.')}`;
   void p.loadPicks(m);
   const tv = mediaLook(m.kind) === 'tv';
   const isOnNow = m.live.power === 'on';
@@ -53,7 +54,7 @@ export function sMedia(p: P3) {
     <div class="md-body" data-p3-media>
       <section class=${'tile md-now' + (isOnNow ? ' is-on' : '')} aria-label=${m.name}>
         <span class="art" aria-hidden="true">${ic(tv ? 'tv' : 'music')}</span>
-        <div class="md-t"><span class="muted clamp1">${m.name}${rn ? ' · ' + rn : ''}</span><b class="clamp2" data-p3-now>${isOnNow ? title || (playing(m) ? 'מתנגן' : 'דולק') : 'כבוי'}</b><span class="muted clamp1">${isOnNow ? by || ' ' : 'בחרו מה לנגן'}</span></div>
+        <div class="md-t"><span class="muted clamp1" dir="auto">${m.name}${rn ? ' · ' + rn : ''}</span><b class="clamp2" data-p3-now>${isOnNow ? title || (playing(m) ? 'מתנגן' : 'דולק') : 'כבוי'}</b><span class="muted clamp1">${isOnNow ? by || ' ' : 'בחרו מה לנגן'}</span></div>
         ${prog != null ? html`<div class="md-prog" dir="ltr" aria-hidden="true"><i style=${`transform:scaleX(${prog})`}></i></div>` : html`<div class="md-prog none" aria-hidden="true"></div>`}
         <div class="md-ctl" dir="ltr">
           <button class="rb" aria-label="הקודם" ?disabled=${!p.offered(m, prev)} @click=${() => void p.cmd(m, prev)}>${ic('prev')}</button>
@@ -72,7 +73,7 @@ export function sMedia(p: P3) {
       <section class="md-list" aria-label="מכשירים">${pg.items.map((x) => {
         const c = p.playCmd(x);
         const t = nowLine(x.live.now).title;
-        return html`<div class=${'tile mrow2' + (x.key === m.key ? ' cur' : '') + (playing(x) ? ' is-on' : '')} data-p3-dev=${x.key}><button class="cover" aria-label=${x.name} aria-pressed=${String(x.key === m.key)} @click=${() => { p.mp = x.key; h.requestUpdate(); }}></button><span class="ai">${ic(mediaLook(x.kind) === 'tv' ? 'tv' : 'music')}</span><span class="at"><b class="clamp1">${x.name}</b><span class="muted clamp1">${x.live.power === 'on' ? t || (playing(x) ? 'מתנגן' : 'דולק') : x.live.power === 'unavailable' ? 'לא זמין כרגע' : 'כבוי'}</span></span><button class="rb" ?disabled=${!c} aria-pressed=${String(playing(x))} aria-label=${(playing(x) ? 'השהה' : 'נגן') + ': ' + x.name} @click=${() => c && void p.cmd(x, c)}>${ic(playing(x) ? 'pause' : 'play')}</button></div>`;
+        return html`<div class=${'tile mrow2' + (x.key === m.key ? ' cur' : '') + (playing(x) ? ' is-on' : '')} data-p3-dev=${x.key}><button class="cover" aria-label=${x.name} aria-pressed=${String(x.key === m.key)} @click=${() => { p.mp = x.key; h.requestUpdate(); }}></button><span class="ai">${ic(mediaLook(x.kind) === 'tv' ? 'tv' : 'music')}</span><span class="at"><b class="clamp1" dir="auto">${x.name}</b><span class="muted clamp1">${x.live.power === 'on' ? t || (playing(x) ? 'מתנגן' : 'דולק') : x.live.power === 'unavailable' ? 'לא זמין כרגע' : 'כבוי'}</span></span><button class="rb" ?disabled=${!c} aria-pressed=${String(playing(x))} aria-label=${(playing(x) ? 'השהה' : 'נגן') + ': ' + x.name} @click=${() => c && void p.cmd(x, c)}>${ic(playing(x) ? 'pause' : 'play')}</button></div>`;
       })}${h.pager('p3media', pg.pages)}</section>
     </div>`;
 }

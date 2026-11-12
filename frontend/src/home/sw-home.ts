@@ -23,6 +23,9 @@ import { api, apiUrl, post, describeError } from '../api/client';
 import { GALLERY, galleryCss, switchUserMode } from './home-wall';
 import { notify } from '../api/notifications';
 import { snapshotUrl } from '../api/media';
+import { stillIntervalMs } from '../api/frigate';
+import { callResult } from './home-v3-words';
+import { diffWords, num1 } from './home-p3-logic';
 import { getCallLog, type CallLogRow } from '../api/intercom-calls';
 import { subscribeHa } from '../api/ha';
 import { relTime } from './home-api';
@@ -75,6 +78,23 @@ const NAV: [string, string, string, string][] = [['r/home', 'הבית שלי', '
 const SCREENS = ['r', 'rooms', 'lights', 'climate', 'shades', 'doors', 'cameras', 'energy', 'alerts', 'scenes', 'active', 'settings', 'welcome', 'security'];
 const ARM_LABEL: Record<string, string> = { arm_home: 'דריכה בבית', arm_away: 'דריכה ביציאה', arm_night: 'דריכת לילה', arm_vacation: 'דריכה לחופשה', arm_custom_bypass: 'דריכה חלקית', disarm: 'ניטרול' };
 const KIOSK_UNLOCK_MS = 5 * 60_000;
+const KIOSK_ROUTES = ['r', 'lights', 'climate', 'shades', 'doors', 'scenes', 'active', 'alerts', 'media', 'notices', 'calendar'];
+/** HOME-V3-AUDITFIX-2437 (audit item 2): the phone / wide boundary of the home interface - the same query as every phone block of the
+ *  home style sheets (`(max-width: 700px), (max-width: 899px) and (orientation: portrait)`; the wide blocks are its complement). A portrait
+ *  tablet 701-899 px wide takes the phone layout with the bottom bar; a landscape phone of that width keeps the wide one, as before. */
+export const HOME_PHONE_MQ = '(max-width: 700px), (max-width: 899px) and (orientation: portrait)';
+const isPhone = () => window.matchMedia(HOME_PHONE_MQ).matches;
+/** HOME-V3-AUDITFIX-2437 (audit item 7): the theme, scheme and background this device last drew the home in (read by public/home-paint.js). */
+const PAINT_KEY = 'arx-home-paint';
+function readPaintHint(): { theme: string; scheme: 'light' | 'dark' } | null {
+  try {
+    const p = JSON.parse(localStorage.getItem(PAINT_KEY) || 'null') as { theme?: unknown; scheme?: unknown } | null;
+    return p && typeof p.theme === 'string' ? { theme: p.theme, scheme: p.scheme === 'light' ? 'light' : 'dark' } : null;
+  } catch { return null; }
+}
+function writePaintHint(theme: string, scheme: string, bg: string) {
+  try { if (bg) localStorage.setItem(PAINT_KEY, JSON.stringify({ theme, scheme, bg })); } catch { /* storage off: the usual first frame */ }
+}
 const HE_WEEKDAY = new Intl.DateTimeFormat('he-IL', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Asia/Jerusalem' });
 const HE_TIME = new Intl.DateTimeFormat('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' });
 
@@ -110,7 +130,7 @@ export class SwHome extends LitElement {
   @state() private toastMsg: { text: string; undo: (() => void) | null } | null = null;
   @state() private armed: string | null = null;
   @state() private sceneRun: string | null = null;
-  @state() phone = window.innerWidth <= 700;
+  @state() phone = isPhone();
   @state() now = new Date();
   @state() visitors: CallLogRow[] = [];
   @state() private kioskUntil = 0;
@@ -146,6 +166,12 @@ export class SwHome extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
+    // HOME-V3-AUDITFIX-2437 (audit item 7): until the person's layout arrives, draw in the theme / scheme this device last showed
+    // (public/home-paint.js painted the page behind it the same way); the page's own background is handed back to the shell's skin
+    const hint = readPaintHint();
+    if (hint && !this.hasAttribute('data-hs-scheme')) { this.setAttribute('data-hs-theme', hint.theme); this.setAttribute('data-hs-scheme', hint.scheme); }
+    const root = document.documentElement;
+    if (root.hasAttribute('data-home-paint')) { root.style.removeProperty('--sw-bg'); root.style.removeProperty('background'); root.removeAttribute('data-home-paint'); }
     window.addEventListener('resize', this.onResize);
     this.clockT = window.setInterval(() => { this.now = new Date(); }, 20_000);
     void this.load();
@@ -162,7 +188,7 @@ export class SwHome extends LitElement {
   }
 
   private onResize = () => {
-    const p = window.innerWidth <= 700;
+    const p = isPhone();
     if (p !== this.phone) this.phone = p;
   };
 
@@ -254,6 +280,7 @@ export class SwHome extends LitElement {
     this.setAttribute('data-hs-theme', t[0]);
     this.setAttribute('data-hs-scheme', scheme);
     this.toggleAttribute('data-hs-big', !!l.big_text);
+    void this.updateComplete.then(() => writePaintHint(t[0], scheme, getComputedStyle(this).getPropertyValue('--hs-bg').trim()));
     if (pol?.kiosk && pol.kiosk_area_id && !this.path) this.room = pol.kiosk_area_id;
   }
 
@@ -275,7 +302,36 @@ export class SwHome extends LitElement {
 
   // ---------------------------------------------------------------- routing
 
+  /** HOME-V3-AUDITFIX-2437 (audit, motion): a closing sheet leaves with a short exit (160 ms, faster than its entry) instead of vanishing.
+   * The last frame of the overlay is copied into an inert, hidden-from-readers layer that fades out and removes itself. A sheet that holds a
+   * live element (a player, a camera) is not copied - a copy would start its own stream - and simply closes as before. The copy lives in
+   * its own closed shadow root with the same style sheets, so nothing (a query, an assistive tool, a test) ever finds two sheets. */
+  private ghostOverlay() {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const root = this.renderRoot as ShadowRoot;
+    const live = root.querySelector('.app-root > .ovl');
+    if (!live || !live.querySelector('.sheet') || Array.from(live.querySelectorAll('*')).some((n) => n.localName.includes('-'))) return;
+    const host = document.createElement('div');
+    for (const a of ['data-hs-theme', 'data-hs-scheme', 'data-hs-big']) { const v = this.getAttribute(a); if (v != null) host.setAttribute(a, v); }
+    host.setAttribute('aria-hidden', 'true');
+    host.inert = true;
+    const sr = host.attachShadow({ mode: 'closed' });
+    if (root.adoptedStyleSheets?.length) sr.adoptedStyleSheets = root.adoptedStyleSheets;
+    else root.querySelectorAll('style').forEach((s) => sr.appendChild(s.cloneNode(true)));
+    const g = live.cloneNode(true) as HTMLElement;
+    g.classList.add('ghost');
+    // the copy starts where the sheet was (no @starting-style entry), then takes the mockup's own exit classes (`.out`, home-styles.ts)
+    const parts = Array.from(g.querySelectorAll<HTMLElement>('.hscrim, .sheet'));
+    for (const el of parts) el.style.transition = 'none';
+    sr.appendChild(g);
+    root.appendChild(host);
+    g.getBoundingClientRect();
+    requestAnimationFrame(() => { for (const el of parts) { el.style.transition = ''; el.classList.add('out'); } });
+    window.setTimeout(() => host.remove(), 260);
+  }
+
   protected willUpdate(changed: PropertyValues): void {
+    if (changed.has('ovl') && changed.get('ovl') && !this.ovl) this.ghostOverlay();
     if (changed.has('path')) {
       const { name, arg } = this.route();
       const pol = this.pol();
@@ -318,7 +374,19 @@ export class SwHome extends LitElement {
     }
     const [name, arg = ''] = raw.split('/');
     const known = SCREENS.includes(name) || this.extFor(name) != null;
+    // HOME-V3-AUDITFIX-2437 (audit item 13): a wall panel locked to its room draws only what its own screen links to; any other address
+    // (typed or kept from before the lock) opens the room instead
+    if (known && this.kioskLocked() && !this.kioskAllows(name)) return { name: 'r', arg: this.pol()?.kiosk_area_id ?? '' };
     return { name: known ? name : 'r', arg: known ? arg : '' };
+  }
+
+  /** The routes a locked wall panel reaches by touch: its room, the room's categories, the bottom bar's items, and (owner answer round 27
+   * #14) the room's media, the notice board and the calendar. The cameras screen only when the room has a camera (its chip leads there). */
+  private kioskAllows(name: string): boolean {
+    if (KIOSK_ROUTES.includes(name)) return true;
+    if (name !== 'cameras') return false;
+    const id = this.pol()?.kiosk_area_id;
+    return !!this.data?.rooms.find((x) => x.id === id)?.cams.length;
   }
 
   kioskLocked(): boolean {
@@ -932,8 +1000,27 @@ export class SwHome extends LitElement {
     return html`<div class="trio">${b('open', 'up', 'פתח')}${b('stop', 'stop', 'עצור')}${b('close', 'down', 'סגור')}</div>`;
   }
 
+  /** HOME-V3-AUDITFIX-2437 (audit item 5): what a live camera tile really shows, from its player's status (no entry = connecting) */
+  private camMode: Record<string, 'live' | 'still'> = {};
+
+  private onCamStatus(id: string, e: Event) {
+    const d = (e as CustomEvent<{ status?: string }>).detail;
+    const player = e.composedPath()[0] as { stillNotice?: string } | undefined;
+    const mode = d?.status === 'playing' ? 'live' : d?.status === 'error' && player?.stillNotice ? 'still' : undefined;
+    if (this.camMode[id] === mode) return;
+    if (mode) this.camMode = { ...this.camMode, [id]: mode };
+    else { const { [id]: _, ...rest } = this.camMode; this.camMode = rest; }
+    this.requestUpdate();
+  }
+
   camPic(c: HCamera, live: boolean) {
-    return html`${c.ok ? html`<sw-camera-tile class="scene-pic" dark noDemo fit="cover" cameraId=${c.id} state="live" ?live=${live} profile="sub" autoProfile poster=${snapshotUrl(c.id)} .stillRefresh=${live ? 0 : 30}></sw-camera-tile>` : html`<div class="cam-off">${hi('camoff')}<span>המצלמה לא זמינה כרגע</span></div>`}<div class="cap"><span class="clamp1">${c.name}</span>${c.ok ? html`<span class="live"><i class="dot"></i>חי</span>` : nothing}</div>`;
+    // the state word is the true state (DESIGN.md "Dot-and-Word Rule"): a playing stream = "חי"; a refreshing still = "תמונה" with the
+    // offline dot (how often in the title); a stream not yet playing = "מתחבר", no dot. The tile's own still label is off: it sat under the star.
+    const mode = !c.ok ? null : live ? (this.camMode[c.id] ?? 'wait') : 'still';
+    const word = mode === 'live' ? html`<span class="live" data-cam-mode="live"><i class="dot"></i>חי</span>`
+      : mode === 'still' ? html`<span class="live still" data-cam-mode="still" title=${`מתעדכנת כל ${Math.round(stillIntervalMs(30) / 1000)} שנ׳`}><i class="dot"></i>תמונה</span>`
+        : mode === 'wait' ? html`<span class="live wait" data-cam-mode="wait">מתחבר</span>` : nothing;
+    return html`${c.ok ? html`<sw-camera-tile class="scene-pic" dark noDemo noLabel fit="cover" cameraId=${c.id} state="live" ?live=${live} profile="sub" autoProfile poster=${snapshotUrl(c.id)} .stillRefresh=${live ? 0 : 30} @player-status=${(e: Event) => this.onCamStatus(c.id, e)}></sw-camera-tile>` : html`<div class="cam-off">${hi('camoff')}<span>המצלמה לא זמינה כרגע</span></div>`}<div class="cap"><span class="clamp1" dir="auto" title=${c.name}>${c.name}</span>${word}</div>`;
   }
 
   // ---------------------------------------------------------------- shell
@@ -991,7 +1078,7 @@ export class SwHome extends LitElement {
     const r = this.ctx();
     const rs = r ? [r] : this.visRooms();
     const mods = this.d.modules;
-    const out: [string, string, string, unknown, string, string?][] = [];
+    const out: [string, string, string, unknown, string, string?, string?][] = [];
     const nL = rs.reduce((a, x) => a + x.lights.length + x.loads.length, 0);
     const on = onCount(rs);
     if (nL && mods.has('lights')) out.push(['lights', 'תאורה', 'bulb', on === 0 ? 'כבויים' : on === 1 ? 'אחד דולק' : on + ' דולקים', on > 0 ? 'lit' : '']);
@@ -1004,7 +1091,7 @@ export class SwHome extends LitElement {
     const cams = r ? this.d.cameras.filter((c) => r.cams.includes(c.id)) : this.d.cameras;
     if (cams.length && mods.has('cameras')) { const bad = cams.filter((c) => !c.ok).length; out.push(['cameras', 'מצלמות', 'cam', r ? (bad ? 'לא זמינה' : 'חי') : bad ? `${cams.length - bad} מתוך ${cams.length}` : cams.length + ' פועלות', '']); }
     if (!r && mods.has('intercom') && this.visitors.length) out.push(['doors', 'אינטרקום', 'phone', `${this.visitors.length} ביקורים`, '', 'intercom']);
-    if (!r && this.d.energy && this.d.energy.today.length && mods.has('energy')) out.push(['energy', 'חשמל', 'bolt', html`<span class="num">${this.d.energy.today.reduce((a, b) => a + b, 0).toFixed(1)}</span> קוט״ש`, '']);
+    if (!r && this.d.energy && this.d.energy.today.length && mods.has('energy')) out.push(['energy', 'חשמל', 'bolt', html`<span class="num">${num1(this.d.energy.today.reduce((a, b) => a + b, 0))}</span> קוט״ש`, '']);
     if (!r && this.panels.length && mods.has('security')) {
       const armed = this.panels.some((p) => p.state && p.state !== 'disarmed');
       const alarm = this.panels.some((p) => p.state === 'triggered');
@@ -1019,7 +1106,7 @@ export class SwHome extends LitElement {
     const ic = shown.find((x) => x[5] === 'intercom');
     if (ic && this.extFor('intercom')) ic[0] = 'intercom';
     if (!r && this.extFor('more') && !this.kioskLocked() && moreTiles(this).length) shown.push(['more', 'עוד', 'grid', this.moreChipText(), '', 'more']);
-    return { n: shown.length, t: shown.map(([h, label, icon, st, tone, key]) => html`<a class="chip3" href=${this.href(h)} data-cat=${key ?? h}>${hi(icon, tone === 'lit' ? 'lit' : '')}<span class="c3-t"><b>${label}</b><span class="c3-s" data-tone=${tone === 'ok' || tone === 'warn' ? tone : nothing}>${tone === 'ok' || tone === 'warn' ? html`<i class="dot"></i>` : nothing}<span>${st}</span></span></span></a>`) };
+    return { n: shown.length, t: shown.map(([h, label, icon, st, tone, key, full]) => html`<a class="chip3" href=${this.href(h)} data-cat=${key ?? h} title=${full ?? nothing}>${hi(icon, tone === 'lit' ? 'lit' : '')}<span class="c3-t"><b>${label}</b><span class="c3-s" data-tone=${tone === 'ok' || tone === 'warn' ? tone : nothing}>${tone === 'ok' || tone === 'warn' ? html`<i class="dot"></i>` : nothing}<span>${st}</span></span></span></a>`) };
   }
 
   /** the "עוד" chip's line: how many new things wait in the hub, else how many capabilities it holds */
@@ -1092,7 +1179,7 @@ export class SwHome extends LitElement {
     const p = Math.min(this.pg(key), pages.length - 1);
     const ch = this.chips();
     return html`<nav class="chips3" style=${`--c:${ch.n <= 5 ? ch.n : 4}`} aria-label=${r ? 'מה יש ב' + r.name : 'מה יש בבית'}>${ch.t}</nav>
-      <section class="favz" aria-label="מועדפים"><div class="bar"><h2>${r ? 'המועדפים שלי כאן' : greeting(this.userName, this.now)}</h2><div class="acts">${this.pager(key, pages.length)}<button class="hbtn" data-act="edit" aria-pressed=${String(this.edit)}>${hi(this.edit ? 'check' : 'edit')}<span class="bt">${this.edit ? 'סיום' : 'עריכה'}</span></button></div></div>
+      <section class="favz" aria-label="מועדפים"><div class="bar"><h2 class="clamp2">${r ? 'המועדפים שלי כאן' : greeting(this.userName, this.now)}</h2><div class="acts">${this.pager(key, pages.length)}<button class="hbtn" data-act="edit" aria-pressed=${String(this.edit)}>${hi(this.edit ? 'check' : 'edit')}<span class="bt">${this.edit ? 'סיום' : 'עריכה'}</span></button></div></div>
         <div class="wgrid">${pages[p].length ? pages[p].map(([f, ix]) => this.widget(f, ix)) : this.empty('star', 'עוד אין כאן מועדפים', 'פתחו אורות, סצנות או מצלמות ולחצו על הכוכב כדי להצמיד אותם לכאן.')}</div></section>`;
   }
 
@@ -1221,9 +1308,9 @@ export class SwHome extends LitElement {
     const pgD = paged(doors, this.phone ? 3 : 4, this.pg('doors'));
     const pgV = paged(this.visitors, this.phone ? 2 : 4, this.pg('visitors'));
     const vis = (v: CallLogRow) => {
-      const result = v.door_opened_by_name ? `${v.door_opened_by_name} פתח/ה` : v.outcome === 'answered' ? (v.answered_by_name ? `${v.answered_by_name} ענה/תה` : 'נענה') : v.outcome === 'missed' ? 'לא נענה' : v.outcome === 'rejected' ? 'נדחה' : 'הסתיים';
-      const tone = v.door_opened_at || v.outcome === 'answered' ? 'ok' : v.outcome === 'missed' ? 'warn' : 'neutral';
-      return html`<div class="vrow"><span class="vp vp-ic">${hi('bell')}</span><span class="vn"><b class="clamp1">צלצול</b><span class="muted clamp1">${v.station_name}</span></span><span class="vr"><span class="num">${relTime(v.rang_at)}</span><span class="vres" data-tone=${tone}>${result}</span></span></div>`;
+      // HOME-V3-AUDITFIX-2437 (audit items 12, 14): the call log's own words (no gendered slash), one line, the full text in the title
+      const { text: result, tone } = callResult(v);
+      return html`<div class="vrow"><span class="vp vp-ic">${hi('bell')}</span><span class="vn"><b class="clamp1">צלצול</b><span class="muted clamp1">${v.station_name}</span></span><span class="vr"><span class="num">${relTime(v.rang_at)}</span><span class="vres" data-tone=${tone} title=${result}>${result}</span></span></div>`;
     };
     return html`${this.head(this.phone ? 'דלתות' : 'דלתות ואינטרקום', doorsText(all), html`${this.onlySeg('doorsOnly', this.doorsOnly, 'לא נעולות')}${this.talkTo ? html`<button class="hbtn" data-act="talk">${hi('phone')}<span class="bt">דבר עם הכניסה</span></button>` : nothing}`)}
       <div class="doors-body"><section class="door-list" aria-label="דלתות">${pgD.items.length ? pgD.items.map((d) => html`<div class="tile drow" data-ft="door" data-fid=${d.id}>${this.doorBody(d, true)}</div>`) : this.empty('door', this.doorsOnly && all.length ? 'כל הדלתות נעולות' : 'אין דלתות מחוברות', this.doorsOnly && all.length ? 'אין מה לנעול כרגע.' : 'כשתחובר דלת או אינטרקום, אפשר יהיה לפתוח ולראות מי הגיע.')}${this.pager('doors', pgD.pages)}</section>
@@ -1256,12 +1343,12 @@ export class SwHome extends LitElement {
     const br = E.byRoom;
     const brMax = Math.max(...br.map((b) => b[1]), 0.1);
     const weekday = new Intl.DateTimeFormat('he-IL', { weekday: 'long', timeZone: 'Asia/Jerusalem' }).format(this.now);
-    return html`${this.head(html`${day ? 'היום' : 'השבוע'}: <span class="num">${tot.toFixed(1)}</span> קוט״ש`, html`${usualSame > 0 ? (diff === 0 ? 'כמו ביום רגיל' : html`<span class="num">${Math.abs(diff)}%</span> ${diff < 0 ? 'פחות' : 'יותר'} מ${day ? weekday + ' רגיל' : 'שבוע רגיל'}`) : ''}${this.price != null ? html` · בערך <span class="num" data-energy-cost>₪${(tot * this.price).toFixed(2)}</span>` : nothing}`, html`${this.p3.energyActs()}${this.seg('period', [['day', 'היום'], ['week', 'השבוע']], this.period, 'תקופה')}`)}
+    return html`${this.head(html`${day ? 'היום' : 'השבוע'}: <span class="num">${num1(tot)}</span> קוט״ש`, html`${usualSame > 0 ? (diff === 0 ? 'כמו ביום רגיל' : ((w) => (w.pct ? html`<span class="num">${w.pct}</span> ${w.words}` : w.words))(diffWords(diff, 'מ' + (day ? weekday + ' רגיל' : 'שבוע רגיל')))) : ''}${this.price != null ? html` · בערך <span class="num" data-energy-cost>₪${(tot * this.price).toFixed(2)}</span>` : nothing}`, html`${this.p3.energyActs()}${this.seg('period', [['day', 'היום'], ['week', 'השבוע']], this.period, 'תקופה')}`)}
       <div class="en-body"><section class="tile pane chart" aria-label=${'צריכה לפי ' + (day ? 'שעה' : 'יום')}><div class="bar"><h2>${day ? 'לפי שעה' : 'לפי יום'}</h2><div class="legend"><span><i class="k today"></i>${day ? 'היום' : 'השבוע'}</span><span><i class="k usual"></i>${day ? 'יום רגיל' : 'שבוע רגיל'}</span></div></div>
         <div class="plot" style=${`--n:${rows.length}`} @pointerover=${this.tipOver} @pointerleave=${this.tipOff} @focusin=${this.tipOver} @focusout=${this.tipOff}><div class="yax">${ticks.map((v) => html`<span style=${`bottom:${v / top * 100}%`}><em class="num">${v}</em></span>`)}</div>
           <div class="cols">${rows.map((r) => html`<div class=${'col' + (r[1] == null ? ' future' : '')} tabindex="0" data-tip=${`${r[0]}|${r[1] == null ? '' : r[1].toFixed(1)}|${r[2].toFixed(1)}`}>${r[1] == null ? nothing : html`<i class="b" style=${`height:${Math.max(1.5, r[1] / top * 100)}%`}></i>`}<i class="u" style=${`bottom:${r[2] / top * 100}%`}></i></div>`)}</div>
           <div class="xax">${rows.map((r, i) => html`<span>${day ? (i % 3 === 0 ? html`<em class="num">${r[0].slice(0, 2)}</em>` : nothing) : r[0]}</span>`)}</div><div class="tip" hidden></div></div><p class="unit muted">קוט״ש ל${day ? 'שעה' : 'יום'}</p></section>
-      <section class="tile pane byroom" aria-label="מה צורך הכי הרבה"><h2>איפה צורכים הכי הרבה</h2>${br.slice(0, 5).map((b) => html`<div class="hb"><span class="hl clamp1">${b[0]}</span><span class="ht"><i style=${`transform:scaleX(${b[1] / brMax})`}></i></span><span class="hv num">${b[1].toFixed(1)}</span></div>`)}<p class="unit muted">קוט״ש היום</p></section></div>`;
+      <section class="tile pane byroom" aria-label="מה צורך הכי הרבה"><h2>איפה צורכים הכי הרבה</h2>${br.slice(0, 5).map((b) => html`<div class="hb"><span class="hl clamp1" dir="auto">${b[0]}</span><span class="ht"><i style=${`transform:scaleX(${b[1] / brMax})`}></i></span><span class="hv"><span class="num">${num1(b[1])}</span> <small>קוט״ש</small></span></div>`)}<p class="unit muted">הצריכה היום</p></section></div>`;
   }
 
   private tipOver = (ev: Event) => {
@@ -1517,11 +1604,24 @@ export class SwHome extends LitElement {
       : name === 'active' ? this.sActive() : this.sSettings(r.arg); // 'security' is the v3 alarm screen (home-alarm.ts)
     const anim = this.path !== this.lastRoute;
     this.lastRoute = this.path;
-    return html`<div class="app-root" @click=${this.onClick} @input=${this.onInput} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove} @pointerup=${this.onPointerUp} @pointercancel=${() => { window.clearTimeout(this.holdT); this.swipe = null; }} @keydown=${this.onKey}>
+    return html`<div class="app-root" @click=${this.onClick} @pointerover=${this.titleHint} @input=${this.onInput} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove} @pointerup=${this.onPointerUp} @pointercancel=${() => { window.clearTimeout(this.holdT); this.swipe = null; }} @keydown=${this.onKey}>
       <div class=${'hs v2' + (this.kioskLocked() ? ' kiosk' : '') + (name === 'r' && this.wallOf(this.room) ? ' walled' : '')} data-screen=${name} data-wall=${name === 'r' ? this.wallOf(this.room) ?? nothing : nothing} style=${name === 'r' && this.wallOf(this.room) ? `--hs-wall:${this.wallBg(this.room)}` : nothing}>${this.strip(name)}${this.nav(cur)}<main class=${'hs-main' + (anim ? ' enter' : '')} id="main">${screen}</main>${this.nowBar()}</div>
       <div class="ovl">${this.ovlHtml()}</div>${this.toasts()}
       <sw-home-call data-hs-theme=${this.getAttribute('data-hs-theme') ?? 'classic'} data-hs-scheme=${this.getAttribute('data-hs-scheme') ?? 'dark'} ?data-hs-big=${this.hasAttribute('data-hs-big')} @home-calls=${(e: CustomEvent<HomeCallsState>) => { this.calls = e.detail; }}></sw-home-call></div>`;
   }
+
+  /** HOME-V3-AUDITFIX-2437 (audit item 28): a truncated line shows its full text on mouse hover. Measured only when the pointer reaches it
+   * (no layout work per render); a title the screen set itself is never touched. */
+  private titleHint = (e: PointerEvent) => {
+    if (e.pointerType !== 'mouse') return;
+    const t = e.composedPath()[0];
+    const el = t instanceof Element ? t.closest('.clamp1, .clamp2, .clamp3, .ellip, .c3-s, .vres') : null;
+    if (!(el instanceof HTMLElement) || (el.title && !el.hasAttribute('data-auto-title'))) return;
+    const cut = el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1;
+    const full = (el.textContent ?? '').replace(/\s+/g, ' ').trim();
+    if (cut && full) { el.title = full; el.setAttribute('data-auto-title', ''); }
+    else if (el.hasAttribute('data-auto-title')) { el.removeAttribute('title'); el.removeAttribute('data-auto-title'); }
+  };
 
   private toasts() {
     const t = this.toastMsg;

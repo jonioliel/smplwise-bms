@@ -19,6 +19,11 @@ export type { SceneKind } from './sw-scene';
  * stream is attached (T017) the picture is an illustrated scene tagged "דמו"; it never pretends to be a
  * real frame. Offline / forbidden / unknown tiles show a grey card with an icon and the reason.
  */
+/** HOME-V3-AUDITFIX-2437 (audit item 6): a still that fails to load is hidden (the tile's dark ground shows), never the browser's
+ * broken-image glyph; the next still that loads shows again. */
+const posterFailed = (e: Event) => { (e.target as HTMLImageElement).style.visibility = 'hidden'; };
+const posterLoaded = (e: Event) => { (e.target as HTMLImageElement).style.visibility = ''; };
+
 @customElement('sw-camera-tile')
 export class SwCameraTile extends LitElement {
   @property() name = '';
@@ -52,6 +57,8 @@ export class SwCameraTile extends LitElement {
   /** NN5-F1B: seconds between refreshes of a camera that has no live stream (a Frigate recorder in F1): the tile re-reads its `poster`
    * itself, never faster than 5 s, never while the tab is hidden or the tile is out of view, and says so ("תמונה מתעדכנת"). 0 = off. */
   @property({ type: Number }) stillRefresh = 0;
+  /** HOME-V3-AUDITFIX-2437: the host draws its own state word (the home interface's camera tiles) - no still / snapshot label here */
+  @property({ type: Boolean }) noLabel = false;
   @state() private stillBust = 0;
   /** the server marked the last still it sent as an old copy (X-Snapshot-Stale): no new frame could be had */
   @state() private stillStale = false;
@@ -210,6 +217,7 @@ export class SwCameraTile extends LitElement {
     sw-scene,
     sw-live-player,
     img.poster {
+      color: transparent; /* HOME-V3-AUDITFIX-2437: no alt text / broken-image glyph while a still fails (hidden by posterFailed too) */
       position: absolute;
       inset: 0;
       inline-size: 100%;
@@ -528,10 +536,10 @@ export class SwCameraTile extends LitElement {
       ${real === 'live'
         ? html`<sw-live-player .cameraId=${this.cameraId} .livePath=${this.livePath} .profile=${this.profile} .mode=${this.transport} .plan=${plan.plan} .preferred=${plan.preferred} .gop=${plan.gop || encodeGop(this.encoding)} .encoding=${this.encoding} .autoProfile=${this.autoProfile} .poster=${this.poster} .fit=${this.fit} compact></sw-live-player>`
         : real === 'poster'
-          ? html`<img class="poster" src=${this.stillRefresh > 0 ? this.stillBlob || withBust(this.poster, this.stillBust) : this.poster} alt="" loading="lazy" />`
+          ? html`<img class="poster" src=${this.stillRefresh > 0 ? this.stillBlob || withBust(this.poster, this.stillBust) : this.poster} alt="" loading="lazy" @error=${posterFailed} @load=${posterLoaded} />`
           : html`<sw-scene kind=${this.scene}></sw-scene>`}
       <div class="shade"></div>
-      ${real === 'scene' && !this.noDemo ? html`<span class="demo">דמו</span>` : real === 'poster' ? html`<span class="demo" data-snapshot-label data-still=${this.stillRefresh > 0 ? (this.stillStale ? 'stale' : 'refreshing') : nothing}>${this.stillRefresh > 0 && this.stillStale ? he.frigate.live.stillStale : this.stillRefresh > 0 ? (this.compact ? he.frigate.live.stillLabel : `${he.frigate.live.stillLabelEvery} ${Math.round(stillIntervalMs(this.stillRefresh) / 1000)} ${he.frigate.live.seconds}`) : this.snapshotOnly ? 'תמונה · לחץ לצפייה חיה' : 'צילום'}</span>` : nothing}
+      ${real === 'scene' && !this.noDemo ? html`<span class="demo">דמו</span>` : real === 'poster' && !this.noLabel ? html`<span class="demo" data-snapshot-label data-still=${this.stillRefresh > 0 ? (this.stillStale ? 'stale' : 'refreshing') : nothing}>${this.stillRefresh > 0 && this.stillStale ? he.frigate.live.stillStale : this.stillRefresh > 0 ? (this.compact ? he.frigate.live.stillLabel : `${he.frigate.live.stillLabelEvery} ${Math.round(stillIntervalMs(this.stillRefresh) / 1000)} ${he.frigate.live.seconds}`) : this.snapshotOnly ? 'תמונה · לחץ לצפייה חיה' : 'צילום'}</span>` : nothing}
       ${this.state === 'stale' || this.state === 'recorded' || this.state === 'historic' ? html`<sw-badge class="pill" onImage kind=${this.state}></sw-badge>` : nothing}
       <div class="foot">
         ${this.name ? html`<span class="label"><span class="dot"></span>${this.name}</span>` : nothing}

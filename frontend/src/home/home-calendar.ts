@@ -72,7 +72,11 @@ registerMoreTile({
   line: (h) => {
     const now = h.now.getTime();
     const e = st.occ.find((x) => Date.parse(x.start) > now);
-    return { text: e ? html`<span class="num">${timeOf(e.start)}</span> ${e.title ?? 'אירוע'}` : 'אין אירועים קרובים' };
+    if (!e) return { text: 'אין אירועים קרובים' };
+    const title = e.title ?? 'אירוע';
+    // HOME-V3-AUDITFIX-2437 (audit item 4): a long title does not fit the wall chip - the chip says only the hour, the title keeps it all
+    const chip = title.length > 14 ? html`הבא ב-<span class="num">${timeOf(e.start)}</span>` : undefined;
+    return { text: html`<span class="num">${timeOf(e.start)}</span> ${title}`, chip, title: `${timeOf(e.start)} ${title}` };
   },
 });
 

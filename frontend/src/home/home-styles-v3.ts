@@ -1,6 +1,7 @@
 // GENERATED from the approved round-27 home mockup v3 (private/design-system-2026-10-27/round27/home-full-v3/v3.css) by the same
 // mechanical port as home-styles.ts: --sw-* renamed --hs-*, #ovl -> .ovl, [data-theme="light"] -> :host([data-hs-scheme="light"]), the demo
-// panel dropped. The whole v3 sheet is ported once (HOME-V3-P1-2430) so phases 2 and 3 add screens without touching styles. Do not hand-edit;
+// panel dropped. HOME-V3-AUDITFIX-2437 hand-edits (design audit round 30): the phone / wide boundary queries (item 2) and the phone
+// day stepper (item 1). The whole v3 sheet is ported once (HOME-V3-P1-2430) so phases 2 and 3 add screens without touching styles. Do not hand-edit;
 // product-only additions go to home-styles-extra.ts.
 import { css, unsafeCSS } from 'lit';
 
@@ -184,17 +185,17 @@ textarea.inp { padding-block: 12px; resize: none; line-height: 1.4; } .inp::plac
 .ovl .dpad .rb.xl { font-size: 16px; font-weight: 600; background: var(--hs-accent); color: var(--hs-on-accent, #fff); }
 
 /* ---- 1024 tablets: the category row stacks icon over text so nine fit */
-@media (max-width: 1100px) and (min-width: 701px) {
+@media (max-width: 1100px) and (min-width: 900px), (max-width: 1100px) and (min-width: 701px) and (orientation: landscape) {
   .chips3 { gap: 8px; } .chip3 { flex-direction: column; justify-content: center; gap: 4px; padding: 6px 4px; text-align: center; }
   .chip3 > .hi { inline-size: 28px; block-size: 28px; } .c3-t { justify-items: center; } .c3-t b { font-size: 15px; } .c3-s { font-size: 13px; } .c3-s .dot { display: none; }
   .hubt > .hi { inline-size: 34px; block-size: 34px; } .hubt .hl { font-size: 16px; } .hubt .hs2 { font-size: 13px; } .hub { gap: 10px; }
   .hs-head .acts .hbtn { padding: 0 14px; } .hs .pg-t { font-size: 24px; }
   .md-t b { font-size: 22px; } .prow { grid-template-columns: 44px minmax(0, 1fr) minmax(0, .7fr); }
 }
-@media (max-height: 800px) and (min-width: 701px) { .nb { -webkit-line-clamp: 2; } .wd { min-block-size: 60px; } .alm-ic { inline-size: 64px; block-size: 64px; } .alm-ic .hi { inline-size: 32px; block-size: 32px; } .art { border-radius: 16px; } }
+@media (max-height: 800px) and (min-width: 900px), (max-height: 800px) and (min-width: 701px) and (orientation: landscape) { .nb { -webkit-line-clamp: 2; } .wd { min-block-size: 60px; } .alm-ic { inline-size: 64px; block-size: 64px; } .alm-ic .hi { inline-size: 32px; block-size: 32px; } .art { border-radius: 16px; } }
 
 /* ---- phone */
-@media (max-width: 700px) {
+@media (max-width: 700px), (max-width: 899px) and (orientation: portrait) {
   .nv-x { display: none; } .hs.v2 .hs-nav a { font-size: 11px; }
   .chip3[data-cat="more"] { display: none; }
   .hub { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); gap: 8px; margin-block: 2px 8px; }
@@ -202,7 +203,7 @@ textarea.inp { padding-block: 12px; resize: none; line-height: 1.4; } .inp::plac
   .hs-head .pager .pg { min-inline-size: 48px; }
   .pb-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto auto; gap: 8px; }
   .pb-side { grid-row: 3; grid-column: 1; } .pb-ev { flex: none; min-block-size: 48px; } .pb-ctl { grid-row: 2; flex-wrap: wrap; gap: 6px 10px; padding: 8px 10px; justify-content: space-between; }
-  .pb-ctl .tl { order: -1; flex: 1 1 100%; } .pb-ctl .hbtn { padding: 0 16px; } .hs-head .cf-nav { display: none; }
+  .pb-ctl .tl { order: -1; flex: 1 1 100%; } .pb-ctl .hbtn { padding: 0 16px; } .hs-head .cf-nav:not(.pb-days) { display: none; } /* HOME-V3-AUDITFIX-2437 item 1: the day stepper stays */
   .evrow, .srow, .prow, .crow, .cev { padding: 0 12px; gap: 10px; }
   .card-grid.evg { grid-template-rows: repeat(5, minmax(0, 1fr)); } .card-grid.callg, .card-grid.pplg, .card-grid.calg, .card-grid.schg { grid-template-rows: repeat(4, minmax(0, 1fr)); } .card-grid.ntg { grid-template-rows: repeat(3, minmax(0, 1fr)); }
   .crow { grid-template-columns: 72px minmax(0, 1fr); } .prow { grid-template-columns: 36px minmax(0, 1fr) minmax(0, .8fr); } .srow .what { display: none; }
@@ -237,8 +238,8 @@ textarea.inp { padding-block: 12px; resize: none; line-height: 1.4; } .inp::plac
 /* ---- loop 1 fixes */
 .en-body:has(.wbars), .en-body:has(.bill-now) { grid-template-rows: minmax(0, 1fr); }
 .dst { max-inline-size: 100%; min-inline-size: 0; }
-@media (max-width: 700px) { .wx-now { padding-block: 8px; } .wx-now .huge { font-size: 54px; } .wx-f { gap: 14px; } }
-@media (max-width: 700px) { .sys-grid, .sys-grid.n3 { grid-template-columns: minmax(0, 1fr); } .sys-grid.n3 > :first-child { grid-row: auto; } .sys { padding-block: 6px; } .sysr { flex-wrap: nowrap; } .sysr .dst { max-inline-size: 58%; } }
+@media (max-width: 700px), (max-width: 899px) and (orientation: portrait) { .wx-now { padding-block: 8px; } .wx-now .huge { font-size: 54px; } .wx-f { gap: 14px; } }
+@media (max-width: 700px), (max-width: 899px) and (orientation: portrait) { .sys-grid, .sys-grid.n3 { grid-template-columns: minmax(0, 1fr); } .sys-grid.n3 > :first-child { grid-row: auto; } .sys { padding-block: 6px; } .sysr { flex-wrap: nowrap; } .sysr .dst { max-inline-size: 58%; } }
 
 /* ---- loop 2: buttons that are tiles keep the tile surface; chips in sheets; smaller currency sign */
 .hs .ncard, .hs .arow.tkrow, .hs .wd { background: var(--hs-surface); }
@@ -247,8 +248,8 @@ textarea.inp { padding-block: 12px; resize: none; line-height: 1.4; } .inp::plac
 .cur { font-size: .7em; font-weight: 500; color: var(--hs-text-2); } .huge .cur { font-size: .4em; }
 .cf-foot .hbtn { text-decoration: none; }
 .gw { line-height: 1.3; }
-@media (min-width: 701px) { .gw { -webkit-line-clamp: 1; } }
-@media (max-width: 700px) { .en-body > .pane:has(.wbars) { flex: 1.6 1 0; } .en-body > .leak { flex: 1 1 0; } }
+@media (min-width: 900px), (min-width: 701px) and (orientation: landscape) { .gw { -webkit-line-clamp: 1; } }
+@media (max-width: 700px), (max-width: 899px) and (orientation: portrait) { .en-body > .pane:has(.wbars) { flex: 1.6 1 0; } .en-body > .leak { flex: 1 1 0; } }
 
 /* ---- loop 2 (break-ui, worst case) */
 .pb-pic > .cam-off { position: absolute !important; inset: 0; padding-block-end: 16px; }
@@ -256,6 +257,6 @@ textarea.inp { padding-block: 12px; resize: none; line-height: 1.4; } .inp::plac
 .md-src .chip2 { white-space: nowrap; }
 .steps.big .sp i { inline-size: 44px; block-size: 44px; flex: none; }
 @media (max-width: 1100px) { .pb-side .pager { gap: 6px; } .pb-side .pager .pg { display: none; } .md-src .chip2 { padding: 0 12px !important; } }
-@media (max-width: 700px) { .leak .dlg-ic { display: none; } .leak { gap: 4px; padding-block: 10px; } .leak .hbtn { margin-block-start: 4px; } .en-body > .leak { flex: none; } }
+@media (max-width: 700px), (max-width: 899px) and (orientation: portrait) { .leak .dlg-ic { display: none; } .leak { gap: 4px; padding-block: 10px; } .leak .hbtn { margin-block-start: 4px; } .en-body > .leak { flex: none; } }
 .md-src .chip2 { min-inline-size: var(--hit); justify-content: center; }
 `)}`;

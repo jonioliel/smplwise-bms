@@ -1,6 +1,6 @@
 // HOME-V3-P2-2431: "מי בבית" (mockup v3 `S.presence`). Owner decision (round 27 q4): the household sees each other and each person can
 // hide themself - the switch is the person's own, nobody can turn it on for them. GET /home/presence, PUT /home/presence/me. Pages.
-import { html } from 'lit';
+import { html, nothing } from 'lit';
 import { registerScreen, type HomeHost } from './home-ext';
 import { paged } from './home-logic';
 import { registerMoreTile } from './more-registry';
@@ -17,7 +17,10 @@ function load(h: HomeHost, force = false) {
     .finally(() => { st.loading = false; h.requestUpdate(); });
 }
 
-const homeCount = (d: PresenceHome) => d.home_count ?? d.people.filter((p) => p.home && !(p.me && d.me_hidden)).length;
+// HOME-V3-AUDITFIX-2437 (audit item 16): both header numbers come from the list itself (the server's home_count is the same count of
+// the same list), so "בבית" + "בחוץ" can never disagree with the rows or go negative
+const homeCount = (d: PresenceHome) => d.people.filter((p) => p.home && !(p.me && d.me_hidden)).length;
+const awayCount = (d: PresenceHome) => d.people.filter((p) => !p.home).length;
 
 registerMoreTile({
   id: 'presence', order: 50, href: 'presence', label: 'מי בבית', icon: 'people',
@@ -43,12 +46,13 @@ registerScreen((h: HomeHost) => ({
     const people = d.people;
     const n = homeCount(d);
     const pg = paged(people, h.phone ? 4 : 6, h.pg('pres'));
-    const sub = !people.length ? '' : `${n === 0 ? 'אף אחד לא בבית' : plural(n, 'אחד בבית', 'בבית')} · ${plural(people.length - n, 'אחד בחוץ', 'בחוץ')}`;
+    const sub = !people.length ? '' : `${n === 0 ? 'אף אחד לא בבית' : plural(n, 'אחד בבית', 'בבית')} · ${plural(awayCount(d), 'אחד בחוץ', 'בחוץ')}`;
     return html`${h.head('מי בבית', sub, h.pager('pres', pg.pages))}
       <div class="card-grid pplg">${pg.items.length ? pg.items.map((p) => {
         const hidden = p.me && d.me_hidden;
-        const since = p.at ? (p.home ? 'מאז ' : 'יצא ') + whenText(p.at, h.now) : '';
-        return html`<div class=${'tile prow' + (p.home ? '' : ' away')} data-person=${p.me ? 'me' : 'other'}><span class="av">${(p.name || '?').slice(0, 1)}</span><span class="at"><b class="clamp1">${p.name}${p.me ? ' (אני)' : ''}</b>${hidden
+        // audit item 25: today needs no day word ("מאז 07:23"); another day keeps it ("מאז אתמול 22:10")
+        const since = p.at ? (p.home ? 'מאז ' : 'יצא ') + whenText(p.at, h.now).replace(/^היום /, '') : '';
+        return html`<div class=${'tile prow' + (p.home ? '' : ' away')} data-person=${p.me ? 'me' : 'other'}><span class="av">${(p.name || '?').slice(0, 1)}</span><span class="at"><span class="pn"><b class="clamp1" dir="auto">${p.name}</b>${p.me ? html`<span class="me-mark">(אני)</span>` : nothing}</span>${hidden
           ? html`<span class="muted">מוסתר מהאחרים</span>`
           : html`<span class="dst" data-tone=${p.home ? 'ok' : 'neutral'}><i class="dot"></i><span class="clamp1">${p.home ? 'בבית' : 'לא בבית'}</span></span>`}</span><span class="pk"><span class="muted clamp2 num-r">${since}</span></span></div>`;
       }) : h.empty('people', 'עוד לא יודעים מי בבית', 'כשבני הבית יחברו את הטלפון שלהם, נראה כאן מי בבית.')}</div>
