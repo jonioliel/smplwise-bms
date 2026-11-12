@@ -131,7 +131,20 @@ environment's dome keeps the sun's sky, back to sky, the unlit lite disc). Page 
 bar and clear of every chip, closer / farther in iso and perspective, a preset restores the framing, keyboard), hidden on a phone,
 on a narrow element and in the kiosk view, the level-3 graph carries merged furniture and a click on a merged object selects it.
 
-## Runner
+## Runner (Linux, SwiftShader - the gate's renderer; desktop / tablet / mobile, workers 1)
 
-Pending (filled in by the next commit).
+Specs: `unit-plan3d-zoom`, `unit-plan3d-furnmerge`, `evidence-replay-3d`, `pixel-wall-plan`, `pixel-walk-touch`, `unit-plan-3d-view`,
+`evidence-plan-studio-6`, `visual-matrix` (+ `unit-plan-3d-determinism` in the second run), all through
+`private/runner/run_smart.py preview pilot/PLAN3D-FURNMERGE-2434 <specs> --workers=1 --machine runner`.
+
+| Commit | Run | Result |
+|---|---|---|
+| debe7e588 (first zoom placement) | proof, no `-u` | 167 passed, 40 skipped, 3 failed: `evidence-replay-3d` level-3 pictures (event card lite desktop + tablet, history day / night / realistic tablet), 30-57 % of the pixels |
+| debe7e588 | `evidence-replay-3d -u` | 27 passed; 5 baselines rewritten: looked at - the building smaller and higher in the card. Cause: the bar, shrunk by the zoom group's width, wrapped to more rows in the narrow cards and the live fit framed around it - not the merge. The baselines were NOT committed; the placement was changed instead (8d475754d) |
+| 8d475754d | proof, no `-u` | **182 passed, 40 skipped, 0 failed** - every level-3 picture matches its existing baseline (the merged furniture draws within the pixel tolerance of the instanced one) |
+
+No pixel baseline changes on this branch. The `unit-plan-3d-determinism` picture comparison needs `SW_REQUIRE_VISUAL=1` (not set by
+`run_smart preview`); its functional tests (pure builder, additive walk, identical graph after a full rebuild) passed.
+
+NOT_RUN: the full unit / evidence / pixel / layout suites (the entry check runs them); the walk under the studio sky in a picture.
 
