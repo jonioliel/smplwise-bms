@@ -10,6 +10,7 @@ import '../components/sw-table';
 import '../components/sw-state-panel';
 import '../components/sw-place-tree';
 import '../components/sw-view-switch';
+import '../components/sw-pager';
 import '../components/wk-action-button';
 import '../components/wk-announce-dialog';
 import '../components/wk-stations-maintenance'; // WISKEY-STATION-OPS-2390: the list action for station maintenance (its own component)
@@ -152,6 +153,14 @@ export class WiskeyStations extends LitElement {
   @state() private mediaMode: StationMediaMode = 'off';
   @state() private media: Record<string, StationMedia | null> = {};
   private mediaAt: Record<string, number> = {};
+  /** NOSCROLL-1366-2437 (owner rule: a control screen never scrolls; audit round 30 #5): on a desktop (> 1100 px) the cards view shows
+   *  as many cards as fit the room under the chips (whole rows, measured) and pages the rest (sw-pager in the chips row); 0 = not paged
+   *  (a tablet, a phone, the list and the table views). */
+  @state() private cardPage = 1;
+  @state() private perPage = 0;
+  private fitObserver: ResizeObserver | null = null;
+  private fitGrid: Element | null = null;
+  private mqd = typeof matchMedia === 'function' ? matchMedia('(min-width: 1101px)') : null;
 
   private clock = new CallClock();
   private actions = new StationActions({
@@ -191,6 +200,7 @@ export class WiskeyStations extends LitElement {
     this.mqc?.addEventListener('change', this.onMedia);
     this.mqm?.addEventListener('change', this.onMedia);
     this.mqn?.addEventListener('change', this.onMedia);
+    this.mqd?.addEventListener('change', this.onFitMedia);
     this.stopRoute = onRouteChange((r) => this.onRoute(r));
     if (!isApi()) return;
     if (!canAnywhere('access.read')) {
@@ -220,6 +230,10 @@ export class WiskeyStations extends LitElement {
     this.mqc?.removeEventListener('change', this.onMedia);
     this.mqm?.removeEventListener('change', this.onMedia);
     this.mqn?.removeEventListener('change', this.onMedia);
+    this.mqd?.removeEventListener('change', this.onFitMedia);
+    this.fitObserver?.disconnect();
+    this.fitObserver = null;
+    this.fitGrid = null;
     this.stop?.();
     this.stop = null;
     this.stopRoute?.();
@@ -230,9 +244,51 @@ export class WiskeyStations extends LitElement {
     this.actions.dispose();
   }
 
+  protected willUpdate(changed: PropertyValues) {
+    // a new filter, search or place starts at the first page of cards
+    if (changed.has('filter') || changed.has('query') || changed.has('place')) this.cardPage = 1;
+  }
+
   protected updated(changed: PropertyValues) {
     if (changed.has('selected') || changed.has('detailOpen')) this.maybeLoadDetail();
     if (changed.has('selected') || changed.has('mediaMode')) this.maybeLoadMedia();
+    this.watchFit();
+  }
+
+  private onFitMedia = () => {
+    this.perPage = 0;
+    this.watchFit();
+  };
+
+  /** Observe the cards grid (its box is the room the layout gives it, not its content) and re-count the cards that fit. */
+  private watchFit() {
+    const grid = this.mqd?.matches && this.effectiveView() === 'cards' ? this.renderRoot.querySelector('.main > .grid') : null;
+    if (grid === this.fitGrid) return;
+    this.fitObserver?.disconnect();
+    this.fitGrid = grid;
+    if (!grid) {
+      if (this.perPage) this.perPage = 0;
+      return;
+    }
+    if (typeof ResizeObserver === 'undefined') return;
+    this.fitObserver = new ResizeObserver(() => requestAnimationFrame(() => this.measureFit()));
+    this.fitObserver.observe(grid);
+  }
+
+  private measureFit() {
+    const grid = this.fitGrid as HTMLElement | null;
+    if (!grid || !grid.isConnected) return;
+    const cs = getComputedStyle(grid);
+    const gap = parseFloat(cs.rowGap) || 0;
+    const pad = (parseFloat(cs.paddingBlockStart) || 0) + (parseFloat(cs.paddingBlockEnd) || 0);
+    const cols = Math.max(1, cs.gridTemplateColumns.split(' ').filter(Boolean).length);
+    const cards = [...grid.querySelectorAll<HTMLElement>(':scope > .card')];
+    if (!cards.length) return;
+    const cardH = Math.max(...cards.map((c) => c.offsetHeight));
+    if (!cardH) return;
+    const rows = Math.max(1, Math.floor((grid.clientHeight - pad + gap) / (cardH + gap)));
+    const per = cols * rows;
+    if (per !== this.perPage) this.perPage = per;
   }
 
   private setPolling(on: boolean) {
@@ -633,6 +689,10 @@ export class WiskeyStations extends LitElement {
     const online = all.some((s) => s.online);
     const state = !all.length ? 'empty' : 'ready';
     const placeName = rowsOf.find((r) => r.id === place)?.name ?? t.places.all;
+    const per = view === 'cards' && this.perPage > 0 ? this.perPage : 0;
+    const pages = per ? Math.max(1, Math.ceil(shown.length / per)) : 1;
+    const page = Math.min(Math.max(1, this.cardPage), pages);
+    const onPage = per ? shown.slice((page - 1) * per, page * per) : shown;
     return html`<sw-page wide heading=${t.title} subheading=${subtitleOf(tl, t)}>
       ${this.renderFeedBadge()}<wk-deep-links slot="actions" place="stations" mode="menu"></wk-deep-links>
       <div data-wk-stations data-wk-state=${state} data-view=${view} data-live=${String(v.live)}>
@@ -663,6 +723,7 @@ export class WiskeyStations extends LitElement {
                       ${f === 'in_call' ? wkIcon('phone', 14) : nothing}${f === 'all' ? t.filters.all : f === 'online' ? t.filters.online : f === 'attention' ? t.filters.attention : t.filters.inCall}
                     </button>`,
                   )}
+                  ${pages > 1 ? html`<sw-pager class="pager" data-wk-pager .page=${page} .pages=${pages} @page-change=${(e: CustomEvent<{ page: number }>) => (this.cardPage = e.detail.page)}></sw-pager>` : nothing}
                 </div>`
               : nothing}
             ${active && view === 'cards' && v.rights.call
@@ -671,7 +732,7 @@ export class WiskeyStations extends LitElement {
                   <wk-action-button tone="quiet" icon="list" data-wk-strip-list @click=${() => this.setView('list')}>${t.strip.toList}</wk-action-button>
                 </div>`
               : nothing}
-            ${this.renderContent(v, all, shown, view)}
+            ${this.renderContent(v, all, shown, view, onPage)}
           </section>
         </div>
       </div>
@@ -679,14 +740,14 @@ export class WiskeyStations extends LitElement {
     </sw-page>`;
   }
 
-  private renderContent(v: ViewCtx, all: readonly AccessStation[], shown: readonly AccessStation[], view: ViewMode) {
+  private renderContent(v: ViewCtx, all: readonly AccessStation[], shown: readonly AccessStation[], view: ViewMode, onPage: readonly AccessStation[] = shown) {
     const t = v.text;
     if (!all.length) return html`<sw-state-panel icon="door" state="empty" heading=${t.states.empty} data-wk-panel="empty"></sw-state-panel>`;
     if (!shown.length) return html`<sw-state-panel icon="door" compact state="empty" heading=${t.states.emptyFilter} data-wk-panel="empty-filter"></sw-state-panel>`;
     if (view === 'table') {
       return html`<sw-table class="tbl" dense data-wk-table .columns=${tableColumns(v, all)} .rows=${shown as unknown as Record<string, unknown>[]} .selected=${this.selected} @row-select=${(e: CustomEvent<{ id: string }>) => this.open(e.detail.id)}></sw-table>`;
     }
-    return view === 'list' ? rows(v, shown) : grid(v, shown);
+    return view === 'list' ? rows(v, shown) : grid(v, onPage);
   }
 
   private renderSheet(rowsOf: ReturnType<typeof placeRows>, place: string) {

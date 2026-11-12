@@ -856,6 +856,55 @@ export const genCss = css`
     border-block-end: 1px solid var(--sw-border);
   }
 
+  /* NOSCROLL-1366-2437 (owner rule: a control screen never scrolls; audit round 30 measured the live page 307 px over at 1366x768 and 192 px
+     at 1440x900): from 1101 px (where the hero is two columns) the page is two aligned columns - the flow diagram over the meters, the engine
+     card over the phase table - instead of four full-width bands. The engine facts read in two pairs per row, the flow diagram is capped to the
+     row's height, the dials are one denser row. Up to 1100 px (tablet, phone) the bands stay as they were (.lower is display: contents). */
+  .lower {
+    display: contents;
+  }
+  .meters {
+    display: contents;
+  }
+  @media (min-width: 1101px) {
+    .lower {
+      display: grid;
+      grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+    }
+    .lower.one {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .meters {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-inline-size: 0;
+    }
+    .hero-card svg.flow {
+      max-block-size: clamp(180px, calc(100dvh - 560px), 320px);
+    }
+    [data-card='engine'] .kv {
+      grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
+      gap: 8px 12px;
+      font-size: var(--sw-fs-sm);
+    }
+    .gauges {
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 10px;
+    }
+    .gauge {
+      padding: 6px 10px 6px;
+    }
+    .gauge svg {
+      max-inline-size: 120px;
+    }
+    table.t.phase td,
+    table.t.phase th {
+      padding-block: 8px;
+    }
+  }
   @media (max-width: 1100px) {
     .hero {
       grid-template-columns: minmax(0, 1fr);
