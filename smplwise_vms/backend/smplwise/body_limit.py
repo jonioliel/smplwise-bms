@@ -242,6 +242,7 @@ LIMITS: list[tuple[frozenset[str], re.Pattern[str], Callable[[Settings], int], s
     (frozenset({"POST"}), re.compile(r"/api/v1/catalog/import"), _const(CATALOG_IMPORT_MAX), "catalog_import"),
     (frozenset({"POST"}), re.compile(r"/api/v1/csp-report"), _csp_report, "csp_report"),
     (frozenset({"POST"}), re.compile(rf"/api/v1/tickets/{_ID}/attachments"), _ticket_attachment, "ticket_attachment"),
+    (frozenset({"POST"}), re.compile(rf"/api/v1/home/tickets/{_ID}/photos"), _ticket_attachment, "home_ticket_photo"),  # HOME-V3-FOLLOWUP-B-2431
     (frozenset({"POST"}), re.compile(rf"/api/v1/tickets/{_ID}/costs/files"), _ticket_cost_file, "ticket_cost_file"),
     (frozenset({"POST"}), re.compile(rf"/api/v1/tickets/rfqs/{_ID}/attachments"), _rfq_attachment, "rfq_attachment"),
     (frozenset({"POST"}), re.compile(rf"/api/v1/maintenance/tasks/{_ID}/files"), _maintenance_file, "maintenance_file"),

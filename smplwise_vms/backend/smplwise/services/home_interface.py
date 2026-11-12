@@ -149,6 +149,14 @@ HOME_MODULE_ROUTES: dict[str, tuple[frozenset[str], tuple[str, ...]]] = {
     "recordings": (frozenset({"/playback/sessions"}), ("/playback/sessions/",)),
     "log": (frozenset({"/events"}), ("/events/",)),
 }
+# HOME-V3-FOLLOWUP-B-2431 (owner answer 11.11 q1): a wall panel locked to its room (kiosk) may ADD an event to the family calendar and
+# nothing else of the calendar: no room booking, no availability search, no cancel / withdraw. Its one write is POST /home/wall/events
+# (routers/home_wall_events: kind "event" on a family calendar only); the module's general calendar writes above stay refused for a
+# kiosk person, so the panel cannot reach a booking by calling the module route directly. The notice board stays read-only (no notice
+# write is allowlisted for anyone home-only). A person who is only home-only (not a wall panel) keeps the calendar routes above.
+HOME_ALLOWED_EXACT = HOME_ALLOWED_EXACT | {"/home/wall/events"}
+KIOSK_REFUSED_WRITES_EXACT = frozenset(("/calendar/events", "/calendar/availability", "/calendar/events/preview"))
+KIOSK_REFUSED_WRITES_PATTERNS = (re.compile(r"^/calendar/events/[^/]+(/.*)?$"),)
 
 _LOCK = threading.Lock()
 _GATE_AUDITED: dict[str, float] = {}
@@ -450,11 +458,46 @@ def home_bill_file_check(conn: sqlite3.Connection, principal: Principal, bill: s
         raise HomeInterfaceError(403, "home_interface_only", "החשבון הזה לא מוצג בממשק הביתי.")
 
 
+def kiosk_refused_write(path: str, root_path: str = "", method: str = "GET") -> bool:
+    """HOME-V3-FOLLOWUP-B-2431: a calendar write a wall panel never makes (KIOSK_REFUSED_WRITES_*). Reads are never refused here."""
+    if (method or "GET").upper() in ("GET", "HEAD", "OPTIONS"):
+        return False
+    rest = api_route_of(path, root_path)
+    if rest is None:
+        return False
+    rest_cmp = rest[:-1] if len(rest) > 1 and rest.endswith("/") else rest
+    return rest_cmp in KIOSK_REFUSED_WRITES_EXACT or any(p.match(rest_cmp) for p in KIOSK_REFUSED_WRITES_PATTERNS)
+
+
+def is_kiosk(conn: sqlite3.Connection, user_id: str) -> bool:
+    """Whether the person is a wall panel locked to its room (a database from before migration 0211 has none)."""
+    try:
+        r = conn.execute("SELECT kiosk FROM home_interface_policy WHERE user_id = ?", (user_id,)).fetchone()
+    except sqlite3.OperationalError as exc:
+        if "no such table" in str(exc):
+            return False
+        raise
+    return bool(r and r["kiosk"])
+
+
 def enforce(conn: sqlite3.Connection, principal: Principal, path: str, request_id: str | None = None, *, root_path: str = "", method: str = "GET") -> None:
     """Refuse (403 `home_interface_only`) a home-only person's request outside the home interface's own routes. One cheap primary-key
     read for everyone else. Never applies to a system administrator (set_policy refuses that combination; this is the second lock).
     HOME-V3-FOLLOWUP-A-2431: an allowed route of a category the administrator hid for this home-only person (HOME_MODULE_ROUTES) is
-    refused 403 `home_module_off`."""
+    refused 403 `home_module_off`.
+    HOME-V3-FOLLOWUP-B-2431: a wall panel's calendar writes other than POST /home/wall/events are refused 403 `kiosk_calendar_add_only`."""
+    if kiosk_refused_write(path, root_path, method) and is_kiosk(conn, principal.user_id) and not is_system_admin(conn, principal.user_id):
+        now = time.monotonic()
+        with _LOCK:  # audited at most once per person per GATE_AUDIT_EVERY_S (the gate's own rule)
+            audit_now = now - _GATE_AUDITED.get("kiosk:" + principal.user_id, 0.0) >= GATE_AUDIT_EVERY_S
+            if audit_now:
+                _GATE_AUDITED["kiosk:" + principal.user_id] = now
+        if audit_now:
+            from ..audit import audit
+
+            audit(conn, actor=principal, action="home_interface.kiosk.refused", decision="denied", resource_type="route", resource_id=(api_route_of(path, root_path) or path)[:200],
+                  reason="kiosk_calendar_add_only", request_id=request_id)
+        raise HomeInterfaceError(403, "kiosk_calendar_add_only", "ממסך הקיר אפשר רק להוסיף אירוע ליומן המשפחתי.")
     allowed = home_allowed(path, root_path, method)
     mod = module_route(path, root_path) if allowed else None
     if allowed and mod is None:
