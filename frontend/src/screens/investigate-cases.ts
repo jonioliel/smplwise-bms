@@ -391,7 +391,7 @@ export class InvestigateCases extends LitElement {
   private renderApi() {
     const rows =this.cases.map((c) => ({ id: c.id, title: c.title, status: c.status, owner: c.owner_username, items: c.counts.items, clips: c.counts.events + c.counts.clips, preserved: c.counts.preserved, updated: c.updated_at, tags: c.tags.join(' · '), imported: c.origin === 'imported' }));
     return html`
-      <sw-page heading="תיקים" subheading="קישור להקלטה אינו שימור: ראיה נחשבת שמורה רק אחרי העתקה מאומתת מה־NVR">
+      <sw-page heading="תיקים" subheading="קישור להקלטה אינו שימור: ראיה נחשבת שמורה רק אחרי העתקה מאומתת מהמקליט">
         <sw-button slot="actions" icon="upload" data-bundle-import @click=${() => this.pickImport()}>ייבוא חבילת ראיות</sw-button>
         ${this.canManage ? html`<sw-button slot="actions" variant="primary" icon="plus" data-case-new @click=${() => (this.creating = true)}>תיק חדש</sw-button>` : nothing}
         <input type="file" accept=".zip,application/zip" hidden data-bundle-import-file @change=${(e: Event) => void this.onImportFile((e.target as HTMLInputElement).files?.[0])} />
@@ -1005,7 +1005,7 @@ export class InvestigateCaseDetail extends LitElement {
         ${it.note ? html`<div>${it.note}</div>` : nothing}
         <div class="meta">${o
           ? `במקור: ${o.added_by ?? '—'}${o.created_at ? ` · ${this.fmt(o.created_at)}` : ''} · יובא על ידי ${it.added_by_username}${pres === 'missing' ? ' · הקובץ המיובא חסר בדיסק' : ''}`
-          : html`${it.added_by_username} · ${this.fmt(it.created_at)}${it.export?.error ? ` · ייצוא: ${it.export.error}` : ''}${pres === 'missing' ? ' · לא ניתן לשמר: ההקלטה כבר לא ב־NVR' : ''}`}</div>
+          : html`${it.added_by_username} · ${this.fmt(it.created_at)}${it.export?.error ? ` · ייצוא: ${it.export.error}` : ''}${pres === 'missing' ? ' · לא ניתן לשמר: ההקלטה כבר לא במקליט' : ''}`}</div>
       </div>
       <div class="acts">
         ${it.camera_id && at && it.kind !== 'snapshot' ? html`<sw-button size="sm" icon="play" @click=${() => navigate('/investigate/playback', { camera: it.camera_id ?? '', t: at })}>נגן</sw-button>` : nothing}
@@ -1042,7 +1042,7 @@ export class InvestigateCaseDetail extends LitElement {
         <div class="cols">
           <div class="col main">
             ${this.renderProvenance(d)}
-            <sw-card heading="ראיות והערות" subheading=${d.checked ? 'מצב השימור נבדק מול ה־NVR עכשיו' : 'מצב השימור לא נבדק מול ה־NVR'}>
+            <sw-card heading="ראיות והערות" subheading=${d.checked ? 'מצב השימור נבדק מול המקליט עכשיו' : 'מצב השימור לא נבדק מול המקליט'}>
               <div class="stats" data-case-stats>
                 <span class="r5-well"><span class="r5-num">${c.items}</span><span class="r5-sub">פריטים</span></span>
                 <span class="r5-well" data-tone=${c.preserved ? 'ok' : nothing}><span class="r5-num">${c.preserved}</span><span class="r5-sub">עותקים שמורים</span></span>
@@ -1052,7 +1052,7 @@ export class InvestigateCaseDetail extends LitElement {
               </div>
               ${d.items.length ? html`<div class="items" data-case-items>${d.items.map((it) => this.renderItem(it, d))}</div>` : html`<div class="hint">עדיין אין פריטים בתיק. הוסף מאירוע, מהנגן או מהמפה ההיסטורית (הוסף לתיק).</div>`}
               ${d.hidden_items ? html`<div class="hint">${d.hidden_items} פריטים ממצלמות שאינן בהרשאתך אינם מוצגים.</div>` : nothing}
-              <div class="hint" style="margin-block-start:10px">סימנייה מצביעה על ההקלטה ב־NVR ואינה שימור: קטע נחשב שמור רק אחרי שעבודת ייצוא העתיקה אותו (sha256 ב־manifest). קטע שה־NVR כבר מחק מוצג כחסר ולעולם לא כשמור.</div>
+              <div class="hint" style="margin-block-start:10px">סימנייה מצביעה על ההקלטה במקליט ואינה שימור: קטע נחשב שמור רק אחרי שעבודת ייצוא העתיקה אותו (sha256 ב־manifest). קטע שהמקליט כבר מחק מוצג כחסר ולעולם לא כשמור.</div>
             </sw-card>
           </div>
           <div class="col side">
@@ -1078,7 +1078,7 @@ export class InvestigateCaseDetail extends LitElement {
             </sw-dialog>`
           : nothing}
         ${this.confirmDelete
-          ? html`<sw-dialog open heading="מחיקת תיק" subheading="הפריטים בתיק יימחקו; ההקלטות ב־NVR והעותקים שיוצאו נשארים" @close=${() => (this.confirmDelete = false)}>
+          ? html`<sw-dialog open heading="מחיקת תיק" subheading="הפריטים בתיק יימחקו; ההקלטות במקליט והעותקים שיוצאו נשארים" @close=${() => (this.confirmDelete = false)}>
               <sw-button slot="footer" variant="ghost" @click=${() => (this.confirmDelete = false)}>ביטול</sw-button>
               <sw-button slot="footer" variant="danger" icon="trash" data-case-delete-confirm ?disabled=${this.busy} @click=${() => { this.confirmDelete = false; void this.run(async () => { await deleteCase(d.id); navigate('/investigate/cases'); }); }}>מחק תיק</sw-button>
             </sw-dialog>`

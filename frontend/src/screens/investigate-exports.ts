@@ -372,7 +372,7 @@ export class InvestigateExports extends LitElement {
         <div class="r5-well"><span class="r5-num sm">${ok}</span><span class="r5-sub">הושלמו במלואם</span></div>
         <div class="r5-well" data-tone=${attention ? 'warn' : nothing}><span class="r5-num sm">${attention}</span><span class="r5-sub">דורשים תשומת לב</span></div>
       </div>
-      ${this.ffmpeg ? nothing : html`<div class="warn">ffmpeg לא זמין בשרת: קבצי הייצוא נמסרים במיכל המקורי של ה־NVR (Hikvision PS, ניתן לניגון ב־VLC) ולא נחתכים לטווח המדויק.</div>`}
+      ${this.ffmpeg ? nothing : html`<div class="warn">ffmpeg לא זמין בשרת: קבצי הייצוא נמסרים במיכל המקורי של המקליט (Hikvision PS, ניתן לניגון ב־VLC) ולא נחתכים לטווח המדויק.</div>`}
       ${this.error ? html`<div class="warn" role="alert">${this.error}</div>` : nothing}
       <div class="list" data-export-list>
         ${active.length ? html`<div class="group">פעילות <b>${active.length}</b></div>${active.map((j) => this.renderJob(j))}` : nothing}
@@ -381,7 +381,7 @@ export class InvestigateExports extends LitElement {
       <div class="foot">ההורדה נבדקת מול ההרשאה בזמן היצירה, הביצוע וההורדה. sha256 מוכיח שהקובץ תואם ל־hash שנשמר בייצוא, לא שהצילום אותנטי מאז המצלמה. הקבצים נמחקים אוטומטית אחרי תקופת השמירה שבהגדרות.</div>
       ${this.confirmDelete
         ? html`<sw-dialog open heading="מחיקת עבודת ייצוא" subheading=${`${this.confirmDelete.camera_name} · ${this.range(this.confirmDelete.requested_from, this.confirmDelete.requested_to, this.confirmDelete.timezone)}`} @close=${() => (this.confirmDelete = null)}>
-            <div class="meta">הקבצים שירדו לשרת יימחקו. ההקלטה עצמה ב־NVR לא נפגעת, ואפשר לייצא את הטווח שוב.</div>
+            <div class="meta">הקבצים שירדו לשרת יימחקו. ההקלטה עצמה במקליט לא נפגעת, ואפשר לייצא את הטווח שוב.</div>
             <sw-button slot="footer" variant="ghost" @click=${() => (this.confirmDelete = null)}>ביטול</sw-button>
             <sw-button slot="footer" variant="danger" icon="trash" data-export-delete-confirm ?disabled=${this.busy} @click=${() => this.removeJob(this.confirmDelete!)}>מחק</sw-button>
           </sw-dialog>`

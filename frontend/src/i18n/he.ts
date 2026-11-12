@@ -81,7 +81,7 @@ export const he = {
     pin: 'הצמד',
     unpin: 'בטל הצמדה',
     snapshot: 'צילום',
-    offlineReason: 'המצלמה אינה מחוברת ל־NVR',
+    offlineReason: 'המצלמה אינה מחוברת למקליט',
     forbiddenReason: 'אין לך הרשאת צפייה במצלמה הזו',
     staleReason: 'מצב המצלמה אינו מעודכן',
     source: 'מקור',

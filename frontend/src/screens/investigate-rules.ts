@@ -556,7 +556,7 @@ export class InvestigateRuleEditor extends LitElement {
           <div class="stack">
             <sw-card heading="מפעיל">
               <div class="two">
-                <sw-field label="מקור"><select><option>אירוע NVR</option><option>שינוי התקן</option></select></sw-field>
+                <sw-field label="מקור"><select><option>אירוע מקליט</option><option>שינוי התקן</option></select></sw-field>
                 <sw-field label="סוג"><select><option>${r.trigger}</option><option>זיהוי רכב</option><option>תנועה</option></select></sw-field>
               </div>
             </sw-card>

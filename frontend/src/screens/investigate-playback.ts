@@ -1244,7 +1244,7 @@ export class InvestigatePlayback extends LitElement {
     const fps = cam?.stream?.fps && cam.stream.fps > 0 ? cam.stream.fps : 25;
     if (!p) return;
     if (!p.stepFrame(frames, fps)) {
-      this.notice = 'הפריים המבוקש מחוץ למאגר שכבר הגיע מה־NVR — השתמש בקפיצה של 10 שניות או בציר הזמן.';
+      this.notice = 'הפריים המבוקש מחוץ למאגר שכבר הגיע מהמקליט — השתמש בקפיצה של 10 שניות או בציר הזמן.';
       return;
     }
     this.notice = '';
@@ -1370,7 +1370,7 @@ export class InvestigatePlayback extends LitElement {
     return html`<sw-dialog ?open=${this.exportOpen} heading="ייצוא קטע" subheading=${`${this.cameraName(this.cameraId)} · ${this.date} · ${this.tz}`} @close=${() => (this.exportOpen = false)}>
       <div class="dlg">
         ${job
-          ? html`<div class="est"><strong>עבודת הייצוא נוצרה</strong><span>${job.files.length} קבצים · משוער ${formatBytes(job.estimate_bytes)} · מצב: ${job.state}</span><span>ה־NVR עדיין מכין את הקובץ; "מעקב והורדה" למטה עובר למסך שבו כפתור ההורדה יופיע ברגע שהוא מוכן.</span></div>`
+          ? html`<div class="est"><strong>עבודת הייצוא נוצרה</strong><span>${job.files.length} קבצים · משוער ${formatBytes(job.estimate_bytes)} · מצב: ${job.state}</span><span>המקליט עדיין מכין את הקובץ; "מעקב והורדה" למטה עובר למסך שבו כפתור ההורדה יופיע ברגע שהוא מוכן.</span></div>`
           : html`
               <div class="row">
                 <sw-field label="מ־"><input type="time" lang=${dateInputLang()} step="1" data-ltr .value=${this.exportFrom} @change=${(e: Event) => { this.exportFrom = (e.target as HTMLInputElement).value; this.estimate = null; }} /></sw-field>
@@ -1378,12 +1378,12 @@ export class InvestigatePlayback extends LitElement {
               </div>
               ${est
                 ? html`<div class="est">
-                    <span>${est.files} קבצי NVR בטווח · נפח משוער ${formatBytes(est.estimate_bytes)} (מקסימום ${formatBytes(est.max_bytes)}) · כיסוי ${est.coverage === 'complete' ? 'מלא' : 'חלקי'}</span>
+                    <span>${est.files} קבצי מקליט בטווח · נפח משוער ${formatBytes(est.estimate_bytes)} (מקסימום ${formatBytes(est.max_bytes)}) · כיסוי ${est.coverage === 'complete' ? 'מלא' : 'חלקי'}</span>
                     ${est.first_file_at ? html`<span class="ltr">${this.fmt(new Date(est.first_file_at))} → ${this.fmt(new Date(est.last_file_end_at ?? est.first_file_at))}</span>` : nothing}
                     <span>${est.note}</span>
                     ${est.ffmpeg ? nothing : html`<span class="warn">ffmpeg לא זמין בשרת: הקובץ יימסר במיכל המקורי (Hikvision PS) ללא חיתוך.</span>`}
                   </div>`
-                : html`<div class="session">הייצוא מוריד את הקבצים המקוריים מה־NVR (לפי קובץ, כך המכשיר תומך) ואז חותך לטווח ב־keyframe. חשב נפח לפני היצירה.</div>`}
+                : html`<div class="session">הייצוא מוריד את הקבצים המקוריים מהמקליט (לפי קובץ, כך המכשיר תומך) ואז חותך לטווח ב־keyframe. חשב נפח לפני היצירה.</div>`}
             `}
         ${this.exportError ? html`<div class="err">${this.exportError}</div>` : nothing}
       </div>
@@ -1446,7 +1446,7 @@ export class InvestigatePlayback extends LitElement {
   private renderApi() {
     if (this.error && !this.cams) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.init()}></sw-state-panel>`;
     if (!this.cams) return html`<sw-state-panel state="loading"></sw-state-panel>`;
-    if (!this.cams.length) return html`<sw-state-panel icon="history" state="empty" heading="אין מצלמות" hint="סנכרן מצלמות מה־NVR או בקש הרשאת ניגון."></sw-state-panel>`;
+    if (!this.cams.length) return html`<sw-state-panel icon="history" state="empty" heading="אין מצלמות" hint="סנכרן מצלמות מהמקליט או בקש הרשאת ניגון."></sw-state-panel>`;
     const cam = this.cams.find((c) => c.id === this.cameraId) ?? this.cams[0];
     const master = this.masterSession;
     const live = this.live;
@@ -1489,7 +1489,7 @@ export class InvestigatePlayback extends LitElement {
             const supported = (master?.capabilities.supported_speeds ?? [1]).includes(s);
             const mse = this.masterPlayer()?.transport === 'mse';
             const ok = s === 1 || (!this.groupMode && supported && (s > 1 || mse));
-            const why = ok ? (s < 1 ? 'הילוך איטי: המאגר מתמלא בזמן אמת ונצרך לאט יותר — זמן המקור נשאר מדויק' : '') : this.groupMode ? 'בסנכרון רב־מצלמות נתמך רק 1×' : s > 1 ? 'לא נתמך במסלול הזה: הזרם מגיע מה־NVR בזמן אמת; מהירות מוגברת דורשת מקור ששולח מהר מזמן אמת' : 'הילוך איטי זמין רק בנתיב MSE';
+            const why = ok ? (s < 1 ? 'הילוך איטי: המאגר מתמלא בזמן אמת ונצרך לאט יותר — זמן המקור נשאר מדויק' : '') : this.groupMode ? 'בסנכרון רב־מצלמות נתמך רק 1×' : s > 1 ? 'לא נתמך במסלול הזה: הזרם מגיע מהמקליט בזמן אמת; מהירות מוגברת דורשת מקור ששולח מהר מזמן אמת' : 'הילוך איטי זמין רק בנתיב MSE';
             return html`<button class="q ${this.speed === s ? 'on' : ''}" data-speed=${s} ?disabled=${!ok} title=${why} @click=${() => this.setSpeed(s)}>${s}×</button>`;
           })}
           <span class="sep"></span>

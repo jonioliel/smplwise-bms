@@ -20,12 +20,12 @@ import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { dayMonthTimeText } from '../api/day-format';
 
 const RESULTS = [
-  { scene: 'entrance', when: '14.09.2026 10:14', cam: 'כניסה ראשית', why: 'NVR: זיהוי אדם (Smart)' },
-  { scene: 'lobby', when: '14.09.2026 10:13', cam: 'לובי', why: 'NVR: תנועה + סמיכות במפה לכניסה' },
-  { scene: 'parking', when: '14.09.2026 06:43', cam: 'חניה מקורה', why: 'NVR: חציית קו' },
+  { scene: 'entrance', when: '14.09.2026 10:14', cam: 'כניסה ראשית', why: 'מקליט: זיהוי אדם (Smart)' },
+  { scene: 'lobby', when: '14.09.2026 10:13', cam: 'לובי', why: 'מקליט: תנועה + סמיכות במפה לכניסה' },
+  { scene: 'parking', when: '14.09.2026 06:43', cam: 'חניה מקורה', why: 'מקליט: חציית קו' },
   { scene: 'entrance', when: '14.09.2026 08:12', cam: 'כניסה ראשית', why: 'התקן: דלת נפתחה + תנועה' },
-  { scene: 'corridor', when: '13.09.2026 23:10', cam: 'מסדרון מזרחי', why: 'NVR: זיהוי אדם' },
-  { scene: 'backyard', when: '13.09.2026 18:03', cam: 'חצר אחורית', why: 'NVR: תנועה' },
+  { scene: 'corridor', when: '13.09.2026 23:10', cam: 'מסדרון מזרחי', why: 'מקליט: זיהוי אדם' },
+  { scene: 'backyard', when: '13.09.2026 18:03', cam: 'חצר אחורית', why: 'מקליט: תנועה' },
 ] as const;
 
 /** SC19 — AI search (board 2 screen 9, Beta): search-by pills, "search by person" card, similar matches grid. Metadata filters first; AI only with a real index. */
@@ -344,7 +344,7 @@ export class InvestigateSearch extends LitElement {
     if (isApi()) return this.renderApi();
     return html`
       <sw-page heading="חיפוש AI" subheading="מצא בדיוק את מה שאתה מחפש · חיפוש סמנטי רק עם אינדקס אמיתי · נתוני הדגמה">
-        <sw-badge slot="actions" kind="unknown" label="אין ספק AI מוגדר · רמה 0 (מטא־דאטה NVR)"></sw-badge>
+        <sw-badge slot="actions" kind="unknown" label="אין ספק AI מוגדר · רמה 0 (מטא־דאטה מקליט)"></sw-badge>
         <div class="wrap">
           <div class="searchrow">
             <sw-field><input type="search" value="אדם בכניסה הראשית היום" aria-label="חיפוש" /></sw-field>

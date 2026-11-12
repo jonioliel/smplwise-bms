@@ -56,10 +56,32 @@ const BANNED = [/Asia\/Jerusalem/, /\bPresets?\b/, /\bTriggers?\b/, /(^|[^A-Za-z
 const bad = (all: string[]) => all.filter((t) => BANNED.some((re) => re.test(t)));
 
 test.describe('finding 15: Hebrew operator copy on the video screens', () => {
-  for (const hash of ['/investigate/health', '/investigate/playback', '/investigate/events', '/investigate/incidents', '/investigate/incidents/demo-incident']) {
+  // lead answer Q1 = a (2026-11-12): every operator "NVR" of branch G's screens is "מקליט"; a source guard (no browser) checks the
+  // copy paths the demo never draws (writes, errors, live-only rows) in the same files
+  test('source guard: no "NVR" in the Hebrew copy of the video and investigation screens', () => {
+    const src = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../src');
+    const files = [
+      ...fs.readdirSync(path.join(src, 'screens')).filter((f) => /^(live-|investigate-).*\.ts$|^security-alarm\.ts$|^system-devices\.ts$/.test(f)).map((f) => path.join(src, 'screens', f)),
+      path.join(src, 'i18n', 'he.ts'),
+    ];
+    const hits: string[] = [];
+    for (const f of files) {
+      fs.readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
+        if (/^\s*(\/\/|\*|\/\*)/.test(line) || line.includes('DEMO_SOURCE_WORDS')) return;
+        const code = line.replace(/\s\/\/\s.*$/, '').replace(/\/\*.*?\*\//g, '');
+        if (/[֐-׿]/.test(code) && /(^|[^A-Za-z_-])NVR([^A-Za-z_-]|$)/.test(code)) hits.push(`${path.basename(f)}:${i + 1}`);
+      });
+    }
+    expect(files.length).toBeGreaterThan(10);
+    expect(hits).toEqual([]);
+  });
+
+  for (const hash of ['/investigate/health', '/investigate/playback', '/investigate/events', '/investigate/incidents', '/investigate/incidents/demo-incident',
+    '/live', '/live/wall', '/investigate/cases', '/investigate/search', '/investigate/exports']) {
     test(hash, async ({ page }) => {
       await open(page, hash);
-      expect(bad(await texts(page)), hash).toEqual([]);
+      // the demo health row "NVR (הקלטה)" is fixture data of src/fixtures/catalog.ts (not a branch G file; recorded in the change note)
+      expect(bad(await texts(page)).filter((t) => t !== 'NVR (הקלטה)'), hash).toEqual([]);
     });
   }
 

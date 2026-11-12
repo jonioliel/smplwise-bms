@@ -1015,7 +1015,7 @@ export class LiveWall extends LitElement {
 
   private recorderControl(phone: boolean, title = '') {
     return html`<select aria-label=${vt('videoCopy.recorder')} data-wall-recorder title=${title || nothing} @change=${(e: Event) => this.setRecorder((e.target as HTMLSelectElement).value)}>
-      <option value="" ?selected=${!this.recorderFilter}>${phone ? 'כל ה־NVR' : 'NVR: הכול'}</option>
+      <option value="" ?selected=${!this.recorderFilter}>${phone ? 'כל המקליטים' : 'מקליט: הכול'}</option>
       ${this.recorders.map((r) => html`<option value=${r.id} ?selected=${r.id === this.recorderFilter}>${r.name}</option>`)}
     </select>`;
   }
@@ -1027,7 +1027,7 @@ export class LiveWall extends LitElement {
     if (this.error) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>`;
     if (!cams || !enabled) return html`<sw-state-panel state="loading"></sw-state-panel>`;
     if (!cams.length && hiddenCount) return html`<sw-state-panel icon="camera" state="empty" heading="כל המצלמות מוסתרות בקיר" data-wall-all-hidden></sw-state-panel>`; // the arrangement dialog (user menu) brings them back
-    if (!cams.length) return html`<sw-state-panel icon="camera" state="empty" heading="אין מצלמות זמינות" hint="המצלמות מתגלות אוטומטית מה־NVR בהפעלה ובכל 10 דקות. אם הרשימה ריקה: בדקו את פרטי ה־NVR בהגדרות ‹ חיבורים, או הריצו סנכרון ידני; ייתכן גם שאין לך הרשאה למצלמות."><div style="margin-block-start:10px"><sw-button @click=${() => navigate('/system/devices')}>למצלמות</sw-button></div></sw-state-panel>`;
+    if (!cams.length) return html`<sw-state-panel icon="camera" state="empty" heading="אין מצלמות זמינות" hint="המצלמות מתגלות אוטומטית מהמקליט בהפעלה ובכל 10 דקות. אם הרשימה ריקה: בדקו את פרטי המקליט בהגדרות ‹ חיבורים, או הריצו סנכרון ידני; ייתכן גם שאין לך הרשאה למצלמות."><div style="margin-block-start:10px"><sw-button @click=${() => navigate('/system/devices')}>למצלמות</sw-button></div></sw-state-panel>`;
     // NVRLESS-CAMERAS-2411 (owner, 08.11): no video server - a clear notice instead of a wall of broken players
     if (!webrtcServer()) return html`<sw-state-panel icon="camera" state="empty" heading=${WEBRTC_REQUIRED_SHORT} hint=${WEBRTC_REQUIRED_TEXT} actionLabel=${WEBRTC_SETTINGS_LABEL} data-webrtc-required @action=${() => (window.location.hash = WEBRTC_SETTINGS_HREF)}></sw-state-panel>`;
     const wanted = this.cameras ? this.cameras.split(',').filter(Boolean) : [];

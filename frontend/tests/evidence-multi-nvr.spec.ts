@@ -203,7 +203,7 @@ test.describe('multi-NVR screens (mocked backend)', () => {
     expect(await page.locator('kiosk-wall [data-kiosk-tile]').evaluateAll((els) => els.every((e) => !String((e as unknown as { cameraId?: string }).cameraId ?? '').startsWith('w-')))).toBe(true);
     // opened directly, its camera page names the reason (not "no permission")
     await open(page, '/live/cameras/w-cam-1');
-    await expect(page.locator('live-camera [data-camera-off-reason]')).toHaveText('ה־NVR של המצלמה מושבת');
+    await expect(page.locator('live-camera [data-camera-off-reason]')).toHaveText('המקליט של המצלמה מושבת');
     // no recorder left, history under nvr-1: the card is the add form (a new id), never the first recorder's connection form
     st.disabled = [];
     st.noRecorders = true;

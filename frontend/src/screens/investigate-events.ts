@@ -39,7 +39,7 @@ const C_SUB = 'color:var(--sw-text-3);font-size:var(--sw-fs-xs);line-height:1.4'
 const C_TIME = 'font-weight:var(--sw-fw-semibold);font-size:var(--sw-fs-md);font-variant-numeric:tabular-nums;color:var(--sw-heading)';
 const C_DOT = 'inline-size:8px;block-size:8px;border-radius:50%;flex:none;background:';
 /** Where an event came from, in the operator's words (the raw source key stays in the technical details). */
-const SOURCE_WORDS: Record<VmsEvent['source'], string> = { alertstream: 'התראה מה־NVR', recording: 'נגזר מקובץ הקלטה', ha: 'חיישן התקן', system: 'מערכת' };
+const SOURCE_WORDS: Record<VmsEvent['source'], string> = { alertstream: 'התראה מהמקליט', recording: 'נגזר מקובץ הקלטה', ha: 'חיישן התקן', system: 'מערכת' };
 /** SYS-AUDIT-QUICKFIX-2437 (audit round 30, finding 15): the demo rows' source keys in plain Hebrew - never the home system's brand
  * (owner rule: no Home Assistant naming on an operator screen) nor the bare device acronym. */
 const DEMO_SOURCE_WORDS: Record<string, string> = { HA: 'מערכת הבית', NVR: 'מקליט' };
@@ -1206,7 +1206,7 @@ export class InvestigateEvents extends LitElement {
 
   private windowColumns: TableColumn[] = [
     { key: 'thumb', label: '', width: '104px', render: (r) => this.renderWindowThumb(r as unknown as EventWindow) },
-    { key: 'title', label: 'חלון אירוע', render: (r) => { const w = r as unknown as EventWindow; return html`<span class="ty" style="--tone:${EVENT_TONE[w.dominant_type] ?? 'var(--sw-tl-offline)'}"><i></i>${EVENT_LABEL[w.dominant_type] ?? w.dominant_type}${w.count > 1 ? html` <span class="sub">×${String(w.count)}</span>` : nothing}</span><div class="sub">${Object.entries(w.types).map(([t, n]) => `${EVENT_LABEL[t as EventKind] ?? t} ${n}`).join(' · ')} · ${w.confidence === 'inferred' ? 'נגזר מהקלטה' : 'התראות מה־NVR'}</div>`; } },
+    { key: 'title', label: 'חלון אירוע', render: (r) => { const w = r as unknown as EventWindow; return html`<span class="ty" style="--tone:${EVENT_TONE[w.dominant_type] ?? 'var(--sw-tl-offline)'}"><i></i>${EVENT_LABEL[w.dominant_type] ?? w.dominant_type}${w.count > 1 ? html` <span class="sub">×${String(w.count)}</span>` : nothing}</span><div class="sub">${Object.entries(w.types).map(([t, n]) => `${EVENT_LABEL[t as EventKind] ?? t} ${n}`).join(' · ')} · ${w.confidence === 'inferred' ? 'נגזר מהקלטה' : 'התראות מהמקליט'}</div>`; } },
     { key: 'spotlight', label: 'זרקור', width: '150px', render: (r) => { const w = r as unknown as EventWindow; const s = w.spotlight; return s?.on ? html`<span class="spot" data-window-spotlight title=${s.rules.map((x) => x.why).join(' · ')}><sw-icon name="target" size=${12}></sw-icon>${s.rules.map((x) => x.label).join(' · ')}</span>` : w.manual_group_id ? html`<span class="sub" data-window-manual>קיבוץ ידני</span>` : nothing; } },
     { key: 'camera_name', label: 'מצלמה / קבוצה', render: (r) => { const w = r as unknown as EventWindow; return html`${w.camera_name ?? (w.channel ? `ערוץ ${w.channel}` : 'מערכת')}${w.group && w.group !== 'camera' && w.group !== 'manual' && w.camera_names?.length ? html`<div class="sub">${w.camera_names.join(' · ')}</div>` : nothing}`; } },
     { key: 'start', label: 'זמן', render: (r) => { const w = r as unknown as EventWindow; return html`${this.fmt(w.start)}${w.end !== w.start ? html` – ${this.fmt(w.end)}` : nothing}<div class="sub">${this.fmtDate(w.start)}</div>`; } },
@@ -1325,7 +1325,7 @@ export class InvestigateEvents extends LitElement {
     const down = !!ing && !ing.connected;
     const active = this.activeFilters();
     return html`
-      ${down ? html`<div class="banner warn" data-ingest-down><span class="dot"></span><span>הקליטה מה־NVR מנותקת${ing!.last_error ? ` (${ingestReason(ing!.last_error)})` : ''} · אירועים חדשים לא יגיעו עד שהחיבור יחזור</span></div>` : nothing}
+      ${down ? html`<div class="banner warn" data-ingest-down><span class="dot"></span><span>הקליטה מהמקליט מנותקת${ing!.last_error ? ` (${ingestReason(ing!.last_error)})` : ''} · אירועים חדשים לא יגיעו עד שהחיבור יחזור</span></div>` : nothing}
       <div class="kpis" data-kpis>
         <div class="kpi ${unacked ? 'hot' : ''}"><div><div class="n">${unacked}</div><div class="l">לבדיקה</div></div><div class="ic"><sw-icon name="bell" size=${18}></sw-icon></div></div>
         <div class="kpi"><div><div class="n">${this.events.length - unacked}</div><div class="l">טופלו היום</div></div><div class="ic"><sw-icon name="check" size=${18}></sw-icon></div></div>
@@ -1386,7 +1386,7 @@ export class InvestigateEvents extends LitElement {
                 : html`<sw-state-panel icon="history" state="empty" heading="אין חלונות אירוע ביום הזה" hint="חלון נוצר מאירועים סמוכים של אותה מצלמה."></sw-state-panel>`
           : this.events.length
             ? html`<sw-table .columns=${this.apiColumns} .rows=${this.events as unknown as Record<string, unknown>[]} .selected=${this.selected} @row-hover=${(e: CustomEvent<{ id: string; clientX: number; clientY: number; pointerType?: string }>) => { const ev2 = this.events?.find((x) => x.id === e.detail.id); if (ev2) this.hoverStart(ev2, e.detail); }} @row-leave=${() => this.hoverEnd()} @row-select=${(e: CustomEvent<{ id: string }>) => this.select(e.detail.id)}></sw-table>`
-            : html`<sw-state-panel icon="history" state="empty" heading="אין אירועים ביום הזה" hint="התראות מגיעות מה־NVR רק כשהטריגר מוגדר עם 'Notify Surveillance Center'; אירועי תנועה נגזרים מקובצי ההקלטה בהפעלה ובכל 10 דקות."></sw-state-panel>`}
+            : html`<sw-state-panel icon="history" state="empty" heading="אין אירועים ביום הזה" hint="התראות מגיעות מהמקליט רק כשהטריגר מוגדר עם 'Notify Surveillance Center'; אירועי תנועה נגזרים מקובצי ההקלטה בהפעלה ובכל 10 דקות."></sw-state-panel>`}
         ${this.renderRowPreview()}
         ${this.mode === 'windows' && this.selectedWindow && this.windows ? (() => { const w = this.windows.find((x) => x.id === this.selectedWindow); return w ? this.renderWindowDrawer(w) : nothing; })() : nothing}
         ${ev ? this.renderEventDrawer(ev) : nothing}
@@ -1469,15 +1469,15 @@ export class InvestigateEvents extends LitElement {
         <span class="dot ${ing?.connected ? 'on' : ''}" aria-hidden="true"></span>
         <span data-ingest-line title=${ing?.last_error ?? ''}>${state}</span>
         <span class="sub">· עדכונים חיים ${this.live ? 'פעילים' : 'מתחברים…'}</span>
-        ${noAlerts ? html`<span class="warnnote" data-no-alerts-flag><sw-icon name="warning" size=${13}></sw-icon>ה־NVR לא שולח התראות</span>` : nothing}
+        ${noAlerts ? html`<span class="warnnote" data-no-alerts-flag><sw-icon name="warning" size=${13}></sw-icon>המקליט לא שולח התראות</span>` : nothing}
         <span class="grow"></span>
         <span class="sub">פרטים טכניים</span>
         <sw-icon class="chev" name="chevron" size=${14}></sw-icon>
       </summary>
       <div class="techbody">
-        <div>קליטה מה־NVR: ${ing ? (ing.connected ? 'מחובר' : `מנותק${ing.last_error ? ` (${ingestReason(ing.last_error)})` : ''}`) : '—'}${ing?.last_heartbeat_at ? ` · פעימה אחרונה ${this.fmt(ing.last_heartbeat_at)}` : ''} · עדכונים חיים: ${this.live ? 'פעיל' : 'מתחבר…'} · אזור זמן <span class="ltr">${this.tz}</span></div>
+        <div>קליטה מהמקליט: ${ing ? (ing.connected ? 'מחובר' : `מנותק${ing.last_error ? ` (${ingestReason(ing.last_error)})` : ''}`) : '—'}${ing?.last_heartbeat_at ? ` · פעימה אחרונה ${this.fmt(ing.last_heartbeat_at)}` : ''} · עדכונים חיים: ${this.live ? 'פעיל' : 'מתחבר…'} · אזור זמן <span class="ltr">${this.tz}</span></div>
         <div>אירועים "נגזר מהקלטה" הם עדות מקובץ ההקלטה, לא התראה שנמדדה במכשיר.</div>
-        ${noAlerts ? html`<div data-no-alerts class="warntext">ה־NVR לא שלח התראות ב־${f!.days} הימים האחרונים. כדי לקבל אותן: ב־NVR, בהגדרות הקישור (linkage) של זיהוי התנועה, להפעיל "Notify Surveillance Center".</div>` : nothing}
+        ${noAlerts ? html`<div data-no-alerts class="warntext">המקליט לא שלח התראות ב־${f!.days} הימים האחרונים. כדי לקבל אותן: במקליט, בהגדרות הקישור (linkage) של זיהוי התנועה, להפעיל "Notify Surveillance Center".</div>` : nothing}
         ${f
           ? html`<div data-facets><strong>שדות עם נתונים (${f.days} ימים):</strong> ${f.types.map((t) => `${EVENT_LABEL[t.type as EventKind] ?? t.type} (${t.count})`).join(' · ') || 'אין אירועים'} · <strong>מקורות:</strong> ${f.sources.map((s) => `${SOURCE_LABEL[s.source] ?? s.source} (${s.count})`).join(' · ') || '—'}
               ${missing.length ? html`<br /><strong>לא זמין:</strong> ${missing.map((u, i) => html`${i ? ' · ' : ''}<span title=${u.reason}>${EVENT_LABEL[u.type as EventKind] ?? u.type}</span>`)} <span class="sub">(ריחוף מסביר למה)</span>` : nothing}
@@ -1545,7 +1545,7 @@ export class InvestigateEvents extends LitElement {
         <sw-table .columns=${this.columns} .rows=${rows} .selected=${this.selected} @row-select=${(e: CustomEvent<{ id: string }>) => (this.selected = e.detail.id)}></sw-table>
         ${ev
           ? html`<sw-drawer open class="evdrawer" ?modal=${this.narrow} heading=${eventTypeLabel[ev.type]} subheading=${`${ev.camera} · ${ev.time}`} @close=${() => (this.selected = null)}>
-              <div class="preview">${ev.type === 'offline' || ev.type === 'door' ? 'אין תמונה לאירוע זה' : html`<sw-scene kind=${(SCENE[ev.camera] ?? 'lobby') as 'lobby'}></sw-scene><span class="demo">דמו · תמונת אירוע מה־NVR (T044)</span>`}</div>
+              <div class="preview">${ev.type === 'offline' || ev.type === 'door' ? 'אין תמונה לאירוע זה' : html`<sw-scene kind=${(SCENE[ev.camera] ?? 'lobby') as 'lobby'}></sw-scene><span class="demo">דמו · תמונת אירוע מהמקליט (T044)</span>`}</div>
               <dl class="r5-facts">
                 <div><dt>זמן אירוע</dt><dd>${ev.time} <span class="r5-sub">· נקלט +1.2s</span></dd></div>
                 <div><dt>טיפול</dt><dd>${ev.acked ? 'טופל בידי יוני, 09:50' : 'ממתין'}</dd></div>

@@ -197,7 +197,7 @@ test.describe('live video evidence', () => {
     await page.waitForSelector('sw-app');
     await page.waitForTimeout(2500);
     await page.screenshot({ path: path.join(OUT, `events-${testInfo.project.name}.png`) });
-    await expect(page.locator('investigate-events')).toContainText('קליטה מה־NVR');
+    await expect(page.locator('investigate-events')).toContainText('קליטה מהמקליט');
     if (list.events.length) {
       await page.evaluate(`${DEEP} const s = deep(document, 'investigate-events'); s.selected = s.events[0].id;`);
       await page.waitForTimeout(600);
