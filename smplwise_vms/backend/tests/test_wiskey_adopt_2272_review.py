@@ -489,7 +489,7 @@ def test_m6_an_installed_0_10_0_bridge_is_refreshed(settings: Any, tmp_path: Pat
     monkeypatch.setattr(ha_client, "supervisor_token", lambda: None)
     st = bridge_install.install(_app(settings).state.db, settings, announce=False)
     src = bridge_install.read_version(bridge_install.source_dir())
-    assert wai.semver_key(src) > wai.semver_key("0.10.0") and src == "0.10.6"
+    assert wai.semver_key(src) > wai.semver_key("0.10.0") and src == "0.10.7"
     assert st["installed_now"] is True and bridge_install.read_version(old) == src
     for root in (REPO / "custom_components" / "smplwise_bridge", REPO / "smplwise_vms" / "integration" / "smplwise_bridge"):
         assert f'VERSION = "{src}"' in (root / "const.py").read_text(encoding="utf-8")

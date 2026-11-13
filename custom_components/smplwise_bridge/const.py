@@ -1,6 +1,11 @@
 """Constants for the SMPLWISE bridge."""
 DOMAIN = "smplwise_bridge"
-VERSION = "0.10.6"
+VERSION = "0.10.7"
+# 0.10.7 (CR-BRIDGE-RUNTIME-2436, code review 2026-11-13 report 05 P1-11 / P1-12): the import-time distribution digest is computed once and
+# never stops the import (a stray symlink, a non-regular file or a missing manifest -> LOADED_DISTRIBUTION None, which WisKey's readiness
+# reader reports as a digest mismatch); the directory pushes are the entry's background tasks (cancelled at unload); the unload saves a
+# dirty key set (the high-water mark) through the saver kept in entry.runtime_data. Nothing else changes. Needs one Home Assistant restart
+# (by the owner) to load.
 # 0.10.6 (WXH4-EMERGENCY-REVOKE-2407, CR-034 section 8, owner decisions of 07.11): the manual re-pair - Settings > Devices & services >
 # SMPLWISE Bridge > Reconfigure takes the add-on address and a NEW pairing code (after an emergency revocation of the bridge key in the
 # add-on, when its automatic discovery cannot reach this entry). The code is applied only when the add-on accepts it (one signed ping, as

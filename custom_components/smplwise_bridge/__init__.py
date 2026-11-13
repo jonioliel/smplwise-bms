@@ -93,8 +93,6 @@ from .cast_service import async_handle_cast_stream, note_origin
 from .config_service import async_handle_config_item
 from .const import (CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_LOCAL_IDENTITY_EXTENDED, CONF_LOCAL_IDENTITY_RUNNABLE, CONF_PAIRING_CODE, CONF_SERVICE_USER_ID, CONF_WISKEY_AUTO_INSTALL, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_CAST_STREAM,
                     SERVICE_CONFIG_ITEM, SERVICE_EXECUTE, SERVICE_LEASE_EVENT, SERVICE_LEASE_REQUEST, SERVICE_MEDIA_QUERY, SERVICE_ROTATE, SERVICE_SCHEDULE, SERVICE_SET_AREA, SERVICE_STREAM_SOURCE, SERVICE_SYNC, VERSION)
-from .wiskey_distribution_digest import digest as distribution_digest
-LOADED_DISTRIBUTION = distribution_digest(Path(__file__).parent)
 
 from . import lease_service
 # WKA-295: the documented public port of the capture lease for the WisKey consumer (docs/changes/WKA-295-LEASE-PORT.md), re-exported
@@ -418,6 +416,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     saver = KeyPersister(keyset, store.async_save, lambda: entry.data.get(CONF_PAIRING_CODE) or "", wipe_entry_code, hass.async_create_task,
                          on_error=save_failed)
+    # 0.10.7 (CR-BRIDGE-RUNTIME-2436): the unload reaches the saver here and saves a dirty key set (a new high-water mark) before it goes
+    entry.runtime_data = saver
     saver.clean_entry()  # HA-06: a restart between the key save and the entry update left the retired code in the entry
     if keyset.repaired:  # K-02: a new pairing code arrived in this entry (discovery): the fresh key set replaces the stored one
         _LOGGER.info("bridge re-paired with a new pairing code; the previous key set is discarded")
@@ -707,10 +707,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             loaded_pairing[0] = current  # one reload per new pairing, however often the entry is written before it runs
             schedule_reload(hass, updated.entry_id)
             return
-        hass.async_create_task(push_directory())
+        entry.async_create_background_task(hass, push_directory(), f"{DOMAIN} push_directory")
 
     entry.async_on_unload(entry.add_update_listener(entry_updated))
-    hass.async_create_task(push_directory())
+    # 0.10.7 (CR-BRIDGE-RUNTIME-2436): the directory pushes belong to the entry - Home Assistant cancels them at unload, so a push with the
+    # unloaded setup's keys never runs after a reload. The native setup below stays a Home Assistant task: a bridge reload must not cancel
+    # another integration's setup half-way.
+    entry.async_create_background_task(hass, push_directory(), f"{DOMAIN} push_directory")
     if native_setup_wanted(hass, entry):
         hass.async_create_task(_async_setup_native(hass))  # review H4: never awaited - the bridge entry's setup does not wait on it
     return True
@@ -780,6 +783,14 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_remove(DOMAIN, SERVICE_LEASE_REQUEST)
     lease_service.async_detach_bridge(hass, entry.entry_id)  # LEASELIFE-295: the consumer stays registered; in-flight answers are not relayed
     hass.data.get(f"{DOMAIN}_push_health", {}).pop(entry.entry_id, None)
+    # 0.10.7 (CR-BRIDGE-RUNTIME-2436): the services are gone, so nothing dirties the key set any more - save what the delayed save (2 s)
+    # still held, a new high-water mark above all, so the reloaded setup refuses a replay of it. Best effort: never fails the unload.
+    saver = getattr(entry, "runtime_data", None)
+    if isinstance(saver, KeyPersister):
+        try:
+            await saver.persist()
+        except Exception as exc:  # noqa: BLE001
+            _LOGGER.warning("bridge key state not saved at unload (%s)", type(exc).__name__)
     return True
 
 
@@ -798,6 +809,19 @@ from pathlib import Path as _DistributionPath
 from uuid import uuid4 as _distribution_uuid
 from os import getpid as _distribution_pid
 from .wiskey_distribution_digest import digest as _distribution_digest
-LOADED_DISTRIBUTION = _distribution_digest(_DistributionPath(__file__).parent)
+
+
+def _loaded_distribution() -> str | None:
+    """0.10.7 (CR-BRIDGE-RUNTIME-2436): computed ONCE, and never fatal. The digest refuses a symlink, a non-regular file or a missing
+    manifest in the bridge folder (ValueError); that used to stop the integration from importing at all. Now the bridge loads and the
+    loaded digest is None, which WisKey's readiness reader never takes for a match (`distribution_digest_mismatch`)."""
+    try:
+        return _distribution_digest(_DistributionPath(__file__).parent)
+    except Exception as exc:  # noqa: BLE001
+        _LOGGER.warning("bridge distribution digest unavailable (%s)", type(exc).__name__)
+        return None
+
+
+LOADED_DISTRIBUTION = _loaded_distribution()
 LOADED_BOOT_ID = _distribution_uuid().hex
 LOADED_PROCESS_ID = _distribution_pid()
