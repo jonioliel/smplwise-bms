@@ -160,8 +160,14 @@ test('administrator reset: an administrator who has a factor types their own cur
   page.on('pageerror', (e) => errors.push(e.message));
   const mock = await setup(page);
   mock.enabled = true; // the administrator's own factor is on
-  await page.goto('/?design=a#/live/cameras');
-  await page.waitForSelector('sw-app');
+  // CR-SHELL-LAZY-2436: <sw-second-factor-user> comes with the second factor chunk (the user menu's section or the access screen load
+  // it); open the section once so the chunk lands, close the menu, then place the element on the page as before
+  const section = await openSection(page);
+  await expect(section).toBeAttached();
+  await page.waitForFunction(() => !!customElements.get('sw-second-factor-user'));
+  await page.keyboard.press('Escape'); // account level -> main
+  await page.keyboard.press('Escape'); // main -> closed
+  await expect(page.locator('sw-app sw-user-menu [data-profile-menu-panel]')).toBeHidden();
   await page.evaluate(() => {
     const el = document.createElement('sw-second-factor-user') as HTMLElement & { userId: string };
     el.userId = 'u-viewer';

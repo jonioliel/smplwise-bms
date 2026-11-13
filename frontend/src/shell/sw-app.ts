@@ -35,10 +35,10 @@ import '../maintenance/close-prompt'; // MAINT215B: asks the closer whether to m
 import { refreshMaintenance } from '../maintenance/access'; // CR-MAINT215 slice 2: the section's switch for the navigation
 import { refreshCalendars, wireCalendars } from '../calendars/access'; // CALENDARS-UI-2310: the module's switch and placement for the navigation
 import { startRfqQuestions } from '../tickets/rfq-questions-store'; // RFQQUESTIONS: the nav badge of vendor questions
-import { rt } from '../tickets/rfq-text';
+import { nt } from '../tickets/nav-text'; // CR-SHELL-LAZY-2436: the badge's aria words, not the whole RFQ dictionary
 import '../xsection/sw-fire-bar'; // 2.29.0: the alarm bar (off unless the option fire_ui is on)
 import '../components/sw-incoming-call'; // WISKEY-INBOUND-CALLS-2382: the incoming door-station call banner (off unless its setting is on)
-import { setXsOptions, xsOptions } from '../xsection/xs-model';
+import { setXsOptions, xsOptions } from '../xsection/xs-options'; // CR-SHELL-LAZY-2436: the options only, not the cross-section model
 import { classifyDevice, classifyOptionsFor, readDeviceEnv, wallModeFor, watchDeviceClass } from '../wall/device-class';
 import { incidentState, onIncidentState, startIncidents } from '../incidents/store';
 import { it as incText } from '../i18n/incidents';
@@ -47,8 +47,13 @@ import { setReadinessChip } from '../api/readiness';
 import '../components/sw-demo-banner';
 import '../pwa/notifications-settings';
 import '../components/device-activity'; // CR-032: the device activity popup (long press on an electrical device)
+// CR-SHELL-LAZY-2436: the schedule editor is a lazy chunk now (lazy-screens.ts); these three dialogs it used to bring stay in the entry
+// chunk because the lazy schedules screens (devices-schedules, schedule-drawer) render them by tag without importing them
+import '../screens/schedule-lowering-dialog';
+import '../screens/schedule-create-dialog';
+import '../screens/schedules-week-view';
 import '../components/notify-center'; // CR-018: the notification center, opened from the user menu's bell
-import '../components/media-remote';
+// CR-SHELL-LAZY-2436: <media-remote> is not rendered by the shell; the home widgets and the area media card import it themselves
 import { navigate, onRouteChange, type RouteState, parseRoute } from '../router';
 import { KIND_ICON, KIND_LABEL, routeFor, search as apiSearch, type SearchResult } from '../api/search';
 import { healthSummary, type HealthSummary } from '../api/health';
@@ -3369,7 +3374,7 @@ export class SwApp extends LitElement {
   private areaCount(id: string) {
     const n = areaBadge(id);
     if (!n && areaDot(id)) return html`<span class="ndot" role="status" aria-label=${incText('railDot')} data-nav-dot=${id}></span>`; // CR-LIVEEVENT100
-    return n ? html`<span class="nb" role="status" aria-label=${rt('navQuestionsAria', { n })} data-nav-badge=${id}>${n > 99 ? '99+' : n}</span>` : nothing;
+    return n ? html`<span class="nb" role="status" aria-label=${nt('navQuestionsAria', { n })} data-nav-badge=${id}>${n > 99 ? '99+' : n}</span>` : nothing;
   }
 
   /** Bubble foundation: the phone dock's home button opens the room picker - floors (collapsible) and areas as pill rows. */

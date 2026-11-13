@@ -3,7 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-avatar';
 import '../components/sw-icon';
 import '../components/sw-remote-sessions';
-import '../components/sw-second-factor';
+// CR-SHELL-LAZY-2436 (review 07:F24): <sw-second-factor> is imported when its section is first opened (onFactorToggle)
 import '../components/sw-native-device-card';
 import { nativeCan } from '../arx/native-app';
 import '../components/sw-passkeys'; // USR2 phase 4: renders nothing unless the caller is an Arx-only identity
@@ -80,6 +80,8 @@ export class SwUserMenu extends LitElement {
   @state() private homeOpen = false;
   /** K11: the optional second factor section loads only while it is open. */
   @state() private factorOpen = false;
+  /** CR-SHELL-LAZY-2436: <sw-second-factor>'s chunk landed (see onFactorToggle). */
+  @state() private factorReady = typeof customElements !== 'undefined' && !!customElements.get('sw-second-factor');
   @state() private deviceOpen = false;
   @state() private staffOpen = false; // TKSTAFF1 review F3: the own work-link mobile
 
@@ -440,6 +442,17 @@ export class SwUserMenu extends LitElement {
     this.staffOpen = false;
   }
 
+  /** CR-SHELL-LAZY-2436 (review 07:F24): the second factor section opened - its element (and the QR library it carries) is a chunk of
+   * its own, fetched on the first opening; the tag is rendered once the chunk landed (GATE2342: never upgraded in place). */
+  private onFactorToggle(open: boolean) {
+    this.factorOpen = open;
+    if (!open || this.factorReady) return;
+    void import('../components/sw-second-factor').then(
+      () => (this.factorReady = true),
+      (err: unknown) => console.warn('second factor chunk failed to load', err),
+    );
+  }
+
   private goLevel(level: 'main' | 'account') {
     this.level = level;
     this.closeSections();
@@ -592,9 +605,9 @@ export class SwUserMenu extends LitElement {
             </details></li>`
           : nothing}
         ${acc.factor
-          ? html`<li><details data-my-second-factor @toggle=${(e: Event) => (this.factorOpen = (e.currentTarget as HTMLDetailsElement).open)}>
+          ? html`<li><details data-my-second-factor @toggle=${(e: Event) => this.onFactorToggle((e.currentTarget as HTMLDetailsElement).open)}>
               <summary><span class="ic"><sw-icon name="shield" size=${18}></sw-icon></span><span class="txt">${t('secondFactor.title')}</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
-              <div class="sessions">${this.open && this.factorOpen ? html`<sw-second-factor></sw-second-factor><sw-passkeys></sw-passkeys>` : nothing}</div>
+              <div class="sessions">${this.open && this.factorOpen ? html`${this.factorReady ? html`<sw-second-factor></sw-second-factor>` : nothing}<sw-passkeys></sw-passkeys>` : nothing}</div>
             </details></li>`
           : nothing}
         ${acc.device

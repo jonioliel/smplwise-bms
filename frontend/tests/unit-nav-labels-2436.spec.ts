@@ -61,7 +61,7 @@ test('nav.ts imports no dictionary module (its labels come from i18n/nav-labels.
 test('nav-labels.ts is a leaf (only tickets/naming.ts, which imports nothing); the bridges read exactly the two dictionaries this branch leaves alone', () => {
   expect(runtimeImports('i18n/nav-labels.ts')).toEqual(['tickets/naming.ts']);
   expect(runtimeImports('tickets/naming.ts')).toEqual([]);
-  expect(runtimeImports('i18n/nav-label-bridges.ts').sort()).toEqual(['i18n/he.ts', 'tickets/rfq-text.ts']);
+  expect(runtimeImports('i18n/nav-label-bridges.ts').sort()).toEqual(['i18n/he.ts', 'tickets/nav-text.ts']); // CR-SHELL-LAZY-2436: the RFQ word moved to nav-text
 });
 
 test('the notifications client and the personal home sheet import no feature text or model for one name', () => {

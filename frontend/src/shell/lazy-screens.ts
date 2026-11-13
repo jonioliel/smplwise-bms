@@ -20,7 +20,11 @@
  * the chunk landed upgrades it while detached, sets the properties again through the now defined accessors and puts it back, so
  * its connectedCallback runs with the template's values. If the render moved on meanwhile, the comment is gone and so is the element.
  *
- * Not listed: schedule-editor (components/device-activity, the long-press popup of every device, imports it eagerly). A screen
+ * CR-SHELL-LAZY-2436: schedule-editor is listed now (the route #/devices/schedules/<id>/edit); components/device-activity, the
+ * long-press popup, no longer imports it eagerly but with import() when its sheet first opens, and the same for ticket-create. Other
+ * on-demand parts follow the same rule outside this table: sw-second-factor (shell/sw-user-menu, when its section opens), the remote
+ * start-up (main.ts, only on the remote channel) and the cross-section module (xsection/sw-floor-home-link). Each renders its tag only
+ * once the chunk landed - never upgraded in place; scripts/lazy-tags-check.mjs keeps them out of the entry chunk (NOT_IN_ENTRY). A screen
  * module listed here must not be imported eagerly by the shell (it would land in the entry chunk again), and a tag
  * a lazy screen renders must be defined by a module it imports itself or by the entry chunk: scripts/lazy-tags-check.mjs
  * checks both statically (it is part of the frontend gate, tests/unit/lazy-screens.spec.ts).
@@ -50,6 +54,7 @@ export const LAZY_SCREENS: Readonly<Record<string, Loader>> = {
   'wiskey-access-diag': () => import('../screens/wiskey-access-diag'), // WISKEY-ACCESS-DIAG-2400: אבחון הרשאות
   'devices-area': () => import('../screens/devices-area'),
   'devices-schedules': () => import('../screens/devices-schedules'),
+  'schedule-editor': () => import('../screens/schedule-editor'), // CR-SHELL-LAZY-2436: the editor route (and the device popup's sheet)
   'system-schedules': () => import('../screens/system-schedules'),
   'devices-automations': () => import('../screens/devices-automations'),
   'system-automations': () => import('../screens/system-automations'),

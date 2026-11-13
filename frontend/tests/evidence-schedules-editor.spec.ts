@@ -3,6 +3,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { screenshotRetrying } from './shot-retry';
+import { loadLazyChunk } from './lazy-chunk';
 
 // CR-014 S4: the schedule editor in DEMO mode (no backend: run the preview with SW_API_PORT pointing at a port nothing
 // listens on), against the typed client's in-memory store (persona through localStorage `sw.demo.schedules`). The editor is
@@ -39,7 +40,7 @@ async function mount(page: Page, id: string, o: MountOptions = {}) {
   }, o.persona ?? 'admin');
   await page.goto('about:blank');
   await page.goto(`/?design=a#${o.hash ?? '/devices/building'}`);
-  await page.waitForFunction(() => !!customElements.get('schedule-editor'));
+  await loadLazyChunk(page, 'schedule-editor', 'schedule-editor', '/src/screens/schedule-editor.ts'); // CR-SHELL-LAZY-2436: a chunk of its own
   await page.evaluate(
     ([sid, tag, template, preset]) => {
       document.querySelector('sw-app')?.remove();
