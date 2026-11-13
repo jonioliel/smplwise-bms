@@ -49,7 +49,7 @@ from ..db import new_id
 from ..rbac import INSTALLATION, Principal, authorize
 from . import notify_policy as policies
 from . import notify_settings as nsettings
-from .notify_visibility import MANAGE, Reach, principal_of
+from .notify_visibility import MANAGE, Reach, active_principals, principal_of
 from .timeutil import iso_utc, parse_utc
 
 log = logging.getLogger("smplwise.notify")
@@ -151,9 +151,9 @@ def _active_users(conn: sqlite3.Connection) -> list[str]:
 
 
 def _active_principals(conn: sqlite3.Connection) -> list[Principal]:
-    """Every active user as the principal notify_visibility.principal_of would build, from ONE query (review 04:F05, the managers part)."""
-    return [Principal(user_id=r["id"], username=r["username"] or "", display_name=r["display_name"] or "", source="push")
-            for r in conn.execute("SELECT id, username, display_name FROM users WHERE active = 1 ORDER BY id").fetchall()]
+    """Every active user as the principal notify_visibility.principal_of would build, from ONE query (review 04:F05, the managers part).
+    CR-WAVE1B-COMBINED-2436: the one builder is notify_visibility.active_principals (CR-NOTIFY-FANOUT-2436), same statement and order."""
+    return active_principals(conn)
 
 
 def managers(conn: sqlite3.Connection) -> list[str]:
