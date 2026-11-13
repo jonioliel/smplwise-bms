@@ -44,7 +44,7 @@ import { obr, obrApiError } from '../i18n/backup-offbox-restore';
 import { localSafetyOn, safetyBody, scopeFromSetting } from '../api/backup-offbox';
 import { KIND_LABEL, TABLE_LABEL, backupDownloadUrl, createBackup, deleteBackup, fmtBytes, getMeterBackup, listBackups, restoreBackup, setMeterBackup, uploadBackup, type BackupEntry, type MeterBackupSetting } from '../api/backup';
 import '../components/sw-dialog';
-import { STATUS_KIND, STATUS_LABEL, fmtUptime, healthReport, type HealthReport } from '../api/health';
+import { STATUS_KIND, STATUS_LABEL, fmtUptime, healthReport, healthSummary, type HealthReport, type HealthSummary } from '../api/health';
 import { applyWiskeyUi, applyWiskeyHidden, applySnapshotHidden, type WiskeyScreen } from '../shell/nav';
 import { setInstallWiskeyView } from '../wiskey/wiskey-prefs';
 import { getSkinsStatus, runSkinsTest, type SkinsStatus, type SkinsTestResult } from '../api/skins';
@@ -212,9 +212,19 @@ export class SystemDiagnostics extends LitElement {
   @state() private sessions: { id: string; camera_id: string; stream: string; username: string; seconds: number; bytes_down: number }[] = [];
   @state() private busy = false;
   @state() private message = '';
-  /** POLISH4-WP7: why the bridge status, the health report or the backup list could not be read (their own error state, with a retry) */
-  @state() private loadFailed = '';
-  @state() private error = '';
+  /** POLISH4-WP7: why the bridge status, the health report or the backup list could not be read (their own error state, with a retry).
+   * CR-DIAG-DEFECTS-2436 (06:DIAG-4): one entry per tab, so a failure on one tab is never drawn on another. */
+  @state() private loadFailed: Record<'ha' | 'health' | 'backup', string> = { ha: '', health: '', backup: '' };
+  /** CR-DIAG-DEFECTS-2436 (06:DIAG-4): the error line of each tab (keyed by tab id), shown only on that tab. */
+  @state() private errors: Record<string, string> = {};
+  /** The product settings could not be read (the layout of the tabs is then the default one). */
+  private settingsFailed = false;
+  /** CR-DIAG-DEFECTS-2436 (06:DIAG-3): the server's cheap health summary for the General tab (null = not read yet). */
+  @state() private summary: HealthSummary | null = null;
+  @state() private summaryFailed = '';
+  /** CR-DIAG-DEFECTS-2436 (06:MSG-1): the one timer that clears `message`; a newer message restarts it, disconnect clears it. */
+  private messageTimer: ReturnType<typeof setTimeout> | undefined;
+  private copiedTimer: ReturnType<typeof setTimeout> | undefined;
   @state() private version = '';
   @state() private ha: HaStatus | null = null;
   @state() private pairing: BridgePairing | null = null;
@@ -258,7 +268,7 @@ export class SystemDiagnostics extends LitElement {
   @state() private foldSummary: Partial<Record<AccessCardId, string>> = {};
   @state() private foldPresent: Partial<Record<AccessCardId, boolean>> = {};
   private accessLink: AccessCardId | null = null;
-  @state() private health: { discovery?: Record<string, unknown>; video_codecs?: VideoCodecs; remote?: { live_streams?: number }; events?: { ingest: { connected: boolean; last_heartbeat_at: string | null; last_event_at: string | null; last_error: string | null; reconnects: number; events_stored: number }; derive: { last_ok: string | null; last_error: string | null; derived: number }; stored: number } } | null = null;
+  @state() private health: { discovery?: Record<string, unknown>; video_codecs?: VideoCodecs; remote?: { live_streams?: number } } | null = null;
 
   static styles = [settingsStyles, css`
     .steps {
@@ -288,6 +298,17 @@ export class SystemDiagnostics extends LitElement {
       block-size: 8px;
       border-radius: 50%;
       background: var(--sw-stale);
+    }
+    /* CR-DIAG-DEFECTS-2436: the General tab's live health row (the demo's dot has no data-status and keeps the colour above) */
+    .health .dot[data-status='ok'] {
+      background: var(--sw-live);
+    }
+    .health .dot[data-status='error'] {
+      background: var(--sw-offline);
+    }
+    .health .dot[data-status='off'] {
+      background: var(--sw-border, currentColor);
+      opacity: 0.6;
     }
     .hgrid {
       display: grid;
@@ -622,6 +643,7 @@ export class SystemDiagnostics extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this.readTab();
+    if (this.tab === 'general') void this.loadSummary();
     window.addEventListener('hashchange', this.onHash);
     this.addEventListener(FOLD_SUMMARY_EVENT, this.onFoldSummary);
     if (typeof matchMedia === 'function') {
@@ -638,6 +660,39 @@ export class SystemDiagnostics extends LitElement {
     this.removeEventListener(FOLD_SUMMARY_EVENT, this.onFoldSummary);
     this.phoneMq?.removeEventListener('change', this.onPhoneMq);
     this.phoneMq = null;
+    clearTimeout(this.messageTimer);
+    clearTimeout(this.copiedTimer);
+  }
+
+  /** CR-DIAG-DEFECTS-2436 (06:MSG-1): show a saved / done message for `ms`; a newer message restarts the one timer. */
+  private flash(text: string, ms: number) {
+    this.message = text;
+    clearTimeout(this.messageTimer);
+    this.messageTimer = setTimeout(() => (this.message = ''), ms);
+  }
+
+  /** CR-DIAG-DEFECTS-2436 (06:DIAG-4): the error line of one tab ('' clears it). */
+  private setError(tab: string, text: string) {
+    if ((this.errors[tab] ?? '') !== text) this.errors = { ...this.errors, [tab]: text };
+  }
+
+  private errorOf(tab: string): string {
+    return this.errors[tab] ?? '';
+  }
+
+  private setLoadFailed(tab: 'ha' | 'health' | 'backup', text: string) {
+    if (this.loadFailed[tab] !== text) this.loadFailed = { ...this.loadFailed, [tab]: text };
+  }
+
+  /** CR-DIAG-DEFECTS-2436 (06:DIAG-3): the General tab's health row reads the cached summary (job states only, never a device probe). */
+  private async loadSummary() {
+    if (!isApi()) return;
+    this.summaryFailed = '';
+    try {
+      this.summary = await healthSummary();
+    } catch (err) {
+      this.summaryFailed = describeError(err);
+    }
   }
 
   /** SET-polish: the sub-tab is a deep link (`#/system/diagnostics?tab=backup`): read on arrival and whenever the address changes while this
@@ -657,7 +712,7 @@ export class SystemDiagnostics extends LitElement {
 
   /** SETTINGS-INTERCOM-CARDS-2401: the layout is known once the settings are read (always in the demo, which has no server). */
   private layoutKnown(): boolean {
-    return !isApi() || this.settings !== null || !!this.error;
+    return !isApi() || this.settings !== null || this.settingsFailed;
   }
 
   /** SETTINGS-INTERCOM-CARDS-2401: the saved layout of "מתגי מסכי כניסה" (a change applies after its save). */
@@ -695,6 +750,7 @@ export class SystemDiagnostics extends LitElement {
 
   private openTab(id: string, write = true) {
     this.tab = id;
+    if (id === 'general') void this.loadSummary();
     if (id === 'health') void this.loadReport();
     if (id === 'backup') void this.loadBackups();
     if (id === 'media') void this.loadMedia();
@@ -705,7 +761,7 @@ export class SystemDiagnostics extends LitElement {
   private async loadSettings() {
     if (!isApi()) return;
     try {
-      const [r, h] = await Promise.all([getSettings(), get<{ version: string; discovery?: Record<string, unknown>; events?: never }>('health').catch(() => null)]);
+      const [r, h] = await Promise.all([getSettings(), get<{ version: string; discovery?: Record<string, unknown> }>('health').catch(() => null)]);
       this.settings = r.settings;
       this.canEdit = r.can_edit;
       this.nvrChannels = r.nvr_channels ?? null;
@@ -713,7 +769,13 @@ export class SystemDiagnostics extends LitElement {
       this.version = h?.version ?? '';
       this.health = (h as unknown as typeof this.health) ?? null;
     } catch (err) {
-      this.error = describeError(err);
+      this.settingsFailed = true;
+      this.setError(this.tab, describeError(err));
+    }
+    // CR-DIAG-DEFECTS-2436 (06:DIAG-2): a deep link (?tab=media / ?tab=ha) ran its loader before `canEdit` was known - run it again now
+    if (this.canEdit) {
+      if (this.tab === 'media') void this.loadMedia();
+      else if (this.tab === 'ha') void this.loadHa();
     }
     // the floors for הגדרות › מפה › קומת ברירת מחדל (grouped by site and building)
     void loadTree().then((t) => (this.floorTree = t.sites)).catch(() => undefined);
@@ -766,17 +828,17 @@ export class SystemDiagnostics extends LitElement {
       this.go2rtc = s.go2rtc;
       this.foreign = s.foreign_streams;
       this.sessions = sess.sessions;
-      this.error = '';
+      this.setError('media', '');
     } catch (err) {
       this.streams = [];
-      this.error = describeError(err);
+      this.setError('media', describeError(err));
     }
   }
 
   private async loadHa(regenerate = false) {
     if (!isApi()) return;
-    this.error = '';
-    this.loadFailed = '';
+    this.setError('ha', '');
+    this.setLoadFailed('ha', '');
     try {
       this.ha = await haStatus();
       if (this.canEdit && !onRemote()) this.pairing = await bridgePairing(regenerate);
@@ -784,12 +846,12 @@ export class SystemDiagnostics extends LitElement {
         this.regenArmed = false;
         this.showCode = true;
         // BRIDGE-STALE-DISCOVERY-2383: say what really happened to the new code
-        this.message = regenMessage(this.pairing?.announced);
-        setTimeout(() => (this.message = ''), this.pairing?.announced ? 6000 : 12000);
+        this.flash(regenMessage(this.pairing?.announced), this.pairing?.announced ? 6000 : 12000);
       }
     } catch (err) {
-      this.error = describeError(err);
-      this.loadFailed = this.error;
+      const text = describeError(err);
+      this.setError('ha', text);
+      this.setLoadFailed('ha', text);
     }
   }
 
@@ -798,7 +860,8 @@ export class SystemDiagnostics extends LitElement {
     try {
       await navigator.clipboard.writeText(this.pairing.pairing_code ?? '');
       this.copied = true;
-      setTimeout(() => (this.copied = false), 2000);
+      clearTimeout(this.copiedTimer);
+      this.copiedTimer = setTimeout(() => (this.copied = false), 2000);
     } catch {
       this.showCode = true;
     }
@@ -806,14 +869,15 @@ export class SystemDiagnostics extends LitElement {
 
   private async installBridgeNow() {
     this.busy = true;
-    this.error = '';
+    this.setError('ha', '');
     try {
       const st = await installBridge();
-      this.message = st.state === 'installed_pending' ? 'האינטגרציה הועתקה ל־Home Assistant; הפעל מחדש את Home Assistant ואשר את הגשר שהתגלה.' : st.state === 'active' ? 'האינטגרציה פעילה.' : st.state === 'not_available' ? 'תיקיית ההגדרות של Home Assistant אינה נגישה ל־Add-on.' : `מצב: ${st.state}`;
+      const text = st.state === 'installed_pending' ? 'האינטגרציה הועתקה ל־Home Assistant; הפעל מחדש את Home Assistant ואשר את הגשר שהתגלה.' : st.state === 'active' ? 'האינטגרציה פעילה.' : st.state === 'not_available' ? 'תיקיית ההגדרות של Home Assistant אינה נגישה ל־Add-on.' : `מצב: ${st.state}`;
+      this.message = text;
       await this.loadHa();
-      setTimeout(() => (this.message = ''), 6000);
+      this.flash(text, 6000);
     } catch (err) {
-      this.error = describeError(err);
+      this.setError('ha', describeError(err));
     } finally {
       this.busy = false;
     }
@@ -858,8 +922,8 @@ export class SystemDiagnostics extends LitElement {
     return html`<div class="sections">
       <sw-card heading="חיבור ל־Home Assistant" subheading="קריאה בלבד: מצבים, רישום ישויות, אזורים וקומות">
         ${!h
-          ? this.loadFailed
-            ? html`<sw-state-panel compact state="error" heading="מצב החיבור לא נטען" hint=${this.loadFailed} actionLabel="נסו שוב" @action=${() => void this.loadHa()}></sw-state-panel>`
+          ? this.loadFailed.ha
+            ? html`<sw-state-panel compact state="error" heading="מצב החיבור לא נטען" hint=${this.loadFailed.ha} actionLabel="נסו שוב" @action=${() => void this.loadHa()}></sw-state-panel>`
             : html`<sw-state-panel compact state="loading"></sw-state-panel>`
           : html`
             <div class="row"><span class="lbl">גישה ל־API של Home Assistant<span class="muted">${h.configured ? 'דרך ה־Supervisor (homeassistant_api) או HA_URL בפיתוח' : 'לא מוגדר — ה־Add-on לא קיבל SUPERVISOR_TOKEN'}</span></span><sw-badge kind=${h.configured ? 'live' : 'offline'}></sw-badge></div>
@@ -938,8 +1002,9 @@ export class SystemDiagnostics extends LitElement {
 
   private async save() {
     if (!Object.keys(this.draft).length) return;
+    const tab = this.tab; // the tab whose save row asked (the answer may land after a tab switch)
     this.busy = true;
-    this.error = '';
+    this.setError(tab, '');
     try {
       const r = await patchSettings(this.draft);
       this.settings = r.settings;
@@ -951,10 +1016,9 @@ export class SystemDiagnostics extends LitElement {
       applySnapshotHidden(r.settings as unknown as Record<string, unknown>); // ui.security_snapshot: the live overview tab follows
       setGlassScheme(r.settings['devices.glass_scheme']); // 2.4.4: every open glass surface follows at once
       void this.loadSiteLocation(); // CR-029 S2: the sun's location may have changed source
-      this.message = 'ההגדרות נשמרו';
-      setTimeout(() => (this.message = ''), 2500);
+      this.flash('ההגדרות נשמרו', 2500);
     } catch (err) {
-      this.error = describeError(err);
+      this.setError(tab, describeError(err));
     } finally {
       this.busy = false;
     }
@@ -962,13 +1026,13 @@ export class SystemDiagnostics extends LitElement {
 
   private async sync() {
     this.busy = true;
-    this.error = '';
+    this.setError('media', '');
     try {
       const r = await syncStreams();
       this.message = `זרמים: ${r.created} נוצרו, ${r.updated} עודכנו, ${r.unchanged} ללא שינוי · ${r.foreign_streams_untouched} זרמים זרים לא נגעו`;
       await this.loadMedia();
     } catch (err) {
-      this.error = describeError(err);
+      this.setError('media', describeError(err));
     } finally {
       this.busy = false;
     }
@@ -1005,7 +1069,7 @@ export class SystemDiagnostics extends LitElement {
   private renderSaveRow(o: { tab: string; disabled: boolean; onSave: () => unknown; hook?: string; size?: 'sm'; label?: string }) {
     const here = this.tab === o.tab;
     const hook = unsafeStatic(o.hook ?? 'data-save-row');
-    return shtml`<div class="foot sticky"><sw-button variant="primary" size=${o.size ?? 'md'} icon="check" ${hook} ?disabled=${o.disabled} @click=${o.onSave}>${o.label ?? 'שמור'}</sw-button>${here && this.message ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}${here && this.error ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : nothing}</div>`;
+    return shtml`<div class="foot sticky"><sw-button variant="primary" size=${o.size ?? 'md'} icon="check" ${hook} ?disabled=${o.disabled} @click=${o.onSave}>${o.label ?? 'שמור'}</sw-button>${here && this.message ? html`<span class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</span>` : nothing}${here && this.errorOf(o.tab) ? html`<span class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.errorOf(o.tab)}</span>` : nothing}</div>`;
   }
 
   private renderNvrLessNotice(what: string) {
@@ -1014,7 +1078,53 @@ export class SystemDiagnostics extends LitElement {
     </sw-card>`;
   }
 
+  /** CR-DIAG-DEFECTS-2436 (06:DIAG-3, owner decision O11 a): with a backend the General tab shows only what the server says - the
+   * display zone in force, the two integration links and the health summary; the sample cards (fixed zone list, NVR time profile,
+   * storage policy, always-on switches, fixed health sentence) stay in the demo, whose markup is unchanged (renderGeneralDemo). */
   private renderGeneral() {
+    if (!isApi()) return this.renderGeneralDemo();
+    const NVR = nvrLess();
+    const zone = this.value('time.zone');
+    return html`<div class="sections">
+      ${this.renderDesign()}
+      <system-design></system-design>
+      <system-brand-logos></system-brand-logos>
+      <system-brand-installer></system-brand-installer>
+      <system-brand-colors></system-brand-colors>
+      ${BUBBLE_SCREENS_ENABLED ? html`<system-look></system-look>` : nothing}
+      <system-nav-size></system-nav-size>
+      <system-mobile-options></system-mobile-options>
+      <system-xs-options></system-xs-options>
+      <sw-card heading="זמן ומיקום">
+        <div class="row" data-general-zone><span class="lbl">אזור זמן לתצוגה<span class="muted">פנימית הכל UTC; שעון קיץ לפי התאריך המבוקש</span></span><span class="ltr">${typeof zone === 'string' && zone ? zone : '—'}</span></div>
+      </sw-card>
+      ${NVR ? this.renderNvrLessNotice('מדיניות האחסון נקראת מה־NVR') : nothing}
+      <sw-card heading="אינטגרציות">
+        <div class="row"><span class="lbl">go2rtc (חיצוני)<span class="muted">זרמים בשם smplwise_* בלבד · זרמים זרים לא ייגעו</span></span><sw-button size="sm" @click=${() => this.openTab('media')}>הגדרה</sw-button></div>
+        <div class="row"><span class="lbl">גשר Arx<span class="muted">קטלוג ישויות, פעולות בשם המשתמש וספריית המשתמשים</span></span><sw-button size="sm" @click=${() => this.openTab('ha')}>הגדרה</sw-button></div>
+      </sw-card>
+      <sw-card heading="בריאות המערכת">${this.renderGeneralHealth()}</sw-card>
+    </div>`;
+  }
+
+  /** CR-DIAG-DEFECTS-2436 (06:DIAG-3): the server's summary - the overall status in the health tab's words, then what needs a look. */
+  private renderGeneralHealth() {
+    const s = this.summary;
+    const open = html`<sw-button size="sm" icon="activity" data-general-health-open @click=${() => this.openTab('health')}>הרצת דיאגנוסטיקה</sw-button>`;
+    if (!s) {
+      return this.summaryFailed
+        ? html`<div class="row" data-general-health="failed"><span class="health"><i class="dot" data-status="error"></i><span class="lbl">מצב המערכת לא נטען<span class="muted">${this.summaryFailed}</span></span></span><span class="end"><sw-button size="sm" variant="ghost" @click=${() => void this.loadSummary()}>נסו שוב</sw-button>${open}</span></div>`
+        : html`<div class="row" data-general-health="loading"><span class="health"><i class="dot" data-status="off"></i><span class="lbl">בודק את מצב המערכת…</span></span>${open}</div>`;
+    }
+    const label = s.status === 'ok' ? 'הכל תקין' : s.status === 'warn' ? 'יש מה לבדוק' : s.status === 'error' ? 'יש תקלה' : STATUS_LABEL[s.status];
+    const attention = s.items.filter((i) => i.status === 'warn' || i.status === 'error');
+    const detail = attention.length ? attention.map((i) => `${i.label}: ${STATUS_LABEL[i.status]}`).join(' · ') : 'כל הרכיבים תקינים';
+    const checked = s.checked_at ? ` · נבדק ${timeText(new Date(s.checked_at))}` : '';
+    return html`<div class="row" data-general-health=${s.status}><span class="health"><i class="dot" data-status=${s.status}></i><span class="lbl">${label}<span class="muted">${detail}${checked}</span></span></span>${open}</div>`;
+  }
+
+  /** The demo (no backend): the sample General tab exactly as before CR-DIAG-DEFECTS-2436 (its pixel baselines stay). */
+  private renderGeneralDemo() {
     const NVR = nvrLess();
     return html`<div class="sections">
       ${this.renderDesign()}
@@ -1680,12 +1790,11 @@ export class SystemDiagnostics extends LitElement {
   private async loadReport(fresh = false) {
     if (!isApi()) return;
     this.reportBusy = true;
-    this.loadFailed = '';
+    this.setLoadFailed('health', '');
     try {
       this.report = await healthReport(fresh);
     } catch (err) {
-      this.error = describeError(err);
-      this.loadFailed = this.error;
+      this.setLoadFailed('health', describeError(err));
     } finally {
       this.reportBusy = false;
     }
@@ -1694,8 +1803,8 @@ export class SystemDiagnostics extends LitElement {
   private renderReport() {
     const r = this.report;
     if (!r) {
-      return html`<div class="sections"><sw-card heading="בריאות המערכת">${this.loadFailed && !this.reportBusy
-        ? html`<sw-state-panel compact state="error" heading="דוח הבריאות לא נטען" hint=${this.loadFailed} actionLabel="נסו שוב" @action=${() => void this.loadReport(true)}></sw-state-panel>`
+      return html`<div class="sections"><sw-card heading="בריאות המערכת">${this.loadFailed.health && !this.reportBusy
+        ? html`<sw-state-panel compact state="error" heading="דוח הבריאות לא נטען" hint=${this.loadFailed.health} actionLabel="נסו שוב" @action=${() => void this.loadReport(true)}></sw-state-panel>`
         : html`<sw-state-panel compact state="loading" heading=${this.reportBusy ? 'בודק…' : 'טוען…'}></sw-state-panel>`}</sw-card></div>`;
     }
     const checked = timeText(new Date(r.checked_at), { seconds: true });
@@ -1723,9 +1832,7 @@ export class SystemDiagnostics extends LitElement {
     return html`<div class="sections">
       <sw-card heading="מצבים נפרדים, לא נורה אחת">${demoHealth.map((h) => html`<div class="row"><span class="lbl">${h.name}<span class="muted">${h.detail}</span></span><sw-badge kind=${h.state}></sw-badge></div>`)}
         <div class="row"><span class="lbl">הקלטה ב־NVR<span class="muted">5/10 ערוצים מקליטים כרגע (לפי תצורה)</span></span><sw-badge kind="live"></sw-badge></div>
-        <div class="row"><span class="lbl">זרמים פעילים<span class="muted">${isApi() ? `${this.sessions.length} דרך ה־relay` : '4 חיים · 1 ניגון · 0 יתומים'}</span></span><sw-badge kind="live"></sw-badge></div>
-        ${isApi() && this.health?.events ? html`<div class="row"><span class="lbl">קליטת אירועים מה־NVR (alertStream)<span class="muted">${this.health.events.ingest.connected ? `מחובר · פעימה אחרונה ${this.health.events.ingest.last_heartbeat_at?.replace('T', ' ').replace('Z', ' UTC') ?? '—'}` : `מנותק${this.health.events.ingest.last_error ? ` · ${this.health.events.ingest.last_error}` : ''}`} · ${this.health.events.ingest.events_stored} אירועים נקלטו · ${this.health.events.ingest.reconnects} חיבורים מחדש</span></span><sw-badge kind=${this.health.events.ingest.connected ? 'live' : 'offline'}></sw-badge></div>
-        <div class="row"><span class="lbl">אירועים מהקלטות (inferred)<span class="muted">${this.health.events.derive.last_error ? `שגיאה: ${this.health.events.derive.last_error}` : this.health.events.derive.last_ok ? `עודכן ${this.health.events.derive.last_ok.replace('T', ' ').replace('Z', ' UTC')}` : 'טרם רץ'} · ${this.health.events.stored} אירועים במאגר</span></span><sw-badge kind=${this.health.events.derive.last_error ? 'stale' : 'recorded'}></sw-badge></div>` : nothing}
+        <div class="row"><span class="lbl">זרמים פעילים<span class="muted">4 חיים · 1 ניגון · 0 יתומים</span></span><sw-badge kind="live"></sw-badge></div>
       </sw-card>
       <sw-card heading="תור עבודות">${demoJobs.map((j) => html`<div class="row"><span class="lbl">${j.title}<span class="muted">${j.status}</span></span><span style="display:flex;align-items:center;gap:10px"><span class="bar ${j.status.startsWith('נכשל') ? 'fail' : ''}"><i style="--p:${j.progress}%"></i></span><span class="ltr">${j.progress}%</span></span></div>`)}</sw-card>
     </div>`;
@@ -1734,14 +1841,13 @@ export class SystemDiagnostics extends LitElement {
   private async loadBackups() {
     if (!isApi()) return;
     void getMeterBackup().then((m) => (this.meterBackup = m));
-    this.loadFailed = '';
+    this.setLoadFailed('backup', '');
     try {
       const r = await listBackups();
       this.backups = r.backups;
       this.backupPolicy = r.policy;
     } catch (err) {
-      this.error = describeError(err);
-      this.loadFailed = this.error;
+      this.setLoadFailed('backup', describeError(err));
       this.backups = [];
     }
   }
@@ -1776,6 +1882,7 @@ export class SystemDiagnostics extends LitElement {
   private async createBackup() {
     this.backupBusy = true;
     this.backupMsg = '';
+    this.setError('backup', '');
     try {
       const pw = this.backupPassword;
       const e = await createBackup({ note: this.backupNote.trim(), ...(pw ? { backup_password: pw } : {}) });
@@ -1785,7 +1892,7 @@ export class SystemDiagnostics extends LitElement {
       this.backupMsg = `הגיבוי ${e.name} נוצר (${fmtBytes(e.bytes)})${sens ? ` · ${sens}` : ''}`;
       await this.loadBackups();
     } catch (err) {
-      this.error = describeError(err);
+      this.setError('backup', describeError(err));
     } finally {
       this.backupBusy = false;
     }
@@ -1801,19 +1908,19 @@ export class SystemDiagnostics extends LitElement {
   private async saveBackupMin(input: HTMLInputElement) {
     const n = Number(input.value);
     if (!Number.isInteger(n) || n < 8 || n > 64) {
-      this.error = bpt('minRange');
+      this.setError('backup', bpt('minRange'));
       input.value = String(this.backupMin());
       return;
     }
     this.backupMinBusy = true;
-    this.error = '';
+    this.setError('backup', '');
     try {
       const r = await patchSettings({ 'backup.password_min': n });
       this.settings = r.settings;
       invalidateSettings();
       this.backupMsg = bpt('minSaved');
     } catch (err) {
-      this.error = describeError(err);
+      this.setError('backup', describeError(err));
       input.value = String(this.backupMin());
     } finally {
       this.backupMinBusy = false;
@@ -1824,14 +1931,14 @@ export class SystemDiagnostics extends LitElement {
   /** OFFBOX-RESTORE-2300 (owner answer 2026-10-30): `backup.local_restore_scope` (default project+access), saved at once. */
   private async toggleLocalScope(on: boolean) {
     this.localSafetyBusy = true;
-    this.error = '';
+    this.setError('backup', '');
     try {
       const r = await patchSettings({ 'backup.local_restore_scope': on ? 'project+access' : 'project' });
       this.settings = r.settings;
       invalidateSettings();
       this.backupMsg = obr('saved');
     } catch (err) {
-      this.error = describeError(err);
+      this.setError('backup', describeError(err));
     } finally {
       this.localSafetyBusy = false;
     }
@@ -1839,14 +1946,14 @@ export class SystemDiagnostics extends LitElement {
 
   private async toggleLocalSafety(on: boolean) {
     this.localSafetyBusy = true;
-    this.error = '';
+    this.setError('backup', '');
     try {
       const r = await patchSettings({ 'backup.safety_before_local_restore': on ? 'on' : 'off' });
       this.settings = r.settings;
       invalidateSettings();
       this.backupMsg = obr('saved');
     } catch (err) {
-      this.error = describeError(err);
+      this.setError('backup', describeError(err));
     } finally {
       this.localSafetyBusy = false;
     }
@@ -1856,12 +1963,13 @@ export class SystemDiagnostics extends LitElement {
     if (!file) return;
     this.backupBusy = true;
     this.backupMsg = '';
+    this.setError('backup', '');
     try {
       const e = await uploadBackup(file);
       this.backupMsg = `הקובץ הועלה כ־${e.name}; עכשיו אפשר לשחזר ממנו`;
       await this.loadBackups();
     } catch (err) {
-      this.error = describeError(err);
+      this.setError('backup', describeError(err));
     } finally {
       this.backupBusy = false;
     }
@@ -1871,12 +1979,13 @@ export class SystemDiagnostics extends LitElement {
   private async removeBackup(b: BackupEntry) {
     this.removeTarget = null;
     this.backupBusy = true;
+    this.setError('backup', '');
     try {
       await deleteBackup(b.name);
       this.backupMsg = `הגיבוי ${b.name} נמחק`;
       await this.loadBackups();
     } catch (err) {
-      this.error = describeError(err);
+      this.setError('backup', describeError(err));
     } finally {
       this.backupBusy = false;
     }
@@ -1891,6 +2000,7 @@ export class SystemDiagnostics extends LitElement {
 
   private openRestore(b: BackupEntry) {
     this.restoreTarget = b;
+    this.setError('backup', ''); // the dialog starts without an earlier action's error
     this.restoreMode = 'replace';
     this.restoreAccess = scopeFromSetting(this.settings?.['backup.local_restore_scope']) === 'project+access'; // owner answer 2026-10-30: a setting, default on
     this.restoreConfirm = '';
@@ -1904,7 +2014,7 @@ export class SystemDiagnostics extends LitElement {
     const b = this.restoreTarget;
     if (!b || this.restoreConfirm !== 'RESTORE') return;
     this.backupBusy = true;
-    this.error = '';
+    this.setError('backup', '');
     try {
       const pw = this.restorePassword;
       const r = await restoreBackup(b.name, { mode: this.restoreMode, scope: this.restoreAccess ? 'project+access' : 'project', confirm: this.restoreConfirm,
@@ -1920,7 +2030,7 @@ export class SystemDiagnostics extends LitElement {
       invalidateSettings();
       await this.loadBackups();
     } catch (err) {
-      this.error = err instanceof ApiError && err.code.startsWith('safety_password_') ? obrApiError(err.code, err.body.details) : describeError(err);
+      this.setError('backup', err instanceof ApiError && err.code.startsWith('safety_password_') ? obrApiError(err.code, err.body.details) : describeError(err));
       // BACKUP-HASH-ENC: a missing / wrong password (or a damaged encrypted part) offers "restore without the passwords"
       this.restoreCanSkip = err instanceof ApiError && err.body.details?.can_skip === true;
       this.restorePassword = '';
@@ -1988,6 +2098,7 @@ export class SystemDiagnostics extends LitElement {
       <div class="row"><span class="lbl">${obr('accessLabel')}<span class="muted">${obr('accessHint')}</span></span><sw-toggle data-restore-access ?checked=${this.restoreAccess} label=${obr('accessLabel')} labelHidden @change=${(e: CustomEvent<{ checked: boolean }>) => (this.restoreAccess = e.detail.checked)}></sw-toggle></div>
       ${this.renderRestoreSensitive(b)}
       ${this.renderRestoreSafety()}
+      ${this.errorOf('backup') ? html`<div class="msg err" role="alert" data-restore-error><sw-icon name="warning" size=${13}></sw-icon>${this.errorOf('backup')}</div>` : nothing}
       <div class="muted" style="margin-block-start:8px">הגיבוי מגרסה ${b.app_version ?? '?'} מ־${this.fmtWhen(b.created_at)}. השחזור נרשם באודיט. לאישור הקלד <code>RESTORE</code>:</div>
       <input class="confirm-in" data-restore-confirm placeholder="RESTORE" .value=${this.restoreConfirm} @input=${(e: Event) => (this.restoreConfirm = (e.target as HTMLInputElement).value)} />
       <div slot="footer"><sw-button variant="danger" icon="history" ?disabled=${this.restoreConfirm !== 'RESTORE' || this.backupBusy} data-restore-go @click=${() => this.doRestore()}>${this.backupBusy ? 'משחזר…' : 'שחזר עכשיו'}</sw-button><sw-button variant="ghost" @click=${() => (this.restoreTarget = null)}>ביטול</sw-button></div>
@@ -2014,6 +2125,7 @@ export class SystemDiagnostics extends LitElement {
           <span><input type="file" accept=".zip,application/zip" hidden @change=${(e: Event) => { const inp = e.target as HTMLInputElement; void this.onBackupFile(inp.files?.[0]); inp.value = ''; }} /><sw-button size="sm" icon="upload" ?disabled=${this.backupBusy || !isApi()} @click=${() => (this.renderRoot.querySelector('input[type=file]') as HTMLInputElement | null)?.click()}>בחר קובץ…</sw-button></span></div>
         ${this.renderMeterBackup()}
         ${this.backupMsg ? html`<div class="msg ok" role="status" data-backup-msg><sw-icon name="check" size=${13}></sw-icon>${this.backupMsg}</div>` : nothing}
+        ${this.errorOf('backup') && !this.restoreTarget ? html`<div class="msg err" role="alert" data-backup-error><sw-icon name="warning" size=${13}></sw-icon>${this.errorOf('backup')}</div>` : nothing}
         ${!isApi()
           ? html`<div class="muted">נתוני הדגמה: הגיבויים עובדים מול השרת.</div>`
           : this.backups === null
@@ -2021,7 +2133,7 @@ export class SystemDiagnostics extends LitElement {
             : list.length
               ? html`<div class="blist" data-backups>${list.map((b) => this.renderBackupRow(b))}</div>`
               : this.loadFailed
-                ? html`<sw-state-panel compact state="error" heading="רשימת הגיבויים לא נטענה" hint=${this.loadFailed} actionLabel="נסו שוב" @action=${() => void this.loadBackups()}></sw-state-panel>`
+                ? html`<sw-state-panel compact state="error" heading="רשימת הגיבויים לא נטענה" hint=${this.loadFailed.backup} actionLabel="נסו שוב" @action=${() => void this.loadBackups()}></sw-state-panel>`
                 : html`<sw-state-panel icon="history" compact state="empty" heading="עדיין אין גיבויים" hint="הראשון ייווצר אוטומטית לפני העדכון הבא, או עכשיו בלחיצה."></sw-state-panel>`}
       </sw-card>
       ${isApi() && can('backup.manage') ? html`<sw-offbox-backup data-offbox-section></sw-offbox-backup>` : nothing}
@@ -2052,7 +2164,7 @@ export class SystemDiagnostics extends LitElement {
       <sw-page crumbs=${cur.id === 'general' ? 'הגדרות' : 'הגדרות | כללי'} heading=${cur.label} subheading=${`${(cur.id === VOICE_TAB ? sct().voiceTabSub : TAB_SUB[cur.id]) ?? ''}${isApi() ? '' : ' · נתוני הדגמה'}`}>
         <sw-tabs underline data-settings-tabs .variant=${this.phoneSelect ? 'dropdown' : this.tabsMode.props('').variant} ?adaptive=${this.phoneSelect ? false : this.tabsMode.props('').adaptive} ?tall=${this.phoneSelect} ?block=${this.phoneSelect} dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel} group-label="קטגוריה" .items=${tabs} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.openTab(e.detail.id)}></sw-tabs>
         ${this.message && this.tab === 'ha' ? html`<div class="msg ok" role="status"><sw-icon name="check" size=${13}></sw-icon>${this.message}</div>` : nothing}
-        ${this.error && this.tab === 'ha' ? html`<div class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.error}</div>` : nothing}
+        ${this.errorOf('ha') && this.tab === 'ha' ? html`<div class="msg err" role="alert"><sw-icon name="warning" size=${13}></sw-icon>${this.errorOf('ha')}</div>` : nothing}
         ${this.tab === 'general' ? this.renderGeneral() : this.tab === 'tabs' ? html`<system-tabs-config></system-tabs-config>` : this.tab === 'media' ? this.renderMedia() : this.tab === 'map' ? this.renderMap() : this.tab === 'buildings' ? html`<system-mapping></system-mapping>` : this.tab === 'ha' ? this.renderHa() : this.tab === 'access-control' ? this.renderAccessControl() : this.tab === VOICE_TAB ? this.renderAccessVoice() : this.tab === 'devices' ? this.renderDevices() : this.tab === 'remote' ? this.renderRemote() : this.tab === 'mobile' ? html`<system-presence></system-presence>` : this.tab === 'health' ? this.renderHealth() : this.tab === 'backup' ? this.renderBackup() : this.renderSupport()}
       </sw-page>
     `;
