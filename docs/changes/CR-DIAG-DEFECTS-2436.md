@@ -57,7 +57,13 @@ Results (workstation, Windows, `vite build` then
 
 Only the General tab with a backend changes. The pixel baselines that show this screen are demo mode (`visual-matrix`
 `settings-diagnostics` is the demo health tab) or other tabs; the demo markup is unchanged, so no baseline image is expected to
-change. Proof run on the runner: see the branch report.
+change. No committed baseline captures the General tab with a backend, so there was nothing to refresh and `-u` was not run.
+
+Proof run on the runner (1-min load checked below 30 first, one worker), no `-u`:
+`py -3.12 private/runner/run_smart.py preview pilot/CR-DIAG-DEFECTS-2436 tests/visual-matrix.spec.ts tests/evidence-diagnostics-defects.spec.ts -g "settings-diagnostics|CR-DIAG-DEFECTS" --workers=1 --machine runner`
+at 4ceaaf883: **15 passed, 18 skipped** - the 9 new tests (desktop; tablet / mobile skip by design) and
+`visual-matrix` `settings-diagnostics` ready light + dark on desktop, tablet and mobile (6, pixel-stable against the existing
+baselines).
 
 ## Rollback
 
