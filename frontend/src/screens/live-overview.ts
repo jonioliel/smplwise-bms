@@ -620,7 +620,8 @@ export class LiveOverview extends LitElement {
       margin-block-end: 0;
     }
     /* NOSCROLL-1366-2437: the health rows sit in a grid; on a short desktop (1366x768 class) they take two columns, so the row of
-       health / storage gives the last row (events, attention) the room it needs and the page does not scroll */
+       health / storage gives the last row (events, attention) the room it needs and the page does not scroll. From 1280 px only:
+       at 1024x768 the half-width cells and the lower floor squeezed the attention card below one item (entry check 2026-11-12) */
     .hgrid {
       display: grid;
       gap: 5px;
@@ -628,7 +629,7 @@ export class LiveOverview extends LitElement {
     .hgrid > .hrow {
       margin-block-end: 0;
     }
-    @media (min-width: 1024px) and (max-height: 860px) {
+    @media (min-width: 1280px) and (max-height: 860px) {
       .hgrid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }

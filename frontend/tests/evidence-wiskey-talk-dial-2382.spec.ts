@@ -7,6 +7,7 @@ import { installParityMock } from './access-parity-mocks';
 import { settlePage } from './pixel-settle';
 import { installStationsMock, newMock, openStations } from './wiskey-stations-mocks';
 import { installStationMediaMock, newMediaMock, type StationMediaMock } from './wiskey-station-media-mocks';
+import { tallDesktop } from './helpers/tall-desktop';
 
 // WISKEY-TALK-DIAL-2382 against the MOCKED backend (tests/wiskey-stations-mocks.ts + tests/wiskey-station-media-mocks.ts +
 // tests/access-control-mocks.ts: invented stations and answers, a drawn canvas, a fake microphone; no station, no intercom, no go2rtc).
@@ -47,6 +48,7 @@ async function shot(page: Page, info: TestInfo, name: string) {
 }
 
 test.describe('dial the station from the drawer', () => {
+  tallDesktop(); // NOSCROLL-1366-2437: every station of the mock on one page from 1024 px
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
 
   test('talk available: "חיוג לעמדה" is Arx\'s own talk - one start, the in-call duration, hang up', async ({ page }, info) => {
@@ -156,6 +158,7 @@ async function bootSettings(page: Page, settings: Record<string, string>, readin
 }
 
 test.describe('Settings: the station media source', () => {
+  tallDesktop(); // NOSCROLL-1366-2437: every station of the mock on one page from 1024 px
   test.beforeEach(({}, info) => {
     test.skip(info.project.name !== 'desktop', 'behaviour on one project');
     test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
