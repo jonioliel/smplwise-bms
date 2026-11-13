@@ -221,6 +221,18 @@ async function setSettings(request: APIRequestContext, body: Record<string, unkn
 }
 
 const card = (page: Page, key: string) => page.locator(`devices-area sw-card[data-camera-card="${key}"] devices-camera-card`);
+/** NOSCROLL-1366-2437: from 1024 px the area screen pages its cards instead of scrolling (the cards of the other pages are hidden and out
+ * of view); a far card is reached with the pager there, by scrolling below that width. */
+async function bringIntoView(page: Page, key: string) {
+  const pager = page.locator('devices-area sw-pager[data-area-pager]');
+  if (!(await pager.count())) return card(page, key).scrollIntoViewIfNeeded();
+  const pages = await pager.evaluate((el) => (el as unknown as { pages: number }).pages);
+  for (let n = 1; n <= pages && !(await card(page, key).isVisible()); n++) {
+    await pager.evaluate((el, p) => el.dispatchEvent(new CustomEvent('page-change', { detail: { page: p }, bubbles: true, composed: true })), n);
+    await page.waitForTimeout(150);
+  }
+  await expect(card(page, key)).toBeVisible();
+}
 
 test.describe('the camera card in an area screen (real backend, fake media stack)', () => {
   test.describe.configure({ mode: 'serial' });
@@ -367,7 +379,7 @@ test.describe('the camera card in an area screen (real backend, fake media stack
     await expect.poll(async () => (await active(page)).map((x) => x.camera), { timeout: 20000 }).toEqual([cameraIds['1']]);
     await page.waitForTimeout(1500);
     expect((await socks(page)).length, 'the far card never asked').toBe(1);
-    await card(page, 'camera:c2').scrollIntoViewIfNeeded();
+    await bringIntoView(page, 'camera:c2');
     // the cap is one: the first card keeps its slot until it has been out of view for RELEASE_MS (5 s), then the second gets it
     await expect.poll(async () => (await active(page)).map((x) => x.camera), { timeout: 20000 }).toEqual([cameraIds['2']]);
     const all = await socks(page);

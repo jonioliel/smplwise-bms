@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { installTicketsMock, url, type TicketsMock, type TicketsMockOptions } from './tickets-mocks';
 import { installBoardMock, type BoardMock, type BoardMockOptions } from './tickets-board-mocks';
 import { installTableMock, type TableMock, type TableMockOptions } from './tickets-table-mocks';
+import { tallDesktop } from './helpers/tall-desktop';
 
 // TKUI4 evidence (release 2.6.0, mock-up v5): the request LIST in its three modes from the REAL build against the mock layer (fake data) -
 // the page frame (scope and state segments with counts, department chips with counts, the filter row, the view switch), the cards (the
@@ -50,6 +51,7 @@ async function shot(page: Page, name: string, scheme: 'light' | 'dark' = 'light'
 }
 
 test.describe('tickets list v5 evidence', () => {
+  tallDesktop(); // NOSCROLL-1366-2437: every card of the mock on one page from 1024 px
   test.beforeAll(() => fs.mkdirSync(OUT, { recursive: true }));
   test.beforeEach(async ({ page }, info) => {
     test.skip(info.project.name === 'tablet', 'desktop 1440 and phone 390');

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { SKINS_UNDER_TEST as SKIN_IDS } from './helpers/frozen-skins';
 import { installStationsMock, newMock, openStations, type StationsMock } from './wiskey-stations-mocks';
 import { installStationMediaMock, newMediaMock, type StationMediaMock } from './wiskey-station-media-mocks';
+import { tallDesktop } from './helpers/tall-desktop';
 
 // CR-036 slice S18 - a station's live video and two-way talk in the stations screen's drawer, behind the real shell, against a
 // MOCKED backend (tests/wiskey-stations-mocks.ts + tests/wiskey-station-media-mocks.ts: invented stations, a drawn canvas for the
@@ -54,6 +55,7 @@ async function shot(page: Page, info: TestInfo, name: string) {
 }
 
 test.describe('station media: off by default', () => {
+  tallDesktop(); // NOSCROLL-1366-2437: every station of the mock on one page from 1024 px
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
 
   test('the drawer is S6 as before: the still, the classic panel, and no media read', async ({ page }) => {
@@ -68,6 +70,7 @@ test.describe('station media: off by default', () => {
 });
 
 test.describe('station media: the transport follows the video choice (VIDEO-TRANSPORT-2400)', () => {
+  tallDesktop(); // NOSCROLL-1366-2437: every station of the mock on one page from 1024 px
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
   const kinds = async (page: Page) => (await sockets(page)).map((s) => [new URL(s.url).search, s.kind]);
 
@@ -95,6 +98,7 @@ test.describe('station media: the transport follows the video choice (VIDEO-TRAN
 });
 
 test.describe('station media: live video', () => {
+  tallDesktop(); // NOSCROLL-1366-2437: every station of the mock on one page from 1024 px
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
 
   test('video: the live player on the station path - automatic: WebRTC first on both profiles - and talk stays the classic link', async ({ page }, info) => {
@@ -139,6 +143,7 @@ test.describe('station media: live video', () => {
 });
 
 test.describe('station media: two-way talk (full duplex, WKF01F02-295)', () => {
+  tallDesktop(); // NOSCROLL-1366-2437: every station of the mock on one page from 1024 px
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
 
   test('one click: one start, the microphone open for the whole session, frames; mute / unmute; explicit end', async ({ page }, info) => {
@@ -262,6 +267,7 @@ test.describe('station media: two-way talk (full duplex, WKF01F02-295)', () => {
 });
 
 test.describe('station media: every skin (evidence images)', () => {
+  tallDesktop(); // NOSCROLL-1366-2437: every station of the mock on one page from 1024 px
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
 
   for (const skin of SKIN_IDS) {

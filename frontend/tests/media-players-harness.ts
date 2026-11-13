@@ -347,8 +347,12 @@ export async function install(page: Page, st: St) {
 
 export const hashOf = (page: Page) => page.evaluate(() => location.hash);
 
+/** NOSCROLL-1366-2437: from 1024 px the multimedia screens page the cards that do not fit the window; the functional tests here work
+ * with every card of the mock at once, so the desktop size opens a window tall enough for one page (the evidence shot stays 1440x900). */
+export const openSize = (size: Size) => (size === '1440' ? { width: 1440, height: 2400 } : SIZES[size]);
+
 export async function open(page: Page, hash: string, size: Size = '1440') {
-  await page.setViewportSize(SIZES[size]);
+  await page.setViewportSize(openSize(size));
   await page.goto('about:blank');
   await page.goto(`/?design=a#${hash}`);
   await page.waitForSelector('sw-app');
@@ -371,7 +375,7 @@ export async function expandAll(page: Page) {
 export async function shot(page: Page, name: string, size: Size) {
   fs.mkdirSync(OUT, { recursive: true });
   await page.waitForTimeout(400); // let the entrance / glow settle
-  await page.screenshot({ path: path.join(OUT, `${name}-${size}.png`) });
+  await page.screenshot({ path: path.join(OUT, `${name}-${size}.png`), clip: { x: 0, y: 0, ...SIZES[size] } });
 }
 
 export const playersPage = (page: Page) => page.locator('sw-app multimedia-players');
