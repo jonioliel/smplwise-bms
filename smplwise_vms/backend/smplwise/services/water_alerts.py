@@ -25,6 +25,7 @@ from typing import Any
 
 from ..db import now_iso
 from . import notify_policy
+from . import notify_recipients
 
 KINDS: tuple[str, ...] = ("leak", "abnormal", "offline")
 SOURCE = {"leak": "water.leak", "abnormal": "water.abnormal", "offline": "water.offline"}
@@ -245,20 +246,10 @@ def view(conn: sqlite3.Connection) -> dict[str, Any]:
 
 
 def validate_recipients(conn: sqlite3.Connection, rec: Any, field: str) -> dict[str, list[str]]:
-    if not isinstance(rec, dict) or set(rec) - {"roles", "users", "groups"}:
-        raise AlertsInvalid("validation", "נמענים לא תקינים.", "Invalid recipients.", {"fields": [field]})
-    roles, users, grps = rec.get("roles") or [], rec.get("users") or [], rec.get("groups") or []
-    if not all(isinstance(x, list) for x in (roles, users, grps)) or len(users) > USERS_MAX or len(grps) > GROUPS_MAX or len(roles) > len(ROUTABLE_ROLES):
-        raise AlertsInvalid("validation", "נמענים לא תקינים.", "Invalid recipients.", {"fields": [field]})
-    if any(r not in ROUTABLE_ROLES for r in roles):
-        raise AlertsInvalid("recipient_role", "תפקיד שלא יכול לקבל התראות מים.", "This role cannot receive water alerts.", {"fields": [f"{field}.roles"]})
-    active = {r[0] for r in conn.execute("SELECT id FROM users WHERE active = 1").fetchall()}
-    if any(u not in active for u in users):
-        raise AlertsInvalid("recipient_user", "משתמש לא מוכר.", "Unknown user.", {"fields": [f"{field}.users"]})
-    groups = {r[0] for r in conn.execute("SELECT id FROM groups").fetchall()}
-    if any(g not in groups for g in grps):
-        raise AlertsInvalid("recipient_group", "קבוצה לא מוכרת.", "Unknown group.", {"fields": [f"{field}.groups"]})
-    return {"roles": [r for r in ROUTABLE_ROLES if r in roles], "users": sorted(set(users)), "groups": sorted(set(grps))}
+    """A `{roles, users, groups}` body in canonical form (CR-RECIPIENTS-2436: the shared validation, this module's texts and limits)."""
+    return notify_recipients.validate(conn, rec, field, ROUTABLE_ROLES, error=AlertsInvalid,
+                                      role_message=("תפקיד שלא יכול לקבל התראות מים.", "This role cannot receive water alerts."),
+                                      users_max=USERS_MAX, groups_max=GROUPS_MAX)
 
 
 def _validate(conn: sqlite3.Connection, body: dict[str, Any], cur: dict[str, Any]) -> dict[str, Any]:
@@ -338,14 +329,12 @@ def save(conn: sqlite3.Connection, user_id: str | None, body: dict[str, Any]) ->
 def recipient_users(conn: sqlite3.Connection, n: dict[str, Any]) -> list[str]:
     """The installation's recipients of the notification's kind, only while that kind is on. The caller (notify.recipients_for)
     intersects the result with who may see the meter."""
-    from .temperature_alerts import _expand  # the same role / user / group expansion (active users, live bindings)
-
     source = str(n.get("source") or "")
     kind = next((k for k, s in SOURCE.items() if s == source), None)
     if kind is None:
         return []
     s = load(conn)["kinds"][kind]
-    return _expand(conn, s["recipients"]) if s["enabled"] else []
+    return notify_recipients.expand(conn, s["recipients"], ROUTABLE_ROLES) if s["enabled"] else []  # the shared role / user / group expansion
 
 
 def module_on(conn: Any) -> bool:

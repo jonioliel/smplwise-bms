@@ -37,12 +37,13 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import importlib
 import json
 import logging
 import secrets
 import sqlite3
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 from ..db import new_id
 from ..rbac import INSTALLATION, Principal, authorize
@@ -149,72 +150,78 @@ def _active_users(conn: sqlite3.Connection) -> list[str]:
     return [r[0] for r in conn.execute("SELECT id FROM users WHERE active = 1 ORDER BY id").fetchall()]
 
 
+def _active_principals(conn: sqlite3.Connection) -> list[Principal]:
+    """Every active user as the principal notify_visibility.principal_of would build, from ONE query (review 04:F05, the managers part)."""
+    return [Principal(user_id=r["id"], username=r["username"] or "", display_name=r["display_name"] or "", source="push")
+            for r in conn.execute("SELECT id, username, display_name FROM users WHERE active = 1 ORDER BY id").fetchall()]
+
+
 def managers(conn: sqlite3.Connection) -> list[str]:
     """Holders of notify.manage at installation scope (the "administrators")."""
-    out = []
-    for uid in _active_users(conn):
-        p = principal_of(conn, uid)
-        if p is not None and authorize(conn, p, MANAGE, INSTALLATION).allowed:
-            out.append(uid)
-    return out
+    return [p.user_id for p in _active_principals(conn) if authorize(conn, p, MANAGE, INSTALLATION).allowed]
+
+
+# ---------------------------------------------------------------- recipient rules (review 04:F18)
+# rule name -> fn(conn, notification) -> candidate user ids (before visibility). The rules of other modules are entered here as small functions that
+# import the module when called (the modules import notify, so notify must not import them at load) and look `recipient_users` up at call time.
+# A new alert family adds one entry with register_rule(); a policy naming an unknown rule falls back to its `user_ids`.
+
+RecipientRule = Callable[[sqlite3.Connection, dict[str, Any]], list[str]]
+
+
+def _lazy(module: str) -> RecipientRule:
+    """`<module>.recipient_users(conn, n)`, the module imported on the first call."""
+    def rule_fn(conn: sqlite3.Connection, n: dict[str, Any]) -> list[str]:
+        return importlib.import_module(module, __package__).recipient_users(conn, n)
+
+    return rule_fn
+
+
+def _ticket_rule(name: str) -> RecipientRule:
+    """CR-038: tickets/notify_bridge answers both ticket rules and takes the rule name."""
+    def rule_fn(conn: sqlite3.Connection, n: dict[str, Any]) -> list[str]:
+        from .tickets import notify_bridge
+
+        return notify_bridge.recipient_users(conn, name, n)
+
+    return rule_fn
+
+
+def _scenario_rule(conn: sqlite3.Connection, n: dict[str, Any]) -> list[str]:
+    return [u for u in ((n.get("origin") or {}).get("to") or []) if isinstance(u, str)][:200]
+
+
+RECIPIENT_RULES: dict[str, RecipientRule] = {
+    "scope": lambda conn, n: _active_users(conn),
+    "managers": lambda conn, n: managers(conn),
+    "initiator": lambda conn, n: [n["initiator_user_id"]] if n.get("initiator_user_id") else [],
+    "generator": _lazy(".generator_alerts"),  # CR-031: the routing saved per generator alert type; empty until an administrator saves one
+    "ticket_managers": _ticket_rule("ticket_managers"),  # CR-038: the ticket's department managers
+    "ticket_assignee": _ticket_rule("ticket_assignee"),  # CR-038: the ticket's internal assignee
+    "elevator": _lazy(".elevator_alerts"),  # CR-INFRA-ELEVATORS 2.8.0: the recipients chosen per elevator state; nobody until an administrator chooses
+    "temperature": _lazy(".temperature_alerts"),  # CR-INFRA-TEMPERATURE 2.9.1: the unit's own list, else the installation's recipients of the alert kind
+    "energy_bills": lambda conn, n: _active_users(conn),  # ELECBILL77: every active user; the energy.bills check is the visibility below (subject kind `energy_bills`)
+    "water": _lazy(".water_alerts"),  # CR-WATER78 slice 2: the installation's recipients of the water alert kind (leak / abnormal / offline)
+    "maintenance": _lazy(".maintenance.reminders"),  # CR-MAINT215: the task's responsible person and the maintenance managers of its place
+    "notice": _lazy(".notices.push"),  # NOTICEPUSH-295: the notice's audience (services/notices/push.py); visibility below re-checks every user
+    "calendar_attendee": _lazy(".calendar.attendee_notices"),  # CAL-ATTENDEES-2343: exactly the attendee the row was made for
+    "scenario": _scenario_rule,  # XSCENARIO109-295: the people the scenario's notify action addressed for this row (detailed or generic audience)
+    "rfq_managers": _lazy(".tickets.rfq_notify"),  # TKRFQ5: the RFQ manager rule (creator, internal owner, department managers - with tickets.external)
+    "bridge_key_owner": _lazy(".bridge_key_notice"),  # WXH-LEFTOVERS-2405 (CR-034 section 7): the owner contacts first, then every other system administrator
+}
+
+
+def register_rule(name: str, fn: RecipientRule) -> None:
+    """Add (or replace) a recipient rule: `fn(conn, notification)` returns the candidates; recipients_for then keeps those who may see the row."""
+    RECIPIENT_RULES[name] = fn
 
 
 def recipients_for(conn: sqlite3.Connection, policy: dict[str, Any], n: dict[str, Any]) -> list[str]:
     """The policy's recipient rule intersected with visibility - a ceiling the rule cannot raise (CR section 7)."""
     rec = policies.effective_recipients(policy, nsettings.failures_audience(conn))
     rule = rec.get("rule") or "scope"
-    if rule == "scope":
-        candidates = _active_users(conn)
-    elif rule == "managers":
-        candidates = managers(conn)
-    elif rule == "initiator":
-        candidates = [n["initiator_user_id"]] if n.get("initiator_user_id") else []
-    elif rule == "generator":  # CR-031: the routing saved per generator alert type; empty until an administrator saves one
-        from . import generator_alerts
-
-        candidates = generator_alerts.recipient_users(conn, n)
-    elif rule in ("ticket_managers", "ticket_assignee"):  # CR-038: the ticket's department managers / its internal assignee
-        from .tickets import notify_bridge
-
-        candidates = notify_bridge.recipient_users(conn, rule, n)
-    elif rule == "elevator":  # CR-INFRA-ELEVATORS 2.8.0: the recipients chosen per elevator state; nobody until an administrator chooses
-        from . import elevator_alerts
-
-        candidates = elevator_alerts.recipient_users(conn, n)
-    elif rule == "temperature":  # CR-INFRA-TEMPERATURE 2.9.1: the unit's own list, else the installation's recipients of the alert kind
-        from . import temperature_alerts
-
-        candidates = temperature_alerts.recipient_users(conn, n)
-    elif rule == "energy_bills":  # ELECBILL77: every active user; the energy.bills check is the visibility below (subject kind `energy_bills`)
-        candidates = _active_users(conn)
-    elif rule == "water":  # CR-WATER78 slice 2: the installation's recipients of the water alert kind (leak / abnormal / offline)
-        from . import water_alerts
-
-        candidates = water_alerts.recipient_users(conn, n)
-    elif rule == "maintenance":  # CR-MAINT215: the task's responsible person and the maintenance managers of its place
-        from .maintenance import reminders as maintenance_reminders
-
-        candidates = maintenance_reminders.recipient_users(conn, n)
-    elif rule == "notice":  # NOTICEPUSH-295: the notice's audience (services/notices/push.py); visibility below re-checks every user
-        from .notices import push as notice_push
-
-        candidates = notice_push.recipient_users(conn, n)
-    elif rule == "calendar_attendee":  # CAL-ATTENDEES-2343: exactly the attendee the row was made for (services/calendar/attendee_notices.py)
-        from .calendar import attendee_notices
-
-        candidates = attendee_notices.recipient_users(conn, n)
-    elif rule == "scenario":  # XSCENARIO109-295: the people the scenario's notify action addressed for this row (detailed or generic audience)
-        candidates = [u for u in ((n.get("origin") or {}).get("to") or []) if isinstance(u, str)][:200]
-    elif rule == "rfq_managers":  # TKRFQ5: the RFQ manager rule (creator, internal owner, department managers - with tickets.external)
-        from .tickets import rfq_notify
-
-        candidates = rfq_notify.recipient_users(conn, n)
-    elif rule == "bridge_key_owner":  # WXH-LEFTOVERS-2405 (CR-034 section 7): the owner contacts first, then every other system administrator
-        from . import bridge_key_notice
-
-        candidates = bridge_key_notice.recipient_users(conn, n)
-    else:
-        candidates = list(rec.get("user_ids") or [])
+    fn = RECIPIENT_RULES.get(rule)
+    candidates = fn(conn, n) if fn is not None else list(rec.get("user_ids") or [])
     out = []
     for uid in dict.fromkeys(candidates):
         p = principal_of(conn, uid)
