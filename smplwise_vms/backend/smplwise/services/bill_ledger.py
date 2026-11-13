@@ -14,14 +14,18 @@ Step A (this branch): the marks (sent / paid), the void, the correction check, t
 (CR-BILL-LEDGER-B): drafts, automatic generation and retention."""
 from __future__ import annotations
 
+import datetime as dt
 import json
 import sqlite3
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
 from ..audit import audit as _audit_row
 from ..db import new_id, now_iso
 from ..errors import ApiError, conflict, not_found
+from . import energy_periods as per
+from . import energy_pricing as px
 
 
 @dataclass(frozen=True)
@@ -37,6 +41,9 @@ class BillKind:
     state_he: dict[str, str]   # the Hebrew state names used in the messages
     issued_states: tuple[str, ...]
     correction_columns: str    # what the open-correction lookup selects ("*" for electricity, "id" for water - as written before)
+    number_tables: tuple[str, ...]  # where the next sequence and a taken number are looked up, in this order (the shared ledger first)
+    account_table: str | None  # the account row the seal reads first and names in its audit row (electricity); None = the bill's own
+                               # account_id (water) - as written before
 
 
 # ====================================================================== rows, events, audit
@@ -117,3 +124,94 @@ def check_correctable(kind: BillKind, conn: sqlite3.Connection, row: sqlite3.Row
     existing = open_correction(kind, conn, row["id"])
     if existing:
         raise conflict("bill_state", "כבר קיימת טיוטת תיקון לחיוב זה.", bill_id=existing["id"], state=row["state"])
+
+
+# ====================================================================== overlap, numbering and the seal
+
+def _eb():
+    """The shared helpers of the billing engine (the date / instant formats and the snapshot hash), imported late: energy_billing
+    imports this module at load time."""
+    from . import energy_billing
+
+    return energy_billing
+
+
+def overlapping(kind: BillKind, conn: sqlite3.Connection, aid: str, p: per.Period, exclude: tuple[str, ...] = ()) -> sqlite3.Row | None:
+    rows = conn.execute(
+        f"SELECT * FROM {kind.table} WHERE account_id = ? AND state IN ('issued','sent','paid') AND period_start < ? AND period_end > ?",
+        (aid, p.end.isoformat(), p.start.isoformat()),
+    ).fetchall()
+    for r in rows:
+        if r["id"] not in exclude:
+            return r
+    return None
+
+
+def overlap_error(r: sqlite3.Row) -> ApiError:
+    return conflict("period_overlap", f"התקופה חופפת לחיוב {r['number']} שכבר הונפק.", bill_id=r["id"], number=r["number"])
+
+
+def number_for(kind: BillKind, conn: sqlite3.Connection, bill: sqlite3.Row, customer_number: str) -> tuple[str, str, int]:
+    """(number, base, seq) in the SHARED number space: YYYY-MM-CCCC[/S][-R]; month = month of the period's LAST day (owner round 2).
+    The sequence and the uniqueness are checked against `kind.number_tables` (the ledger of numbers ever used first)."""
+    last = _eb()._date(bill["period_end"]) - dt.timedelta(days=1)
+    rev = int(bill["revision"])
+    if bill["replaces_bill_id"]:
+        root = get_bill(kind, conn, bill["replaces_bill_id"])
+        while root["replaces_bill_id"]:
+            root = get_bill(kind, conn, root["replaces_bill_id"])
+        base, seq = root["number_base"], int(root["number_seq"])
+    else:
+        base = f"{last.year:04d}-{last.month:02d}-{customer_number}"
+        seq = 1 + max(int(conn.execute(f"SELECT MAX(number_seq) FROM {t} WHERE number_base = ?", (base,)).fetchone()[0] or 0)
+                      for t in kind.number_tables)
+    number = base + (f"/{seq}" if seq > 1 else "") + (f"-{rev}" if rev > 1 else "")
+    for t in kind.number_tables:
+        if conn.execute(f"SELECT 1 FROM {t} WHERE number = ?", (number,)).fetchone():
+            raise conflict("number_taken", "מספר החיוב כבר נוצל. יש לנסות שוב.", number=number)
+    return number, base, seq
+
+
+def seal(kind: BillKind, conn: sqlite3.Connection, bill: sqlite3.Row, comp: Any, *, actor: Any | None, issue_date: dt.date, request_id: str | None,
+         client_request_id: str | None, clock: Callable[[], dt.datetime]) -> None:
+    """Issue a draft inside the caller's write transaction: overlap check, number (shared ledger), sealed snapshot + hash, the original of a
+    correction cancelled. `comp` is the fresh computation the caller made before taking the write lock (its `kind.quantity` attribute and
+    `total`); `clock` is the owning module's clock seam, looked up by the wrapper at call time."""
+    eb = _eb()
+    account = conn.execute(f"SELECT * FROM {kind.account_table} WHERE id = ?", (bill["account_id"],)).fetchone() if kind.account_table else None
+    p = per.Period(eb._date(bill["period_start"]), eb._date(bill["period_end"]))
+    hit = overlapping(kind, conn, bill["account_id"], p, exclude=(bill["replaces_bill_id"],) if bill["replaces_bill_id"] else ())
+    if hit:
+        raise overlap_error(hit)
+    snap = comp.snapshot
+    number, base, seq = number_for(kind, conn, bill, snap["customer"]["customer_number"])
+    due = px.due_date(issue_date, snap["bill"]["payment_terms"])
+    at = clock()
+    snap["bill"].update({
+        "id": bill["id"], "number": number, "state": "issued", "issue_date": issue_date.isoformat(), "due_date": due.isoformat(),
+        "expected_due_date": due.isoformat(), "issued_at": eb._iso(at),
+        "issued_by": {"kind": "user", "display_name": getattr(actor, "display_name", "") or getattr(actor, "username", "")} if actor is not None else {"kind": "system"},
+    })
+    digest = eb.sha256_of(snap)
+    conn.execute(
+        f"""UPDATE {kind.table} SET state = 'issued', number = ?, number_base = ?, number_seq = ?, {kind.quantity} = ?, total = ?, snapshot_json = ?, snapshot_sha256 = ?,
+             issue_date = ?, due_date = ?, issued_by = ?, issued_at = ?, issue_request_id = ?, row_version = row_version + 1, updated_at = ? WHERE id = ?""",
+        (number, base, seq, getattr(comp, kind.quantity), comp.total, json.dumps(snap, ensure_ascii=False), digest, issue_date.isoformat(), due.isoformat(),
+         getattr(actor, "user_id", None), eb._iso(at), client_request_id, now_iso(), bill["id"]),
+    )
+    conn.execute("INSERT INTO energy_bill_numbers(number, number_base, number_seq, revision, bill_id, assigned_at) VALUES (?, ?, ?, ?, ?, ?)",
+                 (number, base, seq, int(bill["revision"]), bill["id"], now_iso()))
+    action = "issue" if actor is not None else "auto_issue"
+    event(kind, conn, bill["id"], action, actor, {"number": number})
+    account_id = (account["id"] if account else None) if kind.account_table else bill["account_id"]
+    audit(kind, conn, actor, f"bill.{action}", bill["id"], request_id, {"number": number, "sha256": digest[:12], "account_id": account_id})
+    if bill["replaces_bill_id"]:
+        orig = get_bill(kind, conn, bill["replaces_bill_id"])
+        if orig["state"] != "void":
+            reason = f"הוחלף ב-{number}"
+            conn.execute(f"UPDATE {kind.table} SET state = 'void', void_reason = ?, voided_at = ?, replaced_by_bill_id = ?, row_version = row_version + 1, updated_at = ? WHERE id = ?",
+                         (reason, now_iso(), bill["id"], now_iso(), orig["id"]))
+            event(kind, conn, orig["id"], "void", actor, {"reason": reason, "replaced_by": number})
+            audit(kind, conn, actor, "bill.void", orig["id"], request_id, {"replaced_by": number})
+        else:
+            conn.execute(f"UPDATE {kind.table} SET replaced_by_bill_id = ? WHERE id = ?", (bill["id"], orig["id"]))

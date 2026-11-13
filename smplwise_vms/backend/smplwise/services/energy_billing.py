@@ -50,7 +50,8 @@ AUTO_RETRY = dt.timedelta(hours=6)
 STATE_HE = {"draft": "טיוטה", "issued": "הונפק", "sent": "נשלח", "paid": "שולם", "void": "בוטל"}
 # CR-BILL-LEDGER-A-2436: the sealed-bill lifecycle shared with water (services/bill_ledger.py); every name is a constant, never input
 KIND = bl.BillKind(name="energy", table="energy_bills", events_table="energy_bill_events", quantity="kwh", resource_type="energy_bill",
-                   audit_prefix="energy.", state_he=STATE_HE, issued_states=ISSUED_STATES, correction_columns="*")
+                   audit_prefix="energy.", state_he=STATE_HE, issued_states=ISSUED_STATES, correction_columns="*",
+                   number_tables=("energy_bill_numbers", "energy_bills"), account_table="energy_accounts")
 
 
 def now_utc() -> dt.datetime:
@@ -1316,18 +1317,11 @@ def resolve_period(account: sqlite3.Row, period: dict[str, Any] | None, now: dt.
 
 
 def _overlapping(conn: sqlite3.Connection, aid: str, p: per.Period, exclude: tuple[str, ...] = ()) -> sqlite3.Row | None:
-    rows = conn.execute(
-        "SELECT * FROM energy_bills WHERE account_id = ? AND state IN ('issued','sent','paid') AND period_start < ? AND period_end > ?",
-        (aid, p.end.isoformat(), p.start.isoformat()),
-    ).fetchall()
-    for r in rows:
-        if r["id"] not in exclude:
-            return r
-    return None
+    return bl.overlapping(KIND, conn, aid, p, exclude)
 
 
 def _overlap_error(r: sqlite3.Row) -> ApiError:
-    return conflict("period_overlap", f"התקופה חופפת לחיוב {r['number']} שכבר הונפק.", bill_id=r["id"], number=r["number"])
+    return bl.overlap_error(r)
 
 
 def insert_draft(conn: sqlite3.Connection, account: sqlite3.Row, p: per.Period, comp: Computed, *, actor: Any | None, origin: str,
@@ -1392,67 +1386,15 @@ def delete_draft(conn: sqlite3.Connection, bid: str, row_version: int, actor: An
 
 def number_for(conn: sqlite3.Connection, bill: sqlite3.Row, customer_number: str) -> tuple[str, str, int]:
     """(number, base, seq) - YYYY-MM-CCCC[/S][-R]; month = month of the period's LAST day (owner round 2)."""
-    last = _date(bill["period_end"]) - dt.timedelta(days=1)
-    rev = int(bill["revision"])
-    if bill["replaces_bill_id"]:
-        root = get_bill(conn, bill["replaces_bill_id"])
-        while root["replaces_bill_id"]:
-            root = get_bill(conn, root["replaces_bill_id"])
-        base, seq = root["number_base"], int(root["number_seq"])
-    else:
-        base = f"{last.year:04d}-{last.month:02d}-{customer_number}"
-        row = conn.execute("SELECT MAX(number_seq) FROM energy_bill_numbers WHERE number_base = ?", (base,)).fetchone()
-        row2 = conn.execute("SELECT MAX(number_seq) FROM energy_bills WHERE number_base = ?", (base,)).fetchone()
-        seq = max(int(row[0] or 0), int(row2[0] or 0)) + 1
-    number = base + (f"/{seq}" if seq > 1 else "") + (f"-{rev}" if rev > 1 else "")
-    if conn.execute("SELECT 1 FROM energy_bill_numbers WHERE number = ?", (number,)).fetchone() or \
-            conn.execute("SELECT 1 FROM energy_bills WHERE number = ?", (number,)).fetchone():
-        raise conflict("number_taken", "מספר החיוב כבר נוצל. יש לנסות שוב.", number=number)
-    return number, base, seq
+    return bl.number_for(KIND, conn, bill, customer_number)
 
 
 def seal(conn: sqlite3.Connection, bill: sqlite3.Row, comp: Computed, *, actor: Any | None, issue_date: dt.date, request_id: str | None,
          client_request_id: str | None) -> None:
     """Issue a draft inside the caller's write transaction: overlap check, number, sealed snapshot + hash, the original of a
     correction cancelled. `comp` is the fresh computation the caller made before taking the write lock."""
-    account = conn.execute("SELECT * FROM energy_accounts WHERE id = ?", (bill["account_id"],)).fetchone()
-    p = per.Period(_date(bill["period_start"]), _date(bill["period_end"]))
-    hit = _overlapping(conn, bill["account_id"], p, exclude=(bill["replaces_bill_id"],) if bill["replaces_bill_id"] else ())
-    if hit:
-        raise _overlap_error(hit)
-    snap = comp.snapshot
-    customer_number = snap["customer"]["customer_number"]
-    number, base, seq = number_for(conn, bill, customer_number)
-    terms = snap["bill"]["payment_terms"]
-    due = px.due_date(issue_date, terms)
-    at = now_utc()
-    snap["bill"].update({
-        "id": bill["id"], "number": number, "state": "issued", "issue_date": issue_date.isoformat(), "due_date": due.isoformat(),
-        "expected_due_date": due.isoformat(), "issued_at": _iso(at),
-        "issued_by": {"kind": "user", "display_name": getattr(actor, "display_name", "") or getattr(actor, "username", "")} if actor is not None else {"kind": "system"},
-    })
-    digest = sha256_of(snap)
-    conn.execute(
-        """UPDATE energy_bills SET state = 'issued', number = ?, number_base = ?, number_seq = ?, kwh = ?, total = ?, snapshot_json = ?, snapshot_sha256 = ?,
-             issue_date = ?, due_date = ?, issued_by = ?, issued_at = ?, issue_request_id = ?, row_version = row_version + 1, updated_at = ? WHERE id = ?""",
-        (number, base, seq, comp.kwh, comp.total, json.dumps(snap, ensure_ascii=False), digest, issue_date.isoformat(), due.isoformat(),
-         getattr(actor, "user_id", None), _iso(at), client_request_id, now_iso(), bill["id"]),
-    )
-    conn.execute("INSERT INTO energy_bill_numbers(number, number_base, number_seq, revision, bill_id, assigned_at) VALUES (?, ?, ?, ?, ?, ?)",
-                 (number, base, seq, int(bill["revision"]), bill["id"], now_iso()))
-    action = "issue" if actor is not None else "auto_issue"
-    _event(conn, bill["id"], action, actor, {"number": number})
-    _audit(conn, actor, f"energy.bill.{action}", "energy_bill", bill["id"], request_id, {"number": number, "sha256": digest[:12], "account_id": account["id"] if account else None})
-    if bill["replaces_bill_id"]:
-        orig = get_bill(conn, bill["replaces_bill_id"])
-        if orig["state"] != "void":
-            reason = f"הוחלף ב-{number}"
-            conn.execute("UPDATE energy_bills SET state = 'void', void_reason = ?, voided_at = ?, replaced_by_bill_id = ?, row_version = row_version + 1, updated_at = ? WHERE id = ?",
-                         (reason, now_iso(), bill["id"], now_iso(), orig["id"]))
-            _event(conn, orig["id"], "void", actor, {"reason": reason, "replaced_by": number})
-            _audit(conn, actor, "energy.bill.void", "energy_bill", orig["id"], request_id, {"replaced_by": number})
-        else:
-            conn.execute("UPDATE energy_bills SET replaced_by_bill_id = ? WHERE id = ?", (bill["id"], orig["id"]))
+    bl.seal(KIND, conn, bill, comp, actor=actor, issue_date=issue_date, request_id=request_id, client_request_id=client_request_id,
+            clock=lambda: now_utc())
 
 
 # ====================================================================== lifecycle marks
