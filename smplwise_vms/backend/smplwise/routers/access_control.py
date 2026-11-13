@@ -74,17 +74,12 @@ MAX_PAGE = 200  # WisKey's own cap for events/list and users/query
 MAX_STATION_ID = 128
 
 
-def _reader(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
+def _reader_ro(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:
     """`access.read` at installation scope, checked as a dependency: FastAPI resolves dependencies before it validates
     query parameters, so a caller without the permission learns nothing about them (WisKey's own handlers authorize
-    first, too). Returns the principal, whose id keys the caller's own rate bucket."""
-    require(conn, principal, READ, INSTALLATION)
-    return principal
-
-
-def _reader_ro(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:
-    """`_reader` on the request's read-mode connection, for a path the browser polls (camera stills): no write lock per
-    request; a refusal's audit row is still written (rbac.require -> audit's write-aside)."""
+    first, too). Returns the principal, whose id keys the caller's own rate bucket. On the request's read-mode connection:
+    no write lock per request; a refusal's audit row is still written (rbac.require -> audit's write-aside).
+    CR-READCONN-A-2436 (review 02:P3-5): the write-connection twin `_reader` lost its last user and is gone."""
     require(conn, principal, READ, INSTALLATION)
     return principal
 
@@ -128,7 +123,7 @@ def _instant(name: str, value: str | None) -> str | None:
 
 
 @router.get("/intercom/overview")
-def overview(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def overview(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The entry center: stations with online / ringing / sync state (no last-access record and no people counts since
     B0: D-006, a person's name reaches a screen only through the activity log), plus the feed's own
     state (`ha_not_configured`, `connecting`, `ha_unavailable`, `not_installed`, `forbidden`, `error`, `ready`).
@@ -149,7 +144,7 @@ def overview(request: Request, principal: Principal = Depends(current_principal)
 
 
 @router.get("/intercom/background")
-def background(request: Request, principal: Principal = Depends(_reader), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def background(request: Request, principal: Principal = Depends(_reader_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The background (read) channel (B0, D-006): the closed station-health projection `{schema_version, generated_at,
     permission_revision, stations: [{id, name, online, last_seen}]}` and nothing else - no last access, no person, no
     counts, no operational detail. `identity` says whose session produced it: `background` (the dedicated account, the
@@ -163,7 +158,7 @@ def background(request: Request, principal: Principal = Depends(_reader), conn: 
 
 
 @router.get("/intercom/diagnostics")
-def diagnostics(request: Request, principal: Principal = Depends(_credentials_admin), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def diagnostics(request: Request, principal: Principal = Depends(_credentials_admin_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """What WisKey sees Arx as (B0, ported as CR-036 S1; `system.configure`): WisKey's `authorization/session` for the service
     identity (the add-on's own Home Assistant user, which also carries the existing writes) and for the background identity (its
     own session once the owner configured `wiskey_background_token`; until then it says it shares the service identity), plus
@@ -394,7 +389,7 @@ def _drop_still(request: Request, station_id: str) -> None:
 
 
 @router.get("/intercom/stations/credentials")
-def stations_credentials(request: Request, principal: Principal = Depends(_credentials_admin), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def stations_credentials(request: Request, principal: Principal = Depends(_credentials_admin_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The admin screen's list: the feed's state, whether the shared default is set, and per station (every one the
     feed knows, plus any override row for a station it no longer lists - `known: false`) whether an override exists and
     since when. Names come from the feed; no username, password or host is ever in the reply."""
@@ -404,7 +399,7 @@ def stations_credentials(request: Request, principal: Principal = Depends(_crede
 
 
 @router.get("/intercom/stations/{station_id}/credentials")
-def station_credentials(request: Request, principal: Principal = Depends(_credentials_admin), conn: sqlite3.Connection = Depends(get_conn), station_id: str = Path(min_length=1, max_length=MAX_STATION_ID)) -> dict[str, Any]:
+def station_credentials(request: Request, principal: Principal = Depends(_credentials_admin_ro), conn: sqlite3.Connection = Depends(get_read_conn), station_id: str = Path(min_length=1, max_length=MAX_STATION_ID)) -> dict[str, Any]:
     """Whether the station has its own credentials, whether the shared default is set, and which one applies."""
     return wiskey_camera.status(conn, settings_of(request), station_id)
 
@@ -580,7 +575,7 @@ RELAYS = _RelayGuard()
 _caller_ro = read_gate(lambda conn, principal: ia.require_anywhere(conn, principal, ia.CALL))
 
 
-def _caller(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Principal:
+def _caller(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:
     """The same `access.call` gate for the body-less read of the TTS engines. TTS-DEFAULT-ENGINE-2400: or `system.configure` on the
     installation - the system administrator choosing the fixed announcement engine in Settings reads the same list (names and
     languages only; speaking still needs `access.call` on the station's chain)."""
@@ -1056,7 +1051,7 @@ def call_signal(request: Request, station_id: str, principal: Principal = Depend
 
 
 @router.get("/intercom/tts/engines")
-def tts_engines(request: Request, principal: Principal = Depends(_caller), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def tts_engines(request: Request, principal: Principal = Depends(_caller), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Home Assistant's TTS engines WisKey can speak through (`tts/engines`, a read): `{state, configured, last_error,
     fetched_at, tts, sync}` with `tts = {default, engines: [{engine_id, name, supported_languages, default_language}]}`,
     null unless `state` is `ready`. Gated like the announcement itself (WisKey gates it at manage level too)."""

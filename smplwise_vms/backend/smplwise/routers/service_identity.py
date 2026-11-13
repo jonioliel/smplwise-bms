@@ -24,7 +24,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..auth import current_principal, get_conn
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..remote_channel import is_remote
@@ -49,7 +49,7 @@ class ServiceIdentityBody(BaseModel):
 
 
 @router.get("/identity/service-identity")
-def get_service_identity(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_service_identity(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     _local_only(request)
     require(conn, principal, "system.configure", INSTALLATION)
     return si.status(conn)
