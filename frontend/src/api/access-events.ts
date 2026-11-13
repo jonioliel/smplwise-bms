@@ -11,7 +11,7 @@
  * Cursors (`next`) are opaque: they are passed back as `before` exactly as served - they may be the integration's own id or
  * an Arx token bound to the caller (`c.`...), and a refused one is a 422 `intercom_cursor_expired` (reload from page one).
  */
-import { ApiError, api, apiUrl, get } from './client';
+import { api, apiBlob, get } from './client';
 import type { DisplayZone, IntercomFeedState } from './intercom';
 
 export type AccessFeedState = IntercomFeedState | 'unsupported';
@@ -125,27 +125,9 @@ export const getAccessEventDetail = (id: string, signal?: AbortSignal) =>
 
 // ---------------------------------------------------------------- pictures and the file (binary answers)
 
-/** A non-JSON read: the same credentials and error model as `api()`, the body as a Blob. A failure is thrown as an ApiError
+/** A non-JSON read: the client's `apiBlob` (same credentials, 401 retry and error model as `api()`). A failure is thrown as an ApiError
  * built from the server's own error body (so `code` is `intercom_photo_not_found`, `forbidden`, `intercom_unavailable`...). */
-async function blobOf(path: string, signal?: AbortSignal): Promise<{ blob: Blob; headers: Headers }> {
-  const res = await fetch(apiUrl(path), { credentials: 'same-origin', signal });
-  if (!res.ok) {
-    let body: Partial<ApiError['body']> = {};
-    try {
-      body = (await res.json()) as typeof body;
-    } catch {
-      body = {};
-    }
-    throw new ApiError(res.status, {
-      code: body.code ?? `http_${res.status}`,
-      user_message: body.user_message ?? '',
-      retryable: body.retryable ?? false,
-      correlation_id: body.correlation_id ?? '',
-      details: body.details ?? {},
-    });
-  }
-  return { blob: await res.blob(), headers: res.headers };
-}
+const blobOf = (path: string, signal?: AbortSignal) => apiBlob(path, signal ? { signal } : {});
 
 /** The picture of one event, as the list row named it: `stationId` and `at` are the row's own `station_id` and `timestamp`
  * (the server finds the row again from them). Each call is one audited view - never fetch one the person did not open. */

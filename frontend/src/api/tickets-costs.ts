@@ -8,7 +8,8 @@
  * STRINGS (`"120.50"`), never numbers - the server parses and recomputes every figure (11A.4). Display formatting lives in
  * tickets/cost-model.ts.
  */
-import { ApiError, apiUrl, get, post, put, upload, type ApiErrorBody } from './client';
+import { apiBlob, apiUrl, get, post, put, upload } from './client';
+import { dispositionName, saveBlob } from './download';
 import { isApi } from './session';
 import { mockCosts } from './tickets-costs-mock';
 import type { MessageDraft, QuoteBlock } from './tickets-quotes';
@@ -391,43 +392,13 @@ export function reportQs(q: ReportQuery | AccountQuery, extra: Record<string, st
   return s ? `?${s}` : '';
 }
 
-/** The file name of a `Content-Disposition` answer (or the fallback). */
-export function dispositionName(header: string | null, fallback: string): string {
-  const m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(header ?? '');
-  try {
-    return m ? decodeURIComponent(m[1]) : fallback;
-  } catch {
-    return m ? m[1] : fallback;
-  }
-}
-
-/** Save a blob under a name through a temporary link (the browser's own download; nothing is rendered by the app). */
-export function saveBlob(blob: Blob, name: string): void {
-  const href = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = href;
-  a.download = name;
-  a.rel = 'noopener';
-  a.style.display = 'none';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  window.setTimeout(() => URL.revokeObjectURL(href), 30_000);
-}
+/** CR-API-BLOB-2436: moved to ./download (one copy); re-exported for the existing importers (the demo store among them). */
+export { dispositionName, saveBlob };
 
 /** GET a file route and save it; a refusal (429 export_rate, 413, 404, 403) is the usual ApiError with the server's message. */
 async function download(path: string, fallback: string): Promise<void> {
-  const res = await fetch(apiUrl(path), { credentials: 'same-origin' });
-  if (!res.ok) {
-    let body: ApiErrorBody | null = null;
-    try {
-      body = (await res.json()) as ApiErrorBody;
-    } catch {
-      body = null;
-    }
-    throw new ApiError(res.status, body ?? { code: `http_${res.status}`, user_message: res.statusText, retryable: false, correlation_id: '', details: {} });
-  }
-  saveBlob(await res.blob(), dispositionName(res.headers.get('Content-Disposition'), fallback));
+  const { blob, headers } = await apiBlob(path);
+  saveBlob(blob, dispositionName(headers.get('Content-Disposition'), fallback));
 }
 
 const rest: CostsBackend = {

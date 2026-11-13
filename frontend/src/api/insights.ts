@@ -4,8 +4,8 @@
  * uniform 404 - `isOff()` tells that apart from a real failure. Door and waste rows carry names, never entity ids; the settings route (for
  * its managers) is the one exception: the door pairs are entity ids by nature.
  */
-import { ApiError, apiUrl, get, put, type ApiErrorBody } from './client';
-import { dispositionName, saveBlob } from './tickets-costs';
+import { ApiError, apiBlob, get, put } from './client';
+import { dispositionName, saveBlob } from './download';
 
 export type SectionId = 'summary' | 'tickets' | 'energy' | 'elevators' | 'generator' | 'temperature' | 'doors' | 'cameras' | 'waste';
 export const SECTION_IDS: readonly SectionId[] = ['summary', 'tickets', 'energy', 'elevators', 'generator', 'temperature', 'doors', 'cameras', 'waste'];
@@ -245,17 +245,8 @@ export const getReport = (q: ReportQuery) => get<ReportModel>(`reports/building/
 
 /** The PDF through the browser's own download. A failure throws the server's ApiError (503 `pdf_*`, 422 too large, 404 off, 403). */
 export async function downloadReportPdf(q: ReportQuery): Promise<void> {
-  const res = await fetch(apiUrl(`reports/building.pdf?${reportQs(q)}`), { credentials: 'same-origin' });
-  if (!res.ok) {
-    let body: ApiErrorBody | null = null;
-    try {
-      body = (await res.json()) as ApiErrorBody;
-    } catch {
-      body = null;
-    }
-    throw new ApiError(res.status, body ?? { code: `http_${res.status}`, user_message: res.statusText, retryable: false, correlation_id: '', details: {} });
-  }
-  saveBlob(await res.blob(), dispositionName(res.headers.get('Content-Disposition'), `building-report-${q.month ?? 'last'}.pdf`));
+  const { blob, headers } = await apiBlob(`reports/building.pdf?${reportQs(q)}`);
+  saveBlob(blob, dispositionName(headers.get('Content-Disposition'), `building-report-${q.month ?? 'last'}.pdf`));
 }
 
 // ---------------------------------------------------------------- the scheduled monthly delivery (slice 3)

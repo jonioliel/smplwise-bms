@@ -2,7 +2,7 @@
  * SHAREDID-293: the typed calls of the external-access screen (routers/access_grants.py). The server decides every permission and
  * filters every list; nothing here grants anything. The entry code never appears in any answer (only its delivery state).
  */
-import { ApiError, apiUrl, get, post, put, del } from './client';
+import { apiBlob, get, post, put, del } from './client';
 
 export type GrantState = 'requested' | 'approved' | 'provisioning' | 'active' | 'revoking' | 'ended' | 'revoked' | 'refused' | 'failed' | 'unknown';
 export type CodeState = 'not_needed' | 'pending' | 'queued' | 'sent' | 'not_delivered' | 'unknown';
@@ -251,18 +251,9 @@ export const attachCard = (id: string, revision: number, cardNo: string) => post
 /** GRANTSMIN-295: the grants the caller may see as a CSV file (the server filters the rows and the numbers; one a minute). */
 export async function exportGrantsCsv(lang: 'he' | 'en', liveOnly = false): Promise<{ blob: Blob; rows: number; filename: string }> {
   const q = new URLSearchParams({ lang, ...(liveOnly ? { live: 'true' } : {}) });
-  const res = await fetch(apiUrl(`access-grants/export.csv?${q}`), { credentials: 'same-origin' });
-  if (!res.ok) {
-    let body: Partial<ApiError['body']> = {};
-    try {
-      body = (await res.json()) as typeof body;
-    } catch {
-      body = {};
-    }
-    throw new ApiError(res.status, { code: body.code ?? `http_${res.status}`, user_message: body.user_message ?? '', retryable: body.retryable ?? false, correlation_id: body.correlation_id ?? '', details: body.details ?? {} });
-  }
-  const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? 'external-access.csv';
-  return { blob: await res.blob(), rows: Number(res.headers.get('X-Export-Rows') ?? 0), filename: name };
+  const { blob, headers } = await apiBlob(`access-grants/export.csv?${q}`);
+  const name = /filename="([^"]+)"/.exec(headers.get('Content-Disposition') ?? '')?.[1] ?? 'external-access.csv';
+  return { blob, rows: Number(headers.get('X-Export-Rows') ?? 0), filename: name };
 }
 export const getScreenSettings = () => get<GrantRules & ScreenSettings>('access-grants/settings');
 export const putScreenSettings = (body: Partial<ScreenSettings>) => put<GrantRules & ScreenSettings>('access-grants/settings', body);

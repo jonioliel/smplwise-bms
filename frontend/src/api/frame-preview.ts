@@ -12,6 +12,8 @@
  *
  * Pure apart from the injected fetch / object-URL functions: the unit spec drives it with fakes.
  */
+import { apiResponse } from './client';
+
 export const FRAME_BUCKET_S = 10;
 
 export type FrameAnswer = { ok: true; blob: Blob; at: string | null } | { ok: false; status: number };
@@ -46,9 +48,9 @@ export function frameBucket(cameraId: string, at: Date): { key: string; atIso: s
   return { key: `${cameraId}|${atIso}`, atIso };
 }
 
-/** The real fetch: same-origin credentials like every API call; X-Frame-At carries the picture's own instant. */
+/** The real fetch: through the API client (same-origin credentials, the 401 retry) like every API call; X-Frame-At carries the picture's own instant. */
 export const fetchFrameHttp: FrameFetch = async (url, signal) => {
-  const res = await fetch(url, { credentials: 'same-origin', signal });
+  const res = await apiResponse(url, { signal });
   if (!res.ok) return { ok: false, status: res.status };
   return { ok: true, blob: await res.blob(), at: res.headers.get('X-Frame-At') };
 };
