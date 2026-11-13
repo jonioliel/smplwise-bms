@@ -27,7 +27,7 @@
  *   prefiltered into the environment (IBL) on time change.
  * No HDRI, no path tracer, no KTX2, no Draco; the post chain lives in its own lazy chunk (post-chain.ts).
  */
-import { BackSide, BoxGeometry, BufferAttribute, BufferGeometry, CanvasTexture, ClampToEdgeWrapping, Color, CylinderGeometry, DataTexture, DoubleSide, Euler, Float32BufferAttribute, Group, InstancedMesh, LinearFilter, LinearMipmapLinearFilter, LineBasicMaterial, RGBAFormat, UnsignedByteType, LineSegments, Matrix3, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, NoColorSpace, Object3D, Plane, PlaneGeometry, Quaternion, RepeatWrapping, RoundedBoxGeometry, SRGBColorSpace, Scene, ShapeUtils, SphereGeometry, Texture, TextureLoader, Vector2, Vector3 } from './three-bundle';
+import { BackSide, BoxGeometry, BufferAttribute, BufferGeometry, CanvasTexture, ClampToEdgeWrapping, Color, CylinderGeometry, DataTexture, DoubleSide, Euler, Float32BufferAttribute, Group, InstancedBufferAttribute, InstancedMesh, LinearFilter, LinearMipmapLinearFilter, LineBasicMaterial, RGBAFormat, UnsignedByteType, LineSegments, Matrix3, Matrix4, Mesh, MeshBasicMaterial, MeshStandardMaterial, NoColorSpace, Object3D, Plane, PlaneGeometry, Quaternion, RepeatWrapping, RoundedBoxGeometry, SRGBColorSpace, Scene, ShapeUtils, SphereGeometry, Texture, TextureLoader, Vector2, Vector3 } from './three-bundle';
 import type { SceneDescription, ScenePart, Vec3 } from './scene-builder';
 import type { RealWorld } from './scene-real-builder';
 import { MATERIALS, type MaterialDef } from './material-resolve';
@@ -38,7 +38,8 @@ import { kelvinRgb, type LightRecipe } from './sun';
 import { planGlow, type GlowRoom } from './room-glow';
 import { RoomGlow } from './room-glow-mesh';
 import { injectBakedAo, injectGlassFresnel, type AoUniforms } from './ao-shading';
-import { DEFAULT_FLOOR_FINISH, FINISH_DEFS, finishMaterial, finishPixelsCached, isFinishMaterial, type FloorFinish } from './floor-finish';
+import { floorReflectivity, injectFloorReflect } from './floor-reflect';
+import { DEFAULT_FLOOR_FINISH, FINISH_DEFS, finishMaterial, finishPixelsCached, finishSurfaceCached, isFinishMaterial, type FloorFinish } from './floor-finish';
 
 export type RealRung = 'realistic' | 'lite';
 export interface RealSettings {
@@ -53,9 +54,12 @@ export interface RealSettings {
   /** PLAN3D-REALISM2-2433: what the living floors are made of (floor-finish.ts; the installation dial `floor_finish`).
    * Optional: older callers get the default (marble). */
   floorFinish?: FloorFinish;
+  /** PLAN3D-LEVEL3-2435: the floor reflections of the realistic rung (floor-reflect.ts; the dial `floor_reflections`). Optional:
+   * older callers get them (true). */
+  reflections?: boolean;
 }
 export type Backdrop = 'sky' | 'studio';
-export const DEFAULT_REAL: RealSettings = { rung: 'lite', style: 'light', furniture: 'models', textures: 'files', sectionCut: true, backdrop: 'sky', floorFinish: DEFAULT_FLOOR_FINISH };
+export const DEFAULT_REAL: RealSettings = { rung: 'lite', style: 'light', furniture: 'models', textures: 'files', sectionCut: true, backdrop: 'sky', floorFinish: DEFAULT_FLOOR_FINISH, reflections: true };
 
 // the library and the two generated floor finishes (render-time ids, floor-finish.ts)
 const BY_ID = new Map([...MATERIALS, ...FINISH_DEFS].map((m) => [m.id, m]));
@@ -65,6 +69,10 @@ export const REAL_KINDS = new Set(['floor', 'wall', 'lintel', 'sill', 'head', 'd
 /** What is cut by the section plane (decals, caps, ground, sprites and lines are not). */
 const CLIPPED_KINDS = new Set(['wall', 'lintel', 'sill', 'head', 'door', 'window', 'object', 'connector', 'camera', 'ceiling']);
 const MAX_BLOB_BASE_M = 0.5;
+/** PLAN3D-LEVEL3-2435: the generated finishes' joint normal strength. */
+const FINISH_NORMAL = 0.8;
+/** PLAN3D-LEVEL3-2435: the generated finishes' environment (sky) reflection (the library floors 0.7). */
+const FINISH_ENV = 0.35;
 const CREASE = rad(35);
 
 type Pickable = Pick<ScenePart, 'id' | 'kind' | 'userData'>;
@@ -81,7 +89,8 @@ export interface RealBuilt {
   caps: Object3D | null;
   /** PLAN3D-REALISM-2432: the lit / presence room glow (room-glow-mesh.ts); null without a lit or occupied room. */
   glow: RoomGlow | null;
-  stats: { meshes: number; instanced: number; merged: number; models: number };
+  /** `furnitureMerged` (PLAN3D-FURNMERGE-2434): the object / family parts and kit tiles drawn inside a merged mesh. */
+  stats: { meshes: number; instanced: number; merged: number; models: number; furnitureMerged: number };
 }
 
 /** PLAN3D-REALISM-2432: the glow plan of the parts a realisation draws (their state tints, the levels, the lamps). */
@@ -138,15 +147,23 @@ export class RealMaterials {
 
   /** PLAN3D-REALISM2-2433: the generated colour map of a floor finish (floor-finish.ts) - one mip-mapped DataTexture per
    * finish, kept with the loaded files (disposed with them). */
-  private finishMap(id: string): Texture {
-    const key = `finish:${id}`;
+  private finishMap(id: string, kind: 'color' | 'rough' | 'normal' = 'color'): Texture {
+    const key = kind === 'color' ? `finish:${id}` : `finish:${id}:${kind}`;
     let t = this.textures.get(key);
     if (t) return t;
-    const { data, size } = finishPixelsCached(id);
+    let data: Uint8Array;
+    let size: number;
+    if (kind === 'color') ({ data, size } = finishPixelsCached(id));
+    else {
+      // PLAN3D-LEVEL3-2435: the generated surface (floor-finish.finishSurfacePixels): roughness / AO and the joints' normals
+      const sf = finishSurfaceCached(id);
+      data = kind === 'rough' ? sf.rough : sf.normal;
+      size = sf.size;
+    }
     const d = new DataTexture(data, size, size, RGBAFormat, UnsignedByteType);
     d.wrapS = RepeatWrapping;
     d.wrapT = RepeatWrapping;
-    d.colorSpace = SRGBColorSpace;
+    d.colorSpace = kind === 'color' ? SRGBColorSpace : NoColorSpace;
     d.magFilter = LinearFilter;
     d.minFilter = LinearMipmapLinearFilter;
     d.generateMipmaps = true;
@@ -199,11 +216,15 @@ export class RealMaterials {
     return new Color(def?.tint[this.style] ?? '#cccccc').getHex();
   }
 
-  /** The material of a library id; `variant`: 'std' | 'floor' | 'nomap' (kit models: no UVs) | 'glass' | 'slot:<roughness>'. */
-  get(id: string, variant = 'std', clipped = true): MeshStandardMaterial {
-    const key = `${id}|${variant}|${clipped ? 1 : 0}`;
+  /** The material of a library id; `variant`: 'std' | 'floor' | 'nomap' (kit models: no UVs) | 'glass' | 'slot:<roughness>';
+   * PLAN3D-FURNMERGE-2434: a `vc:` prefix gives the same material with vertex colours on (merged kit models: the luminance
+   * jitter an instance carried in its instance colour rides in the vertex colour). */
+  get(id: string, variantKey = 'std', clipped = true): MeshStandardMaterial {
+    const key = `${id}|${variantKey}|${clipped ? 1 : 0}`;
     const have = this.mats.get(key);
     if (have) return have.m;
+    const vc = variantKey.startsWith('vc:');
+    const variant = vc ? variantKey.slice(3) : variantKey;
     const def = BY_ID.get(id);
     let m: MeshStandardMaterial;
     if (variant === 'glass' || def?.glass) {
@@ -229,15 +250,29 @@ export class RealMaterials {
           m.aoMapIntensity = 0.6;
           m.roughness = 1;
         }
-      } else if (variant !== 'nomap' && this.source === 'files' && isFinishMaterial(id)) m.map = this.finishMap(id); // PLAN3D-REALISM2-2433
+      } else if (variant !== 'nomap' && this.source === 'files' && isFinishMaterial(id)) {
+        m.map = this.finishMap(id); // PLAN3D-REALISM2-2433
+        // PLAN3D-LEVEL3-2435: polished body, matte joints with a bevel (the map holds the roughness itself: factor 1 x the sheen)
+        m.roughnessMap = this.finishMap(id, 'rough');
+        m.aoMap = m.roughnessMap;
+        m.aoMapIntensity = 0.5;
+        m.normalMap = this.finishMap(id, 'normal');
+        m.normalScale = new Vector2(FINISH_NORMAL, FINISH_NORMAL);
+        m.roughness = 1;
+        // the outdoor sky the environment is prefiltered from does not stand over an indoor floor: a polished floor took it as
+        // a white sheen over the whole room in the iso views; the SSR pass brings the room's own reflections
+        m.envMapIntensity = FINISH_ENV;
+      }
       if (m.roughnessMap) this.fitRoughness(m, id, variant);
       else {
         if (variant.startsWith('slot:')) m.roughness = Number(variant.slice(5));
         if (variant === 'floor') m.roughness *= LOOK_STYLES[this.style].rig.floorSheen;
       }
       if (this.ao) injectBakedAo(m, this.ao);
+      if (variant === 'floor') injectFloorReflect(m, floorReflectivity(id)); // PLAN3D-LEVEL3-2435
     }
     m.userData.materialId = id;
+    if (vc) m.vertexColors = true;
     if (clipped) m.clippingPlanes = this.clip;
     m.clipShadows = true;
     this.mats.set(key, { id, variant, m });
@@ -373,6 +408,39 @@ export function radialTexture(): CanvasTexture {
   radial ??= canvasTex(128, 128, (ctx) => { const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64); g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(0.45, 'rgba(0,0,0,0.75)'); g.addColorStop(0.8, 'rgba(0,0,0,0.18)'); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 128); });
   return radial;
 }
+/** PLAN3D-LEVEL3-2435: the contact shadow of a floor-standing object of size [w, h, d]: the footprint's half extents, the
+ * margin it fades over (a taller object reaches farther: 4 cm for a rug, ~16 cm for a cabinet or a sofa) and the corner radius
+ * (a cylinder is a disc). Pure (tests). */
+export function contactBlob(size: readonly number[], round: boolean): { hx: number; hz: number; margin: number; corner: number } {
+  const hx = Math.max(size[0], 0.02) / 2;
+  const hz = Math.max(size[2], 0.02) / 2;
+  const margin = Math.round((0.04 + 0.12 * Math.min(1, Math.max(0, size[1]))) * 1000) / 1000;
+  const corner = round ? Math.min(hx, hz) : Math.min(0.04, hx, hz);
+  return { hx, hz, margin, corner };
+}
+
+/** PLAN3D-LEVEL3-2435: the contact blob's alpha from its instance's footprint (`aBox` = half x, half z, margin, corner radius in
+ * metres; the plate is the footprint grown by the margin): the signed distance to the rounded footprint, 1 inside and on the
+ * outline, falling as (1 - d / margin)^2 outside. */
+export const CONTACT_GLSL = `
+float swContact(vec2 p, vec4 b) {
+  vec2 q = abs(p) - b.xy + b.w;
+  float d = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - b.w;
+  if (d > 0.0) { float t = 1.0 - clamp(d / max(b.z, 1e-3), 0.0, 1.0); return t * t; }
+  return 1.0;
+}`;
+function injectContactBlob(m: MeshBasicMaterial): void {
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute vec4 aBox;\nvarying vec2 vSwLocal;\nvarying vec4 vSwBox;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSwLocal = position.xz * 2.0 * (aBox.xy + aBox.z);\nvSwBox = aBox;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', `#include <common>\nvarying vec2 vSwLocal;\nvarying vec4 vSwBox;\n${CONTACT_GLSL}`)
+      .replace('#include <alphatest_fragment>', 'diffuseColor.a *= swContact(vSwLocal, vSwBox);\n#include <alphatest_fragment>');
+  };
+  m.customProgramCacheKey = () => 'sw-contact-blob';
+}
+
 /** The junction strip: black at v = 0 (the wall), .45 at 35 %, transparent at v = 1. */
 function stripTexture(): CanvasTexture {
   if (!strip) {
@@ -418,10 +486,25 @@ class Bucket {
   nrm: number[] = [];
   ranges: number[] = [];
   parts: Pickable[] = [];
-  push(geometry: BufferGeometry, matrix: Matrix4, part: Pickable): void {
+  /** PLAN3D-FURNMERGE-2434: the part's own UVs where it keeps them (NaN = the box UV of the merged mesh), the vertex colour
+   * (a kit model's luminance jitter) when the bucket carries one. */
+  uv: number[] = [];
+  ownUv = false;
+  col: number[] | null = null;
+  push(geometry: BufferGeometry, matrix: Matrix4, part: Pickable, opts: { ownUv?: boolean; jitter?: number } = {}): void {
     const g = geometry.index ? geometry.toNonIndexed() : geometry;
     const p = g.getAttribute('position');
     const n = g.getAttribute('normal');
+    const uv = opts.ownUv ? g.getAttribute('uv') : null;
+    if (uv) this.ownUv = true;
+    for (let i = 0; i < p.count; i++) {
+      if (uv) this.uv.push(uv.getX(i), uv.getY(i));
+      else this.uv.push(NaN, NaN);
+    }
+    if (opts.jitter !== undefined) {
+      this.col ??= [];
+      for (let i = 0; i < p.count; i++) this.col.push(opts.jitter, opts.jitter, opts.jitter);
+    }
     // R3 G1: the normal matrix proper (inverse transpose of the upper 3x3). The round-2 port applied the transposed
     // inverse 4x4 to the normal as a point, so the translation row skewed every merged normal by the part's position -
     // walls metres from the origin faced nowhere, the sun never lit an interior and the plaster read as navy.
@@ -439,12 +522,18 @@ class Bucket {
     }
     if (g !== geometry) g.dispose();
   }
-  geometry(tile: number): BufferGeometry {
+  /** `tile` null: no UV attribute (the kit models carry none: their materials draw the plain tint, as when instanced). */
+  geometry(tile: number | null): BufferGeometry {
     const g = new BufferGeometry();
     const pos = new Float32Array(this.pos);
     g.setAttribute('position', new BufferAttribute(pos, 3));
     g.setAttribute('normal', new BufferAttribute(new Float32Array(this.nrm), 3));
-    g.setAttribute('uv', new BufferAttribute(boxUv(pos, tile), 2));
+    if (tile !== null) {
+      const uv = boxUv(pos, tile);
+      if (this.ownUv) for (let i = 0; i < uv.length; i++) if (!Number.isNaN(this.uv[i])) uv[i] = this.uv[i];
+      g.setAttribute('uv', new BufferAttribute(uv, 2));
+    }
+    if (this.col) g.setAttribute('color', new BufferAttribute(new Float32Array(this.col), 3));
     g.computeBoundingSphere();
     return g;
   }
@@ -503,6 +592,8 @@ export interface RealBuildInput {
   /** PLAN3D-REALISM-2432: the room glow's night factor and the previous graph's glow weights (a change fades from them;
    * null: no fade, the first build or motion off). Absent: no glow (a caller that does not draw the state layer). */
   glow?: { night: number; prev: ReturnType<RoomGlow['state']> | null; now: number };
+  /** PLAN3D-FURNMERGE-2434: false = every furniture group instanced, as before (the evidence's A/B; default true). */
+  mergeFurniture?: boolean;
 }
 
 /** PLAN3D-REALISM2-2433: the material a room floor draws in - a floor the document leaves open (`finish`) takes the
@@ -511,14 +602,23 @@ export function roomFloorMaterial(f: Pick<RealWorld['floors'][number], 'material
   return f.finish ? finishMaterial(settings.floorFinish ?? DEFAULT_FLOOR_FINISH) : f.material;
 }
 
+/** PLAN3D-FURNMERGE-2434: a group stays an InstancedMesh only when it repeats and its merged copy would carry more than
+ * this many triangles (the merged copy costs vertex memory, the instanced one a draw); every other static furniture group
+ * is merged per level and material. */
+export const INSTANCE_KEEP_TRIS = 24_000;
+export function keepInstanced(count: number, trisEach: number): boolean {
+  return count >= 2 && count * trisEach > INSTANCE_KEEP_TRIS;
+}
+
 /** Realise the structure and the objects of a level-3 description (module note). Deterministic for equal input and
  * equal loaded assets. */
 export function buildReal(inp: RealBuildInput): RealBuilt {
   const { real, settings, mats, models } = inp;
-  const out: RealBuilt = { root: new Group(), lookup: new Map(), leaves: new Map(), shutters: new Map(), bulbs: new Map(), caps: null, glow: null, stats: { meshes: 0, instanced: 0, merged: 0, models: 0 } };
+  const out: RealBuilt = { root: new Group(), lookup: new Map(), leaves: new Map(), shutters: new Map(), bulbs: new Map(), caps: null, glow: null, stats: { meshes: 0, instanced: 0, merged: 0, models: 0, furnitureMerged: 0 } };
   out.root.name = 'real';
   const levels = new Set(inp.desc.levels.map((l) => l.id));
   const heavy = inp.heavy;
+  const merge = inp.mergeFurniture !== false;
   const replaced = new Set(heavy ? [] : real.replaced);
   // models: one per object of a mapped item, in the `models` mode, once its file loaded (else the family / base part)
   const modelled = new Set<string>();
@@ -533,14 +633,17 @@ export function buildReal(inp: RealBuildInput): RealBuilt {
       modelRows.push({ row, entry, tpl });
     }
   }
-  const buckets = new Map<string, Bucket>(); // `${level}|${material}|${variant}|${shadowKey}`
-  const instGroups = new Map<string, { shape: string; size: Vec3; radius: number; taper: number; material: string; variant: string; level: string | null; shadow: boolean; items: { matrix: Matrix4; part: Pickable }[] }>();
-  const bucket = (level: string | null, material: string, variant: string, kind: string): Bucket => {
-    const key = `${level ?? ''}|${material}|${variant}|${CLIPPED_KINDS.has(kind) ? 'c' : 'n'}`;
+  const buckets = new Map<string, Bucket>(); // `${level}|${material}|${variant}|${clipKey}|${castsShadow}`
+  type InstGroup = { shape: string; size: Vec3; radius: number; taper: number; material: string; variant: string; level: string | null; shadow: boolean; items: { matrix: Matrix4; part: Pickable }[] };
+  const instGroups = new Map<string, InstGroup>();
+  const bucket = (level: string | null, material: string, variant: string, kind: string, shadow = true): Bucket => {
+    const key = `${level ?? ''}|${material}|${variant}|${CLIPPED_KINDS.has(kind) ? 'c' : 'n'}|${shadow || variant === 'glass' ? 1 : 0}`;
     let b = buckets.get(key);
     if (!b) buckets.set(key, (b = new Bucket()));
     return b;
   };
+  // PLAN3D-FURNMERGE-2434: the kit models merged per (level, slot material, roughness) - vertex colours carry the jitter
+  const modelBuckets = new Map<string, Bucket>(); // `${level}|${material}|${variant}`
   const unitBox = new BoxGeometry(1, 1, 1);
   const pickable = (p: { id: string; userData: { id: string; kind: string } }, kind: string): Pickable => ({ id: p.id, kind: kind as ScenePart['kind'], userData: p.userData });
 
@@ -626,17 +729,34 @@ export function buildReal(inp: RealBuildInput): RealBuilt {
     if (geo) bucket(c.level_id, c.material, 'std', 'ceiling').push(geo, new Matrix4(), { id: c.id, kind: 'room', userData: { id: c.zone, kind: 'zone' } });
   }
 
+  // ---- PLAN3D-FURNMERGE-2434: the static furniture joins the merged meshes of its level and material (one draw per
+  // material per level, picked by triangle range like the structure, the part's own UVs kept); only a group that repeats
+  // and whose merged copy would pass INSTANCE_KEEP_TRIS stays one InstancedMesh
+  const instancedKept: [string, InstGroup, BufferGeometry][] = [];
+  for (const [key, g] of [...instGroups].sort((a, c) => (a[0] < c[0] ? -1 : 1))) {
+    const def = BY_ID.get(g.material);
+    const geo = partGeometry(g.shape, g.size, g.radius, g.taper, def?.tile_m ?? 1);
+    if (merge && !keepInstanced(g.items.length, geo.getAttribute('position').count / 3)) {
+      const b = bucket(g.level, g.material, g.variant, 'object', g.shadow);
+      for (const it of g.items) b.push(geo, it.matrix, it.part, { ownUv: true });
+      geo.dispose();
+      out.stats.furnitureMerged += g.items.length;
+      continue;
+    }
+    instancedKept.push([key, g, geo]);
+  }
+
   // ---- merged meshes
   for (const [key, b] of [...buckets].sort((a, c) => (a[0] < c[0] ? -1 : 1))) {
-    const [level, material, variant, clip] = key.split('|');
+    const [level, material, variant, clip, shadow] = key.split('|');
     const def = BY_ID.get(material);
     const geo = b.geometry(def?.tile_m ?? 1);
     const m = mats.get(material, variant === 'glass' ? 'glass' : variant, clip === 'c');
     const mesh = new Mesh(geo, m);
-    mesh.name = `merged|${level}|${material}|${variant}`;
+    mesh.name = `merged|${level}|${material}|${variant}${shadow === '0' ? '|noshadow' : ''}`;
     mesh.userData.ranges = Uint32Array.from(b.ranges);
     const glass = variant === 'glass';
-    mesh.castShadow = !glass;
+    mesh.castShadow = !glass && shadow !== '0';
     mesh.receiveShadow = !glass;
     if (glass) mesh.renderOrder = 2;
     out.lookup.set(mesh, b.parts);
@@ -644,10 +764,8 @@ export function buildReal(inp: RealBuildInput): RealBuilt {
     out.stats.merged++;
   }
 
-  // ---- instanced groups
-  for (const [key, g] of [...instGroups].sort((a, c) => (a[0] < c[0] ? -1 : 1))) {
-    const def = BY_ID.get(g.material);
-    const geo = partGeometry(g.shape, g.size, g.radius, g.taper, def?.tile_m ?? 1);
+  // ---- instanced groups (the repeated ones kept above)
+  for (const [key, g, geo] of instancedKept) {
     const mesh = new InstancedMesh(geo, mats.get(g.material, g.variant, true), g.items.length);
     g.items.forEach((it, i) => mesh.setMatrixAt(i, it.matrix));
     mesh.instanceMatrix.needsUpdate = true;
@@ -675,6 +793,19 @@ export function buildReal(inp: RealBuildInput): RealBuilt {
     }
   }
   for (const [key, mg] of [...modelGroups].sort((a, c) => (a[0] < c[0] ? -1 : 1))) {
+    const tris = mg.tpl.geos.reduce((n, src) => n + src.geometry.getAttribute('position').count / 3, 0);
+    if (merge && !keepInstanced(mg.list.length, tris)) {
+      // PLAN3D-FURNMERGE-2434: every primitive of every tile into its slot material's merged mesh of the level
+      mg.tpl.geos.forEach((src) => {
+        const mid = mg.entry.slots[src.slot] ?? mg.entry.fallback;
+        const bk = `${mg.level}|${mid}|slot:${SLOT_ROUGHNESS[src.slot] ?? 0.6}`;
+        let b = modelBuckets.get(bk);
+        if (!b) modelBuckets.set(bk, (b = new Bucket()));
+        for (const it of mg.list) b.push(src.geometry, it.m, it.part, { jitter: it.j });
+      });
+      out.stats.furnitureMerged += mg.list.length;
+      continue;
+    }
     mg.tpl.geos.forEach((src, k) => {
       const mid = mg.entry.slots[src.slot] ?? mg.entry.fallback;
       const mesh = new InstancedMesh(src.geometry, mats.get(mid, `slot:${SLOT_ROUGHNESS[src.slot] ?? 0.6}`, true), mg.list.length);
@@ -691,6 +822,18 @@ export function buildReal(inp: RealBuildInput): RealBuilt {
       out.root.add(mesh);
       out.stats.models++;
     });
+  }
+
+  for (const [key, b] of [...modelBuckets].sort((a, c) => (a[0] < c[0] ? -1 : 1))) {
+    const [level, material, variant] = key.split('|');
+    const mesh = new Mesh(b.geometry(null), mats.get(material, `vc:${variant}`, true));
+    mesh.name = `model-merged|${level}|${material}|${variant}`;
+    mesh.userData.ranges = Uint32Array.from(b.ranges);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    out.lookup.set(mesh, b.parts);
+    out.root.add(mesh);
+    out.stats.models++;
   }
 
   // ---- shutters: a slat curtain hanging from the housing, scaled by how far it is down
@@ -719,19 +862,35 @@ export function buildReal(inp: RealBuildInput): RealBuilt {
     mesh.name = 'ao-strips';
     mesh.renderOrder = 1;
     mesh.userData.ownMaterial = true;
+    mesh.userData.skipAO = true; // PLAN3D-LEVEL3-2435: a decal (see the blobs below)
     out.root.add(mesh);
   }
   const blobs = inp.parts.filter((p) => p.kind === 'object' && (p.shape === 'box' || p.shape === 'cylinder') && p.position[1] - p.size[1] / 2 <= (elev.get(p.level_id ?? '') ?? 0) + MAX_BLOB_BASE_M);
   if (blobs.length) {
-    const m = new MeshBasicMaterial({ map: radialTexture(), color: 0x000000, transparent: true, opacity: style.post.blobAlpha, depthWrite: false });
-    const plane = new BoxGeometry(1, 0, 1);
+    // PLAN3D-LEVEL3-2435: a soft rounded-footprint contact shadow (contactBlob) instead of the radial ellipse: dark along the
+    // object's own outline, fading over a margin that grows with its height - an ellipse 1.3x the footprint left the corners
+    // of a sofa or a cabinet without any contact and spread a faint halo far past a rug
+    const m = new MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: style.post.blobAlpha, depthWrite: false });
+    injectContactBlob(m);
+    const plane = new PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
     const mesh = new InstancedMesh(plane, m, blobs.length);
-    blobs.forEach((p, i) => mesh.setMatrixAt(i, new Matrix4().compose(new Vector3(p.position[0], p.position[1] - p.size[1] / 2 + 0.008, p.position[2]), new Quaternion().setFromEuler(new Euler(0, rad(p.rotation[1]), 0, 'YXZ')), new Vector3(p.size[0] * 1.3 + 0.1, 1, p.size[2] * 1.3 + 0.1))));
+    const box = new Float32Array(blobs.length * 4);
+    blobs.forEach((p, i) => {
+      const b = contactBlob(p.size, p.shape === 'cylinder');
+      box.set([b.hx, b.hz, b.margin, b.corner], i * 4);
+      // over a rug (<= 2 cm) when the object stands on one: a decal under the rug's top never showed
+      const lift = p.size[1] > 0.1 ? 0.024 : 0.006;
+      mesh.setMatrixAt(i, new Matrix4().compose(new Vector3(p.position[0], p.position[1] - p.size[1] / 2 + lift, p.position[2]), new Quaternion().setFromEuler(new Euler(0, rad(p.rotation[1]), 0, 'YXZ')), new Vector3(2 * (b.hx + b.margin), 1, 2 * (b.hz + b.margin))));
+    });
+    plane.setAttribute('aBox', new InstancedBufferAttribute(box, 4));
     mesh.instanceMatrix.needsUpdate = true;
     mesh.computeBoundingSphere();
     mesh.name = 'ao-blobs';
     mesh.renderOrder = 1;
     mesh.userData.ownMaterial = true;
+    // PLAN3D-LEVEL3-2435: a decal stays out of GTAO's normal / depth pass - the flat plate 6 mm over the floor drew there as a
+    // surface of its own and the occlusion filled every blob's rectangle with a flat grey (the "rug shadow" rectangles)
+    mesh.userData.skipAO = true;
     out.root.add(mesh);
   }
 
@@ -877,6 +1036,9 @@ export interface Exterior {
   root: Group;
   dome: Mesh;
   domeScene: Scene;
+  /** PLAN3D-FURNMERGE-2434: the dome the environment (IBL) is prefiltered from - always the sun's sky; `dome` (the one the walk
+   * sees) has its own colours, the studio gradient under the studio backdrop. */
+  iblDome?: Mesh;
   disc: Mesh;
   contact: Mesh;
   band: Mesh;
@@ -913,13 +1075,14 @@ export function buildExterior(extent: { x0: number; x1: number; y0: number; z0: 
   band.renderOrder = -3;
   const domeGeo = new SphereGeometry(400, 32, 16);
   domeGeo.setAttribute('color', new BufferAttribute(new Float32Array(domeGeo.getAttribute('position').count * 3), 3));
-  const dome = new Mesh(domeGeo, new MeshBasicMaterial({ vertexColors: true, side: BackSide, toneMapped: false, fog: false, depthWrite: false }));
+  const dome = new Mesh(domeGeo.clone(), new MeshBasicMaterial({ vertexColors: true, side: BackSide, toneMapped: false, fog: false, depthWrite: false }));
   dome.frustumCulled = false;
   dome.renderOrder = -10;
   dome.name = 'sky';
   dome.position.set(cx, 0, cz);
   const domeScene = new Scene();
-  domeScene.add(new Mesh(domeGeo, dome.material));
+  const iblDome = new Mesh(domeGeo, dome.material);
+  domeScene.add(iblDome);
   // PLAN3D-REALISM-2432: the studio softboxes of the environment (IBL) only - a wide panel overhead and two at the sides
   // (paintSky sets their strength by the time of day). The LDR sky alone gave the materials a flat, even reflection; the
   // panels give the floors and the glass soft highlights and the walls a gentle top-down gradient, the way an
@@ -942,9 +1105,9 @@ export function buildExterior(extent: { x0: number; x1: number; y0: number; z0: 
   // it against the wall top as a grey halo along every cut wall; as background (depth 1) the pass leaves it alone. The
   // building's contact with the ground is the radial shade of `contact`, not screen-space occlusion.
   for (const m of [dome, band, disc, contact]) m.userData.skipAO = true;
-  dome.userData.extra = softboxes; // disposed with the dome (disposeDeep): they live in domeScene, not under root
+  dome.userData.extra = [...softboxes, iblDome]; // disposed with the dome (disposeDeep): they live in domeScene, not under root
   root.add(dome, band, disc, contact);
-  return { root, dome, domeScene, disc, contact, band, softboxes };
+  return { root, dome, domeScene, disc, contact, band, softboxes, iblDome };
 }
 
 /** PLAN3D-REALISM-2432: the softbox strengths of the environment for a recipe and a style: a bright neutral overhead panel by
@@ -966,15 +1129,49 @@ export function softboxLevels(r: Pick<LightRecipe, 'day' | 'night'>, style: Styl
 export function applyBackdrop(ext: Exterior, backdrop: Backdrop, walking: boolean, r: LightRecipe, style: StyleId): void {
   const st = LOOK_STYLES[style];
   ext.dome.visible = walking;
-  ext.band.visible = walking || backdrop === 'sky';
-  const disc = ext.disc.material as MeshBasicMaterial;
-  const studio = backdrop === 'studio' && !walking;
+  ext.band.visible = backdrop === 'sky';
+  const disc = ext.disc.material as MeshBasicMaterial | MeshStandardMaterial;
+  const studio = backdrop === 'studio';
   // the ground disc reaches far past the footprint (it IS the backdrop of an iso view): in the studio it shrinks to a dark
-  // plinth just past the building, so the gradient stands behind the model
-  ext.disc.scale.setScalar(studio ? STUDIO.discScale : 1);
-  if (studio) disc.color.setHex(STUDIO.disc[style]).lerp(new Color(STUDIO.discNight[style]), r.night);
-  else disc.color.setHex(st.ground.disc).lerp(new Color(st.ground.discNight), r.night);
-  (ext.contact.material as MeshBasicMaterial).opacity = backdrop === 'studio' && !walking ? Math.min(0.8, st.ground.contact * 1.6) : st.ground.contact;
+  // plinth just past the building, so the gradient stands behind the model (the walk keeps the full ground)
+  ext.disc.scale.setScalar(studio && !walking ? STUDIO.discScale : 1);
+  const lit = (disc as MeshStandardMaterial).isMeshStandardMaterial === true;
+  if (studio) {
+    const c = new Color(STUDIO.disc[style]).lerp(new Color(STUDIO.discNight[style]), r.night);
+    // PLAN3D-FURNMERGE-2434: the realistic rung's disc is lit - by day the sun turned the dark plinth a mid grey that stood in
+    // for the sky behind an iso view. It glows in the studio colour and keeps a sliver of albedo (the building's shadow on it)
+    if (lit) {
+      disc.color.copy(c).multiplyScalar(0.15);
+      (disc as MeshStandardMaterial).emissive.copy(c);
+    } else disc.color.copy(c);
+  } else {
+    disc.color.setHex(st.ground.disc).lerp(new Color(st.ground.discNight), r.night);
+    if (lit) (disc as MeshStandardMaterial).emissive.setRGB(0, 0, 0);
+  }
+  (ext.contact.material as MeshBasicMaterial).opacity = studio && !walking ? Math.min(0.8, st.ground.contact * 1.6) : st.ground.contact;
+  // PLAN3D-FURNMERGE-2434: the sky the walk sees - the sun's (copied from the environment's dome) or the studio gradient
+  const ibl = ext.iblDome?.geometry.getAttribute('color') as BufferAttribute | undefined;
+  const col = ext.dome.geometry.getAttribute('color') as BufferAttribute;
+  if (!ibl || ibl === col) return;
+  if (!studio) (col.array as Float32Array).set(ibl.array as Float32Array);
+  else paintStudioDome(ext.dome, r, style);
+  col.needsUpdate = true;
+}
+
+/** PLAN3D-FURNMERGE-2434: the studio gradient on a dome (linear vertex colours of the CSS stops: the centre glow at the
+ * horizon, the top stop overhead, the bottom stop below the horizon). */
+function paintStudioDome(dome: Mesh, r: LightRecipe, style: StyleId): void {
+  const [top, hor, bot] = backdropColors(r, style, 'studio').map((css) => new Color(css));
+  const pos = dome.geometry.getAttribute('position');
+  const col = dome.geometry.getAttribute('color') as BufferAttribute;
+  const v = new Vector3();
+  const c = new Color();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i).normalize();
+    if (v.y >= 0) c.copy(hor).lerp(top, Math.pow(v.y, 0.6));
+    else c.copy(hor).lerp(bot, Math.min(1, -v.y * 4));
+    col.setXYZ(i, c.r, c.g, c.b);
+  }
 }
 
 /** The studio backdrop's colours: the CSS stops [top, centre glow, bottom] by day and night, the ground disc per style. */
@@ -990,7 +1187,7 @@ export const STUDIO = {
 /** Paint the dome's vertex colours from the recipe and the style (LOOK_SPEC section 1 sky scale, ground tint; a sun disc). */
 export function paintSky(ext: Exterior, r: LightRecipe, sunDir: [number, number, number], style: StyleId): void {
   const s = LOOK_STYLES[style];
-  const g = ext.dome.geometry;
+  const g = (ext.iblDome ?? ext.dome).geometry; // PLAN3D-FURNMERGE-2434: the environment's dome (applyBackdrop paints the walk's)
   const pos = g.getAttribute('position');
   const col = g.getAttribute('color') as BufferAttribute;
   const v = new Vector3();

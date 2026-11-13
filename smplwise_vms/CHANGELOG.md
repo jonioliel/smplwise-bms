@@ -1,5 +1,35 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.43.4 (pilot) - Home interface: the alarm in the house log, tickets from the water and systems screens; video stream sync that leaves streams alone
+
+### חדש - New
+- ממשק ביתי: יומן הבית מציג את דריכות ונטרולי האזעקה של 7 הימים האחרונים (מה ש־Arx שלח והרכזת אישרה), עם מסנן "אזעקה", למי שמותר לו לראות את האזעקה. - Home interface: the house log shows the alarm's arm and disarm changes of the last 7 days (what Arx sent and the panel confirmed), with an "alarm" filter, for a person allowed to view the alarm.
+- ממשק ביתי: ממסכי המים והמערכות אפשר לפתוח פנייה ישירות (אינסטלציה לנזילה, תחזוקה כללית לתקלה), רק כשמודול הפניות פעיל ולא במסך קיר; שורת "הקוד האישי שלי לאזעקה" בהגדרות ההתראות. - Home interface: a ticket can be opened straight from the water and systems screens (plumbing for a leak, general maintenance for a fault), only with the tickets module on and not on a wall panel; a "my personal alarm code" row in the notification settings.
+
+### תוקן - Fixed
+- וידאו: סנכרון הזרמים לא כותב מחדש כל זרם בכל פעם (קודם כל זרם נמחק ונכתב שוב בכל צפייה ובכל סנכרון, כמאתיים כתיבות בשעה); עכשיו זרם נכתב רק כשהוא באמת השתנה, ופעם אחת אחרי הפעלה מחדש של התוסף. - Video: the stream sync no longer rewrites every stream each time (before, every stream was deleted and written again on every view and every sync, about two hundred writes an hour); now a stream is written only when it really changed, and once after an add-on restart.
+- וידאו: מסך האבחון מראה מצב אמיתי לכל זרם ("פעיל כעת" עם מספר הצופים, "מוכן - מתחבר בצפייה", "ללא מקור") במקום "לא מחובר" לכל זרם שאין בו צופה. - Video: the diagnostics screen shows each stream's real state ("active now" with the viewer count, "ready - connects when watched", "no source") instead of "offline" for every stream nobody is watching.
+- וידאו: נגן הקלטות שהוחלף בחיפוש חדש לא מציג עוד "הסתיים" או "החיבור אבד" בזמן ניגון. - Video: a recording player replaced by a new seek no longer shows "ended" or "connection lost" while it plays.
+
+### התקנה - Install
+- אין מיגרציה חדשה, אין עדכון לגשר ואין צורך בהפעלה מחדש של מערכת הבית. - No new migration, no bridge update and no home-system restart.
+
+## 2.43.3 (pilot) - Realistic 3D map, round 3: floor reflections, marble and porcelain floors; zoom buttons
+
+### חדש - New
+- מפת התלת־ממד במצב המציאותי: השתקפויות ברצפות מבריקות (שיש, קרמיקה, אריחים), רצפות שיש בהתאמת עורקים ופורצלן בלוחות גדולים, צללי מגע רכים מתחת לרהיטים, וצורות רהיטים מדויקות יותר. ההשתקפויות הן הגדרה אישית בכרטיס הגדרות התלת־ממד ("השתקפויות ברצפה", פעילה כברירת מחדל); כשהן כבויות המפה נראית בדיוק כמו קודם. - 3D map, realistic mode: reflections on polished floors (marble, ceramic, tiles), book-matched marble and large-format porcelain floors, soft contact shadows under the furniture and more accurate furniture shapes. Reflections are a personal setting on the 3D settings card ("floor reflections", on by default); with them off the map looks exactly as before.
+- מפת התלת־ממד: כפתורי + / - לזום בפינת המסך, מול סרגל התצוגה. - 3D map: + / - zoom buttons in the corner opposite the view bar.
+
+### שופר - Improved
+- מפת התלת־ממד: הרהיטים מצוירים מאוחדים לפי קומה וחומר, כך שקומה מרוהטת נטענת ומתעדכנת מהר יותר במחשב חלש. - 3D map: furniture is drawn merged per level and material, so a furnished floor loads and redraws faster on a weak computer.
+
+### תוקן - Fixed
+- מפת התלת־ממד: רקע "סטודיו כהה" מכסה גם את השמיים והקרקע של המצב המציאותי (קודם נשאר שם מראה השמיים הבהירים). - 3D map: the "dark studio" backdrop also covers the realistic mode's sky and ground (the light sky look stayed there before).
+- פנייה חדשה בממשק הביתי: כפתור הסרת התמונה נשאר בתוך חלון הפנייה. - A new ticket in the home interface: the photo remove button stays inside the ticket sheet.
+
+### התקנה - Install
+- אין מיגרציה חדשה, אין עדכון לגשר ואין צורך בהפעלה מחדש של מערכת הבית. - No new migration, no bridge update and no home-system restart.
+
 ## 2.43.2 (pilot) - Plan wizard: a floor plan picture to a 3D floor; wall panel calendar event, ticket photos
 
 ### חדש - New

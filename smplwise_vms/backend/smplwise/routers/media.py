@@ -307,7 +307,9 @@ def list_streams(request: Request, principal: Principal = Depends(current_princi
     client = g2.Go2rtc(settings_of(request))
     with unlocked(conn):
         streams = client.list_streams()
-    ours = [{"name": s.name, "online": s.online, "sources": [g2.redact_source(s.name, u) for u in s.sources]} for s in streams.values() if s.name.startswith(g2.STREAM_PREFIX)]
+    # GO2RTC-STREAM-SYNC-2436: `online` is "go2rtc pulls it right now"; an on-demand stream nobody watches is `state` "idle" (ready), not down
+    ours = [{"name": s.name, "online": s.online, "state": s.state, "consumers": s.consumers, "sources": [g2.redact_source(s.name, u) for u in s.sources]}
+            for s in streams.values() if s.name.startswith(g2.STREAM_PREFIX)]
     return {"go2rtc": client.info(), "streams": ours, "foreign_streams": len(streams) - len(ours)}
 
 

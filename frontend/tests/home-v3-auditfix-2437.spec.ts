@@ -331,6 +331,7 @@ test.describe('HOME-V3-AUDITFIX-2437', () => {
     await add.click();
     const days = home(page).locator('.ovl .mini.week .wd');
     await expect(days.first()).toBeVisible();
+    await settle(page); // the sheet's entry animation ends before the boxes are read
     for (const d of await days.all()) expect((await d.boundingBox())!.width).toBeGreaterThanOrEqual(43.5);
     expect(await noScroll(page)).toEqual([]);
   });

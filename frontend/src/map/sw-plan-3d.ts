@@ -26,6 +26,7 @@ import { DEFAULT_VIEW, planViewPrefs, type PlanViewDials } from '../api/plan-vie
 import { DEFAULT_FLOOR_FINISH } from './floor-finish';
 import { RUNG_HE, asMode, autoStart, drawnRung, levelRung, probes, rungLevel, RUNGS, nextDown, type GpuClass, type QualityMode, type Rung } from './quality-ladder';
 import { styleFor } from './look-style';
+import { ZOOM_CSS, renderZoom, watchZoomRoom } from './zoom-buttons'; // PLAN3D-FURNMERGE-2434
 import { pillInk } from './pill-ink';
 import { HUD_EDGE, HUD_MINIMAP, HUD_MINIMAP_PHONE, HUD_PHONE_MAX, HUD_PILL_ROW, type HudCorner } from './hud-layout';
 import { t } from '../i18n/he';
@@ -341,6 +342,7 @@ export class SwPlan3d extends LitElement {
   private view: SceneView | null = null;
   private ro?: ResizeObserver;
   private barRo?: ResizeObserver;
+  private zoomRo?: ResizeObserver; // PLAN3D-FURNMERGE-2434
   /** The preset is applied once with the first description (the screen's choice), then only when the property changes:
    * a live state push replaces the description and must not snap the camera back. */
   private presetApplied = false;
@@ -364,7 +366,7 @@ export class SwPlan3d extends LitElement {
   private settingsAsked = false;
   private ownAsked = false;
 
-  static styles = css`
+  static styles = [css`
     :host {
       display: block;
       position: relative;
@@ -932,7 +934,7 @@ export class SwPlan3d extends LitElement {
         transition: none;
       }
     }
-  `;
+  `, ZOOM_CSS];
 
   protected firstUpdated(): void {
     this.watchBar();
@@ -945,12 +947,15 @@ export class SwPlan3d extends LitElement {
     const bar = this.renderRoot.querySelector<HTMLElement>('.bar');
     if (!bar || typeof ResizeObserver === 'undefined') return;
     this.barRo?.disconnect();
+    this.zoomRo?.disconnect();
     this.barRo = new ResizeObserver(() => {
       const h = Math.ceil(bar.getBoundingClientRect().height);
       if (h > 0) this.style.setProperty('--bar-h', `${h}px`);
       this.syncFrameInsets();
     });
     this.barRo.observe(bar);
+    this.zoomRo?.disconnect();
+    this.zoomRo = watchZoomRoom(this, bar); // PLAN3D-FURNMERGE-2434: the zoom group only where the bar's row leaves it room
   }
 
   /** PLAN3D-POLISH-2430: the stage edges the overview presets keep the building out of - the bar along the bottom (its measured
@@ -988,6 +993,7 @@ export class SwPlan3d extends LitElement {
     this.cornerSent = undefined;
     this.ro?.disconnect();
     this.barRo?.disconnect();
+    this.zoomRo?.disconnect();
     cancelAnimationFrame(this.thumbPass);
     this.thumbPass = 0;
     this.endProbe(false);
@@ -1235,7 +1241,7 @@ export class SwPlan3d extends LitElement {
 
   /** The realistic level's dials for the view (the rung, the style by the theme, the content, the cut). */
   private realSettings() {
-    return { rung: this.rung === 'realistic' ? ('realistic' as const) : ('lite' as const), style: styleFor(this.themeForce ?? this.viewDials.style, this.uiTheme()), furniture: this.viewDials.furniture, textures: this.viewDials.textures, sectionCut: this.viewDials.section_cut, backdrop: this.shownBackdrop, floorFinish: this.viewDials.floor_finish ?? DEFAULT_FLOOR_FINISH };
+    return { rung: this.rung === 'realistic' ? ('realistic' as const) : ('lite' as const), style: styleFor(this.themeForce ?? this.viewDials.style, this.uiTheme()), furniture: this.viewDials.furniture, textures: this.viewDials.textures, sectionCut: this.viewDials.section_cut, backdrop: this.shownBackdrop, floorFinish: this.viewDials.floor_finish ?? DEFAULT_FLOOR_FINISH, reflections: this.viewDials.floor_reflections !== false };
   }
 
   private uiTheme(): 'light' | 'dark' {
@@ -2060,6 +2066,7 @@ export class SwPlan3d extends LitElement {
         <!-- ST7-odd: a surface like the chips beside it - a ghost control over the rendered picture faded into whatever lay behind it -->
         <sw-button size="sm" icon="download" data-export-gltf ?disabled=${!this.ready || this.exporting} @click=${() => this.download()}>${this.exporting ? 'מייצא…' : 'ייצוא glTF'}</sw-button>
       </div>
+      ${renderZoom(this.ready && !this.error, (f) => this.view?.zoomBy(f))}
       ${this.description?.estimated ? html`<div class="note" data-3d-estimated>≈ מידות משוערות (התוכנית לא כוילה)</div>` : nothing}
       ${this.fallback ? html`<div class="note fb" role="status" data-3d-fallback>${fallbackHe(this.rung)}</div>` : nothing}
       ${this.perfHint

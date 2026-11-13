@@ -18,7 +18,7 @@ from smplwise.services import plan_view as pv
 
 OWNER_DEFAULTS = {"style": "auto", "default_view": "schematic", "furniture": "models", "textures": "files", "wall_display": "live", "time_source": "clock",
                   "mouse_mode": "drag", "quality": "auto", "kiosk_idle_s": 30, "eye_m": 1.65, "dpr_cap": 1.25, "section_cut": True, "show_temps": False,
-                  "motion": True, "walk_guard": True, "backdrop": "sky", "floor_finish": "marble"}
+                  "motion": True, "walk_guard": True, "backdrop": "sky", "floor_finish": "marble", "floor_reflections": True}
 
 
 def test_defaults_are_the_owner_answers():
@@ -30,7 +30,8 @@ def test_defaults_are_the_owner_answers():
 @pytest.mark.parametrize(("key", "value", "out"), [("eye_m", 1.2, 1.2), ("eye_m", 2.0, 2.0), ("eye_m", 1.66, 1.65), ("eye_m", 1.7, 1.7), ("dpr_cap", 1.6, 1.5),
                                                    ("kiosk_idle_s", "120", 120), ("kiosk_idle_s", 0, 0), ("style", "dark", "dark"), ("show_temps", True, True),
                                                    ("backdrop", "studio", "studio"), ("backdrop", "sky", "sky"),
-                                                   ("floor_finish", "wood", "wood"), ("floor_finish", "ceramic", "ceramic")])
+                                                   ("floor_finish", "wood", "wood"), ("floor_finish", "ceramic", "ceramic"),
+                                                   ("floor_reflections", False, False), ("floor_reflections", True, True)])
 def test_dials_accept_and_snap(key, value, out):
     assert pv._dial(key, value) == out
 
@@ -39,7 +40,8 @@ def test_dials_accept_and_snap(key, value, out):
                                             ("kiosk_idle_s", 15), ("kiosk_idle_s", True), ("style", "Dark"), ("style", None), ("mouse_mode", "touch"),
                                             ("section_cut", "true"), ("motion", 1), ("quality", "ultra"), ("nope", 1),
                                             ("backdrop", "Studio"), ("backdrop", "night"), ("backdrop", True),
-                                            ("floor_finish", "Marble"), ("floor_finish", "tile"), ("floor_finish", None)])
+                                            ("floor_finish", "Marble"), ("floor_finish", "tile"), ("floor_finish", None),
+                                            ("floor_reflections", "true"), ("floor_reflections", 1), ("floor_reflections", None)])
 def test_dials_refuse(key, value):
     with pytest.raises(ValueError):
         pv._dial(key, value)
