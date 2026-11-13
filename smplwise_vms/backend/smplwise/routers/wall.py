@@ -465,9 +465,9 @@ def photo_set_create(body: PhotoSetCreate, request: Request, principal: Principa
 
 
 @router.post("/wall/photo-sets/{set_id}/upload", status_code=201)
-async def photo_upload(set_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def photo_upload(set_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _need_admin(conn, principal)
-    data = await file.read(wall_photos.MAX_BYTES + 1)
+    data = file.file.read(wall_photos.MAX_BYTES + 1)
     try:
         out = wall_photos.add_photo(settings_of(request), set_id, data)
     except wall_photos.PhotoError as exc:

@@ -61,7 +61,7 @@ def floor_image_file(floor_id: str, variant: str, request: Request, principal: P
 
 
 @router.post("/floors/{floor_id}/images", status_code=201)
-async def upload_floor_image(floor_id: str, request: Request, variant: str = Form(...), file: UploadFile = File(...),
+def upload_floor_image(floor_id: str, request: Request, variant: str = Form(...), file: UploadFile = File(...),
                              principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Upload or replace one variant ("off" = lights off, "on" = lights on). PNG or JPEG, up to 12 MB and 36 megapixels."""
     settings = settings_of(request)
@@ -69,7 +69,7 @@ async def upload_floor_image(floor_id: str, request: Request, variant: str = For
     require(conn, principal, "map.edit", ("floor", floor_id))
     if variant not in fi.VARIANTS:
         raise ApiError(422, "bad_variant", "סוג התמונה אינו מוכר.", details={"choices": list(fi.VARIANTS)})
-    data = await file.read(fi.MAX_BYTES + 1)
+    data = file.file.read(fi.MAX_BYTES + 1)
     try:
         row, replaced = fi.store(settings, conn, floor_id, variant, data, principal.user_id)
     except fi.FloorImageStoreError:
