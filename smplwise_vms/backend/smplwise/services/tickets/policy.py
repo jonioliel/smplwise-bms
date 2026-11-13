@@ -30,7 +30,9 @@ OVERRIDES: dict[str, tuple[str, ...]] = {
     "urgent_is_critical": ("urgent_is_critical",),
 }
 AUTO_CLOSE_DAYS = (1, 30)  # D10: "automatic close N days after done", N in 1-30
-NEVER_SHARED_DOMAINS = frozenset({"lock", "alarm_control_panel", "cover", "camera"})  # D3: never to a handler, whatever the switches say
+# D3: never to a handler, whatever the switches say. The ONE list (code review 01:F-04): device_context, external and handler_actions
+# read it through `device_context.history_domain_allowed`; tests/test_tickets_history_domains.py pins that every call site follows it.
+NEVER_SHARED_DOMAINS = frozenset({"lock", "alarm_control_panel", "cover", "camera"})
 
 
 @dataclass(frozen=True)
@@ -132,5 +134,6 @@ def notify_severity(policy: DepartmentPolicy, priority_severity: str) -> str:
 
 def may_share_history(policy: DepartmentPolicy, domain: str) -> bool:
     """The department DEFAULT of the "share device history" box (D23), never true for the security domains (D3). The per-vendor
-    default (slice 4) and the per-ticket box (slices 3 / 4) refine it; this is the floor every layer respects."""
+    default (slice 4) and the per-ticket box (slices 3 / 4) refine it; this is the floor every layer respects.
+    Referenced by tests only today (code review 01:F-04): kept until the owner decides which layer is the contract."""
     return policy.share_history_external and domain not in NEVER_SHARED_DOMAINS

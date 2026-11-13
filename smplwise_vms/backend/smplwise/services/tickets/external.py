@@ -29,12 +29,11 @@ from typing import Any, Protocol
 
 from ...audit import audit
 from ...errors import ApiError
-from . import access, assignees, codes as codes_mod, handler_links, links, model, naming, notify_bridge, org_locations, sla, store, store_links
+from . import access, assignees, codes as codes_mod, device_context, handler_links, links, model, naming, notify_bridge, org_locations, sla, store, store_links
 from .access import Seen, Viewer, text
 from .module_key import ModuleKeyError
 from .present import can_reopen
 
-EXTERNAL_HISTORY_NEVER = frozenset({"lock", "alarm_control_panel", "cover", "camera"})
 LINK_PLACEHOLDER = {"he": "[קישור]", "en": "[link]", "ar": "[رابط]", "ru": "[ссылка]"}
 # The assignment message of section 9.7 per language (D26) with the module-name tokens of D33. Slice 5b's message templates
 # (department / installation rows, ticket_templates) replace these starters; the placeholders are the spec's allow-list.
@@ -134,7 +133,7 @@ def history_option(conn, ticket: dict[str, Any], contact: dict[str, Any], vendor
     department, default off)."""
     entity = ticket.get("entity_id") or ""
     available = False
-    if entity and entity.split(".", 1)[0] not in EXTERNAL_HISTORY_NEVER:
+    if entity and device_context.history_domain_allowed(entity):
         ctx = store_links.device_context(conn, ticket["id"])
         available = ctx is not None and not ctx.get("withheld") and ctx.get("source") != "none"
     default = contact.get("share_history")
