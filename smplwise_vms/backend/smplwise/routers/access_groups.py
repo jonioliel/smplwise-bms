@@ -175,7 +175,7 @@ def _reach_or_refuse(conn: sqlite3.Connection, principal: Principal, group_id: s
 # ---------------------------------------------------------------- list / lifecycle
 
 @router.get("/access/groups")
-def list_groups(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def list_groups(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Every group for a holder of identity.directory.read; a delegated administrator sees only the groups in reach."""
     full_dir = authorize(conn, principal, "identity.directory.read", INSTALLATION).allowed
     if not full_dir and not assigns_anywhere(conn, principal):

@@ -80,7 +80,7 @@ def _station_view(conn: sqlite3.Connection, s: dict[str, Any]) -> dict[str, Any]
 
 
 @router.get("/intercom/door-map")
-def door_map(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def door_map(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Every WisKey lock entity with its mapping (and whether it resolves right now), the `single_relay` suggestion for
     the unambiguous ones, the stations of the WisKey copy with their relays and placement, and the sites and buildings a
     station may be placed under. Names only on screen; ids are keys."""
@@ -198,7 +198,7 @@ def _builtin_answer(role_id: str, perms: list[str]) -> str:
 
 
 @router.get("/access/door-grants")
-def door_grants(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def door_grants(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The "פתיחת דלתות" card: per user and group whether this card granted door opening (`granted`), and the other
     bindings that also let them open (listed read-only as "שיוך אחר"); per role whether it includes door opening, custom
     roles switchable, built-in roles read-only."""
@@ -343,7 +343,7 @@ def _settings_view(conn: sqlite3.Connection) -> dict[str, Any]:
 
 
 @router.get("/doors/settings")
-def door_settings(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def door_settings(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     require(conn, principal, CONFIGURE, INSTALLATION)
     return _settings_view(conn)
 

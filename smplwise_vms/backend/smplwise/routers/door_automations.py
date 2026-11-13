@@ -25,7 +25,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Path, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..errors import ApiError, forbidden
 from ..rbac import Principal
 from ..services import door_automation as da
@@ -99,12 +99,12 @@ class UserBody(BaseModel):
 
 
 @router.get("/door-automations/status")
-def status(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def status(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     return da.status(conn, principal)
 
 
 @router.get("/door-automations")
-def list_blocks(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn),
+def list_blocks(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
                 automation_id: str | None = Query(None, pattern=_ITEM)) -> dict[str, Any]:
     if not da.holds_anywhere(conn, principal):
         raise forbidden(permission=da.AUTOMATE)
@@ -122,7 +122,7 @@ def create(body: CreateBody, request: Request, principal: Principal = Depends(cu
 
 # the fixed paths are declared before /{block_id}
 @router.get("/door-automations/doors")
-def doors(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def doors(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     return {"doors": da.doors_for(conn, principal, dev_mode=_dev(request))}
 
 
@@ -143,7 +143,7 @@ def user_removed(body: UserBody, request: Request, user_id: str = Path(min_lengt
 
 
 @router.get("/door-automations/{block_id}")
-def get_block(block_id: str = Path(pattern=_ID), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def get_block(block_id: str = Path(pattern=_ID), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     return da.view(conn, _row(conn, principal, block_id))
 
 
@@ -177,6 +177,6 @@ def delete(request: Request, block_id: str = Path(pattern=_ID), principal: Princ
 
 
 @router.get("/door-automations/{block_id}/fires")
-def fires(block_id: str = Path(pattern=_ID), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn),
+def fires(block_id: str = Path(pattern=_ID), principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn),
           limit: int = Query(50, ge=1, le=200)) -> dict[str, Any]:
     return {"fires": da.fires(conn, _row(conn, principal, block_id), limit)}

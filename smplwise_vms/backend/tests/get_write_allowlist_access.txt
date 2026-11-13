@@ -1,0 +1,13 @@
+# GET routes of the access area that stay on the WRITE connection (auth.get_conn: BEGIN IMMEDIATE, the single write lock),
+# because the handler writes on its own connection while it reads. One route per line: `GET <path>  # why`.
+# Read by tests/test_get_routes_read_conn.py (CR-READCONN-A-2436). A route that does not write belongs on
+# current_principal_ro + get_read_conn, not here; an entry whose route no longer uses get_conn fails the test (stale entry).
+
+# the schedules mirror: store.MIRROR.ensure() pulls and rewrites the cache on the request's connection when it is stale
+GET /api/v1/schedules/status  # store.MIRROR.ensure(conn, force=recheck)
+GET /api/v1/schedules  # _ctx(sync=True) -> store.MIRROR.ensure(conn)
+GET /api/v1/schedules/organisation  # _ctx(sync=True) -> store.MIRROR.ensure(conn)
+GET /api/v1/schedules/runs  # _ctx(sync=True) -> MIRROR.ensure, then store.settle_runs(conn) updates pending runs
+GET /api/v1/schedules/review  # _ctx(sync=True) -> store.MIRROR.ensure(conn)
+GET /api/v1/schedules/tags  # _ctx(sync=True) -> store.MIRROR.ensure(conn)
+GET /api/v1/schedules/{schedule_id}  # _ctx(sync=True) -> store.MIRROR.ensure(conn)
