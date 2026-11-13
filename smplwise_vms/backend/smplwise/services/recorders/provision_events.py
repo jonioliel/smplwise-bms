@@ -14,7 +14,6 @@ its reader is `run_loop` below instead of the ISAPI alert stream:
 A disconnection longer than GAP_AFTER_S records a coverage gap exactly like the alert stream. Read-only against the device."""
 from __future__ import annotations
 
-import datetime as dt
 import logging
 import socket
 import threading
@@ -231,8 +230,8 @@ def push_states() -> dict[str, dict[str, Any]]:
 
 def run_loop(listener: "AlertStreamListener", *, adapter: ProvisionIsrAdapter | None = None, sleep=None) -> None:
     """The reader of a Provision recorder's AlertStreamListener (see module doc). Never raises."""
-    from ..events_ingest import GAP_AFTER_S, publish, record_gap
-    from ...db import now_iso, retry_locked
+    from ..events_ingest import close_gap
+    from ...db import now_iso
 
     s = listener.settings
     st = listener.state
@@ -268,16 +267,9 @@ def run_loop(listener: "AlertStreamListener", *, adapter: ProvisionIsrAdapter | 
             backoff = min(60.0, backoff * 2)
             continue
         if st.disconnected_since is not None:
-            gap = time.time() - st.disconnected_since
-            if gap >= GAP_AFTER_S and listener.db is not None:
-                since, until, why = dt.datetime.fromtimestamp(st.disconnected_since, dt.timezone.utc), dt.datetime.now(dt.timezone.utc), st.last_error or "disconnected"
-
-                def _gap() -> dict[str, Any]:
-                    with listener.db.connection() as conn:
-                        return record_gap(conn, since, until, why, recorder_id=listener.recorder_id)
-
-                publish(retry_locked(_gap, what="provision events gap"))
-            st.disconnected_since = None
+            # BACKEND-SAFETY-2435: a failed gap write is logged and retried on the next round; it never ends this thread
+            if close_gap(listener.db, st.disconnected_since, st.last_error or "disconnected", listener.recorder_id, "provision events gap"):
+                st.disconnected_since = None
         st.connected = True
         st.last_error = None
         st.last_heartbeat_at = now_iso()
