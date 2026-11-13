@@ -10,15 +10,19 @@ const P2_TILES = new Set(['presence', 'calendar', 'notices', 'tickets', 'schedul
 
 export type P2Mod = 'presence' | 'calendar' | 'booking' | 'notices' | 'transit' | 'tickets' | 'schedules' | 'sceneNew' | 'weather' | 'notif';
 
-const fam: { info: FamilyInfo | null; at: number; loading: boolean } = { info: null, at: 0, loading: false };
+const fam: { info: FamilyInfo | null; at: number; loading: boolean; failedAt: number } = { info: null, at: 0, loading: false, failedAt: 0 };
 
 /** Load (or refresh after 3 minutes) what the person may see; redraws the host when it arrives. */
 export function warmFamily(h: HomeHost, force = false): void {
   if (fam.loading || (!force && fam.info && Date.now() - fam.at < 180_000)) return;
+  // FE-LEAK-TEXTKEY-2435: a failed read is retried after 30 s, not on the next render - the redraw below renders again, and every
+  // render asked again (a request loop while the read kept failing, which also ran on after the home left the page)
+  if (!force && !fam.info && Date.now() - fam.failedAt < 30_000) return;
   fam.loading = true;
   const first = !fam.info;
-  void getFamily().then((f) => { fam.info = f; fam.at = Date.now(); }).catch(() => undefined).finally(() => {
+  void getFamily().then((f) => { fam.info = f; fam.at = Date.now(); fam.failedAt = 0; }).catch(() => { fam.failedAt = Date.now(); }).finally(() => {
     fam.loading = false;
+    if (!h.isConnected) return; // the home left the page meanwhile: nothing to redraw or warm
     // the hub warmed its tiles before this person's features were known: warm the family tiles now (each load is throttled)
     if (first && fam.info) for (const t of moreTiles(h)) if (P2_TILES.has(t.id)) t.warm?.(h);
     h.requestUpdate();

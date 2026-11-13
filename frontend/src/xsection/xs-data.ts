@@ -91,7 +91,7 @@ export function demoBuilding(n: number, base: Building, longNames = false): Buil
 export function sectionLinksOf(links: FloorLink[]): SectionLink[] {
   const by = new Map<'stairs' | 'lift', SectionLink>();
   for (const l of links) {
-    const kind: 'stairs' | 'lift' = /מעלית/.test(l.kindLabel) ? 'lift' : 'stairs';
+    const kind: 'stairs' | 'lift' = l.kind === 'elevator' ? 'lift' : 'stairs';
     const s = by.get(kind) ?? { kind, label: l.kindLabel, floors: [], pending: [] };
     for (const id of [l.a.floorId, l.b?.floorId]) if (id && !s.floors.includes(id)) s.floors.push(id);
     if (!l.b && !s.pending!.includes(l.a.floorId)) s.pending!.push(l.a.floorId);

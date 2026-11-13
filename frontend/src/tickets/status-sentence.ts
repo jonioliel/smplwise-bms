@@ -174,6 +174,12 @@ export function ballOf(t: SentenceTicket): Ball {
   }
 }
 
+/** FE-LEAK-TEXTKEY-2435: the statuses whose sentence already says the request waits for (a new) handler, in every role and
+ * language (`sn_new*`, `sn_returned*`) - read from the status, never from the sentence's wording. */
+export function sentenceAwaitsHandler(status: TicketStatus): boolean {
+  return status === 'new' || status === 'returned';
+}
+
 /** The one-sentence status, as the viewer reads it (manager wording unless the role has its own). */
 export function sentenceFor(t: SentenceTicket, role: ViewerRole = 'manager', now: Date = new Date()): string {
   const name = handlerName(t);

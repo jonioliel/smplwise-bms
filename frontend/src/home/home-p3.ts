@@ -91,6 +91,13 @@ export class P3 {
 
   constructor(readonly h: P3Host) {}
 
+  /** FE-LEAK-TEXTKEY-2435: the home element left the page - stop the read-only refreshes (a reconnect runs load() again). */
+  dispose(): void {
+    window.clearInterval(this.pollT);
+    window.clearTimeout(this.refreshT);
+    this.pollT = this.refreshT = 0;
+  }
+
   has(m: HomeModuleP3): boolean {
     return this.h.d.modules.has(m as never);
   }
@@ -111,6 +118,7 @@ export class P3 {
     await Promise.all(jobs.map((j) => j.catch(() => undefined)));
     this.loaded = true;
     window.clearInterval(this.pollT);
+    if (!this.h.isConnected) return; // FE-LEAK-TEXTKEY-2435: the home left the page while the reads ran - no poll on a detached host
     // the media screen and a room's media tile follow what plays; the house systems follow their live state (both read-only refreshes)
     this.pollT = window.setInterval(() => {
       if (!this.h.isConnected) { window.clearInterval(this.pollT); return; }

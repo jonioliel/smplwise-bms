@@ -55,6 +55,13 @@ export interface SharedSpaceEntry {
   other_floor_name?: string;
 }
 
+/** FE-LEAK-TEXTKEY-2435: whether `other_polygon` is the UPPER level's outline (the other floor is not below this one). The
+ * server's own rule (services/shared_spaces: "מפלס תחתון" exactly when the datum is negative), read from the datum and never
+ * from the wording of `other_label`. */
+export function otherOutlineIsUpper(e: Pick<SharedSpaceEntry, 'datum_m'>): boolean {
+  return !(e.datum_m != null && e.datum_m < 0);
+}
+
 /** What the server names a home floor the reader may not read (services/shared_spaces.OTHER_FLOOR): no jump to it. */
 export const OTHER_FLOOR = 'קומה אחרת';
 
