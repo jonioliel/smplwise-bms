@@ -10,7 +10,6 @@
 import { get } from './client';
 import { ApiError } from './client';
 import { isApi } from './session';
-import { demoActivity } from './device-activity-mock';
 
 export type ActivityKind =
   | 'light' | 'switch' | 'outlet' | 'cover' | 'garage_door' | 'climate' | 'heater' | 'fan' | 'water_heater' | 'valve' | 'vacuum' | 'generic';
@@ -91,7 +90,8 @@ function qs(q: ActivityQuery): string {
 
 /** One page of the device's activity. Throws ActivityError('forbidden') on 403 and ActivityError('unavailable') on 404 / 5xx / network failure. */
 export async function getDeviceActivity(entityId: string, q: ActivityQuery = {}): Promise<ActivityPage> {
-  if (!isApi()) return demoActivity(entityId, q);
+  // CR-MOCKS-LAZY-2436 (review 07:F2): the demo pages are fetched on the first demo call - with a backend never
+  if (!isApi()) return (await import('./device-activity-mock')).demoActivity(entityId, q);
   try {
     const page = await get<Partial<ActivityPage>>(`devices/${encodeURIComponent(entityId)}/activity${qs({ limit: 50, ...q })}`);
     return {

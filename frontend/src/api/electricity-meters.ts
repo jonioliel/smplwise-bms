@@ -9,7 +9,7 @@
 import { ApiError, del, get, patch, post } from './client';
 import { isApi } from './session';
 import { getDevicesTree } from './devices';
-import { FIXTURE_NOW, fixtureCandidates, fixtureEpochs, fixtureMeters, fixtureSeries, fixtureSettings } from '../electricity/fixtures';
+import { lazy, lazyAdapter } from './demo-load';
 
 /** reporting = מדווח, stale = לא מדווח (no reading within `energy.stale_after_minutes`), paused = מושהה. */
 export type MeterStatus = 'reporting' | 'stale' | 'paused';
@@ -380,13 +380,18 @@ function demoError(status: number, code: string, user_message: string): never {
   throw new ApiError(status, { code, user_message, retryable: false, correlation_id: 'demo', details: {} });
 }
 
+// CR-MOCKS-LAZY-2436 (review 08:F02): the demo's fixtures (src/electricity/fixtures.ts) are fetched on the first demo call - with a
+// backend never. The demo adapter below runs only behind `lazyAdapter`, after they arrived, so `fx()` always has them.
+const fixtures = lazy(() => import('../electricity/fixtures'));
+const fx = () => fixtures.loaded as typeof import('../electricity/fixtures');
+
 let demoMeters: Meter[] | null = null;
 let demoSettings: EnergySettings | null = null;
 const demoEpochs = new Map<string, MeterEpoch[]>();
 const delay = <T>(v: T): Promise<T> => new Promise((r) => setTimeout(() => r(v), 60));
 
 function dm(): Meter[] {
-  demoMeters ??= fixtureMeters();
+  demoMeters ??= fx().fixtureMeters();
   return demoMeters;
 }
 function find(id: string): Meter {
@@ -394,18 +399,18 @@ function find(id: string): Meter {
   return m ?? demoError(404, 'not_found', 'המונה לא נמצא');
 }
 
-const demo: MeterAdapter = {
+const demoNow: MeterAdapter = {
   list: () => delay(dm().map((m) => ({ ...m }))),
-  detail: (id) => delay({ ...find(id), epochs: demoEpochs.get(id) ?? fixtureEpochs(id) }),
+  detail: (id) => delay({ ...find(id), epochs: demoEpochs.get(id) ?? fx().fixtureEpochs(id) }),
   candidates: (q) => {
     const needle = q.trim().toLowerCase();
-    return delay(fixtureCandidates().filter((c) => !needle || c.name.toLowerCase().includes(needle) || (c.device_name ?? '').toLowerCase().includes(needle) || (c.area_name ?? '').toLowerCase().includes(needle)));
+    return delay(fx().fixtureCandidates().filter((c) => !needle || c.name.toLowerCase().includes(needle) || (c.device_name ?? '').toLowerCase().includes(needle) || (c.area_name ?? '').toLowerCase().includes(needle)));
   },
   add: (body) => {
-    const c = fixtureCandidates().find((x) => x.entity_id === body.entity_id);
+    const c = fx().fixtureCandidates().find((x) => x.entity_id === body.entity_id);
     if (!c) return demoError(404, 'not_found', 'החיישן לא נמצא');
     if (c.verdict === 'rejected') return demoError(422, 'meter_unit_rejected', c.message ?? REASON_TEXT[c.reason_code ?? 'unit']);
-    const m: Meter = { id: `m${dm().length + 1}`, name: body.name?.trim() || c.name, device_id: c.device_id, device_name: c.device_name, entity_name: c.entity_name, area_id: c.area_id, area_name: c.area_name, floor_id: null, floor_name: c.floor_name, status: 'reporting', reading_kwh: parseFloat((c.value ?? '0').replace(/,/g, '')) || 0, last_report_at: FIXTURE_NOW, today_kwh: 0, month_kwh: 0, accounts: [], accounts_count: 0, revision: 1 };
+    const m: Meter = { id: `m${dm().length + 1}`, name: body.name?.trim() || c.name, device_id: c.device_id, device_name: c.device_name, entity_name: c.entity_name, area_id: c.area_id, area_name: c.area_name, floor_id: null, floor_name: c.floor_name, status: 'reporting', reading_kwh: parseFloat((c.value ?? '0').replace(/,/g, '')) || 0, last_report_at: fx().FIXTURE_NOW, today_kwh: 0, month_kwh: 0, accounts: [], accounts_count: 0, revision: 1 };
     dm().push(m);
     return delay({ ...m });
   },
@@ -430,23 +435,23 @@ const demo: MeterAdapter = {
   },
   replace: (id, body) => {
     const m = find(id);
-    const list = demoEpochs.get(id) ?? fixtureEpochs(id);
+    const list = demoEpochs.get(id) ?? fx().fixtureEpochs(id);
     const open = list.find((e) => !e.ended_at);
-    if (open) open.ended_at = FIXTURE_NOW;
-    list.push({ started_at: FIXTURE_NOW, ended_at: null, start_reading_kwh: body.start_reading_kwh, reason: 'replace', note: body.note ?? '' });
+    if (open) open.ended_at = fx().FIXTURE_NOW;
+    list.push({ started_at: fx().FIXTURE_NOW, ended_at: null, start_reading_kwh: body.start_reading_kwh, reason: 'replace', note: body.note ?? '' });
     demoEpochs.set(id, list);
     m.reading_kwh = body.start_reading_kwh;
     m.revision += 1;
     return delay({ ...m, epochs: list });
   },
-  series: (id, step, from, to) => delay(fixtureSeries(id, step === '1h' ? 24 : Math.max(1, Math.min(400, Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000))), step === '1h' ? 3_600_000 : 86_400_000)),
+  series: (id, step, from, to) => delay(fx().fixtureSeries(id, step === '1h' ? 24 : Math.max(1, Math.min(400, Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000))), step === '1h' ? 3_600_000 : 86_400_000)),
   getSettings: () => {
-    demoSettings ??= fixtureSettings();
+    demoSettings ??= fx().fixtureSettings();
     demoSettings.meter_count = dm().length;
     return delay(JSON.parse(JSON.stringify(demoSettings)) as EnergySettings);
   },
   patchSettings: (p) => {
-    demoSettings ??= fixtureSettings();
+    demoSettings ??= fx().fixtureSettings();
     for (const [k, v] of Object.entries(p) as [RetentionKey, number][]) {
       const r = RETENTION_RANGES[k];
       if (!Number.isInteger(v) || v < r.min || v > r.max) return demoError(422, 'validation', `הערך חייב להיות בין ${r.min} ל-${r.max}`);
@@ -455,6 +460,8 @@ const demo: MeterAdapter = {
     return delay(JSON.parse(JSON.stringify(demoSettings)) as EnergySettings);
   },
 };
+
+const demo = lazyAdapter<MeterAdapter>(() => fixtures().then(() => demoNow), {});
 
 /** The adapter in force: HTTP with a backend session, the in-memory demo without one. */
 export const meters = (): MeterAdapter => (isApi() ? http : demo);

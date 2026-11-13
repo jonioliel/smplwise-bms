@@ -7,8 +7,10 @@
  */
 import { post, ApiError } from './client';
 import { isApi } from './session';
-import { extendMockView, mockStore } from './tickets-mock';
+import { ticketsMock, withTicketsMock } from './tickets';
 import type { BulkAnswer } from './tickets-table';
+
+type MockStore = Awaited<ReturnType<typeof ticketsMock>>['mockStore'];
 
 export interface DeleteCounts { notes: number; photos: number; files: number; links: number; claims: number }
 export interface DeleteAnswer { deleted: true; id: string; number: number; counts: DeleteCounts }
@@ -27,14 +29,15 @@ const rest: DeleteBackend = {
   bulkRemove: (body) => post<BulkAnswer>('tickets/bulk-delete', body),
 };
 
-// the demo store: the manager of the demo may delete; a deleted demo ticket is gone from every list
-extendMockView((t) => ({ ...t, can: { ...t.can, delete: true } }));
+// the demo store: the manager of the demo may delete; a deleted demo ticket is gone from every list (CR-MOCKS-LAZY-2436: registered
+// with the store, which loads on its first demo call)
+withTicketsMock((m) => m.extendMockView((t) => ({ ...t, can: { ...t.can, delete: true } })));
 
 function notFound(): ApiError {
   return new ApiError(404, { code: 'ticket_not_found', user_message: '', retryable: false, correlation_id: '', details: {} });
 }
 
-function demoRemove(id: string): DeleteAnswer | null {
+function demoRemove(mockStore: MockStore, id: string): DeleteAnswer | null {
   const all = mockStore.all();
   const i = all.findIndex((t) => t.id === id);
   if (i < 0) return null;
@@ -45,18 +48,20 @@ function demoRemove(id: string): DeleteAnswer | null {
 
 const mock: DeleteBackend = {
   async remove(id, body) {
+    const { mockStore } = await ticketsMock();
     const t = mockStore.find(id);
     if (!t) throw notFound();
     if (body.confirm_number !== t.number) {
       throw new ApiError(422, { code: 'validation', user_message: '', retryable: false, correlation_id: '', details: { fields: [{ field: 'confirm_number', code: 'mismatch' }] } });
     }
-    const out = demoRemove(id);
+    const out = demoRemove(mockStore, id);
     if (!out) throw notFound();
     return out;
   },
   async bulkRemove(body) {
+    const { mockStore } = await ticketsMock();
     const results: BulkAnswer['results'] = body.ids.map((id) => {
-      const out = demoRemove(id);
+      const out = demoRemove(mockStore, id);
       return out ? { id, number: out.number, result: 'ok' as const } : { id, result: 'not_found' as const };
     });
     const counts: BulkAnswer['counts'] = {};
