@@ -28,7 +28,7 @@ import { entityMarkerKind } from '../api/ha';
 import { geometryFor } from '../api/geometry';
 import type { AnchorPosition, CatalogLookup, GeometryDoc } from '../map/geometry';
 import { loadLibrary, lookup3dOf, lookupMaterialsOf, lookupOf } from '../api/plan-catalog';
-import { buildScene, type Catalog3DLookup, type SceneAnchor, type SceneDescription } from '../map/scene-builder';
+import { buildScene, entityMeta, type Catalog3DLookup, type SceneAnchor, type SceneDescription } from '../map/scene-builder';
 import type { CatalogMaterialLookup } from '../map/material-resolve';
 import type { ScenePreset } from '../map/scene-three';
 import type { PartSelectDetail, RealisticChangeDetail } from '../map/sw-plan-3d';
@@ -829,6 +829,7 @@ export class InvestigateEventDetail extends LitElement {
       id: a.id, resource_type: a.resource_type, resource_id: a.resource_id, x: a.position.x, y: a.position.y, rotation: a.rotation_degrees, fov: a.field_of_view_degrees ?? null, radius: a.coverage_radius ?? null,
       polygon: a.coverage_polygon ?? null, level_id: a.level_id ?? null, layer_id: a.layer_id, label: entityName(a), state: stateOf(a),
       online: a.resource_type === 'camera' ? (a.camera ? a.camera.status === 'online' : null) : null, mount_height_m: a.mount_height_m ?? null, tilt_deg: a.tilt_deg ?? null,
+      ...(a.resource_type === 'ha_entity' && a.entity ? { entity_meta: entityMeta(a.entity, false) } : {}), // the replay's instant: the words without today's attributes
     }));
     // explicit nulls for every placed entity the replay does not know (the current anchors; the replay's own keys are the instant's)
     const entityStates = Object.fromEntries([...new Set(b.anchors.filter((a) => a.resource_type === 'ha_entity').map((a) => a.resource_id))].sort().map((id) => [id, replay?.entityStates[id] ?? null]));

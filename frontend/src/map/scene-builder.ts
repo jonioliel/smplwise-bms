@@ -20,6 +20,7 @@ import { plateHoles, sharedUpperLevel, sharedVolumes, tribuneEntrances, tribuneL
 import { buildWalkWorld, type WalkWorld } from './walk-world';
 import { buildReal, type RealWorld } from './scene-real-builder';
 import type { CatalogMaterialLookup } from './material-resolve';
+import { stateLabel, type HaEntity } from '../api/ha';
 
 export type { MeshPart };
 export type PartKind = 'floor' | 'room' | 'tint' | 'marker' | 'chip' | 'label' | 'wall' | 'lintel' | 'sill' | 'head' | 'door' | 'window' | 'object' | 'connector' | 'camera' | 'cone' | 'entity' | 'glow';
@@ -75,6 +76,36 @@ export interface SceneAnchor {
   online: boolean | null;
   mount_height_m: number | null;
   tilt_deg: number | null;
+  /** PLAN3D-POLISH-2430: what the state words need beyond the state itself (entityMeta below): the domain, the device class
+   * and the unit, so a door sensor reads "פתוחה" and a thermometer its reading - the words of the rest of the UI (api/ha
+   * stateLabel). Absent / null: the domain from the entity id, no device class and no unit. */
+  entity_meta?: EntityMeta | null;
+}
+/** The part of a synced entity the 3D pill words read (JSON-serialisable; only the attributes stateLabel reads). */
+export interface EntityMeta {
+  domain: string;
+  device_class: string | null;
+  unit: string | null;
+  attributes?: Record<string, number>;
+}
+const META_ATTRIBUTES = ['brightness', 'current_position', 'current_temperature'] as const;
+/** The meta of a synced entity; `attributes` false leaves its attributes out (a replay's instant has none of its own). */
+export function entityMeta(e: Pick<HaEntity, 'domain' | 'device_class' | 'unit' | 'attributes'> | null | undefined, attributes = true): EntityMeta | null {
+  if (!e) return null;
+  const out: EntityMeta = { domain: e.domain, device_class: e.device_class ?? null, unit: e.unit ?? null };
+  if (attributes) {
+    const at: Record<string, number> = {};
+    for (const k of META_ATTRIBUTES) if (typeof e.attributes?.[k] === 'number') at[k] = e.attributes[k] as number;
+    if (Object.keys(at).length) out.attributes = at;
+  }
+  return out;
+}
+/** The words an entity pill carries after its name: api/ha stateLabel (device class aware, units), so the 3D says what the
+ * 2D card and the device lists say. No state (stale, unknown to a replay): no words - the pill's stale colour says it. */
+export function entityStateWords(resourceId: string, state: string | null, meta: EntityMeta | null | undefined): string {
+  if (state === null || state === undefined || state === '') return '';
+  const domain = meta?.domain || resourceId.split('.')[0] || '';
+  return stateLabel({ domain, state, unit: meta?.unit ?? null, device_class: meta?.device_class ?? null, attributes: meta?.attributes ?? {} });
 }
 export interface SceneZone {
   id: string;
@@ -162,7 +193,6 @@ export interface IsoScene {
 export const DEFAULT_LAYERS: SceneLayers = { structure: true, objects: true, connectors: true, cameras: true, entities: true, zones: true };
 /** The canvas default cone radius in plan pixels (sw-plan-canvas coneRadius). */
 export const DEFAULT_CONE_RADIUS_PX = 140;
-export const STATE_HE: Record<string, string> = { on: 'דולק', off: 'כבוי', open: 'פתוח', opening: 'נפתח', closed: 'סגור', closing: 'נסגר', locked: 'נעול', unlocked: 'לא נעול', unavailable: 'לא זמין', unknown: 'לא ידוע' };
 
 const FLOOR_PLATE_M = 0.05;
 const ROOM_TINT_M = 0.01;
@@ -1054,7 +1084,8 @@ class Builder {
       // the live state of the entity wins over the one stored with the anchor, so the sprite and the door leaf agree
       const state = Object.prototype.hasOwnProperty.call(this.input.entityStates, a.resource_id) ? this.input.entityStates[a.resource_id] : a.state;
       const color = state === null || state === 'unavailable' || state === 'unknown' ? 'stale' : isOpenState(state) ? 'live' : 'text-3';
-      const text = `${a.label}${state && STATE_HE[state] ? ` · ${STATE_HE[state]}` : ''}`;
+      const words = entityStateWords(a.resource_id, state, a.entity_meta);
+      const text = `${a.label}${words ? ` · ${words}` : ''}`;
       const ud = { id: a.id, kind: 'entity' };
       this.add({ id: `ent:${a.id}`, kind: 'entity', shape: 'sprite', position: [x, lv.elevation_m + mount + 0.25, z], size: [Math.max(1.2, 0.18 * text.length), 0.36, 0], rotation: [0, 0, 0], color, opacity: 1, group: null, level_id: lv.id, text, userData: ud });
       if (a.layer_id === 'lights' && state === 'on') this.add({ id: `ent:${a.id}#glow`, kind: 'glow', shape: 'light', position: [x, lv.elevation_m + mount, z], size: [GLOW_DISTANCE_M, 0, 0], rotation: [0, 0, 0], color: 'map-glow', opacity: 1, group: null, level_id: lv.id, userData: ud });

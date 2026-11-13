@@ -149,7 +149,9 @@ test('1+2: at level 3 the camera cones are cut by the section plane, like the wa
     (n as unknown as Probe).view.scene.traverse((o) => { const name = String(o.name ?? ''); if (name === 'sky' || name === 'horizon' || name === 'ground') out.push({ name, visible: !!o.visible, skip: !!(o.userData as { skipAO?: boolean }).skipAO }); });
     return out.sort((a, b) => (a.name < b.name ? -1 : 1));
   });
-  expect(backdrop).toEqual([{ name: 'ground', visible: true, skip: true }, { name: 'horizon', visible: true, skip: true }, { name: 'sky', visible: true, skip: true }]);
+  // PLAN3D-LEVEL3-2435: the pass shows again only what it hid - the dome is the walk's (applyBackdrop: visible = walking), so in this
+  // orbit view it stays hidden (the old pass re-showed every marked mesh after each frame, the dome over the CSS sky included)
+  expect(backdrop).toEqual([{ name: 'ground', visible: true, skip: true }, { name: 'horizon', visible: true, skip: true }, { name: 'sky', visible: false, skip: true }]);
   await el.locator('[data-quality-3-lite]').click();
   await expect(el).toHaveAttribute('data-rung', 'lite');
   // levels 1-2 never clip (their pictures do not move)

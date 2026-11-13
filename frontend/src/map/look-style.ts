@@ -44,11 +44,14 @@ export const LOOK_STYLES: Readonly<Record<StyleId, LookStyle>> = {
     id: 'light',
     he: 'אדריכלי בהיר',
     rig: {
-      exposureDay: 0.62, exposureNight: 0.9, sunScale: 1.3, skyScale: 1.0, envDay: 0.5, envNight: 0.22, hemiScale: 0.36, interiorFill: [0.5, 0.85],
+      // PLAN3D-REALISM-2432: a little more sun and less flat fill by day (the environment's softboxes now carry part of the
+      // fill and the highlights), a little more environment at night so the shell stays readable (was sun 1.3, env .5 / .22,
+      // hemi .36)
+      exposureDay: 0.62, exposureNight: 0.9, sunScale: 1.45, skyScale: 1.0, envDay: 0.44, envNight: 0.3, hemiScale: 0.3, interiorFill: [0.5, 0.85],
       shadowRadius: 8, rim: null, floorSheen: 1.0, fog: { color: '#dfe6ee', density: 0.028 },
       lampEmissiveDay: 1.0, lampEmissiveNight: 2.0, lampPoolDay: 0.5, lampPoolNight: 1.0, moonScale: 0.5,
     },
-    post: { bloomThresholdDay: 2.0, bloomThresholdNight: 1.6, bloomStrengthDay: 0.12, bloomStrengthNight: 0.28, bloomRadius: 0.3, aoRadius: 0.6, aoBlend: 0.55, blobAlpha: 0.46, junctionAlpha: 0.62 },
+    post: { bloomThresholdDay: 2.0, bloomThresholdNight: 1.6, bloomStrengthDay: 0.12, bloomStrengthNight: 0.28, bloomRadius: 0.3, aoRadius: 0.6, aoBlend: 0.55, blobAlpha: 0.68, junctionAlpha: 0.62 },
     grade: { vignette: 0.32, vignetteColor: 'rgba(20,24,32,.42)', contrast: 1.06, saturation: 1.05 },
     cut: { fraction: 0.6, cap: 0x3a3e46, edge: null, edgeWidth: 0 },
     glass: { tint: 0xcfe0ea, opacity: 0.22, env: 1.6 },
@@ -65,7 +68,7 @@ export const LOOK_STYLES: Readonly<Record<StyleId, LookStyle>> = {
       shadowRadius: 8, rim: { color: 0x7cc8ff, intensity: 0.55 }, floorSheen: 0.72, fog: { color: '#0a1322', density: 0.045 },
       lampEmissiveDay: 1.5, lampEmissiveNight: 2.6, lampPoolDay: 1.0, lampPoolNight: 1.1, moonScale: 0.8,
     },
-    post: { bloomThresholdDay: 1.2, bloomThresholdNight: 1.15, bloomStrengthDay: 0.26, bloomStrengthNight: 0.36, bloomRadius: 0.4, aoRadius: 0.6, aoBlend: 0.5, blobAlpha: 0.52, junctionAlpha: 0.62 },
+    post: { bloomThresholdDay: 1.2, bloomThresholdNight: 1.15, bloomStrengthDay: 0.26, bloomStrengthNight: 0.36, bloomRadius: 0.4, aoRadius: 0.6, aoBlend: 0.5, blobAlpha: 0.74, junctionAlpha: 0.62 },
     grade: { vignette: 0.4, vignetteColor: 'rgba(0,0,0,.6)', contrast: 1.08, saturation: 1.0 },
     cut: { fraction: 0.6, cap: 0x151b27, edge: 0x5fd3ff, edgeWidth: 1.5 },
     glass: { tint: 0x9fc4de, opacity: 0.2, env: 1.8 },

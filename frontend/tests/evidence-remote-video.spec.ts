@@ -400,11 +400,11 @@ test.describe('remote video policy against the fixture backend (fake NVR / go2rt
     await page.screenshot({ path: test.info().outputPath('remote-no-mse-message.png') });
   });
 
-  test('go2rtc down: "שרת הווידאו אינו זמין", no raw code, MSE not blamed, the ladder not walked', async ({ page }) => {
+  test('go2rtc down: "שירות הווידאו לא זמין", no raw code, MSE not blamed, the ladder not walked', async ({ page }) => {
     await remoteMe(page, { profile: 'main', mse: false });
     await openCamera(page, h264Camera, { main: 'down', sub: 'down' });
     const err = player(page).locator('[data-player-error]');
-    await expect(err).toHaveText('שרת הווידאו אינו זמין', { timeout: 10000 });
+    await expect(err).toHaveText('שירות הווידאו לא זמין', { timeout: 10000 }); // HEALTH-GO2RTC-2430: one wording
     await expect(err).not.toContainText('upstream');
     await expect(err).not.toContainText('MSE');
     expect(await sockets(page)).toEqual([{ profile: 'main', kind: 'webrtc' }]);

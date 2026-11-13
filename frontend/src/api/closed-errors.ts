@@ -6,6 +6,15 @@
 type Lang = 'he' | 'en';
 
 const CLOSED: Record<string, Record<Lang, string>> = {
+  // HEALTH-GO2RTC-2430: the video service is down / not set (playback session create, snapshots, stream sync) - one wording, no component name
+  media_unavailable: {
+    he: 'שירות הווידאו לא זמין. ננסה שוב אוטומטית; אם זה נמשך, פנו למנהל המערכת.',
+    en: 'The video service is unavailable. It is retried automatically; if this continues, contact the system administrator.',
+  },
+  media_not_configured: {
+    he: 'שירות הווידאו לא הוגדר. פנו למנהל המערכת.',
+    en: 'The video service is not set up. Contact the system administrator.',
+  },
   // 409 from the Frigate routes: a recorder added after the add-on started is stored but not yet running (every recorder change waits for a restart)
   recorder_pending_restart: {
     he: 'המקליט נשמר וממתין להפעלה מחדש של התוסף. הפעילו מחדש את התוסף (הגדרות מערכת) ורעננו את המסך.',

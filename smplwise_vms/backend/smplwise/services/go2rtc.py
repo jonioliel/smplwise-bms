@@ -170,10 +170,147 @@ def redact_url(url: str) -> str:
 class StreamInfo:
     name: str
     sources: list[str]
+    # "go2rtc is pulling this stream right now" (a connected producer, or a consumer attached) - NOT "the camera works": go2rtc
+    # connects a source on demand, so an idle stream that plays the moment someone opens it is `online` False (`state` "idle").
     online: bool
     # LIVE-H265-2341: the video codec go2rtc's producer reports once it has connected (`h264` | `h265` | `mjpeg` | other
     # lower-case name); None while no producer is connected (go2rtc only knows the codec after the first consumer)
     video_codec: str | None = None
+    # GO2RTC-STREAM-SYNC-2436: consumers attached now (viewers, a frame grab, a probe)
+    consumers: int = 0
+
+    @property
+    def state(self) -> str:
+        """`active` (pulling now) | `idle` (a source is set; go2rtc connects it when someone watches) | `no_source`."""
+        if self.online:
+            return "active"
+        return "idle" if any(self.sources) else "no_source"
+
+
+# GO2RTC-STREAM-SYNC-2436: the keys of a go2rtc 1.9 producer that only a CONNECTED producer has (core.Connection's JSON). An idle
+# producer of an on-demand stream is `{"url": <source>}` alone (lab 12.11, go2rtc 1.9.15: 41/41 ours idle between viewers).
+_CONNECTED_KEYS = ("medias", "receivers", "bytes_recv", "remote_addr", "format_name", "id")
+
+
+def producer_connected(p: Any) -> bool:
+    return isinstance(p, dict) and any(p.get(k) for k in _CONNECTED_KEYS)
+
+
+# ------------------------------------------------------------------------------------------- source comparison (GO2RTC-STREAM-SYNC-2436)
+# go2rtc 1.9.15 answers `GET /api/streams` with each producer's source WITHOUT its user and password (1.9.14 and older: the source
+# as written). Comparing the raw strings therefore never matched on 1.9.15 and every live open and every stream sync deleted and
+# re-created each of our streams (lab 12.11: 32/32 differed in the credentials only). Sources are now compared by their parts:
+# scheme, host, port (the scheme's default port filled in), path (percent-decoded), query and `#` options as multisets (order free).
+# A user / password / query value go2rtc hid (absent, empty or a mask) cannot be compared; such a match is only "unchanged" when
+# this process itself last wrote exactly this source to the stream (`_WRITTEN`, a digest - never the source). After a restart the
+# first sync therefore writes each stream once more; a changed password (an add-on option, so always a restart) is still applied.
+_DEFAULT_PORTS = {"rtsp": 554, "rtsps": 322, "rtspx": 322, "http": 80, "https": 443, "ws": 80, "wss": 443, "rtmp": 1935, "rtmps": 443}
+_MASK_RE = re.compile(r"^(?:\*+|x+|X+|•+|\.\.\.|<?redacted>?|<?hidden>?|%2A+)$", re.IGNORECASE)
+_USERINFO_RE = re.compile(r"(://)[^/@\s?#]*@")
+_WRITTEN: dict[str, str] = {}
+_WRITTEN_LOCK = threading.Lock()
+
+SAME, SAME_IF_HIDDEN, DIFFERENT = "same", "same_if_hidden", "different"
+
+
+def _hidden(value: str | None) -> bool:
+    return value is None or value == "" or bool(_MASK_RE.match(value))
+
+
+def _multiset(text: str, sep: str) -> dict[str, list[str]]:
+    from urllib.parse import parse_qsl
+
+    out: dict[str, list[str]] = {}
+    for k, v in parse_qsl(text, keep_blank_values=True, separator=sep) if text else []:
+        out.setdefault(k, []).append(v)
+    return out
+
+
+def _compare_params(reported: str, wanted: str, sep: str) -> str:
+    """Query / `#` options: the same keys, each with the same values in any order; a value go2rtc hid makes it SAME_IF_HIDDEN."""
+    a, b = _multiset(reported, sep), _multiset(wanted, sep)
+    if a.keys() != b.keys():
+        return DIFFERENT
+    verdict = SAME
+    for k, want in b.items():
+        got = a[k]
+        if sorted(got) == sorted(want):
+            continue
+        if len(got) == len(want) and all(_hidden(v) for v in got):
+            verdict = SAME_IF_HIDDEN
+            continue
+        return DIFFERENT
+    return verdict
+
+
+def compare_source(reported: str, wanted: str) -> str:
+    """How the source go2rtc reports for a stream relates to the one we would write: SAME (nothing to do), SAME_IF_HIDDEN (equal in
+    everything go2rtc shows; the credentials or a query value were hidden) or DIFFERENT."""
+    from urllib.parse import unquote
+
+    if reported == wanted:
+        return SAME
+    try:
+        r, w = urlsplit(reported), urlsplit(wanted)
+        r_port, w_port = r.port, w.port
+    except ValueError:
+        return DIFFERENT
+    if not w.netloc or not r.netloc:
+        # not an address with a host (e.g. `ffmpeg:<url>#video=h264`): the strings with any `user:pass@` taken out
+        if _USERINFO_RE.sub(r"\1", reported) != _USERINFO_RE.sub(r"\1", wanted):
+            return DIFFERENT
+        return SAME_IF_HIDDEN
+    scheme = w.scheme.lower()
+    if r.scheme.lower() != scheme or (r.hostname or "").lower() != (w.hostname or "").lower():
+        return DIFFERENT
+    if (r_port or _DEFAULT_PORTS.get(scheme)) != (w_port or _DEFAULT_PORTS.get(scheme)):
+        return DIFFERENT
+    if unquote(r.path or "/") != unquote(w.path or "/"):
+        return DIFFERENT
+    verdict = SAME
+    for got, want, sep in ((r.query, w.query, "&"), (r.fragment, w.fragment, "#")):
+        v = _compare_params(got, want, sep)
+        if v == DIFFERENT:
+            return DIFFERENT
+        if v == SAME_IF_HIDDEN:
+            verdict = SAME_IF_HIDDEN
+    r_user, r_pw = (unquote(x) if x is not None else None for x in (r.username, r.password))
+    w_user, w_pw = (unquote(x) if x is not None else None for x in (w.username, w.password))
+    if (r_user, r_pw) == (w_user, w_pw):
+        return verdict
+    if w_user is None and w_pw is None:
+        return DIFFERENT  # go2rtc holds credentials the source we want has none of
+    if r_user is not None and not _hidden(r_user) and r_user != w_user:
+        return DIFFERENT
+    if r_pw is not None and not _hidden(r_pw) and r_pw != w_pw:
+        return DIFFERENT
+    return SAME_IF_HIDDEN
+
+
+def _source_digest(name: str, src: str) -> str:
+    return hashlib.sha256(f"{name}\n{src}".encode()).hexdigest()
+
+
+def _note_written(name: str, src: str | None) -> None:
+    with _WRITTEN_LOCK:
+        if src is None:
+            _WRITTEN.pop(name, None)
+        else:
+            _WRITTEN[name] = _source_digest(name, src)
+
+
+def stream_up_to_date(name: str, existing: StreamInfo | None, src: str) -> bool:
+    """True when go2rtc already holds `src` for `name` (or holds what it shows of it, and this process wrote exactly `src`)."""
+    if existing is None or len(existing.sources) != 1:
+        return False
+    verdict = compare_source(existing.sources[0], src)
+    if verdict == SAME:
+        _note_written(name, src)  # a go2rtc that shows the whole source: remembered too, so an upgrade to 1.9.15 writes nothing
+        return True
+    if verdict == SAME_IF_HIDDEN:
+        with _WRITTEN_LOCK:
+            return _WRITTEN.get(name) == _source_digest(name, src)
+    return False
 
 
 _MEDIA_CODEC_RE = re.compile(r"^\s*video\s*,[^,]*,\s*([A-Za-z0-9.+_-]+)")
@@ -202,6 +339,16 @@ def _fold_codec(name: str) -> str:
     return {"hevc": "h265", "avc": "h264", "jpeg": "mjpeg"}.get(n, n)
 
 
+def _reached(_response: httpx.Response) -> None:
+    """HEALTH-GO2RTC-2430: any HTTP answer from go2rtc - whatever its status - proves it is reachable (services/media_reach.py)."""
+    from .media_reach import REACH
+
+    REACH.record_ok()
+
+
+_REACH_HOOKS = {"response": [_reached]}
+
+
 class Go2rtc:
     def __init__(self, settings: Settings):
         if not settings.go2rtc_url:
@@ -210,9 +357,13 @@ class Go2rtc:
         self.auth = (settings.go2rtc_user, settings.go2rtc_password) if settings.go2rtc_user else None
 
     def _client(self) -> httpx.Client:
-        return httpx.Client(base_url=self.base, auth=self.auth, timeout=6.0, verify=_verify())
+        return httpx.Client(base_url=self.base, auth=self.auth, timeout=6.0, verify=_verify(), event_hooks=_REACH_HOOKS)
 
     def _wrap(self, exc: httpx.HTTPError, what: str) -> ApiError:
+        from .media_reach import REACH, is_connection_failure
+
+        if is_connection_failure(exc):  # HEALTH-GO2RTC-2430: /health says the video service is down, not just "configured"
+            REACH.record_failure(type(exc).__name__)
         return ApiError(503, "media_unavailable", "go2rtc אינו זמין כרגע.", retryable=True, details={"op": what, "error": type(exc).__name__})
 
     def info(self) -> dict:
@@ -239,10 +390,15 @@ class Go2rtc:
         out: dict[str, StreamInfo] = {}
         data = r.json() or {}
         for name, value in data.items():
-            producers = (value or {}).get("producers") or []
+            value = value if isinstance(value, dict) else {}
+            producers = value.get("producers") or []
+            producers = producers if isinstance(producers, list) else []
+            consumers = value.get("consumers") or []  # go2rtc 1.9: `null` while nobody watches
+            n_consumers = len([c for c in consumers if c]) if isinstance(consumers, list) else 0
             sources = [p.get("url", "") for p in producers if isinstance(p, dict)]
-            online = any(p.get("medias") or p.get("receivers") for p in producers if isinstance(p, dict))
-            out[name] = StreamInfo(name=name, sources=sources, online=online, video_codec=producer_video_codec(producers))
+            # GO2RTC-STREAM-SYNC-2436: a connected producer (any of its connection keys) or a consumer attached
+            online = any(producer_connected(p) for p in producers) or n_consumers > 0
+            out[name] = StreamInfo(name=name, sources=sources, online=online, video_codec=producer_video_codec(producers), consumers=n_consumers)
         return out
 
     def probe_video_codec(self, name: str, timeout_s: float = 12.0) -> tuple[bool, str | None]:
@@ -254,7 +410,7 @@ class Go2rtc:
         if not name.startswith(STREAM_PREFIX) or name.startswith(HA_STREAM_PREFIX) or not NAME_RE.match(name):
             raise ValueError("refusing to probe a stream outside the smplwise_ namespace")
         try:
-            with httpx.Client(base_url=self.base, auth=self.auth, timeout=timeout_s, verify=_verify()) as c:
+            with httpx.Client(base_url=self.base, auth=self.auth, timeout=timeout_s, verify=_verify(), event_hooks=_REACH_HOOKS) as c:
                 r = c.get("/api/streams", params={"src": name, "video": "all"})
         except httpx.HTTPError as exc:
             raise self._wrap(exc, "probe") from exc
@@ -280,7 +436,7 @@ class Go2rtc:
         if check is not None:
             check(streams)
         existing = streams.get(name)
-        if existing and existing.sources == [src]:
+        if stream_up_to_date(name, existing, src):  # GO2RTC-STREAM-SYNC-2436: go2rtc 1.9.15 shows sources without credentials
             return "unchanged"
         with self._client() as c:
             try:
@@ -290,7 +446,9 @@ class Go2rtc:
             except httpx.HTTPError as exc:
                 raise self._wrap(exc, "put") from exc
         if r.status_code not in (200, 201, 204):
+            _note_written(name, None)
             raise ApiError(503, "media_error", "go2rtc סירב ליצור את הזרם.", details={"status": r.status_code, "stream": name})
+        _note_written(name, src)
         log.info("go2rtc stream %s %s (%s)", name, "updated" if existing else "created", redact_source(name, src))
         return "updated" if existing else "created"
 
@@ -300,6 +458,7 @@ class Go2rtc:
         stream that may still hold a private source. The other callers keep the lenient behaviour (only a transport failure raises)."""
         if not name.startswith(STREAM_PREFIX):
             raise ValueError("refusing to delete a stream outside the smplwise_ namespace")
+        _note_written(name, None)
         with self._client() as c:
             try:
                 response = c.delete("/api/streams", params={"src": name})
@@ -313,7 +472,7 @@ class Go2rtc:
         body = bytearray()
         too_large = False
         try:
-            with httpx.Client(base_url=self.base, auth=self.auth, timeout=20.0, verify=_verify()) as c:
+            with httpx.Client(base_url=self.base, auth=self.auth, timeout=20.0, verify=_verify(), event_hooks=_REACH_HOOKS) as c:
                 with c.stream("GET", "/api/frame.jpeg", params=params) as r:
                     status = r.status_code
                     if status == 200:

@@ -1,0 +1,160 @@
+﻿node.exe : [WebServer] (node:26548) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+At line:1 char:1
++ & "C:\Users\jon\AppData\Roaming\fnm\node-versions\v24.21.0\installati ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([WebServer] (no... env being set.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+
+Running 15 tests using 1 worker
+
+(node:20184) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1/15] [desktop] › tests\home-v3-p2.spec.ts:44:3 › HOME-V3-P2-2431 family and building › the hub lists the family tiles with live lines
+[WebServer] 14:20:09 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:20:09 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[2/15] [desktop] › tests\home-v3-p2.spec.ts:51:3 › HOME-V3-P2-2431 family and building › a switched-off module or a hidden category leaves no tile and no screen
+[WebServer] 14:20:12 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:20:12 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[3/15] [desktop] › tests\home-v3-p2.spec.ts:61:3 › HOME-V3-P2-2431 family and building › who is home: the household, and my own hide switch
+[WebServer] 14:20:14 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:20:14 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[4/15] [desktop] › tests\home-v3-p2.spec.ts:71:3 › HOME-V3-P2-2431 family and building › calendar: the day, a new event from the sheet
+[WebServer] 14:20:16 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:20:16 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[5/15] [desktop] › tests\home-v3-p2.spec.ts:88:3 › HOME-V3-P2-2431 family and building › shared rooms: book a room, cancel my booking with a confirmation
+[WebServer] 14:20:19 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:20:19 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[6/15] [desktop] › tests\home-v3-p2.spec.ts:99:3 › HOME-V3-P2-2431 family and building › notice board: buses line, open a notice and mark it read; a long notice scrolls only inside its sheet
+[WebServer] 14:20:21 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:20:22 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[7/15] [desktop] › tests\home-v3-p2.spec.ts:112:3 › HOME-V3-P2-2431 family and building › service requests: only mine, a new ticket from the sheet, a note
+[WebServer] 14:20:24 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:20:24 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[8/15] [desktop] › tests\home-v3-p2.spec.ts:131:3 › HOME-V3-P2-2431 family and building › weather: now, hours and days; the strip opens it
+[WebServer] 14:20:27 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:20:27 [vite] ws proxy error:
+
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 14:20:28 [vite] ws proxy error:
+
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 14:20:28 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[9/15] [desktop] › tests\home-v3-p2.spec.ts:141:3 › HOME-V3-P2-2431 family and building › my notifications: switch a kind off, "do not disturb" and its hours
+
+[WebServer] 14:20:30 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 14:20:30 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[10/15] [desktop] › tests\home-v3-p2.spec.ts:151:3 › HOME-V3-P2-2431 family and building › schedules: pause one, run one, a new scene schedule
+[WebServer] 14:20:32 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:20:32 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[11/15] [desktop] › tests\home-v3-p2.spec.ts:168:3 › HOME-V3-P2-2431 family and building › a new scene from the current state, from the scenes screen
+[WebServer] 14:20:35 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:20:35 [vite] ws proxy error:
+
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[12/15] [desktop] › tests\home-v3-p2.spec.ts:179:3 › HOME-V3-P2-2431 family and building › a wall panel locked to its room shows the notice board and the calendar, without creating
+[WebServer] 14:20:37 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:20:37 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[13/15] [desktop] › tests\home-v3-p2.spec.ts:191:5 › HOME-V3-P2-2431 family and building › no scrolling at desktop 1280x800 on every family screen (worst case)
+[WebServer] 14:20:39 [vite] ws proxy error:
+
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 14:20:39 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[14/15] [desktop] › tests\home-v3-p2.spec.ts:191:5 › HOME-V3-P2-2431 family and building › no scrolling at tablet 1024x768 on every family screen (worst case)
+[WebServer] 14:20:41 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[WebServer] 14:20:42 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+
+[15/15] [desktop] › tests\home-v3-p2.spec.ts:191:5 › HOME-V3-P2-2431 family and building › no scrolling at phone 390x844 on every family screen (worst case)
+
+[WebServer] 14:20:45 [vite] ws proxy error:
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+[WebServer] 14:20:45 [vite] ws proxy error:
+
+[WebServer] Error: connect ECONNREFUSED 127.0.0.1:8099
+[WebServer]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2021:16)
+  15 passed (44.1s)

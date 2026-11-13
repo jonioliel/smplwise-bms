@@ -3,9 +3,11 @@ import { customElement, property, state, query } from 'lit/decorators.js';
 import './sw-icon';
 import { liveWsUrl, relayWsUrl, type Transport } from '../api/media';
 import { can, cap, isApi } from '../api/session';
+import { frameSaysDown, isDownState, videoService, VIDEO_SERVICE_DOWN_HE, VIDEO_SERVICE_HINT_ADMIN, VIDEO_SERVICE_HINT_OTHER } from '../api/video-service';
 import { productSettings } from '../api/prefs';
 import { LIVE_ICE_SERVERS } from '../api/video-conn-test';
 import { badgeLabel, decodeLadder, FREEZE_FALLBACK_AFTER, FREEZE_POLL_MS, freezeFallback, freezeStep, lanLadder, mainFirst, mseFirst, noteSubDown, noteWebrtcUnreachable, orderLadder, rememberStep, rememberedStep, retryIndex, sameStep, subDown, subFallbackStep, undecodableMessage, webrtcUnreachable, type FreezeMark, type Profile, type StepTransport, type SubFallbackReason, type VideoStep } from '../api/video-policy';
+import { frameSaysReplaced, replacedCloseCode } from '../api/socket-replaced';
 import { H265_ALTERNATE_HE, H265_REFUSAL_CLOSE, H265_UNSUPPORTED_HE, h265Param, h265Reaction, h265Support, normalizePolicy, orderForH265, parseServed, servedTag, streamCodec, transcodeCapHe, type H265Policy, type H265Refusal, type ServedStream } from '../api/h265-support';
 import type { CameraEncoding } from '../api/types';
 
@@ -69,7 +71,7 @@ const DECODE_GRACE_MIN_MS = 6000;
 const DECODE_GRACE_MAX_MS = 20000;
 /** The relay's media server is down (error `upstream_unavailable`, close 4503): no step of a plan can help. WARMUP-POLISH-2421: the
  * same plain words on every tile (a LAN tile used to show the internal component's name). */
-export const VIDEO_SERVER_DOWN = 'שרת הווידאו אינו זמין';
+export const VIDEO_SERVER_DOWN = VIDEO_SERVICE_DOWN_HE; // HEALTH-GO2RTC-2430: one message for "the video service is down" everywhere
 /** WARMUP-POLISH-2421: the socket to the video relay has not opened in this bound - the server does not answer (no media server, a
  * proxy holding the upgrade): the tile says so, keeps its snapshot, offers a retry and retries by itself as after any failure. */
 export const SOCKET_OPEN_MS = 10000;
@@ -212,6 +214,14 @@ export class SwLivePlayer extends LitElement {
   private capTimer: number | undefined;
   /** WARMUP-POLISH-2421: the error is one a viewer can retry by hand (the server did not answer): the tile shows "נסה שוב" */
   @state() private offerRetry = false;
+  /** HEALTH-GO2RTC-2430: the video service itself is down - one message, no own retry timer; the shared watch (api/video-service)
+   * re-checks on a backoff to 60 s and this tile reconnects when it reports the recovery */
+  @state() private serviceDown = false;
+  private unsubService: (() => void) | undefined;
+  /** HEALTH-GO2RTC-2430: the current socket delivered a frame (text or media) - a close without one is checked against the server */
+  private gotFrame = false;
+  /** GO2RTC-STREAM-SYNC-2436: this socket's server said `{"type":"replaced"}` - its close (1000 through HA ingress) is the 4410. */
+  private replacedSaid = false;
   private generation = 0;
   private triedWebrtc = false;
   private pendingMime = '';
@@ -848,6 +858,11 @@ export class SwLivePlayer extends LitElement {
       this.fail('וידאו חי אינו זמין', false);
       return;
     }
+    // HEALTH-GO2RTC-2430: the tab already knows the video service is down - say so and wait for the recovery, no socket
+    if (videoService.down) {
+      this.videoServiceDown(false);
+      return;
+    }
     if (this.laddered && !this.currentStep) {
       this.planExhausted();
       return;
@@ -857,6 +872,9 @@ export class SwLivePlayer extends LitElement {
     this.status = 'connecting';
     this.error = '';
     this.offerRetry = false;
+    this.serviceDown = false;
+    this.gotFrame = false;
+    this.replacedSaid = false;
     this.capped = false;
     this.transport = '';
     this.served = null;
@@ -894,38 +912,56 @@ export class SwLivePlayer extends LitElement {
     };
     ws.onmessage = (ev) => {
       if (gen !== this.generation) return;
+      this.gotFrame = true;
       if (typeof ev.data === 'string') this.onSignal(ev.data);
       else this.onFragment(ev.data as ArrayBuffer);
     };
     ws.onerror = () => {
       /* `close` always follows and carries the code; deciding there keeps the auto fallback in one place */
     };
-    ws.onclose = (ev) => {
+    ws.onclose = (raw) => {
       if (gen !== this.generation) return;
       if (this.status === 'error') return;
-      if (H265_REFUSAL_CLOSE[ev.code] && this.cameraId && !this.wsUrl) {
-        this.h265Refused(H265_REFUSAL_CLOSE[ev.code]); // the close without its message (a proxy dropped it): the same reaction
+      // GO2RTC-STREAM-SYNC-2436 (lab 12.11): HA ingress turns the relay's 4410 into a plain 1000; the frame before it keeps the meaning
+      const ev: { code: number } = { code: replacedCloseCode(this.replacedSaid, raw.code) };
+      // HEALTH-GO2RTC-2430 (lab 11.11): HA ingress delivers the relay's 4503 as a plain close 1000. A socket that closes before any
+      // frame, or with a bare 4503, asks the server whether the video service is down before deciding (a failed check: as before)
+      if (!this.gotFrame && (ev.code === 4503 || (ev.code < 4000 && this.status === 'connecting'))) {
+        void videoService.check().then((s) => {
+          if (gen !== this.generation || this.status === 'error') return;
+          if (isDownState(s)) this.videoServiceDown(false);
+          else this.closed(ev);
+        });
         return;
       }
-      if (ev.code === 4429 && this.laddered) {
-        this.capRefused(); // the close without its message (a proxy dropped it): still a cap, still no ladder and no retry
-        return;
-      }
-      // go2rtc drops the socket when its WebRTC consumer dies: in auto mode that is a transport failure, not the end.
-      if ((this.mode === 'auto' || this.laddered || this.hasChainStep()) && this.transport === 'webrtc' && this.status !== 'playing' && ev.code < 4000) {
-        this.webrtcFailed('WebRTC נכשל');
-        return;
-      }
-      if (!this.retry && this.status === 'playing' && ev.code < 4000) {
-        // Playback reached the end of the requested range (or the session was superseded): show it as such.
-        this.teardown();
-        this.status = 'ended';
-        this.dispatchEvent(new CustomEvent('player-status', { detail: { status: 'ended', code: ev.code }, bubbles: true, composed: true }));
-        return;
-      }
-      const reason = ev.code === 4403 ? 'אין הרשאת צפייה' : ev.code === 4429 ? 'הגיע למכסת הזרמים' : ev.code === 4503 ? VIDEO_SERVER_DOWN : ev.code === 4401 ? 'נדרשת הזדהות' : ev.code === 4404 ? 'סשן הניגון פג' : ev.code === 4410 ? 'הסשן הוחלף' : this.status === 'playing' ? 'החיבור נותק' : 'החיבור נסגר';
-      this.fail(reason, this.retry && ev.code !== 4401 && ev.code !== 4403 && ev.code !== 4404 && ev.code !== 4410, ev.code); // a quota hit retries later; a denial does not
+      this.closed(ev);
     };
+  }
+
+  /** The socket closed and the video service is not known to be down: the transport ladder, the end of a recording, or the error. */
+  private closed(ev: { code: number }) {
+    if (H265_REFUSAL_CLOSE[ev.code] && this.cameraId && !this.wsUrl) {
+      this.h265Refused(H265_REFUSAL_CLOSE[ev.code]); // the close without its message (a proxy dropped it): the same reaction
+      return;
+    }
+    if (ev.code === 4429 && this.laddered) {
+      this.capRefused(); // the close without its message (a proxy dropped it): still a cap, still no ladder and no retry
+      return;
+    }
+    // go2rtc drops the socket when its WebRTC consumer dies: in auto mode that is a transport failure, not the end.
+    if ((this.mode === 'auto' || this.laddered || this.hasChainStep()) && this.transport === 'webrtc' && this.status !== 'playing' && ev.code < 4000) {
+      this.webrtcFailed('WebRTC נכשל');
+      return;
+    }
+    if (!this.retry && this.status === 'playing' && ev.code < 4000) {
+      // Playback reached the end of the requested range (or the session was superseded): show it as such.
+      this.teardown();
+      this.status = 'ended';
+      this.dispatchEvent(new CustomEvent('player-status', { detail: { status: 'ended', code: ev.code }, bubbles: true, composed: true }));
+      return;
+    }
+    const reason = ev.code === 4403 ? 'אין הרשאת צפייה' : ev.code === 4429 ? 'הגיע למכסת הזרמים' : ev.code === 4503 ? VIDEO_SERVER_DOWN : ev.code === 4401 ? 'נדרשת הזדהות' : ev.code === 4404 ? 'סשן הניגון פג' : ev.code === 4410 ? 'הסשן הוחלף' : this.status === 'playing' ? 'החיבור נותק' : 'החיבור נסגר';
+    this.fail(reason, this.retry && ev.code !== 4401 && ev.code !== 4403 && ev.code !== 4404 && ev.code !== 4410, ev.code); // a quota hit retries later; a denial does not
   }
 
   disconnect() {
@@ -935,6 +971,34 @@ export class SwLivePlayer extends LitElement {
     this.attempts = 0;
     this.status = 'idle';
     this.transport = '';
+    this.serviceDown = false;
+    this.unsubService?.();
+    this.unsubService = undefined;
+  }
+
+  /** HEALTH-GO2RTC-2430: the video service is down (the relay's error frame, a checked close, or the tab already knew): one plain
+   * message (administrators also see where to look), the snapshot stays, no retry timer of this tile - it waits for the shared watch
+   * to report the recovery and then reconnects by itself (a recording tile, `retry` off, offers "נסה שוב" instead). */
+  private videoServiceDown(mark = true) {
+    this.teardown();
+    window.clearTimeout(this.retryTimer);
+    this.status = 'error';
+    this.error = VIDEO_SERVICE_DOWN_HE;
+    this.serviceDown = true;
+    this.offerRetry = true;
+    this.capped = false;
+    this.dispatchEvent(new CustomEvent('player-status', { detail: { status: 'error', error: this.error, code: 'video_service_down' }, bubbles: true, composed: true }));
+    if (mark) videoService.markDown();
+    if (this.unsubService) return;
+    this.unsubService = videoService.subscribe((down) => {
+      if (down || !this.serviceDown) return;
+      this.unsubService?.();
+      this.unsubService = undefined;
+      if (this.active && this.isConnected && this.retry) {
+        this.attempts = 0;
+        this.reconnect();
+      }
+    });
   }
 
   /** Close socket, peer connection and media source without touching the visible status. */
@@ -1048,6 +1112,13 @@ export class SwLivePlayer extends LitElement {
   /** WARMUP-POLISH-2421: the viewer's own "נסה שוב" - a fresh attempt now (the automatic retry's backoff starts over). */
   private retryNow = () => {
     this.attempts = 0;
+    if (this.serviceDown && videoService.down) {
+      // HEALTH-GO2RTC-2430: ask the server first - a reconnect while it is down would only show the same message again
+      void videoService.check().then((s) => {
+        if (!isDownState(s) && this.serviceDown) this.reconnect();
+      });
+      return;
+    }
     this.reconnect();
   };
 
@@ -1409,7 +1480,7 @@ export class SwLivePlayer extends LitElement {
   }
 
   private onSignal(text: string) {
-    let msg: { type?: string; value?: string; max?: number; message?: string };
+    let msg: { type?: string; value?: string; max?: number; message?: string; media?: string };
     try {
       msg = JSON.parse(text);
     } catch {
@@ -1418,10 +1489,19 @@ export class SwLivePlayer extends LitElement {
     // VIDEO-TRANSPORT-2400 (lab audit finding 8): a stream error is never silent - its code reaches the console here and the
     // `player-status` event below; the server logs go2rtc's own text (sanitized) with the session
     if (msg.type === 'error') console.warn('sw-live-player: stream error', msg.value ?? '', this.transport || '-', this.status);
+    // HEALTH-GO2RTC-2430: the relay says the video service itself is down (routers/media.refuse_media) - no transport step can help
+    if (frameSaysDown(msg)) {
+      this.videoServiceDown();
+      return;
+    }
     // VIDEO-SUB-FALLBACK-2402: go2rtc refused this stream (not the cap, not a denial, not the video server being down)
     if (msg.type === 'error' && !['remote_live_cap', 'access_lost', 'upstream_unavailable', 'h265_unsupported', 'transcode_cap'].includes(msg.value ?? '')) this.failKind = 'sub_error';
     if (msg.type === 'error' && msg.value === 'remote_live_cap') {
       this.capRefused(msg.max);
+      return;
+    }
+    if (frameSaysReplaced(msg)) {
+      this.replacedSaid = true; // the close that follows is a 4410, whatever code reaches the browser
       return;
     }
     if (msg.type === 'arx/stream') {
@@ -1625,7 +1705,7 @@ export class SwLivePlayer extends LitElement {
       ${this.stillNotice ? nothing : this.status === 'error' && this.capped
         ? html`<div class="center" data-live-cap><div><sw-icon name="lock" size=${this.compact ? 16 : 22}></sw-icon><span data-player-error>${this.error}</span><span class="hint" data-live-cap-hint>${can('system.configure') ? LIVE_CAP_HINT_ADMIN : LIVE_CAP_HINT_OTHER}</span></div></div>`
         : this.status === 'error'
-          ? html`<div class="center"><div><sw-icon name="offline" size=${22}></sw-icon><span data-player-error>${this.error}</span>${this.offerRetry && !this.compact ? html`<button class="again" data-player-retry @click=${this.retryNow}>נסה שוב</button>` : nothing}</div></div>`
+          ? html`<div class="center"><div><sw-icon name="offline" size=${22}></sw-icon><span data-player-error>${this.error}</span>${this.serviceDown && !this.compact ? html`<span class="hint" data-video-service-hint>${can('system.configure') ? VIDEO_SERVICE_HINT_ADMIN : VIDEO_SERVICE_HINT_OTHER}</span>` : nothing}${this.offerRetry && !this.compact ? html`<button class="again" data-player-retry @click=${this.retryNow}>נסה שוב</button>` : nothing}</div></div>`
           : nothing}
       ${this.status === 'ended' ? html`<div class="center"><div><sw-icon name="history" size=${22}></sw-icon><span>הקטע הסתיים</span></div></div>` : nothing}
       ${this.status === 'idle' && !this.poster ? html`<div class="center"><div><sw-icon name="camera" size=${22}></sw-icon><span>לא מחובר</span></div></div>` : nothing}

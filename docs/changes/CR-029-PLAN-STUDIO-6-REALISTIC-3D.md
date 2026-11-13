@@ -45,6 +45,11 @@ So, concretely, realistic = **quality level 3** of the existing `sw-plan-3d` vie
    passages, climbs stairs between levels, and can be started from any door, room, camera or saved position.
 6. **The default stays schematic** (acceptance R178): level 3 and the walk are opt-in per browser, with the automatic
    fallback ladder of §3.4 so no device is ever stuck on a slide show.
+   *Amended 2026-11-11 (owner decision, PLAN3D-POLISH-2430):* the `auto` mode (the installation's shipped `plan.quality`)
+   starts at **realistic lite** on a device whose GPU reads as capable (`quality-ladder.gpuClass`: a known able family,
+   WebGL 2, textures of 4096 px or more, at least 4 cores / 4 GB where the browser says); a weak or unknown GPU keeps the start
+   of before (full, or the installation's level). The frame-budget probe still steps any `auto` start down one rung at a
+   time, a rung the person chose is never lowered, and with no setting at all (the static demo) the view stays schematic.
 
 Out of scope (recorded): photoreal furniture models for all 154 catalog items (the catalog stays procedural, §6.3 proposes
 a CC0 model set for the twenty most visible items as an owner option), AI renders (paused by the owner, CR-006), DWG / IFC

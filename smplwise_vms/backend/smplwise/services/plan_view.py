@@ -35,18 +35,28 @@ CHOICES: dict[str, tuple[Any, ...]] = {
     "mouse_mode": ("drag", "lock", "auto"),      # walk mouse look: drag, pointer lock, or lock where the frame allows it
     "quality": ("auto", "realistic", "lite", "full", "schematic"),  # the fallback ladder (auto) or one fixed rung
     "kiosk_idle_s": (0, 10, 30, 120, 600),       # seconds of no change before the kiosk swaps to the still; 0 = never
+    # PLAN3D-REALISM2-2433: what stands behind the model in the realistic orbit views - the sun's sky, or the dark studio
+    # gradient (no horizon). A JSON dial like the others: no migration (plan.view is one settings value, the override one row)
+    "backdrop": ("sky", "studio"),
+    # PLAN3D-REALISM2-2433 (owner 2026-11-11): what the living floors are made of at the realistic level (frontend map/floor-finish.ts):
+    # the library oak, or the generated marble / luxury ceramic. A content dial: per installation (the home's floors), marble at install
+    "floor_finish": ("wood", "marble", "ceramic"),
 }
-FLAGS = ("section_cut", "show_temps", "motion", "walk_guard")  # walk_guard: the walk drops a rung under 24 fps (a session flag)
+# walk_guard: the walk drops a rung under 24 fps (a session flag); floor_reflections (PLAN3D-LEVEL3-2435): the realistic rung's
+# screen-space reflections on the polished floors - a display / performance choice, so a person may turn it off for themselves
+FLAGS = ("section_cut", "show_temps", "motion", "walk_guard", "floor_reflections")
 RANGES: dict[str, tuple[float, float, float]] = {"eye_m": (1.2, 2.0, 0.05), "dpr_cap": (1.0, 2.0, 0.25)}
 DEFAULT: dict[str, Any] = {
     "style": "auto", "default_view": "schematic", "furniture": "models", "textures": "files", "wall_display": "live",
     "time_source": "clock", "mouse_mode": "drag", "quality": "auto", "kiosk_idle_s": 30, "eye_m": 1.65, "dpr_cap": 1.25,
-    "section_cut": True, "show_temps": False, "motion": True, "walk_guard": True,
+    "section_cut": True, "show_temps": False, "motion": True, "walk_guard": True, "backdrop": "sky",
+    "floor_finish": "marble", "floor_reflections": True,
 }
 # the installation never makes realistic the default for everyone (owner Q11 א): default_view stays a person's choice
 SITE_DIALS: tuple[str, ...] = tuple(k for k in DEFAULT if k != "default_view")
-# what a person may set for themselves; the content (furniture, textures) and the display dials stay per installation
-USER_DIALS: tuple[str, ...] = ("style", "default_view", "time_source", "mouse_mode", "quality", "eye_m", "dpr_cap", "section_cut", "show_temps", "motion", "walk_guard")
+# what a person may set for themselves; the content (furniture, textures, floor_finish) and the display dials stay per installation
+USER_DIALS: tuple[str, ...] = ("style", "default_view", "time_source", "mouse_mode", "quality", "eye_m", "dpr_cap", "section_cut", "show_temps", "motion", "walk_guard",
+                               "backdrop", "floor_reflections")
 
 
 def _dial(key: str, value: Any) -> Any:

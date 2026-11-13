@@ -139,7 +139,7 @@ export class SwRoomCard extends LitElement {
       inset-inline: 0;
       inset-block-end: 0;
       block-size: 47%;
-      border-radius: 20px 20px 0 0;
+      border-radius: var(--sw-r-2xl) var(--sw-r-2xl) 0 0;
       border-inline: 0;
       border-block-end: 0;
       padding-block-end: env(safe-area-inset-bottom);
@@ -353,7 +353,7 @@ export class SwRoomCard extends LitElement {
       aspect-ratio: 16 / 9;
       border-radius: var(--sw-r-md);
       overflow: hidden;
-      background: #0f1729;
+      background: var(--sw-video-bg);
       direction: ltr;
       flex: none;
       border: 0;
@@ -376,8 +376,8 @@ export class SwRoomCard extends LitElement {
       display: flex;
       gap: 8px;
       padding: 18px 10px 7px;
-      background: linear-gradient(transparent, #000000a0);
-      color: #fff;
+      background: linear-gradient(transparent, var(--sw-video-scrim));
+      color: var(--sw-on-video);
       font-size: var(--sw-fs-xs);
       font-weight: 600;
       text-align: start;
@@ -392,7 +392,7 @@ export class SwRoomCard extends LitElement {
       inset: 0;
       display: grid;
       place-items: center;
-      color: #cbd5e1;
+      color: var(--sw-on-video-2);
       direction: rtl;
       font-size: var(--sw-fs-xs);
     }

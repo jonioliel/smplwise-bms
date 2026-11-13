@@ -18,7 +18,7 @@
  * Rounded to 0.1 mm like every part; sorted by id.
  */
 import type { GeomLevel, GeomOpening, GeomWall, GeometryDoc, Primitive, DoorPrim, WindowPrim } from './geometry';
-import { resolveMaterials, type CatalogMaterialLookup, type ResolvedMaterials } from './material-resolve';
+import { canonicalMaterial, resolveMaterials, roomFloorByTags, type CatalogMaterialLookup, type ResolvedMaterials } from './material-resolve';
 import { MODEL_MAP } from './plan3d-assets';
 import { daylightFactor } from './look-style';
 import type { ScenePart, SceneInput, Vec3 } from './scene-builder';
@@ -49,6 +49,9 @@ export interface RealFloor {
   y: number;
   polygon: [number, number][];
   material: string;
+  /** PLAN3D-REALISM2-2433: the floor takes the installation's floor finish (floor-finish.ts) - the document sets no floor
+   * for the room or its level and the room is a dry living room or untagged. Absent: `material` as resolved. */
+  finish?: true;
 }
 /** R3 G4: a room's ceiling plate (CR-029 section 5.2 `ceiling`, default true): the walk sees a ceiling, not the sky;
  * the orbit views cut it away with the section plane. */
@@ -157,6 +160,15 @@ const WIN_FRAME = 0.06;
 const SILL_T = 0.03;
 const HANDLE_Y = 1.02;
 const SHUTTER_BOX = 0.22;
+
+/** PLAN3D-REALISM2-2433: does a room floor take the installation's floor finish (floor-finish.ts)? Not when the document sets
+ * the floor (the room's or its level's own material) or the room's tags pick a special floor (wet room, parking, garden,
+ * office, sports); the residential oak and the untagged rooms (the level's bare concrete) take it. */
+export function takesFinish(room: GeometryDoc['rooms'][number] | undefined, level: GeomLevel | undefined): boolean {
+  if (canonicalMaterial(room?.floor_material_id) || canonicalMaterial(level?.floor_material_id)) return false;
+  const byTags = roomFloorByTags(room?.tags);
+  return byTags === null || byTags === 'oak';
+}
 
 /** Builds the realistic part (module note). */
 export function buildReal(ctx: RealContext, catalog: CatalogMaterialLookup): RealWorld {
@@ -288,9 +300,11 @@ export function buildReal(ctx: RealContext, catalog: CatalogMaterialLookup): Rea
     const lv = ctx.level(z.level_id);
     const poly = z.polygon.map((q): [number, number] => [r4(ctx.m(q.x * input.width)), r4(ctx.m(q.y * input.height))]);
     const room = resolved.rooms[z.id];
-    out.floors.push({ id: `rfloor:${z.id}`, zone: z.id, level_id: lv.id, y: r4(lv.elevation_m), polygon: poly, material: room?.floor ?? levelFloor(lv.id) });
-    // R3 G4: the ceiling at the room's own height (else the level's), unless the document says the room has none
     const docRoom = doc.rooms.find((r) => r.id === z.id);
+    const floor: RealFloor = { id: `rfloor:${z.id}`, zone: z.id, level_id: lv.id, y: r4(lv.elevation_m), polygon: poly, material: room?.floor ?? levelFloor(lv.id) };
+    if (takesFinish(docRoom, doc.levels.find((l) => l.id === lv.id))) floor.finish = true;
+    out.floors.push(floor);
+    // R3 G4: the ceiling at the room's own height (else the level's), unless the document says the room has none
     const ceilH = typeof docRoom?.ceiling_height_m === 'number' && docRoom.ceiling_height_m > 0 ? docRoom.ceiling_height_m : lv.ceiling_height_m;
     if (room?.has_ceiling !== false) out.ceilings!.push({ id: `rceil:${z.id}`, zone: z.id, level_id: lv.id, y: r4(lv.elevation_m + ceilH), polygon: poly, material: room?.ceiling ?? resolved.levels[lv.id]?.ceiling ?? 'plaster_ceiling' });
     let glass = 0;
@@ -508,22 +522,33 @@ export function furnitureFamily(item: string, p: ScenePart, mat: string, add: Ad
     return false;
   }
   if (item.startsWith('sofa.') || item === 'armchair') {
-    const legH = 0.08;
-    const baseTop = legH + 0.34;
-    const back = 0.2;
+    // PLAN3D-LEVEL3-2435: a softer silhouette at the same part count plus two scatter cushions on a sofa - the frame sits back
+    // from the seat front (a shadow line under the cushions), rolled arms a little above the seat, plump seat and back
+    // cushions with real gaps; all parts stay merged per material (FURNMERGE)
+    const legH = 0.1;
+    const frameH = 0.26;
+    const baseTop = legH + frameH;
+    const back = 0.18;
     const arm = Math.min(0.2, W * 0.12);
-    box('base', 0, y0 + legH + 0.17, 0, W, 0.34, D, mat, 0.04);
-    box('back', 0, y0 + baseTop + (H - baseTop) / 2, -D / 2 + back / 2, W, H - baseTop, back, mat, 0.05);
-    box('arm0', -W / 2 + arm / 2, y0 + baseTop + 0.1, back / 2, arm, 0.2, D - back, mat, 0.05);
-    box('arm1', W / 2 - arm / 2, y0 + baseTop + 0.1, back / 2, arm, 0.2, D - back, mat, 0.05);
+    const seatH = 0.15;
+    box('base', 0, y0 + legH + frameH / 2, -0.02, W - 0.02, frameH, D - 0.04, mat, 0.05);
+    box('back', 0, y0 + baseTop + (H - baseTop) / 2, -D / 2 + back / 2, W, H - baseTop, back, mat, 0.07);
+    const armH = seatH + 0.2;
+    box('arm0', -W / 2 + arm / 2, y0 + baseTop + armH / 2 - 0.02, back / 2 - 0.01, arm, armH, D - back + 0.02, mat, Math.min(0.09, arm / 2.3));
+    box('arm1', W / 2 - arm / 2, y0 + baseTop + armH / 2 - 0.02, back / 2 - 0.01, arm, armH, D - back + 0.02, mat, Math.min(0.09, arm / 2.3));
     const seatW = W - 2 * arm;
     const n = W > 1.9 ? 3 : Math.max(1, Math.round(seatW / 0.6));
+    const backH = (H - baseTop - seatH) * 0.92;
     for (let i = 0; i < n; i++) {
       const sx = -seatW / 2 + ((i + 0.5) * seatW) / n;
-      box(`cushion${i}`, sx, y0 + baseTop + 0.06, back / 2, seatW / n - 0.02, 0.12, D - back - 0.02, mat, 0.05);
-      box(`backcushion${i}`, sx, y0 + baseTop + 0.12 + (H - baseTop - 0.12) * 0.45, -D / 2 + back + 0.06, seatW / n - 0.02, (H - baseTop) * 0.7, 0.12, mat, 0.05);
+      box(`cushion${i}`, sx, y0 + baseTop + seatH / 2, back / 2 + 0.02, seatW / n - 0.025, seatH, D - back, mat, 0.065);
+      box(`backcushion${i}`, sx, y0 + baseTop + seatH + backH / 2 - 0.02, -D / 2 + back + 0.08, seatW / n - 0.025, backH, 0.16, mat, 0.07);
     }
-    legs4(legH, 0.02, 'wood_dark', 0.06);
+    if (W > 1.3) {
+      // the scatter cushions lean in the two corners against the back cushions
+      for (const s of [-1, 1]) box(`pillow${s < 0 ? 'a' : 'b'}`, s * (seatW / 2 - 0.24), y0 + baseTop + seatH + 0.19, -D / 2 + back + 0.24, 0.4, 0.38, 0.13, 'linen', 0.06);
+    }
+    legs4(legH, 0.022, 'wood_dark', 0.07);
     return true;
   }
   if (item.startsWith('chair.') || item === 'seat.auditorium') {
@@ -537,6 +562,16 @@ export function furnitureFamily(item: string, p: ScenePart, mat: string, add: Ad
   if (item.startsWith('table.') || item === 'desk.standing') {
     const top = 0.035;
     box('top', 0, y0 + H - top / 2, 0, W, top, D, mat, 0.012);
+    // PLAN3D-LEVEL3-2435: an apron under the top of a dining / meeting table (a real table's silhouette, not a plate on four
+    // posts); side tables and desks stay as they were
+    if ((item === 'table.dining' || item === 'table.meeting' || item === 'table.picnic') && W > 0.6 && D > 0.5) {
+      const ap = 0.08;
+      const inset = 0.09;
+      box('apron0', 0, y0 + H - top - ap / 2, -D / 2 + inset, W - 2 * inset, ap, 0.022, mat, 0.004);
+      box('apron1', 0, y0 + H - top - ap / 2, D / 2 - inset, W - 2 * inset, ap, 0.022, mat, 0.004);
+      box('apron2', -W / 2 + inset, y0 + H - top - ap / 2, 0, 0.022, ap, D - 2 * inset, mat, 0.004);
+      box('apron3', W / 2 - inset, y0 + H - top - ap / 2, 0, 0.022, ap, D - 2 * inset, mat, 0.004);
+    }
     if (item === 'table.desk' || item === 'desk.standing') {
       box('side0', -W / 2 + 0.015, y0 + (H - top) / 2, 0, 0.03, H - top, D * 0.94, mat, 0.006);
       box('side1', W / 2 - 0.015, y0 + (H - top) / 2, 0, 0.03, H - top, D * 0.94, mat, 0.006);
@@ -550,7 +585,10 @@ export function furnitureFamily(item: string, p: ScenePart, mat: string, add: Ad
     box('frame', 0, y0 + legH + frameH / 2, 0, W, frameH, D, mat, 0.012);
     box('mattress', 0, y0 + legH + frameH + 0.1, 0, W * 0.96, 0.2, D * 0.96, 'linen', 0.06);
     box('duvet', 0, y0 + legH + frameH + 0.24, D * 0.18, W * 0.98, 0.08, D * 0.62, 'fabric_grey', 0.03);
-    box('pillow', 0, y0 + legH + frameH + 0.255, -D / 2 + 0.25, Math.min(W * 0.8, 0.7), 0.11, 0.42, 'linen', 0.04);
+    // PLAN3D-LEVEL3-2435: two pillows on a bed wider than 1.2 m, the duvet's turned-down edge
+    if (W > 1.2) for (const s of [-1, 1]) box(`pillow${s < 0 ? 'a' : 'b'}`, s * W * 0.24, y0 + legH + frameH + 0.255, -D / 2 + 0.25, Math.min(W * 0.4, 0.7), 0.12, 0.42, 'linen', 0.05);
+    else box('pillow', 0, y0 + legH + frameH + 0.255, -D / 2 + 0.25, Math.min(W * 0.8, 0.7), 0.11, 0.42, 'linen', 0.04);
+    box('turn', 0, y0 + legH + frameH + 0.285, D * 0.18 - D * 0.31 + 0.06, W * 0.985, 0.03, 0.14, 'linen', 0.012);
     box('headboard', 0, y0 + (legH + frameH + 0.45) / 2, -D / 2 + 0.025, W, legH + frameH + 0.45, 0.05, mat, 0.01);
     legs4(legH, 0.025, 'metal_light', 0.05);
     return true;

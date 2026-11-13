@@ -234,6 +234,41 @@ async def _refuse_choice(websocket: WebSocket, value: str, message: str, code: i
         await websocket.close(code=code)
 
 
+VIDEO_SERVICE_DOWN_HE = "שירות הווידאו לא זמין"
+MEDIA_DOWN_CODES = frozenset({"media_unavailable", "media_not_configured"})
+
+
+def _json_dumps_error(code: str, settings: Settings) -> str:
+    """The relay's upstream-failure frame, with the video service's state so the player can tell "down" from "this stream" (HEALTH-GO2RTC-2430)."""
+    import json as _json
+
+    from ..services import media_reach
+
+    return _json.dumps({"type": "error", "value": code, "media": media_reach.REACH.view(settings)["state"]})
+
+
+async def refuse_media(websocket: WebSocket, settings: Settings, code: str) -> None:
+    """HEALTH-GO2RTC-2430: a live / playback socket that cannot get its stream because the video service is down or not set (or is
+    known unreachable): accepted first and told why in one
+    `{"type":"error","value":<code>,"message":…,"media":<state>}` frame, then closed 4503. Lab 11.11: a close before accept (or a bare
+    4503) reached the browser through HA ingress as a plain close 1000, so the player never knew the video service was down and
+    retried blind. `media` is services/media_reach's state (reachable / unreachable / ...), never an address."""
+    import json as _json
+
+    from ..services import media_reach
+
+    state = media_reach.REACH.view(settings)["state"]
+    with contextlib.suppress(Exception):
+        if code not in MEDIA_DOWN_CODES and state != media_reach.UNREACHABLE:
+            # a stream-level refusal (a recorder read, a station offline): unchanged - the bare 4503 each player already handles
+            await websocket.close(code=4503)
+            return
+        if websocket.client_state.name == "CONNECTING":
+            await websocket.accept()
+        await websocket.send_text(_json.dumps({"type": "error", "value": code, "message": VIDEO_SERVICE_DOWN_HE, "media": state}, ensure_ascii=False))
+        await websocket.close(code=4503)
+
+
 # AZIA-LIVE-2331: device reads that fail for a moment (the NVR's HTTP server busy or slow while many tiles open). A disabled
 # recorder, a missing connection, a refused login or a changed TLS certificate are not here: those still refuse the socket.
 LIVE_SOURCE_TRANSIENT = frozenset({"source_unavailable", "source_timeout", "deadline_exceeded", "nvr_busy", "source_invalid", "source_too_large"})
@@ -272,7 +307,9 @@ def list_streams(request: Request, principal: Principal = Depends(current_princi
     client = g2.Go2rtc(settings_of(request))
     with unlocked(conn):
         streams = client.list_streams()
-    ours = [{"name": s.name, "online": s.online, "sources": [g2.redact_source(s.name, u) for u in s.sources]} for s in streams.values() if s.name.startswith(g2.STREAM_PREFIX)]
+    # GO2RTC-STREAM-SYNC-2436: `online` is "go2rtc pulls it right now"; an on-demand stream nobody watches is `state` "idle" (ready), not down
+    ours = [{"name": s.name, "online": s.online, "state": s.state, "consumers": s.consumers, "sources": [g2.redact_source(s.name, u) for u in s.sources]}
+            for s in streams.values() if s.name.startswith(g2.STREAM_PREFIX)]
     return {"go2rtc": client.info(), "streams": ours, "foreign_streams": len(streams) - len(ours)}
 
 
@@ -498,7 +535,7 @@ async def _live_relay(
         name = await run_in_threadpool(make_stream)
     except ApiError as exc:
         log.warning("live stream for %s %s refused: %s", resource_type, resource_id, exc.code)
-        await websocket.close(code=4503)
+        await refuse_media(websocket, settings, exc.code)
         return
 
     client = g2.Go2rtc(settings)
@@ -561,7 +598,7 @@ async def _live_relay(
         reason = "upstream_failure"
         log.warning("live session %s upstream failure: %s", session.id, type(exc).__name__)
         with contextlib.suppress(Exception):
-            await websocket.send_text('{"type":"error","value":"upstream_unavailable"}')
+            await websocket.send_text(_json_dumps_error("upstream_unavailable", settings))
     finally:
         REGISTRY.sessions.pop(session.id, None)
         with contextlib.suppress(Exception):

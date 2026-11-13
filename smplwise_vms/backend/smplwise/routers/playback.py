@@ -31,7 +31,7 @@ from ..services.access import require_camera
 from ..services.leases import CameraLease
 from ..services.relay import relay_ws
 from ..services.timeutil import UTC, iso_utc, parse_utc
-from .media import _principal_for_ws
+from .media import _json_dumps_error, _principal_for_ws, refuse_media
 from .recordings import camera_for_playback
 from .settings import read_settings
 
@@ -158,6 +158,22 @@ def close_session_beacon(session_id: str, request: Request, principal: Principal
     return {"id": session.id, "state": session.state}
 
 
+# GO2RTC-STREAM-SYNC-2436 (lab 12.11, row 10): HA ingress delivers the 4410 of a replaced generation as a plain close 1000, so the
+# player could not tell "another seek owns the session now" from "the recording ended". The socket now says it in one text frame
+# first - the same pattern as HEALTH-GO2RTC-2430's error frame before 4503 - and still closes 4410 for a direct connection.
+REPLACED_FRAME = '{"type":"replaced","value":"superseded"}'
+
+
+async def close_replaced(websocket: WebSocket) -> None:
+    """Tell a socket of an old generation it was replaced, then close it 4410 (accepted first when it was not yet)."""
+    with contextlib.suppress(Exception):
+        if websocket.client_state.name == "CONNECTING":
+            await websocket.accept()
+        await websocket.send_text(REPLACED_FRAME)
+    with contextlib.suppress(Exception):
+        await websocket.close(code=4410)
+
+
 @router.websocket("/playback/sessions/{session_id}/ws")
 async def playback_ws(websocket: WebSocket, session_id: str, generation: int = Query(0)) -> None:
     settings: Settings = websocket.app.state.settings
@@ -179,10 +195,10 @@ async def playback_ws(websocket: WebSocket, session_id: str, generation: int = Q
         await websocket.close(code=4403)
         return
     if generation != session.generation:
-        await websocket.close(code=4410)  # superseded generation: the client must reconnect with the new one
+        await close_replaced(websocket)  # superseded generation: the client must reconnect with the new one
         return
     if not settings.go2rtc_url:
-        await websocket.close(code=4503)
+        await refuse_media(websocket, settings, "media_not_configured")  # HEALTH-GO2RTC-2430: the reason survives HA ingress
         return
 
     my_gen = generation
@@ -230,7 +246,7 @@ async def playback_ws(websocket: WebSocket, session_id: str, generation: int = Q
         reason = "upstream_failure"
         log.warning("playback session %s upstream failure: %s", session.id, type(exc).__name__)
         with contextlib.suppress(Exception):
-            await websocket.send_text('{"type":"error","value":"upstream_unavailable"}')
+            await websocket.send_text(_json_dumps_error("upstream_unavailable", settings))
     finally:
         if session.generation == my_gen:
             session.ws_open = False
@@ -239,8 +255,11 @@ async def playback_ws(websocket: WebSocket, session_id: str, generation: int = Q
                 session.state = "ended"  # the NVR reached endtime (or the recording stopped)
             elif session.state == "playing":
                 session.state = "paused"
-        with contextlib.suppress(Exception):
-            await websocket.close(code=4403 if reason == "access_lost" else 4410 if reason == "superseded" else 1000)
+        if reason == "superseded":
+            await close_replaced(websocket)
+        else:
+            with contextlib.suppress(Exception):
+                await websocket.close(code=4403 if reason == "access_lost" else 1000)
         # T074: the same shape as the live socket's line (`first media N ms`, scripts/gate/video_timing.py reads both); the time runs
         # from this generation's request (create / seek), not from the socket's open
         gen_ms = session.gen_media_ms if session.generation == my_gen else None

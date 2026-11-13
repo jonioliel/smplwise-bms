@@ -1,0 +1,2 @@
+$ impeccable.cmd detect --json sw-home.ts sw-home-admin.ts home-styles-extra.ts home-styles-v3.ts home-more.ts home-recordings.ts home-diary.ts home-intercom.ts home-alarm.ts home-v3-words.ts more-registry.ts home-ext.ts
+[]
