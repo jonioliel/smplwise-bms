@@ -141,7 +141,7 @@ export class LiveCamera extends LitElement {
       // asking anyway cost every other user two refused requests per camera (0.1.81)
       this.sched = null;
       this.smart = null;
-      this.schedError = 'לוחות הזמנים וחוקי ה־smart של ה־NVR נקראים עם הרשאת ניהול NVR.';
+      this.schedError = 'לוחות הזמנים וחוקי ה־smart של המקליט נקראים עם הרשאת ניהול מקליט.';
       return;
     }
     try {
@@ -185,7 +185,7 @@ export class LiveCamera extends LitElement {
       const rec = e.kind === 'record'
         ? await setRecordSchedule(this.cam.id, { days: e.days, ...(e.schedule_enabled !== null && e.schedule_enabled !== this.sched?.record?.schedule_enabled ? { schedule_enabled: e.schedule_enabled ?? undefined } : {}) })
         : await setArming(this.cam.id, e.kind, e.days);
-      this.schedMsg = rec.status === 'unchanged' ? 'ה־NVR כבר היה במצב הזה — לא נכתב דבר.' : 'הלוח נכתב ל־NVR ונרשם (ניתן להחזרה מרשימת השינויים בהגדרות ‹ חיבורים).';
+      this.schedMsg = rec.status === 'unchanged' ? 'המקליט כבר היה במצב הזה — לא נכתב דבר.' : 'הלוח נכתב למקליט ונרשם (ניתן להחזרה מרשימת השינויים בהגדרות ‹ חיבורים).';
       this.schedEdit = null;
       await this.loadSchedules();
     } catch (err) {
@@ -198,7 +198,7 @@ export class LiveCamera extends LitElement {
   private renderSchedules() {
     const s = this.sched;
     if (this.schedError && !s) return html`<div class="note">${this.schedError}</div>`;
-    if (!s) return html`<div class="note">קורא לוחות מה־NVR…</div>`;
+    if (!s) return html`<div class="note">קורא לוחות מהמקליט…</div>`;
     const kinds: { id: ArmingKind | 'record'; label: string; ok: boolean }[] = [
       { id: 'motion', label: 'זיהוי תנועה', ok: !!s.arming.motion },
       { id: 'line', label: 'חציית קו', ok: !!s.arming.line },
@@ -227,7 +227,7 @@ export class LiveCamera extends LitElement {
       ${days
         ? html`<sw-week-grid data-week-grid .days=${days} .modes=${tab === 'record' ? recordModes : [{ id: 'on', label: 'פעיל', color: 'var(--sw-accent)' }]} ?editable=${!!e}
             @change=${(ev: CustomEvent<{ days: WeekRange[][] }>) => { if (this.schedEdit) this.schedEdit = { ...this.schedEdit, days: ev.detail.days }; }}></sw-week-grid>`
-        : html`<div class="note">הלוח הזה לא נקרא מה־NVR${s.unsupported[tab] ? ` (${s.unsupported[tab]})` : ''}.</div>`}
+        : html`<div class="note">הלוח הזה לא נקרא מהמקליט${s.unsupported[tab] ? ` (${s.unsupported[tab]})` : ''}.</div>`}
       ${tab === 'record' && s.record
         ? html`<div class="note" style="margin-block-start:6px">ברירת מחדל: ${s.record.default_mode ?? '—'} · לפני אירוע ${s.record.pre_record_s ?? '—'} שנ׳ · אחרי ${s.record.post_record_s ?? '—'} שנ׳ · הקלטה ${s.record.enabled ? 'פעילה' : 'כבויה'} · לוח ${s.record.schedule_enabled === false ? 'כבוי (מקליט לפי ברירת המחדל)' : 'פעיל'}
             ${e ? html`<label style="display:inline-flex;gap:4px;align-items:center;margin-inline-start:8px"><input type="checkbox" data-sched-enabled .checked=${e.schedule_enabled !== false} @change=${(ev: Event) => (this.schedEdit = { ...e, schedule_enabled: (ev.target as HTMLInputElement).checked })} /> לוח פעיל</label>` : nothing}</div>`
@@ -236,17 +236,17 @@ export class LiveCamera extends LitElement {
         ? html`<div class="legend" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-block-start:8px" data-sched-editor>
             <span class="note">${tab === 'record' ? 'צבע = מצב הקלטה לשעה זו; תא ריק = אין הקלטה בשעה זו. טעות כאן = שעות בלי הקלטה, לכן יש אישור והחזר.' : 'תא צבוע = הזיהוי פעיל בשעה זו; כיבוי כל היום = בלי התראות מהערוץ בזמן הזה.'}</span>
             <span class="grow"></span>
-            <sw-button variant="primary" size="sm" icon="check" ?disabled=${this.schedBusy || (!this.schedDiff() && (tab !== 'record' || e.schedule_enabled === (s.record?.schedule_enabled ?? null)))} data-sched-save @click=${() => (this.schedConfirm = true)}>שמור ל־NVR</sw-button>
+            <sw-button variant="primary" size="sm" icon="check" ?disabled=${this.schedBusy || (!this.schedDiff() && (tab !== 'record' || e.schedule_enabled === (s.record?.schedule_enabled ?? null)))} data-sched-save @click=${() => (this.schedConfirm = true)}>שמור למקליט</sw-button>
             <sw-button size="sm" variant="ghost" icon="close" ?disabled=${this.schedBusy} data-sched-cancel @click=${() => (this.schedEdit = null)}>ביטול</sw-button>
           </div>`
         : nothing}
       ${this.schedConfirm && e
-        ? html`<sw-dialog open heading=${`כתיבה ל־NVR: ${label}`} subheading=${`${this.cam?.name ?? ''} · ערוץ ${s.channel}`} data-sched-confirm @close=${() => (this.schedConfirm = false)}>
+        ? html`<sw-dialog open heading=${`כתיבה למקליט: ${label}`} subheading=${`${this.cam?.name ?? ''} · ערוץ ${s.channel}`} data-sched-confirm @close=${() => (this.schedConfirm = false)}>
             <div style="font-size:var(--sw-fs-sm);line-height:1.6">
               <div>${e.days.map((d) => d.length).reduce((a, b) => a + b, 0)} טווחים בשבוע${tab === 'record' ? ` · ${e.days.flat().filter((r) => r.mode === 'CMR').length} רציף, ${e.days.flat().filter((r) => r.mode === 'MOTION').length} תנועה, ${e.days.flat().filter((r) => r.mode === 'EDR').length} אירוע` : ''}.</div>
               <div style="margin-block-start:6px;color:var(--sw-text-3)">המסמך לפני ואחרי נשמר, השינוי נרשם באודיט וניתן להחזרה בלחיצה.</div>
             </div>
-            <div slot="footer"><sw-button variant="primary" ?disabled=${this.schedBusy} data-sched-confirm-run @click=${() => this.saveSched()}>${this.schedBusy ? 'כותב…' : 'כתוב ל־NVR'}</sw-button><sw-button variant="ghost" @click=${() => (this.schedConfirm = false)}>ביטול</sw-button></div>
+            <div slot="footer"><sw-button variant="primary" ?disabled=${this.schedBusy} data-sched-confirm-run @click=${() => this.saveSched()}>${this.schedBusy ? 'כותב…' : 'כתוב למקליט'}</sw-button><sw-button variant="ghost" @click=${() => (this.schedConfirm = false)}>ביטול</sw-button></div>
           </sw-dialog>`
         : nothing}
       ${this.schedMsg ? html`<div class="note" data-sched-msg>${this.schedMsg}</div>` : nothing}`;
@@ -296,10 +296,10 @@ export class LiveCamera extends LitElement {
       const st = Object.values(res).map((r) => r.status);
       const refused = Object.values(res).some((r) => r.enable_refused);
       this.smartMsg = st.every((s) => s === 'unchanged')
-        ? 'ה־NVR כבר היה במצב הזה — לא נכתב דבר.'
+        ? 'המקליט כבר היה במצב הזה — לא נכתב דבר.'
         : refused
-          ? 'הצורות והפרמטרים נכתבו ל־NVR ונרשמו, אבל ה־NVR סירב להפעיל את הכלל דרך ה־ISAPI (invalidOperation). בקושחה הזו ההפעלה נעשית בממשק ה־NVR / המצלמה (משאב VCA של המצלמה); אחרי ההפעלה שם התצוגה כאן תתעדכן.'
-          : 'הכללים נכתבו ל־NVR ונרשמו (ניתנים להחזרה). התראות "אדם" / "רכב" מגיעות רק כשהערוץ מודיע ל־Arx (הגדרות ‹ חיבורים ‹ התראות מה־NVR).';
+          ? 'הצורות והפרמטרים נכתבו למקליט ונרשמו, אבל המקליט סירב להפעיל את הכלל דרך ה־ISAPI (invalidOperation). בקושחה הזו ההפעלה נעשית בממשק המקליט / המצלמה (משאב VCA של המצלמה); אחרי ההפעלה שם התצוגה כאן תתעדכן.'
+          : 'הכללים נכתבו למקליט ונרשמו (ניתנים להחזרה). התראות "אדם" / "רכב" מגיעות רק כשהערוץ מודיע ל־Arx (הגדרות ‹ חיבורים ‹ התראות מהמקליט).';
       this.smartEdit = null;
       await Promise.all([this.loadSchedules(), this.loadZones(true)]);
     } catch (err) {
@@ -323,7 +323,7 @@ export class LiveCamera extends LitElement {
     const ed = this.smartEdit!;
     const dir = (d: string) => ({ any: 'שני הכיוונים', 'left-right': 'שמאל → ימין', 'right-left': 'ימין → שמאל' })[d] ?? d;
     return html`<div class="legend" data-smart-editor style="display:grid;gap:8px;margin-block-start:8px">
-      <div class="note">בחר כלל ולחץ על התמונה כדי לצייר: קו = <strong>שתי</strong> לחיצות (התחלה וסוף — לחיצה נוספת מזיזה את הסוף); אזור פריצה = <strong>4 עד 10</strong> לחיצות (נקודה לכל פינה), ואז ישר "שמור ל־NVR" למטה — אין צורך לסגור את הצורה. "אדם" / "רכב" = סינון אזעקות שווא (רק מטרה מסוג זה מפעילה).</div>
+      <div class="note">בחר כלל ולחץ על התמונה כדי לצייר: קו = <strong>שתי</strong> לחיצות (התחלה וסוף — לחיצה נוספת מזיזה את הסוף); אזור פריצה = <strong>4 עד 10</strong> לחיצות (נקודה לכל פינה), ואז ישר "שמור למקליט" למטה — אין צורך לסגור את הצורה. "אדם" / "רכב" = סינון אזעקות שווא (רק מטרה מסוג זה מפעילה).</div>
       ${ed.line ? html`<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-smart-lines>
           <label class="note" style="display:inline-flex;align-items:center;gap:4px"><input type="checkbox" data-smart-line-enabled .checked=${ed.line.enabled} @change=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, enabled: (e.target as HTMLInputElement).checked } })} /> חציית קו פעילה</label>
           ${ed.line.lines.map((l) => html`<span style="display:inline-flex;gap:6px;align-items:center;border:1px solid var(--sw-border);border-radius:var(--sw-r-sm);padding:4px 8px" data-smart-line=${l.id}>
@@ -347,7 +347,7 @@ export class LiveCamera extends LitElement {
         </div>` : nothing}
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         <span class="grow"></span>
-        <sw-button variant="primary" size="sm" icon="check" ?disabled=${this.smartBusy} data-smart-save @click=${() => this.saveSmart()}>${this.smartBusy ? 'כותב…' : 'שמור ל־NVR'}</sw-button>
+        <sw-button variant="primary" size="sm" icon="check" ?disabled=${this.smartBusy} data-smart-save @click=${() => this.saveSmart()}>${this.smartBusy ? 'כותב…' : 'שמור למקליט'}</sw-button>
         <sw-button size="sm" variant="ghost" icon="close" ?disabled=${this.smartBusy} data-smart-cancel @click=${() => (this.smartEdit = null)}>ביטול</sw-button>
       </div>
     </div>`;
@@ -372,9 +372,9 @@ export class LiveCamera extends LitElement {
 
   private renderRename() {
     if (this.renameTo === null) return nothing;
-    return html`<sw-dialog open heading="שינוי שם המצלמה" subheading="השם במערכת (בקיר, במפה, באירועים). השם ב־NVR לא משתנה, אלא אם כותבים אותו מסעיף ה־OSD למטה." data-rename-dialog @close=${() => (this.renameTo = null)}>
+    return html`<sw-dialog open heading="שינוי שם המצלמה" subheading="השם במערכת (בקיר, במפה, באירועים). השם במקליט לא משתנה, אלא אם כותבים אותו מסעיף ה־OSD למטה." data-rename-dialog @close=${() => (this.renameTo = null)}>
       <sw-field label="שם"><input data-rename-input maxlength="80" .value=${this.renameTo} placeholder=${this.cam?.name_source ?? ''} @input=${(e: Event) => (this.renameTo = (e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') void this.saveRename(); }} /></sw-field>
-      <div class="note">ריק = השם מה־NVR${this.cam?.name_source ? ` („${this.cam.name_source}“)` : ''}.</div>
+      <div class="note">ריק = השם מהמקליט${this.cam?.name_source ? ` („${this.cam.name_source}“)` : ''}.</div>
       ${this.renameMsg ? html`<div class="note" style="color:var(--sw-danger)">${this.renameMsg}</div>` : nothing}
       <div slot="footer"><sw-button variant="primary" icon="check" ?disabled=${this.renameBusy} data-rename-save @click=${() => this.saveRename()}>שמור</sw-button><sw-button variant="ghost" @click=${() => (this.renameTo = null)}>ביטול</sw-button></div>
     </sw-dialog>`;
@@ -399,7 +399,7 @@ export class LiveCamera extends LitElement {
     this.osdMsg = '';
     try {
       await run();
-      this.osdMsg = `${label}: נכתב ל־NVR ונרשם.`;
+      this.osdMsg = `${label}: נכתב למקליט ונרשם.`;
       await this.loadOsd();
     } catch (err) {
       this.osdMsg = `${label}: ${describeError(err)}`;
@@ -413,8 +413,8 @@ export class LiveCamera extends LitElement {
     if (!o || !o.can_write) return nothing;
     const same = (o.nvr_name ?? '') === o.vms_name;
     return html`<div class="note" style="margin-block-start:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-osd>
-      <span>שם ב־NVR: <b data-osd-nvr-name>${o.nvr_name ?? '—'}</b>${same ? ' (זהה לשם ב־Arx)' : ` · ב־Arx: ${o.vms_name}`}</span>
-      <sw-button size="sm" icon="edit" ?disabled=${this.osdBusy || same} data-osd-write-name @click=${() => this.osdAction('שם הערוץ', () => writeChannelName(this.cam!.id))}>כתוב את השם מ־Arx ל־NVR</sw-button>
+      <span>שם במקליט: <b data-osd-nvr-name>${o.nvr_name ?? '—'}</b>${same ? ' (זהה לשם ב־Arx)' : ` · ב־Arx: ${o.vms_name}`}</span>
+      <sw-button size="sm" icon="edit" ?disabled=${this.osdBusy || same} data-osd-write-name @click=${() => this.osdAction('שם הערוץ', () => writeChannelName(this.cam!.id))}>כתוב את השם מ־Arx למקליט</sw-button>
       ${o.channel_name ? html`<label style="display:inline-flex;gap:4px;align-items:center"><input type="checkbox" data-osd-name-enabled .checked=${o.channel_name.enabled} ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction('שם על התמונה', () => setOsd(this.cam!.id, { name_enabled: (e.target as HTMLInputElement).checked }))} /> שם על התמונה</label>` : nothing}
       ${o.datetime ? html`<label style="display:inline-flex;gap:4px;align-items:center"><input type="checkbox" data-osd-datetime-enabled .checked=${o.datetime.enabled} ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction('חותמת זמן', () => setOsd(this.cam!.id, { datetime_enabled: (e.target as HTMLInputElement).checked }))} /> חותמת זמן</label>
         <sw-field><select aria-label="פורמט תאריך" data-osd-date-style ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction('פורמט תאריך', () => setOsd(this.cam!.id, { date_style: (e.target as HTMLSelectElement).value }))}>${o.date_styles.map((d) => html`<option value=${d} ?selected=${d === o.datetime!.date_style}>${d}</option>`)}</select></sw-field>` : nothing}
@@ -513,7 +513,7 @@ export class LiveCamera extends LitElement {
           <sw-button size="sm" variant="danger" icon="close" ?disabled=${this.recBusy} data-record-stop @click=${() => this.toggleRecord()}>עצור הקלטה</sw-button>`
         : html`<sw-field><select aria-label="משך הקלטה ידנית" data-record-minutes @change=${(e: Event) => (this.recMinutes = Number((e.target as HTMLSelectElement).value))}>${[5, 10, 30, 60, 120].map((m) => html`<option value=${m} ?selected=${m === this.recMinutes}>${m} דק׳</option>`)}</select></sw-field>
           <sw-button size="sm" variant="primary" icon="live" ?disabled=${this.recBusy || !r.track_id} data-record-start @click=${() => this.toggleRecord()}>הקלט עכשיו</sw-button>
-          ${!r.track_id ? html`<span class="warn" data-record-unavailable>אין זרם ראשי זמין למצלמה זו כרגע, אי אפשר להקליט ידנית.</span>` : html`<span>הקלטה ידנית ב־NVR על הזרם הראשי; נעצרת אוטומטית בתום הזמן גם אם המסך נסגר. ההקלטה עצמה מצטרפת להקלטות הרגילות של הערוץ — היא נמצאת לפי הזמן במסך "הקלטות", לא בתגית נפרדת.</span>`}`}
+          ${!r.track_id ? html`<span class="warn" data-record-unavailable>אין זרם ראשי זמין למצלמה זו כרגע, אי אפשר להקליט ידנית.</span>` : html`<span>הקלטה ידנית במקליט על הזרם הראשי; נעצרת אוטומטית בתום הזמן גם אם המסך נסגר. ההקלטה עצמה מצטרפת להקלטות הרגילות של הערוץ — היא נמצאת לפי הזמן במסך "הקלטות", לא בתגית נפרדת.</span>`}`}
       ${this.recMsg ? html`<span data-record-msg>${this.recMsg}</span>` : nothing}
     </div>`;
   }
@@ -1272,8 +1272,8 @@ export class LiveCamera extends LitElement {
 
   private renderCaps() {
     const c = this.caps;
-    if (this.capsError && !c) return html`<div class="note" data-caps>יכולות המצלמה לא נקראו מה־NVR: ${this.capsError}</div>`;
-    if (!c) return html`<div class="note" data-caps>קורא יכולות מה־NVR…</div>`;
+    if (this.capsError && !c) return html`<div class="note" data-caps>יכולות המצלמה לא נקראו מהמקליט: ${this.capsError}</div>`;
+    if (!c) return html`<div class="note" data-caps>קורא יכולות מהמקליט…</div>`;
     const ptzKind = c.ptz.state === 'supported' ? 'live' : c.ptz.state === 'unsupported' ? 'neutral' : 'unknown';
     const ptzLabel = c.ptz.state === 'supported' ? `PTZ: נתמך${c.ptz.preset_count !== null ? ` · ${c.ptz.preset_count} presets` : ''}` : c.ptz.state === 'unsupported' ? 'PTZ: לא נתמך במצלמה זו' : 'PTZ: לא ידוע';
     const audioKind = c.audio.state === 'available' ? 'live' : c.audio.state === 'disabled' ? 'stale' : c.audio.state === 'unsupported' ? 'neutral' : 'unknown';
@@ -1284,7 +1284,7 @@ export class LiveCamera extends LitElement {
       <sw-badge kind="neutral" label="זום דיגיטלי: הגדלה בדפדפן בלבד, לא הנעת מצלמה"></sw-badge>
       ${c.video?.main ? html`<sw-badge data-caps-webrtc kind=${c.video.main.webrtc === 'ok' ? 'live' : c.video.main.webrtc === 'no' ? 'stale' : 'unknown'} label=${`זרם ראשי ${c.video.main.codec ?? '?'}: ${c.video.main.webrtc === 'ok' ? 'מתנגן ב־WebRTC' : c.video.main.webrtc === 'no' ? 'לא יתנגן ב־WebRTC' : 'WebRTC לא ידוע'}`}></sw-badge>` : nothing}
       ${c.video?.hint ? html`<span data-caps-webrtc-hint>${c.video.hint}.</span>` : nothing}
-      <span>${c.ptz.reason ? `PTZ לפי המכשיר: ${c.ptz.reason}. ` : ''}הנעת PTZ, קריאת preset ודיבור הם כתיבה למכשיר ואינם מוצעים בפיילוט ללא אישור מפורש — אין פקד מדומה. נקרא מה־NVR ${c.fetched_at.replace('T', ' ').replace('Z', ' UTC')}${c.cached ? ' (מהמטמון)' : ''}.</span>
+      <span>${c.ptz.reason ? `PTZ לפי המכשיר: ${c.ptz.reason}. ` : ''}הנעת PTZ, קריאת preset ודיבור הם כתיבה למכשיר ואינם מוצעים בפיילוט ללא אישור מפורש — אין פקד מדומה. נקרא מהמקליט ${c.fetched_at.replace('T', ' ').replace('Z', ' UTC')}${c.cached ? ' (מהמטמון)' : ''}.</span>
     </div>`;
   }
 
@@ -1330,7 +1330,7 @@ export class LiveCamera extends LitElement {
     this.motionBusy = true;
     try {
       const rec = await setMotion(cam.id, { ...(d.added || d.removed ? { cells: e.cells } : {}), ...(d.sensitivity ? { sensitivity: e.sensitivity } : {}), ...(d.enabled ? { enabled: e.enabled } : {}) });
-      this.motionMsg = rec.status === 'unchanged' ? 'ה־NVR כבר היה במצב הזה, לא נכתב דבר.' : `נכתב ל־NVR (שינוי ${rec.id.slice(0, 8)}). ניתן להחזיר מהגדרות ‹ חיבורים ‹ שינויים אחרונים.`;
+      this.motionMsg = rec.status === 'unchanged' ? 'המקליט כבר היה במצב הזה, לא נכתב דבר.' : `נכתב למקליט (שינוי ${rec.id.slice(0, 8)}). ניתן להחזיר מהגדרות ‹ חיבורים ‹ שינויים אחרונים.`;
       this.motionEdit = null;
       this.motionConfirm = false;
       await this.loadZones(true);
@@ -1354,16 +1354,16 @@ export class LiveCamera extends LitElement {
       <label class="note" style="display:inline-flex;align-items:center;gap:6px">רגישות <input type="range" min=${this.zones?.sensitivity_caps?.min ?? 0} max=${this.zones?.sensitivity_caps?.max ?? 100} step=${this.zones?.sensitivity_caps?.step ?? 20} .value=${String(e.sensitivity)} data-motion-sensitivity @input=${(ev: Event) => (this.motionEdit = { ...e, sensitivity: Number((ev.target as HTMLInputElement).value) })} /> <b class="ltr">${e.sensitivity}</b></label>
       <label class="note" style="display:inline-flex;align-items:center;gap:6px"><input type="checkbox" .checked=${e.enabled} data-motion-enabled @change=${(ev: Event) => (this.motionEdit = { ...e, enabled: (ev.target as HTMLInputElement).checked })} /> זיהוי תנועה פעיל</label>
       <span class="grow"></span>
-      <sw-button variant="primary" size="sm" icon="check" ?disabled=${!changed || this.motionBusy} data-motion-save @click=${() => (this.motionConfirm = true)}>שמור ל־NVR</sw-button>
+      <sw-button variant="primary" size="sm" icon="check" ?disabled=${!changed || this.motionBusy} data-motion-save @click=${() => (this.motionConfirm = true)}>שמור למקליט</sw-button>
       <sw-button size="sm" variant="ghost" icon="close" ?disabled=${this.motionBusy} data-motion-cancel @click=${() => (this.motionEdit = null)}>ביטול</sw-button>
       ${this.motionConfirm
-        ? html`<sw-dialog open heading="כתיבה ל־NVR: זיהוי תנועה" subheading=${`${this.cam?.name ?? ''} · ערוץ ${this.zones?.channel ?? ''}`} data-motion-confirm @close=${() => (this.motionConfirm = false)}>
+        ? html`<sw-dialog open heading="כתיבה למקליט: זיהוי תנועה" subheading=${`${this.cam?.name ?? ''} · ערוץ ${this.zones?.channel ?? ''}`} data-motion-confirm @close=${() => (this.motionConfirm = false)}>
             <div style="font-size:var(--sw-fs-sm);line-height:1.6">
               <div>${d.added ? `+${d.added} תאים נוספים לזיהוי` : ''}${d.added && d.removed ? ' · ' : ''}${d.removed ? `−${d.removed} תאים מוסרים` : ''}${!d.added && !d.removed ? 'הרשת ללא שינוי' : ''}</div>
               <div>רגישות: ${d.sensitivity ? `${m.sensitivity ?? '—'} → ${e.sensitivity}` : 'ללא שינוי'} · זיהוי: ${d.enabled ? (e.enabled ? 'כבוי → פעיל' : 'פעיל → כבוי') : 'ללא שינוי'}</div>
               <div style="margin-block-start:6px;color:var(--sw-text-3)">המסמך לפני ואחרי נשמר, השינוי נרשם באודיט וניתן להחזרה. ההקלטות אינן מושפעות; אזור שלא מסומן לא יפעיל הקלטת תנועה.</div>
             </div>
-            <div slot="footer"><sw-button variant="primary" ?disabled=${this.motionBusy} data-motion-confirm-run @click=${() => this.saveMotion()}>${this.motionBusy ? 'כותב…' : 'כתוב ל־NVR'}</sw-button><sw-button variant="ghost" @click=${() => (this.motionConfirm = false)}>ביטול</sw-button></div>
+            <div slot="footer"><sw-button variant="primary" ?disabled=${this.motionBusy} data-motion-confirm-run @click=${() => this.saveMotion()}>${this.motionBusy ? 'כותב…' : 'כתוב למקליט'}</sw-button><sw-button variant="ghost" @click=${() => (this.motionConfirm = false)}>ביטול</sw-button></div>
           </sw-dialog>`
         : nothing}
     </div>`;
@@ -1371,7 +1371,7 @@ export class LiveCamera extends LitElement {
 
   private renderZones(cam: Camera) {
     const z = this.zones;
-    if (this.zonesBusy && !z) return html`<div class="note">קורא את הגדרות הזיהוי מה־NVR…</div>`;
+    if (this.zonesBusy && !z) return html`<div class="note">קורא את הגדרות הזיהוי מהמקליט…</div>`;
     if (this.zonesError && !z) return html`<div class="note">${this.zonesError} <sw-button size="sm" @click=${() => this.loadZones(true)}>נסה שוב</sw-button></div>`;
     if (!z) return html`<div class="note">—</div>`;
     const L = this.zoneLayers;
@@ -1398,7 +1398,7 @@ export class LiveCamera extends LitElement {
           <sw-chip data-zone-layer="privacy" ?selected=${L.privacy} @click=${() => (this.zoneLayers = { ...L, privacy: !L.privacy })}>מסכת פרטיות${z.privacy_mask ? ` · ${z.privacy_mask.enabled ? 'פעילה' : 'כבויה'} · ${z.privacy_mask.regions.length} אזורים` : ' · לא נקרא'}</sw-chip>
           <sw-chip data-zone-layer="intrusion" ?selected=${L.intrusion} @click=${() => (this.zoneLayers = { ...L, intrusion: !L.intrusion })}>חדירה לאזור${z.intrusion ? ` · ${z.intrusion.enabled ? 'פעיל' : 'כבוי'} · ${z.intrusion.regions.length} אזורים` : ' · לא נקרא'}</sw-chip>
           <sw-chip data-zone-layer="lines" ?selected=${L.lines} @click=${() => (this.zoneLayers = { ...L, lines: !L.lines })}>חציית קו${z.line_crossing ? ` · ${z.line_crossing.enabled ? 'פעיל' : 'כבוי'} · ${z.line_crossing.lines.length} קווים` : ' · לא נקרא'}</sw-chip>
-          <sw-button size="sm" variant="ghost" icon="refresh" ?disabled=${this.zonesBusy} @click=${() => this.loadZones(true)}>רענון מה־NVR</sw-button>
+          <sw-button size="sm" variant="ghost" icon="refresh" ?disabled=${this.zonesBusy} @click=${() => this.loadZones(true)}>רענון מהמקליט</sw-button>
           ${z.can_edit_motion && m && m.rows && m.cols && !this.motionEdit ? html`<sw-button size="sm" icon="edit" data-motion-edit @click=${() => this.startMotionEdit()}>עריכת אזורי תנועה</sw-button>` : nothing}
           ${this.smart?.can_write && (this.smart.line || this.smart.field) && !this.smartEdit && !this.motionEdit ? html`<sw-button size="sm" icon="edit" data-smart-edit @click=${() => this.startSmartEdit()}>עריכת כללים חכמים</sw-button>` : nothing}
         </div>
@@ -1407,7 +1407,7 @@ export class LiveCamera extends LitElement {
         ${this.smartMsg ? html`<div class="note" data-smart-msg>${this.smartMsg}</div>` : nothing}
         ${this.motionMsg ? html`<div class="note" data-motion-msg>${this.motionMsg}</div>` : nothing}
         ${Object.keys(z.unsupported).length ? html`<div class="note">לא נקרא מהמכשיר: ${Object.entries(z.unsupported).map(([k, v]) => `${k} (${v})`).join(', ')}</div>` : nothing}
-        <div class="note" data-zones-note>קריאה בלבד מה־NVR (נקרא ${z.fetched_at.replace('T', ' ').replace('Z', ' UTC')}${z.cached ? ', מהמטמון' : ''}). אלו פוליגונים בתמונת המצלמה — לא חדרים במפה. שכבת־על בדפדפן אינה מסכת NVR ואינה מגינה על הקלטות; עריכה או מסכה אמיתית דורשות אישור מפורש, כתיבה מאומתת ובדיקת התוצאה בזרם.</div>
+        <div class="note" data-zones-note>קריאה בלבד מהמקליט (נקרא ${z.fetched_at.replace('T', ' ').replace('Z', ' UTC')}${z.cached ? ', מהמטמון' : ''}). אלו פוליגונים בתמונת המצלמה — לא חדרים במפה. שכבת־על בדפדפן אינה מסכת מקליט ואינה מגינה על הקלטות; עריכה או מסכה אמיתית דורשות אישור מפורש, כתיבה מאומתת ובדיקת התוצאה בזרם.</div>
       </div>`;
   }
 
@@ -1470,7 +1470,7 @@ export class LiveCamera extends LitElement {
           ? html`<div class="center" data-webrtc-required><div><sw-icon name="camera" size=${32}></sw-icon><span>${WEBRTC_REQUIRED_TEXT}</span> <a href=${WEBRTC_SETTINGS_HREF}>${WEBRTC_SETTINGS_LABEL}</a></div></div>`
           : pane === 'player'
           ? html`<sw-live-player .cameraId=${cam.id} .profile=${this.profile} .mode=${this.transport} .plan=${plan.plan} .preferred=${plan.preferred} .gop=${plan.gop} .encoding=${cam.encoding ?? null} .poster=${poster} @player-status=${this.onPlayer}></sw-live-player>`
-          : html`<div class="center"><div><sw-icon name="offline" size=${32}></sw-icon><span data-camera-off-reason>${cam.recorder_enabled === false ? 'ה־NVR של המצלמה מושבת' : cam.status === 'offline' && cam.video_source === 'manual' ? cst('offline') : cam.status === 'offline' ? 'המצלמה מנותקת מה־NVR (לפי הסנכרון האחרון)' : 'אין הרשאת צפייה חיה במצלמה זו'}</span></div></div>`}
+          : html`<div class="center"><div><sw-icon name="offline" size=${32}></sw-icon><span data-camera-off-reason>${cam.recorder_enabled === false ? 'המקליט של המצלמה מושבת' : cam.status === 'offline' && cam.video_source === 'manual' ? cst('offline') : cam.status === 'offline' ? 'המצלמה מנותקת מהמקליט (לפי הסנכרון האחרון)' : 'אין הרשאת צפייה חיה במצלמה זו'}</span></div></div>`}
       </div></div>
       ${canView && cam.live_kind === 'still' ? html`<div class="note" data-live-still-note>${fx().live.stillExplain.replace('{n}', String(cam.still_refresh_s ?? 10))}</div>` : nothing}
       <div class="controls" data-player=${this.playerStatus === 'playing' ? 'playing' : this.playerStatus === 'error' ? 'error' : 'connecting'}>
@@ -1571,9 +1571,9 @@ export class LiveCamera extends LitElement {
               ${cam.standalone
                 ? html`<dt>${cst('section')}</dt><dd>${cst('manual')} · ${cst('noRecorder')}</dd>`
                 : html`<dt>ערוץ</dt><dd>${cam.channel} · <span class="ltr">track ${cam.main_track ?? '?'}</span></dd>
-              <dt>שם ב־NVR</dt><dd>${cam.name_source || '—'}</dd>`}
+              <dt>שם במקליט</dt><dd>${cam.name_source || '—'}</dd>`}
               <dt>זרם ראשי</dt><dd>${stream ? `${stream.resolution ?? ''} · ${stream.fps ?? '?'} fps · ${stream.bitrate_kbps ?? '?'} kbps` : 'לא נבדק'}</dd>
-              ${cam.standalone ? nothing : html`<dt>זמן מקור</dt><dd>NVR · <span class="ltr">Asia/Jerusalem</span></dd>`}
+              ${cam.standalone ? nothing : html`<dt>זמן מקור</dt><dd>${tr('videoCopy.sourceTime')}</dd>`}
               <dt>נראתה לאחרונה</dt><dd>${cam.last_seen_at ? cam.last_seen_at.replace('T', ' ').replace('Z', ' UTC') : '—'}</dd>
             </dl>
             ${caps}
@@ -1586,14 +1586,14 @@ export class LiveCamera extends LitElement {
             </details>`
           : nothing}
         ${!rec.recording ? nothing : html`<details class="acc" data-acc-schedules>
-          <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>לוחות זימון והקלטה — כפי שמוגדר ב־NVR</span></summary>
+          <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>לוחות זימון והקלטה — כפי שמוגדר במקליט</span></summary>
           <div class="acc-content">
             <div class="note">מתי כל זיהוי פעיל ומתי הערוץ מקליט (רציף / תנועה / אירוע) · עריכה דורשת הרשאה רגישה ונרשמת עם החזר</div>
             ${this.renderSchedules()}
           </div>
         </details>
         <details class="acc" data-acc-zones>
-          <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>אזורי זיהוי ומסכות — כפי שמוגדר ב־NVR</span></summary>
+          <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>אזורי זיהוי ומסכות — כפי שמוגדר במקליט</span></summary>
           <div class="acc-content">${this.renderZones(cam)}</div>
         </details>`}
         ${reboot !== nothing
@@ -1624,7 +1624,7 @@ export class LiveCamera extends LitElement {
               <span class="quality">${this.profile === 'main' ? '1440p · H.265' : '360p · H.264'}</span>`
           : html`<div class="center"><div>
               <sw-icon name=${cam.state === 'offline' ? 'offline' : 'lock'} size=${32}></sw-icon>
-              <span>${cam.state === 'offline' ? 'המצלמה אינה מחוברת ל־NVR' : 'אין הרשאת צפייה במצלמה זו'}</span>
+              <span>${cam.state === 'offline' ? 'המצלמה אינה מחוברת למקליט' : 'אין הרשאת צפייה במצלמה זו'}</span>
             </div></div>`}
       </div></div>
       <div class="controls" data-player=${canView ? 'playing' : 'error'}>
@@ -1650,7 +1650,7 @@ export class LiveCamera extends LitElement {
       </div>
       ${cam.ptz
         ? html`<div class="modes">
-            <sw-chip icon="bookmark" ?selected=${this.ptzMode === 'presets'} @click=${() => (this.ptzMode = 'presets')}>Presets</sw-chip>
+            <sw-chip icon="bookmark" ?selected=${this.ptzMode === 'presets'} @click=${() => (this.ptzMode = 'presets')}>${tr('videoCopy.presets')}</sw-chip>
             <sw-chip icon="target" ?selected=${this.ptzMode === 'track'} @click=${() => (this.ptzMode = 'track')}>מעקב אוטומטי</sw-chip>
             <sw-chip icon="route" ?selected=${this.ptzMode === 'patrol'} @click=${() => (this.ptzMode = 'patrol')}>סיור</sw-chip>
           </div>`

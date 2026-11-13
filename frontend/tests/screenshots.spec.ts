@@ -53,7 +53,7 @@ test.describe('T007 design baseline', () => {
   test('offline camera explains itself', async ({ page }, testInfo) => {
     await open(page, '/explore/floors/f0');
     await page.getByRole('button', { name: 'מסדרון מזרחי' }).click();
-    await expect(page.getByText('המצלמה אינה מחוברת ל־NVR')).toBeVisible();
+    await expect(page.getByText('המצלמה אינה מחוברת למקליט')).toBeVisible();
     await page.screenshot({ path: path.join(OUT, `sc04-camera-offline-${testInfo.project.name}.png`) });
   });
 

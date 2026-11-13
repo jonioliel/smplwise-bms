@@ -156,7 +156,7 @@ export class LiveOverview extends LitElement {
       const seen = c.last_seen_at ? ` · נראתה לאחרונה ${this.fmtTime(c.last_seen_at)}` : '';
       // NVRLESS-CAMERAS-2411: a camera without a recorder has no channel and no recorder that reports it
       if (isStandaloneRow(c)) out.push({ kind: 'critical', title: `מצלמה מנותקת: ${c.name}`, meta: `מצלמה ללא מקליט${seen}`, why: 'מוצג כי המצלמה אינה עונה בכתובת הווידאו שלה', link: `#/live/cameras/${c.id}` });
-      else out.push({ kind: 'critical', title: `מצלמה מנותקת: ${c.name}`, meta: `ערוץ ${c.channel}${seen}`, why: 'מוצג כי ה־NVR מדווח שהערוץ אינו מחובר', link: `#/live/cameras/${c.id}` });
+      else out.push({ kind: 'critical', title: `מצלמה מנותקת: ${c.name}`, meta: `ערוץ ${c.channel}${seen}`, why: 'מוצג כי המקליט מדווח שהערוץ אינו מחובר', link: `#/live/cameras/${c.id}` });
     }
     for (const it of (this.health?.items ?? []).filter((i) => i.status !== 'ok')) {
       out.push({ kind: it.status === 'error' ? 'critical' : 'alert', title: it.label, meta: `בדיקת מערכת · ${STATUS_LABEL[it.status]}`, why: 'מוצג כי בדיקת הבריאות של ה־Add-on מדווחת על כך', link: '#/system/diagnostics' });
@@ -168,7 +168,7 @@ export class LiveOverview extends LitElement {
     }
     const ing = this.raw?.events.ingest;
     if (ing?.connected && !ing.events_stored && !ing.last_event_at) {
-      out.push({ kind: 'info', title: 'ה־NVR לא שלח התראות מאז ההפעלה', meta: 'אירועי תנועה נגזרים מההקלטות כל 10 דקות', why: 'מוצג כי זרם ההתראות מחובר אך ריק — ב־NVR יש להפעיל "Notify Surveillance Center" ב־linkage של זיהוי התנועה', link: '#/system/setup' });
+      out.push({ kind: 'info', title: 'המקליט לא שלח התראות מאז ההפעלה', meta: 'אירועי תנועה נגזרים מההקלטות כל 10 דקות', why: 'מוצג כי זרם ההתראות מחובר אך ריק — במקליט יש להפעיל "Notify Surveillance Center" ב־linkage של זיהוי התנועה', link: '#/system/setup' });
     }
     if (this.raw?.home_assistant.configured && !this.raw.home_assistant.connected) {
       out.push({ kind: 'alert', title: 'אין חיבור לתשתית המערכת', meta: syncErrorText(this.raw.home_assistant.last_error), why: 'מוצג כי מצבי הישויות והדלתות עלולים להיות מיושנים', link: '#/system/setup' });
@@ -205,7 +205,7 @@ export class LiveOverview extends LitElement {
           <sw-kpi data-overview-tile="cameras" icon="camera" tone=${cams.length && online === cams.length ? 'live' : online ? 'stale' : 'offline'} value=${`${online}/${cams.length}`} label="מצלמות" detail=${!webrtcServer() ? WEBRTC_REQUIRED_SHORT : this.recorder ? `מחוברות · ${this.recorder.model ?? this.recorder.name}` : 'מחוברות'} layout=${layout} href=${!webrtcServer() ? WEBRTC_SETTINGS_HREF : cap('nvr') ? '#/system/devices?sort=offline' : '#/live/wall'} hint=${webrtcServer() ? 'פתח את רשימת המצלמות' : WEBRTC_REQUIRED_TEXT} ?data-webrtc-required=${!webrtcServer()}></sw-kpi>
           <sw-kpi data-overview-tile="sites" icon="building" value=${String(sites.length)} label="אתרים" detail=${`${floors.length} קומות · ${floors.filter((f) => f.has_plan).length} עם תוכנית`} tone="neutral" layout=${layout} href="#/explore/sites" hint="פתח את האתרים"></sw-kpi>
           <sw-kpi data-overview-tile="events" icon="bell" value=${this.summaryDenied ? '—' : String(this.summary?.today.total ?? 0)} label="אירועים" detail=${this.summaryDenied ? 'ללא הרשאה לאירועים' : 'היום'} tone="neutral" badge=${this.summary?.today.unacked ? `${this.summary.today.unacked} לבדיקה` : ''} layout=${layout} href=${`#/investigate/events?date=${dateInZone(this.now, this.tz)}`} hint="פתח את אירועי היום"></sw-kpi>
-          <sw-kpi data-overview-tile="health" icon="shield" tone=${tone} value=${h ? STATUS_LABEL[h.status] : '…'} label="מצב מערכת" detail=${firstIssue ? firstIssue.label : 'NVR, go2rtc, תשתית המערכת ואחסון'} layout=${layout} href="#/system/diagnostics?tab=health" hint="פתח את פרטי הבריאות"></sw-kpi>
+          <sw-kpi data-overview-tile="health" icon="shield" tone=${tone} value=${h ? STATUS_LABEL[h.status] : '…'} label="מצב מערכת" detail=${firstIssue ? firstIssue.label : 'מקליט, go2rtc, תשתית המערכת ואחסון'} layout=${layout} href="#/system/diagnostics?tab=health" hint="פתח את פרטי הבריאות"></sw-kpi>
         </div>
         ${favorites.length
           ? html`<div class="fav" data-overview-favorites>
@@ -214,7 +214,7 @@ export class LiveOverview extends LitElement {
           : nothing}
         <div class="row2">
           ${st && tot && cap('nvr') /* NVRLESS-CAMERAS-2411: the recorder's storage card stays a recorder card */
-            ? html`<sw-card heading="אחסון" subheading=${st.cached ? 'מהמטמון · נמדד מול ה־NVR' : 'נמדד מול ה־NVR'}>
+            ? html`<sw-card heading="אחסון" subheading=${st.cached ? 'מהמטמון · נמדד מול המקליט' : 'נמדד מול המקליט'}>
                 <div class="donut">
                   <svg viewBox="0 0 84 84" role="img" aria-label=${`אחסון בשימוש ${usedPct ?? 0}%`}>
                     ${svg`<circle cx="42" cy="42" r=${r} fill="none" stroke="var(--sw-surface-3)" stroke-width="9" />
@@ -236,7 +236,7 @@ export class LiveOverview extends LitElement {
               const placed = fl.reduce((n, f) => n + f.camera_count, 0);
               return html`<div class="hrow link" role="link" tabindex="0" @click=${() => navigate('/explore/sites')} @keydown=${(k: KeyboardEvent) => { if (k.key === 'Enter' || k.key === ' ') { k.preventDefault(); navigate('/explore/sites'); } }}><span>${s.name}<div class="muted">${(s.buildings ?? []).length} מבנים · ${fl.length} קומות · ${placed} מצלמות מוצבות · ${plans}/${fl.length} תוכניות</div></span><span class="status"><i style=${`--c:${fl.length && plans === fl.length ? 'var(--sw-live)' : 'var(--sw-stale)'}`}></i>${fl.length && plans === fl.length ? 'תוכניות מפורסמות' : 'חסרות תוכניות'}</span></div>`;
             })}
-            ${this.recorder ? html`<div class="hrow"><span>NVR · ${this.recorder.name}<div class="muted">${this.recorder.model ?? ''} · ${online}/${cams.length} מצלמות מחוברות</div></span><span class="status"><i style=${`--c:${online === cams.length ? 'var(--sw-live)' : 'var(--sw-offline)'}`}></i>${online === cams.length ? 'מחובר' : `${cams.length - online} מנותקות`}</span></div>` : nothing}</div>
+            ${this.recorder ? html`<div class="hrow"><span>מקליט · ${this.recorder.name}<div class="muted">${this.recorder.model ?? ''} · ${online}/${cams.length} מצלמות מחוברות</div></span><span class="status"><i style=${`--c:${online === cams.length ? 'var(--sw-live)' : 'var(--sw-offline)'}`}></i>${online === cams.length ? 'מחובר' : `${cams.length - online} מנותקות`}</span></div>` : nothing}</div>
           </sw-card>
         </div>
         <div class="row3">

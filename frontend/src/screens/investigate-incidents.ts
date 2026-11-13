@@ -1,6 +1,9 @@
 import { LitElement, html, css, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-button';
+import '../components/sw-badge';
+import '../components/sw-page';
+import type { StateKind } from '../components/sw-badge';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import '../components/sw-camera-tile';
@@ -64,6 +67,11 @@ const forbidden = (err: unknown) => err instanceof ApiError && err.status === 40
  * of the board is on screen at a time (cameras first). There is no overflow: hidden on the page frame, so a layout that does not fit
  * shows up as a failing scroll assertion (tests/layout-incidents.spec.ts), never as hidden content.
  */
+/** AUDIT30-G-VIDEO (finding 12, FIXES G5): the screen's status words are the shared `sw-badge` (filled = the contrast-proven
+ *  `-text` field with the panel colour as the label, sw-badge.ts) instead of a local span.badge. */
+const LOOK_KIND: Record<string, StateKind> = { ok: 'live', warn: 'stale', alarm: 'error', off: 'offline', unk: 'unknown', acc: 'recorded' };
+const lookKind = (look: string | undefined): StateKind => (look ? LOOK_KIND[look] ?? 'neutral' : 'neutral');
+
 @customElement('investigate-incidents')
 export class InvestigateIncidents extends LitElement {
   readonly bubbleSkin = new SkinController(this);
@@ -116,18 +124,18 @@ export class InvestigateIncidents extends LitElement {
     [data-look='unk'] { --c: var(--sw-unknown); --c-text: var(--sw-unknown-text); --c-soft: var(--sw-unknown-soft); }
     [data-look='acc'] { --c: var(--sw-accent); --c-text: var(--sw-accent-text); --c-soft: var(--sw-accent-soft); }
     .num { direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
-    .screen { flex: 1; min-block-size: 0; display: flex; flex-direction: column; gap: 10px; padding: 12px var(--sw-page-pad) 14px; min-inline-size: 0; }
-    .top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; flex: none; }
-    .top h1 { margin: 0; font-size: var(--sw-fs-3xl); font-weight: var(--sw-h1-weight); letter-spacing: var(--sw-h1-tracking); line-height: 1.2; color: var(--sw-heading); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .top .sub { margin: 2px 0 0; color: var(--sw-text-2); font-size: var(--sw-fs-base); }
-    .top .sp { flex: 1; }
+    .screen { flex: 1; min-block-size: 0; display: flex; flex-direction: column; gap: 10px; min-inline-size: 0; }
+    div.screen { padding: 12px var(--sw-page-pad) 14px; }
+    .acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     .clock { display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 4px 12px; background: var(--sw-surface-3); color: var(--sw-heading); font-weight: var(--sw-fw-semibold); font-size: var(--sw-fs-md); }
     .clock sw-icon { color: var(--sw-text-3); }
-    .badge { display: inline-flex; align-items: center; gap: 6px; border-radius: var(--sw-r-pill); padding: 3px 11px; white-space: nowrap; background: var(--c-text, var(--sw-text-2)); color: var(--sw-surface-solid); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); line-height: 1.4; }
-    /* SYS-AUDIT-QUICKFIX-2437 (audit round 30, finding 12): the filled status field is the state's contrast-proven ink with the panel
-       colour as its label ("נסגר" read 2.54:1, "פעיל" 3.76:1 as white on the bare state colour), the same pair as sw-badge[filled] */
-    .badge.sm { padding: 1px 9px; font-size: var(--sw-fs-xs); }
+    /* AUDIT30-G-VIDEO (FIXES G5): the frame is sw-page (title, subtitle, actions as on every operator screen); the board under it keeps
+       the height the shell gives (no page scroll, owner rule 2026-10-24) */
+    sw-page.screen { flex: 1; min-block-size: 0; block-size: 100%; }
+    sw-badge { flex: none; }
+    .eyebrow { display: flex; align-items: center; gap: 8px; margin-block-end: 6px; }
+    .eyebrow .clock { display: none; }
     .chip { display: inline-flex; align-items: center; gap: 5px; border-radius: var(--sw-r-pill); padding: 2px 9px; line-height: 1.5; font-size: var(--sw-fs-xs); font-weight: var(--sw-fw-medium); background: var(--sw-surface-2); color: var(--sw-text-2); white-space: nowrap; }
     .chip[data-look] { background: var(--c-soft); color: var(--c-text); }
     .chip .d { inline-size: 7px; block-size: 7px; border-radius: 50%; background: var(--c, var(--sw-text-3)); }
@@ -208,7 +216,7 @@ export class InvestigateIncidents extends LitElement {
     @media (min-height: 900px) and (min-width: 1200px) { .step { padding-block-end: 20px; } .step .t1 { font-size: var(--sw-fs-md); } .step .t2, .step .w { font-size: var(--sw-fs-sm); } }
     /* tablet and phone: ONE part of the board at a time (cameras first); the head and its actions stay */
     @media (max-width: 1199px) {
-      .screen { padding: 10px 20px 12px; }
+      div.screen { padding: 10px 20px 12px; }
       .board { display: flex; flex-direction: column; gap: 10px; }
       .col { display: contents; }
       .board .panel { flex: 1; min-block-size: 0; }
@@ -224,14 +232,15 @@ export class InvestigateIncidents extends LitElement {
       .only-phone { display: inline; }
     }
     @media (max-width: 767px) {
-      .screen { padding: 8px 12px 8px; gap: 8px; }
-      .top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: start; }
-      .top .sp { display: none; }
-      .top .meta { grid-column: 1 / -1; inline-size: 100%; flex-wrap: nowrap; gap: 6px; }
-      .top .meta > sw-button { flex: 1; }
-      .top .meta > sw-button[iconOnly] { flex: none; }
-      .top h1 { font-size: var(--sw-fs-xl); gap: 8px; }
-      .top .sub { font-size: var(--sw-fs-sm); }
+      div.screen { padding: 8px 12px 8px; gap: 8px; }
+      .acts { gap: 6px; }
+      /* the phone keeps the old header height: the clock rides beside the status (not a row of its own), sw-page's padding and
+         gaps one step denser (the board below must not overflow, layout-incidents) */
+      sw-page.screen { padding: 8px 12px 8px; gap: 8px; }
+      .eyebrow { margin-block-end: 4px; }
+      .eyebrow .clock { display: inline-flex; }
+      sw-page[data-incident] .acts > .clock { display: none; }
+      .meta { flex-wrap: nowrap; gap: 6px; }
       .clock { padding: 3px 8px; font-size: var(--sw-fs-sm); }
       .map { margin: 0 12px 12px; }
       .panel .hd { padding: 10px 12px 6px; }
@@ -588,10 +597,8 @@ export class InvestigateIncidents extends LitElement {
     const dur = (i: Incident) => (i.closed_at ? it('minutes', { n: Math.max(1, Math.round((new Date(i.closed_at).getTime() - new Date(i.opened_at).getTime()) / 60000)) }) : elapsed(i.opened_at, this.now));
     const srcWord = (i: Incident) => ({ alarm: it('srcAlarm'), event: it('srcEvent'), notification: it('srcNotification'), manual: it('srcManual') })[i.source];
     const rows = [...open, ...closed];
-    return html`<section class="screen" data-incidents-list>
-      <div class="top lead-head">
-        <div><h1>${it('listTitle')}</h1><p class="sub">${open.length ? it('listSubOpen', { n: open.length }) : it('listSub', { n: closed.length })}</p></div>
-        <span class="sp"></span>
+    return html`<sw-page class="screen" wide data-incidents-list heading=${it('listTitle')} subheading=${open.length ? it('listSubOpen', { n: open.length }) : it('listSub', { n: closed.length })}>
+      <div slot="actions" class="acts">
         ${showClock ? this.renderClock() : nothing}
         <div class="meta">
           ${l.can_open ? html`<sw-button variant="primary" icon="plus" data-incident-open-manual @click=${() => void this.openManualSheet()}>${it('openManual')}</sw-button>` : nothing}
@@ -604,17 +611,17 @@ export class InvestigateIncidents extends LitElement {
         ${rows.length ? html`
           <table class="t" data-incidents-table><thead><tr><th>${it('colState')}</th><th>${it('colIncident')}</th><th>${it('colSource')}</th><th>${it('colOpened')}</th><th>${it('colClosed')}</th><th>${it('colDuration')}</th></tr></thead><tbody>
             ${rows.slice(0, 8).map((i) => html`<tr data-incident-row=${i.id} data-status=${i.status} @click=${() => navigate(`/investigate/incidents/${i.id}`)}>
-              <td><span class="badge" data-look=${i.status === 'open' ? 'alarm' : 'off'}>${i.status === 'open' ? it('statusOpen') : it('statusClosed')}</span></td>
+              <td><sw-badge filled kind=${i.status === 'open' ? 'error' : 'offline'} label=${i.status === 'open' ? it('statusOpen') : it('statusClosed')}></sw-badge></td>
               <td><span class="t1">${i.title}</span><span class="t2">${[i.building_name, i.floor_name].filter(Boolean).join(' · ')}</span></td>
               <td>${srcWord(i)}</td><td class="num">${this.when(i.opened_at, true)}</td><td class="num">${i.closed_at ? this.when(i.closed_at, true) : '-'}</td><td class="num">${dur(i)}</td>
             </tr>`)}
           </tbody></table>
           <div class="cards">${rows.slice(0, 5).map((i) => html`<button type="button" class="c" data-incident-card=${i.id} @click=${() => navigate(`/investigate/incidents/${i.id}`)}>
-            <div class="r1"><span class="t1">${i.title}</span><span class="badge sm" data-look=${i.status === 'open' ? 'alarm' : 'off'}>${i.status === 'open' ? it('statusOpen') : it('statusClosed')}</span></div>
+            <div class="r1"><span class="t1">${i.title}</span><sw-badge filled kind=${i.status === 'open' ? 'error' : 'offline'} label=${i.status === 'open' ? it('statusOpen') : it('statusClosed')}></sw-badge></div>
             <div class="mut">${srcWord(i)} · ${this.when(i.opened_at, true)} · ${dur(i)}</div></button>`)}</div>`
         : html`<sw-state-panel icon="list" state="empty" compact quiet heading=${it('listNone')}></sw-state-panel>`}
       </div>
-    </section>`;
+    </sw-page>`;
   }
 
   // ---------------------------------------------------------------- one incident
@@ -627,13 +634,13 @@ export class InvestigateIncidents extends LitElement {
     const sub = [place, d.source_label, it('openedBy', { t: this.when(d.opened_at), who: d.opened_by_name || it('system') })].filter(Boolean).join(' · ');
     const doorsOpen = this.doors.state === 'ready' ? this.doors.data.doors.filter((x) => x.open).length : 0;
     const steps = d.steps.length + (d.pending.length ? 1 : 0);
-    return html`<section class="screen" data-incident=${d.id} data-status=${d.status} data-part=${this.pane}>
-      <div class="top lead-head">
-        <div>
-          <h1><span class="badge" data-look=${open ? 'alarm' : 'off'} style="font-size:var(--sw-fs-sm)" data-incident-status><sw-icon name=${open ? 'warning' : 'check'} size=${14}></sw-icon>${open ? it('statusOpen') : it('statusClosed')} · <span class="num" data-incident-elapsed>${elapsed(d.opened_at, d.closed_at ? new Date(d.closed_at).getTime() : this.now)}</span></span>${d.title}</h1>
-          <p class="sub">${sub}</p>
-        </div>
-        <span class="sp"></span>
+    const since = elapsed(d.opened_at, d.closed_at ? new Date(d.closed_at).getTime() : this.now);
+    return html`<sw-page class="screen" wide data-incident=${d.id} data-status=${d.status} data-part=${this.pane} heading=${d.title} subheading=${sub}>
+      <div slot="crumbs" class="eyebrow">
+        <sw-badge filled kind=${open ? 'error' : 'offline'} label=${`${open ? it('statusOpen') : it('statusClosed')} · ${since}`} data-incident-status data-incident-elapsed=${since}></sw-badge>
+        ${this.setting('incident.header_clock') ? this.renderClock() : nothing}
+      </div>
+      <div slot="actions" class="acts">
         ${this.setting('incident.header_clock') ? this.renderClock() : nothing}
         <div class="meta">
           ${open && d.can_ack ? html`<sw-button variant="primary" icon="check" data-incident-ack ?disabled=${this.busy} @click=${() => void this.doAck()}>${it('ack')}</sw-button>` : nothing}
@@ -654,7 +661,7 @@ export class InvestigateIncidents extends LitElement {
         <div class="col">${this.renderCameras(d)}${this.renderInfra()}</div>
         <div class="col">${this.renderChain(d)}</div>
       </div>
-    </section>`;
+    </sw-page>`;
   }
 
   /** In the narrow layout a panel that is not the chosen part leaves (one part on screen at a time). */
@@ -747,7 +754,7 @@ export class InvestigateIncidents extends LitElement {
             const label = x.open === null ? (p.data.state_visible ? it('doorUnknown') : it('doorHidden')) : x.open ? it('doorOpen') : it('doorLocked');
             const who = this.who[x.entity_id];
             return html`<li class="dr" data-look=${look} data-door=${x.entity_id}>
-              <span class="badge sm">${label}</span>
+              <sw-badge filled kind=${lookKind(look)} label=${label}></sw-badge>
               <div><span class="t1">${x.name}</span><span class="t2">${[x.area_name, who].filter(Boolean).join(' · ')}</span></div>
               <span class="when num ${x.open ? '' : 'mut'}">${x.since ? this.when(x.since) : ''}</span>
               <a class="lnk" href=${`#/devices?entity=${encodeURIComponent(x.entity_id)}`} data-incident-to-door>${it('toDoor')}</a>
@@ -769,7 +776,7 @@ export class InvestigateIncidents extends LitElement {
     return html`<div class="panel infra" data-pane="doors" data-incident-infra ?hidden-part=${this.hiddenPart('doors')}>
       <div class="hd"><h2>${it('infraTitle')}</h2><span class="sp"></span><a class="lnk" href="#/infra/elevators">${it('infraLink')}</a></div>
       <div class="rows">${rows.map((r) => html`<div class="li" data-look=${r.look} data-infra=${r.id}><span class="ico"><sw-icon name=${r.icon} size=${16}></sw-icon></span>
-        <div class="grow"><div class="t1">${r.name}</div><div class="t2">${r.sub}</div></div><span class="badge sm">${r.badge}</span></div>`)}</div>
+        <div class="grow"><div class="t1">${r.name}</div><div class="t2">${r.sub}</div></div><sw-badge filled kind=${lookKind(r.look)} label=${r.badge}></sw-badge></div>`)}</div>
     </div>`;
   }
 

@@ -1461,7 +1461,7 @@ export class InvestigateHistoryMap extends LitElement {
           <dt>זמן</dt><dd><span class="ltr" data-history-time>${this.date} ${secondLabel(this.minute)}</span> <span class="note">${this.tz}</span></dd>
           <dt>מצלמה נבחרת</dt><dd data-history-camera>${cam ? cam.camera?.name ?? cam.resource_id : 'לחץ על מצלמה במפה'}</dd>
           ${cam
-            ? html`<dt>הקלטה</dt><dd>${recs === undefined ? 'טוען…' : recs === null ? 'לא ניתן לבדוק מול ה־NVR' : cov?.segment ? html`יש הקלטה · ${minuteLabel(cov.segment.startMin)}–${minuteLabel(cov.segment.endMin)} · ${cov.segment.kind === 'continuous' ? 'רציף' : 'תנועה'}` : 'אין הקלטה בזמן זה (פער)'}</dd>
+            ? html`<dt>הקלטה</dt><dd>${recs === undefined ? 'טוען…' : recs === null ? 'לא ניתן לבדוק מול המקליט' : cov?.segment ? html`יש הקלטה · ${minuteLabel(cov.segment.startMin)}–${minuteLabel(cov.segment.endMin)} · ${cov.segment.kind === 'continuous' ? 'רציף' : 'תנועה'}` : 'אין הקלטה בזמן זה (פער)'}</dd>
                 <dt>אירועים ±5 דק׳</dt><dd>${this.eventsNear(cam.resource_id, 5).length}</dd>`
             : nothing}
           <dt>התקנים</dt><dd data-history-entities>${x ? x.entities : this.renderEntityStates(b)}</dd>
@@ -1478,7 +1478,7 @@ export class InvestigateHistoryMap extends LitElement {
       <sw-case-picker .item=${this.casePick} subheading=${cam ? `${cam.camera?.name ?? cam.resource_id} · ${this.date} ${secondLabel(this.minute)}` : ''} @close=${() => (this.casePick = null)}></sw-case-picker>
       <sw-card heading="אירועים סביב הזמן" subheading=${`±${NEAR_MIN} דקות · מצלמות הקומה`}>
         ${near.length
-          ? html`<div class="evl" data-history-events>${near.slice(0, 8).map((e) => html`<a class=${cam && e.camera_id === cam.resource_id ? 'hit' : ''} href=${`#/investigate/events/${e.id}`}><span>${EVENT_LABEL[e.type] ?? e.type} · ${e.camera_name ?? e.channel ?? ''}<div class="s">${e.confidence === 'inferred' ? 'נגזר מהקלטה' : 'התראה מה־NVR'}${e.acked_at ? ' · טופל' : ''}</div></span><span class="ltr">${this.fmt(e.occurred_at)}</span></a>`)}</div>`
+          ? html`<div class="evl" data-history-events>${near.slice(0, 8).map((e) => html`<a class=${cam && e.camera_id === cam.resource_id ? 'hit' : ''} href=${`#/investigate/events/${e.id}`}><span>${EVENT_LABEL[e.type] ?? e.type} · ${e.camera_name ?? e.channel ?? ''}<div class="s">${e.confidence === 'inferred' ? 'נגזר מהקלטה' : 'התראה מהמקליט'}${e.acked_at ? ' · טופל' : ''}</div></span><span class="ltr">${this.fmt(e.occurred_at)}</span></a>`)}</div>`
           : html`<div class="note">${x?.eventsOff ?? 'אין אירועים בחלון הזה.'}</div>`}
       </sw-card>`;
   }
@@ -1937,7 +1937,7 @@ export class InvestigateHistoryMap extends LitElement {
           if (!st) text = this.snapLoading ? '…' : 'לא ידוע';
           else if (id === 'elevators' && st === 'ok') text = 'מצב בלבד';
           else if (id === 'cameras' && st === 'ok') text = `${covered} מ־${camIds.length}`;
-          const cov = id === 'cameras' ? '· לפי ה־NVR' : coverageText(retention[id]);
+          const cov = id === 'cameras' ? '· לפי המקליט' : coverageText(retention[id]);
           return html`<div class="lyr" data-layer=${id} data-off=${on ? 'false' : 'true'} data-status=${st ?? ''}>
             <button class="sw" type="button" role="switch" aria-checked=${on ? 'true' : 'false'} aria-label=${LAYER_NAME[id]} ?disabled=${locked} @click=${() => this.toggleLayer(id)}></button>
             <span class="nm"><i style=${`background:${LAYER_COLOR[id]}`}></i>${LAYER_NAME[id]}${cov ? html` <span class="cov">${cov}</span>` : nothing}</span>
@@ -2087,11 +2087,11 @@ export class InvestigateHistoryMap extends LitElement {
           ${this.threeState === 'loading' ? html`<div class="hist below" data-3d-loading>טוען תלת-ממד…</div>` : nothing}
           ${this.threeState === 'error' ? html`<div class="hist below" data-3d-load-error>תלת-ממד לא נטען: ${this.threeError}</div>` : nothing}
           ${this.shows3d ? nothing : html`<div class="legend"><span>כחול = יש הקלטה</span><span>מקווקו = לא ידוע / לא מוקלט</span><span>צהוב = מואר</span><span>כחול בהיר = נוכחות</span></div>`}
-          ${gap ? html`<div class="gapbar" data-history-gap role="status"><sw-icon name="warning" size=${14}></sw-icon><span>פער בהקלטה <span class="ltr">${this.fmtHm(Date.parse(gap.from))}–${this.fmtHm(Date.parse(gap.to))}</span> — המערכת לא הייתה מחוברת. מצבי ההתקנים לא ידועים, המצלמות לפי ה־NVR.</span></div>` : nothing}
+          ${gap ? html`<div class="gapbar" data-history-gap role="status"><sw-icon name="warning" size=${14}></sw-icon><span>פער בהקלטה <span class="ltr">${this.fmtHm(Date.parse(gap.from))}–${this.fmtHm(Date.parse(gap.to))}</span> — המערכת לא הייתה מחוברת. מצבי ההתקנים לא ידועים, המצלמות לפי המקליט.</span></div>` : nothing}
           ${this.snapLoading && !rep && !this.snapError ? html`<div class="cover" data-history-loading><sw-state-panel state="loading" heading="טוען את מצב הקומה…" hint="היסטוריה מקומית, הקלטות ואירועים."></sw-state-panel></div>` : nothing}
           ${this.snapError && !rep ? html`<div class="cover" data-history-error><sw-state-panel state="error" heading="לא ניתן לטעון את המצב ההיסטורי" hint="המפה הנוכחית מוצגת ללא מצבים. נסו שוב." actionLabel="ניסיון חוזר" @action=${() => { this.snapshot = null; void this.fetchSnapshot(); }}></sw-state-panel></div>` : nothing}
           ${noHistory && !this.snapLoading && !this.playing
-            ? html`<div class="cover" data-history-none><sw-state-panel icon="history" state="empty" heading="אין עדיין היסטוריה לקומה הזאת" hint=${historyFrom !== null ? `ההיסטוריה המקומית מתחילה ${this.fmtWhen(coverage!.from!)}. לפני כן מוצגת התוכנית בלבד, ההקלטות לפי ה־NVR.` : 'לפני תחילת ההיסטוריה המקומית מוצגת התוכנית בלבד, ההקלטות לפי ה־NVR.'}
+            ? html`<div class="cover" data-history-none><sw-state-panel icon="history" state="empty" heading="אין עדיין היסטוריה לקומה הזאת" hint=${historyFrom !== null ? `ההיסטוריה המקומית מתחילה ${this.fmtWhen(coverage!.from!)}. לפני כן מוצגת התוכנית בלבד, ההקלטות לפי המקליט.` : 'לפני תחילת ההיסטוריה המקומית מוצגת התוכנית בלבד, ההקלטות לפי המקליט.'}
                 actionLabel=${historyFrom !== null && historyFrom > tMs ? 'לרגע הראשון המוקלט' : ''} @action=${() => { if (historyFrom !== null) this.goTo(historyFrom); }}></sw-state-panel></div>`
             : nothing}
         </div>

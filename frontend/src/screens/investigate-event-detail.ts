@@ -55,7 +55,7 @@ const SEVERITY_KIND: Record<VmsEvent['severity'], StateKind> = { info: 'neutral'
 const eventName = (e: VmsEvent) => rawCodeLabel(e.raw_type) ?? EVENT_LABEL[e.type] ?? e.type;
 
 /** Where an event came from, in the words of the events list (EVENTS-POLISH-2331); the raw source key is in the technical details. */
-const SOURCE_LABEL = { alertstream: 'התראה מה־NVR', recording: 'נגזר מקובץ הקלטה', system: 'מערכת', ha: 'חיישן התקן' } as const;
+const SOURCE_LABEL = { alertstream: 'התראה מהמקליט', recording: 'נגזר מקובץ הקלטה', system: 'מערכת', ha: 'חיישן התקן' } as const;
 const NEARBY_MS = 10 * 60 * 1000;
 
 /**

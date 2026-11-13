@@ -81,7 +81,7 @@ export const he = {
     pin: 'הצמד',
     unpin: 'בטל הצמדה',
     snapshot: 'צילום',
-    offlineReason: 'המצלמה אינה מחוברת ל־NVR',
+    offlineReason: 'המצלמה אינה מחוברת למקליט',
     forbiddenReason: 'אין לך הרשאת צפייה במצלמה הזו',
     staleReason: 'מצב המצלמה אינו מעודכן',
     source: 'מקור',
@@ -1118,6 +1118,24 @@ export const he = {
     demoOnly: 'העלאת תמונות זמינה רק מול השרת',
     hint: 'PNG, JPG או WebP עד 12 MB; מומלץ 2560×1440 ותמונה רגועה',
     fallback: 'כשחסרה תמונה לאחד המצבים, התמונה השנייה משמשת לשניהם',
+  },
+  /** AUDIT30-G-VIDEO (audit round 30, finding 15, Q10 = א assumed): the video and investigation screens name things in Hebrew - no
+   *  zone ids, no "NVR" / "HA", no English terms in operator copy. */
+  videoCopy: {
+    recorder: 'מקליט',
+    recorderMain: 'מקליט ראשי',
+    recorderAll: 'כל המקליטים',
+    recorderDetails: 'פרטי המקליט',
+    presets: 'מיקומים שמורים',
+    triggers: 'מפעילים',
+    triggersEmpty: 'מפעילים זמינים: אירועי מקליט (אדם, רכב, תנועה, חציית קו, ניתוק) ושינויי מצב של התקנים מאושרים.',
+    schedEmpty: 'לוחות זמנים לפי שעון האתר, שעון קיץ לפי התאריך.',
+    siteTime: 'שעון האתר',
+    sourceTime: 'מקליט · שעון האתר',
+    healthDemoSub: 'מקליט ראשי · 10 ערוצים · יכולות לפי בדיקה בפועל · נתוני הדגמה',
+    playbackDemoSub: 'נתוני הדגמה',
+    syncFromRecorder: 'סנכרון מהמקליט (קריאה)',
+    nameOnRecorder: 'שם במקליט',
   },
   /** ST7HIST (CR-029 section 14): the 3D of a past instant on the event page. */
   replay3d: {

@@ -31,6 +31,7 @@ import { REFUSED_MS, RELEASE_MS, allocateLive, effectiveLiveCap, sameSet, snapsh
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { KEY_HINT_MOVE_PX, KEY_HINT_PRESS_MS, KEY_HINT_SHOW_MS, colsBadge, countBadge, keyHint, wallPhoneBarMode, type WallPhoneBarMode } from './wall-phone-bar';
+import { t as vt } from '../i18n/he';
 
 /** The wall's quality choice of THIS device (`sub` = רגילה, `main` = גבוהה); unset = follow the installation setting. */
 export const WALL_QUALITY_KEY = 'sw.wall.quality';
@@ -1013,8 +1014,8 @@ export class LiveWall extends LitElement {
   }
 
   private recorderControl(phone: boolean, title = '') {
-    return html`<select aria-label="NVR" data-wall-recorder title=${title || nothing} @change=${(e: Event) => this.setRecorder((e.target as HTMLSelectElement).value)}>
-      <option value="" ?selected=${!this.recorderFilter}>${phone ? 'כל ה־NVR' : 'NVR: הכול'}</option>
+    return html`<select aria-label=${vt('videoCopy.recorder')} data-wall-recorder title=${title || nothing} @change=${(e: Event) => this.setRecorder((e.target as HTMLSelectElement).value)}>
+      <option value="" ?selected=${!this.recorderFilter}>${phone ? 'כל המקליטים' : 'מקליט: הכול'}</option>
       ${this.recorders.map((r) => html`<option value=${r.id} ?selected=${r.id === this.recorderFilter}>${r.name}</option>`)}
     </select>`;
   }
@@ -1026,7 +1027,7 @@ export class LiveWall extends LitElement {
     if (this.error) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>`;
     if (!cams || !enabled) return html`<sw-state-panel state="loading"></sw-state-panel>`;
     if (!cams.length && hiddenCount) return html`<sw-state-panel icon="camera" state="empty" heading="כל המצלמות מוסתרות בקיר" data-wall-all-hidden></sw-state-panel>`; // the arrangement dialog (user menu) brings them back
-    if (!cams.length) return html`<sw-state-panel icon="camera" state="empty" heading="אין מצלמות זמינות" hint="המצלמות מתגלות אוטומטית מה־NVR בהפעלה ובכל 10 דקות. אם הרשימה ריקה: בדקו את פרטי ה־NVR בהגדרות ‹ חיבורים, או הריצו סנכרון ידני; ייתכן גם שאין לך הרשאה למצלמות."><div style="margin-block-start:10px"><sw-button @click=${() => navigate('/system/devices')}>למצלמות</sw-button></div></sw-state-panel>`;
+    if (!cams.length) return html`<sw-state-panel icon="camera" state="empty" heading="אין מצלמות זמינות" hint="המצלמות מתגלות אוטומטית מהמקליט בהפעלה ובכל 10 דקות. אם הרשימה ריקה: בדקו את פרטי המקליט בהגדרות ‹ חיבורים, או הריצו סנכרון ידני; ייתכן גם שאין לך הרשאה למצלמות."><div style="margin-block-start:10px"><sw-button @click=${() => navigate('/system/devices')}>למצלמות</sw-button></div></sw-state-panel>`;
     // NVRLESS-CAMERAS-2411 (owner, 08.11): no video server - a clear notice instead of a wall of broken players
     if (!webrtcServer()) return html`<sw-state-panel icon="camera" state="empty" heading=${WEBRTC_REQUIRED_SHORT} hint=${WEBRTC_REQUIRED_TEXT} actionLabel=${WEBRTC_SETTINGS_LABEL} data-webrtc-required @action=${() => (window.location.hash = WEBRTC_SETTINGS_HREF)}></sw-state-panel>`;
     const wanted = this.cameras ? this.cameras.split(',').filter(Boolean) : [];
@@ -1203,7 +1204,7 @@ export class LiveWall extends LitElement {
     const quality = keyHint('איכות', this.stream === 'auto' ? 'אוטו' : this.stream === 'sub' ? 'רגילה' : 'גבוהה');
     const choice = countChoiceId(this.count, total);
     const count = keyHint('מספר מצלמות', this.cameras ? 'נבחרו במפה' : choice === COUNT_ALL_ID ? `כל המצלמות (${total})` : `${choice} מצלמות`);
-    const recorder = keyHint('NVR', this.recorders.find((r) => r.id === this.recorderFilter)?.name ?? 'כל ה־NVR');
+    const recorder = keyHint(vt('videoCopy.recorder'), this.recorders.find((r) => r.id === this.recorderFilter)?.name ?? vt('videoCopy.recorderAll'));
     return html`<div slot="actions" class="pbar" data-wall-phone-bar data-mode="icons"
       @pointerdown=${this.onKeyPress} @pointermove=${this.onKeyMove} @pointerup=${this.onKeyRelease} @pointercancel=${this.onKeyRelease} @click=${this.onKeyClick} @contextmenu=${this.onKeyMenu}>
       ${this.iconKey('aperture', quality, '', this.qualityControl(quality))}
