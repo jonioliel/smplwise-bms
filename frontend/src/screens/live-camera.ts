@@ -67,7 +67,8 @@ export class LiveCamera extends LitElement {
   @state() private zonesBusy = false;
   @state() private zonesError = '';
   /** B2 (0.1.65): editing the motion grid - a working copy of the cells, the sensitivity and the enabled flag. */
-  @state() private motionEdit: { cells: boolean[][]; sensitivity: number; enabled: boolean } | null = null;
+  /** LIVECAM-DRAFT-RESET-2435: every draft carries the camera it was opened for (`camId`); a save refuses when that is not the camera on screen. */
+  @state() private motionEdit: { camId: string; cells: boolean[][]; sensitivity: number; enabled: boolean } | null = null;
   @state() private motionConfirm = false;
   @state() private motionBusy = false;
   @state() private motionMsg = '';
@@ -80,12 +81,12 @@ export class LiveCamera extends LitElement {
   @state() private sched: CameraSchedules | null = null;
   @state() private schedError = '';
   @state() private schedTab: ArmingKind | 'record' = 'motion';
-  @state() private schedEdit: { kind: ArmingKind | 'record'; days: WeekRange[][]; schedule_enabled?: boolean | null; enabled?: boolean } | null = null;
+  @state() private schedEdit: { camId: string; kind: ArmingKind | 'record'; days: WeekRange[][]; schedule_enabled?: boolean | null; enabled?: boolean } | null = null;
   @state() private schedBusy = false;
   @state() private schedMsg = '';
   @state() private schedConfirm = false;
   @state() private smart: CameraSmart | null = null;
-  @state() private smartEdit: { line: { enabled: boolean; lines: { id: number; enabled: boolean; sensitivity: number; direction: string; points: number[][]; human: boolean; vehicle: boolean }[] } | null; field: { enabled: boolean; regions: { id: number; sensitivity: number; points: number[][]; human: boolean; vehicle: boolean }[] } | null; tool: { type: 'line' | 'field'; id: number } } | null = null;
+  @state() private smartEdit: { camId: string; line: { enabled: boolean; lines: { id: number; enabled: boolean; sensitivity: number; direction: string; points: number[][]; human: boolean; vehicle: boolean }[] } | null; field: { enabled: boolean; regions: { id: number; sensitivity: number; points: number[][]; human: boolean; vehicle: boolean }[] } | null; tool: { type: 'line' | 'field'; id: number } } | null = null;
   @state() private smartBusy = false;
   @state() private smartMsg = '';
   @state() private osdMsg = '';
@@ -107,16 +108,78 @@ export class LiveCamera extends LitElement {
   @state() private source: CameraSource | null = null;
   @state() private sourceOpen = false;
   @state() private sourceMsg = '';
+  /** LIVECAM-DRAFT-RESET-2435: bumped on every camera change; a read or a write that started under an older value drops its answer. */
+  private camGen = 0;
+
+  /** LIVECAM-DRAFT-RESET-2435: the shell re-uses this element when only the camera id in the route changes (shell/sw-app.ts), so
+   * everything that belongs to the previous camera - its NVR reads, the open drafts and their dialogs, busy flags, messages and the
+   * record poll - is dropped here, before the new camera's first frame. View choices (profile, layers, schedule tab, minutes) stay. */
+  private resetCameraState() {
+    this.camGen++;
+    window.clearTimeout(this.recTimer);
+    window.clearTimeout(this.castNoteTimer);
+    this.mapTicket = false;
+    this.zones = null;
+    this.zonesBusy = false;
+    this.zonesError = '';
+    this.motionEdit = null;
+    this.motionConfirm = false;
+    this.motionBusy = false;
+    this.motionMsg = '';
+    this.paintValue = null;
+    this.rec = null;
+    this.recBusy = false;
+    this.recMsg = '';
+    this.osd = null;
+    this.osdBusy = false;
+    this.osdMsg = '';
+    this.sched = null;
+    this.schedError = '';
+    this.schedEdit = null;
+    this.schedBusy = false;
+    this.schedMsg = '';
+    this.schedConfirm = false;
+    this.smart = null;
+    this.smartEdit = null;
+    this.smartBusy = false;
+    this.smartMsg = '';
+    this.renameTo = null;
+    this.renameBusy = false;
+    this.renameMsg = '';
+    this.reboot = null;
+    this.rebootOpen = false;
+    this.rebootBusy = false;
+    this.rebootMsg = '';
+    this.source = null;
+    this.sourceOpen = false;
+    this.sourceMsg = '';
+    this.caps = null;
+    this.capsError = '';
+    this.castShown = false;
+    this.castOpen = false;
+    this.castNote = '';
+    this.playerStatus = '';
+    this.playerTransport = '';
+    if (isApi()) this.loading = true; // load() follows in updated(); no frame of the old camera's settings in between
+  }
+
+  /** The camera a draft may be written to: the one it was opened for, only while it is still the camera on screen. */
+  private draftTarget(camId: string): Camera | null {
+    const cam = this.cam;
+    return cam && cam.id === camId && camId === this.cameraId ? cam : null;
+  }
 
   private async loadSource() {
     if (!this.cam || !isApi() || !can('system.configure')) {
       this.source = null;
       return;
     }
+    const gen = this.camGen;
     try {
-      this.source = await getCameraSource(this.cam.id);
+      const s = await getCameraSource(this.cam.id);
+      if (gen === this.camGen) this.source = s;
     } catch {
-      this.source = null;
+      if (gen === this.camGen) this.source = null;
     }
   }
 
@@ -144,17 +207,23 @@ export class LiveCamera extends LitElement {
       this.schedError = 'לוחות הזמנים וחוקי ה־smart של ה־NVR נקראים עם הרשאת ניהול NVR.';
       return;
     }
+    const gen = this.camGen;
+    const id = this.cam.id;
     try {
-      this.sched = await cameraSchedules(this.cam.id);
+      const sched = await cameraSchedules(id);
+      if (gen !== this.camGen) return;
+      this.sched = sched;
       this.schedError = '';
       if (!this.sched.arming[this.schedTab as ArmingKind] && this.schedTab !== 'record') this.schedTab = (Object.keys(this.sched.arming)[0] as ArmingKind) ?? 'record';
     } catch (err) {
+      if (gen !== this.camGen) return;
       this.schedError = describeError(err);
     }
     try {
-      this.smart = await cameraSmart(this.cam.id);
+      const smart = await cameraSmart(id);
+      if (gen === this.camGen) this.smart = smart;
     } catch {
-      this.smart = null;
+      if (gen === this.camGen) this.smart = null;
     }
   }
 
@@ -164,7 +233,8 @@ export class LiveCamera extends LitElement {
     const kind = this.schedTab;
     const days = (kind === 'record' ? s.record?.days : s.arming[kind]) ?? Array.from({ length: 7 }, () => []);
     this.schedMsg = '';
-    this.schedEdit = { kind, days: days.map((d) => d.map((r) => ({ ...r }))), schedule_enabled: s.record?.schedule_enabled ?? null, enabled: s.record?.enabled };
+    if (!this.cam) return;
+    this.schedEdit = { camId: this.cam.id, kind, days: days.map((d) => d.map((r) => ({ ...r }))), schedule_enabled: s.record?.schedule_enabled ?? null, enabled: s.record?.enabled };
   }
 
   private schedDiff(): number {
@@ -179,19 +249,44 @@ export class LiveCamera extends LitElement {
   private async saveSched() {
     const e = this.schedEdit;
     if (!e || !this.cam || this.schedBusy) return;
+    const cam = this.draftTarget(e.camId);
+    if (!cam) {
+      this.refuseStaleDraft('sched');
+      return;
+    }
+    const gen = this.camGen;
     this.schedBusy = true;
     this.schedConfirm = false;
     try {
       const rec = e.kind === 'record'
-        ? await setRecordSchedule(this.cam.id, { days: e.days, ...(e.schedule_enabled !== null && e.schedule_enabled !== this.sched?.record?.schedule_enabled ? { schedule_enabled: e.schedule_enabled ?? undefined } : {}) })
-        : await setArming(this.cam.id, e.kind, e.days);
+        ? await setRecordSchedule(cam.id, { days: e.days, ...(e.schedule_enabled !== null && e.schedule_enabled !== this.sched?.record?.schedule_enabled ? { schedule_enabled: e.schedule_enabled ?? undefined } : {}) })
+        : await setArming(cam.id, e.kind, e.days);
+      if (gen !== this.camGen) return;
       this.schedMsg = rec.status === 'unchanged' ? 'ה־NVR כבר היה במצב הזה — לא נכתב דבר.' : 'הלוח נכתב ל־NVR ונרשם (ניתן להחזרה מרשימת השינויים בהגדרות ‹ חיבורים).';
       this.schedEdit = null;
       await this.loadSchedules();
     } catch (err) {
-      this.schedMsg = describeError(err);
+      if (gen === this.camGen) this.schedMsg = describeError(err);
     } finally {
-      this.schedBusy = false;
+      if (gen === this.camGen) this.schedBusy = false;
+    }
+  }
+
+  /** LIVECAM-DRAFT-RESET-2435: a draft that does not belong to the camera on screen is dropped, never written (defensive: a camera
+   * change already closes every draft). */
+  private refuseStaleDraft(kind: 'motion' | 'sched' | 'smart') {
+    const msg = 'העריכה נפתחה למצלמה אחרת ולכן לא נכתבה ל־NVR. פתח את העריכה מחדש במצלמה הזו.';
+    if (kind === 'motion') {
+      this.motionEdit = null;
+      this.motionConfirm = false;
+      this.motionMsg = msg;
+    } else if (kind === 'sched') {
+      this.schedEdit = null;
+      this.schedConfirm = false;
+      this.schedMsg = msg;
+    } else {
+      this.smartEdit = null;
+      this.smartMsg = msg;
     }
   }
 
@@ -256,11 +351,12 @@ export class LiveCamera extends LitElement {
 
   private startSmartEdit() {
     const sm = this.smart;
-    if (!sm) return;
+    if (!sm || !this.cam) return;
+    const camId = this.cam.id;
     this.smartMsg = '';
     const line = sm.line ? { enabled: sm.line.enabled, lines: sm.line.lines.map((l) => ({ ...l, points: l.points.map((p) => [...p]) })) } : null;
     const field = sm.field ? { enabled: sm.field.enabled, regions: sm.field.regions.map((r) => ({ ...r, points: r.points.map((p) => [...p]) })) } : null;
-    this.smartEdit = { line, field, tool: line ? { type: 'line', id: line.lines[0]?.id ?? 1 } : { type: 'field', id: field?.regions[0]?.id ?? 1 } };
+    this.smartEdit = { camId, line, field, tool: line ? { type: 'line', id: line.lines[0]?.id ?? 1 } : { type: 'field', id: field?.regions[0]?.id ?? 1 } };
   }
 
   private smartClick(e: MouseEvent) {
@@ -287,12 +383,19 @@ export class LiveCamera extends LitElement {
   private async saveSmart() {
     const ed = this.smartEdit;
     if (!ed || !this.cam || this.smartBusy) return;
+    const cam = this.draftTarget(ed.camId);
+    if (!cam) {
+      this.refuseStaleDraft('smart');
+      return;
+    }
+    const gen = this.camGen;
     this.smartBusy = true;
     try {
       const body: Parameters<typeof setSmart>[1] = {};
       if (ed.line) body.line = { enabled: ed.line.enabled, lines: ed.line.lines.filter((l) => l.points.length === 2) };
       if (ed.field) body.field = { enabled: ed.field.enabled, regions: ed.field.regions.filter((r) => r.points.length === 0 || r.points.length >= 4) };
-      const res = await setSmart(this.cam.id, body);
+      const res = await setSmart(cam.id, body);
+      if (gen !== this.camGen) return;
       const st = Object.values(res).map((r) => r.status);
       const refused = Object.values(res).some((r) => r.enable_refused);
       this.smartMsg = st.every((s) => s === 'unchanged')
@@ -303,9 +406,9 @@ export class LiveCamera extends LitElement {
       this.smartEdit = null;
       await Promise.all([this.loadSchedules(), this.loadZones(true)]);
     } catch (err) {
-      this.smartMsg = describeError(err);
+      if (gen === this.camGen) this.smartMsg = describeError(err);
     } finally {
-      this.smartBusy = false;
+      if (gen === this.camGen) this.smartBusy = false;
     }
   }
 
@@ -354,19 +457,21 @@ export class LiveCamera extends LitElement {
   }
 
   private async saveRename() {
-    if (this.renameTo === null || !this.cam || this.renameBusy) return;
+    if (this.renameTo === null || !this.cam || this.renameBusy || this.cam.id !== this.cameraId) return;
+    const gen = this.camGen;
     this.renameBusy = true;
     this.renameMsg = '';
     try {
       const saved = await updateCamera(this.cam.id, { alias: this.renameTo.trim() });
+      if (gen !== this.camGen || !this.cam) return;
       this.cam = { ...this.cam, ...saved };
       this.cams = this.cams.map((c) => (c.id === saved.id ? { ...c, ...saved } : c));
       this.renameTo = null;
       void this.loadOsd();
     } catch (err) {
-      this.renameMsg = describeError(err);
+      if (gen === this.camGen) this.renameMsg = describeError(err);
     } finally {
-      this.renameBusy = false;
+      if (gen === this.camGen) this.renameBusy = false;
     }
   }
 
@@ -386,25 +491,30 @@ export class LiveCamera extends LitElement {
       this.osd = null; // the OSD card is for NVR writers; nothing to read for anyone else
       return;
     }
+    const gen = this.camGen;
     try {
-      this.osd = await osdStatus(this.cam.id);
+      const osd = await osdStatus(this.cam.id);
+      if (gen === this.camGen) this.osd = osd;
     } catch {
-      this.osd = null;
+      if (gen === this.camGen) this.osd = null;
     }
   }
 
   private async osdAction(label: string, run: () => Promise<unknown>) {
-    if (this.osdBusy) return;
+    // the OSD row shows the camera on screen; a write only while that is still the routed camera
+    if (this.osdBusy || !this.cam || this.cam.id !== this.cameraId || this.osd?.camera_id !== this.cam.id) return;
+    const gen = this.camGen;
     this.osdBusy = true;
     this.osdMsg = '';
     try {
       await run();
+      if (gen !== this.camGen) return;
       this.osdMsg = `${label}: נכתב ל־NVR ונרשם.`;
       await this.loadOsd();
     } catch (err) {
-      this.osdMsg = `${label}: ${describeError(err)}`;
+      if (gen === this.camGen) this.osdMsg = `${label}: ${describeError(err)}`;
     } finally {
-      this.osdBusy = false;
+      if (gen === this.camGen) this.osdBusy = false;
     }
   }
 
@@ -429,26 +539,31 @@ export class LiveCamera extends LitElement {
       this.reboot = null; // the action is for NVR administrators; nothing to read for anyone else
       return;
     }
+    const gen = this.camGen;
     try {
-      this.reboot = await cameraRebootState(this.cam.id);
+      const st = await cameraRebootState(this.cam.id);
+      if (gen === this.camGen) this.reboot = st;
     } catch {
-      this.reboot = null;
+      if (gen === this.camGen) this.reboot = null;
     }
   }
 
   private async runReboot() {
-    if (!this.cam || this.rebootBusy) return;
+    if (!this.cam || this.rebootBusy || this.cam.id !== this.cameraId) return;
+    const gen = this.camGen;
     this.rebootBusy = true;
     this.rebootMsg = '';
     try {
       await rebootCamera(this.cam.id);
-      this.rebootMsg = crt('done');
+      if (gen === this.camGen) this.rebootMsg = crt('done');
     } catch (err) {
-      this.rebootMsg = rebootErrorText(err); // never retried: the press is the one confirmation
+      if (gen === this.camGen) this.rebootMsg = rebootErrorText(err); // never retried: the press is the one confirmation
     } finally {
-      this.rebootBusy = false;
-      this.rebootOpen = false;
-      await this.loadReboot();
+      if (gen === this.camGen) {
+        this.rebootBusy = false;
+        this.rebootOpen = false;
+        await this.loadReboot();
+      }
     }
   }
 
@@ -473,32 +588,38 @@ export class LiveCamera extends LitElement {
 
   private async loadRecord() {
     if (!this.cam || !isApi()) return;
+    const gen = this.camGen;
+    let rec: RecordStatus | null;
     try {
-      this.rec = await recordStatus(this.cam.id);
+      rec = await recordStatus(this.cam.id);
     } catch {
-      this.rec = null;
+      rec = null;
     }
+    if (gen !== this.camGen) return; // a newer camera owns the row (and its own poll)
+    this.rec = rec;
     window.clearTimeout(this.recTimer);
-    if (this.rec?.active) this.recTimer = window.setTimeout(() => void this.loadRecord(), 15000);
+    // LIVECAM-DRAFT-RESET-2435: the poll lives only while the screen is shown (disconnectedCallback clears it)
+    if (this.rec?.active && this.isConnected) this.recTimer = window.setTimeout(() => void this.loadRecord(), 15000);
   }
 
   private async toggleRecord() {
-    if (!this.cam || this.recBusy) return;
+    if (!this.cam || this.recBusy || this.cam.id !== this.cameraId) return;
+    const gen = this.camGen;
     this.recBusy = true;
     this.recMsg = '';
     try {
       if (this.rec?.active) {
         await recordStop(this.cam.id);
-        this.recMsg = 'ההקלטה הידנית נעצרה.';
+        if (gen === this.camGen) this.recMsg = 'ההקלטה הידנית נעצרה.';
       } else {
         const r = await recordStart(this.cam.id, this.recMinutes);
-        this.recMsg = `הקלטה ידנית החלה · תיעצר אוטומטית ב־${timeText(new Date(r.stop_at))}.`;
+        if (gen === this.camGen) this.recMsg = `הקלטה ידנית החלה · תיעצר אוטומטית ב־${timeText(new Date(r.stop_at))}.`;
       }
-      await this.loadRecord();
+      if (gen === this.camGen) await this.loadRecord();
     } catch (err) {
-      this.recMsg = describeError(err);
+      if (gen === this.camGen) this.recMsg = describeError(err);
     } finally {
-      this.recBusy = false;
+      if (gen === this.camGen) this.recBusy = false;
     }
   }
 
@@ -1170,6 +1291,21 @@ export class LiveCamera extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     void this.load();
+    if (this.hasUpdated && this.rec?.active) void this.loadRecord(); // re-attached: the poll stopped in disconnectedCallback
+  }
+
+  /** LIVECAM-DRAFT-RESET-2435: leaving the screen stops the 15 s manual-recording poll and the cast note timer. */
+  disconnectedCallback() {
+    window.clearTimeout(this.recTimer);
+    window.clearTimeout(this.castNoteTimer);
+    this.recTimer = 0;
+    this.castNoteTimer = 0;
+    super.disconnectedCallback();
+  }
+
+  protected willUpdate(changed: Map<string, unknown>) {
+    // the same element, another camera: nothing of the previous camera may survive into this render (LC-1)
+    if (changed.has('cameraId') && changed.get('cameraId') !== undefined) this.resetCameraState();
   }
 
   protected updated(changed: Map<string, unknown>) {
@@ -1190,24 +1326,28 @@ export class LiveCamera extends LitElement {
 
   private async loadZones(refresh = false) {
     if (!this.cam) return;
+    const gen = this.camGen;
     this.zonesBusy = true;
     this.zonesError = '';
     try {
-      this.zones = await cameraZones(this.cam.id, refresh);
+      const z = await cameraZones(this.cam.id, refresh);
+      if (gen === this.camGen) this.zones = z;
     } catch (err) {
-      this.zonesError = describeError(err);
+      if (gen === this.camGen) this.zonesError = describeError(err);
     } finally {
-      this.zonesBusy = false;
+      if (gen === this.camGen) this.zonesBusy = false;
     }
   }
 
   private async loadCaps(refresh = false) {
     if (!this.cam) return;
+    const gen = this.camGen;
     this.capsError = '';
     try {
-      this.caps = await cameraCapabilities(this.cam.id, refresh);
+      const c = await cameraCapabilities(this.cam.id, refresh);
+      if (gen === this.camGen) this.caps = c;
     } catch (err) {
-      this.capsError = describeError(err);
+      if (gen === this.camGen) this.capsError = describeError(err);
     }
   }
 
@@ -1231,9 +1371,9 @@ export class LiveCamera extends LitElement {
 
   private startMotionEdit() {
     const m = this.zones?.motion;
-    if (!m || !m.rows || !m.cols) return;
+    if (!m || !m.rows || !m.cols || !this.zones) return;
     this.motionMsg = '';
-    this.motionEdit = { cells: m.cells.map((r) => [...r]), sensitivity: m.sensitivity ?? 50, enabled: m.enabled };
+    this.motionEdit = { camId: this.zones.camera_id, cells: m.cells.map((r) => [...r]), sensitivity: m.sensitivity ?? 50, enabled: m.enabled };
   }
 
   private paintCell(r: number, c: number, start = false) {
@@ -1265,21 +1405,29 @@ export class LiveCamera extends LitElement {
 
   private async saveMotion() {
     const e = this.motionEdit;
-    const cam = this.cam;
-    if (!e || !cam || this.motionBusy) return;
+    if (!e || !this.cam || this.motionBusy) return;
+    // the grid is written to the camera it was drawn on, and only while that camera is still on screen with its own zones (LC-1)
+    const cam = this.draftTarget(e.camId);
+    if (!cam || this.zones?.camera_id !== e.camId) {
+      this.refuseStaleDraft('motion');
+      return;
+    }
+    const gen = this.camGen;
     const d = this.motionDiff();
     this.motionBusy = true;
     try {
-      const rec = await setMotion(cam.id, { ...(d.added || d.removed ? { cells: e.cells } : {}), ...(d.sensitivity ? { sensitivity: e.sensitivity } : {}), ...(d.enabled ? { enabled: e.enabled } : {}) });
+      const rec = await setMotion(e.camId, { ...(d.added || d.removed ? { cells: e.cells } : {}), ...(d.sensitivity ? { sensitivity: e.sensitivity } : {}), ...(d.enabled ? { enabled: e.enabled } : {}) });
+      if (gen !== this.camGen) return;
       this.motionMsg = rec.status === 'unchanged' ? 'ה־NVR כבר היה במצב הזה, לא נכתב דבר.' : `נכתב ל־NVR (שינוי ${rec.id.slice(0, 8)}). ניתן להחזיר מהגדרות ‹ חיבורים ‹ שינויים אחרונים.`;
       this.motionEdit = null;
       this.motionConfirm = false;
       await this.loadZones(true);
     } catch (err) {
+      if (gen !== this.camGen) return;
       this.motionMsg = describeError(err);
       this.motionConfirm = false;
     } finally {
-      this.motionBusy = false;
+      if (gen === this.camGen) this.motionBusy = false;
     }
   }
 
@@ -1353,11 +1501,13 @@ export class LiveCamera extends LitElement {
   }
 
   private async load() {
+    const gen = this.camGen;
     this.loading = true;
     this.error = '';
     try {
       if (isApi()) {
         const [list, settings] = await Promise.all([listCameras(), productSettings()]);
+        if (gen !== this.camGen) return; // the route moved on to another camera; its own load() fills the screen
         this.cams = list.cameras;
         this.cam = list.cameras.find((c) => c.id === this.cameraId) ?? null;
         this.canConfigure = list.can_sync;
@@ -1368,9 +1518,9 @@ export class LiveCamera extends LitElement {
         if (remote) this.profile = remote.defaultProfile;
       }
     } catch (err) {
-      this.error = describeError(err);
+      if (gen === this.camGen) this.error = describeError(err);
     } finally {
-      this.loading = false;
+      if (gen === this.camGen) this.loading = false;
     }
   }
 
@@ -1469,11 +1619,12 @@ export class LiveCamera extends LitElement {
       this.castShown = false;
       return;
     }
+    const gen = this.camGen;
     try {
       const r = await castTargets(this.cam.id);
-      this.castShown = castButtonVisible({ api: true, hasCast: true, targets: r.targets.length, ready: r.ready });
+      if (gen === this.camGen) this.castShown = castButtonVisible({ api: true, hasCast: true, targets: r.targets.length, ready: r.ready });
     } catch {
-      this.castShown = false;
+      if (gen === this.camGen) this.castShown = false;
     }
   }
 
