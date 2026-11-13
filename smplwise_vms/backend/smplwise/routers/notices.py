@@ -202,13 +202,13 @@ def _logo_path(request: Request) -> Path:
 
 
 @open_router.put("/notices/settings/logo")
-async def put_logo(request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def put_logo(request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The developer / management-company logo of the TV boards (CR-LOGOS295 is not in this build: the boards keep their own copy).
     PNG or JPEG up to 1 MB, decoded and re-encoded to a clean PNG (the bill-logo pipeline); SVG and anything else is refused."""
     require(conn, principal, "system.configure", INSTALLATION)
     from ..services.bill_pdf_logo import LogoError, sanitize_logo
 
-    data = await file.read(1_000_001)
+    data = file.file.read(1_000_001)
     try:
         png = sanitize_logo(data)
     except LogoError as exc:
@@ -284,11 +284,11 @@ def put_news_sources(body: NewsSourcesIn, request: Request, principal: Principal
 
 
 @open_router.put("/notices/news-sources/{source_id}/logo")
-async def put_news_logo(source_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def put_news_logo(source_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, "system.configure", INSTALLATION)
     from ..services.bill_pdf_logo import LogoError
 
-    data = await file.read(news_sources.LOGO_UPLOAD_BYTES + 1)
+    data = file.file.read(news_sources.LOGO_UPLOAD_BYTES + 1)
     try:
         news_sources.put_logo(conn, source_id, data)
     except KeyError:
@@ -1130,9 +1130,9 @@ def delete_slide(slide_id: str, request: Request, principal: Principal = Depends
 
 
 @router.put("/notices/promo-slides/{slide_id}/image")
-async def put_slide_image(slide_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def put_slide_image(slide_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _slide_or_404(conn, slide_id)
-    data = await file.read(sl.SLIDE_IMAGE_BYTES + 1)
+    data = file.file.read(sl.SLIDE_IMAGE_BYTES + 1)
     try:
         sl.put_image(conn, principal.user_id, slide_id, data)
     except LogoError as exc:
@@ -1172,10 +1172,10 @@ def put_board_slides(board_id: str, body: SlideOrderIn, request: Request, princi
 
 @router.put("/notices/boards/{board_id}/photo")
 @router.put("/notices/boards/{board_id}/photo-night")
-async def put_board_photo(board_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def put_board_photo(board_id: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(_boards_w), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     _board_or_404(conn, board_id)
     night = request.url.path.endswith("/photo-night")  # LOBBY-STYLES-2300: the building at night (same table, link position 1)
-    data = await file.read(sl.PHOTO_IMAGE_BYTES + 1)
+    data = file.file.read(sl.PHOTO_IMAGE_BYTES + 1)
     try:
         sl.put_photo(conn, principal.user_id, board_id, data, night)
     except LogoError as exc:

@@ -10,10 +10,10 @@ from typing import Any
 from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
-from starlette.concurrency import run_in_threadpool
 
 from ..audit import audit
 from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
+from ..db import unlocked
 from ..errors import ApiError, not_found
 from ..rbac import Principal, require
 from ..services import plan_anchor_scope as anchor_scope
@@ -99,7 +99,7 @@ def bake_file(floor_id: str, bake_id: str, request: Request, principal: Principa
 
 
 @router.post("/floors/{floor_id}/bakes", status_code=201)
-async def upload_bake(floor_id: str, request: Request, kind: str = Form(...), level_id: str = Form(...), preset: str = Form(""), style: str = Form(""),
+def upload_bake(floor_id: str, request: Request, kind: str = Form(...), level_id: str = Form(...), preset: str = Form(""), style: str = Form(""),
                       band: str = Form(""), variant: str = Form(""), bake_key: str = Form(...), recipe: str = Form(...), meta: str = Form(""),
                       file: UploadFile = File(...), principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """Store one rendered file into its slot (replacing the slot's previous file). The key must be the floor's current bake key
@@ -122,9 +122,10 @@ async def upload_bake(floor_id: str, request: Request, kind: str = Form(...), le
         raise ApiError(409, "geometry_changed", "המבנה, החדרים או הקטלוג של הקומה השתנו מאז ההכנה; הכינו שוב.", details={"bake_key": sk.bake_key})
     if slot["level_id"] not in pb.floor_levels(conn, floor_id):
         raise ApiError(422, "bad_slot", "המפלס אינו קיים במבנה המפורסם של הקומה.")
-    data = await file.read(pb.MAX_UPLOAD + 1)
+    data = file.file.read(pb.MAX_UPLOAD + 1)
     try:
-        mime, w, h, _doc = await run_in_threadpool(pb.validate_file, kind, slot["preset"], data)
+        with unlocked(conn):  # the decode (and its up to 5 s wait for a slot) runs without the write lock
+            mime, w, h, _doc = pb.validate_file(kind, slot["preset"], data)
         row, identical, evicted = pb.store(settings, conn, floor_id, slot, sk.real, recipe, meta_obj, data, mime, w, h, principal.user_id)
         row = dict(row, bake_key=pb.shown_key(row["bake_key"], sk, visible))
     except pb.BakeStoreError:

@@ -74,7 +74,7 @@ def put_room_wallpaper(room_key: str, body: WallBody, request: Request, principa
 
 
 @router.put("/home/room-wallpapers/{room_key}/image")
-async def put_room_wallpaper_image(room_key: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal),
+def put_room_wallpaper_image(room_key: str, request: Request, file: UploadFile = File(...), principal: Principal = Depends(current_principal),
                                    conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     from ..services.bill_pdf_logo import LogoError, sanitize_image
     from .home_interface import WALL_REFUSED
@@ -83,7 +83,7 @@ async def put_room_wallpaper_image(room_key: str, request: Request, file: Upload
     _room(room_key)
     if hi.install_settings(conn)["wallpaper"] != "gallery_image":
         raise hi.HomeInterfaceError(403, "wallpaper_image_off", "תמונה לרקע אינה פעילה בהתקנה הזו.")
-    raw = await file.read(hi.WALL_IMAGE_BYTES + 1)
+    raw = file.file.read(hi.WALL_IMAGE_BYTES + 1)
     try:
         mime, data = sanitize_image(raw, max_bytes=hi.WALL_IMAGE_BYTES, max_side=hi.WALL_IMAGE_SIDE)
     except LogoError as exc:

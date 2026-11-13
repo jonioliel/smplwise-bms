@@ -16,7 +16,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 
 from ..audit import audit
-from ..auth import current_principal, get_conn, settings_of
+from ..auth import current_principal, current_principal_ro, get_conn, get_read_conn, settings_of
 from ..db import unlocked
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
@@ -62,7 +62,7 @@ def _last_test(conn: sqlite3.Connection) -> dict[str, Any] | None:
 
 
 @router.get("/skins/status")
-def skins_status(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def skins_status(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """Everything the settings section shows - never the key, only whether it is configured."""
     s = read_settings(conn)
     key_configured = bool(settings_of(request).openai_api_key)
@@ -139,7 +139,7 @@ def skins_test(request: Request, principal: Principal = Depends(current_principa
 
 
 @router.get("/floors/{floor_id}/skins")
-def floor_skins(floor_id: str, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
+def floor_skins(floor_id: str, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     """The floor's geometry key (what a control image must be made from), its stored control images and its budget."""
     get_floor(conn, floor_id)
     require(conn, principal, P_EDIT, ("floor", floor_id))
@@ -163,7 +163,7 @@ def _control_out(c: dict[str, Any], key: str | None, real: str | None) -> dict[s
 
 
 @router.post("/floors/{floor_id}/skins/control-image", status_code=201)
-async def upload_control_image(floor_id: str, request: Request, state: str = Form(...), geometry_key: str = Form(...), file: UploadFile = File(...),
+def upload_control_image(floor_id: str, request: Request, state: str = Form(...), geometry_key: str = Form(...), file: UploadFile = File(...),
                                recipe: str | None = Form(None),
                                principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     """The browser's level-2 isometric capture of the floor for a synthetic state, labels stripped. Stored locally only,
@@ -185,7 +185,7 @@ async def upload_control_image(floor_id: str, request: Request, state: str = For
     if not store.recipe_omits_camera_bodies(recipe):
         raise ApiError(409, "control_recipe_outdated", "גרסת היישום ישנה: רעננו את הדף וצלמו שוב.", details={"recipe": store.CONTROL_RECIPE})
     assert recipe is not None
-    data = await file.read(store.CONTROL_MAX_BYTES + 1)
+    data = file.file.read(store.CONTROL_MAX_BYTES + 1)
     try:
         row, identical = store.store_control(settings, conn, floor_id, state, real_key, data, principal.user_id, recipe=recipe)
         if served_key != real_key:
