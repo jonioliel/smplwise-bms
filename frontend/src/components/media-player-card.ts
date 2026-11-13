@@ -162,7 +162,7 @@ export class MediaPlayerCard extends LitElement {
       cursor: pointer;
       isolation: isolate;
       box-shadow: var(--mm-cover-shadow);
-      transition: transform 140ms var(--mm-ease);
+      transition: transform var(--sw-t-press) var(--mm-ease);
     }
     .cov:active {
       transform: scale(0.97);
@@ -211,7 +211,7 @@ export class MediaPlayerCard extends LitElement {
       inset-inline: 8px;
       inset-block-end: 6px;
       block-size: 3px;
-      border-radius: 3px;
+      border-radius: var(--sw-r-pill);
       background: rgba(255, 255, 255, 0.25);
       z-index: 3;
       overflow: hidden;
@@ -221,7 +221,7 @@ export class MediaPlayerCard extends LitElement {
       block-size: 100%;
       inline-size: var(--p, 0%);
       background: var(--sw-on-video);
-      border-radius: 3px;
+      border-radius: var(--sw-r-pill);
     }
     .cov .live {
       position: absolute;
@@ -242,7 +242,7 @@ export class MediaPlayerCard extends LitElement {
       border-radius: 50%;
       background: var(--sw-danger);
       box-shadow: 0 0 6px var(--sw-danger);
-      animation: blink 1.6s ease-in-out infinite;
+      animation: blink calc(var(--sw-t-med) * 8) ease-in-out infinite;
     }
     @keyframes blink {
       50% {
@@ -265,7 +265,7 @@ export class MediaPlayerCard extends LitElement {
       border-radius: 50%;
       border: 3px solid rgba(255, 255, 255, 0.35);
       border-top-color: var(--sw-on-video);
-      animation: mm-spin 0.8s linear infinite;
+      animation: mm-spin calc(var(--sw-t-med) * 4) linear infinite;
     }
     .cov.rcv {
       background: var(--mm-key-bg);
@@ -344,7 +344,7 @@ export class MediaPlayerCard extends LitElement {
       gap: 5px;
       block-size: 24px;
       padding-inline: 7px 9px;
-      border-radius: 999px;
+      border-radius: var(--sw-r-pill);
       background: var(--dv-accent-soft);
       color: var(--dv-accent-text);
       font-size: var(--sw-fs-xs);
@@ -378,7 +378,7 @@ export class MediaPlayerCard extends LitElement {
       background: var(--dv-text);
       color: var(--mm-text-inverse);
       box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
-      transition: transform 120ms var(--mm-ease), background var(--mm-motion), box-shadow var(--mm-motion);
+      transition: transform var(--sw-t-press) var(--mm-ease), background var(--mm-motion), box-shadow var(--mm-motion);
     }
     .pk .ic {
       font-size: var(--sw-fs-3xl);
@@ -404,7 +404,7 @@ export class MediaPlayerCard extends LitElement {
       border-radius: 50%;
       border: 2px solid transparent;
       border-top-color: var(--dv-accent);
-      animation: mm-spin 0.8s linear infinite;
+      animation: mm-spin calc(var(--sw-t-med) * 4) linear infinite;
     }
     .pk.nack {
       box-shadow: 0 0 0 3px var(--dv-danger-soft), 0 0 0 1.5px var(--dv-danger);

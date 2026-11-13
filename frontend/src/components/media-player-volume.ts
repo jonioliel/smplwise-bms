@@ -69,7 +69,7 @@ export class MediaPlayerVolume extends LitElement {
         align-items: center;
         block-size: 48px;
         padding: 2px;
-        border-radius: 999px;
+        border-radius: var(--sw-r-pill);
         background: var(--mr-surface-3);
         flex: none;
         direction: ltr;

@@ -182,7 +182,7 @@ export class MediaRemoteEditor extends LitElement {
         flex: none;
         inline-size: 48px;
         block-size: 30px;
-        border-radius: 999px;
+        border-radius: var(--sw-r-pill);
         background: var(--mr-surface-3);
         border: 0;
         padding: 0;
@@ -275,7 +275,7 @@ export class MediaRemoteEditor extends LitElement {
       .ib,
       .tog {
         cursor: pointer;
-        transition: transform var(--sw-t-press, 120ms) var(--sw-ease-out, ease-out), background var(--mr-motion);
+        transition: transform var(--sw-t-press) var(--sw-ease-out), background var(--mr-motion);
       }
       .ib:active:not([disabled]),
       .tog:active {

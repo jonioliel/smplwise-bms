@@ -60,11 +60,12 @@ test('finding 14: ONE heading style - the glass pages read the shared tokens, no
   expect(glass).not.toMatch(/--mm-fs-page-title:\s*\d+px/);
   expect(glass).toContain('--mm-fs-page-title: var(--sw-h1);');
   expect(glass).toContain('--mm-fs-page-title: var(--sw-h1-phone);');
-  for (const css of [page, mm]) {
-    const h1 = /\n    h1 \{([\s\S]*?)\n    \}/.exec(css)?.[1] ?? '';
-    expect(h1).toContain('font-family: var(--sw-font-heading)');
-    expect(h1).toContain('var(--sw-h1-weight');
-    expect(h1).toContain('var(--sw-heading');
+  // AUDIT30-D3 (audit round 30 #6): the multimedia pages no longer draw a title of their own - the shared sw-page does (checked below)
+  for (const css of [page, mm]) expect(css).not.toMatch(/\n    h1 \{/);
+  for (const f of ['screens/multimedia-screens.ts', 'screens/multimedia-players.ts', 'screens/multimedia-groups.ts']) {
+    const src = read(f);
+    expect(src, f).toContain('<sw-page class="page" wide heading=');
+    expect(src, f).not.toContain('<h1');
   }
   expect(read('components/sw-page.ts')).toContain('font-family: var(--sw-font-heading');
 });

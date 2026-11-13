@@ -73,7 +73,7 @@ export class MediaRemotePad extends LitElement {
         display: grid;
         place-items: center;
         color: var(--mr-text-2);
-        transition: color 160ms, background 240ms var(--mr-ease);
+        transition: color var(--sw-t-hover), background var(--mr-motion) var(--mr-ease);
         z-index: 1;
         cursor: pointer;
         -webkit-tap-highlight-color: transparent;
@@ -117,7 +117,7 @@ export class MediaRemotePad extends LitElement {
         box-shadow: var(--mr-key-shadow), 0 10px 22px rgba(0, 0, 0, 0.1);
         z-index: 2;
         cursor: pointer;
-        transition: transform 120ms var(--mr-ease), box-shadow 240ms var(--mr-ease), color 200ms;
+        transition: transform var(--sw-t-press) var(--mr-ease), box-shadow var(--mr-motion) var(--mr-ease), color var(--sw-t-med);
         -webkit-tap-highlight-color: transparent;
       }
       .ok:active,
@@ -138,7 +138,7 @@ export class MediaRemotePad extends LitElement {
         position: relative;
         inline-size: var(--mr-dpad-size);
         block-size: var(--mr-dpad-size);
-        border-radius: 34px;
+        border-radius: var(--sw-r-2xl);
         background: var(--mr-dpad-ring);
         box-shadow: var(--mr-dpad-groove), 0 0 0 1px var(--mr-border);
         display: grid;
@@ -175,7 +175,7 @@ export class MediaRemotePad extends LitElement {
         place-items: center;
         color: var(--mr-accent);
         opacity: 0;
-        transition: opacity 220ms;
+        transition: opacity var(--sw-t-med);
         font-weight: 700;
         font-size: var(--sw-fs-3xl);
         pointer-events: none;
@@ -197,7 +197,7 @@ export class MediaRemotePad extends LitElement {
         .dk,
         .ok,
         .tpad .fx {
-          transition-duration: 0.01ms;
+          transition: none;
         }
       }
   `;

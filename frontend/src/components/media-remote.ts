@@ -548,7 +548,7 @@ export class MediaRemote extends LitElement {
     if (!d) {
       return this.phase === 'error'
         ? html`<div class="r" data-mr-state="error"><div class="errbox">${ic('warning')}<b>לא ניתן לטעון את המסך</b><button type="button" class="btn" @click=${() => void this.load(true)}>נסו שוב</button></div></div>`
-        : html`<div class="r" data-mr-state="loading" aria-busy="true"><span class="skl" style="block-size:92px;border-radius:20px"></span><span class="skl" style="block-size:48px"></span><span class="skl" style="block-size:340px;border-radius:32px"></span></div>`;
+        : html`<div class="r" data-mr-state="loading" aria-busy="true"><span class="skl" style="block-size:92px;border-radius:var(--sw-r-2xl)"></span><span class="skl" style="block-size:48px"></span><span class="skl" style="block-size:340px;border-radius:var(--sw-r-pill)"></span></div>`;
     }
     if (this.editing) {
       return html`<div class="r" data-mr-state="editing"><media-remote-editor .device=${d} .canConfigure=${this.status?.can.configure === true}
@@ -730,7 +730,7 @@ export class MediaRemote extends LitElement {
       const pend = this.pend.has(`app:${a.id}`);
       const t = tint(a.hue);
       return html`<button type="button" class="appt" data-mr-app=${a.id} aria-current=${String(cur)} ?disabled=${pend} @click=${() => void this.exec({ command: 'app', app_id: a.id })}>
-        <span class="gi" style="--a1:${t.a1};--a2:${t.a2};--art:${t.rgb}">${ic(a.glyph)}${pend ? html`<span class="pendring" style="inset:-5px;border-radius:22px"></span>` : nothing}</span><span><bdi>${a.label}</bdi></span></button>`;
+        <span class="gi" style="--a1:${t.a1};--a2:${t.a2};--art:${t.rgb}">${ic(a.glyph)}${pend ? html`<span class="pendring" style="inset:-5px;border-radius:var(--sw-r-2xl)"></span>` : nothing}</span><span><bdi>${a.label}</bdi></span></button>`;
     })}</div>`;
   }
 
