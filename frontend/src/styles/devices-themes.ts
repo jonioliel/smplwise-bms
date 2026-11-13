@@ -197,7 +197,8 @@ export const devicesThemes = css`
     --sw-shadow-1: var(--dv-shadow-1);
     --sw-shadow-2: var(--dv-shadow-2);
     --sw-shadow-3: var(--dv-shadow-3);
-    --sw-font: var(--dv-font);
+    /* SYS-AUDIT-QUICKFIX-2437: no --sw-font bridge - the glass screens read the product face (--dv-font: var(--sw-font) below), so
+       --sw-font stays the inherited product stack here (a bridge both ways would be a custom-property cycle) */
     color-scheme: var(--dv-color-scheme);
     color: var(--dv-text);
     font-family: var(--dv-font);
@@ -238,7 +239,9 @@ export const devicesThemes = css`
     --dv-border: rgba(60, 60, 67, 0.12);
     --dv-border-strong: rgba(60, 60, 67, 0.22);
     --dv-overlay: rgba(15, 23, 42, 0.38);
-    --dv-font: -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', 'Noto Sans Hebrew', 'Heebo', Roboto, Arial, sans-serif;
+    /* SYS-AUDIT-QUICKFIX-2437 (audit round 30, finding 2: 22 % of the sampled text on 12 glass screens was drawn in the OS face):
+       the One Face Rule - the glass screens use the product's font stack (Heebo first, design/tokens.ts --sw-font) */
+    --dv-font: var(--sw-font);
     --dv-text: #1c1c1e;
     --dv-text-2: #4c4c50;
     --dv-text-3: #67676c;
