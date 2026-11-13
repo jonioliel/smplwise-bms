@@ -190,7 +190,7 @@ async function choiceContrast(page: Page) {
         const chosen = ['aria-pressed', 'aria-checked', 'aria-selected'].some((a) => el.getAttribute(a) === 'true');
         const bg = bgOf(el);
         const fg = over(parse(getComputedStyle(el).color)!, bg);
-        return { what: `${(el.getRootNode() as ShadowRoot).host?.tagName.toLowerCase() ?? 'doc'} .${el.parentElement?.className ?? ''} "${(el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 16)}"`, chosen, text: ratio(fg, bg), track: ratio(bg, bgOf(up(el)!)) };
+        return { what: `${(el.getRootNode() as ShadowRoot).host?.tagName.toLowerCase() ?? 'doc'} .${el.parentElement?.className ?? ''} "${(el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 16)}"`, chosen, chip: el.matches('.rc[aria-pressed]'), text: ratio(fg, bg), track: ratio(bg, bgOf(up(el)!)) };
       });
   });
 }
@@ -206,7 +206,10 @@ test.describe('dark scheme: the choice buttons are legible', () => {
       expect(all.some((x) => x.chosen), 'a chosen one').toBe(true);
       for (const x of all) {
         expect(x.text, `label ${x.what} chosen=${x.chosen}`).toBeGreaterThanOrEqual(4.5);
-        if (x.chosen) expect(x.track, `chosen ${x.what} vs its track`).toBeGreaterThanOrEqual(3);
+        // audit round 30 (owner Q3 option 1): a chosen chip (.rc) is the Blue Wash pair - the soft accent fill behind the accent ink, the
+        // state carried by the ink and the fill as on every chip of the product; the key-vs-track rule was written for the lifted segment
+        // thumb and applies to the segment keys only (the same reading as evidence-sys-audit-quickfix-2437 finding 3). Labels stay 4.5:1.
+        if (x.chosen && !x.chip) expect(x.track, `chosen ${x.what} vs its track`).toBeGreaterThanOrEqual(3);
       }
       await shot(page, `choices-dark-${name}`, info);
     });

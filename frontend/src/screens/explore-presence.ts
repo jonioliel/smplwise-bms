@@ -12,7 +12,6 @@ import { can, canAnywhere, isApi, onSession, session } from '../api/session';
 import { pt, type PtKey } from '../i18n/presence';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
-import { leadReserveStyles } from '../styles/lead-reserve';
 
 /** The KPI filters of the list: everyone, the people placed on a floor, the people placed on a site only. */
 type Kpi = 'all' | 'floors' | 'site';
@@ -58,7 +57,7 @@ export class ExplorePresence extends LitElement {
   private timer?: number;
   private bundleFor = '';
 
-  static styles = [leadReserveStyles, css`
+  static styles = [css`
     /* AUDIT30-I4 (#6, #8): the page frame is the product's <sw-page> (its padding, its title on the --sw-h1 tokens instead of a local
        30 / 700 H1, the subtitle line, the actions at the end of the title row); the host only gives it the height of the screen */
     :host {

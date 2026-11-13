@@ -1,3 +1,4 @@
+import { settle } from './helpers/settle';
 import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -164,6 +165,7 @@ test.describe('I6 (#18, Q11 a): the notification settings are underline tabs', (
     await sys.locator('[data-set-tabs]').getByRole('tab', { name: 'דואר יוצא', exact: true }).click();
     await expect(sys.locator('[data-set-section]')).toHaveCount(1);
     await expect(sys.locator('[data-set-section="mail"]')).toBeVisible();
+    await settle(page);
     const tall = await sys.evaluate((el) => el.scrollHeight);
     expect(tall).toBeLessThan(3000);
   });

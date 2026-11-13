@@ -344,6 +344,9 @@ test.describe('overview tiles (demo data)', () => {
     const colours = await page.locator('devices-building').evaluate((h) => {
       h.setAttribute('data-devices-style', 'glass');
       h.setAttribute('data-devices-scheme', 'dark');
+      // the screen marks a device scheme that differs from the product's (light here) as painted on its own backdrop
+      // (devices-style.ts needsOwnBackdrop); the glass bridge of AUDIT30-A applies only without it
+      h.toggleAttribute('data-devices-own-backdrop', true);
       const deep = (root: ParentNode, sel: string): Element | null => {
         const hit = root.querySelector(sel);
         if (hit) return hit;

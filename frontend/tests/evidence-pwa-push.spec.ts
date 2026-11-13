@@ -156,6 +156,10 @@ test.describe('PWA shell (CR-008 P3)', () => {
       await page.evaluate(async () => (await navigator.serviceWorker.getRegistration())?.update());
       const toast = page.locator('arx-pwa-prompts [data-pwa-update]');
       await expect(toast).toBeVisible({ timeout: 15_000 });
+      // the notice can show a moment before the new worker settles as the registration's waiting worker; a press in that moment
+      // posted the skip-waiting message nowhere and the page never reloaded (3 of 3 runs on main 665ec8f24 locally, the entry check
+      // of AUDIT30-COMBINED-2435): press once the waiting worker is there
+      await expect.poll(() => page.evaluate(async () => (await navigator.serviceWorker.getRegistration())?.waiting?.state ?? ''), { timeout: 15_000 }).toBe('installed');
       await Promise.all([page.waitForEvent('load'), toast.locator('sw-button').click()]);
       await expect.poll(shellCaches, { timeout: 15_000 }).toEqual([`${oldName}-next`]);
       await expect(toast).toBeHidden();

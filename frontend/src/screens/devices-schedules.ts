@@ -221,13 +221,13 @@ export class DevicesSchedules extends LitElement {
     }
     /* on a desktop the floor chips stay in the title row (sw-page's actions, as before the frame change: the list keeps its rows);
        a long floor list scrolls sideways inside its own strip */
-    .dh-row.tr {
+    .dh-row.hdact {
       display: flex;
       align-items: center;
       gap: var(--sw-s-3);
       min-inline-size: 0;
     }
-    .dh-row.tr .rooms {
+    .dh-row.hdact .rooms {
       max-inline-size: 50vw;
     }
     /* AUDIT30-I2 (#4, owner Q3 option a): the chosen floor chip is the Blue Wash pair (the shared media rule paints it --dv-text) */
@@ -1659,7 +1659,7 @@ export class DevicesSchedules extends LitElement {
           <button type="button" class="rc" aria-pressed=${String(!f.floor)} data-floor="" @click=${() => this.setFilter({ floor: '' })}>הכל</button>
           ${floors.map((x) => html`<button type="button" class="rc" aria-pressed=${String(f.floor === x.value)} data-floor=${x.value} @click=${() => this.setFilter({ floor: x.value })}>${bidi(x.label)}</button>`)}
         </div>` : nothing;
-    return html`${!this.phone ? html`<div class="dh-row tr" slot="actions">${rooms}${tools && all.length ? html`<div class="vwrap">${this.viewSwitch()}</div>` : nothing}</div>` : nothing}
+    return html`${!this.phone ? html`<div class="dh-row hdact" slot="actions">${rooms}${tools && all.length ? html`<div class="vwrap">${this.viewSwitch()}</div>` : nothing}</div>` : nothing}
     <header class="dh" data-sched-header>
       ${this.phone && rooms !== nothing ? html`<div class="dh-row fl">${rooms}</div>` : nothing}
       ${tools ? html`<div class="dh-det" data-sched-toolbar>

@@ -104,7 +104,11 @@ test('the glass bridge maps a menu inside a glass screen to the palette\'s SOLID
   // the bridge is never undone for the menu: the translucent knob is not what a menu reads
   expect(css).not.toMatch(/--sw-menu-surface: var\(--dv-surface\)/);
   // the solid twins of the default palette (devices-themes.ts) and of the others (devices-palettes.ts): plain #rrggbb
-  const solids = [...css.matchAll(/--dv-surface-solid:\s*([^;]+);/g)].map((m) => m[1].trim());
+  // AUDIT30-A-GLASS-BRIDGE: the default palette on the product's own scheme reads the product's solid surface (--sw-surface-solid, a
+  // generated opaque token, never bridged); every other twin is a literal colour of the palette
+  const all = [...css.matchAll(/--dv-surface-solid:\s*([^;]+);/g)].map((m) => m[1].trim());
+  expect(all.filter((v) => v.startsWith('var(')), 'a solid twin that is a reference reads the product solid').toEqual(all.filter((v) => v === 'var(--sw-surface-solid)'));
+  const solids = all.filter((v) => !v.startsWith('var('));
   expect(solids.length).toBeGreaterThanOrEqual(2);
   for (const p of DEVICE_PALETTES) for (const mode of SCHEMES) if (p[mode].knobs) solids.push(p[mode].knobs!['--dv-surface-solid']);
   expect(solids.length).toBeGreaterThanOrEqual(2 + 2 * (DEVICE_PALETTES.length - 1));

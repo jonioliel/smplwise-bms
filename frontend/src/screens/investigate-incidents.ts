@@ -35,7 +35,6 @@ import { it } from '../i18n/incidents';
 import { navigate } from '../router';
 import { refreshIncidents } from '../incidents/store';
 import { SkinController } from '../design/skin';
-import { leadReserveStyles } from '../styles/lead-reserve';
 
 type Part = 'cams' | 'map' | 'doors' | 'chain';
 type Look = 'ok' | 'warn' | 'alarm' | 'off' | 'unk' | 'acc';
@@ -115,7 +114,7 @@ export class InvestigateIncidents extends LitElement {
   private toastTimer = 0;
   private loadedFloor = '';
 
-  static styles = [leadReserveStyles, css`
+  static styles = [css`
     :host { display: flex; flex-direction: column; min-block-size: 0; min-inline-size: 0; color: var(--sw-text); font-family: var(--sw-font); }
     [data-look='ok'] { --c: var(--sw-success); --c-text: var(--sw-success-text); --c-soft: var(--sw-success-soft); }
     [data-look='warn'] { --c: var(--sw-warning); --c-text: var(--sw-warning-text); --c-soft: var(--sw-warning-soft); }
@@ -239,6 +238,10 @@ export class InvestigateIncidents extends LitElement {
       sw-page.screen { padding: 8px 12px 8px; gap: 8px; }
       .eyebrow { margin-block-end: 4px; }
       .eyebrow .clock { display: inline-flex; }
+      /* the door rows one step denser on a phone (still 44 px targets): with the filled sw-badge a row is two lines plus its padding and
+         three of them overflowed the doors part by 9 px at 390x844 (layout-incidents) */
+      .drs { gap: 4px; }
+      .dr { padding-block: 3px; }
       sw-page[data-incident] .acts > .clock { display: none; }
       .meta { flex-wrap: nowrap; gap: 6px; }
       .clock { padding: 3px 8px; font-size: var(--sw-fs-sm); }
