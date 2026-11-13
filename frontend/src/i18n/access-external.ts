@@ -5,8 +5,10 @@
  * Russian columns are an INITIAL translation that needs a native review (dev-marked). Operator texts never name the home platform.
  * `{name}` placeholders are filled by `xt(key, { name })`.
  */
+import { NAV_XT } from './nav-labels'; // CR-NAV-LABELS-2436: the shell's label lives there
+
 const he = {
-  tab: 'גישת חוץ',
+  tab: NAV_XT.he.tab,
   title: 'גישת חוץ',
   sub: 'טכנאים ומבקרים עם קוד כניסה זמני. כל גישה מוגבלת לדלתות, לתאריכים ולשעות שאושרו.',
   revokeAll: 'ביטול כל הגישות',
@@ -563,7 +565,7 @@ export type XtKey = keyof typeof he;
 export type XtLang = 'he' | 'en' | 'ar' | 'ru';
 
 const en: Record<XtKey, string> = {
-  tab: 'External access',
+  tab: NAV_XT.en.tab,
   title: 'External access',
   sub: 'Technicians and visitors with a temporary entry code. Each grant is limited to the approved doors, dates and hours.',
   revokeAll: 'Revoke all',
@@ -1116,7 +1118,7 @@ const en: Record<XtKey, string> = {
 };
 
 const ar: Record<XtKey, string> = {
-  tab: 'وصول خارجي',
+  tab: NAV_XT.ar.tab,
   title: 'وصول خارجي',
   sub: 'فنيون وزوار برمز دخول مؤقت. كل تصريح محدود بالأبواب والتواريخ والساعات المعتمدة.',
   revokeAll: 'إلغاء كل التصاريح',
@@ -1669,7 +1671,7 @@ const ar: Record<XtKey, string> = {
 };
 
 const ru: Record<XtKey, string> = {
-  tab: 'Внешний доступ',
+  tab: NAV_XT.ru.tab,
   title: 'Внешний доступ',
   sub: 'Техники и посетители с временным кодом входа. Каждый доступ ограничен утверждёнными дверями, датами и часами.',
   revokeAll: 'Отозвать все',

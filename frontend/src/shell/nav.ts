@@ -7,22 +7,12 @@ import { ALL_CAPABILITIES } from '../api/capabilities';
 import { applyCapabilities, capHiddenHref, needsOfSegments, segmentsOfHref } from './nav-capabilities';
 import type { TabsConfig, TabsSectionConfig, TabStyle, TabStyleDefaults } from '../api/media';
 import { onTicketNames } from '../tickets/naming';
-import { tt, ticketsSectionLabel as sectionLabel } from '../tickets/text';
-import { bt } from '../tickets/board-text'; // CR-038 slice 6: the board tab's label
-import { ot } from '../tickets/overview-text'; // MGRDASH: the overview tab's label
-import { ct } from '../tickets/cost-text'; // TK258: the vendors account tab's label
-import { rt } from '../tickets/rfq-text'; // TKRFQ2: the requests-for-quotation tab's label
-import { xt } from '../i18n/access-external'; // SHAREDID-293: the external-access tab's label
-import { dwt } from '../i18n/door-windows'; // CR-039 DOORWIN-295: the door-windows tab's label
-import { announceText } from '../i18n/announce'; // ANNOUNCE-295: the announce tab's label
-import { tst } from '../i18n/tab-sections'; // TABSET-293: the names of the tab registry's sections (he / en / ar / ru)
-import { he } from '../i18n/he'; // TABSET-293: the generator's page names (the registry's `infra.generator` section)
-import { mt } from '../i18n/maintenance'; // CR-MAINT215 slice 2: the maintenance section's label
-import { ix } from '../i18n/insights'; // CR-INSIGHT215: the building report page's label
-import { tr as trTab0 } from '../i18n/transit'; // BUSTIMES-295: the public-transport tab's label
-import { xt as xsText } from '../i18n/xsection'; // 2.29.0: the synoptic tab's label
-import { pt } from '../i18n/presence'; // WHOIN034-295: the "מי במבנה" tab's label
-import { it as incText } from '../i18n/incidents'; // CR-LIVEEVENT100: the live event tab's label
+// CR-NAV-LABELS-2436 (review 07:F3): every tab label below comes from i18n/nav-labels.ts (the labels only, in all their languages) - not
+// from the fifteen dictionaries that own the rest of each screen's words; tests/unit-nav-labels-2436.spec.ts keeps it so.
+import {
+  navAnnounce, navBt, navCt, navDwt, navIt, navIx, navMt, navOt, navPt, navTr, navTst as tst, navTt as tt, navXs, navXt, ticketsSectionLabel as sectionLabel,
+} from '../i18n/nav-labels';
+import { navGeneratorPage, navRfqTitle } from '../i18n/nav-label-bridges'; // the two labels whose dictionaries (i18n/he.ts, tickets/rfq-text.ts) stay as they are
 
 /** The WisKey area's tabs before (or without) a WisKey embed API handshake: the older panel's tabs. The first three are
  * the screens SMPLWISE built (CR-005 phase 1b and 2); each renders either that screen or WisKey's own Home Assistant
@@ -52,7 +42,7 @@ export const EXTERNAL_WISKEY_HREF = '#/wiskey/external';
 export const EXTERNAL_TICKETS_HREF = '#/tickets/external';
 export type ExternalPlacement = 'access' | 'tickets' | 'both';
 let EXTERNAL_PLACEMENT: ExternalPlacement = 'access';
-const externalTab = (href: string): TabItem => ({ id: 'external', get label() { return xt('tab'); }, href });
+const externalTab = (href: string): TabItem => ({ id: 'external', get label() { return navXt('tab'); }, href });
 export function externalPlacement(): ExternalPlacement {
   return EXTERNAL_PLACEMENT;
 }
@@ -74,7 +64,7 @@ WISKEY_TABS.push(externalTab(EXTERNAL_WISKEY_HREF)); // the default placement (a
  * shipped defaults the navigation is exactly what it was. The route itself always answers (Settings links to it; the server decides). */
 export const DOOR_WINDOWS_HREF = '#/wiskey/door-windows';
 let DOOR_WINDOWS_TAB = false;
-const doorWindowsTab = (): TabItem => ({ id: 'door-windows', get label() { return dwt('tab'); }, href: DOOR_WINDOWS_HREF });
+const doorWindowsTab = (): TabItem => ({ id: 'door-windows', get label() { return navDwt('tab'); }, href: DOOR_WINDOWS_HREF });
 export function doorWindowsTabOn(): boolean {
   return DOOR_WINDOWS_TAB;
 }
@@ -683,7 +673,7 @@ const EXPLORE_TABS: TabItem[] = [
   { id: 'sites', label: 'אתרים ומבנים', href: '#/explore/sites' },
   { id: 'floors', label: 'מפת קומה', href: '#/explore/floors/f0' },
   // WHOIN034-295 (board r034): "מי במבנה" - presence.view holders only (sensitive, system_admin by default; TAB_PERMISSIONS)
-  { id: 'presence', get label() { return pt('tab'); }, href: '#/explore/presence' },
+  { id: 'presence', get label() { return navPt('tab'); }, href: '#/explore/presence' },
 ];
 /** WHOIN034-295: the "who is in the building" screen. */
 export const PRESENCE_HREF = '#/explore/presence';
@@ -749,13 +739,13 @@ export const CALENDARS_AREA: AreaEntry = { id: 'calendars', icon: 'calendar', la
 export const DEVICES_TABS: TabItem[] = [
   { id: 'building', label: 'מבט על', href: '#/devices/building' },
   // 2.29.0 (owner decision 6, 2026-10-29): the synoptic map is the tab BETWEEN מבט על and קברניט; the installation may switch it off (ui.xs syn_tab)
-  { id: 'synoptic', get label() { return xsText('synTab'); }, href: SYNOPTIC_HREF },
+  { id: 'synoptic', get label() { return navXs('synTab'); }, href: SYNOPTIC_HREF },
   // CALENDARS-UI-2310: "יומנים" between מבט על and קברניט while the installation puts it in the home menu (hidden by default: HIDDEN_HREFS)
   { id: 'calendars', label: 'יומנים', href: CALENDARS_HOME_HREF },
   { id: 'automations', label: 'קברניט', href: SCHEDULES_HREF },
   // CR-NOTICE106 put לוח הודעות here; NOTICEADD-295 (owner decision 2026-10-24) moved it to the rail (NOTICES_AREA)
   // ANNOUNCE-295: הכרזות - offered to holders of media.announce (TAB_PERMISSIONS); the screen itself says when the feature is off
-  { id: 'announce', get label() { return announceText().title; }, href: ANNOUNCE_HREF },
+  { id: 'announce', get label() { return navAnnounce('title'); }, href: ANNOUNCE_HREF },
 ];
 
 /** CR-NOTICE106: the notice board page (readers and managers) and its settings page (the switch, the defaults, the TV boards). */
@@ -847,7 +837,7 @@ export const INFRA_ELECTRICITY_PAGES: TabItem[] = [
 /** The electricity pages that show money (energy.bills). */
 export const INFRA_MONEY_PAGES: readonly string[] = ['bills', 'customers'];
 // GENLOG092-295 (owner Q319): the run log is a registry page too, so the tab editor orders / hides it; the screen still shows it only while its switch is on
-export const INFRA_GENERATOR_PAGES: TabItem[] = (['live', 'alerts', 'charts', 'history', 'log'] as const).map((id) => ({ id, get label() { return he.generator.pages[id]; }, href: `#/infra/generator/${id}` }));
+export const INFRA_GENERATOR_PAGES: TabItem[] = (['live', 'alerts', 'charts', 'history', 'log'] as const).map((id) => ({ id, get label() { return navGeneratorPage(id); }, href: `#/infra/generator/${id}` }));
 /** CR-WATER78 sections 3 and 16: the water pages (level 2, `infra.water`). The money pages (חיובים, לקוחות) need water.bills, the settings
  * page water.manage or system.configure; the screen (screens/infra-water.ts) checks them again from the module's status. */
 export const INFRA_WATER_PAGES: TabItem[] = [
@@ -992,7 +982,7 @@ export const TICKETS_SECTION_HREFS: Record<TicketsSection, string> = {
  * board stays a PAGE, owner 24.10). The static href is the built-in first scope; `visibleTabs` rewrites it to the first scope this user may open. */
 export const TICKETS_REQUESTS_PAGES: TabItem[] = [
   { id: 'list', get label() { return tt('pageList'); }, href: TICKETS_MINE_HREF },
-  { id: 'board', get label() { return bt('tabBoard'); }, href: TICKETS_BOARD_HREF }, // CR-038 slice 6: the manager board (spec 14.2: managers only)
+  { id: 'board', get label() { return navBt('tabBoard'); }, href: TICKETS_BOARD_HREF }, // CR-038 slice 6: the manager board (spec 14.2: managers only)
 ];
 /** SERVICEIA2-295: the scopes of the request list in their order, each with the permission entry that used to gate its level-1 tab
  * (TAB_PERMISSIONS keeps those entries): the list's scope segment offers exactly these. */
@@ -1016,20 +1006,20 @@ export function ticketsScopesAllowed(api: boolean, can?: Can): Array<'mine' | 'd
  * Offered only with a backend, while the maintenance module is on (applyMaintenanceOn), to holders of maintenance.view; a section with one
  * page draws no level-2 row. */
 export const TICKETS_MAINTENANCE_PAGES: TabItem[] = [
-  { id: 'maintenance', get label() { return mt('section'); }, href: TICKETS_MAINTENANCE_PAGE_HREF },
+  { id: 'maintenance', get label() { return navMt('section'); }, href: TICKETS_MAINTENANCE_PAGE_HREF },
 ];
 /** ספקים וכספים: handlers and vendors, requests for quotation, the vendors account, external access (when placed here). */
 export const TICKETS_VENDORS_PAGES: TabItem[] = [
   { id: 'handlers', get label() { return tt('hdTitle'); }, href: TICKETS_HANDLERS_HREF }, // handlers, employees, vendors, contacts
-  { id: 'rfqs', get label() { return rt('navTitle'); }, href: TICKETS_RFQS_HREF }, // TKRFQ2: requests for quotation
-  { id: 'accounts', get label() { return ct('vaTitle'); }, href: TICKETS_ACCOUNTS_HREF }, // TK258: "חשבון ספקים" (tickets.costs.view)
+  { id: 'rfqs', get label() { return navRfqTitle(); }, href: TICKETS_RFQS_HREF }, // TKRFQ2: requests for quotation
+  { id: 'accounts', get label() { return navCt('vaTitle'); }, href: TICKETS_ACCOUNTS_HREF }, // TK258: "חשבון ספקים" (tickets.costs.view)
   // SHAREDID-293: "גישת חוץ" when the owner placed it under service management (access.external.placement tickets | both)
-  { id: 'external', get label() { return xt('tab'); }, href: '#/tickets/external' },
+  { id: 'external', get label() { return navXt('tab'); }, href: '#/tickets/external' },
 ];
 /** סקירה ודוחות: the manager overview, then INSIGHT215's building report (with its door / energy drill-downs under the same page). */
 export const TICKETS_REPORTS_PAGES: TabItem[] = [
-  { id: 'overview', get label() { return ot('tab'); }, href: TICKETS_OVERVIEW_HREF }, // MGRDASH: managers only (TAB_PERMISSIONS + the board's server gate)
-  { id: 'reports', get label() { return ix('pageBuilding'); }, href: TICKETS_REPORTS_HREF }, // CR-INSIGHT215: hidden until a part is on (applyInfraInsights)
+  { id: 'overview', get label() { return navOt('tab'); }, href: TICKETS_OVERVIEW_HREF }, // MGRDASH: managers only (TAB_PERMISSIONS + the board's server gate)
+  { id: 'reports', get label() { return navIx('pageBuilding'); }, href: TICKETS_REPORTS_HREF }, // CR-INSIGHT215: hidden until a part is on (applyInfraInsights)
 ];
 export const TICKETS_PAGE_ROWS: Record<TicketsSection, TabItem[]> = {
   requests: TICKETS_REQUESTS_PAGES,
@@ -1126,7 +1116,7 @@ export function maintenanceModuleOn(): boolean {
  * Filled by incidents/store.ts from `/me` modules.incidents and GET /incidents/summary. Navigation only: every route checks itself. */
 export const INCIDENTS_HREF = '#/investigate/incidents';
 export const INCIDENTS_SETTINGS_HREF = '#/system/security/incidents';
-export const INCIDENTS_TAB: TabItem = { id: 'incidents', get label() { return incText('tab'); }, href: INCIDENTS_HREF };
+export const INCIDENTS_TAB: TabItem = { id: 'incidents', get label() { return navIt('tab'); }, href: INCIDENTS_HREF };
 let INCIDENTS_OFF = true;
 let INCIDENTS_OPEN = 0;
 let INCIDENTS_DOT: 'active' | 'off' = 'active';
@@ -1280,7 +1270,7 @@ export const AREA_TABS: Record<AreaId, TabItem[]> = {
     // CR-NOTICE106: the notice board's switch, defaults and TV boards (system.configure / notices.boards)
     { id: 'notices', label: 'לוח הודעות', href: NOTICES_SETTINGS_HREF },
     // BUSTIMES-295: nearby public-transport times on the notice boards - the module switch, up to four stops and the general rules
-    { id: 'transit', get label() { return trTab0('tab'); }, href: TRANSIT_SETTINGS_HREF },
+    { id: 'transit', get label() { return navTr('tab'); }, href: TRANSIT_SETTINGS_HREF },
     // CR-017: every option of the automations, scenes and scripts (system.configure, installation scope)
     { id: 'automations', label: 'אוטומציות', href: AUTOMATIONS_SETTINGS_HREF },
     // CR-015: the screens' approval, connections and the remote's defaults (system.configure, installation scope)

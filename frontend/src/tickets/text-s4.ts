@@ -7,6 +7,8 @@
  * now "בקשת שירות"): no text here writes a noun with the definite prefix before the token (it would read "ה" + a two-word name) -
  * the sentences are built so the name stands alone or is not needed.
  */
+import { NAV_TT } from '../i18n/nav-labels'; // CR-NAV-LABELS-2436: the shell's label (hdTitle) lives there
+
 export const S4_HE = {
   // settings tab
   setTabContacts: 'ספקים ואנשי קשר',
@@ -222,7 +224,7 @@ export const S4_HE = {
   ev_contact_changed: 'פרטי איש הקשר השתנו - הקישור בוטל',
   ev_user_inactive: 'העובד אינו מטפל עוד - הקישור בוטל',
   // the "מטפלים וספקים" page of the area (owner request 2026-10-14): handlers with an account, employees without one, vendors, contacts
-  hdTitle: 'מטפלים וספקים',
+  hdTitle: NAV_TT.he.hdTitle,
   hdSeg_handlers: 'מטפלים',
   hdSeg_vendors: 'ספקים',
   hdSeg_contacts: 'אנשי קשר',
@@ -496,7 +498,7 @@ export const S4_EN: Partial<Record<keyof typeof S4_HE, string>> = {
   ev_link_revoked: 'The link was revoked',
   ev_contact_changed: 'The contact\'s details changed - the link was revoked',
   ev_user_inactive: 'The employee no longer handles it - the link was revoked',
-  hdTitle: 'Handlers and vendors',
+  hdTitle: NAV_TT.en.hdTitle,
   hdSeg_handlers: 'Handlers',
   hdSeg_vendors: 'Vendors',
   hdSeg_contacts: 'Contacts',
