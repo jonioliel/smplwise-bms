@@ -1,5 +1,22 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.43.5 (pilot) - Control screens that fit without scrolling; a camera change that never writes to the wrong camera; choosing the video service
+
+### חדש - New
+- וידאו: בהגדרות › וידאו ומדיה מוצגים שירותי go2rtc שנמצאו במערכת (מצב, גרסה, האם עונה), ומנהל יכול לבחור באיזה מהם Arx משתמש; הבחירה נשמרת וגוברת על הכתובת שבהגדרות התוסף. Arx עדיין כותב רק זרמים משלו (smplwise_), והרשימה זמינה רק מהרשת המקומית, לא בגישה מרחוק. - Video: Settings › Video and media lists the go2rtc services found on the system (state, version, whether it answers), and an administrator can choose which one Arx uses; the choice is stored and takes precedence over the address in the add-on options. Arx still writes only its own streams (smplwise_), and the list is available only on the local network, not over remote access.
+- וידאו: הגדרת מנהל "התראה על שירות וידאו לא זמין" - אחרי 1 / 5 / 15 / 30 / 60 דקות; ברירת המחדל עכשיו 15 דקות (קודם 5). - Video: an administrator setting "notice when the video service is unavailable" - after 1 / 5 / 15 / 30 / 60 minutes; the default is now 15 minutes (was 5).
+
+### שופר - Improved
+- שלושה עשר מסכי בקרה נכנסים במסך 1366x768 ו־1440x900 בלי גלילה: מצלמה בודדת, בריאות מצלמות, אזעקה, סקירה חיה, גנרטור, טמפרטורות, אזור, פניות (לוח ושלי), מולטימדיה (מסכים, נגנים, קבוצות) ועמדות WisKey. כרטיסים רבים מוצגים בעמודים במקום גלילה; טאבלט וטלפון לא השתנו. - Thirteen control screens fit 1366x768 and 1440x900 without scrolling: single camera, camera health, alarm, live overview, generator, temperatures, area, tickets (board and mine), multimedia (screens, players, groups) and WisKey stations. Many cards are shown in pages instead of scrolling; tablet and phone are unchanged.
+
+### תוקן - Fixed
+- מצלמה בודדת: מעבר למצלמה אחרת בלי לצאת מהמסך מאפס את הטיוטות (רשת תנועה, לוח זמנים, כללים חכמים, שינוי שם); טיוטה שצוירה על מצלמה אחת לא תיכתב יותר להקלטה של מצלמה אחרת, ותשובה מאוחרת של המצלמה הקודמת לא מוצגת על החדשה. - Single camera: switching to another camera without leaving the screen resets the drafts (motion grid, schedule, smart rules, rename); a draft drawn on one camera is no longer written to the recorder for another camera, and a late answer for the previous camera is not shown on the new one.
+- מצלמה בודדת: בדיקת ההקלטה הידנית (כל 15 שניות) נעצרת כשיוצאים מהמסך. - Single camera: the manual-recording check (every 15 seconds) stops when the screen is left.
+- וידאו: ניסיון חוזר לשירות וידאו שלא עונה מחושב נכון גם כשתשובה מגיעה מיד אחרי כישלון (במחשבי Windows זה נראה כ"אין תשובה" והבדיקה חזרה אחרי 10 שניות במקום 60). - Video: the retry towards a video service that does not answer is counted correctly even when an answer arrives right after a failure (on Windows clocks it looked like "no answer" and the check came back after 10 s instead of 60).
+
+### התקנה - Install
+- אין מיגרציה חדשה, אין עדכון לגשר ואין צורך בהפעלה מחדש של מערכת הבית. שירות הווידאו שבשימוש לא משתנה עד שמנהל בוחר אחר. - No new migration, no bridge update and no home-system restart. The video service in use does not change until an administrator chooses another.
+
 ## 2.43.4 (pilot) - Home interface: the alarm in the house log, tickets from the water and systems screens; video stream sync that leaves streams alone
 
 ### חדש - New
