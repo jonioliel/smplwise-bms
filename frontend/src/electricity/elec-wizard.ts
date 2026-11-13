@@ -6,6 +6,7 @@
  * existing account (`accountId`). No history-import step (owner round 2).
  */
 import { html, nothing } from 'lit';
+import '../components/sw-button';
 import { customElement, property, state } from 'lit/decorators.js';
 import {
   AUTO_LABEL, elec, elecErrorText, elecFieldErrors, elecMeters, elecToday, type Account, type AutoMode, type Customer, type ElecMeter, type PriceMode, type Tariff, type VatRates,
@@ -296,8 +297,8 @@ export class ElecAccountWizard extends ElecBase {
         <button type="button" data-number-kind="pct" aria-pressed=${this.numPct} @click=${() => (this.numPct = true)}>אחוז</button>
         <button type="button" data-number-kind="num" aria-pressed=${!this.numPct} @click=${() => (this.numPct = false)}>מספר</button>
       </div>
-      <button slot="actions" type="button" class="btn pri" data-number-ok @click=${() => this.confirmNumber()}>הוספה</button>
-      <button slot="actions" type="button" class="btn" @click=${() => (this.numOpen = false)}>ביטול</button>
+      <sw-button variant="primary" slot="actions" data-number-ok @click=${() => this.confirmNumber()}>הוספה</sw-button>
+      <sw-button slot="actions" @click=${() => (this.numOpen = false)}>ביטול</sw-button>
     </elec-dialog>`;
   }
 
@@ -314,7 +315,7 @@ export class ElecAccountWizard extends ElecBase {
       ${!this.tariffs.length ? stateBox('empty', 'bolt', 'אין תעריפים עדיין', { label: '+ תעריף חדש', primary: true, run: () => (this.tariffOpen = true) }) : html`<div class="list" role="radiogroup" aria-label="תעריף" data-tariff-list>
         ${this.tariffs.map((x) => html`<label class="li ${x.id === this.tariffId ? 'sel' : ''}" data-tariff-row=${x.id}><input type="radio" name="tariff" .checked=${x.id === this.tariffId} @change=${() => (this.tariffId = x.id)} /><span class="ind"></span>
           <div class="grow"><div class="t1">${x.name}</div><div class="t2">הוזן ${x.current?.price_mode === 'inc_vat' ? 'כולל' : 'לפני'} מע״מ · בתוקף מ-${n(fmtDate(x.current?.effective_from ?? ''))}</div></div>${x.kind === 'tou' ? html`<span class="chip c-acc nodot">לפי שעות</span>` : html`<b class="num">${f4(x.current?.price ?? 0)} ₪</b>`}</label>`)}</div>
-        <div class="row"><button type="button" class="btn ghost sm" data-new-tariff @click=${() => (this.tariffOpen = true)}>+ תעריף חדש</button></div>`}
+        <div class="row"><sw-button variant="ghost" size="sm" data-new-tariff @click=${() => (this.tariffOpen = true)}>+ תעריף חדש</sw-button></div>`}
       ${t && rate ? this.priceCard(t) : nothing}`;
   }
   private priceCard(t: Tariff) {
@@ -431,8 +432,8 @@ export class ElecAccountWizard extends ElecBase {
         <div class="fld"><label for="tf">בתוקף מתאריך</label><input id="tf" type="date" lang=${dateInputLang()} class="ltr ${f.err.from ? 'err' : ''}" data-tariff-from .value=${f.from} @change=${(e: Event) => set('from', (e.target as HTMLInputElement).value)} />${f.err.from ? html`<div class="msg" role="alert">${f.err.from}</div>` : nothing}</div>
       </div>
       ${f.error ? alertBox('err', f.error) : nothing}
-      <button slot="actions" type="button" class="btn pri" data-tariff-save ?disabled=${f.busy} @click=${() => void this.saveTariff()}>שמירה</button>
-      <button slot="actions" type="button" class="btn" @click=${() => (this.tariffOpen = false)}>ביטול</button>
+      <sw-button variant="primary" slot="actions" data-tariff-save ?disabled=${f.busy} @click=${() => void this.saveTariff()}>שמירה</sw-button>
+      <sw-button slot="actions" @click=${() => (this.tariffOpen = false)}>ביטול</sw-button>
     </elec-dialog>`;
   }
 
@@ -453,9 +454,9 @@ export class ElecAccountWizard extends ElecBase {
           <div class="pstep"><b>שלב ${s} מתוך 6</b><span class="mut">${STEPS[s - 1]}</span><div class="bar"><i style="inline-size:${(s / 6) * 100}%"></i></div></div>
           <b class="h2 hide-phone" data-step-title>${STEPS[s - 1]}</b>
           ${body}
-          <div class="wfoot">${s > 1 ? html`<button type="button" class="btn" data-prev @click=${() => (this.step = s - 1)}>הקודם</button>` : html`<span></span>`}
-            ${s < 6 ? html`<button type="button" class="btn pri" data-next ?disabled=${!can} @click=${() => this.next()}>הבא</button>`
-              : html`<button type="button" class="btn pri" data-save ?disabled=${this.saving || !this.accName.trim()} @click=${() => void this.save()}>${this.edit ? 'שמירת שינויים' : this.afterSave === 'draft' && this.draftPossible() ? 'שמירה והפקת טיוטה' : 'שמירה'}</button>`}</div>
+          <div class="wfoot">${s > 1 ? html`<sw-button data-prev @click=${() => (this.step = s - 1)}>הקודם</sw-button>` : html`<span></span>`}
+            ${s < 6 ? html`<sw-button variant="primary" data-next ?disabled=${!can} @click=${() => this.next()}>הבא</sw-button>`
+              : html`<sw-button variant="primary" data-save ?disabled=${this.saving || !this.accName.trim()} @click=${() => void this.save()}>${this.edit ? 'שמירת שינויים' : this.afterSave === 'draft' && this.draftPossible() ? 'שמירה והפקת טיוטה' : 'שמירה'}</sw-button>`}</div>
         </div>
       </div>
       ${this.renderTariffDialog()}${this.renderNumberDialog()}

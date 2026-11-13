@@ -5,6 +5,7 @@
  * and editing a customer needs the manage permission (the fields are read-only without it).
  */
 import { html, nothing } from 'lit';
+import '../components/sw-button';
 import { customElement, property, state } from 'lit/decorators.js';
 import { elec, elecErrorText, elecFieldErrors, type Customer } from '../api/electricity-billing';
 import { energyAccess } from './access';
@@ -162,11 +163,11 @@ export class ElecCustomersPage extends ElecBase {
             <div class="list" data-customer-accounts>${(c.accounts ?? []).map((a) => html`<a class="li" href=${href.account(a.id)}><div class="grow"><div class="t1">${a.name}</div></div></a>`)}${c.accounts?.length ? nothing : html`<div class="mut">אין חשבונות ללקוח</div>`}</div>
             ${c.bills?.length ? html`<b class="h3">חיובים אחרונים</b>${billsTable(c.bills.slice(0, 4), { phone: true })}` : nothing}` : nothing}
           ${this.error ? alertBox('err', this.error) : nothing}
-          ${perms.manage ? html`<div class="row"><button type="button" class="btn pri" data-save ?disabled=${this.busy} @click=${() => void this.save()}>שמירה</button><span class="sp"></span>${c ? html`<button type="button" class="btn dng" data-delete @click=${() => (this.confirmDel = true)}>מחיקת לקוח</button>` : nothing}</div>` : nothing}`}
+          ${perms.manage ? html`<div class="row"><sw-button variant="primary" data-save ?disabled=${this.busy} @click=${() => void this.save()}>שמירה</sw-button><span class="sp"></span>${c ? html`<sw-button variant="danger" data-delete @click=${() => (this.confirmDel = true)}>מחיקת לקוח</sw-button>` : nothing}</div>` : nothing}`}
         <elec-dialog heading="מחיקת לקוח" ?open=${this.confirmDel} data-dialog="delete-customer" @close=${() => (this.confirmDel = false)}>
           <div>הלקוח יימחק. חיובים שהונפקו שומרים עותק של פרטיו.</div>
-          <button slot="actions" type="button" class="btn dng pri" data-confirm ?disabled=${this.busy} @click=${() => void this.removeCustomer()}>מחיקה</button>
-          <button slot="actions" type="button" class="btn" @click=${() => (this.confirmDel = false)}>ביטול</button>
+          <sw-button variant="danger" slot="actions" data-confirm ?disabled=${this.busy} @click=${() => void this.removeCustomer()}>מחיקה</sw-button>
+          <sw-button slot="actions" @click=${() => (this.confirmDel = false)}>ביטול</sw-button>
         </elec-dialog>
         </div>
       </sw-sheet>`;

@@ -18,6 +18,20 @@ export const elecCss = css`
     min-inline-size: 0;
     /* the smallest hit area: 32 px on a desktop, the touch dial in the bubble skin, 44 px from 1100 px down (the layout guard's rule) */
     --elec-touch: 32px;
+    /* AUDIT30-E1 (round-30 audit #8): every key of the module sits on the shared button scale AND keeps the module's 32 px minimum hit
+       area (tests/layout-electricity.spec.ts): the small key is drawn at the default control height (34 px in classic) - the local
+       keys (links styled as buttons, split and menu keys, the segmented control's thumb) through --elec-key-sm, the shared
+       <sw-button size="sm"> by mapping its small height to the default one inside these screens - and grows to the touch size where
+       the module asks for it (bubble, 1100 px and below) */
+    --elec-key-md: max(var(--sw-ctl-h-md), var(--elec-touch));
+    --elec-key-sm: var(--elec-key-md);
+  }
+  sw-button {
+    --sw-ctl-h-sm: var(--elec-key-md);
+    --sw-ctl-h-md: var(--elec-key-md);
+    /* a skin that draws the key at a fixed height (crystal 34 / 30 px) still gets the hit area: the host is an inline flex box, so its
+       inner button stretches to this height */
+    min-block-size: var(--elec-key-md);
   }
   :host([data-skin='bubble']) {
     --elec-touch: var(--sw-touch-desktop);
@@ -215,7 +229,7 @@ export const elecCss = css`
     align-items: center;
     justify-content: center;
     gap: 6px;
-    min-block-size: max(36px, var(--elec-touch));
+    min-block-size: var(--elec-key-md);
     padding: 0 16px;
     border-radius: var(--sw-r-sm);
     border: 1px solid var(--sw-border);
@@ -279,7 +293,7 @@ export const elecCss = css`
     box-shadow: none;
   }
   .btn.sm {
-    min-block-size: max(30px, var(--elec-touch));
+    min-block-size: var(--elec-key-sm);
     padding: 0 10px;
     font-size: var(--sw-fs-sm);
   }
@@ -289,7 +303,7 @@ export const elecCss = css`
   }
   /* an icon-only button (✕, ←, →): square, never narrower than the hit area */
   .btn.ic {
-    min-inline-size: max(30px, var(--elec-touch));
+    min-inline-size: var(--elec-key-sm);
     padding: 0 6px;
   }
   input,
@@ -446,13 +460,15 @@ export const elecCss = css`
     padding: 3px;
     gap: 2px;
     background: var(--sw-surface-3);
-    border-radius: var(--sw-r-sm);
+    /* AUDIT30-E1: a pill track with pill thumbs (the shared sw-view-switch shape); the thumb is the small key (34 px in classic, on
+       the button scale and above the module's 32 px hit area) - it was 32 px with a radius of r-sm minus 2 (8 px), off the scale */
+    border-radius: var(--sw-r-pill);
     max-inline-size: 100%;
     flex-wrap: wrap;
   }
   .seg button {
-    padding: 5px 12px;
-    border-radius: calc(var(--sw-r-sm) - 2px);
+    padding: 0 12px;
+    border-radius: var(--sw-r-pill);
     color: var(--sw-text-2);
     cursor: pointer;
     font: inherit;
@@ -460,7 +476,7 @@ export const elecCss = css`
     white-space: nowrap;
     border: 0;
     background: transparent;
-    min-block-size: max(30px, var(--elec-touch));
+    min-block-size: var(--elec-key-sm);
   }
   .seg button[aria-pressed='true'] {
     background: var(--sw-seg-key, var(--sw-surface-solid));

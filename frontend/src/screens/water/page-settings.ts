@@ -1,4 +1,5 @@
 import { LitElement, html, nothing } from 'lit';
+import '../../components/sw-button';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../../components/sw-icon';
 import '../../components/sw-state-panel';
@@ -165,15 +166,15 @@ export class WaterSettingsPage extends LitElement {
       : html`${this.tariffs.length ? nothing : html`<sw-state-panel icon="drop" state="empty" compact heading=${wt('noTariffs')}></sw-state-panel>`}
         ${this.tariffs.map((t) => html`<div class="card flush" data-tariff=${t.id}>
           <div class="hd" style="padding:14px 16px 0"><b>${t.name}</b><span class="sp"></span><span class="mut">${wt('usedBy', { n: t.used_by })}</span>
-            ${manage ? html`<button class="btn sm" type="button" data-new-version @click=${() => this.openVersion(t)}>${wt('newVersion')}</button>` : nothing}</div>
+            ${manage ? html`<sw-button size="sm" data-new-version @click=${() => this.openVersion(t)}>${wt('newVersion')}</sw-button>` : nothing}</div>
           <div class="scrollx"><table class="t"><thead><tr><th>${wt('colFrom')}</th><th class="n">${wt('colWaterM3')}</th><th class="n">${wt('colSewageM3')}</th><th class="n">${wt('colIncVat')}</th><th></th></tr></thead>
             <tbody>${t.versions.map((v) => {
               const inc = v.price_inc_vat ?? priceIncVat(v.water_price, v.sewage_price, v.price_mode, t.vat_rate_percent ?? vat);
               return html`<tr data-version=${v.id}><td class="num" style="text-align:start">${fmtDate(v.effective_from)} ${t.current?.id === v.id ? html`<span class="chip c-ok nodot">${wt('current')}</span>` : nothing}${v.locked ? html` <span class="chip c-mut nodot" data-locked>${wt('locked')}</span>` : nothing}</td>
                 <td class="n"><span class="num">${fmtIls(v.water_price)}</span></td><td class="n"><span class="num">${fmtIls(v.sewage_price)}</span></td><td class="n"><span class="num">${inc === null ? '-' : fmtIls(inc)}</span></td>
-                <td class="n">${manage && !v.locked && t.versions.length > 1 ? html`<button class="btn ghost sm icononly" type="button" aria-label=${wt('delVersion')} title=${wt('delVersion')} ?disabled=${this.busy} @click=${() => void this.deleteVersion(t, v)}><sw-icon name="trash" size="13"></sw-icon></button>` : nothing}</td></tr>`;
+                <td class="n">${manage && !v.locked && t.versions.length > 1 ? html`<sw-button variant="ghost" size="sm" iconOnly icon="trash" label=${wt('delVersion')} ?disabled=${this.busy} @click=${() => void this.deleteVersion(t, v)}></sw-button>` : nothing}</td></tr>`;
             })}</tbody></table></div></div>`)}
-        ${manage ? html`<button class="btn" type="button" style="align-self:flex-start" data-new-tariff @click=${() => this.openVersion(null)}><sw-icon name="plus" size="13"></sw-icon>${wt('newTariff')}</button>` : nothing}`;
+        ${manage ? html`<sw-button icon="plus" style="align-self:flex-start" data-new-tariff @click=${() => this.openVersion(null)}>${wt('newTariff')}</sw-button>` : nothing}`;
     const right = html`<div class="card" data-card="shared"><div class="hd"><b>${wt('sharedTitle')}</b></div>
       <div class="mut" style="margin-block-end:10px">${wt('sharedNote')}</div>
       <dl class="kv"><dt>${wt('vatInForce')}</dt><dd class="num" data-vat>${vat === null ? '-' : `${vat}%`}</dd></dl>
@@ -196,8 +197,8 @@ export class WaterSettingsPage extends LitElement {
         <div class="fld"><label for="wts">${wt('colSewageM3')}</label><input id="wts" class="ltr" inputmode="decimal" data-sewage-price .value=${f.sewage} @input=${(e: Event) => set('sewage', (e.target as HTMLInputElement).value)} /></div>
       </div>
       ${this.vErr ? html`<div class="alert err" role="alert">${this.vErr}</div>` : nothing}
-      <button slot="actions" type="button" class="btn pri" data-confirm ?disabled=${this.busy} @click=${() => void this.saveVersion()}>${wt('save')}</button>
-      <button slot="actions" type="button" class="btn" @click=${() => (this.vf = null)}>${wt('cancel')}</button>
+      <sw-button variant="primary" slot="actions" data-confirm ?disabled=${this.busy} @click=${() => void this.saveVersion()}>${wt('save')}</sw-button>
+      <sw-button slot="actions" @click=${() => (this.vf = null)}>${wt('cancel')}</sw-button>
     </elec-dialog>`;
   }
 
@@ -252,13 +253,13 @@ export class WaterSettingsPage extends LitElement {
           ${edit ? html`<span class="row" style="gap:6px;flex-wrap:nowrap"><input type="number" min="1" aria-label=${wt('snoozeAddValue')} style="inline-size:76px" data-sn-n .value=${this.addN} @input=${(e: Event) => (this.addN = (e.target as HTMLInputElement).value)} />
             <select aria-label=${wt('snoozeUnit')} style="inline-size:96px" data-sn-u @change=${(e: Event) => (this.addU = (e.target as HTMLSelectElement).value as 'min' | 'hour' | 'day')}>
               <option value="min" ?selected=${this.addU === 'min'}>${wt('uMin')}</option><option value="hour" ?selected=${this.addU === 'hour'}>${wt('uHour')}</option><option value="day" ?selected=${this.addU === 'day'}>${wt('uDay')}</option></select>
-            <button class="btn sm" type="button" data-sn-add @click=${() => this.addDuration()}>${wt('add')}</button></span>` : nothing}</div></div>
+            <sw-button size="sm" data-sn-add @click=${() => this.addDuration()}>${wt('add')}</sw-button></span>` : nothing}</div></div>
         <div class="formgrid" style="margin-block-start:12px">
           <div class="fld"><label for="sn-def">${wt('snoozeDefault')}</label><select id="sn-def" data-sn-def ?disabled=${!edit} @change=${(e: Event) => this.setSnooze({ ...s, default: Number((e.target as HTMLSelectElement).value) })}>${s.durations.map((m) => html`<option value=${m} ?selected=${m === s.default}>${snoozeLabel(m)}</option>`)}</select></div>
           <div class="fld"><label for="sn-max">${wt('snoozeMax')}</label><select id="sn-max" data-sn-max ?disabled=${!edit} @change=${(e: Event) => this.setSnooze({ ...s, max: Number((e.target as HTMLSelectElement).value) })}>${maxes.map((m) => html`<option value=${m} ?selected=${m === s.max}>${snoozeLabel(m)}</option>`)}</select></div>
         </div>
         ${this.snoozeErr ? html`<div class="msg" role="alert" data-sn-error>${this.snoozeErr}</div>` : nothing}
-        ${edit ? html`<div class="row" style="margin-block-start:12px"><button type="button" class="btn pri" data-sn-save ?disabled=${this.busy || !changed || !!snoozeProblem(s)} @click=${() => void this.saveSnooze()}>${wt('save')}</button></div>` : html`<div class="mut" style="margin-block-start:10px">${wt('noConfigure')}</div>`}
+        ${edit ? html`<div class="row" style="margin-block-start:12px"><sw-button variant="primary" data-sn-save ?disabled=${this.busy || !changed || !!snoozeProblem(s)} @click=${() => void this.saveSnooze()}>${wt('save')}</sw-button></div>` : html`<div class="mut" style="margin-block-start:10px">${wt('noConfigure')}</div>`}
       </div></div>
       <div class="col"><div class="card" data-card="rules"><div class="hd"><b>${wt('rulesCard')}</b></div><dl class="kv">
         <dt>${wt('rWindow')}</dt><dd class="num">${r.night_from}-${r.night_to}</dd><dt>${wt('rThreshold')}</dt><dd>${r.night_min_lph} ${wt('lph')}</dd><dt>${wt('rDuration')}</dt><dd>${durationWords(r.night_min_intervals * 15)}</dd></dl>

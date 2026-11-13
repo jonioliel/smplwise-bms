@@ -1,4 +1,5 @@
 import { LitElement, html, nothing } from 'lit';
+import '../../components/sw-button';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../../components/sw-icon';
 import '../../components/sw-sheet';
@@ -182,12 +183,12 @@ export class WaterCustomersPage extends LitElement {
             <div class="list" data-customer-accounts>${(c.accounts ?? []).map((a) => html`<a class="li" href=${`#/infra/water/accounts/${a.id}`}><div class="grow"><div class="t1">${a.name}</div></div>${a.status === 'paused' ? html`<span class="chip c-mut">${wt('accPaused')}</span>` : nothing}</a>`)}${c.accounts?.length ? nothing : html`<div class="mut">${wt('cNoAccounts')}</div>`}</div>
             ${c.bills?.length ? html`<b class="h3">${wt('cRecentBills')}</b>${billsTable(c.bills.slice(0, 4), true)}` : nothing}` : nothing}
           ${this.error ? html`<div class="alert err" role="alert" data-customer-error>${this.error}</div>` : nothing}
-          ${this.access.manage ? html`<div class="row formacts"><button type="button" class="btn pri" data-save ?disabled=${this.busy} @click=${() => void this.save()}>${wt('save')}</button><span class="sp"></span>
-            ${c ? html`<button type="button" class="btn dng" data-delete title=${blocked ? wt('cDeleteRefused') : ''} @click=${() => { if (blocked) this.error = wt('cDeleteRefused'); else this.confirmDel = true; }}>${wt('cDelete')}</button>` : nothing}</div>` : nothing}`}
+          ${this.access.manage ? html`<div class="row formacts"><sw-button variant="primary" data-save ?disabled=${this.busy} @click=${() => void this.save()}>${wt('save')}</sw-button><span class="sp"></span>
+            ${c ? html`<sw-button variant="danger" data-delete title=${blocked ? wt('cDeleteRefused') : ''} @click=${() => { if (blocked) this.error = wt('cDeleteRefused'); else this.confirmDel = true; }}>${wt('cDelete')}</sw-button>` : nothing}</div>` : nothing}`}
         <elec-dialog heading=${wt('cDelete')} ?open=${this.confirmDel} data-dialog="delete-customer" @close=${() => (this.confirmDel = false)}>
           <div>${wt('cDeleteBody')}</div>
-          <button slot="actions" type="button" class="btn dng pri" data-confirm ?disabled=${this.busy} @click=${() => void this.removeRecord()}>${wt('cDelete')}</button>
-          <button slot="actions" type="button" class="btn" @click=${() => (this.confirmDel = false)}>${wt('cancel')}</button>
+          <sw-button variant="danger" slot="actions" data-confirm ?disabled=${this.busy} @click=${() => void this.removeRecord()}>${wt('cDelete')}</sw-button>
+          <sw-button slot="actions" @click=${() => (this.confirmDel = false)}>${wt('cancel')}</sw-button>
         </elec-dialog>
       </div>
     </sw-sheet>`;
@@ -200,7 +201,7 @@ export class WaterCustomersPage extends LitElement {
     const head = html`<div class="row head">
       <label class="inp"><sw-icon name="search" size="16"></sw-icon><input type="search" data-cust-search placeholder=${wt('custSearch')} aria-label=${wt('custSearch')} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /></label>
       <span class="sp"></span>
-      ${this.access.manage ? html`<button type="button" class="btn pri" data-new-customer @click=${() => navigate(`${BASE}/new`)}><sw-icon name="plus" size="15"></sw-icon>${wt('newCustomer')}</button>` : nothing}
+      ${this.access.manage ? html`<sw-button variant="primary" icon="plus" data-new-customer @click=${() => navigate(`${BASE}/new`)}>${wt('newCustomer')}</sw-button>` : nothing}
     </div>`;
     let body;
     if (this.st === 'loading') body = skeletonCard(5);

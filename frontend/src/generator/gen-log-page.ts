@@ -1,4 +1,5 @@
 import { LitElement, html, css, nothing } from 'lit';
+import '../components/sw-button';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
@@ -143,8 +144,8 @@ export class GenLogPage extends LitElement {
           <table class="t"><thead><tr><th>${glt('colStart')}</th><th>${glt('colKind')}</th><th>${glt('colDur')}</th><th>${glt('colHours')}</th><th>${glt('colFuel')}</th><th>${glt('colLoad')}</th><th>${glt('colEnd')}</th></tr></thead>
             <tbody>${d.runs.map((r) => this.row(r))}</tbody></table>
           ${d.pages > 1 ? html`<div class="pager" data-log-pager><span class="mut">${glt('page_of', { p: d.page, n: d.pages })}</span>
-            <button class="btn sm" ?disabled=${d.page <= 1} data-log-prev @click=${() => this.set({ page: d.page - 1 })}>${glt('prev')}</button>
-            <button class="btn sm" ?disabled=${d.page >= d.pages} data-log-next @click=${() => this.set({ page: d.page + 1 })}>${glt('next')}</button></div>` : nothing}`
+            <sw-button size="sm" ?disabled=${d.page <= 1} data-log-prev @click=${() => this.set({ page: d.page - 1 })}>${glt('prev')}</sw-button>
+            <sw-button size="sm" ?disabled=${d.page >= d.pages} data-log-next @click=${() => this.set({ page: d.page + 1 })}>${glt('next')}</sw-button></div>` : nothing}`
           : html`<div class="empty" data-state="empty"><div class="ic"><sw-icon name="clock" size="26"></sw-icon></div><h3>${glt('empty')}</h3><div class="mut">${glt('emptyBody')}</div></div>`}</div>
         <div class="card flush" data-log-fuel><div class="hd" style="padding:10px 12px 0"><span class="h3">${glt('fuelTitle')}</span></div>
           <div class="fe">${d.fuel_events.length ? d.fuel_events.slice(0, 5).map((f) => html`<div data-fuel=${f.kind}><span>${glt(f.kind === 'refill' ? 'fuelRefill' : 'fuelDrop', { a: fmtNum(f.from_pct, 0), b: fmtNum(f.to_pct, 0) })}</span><span class="mut num">${fmtDateTime(f.started_at)}</span></div>`)

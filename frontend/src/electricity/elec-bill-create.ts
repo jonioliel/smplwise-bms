@@ -4,6 +4,7 @@
  * the other refusals (a negative result, no price, no VAT rate, an invalid range) are shown in the dialog.
  */
 import { html, nothing, css, LitElement } from 'lit';
+import '../components/sw-button';
 import { customElement, property, state } from 'lit/decorators.js';
 import { elec, elecErrorCode, elecErrorText, elecToday, type Account, type BillSummary, type PeriodChoice } from '../api/electricity-billing';
 import { SkinController } from '../design/skin';
@@ -114,8 +115,8 @@ export class ElecBillCreate extends LitElement {
       ${re ? alertBox('err', re) : nothing}
       ${ov ? alertBox('err', html`כבר קיים חיוב ${n(ov.number ?? '')} לתקופה הזו. אפשר <a class="lnk" href=${href.bill(ov.id)}>לתקן אותו</a> במקום ליצור חדש.`) : nothing}
       ${this.error && !ov ? alertBox('err', html`${this.error}${this.errorBill ? html` <a class="lnk" href=${href.bill(this.errorBill)}>לפתיחת החיוב</a>` : nothing}`) : nothing}
-      <button slot="actions" type="button" class="btn pri" data-create ?disabled=${this.busy || !!ov || !!re} @click=${() => void this.create()}>יצירת טיוטה</button>
-      <button slot="actions" type="button" class="btn" @click=${() => this.close()}>ביטול</button>
+      <sw-button variant="primary" slot="actions" data-create ?disabled=${this.busy || !!ov || !!re} @click=${() => void this.create()}>יצירת טיוטה</sw-button>
+      <sw-button slot="actions" @click=${() => this.close()}>ביטול</sw-button>
     </elec-dialog>`;
   }
 }

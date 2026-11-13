@@ -7,6 +7,7 @@
  * page only links to it.
  */
 import { html, nothing } from 'lit';
+import '../components/sw-button';
 import { customElement, property, state } from 'lit/decorators.js';
 import { ERROR_TEXT, PDF_RETRYABLE, elec, elecErrorCode, elecErrorText, elecToday, type Bill, type BillAction, type BillEvent, type BillSnapshot, type SentHow, type SnapshotMeter } from '../api/electricity-billing';
 import { energyAccess } from './access';
@@ -129,16 +130,16 @@ export class ElecBillPage extends ElecBase {
 
   private btn(a: BillAction, b: Bill) {
     switch (a) {
-      case 'issue': return html`<button type="button" class="btn pri" data-act="issue" @click=${() => this.open('issue')}>הנפקה</button>`;
-      case 'sent': return html`<button type="button" class="btn ${b.state === 'issued' ? 'pri' : ''}" data-act="sent" @click=${() => this.open('sent')}>סימון כנשלח</button>`;
-      case 'paid': return html`<button type="button" class="btn ${b.state === 'sent' ? 'pri' : ''}" data-act="paid" @click=${() => this.open('paid')}>סימון כשולם</button>`;
-      case 'recalculate': return html`<button type="button" class="btn" data-act="recalculate" ?disabled=${this.busy} @click=${() => void this.act(() => elec().recalcBill(b))}>חישוב מחדש</button>`;
+      case 'issue': return html`<sw-button variant="primary" data-act="issue" @click=${() => this.open('issue')}>הנפקה</sw-button>`;
+      case 'sent': return html`<sw-button variant=${b.state === 'issued' ? 'primary' : 'secondary'} data-act="sent" @click=${() => this.open('sent')}>סימון כנשלח</sw-button>`;
+      case 'paid': return html`<sw-button variant=${b.state === 'sent' ? 'primary' : 'secondary'} data-act="paid" @click=${() => this.open('paid')}>סימון כשולם</sw-button>`;
+      case 'recalculate': return html`<sw-button data-act="recalculate" ?disabled=${this.busy} @click=${() => void this.act(() => elec().recalcBill(b))}>חישוב מחדש</sw-button>`;
       case 'pdf': return b.state === 'draft'
-        ? html`<button type="button" class="btn" data-act="pdf" @click=${() => void this.pdf('view')}>תצוגת PDF</button>`
-        : html`<button type="button" class="btn" data-act="pdf" @click=${() => void this.pdf('download')}>הורדת PDF</button>`;
-      case 'correct': return html`<button type="button" class="btn" data-act="correct" @click=${() => this.open('correct')}>תיקון</button>`;
-      case 'void': return html`<button type="button" class="btn dng" data-act="void" @click=${() => this.open('void')}>ביטול</button>`;
-      case 'delete': return html`<button type="button" class="btn dng" data-act="delete" @click=${() => this.open('delete')}>מחיקת טיוטה</button>`;
+        ? html`<sw-button data-act="pdf" @click=${() => void this.pdf('view')}>תצוגת PDF</sw-button>`
+        : html`<sw-button data-act="pdf" @click=${() => void this.pdf('download')}>הורדת PDF</sw-button>`;
+      case 'correct': return html`<sw-button data-act="correct" @click=${() => this.open('correct')}>תיקון</sw-button>`;
+      case 'void': return html`<sw-button variant="danger" data-act="void" @click=${() => this.open('void')}>ביטול</sw-button>`;
+      case 'delete': return html`<sw-button variant="danger" data-act="delete" @click=${() => this.open('delete')}>מחיקת טיוטה</sw-button>`;
       default: return nothing;
     }
   }
@@ -187,7 +188,7 @@ export class ElecBillPage extends ElecBase {
     if (b.state !== 'draft' || !start || !open.length || !energyAccess().manage) return nothing;
     return html`<div class="card" data-card="opening"><div class="hd"><b class="h3">קריאת פתיחה</b></div>
       <div class="list">${open.map((m) => html`<div class="row" data-opening-meter=${m.meter_id} style="flex-wrap:nowrap"><div class="grow"><div class="b">${m.name}</div><div class="mut">${m.start.reading_kwh === null ? readingText(null) : html`${n(readingText(m.start.reading_kwh))} · ${openingSource(m.start.kind)}`}</div></div>
-        <button type="button" class="btn sm" data-opening-enter @click=${() => this.openOpening(m)}>הזנה</button></div>`)}</div></div>`;
+        <sw-button size="sm" data-opening-enter @click=${() => this.openOpening(m)}>הזנה</sw-button></div>`)}</div></div>`;
   }
   private openOpening(m: SnapshotMeter) {
     this.open('opening');
@@ -245,7 +246,7 @@ export class ElecBillPage extends ElecBase {
     if (!fail) return nothing;
     const retry = PDF_RETRYABLE.includes(fail.code); // only a failure that can pass on its own: a bill without lines or a full-size PDF stays the same
     const shown = fail.code === 'pdf_unavailable' ? 'unavailable' : 'failed';
-    return html`<div class="alert ${retry ? 'err' : 'warn'}" role="alert" data-pdf-error data-pdf-state=${shown} data-pdf-code=${fail.code}><span class="x" aria-hidden="true">!</span><div>${fail.text}</div>${retry ? html`<button type="button" class="btn sm" data-pdf-retry @click=${() => void this.pdf(b.state === 'draft' ? 'view' : 'download')}>הפקת PDF מחדש</button>` : nothing}</div>`;
+    return html`<div class="alert ${retry ? 'err' : 'warn'}" role="alert" data-pdf-error data-pdf-state=${shown} data-pdf-code=${fail.code}><span class="x" aria-hidden="true">!</span><div>${fail.text}</div>${retry ? html`<sw-button size="sm" data-pdf-retry @click=${() => void this.pdf(b.state === 'draft' ? 'view' : 'download')}>הפקת PDF מחדש</sw-button>` : nothing}</div>`;
   }
 
   private logoSrc(): string {
@@ -256,39 +257,39 @@ export class ElecBillPage extends ElecBase {
   // ---------------------------------------------------------------- dialogs
   private dialogs(b: Bill) {
     const err = this.error ? alertBox('err', this.error) : nothing;
-    const cancel = (label = 'ביטול') => html`<button slot="actions" type="button" class="btn" @click=${() => this.close()}>${label}</button>`;
+    const cancel = (label = 'ביטול') => html`<sw-button slot="actions" @click=${() => this.close()}>${label}</sw-button>`;
     const nextRev = `${baseNumber(b.number ?? '')}-${b.revision + 1}`;
     const reasonEmpty = !this.reason.trim();
     return html`
       <elec-dialog heading="הנפקת חיוב" ?open=${this.dlg === 'issue'} data-dialog="issue" @close=${() => this.close()}>
         <div>החיוב יקבל מספר. אחרי ההנפקה אי אפשר לערוך אותו, רק לבטל או לתקן.</div>
         <dl class="kv"><dt>חשבון</dt><dd>${b.account_name}</dd><dt>תקופה</dt><dd>${n(fmtRange(b.period.from, b.period.to))}</dd><dt>סה״כ לתשלום</dt><dd>${n(f2(b.total) + ' ₪')}</dd></dl>${err}
-        <button slot="actions" type="button" class="btn pri" data-confirm ?disabled=${this.busy} @click=${() => this.issue()}>הנפקה</button>${cancel()}
+        <sw-button variant="primary" slot="actions" data-confirm ?disabled=${this.busy} @click=${() => this.issue()}>הנפקה</sw-button>${cancel()}
       </elec-dialog>
       <elec-dialog heading=${`ביטול חיוב ${b.number ?? ''}`} ?open=${this.dlg === 'void'} data-dialog="void" @close=${() => this.close()}>
         <div>החיוב יישאר ברשימה במצב בוטל. המספר לא ישמש שוב.</div>
         <div class="fld"><label for="vr">סיבת הביטול</label>
           <textarea id="vr" data-reason class="${reasonEmpty && this.reasonTouched ? 'err' : ''}" aria-required="true" placeholder="חובה" .value=${this.reason} @input=${(e: Event) => { this.reason = (e.target as HTMLTextAreaElement).value; this.reasonTouched = true; }} @blur=${() => (this.reasonTouched = true)}></textarea>
           ${reasonEmpty && this.reasonTouched ? html`<div class="msg" role="alert" data-reason-error>צריך לכתוב סיבה</div>` : nothing}</div>${err}
-        <button slot="actions" type="button" class="btn dng pri" data-confirm ?disabled=${this.busy || reasonEmpty} @click=${() => void this.act(() => elec().voidBill(b.id, this.reason))}>ביטול החיוב</button>${cancel('חזרה')}
+        <sw-button variant="danger" slot="actions" data-confirm ?disabled=${this.busy || reasonEmpty} @click=${() => void this.act(() => elec().voidBill(b.id, this.reason))}>ביטול החיוב</sw-button>${cancel('חזרה')}
       </elec-dialog>
       <elec-dialog heading="תיקון חיוב" ?open=${this.dlg === 'correct'} data-dialog="correct" @close=${() => this.close()}>
         <div>תיווצר טיוטה מתוקנת${b.number ? html` עם המספר <b class="num">${nextRev}</b>` : ''}. כשהיא תונפק, החיוב ${n(b.number ?? '')} יבוטל אוטומטית.</div>${err}
-        <button slot="actions" type="button" class="btn pri" data-confirm ?disabled=${this.busy} @click=${() => void this.act(async () => { const d = await elec().correctBill(b.id); go(route.bill(d.id)); this.billId = d.id; })}>יצירת טיוטה מתוקנת</button>${cancel()}
+        <sw-button variant="primary" slot="actions" data-confirm ?disabled=${this.busy} @click=${() => void this.act(async () => { const d = await elec().correctBill(b.id); go(route.bill(d.id)); this.billId = d.id; })}>יצירת טיוטה מתוקנת</sw-button>${cancel()}
       </elec-dialog>
       <elec-dialog heading="סימון כנשלח" ?open=${this.dlg === 'sent'} data-dialog="sent" @close=${() => this.close()}>
         <div class="form">
           <div class="fld"><label for="sd">תאריך משלוח</label><input id="sd" type="date" lang=${dateInputLang()} class="ltr ${isIsoDate(this.date) ? '' : 'err'}" data-date .value=${this.date} @change=${(e: Event) => (this.date = (e.target as HTMLInputElement).value)} /></div>
           <div class="fld"><span class="lbl">אופן משלוח</span><div class="seg" role="group" aria-label="אופן משלוח">${(['email', 'hand', 'other'] as SentHow[]).map((h) => html`<button type="button" data-how=${h} aria-pressed=${this.how === h} @click=${() => (this.how = h)}>${HOW[h]}</button>`)}</div></div>
         </div>${err}
-        <button slot="actions" type="button" class="btn pri" data-confirm ?disabled=${this.busy || !isIsoDate(this.date)} @click=${() => void this.act(() => elec().markSent(b.id, { at: this.date, how: this.how, note: '', row_version: b.row_version }))}>שמירה</button>${cancel()}
+        <sw-button variant="primary" slot="actions" data-confirm ?disabled=${this.busy || !isIsoDate(this.date)} @click=${() => void this.act(() => elec().markSent(b.id, { at: this.date, how: this.how, note: '', row_version: b.row_version }))}>שמירה</sw-button>${cancel()}
       </elec-dialog>
       <elec-dialog heading="סימון כשולם" ?open=${this.dlg === 'paid'} data-dialog="paid" @close=${() => this.close()}>
         <div class="form">
           <div class="fld"><label for="pd">תאריך תשלום</label><input id="pd" type="date" lang=${dateInputLang()} class="ltr ${isIsoDate(this.date) ? '' : 'err'}" data-date .value=${this.date} @change=${(e: Event) => (this.date = (e.target as HTMLInputElement).value)} /></div>
           <div class="fld"><label for="pr">אסמכתה (לא חובה)</label><input id="pr" class="ltr" data-reference placeholder="לא חובה" .value=${this.text} @input=${(e: Event) => (this.text = (e.target as HTMLInputElement).value)} /></div>
         </div>${err}
-        <button slot="actions" type="button" class="btn pri" data-confirm ?disabled=${this.busy || !isIsoDate(this.date)} @click=${() => void this.act(() => elec().markPaid(b.id, { at: this.date, reference: this.text.trim(), row_version: b.row_version }))}>שמירה</button>${cancel()}
+        <sw-button variant="primary" slot="actions" data-confirm ?disabled=${this.busy || !isIsoDate(this.date)} @click=${() => void this.act(() => elec().markPaid(b.id, { at: this.date, reference: this.text.trim(), row_version: b.row_version }))}>שמירה</sw-button>${cancel()}
       </elec-dialog>
       <elec-dialog heading=${`קריאת פתיחה - ${this.openingMeter?.name ?? ''}`} ?open=${this.dlg === 'opening'} data-dialog="opening" @close=${() => this.close()}>
         <div>מה הראה המונה ב-${n(fmtDate(b.period.from))} בשעה 00:00. הצריכה מאז ועד הקריאה הראשונה שנקלטה תתווסף לחיוב.</div>
@@ -296,11 +297,11 @@ export class ElecBillPage extends ElecBase {
           <div class="fld"><label for="ov">קריאה (קוט״ש)</label><input id="ov" class="ltr ${this.text && parseReading(this.text) === null ? 'err' : ''}" inputmode="decimal" data-opening-value .value=${this.text} @input=${(e: Event) => (this.text = (e.target as HTMLInputElement).value)} /></div>
           <div class="fld"><label for="on">הערה (לא חובה)</label><input id="on" data-opening-note placeholder="לא חובה" .value=${this.reason} @input=${(e: Event) => (this.reason = (e.target as HTMLInputElement).value)} /></div>
         </div>${this.openingInfo ? alertBox('warn', this.openingInfo) : nothing}${err}
-        <button slot="actions" type="button" class="btn pri" data-confirm ?disabled=${this.busy || parseReading(this.text) === null} @click=${() => void this.saveOpening()}>שמירה וחישוב מחדש</button>${cancel()}
+        <sw-button variant="primary" slot="actions" data-confirm ?disabled=${this.busy || parseReading(this.text) === null} @click=${() => void this.saveOpening()}>שמירה וחישוב מחדש</sw-button>${cancel()}
       </elec-dialog>
       <elec-dialog heading="מחיקת טיוטה" ?open=${this.dlg === 'delete'} data-dialog="delete" @close=${() => this.close()}>
         <div>הטיוטה תימחק. אפשר ליצור אחרת מעמוד החשבון.</div>${err}
-        <button slot="actions" type="button" class="btn dng pri" data-confirm ?disabled=${this.busy} @click=${() => void this.act(async () => { await elec().deleteDraft(b); go(route.bills()); })}>מחיקה</button>${cancel()}
+        <sw-button variant="danger" slot="actions" data-confirm ?disabled=${this.busy} @click=${() => void this.act(async () => { await elec().deleteDraft(b); go(route.bills()); })}>מחיקה</sw-button>${cancel()}
       </elec-dialog>`;
   }
 }

@@ -4,19 +4,18 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-tabs';
 import '../components/sw-state-panel';
 import '../components/sw-button';
+import '../components/sw-page';
 import type { TabItem } from '../components/sw-tabs';
 import type { RouteState } from '../router';
 import { canSettings, onWaterAccess, refreshWaterVisibility, waterAccess, type WaterAccess } from '../water/access';
-import { tabStyleOf, INFRA_SETTINGS_HREF, INFRA_TABS, INFRA_WATER_MANAGE_PAGES, INFRA_WATER_MONEY_PAGES, INFRA_WATER_PAGES, infraPageTabs, visibleTabs } from '../shell/nav';
-import { canNav, isApi } from '../api/session';
+import { tabStyleOf, INFRA_SETTINGS_HREF, INFRA_WATER_MANAGE_PAGES, INFRA_WATER_MONEY_PAGES, INFRA_WATER_PAGES, infraPageTabs } from '../shell/nav';
+import { isApi } from '../api/session';
 import { navigate } from '../router';
 import { TabsModeController } from '../shell/tabs-mode';
 import { clearPairChip, publishPairChip, type PairChip } from '../shell/tab-pair';
 import { infraPagesAsChip, infraPagesChip } from '../shell/infra-pages';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
-import { leadReserveStyles } from '../styles/lead-reserve'; // LOGOFIX-295: the page row keeps the developer / installer logos' room free
-import { srHeading, srHeadingCss } from '../components/sr-heading';
 import { wt } from '../water/i18n';
 import { openAlertCount, onOpenAlertCount } from '../api/water';
 
@@ -65,16 +64,17 @@ export class InfraWater extends LitElement {
   private readonly tabsMode = new TabsModeController(this, 'area');
   private pagesChip: PairChip | null = null;
 
-  static styles = [srHeadingCss, leadReserveStyles, css`
+  /* AUDIT30-E2 (round-30 audit #6, #9): the page is a <sw-page> (header, padding, width from the shared component) */
+  static styles = [css`
     :host {
       display: flex;
       flex-direction: column;
-      gap: 14px;
       min-block-size: 100%;
-      padding: 14px var(--sw-page-pad) 24px;
-      max-inline-size: var(--sw-content-max);
       inline-size: 100%;
-      box-sizing: border-box;
+    }
+    sw-page {
+      flex: 1 1 auto;
+      min-block-size: 0;
     }
     .rows {
       display: flex;
@@ -153,12 +153,11 @@ export class InfraWater extends LitElement {
     // the page row: only while the module is on and the viewer may see it (the off panel stands alone); ui.tabs orders and hides it
     const offered = on ? WATER_PAGES.filter((p) => pageAllowed(p, a)) : [];
     const items: TabItem[] = infraPageTabs('infra.water', offered.map((p) => ({ id: p.id, label: p.label, href: `#/infra/water/${p.id}`, ...(p.id === 'alerts' && this.alerts ? { count: this.alerts } : {}) })), isApi());
-    // the area row: drawn here only when the navigation would not draw it (a row of one tab)
-    const l1 = on && visibleTabs(INFRA_TABS, isApi(), canNav).length < 2 ? html`<sw-tabs .items=${INFRA_TABS.filter((t) => t.id === 'water')} active="water" .variant=${tabStyleOf('infra')} data-infra-l1></sw-tabs>` : nothing;
+    // AUDIT30-E2: no area row of one tab here any more (it only repeated the page title); the navigation draws it from two tabs up
     const asChip = items.length > 0 && infraPagesAsChip(this.tabsMode.value, items.length);
     this.pagesChip = asChip ? infraPagesChip(wt('pageRow'), items, page, (id) => navigate(`/infra/water/${id}`)) : null;
     const row = asChip || !items.length ? nothing : html`<sw-tabs .items=${items} .active=${page} .variant=${tabStyleOf('infra.water')} data-infra-pages></sw-tabs>`;
-    return html`${srHeading(wt('tab'), true)}<div class="rows lead-head" data-water-shell>${l1}${row}</div><div class="body" data-page=${page}>${this.body(page, def)}</div>`;
+    return html`<sw-page heading=${wt('tab')} data-infra-page="water">${row === nothing ? nothing : html`<div class="rows" data-water-shell>${row}</div>`}<div class="body" data-page=${page}>${this.body(page, def)}</div></sw-page>`;
   }
 
   protected updated() {

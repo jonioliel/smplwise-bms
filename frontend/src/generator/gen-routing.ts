@@ -1,4 +1,5 @@
 import { LitElement, html, nothing } from 'lit';
+import '../components/sw-button';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import '../components/sw-drawer';
@@ -236,7 +237,7 @@ export class GenRouting extends LitElement {
         <div class="fld"><label>${S.channels}</label><div class="chooser" data-channels><label class="on dis"><input type="checkbox" checked disabled /> ${S.inboxAlways}</label>${data.severity_channels.map((c) => chk(chLabel(c), d.channels.includes(c), () => (this.sevDraft = { ...d, channels: this.toggle(d.channels, c) })))}</div></div>
         ${sev === 'critical' ? html`<div class="fld"><label for="crit-min">${grt('criticalDelay')}</label><input id="crit-min" type="number" min="1" max="1440" style="inline-size:90px" .value=${this.delay} @input=${(e: Event) => (this.delay = (e.target as HTMLInputElement).value)} data-critical-delay /><div class="mut" data-critical-note>${grt('criticalNote', { n: this.delay })}</div></div>` : nothing}
         ${this.fail ? html`<div class="alert err" role="alert"><span class="x">!</span><div>${this.fail}</div></div>` : nothing}
-        <div class="row"><button class="btn pri" ?disabled=${this.busy} @click=${() => this.saveSeverity()} data-save-severity>${S.save}</button><button class="btn" @click=${() => (this.sevEdit = null)}>${S.cancel}</button></div>
+        <div class="row"><sw-button variant="primary" ?disabled=${this.busy} @click=${() => this.saveSeverity()} data-save-severity>${S.save}</sw-button><sw-button @click=${() => (this.sevEdit = null)}>${S.cancel}</sw-button></div>
       </div>` : nothing}</sw-drawer>`;
   }
 
@@ -271,7 +272,7 @@ export class GenRouting extends LitElement {
           ${this.tplError ? html`<div class="alert err" role="alert" data-tpl-error><span class="x">!</span><div>${this.tplError}</div></div>` : nothing}
           <div class="preview" data-preview><div class="mut">${S.preview}</div><b>${i.title}</b><div>${this.previewText}</div></div></div>
         ${this.fail ? html`<div class="alert err" role="alert"><span class="x">!</span><div>${this.fail}</div></div>` : nothing}
-        <div class="row"><button class="btn pri" ?disabled=${this.busy} @click=${() => this.save()} data-save>${S.save}</button><button class="btn" @click=${() => (this.editing = null)}>${S.cancel}</button><button class="btn ghost" @click=${() => { this.text = i.message; void this.refreshPreview(); }} data-restore>${S.tplRestore}</button></div>
+        <div class="row"><sw-button variant="primary" ?disabled=${this.busy} @click=${() => this.save()} data-save>${S.save}</sw-button><sw-button @click=${() => (this.editing = null)}>${S.cancel}</sw-button><sw-button variant="ghost" @click=${() => { this.text = i.message; void this.refreshPreview(); }} data-restore>${S.tplRestore}</sw-button></div>
       </div>` : nothing}</sw-drawer>`;
   }
 
@@ -305,7 +306,7 @@ export class GenRouting extends LitElement {
         <tbody>${groups.map((g) => html`<tr class="grp"><td colspan="7">${g.title}</td></tr>${g.items.filter(match).map(row)}`)}</tbody></table></div></div>
       <div class="list only-phone" style="flex-direction:column">${groups.map((g) => html`<div class="h3">${g.title}</div>${g.items.filter(match).map(phoneRow)}`)}</div>
       ${this.msg ? html`<div class="mut" role="status" data-saved>${this.msg}</div>` : nothing}${!this.editing && this.fail ? html`<div class="bad" role="alert">${this.fail}</div>` : nothing}
-      <div class="row"><button class="btn" ?disabled=${this.busy} @click=${() => this.reset()} data-reset>${S.reset}</button></div>
+      <div class="row"><sw-button ?disabled=${this.busy} @click=${() => this.reset()} data-reset>${S.reset}</sw-button></div>
       ${this.drawer()}${this.sevDrawer()}
     </div>`;
   }

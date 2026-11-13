@@ -14,7 +14,7 @@ test.describe('account wizard', () => {
     const errs = watchErrors(page);
     await open(page, NEW);
     await screen(page, 'wizard');
-    await expect(page.locator('[data-next]')).toBeDisabled(); // nothing chosen yet
+    await expect(page.locator('[data-next]')).toHaveAttribute('disabled', ''); // nothing chosen yet
     await wizardTo(page, 1);
     await page.locator('[data-picker-item="m2"]').click();
     await page.locator('[data-picker-item="m3"]').click();
@@ -61,7 +61,7 @@ test.describe('account wizard', () => {
     await picker.locator('[data-picker-item][data-sensor][data-verdict="rejected"]').first().click({ force: true }); // aria-disabled row: the click shows the reason
     await expect(picker.locator('[data-picker-reject]')).toContainText('הספק רגעי');
     await shot(page, info, 'wizard-1-kw-rejected');
-    await expect(page.locator('[data-next]')).toBeDisabled();
+    await expect(page.locator('[data-next]')).toHaveAttribute('disabled', '');
     await expect(page.locator('[data-chosen]')).toContainText('נבחרו 0');
     await picker.locator('[data-picker-search]').fill('צריכה יומית');
     await expect(picker.locator('[data-picker-item][data-sensor][data-verdict="warn"]')).toContainText('מתאפס כל יום');
@@ -71,7 +71,7 @@ test.describe('account wizard', () => {
     await expect(picker.locator('[data-picker-item="m2"]')).toBeVisible();
     await picker.locator('[data-picker-item="m2"]').click();
     await expect(page.locator('[data-chosen]')).toContainText('נבחרו 1 מונה');
-    await expect(page.locator('[data-next]')).toBeEnabled();
+    await expect(page.locator('[data-next]')).not.toHaveAttribute('disabled', '');
     await picker.locator('[data-picker-search]').fill('אין כזה');
     await expect(picker.locator('[data-no-match]')).toBeVisible();
   });
@@ -112,7 +112,7 @@ test.describe('account wizard', () => {
     await expect(page.locator('[data-sentence]')).toHaveText('לוח סטודיו + 30% × תאורת לובי');
     await expect(page.locator('[data-formula-state="ok"]')).toBeVisible();
     await expect(page.locator('[data-formula-result]')).toHaveText('776.20'); // 685.48 + 30% of 302.40
-    await expect(page.locator('[data-next]')).toBeEnabled();
+    await expect(page.locator('[data-next]')).not.toHaveAttribute('disabled', '');
     await shot(page, info, 'wizard-2-builder');
   });
 
@@ -123,7 +123,7 @@ test.describe('account wizard', () => {
     await page.locator('[data-preset-btn="custom"]').click();
     await page.locator('[data-op="("]').click();
     await expect(page.locator('[data-elec="wizard"] .alert.err')).toContainText('חסר סוגר');
-    await expect(page.locator('[data-next]')).toBeDisabled();
+    await expect(page.locator('[data-next]')).toHaveAttribute('disabled', '');
     await shot(page, info, 'wizard-2-paren');
     await page.locator('[data-backspace]').click();
     await expect(page.locator('[data-formula-state="ok"]')).toBeVisible();
@@ -132,7 +132,7 @@ test.describe('account wizard', () => {
     await page.locator('[data-add-meter]').click();
     await page.locator('[data-meter-option="m2"]').click();
     await expect(page.locator('[data-elec="wizard"] .alert.err')).toContainText('להכפיל מונה במונה');
-    await expect(page.locator('[data-next]')).toBeDisabled();
+    await expect(page.locator('[data-next]')).toHaveAttribute('disabled', '');
     await page.locator('[data-backspace]').click();
     await page.locator('[data-backspace]').click();
     await expect(page.locator('[data-formula-state="ok"]')).toBeVisible();
@@ -142,11 +142,11 @@ test.describe('account wizard', () => {
     await expect(ta).toHaveValue('[לוח סטודיו] + [תאורת לובי]');
     await ta.fill('[לוח סטודיו] + 30% * [תאורת לובי]');
     await expect(page.locator('[data-formula-state="ok"]')).toBeVisible();
-    await expect(page.locator('[data-next]')).toBeEnabled();
+    await expect(page.locator('[data-next]')).not.toHaveAttribute('disabled', '');
     await shot(page, info, 'wizard-2-text');
     await ta.fill('[לוח סטודיו] + [מונה שלא קיים]');
     await expect(page.locator('[data-elec="wizard"] .alert.err')).toContainText('לא נמצא');
-    await expect(page.locator('[data-next]')).toBeDisabled();
+    await expect(page.locator('[data-next]')).toHaveAttribute('disabled', '');
     await ta.fill('[לוח סטודיו] + (30% * [תאורת לובי]');
     await expect(page.locator('[data-elec="wizard"] .alert.err')).toContainText('חסר סוגר');
     await page.locator('[data-mode="builder"]').click();
@@ -156,7 +156,7 @@ test.describe('account wizard', () => {
     await open(page, NEW);
     await screen(page, 'wizard');
     await wizardTo(page, 3);
-    await expect(page.locator('[data-next]')).toBeDisabled();
+    await expect(page.locator('[data-next]')).toHaveAttribute('disabled', '');
     await page.locator('[data-new-tariff]').click();
     await page.locator('[data-tariff-save]').click();
     await expect(page.locator('[data-tariff-dialog] .msg').first()).toBeVisible();
@@ -167,7 +167,7 @@ test.describe('account wizard', () => {
     await page.locator('[data-tariff-save]').click();
     await expect(page.locator('[data-tariff-row]')).toHaveCount(3);
     await expect(page.locator('[data-price-card]')).toContainText('כולל מע״מ');
-    await expect(page.locator('[data-next]')).toBeEnabled();
+    await expect(page.locator('[data-next]')).not.toHaveAttribute('disabled', '');
   });
 
   test('step 4: bi-monthly shows the cycle month and the expected periods', async ({ page }, info) => {
@@ -183,10 +183,10 @@ test.describe('account wizard', () => {
     await expect(rows.first()).toContainText('01.02.2026 - 31.03.2026');
     await shot(page, info, 'wizard-4-bimonthly');
     await page.locator('[data-anchor-day]').fill('31');
-    await expect(page.locator('[data-next]')).toBeDisabled();
+    await expect(page.locator('[data-next]')).toHaveAttribute('disabled', '');
     await page.locator('[data-anchor-day]').fill('15');
     await page.locator('[data-first-start]').fill('');
-    await expect(page.locator('[data-next]')).toBeDisabled();
+    await expect(page.locator('[data-next]')).toHaveAttribute('disabled', '');
   });
 
   test('step 5: field errors on the new customer, an existing customer with several accounts gets the suffix note', async ({ page }, info) => {

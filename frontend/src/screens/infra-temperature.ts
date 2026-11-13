@@ -1,9 +1,10 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import '../components/sw-tabs';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import '../components/sw-pager';
+import '../components/sw-page';
+import '../components/sw-button';
 import type { RouteState } from '../router';
 import { describeError } from '../api/client';
 import { listUnits, type ReportParams, type TempUnit, type UnitsResponse } from '../api/temperature';
@@ -18,11 +19,9 @@ import '../temperature/report';
 import '../temperature/whatsapp';
 import { tt, type TtKey } from '../i18n/temperature';
 import { registerScreenEdit } from '../shell/screen-edit';
-import { INFRA_TABS, applyInfraTemperature, tabStyleOf, visibleTabs } from '../shell/nav';
-import { canNav, isApi } from '../api/session';
+import { applyInfraTemperature } from '../shell/nav';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
-import { leadReserveStyles } from '../styles/lead-reserve';
 
 const POLL_MS = 30_000;
 const LONG_PRESS_MS = 480;
@@ -80,16 +79,14 @@ export class InfraTemperature extends LitElement {
   private fitObserver?: ResizeObserver;
   private contentObserver?: ResizeObserver;
 
-  static styles = [tempCss, leadReserveStyles, css`
+  /* AUDIT30-E2 (round-30 audit #6, #9): the page is a <sw-page> - the h1 (it was 700 here and 800 everywhere else, because the screen drew
+     its own), the subtitle, the padding and the width come from the shared component; the header actions sit in its actions slot */
+  static styles = [tempCss, css`
     :host {
-      display: flex; flex-direction: column; gap: 14px; padding: 14px var(--sw-page-pad) 24px; max-inline-size: var(--sw-content-max);
-      inline-size: 100%; box-sizing: border-box;
+      display: flex; flex-direction: column; inline-size: 100%; box-sizing: border-box;
     }
-    .top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-    .top h1 { margin: 0; font-size: var(--sw-fs-3xl); line-height: 1.2; }
-    .top .sub { margin: 2px 0 0; color: var(--sw-text-2); font-size: var(--sw-fs-base); }
-    .top .sp { flex: 1; }
-    .top .meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    sw-page { flex: 1 1 auto; min-block-size: 0; }
+    .meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     .editbanner { display: inline-flex; align-items: center; gap: 6px; color: var(--sw-accent-text); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); }
     .banner {
       display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--sw-r-md); background: var(--sw-offline-soft);
@@ -200,8 +197,8 @@ export class InfraTemperature extends LitElement {
     }
     @starting-style { .toast { opacity: 0; transform: translateY(8px); } }
     /* POLISH136: the header actions and the add card answer a press like every other control on the page */
-    .top .btn, .hand .btn, .add { transition: border-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease); }
-    .top .btn:active, .hand .btn:active { transform: scale(0.97); }
+    .meta .btn, .hand .btn, .add { transition: border-color var(--sw-t-fast) var(--sw-ease), color var(--sw-t-fast) var(--sw-ease), transform var(--sw-t-fast) var(--sw-ease); }
+    .meta .btn:active, .hand .btn:active { transform: scale(0.97); }
     .add:active { transform: scale(0.99); }
     /* POLISH136: the loading state draws the shape of the page (title, KPI row, three cards) instead of a blank screen; .skl was never
        defined for this screen (the generator and elevators screens share the gap - noted for the round) */
@@ -210,9 +207,6 @@ export class InfraTemperature extends LitElement {
       border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); box-sizing: border-box;
       background: linear-gradient(90deg, var(--sw-surface-3) 0%, var(--sw-surface) 50%, var(--sw-surface-3) 100%); background-size: 200% 100%; animation: tp-shimmer 1.4s var(--sw-ease) infinite;
     }
-    .sk-top { display: grid; gap: 8px; padding-block: 4px; }
-    .sk-h1 { inline-size: 180px; block-size: 30px; }
-    .sk-sub { inline-size: 320px; max-inline-size: 100%; block-size: 14px; border-radius: var(--sw-r-xs); }
     .sk-kpi { block-size: 64px; }
     .sk-card { block-size: 236px; border-radius: var(--sw-r-lg); }
     @keyframes tp-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
@@ -244,8 +238,6 @@ export class InfraTemperature extends LitElement {
     @media (max-width: 600px) {
       /* round 2 loop 1: on a phone the tile's word may take two lines instead of an ellipsis */
       .kpi span.l { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; line-height: 1.25; }
-      .top { flex-direction: column; align-items: stretch; }
-      .top .sp { display: none; }
       .ubody { gap: 10px; }
     }
     @media (max-width: 420px) {
@@ -515,27 +507,20 @@ export class InfraTemperature extends LitElement {
       ${this.wa !== null ? html`<temp-wa .units=${units} .params=${this.wa} @close=${() => { this.wa = null; }}></temp-wa>` : nothing}`;
   }
 
-  private l1() {
-    return isApi() && visibleTabs(INFRA_TABS, true, canNav).length < 2
-      ? html`<sw-tabs .items=${INFRA_TABS.filter((t) => t.id === 'temperature')} active="temperature" .variant=${tabStyleOf('infra')} data-infra-l1></sw-tabs>`
-      : nothing;
-  }
-
   render() {
     if (!this.access.view) return html`<sw-state-panel state="forbidden" data-state="forbidden"></sw-state-panel>`;
     if (this.isLog()) {
-      return html`${this.l1()}<temp-log .units=${this.data?.units ?? []} .unitFilter=${this.route?.params.get('unit') ?? ''} .canSend=${this.access.manage}
+      return html`<temp-log .units=${this.data?.units ?? []} .unitFilter=${this.route?.params.get('unit') ?? ''} .canSend=${this.access.manage}
         @back=${() => { window.location.hash = TEMPERATURE_HREF; }} @report=${(e: CustomEvent<string[]>) => { this.report = e.detail; }}
         @whatsapp=${(e: CustomEvent<string[]>) => { this.wa = { units: e.detail, range: '24h', lang: 'he' }; }}></temp-log>${this.reportOverlays()}`;
     }
     if (!this.data) {
       return this.error
-        ? html`${this.l1()}<sw-state-panel state="error" heading=${tt('loadError')} hint=${this.error} actionLabel=${tt('retry')} @action=${() => void this.load()} data-state="error"></sw-state-panel>`
-        : html`${this.l1()}<div class="skl" data-state="loading" role="status" aria-busy="true" aria-label=${tt('loading')}>
-            <div class="sk-top lead-head"><div class="sk sk-h1"></div><div class="sk sk-sub"></div></div>
+        ? html`<sw-page heading=${tt('title')} data-infra-page="temperature"><sw-state-panel state="error" heading=${tt('loadError')} hint=${this.error} actionLabel=${tt('retry')} @action=${() => void this.load()} data-state="error"></sw-state-panel></sw-page>`
+        : html`<sw-page heading=${tt('title')} data-infra-page="temperature"><div class="skl" data-state="loading" role="status" aria-busy="true" aria-label=${tt('loading')}>
             <div class="kpis" aria-hidden="true">${[0, 1, 2, 3, 4, 5].map(() => html`<div class="sk sk-kpi"></div>`)}</div>
             <div class="grid" aria-hidden="true">${[0, 1, 2].map(() => html`<div class="sk sk-card"></div>`)}</div>
-          </div>`;
+          </div></sw-page>`;
     }
     const list = this.data.units;
     const aff = addAffordances(this.access.manage, this.editing);
@@ -543,14 +528,15 @@ export class InfraTemperature extends LitElement {
     const now = Date.now();
     const lang = document.documentElement.lang || 'he-IL';
     const withDoor = list.filter((u) => u.door).length;
-    const top = html`<div class="top lead-head"><div><h1>${tt('title')}</h1><p class="sub" data-temp-sub>${stale ? tt('subtitleStale') : tt('subtitle', { n: list.length, d: withDoor })}</p></div><span class="sp"></span>
-      <div class="meta">
+    const sub = stale ? tt('subtitleStale') : tt('subtitle', { n: list.length, d: withDoor });
+    const actions = html`<div class="meta" slot="actions">
         ${aff.doneButton ? html`<span class="editbanner"><sw-icon name="edit" size="14"></sw-icon>${tt('editBanner')}</span>` : nothing}
         ${this.pager(list.filter((u) => matchesKpi(u, this.kpi, stale)))}
         ${list.length ? html`<a class="btn" href=${`${TEMPERATURE_HREF}/log`} data-temp-log><sw-icon name="list" size="16"></sw-icon>${tt('alertLog')}</a>` : nothing}
-        ${aff.newButton ? html`<button type="button" class="btn pri" data-temp-new @click=${() => { this.wizard = ''; }}><sw-icon name="plus" size="16"></sw-icon>${tt('newUnit')}</button>` : nothing}
-        ${aff.doneButton ? html`<button type="button" class="btn" data-temp-edit-done @click=${() => { this.editing = false; }}><sw-icon name="check" size="16"></sw-icon>${tt('editDone')}</button>` : nothing}
-      </div></div>`;
+        ${aff.newButton ? html`<sw-button variant="primary" icon="plus" data-temp-new @click=${() => { this.wizard = ''; }}>${tt('newUnit')}</sw-button>` : nothing}
+        ${aff.doneButton ? html`<sw-button icon="check" data-temp-edit-done @click=${() => { this.editing = false; }}>${tt('editDone')}</sw-button>` : nothing}
+      </div>`;
+    const page = (body: unknown) => html`<sw-page heading=${tt('title')} subheading=${sub} data-infra-page="temperature">${actions}${body}</sw-page>`;
     const overlays = html`
       ${this.openId && list.some((u) => u.id === this.openId)
         ? html`<temp-detail .unit=${list.find((u) => u.id === this.openId)!} .units=${list} .canAck=${this.data.can_ack} .canManage=${this.access.manage} .explain=${this.data.explain !== false} .stale=${stale}
@@ -565,20 +551,20 @@ export class InfraTemperature extends LitElement {
       ${this.reportOverlays()}
       ${this.toast ? html`<div class="toast" role="status" aria-live="polite">${this.toast}</div>` : nothing}`;
     if (!list.length) {
-      return html`${this.l1()}${top}
+      return page(html`
         <div class="empty" data-state="empty"><div class="art"><sw-icon name="thermometer" size="34"></sw-icon></div><h2>${tt('emptyTitle')}</h2><p>${tt('emptyBody')}</p>
           ${aff.addCard ? html`<button type="button" class="btn pri" data-temp-add-first @click=${() => { this.wizard = ''; }}><sw-icon name="plus" size="16"></sw-icon>${tt('addFirst')}</button>`
             : this.access.manage ? html`<span class="hint">${tt('emptyHint')}</span>` : nothing}</div>
-        ${overlays}`;
+        ${overlays}`);
     }
     const shown = list.filter((u) => matchesKpi(u, this.kpi, stale));
     const addCard = aff.addCard ? html`<button type="button" class="add" data-temp-add @click=${() => { this.wizard = ''; }}><div><b>+</b>${tt('addCard')}<br /><small>${tt('addCardSub')}</small></div></button>` : nothing;
-    return html`${this.l1()}${top}
+    return page(html`
       ${stale ? html`<div class="banner" role="status" data-temp-stale><sw-icon name="offline" size="18"></sw-icon><span>${tt('staleBanner')}</span></div>` : nothing}
       ${this.kpis(list, stale)}
       ${this.floorBar(list)}
       ${this.cards(shown, stale, now, lang, addCard)}
-      ${overlays}`;
+      ${overlays}`);
   }
 }
 
