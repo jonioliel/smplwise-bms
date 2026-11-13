@@ -51,7 +51,7 @@ stays in `docs/changes/<name>.md`.
 | `node scripts/lazy-tags-check.mjs` | OK (1470 files, 366 eager, 549 tags, 96 route screens, 8 not in the entry) |
 | `npx playwright test -c playwright.unit.config.ts --workers=1` `unit-mocks-lazy unit-media-players unit-plan-editor-hot-2436 unit-plan-editor-hot-lint-2436 unit-nav-labels-2436 unit-shell-lazy-2436 unit-entry-chunk unit-client-blob unit-client` | 107 passed |
 | `npx playwright test --project=desktop --workers=1 tests/evidence-diagnostics-defects.spec.ts` (preview of this build on its own port) | 9 passed |
-| `pytest -p no:xdist` the new tests of every backend branch (`test_notify_fanout_2436`, `test_bill_ledger_cross_kind`, `test_bridge_runtime_2436`, `test_query_plans`) + `test_migrations`, `test_notify_core`, the notify / alert / maintenance / billing / media-commands tests the branches name, and the bridge and WisKey bridge tests (42 files, 1,418 tests collected) | still running when this commit was pushed (serial, loaded workstation); the result is recorded in the follow-up commit |
+| `pytest -p no:xdist` the new tests of every backend branch (`test_notify_fanout_2436`, `test_bill_ledger_cross_kind`, `test_bridge_runtime_2436`, `test_query_plans`) + `test_migrations`, `test_notify_core`, the notify / alert / maintenance / billing / media-commands tests the branches name, and the bridge and WisKey bridge tests (42 files, 1,418 tests) | 1,405 passed, 13 skipped, rc 0 (about 2 h serial on the loaded workstation; counted from the progress lines, `-q` hides the summary) |
 
 NOT_RUN locally: the full backend and Playwright suites, pixel specs (DIAG-DEFECTS' General-tab baseline) - that is the runner entry check.
 
