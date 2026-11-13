@@ -5,6 +5,9 @@ import type { IconName } from './sw-icon';
 import type { StateKind } from './sw-badge';
 import { fitSchedule, fitTextElement } from './fit-text';
 
+/** AUDIT30-B-SHARED (finding 7): the two tile tones the module tiles used locally - `warn` (something needs a look) and `alarm` (act now). */
+export type KpiTone = StateKind | 'warn' | 'alarm';
+
 /**
  * Stat tile as on the boards: icon in a soft-blue square, big value, label, green/amber sub-label.
  *
@@ -23,7 +26,13 @@ export class SwKpi extends LitElement {
   @property() value = '';
   @property() detail = '';
   @property() icon: IconName = 'info';
-  @property({ reflect: true }) tone: StateKind = 'neutral';
+  @property({ reflect: true }) tone: KpiTone = 'neutral';
+  /** AUDIT30-B-SHARED (finding 7, owner gate Q4 option א assumed): a unit after the value in the quieter ink ("קוט\"ש", "°C", "%"). */
+  @property() unit = '';
+  /** AUDIT30-B-SHARED (finding 7): the figure the value is read against, after it ("מתוך 12"). */
+  @property() secondary = '';
+  /** AUDIT30-B-SHARED (finding 7): a state dot instead of the icon tile (a StateKind, `warn` or `alarm`); empty = the icon. */
+  @property({ reflect: true }) dot: KpiTone | '' = '';
   @property() badge = '';
   /** MULTIBUILDING-HOME-2330: a quiet scope tag ("אתר" / "בניין א") riding the tile's top corner opposite the badge; empty = none. */
   @property() tag = '';
@@ -78,6 +87,76 @@ export class SwKpi extends LitElement {
     :host([tone='live']) .icon {
       background: var(--sw-kpi-on-bg, var(--sw-surface-3));
       color: var(--sw-kpi-on-fg, var(--sw-text-2));
+    }
+    /* ---- AUDIT30-B-SHARED (audit round 30, finding 7; Q4 = א assumed): the variants the module tiles drew locally ----
+       tone warn / alarm: a soft state fill and a 1 px state hairline; the words keep their inks (label --sw-text-2, detail --sw-text) */
+    :host([tone='warn']) {
+      background: var(--sw-warning-soft);
+      border-color: var(--sw-warning);
+    }
+    :host([tone='alarm']) {
+      background: var(--sw-danger-soft);
+      border-color: var(--sw-danger);
+    }
+    :host([tone='warn']) .icon {
+      background: var(--sw-surface-solid, var(--sw-surface));
+      color: var(--sw-warning-text);
+    }
+    :host([tone='alarm']) .icon {
+      background: var(--sw-surface-solid, var(--sw-surface));
+      color: var(--sw-danger-text);
+    }
+    /* the detail line on the soft state fill reads in the strong neutral ink: the state's own ink on its own soft field measured
+       4.42:1 (domus light, danger) - the fill, the hairline and the icon carry the state, the words stay readable everywhere */
+    :host([tone='warn']) .detail,
+    :host([tone='alarm']) .detail {
+      color: var(--sw-text);
+    }
+    /* the unit and the "of N" figure ride the value's baseline in the quieter ink; they never wrap away from it */
+    .unit,
+    .sec {
+      font-size: var(--sw-fs-sm);
+      font-weight: var(--sw-fw-medium);
+      letter-spacing: 0;
+      line-height: 1; /* rides inside the value's line box: never makes the tile taller than the bare value */
+      color: var(--sw-text-2);
+      margin-inline-start: 3px;
+    }
+    .sec {
+      margin-inline-start: 5px;
+    }
+    /* dot instead of the icon tile: a 10 px state dot centred in the tile's icon column (the tile keeps its height and grid) */
+    .sdot {
+      display: grid;
+      place-items: center;
+      inline-size: 16px;
+      block-size: 30px;
+      flex: none;
+    }
+    :host([layout='compact']) .sdot {
+      block-size: var(--sw-kpi-compact-icon, 32px);
+    }
+    .sdot::before {
+      content: '';
+      inline-size: 10px;
+      block-size: 10px;
+      border-radius: 50%;
+      background: var(--_dot, var(--sw-text-3));
+    }
+    :host([dot='live']) .sdot { --_dot: var(--sw-success); }
+    :host([dot='recorded']) .sdot,
+    :host([dot='historic']) .sdot { --_dot: var(--sw-accent); }
+    :host([dot='offline']) .sdot { --_dot: var(--sw-offline); }
+    :host([dot='stale']) .sdot,
+    :host([dot='partial']) .sdot,
+    :host([dot='warn']) .sdot { --_dot: var(--sw-warning); }
+    :host([dot='error']) .sdot,
+    :host([dot='forbidden']) .sdot,
+    :host([dot='alarm']) .sdot { --_dot: var(--sw-danger); }
+    /* unknown keeps its outline-only meaning (as in sw-badge) */
+    :host([dot='unknown']) .sdot::before {
+      background: transparent;
+      box-shadow: inset 0 0 0 2px var(--sw-unknown-text, var(--sw-text-3));
     }
     .txt {
       min-inline-size: 0;
@@ -301,7 +380,8 @@ export class SwKpi extends LitElement {
 
   /** Everything the tile says, in reading order: the control's accessible name and the host's tooltip. */
   private get words(): string {
-    return [`${this.value} ${this.label}`.trim(), this.detail, this.badge].filter(Boolean).join(' · ');
+    const value = [this.value + (this.unit ? ` ${this.unit}` : ''), this.secondary].filter(Boolean).join(' ');
+    return [`${value} ${this.label}`.trim(), this.detail, this.badge].filter(Boolean).join(' · ');
   }
 
   /** Pass 2 (break-ui): the compact value is fitted to its tile on every render and every resize (one measure per frame). */
@@ -334,7 +414,7 @@ export class SwKpi extends LitElement {
     const interactive = !!this.href || this.action;
     this.toggleAttribute('interactive', interactive);
     this.toggleAttribute('data-expanded', this.action && this.expanded);
-    if (changed.has('value') || changed.has('label') || changed.has('detail') || changed.has('badge')) this.title = this.words;
+    if (['value', 'label', 'detail', 'badge', 'unit', 'secondary'].some((k) => changed.has(k as keyof SwKpi))) this.title = this.words;
   }
 
   render() {
@@ -342,9 +422,11 @@ export class SwKpi extends LitElement {
     // review low: the control carries the whole text as its name - the visible text is not read a second time
     const interactive = !!this.href || this.action;
     return html`
-      <div class="icon" aria-hidden=${interactive ? 'true' : nothing}><sw-icon .name=${this.icon} size=${16}></sw-icon></div>
+      ${this.dot
+        ? html`<div class="sdot" data-kpi-dot aria-hidden="true"></div>`
+        : html`<div class="icon" aria-hidden=${interactive ? 'true' : nothing}><sw-icon .name=${this.icon} size=${16}></sw-icon></div>`}
       <div class="txt" aria-hidden=${interactive ? 'true' : nothing}>
-        <div class="line"><span class="value">${this.value}</span> <span class="label">${this.label}</span></div>
+        <div class="line"><span class="value">${this.value}${this.unit ? html`<span class="unit" data-kpi-unit>${this.unit}</span>` : nothing}${this.secondary ? html`<span class="sec" data-kpi-secondary>${this.secondary}</span>` : nothing}</span> <span class="label">${this.label}</span></div>
         ${this.detail ? html`<div class="detail">${this.detail}</div>` : nothing}
       </div>
       ${this.badge ? html`<span class="badge" aria-hidden=${interactive ? 'true' : nothing}>${this.badge}</span>` : nothing}

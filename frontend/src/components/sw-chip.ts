@@ -3,6 +3,29 @@ import { customElement, property } from 'lit/decorators.js';
 import './sw-icon';
 import type { IconName } from './sw-icon';
 
+/**
+ * AUDIT30-B-SHARED (design audit round 30, finding 4; owner gate Q3, recommended option א assumed until the owner answers): ONE selected
+ * state for every chip / filter pill in the product - a soft accent field with the accent ink, no edge, a step heavier, no raised key.
+ * (Measured before: black, navy, full-accent and soft fills on five screens; the classic skin drew the shared chip as a filled key.)
+ * Drawn for sw-chip by the skin layer (design/skins/classic.ts rule 1 - the default skin; see the note on :host([selected]) below).
+ * A screen that still owns a local chip imports this fragment instead of copying values:
+ *   import { chipSelected } from '../components/sw-chip';
+ *   css`.rc[aria-pressed='true'] { ${chipSelected} }`
+ * The label / field pair is >= 4.5:1 in every live skin, light and dark (tests/unit-audit30b-shared.spec.ts).
+ */
+export const chipSelected = css`
+  background: var(--sw-accent-soft);
+  color: var(--sw-accent-text);
+  border-color: transparent;
+  font-weight: var(--sw-fw-semibold);
+  box-shadow: none;
+`;
+/** The pressed / hovered selected chip: the same soft field one accent step deeper (tokens only). */
+export const chipSelectedHover = css`
+  background: color-mix(in srgb, var(--sw-accent) 14%, var(--sw-accent-soft));
+  border-color: transparent;
+`;
+
 // Selectable chip / filter pill (boards: "All | Motion | Person | Vehicle" with colour dots).
 @customElement('sw-chip')
 export class SwChip extends LitElement {
@@ -76,6 +99,10 @@ export class SwChip extends LitElement {
     .count {
       font-variant-numeric: tabular-nums;
     }
+    /* AUDIT30-B-SHARED: the component's own selected state stays the accent key with inverse ink, because a skin that repaints the
+       selected chip as an accent key (domus rule 6) sets only its background and relies on this ink - a soft-field ink here read
+       accent-text on accent there (measured on the runner, pixel-round4-leftovers wk-overview domus). The soft field is drawn by the
+       skin layer: classic rule 1 (the default skin) uses exactly chipSelected; the other skins follow when their owner adopts it. */
     :host([selected]) button {
       background: var(--sw-accent);
       border-color: var(--sw-accent);
@@ -89,14 +116,14 @@ export class SwChip extends LitElement {
       flex-shrink: 0;
     }
     :host([selected]) .d {
-      outline: 2px solid color-mix(in srgb, var(--sw-text-inverse) 70%, transparent);
+      outline: 2px solid var(--sw-chip-dot-ring, color-mix(in srgb, var(--sw-text-inverse) 70%, transparent));
     }
     .count {
       font-size: var(--sw-fs-xs);
       color: var(--sw-text-3);
     }
     :host([selected]) .count {
-      color: var(--sw-text-inverse); /* UXREST-295: the 80 % mix read 3.7:1 on the accent fill; the count is the quieter figure by its brackets and size */
+      color: var(--sw-chip-on-count, var(--sw-text-inverse)); /* UXREST-295: the 80 % mix read 3.7:1 on the accent fill; the count is the quieter figure by its brackets and size. AUDIT30-B: a skin that draws the soft field sets --sw-chip-on-count (classic: --sw-accent-text) */
     }
     button:disabled {
       cursor: default;

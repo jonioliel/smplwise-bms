@@ -11,7 +11,17 @@ export interface TableColumn<Row = Record<string, unknown>> {
    * query of its own - `phone` below 768 px (the column's line is left out of the row card), `tablet` below 1024 px (the column and its
    * header are left out of the table too). Unset: the column always shows (every existing table is unchanged). */
   hideBelow?: 'phone' | 'tablet';
+  /** AUDIT30-B-SHARED (audit round 30, finding 10; owner gate Q8, option א assumed): the column's place in the PHONE ROW TEMPLATE
+   * (max-width: 599px). As soon as one column of a table sets `card`, every row there is one compact line:
+   *   `title` (one column: the name, ellipsis)  +  `badge` (one column: the state, at the line's end)
+   *   then ONE meta line: every `meta` column, in column order, joined with " · "
+   *   `show`: kept below the meta line as the old caption / value pair;  `hide` or unset: left out on the phone.
+   * A table that marks no column keeps the old label / value stack (unchanged). */
+  card?: 'title' | 'badge' | 'meta' | 'show' | 'hide';
 }
+
+/** The phone row template is on for a table as soon as one of its columns names its place in it. */
+export const usesCardTemplate = <R>(cols: readonly TableColumn<R>[]): boolean => cols.some((c) => !!c.card);
 
 /**
  * Data table in the boards' language: white card, quiet grey header, 40px rows with thumbnails /
@@ -175,6 +185,66 @@ export class SwTable extends LitElement {
         display: none;
       }
     }
+    /* ---- AUDIT30-B-SHARED (finding 10, Q8 = א assumed): TableColumn.card - the phone row template (opt-in per table) ----
+       one line "title · badge", one meta line; about 60 px a row (was ~160 px of caption / value pairs) */
+    .cmeta {
+      display: none;
+    }
+    @media (max-width: 599px) {
+      :host([card-template]) tr {
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 2px 10px;
+        padding: 9px 12px;
+      }
+      :host([card-template]) tr > td {
+        display: none;
+        grid-row: auto;
+        grid-column: 1 / -1;
+      }
+      :host([card-template]) tr > td.c-title,
+      :host([card-template]) tr > td.c-badge,
+      :host([card-template]) tr > td.c-show,
+      :host([card-template]) tr > td.cmeta {
+        display: block;
+      }
+      :host([card-template]) tr > td.c-title {
+        grid-row: 1;
+        grid-column: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        overflow-wrap: normal;
+        font-weight: var(--sw-fw-semibold);
+        color: var(--sw-text);
+      }
+      :host([card-template]) tr > td.c-badge {
+        grid-row: 1;
+        grid-column: 2;
+        justify-self: end;
+        white-space: nowrap;
+      }
+      :host([card-template]:not([has-card-badge])) tr > td.c-title {
+        grid-column: 1 / -1;
+      }
+      :host([card-template]) tr > td.cmeta {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        overflow-wrap: normal;
+        font-size: var(--sw-fs-xs);
+        color: var(--sw-text-2);
+        font-variant-numeric: tabular-nums;
+      }
+      :host([card-template]) tr > td.c-title::before,
+      :host([card-template]) tr > td.c-badge::before,
+      :host([card-template]) tr > td.cmeta::before {
+        content: none;
+      }
+      :host([card-template]) .cmeta .sep {
+        color: var(--sw-text-3);
+      }
+    }
     .empty {
       padding: var(--sw-s-6);
       text-align: center;
@@ -193,8 +263,31 @@ export class SwTable extends LitElement {
     this.pick(row);
   }
 
+  protected willUpdate() {
+    const card = usesCardTemplate(this.columns);
+    this.toggleAttribute('card-template', card);
+    this.toggleAttribute('has-card-badge', card && this.columns.some((c) => c.card === 'badge'));
+  }
+
+  /** the class list of one cell: ltr, hideBelow, and its place in the phone row template */
+  private cellClass(c: TableColumn): string {
+    return [c.ltr ? 'ltr' : '', c.hideBelow ? `hb-${c.hideBelow}` : '', c.card && c.card !== 'hide' ? `c-${c.card}` : ''].filter(Boolean).join(' ');
+  }
+
+  /** the phone meta line: every `meta` column of the row in column order, " · " between them (an empty value is left out); each part
+   * is its own bidi isolate, so "10 fps" stays "10 fps" in the RTL line */
+  private metaCell(row: Record<string, unknown>) {
+    const parts = this.columns
+      .filter((c) => c.card === 'meta')
+      .map((c) => (c.render ? c.render(row) : String(row[c.key] ?? '')))
+      .filter((v) => v !== '' && v !== nothing);
+    if (!parts.length) return nothing;
+    return html`<td class="cmeta" data-card-meta data-label="">${parts.map((v, i) => html`${i ? html`<span class="sep"> · </span>` : nothing}<bdi>${v}</bdi>`)}</td>`;
+  }
+
   render() {
     if (!this.rows.length) return html`<div class="empty">${this.emptyText}</div>`;
+    const card = usesCardTemplate(this.columns);
     return html`
       <table>
         <thead>
@@ -206,7 +299,7 @@ export class SwTable extends LitElement {
               tabindex=${this.focusRows ? '0' : nothing} @keydown=${this.focusRows ? (e: KeyboardEvent) => this.onRowKey(e, row) : nothing}
               @pointerenter=${(e: PointerEvent) => this.dispatchEvent(new CustomEvent('row-hover', { detail: { id: String(row[this.rowKey] ?? ''), row, clientX: e.clientX, clientY: e.clientY, pointerType: e.pointerType }, bubbles: true, composed: true }))}
               @pointerleave=${() => this.dispatchEvent(new CustomEvent('row-leave', { detail: { id: String(row[this.rowKey] ?? '') }, bubbles: true, composed: true }))}>
-              ${this.columns.map((c) => html`<td class=${[c.ltr ? 'ltr' : '', c.hideBelow ? `hb-${c.hideBelow}` : ''].filter(Boolean).join(' ')} data-label=${c.label}>${c.render ? c.render(row) : String(row[c.key] ?? '')}</td>`)}
+              ${this.columns.map((c) => html`<td class=${this.cellClass(c)} data-label=${c.label}>${c.render ? c.render(row) : String(row[c.key] ?? '')}</td>`)}${card ? this.metaCell(row) : nothing}
             </tr>`,
           )}
         </tbody>
