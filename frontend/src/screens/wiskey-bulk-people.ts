@@ -1,5 +1,7 @@
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import '../components/sw-dropdown';
+import type { DropdownChange } from '../components/sw-dropdown';
 import '../components/sw-button';
 import '../components/sw-dialog';
 import '../components/sw-icon';
@@ -137,7 +139,8 @@ export class SwBulkPeopleDialog extends LitElement {
       flex-wrap: wrap;
       gap: 8px;
     }
-    label {
+    label,
+    .dd {
       display: flex;
       flex-direction: column;
       gap: 4px;
@@ -505,24 +508,28 @@ export class SwBulkPeopleDialog extends LitElement {
     return html`<div class="grid2">
         <label>${bt('edit_from')}<input type="date" lang=${dateInputLang()} data-bulk-from .value=${f.validFrom} @change=${(e: Event) => set({ validFrom: (e.target as HTMLInputElement).value })}></label>
         <label>${bt('edit_until')}<input type="date" lang=${dateInputLang()} data-bulk-until .value=${f.validUntil} @change=${(e: Event) => set({ validUntil: (e.target as HTMLInputElement).value })}></label>
-        <label>${bt('edit_active')}<select data-bulk-active @change=${(e: Event) => set({ active: (e.target as HTMLSelectElement).value as EditForm['active'] })}>
-          <option value="keep" ?selected=${f.active === 'keep'}>${bt('edit_keep')}</option>
-          <option value="on" ?selected=${f.active === 'on'}>${bt('edit_activate')}</option>
-          <option value="off" ?selected=${f.active === 'off'}>${bt('edit_deactivate')}</option></select></label>
+        <div class="dd"><span>${bt('edit_active')}</span><sw-dropdown block data-bulk-active label=${bt('edit_active')} .value=${f.active}
+          .items=${[{ id: 'keep', label: bt('edit_keep') }, { id: 'on', label: bt('edit_activate') }, { id: 'off', label: bt('edit_deactivate') }]}
+          @change=${(e: CustomEvent<DropdownChange>) => set({ active: e.detail.id as EditForm['active'] })}></sw-dropdown></div>
       </div>
       ${this.stations.length ? html`<div class="grid2">
-        <label>${bt('edit_doors_add')}<select data-bulk-door-add @change=${(e: Event) => (this.addStation = (e.target as HTMLSelectElement).value)}>
-          <option value="">—</option>${this.stations.map((s) => html`<option value=${s.id}>${s.name}</option>`)}</select></label>
-        <label>${bt('edit_relays')}<select data-bulk-relays @change=${(e: Event) => (this.addRelays = (e.target as HTMLSelectElement).value.split('+').map(Number))}>
-          <option value="1">1</option><option value="2">2</option><option value="1+2">1+2</option></select></label>
-        <label>${bt('edit_doors_remove')}<select data-bulk-door-remove multiple @change=${(e: Event) => set({ doorsRemove: [...(e.target as HTMLSelectElement).selectedOptions].map((o) => o.value) })}>
-          ${this.stations.map((s) => html`<option value=${s.id}>${s.name}</option>`)}</select></label>
+        <div class="dd"><span>${bt('edit_doors_add')}</span><sw-dropdown block data-bulk-door-add label=${bt('edit_doors_add')} .value=${this.addStation}
+          .items=${[{ id: '', label: '—' }, ...this.stations.map((s) => ({ id: s.id, label: s.name }))]}
+          @change=${(e: CustomEvent<DropdownChange>) => (this.addStation = e.detail.id)}></sw-dropdown></div>
+        <div class="dd"><span>${bt('edit_relays')}</span><sw-dropdown block data-bulk-relays label=${bt('edit_relays')} .value=${this.addRelays.join('+')}
+          .items=${[{ id: '1', label: '1' }, { id: '2', label: '2' }, { id: '1+2', label: '1+2' }]}
+          @change=${(e: CustomEvent<DropdownChange>) => (this.addRelays = e.detail.id.split('+').map(Number))}></sw-dropdown></div>
+        <div class="dd"><span>${bt('edit_doors_remove')}</span><sw-dropdown block multiple data-bulk-door-remove label=${bt('edit_doors_remove')} .values=${f.doorsRemove}
+          .items=${this.stations.map((s) => ({ id: s.id, label: s.name }))}
+          @change=${(e: CustomEvent<DropdownChange>) => set({ doorsRemove: e.detail.ids ?? [] })}></sw-dropdown></div>
       </div>` : nothing}
       ${this.groups.length ? html`<div class="grid2">
-        <label>${bt('edit_groups_add')}<select multiple data-bulk-group-add @change=${(e: Event) => set({ groupsAdd: [...(e.target as HTMLSelectElement).selectedOptions].map((o) => o.value) })}>
-          ${this.groups.map((g) => html`<option value=${g.id}>${g.label}</option>`)}</select></label>
-        <label>${bt('edit_groups_remove')}<select multiple data-bulk-group-remove @change=${(e: Event) => set({ groupsRemove: [...(e.target as HTMLSelectElement).selectedOptions].map((o) => o.value) })}>
-          ${this.groups.map((g) => html`<option value=${g.id}>${g.label}</option>`)}</select></label>
+        <div class="dd"><span>${bt('edit_groups_add')}</span><sw-dropdown block multiple data-bulk-group-add label=${bt('edit_groups_add')} .values=${f.groupsAdd}
+          .items=${this.groups.map((g) => ({ id: g.id, label: g.label }))}
+          @change=${(e: CustomEvent<DropdownChange>) => set({ groupsAdd: e.detail.ids ?? [] })}></sw-dropdown></div>
+        <div class="dd"><span>${bt('edit_groups_remove')}</span><sw-dropdown block multiple data-bulk-group-remove label=${bt('edit_groups_remove')} .values=${f.groupsRemove}
+          .items=${this.groups.map((g) => ({ id: g.id, label: g.label }))}
+          @change=${(e: CustomEvent<DropdownChange>) => set({ groupsRemove: e.detail.ids ?? [] })}></sw-dropdown></div>
       </div>` : nothing}
       <div class="actions"><sw-button variant="primary" data-bulk-edit-stage ?disabled=${this.busy} @click=${() => {
         this.form = { ...this.form, doorsAdd: this.addStation ? { [this.addStation]: this.addRelays } : {} };

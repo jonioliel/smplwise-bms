@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { install, newMock, type PeopleMock, type Role } from './wiskey-people-mock';
 import { PIN_SENTINEL, TAKEN_CARD, installWrites, newWrites, type WritesMock } from './wiskey-writes-mock';
 import { skinsUnderTest } from './helpers/frozen-skins';
+import { pickOption } from './helpers/wk-choose';
 
 // CR-036 S11: evidence for the person WRITES of the native people screen (אנשים) - the "פעולות" dialog of a person's page (switch off /
 // on, end a visitor's access, archive / restore, delete, the cards, the photo) and the editor's new parts (the access category, the
@@ -347,7 +348,7 @@ test.describe('the other actions', () => {
     await openActions(page);
     await choose(page, 'temporary_cancel');
     await expect(page.locator(`${ACTIONS} [data-action-question]`)).toHaveText('לסיים עכשיו את הגישה של תומר אדר?');
-    await page.locator(`${ACTIONS} select[data-action-reason]`).selectOption('visit_cancelled');
+    await pickOption(page.locator(`${ACTIONS} [data-action-reason]`), 'visit_cancelled');
     await shot(page, info, 'temporary-cancel');
     await page.locator(`${ACTIONS} [data-action-confirm]`).click();
     await expect(result(page)).toHaveAttribute('data-action-result', 'saved');
@@ -509,9 +510,9 @@ test.describe('the editor: the access category, the timing, the field level, the
     const { st, w } = world();
     await open(page, st, w);
     await openEditor(page, 'p2');
-    await field(page, 'category').selectOption('contractor');
+    await pickOption(field(page, 'category'), 'contractor');
     await expect(field(page, 'responsible')).toBeVisible();
-    await field(page, 'timing-select').selectOption('weekly');
+    await pickOption(field(page, 'timing-select'), 'weekly');
     await expect(field(page, 'timing-days')).toBeVisible();
     await editor(page).locator('[data-timing-day="Thursday"]').check();
     await editor(page).locator('[data-timing-day="Sunday"]').check();
@@ -591,9 +592,9 @@ test.describe('the editor: the access category, the timing, the field level, the
     await drawer(page).locator('[data-wiskey-person-edit]').click();
     await expect(field(page, 'name')).toBeVisible({ timeout: 15_000 });
     for (const hidden of ['phone', 'pin', 'pin-generate', 'card-add', 'responsible', 'capture']) await expect(field(page, hidden), hidden).toHaveCount(0);
-    await field(page, 'category').selectOption('visitor');
+    await pickOption(field(page, 'category'), 'visitor');
     await expect(field(page, 'responsible')).toHaveCount(0); // a sensitive field: not shown at this level
-    await field(page, 'category').selectOption('staff');
+    await pickOption(field(page, 'category'), 'staff');
     await field(page, 'name').fill('דנה כ.');
     await shot(page, info, 'names-manager-editor');
     await field(page, 'save').click();

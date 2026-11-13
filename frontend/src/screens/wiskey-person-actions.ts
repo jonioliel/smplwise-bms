@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { live } from 'lit/directives/live.js';
+import '../components/sw-dropdown';
+import type { DropdownChange } from '../components/sw-dropdown';
 import '../components/sw-button';
 import '../components/sw-dialog';
 import '../components/sw-field';
@@ -378,9 +380,9 @@ export class WiskeyPersonActions extends LitElement {
     return html`${question && this.step === 'ask' ? html`<p class="ask" data-action-question>${wt(question, { name: p.display_name })}</p>` : nothing}
       ${kind === 'temporary_cancel' && this.step === 'ask'
         ? html`<sw-field label=${wt('reason.label')}>
-            <select data-action-reason .value=${live(this.reason)} @change=${(e: Event) => (this.reason = (e.target as HTMLSelectElement).value as TemporaryCancelReason)}>
-              ${TEMPORARY_CANCEL_REASONS.map((r) => html`<option value=${r} ?selected=${r === this.reason}>${wt(`reason.${r}` as WritesKey)}</option>`)}
-            </select>
+            <sw-dropdown block data-action-reason label=${wt('reason.label')} .value=${this.reason}
+              .items=${TEMPORARY_CANCEL_REASONS.map((r) => ({ id: r, label: wt(`reason.${r}` as WritesKey) }))}
+              @change=${(e: CustomEvent<DropdownChange>) => (this.reason = e.detail.id as TemporaryCancelReason)}></sw-dropdown>
           </sw-field>`
         : nothing}`;
   }

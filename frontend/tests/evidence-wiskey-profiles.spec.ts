@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { url, type Persona } from './access-control-mocks';
 import { installProfilesMock, type ProfilesOptions } from './wiskey-profiles-mocks';
 import { settlePage } from './pixel-settle';
+import { pickOption } from './helpers/wk-choose';
 
 // WISKEY-PROFILES-EDIT-2390 - "קבוצות ושדות" (#/wiskey/profiles) behind the real shell, against a MOCKED backend (tests/wiskey-profiles-mocks.ts:
 // invented groups, fields, people and stations; nothing reaches the access-control system, a station or a door). Desktop and phone. What it pins:
@@ -108,12 +109,12 @@ test.describe('groups and profile fields', () => {
     await boot(page);
     await ready(page);
     const badge = s(page, '[data-pf-field="badge"]');
-    await badge.locator('[data-pf-field-parent]').selectOption('department');
-    await badge.locator('select[data-pf-field-parent-value]').selectOption('הנהלה');
+    await pickOption(badge.locator('[data-pf-field-parent]'), 'department');
+    await pickOption(badge.locator('[data-pf-field-parent-value]'), 'הנהלה');
     await expect(badge.locator('[data-pf-conditional]')).toBeVisible();
     await expect(s(page, '[data-pf-problems]')).toHaveCount(0);
     // the field the condition hangs on cannot depend on its own child (no cycle is offered)
-    const options = await s(page, '[data-pf-field="department"] [data-pf-field-parent] option').allTextContents();
+    const options = await s(page, '[data-pf-field="department"] [data-pf-field-parent]').evaluate((n) => (n as HTMLElement & { items: { label: string }[] }).items.map((i) => i.label));
     expect(options).not.toContain('משמרת');
   });
 

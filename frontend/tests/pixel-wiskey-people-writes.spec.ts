@@ -6,6 +6,7 @@ import { settlePage } from './pixel-settle';
 import { isPixelSkin, skinCheck } from './helpers/pixel-skins';
 import { install, newMock, type PeopleMock } from './wiskey-people-mock';
 import { installWrites, newWrites, type WritesMock } from './wiskey-writes-mock';
+import { pickOption } from './helpers/wk-choose';
 
 // CR-036 S11 pixel baselines: the NEW states of the person writes - the actions menu, a question, the answer under the person's page
 // header, a not-sent / an unknown answer, the delete pending, the cards (two rows, a removal question), the photo ready to save, and
@@ -77,7 +78,7 @@ test.describe('pixel: the person writes', () => {
   test('a question, the answer in the dialog and under the header, is pixel-stable', async ({ page }, info) => {
     await open(page, newMock('admin'), newWrites());
     await actions(page, 'p8', 'temporary_cancel');
-    await expect(page.locator(`${ACTIONS} select[data-action-reason]`)).toBeVisible();
+    await expect(page.locator(`${ACTIONS} [data-action-reason]`)).toBeVisible();
     await compare(page, info, 'ask-reason');
     await page.locator(`${ACTIONS} [data-action-confirm]`).click();
     await expect(page.locator(`${ACTIONS} [data-action-result="saved"]`)).toBeVisible();
@@ -139,9 +140,9 @@ test.describe('pixel: the person writes', () => {
     await page.locator('wiskey-person-drawer [data-wiskey-person-edit]').click();
     const editor = page.locator('wiskey-person-editor');
     await expect(editor.locator('[data-wiskey-editor-name]')).toBeVisible({ timeout: 15_000 });
-    await editor.locator('[data-wiskey-editor-category]').selectOption('contractor');
+    await pickOption(editor.locator('[data-wiskey-editor-category]'), 'contractor');
     await editor.locator('[data-wiskey-editor-responsible]').fill('רונית גל');
-    await editor.locator('[data-wiskey-editor-timing-select]').selectOption('weekly');
+    await pickOption(editor.locator('[data-wiskey-editor-timing-select]'), 'weekly');
     await editor.locator('[data-timing-day="Sunday"]').check();
     await editor.locator('[data-timing-day="Thursday"]').check();
     await editor.locator('[data-wiskey-editor-section="timing"]').scrollIntoViewIfNeeded();

@@ -1,5 +1,8 @@
 import { LitElement, html, css, nothing, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import '../components/sw-dropdown';
+import type { DropdownChange } from '../components/sw-dropdown';
+import '../components/sw-kpi';
 import '../components/sw-page';
 import '../components/sw-button';
 import '../components/sw-badge';
@@ -182,7 +185,8 @@ export class WiskeyAccessDiag extends LitElement {
       gap: 12px;
       align-items: end;
     }
-    label.f {
+    label.f,
+    div.f {
       display: flex;
       flex-direction: column;
       gap: 4px;
@@ -420,22 +424,8 @@ export class WiskeyAccessDiag extends LitElement {
     }
     .kpis {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--sw-kpi-compact-col-min, 168px)), 1fr));
       gap: 8px;
-    }
-    .kpi {
-      padding: 10px 12px;
-      border-radius: var(--sw-r-md);
-      background: var(--sw-surface-2);
-    }
-    .kpi b {
-      display: block;
-      font-size: var(--sw-fs-xl);
-      font-variant-numeric: tabular-nums;
-    }
-    .kpi span {
-      color: var(--sw-text-2);
-      font-size: var(--sw-fs-sm);
     }
     h3 {
       margin: 4px 0 0;
@@ -638,10 +628,11 @@ export class WiskeyAccessDiag extends LitElement {
   }
 
   private renderDoorSelect(label: string, value: string, set: (v: string) => void, attr: string): TemplateResult {
-    return html`<label class="f">${label}
-      <select data-diag-door=${attr} .value=${value} @change=${(e: Event) => set((e.target as HTMLSelectElement).value)}>
-        ${this.doors.map((d) => html`<option value=${d.key} ?selected=${d.key === value}>${d.label}${d.online ? '' : ` · ${dt('stationOffline')}`}</option>`)}
-      </select></label>`;
+    // AUDIT30-H2 (audit round 30, #16): the shared <sw-dropdown>, not a native <select>
+    return html`<div class="f"><span>${label}</span>
+      <sw-dropdown block data-diag-door=${attr} label=${label} .value=${value}
+        .items=${this.doors.map((d) => ({ id: d.key, label: `${d.label}${d.online ? '' : ` · ${dt('stationOffline')}`}` }))}
+        @change=${(e: CustomEvent<DropdownChange>) => set(e.detail.id)}></sw-dropdown></div>`;
   }
 
   // ---------------------------------------------------------------- render
@@ -832,11 +823,12 @@ export class WiskeyAccessDiag extends LitElement {
   }
 
   private summary(sum: Record<string, number>, left: string, right: string): TemplateResult {
+    // AUDIT30-H2 (audit round 30, #7): the shared compact <sw-kpi>, not local class="kpi" blocks
     return html`<div class="kpis" data-diag-summary>
-      <div class="kpi"><b>${sum.shared ?? 0}</b><span>${dt('sumShared')}</span></div>
-      <div class="kpi"><b>${sum.left_only ?? 0}</b><span>${relationText('left_only', left, right)}</span></div>
-      <div class="kpi"><b>${sum.right_only ?? 0}</b><span>${relationText('right_only', left, right)}</span></div>
-      <div class="kpi"><b>${sum.neither ?? 0}</b><span>${dt('rel_neither')}</span></div>
+      <sw-kpi layout="compact" icon="users" data-diag-kpi="shared" label=${dt('sumShared')} value=${String(sum.shared ?? 0)}></sw-kpi>
+      <sw-kpi layout="compact" icon="door" data-diag-kpi="left_only" label=${relationText('left_only', left, right)} value=${String(sum.left_only ?? 0)}></sw-kpi>
+      <sw-kpi layout="compact" icon="door" data-diag-kpi="right_only" label=${relationText('right_only', left, right)} value=${String(sum.right_only ?? 0)}></sw-kpi>
+      <sw-kpi layout="compact" icon="lock" data-diag-kpi="neither" label=${dt('rel_neither')} value=${String(sum.neither ?? 0)}></sw-kpi>
     </div>`;
   }
 
@@ -1029,10 +1021,10 @@ export class WiskeyAccessDiag extends LitElement {
         <div class="seg" role="group" aria-label=${dt('decision')}>
           ${(['keep', 'followup'] as const).map((d) => html`<button type="button" aria-pressed=${String(this.decision === d)} data-diag-decision=${d} @click=${() => (this.decision = d)}>${dt(d === 'keep' ? 'd_keep' : 'd_followup')}</button>`)}
         </div></div>
-      <label class="f">${dt('cadence')}
-        <select data-diag-cadence .value=${String(this.cadence)} @change=${(e: Event) => (this.cadence = Number((e.target as HTMLSelectElement).value))}>
-          ${CADENCES.map((n) => html`<option value=${String(n)} ?selected=${n === this.cadence}>${dt('days', { n })}</option>`)}
-        </select></label>
+      <div class="f"><span>${dt('cadence')}</span>
+        <sw-dropdown block data-diag-cadence label=${dt('cadence')} .value=${String(this.cadence)}
+          .items=${CADENCES.map((n) => ({ id: String(n), label: dt('days', { n }) }))}
+          @change=${(e: CustomEvent<DropdownChange>) => (this.cadence = Number(e.detail.id))}></sw-dropdown></div>
       <label class="f" style="grid-column: 1 / -1">${dt('reason')}
         <textarea maxlength="500" data-diag-reason placeholder=${dt('reasonPh')} .value=${this.reason} @input=${(e: Event) => (this.reason = (e.target as HTMLTextAreaElement).value)}></textarea></label>
       <div class="acts" style="grid-column: 1 / -1"><sw-button variant="primary" icon="check" data-diag-decide-go ?disabled=${!reason} @click=${() => (this.confirming = true)}>${dt('confirm')}</sw-button></div>
@@ -1066,11 +1058,11 @@ export class WiskeyAccessDiag extends LitElement {
         ? page.stale
           ? html`<p class="note">${dt('stale')} <sw-button size="sm" @click=${() => void this.loadQuality(0)}>${dt('reload')}</sw-button></p>`
           : html`<section class="card" data-diag-quality>
-              <div class="kpis">
-                <div class="kpi"><b>${page.summary.people}</b><span>${dt('peopleIssues')}</span></div>
-                <div class="kpi"><b>${page.summary.missing}</b><span>${dt('q_missing')}</span></div>
-                <div class="kpi"><b>${page.summary.invalid}</b><span>${dt('q_invalid')}</span></div>
-                <div class="kpi"><b>${page.summary.duplicate}</b><span>${dt('q_duplicate')}</span></div>
+              <div class="kpis" data-diag-quality-kpis>
+                <sw-kpi layout="compact" icon="users" data-diag-kpi="people" tone=${page.summary.people ? 'stale' : 'neutral'} label=${dt('peopleIssues')} value=${String(page.summary.people)}></sw-kpi>
+                <sw-kpi layout="compact" icon="warning" data-diag-kpi="missing" label=${dt('q_missing')} value=${String(page.summary.missing)}></sw-kpi>
+                <sw-kpi layout="compact" icon="warning" data-diag-kpi="invalid" label=${dt('q_invalid')} value=${String(page.summary.invalid)}></sw-kpi>
+                <sw-kpi layout="compact" icon="copy" data-diag-kpi="duplicate" label=${dt('q_duplicate')} value=${String(page.summary.duplicate)}></sw-kpi>
               </div>
               <span class="muted">${dt('scanned', { n: page.coverage.scanned })}</span>
               ${page.records.length
@@ -1114,11 +1106,11 @@ export class WiskeyAccessDiag extends LitElement {
       ${this.status()}
       ${life
         ? html`<section class="card" data-diag-lifecycle>
-            <div class="kpis">
-              <div class="kpi"><b>${life.summary.expiring}</b><span>${dt('expiring')}</span></div>
-              <div class="kpi"><b>${life.summary.expired}</b><span>${dt('expired')}</span></div>
-              <div class="kpi"><b>${life.temporary.summary.total ?? 0}</b><span>${dt('temporary')}</span></div>
-              <div class="kpi"><b>${life.summary.without_credentials}</b><span>${dt('withoutCred')}</span></div>
+            <div class="kpis" data-diag-lifecycle-kpis>
+              <sw-kpi layout="compact" icon="clock" data-diag-kpi="expiring" label=${dt('expiring')} value=${String(life.summary.expiring)}></sw-kpi>
+              <sw-kpi layout="compact" icon="calendar" data-diag-kpi="expired" label=${dt('expired')} value=${String(life.summary.expired)}></sw-kpi>
+              <sw-kpi layout="compact" icon="user" data-diag-kpi="temporary" label=${dt('temporary')} value=${String(life.temporary.summary.total ?? 0)}></sw-kpi>
+              <sw-kpi layout="compact" icon="lock" data-diag-kpi="without_credentials" label=${dt('withoutCred')} value=${String(life.summary.without_credentials)}></sw-kpi>
             </div>
             <h3>${dt('expiring')}</h3>
             ${life.expirations.length
@@ -1161,10 +1153,10 @@ export class WiskeyAccessDiag extends LitElement {
     return html`<section class="card" data-diag-audit-form>
         <span class="muted">${dt('auditHint')}</span>
         <div class="form">
-          <label class="f">${dt('station')}
-            <select data-diag-audit-station .value=${this.auditStation} @change=${(e: Event) => (this.auditStation = (e.target as HTMLSelectElement).value)}>
-              ${stations.map((s) => html`<option value=${s.id} ?selected=${s.id === this.auditStation}>${s.name}${s.online ? '' : ` · ${dt('stationOffline')}`}</option>`)}
-            </select></label>
+          <div class="f"><span>${dt('station')}</span>
+            <sw-dropdown block data-diag-audit-station label=${dt('station')} .value=${this.auditStation}
+              .items=${stations.map((s) => ({ id: s.id, label: `${s.name}${s.online ? '' : ` · ${dt('stationOffline')}`}` }))}
+              @change=${(e: CustomEvent<DropdownChange>) => (this.auditStation = e.detail.id)}></sw-dropdown></div>
         </div>
         ${chosen && !chosen.online ? html`<p class="note">${dt('stationOfflineNote')}</p>` : nothing}
         <div class="acts"><sw-button variant="primary" icon="shield" data-diag-run-audit ?disabled=${!chosen || !chosen.online || this.load === 'loading'} @click=${() => void this.runAudit()}>
@@ -1174,7 +1166,9 @@ export class WiskeyAccessDiag extends LitElement {
       ${a
         ? html`<section class="card" data-diag-audit>
             <span class="muted">${dt('auditFor', { station: chosen?.name ?? a.station_id ?? '', t: instantText(a.checked_at, this.zone) })}</span>
-            <div class="kpis">${(['matched', 'drift', 'unmanaged', 'unverified'] as const).map((k) => html`<div class="kpi"><b>${a.counts[k]}</b><span>${dtDyn(`a_${k}`, 'a_unknown')}</span></div>`)}</div>
+            <div class="kpis" data-diag-audit-kpis>${(['matched', 'drift', 'unmanaged', 'unverified'] as const).map((k) => html`<sw-kpi layout="compact" data-diag-kpi=${k}
+              icon=${k === 'matched' ? 'check' : k === 'drift' ? 'warning' : k === 'unmanaged' ? 'lock' : 'help'} tone=${k === 'matched' ? 'live' : k === 'drift' && a.counts[k] ? 'stale' : 'neutral'}
+              label=${dtDyn(`a_${k}`, 'a_unknown')} value=${String(a.counts[k])}></sw-kpi>`)}</div>
             ${a.complete ? nothing : html`<p class="note">${dt('auditIncomplete')}</p>`}
             <ul class="rows">${[...a.rows].sort((x, y) => order[x.status] - order[y.status]).map((row) => html`<li data-diag-audit-row=${row.status}>
               <span class="name">${row.display_name || (row.status === 'unmanaged' ? dt('unmanagedUser') : '—')}${row.employee_no ? html` <span class="muted">· ${row.employee_no}</span>` : nothing}</span>

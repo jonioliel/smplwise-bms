@@ -1,5 +1,6 @@
 import { test, expect, request as pwRequest, type APIRequestContext, type Page } from '@playwright/test';
 import { useSmplwiseWiskeyScreens } from './wiskey-ui-mode';
+import { pickOption } from './helpers/wk-choose';
 
 // The SMPLWISE WisKey screens, not the embedded WisKey panel (the default since the 2026-09-28 decision).
 useSmplwiseWiskeyScreens();
@@ -154,7 +155,7 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
     await expect(field(page, 'name')).toBeVisible({ timeout: 15000 });
     // the notes are honest about what this slice does not edit yet, and no disabled stubs for it
     await expect(editor(page).locator('[data-wiskey-editor-section]')).toHaveCount(5); // person, validity, pin, cards, assignments (no actions for a new person)
-    await expect(editor(page).locator('[data-wiskey-editor-validity-mode] option')).toHaveCount(2); // permanent / period only
+    expect(await editor(page).locator('[data-wiskey-editor-validity-mode]').evaluate((n) => (n as HTMLElement & { items: unknown[] }).items.length)).toBe(2); // permanent / period only
     await expect(editor(page).getByText(/weekly|native|photo|תמונה/)).toHaveCount(0);
     // a random nine-digit employee number, as WisKey's edit() gives a new person
     createdEmployee = await field(page, 'employee').inputValue();
@@ -264,7 +265,7 @@ test.describe('WisKey person editor against the fixture WisKey (CR-005 phase 2 A
     await field(page, 'pin-remove').click();
     await expect(field(page, 'pin')).toHaveAttribute('disabled', '');
     await expect(field(page, 'pin-keep')).toBeVisible();
-    await field(page, 'validity-mode').selectOption('period');
+    await pickOption(field(page, 'validity-mode'), 'period');
     await field(page, 'valid-from').fill('2026-10-01T08:00');
     await field(page, 'valid-until').fill('2026-10-01T07:00');
     await field(page, 'save').click();

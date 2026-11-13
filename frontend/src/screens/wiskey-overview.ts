@@ -1,6 +1,8 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
+import '../components/sw-dropdown';
+import type { DropdownChange } from '../components/sw-dropdown';
 import '../components/sw-page';
 import '../components/sw-card';
 import '../components/sw-badge';
@@ -534,16 +536,15 @@ export class WiskeyOverview extends LitElement {
           : nothing}
         ${this.engines?.engines.length
           ? html`<sw-field label="מנוע הקראה (תשתית המערכת)" hint=${this.ttsEngine && this.ttsPreselected && this.ttsEngine !== this.ttsPreselected ? tt.overridden : ''}>
-                <select data-wiskey-tts-engine .value=${this.ttsEngine} @change=${(e: Event) => this.pickEngine((e.target as HTMLSelectElement).value)}>
-                  ${!this.ttsEngine ? html`<option value="" selected disabled>${tt.pickEngine}</option>` : nothing}
-                  ${this.engines.engines.map((x) => html`<option value=${x.engine_id} ?selected=${x.engine_id === this.ttsEngine}>${x.engine_id === this.ttsFixed.engine ? `${x.name} · ${tt.fixedTag}` : x.name}</option>`)}
-                </select>
+                <sw-dropdown block data-wiskey-tts-engine label="מנוע הקראה" placeholder=${tt.pickEngine} .value=${this.ttsEngine}
+                  .items=${this.engines.engines.map((x) => ({ id: x.engine_id, label: x.engine_id === this.ttsFixed.engine ? `${x.name} · ${tt.fixedTag}` : x.name }))}
+                  @change=${(e: CustomEvent<DropdownChange>) => this.pickEngine(e.detail.id)}></sw-dropdown>
               </sw-field>
               ${langs.length
                 ? html`<sw-field label="שפה">
-                    <select data-wiskey-tts-language .value=${this.ttsLanguage} @change=${(e: Event) => (this.ttsLanguage = (e.target as HTMLSelectElement).value)}>
-                      ${langs.map((l) => html`<option value=${l} ?selected=${l === this.ttsLanguage}>${l}</option>`)}
-                    </select>
+                    <sw-dropdown block data-wiskey-tts-language label="שפה" .value=${this.ttsLanguage}
+                      .items=${langs.map((l) => ({ id: l, label: l }))}
+                      @change=${(e: CustomEvent<DropdownChange>) => (this.ttsLanguage = e.detail.id)}></sw-dropdown>
                   </sw-field>`
                 : nothing}
               <sw-field label="ההודעה" hint=${`${length}/${TTS_MAX}`}>
@@ -622,7 +623,8 @@ export class WiskeyOverview extends LitElement {
         ${attention.length
           ? html`<aside class="side">
               <sw-card heading=${t('access_attention')} data-wiskey-attention>
-                <sw-badge slot="actions" kind="stale" label=${String(attention.length)}></sw-badge>
+                <!-- AUDIT30-H2 (owner/lead: like "מצלצל"): the count is a filled amber field, solid edge, not the dashed stale-data look -->
+                <sw-badge slot="actions" kind="stale" filled data-wiskey-attention-count label=${String(attention.length)}></sw-badge>
                 ${attention.slice(0, 5).map((s) => html`<div class="attn"><strong>${s.name}</strong><small>${!s.online ? t('offline') : s.last_error || t('pending_sync')}</small></div>`)}
               </sw-card>
             </aside>`

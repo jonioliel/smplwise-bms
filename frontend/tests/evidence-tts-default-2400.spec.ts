@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { installAccessMock, NOW, url, type MockOptions } from './access-control-mocks';
 import { installStationsMock, newMock, openStations, type StationsMock } from './wiskey-stations-mocks';
 import { settlePage } from './pixel-settle';
+import { ddValue } from './helpers/wk-choose';
 
 // TTS-DEFAULT-ENGINE-2400 (owner 04.11, answer 1א): the fixed announcement engine, against MOCKED backends (no WisKey, no station):
 //   - Settings › מתגי מסכי כניסה › תצוגת מסך התחנות: the two rows, the system default named, a save sends only the changed keys, a fixed
@@ -176,8 +177,8 @@ test.describe('the announcement dialogs', () => {
     await expect(speak).toBeVisible({ timeout: 30_000 });
     await speak.click();
     const dialog = page.locator('wiskey-overview sw-dialog[data-wiskey-tts-dialog]');
-    await expect(dialog.locator('select[data-wiskey-tts-engine]')).toHaveValue('tts.cloud', { timeout: 15_000 });
-    await expect(dialog.locator('select[data-wiskey-tts-language]')).toHaveValue('en');
+    await expect.poll(() => ddValue(dialog.locator('[data-wiskey-tts-engine]')), { timeout: 15_000 }).toBe('tts.cloud');
+    await expect.poll(() => ddValue(dialog.locator('[data-wiskey-tts-language]'))).toBe('en');
     await shot(page, info, 'overview-fixed', 'wiskey-overview sw-dialog[data-wiskey-tts-dialog] [role="dialog"]');
     await page.unrouteAll({ behavior: 'ignoreErrors' });
     await installAccessMock(page, { settings: { 'access.tts_engine': 'tts.gone' } });
@@ -185,7 +186,7 @@ test.describe('the announcement dialogs', () => {
     await page.goto(url('/wiskey/overview'));
     await page.locator('wiskey-overview [data-wiskey-speak]').first().click();
     await expect(dialog.locator('[data-wiskey-tts-engine-missing]')).toHaveText('המנוע הקבוע tts.gone לא זמין כרגע. בחרו מנוע אחר להכרזה הזו', { timeout: 15_000 });
-    await expect(dialog.locator('select[data-wiskey-tts-engine]')).toHaveValue('');
+    await expect.poll(() => ddValue(dialog.locator('[data-wiskey-tts-engine]'))).toBe('');
     await dialog.locator('textarea[data-wiskey-tts-message]').fill('test');
     await expect(dialog.locator('[data-wiskey-tts-send] button')).toBeDisabled();
     await shot(page, info, 'overview-missing', 'wiskey-overview sw-dialog[data-wiskey-tts-dialog] [role="dialog"]');
