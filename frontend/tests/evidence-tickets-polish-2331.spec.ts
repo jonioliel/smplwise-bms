@@ -104,7 +104,9 @@ test.describe('TICKETS-POLISH-2331 evidence', () => {
       if (STRICT) {
         if (s.w >= 768) expect(m.toolbarRows, 'the toolbar is one row on a desktop / tablet').toBeLessThanOrEqual(1);
         if (s.w >= 1024) expect(m.pageScroll, 'the page itself never scrolls').toBeLessThanOrEqual(1);
-        expect(m.firstItemTop, 'the first request starts high on the screen').toBeLessThan(s.w < 768 ? 360 : 260);
+        // AUDIT30-C-TICKETS (#6): on a phone the sw-page frame puts its actions (view switch, "+") on a row under the title (+20 px);
+        // branch B's floating primary action (B6) takes "+" out of that row again
+        expect(m.firstItemTop, 'the first request starts high on the screen').toBeLessThan(s.w < 768 ? 400 : 260);
       }
     }
   });

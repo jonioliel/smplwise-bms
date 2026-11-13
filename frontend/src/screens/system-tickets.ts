@@ -3,6 +3,8 @@ import { customElement, state } from 'lit/decorators.js';
 import { repeat } from 'lit/directives/repeat.js';
 import { LiveRefresh } from '../tickets/live-refresh';
 import '../components/sw-card';
+import '../components/sw-page'; // AUDIT30-C-TICKETS (#16, #18): the one page frame
+import '../components/sw-tabs';
 import '../components/sw-icon';
 import '../components/sw-toggle';
 import '../components/sw-button';
@@ -60,7 +62,7 @@ import { DEFAULT_TICKET_NAMES, TICKET_GENDERS, TICKET_LANGS, moduleDefault, name
 import { intIn, windowProblem } from '../tickets/durations';
 import { rt } from '../tickets/rfq-text'; // CR-RFQ-PAYMENT-SCHEDULE: the RFQ terms card
 import { ticketSettingsCss } from '../tickets/settings-styles';
-import { SETTINGS_TABS, isSettingsTab, rovingIndex, visibleTabs } from '../tickets/settings-tabs';
+import { SETTINGS_TABS, isSettingsTab, visibleTabs } from '../tickets/settings-tabs';
 import { tt, type TicketTextKey } from '../tickets/text';
 import { ticketPermLabel } from '../tickets/perm-label';
 import '../tickets/board-settings'; // CR-038 slice 6: the D19-D21 rows of the display card
@@ -70,6 +72,7 @@ import type { BoardSettingsDoc } from '../api/tickets-board';
 import { dt } from '../tickets/device-text'; // CR-038 slice 3: the D17 row
 import { setLongPressMode } from '../tickets/device-entry';
 import { dateInputLang, dayText } from '../api/day-format';
+import { ticketChipSelected } from '../tickets/chip-selected'; // AUDIT30-C-TICKETS: one selected chip look (#4)
 
 type Tab = (typeof SETTINGS_TABS)[number];
 const TABS = SETTINGS_TABS;
@@ -152,12 +155,14 @@ export class SystemTickets extends LitElement {
       --sw-seg-gap: 2px;
       --sw-seg-h: var(--sw-touch-desktop);
       --sw-seg-divider: 0 solid transparent;
-      --sw-seg-on-bg: var(--mm-seg-thumb);
+      /* AUDIT30-C-TICKETS (#3, #4, Q3 option 1): the chosen key of every segment on this page (the name's gender, the long press) is
+         the Blue Wash pair - in dark the old light thumb under --dv-text read white on white (1:1) */
+      --sw-seg-on-bg: var(--sw-accent-soft);
       /* SYS-AUDIT-QUICKFIX-2437 (audit round 30, finding 3): the label on the thumb is the thumb's own ink (--mm-seg-fg-on, POLISH2-295),
          as on every other glass segment - --dv-text is near-white in dark and the chosen tab / gender read white on white (1:1). In
          light both are --dv-text (no change). */
-      --sw-seg-on-fg: var(--mm-seg-fg-on, var(--dv-text));
-      --sw-seg-on-shadow: var(--dv-shadow-control);
+      --sw-seg-on-fg: var(--sw-accent-text);
+      --sw-seg-on-shadow: none;
     }
     /* MGRDASH: the "busy" threshold fields of the manager overview card (tickets/overview-settings.ts) */
     .num-in {
@@ -196,46 +201,16 @@ export class SystemTickets extends LitElement {
       box-sizing: border-box;
       gap: 16px;
     }
+    /* AUDIT30-C-TICKETS (#18): the tabs are the underline row of sw-tabs (the centred sticky glass pill is gone: its chosen tab read
+       white on white in dark, finding 3) */
     .stabs {
-      position: sticky;
-      inset-block-start: 0;
-      z-index: 15;
-      display: flex;
-      justify-content: center;
-      padding: 12px 0 4px;
-      pointer-events: none;
+      display: block;
+      min-inline-size: 0;
     }
-    .stabs .seg {
-      pointer-events: auto;
-      overflow-x: auto;
-      scrollbar-width: none;
-      max-inline-size: 100%;
-      box-shadow: var(--dv-shadow-1);
-    }
-    .stabs .seg::-webkit-scrollbar {
+    /* AUDIT30-C-TICKETS (#16, Q11 option 1): a card's save key shows only when the card has a change; its footer (the hairline and the
+       room) goes with it */
+    .foot:not(:has(> :not([hidden]))) {
       display: none;
-    }
-    .stabs .seg button {
-      min-block-size: 40px;
-      padding-inline: 18px;
-    }
-    .ttl {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      align-items: flex-start;
-      padding-inline-end: var(--sw-float-reserve, 0px);
-    }
-    .ttl .crumbs {
-      font-size: var(--sw-fs-sm);
-      color: var(--dv-text-2);
-    }
-    .ttl h1 {
-      font-size: var(--sw-fs-3xl);
-    }
-    .ttl .sub {
-      font-size: var(--sw-fs-md);
-      color: var(--dv-text-2);
     }
     .sgrid {
       display: grid;
@@ -394,31 +369,9 @@ export class SystemTickets extends LitElement {
     .btnlink:hover {
       border-color: var(--dv-accent);
     }
-    /* a narrow page: the seven tabs wrap onto rows instead of scrolling sideways (nothing hidden behind a scroll) */
-    @container (max-width: 900px) {
-      /* integ/291: the bubble skin's own ".seg" rule (999 px pill, higher specificity) used to win here; with nine tabs the wrapped
-         strip is three rows high at 320 px and that pill corner reached the text of the last row's end buttons (layout guard: "text
-         in the rounded corner"). The wrapped strip keeps this rule's radius in the bubble skin too. */
-      .stabs .seg,
-      :host([data-skin='bubble']) .stabs .seg {
-        flex-wrap: wrap;
-        overflow: visible;
-        justify-content: center;
-        border-radius: var(--sw-r-xl);
-      }
-      .stabs .seg button {
-        flex: 1 1 auto;
-      }
-    }
     @media (max-width: 767px) {
       .page {
         padding: 0 14px 26px;
-      }
-      .stabs {
-        justify-content: stretch;
-      }
-      .stabs .seg {
-        inline-size: 100%;
       }
       /* TKGATEFIX4: the display tab's choices on a phone - the row stacks, so the segmented control takes the line and its options
          share it; an option's text may wrap (the glass sheet's .seg button is nowrap, and "מגירה + מסך מלא" pushed the third option
@@ -435,7 +388,7 @@ export class SystemTickets extends LitElement {
         line-height: 1.25;
       }
     }
-  `];
+  `, ticketChipSelected];
 
   connectedCallback() {
     super.connectedCallback();
@@ -481,14 +434,6 @@ export class SystemTickets extends LitElement {
   }
 
   /** The tab list is a roving-focus group: the arrow keys (the text direction decides which way is forward), Home and End. */
-  private onTabKey(e: KeyboardEvent, ids: string[]): void {
-    const n = rovingIndex(e.key, ids.indexOf(this.tab), ids.length, getComputedStyle(this).direction === 'rtl');
-    if (n === null) return;
-    e.preventDefault();
-    this.setTab(ids[n]);
-    void this.updateComplete.then(() => (this.renderRoot.querySelector(`[data-settings-tab="${ids[n]}"]`) as HTMLElement | null)?.focus());
-  }
-
   private setTab(id: string): void {
     this.tab = TABS.includes(id as Tab) ? (id as Tab) : 'general';
     replaceRoute('/system/tickets', this.tab === 'general' ? undefined : new URLSearchParams({ tab: this.tab }));
@@ -705,7 +650,7 @@ export class SystemTickets extends LitElement {
       ${row('sliding', 'setLinksSliding', 'setLinksSlidingSub', 'unit_d', 1, 90, Number.isNaN(sliding) || err === 'below_sliding')}
       ${row('cap', 'setLinksCap', 'setLinksCapSub', 'unit_d', 7, 365, Number.isNaN(cap) || err === 'below_sliding')}
       ${row('grace', 'setLinksGrace', 'setLinksGraceSub', 'unit_h', 0, 168, Number.isNaN(grace))}
-      <div class="foot"><sw-button variant="primary" size="sm" data-inst-links-save ?disabled=${!dirty || !!err || this.busy}
+      <div class="foot"><sw-button variant="primary" size="sm" data-inst-links-save ?hidden=${!dirty} ?disabled=${!dirty || !!err || this.busy}
         @click=${() => void this.saveDoc({ links: { sliding_days: sliding, cap_days: cap, grace_hours: grace } }, () => (this.instDraft = { ...this.instDraft, sliding: undefined, cap: undefined, grace: undefined }))}>${tt('save')}</sw-button>
         ${err ? html`<span class="field-error">${tt(`err_${err}` as TicketTextKey)}</span>` : nothing}</div>
     </sw-card>`;
@@ -727,7 +672,7 @@ export class SystemTickets extends LitElement {
         <sw-toggle label=${tt('setUrgent')} labelHidden .checked=${doc.urgent_is_critical ?? true} ?disabled=${this.busy} data-inst-urgent
           @change=${(e: CustomEvent<{ checked: boolean }>) => void this.saveDoc({ urgent_is_critical: e.detail.checked })}></sw-toggle></div>
       <!-- TKSET-POLISH-2331: the hours' save sits in the card's footer like the link card's (it saves the two time fields only; the switch saves at once) -->
-      <div class="foot"><sw-button size="sm" variant="primary" data-inst-hours-save ?disabled=${!dirty || !!err || this.busy}
+      <div class="foot"><sw-button size="sm" variant="primary" data-inst-hours-save ?hidden=${!dirty} ?disabled=${!dirty || !!err || this.busy}
           @click=${() => void this.saveDoc({ send_hours: { from, to } }, () => (this.instDraft = { ...this.instDraft, from: undefined, to: undefined }))}>${tt('save')}</sw-button>
         ${err ? html`<span class="field-error">${tt(`err_${err}` as TicketTextKey)}</span>` : nothing}</div>
     </sw-card>`;
@@ -750,12 +695,12 @@ export class SystemTickets extends LitElement {
       <div class="row"><span class="lbl">${rt('stArrivalHours')}<span class="muted">${rt('stArrivalHoursSub')}</span></span>
         <span class="unit"><input class="in num" type="number" min="0" max="168" data-inst-arrival-hours aria-label=${rt('stArrivalHours')} aria-invalid=${String(Number.isNaN(n))} .value=${raw}
           @input=${(e: Event) => (this.instDraft = { ...this.instDraft, arrHours: (e.target as HTMLInputElement).value })} /><span class="muted">${tt('unit_h')}</span>
-          <sw-button size="sm" variant="primary" data-inst-arrival-save ?disabled=${Number.isNaN(n) || n === hours || this.busy}
+          <sw-button size="sm" variant="primary" data-inst-arrival-save ?hidden=${n === hours} ?disabled=${Number.isNaN(n) || n === hours || this.busy}
             @click=${() => void this.saveDoc({ rfq: { arrival_reminder_hours: n } }, () => (this.instDraft = { ...this.instDraft, arrHours: undefined }))}>${tt('save')}</sw-button></span></div>
       <div class="row"><span class="lbl">${qst('qReminder')}<span class="muted">${qst('qReminderSub')}</span></span>
         <span class="unit"><input class="in num" type="number" min="0" max="168" data-inst-question-hours aria-label=${qst('qReminder')} aria-invalid=${String(Number.isNaN(qn))} .value=${qRaw}
           @input=${(e: Event) => (this.instDraft = { ...this.instDraft, qHours: (e.target as HTMLInputElement).value })} /><span class="muted">${tt('unit_h')}</span>
-          <sw-button size="sm" variant="primary" data-inst-question-save ?disabled=${Number.isNaN(qn) || qn === qHours || this.busy}
+          <sw-button size="sm" variant="primary" data-inst-question-save ?hidden=${qn === qHours} ?disabled=${Number.isNaN(qn) || qn === qHours || this.busy}
             @click=${() => void this.saveDoc({ rfq: { question_reminder_hours: qn } }, () => (this.instDraft = { ...this.instDraft, qHours: undefined }))}>${tt('save')}</sw-button></span></div>
       <div class="row"><span class="lbl">${qst('qBadgeAll')}<span class="muted">${qst('qBadgeAllSub')}</span></span>
         <sw-toggle label=${qst('qBadgeAll')} labelHidden .checked=${qAll} ?disabled=${this.busy} data-inst-question-badge-all
@@ -775,7 +720,7 @@ export class SystemTickets extends LitElement {
       <span class="unit"><input class="in num" type="number" min="0" max="720" data-inst-postpone-late aria-label=${qst('ppLateHours')}
         aria-invalid=${String(Number.isNaN(n))} .value=${raw}
         @input=${(e: Event) => (this.instDraft = { ...this.instDraft, lateHours: (e.target as HTMLInputElement).value })} /><span class="muted">${tt('unit_h')}</span>
-        <sw-button size="sm" variant="primary" data-inst-postpone-late-save ?disabled=${Number.isNaN(n) || n === hours || this.busy}
+        <sw-button size="sm" variant="primary" data-inst-postpone-late-save ?hidden=${n === hours} ?disabled=${Number.isNaN(n) || n === hours || this.busy}
           @click=${() => void this.saveDoc({ rfq: { postpone_late_hours: n } }, () => (this.instDraft = { ...this.instDraft, lateHours: undefined }))}>${tt('save')}</sw-button></span></div>`;
   }
 
@@ -798,7 +743,7 @@ export class SystemTickets extends LitElement {
       <span class="unit"><input class="in num" type="number" min="0" max="168" data-inst-instalment-hours aria-label=${rt('stInstalmentHours')}
         aria-invalid=${String(Number.isNaN(n))} .value=${raw}
         @input=${(e: Event) => (this.instDraft = { ...this.instDraft, insHours: (e.target as HTMLInputElement).value })} /><span class="muted">${tt('unit_h')}</span>
-        <sw-button size="sm" variant="primary" data-inst-instalment-save ?disabled=${Number.isNaN(n) || n === hours || this.busy}
+        <sw-button size="sm" variant="primary" data-inst-instalment-save ?hidden=${n === hours} ?disabled=${Number.isNaN(n) || n === hours || this.busy}
           @click=${() => void this.saveDoc({ rfq: { instalment_reminder_hours: n } }, () => (this.instDraft = { ...this.instDraft, insHours: undefined }))}>${tt('save')}</sw-button></span></div>`;
   }
 
@@ -821,7 +766,7 @@ export class SystemTickets extends LitElement {
           <div class="preview" data-name-preview aria-label=${tt('setNamePreview')}>${preview.map((p) => html`<span class="tag acc">${bidi(p)}</span>`)}</div>
           <div class="chipsrow"><button type="button" class="rc" aria-pressed=${String(this.moreLangs)} data-name-more @click=${() => (this.moreLangs = !this.moreLangs)}>${tt('setNameOtherLangs')}</button></div>
           ${this.moreLangs ? TICKET_LANGS.filter((l) => l !== 'he').map((l) => html`<div class="lang">${tt(`lang_${l}` as TicketTextKey)}</div>${this.nameRow(l)}`) : nothing}
-          ${mayName ? html`<div class="foot"><sw-button variant="primary" size="sm" data-name-save ?disabled=${!dirty || this.busy} @click=${() => void this.saveName()}>${tt('save')}</sw-button>
+          ${mayName ? html`<div class="foot"><sw-button variant="primary" size="sm" data-name-save ?hidden=${!dirty} ?disabled=${!dirty || this.busy} @click=${() => void this.saveName()}>${tt('save')}</sw-button>
             <sw-button size="sm" variant="ghost" data-name-default ?disabled=${this.busy} @click=${() => (this.draft = structuredClone(DEFAULT_TICKET_NAMES) as NameEntries)}>${tt('setNameDefault')}</sw-button></div>` : nothing}
         </div>` : nothing}
         ${!this.enabled ? html`<div class="row"><span class="muted" data-module-off>${tt('setModuleOff')}</span></div>` : nothing}
@@ -874,7 +819,7 @@ export class SystemTickets extends LitElement {
       ${fields.map((f) => html`<div class="row"><span class="lbl">${rt(f.label)}<span class="muted">${rt('stVuMax', { n: f.max })}</span></span>
         <span class="unit"><input class="in num" type="number" min="1" max=${f.max} data-inst-vu=${f.key} aria-label=${rt(f.label)} aria-invalid=${String(Number.isNaN(f.n))}
           .value=${f.raw} @input=${(e: Event) => (this.vuDraft = { ...this.vuDraft, [f.key]: (e.target as HTMLInputElement).value })} />${f.mb ? html`<span class="muted">MB</span>` : nothing}</span></div>`)}
-      <div class="foot"><sw-button size="sm" variant="primary" data-inst-vu-save ?disabled=${bad || !dirty || this.busy}
+      <div class="foot"><sw-button size="sm" variant="primary" data-inst-vu-save ?hidden=${!dirty} ?disabled=${bad || !dirty || this.busy}
         @click=${() => void this.saveDoc({ rfq: { vendor_uploads: patch } }, () => (this.vuDraft = {}))}>${tt('save')}</sw-button>
         ${fields[1].n < fields[0].n ? html`<span class="field-error">${rt('stVuUploadsBelow')}</span>` : nothing}</div>
     </sw-card>`;
@@ -1134,11 +1079,13 @@ export class SystemTickets extends LitElement {
 
   render() {
     const heading = tt('area');
-    if (this.enabled === null) return html`<div class="page" data-tickets-settings><div class="ttl lead-head"><div class="crumbs">הגדרות</div><h1>${heading}</h1></div><sw-state-panel state="loading"></sw-state-panel></div>`;
+    // AUDIT30-C-TICKETS (#16, #18, Q11 option 1): the settings page is the one structure - sw-page (crumb, title, one sub line), the tabs as
+    // the underline row of every settings page, the cards under it
+    if (this.enabled === null) return html`<sw-page wide class="page" data-tickets-settings heading=${heading} crumbs="הגדרות"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     const labels: Record<Tab, string> = { general: tt('setTabGeneral'), departments: tt('setTabDepartments'), locations: lt('tab'), display: tt('u6TabDisplay'), channel: mtt('tabChannel'), messages: mtt('tabTemplates'), costs: ct('setTab'), rules: rlt('tab'), permissions: tt('setTabPermissions') };
     const items = visibleTabs({ api: isApi(), can }).map((id) => ({ id, label: labels[id] }));
-    const tabs = this.enabled ? html`<div class="stabs"><div class="seg sm" role="tablist" aria-label=${heading} data-tickets-settings-tabs @keydown=${(e: KeyboardEvent) => this.onTabKey(e, items.map((x) => x.id))}>${items.map((i) => html`<button type="button" role="tab"
-      aria-selected=${String(this.tab === i.id)} tabindex=${this.tab === i.id ? '0' : '-1'} data-settings-tab=${i.id} @click=${() => this.setTab(i.id)}>${i.label}</button>`)}</div></div>` : nothing;
+    const tabs = this.enabled ? html`<sw-tabs class="stabs" variant="underline" group-label=${heading} data-tickets-settings-tabs .items=${items} .active=${this.tab}
+      @change=${(e: CustomEvent<{ id: string }>) => this.setTab(e.detail.id)}></sw-tabs>` : nothing;
     const body = !this.enabled || this.tab === 'general' ? this.generalTab() : this.tab === 'departments' ? this.departmentsTab()
       : this.tab === 'display' ? this.displayTab()
       : this.tab === 'channel' ? html`<tickets-channel-settings @notice=${this.onNotice}></tickets-channel-settings>` // slice 5b
@@ -1147,14 +1094,13 @@ export class SystemTickets extends LitElement {
       : this.tab === 'locations' ? html`<tickets-locations-settings @notice=${this.onNotice}></tickets-locations-settings>` // CR-ORG-LOCATIONS
       : this.tab === 'rules' ? html`<tickets-rules-settings @notice=${this.onNotice}></tickets-rules-settings>` // TKRULES-291
       : this.permissionsTab();
-    return html`<div class="page" data-tickets-settings data-tab=${this.tab}>
+    return html`<sw-page wide class="page" data-tickets-settings data-tab=${this.tab} heading=${heading} crumbs="הגדרות" subheading=${tt('setSub')}>
       ${tabs}
-      <div class="ttl lead-head"><div class="crumbs">הגדרות</div><h1>${heading}</h1><div class="sub">${tt('setSub')}</div></div>
       <div class="tbody">${body}</div>
       ${this.error ? html`<div class="toast bad" role="alert" data-tickets-settings-error><sw-icon name="warning" size="18"></sw-icon><span class="tx">${this.error}</span>
         <button type="button" class="x" aria-label=${t('actions.close')} data-tickets-settings-error-close @click=${() => (this.error = '')}><sw-icon name="close" size="16"></sw-icon></button></div>`
         : this.ok ? html`<div class="toast" role="status" data-tickets-settings-ok><sw-icon name="check" size="18"></sw-icon><span class="tx">${this.ok}</span></div>` : nothing}
-    </div>`;
+    </sw-page>`;
   }
 }
 

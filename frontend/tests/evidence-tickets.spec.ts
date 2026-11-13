@@ -42,7 +42,7 @@ test.describe('tickets evidence', () => {
       for (const scheme of ['light', 'dark'] as const) {
         await go(page, '/tickets/mine', {}, scheme, skin);
         await page.waitForSelector(`${L} ticket-card`);
-        await expect(page.locator(`${L} [data-tickets-title]`)).toHaveText('ניהול השירות');
+        await expect(page.locator(`${L} [data-tickets-title]`)).toHaveAttribute('heading', 'ניהול השירות'); // AUDIT30-C-TICKETS (#6): the title is sw-page's
         await shot(page, 'list', scheme, skin);
       }
     const cards = page.locator(`${L} ticket-card`);
@@ -149,7 +149,7 @@ test.describe('tickets evidence', () => {
   test('D33: a renamed module - the title, the rail, the card chips and the settings tab carry the new name', async ({ page }) => {
     await go(page, '/tickets/mine', { name: { one: 'תקלה', many: 'תקלות', gender: 'f' } });
     await page.waitForSelector(`${L} ticket-card`);
-    await expect(page.locator(`${L} [data-tickets-title]`)).toHaveText('תקלות');
+    await expect(page.locator(`${L} [data-tickets-title]`)).toHaveAttribute('heading', 'תקלות'); // AUDIT30-C-TICKETS (#6): the title is sw-page's
     await expect(page.locator('sw-app [data-nav="tickets"]').first()).toHaveAttribute('aria-label', 'תקלות');
     const texts = await page.evaluate(() => {
       const out: string[] = [];

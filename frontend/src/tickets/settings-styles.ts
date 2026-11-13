@@ -30,21 +30,36 @@ export const ticketSettingsCss = css`
   .row.stack .lbl {
     flex: none;
   }
+  /* AUDIT30-C-TICKETS (#16, Q11 option 1): a field is the sw-field control of every settings page - the small radius and the md control
+     height (it was the glass pill: 44 px, radius 999), the accent ring on focus; 44 px and 16 px text under a coarse pointer on a phone */
   .in {
     box-sizing: border-box;
-    min-block-size: var(--sw-touch-desktop);
-    padding-inline: 12px;
-    border: 1px solid var(--dv-border, var(--sw-border-strong));
-    border-radius: var(--dv-radius-control, var(--sw-r-sm));
-    background: var(--dv-surface-2, var(--sw-surface));
+    min-block-size: var(--sw-ctl-h-md);
+    padding: 5px 10px;
+    border: 1px solid var(--sw-border-strong);
+    border-radius: var(--sw-r-sm);
+    background: var(--sw-surface);
     color: var(--sw-text);
     font: inherit;
     font-size: var(--sw-fs-sm);
     min-inline-size: 0;
+    transition: border-color var(--sw-t-hover) var(--sw-ease-color), box-shadow var(--sw-t-hover) var(--sw-ease-color);
   }
   .in:focus-visible {
-    outline: var(--sw-focus-w) solid var(--sw-focus);
-    outline-offset: 1px;
+    outline: none;
+    border-color: var(--sw-accent);
+    box-shadow: 0 0 0 3px var(--sw-accent-soft);
+  }
+  .in:disabled {
+    background: var(--sw-surface-3);
+    color: var(--sw-text-3);
+    cursor: not-allowed;
+  }
+  @media (max-width: 767px) and (pointer: coarse) {
+    .in {
+      min-block-size: 44px;
+      font-size: max(16px, var(--sw-fs-sm));
+    }
   }
   .in[aria-invalid='true'] {
     border-color: var(--sw-danger);
@@ -162,10 +177,12 @@ export const ticketSettingsCss = css`
     outline: var(--sw-focus-w) solid var(--sw-focus);
     outline-offset: 2px;
   }
+  /* AUDIT30-C-TICKETS (#4, Q3 option 1): Blue Wash, not the filled accent key */
   .rc[aria-pressed='true'] {
-    background: var(--sw-accent);
-    border-color: var(--sw-accent);
-    color: var(--sw-text-inverse);
+    background: var(--sw-accent-soft);
+    border-color: transparent;
+    color: var(--sw-accent-text);
+    font-weight: var(--sw-fw-semibold);
   }
   .rc:disabled {
     opacity: 0.6;

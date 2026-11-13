@@ -41,15 +41,23 @@ export class TicketBoardTree extends LitElement {
       grid-template-columns: 24px minmax(0, 1fr) auto;
       align-items: center;
       gap: 6px;
-      min-block-size: 40px;
+      /* AUDIT30-C-TICKETS (#14): the tree row of every tree in the product - 36 px, the small radius (it was --sw-r-lg, 28 px on the
+         glass host: a pill per row), the chosen row in the Blue Wash pair */
+      min-block-size: 36px;
       padding-inline: 8px 12px;
-      border-radius: var(--sw-r-lg);
+      border-radius: var(--sw-r-sm);
       cursor: pointer;
       color: var(--dv-text);
       font-size: var(--sw-fs-base);
     }
-    .row:hover { background: var(--dv-hover, color-mix(in srgb, var(--dv-text) 6%, transparent)); }
-    .row[aria-pressed='true'] { background: var(--dv-accent-soft); color: var(--dv-accent-text); font-weight: 700; }
+    @media (hover: hover) and (pointer: fine) {
+      .row:hover { background: var(--dv-hover, color-mix(in srgb, var(--dv-text) 6%, transparent)); }
+    }
+    .row[aria-pressed='true'] { background: var(--sw-accent-soft); color: var(--sw-accent-text); font-weight: 700; }
+    .row[aria-pressed='true'] .n { color: var(--sw-accent-text); }
+    @media (pointer: coarse) {
+      .row { min-block-size: 44px; }
+    }
     .row:focus-visible { outline: 2px solid var(--dv-focus); outline-offset: 1px; }
     .row.l0 b { font-weight: 700; }
     .row.l1 { padding-inline-start: 28px; color: var(--dv-text-2); }

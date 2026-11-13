@@ -115,12 +115,16 @@ async function texts(page: Page): Promise<string[]> {
 }
 
 test.describe('finding 3: dark scheme, the selected settings tab / severity pill is readable', () => {
-  const CASES: [name: string, hash: string, sel: string][] = [
-    ['tickets-settings-tabs', '/system/tickets', "[data-tickets-settings-tabs] button[aria-selected='true']"],
-    ['tickets-settings-segments', '/system/tickets?tab=display', ".seg button[aria-pressed='true']"],
-    ['notifications-severity', '/system/notifications', ".sevseg button[aria-pressed='true']"],
+  // AUDIT30-C-TICKETS (#18, #4; owner Q11 / Q3 option 1): the service-calls settings tabs became the sw-tabs underline row (the chosen
+  // tab is marked by its accent underline and ink, it has no key of its own) and a chosen segment key the Blue Wash pair (--sw-accent-soft
+  // behind --sw-accent-text: the state is carried by the ink and the fill, as on every chip). For those two the label rule (>= 4.5:1)
+  // stays; the key-vs-track rule (3:1, written for the old lifted thumb) does not apply.
+  const CASES: [name: string, hash: string, sel: string, track: boolean][] = [
+    ['tickets-settings-tabs', '/system/tickets', "button[role='tab'][aria-selected='true']", false],
+    ['tickets-settings-segments', '/system/tickets?tab=display', ".seg button[aria-pressed='true']", false],
+    ['notifications-severity', '/system/notifications', ".sevseg button[aria-pressed='true']", true],
   ];
-  for (const [name, hash, sel] of CASES) {
+  for (const [name, hash, sel, track] of CASES) {
     test(name, async ({ page }) => {
       await open(page, hash, 'dark');
       const keys = await measure(page, sel);
@@ -128,7 +132,7 @@ test.describe('finding 3: dark scheme, the selected settings tab / severity pill
       expect(keys.length, `${sel} on ${hash}`).toBeGreaterThan(0);
       for (const k of keys) {
         expect(k.label, `label of "${k.what}"`).toBeGreaterThanOrEqual(4.5);
-        expect(k.track, `key "${k.what}" vs its track`).toBeGreaterThanOrEqual(3);
+        if (track) expect(k.track, `key "${k.what}" vs its track`).toBeGreaterThanOrEqual(3);
       }
       await shot(page, `dark-${name}`);
     });
