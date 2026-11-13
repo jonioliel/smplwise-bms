@@ -3,7 +3,7 @@
  *
  * | rung      | chain                                                                 |
  * |-----------|-----------------------------------------------------------------------|
- * | realistic | RenderPass (MSAA x2, HalfFloat) -> GTAO (r 0.6 m, 6 samples) -> UnrealBloom -> Output |
+ * | realistic | RenderPass (MSAA x2, HalfFloat) -> GTAO (r 0.6 m, 6 samples) -> SSR (floors) -> UnrealBloom -> Output |
  * | lite      | RenderPass (MSAA x2) -> UnrealBloom -> Output                         |
  * | WebGL1    | + SMAA after Output (where `samples` is unsupported)                  |
  *
@@ -15,8 +15,9 @@
  * the GTAO pass steps down (`setBakedAo`: 4 samples instead of 6, BAKED_AO_GTAO_SCALE of the style's blend) - the bake carries
  * the contact and the corners, GTAO keeps the small detail.
  */
-import { HalfFloatType, Vector2, Vector3, WebGLRenderTarget, type Camera, type Plane, type Scene, type WebGLRenderer } from './three-bundle';
-import { EffectComposer, GTAOPass, OutputPass, Pass, RenderPass, SMAAPass, UnrealBloomPass } from './three-post';
+import { HalfFloatType, Matrix4, ShaderMaterial, Vector2, Vector3, WebGLRenderTarget, type Camera, type Object3D, type Plane, type Scene, type Texture, type WebGLRenderer } from './three-bundle';
+import { EffectComposer, FullScreenQuad, GTAOPass, OutputPass, Pass, RenderPass, SMAAPass, UnrealBloomPass } from './three-post';
+import { REFLECT_ON, SSR_FRAG, SSR_LOOK, SSR_VERT } from './floor-reflect';
 import { LOOK_STYLES, bloomFor, type StyleId } from './look-style';
 import { GRADE_GLSL, gradeFor } from './color-grade';
 
@@ -48,15 +49,73 @@ export type PostRung = 'realistic' | 'lite';
  * against the wall top once the walls were cut in that pass. The beauty pass before and the bloom after see the scene
  * whole; no buffer is swapped. */
 class SkipAoPass extends Pass {
-  constructor(private readonly scene: Scene, private readonly hide: boolean) {
+  /** PLAN3D-LEVEL3-2435: what the hiding pass hid, shown again by its pair - a decal hidden by the view (another level, the
+   * walk) stays hidden (the pass used to show every marked mesh). */
+  readonly hidden: Object3D[] = [];
+  constructor(private readonly scene: Scene, private readonly pair: SkipAoPass | null) {
     super();
     this.needsSwap = false;
   }
 
   render(): void {
+    if (this.pair) {
+      for (const o of this.pair.hidden) o.visible = true;
+      this.pair.hidden.length = 0;
+      return;
+    }
     this.scene.traverse((o) => {
-      if (o.userData.skipAO) o.visible = !this.hide;
+      if (o.userData.skipAO && o.visible) {
+        o.visible = false;
+        this.hidden.push(o);
+      }
     });
+  }
+}
+
+/** PLAN3D-LEVEL3-2435: the screen-space floor reflection (floor-reflect.ts) - one full-screen pass over the frame after the AO,
+ * reading the GTAO pass's depth and normal targets; every pixel that is not a reflective floor is copied as it is. */
+class SsrPass extends Pass {
+  private readonly material: ShaderMaterial;
+  private readonly quad: FullScreenQuad;
+  constructor(private readonly gtao: GTAOPass, public camera: Camera, style: StyleId) {
+    super();
+    const look = SSR_LOOK[style];
+    this.material = new ShaderMaterial({
+      uniforms: {
+        tDiffuse: { value: null }, tDepth: { value: null }, tNormal: { value: null }, uProj: { value: new Matrix4() }, uInvProj: { value: new Matrix4() },
+        uCamWorld: { value: new Matrix4() }, uStrength: { value: look.strength }, uMaxDist: { value: look.maxDist }, uThickness: { value: 0.35 }, uTexel: { value: new Vector2(1 / 1024, 1 / 1024) },
+      },
+      vertexShader: SSR_VERT,
+      fragmentShader: SSR_FRAG,
+      depthTest: false,
+      depthWrite: false,
+    });
+    this.quad = new FullScreenQuad(this.material);
+  }
+
+  setStyle(style: StyleId): void {
+    const look = SSR_LOOK[style];
+    this.material.uniforms.uStrength.value = look.strength;
+    this.material.uniforms.uMaxDist.value = look.maxDist;
+  }
+
+  render(renderer: WebGLRenderer, writeBuffer: WebGLRenderTarget, readBuffer: WebGLRenderTarget): void {
+    const u = this.material.uniforms;
+    const g = this.gtao as unknown as { depthTexture: Texture; normalTexture: Texture };
+    u.tDiffuse.value = readBuffer.texture;
+    (u.uTexel.value as Vector2).set(1 / Math.max(1, readBuffer.width), 1 / Math.max(1, readBuffer.height));
+    u.tDepth.value = g.depthTexture;
+    u.tNormal.value = g.normalTexture;
+    (u.uProj.value as Matrix4).copy(this.camera.projectionMatrix);
+    (u.uInvProj.value as Matrix4).copy(this.camera.projectionMatrixInverse);
+    (u.uCamWorld.value as Matrix4).copy(this.camera.matrixWorld);
+    renderer.setRenderTarget(this.renderToScreen ? null : writeBuffer);
+    this.quad.render(renderer);
+  }
+
+  dispose(): void {
+    this.material.dispose();
+    this.quad.dispose();
   }
 }
 
@@ -64,6 +123,7 @@ export class PostChain {
   readonly composer: EffectComposer;
   private readonly render: RenderPass;
   private readonly gtao: GTAOPass | null;
+  private readonly ssr: SsrPass | null;
   private readonly bloom: UnrealBloomPass;
   private readonly output: OutputPass;
   private style: StyleId;
@@ -93,12 +153,20 @@ export class PostChain {
       gtao.updateGtaoMaterial({ radius: s.post.aoRadius, distanceExponent: 1, thickness: 1, distanceFallOff: 1, scale: 0.9, samples: GTAO_SAMPLES });
       gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 4, rings: 2, samples: 6 });
       gtao.blendIntensity = s.post.aoBlend;
-      this.composer.addPass(new SkipAoPass(scene, true));
+      const hide = new SkipAoPass(scene, null);
+      this.composer.addPass(hide);
       this.composer.addPass(gtao);
-      this.composer.addPass(new SkipAoPass(scene, false));
+      this.composer.addPass(new SkipAoPass(scene, hide));
       this.passes.push('gtao');
       this.gtao = gtao;
-    } else this.gtao = null;
+      // PLAN3D-LEVEL3-2435: the floor reflections read GTAO's depth / normals (floor-reflect.ts); realistic rung only
+      this.ssr = new SsrPass(gtao, camera, style);
+      this.composer.addPass(this.ssr);
+      this.passes.push('ssr');
+    } else {
+      this.gtao = null;
+      this.ssr = null;
+    }
     this.bloom = new UnrealBloomPass(new Vector2(width, height), s.post.bloomStrengthDay, s.post.bloomRadius, s.post.bloomThresholdDay);
     this.composer.addPass(this.bloom);
     this.output = new OutputPass();
@@ -116,6 +184,7 @@ export class PostChain {
   setCamera(camera: Camera): void {
     this.render.camera = camera;
     if (this.gtao) this.gtao.camera = camera;
+    if (this.ssr) this.ssr.camera = camera;
   }
 
   setSize(width: number, height: number): void {
@@ -141,6 +210,7 @@ export class PostChain {
     this.bloom.radius = b.radius;
     if (this.gtao) this.gtao.blendIntensity = LOOK_STYLES[style].post.aoBlend * (this.bakedAo ? BAKED_AO_GTAO_SCALE : 1);
     this.setGrade(style, night);
+    this.ssr?.setStyle(style);
   }
 
   private setGrade(style: StyleId, night: number): void {
@@ -186,12 +256,29 @@ export class PostChain {
     return this.gtao?.normalMaterial.clippingPlanes ?? null;
   }
 
+  /** PLAN3D-LEVEL3-2435: the floor reflections on / off (the `floor_reflections` dial; realistic rung only). */
+  setReflections(on: boolean): void {
+    if (this.ssr) this.ssr.enabled = on;
+  }
+
+  /** The floor reflections drawn now (tests, the perf report). */
+  get reflections(): boolean {
+    return !!this.ssr?.enabled;
+  }
+
   draw(): void {
-    this.composer.render();
+    // the floors write their reflectivity code into the beauty alpha only while the SSR pass is there to read it back
+    REFLECT_ON.value = this.ssr?.enabled ? 1 : 0;
+    try {
+      this.composer.render();
+    } finally {
+      REFLECT_ON.value = 0;
+    }
   }
 
   dispose(): void {
     this.gtao?.dispose();
+    this.ssr?.dispose();
     this.bloom.dispose();
     this.composer.dispose();
   }

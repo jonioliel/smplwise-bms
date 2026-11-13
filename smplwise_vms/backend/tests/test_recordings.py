@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 from dataclasses import replace
 
 import pytest
@@ -212,12 +213,14 @@ def test_playback_session_lifecycle(lab_client, monkeypatch):
     r4 = client.post(f"/api/v1/playback/sessions/{sess['id']}/seek", json={"start_at": "2026-09-14T08:00:00Z"})
     assert r4.status_code == 200 and r4.json()["generation"] == 1 and name0 in FakeGo2rtc.deleted
     assert pb.stream_name(sess["id"], 1) in FakeGo2rtc.store
-    # stale generation socket is refused with 4410
+    # stale generation socket is refused with 4410 - after a `replaced` frame, which survives HA ingress (GO2RTC-STREAM-SYNC-2436)
     from starlette.websockets import WebSocketDisconnect
 
-    with pytest.raises((WebSocketDisconnect, Exception)):
-        with client.websocket_connect(f"/api/v1/playback/sessions/{sess['id']}/ws?generation=0"):
-            pass
+    with client.websocket_connect(f"/api/v1/playback/sessions/{sess['id']}/ws?generation=0") as stale:
+        assert json.loads(stale.receive_text()) == {"type": "replaced", "value": "superseded"}
+        with pytest.raises(WebSocketDisconnect) as closed:
+            stale.receive_text()
+        assert closed.value.code == 4410
     # another user cannot touch it
     bind(client, s, "ron", "viewer", "installation", "*")
     assert client.get(f"/api/v1/playback/sessions/{sess['id']}", headers=as_user("ron")).status_code == 403

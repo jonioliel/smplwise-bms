@@ -4,6 +4,7 @@
 import { html, nothing } from 'lit';
 import type { P3 } from './home-p3';
 import { ils, vsUsual, weekBars } from './home-p3-logic';
+import { gapTicketButton } from './home-gaps'; // HOME-V3-GAPS-2436
 
 export function sWater(p: P3) {
   const h = p.h;
@@ -23,6 +24,6 @@ export function sWater(p: P3) {
         <div class="wbars" dir="rtl">${bars.map(([l, v]) => html`<div class=${'wb' + (v == null ? ' future' : '')}><span class="wv num">${v == null ? '' : ils(v)}</span><i style=${`height:${v == null ? 0 : Math.max(3, (v / mx) * 100)}%`}></i><span class="wbl">${l}</span></div>`)}</div></section>
       <section class="tile pane leak" data-tone=${W.leaks ? 'warn' : 'ok'} aria-label="נזילות" data-p3-leak=${W.leaks ? 'yes' : 'no'}><span class="dlg-ic">${ic('drop')}</span><h2>${W.leaks ? 'חשד לנזילה' : 'לא זוהתה נזילה'}</h2>
         <p class="muted">${W.leaks ? 'המים זורמים ברצף כבר זמן רב, גם כשאף אחד לא משתמש. כדאי לבדוק ברזים ואסלות.' : 'אנחנו בודקים כל הזמן אם מים זורמים כשלא אמורים.'}</p>
-        ${W.month != null ? html`<span class="muted">החודש: <span class="num">${(W.month / 1000).toFixed(1)}</span> מ״ק</span>` : nothing}</section>
+        ${W.month != null ? html`<span class="muted">החודש: <span class="num">${(W.month / 1000).toFixed(1)}</span> מ״ק</span>` : nothing}${W.leaks ? gapTicketButton(h, 'plumber') : nothing}</section>
     </div>`;
 }

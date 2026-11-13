@@ -5,3 +5,4 @@ import './home-recordings';
 import './home-diary';
 import './home-intercom';
 import './home-alarm';
+import './home-gaps'; // HOME-V3-GAPS-2436: the mockup's remaining buttons on shared screens

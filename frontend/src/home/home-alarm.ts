@@ -134,3 +134,20 @@ registerScreen((h: HomeHost) => {
     },
   };
 });
+
+// HOME-V3-GAPS-2436 (owner, round 29 answer 7): the personal alarm code also on "ההתראות שלי" (mockup v3 `S.notif`), the same sheet
+// and the same rule as the alarm screen's "הקוד האישי שלי" (its `almPin` action).
+const pinOk = (h: HomeHost) => alarmOk(h) && h.panels.length > 0 && (canAnywhere('alarm.arm') || canAnywhere('alarm.disarm'));
+
+/** Loads what the row needs (the panels, whether the person has a code); each piece once. */
+export function warmAlarmPin(h: HomeHost): void {
+  if (!alarmOk(h)) return;
+  if (!h.panels.length) void h.loadPanels();
+  if (!st.pin.known && (canAnywhere('alarm.arm') || canAnywhere('alarm.disarm'))) void alarmMe().then((m) => { st.pin = { set: m.pin_set, known: true }; h.requestUpdate(); }).catch(() => undefined);
+}
+
+/** The row on "ההתראות שלי": nothing when there is no alarm, no permission to arm or disarm, or the code state is not known yet. */
+export function alarmPinRow(h: HomeHost) {
+  if (!pinOk(h) || !st.pin.known) return nothing;
+  return html`<div class="tile setrow" data-gap-pin><span class="sname"><b>הקוד האישי שלי לאזעקה</b><span class="muted clamp1">${st.pin.set ? 'רק את או אתה יודעים אותו' : 'עוד אין לך קוד אישי'}</span></span><button class="hbtn" data-act="almPin">${st.pin.set ? 'החלף קוד' : 'קבע קוד'}</button></div>`;
+}

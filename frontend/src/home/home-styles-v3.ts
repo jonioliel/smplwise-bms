@@ -174,6 +174,14 @@ textarea.inp { padding-block: 12px; resize: none; line-height: 1.4; } .inp::plac
 .stp { display: inline-flex; align-items: center; gap: 6px; flex: none; } .stp b { min-inline-size: 66px; text-align: center; font-size: 20px; color: var(--hs-heading); }
 .setrow .sname.mid-l { flex: none; margin-inline-start: 10px; }
 .dlg-acts.three { grid-template-columns: repeat(3, minmax(0, 1fr)); } .sheet.v3 .dlg-acts .hbtn { padding: 0 12px; }
+/* HOME-V3-FOLLOWUP-B-2431: the new ticket's photos - a picker label styled as a button (its file input hidden) and small previews */
+.tkpick { position: relative; cursor: pointer; } .tkpick input { position: absolute; inline-size: 1px; block-size: 1px; opacity: 0; pointer-events: none; }
+.tkpick[aria-disabled="true"] { opacity: .5; pointer-events: none; } .tkpick:focus-within { outline: 2px solid var(--hs-accent); outline-offset: 2px; }
+.tkph { display: flex; align-items: center; gap: 10px; inline-size: 100%; min-inline-size: 0; } .tkph .muted { min-inline-size: 0; }
+.tkph .ph { position: relative; flex: none; inline-size: 64px; block-size: 64px; border-radius: 12px; overflow: hidden; background: var(--hs-surface-3); }
+.tkph .ph img { inline-size: 100%; block-size: 100%; object-fit: cover; display: block; }
+.sheet .tkph .ph .rb { position: absolute; inset-block-start: 4px; inset-inline-end: 4px; inline-size: 30px; block-size: 30px; min-inline-size: 30px; min-block-size: 30px; padding: 0; background: var(--hs-surface-solid); }
+.sheet .tkph .ph .rb .hi { inline-size: 16px; block-size: 16px; }
 .sheet.v3.center { justify-items: center; text-align: center; }
 .code { font-size: 44px; font-weight: 600; letter-spacing: .06em; color: var(--hs-heading); line-height: 1.3; }
 .ovl .hbtn.talk { inline-size: 100%; } .ovl .hbtn.talk[aria-pressed="true"] { background: var(--hs-danger-soft); color: var(--hs-danger-text); }

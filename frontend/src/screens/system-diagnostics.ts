@@ -24,7 +24,7 @@ import '../components/sw-offbox-backup'; // DATASTORE-295 phase 2: off-box copie
 import { logout as arxLogout } from '../arx/auth';
 import { demoHealth, demoJobs } from '../fixtures/catalog';
 import { can, canAnywhere, isApi, nvrLess, onRemote, session, LOCAL_ONLY_GENERIC } from '../api/session';
-import { getSettings, listSessions, listStreams, patchSettings, syncStreams, type ProductSettings } from '../api/media';
+import { getSettings, listSessions, listStreams, patchSettings, streamStateLabel, syncStreams, type MediaStream, type ProductSettings } from '../api/media';
 import { invalidateSettings, TRANSPORT_DEFAULT, transportLabel } from '../api/prefs';
 import { normalizePolicy, type H265Policy } from '../api/h265-support';
 
@@ -206,7 +206,7 @@ export class SystemDiagnostics extends LitElement {
   @state() private nvrChannels: number | null = null;
   @state() private floorTree: Site[] = [];
   @state() private draft: Partial<ProductSettings> = {};
-  @state() private streams: { name: string; online: boolean }[] | null = null;
+  @state() private streams: MediaStream[] | null = null;
   @state() private go2rtc: Record<string, unknown> | null = null;
   @state() private foreign = 0;
   @state() private sessions: { id: string; camera_id: string; stream: string; username: string; seconds: number; bytes_down: number }[] = [];
@@ -1228,7 +1228,7 @@ export class SystemDiagnostics extends LitElement {
         ${!api || !this.canEdit
           ? html`<div class="muted">${api ? 'נדרשת הרשאת מנהל מערכת.' : 'נתוני הדגמה.'}</div>`
           : html`<div class="row"><span class="lbl">שרת<span class="muted">${this.go2rtc ? `גרסה ${String((this.go2rtc as { version?: string }).version ?? '?')}` : 'לא נבדק'}</span></span><span class="end"><sw-button size="sm" icon="refresh" ?disabled=${this.busy} @click=${() => this.loadMedia()}>בדיקה</sw-button><sw-button size="sm" variant="primary" icon="link" ?disabled=${this.busy} @click=${() => this.sync()}>סנכרון זרמים</sw-button></span></div>
-              ${this.streams === null ? nothing : this.streams.length ? this.streams.map((st) => html`<div class="stream"><span>${st.name}</span><span>${st.online ? 'online' : 'idle'}</span></div>`) : html`<div class="muted">אין עדיין זרמים של המוצר — לחץ "סנכרון זרמים".</div>`}
+              ${this.streams === null ? nothing : this.streams.length ? this.streams.map((st) => { const l = streamStateLabel(st); return html`<div class="stream" data-stream-state=${l.state}><span>${st.name}</span><span>${l.text}</span></div>`; }) : html`<div class="muted">אין עדיין זרמים של המוצר — לחץ "סנכרון זרמים".</div>`}
               ${this.streams !== null ? html`<div class="muted" style="margin-block-start:6px">${this.foreign} זרמים זרים (אינטרקום, מצלמות אחרות) קיימים בשרת ולא נגענו בהם.</div>` : nothing}`}
       </sw-card>
       ${api && this.canEdit

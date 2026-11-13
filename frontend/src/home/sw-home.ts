@@ -39,6 +39,7 @@ import '../components/sw-camera-tile';
 // HOME-V3-P1-2430: the v3 screens register themselves (home-ext.ts); sw-home only wires the registry in
 import { homeV3Styles } from './home-styles-v3';
 import { buildScreens, type ExtOvl, type HomeScreen } from './home-ext';
+import { gapAlertActs, gapMenuRow } from './home-gaps'; // HOME-V3-GAPS-2436
 import { moreChild, moreTiles } from './more-registry';
 import './home-v3-p1';
 import './home-p3-ext'; // RELEASE-2430-TRAIN: phase 3's screens and hub tiles join the registry
@@ -1292,7 +1293,7 @@ export class SwHome extends LitElement {
     const list = this.alertTab === 'open' ? open : this.d.alerts;
     const pg = paged(list, 4, this.pg('alerts'));
     const n = open.length;
-    return html`${this.head('התראות', n === 0 ? 'אין שום דבר שדורש טיפול' : n === 1 ? 'דבר אחד מחכה לך' : `${n} דברים מחכים לך`, this.seg('alertTab', [['open', 'מחכות לי'], ['all', 'הכל']], this.alertTab, 'סינון'))}
+    return html`${this.head('התראות', n === 0 ? 'אין שום דבר שדורש טיפול' : n === 1 ? 'דבר אחד מחכה לך' : `${n} דברים מחכים לך`, html`${this.seg('alertTab', [['open', 'מחכות לי'], ['all', 'הכל']], this.alertTab, 'סינון')}${gapAlertActs(this)}`)}
       <div class="alert-list">${pg.items.length ? pg.items.map((a) => html`<div class="tile arow${a.open ? '' : ' done'}" data-tone=${a.tone}><span class="ai">${hi(a.icon)}</span><span class="at"><b class="clamp2">${a.text}</b><span class="muted">${a.when}</span></span>${a.open && a.canAck ? html`<button class="hbtn" data-act="alertAck" data-id=${a.id}><span class="clamp1">הבנתי</span></button>` : a.open ? nothing : html`<span class="muted done-t">${hi('check')}טופל</span>`}</div>`) : this.empty('check', 'הכל בסדר בבית', 'כשמשהו ידרוש את תשומת הלב שלך, הוא יופיע כאן.')}</div>${this.pager('alerts', pg.pages)}`;
   }
 
@@ -1407,7 +1408,7 @@ export class SwHome extends LitElement {
       const scheme = this.getAttribute('data-hs-scheme');
       return html`<div class="hscrim clear" data-act="close"></div><section class="sheet umenu" role="dialog" aria-modal="true" aria-label="התפריט האישי"><header class="menu-h"><span class="av lg">${(this.userName || '?').slice(0, 1)}</span><span class="mh-t"><b class="clamp1">${this.userFull || this.userName}</b><span class="muted">${this.role}</span></span><button class="rb" data-act="close" aria-label="סגור">${hi('x')}</button></header>
         <h3>הממשק שלי</h3>${this.faceChoice('home')}
-        <div class="menu-rows"><a class="mrow" href=${this.href('settings/favs')} data-act="closeNav">${hi('sliders')}<span>ההגדרות שלי</span>${hi('fwd')}</a><button class="mrow" data-act="theme" data-v=${scheme === 'dark' ? 'light' : 'dark'}>${hi(scheme === 'dark' ? 'sun' : 'night')}<span>${scheme === 'dark' ? 'מראה בהיר' : 'מראה כהה'}</span></button>${switchUserMode() ? html`<button class="mrow" data-act="switchUser" data-home-switch-user>${hi('user')}<span>החלף משתמש</span>${hi('fwd')}</button>` : nothing}</div></section>`;
+        <div class="menu-rows">${gapMenuRow(this)}<a class="mrow" href=${this.href('settings/favs')} data-act="closeNav">${hi('sliders')}<span>ההגדרות שלי</span>${hi('fwd')}</a><button class="mrow" data-act="theme" data-v=${scheme === 'dark' ? 'light' : 'dark'}>${hi(scheme === 'dark' ? 'sun' : 'night')}<span>${scheme === 'dark' ? 'מראה בהיר' : 'מראה כהה'}</span></button>${switchUserMode() ? html`<button class="mrow" data-act="switchUser" data-home-switch-user>${hi('user')}<span>החלף משתמש</span>${hi('fwd')}</button>` : nothing}</div></section>`;
     }
     if (o.type === 'zones') {
       const zs = this.zonesOf(this.scopeRooms()).slice(0, 6);

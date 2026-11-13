@@ -6,6 +6,7 @@ import { registerScreen, type HomeHost } from './home-ext';
 import { registerMoreTile } from './more-registry';
 import { getNotify, putNotify, type NotifyMe } from './home-p2-api';
 import { errText, has, stepper, sw, warmFamily, seen } from './home-p2-ui';
+import { alarmPinRow, warmAlarmPin } from './home-alarm'; // HOME-V3-GAPS-2436: the personal alarm code here too
 
 const st: { me: NotifyMe | null; at: number; loading: boolean; error: string; busy: boolean } = { me: null, at: 0, loading: false, error: '', busy: false };
 const toMin = (s: string) => Number(s.slice(0, 2)) * 60 + Number(s.slice(3, 5));
@@ -38,7 +39,7 @@ const shown = (m: NotifyMe) => m.categories.filter((c) => !c.critical && (c.id !
 registerScreen((h: HomeHost) => ({
   id: 'p2notif',
   names: ['notif'],
-  enter: () => { warmFamily(h); load(h, true); },
+  enter: () => { warmFamily(h); load(h, true); warmAlarmPin(h); },
   render() {
     const m = st.me;
     if (!m) return html`${h.head('ההתראות שלי', '')}${st.error ? h.empty('x', 'לא הצלחנו לטעון', st.error) : h.empty('bell', 'טוענים…', '')}`;
@@ -48,7 +49,10 @@ registerScreen((h: HomeHost) => ({
     return html`${h.head('ההתראות שלי', noPhone ? 'עוד אין טלפון מחובר. כשתחברו את האפליקציה, תוכלו לבחור כאן מה יגיע אליו.' : 'מה מגיע אליי לטלפון. כל אחד בבית בוחר לעצמו.')}
       <div class="nf-body"><section class="set-list two nf-list" aria-label="סוגי התראות">${cats.map((c) => html`<div class="tile setrow"><span class="sname">${c.name}${c.partly ? html`<span class="muted clamp1">רק בחלק מהטלפונים</span>` : nothing}</span>${sw(c.on, 'p2NfTog', c.name, { id: c.id }, noPhone || st.busy)}</div>`)}</section>
         <section class="set-list two" aria-label="לא להפריע"><div class="tile setrow"><span class="sname"><b>לא להפריע בלילה</b><span class="muted clamp1">בין <span class="num">${d.start}</span> ל-<span class="num">${d.end}</span> רק אזעקה ודלת מגיעות</span></span>${sw(d.enabled, 'p2Dnd', 'לא להפריע בלילה', {}, st.busy)}</div>
-          ${d.enabled ? html`<div class="tile setrow"><span class="sname">משעה</span>${stepper('p2DndStp', 'start', toMin(d.start), 'משעה')}<span class="sname mid-l">עד שעה</span>${stepper('p2DndStp', 'end', toMin(d.end), 'עד שעה')}</div>` : nothing}</section></div>`;
+          ${d.enabled ? (h.phone
+            // HOME-V3-GAPS-2436: on a phone the two hours did not fit one row (the end hour was cut off): one row each
+            ? html`<div class="tile setrow"><span class="sname">משעה</span>${stepper('p2DndStp', 'start', toMin(d.start), 'משעה')}</div><div class="tile setrow"><span class="sname">עד שעה</span>${stepper('p2DndStp', 'end', toMin(d.end), 'עד שעה')}</div>`
+            : html`<div class="tile setrow"><span class="sname">משעה</span>${stepper('p2DndStp', 'start', toMin(d.start), 'משעה')}<span class="sname mid-l">עד שעה</span>${stepper('p2DndStp', 'end', toMin(d.end), 'עד שעה')}</div>`) : nothing}${alarmPinRow(h)}</section></div>`;
   },
   acts: {
     p2NfTog: (el) => {

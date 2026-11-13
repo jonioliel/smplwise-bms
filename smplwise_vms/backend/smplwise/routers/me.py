@@ -176,6 +176,7 @@ class PrefsPatch(BaseModel):
     setup_hint: dict[str, Any] | None = Field(default=None, alias="setup.hint")  # 2.6.0 TKWIZHINT: {"dismissed": true, "failed": [step ids]} - the shell's setup hint was hidden (services/user_prefs.py); null = show it
     plan_quality: str | None = Field(default=None, alias="plan.quality")  # owner bug 2026-10-10: auto | 1 | 2 (2.4.7: also realistic | lite), the user's own 3D view mode (services/user_prefs.py); null = follow the installation
     video_transport: str | None = Field(default=None, alias="video.transport")  # VIDEO-TRANSPORT-2400: auto | webrtc | mse, the viewer's own live transport (services/video_transport.py); null = follow the installation
+    plan_wizard: dict[str, Any] | None = Field(default=None, alias="plan.wizard")  # PLAN3D-R28-WIZARD-2433: the plan wizard's own choices (services/user_prefs.py); null = the recommended defaults
     wiskey_density: str | int | None = Field(default=None, alias="wiskey.density")  # WisKey rc.37 overview card count
     wiskey_wall: str | int | None = Field(default=None, alias="wiskey.wall")  # WisKey rc.37 camera-wall stream budget
     devices_area_row: dict[str, Any] | None = Field(default=None, alias="devices.area_row")  # release 0.1.149: what shows next to an area name; needs screen.personalize (services/area_row.py)

@@ -9,7 +9,8 @@
 # never touches the release gates' gate_status.json, and it does not tag or release anything.
 # What a real run does (the engine and the selection are the release gate's own; nothing is forked):
 #   1. waits (queues) for ~/.smplwise-tests.lock - it never fails because the machine is busy; it yields to a pending release gate
-#      (~/.gate-pending) and a pending nightly (~/.nightly-pending); ~/smplwise-results/entry_status.json says "queued" meanwhile
+#      (~/.gate-pending) and a pending nightly (~/.nightly-pending); FIFO by ticket in ~/.smplwise-queue (GATE-FIFO-2436); entry_status.json
+#      says "queued" with the position meanwhile, ~/smplwise-results/entry_queue.json lists the queue
 #   2. holds the machine (gate_holder.py kind "entry": agent test runs through run_guarded.sh are refused while it runs)
 #   3. stages the engine into this directory exactly like release_gate2.sh (release_gate.py + aux files from ~/, select_tests.py
 #      as select_tests_v1.py; this directory's select_tests.py is the gate-2 shim)
@@ -20,10 +21,11 @@
 #   5. branch_check.py writes ~/smplwise-results/entry_<b>_<sha>.md (short, Hebrew + English) and entry_<b>_<sha>.json
 # Verdict: GREEN (engine pass, or red only through ACTIVE quarantine entries) -> exit 0; RED or NOT_RUN -> exit 1; usage -> 2.
 # Install: scripts/gate/README_GATE_FAST.md ("Entry check"). Env: ENTRY_TOTAL_SECS (engine limit), ENTRY_LOCK_SLICE (poll, 30 s),
-# GATE2_PYTHON, GATE2_REPO, GATE2_V1_DIR, GATE_RESULTS_DIR (the base results dir), ENTRY_SKIP_PLAN=1 (no shard/slot planning).
+# GATE2_PYTHON, GATE2_REPO, GATE2_V1_DIR, GATE_RESULTS_DIR (the base results dir), ENTRY_SKIP_PLAN=1 (no shard/slot planning),
+# ENTRY_QUEUE_DIR, ENTRY_PROC_PAT, ENTRY_LEGACY_SCAN=0 (queue, see the FIFO block below).
 set -uo pipefail
 export PATH="$HOME/smplwisebms/.venv/bin:$PATH:/usr/local/bin:/usr/bin:/bin"
-case "${1:-}" in -h|--help|"") sed -n 2,24p "$0"; exit 0;; esac
+case "${1:-}" in -h|--help|"") sed -n 2,26p "$0"; exit 0;; esac
 G="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 PY3="${GATE2_PYTHON:-python3}"
 REPO="${GATE2_REPO:-$HOME/smplwisebms}"
@@ -73,33 +75,116 @@ verdict() {   # $1 = engine report (may not exist), $2 = sha, $3 = why (used whe
   [ "$rc" = 0 ] && return 0 || return 1
 }
 
-# ------------------------------------------------------------------ 1. the queue: wait for the shared tests lock, never fail on busy
+# >>> FIFO queue (GATE-FIFO-2436). Functions only: scripts/gate/tests/test_branch_check_fifo.sh sources this block between the markers.
+# `flock -w` alone is a lottery (a check queued at 21:53 waited 10 h while later ones went first). Each waiter now writes a ticket
+# ~/.smplwise-queue/<epoch_ns>-<pid>-<branch> and only the OLDEST live ticket tries the lock; the others sleep. A ticket whose pid is dead
+# (or reused by a process that is not a branch check) is pruned. Old-style waiters (started by the pre-FIFO script, no ticket) are found
+# with ps and count as ahead of every newer waiter, so they are not starved. Env: ENTRY_QUEUE_DIR, ENTRY_PROC_PAT (the ERE that names a
+# branch-check process, default branch_check\.sh), ENTRY_LEGACY_SCAN=0 (skip the ps scan; the hermetic self-tests use it).
+QDIR="${ENTRY_QUEUE_DIR:-$HOME/.smplwise-queue}"
+QPAT="${ENTRY_PROC_PAT:-branch_check\.sh}"
+QTICKET=""
+q_pid() { local n="${1##*/}"; n="${n#*-}"; printf %s "${n%%-*}"; }   # <ns>-<pid>-<tag> -> pid
+q_alive() {   # $1 pid: alive, and (where /proc tells) still a branch-check process, not a reused pid
+  kill -0 "$1" 2>/dev/null || return 1
+  if [ -r "/proc/$1/cmdline" ]; then tr '\0' ' ' < "/proc/$1/cmdline" 2>/dev/null | grep -Eq -- "$QPAT" || return 1; fi
+  return 0
+}
+q_join() {    # write this waiter's ticket
+  local ns; ns="$(date +%s%N)"; case "$ns" in *[!0-9]*) ns="$(date +%s)000000000";; esac
+  mkdir -p "$QDIR" && QTICKET="$QDIR/$ns-$$-${TAG:-x}" && : > "$QTICKET"
+}
+q_leave() { [ -n "$QTICKET" ] && rm -f "$QTICKET"; QTICKET=""; }
+q_scan() {    # Q_AHEAD = live tickets older than this one, Q_TOTAL = live tickets, Q_PRUNED = dead tickets removed now
+  local LC_ALL=C f n pid me="${QTICKET##*/}"
+  Q_AHEAD=0 Q_TOTAL=0 Q_PRUNED=0
+  for f in "$QDIR"/*; do
+    [ -f "$f" ] || continue
+    n="${f##*/}"; pid="$(q_pid "$n")"
+    case "$pid" in ''|*[!0-9]*) continue;; esac
+    if [ "$pid" != "$$" ] && ! q_alive "$pid"; then rm -f "$f"; Q_PRUNED=$((Q_PRUNED+1)); continue; fi
+    Q_TOTAL=$((Q_TOTAL+1))
+    [[ "$n" < "$me" ]] && Q_AHEAD=$((Q_AHEAD+1))
+  done
+}
+q_legacy() {  # Q_LEGACY = old-style branch checks (no ticket) that started before this process
+  Q_LEGACY=0
+  [ "${ENTRY_LEGACY_SCAN:-1}" = 1 ] || return 0
+  local tab; tab="$(ps -eo pid=,ppid=,etimes=,args= 2>/dev/null)" || return 0
+  [ -n "$tab" ] || return 0
+  local -A PP=() ET=() M=() T=() W=()
+  local pid ppid et args f p q skip
+  while read -r pid ppid et args; do
+    case "$pid$ppid$et" in ''|*[!0-9]*) continue;; esac
+    PP[$pid]=$ppid; ET[$pid]=$et
+    [[ "$args" =~ $QPAT ]] && M[$pid]=1
+  done <<< "$tab"
+  for f in "$QDIR"/*; do [ -f "$f" ] || continue; p="$(q_pid "$f")"; case "$p" in ''|*[!0-9]*) ;; *) T[$p]=1;; esac; done
+  T[$$]=1
+  for p in "${!T[@]}"; do q="${PP[$p]:-0}"; while [ "$q" -gt 1 ] && [ -z "${W[$q]:-}" ]; do W[$q]=1; q="${PP[$q]:-0}"; done; done
+  local mine="${ET[$$]:-0}"
+  for p in "${!M[@]}"; do
+    [ -n "${T[$p]:-}${W[$p]:-}" ] && continue          # a ticket holder, or a wrapper of one (timeout, bash -c, nohup ...)
+    skip=0; q="${PP[$p]:-0}"
+    while [ "$q" -gt 1 ]; do [ -n "${M[$q]:-}${T[$q]:-}" ] && { skip=1; break; }; q="${PP[$q]:-0}"; done
+    [ "$skip" = 1 ] && continue                        # a child of a branch check (its subshells): the top one counts once
+    [ "${ET[$p]:-0}" -gt "$mine" ] && Q_LEGACY=$((Q_LEGACY+1))
+  done
+}
+q_snapshot() {  # ~/smplwise-results/entry_queue.json: the ticket queue in order (position 1 = the running check, if it is a FIFO one)
+  local LC_ALL=C f n i=0 sep="" out="$RES/entry_queue.json.$$"
+  { printf '{"time":"%s","written_by":%s,"legacy_ahead_of_writer":%s,"tickets":[' "$(date -Iseconds 2>/dev/null || date)" "$$" "${Q_LEGACY:-0}"
+    for f in "$QDIR"/*; do
+      [ -f "$f" ] || continue; n="${f##*/}"; i=$((i+1))
+      printf '%s{"pos":%s,"pid":%s,"branch":"%s","queued_ns":"%s"}' "$sep" "$i" "$(q_pid "$n")" "${n#*-*-}" "${n%%-*}"; sep=","
+    done
+    printf ']}\n'; } > "$out" 2>/dev/null && mv -f "$out" "$RES/entry_queue.json" 2>/dev/null
+}
+q_wait() {    # wait on fd 8 (the tests lock) in FIFO order; 0 = got it, 1 = --max-wait reached (ticket removed)
+  # The ticket is KEPT while this check runs (the caller's EXIT trap calls q_leave): the running check stays position 1, the next waiter
+  # is position 2 and tries the lock only after the running one is gone (ticket removed on exit, or pruned when its pid died).
+  # uses T0 MAXW SLICE BR SHA0 STARTED RES; sets WAITED POS QLEN
+  local PENDING LASTLOG=-1 LASTPOS="" now
+  WAITED=0
+  q_join || echo "branch_check: cannot write a queue ticket in $QDIR; waiting without one"
+  while :; do
+    PENDING=""
+    [ -n "$(find "$HOME/.gate-pending" -mmin -240 2>/dev/null)" ] && PENDING="a release gate"
+    [ -z "$PENDING" ] && [ -n "$(find "$HOME/.nightly-pending" -mmin -240 2>/dev/null)" ] && PENDING="the nightly"
+    q_scan; q_legacy
+    [ "$Q_PRUNED" -gt 0 ] && echo "branch_check: pruned $Q_PRUNED stale queue ticket(s) (pid gone)"
+    POS=$((Q_AHEAD + Q_LEGACY + 1)); QLEN=$((Q_TOTAL + Q_LEGACY)); [ "$QLEN" -lt "$POS" ] && QLEN=$POS
+    if [ -z "$PENDING" ] && [ "$POS" = 1 ] && flock -w "$SLICE" 8; then WAITED=$(( $(date +%s) - T0 )); return 0; fi
+    if [ -n "$PENDING" ] || [ "$POS" -gt 1 ]; then sleep "$SLICE"; fi
+    now=$(date +%s); WAITED=$(( now - T0 ))
+    if [ "$LASTLOG" -lt 0 ] || [ $(( WAITED - LASTLOG )) -ge 600 ] || [ "$POS/$QLEN" != "$LASTPOS" ]; then
+      echo "branch_check: queued for the tests lock (${WAITED} s so far, position ${POS} of ${QLEN}$([ "$Q_LEGACY" -gt 0 ] && printf ', %s older pre-FIFO check(s) ahead' "$Q_LEGACY")${PENDING:+, $PENDING goes first}); waiting, not failing"
+      # entry_status.json is shared by all checks: a waiter does not overwrite the RUNNING check's state (it did every 10 min before)
+      grep -q '"state":"running"' "$RES/entry_status.json" 2>/dev/null ||
+        printf '{"state":"queued","branch":"%s","sha":"%s","since":"%s","waited_s":%s,"position":%s,"queue_len":%s,"legacy_ahead":%s}\n' \
+          "$BR" "$SHA0" "$STARTED" "$WAITED" "$POS" "$QLEN" "$Q_LEGACY" > "$RES/entry_status.json"
+      q_snapshot
+      LASTLOG=$WAITED LASTPOS="$POS/$QLEN"
+    fi
+    if [ "$MAXW" -gt 0 ] && [ "$WAITED" -ge "$MAXW" ]; then q_leave; return 1; fi
+  done
+}
+# <<< FIFO queue
+
+# ------------------------------------------------------------------ 1. the queue: FIFO for the shared tests lock, never fail on busy
 exec 8>"$HOME/.smplwise-tests.lock"
-WAITED=0 LASTLOG=-1
-while :; do
-  PENDING=""
-  [ -n "$(find "$HOME/.gate-pending" -mmin -240 2>/dev/null)" ] && PENDING="a release gate"
-  [ -z "$PENDING" ] && [ -n "$(find "$HOME/.nightly-pending" -mmin -240 2>/dev/null)" ] && PENDING="the nightly"
-  if [ -z "$PENDING" ] && flock -w "$SLICE" 8; then break; fi
-  [ -n "$PENDING" ] && sleep "$SLICE"
-  WAITED=$(( $(date +%s) - T0 ))
-  if [ "$LASTLOG" -lt 0 ] || [ $(( WAITED - LASTLOG )) -ge 600 ]; then
-    echo "branch_check: queued for the tests lock (${WAITED} s so far${PENDING:+, $PENDING goes first}); waiting, not failing"
-    printf '{"state":"queued","branch":"%s","sha":"%s","since":"%s","waited_s":%s}\n' "$BR" "$SHA0" "$STARTED" "$WAITED" > "$RES/entry_status.json"
-    LASTLOG=$WAITED
-  fi
-  if [ "$MAXW" -gt 0 ] && [ "$WAITED" -ge "$MAXW" ]; then
-    verdict "$ERES/none.json" "$SHA0" "queue limit reached: waited ${WAITED} s for the tests lock (--max-wait $MAXW); nothing ran"
-    exit 1
-  fi
-done
+trap 'q_leave' EXIT
+if ! q_wait; then
+  verdict "$ERES/none.json" "$SHA0" "queue limit reached: waited ${WAITED} s for the tests lock (--max-wait $MAXW, position ${POS:-?} of ${QLEN:-?}); nothing ran"
+  exit 1
+fi
 WAITED=$(( $(date +%s) - T0 ))
 echo "branch_check: got the tests lock after ${WAITED} s"
 printf '{"state":"running","branch":"%s","sha":"%s","since":"%s","waited_s":%s}\n' "$BR" "$SHA0" "$(date -Iseconds 2>/dev/null || date)" "$WAITED" > "$RES/entry_status.json"
 
 # ------------------------------------------------------------------ 2. hold the machine
 [ -f "$G/gate_holder.py" ] && "$PY3" "$G/gate_holder.py" claim --kind entry --who "entry check $BR" --what "branch_check.sh $BR" --pid $$ >/dev/null 2>&1
-trap '[ -f "$G/gate_holder.py" ] && "$PY3" "$G/gate_holder.py" release --pid $$ >/dev/null 2>&1' EXIT
+trap 'q_leave; [ -f "$G/gate_holder.py" ] && "$PY3" "$G/gate_holder.py" release --pid $$ >/dev/null 2>&1' EXIT
 
 # ------------------------------------------------------------------ 3. stage the engine (the same copy release_gate2.sh makes)
 for f in release_gate.py select_tests.py; do

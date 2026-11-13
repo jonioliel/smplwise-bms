@@ -267,7 +267,7 @@ def part_b():
         env.update({"HOME": str(home), "USERPROFILE": str(home), "GATE_HOME": str(home), "GATE2_PYTHON": "python3",
                     "PATH": f"{fbin.as_posix()}:{os.environ.get('PATH', '')}" if os.name != "nt" else f"{fbin}{os.pathsep}{os.environ.get('PATH', '')}",
                     "FAKE_FLOCK_BUSY": str(busy), "FAKE_FLOCK_COUNT": str(TMP / "flock_count"), "FAKE_FLOCK_LOG": str(TMP / "flock.log"),
-                    "FAKE_ENGINE_MODE": mode, "ENTRY_LOCK_SLICE": "1", "ENTRY_SKIP_PLAN": "1",
+                    "FAKE_ENGINE_MODE": mode, "ENTRY_LOCK_SLICE": "1", "ENTRY_SKIP_PLAN": "1", "ENTRY_LEGACY_SCAN": "0",
                     "GATE_HOLDER_FILE": str(home / "holder.json"), "GATE_LOCK_FILE": str(home / "gate.lock"), **(extra or {})})
         p = subprocess.run([bash, str(g2 / "branch_check.sh"), *args], env=env, capture_output=True, text=True, timeout=300)
         return p.returncode, p.stdout + p.stderr
