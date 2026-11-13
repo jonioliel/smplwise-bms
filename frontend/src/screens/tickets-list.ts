@@ -247,6 +247,13 @@ export class TicketsList extends LitElement {
       margin-inline-start: auto;
     }
     @media (max-width: 767px) {
+      /* the frame's actions take their own row under the title from the first frame: the view switch grows by the manager-only views
+         when the meta arrives, and a row that fitted beside the title before then wrapped under it, pushing the whole list down
+         (layout-a11y-295: CLS 0.159 on a phone). Wider than the room beside any title, never wider than the row. */
+      .pact {
+        min-inline-size: calc(100vw - 100px);
+        justify-content: flex-start;
+      }
       .qchips {
         order: 2;
         margin-inline-start: 0;
