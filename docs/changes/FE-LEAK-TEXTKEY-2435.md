@@ -56,7 +56,19 @@ New:
   the home chunk left alive, and no playback / home / media / recordings request in the 3.5 s after leaving; and the
   same leave with nothing playing sends no playback request.
 
-Run results: see the commit message and the segment report (only runs that were actually executed are reported).
+Local runs on the workstation (Windows, Node 24, heavily loaded by other sessions), all at branch code:
+
+| Run | Result |
+|---|---|
+| `tsc --noEmit` + `vite build` (`npm run build`) | exit 0 |
+| Unit (`playwright.unit.config.ts`): the new spec + 22 existing home / electricity / shared-space / stairs / xsection / plan-canvas / tickets-list unit specs | 209 passed (12 of them new) |
+| `home-leave-2435.spec.ts`, desktop / tablet / mobile, preview of the build | 6 passed (inside the run below) |
+| Page specs against the preview of the build, 3 projects: home-simple-2420/2421, home-v3-p1/p2/p3, home-v3-fb-2431, home-v3-followup-a, home-v3-gaps-2436, electricity-meters / -readings / -meter-rename / -meter-device-name, evidence-xsection-synoptic, evidence-serviceia2-list, evidence-tickets-polish-2331 | 574 run, 1 failed: home-v3-followup-a "show bill" on desktop (popup did not reach the blob within 15 s); it passed on tablet and mobile and on a desktop rerun alone (1 passed). The run was stopped before the last two layout-electricity tests because that spec needs the dev server (rerun below). |
+| Harness / dev-server specs (Vite dev on its own port), 3 projects: electricity-accounts, -bills, -tou, -wizard, layout-electricity, layout-uxfix-nav-295 | 166 passed, 16 skipped, 10 failed. Rerun of the 10 alone: 7 passed, 3 failed. |
+| Those 3 remaining: electricity-accounts "loading state" (desktop, mobile) and layout-uxfix-nav-295 "one h1" (desktop) | A/B with `frontend/src` from origin/main on the same server: the accounts "loading state" test fails the same way on main (the 600 ms loading state is over before the slow page checks it); the h1 test names a different route on every run (`/devices/schedules`, `/tickets/all`, `/multimedia/players`, `/infra/electricity/meters`) and passed on main once - a lazy chunk not yet loaded on a loaded machine. Neither touches the changed code. |
+
+Pixel specs were not run locally: their baselines are Linux renders (`*-linux.png`) and compare only on the runner. The
+runner's entry check (`~/gate2/branch_check.sh`) was queued; its result is not part of this document.
 
 ## 4. Rollback
 
