@@ -1,0 +1,16 @@
+{
+  "_note": "GO2RTC-STREAM-SYNC-2436: go2rtc 1.9.15 GET /api/streams while one viewer watches ch1 main: the producer is a connected core.Connection (id, format_name, protocol, remote_addr, url, medias, receivers, bytes_recv) and the viewer is a consumer; ch1 sub stays idle. Shape from go2rtc 1.9's Connection JSON; synthetic values only (example.invalid, documentation addresses).",
+  "smplwise_nvr-1_ch1_main": {
+    "producers": [{
+      "id": 7, "format_name": "rtsp", "protocol": "rtsp+tcp", "remote_addr": "192.0.2.10:554",
+      "url": "rtsp://nvr.example.invalid:554/Streaming/Channels/101",
+      "sdp": "v=0", "user_agent": "go2rtc/1.9.15",
+      "medias": ["video, recvonly, H264"],
+      "receivers": [{"id": 8, "codec": {"codec_name": "h264", "codec_type": "video", "level": "4.1", "profile": "High"}, "childs": [9], "bytes": 812345, "packets": 700}],
+      "bytes_recv": 812345
+    }],
+    "consumers": [{"id": 9, "format_name": "mse/fmp4", "protocol": "ws", "remote_addr": "198.51.100.5:40000", "medias": ["video, sendonly, H264"], "senders": [{"id": 10, "codec": {"codec_name": "h264", "codec_type": "video"}, "bytes": 800000, "packets": 690}], "bytes_send": 800000}]
+  },
+  "smplwise_nvr-1_ch1_sub": {"producers": [{"url": "rtsp://nvr.example.invalid:554/Streaming/Channels/102"}], "consumers": null},
+  "smplwise_ha_garage": {"producers": [], "consumers": null}
+}
