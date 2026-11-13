@@ -50,6 +50,7 @@ import { resolveMaterials, type ResolvedMaterials, type VisualStyle } from '../m
 import { DEFAULT_SITE } from '../map/sun';
 import { withDocVersion } from '../map/glass-wall';
 import { resolvedTheme } from '../design/apply';
+import { sameRefs } from '../map/memo';
 import { newPositionName, positionArrow, renderMaterialField, renderNorthCard, renderWalkCard, studio6Styles } from './plan-studio6-panel';
 import { DRAW_MODES, GLASS_DRAW_DEFAULTS, type GlassDraw } from './plan-studio-panel';
 import { glassT } from '../i18n/plan-glass';
@@ -111,6 +112,8 @@ interface CalibState {
   pairs: { a: Pt; b: Pt; metres: number }[];
 }
 const EMPTY_CALIB: CalibState = { a: null, b: null, metres: '', result: '', warning: '', pairs: [] };
+/** PERF-5: the one empty list the render hands the canvas (a fresh `[]` each render reads as a changed prop). Frozen: nobody adds to it. */
+const EMPTY: never[] = Object.freeze([]) as unknown as never[];
 /** Arrow presses on one structure item less than this far apart (a held key, a quick run of taps) are one undo step. */
 const NUDGE_BURST_MS = 1000;
 const ARROWS = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
@@ -361,6 +364,15 @@ export class ExplorePlanEditor extends LitElement {
   private onNarrow = () => (this.narrow = this.phone.matches);
   private elapsedTimer: ReturnType<typeof setInterval> | undefined;
   private entTimer = 0;
+  /** RACE-7: the number of the latest entity search; an older answer (or failure) arriving after a newer request is dropped. */
+  private entSeq = 0;
+  /** MSG-1: the one pending clear of flash() / flashError(). */
+  private infoTimer = 0;
+  private errorTimer = 0;
+  /** PERF-5: the identity memos of the render's derived lists (memo()), and the frame that applies the latest drag move. */
+  private memos = new Map<string, { keys: readonly unknown[]; value: unknown }>();
+  private dragMoveFrame = 0;
+  private dragMovePending: GeomDragDetail | null = null;
   private onKey = (e: KeyboardEvent) => this.handleKey(e);
 
   static styles = [css`
@@ -1061,8 +1073,7 @@ export class ExplorePlanEditor extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this.studio.onNotice = (m) => {
-      this.info = m;
-      setTimeout(() => (this.info = ''), 7000);
+      this.flash(m, 7000);
     };
     void this.load();
     window.addEventListener('keydown', this.onKey);
@@ -1080,6 +1091,10 @@ export class ExplorePlanEditor extends LitElement {
     window.removeEventListener('keydown', this.onKey);
     this.phone.removeEventListener('change', this.onNarrow);
     clearInterval(this.elapsedTimer);
+    window.clearTimeout(this.infoTimer);
+    window.clearTimeout(this.errorTimer);
+    this.infoTimer = this.errorTimer = 0;
+    this.cancelDragMove();
     void this.studio.flush(); // an edit younger than the autosave delay is still saved when the editor closes
   }
 
@@ -1158,7 +1173,22 @@ export class ExplorePlanEditor extends LitElement {
     return a.layer_id === 'doors' ? 'doors' : a.layer_id === 'lights' ? 'lights' : 'sensors';
   }
 
+  /** PERF-5: a render-time value rebuilt only when one of its inputs changed (compared by identity, `sameRefs`). The editor
+   * replaces its anchors, zones, layers, document and drafts on every change and never edits them in place, which is what
+   * the identity check assumes (see map/memo.ts). */
+  private memo<T>(name: string, keys: readonly unknown[], build: () => T): T {
+    const m = this.memos.get(name);
+    if (m && sameRefs(m.keys, keys)) return m.value as T;
+    const value = build();
+    this.memos.set(name, { keys, value });
+    return value;
+  }
+
   private get markers(): PlanMarker[] {
+    return this.memo('markers', [this.anchors, this.layers, this.studio.doc, this.activeLevel, this.bundle?.source], () => this.buildMarkers());
+  }
+
+  private buildMarkers(): PlanMarker[] {
     return this.anchors
       .filter((a) => this.layers.has(this.layerOf(a)) && this.onLevel(a))
       .map((a) => ({
@@ -1188,7 +1218,11 @@ export class ExplorePlanEditor extends LitElement {
   }
 
   private get planZones(): PlanZone[] {
-    if (!this.showZones) return [];
+    if (!this.showZones) return EMPTY;
+    return this.memo('planZones', [this.zones, this.zonePreview, this.candidates], () => this.buildPlanZones());
+  }
+
+  private buildPlanZones(): PlanZone[] {
     const moving = this.zonePreview; // a multi-selection drag: its zones are drawn where they are going
     const saved: PlanZone[] = this.zones.map((z) => ({ id: z.id, name: z.name, kind: z.kind, color: z.color, polygon: moving?.[z.id] ?? z.polygon, labelPos: z.label_pos, chip: sharedChip(z.shared) }));
     const cands: PlanZone[] = (this.candidates ?? []).map((c, i) => ({ id: `cand-${i}`, name: c.include ? c.name : '', color: c.include ? PALETTE[i % PALETTE.length] : 'var(--sw-offline)', polygon: c.polygon, candidate: true }));
@@ -1211,8 +1245,7 @@ export class ExplorePlanEditor extends LitElement {
       this.candidates = r.rooms.map((room, i) => ({ polygon: room.polygon, name: `חדר ${i + 1}`, kind: 'room' as ZoneKind, include: true }));
       this.selectedZoneId = null;
       this.selectedId = null;
-      this.info = r.rooms.length ? `${r.rooms.length} חדרים זוהו · תן שמות ושמור` : 'לא זוהו חדרים סגורים; נסה עוצמה אחרת או צייר אזור ידנית';
-      setTimeout(() => (this.info = ''), 5000);
+      this.flash(r.rooms.length ? `${r.rooms.length} חדרים זוהו · תן שמות ושמור` : 'לא זוהו חדרים סגורים; נסה עוצמה אחרת או צייר אזור ידנית', 5000);
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -1235,8 +1268,7 @@ export class ExplorePlanEditor extends LitElement {
       const r = await acceptZones(b.floorId, chosen.map((c) => ({ polygon: c.polygon, name: c.name, kind: c.kind })), this.replaceAuto);
       this.candidates = null;
       this.zones = r.zones;
-      this.info = `${r.created.length} חדרים נשמרו`;
-      setTimeout(() => (this.info = ''), 3000);
+      this.flash(`${r.created.length} חדרים נשמרו`, 3000);
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -1284,8 +1316,7 @@ export class ExplorePlanEditor extends LitElement {
       this.drawing = null;
       this.zones = [...this.zones, z];
       this.selectedZoneId = z.id;
-      this.info = 'האזור נוצר · תן לו שם';
-      setTimeout(() => (this.info = ''), 3000);
+      this.flash('האזור נוצר · תן לו שם', 3000);
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -1395,8 +1426,7 @@ export class ExplorePlanEditor extends LitElement {
     try {
       if (add) await addShareMember(zoneId, a.resource_type, a.resource_id);
       else await removeShareMember(zoneId, a.resource_type, a.resource_id);
-      this.info = add ? 'נוסף לחלל המשותף: מוצג בשתי הקומות' : 'הוסר מהחלל המשותף: מוצג רק בקומה שלו';
-      setTimeout(() => (this.info = ''), 4000);
+      this.flash(add ? 'נוסף לחלל המשותף: מוצג בשתי הקומות' : 'הוסר מהחלל המשותף: מוצג רק בקומה שלו', 4000);
       await this.reloadShared();
     } catch (err) {
       this.error = describeError(err);
@@ -1484,8 +1514,7 @@ export class ExplorePlanEditor extends LitElement {
       await shareZone(r.zoneId, body);
       this.shareDlg = null;
       this.selectedZoneId = null;
-      this.info = 'החדר משותף עכשיו לשתי הקומות';
-      setTimeout(() => (this.info = ''), 4000);
+      this.flash('החדר משותף עכשיו לשתי הקומות', 4000);
       await this.reloadShared();
     } catch (err) {
       this.shareDlg = { ...this.shareDlg!, busy: false, error: describeError(err) };
@@ -1731,8 +1760,7 @@ export class ExplorePlanEditor extends LitElement {
       if (v && v.zoneId === z.id && v.index < z.polygon.length) {
         // a picked corner goes alone (0.1.87); a zone keeps at least three corners
         if (z.polygon.length <= 3) {
-          this.info = 'לאזור נשארו שלוש פינות: אי אפשר להסיר עוד פינה';
-          setTimeout(() => (this.info = ''), 3000);
+          this.flash('לאזור נשארו שלוש פינות: אי אפשר להסיר עוד פינה', 3000);
           return;
         }
         this.zoneVertexSel = null;
@@ -1808,8 +1836,7 @@ export class ExplorePlanEditor extends LitElement {
         return false;
       }
       this.dirty = new Set();
-      this.info = 'המיקומים נשמרו';
-      setTimeout(() => (this.info = ''), 2500);
+      this.flash('המיקומים נשמרו', 2500);
       return true;
     } catch (err) {
       this.error = describeError(err);
@@ -1841,8 +1868,7 @@ export class ExplorePlanEditor extends LitElement {
       await this.load();
       this.selectedId = a.id;
       this.tool = 'select';
-      this.info = `${this.anchorName(a)} הוצב · גרור לדיוק, קבע כיוון בידיות`;
-      setTimeout(() => (this.info = ''), 4000);
+      this.flash(`${this.anchorName(a)} הוצב · גרור לדיוק, קבע כיוון בידיות`, 4000);
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -1935,8 +1961,7 @@ export class ExplorePlanEditor extends LitElement {
       this.geomDiff = null;
       // The server publishes nothing when the draft already is what viewers see; its answer says so (unchanged).
       const shared = (r.shared_published ?? []).length > 0;
-      this.info = r.unchanged && !shared ? 'אין שינוי לפרסום' : shared ? 'המבנה פורסם, כולל השינויים בחלל המשותף; הצופים רואים אותם עכשיו' : 'המבנה פורסם; הצופים רואים אותו עכשיו';
-      setTimeout(() => (this.info = ''), 4000);
+      this.flash(r.unchanged && !shared ? 'אין שינוי לפרסום' : shared ? 'המבנה פורסם, כולל השינויים בחלל המשותף; הצופים רואים אותם עכשיו' : 'המבנה פורסם; הצופים רואים אותו עכשיו', 4000);
       await this.loadStudio(b, true); // refresh what viewers see (the published hash)
     } catch (err) {
       this.geomDiff = { ...d, error: describeError(err) };
@@ -1975,10 +2000,11 @@ export class ExplorePlanEditor extends LitElement {
         await rollbackVersion(d.version.id, d.version.revision, d.data.from?.id ?? null);
         this.info = 'הגרסה שוחזרה ופורסמה מחדש; העוגנים נשמרו';
       }
+      const done = this.info;
       this.diff = null;
       await this.load();
       if (this.bundle) await this.loadStudio(this.bundle, true); // the structure was published with the plan
-      setTimeout(() => (this.info = ''), 4000);
+      if (this.info === done) this.flash(done, 4000); // its time starts after the reload, as before; a newer message is left alone
     } catch (err) {
       this.diff = { ...d, error: describeError(err) };
       if (err instanceof ApiError && err.status === 409) void this.loadVersions();
@@ -1993,17 +2019,21 @@ export class ExplorePlanEditor extends LitElement {
 
   private async searchEntities() {
     if (this.bundle?.source === 'demo') return;
+    const seq = ++this.entSeq; // RACE-7: only the latest request may write the list, the error or the busy flag
     this.entBusy = true;
     try {
       // lighting tool: switches only (plus light.* when asked); the other tool: anything in the catalogue
       const lights = this.tool === 'lights';
-      const r = await listEntities({ q: this.entQ || undefined, domain: lights && !this.lightsAll ? 'switch' : undefined, limit: lights ? 200 : 40 });
-      this.entResults = lights ? r.entities.filter((e) => e.domain === 'switch' || (this.lightsAll && e.domain === 'light')).slice(0, 60) : r.entities;
+      const lightsAll = this.lightsAll;
+      const r = await listEntities({ q: this.entQ || undefined, domain: lights && !lightsAll ? 'switch' : undefined, limit: lights ? 200 : 40 });
+      if (seq !== this.entSeq) return;
+      this.entResults = lights ? r.entities.filter((e) => e.domain === 'switch' || (lightsAll && e.domain === 'light')).slice(0, 60) : r.entities;
     } catch (err) {
+      if (seq !== this.entSeq) return;
       this.error = describeError(err);
       this.entResults = [];
     } finally {
-      this.entBusy = false;
+      if (seq === this.entSeq) this.entBusy = false;
     }
   }
 
@@ -2036,8 +2066,7 @@ export class ExplorePlanEditor extends LitElement {
       await setRenderMode(this.bundle.planVersionId, mode);
       this.stylized = null;
       await this.load();
-      this.info = mode === 'stylized' ? 'המפה מציגה עכשיו את שפת Arx' : 'המפה מציגה את תוכנית המקור';
-      setTimeout(() => (this.info = ''), 3000);
+      this.flash(mode === 'stylized' ? 'המפה מציגה עכשיו את שפת Arx' : 'המפה מציגה את תוכנית המקור', 3000);
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -2275,8 +2304,7 @@ export class ExplorePlanEditor extends LitElement {
     this.lastEdit = 'structure';
     this.levelDialog = null;
     this.setLevelFilter(r.id);
-    this.info = `המפלס "${v.name}" נוסף; פריטים חדשים יוצבו בו`;
-    setTimeout(() => (this.info = ''), 4000);
+    this.flash(`המפלס "${v.name}" נוסף; פריטים חדשים יוצבו בו`, 4000);
   }
 
   /** Edit mode: name, heights, and - for a level that is not the default - "make it the default" (patchLevel clears the
@@ -2298,8 +2326,7 @@ export class ExplorePlanEditor extends LitElement {
     if (patch.name === l.name && patch.elevation_m === l.elevation_m && patch.ceiling_height_m === l.ceiling_height_m && !patch.is_default) return; // nothing changed: no undo step
     this.studio.commit(patchLevel(doc, id, patch));
     this.lastEdit = 'structure';
-    this.info = patch.is_default ? `המפלס "${patch.name}" עודכן והוא המפלס הראשי עכשיו` : `המפלס "${patch.name}" עודכן`;
-    setTimeout(() => (this.info = ''), 4000);
+    this.flash(patch.is_default ? `המפלס "${patch.name}" עודכן והוא המפלס הראשי עכשיו` : `המפלס "${patch.name}" עודכן`, 4000);
   }
 
   /** Edit mode: removeLevel refuses (null) the default level and a level anything still sits on; the dialog then says
@@ -2327,8 +2354,7 @@ export class ExplorePlanEditor extends LitElement {
     this.lastEdit = 'structure';
     this.levelDialog = null;
     if (this.levelFilter === l.id) this.setLevelFilter(null);
-    this.info = `המפלס "${l.name}" נמחק (ביטול: Ctrl+Z)`;
-    setTimeout(() => (this.info = ''), 4000);
+    this.flash(`המפלס "${l.name}" נמחק (ביטול: Ctrl+Z)`, 4000);
   }
 
   /** The other floors of this building the person may edit, with their levels and frames, for the "מחבר אל" picker
@@ -2363,12 +2389,11 @@ export class ExplorePlanEditor extends LitElement {
       this.geomSel = { id: connectorId, kind: 'connector' };
       const f = this.linkTargets.find((x) => x.floor_id === r.target.floor_id);
       const where = `${f?.name ?? 'הקומה השנייה'} · ${f?.levels.find((l) => l.id === r.target.level_id)?.name ?? ''}`;
-      this.info = r.target.placement === 'centred'
+      this.flash(r.target.placement === 'centred'
         ? `המדרגות קושרו אל ${where}. לשתי הקומות אין מסגרת משותפת, לכן בקומה השנייה הן נוצרו במרכז התוכנית: מקם את המדרגות בקומה השנייה.`
         : r.target.placement === 'aligned' && r.target.frame === 'size'
           ? `המחבר קושר אל ${where}; בקומה השנייה הוא הונח באותו מקום בתוכנית (לשתי התוכניות אותן מידות): ודא את המיקום בקומה השנייה.`
-          : `המחבר קושר אל ${where}; הוא מופיע בטיוטה של שתי הקומות באותו מזהה`;
-      setTimeout(() => (this.info = ''), 7000);
+          : `המחבר קושר אל ${where}; הוא מופיע בטיוטה של שתי הקומות באותו מזהה`, 7000);
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -2422,8 +2447,7 @@ export class ExplorePlanEditor extends LitElement {
         return;
       }
       const r = await deleteTwin(b.planVersionId, id, floorId);
-      this.info = r.removed ? 'המחבר נמחק גם בקומה השנייה' : 'בקומה השנייה לא נמצא מחבר תאום';
-      setTimeout(() => (this.info = ''), 4000);
+      this.flash(r.removed ? 'המחבר נמחק גם בקומה השנייה' : 'בקומה השנייה לא נמצא מחבר תאום', 4000);
     } catch (err) {
       this.error = describeError(err);
     }
@@ -2532,8 +2556,7 @@ export class ExplorePlanEditor extends LitElement {
     this.remember(itemId);
     this.pickTool('connectors');
     this.geomSel = { id: r.id, kind: 'connector' };
-    this.info = 'המדרגות הונחו כמחבר: בחר ב"מחבר אל" לאיזה מפלס או קומה הן מובילות';
-    setTimeout(() => (this.info = ''), 5000);
+    this.flash('המדרגות הונחו כמחבר: בחר ב"מחבר אל" לאיזה מפלס או קומה הן מובילות', 5000);
   }
 
   /** The switch catalogue of a circuit: the synced switch and light entities, asked by domain so no other domain crowds them out. */
@@ -2572,8 +2595,7 @@ export class ExplorePlanEditor extends LitElement {
     this.circuitSel = r.id;
     this.membersMode = true;
     this.circuitPlacing = null; // another circuit: a lamp type armed for the previous one does not carry over
-    this.info = 'המעגל נוצר: לחץ על המנורות שלו';
-    setTimeout(() => (this.info = ''), 4000);
+    this.flash('המעגל נוצר: לחץ על המנורות שלו', 4000);
   }
 
   private renderCircuitTool(b: MapBundle) {
@@ -2711,8 +2733,7 @@ export class ExplorePlanEditor extends LitElement {
   private bindObject(objectId: string, a: Anchor) {
     this.edit((d) => patchObject(d, objectId, { anchor_ref: { resource_type: a.resource_type, resource_id: a.resource_id }, position: [a.position.x, a.position.y], rotation_deg: a.rotation_degrees }));
     this.bindOffer = null;
-    this.info = `העצם הוא עכשיו הגוף של ${this.anchorName(a)}`;
-    setTimeout(() => (this.info = ''), 3000);
+    this.flash(`העצם הוא עכשיו הגוף של ${this.anchorName(a)}`, 3000);
   }
 
   // ---- arrays, groups, custom items (T085) ----
@@ -2724,8 +2745,7 @@ export class ExplorePlanEditor extends LitElement {
     const item = o && lib ? itemOf(lib, o.item_id) : undefined;
     if (!doc || !o) return;
     if (this.phone.matches) {
-      this.info = 'מערכים זמינים בדסקטופ בלבד';
-      setTimeout(() => (this.info = ''), 3000);
+      this.flash('מערכים זמינים בדסקטופ בלבד', 3000);
       return;
     }
     const d = item ? arrayDefaults(item) : { spacingX: round(o.size.w_m + 0.05), spacingY: round(o.size.d_m + 0.45) };
@@ -2746,8 +2766,7 @@ export class ExplorePlanEditor extends LitElement {
     this.studio.commit(r.doc);
     this.lastEdit = 'structure';
     this.geomSel = { id: r.groupId, kind: 'group' };
-    this.info = `${r.ids.length} עצמים במערך אחד`;
-    setTimeout(() => (this.info = ''), 4000);
+    this.flash(`${r.ids.length} עצמים במערך אחד`, 4000);
   }
 
   private deleteGroup(withMembers: boolean) {
@@ -2783,8 +2802,7 @@ export class ExplorePlanEditor extends LitElement {
       this.remember(item.id);
       this.libCategory = 'recent';
       this.libQ = '';
-      this.info = `הפריט "${item.names.he}" נוסף לספרייה`;
-      setTimeout(() => (this.info = ''), 4000);
+      this.flash(`הפריט "${item.names.he}" נוסף לספרייה`, 4000);
     } catch (err) {
       this.customDialog = { ...c, busy: false, error: describeError(err) };
     }
@@ -2803,8 +2821,7 @@ export class ExplorePlanEditor extends LitElement {
       if (parsed?.format !== 'smplwise-catalog-1' || !Array.isArray(parsed.items)) throw new Error('הקובץ אינו ייצוא של ספרייה מותאמת (smplwise-catalog-1)');
       const r = await importItems(parsed.items);
       await this.loadLibraryFor(b);
-      this.info = `${r.imported} יובאו, ${r.replaced} הוחלפו`;
-      setTimeout(() => (this.info = ''), 4000);
+      this.flash(`${r.imported} יובאו, ${r.replaced} הוחלפו`, 4000);
     } catch (err) {
       this.error = err instanceof Error && !(err instanceof ApiError) ? err.message : describeError(err);
     }
@@ -2901,7 +2918,8 @@ export class ExplorePlanEditor extends LitElement {
   }
 
   private get issueIds(): string[] {
-    return this.studio.issues.filter((i) => i.severity === 'error' && i.id).map((i) => i.id as string);
+    const issues = this.studio.issues;
+    return this.memo('issueIds', [issues], () => issues.filter((i) => i.severity === 'error' && i.id).map((i) => i.id as string));
   }
 
   /** One undoable edit of the structure draft; an edit that changes nothing adds no undo step and no save. */
@@ -3059,8 +3077,7 @@ export class ExplorePlanEditor extends LitElement {
     }
     const hit = nearestWall(p, this.shownWalls(doc), b.width, b.height, WALL_PICK_PX / zoom);
     if (!hit) {
-      this.info = 'לחץ על קיר כדי להציב פתח';
-      setTimeout(() => (this.info = ''), 2500);
+      this.flash('לחץ על קיר כדי להציב פתח', 2500);
       return;
     }
     const existing = this.openingAt(doc, hit.wall, hit.t);
@@ -3094,9 +3111,14 @@ export class ExplorePlanEditor extends LitElement {
     this.hover = null;
   }
 
+  /** A timed message (MSG-1): every message of the editor comes through here. One stored timer - a newer message cancels the
+   * older one's, so an older timer never cuts a newer message short (also the same text flashed again) - and only the text it
+   * showed is cleared (a message written since stays); disconnectedCallback clears the timer. */
   private flash(text: string, ms = 3500) {
     this.info = text;
-    setTimeout(() => {
+    window.clearTimeout(this.infoTimer);
+    this.infoTimer = window.setTimeout(() => {
+      this.infoTimer = 0;
       if (this.info === text) this.info = '';
     }, ms);
   }
@@ -3104,7 +3126,9 @@ export class ExplorePlanEditor extends LitElement {
   /** A short refusal in the error colour (a curve edit the geometry cannot take), cleared like flash(). */
   private flashError(text: string, ms = 3500) {
     this.error = text;
-    setTimeout(() => {
+    window.clearTimeout(this.errorTimer);
+    this.errorTimer = window.setTimeout(() => {
+      this.errorTimer = 0;
       if (this.error === text) this.error = '';
     }, ms);
   }
@@ -3155,8 +3179,7 @@ export class ExplorePlanEditor extends LitElement {
     const hit = nearestWall(p, this.shownWalls(doc), W, H, WALL_PICK_PX / zoom);
     if (b.source !== 'api' || !b.planVersionId) {
       if (!hit) {
-        this.info = 'לחץ על קיר כדי להציב דלת';
-        setTimeout(() => (this.info = ''), 2500);
+        this.flash('לחץ על קיר כדי להציב דלת', 2500);
         return;
       }
       const dg = defaultGhost(doc, hit.wall, hit.t, p, W, H);
@@ -3173,15 +3196,13 @@ export class ExplorePlanEditor extends LitElement {
       if (token !== this.doorToken || !cur || this.tool !== 'structure' || this.studioMode !== 'markdoor') return;
       const g = ghostFromProposal(cur, r, W, H, this.wallDefaults);
       if (!ghostWall(cur, g)) {
-        this.info = 'הקיר של ההצעה לא נמצא בטיוטה; שמור ונסה שוב';
-        setTimeout(() => (this.info = ''), 4000);
+        this.flash('הקיר של ההצעה לא נמצא בטיוטה; שמור ונסה שוב', 4000);
         return;
       }
       if (!this.selectExisting(g)) this.doorGhost = g;
     } catch (err) {
       if (token !== this.doorToken) return;
-      this.info = err instanceof ApiError && err.code === 'door_proposal_timeout' ? 'ההצעה לא חושבה בזמן; לחץ שוב' : describeError(err);
-      setTimeout(() => (this.info = ''), 4500);
+      this.flash(err instanceof ApiError && err.code === 'door_proposal_timeout' ? 'ההצעה לא חושבה בזמן; לחץ שוב' : describeError(err), 4500);
     } finally {
       if (token === this.doorToken) this.doorAsking = false;
     }
@@ -3340,6 +3361,11 @@ export class ExplorePlanEditor extends LitElement {
     const d = this.curveDraft;
     const doc = this.studio.doc;
     if (!this.curveDrawing || !d?.length || !doc) return null;
+    // PERF-5: read twice per render (the hint and the canvas): built once per draft, cursor and document
+    return this.memo('curveLive', [d, doc, this.hover, b.width, b.height], () => this.buildCurveLive(b, d, doc));
+  }
+
+  private buildCurveLive(b: MapBundle, d: Pt[], doc: GeometryDoc): { path: Pt[]; lengthM: number; minRadiusM: number; count: number } {
     const h = this.hover;
     const closing = !!h && d.length >= 3 && h === d[0];
     const pts = h && !closing ? [...d, h] : d;
@@ -3404,8 +3430,7 @@ export class ExplorePlanEditor extends LitElement {
       const o = doc?.objects.find((x) => x.id === id);
       const item = o && lib ? itemOf(lib, o.item_id) : undefined;
       if (item && !circuitEligible(item)) {
-        this.info = `${item.names.he} אינו גוף תאורה`;
-        setTimeout(() => (this.info = ''), 2500);
+        this.flash(`${item.names.he} אינו גוף תאורה`, 2500);
         return;
       }
       const cid = this.circuitSel;
@@ -3465,6 +3490,16 @@ export class ExplorePlanEditor extends LitElement {
     const items = this.multi.filter((i) => (i.kind === 'wall' ? walls : i.kind === 'object' ? objects : zones).has(i.id));
     this.multiCache = { multi: this.multi, doc, zones: this.zones, items };
     return items;
+  }
+
+  /** The canvas's highlighted ids: a selected group's members, the chosen circuit's lamps, else the multi-selection (PERF-5:
+   * the multi-selection's id list is kept while the selection is the same list). */
+  private get highlightIds(): string[] {
+    const doc = this.studio.doc;
+    if (this.geomSel?.kind === 'group') return doc?.groups.find((g) => g.id === this.geomSel!.id)?.member_ids ?? EMPTY;
+    if (this.tool === 'circuits' && this.circuitSel) return doc?.circuits.find((k) => k.id === this.circuitSel)?.member_ids ?? EMPTY;
+    const shown = this.multiShown;
+    return shown.length ? this.memo('highlightIds', [shown], () => shown.map((i) => i.id)) : EMPTY;
   }
 
   /** The multi-selection the canvas and the panel show: only in the select tool, only with two or more members. */
@@ -3617,8 +3652,7 @@ export class ExplorePlanEditor extends LitElement {
     this.setSelection([]);
     if (!zs.length) return;
     if (demo) {
-      this.info = 'נתוני הדגמה: אזורים נמחקים רק מול השרת.';
-      setTimeout(() => (this.info = ''), 3000);
+      this.flash('נתוני הדגמה: אזורים נמחקים רק מול השרת.', 3000);
       return;
     }
     this.zoneBusy = true;
@@ -3855,7 +3889,8 @@ export class ExplorePlanEditor extends LitElement {
    * picker's options. */
   private get shownTags(): { tag: string; count: number }[] {
     const doc = this.studio.doc;
-    return doc ? tagCounts(doc, this.pickableZones, selectableItems(doc, this.pickableZones, this.activeLevel)) : [];
+    if (!doc) return EMPTY;
+    return this.memo('shownTags', [doc, this.zones, this.showZones, this.activeLevel], () => tagCounts(doc, this.pickableZones, selectableItems(doc, this.pickableZones, this.activeLevel)));
   }
 
   /** Select by tag (T085): every wall, object and zone with the tag that Ctrl+A would select under the level filter
@@ -3869,8 +3904,7 @@ export class ExplorePlanEditor extends LitElement {
     const hits = itemsWithTag(doc, this.pickableZones, tag, this.activeLevel);
     this.setSelection(hits);
     if (!hits.length) {
-      this.info = `אין פריטים עם התגית "${tag}" במפלס המוצג`;
-      setTimeout(() => (this.info = ''), 3000);
+      this.flash(`אין פריטים עם התגית "${tag}" במפלס המוצג`, 3000);
     }
   }
 
@@ -4011,6 +4045,25 @@ export class ExplorePlanEditor extends LitElement {
   }
 
   /** While the pointer moves: the dragged item is the selection and shows where it is going (nothing is saved yet). */
+  /** PERF-5: the drag preview is built at most once per frame, from the latest pointer move (a raw pointermove can come
+   * several times a frame). The drop and the cancel drop a move still waiting, so a late frame never brings a preview back. */
+  private queueDragMove(d: GeomDragDetail) {
+    this.dragMovePending = d;
+    if (this.dragMoveFrame) return;
+    this.dragMoveFrame = requestAnimationFrame(() => {
+      this.dragMoveFrame = 0;
+      const next = this.dragMovePending;
+      this.dragMovePending = null;
+      if (next) this.onGeomDragMove(next);
+    });
+  }
+
+  private cancelDragMove() {
+    if (this.dragMoveFrame) cancelAnimationFrame(this.dragMoveFrame);
+    this.dragMoveFrame = 0;
+    this.dragMovePending = null;
+  }
+
   private onGeomDragMove(d: GeomDragDetail) {
     const doc = this.studio.doc;
     if (this.zoneSaving && this.multiMember(d)) {
@@ -4038,8 +4091,7 @@ export class ExplorePlanEditor extends LitElement {
     if (this.zoneSaving && this.multiMember(d)) {
       // B1: a group drag dropped while the previous drop's zones are still being saved would start from polygons and
       // revisions those answers are about to replace - refused, and said so, instead of losing a delta silently
-      this.info = 'האזורים של ההזזה הקודמת עדיין נשמרים; גרור שוב בעוד רגע';
-      setTimeout(() => (this.info = ''), 3000);
+      this.flash('האזורים של ההזזה הקודמת עדיין נשמרים; גרור שוב בעוד רגע', 3000);
       return;
     }
     const m = doc ? this.multiDragged(doc, d) : null;
@@ -4195,8 +4247,7 @@ export class ExplorePlanEditor extends LitElement {
       }
       const derivedConn = kind === 'connector' ? this.studio.doc?.connectors.find((c) => c.id === id) : undefined;
       if (derivedConn && connectorDerived(derivedConn)) {
-        this.info = 'המחבר נגזר מעצם: מוחקים או עורכים את העצם עצמו'; // the server regenerates it on every save
-        setTimeout(() => (this.info = ''), 4000);
+        this.flash('המחבר נגזר מעצם: מוחקים או עורכים את העצם עצמו', 4000); // the server regenerates it on every save
         return true;
       }
       if (derivedConn && derivedConn.floor_ids.length) {
@@ -4305,8 +4356,7 @@ export class ExplorePlanEditor extends LitElement {
       }
       await copyGeometryFrom(b.planVersionId, fromVersionId);
       if (await this.loadStudio(b, true)) {
-        this.info = 'המבנה הועתק לטיוטה; בדוק מיקומים ופרסם';
-        setTimeout(() => (this.info = ''), 4000);
+        this.flash('המבנה הועתק לטיוטה; בדוק מיקומים ופרסם', 4000);
       }
     } catch (err) {
       this.error = describeError(err);
@@ -4556,8 +4606,7 @@ export class ExplorePlanEditor extends LitElement {
       const m = r.merge;
       this.discardCandidates();
       this.geomSel = null;
-      this.info = `${countLabel(ids.length, 'פריט אחד נוסף', 'פריטים נוספו')} לטיוטת המבנה${m?.removed_auto ? ` · ${m.removed_auto} קודמים הוחלפו` : ''}${m?.removed_manual_openings ? ` · ${countLabel(m.removed_manual_openings, 'פתח ידני אחד הוסר', 'פתחים ידניים הוסרו')} עם הקירות שלהם` : ''}; בדוק ופרסם`;
-      setTimeout(() => (this.info = ''), 6000);
+      this.flash(`${countLabel(ids.length, 'פריט אחד נוסף', 'פריטים נוספו')} לטיוטת המבנה${m?.removed_auto ? ` · ${m.removed_auto} קודמים הוחלפו` : ''}${m?.removed_manual_openings ? ` · ${countLabel(m.removed_manual_openings, 'פתח ידני אחד הוסר', 'פתחים ידניים הוסרו')} עם הקירות שלהם` : ''}; בדוק ופרסם`, 6000);
     } catch (err) {
       if (moved()) return;
       const e = this.acceptErrorOf(err);
@@ -4643,8 +4692,7 @@ export class ExplorePlanEditor extends LitElement {
       if (!(await this.loadStudio(this.bundle, true)) || moved()) return;
       this.rescaleCandidates();
       this.hintApplied = true;
-      this.info = `קנה מידה משוער נשמר: ≈ ${fmtScale(r.scale_m_per_px)}`;
-      setTimeout(() => (this.info = ''), 4000);
+      this.flash(`קנה מידה משוער נשמר: ≈ ${fmtScale(r.scale_m_per_px)}`, 4000);
     } catch (err) {
       if (moved() || !this.bundle) return;
       if (err instanceof ApiError && err.code === 'calibration_measured') {
@@ -4665,8 +4713,7 @@ export class ExplorePlanEditor extends LitElement {
       const r = await acceptZones(b.floorId, rooms.map((x) => ({ polygon: x.polygon, name: x.name })), false);
       this.zones = r.zones;
       this.cands = this.cands ? { ...this.cands, result: { ...this.cands.result, rooms: [] } } : null;
-      this.info = `${countLabel(rooms.length, 'חדר אחד נוסף', 'חדרים נוספו')} כאזורים; תן להם שמות בכלי "חדרים ואזורים"`;
-      setTimeout(() => (this.info = ''), 4000);
+      this.flash(`${countLabel(rooms.length, 'חדר אחד נוסף', 'חדרים נוספו')} כאזורים; תן להם שמות בכלי "חדרים ואזורים"`, 4000);
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -4758,8 +4805,7 @@ export class ExplorePlanEditor extends LitElement {
       this.showCandidates(r, 'ifc');
       this.pickTool('detect');
       const n = r.walls.length + r.openings.length + (r.objects?.length ?? 0) + (r.rooms?.length ?? 0);
-      this.info = n ? ifcT('loaded') : ifcT('nothing');
-      setTimeout(() => (this.info = ''), 4000);
+      this.flash(n ? ifcT('loaded') : ifcT('nothing'), 4000);
     } catch (err) {
       this.info = '';
       this.error = describeError(err);
@@ -4785,8 +4831,7 @@ export class ExplorePlanEditor extends LitElement {
       a.download = name;
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      this.info = pkgT('saved');
-      setTimeout(() => (this.info = ''), 3000);
+      this.flash(pkgT('saved'), 3000);
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -4841,8 +4886,7 @@ export class ExplorePlanEditor extends LitElement {
       await importPlanPackage(b.planVersionId, s.file, s.preview, s.acceptForeign);
       this.pkgImport = null;
       if (await this.loadStudio(b, true)) {
-        this.info = pkgT('imported');
-        setTimeout(() => (this.info = ''), 4000);
+        this.flash(pkgT('imported'), 4000);
       }
     } catch (err) {
       if (this.pkgImport?.file === s.file) this.pkgImport = { ...this.pkgImport, busy: null, error: describeError(err) };
@@ -4866,10 +4910,12 @@ export class ExplorePlanEditor extends LitElement {
         levels: doc.levels,
         phone: this.phone.matches,
         // an operable glass panel binds to an entity placed on this floor that reports open / closed, as a door does
-        entityChoices: this.anchors
-          .filter((x) => x.resource_type === 'ha_entity' && /^(binary_sensor|cover|lock)\./.test(x.resource_id))
-          .map((x) => ({ id: x.resource_id, name: x.label || x.entity?.name || x.resource_id }))
-          .sort((p, q) => (p.name < q.name ? -1 : p.name > q.name ? 1 : 0)),
+        entityChoices: this.memo('entityChoices', [this.anchors], () =>
+          this.anchors
+            .filter((x) => x.resource_type === 'ha_entity' && /^(binary_sensor|cover|lock)\./.test(x.resource_id))
+            .map((x) => ({ id: x.resource_id, name: x.label || x.entity?.name || x.resource_id }))
+            .sort((p, q) => (p.name < q.name ? -1 : p.name > q.name ? 1 : 0)),
+        ),
         materials: this.resolvedMaterials(this.geomPreview ?? doc),
         materialStyle: this.matStyle,
       },
@@ -4878,8 +4924,7 @@ export class ExplorePlanEditor extends LitElement {
         setMaterialStyle: (st) => (this.matStyle = st),
         setMode: (m) => {
           if ((DRAW_MODES.includes(m) || m === 'curve') && this.phone.matches) {
-            this.info = 'ציור קירות זמין בדסקטופ בלבד; בטלפון אפשר להציב ולהזיז עצמים בודדים';
-            setTimeout(() => (this.info = ''), 4000);
+            this.flash('ציור קירות זמין בדסקטופ בלבד; בטלפון אפשר להציב ולהזיז עצמים בודדים', 4000);
             return;
           }
           this.studioMode = m;
@@ -4957,8 +5002,7 @@ export class ExplorePlanEditor extends LitElement {
           this.geomSel = { id, kind: 'wall' };
         },
         say: (text) => {
-          this.info = text;
-          setTimeout(() => (this.info === text ? (this.info = '') : undefined), 4000);
+          this.flash(text, 4000);
         },
       },
     );
@@ -5027,7 +5071,12 @@ export class ExplorePlanEditor extends LitElement {
   private get rulers(): RulerOverlay[] {
     const bundle = this.bundle;
     const doc = this.studio.doc;
-    if (!bundle || !doc) return [];
+    if (!bundle || !doc) return EMPTY;
+    const keys = [bundle, doc, this.tool, this.hover, this.connStart, this.connMode, this.walkArmed, this.walkFocus, this.activeLevel, this.calib, this.measurePts, this.showEstimates];
+    return this.memo('rulers', keys, () => this.buildRulers(bundle, doc));
+  }
+
+  private buildRulers(bundle: MapBundle, doc: GeometryDoc): RulerOverlay[] {
     const { scale, estimated } = effectiveScale(doc);
     const len = (a: Pt, c: Pt) => fmtMetres(distanceM(a, c, bundle.width, bundle.height, scale), estimated, this.showEstimates);
     if (this.tool === 'connectors' && this.connStart && this.hover) return [{ a: this.connStart, b: this.hover, label: this.connMode ? CONNECTOR_LABEL[this.connMode] : '', tone: 'muted' }];
@@ -5110,8 +5159,7 @@ export class ExplorePlanEditor extends LitElement {
     this.error = '';
     try {
       await rollbackGeometry(b.planVersionId, row.id);
-      this.info = 'המבנה שוחזר ופורסם; הצופים רואים אותו עכשיו';
-      setTimeout(() => (this.info = ''), 4000);
+      this.flash('המבנה שוחזר ופורסם; הצופים רואים אותו עכשיו', 4000);
       await this.loadStudio(b, true);
       await this.loadVersions();
     } catch (err) {
@@ -5193,6 +5241,12 @@ export class ExplorePlanEditor extends LitElement {
     }
   }
 
+  /** The walls the floor-image alignment draws, as segments (PERF-5: sampled only when that view is shown, once per document). */
+  private alignWalls(b: MapBundle): [[number, number], [number, number]][] {
+    const doc = this.studio.doc;
+    return this.memo('alignWalls', [doc, b.width, b.height], () => doc?.walls.map((w) => sampledWall(w, b.width, b.height)).flatMap((pl) => pl.slice(1).map((p, i) => [[pl[i][0], pl[i][1]], [p[0], p[1]]] as [[number, number], [number, number]])) ?? []);
+  }
+
   private renderFloorImages(b: MapBundle) {
     if (b.source === 'demo' || !b.permissions.edit || this.phone.matches) return nothing; // a desktop tool, like the structure editor
     const fi = this.floorImages;
@@ -5207,7 +5261,6 @@ export class ExplorePlanEditor extends LitElement {
         ${row ? html`<sw-button size="sm" variant="ghost" icon="trash" data-floor-image-delete=${variant} ?disabled=${this.imageBusy} @click=${() => void this.removeImage(variant)}>הסר</sw-button>` : nothing}
       </span>
     </div>`;
-    const walls = this.studio.doc?.walls.map((w) => sampledWall(w, b.width, b.height)).flatMap((pl) => pl.slice(1).map((p, i) => [[pl[i][0], pl[i][1]], [p[0], p[1]]] as [[number, number], [number, number]])) ?? [];
     return html`<sw-card heading="תמונת הקומה" subheading="תמונה של הקומה מכל מקור (הדמיה, תוכנית צבעונית, צילום מודל); ממוקמת פעם אחת ומוצגת במפה מתחת למצבי החדרים" data-floor-images>
       ${slot('off', off, 'תמונה בסיסית', 'PNG או JPEG עד 12 MB; מוצגת תמיד')}
       ${slot('on', on, 'תמונה עם תאורה', 'אופציונלי: אותה תמונה עם אורות; מוצגת רק בחדרים שהתאורה בהם דלוקה')}
@@ -5215,7 +5268,7 @@ export class ExplorePlanEditor extends LitElement {
         ? html`<div class="row" style="margin-block-start:8px"><span class="lbl">יישור על התוכנית<span class="muted">גרור את הפינות אל פינות הקומה בתוכנית (או את התמונה כולה); מקשי החצים מכוונים פינה מסומנת</span></span>
             <label class="chk"><input type="checkbox" .checked=${this.alignShowPlan} @change=${(e: Event) => (this.alignShowPlan = (e.target as HTMLInputElement).checked)} /> הצג את תוכנית הרקע</label></div>
           <sw-floor-image-align data-floor-image-align .planWidth=${b.width} .planHeight=${b.height} .planUrl=${b.imageUrl} .showPlan=${this.alignShowPlan} .imageUrl=${floorImageUrl(off ?? on)}
-            .corners=${draft?.corners ?? [[0, 0], [1, 0], [1, 1], [0, 1]]} .opacity=${draft?.opacity ?? 1} .rooms=${this.zones.map((z) => ({ id: z.id, polygon: z.polygon }))} .walls=${walls} ?disabled=${this.imageBusy}
+            .corners=${draft?.corners ?? [[0, 0], [1, 0], [1, 1], [0, 1]]} .opacity=${draft?.opacity ?? 1} .rooms=${this.zones.map((z) => ({ id: z.id, polygon: z.polygon }))} .walls=${this.alignWalls(b)} ?disabled=${this.imageBusy}
             @corners-change=${(e: CustomEvent<{ corners: Corners }>) => (this.alignDraft = { corners: e.detail.corners, opacity: draft?.opacity ?? 1 })}></sw-floor-image-align>
           <div class="two">
             <sw-field label="שקיפות התמונה במפה"><input type="range" min="0.2" max="1" step="0.05" data-ltr data-floor-image-opacity .value=${String(draft?.opacity ?? 1)} @input=${(e: Event) => (this.alignDraft = { corners: draft?.corners ?? [[0, 0], [1, 0], [1, 1], [0, 1]], opacity: parseFloat((e.target as HTMLInputElement).value) })} /></sw-field>
@@ -5800,14 +5853,14 @@ export class ExplorePlanEditor extends LitElement {
                   <button title="בצע שוב (Ctrl+Y)" aria-label="בצע שוב" data-rail-redo ?disabled=${this.detectBusy || !this.redoTarget} @click=${() => this.redoAny()}><sw-icon name="refresh" size=${18}></sw-icon></button>
                 </div>
                 <sw-plan-canvas editable alwaysLabel .placing=${!!this.placing || !!this.drawing || this.studioPlacing} .planWidth=${b.width} .planHeight=${b.height} .plan=${b.planSvg} .imageUrl=${b.imageUrl} .hideImage=${!this.planImage} .markers=${this.markers} .selectedId=${this.selectedId}
-                  .zones=${this.planZones} .selectedZoneId=${this.selectedZoneId} .selectedZoneVertex=${this.zoneVertexSel && this.zoneVertexSel.zoneId === this.selectedZoneId ? this.zoneVertexSel.index : null} .draftPoints=${this.drawing ?? []}
-                  .geometry=${this.geomPreview ?? this.studio.doc} .geomDrag=${this.geomDragMode} .structureLevel=${this.activeLevel} .selectedGeomId=${this.geomSel?.id ?? null} .highlightIds=${this.geomSel?.kind === 'group' ? (this.studio.doc?.groups.find((g) => g.id === this.geomSel!.id)?.member_ids ?? []) : this.tool === 'circuits' && this.circuitSel ? (this.studio.doc?.circuits.find((k) => k.id === this.circuitSel)?.member_ids ?? []) : this.multiShown.map((i) => i.id)} .selectedVertex=${this.geomSel?.vertex ?? null} .issueIds=${this.issueIds}
+                  .zones=${this.planZones} .selectedZoneId=${this.selectedZoneId} .selectedZoneVertex=${this.zoneVertexSel && this.zoneVertexSel.zoneId === this.selectedZoneId ? this.zoneVertexSel.index : null} .draftPoints=${this.drawing ?? EMPTY}
+                  .geometry=${this.geomPreview ?? this.studio.doc} .geomDrag=${this.geomDragMode} .structureLevel=${this.activeLevel} .selectedGeomId=${this.geomSel?.id ?? null} .highlightIds=${this.highlightIds} .selectedVertex=${this.geomSel?.vertex ?? null} .issueIds=${this.issueIds}
                   .cornerSnapPx=${this.straightDrawing || this.curveDrawing ? CORNER_SNAP_PX : 0}
-                  .curveHandles=${this.tool === 'structure' && this.studioMode === 'curve'} .selectedSegment=${this.geomSel?.segment ?? null} .arcPreview=${this.curveLive(b)?.path ?? []}
-                  .curveDraft=${this.curveDraft ?? []} .curvePointHandles=${(this.geomSelectMode && this.studioMode !== 'curve') || this.tool === 'select' || (this.curveDrawing && !this.curveDraft)}
-                  .wallDraft=${this.wallDraft ?? []} .hoverPoint=${this.studioPlacing ? this.hover : null} .rulers=${this.rulers} .gridStep=${this.studio.doc ? this.gridPx(this.studio.doc) : 0} .guides=${this.guides} .catalog=${this.catalogLookup}
+                  .curveHandles=${this.tool === 'structure' && this.studioMode === 'curve'} .selectedSegment=${this.geomSel?.segment ?? null} .arcPreview=${this.curveLive(b)?.path ?? EMPTY}
+                  .curveDraft=${this.curveDraft ?? EMPTY} .curvePointHandles=${(this.geomSelectMode && this.studioMode !== 'curve') || this.tool === 'select' || (this.curveDrawing && !this.curveDraft)}
+                  .wallDraft=${this.wallDraft ?? EMPTY} .hoverPoint=${this.studioPlacing ? this.hover : null} .rulers=${this.rulers} .gridStep=${this.studio.doc ? this.gridPx(this.studio.doc) : 0} .guides=${this.guides} .catalog=${this.catalogLookup}
                   .ghost=${this.doorGhost && this.studio.doc ? ghostDoc(this.studio.doc, this.doorGhost, this.wallDefaults) : null} .ghostNote=${this.doorGhost?.note ?? ''} .ghostWarn=${!!this.doorGhost && (this.doorGhost.found === 'default' || !!this.doorGhost.warning)}
-                  .ghostHandles=${this.doorGhost && this.studio.doc ? ghostHandles(this.studio.doc, this.doorGhost, b.width, b.height) : []} @ghost-handle=${(e: CustomEvent<GhostHandleDetail>) => this.onGhostHandle(e.detail)}
+                  .ghostHandles=${this.doorGhost && this.studio.doc ? ghostHandles(this.studio.doc, this.doorGhost, b.width, b.height) : EMPTY} @ghost-handle=${(e: CustomEvent<GhostHandleDetail>) => this.onGhostHandle(e.detail)}
                   .candidates=${this.tool === 'detect' && this.cands ? this.cands.set : null} .candidateStates=${this.shownCandStates} .selectedCandidateId=${this.candSel} .candidateEditable=${this.tool === 'detect' && !this.narrow && !this.busy}
                   @candidate-select=${(e: CustomEvent<{ id: string }>) => this.toggleCandidate(e.detail.id)}
                   @candidate-drag=${(e: CustomEvent<{ id: string; index: number; x: number; y: number }>) => this.onCandidateDrag(e.detail)} .anchorPositions=${this.anchorPositions}
@@ -5815,9 +5868,9 @@ export class ExplorePlanEditor extends LitElement {
                   .multiDrag=${this.multiShown.length >= 2 && this.geomDragMode === 'all'} .marquee=${this.multiOn} .panMode=${this.panMode}
                   @geom-box=${(e: CustomEvent<{ x0: number; y0: number; x1: number; y1: number; add: boolean }>) => this.onGeomBox(e.detail)}
                   @geom-select=${(e: CustomEvent<{ id: string; kind: GeomKind; vertex?: number; add?: boolean; segment?: number }>) => this.onCanvasSelect(e.detail)}
-                  @geom-drag-move=${(e: CustomEvent<GeomDragDetail>) => this.onGeomDragMove(e.detail)}
-                  @geom-drag-cancel=${() => { this.geomPreview = null; this.guides = []; this.guideCache = null; if (!this.zoneSaving) this.zonePreview = null; this.dupId = null; }}
-                  @geom-drag=${(e: CustomEvent<GeomDragDetail>) => this.onGeomDrag(e.detail)}
+                  @geom-drag-move=${(e: CustomEvent<GeomDragDetail>) => this.queueDragMove(e.detail)}
+                  @geom-drag-cancel=${() => { this.cancelDragMove(); this.geomPreview = null; this.guides = []; this.guideCache = null; if (!this.zoneSaving) this.zonePreview = null; this.dupId = null; }}
+                  @geom-drag=${(e: CustomEvent<GeomDragDetail>) => { this.cancelDragMove(); this.onGeomDrag(e.detail); }}
                   @zone-select=${(e: CustomEvent<{ id: string; add?: boolean }>) => this.onZoneSelect(e.detail.id, !!e.detail.add)}
                   @zone-edit=${(e: CustomEvent<{ id: string; polygon: ZonePoint[] }>) => { const z = this.zones.find((x) => x.id === e.detail.id); this.zoneVertexSel = null; if (z) void this.patchZone(z, { polygon: e.detail.polygon }); }}
                   @zone-vertex-select=${(e: CustomEvent<{ id: string; index: number }>) => { if (e.detail.id === this.selectedZoneId) this.zoneVertexSel = { zoneId: e.detail.id, index: e.detail.index }; }}
