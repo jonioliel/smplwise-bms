@@ -206,6 +206,10 @@ else
   git -C "$WT" checkout -q -f --detach "origin/$BR" || { verdict "$ERES/none.json" "$SHA0" "git checkout in $WT failed"; exit 1; }
 fi
 SHA="$(git -C "$WT" rev-parse --short HEAD)"
+# CR-BE-GATES-2436 backend lint lane (non-blocking, information only; 20261113): ruff F count of the branch under check, printed to the log
+if [ "${GATE_BACKEND_LINT:-1}" != 0 ] && [ -f "$G/lint_backend.py" ]; then
+  GATE_LINT_ROOT="$WT" timeout -k 5 300 nice -n 10 "$PY3" "$G/lint_backend.py" 2>&1 | head -20 || true
+fi
 VIS=()
 BASE_SHA="$(git -C "$WT" rev-parse --short "$(git -C "$WT" merge-base HEAD "$BASE" 2>/dev/null || echo "$BASE")" 2>/dev/null)"
 if [ "${ENTRY_SKIP_PLAN:-0}" != 1 ]; then
