@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installParityMock } from './access-parity-mocks';
+import { pickOption } from './helpers/wk-choose';
 import { installTriageMock, openTriage, PAIRED, PANEL, SCREEN, type TriageOptions } from './wiskey-triage-mocks';
 
 // WISKEY-CONFLICTS-2400 (integration plan task T5): the conflicts and fleet alerts screen (#/wiskey/conflicts, #/wiskey/alerts) and its
@@ -132,7 +133,9 @@ test.describe('WISKEY-CONFLICTS-2400: conflicts', () => {
     await expect(page.locator(`${PANEL} [data-wkt-review]`)).toHaveCount(0);
     await page.locator(`${PANEL} [data-wkt-tab="alerts"]`).click();
     await expect(page.locator(`${PANEL} [data-wkt-snooze]`)).toHaveCount(0);
-    await expect(page.locator(`${PANEL} [data-wkt-notify-select]`)).toBeDisabled();
+    // AUDIT30-WK: sw-dropdown has no disabled state; the locked pick is inert + aria-disabled
+    await expect(page.locator(`${PANEL} [data-wkt-notify-select]`)).toHaveAttribute('aria-disabled', 'true');
+    await expect(page.locator(`${PANEL} [data-wkt-notify-select]`)).toHaveAttribute('inert', '');
     expect(mock.calls.filter((c) => c.method !== 'GET')).toEqual([]);
     await shot(page, info, 'read-only');
   });
@@ -154,8 +157,8 @@ test.describe('WISKEY-CONFLICTS-2400: fleet alerts', () => {
     await page.locator(`${PANEL} [data-wkt-alert="entry-c/offline"] [data-wkt-snooze]`).click();
     const dlg = page.locator(`${PANEL} sw-dialog[data-wkt-alert-dialog]`);
     await expect(dlg).toHaveAttribute('open', '');
-    await dlg.locator('[data-wkt-duration]').selectOption('240');
-    await dlg.locator('[data-wkt-reason]').selectOption('network_work');
+    await pickOption(dlg.locator('[data-wkt-duration]'), '240');
+    await pickOption(dlg.locator('[data-wkt-reason]'), 'network_work');
     await shot(page, info, 'alerts-snooze-dialog');
     await dlg.locator('[data-wkt-alert-ok]').click();
     await expect(page.locator(`${PANEL} [data-wkt-alert="entry-c/offline"] [data-wkt-result="completed"]`)).toBeVisible();
@@ -189,7 +192,7 @@ test.describe('WISKEY-CONFLICTS-2400: fleet alerts', () => {
     const sel = page.locator(`${PANEL} [data-wkt-notify-select]`);
     await expect(page.locator(`${PANEL} [data-wkt-notify]`)).toHaveAttribute('data-wkt-notify', 'off');
     await expect(page.locator(`${PANEL} [data-wkt-notify]`)).toContainText('שעות שקט');
-    await sel.selectOption('on');
+    await pickOption(sel, 'on');
     await expect(page.locator(`${PANEL} [data-wkt-notify]`)).toHaveAttribute('data-wkt-notify', 'on');
     expect(mock.calls.filter((c) => c.method === 'PUT')).toEqual([{ method: 'PUT', path: 'triage/settings', body: { notify: true } }]);
   });

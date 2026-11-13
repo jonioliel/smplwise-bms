@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { installStationsMock, newMock, openStations, type StationsMock } from './wiskey-stations-mocks';
 import { tallDesktop } from './helpers/tall-desktop';
+import { ddItems, ddValue, pickOption } from './helpers/wk-choose';
 
 // CR-036 slice S6 - the native stations and doors screen ("תחנות ודלתות") behind the real shell, against a MOCKED backend
 // (tests/wiskey-stations-mocks.ts: invented stations, drawn stills, recorded writes; no WisKey, no Home Assistant, no station).
@@ -621,10 +622,10 @@ test.describe('wiskey-stations: announcements', () => {
     const dlg = page.locator(`${SCREEN} wk-announce-dialog`);
     await expect(dlg.locator('[data-wk-engine]')).toHaveCount(0); // not in the way of the clean composer
     await dlg.locator('[data-wk-announce-more]').click();
-    await expect(dlg.locator('[data-wk-engine] option')).toHaveCount(2);
-    await expect(dlg.locator('[data-wk-language]')).toHaveValue('he');
-    await dlg.locator('[data-wk-engine]').selectOption('tts.cloud');
-    await expect(dlg.locator('[data-wk-language] option')).toHaveCount(1);
+    await expect.poll(async () => (await ddItems(dlg.locator('[data-wk-engine]'))).length).toBe(2);
+    await expect.poll(() => ddValue(dlg.locator('[data-wk-language]'))).toBe('he');
+    await pickOption(dlg.locator('[data-wk-engine]'), 'tts.cloud');
+    await expect.poll(async () => (await ddItems(dlg.locator('[data-wk-language]'))).length).toBe(1);
     await dlg.locator('[data-wk-announce-message]').fill('test');
     await dlg.locator('[data-wk-target]').first().click();
     await dlg.locator('[data-wk-announce-send]').click();

@@ -14,3 +14,7 @@ export async function pickOption(el: Locator, id: string): Promise<void> {
 
 /** The chosen id of a <sw-dropdown> (its `value` property), for `expect.poll`. */
 export const ddValue = (el: Locator): Promise<string> => el.evaluate((n) => (n as HTMLElement & { value: string }).value);
+
+/** AUDIT30-WK: the options of a <sw-dropdown> (its `items` property; the listbox renders them only while open). */
+export const ddItems = (el: Locator): Promise<{ id: string; label: string }[]> =>
+  el.evaluate((n) => (n as HTMLElement & { items: { id: string; label: string }[] }).items.map((i) => ({ id: i.id, label: i.label })));

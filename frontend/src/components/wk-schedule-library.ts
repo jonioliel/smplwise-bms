@@ -3,6 +3,8 @@ import { customElement, property, state } from 'lit/decorators.js';
 import './sw-badge';
 import './sw-card';
 import './sw-dialog';
+import './sw-dropdown';
+import type { DropdownChange } from './sw-dropdown';
 import './sw-drawer';
 import './sw-icon';
 import './wk-action-button';
@@ -290,8 +292,7 @@ export class WkScheduleLibrary extends LitElement {
       align-items: center;
       gap: var(--sw-s-2);
     }
-    input,
-    select {
+    input {
       box-sizing: border-box;
       min-block-size: var(--se-hit);
       padding: 0 var(--sw-s-3);
@@ -314,7 +315,8 @@ export class WkScheduleLibrary extends LitElement {
     input[aria-invalid='true'] {
       border-color: var(--sw-danger);
     }
-    label.f {
+    label.f,
+    div.f {
       display: flex;
       flex-direction: column;
       gap: 2px;
@@ -903,11 +905,11 @@ export class WkScheduleLibrary extends LitElement {
     return html`<div class="panel" data-se-assess>
       <h4><sw-icon name="cpu" size=${14}></sw-icon>${sed('assessTitle')}</h4>
       <div class="line">
-        <label class="f">${sed('pickStation')}
-          <select data-se-assess-station .value=${this.assessStation} @change=${(ev: Event) => (this.assessStation = (ev.target as HTMLSelectElement).value)}>
-            ${online.map((s) => html`<option value=${s.id} ?selected=${s.id === this.assessStation}>${s.name}</option>`)}
-          </select>
-        </label>
+        <div class="f"><span>${sed('pickStation')}</span>
+          <sw-dropdown data-se-assess-station label=${sed('pickStation')} .value=${this.assessStation}
+            .items=${online.map((s) => ({ id: s.id, label: s.name }))}
+            @change=${(ev: CustomEvent<DropdownChange>) => (this.assessStation = ev.detail.id)}></sw-dropdown>
+        </div>
         <wk-action-button icon="search" data-se-assess-run ?busy=${this.busy === 'assess'} ?disabled=${busy || !valid || !this.assessStation || !this.live} @click=${() => void this.runAssess()}>${sed('assessRun')}</wk-action-button>
       </div>
       ${this.busy === 'assess' ? html`<span class="s">${sed('reading')}</span>` : nothing}
