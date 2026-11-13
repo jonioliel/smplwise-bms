@@ -13,6 +13,11 @@
     "preview:public": "vite preview -c vite.public.config.ts --host 127.0.0.1 --port 4175",
     "preview": "vite preview --host 127.0.0.1 --port 4173",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint src || exit 0",
+    "report:budget": "node scripts/bundle-budget.mjs",
+    "report:api-client": "node scripts/api-client-check.mjs",
+    "report:unused-exports": "node scripts/unused-exports.mjs",
+    "report:gates": "npm run lint && npm run report:budget && npm run report:api-client && npm run report:unused-exports",
     "shots": "playwright test -c playwright.config.ts",
     "visual": "node scripts/visual.mjs",
     "visual:test": "node --test scripts/visual.test.mjs"
@@ -26,9 +31,12 @@
     "@playwright/test": "^1.63.0",
     "@types/node": "^26.5.1",
     "@types/three": "^0.186.0",
+    "eslint": "10.13.0",
+    "eslint-plugin-lit": "2.3.1",
     "gltf-validator": "2.0.0-dev.3.10",
     "rollup": "npm:@rollup/wasm-node@^4.63.2",
     "typescript": "^5.9.3",
+    "typescript-eslint": "8.72.1",
     "vite": "^6.4.5"
   },
   "overrides": {
