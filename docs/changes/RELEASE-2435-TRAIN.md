@@ -28,8 +28,9 @@ Every verdict file was read on the runner before the merge (`~/smplwise-results/
 | Commit | What |
 |---|---|
 | 775fd451d | release: 2.43.5 - version, changelog and API inventory (1908 routes: + `GET /system/video-services`, `PUT` / `DELETE /system/video-services/selection`) |
-| (this document) | docs |
-| (next) | release: 2.43.5 - rebuilt UI (`npm run build:addon` on the runner) |
+| c55e9d0f4 | docs (this document) |
+| e528c3b6d | release: 2.43.5 - rebuilt UI (`npm run build:addon` on the runner at c55e9d0f4; the build waited ~90 min for the runner lock behind an entry check) |
+| (next) | docs: the receipts below completed; the full release gate runs on that head |
 
 `management/tasks.json` and `test_catalog.json` are not changed; no view regenerated.
 
@@ -50,7 +51,11 @@ Local: workstation, main checkout `.venv` Python 3.12, Node 24.21.0; `frontend/n
 | Check | Where / SHA | Result |
 |---|---|---|
 | `npx tsc --noEmit` | 775fd451d | exit 0 |
-| backend: `test_health_go2rtc_2430`, `test_video_services_2431`, `test_remote_access`, `test_go2rtc_stream_sync_2436`, `test_go2rtc_big_media`, `test_rbac_matrix`, `test_notice_tvsettings_2380` | 775fd451d | PENDING |
+| backend: `test_health_go2rtc_2430`, `test_video_services_2431`, `test_remote_access`, `test_go2rtc_stream_sync_2436`, `test_go2rtc_big_media`, `test_rbac_matrix`, `test_notice_tvsettings_2380` | 775fd451d | **165 passed** (exit 0) |
+| `scripts/release_check.py` | e528c3b6d | one version 2.43.5; no new migration; only `[FAIL] git tag v2.43.5 not yet`; RESULT: ready |
+| pixel proof on the runner | 775fd451d | 138 passed, 36 skipped, 0 failed (section 3) |
+
+The full release gate's verdict is recorded in the release report, not here (this document is part of the gated head).
 
 ## 5. Version commit (`775fd451d`)
 
