@@ -23,6 +23,12 @@ const EDITOR = 'wiskey-person-editor';
 const NOW = '2026-10-12T10:00:00Z';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const settle = (page: Page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+/** AUDIT30-H (finding 16): the people filters are <sw-dropdown> (no native <select>): open the chip, press the option. */
+const pickIn = async (page: Page, dropdown: string, id: string) => {
+  const dd = page.locator(dropdown);
+  await dd.locator('[data-dropdown-chip]').click();
+  await dd.locator(`[role="option"][data-id="${id}"]`).click();
+};
 const desktopOnly = (info: TestInfo) => test.skip(info.project.name !== 'desktop', 'desktop project: functional spec');
 const shot = (page: Page, info: TestInfo, name: string) => settle(page).then(() => page.screenshot({ path: info.outputPath(`${name}.png`) }));
 
@@ -176,7 +182,7 @@ test.describe('the page offers only what the server allows', () => {
     expect(await menu(page)).toEqual(['activate', 'cards', 'photo', 'archive', 'delete']); // switched off
     await closeActions(page);
     await page.keyboard.press('Escape');
-    await page.locator(`${SCREEN} select[data-wiskey-people-filter="state"]`).selectOption('archived');
+    await pickIn(page, `${SCREEN} sw-dropdown[data-wiskey-people-filter="state"]`, 'archived');
     await expect(page.locator(`${SCREEN} [data-person-row="p10"]`)).toBeVisible();
     await openPerson(page, 'p10');
     await openActions(page);
@@ -361,7 +367,7 @@ test.describe('the other actions', () => {
     await closeActions(page);
     await page.keyboard.press('Escape');
     await expect(page.locator(`${SCREEN} [data-person-row="p2"]`)).toHaveCount(0); // the list is read again: not among the current people
-    await page.locator(`${SCREEN} select[data-wiskey-people-filter="state"]`).selectOption('archived');
+    await pickIn(page, `${SCREEN} sw-dropdown[data-wiskey-people-filter="state"]`, 'archived');
     await openPerson(page, 'p2');
     await openActions(page);
     expect(await menu(page)).toContain('restore');

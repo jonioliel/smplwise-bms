@@ -52,7 +52,13 @@ const lastQuery = (st: PeopleMock): URLSearchParams => new URLSearchParams(peopl
 const shot = (page: Page, info: TestInfo, name: string) => settle(page).then(() => page.screenshot({ path: info.outputPath(`${name}.png`) }));
 const noOverflow = async (page: Page) => expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), 'horizontal overflow of the page').toBeLessThanOrEqual(1);
 const names = async (page: Page) => (await rows(page).locator('[data-wiskey-person-name]').allTextContents()).map((s) => s.trim());
-const choose = async (page: Page, name: string, value: string) => page.locator(`${SCREEN} select[data-wiskey-people-filter="${name}"]`).selectOption(value);
+/** AUDIT30-H (finding 16): the people filters are <sw-dropdown> (no native <select>): open the chip, press the option. */
+const pickIn = async (page: Page, dropdown: string, id: string) => {
+  const dd = page.locator(dropdown);
+  await dd.locator('[data-dropdown-chip]').click();
+  await dd.locator(`[role="option"][data-id="${id}"]`).click();
+};
+const choose = async (page: Page, name: string, value: string) => pickIn(page, `${SCREEN} sw-dropdown[data-wiskey-people-filter="${name}"]`, value);
 
 test.describe('the people screen in every skin (light and dark, one project each)', () => {
   for (const skin of SKINS) {
@@ -131,8 +137,8 @@ test.describe('the data path: typed reads only, filters are the server\'s', () =
     const st = newMock('admin');
     await open(page, st);
     await ready(page);
-    await page.locator(`${SCREEN} select[data-people-profile-field]`).selectOption('department');
-    await page.locator(`${SCREEN} select[data-people-profile-value]`).selectOption('אבטחה');
+    await pickIn(page, `${SCREEN} sw-dropdown[data-people-profile-field]`, 'department');
+    await pickIn(page, `${SCREEN} sw-dropdown[data-people-profile-value]`, 'אבטחה');
     await expect.poll(() => lastQuery(st).getAll('profile')).toEqual(['department=אבטחה']);
     await expect(rows(page)).toHaveCount(1);
     await expect(page.locator(`${SCREEN} [data-people-profile-clear="department"]`)).toContainText('אבטחה');
@@ -283,8 +289,8 @@ test.describe('views, columns, selection', () => {
     await expect(page.locator(`${SCREEN} th[data-col="credentials"]`)).toHaveCount(0);
     await page.locator(`${SCREEN} [data-people-columns]`).click();
     await expect(page.locator(`${SCREEN} [data-people-column="credentials"]`)).toHaveCount(0);
-    await expect(page.locator(`${SCREEN} select[data-wiskey-people-filter="credential"]`)).toHaveCount(0);
-    await expect(page.locator(`${SCREEN} select[data-people-profile-field]`)).toHaveCount(0);
+    await expect(page.locator(`${SCREEN} [data-wiskey-people-filter="credential"]`)).toHaveCount(0);
+    await expect(page.locator(`${SCREEN} [data-people-profile-field]`)).toHaveCount(0);
     await expect(page.locator(`${SCREEN} [data-wiskey-people-add]`)).toHaveCount(0);
     expect(st.hits.filter((h) => /credential=|profile=/.test(h))).toEqual([]);
     await shot(page, info, 'operator-table');
@@ -298,7 +304,11 @@ test.describe('views, columns, selection', () => {
     await ready(page);
     await expect(page.locator(`${SCREEN} th[data-col="employee"]`)).toHaveCount(0);
     await expect(page.locator(`${SCREEN} [data-wiskey-people-search]`)).toHaveAttribute('placeholder', 'חיפוש לפי שם');
-    await expect(page.locator(`${SCREEN} select[data-wiskey-people-filter="sort"] option[value="employee"]`)).toHaveCount(0);
+    const sort = page.locator(`${SCREEN} sw-dropdown[data-wiskey-people-filter="sort"]`);
+    await sort.locator('[data-dropdown-chip]').click();
+    await expect(sort.locator('[role="option"][data-id="name"]')).toBeVisible();
+    await expect(sort.locator('[role="option"][data-id="employee"]')).toHaveCount(0);
+    await page.keyboard.press('Escape');
     await expect(page.locator(`${SCREEN} [data-wiskey-person-employee]`)).toHaveCount(0);
   });
 
