@@ -49,6 +49,10 @@ function deepActive(): HTMLElement | null {
   return a as HTMLElement | null;
 }
 
+/** CR-HOME-RELOAD-2436 (06:HOME-1 b): pushes are throttled, not debounced (as devices-building.ts REFRESH_WINDOW_MS): the first push opens
+ * this window, every push inside it rides the same reload, so a busy site still refreshes the sheet about this often instead of never. */
+export const SHEET_RELOAD_WINDOW_MS = 400;
+
 const SECTION_LABEL: Record<Exclude<QuickSection, 'quick'>, HsKey> = {
   lighting: 'qcSecLighting', switches: 'qcSecSwitches', climate: 'qcSecClimate', heating: 'qcSecHeating', covers: 'qcSecCovers', media: 'qcSecMedia', sensors: 'qcSecSensors',
   cameras: 'qcSecCameras', scenes: 'qcSecScenes', schedules: 'qcSecSchedules', events: 'qcSecEvents',
@@ -120,6 +124,9 @@ export class AreaQuickSheet extends LitElement {
   private releaseScroll: (() => void) | null = null;
   private stopHa: (() => void) | null = null;
   private reloadTimer = 0;
+  /** CR-HOME-RELOAD-2436 (06:HOME-1 b): a quiet reload in flight, and a push during it (exactly one more reload after it). */
+  private reloading = false;
+  private reloadAgain = false;
   private loadSeq = 0;
   private drag: { y0: number; t0: number; id: number; base: number; last: number; lastT: number; v: number } | null = null;
   /** The last pointer sequence moved the sheet: its trailing click is not a tap. */
@@ -1304,7 +1311,10 @@ export class AreaQuickSheet extends LitElement {
     this.toggleAttribute('data-editing', this.editing);
     this.toggleAttribute('data-ltr', getComputedStyle(this.parentElement ?? document.documentElement).direction === 'ltr');
     this.applyRest();
-    if (changed.has('open') || (changed.has('area') && this.open)) {
+    // CR-HOME-RELOAD-2436 (06:HOME-1 b): the home screen passes a fresh area object after every tree refetch (its live counts, drawn from
+    // `area` itself); only ANOTHER area reloads the body - the same area's own changes arrive by the pushes below
+    const areaSwitched = changed.has('area') && (changed.get('area') as DeviceArea | null | undefined)?.area_id !== this.area?.area_id;
+    if (changed.has('open') || (areaSwitched && this.open)) {
       if (this.open) this.onOpen(changed.has('open'));
       else if (changed.get('open') === true) this.onClose();
     }
@@ -1341,6 +1351,10 @@ export class AreaQuickSheet extends LitElement {
     this.releaseScroll?.();
     this.releaseScroll = null;
     this.stopLive();
+    // CR-HOME-RELOAD-2436 (06:HOME-1 c): once the close transition is over, the closed sheet lets go of the area's body (its camera cards
+    // and lists unmount); a reopen inside CLOSE_MS clears this timer in onOpen and keeps the body
+    window.clearTimeout(this.hideTimer);
+    this.hideTimer = window.setTimeout(() => this.dropBody(), CLOSE_MS);
     const back = this.opener;
     this.opener = null;
     // focus returns to the opener after a KEYBOARD close (Escape, the grabber's keys); a pointer close (scrim, flick, the close button)
@@ -1348,6 +1362,18 @@ export class AreaQuickSheet extends LitElement {
     const byKey = this.closedByKey;
     this.closedByKey = false;
     if (byKey && back?.isConnected) requestAnimationFrame(() => back.focus({ preventScroll: true }));
+  }
+
+  /** CR-HOME-RELOAD-2436 (06:HOME-1 c): a closed sheet keeps no area body; an answer still in flight is dropped (loadSeq). */
+  private dropBody() {
+    this.hideTimer = 0;
+    if (this.open) return;
+    ++this.loadSeq;
+    this.detail = null;
+    this.scenes = [];
+    this.schedules = [];
+    this.events = [];
+    this.error = '';
   }
 
   /** The pop-up starts where the pressed element is (its rectangle moved and scaled onto the panel's resting box). */
@@ -1546,7 +1572,11 @@ export class AreaQuickSheet extends LitElement {
     this.stopLive();
     if (!isApi()) return;
     this.stopHa = subscribeHa((m) => {
-      if (m.type === 'entity_state_changed' || m.type === 'structure_changed') this.scheduleReload();
+      // CR-HOME-RELOAD-2436 (06:HOME-1 b, as devices-area.ts): only a push about one of this area's own entities reloads it (until the body
+      // is loaded every push may be one of them); a structure change may move an entity in or rename: it always reloads
+      if (m.type === 'entity_state_changed') {
+        if (!this.detail || this.entityIds.has(m.entity.entity_id)) this.scheduleReload();
+      } else if (m.type === 'structure_changed') this.scheduleReload();
     });
     // AREA-PRESENCE-LINE-2351: the people part does not come from entity pushes - a quiet 30 s read while open, the line on and visible
     this.presTimer = window.setInterval(() => {
@@ -1562,6 +1592,8 @@ export class AreaQuickSheet extends LitElement {
     this.stopHa?.();
     this.stopHa = null;
     window.clearTimeout(this.reloadTimer);
+    this.reloadTimer = 0; // the throttle's guard: a stale id would block every later reload
+    this.reloadAgain = false;
     window.clearInterval(this.presTimer);
     this.presTimer = 0;
   }
@@ -1577,9 +1609,37 @@ export class AreaQuickSheet extends LitElement {
     }
   }
 
+  /** CR-HOME-RELOAD-2436 (06:HOME-1 b): a throttle, not a resetting debounce (that starves while pushes keep coming): the first push opens
+   * a SHEET_RELOAD_WINDOW_MS window, later pushes ride it, a push during the reload itself queues exactly one more. */
   private scheduleReload() {
-    window.clearTimeout(this.reloadTimer);
-    this.reloadTimer = window.setTimeout(() => void this.load(true), 400);
+    if (this.reloadTimer) return;
+    this.reloadTimer = window.setTimeout(() => {
+      this.reloadTimer = 0;
+      void this.reloadQuiet();
+    }, SHEET_RELOAD_WINDOW_MS);
+  }
+
+  private async reloadQuiet() {
+    if (this.reloading) {
+      this.reloadAgain = true;
+      return;
+    }
+    this.reloading = true;
+    try {
+      await this.load(true);
+    } finally {
+      this.reloading = false;
+    }
+    if (this.reloadAgain) {
+      this.reloadAgain = false;
+      this.scheduleReload();
+    }
+  }
+
+  /** The entity ids of the loaded body (every row the sheet draws comes from the area's cards). */
+  private get entityIds(): Set<string> {
+    if (!this.detail) return new Set();
+    return new Set(Object.values(this.detail.cards).flatMap((c) => (c?.entities ?? []).map((r) => r.entity_id)));
   }
 
   private async load(quiet = false) {
