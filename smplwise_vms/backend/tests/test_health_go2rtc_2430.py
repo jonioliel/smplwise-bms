@@ -93,6 +93,18 @@ def test_the_probe_runs_only_when_due_and_backs_off(gsettings, fake):
     assert REACH.tick(replace(gsettings, go2rtc_url=None)) is False
 
 
+def test_an_answer_in_the_same_clock_tick_as_the_failure_still_counts(gsettings, fake, monkeypatch):
+    """FLAKY-G2R-BACKOFF-2437: on Windows `time.time()` moves in ~15 ms steps, so a failed contact and the answer right after it can carry
+    the same timestamp. `tick` used `last_contact` to see whether its probe recorded an outcome and took that answer for "no answer"
+    (next probe in 10 s instead of 60 s). The clock is frozen here to make that case certain."""
+    monkeypatch.setattr(media_reach.time, "time", lambda: 5000.0)
+    assert REACH.tick(gsettings) is True and REACH.state == UNREACHABLE and REACH.last_contact == 5000.0
+    fake.down = False
+    assert REACH.tick(gsettings, now=6000.0) is True and REACH.state == REACHABLE
+    assert REACH.last_contact == 5000.0, "the answer carries the failure's timestamp"
+    assert REACH.next_probe_at == 5000.0 + OK_REFRESH_S, "the answer counted: the next probe after a minute, not after 10 s"
+
+
 def test_any_go2rtc_call_feeds_the_tracker_but_a_slow_answer_does_not(gsettings, fake, monkeypatch):
     with pytest.raises(Exception):
         g2.Go2rtc(gsettings).list_streams()
