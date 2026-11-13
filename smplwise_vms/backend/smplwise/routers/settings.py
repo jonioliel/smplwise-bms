@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field, field_validator
@@ -34,6 +34,9 @@ DEFAULTS: dict[str, str] = {
     # remote-policy hint and the "מנגן דרך MSE" line). "false" (default) keeps the screen clean - the badge stays and carries the same
     # text as its tooltip; "true" shows them (an installer chasing a transport problem).
     "media.video_notices": "false",
+    # HEALTH-GO2RTC-FOLLOWUP-2431 (owner 11.11, answer 1): how long the video service must stay unreachable before the administrators'
+    # notice (system.health "video_service") - minutes, one of services/video_services.NOTICE_AFTER_CHOICES; 15 by default
+    "media.video_notice_after_min": "15",
     # LIVE-H265-2341: a camera stream in H.265 that this browser cannot decode (Chrome / Edge over WebRTC). auto = the other profile
     # when it is H.264, else an H.264 variant go2rtc transcodes (smplwise_ namespace), else the message; sub = only the other profile;
     # transcode = only the transcoded variant; off = the stream as it is. The recorder's own encoding is never changed (services/live_codec.py).
@@ -546,7 +549,7 @@ LOCAL_PURGE_WORD = "מחיקה לצמיתות"  # REL2140 M-1: typed to switch t
 # frontend/src/styles/devices-themes.ts (docs/design/DEVICE_THEMES.md, "How to add a theme").
 DEVICE_THEMES = ("default", "sand", "forest", "graphite")
 
-INT_KEYS = ("privacy.local_purge_days", "security.local_admin_session_days", "security.local_password_min", "backup.password_min", "security.local_link_ttl_h", "media.max_live_sessions", "media.h265_max_transcodes", "access.station_media_max_talk_s", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.max_seeks_per_min", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", "device_activity.retention_days", "history.range_max_days", "history.presence_retention_days", "ui.page_size.schedules", "ui.page_size.schedules_phone", "ui.page_size.automations", "ui.page_size.automations_phone", "ui.page_size.automations_cards", "ui.page_size.automations_cards_phone", *automation_settings.INT_KEYS)
+INT_KEYS = ("media.video_notice_after_min", "privacy.local_purge_days", "security.local_admin_session_days", "security.local_password_min", "backup.password_min", "security.local_link_ttl_h", "media.max_live_sessions", "media.h265_max_transcodes", "access.station_media_max_talk_s", "snapshots.max_age_s", "playback.max_sessions", "playback.lease_s", "playback.max_seeks_per_min", "playback.stall_s", "playback.auto_resume_attempts", "exports.max_mb", "exports.retention_days", "events.retention_days", "audit.retention_days", "cases.import_max_mb", "storage.min_free_mb", "ai.budget_daily", "skins.budget_renders_per_floor", "skins.budget_monthly", "remote.idle_lock_minutes", "remote.max_live_streams", "schedules.runs_retention_days", "device_activity.retention_days", "history.range_max_days", "history.presence_retention_days", "ui.page_size.schedules", "ui.page_size.schedules_phone", "ui.page_size.automations", "ui.page_size.automations_phone", "ui.page_size.automations_cards", "ui.page_size.automations_cards_phone", *automation_settings.INT_KEYS)
 
 
 # BUBBLE-FREEZE-295 (owner 2026-10-26): skins that are frozen - kept in the code, rejected by new writes, and a stored value is read as the fallback.
@@ -818,6 +821,8 @@ class SettingsPatch(BaseModel):
     media_max_live_sessions: int | None = Field(default=None, ge=1, le=128, alias="media.max_live_sessions")
     media_wall_profile: str | None = Field(default=None, pattern="^(sub|main)$", alias="media.wall_profile")
     media_video_notices: str | None = Field(default=None, pattern="^(true|false)$", alias="media.video_notices")
+    # HEALTH-GO2RTC-FOLLOWUP-2431: minutes before the "video service unavailable" administrators' notice (1 / 5 / 15 / 30 / 60)
+    media_video_notice_after_min: Literal[1, 5, 15, 30, 60] | None = Field(default=None, alias="media.video_notice_after_min")
     media_h265_policy: str | None = Field(default=None, pattern="^(auto|sub|transcode|off)$", alias="media.h265_policy")  # LIVE-H265-2341
     media_h265_max_transcodes: int | None = Field(default=None, ge=0, le=16, alias="media.h265_max_transcodes")
     nvr_batch_on_refusal: str | None = Field(default=None, pattern="^(skip|stop)$", alias="nvr.batch_on_refusal")  # CAM-H264-VERIFY-2361

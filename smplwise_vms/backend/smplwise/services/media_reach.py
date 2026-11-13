@@ -30,7 +30,9 @@ log = logging.getLogger("smplwise.media_reach")
 OK_REFRESH_S = 60.0  # reachable: re-probe only when no call reached go2rtc for this long
 BACKOFF_BASE_S = 10.0  # unreachable: the first re-probe after this, then doubling ...
 BACKOFF_MAX_S = 60.0  # ... up to this
-ATTENTION_AFTER_S = 300  # the administrators' notice (system.health "video_service") once unreachable this long - the policy's after_s
+# the administrators' notice (system.health "video_service") once unreachable this long. HEALTH-GO2RTC-FOLLOWUP-2431 (owner 11.11): the default
+# of the administrator setting media.video_notice_after_min (15 minutes; services/video_services.notice_after_min), no longer the policy's 300 s
+ATTENTION_AFTER_S = 900
 
 REACHABLE, UNREACHABLE, NOT_CONFIGURED, UNKNOWN = "reachable", "unreachable", "not_configured", "unknown"
 
@@ -58,7 +60,7 @@ class Reach:
             self.last_error: str | None = None
             self.failures = 0
             self.last_contact: float | None = None  # wall clock of the last outcome of either kind
-            # FLAKY-G2R-BACKOFF-2437: outcomes recorded so far; `tick` compares this, not `last_contact` - on Windows `time.time()` can
+            # FLAKY-G2R-BACKOFF-2437 (same fix in HEALTH-GO2RTC-FOLLOWUP-2431, one counter kept): outcomes recorded so far; `tick` compares this, not `last_contact` - on Windows `time.time()` can
             # return the same value for a failed contact and the answer right after it (~15 ms clock), which looked like "no outcome"
             self.outcomes = 0
             self.next_probe_at = 0.0

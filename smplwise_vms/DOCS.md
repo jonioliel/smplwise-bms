@@ -24,6 +24,10 @@ scopes, and an audit log. Live video, playback and events arrive in the followin
    - `go2rtc_url` — the external go2rtc API, e.g. `http://<ha-host>:1984` (the AlexxIT add-on). The
      product creates only streams named `smplwise_*` there and never touches other streams. Optional
      `go2rtc_api_username` if the go2rtc API is protected; its password is entered in Arx (see "Secrets" below).
+     Since 2.43.x Arx also lists the go2rtc add-ons installed next to it (Settings › Video and media › Video service: state,
+     version, whether each answers) and an administrator can choose one there. That choice TAKES PRECEDENCE over `go2rtc_url`
+     (at once for live view and playback, for the periodic stream sync after a restart of Arx); "back to the add-on option"
+     drops it. Listing the add-ons is read-only and needs the add-on's `manager` role, which it already has.
    - `wiskey_username` — the user name of the RTSP account of the WisKey door stations (its password: see "Secrets" below), assumed the same on
      every station; the WisKey tab shows each station camera's still through go2rtc with it. A station with
      a different account gets its own in הגדרות › חיבורים › "מצלמות עמדות WisKey" (system administrator only;

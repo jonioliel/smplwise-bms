@@ -307,9 +307,13 @@ def _media_reach_is_per_test():
     fake go2rtc refuses connections must not leave the next test's /health `degraded`."""
     from smplwise.services import media_reach
 
+    from smplwise.services import video_services  # HEALTH-GO2RTC-FOLLOWUP-2431: the discovery cache and the listed go2rtc slugs
+
     media_reach.REACH.reset()
+    video_services.reset_for_tests()
     yield
     media_reach.REACH.reset()
+    video_services.reset_for_tests()
 
 
 @pytest.fixture(autouse=True)

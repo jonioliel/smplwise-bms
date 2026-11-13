@@ -60,7 +60,7 @@ def test_only_the_allow_listed_calls_can_be_sent(settings, sup):
     # S1's two calls plus the exact S3 pairs (tests/test_self_update_s3.py pins the full list, bodies and slugs)
     assert {("GET", "/addons/self/info"), ("POST", "/store/reload")} <= self_update.ALLOWED
     for method, path in (("POST", "/store/addons/self/update"), ("POST", "/addons/self/update"), ("POST", "/backups/new/partial"),
-                         ("GET", "/addons"), ("DELETE", "/addons/self/info"), ("GET", "/addons/self/info/")):
+                         ("POST", "/addons"), ("DELETE", "/addons/self/info"), ("GET", "/addons/self/info/")):  # GET /addons is allowed since HEALTH-GO2RTC-FOLLOWUP-2431 (read only)
         with pytest.raises(self_update.ProbeRefused):
             self_update.call(settings, method, path)
     assert sup.log == [], "a refused call never reaches a socket"
