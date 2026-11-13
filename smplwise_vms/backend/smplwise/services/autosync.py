@@ -272,6 +272,21 @@ def ensure_streams(settings: Settings, conn: sqlite3.Connection, actor: Any | No
     # CAMERA-STREAM-SOURCES-2410: a camera with its own RTSP address gets ITS streams (`smplwise_cam_<id>_<profile>`), never the recorder's;
     # a camera without a recorder is never built from a recorder connection
     cams = [camera_sources.with_source(conn, c) for c in cams]
+    # CR-GO2RTC-ADAPTER-2436 (review 03 F03): ONE listing of go2rtc for the whole run (was one per stream plus one), fetched where
+    # the first stream needed it and kept current by each write; the deletes and the foreign count below read the same copy
+    shared = g2.takes_listing(client)
+    held: dict[str, Any] = {}
+
+    def listing() -> dict[str, Any]:
+        if "streams" not in held:
+            held["streams"] = client.list_streams()
+        return held["streams"]
+
+    def ensure(name: str, src: str, check: Any = None) -> str:
+        if not shared:
+            return client.ensure_stream(name, src, check=check) if check is not None else client.ensure_stream(name, src)
+        return client.ensure_stream(name, src, check=check, streams=listing())
+
     with unlocked(conn):
         plans: dict[str, dict[str, dict[str, str]] | None] = {}  # F-1: one discovery per Frigate recorder and run
         for cam in cams:
@@ -308,7 +323,7 @@ def ensure_streams(settings: Settings, conn: sqlite3.Connection, actor: Any | No
                         stale.append(name)
                         continue
                     try:
-                        outcome = client.ensure_stream(name, found[1], check=frigate_restream.refuse_foreign(found[0]))
+                        outcome = ensure(name, found[1], check=frigate_restream.refuse_foreign(found[0]))
                     except ApiError as exc:
                         if not exc.code.startswith("frigate_restream"):
                             raise  # go2rtc itself failed: the run's outcome, as for every other recorder
@@ -329,10 +344,10 @@ def ensure_streams(settings: Settings, conn: sqlite3.Connection, actor: Any | No
                         raise  # the first recorder keeps its old behaviour (the error is the run's outcome)
                     result["skipped"] += 1  # a further recorder without a usable connection: its cameras wait for it
                     continue
-                outcome = client.ensure_stream(name, src)
+                outcome = ensure(name, src)
                 result[outcome] += 1
                 result["streams"].append(name)
-        listed = client.list_streams()
+        listed = listing()
         for name in [*gone, *stale]:
             if name in listed and name.startswith(g2.STREAM_PREFIX):
                 client.delete_stream(name)

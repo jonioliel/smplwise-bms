@@ -53,6 +53,15 @@ def stream_name(recorder_id: str, channel: int, profile: str) -> str:
     return name
 
 
+def rtsp_url(host: str, port: int | str, path: str, user: str, password: str, query: str = "") -> str:
+    """CR-GO2RTC-ADAPTER-2436 (review 03 F20): `rtsp://<user>:<password>@<host>:<port><path>[?<query>]` - the one place an RTSP
+    address with credentials is assembled. The user and the password are percent-encoded whole (`quote(..., safe='')`, so
+    `@ : / #` stay inside the userinfo); `host` is used as given (callers pass a checked or bracketed host, see rtsp_host).
+    Server-side only."""
+    url = f"rtsp://{quote(user, safe='')}:{quote(password, safe='')}@{host}:{port}{path}"
+    return f"{url}?{query}" if query else url
+
+
 def hikvision_rtsp_url(settings: Settings, channel: int, profile: str) -> str:
     """rtsp://user:pass@host:554/Streaming/Channels/<ch>01 (main) or <ch>02 (sub). Server-side only."""
     from ..mode import ensure_nvr
@@ -67,7 +76,7 @@ def hikvision_rtsp_url(settings: Settings, channel: int, profile: str) -> str:
     if not settings.nvr_host or not settings.nvr_user or not settings.nvr_password:
         raise ApiError(503, "source_not_configured", "פרטי ה־NVR לא הוגדרו בהגדרות ה־Add-on.")
     track = f"{channel}0{1 if profile == 'main' else 2}"
-    return f"rtsp://{quote(settings.nvr_user, safe='')}:{quote(settings.nvr_password, safe='')}@{settings.nvr_host}:{settings.nvr_rtsp_port}/Streaming/Channels/{track}"
+    return rtsp_url(settings.nvr_host, settings.nvr_rtsp_port, f"/Streaming/Channels/{track}", settings.nvr_user, settings.nvr_password)
 
 
 # WisKey's own station source (WISKEY_SOURCE_EXTRACTION.md 0.4 / ConnectionSettings): rtsp_source() =
@@ -121,7 +130,7 @@ def wiskey_rtsp_url(host: str, username: str, password: str) -> str:
     safe_host = rtsp_host(host)
     if safe_host is None:
         raise ApiError(503, "intercom_camera_host_unknown", "כתובת העמדה שהתקבלה מ־WisKey אינה תקינה.")
-    return f"rtsp://{quote(username, safe='')}:{quote(password, safe='')}@{safe_host}:{WISKEY_RTSP_PORT}{WISKEY_RTSP_PATH}"
+    return rtsp_url(safe_host, WISKEY_RTSP_PORT, WISKEY_RTSP_PATH, username, password)
 
 
 HA_STREAM_PREFIX = "smplwise_ha_"  # streams of standalone Home Assistant cameras the owner chose to show live
@@ -287,6 +296,17 @@ def compare_source(reported: str, wanted: str) -> str:
     return SAME_IF_HIDDEN
 
 
+def takes_listing(client: Any) -> bool:
+    """True when `client.ensure_stream` accepts a caller's listing (`streams=`): the real adapter does; a stand-in with the older
+    signature does not, and is then called exactly as before (one listing per call)."""
+    import inspect
+
+    try:
+        return "streams" in inspect.signature(client.ensure_stream).parameters
+    except (TypeError, ValueError, AttributeError):
+        return False
+
+
 def _source_digest(name: str, src: str) -> str:
     return hashlib.sha256(f"{name}\n{src}".encode()).hexdigest()
 
@@ -356,8 +376,12 @@ class Go2rtc:
         self.base = settings.go2rtc_url.rstrip("/")
         self.auth = (settings.go2rtc_user, settings.go2rtc_password) if settings.go2rtc_user else None
 
+    def _client_for(self, timeout_s: float) -> httpx.Client:
+        """Every HTTP client of this adapter: the shared TLS context and the reachability hooks (HEALTH-GO2RTC-2430)."""
+        return httpx.Client(base_url=self.base, auth=self.auth, timeout=timeout_s, verify=_verify(), event_hooks=_REACH_HOOKS)
+
     def _client(self) -> httpx.Client:
-        return httpx.Client(base_url=self.base, auth=self.auth, timeout=6.0, verify=_verify(), event_hooks=_REACH_HOOKS)
+        return self._client_for(6.0)
 
     def _wrap(self, exc: httpx.HTTPError, what: str) -> ApiError:
         from .media_reach import REACH, is_connection_failure
@@ -388,7 +412,14 @@ class Go2rtc:
         if r.status_code != 200:
             raise ApiError(503, "media_error", "go2rtc החזיר שגיאה.", details={"status": r.status_code})
         out: dict[str, StreamInfo] = {}
-        data = r.json() or {}
+        try:
+            data = r.json() or {}
+        except ValueError:
+            data = None
+        if not isinstance(data, dict):
+            # CR-GO2RTC-ADAPTER-2436 (review 03 F12): a 200 that is not a JSON object (a proxy page, say) is go2rtc answering wrongly -
+            # the same `media_error` as a non-200, never an unhandled ValueError / AttributeError (a 500)
+            raise ApiError(503, "media_error", "go2rtc החזיר שגיאה.", details={"status": r.status_code, "reason": "bad_body"})
         for name, value in data.items():
             value = value if isinstance(value, dict) else {}
             producers = value.get("producers") or []
@@ -410,7 +441,7 @@ class Go2rtc:
         if not name.startswith(STREAM_PREFIX) or name.startswith(HA_STREAM_PREFIX) or not NAME_RE.match(name):
             raise ValueError("refusing to probe a stream outside the smplwise_ namespace")
         try:
-            with httpx.Client(base_url=self.base, auth=self.auth, timeout=timeout_s, verify=_verify(), event_hooks=_REACH_HOOKS) as c:
+            with self._client_for(timeout_s) as c:
                 r = c.get("/api/streams", params={"src": name, "video": "all"})
         except httpx.HTTPError as exc:
             raise self._wrap(exc, "probe") from exc
@@ -427,12 +458,18 @@ class Go2rtc:
         producers = data.get("producers") if isinstance(data, dict) else None
         return True, producer_video_codec(producers if isinstance(producers, list) else [])
 
-    def ensure_stream(self, name: str, src: str, check: Callable[[dict[str, StreamInfo]], None] | None = None) -> str:
+    def ensure_stream(self, name: str, src: str, check: Callable[[dict[str, StreamInfo]], None] | None = None,
+                      streams: dict[str, StreamInfo] | None = None) -> str:
         """Create or update one of our streams. Returns 'unchanged' | 'created' | 'updated'. `check` (optional) is called with the
-        stream listing this call fetches anyway, before anything is written; it raises to refuse the write."""
+        stream listing this call fetches anyway, before anything is written; it raises to refuse the write.
+
+        CR-GO2RTC-ADAPTER-2436 (review 03 F03): `streams` is a listing the caller already holds (the stream sync fetches it once per
+        run instead of once per stream); the decision is made from it exactly as from a fresh one, and a write updates that copy so the
+        next call of the same run sees it."""
         if not name.startswith(STREAM_PREFIX):
             raise ValueError("refusing to write a stream outside the smplwise_ namespace")
-        streams = self.list_streams()
+        if streams is None:
+            streams = self.list_streams()
         if check is not None:
             check(streams)
         existing = streams.get(name)
@@ -449,8 +486,27 @@ class Go2rtc:
             _note_written(name, None)
             raise ApiError(503, "media_error", "go2rtc סירב ליצור את הזרם.", details={"status": r.status_code, "stream": name})
         _note_written(name, src)
+        streams[name] = StreamInfo(name=name, sources=[src], online=False)
         log.info("go2rtc stream %s %s (%s)", name, "updated" if existing else "created", redact_source(name, src))
         return "updated" if existing else "created"
+
+    def create_stream(self, name: str, src: str) -> str:
+        """CR-GO2RTC-ADAPTER-2436 (review 03 F03): write one of our streams whose name cannot exist yet (a playback generation:
+        `smplwise_pb_<instance>_<session>_g<n>`) - the PUT `ensure_stream` makes for a name the listing does not hold, without
+        fetching the listing. Returns 'created'; a refusal is the same `media_error`."""
+        if not name.startswith(STREAM_PREFIX) or not NAME_RE.match(name):
+            raise ValueError("refusing to write a stream outside the smplwise_ namespace")
+        with self._client() as c:
+            try:
+                r = c.put("/api/streams", params={"name": name, "src": src})
+            except httpx.HTTPError as exc:
+                raise self._wrap(exc, "put") from exc
+        if r.status_code not in (200, 201, 204):
+            _note_written(name, None)
+            raise ApiError(503, "media_error", "go2rtc סירב ליצור את הזרם.", details={"status": r.status_code, "stream": name})
+        _note_written(name, src)
+        log.info("go2rtc stream %s created (%s)", name, redact_source(name, src))
+        return "created"
 
     def delete_stream(self, name: str, *, strict: bool = False) -> None:
         """Delete one of our streams. `strict` (WKF01F02-295, the leased station streams): a status go2rtc answers other than 200 / 204 /
@@ -472,7 +528,7 @@ class Go2rtc:
         body = bytearray()
         too_large = False
         try:
-            with httpx.Client(base_url=self.base, auth=self.auth, timeout=20.0, verify=_verify(), event_hooks=_REACH_HOOKS) as c:
+            with self._client_for(20.0) as c:
                 with c.stream("GET", "/api/frame.jpeg", params=params) as r:
                     status = r.status_code
                     if status == 200:
@@ -485,6 +541,49 @@ class Go2rtc:
             raise self._wrap(exc, "frame") from exc
         return status, bytes(body), too_large
 
+    def grab_probe(self, name: str, src: str, timeout_s: float = 15.0) -> tuple[int, bytes, str]:
+        """CR-GO2RTC-ADAPTER-2436 (review 03 F10, adapter half): ONE frame of a throwaway in-memory stream (`/api/frame.jpeg?src=<address>
+        &name=<probe name>`: go2rtc's Patch - nothing written to its configuration), through this adapter's client (shared TLS context,
+        reachability hooks). Returns (status, body read up to FRAME_MAX, the first 300 bytes of an error answer); a timeout is
+        `(0, b"", "timeout")`, any other transport failure `media_unavailable`. The same request `camera_sources._grab_probe` makes."""
+        if not name.startswith(STREAM_PREFIX) or not NAME_RE.match(name):
+            raise ValueError("refusing to name a stream outside the smplwise_ namespace")
+        body = bytearray()
+        err = ""
+        try:
+            with self._client_for(timeout_s) as c:
+                with c.stream("GET", "/api/frame.jpeg", params={"src": src, "name": name}) as r:
+                    status = r.status_code
+                    for chunk in r.iter_bytes():
+                        body += chunk
+                        if len(body) > FRAME_MAX:
+                            break
+                    if status != 200:
+                        err = bytes(body[:300]).decode("utf-8", "replace")
+        except httpx.TimeoutException:
+            return 0, b"", "timeout"
+        except httpx.HTTPError as exc:
+            raise self._wrap(exc, "probe") from exc
+        return status, bytes(body), err
+
+    def fetch_capped(self, path: str, params: dict[str, str], cap: int, timeout_s: float) -> tuple[int, bytes]:
+        """CR-GO2RTC-ADAPTER-2436 (review 03 F04): one GET read up to `cap` bytes (+ the chunk that crossed it) through this adapter's
+        client - the cast relay's HLS fetch. Only a 200's body is read. A transport failure is `media_unavailable` (and a connection
+        failure is recorded for /health/video)."""
+        body = bytearray()
+        try:
+            with self._client_for(timeout_s) as c:
+                with c.stream("GET", path, params=params) as r:
+                    status = r.status_code
+                    if status == 200:
+                        for chunk in r.iter_bytes():
+                            body += chunk
+                            if len(body) > cap:
+                                return 200, bytes(body)  # over the cap: the caller refuses it
+        except httpx.HTTPError as exc:
+            raise self._wrap(exc, "fetch") from exc
+        return status, bytes(body)
+
     def frame_jpeg(self, name: str, src: str) -> bytes:
         """One JPEG frame through go2rtc's /api/frame.jpeg. go2rtc resolves `src` with streams.GetOrPatch: a raw source
         with `name` is Patch(name, src) - an IN-MEMORY stream in our namespace (nothing written to go2rtc's config; and
@@ -493,7 +592,7 @@ class Go2rtc:
         changed), and every other grab is `src=<name>` alone - no credentials in the query, nothing for go2rtc < 1.9.14
         to log (S1). A by-name 404 means go2rtc no longer knows the stream (it restarted): registered again once, which
         is also the retry. H.264/H.265 keyframes become a JPEG via go2rtc's ffmpeg (404 stream not found, 500 failed)."""
-        if not name.startswith(STREAM_PREFIX):
+        if not name.startswith(STREAM_PREFIX) or not NAME_RE.match(name):  # review 03 F12: the same guard as frame_existing
             raise ValueError("refusing to name a stream outside the smplwise_ namespace")
         digest = hashlib.sha256(src.encode()).hexdigest()
         with _REGISTERED_LOCK:
@@ -559,6 +658,8 @@ class Go2rtc:
         return body
 
     def ws_url(self, name: str) -> str:
+        if not name.startswith(STREAM_PREFIX) or not NAME_RE.match(name):  # review 03 F12: never relies on the caller alone
+            raise ValueError("refusing to name a stream outside the smplwise_ namespace")
         parts = urlsplit(self.base)
         scheme = "wss" if parts.scheme == "https" else "ws"
         return urlunsplit((scheme, parts.netloc, "/api/ws", f"src={quote(name, safe='')}", ""))

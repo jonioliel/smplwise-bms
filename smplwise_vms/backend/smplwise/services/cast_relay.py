@@ -322,30 +322,25 @@ def _safe(cb: Callable[[str], None], session_id: str) -> None:
 
 
 def go2rtc_fetch(settings: Any) -> Fetch:
-    """`fetch(path, params)` against the configured go2rtc (its API credentials stay here; nothing of the answer's headers is passed on)."""
-    import httpx
+    """`fetch(path, params)` against the configured go2rtc (its API credentials stay here; nothing of the answer's headers is passed on).
 
-    base = (settings.go2rtc_url or "").rstrip("/")
-    auth = (settings.go2rtc_user, settings.go2rtc_password) if settings.go2rtc_user else None
+    CR-GO2RTC-ADAPTER-2436 (review 03 F04): through the go2rtc adapter's client (`Go2rtc.fetch_capped`): the shared TLS context instead
+    of a CA bundle loaded per playlist and segment, and the reachability hooks, so a go2rtc outage the relay meets reaches /health/video.
+    Same requests, the same timeout, no redirects followed (httpx's default)."""
+    from ..errors import ApiError
+    from . import go2rtc as g2
+
+    client = g2.Go2rtc(settings) if (settings.go2rtc_url or "").rstrip("/") else None
 
     def fetch(path: str, params: dict[str, str]) -> tuple[int, bytes]:
-        if not base:
+        if client is None:
             return 503, b""
         cap = PLAYLIST_MAX if path.endswith(".m3u8") else SEGMENT_MAX
-        body = bytearray()
         try:
-            with httpx.Client(base_url=base, auth=auth, timeout=UPSTREAM_TIMEOUT_S, follow_redirects=False) as c:
-                with c.stream("GET", path, params=params) as r:
-                    status = r.status_code
-                    if status == 200:
-                        for chunk in r.iter_bytes():
-                            body += chunk
-                            if len(body) > cap:
-                                return 200, bytes(body)  # over the cap: the caller refuses it
-        except httpx.HTTPError as exc:
-            log.warning("cast relay: go2rtc unreachable (%s)", type(exc).__name__)
+            return client.fetch_capped(path, params, cap=cap, timeout_s=UPSTREAM_TIMEOUT_S)
+        except ApiError as exc:
+            log.warning("cast relay: go2rtc unreachable (%s)", (exc.details or {}).get("error") or exc.code)
             return 503, b""
-        return status, bytes(body)
 
     return fetch
 

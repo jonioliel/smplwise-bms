@@ -309,3 +309,248 @@ def test_a_replaced_socket_says_so_before_its_4410():
                 with pytest.raises(WebSocketDisconnect) as closed:
                     ws.receive_text()
                 assert closed.value.code == 4410
+
+
+# ---------------------------------------------------------------------------- 4. one adapter (CR-GO2RTC-ADAPTER-2436, review 03)
+# F03: a stream sync lists go2rtc ONCE and a playback create (a name new by construction) never lists. F20: the four RTSP addresses
+# with credentials come from one builder (golden strings pinned before the change). F12: a bad listing body is `media_error`, and
+# `frame_jpeg` / `ws_url` refuse a name outside the namespace themselves. F10: the probe grab in the adapter. F04: the shared TLS
+# context on the per-request clients.
+
+
+class CountingServer(FakeGo2rtcServer):
+    def __init__(self, streams: dict, redacts: bool):
+        super().__init__(streams, redacts)
+        self.gets = 0
+
+    def handler(self, request: httpx.Request) -> httpx.Response:
+        if request.method == "GET" and request.url.path == "/api/streams":
+            self.gets += 1
+        return super().handler(request)
+
+
+def adapter_on(server: FakeGo2rtcServer, monkeypatch) -> type:
+    """The REAL adapter class, its HTTP client on the in-memory server (every module that imports `go2rtc as g2` sees it)."""
+
+    class Adapter(g2.Go2rtc):
+        def _client(self) -> httpx.Client:
+            return httpx.Client(base_url=self.base, transport=httpx.MockTransport(server.handler))
+
+    monkeypatch.setattr(g2, "Go2rtc", Adapter)
+    return Adapter
+
+
+def _nvr_settings(settings):
+    from dataclasses import replace
+
+    return replace(settings, nvr_host="nvr.example.invalid", nvr_user="u", nvr_password="p", go2rtc_url="http://go2rtc.example.invalid:1984")
+
+
+@pytest.mark.parametrize("redacts", [False, True])
+def test_one_stream_sync_lists_go2rtc_once(settings, monkeypatch, redacts):
+    from fastapi.testclient import TestClient
+
+    from smplwise.main import create_app
+    from smplwise.services import autosync
+
+    s = _nvr_settings(settings)
+    app = create_app(s)
+    c = TestClient(app)
+    for ch in (1, 2, 3):
+        assert c.post("/api/v1/cameras", json={"channel": ch, "alias": f"c{ch}"}).status_code in (200, 201)
+    server = CountingServer(load("streams_1_9_14_idle.json"), redacts=redacts)
+    foreign_before = {n: list(v) for n, v in server.store.items() if not n.startswith("smplwise_")}
+    adapter_on(server, monkeypatch)
+    with app.state.db.connection() as conn:
+        first = autosync.ensure_streams(s, conn, reason="manual")
+    assert server.gets == 1, "one listing for the whole sync (was 2N+1)"
+    assert first["created"] + first["updated"] + first["unchanged"] == 6 and first["foreign_streams_untouched"] == len(foreign_before)
+    server.gets = 0
+    writes = len(server.writes)
+    with app.state.db.connection() as conn:
+        again = autosync.ensure_streams(s, conn, reason="manual")
+    assert server.gets == 1 and again["unchanged"] == 6 and len(server.writes) == writes, "a second sync writes nothing"
+    assert all(name.startswith("smplwise_") for _, name in server.writes), "only smplwise_ streams are ever written or deleted"
+    assert {n: v for n, v in server.store.items() if not n.startswith("smplwise_")} == foreign_before
+
+
+def test_the_shared_listing_follows_the_writes_of_the_sync():
+    """`ensure_stream(streams=)` decides from the caller's listing exactly as from its own, and keeps that copy current."""
+    server = CountingServer({}, redacts=True)
+    g = client_for(server)
+    listing = g.list_streams()
+    assert server.gets == 1
+    assert g.ensure_stream("smplwise_nvr-1_ch1_main", SRC_MAIN, streams=listing) == "created"
+    assert listing["smplwise_nvr-1_ch1_main"].sources == [SRC_MAIN] and server.gets == 1
+    assert g.ensure_stream("smplwise_nvr-1_ch1_main", SRC_MAIN, streams=listing) == "unchanged"
+    new = SRC_MAIN.replace("p%40ss%3Aword", "n3w")
+    assert g.ensure_stream("smplwise_nvr-1_ch1_main", new, streams=listing) == "updated" and server.store["smplwise_nvr-1_ch1_main"] == [new]
+    seen: list[dict] = []
+    g.ensure_stream("smplwise_nvr-1_ch1_sub", SRC_SUB, check=seen.append, streams=listing)
+    assert seen == [listing], "`check` receives the same listing"
+    assert server.gets == 1, "no listing was fetched again"
+    with pytest.raises(ValueError):
+        g.ensure_stream("door_station_1", SRC_MAIN, streams=listing)
+
+
+def test_a_playback_create_never_lists_go2rtc(settings, monkeypatch):
+    import datetime as dt
+
+    from smplwise.services import playback as pb
+
+    s = _nvr_settings(settings)
+    server = CountingServer(load("streams_1_9_14_idle.json"), redacts=True)
+    adapter_on(server, monkeypatch)
+    pb.set_instance_id("t2436")
+    start = dt.datetime(2026, 9, 14, 10, 0, tzinfo=dt.timezone.utc)
+    session = pb.PlaybackSession(id="abcdef0123", camera_id="cam", channel=1, track_id=101, user_id="u", username="u",
+                                 requested_at=start, end_at=start + dt.timedelta(hours=1), stream="", tz_name="UTC")
+    pb._create_stream(s, session, start)
+    session.generation = 1
+    pb._create_stream(s, session, start + dt.timedelta(minutes=5))
+    assert server.gets == 0, "a playback generation is new by construction: written without a listing"
+    assert server.writes == [("PUT", "smplwise_pb_t2436_abcdef0123_g0"), ("PUT", "smplwise_pb_t2436_abcdef0123_g1")]
+    assert session.stream == "smplwise_pb_t2436_abcdef0123_g1"
+
+
+def test_create_stream_guards_and_refusal():
+    server = CountingServer({}, redacts=True)
+    g = client_for(server)
+    for bad in ("door_station_1", "smplwise_bad name", "smplwise_a/../b"):
+        with pytest.raises(ValueError):
+            g.create_stream(bad, SRC_MAIN)
+    assert server.writes == []
+    refusing = FakeGo2rtcServer({}, redacts=True)
+    refusing.handler = lambda request: httpx.Response(400)  # type: ignore[method-assign]
+    with pytest.raises(g2.ApiError) as e:
+        client_for(refusing).create_stream("smplwise_pb_x_g0", SRC_MAIN)
+    assert e.value.code == "media_error" and "smplwise_pb_x_g0" not in g2._WRITTEN
+
+
+# --- F20: the four RTSP addresses with credentials (pinned before the shared builder; a user and a password with @ : / #)
+USER = "op@x:y/z#"
+PASSWORD = "p@ss:w/rd#1"
+Q_USER, Q_PASSWORD = "op%40x%3Ay%2Fz%23", "p%40ss%3Aw%2Frd%231"
+
+
+def test_golden_rtsp_addresses(settings):
+    import dataclasses
+    import datetime as dt
+
+    from smplwise.services import playback as pb
+    from smplwise.services.recorders import frigate_restream as frs
+
+    s = dataclasses.replace(settings, nvr_host="nvr.example.invalid", nvr_user=USER, nvr_password=PASSWORD, go2rtc_url="http://go2rtc.example.invalid:1984")
+    assert g2.hikvision_rtsp_url(s, 4, "main") == f"rtsp://{Q_USER}:{Q_PASSWORD}@nvr.example.invalid:554/Streaming/Channels/401"
+    assert g2.hikvision_rtsp_url(s, 12, "sub") == f"rtsp://{Q_USER}:{Q_PASSWORD}@nvr.example.invalid:554/Streaming/Channels/1202"
+    assert g2.wiskey_rtsp_url("door.example.invalid", USER, PASSWORD) == f"rtsp://{Q_USER}:{Q_PASSWORD}@door.example.invalid:554/Streaming/Channels/101"
+    assert g2.wiskey_rtsp_url("fd00::21", USER, PASSWORD) == f"rtsp://{Q_USER}:{Q_PASSWORD}@[fd00::21]:554/Streaming/Channels/101"
+    start = dt.datetime(2026, 9, 14, 10, 0, tzinfo=dt.timezone.utc)
+    assert pb._hikvision_playback_rtsp_url(s, 101, start, start + dt.timedelta(hours=2), "UTC") == (
+        f"rtsp://{Q_USER}:{Q_PASSWORD}@nvr.example.invalid:554/Streaming/tracks/101?starttime=20260914T100000Z&endtime=20260914T120000Z")
+    fr = dataclasses.replace(s, nvr_extra={"restream_auth": "account", "restream_port": 18554})
+    assert frs.source_url(fr, "cam_front") == f"rtsp://{Q_USER}:{Q_PASSWORD}@nvr.example.invalid:18554/cam_front"
+
+
+def test_rtsp_url_builder():
+    assert g2.rtsp_url("h.example.invalid", 554, "/Streaming/Channels/101", USER, PASSWORD) == f"rtsp://{Q_USER}:{Q_PASSWORD}@h.example.invalid:554/Streaming/Channels/101"
+    assert g2.rtsp_url("h.example.invalid", 8554, "/x", USER, PASSWORD, query="a=1&b=2") == f"rtsp://{Q_USER}:{Q_PASSWORD}@h.example.invalid:8554/x?a=1&b=2"
+
+
+# --- F12: a bad listing body, and the namespace guard inside frame_jpeg / ws_url
+
+
+@pytest.mark.parametrize("body", [b"<html>proxy login</html>", b"[1, 2]", b"\"text\""])
+def test_a_bad_listing_body_is_media_error_not_a_crash(body):
+    g = g2.Go2rtc.__new__(g2.Go2rtc)
+    g.base, g.auth = "http://go2rtc.example.invalid:1984", None
+    g._client = lambda: httpx.Client(base_url=g.base, transport=httpx.MockTransport(lambda r: httpx.Response(200, content=body)))  # type: ignore[method-assign]
+    with pytest.raises(g2.ApiError) as e:
+        g.list_streams()
+    assert e.value.status == 503 and e.value.code == "media_error"
+
+
+def test_frame_jpeg_refuses_a_name_that_is_not_plain():
+    g = client_for(FakeGo2rtcServer({}, redacts=True))
+    for bad in ("door_station_1", "smplwise_a/../b", "smplwise_x&src=rtsp://evil"):
+        with pytest.raises(ValueError):
+            g.frame_jpeg(bad, SRC_MAIN)
+
+
+def test_ws_url_refuses_a_name_outside_the_namespace():
+    g = client_for(FakeGo2rtcServer({}, redacts=True))
+    assert g.ws_url("smplwise_nvr-1_ch4_sub") == "ws://go2rtc.example.invalid:1984/api/ws?src=smplwise_nvr-1_ch4_sub"
+    for bad in ("door_station_1", "smplwise_x&src=door_station_1", ""):
+        with pytest.raises(ValueError):
+            g.ws_url(bad)
+
+
+# --- F10 (adapter half): the probe grab through the adapter, with the reachability hooks
+
+
+def test_grab_probe_returns_the_frame_or_the_head_of_the_error(monkeypatch):
+    from smplwise.services import media_reach
+
+    seen: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append({"path": request.url.path, **dict(request.url.params)})
+        if request.url.params.get("name") == "smplwise_cam_probe_ok":
+            return httpx.Response(200, content=b"\xff\xd8\xff" + b"j" * 10)
+        return httpx.Response(500, content=b"E" * 1000)
+
+    built: list[float] = []
+
+    class Adapter(g2.Go2rtc):
+        def _client_for(self, timeout_s: float) -> httpx.Client:
+            built.append(timeout_s)
+            return httpx.Client(base_url=self.base, transport=httpx.MockTransport(handler), event_hooks=g2._REACH_HOOKS)
+
+    g = Adapter.__new__(Adapter)
+    g.base, g.auth = "http://go2rtc.example.invalid:1984", None
+    oks: list[int] = []
+    monkeypatch.setattr(media_reach.REACH, "record_ok", lambda: oks.append(1))
+    status, body, err = g.grab_probe("smplwise_cam_probe_ok", "rtsp://cam.example.invalid/x", timeout_s=7.0)
+    assert (status, body[:3], err) == (200, b"\xff\xd8\xff", "")
+    status, body, err = g.grab_probe("smplwise_cam_probe_bad", "rtsp://cam.example.invalid/x")
+    assert status == 500 and err == "E" * 300
+    assert built == [7.0, 15.0] and len(oks) == 2, "the reachability hook sees the probe"
+    assert seen[0] == {"path": "/api/frame.jpeg", "src": "rtsp://cam.example.invalid/x", "name": "smplwise_cam_probe_ok"}
+    with pytest.raises(ValueError):
+        g.grab_probe("door_station_1", "rtsp://cam.example.invalid/x")
+
+
+def test_grab_probe_timeout_is_reported_not_raised():
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("slow", request=request)
+
+    class Adapter(g2.Go2rtc):
+        def _client_for(self, timeout_s: float) -> httpx.Client:
+            return httpx.Client(base_url=self.base, transport=httpx.MockTransport(handler))
+
+    g = Adapter.__new__(Adapter)
+    g.base, g.auth = "http://go2rtc.example.invalid:1984", None
+    assert g.grab_probe("smplwise_cam_probe_x", "rtsp://cam.example.invalid/x") == (0, b"", "timeout")
+
+
+# --- F04: the shared TLS context on a per-request client outside the adapter (the cast clients: tests/test_cast_relay.py)
+
+
+def test_the_bridge_media_question_uses_the_shared_tls_context(settings, monkeypatch):
+    from smplwise.services import media_query, nvr
+
+    seen: list[object] = []
+    real_client = httpx.Client
+
+    class Client(real_client):  # type: ignore[misc, valid-type]
+        def __init__(self, *a, **k):
+            seen.append(k.get("verify"))
+            super().__init__(*a, **{**k, "transport": httpx.MockTransport(lambda r: httpx.Response(200, json={"service_response": {"ok": True}}))})
+
+    monkeypatch.setattr(media_query.httpx, "Client", Client)
+    monkeypatch.setattr(media_query.ha_client, "configured", lambda _s: True)
+    monkeypatch.setattr(media_query.ha_client, "_rest_base", lambda _s: "http://ha.example.invalid:8123/api")
+    monkeypatch.setattr(media_query.ha_client, "_headers", lambda _s: {})
+    monkeypatch.setattr(media_query.ha_client, "_guard_subject", lambda _p: None)
+    assert media_query.call_bridge_media_query(settings, {"query": "queue"}) == {"ok": True}
+    assert seen == [nvr._ssl_context()]
