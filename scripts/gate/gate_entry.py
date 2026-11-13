@@ -21,6 +21,11 @@ CLI (all print JSON, except rule):
   gate_entry.py decide  --results DIR [--quarantine FILE] [--max-age-h 36] [--now ISO]
   gate_entry.py tagcheck --results DIR [--days 7]     rc 0 when a FULL green nightly on main is <= N days old (plan rule 3A for tagging)
   gate_entry.py rule
+  gate_entry.py lint                                   the backend static check (lint_backend.py), report only, rc 0
+
+Non-blocking lane (CR-BE-GATES-2436): `decide` also runs the backend static check (ruff, pyflakes rules) and prints its one-line count
+to STDERR, so the gate log shows it while gate_release.sh reads only the JSON on stdout. It never changes the decision or the exit code;
+a missing ruff or a missing lint_backend.py next to this file prints NOT_RUN. GATE_BACKEND_LINT=0 switches the lane off.
 """
 from __future__ import annotations
 
@@ -130,9 +135,23 @@ def tag_ok(results: Path, days: float = 7.0, now: dt.datetime | None = None) -> 
     return {"ok": False, "why": f"no full green nightly on main within {days:g} days"}
 
 
+def backend_lint_lane(stream=None) -> str:
+    """Run the non-blocking backend lint lane and print its summary to `stream` (stderr). Never raises; returns the text printed."""
+    stream = stream if stream is not None else sys.stderr
+    if os.environ.get("GATE_BACKEND_LINT", "1") == "0":
+        return ""
+    try:
+        import lint_backend as lb
+        txt = lb.text(lb.run(lb.default_root()))
+    except Exception as exc:  # noqa: BLE001  (a lane problem must never touch the gate decision)
+        txt = f"backend lint (ruff F, non-blocking): NOT_RUN - {exc.__class__.__name__}: {str(exc)[:200]}"
+    print(txt, file=stream)
+    return txt
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("cmd", choices=["enabled", "decide", "tagcheck", "rule"])
+    ap.add_argument("cmd", choices=["enabled", "decide", "tagcheck", "rule", "lint"])
     ap.add_argument("--results", default=os.environ.get("GATE_RESULTS_DIR") or str(Path.home() / "smplwise-results"))
     ap.add_argument("--quarantine")
     ap.add_argument("--flag")
@@ -147,12 +166,17 @@ def main(argv=None) -> int:
         return 0
     if ns.cmd == "enabled":
         return 0 if fast_enabled(ns.flag) else 1
+    if ns.cmd == "lint":
+        backend_lint_lane(sys.stdout)
+        return 0
     if ns.cmd == "tagcheck":
         r = tag_ok(Path(ns.results), ns.days, now)
         print(json.dumps(r, indent=1))
         return 0 if r["ok"] else 1
     r = decide(Path(ns.results), Path(ns.quarantine) if ns.quarantine else None, now, ns.max_age_h, ns.flag, ns.full)
     print(json.dumps(r, indent=1, ensure_ascii=False))
+    sys.stdout.flush()
+    backend_lint_lane()
     return 0
 
 
