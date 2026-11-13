@@ -79,7 +79,22 @@ each server's heartbeat cadence checked. Media / talk sockets (`sw-live-player`,
   socket replaced after missed heartbeats; resume / stuck-connecting / online; back-off doubling, cap and reset; `finalClose` and
   `stop()` leave nothing behind.
 
-Results: see the commit message (local run) and the runner entry check (`~/pre/entry_sessfix.log`).
+### Local results (Windows workstation, preview build, 13.11; the machine was at 100 % CPU from other work throughout)
+
+- `npm run build` (`tsc --noEmit` + `vite build`): clean.
+- The two new specs, desktop + tablet + mobile: **36 passed**.
+- A random sample of **62 spec files** (25 `layout-*`, 30 `evidence-*`, 7 `unit-*`, none pixel, none needing the dev server or a
+  fixture backend) in all three projects: 927 tests - **536 passed, 364 skipped** (project-gated), **27 failed**. 20 of the 27 were
+  timeouts under the CPU load. Every failed test was re-run on the branch: the 5 files with non-timeout failures
+  (`layout-dd-click`, `layout-timescrub-noscroll`, `unit-device-types-admin-ui`, `evidence-calmsg-polish-2331`,
+  `evidence-mobile-options`) **105/105 passed**; the 8 files with timeouts **34 passed, 23 skipped, 0 failed**. The same 5 files
+  on an `origin/main` build (`665ec8f24`, same machine): 102 passed, 3 failed (`evidence-mobile-options`, load) - so main is not
+  greener than the branch on them.
+- An earlier, stopped run of a different 78-file sample: 97 passed, 1 failed (`evidence-k88-plan-advanced`, not re-run) before it
+  was stopped for time.
+- Pixel specs: NOT_RUN locally (their baselines are `-linux.png` only). They run in the runner entry check (visual step blocking).
+
+Runner: entry check queued (`~/pre/entry_sessfix.log`); its verdict is not part of this note.
 
 ## Rollback
 
