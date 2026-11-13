@@ -66,7 +66,7 @@ New:
   was stopped. Left to the runner's entry check (`~/gate2/branch_check.sh`).
 - Existing tickets tests, targeted (the files the review names for these areas: visibility, board, table, table_query, device, rfq,
   mgrdash_batch_visibility, mgrdash_batched_guard, msg_outbox, s5b_channel, vendor_portal, vendor_portal_more, phone_verify,
-  s4_directory): PARTIAL at commit time - the first 39 tests passed, 0 failed; the rest had not finished.
+  s4_directory): 409 passed, 0 failed (2 h 33 min under the load).
 
 ## Rollback
 
