@@ -32,6 +32,7 @@ from .. import __version__
 from ..audit import audit
 from ..db import Database, new_id, now_iso
 from ..errors import ApiError, conflict, not_found
+from . import bill_ledger as bl
 from . import energy_billing as eb
 from . import energy_counter as ec
 from . import energy_formula as fx
@@ -51,6 +52,9 @@ ENGINE = "arx.water.billing/1"
 VIEW, MANAGE, BILLS = "water.view", "water.manage", "water.bills"
 ISSUED_STATES = eb.ISSUED_STATES
 STATE_HE = eb.STATE_HE
+# CR-BILL-LEDGER-A-2436: the sealed-bill lifecycle shared with electricity (services/bill_ledger.py); every name is a constant, never input
+KIND = bl.BillKind(name="water", table="water_bills", events_table="water_bill_events", quantity="m3", resource_type="water_bill",
+                   audit_prefix="infra.water.", state_he=STATE_HE, issued_states=ISSUED_STATES, correction_columns="id")
 HISTORY_PERIODS = 12
 AUTO_MAX_PER_ACCOUNT = 24
 AUTO_RETRY = dt.timedelta(hours=6)
@@ -749,10 +753,7 @@ def account_history(conn: sqlite3.Connection, provider: WaterReadings, account: 
 # ====================================================================== bills
 
 def get_bill(conn: sqlite3.Connection, bid: str) -> sqlite3.Row:
-    row = conn.execute("SELECT * FROM water_bills WHERE id = ?", (bid,)).fetchone()
-    if not row:
-        raise not_found("החיוב לא נמצא.")
-    return row
+    return bl.get_bill(KIND, conn, bid)
 
 
 def bill_actions(row: sqlite3.Row) -> list[str]:
@@ -786,14 +787,11 @@ def bill_dict(conn: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
 
 
 def _event(conn: sqlite3.Connection, bid: str, action: str, actor: Any | None, details: dict[str, Any] | None = None) -> None:
-    conn.execute("INSERT INTO water_bill_events(id, bill_id, at, action, actor_kind, actor_id, actor_name, details_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                 (new_id(), bid, now_iso(), action, "user" if actor is not None else "system", getattr(actor, "user_id", None),
-                  (getattr(actor, "display_name", None) or getattr(actor, "username", None)) if actor is not None else None,
-                  json.dumps(details, ensure_ascii=False) if details else None))
+    bl.event(KIND, conn, bid, action, actor, details)
 
 
 def _audit(conn: sqlite3.Connection, actor: Any | None, action: str, rid: str, request_id: str | None = None, details: dict[str, Any] | None = None) -> None:
-    audit(conn, actor=actor, action=f"infra.water.{action}", decision="allowed", resource_type="water_bill", resource_id=rid, request_id=request_id, details=details)
+    bl.audit(KIND, conn, actor, action, rid, request_id, details)
 
 
 resolve_period = eb.resolve_period  # the account rows carry the same cycle columns
@@ -943,50 +941,23 @@ def seal(conn: sqlite3.Connection, bill: sqlite3.Row, comp: Computed, *, actor: 
 
 
 def _check_version(row: sqlite3.Row, row_version: int | None) -> None:
-    if row_version is not None and row["row_version"] != row_version:
-        raise conflict("revision_conflict", "החיוב שונה בינתיים. יש לרענן ולנסות שוב.", current_revision=row["row_version"])
+    bl.check_version(row, row_version)
 
 
 def mark_sent(conn: sqlite3.Connection, bid: str, at: str, how: str, note: str, actor: Any, request_id: str | None, row_version: int | None = None) -> None:
-    row = get_bill(conn, bid)
-    _check_version(row, row_version)
-    if row["state"] not in ("issued", "sent"):
-        raise conflict("bill_state", f"אי אפשר לסמן כנשלח חיוב במצב {STATE_HE[row['state']]}.", state=row["state"])
-    conn.execute("UPDATE water_bills SET state = 'sent', sent_at = ?, sent_how = ?, sent_note = ?, row_version = row_version + 1, updated_at = ? WHERE id = ?",
-                 (at, how, note, now_iso(), bid))
-    _event(conn, bid, "sent", actor, {"how": how})
-    _audit(conn, actor, "bill.sent", bid, request_id, {"how": how})
+    bl.mark_sent(KIND, conn, bid, at, how, note, actor, request_id, row_version)
 
 
 def mark_paid(conn: sqlite3.Connection, bid: str, at: str, reference: str, actor: Any, request_id: str | None, row_version: int | None = None) -> None:
-    row = get_bill(conn, bid)
-    _check_version(row, row_version)
-    if row["state"] not in ("issued", "sent"):
-        raise conflict("bill_state", f"אי אפשר לסמן כשולם חיוב במצב {STATE_HE[row['state']]}.", state=row["state"])
-    conn.execute("UPDATE water_bills SET state = 'paid', paid_at = ?, paid_ref = ?, row_version = row_version + 1, updated_at = ? WHERE id = ?", (at, reference, now_iso(), bid))
-    _event(conn, bid, "paid", actor)
-    _audit(conn, actor, "bill.paid", bid, request_id)
+    bl.mark_paid(KIND, conn, bid, at, reference, actor, request_id, row_version)
 
 
 def void_bill(conn: sqlite3.Connection, bid: str, reason: str, actor: Any, request_id: str | None, row_version: int | None = None) -> None:
-    row = get_bill(conn, bid)
-    _check_version(row, row_version)
-    if not reason or not reason.strip():
-        raise _err(422, "reason_required", "חובה לציין סיבת ביטול.")
-    if row["state"] not in ("issued", "sent"):
-        raise conflict("bill_state", f"אי אפשר לבטל חיוב במצב {STATE_HE[row['state']]}.", state=row["state"])
-    conn.execute("UPDATE water_bills SET state = 'void', void_reason = ?, voided_at = ?, row_version = row_version + 1, updated_at = ? WHERE id = ?",
-                 (reason.strip(), now_iso(), now_iso(), bid))
-    _event(conn, bid, "void", actor, {"reason": reason.strip()})
-    _audit(conn, actor, "bill.void", bid, request_id)
+    bl.void_bill(KIND, conn, bid, reason, actor, request_id, row_version)
 
 
 def check_correctable(conn: sqlite3.Connection, row: sqlite3.Row) -> None:
-    if row["state"] not in ISSUED_STATES:
-        raise conflict("bill_state", f"אי אפשר לתקן חיוב במצב {STATE_HE[row['state']]}.", state=row["state"])
-    existing = conn.execute("SELECT id FROM water_bills WHERE replaces_bill_id = ? AND state = 'draft'", (row["id"],)).fetchone()
-    if existing:
-        raise conflict("bill_state", "כבר קיימת טיוטת תיקון לחיוב זה.", bill_id=existing["id"], state=row["state"])
+    bl.check_correctable(KIND, conn, row)
 
 
 # ====================================================================== automatic generation and retention (the shared keys)
