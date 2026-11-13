@@ -97,8 +97,8 @@ test.describe('calendars settings (הגדרות › יומנים)', () => {
     await expect(page.locator(`${S} [data-overlap="block"]`)).toHaveAttribute('aria-checked', 'true');
     await expect(opt(page, 'override_scope', 'both')).toHaveAttribute('aria-pressed', 'true');
     if (!phone()) await expect(page.locator(`${S} [data-override]`)).toHaveCount(2);
-    await page.locator(`${S} [data-calset-tabbtn="behavior"]`).click();
-    await page.locator(`${S} [data-calset-tabbtn="overlap"]`).click();
+    await page.locator(`${S} [data-calset-tabs] [role="tab"][href$="tab=behavior"]`).click();
+    await page.locator(`${S} [data-calset-tabs] [role="tab"][href$="tab=overlap"]`).click();
     await expect(page.locator(`${S} [data-overlap="block"]`)).toHaveAttribute('aria-checked', 'true'); // saved, not a local draft
   });
 
@@ -107,7 +107,7 @@ test.describe('calendars settings (הגדרות › יומנים)', () => {
     const keys = ['menu_position', 'contested_order', 'allow_displace', 'displace_approver', 'phone_time_picker', 'tablet_panels', 'resident_pending_display', 'resident_rooms',
       'sync_conflict_display', 'reauth_mode', 'purge_confirm', 'loading_style', 'resident_cancel_until'];
     const seen = new Set<string>();
-    for (let i = 0; i < 12; i += 1) {
+    for (let i = 0; i < 20; i += 1) { // AUDIT30-F5: 44 px touch controls on the phone - 13 pages there (was 9)
       await fits(page); // waits for the panel's measure: the rows per page are settled before they are read
       for (const k of await page.locator(`${S} [data-setting]`).evaluateAll((els) => els.map((e) => e.getAttribute('data-setting') ?? ''))) seen.add(k);
       const next = page.locator(`${S} [data-calset-next]`);
@@ -139,7 +139,7 @@ test.describe('calendars settings (הגדרות › יומנים)', () => {
     await open(page, '/system/calendars?tab=behavior');
     await open(page, '/system/calendars?tab=overlap');
     await opt(page, 'override_scope', 'none').click();
-    await page.locator(`${S} [data-calset-tabbtn="approval"]`).click();
+    await page.locator(`${S} [data-calset-tabs] [role="tab"][href$="tab=approval"]`).click();
     await expect(page.locator(`${S} tr[data-approval="alon"]`)).toContainText('לפי ההתקנה');
     await expect(page.locator(`${S} tr[data-approval="alon"] select`)).toHaveCount(1); // only the approval mode
     await page.locator(`${S} tr[data-approval="alon"] [data-approval-mode]`).selectOption('always');
@@ -166,7 +166,7 @@ test.describe('calendars settings (הגדרות › יומנים)', () => {
     await open(page, '/system/calendars?tab=behavior');
     await toSetting(page, 'purge_confirm');
     await opt(page, 'purge_confirm', 'one_click').click();
-    await page.locator(`${S} [data-calset-tabbtn="retention"]`).click();
+    await page.locator(`${S} [data-calset-tabs] [role="tab"][href$="tab=retention"]`).click();
     await page.locator(`${S} [data-purge]`).click();
     await expect(page.locator(`${S} [data-purge-word]`)).toHaveCount(0);
     await expect(page.locator(`${S} [data-purge-ok]`)).toBeEnabled();

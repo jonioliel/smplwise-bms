@@ -173,7 +173,9 @@ export class CalViewCalendar extends LitElement {
       .panel { padding: 12px; gap: 10px; }
       .big { font-size: var(--sw-fs-xl); }
       .ph { gap: 6px; }
-      .month { flex: none; block-size: 262px; }
+      /* AUDIT30-F5 (touch): the day cell is the target - six rows of 44 px (the month grows to fit them, the agenda under it keeps the rest) */
+      .month { flex: none; block-size: auto; }
+      .mgrid { grid-template-rows: repeat(6, 44px); }
       .mhead div { padding: 0 0 4px; text-align: center; }
       .mcell { padding: 3px; border-radius: var(--sw-r-sm); align-items: center; gap: 2px; }
       .mcell .d { justify-content: center; min-block-size: 20px; }

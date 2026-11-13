@@ -2,6 +2,8 @@ import { LitElement, html, nothing, css, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
+import '../components/sw-page';
+import '../components/sw-button';
 import { describeError } from '../api/client';
 import { calendarsApi, type CalendarsApi, type Calendar } from '../api/calendars';
 import { getDevicesTree } from '../api/devices';
@@ -33,15 +35,18 @@ const TAB_SHORT: Record<CalView, string> = { cal: 'יומן', rooms: 'חדרים
 @customElement('calendars-page')
 export class CalendarsPage extends LitElement {
   static styles = [calCss, css`
-    :host { display: flex; flex-direction: column; min-block-size: 0; flex: 1; padding: 14px var(--sw-page-pad) 20px; gap: 14px; overflow: hidden; }
-    .top { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; padding-inline-start: var(--sw-lead-reserve, 0px); padding-inline-end: var(--sw-float-reserve, 0px); }
-    .top h1 { margin: 0; font-size: var(--sw-h1); font-weight: var(--sw-h1-weight); letter-spacing: var(--sw-h1-tracking); color: var(--sw-heading); line-height: 1.2; }
+    /* AUDIT30-F2 (#6): the page frame is the shared sw-page (title, actions at the row's end); the frame fills the screen, the view the rest */
+    :host { display: flex; flex-direction: column; min-block-size: 0; flex: 1; overflow: hidden; }
+    sw-page { flex: 1; min-block-size: 0; }
+    .page-state { display: flex; flex-direction: column; flex: 1; min-block-size: 0; padding: 14px var(--sw-page-pad) 20px; }
     .floors { display: flex; gap: 8px; flex-wrap: nowrap; overflow: hidden; min-inline-size: 0; }
     .bar { display: flex; align-items: center; gap: 10px 12px; flex-wrap: wrap; }
     .tabs { display: inline-flex; gap: 2px; padding: 4px; border-radius: var(--sw-r-pill); background: var(--sw-surface-3); max-inline-size: 100%; overflow: hidden; }
     .tab { font: inherit; font-size: var(--sw-fs-md); border: 0; background: transparent; color: var(--sw-text-2); padding: 0 14px; min-block-size: 34px; border-radius: var(--sw-r-pill);
       cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; text-decoration: none; -webkit-tap-highlight-color: transparent; }
     .tab[aria-current='page'] { background: var(--sw-seg-key, var(--sw-surface-solid)); color: var(--sw-seg-key-ink, var(--sw-heading)); font-weight: var(--sw-fw-semibold); box-shadow: var(--sw-seg-thumb-shadow, var(--sw-shadow-1)); }
+    /* AUDIT30-F5 (touch): the view tabs are 44 px targets on a coarse pointer */
+    @media (pointer: coarse) { .tab { min-block-size: 44px; } }
     .tab .n { color: var(--sw-text-3); font-weight: var(--sw-fw-semibold); }
     /* DARK-SEG-ALL-2380: on the dark light pill the count takes the key's dark label (light keeps the muted ink) */
     .tab[aria-current='page'] .n { color: var(--sw-seg-key-ink, var(--sw-text-3)); }
@@ -53,17 +58,20 @@ export class CalendarsPage extends LitElement {
     .loading { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 14px; flex: 1; min-block-size: 0; }
     .loading .panel { gap: 10px; }
     .center { display: grid; place-items: center; flex: 1; }
+    /* AUDIT30-F2 (#8, owner Q5 option A assumed): on the phone the one primary action is a floating button in the bottom corner */
+    @media (max-width: 767px) {
+      .new { position: fixed; z-index: var(--sw-z-drawer); inset-block-end: calc(var(--sw-bottomnav-h) + var(--sw-s-3) + env(safe-area-inset-bottom, 0px));
+        inset-inline-end: var(--sw-page-pad-phone); box-shadow: var(--sw-shadow-3); border-radius: var(--sw-r-pill); }
+    }
     .toast { position: fixed; inset-block-end: 24px; inset-inline-start: 50%; transform: translateX(50%); background: var(--sw-toast-bg); color: var(--sw-toast-text); padding: 10px 16px;
       border-radius: var(--sw-r-pill); font-size: var(--sw-fs-md); z-index: var(--sw-z-toast); box-shadow: var(--sw-shadow-3); max-inline-size: calc(100vw - 32px); }
     @media (max-width: 1179px) { .loading { grid-template-columns: minmax(0, 1fr); } .loading .side { display: none; } }
     @media (max-width: 699px) {
-      :host { padding: 10px var(--sw-page-pad-phone) 10px; gap: 10px; }
-      .top h1 { font-size: var(--sw-fs-2xl); }
+      .page-state { padding: 10px var(--sw-page-pad-phone); }
       .bar { gap: 8px; }
       .tabs { inline-size: 100%; }
       .tab { flex: 1; justify-content: center; padding: 0 6px; font-size: var(--sw-fs-sm); }
       .search { display: none; }
-      .new { margin-inline-start: auto; }
       .toast { inset-block-end: calc(var(--sw-bottomnav-h) + 16px + env(safe-area-inset-bottom)); }
     }
   `];
@@ -195,15 +203,16 @@ export class CalendarsPage extends LitElement {
   render() {
     const a = this.access;
     if (a.enabled === false && isApi()) {
-      return html`<h1 class="vh">יומנים</h1><div class="center"><sw-state-panel icon="calendar" state="empty" data-cal-state="off" heading="מודול היומנים כבוי"
+      return html`<sw-page heading="יומנים" wide><div class="center"><sw-state-panel icon="calendar" state="empty" data-cal-state="off" heading="מודול היומנים כבוי"
         hint=${a.can.configure ? 'אפשר להפעיל אותו בהגדרות ‹ יומנים.' : 'מנהל המערכת יכול להפעיל אותו.'} actionLabel=${a.can.configure ? 'הפעלת מודול היומנים' : '' /* CAL-SWITCH-REACH-2321: leads to Settings › יומנים, the module's switch */}
-        @action=${() => (location.hash = CALENDARS_SETTINGS_HREF)}></sw-state-panel></div>`;
+        @action=${() => (location.hash = CALENDARS_SETTINGS_HREF)}></sw-state-panel></div></sw-page>`;
     }
-    if (a.enabled && !a.can.view) return html`<h1 class="vh">יומנים</h1><div class="center"><sw-state-panel state="forbidden" data-cal-state="forbidden" heading="אין לך גישה ליומנים"></sw-state-panel></div>`;
+    if (a.enabled && !a.can.view) return html`<sw-page heading="יומנים" wide><div class="center"><sw-state-panel state="forbidden" data-cal-state="forbidden" heading="אין לך גישה ליומנים"></sw-state-panel></div></sw-page>`;
     const phoneResident = this.device === 'phone' && !!this.cals && !this.manages() && !a.can.manage && !a.can.maintenance;
+    const body = html`<div class="body" data-cal-body data-view=${this.view}>${this.content(phoneResident)}</div>`;
+    // AUDIT30-F2 (#6): the shared page frame; the resident's phone flow keeps its own compact head (no page title)
     return html`
-      ${phoneResident ? nothing : this.head()}
-      <div class="body" data-cal-body data-view=${this.view}>${this.content(phoneResident)}</div>
+      ${phoneResident ? html`<div class="page-state">${body}</div>` : html`<sw-page heading="יומנים" wide data-cal-page>${this.newButton()}${this.head()}${body}</sw-page>`}
       ${this.drawer?.kind === 'event' && this.api ? html`<cal-event-drawer .ctx=${this.ctx()} .detail=${this.drawer.d} @close=${() => (this.drawer = null)}></cal-event-drawer>` : nothing}
       ${this.drawer?.kind === 'maint' && this.api ? html`<cal-maint-drawer .ctx=${this.ctx()} .detail=${this.drawer.d} @close=${() => (this.drawer = null)}></cal-maint-drawer>` : nothing}
       ${this.toastText ? html`<div class="toast" role="status" data-cal-toast>${this.toastText}</div>` : nothing}`;
@@ -216,22 +225,18 @@ export class CalendarsPage extends LitElement {
     const phone = this.device === 'phone';
     const pending = (this.cals ?? []).filter((c) => c.my_role === 'manage').reduce((n, c) => n + c.pending_count, 0);
     return html`
-      <div class="top">
-        <h1>יומנים</h1><span class="sp"></span>
-        ${floors.length > 1 ? html`<div class="floors" role="group" aria-label="קומה">
-          <button type="button" class="chipb" aria-pressed=${String(this.floor === '')} data-floor="" @click=${() => (this.floor = '')}>הכל</button>
-          ${floors.map((f) => html`<button type="button" class="chipb" aria-pressed=${String(this.floor === f.id)} data-floor=${f.id} @click=${() => (this.floor = f.id)}>${f.name}</button>`)}
-        </div>` : nothing}
-      </div>
       <div class="bar">
         <nav class="tabs" aria-label="תצוגות היומנים">
           ${views.map((v) => html`<a class="tab" href=${`${base}/${v}${this.demoQuery()}`} aria-current=${this.view === v ? 'page' : 'false'} data-cal-tab=${v}>
             ${phone ? TAB_SHORT[v] : TAB_LABEL[v]}${v === 'approvals' && pending ? html`<span class="count num">${pending > 99 ? '99+' : pending}</span>` : nothing}${v === 'manage' && !phone ? html`<span class="n num">${(this.cals ?? []).length}</span>` : nothing}</a>`)}
         </nav>
+        ${floors.length > 1 ? html`<div class="floors" role="group" aria-label="קומה">
+          <button type="button" class="chipb" aria-pressed=${String(this.floor === '')} data-floor="" @click=${() => (this.floor = '')}>הכל</button>
+          ${floors.map((f) => html`<button type="button" class="chipb" aria-pressed=${String(this.floor === f.id)} data-floor=${f.id} @click=${() => (this.floor = f.id)}>${f.name}</button>`)}
+        </div>` : nothing}
         <span class="sp"></span>
         <label class="search"><sw-icon name="search" size="16"></sw-icon><span class="vh">חיפוש ביומנים</span>
           <input type="search" placeholder="חיפוש ביומנים" .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} data-cal-search></label>
-        ${this.newButton()}
       </div>`;
   }
 
@@ -245,9 +250,14 @@ export class CalendarsPage extends LitElement {
   private newButton() {
     const can = this.access.can;
     if (this.view === 'maint') {
-      return can.maintenance ? html`<button type="button" class="btn pri new" data-cal-new @click=${() => (this.drawer = { kind: 'maint', d: {} })}><sw-icon name="plus" size="16"></sw-icon>חלון תחזוקה</button>` : nothing;
+      return can.maintenance ? this.primary('חלון תחזוקה', () => (this.drawer = { kind: 'maint', d: {} })) : nothing;
     }
-    return can.book ? html`<button type="button" class="btn pri new" data-cal-new @click=${() => (this.drawer = { kind: 'event', d: {} })}><sw-icon name="plus" size="16"></sw-icon>חדש</button>` : nothing;
+    return can.book ? this.primary('חדש', () => (this.drawer = { kind: 'event', d: {} })) : nothing;
+  }
+
+  /** AUDIT30-F2 (#8): the one primary action - the shared button in the page's actions slot (a floating button on the phone). */
+  private primary(label: string, open: () => void) {
+    return html`<sw-button slot="actions" class="new" variant="primary" size=${this.device === 'phone' ? 'lg' : 'md'} icon="plus" data-cal-new @click=${open}>${label}</sw-button>`;
   }
 
   private content(resident: boolean) {
