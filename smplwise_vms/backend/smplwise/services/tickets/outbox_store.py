@@ -31,6 +31,14 @@ from .outbox import OutboxError, OutboxRow, can_transition
 UTC = dt.timezone.utc
 _local = threading.local()
 
+# F-02 (TICKETS-PERF-ERASE-2435): the partial index idx_ticket_outbox_queue (migrations 0081/0089/0128/0170) is declared
+# `WHERE state IN ('queued', 'held', 'sending')`. SQLite uses a partial index only when the query's WHERE contains a term that
+# implies that predicate, and it does not prove `state IN ('queued', 'held')` or `state = ?` implies it. The worker queries
+# therefore carry the index's own predicate text beside their narrower condition: the narrower term still decides the rows
+# (the predicate is implied by it), so the result is the same and the plan becomes SEARCH ... USING INDEX.
+QUEUE_INDEX_STATES = ("queued", "held", "sending")
+QUEUE_INDEX_WHERE = "state IN ('queued', 'held', 'sending')"
+
 
 class Unbound(RuntimeError):
     """An outbox / ledger write was attempted without a connection bound to this thread (see the module note)."""
@@ -189,13 +197,15 @@ class SqliteOutboxStore:
 
     def open_rows(self) -> list[OutboxRow]:
         with self._io.read() as conn:
-            rows = conn.execute("SELECT * FROM ticket_outbox WHERE state IN ('queued', 'held') "
+            rows = conn.execute(f"SELECT * FROM ticket_outbox WHERE {QUEUE_INDEX_WHERE} AND state IN ('queued', 'held') "
                                 "ORDER BY priority, not_before, created_at, id").fetchall()
         return [from_db(r) for r in rows]
 
     def in_state(self, state: str) -> list[OutboxRow]:
+        # F-02: a state the queue index covers carries the index's own predicate (same rows); any other state reads as before
+        where = f"{QUEUE_INDEX_WHERE} AND state = ?" if state in QUEUE_INDEX_STATES else "state = ?"
         with self._io.read() as conn:
-            rows = conn.execute("SELECT * FROM ticket_outbox WHERE state = ? ORDER BY created_at, id", (state,)).fetchall()
+            rows = conn.execute(f"SELECT * FROM ticket_outbox WHERE {where} ORDER BY created_at, id", (state,)).fetchall()
         return [from_db(r) for r in rows]
 
     def by_idempotency_key(self, key: str) -> OutboxRow | None:
@@ -409,15 +419,15 @@ def inbound_candidates(conn: sqlite3.Connection, sender_key: str, since: dt.date
 def due(conn: sqlite3.Connection, now: dt.datetime, module_on: bool) -> bool:
     """Is there anything for the worker's next tick (so an idle installation never takes the write lock every 2 s)?"""
     if not module_on:
-        return conn.execute("SELECT 1 FROM ticket_outbox WHERE state IN ('queued', 'held') AND "
+        return conn.execute(f"SELECT 1 FROM ticket_outbox WHERE {QUEUE_INDEX_WHERE} AND state IN ('queued', 'held') AND "
                             "(held_reason IS NULL OR held_reason != 'module_off') LIMIT 1").fetchone() is not None
-    return conn.execute("SELECT 1 FROM ticket_outbox WHERE state IN ('queued', 'held') AND (not_before <= ? OR held_reason IN "
+    return conn.execute(f"SELECT 1 FROM ticket_outbox WHERE {QUEUE_INDEX_WHERE} AND state IN ('queued', 'held') AND (not_before <= ? OR held_reason IN "
                         "('channel_down', 'account_unmapped', 'module_off')) LIMIT 1", (iso(now),)).fetchone() is not None
 
 
 def any_open(conn: sqlite3.Connection) -> bool:
     """Is there any row the worker may still move? None: the periodic full tick is skipped too (no write lock at all)."""
-    return conn.execute("SELECT 1 FROM ticket_outbox WHERE state IN ('queued', 'held', 'sending') LIMIT 1").fetchone() is not None
+    return conn.execute(f"SELECT 1 FROM ticket_outbox WHERE {QUEUE_INDEX_WHERE} LIMIT 1").fetchone() is not None
 
 
 def department_send_hours(conn: sqlite3.Connection, department_id: str) -> Any:

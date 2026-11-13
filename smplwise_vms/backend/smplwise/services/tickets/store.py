@@ -22,6 +22,12 @@ _TICKET_SELECT = (
 )
 
 
+def table_missing(exc: BaseException) -> bool:
+    """F-03 (TICKETS-PERF-ERASE-2435): the one failure an erase / retention DELETE may ignore - an older database without the table
+    (a migration not applied yet). Anything else (a locked database, a constraint, a broken file) is a real failure."""
+    return isinstance(exc, sqlite3.OperationalError) and "no such table" in str(exc)
+
+
 def _dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
     return dict(row) if row is not None else None
 

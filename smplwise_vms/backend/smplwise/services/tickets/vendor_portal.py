@@ -537,8 +537,9 @@ def prune(conn, now: dt.datetime) -> None:
     try:
         conn.execute("DELETE FROM ticket_portal_codes WHERE created_at < ?", (_iso(now - KEEP),))
         conn.execute("DELETE FROM ticket_portal_sessions WHERE expires_at < ? OR revoked_at IS NOT NULL", (_iso(now),))
-    except Exception:  # noqa: BLE001 - a database before 0105
-        pass
+    except Exception as exc:  # noqa: BLE001 - a database before 0105 is silent; any other failure is logged, the janitor goes on
+        if not store.table_missing(exc):
+            log.warning("vendor portal retention failed: %s", type(exc).__name__)
     from . import portal_more  # VPORTALRFQ: technician requests (180 days after the decision / 90 days pending)
 
     portal_more.prune(conn, now)
@@ -548,8 +549,9 @@ def forget_contact(conn, contact_id: str) -> None:
     """Erase (15.2): the contact's portal code rows go (they hold its keyed number index)."""
     try:
         conn.execute("DELETE FROM ticket_portal_codes WHERE contact_id = ?", (contact_id,))
-    except Exception:  # noqa: BLE001 - a database before 0105
-        pass
+    except Exception as exc:  # a database before 0105 has nothing to erase; any other failure fails the erase (F-03)
+        if not store.table_missing(exc):
+            raise
     from . import portal_more  # VPORTALRFQ: the technician requests that name the row
 
     portal_more.forget_contact(conn, contact_id)

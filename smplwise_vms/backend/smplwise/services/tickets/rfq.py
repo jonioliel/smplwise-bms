@@ -261,6 +261,7 @@ def visible_page(viewer: Viewer, *, state: str = "open", department_id: str | No
     dept_ids = None if ALL_DEPARTMENTS in viewer.anywhere else list(viewer.roles)
     after = store.decode_cursor(cursor)
     m = _NUMBER_Q.match(query.strip()) if query else None
+    on = access.module_on(conn)  # F-01: the module switch once per page, not once per row
     out: list[RfqSeen] = []
     scanned, cap = 0, 5 * limit
     exhausted = False
@@ -271,7 +272,7 @@ def visible_page(viewer: Viewer, *, state: str = "open", department_id: str | No
         for row in batch:
             scanned += 1
             after = (row["updated_at"], row["id"])
-            seen = visible(viewer, row)
+            seen = _decide(viewer, row) if on else None
             if seen is not None:
                 out.append(seen)
                 if len(out) >= limit:
