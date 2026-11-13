@@ -10,6 +10,8 @@ import '../components/media-group-dialog';
 import '../components/media-player-panel';
 import '../components/media-now-hero';
 import './multimedia-edit-panel';
+import '../components/sw-pager';
+import { PageFit } from './multimedia-page-fit';
 import { SkinController } from '../design/skin';
 import type { MediaGroupDialog } from '../components/media-group-dialog';
 import { ApiError, describeError } from '../api/client';
@@ -99,6 +101,8 @@ export class MultimediaPlayers extends LitElement {
   private homeFloorsLoaded = false;
   /** Bubble phase C: the skin in force (the now-playing hero above the groups, the cards as pill rows). */
   private skin = new SkinController(this);
+  /** NOSCROLL-1366-2437: the cards region pages instead of scrolling on a desktop (multimedia-page-fit.ts) */
+  private fit = new PageFit(this, () => this.renderRoot.querySelector<HTMLElement>('.scr'), () => !this.editing);
 
   static styles = [mediaGlassStyles, mediaPageStyles, css`
     .shlink[disabled] {
@@ -206,6 +210,17 @@ export class MultimediaPlayers extends LitElement {
         /* the region spans the page's side padding, so its scrollbar sits at the screen's edge and a focus ring is never clipped */
         margin-inline: -36px;
         padding: var(--sw-s-1) 36px var(--sw-s-8);
+      }
+      /* NOSCROLL-1366-2437 (audit round 30 #5: this region scrolled 1,537 px at 1366x768, all the cards in one panel): outside the
+         editor the region never scrolls; the cards that fit are page 1, the rest are on the next pages (the pager in the filter row) */
+      :host([data-fit]) .scr:not(.editing) {
+        overflow: hidden;
+        scrollbar-gutter: auto;
+        padding-block-end: var(--sw-s-5);
+      }
+      /* the cards of the other pages (and a section with none on this page) stay in the document, out of the layout */
+      :host([data-fit]) [data-off] {
+        display: none !important;
       }
       /* scrolled: the cards slide out under a soft fade instead of a hard cut against the filters */
       .scr.scrolled {
@@ -576,16 +591,19 @@ export class MultimediaPlayers extends LitElement {
     </span>`;
   }
 
-  private card(d: PlayerDevice, index: number, count: number): TemplateResult {
+  private card(d: PlayerDevice, index: number, count: number, paged = false): TemplateResult {
     const edit = this.editing && !!this.draft;
     const off = edit && !(this.draft!.cards[d.key]?.on ?? true);
     const lead = d.live.group.role === 'member' ? resolveLeader(d, this.devices) : null;
-    return html`<media-player-card data-player-card=${d.key} .device=${d} .leader=${lead && lead.key !== d.key ? lead : null} ?compact=${this.phone} ?editing=${edit} ?data-dimmed=${off}
+    return html`<media-player-card data-fit-item ?data-off=${paged} data-player-card=${d.key} .device=${d} .leader=${lead && lead.key !== d.key ? lead : null} ?compact=${this.phone} ?editing=${edit} ?data-dimmed=${off}
       @open-player=${(e: CustomEvent<{ key: string }>) => this.openPlayer(e.detail.key)} @media-changed=${() => this.scheduleRefresh(isApi() ? 700 : 30)}>${edit ? this.chips(d, index, count) : nothing}</media-player-card>`;
   }
 
-  private section(g: PlayerGroup): TemplateResult {
+  private section(g: PlayerGroup, offset = 0): TemplateResult {
     const counts = playerCounts(g.devices);
+    // NOSCROLL-1366-2437: the cards of the other pages are drawn out of the layout ([data-off]); so is a section with none on this page
+    const off = (i: number) => !this.fit.shows(offset + i);
+    const none = g.devices.every((_, i) => off(i));
     const by = (this.editing && this.draft ? this.draft : this.view()).group_by;
     const floor = !this.editing && isFloorSection(g, by, this.hasFloors);
     const canPause = floor && !!this.status?.can.bulk && counts.playing > 0;
@@ -598,9 +616,9 @@ export class MultimediaPlayers extends LitElement {
     const pauseBtn = canPause
       ? html`<button type="button" class="btn sm quiet" data-floor-pause=${g.id} @click=${() => void this.dialog?.pause({ scope: 'floor', id: g.id, name: g.label })}>${mIcon('pause')}עצור מוזיקה</button>`
       : nothing;
-    return html`<section class="fsec" aria-label=${g.label} data-group=${g.id}>
+    return html`<section class="fsec" ?data-off=${none} aria-label=${g.label} data-group=${g.id}>
       <header class="sh"><div>${title}<small>${sub}</small></div><span class="grow"></span>${pauseBtn}</header>
-      <div class="pgrid">${repeat(g.devices, (d) => d.key, (d, i) => this.card(d, i, g.devices.length))}</div>
+      <div class="pgrid">${repeat(g.devices, (d) => d.key, (d, i) => this.card(d, i, g.devices.length, off(i)))}</div>
     </section>`;
   }
 
@@ -632,6 +650,7 @@ export class MultimediaPlayers extends LitElement {
         <span class="amb">${c.playing ? html`<em><span class="n">${c.playing}</span></em> מנגנים מתוך <span class="n">${c.total}</span>` : html`אין ניגון כרגע · <span class="n">${c.total}</span> התקנים`}${c.unavailable ? html` · <span class="n">${c.unavailable}</span> לא זמין` : nothing}</span>
         ${lib && lib !== 'ready' ? html`<span class="chipx libchip" data-lib-state=${lib}>${mIcon('music')}ספרייה לא זמינה</span>` : nothing}
         <span class="grow"></span>
+        ${this.fit.pages > 1 ? html`<sw-pager data-mm-pager .page=${this.fit.page} .pages=${this.fit.pages} @page-change=${(e: CustomEvent<{ page: number }>) => this.fit.go(e.detail.page)}></sw-pager>` : nothing}
         <div class="seg sm" role="radiogroup" aria-label="סינון לפי מצב">${PLAYER_STATE_FILTERS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id || 'all'} @click=${() => this.setFilters({ state: s.id })}>${s.label}${s.id === 'playing' ? html` <small>${c.playing}</small>` : s.id === 'unavailable' && c.unavailable ? html` <small>${c.unavailable}</small>` : nothing}</button>`)}</div>
         <label class="search">${mIcon('search')}<span class="vh">חיפוש נגן</span><input type="search" data-search placeholder="חיפוש נגן או חדר" .value=${f.q} @input=${(e: Event) => this.onSearch((e.target as HTMLInputElement).value)} /></label>
       </div>` : nothing}
@@ -722,19 +741,27 @@ export class MultimediaPlayers extends LitElement {
     if (!groups.length) {
       return html`${stale}<div data-mm-state="filtered">${this.stateBox('search', 'לא נמצאו נגנים', playerFiltersActive(this.filters) ? html`<button type="button" class="btn sm" data-clear-filters @click=${() => this.setFilters(PLAYER_NO_FILTER)}>נקה סינון</button>` : undefined)}</div>`;
     }
+    let offset = 0;
+    const offsets = groups.map((g) => ((offset += g.devices.length), offset - g.devices.length));
+    this.fit.sync(offset, `${groups.map((g) => `${g.id}:${g.devices.map((d) => d.key).join(',')}`).join('|')}|${this.phone}`);
     const hero = this.skin.bubble && !this.editing ? this.nowPlaying() : null;
-    return html`${stale}${hero ? html`<media-now-hero .device=${hero} @media-changed=${() => this.scheduleRefresh(300)}></media-now-hero>` : nothing}<div class="groups" data-mm-state="ready">${groups.map((g) => this.section(g))}</div>`;
+    return html`${stale}${hero ? html`<media-now-hero .device=${hero} @media-changed=${() => this.scheduleRefresh(300)}></media-now-hero>` : nothing}<div class="groups" data-mm-state="ready">${groups.map((g, gi) => this.section(g, offsets[gi]))}</div>`;
+  }
+
+  protected willUpdate() {
+    this.toggleAttribute('data-fit', this.fit.on);
   }
 
   render() {
     const editing = this.editing && !!this.draft;
+    const body = this.body(); // first: it tells the pager in the header how many cards there are
     return html`<div class="page" data-screen="multimedia-players">
       ${this.header()}
       ${editing ? html`<div class="editing-stack">${this.editBar()}</div>` : nothing}
       <div class=${classMap({ scr: true, editing })} data-mm-region @scroll=${this.onRegionScroll}>
         ${editing
-          ? html`<div class="edit-layout"><multimedia-edit-panel class="edit-side" simple heading="נגנים ורמקולים" .draft=${this.draft!} .devices=${asLayoutDevices(this.devices)} scope="all" .floors=${floorsOf(asLayoutDevices(this.devices), this.draft!).map((f) => (f.id === NO_FLOOR ? { ...f, name: UNPLACED_LABEL } : f))} @layout-draft=${(e: CustomEvent<MediaLayout>) => this.patchDraft(e.detail)}></multimedia-edit-panel><div class="edit-cards">${this.body()}</div></div>`
-          : this.body()}
+          ? html`<div class="edit-layout"><multimedia-edit-panel class="edit-side" simple heading="נגנים ורמקולים" .draft=${this.draft!} .devices=${asLayoutDevices(this.devices)} scope="all" .floors=${floorsOf(asLayoutDevices(this.devices), this.draft!).map((f) => (f.id === NO_FLOOR ? { ...f, name: UNPLACED_LABEL } : f))} @layout-draft=${(e: CustomEvent<MediaLayout>) => this.patchDraft(e.detail)}></multimedia-edit-panel><div class="edit-cards">${body}</div></div>`
+          : body}
       </div>
     </div>
     <media-group-dialog @group-done=${() => void this.load()}></media-group-dialog>

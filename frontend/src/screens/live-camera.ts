@@ -995,6 +995,65 @@ export class LiveCamera extends LitElement {
         grid-template-columns: 1fr;
       }
     }
+    /* NOSCROLL-1366-2437 (owner rule: a control screen never scrolls; audit round 30: 464 px at 1366x768). The wrappers are inert
+       below 1024 px (display: contents: the tablet and the phone keep the stacked page). From 1024 px the page takes the screen's
+       height and splits in two: the player column (the video as large as the room allows at 16:9, its controls under it, always on
+       screen) and a side column with the details / settings, which scrolls inside itself when the settings are opened. */
+    .stage,
+    .stage-main,
+    .stage-side,
+    .vbox {
+      display: contents;
+    }
+    @media (min-width: 1024px) {
+      sw-page {
+        block-size: 100%;
+      }
+      .stage {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) clamp(300px, 27vw, 400px);
+        gap: 14px;
+        flex: 1 1 0;
+        min-block-size: 0;
+      }
+      .stage-main {
+        display: flex;
+        flex-direction: column;
+        min-block-size: 0;
+        min-inline-size: 0;
+      }
+      .vbox {
+        display: block;
+        /* as tall as 16:9 of the column when there is room (the controls sit right under the picture), shorter when there is not
+           (the picture then narrows to keep 16:9, centred) */
+        aspect-ratio: 16 / 9;
+        flex: 0 1 auto;
+        min-block-size: 160px;
+        container-type: size;
+      }
+      .vbox > .video {
+        inline-size: min(100cqw, calc(100cqh * 16 / 9));
+        max-block-size: none;
+      }
+      .stage-side {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-block-size: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        /* room for the cards' shadow and the focus ring inside the scroller */
+        padding: 2px 4px 6px;
+        margin: -2px -4px 0;
+      }
+      .stage-side > .grid {
+        grid-template-columns: minmax(0, 1fr);
+        margin-block-start: 0;
+      }
+      .stage-side > .acc-root {
+        margin-block-start: 0;
+      }
+    }
     /* settings accordion (owner round 4, 2.6): the video keeps its place, everything below starts collapsed
        under one "camera settings" toggle, and each setting inside is its own collapsed row. */
     .acc-root {
@@ -1553,7 +1612,7 @@ export class LiveCamera extends LitElement {
     const stream = cam.stream;
     const remote = remoteVideoFor(this.transport);
     const plan = playerPlan(this.profile, cam.encoding, this.transport);
-    return html`
+    return html`<div class="stage"><div class="stage-main"><div class="vbox">
       <div class="video ${pane === 'off' ? 'off' : ''}">
         ${pane === 'still'
           ? html`<sw-camera-tile data-live-still name=${cam.name} state="live" cameraId=${cam.id} poster=${snapshotUrl(cam.id)} .stillRefresh=${cam.still_refresh_s ?? 10} noDemo></sw-camera-tile>`
@@ -1562,7 +1621,7 @@ export class LiveCamera extends LitElement {
           : pane === 'player'
           ? html`<sw-live-player .cameraId=${cam.id} .profile=${this.profile} .mode=${this.transport} .plan=${plan.plan} .preferred=${plan.preferred} .gop=${plan.gop} .encoding=${cam.encoding ?? null} .poster=${poster} @player-status=${this.onPlayer}></sw-live-player>`
           : html`<div class="center"><div><sw-icon name="offline" size=${32}></sw-icon><span data-camera-off-reason>${cam.recorder_enabled === false ? 'ה־NVR של המצלמה מושבת' : cam.status === 'offline' && cam.video_source === 'manual' ? cst('offline') : cam.status === 'offline' ? 'המצלמה מנותקת מה־NVR (לפי הסנכרון האחרון)' : 'אין הרשאת צפייה חיה במצלמה זו'}</span></div></div>`}
-      </div>
+      </div></div>
       ${canView && cam.live_kind === 'still' ? html`<div class="note" data-live-still-note>${fx().live.stillExplain.replace('{n}', String(cam.still_refresh_s ?? 10))}</div>` : nothing}
       <div class="controls" data-player=${this.playerStatus === 'playing' ? 'playing' : this.playerStatus === 'error' ? 'error' : 'connecting'}>
         <div class="round" role="group" aria-label="פקדי מצלמה">
@@ -1583,9 +1642,10 @@ export class LiveCamera extends LitElement {
         ${this.playerStatus === 'playing' && this.settings?.['media.video_notices'] !== 'true' ? nothing : html`<div class="note">${this.playerStatus === 'playing' ? `מנגן דרך ${this.playerTransport === 'webrtc' ? 'WebRTC' : 'MSE'}` : this.playerStatus === 'error' ? 'הזרם לא זמין' : this.playerStatus === 'ended' ? 'הסתיים' : 'מתחבר…'}</div>`}
       </div>
       ${this.renderCast(cam)}
+      </div><div class="stage-side">
       <frigate-camera-control camera-id=${cam.id} recorder-id=${cam.recorder_id} data-live-frigate-control></frigate-camera-control>
       ${this.renderSettingsAccordion(cam, stream)}
-    `;
+    </div></div>`;
   }
 
   /** CR-028: the status line of MY cast of this camera (screen, countdown, stop) and the picker. Nothing is drawn when the person cannot cast. */
@@ -1707,7 +1767,7 @@ export class LiveCamera extends LitElement {
     const cam = demoWall.find((c) => c.id === this.cameraId) ?? demoWall[0];
     const canView = cam.state === 'live' || cam.state === 'stale';
     const scene = demoScene[cam.id] ?? 'lobby';
-    return html`
+    return html`<div class="stage"><div class="stage-main"><div class="vbox">
       <div class="video ${canView ? scene : 'off'}">
         ${canView
           ? html`<sw-scene kind=${scene}></sw-scene><div class="shade"></div><span class="demo">דמו · אין שרת מחובר</span>
@@ -1717,7 +1777,7 @@ export class LiveCamera extends LitElement {
               <sw-icon name=${cam.state === 'offline' ? 'offline' : 'lock'} size=${32}></sw-icon>
               <span>${cam.state === 'offline' ? 'המצלמה אינה מחוברת ל־NVR' : 'אין הרשאת צפייה במצלמה זו'}</span>
             </div></div>`}
-      </div>
+      </div></div>
       <div class="controls" data-player=${canView ? 'playing' : 'error'}>
         <div class="round" role="group" aria-label="פקדי מצלמה">
           ${cam.audio ? html`<button title="מיקרופון" aria-label="מיקרופון" ?disabled=${!canView}><sw-icon name="mic" size=${16}></sw-icon></button><button title="שמע" aria-label="שמע" ?disabled=${!canView}><sw-icon name="volume" size=${16}></sw-icon></button>` : nothing}
@@ -1746,6 +1806,7 @@ export class LiveCamera extends LitElement {
             <sw-chip icon="route" ?selected=${this.ptzMode === 'patrol'} @click=${() => (this.ptzMode = 'patrol')}>סיור</sw-chip>
           </div>`
         : html`<div class="note" style="margin-block-start:8px">PTZ ושמע אינם מוצגים במצלמה זו: היכולת לא אומתה. פקד שלא נתמך מוסתר או מוסבר, לא מדומה.</div>`}
+      </div><div class="stage-side">
       <div class="grid">
         <sw-card heading="פרטים">
           <dl>
@@ -1762,7 +1823,7 @@ export class LiveCamera extends LitElement {
           </div>
         </sw-card>
       </div>
-    `;
+    </div></div>`;
   }
 
   render() {

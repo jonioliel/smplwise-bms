@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installStationsMock, newMock, openStations, type StationsMock } from './wiskey-stations-mocks';
 import { installOpsMock, newOpsMock, type OpsMock } from './wiskey-station-ops-mocks';
+import { tallDesktop } from './helpers/tall-desktop';
 
 // WISKEY-STATION-OPS-2390 - a station's maintenance in the stations screen, behind the real shell, against a MOCKED backend
 // (tests/wiskey-stations-mocks.ts + tests/wiskey-station-ops-mocks.ts: invented stations, no station, no intercom). Desktop, tablet and
@@ -58,6 +59,7 @@ async function confirmAndSend(page: Page, op: string) {
 }
 
 test.describe('station maintenance: the drawer', () => {
+  tallDesktop(); // NOSCROLL-1366-2437: every station of the mock on one page from 1024 px
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
 
   test('the health detail and the sign-in failure are shown without any confirmation and nothing is sent', async ({ page }, info) => {
@@ -159,6 +161,7 @@ async function openDrawerAny(page: Page, id: string) {
 }
 
 test.describe('station maintenance: the list action', () => {
+  tallDesktop(); // NOSCROLL-1366-2437: every station of the mock on one page from 1024 px
   test.skip(process.env.SW_LIVE === '1', 'mocked-backend spec');
 
   test('pick, confirm, one request per station, a result line each; offline stations left out of a device read', async ({ page }, info) => {
