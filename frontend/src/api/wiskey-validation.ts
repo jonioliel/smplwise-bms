@@ -1,6 +1,6 @@
 // WISKEY-LIVE-VALIDATION-2390 (WisKey plan T16): the station acceptance tool's API (routers/wiskey_validation.py). Typed calls only;
 // the Hebrew reason lines come from the server (one source for the screen and the CSV export).
-import { ApiError, apiUrl, get, post } from './client';
+import { apiBlob, get, post } from './client';
 
 export type CheckStatus = 'pending' | 'running' | 'pass' | 'fail' | 'unsupported' | 'not_run';
 export type RunState = 'running' | 'done' | 'cancelled' | 'interrupted';
@@ -99,18 +99,7 @@ export const sendWitness = (runId: string, verdict: WitnessVerdict) =>
   post<{ run_id: string; status: CheckStatus; reason: string | null }>(`wiskey-validation/pulse/${encodeURIComponent(runId)}/witness`, { verdict });
 /** The run's acceptance record as a CSV file (audited server-side). */
 export async function fetchCsv(id: string): Promise<Blob> {
-  const res = await fetch(apiUrl(`wiskey-validation/runs/${encodeURIComponent(id)}/export.csv`), { credentials: 'same-origin' });
-  if (!res.ok) {
-    let body: Partial<ApiError['body']> = {};
-    try {
-      body = (await res.json()) as typeof body;
-    } catch {
-      body = {};
-    }
-    throw new ApiError(res.status, { code: body.code ?? `http_${res.status}`, user_message: body.user_message ?? '', retryable: body.retryable ?? false,
-      correlation_id: body.correlation_id ?? '', details: body.details ?? {} });
-  }
-  return res.blob();
+  return (await apiBlob(`wiskey-validation/runs/${encodeURIComponent(id)}/export.csv`)).blob;
 }
 
 /** The settings route of the tool, optionally pre-selecting one station (the station drawer's link). */

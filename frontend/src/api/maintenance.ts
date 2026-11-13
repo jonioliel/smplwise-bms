@@ -3,8 +3,8 @@
  * The server is the authority for every permission and visibility rule; the screens only hide what `can` says is not offered.
  * Nothing here reaches a device: a service request is opened only through the tickets module, and only while that module is on.
  */
-import { ApiError, apiUrl, del, get, patch, post, put, upload, type ApiErrorBody } from './client';
-import { saveBlob } from './tickets-costs';
+import { apiBlob, del, get, patch, post, put, upload } from './client';
+import { saveBlob } from './download';
 
 export type TaskKind = 'certificate' | 'preventive' | 'round' | 'vendor_document';
 export const TASK_KINDS: readonly TaskKind[] = ['certificate', 'preventive', 'round', 'vendor_document'];
@@ -235,17 +235,8 @@ export const maintApi = {
   },
   /** Fetch a file with the session and save it (a PDF is a download only; the server answers it with a sandbox policy). */
   downloadFile: async (taskId: string, file: MaintFile): Promise<void> => {
-    const res = await fetch(apiUrl(`${B}/tasks/${enc(taskId)}/files/${enc(file.id)}`), { credentials: 'same-origin' });
-    if (!res.ok) {
-      let body: ApiErrorBody | null = null;
-      try {
-        body = (await res.json()) as ApiErrorBody;
-      } catch {
-        body = null;
-      }
-      throw new ApiError(res.status, body ?? { code: `http_${res.status}`, user_message: res.statusText, retryable: false, correlation_id: '', details: {} });
-    }
-    saveBlob(await res.blob(), file.name);
+    const { blob } = await apiBlob(`${B}/tasks/${enc(taskId)}/files/${enc(file.id)}`);
+    saveBlob(blob, file.name);
   },
   uploadFile: (taskId: string, file: File) => {
     const f = new FormData();

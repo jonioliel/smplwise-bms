@@ -9,7 +9,7 @@
  * store in ./electricity-billing-mock.ts (the schedules.ts / schedules-mock.ts pattern). The server drops every money key for
  * a caller without `energy.bills` (the keys are absent, not null); the UI never draws money without that permission.
  */
-import { ApiError, api, apiUrl, del, get, patch, post, put } from './client';
+import { ApiError, api, apiBlob, apiUrl, del, get, patch, post, put } from './client';
 import { isApi } from './session';
 import { MOCK_TODAY, mockBackend } from './electricity-billing-mock';
 // the meters endpoints have ONE client (electricity-meters.ts, ELECTRICITY_INTERFACES.md section 3); this module never calls them itself
@@ -805,18 +805,13 @@ const rest: ElecBackend = {
   correctBill: (id) => post<Bill>(`${E}bills/${id}/correct`, { client_request_id: uid() }),
   voidBill: (id, reason) => post<Bill>(`${E}bills/${id}/void`, { reason }),
   fetchPdf: async (id) => {
-    const res = await fetch(apiUrl(`${E}bills/${id}/pdf`), { credentials: 'same-origin' });
-    if (!res.ok) {
-      let body: { code?: string; user_message?: string } = {};
-      try {
-        body = (await res.json()) as typeof body;
-      } catch {
-        body = {};
-      }
-      const code = body.code ?? `http_${res.status}`;
-      throw new ApiError(res.status, { code, user_message: body.user_message ?? '', retryable: PDF_RETRYABLE.includes(code), correlation_id: '', details: {} });
+    try {
+      return (await apiBlob(`${E}bills/${id}/pdf`)).blob;
+    } catch (err) {
+      // the PDF's own retry rule (a render still running / failed once), whatever the body says
+      if (err instanceof ApiError) throw new ApiError(err.status, { ...err.body, retryable: PDF_RETRYABLE.includes(err.body.code), correlation_id: '', details: {} });
+      throw err;
     }
-    return res.blob();
   },
   getSettings: () => get<BillingSettings>(`${E}billing-settings`),
   saveSettings: (revision, body) => put<BillingSettings>(`${E}billing-settings`, { base_revision: revision, ...body }),

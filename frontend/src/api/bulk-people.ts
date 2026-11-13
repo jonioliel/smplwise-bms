@@ -15,7 +15,7 @@
  *   POST jobs/{id}/wiskey-confirm the typed row count (system administrator): fresh preview, compare, start
  *   GET  jobs/{id}/wiskey-result  the started operation's completion read (never a replay)
  */
-import { ApiError, api, apiUrl, get, post, put } from './client';
+import { api, apiBlob, get, post, put } from './client';
 
 const BASE = 'access-control/bulk-people';
 
@@ -166,19 +166,9 @@ export const applyBatch = (id: string) => post<{ job: BulkJob }>(`${BASE}/jobs/$
 export const cancelJob = (id: string) => post<{ job: BulkJob }>(`${BASE}/jobs/${encodeURIComponent(id)}/cancel`);
 
 async function fileOf(path: string): Promise<{ blob: Blob; rows: number | null }> {
-  const res = await fetch(apiUrl(path), { credentials: 'same-origin' });
-  if (!res.ok) {
-    let body: Partial<ApiError['body']> = {};
-    try {
-      body = (await res.json()) as typeof body;
-    } catch {
-      body = {};
-    }
-    throw new ApiError(res.status, { code: body.code ?? `http_${res.status}`, user_message: body.user_message ?? '', retryable: body.retryable ?? false,
-      correlation_id: body.correlation_id ?? '', details: body.details ?? {} });
-  }
-  const rows = res.headers.get('X-Export-Rows');
-  return { blob: await res.blob(), rows: rows === null ? null : Number(rows) };
+  const { blob, headers } = await apiBlob(path);
+  const rows = headers.get('X-Export-Rows');
+  return { blob, rows: rows === null ? null : Number(rows) };
 }
 
 export const exportPeopleCsv = () => fileOf(`${BASE}/export.csv`);

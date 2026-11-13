@@ -1,4 +1,4 @@
-import { apiUrl, ApiError, get, post } from './client';
+import { apiBlob, get, post } from './client';
 import type { DisplayZone } from './intercom';
 
 /**
@@ -269,25 +269,10 @@ export interface FileResult {
 }
 
 async function fileOf(path: string, fallback: string): Promise<FileResult> {
-  const res = await fetch(apiUrl(path), { credentials: 'same-origin' });
-  if (!res.ok) {
-    let body: Partial<ApiError['body']> = {};
-    try {
-      body = (await res.json()) as typeof body;
-    } catch {
-      body = {};
-    }
-    throw new ApiError(res.status, {
-      code: body.code ?? `http_${res.status}`,
-      user_message: body.user_message ?? '',
-      retryable: body.retryable ?? false,
-      correlation_id: body.correlation_id ?? '',
-      details: body.details ?? {},
-    });
-  }
-  const rows = res.headers.get('X-Export-Rows');
-  const name = /filename="?([^";]+)"?/.exec(res.headers.get('Content-Disposition') ?? '')?.[1];
-  return { blob: await res.blob(), rows: rows === null ? null : Number(rows), filename: name || fallback };
+  const { blob, headers } = await apiBlob(path);
+  const rows = headers.get('X-Export-Rows');
+  const name = /filename="?([^";]+)"?/.exec(headers.get('Content-Disposition') ?? '')?.[1];
+  return { blob, rows: rows === null ? null : Number(rows), filename: name || fallback };
 }
 
 export const exportFleetInventory = () => fileOf(`${BASE}/exports/fleet-inventory.csv`, 'intercom-fleet-inventory.csv');

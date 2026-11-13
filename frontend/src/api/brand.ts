@@ -1,4 +1,5 @@
-import { apiUrl, del, get, put, upload } from './client';
+import { apiResponse, del, get, put, upload } from './client';
+import { saveBlob } from './download';
 import type { BrandView, LogoVariant } from '../design/brand-logo';
 
 /** CR-LOGOS295: the facts of one stored logo file (never its bytes). */
@@ -70,14 +71,7 @@ export function importInstallerPack(file: File): Promise<InstallerFull> {
 }
 /** The pack as a file download: fetched with the session, handed to the browser as a blob (a refusal surfaces as a thrown error). */
 export async function downloadInstallerPack(): Promise<void> {
-  const res = await fetch(apiUrl('brand/white-label/pack'), { credentials: 'same-origin' });
+  const res = await apiResponse('brand/white-label/pack');
   if (!res.ok) throw new Error(`pack ${res.status}`);
-  const url = URL.createObjectURL(await res.blob());
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'smplwise-brand-pack.zip';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  saveBlob(await res.blob(), 'smplwise-brand-pack.zip');
 }

@@ -1,5 +1,5 @@
 /** Event centre (chapter 26): scoped listing, timeline markers, acknowledge and the push socket. */
-import { apiUrl, del, get, post } from './client';
+import { apiResponse, apiUrl, del, get, post } from './client';
 
 export type EventKind = 'motion' | 'person' | 'vehicle' | 'line' | 'field' | 'offline' | 'tamper' | 'door' | 'io' | 'storage' | 'system' | 'coverage_gap' | 'manual' | 'other';
 
@@ -192,7 +192,7 @@ export const thumbnailUrl = (id: string, v = 0) => apiUrl(`events/${id}/thumbnai
 /** Ask for the picture: 200 → ready, 202 → still being grabbed, anything else → unavailable. */
 export async function pollThumbnail(id: string): Promise<'ready' | 'pending' | 'unavailable'> {
   try {
-    const r = await fetch(thumbnailUrl(id), { credentials: 'include', cache: 'no-store' });
+    const r = await apiResponse(thumbnailUrl(id), { cache: 'no-store' });
     if (r.status === 200) return 'ready';
     if (r.status === 202) return 'pending';
     return 'unavailable';
