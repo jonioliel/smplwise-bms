@@ -519,9 +519,12 @@ class _Cache:
             for k in [k for k, v in self._by_sid.items() if v.user_id == user_id]:
                 self._by_sid.pop(k, None)
 
-    def attach(self, sid_hash: str, websocket: Any) -> None:
-        with self._lock:
-            self._sockets.setdefault(sid_hash, weakref.WeakSet()).add(websocket)
+    def attach(self, sid_hash: str, websocket: Any) -> bool:
+        """False when the session's entry is gone (ended between the resolve and the attach, review M2 / code review 2026-11-13 P1-1):
+        the caller refuses the socket. Every ending drops the entry (drop, drop_user, clear); a web session never rotates."""
+        from .session_cache import attach_if_live
+
+        return attach_if_live(self._lock, self._sockets, sid_hash, websocket, live=lambda: sid_hash in self._by_sid)
 
     def take_to_close(self) -> list[Any]:
         with self._lock:
@@ -699,7 +702,8 @@ async def remote_principal_ws(websocket: Any, settings: Any, cookie_value: str) 
     s = await run_in_threadpool(lambda: resolve(websocket.app.state.db, websocket, cookie_value))
     if s is None or s.gate:
         return None
-    CACHE.attach(s.sid_hash, websocket)
+    if not CACHE.attach(s.sid_hash, websocket):
+        return None  # review M2 (P1-1): the session ended between the resolve and the attach - nothing would close this socket
     try:
         websocket.state.sw_remote_session = s
     except AttributeError:
