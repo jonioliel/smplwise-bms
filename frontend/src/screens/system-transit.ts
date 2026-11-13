@@ -14,6 +14,7 @@ import {
 import { tr, trLang, type TrKey } from '../i18n/transit';
 import { canAdd, clampInt, moveStop, stopsBody } from '../transit/model';
 import { noticesCss } from '../notices/styles';
+import { PollController } from '../components/poll-controller';
 
 /**
  * BUSTIMES-295: הגדרות › תחבורה ציבורית (#/system/transit). The installation's part of the feature: the module switch, up to four stops
@@ -81,7 +82,8 @@ export class SystemTransit extends LitElement {
   @state() private check: TransitCheck | null = null;
   @state() private checkError = '';
   private toastTimer = 0;
-  private pollTimer = 0;
+  /** CR-POLL-SCREENS-A-2436: the catalogue status poll while a refresh runs (every 3 s until done) - paused while hidden, no overlap. */
+  private poll = new PollController(this);
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -91,7 +93,7 @@ export class SystemTransit extends LitElement {
   disconnectedCallback(): void {
     super.disconnectedCallback();
     clearTimeout(this.toastTimer);
-    clearInterval(this.pollTimer);
+    this.poll.cancel('catalogue');
   }
 
   private say(msg: string): void {
@@ -164,21 +166,20 @@ export class SystemTransit extends LitElement {
       this.refreshing = false;
       return this.say(describeError(e));
     }
-    clearInterval(this.pollTimer);
-    this.pollTimer = window.setInterval(async () => {
+    this.poll.every('catalogue', 3000, async () => {
       try {
         const r = await transitStatus();
         if (this.s) this.s = { ...this.s, catalogue: r.catalogue, health: r.health };
         const done = r.catalogue.ok_at !== this.s?.catalogue.ok_at || !!r.catalogue.error;
         if (done || r.catalogue.count > 0) {
           this.refreshing = false;
-          clearInterval(this.pollTimer);
+          this.poll.cancel('catalogue');
           void this.loadCities();
         }
       } catch {
         /* the next tick tries again */
       }
-    }, 3000);
+    });
   }
 
   render() {

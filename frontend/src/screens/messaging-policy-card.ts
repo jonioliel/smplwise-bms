@@ -11,6 +11,7 @@ import { bidi } from '../i18n/bidi';
 import { mw, type MwKey } from '../i18n/messaging-policy';
 import { blocksEverything, minutesValue, pageOf, phoneDigits } from '../messaging/policy-model';
 import { timeText } from '../api/day-format';
+import { PollController } from '../components/poll-controller';
 
 /**
  * WAPACE-295: the WhatsApp send policy (Settings > messaging channel). Two blocks in one card: the allow-list of handlers and providers
@@ -31,7 +32,8 @@ export class MessagingPolicyCard extends LitElement {
   @state() private newRole: PolicyRole = 'handler';
   @state() private minutes = '30';
   private okTimer = 0;
-  private tick = 0;
+  /** CR-POLL-SCREENS-A-2436: while a self-messages window is open, re-read it every 30 s - paused while hidden, no overlap. */
+  private poll = new PollController(this);
 
   static styles = [settingsStyles, css`
     :host { display: block; min-inline-size: 0; }
@@ -53,12 +55,11 @@ export class MessagingPolicyCard extends LitElement {
   connectedCallback(): void {
     super.connectedCallback();
     void this.load();
-    this.tick = window.setInterval(() => this.view?.self_messages.active && void this.refreshWindow(), 30_000);
+    this.poll.every('window', 30_000, () => this.refreshWindow(), { when: () => !!this.view?.self_messages.active });
   }
 
   disconnectedCallback(): void {
     window.clearTimeout(this.okTimer);
-    window.clearInterval(this.tick);
     super.disconnectedCallback();
   }
 
