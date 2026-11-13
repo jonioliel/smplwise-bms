@@ -5,7 +5,6 @@
 import { get, post, put } from './client';
 import { isApi } from './session';
 import { productSettings } from './prefs';
-import { demoMapping } from './mapping-demo';
 import { emptyState, MAPPING_SETTINGS_DEFAULT, settingsOf, stateOf, type CurrentLinks, type HaLabel, type MapItem, type MappingSettings, type MappingState, type OurFloor, type Plan } from './mapping-engine';
 
 export interface MappingVersion {
@@ -80,8 +79,14 @@ interface DemoStore {
 }
 let demo: DemoStore | null = null;
 
-function demoStore(): DemoStore {
+/** CR-MOCKS-LAZY-2436 (review 07:F2): the demo site (./mapping-demo.ts) is fetched on the first demo call - with a backend never. */
+async function demoStore(): Promise<DemoStore> {
   if (demo) return demo;
+  const m = await import('./mapping-demo');
+  return (demo ??= demoBuild(m.demoMapping));
+}
+
+function demoBuild(demoMapping: typeof import('./mapping-demo').demoMapping): DemoStore {
   const d = demoMapping();
   const p = new URLSearchParams(location.search);
   const read: MappingRead = {
@@ -104,10 +109,10 @@ function demoStore(): DemoStore {
     buildings: d.buildings.map((b) => ({ id: b.id, name: b.name, is_shared: !!b.shared, floors: d.floors.filter((f) => f.building_id === b.id).map((f) => ({ id: f.id, name: f.name, level: f.level })) })),
     links: { floors: [], areas: [], buildings: [] },
   };
-  demo = { read, versions: [] };
+  const s: DemoStore = { read, versions: [] };
   // `?mbmap=applied`: a site mapped once already, with two names new since (the health card)
-  if (p.get('mbmap') === 'applied') demoSeedApplied(demo);
-  return demo;
+  if (p.get('mbmap') === 'applied') demoSeedApplied(s);
+  return s;
 }
 
 /** The demo's label registry, as the sync would mirror it: every label its areas carry, with the count. */
@@ -135,13 +140,13 @@ const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
 // ------------------------------------------------------------------------------------------------------------------------------- routes
 
 export async function loadMapping(siteId: string): Promise<MappingData> {
-  if (!isApi()) return toData(clone(demoStore().read));
+  if (!isApi()) return toData(clone((await demoStore()).read));
   return toData(await get<MappingRead>(`sites/${encodeURIComponent(siteId)}/mapping`));
 }
 
 export async function saveState(siteId: string, state: MappingState, revision: number): Promise<{ revision: number }> {
   if (!isApi()) {
-    const s = demoStore();
+    const s = await demoStore();
     s.read.state = clone(state);
     s.read.revision += 1;
     return { revision: s.read.revision };
@@ -151,7 +156,7 @@ export async function saveState(siteId: string, state: MappingState, revision: n
 
 export async function saveSettings(siteId: string, change: Partial<MappingSettings>): Promise<{ settings: MappingSettings }> {
   if (!isApi()) {
-    const s = demoStore();
+    const s = await demoStore();
     s.read.settings = { ...s.read.settings, ...change };
     return { settings: s.read.settings };
   }
@@ -165,7 +170,7 @@ export const BUILDING_REACH_TEXT: Record<BuildingReach, string> = { map_and_mapp
 
 export async function setBuildingReach(mode: BuildingReach): Promise<{ mode: BuildingReach }> {
   if (!isApi()) {
-    demoStore().read.building_reach = mode;
+    (await demoStore()).read.building_reach = mode;
     return { mode };
   }
   return put<{ mode: BuildingReach }>('home/building-reach', { mode });
@@ -173,7 +178,7 @@ export async function setBuildingReach(mode: BuildingReach): Promise<{ mode: Bui
 
 export async function setMultiBuilding(enabled: boolean): Promise<{ enabled: boolean }> {
   if (!isApi()) {
-    demoStore().read.multi_building = enabled;
+    (await demoStore()).read.multi_building = enabled;
     window.dispatchEvent(new CustomEvent('sw-multi-building', { detail: { enabled } }));
     return { enabled };
   }
@@ -189,13 +194,13 @@ export interface ApplyResult {
 }
 
 export async function applyMapping(siteId: string, body: { state: MappingState; revision?: number; plan: Plan; kind?: 'apply' | 'confirm' | 'auto'; note?: string; summary?: Record<string, unknown> }): Promise<ApplyResult> {
-  if (!isApi()) return demoApply(body);
+  if (!isApi()) return demoApply(await demoStore(), body);
   return post<ApplyResult>(`sites/${encodeURIComponent(siteId)}/mapping/apply`, body);
 }
 
 export async function restoreVersion(siteId: string, n: number): Promise<{ version: number }> {
   if (!isApi()) {
-    const s = demoStore();
+    const s = await demoStore();
     const v = s.versions.find((x) => x.v.number === n);
     if (!v) throw new Error('not found');
     return demoRecord(s, 'restore', v.state, v.links, v.items, { restored_from: n }, n);
@@ -216,8 +221,7 @@ function demoRecord(s: DemoStore, kind: MappingVersion['kind'], state: unknown, 
   return { version: number, revision: s.read.revision };
 }
 
-function demoApply(body: { state: MappingState; plan: Plan; kind?: 'apply' | 'confirm' | 'auto'; summary?: Record<string, unknown> }): ApplyResult {
-  const s = demoStore();
+function demoApply(s: DemoStore, body: { state: MappingState; plan: Plan; kind?: 'apply' | 'confirm' | 'auto'; summary?: Record<string, unknown> }): ApplyResult {
   const bref = new Map<string, string>();
   const created: ApplyResult['created'] = { buildings: [], floors: [] };
   for (const nb of body.plan.new_buildings) {

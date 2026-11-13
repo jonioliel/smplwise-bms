@@ -8,7 +8,7 @@
  */
 import { api, apiUrl, get, patch, post, put, resourceUrl, upload } from './client';
 import { isApi } from './session';
-import { mockBackend } from './tickets-mock';
+import { lazy, lazyAdapter } from './demo-load';
 import type { TicketLang, TicketName } from '../tickets/naming';
 import type { CostMode, TicketCostBlock } from './tickets-costs';
 import type { RequestLocation } from './tickets-locations';
@@ -522,9 +522,43 @@ const rest: TicketsBackend = {
   holders: () => get<HoldersResponse>(`${T}/admin/holders`),
 };
 
+// CR-MOCKS-LAZY-2436 (review 07:F2): the demo store (./tickets-mock.ts) is fetched on the first demo call - with a backend it is never
+// loaded. The slice modules that add to it (`extendMockView`, the slice-4 directory) register through `withTicketsMock`, so the
+// store's first answer already carries every part registered by then, as when they were imported with it.
+type TicketsMock = typeof import('./tickets-mock');
+const hooks: ((m: TicketsMock) => unknown)[] = [];
+let late: Promise<unknown>[] = [];
+let ready: TicketsMock | null = null;
+const ticketsMockBase = lazy(async () => {
+  const m = await import('./tickets-mock');
+  while (hooks.length) await hooks.shift()!(m);
+  ready = m; // in the same turn as the last hook: a part registered from here on runs at once
+  return m;
+});
+
+/** The demo store module (no backend), with every registered part applied. */
+export async function ticketsMock(): Promise<TicketsMock> {
+  const m = await ticketsMockBase();
+  while (late.length) {
+    const wait = late;
+    late = [];
+    await Promise.all(wait);
+  }
+  return m;
+}
+
+/** Runs `fn` with the demo store module once it is loaded (at once when it already is); the store's next answer waits for it. */
+export function withTicketsMock(fn: (m: TicketsMock) => unknown): void {
+  if (ready) late.push(Promise.resolve(fn(ready)));
+  else hooks.push(fn);
+}
+
+/** The demo side of `ticketsApi()`: `photoUrl` is synchronous and the demo's is the attachment's own address. */
+const demo = lazyAdapter<TicketsBackend>(() => ticketsMock().then((m) => m.mockBackend), { photoUrl: (att) => att.url });
+
 /** The backend in force: REST with a server, the demo store without one. */
 export function ticketsApi(): TicketsBackend {
-  return isApi() ? rest : mockBackend;
+  return isApi() ? rest : demo;
 }
 
 /** A client request id for an idempotent create (the server's CLIENT_REQUEST_RE: 8-64 of [A-Za-z0-9_-], a letter or digit first). */

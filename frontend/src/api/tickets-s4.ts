@@ -11,7 +11,8 @@
  */
 import { get, patch, post } from './client';
 import { isApi } from './session';
-import { s4Mock } from './tickets-s4-mock';
+import { lazyAdapter } from './demo-load';
+import { ticketsMock, withTicketsMock } from './tickets';
 import type { Eligible, Handler, PublicSettings, TicketDetail } from './tickets';
 
 /** 'employee' (owner request 2026-10-14, migration 0084): an employee WITHOUT an account - assigned through a handler link like a contact. */
@@ -263,7 +264,13 @@ const rest: TicketsS4Backend = {
   readiness: (departmentId) => get<Readiness>(`${T}/readiness${qs({ department_id: departmentId })}`),
 };
 
+// CR-MOCKS-LAZY-2436 (review 07:F2): the slice-4 demo (./tickets-s4-mock.ts) loads with slice 1's demo store - it adds the `link`
+// block to the demo ticket views and lends its staff contacts to the picker - and only then; with a backend neither is loaded.
+const s4Demo = () => import('./tickets-s4-mock');
+withTicketsMock(() => s4Demo());
+const demo = lazyAdapter<TicketsS4Backend>(() => ticketsMock().then(() => s4Demo()).then((m) => m.s4Mock), {});
+
 /** The backend in force: REST with a server, the demo store without one. */
 export function ticketsS4Api(): TicketsS4Backend {
-  return isApi() ? rest : s4Mock;
+  return isApi() ? rest : demo;
 }
