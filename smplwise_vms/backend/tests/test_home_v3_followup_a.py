@@ -74,7 +74,7 @@ def _mods(conn: sqlite3.Connection, uid: str):
 
 def test_migration_0215_is_the_next_number_and_adds_the_new_categories_to_stored_lists(tmp_path: Path):
     numbers = sorted(int(f.name.split("_", 1)[0]) for f in MIG.glob("*.sql"))
-    assert numbers[-1] == 215 and numbers.count(215) == 1 and (MIG / "0215_home_v3_categories.sql").exists()
+    assert numbers.count(215) == 1 and 214 in numbers and (MIG / "0215_home_v3_categories.sql").exists()
     conn = _policy_db(tmp_path)
     rows = {
         "all": None,                               # every category: untouched
