@@ -37,11 +37,37 @@ from .access import row_scope
 MANAGE = "notify.manage"
 
 
+_IN_CHUNK = 500  # ids per `IN (...)` statement (well under SQLite's bound-parameter limit)
+
+
+def _principal(u: sqlite3.Row) -> Principal:
+    return Principal(user_id=u["id"], username=u["username"] or "", display_name=u["display_name"] or "", source="push")
+
+
 def principal_of(conn: sqlite3.Connection, user_id: str) -> Principal | None:
     u = conn.execute("SELECT id, username, display_name, active FROM users WHERE id = ?", (user_id,)).fetchone()
     if u is None or not u["active"]:
         return None
-    return Principal(user_id=u["id"], username=u["username"] or "", display_name=u["display_name"] or "", source="push")
+    return _principal(u)
+
+
+def principals_of(conn: sqlite3.Connection, user_ids: list[str]) -> dict[str, Principal]:
+    """`principal_of` for many users in one statement per 500 ids (CR-NOTIFY-FANOUT-2436): {user_id: Principal} for the active ones;
+    an inactive or unknown id is simply absent (principal_of would return None for it)."""
+    ids = list(dict.fromkeys(u for u in user_ids if isinstance(u, str)))
+    out: dict[str, Principal] = {}
+    for i in range(0, len(ids), _IN_CHUNK):
+        chunk = ids[i:i + _IN_CHUNK]
+        for u in conn.execute(f"SELECT id, username, display_name, active FROM users WHERE id IN ({','.join('?' * len(chunk))})", chunk).fetchall():
+            if u["active"]:
+                out[u["id"]] = _principal(u)
+    return out
+
+
+def active_principals(conn: sqlite3.Connection) -> list[Principal]:
+    """Every active user's principal, in id order, from one statement (CR-NOTIFY-FANOUT-2436) - the same users and order as
+    `SELECT id FROM users WHERE active = 1 ORDER BY id` followed by principal_of for each."""
+    return [_principal(u) for u in conn.execute("SELECT id, username, display_name FROM users WHERE active = 1 ORDER BY id").fetchall()]
 
 
 def is_manager(conn: sqlite3.Connection, principal: Principal) -> bool:

@@ -38,11 +38,12 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..db import new_id, now_iso
+from ..rbac import Principal
 from . import notify
 from . import notify_settings as nsettings
 from . import push, user_events
 from .notify_policy import SEVERITY_LABEL_HE, get_policy
-from .notify_visibility import Reach, principal_of
+from .notify_visibility import Reach, principal_of, principals_of
 from .timeutil import iso_utc, parse_utc, zone
 
 log = logging.getLogger("smplwise.notify")
@@ -84,6 +85,8 @@ class Dispatch:
     _reach: dict[str, Reach] = field(default_factory=dict)
     quiet_window: str | None = None     # CR-QUIET103: the id of the active quiet window (floor / area) that holds this informational notification back
     quiet_window_channels: frozenset[str] = frozenset({"webpush", "app"})  # which channels that window holds: phone / browser push by default (quiet.windows.channels)
+    _principals: dict[str, Principal] | None = None  # CR-NOTIFY-FANOUT-2436: the recipients' principals, loaded once on the first reach()
+    _looked_up: frozenset[str] = frozenset()         # the ids that load covered (an id missing from _principals is inactive or unknown)
 
     @property
     def severity(self) -> str:
@@ -119,11 +122,31 @@ class Dispatch:
     def reach(self, user_id: str) -> Reach | None:
         """The user's visibility, evaluated NOW on the planning connection; None for an inactive or unknown user."""
         if user_id not in self._reach:
-            p = principal_of(self._conn, user_id)
+            if self._principals is None:  # one statement for every recipient instead of one per user (the same planning connection)
+                self._principals = principals_of(self._conn, self.users)
+                self._looked_up = frozenset(u for u in self.users if isinstance(u, str))
+            if user_id in self._principals:
+                p: Principal | None = self._principals[user_id]
+            elif user_id in self._looked_up:
+                p = None  # loaded above: inactive or unknown
+            else:
+                p = principal_of(self._conn, user_id)  # not one of the recipients: the single lookup, as before
             if p is None:
                 return None
             self._reach[user_id] = Reach(self._conn, p)
         return self._reach[user_id]
+
+    def snoozed_until(self, user_id: str) -> str | None:
+        """The recipient's `snoozed_until` for this notification (None when not snoozed or not a recipient), read from ONE statement per
+        dispatch and shared by every channel (CR-NOTIFY-FANOUT-2436); the planning connection is one read transaction, so it is the same value
+        the per-user lookup returned."""
+        snoozes = self.scratch.get("_snoozed_until")
+        if snoozes is None:
+            snoozes = self.scratch["_snoozed_until"] = {
+                r["user_id"]: r["snoozed_until"]
+                for r in self._conn.execute("SELECT user_id, snoozed_until FROM notification_recipients WHERE notification_id = ? AND snoozed_until IS NOT NULL", (self.nid,)).fetchall()
+            }
+        return snoozes.get(user_id)
 
 
 class Channel:
@@ -210,8 +233,9 @@ def publish_ui(db: Any, nid: str | None, item: dict[str, Any]) -> None:
     if not users:
         return
     with db.connection(mode="read", label="notify.ui") as conn:
+        principals = principals_of(conn, users)
         for uid in users:
-            p = principal_of(conn, uid)
+            p = principals.get(uid)
             if p is None:
                 continue
             visible = notify.get_row(conn, p, nid) is not None if nid else False
@@ -282,8 +306,9 @@ class WebPushChannel(Channel):
         out: list[Target] = []
         key = push.signing_key(conn)
         d.scratch["webpush_key"] = key
+        by_user = _webpush_subscriptions(conn, d.users)
         for uid in d.users:
-            subs = conn.execute("SELECT * FROM push_subscriptions WHERE user_id = ? AND kind = 'webpush' ORDER BY created_at", (uid,)).fetchall()
+            subs = by_user.get(uid, [])
             reach = d.reach(uid)
             if reach is None or not subs:
                 continue
@@ -292,8 +317,8 @@ class WebPushChannel(Channel):
                 push.STATS["refused"] += 1
                 out.append(Target(self.name, uid, host, "skipped", "no_reach"))
                 continue
-            rec = conn.execute("SELECT snoozed_until FROM notification_recipients WHERE notification_id = ? AND user_id = ?", (d.nid, uid)).fetchone()
-            if d.mode != "escalate" and rec is not None and rec["snoozed_until"] and rec["snoozed_until"] > iso_utc(d.now):
+            snoozed = d.snoozed_until(uid)
+            if d.mode != "escalate" and snoozed and snoozed > iso_utc(d.now):
                 out.append(Target(self.name, uid, host, "skipped", "snoozed"))
                 continue
             if d.held(self.name):
@@ -328,6 +353,19 @@ class WebPushChannel(Channel):
             job = push.Job(s["id"], t.user_id, s["endpoint"], s["p256dh"], s["auth"], push.encode_payload(payload), "high" if (d.severity == "critical" or d.mode == "escalate") else "normal",
                            notification_id=d.nid, delivery_id=t.delivery_id, mode=d.mode)  # type: ignore[arg-type]
             notifier.attempt(job, key)
+
+
+def _webpush_subscriptions(conn: Any, users: list[str]) -> dict[str, list[Any]]:
+    """The users' Web Push subscriptions, each user's in created_at order, from one statement per 500 users (CR-NOTIFY-FANOUT-2436;
+    before: one statement per user)."""
+    ids = list(dict.fromkeys(u for u in users if isinstance(u, str)))
+    out: dict[str, list[Any]] = {}
+    for i in range(0, len(ids), 500):
+        chunk = ids[i:i + 500]
+        rows = conn.execute(f"SELECT * FROM push_subscriptions WHERE user_id IN ({','.join('?' * len(chunk))}) AND kind = 'webpush' ORDER BY created_at", chunk).fetchall()
+        for r in rows:
+            out.setdefault(r["user_id"], []).append(r)
+    return out
 
 
 register(WebPushChannel())

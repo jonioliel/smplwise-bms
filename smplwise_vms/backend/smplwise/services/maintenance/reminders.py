@@ -165,7 +165,7 @@ def recipient_users(conn: sqlite3.Connection, n: dict[str, Any]) -> list[str]:
     """Recipient rule `maintenance`: the task's responsible person and the holders of maintenance.manage on the task's place
     (the centre then intersects with visibility - maintenance.view there - like every rule)."""
     from ...rbac import authorize
-    from ..notify_visibility import principal_of
+    from ..notify_visibility import active_principals
 
     row = conn.execute("SELECT * FROM maint_tasks WHERE id = ?", (n.get("subject_id"),)).fetchone()
     if row is None or row["deleted_at"]:
@@ -174,13 +174,10 @@ def recipient_users(conn: sqlite3.Connection, n: dict[str, Any]) -> list[str]:
 
     target = access.target_of(row)
     out = [row["owner_user_id"]] if row["owner_user_id"] else []
-    for (uid,) in conn.execute("SELECT id FROM users WHERE active = 1 ORDER BY id").fetchall():
-        p = principal_of(conn, uid)
-        if p is None:
-            continue
+    for p in active_principals(conn):  # CR-NOTIFY-FANOUT-2436: one statement for the users (was: one more per user), same order
         # a placeless task: maintenance.manage at any scope (owner answer 24.10 q15, like a placeless ticket)
         if (access.MANAGE in permissions_anywhere(conn, p)) if target == INSTALLATION else authorize(conn, p, access.MANAGE, target).allowed:
-            out.append(uid)
+            out.append(p.user_id)
     return list(dict.fromkeys(out))
 
 
