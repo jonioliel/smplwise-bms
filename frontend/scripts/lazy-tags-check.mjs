@@ -107,7 +107,24 @@ for (const [tag, mod] of routeMap) {
   else if (!groups.get(mod)?.has(defines.get(tag))) findings.push(`lazy-screens: <${tag}> is not defined by ${rel(mod)} or anything it imports`);
   else if (eager.has(mod)) findings.push(`lazy-screens: ${rel(mod)} (<${tag}>) is still imported eagerly - it stays in the entry chunk`);
 }
-const routeRenderers = new Set([...src].filter(([, raw]) => /loadPendingScreens\(this\.renderRoot/.test(raw)).map(([f]) => f));
+// CR-SHELL-LAZY-2436 (review 07:F4 a-c, 07:F24, 08:F02): on-demand modules that must never be in the eager closure of main.ts again
+// (an eager import anywhere would pull them - and what they import - back into the entry chunk).
+const NOT_IN_ENTRY = [
+  'screens/schedule-editor.ts', // the device popup's schedule editor (components/device-activity)
+  'tickets/ticket-create.ts', // the device popup's new-ticket form
+  'components/sw-second-factor.ts', // the user menu's second factor section, with its QR library
+  'arx/boot.ts', // the remote start-up (main.ts, only on the remote channel)
+  'arx/arx-login.ts',
+  'arx/arx-welcome.ts',
+  'tickets/rfq-text.ts', // the RFQ dictionary (the shell reads its two words from tickets/nav-text.ts)
+  'xsection/sw-xsection.ts', // the building cross-section (xsection/sw-floor-home-link loads it when its dialog opens)
+];
+for (const m of NOT_IN_ENTRY) {
+  const f = path.join(ROOT, ...m.split('/'));
+  if (!src.has(f)) findings.push(`NOT_IN_ENTRY: ${m} does not exist`);
+  else if (eager.has(f)) findings.push(`NOT_IN_ENTRY: ${m} is imported eagerly - it is back in the entry chunk`);
+}
+const routeRenderers =new Set([...src].filter(([, raw]) => /loadPendingScreens\(this\.renderRoot/.test(raw)).map(([f]) => f));
 for (const f of eager) {
   for (const tag of uses.get(f) ?? []) {
     if (!defines.has(tag)) continue; // a tag defined nowhere in src (third party, a demo string): not this check's business
@@ -130,7 +147,7 @@ for (const [root, c] of groups) {
   }
 }
 const uniq = [...new Set(findings)].sort();
-const stat = { files: files.length, eager: eager.size, groups: groups.size, tags: defines.size, routeScreens: routeMap.size };
+const stat = { files: files.length, eager: eager.size, groups: groups.size, tags: defines.size, routeScreens: routeMap.size, notInEntry: NOT_IN_ENTRY.length };
 if (process.argv.includes('--stats')) console.log(JSON.stringify(stat));
 if (uniq.length) {
   console.error(uniq.join('\n'));

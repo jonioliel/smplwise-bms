@@ -189,7 +189,7 @@ export function sinceText(iso: string | null, now = new Date()): string {
 // ------------------------------------------------------------------------------------------------ the home widget (decision 10b + owner feedback)
 
 export { ELEVATOR_MODES, ELEVATOR_FILTERS, type ElevatorMode, type ElevatorFilter };
-export const MODE_KEY: Record<ElevatorMode, EltKey> = { combined: 'modeCombined', cards: 'modeCards', both: 'modeBoth' };
+export { MODE_KEY } from './personal-mode'; // CR-NAV-LABELS-2436: the shell's personal sheet reads it without this model
 export const FILTER_KEY: Record<ElevatorFilter, EltKey> = { all: 'filterAll', alerts: 'filterAlerts' };
 
 export interface ShownElevator {
@@ -236,14 +236,8 @@ export const recipientChoices = (r: AlertRecipients): number => r.roles.length +
 export const whatsappLocked = (s: Pick<AlertSettings, 'can_whatsapp'>, cfg: Pick<AlertStateSettings, 'channels'>, channel: AlertChannel): boolean =>
   channel === 'whatsapp' && s.can_whatsapp === false && !cfg.channels.includes('whatsapp');
 
-/** A list with `id` added (on) or removed (off), order kept, no duplicates. */
-export function toggled<T extends string>(list: readonly T[], id: T, on: boolean): T[] {
-  return on ? (list.includes(id) ? [...list] : [...list, id]) : list.filter((x) => x !== id);
-}
-
-/** Review L5: the user's own hidden list after ticking (shown = true) or unticking one elevator; it is ADDED to the installation's list on the
- * server, so it only ever holds the user's own choices. */
-export const personalHidden = (mine: readonly string[], id: string, shown: boolean): string[] => toggled(mine, id, !shown);
+/** `toggled` (a list with an id added or removed) and review L5's `personalHidden`: CR-NAV-LABELS-2436 moved them to ./personal-mode.ts. */
+export { personalHidden, toggled } from './personal-mode';
 
 /** The effective hidden list of a user: the installation's plus his own (the server's home_config.apply_personal). */
 export const effectiveHidden = (installation: readonly string[], mine: readonly string[] | undefined): string[] => [...new Set([...installation, ...(mine ?? [])])];

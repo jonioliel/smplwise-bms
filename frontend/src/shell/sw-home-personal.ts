@@ -18,7 +18,7 @@ import { doorWindowsTabOn, noticesModuleOn } from './nav';
 import { getBuildingPresence } from '../api/building-presence'; // PRESENCE-2280
 import { presenceWidgetAvailable } from '../screens/building-presence-widget';
 import { canAnywhere, isApi } from '../api/session';
-import { MODE_KEY, personalHidden } from '../elevators/model';
+import { MODE_KEY, personalHidden } from '../elevators/personal-mode'; // CR-NAV-LABELS-2436: not the whole elevators model
 import { elt } from '../i18n/elevators';
 import { effectiveRows, loadPersonalRow, personalDiff, savePersonalRow, type AreaRowPersonal } from '../api/area-row';
 import { productSettings } from '../api/prefs';

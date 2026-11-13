@@ -4,9 +4,11 @@
  * תשתיות › תחזוקה ובקרה). Hebrew first; English follows the document language; Arabic and Russian fall back to the Hebrew until a
  * translation is reviewed. `{x}` placeholders are filled by `mt(key, { x })`. Operator screens never name the home platform.
  */
+import { NAV_MT } from './nav-labels'; // CR-NAV-LABELS-2436: the shell's label lives there
+
 const he = {
   // the section label is written ONCE (lead 2026-10-23: the owner is reorganising the service-management area - a one-line change)
-  section: 'תחזוקה ובקרה',
+  section: NAV_MT.he.section,
   pageLedger: 'פנקס אישורים ובדיקות',
   pagePlans: 'תחזוקה מונעת',
   pageRounds: 'סבבים ובדיקות',
@@ -437,7 +439,7 @@ const he = {
 type Key = keyof typeof he;
 
 const en: Partial<Record<Key, string>> = {
-  section: 'Maintenance & inspections',
+  section: NAV_MT.en.section,
   pageLedger: 'Certificates & inspections',
   pagePlans: 'Preventive maintenance',
   pageRounds: 'Rounds & checks',

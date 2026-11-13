@@ -8,6 +8,7 @@
  */
 import { tn, type TicketLang } from './naming';
 import { ticketsLang } from './text';
+import { NAV_CT } from '../i18n/nav-labels'; // CR-NAV-LABELS-2436: the shell's tab label lives there
 
 const he = {
   // the card
@@ -208,7 +209,7 @@ const he = {
   e_cost_message_unsent: 'ההודעה לספק לא נשלחה',
 
   // TK258: the vendors account (tickets/vendor-accounts.ts)
-  vaTitle: 'חשבון ספקים',
+  vaTitle: NAV_CT.he.vaTitle,
   vaDue: 'לתשלום',
   vaPaid: 'שולם',
   vaOpen: 'ממתין לאישור',
@@ -424,7 +425,7 @@ const en: Partial<Record<CostTextKey, string>> = {
   e_cost_decision: 'Payment demand: {action}',
   e_cost_message: 'A message was sent to the vendor',
   e_cost_message_unsent: 'The message to the vendor was not sent',
-  vaTitle: 'Vendor accounts',
+  vaTitle: NAV_CT.en.vaTitle,
   vaDue: 'To pay',
   vaPaid: 'Paid',
   vaOpen: 'Awaiting approval',
