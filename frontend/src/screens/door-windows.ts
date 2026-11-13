@@ -30,6 +30,7 @@ import { dwe } from '../i18n/door-windows-events';
 import { limitsOf, openableDoors } from '../door-windows/events-logic';
 import { canManageGrants } from '../door-windows/grants-logic';
 import { dateInputLang } from '../api/day-format';
+import { PollController } from '../components/poll-controller';
 
 const POLL_MS = 15_000;
 const EM_POLL_MS = 5_000;
@@ -143,21 +144,15 @@ export class DoorWindowsScreen extends LitElement {
   @state() private es: EmergencySettings | null = null;
   @state() private esEdit: Record<string, string> = {};
   @state() private sError = '';
-  private timer = 0;
-  private emTimer = 0;
+  /** CR-POLL-SCREENS-A-2436: the two polls (rules + doors every 15 s, the emergency strip every 5 s) - paused while hidden, no overlap, caught up on resume. */
+  private poll = new PollController(this);
 
   connectedCallback(): void {
     super.connectedCallback();
     if (!isApi()) return;
     void this.load();
-    this.timer = window.setInterval(() => void this.load(), POLL_MS);
-    this.emTimer = window.setInterval(() => void this.loadEmergency(), EM_POLL_MS);
-  }
-
-  disconnectedCallback(): void {
-    clearInterval(this.timer);
-    clearInterval(this.emTimer);
-    super.disconnectedCallback();
+    this.poll.every('state', POLL_MS, () => this.load());
+    this.poll.every('emergency', EM_POLL_MS, () => this.loadEmergency());
   }
 
   private async load(): Promise<void> {
