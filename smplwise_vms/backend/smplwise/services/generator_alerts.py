@@ -32,6 +32,7 @@ from . import generator_catalog as cat
 from . import generator_core as core
 from . import notify
 from . import notify_policy
+from . import notify_recipients
 from .notify_visibility import principal_of
 from .timeutil import iso_utc, parse_utc
 
@@ -40,6 +41,10 @@ log = logging.getLogger("smplwise.generator")
 FOLD_S = 900
 MUTE_MAX_H = 24 * 7
 ROUTABLE_ROLES = ("operator", "site_admin", "system_admin")  # viewers and kiosks are refused (they hold no generator.view)
+# CR-RECIPIENTS-2436 (review 04:F02): today's role resolution, kept on purpose until owner decision O1 - user bindings only (a role held through a
+# group does not count) and `expires_at` is not looked at; inactive users drop out at the generator.view check below. O1 (a) = `{}` (the shared
+# defaults of services/notify_recipients.expand, as for the elevator, temperature and water alerts).
+ROLE_EXPANSION: dict[str, bool] = {"role_via_groups": False, "role_expiry": False, "active_only": False}
 CHANNELS = ("push", "app", "email", "whatsapp")  # NOTIFWA: whatsapp mirrors onto the CR-018 policy like the others (it sends only while its master switch is on)
 CHANNELS_RESERVED = ("ha_mobile",)
 SEVERITY_CHANNELS = ("push", "app", "email")  # the per-severity defaults never carry WhatsApp: it is an external, budget-limited channel chosen per alert type (NOTIFWA)
@@ -806,13 +811,9 @@ def recipient_users(conn: sqlite3.Connection, n: dict[str, Any]) -> list[str]:
     eff = effective_routing(conn, str(n.get("subject_id") or ""), key, n.get("severity") if n.get("severity") in SEVERITIES else None)
     if eff is None:
         return []
-    out: list[str] = list(eff["recipients"]["users"])
-    roles = [r for r in eff["recipients"]["roles"] if r in ROUTABLE_ROLES]
-    if roles:
-        marks = ",".join("?" * len(roles))
-        out += [r[0] for r in conn.execute(f"SELECT DISTINCT subject_id FROM bindings WHERE subject_kind = 'user' AND role_id IN ({marks}) AND revoked_at IS NULL AND effect = 'allow'", roles).fetchall()]
+    rec = {"users": eff["recipients"]["users"], "roles": eff["recipients"]["roles"]}  # a generator choice names no groups
     ok = []
-    for uid in dict.fromkeys(out):
+    for uid in notify_recipients.expand(conn, rec, ROUTABLE_ROLES, **ROLE_EXPANSION):
         p = principal_of(conn, uid)
         if p is not None and authorize(conn, p, "generator.view", INSTALLATION).allowed:
             ok.append(uid)
