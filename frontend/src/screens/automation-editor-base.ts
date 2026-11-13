@@ -167,17 +167,21 @@ export abstract class AutomationEditorBase extends LitElement {
       :host {
         display: contents;
       }
+      /* AUDIT30-I3 (#11, owner Q9 option a): the builder's sheet is opaque and on the product's dialog tokens - the solid surface, no
+         backdrop blur (was blur(40px) saturate(1.8) over a translucent sheen), the dialog radius (was 28 px), the shared scrim and the
+         floating shadow. The sheet stays a native modal <dialog> because its close request is guarded (unsaved changes ask first:
+         onSheetCancel); sw-dialog closes itself on Escape / X / scrim without a cancelable hook (see docs/changes/AUDIT30-I-DEVICES.md). */
       dialog.sheet {
         position: fixed;
         margin: 0;
         padding: 0;
-        border: 1px solid var(--dv-border);
+        border: 1px solid var(--sw-border);
         color: var(--dv-text);
-        background: var(--ab-sheen), var(--ab-sheet);
-        -webkit-backdrop-filter: blur(40px) saturate(1.8);
-        backdrop-filter: blur(40px) saturate(1.8);
-        border-radius: var(--dv-radius-lg, 28px);
-        box-shadow: var(--dv-shadow-3);
+        background: var(--sw-surface-solid);
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        border-radius: var(--sw-r-xl);
+        box-shadow: var(--sw-shadow-3);
         inset-block: 12px;
         inset-inline-start: 12px;
         inset-inline-end: auto;
@@ -199,7 +203,7 @@ export abstract class AutomationEditorBase extends LitElement {
         animation: rin 300ms var(--ab-ease);
       }
       dialog.sheet::backdrop {
-        background: rgba(15, 23, 42, 0.38);
+        background: var(--sw-overlay);
       }
       @keyframes rin {
         from {
@@ -328,7 +332,7 @@ export abstract class AutomationEditorBase extends LitElement {
         flex-wrap: wrap;
         padding: 12px 16px 16px;
         border-block-start: 1px solid var(--dv-border);
-        background: var(--ab-sheen), var(--ab-sheet);
+        background: var(--sw-surface-solid);
       }
       footer.shf .sp {
         flex: 1;

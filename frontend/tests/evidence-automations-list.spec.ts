@@ -90,7 +90,7 @@ test.describe('the list (installer)', () => {
     await ready(page);
     await expect(page.locator('sw-app .subnav sw-tabs a')).toHaveText(['מבט על', 'מפה סינופטית', 'קברניט']); // NOTICEADD-295: the notice board left the home tab row (a rail entry now); FIX2200: הכרזות hides while announce.enabled is off (the demo too) (unit-schedules-nav)
     await expect(page.locator('sw-app .subnav sw-tabs a[aria-current="page"]')).toHaveText('קברניט');
-    await expect(scr(page).locator('[data-auto-title]')).toHaveText('אוטומציות');
+    await expect(scr(page).locator('sw-page[data-auto-title] h1')).toHaveText('אוטומציות');
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
     // the segments with their counts
     await expect(scr(page).locator('button[data-segment]')).toHaveCount(4); // 0.1.154: תזמונים is the first segment
@@ -513,7 +513,7 @@ test.describe('scenes', () => {
     }
     await open(page, '/devices/automations/scenes');
     await ready(page);
-    await expect(scr(page).locator('[data-auto-title]')).toHaveText('סצנות');
+    await expect(scr(page).locator('sw-page[data-auto-title] h1')).toHaveText('סצנות');
     await expect(scr(page).locator('button[data-segment="scenes"]')).toHaveAttribute('aria-selected', 'true');
     await expect(panel(page).locator('[data-scene-group="favourites"] .scard')).toHaveCount(2);
     expect(await panel(page).locator('[data-scene-group^="area:"]').count()).toBeGreaterThanOrEqual(2);
@@ -630,7 +630,7 @@ test.describe('scripts', () => {
     }
     await open(page, '/devices/automations/scripts');
     await ready(page);
-    await expect(scr(page).locator('[data-auto-title]')).toHaveText('סקריפטים');
+    await expect(scr(page).locator('sw-page[data-auto-title] h1')).toHaveText('סקריפטים');
     await expect(script(page, 'מצב חופשה').locator('[data-chip="sensitive"]')).toHaveText('רגישה');
     await expect(script(page, 'בוקר טוב').locator('[data-script-runline]')).toContainText('הורץ');
     await expect(script(page, 'תריסים לפי אחוז').locator('[data-script-run]')).toHaveText('הפעל…'); // has fields: the sheet opens
@@ -1109,7 +1109,7 @@ test.describe('with a session: permissions, the setting, the push frame and what
     st.perms = [...VIEWER_PERMS, 'script.run'];
     await openApi(page, '/devices/automations');
     await expect(sp(page).locator('.pcard')).toHaveCount(3);
-    await expect(scr(page).locator('[data-auto-title]')).toHaveText('סקריפטים'); // the segment falls back to what the caller sees
+    await expect(scr(page).locator('sw-page[data-auto-title] h1')).toHaveText('סקריפטים'); // the segment falls back to what the caller sees
     await expect(scr(page).locator('button[data-segment]')).toHaveCount(0); // one kind: no switch
     await expect(scr(page).locator('[data-auto-new]')).toHaveCount(0);
     await shot(page, '99-script-only-caller', '1440');

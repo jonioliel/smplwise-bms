@@ -5,6 +5,7 @@ import { repeat } from 'lit/directives/repeat.js';
 import { keyed } from 'lit/directives/keyed.js';
 import './automation-editors';
 import '../components/sw-dialog';
+import '../components/sw-page';
 import '../components/sw-automation-card';
 import '../components/sw-automation-row';
 import '../components/sw-pager';
@@ -148,9 +149,40 @@ export class DevicesAutomations extends LitElement {
     :host([data-skin='bubble']) sw-pager {
       --sw-ctl-h-md: var(--sw-touch-desktop);
     }
+    /* AUDIT30-I3 (owner Q9 option a): dialogs are opaque (was the media sheet surface and its blur) */
     sw-dialog {
-      --sw-surface: var(--mm-sheet-surface);
-      --sw-glass-blur: var(--mm-sheet-blur);
+      --sw-surface: var(--sw-surface-solid);
+      --sw-glass-blur: none;
+    }
+    /* AUDIT30-I4 (#6, #8): the page frame is the product's <sw-page>; the floor chips and the toolbar are the first rows of its body */
+    sw-page.page {
+      padding-block-start: var(--sw-s-4);
+      gap: var(--sw-s-3);
+    }
+    .dh {
+      position: static;
+      padding-block-start: 0;
+    }
+    .dh-row.fl {
+      display: flex;
+    }
+    /* on a desktop the floor chips stay in the title row (sw-page's actions, as before the frame change: the list keeps its rows);
+       a long floor list scrolls sideways inside its own strip */
+    .dh-row.tr {
+      display: flex;
+      align-items: center;
+      gap: var(--sw-s-3);
+      min-inline-size: 0;
+    }
+    .dh-row.tr .rooms {
+      max-inline-size: 50vw;
+    }
+    /* AUDIT30-I2 (#4, owner Q3 option a): the chosen floor chip is the Blue Wash pair (the shared media rule paints it --dv-text) */
+    .rc[aria-pressed='true'] {
+      background: var(--sw-accent-soft);
+      border-color: transparent;
+      color: var(--sw-accent-text);
+      box-shadow: none;
     }
     /* the owner's setting automations.sensitive_chip: red instead of amber, for every chip below (custom properties inherit through the shadow roots) */
     :host([data-sens='red']) {
@@ -787,15 +819,13 @@ export class DevicesAutomations extends LitElement {
     const sv = this.scenView;
     // POLISH2-295: rows · cards, where the schedules keep their view switch (the end of the title row; on a phone, in the toolbar)
     const showViews = tools && !sv && def.kind === 'automation' && all.length > 0;
-    return html`<header class=${`dh${this.compactHeader ? ' compact' : ''}`} data-auto-header>
-      <div class="dh-row">
-        <h1 data-auto-title>${sv ? sct('title') : def.label}</h1>
-        ${tools && floors.length && !sv ? html`<div class="rooms" role="group" aria-label="קומות">
+    const rooms = tools && floors.length && !sv ? html`<div class="rooms" role="group" aria-label="קומות">
           <button type="button" class="rc" aria-pressed=${String(!f.floor)} data-floor="" @click=${() => this.setFilter({ floor: '' })}>הכל</button>
           ${floors.map((x) => html`<button type="button" class="rc" aria-pressed=${String(f.floor === x.id)} data-floor=${x.id} @click=${() => this.setFilter({ floor: x.id })}>${bidi(x.name)}</button>`)}
-        </div>` : html`<span class="grow"></span>`}
-        ${showViews && !this.phone ? html`<div class="vwrap">${this.viewSwitch()}</div>` : nothing}
-      </div>
+        </div>` : nothing;
+    return html`${!this.phone ? html`<div class="dh-row tr" slot="actions">${rooms}${showViews ? html`<div class="vwrap">${this.viewSwitch()}</div>` : nothing}</div>` : nothing}
+    <header class="dh" data-auto-header>
+      ${this.phone && rooms !== nothing ? html`<div class="dh-row fl">${rooms}</div>` : nothing}
       ${tools || (sv && scenOk) ? html`<div class="dh-det">
         ${kinds.length > 1 || scenOk || (this.kavarnit.schedules && kinds.length) ? html`<div class="seg kinds" role="tablist" aria-label="סוג" @keydown=${tablistKeydown}>${this.kavarnit.schedules ? html`<button type="button" role="tab" aria-selected="false" data-segment="schedules" @click=${() => navigate(SCHEDULES_PATH)}>תזמונים${this.schedCount === null ? nothing : html` <small>${this.schedCount}</small>`}</button>` : nothing}${SEGMENTS.filter((s) => kinds.includes(s.kind)).map((s) => html`<button type="button" role="tab" aria-selected=${String(seg === s.id && !sv)} data-segment=${s.id} @click=${() => (sv ? navigate(itemPath(s.id)) : this.setSegment(s.id))}>${s.label} <small>${counts[s.kind]}</small></button>`)}${scenOk ? html`<button type="button" role="tab" aria-selected=${String(sv)} data-segment="scenarios" @click=${() => navigate('/devices/automations/scenarios')}>${sct('tab')}</button>` : nothing}</div>` : nothing}
         ${def.kind === 'automation' && all.length && !sv ? html`<div class="seg sm stf" role="radiogroup" aria-label="סינון לפי מצב" ?data-open=${this.filtersOpen}>${STATE_FILTERS_OF(extFlags(this.status?.ui ?? null).precheck).map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id} @click=${() => this.setFilter({ state: s.id as StateFilter })}>${s.label}<small>${sc[s.id]}</small></button>`)}</div>` : nothing}
@@ -926,10 +956,10 @@ export class DevicesAutomations extends LitElement {
     const r = this.route;
     const drawerKind = r.segment === 'scripts' ? 'script' : 'automation';
     const drawerOpen = ((!!r.id && r.id !== 'new' && r.segment !== 'scenes') || r.trash) && !r.edit; // the editor sheet replaces the drawer while it is open
-    return html`<div class="page" data-screen="devices-automations" data-segment=${this.scenView ? 'scenarios' : seg}>
+    return html`<sw-page class="page" heading=${this.scenView ? sct('title') : segmentOf(seg).label} data-auto-title data-screen="devices-automations" data-segment=${this.scenView ? 'scenarios' : seg}>
       ${this.header(seg)}
       ${this.scenView ? this.scenBody() : this.body(seg)}
-    </div>
+    </sw-page>
     ${this.drawerUsed || drawerOpen
       ? html`<automation-drawer .kind=${drawerKind} .itemId=${r.segment === 'scenes' ? '' : r.id} .open=${drawerOpen} .trash=${r.trash} .view=${r.view} .runId=${r.run} .status=${this.status} .now=${this.now} .action=${this.cardAction}
           @drawer-close=${this.onDrawerClose} @view-change=${this.onViewChange} @edit=${(e: CustomEvent<{ kind: 'automation' | 'script' | 'scene'; id: string }>) => navigate(editPath(e.detail.kind, e.detail.id))}

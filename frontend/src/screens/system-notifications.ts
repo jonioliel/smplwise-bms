@@ -3,6 +3,8 @@ import { liftRef } from '../components/top-layer';
 import { customElement, property, state } from 'lit/decorators.js';
 import { classMap } from 'lit/directives/class-map.js';
 import '../components/sw-dialog';
+import '../components/sw-page';
+import '../components/sw-tabs';
 import '../pwa/notifications-settings';
 import '../components/notify-whatsapp-section'; // NOTIFWA: the WhatsApp section, one separable element
 import '../components/notify-whatsapp-mine'; // NOTIFWA review F2: the user's own number and consent
@@ -103,7 +105,6 @@ export class SystemNotifications extends LitElement {
   private chain: Promise<void> = Promise.resolve();
   private toastTimer = 0;
   private phoneMq = window.matchMedia('(max-width: 1099px)');
-  private obs: IntersectionObserver | null = null;
 
   static styles = [
     bubbleChrome,
@@ -115,71 +116,30 @@ export class SystemNotifications extends LitElement {
       :host {
         --nt-sheet-w: 480px;
       }
-      .page {
-        padding-block-start: 0;
-      }
-      .dh {
-        position: static;
-      }
-      .dh .crumb {
-        font-size: var(--sw-fs-md);
-        color: var(--dv-text-2);
-        display: flex;
-        align-items: center;
-        gap: 6px;
-      }
-      .dh .crumb .ic {
-        font-size: var(--sw-fs-md);
+      /* AUDIT30-I4 / I6: the page frame is sw-page (its title, its crumb); the media page keeps its inline padding */
+      sw-page.page {
+        padding-block-start: var(--sw-s-4);
       }
       .set {
-        display: grid;
-        grid-template-columns: 230px minmax(0, 1fr);
-        gap: 24px;
-        align-items: start;
-      }
-      .setnav {
-        position: sticky;
-        inset-block-start: 20px;
         display: flex;
         flex-direction: column;
-        gap: 2px;
-        padding: 8px;
+        gap: var(--sw-s-4);
+        min-inline-size: 0;
       }
-      .setnav button {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        min-block-size: 44px;
-        padding: 0 12px;
-        border-radius: var(--sw-r-lg);
-        border: 0;
-        background: transparent;
-        text-align: start;
-        font-size: var(--sw-fs-base);
-        font-weight: 500;
-        color: var(--dv-text-2);
-      }
-      .setnav button .ic {
-        font-size: var(--sw-fs-xl);
-        color: var(--dv-text-3);
+      .settabs {
+        align-self: stretch;
       }
       /* POLISH4-WP8: hover washes only on a fine pointer (they stuck after a tap on a tablet); a key gives on pointer-down */
       @media (hover: hover) and (pointer: fine) {
-        .setnav button:hover:not([aria-current='true']) {
-          background: var(--dv-surface-3);
-          color: var(--dv-text);
-        }
         .pick button:hover {
           background: var(--dv-surface-3);
         }
       }
-      .setnav button,
       .pick button,
       .sevseg button,
       button.chip {
         transition: background-color var(--sw-t-hover) var(--sw-ease-color), transform var(--sw-t-press) var(--sw-ease);
       }
-      .setnav button:active,
       .pick button:active {
         background: var(--dv-surface-3);
       }
@@ -188,7 +148,6 @@ export class SystemNotifications extends LitElement {
         transform: scale(var(--sw-press-scale));
       }
       @media (prefers-reduced-motion: reduce) {
-        .setnav button,
         .pick button,
         .sevseg button,
         button.chip {
@@ -216,14 +175,6 @@ export class SystemNotifications extends LitElement {
           background: var(--sw-surface-solid);
           box-shadow: var(--sw-shadow-3);
         }
-      }
-      .setnav button[aria-current='true'] {
-        background: var(--dv-accent-soft);
-        color: var(--dv-accent-text);
-        font-weight: 600;
-      }
-      .setnav button[aria-current='true'] .ic {
-        color: var(--dv-accent-text);
       }
       .secs {
         display: flex;
@@ -435,6 +386,9 @@ export class SystemNotifications extends LitElement {
         justify-content: center;
         gap: 5px;
       }
+      /* AUDIT30-I1 (#3): left as the segmented thumb on purpose - measured readable in dark (label 15.6:1, key 11.3:1 from its track,
+         tests/evidence-sys-audit-quickfix-2437.spec.ts); the Blue Wash pair would fall under the owner-approved DARK-SEG-ALL-2380 rule
+         (the chosen key at least 3:1 from its track). Recorded in docs/changes/AUDIT30-I-DEVICES.md. */
       .sevseg button[aria-pressed='true'] {
         background: var(--mm-seg-thumb);
         color: var(--mm-seg-fg-on, var(--dv-text));
@@ -936,44 +890,6 @@ export class SystemNotifications extends LitElement {
         flex-wrap: wrap;
       }
       @media (max-width: 1099px) {
-        .set {
-          grid-template-columns: 1fr;
-          gap: 12px;
-        }
-        .setnav {
-          position: static;
-          flex-direction: row;
-          overflow-x: auto;
-          scrollbar-width: none;
-          padding: 4px 0;
-          background: transparent;
-          border: 0;
-          box-shadow: none;
-          -webkit-backdrop-filter: none;
-          backdrop-filter: none;
-        }
-        .setnav::-webkit-scrollbar {
-          display: none;
-        }
-        .setnav button {
-          flex: none;
-          block-size: 44px;
-          border: 1px solid var(--dv-border);
-          background: var(--dv-surface-2);
-          border-radius: var(--sw-r-pill);
-          padding: 0 14px;
-        }
-        .setnav button[aria-current='true'] {
-          background: var(--dv-text);
-          color: var(--mm-text-inverse);
-          border-color: transparent;
-        }
-        .setnav button[aria-current='true'] .ic {
-          color: inherit;
-        }
-        .setnav button .ic {
-          display: none;
-        }
         .fgrid label.w2 {
           grid-column: span 1;
         }
@@ -982,9 +898,6 @@ export class SystemNotifications extends LitElement {
         }
         .lphone {
           opacity: 1;
-        }
-        .dh {
-          padding-block-end: 4px;
         }
       }
     `,
@@ -1001,7 +914,6 @@ export class SystemNotifications extends LitElement {
     this.offClock?.();
     this.offClock = null;
     this.phoneMq.removeEventListener('change', this.onMq);
-    this.obs?.disconnect();
     window.clearTimeout(this.toastTimer);
     super.disconnectedCallback();
   }
@@ -1009,9 +921,6 @@ export class SystemNotifications extends LitElement {
 
   protected willUpdate(changed: Map<string, unknown>) {
     if (changed.has('section') && SECTIONS.some((s) => s.id === this.section)) this.sec = this.section as SecId;
-  }
-  protected updated(changed: Map<string, unknown>) {
-    if (changed.has('phase') && this.phase === 'ready' && !this.phone) this.watchSections();
   }
 
   // ---------------------------------------------------------------------------------------------- loading
@@ -1086,20 +995,6 @@ export class SystemNotifications extends LitElement {
     }
   }
 
-  private watchSections() {
-    this.obs?.disconnect();
-    if (!('IntersectionObserver' in window)) return;
-    this.obs = new IntersectionObserver(
-      (entries) => {
-        const hit = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
-        const id = (hit?.target as HTMLElement | undefined)?.dataset.setSection as SecId | undefined;
-        if (id) this.sec = id;
-      },
-      { root: this, rootMargin: '-80px 0px -65% 0px' },
-    );
-    this.renderRoot.querySelectorAll('[data-set-section]').forEach((el) => this.obs?.observe(el));
-  }
-
   // ---------------------------------------------------------------------------------------------- saving
 
   private say(text: string, bad = false) {
@@ -1157,9 +1052,9 @@ export class SystemNotifications extends LitElement {
     });
   }
 
+  /** AUDIT30-I6 (#18, owner Q11 option a): one section at a time at every width (was: all nine on one 6,699 px page on a desktop) */
   private setSec(id: SecId) {
     this.sec = id;
-    if (!this.phone) this.renderRoot.querySelector(`[data-set-section="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   // ---------------------------------------------------------------------------------------------- the mail form
@@ -1426,15 +1321,15 @@ export class SystemNotifications extends LitElement {
     if (this.phase === 'error') return html`<div class="errbar" role="alert" data-set-state="error">${nIcon('warning')}<span>${this.error || 'לא ניתן לטעון את ההגדרות'}</span><button type="button" class="btn sm" data-set-retry @click=${() => void this.load()}>${nIcon('refresh')}נסה שוב</button></div>`;
     if (this.phase === 'user') return html`<div class="secs" data-set-state="user"><section class="glass sec"><arx-notifications-settings devices-only embedded></arx-notifications-settings><notify-whatsapp-mine></notify-whatsapp-mine></section></div>`;
     const sections: Record<SecId, () => TemplateResult> = { sources: () => this.renderSources(), quiet: () => this.renderQuiet(), esc: () => this.renderEsc(), lock: () => this.renderLock(), keep: () => this.renderKeep(), mail: () => this.renderMail(), wa: () => this.renderWa(), chan: () => this.renderChannels(), log: () => this.renderLog() };
-    return html`<div class="set" data-set-state="ready"><nav class="glass setnav" aria-label="מדורים">${SECTIONS.map((x) => html`<button type="button" aria-current=${String(this.sec === x.id)} data-set-nav=${x.id} @click=${() => this.setSec(x.id)}>${nIcon(x.icon)}${x.label}</button>`)}</nav>
-      <div class="secs">${this.phone ? sections[this.sec]() : SECTIONS.map((x) => sections[x.id]())}</div></div>`;
+    // AUDIT30-I6 (#18, owner Q11 option a): the existing sections are underline tabs (the product's sw-tabs) above one section
+    return html`<div class="set" data-set-state="ready"><sw-tabs variant="underline" class="settabs" data-set-tabs group-label="מדורים" panel="set-panel" .items=${SECTIONS.map((x) => ({ id: x.id, label: x.label }))} .active=${this.sec} @change=${(e: CustomEvent<{ id: string }>) => this.setSec(e.detail.id as SecId)}></sw-tabs>
+      <div class="secs" id="set-panel" data-set-panel=${this.sec}>${sections[this.sec]()}</div></div>`;
   }
 
   render() {
-    return html`<div class="page" data-notify-settings data-phase=${this.phase}>
-      <header class="dh flat"><div class="dh-row"><h1>התראות</h1><span class="crumb">${nIcon('settings')}מערכת</span></div></header>
+    return html`<sw-page class="page" heading="התראות" crumbs="מערכת" data-notify-settings data-phase=${this.phase}>
       ${this.renderBody()}
-    </div>
+    </sw-page>
     ${this.renderPicker()}
     ${this.toast ? html`<div class="toast ${this.toast.bad ? 'bad' : ''}" role="status" data-set-toast ${liftRef() /* DIALOG-TOPLAYER-2381: above an open sw-dialog */}>${nIcon(this.toast.bad ? 'warning' : 'check')}${this.toast.text}</div>` : nothing}`;
   }

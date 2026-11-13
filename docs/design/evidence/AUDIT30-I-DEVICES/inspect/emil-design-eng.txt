@@ -1,0 +1,9 @@
+Skill: emil-design-eng (invoked through the Skill tool, 2026-11-12). Applied to branch AUDIT30-I:
+
+| Before | After | Why |
+| --- | --- | --- |
+| schedule-create-dialog: own scrim + box, scale(0.97) entry, own Escape / focus trap | sw-dialog wide: scale(0.96) translateY(6px) + opacity on the dialog spring, centred | one modal motion for the product; modals stay centred (no trigger origin) |
+| builder sheet: blur(40px) saturate(1.8) over a 92 % sheen | solid --sw-surface-solid, backdrop-filter none | blur under 20 px rule; heavy blur is expensive and reads as glass, the owner asked for opaque (Q9 a) |
+| notification settings: smooth scrollIntoView across a 6,699 px page | underline tabs, instant section swap | keyboard / frequent action: no animation; no long scroll to animate |
+| chosen chip: solid --dv-text block | Blue Wash pair, transition on background/colour kept from the shared .rc | state indication by colour, not a jarring inverted block |
+Kept: the sheet's 300 ms slide-in keyframes (opened occasionally, reduced motion zeroes it in design/css.ts).

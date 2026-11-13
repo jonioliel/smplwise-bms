@@ -142,10 +142,13 @@ export class SystemAutomations extends LitElement {
       font-size: var(--sw-fs-sm);
       cursor: pointer;
     }
+    /* AUDIT30-I2 (#4, owner Q3 option a): the chosen chip is the Blue Wash pair */
     .rc[aria-pressed='true'] {
-      background: var(--sw-accent);
-      border-color: var(--sw-accent);
-      color: var(--sw-text-inverse);
+      background: var(--sw-accent-soft);
+      border-color: transparent;
+      color: var(--sw-accent-text);
+      font-weight: 600;
+      box-shadow: none;
     }
     .rc:disabled {
       opacity: 0.6;

@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { live } from 'lit/directives/live.js';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-dialog';
+import '../components/sw-page';
 import '../components/sw-dropdown';
 import '../components/sw-schedule-bar';
 import '../components/sw-pager';
@@ -199,9 +200,42 @@ export class DevicesSchedules extends LitElement {
   private noteTimer = 0;
 
   static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, css`
+    /* AUDIT30-I3 (owner Q9 option a): dialogs are opaque (was the media sheet surface and its blur) */
     sw-dialog {
-      --sw-surface: var(--mm-sheet-surface);
-      --sw-glass-blur: var(--mm-sheet-blur);
+      --sw-surface: var(--sw-surface-solid);
+      --sw-glass-blur: none;
+    }
+    /* AUDIT30-I4 (#6, #8): the page frame is the product's <sw-page> (its title, its actions at the end of the title row); the media
+       page keeps its padding (.page) and the toolbar below the title. The title row no longer sticks: the floor chips and the toolbar
+       are the first rows of the page body. */
+    sw-page.page {
+      padding-block-start: var(--sw-s-4);
+      gap: var(--sw-s-3);
+    }
+    .dh {
+      position: static;
+      padding-block-start: 0;
+    }
+    .dh-row.fl {
+      display: flex;
+    }
+    /* on a desktop the floor chips stay in the title row (sw-page's actions, as before the frame change: the list keeps its rows);
+       a long floor list scrolls sideways inside its own strip */
+    .dh-row.tr {
+      display: flex;
+      align-items: center;
+      gap: var(--sw-s-3);
+      min-inline-size: 0;
+    }
+    .dh-row.tr .rooms {
+      max-inline-size: 50vw;
+    }
+    /* AUDIT30-I2 (#4, owner Q3 option a): the chosen floor chip is the Blue Wash pair (the shared media rule paints it --dv-text) */
+    .rc[aria-pressed='true'] {
+      background: var(--sw-accent-soft);
+      border-color: transparent;
+      color: var(--sw-accent-text);
+      box-shadow: none;
     }
     .dh-det .seg.kinds button {
       padding-inline: 14px;
@@ -1607,15 +1641,10 @@ export class DevicesSchedules extends LitElement {
 
   // ---------------------------------------------------------------------------- render: the header (media-page.ts, as on the automations screen)
 
-  private header(scr: ReturnType<typeof screenState>): TemplateResult {
+  private header(scr: ReturnType<typeof screenState>): TemplateResult | typeof nothing {
     const sub = this.sub;
     if (sub === 'trash' || sub === 'review') {
-      return html`<header class=${`dh${this.compactHeader ? ' compact' : ''}`} data-sched-header>
-        <div class="dh-row">
-          <h1 data-sched-title style="display:flex;align-items:center;gap:12px"><a class="rb" href=${`#${BASE}`} aria-label="חזרה לתזמונים" data-back @click=${(e: Event) => { e.preventDefault(); this.go(''); }}>${aIcon('chevron')}</a>${sub === 'trash' ? 'סל מחזור' : 'תזמונים לבדיקה'}</h1>
-          <span class="grow"></span>
-        </div>
-      </header>`;
+      return nothing; // the shared back control of sw-page (backHref) leads to the list
     }
     const all = this.items ?? [];
     const floors = placeOptions(all, 'floor');
@@ -1626,15 +1655,13 @@ export class DevicesSchedules extends LitElement {
     const sc = stateCounts(all);
     // POLISH-295: "דורשים בדיקה" is a quiet chip beside the state filter (an administrator's), not a banner across the screen
     const attention = scr.admin ? this.status?.counts.attention ?? 0 : 0;
-    return html`<header class=${`dh${this.compactHeader ? ' compact' : ''}`} data-sched-header>
-      <div class="dh-row">
-        <h1 data-sched-title>תזמונים</h1>
-        ${tools && floors.length ? html`<div class="rooms" role="group" aria-label="קומות">
+    const rooms = tools && floors.length ? html`<div class="rooms" role="group" aria-label="קומות">
           <button type="button" class="rc" aria-pressed=${String(!f.floor)} data-floor="" @click=${() => this.setFilter({ floor: '' })}>הכל</button>
           ${floors.map((x) => html`<button type="button" class="rc" aria-pressed=${String(f.floor === x.value)} data-floor=${x.value} @click=${() => this.setFilter({ floor: x.value })}>${bidi(x.label)}</button>`)}
-        </div>` : html`<span class="grow"></span>`}
-        ${tools && all.length && !this.phone ? html`<div class="vwrap">${this.viewSwitch()}</div>` : nothing}
-      </div>
+        </div>` : nothing;
+    return html`${!this.phone ? html`<div class="dh-row tr" slot="actions">${rooms}${tools && all.length ? html`<div class="vwrap">${this.viewSwitch()}</div>` : nothing}</div>` : nothing}
+    <header class="dh" data-sched-header>
+      ${this.phone && rooms !== nothing ? html`<div class="dh-row fl">${rooms}</div>` : nothing}
       ${tools ? html`<div class="dh-det" data-sched-toolbar>
         ${this.renderSegments()}
         ${all.length ? html`<div class="seg sm stf" role="radiogroup" aria-label="סינון לפי מצב" ?data-open=${this.filtersOpen}>${STATE_SEGMENTS.map((s) => html`<button type="button" role="radio" aria-checked=${String(f.state === s.id)} data-state-filter=${s.id || 'all'} @click=${() => this.setFilter({ state: s.id as StateFilter })}>${s.label}<small>${sc[s.id]}</small></button>`)}</div>` : nothing}
@@ -1967,10 +1994,11 @@ export class DevicesSchedules extends LitElement {
     const scr = listFailed ? { ...st, kind: 'error' as const } : st.kind === 'ready' && this.items === null ? { ...st, kind: 'loading' as const } : st;
     const sub = this.sub;
     const drawerId = sub && sub !== 'trash' && sub !== 'review' ? sub : '';
-    return html`<div class="page" data-screen="devices-schedules" data-sched-screen=${scr.kind}>
+    const title = sub === 'trash' ? 'סל מחזור' : sub === 'review' ? 'תזמונים לבדיקה' : 'תזמונים';
+    return html`<sw-page class="page" heading=${title} backHref=${sub === 'trash' || sub === 'review' ? BASE : ''} data-sched-title data-screen="devices-schedules" data-sched-screen=${scr.kind}>
         ${this.header(scr)}
         ${this.renderBody(scr)}
-      </div>
+      </sw-page>
       ${scr.kind === 'ready' && this.drawerUsed
         ? html`<schedule-drawer ?open=${!!drawerId} .schedule=${this.detail} .status=${this.status} ?missing=${this.detailMissing} @drawer-close=${() => this.go('')} @edit=${(e: CustomEvent<{ id: string }>) => navigate(`${BASE}/${e.detail.id}/edit`)} @changed=${this.onChanged} @deleted=${this.onDeleted} @copied=${this.onCopied}></schedule-drawer>`
         : nothing}
