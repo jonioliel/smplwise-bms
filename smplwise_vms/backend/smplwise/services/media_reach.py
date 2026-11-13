@@ -58,6 +58,9 @@ class Reach:
             self.last_error: str | None = None
             self.failures = 0
             self.last_contact: float | None = None  # wall clock of the last outcome of either kind
+            # FLAKY-G2R-BACKOFF-2437: outcomes recorded so far; `tick` compares this, not `last_contact` - on Windows `time.time()` can
+            # return the same value for a failed contact and the answer right after it (~15 ms clock), which looked like "no outcome"
+            self.outcomes = 0
             self.next_probe_at = 0.0
             self.probes = 0
 
@@ -71,6 +74,7 @@ class Reach:
                     log.info("video service reachable again after %d failed contacts", self.failures)
                 self.state, self.since = REACHABLE, now
             self.last_ok_at = self.last_contact = now
+            self.outcomes += 1
             self.failures = 0
             self.next_probe_at = now + OK_REFRESH_S
 
@@ -82,6 +86,7 @@ class Reach:
                 self.state, self.since = UNREACHABLE, now
             self.failures += 1
             self.last_error, self.last_error_at, self.last_contact = error, now, now
+            self.outcomes += 1
             self.next_probe_at = now + self.backoff_s()
 
     def backoff_s(self) -> float:
@@ -108,13 +113,14 @@ class Reach:
             from .go2rtc import Go2rtc
 
             self.probes += 1
-            before = self.last_contact
+            with self._lock:
+                before = self.outcomes
             try:
                 Go2rtc(settings).info()  # its outcome is recorded by the client itself (any answer = reachable)
             except Exception:  # noqa: BLE001 - a probe never raises
                 pass
             with self._lock:
-                if self.last_contact == before:  # neither an answer nor a connection failure (a slow answer): try again later
+                if self.outcomes == before:  # neither an answer nor a connection failure (a slow answer): try again later
                     self.next_probe_at = (time.time() if now is None else now) + BACKOFF_BASE_S
             return True
         finally:
