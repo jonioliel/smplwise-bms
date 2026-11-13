@@ -189,7 +189,7 @@ export interface PerfMock {
 }
 
 /** Installs the mocked API and HA socket on `page` (before the first navigation). `install` is plan.quality. */
-export async function installPerfMock(page: Page, opts: { install?: string; own?: string | null; house?: HouseSize } = {}): Promise<PerfMock> {
+export async function installPerfMock(page: Page, opts: { install?: string; own?: string | null; house?: HouseSize; settings?: Record<string, unknown> } = {}): Promise<PerfMock> {
   const h = opts.house ?? HOUSE;
   const doc = houseDoc(h);
   const states = initialStates(h);
@@ -207,7 +207,7 @@ export async function installPerfMock(page: Page, opts: { install?: string; own?
     cameras: [], ha_sync: sync, reach: null, needs_alignment: false, floor_images: null, bakes: null, at: null, history: null, history_from: null, ha_history: null,
     permissions: { edit: false, publish: false, import: false, structure: false },
   });
-  const settings = { 'ui.design': 'a', 'ui.scheme': 'light', 'time.zone': 'Asia/Jerusalem', 'plan.quality': opts.install ?? 'auto', 'map.default_view': '2d', 'plan.levels': 'all', 'site.latitude': 32.08, 'site.longitude': 34.78 };
+  const settings = { 'ui.design': 'a', 'ui.scheme': 'light', 'time.zone': 'Asia/Jerusalem', 'plan.quality': opts.install ?? 'auto', 'map.default_view': '2d', 'plan.levels': 'all', 'site.latitude': 32.08, 'site.longitude': 34.78, ...opts.settings }; // settings: a spec's own product settings on top (e.g. the round 28 map keys)
   const perms = ['map.read', 'events.read', 'recordings.read', 'cameras.read', 'entity.state.read'];
   const me = { user: { id: 'u-perf', username: 'perf', display_name: 'בודק', source: 'ingress' }, channel: 'local', remote: null, bindings: [], permissions_installation: perms, permissions_any: perms, has_access: true, permission_revision: 1, bootstrap_state: 'done' };
   const view = { style: 'auto', default_view: 'schematic', furniture: 'models', textures: 'files', wall_display: 'live', time_source: 'clock', mouse_mode: 'drag', quality: 'auto', kiosk_idle_s: 30, eye_m: 1.65, dpr_cap: 1.25, section_cut: true, show_temps: true, motion: true, walk_guard: true };
