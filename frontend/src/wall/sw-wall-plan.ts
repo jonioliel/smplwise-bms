@@ -1,6 +1,7 @@
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { loadMap, type MapBundle } from '../api/maps';
+import { PollController } from '../components/poll-controller';
 import { geometryFor } from '../api/geometry';
 import { loadLibrary, lookup3dOf, lookupMaterialsOf } from '../api/plan-catalog';
 import { DEFAULT_VIEW, planViewPrefs, type PlanViewDials } from '../api/plan-view';
@@ -48,7 +49,8 @@ export class SwWallPlan extends LitElement {
   @state() private exhausted = false;
   @state() private real = false;
   private seq = 0;
-  private timer = 0;
+  /** CR-POLL-FEATURES-2439: the floor re-read every REFRESH_MS - paused while the tab is hidden, never two at once, caught up on resume. */
+  private poll = new PollController(this);
   private threeAsked = false;
   private sceneMemo: { key: string; desc: SceneDescription | null } | null = null;
 
@@ -74,13 +76,11 @@ export class SwWallPlan extends LitElement {
 
   connectedCallback(): void {
     super.connectedCallback();
-    this.timer = window.setInterval(() => void this.refresh(), REFRESH_MS);
+    this.poll.every('floor', REFRESH_MS, () => this.refresh());
   }
 
   disconnectedCallback(): void {
-    super.disconnectedCallback();
-    window.clearInterval(this.timer);
-    this.timer = 0;
+    super.disconnectedCallback(); // the poll stops with it (PollController)
     this.seq++; // an answer still on its way is dropped
   }
 

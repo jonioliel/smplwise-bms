@@ -5,6 +5,7 @@ import '../components/sw-button';
 import './gen-chart-set';
 import { getLive, loadViewMode, saveViewMode, type GenDevice, type GenRange, type LiveResponse, type ViewMode } from '../api/generator';
 import { navigate } from '../router';
+import { PollController } from '../components/poll-controller';
 import { he, t } from '../i18n/he';
 import { elecCss } from '../electricity/styles';
 import { SkinController } from '../design/skin';
@@ -60,7 +61,8 @@ export class GenLivePage extends LitElement {
   @state() private tick = Date.now();
   /** The last poll failed: the values on screen are the last good ones (a banner says so, with a retry). */
   @state() private pollFailed = false;
-  private timer = 0;
+  /** CR-POLL-FEATURES-2439: the /live read every 5 s (and the clock of the "ago" texts with it) - paused while the tab is hidden, never two at once, caught up on resume. */
+  private poller = new PollController(this);
   private mq = window.matchMedia('(max-width: 767px)');
   private onMq = () => (this.phone = this.mq.matches);
   private seq = 0;
@@ -70,15 +72,14 @@ export class GenLivePage extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this.mq.addEventListener('change', this.onMq);
-    this.timer = window.setInterval(() => {
+    this.poller.every('live', POLL_MS, () => {
       this.tick = Date.now();
-      if (!document.hidden) void this.poll();
-    }, POLL_MS);
+      return this.poll();
+    });
     void loadViewMode().then((m) => (this.view = m)).catch(() => undefined);
   }
   disconnectedCallback() {
     this.mq.removeEventListener('change', this.onMq);
-    window.clearInterval(this.timer);
     super.disconnectedCallback();
   }
   protected willUpdate(c: Map<string, unknown>) {

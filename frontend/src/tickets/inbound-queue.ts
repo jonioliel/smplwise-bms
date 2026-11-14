@@ -7,6 +7,7 @@ import { SkinController } from '../design/skin';
 import { bidi } from '../i18n/bidi';
 import { ApiError, describeError } from '../api/client';
 import { isApi } from '../api/session';
+import { PollController } from '../components/poll-controller';
 import { messagesApi, type InboundItem } from '../api/tickets-messages';
 import { ticketDetailStyles } from './styles';
 import { mtt } from './messages-text';
@@ -30,7 +31,8 @@ export class TicketsInboundChip extends LitElement {
   @state() private busy = false;
   @state() private error = '';
   @state() private pick: Record<string, string> = {};
-  private timer = 0;
+  /** CR-POLL-FEATURES-2439: the 60 s re-read - paused while the tab is hidden, never two at once, caught up on resume. */
+  private poll = new PollController(this);
 
   static styles = [bubbleChrome, ...automationsStyles, ticketDetailStyles, css`
     :host {
@@ -81,12 +83,7 @@ export class TicketsInboundChip extends LitElement {
   connectedCallback(): void {
     super.connectedCallback();
     void this.refresh();
-    this.timer = window.setInterval(() => void this.refresh(), 60_000);
-  }
-
-  disconnectedCallback(): void {
-    super.disconnectedCallback();
-    window.clearInterval(this.timer);
+    this.poll.every('inbound', 60_000, () => this.refresh());
   }
 
   async refresh(): Promise<void> {

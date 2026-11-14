@@ -5,6 +5,7 @@ import '../components/sw-button';
 import { settingsStyles } from '../styles/settings';
 import { ticketSettingsCss } from './settings-styles';
 import { describeError, ApiError } from '../api/client';
+import { PollController } from '../components/poll-controller';
 import { ticketsApi, type Meta } from '../api/tickets';
 import { intakeApi, type IntakeDraft, type IntakeDraftRow, type IntakeEditKey, type IntakeSummary, type RejectReason } from '../api/tickets-intake';
 import { itx, type IntakeKey } from '../i18n/intake';
@@ -36,7 +37,8 @@ export class TicketsIntakeChip extends LitElement {
   @state() private mergeNumber = '';
   @state() private rejectOpen = false;
   @state() private block = false;
-  private timer = 0;
+  /** CR-POLL-FEATURES-2439: the 60 s summary re-read - paused while the tab is hidden, never two at once, caught up on resume. */
+  private poll = new PollController(this);
 
   static styles = [settingsStyles, ticketSettingsCss, css`
     :host { display: contents; }
@@ -69,12 +71,7 @@ export class TicketsIntakeChip extends LitElement {
   connectedCallback(): void {
     super.connectedCallback();
     void this.refreshSummary();
-    this.timer = window.setInterval(() => void this.refreshSummary(), 60_000);
-  }
-
-  disconnectedCallback(): void {
-    window.clearInterval(this.timer);
-    super.disconnectedCallback();
+    this.poll.every('summary', 60_000, () => this.refreshSummary());
   }
 
   private async refreshSummary(): Promise<void> {

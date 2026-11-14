@@ -6,6 +6,7 @@ import '../components/sw-drawer';
 import '../components/sw-state-panel';
 import { ackAlert, ackAll, getAlert, getSettings, listAlerts, muteAlert, type GenAlert, type GenAlertDetail, type GenDevice, type Severity } from '../api/generator';
 import { describeError } from '../api/client';
+import { PollController } from '../components/poll-controller';
 import { navigate } from '../router';
 import { he } from '../i18n/he';
 import { elecCss } from '../electricity/styles';
@@ -45,21 +46,16 @@ export class GenAlertsPage extends LitElement {
   @state() private busy = false;
   @state() private notice = '';
   @state() private retention = 0;
-  private timer = 0;
+  /** CR-POLL-FEATURES-2439: the open-alerts re-read every 15 s (alerts mode only) - paused while the tab is hidden, never two at once, caught up on resume. */
+  private poll = new PollController(this);
   private seq = 0;
 
   static styles = [elecCss, genCss];
 
   connectedCallback() {
     super.connectedCallback();
-    this.timer = window.setInterval(() => {
-      if (!document.hidden && this.mode === 'alerts') void this.load(true);
-    }, POLL_MS);
+    this.poll.every('alerts', POLL_MS, () => this.load(true), { when: () => this.mode === 'alerts' });
     if (this.manage) void getSettings().then((s) => (this.retention = s.alert_retention_days)).catch(() => undefined);
-  }
-  disconnectedCallback() {
-    window.clearInterval(this.timer);
-    super.disconnectedCallback();
   }
   protected updated(c: Map<string, unknown>) {
     if (c.has('device') || c.has('mode')) void this.load();

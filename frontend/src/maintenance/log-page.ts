@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { describeError } from '../api/client';
+import { PollController } from '../components/poll-controller';
 import { can, isApi } from '../api/session';
 import { LOG_EVENTS, maintApi, type LogEvent, type LogRow, type ReminderLog } from '../api/maintenance';
 import { mt, type MtKey } from '../i18n/maintenance';
@@ -24,7 +25,8 @@ export class MaintLogPage extends LitElement {
   @state() private log: ReminderLog | null = null;
   @state() private error = '';
   @state() private event: LogEvent | '' = '';
-  private timer?: number;
+  /** CR-POLL-FEATURES-2439: the reminder-log re-read every 60 s - paused while the tab is hidden, never two at once, caught up on resume. */
+  private poll = new PollController(this);
 
   static styles = [maintCss, css`
     :host { flex: 1; min-block-size: 0; }
@@ -44,14 +46,7 @@ export class MaintLogPage extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     void this.load();
-    this.timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void this.load();
-    }, 60_000);
-  }
-
-  disconnectedCallback() {
-    window.clearInterval(this.timer);
-    super.disconnectedCallback();
+    this.poll.every('log', 60_000, () => this.load());
   }
 
   private async load() {

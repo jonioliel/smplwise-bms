@@ -6,6 +6,7 @@ import '../components/sw-place-tree';
 import { liftRef } from '../components/top-layer';
 import type { IconName } from '../components/sw-icon';
 import { ApiError, describeError } from '../api/client';
+import { PollController } from '../components/poll-controller';
 import { maintApi, type Task, type TaskKind } from '../api/maintenance';
 import { mt, type MtKey } from '../i18n/maintenance';
 import type { MaintAccess } from './access';
@@ -62,21 +63,15 @@ export class MaintListPage extends LitElement {
   @state() private vendor: string | null = null;
   @state() private run: string | null = null;
   @state() private toast = '';
-  private timer?: number;
+  /** CR-POLL-FEATURES-2439: the task list re-read every POLL_MS (not while a round or the form is open) - paused while the tab is hidden, never two at once, caught up on resume. */
+  private poll = new PollController(this);
   private loadedFor = '';
 
   static styles = [maintCss, css`:host { flex: 1; overflow: hidden; }`];
 
   connectedCallback() {
     super.connectedCallback();
-    this.timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible' && !this.run && !this.form) void this.load();
-    }, POLL_MS);
-  }
-
-  disconnectedCallback() {
-    window.clearInterval(this.timer);
-    super.disconnectedCallback();
+    this.poll.every('tasks', POLL_MS, () => this.load(), { when: () => !this.run && !this.form });
   }
 
   protected willUpdate(changed: Map<string, unknown>) {

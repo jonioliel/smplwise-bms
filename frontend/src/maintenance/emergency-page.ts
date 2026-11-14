@@ -4,6 +4,7 @@ import '../components/sw-icon';
 import '../components/sw-state-panel';
 import type { IconName } from '../components/sw-icon';
 import { ApiError, describeError } from '../api/client';
+import { PollController } from '../components/poll-controller';
 import { emergencyApi, type ItemGroup, type ItemStatus, type ReadinessItem, type ReadinessPage, type Verdict } from '../api/emergency';
 import { em, emLang, EN_SUMMARY, EN_TITLES, type EmKey } from '../i18n/emergency';
 import { fmtInstant } from './model';
@@ -35,7 +36,8 @@ export class EmergencyReadinessPage extends LitElement {
   @state() private error = '';
   @state() private filter: Filter = 'all';
   @state() private view: View = 'list';
-  private timer?: number;
+  /** CR-POLL-FEATURES-2439: the readiness re-read every 60 s - paused while the tab is hidden, never two at once, caught up on resume. */
+  private poll = new PollController(this);
 
   static styles = [maintCss, css`
     :host { flex: 1; min-block-size: 0; }
@@ -72,14 +74,7 @@ export class EmergencyReadinessPage extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     void this.load();
-    this.timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void this.load();
-    }, 60_000);
-  }
-
-  disconnectedCallback() {
-    window.clearInterval(this.timer);
-    super.disconnectedCallback();
+    this.poll.every('readiness', 60_000, () => this.load());
   }
 
   private async load() {

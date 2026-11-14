@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-state-panel';
 import { getHistory, type GenRange, type HistoryResponse } from '../api/generator';
 import { describeError } from '../api/client';
+import { PollController } from '../components/poll-controller';
 import { he } from '../i18n/he';
 import { elecCss } from '../electricity/styles';
 import { SkinController } from '../design/skin';
@@ -32,7 +33,8 @@ export class GenChartSet extends LitElement {
   @state() private phase: 'loading' | 'ready' | 'error' = 'loading';
   @state() private error = '';
   private seq = 0;
-  private timer = 0;
+  /** CR-POLL-FEATURES-2439: the history re-read every 60 s (not for a custom range) - paused while the tab is hidden, never two at once, caught up on resume. */
+  private poll = new PollController(this);
 
   static styles = [elecCss, genCss];
 
@@ -42,13 +44,7 @@ export class GenChartSet extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    this.timer = window.setInterval(() => {
-      if (this.range !== 'custom' && !document.hidden) void this.load(true);
-    }, 60_000);
-  }
-  disconnectedCallback() {
-    window.clearInterval(this.timer);
-    super.disconnectedCallback();
+    this.poll.every('history', 60_000, () => this.load(true), { when: () => this.range !== 'custom' });
   }
 
   private async load(quiet = false) {
