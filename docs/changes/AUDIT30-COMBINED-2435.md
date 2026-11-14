@@ -91,5 +91,44 @@ Entry check: see section 5.
 
 ## 5. Entry check
 
-Queued once: `ENTRY_TOTAL_SECS=10800 ~/gate2/branch_check.sh pilot/AUDIT30-COMBINED-2435 --max-wait 0`. Verdict file:
+Queued with `ENTRY_TOTAL_SECS=10800 ~/gate2/branch_check.sh pilot/AUDIT30-COMBINED-2435 --max-wait 0`. Verdict file:
 `~/smplwise-results/entry_pilot-AUDIT30-COMBINED-2435_<sha>.md`.
+
+### Round 1 - `1549f0b60`: RED (queued 347 min, ran 98 min; 28 failures outside the quarantine)
+
+Counts: preview 12769 passed / 22 failed / 3 flaky, dev 848 / 1, fixture 28 / 0, visual 72 / 0, pixel 344 / 4 / 1 flaky,
+backend 2818 / 0, tsc, build, release check and add-on build passed; spec lint 1. Every failure was reproduced locally and
+classified real except where noted; fixes in `7b3a90ee8`, baselines in `21abe3c5b`.
+
+| Failure | Branch | Class | Fix |
+|---|---|---|---|
+| spec lint `evidence-audit30i-devices:167` | I | real (test) | `settle(page)` before the geometry read |
+| `evidence-kavarnit:85` [desktop] strip 21 px lower on schedules | I + D | real | the header actions row's class `tr` was also the schedule table row (padding 10px 16px); renamed `hdact` in schedules and automations |
+| `unit-lead-reserve:58` (3 projects) | I, G | real | explore-presence and investigate-incidents are on sw-page; the dead `leadReserveStyles` import removed |
+| `layout-incidents:50` [mobile] doors part 9 px over | G (fails on G alone) | real | door rows one step denser on a phone (gap 4, padding-block 3, still 44 px) |
+| `evidence-polish2-295:200` (3 screens x 3 projects) chosen chip 1.28:1 from its track | D, I (Blue Wash) | contradiction | owner Q3 option 1 makes the chosen chip the soft accent fill; the 3:1 key-vs-track rule now applies to segment keys only (as C already did in `evidence-sys-audit-quickfix-2437` finding 3); labels keep 4.5:1. **Recorded contradiction:** the old WCAG 1.4.11 key rule vs the owner's chip look. |
+| `unit-devices-tiles:330` (3 projects) dark panel white | A | real (test) | the test faked a dark device scheme on a light product without the `data-devices-own-backdrop` flag the screen sets; A's bridge applies only without it |
+| `unit-menu-surfaces:100` (3 projects) | A | real (test) | the bridge's `--dv-surface-solid: var(--sw-surface-solid)` is a reference to the product's opaque token, not a literal; the test checks literals and that the only reference is that one |
+| `electricity-accounts:159` [mobile, dev] | E | real (test, timing) | "next" is an sw-button; a press on the host while the inner button is disabled is dropped; the phone steps wait for the key and each step |
+| `evidence-pwa-push:139` [desktop] | none (main) | pre-existing | fails 3 of 3 on main `665ec8f24` locally; the notice can show before the waiting worker settles; the test presses once `waiting.state === 'installed'` |
+| pixel `evidence-audit30c-tickets` board / settings, `layout-audit30h-wiskey:97` | C, H on the merged frame | stale baselines | re-taken (below) |
+
+Flaky in round 1 (passed alone): layout-overlay-no-shift:125, evidence-wiskey-stations:674, evidence-calendars-settings-2310:105,
+pixel-access-s12:72.
+
+Local receipts for round 1: tsc 0, vite build 0; the failing specs plus layout-dd-click, layout-dd-place, evidence-schedules-list,
+evidence-automations-list, evidence-audit30g-video and A's specs, three projects, 3 workers: 792 passed, 33 skipped, 3 failed
+(evidence-pwa-push:139 tablet / mobile and layout-dd-place:248 tablet under load; alone: tablet passes, the pwa test still times out
+on mobile locally - on the runner only desktop had failed). electricity-accounts on vite dev, three projects: 60 passed. Spec lint
+`--new-since origin/main`: 0 findings.
+
+Runner re-take @ `7b3a90ee8` (`-u -g`, one worker): 11 passed, 4 skipped, 11 files - visual-matrix devices-schedules desktop /
+tablet, AUDIT30-C board desktop / phone and settings desktop, AUDIT30-H entry center classic light 1440.
+
+Proof run @ `21abe3c5b`, no `-u`, one worker: every `pixel-*` spec, the visual matrix and the screenshot tests of the audit
+specs (audit30-f-calendars, evidence-audit30b-shared, evidence-audit30b2-page-action, evidence-audit30c-tickets,
+layout-audit30-e-infra, layout-audit30h-wiskey, layout-audit30h2-wiskey), `-g "pixel|vm "`: 527 passed, 391 skipped, 0 failed.
+
+### Round 2
+
+Queued the same way at the head that carries this section.
