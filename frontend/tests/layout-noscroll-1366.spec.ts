@@ -54,7 +54,7 @@ export const CASES: Case[] = [
   { id: 'wk-devices', hash: '/wiskey/devices', mock: 'demo', ready: 'wiskey-stations' },
 ];
 
-async function open(page: Page, c: Case, skin: string, scheme: string) {
+async function open(page: Page, c: Case, skin: string, scheme: string, query = '') {
   await page.unrouteAll({ behavior: 'ignoreErrors' });
   if (c.mock === 'demo') await page.route('**/api/v1/**', (route) => route.abort());
   else if (c.mock === 'bubble') await installBubbleMock(page, { perms: [...AREA_PERMS, 'system.configure'] });
@@ -70,7 +70,7 @@ async function open(page: Page, c: Case, skin: string, scheme: string) {
     }
   });
   await page.goto('about:blank');
-  await page.goto(`/?design=a&skin=${skin}&scheme=${scheme}#${c.hash}`);
+  await page.goto(`/?design=a&skin=${skin}&scheme=${scheme}${query}#${c.hash}`);
   const booted = await page.waitForSelector('sw-app', { timeout: 60_000 }).then(() => true, () => false);
   if (!booted) {
     test.info().annotations.push({ type: 'dev-boot-reload', description: `${c.id} ${skin}/${scheme}: <sw-app> did not boot in 60 s; reloaded once` });
@@ -140,6 +140,31 @@ test.describe('control screens fit 1366x768 and 1440x900 (NOSCROLL-1366-2437)', 
           if (worst > 1) bad.push(`${skin}/${scheme}: ${worst}px (doc ${o.doc}, main ${o.main}, wrap ${o.wrap}, ${o.tag} ${o.screen}, panel ${o.panelTag} ${o.panel})`);
         }
         expect(bad, `vertical overflow of ${c.id} at ${vp.name}`).toEqual([]);
+      });
+    }
+  }
+});
+
+// PAGING-SETTING-2439 (owner round 32: Q-SYS-4 a - the page itself never moves; Q-SYS-5 a - long lists page, and a system setting switches
+// them back to scrolling): with the long lists set to scroll (`?long_lists=scroll` pins the mode for the page load, api/long-lists.ts) a
+// list scrolls inside its own panel - the document, the shell's <main>, the screen's wrapper and the screen element still never scroll.
+// A page-sized panel MAY scroll here (it is the list the administrator chose to scroll). Classic light only.
+test.describe('the long lists set to scroll: the page still never scrolls (PAGING-SETTING-2439)', () => {
+  for (const vp of VIEWPORTS) {
+    for (const c of CASES) {
+      test(`${c.id} at ${vp.name}, long lists scroll: no page scroll`, async ({ page }, info) => {
+        test.skip(info.project.name !== 'desktop', 'the viewports are set by the test itself');
+        test.setTimeout(120_000);
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await page.clock.install({ time: new Date('2026-10-05T09:00:00Z') });
+        await page.setViewportSize({ width: vp.width, height: vp.height });
+        await open(page, c, 'classic', 'light', '&long_lists=scroll');
+        let o = await overflow(page);
+        const pageOver = (x: typeof o) => Math.max(x.doc, x.main, x.wrap, x.screen);
+        await expect.poll(async () => { o = await overflow(page); return pageOver(o); }, { timeout: 6_000 }).toBeLessThanOrEqual(1).catch(() => undefined);
+        if (process.env.NOSCROLL_LOG) console.log(`${c.id} ${vp.name} scroll: doc ${o.doc} main ${o.main} wrap ${o.wrap} screen ${o.screen} panel ${o.panel} ${o.panelTag} (${o.tag})`);
+        if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `${c.id}-long-lists-scroll-${vp.name}.png`) });
+        expect(pageOver(o), `page overflow of ${c.id} at ${vp.name} with the long lists scrolling (doc ${o.doc}, main ${o.main}, wrap ${o.wrap}, ${o.tag} ${o.screen})`).toBeLessThanOrEqual(1);
       });
     }
   }
