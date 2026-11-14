@@ -163,9 +163,20 @@ is not dead code by the owner's rule (each has a reference); not touched.
 
 - `ruff check --select F,E9` on every touched file: only the 8 pre-existing findings listed above remain (origin/main had 10 in
   the same files; the removed two were `bridge_install` F401 and `presence` F811).
-- Import of all touched modules (`importlib`, workstation venv): see the commit receipts below.
-- Focused pytest: see the receipts below.
+- Import of all 56 touched modules (`importlib`, workstation venv): 56 imported, 0 failed.
+- Focused pytest, 44 files (`-p no:xdist`, workstation venv, at fb17a08ce): **1469 passed, 4 skipped, 0 failed**
+  (2 h 15 min on a loaded workstation). Files: `test_push`, `test_emergency_readiness_295`, `test_presence`,
+  `test_presence_contract_v22`, `test_wkv2_295`, `test_wkpeer_295`, `test_f3a_acr5_gate_295`, `test_stationperm_295`,
+  `test_tickets_msg_whatsapp`, `test_tickets_msg_outbox`, `test_tickets_stuck`, `test_transit_realtime`, `test_bustimes_rt_295`,
+  `test_messaging_accounts`, `test_offbox_api`, `test_docread_297`, `test_shared_spaces`, `test_capture_lease_ledger`,
+  `test_capture_lease_review_fixes`, `test_cast_sessions`, `test_frigate_adapter`, `test_provision_push_addon`,
+  `test_automations_notify`, `test_alarm`, `test_energy_tou_engine`, `test_energy_billing_engine`, `test_mobile_push`,
+  `test_wiskey_schedule_writes`, `test_wiskey_adopt_2272_contrib`, `test_adoptr6_295`, `test_bridge_install`, `test_exports`,
+  `test_tickets_image_intake`, `test_tickets_assignees`, `test_tickets_rfq_inbound`, `test_tickets_costs`, `test_tickets_visits`,
+  `test_wall`, `test_palettes`, `test_plan_geometry_model`, `test_device_activity`, `test_building_presence_2271`,
+  `test_board_mgmt_2381`, `test_access_grants`.
 
 ## NOT_RUN
 
-- The full backend suite and the gate: the runner entry check (queued, see the report).
+- The full backend suite and the gate: the runner entry check (queued after the push).
+- Frontend, pixels: nothing in `frontend/` changed.
