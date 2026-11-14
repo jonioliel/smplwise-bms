@@ -3,6 +3,7 @@
  * (tests/unit-wiskey-relay-map.spec.ts). Hebrew copy lives here so the card and the spec read the same words.
  */
 import type { RelayMapStation } from '../api/wiskey-relay-map';
+import { tr } from '../i18n/msg/wiskey';
 
 /** api relay -> physical relay (null: disabled) */
 export type RelayDraft = Record<number, number | null>;
@@ -11,12 +12,12 @@ export const OFF = 'off';
 
 export function relayName(s: RelayMapStation, physical: number): string {
   const r = s.relays.find((x) => x.physical_index === physical);
-  return r?.name ? `ממסר פיזי ${physical} · ${r.name}` : `ממסר פיזי ${physical}`;
+  return r?.name ? `${tr('ממסר פיזי {n}', { n: physical })} · ${r.name}` : tr('ממסר פיזי {n}', { n: physical });
 }
 
 /** The select's options for one api relay: disabled, then every physical relay of the station. */
 export function relayChoices(s: RelayMapStation): { value: string; label: string }[] {
-  return [{ value: OFF, label: 'מושבת' }, ...s.relays.map((r) => ({ value: String(r.physical_index), label: relayName(s, r.physical_index) }))];
+  return [{ value: OFF, label: tr('מושבת') }, ...s.relays.map((r) => ({ value: String(r.physical_index), label: relayName(s, r.physical_index) }))];
 }
 
 export function parseChoice(value: string): number | null {
@@ -65,23 +66,23 @@ export function typedWordNeeded(s: RelayMapStation, d: RelayDraft): boolean {
 
 /** The station badge: not approved, partial (a physical relay no api relay drives) or approved, with the revision. */
 export function stationStatus(s: RelayMapStation): { tone: 'live' | 'stale' | 'unknown'; text: string } {
-  if (!s.in_copy) return { tone: 'stale', text: 'התחנה אינה מופיעה כעת ב-WisKey' };
-  if (s.revision === 0) return { tone: 'unknown', text: 'לא אושר - חירום ואוטומציות דרך WisKey ייחסמו' };
+  if (!s.in_copy) return { tone: 'stale', text: tr('התחנה אינה מופיעה כעת ב-WisKey') };
+  if (s.revision === 0) return { tone: 'unknown', text: tr('לא אושר - חירום ואוטומציות דרך WisKey ייחסמו') };
   const driven = new Set(Object.values(draftOf(s)).filter((p) => p !== null));
   const missing = s.relays.map((r) => r.physical_index).filter((p) => !driven.has(p));
-  if (missing.length) return { tone: 'stale', text: `חלקי · מהדורה ${s.revision} · ${missing.map((p) => `ממסר פיזי ${p}`).join(', ')} לא ממופה` };
-  return { tone: 'live', text: `מאושר · מהדורה ${s.revision}` };
+  if (missing.length) return { tone: 'stale', text: `${tr('חלקי')} · ${tr('מהדורה {n}', { n: s.revision })} · ${tr('{relays} לא ממופה', { relays: missing.map((p) => tr('ממסר פיזי {n}', { n: p })).join(', ') })}` };
+  return { tone: 'live', text: `${tr('מאושר')} · ${tr('מהדורה {n}', { n: s.revision })}` };
 }
 
 export function approvedLine(s: RelayMapStation, fmt: (iso: string) => string): string {
-  if (!s.approved_at) return 'טרם אושר';
-  return `אושר בידי ${s.approved_by ?? 'משתמש לא ידוע'} · ${fmt(s.approved_at)}`;
+  if (!s.approved_at) return tr('טרם אושר');
+  return `${tr('אושר בידי {name}', { name: s.approved_by ?? tr('משתמש לא ידוע') })} · ${fmt(s.approved_at)}`;
 }
 
 /** The confirmation dialog's question, naming the doors (by relay name) the change touches. */
 export function approveQuestion(s: RelayMapStation, d: RelayDraft): string {
   const diff = mapDiff(s, d);
   const doors = diff.affected.map((p) => relayName(s, p)).join(', ');
-  const auto = diff.automated.length ? ` לדלתות ${diff.automated.map((p) => relayName(s, p)).join(', ')} יש אוטומציה - היא תפעל לפי המיפוי החדש.` : '';
-  return `לאשר את מיפוי הממסרים של ${s.name}? השינוי נוגע ל${doors}.${auto} שום פקודה לא נשלחת לתחנה.`;
+  const auto = diff.automated.length ? ` ${tr('לדלתות {doors} יש אוטומציה - היא תפעל לפי המיפוי החדש.', { doors: diff.automated.map((p) => relayName(s, p)).join(', ') })}` : '';
+  return `${tr('לאשר את מיפוי הממסרים של {name}? השינוי נוגע ל{doors}.', { name: s.name, doors })}${auto} ${tr('שום פקודה לא נשלחת לתחנה.')}`;
 }

@@ -25,6 +25,7 @@ import {
   type SendFailure,
 } from '../access-control/messaging-logic';
 import { timeText } from '../api/day-format';
+import { tr } from '../i18n/msg/wiskey';
 
 type Loaded = 'loading' | 'ready' | 'unavailable';
 
@@ -493,7 +494,7 @@ export class WiskeyMessageDialog extends LitElement {
   }
 
   private renderText(config: MessagingConfig, disabled: boolean) {
-    const shown = this.bulk && this.draft.template_id ? this.draft.text.replaceAll('{name}', '[שם]') : this.draft.text;
+    const shown = this.bulk && this.draft.template_id ? this.draft.text.replaceAll('{name}', tr('[שם]')) : this.draft.text;
     const readOnly = this.draft.template_id !== null && !config.free_text; // with free text allowed, editing a template's text makes it a free text
     return html`<div class="field">
       <label for="msg-text">${pt('msg.text')}</label>

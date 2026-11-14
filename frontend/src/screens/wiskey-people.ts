@@ -87,6 +87,7 @@ import type { MessagingConfig, MessagingTransport } from '../access-control/mess
 import { pt } from '../i18n/access-people';
 import { t, UTC_ZONE } from './wiskey-format';
 import { stateBadge, syncKind, validityText } from './wiskey-person-drawer';
+import { tr } from '../i18n/msg/wiskey';
 
 const POLL_MS = 30000; // while the change notices are down, the shown list is refetched this often
 const TYPING_DEBOUNCE_MS = 250;
@@ -731,7 +732,7 @@ export class WiskeyPeople extends LitElement {
   }
 
   private subtitle(): string {
-    if (!this.page && !isApi()) return `${DEMO_ROWS.length} אנשים · נתוני הדגמה`;
+    if (!this.page && !isApi()) return `${tr('{n} אנשים', { n: DEMO_ROWS.length })} · ${tr('נתוני הדגמה')}`;
     const line = countLine(this.rows.length, this.page, isFiltered(this.query, this.filters));
     if (line.total === null) return '';
     if (line.total === 0) return pt('page.count_zero');

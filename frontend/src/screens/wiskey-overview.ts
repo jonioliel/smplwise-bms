@@ -43,6 +43,7 @@ import { productSettings } from '../api/prefs';
 import { TTS_FIXED_NONE, languageFor, languageName, parseTtsFixed, resolveTtsPick, type TtsFixed } from '../api/tts-default';
 import { fill as tfill, ttt } from '../i18n/tts-default';
 import { timeText } from '../api/day-format';
+import { tr } from '../i18n/msg/wiskey';
 
 /** WisKey's door filter (wiskey-v4-overview.ts `WiskeyDoorFilter`). */
 type DoorFilter = 'all' | 'online' | 'attention';
@@ -55,11 +56,11 @@ const POLL_MS = 30000; // WisKey's own panel polls `overview` every 30 s; used h
 const POSTER_MS = 60_000;
 /** Why a station camera's still cannot be had, in words (feed `camera_access`, and the station itself). */
 const STILL_TEXT: Record<Exclude<IntercomCameraAccess, 'ready'> | 'offline' | 'unavailable', string> = {
-  offline: 'העמדה אינה מחוברת - אין תמונה עדכנית',
-  unavailable: 'אין תמונה מהמצלמה כרגע',
-  no_credentials: 'לא הוגדרו פרטי גישה למצלמות העמדות (הגדרות ה־Add-on)',
-  no_host: 'WisKey לא מסר את כתובת העמדה, ולכן אין ממנה תמונה',
-  no_media: 'שרת המדיה לא הוגדר, ולכן אין תמונות מצלמה',
+  offline: tr('העמדה אינה מחוברת - אין תמונה עדכנית'),
+  unavailable: tr('אין תמונה מהמצלמה כרגע'),
+  no_credentials: tr('לא הוגדרו פרטי גישה למצלמות העמדות (הגדרות ה־Add-on)'),
+  no_host: tr('WisKey לא מסר את כתובת העמדה, ולכן אין ממנה תמונה'),
+  no_media: tr('שרת המדיה לא הוגדר, ולכן אין תמונות מצלמה'),
 };
 const ARM_MS = 4000; // a call control's second tap must follow the first within this long ...
 const ARM_MIN_MS = 500; // ... and not sooner: a double-click / double-tap is one gesture, not a confirmation
@@ -74,7 +75,7 @@ function holdMs(err: unknown): number {
 }
 const TTS_MAX = 500; // WisKey's own limit (audio_tts.py), after collapsing whitespace
 
-const CALL_LABELS: Record<IntercomCallCommand, string> = { answer: 'מענה', reject: 'דחייה', hangUp: 'סיום שיחה' };
+const CALL_LABELS: Record<IntercomCallCommand, string> = { answer: tr('מענה'), reject: tr('דחייה'), hangUp: tr('סיום שיחה') };
 
 type Tone = 'ok' | 'warn' | 'err';
 
@@ -88,45 +89,45 @@ function failure(err: unknown): { tone: Tone; text: string; unknown: boolean } {
   // the backend's own "unknown" message already says what to do; any other failure gets that advice here
   const text =
     err instanceof ApiError && err.body?.details?.outcome === 'unknown'
-      ? `לא ידוע אם הפקודה בוצעה: ${err.message}`
-      : `לא ידוע אם הפקודה בוצעה: לא התקבלה תשובה ברורה מהשרת (${describeError(err)}). בדקו במצלמה או במקום לפני שמנסים שוב.`;
+      ? tr('לא ידוע אם הפקודה בוצעה: {message}', { message: err.message })
+      : tr('לא ידוע אם הפקודה בוצעה: לא התקבלה תשובה ברורה מהשרת ({error}). בדקו במצלמה או במקום לפני שמנסים שוב.', { error: describeError(err) });
   return { tone: 'warn', text, unknown: true };
 }
 
 /** Only what WisKey's answer says: the device acknowledgement and the call state observed afterwards. */
 function callText(c: IntercomCallResult): string {
-  const ack = c.acknowledged === true ? 'העמדה אישרה קבלה' : 'לא התקבל אישור קבלה מהעמדה';
-  const seen = c.observation === 'unavailable' || !c.observed_state ? 'מצב השיחה אחרי הפקודה לא נקרא' : `מצב שנצפה אחרי הפקודה: ${t(c.observed_state)}${c.observation === 'unchanged' ? ' (לא השתנה)' : ''}`;
-  return `${CALL_LABELS[c.command as IntercomCallCommand] ?? c.command} נשלח · ${ack} · ${seen}`;
+  const ack = c.acknowledged === true ? tr('העמדה אישרה קבלה') : tr('לא התקבל אישור קבלה מהעמדה');
+  const seen = c.observation === 'unavailable' || !c.observed_state ? tr('מצב השיחה אחרי הפקודה לא נקרא') : `${tr('מצב שנצפה אחרי הפקודה: {state}', { state: t(c.observed_state) })}${c.observation === 'unchanged' ? ` (${tr('לא השתנה')})` : ''}`;
+  return `${tr('{command} נשלח', { command: CALL_LABELS[c.command as IntercomCallCommand] ?? c.command })} · ${ack} · ${seen}`;
 }
 
 const TTS_REASONS: Record<string, string> = {
-  connection_lost: 'החיבור לתשתית המערכת נותק',
-  tts_cancelled: 'בוטלה',
-  tts_generation_timeout: 'ההקראה לא הוכנה בזמן',
-  tts_generation_failed: 'מנוע ההקראה נכשל',
-  tts_audio_too_long: 'ההקראה ארוכה מדי',
-  tts_playback_failed: 'ההשמעה בעמדה נכשלה',
-  audio_busy: 'ערוץ השמע של העמדה תפוס',
+  connection_lost: tr('החיבור לתשתית המערכת נותק'),
+  tts_cancelled: tr('בוטלה'),
+  tts_generation_timeout: tr('ההקראה לא הוכנה בזמן'),
+  tts_generation_failed: tr('מנוע ההקראה נכשל'),
+  tts_audio_too_long: tr('ההקראה ארוכה מדי'),
+  tts_playback_failed: tr('ההשמעה בעמדה נכשלה'),
+  audio_busy: tr('ערוץ השמע של העמדה תפוס'),
 };
 
 function ttsText(s: IntercomTtsStatus): string {
   switch (s.state) {
     case 'started':
-      return 'הכרזה: נשלחה ל־WisKey';
+      return tr('הכרזה: נשלחה ל־WisKey');
     case 'generating':
-      return 'הכרזה: מכינה את ההקראה…';
+      return tr('הכרזה: מכינה את ההקראה…');
     case 'speaking':
-      return 'הכרזה: מושמעת בעמדה…';
+      return tr('הכרזה: מושמעת בעמדה…');
     case 'completed':
-      return 'הכרזה: WisKey סיים להשמיע אותה. אין אישור שנשמעה בפועל.';
+      return tr('הכרזה: WisKey סיים להשמיע אותה. אין אישור שנשמעה בפועל.');
     default:
-      return `הכרזה: נעצרה (${TTS_REASONS[s.reason ?? ''] ?? s.reason ?? 'ללא סיבה'})`;
+      return tr('הכרזה: נעצרה ({reason})', { reason: TTS_REASONS[s.reason ?? ''] ?? s.reason ?? tr('ללא סיבה') });
   }
 }
 
 function lockLabel(station: IntercomStation, lock: IntercomLock): string {
-  return station.locks.length > 1 ? lock.name || `מנעול ${lock.physical_index}` : '';
+  return station.locks.length > 1 ? lock.name || tr('מנעול {n}', { n: lock.physical_index }) : '';
 }
 
 const DEMO: IntercomOverview = {
@@ -145,24 +146,24 @@ const DEMO: IntercomOverview = {
 export const FEED_PANELS: Record<Exclude<IntercomFeedState, 'ready'>, { panel: PanelState; heading: string; hint: string }> = {
   ha_not_configured: {
     panel: 'stale',
-    heading: 'WisKey אינו מחובר בסביבה הזו',
-    hint: 'ל־Arx אין כאן גישה לתשתית המערכת, ולכן אין נתוני אינטרקום להצגה. במערכת המותקנת המסך מתחבר לאינטגרציית WisKey (hikvision_intercom) מעצמו.',
+    heading: tr('WisKey אינו מחובר בסביבה הזו'),
+    hint: tr('ל־Arx אין כאן גישה לתשתית המערכת, ולכן אין נתוני אינטרקום להצגה. במערכת המותקנת המסך מתחבר לאינטגרציית WisKey (hikvision_intercom) מעצמו.'),
   },
-  connecting: { panel: 'loading', heading: 'מתחבר ל־WisKey…', hint: 'הנתונים יופיעו ברגע שתשתית המערכת תענה.' },
-  ha_unavailable: { panel: 'stale', heading: 'תשתית המערכת אינה זמינה כרגע', hint: 'אין חיבור לתשתית המערכת, ולכן אין נתוני אינטרקום עדכניים. החיבור מתחדש אוטומטית.' },
+  connecting: { panel: 'loading', heading: tr('מתחבר ל־WisKey…'), hint: tr('הנתונים יופיעו ברגע שתשתית המערכת תענה.') },
+  ha_unavailable: { panel: 'stale', heading: tr('תשתית המערכת אינה זמינה כרגע'), hint: tr('אין חיבור לתשתית המערכת, ולכן אין נתוני אינטרקום עדכניים. החיבור מתחדש אוטומטית.') },
   not_installed: {
     panel: 'empty',
-    heading: 'אינטגרציית WisKey אינה מותקנת',
-    hint: 'תשתית המערכת לא מכירה את הפקודות של WisKey (hikvision_intercom). אחרי התקנה המסך יתחבר אליה מעצמו תוך כמה דקות.',
+    heading: tr('אינטגרציית WisKey אינה מותקנת'),
+    hint: tr('תשתית המערכת לא מכירה את הפקודות של WisKey (hikvision_intercom). אחרי התקנה המסך יתחבר אליה מעצמו תוך כמה דקות.'),
   },
-  forbidden: { panel: 'forbidden', heading: 'WisKey דחה את הגישה של Arx', hint: 'המשתמש של המערכת אינו מורשה בהרשאות של WisKey, ולכן אין נתונים להצגה.' },
-  error: { panel: 'error', heading: 'WisKey החזיר שגיאה', hint: 'הבקשה ל־WisKey לא הושלמה. הניסיון יחזור אוטומטית.' },
+  forbidden: { panel: 'forbidden', heading: tr('WisKey דחה את הגישה של Arx'), hint: tr('המשתמש של המערכת אינו מורשה בהרשאות של WisKey, ולכן אין נתונים להצגה.') },
+  error: { panel: 'error', heading: tr('WisKey החזיר שגיאה'), hint: tr('הבקשה ל־WisKey לא הושלמה. הניסיון יחזור אוטומטית.') },
 };
 
 /** The feed badge in a WisKey page's header (kind and label per feed state), shared by the WisKey screens. */
 export function feedBadge(state: IntercomFeedState, version?: string | null): { kind: StateKind; label: string } {
   const kind: StateKind = state === 'ready' ? 'live' : state === 'connecting' ? 'unknown' : state === 'forbidden' ? 'forbidden' : state === 'error' ? 'error' : 'offline';
-  const label = state === 'ready' ? `מחובר ל־WisKey${version ? ` ${version}` : ''}` : state === 'connecting' ? 'מתחבר' : 'לא מחובר';
+  const label = state === 'ready' ? `${tr('מחובר ל־WisKey')}${version ? ` ${version}` : ''}` : state === 'connecting' ? tr('מתחבר') : tr('לא מחובר');
   return { kind, label };
 }
 
@@ -339,7 +340,7 @@ export class WiskeyOverview extends LitElement {
       // a success reply always means `accepted: true` (anything else is raised as "outcome unknown" by the backend)
       await releaseIntercomDoor(c.station.id, c.lock.physical_index);
       const at = timeText(new Date(), { seconds: true });
-      this.setResult(c.station.id, 'ok', `הפקודה נשלחה ו־WisKey קיבל אותה (${at}). אין אישור שהדלת נפתחה בפועל - בדקו במצלמה או במקום.`);
+      this.setResult(c.station.id, 'ok', tr('הפקודה נשלחה ו־WisKey קיבל אותה ({at}). אין אישור שהדלת נפתחה בפועל - בדקו במצלמה או במקום.', { at }));
     } catch (err) {
       const f = failure(err);
       this.setResult(c.station.id, f.tone, f.text);
@@ -418,9 +419,9 @@ export class WiskeyOverview extends LitElement {
       if (r.tts) {
         this.engines = r.tts;
         await this.applyFixed();
-        if (!r.tts.engines.length) this.enginesNote = 'אין בתשתית המערכת מנוע הקראה (TTS) ש־WisKey יכול להשתמש בו.';
+        if (!r.tts.engines.length) this.enginesNote = tr('אין בתשתית המערכת מנוע הקראה (TTS) ש־WisKey יכול להשתמש בו.');
       } else {
-        this.enginesNote = r.state === 'unsupported' ? 'גרסת WisKey המותקנת אינה תומכת בהכרזות.' : `רשימת מנועי ההקראה אינה זמינה כרגע (${r.last_error ?? r.state}).`;
+        this.enginesNote = r.state === 'unsupported' ? tr('גרסת WisKey המותקנת אינה תומכת בהכרזות.') : tr('רשימת מנועי ההקראה אינה זמינה כרגע ({reason}).', { reason: r.last_error ?? r.state });
       }
     } catch (err) {
       this.enginesNote = describeError(err);
@@ -483,11 +484,11 @@ export class WiskeyOverview extends LitElement {
   render() {
     if (!isApi()) return this.renderPage({ state: 'ready', configured: true, fresh: true, fetched_at: null, last_error: null, overview: DEMO }, true);
     if (this.forbidden) {
-      return html`<sw-page heading=${t('wk4_entry_center')}><sw-state-panel data-wiskey-state="no_permission" state="forbidden" heading="אין לך הרשאת צפייה בבקרת הכניסה" hint="נדרשת ההרשאה צפייה בבקרת כניסה (WisKey). פנה למנהל המערכת."></sw-state-panel></sw-page>`;
+      return html`<sw-page heading=${t('wk4_entry_center')}><sw-state-panel data-wiskey-state="no_permission" state="forbidden" heading=${tr('אין לך הרשאת צפייה בבקרת הכניסה')} hint=${tr('נדרשת ההרשאה צפייה בבקרת כניסה (WisKey). פנה למנהל המערכת.')}></sw-state-panel></sw-page>`;
     }
     if (!this.feed) {
       return html`<sw-page heading=${t('wk4_entry_center')}>${this.error
-        ? html`<sw-state-panel data-wiskey-state="load_error" state="error" heading="לא ניתן לטעון את מרכז הכניסה" hint=${this.error}></sw-state-panel>`
+        ? html`<sw-state-panel data-wiskey-state="load_error" state="error" heading=${tr('לא ניתן לטעון את מרכז הכניסה')} hint=${this.error}></sw-state-panel>`
         : html`<sw-state-panel state="loading"></sw-state-panel>`}</sw-page>`;
     }
     return this.renderPage(this.feed, false);
@@ -496,7 +497,7 @@ export class WiskeyOverview extends LitElement {
   private renderPage(feed: IntercomFeed, demo: boolean) {
     const ov = feed.overview;
     this.cameraAccess = feed.camera_access ?? {};
-    const sub = `${t('wk4_entry_intro')}${this.canAct() || Object.values(this.feed?.door_access ?? {}).some(Boolean) ? '' : ' · צפייה בלבד'}${demo ? ' · נתוני הדגמה' : ''}`;
+    const sub = `${t('wk4_entry_intro')}${this.canAct() || Object.values(this.feed?.door_access ?? {}).some(Boolean) ? '' : ` · ${tr('צפייה בלבד')}`}${demo ? ` · ${tr('נתוני הדגמה')}` : ''}`;
     return html`<sw-page heading=${t('wk4_entry_center')} subheading=${sub} wide>
       ${this.renderFeedBadge(feed, demo)}
       ${ov && feed.state !== 'ready' ? this.renderStaleNote(feed) : nothing}
@@ -511,12 +512,12 @@ export class WiskeyOverview extends LitElement {
     const { station, lock } = this.confirmRelease!;
     const name = lockLabel(station, lock);
     const busy = this.releasing.has(`${station.id}/${lock.physical_index}`);
-    return html`<sw-dialog open heading="שחרור דלת" subheading=${name ? `${station.name} · ${name}` : station.name} data-wiskey-release-dialog @close=${() => (this.confirmRelease = null)}>
-      <p>פקודת שחרור תישלח עכשיו לעמדה <b>${station.name}</b>${name ? html` (${name})` : nothing}. המנעול ישתחרר לזמן שמוגדר בעמדה עצמה, וכל מי שנמצא ליד הדלת יוכל להיכנס.</p>
-      <p class="muted">הפעולה נרשמת ביומן הביקורת של Arx בשמך. תשובת WisKey מאשרת רק שהפקודה התקבלה - לא שהדלת נפתחה בפועל.</p>
+    return html`<sw-dialog open heading=${tr('שחרור דלת')} subheading=${name ? `${station.name} · ${name}` : station.name} data-wiskey-release-dialog @close=${() => (this.confirmRelease = null)}>
+      <p>${tr('פקודת שחרור תישלח עכשיו לעמדה')} <b>${station.name}</b>${name ? html` (${name})` : nothing}. ${tr('המנעול ישתחרר לזמן שמוגדר בעמדה עצמה, וכל מי שנמצא ליד הדלת יוכל להיכנס.')}</p>
+      <p class="muted">${tr('הפעולה נרשמת ביומן הביקורת של Arx בשמך. תשובת WisKey מאשרת רק שהפקודה התקבלה - לא שהדלת נפתחה בפועל.')}</p>
       <div slot="footer">
-        <sw-button variant="ghost" data-wiskey-release-cancel @click=${() => (this.confirmRelease = null)}>ביטול</sw-button>
-        <sw-button variant="danger" icon="unlock" data-wiskey-release-confirm ?disabled=${busy} @click=${() => void this.doRelease()}>${busy ? 'שולח…' : 'שחרר את הדלת'}</sw-button>
+        <sw-button variant="ghost" data-wiskey-release-cancel @click=${() => (this.confirmRelease = null)}>${tr('ביטול')}</sw-button>
+        <sw-button variant="danger" icon="unlock" data-wiskey-release-confirm ?disabled=${busy} @click=${() => void this.doRelease()}>${busy ? tr('שולח…') : tr('שחרר את הדלת')}</sw-button>
       </div>
     </sw-dialog>`;
   }
@@ -528,41 +529,41 @@ export class WiskeyOverview extends LitElement {
     const length = this.ttsMessage.split(/\s+/).filter(Boolean).join(' ').length;
     const ready = !!engine && length > 0 && length <= TTS_MAX && !this.ttsBusy;
     const tt = ttt().dialog;
-    return html`<sw-dialog open heading="הכרזה בעמדה" subheading=${station.name} data-wiskey-tts-dialog @close=${() => (this.speakFor = null)}>
+    return html`<sw-dialog open heading=${tr('הכרזה בעמדה')} subheading=${station.name} data-wiskey-tts-dialog @close=${() => (this.speakFor = null)}>
       <div class="form">
         ${this.ttsMissingEngine ? html`<div class="note warn" role="status" data-wiskey-tts-engine-missing>${tfill(tt.missingEngine, { engine: this.ttsMissingEngine })}</div>` : nothing}
         ${this.ttsMissingLanguage && this.ttsLanguage
           ? html`<div class="note warn" role="status" data-wiskey-tts-language-missing>${tfill(tt.missingLanguage, { language: languageName(this.ttsMissingLanguage), auto: languageName(this.ttsLanguage) })}</div>`
           : nothing}
         ${this.engines?.engines.length
-          ? html`<sw-field label="מנוע הקראה (תשתית המערכת)" hint=${this.ttsEngine && this.ttsPreselected && this.ttsEngine !== this.ttsPreselected ? tt.overridden : ''}>
-                <sw-dropdown block data-wiskey-tts-engine label="מנוע הקראה" placeholder=${tt.pickEngine} .value=${this.ttsEngine}
+          ? html`<sw-field label=${tr('מנוע הקראה (תשתית המערכת)')} hint=${this.ttsEngine && this.ttsPreselected && this.ttsEngine !== this.ttsPreselected ? tt.overridden : ''}>
+                <sw-dropdown block data-wiskey-tts-engine label=${tr('מנוע הקראה')} placeholder=${tt.pickEngine} .value=${this.ttsEngine}
                   .items=${this.engines.engines.map((x) => ({ id: x.engine_id, label: x.engine_id === this.ttsFixed.engine ? `${x.name} · ${tt.fixedTag}` : x.name }))}
                   @change=${(e: CustomEvent<DropdownChange>) => this.pickEngine(e.detail.id)}></sw-dropdown>
               </sw-field>
               ${langs.length
-                ? html`<sw-field label="שפה">
-                    <sw-dropdown block data-wiskey-tts-language label="שפה" .value=${this.ttsLanguage}
+                ? html`<sw-field label=${tr('שפה')}>
+                    <sw-dropdown block data-wiskey-tts-language label=${tr('שפה')} .value=${this.ttsLanguage}
                       .items=${langs.map((l) => ({ id: l, label: l }))}
                       @change=${(e: CustomEvent<DropdownChange>) => (this.ttsLanguage = e.detail.id)}></sw-dropdown>
                   </sw-field>`
                 : nothing}
-              <sw-field label="ההודעה" hint=${`${length}/${TTS_MAX}`}>
+              <sw-field label=${tr('ההודעה')} hint=${`${length}/${TTS_MAX}`}>
                 <textarea data-wiskey-tts-message rows="3" maxlength=${TTS_MAX} .value=${this.ttsMessage} @input=${(e: Event) => (this.ttsMessage = (e.target as HTMLTextAreaElement).value)}></textarea>
               </sw-field>`
-          : html`<div class="muted" data-wiskey-tts-engines-state>${this.enginesNote || 'טוען את מנועי ההקראה…'}</div>`}
-        <div class="note info" data-wiskey-tts-external>ההודעה תושמע ברמקול של העמדה ${station.name}. הטקסט נשלח למנוע ההקראה שנבחר בתשתית המערכת - אם זהו שירות ענן, הטקסט יוצא מהמבנה. ההכרזה נרשמת ביומן הביקורת בשמך, בלי הטקסט.</div>
+          : html`<div class="muted" data-wiskey-tts-engines-state>${this.enginesNote || tr('טוען את מנועי ההקראה…')}</div>`}
+        <div class="note info" data-wiskey-tts-external>${tr('ההודעה תושמע ברמקול של העמדה {station}. הטקסט נשלח למנוע ההקראה שנבחר בתשתית המערכת - אם זהו שירות ענן, הטקסט יוצא מהמבנה. ההכרזה נרשמת ביומן הביקורת בשמך, בלי הטקסט.', { station: station.name })}</div>
         ${this.ttsError ? html`<div class="note err" role="alert" data-wiskey-tts-error>${this.ttsError}</div>` : nothing}
       </div>
       <div slot="footer">
-        <sw-button variant="ghost" @click=${() => (this.speakFor = null)}>ביטול</sw-button>
-        <sw-button variant="primary" icon="volume" data-wiskey-tts-send ?disabled=${!ready} @click=${() => void this.speak()}>${this.ttsBusy ? 'שולח…' : 'השמע בעמדה'}</sw-button>
+        <sw-button variant="ghost" @click=${() => (this.speakFor = null)}>${tr('ביטול')}</sw-button>
+        <sw-button variant="primary" icon="volume" data-wiskey-tts-send ?disabled=${!ready} @click=${() => void this.speak()}>${this.ttsBusy ? tr('שולח…') : tr('השמע בעמדה')}</sw-button>
       </div>
     </sw-dialog>`;
   }
 
   private renderFeedBadge(feed: IntercomFeed, demo: boolean) {
-    if (demo) return html`<sw-badge slot="actions" kind="neutral" label="נתוני הדגמה"></sw-badge>`;
+    if (demo) return html`<sw-badge slot="actions" kind="neutral" label=${tr('נתוני הדגמה')}></sw-badge>`;
     const { kind, label } = feedBadge(feed.state, feed.overview?.version);
     return html`<sw-badge slot="actions" data-wiskey-feed=${feed.state} kind=${kind} label=${label}></sw-badge>`;
   }
@@ -575,7 +576,7 @@ export class WiskeyOverview extends LitElement {
   private renderStaleNote(feed: IntercomFeed) {
     return html`<div class="note stale" role="status" data-wiskey-stale>
       <sw-icon name="offline" size=${16}></sw-icon>
-      <span>${FEED_PANELS[feed.state === 'ready' ? 'error' : feed.state].heading}. מוצג המידע האחרון שהתקבל${feed.fetched_at ? html` (<bdi>${formatLocalTime(feed.fetched_at, 'he-IL', feed.overview?.default_zone ?? UTC_ZONE)}</bdi>)` : nothing} - ייתכן שאינו עדכני.</span>
+      <span>${FEED_PANELS[feed.state === 'ready' ? 'error' : feed.state].heading}. ${tr('מוצג המידע האחרון שהתקבל')}${feed.fetched_at ? html` (<bdi>${formatLocalTime(feed.fetched_at, 'he-IL', feed.overview?.default_zone ?? UTC_ZONE)}</bdi>)` : nothing} - ${tr('ייתכן שאינו עדכני.')}</span>
     </div>`;
   }
 
@@ -596,7 +597,7 @@ export class WiskeyOverview extends LitElement {
     // panel.ts sorts the legacy grid ringing-first; the WisKey 04 grid keeps WisKey's own order
     return html`
       <!-- AUDIT30-H (finding 7): the two summary tiles are the shared compact <sw-kpi> (60 px, DESIGN.md "KPI tile"), not the tall cards tile -->
-      <div class="stats" data-wiskey-stats aria-label="סיכום">
+      <div class="stats" data-wiskey-stats aria-label=${tr('סיכום')}>
         <sw-kpi layout="compact" icon="door" tone=${all.length && all.every((s) => s.online) ? 'live' : all.some((s) => !s.online) ? 'offline' : 'neutral'} label=${t('online_stations')} value=${`⁦${all.filter((s) => s.online).length} / ${all.length}⁩`}></sw-kpi>
         <sw-kpi layout="compact" icon="bell" tone=${ringing.length ? 'stale' : 'neutral'} label=${t('ringing_now')} value=${String(ringing.length)}></sw-kpi>
       </div>
@@ -611,7 +612,7 @@ export class WiskeyOverview extends LitElement {
           </div>
           ${matches.length
             ? html`<div class="grid">${repeat(visible, (s) => s.id, (s) => this.renderDoor(s, zone))}</div>`
-            : html`<sw-state-panel icon="door" compact state="empty" data-wiskey-empty heading=${all.length ? 'לא נמצאו דלתות תואמות' : t('no_stations')}></sw-state-panel>`}
+            : html`<sw-state-panel icon="door" compact state="empty" data-wiskey-empty heading=${all.length ? tr('לא נמצאו דלתות תואמות') : t('no_stations')}></sw-state-panel>`}
           ${pages > 1
             ? html`<div class="pager">
                 <sw-button size="sm" variant="ghost" ?disabled=${page === 0} @click=${() => (this.page = page - 1)}>${t('wall_previous')}</sw-button>
@@ -653,8 +654,8 @@ export class WiskeyOverview extends LitElement {
       ${this.renderStill(s)}
       <div class="facts">
         <span>${s.lock_enabled ? (s.lock_count > 1 ? `${t('lock_enabled')} · ${s.lock_count}` : t('lock_enabled')) : t('camera_only')}</span>
-        <span>סנכרון: ${t(s.sync_state)}</span>
-        ${s.online && s.call_state !== 'ringing' ? html`<span>שיחה: ${t(s.call_state)}</span>` : nothing}
+        <span>${tr('סנכרון: {state}', { state: t(s.sync_state) })}</span>
+        ${s.online && s.call_state !== 'ringing' ? html`<span>${tr('שיחה: {state}', { state: t(s.call_state) })}</span>` : nothing}
       </div>
       ${this.canAct() || this.canOpen(s) ? this.renderActions(s) : nothing}
     </article>`;
@@ -672,10 +673,10 @@ export class WiskeyOverview extends LitElement {
       ${state === 'image'
         ? html`<img
               src=${intercomSnapshotUrl(s.id, bust)}
-              alt=${`מצלמה · ${s.name}`}
+              alt=${`${tr('מצלמה')} · ${s.name}`}
               decoding="async"
               @error=${() => (this.stillFailed = { ...this.stillFailed, [s.id]: bust })}
-            /><span class="tag">צילום</span>`
+            /><span class="tag">${tr('צילום')}</span>`
         : html`<div class="none" role="status">
             <sw-icon name=${state === 'offline' ? 'offline' : 'camera'} size=${20}></sw-icon>
             <span>${STILL_TEXT[state]}</span>
@@ -696,7 +697,7 @@ export class WiskeyOverview extends LitElement {
     const ttsTone: Tone = tts?.state === 'closed' ? 'warn' : 'ok';
     return html`<div class="actions" data-wiskey-actions=${s.id}>
       ${(ringing || inCall) && this.canAct()
-        ? html`<div class="row call" role="group" aria-label="שליטה בשיחה" data-wiskey-call>
+        ? html`<div class="row call" role="group" aria-label=${tr('שליטה בשיחה')} data-wiskey-call>
             ${(ringing ? (['answer', 'reject'] as const) : (['hangUp'] as const)).map((command) => {
               const armed = this.armed?.id === s.id && this.armed.command === command && this.armed.callState === s.call_state;
               return html`<sw-button
@@ -707,7 +708,7 @@ export class WiskeyOverview extends LitElement {
                 data-armed=${armed ? 'true' : 'false'}
                 ?disabled=${!live || this.callBusy.has(s.id)}
                 @click=${(e: MouseEvent) => this.onCall(e, s, command)}
-                >${armed ? `לחצו שוב ל${CALL_LABELS[command]}` : CALL_LABELS[command]}</sw-button
+                >${armed ? tr('לחצו שוב ל{action}', { action: CALL_LABELS[command] }) : CALL_LABELS[command]}</sw-button
               >`;
             })}
           </div>`
@@ -724,10 +725,10 @@ export class WiskeyOverview extends LitElement {
             data-held=${held ? 'true' : 'false'}
             ?disabled=${!live || !s.online || this.releasing.has(key) || held}
             @click=${() => this.askRelease(s, l)}
-            >${held ? 'ממתין לבירור…' : name ? `שחרור ${name}` : 'שחרור דלת'}</sw-button
+            >${held ? tr('ממתין לבירור…') : name ? tr('שחרור {name}', { name }) : tr('שחרור דלת')}</sw-button
           >`;
         })}
-        ${s.online && this.canAct() ? html`<sw-button size="sm" variant="ghost" icon="volume" data-wiskey-speak ?disabled=${!live} @click=${() => this.openSpeak(s)}>הכרזה</sw-button>` : nothing}
+        ${s.online && this.canAct() ? html`<sw-button size="sm" variant="ghost" icon="volume" data-wiskey-speak ?disabled=${!live} @click=${() => this.openSpeak(s)}>${tr('הכרזה')}</sw-button>` : nothing}
       </div>
       ${result ? html`<div class="result ${result.tone}" role="status" data-wiskey-result>${result.text}</div>` : nothing}
       ${tts ? html`<div class="result ${ttsTone}" role="status" data-wiskey-tts-status=${tts.state}>${ttsText(tts)}</div>` : nothing}
