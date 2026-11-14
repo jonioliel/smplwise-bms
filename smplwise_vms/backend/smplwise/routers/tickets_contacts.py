@@ -19,13 +19,10 @@ from ..errors import ApiError
 from ..rbac import Principal
 from ..services.tickets import access, contacts
 from ..services.tickets.access import Viewer, text
+from ._common import rid as _rid
 from .tickets import ID, module_gate
 
 router = APIRouter(dependencies=[Depends(module_gate)])
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 class ContactBody(BaseModel):

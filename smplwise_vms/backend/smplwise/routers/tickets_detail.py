@@ -30,6 +30,8 @@ from ..errors import ApiError
 from ..rbac import Principal
 from ..services.tickets import access, costs, model, owners, quotes, service, sla, store, store_costs, store_links, store_quotes, timeline
 from ..services.tickets.access import Seen, Viewer, text
+from ._common import rid as _rid
+from ._tickets_common import invalid
 from .tickets import ID, module_gate
 from .tickets_costs import _need as need_costs
 
@@ -50,10 +52,6 @@ QUOTE_MESSAGES = {
 }
 
 
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
-
-
 def _refused(conn: sqlite3.Connection, exc: costs.CostRefused) -> ApiError:
     if exc.code in QUOTE_MESSAGES and exc.status != 422:
         details = dict(exc.extra)
@@ -61,7 +59,7 @@ def _refused(conn: sqlite3.Connection, exc: costs.CostRefused) -> ApiError:
             details["field"] = exc.field
         return ApiError(exc.status, exc.code, text(conn, QUOTE_MESSAGES[exc.code]), details=details)
     if exc.status == 422 and exc.code in ("line_kind_not_allowed", "exceptional_description_required", "labor_required"):
-        return ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": exc.field or "body", "code": exc.code}]})
+        return invalid(conn, exc.field or "body", exc.code)
     return service.cost_error(conn, exc)
 
 
@@ -445,13 +443,13 @@ def post_draft(body: DraftBody, request: Request, ticket_id: str = Path(..., pat
     if body.subject == "quote":
         obj = _quote_of(conn, seen, body.id)
         if body.decision == "approved_without_exceptional":
-            raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "decision", "code": "unknown"}]})
+            raise invalid(conn, "decision", "unknown")
     else:
         claim = store_costs.claim(conn, body.id)
         if claim is None or claim.get("ticket_id") != ticket_id:
             raise ApiError(404, "claim_not_found", text(conn, "דרישת התשלום לא נמצאה."))
         if body.decision in ("partially_approved", "fix_requested"):
-            raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "decision", "code": "unknown"}]})
+            raise invalid(conn, "decision", "unknown")
         obj = claim_draft_object(conn, claim)
     try:
         return quotes.draft_message(conn, seen.row, subject=body.subject, obj=obj, decision=body.decision)

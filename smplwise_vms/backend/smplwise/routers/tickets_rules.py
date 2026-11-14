@@ -23,18 +23,16 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..services.tickets import rule_engine, rules_doc, store, store_rules
 from ..services.tickets.access import text
+from ._common import rid as _rid
+from ._tickets_common import invalid_fields
 from .tickets import module_gate
 
 router = APIRouter(dependencies=[Depends(module_gate)])
 PERMISSION = "system.configure"
 
 
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
-
-
 def _invalid(conn: sqlite3.Connection, exc: rules_doc.Invalid) -> ApiError:
-    return ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": f, "code": c} for f, c in exc.problems]})
+    return invalid_fields(conn, [{"field": f, "code": c} for f, c in exc.problems])
 
 
 def _answer(conn: sqlite3.Connection) -> dict[str, Any]:

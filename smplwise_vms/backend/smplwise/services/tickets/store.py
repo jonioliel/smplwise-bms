@@ -51,6 +51,28 @@ def display_name(conn: sqlite3.Connection, user_id: str | None) -> str:
     return user_id
 
 
+def display_names(conn: sqlite3.Connection, user_ids: Iterable[str | None]) -> dict[str, str]:
+    """`display_name` for many users in two statements (code review 01:F-08: the pickers read two per person): {id: name}, the same
+    precedence - the directory copy (ha_users) first, then the add-on's own row, then the id; an empty id reads as ""."""
+    seq = list(user_ids)
+    blank = {uid: "" for uid in seq if not uid}
+    ids = list(dict.fromkeys(uid for uid in seq if uid))
+    out: dict[str, str] = {uid: uid for uid in ids}
+    if not ids:
+        return blank
+    wanted = json.dumps(ids)
+    named: set[str] = set()
+    for uid, name, username in conn.execute("SELECT id, name, username FROM ha_users WHERE id IN (SELECT value FROM json_each(?))", (wanted,)).fetchall():
+        if name or username:
+            out[uid] = name or username
+            named.add(uid)
+    for uid, dname, username in conn.execute("SELECT id, display_name, username FROM users WHERE id IN (SELECT value FROM json_each(?))", (wanted,)).fetchall():
+        if uid not in named and (dname or username):
+            out[uid] = dname or username
+    out.update(blank)
+    return out
+
+
 def group_name(conn: sqlite3.Connection, group_id: str) -> str:
     row = conn.execute("SELECT name FROM groups WHERE id = ?", (group_id,)).fetchone()
     return row["name"] if row else group_id

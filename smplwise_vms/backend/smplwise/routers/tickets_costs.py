@@ -39,14 +39,12 @@ from ..errors import ApiError
 from ..rbac import Principal
 from ..services.tickets import access, cost_files, cost_storage, costs, costs_report, image_intake, present, quotes, service, store, store_costs
 from ..services.tickets.access import Seen, Viewer, text
+from ._common import rid as _rid
+from ._tickets_common import invalid
 from .tickets import ID, module_gate
 
 router = APIRouter(dependencies=[Depends(module_gate)])
 BULK_PAID_MAX = 200  # TK258: claims per "mark as paid" request
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _root(request: Request):
@@ -127,7 +125,7 @@ def _filters(conn, group_by: str, date_from: str | None, date_to: str | None, st
         return costs_report.parse_filters(conn, group_by=group_by, date_from=date_from, date_to=date_to, status=status, currency=currency,
                                           vendor=vendor, department=department)
     except costs_report.ReportError as exc:
-        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": exc.field, "code": exc.code}]}) from None
+        raise invalid(conn, exc.field, exc.code) from None
 
 
 def _need_report(conn, viewer: Viewer, action: str, rid: str | None) -> None:
@@ -368,13 +366,13 @@ def post_decision(body: DecisionBody, request: Request, ticket_id: str = Path(..
     at = costs.now_utc()
     needs_rev = action in ("approve", "adjust", "reject")
     if needs_rev and not body.revision_id:
-        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "revision_id", "code": "required"}]})
+        raise invalid(conn, "revision_id", "required")
     if body.exceptional is not None and action != "approve":
-        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "exceptional", "code": "only_with_approve"}]})
+        raise invalid(conn, "exceptional", "only_with_approve")
     if body.internal_note is not None and not needs_rev:
-        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "internal_note", "code": "only_with_decision"}]})
+        raise invalid(conn, "internal_note", "only_with_decision")
     if body.budget_confirm is not None and action not in ("approve", "adjust"):
-        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "budget_confirm", "code": "only_with_approval"}]})
+        raise invalid(conn, "budget_confirm", "only_with_approval")
 
     def decide() -> dict[str, Any]:
         if action == "approve":

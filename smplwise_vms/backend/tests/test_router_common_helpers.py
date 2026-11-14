@@ -26,7 +26,7 @@ WAITING = {
 
 
 def _waiting(stem: str) -> bool:
-    return stem in WAITING or stem.startswith("tickets") or stem == "home_ticket_photo"  # tickets: CR-TK-ROUTER-COMMON
+    return stem in WAITING  # the tickets routers: converted by CR-TK-ROUTER-COMMON-2438
 
 
 def _copies() -> dict[str, list[str]]:

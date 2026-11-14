@@ -32,20 +32,14 @@ from ..services.tickets import access, handler_links, messaging, model, outbox_s
 from ..services.tickets import message_templates as mt
 from ..services.tickets.access import Viewer, text
 from ..services.tickets.outbox import OutboxError
+from ._common import rid as _rid
+from ._tickets_common import invalid_fields
 from .tickets import ID, _detail, module_gate
 
 router = APIRouter(dependencies=[Depends(module_gate)])
 
 TEMPLATE_PURPOSES = ("assign", "reminder", "code", "closed", "reassigned", "reopened", "update", "cost_rejected", "cost_approved", "cost_reopened")
 LANG = Literal["he", "en", "ar", "ru"]
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
-
-
-def _invalid(conn: sqlite3.Connection, fields: list[dict[str, str]]) -> ApiError:
-    return ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": fields})
 
 
 def _refuse(conn: sqlite3.Connection, viewer: Viewer, action: str, row: dict[str, Any], reason: str, rid: str | None, **details: Any) -> ApiError:
@@ -121,7 +115,7 @@ def put_channel(body: ChannelBody, request: Request, principal: Principal = Depe
     try:
         doc, changed = settings_doc.apply_patch(conn, patch)
     except ValueError as exc:
-        raise _invalid(conn, [{"field": str(exc).split(":")[0], "code": "invalid"}]) from None
+        raise invalid_fields(conn, [{"field": str(exc).split(":")[0], "code": "invalid"}]) from None
     audit(conn, actor=principal, action="tickets.settings.update", decision="allowed", resource_type="installation", resource_id="tickets",
           request_id=_rid(request), details={"revision": doc["revision"], "changed": changed})
     messaging.RUNTIME.follow_subscription(messaging.wants_inbound_conn(conn))  # the reply subscription follows at once
@@ -313,7 +307,7 @@ def attach_inbound(body: AttachBody, request: Request, inbound_id: str = Path(..
     if r.get("claimed_by") != viewer.uid:
         raise ApiError(409, "not_claimed", text(conn, "יש ללחוץ קודם \"זה שלי\"."))
     if body.ticket_id not in {t["id"] for t in tickets}:
-        raise _invalid(conn, [{"field": "ticket_id", "code": "not_a_candidate"}])
+        raise invalid_fields(conn, [{"field": "ticket_id", "code": "not_a_candidate"}])
     seen = access.require_visible(viewer, body.ticket_id)
     if seen.row["status"] in model.FINAL:
         raise ApiError(409, "ticket_closed", text(conn, "{ticket} זו {f:סגורה|m:סגור}."))
@@ -381,7 +375,7 @@ class TemplateCreate(BaseModel):
 def _check_body(conn: sqlite3.Connection, purpose: str, body: str) -> None:
     problems = messaging.template_problems(purpose, body)
     if problems:
-        raise _invalid(conn, problems)
+        raise invalid_fields(conn, problems)
 
 
 def _template(conn: sqlite3.Connection, template_id: str) -> dict[str, Any]:
@@ -396,7 +390,7 @@ def create_template(body: TemplateCreate, request: Request, principal: Principal
                     conn: sqlite3.Connection = Depends(get_conn)) -> dict[str, Any]:
     require(conn, principal, access.CONFIGURE, INSTALLATION)
     if body.department_id and store.department(conn, body.department_id) is None:
-        raise _invalid(conn, [{"field": "department_id", "code": "unknown"}])
+        raise invalid_fields(conn, [{"field": "department_id", "code": "unknown"}])
     _check_body(conn, body.purpose, body.body)
     clash = obs.message_template_clash(conn, body.purpose, body.lang, body.department_id)
     if clash is not None:

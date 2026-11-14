@@ -327,12 +327,17 @@ def eligible_assignees(conn, department_id: str, row: dict[str, Any] | None) -> 
     """Who may be assigned in a department (section 8, "assignee picker"): active users who are members of the department (directly
     or through a group) and hold tickets.view where the ticket lies (at any scope for a placeless ticket). Names only."""
     out: list[dict[str, Any]] = []
-    for uid, role in store.department_user_ids(conn, department_id).items():
-        if not store.user_is_active(conn, uid):
+    members = store.department_user_ids(conn, department_id)
+    active = store.active_user_ids(conn) if members else set()  # 01:F-08: the active set and the names once, not per member
+    for uid, role in members.items():
+        if uid not in active:
             continue
         if not _user_viewer(conn, uid).holds(access.VIEW, row):
             continue
-        out.append({"kind": "user", "id": uid, "name": store.display_name(conn, uid), "member_role": role})
+        out.append({"kind": "user", "id": uid, "name": "", "member_role": role})
+    names = store.display_names(conn, [r["id"] for r in out])
+    for r in out:
+        r["name"] = names[r["id"]]
     return sorted(out, key=lambda r: (r["member_role"] != "manager", r["name"]))
 
 

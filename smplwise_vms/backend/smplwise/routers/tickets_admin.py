@@ -25,6 +25,8 @@ from ..remote_channel import is_remote
 from ..rbac import INSTALLATION, ROLES, Principal, all_roles, require, role_permissions, scope_name
 from ..services.tickets import access, model, naming, org_locations, policy, settings_doc, sla, store, store_locations, templates
 from ..services.tickets.access import Viewer, text
+from ._common import rid as _rid
+from ._tickets_common import invalid, invalid_fields
 from .tickets import ID, module_gate
 
 router = APIRouter(dependencies=[Depends(module_gate)])
@@ -40,14 +42,6 @@ GRANT_ROLES = ("tickets_view", "tickets_create", "tickets_manage", "tickets_all_
                "tickets_intake")  # + CR-INTAKE99: the free-text request queue (owner 143, 2026-10-24)
 
 
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
-
-
-def _invalid(conn: sqlite3.Connection, field: str, code: str) -> ApiError:
-    return ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": field, "code": code}]})
-
-
 def _configurer(conn: sqlite3.Connection, principal: Principal) -> Viewer:
     require(conn, principal, access.CONFIGURE, INSTALLATION)
     return Viewer(conn, principal)
@@ -57,7 +51,7 @@ def _clean(conn: sqlite3.Connection, value: Any, field: str, *, required: bool, 
     try:
         return model.text_field(value, field, required=required, max_len=max_len)
     except model.Invalid as exc:
-        raise _invalid(conn, exc.problems[0].field, exc.problems[0].code) from None
+        raise invalid(conn, exc.problems[0].field, exc.problems[0].code) from None
 
 
 # ---------------------------------------------------------------- the display settings document (D18 / D22)
@@ -445,7 +439,7 @@ def put_settings(body: SettingsBody, request: Request, principal: Principal = De
     try:
         doc, changed = settings_doc.apply_patch(conn, patch)
     except ValueError as exc:
-        raise _invalid(conn, *_problem(exc)) from None
+        raise invalid(conn, *_problem(exc)) from None
     if "calendar" in changed:  # SLACAL: the dues of every open ticket follow the new working hours at once
         sla.refresh_all_open(conn)
     pulled = 0
@@ -564,7 +558,7 @@ def put_name(body: NameBody, request: Request, principal: Principal = Depends(cu
     try:
         languages = naming.validate(raw)
     except naming.NameInvalid as exc:
-        raise _invalid(conn, exc.field, exc.code) from None
+        raise invalid(conn, exc.field, exc.code) from None
     doc = naming.store(conn, languages, current["revision"] + 1)
     changed = sorted(lang for lang in languages if languages[lang] != current[lang])
     audit(conn, actor=principal, action="tickets.name.update", decision="allowed", resource_type="installation", resource_id="tickets",
@@ -675,11 +669,11 @@ def _policy_fields(conn: sqlite3.Connection, body: DepartmentBody, sent: set[str
     if "auto_close_after_days" in sent:
         v = body.auto_close_after_days
         if v is not None and not policy.AUTO_CLOSE_DAYS[0] <= v <= policy.AUTO_CLOSE_DAYS[1]:
-            raise _invalid(conn, "auto_close_after_days", "range")
+            raise invalid(conn, "auto_close_after_days", "range")
         fields["auto_close_after_days"] = v
     if "share_history_external" in sent:
         if body.share_history_external is None:
-            raise _invalid(conn, "share_history_external", "required")
+            raise invalid(conn, "share_history_external", "required")
         fields["share_history_external"] = 1 if body.share_history_external else 0
     if "urgent_is_critical" in sent:
         fields["urgent_is_critical"] = None if body.urgent_is_critical is None else (1 if body.urgent_is_critical else 0)
@@ -690,7 +684,7 @@ def _policy_fields(conn: sqlite3.Connection, body: DepartmentBody, sent: set[str
                 try:
                     policy._valid(key, v)
                 except ValueError as exc:
-                    raise _invalid(conn, key, str(exc)) from None
+                    raise invalid(conn, key, str(exc)) from None
             fields[key] = v
     if "send_hours" in sent:
         if body.send_hours is None:
@@ -699,7 +693,7 @@ def _policy_fields(conn: sqlite3.Connection, body: DepartmentBody, sent: set[str
             try:
                 window = settings_doc.send_hours(body.send_hours.window())
             except ValueError as exc:
-                raise _invalid(conn, "send_hours", str(exc)) from None
+                raise invalid(conn, "send_hours", str(exc)) from None
             fields["send_hours_json"] = json.dumps(window, separators=(",", ":"))
     if {"link_sliding_days", "link_cap_days"} & set(fields):
         inst = settings_doc.read(conn)["links"]
@@ -707,7 +701,7 @@ def _policy_fields(conn: sqlite3.Connection, body: DepartmentBody, sent: set[str
         sliding = merged.get("link_sliding_days") or inst["sliding_days"]
         cap = merged.get("link_cap_days") or inst["cap_days"]
         if cap < sliding:
-            raise _invalid(conn, "link_cap_days", "below_sliding")
+            raise invalid(conn, "link_cap_days", "below_sliding")
     return fields
 
 
@@ -796,7 +790,7 @@ def patch_department(body: DepartmentBody, request: Request, dept_id: str = Path
     viewer = _configurer(conn, principal)
     d = _dept_or_404(conn, dept_id)
     if body.revision is None:
-        raise _invalid(conn, "revision", "required")
+        raise invalid(conn, "revision", "required")
     fields = _department_fields(conn, body, creating=False, current=d)
     if "key" in fields and store.department_key_taken(conn, fields["key"], except_id=dept_id):
         raise ApiError(409, "department_key_taken", text(conn, "כבר קיימת מחלקה עם המזהה הזה."), details={"key": fields["key"]})
@@ -881,13 +875,13 @@ def _category_fields(conn: sqlite3.Connection, body: CategoryBody, dept_id: str,
         if body.parent_id:
             parent = store.category(conn, body.parent_id)
             if parent is None or parent["department_id"] != dept_id or parent.get("parent_id") or parent["id"] == category_id:
-                raise _invalid(conn, "parent_id", "unknown")  # one level only, inside the same department
+                raise invalid(conn, "parent_id", "unknown")  # one level only, inside the same department
         fields["parent_id"] = body.parent_id or None
     if "default_priority_id" in sent:
         if body.default_priority_id:
             p = store.priority(conn, body.default_priority_id)
             if p is None or p["department_id"] != dept_id:
-                raise _invalid(conn, "default_priority_id", "unknown")
+                raise invalid(conn, "default_priority_id", "unknown")
         fields["default_priority_id"] = body.default_priority_id or None
     if "sort_order" in sent and body.sort_order is not None:
         fields["sort_order"] = body.sort_order
@@ -1027,7 +1021,7 @@ def put_sla(body: SlaBody, request: Request, dept_id: str = Path(..., pattern=ID
             continue
         plans.append((p, current, clean, row.revision))
     if problems:
-        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": problems})
+        raise invalid_fields(conn, problems)
     if stale_rows:
         raise ApiError(409, "sla_stale", text(conn, "הספים השתנו בינתיים. טענו מחדש."), details={"priority_ids": stale_rows})
     for p, current, clean, revision in plans:
@@ -1058,17 +1052,16 @@ class TemplateBody(BaseModel):
 
 def _template_fields(conn: sqlite3.Connection, body: TemplateBody, dept_id: str, *, creating: bool) -> dict[str, Any]:
     if (body.kind or "ticket") not in templates.KINDS_BUILT:
-        raise _invalid(conn, "kind", "not_supported")  # message templates arrive with the message channel (slice 5b)
+        raise invalid(conn, "kind", "not_supported")  # message templates arrive with the message channel (slice 5b)
     sent = {k: getattr(body, k) for k in body.model_fields_set - {"kind", "revision"}}
     try:
         fields = templates.validate_ticket(sent, creating=creating)
     except model.Invalid as exc:
-        raise ApiError(422, "validation", text(conn, "ערך לא תקין."),
-                       details={"fields": [{"field": p.field, "code": p.code} for p in exc.problems]}) from None
+        raise invalid_fields(conn, [{"field": p.field, "code": p.code} for p in exc.problems]) from None
     if fields.get("category_id"):
         cat = store.category(conn, fields["category_id"])
         if cat is None or cat["department_id"] != dept_id:
-            raise _invalid(conn, "category_id", "unknown")
+            raise invalid(conn, "category_id", "unknown")
     return fields
 
 
@@ -1099,9 +1092,9 @@ def patch_template(body: TemplateBody, request: Request, template_id: str = Path
     viewer = _configurer(conn, principal)
     before = _template_or_404(conn, template_id)
     if body.revision is None:
-        raise _invalid(conn, "revision", "required")
+        raise invalid(conn, "revision", "required")
     if body.kind is not None and body.kind != before["kind"]:
-        raise _invalid(conn, "kind", "immutable")
+        raise invalid(conn, "kind", "immutable")
     fields = _template_fields(conn, body, before["department_id"], creating=False)
     if not store.update_template(conn, template_id, fields, body.revision, principal.user_id):
         raise ApiError(409, "template_stale", text(conn, "התבנית השתנתה בינתיים. טענו מחדש."), details={"revision": before["revision"]})
@@ -1221,7 +1214,8 @@ def directory(principal: Principal = Depends(current_principal_ro), conn: sqlite
     """The people and groups a department's member list may name - names only (the member editor's picker)."""
     _configurer(conn, principal)
     needle = model.clean_text(q).casefold()
-    users = [{"id": uid, "name": store.display_name(conn, uid)} for uid in store.active_user_ids(conn)]
+    names = store.display_names(conn, store.active_user_ids(conn))  # 01:F-08: two statements, not two per person
+    users = [{"id": uid, "name": name} for uid, name in names.items()]
     users = sorted((u for u in users if not needle or needle in u["name"].casefold()), key=lambda u: u["name"])[:200]
     groups = [g for g in store.groups(conn) if not needle or needle in g["name"].casefold()][:100]
     return {"users": users, "groups": groups}
@@ -1235,6 +1229,7 @@ def holders(principal: Principal = Depends(current_principal_ro), conn: sqlite3.
     from ..rbac import role_name
 
     people: dict[str, dict[str, Any]] = {}
+    active = store.active_user_ids(conn)  # 01:F-08: the active set and the names are read once, not per person
     for b in store.active_bindings(conn, now_iso()):
         perms = [p for p in role_permissions(conn, b["role_id"]) if p in access.TICKET_PERMISSIONS]
         if not perms:
@@ -1242,13 +1237,15 @@ def holders(principal: Principal = Depends(current_principal_ro), conn: sqlite3.
         via = "grant" if b["role_id"] in GRANT_ROLES and b["subject_kind"] == "user" else "group" if b["subject_kind"] == "group" else "role"
         targets = [b["subject_id"]] if b["subject_kind"] == "user" else store.group_member_ids(conn, b["subject_id"])
         for uid in targets:
-            entry = people.setdefault(uid, {"id": uid, "name": store.display_name(conn, uid), "active": store.user_is_active(conn, uid), "grants": []})
+            entry = people.setdefault(uid, {"id": uid, "name": "", "active": uid in active, "grants": []})
             entry["grants"].append({
                 "binding_id": b["id"], "permissions": perms, "via": via, "role_id": b["role_id"], "role_name": role_name(conn, b["role_id"]),
                 "group_name": store.group_name(conn, b["subject_id"]) if b["subject_kind"] == "group" else None,
                 "scope_type": b["scope_type"], "scope_id": b["scope_id"], "scope_name": scope_name(conn, b["scope_type"], b["scope_id"]),
                 "effect": b["effect"], "expires_at": b["expires_at"],
             })
+    for uid, name in store.display_names(conn, people).items():
+        people[uid]["name"] = name
     # slice 2 - the "מי רשאי" matrix: every role (built-in and organisation-defined) with the ticket permissions it carries; the
     # single-permission grant roles are the personal-grant card's, not rows here
     roles = []
@@ -1287,7 +1284,7 @@ class DepartmentLocationBody(BaseModel):
 def _loc_invalid(conn: sqlite3.Connection, exc: Any) -> ApiError:
     if exc.code == "duplicate":
         return ApiError(409, "location_name_taken", text(conn, "כבר קיים מיקום בשם הזה."), details={"fields": [{"field": "name", "code": "duplicate"}]})
-    return _invalid(conn, exc.field, exc.code)
+    return invalid(conn, exc.field, exc.code)
 
 
 def _location_or_404(conn: sqlite3.Connection, location_id: str) -> dict[str, Any]:
@@ -1396,7 +1393,7 @@ def put_department_location(body: DepartmentLocationBody, request: Request, dept
     if body.location_id:
         loc = store_locations.location(conn, body.location_id)
         if loc is None or not loc["active"]:
-            raise _invalid(conn, "location_id", "unknown")
+            raise invalid(conn, "location_id", "unknown")
     store_locations.set_department_default(conn, d["id"], body.location_id or None)
     audit(conn, actor=principal, action="ticket.location.department_default", decision="allowed", resource_type="ticket_department",
           resource_id=d["id"], request_id=_rid(request), details={"location_id": body.location_id or None})

@@ -14,14 +14,11 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..rbac import Principal
 from ..services.tickets import intake
 from ..services.tickets.access import Viewer
+from ._common import rid as _rid
 from .tickets import ID, module_gate
 
 router = APIRouter(dependencies=[Depends(module_gate)])
 DraftId = Annotated[str, Path(pattern=ID)]
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 class EditBody(BaseModel):

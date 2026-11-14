@@ -152,10 +152,18 @@ def _member_view(conn, m: dict[str, Any], full: bool, editable: bool = False) ->
             "mobile_editable": editable and m["member_role"] == "member" and not _protected_person(conn, m["subject_id"])}
 
 
-def department_view(scope: HandlerScope, dept_id: str) -> dict[str, Any]:
+def full_phones(viewer: Viewer) -> bool:
+    """Phones unmasked for this caller: tickets.external, the directory editors, or the installation setting (settings_doc)."""
+    return bool(contacts.may_edit_directory(viewer) or access.EXTERNAL in viewer.anywhere or contacts.managers_unmask(viewer.conn))
+
+
+def department_view(scope: HandlerScope, dept_id: str, full: bool | None = None) -> dict[str, Any]:
+    """One department of the manager view. `full` (phones unmasked) is the caller's, the same for every department: `overview` passes
+    the value it computed once (code review 01:F-20: the settings document was read again per department)."""
     conn, viewer = scope.conn, scope.viewer
     d = store.department(conn, dept_id) or {}
-    full = contacts.may_edit_directory(viewer) or access.EXTERNAL in viewer.anywhere or contacts.managers_unmask(conn)
+    if full is None:
+        full = full_phones(viewer)
     can = dept_id in scope.departments
     return {"id": dept_id, "name": d.get("name", ""), "active": bool(d.get("active")), "can_manage": can,
             "members": [_member_view(conn, m, full, can) for m in store.members(conn, dept_id)]}
@@ -167,8 +175,8 @@ def overview(viewer: Viewer) -> dict[str, Any]:
     scope = reader(viewer)
     order = {d["id"]: i for i, d in enumerate(store.departments(scope.conn))}
     ids = sorted(scope.manager_of, key=lambda d: order.get(d, 10**6))
-    full = contacts.may_edit_directory(viewer) or access.EXTERNAL in viewer.anywhere or contacts.managers_unmask(scope.conn)
-    return {"departments": [department_view(scope, d) for d in ids], "can_manage": bool(scope.departments), "full_phones": bool(full)}
+    full = full_phones(viewer)
+    return {"departments": [department_view(scope, d, full) for d in ids], "can_manage": bool(scope.departments), "full_phones": full}
 
 
 def people(viewer: Viewer, query: str) -> dict[str, Any]:
@@ -180,7 +188,7 @@ def people(viewer: Viewer, query: str) -> dict[str, Any]:
         raise ApiError(403, "forbidden", text(viewer.conn, "אין הרשאה לפעולה הזו."), details={"permission": access.HANDLERS})
     conn = viewer.conn
     needle = model.clean_text(query).casefold()
-    users = [{"id": uid, "name": store.display_name(conn, uid)} for uid in store.active_user_ids(conn)]
+    users = [{"id": uid, "name": name} for uid, name in store.display_names(conn, store.active_user_ids(conn)).items()]  # 01:F-08: two statements
     return {"users": sorted((u for u in users if not needle or needle in u["name"].casefold()), key=lambda u: u["name"])[:200]}
 
 

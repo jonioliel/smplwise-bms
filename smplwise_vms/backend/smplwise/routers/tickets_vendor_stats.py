@@ -26,13 +26,11 @@ from ..errors import ApiError
 from ..rbac import Principal
 from ..services.tickets import access, present, vendor_stats
 from ..services.tickets.access import Viewer, text
+from ._common import rid as _rid
+from ._tickets_common import invalid
 from .tickets import ID, module_gate
 
 router = APIRouter(dependencies=[Depends(module_gate)])
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 @router.get("/tickets/contacts/{contact_id}/stats")
@@ -50,7 +48,7 @@ def contact_stats(request: Request, contact_id: str = Path(..., pattern=ID), mon
         raise ApiError(403, "forbidden", text(conn, "אין הרשאה לפעולה הזו."), details={"permission": perm})
     m = months if months is not None else int(c["default_months"])
     if m not in vendor_stats.MONTHS:
-        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "months", "code": "invalid"}]})
+        raise invalid(conn, "months", "invalid")
     money = c["money_permission"] in viewer.anywhere
     try:
         out = vendor_stats.compute(conn, contact_id, months=m, now=dt.datetime.now(dt.timezone.utc).replace(microsecond=0), money=money)
@@ -80,7 +78,7 @@ def contact_stats_tickets(
         raise ApiError(403, "forbidden", text(conn, "אין הרשאה לפעולה הזו."), details={"permission": perm})
     m = months if months is not None else int(c["default_months"])
     if m not in vendor_stats.MONTHS:
-        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "months", "code": "invalid"}]})
+        raise invalid(conn, "months", "invalid")
     money = c["money_permission"] in viewer.anywhere
     try:
         rows = vendor_stats.tickets_behind(conn, contact_id, metric, months=m, now=dt.datetime.now(dt.timezone.utc).replace(microsecond=0), money=money)

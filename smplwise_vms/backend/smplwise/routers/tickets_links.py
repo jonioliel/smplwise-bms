@@ -27,13 +27,10 @@ from ..services.tickets.access import Viewer, text
 from ..services.tickets.keyring import KEYS
 from ..services.tickets.module_key import ModuleKeyError
 from ..services.tickets.public_runtime import RUNTIME
+from ._common import rid as _rid
 from .tickets import ID, _detail, module_gate
 
 router = APIRouter(dependencies=[Depends(module_gate)])
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 class PreviewBody(BaseModel):

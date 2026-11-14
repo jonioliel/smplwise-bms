@@ -24,6 +24,8 @@ from ..rbac import Principal
 from ..services import device_activity
 from ..services.tickets import access, attachments, contacts, create, device_context, model, naming, place, present, service, settings_doc, store
 from ..services.tickets.access import Viewer, text
+from ._common import rid as _rid
+from ._tickets_common import invalid, need_any
 
 ID = r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
 ENTITY = r"^[a-z0-9_]{1,64}\.[a-z0-9_]{1,190}$"  # a Home Assistant entity id (slice 3)
@@ -37,18 +39,6 @@ def module_gate(principal: Principal = Depends(current_principal_ro), conn: sqli
 
 open_router = APIRouter()  # GET /tickets/module only
 router = APIRouter(dependencies=[Depends(module_gate)])
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
-
-
-def _need_any(conn: sqlite3.Connection, viewer: Viewer, *permissions: str) -> None:
-    """At least one of the permissions at any scope (the tickets' own scope rules apply per ticket); an audited 403 otherwise."""
-    if any(p in viewer.anywhere for p in permissions):
-        return
-    audit(conn, actor=viewer.principal, action=permissions[0], decision="denied", resource_type="installation", resource_id="*", reason="no_binding")
-    raise ApiError(403, "forbidden", text(conn, "אין הרשאה ל{tickets}."), details={"permission": permissions[0]})
 
 
 def _detail(conn: sqlite3.Connection, viewer: Viewer, ticket_id: str) -> dict[str, Any]:
@@ -77,7 +67,7 @@ def module_state(principal: Principal = Depends(current_principal_ro), conn: sql
 @router.get("/tickets/meta")
 def meta(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
     viewer = Viewer(conn, principal)
-    _need_any(conn, viewer, access.VIEW, access.CREATE)
+    need_any(conn, viewer, access.VIEW, access.CREATE)
     all_depts = access.ALL_DEPARTMENTS in viewer.anywhere
     can_handlers = access.MANAGE in viewer.anywhere and viewer.holds_installation(access.HANDLERS)
     out = []
@@ -136,7 +126,7 @@ def by_entity(entity_id: str = Path(..., max_length=255, pattern=ENTITY), princi
     module (router) -> tickets.view -> the DEVICE (devices.read on the entity, the lock / alarm rule - a device the caller may not
     read is the same 404 as an unknown one) -> the visibility rule per ticket."""
     viewer = Viewer(conn, principal)
-    _need_any(conn, viewer, access.VIEW)
+    need_any(conn, viewer, access.VIEW)
     entity = device_context.readable_entity(conn, principal, entity_id)
     if entity is None:
         raise ApiError(404, "not_found", text(conn, "ההתקן לא נמצא."))
@@ -173,7 +163,7 @@ def list_tickets(
     cursor: str | None = Query(None, max_length=200),
 ) -> dict[str, Any]:
     viewer = Viewer(conn, principal)
-    _need_any(conn, viewer, access.VIEW)
+    need_any(conn, viewer, access.VIEW)
     statuses = None if status == "all" else store.STATUS_GROUPS.get(status, (status,))
     seen, next_cursor = access.visible_page(viewer, scope=scope, statuses=statuses, department_id=department_id,
                                             query=model.clean_text(q), cursor=cursor, limit=limit)
@@ -212,7 +202,7 @@ CREATE_ROUTE = "POST /tickets"
 @router.post("/tickets", status_code=201)
 def create_ticket(body: CreateBody, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> Any:
     viewer = Viewer(conn, principal)
-    _need_any(conn, viewer, access.CREATE)
+    need_any(conn, viewer, access.CREATE)
     scope = f"user:{principal.user_id}"
     prev = store.request_get(conn, scope, body.client_request_id)
     if prev is not None:  # a repeat of the same request (a retry after a lost answer): the first answer, nothing created twice
@@ -257,7 +247,7 @@ def assignees(
         seen = access.require_visible(viewer, ticket_id)
         row = seen.row
         if row["department_id"] != department_id:
-            raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "department_id", "code": "mismatch"}]})
+            raise invalid(conn, "department_id", "mismatch")
         allowed = seen.manager
     else:
         allowed = viewer.manages_department(department_id)
@@ -309,7 +299,7 @@ def patch_ticket(body: PatchBody, request: Request, ticket_id: str = Path(..., p
     patch = {k: getattr(body, k) for k in body.model_fields_set if k != "revision"}
     for k in ("title", "priority_id", "department_id"):
         if k in patch and patch[k] is None:
-            raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": k, "code": "required"}]})
+            raise invalid(conn, k, "required")
     service.edit(conn, viewer, seen, patch, body.revision, _rid(request))
     return _detail(conn, viewer, ticket_id)
 
@@ -362,11 +352,11 @@ def post_assign(body: AssignBody, request: Request, ticket_id: str = Path(..., p
                                 access_needed=body.access_needed, document_confirm=bool(body.document_confirm))
     else:
         if body.document_confirm is not None and seen.manager:  # likewise refused, not ignored: the vendor documents concern an outside contact
-            raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "document_confirm", "code": "not_allowed"}]})
+            raise invalid(conn, "document_confirm", "not_allowed")
         if body.location_nav and seen.manager:  # the switch exists for an outside contact's message only: refused, not ignored
-            raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "location_nav", "code": "not_allowed"}]})
+            raise invalid(conn, "location_nav", "not_allowed")
         if body.access_needed and seen.manager:  # GRANTS3-295: likewise - an outside contact's assignment only
-            raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "access_needed", "code": "not_allowed"}]})
+            raise invalid(conn, "access_needed", "not_allowed")
         service.assign(conn, viewer, seen, body.assignee.kind, body.assignee.id, body.note, body.note_external, body.revision, _rid(request))
     return _detail(conn, viewer, ticket_id)
 
