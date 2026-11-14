@@ -14,6 +14,7 @@ import { ApiError } from '../api/client';
 import type { ListenStartReply } from '../api/station-listen';
 import { decayLevel, decodeFrame, frameLevel, type ListenCodec } from './g711-decode';
 import { outcomeOfClose, type SocketLike } from './talk-session';
+import { openSessionSocket } from './session-socket';
 
 export type ListenPhase = 'idle' | 'starting' | 'listening';
 export type ListenProblem =
@@ -156,15 +157,8 @@ export class ListenSession {
     this.codec = reply.codec;
     this.rate = reply.sample_rate;
     this.endsAt = this.deps.now() + reply.max_seconds * 1000;
-    let ws: SocketLike;
-    try {
-      ws = this.deps.socket(reply.ws_path);
-    } catch {
-      void this.deps.stop(reply.session).catch(() => undefined);
-      this.fail('network');
-      return;
-    }
-    ws.binaryType = 'arraybuffer';
+    const ws = openSessionSocket(this.deps, reply, () => this.fail('network')); // CR-SOCKETS-2439: the shared socket start (08:F24)
+    if (!ws) return;
     this.ws = ws;
     ws.onmessage = (ev) => {
       if (gen !== this.gen) return;

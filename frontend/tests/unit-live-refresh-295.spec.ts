@@ -272,10 +272,13 @@ test('the home screen uses the controller instead of bare intervals, keeps the f
   expect(b).toContain("setWidgetFailed('temperature'");
   expect(b).toContain("setWidgetFailed('generators'");
   expect(b).toContain('data-home-stale');
+  // CR-SOCKETS-2439: /ha/ws runs on the shared reconnecting socket with its own HOMELIVE timings; the resume listeners live there
   const ha = src('api/ha.ts');
-  expect(ha).toContain("document.addEventListener('visibilitychange', onResume)");
-  expect(ha).toContain("window.addEventListener('online', onOnline)");
-  expect(ha).toContain('SILENT_MS');
+  expect(ha).toContain('openReconnectingSocket({');
+  expect(ha).toContain('silentMs: SILENT_MS');
+  const rs = src('api/reconnecting-socket.ts');
+  expect(rs).toContain("document.addEventListener('visibilitychange', vis)");
+  expect(rs).toContain("window.addEventListener('online', onOnline)");
 });
 
 test('the stale words exist in every column; ar / ru stay dev-marked', () => {

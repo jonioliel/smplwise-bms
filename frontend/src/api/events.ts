@@ -1,5 +1,6 @@
 /** Event centre (chapter 26): scoped listing, timeline markers, acknowledge and the push socket. */
 import { apiResponse, apiUrl, del, get, post } from './client';
+import { openReconnectingSocket, wsUrl, type SocketEnv } from './reconnecting-socket';
 
 export type EventKind = 'motion' | 'person' | 'vehicle' | 'line' | 'field' | 'offline' | 'tamper' | 'door' | 'io' | 'storage' | 'system' | 'coverage_gap' | 'manual' | 'other';
 
@@ -246,49 +247,27 @@ export function markerKind(t: EventKind): 'person' | 'vehicle' | 'motion' | 'lin
   return 'motion';
 }
 
-/** Subscribe to pushed events; returns a stop function. Reconnects with back-off while the page is open. */
-export function subscribeEvents(onEvent: (ev: VmsEvent) => void, onState?: (s: IngestState | null, connected: boolean) => void): () => void {
-  let ws: WebSocket | null = null;
-  let stopped = false;
-  let delay = 2000;
-  const url = (() => {
-    const u = new URL(apiUrl('events/ws'));
-    u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
-    return u.toString();
-  })();
-  const open = () => {
-    if (stopped) return;
-    try {
-      ws = new WebSocket(url);
-    } catch {
-      return;
-    }
-    ws.onopen = () => {
-      delay = 2000;
-      onState?.(null, true);
-    };
-    ws.onmessage = (m) => {
+/** Subscribe to pushed events; returns a stop function. Reconnects with back-off while the page is open.
+ * CR-SOCKETS-2439 (07:F6): the shared reconnecting socket (api/reconnecting-socket.ts) - back-off 2 s .. 30 s as before (now with a
+ * small jitter), a constructor that throws is retried, and a socket silent past SOCKET_SILENT_MS (the server's heartbeat is every 30 s)
+ * or stuck connecting is replaced at once, also on resume. `env`: tests only (fake clock and sockets). */
+export function subscribeEvents(onEvent: (ev: VmsEvent) => void, onState?: (s: IngestState | null, connected: boolean) => void, env?: SocketEnv): () => void {
+  return openReconnectingSocket({
+    url: wsUrl('events/ws'),
+    env,
+    maxDelayMs: 30_000,
+    onOpen: () => onState?.(null, true),
+    onDown: () => onState?.(null, false),
+    onMessage: (data) => {
       try {
-        const env = JSON.parse(m.data as string) as { type: string; payload: unknown };
-        if (env.type === 'event_added' || env.type === 'event_updated') onEvent(env.payload as VmsEvent);
-        else if (env.type === 'heartbeat') onState?.((env.payload as { ingest: IngestState }).ingest, true);
+        const m = JSON.parse(data) as { type: string; payload: unknown };
+        if (m.type === 'event_added' || m.type === 'event_updated') onEvent(m.payload as VmsEvent);
+        else if (m.type === 'heartbeat') onState?.((m.payload as { ingest: IngestState }).ingest, true);
       } catch {
         /* ignore */
       }
-    };
-    ws.onclose = () => {
-      onState?.(null, false);
-      if (!stopped) {
-        window.setTimeout(open, delay);
-        delay = Math.min(30000, delay * 2);
-      }
-    };
-  };
-  open();
-  return () => {
-    stopped = true;
-    ws?.close();
-  };
+    },
+  });
 }
 
 /** Door–camera–sensor neighbourhood of an event (T053): every link carries its certainty; a command is never proof. */
