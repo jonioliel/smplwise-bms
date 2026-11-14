@@ -35,6 +35,7 @@ import { RUNG_HE } from '../map/quality-ladder';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsLadderStyles } from '../styles/settings';
+import { PollController } from '../components/poll-controller';
 import { dateInputLang } from '../api/day-format';
 
 type CamLite = { id: string; name: string };
@@ -80,7 +81,8 @@ export class SystemWall extends LitElement {
   @state() private photoSets: PhotoSet[] = [];
   @state() private managingPhotos = false;
   @state() private query = '';
-  private poll = 0;
+  /** CR-POLL-SCREENS-A-2436: the quiet re-read of the profiles every 15 s (not while editing / adding) - paused while hidden, no overlap. */
+  private poll = new PollController(this);
 
   static styles = [
     settingsLadderStyles,
@@ -155,14 +157,7 @@ export class SystemWall extends LitElement {
   connectedCallback(): void {
     super.connectedCallback();
     void this.load();
-    this.poll = window.setInterval(() => {
-      if (!this.editing && !this.adding) void this.load(true);
-    }, POLL_MS);
-  }
-
-  disconnectedCallback(): void {
-    super.disconnectedCallback();
-    window.clearInterval(this.poll);
+    this.poll.every('profiles', POLL_MS, () => this.load(true), { when: () => !this.editing && !this.adding });
   }
 
   private async load(quiet = false): Promise<void> {
