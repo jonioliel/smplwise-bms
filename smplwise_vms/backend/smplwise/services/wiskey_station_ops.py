@@ -29,14 +29,13 @@ from __future__ import annotations
 
 import threading
 import time
-from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable
 
 from . import intercom_adapter as ad
 from . import intercom_client
-from .intercom_client import IntercomError, UnclearAnswer
+from . import wiskey_write_limits as wl
 
 CHANNEL = "maintenance"  # services/wiskey_channels.py MAINTENANCE
 LANE = "maintenance"  # intercom_sync: no lane of its own -> a read slot and the read buckets (module note)
@@ -161,16 +160,9 @@ AUDIT_ACTIONS = tuple(op.audit for op in OPS.values())
 def result_of(frame: dict[str, Any], command: str) -> Any:
     """A maintenance command's answer: `success: true` -> the result; `success: false` with a code -> a definite failure
     (IntercomError: the feed's outcome `refused`, shown as "failed: <code>") - these commands only queue a sync or read the device, so
-    WisKey's code IS the outcome; an unclear code or a frame that is neither -> UnclearAnswer (outcome unknown: "sent, no clear answer")."""
-    if frame.get("success") is True:
-        return frame.get("result")
-    if frame.get("success") is False:
-        error = frame.get("error") if isinstance(frame.get("error"), dict) else {}
-        code = str(error.get("code") or "")
-        if code not in UNCLEAR_CODES and ad.CODE.fullmatch(code):
-            raise IntercomError(code, command)
-        raise UnclearAnswer(command, code or "action_failed")
-    raise UnclearAnswer(command, "invalid_response")
+    WisKey's code IS the outcome; an unclear code or a frame that is neither -> UnclearAnswer (outcome unknown: "sent, no clear answer").
+    The reading is the shared one (services/wiskey_write_limits.py) with this module's UNCLEAR_CODES."""
+    return wl.result_of(frame, command, UNCLEAR_CODES)
 
 
 async def send(call: intercom_client.Call, op: Op, station_id: str) -> Any:
@@ -192,55 +184,23 @@ USER_MAX = 24  # maintenance commands per operator per window (two list actions 
 MAX_INFLIGHT = 2  # at once, installation-wide (WisKey itself allows three health refreshes at once)
 
 
-class Limits:
-    """In-process limits on top of the feed's buckets. A refusal is `(code, retry_after_s)`; an admitted command holds one in-flight
-    slot until `done`. The cool-down starts only when the command was handed to WisKey (`sent`), never for one that was not sent."""
+class Limits(wl.WriteLimits):
+    """In-process limits on top of the feed's buckets (services/wiskey_write_limits.py with this module's constants). A refusal is
+    `(code, retry_after_s)`; an admitted command holds one in-flight slot until `done`. The cool-down starts only when the command was
+    handed to WisKey (`sent`), never for one that was not sent."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._last: dict[tuple[str, str], float] = {}
-        self._users: dict[str, deque[float]] = {}
-        self._inflight = 0
+        super().__init__("station_ops", busy_retry_s=2.0)
 
     def cooldown_left(self, station_id: str, action: str, now: float | None = None) -> float:
-        op = OPS[action]
-        with self._lock:
-            at = self._last.get((station_id, action))
-        if at is None:
-            return 0.0
-        left = op.cooldown_s * COOLDOWN_SCALE - ((time.monotonic() if now is None else now) - at)
-        return max(0.0, round(left, 1))
+        return self.key_cooldown_left((station_id, action), OPS[action].cooldown_s * COOLDOWN_SCALE, now)
 
     def admit(self, user: str, station_id: str, action: str) -> tuple[str, float] | None:
-        now = time.monotonic()
-        left = self.cooldown_left(station_id, action, now)
-        if left > 0:
-            return "station_ops_cooldown", left
-        with self._lock:
-            window = self._users.setdefault(user, deque())
-            while window and now - window[0] >= USER_WINDOW_S:
-                window.popleft()
-            if len(window) >= USER_MAX:
-                return "station_ops_rate_limited", round(USER_WINDOW_S - (now - window[0]), 1)
-            if self._inflight >= MAX_INFLIGHT:
-                return "station_ops_busy", 2.0
-            window.append(now)
-            self._inflight += 1
-        return None
+        return self.admit_key(user, (station_id, action), cooldown_s=OPS[action].cooldown_s * COOLDOWN_SCALE, window_s=USER_WINDOW_S, user_max=USER_MAX,
+                              max_inflight=MAX_INFLIGHT)
 
     def sent(self, station_id: str, action: str) -> None:
-        with self._lock:
-            self._last[(station_id, action)] = time.monotonic()
-
-    def done(self) -> None:
-        with self._lock:
-            self._inflight = max(0, self._inflight - 1)
-
-    def reset(self) -> None:
-        with self._lock:
-            self._last.clear()
-            self._users.clear()
-            self._inflight = 0
+        self.mark_sent((station_id, action))
 
 
 LIMITS = Limits()

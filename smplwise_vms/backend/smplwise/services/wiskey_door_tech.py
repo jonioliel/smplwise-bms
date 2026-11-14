@@ -37,7 +37,6 @@ tests/fake_wiskey.py (tests/test_wiskey_door_tech.py); nothing contacts a device
 from __future__ import annotations
 
 import re
-import threading
 import time
 from collections import deque
 from dataclasses import dataclass
@@ -51,6 +50,7 @@ from ..rbac import INSTALLATION, Principal
 from . import intercom_adapter as ad
 from . import intercom_authority as ia
 from . import intercom_client
+from . import wiskey_write_limits as wl
 from .intercom_client import IntercomError, UnclearAnswer
 
 CHANNEL = "door_technical"  # services/wiskey_channels.py DOOR_TECHNICAL
@@ -400,41 +400,34 @@ MAX_INFLIGHT = 2  # installation-wide; one per station (WisKey itself refuses a 
 SCALE = 1.0  # tests shrink the windows
 
 
-class Limits:
-    """In-process limits on top of the feed's buckets. A refusal is `(code, retry_after_s)`; an admitted write holds the station's
-    in-flight slot until `done`. Cool-downs and the code windows count only writes that were handed to WisKey (`sent`)."""
+class Limits(wl.WriteLimits):
+    """In-process limits on top of the feed's buckets: services/wiskey_write_limits.py with this module's constants, plus the code
+    windows (per operator and per station, code writes only) and one in-flight slot per station within the installation-wide cap. A
+    refusal is `(code, retry_after_s)`; an admitted write holds the station's in-flight slot until `done`. Cool-downs and the code windows
+    count only writes that were handed to WisKey (`sent`). Every window and the cool-down shrink with SCALE; the cool-down is the
+    unrounded reading (the last 50 ms refuse with a retry of 0.0)."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._last: dict[tuple[str, str, int], float] = {}
-        self._users: dict[str, deque[float]] = {}
-        self._code_users: dict[str, deque[float]] = {}
-        self._code_stations: dict[str, deque[float]] = {}
-        self._inflight: set[str] = set()
-
-    @staticmethod
-    def _trim(q: deque[float], now: float, window: float) -> None:
-        while q and now - q[0] >= window:
-            q.popleft()
+        super().__init__("door_tech", busy_retry_s=2.0)
+        self._inflight: set[str] = set()  # type: ignore[assignment]  # the stations with a write in flight
 
     def admit(self, user: str, station_id: str, kind: Kind, target: int) -> tuple[str, float] | None:
         now = time.monotonic()
         with self._lock:
-            at = self._last.get((station_id, kind.target, target))
-            if at is not None and now - at < COOLDOWN_S * SCALE:
-                return "door_tech_cooldown", round(COOLDOWN_S * SCALE - (now - at), 1)
+            left = self._cooldown_raw_locked((station_id, kind.target, target), COOLDOWN_S * SCALE, now)
+            if left > 0:
+                return "door_tech_cooldown", round(left, 1)
             if kind.name == "code_write":
-                for q, cap in ((self._code_users.setdefault(user, deque()), CODE_USER_MAX), (self._code_stations.setdefault(station_id, deque()), CODE_STATION_MAX)):
-                    self._trim(q, now, CODE_WINDOW_S * SCALE)
-                    if len(q) >= cap:
-                        return "door_tech_code_rate_limited", round(CODE_WINDOW_S * SCALE - (now - q[0]), 1)
-            window = self._users.setdefault(user, deque())
-            self._trim(window, now, USER_WINDOW_S * SCALE)
-            if len(window) >= USER_MAX:
-                return "door_tech_rate_limited", round(USER_WINDOW_S * SCALE - (now - window[0]), 1)
+                for key, cap in ((("code_user", user), CODE_USER_MAX), (("code_station", station_id), CODE_STATION_MAX)):
+                    retry = self._window_full_locked(key, now, CODE_WINDOW_S * SCALE, cap)
+                    if retry is not None:
+                        return "door_tech_code_rate_limited", retry
+            retry = self._window_full_locked(user, now, USER_WINDOW_S * SCALE, USER_MAX)
+            if retry is not None:
+                return "door_tech_rate_limited", retry
             if station_id in self._inflight or len(self._inflight) >= MAX_INFLIGHT:
-                return "door_tech_busy", 2.0
-            window.append(now)
+                return "door_tech_busy", self.busy_retry_s
+            self._users[user].append(now)
             self._inflight.add(station_id)
         return None
 
@@ -443,20 +436,12 @@ class Limits:
         with self._lock:
             self._last[(station_id, kind.target, target)] = now
             if kind.name == "code_write":
-                self._code_users.setdefault(user, deque()).append(now)
-                self._code_stations.setdefault(station_id, deque()).append(now)
+                self._users.setdefault(("code_user", user), deque()).append(now)
+                self._users.setdefault(("code_station", station_id), deque()).append(now)
 
-    def done(self, station_id: str) -> None:
+    def done(self, station_id: str) -> None:  # type: ignore[override]
         with self._lock:
             self._inflight.discard(station_id)
-
-    def reset(self) -> None:
-        with self._lock:
-            self._last.clear()
-            self._users.clear()
-            self._code_users.clear()
-            self._code_stations.clear()
-            self._inflight.clear()
 
 
 LIMITS = Limits()

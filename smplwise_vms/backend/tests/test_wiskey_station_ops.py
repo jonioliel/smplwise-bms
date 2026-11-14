@@ -320,7 +320,8 @@ def test_the_per_operator_window_and_the_inflight_cap(wx, monkeypatch):
     third = run(c, "entry-a", "clock_refresh")
     assert third.status_code == 429 and third.json()["code"] == "station_ops_rate_limited"
     ops.LIMITS.reset()
-    ops.LIMITS._inflight = ops.MAX_INFLIGHT
+    for n in range(ops.MAX_INFLIGHT):  # other operators' commands hold every slot
+        assert ops.LIMITS.admit(f"other-{n}", f"entry-x{n}", "sync") is None
     busy = run(c, "entry-a", "sync")
     assert busy.status_code == 429 and busy.json()["code"] == "station_ops_busy"
     ops.LIMITS.reset()
