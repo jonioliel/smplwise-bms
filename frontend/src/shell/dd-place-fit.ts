@@ -21,6 +21,11 @@ export const DD_FIT_STABLE = 8;
 /** How long a measured collision must persist before the route falls back to placement 1 (a loading screen draws a provisional header). */
 export const DD_COLLIDE_MS = 900;
 
+/** CR-WAVE1B-COMBINED-2436: how long placement 3 waits for its title before "no title on the chips' row" counts as a collision.
+ * A screen draws its heading after its data loads; under load that took longer than DD_COLLIDE_MS, so a slow load lost the chosen
+ * placement for the route (layout-dd-place: tickets and devices fell back to 1). The chips stay hidden while waiting (data-dd-fit). */
+export const DD_TITLE_WAIT_MS = 4000;
+
 /**
  * Placements an AREA does not support on a wide screen: they draw as placement 1 there, deliberately (data-dd-fallback="declared").
  * Each entry needs its reason; tests/layout-dd-place.spec.ts holds the same table and fails when either side changes alone.

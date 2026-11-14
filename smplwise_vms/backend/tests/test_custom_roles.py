@@ -70,7 +70,7 @@ def test_custom_role_lifecycle_and_impact(settings):
     assert not any(x["id"] == role["id"] for x in c.get("/api/v1/access/roles").json()["roles"])
     assert c.get(f"/api/v1/floors/{f2}/map", headers=g).status_code == 403
     with app.state.db.connection() as conn:
-        actions = [r[0] for r in conn.execute("SELECT action FROM audit_log WHERE action LIKE 'rbac.role.%'").fetchall()]
+        actions = [r[0] for r in conn.execute("SELECT action FROM audit_log WHERE action LIKE 'rbac.role.%' ORDER BY rowid").fetchall()]
     assert actions == ["rbac.role.create", "rbac.role.update", "rbac.role.delete"]
     # nobody without rbac.roles.manage creates roles
     bind(c, settings, "omer", "operator", "installation", "*")

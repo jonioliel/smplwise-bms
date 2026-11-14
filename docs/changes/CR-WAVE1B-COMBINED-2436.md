@@ -67,3 +67,37 @@ NOT_RUN locally: the full backend and Playwright suites, pixel specs (DIAG-DEFEC
 
 Queued on the runner: `ENTRY_TOTAL_SECS=10800 ~/gate2/branch_check.sh pilot/CR-WAVE1B-COMBINED-2436 --max-wait 0`. The verdict is
 recorded in a follow-up commit on this branch.
+
+### Entry check round 1 (2026-11-14): RED, 24 failures
+
+`entry_pilot-CR-WAVE1B-COMBINED-2436_ffb4af2d5.md` (queued 598 min, run 151 min; full backend and frontend selection). Every failure
+was classified **real** (all failed again alone); none is infrastructure.
+
+| Failures | Belongs to | Fix |
+|---|---|---|
+| 18 frontend unit specs (six specs x desktop / tablet / mobile) that read the settings registry from `routers/settings.py` | wave 1 (CR-SETTINGS-STORE) | on `pilot/CR-WAVE1-COMBINED-2436` @ `e59f9170e` (see its note), merged here |
+| `test_gate_always_run.py::test_every_package_scanner_is_listed_or_reviewed` | wave 1 (BE-GATES, READCONN-A, UPLOAD-SYNC) | same commit on the base |
+| `test_provision_backchannel.py::...backchannel_off`, `test_provision_playback.py::...stays_in_the_namespace` | wave 1 (GO2RTC-ADAPTER) | same commit on the base |
+| `test_custom_roles.py::test_custom_role_lifecycle_and_impact` | this batch (AUDIT-INDEX): the new `idx_audit_action_at (action, at)` makes SQLite read `WHERE action LIKE 'rbac.role.%'` through the index, so rows come back in action order; the test's query had no `ORDER BY` and relied on insertion order | the test reads `ORDER BY rowid`. Production readers of `audit_log` checked: they order explicitly (`ORDER BY rowid DESC`, `ORDER BY at`) |
+| `layout-dd-place.spec.ts:248` tickets `/tickets/mine` and devices `/devices/areas/living`, desktop, placement 3 | timing in the shell, made more frequent here (see below) | `fitDd` waits for a loading title (below) |
+
+The base `pilot/CR-WAVE1-COMBINED-2436` has no verdict of its own yet (round 1 NOT RUN, runner disk full), so none of these could be
+compared with it; the 21 wave-1 failures were traced to their wave-1 commit by reading the cause.
+
+**Placement 3 (`layout-dd-place`).** Logged with a temporary probe in `fitDd` (not committed): on both screens the chips were placed
+while the page heading was not drawn yet (`title: null` on every pass), and after `DD_COLLIDE_MS` (900 ms) the safety net treated
+"no title on the chips' row" as a collision and dropped the route to placement 1 for the visit. On this loaded workstation the same two
+cases also fail on `origin/main` source (4 of 6 runs) and failed 3 of 3 on this branch, so it is a load-sensitive race between the
+heading's data load and the 900 ms net, not one wrong line of a merged branch; the runner hit it on this branch only (twice, also alone).
+Fix (shell, small behaviour change on slow loads only): `shell/dd-place-fit.ts` `DD_TITLE_WAIT_MS = 4000`; in `sw-app.ts` `fitDd`,
+placement 3 with **no title yet** and nothing else colliding waits (the chips stay hidden until `data-dd-fit`, nothing is covered) up to
+4 s in all, then falls back exactly as before. A title under the chips' row, a covered control, the corner or the viewport edge still fall
+back after 900 ms; the "safety net" test still passes. Before: a slow heading lost the chosen placement for the route; after: the chips
+appear once the heading is there.
+
+Round 2 local checks (workstation, `--workers=1` / `-p no:xdist`, Vite dev server on its own port):
+- `layout-dd-place.spec.ts --project=desktop -g "desktop 1440px, placement 3|safety net"`: 6 passed (the two cases failed 3 of 3 before)
+- `layout-dd-first-paint.spec.ts --project=desktop`: 7 passed, 9 failed locally ("chip drawn when settled" / "no painted frame"), mostly placements 1, 2 and 4 and demo security screens, which this change does not touch; the runner passed this spec in round 1 on this branch, so read as local load (CPU saturated) - NOT a pass, the entry check decides
+- `npx tsc --noEmit`: exit 0
+- `pytest tests/test_custom_roles.py`: 3 passed
+- the base fix's own checks: see `CR-WAVE1-COMBINED-2436.md`

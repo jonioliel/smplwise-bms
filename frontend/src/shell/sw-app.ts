@@ -62,7 +62,7 @@ import { dismissHint, loadDismissal, onDismissal, resetDismissalFor } from '../a
 import { hintVisible, SETUP_HINT_TEXT, summarizeSetup, type SetupDismissal, type SetupSummary } from './setup-hint';
 import { AREA_TABS, NAV_A, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, isTicketsEntryAddress, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, applyTicketsHidden, applyNoticesHidden, applyAnnounceHidden, applySynopticHidden, areaDot, incidentsOpen, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, applyExternalPlacement, applyDoorWindowsTab, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaBadge, areaRowSection, infraEntryHref, isSectionConfigured, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId, ticketsPageOf, ticketsPageTabs, ticketsSectionOf, ticketsSectionRowShown } from './nav';
 import { blockKind, routeMissing, sensorEventsOnly, type BlockKind } from './nav-capabilities';
-import { DD_CHIPS, DD_COLLIDE_MS, DD_FIT_FRAMES, DD_FIT_STABLE, DD_GAP, ddHeader, ddPlaceDeclined, type DdBox } from './dd-place-fit';
+import { DD_CHIPS, DD_COLLIDE_MS, DD_FIT_FRAMES, DD_FIT_STABLE, DD_GAP, DD_TITLE_WAIT_MS, ddHeader, ddPlaceDeclined, type DdBox } from './dd-place-fit';
 import { ALL_CAPABILITIES, UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabilities';
 import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, resetAlarmPresence } from '../api/alarm-presence';
 import { t } from '../i18n/he';
@@ -2092,6 +2092,8 @@ export class SwApp extends LitElement {
   /** When the current collision was first seen: a collision has to persist for DD_COLLIDE_MS before the route falls back (a loading
    * screen draws a provisional header for a moment). */
   private ddMissSince = 0;
+  /** CR-WAVE1B-COMBINED-2436: when placement 3 first found no title on this route (it waits DD_TITLE_WAIT_MS for the heading). */
+  private ddTitleWaitSince = 0;
   private ddRoute = '';
   private ddTimer = 0;
 
@@ -2190,7 +2192,18 @@ export class SwApp extends LitElement {
     const blocked: DdBox[] = [...obstacles, ...(title ? [title] : []), ...(cr ? [cr] : [])];
     const offPage = chips.some((c) => c.left < -0.5 || c.right > window.innerWidth + 0.5);
     // placement 3 with no title on the chips' row (a title under a row of the screen's own tabs) has nothing to follow
-    const hit = offPage || (place === '3' && (!title || title.top >= band)) || chips.some((c) => blocked.some((o) => covers(c, o)));
+    let hit = offPage || (place === '3' && !!title && title.top >= band) || chips.some((c) => blocked.some((o) => covers(c, o)));
+    // CR-WAVE1B-COMBINED-2436: no title at all yet is a screen still loading its heading, not a collision - placement 3 waits for it
+    // (chips hidden, nothing covered) up to DD_TITLE_WAIT_MS in all, then falls back as before
+    if (place === '3' && !title && !hit) {
+      const t = performance.now();
+      if (!this.ddTitleWaitSince) this.ddTitleWaitSince = t;
+      if (t - this.ddTitleWaitSince < DD_TITLE_WAIT_MS - DD_COLLIDE_MS) {
+        this.ddMissSince = 0;
+        return;
+      }
+      hit = true;
+    } else if (title) this.ddTitleWaitSince = 0;
     if (!hit) {
       this.ddMissSince = 0;
       // measured, clear of everything: the chips may be painted now. Placement 3 follows the heading, which is swapped while its data loads:
@@ -2320,6 +2333,7 @@ export class SwApp extends LitElement {
     if (route !== this.ddRoute) {
       this.ddRoute = route;
       this.ddMissSince = 0; // a collision seen on the previous screen does not count here
+      this.ddTitleWaitSince = 0;
     }
     const asked = ddPlaceOf();
     const declined = ddPlaceDeclined(areaOf(this.route) ?? '', route, asked); // the area's table + the screen's (dd-place-fit.ts)
