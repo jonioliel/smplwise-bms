@@ -46,7 +46,7 @@ import weakref
 from collections import deque
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Iterable, Iterator, TypeVar
+from typing import Any, Callable, Iterable, Iterator, Mapping, TypeVar
 
 MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 GUARDED_MIGRATIONS = ("0036", "0037")  # verified by their objects at start-up, whatever schema_migrations says (Database.ensure_migration_objects)
@@ -75,6 +75,18 @@ POOL_EVERY_HANDLE = os.environ.get("SW_DB_POOL_EVERY_HANDLE") == "1"
 
 log = logging.getLogger("smplwise.db")
 T = TypeVar("T")
+
+# CR-CORE-HELPERS-2438 (code review 2026-11-13, 05:P3-04): the WisKey call budget (services/wiskey_call_budget.py) registers its
+# module here when it is imported, instead of the core importing a service inside every BEGIN and every open. Before that import no
+# budget can be active (the budget is a context variable of that module), so "nothing registered" means "no budget", as before.
+# The module itself is kept, not its functions: a test that patches `wiskey_call_budget.active` / `_clock` is honoured.
+_call_budget: Any = None
+
+
+def set_call_budget(module: Any) -> None:
+    """services/wiskey_call_budget.py, at import: the object whose `active()` / `remaining(maximum)` bound every write wait."""
+    global _call_budget
+    _call_budget = module
 
 
 def now_iso() -> str:
@@ -391,10 +403,16 @@ def _begin_immediate(conn: sqlite3.Connection, label: str, wait_s: float | None 
     ordinary writers (SEC246 L3: a device command's record, see WriteGate.acquire)."""
     started = time.monotonic()
     budget = BUSY_TIMEOUT_S if wait_s is None else max(0.0, min(float(wait_s), BUSY_TIMEOUT_S))
-    from .services import wiskey_call_budget as call_budget
-    if call_budget.active():
+    call_budget = _call_budget
+    if call_budget is not None and call_budget.active():
         budget = call_budget.remaining(budget)
-    full_ms = int(conn.execute("PRAGMA busy_timeout").fetchone()[0])  # the connection's own (BUSY_TIMEOUT_S unless a caller set less)
+    # the connection's own busy_timeout (BUSY_TIMEOUT_S unless a caller set less). A pooled lease remembers it (05:P3-04: was one
+    # PRAGMA read on every write); any statement of the lease that names busy_timeout forgets it, and it is read again here
+    full_ms = getattr(conn, "_busy_ms", None) if isinstance(conn, PooledConnection) else None
+    if full_ms is None:
+        full_ms = int(conn.execute("PRAGMA busy_timeout").fetchone()[0])
+        if isinstance(conn, PooledConnection):
+            conn._busy_ms = full_ms
     gate = _conn_gate.get(id(conn)) if WRITE_GATE else None
     key = id(conn)
     # "beginning" from before the token is recorded: a stray check between recording it and BEGIN IMMEDIATE (or while
@@ -429,6 +447,9 @@ def _begin_immediate(conn: sqlite3.Connection, label: str, wait_s: float | None 
                     conn.execute(f"PRAGMA busy_timeout={full_ms}")
                 except sqlite3.Error:
                     pass
+                else:
+                    if isinstance(conn, PooledConnection):
+                        conn._busy_ms = full_ms  # restored: still the remembered value
     finally:
         _beginning.discard(key)
     now = time.monotonic()
@@ -572,6 +593,7 @@ class PooledConnection(sqlite3.Connection):
         self._cursors: list[weakref.ref] = []
         self._tainted = False  # connection-wide state was touched: closed at the end, never pooled
         self._spoiled = False  # ended in an error that may have left the connection unusable
+        self._busy_ms: int | None = None  # the busy_timeout this lease has, when known (_begin_immediate; 05:P3-04)
 
     def _live(self) -> sqlite3.Connection:
         raw = self._raw
@@ -587,12 +609,15 @@ class PooledConnection(sqlite3.Connection):
         return cur
 
     def execute(self, *args: Any, **kwargs: Any) -> sqlite3.Cursor:  # type: ignore[override]
+        if self._busy_ms is not None and args and isinstance(args[0], str) and ("usy_timeout" in args[0] or "USY_TIMEOUT" in args[0]):
+            self._busy_ms = None  # a caller set (or read) busy_timeout itself: _begin_immediate reads it again
         return self._track(self._live().execute(*args, **kwargs))
 
     def executemany(self, *args: Any, **kwargs: Any) -> sqlite3.Cursor:  # type: ignore[override]
         return self._track(self._live().executemany(*args, **kwargs))
 
     def cursor(self, *args: Any, **kwargs: Any) -> sqlite3.Cursor:  # type: ignore[override]
+        self._busy_ms = None  # a cursor's statements are not seen here: _begin_immediate reads busy_timeout again (05:P3-04)
         return self._track(self._live().cursor(*args, **kwargs))
 
     def commit(self) -> None:
@@ -668,6 +693,7 @@ class PooledConnection(sqlite3.Connection):
 def _tainting(name: str) -> Callable[..., Any]:
     def call(self: PooledConnection, *args: Any, **kwargs: Any) -> Any:
         self._tainted = True
+        self._busy_ms = None  # executescript and the rest are not seen here: _begin_immediate reads busy_timeout again (05:P3-04)
         return getattr(self._live(), name)(*args, **kwargs)
 
     call.__name__ = name
@@ -816,6 +842,9 @@ class Database:
                 _pool_count("opened")
             else:
                 _pool_count("reused")
+                lease = PooledConnection(self, raw, key, ident, gen)
+                lease._busy_ms = int(BUSY_TIMEOUT_S * 1000)  # just set above (05:P3-04: _begin_immediate need not read it back)
+                return lease
         return PooledConnection(self, raw, key, ident, gen)
 
     def _end_lease(self, lease: PooledConnection) -> None:
@@ -910,8 +939,8 @@ class Database:
         return not raw.in_transaction
 
     def _open(self, durable: bool = True) -> sqlite3.Connection:
-        from .services import wiskey_call_budget as call_budget
-        wait = call_budget.remaining(BUSY_TIMEOUT_S) if call_budget.active() else BUSY_TIMEOUT_S
+        call_budget = _call_budget
+        wait = call_budget.remaining(BUSY_TIMEOUT_S) if call_budget is not None and call_budget.active() else BUSY_TIMEOUT_S
         conn = sqlite3.connect(self.path, timeout=wait, isolation_level=None, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
@@ -1271,3 +1300,115 @@ def _relock(conn: sqlite3.Connection) -> None:
         # once; callers whose device call must never go unrecorded commit a row before the call (two-phase)
         label = _MODES.get(id(conn), ("write", None, "unlocked"))[2]
         retry_locked(lambda: _begin_immediate(conn, label), what=f"{label}: re-lock after the device call")
+
+
+# ---------------------------------------------------------------- schema questions and a checked UPDATE (CR-CORE-HELPERS-2438)
+#
+# Code review 2026-11-13, D8 helper half (01:F-10, 05:P2-10): 42 run-time `sqlite_master` probes ask "does this table / column
+# exist" inside ordinary operations, each with its own SQL. `has_table` / `has_column` answer the same question once per database
+# file and schema version: the answer is cached under (file, file identity, PRAGMA schema_version), so a migration, a runtime
+# CREATE / ALTER, a restored file or the demo file each get a fresh answer. A connection with no file (":memory:") is asked
+# directly every time. Nothing adopts them in this branch; CR-SCHEMA-PROBES / TK-STORE-TIDY move the probes over.
+#
+# 04:F25: the dynamic `UPDATE t SET {k = ?, ...}` idiom appears about twelve times; every site builds the keys from a server-side
+# dict. `update()` is that idiom with the identifiers checked, so a key that came from a request can never become SQL.
+
+_IDENT_RE = re.compile(r"^[a-z_][a-z0-9_]*$")  # a table or column name the product writes (lower case, digits after the first)
+_SCHEMA_CACHE_MAX = 64  # database files remembered (the app has a handful; tests make many)
+_schema_lock = threading.Lock()
+# (path, file identity, schema_version) -> (table names, {table: its column names})
+_schema_cache: dict[tuple[str, tuple[int, int] | None, int], tuple[frozenset[str], dict[str, frozenset[str]]]] = {}
+
+
+def _committed_view(conn: sqlite3.Connection, version: int) -> bool:
+    """True when the schema this connection sees is a committed one, so its answer may be cached for everyone. A write transaction
+    may hold an uncommitted CREATE / ALTER (its schema_version is then one ahead); if it rolls back, a later different change
+    commits under the same number - so a write transaction's answer is cached only when its version is one the pool already saw
+    committed (DB-CONN-POOL-2343 records it at the end of every lease)."""
+    if not conn.in_transaction or read_mode(conn):
+        return True
+    if isinstance(conn, PooledConnection):
+        return conn._owner._schema_seen.get(conn._key[0]) == version
+    return False
+
+
+def _schema_entry(conn: sqlite3.Connection) -> tuple[frozenset[str], dict[str, frozenset[str]]] | None:
+    """The cached schema facts of the connection's main database, or None for a database with no file."""
+    if isinstance(conn, PooledConnection):
+        path, ident = conn._key[0], conn._ident
+    else:
+        row = conn.execute("PRAGMA database_list").fetchone()  # seq 0 = main: (seq, name, file)
+        path = row[2] if row is not None else ""
+        if not path:
+            return None
+        ident = _file_ident(Path(path))
+    version = int(conn.execute("PRAGMA schema_version").fetchone()[0])
+    key = (str(path), ident, version)
+    with _schema_lock:
+        hit = _schema_cache.get(key)
+    if hit is not None:
+        return hit
+    tables = frozenset(r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall())
+    entry: tuple[frozenset[str], dict[str, frozenset[str]]] = (tables, {})
+    if not _committed_view(conn, version):
+        return entry  # answered for this call only: the transaction may hold a schema change that is rolled back later
+    with _schema_lock:
+        for old in [k for k in _schema_cache if k[0] == key[0]]:  # an older version of the same file is never asked again
+            del _schema_cache[old]
+        if len(_schema_cache) >= _SCHEMA_CACHE_MAX:
+            _schema_cache.pop(next(iter(_schema_cache)))
+        _schema_cache[key] = entry
+    return entry
+
+
+def has_table(conn: sqlite3.Connection, name: str) -> bool:
+    """True when the connection's main database has a table `name` (a table, not a view or an index) - the answer of
+    `SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?`, cached per database file and schema version."""
+    entry = _schema_entry(conn)
+    if entry is None:
+        return conn.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (name,)).fetchone() is not None
+    return name in entry[0]
+
+
+def has_column(conn: sqlite3.Connection, table: str, column: str) -> bool:
+    """True when table `table` of the main database has a column `column` (`PRAGMA table_info`); False when the table does not
+    exist. Cached per database file and schema version. ValueError for a table name that is not a plain identifier."""
+    if not _IDENT_RE.match(table):
+        raise ValueError(f"not a table name: {table!r}")
+    entry = _schema_entry(conn)
+    if entry is None:
+        return column in {r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    tables, columns = entry
+    if table not in tables:
+        return False
+    cols = columns.get(table)
+    if cols is None:
+        cols = frozenset(r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall())
+        with _schema_lock:
+            columns[table] = cols
+    return column in cols
+
+
+def forget_schema_cache() -> None:
+    """Tests: forget every cached schema answer."""
+    with _schema_lock:
+        _schema_cache.clear()
+
+
+def update(conn: sqlite3.Connection, table: str, sets: Mapping[str, Any], where: str, params: Iterable[Any] = ()) -> int:
+    """`UPDATE <table> SET <k> = ?, ... WHERE <where>` with the values of `sets` bound in order, then `params` for `where`; returns
+    the number of rows changed. The table and every key must be plain identifiers (^[a-z_][a-z0-9_]*$) - ValueError otherwise,
+    before any SQL runs - so a key that came from a request can never become SQL. `where` is SQL written by the caller (never
+    built from input); an empty `sets` changes nothing and runs nothing (0)."""
+    if not _IDENT_RE.match(table):
+        raise ValueError(f"not a table name: {table!r}")
+    keys = list(sets)
+    bad = [k for k in keys if not isinstance(k, str) or not _IDENT_RE.match(k)]
+    if bad:
+        raise ValueError(f"not a column name: {bad[0]!r}")
+    if not keys:
+        return 0
+    if not where or not where.strip():
+        raise ValueError("update() needs a WHERE clause")
+    sql = f"UPDATE {table} SET " + ", ".join(f"{k} = ?" for k in keys) + f" WHERE {where}"
+    return conn.execute(sql, (*(sets[k] for k in keys), *params)).rowcount
