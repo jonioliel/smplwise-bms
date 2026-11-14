@@ -1,4 +1,5 @@
 import { unsafeCSS } from 'lit';
+import { tr } from '../i18n/msg/misc';
 
 /**
  * CR-007 slice 6b: the colour themes (palettes) of the device area (docs/design/DEVICE_THEMES.md §6).
@@ -318,8 +319,8 @@ const GRAPHITE_DARK = knobs({
 export const DEVICE_PALETTES: DevicePalette[] = [
   {
     id: 'default',
-    name: 'כחול',
-    hint: 'ברירת המחדל: הכחול של המערכת',
+    name: tr('כחול'),
+    hint: tr('ברירת המחדל: הכחול של המערכת'),
     light: {
       knobs: null,
       roles: DEFAULT_LIGHT_ROLES,
@@ -333,8 +334,8 @@ export const DEVICE_PALETTES: DevicePalette[] = [
   },
   {
     id: 'sand',
-    name: 'חול',
-    hint: 'חם: בז׳ וטרקוטה',
+    name: tr('חול'),
+    hint: tr('חם: בז׳ וטרקוטה'),
     light: {
       knobs: SAND_LIGHT,
       roles: {
@@ -364,8 +365,8 @@ export const DEVICE_PALETTES: DevicePalette[] = [
   },
   {
     id: 'forest',
-    name: 'יער',
-    hint: 'ירוק רגוע',
+    name: tr('יער'),
+    hint: tr('ירוק רגוע'),
     light: {
       knobs: FOREST_LIGHT,
       roles: {
@@ -395,8 +396,8 @@ export const DEVICE_PALETTES: DevicePalette[] = [
   },
   {
     id: 'graphite',
-    name: 'גרפיט',
-    hint: 'אפור ניטרלי, אינדיגו',
+    name: tr('גרפיט'),
+    hint: tr('אפור ניטרלי, אינדיגו'),
     light: {
       knobs: GRAPHITE_LIGHT,
       roles: {

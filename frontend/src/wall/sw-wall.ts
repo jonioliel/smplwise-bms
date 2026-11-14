@@ -12,6 +12,7 @@ import { ackWallAlert, frameUrl, getFrameList, getWallAnnouncement, getWallConfi
 import { classifyDevice, readDeviceEnv, watchDeviceClass } from './device-class';
 import { alertView, chipHome, cursorHidden, frameActive, holdProgress, isAwake, needsAttention, pageCameras, pixelShift, reconnectDelayMs, resolveLayout, serverHealth, shuffleOrder, tileHealth, wakesDisplay, wallScaleFor } from './wall-logic';
 import { timeText } from '../api/day-format';
+import { tr } from '../i18n/msg/misc';
 import { closeLabel, closeWaitMs, dirOf, headingOf, machineMark, pollMs, sizeOf, visibleNow, type ScreenAnnouncement } from '../announce/screen-overlay';
 
 type Phase = 'loading' | 'ready' | 'removed' | 'remote-refused' | 'no-connection';
@@ -1064,7 +1065,7 @@ export class SwWall extends LitElement {
     const now = Date.now();
     const ids = new Set(next.map((a) => a.id));
     for (const old of this.alerts) {
-      if (!ids.has(old.id) && old.severity !== 'info') this.resolved = [...this.resolved.filter((r) => r.id !== old.id), { id: old.id, text: `נסגר · ${old.place || old.title}`, until: now + 5000 }];
+      if (!ids.has(old.id) && old.severity !== 'info') this.resolved = [...this.resolved.filter((r) => r.id !== old.id), { id: old.id, text: `${tr('נסגר')} · ${old.place || old.title}`, until: now + 5000 }];
     }
     for (const a of next) if (!this.shownAt.has(a.id)) this.shownAt.set(a.id, now);
     for (const id of [...this.shownAt.keys()]) if (!ids.has(id)) {
@@ -1245,10 +1246,10 @@ export class SwWall extends LitElement {
   protected render() {
     const scale = wallScaleFor(classifyDevice(this.env), this.env.screenWidth, this.env.screenHeight, this.vw, this.vh);
     const s = `--s:${scale}`;
-    if (this.phase === 'loading') return html`<div class="center" data-wall-state="loading" style=${s}><span class="mark" data-tone="live"><sw-icon name="camera" size="28"></sw-icon></span><p>טוען…</p></div>`;
-    if (this.phase === 'no-connection') return html`<div class="center" data-wall-state="no-connection" style=${s}><span class="mark" data-tone="danger"><sw-icon name="warning" size="28"></sw-icon></span><h1>אין חיבור לשרת</h1><p>מנסה שוב אוטומטית</p></div>`;
-    if (this.phase === 'removed') return html`<div class="center" data-wall-state="access-removed" style=${s}><span class="mark"><sw-icon name="lock" size="28"></sw-icon></span><h1>הגישה למסך הזה הוסרה</h1><p>יש להתחבר מחדש עם משתמש מסך קיר</p></div>`;
-    if (this.phase === 'remote-refused') return html`<div class="center" data-wall-state="remote-refused" style=${s}><span class="mark"><sw-icon name="lock" size="28"></sw-icon></span><h1>המסך הזה אינו מורשה להתחבר מרחוק</h1><p>יש להתחבר מהרשת המקומית, או לאפשר גישה מרחוק בהגדרות מסכי קיר</p></div>`;
+    if (this.phase === 'loading') return html`<div class="center" data-wall-state="loading" style=${s}><span class="mark" data-tone="live"><sw-icon name="camera" size="28"></sw-icon></span><p>${tr('טוען…')}</p></div>`;
+    if (this.phase === 'no-connection') return html`<div class="center" data-wall-state="no-connection" style=${s}><span class="mark" data-tone="danger"><sw-icon name="warning" size="28"></sw-icon></span><h1>${tr('אין חיבור לשרת')}</h1><p>${tr('מנסה שוב אוטומטית')}</p></div>`;
+    if (this.phase === 'removed') return html`<div class="center" data-wall-state="access-removed" style=${s}><span class="mark"><sw-icon name="lock" size="28"></sw-icon></span><h1>${tr('הגישה למסך הזה הוסרה')}</h1><p>${tr('יש להתחבר מחדש עם משתמש מסך קיר')}</p></div>`;
+    if (this.phase === 'remote-refused') return html`<div class="center" data-wall-state="remote-refused" style=${s}><span class="mark"><sw-icon name="lock" size="28"></sw-icon></span><h1>${tr('המסך הזה אינו מורשה להתחבר מרחוק')}</h1><p>${tr('יש להתחבר מהרשת המקומית, או לאפשר גישה מרחוק בהגדרות מסכי קיר')}</p></div>`;
     const data = this.data;
     if (!data) return nothing;
     const cfg = data.config;
@@ -1269,7 +1270,7 @@ export class SwWall extends LitElement {
     const down = serverHealth(this.downSince, this.now);
     if (down === 'clock') {
       const [x, y] = [20 + ((this.now / 60000) % 60) * 0.6, 20 + ((this.now / 90000) % 60) * 0.7];
-      return html`<div class="wall sleep" data-wall-state="server-offline-clock" style=${`${s};display:block`}><div class="bigclock" style=${`inset-inline-start:${x}%;inset-block-start:${y}%;opacity:.5`}>${clock.time}${clock.date ? html`<small>${clock.date}</small>` : nothing}</div><div class="banner" style="position:absolute;inset-block-end:var(--pad);inset-inline-start:var(--pad)">אין חיבור למערכת · מנסה שוב</div></div>`;
+      return html`<div class="wall sleep" data-wall-state="server-offline-clock" style=${`${s};display:block`}><div class="bigclock" style=${`inset-inline-start:${x}%;inset-block-start:${y}%;opacity:.5`}>${clock.time}${clock.date ? html`<small>${clock.date}</small>` : nothing}</div><div class="banner" style="position:absolute;inset-block-end:var(--pad);inset-inline-start:var(--pad)">${tr('אין חיבור למערכת · מנסה שוב')}</div></div>`;
     }
     const transport = effectiveTransport(this.settings);
     const view = alertView(this.alertsOn(), this.shownAt, this.seenUntil, this.now, cfg.alerts.takeover_timeout_s, this.tap);
@@ -1277,13 +1278,13 @@ export class SwWall extends LitElement {
     const alertChips = [
       ...this.resolved.map((r) => html`<span class="chip" data-wall-resolved>${r.text}</span>`),
       ...view.chips.filter((a) => a.severity === 'info').map((a) => html`<span class="chip" data-wall-info-chip><i></i>${a.title}${a.place ? ` · ${a.place}` : ''}</span>`),
-      ...(folded.length ? [html`<span class="chip" data-tone="danger" data-wall-alert-chip><i></i>התראות · ${folded.length}</span>`] : []),
+      ...(folded.length ? [html`<span class="chip" data-tone="danger" data-wall-alert-chip><i></i>${tr('התראות · {n}', { n: folded.length })}</span>`] : []),
     ];
     if (this.frameOn() && this.photos.length) return this.renderFrame(data, clock, scale, alertChips);
     const chips = alertChips.concat(cfg.strip.includes('health') ? [this.healthChip()] : []).concat(this.states.map((s) => html`<span class="chip" data-chip=${s.id}>${s.name} <b>${s.state ?? ''}${s.unit ? ` ${s.unit}` : ''}</b></span>`));
     // WALL-ANSWERS-2400: one home for the chips - the strip, or the portrait preset's state band - never both (chipHome)
     const home = chipHome(layout.preset);
-    const chipsEl = down === 'banner' ? html`<span class="banner" data-wall-banner>אין חיבור למערכת · מנסה שוב</span>` : chips;
+    const chipsEl = down === 'banner' ? html`<span class="banner" data-wall-banner>${tr('אין חיבור למערכת · מנסה שוב')}</span>` : chips;
     const stripEl = html`<div class="strip" data-wall-strip>
       <span class="place" data-wall-title>${data.title}</span>
       ${cfg.strip.includes('clock')
@@ -1295,13 +1296,13 @@ export class SwWall extends LitElement {
       ${stripEl}
       ${cams.length || view.tile
         ? html`<div class="grid" data-wall-grid>${view.tile ? this.renderAlertTile(view.tile, view.more, cfg, transport) : nothing}${cams.slice(view.tile ? 1 : 0).map((c) => this.renderTile(c, transport, cfg.offline.show_last_frame_s))}${layout.pages > 1 ? html`<div class="dots" data-wall-dots>${Array.from({ length: layout.pages }, (_, i) => html`<i ?data-on=${i === page}></i>`)}</div>` : nothing}</div>`
-        : html`<div class="empty" data-wall-state="no-cameras">לא הוגדרו מצלמות למסך הזה</div>`}
+        : html`<div class="empty" data-wall-state="no-cameras">${tr('לא הוגדרו מצלמות למסך הזה')}</div>`}
       ${layout.map ? this.renderMapPane() : nothing}
       ${home === 'band' ? html`<div class="band" data-wall-band>${chipsEl}</div>` : nothing}
       ${view.takeover.length ? this.renderTakeover(view.takeover, data, clock, transport) : nothing}
       ${this.renderAnnouncement()}
       ${this.panel ? this.renderPanel(data) : nothing}
-      ${this.chipUpdated ? html`<span class="chip updated" data-wall-updated>ההגדרות עודכנו</span>` : nothing}
+      ${this.chipUpdated ? html`<span class="chip updated" data-wall-updated>${tr('ההגדרות עודכנו')}</span>` : nothing}
     </div>`;
   }
 
@@ -1314,7 +1315,7 @@ export class SwWall extends LitElement {
     } catch {
       hhmm = t.toTimeString().slice(0, 5);
     }
-    return `${mins < 1 ? 'עכשיו' : `${mins} דקות`} · ${hhmm}`;
+    return `${mins < 1 ? tr('עכשיו') : tr('{n} דקות', { n: mins })} · ${hhmm}`;
   }
 
   private alertCamera(a: WallAlert, transport: ReturnType<typeof effectiveTransport>, name?: string) {
@@ -1325,10 +1326,10 @@ export class SwWall extends LitElement {
   /** Section 5.4: "ראיתי" (local) and, only when the profile allows it, "אישור" with a 1.5 s press-and-hold. */
   private alertButtons(a: WallAlert, ackAllowed: boolean) {
     const p = holdProgress(this.holdStart, this.now);
-    return html`<button class="btn" data-wall-seen=${a.id} @click=${() => this.markSeen(a)}><sw-icon name="eye"></sw-icon><span>ראיתי</span></button>
+    return html`<button class="btn" data-wall-seen=${a.id} @click=${() => this.markSeen(a)}><sw-icon name="eye"></sw-icon><span>${tr('ראיתי')}</span></button>
       ${ackAllowed
-        ? html`<button class="btn" data-hold data-wall-ack=${a.id} style=${`--hold:${p}`} @pointerdown=${() => this.holdBegin(a)} @pointerup=${this.holdEnd} @pointerleave=${this.holdEnd} @pointercancel=${this.holdEnd}><sw-icon name="check"></sw-icon><span>אישור · החזק</span></button>`
-        : html`<span class="note" data-wall-ack-off><sw-icon name="lock" size="14"></sw-icon> אישור מהמסך הזה לא מופעל</span>`}`;
+        ? html`<button class="btn" data-hold data-wall-ack=${a.id} style=${`--hold:${p}`} @pointerdown=${() => this.holdBegin(a)} @pointerup=${this.holdEnd} @pointerleave=${this.holdEnd} @pointercancel=${this.holdEnd}><sw-icon name="check"></sw-icon><span>${tr('אישור · החזק')}</span></button>`
+        : html`<span class="note" data-wall-ack-off><sw-icon name="lock" size="14"></sw-icon> ${tr('אישור מהמסך הזה לא מופעל')}</span>`}`;
   }
 
   private renderAlertTile(a: WallAlert, more: number, cfg: WallDisplayConfig['config'], transport: ReturnType<typeof effectiveTransport>) {
@@ -1343,7 +1344,7 @@ export class SwWall extends LitElement {
   private renderTakeover(list: WallAlert[], data: WallDisplayConfig, clock: { time: string; date: string }, transport: ReturnType<typeof effectiveTransport>) {
     const a = list[0];
     return html`<div class="takeover" data-wall-state="takeover" data-wall-takeover=${a.id}>
-      <div class="strip"><span class="place"><sw-icon name="warning"></sw-icon> התראה קריטית · ${data.title}</span><span class="clock">${clock.time}</span>${list.length > 1 ? html`<span class="chips"><span class="chip" data-tone="danger" data-wall-takeover-count>${list.length} התראות</span></span>` : nothing}</div>
+      <div class="strip"><span class="place"><sw-icon name="warning"></sw-icon> ${tr('התראה קריטית')} · ${data.title}</span><span class="clock">${clock.time}</span>${list.length > 1 ? html`<span class="chips"><span class="chip" data-tone="danger" data-wall-takeover-count>${tr('{n} התראות', { n: list.length })}</span></span>` : nothing}</div>
       <div class="media">${this.alertCamera(a, transport)}
         <div class="titles"><span class="icon"><sw-icon name="warning"></sw-icon></span><div><b data-wall-alert-title>${a.title}</b><span class="sub">${a.place ? `${a.place} · ` : ''}${this.ago(a)}</span></div></div>
       </div>
@@ -1379,12 +1380,12 @@ export class SwWall extends LitElement {
       this.planLoaded = true;
       void import('./sw-wall-plan');
     }
-    return html`<div class="pane" data-wall-map-slot role="img" aria-label="תוכנית הקומה"><sw-wall-plan .floorId=${d.floor_id} .plan=${d.config.plan} .theme=${d.config.theme}></sw-wall-plan></div>`;
+    return html`<div class="pane" data-wall-map-slot role="img" aria-label=${tr('תוכנית הקומה')}><sw-wall-plan .floorId=${d.floor_id} .plan=${d.config.plan} .theme=${d.config.theme}></sw-wall-plan></div>`;
   }
 
   private healthChip() {
-    if (this.healthOk === null) return html`<span class="chip" data-tone="stale" data-wall-health><i></i>מצב המערכת</span>`;
-    return this.healthOk ? html`<span class="chip" data-tone="live" data-wall-health><i></i>המערכת תקינה</span>` : html`<span class="chip" data-tone="stale" data-wall-health><i></i>יש תקלות</span>`;
+    if (this.healthOk === null) return html`<span class="chip" data-tone="stale" data-wall-health><i></i>${tr('מצב המערכת')}</span>`;
+    return this.healthOk ? html`<span class="chip" data-tone="live" data-wall-health><i></i>${tr('המערכת תקינה')}</span>` : html`<span class="chip" data-tone="stale" data-wall-health><i></i>${tr('יש תקלות')}</span>`;
   }
 
   private renderTile(c: { id: string; name: string }, transport: ReturnType<typeof effectiveTransport>, showLastFrameS: number) {
@@ -1393,8 +1394,8 @@ export class SwWall extends LitElement {
     const health = ok === false ? tileHealth(drop, this.now, 0, showLastFrameS) : 'live';
     return html`<div class="tile" data-wall-tile=${c.id} data-health=${health} @player-status=${(e: CustomEvent<{ status?: string }>) => this.onPlayer(c.id, e)}>
       ${keyed(`${c.id}:${this.epoch.get(c.id) ?? 0}`, html`<sw-camera-tile dark noDemo name=${c.name} state=${health === 'live' ? 'live' : 'stale'} ?live=${health !== 'lost'} cameraId=${c.id} profile="sub" autoProfile transport=${transport}></sw-camera-tile>`)}
-      ${health === 'stale' ? html`<span class="badge" data-wall-badge>אין וידאו${drop ? ` · ${this.hhmmss(drop)}` : ''}</span>` : nothing}
-      ${health === 'lost' ? html`<div class="lost" data-wall-lost><b>${c.name}</b><span>אין וידאו</span></div>` : nothing}
+      ${health === 'stale' ? html`<span class="badge" data-wall-badge>${tr('אין וידאו')}${drop ? ` · ${this.hhmmss(drop)}` : ''}</span>` : nothing}
+      ${health === 'lost' ? html`<div class="lost" data-wall-lost><b>${c.name}</b><span>${tr('אין וידאו')}</span></div>` : nothing}
     </div>`;
   }
 
@@ -1402,12 +1403,12 @@ export class SwWall extends LitElement {
     const me = session.me;
     const cls = classifyDevice(this.env);
     return html`<div class="panel" data-wall-panel role="status"><dl>
-      <dt>משתמש</dt><dd>${me?.user.username ?? ''}</dd>
-      <dt>מסך</dt><dd>${data.title}</dd>
-      <dt>סוג מכשיר</dt><dd>${cls} · ${this.env.screenWidth}x${this.env.screenHeight}</dd>
-      <dt>ערוץ</dt><dd>${me?.channel ?? 'local'}</dd>
-      <dt>חיבור</dt><dd>${this.downSince ? 'מנותק' : 'מחובר'}</dd>
-      <dt>גרסת הגדרות</dt><dd>${data.version}</dd>
+      <dt>${tr('משתמש')}</dt><dd>${me?.user.username ?? ''}</dd>
+      <dt>${tr('מסך')}</dt><dd>${data.title}</dd>
+      <dt>${tr('סוג מכשיר')}</dt><dd>${cls} · ${this.env.screenWidth}x${this.env.screenHeight}</dd>
+      <dt>${tr('ערוץ')}</dt><dd>${me?.channel ?? 'local'}</dd>
+      <dt>${tr('חיבור')}</dt><dd>${this.downSince ? tr('מנותק') : tr('מחובר')}</dd>
+      <dt>${tr('גרסת הגדרות')}</dt><dd>${data.version}</dd>
     </dl></div>`;
   }
 }

@@ -8,6 +8,7 @@ import { inAndroidApp, switchServer } from './android-app';
 import { formatSize, loadAndroidOffer, offerText, type AndroidOffer } from './android-download';
 import { changePassword, confirmReset, localMe, localPasskeySecondFactor, localPasskeySignIn, localSecondFactor, localSignIn, requestReset } from './local-auth';
 import { lit } from '../i18n/local-identity';
+import { tr } from '../i18n/msg/misc';
 import { PasskeyCancelled, passkeysSupported } from './webauthn';
 import '../components/sw-second-factor';
 import '../components/sw-passkeys';
@@ -23,11 +24,11 @@ function storedMode(): 'infra' | 'local' {
 }
 
 const REASON_TEXT: Record<string, string> = {
-  idle: 'ננעלת לאחר חוסר פעילות. יש להיכנס שוב.',
-  expired: 'הכניסה פגה. יש להיכנס שוב.',
-  logout: 'יצאת מ־SmplWise Arx.',
-  everywhere: 'יצאת מ־SmplWise Arx בכל המכשירים.',
-  revoked: 'הכניסה במכשיר הזה נותקה מרשימת הכניסות מרחוק. יש להיכנס שוב.',
+  idle: tr('ננעלת לאחר חוסר פעילות. יש להיכנס שוב.'),
+  expired: tr('הכניסה פגה. יש להיכנס שוב.'),
+  logout: tr('יצאת מ־SmplWise Arx.'),
+  everywhere: tr('יצאת מ־SmplWise Arx בכל המכשירים.'),
+  revoked: tr('הכניסה במכשיר הזה נותקה מרשימת הכניסות מרחוק. יש להיכנס שוב.'),
 };
 
 /**
@@ -546,7 +547,7 @@ export class ArxLogin extends LitElement {
     const username = this.usernameEl?.value.trim() ?? '';
     const password = this.passwordEl?.value ?? '';
     if (!username || !password) {
-      this.error = this.mode === 'local' ? lit('fillBoth') : 'יש למלא שם משתמש וסיסמה.';
+      this.error = this.mode === 'local' ? lit('fillBoth') : tr('יש למלא שם משתמש וסיסמה.');
       return;
     }
     if (this.localEnabled && this.mode === 'local') {
@@ -563,7 +564,7 @@ export class ArxLogin extends LitElement {
     e.preventDefault();
     const code = this.codeEl?.value.replace(/\s+/g, '') ?? '';
     if (!code) {
-      this.error = 'יש להזין את קוד האימות.';
+      this.error = tr('יש להזין את קוד האימות.');
       return;
     }
     if (this.step === 'lfactor') {
@@ -631,7 +632,7 @@ export class ArxLogin extends LitElement {
     try {
       await fn();
     } catch (err) {
-      this.error = err instanceof ArxAuthError ? err.message : err instanceof PasskeyCancelled ? lit('passkeyCancelled') : 'שגיאה לא צפויה. נסה שוב.';
+      this.error = err instanceof ArxAuthError ? err.message : err instanceof PasskeyCancelled ? lit('passkeyCancelled') : tr('שגיאה לא צפויה. נסה שוב.');
       if (err instanceof ArxAuthError && err.code === 'code_invalid') this.error = lit('resetCodeInvalid');
       if (!haFlow) {
         // USR2: a wrong code keeps the code step; an expired / locked second step goes back to the credentials
@@ -680,11 +681,11 @@ export class ArxLogin extends LitElement {
                 ${brandLogo().wl.contact ? html`<span data-arx-installer-contact>${brandLogo().wl.contact}</span>` : nothing}
               </div>`
             : nothing}
-          <small>גישה מרחוק מאובטחת</small>
+          <small>${tr('גישה מרחוק מאובטחת')}</small>
         </div>`;
       })()}
       <div>
-        <h1 id="arx-title">${this.step === 'credentials' ? (this.localEnabled ? lit('signInTitle') : 'כניסה') : this.step === 'enrol' ? lit('enrolTitle') : this.step === 'change' ? lit('changeTitle') : this.step === 'forgot' || this.step === 'reset' ? lit('forgotTitle') : 'אימות דו־שלבי'}</h1>
+        <h1 id="arx-title">${this.step === 'credentials' ? (this.localEnabled ? lit('signInTitle') : tr('כניסה')) : this.step === 'enrol' ? lit('enrolTitle') : this.step === 'change' ? lit('changeTitle') : this.step === 'forgot' || this.step === 'reset' ? lit('forgotTitle') : tr('אימות דו־שלבי')}</h1>
         <p class="sub">${this.step === 'forgot'
           ? lit('forgotSub')
           : this.step === 'reset'
@@ -700,8 +701,8 @@ export class ArxLogin extends LitElement {
           : this.localEnabled && this.mode === 'local' && this.step === 'credentials'
           ? lit('signInSubLocal')
           : this.step === 'mfa'
-          ? html`הזן את הקוד מ${this.mfaName ? html`<bdi>${this.mfaName}</bdi>` : 'אפליקציית האימות'} שמוגדרת בחשבון שלך.`
-          : 'היכנס עם שם המשתמש והסיסמה שלך.'}</p>
+          ? html`${tr('הזן את הקוד מ')}${this.mfaName ? html`<bdi>${this.mfaName}</bdi>` : tr('אפליקציית האימות')} ${tr('שמוגדרת בחשבון שלך.')}`
+          : tr('היכנס עם שם המשתמש והסיסמה שלך.')}</p>
       </div>
       ${this.localEnabled && this.step === 'credentials'
         ? html`<div class="modes" role="tablist" data-arx-login-modes>
@@ -740,9 +741,9 @@ export class ArxLogin extends LitElement {
           </form>`
         : this.step === 'credentials'
         ? html`<form @submit=${this.onCredentials} novalidate>
-            <label>שם משתמש<input id="username" class="ltr" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required ?disabled=${this.busy} /></label>
-            <label>סיסמה<input id="password" class="ltr" name="password" type="password" autocomplete="current-password" required ?disabled=${this.busy} /></label>
-            <button type="submit" ?disabled=${this.busy} data-arx-submit>${this.busy ? 'מתחבר…' : 'כניסה'}</button>
+            <label>${tr('שם משתמש')}<input id="username" class="ltr" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required ?disabled=${this.busy} /></label>
+            <label>${tr('סיסמה')}<input id="password" class="ltr" name="password" type="password" autocomplete="current-password" required ?disabled=${this.busy} /></label>
+            <button type="submit" ?disabled=${this.busy} data-arx-submit>${this.busy ? tr('מתחבר…') : tr('כניסה')}</button>
             ${this.localEnabled && this.mode === 'local'
               ? html`<button type="button" class="link" ?disabled=${this.busy} @click=${() => this.openForgot()} data-arx-forgot>${lit('forgot')}</button>`
               : nothing}
@@ -758,20 +759,20 @@ export class ArxLogin extends LitElement {
             <button type="button" class="link" ?disabled=${this.busy} @click=${() => this.restart()}>${lit('back')}</button>
           </div>`
         : html`<form @submit=${this.onCode} novalidate>
-            <label>קוד אימות<input id="code" class="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="12" required ?disabled=${this.busy} /></label>
-            <button type="submit" ?disabled=${this.busy} data-arx-verify>${this.busy ? 'בודק…' : 'אימות'}</button>
+            <label>${tr('קוד אימות')}<input id="code" class="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="12" required ?disabled=${this.busy} /></label>
+            <button type="submit" ?disabled=${this.busy} data-arx-verify>${this.busy ? tr('בודק…') : tr('אימות')}</button>
             ${this.step === 'lfactor' && this.factorMethods.includes('passkey') && passkeysSupported()
               ? html`<button type="button" class="secondary" ?disabled=${this.busy} @click=${() => void this.onPasskeyFactor()} data-arx-passkey-factor>${lit('passkeyUse')}</button>`
               : nothing}
-            <button type="button" class="link" ?disabled=${this.busy} @click=${() => this.restart()}>חזרה לכניסה</button>
+            <button type="button" class="link" ?disabled=${this.busy} @click=${() => this.restart()}>${tr('חזרה לכניסה')}</button>
           </form>`}
       <div class="foot">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z" /></svg>
-        <span>${this.localEnabled && this.mode === 'local' ? lit('footLocal') : 'הסיסמה נבדקת מול תשתית המערכת ואינה נשמרת ב־Arx; ההרשאות שלך זהות להרשאותיך במערכת.'}</span>
+        <span>${this.localEnabled && this.mode === 'local' ? lit('footLocal') : tr('הסיסמה נבדקת מול תשתית המערכת ואינה נשמרת ב־Arx; ההרשאות שלך זהות להרשאותיך במערכת.')}</span>
       </div>
       ${this.renderOffer()}
       ${inAndroidApp()
-        ? html`<div class="app-servers"><button type="button" class="link" data-arx-switch-server @click=${() => switchServer()}>החלף שרת</button></div>`
+        ? html`<div class="app-servers"><button type="button" class="link" data-arx-switch-server @click=${() => switchServer()}>${tr('החלף שרת')}</button></div>`
         : nothing}
     </main>`;
   }

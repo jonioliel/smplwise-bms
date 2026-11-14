@@ -18,6 +18,7 @@
 import { getMyPrefs, putMyPrefs } from '../api/me-prefs';
 import { autoTier, readCaps, capsVerdict, type PerformanceMode, type Tier } from './performance';
 import rawPalettes from './palettes.json' with { type: 'json' };
+import { tr } from '../i18n/msg/misc';
 
 /** Only the ids and Hebrew names of the ready palettes are read here (the colours are design/palette.ts's). */
 const palettesFile = rawPalettes as unknown as { palettes: { id: string; name: { he: string } }[] };
@@ -83,84 +84,84 @@ export const LOOK_DIALS = {
   density: {
     kind: 'choice',
     values: ['wide', 'regular', 'compact', 'row'],
-    nameHe: 'צפיפות',
-    labelHe: { wide: 'רחב', regular: 'רגיל', compact: 'דחוס', row: 'שורות' },
-    hintHe: { wide: 'כרטיסים גדולים, פחות בשורה', regular: 'כמוסות בגובה 56', compact: 'כמוסות קטנות, יותר בשורה', row: 'רשימה: שורה לכל פריט' },
+    nameHe: tr('צפיפות'),
+    labelHe: { wide: tr('רחב'), regular: tr('רגיל'), compact: tr('דחוס'), row: tr('שורות') },
+    hintHe: { wide: tr('כרטיסים גדולים, פחות בשורה'), regular: tr('כמוסות בגובה 56'), compact: tr('כמוסות קטנות, יותר בשורה'), row: tr('רשימה: שורה לכל פריט') },
   } satisfies ChoiceDial<Density>,
   surface: {
     kind: 'choice',
     values: ['flat', 'glass', 'gradient', 'fill', 'none'],
-    nameHe: 'משטח',
-    labelHe: { flat: 'שטוח', glass: 'זכוכית', gradient: 'צבעוני', fill: 'מילוי', none: 'בלי משטח' },
-    hintHe: { flat: 'משטח אחיד', glass: 'שכבה שקופה ומטושטשת', gradient: 'גוון לכל פריט', fill: 'המילוי מראה את העוצמה', none: 'טבעת וטקסט בלבד, בלי מילוי; העוצמה בפס דק' },
+    nameHe: tr('משטח'),
+    labelHe: { flat: tr('שטוח'), glass: tr('זכוכית'), gradient: tr('צבעוני'), fill: tr('מילוי'), none: tr('בלי משטח') },
+    hintHe: { flat: tr('משטח אחיד'), glass: tr('שכבה שקופה ומטושטשת'), gradient: tr('גוון לכל פריט'), fill: tr('המילוי מראה את העוצמה'), none: tr('טבעת וטקסט בלבד, בלי מילוי; העוצמה בפס דק') },
   } satisfies ChoiceDial<Surface>,
   popup: {
     kind: 'choice',
     values: ['sheet', 'centred', 'inline'],
-    nameHe: 'חלון קופץ',
-    labelHe: { sheet: 'גיליון', centred: 'ממורכז', inline: 'בתוך הדף' },
-    hintHe: { sheet: 'מהתחתית בטלפון, ממורכז במחשב', centred: 'תמיד באמצע המסך', inline: 'נפתח במקום, לא מכסה את עץ הבניין' },
+    nameHe: tr('חלון קופץ'),
+    labelHe: { sheet: tr('גיליון'), centred: tr('ממורכז'), inline: tr('בתוך הדף') },
+    hintHe: { sheet: tr('מהתחתית בטלפון, ממורכז במחשב'), centred: tr('תמיד באמצע המסך'), inline: tr('נפתח במקום, לא מכסה את עץ הבניין') },
   } satisfies ChoiceDial<Popup>,
   radius: {
     kind: 'choice',
     values: ['pill', 'soft', 'square'],
-    nameHe: 'פינות',
-    labelHe: { pill: 'כמוסה', soft: 'רכות', square: 'ישרות' },
-    hintHe: { pill: 'עגולות לגמרי', soft: 'מעוגלות', square: 'כמעט ישרות' },
+    nameHe: tr('פינות'),
+    labelHe: { pill: tr('כמוסה'), soft: tr('רכות'), square: tr('ישרות') },
+    hintHe: { pill: tr('עגולות לגמרי'), soft: tr('מעוגלות'), square: tr('כמעט ישרות') },
   } satisfies ChoiceDial<Radius>,
   slider: {
     kind: 'choice',
     values: ['horizontal', 'vertical'],
-    nameHe: 'מחוונים',
-    labelHe: { horizontal: 'אופקיים', vertical: 'אנכיים' },
-    hintHe: { horizontal: 'כמוסות: גרירה לאורך השורה', vertical: 'בחלון ההתקן: מחוונים גבוהים זה לצד זה' },
+    nameHe: tr('מחוונים'),
+    labelHe: { horizontal: tr('אופקיים'), vertical: tr('אנכיים') },
+    hintHe: { horizontal: tr('כמוסות: גרירה לאורך השורה'), vertical: tr('בחלון ההתקן: מחוונים גבוהים זה לצד זה') },
   } satisfies ChoiceDial<Slider>,
-  transparency: { kind: 'range', range: [40, 100], step: 2, unit: '%', nameHe: 'אטימות' } satisfies RangeDial,
-  scale: { kind: 'range', range: [80, 130], step: 5, unit: '%', nameHe: 'גודל' } satisfies RangeDial,
+  transparency: { kind: 'range', range: [40, 100], step: 2, unit: '%', nameHe: tr('אטימות') } satisfies RangeDial,
+  scale: { kind: 'range', range: [80, 130], step: 5, unit: '%', nameHe: tr('גודל') } satisfies RangeDial,
   touch: {
     kind: 'choice',
     values: [32, 44],
-    nameHe: 'יעד לחיצה במחשב',
+    nameHe: tr('יעד לחיצה במחשב'),
     labelHe: { 32: '32', 44: '44' },
-    hintHe: { 32: 'צפוף יותר, לעכבר', 44: 'כמו בטלפון' },
+    hintHe: { 32: tr('צפוף יותר, לעכבר'), 44: tr('כמו בטלפון') },
   } satisfies ChoiceDial<Touch>,
   performance: {
     kind: 'choice',
     values: ['auto', 'full', 'lite'],
-    nameHe: 'ביצועים',
-    labelHe: { auto: 'אוטומטי', full: 'מלא', lite: 'קל' },
-    hintHe: { auto: 'המכשיר מחליט לפי כוחו', full: 'טשטוש זכוכית בכל השכבות', lite: 'בלי טשטוש בכרטיסים וברשימות, לטאבלט קיר ולטלפון חלש' },
+    nameHe: tr('ביצועים'),
+    labelHe: { auto: tr('אוטומטי'), full: tr('מלא'), lite: tr('קל') },
+    hintHe: { auto: tr('המכשיר מחליט לפי כוחו'), full: tr('טשטוש זכוכית בכל השכבות'), lite: tr('בלי טשטוש בכרטיסים וברשימות, לטאבלט קיר ולטלפון חלש') },
   } satisfies ChoiceDial<Performance>,
   // the fixed choices = `default` + every palette of design/palettes.json (the backend lists the same file); a `custom-<slug>` id is valid too
   // (CUSTOM_PALETTE_ID). Adding a palette is a data-only change: append it to the file (docs/design/palettes/README.md).
   palette: {
     kind: 'choice',
     values: ['default', ...palettesFile.palettes.map((p) => p.id)],
-    nameHe: 'צבעים',
-    labelHe: { default: 'ברירת מחדל', ...Object.fromEntries(palettesFile.palettes.map((p) => [p.id, p.name.he])) },
-    hintHe: { default: 'הצבעים של סגנון Bubble' },
+    nameHe: tr('צבעים'),
+    labelHe: { default: tr('ברירת מחדל'), ...Object.fromEntries(palettesFile.palettes.map((p) => [p.id, p.name.he])) },
+    hintHe: { default: tr('הצבעים של סגנון Bubble') },
   } satisfies ChoiceDial<PaletteId>,
   // MD1 material dials (owner 2026-10-03, mockups docs/design/compare/material-dials): the numbers live in styles/material.ts
   depth: {
     kind: 'choice',
     values: [0, 1, 2],
-    nameHe: 'עומק',
-    labelHe: { 0: 'כבוי', 1: 'רגיל', 2: 'עמוק' },
-    hintHe: { 0: 'משטחים שטוחים, כמו היום', 1: 'שפת זכוכית של פיקסל והצללה עדינה', 2: 'אותה שפה והצללה, חזקות יותר' },
+    nameHe: tr('עומק'),
+    labelHe: { 0: tr('כבוי'), 1: tr('רגיל'), 2: tr('עמוק') },
+    hintHe: { 0: tr('משטחים שטוחים, כמו היום'), 1: tr('שפת זכוכית של פיקסל והצללה עדינה'), 2: tr('אותה שפה והצללה, חזקות יותר') },
   } satisfies ChoiceDial<Level>,
   tint: {
     kind: 'choice',
     values: [0, 1, 2],
-    nameHe: 'גוון מצב',
-    labelHe: { 0: 'כבוי', 1: 'עדין', 2: 'חזק' },
-    hintHe: { 0: 'אריח פעיל נשאר ניטרלי', 1: 'שטיפת גוון עדינה על אריח פעיל; המילה והנקודה נשארות', 2: 'שטיפה חזקה; ברשימות הגוון בפס הצד בלבד' },
+    nameHe: tr('גוון מצב'),
+    labelHe: { 0: tr('כבוי'), 1: tr('עדין'), 2: tr('חזק') },
+    hintHe: { 0: tr('אריח פעיל נשאר ניטרלי'), 1: tr('שטיפת גוון עדינה על אריח פעיל; המילה והנקודה נשארות'), 2: tr('שטיפה חזקה; ברשימות הגוון בפס הצד בלבד') },
   } satisfies ChoiceDial<Level>,
   material: {
     kind: 'choice',
     values: ['none', 'frosted', 'paper', 'neon'],
-    nameHe: 'חומר',
-    labelHe: { none: 'ללא', frosted: 'Frosted', paper: 'Paper', neon: 'Neon' },
-    hintHe: { none: 'עומק וגוון בלבד, בלי קדם-הגדרה', frosted: 'זכוכית עבה: ברק, גרגר, שפה וטשטוש', paper: 'נייר כמעט אטום, בלי טשטוש: לטאבלט קיר', neon: 'שפה חזקה וזוהר עדין סביב אריח פעיל; צבעי אזעקה לעולם לא זוהרים' },
+    nameHe: tr('חומר'),
+    labelHe: { none: tr('ללא'), frosted: 'Frosted', paper: 'Paper', neon: 'Neon' },
+    hintHe: { none: tr('עומק וגוון בלבד, בלי קדם-הגדרה'), frosted: tr('זכוכית עבה: ברק, גרגר, שפה וטשטוש'), paper: tr('נייר כמעט אטום, בלי טשטוש: לטאבלט קיר'), neon: tr('שפה חזקה וזוהר עדין סביב אריח פעיל; צבעי אזעקה לעולם לא זוהרים') },
   } satisfies ChoiceDial<Material>,
 } as const;
 

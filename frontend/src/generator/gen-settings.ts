@@ -22,6 +22,7 @@ import { genCss } from './gen-styles';
 import { fill, fmtDateTime } from './gen-logic';
 import { generatorAccess } from './access';
 import { glt, type GltKey } from '../i18n/generator-log';
+import { tr } from '../i18n/msg/misc';
 
 const S = he.generator.settings;
 // GENLOG092-295: 'log' = the run log's switch and every threshold / window of it
@@ -260,9 +261,9 @@ export class GenSettings_ extends LitElement {
   }
 
   render() {
-    if (!generatorAccess().manage) return html`<sw-state-panel state="forbidden" heading="אין הרשאה להגדרות הגנרטור" data-state="forbidden"></sw-state-panel>`;
+    if (!generatorAccess().manage) return html`<sw-state-panel state="forbidden" heading=${tr('אין הרשאה להגדרות הגנרטור')} data-state="forbidden"></sw-state-panel>`;
     if (this.phase === 'loading') return html`<div class="skl" style="block-size:120px" data-state="loading"></div>`;
-    if (this.phase === 'error' || !this.list || !this.settings) return html`<sw-state-panel state="error" heading=${he.generator.loadError} hint=${this.error} actionLabel="נסו שוב" data-state="error" @action=${() => { this.phase = 'loading'; void this.load(); }}></sw-state-panel>`;
+    if (this.phase === 'error' || !this.list || !this.settings) return html`<sw-state-panel state="error" heading=${he.generator.loadError} hint=${this.error} actionLabel=${tr('נסו שוב')} data-state="error" @action=${() => { this.phase = 'loading'; void this.load(); }}></sw-state-panel>`;
     const sub = this.sub();
     const items: TabItem[] = SUBS.map((x) => ({ id: x, label: x === 'log' ? glt('setSub') : S.subs[x], href: `#/system/infra/generator/${x}${this.device ? `?device=${encodeURIComponent(this.device.id)}` : ''}` }));
     const ds = this.list.devices;

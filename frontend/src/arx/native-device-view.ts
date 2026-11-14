@@ -1,5 +1,6 @@
 import type { DeviceStatus } from './native-app';
 import { t, type I18nKey } from '../i18n/he';
+import { tr } from '../i18n/msg/misc';
 
 /** MOBILE214: the plain-language rows of the "המכשיר שלי" card (pure, so a node test can read them). */
 export interface DeviceRow {
@@ -9,14 +10,14 @@ export interface DeviceRow {
 }
 
 const SENSOR_LABELS: Record<string, string> = {
-  activity: 'פעילות',
-  steps: 'צעדים',
-  altitude: 'גובה',
-  battery: 'סוללה',
-  network: 'רשת',
-  beacon: 'משואה',
-  app_state: 'מצב האפליקציה',
-  location: 'מיקום',
+  activity: tr('פעילות'),
+  steps: tr('צעדים'),
+  altitude: tr('גובה'),
+  battery: tr('סוללה'),
+  network: tr('רשת'),
+  beacon: tr('משואה'),
+  app_state: tr('מצב האפליקציה'),
+  location: tr('מיקום'),
 };
 
 const AUTH: Record<string, I18nKey> = {

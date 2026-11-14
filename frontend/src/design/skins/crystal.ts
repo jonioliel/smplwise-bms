@@ -1,5 +1,6 @@
 import { lt, same, type TokenTable } from '../tokens';
 import type { Skin } from './index';
+import { tr } from '../../i18n/msg/misc';
 
 /**
  * Skin "Crystal" (CRY, 2026-10-10): glassy, luminous, refined. Frosted crystal panels with a 1 px luminous rim over a pearl
@@ -185,4 +186,4 @@ const rules = `
 @media (prefers-reduced-transparency: reduce) { :host(sw-card), :host(sw-kpi), :host(devices-building) section.fcard, :host(devices-building) a.tile, :host(devices-building) nav.tree, :host(home-widgets) .wg, :host(sw-app) nav.rail.rail, :host(sw-app) nav.bottom.bottom, :host(sw-app) .float .pillrow, :host(sw-app) .tabpair { background: var(--sw-surface-solid); -webkit-backdrop-filter: none; backdrop-filter: none; } }
 `;
 
-export const crystal: Skin = { id: 'crystal', name: 'Crystal', nameHe: 'קריסטל', noteHe: 'זכוכית מוארת על רקע יום / לילה, שפה זוהרת, צורות מעודנות', stage: 'stable', features: { material: false, bevel: false, pixelEdge: true, glass: true }, tokens, rules };
+export const crystal: Skin = { id: 'crystal', name: 'Crystal', nameHe: tr('קריסטל'), noteHe: tr('זכוכית מוארת על רקע יום / לילה, שפה זוהרת, צורות מעודנות'), stage: 'stable', features: { material: false, bevel: false, pixelEdge: true, glass: true }, tokens, rules };

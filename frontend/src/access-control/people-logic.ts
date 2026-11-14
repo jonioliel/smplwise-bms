@@ -15,6 +15,7 @@
 import type { AcPeoplePage, AcPeopleSort, AcPerson } from '../api/access-people';
 import { offsetAt, UTC_ZONE } from '../screens/wiskey-format';
 import type { DisplayZone } from '../api/intercom';
+import { tr } from '../i18n/msg/misc';
 
 export const PEOPLE_PAGE = 50;
 export const PEOPLE_MAX_LIMIT = 200;
@@ -306,7 +307,7 @@ export const enabledStations = (p: Pick<AcPerson, 'stations'>): number => (p.sta
 
 // ---------------------------------------------------------------- the timing view (when the person may enter)
 
-const DAY_HE: Record<string, string> = { sun: 'ראשון', mon: 'שני', tue: 'שלישי', wed: 'רביעי', thu: 'חמישי', fri: 'שישי', sat: 'שבת' };
+const DAY_HE: Record<string, string> = { sun: tr('ראשון'), mon: tr('שני'), tue: tr('שלישי'), wed: tr('רביעי'), thu: tr('חמישי'), fri: tr('שישי'), sat: tr('שבת') };
 const DAY_ORDER = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
 /** The weekday words of WisKey's timing (`sunday` or `sun`, any case) in the week's order, Sunday first; an unknown word is dropped. */

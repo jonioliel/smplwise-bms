@@ -34,6 +34,7 @@
  * Arx; Q7 "ג" - the installer tools (platform, clock, station technical settings, lifecycle) become native. Their entries carry
  * `bridge: 'Q4' | 'Q7'`: the panel link is the bridge until the native screen sets `native`.
  */
+import { tr } from '../i18n/msg/misc';
 
 /** A place in the embedded panel: a top-level tab, or a management tool under `tools`. */
 export interface DeepTarget {
@@ -134,48 +135,48 @@ export const DEEP_LINKS: Readonly<Record<string, DeepLinkEntry>> = Object.freeze
   // ---- stations, doors (the station settings dialog of the devices tab: technical, door programs, hold-open, public codes, rescan, clock)
   // WISKEY-INSTALLER-NATIVE-2400 (2.40.0 train): row 47 (door name, open time, relay inversion) is the installer's native technical tool; rows
   // 34 / 36 / 45 / 46 are native in the station drawer since the 2.39.0 train. The Q7 bridge is retired.
-  'stations.technical': { target: tab('devices'), label: 'הגדרות טכניות של עמדה', rows: [34, 36, 45, 46, 47], native: INSTALLER_NATIVE('technical') },
+  'stations.technical': { target: tab('devices'), label: tr('הגדרות טכניות של עמדה'), rows: [34, 36, 45, 46, 47], native: INSTALLER_NATIVE('technical') },
   // WISKEY-INSTALLER-NATIVE-2400: add / re-onboard / remove / replace a station (row 50) - in the panel it is part of the platform centre
-  'stations.lifecycle': { target: tool('platform_center'), label: 'הוספה והסרה של עמדות אינטרקום', rows: [50], panelAdmin: true, native: INSTALLER_NATIVE('lifecycle') },
+  'stations.lifecycle': { target: tool('platform_center'), label: tr('הוספה והסרה של עמדות אינטרקום'), rows: [50], panelAdmin: true, native: INSTALLER_NATIVE('lifecycle') },
   // ---- synchronisation (the sync tab: sync now per person / station / all, the conflict review and resolve, the diagnostics file)
-  'sync.run': { target: tab('sync'), label: 'סנכרון עכשיו ופתרון התנגשויות', rows: [3, 36, 38] },
+  'sync.run': { target: tab('sync'), label: tr('סנכרון עכשיו ופתרון התנגשויות'), rows: [3, 36, 38] },
   // ---- health, alerts, clock
-  'health.fleet': { target: tool('health'), label: 'קיבולת ומגמות של העמדות', rows: [34, 82, 98], native: OPS_NATIVE('capacity') },
+  'health.fleet': { target: tool('health'), label: tr('קיבולת ומגמות של העמדות'), rows: [34, 82, 98], native: OPS_NATIVE('capacity') },
   // WISKEY-CONFLICTS-2400 (T5): the fleet alerts and the conflict review / resolve are native Arx screens now (#/wiskey/alerts,
   // #/wiskey/conflicts); the panel targets stay as the address a place falls back to in the table's own tests. `need`: the screen opens for
   // the status page's reader or a station manager / system administrator (any one, at any scope - the server checks the rest).
-  'alerts.act': { target: tool('fleet_alerts'), label: 'טיפול בהתראות', rows: [76, 77], native: { href: '#/wiskey/alerts', need: TRIAGE_NEED } },
-  'conflicts.resolve': { target: tab('sync'), label: 'פתרון התנגשויות סנכרון', rows: [37, 38], native: { href: '#/wiskey/conflicts', need: TRIAGE_NEED } },
-  'clock.settings': { target: tool('clock_options'), label: 'שעון ו־NTP', rows: [51], native: INSTALLER_NATIVE('clock') }, // WISKEY-INSTALLER-NATIVE-2400 (Q7 bridge retired)
+  'alerts.act': { target: tool('fleet_alerts'), label: tr('טיפול בהתראות'), rows: [76, 77], native: { href: '#/wiskey/alerts', need: TRIAGE_NEED } },
+  'conflicts.resolve': { target: tab('sync'), label: tr('פתרון התנגשויות סנכרון'), rows: [37, 38], native: { href: '#/wiskey/conflicts', need: TRIAGE_NEED } },
+  'clock.settings': { target: tool('clock_options'), label: tr('שעון ו־NTP'), rows: [51], native: INSTALLER_NATIVE('clock') }, // WISKEY-INSTALLER-NATIVE-2400 (Q7 bridge retired)
   // ---- people
-  'people.unmanaged': { target: tab('users'), label: 'משתמשים לא מנוהלים ובדיקת "האם יכול לפתוח"', rows: [25, 29] },
+  'people.unmanaged': { target: tab('users'), label: tr('משתמשים לא מנוהלים ובדיקת "האם יכול לפתוח"'), rows: [25, 29] },
   // WISKEY-PROFILES-EDIT-2390 (2.39.0 train): the native "קבוצות ושדות" screen took rows 26 / 27 over (the Q4 bridge retired); the
   // screen itself requires access.people.manage at installation scope, the link needs it somewhere
-  'profiles.edit': { target: tool('profile_options'), label: 'עריכת קבוצות ושדות פרופיל', rows: [26, 27], native: { href: '#/wiskey/profiles', need: ['access.people.manage'] } },
-  'people.lifecycle': { target: tool('identity_lifecycle'), label: 'מחזור חיים וחידושים', rows: [28] },
+  'profiles.edit': { target: tool('profile_options'), label: tr('עריכת קבוצות ושדות פרופיל'), rows: [26, 27], native: { href: '#/wiskey/profiles', need: ['access.people.manage'] } },
+  'people.lifecycle': { target: tool('identity_lifecycle'), label: tr('מחזור חיים וחידושים'), rows: [28] },
   // WISKEY-ACCESS-DIAG-2400: native in Arx ("אבחון הרשאות"); the server asks access.read at installation scope (people views: people.read)
-  'access.reviews': { target: tool('access_reviews'), label: 'סקירות הרשאה תקופתיות', rows: [29], native: { href: '#/wiskey/access-diag?view=reviews', need: ['access.read'] } },
-  'access.compare': { target: tool('access_comparison'), label: 'השוואת הרשאות', rows: [29], native: { href: '#/wiskey/access-diag?view=compare', need: ['access.read'] } },
-  'people.quality': { target: tool('data_quality'), label: 'איכות נתונים', rows: [29], native: { href: '#/wiskey/access-diag?view=quality', need: ['access.read'] } },
-  'access.scenario': { target: tab('users'), label: 'האם יכול לפתוח את הדלת עכשיו', rows: [29], native: { href: '#/wiskey/access-diag', need: ['access.read'] } },
-  'stations.permission_audit': { target: tool('audit'), label: 'ביקורת הרשאות עמדה', rows: [89], native: { href: '#/wiskey/access-diag?view=audit', need: ['access.read'] } },
-  'visits.requests': { target: tool('visit_requests'), label: 'בקשות ביקור', rows: [30] },
-  'visits.templates': { target: tool('guest_templates'), label: 'תבניות אורחים', rows: [30] },
+  'access.reviews': { target: tool('access_reviews'), label: tr('סקירות הרשאה תקופתיות'), rows: [29], native: { href: '#/wiskey/access-diag?view=reviews', need: ['access.read'] } },
+  'access.compare': { target: tool('access_comparison'), label: tr('השוואת הרשאות'), rows: [29], native: { href: '#/wiskey/access-diag?view=compare', need: ['access.read'] } },
+  'people.quality': { target: tool('data_quality'), label: tr('איכות נתונים'), rows: [29], native: { href: '#/wiskey/access-diag?view=quality', need: ['access.read'] } },
+  'access.scenario': { target: tab('users'), label: tr('האם יכול לפתוח את הדלת עכשיו'), rows: [29], native: { href: '#/wiskey/access-diag', need: ['access.read'] } },
+  'stations.permission_audit': { target: tool('audit'), label: tr('ביקורת הרשאות עמדה'), rows: [89], native: { href: '#/wiskey/access-diag?view=audit', need: ['access.read'] } },
+  'visits.requests': { target: tool('visit_requests'), label: tr('בקשות ביקור'), rows: [30] },
+  'visits.templates': { target: tool('guest_templates'), label: tr('תבניות אורחים'), rows: [30] },
   // ---- schedules
-  'schedules.edit': { target: tool('schedules'), label: 'עריכת לוחות זמנים במכשירים', rows: [49], bridge: 'Q4' },
+  'schedules.edit': { target: tool('schedules'), label: tr('עריכת לוחות זמנים במכשירים'), rows: [49], bridge: 'Q4' },
   // ---- logs, operations, platform
-  'audit.panel': { target: tool('audit'), label: 'ייצוא יומן השינויים ומלאי העמדות', rows: [79, 89], native: OPS_NATIVE('exports') },
-  'events.report': { target: tab('events'), label: 'דוח אירועים', rows: [79], native: OPS_NATIVE('events') },
-  'operations.center': { target: tool('operations_center'), label: 'פעולות ומשימות', rows: [80], native: OPS_NATIVE('operations') },
-  'operations.investigations': { target: tool('investigations'), label: 'ציר זמן לחקירה', rows: [80], panelAdmin: true, native: OPS_NATIVE('investigations') },
+  'audit.panel': { target: tool('audit'), label: tr('ייצוא יומן השינויים ומלאי העמדות'), rows: [79, 89], native: OPS_NATIVE('exports') },
+  'events.report': { target: tab('events'), label: tr('דוח אירועים'), rows: [79], native: OPS_NATIVE('events') },
+  'operations.center': { target: tool('operations_center'), label: tr('פעולות ומשימות'), rows: [80], native: OPS_NATIVE('operations') },
+  'operations.investigations': { target: tool('investigations'), label: tr('ציר זמן לחקירה'), rows: [80], panelAdmin: true, native: OPS_NATIVE('investigations') },
   // WISKEY-INSTALLER-NATIVE-2400: configuration, export / import, webhook, retention, integrity, capacity, maintenance queue (Q7 bridge retired)
-  'platform.center': { target: tool('platform_center'), label: 'תצורת מערכת האינטרקום', rows: [50, 82], panelAdmin: true, native: INSTALLER_NATIVE('platform') },
-  'workflows.center': { target: tool('workflow_center'), label: 'מרכז תהליכים', rows: [84], panelAdmin: true },
+  'platform.center': { target: tool('platform_center'), label: tr('תצורת מערכת האינטרקום'), rows: [50, 82], panelAdmin: true, native: INSTALLER_NATIVE('platform') },
+  'workflows.center': { target: tool('workflow_center'), label: tr('מרכז תהליכים'), rows: [84], panelAdmin: true },
   // ---- messaging, media, permissions
-  'messaging.templates': { target: tool('whatsapp_templates'), label: 'תבניות הודעה של חלון האינטרקום', rows: [75] },
-  'media.settings': { target: tool('media_options'), label: 'וידאו, שמע והכרזות', rows: [52] },
-  'permissions.directory': { target: tool('permission_directory'), label: 'מדריך הרשאות', rows: [87] },
-  'permissions.panel': { target: tool('access_control'), label: 'מי רשאי לפתוח את חלון האינטרקום', rows: [87], panelAdmin: true },
+  'messaging.templates': { target: tool('whatsapp_templates'), label: tr('תבניות הודעה של חלון האינטרקום'), rows: [75] },
+  'media.settings': { target: tool('media_options'), label: tr('וידאו, שמע והכרזות'), rows: [52] },
+  'permissions.directory': { target: tool('permission_directory'), label: tr('מדריך הרשאות'), rows: [87] },
+  'permissions.panel': { target: tool('access_control'), label: tr('מי רשאי לפתוח את חלון האינטרקום'), rows: [87], panelAdmin: true },
 });
 
 /** Which capabilities each place offers, in the order shown. A place lists only what an operator there would look for. */

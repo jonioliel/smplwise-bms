@@ -1,5 +1,6 @@
 import { lt, same, type TokenTable } from '../tokens';
 import type { Skin } from './index';
+import { tr } from '../../i18n/msg/misc';
 import { ENTER_RULES, POLISH_MOTION_TOKENS } from './polish-motion';
 
 /**
@@ -170,8 +171,8 @@ ${ENTER_RULES}`;
 export const classic: Skin = {
   id: 'classic',
   name: 'Classic',
-  nameHe: 'קלאסי',
-  noteHe: 'המראה הנוכחי של המערכת',
+  nameHe: tr('קלאסי'),
+  noteHe: tr('המראה הנוכחי של המערכת'),
   stage: 'stable',
   // the bevel (classic and domus only, define.ts BEVEL_SKINS) and the 1 px top edge; no material layer, no glass
   features: { material: false, bevel: true, pixelEdge: true, glass: false },

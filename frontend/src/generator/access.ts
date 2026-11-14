@@ -8,6 +8,7 @@
 import { canAnywhere, isApi, onSession } from '../api/session';
 import { listDevices, listLive, type LiveSummaryItem } from '../api/generator';
 import { applyGeneratorLog, applyInfraGenerator } from '../shell/nav';
+import { tr } from '../i18n/msg/misc';
 
 export interface GeneratorAccess {
   view: boolean;
@@ -15,8 +16,8 @@ export interface GeneratorAccess {
 }
 export const GENERATOR_PERMISSIONS = ['generator.view', 'generator.manage'] as const;
 export const GENERATOR_PERMISSION_LABELS: Record<(typeof GENERATOR_PERMISSIONS)[number], string> = {
-  'generator.view': 'צפייה בגנרטור והתראותיו',
-  'generator.manage': 'ניהול הגנרטור (זיהוי, מיפוי, ניתוב התראות)',
+  'generator.view': tr('צפייה בגנרטור והתראותיו'),
+  'generator.manage': tr('ניהול הגנרטור (זיהוי, מיפוי, ניתוב התראות)'),
 };
 export const generatorPermissionLabel = (id: string): string | undefined => (GENERATOR_PERMISSION_LABELS as Record<string, string>)[id];
 
