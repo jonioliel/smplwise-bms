@@ -29,9 +29,7 @@ test.describe('AUDIT30-D sources', () => {
   test('D1: the selected room chip is the Blue Wash pair in both copies of the rule, never the black pill', () => {
     for (const f of ['styles/media-page.ts', 'screens/multimedia-screens.ts']) {
       const rule = /\.rc\[aria-pressed='true'\] \{([\s\S]*?)\}/.exec(read(f))?.[1] ?? '';
-      expect(rule, f).toContain('background: var(--sw-accent-soft)');
-      expect(rule, f).toContain('color: var(--sw-accent-text)');
-      expect(rule, f).toContain('box-shadow: none');
+      expect(rule, f).toContain('${chipSelected}'); // DOMUS-DEFAULT-2439: the shared fragment (soft field, deeper ink, accent ring)
       expect(rule, f).not.toContain('--dv-text');
       expect(rule, f).not.toContain('--mm-text-inverse');
       const chip = /\n    \.rc \{([\s\S]*?)\}/.exec(read(f))?.[1] ?? '';
@@ -131,7 +129,7 @@ test.describe('AUDIT30-D in the browser (demo data, classic)', () => {
         const st = await chip.evaluate((el) => {
           const cs = getComputedStyle(el);
           const probe = document.createElement('span');
-          probe.style.cssText = 'background: var(--sw-accent-soft); color: var(--sw-accent-text)';
+          probe.style.cssText = 'background: var(--sw-accent-soft); color: var(--sw-accent-text-strong)'; // DOMUS-DEFAULT-2439: the deeper ink
           el.parentElement!.append(probe);
           const ref = getComputedStyle(probe);
           const out = { bg: cs.backgroundColor, fg: cs.color, refBg: ref.backgroundColor, refFg: ref.color, shadow: cs.boxShadow, h: el.getBoundingClientRect().height };
@@ -140,7 +138,9 @@ test.describe('AUDIT30-D in the browser (demo data, classic)', () => {
         });
         expect(st.bg, s.id).toBe(st.refBg);
         expect(st.fg, s.id).toBe(st.refFg);
-        expect(st.shadow, s.id).toBe('none');
+        // DOMUS-DEFAULT-2439: no drop shadow - the one layer is the half-pixel inset of the ring
+        expect(st.shadow, s.id).toMatch(/ inset$/);
+        expect(st.shadow.split(/,(?![^(]*\))/).length, s.id).toBe(1);
         expect(Math.round(st.h), s.id).toBe(34);
       }
     });

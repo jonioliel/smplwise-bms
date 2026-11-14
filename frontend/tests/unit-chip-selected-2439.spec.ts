@@ -87,6 +87,7 @@ test('Q-DES-3: one fragment draws the selected chip - sw-chip and every local ch
     'components/notify-css.ts', 'screens/automation-drawer.ts', 'screens/devices-automations.ts', 'screens/devices-schedules.ts', 'screens/mapping-assistant.ts',
     'screens/multimedia-screens.ts', 'screens/schedule-create-dialog.ts', 'screens/system-automations.ts', 'styles/media-page.ts', 'tickets/chip-selected.ts',
     'tickets/list-toolbar.ts', 'tickets/settings-styles.ts', 'tickets/styles.ts', 'tickets/table-styles.ts',
+    'calendars/styles.ts', 'insights/styles.ts', 'screens/explore-presence.ts', 'screens/infra-temperature.ts',
   ]) {
     const t = flat(f);
     expect(t, f).toContain('import { chipSelected, chipSelectedCheck } from');
