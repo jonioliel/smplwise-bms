@@ -184,6 +184,16 @@ DEFAULTS: dict[str, str] = {
     "map.shared_levels": "show",  # CR-009: the levels of a shared room's home floor in the other floor's level bar ("מפלס ראשי · קומה -1"): show | hide (owner 2026-09-29)
     "map.default_floor": "",  # owner 2026-09-30: the floor the map's floor tab opens first when several floors exist ("" = the built-in order); an existing floor id, cleared when that floor is deleted
     "map.default_view": "2d",  # the view a floor map opens in - live map, history map, event page: 2d | 3d (owner 2026-09-29); a device's own last choice wins
+    # PLAN3D-R28-UI-2433 (round 28, the 3D map): the open questions of questions.html as settings, each at the recommended answer until the
+    # owner answers (an answer is a default change here): the room pills (Q1-3), the room card (Q4-6), the spread levels (Q7-8)
+    "map.room_pills": "room",  # room = one pill per room, devices one by one when close | room_always = one pill per room even when close | device = one pill per device (before)
+    "map.room_pill_tap": "popover",  # a tap on a room pill: popover = the small detail popover (then the room card) | card = the room card at once
+    "map.room_pill_quiet": "name",  # a room with nothing to report: name = its name only | hide = nothing | bubble = a pill saying "all closed"
+    "map.room_card_place": "side",  # the room card on a desktop / tablet: side = a side panel | float = a small card in the corner | sheet_tablet = side on a desktop, a bottom sheet on a tablet (a phone is always a sheet)
+    "map.room_card_confirm": "system",  # what asks before it runs: system = doors, gates and the alarm (the sensitive actions, as everywhere) | bulk = also "all off" and closing shutters
+    "map.room_card_camera": "snapshot",  # the camera in the room card: snapshot = a still refreshed every few seconds, live video on a tap | live = live video at once | none = no camera
+    "map.stack_backdrop": "theme",  # the spread levels' backdrop: theme = by the light / dark mode and the hour, as one level | dark = always dark
+    "map.stack_pick": "two_tap",  # picking a spread level: two_tap = the first tap enlarges it, the second enters | one_tap = one tap enters
     "plan.quality": "auto",  # CR-006 / owner bug 2026-10-10: the 3D view mode a browser opens with - auto (full, dropping to schematic after a sustained low frame rate), 2 (full, kept even when slow: a hint only), 1 (schematic); a user's own /me/prefs plan.quality overrides it
     "plan.surfaces": '["devices", "area"]',  # K88 (owner 2026-10-04 Q2): where the live plan shows besides the map tab - "devices" = a plan view in חשמל והתקנים, "area" = a card on the area page; [] = nowhere new
     # CR-029 S0 (Plan Studio 6, LOOK_SPEC section 10): the installation's look dials of the realistic 3D and the walk - a JSON object
@@ -915,6 +925,14 @@ class SettingsPatch(BaseModel):
     map_shared_levels: str | None = Field(default=None, pattern="^(show|hide)$", alias="map.shared_levels")
     map_default_floor: str | None = Field(default=None, max_length=64, pattern=r"^[A-Za-z0-9_.\-]*$", alias="map.default_floor")  # "" or an existing floor id (checked in the handler)
     map_default_view: str | None = Field(default=None, pattern="^(2d|3d)$", alias="map.default_view")
+    map_room_pills: str | None = Field(default=None, pattern="^(room|room_always|device)$", alias="map.room_pills")  # PLAN3D-R28-UI-2433
+    map_room_pill_tap: str | None = Field(default=None, pattern="^(popover|card)$", alias="map.room_pill_tap")
+    map_room_pill_quiet: str | None = Field(default=None, pattern="^(name|hide|bubble)$", alias="map.room_pill_quiet")
+    map_room_card_place: str | None = Field(default=None, pattern="^(side|float|sheet_tablet)$", alias="map.room_card_place")
+    map_room_card_confirm: str | None = Field(default=None, pattern="^(system|bulk)$", alias="map.room_card_confirm")
+    map_room_card_camera: str | None = Field(default=None, pattern="^(snapshot|live|none)$", alias="map.room_card_camera")
+    map_stack_backdrop: str | None = Field(default=None, pattern="^(theme|dark)$", alias="map.stack_backdrop")
+    map_stack_pick: str | None = Field(default=None, pattern="^(two_tap|one_tap)$", alias="map.stack_pick")
     plan_quality: str | None = Field(default=None, pattern="^(auto|1|2)$", alias="plan.quality")
     plan_camsuggest_distance: str | None = Field(default=None, pattern="^([1-9]|[1-9][0-9]|100)$", alias="plan.camsuggest_distance")  # CAMSUGGEST138-295: 1-100 % of the plan width
     plan_camsuggest_fov: str | None = Field(default=None, pattern="^([0-9]|[1-9][0-9]|100)$", alias="plan.camsuggest_fov")  # 0-100 %
