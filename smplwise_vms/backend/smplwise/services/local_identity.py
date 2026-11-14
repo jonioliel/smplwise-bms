@@ -363,9 +363,16 @@ class _Cache:
                 if socks:
                     self._to_close.extend(list(socks))
 
-    def attach(self, chain_id: str, websocket: Any) -> None:
-        with self._lock:
-            self._sockets.setdefault(chain_id, weakref.WeakSet()).add(websocket)
+    def attach(self, sid_hash: str, chain_id: str, websocket: Any) -> bool:
+        """False when the chain has no live entry any more (revoked between the resolve and the attach, review M2 / code review
+        2026-11-13 P1-1): the caller refuses the socket. The session's own entry, or a rotated successor of the same chain (a concurrent
+        request rotated it; the chain is still live) - every revocation drops the chain's entries (drop_chains, drop_user, clear)."""
+        from .session_cache import attach_if_live
+
+        def live() -> bool:
+            return sid_hash in self._by_sid or any(v.chain_id == chain_id for v in self._by_sid.values())
+
+        return attach_if_live(self._lock, self._sockets, chain_id, websocket, live=live)
 
     def take_to_close(self) -> list[Any]:
         with self._lock:
@@ -723,7 +730,8 @@ async def remote_principal_ws(websocket: Any, settings: Settings, cookie_value: 
     s = await run_in_threadpool(lambda: resolve(websocket.app.state.db, settings, websocket, cookie_value, rotate=False))
     if s is None or s.gate:
         return None
-    CACHE.attach(s.chain_id, websocket)
+    if not CACHE.attach(s.sid_hash, s.chain_id, websocket):
+        return None  # review M2 (P1-1): the session ended between the resolve and the attach - nothing would close this socket
     try:
         websocket.state.sw_remote_session = s
     except AttributeError:
