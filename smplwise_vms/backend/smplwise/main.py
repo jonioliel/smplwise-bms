@@ -1016,7 +1016,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         _shutdown_step("thumbnails worker", th.WORKER.stop_evt.set)
         from .services import ha_sync
 
-        _shutdown_step("ha sync", ha_sync.SYNC.shutdown)
+        await _in_thread_step("ha sync", ha_sync.SYNC.shutdown)  # CR-WAVE2-COMBINED-2439: wakes and joins its loop thread (bounded), off the event loop
         from .services import lease_events
 
         # CR-WISKEY-LEASE-REVOCATION-EVENT T11: before the WisKey feed stops, any live capture lease is revoked (scope all) within 2 s
@@ -1039,7 +1039,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         _shutdown_step("wiskey join manager", _wjl.MANAGER.shutdown)  # WISKEY-JOIN-LIVE-2382: the manager's thread ends first, then the join stops cleanly (drained)
         _shutdown_step("wiskey direct join", _wkj.shutdown)  # WKINT-295: the existing transports come back; the lineage closes (a no-op when nothing was installed)
-        _shutdown_step("intercom sync", intercom_sync.SYNC.shutdown)
+        await _in_thread_step("intercom sync", intercom_sync.SYNC.shutdown)  # CR-WAVE2-COMBINED-2439: wakes and joins its loop thread (bounded)
 
         def _detach_journal() -> None:
             intercom_sync.SYNC.journal = None  # R5-A6: nothing is sent after shutdown; unresolved rows stay for the next process
@@ -1065,7 +1065,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         _shutdown_step("scenarios runtime", _scn.RUNNER.shutdown)
         from .services import wiskey_background_feed as _wbf
 
-        _shutdown_step("wiskey background feed", _wbf.FEED.shutdown)
+        await _in_thread_step("wiskey background feed", _wbf.FEED.shutdown)  # CR-WAVE2-COMBINED-2439: wakes and joins its loop thread (bounded)
         from .services import push as push_svc
 
         await _in_thread_step("push notifier", push_svc.NOTIFIER.shutdown)  # queued alerts get a few seconds to go out

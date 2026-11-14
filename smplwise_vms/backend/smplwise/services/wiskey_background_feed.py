@@ -25,7 +25,7 @@ from typing import Any, Awaitable, Callable
 
 from ..config import Settings
 from ..errors import ApiError
-from . import ha_client, intercom_client
+from . import ha_client, intercom_client, loop_thread_stop
 from .intercom_client import IntercomError
 from .wiskey_background import assert_closed, from_served_copy, project_background
 
@@ -90,6 +90,7 @@ class BackgroundFeed:
 
     def shutdown(self) -> None:
         self.stop.set()
+        loop_thread_stop.stop_and_join(self)  # CR-WAVE2-COMBINED-2439: wake the loop now and wait for the thread (bounded)
 
     def reset(self) -> None:
         """Forget the copy and the counters (a fresh process state; used by tests)."""
@@ -190,6 +191,7 @@ class BackgroundFeed:
         assert self.settings
         backoff = sync.RETRY_S
         stop_evt = asyncio.Event()
+        loop_thread_stop.remember(self, stop_evt)  # shutdown() sets stop_evt at once; the poll below stays as the fallback
 
         async def watch_stop() -> None:
             while not self.stop.is_set():

@@ -27,7 +27,7 @@ from typing import Any
 from ..config import Settings
 from ..db import Database, now_iso, retry_locked
 from ..errors import ApiError
-from . import ha_client, site_location
+from . import ha_client, loop_thread_stop, site_location
 
 log = logging.getLogger("smplwise.ha")
 
@@ -780,6 +780,7 @@ class HaSync:
 
     def shutdown(self) -> None:
         self.stop.set()
+        loop_thread_stop.stop_and_join(self)  # CR-WAVE2-COMBINED-2439: wake the loop now and wait for the thread (bounded)
 
     def _run(self) -> None:
         asyncio.run(self._loop())
@@ -789,6 +790,7 @@ class HaSync:
         backoff = BACKOFF_START_S
         down_since: float | None = None
         stop_evt = asyncio.Event()
+        loop_thread_stop.remember(self, stop_evt)  # shutdown() sets stop_evt at once; the poll below stays as the fallback
 
         async def watch_stop() -> None:
             while not self.stop.is_set():

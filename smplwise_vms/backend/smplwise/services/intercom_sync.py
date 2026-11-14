@@ -77,7 +77,7 @@ from typing import Any, Awaitable, Callable
 from ..config import Settings
 from ..db import now_iso
 from ..errors import ApiError
-from . import ha_client, intercom_client
+from . import ha_client, intercom_client, loop_thread_stop
 from .intercom_client import IntercomError
 
 log = logging.getLogger("smplwise.intercom")
@@ -928,6 +928,7 @@ class IntercomSync:
 
     def shutdown(self) -> None:
         self.stop.set()
+        loop_thread_stop.stop_and_join(self)  # CR-WAVE2-COMBINED-2439: wake the loop now and wait for the thread (bounded)
 
     def reset(self) -> None:
         """Forget the cached copy and the counters (a fresh process state; used by tests)."""
@@ -1646,6 +1647,7 @@ class IntercomSync:
         assert self.settings
         backoff = RETRY_S
         stop_evt = asyncio.Event()
+        loop_thread_stop.remember(self, stop_evt)  # shutdown() sets stop_evt at once; the poll below stays as the fallback
 
         async def watch_stop() -> None:
             while not self.stop.is_set():
