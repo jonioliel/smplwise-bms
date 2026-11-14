@@ -334,8 +334,9 @@ def _reachable_contacts(ctx: Ctx) -> tuple[int, int]:
     for r in rows:
         route = bool(r["phone"] or r["email"])
         if not route and r["user_id"]:
-            u = ctx.conn.execute("SELECT active FROM users WHERE id = ?", (r["user_id"],)).fetchone()
-            route = bool(u and u["active"])
+            from ..active_users import has_active_account
+
+            route = has_active_account(ctx.conn, r["user_id"])  # CR-ACTIVE-USER-REST-2438: the one rule (services/active_users)
         if not route:
             continue
         reach += 1

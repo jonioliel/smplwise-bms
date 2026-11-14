@@ -482,8 +482,9 @@ def armer_reason(conn: sqlite3.Connection, principal: Principal, door: dict[str,
     `access.doors.automate` on the door's station chain (deny wins) and passing the one door rule for that door."""
     if is_operator(principal) or not door_authority.identity_ok(principal, dev_mode, conn):
         return "identity"
-    user = conn.execute("SELECT active FROM users WHERE id = ?", (principal.user_id,)).fetchone()
-    if user is None or not user["active"]:
+    from .active_users import has_active_account
+
+    if not has_active_account(conn, principal.user_id):  # CR-ACTIVE-USER-REST-2438: an Arx account, active under the one rule
         return "user_inactive"
     if not may_automate(conn, principal, door["station_id"], item_id):
         return "automate_not_allowed"

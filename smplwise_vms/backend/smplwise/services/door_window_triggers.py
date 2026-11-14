@@ -372,7 +372,9 @@ def reset_budget() -> None:
 
 def _actor_ok(conn: sqlite3.Connection, user_id: str, rule_doors: list[tuple[str, int]]) -> bool:
     user = conn.execute("SELECT id, username, display_name, active FROM users WHERE id = ?", (user_id,)).fetchone()
-    if user is None or not user["active"]:
+    from .active_users import has_active_account
+
+    if user is None or not has_active_account(conn, user_id):  # CR-ACTIVE-USER-REST-2438: the one rule (services/active_users), an Arx account required
         return False
     p = Principal(user["id"], user["username"] or "", user["display_name"] or "", "internal")
     return all(dw.may(conn, p, dw.MANAGE, s) for s, _ in rule_doors)

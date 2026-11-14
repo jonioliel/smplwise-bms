@@ -731,13 +731,9 @@ def approver_of(conn: sqlite3.Connection, kind: str, item_id: str, revision: str
 
 def _user_active(conn: sqlite3.Connection, user_id: str) -> tuple[bool, sqlite3.Row | None]:
     u = conn.execute("SELECT id, username, display_name, source, active FROM users WHERE id = ?", (user_id,)).fetchone()
-    if u is None or not u["active"]:
-        return False, u
-    try:
-        ha = conn.execute("SELECT is_active FROM ha_users WHERE id = ?", (user_id,)).fetchone()
-    except sqlite3.OperationalError:
-        ha = None
-    if ha is not None and not ha["is_active"]:
+    from .active_users import has_active_account
+
+    if u is None or not has_active_account(conn, user_id):  # CR-ACTIVE-USER-REST-2438: the one rule (services/active_users), an Arx account required (it already read both sides)
         return False, u
     return True, u
 

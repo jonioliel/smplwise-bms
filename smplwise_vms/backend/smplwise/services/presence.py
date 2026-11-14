@@ -749,8 +749,9 @@ def by_token(conn: sqlite3.Connection, token: str) -> sqlite3.Row | None:
     r = conn.execute("SELECT * FROM mobile_devices WHERE token_hash = ?", (token_hash(token),)).fetchone()
     if r is None or r["revoked_at"]:
         return None
-    u = conn.execute("SELECT active FROM users WHERE id = ?", (r["user_id"],)).fetchone()
-    if u is not None and not u["active"]:
+    from .active_users import is_disabled
+
+    if is_disabled(conn, r["user_id"]):  # CR-ACTIVE-USER-REST-2438: the one rule (services/active_users)
         return None
     return r
 
