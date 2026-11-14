@@ -1127,6 +1127,7 @@ export class SystemSecurityPrivacyMasks extends LitElement {
     if (!l) return '';
     if (onRemote()) return 'off_remote';
     if (!l.view.can_write) return 'off_perm';
+    if (l.view.nvr_writes_enabled === false) return 'off_nvr_writes'; // CR-NVR-GUARD-2438: the recorder's own settings switch
     if (!(this.switchOn ?? l.view.write_enabled)) return 'off_switch';
     return '';
   }

@@ -341,13 +341,17 @@ def detection_zones(camera_id: str, request: Request, refresh: bool = False, pri
             data = ZONES(camera_settings(settings_of(request), cam), int(cam["channel"]))
         fetched_at = now
         _ZONES_CACHE[camera_id] = (fetched_at, data)
+    from ..services import nvr_write_guard
+
+    writes = nvr_write_guard.writes_on(camera_settings(settings_of(request), cam))  # CR-NVR-GUARD-2438: the motion grid is a settings change
     return {
         "camera_id": camera_id,
         "channel": int(cam["channel"]),
         "source": "nvr",
         "read_only": True,
         "write_reason": "editing the motion grid needs the sensitive permission nvr.config.detection (custom role); masks and smart rules are still read-only",
-        "can_edit_motion": authorize(conn, principal, "nvr.config.detection", INSTALLATION).allowed,
+        "can_edit_motion": writes and authorize(conn, principal, "nvr.config.detection", INSTALLATION).allowed,
+        "writes_enabled": writes,
         "sensitivity_caps": _motion_caps(request, conn, int(cam["channel"]), cam) if authorize(conn, principal, "nvr.config.detection", INSTALLATION).allowed else None,
         "fetched_at": dt.datetime.fromtimestamp(fetched_at, dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "cached": bool(hit) and not refresh and now - hit[0] < ZONES_TTL_S,

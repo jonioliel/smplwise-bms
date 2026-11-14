@@ -6,6 +6,11 @@ change and their undos) only while this switch is on for that recorder. The swit
 every adapter built from that moment refuses the write before a request is built (Provision-ISR: `writes_enabled`; Hikvision:
 `writes_enabled`, both read recorder_scope.WRITES). It is loaded at start-up (`load_all`).
 
+CR-NVR-GUARD-2438 (owner decision O2 = b, 14.11): the switch covers EVERY settings change to the recorder, not only stream
+encoding - notifications, motion, clock / NTP, OSD, schedules, smart rules, privacy masks, any undo - and the two reboots; the
+operational actions (manual recording, output pulse, disk test) stay outside it. The kind table and the guard are in
+services/nvr_write_guard.py.
+
 Never switched (no row): the vendor's own default - Provision-ISR reads the legacy `nvr_extra.writes_enabled` (off unless set),
 Hikvision stays on as shipped since CR-020 S2. Other vendors (Frigate, "no NVR") have no encoding writes: 409 `writes_not_supported`.
 

@@ -152,6 +152,12 @@ export class SystemSetup extends LitElement {
     return html`<div class="check"><span>${label}</span><span class=${`val ${tone}`}>${value === null || value === undefined || value === '' ? '—' : String(value)}</span></div>`;
   }
 
+  /** CR-NVR-GUARD-2438 (owner O2 = b): why a settings write is not offered - the recorder's "allow settings changes" switch is
+   * off. Operational actions (disk test, output pulse, manual recording) are not affected and keep their buttons. */
+  private static writesOffHint(where: string) {
+    return html`<div class="hint" role="note" data-nvr-writes-off=${where}><sw-icon name="lock" size=${13}></sw-icon> שינויי הגדרות ב־NVR כבויים עבור המקליט הזה. אפשר להפעיל אותם בהגדרות החיבור של ה־NVR.</div>`;
+  }
+
   private sectionHead(icon: string, label: string) {
     return html`<div class="syshead"><sw-icon name=${icon} size=${15}></sw-icon>${label}</div>`;
   }
@@ -244,7 +250,9 @@ export class SystemSetup extends LitElement {
                           <div class="actions"><sw-button size="sm" variant="primary" ?disabled=${this.sysBusy || !this.ntpForm.host} data-nvr-ntp-save @click=${() => { const f = this.ntpForm!; void this.sysAction('שרת NTP', async () => { await this.sysApi.setNvrNtp({ host: f.host.trim(), port: f.port, interval_min: f.interval_min }); this.ntpForm = null; }); }}>כתוב ל־NVR</sw-button></div>
                         </div>`
                       : nothing}`
-                  : html`<div class="hint">כתיבת שעון / NTP: הרשאה nvr.config.time (תפקיד מותאם).</div>`}`
+                  : s.writes_enabled === false
+                    ? SystemSetup.writesOffHint('time')
+                    : html`<div class="hint">כתיבת שעון / NTP: הרשאה nvr.config.time (תפקיד מותאם).</div>`}`
             : html`<div class="hint">השעון לא נקרא${s.errors.time ? ` (${s.errors.time})` : ''}.</div>`}
           ${this.sectionHead('storage', 'דיסקים ו־S.M.A.R.T.')}
           ${s.disks.length
@@ -267,6 +275,8 @@ export class SystemSetup extends LitElement {
           ${this.sectionHead('refresh', 'הפעלה מחדש')}
           ${s.can.reboot
             ? html`<div class="actions"><sw-button size="sm" variant="danger" icon="refresh" ?disabled=${this.sysBusy} data-nvr-reboot @click=${() => { this.rebootWord = ''; this.rebootOpen = true; }}>הפעל מחדש את ה־NVR…</sw-button><span class="hint">1–2 דקות בלי לייב ובלי הקלטה</span></div>`
+            : s.writes_enabled === false
+            ? SystemSetup.writesOffHint('reboot')
             : html`<div class="hint">הפעלה מחדש: הרשאה nvr.system.reboot (תפקיד מותאם).</div>`}
           ${this.sysMsg ? SystemSetup.statusLine(this.sysMsg, this.sysOk, 'data-nvr-system-msg') : nothing}`}`}
       ${this.rebootOpen
@@ -460,11 +470,14 @@ export class SystemSetup extends LitElement {
                 <sw-button variant="primary" size="sm" icon="bell" ?disabled=${this.notifyBusy} data-nvr-enable-all @click=${() => this.planNotify(null, false, true)}>הפעל תנועה בכל הערוצים</sw-button>
                 <sw-button size="sm" icon="bell" ?disabled=${this.notifyBusy} data-nvr-enable-smart @click=${() => this.planNotify(null, true, true)}>הפעל גם אירועים חכמים</sw-button>
               </div>`
+            : n.writes_enabled === false
+            ? SystemSetup.writesOffHint('notify')
             : html`<div class="hint" data-nvr-no-permission>לכתיבה ל־NVR נדרשת ההרשאה "${n.permission}" — מוקנית למנהל המערכת, ולאחרים דרך תפקיד מותאם (הגדרות ‹ משתמשים והרשאות ‹ תפקידים), גם למנהל מערכת.</div>`}
           ${this.notifyResult ? SystemSetup.statusLine(this.notifyResult, this.notifyOk, 'data-nvr-result') : nothing}
           ${this.changes.length ? html`<div class="syshead"><sw-icon name="history" size=${15}></sw-icon>שינויים אחרונים ב־NVR</div>
             <ul class="changes" data-nvr-changes>${this.changes.map((c) => html`<li><span class="ltr">${c.created_at.slice(0, 16).replace('T', ' ')}</span> · ${c.target} · ${c.note || c.kind} · ${c.status === 'applied' ? 'בוצע' : c.status === 'unchanged' ? 'ללא שינוי' : c.status === 'rolled_back' ? 'הוחזר' : 'נכשל'}${c.actor_username ? ` · ${c.actor_username}` : ''}
-              ${c.status === 'applied' && n.can_write ? html`<sw-button variant="ghost" size="sm" ?disabled=${this.notifyBusy} data-nvr-rollback=${c.id} @click=${() => this.rollback(c)}>החזר</sw-button>` : nothing}</li>`)}</ul>` : nothing}`}
+              ${c.status === 'applied' && n.can_write && c.writes_enabled !== false ? html`<sw-button variant="ghost" size="sm" ?disabled=${this.notifyBusy} data-nvr-rollback=${c.id} @click=${() => this.rollback(c)}>החזר</sw-button>` : nothing}
+              ${c.status === 'applied' && c.writes_enabled === false ? html`<span class="dim" data-nvr-rollback-off=${c.id}>· החזר כבוי (שינויי הגדרות ב־NVR כבויים)</span>` : nothing}</li>`)}</ul>` : nothing}`}
       ${this.notifyPlan
         ? html`<sw-dialog open heading="כתיבה ל־NVR" subheading=${this.notifyPlan.label} data-nvr-confirm @close=${() => (this.notifyPlan = null)}>
             <div class="dlgtext">השינוי נכתב להגדרות ה־NVR בזהות המשתמש של חיבור ה־NVR, נרשם באודיט עם המסמך לפני ואחרי, וניתן להחזרה מרשימת השינויים. הקלטות אינן מושפעות.</div>

@@ -21,6 +21,7 @@ from ..config import Settings
 from ..db import is_busy, new_id, now_iso, unlocked
 from ..errors import ApiError
 from ..recorder_scope import PRIMARY, camera_settings, settings_for
+from . import nvr_write_guard
 from .nvr import _client, _get
 
 CENTER_BLOCK = "<EventTriggerNotification><id>center</id><notificationMethod>center</notificationMethod></EventTriggerNotification>"
@@ -166,7 +167,9 @@ def apply_change(settings: Settings, conn: sqlite3.Connection, principal: Any, *
     The caller holds the request's connection; NVR I/O happens on `client` (opened here unless given).
     CR-024: `settings` is the TARGET recorder's settings (recorder_scope.camera_settings / settings_for); the change log row
     records that recorder.
-    keep_before=False records no previous document, so the change cannot be rolled back (a clock write, for one)."""
+    keep_before=False records no previous document, so the change cannot be rolled back (a clock write, for one).
+    CR-NVR-GUARD-2438: refused (409 nvr_writes_off, audited, nothing sent) while the recorder's settings switch is off."""
+    nvr_write_guard.guard(settings, conn, principal, kind, request_id=request_id, target=target)
     own = client is None
     c = client or _client(settings)
     try:
@@ -204,6 +207,9 @@ def rollback(settings: Settings, conn: sqlite3.Connection, principal: Any, chang
         # CR-020 S2: an encoding change is undone only by services/nvr_settings.rollback_stream (nvr.configure on the camera,
         # confirm, etag-of-after check, two phases). This generic path must never PUT its document.
         raise ApiError(409, "not_rollbackable", "שינוי קידוד מבוטל רק דרך מסך הגדרות המצלמות.", details={"kind": orig["kind"]})
+    rec_id = orig["recorder_id"] if "recorder_id" in orig.keys() else PRIMARY
+    # CR-NVR-GUARD-2438: an undo is a settings change on the recorder the change was made on - its switch decides
+    nvr_write_guard.guard(settings_for(settings, rec_id), conn, principal, orig["kind"], request_id=request_id, target=orig["target"])
     if orig["kind"] == "privacy_mask":
         # NVRMASK-295: PUT of the old document does not remove stored regions on the lab firmware (it merges); the privacy
         # module restores the original exactly (PUT + DELETE of the added regions + verified read-back).
@@ -212,7 +218,6 @@ def rollback(settings: Settings, conn: sqlite3.Connection, principal: Any, chang
         return restore_change(settings, conn, principal, change_id, request_id=request_id, client=client)
     if orig["status"] not in ("applied", "rolled_back") or not orig["before_xml"]:
         raise ApiError(409, "not_rollbackable", "אין לשינוי הזה מסמך קודם להחזיר.", details={"status": orig["status"]})
-    rec_id = orig["recorder_id"] if "recorder_id" in orig.keys() else PRIMARY
     settings = settings_for(settings, rec_id)  # CR-024: the undo goes to the recorder the change was made on
     own = client is None
     c = client or _client(settings)

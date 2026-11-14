@@ -34,6 +34,8 @@ export interface MaskView {
   points_per_region: number;
   can_write: boolean;
   write_enabled: boolean;
+  /** CR-NVR-GUARD-2438: the camera's recorder accepts settings changes (its "allow settings changes" switch). */
+  nvr_writes_enabled?: boolean;
 }
 
 export interface MaskItem {

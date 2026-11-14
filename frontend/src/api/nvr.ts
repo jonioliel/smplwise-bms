@@ -12,7 +12,7 @@ export interface NotifyChannel {
   smart_supported: number;
   smart_center: number;
 }
-export interface NotifyStatus { channels: NotifyChannel[]; permission: string; can_write: boolean; labels: Record<string, string> }
+export interface NotifyStatus { channels: NotifyChannel[]; permission: string; can_write: boolean; labels: Record<string, string>; /** CR-NVR-GUARD-2438: the recorder's "allow settings changes" switch is on (`can*` flags already include it). */ writes_enabled?: boolean }
 export interface NotifyResult { results: { channel: number; type: string; status: string; reason?: string; change_id?: string }[]; applied: number; unchanged: number; skipped: number; failed: number }
 export interface NvrChange {
   id: string;
@@ -28,6 +28,8 @@ export interface NvrChange {
   created_at: string;
   has_before: boolean;
   has_after: boolean;
+  /** CR-NVR-GUARD-2438: the recorder's "allow settings changes" switch is on for this change's recorder: the undo needs it. */
+  writes_enabled?: boolean;
 }
 
 export const notifyStatus = () => get<NotifyStatus>('nvr/notify');
@@ -73,6 +75,8 @@ export function nvrSystemApi(recorderId?: string) {
 // the NVR connection (vendor, host, ports, user, write-only password) moved to ./nvr-connection.ts (CR-022)
 export interface OsdStatus {
   camera_id: string; channel: number; vms_name: string; nvr_name: string | null; can_write: boolean; date_styles: string[];
+  /** CR-NVR-GUARD-2438: the recorder's "allow settings changes" switch is on (`can*` flags already include it). */
+  writes_enabled?: boolean;
   screen: { width: number; height: number };
   channel_name: { enabled: boolean; x: number; y: number } | null;
   datetime: { enabled: boolean; x: number; y: number; date_style: string | null; time_style: string | null; display_week: boolean } | null;
@@ -88,6 +92,8 @@ export interface CameraSchedules {
   record: { enabled: boolean; schedule_enabled: boolean | null; default_mode: string | null; pre_record_s: number | null; post_record_s: number | null; days: WeekRange[][] } | null;
   unsupported: Record<string, string>;
   can: { events: boolean; schedule: boolean };
+  /** CR-NVR-GUARD-2438: the recorder's "allow settings changes" switch is on (`can*` flags already include it). */
+  writes_enabled?: boolean;
   modes: string[];
 }
 export const cameraSchedules = (cameraId: string) => get<CameraSchedules>(`cameras/${cameraId}/schedules`);
@@ -95,7 +101,7 @@ export const setArming = (cameraId: string, kind: ArmingKind, days: WeekRange[][
 export const setRecordSchedule = (cameraId: string, body: { days?: WeekRange[][]; enabled?: boolean; schedule_enabled?: boolean }) => put<NvrChange>(`cameras/${cameraId}/record-schedule`, body);
 export interface SmartLine { id: number; enabled: boolean; sensitivity: number; direction: string; points: number[][]; human: boolean; vehicle: boolean }
 export interface SmartRegion { id: number; sensitivity: number; points: number[][]; human: boolean; vehicle: boolean }
-export interface CameraSmart { camera_id: string; channel: number; can_write: boolean; line: { enabled: boolean; lines: SmartLine[] } | null; field: { enabled: boolean; regions: SmartRegion[] } | null }
+export interface CameraSmart { camera_id: string; channel: number; can_write: boolean; /** CR-NVR-GUARD-2438: the recorder's "allow settings changes" switch is on (`can*` flags already include it). */ writes_enabled?: boolean; line: { enabled: boolean; lines: SmartLine[] } | null; field: { enabled: boolean; regions: SmartRegion[] } | null }
 export const cameraSmart = (cameraId: string) => get<CameraSmart>(`cameras/${cameraId}/smart`);
 export const setSmart = (cameraId: string, body: { line?: { enabled?: boolean; lines?: Partial<SmartLine>[] }; field?: { enabled?: boolean; regions?: Partial<SmartRegion>[] } }) => put<Record<string, NvrChange & { enable_refused?: boolean }>>(`cameras/${cameraId}/smart`, body);
 export const writeChannelName = (cameraId: string, name?: string) => post<NvrChange & { name: string }>(`cameras/${cameraId}/osd/name`, name ? { name } : {});

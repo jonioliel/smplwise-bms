@@ -39,7 +39,7 @@ from ..config import Settings
 from ..db import get_setting
 from ..errors import ApiError
 from ..recorder_scope import PRIMARY, settings_for
-from . import nvr
+from . import nvr, nvr_write_guard
 from .nvr import _client, _get
 from .nvr_write import _probe, _put, _record, get_change, response_status
 
@@ -228,7 +228,9 @@ def _rec(conn: sqlite3.Connection, principal: Any, *, settings: Settings, camera
 def write_camera(settings: Settings, conn: sqlite3.Connection, principal: Any, *, camera_id: str, channel: int, enabled: bool,
                  regions: list[list[list[int]]], expected_etag: str, request_id: str | None = None, client: httpx.Client | None = None) -> dict[str, Any]:
     """One camera: fresh read + etag check, validate, PUT (+ DELETE of unwanted stored regions), read back, verify.
-    A failure after the device was touched puts the original back and reports whether that worked."""
+    A failure after the device was touched puts the original back and reports whether that worked.
+    CR-NVR-GUARD-2438: refused first (409 nvr_writes_off, audited, nothing read or sent) while the recorder's switch is off."""
+    nvr_write_guard.guard(settings, conn, principal, KIND, request_id=request_id, target=f"privacy-{channel}")
     own = client is None
     c = client or _client(settings)
     note = f"מסכת פרטיות: {'פעילה' if enabled else 'כבויה'} · {len(regions)} אזורים"
