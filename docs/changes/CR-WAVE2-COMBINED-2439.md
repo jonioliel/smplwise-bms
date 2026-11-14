@@ -160,6 +160,12 @@ NOT_RUN locally (the runner entry check runs them): the full backend suite, the 
 (`unit-no-native-dialogs`, `unit-reconnecting-socket-2435`, `unit-session-me-failure-2435`, `unit-update-run-outage-2438`,
 `evidence-confirm-dialog-2438`; they need a preview build), pixel / layout runs.
 
+After the shutdown fix and the 2.43.6 merge (same workstation, one file at a time): `test_asgi_wiskey_295` 28 passed,
+`test_wiskey_background` 18, `test_ha_sync_1000` 1, `test_shutdown_safely` 3, `test_fake_wiskey` 21, `test_intercom` 184,
+`test_map3d_r28_settings_2433` 3, `test_build_guards_2438` 10 (all passed); tsc exit 0; `release_check` ready (2.43.6);
+`sync_integration --check` up to date; API inventory 1,908 routes, no diff. The runner reproduction was NOT_RUN (the machine was
+held by another entry check; `run_guarded` refused).
+
 ## Entry check
 
 Queued on the runner 14.11.2026 (`ENTRY_TOTAL_SECS=14400`, log `~/pre/entry_crw2comb.log`), position 10 of 10 behind a running
