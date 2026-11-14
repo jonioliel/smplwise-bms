@@ -19,6 +19,7 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsLadderStyles } from '../styles/settings';
 import { dayTimeText } from '../api/day-format';
+import { tr } from '../i18n/msg/system-b';
 
 const PER_CAMERA = [
   { name: 'כניסה ראשית', gb: 320 },
@@ -281,18 +282,18 @@ export class SystemStorage extends LitElement {
     const d = l.data_disk;
     const paused = l.exports.paused_disk_full;
     const c = l.exports.counters;
-    return html`<sw-card heading="הדיסק של התוסף" subheading=${`ייצואים, תמונות אירועים וגיבויים נשמרים כאן · ייצוא חדש נדחה מתחת ל־${fmtMb(d.min_free_mb)} פנויים, וייצוא שרץ מושהה עד שיתפנה מקום`} data-storage-disk-guard>
+    return html`<sw-card heading=${tr('הדיסק של התוסף')} subheading=${tr('ייצואים, תמונות אירועים וגיבויים נשמרים כאן · ייצוא חדש נדחה מתחת ל־{min} פנויים, וייצוא שרץ מושהה עד שיתפנה מקום', { min: fmtMb(d.min_free_mb) })} data-storage-disk-guard>
       ${this.localError ? html`<div class="err">${this.localError}</div>` : nothing}
       <div class="ret">
-        <div><div class="v" data-local-free>${bidi(fmtMb(d.free_mb))}</div><div class="l">${bidi(`פנויים מתוך ${fmtMb(d.total_mb)} · מינימום ${fmtMb(d.min_free_mb)}`)}</div></div>
+        <div><div class="v" data-local-free>${bidi(fmtMb(d.free_mb))}</div><div class="l">${bidi(tr('פנויים מתוך {total} · מינימום {min}', { total: fmtMb(d.total_mb), min: fmtMb(d.min_free_mb) }))}</div></div>
         <div>
-          <div><sw-badge kind=${d.low ? 'error' : paused ? 'stale' : 'recorded'} label=${d.low ? 'מתחת למינימום · ייצוא חדש נדחה' : paused ? `${paused} ייצואים מושהים` : 'תקין'} data-local-state></sw-badge></div>
-          <div class="l">בתור ${l.exports.waiting} מתוך ${l.exports.max_waiting} · נדחו בגלל מקום ${c.refused_disk} · הושהו ${c.paused_disk_full} · חודשו ${c.resumed}${c.refused_queue_full ? ` · נדחו בתור מלא ${c.refused_queue_full}` : ''}</div>
-          ${paused ? html`<div style="margin-block-start:6px"><sw-button size="sm" icon="refresh" data-local-resume ?disabled=${this.resuming || d.low} @click=${() => this.resume()}>${this.resuming ? 'ממשיך…' : 'המשך ייצואים מושהים'}</sw-button></div>` : nothing}
+          <div><sw-badge kind=${d.low ? 'error' : paused ? 'stale' : 'recorded'} label=${d.low ? tr('מתחת למינימום · ייצוא חדש נדחה') : paused ? tr('{n} ייצואים מושהים', { n: paused }) : tr('תקין')} data-local-state></sw-badge></div>
+          <div class="l">${tr('בתור {n} מתוך {max}', { n: l.exports.waiting, max: l.exports.max_waiting })} · ${tr('נדחו בגלל מקום {n}', { n: c.refused_disk })} · ${tr('הושהו {n}', { n: c.paused_disk_full })} · ${tr('חודשו {n}', { n: c.resumed })}${c.refused_queue_full ? ` · ${tr('נדחו בתור מלא {n}', { n: c.refused_queue_full })}` : ''}</div>
+          ${paused ? html`<div style="margin-block-start:6px"><sw-button size="sm" icon="refresh" data-local-resume ?disabled=${this.resuming || d.low} @click=${() => this.resume()}>${this.resuming ? tr('ממשיך…') : tr('המשך ייצואים מושהים')}</sw-button></div>` : nothing}
         </div>
       </div>
-      ${l.ingest_queue.dropped || l.ingest_queue.coalesced ? html`<div class="hint" style="margin-block-start:6px">תור קליטת ההתראות מה־NVR: ${l.ingest_queue.coalesced} אוחדו לרצף אחד · ${l.ingest_queue.dropped} נזרקו כשהמסד היה איטי (שיא ${l.ingest_queue.high_water} מתוך ${l.ingest_queue.max})</div>` : nothing}
-      ${l.portal_start?.dropped ? html`<div class="hint" style="margin-block-start:6px" data-local-portal-dropped>בקשות קוד בפורטל הספקים: ${l.portal_start.dropped} נזרקו כשהתור היה מלא (מתוך ${l.portal_start.accepted + l.portal_start.dropped})</div>` : nothing}
+      ${l.ingest_queue.dropped || l.ingest_queue.coalesced ? html`<div class="hint" style="margin-block-start:6px">${tr('תור קליטת ההתראות מה־NVR: {merged} אוחדו לרצף אחד · {dropped} נזרקו כשהמסד היה איטי (שיא {peak} מתוך {max})', { merged: l.ingest_queue.coalesced, dropped: l.ingest_queue.dropped, peak: l.ingest_queue.high_water, max: l.ingest_queue.max })}</div>` : nothing}
+      ${l.portal_start?.dropped ? html`<div class="hint" style="margin-block-start:6px" data-local-portal-dropped>${tr('בקשות קוד בפורטל הספקים: {dropped} נזרקו כשהתור היה מלא (מתוך {total})', { dropped: l.portal_start.dropped, total: l.portal_start.accepted + l.portal_start.dropped })}</div>` : nothing}
     </sw-card>`;
   }
 
@@ -344,57 +345,57 @@ export class SystemStorage extends LitElement {
     const l = d.local;
     if (!l) return nothing;
     const mb = formatBytes;
-    return html`<sw-card heading="אחסון התוסף (/data)" subheading="נמדד בכל טעינה · הקבצים שהמערכת שומרת אצלה, לא ב־NVR" data-storage-local>
+    return html`<sw-card heading=${tr('אחסון התוסף (/data)')} subheading=${tr('נמדד בכל טעינה · הקבצים שהמערכת שומרת אצלה, לא ב־NVR')} data-storage-local>
       <div class="kv">
-        <div><span>פנוי</span><strong>${bidi(`${mb(l.free_bytes)} מתוך ${mb(l.total_bytes)}`)}</strong></div>
-        <div><span>ייצוא קטעים</span><strong>${mb(l.exports_bytes)}</strong></div>
-        <div><span>תיקים (תמונות וחבילות)</span><strong>${mb(l.cases_bytes)}</strong></div>
-        <div><span>ראיות מיובאות</span><strong data-storage-imported data-bytes=${String(l.imported.bytes)}>${mb(l.imported.bytes)} · ${l.imported.cases} תיקים מיובאים</strong></div>
+        <div><span>${tr('פנוי')}</span><strong>${bidi(tr('{free} מתוך {total}', { free: mb(l.free_bytes), total: mb(l.total_bytes) }))}</strong></div>
+        <div><span>${tr('ייצוא קטעים')}</span><strong>${mb(l.exports_bytes)}</strong></div>
+        <div><span>${tr('תיקים (תמונות וחבילות)')}</span><strong>${mb(l.cases_bytes)}</strong></div>
+        <div><span>${tr('ראיות מיובאות')}</span><strong data-storage-imported data-bytes=${String(l.imported.bytes)}>${mb(l.imported.bytes)} · ${tr('{n} תיקים מיובאים', { n: l.imported.cases })}</strong></div>
       </div>
-      <div class="note" style="margin-block-start:6px">קבצי ראיות מיובאות נשמרים לכל תיק מיובא בנפרד ונמחקים יחד עם התיק.</div>
+      <div class="note" style="margin-block-start:6px">${tr('קבצי ראיות מיובאות נשמרים לכל תיק מיובא בנפרד ונמחקים יחד עם התיק.')}</div>
     </sw-card>`;
   }
 
   private renderSigning() {
     const s = this.signing;
     const fmt = (iso: string | null) => (iso ? iso.replace('T', ' ').replace('Z', ' UTC') : '—');
-    return html`<sw-card heading="חתימת ראיות" subheading="כל חבילת ראיות חתומה ב־Ed25519 במפתח הפעיל של המתקן; החלק הפרטי נשאר ב־/data/keys ואינו נכלל בגיבוי" data-signing>
+    return html`<sw-card heading=${tr('חתימת ראיות')} subheading=${tr('כל חבילת ראיות חתומה ב־Ed25519 במפתח הפעיל של המתקן; החלק הפרטי נשאר ב־/data/keys ואינו נכלל בגיבוי')} data-signing>
       ${this.signingError ? html`<div class="note">${this.signingError}</div>` : nothing}
       ${s
         ? html`<div class="kv">
-              <div><span>מפתח פעיל</span><strong class="ltr" data-signing-active>${s.active ?? '—'}</strong></div>
-              <div><span>נוצר</span><strong>${fmt(s.keys.find((k) => k.kid === s.active)?.created_at ?? null)}</strong></div>
-              <div><span>מפתחות שהוחלפו</span><strong>${s.keys.filter((k) => k.retired_at).length}</strong></div>
-              <div><span>מפתח ציבורי (base64)</span><strong class="ltr" style="word-break:break-all;font-size:var(--sw-fs-xs)">${s.keys.find((k) => k.kid === s.active)?.public_key ?? '—'}</strong></div>
+              <div><span>${tr('מפתח פעיל')}</span><strong class="ltr" data-signing-active>${s.active ?? '—'}</strong></div>
+              <div><span>${tr('נוצר')}</span><strong>${fmt(s.keys.find((k) => k.kid === s.active)?.created_at ?? null)}</strong></div>
+              <div><span>${tr('מפתחות שהוחלפו')}</span><strong>${s.keys.filter((k) => k.retired_at).length}</strong></div>
+              <div><span>${tr('מפתח ציבורי (base64)')}</span><strong class="ltr" style="word-break:break-all;font-size:var(--sw-fs-xs)">${s.keys.find((k) => k.kid === s.active)?.public_key ?? '—'}</strong></div>
             </div>
-            ${s.keys.filter((k) => k.retired_at).length ? html`<div class="note">מפתחות שהוחלפו נשמרים לאימות חבילות ישנות: ${s.keys.filter((k) => k.retired_at).map((k) => `${k.kid} (עד ${fmt(k.retired_at)})`).join(', ')}</div>` : nothing}
-            <div class="note" style="margin-block-start:6px">${s.trust} אימות מחוץ למערכת: <span class="ltr">scripts/verify_bundle.py bundle.zip --keyring keyring.json</span></div>
+            ${s.keys.filter((k) => k.retired_at).length ? html`<div class="note">${tr('מפתחות שהוחלפו נשמרים לאימות חבילות ישנות:')} ${s.keys.filter((k) => k.retired_at).map((k) => `${k.kid} (${tr('עד {time}', { time: fmt(k.retired_at) })})`).join(', ')}</div>` : nothing}
+            <div class="note" style="margin-block-start:6px">${s.trust} ${tr('אימות מחוץ למערכת:')} <span class="ltr">scripts/verify_bundle.py bundle.zip --keyring keyring.json</span></div>
             ${s.can_rotate
               ? this.rotateConfirm
-                ? html`<div class="note" style="margin-block-start:6px">החלפת מפתח: חבילות חדשות ייחתמו במפתח חדש; הישן נשאר בטבעת לאימות. הפעולה נרשמת באודיט. <sw-button size="sm" variant="danger" data-signing-rotate-confirm ?disabled=${this.signingBusy} @click=${() => this.rotateKey()}>החלף עכשיו</sw-button> <sw-button size="sm" variant="ghost" @click=${() => (this.rotateConfirm = false)}>ביטול</sw-button></div>`
-                : html`<div style="margin-block-start:8px"><sw-button size="sm" icon="refresh" data-signing-rotate @click=${() => (this.rotateConfirm = true)}>החלפת מפתח חתימה</sw-button></div>`
+                ? html`<div class="note" style="margin-block-start:6px">${tr('החלפת מפתח: חבילות חדשות ייחתמו במפתח חדש; הישן נשאר בטבעת לאימות. הפעולה נרשמת באודיט.')} <sw-button size="sm" variant="danger" data-signing-rotate-confirm ?disabled=${this.signingBusy} @click=${() => this.rotateKey()}>${tr('החלף עכשיו')}</sw-button> <sw-button size="sm" variant="ghost" @click=${() => (this.rotateConfirm = false)}>${tr('ביטול')}</sw-button></div>`
+                : html`<div style="margin-block-start:8px"><sw-button size="sm" icon="refresh" data-signing-rotate @click=${() => (this.rotateConfirm = true)}>${tr('החלפת מפתח חתימה')}</sw-button></div>`
               : nothing}`
-        : html`<div class="note">טוען…</div>`}
+        : html`<div class="note">${tr('טוען…')}</div>`}
     </sw-card>`;
   }
 
   /** NVR-less mode: only the add-on's own disk - there are no recordings, disks or schedules to read. */
   private renderNvrLess() {
     const d = this.data;
-    return html`<sw-page crumbs="הגדרות" heading="אחסון" subheading="האחסון המקומי של ה־Add-on (/data) · מצב ללא NVR">
-      <sw-button slot="actions" icon="refresh" data-storage-refresh ?disabled=${this.loading} @click=${() => { void this.load(true); void this.loadLocal(); }}>${this.loading ? 'בודק…' : 'רענון'}</sw-button>
+    return html`<sw-page crumbs=${tr('הגדרות')} heading=${tr('אחסון')} subheading=${tr('האחסון המקומי של ה־Add-on (/data) · מצב ללא NVR')}>
+      <sw-button slot="actions" icon="refresh" data-storage-refresh ?disabled=${this.loading} @click=${() => { void this.load(true); void this.loadLocal(); }}>${this.loading ? tr('בודק…') : tr('רענון')}</sw-button>
       ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
       ${this.renderDiskGuard()}
       ${d ? this.renderLocal(d) : nothing}
-      <sw-state-panel icon="storage" data-storage-nvr-less state="empty" heading="מצב ללא NVR" hint="ההתקנה פועלת ללא NVR: אין הקלטות, דיסקים או תוכנית הקלטה לקרוא."></sw-state-panel>
+      <sw-state-panel icon="storage" data-storage-nvr-less state="empty" heading=${tr('מצב ללא NVR')} hint=${tr('ההתקנה פועלת ללא NVR: אין הקלטות, דיסקים או תוכנית הקלטה לקרוא.')}></sw-state-panel>
     </sw-page>`;
   }
 
   private renderApi() {
     if (nvrLess()) return this.renderNvrLess();
-    if (this.error && !this.data) return html`<sw-page crumbs="הגדרות" heading="אחסון ותוכנית הקלטה"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>${this.renderDiskGuard()}</sw-page>`;
+    if (this.error && !this.data) return html`<sw-page crumbs=${tr('הגדרות')} heading=${tr('אחסון ותוכנית הקלטה')}><sw-state-panel state="error" hint=${this.error} actionLabel=${tr('נסה שוב')} @action=${() => this.load()}></sw-state-panel>${this.renderDiskGuard()}</sw-page>`;
     const d = this.data;
-    if (!d) return html`<sw-page crumbs="הגדרות" heading="אחסון ותוכנית הקלטה">${this.renderDiskGuard()}<sw-state-panel state="loading"></sw-state-panel></sw-page>`;
+    if (!d) return html`<sw-page crumbs=${tr('הגדרות')} heading=${tr('אחסון ותוכנית הקלטה')}>${this.renderDiskGuard()}<sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     const t = d.totals;
     const r = d.retention;
     const ring = 16;
@@ -402,50 +403,50 @@ export class SystemStorage extends LitElement {
     const pct = t?.used_pct ?? 0;
     const measured = r.measured_days_min == null ? '—' : r.measured_days_min === r.measured_days_max ? `${r.measured_days_min}` : `${r.measured_days_min}–${r.measured_days_max}`;
     return html`
-      <sw-page crumbs="הגדרות" heading="אחסון ותוכנית הקלטה" subheading="קריאה בלבד מה־NVR · נמדד לעומת אומדן, עם הסיבה לכל מספר · אין format, RAID או מחיקה מכאן">
-        <sw-button slot="actions" icon="refresh" data-storage-refresh ?disabled=${this.loading} @click=${() => { void this.load(true); void this.loadLocal(); }}>${this.loading ? 'שואל את ה־NVR…' : 'רענון מול ה־NVR'}</sw-button>
+      <sw-page crumbs=${tr('הגדרות')} heading=${tr('אחסון ותוכנית הקלטה')} subheading=${tr('קריאה בלבד מה־NVR · נמדד לעומת אומדן, עם הסיבה לכל מספר · אין format, RAID או מחיקה מכאן')}>
+        <sw-button slot="actions" icon="refresh" data-storage-refresh ?disabled=${this.loading} @click=${() => { void this.load(true); void this.loadLocal(); }}>${this.loading ? tr('שואל את ה־NVR…') : tr('רענון מול ה־NVR')}</sw-button>
         ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
         ${this.renderDiskGuard()}
         ${this.renderLocal(d)}
         ${!d.nvr.configured
-          ? html`<sw-state-panel icon="storage" state="empty" heading="ה־NVR לא מוגדר" hint="הגדר את פרטי ה־NVR בהגדרות התוסף; המסך קורא ממנו בלבד."></sw-state-panel>`
+          ? html`<sw-state-panel icon="storage" state="empty" heading=${tr('ה־NVR לא מוגדר')} hint=${tr('הגדר את פרטי ה־NVR בהגדרות התוסף; המסך קורא ממנו בלבד.')}></sw-state-panel>`
           : !d.nvr.reachable
-            ? html`<sw-state-panel state="error" heading="אין תשובה מה־NVR" hint=${d.nvr.error ?? ''} actionLabel="נסה שוב" @action=${() => this.load(true)}></sw-state-panel>
+            ? html`<sw-state-panel state="error" heading=${tr('אין תשובה מה־NVR')} hint=${d.nvr.error ?? ''} actionLabel=${tr('נסה שוב')} @action=${() => this.load(true)}></sw-state-panel>
                 ${this.renderSigning()}`
             : html`
                 <div class="kpis" data-storage-kpis>
-                  <sw-card flush class="kpi"><div><div class="v">${fmtMb(t?.used_mb)}</div><div class="l">בשימוש (נמדד מה־NVR)</div></div><div class="ic"><sw-icon name="storage" size=${16}></sw-icon></div></sw-card>
-                  <sw-card flush class="kpi"><div><div class="v">${fmtMb(t?.capacity_mb)}</div><div class="l">קיבולת · ${t?.disks ?? 0} דיסקים${t?.nas ? ` · ${t.nas} NAS` : ''} · מצב ${d.work_mode ?? '?'}</div></div><div class="ic"><sw-icon name="cpu" size=${16}></sw-icon></div></sw-card>
-                  <sw-card flush class="kpi"><div><div class="v">${t?.used_pct == null ? '—' : `${t.used_pct}%`}</div><div class="l">ניצולת · פנוי ${fmtMb(t?.free_mb)}</div></div><svg viewBox="0 0 40 40" aria-hidden="true">${svg`<circle cx="20" cy="20" r=${ring} fill="none" stroke="var(--sw-surface-3)" stroke-width="6" /><circle cx="20" cy="20" r=${ring} fill="none" stroke="var(--sw-accent)" stroke-width="6" stroke-linecap="round" stroke-dasharray=${`${(circ * pct) / 100} ${circ}`} transform="rotate(-90 20 20)" />`}</svg></sw-card>
+                  <sw-card flush class="kpi"><div><div class="v">${fmtMb(t?.used_mb)}</div><div class="l">${tr('בשימוש (נמדד מה־NVR)')}</div></div><div class="ic"><sw-icon name="storage" size=${16}></sw-icon></div></sw-card>
+                  <sw-card flush class="kpi"><div><div class="v">${fmtMb(t?.capacity_mb)}</div><div class="l">${tr('קיבולת')} · ${tr('{n} דיסקים', { n: t?.disks ?? 0 })}${t?.nas ? ` · ${t.nas} NAS` : ''} · ${tr('מצב {mode}', { mode: d.work_mode ?? '?' })}</div></div><div class="ic"><sw-icon name="cpu" size=${16}></sw-icon></div></sw-card>
+                  <sw-card flush class="kpi"><div><div class="v">${t?.used_pct == null ? '—' : `${t.used_pct}%`}</div><div class="l">${tr('ניצולת')} · ${tr('פנוי {n}', { n: fmtMb(t?.free_mb) })}</div></div><svg viewBox="0 0 40 40" aria-hidden="true">${svg`<circle cx="20" cy="20" r=${ring} fill="none" stroke="var(--sw-surface-3)" stroke-width="6" /><circle cx="20" cy="20" r=${ring} fill="none" stroke="var(--sw-accent)" stroke-width="6" stroke-linecap="round" stroke-dasharray=${`${(circ * pct) / 100} ${circ}`} transform="rotate(-90 20 20)" />`}</svg></sw-card>
                 </div>
-                <sw-card heading="שמירת הקלטות (retention)" subheading="שני מספרים שונים בכוונה: מה שנמדד מול מה שמוערך" data-storage-retention>
+                <sw-card heading=${tr('שמירת הקלטות (retention)')} subheading=${tr('שני מספרים שונים בכוונה: מה שנמדד מול מה שמוערך')} data-storage-retention>
                   <div class="ret">
-                    <div><div class="v">${measured}<span style="font-size:var(--sw-fs-sm);font-weight:400"> ימים</span></div><div class="l"><strong>נמדד</strong> · ${r.measured_reason}</div></div>
-                    <div><div class="v">${r.estimated_days == null ? '—' : `≈ ${r.estimated_days}`}<span style="font-size:var(--sw-fs-sm);font-weight:400"> ימים</span></div><div class="l"><strong>אומדן</strong> · ${r.estimated_reason}</div></div>
+                    <div><div class="v">${measured}<span style="font-size:var(--sw-fs-sm);font-weight:400"> ${tr('ימים')}</span></div><div class="l"><strong>${tr('נמדד')}</strong> · ${r.measured_reason}</div></div>
+                    <div><div class="v">${r.estimated_days == null ? '—' : `≈ ${r.estimated_days}`}<span style="font-size:var(--sw-fs-sm);font-weight:400"> ${tr('ימים')}</span></div><div class="l"><strong>${tr('אומדן')}</strong> · ${r.estimated_reason}</div></div>
                   </div>
                 </sw-card>
                 <div class="grid">
-                  <sw-card heading="תוכנית הקלטה לפי מצלמה" subheading=${d.schedule_error ?? 'נקרא מ־ISAPI record/tracks · pre/post בשניות · ההקלטה המוקדמת ביותר שנמצאה'}>
+                  <sw-card heading=${tr('תוכנית הקלטה לפי מצלמה')} subheading=${d.schedule_error ?? tr('נקרא מ־ISAPI record/tracks · pre/post בשניות · ההקלטה המוקדמת ביותר שנמצאה')}>
                     <div class="tbl cams" data-storage-cameras>
-                      <div class="r h"><span>מצלמה</span><span>מצב הקלטה</span><span>pre / post</span><span>זרם</span><span>הקלטה מוקדמת ביותר</span><span class="num">ימים</span></div>
-                      ${d.cameras.map((c) => html`<div class="r" data-storage-camera><span>${c.name}<small>ערוץ ${c.channel}${c.track_id ? ` · track ${c.track_id}` : ''}</small></span><span>${c.summary}${c.expiry && c.expiry !== 'P0DT0H' ? html`<small>תפוגה ${c.expiry}</small>` : nothing}</span><span class="num">${c.pre_s ?? '—'} / ${c.post_s ?? '—'}</span><span class="num">${c.bitrate_kbps ? `${c.bitrate_kbps} kbps` : '—'}${c.resolution ? html`<small class="num">${c.resolution}${c.fps ? ` · ${c.fps} fps` : ''}</small>` : nothing}</span><span>${this.fmt(c.oldest_recording_at)}<small>${c.retention_reason}</small></span><span class="num">${c.retention_days ?? '—'}</span></div>`)}
+                      <div class="r h"><span>${tr('מצלמה')}</span><span>${tr('מצב הקלטה')}</span><span>pre / post</span><span>${tr('זרם')}</span><span>${tr('הקלטה מוקדמת ביותר')}</span><span class="num">${tr('ימים')}</span></div>
+                      ${d.cameras.map((c) => html`<div class="r" data-storage-camera><span>${c.name}<small>${tr('ערוץ')} ${c.channel}${c.track_id ? ` · track ${c.track_id}` : ''}</small></span><span>${c.summary}${c.expiry && c.expiry !== 'P0DT0H' ? html`<small>${tr('תפוגה {value}', { value: c.expiry })}</small>` : nothing}</span><span class="num">${c.pre_s ?? '—'} / ${c.post_s ?? '—'}</span><span class="num">${c.bitrate_kbps ? `${c.bitrate_kbps} kbps` : '—'}${c.resolution ? html`<small class="num">${c.resolution}${c.fps ? ` · ${c.fps} fps` : ''}</small>` : nothing}</span><span>${this.fmt(c.oldest_recording_at)}<small>${c.retention_reason}</small></span><span class="num">${c.retention_days ?? '—'}</span></div>`)}
                     </div>
                   </sw-card>
                   <div>
-                    <sw-card heading="דיסקים" subheading=${`${t?.disks_ok ?? 0} מתוך ${(t?.disks ?? 0) + (t?.nas ?? 0)} תקינים`}>
+                    <sw-card heading=${tr('דיסקים')} subheading=${tr('{ok} מתוך {total} תקינים', { ok: t?.disks_ok ?? 0, total: (t?.disks ?? 0) + (t?.nas ?? 0) })}>
                       <div class="tbl disks" data-storage-disks>
-                        <div class="r h"><span>שם</span><span>סוג</span><span>מצב</span><span class="num">קיבולת</span><span class="num">פנוי</span><span>גישה</span></div>
+                        <div class="r h"><span>${tr('שם')}</span><span>${tr('סוג')}</span><span>${tr('מצב')}</span><span class="num">${tr('קיבולת')}</span><span class="num">${tr('פנוי')}</span><span>${tr('גישה')}</span></div>
                         ${[...d.disks, ...d.nas].map((x) => html`<div class="r" data-storage-disk><span>${x.name}${x.path ? html`<small>${x.path}</small>` : nothing}</span><span>${x.kind}</span><span><sw-badge kind=${x.status === 'ok' ? 'recorded' : 'error'} label=${x.status}></sw-badge></span><span class="num">${fmtMb(x.capacity_mb)}</span><span class="num">${fmtMb(x.free_mb)}</span><span>${x.property}</span></div>`)}
                       </div>
                     </sw-card>
                     ${this.renderSigning()}
-                    <sw-card heading="מה המערכת לא עושה ב־NVR" subheading="גבולות הפיילוט" data-storage-limits>
+                    <sw-card heading=${tr('מה המערכת לא עושה ב־NVR')} subheading=${tr('גבולות הפיילוט')} data-storage-limits>
                       <ul class="limits">${d.limits.notes.map((n) => html`<li>${n}</li>`)}</ul>
-                      <div style="margin-block-start:6px"><sw-button size="sm" disabled icon="edit">עריכת מדיניות הקלטה (לא בפיילוט)</sw-button></div>
+                      <div style="margin-block-start:6px"><sw-button size="sm" disabled icon="edit">${tr('עריכת מדיניות הקלטה (לא בפיילוט)')}</sw-button></div>
                     </sw-card>
                   </div>
                 </div>
-                <div class="hint">נקרא ${this.fmt(d.generated_at)}${d.cached ? ' · מהמטמון (עד 10 דקות)' : ' · עכשיו'} · חיפוש ההקלטה המוקדמת: ${r.lookback_days} ימים אחורה, שאילתה אחת לכל מצלמה.</div>
+                <div class="hint">${tr('נקרא {time}', { time: this.fmt(d.generated_at) })}${d.cached ? ` · ${tr('מהמטמון (עד 10 דקות)')}` : ` · ${tr('עכשיו')}`} · ${tr('חיפוש ההקלטה המוקדמת: {n} ימים אחורה, שאילתה אחת לכל מצלמה.', { n: r.lookback_days })}</div>
               `}
       </sw-page>
     `;
@@ -464,15 +465,15 @@ export class SystemStorage extends LitElement {
     const c = 2 * Math.PI * r;
     const max = 410;
     return html`
-      <sw-page crumbs="הגדרות" heading="אנליטיקת אחסון" subheading="Beta · ניטור שימוש, תכנון קדימה ושליטה · נתון נמדד לעומת אומדן מסומן · אין format או RAID · נתוני הדגמה">
+      <sw-page crumbs=${tr('הגדרות')} heading=${tr('אנליטיקת אחסון')} subheading=${tr('Beta · ניטור שימוש, תכנון קדימה ושליטה · נתון נמדד לעומת אומדן מסומן · אין format או RAID · נתוני הדגמה')}>
         <div slot="actions" style="display:flex;gap:4px">${['7D', '30D', '90D', '1Y'].map((x) => html`<sw-chip ?selected=${this.range === x} @click=${() => (this.range = x)}>${x}</sw-chip>`)}</div>
         <div class="kpis">
-          <sw-card flush class="kpi"><div><div class="v">1.3 TB</div><div class="l">אחסון בשימוש (נמדד)</div></div><div class="ic"><sw-icon name="storage" size=${16}></sw-icon></div></sw-card>
-          <sw-card flush class="kpi"><div><div class="v">1.9 TB</div><div class="l">קיבולת כוללת</div></div><div class="ic"><sw-icon name="cpu" size=${16}></sw-icon></div></sw-card>
-          <sw-card flush class="kpi"><div><div class="v">68%</div><div class="l">ניצולת · ≈ 11 ימים נשמרים</div></div><svg viewBox="0 0 40 40" aria-hidden="true">${svg`<circle cx="20" cy="20" r=${r} fill="none" stroke="var(--sw-surface-3)" stroke-width="6" /><circle cx="20" cy="20" r=${r} fill="none" stroke="var(--sw-accent)" stroke-width="6" stroke-linecap="round" stroke-dasharray=${`${c * 0.68} ${c}`} transform="rotate(-90 20 20)" />`}</svg></sw-card>
+          <sw-card flush class="kpi"><div><div class="v">1.3 TB</div><div class="l">${tr('אחסון בשימוש (נמדד)')}</div></div><div class="ic"><sw-icon name="storage" size=${16}></sw-icon></div></sw-card>
+          <sw-card flush class="kpi"><div><div class="v">1.9 TB</div><div class="l">${tr('קיבולת כוללת')}</div></div><div class="ic"><sw-icon name="cpu" size=${16}></sw-icon></div></sw-card>
+          <sw-card flush class="kpi"><div><div class="v">68%</div><div class="l">${tr('ניצולת')} · ${tr('≈ {n} ימים נשמרים', { n: 11 })}</div></div><svg viewBox="0 0 40 40" aria-hidden="true">${svg`<circle cx="20" cy="20" r=${r} fill="none" stroke="var(--sw-surface-3)" stroke-width="6" /><circle cx="20" cy="20" r=${r} fill="none" stroke="var(--sw-accent)" stroke-width="6" stroke-linecap="round" stroke-dasharray=${`${c * 0.68} ${c}`} transform="rotate(-90 20 20)" />`}</svg></sw-card>
         </div>
-        <sw-card heading="תחזית שימוש באחסון" subheading="עד הקו: נתון נמדד · אחרי הקו: אומדן (אינו תחזית פשוטה של דיסק מתמלא)">
-          <svg class="trend" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="תחזית אחסון">
+        <sw-card heading=${tr('תחזית שימוש באחסון')} subheading=${tr('עד הקו: נתון נמדד · אחרי הקו: אומדן (אינו תחזית פשוטה של דיסק מתמלא)')}>
+          <svg class="trend" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label=${tr('תחזית אחסון')}>
             ${svg`
               ${[0.25, 0.5, 0.75, 1].map((g) => svg`<line x1="0" x2=${W} y1=${py(g)} y2=${py(g)} stroke="var(--sw-border)" />`)}
               <path d="${path} L${px(points.length - 1)} 170 L0 170 Z" fill="var(--sw-accent-soft)" />
@@ -480,7 +481,7 @@ export class SystemStorage extends LitElement {
               <path d="${forecast}" fill="none" stroke="var(--sw-accent)" stroke-width="2" stroke-dasharray="5 5" opacity="0.7" />
               <line x1=${px(points.length - 1)} x2=${px(points.length - 1)} y1="10" y2="170" stroke="var(--sw-stale)" stroke-dasharray="4 4" />
               <rect x="470" y="18" width="110" height="34" rx="6" fill="var(--sw-surface)" stroke="var(--sw-border)" />
-              <text x="525" y="32" font-size="10.5" text-anchor="middle" fill="var(--sw-text-3)" font-family="var(--sw-font)">אומדן מילוי</text>
+              <text x="525" y="32" font-size="10.5" text-anchor="middle" fill="var(--sw-text-3)" font-family="var(--sw-font)">${tr('אומדן מילוי')}</text>
               <text x="525" y="46" font-size="11" font-weight="600" text-anchor="middle" fill="var(--sw-text)" font-family="var(--sw-font)">≈ 25.09.2026</text>
               ${['ינו', 'פבר', 'מרץ', 'אפר', 'מאי', 'יונ', 'יול'].map((m, i) => svg`<text x=${px(i)} y="190" font-size="10" text-anchor="middle" fill="var(--sw-text-3)" font-family="var(--sw-font)">${m}</text>`)}
               ${['0.5 TB', '1 TB', '1.5 TB', '1.9 TB'].map((t, i) => svg`<text x="4" y=${py(0.25 * (i + 1)) - 3} font-size="9.5" fill="var(--sw-text-3)" font-family="var(--sw-font)">${t}</text>`)}
@@ -488,16 +489,16 @@ export class SystemStorage extends LitElement {
           </svg>
         </sw-card>
         <div class="grid">
-          <sw-card heading="שימוש באחסון לפי מצלמה" subheading="נמדד · לפני retention">
+          <sw-card heading=${tr('שימוש באחסון לפי מצלמה')} subheading=${tr('נמדד · לפני retention')}>
             ${PER_CAMERA.map((cam) => html`<div class="cam"><span>${cam.name}</span><span class="bar"><i style="--p:${(cam.gb / max) * 100}%"></i></span><span class="gb ltr">${cam.gb} GB</span></div>`)}
-            <div class="hint" style="margin-block-start:6px">מחיקת הקלטות לפי retention מבטלת cache בהתאם.</div>
+            <div class="hint" style="margin-block-start:6px">${tr('מחיקת הקלטות לפי retention מבטלת cache בהתאם.')}</div>
           </sw-card>
-          <sw-card heading="מדיניות הקלטה" subheading="קריאה מה־NVR">
-            <div class="policy"><span class="ic"><sw-icon name="history" size=${14}></sw-icon></span><span>רציפה<small>5 מצלמות</small></span></div>
-            <div class="policy"><span class="ic"><sw-icon name="activity" size=${14}></sw-icon></span><span>לפי תנועה<small>4 מצלמות</small></span></div>
-            <div class="policy"><span class="ic"><sw-icon name="calendar" size=${14}></sw-icon></span><span>מתוזמנת<small>0 מצלמות</small></span></div>
-            <div class="policy"><span class="ic"><sw-icon name="bell" size=${14}></sw-icon></span><span>לפי אירוע<small>1 מצלמה · pre/post 5s / 10s</small></span></div>
-            <div style="margin-block-start:10px"><sw-button size="sm" disabled icon="edit">עריכת מדיניות (לא בפיילוט)</sw-button></div>
+          <sw-card heading=${tr('מדיניות הקלטה')} subheading=${tr('קריאה מה־NVR')}>
+            <div class="policy"><span class="ic"><sw-icon name="history" size=${14}></sw-icon></span><span>${tr('רציפה')}<small>${tr('{n} מצלמות', { n: 5 })}</small></span></div>
+            <div class="policy"><span class="ic"><sw-icon name="activity" size=${14}></sw-icon></span><span>${tr('לפי תנועה')}<small>${tr('{n} מצלמות', { n: 4 })}</small></span></div>
+            <div class="policy"><span class="ic"><sw-icon name="calendar" size=${14}></sw-icon></span><span>${tr('מתוזמנת')}<small>${tr('{n} מצלמות', { n: 0 })}</small></span></div>
+            <div class="policy"><span class="ic"><sw-icon name="bell" size=${14}></sw-icon></span><span>${tr('לפי אירוע')}<small>${tr('{n} מצלמה', { n: 1 })} · pre/post 5s / 10s</small></span></div>
+            <div style="margin-block-start:10px"><sw-button size="sm" disabled icon="edit">${tr('עריכת מדיניות (לא בפיילוט)')}</sw-button></div>
           </sw-card>
         </div>
       </sw-page>

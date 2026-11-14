@@ -58,7 +58,7 @@ test('the route, the station link and the wiring', () => {
 
 test('the physical action is marked, separate and never in "run all"', () => {
   const src = read('screens/system-wiskey-validation.ts');
-  expect(src).toContain("const PHYSICAL = 'פעולה פיזית - דלת תיפתח';");
+  expect(src).toContain("const PHYSICAL = tr('פעולה פיזית - דלת תיפתח');");
   expect(src).toContain('variant="danger" icon="doorOpen"');
   const runAll = src.slice(src.indexOf('data-lv-run-all'), src.indexOf('data-lv-run-all') + 200);
   expect(runAll).not.toContain('Pulse');

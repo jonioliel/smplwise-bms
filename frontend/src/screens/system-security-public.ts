@@ -11,6 +11,7 @@ import { can, isApi } from '../api/session';
 import { statusStyles } from '../access-control/status-css';
 import { parseCap, parseRetention } from '../access-external/pending-model';
 import { spt } from '../i18n/security-public';
+import { tr } from '../i18n/msg/system-b';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
 export const UNIFORM_404_KEY = 'access.unknown_person_uniform_404';
@@ -195,7 +196,7 @@ export class SystemSecurityPublic extends LitElement {
   }
 
   render() {
-    return html`<sw-page crumbs="הגדרות | אבטחה" heading=${spt('title')}>${this.body()}</sw-page>`;
+    return html`<sw-page crumbs=${tr('הגדרות | אבטחה')} heading=${spt('title')}>${this.body()}</sw-page>`;
   }
 }
 

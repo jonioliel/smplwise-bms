@@ -54,6 +54,7 @@ import {
   type OpsTab,
   type Tone,
 } from './intercom-ops-logic';
+import { tr } from '../i18n/msg/system-b';
 
 type Part<V> = { s: 'idle' } | { s: 'loading' } | { s: 'ready'; v: V } | { s: 'error'; code: string; message: string; status: number };
 
@@ -778,7 +779,7 @@ export class SystemIntercomOps extends LitElement {
           ${['all', 'access', 'change', 'sync'].map((k) => html`<option value=${k} ?selected=${k === f.source}>${k === 'all' ? T.all : SOURCE_HE[k]}</option>`)}</select></label>
         ${this.stationSelect(f.station_id, (v) => set({ station_id: v }), 'station')}
         <label class="f">${T.invFrom}<select data-filter="period" .value=${String(f.period)} @change=${(e: Event) => set({ period: Number((e.target as HTMLSelectElement).value) })}>
-          ${PERIODS.map((d) => html`<option value=${d} ?selected=${d === f.period}>${d === 1 ? '24 שעות' : T.days(d)}</option>`)}</select></label>
+          ${PERIODS.map((d) => html`<option value=${d} ?selected=${d === f.period}>${d === 1 ? tr('24 שעות') : T.days(d)}</option>`)}</select></label>
         ${can.names
           ? html`<label class="f">${T.filterSearch}<input type="search" data-filter="query" .value=${f.query} maxlength="128"
               @change=${(e: Event) => set({ query: (e.target as HTMLInputElement).value.trim() })} /></label>`
@@ -794,7 +795,7 @@ export class SystemIntercomOps extends LitElement {
                 <div class="main"><b>${he(ACTION_HE, r.action)}</b>${this.pill('neutral', he(SOURCE_HE, r.source), 'source')}${this.pill(stateTone(r.status), he(STATE_HE, r.status), 'status')}</div>
                 <div class="end"><span class="muted">${this.time(r.time)}</span></div>
                 <div class="meta">
-                  <span>${r.station_ids.map((id) => this.name(id)).join(', ')}${r.door ? ` · דלת ${r.door}` : ''}</span>
+                  <span>${r.station_ids.map((id) => this.name(id)).join(', ')}${r.door ? ` · ${tr('דלת {door}', { door: r.door })}` : ''}</span>
                   ${r.person_name ? html`<span data-person>${r.person_name}${r.employee_no ? ` (${r.employee_no})` : ''}</span>` : nothing}
                   ${r.actor ? html`<span data-actor>${T.operator}: ${page!.actors[r.actor] ?? r.actor}</span>` : nothing}
                   ${r.fields.length ? html`<span>${r.fields.join(', ')}</span>` : nothing}
@@ -826,7 +827,7 @@ export class SystemIntercomOps extends LitElement {
                 <header><b>${r.name}</b>${this.pill(alertTone(r.users.alert), ALERT_HE[r.users.alert], 'alert')}</header>
                 ${this.meter(T.table.users, r.users, 'users')}${this.meter(T.table.cards, r.cards, 'cards')}
                 <div class="muted">
-                  ${r.users.growth_per_day !== null ? html`<span><bdi dir="ltr">${r.users.growth_per_day > 0 ? '+' : ''}${r.users.growth_per_day}</bdi> ביום</span>` : nothing}
+                  ${r.users.growth_per_day !== null ? html`<span><bdi dir="ltr">${r.users.growth_per_day > 0 ? '+' : ''}${r.users.growth_per_day}</bdi> ${tr('ביום')}</span>` : nothing}
                   ${r.users.days_to_limit !== null ? html` · <span data-days-to-limit>${T.daysToLimit(r.users.days_to_limit)}</span>` : nothing}
                   <div>${T.sampledAt}: ${this.time(r.sampled_at)}</div>
                 </div>
@@ -840,7 +841,7 @@ export class SystemIntercomOps extends LitElement {
             <div class="filters">
               <label class="f">${T.filterStation}<select data-filter="trend-station" .value=${this.trendStation} @change=${(e: Event) => (this.trendStation = (e.target as HTMLSelectElement).value)}>
                 ${rows.map((r) => html`<option value=${r.station_id} ?selected=${r.station_id === this.trendStation}>${r.name}</option>`)}</select></label>
-              <label class="f">טווח<select data-filter="trend-days" .value=${String(this.trendDays)} @change=${(e: Event) => {
+              <label class="f">${tr('טווח')}<select data-filter="trend-days" .value=${String(this.trendDays)} @change=${(e: Event) => {
                 this.trendDays = Number((e.target as HTMLSelectElement).value);
                 void this.loadCapacity();
               }}>${[7, 30, 90, 365].map((d) => html`<option value=${d} ?selected=${d === this.trendDays}>${T.days(d)}</option>`)}</select></label>
@@ -863,7 +864,7 @@ export class SystemIntercomOps extends LitElement {
       <div class="filters">
         ${this.stationSelect(f.station_id, (v) => set({ station_id: v }), 'station')}
         <label class="f">${T.invFrom}<select data-filter="period" .value=${String(f.period)} @change=${(e: Event) => set({ period: Number((e.target as HTMLSelectElement).value) })}>
-          ${PERIODS.map((d) => html`<option value=${d} ?selected=${d === f.period}>${d === 1 ? '24 שעות' : T.days(d)}</option>`)}</select></label>
+          ${PERIODS.map((d) => html`<option value=${d} ?selected=${d === f.period}>${d === 1 ? tr('24 שעות') : T.days(d)}</option>`)}</select></label>
       </div>
       ${st ??
       html`
@@ -941,7 +942,7 @@ export class SystemIntercomOps extends LitElement {
 
   render(): TemplateResult {
     const page = (inner: TemplateResult, st: string) =>
-      html`<sw-page crumbs="הגדרות" heading=${T.title} subheading=${T.sub} data-intercom-ops data-state=${st}>${inner}</sw-page>`;
+      html`<sw-page crumbs=${tr('הגדרות')} heading=${T.title} subheading=${T.sub} data-intercom-ops data-state=${st}>${inner}</sw-page>`;
     if (this.loadState === 'loading') return page(html`<sw-state-panel state="loading" heading=${T.loading}></sw-state-panel>`, 'loading');
     if (this.loadState === 'forbidden') return page(html`<sw-state-panel state="forbidden" heading=${T.forbiddenTitle} hint=${T.forbiddenHint}></sw-state-panel>`, 'forbidden');
     if (this.loadState === 'error') {

@@ -15,6 +15,7 @@ import {
 } from '../api/timeline-colors';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { tr } from '../i18n/msg/system-b';
 
 /**
  * הגדרות › וידאו ומדיה › צבעי ציר הזמן (owner 2026-10-01: the person dots and the recording bars were both blue). One row per
@@ -242,7 +243,7 @@ export class SystemTimelineColors extends LitElement {
       applyPlaybackDisplay(r.settings); // ... and the helper line / diagnostics block
       this.draft = normalizeTimelineColors(r.settings['timeline.colors']);
       this.display = { ...playbackDisplay() };
-      this.message = 'הצבעים נשמרו';
+      this.message = tr('הצבעים נשמרו');
       setTimeout(() => (this.message = ''), 2500);
     } catch (err) {
       this.error = describeError(err);
@@ -253,7 +254,7 @@ export class SystemTimelineColors extends LitElement {
 
   render() {
     const editable = this.canEdit && isApi();
-    return html`<sw-card heading="צבעי ציר הזמן" data-timeline-colors>
+    return html`<sw-card heading=${tr('צבעי ציר הזמן')} data-timeline-colors>
       ${TIMELINE_OPTIONS.map((o) => {
         const hex = timelineHex(this.draft[o]) ?? '#000000';
         const similar = similarTimelineOptions(this.draft, o).map((x) => TIMELINE_OPTION_LABEL[x]);
@@ -263,12 +264,12 @@ export class SystemTimelineColors extends LitElement {
             ${Object.entries(TIMELINE_PALETTE).map(
               ([token, p]) => html`<button type="button" style="--c:${p.hex}" title=${p.label} aria-label=${p.label} aria-pressed=${this.draft[o] === token ? 'true' : 'false'} data-timeline-swatch=${token} ?disabled=${!editable || this.busy} @click=${() => this.pick(o, token)}></button>`,
             )}
-            <input type="color" .value=${hex} aria-label=${`${TIMELINE_OPTION_LABEL[o]}: צבע מותאם`} data-timeline-custom ?disabled=${!editable || this.busy} @change=${(e: Event) => this.pick(o, (e.target as HTMLInputElement).value.toLowerCase())} />
+            <input type="color" .value=${hex} aria-label=${`${TIMELINE_OPTION_LABEL[o]}: ${tr('צבע מותאם')}`} data-timeline-custom ?disabled=${!editable || this.busy} @change=${(e: Event) => this.pick(o, (e.target as HTMLInputElement).value.toLowerCase())} />
           </span>
-          ${similar.length ? html`<span class="warn" role="note" data-timeline-warning>דומה ל${similar.join(', ')}</span>` : nothing}
+          ${similar.length ? html`<span class="warn" role="note" data-timeline-warning>${tr('דומה ל{names}', { names: similar.join(', ') })}</span>` : nothing}
         </div>`;
       })}
-      <h4>תצוגה</h4>
+      <h4>${tr('תצוגה')}</h4>
       ${(['helper_line', 'diagnostics'] as const).map(
         (item) => html`<div class="row" data-playback-display=${item}>
           <span class="name"><span class="lbl">${PLAYBACK_ITEM_LABEL[item]}</span></span>
@@ -279,8 +280,8 @@ export class SystemTimelineColors extends LitElement {
       )}
       ${editable
         ? html`<div class="foot">
-            <sw-button variant="primary" size="sm" icon="check" data-timeline-save ?disabled=${!this.dirty || this.busy} @click=${() => void this.save()}>שמור</sw-button>
-            <sw-button variant="ghost" size="sm" data-timeline-reset ?disabled=${this.atDefaults || this.busy} @click=${() => this.reset()}>איפוס לברירת מחדל</sw-button>
+            <sw-button variant="primary" size="sm" icon="check" data-timeline-save ?disabled=${!this.dirty || this.busy} @click=${() => void this.save()}>${tr('שמור')}</sw-button>
+            <sw-button variant="ghost" size="sm" data-timeline-reset ?disabled=${this.atDefaults || this.busy} @click=${() => this.reset()}>${tr('איפוס לברירת מחדל')}</sw-button>
             ${this.message ? html`<span class="ok" role="status" data-timeline-message>${this.message}</span>` : nothing}
             ${this.error ? html`<span class="err" role="alert">${this.error}</span>` : nothing}
           </div>`

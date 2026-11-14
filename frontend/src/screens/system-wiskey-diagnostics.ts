@@ -17,62 +17,63 @@ import type { StateKind } from '../components/sw-badge';
 import { formatTime, UTC_ZONE } from './wiskey-format';
 import { emitFoldSummary } from '../access-control/settings-cards-logic';
 import { fill, sct } from '../i18n/settings-cards';
+import { tr } from '../i18n/msg/system-b';
 
 const AREAS: Array<[keyof WiskeyAuthorization['areas'], string]> = [
-  ['overview', 'סקירה'],
-  ['users', 'אנשים'],
-  ['events', 'אירועים'],
-  ['stations', 'עמדות'],
-  ['management', 'ניהול'],
+  ['overview', tr('סקירה')],
+  ['users', tr('אנשים')],
+  ['events', tr('אירועים')],
+  ['stations', tr('עמדות')],
+  ['management', tr('ניהול')],
 ];
 const FIELDS: Array<[keyof WiskeyAuthorization['fields'], string]> = [
-  ['phone', 'טלפון'],
-  ['photo', 'תמונה'],
-  ['credentials', 'אישורי כניסה'],
-  ['profile', 'פרופיל'],
-  ['access', 'גישה'],
+  ['phone', tr('טלפון')],
+  ['photo', tr('תמונה')],
+  ['credentials', tr('אישורי כניסה')],
+  ['profile', tr('פרופיל')],
+  ['access', tr('גישה')],
 ];
-const LEVEL: Record<WiskeyLevel, string> = { none: 'אין', view: 'צפייה', manage: 'ניהול', unknown: 'לא ידוע' };
+const LEVEL: Record<WiskeyLevel, string> = { none: tr('אין'), view: tr('צפייה'), manage: tr('ניהול'), unknown: tr('לא ידוע') };
 
 const STATE_TEXT: Record<string, string> = {
-  ready: 'מחובר',
-  connecting: 'מתחבר',
-  ha_unavailable: 'תשתית המערכת אינה זמינה',
-  ha_not_configured: 'אין גישה לתשתית המערכת',
-  not_installed: 'WisKey אינו מותקן',
-  forbidden: 'WisKey דחה את החשבון',
-  error: 'שגיאה',
-  not_configured: 'לא הוגדר',
-  shares_service_identity: 'משתמש בזהות השירות',
+  ready: tr('מחובר'),
+  connecting: tr('מתחבר'),
+  ha_unavailable: tr('תשתית המערכת אינה זמינה'),
+  ha_not_configured: tr('אין גישה לתשתית המערכת'),
+  not_installed: tr('WisKey אינו מותקן'),
+  forbidden: tr('WisKey דחה את החשבון'),
+  error: tr('שגיאה'),
+  not_configured: tr('לא הוגדר'),
+  shares_service_identity: tr('משתמש בזהות השירות'),
 };
 const AUTH_STATE_TEXT: Record<string, string> = {
-  ok: 'התקבלה תשובה',
-  not_asked: 'לא נבדק',
-  not_ready: 'הערוץ אינו מחובר',
-  forbidden: 'WisKey דחה את הבקשה',
-  unauthorized: 'WisKey דחה את הבקשה',
-  rate_limited: 'נבדק הרגע - נסו שוב בעוד כמה שניות',
-  busy: 'ממתין לבקשה קודמת',
-  timeout: 'לא התקבלה תשובה בזמן',
-  invalid_response: 'התשובה אינה בפורמט המוכר',
-  ha_unavailable: 'תשתית המערכת אינה זמינה',
+  ok: tr('התקבלה תשובה'),
+  not_asked: tr('לא נבדק'),
+  not_ready: tr('הערוץ אינו מחובר'),
+  forbidden: tr('WisKey דחה את הבקשה'),
+  unauthorized: tr('WisKey דחה את הבקשה'),
+  rate_limited: tr('נבדק הרגע - נסו שוב בעוד כמה שניות'),
+  busy: tr('ממתין לבקשה קודמת'),
+  timeout: tr('לא התקבלה תשובה בזמן'),
+  invalid_response: tr('התשובה אינה בפורמט המוכר'),
+  ha_unavailable: tr('תשתית המערכת אינה זמינה'),
 };
-const SUBSCRIBE_TEXT: Record<string, string> = { ok: 'פעילה', not_attempted: 'לא נוסתה', 'n/a': 'לא רלוונטי' };
+const SUBSCRIBE_TEXT: Record<string, string> = { ok: tr('פעילה'), not_attempted: tr('לא נוסתה'), 'n/a': tr('לא רלוונטי') };
 
 const FINDING_TEXT: Record<string, string> = {
-  service_identity_is_admin: 'זהות השירות היא מנהל ב־WisKey. זה המצב הנוכחי של הכתיבות הקיימות (שחרור דלת, אנשים, כרטיסים).',
-  background_shares_service_identity: 'ערוץ הרקע עדיין משתמש בזהות השירות (מנהל). אחרי שבעל המוצר יוצר משתמש רקע ייעודי ומגדיר את האסימון שלו, הערוץ מתפצל לחיבור משלו.',
-  background_is_admin: 'חשבון הרקע הוא מנהל ב־WisKey. הוא אמור להיות משתמש רגיל עם צפייה בסקירה בלבד.',
-  background_cannot_read_overview: 'לחשבון הרקע אין צפייה בסקירה, ולכן ערוץ הרקע לא יקבל נתונים.',
-  background_has_more_than_overview: 'לחשבון הרקע יש הרשאות מעבר לסקירה. ההמלצה: כל שאר האזורים והשדות ברמת "אין".',
-  background_scope_is_all_stations: 'חשבון הרקע רואה את כל העמדות. ההמלצה: היקף עמדות מפורש וצר.',
-  background_authorization_unavailable: 'לא התקבלה תשובת הרשאות מערוץ הרקע.',
-  background_subscribe_not_live: 'ההרשמה לעדכונים של ערוץ הרקע אינה פעילה; הערוץ מתעדכן רק בבדיקה תקופתית.',
-  service_subscribe_not_live: 'ההרשמה לעדכונים של זהות השירות אינה פעילה.',
-  connection_locked: 'החיבור נעול ב־WisKey. קריאות יידחו עד שהמשתמש יפתח אותו ב־WisKey; Arx לא מנסה לעקוף.',
-  idle_or_reauth_configured: 'ב־WisKey מוגדר זמן נעילה או אימות חוזר. אם הם יחולו על חיבור של Arx, פעולות יידחו עד שיפתחו בחלון האינטרקום.',
+  service_identity_is_admin: tr('זהות השירות היא מנהל ב־WisKey. זה המצב הנוכחי של הכתיבות הקיימות (שחרור דלת, אנשים, כרטיסים).'),
+  background_shares_service_identity: tr('ערוץ הרקע עדיין משתמש בזהות השירות (מנהל). אחרי שבעל המוצר יוצר משתמש רקע ייעודי ומגדיר את האסימון שלו, הערוץ מתפצל לחיבור משלו.'),
+  background_is_admin: tr('חשבון הרקע הוא מנהל ב־WisKey. הוא אמור להיות משתמש רגיל עם צפייה בסקירה בלבד.'),
+  background_cannot_read_overview: tr('לחשבון הרקע אין צפייה בסקירה, ולכן ערוץ הרקע לא יקבל נתונים.'),
+  background_has_more_than_overview: tr('לחשבון הרקע יש הרשאות מעבר לסקירה. ההמלצה: כל שאר האזורים והשדות ברמת "אין".'),
+  background_scope_is_all_stations: tr('חשבון הרקע רואה את כל העמדות. ההמלצה: היקף עמדות מפורש וצר.'),
+  background_authorization_unavailable: tr('לא התקבלה תשובת הרשאות מערוץ הרקע.'),
+  background_subscribe_not_live: tr('ההרשמה לעדכונים של ערוץ הרקע אינה פעילה; הערוץ מתעדכן רק בבדיקה תקופתית.'),
+  service_subscribe_not_live: tr('ההרשמה לעדכונים של זהות השירות אינה פעילה.'),
+  connection_locked: tr('החיבור נעול ב־WisKey. קריאות יידחו עד שהמשתמש יפתח אותו ב־WisKey; Arx לא מנסה לעקוף.'),
+  idle_or_reauth_configured: tr('ב־WisKey מוגדר זמן נעילה או אימות חוזר. אם הם יחולו על חיבור של Arx, פעולות יידחו עד שיפתחו בחלון האינטרקום.'),
 };
-const SUBJECT_TEXT: Record<string, string> = { service: 'זהות השירות', background: 'ערוץ הרקע' };
+const SUBJECT_TEXT: Record<string, string> = { service: tr('זהות השירות'), background: tr('ערוץ הרקע') };
 
 function stateKind(state: string): StateKind {
   return state === 'ready' ? 'live' : state === 'connecting' ? 'unknown' : state === 'forbidden' ? 'forbidden' : state === 'error' ? 'error' : state === 'shares_service_identity' ? 'stale' : 'offline';
@@ -201,13 +202,13 @@ export class SystemWiskeyDiagnostics extends LitElement {
     const scope = a.station_scope;
     return html`
       <div class="facts" data-wk-diag-identity>
-        <span>${a.is_admin ? 'מנהל ב־WisKey' : a.is_admin === false ? 'לא מנהל' : 'מנהל: לא ידוע'}</span>
-        <span>${a.allowed === false ? 'הגישה נדחתה' : a.allowed ? 'הגישה מאושרת' : 'גישה: לא ידוע'}</span>
-        <span>עמדות: ${scope.kind === 'all' ? 'כולן' : scope.kind === 'explicit' ? `${scope.count ?? scope.ids.length} מפורשות` : 'לא ידוע'}</span>
-        ${sec ? html`<span>${sec.locked ? 'החיבור נעול' : sec.locked === false ? 'החיבור פתוח' : 'נעילה: לא ידוע'}${sec.idle_minutes ? ` · idle ${sec.idle_minutes} דק׳` : ''}${sec.reauth_sensitive ? ' · אימות חוזר' : ''}</span>` : html`<span class="muted">אין הגדרת נעילה ב־WisKey</span>`}
+        <span>${a.is_admin ? tr('מנהל ב־WisKey') : a.is_admin === false ? tr('לא מנהל') : tr('מנהל: לא ידוע')}</span>
+        <span>${a.allowed === false ? tr('הגישה נדחתה') : a.allowed ? tr('הגישה מאושרת') : tr('גישה: לא ידוע')}</span>
+        <span>${tr('עמדות:')} ${scope.kind === 'all' ? tr('כולן') : scope.kind === 'explicit' ? tr('{n} מפורשות', { n: scope.count ?? scope.ids.length }) : tr('לא ידוע')}</span>
+        ${sec ? html`<span>${sec.locked ? tr('החיבור נעול') : sec.locked === false ? tr('החיבור פתוח') : tr('נעילה: לא ידוע')}${sec.idle_minutes ? ` · idle ${tr('{n} דק׳', { n: sec.idle_minutes })}` : ''}${sec.reauth_sensitive ? ` · ${tr('אימות חוזר')}` : ''}</span>` : html`<span class="muted">${tr('אין הגדרת נעילה ב־WisKey')}</span>`}
       </div>
-      <div class="chips" aria-label="אזורים">${AREAS.map(([k, label]) => html`<span class="chip ${a.areas[k] === 'none' ? '' : 'on'}">${label}: ${LEVEL[a.areas[k]]}</span>`)}</div>
-      <div class="chips" aria-label="שדות">${FIELDS.map(([k, label]) => html`<span class="chip ${a.fields[k] === 'none' ? '' : 'on'}">${label}: ${LEVEL[a.fields[k]]}</span>`)}</div>`;
+      <div class="chips" aria-label=${tr('אזורים')}>${AREAS.map(([k, label]) => html`<span class="chip ${a.areas[k] === 'none' ? '' : 'on'}">${label}: ${LEVEL[a.areas[k]]}</span>`)}</div>
+      <div class="chips" aria-label=${tr('שדות')}>${FIELDS.map(([k, label]) => html`<span class="chip ${a.fields[k] === 'none' ? '' : 'on'}">${label}: ${LEVEL[a.fields[k]]}</span>`)}</div>`;
   }
 
   private renderIdentity(title: string, id: WiskeyIdentityDiagnostics, key: string) {
@@ -216,7 +217,7 @@ export class SystemWiskeyDiagnostics extends LitElement {
       <div class="head"><span>${title}</span><sw-badge kind=${stateKind(id.state)} label=${stateText}></sw-badge></div>
       <div class="facts">
         ${id.wiskey_version ? html`<span>WisKey <bdi>${id.wiskey_version}</bdi></span>` : nothing}
-        <span>הרשמה לעדכונים: ${SUBSCRIBE_TEXT[id.subscribe] ?? id.subscribe}</span>
+        <span>${tr('הרשמה לעדכונים:')} ${SUBSCRIBE_TEXT[id.subscribe] ?? id.subscribe}</span>
       </div>
       ${this.renderAuth(id.authorization, AUTH_STATE_TEXT[id.authorization_state] ?? id.authorization_state)}
     </div>`;
@@ -224,10 +225,10 @@ export class SystemWiskeyDiagnostics extends LitElement {
 
   private renderChannels(c: WiskeyDiagnostics['channels']) {
     return html`<div class="block" data-wk-diag="channels">
-      <div class="head"><span>פקודות מותרות לכל ערוץ</span></div>
-      <div class="facts"><span>ערוץ הרקע: <bdi>${c.background.join(', ')}</bdi></span></div>
-      <div class="facts"><span>זהות השירות, קריאה: <bdi>${c.service.reads.join(', ')}</bdi></span></div>
-      <div class="facts"><span>זהות השירות, כתיבה: <bdi>${c.service.writes.join(', ')}</bdi></span></div>
+      <div class="head"><span>${tr('פקודות מותרות לכל ערוץ')}</span></div>
+      <div class="facts"><span>${tr('ערוץ הרקע:')} <bdi>${c.background.join(', ')}</bdi></span></div>
+      <div class="facts"><span>${tr('זהות השירות, קריאה:')} <bdi>${c.service.reads.join(', ')}</bdi></span></div>
+      <div class="facts"><span>${tr('זהות השירות, כתיבה:')} <bdi>${c.service.writes.join(', ')}</bdi></span></div>
     </div>`;
   }
 
@@ -252,15 +253,15 @@ export class SystemWiskeyDiagnostics extends LitElement {
     if (!isApi()) return nothing;
     if (!can('system.configure')) return nothing;
     const d = this.data;
-    return html`<sw-card heading=${this.bare ? '' : 'WisKey רואה את Arx כ־'} subheading=${this.bare ? '' : 'קריאה בלבד: מה ש־WisKey מדווח על זהות החיבורים של Arx אליו. הבדיקה נעשית לפי בקשה.'} data-wk-diag-card>
+    return html`<sw-card heading=${this.bare ? '' : tr('WisKey רואה את Arx כ־')} subheading=${this.bare ? '' : tr('קריאה בלבד: מה ש־WisKey מדווח על זהות החיבורים של Arx אליו. הבדיקה נעשית לפי בקשה.')} data-wk-diag-card>
       <div class="block">
-        <div class="head"><span class="muted">${d ? html`נבדק ב־<bdi>${formatTime(d.generated_at, 'he-IL', UTC_ZONE)}</bdi>` : 'עדיין לא נבדק'}</span>
-          <sw-button size="sm" variant="primary" icon="refresh" data-wk-diag-run ?disabled=${this.busy} @click=${() => this.run()}>${this.busy ? 'בודק…' : d ? 'בדיקה מחדש' : 'בדיקה'}</sw-button></div>
+        <div class="head"><span class="muted">${d ? html`${tr('נבדק ב־')}<bdi>${formatTime(d.generated_at, 'he-IL', UTC_ZONE)}</bdi>` : tr('עדיין לא נבדק')}</span>
+          <sw-button size="sm" variant="primary" icon="refresh" data-wk-diag-run ?disabled=${this.busy} @click=${() => this.run()}>${this.busy ? tr('בודק…') : d ? tr('בדיקה מחדש') : tr('בדיקה')}</sw-button></div>
         ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
       </div>
       ${d
-        ? html`${this.renderIdentity('זהות השירות (המשתמש של ה־add-on)', d.service, 'service')}
-            ${this.renderIdentity('ערוץ הרקע', d.background, 'background')} ${this.renderChannels(d.channels)}
+        ? html`${this.renderIdentity(tr('זהות השירות (המשתמש של ה־add-on)'), d.service, 'service')}
+            ${this.renderIdentity(tr('ערוץ הרקע'), d.background, 'background')} ${this.renderChannels(d.channels)}
             ${d.findings.length ? html`<div class="findings">${d.findings.map((f) => this.renderFinding(f))}</div>` : nothing}`
         : nothing}
     </sw-card>`;

@@ -30,13 +30,14 @@ import { integrationName, integrationTitle } from './media-integration-names';
 import { castSentence } from './media-cast-label';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { dateInputLang } from '../api/day-format';
+import { tr } from '../i18n/msg/system-b';
 
 const flash = (ms = 3000) => new Promise((r) => setTimeout(r, ms));
 /** The kinds a speaker / player / receiver card may be set to (settings choose; the detected kind is the default). */
 const KIND_CHOICES = ['speaker', 'player', 'receiver'] as const;
-const PROVIDER_LABEL: Record<MusicProvider, string> = { ma: 'music_assistant', sonos: 'sonos', heos: 'heos', vendor: 'יצרן', none: 'ללא' };
+const PROVIDER_LABEL: Record<MusicProvider, string> = { ma: 'music_assistant', sonos: 'sonos', heos: 'heos', vendor: tr('יצרן'), none: tr('ללא') };
 const PHYSICAL = ['speaker', 'player', 'receiver', 'group'];
-const ROLE_EXTRA: Record<string, string> = { music: 'שכבת המוזיקה', mirror: 'מראה (מוסתר)' };
+const ROLE_EXTRA: Record<string, string> = { music: tr('שכבת המוזיקה'), mirror: tr('מראה (מוסתר)') };
 
 interface FavRow {
   ref: string;
@@ -444,7 +445,7 @@ export class SystemMultimediaPlayers extends LitElement {
     try {
       const r = await mediaAdmin().approve(null, true, ['speaker', 'player', 'receiver', 'group']);
       this.devices = this.devices.map((d) => ({ ...d, approved: true }));
-      this.say(`אושרו ${r.changed || pending} נגנים`);
+      this.say(tr('אושרו {n} נגנים', { n: r.changed || pending }));
       await this.load();
     } catch (err) {
       this.error = describeError(err);
@@ -457,7 +458,7 @@ export class SystemMultimediaPlayers extends LitElement {
     try {
       await mediaAdmin().update(key, { approved: on });
       this.nonPhys = (await players().nonPhysical()).devices;
-      this.say('נשמר');
+      this.say(tr('נשמר'));
     } catch (err) {
       this.error = describeError(err);
     }
@@ -467,7 +468,7 @@ export class SystemMultimediaPlayers extends LitElement {
     try {
       const list = await mediaAdmin().link(op);
       this.devices = list.devices.filter((d) => PHYSICAL.includes(d.kind));
-      this.say('נשמר');
+      this.say(tr('נשמר'));
     } catch (err) {
       this.error = describeError(err);
     }
@@ -489,7 +490,7 @@ export class SystemMultimediaPlayers extends LitElement {
     try {
       await players().deletePreset(p.id, p.revision);
       this.deleting = null;
-      this.say('נמחק');
+      this.say(tr('נמחק'));
       await this.loadGroups();
     } catch (err) {
       this.error = playerErrorText(err);
@@ -508,7 +509,7 @@ export class SystemMultimediaPlayers extends LitElement {
     try {
       this.fav = await players().saveFavourites({ kinds_on: kindsOn, items }, cur.revision);
       this.favLists = lists;
-      this.say('נשמר');
+      this.say(tr('נשמר'));
     } catch (err) {
       this.error = playerErrorText(err);
       await this.loadFavs();
@@ -552,9 +553,9 @@ export class SystemMultimediaPlayers extends LitElement {
   private async copy(text: string) {
     try {
       await navigator.clipboard.writeText(text);
-      this.say('הועתק');
+      this.say(tr('הועתק'));
     } catch {
-      this.say('ההעתקה נחסמה בדפדפן');
+      this.say(tr('ההעתקה נחסמה בדפדפן'));
     }
   }
 
@@ -569,11 +570,11 @@ export class SystemMultimediaPlayers extends LitElement {
       scope: 'players', devices: ds, view: this.view, live: this.liveAvail, editing: this.editing, endpoints: this.open, saved: this.saved,
       status: (d, f) => {
         const p = this.live.get(d.key)?.live.power;
-        return p === 'unavailable' ? { kind: 'stale', label: 'לא זמין' } : p === 'off' ? { kind: 'neutral', label: 'כבוי' } : f.available === null ? null : f.available ? { kind: 'ok', label: 'זמין' } : { kind: 'stale', label: 'לא זמין' };
+        return p === 'unavailable' ? { kind: 'stale', label: tr('לא זמין') } : p === 'off' ? { kind: 'neutral', label: tr('כבוי') } : f.available === null ? null : f.available ? { kind: 'ok', label: tr('זמין') } : { kind: 'stale', label: tr('לא זמין') };
       },
       form: (d) => this.form(d), connections: (d) => this.connections(d), typeLabel: (d) => ANY_KIND_LABEL[d.kind as keyof typeof ANY_KIND_LABEL] ?? d.kind,
       onView: this.setView, onEdit: (k) => this.toggle('editing', k), onEndpoints: (k) => this.toggle('open', k),
-      onApprove: (d, on) => void this.patchDevice(d, { approved: on }), onCopy: (t) => void this.copy(t), none: 'לא זוהו נגנים.',
+      onApprove: (d, on) => void this.patchDevice(d, { approved: on }), onCopy: (t) => void this.copy(t), none: tr('לא זוהו נגנים.'),
     });
   }
 
@@ -590,57 +591,57 @@ export class SystemMultimediaPlayers extends LitElement {
     };
     return html`<div class="dev" data-mm-form=${d.key}>
       <div class="line">
-        <label class="f">שם
+        <label class="f">${tr('שם')}
           <input type="text" .value=${d.name} maxlength="60" data-mm-name=${d.key} @change=${(e: Event) => void this.patchDevice(d, { display_name: (e.target as HTMLInputElement).value })} />
         </label>
-        <label class="f">סוג
+        <label class="f">${tr('סוג')}
           ${d.kind === 'group' ? html`<span>${ANY_KIND_LABEL.group}</span>` : html`<select data-mm-kind=${d.key} @change=${(e: Event) => void this.patchDevice(d, { kind: (e.target as HTMLSelectElement).value as AdminDevice['kind'] })}>
             ${KIND_CHOICES.map((k) => html`<option value=${k} ?selected=${d.kind === k}>${ANY_KIND_LABEL[k]}</option>`)}
           </select>`}
         </label>
-        <span class="f">זיהוי<sw-badge kind=${d.confidence === 'weak' ? 'stale' : 'neutral'} label=${CONFIDENCE_LABEL[d.confidence]}></sw-badge></span>
-        <label class="f">חדר
+        <span class="f">${tr('זיהוי')}<sw-badge kind=${d.confidence === 'weak' ? 'stale' : 'neutral'} label=${CONFIDENCE_LABEL[d.confidence]}></sw-badge></span>
+        <label class="f">${tr('חדר')}
           ${unplaced && this.areas.length
             ? html`<select data-mm-area=${d.key} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; if (v) void this.patchDevice(d, { area_id: v }); }}>
-                <option value="" selected>ללא חדר</option>${this.areas.map((a) => html`<option value=${a.id}>${a.name}${a.floor_name ? ` · ${a.floor_name}` : ''}</option>`)}</select>`
-            : html`<span data-mm-place=${d.key}>${place || 'ללא חדר'}</span>`}
+                <option value="" selected>${tr('ללא חדר')}</option>${this.areas.map((a) => html`<option value=${a.id}>${a.name}${a.floor_name ? ` · ${a.floor_name}` : ''}</option>`)}</select>`
+            : html`<span data-mm-place=${d.key}>${place || tr('ללא חדר')}</span>`}
         </label>
-        ${d.zones?.length ? html`<span class="f">אזורים<span>${d.zones.map((z) => z.name).join(' · ')}</span></span>` : nothing}
+        ${d.zones?.length ? html`<span class="f">${tr('אזורים')}<span>${d.zones.map((z) => z.name).join(' · ')}</span></span>` : nothing}
         <span class="grow"></span>
       </div>
       <div class="line">
-        ${d.kind !== 'receiver' && d.kind !== 'group' ? html`<label class="f">מגבר מקושר
+        ${d.kind !== 'receiver' && d.kind !== 'group' ? html`<label class="f">${tr('מגבר מקושר')}
           <select data-mm-link=${d.key} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; void this.patchDevice(d, { audio_link_key: v || null }); }}>
-            <option value="" ?selected=${!d.audio_link_key}>ללא</option>
+            <option value="" ?selected=${!d.audio_link_key}>${tr('ללא')}</option>
             ${amps.map((r) => html`<option value=${r.key} ?selected=${d.audio_link_key === r.key}>${r.name}</option>`)}
           </select></label>` : nothing}
-        <label class="f">תקרת עוצמה
-          <input type="number" min="0" max="100" .value=${d.volume_max === null ? '' : String(d.volume_max)} placeholder="ללא" data-mm-volmax=${d.key}
+        <label class="f">${tr('תקרת עוצמה')}
+          <input type="number" min="0" max="100" .value=${d.volume_max === null ? '' : String(d.volume_max)} placeholder=${tr('ללא')} data-mm-volmax=${d.key}
             @change=${(e: Event) => { const n = parseCeiling((e.target as HTMLInputElement).value); if (n !== 'invalid') void this.patchDevice(d, { volume_max: n }); }} />
         </label>
-        <span class="f">חלון לילה
+        <span class="f">${tr('חלון לילה')}
           <span class="night">
-            <sw-toggle label=${`חלון לילה: ${d.name}`} labelHidden .checked=${!!night} data-mm-night=${d.key} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.patchDevice(d, { volume_night: e.detail.checked ? { ...DEFAULT_NIGHT } : null })}></sw-toggle>
-            ${night ? html`<span>מ־</span><input type="time" lang=${dateInputLang()} .value=${night.from} data-mm-night-from=${d.key} aria-label="מ־" @change=${(e: Event) => nightPatch({ from: (e.target as HTMLInputElement).value })} />
-              <span>עד</span><input type="time" lang=${dateInputLang()} .value=${night.to} data-mm-night-to=${d.key} aria-label="עד" @change=${(e: Event) => nightPatch({ to: (e.target as HTMLInputElement).value })} />
-              <span>תקרה</span><input type="number" min="0" max="100" .value=${String(night.max)} data-mm-night-max=${d.key} aria-label="תקרה בלילה" @change=${(e: Event) => nightPatch({ max: Number((e.target as HTMLInputElement).value) })} />` : html`<span class="muted">כבוי</span>`}
+            <sw-toggle label=${`${tr('חלון לילה')}: ${d.name}`} labelHidden .checked=${!!night} data-mm-night=${d.key} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.patchDevice(d, { volume_night: e.detail.checked ? { ...DEFAULT_NIGHT } : null })}></sw-toggle>
+            ${night ? html`<span>${tr('מ־')}</span><input type="time" lang=${dateInputLang()} .value=${night.from} data-mm-night-from=${d.key} aria-label=${tr('מ־')} @change=${(e: Event) => nightPatch({ from: (e.target as HTMLInputElement).value })} />
+              <span>${tr('עד')}</span><input type="time" lang=${dateInputLang()} .value=${night.to} data-mm-night-to=${d.key} aria-label=${tr('עד')} @change=${(e: Event) => nightPatch({ to: (e.target as HTMLInputElement).value })} />
+              <span>${tr('תקרה')}</span><input type="number" min="0" max="100" .value=${String(night.max)} data-mm-night-max=${d.key} aria-label=${tr('תקרה בלילה')} @change=${(e: Event) => nightPatch({ max: Number((e.target as HTMLInputElement).value) })} />` : html`<span class="muted">${tr('כבוי')}</span>`}
           </span>
         </span>
       </div>
-      ${d.cast ? html`<div class="muted" data-mm-cast-line=${d.key}>שידור למסך: ${castSentence(d.cast)}</div>` : nothing}
+      ${d.cast ? html`<div class="muted" data-mm-cast-line=${d.key}>${tr('שידור למסך:')} ${castSentence(d.cast)}</div>` : nothing}
     </div>`;
   }
 
 
   private connections(d: AdminDevice): TemplateResult {
-    return html`<div data-mm-endpoints=${d.key}>${d.music_provider && d.music_provider !== 'none' ? html`<div class="muted">שכבת המוזיקה: ${PROVIDER_LABEL[d.music_provider]}</div>` : nothing}${d.endpoints.map((e) => html`<div class="ep" data-mm-endpoint=${e.endpoint_id}>
+    return html`<div data-mm-endpoints=${d.key}>${d.music_provider && d.music_provider !== 'none' ? html`<div class="muted">${tr('שכבת המוזיקה:')} ${PROVIDER_LABEL[d.music_provider]}</div>` : nothing}${d.endpoints.map((e) => html`<div class="ep" data-mm-endpoint=${e.endpoint_id}>
         <span class="mono" data-mm-ep-platform=${e.platform} title=${integrationTitle(e.platform)}>${integrationName(e.platform)}</span>
-        <span>${ROLE_EXTRA[e.role] ?? ROLE_LABEL[e.role] ?? e.role}${e.hidden ? html` <sw-badge kind="neutral" label="מוסתר"></sw-badge>` : nothing}</span>
-        <span class="muted">${e.primary_for.length ? `עונה על: ${e.primary_for.join(', ')}` : 'כפילות'} · שלב ${e.rule}${e.link_source === 'manual' ? ' · ידני' : ''}</span>
+        <span>${ROLE_EXTRA[e.role] ?? ROLE_LABEL[e.role] ?? e.role}${e.hidden ? html` <sw-badge kind="neutral" label=${tr('מוסתר')}></sw-badge>` : nothing}</span>
+        <span class="muted">${e.primary_for.length ? `${tr('עונה על:')} ${e.primary_for.join(', ')}` : tr('כפילות')} · ${tr('שלב {n}', { n: e.rule })}${e.link_source === 'manual' ? ` · ${tr('ידני')}` : ''}</span>
         <span class="acts">
-          ${e.hidden ? html`<sw-button size="sm" data-mm-restore=${e.endpoint_id} @click=${() => void this.link({ op: 'restore', endpoint_id: e.endpoint_id })}>שחזר</sw-button>`
-            : html`<sw-button size="sm" data-mm-ignore=${e.endpoint_id} @click=${() => void this.link({ op: 'ignore', endpoint_id: e.endpoint_id })}>התעלם</sw-button>
-              ${d.endpoints.length > 1 ? html`<sw-button size="sm" data-mm-unlink=${e.endpoint_id} @click=${() => void this.link({ op: 'unlink', endpoint_id: e.endpoint_id })}>פצל</sw-button>` : nothing}`}
+          ${e.hidden ? html`<sw-button size="sm" data-mm-restore=${e.endpoint_id} @click=${() => void this.link({ op: 'restore', endpoint_id: e.endpoint_id })}>${tr('שחזר')}</sw-button>`
+            : html`<sw-button size="sm" data-mm-ignore=${e.endpoint_id} @click=${() => void this.link({ op: 'ignore', endpoint_id: e.endpoint_id })}>${tr('התעלם')}</sw-button>
+              ${d.endpoints.length > 1 ? html`<sw-button size="sm" data-mm-unlink=${e.endpoint_id} @click=${() => void this.link({ op: 'unlink', endpoint_id: e.endpoint_id })}>${tr('פצל')}</sw-button>` : nothing}`}
         </span>
       </div>`)}</div>`;
   }
@@ -652,11 +653,11 @@ export class SystemMultimediaPlayers extends LitElement {
     const pending = ds.length - approved;
     const unplaced = ds.filter((d) => !d.area_name && !d.area_id).length;
     const unav = ds.filter((d) => this.live.get(d.key)?.live.power === 'unavailable').length;
-    const counts = [`${approved} מאושרים`, pending ? `${pending} ממתינים` : '', unplaced ? `${unplaced} ללא חדר` : '', unav ? `${unav} לא זמינים` : ''].filter(Boolean).join(' · ');
-    return html`<sw-card heading="נגנים ורמקולים" data-mm-players>
+    const counts = [tr('{n} מאושרים', { n: approved }), pending ? tr('{n} ממתינים', { n: pending }) : '', unplaced ? tr('{n} ללא חדר', { n: unplaced }) : '', unav ? tr('{n} לא זמינים', { n: unav }) : ''].filter(Boolean).join(' · ');
+    return html`<sw-card heading=${tr('נגנים ורמקולים')} data-mm-players>
       <div class="hd"><span class="muted" data-mm-players-count>${counts}</span><span class="grow"></span>
-        <sw-button size="sm" variant="primary" icon="check" data-mm-approve-players ?disabled=${!pending} @click=${() => void this.approveAll()}>אשר את כל הנגנים שזוהו${pending ? ` (${pending})` : ''}</sw-button></div>
-      <div class="muted">רק נגנים מאושרים מופיעים ב"מולטימדיה". תקרת עוצמה וחלון לילה חלים רק כשהוגדרו.</div>
+        <sw-button size="sm" variant="primary" icon="check" data-mm-approve-players ?disabled=${!pending} @click=${() => void this.approveAll()}>${tr('אשר את כל הנגנים שזוהו')}${pending ? ` (${pending})` : ''}</sw-button></div>
+      <div class="muted">${tr('רק נגנים מאושרים מופיעים ב"מולטימדיה". תקרת עוצמה וחלון לילה חלים רק כשהוגדרו.')}</div>
       ${this.table(ds)}
     </sw-card>`;
   }
@@ -665,16 +666,16 @@ export class SystemMultimediaPlayers extends LitElement {
     const s = this.sugg?.filter((x) => !this.answered.has(x.id));
     const np = this.nonPhys;
     if (!s && !np?.length) return nothing;
-    const NP: Record<string, string> = { session: 'סשן', virtual_group: 'קבוצה וירטואלית', service: 'שירות' };
-    return html`<sw-card heading="איחוד כפילויות" data-mm-wizard>
-      ${s ? html`<div class="hd"><span class="muted" data-mm-wizard-count>${s.length ? `${s.length} הצעות` : 'אין הצעות פתוחות'}</span></div>
-        ${repeat(s, (x) => x.id, (x) => html`<div class="row" data-mm-wizard-row=${x.id}><span class="lbl"><span><span class="mono">${x.endpoint_label}</span> ← ${x.device_name}</span><span class="muted">${SUGGESTION_REASON_LABEL[x.reason]} · שלב ${x.rule}</span></span>
-          <span class="acts"><sw-button size="sm" variant="primary" icon="link" data-mm-wizard-accept=${x.id} @click=${() => void this.answer(x, 'link')}>אחד</sw-button>
-            <sw-button size="sm" data-mm-wizard-ignore=${x.id} @click=${() => void this.answer(x, 'ignore')}>התעלם</sw-button></span></div>`)}` : nothing}
-      ${np?.length ? html`<div class="row" data-mm-nonphysical><span class="lbl">רכיבים לא פיזיים<span class="muted">${np.length} רשומות: סשנים, קבוצות עזר ושירותים · לא מוצגים כנגנים ולא מוצעים לאיחוד</span></span>
-          <sw-button size="sm" data-mm-np-toggle aria-expanded=${String(this.npOpen)} @click=${() => (this.npOpen = !this.npOpen)}>${this.npOpen ? 'הסתר' : 'הצג'}</sw-button></div>
+    const NP: Record<string, string> = { session: tr('סשן'), virtual_group: tr('קבוצה וירטואלית'), service: tr('שירות') };
+    return html`<sw-card heading=${tr('איחוד כפילויות')} data-mm-wizard>
+      ${s ? html`<div class="hd"><span class="muted" data-mm-wizard-count>${s.length ? tr('{n} הצעות', { n: s.length }) : tr('אין הצעות פתוחות')}</span></div>
+        ${repeat(s, (x) => x.id, (x) => html`<div class="row" data-mm-wizard-row=${x.id}><span class="lbl"><span><span class="mono">${x.endpoint_label}</span> ${tr('←')} ${x.device_name}</span><span class="muted">${SUGGESTION_REASON_LABEL[x.reason]} · ${tr('שלב {n}', { n: x.rule })}</span></span>
+          <span class="acts"><sw-button size="sm" variant="primary" icon="link" data-mm-wizard-accept=${x.id} @click=${() => void this.answer(x, 'link')}>${tr('אחד')}</sw-button>
+            <sw-button size="sm" data-mm-wizard-ignore=${x.id} @click=${() => void this.answer(x, 'ignore')}>${tr('התעלם')}</sw-button></span></div>`)}` : nothing}
+      ${np?.length ? html`<div class="row" data-mm-nonphysical><span class="lbl">${tr('רכיבים לא פיזיים')}<span class="muted">${tr('{n} רשומות: סשנים, קבוצות עזר ושירותים · לא מוצגים כנגנים ולא מוצעים לאיחוד', { n: np.length })}</span></span>
+          <sw-button size="sm" data-mm-np-toggle aria-expanded=${String(this.npOpen)} @click=${() => (this.npOpen = !this.npOpen)}>${this.npOpen ? tr('הסתר') : tr('הצג')}</sw-button></div>
         ${this.npOpen ? np.map((n) => html`<div class="row" data-mm-np-row=${n.key}><span class="lbl">${n.name}</span>
-          ${n.kind === 'virtual_group' ? html`<label class="f inline">מוצג בקבוצות<sw-toggle label=${`מוצג בקבוצות: ${n.name}`} labelHidden .checked=${!!n.approved} data-mm-np-approved=${n.key} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.approveHelper(n.key, e.detail.checked)}></sw-toggle></label>` : nothing}
+          ${n.kind === 'virtual_group' ? html`<label class="f inline">${tr('מוצג בקבוצות')}<sw-toggle label=${`${tr('מוצג בקבוצות')}: ${n.name}`} labelHidden .checked=${!!n.approved} data-mm-np-approved=${n.key} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.approveHelper(n.key, e.detail.checked)}></sw-toggle></label>` : nothing}
           <sw-badge kind="neutral" label=${NP[n.kind] ?? n.kind}></sw-badge></div>`) : nothing}` : nothing}
     </sw-card>`;
   }
@@ -683,13 +684,13 @@ export class SystemMultimediaPlayers extends LitElement {
     const ps = this.presets;
     if (!ps) return nothing;
     const devs = [...this.live.values()];
-    return html`<sw-card heading="קבוצות שמורות" data-mm-presets>
-      <div class="hd"><span class="muted">${ps.length} שמורות</span><span class="grow"></span>
-        <sw-button size="sm" icon="plus" data-mm-preset-new @click=${() => this.editor?.show(draftOf(null))}>קבוצה חדשה</sw-button></div>
-      ${ps.map((p) => { const rooms = presetRooms(p, devs); const fl = presetFloors(p, devs); return html`<div class="row" data-mm-preset=${p.id}><span class="lbl">${p.name}<span class="muted">${rooms.map((r) => r.room).join(', ')}${fl > 1 ? ` · ${fl} קומות · דורש אישור בהפעלה` : ''}${p.volumes ? ' · עם עוצמות' : ''}</span></span>
-        <span class="acts"><sw-button size="sm" icon="edit" data-mm-preset-edit=${p.id} @click=${() => this.editor?.show(draftOf(p))}>ערוך</sw-button>
-          <sw-button size="sm" variant="danger" data-mm-preset-delete=${p.id} @click=${() => (this.deleting = p)}>מחק</sw-button></span></div>`; })}
-      ${ps.length ? nothing : html`<div class="muted">אין קבוצות שמורות.</div>`}
+    return html`<sw-card heading=${tr('קבוצות שמורות')} data-mm-presets>
+      <div class="hd"><span class="muted">${tr('{n} שמורות', { n: ps.length })}</span><span class="grow"></span>
+        <sw-button size="sm" icon="plus" data-mm-preset-new @click=${() => this.editor?.show(draftOf(null))}>${tr('קבוצה חדשה')}</sw-button></div>
+      ${ps.map((p) => { const rooms = presetRooms(p, devs); const fl = presetFloors(p, devs); return html`<div class="row" data-mm-preset=${p.id}><span class="lbl">${p.name}<span class="muted">${rooms.map((r) => r.room).join(', ')}${fl > 1 ? ` · ${tr('{n} קומות', { n: fl })} · ${tr('דורש אישור בהפעלה')}` : ''}${p.volumes ? ` · ${tr('עם עוצמות')}` : ''}</span></span>
+        <span class="acts"><sw-button size="sm" icon="edit" data-mm-preset-edit=${p.id} @click=${() => this.editor?.show(draftOf(p))}>${tr('ערוך')}</sw-button>
+          <sw-button size="sm" variant="danger" data-mm-preset-delete=${p.id} @click=${() => (this.deleting = p)}>${tr('מחק')}</sw-button></span></div>`; })}
+      ${ps.length ? nothing : html`<div class="muted">${tr('אין קבוצות שמורות.')}</div>`}
     </sw-card>`;
   }
 
@@ -700,10 +701,10 @@ export class SystemMultimediaPlayers extends LitElement {
     const has = KINDS.some((k) => this.favLists[k].length);
     const sonos = lib?.provider === 'sonos';
     const kinds = KINDS.filter((k) => !(k === 'playlists' && sonos));
-    return html`<sw-card heading="מועדפים ותחנות" data-mm-favs>
-      <div class="row"><span class="lbl">לשוניות בנגן<span class="muted">רשימה אחת לכולם</span></span>
+    return html`<sw-card heading=${tr('מועדפים ותחנות')} data-mm-favs>
+      <div class="row"><span class="lbl">${tr('לשוניות בנגן')}<span class="muted">${tr('רשימה אחת לכולם')}</span></span>
         <span class="acts">${kinds.map((k) => html`<label class="f inline">${LIBRARY_TAB_LABEL[k]}<sw-toggle label=${LIBRARY_TAB_LABEL[k]} labelHidden .checked=${f.kinds_on.includes(k)} data-mm-fav-kind=${k} @change=${(e: CustomEvent<{ checked: boolean }>) => this.toggleKind(k, e.detail.checked)}></sw-toggle></label>`)}</span></div>
-      <div class="row"><span class="lbl">מקור<span class="muted">${lib?.provider === 'ma' ? 'Music Assistant · המועדפים של ההתקנה' : sonos ? 'Sonos · המועדפים של הרמקולים (source_list) · אין פלייליסטים בלי Music Assistant' : 'אין ספריית מוזיקה'}</span></span></div>
+      <div class="row"><span class="lbl">${tr('מקור')}<span class="muted">${lib?.provider === 'ma' ? tr('Music Assistant · המועדפים של ההתקנה') : sonos ? tr('Sonos · המועדפים של הרמקולים (source_list) · אין פלייליסטים בלי Music Assistant') : tr('אין ספריית מוזיקה')}</span></span></div>
       ${has ? kinds.map((k) => this.favList(k)) : nothing}
     </sw-card>`;
   }
@@ -711,11 +712,11 @@ export class SystemMultimediaPlayers extends LitElement {
   private favList(k: LibraryKind): TemplateResult | typeof nothing {
     const l = this.favLists[k];
     if (!l.length) return nothing;
-    return html`<div class="fgrp" data-mm-fav-group=${k}><h3>${LIBRARY_TAB_LABEL[k]} · סדר והצגה</h3>${l.map((r, i) => html`<div class=${r.hidden ? 'frow off' : 'frow'} data-mm-fav=${r.ref}>
-      <sw-toggle label=${`הצג: ${r.name}`} labelHidden .checked=${!r.hidden} data-mm-fav-show=${r.ref} @change=${(e: CustomEvent<{ checked: boolean }>) => this.setHidden(k, r.ref, !e.detail.checked)}></sw-toggle>
+    return html`<div class="fgrp" data-mm-fav-group=${k}><h3>${LIBRARY_TAB_LABEL[k]} · ${tr('סדר והצגה')}</h3>${l.map((r, i) => html`<div class=${r.hidden ? 'frow off' : 'frow'} data-mm-fav=${r.ref}>
+      <sw-toggle label=${`${tr('הצג')}: ${r.name}`} labelHidden .checked=${!r.hidden} data-mm-fav-show=${r.ref} @change=${(e: CustomEvent<{ checked: boolean }>) => this.setHidden(k, r.ref, !e.detail.checked)}></sw-toggle>
       <span class="nm"><b>${r.name}</b>${r.artist ? html`<span class="muted">${r.artist}</span>` : nothing}</span>
-      <button type="button" class="ib" data-mm-fav-up=${r.ref} aria-label=${`הקדם: ${r.name}`} ?disabled=${i === 0} @click=${() => this.moveFav(k, r.ref, -1)}><sw-icon name="arrowUp" size="14"></sw-icon></button>
-      <button type="button" class="ib" data-mm-fav-down=${r.ref} aria-label=${`אחר: ${r.name}`} ?disabled=${i === l.length - 1} @click=${() => this.moveFav(k, r.ref, 1)}><sw-icon name="arrowDown" size="14"></sw-icon></button>
+      <button type="button" class="ib" data-mm-fav-up=${r.ref} aria-label=${tr('הקדם: {name}', { name: r.name })} ?disabled=${i === 0} @click=${() => this.moveFav(k, r.ref, -1)}><sw-icon name="arrowUp" size="14"></sw-icon></button>
+      <button type="button" class="ib" data-mm-fav-down=${r.ref} aria-label=${tr('אחר: {name}', { name: r.name })} ?disabled=${i === l.length - 1} @click=${() => this.moveFav(k, r.ref, 1)}><sw-icon name="arrowDown" size="14"></sw-icon></button>
     </div>`)}</div>`;
   }
 
@@ -727,34 +728,34 @@ export class SystemMultimediaPlayers extends LitElement {
     const unav = [...this.live.values()].filter((d) => d.kind !== 'group' && d.live.power === 'unavailable').length;
     const layers = new Map<MusicProvider, number>();
     for (const d of this.devices) if (d.music_provider && d.music_provider !== 'none') layers.set(d.music_provider, (layers.get(d.music_provider) ?? 0) + 1);
-    return html`<sw-card heading="חיבור" data-mm-connection>
+    return html`<sw-card heading=${tr('חיבור')} data-mm-connection>
       ${lib.provider === 'ma' || lib.state === 'unavailable'
-        ? html`<div class="row"><span class="lbl">Music Assistant דרך Home Assistant<span class="muted" data-mm-conn-text>${total} נגנים${unav ? ` · ${unav} לא זמינים` : ''} · ${lib.state === 'ready' ? 'ספרייה זמינה' : 'ספרייה לא זמינה'}</span></span>
-            <sw-badge kind=${lib.state === 'ready' ? 'ok' : 'stale'} label=${lib.state === 'ready' ? 'מחובר' : 'ספרייה לא זמינה'}></sw-badge></div>`
-        : html`<div class="row"><span class="lbl">Music Assistant<span class="muted" data-mm-conn-text>לא מותקן במערכת זו${lib.provider !== 'none' ? ` · ספקי מוזיקה: ${PROVIDER_LABEL[lib.provider]}` : ''}</span></span><sw-badge kind="neutral" label="לא מותקן"></sw-badge></div>`}
-      ${layers.size ? html`<div class="row"><span class="lbl">שכבת המוזיקה לפי התקן<span class="muted">${[...layers].map(([p, n]) => `${PROVIDER_LABEL[p]} על ${n}`).join(' · ')}</span></span></div>` : nothing}
-      <div class="row"><span class="lbl">רכיב החיבור (גשר Arx)<span class="muted">${st.bridge.players_ready ? `גרסה ${st.bridge.version ?? '?'} · מוכן לנגנים` : `גרסה ${st.bridge.version ?? '?'} · נדרש עדכון (0.5.0 ומעלה) לנגנים`}</span></span></div>
+        ? html`<div class="row"><span class="lbl">${tr('Music Assistant דרך Home Assistant')}<span class="muted" data-mm-conn-text>${tr('{n} נגנים', { n: total })}${unav ? ` · ${tr('{n} לא זמינים', { n: unav })}` : ''} · ${lib.state === 'ready' ? tr('ספרייה זמינה') : tr('ספרייה לא זמינה')}</span></span>
+            <sw-badge kind=${lib.state === 'ready' ? 'ok' : 'stale'} label=${lib.state === 'ready' ? tr('מחובר') : tr('ספרייה לא זמינה')}></sw-badge></div>`
+        : html`<div class="row"><span class="lbl">Music Assistant<span class="muted" data-mm-conn-text>${tr('לא מותקן במערכת זו')}${lib.provider !== 'none' ? ` · ${tr('ספקי מוזיקה:')} ${PROVIDER_LABEL[lib.provider]}` : ''}</span></span><sw-badge kind="neutral" label=${tr('לא מותקן')}></sw-badge></div>`}
+      ${layers.size ? html`<div class="row"><span class="lbl">${tr('שכבת המוזיקה לפי התקן')}<span class="muted">${[...layers].map(([p, n]) => tr('{provider} על {n}', { provider: PROVIDER_LABEL[p], n })).join(' · ')}</span></span></div>` : nothing}
+      <div class="row"><span class="lbl">${tr('רכיב החיבור (גשר Arx)')}<span class="muted">${st.bridge.players_ready ? `${tr('גרסה {n}', { n: st.bridge.version ?? '?' })} · ${tr('מוכן לנגנים')}` : `${tr('גרסה {n}', { n: st.bridge.version ?? '?' })} · ${tr('נדרש עדכון (0.5.0 ומעלה) לנגנים')}`}</span></span></div>
       ${lib.provider === 'ma' ? html`<media-ma-connection data-mm-ma-direct></media-ma-connection>` : nothing}
     </sw-card>`;
   }
 
   private permissionsCard(): TemplateResult {
-    return html`<sw-card heading="הרשאות" data-mm-permissions>
-      <div class="row"><span class="lbl">קיבוץ רמקולים וקבוצות שמורות<span class="muted"><span class="mono">media.group</span> · מפעיל, מנהל אתר, מנהל מערכת · קבוצה של 4 חדרים ומעלה או יותר מקומה אחת מבקשת אישור; כל הבניין רק למנהל</span></span>
-        <a class="link" href="#/system/access">תפקידים והרשאות ‹</a></div>
-      <div class="row"><span class="lbl">שליטה בניגון ובעוצמה<span class="muted"><span class="mono">media.control</span> · כולל דילוג, ערבוב, חזרה, מועדפים והעברת מוזיקה</span></span></div>
-      <div class="row"><span class="lbl">עיון וחיפוש בספריית המוזיקה<span class="muted"><span class="mono">media.browse</span> · מפעיל, מנהל אתר, מנהל מערכת · הפעלת פריט דורשת גם שליטה בניגון</span></span></div>
-      <div class="row"><span class="lbl">עריכת תור הניגון<span class="muted"><span class="mono">media.queue</span> · מנהל מערכת בלבד כברירת מחדל · גרירה, מחיקה, נגן הבא, ניקוי התור</span></span></div>
+    return html`<sw-card heading=${tr('הרשאות')} data-mm-permissions>
+      <div class="row"><span class="lbl">${tr('קיבוץ רמקולים וקבוצות שמורות')}<span class="muted"><span class="mono">media.group</span> · ${tr('מפעיל, מנהל אתר, מנהל מערכת · קבוצה של 4 חדרים ומעלה או יותר מקומה אחת מבקשת אישור; כל הבניין רק למנהל')}</span></span>
+        <a class="link" href="#/system/access">${tr('תפקידים והרשאות ‹')}</a></div>
+      <div class="row"><span class="lbl">${tr('שליטה בניגון ובעוצמה')}<span class="muted"><span class="mono">media.control</span> · ${tr('כולל דילוג, ערבוב, חזרה, מועדפים והעברת מוזיקה')}</span></span></div>
+      <div class="row"><span class="lbl">${tr('עיון וחיפוש בספריית המוזיקה')}<span class="muted"><span class="mono">media.browse</span> · ${tr('מפעיל, מנהל אתר, מנהל מערכת · הפעלת פריט דורשת גם שליטה בניגון')}</span></span></div>
+      <div class="row"><span class="lbl">${tr('עריכת תור הניגון')}<span class="muted"><span class="mono">media.queue</span> · ${tr('מנהל מערכת בלבד כברירת מחדל · גרירה, מחיקה, נגן הבא, ניקוי התור')}</span></span></div>
     </sw-card>`;
   }
 
   private deleteDialog(): TemplateResult {
     const p = this.deleting;
     if (!p) return html`<sw-dialog data-mm-preset-delete-dialog="closed"></sw-dialog>`;
-    return html`<sw-dialog open ?locked=${this.busy} heading=${`למחוק את "${p.name}"?`} data-mm-preset-delete-dialog="open" @close=${() => (this.deleting = null)}>
+    return html`<sw-dialog open ?locked=${this.busy} heading=${tr('למחוק את "{name}"?', { name: p.name })} data-mm-preset-delete-dialog="open" @close=${() => (this.deleting = null)}>
       <div class="dlg-acts">
-        <sw-button data-mm-pd-no autofocus ?disabled=${this.busy} @click=${() => (this.deleting = null)}>ביטול</sw-button>
-        <sw-button variant="danger" data-mm-pd-yes ?disabled=${this.busy} @click=${() => void this.deletePreset()}>מחק</sw-button>
+        <sw-button data-mm-pd-no autofocus ?disabled=${this.busy} @click=${() => (this.deleting = null)}>${tr('ביטול')}</sw-button>
+        <sw-button variant="danger" data-mm-pd-yes ?disabled=${this.busy} @click=${() => void this.deletePreset()}>${tr('מחק')}</sw-button>
       </div></sw-dialog>`;
   }
 
@@ -763,7 +764,7 @@ export class SystemMultimediaPlayers extends LitElement {
     return html`${this.error ? html`<div class="err" role="alert" data-mm-players-error>${this.error}</div>` : nothing}
       ${this.playersCard()}${this.wizardCard()}${this.presetsCard()}${this.favCard()}${this.connectionCard()}${this.permissionsCard()}
       ${this.note ? html`<div class="ok" role="status" data-mm-players-note>${this.note}</div>` : nothing}
-      <media-preset-editor .devices=${[...this.live.values()]} @preset-saved=${() => { this.say('נשמר'); void this.loadGroups(); }} @preset-stale=${() => void this.loadGroups()}></media-preset-editor>
+      <media-preset-editor .devices=${[...this.live.values()]} @preset-saved=${() => { this.say(tr('נשמר')); void this.loadGroups(); }} @preset-stale=${() => void this.loadGroups()}></media-preset-editor>
       ${this.deleteDialog()}`;
   }
 }

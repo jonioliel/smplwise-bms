@@ -10,6 +10,7 @@ import { settingsStyles } from '../styles/settings';
 import { ApiError } from '../api/client';
 import { getOverview, type InstallerOverview, type ToolName } from '../api/installer';
 import { installerText as T } from '../i18n/wiskey-installer';
+import { tr } from '../i18n/msg/system-b';
 
 /** The tools of the area, in the order an installer meets them. */
 export const INSTALLER_TOOLS: readonly ToolName[] = ['clock', 'technical', 'lifecycle', 'platform'];
@@ -118,7 +119,7 @@ export class SystemIntercomInstaller extends LitElement {
 
   render(): TemplateResult {
     const page = (inner: TemplateResult, state: string) =>
-      html`<sw-page crumbs="הגדרות" heading=${T.title} subheading=${T.sub} data-installer data-state=${state}>${inner}</sw-page>`;
+      html`<sw-page crumbs=${tr('הגדרות')} heading=${T.title} subheading=${T.sub} data-installer data-state=${state}>${inner}</sw-page>`;
     if (this.loadState === 'loading') return page(html`<sw-state-panel state="loading" heading=${T.loading}></sw-state-panel>`, 'loading');
     if (this.loadState === 'forbidden') return page(html`<sw-state-panel state="forbidden" heading=${T.forbiddenTitle} hint=${T.forbiddenHint}></sw-state-panel>`, 'forbidden');
     if (this.loadState === 'error') {

@@ -14,13 +14,14 @@ import { loadXsData, type XsData } from '../xsection/xs-data';
 import { detect, health, itemKey, levelWaiting, MAPPING_SETTING_CHOICES, resolve, summarize, tableRows, type MappingSettings, type Target } from '../api/mapping-engine';
 import { BUILDING_REACH_CHOICES, BUILDING_REACH_TEXT, loadMapping, restoreVersion, saveSettings, setBuildingReach, setMultiBuilding, type BuildingReach, type MappingData, type MappingVersion } from '../api/mapping';
 import { MappingAssistant } from './mapping-assistant';
+import { tr } from '../i18n/msg/system-b';
 
 const SETTING_TEXT: { [K in keyof MappingSettings]: { label: string; hint: string; options: Record<MappingSettings[K], string> } } = {
-  floor_inherit: { label: 'אזור בלי סימון בקומה של בניין ברור', hint: 'למשל "חדר אשפה" בקומה "א · קרקע"', options: { on: 'לפי הקומה', off: 'לשאול' } },
-  auto_insert: { label: 'שם חדש עם סימון מוכר, אחרי ההחלה', hint: 'למשל "ב · חדר אופניים" שנוסף במערכת הבית', options: { off: 'לחכות ל"אשר"', on: 'להכניס לבד' } },
-  new_token: { label: 'סימון שאין לו בניין - מה להציע ראשון', hint: 'למשל "ה · קומה 1" כשאין בניין ה', options: { new_first: 'בניין חדש', existing_first: 'בניין קיים', unassigned_first: 'לא משויך' } },
+  floor_inherit: { label: tr('אזור בלי סימון בקומה של בניין ברור'), hint: tr('למשל "חדר אשפה" בקומה "א · קרקע"'), options: { on: tr('לפי הקומה'), off: tr('לשאול') } },
+  auto_insert: { label: tr('שם חדש עם סימון מוכר, אחרי ההחלה'), hint: tr('למשל "ב · חדר אופניים" שנוסף במערכת הבית'), options: { off: tr('לחכות ל"אשר"'), on: tr('להכניס לבד') } },
+  new_token: { label: tr('סימון שאין לו בניין - מה להציע ראשון'), hint: tr('למשל "ה · קומה 1" כשאין בניין ה'), options: { new_first: tr('בניין חדש'), existing_first: tr('בניין קיים'), unassigned_first: tr('לא משויך') } },
 };
-const KIND_TEXT: Record<MappingVersion['kind'], string> = { apply: 'החלה מהאשף', confirm: 'אישור שמות חדשים', auto: 'הוכנסו לבד', restore: 'חזרה לגרסה' };
+const KIND_TEXT: Record<MappingVersion['kind'], string> = { apply: tr('החלה מהאשף'), confirm: tr('אישור שמות חדשים'), auto: tr('הוכנסו לבד'), restore: tr('חזרה לגרסה') };
 
 /**
  * MAPPING-ASSIST-2330 `<system-mapping>` - הגדרות › בניינים ומיפוי (owner 31.10): the multi-building switch (OFF by default; the assistant may
@@ -325,7 +326,7 @@ export class SystemMapping extends LitElement {
       const cat = await loadTree();
       const site = cat.sites[0];
       if (!site) {
-        this.error = 'אין עדיין אתר. צרו אתר ובניין במפה ‹ אתרים.';
+        this.error = tr('אין עדיין אתר. צרו אתר ובניין במפה ‹ אתרים.');
         return;
       }
       this.data = await loadMapping(isApi() ? site.id : 'site1');
@@ -349,7 +350,7 @@ export class SystemMapping extends LitElement {
     try {
       const r = await setMultiBuilding(!this.data.multi_building);
       this.data = { ...this.data, multi_building: r.enabled };
-      this.message = r.enabled ? 'תצוגת ריבוי הבניינים פעילה במסך הראשי.' : 'תצוגת ריבוי הבניינים כבויה: המסך הראשי מציג בניין אחד, כמו קודם. המיפוי נשמר.';
+      this.message = r.enabled ? tr('תצוגת ריבוי הבניינים פעילה במסך הראשי.') : tr('תצוגת ריבוי הבניינים כבויה: המסך הראשי מציג בניין אחד, כמו קודם. המיפוי נשמר.');
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -373,7 +374,7 @@ export class SystemMapping extends LitElement {
     try {
       const r = await restoreVersion(this.data.site.id, v.number);
       this.confirmRestore = null;
-      this.message = `נוצרה גרסה ${r.version} עם התוכן של גרסה ${v.number}.`;
+      this.message = tr('נוצרה גרסה {n} עם התוכן של גרסה {from}.', { n: r.version, from: v.number });
       await this.load();
     } catch (err) {
       this.error = describeError(err);
@@ -383,7 +384,7 @@ export class SystemMapping extends LitElement {
   }
 
   private bName(t: Target | null | undefined): string {
-    if (!t || t.t === 'none') return 'לא משויך';
+    if (!t || t.t === 'none') return tr('לא משויך');
     if (t.t === 'new') return t.name;
     return this.data?.buildings.find((b) => b.id === t.id)?.name ?? '';
   }
@@ -399,8 +400,8 @@ export class SystemMapping extends LitElement {
   }
 
   render() {
-    if (this.forbidden) return html`<sw-card heading="בניינים ומיפוי"><div class="msg">רק מי שמנהל את תוכן האתר יכול לראות ולשנות את המיפוי.</div></sw-card>`;
-    if (!this.data) return this.error ? html`<div class="err" role="alert">${this.error}</div>` : html`<div class="msg">טוען…</div>`;
+    if (this.forbidden) return html`<sw-card heading=${tr('בניינים ומיפוי')}><div class="msg">${tr('רק מי שמנהל את תוכן האתר יכול לראות ולשנות את המיפוי.')}</div></sw-card>`;
+    if (!this.data) return this.error ? html`<div class="err" role="alert">${this.error}</div>` : html`<div class="msg">${tr('טוען…')}</div>`;
     const d = this.data;
     const assistant = this.assistant
       ? html`<mapping-assistant .data=${d} start=${this.assistant.start} ?advancedOpen=${this.assistant.advanced}
@@ -409,12 +410,12 @@ export class SystemMapping extends LitElement {
     if (this.single) return html`${this.renderSwitch()}${this.renderSingle()}${assistant}${this.renderFloorDialog()}`;
     const c = this.computed();
     if (this.compact)
-      return html`${this.renderSwitch()}<div class="head" style="margin-block-start:12px"><p>${d.versions.length ? `המיפוי הוחל (גרסה ${d.versions[0].number}).` : 'עדיין לא מופה: איזה שם במערכת הבית שייך לאיזה בניין אצלנו.'}</p>
-        <sw-button variant="primary" icon="play" data-mapping-open @click=${() => (this.assistant = { start: 'mark', advanced: false })}>${d.versions.length ? 'פתח את האשף מחדש' : 'פתח את אשף המיפוי'}</sw-button></div>${assistant}`;
+      return html`${this.renderSwitch()}<div class="head" style="margin-block-start:12px"><p>${d.versions.length ? tr('המיפוי הוחל (גרסה {n}).', { n: d.versions[0].number }) : tr('עדיין לא מופה: איזה שם במערכת הבית שייך לאיזה בניין אצלנו.')}</p>
+        <sw-button variant="primary" icon="play" data-mapping-open @click=${() => (this.assistant = { start: 'mark', advanced: false })}>${d.versions.length ? tr('פתח את האשף מחדש') : tr('פתח את אשף המיפוי')}</sw-button></div>${assistant}`;
     return html`
-      <div class="head"><p>איזה שם במערכת הבית שייך לאיזה בניין אצלנו. האשף קורא את כל השמות, מציע, ושואל רק על החריגים. שום דבר לא משתנה במערכת הבית עצמה.</p>
-        <sw-button variant="primary" icon="play" data-mapping-open @click=${() => (this.assistant = { start: 'mark', advanced: false })}>${d.versions.length ? 'פתח את האשף מחדש' : 'פתח את אשף המיפוי'}</sw-button>
-        <sw-button variant="ghost" icon="filter" data-mapping-advanced @click=${() => (this.assistant = { start: 'mark', advanced: true })}>מתקדם</sw-button></div>
+      <div class="head"><p>${tr('איזה שם במערכת הבית שייך לאיזה בניין אצלנו. האשף קורא את כל השמות, מציע, ושואל רק על החריגים. שום דבר לא משתנה במערכת הבית עצמה.')}</p>
+        <sw-button variant="primary" icon="play" data-mapping-open @click=${() => (this.assistant = { start: 'mark', advanced: false })}>${d.versions.length ? tr('פתח את האשף מחדש') : tr('פתח את אשף המיפוי')}</sw-button>
+        <sw-button variant="ghost" icon="filter" data-mapping-advanced @click=${() => (this.assistant = { start: 'mark', advanced: true })}>${tr('מתקדם')}</sw-button></div>
       ${this.message ? html`<div class="msg" role="status" style="margin-block-end:12px">${this.message}</div>` : nothing}
       ${this.error ? html`<div class="err" role="alert" style="margin-block-end:12px">${this.error}</div>` : nothing}
       <div class="grid">
@@ -428,11 +429,11 @@ export class SystemMapping extends LitElement {
     const d = this.data!;
     const on = d.multi_building;
     return html`<sw-card data-mapping-switch><div class="sw">
-      <div class="t"><b>הפעל ריבוי בניינים</b>
-        <span>${on ? 'פעיל: המסך הראשי מציג את האתר לפי בניינים, עם מעבר בין בניינים ו"כבה הכל" לכל בניין.' : 'כבוי: המסך הראשי מציג בניין אחד, בדיוק כמו היום. אפשר להכין את המיפוי כבר עכשיו - שום דבר לא משתנה במסך הראשי עד שמפעילים.'}</span>
-        ${d.can_toggle ? nothing : html`<span class="muted">רק מי שמנהל את התוכן של כל האתרים יכול להפעיל או לכבות.</span>`}
-        <span class="state ${on ? 'on' : ''}" data-mapping-switch-state=${on ? 'on' : 'off'}>${on ? 'פעיל' : 'כבוי'}</span></div>
-      <button type="button" class="toggle" role="switch" aria-checked=${String(on)} aria-label="ריבוי בניינים" data-mapping-toggle ?disabled=${!d.can_toggle || this.busy} @click=${() => void this.toggleMulti()}><i></i></button>
+      <div class="t"><b>${tr('הפעל ריבוי בניינים')}</b>
+        <span>${on ? tr('פעיל: המסך הראשי מציג את האתר לפי בניינים, עם מעבר בין בניינים ו"כבה הכל" לכל בניין.') : tr('כבוי: המסך הראשי מציג בניין אחד, בדיוק כמו היום. אפשר להכין את המיפוי כבר עכשיו - שום דבר לא משתנה במסך הראשי עד שמפעילים.')}</span>
+        ${d.can_toggle ? nothing : html`<span class="muted">${tr('רק מי שמנהל את התוכן של כל האתרים יכול להפעיל או לכבות.')}</span>`}
+        <span class="state ${on ? 'on' : ''}" data-mapping-switch-state=${on ? 'on' : 'off'}>${on ? tr('פעיל') : tr('כבוי')}</span></div>
+      <button type="button" class="toggle" role="switch" aria-checked=${String(on)} aria-label=${tr('ריבוי בניינים')} data-mapping-toggle ?disabled=${!d.can_toggle || this.busy} @click=${() => void this.toggleMulti()}><i></i></button>
     </div></sw-card>`;
   }
 
@@ -461,15 +462,15 @@ export class SystemMapping extends LitElement {
   private renderBuildings(sum: ReturnType<typeof summarize>) {
     const d = this.data!;
     const applied = d.versions.length > 0;
-    return html`<sw-card heading="הבניינים" subheading=${applied ? `לפי המיפוי של גרסה ${d.versions[0].number}` : 'עדיין לא הוחל מיפוי - כך האשף היה קורא את השמות'} data-mapping-buildings>
+    return html`<sw-card heading=${tr('הבניינים')} subheading=${applied ? tr('לפי המיפוי של גרסה {n}', { n: d.versions[0].number }) : tr('עדיין לא הוחל מיפוי - כך האשף היה קורא את השמות')} data-mapping-buildings>
       <div class="rows">
         ${sum.buildings.filter((b) => b.target.t === 'b').map((b) => {
           const shared = b.target.t === 'b' && d.buildings.find((x) => x.id === (b.target as { id: string }).id)?.is_shared;
           return html`<div class="row"><span class="g ${shared ? 'sh' : ''}"><sw-icon name=${shared ? 'sparkle' : 'building'} size=${16}></sw-icon></span>
-            <span class="t"><b>${this.bName(b.target)}</b><span>${b.floors} קומות · ${b.areas} אזורים${b.tokens.length ? ` · ${b.tokens.map((t) => `"${t}"`).join(', ')}` : ''}${b.manual ? ` · ${b.manual} החלטות ידניות` : ''}</span></span></div>`;
+            <span class="t"><b>${this.bName(b.target)}</b><span>${tr('{n} קומות', { n: b.floors })} · ${tr('{n} אזורים', { n: b.areas })}${b.tokens.length ? ` · ${b.tokens.map((t) => `"${t}"`).join(', ')}` : ''}${b.manual ? ` · ${tr('{n} החלטות ידניות', { n: b.manual })}` : ''}</span></span></div>`;
         })}
-        <div class="row"><span class="g un">?</span><span class="t"><b>לא משויך</b><span>${sum.unassigned.floors} קומות · ${sum.unassigned.areas} אזורים${sum.open ? ` · ${sum.open} מחכים להחלטה` : ''}</span></span>
-          ${sum.open ? html`<sw-button size="sm" data-mapping-decide @click=${() => (this.assistant = { start: MappingAssistant.hasDecisions ? 'decide' : 'table', advanced: false })}>החלט עכשיו</sw-button>` : nothing}</div>
+        <div class="row"><span class="g un">?</span><span class="t"><b>${tr('לא משויך')}</b><span>${tr('{n} קומות', { n: sum.unassigned.floors })} · ${tr('{n} אזורים', { n: sum.unassigned.areas })}${sum.open ? ` · ${tr('{n} מחכים להחלטה', { n: sum.open })}` : ''}</span></span>
+          ${sum.open ? html`<sw-button size="sm" data-mapping-decide @click=${() => (this.assistant = { start: MappingAssistant.hasDecisions ? 'decide' : 'table', advanced: false })}>${tr('החלט עכשיו')}</sw-button>` : nothing}</div>
       </div></sw-card>`;
   }
 
@@ -479,13 +480,13 @@ export class SystemMapping extends LitElement {
       const t = new Date(iso);
       return Number.isNaN(t.getTime()) ? iso : t.toLocaleString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
     };
-    return html`<sw-card heading="גרסאות" subheading="חזרה לגרסה ישנה יוצרת גרסה חדשה עם התוכן שלה. שום דבר לא נמחק." data-mapping-versions>
+    return html`<sw-card heading=${tr('גרסאות')} subheading=${tr('חזרה לגרסה ישנה יוצרת גרסה חדשה עם התוכן שלה. שום דבר לא נמחק.')} data-mapping-versions>
       ${d.versions.length
         ? html`<div class="rows">${d.versions.slice(0, 8).map((v) => html`<div class="row vr ${v.current ? 'cur' : ''}" data-mapping-version=${v.number}>
             <span class="k">${v.number}</span>
-            <span class="t"><b>גרסה ${v.number}${v.current ? ' · נוכחית' : ''}</b><span>${when(v.created_at)}${v.by ? ` · ${v.by}` : ''} · ${KIND_TEXT[v.kind]}${v.restored_from ? ` ${v.restored_from}` : ''}</span></span>
-            ${v.current ? html`<span class="pill">פעילה</span>` : html`<sw-button size="sm" icon="history" data-mapping-restore=${v.number} @click=${() => (this.confirmRestore = v)}>חזרה לגרסה זו</sw-button>`}</div>`)}</div>`
-        : html`<div class="msg">אין עדיין גרסאות. כל "החל" באשף יוצר גרסה.</div>`}
+            <span class="t"><b>${tr('גרסה {n}', { n: v.number })}${v.current ? ` · ${tr('נוכחית')}` : ''}</b><span>${when(v.created_at)}${v.by ? ` · ${v.by}` : ''} · ${KIND_TEXT[v.kind]}${v.restored_from ? ` ${v.restored_from}` : ''}</span></span>
+            ${v.current ? html`<span class="pill">${tr('פעילה')}</span>` : html`<sw-button size="sm" icon="history" data-mapping-restore=${v.number} @click=${() => (this.confirmRestore = v)}>${tr('חזרה לגרסה זו')}</sw-button>`}</div>`)}</div>`
+        : html`<div class="msg">${tr('אין עדיין גרסאות. כל "החל" באשף יוצר גרסה.')}</div>`}
     </sw-card>`;
   }
 
@@ -495,7 +496,7 @@ export class SystemMapping extends LitElement {
       <span class="l">${SETTING_TEXT[k].label}</span><span class="h">${SETTING_TEXT[k].hint}</span>
       <span class="seg" role="group" aria-label=${SETTING_TEXT[k].label}>${(MAPPING_SETTING_CHOICES[k] as readonly MappingSettings[K][]).map((v) => html`<button type="button" aria-pressed=${String(d.settings[k] === v)} data-mapping-option=${v}
         @click=${() => void this.setSetting(k, v)}>${(SETTING_TEXT[k].options as Record<string, string>)[v as string]}</button>`)}</span></div>`;
-    return html`<sw-card heading="איך המיפוי מתנהג" data-mapping-settings>${row('floor_inherit')}${row('auto_insert')}${row('new_token')}${this.renderReach()}</sw-card>`;
+    return html`<sw-card heading=${tr('איך המיפוי מתנהג')} data-mapping-settings>${row('floor_inherit')}${row('auto_insert')}${row('new_token')}${this.renderReach()}</sw-card>`;
   }
 
   /** Round 14 (owner 02.11): what a building-scoped role binding reaches while the multi-building switch is on - an installation setting,
@@ -505,9 +506,9 @@ export class SystemMapping extends LitElement {
     const cur: BuildingReach = d.building_reach ?? 'map_and_mapping';
     const can = d.can_set_reach === true && !this.busy;
     return html`<div class="set" data-mapping-setting="building_reach">
-      <span class="l">הרשאת בניין לפי</span>
-      <span class="h">מי שקיבל הרשאה לבניין שולט בהתקנים שמוצבים במפות הקומות שלו${cur === 'map_and_mapping' ? ', וגם בהתקנים שהאזור שלהם ממופה לבניין' : ' בלבד'}. חל רק כשריבוי בניינים פעיל.${d.can_set_reach ? '' : ' רק מנהל הרשאות יכול לשנות.'}</span>
-      <span class="seg" role="group" aria-label="הרשאת בניין לפי">${BUILDING_REACH_CHOICES.map((v) => html`<button type="button" aria-pressed=${String(cur === v)} data-mapping-option=${v} ?disabled=${!can}
+      <span class="l">${tr('הרשאת בניין לפי')}</span>
+      <span class="h">${cur === 'map_and_mapping' ? tr('מי שקיבל הרשאה לבניין שולט בהתקנים שמוצבים במפות הקומות שלו, וגם בהתקנים שהאזור שלהם ממופה לבניין.') : tr('מי שקיבל הרשאה לבניין שולט בהתקנים שמוצבים במפות הקומות שלו בלבד.')} ${tr('חל רק כשריבוי בניינים פעיל.')}${d.can_set_reach ? '' : ` ${tr('רק מנהל הרשאות יכול לשנות.')}`}</span>
+      <span class="seg" role="group" aria-label=${tr('הרשאת בניין לפי')}>${BUILDING_REACH_CHOICES.map((v) => html`<button type="button" aria-pressed=${String(cur === v)} data-mapping-option=${v} ?disabled=${!can}
         @click=${() => void this.setReach(v)}>${BUILDING_REACH_TEXT[v]}</button>`)}</span></div>`;
   }
 
@@ -518,7 +519,7 @@ export class SystemMapping extends LitElement {
     try {
       const r = await setBuildingReach(mode);
       this.data = { ...this.data, building_reach: r.mode };
-      this.message = 'הרשאת הבניין עודכנה.';
+      this.message = tr('הרשאת הבניין עודכנה.');
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -529,10 +530,10 @@ export class SystemMapping extends LitElement {
   private renderRestoreDialog() {
     const v = this.confirmRestore;
     if (!v) return nothing;
-    return html`<sw-dialog open heading=${`חזרה לגרסה ${v.number}`} subheading="המיפוי יחזור לשורות של הגרסה הזו" @close=${() => (this.confirmRestore = null)}>
-      <div class="msg">תיווצר גרסה חדשה עם התוכן של גרסה ${v.number}. הגרסה הנוכחית נשמרת ואפשר לחזור אליה. בניינים וקומות שנוצרו לא יימחקו, ושום דבר לא משתנה במערכת הבית.</div>
-      <sw-button slot="footer" variant="ghost" @click=${() => (this.confirmRestore = null)}>ביטול</sw-button>
-      <sw-button slot="footer" variant="primary" icon="history" data-mapping-restore-confirm ?disabled=${this.busy} @click=${() => void this.restore(v)}>חזרה לגרסה ${v.number}</sw-button>
+    return html`<sw-dialog open heading=${tr('חזרה לגרסה {n}', { n: v.number })} subheading=${tr('המיפוי יחזור לשורות של הגרסה הזו')} @close=${() => (this.confirmRestore = null)}>
+      <div class="msg">${tr('תיווצר גרסה חדשה עם התוכן של גרסה {n}. הגרסה הנוכחית נשמרת ואפשר לחזור אליה. בניינים וקומות שנוצרו לא יימחקו, ושום דבר לא משתנה במערכת הבית.', { n: v.number })}</div>
+      <sw-button slot="footer" variant="ghost" @click=${() => (this.confirmRestore = null)}>${tr('ביטול')}</sw-button>
+      <sw-button slot="footer" variant="primary" icon="history" data-mapping-restore-confirm ?disabled=${this.busy} @click=${() => void this.restore(v)}>${tr('חזרה לגרסה {n}', { n: v.number })}</sw-button>
     </sw-dialog>`;
   }
 
@@ -541,12 +542,12 @@ export class SystemMapping extends LitElement {
   private renderSingle() {
     const d = this.data!;
     const b = d.buildings[0];
-    return html`<sw-card heading=${b ? b.name : 'בניין אחד'} subheading="באתר יש בניין אחד: כל קומה מקושרת לקומה במערכת הבית בנפרד" data-mapping-single style="margin-block-start:16px">
+    return html`<sw-card heading=${b ? b.name : tr('בניין אחד')} subheading=${tr('באתר יש בניין אחד: כל קומה מקושרת לקומה במערכת הבית בנפרד')} data-mapping-single style="margin-block-start:16px">
       <div class="rows">${this.singleFloors.map((f) => html`<div class="row"><span class="g"><sw-icon name="floor" size=${16}></sw-icon></span>
-          <span class="t"><b>${f.name}</b><span>${(d.links.floors.filter((r) => r.floor_id === f.id).length ? 'מקושרת' : 'לפי המפלס או השם')}</span></span>
-          <sw-button size="sm" icon="link" data-mapping-floor-link=${f.id} @click=${() => void this.openFloor(f)}>קישור למערכת הבית</sw-button></div>`)}</div>
-      <div class="head" style="margin:14px 0 0"><p>יש לכם כמה בניינים באותה מערכת בית? האשף יזהה אותם לפי השמות וייצור אותם.</p>
-        <sw-button variant="ghost" icon="play" data-mapping-open @click=${() => { this.forceFull = true; this.assistant = { start: 'mark', advanced: false }; }}>פתח את אשף המיפוי</sw-button></div>
+          <span class="t"><b>${f.name}</b><span>${(d.links.floors.filter((r) => r.floor_id === f.id).length ? tr('מקושרת') : tr('לפי המפלס או השם'))}</span></span>
+          <sw-button size="sm" icon="link" data-mapping-floor-link=${f.id} @click=${() => void this.openFloor(f)}>${tr('קישור למערכת הבית')}</sw-button></div>`)}</div>
+      <div class="head" style="margin:14px 0 0"><p>${tr('יש לכם כמה בניינים באותה מערכת בית? האשף יזהה אותם לפי השמות וייצור אותם.')}</p>
+        <sw-button variant="ghost" icon="play" data-mapping-open @click=${() => { this.forceFull = true; this.assistant = { start: 'mark', advanced: false }; }}>${tr('פתח את אשף המיפוי')}</sw-button></div>
     </sw-card>`;
   }
 

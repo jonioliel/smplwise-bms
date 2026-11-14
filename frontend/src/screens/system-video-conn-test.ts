@@ -11,6 +11,7 @@ import type { Camera } from '../api/types';
 import { connectionEnv, formatReports, runConnProbe, uaFamily, type ProbeEnv, type ProbeReport, type Profile } from '../api/video-conn-test';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { tr } from '../i18n/msg/system-b';
 
 type Choice = Profile | 'both';
 
@@ -238,30 +239,30 @@ export class SystemVideoConnTest extends LitElement {
     const cams = this.cameras;
     const noCams = cams !== null && cams.length === 0;
     const text = this.text();
-    return html`<sw-card heading="בדיקת חיבור וידאו" subheading="מראה מה ה־WebRTC של הדפדפן הזה עושה מול שרת הווידאו: מועמדי ICE, מעברי מצב, הזוג שנבחר וסטטיסטיקת RTP, ושורת מסקנה. בלי נגן; הבדיקה סוגרת את החיבור בסיומה. מומלץ להריץ אותה מהטלפון שבו הווידאו לא עובד." data-card="remote.video-conn-test" data-conn-test>
-      <div class="row"><span class="lbl">מצלמה<span class="muted">${noCams ? 'אין מצלמות עם הרשאת צפייה' : 'כל צפייה בבדיקה נספרת במכסת הזרמים החיים של הכניסה'}</span></span>
+    return html`<sw-card heading=${tr('בדיקת חיבור וידאו')} subheading=${tr('מראה מה ה־WebRTC של הדפדפן הזה עושה מול שרת הווידאו: מועמדי ICE, מעברי מצב, הזוג שנבחר וסטטיסטיקת RTP, ושורת מסקנה. בלי נגן; הבדיקה סוגרת את החיבור בסיומה. מומלץ להריץ אותה מהטלפון שבו הווידאו לא עובד.')} data-card="remote.video-conn-test" data-conn-test>
+      <div class="row"><span class="lbl">${tr('מצלמה')}<span class="muted">${noCams ? tr('אין מצלמות עם הרשאת צפייה') : tr('כל צפייה בבדיקה נספרת במכסת הזרמים החיים של הכניסה')}</span></span>
         <sw-field class="ctl"><select data-conn-camera ?disabled=${this.running || !cams?.length} @change=${(e: Event) => (this.cameraId = (e.target as HTMLSelectElement).value)}>
           ${(cams ?? []).map((c) => html`<option value=${c.id} ?selected=${c.id === this.cameraId}>${c.alias || c.name}</option>`)}
         </select></sw-field></div>
-      <div class="row"><span class="lbl">זרם<span class="muted">"שניהם": קודם המשני ואז הראשי, בזה אחר זה</span></span>
+      <div class="row"><span class="lbl">${tr('זרם')}<span class="muted">${tr('"שניהם": קודם המשני ואז הראשי, בזה אחר זה')}</span></span>
         <sw-field class="ctl"><select data-conn-profile ?disabled=${this.running} @change=${(e: Event) => (this.choice = (e.target as HTMLSelectElement).value as Choice)}>
-          <option value="sub" ?selected=${this.choice === 'sub'}>משני (sub)</option>
-          <option value="main" ?selected=${this.choice === 'main'}>ראשי (main)</option>
-          <option value="both" ?selected=${this.choice === 'both'}>שניהם</option>
+          <option value="sub" ?selected=${this.choice === 'sub'}>${tr('משני (sub)')}</option>
+          <option value="main" ?selected=${this.choice === 'main'}>${tr('ראשי (main)')}</option>
+          <option value="both" ?selected=${this.choice === 'both'}>${tr('שניהם')}</option>
         </select></sw-field></div>
       <div class="acts">
         ${this.running
-          ? html`<sw-button size="sm" variant="ghost" icon="close" data-conn-stop @click=${() => this.cancel()}>עצור</sw-button><span class="muted" data-conn-running>בודק…</span>`
-          : html`<sw-button size="sm" variant="primary" icon="activity" data-conn-run ?disabled=${!this.cameraId} @click=${() => void this.start()}>בדוק</sw-button>`}
-        <sw-button size="sm" icon="list" data-conn-copy ?disabled=${!text} @click=${() => void this.copy()}>העתק דוח</sw-button>
-        ${this.copied === 'ok' ? html`<span class="ok" data-conn-copied>הועתק</span>` : nothing}
-        ${this.copied === 'manual' ? html`<span class="err" data-conn-copy-manual>ההעתקה נחסמה בדפדפן: סמן את הטקסט למטה והעתק ידנית</span>` : nothing}
+          ? html`<sw-button size="sm" variant="ghost" icon="close" data-conn-stop @click=${() => this.cancel()}>${tr('עצור')}</sw-button><span class="muted" data-conn-running>${tr('בודק…')}</span>`
+          : html`<sw-button size="sm" variant="primary" icon="activity" data-conn-run ?disabled=${!this.cameraId} @click=${() => void this.start()}>${tr('בדוק')}</sw-button>`}
+        <sw-button size="sm" icon="list" data-conn-copy ?disabled=${!text} @click=${() => void this.copy()}>${tr('העתק דוח')}</sw-button>
+        ${this.copied === 'ok' ? html`<span class="ok" data-conn-copied>${tr('הועתק')}</span>` : nothing}
+        ${this.copied === 'manual' ? html`<span class="err" data-conn-copy-manual>${tr('ההעתקה נחסמה בדפדפן: סמן את הטקסט למטה והעתק ידנית')}</span>` : nothing}
         ${this.error ? html`<span class="err">${this.error}</span>` : nothing}
       </div>
       ${this.reports.length
         ? html`<div class="verdicts" data-conn-verdicts>${this.reports.map((r) => {
             const good = r.firstFrameAt != null;
-            return html`<div class=${good ? 'good' : r.verdict ? 'bad' : ''} data-conn-verdict=${r.profile}>${r.profile === 'main' ? 'ראשי' : 'משני'}: ${r.verdict || 'בודק…'}</div>`;
+            return html`<div class=${good ? 'good' : r.verdict ? 'bad' : ''} data-conn-verdict=${r.profile}>${r.profile === 'main' ? tr('ראשי') : tr('משני')}: ${r.verdict || tr('בודק…')}</div>`;
           })}</div>
           <pre class="report" data-conn-report tabindex="0">${text}</pre>`
         : nothing}

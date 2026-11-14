@@ -29,6 +29,7 @@ import { integrationName, integrationTitle } from './media-integration-names';
 import { castSentence } from './media-cast-label';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsStyles } from '../styles/settings';
+import { tr } from '../i18n/msg/system-b';
 
 const PROFILES = Object.keys(PROFILE_LABEL) as ProfileId[];
 const flash = (ms = 3000) => new Promise((r) => setTimeout(r, ms));
@@ -36,9 +37,9 @@ const flash = (ms = 3000) => new Promise((r) => setTimeout(r, ms));
 /** The keys a model may add on top of its profile (CR-015 section 4: "model-specific extras are enabled per screen in settings, never
  * guessed"); the server offers (`model_key_options`) and accepts only those the profile allows. */
 const EXTRA_KEYS: { id: KeyId; label: string }[] = [
-  { id: 'blue', label: 'כחול' }, { id: 'rew', label: 'אחורה מהירה' }, { id: 'ff', label: 'קדימה מהירה' }, { id: 'stop', label: 'עצור' },
-  { id: 'exit', label: 'יציאה' }, { id: 'info', label: 'מידע' }, { id: 'guide', label: 'מדריך' }, { id: 'source', label: 'מקור' },
-  { id: 'tools', label: 'כלים' }, { id: 'settings', label: 'הגדרות' }, { id: 'chlist', label: 'רשימת ערוצים' }, { id: 'prech', label: 'ערוץ קודם' },
+  { id: 'blue', label: tr('כחול') }, { id: 'rew', label: tr('אחורה מהירה') }, { id: 'ff', label: tr('קדימה מהירה') }, { id: 'stop', label: tr('עצור') },
+  { id: 'exit', label: tr('יציאה') }, { id: 'info', label: tr('מידע') }, { id: 'guide', label: tr('מדריך') }, { id: 'source', label: tr('מקור') },
+  { id: 'tools', label: tr('כלים') }, { id: 'settings', label: tr('הגדרות') }, { id: 'chlist', label: tr('רשימת ערוצים') }, { id: 'prech', label: tr('ערוץ קודם') },
 ];
 
 /**
@@ -310,7 +311,7 @@ export class SystemMultimedia extends LitElement {
       }
       this.enabled = on;
       applyMultimediaHidden({ 'multimedia.enabled': String(on) }); // the rail entry follows at once
-      this.say('נשמר');
+      this.say(tr('נשמר'));
     } catch (err) {
       this.error = describeError(err);
     }
@@ -335,7 +336,7 @@ export class SystemMultimedia extends LitElement {
     try {
       await mediaAdmin().approve(keys, true);
       this.list = { ...this.list, devices: this.list.devices.map((d) => (keys.includes(d.key) ? { ...d, approved: true } : d)) };
-      this.say(`אושרו ${keys.length} מסכים`);
+      this.say(tr('אושרו {n} מסכים', { n: keys.length }));
     } catch (err) {
       this.error = describeError(err);
     }
@@ -344,7 +345,7 @@ export class SystemMultimedia extends LitElement {
   private async link(op: Parameters<ReturnType<typeof mediaAdmin>['link']>[0]) {
     try {
       this.list = await mediaAdmin().link(op);
-      this.say('נשמר');
+      this.say(tr('נשמר'));
     } catch (err) {
       this.error = describeError(err);
     }
@@ -376,7 +377,7 @@ export class SystemMultimedia extends LitElement {
     try {
       this.remote = await media().saveRemoteDefault(this.remote);
       this.remoteDirty = false;
-      this.say('נשמר');
+      this.say(tr('נשמר'));
     } catch (err) {
       this.error = describeError(err);
     }
@@ -400,9 +401,9 @@ export class SystemMultimedia extends LitElement {
   private async copy(text: string) {
     try {
       await navigator.clipboard.writeText(text);
-      this.say('הועתק');
+      this.say(tr('הועתק'));
     } catch {
-      this.say('ההעתקה נחסמה בדפדפן');
+      this.say(tr('ההעתקה נחסמה בדפדפן'));
     }
   }
 
@@ -411,7 +412,7 @@ export class SystemMultimedia extends LitElement {
       scope: 'screens', devices: screens, view: this.view, editing: this.editing, endpoints: this.open, saved: this.saved,
       form: (d) => this.form(d), connections: (d) => this.connections(d), typeLabel: (d) => KIND_LABEL[d.kind as MediaKind] ?? d.kind,
       onView: this.setView, onEdit: (k) => this.toggle('editing', k), onEndpoints: (k) => this.toggle('open', k),
-      onApprove: (d, on) => void this.updateDevice(d, { approved: on }), onCopy: (t) => void this.copy(t), none: 'לא זוהו מסכים.',
+      onApprove: (d, on) => void this.updateDevice(d, { approved: on }), onCopy: (t) => void this.copy(t), none: tr('לא זוהו מסכים.'),
     });
   }
 
@@ -421,46 +422,46 @@ export class SystemMultimedia extends LitElement {
     const extra = d.model_key_options ? EXTRA_KEYS.filter((k) => d.model_key_options!.includes(k.id)) : EXTRA_KEYS;
     return html`<div class="dev" data-mm-form=${d.key}>
       <div class="line">
-        <label class="f">שם
+        <label class="f">${tr('שם')}
           <input type="text" .value=${d.name} maxlength="60" data-mm-name=${d.key} @change=${(e: Event) => void this.updateDevice(d, { display_name: (e.target as HTMLInputElement).value })} />
         </label>
-        <label class="f">סוג
+        <label class="f">${tr('סוג')}
           <select data-mm-kind=${d.key} @change=${(e: Event) => void this.updateDevice(d, { kind: (e.target as HTMLSelectElement).value as AdminDevice['kind'] })}>
             ${(Object.keys(KIND_LABEL) as MediaKind[]).map((k) => html`<option value=${k} ?selected=${d.kind === k}>${KIND_LABEL[k]}</option>`)}
           </select>
         </label>
-        <span class="f">זיהוי<sw-badge kind=${d.confidence === 'weak' ? 'stale' : 'neutral'} label=${CONFIDENCE_LABEL[d.confidence]}></sw-badge></span>
-        <span class="f">מיקום<span>${[d.floor_name, d.area_name].filter(Boolean).join(' ‹ ') || '—'}</span></span>
+        <span class="f">${tr('זיהוי')}<sw-badge kind=${d.confidence === 'weak' ? 'stale' : 'neutral'} label=${CONFIDENCE_LABEL[d.confidence]}></sw-badge></span>
+        <span class="f">${tr('מיקום')}<span>${[d.floor_name, d.area_name].filter(Boolean).join(' ‹ ') || '—'}</span></span>
         <span class="grow"></span>
       </div>
       <div class="line">
-        <label class="f inline">מסך ציבורי<sw-toggle label=${`מסך ציבורי: ${d.name}`} labelHidden .checked=${d.public} ?disabled=${d.kind !== 'screen'} data-mm-public=${d.key} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.updateDevice(d, { public: e.detail.checked })}></sw-toggle></label>
-        <label class="f">פרופיל
+        <label class="f inline">${tr('מסך ציבורי')}<sw-toggle label=${`${tr('מסך ציבורי')}: ${d.name}`} labelHidden .checked=${d.public} ?disabled=${d.kind !== 'screen'} data-mm-public=${d.key} @change=${(e: CustomEvent<{ checked: boolean }>) => void this.updateDevice(d, { public: e.detail.checked })}></sw-toggle></label>
+        <label class="f">${tr('פרופיל')}
           <select data-mm-profile=${d.key} ?disabled=${d.kind !== 'screen'} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; void this.updateDevice(d, { profile: v === '' ? null : (v as ProfileId) }); }}>
-            <option value="" ?selected=${d.profile_source === 'auto'}>זיהוי אוטומטי · ${PROFILE_LABEL[d.profile]}</option>
+            <option value="" ?selected=${d.profile_source === 'auto'}>${tr('זיהוי אוטומטי')} · ${PROFILE_LABEL[d.profile]}</option>
             ${PROFILES.map((p) => html`<option value=${p} ?selected=${d.profile_source === 'manual' && d.profile === p}>${PROFILE_LABEL[p]}</option>`)}
           </select>
         </label>
-        <label class="f">מגבר מקושר
+        <label class="f">${tr('מגבר מקושר')}
           <select data-mm-link=${d.key} ?disabled=${d.kind !== 'screen'} @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; void this.updateDevice(d, { audio_link_key: v || null, ...(v ? {} : { audio_default: 'screen' as const }) }); }}>
-            <option value="" ?selected=${!d.audio_link_key}>ללא</option>
+            <option value="" ?selected=${!d.audio_link_key}>${tr('ללא')}</option>
             ${receivers.map((r) => html`<option value=${r.key} ?selected=${d.audio_link_key === r.key}>${r.name}</option>`)}
           </select>
         </label>
-        <span class="f">שמע ברירת מחדל
-          <span class="seg" role="group" aria-label="שמע ברירת מחדל">
-            <button type="button" aria-pressed=${String(d.audio_default === 'screen')} ?disabled=${!d.audio_link_key} @click=${() => void this.updateDevice(d, { audio_default: 'screen' })}>רמקולי המסך</button>
-            <button type="button" aria-pressed=${String(d.audio_default === 'linked')} ?disabled=${!d.audio_link_key} @click=${() => void this.updateDevice(d, { audio_default: 'linked' })}>מגבר</button>
+        <span class="f">${tr('שמע ברירת מחדל')}
+          <span class="seg" role="group" aria-label=${tr('שמע ברירת מחדל')}>
+            <button type="button" aria-pressed=${String(d.audio_default === 'screen')} ?disabled=${!d.audio_link_key} @click=${() => void this.updateDevice(d, { audio_default: 'screen' })}>${tr('רמקולי המסך')}</button>
+            <button type="button" aria-pressed=${String(d.audio_default === 'linked')} ?disabled=${!d.audio_link_key} @click=${() => void this.updateDevice(d, { audio_default: 'linked' })}>${tr('מגבר')}</button>
           </span>
         </span>
-        <label class="f">תקרת עוצמה
-          <input type="number" min="0" max="100" .value=${d.volume_max === null ? '' : String(d.volume_max)} placeholder="ללא" data-mm-volmax=${d.key}
+        <label class="f">${tr('תקרת עוצמה')}
+          <input type="number" min="0" max="100" .value=${d.volume_max === null ? '' : String(d.volume_max)} placeholder=${tr('ללא')} data-mm-volmax=${d.key}
             @change=${(e: Event) => { const v = (e.target as HTMLInputElement).value.trim(); const n = Math.max(0, Math.min(100, Math.round(Number(v)))); void this.updateDevice(d, { volume_max: v === '' || Number.isNaN(n) ? null : n }); }} />
         </label>
       </div>
-      ${d.also_turns_on.length ? html`<div class="muted" data-mm-also>גם מדליק: ${d.also_turns_on.join(', ')}</div>` : nothing}
-      ${d.cast ? html`<div class="muted" data-mm-cast-line=${d.key}>שידור למסך: ${castSentence(d.cast)}</div>` : nothing}
-      ${d.kind === 'screen' && d.profile !== 'generic' && extra.length ? html`<div class="line" data-mm-extra-keys=${d.key}><span class="f">מקשים נוספים למסך זה</span>${extra.map((k) => html`<label class="f inline"><input type="checkbox" .checked=${d.model_keys.includes(k.id)} @change=${(e: Event) => void this.updateDevice(d, { model_keys: extra.filter((x) => (x.id === k.id ? (e.target as HTMLInputElement).checked : d.model_keys.includes(x.id))).map((x) => x.id) })} />${k.label}</label>`)}</div>` : nothing}
+      ${d.also_turns_on.length ? html`<div class="muted" data-mm-also>${tr('גם מדליק:')} ${d.also_turns_on.join(', ')}</div>` : nothing}
+      ${d.cast ? html`<div class="muted" data-mm-cast-line=${d.key}>${tr('שידור למסך:')} ${castSentence(d.cast)}</div>` : nothing}
+      ${d.kind === 'screen' && d.profile !== 'generic' && extra.length ? html`<div class="line" data-mm-extra-keys=${d.key}><span class="f">${tr('מקשים נוספים למסך זה')}</span>${extra.map((k) => html`<label class="f inline"><input type="checkbox" .checked=${d.model_keys.includes(k.id)} @change=${(e: Event) => void this.updateDevice(d, { model_keys: extra.filter((x) => (x.id === k.id ? (e.target as HTMLInputElement).checked : d.model_keys.includes(x.id))).map((x) => x.id) })} />${k.label}</label>`)}</div>` : nothing}
     </div>`;
   }
 
@@ -468,12 +469,12 @@ export class SystemMultimedia extends LitElement {
   private connections(d: AdminDevice): TemplateResult {
     return html`<div data-mm-endpoints=${d.key}>${d.endpoints.map((e) => html`<div class="ep" data-mm-endpoint=${e.endpoint_id}>
         <span class="mono" data-mm-ep-platform=${e.platform} title=${integrationTitle(e.platform)}>${integrationName(e.platform)}</span>
-        <span>${ROLE_LABEL[e.role] ?? e.role}${e.hidden ? html` <sw-badge kind="neutral" label="מוסתר"></sw-badge>` : nothing}</span>
-        <span class="muted">${e.primary_for.length ? `עונה על: ${e.primary_for.map((c) => CONTROL_LABEL[c]).join(', ')}` : 'כפילות'} · שלב ${e.rule}${e.link_source === 'manual' ? ' · ידני' : ''}</span>
+        <span>${ROLE_LABEL[e.role] ?? e.role}${e.hidden ? html` <sw-badge kind="neutral" label=${tr('מוסתר')}></sw-badge>` : nothing}</span>
+        <span class="muted">${e.primary_for.length ? `${tr('עונה על:')} ${e.primary_for.map((c) => CONTROL_LABEL[c]).join(', ')}` : tr('כפילות')} · ${tr('שלב {n}', { n: e.rule })}${e.link_source === 'manual' ? ` · ${tr('ידני')}` : ''}</span>
         <span style="display:flex;gap:6px">
-          ${e.hidden ? html`<sw-button size="sm" data-mm-restore=${e.endpoint_id} @click=${() => void this.link({ op: 'restore', endpoint_id: e.endpoint_id })}>שחזר</sw-button>`
-            : html`<sw-button size="sm" data-mm-ignore=${e.endpoint_id} @click=${() => void this.link({ op: 'ignore', endpoint_id: e.endpoint_id })}>התעלם</sw-button>
-              ${d.endpoints.length > 1 ? html`<sw-button size="sm" data-mm-unlink=${e.endpoint_id} @click=${() => void this.link({ op: 'unlink', endpoint_id: e.endpoint_id })}>פצל</sw-button>` : nothing}`}
+          ${e.hidden ? html`<sw-button size="sm" data-mm-restore=${e.endpoint_id} @click=${() => void this.link({ op: 'restore', endpoint_id: e.endpoint_id })}>${tr('שחזר')}</sw-button>`
+            : html`<sw-button size="sm" data-mm-ignore=${e.endpoint_id} @click=${() => void this.link({ op: 'ignore', endpoint_id: e.endpoint_id })}>${tr('התעלם')}</sw-button>
+              ${d.endpoints.length > 1 ? html`<sw-button size="sm" data-mm-unlink=${e.endpoint_id} @click=${() => void this.link({ op: 'unlink', endpoint_id: e.endpoint_id })}>${tr('פצל')}</sw-button>` : nothing}`}
         </span>
       </div>`)}</div>`;
   }
@@ -482,25 +483,25 @@ export class SystemMultimedia extends LitElement {
     const s = this.list.suggestions ?? [];
     if (!s.length) return nothing;
     const name = (k: string) => this.list.devices.find((d) => d.key === k)?.name ?? k;
-    return html`<sw-card heading="הצעות איחוד" data-mm-suggestions>
-      ${s.map((x) => html`<div class="row"><span class="lbl"><span class="mono">${x.endpoint_id.replace(/^ha:/, '')}</span><span class="muted">${x.reason} · אל ${name(x.device_key)}</span></span>
-        <sw-button size="sm" data-mm-merge=${x.endpoint_id} @click=${() => void this.link({ op: 'link', endpoint_id: x.endpoint_id, device_key: x.device_key })}>אחד</sw-button></div>`)}
+    return html`<sw-card heading=${tr('הצעות איחוד')} data-mm-suggestions>
+      ${s.map((x) => html`<div class="row"><span class="lbl"><span class="mono">${x.endpoint_id.replace(/^ha:/, '')}</span><span class="muted">${x.reason} · ${tr('אל {name}', { name: name(x.device_key) })}</span></span>
+        <sw-button size="sm" data-mm-merge=${x.endpoint_id} @click=${() => void this.link({ op: 'link', endpoint_id: x.endpoint_id, device_key: x.device_key })}>${tr('אחד')}</sw-button></div>`)}
     </sw-card>`;
   }
 
   private remoteCard(): TemplateResult | typeof nothing {
     const r = this.remote;
     if (!r) return nothing;
-    return html`<sw-card heading="שלט" data-mm-remote>
+    return html`<sw-card heading=${tr('שלט')} data-mm-remote>
       ${r.sections.map((s, i) => html`<div class="sec" data-mm-section=${s.id}>
-        <sw-toggle label=${`הצג: ${SECTION_LABEL[s.id]}`} labelHidden .checked=${s.on} @change=${(e: CustomEvent<{ checked: boolean }>) => this.setSection(s.id, { on: e.detail.checked })}></sw-toggle>
+        <sw-toggle label=${`${tr('הצג')}: ${SECTION_LABEL[s.id]}`} labelHidden .checked=${s.on} @change=${(e: CustomEvent<{ checked: boolean }>) => this.setSection(s.id, { on: e.detail.checked })}></sw-toggle>
         <span class="nm">${SECTION_LABEL[s.id]}</span>
-        <label class="f inline"><input type="checkbox" .checked=${r.more.includes(s.id)} ?disabled=${!s.on} aria-label=${`מאחורי "עוד מקשים": ${SECTION_LABEL[s.id]}`} @change=${(e: Event) => this.setSection(s.id, { more: (e.target as HTMLInputElement).checked })} />מאחורי "עוד מקשים"</label>
-        <button type="button" class="ib" aria-label=${`הקדם: ${SECTION_LABEL[s.id]}`} ?disabled=${i === 0} @click=${() => this.moveSection(s.id, -1)}><sw-icon name="arrowUp" size=${14}></sw-icon></button>
-        <button type="button" class="ib" aria-label=${`אחר: ${SECTION_LABEL[s.id]}`} ?disabled=${i === r.sections.length - 1} @click=${() => this.moveSection(s.id, 1)}><sw-icon name="arrowDown" size=${14}></sw-icon></button>
+        <label class="f inline"><input type="checkbox" .checked=${r.more.includes(s.id)} ?disabled=${!s.on} aria-label=${`${tr('מאחורי "עוד מקשים"')}: ${SECTION_LABEL[s.id]}`} @change=${(e: Event) => this.setSection(s.id, { more: (e.target as HTMLInputElement).checked })} />${tr('מאחורי "עוד מקשים"')}</label>
+        <button type="button" class="ib" aria-label=${tr('הקדם: {name}', { name: SECTION_LABEL[s.id] })} ?disabled=${i === 0} @click=${() => this.moveSection(s.id, -1)}><sw-icon name="arrowUp" size=${14}></sw-icon></button>
+        <button type="button" class="ib" aria-label=${tr('אחר: {name}', { name: SECTION_LABEL[s.id] })} ?disabled=${i === r.sections.length - 1} @click=${() => this.moveSection(s.id, 1)}><sw-icon name="arrowDown" size=${14}></sw-icon></button>
       </div>`)}
-      <div class="row"><span class="muted">ברירת המחדל של כל המסכים; אפשר לשנות מסך בודד דרך "עריכת השלט" בתפריט המשתמש.</span>
-        <sw-button variant="primary" size="sm" ?disabled=${!this.remoteDirty} data-mm-save-remote @click=${() => void this.saveRemote()}>שמור</sw-button></div>
+      <div class="row"><span class="muted">${tr('ברירת המחדל של כל המסכים; אפשר לשנות מסך בודד דרך "עריכת השלט" בתפריט המשתמש.')}</span>
+        <sw-button variant="primary" size="sm" ?disabled=${!this.remoteDirty} data-mm-save-remote @click=${() => void this.saveRemote()}>${tr('שמור')}</sw-button></div>
     </sw-card>`;
   }
 
@@ -517,33 +518,33 @@ export class SystemMultimedia extends LitElement {
 
   /** CR-028: the page's views. The casting tabs do not wait for (or depend on) the screens list: they load their own data. */
   private tabsRow(): TemplateResult {
-    return html`<sw-tabs variant="underline" data-mm-tabs .items=${[{ id: 'main', label: 'מסכים ונגנים' }, { id: 'cast', label: 'שידור למסכים' }, { id: 'mine', label: 'המסכים שלי לשידור' }, { id: 'announce', label: announceText().tab }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.setTab(e.detail.id)}></sw-tabs>`;
+    return html`<sw-tabs variant="underline" data-mm-tabs .items=${[{ id: 'main', label: tr('מסכים ונגנים') }, { id: 'cast', label: tr('שידור למסכים') }, { id: 'mine', label: tr('המסכים שלי לשידור') }, { id: 'announce', label: announceText().tab }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => this.setTab(e.detail.id)}></sw-tabs>`;
   }
 
   render() {
-    if (this.phase === 'forbidden') return html`<sw-page crumbs="הגדרות" heading="מולטימדיה"><sw-state-panel data-mm-admin-state="forbidden" state="forbidden" heading="אין לך הרשאה להגדרות המדיה" hint="נדרשת ההרשאה להגדרת המערכת."></sw-state-panel></sw-page>`;
-    if (this.tab === 'cast') return html`<sw-page crumbs="הגדרות" heading="מולטימדיה" subheading="שידור מצלמות למסכים">${this.tabsRow()}<system-cast></system-cast></sw-page>`;
-    if (this.tab === 'announce') return html`<sw-page crumbs="הגדרות" heading="מולטימדיה" subheading=${announceText().sub}>${this.tabsRow()}<system-announcements></system-announcements></sw-page>`;
-    if (this.tab === 'mine') return html`<sw-page crumbs="הגדרות" heading="מולטימדיה" subheading="המסכים שאפשר לשדר אליהם">${this.tabsRow()}<cast-my-screens embedded></cast-my-screens></sw-page>`;
-    if (this.phase === 'loading') return html`<sw-page crumbs="הגדרות" heading="מולטימדיה"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
-    if (this.phase === 'error') return html`<sw-page crumbs="הגדרות" heading="מולטימדיה">${this.tabsRow()}<sw-state-panel data-mm-admin-state="error" state="error" heading="לא ניתן לטעון את הגדרות המדיה" hint=${this.error} actionLabel="נסה שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
+    if (this.phase === 'forbidden') return html`<sw-page crumbs=${tr('הגדרות')} heading=${tr('מולטימדיה')}><sw-state-panel data-mm-admin-state="forbidden" state="forbidden" heading=${tr('אין לך הרשאה להגדרות המדיה')} hint=${tr('נדרשת ההרשאה להגדרת המערכת.')}></sw-state-panel></sw-page>`;
+    if (this.tab === 'cast') return html`<sw-page crumbs=${tr('הגדרות')} heading=${tr('מולטימדיה')} subheading=${tr('שידור מצלמות למסכים')}>${this.tabsRow()}<system-cast></system-cast></sw-page>`;
+    if (this.tab === 'announce') return html`<sw-page crumbs=${tr('הגדרות')} heading=${tr('מולטימדיה')} subheading=${announceText().sub}>${this.tabsRow()}<system-announcements></system-announcements></sw-page>`;
+    if (this.tab === 'mine') return html`<sw-page crumbs=${tr('הגדרות')} heading=${tr('מולטימדיה')} subheading=${tr('המסכים שאפשר לשדר אליהם')}>${this.tabsRow()}<cast-my-screens embedded></cast-my-screens></sw-page>`;
+    if (this.phase === 'loading') return html`<sw-page crumbs=${tr('הגדרות')} heading=${tr('מולטימדיה')}><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
+    if (this.phase === 'error') return html`<sw-page crumbs=${tr('הגדרות')} heading=${tr('מולטימדיה')}>${this.tabsRow()}<sw-state-panel data-mm-admin-state="error" state="error" heading=${tr('לא ניתן לטעון את הגדרות המדיה')} hint=${this.error} actionLabel=${tr('נסה שוב')} @action=${() => void this.load()}></sw-state-panel></sw-page>`;
     const st = this.status;
     const screens = this.list.devices.filter((d) => d.kind === 'screen');
     const pending = screens.filter((d) => !d.approved).length;
     const bridge = st?.bridge;
-    return html`<sw-page crumbs="הגדרות" heading="מולטימדיה" subheading=${`${screens.filter((d) => d.approved).length} מסכים מאושרים${pending ? ` · ${pending} ממתינים לאישור` : ''}`}>
+    return html`<sw-page crumbs=${tr('הגדרות')} heading=${tr('מולטימדיה')} subheading=${`${tr('{n} מסכים מאושרים', { n: screens.filter((d) => d.approved).length })}${pending ? ` · ${tr('{n} ממתינים לאישור', { n: pending })}` : ''}`}>
       ${this.tabsRow()}
       <div class="stack">
         ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
-        <sw-card heading="כללי" data-mm-general>
-          <div class="row"><span class="lbl">מולטימדיה<span class="muted">כבוי = הכניסה "מולטימדיה" אינה מוצגת לאף משתמש</span></span>
-            <sw-toggle label="מולטימדיה" labelHidden .checked=${this.enabled} data-mm-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.setEnabled(e.detail.checked)}></sw-toggle></div>
-          <div class="row"><span class="lbl">רכיב החיבור (גשר Arx)<span class="muted" data-mm-bridge>${bridge ? (bridge.media_ready ? `גרסה ${bridge.version ?? '?'} · מוכן לפקודות מדיה` : bridge.paired ? `גרסה ${bridge.version ?? '?'} · נדרש עדכון (0.4.0 ומעלה)` : 'לא מצומד') : '—'}</span></span></div>
-          <div class="row"><span class="lbl">תצוגה<span class="muted" data-mm-display>זכוכית תמיד; בהיר/כהה לפי חשמל והתקנים</span></span></div>
+        <sw-card heading=${tr('כללי')} data-mm-general>
+          <div class="row"><span class="lbl">${tr('מולטימדיה')}<span class="muted">${tr('כבוי = הכניסה "מולטימדיה" אינה מוצגת לאף משתמש')}</span></span>
+            <sw-toggle label=${tr('מולטימדיה')} labelHidden .checked=${this.enabled} data-mm-enabled @change=${(e: CustomEvent<{ checked: boolean }>) => void this.setEnabled(e.detail.checked)}></sw-toggle></div>
+          <div class="row"><span class="lbl">${tr('רכיב החיבור (גשר Arx)')}<span class="muted" data-mm-bridge>${bridge ? (bridge.media_ready ? `${tr('גרסה {n}', { n: bridge.version ?? '?' })} · ${tr('מוכן לפקודות מדיה')}` : bridge.paired ? `${tr('גרסה {n}', { n: bridge.version ?? '?' })} · ${tr('נדרש עדכון (0.4.0 ומעלה)')}` : tr('לא מצומד')) : '—'}</span></span></div>
+          <div class="row"><span class="lbl">${tr('תצוגה')}<span class="muted" data-mm-display>${tr('זכוכית תמיד; בהיר/כהה לפי חשמל והתקנים')}</span></span></div>
         </sw-card>
-        <sw-card heading="מסכים" data-mm-devices>
-          <div class="row"><span class="muted">רק מסכים מאושרים מופיעים ב"מולטימדיה".</span>
-            <sw-button size="sm" variant="primary" icon="check" data-mm-approve-all ?disabled=${!pending} @click=${() => void this.approveAll()}>אשר את כל המסכים שזוהו${pending ? ` (${pending})` : ''}</sw-button></div>
+        <sw-card heading=${tr('מסכים')} data-mm-devices>
+          <div class="row"><span class="muted">${tr('רק מסכים מאושרים מופיעים ב"מולטימדיה".')}</span>
+            <sw-button size="sm" variant="primary" icon="check" data-mm-approve-all ?disabled=${!pending} @click=${() => void this.approveAll()}>${tr('אשר את כל המסכים שזוהו')}${pending ? ` (${pending})` : ''}</sw-button></div>
           ${this.table(screens)}
         </sw-card>
         ${this.suggestions()}

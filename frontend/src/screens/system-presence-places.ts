@@ -14,6 +14,7 @@ import {
 import { isApi } from '../api/session';
 import { peopleProblems, placesBody, problemsOf } from './system-presence-places-logic';
 import { pt, type PtKey } from '../i18n/presence';
+import { tr } from '../i18n/msg/system-b';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 
@@ -267,9 +268,9 @@ export class SystemPresencePlaces extends LitElement {
             ${this.message
               ? html`<span class="ok" role="status" data-presence-places-message>${this.message}</span>`
               : problems.length
-                ? html`<span class="err" data-presence-places-state="problems">${problems.length === 1 ? 'בעיה אחת מונעת שמירה - היא מסומנת ברשימה' : `${problems.length} בעיות מונעות שמירה - הן מסומנות ברשימה`}</span>`
+                ? html`<span class="err" data-presence-places-state="problems">${problems.length === 1 ? tr('בעיה אחת מונעת שמירה - היא מסומנת ברשימה') : tr('{n} בעיות מונעות שמירה - הן מסומנות ברשימה', { n: problems.length })}</span>`
                 : this.dirty
-                  ? html`<span class="pending" data-presence-places-state="dirty">יש שינויים שלא נשמרו</span>`
+                  ? html`<span class="pending" data-presence-places-state="dirty">${tr('יש שינויים שלא נשמרו')}</span>`
                   : nothing}
             ${this.error ? html`<span class="err" role="alert" data-presence-places-error>${this.error}</span>` : nothing}
           </div>`

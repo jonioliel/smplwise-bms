@@ -20,6 +20,7 @@ import {
 } from '../design/look';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { tr } from '../i18n/msg/system-b';
 
 type Target = 'own' | 'installation';
 
@@ -393,7 +394,7 @@ export class SystemLook extends LitElement {
         saveDemoInstallationLook(this.draftInst);
       }
       this.draftInst = installationLook();
-      this.flash('ברירת המחדל נשמרה');
+      this.flash(tr('ברירת המחדל נשמרה'));
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -410,7 +411,7 @@ export class SystemLook extends LitElement {
     this.error = '';
     try {
       await saveOwnLook(next);
-      this.flash('ההעדפה נשמרה');
+      this.flash(tr('ההעדפה נשמרה'));
     } catch (err) {
       this.error = describeError(err);
     } finally {
@@ -441,7 +442,7 @@ export class SystemLook extends LitElement {
     this.busy = true;
     this.error = '';
     void saveOwnLook(next)
-      .then(() => this.flash('ההעדפה נשמרה'))
+      .then(() => this.flash(tr('ההעדפה נשמרה')))
       .catch((err) => (this.error = describeError(err)))
       .finally(() => (this.busy = false));
   }
@@ -461,13 +462,13 @@ export class SystemLook extends LitElement {
     const inst = installationLook()[dial] as string | number;
     const current = (this.target === 'installation' ? this.draftInst[dial] : this.own[dial] ?? null) as string | number | null;
     const disabled = this.busy || (this.target === 'installation' && !this.canEdit);
-    let hint = current === null ? `לפי ההתקנה: ${d.labelHe[String(inst)]}` : d.hintHe[String(current)];
+    let hint = current === null ? tr('לפי ההתקנה: {value}', { value: d.labelHe[String(inst)] }) : d.hintHe[String(current)];
     // the performance dial: auto shows what this device decided (design/performance.ts)
-    if (dial === 'performance' && (current ?? inst) === 'auto') hint += ` · כרגע: ${d.labelHe[tierOf('auto')]}`;
+    if (dial === 'performance' && (current ?? inst) === 'auto') hint += ` · ${tr('כרגע: {value}', { value: d.labelHe[tierOf('auto')] })}`;
     return html`<div class="row" data-look-row=${dial}>
       <span class="lbl">${d.nameHe}<span class="muted">${hint}</span></span>
       <span class="seg" role="group" aria-label=${d.nameHe}>
-        ${this.target === 'own' ? html`<button type="button" data-look-follow=${dial} aria-pressed=${current === null ? 'true' : 'false'} ?disabled=${disabled} @click=${() => this.pick(dial, null)}>לפי ההתקנה</button>` : nothing}
+        ${this.target === 'own' ? html`<button type="button" data-look-follow=${dial} aria-pressed=${current === null ? 'true' : 'false'} ?disabled=${disabled} @click=${() => this.pick(dial, null)}>${tr('לפי ההתקנה')}</button>` : nothing}
         ${d.values.map((v) => html`<button type="button" data-look-option=${`${dial}:${v}`} aria-pressed=${current === v ? 'true' : 'false'} ?disabled=${disabled} @click=${() => this.pick(dial, v as Look[K])}>${d.labelHe[String(v)]}</button>`)}
       </span>
     </div>`;
@@ -481,7 +482,7 @@ export class SystemLook extends LitElement {
     const value = this.target === 'installation' ? this.draftInst[dial] : own ?? inst;
     const disabled = this.busy || (this.target === 'installation' && !this.canEdit);
     const floor = dial === 'transparency' ? Math.round(effectiveSheetAlpha() * 100) : 0;
-    const floorNote = dial === 'transparency' && this.preview.transparency < floor ? ` · בפועל ${floor}% (סף הניגודיות)` : '';
+    const floorNote = dial === 'transparency' && this.preview.transparency < floor ? ` · ${tr('בפועל {n}% (סף הניגודיות)', { n: floor })}` : '';
     const onInput = (e: Event) => {
       const v = normalizeDial(dial, Number((e.target as HTMLInputElement).value));
       if (v === null) return;
@@ -493,9 +494,9 @@ export class SystemLook extends LitElement {
       if (this.target === 'own') void this.setOwn(dial, v);
     };
     return html`<div class="row" data-look-row=${dial}>
-      <span class="lbl">${d.nameHe}<span class="muted">${follows ? `לפי ההתקנה: ${inst}%` : `${value}%`}${floorNote}</span></span>
+      <span class="lbl">${d.nameHe}<span class="muted">${follows ? tr('לפי ההתקנה: {value}', { value: `${inst}%` }) : `${value}%`}${floorNote}</span></span>
       <span class="range">
-        ${this.target === 'own' ? html`<button type="button" data-look-follow=${dial} aria-pressed=${follows ? 'true' : 'false'} ?disabled=${disabled} @click=${() => void this.setOwn(dial, null)}>לפי ההתקנה</button>` : nothing}
+        ${this.target === 'own' ? html`<button type="button" data-look-follow=${dial} aria-pressed=${follows ? 'true' : 'false'} ?disabled=${disabled} @click=${() => void this.setOwn(dial, null)}>${tr('לפי ההתקנה')}</button>` : nothing}
         <input type="range" data-look-range=${dial} min=${d.range[0]} max=${d.range[1]} step=${d.step} .value=${String(value)} ?disabled=${disabled} aria-label=${d.nameHe} aria-valuetext=${`${value}%`} @input=${onInput} @change=${onChange} />
         <output>${value}%</output>
       </span>
@@ -561,60 +562,60 @@ export class SystemLook extends LitElement {
     const l = this.preview;
     const attrs = lookAttributes(l).attrs;
     const instDisabled = !this.canEdit || this.busy;
-    return html`<sw-card heading="מראה" subheading="צפיפות, משטח, חלונות קופצים, פינות, אטימות, גודל, יעד לחיצה, חומר, עומק וגוון מצב - לכל ההתקנה ולעצמי" data-look-card>
+    return html`<sw-card heading=${tr('מראה')} subheading=${tr('צפיפות, משטח, חלונות קופצים, פינות, אטימות, גודל, יעד לחיצה, חומר, עומק וגוון מצב - לכל ההתקנה ולעצמי')} data-look-card>
       <div class="row">
-        <span class="lbl">למי<span class="muted">${this.target === 'own' ? 'ההעדפה שלי: כל שינוי נשמר מיד' : 'ברירת המחדל של ההתקנה: נשמרת בכפתור'}</span></span>
-        <span class="seg" role="group" aria-label="למי">
-          <button type="button" data-look-target="own" aria-pressed=${this.target === 'own' ? 'true' : 'false'} @click=${() => (this.target = 'own')}>ההעדפה שלי</button>
-          <button type="button" data-look-target="installation" aria-pressed=${this.target === 'installation' ? 'true' : 'false'} @click=${() => (this.target = 'installation')}>ברירת המחדל של ההתקנה</button>
+        <span class="lbl">${tr('למי')}<span class="muted">${this.target === 'own' ? tr('ההעדפה שלי: כל שינוי נשמר מיד') : tr('ברירת המחדל של ההתקנה: נשמרת בכפתור')}</span></span>
+        <span class="seg" role="group" aria-label=${tr('למי')}>
+          <button type="button" data-look-target="own" aria-pressed=${this.target === 'own' ? 'true' : 'false'} @click=${() => (this.target = 'own')}>${tr('ההעדפה שלי')}</button>
+          <button type="button" data-look-target="installation" aria-pressed=${this.target === 'installation' ? 'true' : 'false'} @click=${() => (this.target = 'installation')}>${tr('ברירת המחדל של ההתקנה')}</button>
         </span>
       </div>
-      ${this.skin !== 'bubble' ? html`<div class="row"><span class="note skinnote" data-look-skin-note><sw-icon name="info" size=${14}></sw-icon>הסגנון הנוכחי הוא ${this.skin}; האפשרויות כאן מצוירות על ידי סגנון Bubble.</span></div>` : nothing}
-      <h4 class="group">פריסה</h4>
+      ${this.skin !== 'bubble' ? html`<div class="row"><span class="note skinnote" data-look-skin-note><sw-icon name="info" size=${14}></sw-icon>${tr('הסגנון הנוכחי הוא {skin}; האפשרויות כאן מצוירות על ידי סגנון Bubble.', { skin: this.skin })}</span></div>` : nothing}
+      <h4 class="group">${tr('פריסה')}</h4>
       ${this.choiceRow('density')}
       ${this.choiceRow('surface')}
       ${this.choiceRow('popup')}
       ${this.choiceRow('radius')}
       ${this.choiceRow('slider')}
-      <h4 class="group">שקיפות, גודל ומגע</h4>
+      <h4 class="group">${tr('שקיפות, גודל ומגע')}</h4>
       ${this.rangeRow('transparency')}
       ${this.rangeRow('scale')}
       ${this.choiceRow('touch')}
       ${this.choiceRow('performance')}
-      <h4 class="group">חומר ועומק</h4>
+      <h4 class="group">${tr('חומר ועומק')}</h4>
       ${this.choiceRow('material')}
       ${this.choiceRow('depth')}
       ${this.choiceRow('tint')}
-      ${this.target === 'installation' && this.canEdit ? html`<h4 class="group">צבעים</h4>` : nothing}
+      ${this.target === 'installation' && this.canEdit ? html`<h4 class="group">${tr('צבעים')}</h4>` : nothing}
       ${this.paletteRow()}
-      <h4 class="group">תצוגה מקדימה</h4>
-      <div class="preview" data-look-preview=${`${l.density}/${l.surface}/${l.popup}/${l.radius}/${l.transparency}/${l.scale}/${l.touch}/${l.material}/${l.depth}/${l.tint}`} aria-label="תצוגה מקדימה" style=${styleMap(this.previewStyle(l))}
+      <h4 class="group">${tr('תצוגה מקדימה')}</h4>
+      <div class="preview" data-look-preview=${`${l.density}/${l.surface}/${l.popup}/${l.radius}/${l.transparency}/${l.scale}/${l.touch}/${l.material}/${l.depth}/${l.tint}`} aria-label=${tr('תצוגה מקדימה')} style=${styleMap(this.previewStyle(l))}
         data-bubble-density=${attrs['data-bubble-density']} data-bubble-surface=${attrs['data-bubble-surface']} data-bubble-radius=${attrs['data-bubble-radius']} data-bubble-touch=${attrs['data-bubble-touch']} data-bubble-performance=${attrs['data-bubble-performance']}
         data-bubble-material=${attrs['data-bubble-material']} data-bubble-depth=${attrs['data-bubble-depth']} data-bubble-tint=${attrs['data-bubble-tint']}>
         <div class="pv-col">
-          <sw-pill variant="slider" icon="light" label="תאורה מרכזית" state="דולק · 72%" .value=${0.72} on .hue=${2} .density=${l.density} .surface=${l.surface} tabindex="-1" data-preview-pill></sw-pill>
-          <sw-kpi label="אזעקה" value="דרוכה" tone="live" icon="shield" data-preview-kpi></sw-kpi>
-          <sw-pill variant="plain" icon="coverOpen" label="תריס חלון" state="פתוח · 60%" .value=${0.6} on fill-color="var(--sw-accent-soft)" .hue=${4} .density=${l.density} .surface=${l.surface} tabindex="-1">
+          <sw-pill variant="slider" icon="light" label=${tr('תאורה מרכזית')} state=${`${tr('דולק')} · 72%`} .value=${0.72} on .hue=${2} .density=${l.density} .surface=${l.surface} tabindex="-1" data-preview-pill></sw-pill>
+          <sw-kpi label=${tr('אזעקה')} value=${tr('דרוכה')} tone="live" icon="shield" data-preview-kpi></sw-kpi>
+          <sw-pill variant="plain" icon="coverOpen" label=${tr('תריס חלון')} state=${`${tr('פתוח')} · 60%`} .value=${0.6} on fill-color="var(--sw-accent-soft)" .hue=${4} .density=${l.density} .surface=${l.surface} tabindex="-1">
             <button slot="subs" class="sb" tabindex="-1" aria-hidden="true"><sw-icon name="arrowUp" size=${18}></sw-icon></button>
             <button slot="subs" class="sb" tabindex="-1" aria-hidden="true"><sw-icon name="arrowDown" size=${18}></sw-icon></button>
           </sw-pill>
-          <sw-pill variant="toggle" icon="bolt" label="דוד שמש" state="כבוי" .hue=${6} .density=${l.density} .surface=${l.surface} tabindex="-1"></sw-pill>
+          <sw-pill variant="toggle" icon="bolt" label=${tr('דוד שמש')} state=${tr('כבוי')} .hue=${6} .density=${l.density} .surface=${l.surface} tabindex="-1"></sw-pill>
         </div>
         <div class="pv-wrap"><span class="pv-bg" aria-hidden="true"></span>
           <div class="pv-sheet" data-preview-sheet>
             <span class="t">${LOOK_DIALS.popup.labelHe[l.popup]}</span>
             <span class="s">${LOOK_DIALS.popup.hintHe[l.popup]}</span>
-            <sw-pill variant="plain" icon="home" label="סלון" state="3 דולקים" .hue=${2} .density=${l.density} .surface=${l.surface} tabindex="-1"></sw-pill>
-            <button type="button" class="pv-btn" tabindex="-1" aria-hidden="true">אישור</button>
+            <sw-pill variant="plain" icon="home" label=${tr('סלון')} state=${tr('{n} דולקים', { n: 3 })} .hue=${2} .density=${l.density} .surface=${l.surface} tabindex="-1"></sw-pill>
+            <button type="button" class="pv-btn" tabindex="-1" aria-hidden="true">${tr('אישור')}</button>
           </div>
         </div>
       </div>
       <div class="foot">
         ${this.target === 'installation'
-          ? html`<sw-button variant="primary" size="sm" icon="check" data-look-save ?disabled=${instDisabled || !this.dirtyInst} @click=${() => void this.saveInstallation()}>שמור</sw-button>
-              <sw-button variant="ghost" size="sm" data-look-reset ?disabled=${instDisabled || sameLook(this.draftInst, LOOK_DEFAULT)} @click=${() => { this.draftInst = { ...LOOK_DEFAULT }; }}>ערכי המוצר</sw-button>
-              ${!this.canEdit && isApi() ? html`<span class="note">שינוי ברירת המחדל דורש הרשאת מנהל מערכת.</span>` : nothing}`
-          : html`<sw-button variant="ghost" size="sm" data-look-clear-own ?disabled=${this.busy || !Object.keys(this.own).length} @click=${() => void saveOwnLook({}).then(() => this.flash('ההעדפה נמחקה')).catch((e) => (this.error = describeError(e)))}>לפי ההתקנה בכל האפשרויות</sw-button>`}
+          ? html`<sw-button variant="primary" size="sm" icon="check" data-look-save ?disabled=${instDisabled || !this.dirtyInst} @click=${() => void this.saveInstallation()}>${tr('שמור')}</sw-button>
+              <sw-button variant="ghost" size="sm" data-look-reset ?disabled=${instDisabled || sameLook(this.draftInst, LOOK_DEFAULT)} @click=${() => { this.draftInst = { ...LOOK_DEFAULT }; }}>${tr('ערכי המוצר')}</sw-button>
+              ${!this.canEdit && isApi() ? html`<span class="note">${tr('שינוי ברירת המחדל דורש הרשאת מנהל מערכת.')}</span>` : nothing}`
+          : html`<sw-button variant="ghost" size="sm" data-look-clear-own ?disabled=${this.busy || !Object.keys(this.own).length} @click=${() => void saveOwnLook({}).then(() => this.flash(tr('ההעדפה נמחקה'))).catch((e) => (this.error = describeError(e)))}>${tr('לפי ההתקנה בכל האפשרויות')}</sw-button>`}
         ${this.message ? html`<span class="ok" role="status" data-look-message>${this.message}</span>` : nothing}
         ${this.error ? html`<span class="err" role="alert">${this.error}</span>` : nothing}
       </div>

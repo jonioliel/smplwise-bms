@@ -73,6 +73,7 @@ import { dt } from '../tickets/device-text'; // CR-038 slice 3: the D17 row
 import { setLongPressMode } from '../tickets/device-entry';
 import { dateInputLang, dayText } from '../api/day-format';
 import { ticketChipSelected } from '../tickets/chip-selected'; // AUDIT30-C-TICKETS: one selected chip look (#4)
+import { tr } from '../i18n/msg/system-b';
 
 type Tab = (typeof SETTINGS_TABS)[number];
 const TABS = SETTINGS_TABS;
@@ -1081,7 +1082,7 @@ export class SystemTickets extends LitElement {
     const heading = tt('area');
     // AUDIT30-C-TICKETS (#16, #18, Q11 option 1): the settings page is the one structure - sw-page (crumb, title, one sub line), the tabs as
     // the underline row of every settings page, the cards under it
-    if (this.enabled === null) return html`<sw-page wide class="page" data-tickets-settings heading=${heading} crumbs="הגדרות"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
+    if (this.enabled === null) return html`<sw-page wide class="page" data-tickets-settings heading=${heading} crumbs=${tr('הגדרות')}><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
     const labels: Record<Tab, string> = { general: tt('setTabGeneral'), departments: tt('setTabDepartments'), locations: lt('tab'), display: tt('u6TabDisplay'), channel: mtt('tabChannel'), messages: mtt('tabTemplates'), costs: ct('setTab'), rules: rlt('tab'), permissions: tt('setTabPermissions') };
     const items = visibleTabs({ api: isApi(), can }).map((id) => ({ id, label: labels[id] }));
     const tabs = this.enabled ? html`<sw-tabs class="stabs" variant="underline" group-label=${heading} data-tickets-settings-tabs .items=${items} .active=${this.tab}
@@ -1094,7 +1095,7 @@ export class SystemTickets extends LitElement {
       : this.tab === 'locations' ? html`<tickets-locations-settings @notice=${this.onNotice}></tickets-locations-settings>` // CR-ORG-LOCATIONS
       : this.tab === 'rules' ? html`<tickets-rules-settings @notice=${this.onNotice}></tickets-rules-settings>` // TKRULES-291
       : this.permissionsTab();
-    return html`<sw-page wide class="page" data-tickets-settings data-tab=${this.tab} heading=${heading} crumbs="הגדרות" subheading=${tt('setSub')}>
+    return html`<sw-page wide class="page" data-tickets-settings data-tab=${this.tab} heading=${heading} crumbs=${tr('הגדרות')} subheading=${tt('setSub')}>
       ${tabs}
       <div class="tbody">${body}</div>
       ${this.error ? html`<div class="toast bad" role="alert" data-tickets-settings-error><sw-icon name="warning" size="18"></sw-icon><span class="tx">${this.error}</span>

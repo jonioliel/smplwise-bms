@@ -6,6 +6,7 @@ import { onRouteChange, parseRoute, type RouteState } from '../router';
 import { activeEntry, navActive, navTree, parentEntry, searchSettings, visibleGroups, type SettingsEntry, type SettingsGroup } from './system-index';
 import { SkinController } from '../design/skin';
 import { getReadinessChip, levelTone, onReadinessChip } from '../api/readiness';
+import { tr } from '../i18n/msg/system-b';
 
 /**
  * SET-polish (2026-10-10): the settings' own navigation. On a wide screen a column at the start side of every הגדרות page: a
@@ -454,14 +455,14 @@ export class SystemNav extends LitElement {
     const res = this.q.trim() ? this.results() : null;
     return html`<div class="search" role="search">
         <sw-icon name="search" size=${15}></sw-icon>
-        <input type="search" placeholder="חיפוש בהגדרות" aria-label="חיפוש בהגדרות" autocomplete="off" data-settings-search .value=${this.q} @input=${(e: Event) => { this.q = (e.target as HTMLInputElement).value; this.cursor = -1; }} @keydown=${(e: KeyboardEvent) => this.onKey(e)} />
-        ${this.q ? html`<button type="button" class="clear" aria-label="נקה חיפוש" @click=${() => { this.q = ''; this.cursor = -1; }}><sw-icon name="close" size=${13}></sw-icon></button>` : nothing}
+        <input type="search" placeholder=${tr('חיפוש בהגדרות')} aria-label=${tr('חיפוש בהגדרות')} autocomplete="off" data-settings-search .value=${this.q} @input=${(e: Event) => { this.q = (e.target as HTMLInputElement).value; this.cursor = -1; }} @keydown=${(e: KeyboardEvent) => this.onKey(e)} />
+        ${this.q ? html`<button type="button" class="clear" aria-label=${tr('נקה חיפוש')} @click=${() => { this.q = ''; this.cursor = -1; }}><sw-icon name="close" size=${13}></sw-icon></button>` : nothing}
       </div>
       ${res
         ? res.length
-          ? html`<div class="results" role="list" aria-label="תוצאות" data-settings-results>${res.map(({ group, entry }, i) => this.link(entry, active, i === this.cursor, this.where(group, entry)))}</div>`
-          : html`<div class="none" data-settings-no-results>לא נמצא דבר ב"${this.q}"</div>`
-        : html`<nav aria-label="הגדרות" data-settings-nav>${this.groups.map((g) => {
+          ? html`<div class="results" role="list" aria-label=${tr('תוצאות')} data-settings-results>${res.map(({ group, entry }, i) => this.link(entry, active, i === this.cursor, this.where(group, entry)))}</div>`
+          : html`<div class="none" data-settings-no-results>${tr('לא נמצא דבר ב"{q}"', { q: this.q })}</div>`
+        : html`<nav aria-label=${tr('הגדרות')} data-settings-nav>${this.groups.map((g) => {
             const open = this.isOpen(g, active);
             return html`<div class="grp" data-settings-group=${g.id} data-open=${open ? 'true' : 'false'}><b><button type="button" class="gh" aria-expanded=${open ? 'true' : 'false'} data-settings-group-toggle=${g.id} @click=${() => this.toggle(g, active)}><sw-icon name=${g.icon} size=${13}></sw-icon>${g.label}<sw-icon class="chev" name="chevronDown" size=${12}></sw-icon></button></b>${open ? navTree(g, active).map((e) => this.link(e, marked)) : nothing}</div>`;
           })}</nav>`}`;
@@ -489,7 +490,7 @@ export class SystemNav extends LitElement {
   private where(group: SettingsGroup, entry: SettingsEntry): string {
     if (!entry.sub) return group.label;
     const parent = this.parentOf(group, entry);
-    return parent ? `${group.label} ‹ ${parent.label}` : group.label;
+    return parent ? tr('{group} ‹ {parent}', { group: group.label, parent: parent.label }) : group.label;
   }
 }
 

@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { settingsLadderStyles } from '../styles/settings';
+import { tr } from '../i18n/msg/system-b';
 import { repeat } from 'lit/directives/repeat.js';
 import '../components/sw-page';
 import '../components/sw-button';
@@ -91,7 +92,7 @@ export class SystemReadiness extends LitElement {
         setReadinessChip(this.report);
       }
     } catch (err) {
-      this.note = err instanceof ApiError && err.status === 429 ? `הבדיקה הורצה הרגע. אפשר שוב בעוד ${(err.body.details?.retry_after_s as number | undefined) ?? 30} שנ׳.` : describeError(err);
+      this.note = err instanceof ApiError && err.status === 429 ? tr('הבדיקה הורצה הרגע. אפשר שוב בעוד {s} שנ׳.', { s: (err.body.details?.retry_after_s as number | undefined) ?? 30 }) : describeError(err);
     } finally {
       this.busy = false;
     }
@@ -133,7 +134,7 @@ export class SystemReadiness extends LitElement {
     }
     for (const [k, v] of Object.entries(changes)) {
       if (!validSetting(k, v)) {
-        this.settingsError = 'ערך לא תקין: יש להזין מספר שלם בטווח המותר.';
+        this.settingsError = tr('ערך לא תקין: יש להזין מספר שלם בטווח המותר.');
         return;
       }
     }
@@ -182,9 +183,9 @@ export class SystemReadiness extends LitElement {
 
   private ring(r: ReadinessReport) {
     const dash = (RING_C * r.score) / 100;
-    return html`<div class="ring" data-tone=${levelTone(r.level)} role="img" aria-label=${`ציון מוכנות ${r.score} מתוך 100`} data-score-ring>
+    return html`<div class="ring" data-tone=${levelTone(r.level)} role="img" aria-label=${tr('ציון מוכנות {score} מתוך 100', { score: r.score })} data-score-ring>
       <svg viewBox="0 0 120 120" aria-hidden="true"><circle class="bg" cx="60" cy="60" r=${RING_R}></circle><circle class="fg" cx="60" cy="60" r=${RING_R} stroke-dasharray=${`${dash} ${RING_C}`}></circle></svg>
-      <div class="v"><b data-score>${r.score}</b><small>מתוך 100</small></div>
+      <div class="v"><b data-score>${r.score}</b><small>${tr('מתוך 100')}</small></div>
     </div>`;
   }
 
@@ -194,18 +195,18 @@ export class SystemReadiness extends LitElement {
     return html`<section class="panel hero" data-tone=${levelTone(r.level)} data-hero>
       ${this.ring(r)}
       <div class="lvl">
-        <div class="name"><span data-level>${LEVEL_TEXT[r.level]}</span>${names.length ? html`<span class="badge blocked" data-blockers><sw-icon name="warning" size=${12}></sw-icon>${names.length === 1 ? 'חסם אחד' : `${names.length} חסמים`}</span>` : nothing}</div>
-        <div class="hint" data-advice>מסירה ללקוח מומלצת מציון ${r.bands.advice} ובלי חסמים. זו המלצה בלבד: אפשר למסור גם קודם, והמסירה תירשם עם הציון שהיה.</div>
+        <div class="name"><span data-level>${LEVEL_TEXT[r.level]}</span>${names.length ? html`<span class="badge blocked" data-blockers><sw-icon name="warning" size=${12}></sw-icon>${names.length === 1 ? tr('חסם אחד') : tr('{n} חסמים', { n: names.length })}</span>` : nothing}</div>
+        <div class="hint" data-advice>${tr('מסירה ללקוח מומלצת מציון {score} ובלי חסמים. זו המלצה בלבד: אפשר למסור גם קודם, והמסירה תירשם עם הציון שהיה.', { score: r.bands.advice })}</div>
         <div class="scale" aria-hidden="true"><span class=${r.score >= 0 ? 'on' : ''}></span><span class=${r.score >= r.bands.almost_min ? 'on' : ''}></span><span class=${r.score >= r.bands.advice ? 'on' : ''}></span></div>
-        <div class="scale-l" aria-hidden="true"><span>בהקמה · 0-${r.bands.almost_min - 1}</span><span>כמעט מוכן · ${r.bands.almost_min}-${r.bands.advice - 1}</span><span>מוכן למסירה · ${r.bands.advice}+</span></div>
-        <div class="gates">${names.map((n) => html`<span class="chip blocked">חסם: ${n}</span>`)}${prev ? html`<span class="chip">ציון קודם: ${prev.score} (${when(prev.at)})</span>` : nothing}</div>
+        <div class="scale-l" aria-hidden="true"><span>${tr('בהקמה')} · 0-${r.bands.almost_min - 1}</span><span>${tr('כמעט מוכן')} · ${r.bands.almost_min}-${r.bands.advice - 1}</span><span>${tr('מוכן למסירה')} · ${r.bands.advice}+</span></div>
+        <div class="gates">${names.map((n) => html`<span class="chip blocked">${tr('חסם: {name}', { name: n })}</span>`)}${prev ? html`<span class="chip">${tr('ציון קודם: {score} ({time})', { score: prev.score, time: when(prev.at) })}</span>` : nothing}</div>
       </div>
     </section>`;
   }
 
   private kpis(r: ReadinessReport) {
     const n = kpiCounts(r.checks);
-    return html`<div class="kpis" role="group" aria-label="סינון לפי מצב" data-kpis>
+    return html`<div class="kpis" role="group" aria-label=${tr('סינון לפי מצב')} data-kpis>
       ${KPI_ORDER.map((k) => html`<button type="button" class="kpi" data-k=${k} data-look=${k} aria-pressed=${this.kpi === k ? 'true' : 'false'} @click=${() => (this.kpi = k)}><span class="dot" aria-hidden="true"></span><div><b>${n[k]}</b><span class="l">${KPI_TEXT[k]}</span></div></button>`)}
     </div>`;
   }
@@ -216,7 +217,7 @@ export class SystemReadiness extends LitElement {
     return html`<article class="row" data-check=${c.id} data-status=${c.status}>
       <span class="disc" data-status=${c.status} aria-hidden="true"><sw-icon name=${STATUS_ICON[c.status] as 'check'} size=${14}></sw-icon></span>
       <div class="main">
-        <div class="t"><h3>${c.title}</h3><span class="badge ${c.status}" data-check-status>${STATUS_TEXT[c.status]}</span>${c.critical ? html`<span class="chip crit">קריטי</span>` : nothing}<span class="chip">${c.source === 'computed' ? 'נמדד' : 'מאושר ידנית'}</span></div>
+        <div class="t"><h3>${c.title}</h3><span class="badge ${c.status}" data-check-status>${STATUS_TEXT[c.status]}</span>${c.critical ? html`<span class="chip crit">${tr('קריטי')}</span>` : nothing}<span class="chip">${c.source === 'computed' ? tr('נמדד') : tr('מאושר ידנית')}</span></div>
         <p class="sum">${c.summary}</p>
         ${c.applicable ? html`<div class="bar" aria-hidden="true"><i style=${`inline-size:${pct}%`}></i></div>` : nothing}
         ${c.facts.length ? html`<div class="facts">${c.facts.slice(0, 4).map((f) => html`<span class="chip ${f.ok === false ? 'warn' : f.ok ? 'good' : ''}">${f.label}: ${f.value}</span>`)}</div>` : nothing}
@@ -227,89 +228,89 @@ export class SystemReadiness extends LitElement {
 
   private checks(r: ReadinessReport) {
     const list = filterChecks(r.checks, this.kpi);
-    return html`<section class="col checks" data-checks aria-label="הבדיקות">
-      ${list.length ? repeat(list, (c) => c.id, (c) => this.row(c)) : html`<sw-state-panel icon="rule" state="empty" compact heading="אין בדיקות במצב הזה"></sw-state-panel>`}
+    return html`<section class="col checks" data-checks aria-label=${tr('הבדיקות')}>
+      ${list.length ? repeat(list, (c) => c.id, (c) => this.row(c)) : html`<sw-state-panel icon="rule" state="empty" compact heading=${tr('אין בדיקות במצב הזה')}></sw-state-panel>`}
     </section>`;
   }
 
   private steps(r: ReadinessReport) {
-    return html`<div class="panel" data-steps><div class="hd"><h2>הצעדים הבאים</h2><span class="mut">לפי תרומה לציון</span></div>
+    return html`<div class="panel" data-steps><div class="hd"><h2>${tr('הצעדים הבאים')}</h2><span class="mut">${tr('לפי תרומה לציון')}</span></div>
       ${r.next_steps.length
         ? html`<ol class="next">${r.next_steps.map((s, i) => html`<li><span class="n">${i + 1}</span><a href=${s.href} data-step-link><b>${s.title}</b><span>${s.label}</span></a>${s.gain ? html`<span class="gain" data-gain>${gainText(s.gain)}</span>` : nothing}</li>`)}</ol>`
-        : html`<p class="mut">אין צעדים פתוחים.</p>`}
+        : html`<p class="mut">${tr('אין צעדים פתוחים.')}</p>`}
     </div>`;
   }
 
   private handoverCard(r: ReadinessReport) {
     const h = r.handover;
     const done = h.done;
-    return html`<div class="panel" data-handover><div class="hd"><h2>מסירה ללקוח</h2><span class="chip ${done ? 'good' : ''}" data-handover-state>${done ? 'נרשמה' : 'ממתין'}</span></div>
-      <p class="mut">${h.advice_met ? `הציון עומד בהמלצה (${h.advice_score}+) וללא חסמים.` : `המלצה: ציון ${h.advice_score}+ וללא חסמים. אפשר לרשום מסירה גם קודם.`}</p>
+    return html`<div class="panel" data-handover><div class="hd"><h2>${tr('מסירה ללקוח')}</h2><span class="chip ${done ? 'good' : ''}" data-handover-state>${done ? tr('נרשמה') : tr('ממתין')}</span></div>
+      <p class="mut">${h.advice_met ? tr('הציון עומד בהמלצה ({score}+) וללא חסמים.', { score: h.advice_score }) : tr('המלצה: ציון {score}+ וללא חסמים. אפשר לרשום מסירה גם קודם.', { score: h.advice_score })}</p>
       ${done
         ? nothing
-        : html`<div class="form"><label>שם הלקוח<input class="inp" type="text" maxlength="120" .value=${this.customer} @input=${(e: Event) => (this.customer = (e.target as HTMLInputElement).value)} data-customer></label>
-            <label class="inline"><input type="checkbox" .checked=${this.printed} @change=${(e: Event) => (this.printed = (e.target as HTMLInputElement).checked)}>המדריך המודפס נמסר</label></div>`}
-      ${!done && !h.advice_met ? html`<p class="warn" data-below-advice><sw-icon name="info" size=${13}></sw-icon>המסירה תירשם כמוקדמת: ציון ${r.score}${h.blockers.length ? ` ו־${h.blockers.length} חסמים` : ''}.</p>` : nothing}
-      <div class="btns"><sw-button size="sm" variant=${done ? 'secondary' : 'primary'} ?disabled=${this.busy} data-handover-btn @click=${() => void this.recordHandover(!done)}>${done ? 'ביטול רישום המסירה' : h.advice_met ? 'רישום מסירה' : 'רישום מסירה מוקדמת'}</sw-button></div>
+        : html`<div class="form"><label>${tr('שם הלקוח')}<input class="inp" type="text" maxlength="120" .value=${this.customer} @input=${(e: Event) => (this.customer = (e.target as HTMLInputElement).value)} data-customer></label>
+            <label class="inline"><input type="checkbox" .checked=${this.printed} @change=${(e: Event) => (this.printed = (e.target as HTMLInputElement).checked)}>${tr('המדריך המודפס נמסר')}</label></div>`}
+      ${!done && !h.advice_met ? html`<p class="warn" data-below-advice><sw-icon name="info" size=${13}></sw-icon>${h.blockers.length ? tr('המסירה תירשם כמוקדמת: ציון {score} ו־{n} חסמים.', { score: r.score, n: h.blockers.length }) : tr('המסירה תירשם כמוקדמת: ציון {score}.', { score: r.score })}</p>` : nothing}
+      <div class="btns"><sw-button size="sm" variant=${done ? 'secondary' : 'primary'} ?disabled=${this.busy} data-handover-btn @click=${() => void this.recordHandover(!done)}>${done ? tr('ביטול רישום המסירה') : h.advice_met ? tr('רישום מסירה') : tr('רישום מסירה מוקדמת')}</sw-button></div>
     </div>`;
   }
 
   private historyCard(r: ReadinessReport) {
-    return html`<div class="panel" data-history><div class="hd"><h2>היסטוריה</h2></div>
+    return html`<div class="panel" data-history><div class="hd"><h2>${tr('היסטוריה')}</h2></div>
       ${r.history.length
-        ? html`<ul class="hist">${r.history.map((x, i) => html`<li><span class="dot ${x.level}"></span><span class="t">ציון ${x.score} · ${LEVEL_TEXT[x.level]}${i === 0 ? ' (אחרון)' : ''}</span><span class="w">${when(x.at)}</span></li>`)}</ul>`
-        : html`<p class="mut">עדיין לא נרשם ציון. "בדוק הכול" רושם את הראשון.</p>`}
+        ? html`<ul class="hist">${r.history.map((x, i) => html`<li><span class="dot ${x.level}"></span><span class="t">${tr('ציון {score}', { score: x.score })} · ${LEVEL_TEXT[x.level]}${i === 0 ? ` ${tr('(אחרון)')}` : ''}</span><span class="w">${when(x.at)}</span></li>`)}</ul>`
+        : html`<p class="mut">${tr('עדיין לא נרשם ציון. "בדוק הכול" רושם את הראשון.')}</p>`}
     </div>`;
   }
 
   private settingsDialog(r: ReadinessReport) {
-    return html`<sw-dialog ?open=${this.settingsOpen} wide heading="הגדרות סף ומשקלים" subheading="כל הספים והמשקלים של המוכנות. נשמר בהתקנה ונרשם באודיט." ?locked=${this.busy} @close=${() => (this.settingsOpen = false)} data-settings-dialog>
+    return html`<sw-dialog ?open=${this.settingsOpen} wide heading=${tr('הגדרות סף ומשקלים')} subheading=${tr('כל הספים והמשקלים של המוכנות. נשמר בהתקנה ונרשם באודיט.')} ?locked=${this.busy} @close=${() => (this.settingsOpen = false)} data-settings-dialog>
       <div class="sform">
         ${THRESHOLD_FIELDS.map((f) => html`<label><span>${f.label}</span><span class="u"><input class="inp num" inputmode="numeric" .value=${this.draft[f.key] ?? ''} @input=${(e: Event) => this.setDraft(f.key, (e.target as HTMLInputElement).value.trim())} data-setting=${f.key}>${f.unit}</span></label>`)}
-        <h4>משקל כל בדיקה (0 = לא נספרת)</h4>
-        ${r.checks.map((c) => html`<label><span>${c.title}</span><span class="u"><input class="inp num" inputmode="numeric" .value=${this.draft[weightKey(c.id)] ?? ''} @input=${(e: Event) => this.setDraft(weightKey(c.id), (e.target as HTMLInputElement).value.trim())} data-setting=${weightKey(c.id)}>נק׳</span></label>`)}
+        <h4>${tr('משקל כל בדיקה (0 = לא נספרת)')}</h4>
+        ${r.checks.map((c) => html`<label><span>${c.title}</span><span class="u"><input class="inp num" inputmode="numeric" .value=${this.draft[weightKey(c.id)] ?? ''} @input=${(e: Event) => this.setDraft(weightKey(c.id), (e.target as HTMLInputElement).value.trim())} data-setting=${weightKey(c.id)}>${tr('נק׳')}</span></label>`)}
         ${this.settingsError ? html`<p class="err" role="alert" data-settings-error>${this.settingsError}</p>` : nothing}
       </div>
-      <div slot="footer" class="dfoot"><sw-button variant="ghost" @click=${() => (this.settingsOpen = false)}>ביטול</sw-button><sw-button variant="primary" ?disabled=${this.busy} data-settings-save @click=${() => void this.saveSettings()}>שמירה</sw-button></div>
+      <div slot="footer" class="dfoot"><sw-button variant="ghost" @click=${() => (this.settingsOpen = false)}>${tr('ביטול')}</sw-button><sw-button variant="primary" ?disabled=${this.busy} data-settings-save @click=${() => void this.saveSettings()}>${tr('שמירה')}</sw-button></div>
     </sw-dialog>`;
   }
 
   private demoDialog() {
     const d = this.demo;
     const blocked = isApi() && d !== null && !d.can_run;
-    return html`<sw-dialog ?open=${this.demoOpen} heading="מצב הדגמה" subheading="התקנה לדוגמה על מסד נתונים נפרד" ?locked=${this.busy} @close=${() => (this.demoOpen = false)} data-demo-dialog>
+    return html`<sw-dialog ?open=${this.demoOpen} heading=${tr('מצב הדגמה')} subheading=${tr('התקנה לדוגמה על מסד נתונים נפרד')} ?locked=${this.busy} @close=${() => (this.demoOpen = false)} data-demo-dialog>
       <div class="sform">
-        <label><span>מערך נתונים</span><select class="inp" .value=${this.demoSet.dataset} @change=${(e: Event) => (this.demoSet = { ...this.demoSet, dataset: (e.target as HTMLSelectElement).value as DemoDataset })} data-demo-dataset>${(d?.datasets ?? (['residential', 'office', 'retail'] as DemoDataset[])).map((x) => html`<option value=${x} ?selected=${this.demoSet.dataset === x}>${DATASET_TEXT[x]}</option>`)}</select></label>
-        <label><span>תרחיש</span><select class="inp" .value=${this.demoSet.scenario} @change=${(e: Event) => (this.demoSet = { ...this.demoSet, scenario: (e.target as HTMLSelectElement).value as DemoScenario })} data-demo-scenario>${(d?.scenarios ?? (['normal', 'cameras_offline', 'new_installation'] as DemoScenario[])).map((x) => html`<option value=${x} ?selected=${this.demoSet.scenario === x}>${SCENARIO_TEXT[x]}</option>`)}</select></label>
-        <label><span>משך</span><select class="inp" .value=${String(this.demoSet.hours)} @change=${(e: Event) => (this.demoSet = { ...this.demoSet, hours: Number((e.target as HTMLSelectElement).value) })} data-demo-hours>${DEMO_HOURS.map((h) => html`<option value=${h} ?selected=${this.demoSet.hours === h}>${h === 24 ? 'עד 24 שעות (מקסימום)' : `${h} ש׳`}</option>`)}</select></label>
-        <p class="warn"><sw-icon name="warning" size=${14}></sw-icon>הנתונים מדומים ונפרדים מההתקנה האמיתית. פעולות למצלמות, לדלתות ולמכשירים חסומות. כל המשתמשים רואים שההדגמה פועלת. ההדגמה מסתיימת בעצמה, ואיתחול המערכת מסיים אותה. הפעלה ויציאה נרשמות באודיט.</p>
-        ${blocked ? html`<p class="err" role="alert" data-demo-denied>אין לך הרשאה להפעיל הדגמה (נדרשת ההרשאה "הפעלת מצב הדגמה").</p>` : nothing}
+        <label><span>${tr('מערך נתונים')}</span><select class="inp" .value=${this.demoSet.dataset} @change=${(e: Event) => (this.demoSet = { ...this.demoSet, dataset: (e.target as HTMLSelectElement).value as DemoDataset })} data-demo-dataset>${(d?.datasets ?? (['residential', 'office', 'retail'] as DemoDataset[])).map((x) => html`<option value=${x} ?selected=${this.demoSet.dataset === x}>${DATASET_TEXT[x]}</option>`)}</select></label>
+        <label><span>${tr('תרחיש')}</span><select class="inp" .value=${this.demoSet.scenario} @change=${(e: Event) => (this.demoSet = { ...this.demoSet, scenario: (e.target as HTMLSelectElement).value as DemoScenario })} data-demo-scenario>${(d?.scenarios ?? (['normal', 'cameras_offline', 'new_installation'] as DemoScenario[])).map((x) => html`<option value=${x} ?selected=${this.demoSet.scenario === x}>${SCENARIO_TEXT[x]}</option>`)}</select></label>
+        <label><span>${tr('משך')}</span><select class="inp" .value=${String(this.demoSet.hours)} @change=${(e: Event) => (this.demoSet = { ...this.demoSet, hours: Number((e.target as HTMLSelectElement).value) })} data-demo-hours>${DEMO_HOURS.map((h) => html`<option value=${h} ?selected=${this.demoSet.hours === h}>${h === 24 ? tr('עד 24 שעות (מקסימום)') : tr('{n} ש׳', { n: h })}</option>`)}</select></label>
+        <p class="warn"><sw-icon name="warning" size=${14}></sw-icon>${tr('הנתונים מדומים ונפרדים מההתקנה האמיתית. פעולות למצלמות, לדלתות ולמכשירים חסומות. כל המשתמשים רואים שההדגמה פועלת. ההדגמה מסתיימת בעצמה, ואיתחול המערכת מסיים אותה. הפעלה ויציאה נרשמות באודיט.')}</p>
+        ${blocked ? html`<p class="err" role="alert" data-demo-denied>${tr('אין לך הרשאה להפעיל הדגמה (נדרשת ההרשאה "הפעלת מצב הדגמה").')}</p>` : nothing}
         ${this.demoError ? html`<p class="err" role="alert" data-demo-error>${this.demoError}</p>` : nothing}
       </div>
-      <div slot="footer" class="dfoot"><sw-button variant="ghost" @click=${() => (this.demoOpen = false)}>ביטול</sw-button><sw-button variant="primary" icon="play" ?disabled=${this.busy || blocked} data-demo-start @click=${() => void this.confirmDemo()}>הפעלת הדגמה</sw-button></div>
+      <div slot="footer" class="dfoot"><sw-button variant="ghost" @click=${() => (this.demoOpen = false)}>${tr('ביטול')}</sw-button><sw-button variant="primary" icon="play" ?disabled=${this.busy || blocked} data-demo-start @click=${() => void this.confirmDemo()}>${tr('הפעלת הדגמה')}</sw-button></div>
     </sw-dialog>`;
   }
 
   render() {
     const r = this.report;
-    const sub = r ? `מערכת · ${r.checks.length} בדיקות · הבדיקות קוראות בלבד מהמכשירים · נבדק ${when(r.checked_at)}${isApi() ? '' : ' · נתוני הדגמה'}` : 'מערכת · הבדיקות קוראות בלבד מהמכשירים';
-    return html`<sw-page heading="מוכנות ההתקנה" subheading=${sub}>
+    const sub = r ? `${tr('מערכת')} · ${tr('{n} בדיקות', { n: r.checks.length })} · ${tr('הבדיקות קוראות בלבד מהמכשירים')} · ${tr('נבדק {time}', { time: when(r.checked_at) })}${isApi() ? '' : ` · ${tr('נתוני הדגמה')}`}` : `${tr('מערכת')} · ${tr('הבדיקות קוראות בלבד מהמכשירים')}`;
+    return html`<sw-page heading=${tr('מוכנות ההתקנה')} subheading=${sub}>
       <span slot="actions" class="acts">
-        ${isApi() && !can('demo.run') ? nothing : html`<sw-button icon="play" ?disabled=${!r} data-open-demo @click=${() => void this.openDemo()}>מצב הדגמה</sw-button>`}
-        <sw-button icon="wrench" ?disabled=${!r} data-open-settings @click=${() => this.openSettings()}>הגדרות סף</sw-button>
-        <sw-button variant="primary" icon="refresh" ?disabled=${!r || this.busy} data-check-all @click=${() => void this.checkAll()}>${this.busy ? 'בודק…' : 'בדוק הכול'}</sw-button>
+        ${isApi() && !can('demo.run') ? nothing : html`<sw-button icon="play" ?disabled=${!r} data-open-demo @click=${() => void this.openDemo()}>${tr('מצב הדגמה')}</sw-button>`}
+        <sw-button icon="wrench" ?disabled=${!r} data-open-settings @click=${() => this.openSettings()}>${tr('הגדרות סף')}</sw-button>
+        <sw-button variant="primary" icon="refresh" ?disabled=${!r || this.busy} data-check-all @click=${() => void this.checkAll()}>${this.busy ? tr('בודק…') : tr('בדוק הכול')}</sw-button>
       </span>
       ${this.forbidden
-        ? html`<sw-state-panel state="forbidden" heading="אין הרשאה למסך הזה" hint="מוכנות ההתקנה פתוחה למי שמגדיר את המערכת."></sw-state-panel>`
+        ? html`<sw-state-panel state="forbidden" heading=${tr('אין הרשאה למסך הזה')} hint=${tr('מוכנות ההתקנה פתוחה למי שמגדיר את המערכת.')}></sw-state-panel>`
         : this.error
-          ? html`<sw-state-panel state="error" heading="מצב המוכנות לא נטען" hint=${this.error} actionLabel="ניסיון חוזר" @action=${() => void this.load()}></sw-state-panel>`
+          ? html`<sw-state-panel state="error" heading=${tr('מצב המוכנות לא נטען')} hint=${this.error} actionLabel=${tr('ניסיון חוזר')} @action=${() => void this.load()}></sw-state-panel>`
           : !r
-            ? html`<sw-state-panel state="loading" heading="קורא את מצב ההתקנה…"></sw-state-panel>`
+            ? html`<sw-state-panel state="loading" heading=${tr('קורא את מצב ההתקנה…')}></sw-state-panel>`
             : html`<div class="fit" data-readiness>
                 ${this.note ? html`<p class="note" role="status" data-note>${this.note}</p>` : nothing}
                 ${this.hero(r)}${this.kpis(r)}
-                <div class="panes" role="tablist" aria-label="חלוקת המסך" data-panes>
-                  ${(['checks', 'steps', 'handover'] as Pane[]).map((p) => html`<button type="button" role="tab" aria-selected=${this.pane === p ? 'true' : 'false'} @click=${() => (this.pane = p)}>${p === 'checks' ? 'בדיקות' : p === 'steps' ? 'צעדים' : 'מסירה והיסטוריה'}</button>`)}
+                <div class="panes" role="tablist" aria-label=${tr('חלוקת המסך')} data-panes>
+                  ${(['checks', 'steps', 'handover'] as Pane[]).map((p) => html`<button type="button" role="tab" aria-selected=${this.pane === p ? 'true' : 'false'} @click=${() => (this.pane = p)}>${p === 'checks' ? tr('בדיקות') : p === 'steps' ? tr('צעדים') : tr('מסירה והיסטוריה')}</button>`)}
                 </div>
                 <div class="cols" data-pane=${this.pane}>
                   ${this.checks(r)}
