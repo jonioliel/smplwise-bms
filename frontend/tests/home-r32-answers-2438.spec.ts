@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { settle } from './helpers/settle';
 import { mockGaps, type GapOpts } from './home-v3-gaps-mocks';
+import { mockP2 } from './home-v3-p2-mocks';
 
 // HOME-R32-ANSWERS-2438: the owner's round-32 answers for the home interface (private/planning/OWNER_ANSWERS_ROUND32_2026-11-14_HE.md,
 // docs/changes/HOME-R32-ANSWERS-2438.md). Mocked backend (the v3 mock layers; the prefs mock keeps what was PUT, so a reload sees it).
@@ -10,10 +11,10 @@ const SHOTS = 'test-results/home-r32-answers';
 const home = (page: Page) => page.locator('sw-home');
 const ready = (page: Page) => expect.poll(() => page.evaluate(() => !!document.querySelector('sw-app')?.shadowRoot?.querySelector('sw-home')?.shadowRoot?.querySelector('.hs.v2'))).toBe(true);
 
-async function open(page: Page, route: string, size: { width: number; height: number }, o: GapOpts = {}) {
+async function open(page: Page, route: string, size: { width: number; height: number }, o: GapOpts = {}, calendar = false) {
   await page.setViewportSize(size);
   await page.goto('about:blank');
-  const mock = await mockGaps(page, o);
+  const mock = calendar ? await mockP2(page) : await mockGaps(page, o); // the calendar's routes live in the phase-2 layer
   await page.goto(`/#/home/${route}`);
   await home(page).waitFor();
   await ready(page);
@@ -81,7 +82,7 @@ test.describe('HOME-R32-ANSWERS-2438', () => {
 
   for (const size of [{ width: 375, height: 667 }, { width: 1280, height: 800 }]) {
     test(`Q-HOME-2: the week strip at ${size.width} - seven days from today, "השבוע" from Sunday, the choice is remembered`, async ({ page }) => {
-      const mock = await open(page, 'calendar', size);
+      const mock = await open(page, 'calendar', size, {}, true);
       const strip = home(page).locator('.week[aria-label="ימי השבוע"] .wd');
       await expect(strip).toHaveCount(7);
       await expect(strip.first()).toHaveAttribute('data-today', '1');
@@ -157,11 +158,25 @@ test.describe('HOME-R32-ANSWERS-2438', () => {
     await page.screenshot({ path: `${SHOTS}/cameras-1280.png` });
   });
 
-  test('Q-HOME-3: on a phone tile the interval stays in the title (no room), the word is still "תמונה"', async ({ page }) => {
+  test('Q-HOME-3: a phone tile (one column) says it too, and the caption stays inside its tile', async ({ page }) => {
     await open(page, 'cameras', { width: 375, height: 812 });
     const t = home(page).locator('.cam-t:not(.off)').first();
     await expect(t.locator('.cap [data-cam-mode="still"]')).toHaveText('תמונה');
     await expect(t.locator('.cap [data-cam-mode="still"]')).toHaveAttribute('title', 'מתעדכנת כל 30 שנ׳');
+    await expect(t.locator('.cap .lv-d')).toHaveText('מתעדכנת כל 30 שנ׳');
+    const spill = await t.locator('.cap').evaluate((c) => {
+      const cr = c.getBoundingClientRect();
+      return Array.from(c.querySelectorAll('*')).filter((k) => { const r = k.getBoundingClientRect(); return r.width && (r.left < cr.left - 0.5 || r.right > cr.right + 0.5); }).length;
+    });
+    expect(spill).toBe(0);
+    await page.screenshot({ path: `${SHOTS}/cameras-375.png` });
+  });
+
+  test('Q-HOME-3: a narrow tile keeps only the word (the interval in its title)', async ({ page }) => {
+    await open(page, 'cameras', { width: 1280, height: 800 });
+    await home(page).locator('.cam-t:not(.off)').first().evaluate((e) => { (e as HTMLElement).style.inlineSize = '260px'; (e as HTMLElement).style.flex = 'none'; });
+    const t = home(page).locator('.cam-t:not(.off)').first();
+    await expect(t.locator('.cap [data-cam-mode="still"]')).toHaveText('תמונה');
     await expect(t.locator('.cap .lv-d')).toBeHidden();
   });
 
