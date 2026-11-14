@@ -3,19 +3,29 @@ input channels, their online status and the recording track ids. Every call is a
 auth; nothing here writes to the device, and no URL or credential leaves the server."""
 from __future__ import annotations
 
-import contextvars
 import re
-import time
 import xml.etree.ElementTree as ET
-from collections.abc import Iterator
-from contextlib import contextmanager
 from dataclasses import dataclass, field
 
 import httpx
 
 from ..config import Settings
 from ..errors import ApiError
-from . import xmlsafe
+from . import device_http, xmlsafe
+
+# CR-DEVICE-HTTP-2438 (review 03 F15): the shared device-HTTP code moved to services/device_http.py; the old names stay importable
+# from here (go2rtc, Frigate, Provision-ISR, the batch runners and the tests import them through this module).
+from .device_http import (  # noqa: F401
+    _DEADLINE,
+    _ssl_context,
+    bounded_timeout,
+    check_deadline,
+    deadline,
+    deadline_error,
+    past_deadline,
+    read_capped,
+    time_left,
+)
 
 
 @dataclass
@@ -66,18 +76,6 @@ def _text(el: ET.Element, name: str) -> str:
     return ""
 
 
-_SSL_CONTEXT = None
-
-
-def _ssl_context():
-    """httpx's default verification context, built once: building it loads the CA bundle (about a second on the
-    workstation) for every client, and the NVR is plain http - the discovery / wizard make several calls in a row."""
-    global _SSL_CONTEXT
-    if _SSL_CONTEXT is None:
-        _SSL_CONTEXT = httpx.create_ssl_context()
-    return _SSL_CONTEXT
-
-
 ISAPI_VENDORS = ("hikvision", "none", "")
 
 
@@ -109,10 +107,7 @@ def _client(settings: Settings, timeout: float = 8.0) -> httpx.Client:
 
 
 def _get(client: httpx.Client, path: str) -> str:
-    try:
-        r = client.get(path)
-    except httpx.HTTPError as exc:
-        raise ApiError(503, "source_unavailable", "ה־NVR אינו זמין כרגע.", retryable=True, details={"path": path, "error": type(exc).__name__}) from exc
+    r = device_http.request(client, "GET", path)
     if r.status_code in (401, 403):
         raise ApiError(503, "source_forbidden", "ה־NVR דחה את פרטי הגישה.", details={"path": path, "status": r.status_code})
     if r.status_code != 200:
@@ -123,10 +118,7 @@ def _get(client: httpx.Client, path: str) -> str:
 def fetch_snapshot(settings: Settings, channel: int) -> bytes:
     """One JPEG frame of the channel's main stream (ISAPI picture endpoint; read-only)."""
     with _client(settings) as client:
-        try:
-            r = client.get(f"/ISAPI/Streaming/channels/{channel}01/picture")
-        except httpx.HTTPError as exc:
-            raise ApiError(503, "source_unavailable", "ה־NVR אינו זמין כרגע.", retryable=True, details={"op": "snapshot", "error": type(exc).__name__}) from exc
+        r = device_http.request(client, "GET", f"/ISAPI/Streaming/channels/{channel}01/picture", where={"op": "snapshot"})
     if r.status_code in (401, 403):
         raise ApiError(503, "source_forbidden", "ה־NVR דחה את פרטי הגישה.", details={"op": "snapshot", "status": r.status_code})
     if r.status_code != 200 or not r.content.startswith(b"\xff\xd8\xff"):
@@ -170,10 +162,8 @@ def search_recordings(settings: Settings, track_id: int, start_wall: str, end_wa
         "</CMSearchDescription>"
     )
     with _client(settings) as client:
-        try:
-            r = client.post("/ISAPI/ContentMgmt/search", content=body.encode("utf-8"), headers={"Content-Type": "application/xml"})
-        except httpx.HTTPError as exc:
-            raise ApiError(503, "source_unavailable", "ה־NVR אינו זמין כרגע.", retryable=True, details={"op": "search", "error": type(exc).__name__}) from exc
+        r = device_http.request(client, "POST", "/ISAPI/ContentMgmt/search", where={"op": "search"}, content=body.encode("utf-8"),
+                                headers={"Content-Type": "application/xml"})
     if r.status_code in (401, 403):
         raise ApiError(503, "source_forbidden", "ה־NVR דחה את פרטי הגישה.", details={"op": "search", "status": r.status_code})
     if r.status_code != 200:
@@ -223,10 +213,8 @@ def daily_distribution(settings: Settings, track_id: int, year: int, month: int)
         "</trackDailyParam>"
     )
     with _client(settings) as client:
-        try:
-            r = client.post(f"/ISAPI/ContentMgmt/record/tracks/{int(track_id)}/dailyDistribution", content=body.encode("utf-8"), headers={"Content-Type": "application/xml"})
-        except httpx.HTTPError as exc:
-            raise ApiError(503, "source_unavailable", "ה־NVR אינו זמין כרגע.", retryable=True, details={"op": "daily_distribution", "error": type(exc).__name__}) from exc
+        r = device_http.request(client, "POST", f"/ISAPI/ContentMgmt/record/tracks/{int(track_id)}/dailyDistribution", where={"op": "daily_distribution"},
+                                content=body.encode("utf-8"), headers={"Content-Type": "application/xml"})
     if r.status_code in (401, 403):
         raise ApiError(503, "source_forbidden", "ה־NVR דחה את פרטי הגישה.", details={"op": "daily_distribution", "status": r.status_code})
     if r.status_code != 200:
@@ -607,10 +595,7 @@ def fetch_detection_zones(settings: Settings, channel: int) -> dict[str, object]
     unsupported: dict[str, str] = {}
     with _client(settings) as client:
         for key, (path, parser) in ZONE_SOURCES.items():
-            try:
-                r = client.get(path.format(ch=channel))
-            except httpx.HTTPError as exc:
-                raise ApiError(503, "source_unavailable", "ה־NVR אינו זמין כרגע.", retryable=True, details={"path": path, "error": type(exc).__name__}) from exc
+            r = device_http.request(client, "GET", path.format(ch=channel), where={"path": path})  # the details name the template, as before
             if r.status_code in (401, 403):
                 unsupported[key] = "forbidden"
                 out[key] = None
@@ -664,16 +649,9 @@ def parse_two_way_audio(xml: str, channel: int) -> dict[str, object] | None:
 
 
 def _response_status(xml: str) -> dict[str, str]:
-    """Hikvision error bodies (ResponseStatus): statusString + subStatusCode, e.g. 'Invalid Operation' / 'notSupport'."""
-    try:
-        from .xmlsafe import parse
-
-        root = parse(xml)
-        if _local(root.tag) != "ResponseStatus":
-            return {}
-        return {"status": _text(root, "statusString"), "sub": _text(root, "subStatusCode")}
-    except Exception:  # noqa: BLE001
-        return {}
+    """Hikvision error bodies (ResponseStatus): statusString + subStatusCode, e.g. 'Invalid Operation' / 'notSupport'; {} when the
+    body is not a ResponseStatus document. The document view of the shared reader (services/device_http.py)."""
+    return device_http.read_response_status(xml).document()
 
 
 def fetch_capabilities(settings: Settings, channel: int) -> dict[str, object]:
@@ -681,10 +659,7 @@ def fetch_capabilities(settings: Settings, channel: int) -> dict[str, object]:
     'unsupported' only when the device itself says notSupport."""
     out: dict[str, object] = {"ptz": {"state": "unknown", "reason": None, "presets": None, "preset_count": None}, "audio": {"state": "unknown", "reason": None, "channel_id": None, "codec": None}}
     with _client(settings) as client:
-        try:
-            r = client.get(f"/ISAPI/PTZCtrl/channels/{channel}/capabilities")
-        except httpx.HTTPError as exc:
-            raise ApiError(503, "source_unavailable", "ה־NVR אינו זמין כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
+        r = device_http.request(client, "GET", f"/ISAPI/PTZCtrl/channels/{channel}/capabilities", where={})
         ptz = out["ptz"]
         if r.status_code == 200:
             ptz["state"] = "supported"
@@ -698,10 +673,7 @@ def fetch_capabilities(settings: Settings, channel: int) -> dict[str, object]:
                 ptz["reason"] = f"forbidden for the NVR account (http {r.status_code}{', ' + rs['sub'] if rs.get('sub') else ''})"
             else:
                 ptz["reason"] = f"http {r.status_code}"
-        try:
-            r = client.get(f"/ISAPI/PTZCtrl/channels/{channel}/presets")
-        except httpx.HTTPError as exc:
-            raise ApiError(503, "source_unavailable", "ה־NVR אינו זמין כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
+        r = device_http.request(client, "GET", f"/ISAPI/PTZCtrl/channels/{channel}/presets", where={})
         if r.status_code == 200:
             try:
                 presets = parse_presets(r.text)
@@ -710,10 +682,7 @@ def fetch_capabilities(settings: Settings, channel: int) -> dict[str, object]:
             except Exception as exc:  # noqa: BLE001
                 ptz["presets"] = None
                 ptz["reason"] = (ptz["reason"] or "") + f"; presets unparsable ({type(exc).__name__})"
-        try:
-            r = client.get("/ISAPI/System/TwoWayAudio/channels")
-        except httpx.HTTPError as exc:
-            raise ApiError(503, "source_unavailable", "ה־NVR אינו זמין כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
+        r = device_http.request(client, "GET", "/ISAPI/System/TwoWayAudio/channels", where={})
         audio = out["audio"]
         if r.status_code == 200:
             try:
@@ -905,70 +874,8 @@ _TEXT_CAP = 64
 ENCODING_FIELDS = ("codec", "profile", "resolution", "fps", "bitrate_mode", "bitrate_kbps", "quality", "gop", "svc", "smart_codec", "b_frames")
 
 
-# CR-020 S2C review (finding 2): a whole-operation wall-clock deadline. httpx timeouts are per network read, so a device
-# that trickles one byte every few seconds could keep a 2 MB read going for hours. A caller (the batch runner, per item)
-# opens `deadline(seconds)`; inside it every bounded read below checks the clock between network reads and caps each
-# httpx timeout by the time left. A context variable: only the caller's own thread is bounded.
-_DEADLINE: contextvars.ContextVar[float | None] = contextvars.ContextVar("nvr_deadline", default=None)
-
-
-@contextmanager
-def deadline(seconds: float) -> Iterator[None]:
-    """Bound every device read / write of this thread inside the block to `seconds` in total (nested: the earlier wins)."""
-    outer = _DEADLINE.get()
-    at = time.monotonic() + max(0.0, seconds)
-    token = _DEADLINE.set(at if outer is None else min(outer, at))
-    try:
-        yield
-    finally:
-        _DEADLINE.reset(token)
-
-
-def time_left() -> float | None:
-    """Seconds left of the current deadline (None: no deadline)."""
-    at = _DEADLINE.get()
-    return None if at is None else at - time.monotonic()
-
-
-def past_deadline() -> bool:
-    left = time_left()
-    return left is not None and left <= 0
-
-
-def deadline_error(op: str) -> ApiError:
-    return ApiError(503, "source_timeout", "ה־NVR לא ענה בזמן.", retryable=False, details={"op": op, "error": "deadline"})
-
-
-def check_deadline(op: str) -> None:
-    if past_deadline():
-        raise deadline_error(op)
-
-
-def bounded_timeout(base: httpx.Timeout) -> httpx.Timeout:
-    """`base` (the client's or the request's timeout) with every part capped by the time left of the deadline (a floor of
-    50 ms keeps httpx valid). Without a deadline `base` unchanged."""
-    left = time_left()
-    if left is None:
-        return base
-    left = max(0.05, left)
-
-    def cap(v: float | None) -> float:
-        return left if v is None else min(v, left)
-
-    return httpx.Timeout(connect=cap(base.connect), read=cap(base.read), write=cap(base.write), pool=cap(base.pool))
-
-
-def read_capped(r: httpx.Response, max_bytes: int, op: str, *, path: str | None = None) -> bytes:
-    """Read a streamed answer, at most `max_bytes`, checking the deadline between network reads (each read is bounded by
-    the request timeout). Over the cap: `source_too_large`; past the deadline: `source_timeout`."""
-    extra = {"path": path} if path else {}
-    body = bytearray()
-    for chunk in r.iter_bytes():  # no chunk size: a piece is yielded as it arrives, so the clock is checked per read
-        body.extend(chunk)
-        if len(body) > max_bytes:
-            raise ApiError(503, "source_too_large", "תשובת ה־NVR גדולה מהצפוי.", details={**extra, "op": op})
-        check_deadline(op)
-    return bytes(body)
+# The whole-operation deadline (`deadline`, `check_deadline`, `bounded_timeout`, `read_capped`, ...) lives in services/device_http.py
+# (CR-DEVICE-HTTP-2438) and is imported above under its old names.
 
 
 def _get_capped(client: httpx.Client, path: str, max_bytes: int) -> str:
@@ -983,12 +890,12 @@ def _get_capped(client: httpx.Client, path: str, max_bytes: int) -> str:
                 raise ApiError(503, "source_error", "ה־NVR החזיר שגיאה.", retryable=True, details={"path": path, "status": r.status_code})
             declared = r.headers.get("content-length")
             if declared and declared.isdigit() and int(declared) > max_bytes:
-                raise ApiError(503, "source_too_large", "תשובת ה־NVR גדולה מהצפוי.", details={"path": path})
+                raise ApiError(503, "source_too_large", device_http.NVR_TOO_LARGE, details={"path": path})
             return read_capped(r, max_bytes, "read", path=path).decode(r.encoding or "utf-8", "replace")
     except httpx.HTTPError as exc:
         if past_deadline():
             raise deadline_error("read") from exc
-        raise ApiError(503, "source_unavailable", "ה־NVR אינו זמין כרגע.", retryable=True, details={"path": path, "error": type(exc).__name__}) from exc
+        raise device_http.unavailable(exc, path=path) from exc
 
 
 def fetch_streaming_document(settings: Settings, timeout: float = 8.0, max_bytes: int = STREAMING_DOC_MAX_BYTES) -> str:
