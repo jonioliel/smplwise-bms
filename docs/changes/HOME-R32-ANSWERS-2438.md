@@ -60,6 +60,10 @@ Pixel baselines refreshed on the runner (`run_smart.py preview ... -u --workers=
 | `preview`: home-r32-answers-2438 after the spec fix | runner | b5340ca4e | 11 passed, 22 skipped (desktop-only spec) |
 | pixel `-u --workers=1`: the three home pixel specs | runner | b5340ca4e | 24 passed, 18 skipped; 4 baselines rewritten (above) |
 
+Base moved to 181c2e926 (`--disable-lcd-text` in the home pixel specs, its baselines re-taken): merged at 0e2482bce. The four baselines of
+this branch were re-taken with grayscale text on the runner (`--update-snapshots=all --workers=1`, `pixel-home-auditfix-2437`, 4 passed);
+only those four were taken into the branch, the base's other six stay as the base re-took them.
+
 NOT_RUN: the full suites and the pixel re-run without `-u` (the entry check runs them); a physical phone / portrait tablet / wall panel;
 the five other colour themes on the new rules; frame-by-frame review of the fade.
 
