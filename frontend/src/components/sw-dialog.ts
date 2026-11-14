@@ -1,6 +1,7 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import './sw-button';
+import { t } from '../i18n/he';
 import { deepFocusables } from './sw-drawer';
 import { raiseLifted, setTopLayer } from './top-layer';
 
@@ -15,7 +16,10 @@ const OPEN_STACK: SwDialog[] = [];
  * the card the containing block of the fixed backdrop: the dialog was centred on the card and only the card was dimmed). A dialog opened
  * from a dialog is shown later, so it paints above (the same order as OPEN_STACK). Nothing else changes: the focus trap, Escape, the
  * return of focus and the page behind (not inert) are this element's own, as before. Without the Popover API the backdrop stays a fixed
- * element at --sw-z-modal. */
+ * element at --sw-z-modal.
+ *
+ * DIALOG-DRAWER-ONE-2439: the approved single dialog (owner round 33, Q-DES-8A) - see the rule block in the styles. `beforeclose`
+ * (cancelable, not bubbling) is raised before the ✕ / Escape / the scrim close the dialog. */
 @customElement('sw-dialog')
 export class SwDialog extends LitElement {
   @property({ type: Boolean, reflect: true }) open = false;
@@ -74,17 +78,22 @@ export class SwDialog extends LitElement {
         transform: scale(0.96) translateY(6px);
       }
     }
+    /* DIALOG-DRAWER-ONE-2439 (owner round 33, Q-DES-8A a): ONE dialog for the whole system. An opaque surface with no blur - the
+       floating-layer pair --sw-menu-surface / --sw-menu-border is opaque in every skin and is the solid twin inside a glass host, so
+       nothing behind the box shows through it; the page is only dimmed by the scrim. Always centred, three fixed widths (440 / wide
+       720 / xl 1120; fit is the content-sized exception for a table). The title, one line of explanation and the round close
+       button on top; the actions on the bottom behind a hairline. On a phone it is a full-width sheet that rises from the bottom. */
     .box {
+      box-sizing: border-box;
       inline-size: min(440px, 100%);
-      background: var(--sw-surface);
+      color: var(--sw-text);
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-menu-border);
       border-radius: var(--sw-r-lg);
       box-shadow: var(--sw-shadow-3);
       display: flex;
       flex-direction: column;
       max-block-size: calc(100dvh - 32px);
-      /* set only inside a device screen in the glass style (CR-007 6a, devices-style.ts); none everywhere else */
-      backdrop-filter: var(--sw-glass-blur);
-      -webkit-backdrop-filter: var(--sw-glass-blur);
       opacity: 1;
       transform: none;
       transition: opacity var(--sw-t-sheet) var(--sw-ease), transform var(--sw-spring-dialog-ms) var(--sw-spring-dialog);
@@ -108,30 +117,33 @@ export class SwDialog extends LitElement {
       display: flex;
       align-items: flex-start;
       gap: 8px;
-      padding: 14px 16px 10px;
+      padding: 16px 18px 10px;
     }
     header div {
       flex: 1;
+      min-inline-size: 0;
     }
     h3 {
       margin: 0;
-      font-size: var(--sw-fs-lg);
-      font-weight: var(--sw-fw-semibold);
+      font-size: var(--sw-fs-xl);
+      font-weight: var(--sw-fw-bold);
+      line-height: 1.3;
       color: var(--sw-heading);
       letter-spacing: -0.01em;
       text-wrap: balance;
     }
     .sub {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-xs);
+      color: var(--sw-text-2);
+      font-size: var(--sw-fs-sm);
       margin-block-start: 2px;
     }
     .body {
-      padding: 0 16px 14px;
+      padding: 2px 18px 14px;
       display: flex;
       flex-direction: column;
       gap: 10px;
       overflow: auto;
+      overscroll-behavior: contain;
     }
     footer[hidden] {
       display: none;
@@ -139,9 +151,50 @@ export class SwDialog extends LitElement {
     footer {
       display: flex;
       justify-content: flex-end;
+      align-items: center;
       gap: 8px;
-      padding: 10px 16px 14px;
-      border-block-start: 1px solid var(--sw-border);
+      padding: 12px 18px 16px;
+      border-block-start: 1px solid var(--sw-menu-border);
+    }
+    /* phone: the same dialog as a sheet - full width, attached to the bottom edge, rising from it on the drawer curve (apple-design:
+       a sheet enters along the edge it is attached to; emil-design-eng: translateY(100%) is the box's own height, whatever it holds).
+       The duration is a token, so reduced motion (css.ts) shows it in place. */
+    @media (max-width: 767px) {
+      .backdrop {
+        place-items: end stretch;
+        padding: max(16px, env(safe-area-inset-top, 0px)) 0 0;
+      }
+      .box,
+      :host([wide]) .box,
+      :host([xl]) .box,
+      :host([fit]) .box {
+        inline-size: 100%;
+        min-inline-size: 0;
+        max-inline-size: none;
+        max-block-size: calc(100dvh - max(16px, env(safe-area-inset-top, 0px)));
+        border-inline: 0;
+        border-block-end: 0;
+        border-end-start-radius: 0;
+        border-end-end-radius: 0;
+        transition: transform var(--sw-t-sheet) var(--sw-ease-drawer);
+      }
+      header,
+      .body,
+      footer {
+        padding-inline: max(18px, env(safe-area-inset-left, 0px)) max(18px, env(safe-area-inset-right, 0px));
+      }
+      .body {
+        padding-block-end: max(14px, env(safe-area-inset-bottom, 0px));
+      }
+      footer {
+        padding-block-end: max(16px, env(safe-area-inset-bottom, 0px));
+      }
+      @starting-style {
+        .box {
+          opacity: 1;
+          transform: translateY(100%);
+        }
+      }
     }
   `;
 
@@ -156,6 +209,9 @@ export class SwDialog extends LitElement {
 
   private close() {
     if (this.locked) return;
+    // DIALOG-DRAWER-ONE-2439: a host with unsaved work may refuse the close request (the ✕, Escape, the scrim) and ask first - it
+    // cancels `beforeclose` and closes the dialog itself (sets `open`) once the person has answered.
+    if (!this.dispatchEvent(new CustomEvent('beforeclose', { cancelable: true }))) return;
     this.open = false;
     this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }));
   }
@@ -258,7 +314,7 @@ export class SwDialog extends LitElement {
   render() {
     return html`<div class="backdrop" popover="manual" @click=${(e: Event) => e.target === e.currentTarget && this.close()}>
       <div class="box" role="dialog" aria-modal="true" aria-label=${this.heading}>
-        <header><div><h3>${this.heading}</h3>${this.subheading ? html`<div class="sub">${this.subheading}</div>` : ''}</div><sw-button variant="ghost" size="sm" iconOnly icon="close" label="סגור" @click=${this.close}></sw-button></header>
+        <header><div><h3>${this.heading}</h3>${this.subheading ? html`<div class="sub">${this.subheading}</div>` : ''}</div><sw-button round iconOnly icon="close" label=${t('actions.close')} @click=${this.close}></sw-button></header>
         <div class="body"><slot></slot></div>
         <footer ?hidden=${!this.hasFooter}><slot name="footer" @slotchange=${(e: Event) => (this.hasFooter = (e.target as HTMLSlotElement).assignedNodes({ flatten: true }).some((n) => n.nodeType === Node.ELEMENT_NODE))}></slot></footer>
       </div>

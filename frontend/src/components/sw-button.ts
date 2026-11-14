@@ -146,6 +146,12 @@ export class SwButton extends LitElement {
     :host([round]) button {
       border-radius: 50%;
     }
+    /* DIALOG-DRAWER-ONE-2439: a round icon button is a circle in every skin - its width follows its height (a skin may set the two
+       control sizes apart: crystal draws 30 x 34) */
+    :host([round][icononly]) button {
+      inline-size: auto;
+      aspect-ratio: 1;
+    }
     /* touch targets (mobile audit 2026-09-30): a finger on a phone needs 40-44 px, not the desktop's 26-36 px. SHAREDUI-295: never
        below the host's own control height, so a screen that asks for 44 px targets (--sw-ctl-h-*) keeps them on a phone too.
        PHONE-BUTTONS-44-2342 (owner 02.11, answer 2A): the small and the default button are DRAWN 44 px on a phone (they were 36 / 40

@@ -43,9 +43,11 @@
  * WHAT IS NOT A MENU OR A HUD PANEL (stays glass; listed, never silently changed): a card or panel that sits ON the page (cards, KPI tiles,
  * floor cards, the building tree, the rail, the phone dock, the corner pill, the tab pair), the app's toasts, the on-video / on-image HUD
  * (`--sw-video-scrim*` and `--sw-on-video*`: a dark scrim with white text whose contrast does not depend on what lies behind it), the
- * touch affordances of the walk (the joystick ring, the target mark: no text, they must show the scene), and the MODAL layers - dialogs
- * (`sw-dialog`), drawers (`sw-drawer`), the Bubble pop-up sheet (`sw-sheet`), the notification center's panel, the automation editor sheet -
- * whose translucency is bounded by a computed contrast floor (design/contrast.ts) over a dimmed, blurred scrim. The scrim behind a modal
+ * touch affordances of the walk (the joystick ring, the target mark: no text, they must show the scene), and the Bubble pop-up sheet
+ * (`sw-sheet`), whose translucency is bounded by a computed contrast floor (design/contrast.ts) over a dimmed, blurred scrim.
+ * DIALOG-DRAWER-ONE-2439 (owner round 33, Q-DES-8A / 8B): the dialog (`sw-dialog`) and the drawer (`sw-drawer`) are no longer in that list -
+ * they are ONE opaque surface each, painted with the same two tokens and registered below; the Bubble skin's own sheet rule
+ * (skins/bubble.ts, its transparency dial) is the one recorded exception. The scrim behind a modal
  * (`::backdrop`, `.backdrop`, `--sw-overlay`) may stay translucent.
  *
  * ADDING A MENU: use the two tokens, add the surface to MENU_SURFACES below, and run `tests/unit-menu-lint.spec.ts` (it also finds a new
@@ -67,6 +69,9 @@ export interface MenuSurface {
 }
 
 export const MENU_SURFACES: readonly MenuSurface[] = [
+  // DIALOG-DRAWER-ONE-2439 (owner round 33, Q-DES-8A / 8B): the ONE dialog and the ONE drawer are opaque, with no blur - guarded like a menu
+  { file: 'components/sw-dialog.ts', selector: '.box', what: 'the one dialog: the opaque centred box (a bottom sheet on the phone)' },
+  { file: 'components/sw-drawer.ts', selector: '.panel', what: 'the one drawer: the opaque side panel (the phone sheet)' },
   { file: 'shell/sw-user-menu.ts', selector: '.panel', what: 'the user menu: a popover beside the rail (desktop), a bottom sheet (phone)' },
   { file: 'shell/sw-app.ts', selector: '.searchpanel', what: 'the corner search: the field and its result list hang over the page' },
   { file: 'shell/sw-app.ts', selector: '.results', what: 'the search result list' },

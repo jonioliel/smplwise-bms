@@ -112,9 +112,17 @@ for (const skin of SKINS) {
       expect(Math.abs(g.back.l) <= 1 && Math.abs(g.back.t) <= 1 && Math.abs(g.back.w - g.vw) <= 1 && Math.abs(g.back.h - g.vh) <= 1, JSON.stringify(g)).toBe(true);
       // the box is inside the viewport and centred on it
       expect(g.box.l >= 0 && g.box.t >= 0 && g.box.r <= g.vw && g.box.b <= g.vh, JSON.stringify(g)).toBe(true);
-      expect(Math.abs(g.box.cx - g.vw / 2) <= 2 && Math.abs(g.box.cy - g.vh / 2) <= 2, JSON.stringify(g)).toBe(true);
-      // the dimming covers the whole page: every corner hits the backdrop
-      for (const [x, y] of [[2, 2], [g.vw - 3, 2], [2, g.vh - 3], [g.vw - 3, g.vh - 3]]) expect(await hitAt(page, x, y), `corner ${x},${y}`).toBe('tl-dlg:backdrop');
+      // DIALOG-DRAWER-ONE-2439 (owner round 33, Q-DES-8A): on a phone the dialog is a full-width sheet on the bottom edge of the SCREEN
+      // (never of the card); from 768 px it is centred on the viewport
+      const phone = g.vw < 768;
+      if (phone) expect(Math.abs(g.box.l) <= 1 && Math.abs(g.box.r - g.vw) <= 1 && Math.abs(g.box.b - g.vh) <= 1, JSON.stringify(g)).toBe(true);
+      else expect(Math.abs(g.box.cx - g.vw / 2) <= 2 && Math.abs(g.box.cy - g.vh / 2) <= 2, JSON.stringify(g)).toBe(true);
+      // the dimming covers the whole page: every corner hits the backdrop (the two bottom corners are the sheet's own on a phone)
+      for (const [x, y] of [[2, 2], [g.vw - 3, 2], [2, g.vh - 3], [g.vw - 3, g.vh - 3]]) {
+        const hit = await hitAt(page, x, y);
+        if (phone && y > g.vh / 2) expect(hit, `corner ${x},${y}`).toMatch(/^tl-dlg:/);
+        else expect(hit, `corner ${x},${y}`).toBe('tl-dlg:backdrop');
+      }
       await testInfo.attach(`dialog-${skin}-${scheme}`, { body: await page.screenshot(), contentType: 'image/png' });
       // focus moved into the box
       expect(['tl-open2', 'tl-save', '']).toContain(await deepActiveId(page));

@@ -50,7 +50,9 @@ function isModal(d: HTMLDialogElement): boolean {
 /** Where the dialog is attached: the page body, unless the control that asked sits inside a modal <dialog> (a modal sw-drawer
  * uses showModal(), which makes everything outside it inert) - then inside that dialog, as sw-drawer's own notes ask. */
 function hostFor(): Element {
-  for (let n: Node | null = deepActive(); n; n = n.parentNode ?? (n as ShadowRoot).host ?? null) {
+  // the FLAT tree (a slotted element's slot before its parent): a dialog slotted into a modal drawer (DIALOG-DRAWER-ONE-2439: the
+  // temperature wizard inside the unit's drawer) is inside that drawer's <dialog> only through its slot
+  for (let n: Node | null = deepActive(); n; n = (n as Element).assignedSlot ?? n.parentNode ?? (n as ShadowRoot).host ?? null) {
     if (n instanceof HTMLDialogElement && n.open && isModal(n)) return n;
   }
   return document.body;
