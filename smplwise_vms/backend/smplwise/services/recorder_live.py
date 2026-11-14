@@ -34,14 +34,8 @@ def delete_streams(settings: Any, names: list[str]) -> int:
     """Delete our streams by exact name (only `smplwise_` names; only the ones go2rtc lists). Returns how many."""
     if not settings.go2rtc_url or not names:
         return 0
-    client = g2.Go2rtc(settings)
-    listed = client.list_streams()
-    n = 0
-    for name in names:
-        if name.startswith(g2.STREAM_PREFIX) and name in listed:
-            client.delete_stream(name)
-            n += 1
-    return n
+    # CR-GO2RTC-OWNED-2436 (review 03 F09): the shared "delete exactly these, ours and listed" helper; same one listing, same guard
+    return g2.delete_listed(g2.Go2rtc(settings), names, lambda name: name.startswith(g2.STREAM_PREFIX))
 
 
 def stop(db: Any, settings: Any, recorder_id: str) -> dict[str, int]:

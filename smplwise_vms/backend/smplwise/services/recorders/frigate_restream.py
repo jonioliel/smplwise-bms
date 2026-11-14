@@ -166,12 +166,16 @@ def source_url(settings: Settings, stream: str) -> str:
 def refuse_foreign(stream: str) -> Callable[[dict[str, Any]], None]:
     """`Go2rtc.ensure_stream(check=...)`: refuse when the Frigate stream's name is also the name of a stream of Arx's go2rtc
     outside the `smplwise_` namespace (case-insensitive; raw and percent-decoded) - the restream URL might be Arx's own go2rtc
-    reached by another address, and the other project's streams must never be re-published under our names."""
-    from ..go2rtc import STREAM_PREFIX
+    reached by another address, and the other project's streams must never be re-published under our names.
+
+    CR-GO2RTC-OWNED-2436 (review 03 F09): the shared rule (go2rtc.names_foreign_stream: the first path segment of the restream
+    address, raw / decoded twice / dot segments resolved) with the `smplwise_` prefix; the whole-name comparison of before is kept
+    next to it, so a name the shared rule reads differently (it holds a `/`) is refused exactly as before."""
+    from ..go2rtc import STREAM_PREFIX, names_foreign_stream
 
     def check(streams: dict[str, Any]) -> None:
         foreign = {str(n).lower() for n in streams if not str(n).startswith(STREAM_PREFIX)}
-        if {stream.lower(), unquote(stream).lower()} & foreign:
+        if names_foreign_stream(f"/{stream}", streams, STREAM_PREFIX) or {stream.lower(), unquote(stream).lower()} & foreign:
             raise ApiError(409, "frigate_restream_ambiguous", "שם זרם השידור החי תפוס במערכת השידור; השידור החי לא הופעל.", details={"reason": "name_collides"})
 
     return check

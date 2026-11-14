@@ -62,11 +62,11 @@ class FakeGo2rtcServer:
 
 @pytest.fixture(autouse=True)
 def _clean_written():
-    with g2._WRITTEN_LOCK:
-        g2._WRITTEN.clear()
+    with g2._SOURCE_DIGEST_LOCK:
+        g2._SOURCE_DIGEST.clear()
     yield
-    with g2._WRITTEN_LOCK:
-        g2._WRITTEN.clear()
+    with g2._SOURCE_DIGEST_LOCK:
+        g2._SOURCE_DIGEST.clear()
 
 
 def client_for(server: FakeGo2rtcServer) -> g2.Go2rtc:
@@ -179,8 +179,8 @@ def test_compare_source(reported, wanted, verdict):
 def test_the_process_memory_holds_a_digest_never_the_source():
     server = FakeGo2rtcServer({}, redacts=True)
     client_for(server).ensure_stream("smplwise_nvr-1_ch1_main", SRC_MAIN)
-    held = json.dumps(g2._WRITTEN)
-    assert "p%40ss" not in held and "nvr.example" not in held and len(g2._WRITTEN["smplwise_nvr-1_ch1_main"]) == 64
+    held = json.dumps(g2._SOURCE_DIGEST)
+    assert "p%40ss" not in held and "nvr.example" not in held and len(g2._SOURCE_DIGEST["smplwise_nvr-1_ch1_main"]) == 64
 
 
 # --------------------------------------------------------------------------------------------------------- 2. online / state
@@ -424,7 +424,7 @@ def test_create_stream_guards_and_refusal():
     refusing.handler = lambda request: httpx.Response(400)  # type: ignore[method-assign]
     with pytest.raises(g2.ApiError) as e:
         client_for(refusing).create_stream("smplwise_pb_x_g0", SRC_MAIN)
-    assert e.value.code == "media_error" and "smplwise_pb_x_g0" not in g2._WRITTEN
+    assert e.value.code == "media_error" and "smplwise_pb_x_g0" not in g2._SOURCE_DIGEST
 
 
 # --- F20: the four RTSP addresses with credentials (pinned before the shared builder; a user and a password with @ : / #)
