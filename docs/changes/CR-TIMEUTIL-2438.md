@@ -72,6 +72,16 @@ pinned for `local_day_bounds` (23 h / 25 h days), `nvr_wall_to_utc` / `utc_to_nv
 NOT_RUN locally (workstation saturated, per the common brief): the per-module suites of the 47 touched modules and the
 full backend suite - they run in the runner entry check.
 
+## Follow-ups
+
+- `timeutil.zone(name)` catches only `ZoneInfoNotFoundError` / `ValueError`: a stored name that is a tzdata directory
+  (`"Asia"`) raises `PermissionError` (Windows) / `IsADirectoryError` (Linux) instead of answering `DEFAULT_ZONE`, and so do
+  `site_zone` and the callers without their own catch-all. Unchanged in this branch. **Lead decision (14.11): fix it in a
+  small follow-up branch after `CR-TIMEUTIL-2438` and `CR-TK-TIMEUTIL-2438` merge** (also catch `OSError` -> default zone,
+  plus a test with a directory-like name). Found by `tests/test_tickets_timeutil.py` on `CR-TK-TIMEUTIL-2438`.
+- The tickets "zone-less = local" -> "zone-less = UTC" switch (`CR-TK-TIMEUTIL-2438`) stays BLOCKED until the read-only
+  check on a lab database copy; no copy is available now.
+
 ## Rollback
 
 Revert the branch commit; no data, schema or setting is touched.
