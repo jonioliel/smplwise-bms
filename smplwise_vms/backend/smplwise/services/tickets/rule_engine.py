@@ -26,10 +26,11 @@ import time
 from typing import Any
 
 from ...audit import audit
-from ...db import Database, get_setting
+from ...db import Database
 from ...errors import ApiError
-from ..timeutil import iso_utc, parse_utc, zone
+from ..timeutil import iso_utc, parse_utc
 from . import access, create, model, notify_bridge, rules_doc, sla, store, store_rules
+from .timeutil import zone_of
 
 log = logging.getLogger("smplwise.tickets.rules")
 
@@ -49,8 +50,7 @@ def utcnow() -> dt.datetime:
     return dt.datetime.now(dt.timezone.utc)
 
 
-def _zone(conn) -> Any:
-    return zone(get_setting(conn, "time.zone", None) or "Asia/Jerusalem")
+_zone = zone_of  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
 def local_day(conn, now: dt.datetime) -> str:

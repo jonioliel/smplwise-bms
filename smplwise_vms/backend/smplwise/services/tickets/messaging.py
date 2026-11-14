@@ -43,7 +43,7 @@ from typing import Any, Callable, Iterator, Mapping
 from zoneinfo import ZoneInfo
 
 from ...audit import audit
-from ...db import Database, get_setting, unlocked
+from ...db import Database, unlocked
 from .. import messaging_accounts as ma
 from .. import messaging_runtime as mr
 from .. import wa_pacing
@@ -59,6 +59,7 @@ from .channel_email import EmailChannel, mail_config
 from .channel_whatsapp import HaServiceTransport, WhatsAppChannel
 from .keyring import KEYS
 from .outbox import Outbox, OutboxError, OutboxRow, OutboxThread, Ports, timeline_kind
+from .timeutil import DEFAULT_ZONE, zone_of
 
 log = logging.getLogger("smplwise.tickets.messaging")
 UTC = dt.timezone.utc
@@ -69,7 +70,7 @@ INBOUND_KEEP = dt.timedelta(days=30)  # 15.1
 JANITOR_EVERY_S = 3600.0
 STATE_WATCH_EVERY_S = 60.0
 FULL_TICK_EVERY_S = 60.0
-DEFAULT_TZ = "Asia/Jerusalem"
+DEFAULT_TZ = DEFAULT_ZONE  # CR-TK-TIMEUTIL-2436: the one default zone (services/timeutil.py)
 REPLY_WINDOW_RANGE = (1, 336)
 NOTICE_PURPOSES = ("closed", "reassigned")
 SAMPLE = {"name": "דני", "number": "1042", "department": "אחזקה", "title": "מזגן לא מקרר", "place": "קומה 1 · חדר 102",
@@ -96,12 +97,7 @@ def channel_settings(conn) -> dict[str, Any]:
             "phone_verify": {"required": bool((doc.get("phone_verify") or {}).get("required", False))}}
 
 
-def time_zone(conn) -> ZoneInfo:
-    name = get_setting(conn, "time.zone", DEFAULT_TZ) or DEFAULT_TZ
-    try:
-        return ZoneInfo(name)
-    except Exception:  # noqa: BLE001 - an unknown zone name reads as the default
-        return ZoneInfo(DEFAULT_TZ)
+time_zone = zone_of  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
 def send_window(conn, department_id: str | None) -> hours.SendWindow:

@@ -32,6 +32,7 @@ from .module_key import ModuleKeyError
 from .public_app import PublicApp, PublicDeps, create_public_app
 from .public_ports import CachedSwitch
 from .public_server import SERVER
+from .timeutil import iso_s
 from .code_flow import SqlCodeEvents, SqlCodeSender
 from .codes import CodePolicy
 from .public_store import SqlCodeStore, SqlLinkStore, SqlPhotoSink, SqlRedeemStore, SqlRequestLog
@@ -290,8 +291,7 @@ class Runtime:
         }
 
 
-def _iso(at: dt.datetime) -> str:
-    return at.astimezone(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+_iso = iso_s  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
 def code_policy_reader(db: Database, *, every_s: float = 30.0):

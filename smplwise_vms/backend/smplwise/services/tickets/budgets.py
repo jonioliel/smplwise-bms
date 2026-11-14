@@ -23,10 +23,10 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any, Mapping
 
-from ...db import get_setting
 from ...errors import ApiError
 from . import money, notify_bridge, settings_doc, store, store_budgets
 from .access import Viewer, module_on, text
+from .timeutil import iso_s, zone_of
 
 UTC = dt.timezone.utc
 SCOPES = ("installation", "department", "site", "building", "category")
@@ -55,10 +55,7 @@ def require_enabled(conn) -> None:
         raise ApiError(404, "feature_disabled", text(conn, "תקציבים כבויים בהגדרות {the_tickets}."))
 
 
-def _zone(conn) -> dt.tzinfo:
-    from .stuck import _zone as zone_of
-
-    return zone_of(get_setting(conn, "time.zone", None))
+_zone = zone_of  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
 # ---------------------------------------------------------------- periods
@@ -97,8 +94,7 @@ def bounds(conn, kind: str, start: dt.date) -> tuple[str, str]:
     return _iso(a), _iso(b)
 
 
-def _iso(v: dt.datetime) -> str:
-    return v.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+_iso = iso_s  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
 def contains(conn, b: Mapping[str, Any], at: dt.datetime) -> bool:

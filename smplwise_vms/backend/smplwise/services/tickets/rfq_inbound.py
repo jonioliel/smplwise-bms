@@ -25,13 +25,13 @@ from ...audit import audit
 from . import rfq, rfq_notify, store_rfq
 from .inbound import RfqCandidate
 from .text_hygiene import clean_text
+from .timeutil import iso_s
 
 VIA_PREFIX = "whatsapp:"  # ticket_rfq_messages.source_id of a message that came by a WhatsApp reply (`whatsapp:<inbound id>`)
 MESSAGES_PER_VENDOR = 30  # the page's cap (rfq_vendor.MESSAGES_PER_VENDOR), shared: a WhatsApp flood cannot grow a thread without bound
 
 
-def _iso(at: dt.datetime) -> str:
-    return at.astimezone(dt.timezone.utc).replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
+_iso = iso_s  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
 def _open(conn, joined: Mapping[str, Any] | None, now: dt.datetime) -> tuple[dict[str, Any], dict[str, Any]] | None:

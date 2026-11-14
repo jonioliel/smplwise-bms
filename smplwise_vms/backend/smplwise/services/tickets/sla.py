@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from . import model, policy, store, work_calendar
+from .timeutil import iso_s_or_none, parse_naive_local
 
 THRESHOLDS: tuple[str, ...] = (
     "unassigned_after_min", "link_unopened_min", "ack_within_min", "stuck_after_min", "stuck_waiting_min", "resolve_within_min",
@@ -48,17 +49,10 @@ class Dues:
 NONE = Dues(None, None, None, None)
 
 
-def _parse(at: str | None) -> dt.datetime | None:
-    if not at:
-        return None
-    try:
-        return dt.datetime.fromisoformat(at.replace("Z", "+00:00")).astimezone(dt.timezone.utc)
-    except ValueError:
-        return None
+_parse = parse_naive_local  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
-def _iso(at: dt.datetime | None) -> str | None:
-    return None if at is None else at.astimezone(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+_iso = iso_s_or_none  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
 def _plus(at: str | None, minutes: Any, cal: work_calendar.Calendar | None = None) -> dt.datetime | None:

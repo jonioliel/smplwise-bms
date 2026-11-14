@@ -51,23 +51,15 @@ def current() -> sqlite3.Connection | None:
     return getattr(_local, "conn", None)
 
 
-def iso(at: dt.datetime) -> str:
-    """Outbox times: UTC ISO-8601 with milliseconds and Z (they sort as text)."""
-    return at.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+# CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helpers (imported here, away from the import block another branch edits).
+# iso: outbox times, UTC ISO-8601 with milliseconds and Z (they sort as text); iso_s: timeline / ticket times, seconds and Z,
+# like db.now_iso(); parse: a zone-less value is still read as local time (see tickets/timeutil.py).
+from .timeutil import iso_ms, iso_s as iso_s, parse_naive_local  # noqa: E402
+
+iso = iso_ms  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
-def iso_s(at: dt.datetime) -> str:
-    """Timeline / ticket times: seconds and Z, like db.now_iso()."""
-    return at.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-
-
-def parse(value: Any) -> dt.datetime | None:
-    if not value or not isinstance(value, str):
-        return None
-    try:
-        return dt.datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC)
-    except ValueError:
-        return None
+parse = parse_naive_local  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
 class Access:

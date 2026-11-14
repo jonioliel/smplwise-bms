@@ -47,7 +47,7 @@ KEEP_FORMAT = frozenset({"\u200c", *(chr(c) for c in range(0x0600, 0x0606)), "\u
                          "\u070f", "\U000110bd", "\U000110cd"})
 _MARK_CATEGORIES = frozenset({"Mn", "Me", "Mc"})  # nonspacing, enclosing and spacing combining marks
 # every character that ends a line; inside a multi-line field each becomes LF, inside a single-line field a space
-_LINE_BREAKS = frozenset({"\n", "\r", "\x0b", "\x0c", "\x85", " ", " "})
+_LINE_BREAKS = frozenset({"\n", "\r", "\x0b", "\x0c", "\x85", "\u2028", "\u2029"})
 _MULTI_NEWLINES = re.compile(r"\n{3,}")
 # CSV formula starters (spec 13.6) and their full-width forms (U+FF1D, U+FF0B, U+FF0D, U+FF20), which some spreadsheet
 # locales also evaluate

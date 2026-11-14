@@ -24,6 +24,7 @@ import statistics
 from typing import Any
 
 from . import settings_doc, store_vendor_stats as sv
+from .timeutil import iso_s, parse_utc
 
 UTC = dt.timezone.utc
 MONTHS = (3, 12, 36)
@@ -37,18 +38,10 @@ def cfg(conn) -> dict[str, Any]:
     return settings_doc.read(conn)["vendor_stats"]
 
 
-def _iso(v: dt.datetime) -> str:
-    return v.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+_iso = iso_s  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
-def _parse(s: Any) -> dt.datetime | None:
-    if not s or not isinstance(s, str):
-        return None
-    try:
-        v = dt.datetime.fromisoformat(s.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    return (v if v.tzinfo else v.replace(tzinfo=UTC)).astimezone(UTC)
+_parse = parse_utc  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
 def unit_of(conn, contact_id: str) -> tuple[dict[str, Any], str]:

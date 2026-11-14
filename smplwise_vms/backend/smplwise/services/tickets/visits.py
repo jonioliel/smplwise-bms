@@ -40,10 +40,11 @@ import time
 from typing import Any, Callable
 
 from ...audit import audit
-from ...db import Database, get_setting
+from ...db import Database
 from ...errors import ApiError
 from . import notify_bridge, settings_doc, store, store_visits
 from .access import module_on, text
+from .timeutil import iso_s_or_none, parse_utc, zone_of
 
 log = logging.getLogger("smplwise.tickets.visits")
 
@@ -72,20 +73,10 @@ def utcnow() -> dt.datetime:
     return dt.datetime.now(UTC).replace(microsecond=0)
 
 
-def iso(v: dt.datetime | None) -> str | None:
-    if v is None:
-        return None
-    return v.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+iso = iso_s_or_none  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
-def parse(at: Any) -> dt.datetime | None:
-    if not at or not isinstance(at, str):
-        return None
-    try:
-        v = dt.datetime.fromisoformat(at.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    return (v if v.tzinfo else v.replace(tzinfo=UTC)).astimezone(UTC)
+parse = parse_utc  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
 # ---------------------------------------------------------------- settings
@@ -108,10 +99,7 @@ def grace_for(conn, department_id: str | None) -> int:
     return own if own is not None else int(cfg(conn)["grace_min"])
 
 
-def _zone(conn) -> dt.tzinfo:
-    from .stuck import _zone as zone_of
-
-    return zone_of(get_setting(conn, "time.zone", None))
+_zone = zone_of  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
 def window_text(conn, v: dict[str, Any]) -> str:

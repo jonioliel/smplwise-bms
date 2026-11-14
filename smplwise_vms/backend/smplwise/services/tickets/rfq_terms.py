@@ -35,6 +35,7 @@ from typing import Any, Mapping
 
 from . import money, rfq_notify, settings_doc, store, store_quotes, store_rfq
 from .costs import CostRefused, iso, now_utc, parse
+from .timeutil import zone_of
 
 KINDS = ("advance", "progress", "final")
 DUE_RULES = ("date", "completion", "after_completion")
@@ -70,10 +71,7 @@ def reminder_hours(conn) -> int:
     return int(settings_doc.read(conn)["rfq"].get("arrival_reminder_hours") or 0)
 
 
-def _tz(conn):
-    from .messaging import time_zone
-
-    return time_zone(conn)
+_tz = zone_of  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
 def today(conn, now: dt.datetime) -> dt.date:
