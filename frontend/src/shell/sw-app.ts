@@ -62,7 +62,9 @@ import { dismissHint, loadDismissal, onDismissal, resetDismissalFor } from '../a
 import { hintVisible, SETUP_HINT_TEXT, summarizeSetup, type SetupDismissal, type SetupSummary } from './setup-hint';
 import { AREA_TABS, NAV_A, areaOf, activeAreaTab, visibleTabs, visibleAreas, demoRedirect, legacyRedirect, isTicketsEntryAddress, liveOverviewTarget, applySnapshotHidden, applySchedulesHidden, applyAutomationsHidden, applyMultimediaHidden, applyTicketsHidden, applyNoticesHidden, applyAnnounceHidden, applySynopticHidden, areaDot, incidentsOpen, isHomeEditRoute, isHomeRoute, isMultimediaEditRoute, applyAlarmPresent, HIDDEN_HREFS, START_ROUTES, MAP_HREFS, WISKEY_TABS, applyWiskeyUi, applyWiskeyHidden, applyExternalPlacement, applyDoorWindowsTab, WISKEY_HIDDEN, wiskeyRoute, onWiskeyEmbedNav, applyCapabilities, SECTION_TABS, pageTargets, rememberSection, sectionOf, securityTarget, visibleSections, settingsEntry, landingTarget, applyTabsConfig, onTabsConfig, areaBadge, areaRowSection, infraEntryHref, isSectionConfigured, tabStyleOf, tabGroupOf, type LegacyAccess, tabAllowed, kavarnitSegments, type NavTabId, ticketsPageOf, ticketsPageTabs, ticketsSectionOf, ticketsSectionRowShown } from './nav';
 import { blockKind, routeMissing, sensorEventsOnly, type BlockKind } from './nav-capabilities';
-import { DD_CHIPS, DD_COLLIDE_MS, DD_FIT_FRAMES, DD_FIT_STABLE, DD_GAP, DD_TITLE_WAIT_MS, ddHeader, ddPlaceDeclined, type DdBox } from './dd-place-fit';
+import { ddPlaceDeclined } from './dd-place-fit';
+import { HeaderFit } from './header-fit'; // CR-SHELL-TIMERS-2439: the header-fit measurement (was fitDd here)
+import { PollController } from '../components/poll-controller';
 import { ALL_CAPABILITIES, UNSUPPORTED_NVR_WITHOUT_GO2RTC } from '../api/capabilities';
 import { ENTER_GAP_MS, alarmPresence, onAlarmPresence, refreshAlarmPresence, resetAlarmPresence } from '../api/alarm-presence';
 import { t } from '../i18n/he';
@@ -96,6 +98,9 @@ import '../components/sw-pill';
 import '../components/sw-state-panel';
 import '../components/sw-page';
 
+/** The system summary and the alert counts are read again this often while the page is visible. */
+const SYS_POLL_MS = 60_000;
+
 /**
  * Application shell (design SW A, the only design since 0.1.148 - the earlier "SW B" with a top bar was removed): a compact
  * side rail (phones: a bottom bar) of the areas, and the section's pages as a quiet pill-tab row above the content.
@@ -112,7 +117,11 @@ export class SwApp extends LitElement {
   @state() private route: RouteState | null = null;
   @state() private session: Session = { mode: 'loading', me: null, error: null, capabilities: ALL_CAPABILITIES };
   @state() private sys: HealthSummary | null = null;
-  private sysTimer = 0;
+  /** The system status poll has been started for this session (the summary pill and the alert counts). */
+  private sysStarted = false;
+  /** CR-SHELL-TIMERS-2439 (07:F14): the 60 s re-read of the system summary and the alert counts - paused while the page is hidden, never
+   * two at once, read once on return (it used to keep requesting in a hidden tab). */
+  private shellPoll = new PollController(this);
   /** T071 / TKWIZHINT: "complete the setup" for a system administrator while REQUIRED wizard steps remain; the dismissal is the user's own (/me/prefs setup.hint). */
   @state() private setupSum: SetupSummary | null = null;
   @state() private setupDis: SetupDismissal | null = null;
@@ -1892,7 +1901,6 @@ export class SwApp extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    this.ddTimer = window.setInterval(() => this.fitDd(), 1200); // a screen heading appears after its data loads
     this.toggleAttribute('data-android-shell', inAndroidShell()); // the app reserves the status bar itself (CR-013)
     this.setAttribute('data-design', 'a'); // the one design: the attribute stays as the styling hook of the shell's CSS
     this.phoneMq.addEventListener('change', this.onPhoneMq);
@@ -1924,7 +1932,7 @@ export class SwApp extends LitElement {
       startIncidents(s.mode === 'api' && !!s.me?.modules?.incidents); // CR-LIVEEVENT100: the open-incident pill / dots (OFF by default, the static demo too)
       setReadinessChip(s.mode === 'api' ? s.me?.readiness : null); // CR-READY96: the score chip on the settings entry (configure holders only)
       // TKFIX260 (review A F13): the setup-hint dismissal is one user's - a sign-out or another user on this tab starts clean
-      if (resetDismissalFor(s.mode === 'api' ? s.me?.user.id ?? null : null) && this.sysTimer) {
+      if (resetDismissalFor(s.mode === 'api' ? s.me?.user.id ?? null : null) && this.sysStarted) {
         this.setupDis = null;
         this.setupSum = null;
         void this.loadSetupHint();
@@ -1949,7 +1957,7 @@ export class SwApp extends LitElement {
       if (s.mode === 'api' && this.route) this.redirectDemo(this.route);
       if (s.mode === 'api') void refreshAlarmPresence(); // one answer per session, kept 10 minutes (no request per screen)
       if ((s.mode === 'api' || s.mode === 'no_access') && !this.stopPermissions) this.stopPermissions = watchPermissions(() => void this.onPermissionsChanged());
-      if (s.mode === 'api' && !this.sysTimer) {
+      if (s.mode === 'api' && !this.sysStarted) {
         void productSettings().then((ps) => {
           HIDDEN_HREFS.clear();
           setInstallationNavSize(ps['ui.nav_size']); // the installation's default size of the navigation
@@ -2014,10 +2022,9 @@ export class SwApp extends LitElement {
           if (this.route) this.redirectDemo(this.route);
         }, 6000);
         void this.pollSummary();
-        this.sysTimer = window.setInterval(() => {
-          void this.pollSummary();
-          void this.pollAlerts();
-        }, 60_000);
+        this.sysStarted = true;
+        // allSettled: a failed read never backs the poll off (the period stays 60 s, as with the old interval)
+        this.shellPoll.every('system', SYS_POLL_MS, () => Promise.allSettled([this.pollSummary(), this.pollAlerts()]));
         void this.loadSetupHint();
       }
     });
@@ -2087,143 +2094,9 @@ export class SwApp extends LitElement {
    * does not move, so while scrolled it still passes under the banner; such a toolbar should use
    * `top: var(--sw-banner-h, 0px)` (inherited from sw-app's host) if it must stay clear. */
   private bannerObs: ResizeObserver | null = null;
-  /** The route (hash) on which the measured header layout still collided with the chips: that route falls back to the own-row placement. */
-  private ddCollideRoute = '';
-  /** When the current collision was first seen: a collision has to persist for DD_COLLIDE_MS before the route falls back (a loading
-   * screen draws a provisional header for a moment). */
-  private ddMissSince = 0;
-  /** CR-WAVE1B-COMBINED-2436: when placement 3 first found no title on this route (it waits DD_TITLE_WAIT_MS for the heading). */
-  private ddTitleWaitSince = 0;
-  private ddRoute = '';
-  private ddTimer = 0;
-
-  /** FIX2231C-295: first paint of the hanging chips. Placements 2 and 3 are MEASURED (the floating corner's extent, the title's far edge), so
-   * the first frame after a route / placement change used to draw the chips at the CSS defaults and the next frame moved them (a visible
-   * jump, over the title on the way). Until a measurement came out clear (data-dd-fit), the CSS keeps those chips invisible (visibility:
-   * hidden - they keep their box, so nothing else moves and the content is not delayed). updated() measures once synchronously (before
-   * paint: enough for placement 2, which needs only the shell's own pieces) and then every frame for DD_FIT_FRAMES (placement 3 waits for the
-   * screen's heading and follows it while its data loads); when the burst ends the chips are shown in any case. */
-  private ddFitKey = '';
-  private ddFitFrames = 0;
-  private ddFitPump = 0;
-  private ddFitOffset = -2;
-  private ddFitStable = 0;
-  private markDdFitted(): void {
-    if (!this.hasAttribute('data-dd-fit')) this.setAttribute('data-dd-fit', '');
-  }
-  private startDdFit(): void {
-    this.removeAttribute('data-dd-fit');
-    this.ddFitFrames = DD_FIT_FRAMES;
-    this.ddFitOffset = -2;
-    this.ddFitStable = 0;
-    this.fitDd();
-    if (this.ddFitPump) return;
-    const step = () => {
-      this.ddFitPump = 0;
-      if (!this.isConnected) return;
-      this.fitDd();
-      if (--this.ddFitFrames > 0) this.ddFitPump = requestAnimationFrame(step);
-      else this.markDdFitted();
-    };
-    this.ddFitPump = requestAnimationFrame(step);
-  }
-
-  /** Placements 2-4 put the chips on the page's first row. fitDd measures that row (the title as a text range, and every control of the
-   * screen's top rows: buttons, links, fields, selectors, tabs, headings, through the shadow roots - ddHeader) and the floating corner:
-   *   - 2: publishes the corner's extent (--sw-dd-float-end) and the chips' own (--sw-dd-end, read as the pages' --sw-float-reserve);
-   *   - 3: places the chips right after the title (the title plus a control that wraps it, such as the devices area selector), moving on
-   *     past any control already there to the first free gap of the row (--sw-dd-title-offset);
-   *   - every placement: when a chip still overlaps the title, a control or the corner (or leaves the viewport) for DD_COLLIDE_MS, the route
-   *     falls back to the own row (data-dd-fallback="collision"), so nothing is ever covered. Re-run after every render and every 1.2 s. */
-  private fitDd(): void {
-    const place = this.getAttribute('data-dd-place');
-    if (!place || place === '1' || !this.hasAttribute('data-dd-head') || !window.matchMedia('(min-width: 1100px)').matches) {
-      this.ddMissSince = 0;
-      return;
-    }
-    const row = this.renderRoot.querySelector<HTMLElement>('.tabpair:not(.single), .subnav[data-tabstyle="dropdown"]');
-    const screen = this.renderRoot.querySelector('.screen');
-    const chipEls = [...this.renderRoot.querySelectorAll<HTMLElement>(DD_CHIPS)];
-    const measure = () => chipEls.map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0 && r.height > 0);
-    let chips = measure();
-    if (!row || !screen || !chips.length) return;
-    const rtl = getComputedStyle(this).direction === 'rtl';
-    const rr = row.getBoundingClientRect();
-    /** how far an x coordinate lies from the row's start edge / far edge */
-    const fromStart = (x: number) => (rtl ? rr.right - x : x - rr.left);
-    const fromEnd = (x: number) => (rtl ? x - rr.left : rr.right - x);
-    const set = (k: string, v: number) => {
-      const px = `${Math.max(0, Math.round(v))}px`;
-      if (this.style.getPropertyValue(k) !== px) this.style.setProperty(k, px);
-    };
-    const corner = this.renderRoot.querySelector<HTMLElement>('.float');
-    const cr = corner && corner.offsetWidth > 0 ? corner.getBoundingClientRect() : null;
-    if (place === '2') {
-      if (cr) set('--sw-dd-float-end', fromEnd(rtl ? cr.right : cr.left) + DD_GAP);
-      chips = measure();
-      set('--sw-dd-end', Math.max(...chips.map((c) => fromEnd(rtl ? c.right : c.left))) + DD_GAP);
-    }
-    const band = Math.max(...chips.map((c) => c.bottom)) + 8;
-    const { title, obstacles } = ddHeader(screen, band);
-    let offset = -1; // placement 3: where the chips were put this pass
-    if (place === '3' && title && title.top < band) {
-      // the title, together with a control that wraps or overlaps it (the devices area selector draws the area name as its heading)
-      const box = { left: title.left, right: title.right };
-      for (const o of obstacles) {
-        if (o.left < title.right && o.right > title.left && o.top < title.bottom && o.bottom > title.top) {
-          box.left = Math.min(box.left, o.left);
-          box.right = Math.max(box.right, o.right);
-        }
-      }
-      const span = Math.max(...chips.map((c) => c.right)) - Math.min(...chips.map((c) => c.left));
-      let at = fromStart(rtl ? box.left : box.right) + DD_GAP;
-      for (let i = 0; i < 60; i++) {
-        const a = rtl ? rr.right - at - span : rr.left + at;
-        const b = a + span;
-        const hit = obstacles.filter((o) => o.left < b && o.right > a && !(o.left >= box.left - 0.5 && o.right <= box.right + 0.5));
-        if (!hit.length) break;
-        at = Math.max(...hit.map((o) => fromStart(rtl ? o.left : o.right))) + DD_GAP;
-      }
-      set('--sw-dd-title-offset', at);
-      offset = Math.round(at);
-      chips = measure();
-    }
-    const covers = (c: DOMRect, o: DdBox) => c.left < o.right - 0.5 && c.right > o.left + 0.5 && c.top < o.bottom - 0.5 && c.bottom > o.top + 0.5;
-    const blocked: DdBox[] = [...obstacles, ...(title ? [title] : []), ...(cr ? [cr] : [])];
-    const offPage = chips.some((c) => c.left < -0.5 || c.right > window.innerWidth + 0.5);
-    // placement 3 with no title on the chips' row (a title under a row of the screen's own tabs) has nothing to follow
-    let hit = offPage || (place === '3' && !!title && title.top >= band) || chips.some((c) => blocked.some((o) => covers(c, o)));
-    // CR-WAVE1B-COMBINED-2436: no title at all yet is a screen still loading its heading, not a collision - placement 3 waits for it
-    // (chips hidden, nothing covered) up to DD_TITLE_WAIT_MS in all, then falls back as before
-    if (place === '3' && !title && !hit) {
-      const t = performance.now();
-      if (!this.ddTitleWaitSince) this.ddTitleWaitSince = t;
-      if (t - this.ddTitleWaitSince < DD_TITLE_WAIT_MS - DD_COLLIDE_MS) {
-        this.ddMissSince = 0;
-        return;
-      }
-      hit = true;
-    } else if (title) this.ddTitleWaitSince = 0;
-    if (!hit) {
-      this.ddMissSince = 0;
-      // measured, clear of everything: the chips may be painted now. Placement 3 follows the heading, which is swapped while its data loads:
-      // it waits until the same place came out DD_FIT_STABLE passes in a row
-      if (place !== '3') this.markDdFitted();
-      else {
-        this.ddFitStable = offset === this.ddFitOffset ? this.ddFitStable + 1 : 0;
-        this.ddFitOffset = offset;
-        if (this.ddFitStable >= DD_FIT_STABLE) this.markDdFitted();
-      }
-      return;
-    }
-    const now = performance.now();
-    if (!this.ddMissSince) this.ddMissSince = now;
-    if (now - this.ddMissSince < DD_COLLIDE_MS) return;
-    this.ddMissSince = 0;
-    this.ddCollideRoute = location.hash;
-    this.setAttribute('data-dd-place', '1');
-    this.setAttribute('data-dd-fallback', 'collision');
-  }
+  /** CR-SHELL-TIMERS-2439 (07:F14, 07:F24): the header dropdown's measured placement (shell/header-fit.ts): after every render, on a
+   * size change of the measured pieces, and on a 1.2 s tick only until the row is settled (then a slow re-check); nothing while hidden. */
+  private headerFit = new HeaderFit(this);
   private observedBanner: HTMLElement | null = null;
 
   /** The navigation's sizes onto the host as CSS variables (the one design), the rail's real width into --sw-rail-w (the
@@ -2329,27 +2202,17 @@ export class SwApp extends LitElement {
       else this.setAttribute('data-dd-head', dd);
     }
     const route = location.hash;
-    if (route !== this.ddCollideRoute) this.ddCollideRoute = '';
-    if (route !== this.ddRoute) {
-      this.ddRoute = route;
-      this.ddMissSince = 0; // a collision seen on the previous screen does not count here
-      this.ddTitleWaitSince = 0;
-    }
+    this.headerFit.enterRoute(route); // a collision or a title wait seen on the previous screen does not count here
     const asked = ddPlaceOf();
     const declined = ddPlaceDeclined(areaOf(this.route) ?? '', route, asked); // the area's table + the screen's (dd-place-fit.ts)
-    const place = declined || this.ddCollideRoute ? '1' : asked;
-    const fallback = declined ? 'declared' : this.ddCollideRoute ? 'collision' : null;
+    const place = declined || this.headerFit.collideRoute ? '1' : asked;
+    const fallback = declined ? 'declared' : this.headerFit.collideRoute ? 'collision' : null;
     if (this.getAttribute('data-dd-place') !== place) this.setAttribute('data-dd-place', place);
     if (this.getAttribute('data-dd-fallback') !== fallback) {
       if (fallback) this.setAttribute('data-dd-fallback', fallback);
       else this.removeAttribute('data-dd-fallback');
     }
-    const fitKey = `${route}|${place}|${dd ?? ''}`;
-    if (fitKey !== this.ddFitKey) {
-      this.ddFitKey = fitKey;
-      this.startDdFit();
-    }
-    requestAnimationFrame(() => this.fitDd());
+    this.headerFit.sync(`${route}|${place}|${dd ?? ''}`); // a new key starts the first-paint burst; one measurement a frame later
     const banner = this.renderRoot.querySelector<HTMLElement>('[data-sys-banner]');
     if (banner === this.observedBanner) return;
     this.bannerObs?.disconnect();
@@ -2364,7 +2227,6 @@ export class SwApp extends LitElement {
   }
 
   disconnectedCallback() {
-    window.clearInterval(this.ddTimer);
     this.bannerObs?.disconnect();
     super.disconnectedCallback();
     this.stopDesign?.();
@@ -2405,8 +2267,8 @@ export class SwApp extends LitElement {
     window.removeEventListener('sw-setup-state', this.onSetupState);
     this.stopSetupDismissal?.();
     this.stopSetupDismissal = null;
-    window.clearInterval(this.sysTimer);
-    this.sysTimer = 0;
+    this.shellPoll.cancel('system');
+    this.sysStarted = false;
   }
 
   // ---- system status (top-bar pill + degraded banner) ----

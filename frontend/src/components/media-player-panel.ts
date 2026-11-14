@@ -10,6 +10,7 @@ import './media-queue-list';
 import './media-library-browse';
 import type { PlayItemEvent } from './media-library-browse';
 import { ApiError } from '../api/client';
+import { PollController } from './poll-controller';
 import { isApi } from '../api/session';
 import { getAction } from '../api/ha';
 import { artworkUrl } from '../api/media-screens';
@@ -105,7 +106,8 @@ export class MediaPlayerPanel extends LitElement {
   private groupGap = new RateGap(500);
   private token = 0;
   private polls = 0;
-  private pollTimer = 0;
+  /** CR-SHELL-TIMERS-2439 (07:F14): the player state re-read every POLL_MS while the panel is open (not while a key or a join is pending) - paused while the page is hidden, never two at once, read once on return. */
+  private poll = new PollController(this);
   private tickTimer = 0;
   private noticeTimer = 0;
   private refreshTimer = 0;
@@ -174,10 +176,7 @@ export class MediaPlayerPanel extends LitElement {
     else void loadDevicesPrefs().then((p) => applyDevicesScheme(this, p.scheme));
     void players().favourites().then((c) => (this.kindsOn = c.kinds_on)).catch(() => undefined);
     void this.load(true);
-    window.clearInterval(this.pollTimer);
-    this.pollTimer = window.setInterval(() => {
-      if (document.visibilityState === 'visible' && this.pend.size === 0 && this.joining.size === 0) void this.load(false);
-    }, POLL_MS);
+    this.poll.every('state', POLL_MS, () => this.load(false), { when: () => this.pend.size === 0 && this.joining.size === 0 });
     window.clearInterval(this.tickTimer);
     this.tickTimer = window.setInterval(() => {
       if (this.detail?.live.play === 'playing') this.nowMs = Date.now();
@@ -189,7 +188,7 @@ export class MediaPlayerPanel extends LitElement {
   }
 
   private end() {
-    window.clearInterval(this.pollTimer);
+    this.poll.cancel('state');
     window.clearInterval(this.tickTimer);
     for (const t of [this.noticeTimer, this.refreshTimer, this.joinTimer, this.seekTimer, this.longTimer]) window.clearTimeout(t);
     this.token++; // in-flight loads and confirmations stop mattering

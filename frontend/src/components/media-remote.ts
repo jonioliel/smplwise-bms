@@ -8,6 +8,7 @@ import './media-remote-pad';
 import './media-player-panel';
 import '../screens/multimedia-remote-editor';
 import { ApiError } from '../api/client';
+import { PollController } from './poll-controller';
 import { getAction } from '../api/ha';
 import { isApi } from '../api/session';
 import { players } from '../api/media-players';
@@ -82,7 +83,8 @@ export class MediaRemote extends LitElement {
   private gate = new CommandGate();
   private readonly press = new KeyPress((key) => this.onKey(key));
   private token = 0;
-  private pollTimer = 0;
+  /** CR-SHELL-TIMERS-2439 (07:F14): the device state re-read every POLL_MS while the remote is open (not while a key is pending or the layout is edited) - paused while the page is hidden, never two at once, read once on return. */
+  private poll = new PollController(this);
   private tickTimer = 0;
   private noticeTimer = 0;
   private volTimer = 0;
@@ -154,10 +156,7 @@ export class MediaRemote extends LitElement {
     else void loadDevicesPrefs().then((p) => applyDevicesScheme(this, p.scheme));
     void media().status().then((s) => (this.status = s)).catch(() => undefined);
     void this.load(true);
-    window.clearInterval(this.pollTimer);
-    this.pollTimer = window.setInterval(() => {
-      if (document.visibilityState === 'visible' && this.pend.size === 0 && !this.editing) void this.load(false);
-    }, POLL_MS);
+    this.poll.every('state', POLL_MS, () => this.load(false), { when: () => this.pend.size === 0 && !this.editing });
     window.clearInterval(this.tickTimer);
     this.tickTimer = window.setInterval(() => {
       if (this.detail?.live.play === 'playing') this.nowMs = Date.now();
@@ -169,7 +168,7 @@ export class MediaRemote extends LitElement {
   }
 
   private end() {
-    window.clearInterval(this.pollTimer);
+    this.poll.cancel('state');
     window.clearInterval(this.tickTimer);
     window.clearTimeout(this.noticeTimer);
     window.clearTimeout(this.volTimer);
