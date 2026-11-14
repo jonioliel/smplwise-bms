@@ -264,4 +264,3 @@ import{a as b,S as m,i as v,u8 as u,Y as w,u9 as f,kS as g,A as d,e as a,ua as y
       }
     }
   `,x,z];l([p()],o.prototype,"by",2);l([p()],o.prototype,"q",2);l([p()],o.prototype,"answer",2);l([p()],o.prototype,"providers",2);l([p()],o.prototype,"busy",2);l([p()],o.prototype,"error",2);o=l([k("investigate-search")],o);export{o as InvestigateSearch};
-//# sourceMappingURL=investigate-search-CHbmcgoA.js.map

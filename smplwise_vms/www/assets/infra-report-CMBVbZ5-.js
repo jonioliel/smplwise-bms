@@ -53,4 +53,3 @@ import{A as h,e as t,mh as r,a as A,S as D,mi as R,mj as g,mk as B,ml as E,mm as
         <button class="btn" data-pdf-close @click=${()=>this.pdfError=""}>${r("close")}</button></div></div></div>`:h}
       <div class="card">${this.toolbar()}${this.phase==="loading"&&!this.model?h:this.picker()}${this.body()}</div>
       ${this.omitted()}`}};v.styles=[J,L];y([F({attribute:!1})],v.prototype,"route",2);y([f()],v.prototype,"access",2);y([f()],v.prototype,"phase",2);y([f()],v.prototype,"model",2);y([f()],v.prototype,"month",2);y([f()],v.prototype,"rlang",2);y([f()],v.prototype,"picked",2);y([f()],v.prototype,"busy",2);y([f()],v.prototype,"pdfError",2);v=y([H("infra-report")],v);export{v as InfraReport};
-//# sourceMappingURL=infra-report-CMBVbZ5-.js.map

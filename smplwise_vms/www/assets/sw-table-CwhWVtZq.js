@@ -162,4 +162,3 @@ import{E as h,F as r,a as w,e as i,A as p,H as b}from"./index-k1cto_iv.js";var u
       color: var(--sw-text-3);
     }
   `;o([r({attribute:!1})],s.prototype,"columns",2);o([r({attribute:!1})],s.prototype,"rows",2);o([r()],s.prototype,"rowKey",2);o([r()],s.prototype,"selected",2);o([r()],s.prototype,"emptyText",2);o([r({type:Boolean,reflect:!0})],s.prototype,"dense",2);o([r({type:Boolean,reflect:!0,attribute:"focus-rows"})],s.prototype,"focusRows",2);s=o([b("sw-table")],s);
-//# sourceMappingURL=sw-table-CwhWVtZq.js.map

@@ -140,4 +140,3 @@ import{E as O,F as u,G as z,a as B,tf as S,A as w,tl as _,e as g,w as m,tn as b,
       background: var(--lg);
     }
   `;a([u({attribute:!1})],n.prototype,"segments",2);a([u({attribute:!1})],n.prototype,"events",2);a([u({attribute:!1})],n.prototype,"bookmarks",2);a([u({type:Number})],n.prototype,"cursor",2);a([u({type:Number})],n.prototype,"windowMinutes",2);a([u()],n.prototype,"precision",2);a([u({type:Boolean})],n.prototype,"follow",2);a([u({type:Number})],n.prototype,"limit",2);a([z()],n.prototype,"hover",2);a([u({type:Number})],n.prototype,"viewStart",2);a([u({type:Boolean,reflect:!0})],n.prototype,"compact",2);a([z()],n.prototype,"dragging",2);n=a([D("sw-timeline")],n);export{x as m,N as s};
-//# sourceMappingURL=sw-timeline-CnUwl8sb.js.map

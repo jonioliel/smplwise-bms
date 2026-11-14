@@ -385,4 +385,3 @@ import"./settings-retention-De32qQ26.js";import{E as B,F as Z,a as I,e as l,H as
         max-inline-size: 100%;
       }
     `,Ve];_e([Z({attribute:!1})],J.prototype,"route",2);_e([d()],J.prototype,"access",2);J=_e([P("system-infra")],J);export{J as SystemInfra};
-//# sourceMappingURL=system-infra-BKgECgAf.js.map

@@ -649,4 +649,3 @@ import{D as F,E as R,F as h,a as T,b as I,e as i,A as l,q as f,iW as j,H as N,G 
     label { display: flex; gap: 6px; align-items: center; padding: 3px 4px; border-radius: var(--sw-r-xs); cursor: pointer; font-size: var(--sw-fs-base); }
     label:hover { background: var(--dv-surface-2, var(--sw-surface-2)); }
   `;C([h({attribute:!1})],w.prototype,"choices",2);C([h({attribute:!1})],w.prototype,"value",2);C([u()],w.prototype,"open",2);C([u()],w.prototype,"q",2);w=C([N("scenario-recipients")],w);export{Ge as a,g as b,Ae as c,Xe as d,Ne as e,G as f,qe as g,He as h,K as i,Je as j,Be as k,Me as l,Le as m,Ye as n,Ve as o,Ue as p,Ke as q,es as r,Pe as s,We as t,je as u,O as v,Ee as w,Ze as x,Qe as y};
-//# sourceMappingURL=scenario-recipients-DdZ8tHQh.js.map

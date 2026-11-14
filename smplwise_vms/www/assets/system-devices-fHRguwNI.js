@@ -286,4 +286,3 @@ import{E as C,F as S,G as c,a as O,S as P,Y as b,A as h,e as t,H as M,aB as E,bj
       }
     }
   `,H];o.PHONE_KEYS=new Set(["name","state","image","lastEvent"]);p([c()],o.prototype,"selected",2);p([c()],o.prototype,"filter",2);p([c()],o.prototype,"offlineFirst",2);p([c()],o.prototype,"cameras",2);p([c()],o.prototype,"recorder",2);p([c()],o.prototype,"canSync",2);p([c()],o.prototype,"discovery",2);p([c()],o.prototype,"busy",2);p([c()],o.prototype,"message",2);p([c()],o.prototype,"error",2);p([c()],o.prototype,"dialog",2);p([c()],o.prototype,"formChannel",2);p([c()],o.prototype,"formAlias",2);p([c()],o.prototype,"alias",2);p([c()],o.prototype,"image",2);p([c()],o.prototype,"imageFilter",2);p([c()],o.prototype,"phone",2);p([c()],o.prototype,"narrow",2);p([c()],o.prototype,"page",2);p([c()],o.prototype,"perPage",2);o=p([M("system-devices")],o);export{o as SystemDevices};
-//# sourceMappingURL=system-devices-fHRguwNI.js.map

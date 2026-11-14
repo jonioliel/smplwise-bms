@@ -1,0 +1,13 @@
+{
+ "about": "Design-debt ratchet baseline (scripts/design_ratchet.py, CR-BUILD-GUARDS-2438). A check fails when a count goes above its number here. Lower it with --update after removing debt; raising needs --allow-raise and the owner's approval.",
+ "counts": {
+  "color-literal": 2510,
+  "px-literal": 25763,
+  "undefined-token": 14,
+  "native-dialog": 20,
+  "native-select": 582,
+  "native-table": 109,
+  "hand-switch": 378,
+  "scroll-container": 230
+ }
+}

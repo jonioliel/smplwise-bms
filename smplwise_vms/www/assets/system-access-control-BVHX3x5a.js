@@ -902,4 +902,3 @@ import{E as C,F as R,a as j,e as r,A as c,H as E,C as W,G as u,i as _,be as U,ba
         margin-block-start: var(--sw-s-3, 12px);
       }
     `,W];T([R()],x.prototype,"view",2);T([u()],x.prototype,"rev",2);T([u()],x.prototype,"meta",2);T([u()],x.prototype,"zone",2);T([u()],x.prototype,"admin",2);T([u()],x.prototype,"wide",2);T([u()],x.prototype,"people",2);T([u()],x.prototype,"configure",2);x=T([E("system-access-control")],x);export{x as SystemAccessControl};
-//# sourceMappingURL=system-access-control-BVHX3x5a.js.map

@@ -1067,4 +1067,3 @@ import{a8 as Ee,i as K,g as P,ac as et,a7 as O,al as Ye,bW as wt,E as zt,C as at
       }
     }
   `,at];Wt([C({attribute:!1})],ft.prototype,"route",2);Wt([d()],ft.prototype,"access",2);Wt([d()],ft.prototype,"alerts",2);ft=Wt([Z("infra-water")],ft);export{ft as InfraWater,se as WATER_PAGES,Me as pageAllowed,ra as waterPageOf};
-//# sourceMappingURL=infra-water-D6tD0jIo.js.map

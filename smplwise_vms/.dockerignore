@@ -1,0 +1,4 @@
+# CR-BUILD-GUARDS-2438 (review 07:F7): debug source maps never enter the add-on image. `npm run build:addon` already moves them
+# out of www / www-public (frontend/scripts/sourcemaps-archive.mjs); this is the second line of defence for a hand-made build.
+www/**/*.map
+www-public/**/*.map

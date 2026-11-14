@@ -61,4 +61,3 @@ import{E as v,F as p,a as d,e as o,H as w}from"./index-k1cto_iv.js";var u=Object
       background: var(--sw-live);
     }
   `;l([p({attribute:!1})],r.prototype,"steps",2);l([p({type:Number})],r.prototype,"current",2);r=l([w("sw-steps")],r);
-//# sourceMappingURL=sw-steps-CxXHQCKf.js.map

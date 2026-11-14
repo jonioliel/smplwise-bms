@@ -18,6 +18,8 @@ node_modules/
 dist/
 .vite/
 frontend/coverage/
+# CR-BUILD-GUARDS-2438: debug source maps archived by a workstation build:addon (the runner keeps them in ~/smplwise-results/sourcemaps)
+frontend/.sourcemaps/
 test-results/
 playwright-report/
 

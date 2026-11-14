@@ -63,4 +63,3 @@ import{hH as g,E as f,F as y,G as d,a as $,hI as w,i as p,hJ as S,bW as z,gO as 
       color: var(--sw-text-3);
     }
   `];c([y()],n.prototype,"list",2);c([d()],n.prototype,"sizes",2);c([d()],n.prototype,"view",2);c([d()],n.prototype,"canEdit",2);c([d()],n.prototype,"busy",2);c([d()],n.prototype,"note",2);c([d()],n.prototype,"error",2);n=c([O("sw-list-display-settings")],n);
-//# sourceMappingURL=sw-list-display-settings-BNt9Za9M.js.map

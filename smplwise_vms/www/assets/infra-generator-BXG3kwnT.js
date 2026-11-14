@@ -177,4 +177,3 @@ import{jE as R,F as O,G as g,a as st,S as et,jF as Qt,Y as K,jG as Xt,jH as gt,w
     /* the generators' count beside the picker is a quiet counter, not a bare digit */
     .gpick > .mut:last-child { font-variant-numeric: tabular-nums; padding: 2px 9px; border-radius: var(--sw-r-pill); background: var(--sw-surface-3); color: var(--sw-text-2); }
   `,Ds];H([O({attribute:!1})],j.prototype,"route",2);H([g()],j.prototype,"access",2);H([g()],j.prototype,"list",2);H([g()],j.prototype,"device",2);H([g()],j.prototype,"summary",2);H([g()],j.prototype,"phase",2);H([g()],j.prototype,"error",2);H([g()],j.prototype,"detecting",2);H([g()],j.prototype,"deviceFailed",2);j=H([at("infra-generator")],j);export{j as InfraGenerator,Lt as pageOf};
-//# sourceMappingURL=infra-generator-BXG3kwnT.js.map

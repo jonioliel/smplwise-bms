@@ -353,4 +353,3 @@ import{a as v,ec as u,e as a,y7 as l,A as h,y0 as b,bX as w,E as g,G as c,H as m
       position: relative;
     }
   `;o([c()],r.prototype,"devices",2);o([c()],r.prototype,"sheet",2);o([c()],r.prototype,"area",2);o([c()],r.prototype,"collapsed",2);r=o([m("bubble-demo")],r);export{r as BubbleDemo};
-//# sourceMappingURL=bubble-demo-DLctzKjy.js.map

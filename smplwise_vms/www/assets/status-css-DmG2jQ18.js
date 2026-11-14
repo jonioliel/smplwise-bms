@@ -342,4 +342,3 @@ import{E as e}from"./index-k1cto_iv.js";const a=e`
     inline-size: 100%;
   }
 `,s={muted:"color:var(--sw-text-3)",sub:"display:block;margin-block-start:2px;color:var(--sw-text-3);font-size:var(--sw-fs-xs)",raw:"direction:ltr;unicode-bidi:isolate;font-family:var(--sw-font-mono);font-size:var(--sw-fs-xs)",row:"display:inline-flex;align-items:center;flex-wrap:wrap;gap:6px 8px",strong:"font-weight:var(--sw-fw-semibold);color:var(--sw-heading)",wrap:"display:block;white-space:normal;min-inline-size:16ch;max-inline-size:44ch;overflow-wrap:anywhere"};export{s as C,a as s};
-//# sourceMappingURL=status-css-DmG2jQ18.js.map

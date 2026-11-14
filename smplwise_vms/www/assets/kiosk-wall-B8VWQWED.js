@@ -448,4 +448,3 @@ import{a as u,aX as x,bj as v,ba as b,i as w,O as k,n as y,f8 as z,K as $,r3 as 
       }
     }
   `;l([c()],n.prototype,"cams",2);l([c()],n.prototype,"settings",2);l([c()],n.prototype,"clock",2);l([c()],n.prototype,"page",2);l([c()],n.prototype,"health",2);l([c()],n.prototype,"disconnected",2);l([c()],n.prototype,"view",2);l([c()],n.prototype,"started",2);n=l([E("kiosk-wall")],n);export{n as KioskWall};
-//# sourceMappingURL=kiosk-wall-B8VWQWED.js.map

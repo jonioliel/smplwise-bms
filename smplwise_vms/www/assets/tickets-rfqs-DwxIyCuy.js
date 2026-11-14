@@ -1977,4 +1977,3 @@ import{U as rt,w as ot,E as de,C as Q,D as H,F as g,G as u,a as K,S as X,p5 as s
       }
     }
   `];j([g({attribute:!1})],L.prototype,"route",2);j([u()],L.prototype,"r",2);j([u()],L.prototype,"screen",2);j([u()],L.prototype,"meta",2);j([u()],L.prototype,"items",2);j([u()],L.prototype,"next",2);j([u()],L.prototype,"failed",2);j([u()],L.prototype,"q",2);j([u()],L.prototype,"toast",2);j([u()],L.prototype,"phone",2);L=j([G("tickets-rfqs")],L);export{L as TicketsRfqsPage};
-//# sourceMappingURL=tickets-rfqs-DwxIyCuy.js.map

@@ -100,4 +100,3 @@ import{E as u,F as o,a as v,e as n,H as h}from"./index-k1cto_iv.js";var p=Object
       background: var(--sw-surface);
     }
   `;t([o({type:Boolean,reflect:!0})],e.prototype,"selected",2);t([o()],e.prototype,"icon",2);t([o({type:Number})],e.prototype,"count",2);t([o()],e.prototype,"dot",2);t([o({type:Boolean,reflect:!0})],e.prototype,"disabled",2);e=t([h("sw-chip")],e);
-//# sourceMappingURL=sw-chip-BLX6ZcOY.js.map

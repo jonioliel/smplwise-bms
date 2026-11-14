@@ -1456,4 +1456,3 @@ import{E as O,G as p,a as I,jn as te,e5 as b,Y as v,jo as Ye,e as o,A as d,jp as
       }
     }
   `,ce];f([p()],g.prototype,"phase",2);f([p()],g.prototype,"list",2);f([p()],g.prototype,"status",2);f([p()],g.prototype,"enabled",2);f([p()],g.prototype,"remote",2);f([p()],g.prototype,"remoteDirty",2);f([p()],g.prototype,"error",2);f([p()],g.prototype,"note",2);f([p()],g.prototype,"saved",2);f([p()],g.prototype,"open",2);f([p()],g.prototype,"editing",2);f([p()],g.prototype,"view",2);f([p()],g.prototype,"tab",2);g=f([j("system-multimedia")],g);export{g as SystemMultimedia};
-//# sourceMappingURL=system-multimedia-Ctyi6w_C.js.map

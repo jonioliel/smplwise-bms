@@ -3239,4 +3239,3 @@ import{E as Q,F as R,a as K,A as c,e as o,H as U,i as oe,aC as ra,a7 as D,g as V
       </sw-card>
       ${Ie("system.configure")?o`<standalone-cameras-card></standalone-cameras-card>`:c}
     </sw-page>`}};Le.styles=[ye.styles,Ae];$e([d()],Le.prototype,"h",2);$e([d()],Le.prototype,"error",2);Le=$e([U("system-security-nvr")],Le);export{ye as SystemSecurity,Le as SystemSecurityNvr};
-//# sourceMappingURL=system-security-DVOQ3D2K.js.map

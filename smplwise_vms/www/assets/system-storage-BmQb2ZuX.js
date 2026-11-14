@@ -315,4 +315,3 @@ import{a as x,S as k,i as b,Y as w,A as l,e,q as f,K as _,bQ as z,f7 as E,w as u
       }
     }
   `,L];c([p()],o.prototype,"range",2);c([p()],o.prototype,"data",2);c([p()],o.prototype,"error",2);c([p()],o.prototype,"loading",2);c([p()],o.prototype,"tz",2);c([p()],o.prototype,"local",2);c([p()],o.prototype,"localError",2);c([p()],o.prototype,"resuming",2);c([p()],o.prototype,"signing",2);c([p()],o.prototype,"signingError",2);c([p()],o.prototype,"signingBusy",2);c([p()],o.prototype,"rotateConfirm",2);o=c([B("system-storage")],o);export{o as SystemStorage};
-//# sourceMappingURL=system-storage-BmQb2ZuX.js.map

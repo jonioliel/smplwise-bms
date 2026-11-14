@@ -26,4 +26,3 @@ import{e as s,E as i}from"./index-k1cto_iv.js";const n=i`
     }
   }
 `;function h(a,e=!1){return e?s`<h1 class="pg-h1 lead-head" data-page-heading>${a}</h1>`:s`<h1 class="sr-h1" data-page-heading>${a}</h1>`}export{n as a,h as s};
-//# sourceMappingURL=sr-heading-Djt1Y7He.js.map

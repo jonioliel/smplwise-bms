@@ -369,4 +369,3 @@ import{gN as A,E as C,G as c,a as T,j as E,e as a,co as _,A as o,H as N,S as L,d
       }
     }
   `,U];p([c()],l.prototype,"phase",2);p([c()],l.prototype,"status",2);p([c()],l.prototype,"saved",2);p([c()],l.prototype,"draft",2);p([c()],l.prototype,"templates",2);p([c()],l.prototype,"notify",2);p([c()],l.prototype,"review",2);p([c()],l.prototype,"compat",2);p([c()],l.prototype,"trash",2);p([c()],l.prototype,"error",2);p([c()],l.prototype,"note",2);p([c()],l.prototype,"busy",2);p([c()],l.prototype,"trashOpen",2);p([c()],l.prototype,"now",2);p([c()],l.prototype,"candidates",2);l=p([N("system-automations")],l);export{l as SystemAutomations};
-//# sourceMappingURL=system-automations-D-Hnp_4u.js.map
