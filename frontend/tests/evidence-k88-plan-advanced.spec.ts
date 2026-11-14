@@ -36,7 +36,12 @@ test.describe('floor map', () => {
     await expect(card).toHaveAttribute('data-zone-id', ZONE_LINKED);
     await expect(card.locator('[data-room-open-area]')).toHaveAttribute('href', '#/devices/areas/living');
     await shot(page, 'map-room-card');
-    // the unlinked room: the card without the link
+    // the unlinked room: the card without the link (PLAN3D-R28-UI-2433: on a phone the card is a bottom sheet over the lower
+    // half of the plan, so it is closed first - the second room lies under it)
+    if ((await card.getAttribute('place')) === 'sheet') {
+      await card.locator('[data-room-close]').click();
+      await expect(map.locator('[data-room-card]')).toHaveCount(0);
+    }
     await canvas.locator(`[data-zone="${ZONE_FREE}"] [data-zone-body]`).click({ position: { x: 10, y: 10 } });
     await expect(map.locator('[data-room-card]')).toHaveAttribute('data-zone-id', ZONE_FREE);
     await expect(map.locator('[data-room-open-area]')).toHaveCount(0);

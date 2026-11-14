@@ -34,8 +34,11 @@ interface ViewProbe {
 }
 
 async function open3d(page: Page, rung: string): Promise<Locator> {
-  await page.addInitScript((r) => { try { localStorage.setItem('sw.plan3d.quality', r); localStorage.removeItem('sw.plan3d.night'); } catch { /* storage */ } }, rung);
-  const mock = await installPerfMock(page, { install: 'auto', own: rung });
+  // PLAN3D-R28-UI-2433: this spec proves the POLISH entity pills and room-name plates, so it pins the display they belong to - one
+  // pill per device (map.room_pills = device) and the levels as built (sw.plan3d.stack = closed). The round 28 defaults (one pill
+  // per room, spread levels) take the plates and the device pills over by design; pixel-plan3d-r28-ui.spec.ts covers those.
+  await page.addInitScript((r) => { try { localStorage.setItem('sw.plan3d.quality', r); localStorage.removeItem('sw.plan3d.night'); localStorage.setItem('sw.plan3d.stack', 'closed'); } catch { /* storage */ } }, rung);
+  const mock = await installPerfMock(page, { install: 'auto', own: rung, settings: { 'map.room_pills': 'device' } });
   await page.goto(`/?design=a#/explore/floors/${FLOOR}`);
   const host = page.locator('explore-floor-map');
   const toggle = host.locator('[data-view-3d]');
