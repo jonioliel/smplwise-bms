@@ -30,6 +30,7 @@ from .. import __version__
 from ..config import Settings
 from . import exports as ex
 from . import signing
+from .safe_paths import case_file  # BACKEND-SAFETY-2435: a stored case file path stays inside data/cases|imported
 
 SCHEMA = "smplwise-evidence-bundle/1"
 SUPPORTED_SCHEMAS = {SCHEMA}
@@ -121,10 +122,10 @@ def build(settings: Settings, conn: sqlite3.Connection, case: dict[str, Any], it
                 "from_at": it["from_at"], "to_at": it["to_at"], "note": it["note"], "added_by": it["added_by_username"], "created_at": it["created_at"],
                 "preservation": it["preservation"], "file": None, "source": None,
             }
-            imported_file = settings.data_dir / it["file_path"] if origin and it.get("file_path") else None
-            if imported_file is not None:
+            imported_file = case_file(settings.data_dir, it["file_path"]) if origin and it.get("file_path") else None
+            if origin and it.get("file_path"):
                 # an item imported from another bundle (T050 import): its stored copy travels on, marked as imported
-                if imported_file.is_file():
+                if imported_file is not None and imported_file.is_file():
                     data = imported_file.read_bytes()
                     folder = "snapshots" if it["kind"] == "snapshot" else "clips"
                     f = add(f"{folder}/{it['id']}_{_safe(imported_file.name)}", data)
@@ -150,7 +151,7 @@ def build(settings: Settings, conn: sqlite3.Connection, case: dict[str, Any], it
                 else:
                     skipped.append({"item_id": it["id"], "reason": it["preservation"]})
             elif it["kind"] == "snapshot":
-                p = settings.data_dir / it["file_path"] if it.get("file_path") else None
+                p = case_file(settings.data_dir, it["file_path"]) if it.get("file_path") else None
                 if p and p.is_file():
                     data = p.read_bytes()
                     f = add(f"snapshots/{it['id']}.jpg", data)

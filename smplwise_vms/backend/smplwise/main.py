@@ -28,35 +28,54 @@ from .routers import access, access_control, wiskey_relay_map as wiskey_relay_ma
 log = logging.getLogger("smplwise")
 
 
+def _janitor_step(name: str, fn, *args) -> None:
+    """BACKEND-SAFETY-2435: run one housekeeping step; a failure is logged and the pass goes on to the next step."""
+    try:
+        fn(*args)
+    except Exception:  # noqa: BLE001 - one failing housekeeping step never stops the others
+        log.warning("%s janitor failed", name, exc_info=True)
+
+
 def janitor_tick(db: Database, settings: Settings) -> None:
     """One housekeeping pass (every 30 s): idle playback sessions, orphan relay streams, empty playback groups,
     export retention, event / thumbnail / audit / HA-history pruning. A plain function so a test runs it end to
-    end — from 0.1.30 to 0.1.37 the pass died silently on a missing import before the audit prune."""
+    end — from 0.1.30 to 0.1.37 the pass died silently on a missing import before the audit prune. Every step is
+    guarded (BACKEND-SAFETY-2435): one failing step is logged and the later ones still run. Two failures still end the
+    pass on purpose: a demo state that cannot be read (housekeeping must not touch a demo that may be running) and
+    settings that cannot be read (no retention step runs on guessed values)."""
     from . import audit as audit_mod
     from .routers.settings import read_settings
     from .services import demo_mode, events_derive, exports as ex, ha_history, playback as pb, playback_groups as pg, thumbnails
 
-    if demo_mode.tick(db, settings):  # CR-READY96: a running demo ends here when its time is up; while one runs the real installation's housekeeping waits
+    try:
+        if demo_mode.tick(db, settings):  # CR-READY96: a running demo ends here when its time is up; while one runs the real installation's housekeeping waits
+            return
+    except Exception:  # noqa: BLE001
+        log.warning("demo janitor failed; housekeeping pass skipped", exc_info=True)
         return
-    with db.connection() as conn:
-        s = read_settings(conn)
-    pb.expire_idle(settings, s["playback.lease_s"])
-    pb.sweep_orphans(settings)
-    pg.expire_empty()
-    ex.retention_sweep(db, settings, s["exports.retention_days"])
-    events_derive.prune(db, s["events.retention_days"])
-    thumbnails.prune(settings, s["events.retention_days"])
-    audit_mod.prune_db(db, s["audit.retention_days"])
+    try:
+        with db.connection() as conn:
+            s = read_settings(conn)
+    except Exception:  # noqa: BLE001
+        log.warning("janitor could not read settings; housekeeping pass skipped", exc_info=True)
+        return
+    _janitor_step("playback idle", pb.expire_idle, settings, s["playback.lease_s"])
+    _janitor_step("playback orphans", pb.sweep_orphans, settings)
+    _janitor_step("playback groups", pg.expire_empty)
+    _janitor_step("exports retention", ex.retention_sweep, db, settings, s["exports.retention_days"])
+    _janitor_step("events prune", events_derive.prune, db, s["events.retention_days"])
+    _janitor_step("thumbnails prune", thumbnails.prune, settings, s["events.retention_days"])
+    _janitor_step("audit prune", audit_mod.prune_db, db, s["audit.retention_days"])
     from .services import ha_user_auth
 
-    ha_user_auth.flush_refusal_summaries(db)  # counted-but-quiet throttled refusals: the end-of-window summary rows
-    ha_history.prune_db(db)
+    _janitor_step("refusal summaries", ha_user_auth.flush_refusal_summaries, db)  # counted-but-quiet throttled refusals: the end-of-window summary rows
+    _janitor_step("ha history prune", ha_history.prune_db, db)
     from .services import device_activity
 
-    device_activity.prune_db(db)  # DEVHIST: retention + size caps (itself throttled to every 15 min)
+    _janitor_step("device activity prune", device_activity.prune_db, db)  # DEVHIST: retention + size caps (itself throttled to every 15 min)
     from .services import push as push_svc
 
-    push_svc.prune(db)  # CR-008 P3: push subscriptions whose browser has not synced for months
+    _janitor_step("push prune", push_svc.prune, db)  # CR-008 P3: push subscriptions whose browser has not synced for months
     try:  # CR-LIVEEVENT100: closed incidents past incidents.retention_days (an open incident is never pruned)
         from .services import incidents as incidents_svc
 

@@ -35,6 +35,7 @@ from ..mode import ensure_nvr, nvr_ready as _nvr_ready  # NVR-less mode: 409 nvr
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import bundle as bundle_svc
 from ..services import bundle_import
+from ..services.safe_paths import case_file  # BACKEND-SAFETY-2435: stored file paths stay inside their root
 from ..services import signing
 from ..services import exports as ex
 from ..services import nvr, recordings
@@ -147,8 +148,8 @@ def _preservation(settings: Settings, conn: sqlite3.Connection, item: sqlite3.Ro
     if item["origin_json"]:
         # an imported item: preserved = its verified copy is on disk here; not_in_bundle = a bookmark the source never copied
         if item["file_path"]:
-            p = settings.data_dir / item["file_path"]
-            return ("preserved" if p.is_file() else "missing"), None
+            p = case_file(settings.data_dir, item["file_path"])
+            return ("preserved" if p is not None and p.is_file() else "missing"), None
         return ("none" if item["kind"] == "note" else "not_in_bundle"), None
     if item["export_job_id"]:
         job = ex.get_job(conn, item["export_job_id"])
@@ -159,7 +160,7 @@ def _preservation(settings: Settings, conn: sqlite3.Connection, item: sqlite3.Ro
             if job["state"] in ("queued", "running"):
                 return "preserving", export
     if item["kind"] == "snapshot":
-        p = settings.data_dir / item["file_path"] if item["file_path"] else None
+        p = case_file(settings.data_dir, item["file_path"]) if item["file_path"] else None
         return ("preserved" if p and p.is_file() else "missing"), None
     if item["kind"] == "note" or cam is None or not item["from_at"] or not item["to_at"]:
         return "none", export
@@ -549,7 +550,9 @@ def remove_item(case_id: str, item_id: str, request: Request, principal: Princip
         raise conflict("imported_read_only", "פריט מיובא הוא חלק מהחבילה המקורית ואינו ניתן להסרה; מחיקת התיק מסירה את כל הייבוא.")
     now = now_iso()
     if it["file_path"]:
-        (settings_of(request).data_dir / it["file_path"]).unlink(missing_ok=True)
+        p = case_file(settings_of(request).data_dir, it["file_path"])  # BACKEND-SAFETY-2435: never unlink outside data/cases|imported
+        if p is not None:
+            p.unlink(missing_ok=True)
     conn.execute("DELETE FROM case_items WHERE id = ?", (item_id,))
     conn.execute("UPDATE cases SET updated_at = ? WHERE id = ?", (now, case_id))
     audit(conn, actor=principal, action="case.item.remove", decision="allowed", resource_type="case", resource_id=case_id, request_id=_rid(request), details={"item": item_id, "kind": it["kind"]})
@@ -611,8 +614,8 @@ def item_file(case_id: str, item_id: str, request: Request, principal: Principal
             require(conn, principal, "events.read", INSTALLATION)
     elif it["camera_id"] and scope is not None and it["camera_id"] not in scope:
         require_camera(conn, principal, it["camera_id"], "events.read")
-    p = settings_of(request).data_dir / it["file_path"]
-    if not p.is_file():
+    p = case_file(settings_of(request).data_dir, it["file_path"])  # BACKEND-SAFETY-2435: a stored path outside data/cases|imported is refused
+    if p is None or not p.is_file():
         raise not_found("הקובץ חסר בדיסק.")
     headers = {"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"}
     if not it["origin_json"]:
@@ -645,8 +648,8 @@ def case_integrity(case_id: str, request: Request, principal: Principal = Depend
     def check() -> list[dict[str, Any]]:
         out = []
         for iid, kind, rel, sha in todo:
-            p = settings.data_dir / rel
-            if not p.is_file():
+            p = case_file(settings.data_dir, rel)
+            if p is None or not p.is_file():
                 out.append({"item_id": iid, "kind": kind, "status": "missing", "expected": sha, "actual": None})
                 continue
             h = hashlib.sha256()
