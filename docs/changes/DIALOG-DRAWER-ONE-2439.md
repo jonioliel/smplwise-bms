@@ -144,12 +144,12 @@ one job at a time; nothing on the runner was stopped):
 | re-take of those 22 spec files, `--update-snapshots=changed` | 718d40743 | 307 passed, 137 skipped; 172 baselines rewritten (commit 7241df324) |
 | the 10 other specs that hold screenshots (`audit30-f-calendars`, `evidence-audit30b-shared`, `evidence-audit30b2-page-action`, `evidence-audit30c-tickets`, `evidence-intercom-ops`, `evidence-wiskey-installer`, `evidence-wiskey-live-validation-2390`, `layout-audit30-e-infra`, `layout-audit30h-wiskey`, `layout-audit30h2-wiskey`), `--update-snapshots=changed` | 7241df324 | 259 passed, 152 skipped; 12 baselines rewritten (commit a007f5166) |
 | after the calendars' labels moved: `audit30-f-calendars`, `evidence-calendars-{grid-edit-2343,manage-2310,views-2310,nav-2310}`, `evidence-temperature`, `evidence-notifications`, `evidence-dialog-drawer-one-2439`, `evidence-dialog-toplayer-2381`, `layout-wiskey-people-writes`, two calendars unit specs - desktop, tablet, mobile, `--update-snapshots=changed` | a007f5166 | 465 passed, 54 skipped, 0 failed; 4 baselines rewritten (the calendars drawer) |
+| after Bubble became opaque (round 34): every `pixel-*` spec + `visual-matrix` + `evidence-dialog-drawer-one-2439` (now with bubble) + `evidence-bubble-screens`, `evidence-bubble-lists`, `layout-bubble-screens`, `evidence-design-foundation`, `evidence-look-polish-2331`, `--update-snapshots=changed` | 067e2ae25 | 604 passed, 446 skipped, 0 failed; 0 baselines rewritten - no Bubble baseline shows a dialog or a drawer, and this is also the proof run of the pixel suite after the re-takes |
 
 Baselines looked at: the person editor (1440, 390), the devices-home dialog (dark), the calendars drawer (1440, and 390 after the
 labels moved), the top-layer dialog.
 
-NOT_RUN on the runner: a proof run of the pixel suite without `-u` after the re-takes, and the full functional suite - both are
-the entry check, queued at the branch head (`~/pre/entry_dlgdrw.log`; verdict `~/smplwise-results/entry_pilot-DIALOG-DRAWER-ONE-2439_<sha9>.md`).
+NOT_RUN on the runner: the full functional suite - that is the entry check, queued at the branch head (`~/pre/entry_dlgdrw.log`; verdict `~/smplwise-results/entry_pilot-DIALOG-DRAWER-ONE-2439_<sha9>.md`).
 
 NOT_RUN / not verified: the full suites (the entry check below); `evidence-wiskey-editor` against the fixture WisKey (skipped
 without it); `evidence-camera-card` (fixture-only) - the enlarged camera picture was not opened in a browser here; the mapping
