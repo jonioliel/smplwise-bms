@@ -5,6 +5,7 @@ import './sw-card';
 import './sw-icon';
 import { ApiError } from '../api/client';
 import { getUpdateState } from '../api/system-update';
+import { isOutageError } from './update-run-logic';
 import { getRun, rollbackSteps, type BackupState, isTerminal, needsRollbackGuidance, runFailureText, runSteps, type RunKind, type RunView } from '../api/system-update-runs';
 
 /** The page that follows one run: shown while it runs (also across the restart of Arx), then its outcome. Events: `run-dismiss` (the person closes the outcome). */
@@ -14,12 +15,7 @@ const POLL_SLOW_MS = 15_000;
 export const WAIT_LIMIT_UPDATE_MS = 90 * 60_000; // the ceiling of an update (timeout_s 5400); the server settles a run past it
 export const EXPECTED_UPDATE_S = 1200;
 export const WAIT_LIMIT_RESTART_MS = 10 * 60_000;
-
-/** An answer that means "the system is down or restarting", not "the run is unknown". */
-export function isOutageError(err: unknown): boolean {
-  if (err instanceof ApiError) return err.status === 401 || err.status === 502 || err.status === 503 || err.status === 504 || err.status === 0 || err.code.startsWith('http_5');
-  return true; // a TypeError from fetch: the connection is down
-}
+export { isOutageError }; // CR-MAIN-RUNTIME-2438: moved to update-run-logic.ts (node unit tests), still exported here
 
 function mmss(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
