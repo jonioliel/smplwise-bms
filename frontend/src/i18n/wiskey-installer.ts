@@ -1,10 +1,12 @@
 /**
- * WISKEY-INSTALLER-NATIVE-2400: the words of הגדרות › התקנה ותחזוקת מערכת האינטרקום. Hebrew only (the product's language);
- * `{name}` placeholders are filled by `fill`. Never the words "Home Assistant" (owner rule): the host is "השרת".
+ * WISKEY-INSTALLER-NATIVE-2400: the words of הגדרות › התקנה ותחזוקת מערכת האינטרקום. Hebrew (the product's language) and
+ * English (I18N-EN-SWITCH-2438); the document's `lang` picks the table once, when the module loads (the page reloads when the
+ * language changes). `{name}` placeholders are filled by `fill`. Never the words "Home Assistant" (owner rule): the host is
+ * "השרת" / "the server".
  */
-import { fill as coreFill, registerCatalogue } from './core';
+import { docLang, fill as coreFill, registerCatalogue } from './core';
 
-export const installerText = {
+const heInstaller = {
   title: 'התקנה ותחזוקת מערכת האינטרקום',
   sub: 'כלי המתקין של WisKey - שעון, הגדרות טכניות של עמדות, הוספה והסרה של עמדות ותצורת המערכת. כל שינוי נשלח רק אחרי אישור, ונרשם ביומן.',
   tabs: { clock: 'שעון', technical: 'הגדרות עמדה', lifecycle: 'הוספה והסרה', platform: 'תצורת המערכת' },
@@ -86,13 +88,13 @@ export const installerText = {
   },
 };
 
-export type InstallerText = typeof installerText;
+export type InstallerText = typeof heInstaller;
 
 export function fill(template: string, values: Record<string, string | number>): string {
   return coreFill(template, values);
 }
 
-export const technicalText = {
+const heTechnical = {
   pick: 'עמדה',
   pickHint: 'הנתונים נקראים מהמכשיר עצמו דרך WisKey. קריאה אורכת עד כדקה.',
   read: 'קריאה מהעמדה',
@@ -129,7 +131,7 @@ export const technicalText = {
   empty: 'בחרו עמדה כדי לקרוא את ההגדרות הטכניות שלה.',
 };
 
-export const lifecycleText = {
+const heLifecycle = {
   addTitle: 'הוספת עמדה',
   addHint: 'האשף של WisKey: חיבור לעמדה, אימות זהות המכשיר ומיפוי הממסר. פרטי ההתחברות עוברים ל־WisKey בלבד - Arx לא שומר ולא רושם אותם.',
   addStart: 'הוספת עמדה',
@@ -210,7 +212,7 @@ export const lifecycleText = {
   doneJob: 'המשימה עודכנה: {state}.',
 };
 
-export const platformText = {
+const hePlatform = {
   healthTitle: 'שלמות ונתונים',
   integrity: 'בדיקת שלמות של WisKey',
   integrityOk: 'כל המאגרים נטענו',
@@ -307,4 +309,316 @@ export const platformText = {
   saved: 'נשמר.',
 };
 
-registerCatalogue('i18n/wiskey-installer', { he: { installer: installerText, technical: technicalText, lifecycle: lifecycleText, platform: platformText } });
+
+const enInstaller: InstallerText = {
+  title: 'Intercom system installation and maintenance',
+  sub: "WisKey's installer tools: the clock, station technical settings, adding and removing stations, and the system configuration. A change is sent only after confirmation, and is logged.",
+  tabs: { clock: 'Clock', technical: 'Station settings', lifecycle: 'Add and remove', platform: 'System configuration' },
+  forbiddenTitle: 'No permission',
+  forbiddenHint: 'These tools are open only to people who configure the system (the system settings permission for the whole installation).',
+  errorTitle: 'Cannot load',
+  retry: 'Try again',
+  reload: 'Refresh',
+  loading: 'Loading…',
+  unavailableTool: 'The installed WisKey version does not offer this tool.',
+  unknownTool: 'It is not yet known whether WisKey offers this tool - there is no active connection right now.',
+  feedDown: 'The connection to WisKey is not active right now. You can view what has loaded, but actions will not be sent.',
+  none: '—',
+  yes: 'Yes',
+  no: 'No',
+  online: 'Online',
+  offline: 'Offline',
+  cancel: 'Cancel',
+  close: 'Close',
+  confirm: {
+    typeToConfirm: 'To confirm, type exactly: {phrase}',
+    typedLabel: 'Typed confirmation',
+    send: 'Confirm and send',
+    sending: 'Sending… waiting for a reply from WisKey ({s} s, up to about {max})',
+    noChanges: 'There are no changes to send.',
+    before: 'Before',
+    after: 'After',
+    willChange: 'What will change',
+    once: 'The action is sent once and is not repeated automatically.',
+  },
+  result: {
+    completed: 'Done',
+    refused: 'Not done - WisKey refused the action ({code}). Nothing changed.',
+    not_sent: 'Not sent: {message}',
+    unknown: 'Sent, but no clear reply came back. It may have been done - refresh and check before trying again.',
+    retryIn: 'You can try again in {s} seconds.',
+  },
+  clock: {
+    settingsTitle: 'Intercom system time server',
+    settingsHint: 'The setting is saved in WisKey only. Saving does not change any device - writing to the stations and to the server is done separately, below.',
+    server: 'Time server (NTP)',
+    port: 'Port',
+    interval: 'Sync interval (minutes)',
+    revision: 'Revision {r}',
+    save: 'Save',
+    defaults: "WisKey's default: {server}, port {port}, every {interval} minutes",
+    invalid: { server: 'Invalid address (server name or IPv4)', port: 'A port between 2 and 65535', interval: 'Between 1 and 10080 minutes' },
+    saveHeading: 'Save the clock settings',
+    hostTitle: "The server's clock",
+    hostSupported: 'The server supports NTP configuration',
+    hostUnsupported: 'The server does not let WisKey configure NTP',
+    hostSynced: 'Synced',
+    hostNotSynced: 'Not synced',
+    hostServers: "The server's time servers",
+    hostApply: 'Apply to the server',
+    hostApplyHeading: "Set the server's time server",
+    hostApplyBody: "The server's time server will be replaced with {server}. The backup servers will be deleted. WisKey reads the setting back and confirms it.",
+    hostApplyPort: 'Applying to the server is possible only with port 123.',
+    hostApplied: 'The server now uses the time server {server} (read back and confirmed).',
+    stationsTitle: "Each station's clock",
+    stationsHint: "WisKey's latest measurement against the server's clock. \"Check\" reads the latest measurement WisKey saved; a new reading from the device itself is in the station's maintenance.",
+    colStation: 'Station',
+    colSkew: 'Drift',
+    colMode: 'Clock mode',
+    colChecked: 'Measured',
+    check: 'Check',
+    sync: 'Write the clock to the station',
+    syncHeading: 'Write the clock settings to station {name}',
+    syncBody: 'The station will be set to the time server {server} (port {port}, every {interval} minutes) and to NTP clock mode. WisKey reads the setting back and measures the clock.',
+    copySystem: "Copy the server's time to the station first (manual time, then back to NTP)",
+    syncResult: 'The setting was written and confirmed. Station clock: {verified} (drift {skew}).',
+    verified: 'verified',
+    notVerified: 'not yet verified',
+    skew: '{s} s',
+    noClock: 'No measurement',
+    modes: { NTP: 'NTP', manual: 'Manual', satellite: 'Satellite', platform: 'Platform', NONE: 'None', GB28181: 'GB28181', unknown: 'Unknown' },
+    noStations: 'No stations to show.',
+    sectionUnavailable: 'This section did not load: {message}',
+  },
+};
+
+type TechnicalText = typeof heTechnical;
+const enTechnical: TechnicalText = {
+  pick: 'Station',
+  pickHint: 'The data is read from the device itself through WisKey. A read takes up to about a minute.',
+  read: 'Read from the station',
+  reread: 'Read again',
+  readAt: 'Read from the station: {at}',
+  offline: 'The station is offline - you can read what was saved, but not change it.',
+  door: 'Door {n}',
+  notMapped: "The door is not in the station's confirmed relay mapping, so it cannot be changed from here.",
+  doorError: 'The door cannot be read ({code}).',
+  fields: { doorName: 'Door name', openDuration: 'Open time (seconds)', relayReverseEnabled: 'Reverse relay' },
+  bounds: 'Between {min} and {max}',
+  lengthBounds: '{min}-{max} characters',
+  relayOn: 'Reversed',
+  relayOff: 'Normal',
+  relayWarn: 'Reversing the relay swaps what "locked" and "open" mean for the lock. A wrong change can leave a door open - typed confirmation is required.',
+  save: 'Save the door',
+  saveHeading: 'Save the settings of {door} on station {name}',
+  saveBody: 'WisKey reads the door again, checks that it has not changed since it was read, writes only the changed fields and reads back to verify.',
+  saved: 'Saved and read back from the station.',
+  invalid: 'The value is outside the range the device allows',
+  features: 'Capabilities the device reports',
+  supported: 'Supported',
+  notSupported: 'Not supported',
+  passwords: 'Authorisation passwords on the device (whether they are set, never the values)',
+  pinState: { configured: 'Public code set', absent: 'No public code', unknown: 'Unknown' },
+  passwordNames: {
+    engineeringConfigured: 'Engineering password', setupAlarmConfigured: 'Arming password', householderUnlockConfigured: 'Resident unlock password', antiHijackingConfigured: 'Duress password', sendCardConfigured: 'Card password',
+  },
+  set: 'Set',
+  unset: 'Not set',
+  relays: 'Confirmed relay mapping',
+  relayRow: 'Physical relay {physical} → API door {api}',
+  noRelays: 'No relay mapping (camera-only station).',
+  empty: 'Choose a station to read its technical settings.',
+};
+
+type LifecycleText = typeof heLifecycle;
+const enLifecycle: LifecycleText = {
+  addTitle: 'Add a station',
+  addHint: "WisKey's wizard: connect to the station, verify the device's identity and map the relay. The sign-in details go to WisKey only - Arx neither stores nor logs them.",
+  addStart: 'Add a station',
+  reTitle: 'Reconnect a station',
+  reHint: 'A new address, user or password for the same device. WisKey makes sure it is the same device before it saves.',
+  reStart: 'Reconnect',
+  station: 'Station',
+  wizardTitle: { add: 'Add a station', reconfigure: 'Reconnect a station' },
+  steps: {
+    user: 'Connection details', reconfigure: 'Connection details', confirm_device: 'Device check', locks: 'Door', mapping: 'Relay test', confirm_mapping: 'Confirm the test', other: 'Step',
+  },
+  fields: {
+    name: 'Station name', host: 'Address (name or IP)', username: 'User', password: 'Password', scheme: 'Protocol', port: 'Port', verify_ssl: 'Verify the security certificate',
+    rtsp_port: 'Video port (RTSP)', lock_name: 'Door name (optional)', api_id: 'Relay to test', mode: 'What the station operates', result: 'What happened in the test',
+  },
+  passwordKeep: 'Leave empty to keep the current password',
+  modes: { camera_only: 'Camera only (no door)', map_active_relay: 'Map a relay to the door (with a test)', keep_confirmed_mapping: 'Keep the confirmed mapping' },
+  results: { released_and_returned: 'The door opened and closed as expected', choose_again: 'Not the right door - choose another relay', camera_only: 'Skip the door - camera only' },
+  device: 'WisKey identified the device',
+  model: 'Model',
+  firmware: 'Firmware',
+  serial: 'Serial number',
+  deviceConfirm: 'This is the right station',
+  next: 'Continue',
+  cancel: 'Cancel the wizard',
+  checking: 'WisKey is connecting to the device and checking…',
+  pulseWarn: 'At this step WisKey sends the chosen relay one open command to make sure it is the right door. Make sure someone is at the door and that opening it is safe.',
+  pulseButton: 'Open the door for a test',
+  pulseHeading: 'Open the door to test the relay',
+  commitHeading: 'Save the station in WisKey',
+  commitBody: 'WisKey will save the station with the chosen settings.',
+  created: 'Station {title} was added to WisKey. It will appear in the station list after the next sync.',
+  reconfigured: "The station's connection details were updated in WisKey.",
+  aborted: 'The wizard ended without a change ({reason}).',
+  cancelled: 'The wizard was cancelled.',
+  flowErrors: {
+    invalid_auth: 'Wrong user name or password', cannot_connect: 'No connection to the device at this address', unsupported_device: 'The device is not supported',
+    invalid_response: 'The device returned an unexpected reply', access_removal_pending: 'Some people are still waiting to be removed from the station - it cannot switch to camera only',
+    test_required: 'Confirm the relay test', invalid_mapping: 'Invalid relay', unlock_failed: 'The open command failed', confirmation_required: 'Choose what happened in the test',
+    other: 'WisKey refused the step',
+  },
+  abortReasons: { already_configured: 'The station already exists', unique_id_mismatch: 'This is a different device', reconfigure_successful: 'Updated', already_in_progress: 'Another wizard is already open for this station' },
+  removeTitle: 'Remove or replace a station',
+  removeHint: 'WisKey checks the impact, moves or removes the people from the station, makes sure the station has been cleared, and only then removes it. When replacing, the people move to the target station (add it in the wizard first).',
+  source: 'The station being removed',
+  target: 'Target station (to replace it, optional)',
+  noTarget: 'None - remove only',
+  review: 'Check the impact',
+  impact: 'Impact',
+  people: 'People affected',
+  bindings: 'Known assignments',
+  unknownOwners: 'Unknown owners on the device',
+  holdPrograms: 'Hold-open programs',
+  nativeSchedules: 'Schedules on the device',
+  blockers: 'Blockers',
+  noBlockers: 'No blockers',
+  blockerText: {
+    target_already_in_use: 'The target station is already in use', target_ownership_unverified: 'Ownership of the target station was not verified', target_contains_accounts: 'The target station has users on it',
+    target_lock_mapping_incomplete: "The target station's door mapping is incomplete", native_schedule_redeployment_required: 'Schedules on the device need to be deployed again',
+    hold_programs_require_separate_review: 'Some hold-open programs need a separate review', other: 'Another blocker',
+  },
+  prepare: 'Prepare the removal',
+  prepareHeading: 'Prepare the removal of {name}',
+  prepareBody: "WisKey will prepare a job and set the state of the station's people. Nothing is deleted or moved yet.",
+  jobs: 'Removal and replacement jobs',
+  noJobs: 'No jobs.',
+  refresh: 'Refresh',
+  states: { prepared: 'Prepared', approved: 'Approved', rejected: 'Rejected', applied: 'People moved', verified: 'Cleared', removing: 'Removing', removed: 'Removed', expired: 'Expired', failed: 'Failed', unknown: 'Unknown' },
+  stepLabels: ['Prepared', 'People', 'Clearing', 'Removed'],
+  actions: { apply: 'Move the people', verify: 'Check the clearing', remove: 'Remove the station' },
+  applyHeading: 'Move the people from {name}',
+  applyBody: "WisKey will remove {n} people's permissions from the station (and, when replacing, move them to the target station). This action changes the devices.",
+  verifyHeading: 'Check that {name} is cleared',
+  verifyBody: "WisKey reads the device and checks that none of the system's users and cards are left on it.",
+  removeHeading: 'Remove station {name} from the system',
+  removeBody: 'WisKey will remove the station setting. To bring it back, it would have to be added again in the wizard.',
+  approval: 'Dual approval is on in WisKey. Arx cannot act as the second approver - the approval is given in WisKey itself.',
+  doneJob: 'The job was updated: {state}.',
+};
+
+type PlatformText = typeof hePlatform;
+const enPlatform: PlatformText = {
+  healthTitle: 'Integrity and data',
+  integrity: 'WisKey integrity check',
+  integrityOk: 'All stores loaded',
+  integrityBad: 'Store unavailable: {list}',
+  noWrites: 'The check wrote nothing.',
+  components: {
+    access: 'People and permissions', panel_permissions: 'Panel permissions', appearance_settings: 'Appearance', profile_settings: 'Groups and fields', schedule_journal: 'Schedule log',
+    hold_programs: 'Hold-open programs', operations_center: 'Operations centre', events: 'Events', operations_validation: 'Operations centre validation',
+  },
+  events: 'Stored events',
+  eventsLine: '{records} records · up to {limit} · about {rate} a day',
+  demo: "WisKey's demo mode is available (no device and no writes).",
+  capacityTitle: 'Station capacity',
+  capacityHint: 'Users and cards against the limit the device reports. The forecast is an estimate based on the measured rate.',
+  users: 'Users',
+  cards: 'Cards',
+  daysTo: 'About {d} days to the limit',
+  alerts: { unknown: 'Unknown', stale: 'Old measurement', at_limit: 'At the limit', near_limit: 'Near the limit', growth_to_limit: 'Will reach the limit soon', observed: 'OK' },
+  metaTitle: 'Station details and maintenance window',
+  metaHint: 'Area, owner, tags, alert thresholds and the maintenance window in which WisKey may write to the station.',
+  zone: 'Area',
+  owner: 'Owner',
+  tags: 'Tags (comma-separated)',
+  thresholds: { offline: 'Offline alert (seconds)', sync_stalled: 'Sync stalled (seconds)', event_gap: 'Event gap (seconds)' },
+  windowOn: 'Limit writes to the maintenance window',
+  days: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+  dayNames: 'Days',
+  start: 'From',
+  end: 'Until',
+  timezone: 'Time zone',
+  saveMeta: 'Save',
+  metaHeading: 'Save the details of station {name}',
+  metaBody: "Saved in WisKey's operations centre. No device changes.",
+  changeTitle: 'Change a setting on several stations',
+  changeHint: 'WisKey reads each station, shows before and after, and writes only after confirmation. "Now" writes immediately; "In the maintenance window" adds it to a queue that WisKey runs in each station\'s window.',
+  stations: 'Stations (up to 12)',
+  door: 'Door',
+  mode: 'When',
+  modeNow: 'Now',
+  modeWindow: 'In the maintenance window',
+  preview: 'Preview',
+  previewEmpty: 'No station can be changed.',
+  apply: 'Apply',
+  enqueue: 'Add to the queue',
+  applyHeading: 'Apply the change to {n} stations',
+  applyBody: 'WisKey will write the changed fields to each station and read them back. Each station gets its own result.',
+  enqueueHeading: 'Schedule the change for {n} stations',
+  enqueueBody: 'WisKey will write to each station within its maintenance window. Progress appears in the queue below.',
+  receipts: 'Results by station',
+  receiptOk: 'Written and verified',
+  receiptFail: 'Failed ({code})',
+  partial: 'Some stations failed - check each station separately.',
+  queueTitle: 'Maintenance queue',
+  noJobs: 'The queue is empty.',
+  jobStates: { queued: 'Queued', awaiting_approval: 'Awaiting approval', rejected: 'Rejected', cancelled: 'Cancelled', verified: 'Completed', completed_with_errors: 'Completed with errors', expired: 'Expired', unknown: 'Unknown' },
+  rowStates: { pending: 'Pending', writing: 'Writing', verified: 'Verified', failed: 'Failed', uncertain: 'Uncertain', cancelled: 'Cancelled', unknown: 'Unknown' },
+  cancelJob: 'Cancel',
+  cancelHeading: 'Cancel the maintenance job',
+  cancelBody: 'Stations not yet written will not be written. Stations already written stay as they are.',
+  retentionTitle: 'Event retention',
+  retentionHint: 'How long and how many records WisKey keeps. The preview shows how many records will be deleted - deletion happens only after typed confirmation.',
+  retDays: 'Days (1-365)',
+  retCount: 'Records (100-20000)',
+  retMb: 'Size (MB, 0.25-24)',
+  retPreview: 'How much will be deleted?',
+  retRemoved: '{removed} of {before} records will be deleted.',
+  retApply: 'Apply the policy',
+  retHeading: 'Apply the event retention policy',
+  retBody: '{removed} event records will be permanently deleted from WisKey.',
+  webhookTitle: 'Event delivery (webhook)',
+  webhookHint: 'WisKey sends signed events to an https address. The signing key is shown once per request and is not stored in Arx.',
+  webhookOn: 'Delivery on',
+  url: 'Address (https)',
+  kinds: { access_event: 'Entry events', security_denied: 'Denied entries', configuration_result: 'Settings change results' },
+  saveWebhook: 'Save',
+  webhookHeading: 'Save the webhook',
+  webhookBody: 'WisKey will start or stop sending to this address immediately.',
+  showKey: 'Show the signing key',
+  keyHeading: 'Show the signing key',
+  keyBody: 'The key will be shown here once. Copy it to the webhook receiver; Arx does not store it.',
+  keyShown: 'Signing key (shown once):',
+  hideKey: 'Hide',
+  invalid: { url: 'An https address only, without parameters', kinds: 'Choose at least one type', days: 'Choose at least one day', start: 'Invalid time', end: 'The end time must be after the start', timezone: 'Invalid time zone' },
+  ioTitle: 'Configuration export and import',
+  ioHint: 'The file holds the station details and the message templates only - no people, permissions, keys or addresses.',
+  export: 'Export to a file',
+  importLabel: 'Configuration file to import',
+  mapTo: 'Which station here?',
+  importPreview: 'Check the file',
+  importApply: 'Import',
+  importHeading: 'Import the configuration',
+  importBody: 'The details of {n} stations will be replaced, and all WisKey message templates will be replaced with the templates in the file ({t}).',
+  imported: 'The configuration was imported ({n} stations).',
+  saved: 'Saved.',
+};
+
+/** The interface language, read once when the module loads (the page reloads when it changes). */
+const EN = docLang(['en']) === 'en';
+
+export const installerText: InstallerText = EN ? enInstaller : heInstaller;
+export const technicalText: TechnicalText = EN ? enTechnical : heTechnical;
+export const lifecycleText: LifecycleText = EN ? enLifecycle : heLifecycle;
+export const platformText: PlatformText = EN ? enPlatform : hePlatform;
+
+registerCatalogue('i18n/wiskey-installer', {
+  he: { installer: heInstaller, technical: heTechnical, lifecycle: heLifecycle, platform: hePlatform },
+  en: { installer: enInstaller, technical: enTechnical, lifecycle: enLifecycle, platform: enPlatform },
+});
