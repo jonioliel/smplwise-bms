@@ -8,6 +8,7 @@ import { em, emLang, TH_LABEL, type EmKey } from '../i18n/emergency';
 import { fmtInstant } from './model';
 import { parseThreshold } from './emergency-model';
 import { maintCss } from './styles';
+import { confirmDialog } from '../components/confirm-dialog';
 
 const ITEM_IDS = ['E01', 'E02', 'E03', 'E04', 'E05', 'E06', 'E07', 'E09', 'E10', 'E11', 'E12', 'E14', 'E17', 'E18', 'E19'];
 
@@ -117,7 +118,7 @@ export class EmergencyContactsPanel extends LitElement {
           <span class="chip" data-look=${c.verified_ok ? 'ok' : 'warn'}>${c.last_verified_at ? `${em('cVerified')} ${fmtInstant(c.last_verified_at, false)}` : em('cNever')}</span>
           <button type="button" class="btn sm" data-emerg-contact-verify @click=${() => void this.act(() => emergencyApi.verifyContact(c.id))}>${em('cVerify')}</button>
           <button type="button" class="btn sm" aria-label=${em('cEdit')} title=${em('cEdit')} @click=${() => this.edit(c)}><sw-icon name="edit" size="14"></sw-icon></button>
-          <button type="button" class="btn sm dng" data-emerg-contact-delete @click=${() => { if (confirm(em('cDeleteConfirm'))) void this.act(() => emergencyApi.deleteContact(c.id)); }}><sw-icon name="trash" size="14"></sw-icon>${em('cDelete')}</button>
+          <button type="button" class="btn sm dng" data-emerg-contact-delete @click=${async () => { if (await confirmDialog({ body: em('cDeleteConfirm'), danger: true })) void this.act(() => emergencyApi.deleteContact(c.id)); }}><sw-icon name="trash" size="14"></sw-icon>${em('cDelete')}</button>
         </div>`) : html`<div class="nomatch">${em('cEmpty')}</div>`}
     </div></div>`;
   }

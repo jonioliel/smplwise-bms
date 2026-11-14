@@ -17,6 +17,7 @@ import {
   type LocationDraft, type LocationField, type LocationProblem,
 } from './org-locations-model';
 import { lt, type LocTextKey } from './org-locations-text';
+import { confirmDialog } from '../components/confirm-dialog';
 
 const PROBLEM_TEXT: Record<LocationProblem, LocTextKey> = {
   required: 'err_required', too_long: 'err_too_long', duplicate: 'err_duplicate', address: 'err_address', url: 'err_url', coords: 'err_coords',
@@ -224,7 +225,7 @@ export class TicketsLocationsSettings extends LitElement {
   }
 
   private async removeLocation(loc: OrgLocationAdmin): Promise<void> {
-    if (!window.confirm(lt('confirmRemove', { name: loc.name }))) return;
+    if (!(await confirmDialog({ body: lt('confirmRemove', { name: loc.name }), danger: true }))) return;
     this.busy = true;
     try {
       this.data = await ticketsLocationsApi().remove(loc.id);

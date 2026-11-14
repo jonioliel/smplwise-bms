@@ -9,6 +9,7 @@ import { gauge } from './charts';
 import { tempCss } from './styles';
 import { tt, type TtKey } from '../i18n/temperature';
 import { dateInputLang } from '../api/day-format';
+import { confirmDialog } from '../components/confirm-dialog';
 
 const ROLE_KEYS: [string, string][] = [['viewer', 'צופים'], ['operator', 'מפעילים'], ['site_admin', 'מנהלי אתר'], ['system_admin', 'מנהלי מערכת']];
 type Defaults = Record<string, boolean | number | string>;
@@ -209,7 +210,7 @@ export class TempWizard extends LitElement {
   }
 
   private async removeUnit() {
-    if (!this.d.id || !window.confirm(tt('removeConfirm', { name: this.d.name }))) return;
+    if (!this.d.id || !(await confirmDialog({ body: tt('removeConfirm', { name: this.d.name }), danger: true }))) return;
     this.busy = true;
     try {
       await deleteUnit(this.d.id);
