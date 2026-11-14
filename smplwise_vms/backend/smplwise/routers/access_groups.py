@@ -34,11 +34,8 @@ from ..db import bump_permission_revision, new_id, now_iso
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, all_roles, authorize, effective_permissions, require, scope_name
 from ..services import revocation
-from .access import (
-    BindingBody, active_user_ids, keep_an_admin, _active_bindings_sql, _binding_dict, _ensure_user_row, _group_members, _rid, _scope_exists, rendered_labels,
-    _subject_name, _terminate, affected_users, assigns_anywhere, check_delegation, full_authority,
-    delegated_group_problem, insert_binding, revoke_one, touch_group, user_known, validate_binding,
-)
+from ._common import is_json as _is_json, rid as _rid
+from .access import BindingBody, active_user_ids, keep_an_admin, _active_bindings_sql, _binding_dict, _ensure_user_row, _group_members, _scope_exists, rendered_labels, _subject_name, _terminate, affected_users, assigns_anywhere, check_delegation, full_authority, delegated_group_problem, insert_binding, revoke_one, touch_group, user_known, validate_binding
 
 router = APIRouter()
 
@@ -82,11 +79,6 @@ async def _capped_body(request: Request) -> bytes:
         if len(data) > BULK_MAX_BYTES:
             raise ApiError(413, "payload_too_large", f"הבקשה גדולה מ־{BULK_MAX_BYTES // 1024} KB.")
     return bytes(data)
-
-
-def _is_json(content_type: str | None) -> bool:
-    media = (content_type or "").split(";", 1)[0].strip().lower()
-    return media == "application/json" or (media.startswith("application/") and media.endswith("+json"))
 
 
 def _parse(request: Request, raw: bytes, model: type[BaseModel]) -> Any:

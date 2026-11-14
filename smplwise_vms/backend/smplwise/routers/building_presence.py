@@ -24,16 +24,13 @@ from ..services import building_presence as bp
 from ..services import building_presence_history as bph
 from ..services import ha_sync
 from ..services import presence_people as people_svc
+from ._common import rid as _rid
 
 router = APIRouter()
 
 
 def _principal(request: Request) -> Principal:
     return resolve_remote_first(request) if is_remote(request) else resolve_principal(request, settings_of(request))
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 class SensorsIn(BaseModel):

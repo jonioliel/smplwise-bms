@@ -37,7 +37,8 @@ from ..rbac import INSTALLATION, Principal, authorize, permissions_anywhere, req
 from ..services import device_bulk as bulk
 from ..services import ha_bridge, ha_client, ha_sync, ma_direct, media_commands, media_groups, media_layout, media_model as mm, media_profiles as profiles, media_query, media_queue, media_store as store, user_prefs
 from ..services import service_identity
-from .devices import _envelope, _is_json, _raw_body
+from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
+from .devices import _envelope
 
 router = APIRouter()
 COMMAND_ID = r"^[A-Za-z0-9-]{8,64}$"
@@ -54,10 +55,6 @@ QUEUE_BODY_MAX = 4096  # a queue edit names at most 25 rows of 24 characters
 
 class _Body(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _parse(request: Request, raw: bytes, body_model: type[BaseModel]) -> Any:

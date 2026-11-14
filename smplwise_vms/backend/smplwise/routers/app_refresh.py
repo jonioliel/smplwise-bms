@@ -38,26 +38,18 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt
 from .. import guarded_route
 from ..audit import audit
 from ..auth import settings_of, touch_user
-from ..db import Database
 from ..errors import ApiError
 from ..rbac import INSTALLATION, authorize, is_system_admin, note_grant
 from ..remote_channel import is_remote
 from ..services import app_refresh as svc
 from ..services import app_session as xs
 from ..services import ha_user_auth as hua
+from ._common import db_of as _db, rid as _rid
 from .presence import Caller, session_caller
 
 router = APIRouter()
 
 CONFIGURE = "system.configure"
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
-
-
-def _db(request: Request) -> Database:
-    return request.app.state.db
 
 
 def _not_found() -> ApiError:

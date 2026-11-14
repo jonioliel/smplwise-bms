@@ -27,15 +27,12 @@ from ..errors import ApiError, forbidden
 from ..rbac import Principal
 from ..services import home_family as hf
 from ..services import home_interface as hi
+from ._common import rid as _rid
 
 router = APIRouter()
 TICKET_ID = r"^[A-Za-z0-9_\-]{1,64}$"
 SCHEDULE_ID = r"^[A-Za-z0-9_.:\-]{1,64}$"
 RID = Field(min_length=8, max_length=64, pattern=r"^[A-Za-z0-9_\-]{8,64}$")
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _module(conn: sqlite3.Connection, principal: Principal, module: str) -> None:

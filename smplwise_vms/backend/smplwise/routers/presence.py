@@ -20,7 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..audit import audit
 from ..auth import resolve_principal, resolve_remote_first, settings_of, touch_user
-from ..db import Database, get_setting
+from ..db import get_setting
 from ..errors import ApiError, forbidden, not_found
 from ..rbac import INSTALLATION, Principal, authorize, note_grant, permissions_anywhere, require
 from ..remote_channel import is_remote
@@ -29,6 +29,7 @@ from ..services import presence as svc
 from ..services import presence_people as people_svc
 from ..services import ha_user_auth as hua
 from ..services.ha_user_auth import bearer_of
+from ._common import db_of as _db, rid as _rid
 
 router = APIRouter()
 
@@ -37,14 +38,6 @@ VIEW = "presence.sensors.view"
 PEOPLE_VIEW = people_svc.VIEW  # WHOIN034-295: "who is in the building" (sensitive, system_admin by default)
 CONFIGURE = "system.configure"
 REGISTER_NEEDS_SIGN_IN_HE = "רישום המכשיר דורש כניסה מלאה באפליקציה."
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
-
-
-def _db(request: Request) -> Database:
-    return request.app.state.db
 
 
 @dataclass

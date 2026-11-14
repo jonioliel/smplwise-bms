@@ -46,7 +46,8 @@ from ..rbac import INSTALLATION, Principal, authorize
 from ..services import camera_cards
 from ..services import devices as svc
 from ..services import ha_scope
-from .devices import READ, _configure_holder, _configure_holder_ro, _is_json, _raw_body, _visible_entities
+from ._common import is_json as _is_json, raw_body as _raw_body
+from .devices import READ, _configure_holder, _configure_holder_ro, _visible_entities
 
 router = APIRouter()
 log = logging.getLogger("smplwise.device_layouts")

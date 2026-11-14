@@ -33,6 +33,7 @@ from ..rbac import INSTALLATION, Principal, authorize, require
 from ..recorder_scope import PRIMARY, next_id, settings_for, valid_id
 from ..services import autosync, connection_store, events_ingest, nvr, nvr_write_switch, recorder_live
 from ..services.recorders import registry
+from ._common import rid as _rid
 from . import nvr_connection as nc
 
 router = APIRouter()
@@ -55,10 +56,6 @@ class PatchIn(BaseModel):
     enabled: bool | None = None
     sort_order: int | None = Field(default=None, ge=0, le=10_000)
     time_zone: str | None = Field(default=None, max_length=64)  # "" = back to the installation's zone
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _may_read(conn: sqlite3.Connection, principal: Principal) -> None:

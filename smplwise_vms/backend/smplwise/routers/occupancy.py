@@ -18,6 +18,7 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..services import zone_counts as zc
+from ._common import rid as _rid
 
 router = APIRouter()
 
@@ -28,10 +29,6 @@ UTC = dt.timezone.utc
 def now_utc() -> dt.datetime:
     """The clock of these routes (tests replace it)."""
     return dt.datetime.now(UTC)
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 class _Body(BaseModel):

@@ -21,7 +21,7 @@ from ..auth import get_conn
 from ..rbac import Principal
 from ..services import wiskey_installer as wi
 from ..services import wiskey_installer_technical as wt
-from .access_control import _raw_body
+from ._common import raw_body as _raw_body
 from .wiskey_installer_common import Write, WriteBody, installer_gate, installer_reader, phrase_for_station, read, station_for_write, station_or_404
 
 router = APIRouter()

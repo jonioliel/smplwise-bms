@@ -32,6 +32,7 @@ from ..rbac import INSTALLATION, Principal, require
 from ..remote_channel import channel_of
 from ..services import cast_sessions as cs
 from ..services import media_store as store
+from ._common import rid as _rid
 
 router = APIRouter()
 SID = r"^[0-9a-f]{32}$"
@@ -61,10 +62,6 @@ class SwitchBody(_Body):
 class TestBody(_Body):
     target_key: str = KEY
     camera_id: str = Field(min_length=1, max_length=64)
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _configure(conn: sqlite3.Connection, principal: Principal) -> None:

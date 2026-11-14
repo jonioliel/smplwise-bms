@@ -35,13 +35,10 @@ from ..services.notices import push as npush
 from ..services.transit import model as transit_model
 from ..db import get_setting
 from ..services.notices.model import PERM_BOARDS, PERM_DELETE, PERM_MANAGE, PERM_PUSH, PERM_VIEW, Invalid
+from ._common import rid as _rid
 
 ID = r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
 OFF_HE = "לוח ההודעות כבוי בהגדרות המערכת."
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _invalid(exc: Invalid) -> ApiError:

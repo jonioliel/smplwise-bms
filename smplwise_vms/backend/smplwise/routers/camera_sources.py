@@ -27,17 +27,14 @@ from ..auth import current_principal, get_conn, read_gate, settings_of
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..services import camera_sources as svc
-from .nvr_connection import _parse, _raw_body
+from ._common import raw_body as _raw_body, rid as _rid
+from .nvr_connection import _parse
 
 router = APIRouter()
 PERMISSION = svc.PERMISSION
 URL_MAX = 2048
 
 _admin_ro = read_gate(lambda conn, principal: require(conn, principal, PERMISSION, INSTALLATION))
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 class SourceIn(BaseModel):

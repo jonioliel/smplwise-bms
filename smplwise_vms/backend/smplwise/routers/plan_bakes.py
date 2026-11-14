@@ -18,6 +18,7 @@ from ..errors import ApiError, not_found
 from ..rbac import Principal, require
 from ..services import plan_anchor_scope as anchor_scope
 from ..services import plan_bakes as pb
+from ._common import rid as _rid
 from .catalog import get_floor
 
 router = APIRouter()
@@ -26,10 +27,6 @@ P_EDIT = "map.edit"
 _STATUS = {"payload_too_large": 413, "unsupported_format": 415, "too_many_pixels": 413, "corrupt_image": 422, "corrupt_mask": 422, "image_metadata": 422,
            "bad_size": 422, "bad_slot": 422, "bad_meta": 422, "validation": 422, "busy": 503, "storage_full": 507, "geometry_changed": 409,
            "job_closed": 409, "job_claimed": 409, "incomplete": 409, "not_found": 404}
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _raise(exc: pb.BakeError) -> None:

@@ -15,13 +15,10 @@ from ..db import Database, database_of, unlocked
 from ..errors import ApiError, not_found
 from ..rbac import INSTALLATION, Principal, require
 from ..services import push as svc
+from ._common import rid as _rid
 
 router = APIRouter()
 HHMM = r"^([01][0-9]|2[0-3]):[0-5][0-9]$"
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 class Keys(BaseModel):

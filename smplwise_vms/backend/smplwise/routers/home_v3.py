@@ -26,13 +26,10 @@ from ..db import now_iso
 from ..rbac import INSTALLATION, Principal, require
 from ..services import home_interface as hi
 from ..services import home_v3
+from ._common import rid as _rid
 
 router = APIRouter()
 ADMIN = "rbac.assign"
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _room(room_key: str) -> str:

@@ -34,13 +34,10 @@ from ..db import set_setting
 from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, is_system_admin, require
 from ..services import capture_lease as cl
+from ._common import rid as _rid
 
 router = APIRouter()
 CONFIGURE = "system.configure"
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def view(conn: sqlite3.Connection) -> dict[str, Any]:

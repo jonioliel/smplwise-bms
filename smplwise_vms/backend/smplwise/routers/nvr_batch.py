@@ -29,7 +29,8 @@ from ..mode import ensure_nvr
 from ..rbac import INSTALLATION, Principal, require
 from ..remote_channel import is_remote
 from ..services import nvr_batch, nvr_encoding_batch, nvr_verify
-from .nvr_write import _raw_body, json_body
+from ._common import raw_body as _raw_body, rid as _rid
+from .nvr_write import json_body
 
 router = APIRouter()
 PERMISSION = nvr_batch.WRITE_PERMISSION
@@ -70,10 +71,6 @@ ENC_CREATE_OPENAPI: dict[str, Any] = {"requestBody": {"required": True, "content
                                       "changes": {"type": "object", "minProperties": 1, "description": "exactly the preview's `changes` for this stream"}}}}}}}}}}
 CONFIRM_BODY_OPENAPI: dict[str, Any] = {"requestBody": {"required": True, "content": {"application/json": {"schema": {
     "type": "object", "required": ["confirm"], "properties": {"confirm": {"type": "boolean", "enum": [True]}}}}}}}
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _gate_ro(principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> Principal:

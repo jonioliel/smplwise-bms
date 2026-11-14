@@ -29,6 +29,7 @@ from ..errors import ApiError
 from ..rbac import Principal
 from ..services import intercom_adapter as adapter
 from ..services import intercom_authority as ia
+from ._common import rid as _rid
 
 router = APIRouter()
 
@@ -36,10 +37,6 @@ MAX_ID = ia.MAX_ID
 ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"  # station / person / event ids as WisKey makes them (no control, no slash)
 IMAGE_HEADERS = {"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"}
 CODE_PATTERN = r"^[a-z0-9][a-z0-9_./:-]{0,63}$"
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _gate(permission: str):

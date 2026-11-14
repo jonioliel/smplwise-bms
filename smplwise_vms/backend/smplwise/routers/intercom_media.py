@@ -49,6 +49,7 @@ from ..services import intercom_media as im
 from ..services import intercom_sync
 from ..services.leases import CameraLease
 from ..services.wiskey_listen_adapter import ReceiveDownlink
+from ._common import raw_body as _raw_body, rid as _rid
 from . import media
 from .settings import read_settings
 
@@ -60,10 +61,6 @@ CALL = ia.CALL
 LIVE = "video.live"
 MAX_STATION_ID = 128
 MAX_TEXT = 512
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _gate(permission: str):
@@ -334,10 +331,6 @@ def _sanitize_frame(text: str) -> str | None:
 class TalkStart(BaseModel):
     model_config = ConfigDict(extra="forbid")
     client_request_id: str | None = Field(default=None, min_length=8, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
-
-
-async def _raw_body(request: Request) -> bytes:
-    return await request.body()
 
 
 def _end_row(conn: sqlite3.Connection, principal: Any, t: im.TalkSession) -> None:

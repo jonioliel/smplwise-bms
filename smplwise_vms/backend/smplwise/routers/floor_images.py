@@ -15,15 +15,12 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..errors import ApiError, not_found
 from ..rbac import Principal, require
 from ..services import floor_images as fi
+from ._common import rid as _rid
 from .catalog import get_floor
 
 router = APIRouter()
 
 _STATUS = {"payload_too_large": 413, "unsupported_format": 415, "too_many_pixels": 413, "too_small": 422, "corrupt_image": 422, "bad_variant": 422, "validation": 422}
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _raise(exc: fi.FloorImageError) -> None:

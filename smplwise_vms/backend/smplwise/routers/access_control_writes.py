@@ -31,21 +31,8 @@ from ..errors import ApiError
 from ..services import intercom_authority as ia
 from ..services import intercom_client, intercom_sync
 from ..services import intercom_writes as iw
-from .access_control import (
-    IDENTIFIER,
-    PERSON,
-    CommandEnvelope,
-    _Action,
-    _envelope,
-    _no_control,
-    _parse,
-    _perform,
-    _person_summary,
-    _raw_body,
-    gated,
-    people_send,
-    people_writer,
-)
+from ._common import raw_body as _raw_body
+from .access_control import IDENTIFIER, PERSON, CommandEnvelope, _Action, _envelope, _no_control, _parse, _perform, _person_summary, gated, people_send, people_writer
 
 router = APIRouter()
 

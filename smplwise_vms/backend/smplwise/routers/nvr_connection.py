@@ -32,6 +32,7 @@ from ..rbac import INSTALLATION, Principal, require
 from ..recorder_scope import PRIMARY, settings_for
 from ..services import addon_restart, connection_probe, connection_store, update_runs
 from ..services.recorders import registry
+from ._common import raw_body as _raw_body, rid as _rid
 
 log = logging.getLogger("smplwise.nvr_connection")
 router = APIRouter()
@@ -74,14 +75,6 @@ class RemoveIn(BaseModel):
 class RestartIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     confirm: bool
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
-
-
-async def _raw_body(request: Request) -> bytes:
-    return await request.body()
 
 
 def _parse(request: Request, raw: bytes, model: type[BaseModel]) -> Any:

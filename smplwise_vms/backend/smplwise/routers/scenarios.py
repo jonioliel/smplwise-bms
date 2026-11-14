@@ -33,6 +33,7 @@ from ..rbac import INSTALLATION, Principal, require
 from ..services import scenario_settings as cfg
 from ..services import scenario_signals as sig
 from ..services import scenarios as svc
+from ._common import rid as _rid
 
 router = APIRouter()
 _ID_PATTERN = r"^[A-Za-z0-9_\-]+$"
@@ -77,10 +78,6 @@ class ReassignBody(_Body):
 class SettingsBody(_Body):
     changes: dict[str, Any]
     confirmed: Any = None
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _gate(conn: sqlite3.Connection, principal: Principal, permission: str) -> None:

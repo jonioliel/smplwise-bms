@@ -25,6 +25,7 @@ from ..auth import current_principal, get_conn, settings_of
 from ..db import get_setting, now_iso, set_setting, unlocked
 from ..errors import ApiError, not_found
 from ..rbac import INSTALLATION, Principal, require
+from ._common import rid as _rid
 
 router = APIRouter()
 
@@ -161,10 +162,6 @@ def _write_stamps(conn: sqlite3.Connection, stamps: dict[str, str | None]) -> No
 
 def _answer(conn: sqlite3.Connection) -> dict[str, Any]:
     return {"images": stored_stamps(get_setting(conn, STAMPS_KEY, "{}"))}
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 @router.post("/settings/background/{slot}", status_code=201)

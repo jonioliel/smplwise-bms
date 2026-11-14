@@ -29,15 +29,12 @@ from ..errors import ApiError, forbidden
 from ..rbac import Principal, is_system_admin
 from ..services import intercom_authority as ia
 from ..services import wiskey_live_validation as lv
+from ._common import db_of as _db, rid as _rid
 
 router = APIRouter()
 RUN_ID = r"^lv_[0-9a-f]{32}$"
 STATION_ID = r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
 REMOTE_SOURCES = ("remote", "local")  # the remote channel (an Arx session or an Arx-only identity): no physical action from there
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _gate(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> ia.Authority:
@@ -59,10 +56,6 @@ def _error(exc: lv.ValidationError) -> ApiError:
     text = {"run_in_progress": "בדיקה אחרת רצה כרגע. המתינו לסיומה.", "no_stations": "אין עמדות לבדיקה.", "not_found": "הבדיקה לא נמצאה.",
             "witness_not_expected": "אין פתיחת דלת שממתינה לאישור עד.", "invalid_verdict": "תשובת העד אינה תקינה."}.get(exc.code, exc.text or exc.code)
     return ApiError(exc.status, exc.code, text)
-
-
-def _db(request: Request) -> Any:
-    return request.app.state.db
 
 
 # ---------------------------------------------------------------- the page

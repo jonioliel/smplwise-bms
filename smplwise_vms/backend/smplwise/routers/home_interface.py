@@ -29,12 +29,9 @@ from ..services import door_authority, intercom_doors
 from ..services import ha_scope
 from ..services import home_interface as hi
 from ..services import switch_protection
+from ._common import rid as _rid
 
 router = APIRouter()
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 @router.get("/home/interface")

@@ -23,7 +23,7 @@ from ..errors import ApiError
 from ..rbac import Principal
 from ..services import wiskey_installer as wi
 from ..services import wiskey_installer_platform as wp
-from .access_control import _raw_body
+from ._common import raw_body as _raw_body
 from .wiskey_installer_common import Write, WriteBody, installer_gate, installer_reader, read
 
 router = APIRouter()

@@ -31,6 +31,7 @@ from ..rbac import INSTALLATION, Principal, authorize, require
 from ..remote_channel import CSRF_REQUIRED, csrf_reason, is_remote
 from ..services import self_update as svc
 from ..services import update_runs
+from ._common import is_json as _is_json, rid as _rid
 
 router = APIRouter(prefix="/system/update")
 
@@ -40,10 +41,6 @@ PERMISSION = "system.update"
 class SettingsIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     interval_hours: Literal[0, 1, 3, 6, 12, 24]
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 @router.get("/state")
@@ -127,11 +124,6 @@ class RestartIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     confirm: StrictBool
     idempotency_key: str = Field(pattern=KEY_PATTERN)
-
-
-def _is_json(content_type: str | None) -> bool:
-    media = (content_type or "").split(";", 1)[0].strip().lower()
-    return media == "application/json" or (media.startswith("application/") and media.endswith("+json"))
 
 
 def _refused(conn: sqlite3.Connection, principal: Principal, request: Request, action: str, resource_id: str, exc: ApiError) -> ApiError:

@@ -20,19 +20,15 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Request, Response
 
-from ..db import Database
 from ..errors import not_found
 from ..services import brand_assets as ba
+from ._common import db_of as _db
 from .brand import _image, _variant
 from .presence import Caller, any_caller
 
 router = APIRouter()
 
 CACHE = "private, no-cache"  # revalidate every time (a cheap 304); the stamp in the ETag says whether the image changed
-
-
-def _db(request: Request) -> Database:
-    return request.app.state.db
 
 
 def _logos(conn: sqlite3.Connection) -> dict[str, dict[str, Any] | None]:

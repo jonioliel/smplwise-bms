@@ -29,15 +29,12 @@ from ..services import access_external as ax
 from ..services import access_grants as ag
 from ..services import compliance_export as ce
 from ..services import intercom_authority as ia
+from ._common import rid as _rid
 
 router = APIRouter()
 _BASE = "/compliance/access"
 ID = r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$"
 ACTION = "compliance.access_matrix.export"
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 class SettingsIn(BaseModel):

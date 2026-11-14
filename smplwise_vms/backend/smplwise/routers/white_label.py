@@ -28,6 +28,7 @@ from ..errors import ApiError, not_found, validation
 from ..rbac import INSTALLATION, Principal, require
 from ..services import brand_assets as ba
 from ..services import white_label as wl
+from ._common import rid as _rid
 from .brand import IMMUTABLE, WARNING_TEXT, _image, _variant
 
 router = APIRouter()
@@ -35,10 +36,6 @@ router = APIRouter()
 _STAMPED = re.compile(r"^([0-9a-f]{16})\.(png|svg)$")
 _FIELD_KEY = {"enabled": wl.K_ENABLED, "name": wl.K_NAME, "contact": wl.K_CONTACT, "accent": wl.K_ACCENT}
 _FIELD_TEXT = {"enabled": "מתג המיתוג", "name": "שם המתקין", "contact": "שורת יצירת קשר", "accent": "צבע הדגשה"}
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 @router.get("/brand/white-label")

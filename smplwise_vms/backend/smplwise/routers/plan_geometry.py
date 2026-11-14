@@ -27,6 +27,7 @@ from ..services import plan_geometry as pg
 from ..services import plan_geometry_render as render
 from ..services.access import floor_reach, require_floor_read
 from ..services.timeutil import parse_utc
+from ._common import rid as _rid
 from .catalog import get_floor
 from .plans import get_version, version_row
 from .zones import floor_zones
@@ -60,10 +61,6 @@ def _layers(raw: str | None) -> set[str] | None:
     if unknown:
         raise ApiError(422, "validation", "שכבות לא מוכרות בייצוא.", details={"unknown": unknown, "layers": list(render.LAYERS)})
     return chosen or None
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _floor(v: sqlite3.Row) -> tuple[str, str]:

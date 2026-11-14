@@ -59,7 +59,8 @@ from ..services import intercom_adapter as ad
 from ..services import intercom_authority as ia
 from ..services import intercom_sync
 from ..services import wiskey_schedule_writes as sw
-from .access_control import CommandEnvelope, _envelope, _parse, _raw_body
+from ._common import raw_body as _raw_body
+from .access_control import CommandEnvelope, _envelope, _parse
 
 log = logging.getLogger("smplwise.intercom")
 router = APIRouter()

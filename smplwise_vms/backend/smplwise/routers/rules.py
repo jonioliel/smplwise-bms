@@ -15,13 +15,10 @@ from ..errors import ApiError, conflict, not_found
 from ..rbac import INSTALLATION, Principal, require
 from ..services import rules as svc
 from ..services.access import require_camera, row_scope
+from ._common import rid as _rid
 from .settings import read_settings
 
 router = APIRouter()
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 class Trigger(BaseModel):

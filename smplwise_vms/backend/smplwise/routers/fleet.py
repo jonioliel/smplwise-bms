@@ -25,6 +25,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, is_system_admin, require
 from ..services import demo_mode, fleet_keys
 from ..services import fleet_report as fr
+from ._common import rid as _rid
 
 router = APIRouter()
 BASE = "/fleet/report"
@@ -39,10 +40,6 @@ _TEXT = {
     "silent_after_out_of_range": "מספר השעות מחוץ לטווח המותר.",
     "demo_active": "מצב הדגמה פעיל. הדוח נשלח רק מהנתונים האמיתיים של ההתקנה.",
 }
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 class SwitchIn(BaseModel):

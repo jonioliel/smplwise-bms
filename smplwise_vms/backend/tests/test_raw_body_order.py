@@ -15,7 +15,7 @@ from smplwise import auth
 from smplwise import db as db_mod
 from smplwise.routers import access_control, alarm, devices, schedules
 
-BODY_READERS = {"_raw_body", "_credentials_body", "_capped_body"}
+BODY_READERS = {"raw_body", "_raw_body", "_credentials_body", "_capped_body"}  # raw_body: routers/_common.py (CR-ROUTER-COMMON)
 SKIPPED_MODULES: set[str] = set()  # every router with a body reader is covered, schedules included
 
 

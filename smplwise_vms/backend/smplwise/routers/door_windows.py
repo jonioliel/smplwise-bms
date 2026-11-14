@@ -36,6 +36,7 @@ from ..services import door_windows as dw
 from ..services import door_windows_engine as dwe
 from ..services import door_windows_watch as dww
 from ..services import special_days
+from ._common import rid as _rid
 
 router = APIRouter()
 
@@ -47,10 +48,6 @@ UTC = dt.timezone.utc
 def now_utc() -> dt.datetime:
     """The clock of these routes (tests replace it)."""
     return dt.datetime.now(UTC)
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _dev(request: Request) -> bool:

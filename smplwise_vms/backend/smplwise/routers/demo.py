@@ -23,16 +23,9 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, authorize, require
 from ..remote_channel import channel_of
 from ..services import demo_mode as svc
+from ._common import db_of as _db, rid as _rid
 
 router = APIRouter()
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
-
-
-def _db(request: Request):
-    return request.app.state.db
 
 
 class StartBody(BaseModel):

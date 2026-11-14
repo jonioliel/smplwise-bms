@@ -29,6 +29,7 @@ from ..services import schedule_ops as ops
 from ..services import schedule_view as view
 from ..services import schedules as store
 from ..services import service_identity
+from ._common import is_json as _is_json, raw_body as _raw_body, rid as _rid
 
 router = APIRouter()
 
@@ -140,15 +141,6 @@ class OrgBody(_Body):
 
 # ---------------------------------------------------------------- plumbing
 
-def _is_json(content_type: str | None) -> bool:
-    media = (content_type or "").split(";", 1)[0].strip().lower()
-    return media == "application/json" or (media.startswith("application/") and media.endswith("+json"))
-
-
-async def _raw_body(request: Request) -> bytes:
-    return await request.body()
-
-
 def _parse(request: Request, raw: bytes, body_model: type[BaseModel], secret_fields: tuple[str, ...] = ()) -> tuple[Any, dict[str, Any]]:
     """(validated body, {secret field: value}). A secret (the alarm code) is taken out BEFORE validation."""
     if not _is_json(request.headers.get("content-type")):
@@ -175,10 +167,6 @@ def _code_ok(value: Any) -> Any:
     if not isinstance(value, str) or len(value) > 32:
         raise ApiError(403, "wrong_code", "קוד שגוי.")
     return value
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _bind(request: Request) -> None:
