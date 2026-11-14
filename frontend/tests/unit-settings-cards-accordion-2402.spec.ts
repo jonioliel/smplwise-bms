@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ACCESS_LAYOUT_DEFAULT, ACCESS_LAYOUTS, areaSummary, isCardsLayout, parseAccessLayout, pickOpenCard, toggleCard } from '../src/access-control/settings-cards-logic';
 import { enSettingsCardsText, heSettingsCardsText } from '../src/i18n/settings-cards';
+import { SETTINGS_ROUTER, SETTINGS_STORE } from './backend-settings-source';
 
 // SETTINGS-CARDS-ACCORDION-2402 (owner 04.11 night, round 20 Q2 = a): `access.settings_layout` = accordion - the cards of Settings ›
 // "מתגי מסכי כניסה" opened in place, one at a time, on a desktop too. Node only:
@@ -55,7 +56,6 @@ test('the list component: in place it never takes the wide arrangement (and so n
 });
 
 test('the server takes the same four values', () => {
-  const py = fs.readFileSync(path.join(HERE, '..', '..', 'smplwise_vms', 'backend', 'smplwise', 'routers', 'settings.py'), 'utf8');
-  expect(py).toContain('pattern="^(cards|accordion|tabs|list)$", alias="access.settings_layout"');
-  expect(py).toContain('"access.settings_layout": "cards",');
+  expect(SETTINGS_ROUTER).toContain('pattern="^(cards|accordion|tabs|list)$", alias="access.settings_layout"');
+  expect(SETTINGS_STORE).toContain('"access.settings_layout": "cards",');
 });

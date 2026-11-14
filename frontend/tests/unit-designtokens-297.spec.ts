@@ -33,6 +33,7 @@ import {
   statusTokens,
   validateSkinTable,
 } from '../src/design/semantic';
+import { SETTINGS_ROUTER, SETTINGS_STORE } from './backend-settings-source';
 
 // DESIGNTOKENS-297 (version 2.25.0 foundations): the semantic contract of the design-variables layer (design/semantic.ts), the skin
 // registry as data (design/skins/define.ts: stage + pixel / bevel features, defineSkin) and the reduced-motion block generated from the
@@ -166,17 +167,17 @@ test('defineSkin refuses data that breaks the contract, naming the problem', () 
   bad({ rules: ':host(sw-card) { }'.repeat(51) }, /rules: 51 blocks > 50/);
 });
 
-test('the backend accepts exactly the registry ids and freezes exactly the frozen ones (routers/settings.py)', () => {
-  const py = readFileSync(resolve(here, '../../smplwise_vms/backend/smplwise/routers/settings.py'), 'utf8');
-  const pattern = /pattern="\^\(([a-z|]+)\)\$", alias="ui\.skin"/.exec(py);
+test('the backend accepts exactly the registry ids and freezes exactly the frozen ones (routers/settings.py + services/settings_store.py)', () => {
+  // CR-WAVE1-COMBINED-2436: PATCH's pattern stays in the router; stored_skin and the frozen set moved to the settings store (CR-SETTINGS-STORE-2436)
+  const pattern = /pattern="\^\(([a-z|]+)\)\$", alias="ui\.skin"/.exec(SETTINGS_ROUTER);
   expect(pattern, 'ui.skin pattern').toBeTruthy();
   expect(pattern![1].split('|')).toEqual([...SKIN_IDS]);
-  const stored = /return raw if raw in \(([^)]*)\) else DEFAULTS\["ui\.skin"\]/.exec(py);
+  const stored = /return raw if raw in \(([^)]*)\) else DEFAULTS\["ui\.skin"\]/.exec(SETTINGS_STORE);
   expect(stored, 'stored_skin tuple').toBeTruthy();
   expect(stored![1].split(',').map((s) => s.trim().replace(/"/g, '')).filter(Boolean)).toEqual([...SKIN_IDS]);
-  const frozen = /^FROZEN_SKINS = \(([^)]*)\)/m.exec(py);
+  const frozen = /^FROZEN_SKINS = \(([^)]*)\)/m.exec(SETTINGS_STORE);
   expect(frozen![1].split(',').map((s) => s.trim().replace(/"/g, '')).filter(Boolean)).toEqual([...FROZEN_SKINS]);
-  expect(/^FROZEN_FALLBACK_SKIN = "([a-z]+)"/m.exec(py)![1]).toBe(FROZEN_FALLBACK_SKIN);
+  expect(/^FROZEN_FALLBACK_SKIN = "([a-z]+)"/m.exec(SETTINGS_STORE)![1]).toBe(FROZEN_FALLBACK_SKIN);
 });
 
 test('break-ui: the skin picker wraps a long name / note inside its card and keeps the "current" mark whole', () => {

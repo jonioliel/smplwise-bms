@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { mediaOptions } from '../src/access-control/parity-logic';
 import { STATION_MEDIA_KEY, STATION_MEDIA_MODES, parseMediaMode } from '../src/api/station-media';
 import { PARITY_HE } from '../src/i18n/access-parity';
+import { SETTINGS_ROUTER, SETTINGS_STORE } from './backend-settings-source';
 
 // WXMEDSET (owner 2026-10-13): the Settings row for `access.station_media` (off / video / video + talk) in the existing display card of
 // Settings > "מתגי מסכי כניסה". Plain node: the choices, their words in both languages, the agreement with the server's pattern, and the
@@ -48,11 +49,10 @@ test.describe('WXMEDSET: the live video and talk row', () => {
   test('the key and the values are the server\'s: the three values are exactly what PATCH /settings accepts', () => {
     expect(STATION_MEDIA_KEY).toBe('access.station_media');
     expect([...STATION_MEDIA_MODES]).toEqual(['off', 'video', 'video_talk']);
-    const server = read('../../smplwise_vms/backend/smplwise/routers/settings.py');
-    const pattern = /access_station_media: str \| None = Field\(default=None, pattern="\^\(([a-z_|]+)\)\$", alias="access\.station_media"\)/.exec(server);
+    const pattern = /access_station_media: str \| None = Field\(default=None, pattern="\^\(([a-z_|]+)\)\$", alias="access\.station_media"\)/.exec(SETTINGS_ROUTER);
     expect(pattern, 'the server declares the setting with a pattern').not.toBeNull();
     expect(pattern![1].split('|')).toEqual([...STATION_MEDIA_MODES]);
-    expect(server).toMatch(/"access\.station_media": "off"/); // default off
+    expect(SETTINGS_STORE).toMatch(/"access\.station_media": "off"/); // default off
   });
 
   test('an unreadable value is "off": the stations screen keeps the still and the classic panel', () => {

@@ -9,6 +9,8 @@
  ],
  "backend": {
   "test_adoptr6_295.py": "package walk: only the join and its module call the resolve read",
+  "test_async_routes_hold_no_write_conn.py": "router registry: no async route depends on the write connection (CR-UPLOAD-SYNC-2436)",
+  "test_async_routes_no_inline_db.py": "package walk: no async route body opens db.connection (CR-BE-GATES-2436)",
   "test_automation_blueprints_80.py": "app.routes: no door automation-block route exists",
   "test_body_limit.py": "router registry: every body-limit rule names a real route",
   "test_bustimes_295.py": "package walk: the screens path never imports the HTTP client",
@@ -19,6 +21,8 @@
   "test_f3c_g03_295.py": "every router module: only the switch writer writes an ACR5 / peer setting",
   "test_fake_doorwin_closed_rule_sr1.py": "SR-1 AST pin of every door-opening and program-write site (missed by the 2.39.0 gates)",
   "test_gate_always_run.py": "the completeness guard of this list",
+  "test_get_routes_read_conn.py": "router registry: every GET on the write connection is on the allow-list (CR-READCONN-A-2436)",
+  "test_local_auth_inventory.py": "app.routes: the routes public on the local channel are exactly the reviewed set (CR-BE-GATES-2436)",
   "test_no_ip_literals.py": "git ls-files: no IP literal in any tracked file",
   "test_plan_routes_unique.py": "router registry: no method + path is declared twice",
   "test_pwclean_295.py": "package walk: no module names a historical person-write command",
