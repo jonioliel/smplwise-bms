@@ -33,8 +33,9 @@ Verdict files read on the runner at 08:52 UTC and again before the UI build:
 | Commit | What |
 |---|---|
 | 1321a9c37 | release: 2.43.6 - version, changelog and API inventory (1908 routes, unchanged: no branch adds a route) |
-| (next) | docs (this document) |
-| (next) | release: 2.43.6 - rebuilt UI (`npm run build:addon` on the runner) |
+| 4e78bfeae | docs (this document) |
+| c54fdbc6a | release: 2.43.6 - rebuilt UI (`npm run build:addon` on the runner at 4e78bfeae; ~100 min waiting for the runner lock behind an entry check) |
+| (next) | docs: the receipts below completed; the full release gate runs on that head |
 
 `management/tasks.json` and `test_catalog.json` are not changed; no view regenerated.
 
@@ -52,8 +53,11 @@ Local: workstation, main checkout `.venv` Python 3.12, Node 24.21.0; `frontend/n
 |---|---|---|
 | `npx tsc --noEmit` | 2688513a9 | exit 0 |
 | `scripts/api_inventory.py` | 1321a9c37 | 1908 routes (header only changed) |
+| backend: `test_backend_safety_2435`, `test_map3d_r28_settings_2433`, `test_backup`, `test_backup_drill`, `test_backup_offbox`, `test_backup_sensitive`, `test_rbac_matrix`, `test_video_services_2431` (`-p no:xdist`) | 1321a9c37 | **108 passed** (exit 0) |
+| UI build on the runner (`npm run build:addon`) | 4e78bfeae | DONE rc=0; the licence notice is in the bundle |
+| `scripts/release_check.py` | c54fdbc6a | one version 2.43.6; no new migration; only `[FAIL] git tag v2.43.6 not yet`; RESULT: ready |
 
-Further receipts (focused backend tests, release check, UI build) are recorded in the release report.
+The full release gate's verdict is recorded in the release report, not here (this document is part of the gated head).
 
 ## 5. Version commit (`1321a9c37`)
 
