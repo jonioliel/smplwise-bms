@@ -60,8 +60,11 @@ export class CalEventDrawer extends LitElement {
     .sugg button { font: inherit; min-block-size: 30px; padding-inline: 12px; border-radius: var(--sw-r-pill); background: var(--sw-accent-soft); color: var(--sw-accent-text); border: 0;
       font-weight: var(--sw-fw-bold); font-size: var(--sw-fs-sm); cursor: pointer; }
     .col { display: flex; flex-direction: column; gap: 6px; min-inline-size: 0; }
-    .fld.top { align-items: start; }
-    .fld.top > .lbl, .fld.top > label { padding-block-start: 10px; }
+    /* DIALOG-DRAWER-ONE-2439 (owner round 33, Q-DES-8B): the labels sit ABOVE the fields, as in every drawer and dialog (they were a
+       96 px column beside them) */
+    .fld { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+    .fld > label, .fld > .lbl { font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
+    .fld > span:empty { display: none; }
     .note sw-icon { flex: none; color: var(--sw-accent-text); margin-block-start: 2px; }
     .note.warn sw-icon { color: var(--sw-warning-text); }
     .note.bad sw-icon { color: var(--sw-danger-text); }

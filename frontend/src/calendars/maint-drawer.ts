@@ -30,6 +30,9 @@ export class CalMaintDrawer extends LitElement {
     /* AUDIT30-F3 (#11, owner Q9 option A assumed): the shared modal drawer (scrim, focus trap, Escape, focus return, one header and action row) */
     :host { display: contents; }
     /* DIALOG-DRAWER-ONE-2439 (Q-DES-8B): on a phone the drawer rises to the full screen, like every drawer (was an 88 % sheet) */
+    /* DIALOG-DRAWER-ONE-2439 (owner round 33, Q-DES-8B): the labels sit above the fields, as in every drawer and dialog */
+    .fld { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+    .fld > label, .fld > .lbl { font-size: var(--sw-fs-sm); color: var(--sw-text-2); }
     .content { display: flex; flex-direction: column; gap: 12px; min-inline-size: 0; }
     .ctls { display: flex; gap: 8px; min-inline-size: 0; }
     .ctls > .inp { inline-size: auto; flex: 1 1 0; padding-inline: 10px; }
