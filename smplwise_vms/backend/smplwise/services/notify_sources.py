@@ -55,6 +55,7 @@ BACKUP_STALE_S = 2 * 86400
 # ---------------------------------------------------------------- signals from threads that hold no transaction
 
 _SIGNALS: "queue.Queue[notify.Signal]" = queue.Queue(maxsize=1000)
+_WAKE: Any = object()  # BACKEND-SAFETY-2435: put by `Monitor.shutdown` so the blocked `get` returns at once; never written
 
 
 def submit(signal: "notify.Signal") -> bool:
@@ -71,10 +72,21 @@ def _take(limit: int) -> list["notify.Signal"]:
     items: list[notify.Signal] = []
     while len(items) < limit:
         try:
-            items.append(_SIGNALS.get_nowait())
+            item = _SIGNALS.get_nowait()
         except queue.Empty:
             break
+        if item is not _WAKE:
+            items.append(item)
     return items
+
+
+def _drop_wake() -> None:
+    """Remove a wake-up item the thread did not consume (it was busy in a pass when shutdown came)."""
+    with _SIGNALS.mutex:
+        kept = [i for i in _SIGNALS.queue if i is not _WAKE]
+        if len(kept) != len(_SIGNALS.queue):
+            _SIGNALS.queue.clear()
+            _SIGNALS.queue.extend(kept)
 
 
 def _write_batch(db: Database, items: list["notify.Signal"]) -> int:
@@ -146,8 +158,15 @@ class Monitor:
     def shutdown(self, timeout: float = 3.0) -> None:
         self.stop_evt.set()
         t = self.thread
+        if t is not None and t.is_alive():
+            try:  # BACKEND-SAFETY-2435: wake the blocked `get` instead of waiting up to a second for its timeout
+                _SIGNALS.put_nowait(_WAKE)
+            except queue.Full:
+                pass  # a full queue wakes the thread by itself
         if t is not None and t is not threading.current_thread():
             t.join(timeout=timeout)
+            if not t.is_alive():
+                _drop_wake()
 
     def _loop(self) -> None:
         assert self.db is not None and self.settings is not None
@@ -156,6 +175,8 @@ class Monitor:
             try:
                 first = _SIGNALS.get(timeout=max(0.05, min(1.0, next_tick - time.monotonic())))
             except queue.Empty:
+                first = None
+            if first is _WAKE:
                 first = None
             if self.stop_evt.is_set():
                 return

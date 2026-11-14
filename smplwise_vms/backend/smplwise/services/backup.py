@@ -21,6 +21,7 @@ from .. import __version__
 from ..config import Settings
 from ..db import Database, bump_permission_revision, get_setting, set_setting
 from . import backup_sensitive as sens
+from . import safe_paths
 
 log = logging.getLogger("smplwise.backup")
 
@@ -580,7 +581,8 @@ def _unsafe_rows(settings: Settings, data: dict[str, list[dict[str, Any]]]) -> d
     """Re-review 2a: drop, in place, archive rows that could steer a file path - a floor whose id is not a plain id
     (db.ID_RE; the id names `skins/<floor id>/`), every row of another table pointing at such a floor, and a
     `plan_skin*` row whose `path` does not confine to the skins root. Skipped, counted and logged (count only); the
-    rest of the restore goes on. Returns {table: rows skipped}."""
+    rest of the restore goes on. A `case_items.file_path` or `sites` / `buildings` `image_path` of a shape the product never
+    writes (services/safe_paths) is set to NULL instead and counted as `"<table>.<column>"`. Returns {table: rows skipped}."""
     from ..db import ID_RE
     from .skins import store as skins_store
 
@@ -607,6 +609,10 @@ def _unsafe_rows(settings: Settings, data: dict[str, list[dict[str, Any]]]) -> d
             if unsafe:
                 skipped[table] = skipped.get(table, 0) + 1
             else:
+                for (t, c) in safe_paths.RESTORE_SHAPES:  # BACKEND-SAFETY-2435 (P1-06): a stored path the product could not have written
+                    if t == table and not safe_paths.restore_path_ok(settings.data_dir, t, c, r.get(c)):
+                        r[c] = None  # neutralised: the row (a site, a building, a case item) is kept, only its file reference dropped
+                        skipped[f"{t}.{c}"] = skipped.get(f"{t}.{c}", 0) + 1
                 keep.append(r)
         rows[:] = keep
     return skipped

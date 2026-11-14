@@ -115,6 +115,7 @@ def change_detail(r: sqlite3.Row) -> dict[str, Any]:
 
 
 STREAM_KIND = "stream_encoding"
+VERIFY_FAILED = "verify_failed"  # BACKEND-SAFETY-2435: the device accepted the write, the read-back GET failed
 
 
 def list_changes(conn: sqlite3.Connection, limit: int = 50, camera_id: str | None = None,
@@ -180,7 +181,17 @@ def apply_change(settings: Settings, conn: sqlite3.Connection, principal: Any, *
             rec = _record(conn, principal, kind=kind, permission=permission, target=target, path=path, before=before, after=after, status="failed", error=exc.code, note=note, recorder_id=settings.nvr_recorder_id)
             audit(conn, actor=principal, action="nvr.write", decision="denied", resource_type="nvr", resource_id=target, reason=exc.code, request_id=request_id, details={"kind": kind, "path": path, "change_id": rec["id"]})
             raise
-        verify = _get(c, path)
+        try:
+            verify = _get(c, path)
+        except ApiError as exc:
+            # BACKEND-SAFETY-2435 (review 03 F01): the device ACCEPTED the PUT, only the read-back failed. The change is
+            # recorded (status applied, error verify_failed, the document sent as `after`, the previous one kept for the
+            # undo) and audited as unverified; the caller still receives the same error.
+            rec = _record(conn, principal, kind=kind, permission=permission, target=target, path=path, before=before if keep_before else None, after=after,
+                          status="applied", error=VERIFY_FAILED, note=note, recorder_id=settings.nvr_recorder_id)
+            audit(conn, actor=principal, action="nvr.write", decision="allowed", resource_type="nvr", resource_id=target, request_id=request_id,
+                  details={"kind": kind, "path": path, "change_id": rec["id"], "permission": permission, "note": note, "verified": False, "verify_error": exc.code})
+            raise
     finally:
         if own:
             c.close()
@@ -218,7 +229,17 @@ def rollback(settings: Settings, conn: sqlite3.Connection, principal: Any, chang
     c = client or _client(settings)
     try:
         _put(c, orig["path"], orig["before_xml"])
-        verify = _get(c, orig["path"])
+        try:
+            verify = _get(c, orig["path"])
+        except ApiError as exc:
+            # BACKEND-SAFETY-2435 (review 03 F01): the device accepted the old document; only its read-back failed. The undo
+            # is recorded as such (the document sent as `after`) and audited as unverified, then the same error is raised.
+            conn.execute("UPDATE nvr_changes SET status = 'rolled_back' WHERE id = ?", (change_id,))
+            rec = _record(conn, principal, kind=orig["kind"], permission=orig["permission"], target=orig["target"], path=orig["path"], before=orig["after_xml"],
+                          after=orig["before_xml"], status="applied", error=VERIFY_FAILED, rollback_of=change_id, note=f"החזר של {change_id}", recorder_id=rec_id)
+            audit(conn, actor=principal, action="nvr.rollback", decision="allowed", resource_type="nvr", resource_id=orig["target"], request_id=request_id,
+                  details={"kind": orig["kind"], "path": orig["path"], "change_id": rec["id"], "rollback_of": change_id, "verified": False, "verify_error": exc.code})
+            raise
     finally:
         if own:
             c.close()
