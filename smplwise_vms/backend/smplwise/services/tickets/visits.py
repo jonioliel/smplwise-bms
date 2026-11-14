@@ -17,7 +17,7 @@ The arrival - three signals, in order of trust (section 3.2):
     "reported" until staff confirm) and staff may cancel it (`visits.staff_can_undo_claim`, default on, audited);
   - staff mark it (`POST /tickets/{id}/visits/{vid}/arrived`, a manager of the ticket or its internal assignee): `staff`;
   - a door opened with the technician's grant credential (when external grants go live): `door` - `record_door_arrival()` is the
-    entry point; nothing calls it in this build (GO_LIVE_PERMITTED is false).
+    entry point; nothing calls it yet (no door-event caller is wired to it).
 No position, no GPS, no camera match - the owner's standing rule; the time is the server's.
 
 The detector (`tick`, a throttled step of the tickets janitor, every 5 minutes): a planned visit whose `planned_to + grace` has passed

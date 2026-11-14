@@ -46,6 +46,7 @@ from typing import Any, Protocol
 from ..db import get_setting
 from . import wiskey_peer as wp
 
+# O9 a (owner decision 14.11.2026): True, and kept as the owner's kill switch - setting it to False stops the feature in code.
 GO_LIVE_PERMITTED = True  # ECCACT-295: owner decision 2026-10-21 (option A); the live registry read is still not built (not_built)
 PIN_KEY = "wiskey.peer_pin"
 PROPOSED_COMMAND = "hikvision_intercom/peer_bindings/get"  # Arx PROPOSAL, not on the wire, not advertised by WisKey

@@ -21,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..audit import audit
 from ..auth import current_principal_ro, get_read_conn
 from ..errors import ApiError
-from ..rbac import INSTALLATION, Principal, is_system_admin, require
+from ..rbac import Principal, require_system_admin
 from ..services import wiskey_switches as ws
 
 router = APIRouter()
@@ -30,7 +30,7 @@ _TEXT = {
     "validation": "הבקשה אינה תקינה.",
     "unknown_switch": "מתג לא מוכר.",
     "permit_not_writable": "אישור הפעלה אינו הגדרה ואי אפשר לשנות אותו מכאן.",
-    "wiskey_not_permitted": "גרסה זו אינה כוללת אישור הפעלה לקריאה הזו.",
+    "wiskey_not_permitted": "אישור ההפעלה של בעל המערכת לקריאה הזו אינו פעיל כעת.",
     "auto_install_not_permitted": "אי אפשר להפעיל עדיין את ההתקנה האוטומטית של רכיב בקרת הכניסה: בדיקת התאימות של סביבת ההתקנה "
                                   "עדיין אינה יכולה לעבור, ובדיקת המעבדה המבודדת טרם הושלמה. המתג נשאר כבוי.",
 }
@@ -46,11 +46,8 @@ class SwitchesIn(BaseModel):
 
 
 def _admin_or_403(conn: sqlite3.Connection, principal: Principal, request: Request, action: str, keys: int) -> None:
-    require(conn, principal, "system.configure", INSTALLATION)
-    if not is_system_admin(conn, principal.user_id):
-        audit(conn, actor=principal, action=action, decision="denied", resource_type="installation", resource_id="wiskey.switches",
-              reason="not_system_admin", request_id=_rid(request), details={"keys": keys})
-        raise ApiError(403, "not_system_admin", "רק מנהל מערכת יכול לשנות הגדרה זו." if action == "settings.changed" else "רק מנהל מערכת יכול לצפות בהגדרה זו.")
+    require_system_admin(conn, principal, action=action, request_id=_rid(request), resource_id="wiskey.switches", details={"keys": keys},
+                         text="רק מנהל מערכת יכול לשנות הגדרה זו." if action == "settings.changed" else "רק מנהל מערכת יכול לצפות בהגדרה זו.")
 
 
 @router.get(BASE)

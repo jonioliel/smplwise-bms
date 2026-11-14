@@ -14,7 +14,8 @@ OPERATOR - a principal type of its own:
 Safe by default: a block starts as a draft and does nothing until a person arms it (confirmation, the permission and the door
 rule on every door, loop protection); an edit, a change of the automation, an expired arming, the armer losing the right or a
 storm disarms it; the kill switch (`doors.automation_kill`) stops every block; a simulation evaluates every gate and sends
-nothing. Everything is OFF in this build: `doors.automation_open` cannot be `on` while GO_LIVE_PERMITTED is False. The live sender
+nothing. OFF by default: `doors.automation_open` defaults to `off`, and cannot be `on` while GO_LIVE_PERMITTED is False (True since
+DOORLIVE-2310, kept as the owner's kill switch, O9 a). The live sender
 is WisKey's Native `door_automations` feature (WISKEY-OWNER26-297, services/wiskey_auto_door.py). Tests install a fake sender (`SENDER`).
 
 Every fire attempt writes the two rows a human opening writes (`intercom.release`: the attempt committed before sending, then
@@ -42,12 +43,13 @@ from . import door_authority, intercom_doors, intercom_sync, trusted_caller
 
 log = logging.getLogger("smplwise.door_automation")
 
-# The owner's SEPARATE go-live permit, enforced in code (the capture-lease / external-grants pattern): while False the feature
+# The owner's SEPARATE go-live permit, enforced in code (the capture-lease / external-grants pattern): when False the feature
 # switch cannot be turned on and the live sender refuses. Flipped only by the commit that carries the owner's written permit
 # AND a reviewed live sender - never by a setting, an environment variable or a version.
 # DOORLIVE-2310 (owner decision 2026-10-30, item 6): door_automation is in scope and the permit is in the regular release. The administrator switch
 # `doors.automation_open` stays OFF by default (and `doors.automation_kill` stops every block); the live sender is WisKey's Native `door_automations`
 # feature over the SELECTED direct connection only (services/wiskey_auto_door.py): without a selected connection nothing is sent.
+# O9 a (owner decision 14.11.2026): True, and kept as the owner's kill switch - setting it to False stops the feature in code.
 GO_LIVE_PERMITTED = True
 
 AUTOMATE = "access.doors.automate"
@@ -110,7 +112,7 @@ class DoorSender(Protocol):
 class LiveSender:
     """WISKEY-OWNER26-297 (W-018): the live transport is WisKey's Native `door_automations` feature with the original automation actor
     (services/wiskey_auto_door.py). `db` None (or no selected direct connection) sends nothing (`not_sent`). Reached only when the go-live
-    permit is in the build and the administrator switch is on (`_switch_reason`); GO_LIVE_PERMITTED stays False in this build."""
+    permit is True (since DOORLIVE-2310; the owner's kill switch, O9 a) and the administrator switch is on (`_switch_reason`)."""
 
     def __init__(self, db: Database | None = None) -> None:
         from .wiskey_auto_door import NativeDoorSender

@@ -309,25 +309,61 @@ def _demo_refuses(conn: sqlite3.Connection, permission: str) -> bool:
     return blocked_permission(permission)
 
 
+class Evaluator:
+    """CR-ADMIN-GATE-2438 (code review 02:P1-5): authorize() for MANY targets of one principal. The principal's active flag and
+    bindings are read once and each role's permissions once; the scope chain is still resolved per target. The decision rule is
+    authorize()'s own - authorize() is a one-shot Evaluator - so the two can never drift apart.
+
+    Lifetime: one loop inside one request. It must not outlive a write to bindings, group memberships, roles or the user's active
+    flag (build a new one after such a write, as keep_an_admin counts again after its block)."""
+
+    def __init__(self, conn: sqlite3.Connection, principal: Principal):
+        self.conn = conn
+        self.principal = principal
+        self._inactive: bool | None = None
+        self._bindings: list[sqlite3.Row] | None = None
+        self._perms: dict[str, frozenset[str]] = {}
+
+    def _role(self, role_id: str) -> frozenset[str]:
+        perms = self._perms.get(role_id)
+        if perms is None:
+            perms = self._perms[role_id] = frozenset(role_permissions(self.conn, role_id))
+        return perms
+
+    def _user_inactive(self) -> bool:
+        """The system-wide rule (services/active_users, owner decision O16 a): disabled on EITHER side - `users.active = 0` or
+        `ha_users.is_active = 0` - refuses (`user_inactive`). No row on a side is not disabled there, so a local (Arx-only) identity,
+        which has no `ha_users` row, and a principal on its first request are judged by their bindings as before."""
+        if self._inactive is None:
+            from .services.active_users import is_disabled
+
+            self._inactive = is_disabled(self.conn, self.principal.user_id)
+        return self._inactive
+
+    def authorize(self, permission: str, target: tuple[str, str]) -> Decision:
+        if local_factor_gate(self.principal, permission):
+            return Decision(False, "second_factor_required")
+        if _demo_refuses(self.conn, permission):
+            return Decision(False, "demo_mode")
+        if self._user_inactive():
+            return Decision(False, "user_inactive")
+        chain = set(scope_chain(self.conn, *target))
+        if self._bindings is None:
+            self._bindings = _active_bindings(self.conn, self.principal)
+        matched: Decision | None = None
+        for b in self._bindings:
+            if (b["scope_type"], b["scope_id"]) not in chain:
+                continue
+            if permission not in self._role(b["role_id"]):
+                continue
+            if b["effect"] == "deny":
+                return Decision(False, "explicit_deny", b["id"], b["role_id"], (b["scope_type"], b["scope_id"]))
+            matched = matched or Decision(True, "binding", b["id"], b["role_id"], (b["scope_type"], b["scope_id"]))
+        return matched or Decision(False, "no_binding")
+
+
 def authorize(conn: sqlite3.Connection, principal: Principal, permission: str, target: tuple[str, str]) -> Decision:
-    if local_factor_gate(principal, permission):
-        return Decision(False, "second_factor_required")
-    if _demo_refuses(conn, permission):
-        return Decision(False, "demo_mode")
-    user = conn.execute("SELECT active FROM users WHERE id = ?", (principal.user_id,)).fetchone()
-    if user is not None and not user["active"]:
-        return Decision(False, "user_inactive")
-    chain = set(scope_chain(conn, *target))
-    matched: Decision | None = None
-    for b in _active_bindings(conn, principal):
-        if (b["scope_type"], b["scope_id"]) not in chain:
-            continue
-        if permission not in role_permissions(conn, b["role_id"]):
-            continue
-        if b["effect"] == "deny":
-            return Decision(False, "explicit_deny", b["id"], b["role_id"], (b["scope_type"], b["scope_id"]))
-        matched = matched or Decision(True, "binding", b["id"], b["role_id"], (b["scope_type"], b["scope_id"]))
-    return matched or Decision(False, "no_binding")
+    return Evaluator(conn, principal).authorize(permission, target)
 
 
 def require(conn: sqlite3.Connection, principal: Principal, permission: str, target: tuple[str, str]) -> Decision:
@@ -456,8 +492,9 @@ def permissions_fingerprint(conn: sqlite3.Connection, principal: Principal) -> s
     /me and the navigation when /me/ws or /me?known= says it moved)."""
     import hashlib
 
-    user = conn.execute("SELECT active FROM users WHERE id = ?", (principal.user_id,)).fetchone()
-    parts = [f"active={1 if user is None or user['active'] else 0}"]
+    from .services.active_users import is_disabled
+
+    parts = [f"active={0 if is_disabled(conn, principal.user_id) else 1}"]  # moves when either side disables the user
     for b in sorted(_active_bindings(conn, principal), key=lambda r: r["id"]):
         parts.append("|".join((b["id"], b["role_id"], ",".join(sorted(role_permissions(conn, b["role_id"]))), b["scope_type"], b["scope_id"], b["effect"], b["expires_at"] or "")))
     return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()[:16]
@@ -470,9 +507,11 @@ def has_any_binding(conn: sqlite3.Connection, principal: Principal) -> bool:
 def is_system_admin(conn: sqlite3.Connection, user_id: str) -> bool:
     """Is this user an administrator of the installation: an active (not revoked, not expired) `system_admin` allow-binding
     at the installation scope - direct or through a group, resolved exactly like authorize() - and no installation-wide
-    deny of that role. The same notion the wizard's "system administrators" count and the directory sync use; a Home
-    Assistant admin flag alone never makes anyone one (it is information only). Callers check the active flag themselves.
-    USR2: never true for a local (Arx-only) identity."""
+    deny of that role. It answers "is THIS user a system administrator" (the administrator-only routes, require_system_admin;
+    the directory sync). It is NOT the installation's administrator COUNT: that is admin_count below (lead decision L5), which the
+    last-administrator guard and the setup wizard use. A Home Assistant admin flag alone never makes anyone one (it is information
+    only). Callers check the active flag themselves (require_system_admin does, through require()). USR2: never true for a local
+    (Arx-only) identity."""
     if str(user_id or "").startswith(LOCAL_ID_PREFIX):
         return False
     admin = False
@@ -483,3 +522,79 @@ def is_system_admin(conn: sqlite3.Connection, user_id: str) -> bool:
             return False
         admin = True
     return admin
+
+
+def require_system_admin(conn: sqlite3.Connection, principal: Principal, *, action: str, text: str, request_id: str | None = None,
+                         resource_type: str = "installation", resource_id: str = "*", details: dict | None = None,
+                         configure_checked: bool = False) -> None:
+    """CR-ADMIN-GATE-2438 (code review 02:P2-1): the ONE system-administrator gate of the administrator-only routes.
+
+    1. require("system.configure") at the installation - the inactive user, an explicit deny, demo mode and the local
+       second-factor rule, audited by require() itself (skipped when the caller already ran it: `configure_checked`);
+    2. is_system_admin - otherwise one audited refusal (`action`, reason `not_system_admin`, the caller's resource and details)
+       and 403 `not_system_admin` with the caller's own Hebrew `text`.
+    Each call site passes exactly the values it wrote by hand before, so its audit rows and texts are unchanged."""
+    if not configure_checked:
+        require(conn, principal, "system.configure", INSTALLATION)
+    if is_system_admin(conn, principal.user_id):
+        return
+    from .audit import audit
+    from .errors import ApiError
+
+    extra = {} if details is None else {"details": details}
+    audit(conn, actor=principal, action=action, decision="denied", resource_type=resource_type, resource_id=resource_id,
+          reason="not_system_admin", request_id=request_id, **extra)
+    raise ApiError(403, "not_system_admin", text)
+
+
+ADMIN_PERMISSION = "rbac.roles.manage"
+
+
+def admin_count(conn: sqlite3.Connection) -> int:
+    """CR-ADMIN-GATE-2438 (code review 02:P2-9, lead decision L5): the ONE "administrator count" of the installation - the active
+    users for whom `rbac.roles.manage` is allowed at the installation, exactly as authorize() decides it (allow and deny, direct
+    and through groups, expiry, revocation, demo mode, the local second-factor rule; security review T082 M3). Used by the
+    last-administrator guard (routers/access.keep_an_admin, routers/ha_users) and the setup wizard.
+
+    Code review 02:P1-5 (router side): the bindings, the group memberships and the users are read ONCE (three statements plus the
+    role table) and every user is decided in memory, instead of one authorize() - four to eleven statements - per active user.
+    Never cached across calls: keep_an_admin counts again after its writes."""
+    if _demo_refuses(conn, ADMIN_PERMISSION):
+        return 0
+    now = now_iso()
+    rows = conn.execute(
+        """SELECT subject_kind, subject_id, role_id, effect FROM bindings
+           WHERE revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?) AND scope_type = 'installation' AND scope_id = '*'""",
+        (now,)).fetchall()
+    holds = {r["role_id"]: ADMIN_PERMISSION in role_permissions(conn, r["role_id"]) for r in rows}
+    rows = [r for r in rows if holds[r["role_id"]]]
+    if not rows:
+        return 0
+    members: dict[str, set[str]] = {}
+    for m in conn.execute("SELECT group_id, user_id FROM group_members").fetchall():
+        members.setdefault(m["user_id"], set()).add(m["group_id"])
+    ha_off = {r[0] for r in conn.execute("SELECT id FROM ha_users WHERE is_active = 0").fetchall()}  # authorize's rule (services/active_users)
+    n = 0
+    for u in conn.execute("SELECT id, source FROM users WHERE active = 1").fetchall():
+        uid = u["id"]
+        if uid in ha_off:
+            continue
+        if u["source"] == "local":  # USR2: never without the second factor, and a count has no session (local_factor_gate)
+            continue
+        local = str(uid or "").startswith(LOCAL_ID_PREFIX)
+        groups = members.get(uid, set())
+        allowed = False
+        for b in rows:
+            if b["subject_kind"] == "user":
+                if b["subject_id"] != uid:
+                    continue
+            elif b["subject_kind"] != "group" or b["subject_id"] not in groups or local:
+                continue
+            if local and b["role_id"] == "system_admin":
+                continue
+            if b["effect"] == "deny":
+                allowed = False
+                break
+            allowed = True
+        n += 1 if allowed else 0
+    return n

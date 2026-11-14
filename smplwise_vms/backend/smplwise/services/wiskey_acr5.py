@@ -59,6 +59,7 @@ from .wiskey_access_state import (  # noqa: F401 - re-exported: WKV2-295 moved t
     schedule_ok,
 )
 
+# O9 a (owner decision 14.11.2026): True, and kept as the owner's kill switch - setting it to False stops the feature in code.
 GO_LIVE_PERMITTED = True  # ECCACT-295: owner decision 2026-10-21 (option A); each wiskey.acr5_* switch still defaults OFF and gates its read (G-01)
 FLAGS = {
     "acr5_01": "wiskey.acr5_access_state",

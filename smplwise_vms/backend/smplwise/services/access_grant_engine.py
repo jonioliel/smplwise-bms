@@ -6,8 +6,8 @@ WisKey is the access engine (credentials, door map, validity, timing); Arx decid
 
 `WiskeyServiceEngine` is the live implementation over the existing S11 people writes (the SERVICE channel, the config lane of
 `intercom_sync.SYNC.action`: sent once, never queued, never retried). It refuses every call while the owner's separate go-live
-permit is not in the build (`access_grants.GO_LIVE_PERMITTED`, a code constant that is False) - so in this build no grant ever
-reaches a real WisKey, whatever the settings say. It was written against the shipped S11 shapes and has NOT been run against a
+permit (`access_grants.GO_LIVE_PERMITTED`, a code constant) is False - then no grant ever reaches a real WisKey, whatever the settings
+say. The permit has been True since 2026-10-21 (ECCACT-295) and is kept as the owner's kill switch, owner decision O9 a of 14.11.2026; the feature switch stays off by default. It was written against the shipped S11 shapes and has NOT been run against a
 WisKey (NOT_RUN; the W-a..W-e questions of the CR section 9 are open).
 
 Error kinds (`EngineError.kind`): `not_found`, `revision_conflict`, `pin_conflict`, `not_sent` (nothing reached WisKey - safe to

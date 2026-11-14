@@ -212,9 +212,12 @@ def _drift_fact(label: str, check: dict[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------- step 1: install (local)
 
 def _system_admins(conn: sqlite3.Connection) -> int:
-    return conn.execute(
-        """SELECT COUNT(*) FROM bindings WHERE role_id = 'system_admin' AND scope_type = 'installation' AND effect = 'allow'
-           AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)""", (now_iso(),)).fetchone()[0]
+    """The installation's administrator count - CR-ADMIN-GATE-2438 (code review 02:P2-9, lead decision L5): the one definition,
+    rbac.admin_count (active users allowed rbac.roles.manage at the installation). It used to count system_admin allow-binding ROWS,
+    so a deny, an inactive user, a group binding or two rows for one person all gave a wrong number."""
+    from ..rbac import admin_count
+
+    return admin_count(conn)
 
 
 def install_step(settings: Settings, conn: sqlite3.Connection, identity_source: str, *, deep: bool = False) -> dict[str, Any]:

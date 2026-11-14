@@ -2,8 +2,9 @@
 
 Every route reads on the request's READ connection (`current_principal_ro`) and the service writes in its own short transactions,
 so no WisKey call ever runs while the write lock is held. Authority is decided in services/access_grants.py (rbac.authorize over the
-access-control station chain, deny-overrides); refusals are audited there. Nothing here can turn the feature on in this build:
-`access.external_grants` = `on` is refused while the owner's go-live permit (access_grants.GO_LIVE_PERMITTED) is not in the code.
+access-control station chain, deny-overrides); refusals are audited there. `access.external_grants` = `on` is refused only while the
+owner's go-live permit (access_grants.GO_LIVE_PERMITTED) is False. It has been True since the owner's decision of 2026-10-21 (ECCACT-295)
+and is kept as the owner's kill switch, owner decision O9 a of 14.11.2026: the switch itself stays off until a system administrator turns it on.
 
 - GET    /access-grants                         live grants the caller may see (names level; delivery state at the sensitive level)
 - GET    /access-grants/{id}
@@ -58,7 +59,7 @@ from ..audit import audit
 from ..auth import current_principal_ro, get_read_conn
 from ..db import set_setting
 from ..errors import ApiError, forbidden
-from ..rbac import INSTALLATION, Principal, authorize, is_system_admin, permissions_anywhere, require
+from ..rbac import INSTALLATION, Principal, authorize, is_system_admin, permissions_anywhere, require, require_system_admin
 from ..services import access_external as ax
 from ..services import access_grants as ag
 from ..services import access_request as ar
@@ -295,11 +296,8 @@ def push_name(request: Request, link_id: str = Path(..., pattern=_ID), principal
 
 @router.get("/access-grants/settings")
 def get_settings(request: Request, principal: Principal = Depends(current_principal_ro), conn: sqlite3.Connection = Depends(get_read_conn)) -> dict[str, Any]:
-    require(conn, principal, "system.configure", INSTALLATION)
-    if not is_system_admin(conn, principal.user_id):
-        audit(conn, actor=principal, action="settings.read", decision="denied", resource_type="installation", resource_id="*", reason="not_system_admin",
-              request_id=_rid(request), details={"keys": list(ag.KEYS)})
-        raise ApiError(403, "not_system_admin", "רק מנהל מערכת יכול לצפות בהגדרה זו.")
+    require_system_admin(conn, principal, action="settings.read", request_id=_rid(request), details={"keys": list(ag.KEYS)},
+                         text="רק מנהל מערכת יכול לצפות בהגדרה זו.")
     return {**ag.settings_view(conn), **ax.settings_view(conn)}
 
 
@@ -309,11 +307,7 @@ def get_readiness(request: Request, principal: Principal = Depends(current_princ
     place and which are missing, in plain Hebrew. Sends nothing to WisKey, WhatsApp or a station; changes nothing."""
     from ..services import access_readiness
 
-    require(conn, principal, "system.configure", INSTALLATION)
-    if not is_system_admin(conn, principal.user_id):
-        audit(conn, actor=principal, action="access.grant.readiness", decision="denied", resource_type="installation", resource_id="*", reason="not_system_admin",
-              request_id=_rid(request))
-        raise ApiError(403, "not_system_admin", "רק מנהל מערכת יכול לצפות בבדיקת המוכנות.")
+    require_system_admin(conn, principal, action="access.grant.readiness", request_id=_rid(request), text="רק מנהל מערכת יכול לצפות בבדיקת המוכנות.")
     return access_readiness.readiness(conn, _db(request))
 
 
@@ -325,15 +319,14 @@ def put_settings(body: SettingsIn, request: Request, principal: Principal = Depe
         changes = {k: v for k, v in body.model_dump().items() if v is not None}
         if not changes:
             raise ApiError(422, "validation", "לא נשלחה הגדרה לשינוי.")
-        if not is_system_admin(conn, principal.user_id):
-            audit(conn, actor=principal, action="settings.changed", decision="denied", resource_type="installation", resource_id="*", reason="not_system_admin",
-                  request_id=_rid(request), details={"keys": sorted(changes)})
-            raise ApiError(403, "not_system_admin", "רק מנהל מערכת יכול לשנות הגדרה זו.")
+        # system.configure was required above, before the empty-body check (that order is kept)
+        require_system_admin(conn, principal, action="settings.changed", request_id=_rid(request), details={"keys": sorted(changes)},
+                             text="רק מנהל מערכת יכול לשנות הגדרה זו.", configure_checked=True)
         for name, key in (("external_grants", ag.FLAG_KEY), ("cards", ag.CARDS_KEY)):
             if changes.get(name) == "on" and not ag.go_live_permitted():
                 audit(conn, actor=principal, action="settings.changed", decision="denied", resource_type="installation", resource_id="*", request_id=_rid(request),
                       reason="access_grants_not_permitted", details={"key": key, "requested": "on"})
-                raise ApiError(409, "access_grants_not_permitted", "הפעלת גישה זמנית לאנשים חיצוניים דורשת אישור הפעלה נפרד מבעל המערכת, וגרסה זו אינה כוללת אותו.")
+                raise ApiError(409, "access_grants_not_permitted", "הפעלת גישה זמנית לאנשים חיצוניים דורשת אישור הפעלה נפרד מבעל המערכת, והאישור הזה אינו פעיל כעת.")
         keys = {"external_grants": ag.FLAG_KEY, "max_days": ag.MAX_DAYS_KEY, "max_doors": ag.MAX_DOORS_KEY, "phone_fresh_days": ag.FRESH_KEY,
                 "code_hour": ag.CODE_HOUR_KEY, "local_approvers": ag.LOCAL_KEY, "cards": ag.CARDS_KEY, "denied_alert": "access.external.denied_alert",
                 "pending_retention_days": ag.PENDING_RETENTION_KEY, "pending_max_per_vendor": ag.PENDING_CAP_KEY}

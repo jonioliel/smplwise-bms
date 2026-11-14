@@ -9,8 +9,8 @@ Rules kept from S11 and from WisKey's own `people_csv` note: Arx RBAC is the onl
 like a missing one; rows are never matched by name, phone or employee number (only an explicit WisKey id updates); `revision`
 binds a row to the record the editor saw; UNKNOWN is never success and is never re-sent; no PIN / card / photo in any file.
 
-Nothing here is live: the switch `access.bulk_people` is `off` by default and every WRITE needs the owner's go-live permit, which is
-not in this build (`GO_LIVE_PERMITTED = False`). Audit rows and logs carry ids, counts, row numbers, field NAMES and codes - never a
+The switch `access.bulk_people` is `off` by default and every WRITE also needs the owner's go-live permit (`GO_LIVE_PERMITTED`:
+True since 2026-10-21, kept as the owner's kill switch, owner decision O9 a of 14.11.2026). Audit rows and logs carry ids, counts, row numbers, field NAMES and codes - never a
 value."""
 from __future__ import annotations
 
@@ -36,9 +36,10 @@ from .bulk_people_engine import BulkEngine, BulkPerson, WiskeyBulkEngine
 
 log = logging.getLogger("smplwise.bulk_people")
 
-# ---------------------------------------------------------------- the switches (both OFF in this build)
+# ---------------------------------------------------------------- the switch (off by default) and the owner's permit (on; a kill switch, O9 a)
 
 FLAG_KEY = "access.bulk_people"  # off | on - a product switch (system administrator); default off
+# O9 a (owner decision 14.11.2026): True, and kept as the owner's kill switch - setting it to False stops the feature in code.
 GO_LIVE_PERMITTED = True  # ECCACT-295: owner decision 2026-10-21 (option A); the switch access.bulk_people stays OFF until an administrator turns it on
 
 
@@ -821,7 +822,7 @@ def apply_batch(db: Any, principal: Principal, job_id: str, eng: BulkEngine, req
         if not go_live_permitted():
             audit(conn, actor=principal, action="access.bulk.apply", decision="denied", resource_type="access_bulk_job", resource_id=job_id,
                   reason="bulk_people_not_permitted", request_id=request_id)
-            raise ApiError(409, "bulk_people_not_permitted", "כתיבה מרוכזת לבקרת הכניסה דורשת אישור הפעלה נפרד מבעל המערכת, וגרסה זו אינה כוללת אותו.")
+            raise ApiError(409, "bulk_people_not_permitted", "כתיבה מרוכזת לבקרת הכניסה דורשת אישור הפעלה נפרד מבעל המערכת, והאישור הזה אינו פעיל כעת.")
         if job["state"] == "done":
             return job_view(job)
         if job.get("confirmed_by") != principal.user_id:
