@@ -105,7 +105,20 @@ export async function promptInstall(): Promise<'accepted' | 'dismissed' | 'unava
   return choice.outcome;
 }
 
-/** Let the waiting worker take over and reload once it controls the page. */
+/** How long "רענון" waits for the new worker to start activating before it reloads the page anyway (applyUpdate). */
+export const UPDATE_STALL_MS = 3000;
+
+/**
+ * Let the waiting worker take over and reload once it controls the page.
+ *
+ * PWA-UPDATE-STALL-2435: Chromium activates a skip-waiting worker by first stopping the old one. A fetch that reaches the old
+ * worker in that moment (the start-up warm-up loads the screens' chunks right after load - exactly when a new release's notice
+ * shows) starts the old worker again, and the activation is dropped: the new worker stays `installed`, no controllerchange comes,
+ * and asking it to skip waiting again does nothing (Chromium acts on the first call only). The runner measured it: 7 of 10 presses
+ * on main 0a8fb55e1 stalled. A reload does finish the update (the old worker has no page left and is replaced at once), so when the
+ * new worker has not even started activating after UPDATE_STALL_MS, the page reloads anyway. A worker that is already activating
+ * is left to finish: its controllerchange reloads the page.
+ */
 export function applyUpdate(): void {
   const waiting = pwa.registration?.waiting;
   if (!waiting) {
@@ -113,12 +126,16 @@ export function applyUpdate(): void {
     return;
   }
   let reloaded = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
+  const reload = () => {
     if (reloaded) return;
     reloaded = true;
     window.location.reload();
-  });
+  };
+  navigator.serviceWorker.addEventListener('controllerchange', reload);
   waiting.postMessage({ type: 'arx-skip-waiting' });
+  window.setTimeout(() => {
+    if (waiting.state === 'installed') reload();
+  }, UPDATE_STALL_MS);
 }
 
 function watchUpdates(reg: ServiceWorkerRegistration) {

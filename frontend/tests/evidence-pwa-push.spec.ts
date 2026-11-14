@@ -156,9 +156,9 @@ test.describe('PWA shell (CR-008 P3)', () => {
       await page.evaluate(async () => (await navigator.serviceWorker.getRegistration())?.update());
       const toast = page.locator('arx-pwa-prompts [data-pwa-update]');
       await expect(toast).toBeVisible({ timeout: 15_000 });
-      // the notice can show a moment before the new worker settles as the registration's waiting worker; a press in that moment
-      // posted the skip-waiting message nowhere and the page never reloaded (3 of 3 runs on main 665ec8f24 locally, the entry check
-      // of AUDIT30-COMBINED-2435): press once the waiting worker is there
+      // press once the new worker is the registration's waiting worker. A press during the start-up warm-up used to leave the page
+      // without a reload (PWA-UPDATE-STALL-2435: a warm-up fetch restarted the old worker in the middle of the activation and Chromium
+      // dropped it); register.ts applyUpdate now reloads anyway when the new worker has not started activating within UPDATE_STALL_MS
       await expect.poll(() => page.evaluate(async () => (await navigator.serviceWorker.getRegistration())?.waiting?.state ?? ''), { timeout: 15_000 }).toBe('installed');
       await Promise.all([page.waitForEvent('load'), toast.locator('sw-button').click()]);
       await expect.poll(shellCaches, { timeout: 15_000 }).toEqual([`${oldName}-next`]);
