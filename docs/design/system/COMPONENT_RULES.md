@@ -1,5 +1,9 @@
 # Component rules: minimum widths, truncation and wrapping per widget class (DESIGNSYS-297, 2026-10-27)
 
+> **Status 2026-11-14: current.** The rules below apply to both rulebooks of `DESIGN.md` (Domus and glass). "All three directions"
+> refers to the 2026-10-27 proposal (`DESIGN_ARX_INFRA_PROPOSAL_2026-10-27.md`); px values quoted from that proposal (KPI 60 px, tree 260 px)
+> give way to the token values in `DESIGN.md` where they differ.
+
 Companion of `DESIGN.md`. These rules apply in all three directions; they are the part of the system that broke last week
 (the elevators widget in a narrow home column: truncated title, a four-line summary, a clipped button, heavy stripes) and the
 part a build must test with worst-case data (`frontend/tests/unit-*.spec.ts` with the datasets of §6). The mockups'

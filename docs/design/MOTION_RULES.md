@@ -1,5 +1,9 @@
 # Motion rules (as implemented, R5 2.27.1 assembly)
 
+> **Status 2026-11-14:** current as a description. Token values are kept in `docs/design/system/DESIGN.md` §7.12; where this file
+> differs (the classic / domus press scale is 0.97 since 2.29.0, not 0.96), that section is right. `DS` below now means
+> `docs/design/system/`.
+
 Status: descriptive. This records what the code and the design-system docs already do; it decides nothing new.
 Where code and docs disagree, see "Open questions". Paths are relative to the repository root.
 `DS` = `private/design-system-2026-10-27/docs/` (private design-system pack: `DESIGN.md`, `TOKENS.md`, `COMPONENT_RULES.md`).

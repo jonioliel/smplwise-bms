@@ -1,5 +1,8 @@
 # Visual contract
 
+> **Status 2026-11-14: superseded** by `docs/design/system/DESIGN.md` (the design rulebook). Kept as the pre-build visual contract of
+> 2026-09; its acceptance rules live on in `AGENTS.md`.
+
 The three unmodified boards under `reference/mockups/` define the visual direction: light surfaces, dark readable text, restrained blue, thin dividers, moderate radii, minimal shadows and generous useful canvas. They are not pixel-perfect specifications or proof of any working feature. Their fictitious labels/data/toggles are not literal requirements.
 
 Shared tokens own spacing, typography, semantic colors, states, z-index, touch targets and elevation. Use Hebrew RTL shell and English/LTR identifiers; map geometry/video never mirror. Main modes: Live, Explore, Investigate, System; Explore is default when plans exist. A normal map screen favors a large canvas and context drawer, not decorative KPI cards. One video preview is opened on request, not one stream per camera pin.
