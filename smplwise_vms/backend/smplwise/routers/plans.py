@@ -20,7 +20,7 @@ from ..db import new_id, now_iso, unlocked
 from ..errors import ApiError, conflict, not_found
 from ..rbac import Principal, require
 from ..services import geometry_store
-from ..services import plan_catalog, plan_dxf, plan_dxf_map, plan_render, plan_stylize, wall_path
+from ..services import plan_catalog, plan_dxf, plan_dxf_map, plan_render, plan_stylize, safe_paths, wall_path
 from .catalog import get_floor
 
 router = APIRouter()
@@ -152,12 +152,27 @@ def _asset_dir(settings: Settings, asset_id: str) -> Path:
     return settings.plans_dir / asset_id
 
 
+def _version_file(settings: Settings, v: sqlite3.Row, column: str) -> Path | None:
+    """CR-PATH-CONFINE-2438 (05:P2-13): a version's stored `image_path` / `stylized_path`, confined to its own plan folder
+    (`plans/<asset id>/`, services/safe_paths.COLUMN_ROOTS). A restored row naming any other folder (a bill, a bake, a ticket
+    photo, a key) is treated as a missing file: never served, copied or deleted."""
+    return safe_paths.column_file(settings.data_dir, "plan_versions", column, v)
+
+
+def _asset_source(settings: Settings, asset: sqlite3.Row) -> Path:
+    """The uploaded original of a plan asset, confined to `plans/<asset id>/` (same rule); 404 when it names anything else."""
+    src = safe_paths.column_file(settings.data_dir, "plan_assets", "storage_path", asset)
+    if src is None:
+        raise not_found("קובץ התוכנית חסר בדיסק.")
+    return src
+
+
 def _page_png(settings: Settings, asset: sqlite3.Row, page: int, max_px: int) -> Path:
     """Rendered page cache: <asset>/page-<n>-<max_px>.png (derived, reproducible from the original)."""
     out = _asset_dir(settings, asset["id"]) / f"page-{page}-{max_px}.png"
     if out.exists():
         return out
-    src = settings.data_dir / asset["storage_path"]
+    src = _asset_source(settings, asset)
     if asset["mime"] == "application/pdf":
         plan_render.render_pdf_page(src, page, out, max_px, settings.render_timeout_s)
     elif asset["mime"] == "image/vnd.dxf":
@@ -311,7 +326,7 @@ def create_version(floor_id: str, body: VersionIn, request: Request, principal: 
         # the drawing's units give the scale for free: metres per unit / pixels per unit at this render, corrected for the crop and the final resize
         opts = plan_dxf.load_options(_asset_dir(settings, asset["id"]))
         with unlocked(conn):
-            probe = plan_dxf.render(settings.data_dir / asset["storage_path"], page_png.with_name("probe.png"), settings.max_render_px, opts.get("layers"), opts.get("units"))
+            probe = plan_dxf.render(_asset_source(settings, asset), page_png.with_name("probe.png"), settings.max_render_px, opts.get("layers"), opts.get("units"))
         page_png.with_name("probe.png").unlink(missing_ok=True)
         if probe.meters_per_px:
             dxf_scale = probe.meters_per_px
@@ -358,8 +373,8 @@ def version_image(version_id: str, request: Request, principal: Principal = Depe
     v = get_version(conn, version_id)
     # Viewers read published and archived versions (the historical map shows old plans); drafts need an editor (ch. 9 / T019).
     _readable(conn, principal, v)
-    path = settings.data_dir / v["image_path"]
-    if not path.exists():
+    path = _version_file(settings, v, "image_path")
+    if path is None or not path.exists():
         raise not_found("תמונת התוכנית חסרה בדיסק.")
     return FileResponse(path, media_type="image/png", headers={"Cache-Control": "private, max-age=86400"})
 
@@ -420,17 +435,18 @@ def rollback_version(version_id: str, body: RollbackIn, request: Request, princi
     previous = _published(conn, v["floor_id"])
     if body.expected_published_id is not None and (previous["id"] if previous else None) != body.expected_published_id:
         raise conflict("stale_published", "בינתיים פורסמה גרסה אחרת; בדוק את ההשוואה שוב.", published_version_id=previous["id"] if previous else None)
-    src = settings.data_dir / v["image_path"]
-    if not src.exists():
+    src = _version_file(settings, v, "image_path")
+    if src is None or not src.exists():
         raise not_found("תמונת התוכנית חסרה בדיסק.")
     now = now_iso()
     restored_id = new_id()
     out = src.with_name(f"version-{restored_id}.png")
     shutil.copyfile(src, out)
     stylized_rel = None
-    if _has_stylized(v) and (settings.data_dir / v["stylized_path"]).exists():
+    stylized_src = _version_file(settings, v, "stylized_path") if _has_stylized(v) else None
+    if stylized_src is not None and stylized_src.exists():
         so = out.with_name(out.stem + ".stylized.png")
-        shutil.copyfile(settings.data_dir / v["stylized_path"], so)
+        shutil.copyfile(stylized_src, so)
         stylized_rel = str(so.relative_to(settings.data_dir).as_posix())
     if previous:
         conn.execute("UPDATE plan_versions SET status = 'archived', archived_at = ?, revision = revision + 1 WHERE id = ?", (now, previous["id"]))
@@ -462,7 +478,9 @@ def delete_version(version_id: str, request: Request, principal: Principal = Dep
         raise conflict("has_anchors", "על הטיוטה מוצבים פריטים.")
     conn.execute("DELETE FROM plan_geometry WHERE plan_version_id = ?", (version_id,))
     conn.execute("DELETE FROM plan_versions WHERE id = ?", (version_id,))
-    (settings.data_dir / v["image_path"]).unlink(missing_ok=True)
+    image = _version_file(settings, v, "image_path")
+    if image is not None:  # a path outside the plan's own folder is never deleted
+        image.unlink(missing_ok=True)
     audit(conn, actor=principal, action="plan.version.delete", decision="allowed", resource_type="floor", resource_id=v["floor_id"], request_id=_rid(request), details={"version_id": version_id})
 
 
@@ -498,8 +516,8 @@ def get_version_api(version_id: str, principal: Principal = Depends(current_prin
 def version_source(version_id: str, request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn)) -> FileResponse:
     v = get_version(conn, version_id)
     _readable(conn, principal, v)
-    path = settings_of(request).data_dir / v["image_path"]
-    if not path.exists():
+    path = _version_file(settings_of(request), v, "image_path")
+    if path is None or not path.exists():
         raise not_found("תמונת התוכנית חסרה בדיסק.")
     return FileResponse(path, media_type="image/png", headers={"Cache-Control": "private, max-age=86400"})
 
@@ -510,8 +528,8 @@ def version_stylized(version_id: str, request: Request, principal: Principal = D
     _readable(conn, principal, v)
     if not _has_stylized(v):
         raise not_found("לגרסה זו אין עדיין תמונה מעובדת.")
-    path = settings_of(request).data_dir / v["stylized_path"]
-    if not path.exists():
+    path = _version_file(settings_of(request), v, "stylized_path")
+    if path is None or not path.exists():
         raise not_found("התמונה המעובדת חסרה בדיסק.")
     return FileResponse(path, media_type="image/png", headers={"Cache-Control": "private, max-age=3600"})
 
@@ -522,8 +540,8 @@ def stylize_version(version_id: str, body: StylizeIn, request: Request, principa
     settings = settings_of(request)
     v = get_version(conn, version_id)
     require(conn, principal, "map.import", ("floor", v["floor_id"]))
-    src = settings.data_dir / v["image_path"]
-    if not src.exists():
+    src = _version_file(settings, v, "image_path")
+    if src is None or not src.exists():
         raise not_found("תמונת התוכנית חסרה בדיסק.")
     out = src.with_name(src.stem + ".stylized.png")
     try:
@@ -600,7 +618,7 @@ def dxf_set_options(asset_id: str, body: DxfOptions, request: Request, principal
     units = body.units
     if units is not None and units not in plan_dxf.METERS and units != "unitless":
         raise ApiError(422, "unknown_units", "יחידה לא מוכרת.", details={"choices": sorted(plan_dxf.METERS)})
-    src = settings.data_dir / asset["storage_path"]
+    src = _asset_source(settings, asset)
     for cached in folder.glob("page-1-*.png"):
         cached.unlink(missing_ok=True)
     try:
@@ -655,7 +673,7 @@ def dxf_entities(asset_id: str, request: Request, principal: Principal = Depends
     catalog = plan_dxf_map.load_catalog(conn)
     try:
         with unlocked(conn):
-            summary = _in_pool(request, plan_dxf_map.entities_summary, settings.data_dir / asset["storage_path"], opts.get("layers"), _dxf_units(opts), catalog)
+            summary = _in_pool(request, plan_dxf_map.entities_summary, _asset_source(settings, asset), opts.get("layers"), _dxf_units(opts), catalog)
     except plan_dxf.DxfError as exc:
         raise ApiError(422, exc.code, "קובץ ה־DXF לא ניתן לקריאה.", details=exc.details)
     except ApiError:
@@ -718,7 +736,7 @@ def import_dxf_geometry(version_id: str, body: DxfImportIn, request: Request, pr
     catalog = plan_dxf_map.load_catalog(conn)
     try:
         with unlocked(conn):
-            result = _in_pool(request, plan_dxf_map.import_geometry, settings.data_dir / asset["storage_path"], render_layers=opts.get("layers"), layer_map=dict(body.layer_map),
+            result = _in_pool(request, plan_dxf_map.import_geometry, _asset_source(settings, asset), render_layers=opts.get("layers"), layer_map=dict(body.layer_map),
                               block_map=dict(body.block_map), units=units, rotation=int(v["rotation"]), crop=json.loads(v["crop_json"]) if v["crop_json"] else None,
                               level_id=level_id, run_id=new_id()[:6], catalog=catalog, scale_m_per_px=v["scale_m_per_px"], ceiling_m=ceiling_m)
     except ApiError as exc:

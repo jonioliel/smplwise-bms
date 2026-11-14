@@ -16,6 +16,7 @@ import threading
 from dataclasses import dataclass
 from pathlib import Path
 
+from .. import safe_paths
 from ..tickets import cost_files, image_intake
 
 DIR = "maintenance"
@@ -107,9 +108,8 @@ def store(data_dir: Path, task_id: str, data: bytes) -> Stored:
 def path_of(data_dir: Path, rel: str) -> Path:
     if not isinstance(rel, str) or not _REL.fullmatch(rel):
         raise ValueError("bad maintenance file path")
-    base = root(data_dir).resolve()
-    p = (base / rel).resolve()
-    if base not in p.parents:
+    p = safe_paths.inside(root(data_dir), root(data_dir) / rel)  # CR-PATH-CONFINE-2438: the one rule of services/safe_paths
+    if p is None:
         raise ValueError("maintenance file path outside its folder")
     return p
 

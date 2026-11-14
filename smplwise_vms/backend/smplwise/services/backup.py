@@ -572,6 +572,10 @@ def _insert_rows(conn: sqlite3.Connection, table: str, rows: list[dict[str, Any]
     return n
 
 
+# CR-PATH-CONFINE-2438 (code review 2026-11-13, 05:P3-06): the restored ids that name a folder besides the floors' (`skins/<floor
+# id>/`): `cases/<case id>/`, `plans/<asset id>/`, `thumbs/frames/<camera id>/`. {table: the column other tables point at it with}.
+FOLDER_ID_TABLES = {"cases": "case_id", "plan_assets": "asset_id", "cameras": "camera_id"}
+
 # Never restored from an archive (CR-006 2a): the skins' control images and render records are rebuilt / kept locally;
 # 2c's export of skins will add them here and must pass _unsafe_rows' path rule.
 NEVER_RESTORED = ("plan_skin_controls", "plan_skin_renders")
@@ -591,16 +595,25 @@ def _unsafe_rows(settings: Settings, data: dict[str, list[dict[str, Any]]]) -> d
         return isinstance(v, str) and ID_RE.fullmatch(v) is not None
 
     bad_floors = {str(r.get("id")) for r in data.get("floors", []) if isinstance(r, dict) and not plain(r.get("id")) and r.get("id") is not None}
+    # CR-PATH-CONFINE-2438 (05:P3-06): the floors' rule for every id that names a folder - such a row is skipped, and so is every
+    # row pointing at one
+    bad_refs = {ref: {str(r.get("id")) for r in data.get(t, []) if isinstance(r, dict) and r.get("id") is not None and not plain(r.get("id"))}
+                for t, ref in FOLDER_ID_TABLES.items()}
     for table, rows in data.items():
         keep: list[dict[str, Any]] = []
         for r in rows:
             fid = r.get("floor_id") if isinstance(r, dict) else None
             unsafe = not isinstance(r, dict) or (table == "floors" and not plain(r.get("id"))) or (fid is not None and (not isinstance(fid, str) or fid in bad_floors))
+            if not unsafe and ((table in FOLDER_ID_TABLES and not plain(r.get("id")))
+                               or any(isinstance(r.get(ref), str) and r[ref] in bad for ref, bad in bad_refs.items())):
+                unsafe = True
             if not unsafe and table in FILE_COLUMNS:  # review F1: a file column outside the restorable set could steer a later read
                 for c in FILE_COLUMNS[table]:
                     v = r.get(c)
                     if v is not None and (not isinstance(v, str) or not restorable(_rel(settings, v))):
                         unsafe = True
+                    elif v is not None and safe_paths.column_file(settings.data_dir, table, c, r) is None:
+                        unsafe = True  # CR-PATH-CONFINE-2438 (05:P2-13): only the column's own folder (safe_paths.COLUMN_ROOTS)
             if not unsafe and table.startswith("plan_skin") and r.get("path") is not None:
                 try:
                     skins_store.confine_stored(settings, r["path"])
@@ -755,8 +768,7 @@ def restore(settings: Settings, conn: sqlite3.Connection, path: Path, mode: str 
                 files_skipped += 1
                 continue
             dest = settings.data_dir / rel
-            base = settings.data_dir.resolve()
-            if base not in dest.resolve().parents:  # re-review 2a: never write outside the data dir, whatever the name
+            if safe_paths.inside(settings.data_dir, dest) is None:  # re-review 2a: never write outside the data dir, whatever the name
                 continue
             dest.parent.mkdir(parents=True, exist_ok=True)
             if rel.startswith(BACKGROUND_ROOT):

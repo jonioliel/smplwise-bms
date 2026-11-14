@@ -31,6 +31,7 @@ from ..services import energy_notify as enotify
 from ..services import energy_periods as per
 from ..services import energy_pricing as px
 from ..services import energy_tou as tou
+from ..services import safe_paths
 from ..services.energy_billing_provider import get_provider
 from ..services.energy_consumption import meter_window
 
@@ -1034,9 +1035,12 @@ def bill_pdf(bid: str, request: Request, copy: bool = False, principal: Principa
     watermark = "draft" if bill["state"] == "draft" else ("void" if bill["state"] == "void" else ("copy" if copy else None))
     content: bytes | None = None
     if watermark is None and bill["pdf_path"] and bill["pdf_sha256"]:
+        # CR-PATH-CONFINE-2438 (05:P2-13): the stored PDF only from energy/bills/ - a restored row naming another folder is
+        # treated like a missing file (the bill is rendered again from its snapshot)
+        stored_path = safe_paths.column_file(data_dir, "energy_bills", "pdf_path", bill)
         try:
-            stored = (data_dir / bill["pdf_path"]).read_bytes()
-            if hashlib.sha256(stored).hexdigest() == bill["pdf_sha256"]:
+            stored = stored_path.read_bytes() if stored_path is not None else None
+            if stored is not None and hashlib.sha256(stored).hexdigest() == bill["pdf_sha256"]:
                 content = stored
         except OSError:
             content = None
@@ -1054,9 +1058,10 @@ def bill_pdf(bid: str, request: Request, copy: bool = False, principal: Principa
             if exc.code == "pdf_invalid_snapshot" and exc.field:
                 msg = msg[:-1] + f" (שדה: {exc.field})."
             raise ApiError(exc.status, exc.code, msg, retryable=exc.retryable, details={"field": exc.field} if exc.field else None) from None
-        if watermark is None and bill["state"] in eb.ISSUED_STATES and not bill["pdf_path"]:
-            rel = eb.pdf_rel_path(bill)
-            path = data_dir / rel
+        rel = eb.pdf_rel_path(bill) if watermark is None and bill["state"] in eb.ISSUED_STATES and not bill["pdf_path"] else None
+        # CR-PATH-CONFINE-2438 (05:P3-06): the bill id names the file - an id that would leave energy/bills/ stores nothing
+        path = safe_paths.column_file(data_dir, "energy_bills", "pdf_path", {"pdf_path": rel}) if rel else None
+        if rel and path is not None:
             path.parent.mkdir(parents=True, exist_ok=True)
             tmp = path.with_suffix(".tmp")
             tmp.write_bytes(content)

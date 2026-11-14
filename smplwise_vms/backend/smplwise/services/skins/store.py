@@ -31,6 +31,7 @@ from zoneinfo import ZoneInfo
 
 from ...config import Settings
 from ...db import ID_RE, new_id, now_iso
+from .. import safe_paths
 
 STATES = ("all_off", "all_on")
 CONTROL_SIZE = (1536, 1024)  # = provider.OPENAI_SIZES[1]: the answer comes back on the same grid
@@ -83,16 +84,15 @@ def check_floor_id(floor_id: str) -> str:
 def _confine(settings: Settings, candidate: Path) -> Path:
     """The candidate resolved (symlinks and junctions followed, '..' collapsed); SkinStoreError unless it lies strictly
     under the resolved skins root. Every path this module deletes, writes or reads passes through here."""
-    root = skins_root(settings).resolve()
-    resolved = Path(candidate).resolve()
-    if resolved == root or root not in resolved.parents:
+    resolved = safe_paths.inside(skins_root(settings), candidate)  # CR-PATH-CONFINE-2438: the one rule of services/safe_paths
+    if resolved is None:
         raise SkinStoreError("path outside the skins folder")
     return resolved
 
 
 def confine_stored(settings: Settings, rel: str) -> Path:
     """A `path` column (relative to the data dir) confined to the skins root."""
-    if not isinstance(rel, str) or not rel or Path(rel).is_absolute() or "\\" in rel:
+    if not safe_paths.confine(settings.data_dir, rel):  # a plain relative path: no absolute, backslash, drive, NUL, `..`
         raise SkinStoreError("stored path is not a plain relative path")
     return _confine(settings, settings.data_dir / rel)
 

@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from ..config import Settings
+from . import safe_paths
 
 SET_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,39}$")
 PHOTO_RE = re.compile(r"^[0-9a-f]{16}$")
@@ -37,9 +38,8 @@ def root(settings: Settings) -> Path:
 def _set_dir(settings: Settings, set_id: str) -> Path:
     if not isinstance(set_id, str) or not SET_RE.fullmatch(set_id):
         raise PhotoError("frame_source_not_allowed", "תיקיית תמונות לא חוקית.", 403)
-    base = root(settings).resolve()
-    d = (base / set_id).resolve()
-    if d.parent != base:
+    d = safe_paths.inside(root(settings), root(settings) / set_id)  # CR-PATH-CONFINE-2438: the one rule of services/safe_paths
+    if d is None or d.parent != root(settings).resolve():  # a set is a direct child of the root
         raise PhotoError("frame_source_not_allowed", "תיקיית תמונות לא חוקית.", 403)
     return d
 

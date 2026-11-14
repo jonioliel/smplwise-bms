@@ -55,6 +55,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterator
 
 from ...db import ID_RE
+from .. import safe_paths
 from .public_ports import PhotoCounts, StoredImage
 
 KiB = 1024
@@ -542,9 +543,8 @@ class StorePathError(ValueError):
 
 
 def confine(root: Path, candidate: Path) -> Path:
-    base = Path(root).resolve()
-    resolved = Path(candidate).resolve()
-    if resolved == base or base not in resolved.parents:
+    resolved = safe_paths.inside(root, candidate)  # CR-PATH-CONFINE-2438: the one rule of services/safe_paths
+    if resolved is None:
         raise StorePathError("path outside the attachments folder")
     return resolved
 

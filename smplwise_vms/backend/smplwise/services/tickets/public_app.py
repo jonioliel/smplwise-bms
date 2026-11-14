@@ -44,6 +44,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import ClientDisconnect
 
+from .. import safe_paths
 from . import cost_files, image_intake, links
 from .codes import CodeEngine, CodeRefused
 from .cost_files import photo_headers
@@ -525,12 +526,9 @@ def create_public_app(deps: PublicDeps) -> PublicApp:
         m = _ASSET_RE.fullmatch(name)
         if deps.shell_dir is None or m is None:
             return _uniform_404()
-        base = (Path(deps.shell_dir) / "assets").resolve()
-        try:
-            p = (base / name).resolve()
-        except OSError:
-            return _uniform_404()
-        if p.parent != base or not p.is_file():
+        base = Path(deps.shell_dir) / "assets"
+        p = safe_paths.inside(base, base / name)  # CR-PATH-CONFINE-2438: the one rule of services/safe_paths
+        if p is None or p.parent != base.resolve() or not p.is_file():  # an asset is a direct child of the folder
             return _uniform_404()
         cache = "public, max-age=31536000, immutable" if _HASHED_RE.fullmatch(name) else "no-cache"
         return FileResponse(p, media_type=ASSET_TYPES[m.group(1)], headers={"Cache-Control": cache})
