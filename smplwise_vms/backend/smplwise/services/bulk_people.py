@@ -110,8 +110,8 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _iso(at: datetime) -> str:
-    return at.astimezone(timezone.utc).replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
+from .timeutil import iso_utc
+_iso = iso_utc  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def _parse_iso(text: Any) -> datetime | None:

@@ -260,8 +260,8 @@ def set_clock(fn: Callable[[], datetime] | None) -> None:
     _now_fn = fn or _real_now
 
 
-def iso(at: datetime) -> str:
-    return at.astimezone(timezone.utc).strftime(_ISO)
+from .timeutil import iso_utc
+iso = iso_utc  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def parse_iso(text: str | None) -> datetime | None:

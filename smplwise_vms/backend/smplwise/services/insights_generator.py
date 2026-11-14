@@ -8,7 +8,6 @@ the meter's difference is carried next to them (`meter_hours`). Runs shorter tha
 not counted. Read-only against the infrastructure; nothing here sends anything anywhere."""
 from __future__ import annotations
 
-import datetime as dt
 import sqlite3
 from typing import Any
 
@@ -20,8 +19,8 @@ KEEP_DAYS = 400      # a year and a month of history: this month, the same month
 RUNNING_STATES = ("running", "starting", "cooling")
 
 
-def _iso(ts: float) -> str:
-    return dt.datetime.fromtimestamp(ts, dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+from .timeutil import iso_from_epoch
+_iso = iso_from_epoch  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def _ts(value: str) -> float:

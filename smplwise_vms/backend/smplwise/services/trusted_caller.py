@@ -29,9 +29,9 @@ class MessageInvalid(ValueError):
     """The message would be refused at the bridge's schema or time stage: it is never sent. Carries no input text."""
 
 
-def iso(at: datetime) -> str:
-    """UTC, whole seconds, `Z` (the DTO's only time format)."""
-    return at.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+# UTC, whole seconds, `Z` (the DTO's only time format).
+from .timeutil import iso_utc
+iso = iso_utc  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def text_ok(value: Any) -> bool:

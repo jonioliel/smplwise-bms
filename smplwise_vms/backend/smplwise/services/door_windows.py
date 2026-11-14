@@ -152,8 +152,10 @@ def door_key(station_id: str, relay: int) -> str:
 
 
 def installation_zone(conn: sqlite3.Connection) -> str:
-    name = get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem"
-    return name if valid_zone(name) else "Asia/Jerusalem"
+    from .timeutil import DEFAULT_ZONE, site_zone_name  # CR-TIMEUTIL-2436 (04:F15)
+
+    name = site_zone_name(conn)
+    return name if valid_zone(name) else DEFAULT_ZONE
 
 
 def valid_zone(name: Any) -> bool:
@@ -264,8 +266,8 @@ def valid_hm(value: Any, *, end: bool = False) -> bool:
     return isinstance(value, str) and (bool(HM_RE.match(value)) or (end and value == "24:00"))
 
 
-def iso(at: dt.datetime) -> str:
-    return at.astimezone(UTC).replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
+from .timeutil import iso_utc
+iso = iso_utc  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def parse_iso(value: str) -> dt.datetime:

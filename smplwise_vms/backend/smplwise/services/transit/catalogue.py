@@ -62,8 +62,8 @@ def refresh(db: Database, fetch: stride.Fetch, now: dt.datetime, local_day: dt.d
         return status(conn)
 
 
-def _iso(t: dt.datetime) -> str:
-    return t.astimezone(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+from ..timeutil import iso_utc
+_iso = iso_utc  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def _like(s: str) -> str:

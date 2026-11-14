@@ -201,7 +201,9 @@ def _now() -> datetime:
 
 
 def _iso(value: datetime | None = None) -> str:
-    return (value or _now()).astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    from .timeutil import iso_utc  # CR-TIMEUTIL-2436 (04:F14): same text
+
+    return iso_utc(value or _now())
 
 
 def _canonical(value: datetime) -> str:

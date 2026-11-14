@@ -108,8 +108,8 @@ def purge_days(conn: sqlite3.Connection) -> int:
 
 # ---------------------------------------------------------------- purge
 
-def _iso(ts: dt.datetime) -> str:
-    return ts.astimezone(dt.timezone.utc).replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
+from .timeutil import iso_utc
+_iso = iso_utc  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def purge_due(conn: sqlite3.Connection, now: dt.datetime | None = None) -> list[str]:

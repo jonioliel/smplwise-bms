@@ -29,6 +29,7 @@ from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from ..db import get_setting, now_iso, set_setting
+from .timeutil import DEFAULT_ZONE  # = settings_store.DEFAULTS["time.zone"] (a test keeps them equal); CR-TIMEUTIL-2436
 
 log = logging.getLogger(__name__)
 
@@ -37,7 +38,6 @@ MODE_KEY = "site.location_source"
 MODES = ("home", "manual")
 DEFAULT_MODE = "home"
 DEFAULT = {"latitude": 32.0, "longitude": 34.8}
-DEFAULT_ZONE = "Asia/Jerusalem"  # = routers/settings.DEFAULTS["time.zone"] (a test keeps them equal)
 PRECISION = 2
 REFRESH_S = 6 * 3600  # the location of a home moves rarely: a connect and four reads a day are plenty
 SOURCES = ("ha", "manual", "default")

@@ -154,8 +154,8 @@ def reset_for_tests() -> None:
     set_clock(None)
 
 
-def iso(at: dt.datetime) -> str:
-    return at.astimezone(dt.timezone.utc).strftime(_ISO)
+from .timeutil import iso_utc
+iso = iso_utc  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def _parse(text: str | None) -> dt.datetime | None:
@@ -203,7 +203,9 @@ class ClockUntrusted(Exception):
 
 
 def zone_name(conn: sqlite3.Connection) -> str:
-    return get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem"
+    from .timeutil import site_zone_name  # CR-TIMEUTIL-2436 (04:F15)
+
+    return site_zone_name(conn)
 
 
 def _minutes(hhmm: str) -> int:

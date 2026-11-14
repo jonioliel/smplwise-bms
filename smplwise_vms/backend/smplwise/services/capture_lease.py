@@ -116,8 +116,8 @@ def set_clock(now_fn: Callable[[], datetime] | None = None, mono_fn: Callable[[]
     _mono_fn = mono_fn or time.monotonic
 
 
-def iso(at: datetime) -> str:
-    return at.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+from .timeutil import iso_utc
+iso = iso_utc  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def parse_iso(text: str) -> datetime:

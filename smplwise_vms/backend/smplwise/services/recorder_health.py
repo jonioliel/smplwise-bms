@@ -33,6 +33,7 @@ from typing import Any
 
 from ..config import Settings
 from ..db import Database, get_setting, set_setting
+from .timeutil import iso_from_epoch_or_none, site_zone_name
 from ..errors import ApiError
 from .recorders.base import HealthReading
 
@@ -514,7 +515,7 @@ def _zone_of(conn: sqlite3.Connection, rid: str) -> str | None:
     from .recorder_clock import recorder_zones
 
     try:
-        fallback = get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem"
+        fallback = site_zone_name(conn)
     except sqlite3.Error:  # a settings table that cannot be read: the clock is not judged
         return None
     return recorder_zones(conn, [rid], fallback).get(rid) or None
@@ -641,8 +642,7 @@ def view(conn: sqlite3.Connection, settings: Settings, now_ts: float | None = No
     return out
 
 
-def _iso(ts: float | None) -> str | None:
-    return None if ts is None else dt.datetime.fromtimestamp(ts, dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+_iso = iso_from_epoch_or_none  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 def _recorder_view(st: RecState, th: dict[str, Any], now_ts: float, cams: dict[int, Any], name: str | None) -> dict[str, Any]:

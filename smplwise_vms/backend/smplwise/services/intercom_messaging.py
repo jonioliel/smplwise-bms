@@ -43,6 +43,7 @@ from zoneinfo import ZoneInfo
 from ..db import Database, get_setting, set_setting
 from ..errors import ApiError
 from . import intercom_authority as ia
+from .timeutil import DEFAULT_ZONE, iso_utc, site_zone
 
 log = logging.getLogger("smplwise.intercom")
 
@@ -635,9 +636,9 @@ def hours_now() -> datetime:
 
 def _zone(conn: sqlite3.Connection) -> ZoneInfo:
     try:
-        return ZoneInfo(get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem")
-    except Exception:  # noqa: BLE001 - a corrupt zone name: the product's default zone
-        return ZoneInfo("Asia/Jerusalem")
+        return site_zone(conn)  # CR-TIMEUTIL-2436 (04:F15): an unknown name is the default there too
+    except Exception:  # noqa: BLE001 - an unreadable setting: the product's default zone
+        return ZoneInfo(DEFAULT_ZONE)
 
 
 def send_hours_state(conn: sqlite3.Connection, cfg: dict[str, Any], *, now: datetime | None = None) -> dict[str, Any] | None:
@@ -668,8 +669,7 @@ def utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def iso(moment: datetime) -> str:
-    return moment.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+iso = iso_utc  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text
 
 
 HANDED_ON = "('pending', 'sent', 'unknown')"  # what left Arx (or may have): the installation's, the person's and the station's caps

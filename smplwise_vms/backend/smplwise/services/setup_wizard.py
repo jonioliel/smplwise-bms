@@ -40,7 +40,7 @@ from ..db import now_iso
 from ..errors import ApiError
 from . import autosync, bridge_install, bridge_keys as bk, events_ingest, ha_client, ha_sync, nvr, nvr_system, stream_codecs
 from . import go2rtc as g2
-from .timeutil import zone
+from .timeutil import site_zone_name, zone
 from ..mode import installation_mode, is_ha_only
 
 STEPS = ("install", "nvr", "ha", "go2rtc", "floor", "camera")
@@ -269,9 +269,7 @@ def install_step(settings: Settings, conn: sqlite3.Connection, identity_source: 
 
 
 def _tz_name(conn: sqlite3.Connection) -> str:
-    from ..routers.settings import read_settings  # lazy: services stay importable without the routers
-
-    return str(read_settings(conn).get("time.zone") or "Asia/Jerusalem")
+    return site_zone_name(conn)  # CR-TIMEUTIL-2436: the stored `time.zone` or the default, as read_settings answered it
 
 
 # ---------------------------------------------------------------- step 2: NVR

@@ -21,6 +21,7 @@ from typing import Any
 
 from ..db import get_setting
 from . import ha_sync, home_config
+from .timeutil import site_zone_name
 
 ORDER_MAX = 100
 ID_MAX = 100
@@ -394,7 +395,7 @@ def payload(conn: sqlite3.Connection, entities: list[dict[str, Any]] | None, *, 
     return {
         "direction": dirn,
         "side": side(conn),
-        "time_zone": get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem",
+        "time_zone": site_zone_name(conn),
         "personalize": personalize,
         "config": cfg,
         "data": widget_data(conn, cfg, entities),

@@ -321,5 +321,5 @@ def parse_utc(v: Any, field: str) -> dt.datetime:
     return d.astimezone(dt.timezone.utc).replace(microsecond=0)
 
 
-def iso(d: dt.datetime) -> str:
-    return d.astimezone(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+from ..timeutil import iso_utc
+iso = iso_utc  # CR-TIMEUTIL-2436 (04:F14): the shared helper under this module's name, same text

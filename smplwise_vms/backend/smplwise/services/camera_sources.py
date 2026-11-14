@@ -909,9 +909,9 @@ def failing() -> dict[str, dict[str, Any]]:
 
 
 def _iso(ts: Any) -> str | None:
-    import datetime as dt
+    from .timeutil import iso_from_epoch  # CR-TIMEUTIL-2436 (04:F14): same text; float() and the falsy check stay
 
-    return dt.datetime.fromtimestamp(float(ts), dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ") if ts else None
+    return iso_from_epoch(float(ts)) if ts else None
 
 
 def health_view(camera_id: str) -> dict[str, Any]:

@@ -93,9 +93,9 @@ def create(ctx: Ctx, body: dict[str, Any], settings: dict[str, Any]) -> sqlite3.
     if conn.execute("SELECT 1 FROM cal_calendars WHERE name_key = ? AND archived_at IS NULL", (key,)).fetchone():
         raise ApiError(409, "name_taken", "כבר קיים יומן בשם הזה.")
     typ = vals["type"]
-    from ...db import get_setting  # noqa: PLC0415
+    from ..timeutil import site_zone_name  # noqa: PLC0415
 
-    tz = vals.get("tz") or get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem"
+    tz = vals.get("tz") or site_zone_name(conn)
     model.zone(tz)
     now = now_iso()
     cid = new_id("cal")
