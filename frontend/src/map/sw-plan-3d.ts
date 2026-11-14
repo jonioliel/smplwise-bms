@@ -34,7 +34,7 @@ import type { LevelTag } from './stack-layout';
 import { FocusMover, focusPose, type CameraPose, type FocusInset } from './room-focus';
 import { HUD_EDGE, HUD_MINIMAP, HUD_MINIMAP_PHONE, HUD_PHONE_MAX, HUD_PILL_ROW, type HudCorner } from './hud-layout';
 import { t } from '../i18n/he';
-import { TIME_BAND_HE, hourLabel, resolveSite, siteInstant, siteLocal, timeBand, type ResolvedSite } from './sun';
+import { TIME_BAND_HE, hourLabel, moodInstant, resolveSite, siteInstant, siteLocal, timeBand, type LightMood, type ResolvedSite } from './sun';
 import { dateInputLang } from '../api/day-format';
 export { PROBE_FALLBACK_MS, PROBE_FIRST_FRAME_MS, PROBE_MS, PROBE_WARM_FRAMES, SETTINGS_WAIT_MS } from './timing';
 /** The browser's cache of the viewer's own mode (api/plan-quality.ts; the server keeps it per user in /me/prefs). */
@@ -281,6 +281,13 @@ export class SwPlan3d extends LitElement {
   @property({ type: Boolean }) pillsHidden = false;
   @property({ attribute: false, hasChanged: (a: unknown, b: unknown) => JSON.stringify(a ?? null) !== JSON.stringify(b ?? null) }) focusRoom: { id: string; pos: Vec3; extent: number; inset: FocusInset } | null = null;
   @property({ type: Boolean, reflect: true, attribute: 'data-stack-dark' }) stackDark = false;
+  /** PLAN3D-R32-ANSWERS-2438 (owner note on Q-MAP-7): the spread view locked to the day look (`map.stack_backdrop` = light); the dark
+   * lock (stackDark) locks the realistic level's light to night the same way (lockedMood). */
+  @property({ type: Boolean, reflect: true, attribute: 'data-stack-light' }) stackLight = false;
+  /** PLAN3D-R32-ANSWERS-2438 (Q-MAP-20): the frame probe turned the floor reflections off for this session (before any rung). */
+  private reflAutoOff = false;
+  /** The last locked-mood instant (moodInstant scans the day: computed once per mood, date and site). */
+  private moodCache: { key: string; at: number } | null = null;
   private readonly pillLayer = new RoomPillLayer(this);
   private focusFrom: CameraPose | null = null;
   private readonly focusMover = new FocusMover((p) => this.applyPose(p));
@@ -1325,7 +1332,22 @@ export class SwPlan3d extends LitElement {
 
   /** The realistic level's dials for the view (the rung, the style by the theme, the content, the cut). */
   private realSettings() {
-    return { rung: this.rung === 'realistic' ? ('realistic' as const) : ('lite' as const), style: styleFor(this.themeForce ?? this.viewDials.style, this.uiTheme()), furniture: this.viewDials.furniture, textures: this.viewDials.textures, sectionCut: this.viewDials.section_cut, backdrop: this.shownBackdrop, floorFinish: this.viewDials.floor_finish ?? DEFAULT_FLOOR_FINISH, reflections: this.viewDials.floor_reflections !== false };
+    const d = this.viewDials;
+    return {
+      rung: this.rung === 'realistic' ? ('realistic' as const) : ('lite' as const), style: styleFor(this.themeForce ?? d.style, this.uiTheme()), furniture: d.furniture, textures: d.textures, sectionCut: d.section_cut, backdrop: this.shownBackdrop,
+      floorFinish: d.floor_finish ?? DEFAULT_FLOOR_FINISH, reflections: this.reflectionsOn(),
+      // PLAN3D-R32-ANSWERS-2438 (owner round 32): the low cut and the room state marks
+      wallCut: d.wall_cut === 'mid' ? ('mid' as const) : ('low' as const),
+      marks: { marks: d.room_marks ?? 'bar_edge', light: d.light_mark ?? 'bar', alarm: d.alarm_motion ?? 'pulse' },
+    };
+  }
+
+  /** PLAN3D-R32-ANSWERS-2438 (owner Q-MAP-12 / Q-MAP-20): the floor reflections - off by the dial, and with `reflections_auto` off on
+   * a weak GPU and after the frame probe found the realistic rung slow (the reflection is the first thing to go). */
+  private reflectionsOn(): boolean {
+    const d = this.viewDials;
+    if (d.floor_reflections === false) return false;
+    return !(d.reflections_auto !== false && (this.gpu === 'weak' || this.reflAutoOff));
   }
 
   private uiTheme(): 'light' | 'dark' {
@@ -1382,8 +1404,25 @@ export class SwPlan3d extends LitElement {
   private sunInstant(): number {
     if (this.sunAt !== null && Number.isFinite(this.sunAt)) return this.sunAt;
     const t = this.timeManual;
-    if (!t) return Date.now();
+    if (!t) {
+      // PLAN3D-R32-ANSWERS-2438 (owner Q-MAP-14 a): a locked mood draws today's day / evening / night moment instead of now
+      const mood = this.lockedMood();
+      if (mood === 'auto') return Date.now();
+      const today = siteLocal(Date.now(), this.site.zone);
+      const ymd: [number, number, number] = [today.year, today.month, today.day];
+      const key = `${mood}|${ymd.join('-')}|${this.site.zone}|${this.site.latitude}|${this.site.longitude}`;
+      if (this.moodCache?.key !== key) this.moodCache = { key, at: moodInstant(mood, ymd, this.site.zone, this.site.latitude, this.site.longitude) };
+      return this.moodCache.at;
+    }
     return siteInstant(t.ymd[0], t.ymd[1], t.ymd[2], t.hour, this.site.zone);
+  }
+
+  /** The light's lock: the spread view's fixed light / dark look first (map.stack_backdrop), else the `light_mood` dial. */
+  private lockedMood(): LightMood {
+    if (this.stackDark) return 'night';
+    if (this.stackLight) return 'day';
+    const m = this.viewDials.light_mood;
+    return m === 'day' || m === 'evening' || m === 'night' ? m : 'auto';
   }
 
   private applySun(): void {
@@ -1551,6 +1590,15 @@ export class SwPlan3d extends LitElement {
    * note says so); a chosen rung stays and only offers the one-tap hint to the rung below (quality-ladder.probeVerdict).
    * Below schematic the S3 stills take over (stills-fallback). */
   private onLowFps(): void {
+    // PLAN3D-R32-ANSWERS-2438 (owner Q-MAP-20): the floor reflections go first - off for the session, then measure again; a rung is
+    // lowered (auto) or offered (a chosen rung) only when the frame rate is still low without them. The state marks never go.
+    if (this.rung === 'realistic' && this.viewDials.reflections_auto !== false && this.reflectionsOn()) {
+      this.reflAutoOff = true;
+      this.setAttribute('data-reflections-auto-off', '');
+      this.view?.setRealSettings({ reflections: false });
+      queueMicrotask(() => { if (this.isConnected && this.view) this.startProbe(); });
+      return;
+    }
     const down = nextDown(this.rung);
     if (!down) {
       // CR-029 S3: schematic missed the budget again after the fallback, with a still set ready: the host may swap to stills
@@ -1578,6 +1626,8 @@ export class SwPlan3d extends LitElement {
 
   /** The props that drive the kiosk changed: the idle time, the plan-change signature, the walk (a hold: it draws on purpose). */
   private syncKiosk(changed: PropertyValues<this>): void {
+    // PLAN3D-R32-ANSWERS-2438: the spread view's light / dark lock moves the sun
+    if ((changed.has('stackDark') && changed.get('stackDark') !== undefined) || (changed.has('stackLight') && changed.get('stackLight') !== undefined)) this.applySun();
     if (changed.has('idleS')) this.setupIdle();
     if (changed.has('themeForce')) this.minimapPalette = null;
     if (changed.has('themeForce') && changed.get('themeForce') !== undefined && this.view) {

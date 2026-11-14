@@ -708,6 +708,10 @@ export interface DetectView {
   scale: number;
   /** Automatic items already in the draft (the "replace" checkbox names the count before a run). */
   autoInDraft: number;
+  /** PLAN3D-R32-ANSWERS-2438 (owner Q-MAP-9 a): unlocked automatic walls, openings and objects the editor can take away at once, and
+   * whether the "remove them" confirmation is open. */
+  autoRemovable?: number;
+  removeAutoAsk?: boolean;
   ask: DetectReplaceAsk | null;
   acceptError: DetectAcceptError | null;
 }
@@ -729,6 +733,8 @@ export interface DetectActions {
   discard(): void;
   applyHint(): void;
   importRooms(): void;
+  /** PLAN3D-R32-ANSWERS-2438: ask / confirm / cancel removing every automatic item from the draft (one undoable edit). */
+  removeAuto?(step: 'ask' | 'confirm' | 'cancel'): void;
 }
 
 export const CAND_KIND_LABEL: Record<CandKind, string> = { wall: 'קיר', door: 'דלת', window: 'חלון', passage: 'מעבר' };
@@ -778,6 +784,7 @@ export function renderDetectPanel(v: DetectView, a: DetectActions): TemplateResu
           <sw-field label=${`עוצמת ניקוי: ${o.strength.toFixed(2)} (קל ← חזק)`}><input type="range" min="0.3" max="1" step="0.05" data-detect-strength .value=${String(o.strength)}
             @input=${(e: Event) => a.setOpts({ ...o, strength: parseFloat((e.target as HTMLInputElement).value) })} /></sw-field>
           ${v.autoInDraft ? html`<label class="chk"><input type="checkbox" data-detect-replace .checked=${o.replaceAuto} @change=${(e: Event) => a.setOpts({ ...o, replaceAuto: (e.target as HTMLInputElement).checked })} /> החלף אוטומטיים קודמים (${v.autoInDraft} בטיוטה)</label>` : nothing}
+          ${v.autoRemovable && a.removeAuto ? renderRemoveAuto(v, a) : nothing}
           <div class="btns">
             <sw-button variant="primary" size="sm" icon="sparkle" data-detect-run aria-busy=${v.run.busy ? 'true' : 'false'} ?disabled=${v.run.busy || !o.walls || v.busy} @click=${() => a.run()}>${v.run.busy ? html`מזהה… <span data-detect-elapsed>${v.run.elapsed}</span> שנ׳` : 'זהה אוטומטית'}</sw-button>
             ${v.run.busy ? html`<span class="note">הזיהוי רץ בשרת${v.run.limitS ? ` (עד ${v.run.limitS} שניות)` : ''}; הכפתור ייפתח כשיסיים.</span>` : nothing}
@@ -789,6 +796,19 @@ export function renderDetectPanel(v: DetectView, a: DetectActions): TemplateResu
                   : nothing}`
             : nothing}`}
   </sw-card>`;
+}
+
+/** PLAN3D-R32-ANSWERS-2438 (owner Q-MAP-9 a): take every automatic item out of the draft - a confirmation first (it is one undoable
+ * edit; manual, imported and locked items stay). */
+function renderRemoveAuto(v: DetectView, a: DetectActions): TemplateResult {
+  const n = v.autoRemovable ?? 0;
+  return v.removeAutoAsk
+    ? html`<div class="note" role="alert" data-detect-remove-auto-ask>להסיר מהטיוטה ${n} פריטים שזוהו אוטומטית? פריטים שצוירו ביד, יובאו או ננעלו נשארים. אפשר להחזיר בביטול שינוי (Ctrl+Z).</div>
+        <div class="btns">
+          <sw-button variant="danger" size="sm" icon="trash" data-detect-remove-auto-confirm ?disabled=${v.busy || v.run.busy} @click=${() => a.removeAuto?.('confirm')}>הסר ${n} פריטים</sw-button>
+          <sw-button variant="ghost" size="sm" data-detect-remove-auto-cancel @click=${() => a.removeAuto?.('cancel')}>ביטול</sw-button>
+        </div>`
+    : html`<div class="btns"><sw-button variant="ghost" size="sm" icon="trash" data-detect-remove-auto ?disabled=${v.busy || v.run.busy} @click=${() => a.removeAuto?.('ask')}>הסר את כל מה שזוהה אוטומטית (${n})</sw-button></div>`;
 }
 
 function renderCandidates(v: DetectView, c: DetectCandidatesView, a: DetectActions): TemplateResult {

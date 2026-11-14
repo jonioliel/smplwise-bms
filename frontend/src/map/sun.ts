@@ -228,3 +228,39 @@ export function shadowPenumbraTexels(r: number, px: number, cap: number): number
   const texel = (2 * r) / Math.max(1, px);
   return Math.round(Math.min(cap, Math.max(2, SHADOW_PENUMBRA_M / texel)) * 100) / 100;
 }
+
+/**
+ * PLAN3D-R32-ANSWERS-2438 (owner round 32, Q-MAP-14 a): the map's light by the hour (`auto`) or locked to one mood - day, a warm evening
+ * or night. A lock draws the sun of a fixed moment of the shown date at the site: day = the sun's highest point (scanned from 10:00 to
+ * 14:00), evening = the first moment after noon the sun is down to 6 degrees (the golden band; 18:00 where it never gets that low),
+ * night = the first moment after that the sun is 12 degrees under the horizon (23:00 where it never is). Pure (the site's date, zone
+ * and place in, a UTC instant out); deterministic, scanned in 5-minute steps.
+ */
+export type LightMood = 'auto' | 'day' | 'evening' | 'night';
+export const LIGHT_MOODS: readonly LightMood[] = ['auto', 'day', 'evening', 'night'];
+export function moodInstant(mood: Exclude<LightMood, 'auto'>, ymd: readonly [number, number, number], zone: string, latitude: number, longitude: number): number {
+  // the zone's offset at noon holds for the whole afternoon and evening scanned here (a DST switch happens at night)
+  const noon = siteInstant(ymd[0], ymd[1], ymd[2], 12, zone);
+  const at = (hour: number) => noon + Math.round((hour - 12) * 3600000);
+  const elev = (hour: number) => sunPosition(at(hour), latitude, longitude).elevation;
+  const STEP = 5 / 60;
+  if (mood === 'day') {
+    let best = 12;
+    let bestE = -Infinity;
+    for (let h = 10; h <= 14 + 1e-9; h += STEP) {
+      const e = elev(h);
+      if (e > bestE) [best, bestE] = [h, e];
+    }
+    return at(best);
+  }
+  let evening = 18;
+  for (let h = 12; h <= 22 + 1e-9; h += STEP) {
+    if (elev(h) <= 6) {
+      evening = h;
+      break;
+    }
+  }
+  if (mood === 'evening') return at(evening);
+  for (let h = evening; h <= 23.9 + 1e-9; h += STEP) if (elev(h) <= -12) return at(h);
+  return at(23);
+}

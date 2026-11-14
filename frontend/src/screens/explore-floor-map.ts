@@ -2487,7 +2487,7 @@ export class ExploreFloorMap extends LitElement {
     const now = new Date(); // the local date (toISOString is UTC: a day behind in the evening, a day ahead after midnight)
     const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     return html`<sw-plan-3d data-floor-3d .description=${r.desc} .selectedId=${this.sel3d} .preset=${this.preset3d} .frameKey=${r.spread ? `${b.floorId}|spread|${this.stackFocus ?? ''}` : b.floorId} .cameras=${s.cameras} .labels=${s.labels}
-      .roomPills=${r.pills} .pillPrefs=${pillPrefsOf(this.r28)} .pillsHidden=${this.stackShown && !(r.spread && this.stackFocus)} .levelTags=${r.tags} .focusRoom=${focus} .stackDark=${r.spread && stackPrefs.backdrop === 'dark'}
+      .roomPills=${r.pills} .pillPrefs=${pillPrefsOf(this.r28)} .pillsHidden=${this.stackShown && !(r.spread && this.stackFocus)} .levelTags=${r.tags} .focusRoom=${focus} .stackDark=${r.spread && stackPrefs.backdrop === 'dark'} .stackLight=${r.spread && stackPrefs.backdrop === 'light'}
       @room-open=${(e: CustomEvent<RoomOpenDetail>) => { this.close(); this.focusedObjectId = null; this.selectedZoneId = e.detail.id; }}
       @stack-level=${(e: CustomEvent<StackLevelDetail>) => this.onStackLevel(e.detail)}
       .levels=${b.levels.map((l) => ({ id: l.id, name: l.name, elevation_m: l.elevation_m }))} .activeLevel=${this.levelFilter} .thumbnailScene=${s.all} .qualityDefault=${this.quality3d} .levelDots=${this.roomStateLayer?.levels ?? {}}
@@ -3219,7 +3219,7 @@ export class ExploreFloorMap extends LitElement {
     const z = b.zones.find((x) => x.id === this.selectedZoneId);
     if (!z || z.shared) return nothing; // a shared room shows its members card instead
     const camera = this.r28?.['map.room_card_camera'];
-    return html`<sw-room-card data-room-card data-zone-id=${z.id} .model=${this.roomCardModel(z, b)} place=${this.roomCardPlace()} camera=${camera === 'live' || camera === 'none' ? camera : 'snapshot'}
+    return html`<sw-room-card data-room-card data-zone-id=${z.id} .model=${this.roomCardModel(z, b)} place=${this.roomCardPlace()} camera=${camera === 'snapshot' || camera === 'none' ? camera : 'live'}
       @room-card-action=${(e: CustomEvent<RoomCardActionDetail>) => this.onRoomAction(e.detail)} @room-card-bulk=${(e: CustomEvent<RoomCardBulkDetail>) => this.onRoomBulk(e.detail)}
       @room-card-close=${() => (this.selectedZoneId = null)} @room-card-camera=${(e: CustomEvent<{ id: string }>) => navigate(`/live/cameras/${e.detail.id}`)}
       @room-card-recordings=${(e: CustomEvent<{ id: string }>) => navigate('/investigate/playback', { camera: e.detail.id, from: 'map' })}></sw-room-card>`;

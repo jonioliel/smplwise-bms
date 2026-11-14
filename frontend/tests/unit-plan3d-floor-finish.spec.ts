@@ -40,8 +40,8 @@ function input(): SceneInput {
   };
 }
 
-test('the dial: wood / marble / ceramic, marble at install, the same everywhere it is listed', () => {
-  expect(FLOOR_FINISHES).toEqual(['wood', 'marble', 'ceramic']);
+test('the dial: wood / marble / ceramic / travertine, marble at install, the same everywhere it is listed', () => {
+  expect(FLOOR_FINISHES).toEqual(['wood', 'marble', 'ceramic', 'travertine']); // PLAN3D-R32-ANSWERS-2438: travertine added (owner Q-MAP-11)
   expect(CHOICES.floor_finish).toEqual(FLOOR_FINISHES);
   expect(DEFAULT_FLOOR_FINISH).toBe('marble');
   expect(DEFAULT_VIEW.floor_finish).toBe('marble');

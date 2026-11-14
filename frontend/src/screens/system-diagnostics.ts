@@ -1279,23 +1279,8 @@ export class SystemDiagnostics extends LitElement {
           ${sel('plan.camsuggest_fov', '50', 'camsuggest-fov', [['0', 'מרחק בלבד'], ['25', 'נמוך'], ['50', 'בינוני'], ['75', 'גבוה'], ['100', 'חובה']])}</div>
         <div class="row" data-camsuggest-count><span class="lbl">הצעת מצלמה לאזור: מספר הצעות</span>
           ${sel('plan.camsuggest_count', '3', 'camsuggest-count', [['1', 'אחת'], ['2', 'שתיים'], ['3', 'שלוש']])}</div>
-        <div class="row" data-settings-map3d><span class="lbl">המפה בתלת־ממד<span class="muted">תוויות החדרים, כרטיס החדר ותצוגת כל הקומות</span></span></div>
-        <div class="row"><span class="lbl">תוויות על המפה<span class="muted">תווית אחת לכל חדר מסכמת מה פתוח, נוכחות, אורות וטמפרטורה; בהתקרבות לחדר כל התקן מופיע לחוד</span></span>
-          ${sel('map.room_pills', 'room', 'map-room-pills', [['room', 'תווית לכל חדר, התקנים בהתקרבות'], ['room_always', 'תווית לכל חדר תמיד'], ['device', 'תווית לכל התקן']])}</div>
-        <div class="row"><span class="lbl">נגיעה בתווית של חדר</span>
-          ${sel('map.room_pill_tap', 'popover', 'map-room-pill-tap', [['popover', 'חלון פירוט קטן, ממנו לכרטיס החדר'], ['card', 'ישר לכרטיס החדר']])}</div>
-        <div class="row"><span class="lbl">חדר שאין בו מה לדווח<span class="muted">הכול סגור וכבוי ואין טמפרטורה</span></span>
-          ${sel('map.room_pill_quiet', 'name', 'map-room-pill-quiet', [['name', 'רק שם החדר'], ['hide', 'לא להציג כלום'], ['bubble', 'תווית "הכול סגור"']])}</div>
-        <div class="row"><span class="lbl">מיקום כרטיס החדר<span class="muted">במחשב ובטאבלט; בטלפון הכרטיס הוא תמיד גיליון שעולה מלמטה</span></span>
-          ${sel('map.room_card_place', 'side', 'map-room-card-place', [['side', 'פאנל בצד'], ['float', 'כרטיס צף בפינה'], ['sheet_tablet', 'מחשב: פאנל בצד, טאבלט: גיליון מלמטה']])}</div>
-        <div class="row"><span class="lbl">אישור לפני פעולה בכרטיס החדר<span class="muted">דלתות, שערים ואזעקה דורשים אישור תמיד, כמו בשאר המערכת</span></span>
-          ${sel('map.room_card_confirm', 'system', 'map-room-card-confirm', [['system', 'דלתות, שערים ואזעקה'], ['bulk', 'גם "כבה הכול" וסגירת תריסים']])}</div>
-        <div class="row"><span class="lbl">המצלמה בכרטיס החדר</span>
-          ${sel('map.room_card_camera', 'snapshot', 'map-room-card-camera', [['snapshot', 'תמונה מתעדכנת, וידאו חי בלחיצה'], ['live', 'וידאו חי מיד'], ['none', 'בלי מצלמה']])}</div>
-        <div class="row"><span class="lbl">רקע בתצוגת כל הקומות</span>
-          ${sel('map.stack_backdrop', 'theme', 'map-stack-backdrop', [['theme', 'לפי מצב בהיר / כהה והשעה'], ['dark', 'תמיד כהה']])}</div>
-        <div class="row"><span class="lbl">בחירת קומה בתצוגת כל הקומות</span>
-          ${sel('map.stack_pick', 'two_tap', 'map-stack-pick', [['two_tap', 'נגיעה מגדילה, נגיעה שנייה נכנסת'], ['one_tap', 'נגיעה אחת נכנסת']])}</div>
+        <!-- PLAN3D-R32-ANSWERS-2438 (owner round 32): the 3D map's rows (room labels, room card, all floors) moved into the one
+             "מפה תלת־ממדית" card below (system-plan-view), with the look dials and the plan wizard's thresholds -->
         ${this.renderSaveRow({ tab: 'map', hook: 'data-save-map', disabled: !dirty || this.busy || !api, onSave: () => this.save() })}
         ${!api ? html`<div class="muted">נתוני הדגמה: ההגדרות נשמרות רק מול השרת.</div>` : nothing}
       </sw-card>

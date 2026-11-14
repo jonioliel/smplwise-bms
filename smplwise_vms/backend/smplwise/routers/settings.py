@@ -188,8 +188,10 @@ DEFAULTS: dict[str, str] = {
     "map.room_pill_quiet": "name",  # a room with nothing to report: name = its name only | hide = nothing | bubble = a pill saying "all closed"
     "map.room_card_place": "side",  # the room card on a desktop / tablet: side = a side panel | float = a small card in the corner | sheet_tablet = side on a desktop, a bottom sheet on a tablet (a phone is always a sheet)
     "map.room_card_confirm": "system",  # what asks before it runs: system = doors, gates and the alarm (the sensitive actions, as everywhere) | bulk = also "all off" and closing shutters
-    "map.room_card_camera": "snapshot",  # the camera in the room card: snapshot = a still refreshed every few seconds, live video on a tap | live = live video at once | none = no camera
-    "map.stack_backdrop": "theme",  # the spread levels' backdrop: theme = by the light / dark mode and the hour, as one level | dark = always dark
+    # PLAN3D-R32-ANSWERS-2438 (owner round 32, Q-MAP-6 b): live video at once when the card opens (the sub stream; it stops when the card closes)
+    "map.room_card_camera": "live",  # the camera in the room card: live = live video at once | snapshot = a still refreshed every few seconds, live video on a tap | none = no camera
+    # PLAN3D-R32-ANSWERS-2438 (Q-MAP-7 a + the owner's note): by the scheme and the hour as one level, or locked to a light / dark look
+    "map.stack_backdrop": "theme",  # the spread levels' backdrop: theme = by the light / dark mode and the hour, as one level | light = always the day look | dark = always the night look
     "map.stack_pick": "two_tap",  # picking a spread level: two_tap = the first tap enlarges it, the second enters | one_tap = one tap enters
     "plan.quality": "auto",  # CR-006 / owner bug 2026-10-10: the 3D view mode a browser opens with - auto (full, dropping to schematic after a sustained low frame rate), 2 (full, kept even when slow: a hint only), 1 (schematic); a user's own /me/prefs plan.quality overrides it
     "plan.surfaces": '["devices", "area"]',  # K88 (owner 2026-10-04 Q2): where the live plan shows besides the map tab - "devices" = a plan view in חשמל והתקנים, "area" = a card on the area page; [] = nowhere new
@@ -926,7 +928,7 @@ class SettingsPatch(BaseModel):
     map_room_card_place: str | None = Field(default=None, pattern="^(side|float|sheet_tablet)$", alias="map.room_card_place")
     map_room_card_confirm: str | None = Field(default=None, pattern="^(system|bulk)$", alias="map.room_card_confirm")
     map_room_card_camera: str | None = Field(default=None, pattern="^(snapshot|live|none)$", alias="map.room_card_camera")
-    map_stack_backdrop: str | None = Field(default=None, pattern="^(theme|dark)$", alias="map.stack_backdrop")
+    map_stack_backdrop: str | None = Field(default=None, pattern="^(theme|light|dark)$", alias="map.stack_backdrop")
     map_stack_pick: str | None = Field(default=None, pattern="^(two_tap|one_tap)$", alias="map.stack_pick")
     plan_quality: str | None = Field(default=None, pattern="^(auto|1|2)$", alias="plan.quality")
     plan_camsuggest_distance: str | None = Field(default=None, pattern="^([1-9]|[1-9][0-9]|100)$", alias="plan.camsuggest_distance")  # CAMSUGGEST138-295: 1-100 % of the plan width

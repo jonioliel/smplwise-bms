@@ -13,44 +13,10 @@ import type { GeometryDoc, GeomObject, GeomOpening, GeomWall, OpeningKind, Pt, S
 import { setSurface } from '../map/studio6-fields';
 import { withDocVersion } from '../map/glass-wall';
 
-// ---------------------------------------------------------------- the user's choices (/me/prefs `plan.wizard`)
+// ---------------------------------------------------------------- the user's choices (/me/prefs `plan.wizard`): wizard-prefs.ts
 
-export type KitId = 'apartment' | 'office' | 'empty';
-export type Unreviewed = 'as_detected' | 'reject';
-export interface WizardPrefs {
-  /** Percent: an item at or above it goes in without review. */
-  auto_accept: number;
-  /** Percent: under it an item never goes in without an explicit approval. */
-  review_min: number;
-  /** What an item between the two becomes when nobody looked at it. */
-  unreviewed: Unreviewed;
-  kit: KitId;
-  furniture: boolean;
-  auto_place: boolean;
-}
-
-/** The recommended answers of round 28 (questions 10-11, not answered by the owner yet): >80% in, 50-80% marked for review and
- * in as detected when skipped, <50% only with an approval; three kits in the first phase, the apartment first. */
-export const WIZARD_DEFAULTS: Readonly<WizardPrefs> = { auto_accept: 80, review_min: 50, unreviewed: 'as_detected', kit: 'apartment', furniture: true, auto_place: true };
-
-const pct = (v: unknown): number | null => (typeof v === 'number' && Number.isInteger(v) && v >= 5 && v <= 99 ? v : null);
-
-/** Any stored value in its full form: every key present, a bad value is the default, the thresholds stay ordered. */
-export function normalizePrefs(raw: unknown): WizardPrefs {
-  const o = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
-  const out: WizardPrefs = { ...WIZARD_DEFAULTS };
-  out.auto_accept = pct(o.auto_accept) ?? out.auto_accept;
-  out.review_min = pct(o.review_min) ?? out.review_min;
-  if (out.review_min >= out.auto_accept) {
-    out.auto_accept = WIZARD_DEFAULTS.auto_accept;
-    out.review_min = WIZARD_DEFAULTS.review_min;
-  }
-  if (o.unreviewed === 'as_detected' || o.unreviewed === 'reject') out.unreviewed = o.unreviewed;
-  if (o.kit === 'apartment' || o.kit === 'office' || o.kit === 'empty') out.kit = o.kit;
-  if (typeof o.furniture === 'boolean') out.furniture = o.furniture;
-  if (typeof o.auto_place === 'boolean') out.auto_place = o.auto_place;
-  return out;
-}
+export { KIT_IDS, KIT_HE, WIZARD_DEFAULTS, normalizePrefs, type KitId, type Unreviewed, type WizardPrefs } from './wizard-prefs';
+import { KIT_HE, type KitId, type WizardPrefs } from './wizard-prefs';
 
 // ---------------------------------------------------------------- confidence bands and the review
 
@@ -294,19 +260,37 @@ export interface Kit {
   floors: Record<string, string>;
   furniture: Record<string, readonly string[]>;
 }
-/** Round 28 question 11, recommended answer: the apartment, the office and the empty kit in the first phase. */
+/** The owner's answer (round 32, Q-MAP-10 a): the six kits of the mockup - apartment, office, lobby and public areas, technical and
+ * parking, commercial, empty (PLAN3D-R32-ANSWERS-2438 added the middle three; round 28 had built the first phase of three). The
+ * library has no stone floor yet, so the lobby and the shop lay the large grey tiles (the closest library floor). */
 export const KITS: readonly Kit[] = [
   {
-    id: 'apartment', he: 'דירה', note: 'פרקט, קירות בהירים, ריהוט בית', level: 'oak',
+    id: 'apartment', he: KIT_HE.apartment, note: 'פרקט, קירות בהירים, ריהוט בית', level: 'oak',
     floors: { default: 'oak', kitchen: 'tiles_grey', wc: 'tiles_grey', bath: 'tiles_grey', service: 'tiles_grey', stairs: 'tiles_grey', balcony: 'tiles_grey', storage: 'concrete', technical: 'concrete', parking: 'asphalt' },
     furniture: { living: ['sofa.3', 'table.side'], kitchen: ['table.dining'], bedroom: ['wardrobe'], office: ['table.desk', 'chair.office'], meeting: ['table.meeting'], wc: ['toilet.standard'], bath: ['bathtub', 'sink.bathroom'], entrance: ['coat.rack'] },
   },
   {
-    id: 'office', he: 'משרד', note: 'שטיח, שולחנות עבודה, חדרי ישיבות', level: 'carpet',
+    id: 'office', he: KIT_HE.office, note: 'שטיח, שולחנות עבודה, חדרי ישיבות', level: 'carpet',
     floors: { default: 'carpet', entrance: 'tiles_grey', corridor: 'tiles_grey', kitchen: 'tiles_grey', wc: 'tiles_grey', bath: 'tiles_grey', stairs: 'tiles_grey', balcony: 'tiles_grey', storage: 'concrete', technical: 'concrete', service: 'concrete', parking: 'asphalt' },
     furniture: { office: ['table.desk', 'chair.office'], living: ['sofa.2', 'table.side'], meeting: ['table.meeting'], kitchen: ['table.round'], wc: ['toilet.standard'], bath: ['sink.bathroom'], entrance: ['bench.indoor'], technical: ['rack.server'] },
   },
-  { id: 'empty', he: 'ריק', note: 'חומרים בלבד, בלי ריהוט', level: 'concrete', floors: { default: 'concrete', parking: 'asphalt' }, furniture: {} },
+  {
+    id: 'lobby', he: KIT_HE.lobby, note: 'אבן, עמדת קבלה, ישיבה', level: 'tiles_grey',
+    floors: { default: 'tiles_grey', storage: 'concrete', technical: 'concrete', service: 'concrete', parking: 'asphalt', office: 'carpet' },
+    furniture: { entrance: ['counter.reception'], living: ['sofa.2', 'armchair', 'table.side'], corridor: ['bench.indoor'], meeting: ['table.meeting'], office: ['table.desk', 'chair.office'], kitchen: ['table.round'], wc: ['toilet.standard'] },
+  },
+  {
+    // "בלי ריהוט": only the floor markings of a parking space and the equipment of a technical room
+    id: 'technical', he: KIT_HE.technical, note: 'בטון, סימוני רצפה, בלי ריהוט', level: 'concrete',
+    floors: { default: 'concrete', parking: 'asphalt', wc: 'tiles_grey', bath: 'tiles_grey' },
+    furniture: { parking: ['parking.space', 'parking.space'], technical: ['rack.server'] },
+  },
+  {
+    id: 'commercial', he: KIT_HE.commercial, note: 'אריחים, מדפים, דלפק', level: 'tiles_grey',
+    floors: { default: 'tiles_grey', storage: 'concrete', technical: 'concrete', service: 'concrete', parking: 'asphalt', office: 'carpet' },
+    furniture: { entrance: ['counter.straight'], living: ['shelf.unit', 'shelf.unit', 'shelf.unit'], other: ['shelf.unit', 'shelf.unit', 'shelf.unit'], storage: ['rack.pallet'], office: ['table.desk', 'chair.office'], kitchen: ['table.round'], wc: ['toilet.standard'] },
+  },
+  { id: 'empty', he: KIT_HE.empty, note: 'חומרים בלבד, בלי ריהוט', level: 'concrete', floors: { default: 'concrete', parking: 'asphalt' }, furniture: {} },
 ];
 export const kitOf = (id: KitId): Kit => KITS.find((k) => k.id === id) ?? KITS[0];
 export const kitFloor = (kit: Kit, typeId: string): string => kit.floors[typeId] ?? kit.floors.default;
@@ -318,6 +302,9 @@ export const FURNITURE_SIZE: Readonly<Record<string, { w_m: number; d_m: number;
   'table.desk': { w_m: 1.4, d_m: 0.7, h_m: 0.75 }, 'chair.office': { w_m: 0.6, d_m: 0.6, h_m: 1.1 }, 'table.meeting': { w_m: 3, d_m: 1.2, h_m: 0.75 },
   'toilet.standard': { w_m: 0.4, d_m: 0.7, h_m: 0.8 }, bathtub: { w_m: 1.7, d_m: 0.75, h_m: 0.6 }, 'sink.bathroom': { w_m: 0.6, d_m: 0.45, h_m: 0.85 },
   'coat.rack': { w_m: 0.4, d_m: 0.4, h_m: 1.8 }, 'bench.indoor': { w_m: 1.8, d_m: 0.4, h_m: 0.45 }, 'rack.server': { w_m: 0.6, d_m: 1, h_m: 2 },
+  // PLAN3D-R32-ANSWERS-2438: the lobby, technical / parking and commercial kits (objects.json sizes)
+  'counter.reception': { w_m: 3, d_m: 0.8, h_m: 1.1 }, armchair: { w_m: 0.85, d_m: 0.85, h_m: 0.8 }, 'counter.straight': { w_m: 2, d_m: 0.6, h_m: 1.1 },
+  'shelf.unit': { w_m: 0.9, d_m: 0.4, h_m: 2 }, 'rack.pallet': { w_m: 2.7, d_m: 1.1, h_m: 3 }, 'parking.space': { w_m: 2.5, d_m: 5, h_m: 0.05 },
 };
 export const WIZARD_TAG = 'plan-wizard';
 

@@ -13,7 +13,7 @@ DEFAULTS = {
     "map.room_pill_quiet": "name",
     "map.room_card_place": "side",
     "map.room_card_confirm": "system",
-    "map.room_card_camera": "snapshot",
+    "map.room_card_camera": "live",  # PLAN3D-R32-ANSWERS-2438: the owner's answer (Q-MAP-6 b)
     "map.stack_backdrop": "theme",
     "map.stack_pick": "two_tap",
 }
@@ -23,8 +23,8 @@ OTHER = {
     "map.room_pill_quiet": ["hide", "bubble"],
     "map.room_card_place": ["float", "sheet_tablet"],
     "map.room_card_confirm": ["bulk"],
-    "map.room_card_camera": ["live", "none"],
-    "map.stack_backdrop": ["dark"],
+    "map.room_card_camera": ["snapshot", "none"],
+    "map.stack_backdrop": ["light", "dark"],  # PLAN3D-R32-ANSWERS-2438: the owner's note on Q-MAP-7 (a fixed light look too)
     "map.stack_pick": ["one_tap"],
 }
 

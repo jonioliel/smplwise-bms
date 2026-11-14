@@ -35,7 +35,7 @@ import { getPlanAreas, type PlanArea } from '../api/plan-links';
 import { deleteFloorImage, floorImageUrl, getFloorImages, putFloorImageLayout, uploadFloorImage, type FloorImageVariant, type FloorImagesInfo } from '../api/floor-images';
 import { isDefaultCorners, type Corners } from '../map/floor-image';
 import '../map/sw-floor-image-align';
-import { allIds, byConfidence, byKind, defaultStates, fromResult, moveVertex as moveCandidateVertex, rescale, takeDxfCandidates, withParents, type CandidateSet, type CandKind, type CandSource, type CandState } from '../map/candidates';
+import { allIds, autoItemCount, byConfidence, byKind, defaultStates, fromResult, removeAutoItems, moveVertex as moveCandidateVertex, rescale, takeDxfCandidates, withParents, type CandidateSet, type CandKind, type CandSource, type CandState } from '../map/candidates';
 import { otherFloorOf, parseTarget, type LinkTargetFloor } from '../map/connector-targets';
 import { productSettings } from '../api/prefs';
 import { CAMERA_SUGGEST_DEFAULTS, sanitizeSettings, suggestCameras, type CameraSuggestSettings, type CameraSuggestion } from '../map/camera-suggest';
@@ -355,6 +355,8 @@ export class ExplorePlanEditor extends LitElement {
   private candStatesShown: { states: Record<string, CandState>; objects: GeomObject[]; on: boolean; shown: Record<string, CandState> } | null = null;
   @state() private hintApplied = false;
   @state() private detectAsk: DetectReplaceAsk | null = null;
+  /** PLAN3D-R32-ANSWERS-2438: the "remove every automatic item" confirmation is open. */
+  @state() private removeAutoAsk = false;
   @state() private detectErr: DetectAcceptError | null = null;
   /** A phone (the same query as `phone`): candidates are accepted or rejected there, their end points are not dragged. */
   @state() private narrow = false;
@@ -4688,6 +4690,7 @@ export class ExplorePlanEditor extends LitElement {
         acceptedCount: this.acceptedCandidateIds.length, objectsOn: this.candObjectsOn, hintApplied: this.hintApplied, canEstimate: this.canEstimate, busy: this.busy, narrow: this.narrow,
         estimated, showEstimates: this.showEstimates, scale,
         autoInDraft: doc.walls.filter((w) => w.source === 'auto').length + doc.openings.filter((o) => o.source === 'auto').length,
+        autoRemovable: autoItemCount(doc), removeAutoAsk: this.removeAutoAsk, // PLAN3D-R32-ANSWERS-2438
         ask: this.detectAsk, acceptError: this.detectErr,
       },
       {
@@ -4720,6 +4723,11 @@ export class ExplorePlanEditor extends LitElement {
         discard: () => this.discardCandidates(),
         applyHint: () => void this.applyCalibHint(),
         importRooms: () => void this.importDxfRooms(),
+        removeAuto: (step) => {
+          // PLAN3D-R32-ANSWERS-2438 (owner Q-MAP-9 a): one undoable edit of the draft
+          if (step === 'confirm') this.edit((d) => removeAutoItems(d).doc);
+          this.removeAutoAsk = step === 'ask';
+        },
       },
     );
   }

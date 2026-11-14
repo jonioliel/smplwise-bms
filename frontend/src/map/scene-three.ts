@@ -20,7 +20,7 @@
 import { ACESFilmicToneMapping, AmbientLight, BoxGeometry, BufferGeometry, CanvasTexture, Color, CylinderGeometry, DirectionalLight, DoubleSide, Euler, Float32BufferAttribute, FogExp2, GLTFExporter, Group, HemisphereLight, InstancedMesh, LineBasicMaterial, LineSegments, Matrix4, Mesh, MeshBasicMaterial, MeshLambertMaterial, MeshStandardMaterial, NeutralToneMapping, NoToneMapping, Object3D, OrbitControls, OrthographicCamera, PCFShadowMap, PCFSoftShadowMap, PMREMGenerator, PerspectiveCamera, Plane, PlaneGeometry, PointLight, Quaternion, Raycaster, SRGBColorSpace, Scene, ShapeUtils, Sprite, SpriteMaterial, Vector2, Vector3, WebGLRenderer, type WebGLRenderTarget } from './three-bundle';
 import type { SceneDescription, ScenePart, Vec3 } from './scene-builder';
 import { CUTAWAY_HEIGHT_M, ISO_DIR, NO_INSETS, PERSP_DIR, azimuthDeg, clampThumb, contentExtent, cutBox, cutawayIds, glowPoolWanted, insetFractions, isoFitFrame, isoFrame, levelExtent, perspFit, quantiseAzimuth, sceneExtent, type Extent, type FrameInsets, type IsoFrame } from './scene-frame';
-import { DEFAULT_REAL, REAL_KINDS, RealMaterials, disposeDeep, RealModels, backdropColors, buildExterior, buildReal, lampColor, paintSky, assetBase, glowPlanOf, applyBackdrop, STUDIO, type Exterior, type RealBuilt, type RealSettings } from './scene-real';
+import { DEFAULT_REAL, REAL_KINDS, sectionCutY, RealMaterials, disposeDeep, RealModels, backdropColors, buildExterior, buildReal, lampColor, paintSky, assetBase, glowPlanOf, applyBackdrop, STUDIO, type Exterior, type RealBuilt, type RealSettings } from './scene-real';
 import type { GlowRoom } from './room-glow';
 import { DEFAULT_SITE, lightRecipe, poolLamps, shadowPenumbraTexels, sunPosition, type LightRecipe, type SunPosition } from './sun';
 import { LOOK_STYLES, type LookStyle } from './look-style';
@@ -918,14 +918,15 @@ export class SceneView {
     });
   }
 
-  /** The section cut (LOOK_SPEC section 5): one world plane at 0.6 x the ceiling of the top visible level, the caps of that
-   * level shown at it; never in the walk; off by the setting. */
+  /** The section cut (LOOK_SPEC section 5): one world plane over the top visible level - PLAN3D-R32-ANSWERS-2438 (owner Q-MAP-13):
+   * low at 1.25 m (the default) or at 0.6 x its ceiling (`wall_cut` mid, before) - the caps of that level shown at it; never in
+   * the walk; off by the setting. */
   private applyCut(): void {
     if (this.quality !== 3 || !this.realMats) return;
     const d = this.desc;
     const top = d && d.levels.length ? [...d.levels].sort((a, b) => b.elevation_m - a.elevation_m || (a.id < b.id ? -1 : 1))[0] : null;
     const on = !!top && this.real.sectionCut && !this.walking && typeof this.preset === 'string';
-    const y = top ? top.elevation_m + top.ceiling_height_m * 0.6 : 0;
+    const y = top ? sectionCutY(top, this.real.wallCut) : 0;
     this.clipPlane.constant = y;
     this.realMats.setClip(on ? [this.clipPlane] : null);
     // the camera cones (level-2 illustrations kept at level 3) are cut with the walls: a cone stands from the floor to
@@ -936,7 +937,13 @@ export class SceneView {
     this.post?.setClip(this.cutPlanes);
     this.realBuilt?.glow?.setClip(this.cutPlanes); // PLAN3D-REALISM-2432
     const caps = this.realBuilt?.caps;
-    if (caps) for (const c of caps.children) c.visible = on && c.userData.level === top!.id && (!c.userData.edge || LOOK_STYLES[this.real.style].cut.edge !== null);
+    // the caps are built at 0.6 of the ceiling (scene-real-builder): moved to the cut in force
+    const capShift = top ? y - (top.elevation_m + top.ceiling_height_m * 0.6) : 0;
+    if (caps) for (const c of caps.children) {
+      c.visible = on && c.userData.level === top!.id && (!c.userData.edge || LOOK_STYLES[this.real.style].cut.edge !== null);
+      c.position.y = c.userData.level === top?.id ? capShift : 0;
+    }
+    this.realBuilt?.glow?.setCut(on ? y : null, on ? top!.id : null); // PLAN3D-R32-ANSWERS-2438: the wall-top state bars sit on the cut
     this.renderer.shadowMap.needsUpdate = true;
   }
 
@@ -952,7 +959,9 @@ export class SceneView {
     this.real = { ...this.real, ...rest };
     if (this.quality !== 3) return;
     // PLAN3D-REALISM2-2433: the floor finish swaps the room floors' material (merged per material): realised again
-    const rebuild = before.rung !== this.real.rung || before.furniture !== this.real.furniture || before.textures !== this.real.textures || before.floorFinish !== this.real.floorFinish;
+    // PLAN3D-R32-ANSWERS-2438: the state marks' settings build other glow meshes: realised again too (a rare settings change)
+    const rebuild = before.rung !== this.real.rung || before.furniture !== this.real.furniture || before.textures !== this.real.textures || before.floorFinish !== this.real.floorFinish
+      || JSON.stringify(before.marks ?? null) !== JSON.stringify(this.real.marks ?? null);
     if (before.style !== this.real.style) {
       this.realMats?.setStyle(this.real.style);
       const st = LOOK_STYLES[this.real.style];
@@ -1192,6 +1201,7 @@ export class SceneView {
     if (p.id.endsWith('#lit')) return null;
     // PLAN3D-REALISM-2432: the presence plate and ring give way to the room glow's cool edge and wash (scene-real buildReal)
     if (p.id.endsWith('#presence-ring') || p.id.endsWith('#presence')) return null;
+    if (p.id.endsWith('#alarm')) return null; // PLAN3D-R32-ANSWERS-2438: the room glow's alarm marks draw it
     return p;
   }
 

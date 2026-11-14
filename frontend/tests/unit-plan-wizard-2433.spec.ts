@@ -3,7 +3,7 @@ import { fromResult } from '../src/map/candidates';
 import { buildPrimitives } from '../src/map/geometry';
 import { DEMO_ENTITIES, demoBaseDoc, demoDetect, demoRooms } from '../src/plan-wizard/wizard-demo';
 import {
-  WIZARD_DEFAULTS, WIZARD_TAG, applyKit, bandCounts, bandOf, detectedChoice, guessRoomType, kitOf, normalizePrefs, placeByArea, reviewQueue, selection,
+  FURNITURE_SIZE, KITS, WIZARD_DEFAULTS, WIZARD_TAG, applyKit, bandCounts, bandOf, detectedChoice, guessRoomType, kitOf, normalizePrefs, placeByArea, reviewQueue, selection,
 } from '../src/plan-wizard/wizard-model';
 
 // PLAN3D-R28-WIZARD-2433: the pure part of the plan wizard (src/plan-wizard/wizard-model.ts) on the round 28 sample house. Node only.
@@ -14,7 +14,11 @@ test('the choices: the recommended defaults, garbage reads as the default, the t
   expect(normalizePrefs({ auto_accept: 90, review_min: 30, unreviewed: 'reject', kit: 'office', furniture: false, auto_place: false, x: 1 }))
     .toEqual({ auto_accept: 90, review_min: 30, unreviewed: 'reject', kit: 'office', furniture: false, auto_place: false });
   expect(normalizePrefs({ auto_accept: 40, review_min: 60 })).toMatchObject({ auto_accept: 80, review_min: 50 }); // crossed: back to the defaults
-  expect(normalizePrefs({ auto_accept: 100, kit: 'lobby', furniture: 'yes' })).toEqual(WIZARD_DEFAULTS);
+  expect(normalizePrefs({ auto_accept: 100, kit: 'parking', furniture: 'yes' })).toEqual(WIZARD_DEFAULTS);
+  // PLAN3D-R32-ANSWERS-2438 (owner Q-MAP-10 a): the six kits of the mockup, each a stored choice
+  expect(KITS.map((k) => k.id)).toEqual(['apartment', 'office', 'lobby', 'technical', 'commercial', 'empty']);
+  for (const k of KITS) expect(normalizePrefs({ kit: k.id }).kit).toBe(k.id);
+  for (const k of KITS) for (const items of Object.values(k.furniture)) for (const id of items) expect(FURNITURE_SIZE[id], `${k.id}: ${id}`).toBeTruthy();
   expect(bandOf(0.8, WIZARD_DEFAULTS)).toBe('sure');
   expect(bandOf(0.795, WIZARD_DEFAULTS)).toBe('sure'); // rounded to a whole percent, as shown
   expect(bandOf(0.5, WIZARD_DEFAULTS)).toBe('check');

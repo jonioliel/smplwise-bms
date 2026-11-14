@@ -3,7 +3,7 @@ import { customElement, state } from 'lit/decorators.js';
 import '../components/sw-card';
 import '../components/sw-button';
 import '../components/sw-field';
-import { describeError } from '../api/client';
+import { describeError, get, put } from '../api/client';
 import { getSettings, patchSettings } from '../api/media';
 import { invalidateSettings } from '../api/prefs';
 import { isApi } from '../api/session';
@@ -12,7 +12,8 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsStyles } from '../styles/settings';
 import '../components/sw-icon';
-import { HINT_HE, KIOSK_HE, type FlagDial, type SiteDial } from './plan-view-dials';
+import { HINT_HE, KIOSK_HE, MAP3D_ROWS, type FlagDial, type Map3dKey, type Map3dRow, type SiteDial } from './plan-view-dials';
+import { KIT_HE, KIT_IDS, normalizePrefs, type WizardPrefs } from '../plan-wizard/wizard-prefs';
 
 type Target = 'own' | 'installation';
 type ChoiceDial = keyof typeof CHOICES;
@@ -22,7 +23,10 @@ const choiceLabel = (dial: ChoiceDial, v: string | number): string => (dial === 
 const fmtRange = (dial: RangeDial, v: number): string => (dial === 'eye_m' ? `${v.toFixed(2)} מ׳` : `×${v.toFixed(2)}`);
 
 /**
- * הגדרות › מפה › תצוגה ריאליסטית (CR-029 ST7 UI; LOOK_SPEC section 10, owner rule 2026-10-09: every look choice stays changeable).
+ * הגדרות › מפה › מפה תלת־ממדית (CR-029 ST7 UI; LOOK_SPEC section 10, owner rule 2026-10-09: every look choice stays changeable).
+ * PLAN3D-R32-ANSWERS-2438 (owner round 32): ONE section for every 3D map setting - the look dials below, the round 28 room labels /
+ * room card / all-floors rows (product settings `map.*`, installation values saved with the same button) and the plan wizard's
+ * thresholds (the person's own /me/prefs `plan.wizard`, saved at once). Each default is the owner's answer.
  * Two owners of each value, the pattern of הגדרות › כללי › מראה: the installation's default (`plan.view`, every dial but the
  * default view; a system administrator; saved with the button, together with the site's location) and "ההעדפה שלי" (the person's
  * own dials through /plan-view/prefs, a PARTIAL set: each dial either follows the installation or overrides it; each change saved
@@ -41,6 +45,12 @@ export class SystemPlanView extends LitElement {
   @state() private siteStored: { lat: string; lon: string } = { lat: '', lon: '' };
   @state() private siteDraft: { lat: string; lon: string } | null = null;
   @state() private canEdit = !isApi();
+  /** PLAN3D-R32-ANSWERS-2438: the stored `map.*` values of the room labels / room card / all-floors rows and their draft. */
+  @state() private mapStored: Partial<Record<Map3dKey, string>> = {};
+  @state() private mapDraft: Partial<Record<Map3dKey, string>> = {};
+  /** The plan wizard's own choices (/me/prefs `plan.wizard`); null until read. */
+  @state() private wizard: WizardPrefs | null = null;
+  @state() private wizardErr = '';
   @state() private busy = false;
   @state() private message = '';
   @state() private error = '';
@@ -175,6 +185,13 @@ export class SystemPlanView extends LitElement {
     .site input {
       min-block-size: var(--sw-touch-desktop, 44px);
     }
+    /* PLAN3D-R32-ANSWERS-2438: the plan wizard's two thresholds (a percent each) on the same 44 px dial */
+    input[data-wizard-pct] {
+      min-block-size: var(--sw-touch-desktop, 44px);
+      inline-size: 96px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
     .foot {
       margin-block-start: var(--sw-s-4);
     }
@@ -204,10 +221,68 @@ export class SystemPlanView extends LitElement {
         const lat = r.settings['site.latitude'];
         const lon = r.settings['site.longitude'];
         this.siteStored = { lat: lat === null || lat === undefined ? '' : String(lat), lon: lon === null || lon === undefined ? '' : String(lon) };
+        this.mapStored = this.mapOf(r.settings as unknown as Record<string, unknown>);
       }
     } catch (err) {
       this.error = describeError(err);
     }
+    void this.loadWizard();
+  }
+
+  private mapOf(settings: Record<string, unknown>): Partial<Record<Map3dKey, string>> {
+    const out: Partial<Record<Map3dKey, string>> = {};
+    for (const row of MAP3D_ROWS) {
+      const v = settings[row.key];
+      if (typeof v === 'string' && row.options.some(([o]) => o === v)) out[row.key] = v;
+    }
+    return out;
+  }
+
+  /** The wizard's thresholds (a person's own value; an older server or the demo: the defaults, kept for the page). */
+  private async loadWizard() {
+    if (!isApi()) {
+      this.wizard ??= normalizePrefs(null);
+      return;
+    }
+    try {
+      const r = await get<{ prefs: Record<string, unknown> }>('me/prefs');
+      this.wizard = normalizePrefs(r.prefs['plan.wizard']);
+    } catch {
+      this.wizard = normalizePrefs(null);
+    }
+  }
+
+  private async setWizard(patch: Partial<WizardPrefs>) {
+    const cur = this.wizard ?? normalizePrefs(null);
+    const next = { ...cur, ...patch };
+    if (next.review_min >= next.auto_accept) {
+      this.wizardErr = 'הסף התחתון צריך להיות נמוך מהסף העליון.';
+      return;
+    }
+    this.wizardErr = '';
+    this.busy = true;
+    this.error = '';
+    try {
+      if (isApi()) await put('me/prefs', { 'plan.wizard': next });
+      this.wizard = next;
+      this.flash('ההעדפה נשמרה');
+    } catch (err) {
+      this.error = describeError(err);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private mapValue(row: Map3dRow): string {
+    return this.mapDraft[row.key] ?? this.mapStored[row.key] ?? row.options[0][0];
+  }
+
+  private setMap(row: Map3dRow, value: string) {
+    const next = { ...this.mapDraft };
+    if (value === (this.mapStored[row.key] ?? row.options[0][0])) delete next[row.key];
+    else next[row.key] = value;
+    this.mapDraft = next;
+    this.message = '';
   }
 
   /** The installation's value of a dial: the draft first, then the stored one, then the product default. */
@@ -216,7 +291,7 @@ export class SystemPlanView extends LitElement {
   }
 
   private get dirty(): boolean {
-    return Object.keys(this.draft).length > 0 || (!!this.siteDraft && (this.siteDraft.lat !== this.siteStored.lat || this.siteDraft.lon !== this.siteStored.lon));
+    return Object.keys(this.draft).length > 0 || Object.keys(this.mapDraft).length > 0 || (!!this.siteDraft && (this.siteDraft.lat !== this.siteStored.lat || this.siteDraft.lon !== this.siteStored.lon));
   }
 
   private flash(text: string) {
@@ -235,6 +310,7 @@ export class SystemPlanView extends LitElement {
   private async saveInstallation() {
     const body: Record<string, unknown> = {};
     if (Object.keys(this.draft).length) body['plan.view'] = { ...this.draft };
+    for (const [k, v] of Object.entries(this.mapDraft)) body[k] = v; // PLAN3D-R32-ANSWERS-2438: the map.* rows ride the same patch
     const site = this.siteDraft;
     if (site) {
       if (site.lat !== this.siteStored.lat) body['site.latitude'] = site.lat;
@@ -260,14 +336,17 @@ export class SystemPlanView extends LitElement {
         const lat = r.settings['site.latitude'];
         const lon = r.settings['site.longitude'];
         this.siteStored = { lat: lat === null || lat === undefined ? '' : String(lat), lon: lon === null || lon === undefined ? '' : String(lon) };
+        this.mapStored = this.mapOf(r.settings as unknown as Record<string, unknown>);
         this.prefs = await planViewPrefs(true);
       } else {
         // the demo keeps the choice for the page
         const cur = this.prefs ?? (await planViewPrefs());
         this.prefs = { ...cur, site: { ...cur.site, ...(this.draft as Partial<PlanViewPrefs['site']>) }, effective: { ...cur.effective, ...(this.draft as Partial<PlanViewDials>), ...cur.own } };
         if (site) this.siteStored = { ...site };
+        this.mapStored = { ...this.mapStored, ...this.mapDraft };
       }
       this.draft = {};
+      this.mapDraft = {};
       this.siteDraft = null;
       this.flash('ברירת המחדל נשמרה');
     } catch (err) {
@@ -370,6 +449,47 @@ export class SystemPlanView extends LitElement {
     </div>`;
   }
 
+  /** PLAN3D-R32-ANSWERS-2438: a round 28 `map.*` row - an installation value (the target "installation" only), saved with the card. */
+  private mapRow(row: Map3dRow): TemplateResult {
+    const current = this.mapValue(row);
+    return html`<div class="row" data-map-row=${row.key}>
+      <span class="lbl">${row.he}<span class="muted">${row.hint}</span></span>
+      <span class="seg" role="group" aria-label=${row.he}>
+        ${row.options.map(([v, l]) => html`<button type="button" data-view-option=${`${row.key}:${v}`} aria-pressed=${current === v ? 'true' : 'false'} ?disabled=${this.instDisabled} @click=${() => this.setMap(row, v)}>${l}</button>`)}
+      </span>
+    </div>`;
+  }
+
+  /** PLAN3D-R32-ANSWERS-2438 (owner Q-MAP-9 a): the plan wizard's thresholds and first kit - the person's own, saved at once. */
+  private wizardRows(): TemplateResult {
+    const w = this.wizard ?? normalizePrefs(null);
+    const pct = (key: 'auto_accept' | 'review_min', label: string, hint: string) => html`<div class="row" data-wizard-row=${key}>
+      <span class="lbl">${label}<span class="muted">${hint}</span></span>
+      <sw-field class="ctl"><input type="number" inputmode="numeric" min="5" max="99" step="1" data-ltr data-wizard-pct=${key} aria-label=${label} .value=${String(w[key])} ?disabled=${this.busy}
+        @change=${(e: Event) => {
+          const input = e.target as HTMLInputElement;
+          const v = Math.round(Number(input.value));
+          if (Number.isFinite(v) && v >= 5 && v <= 99) void this.setWizard({ [key]: v });
+          else input.value = String(w[key]);
+        }} /></sw-field>
+    </div>`;
+    return html`${pct('auto_accept', 'נכנס בלי בדיקה מעל (%)', 'פריט שזוהה בביטחון גבוה מזה נכנס לתוכנית לבד')}
+      ${pct('review_min', 'לא נכנס בלי אישור מתחת ל־(%)', 'בין שני הספים הפריט מסומן לבדיקה')}
+      <div class="row" data-wizard-row="unreviewed">
+        <span class="lbl">פריט לבדיקה שדילגת עליו<span class="muted">נכנס כמו שזוהה, או לא נכנס</span></span>
+        <span class="seg" role="group" aria-label="פריט לבדיקה שדילגת עליו">
+          ${(['as_detected', 'reject'] as const).map((v) => html`<button type="button" data-view-option=${`wizard.unreviewed:${v}`} aria-pressed=${w.unreviewed === v ? 'true' : 'false'} ?disabled=${this.busy} @click=${() => void this.setWizard({ unreviewed: v })}>${v === 'as_detected' ? 'נכנס כמו שזוהה' : 'לא נכנס'}</button>`)}
+        </span>
+      </div>
+      <div class="row" data-wizard-row="kit">
+        <span class="lbl">ערכת סגנון ראשונה<span class="muted">הערכה שמסומנת כשמגיעים לשלב הסגנון; בכל תוכנית אפשר לבחור אחרת</span></span>
+        <span class="seg" role="group" aria-label="ערכת סגנון ראשונה">
+          ${KIT_IDS.map((v) => html`<button type="button" data-view-option=${`wizard.kit:${v}`} aria-pressed=${w.kit === v ? 'true' : 'false'} ?disabled=${this.busy} @click=${() => void this.setWizard({ kit: v })}>${KIT_HE[v]}</button>`)}
+        </span>
+      </div>
+      ${this.wizardErr ? html`<div class="row"><span class="msg err" role="alert" data-wizard-error><sw-icon name="warning" size=${13}></sw-icon>${this.wizardErr}</span></div>` : nothing}`;
+  }
+
   private siteRow(): TemplateResult {
     const d = this.siteDraft ?? this.siteStored;
     const set = (patch: Partial<{ lat: string; lon: string }>) => {
@@ -387,26 +507,36 @@ export class SystemPlanView extends LitElement {
 
   render() {
     const own = this.target === 'own';
-    return html`<sw-card heading="תצוגה ריאליסטית" subheading="סגנון, תצוגת פתיחה, ריהוט וחומרים, שעה ואור, סיור בגובה עין, מסך קיר ומיקום האתר - לכל ההתקנה ולעצמי" data-plan-view-card>
+    const map = (group: Map3dRow['group']) => MAP3D_ROWS.filter((r) => r.group === group).map((r) => this.mapRow(r));
+    return html`<sw-card heading="מפה תלת־ממדית" subheading="תוויות וכרטיס החדר, כל הקומות, מראה, סימוני מצב, שעה ואור, תוכנית מתמונה, סיור ואיכות - לכל ההתקנה ולעצמי" data-plan-view-card data-settings-map3d>
       <div class="row scope">
-        <span class="lbl">למי<span class="muted">${own ? 'ההעדפה שלי: כל שינוי נשמר מיד ותקף בכל מכשיר שלי' : 'ברירת המחדל של ההתקנה: נשמרת בכפתור'}</span></span>
+        <span class="lbl">למי<span class="muted">${own ? 'ההעדפה שלי: כל שינוי נשמר מיד ותקף בכל מכשיר שלי. התוויות, כרטיס החדר והריצוף נקבעים בברירת המחדל של ההתקנה' : 'ברירת המחדל של ההתקנה: נשמרת בכפתור'}</span></span>
         <span class="seg" role="group" aria-label="למי">
           <button type="button" data-view-target="own" aria-pressed=${own ? 'true' : 'false'} @click=${() => (this.target = 'own')}>ההעדפה שלי</button>
           <button type="button" data-view-target="installation" aria-pressed=${own ? 'false' : 'true'} @click=${() => (this.target = 'installation')}>ברירת המחדל של ההתקנה</button>
         </span>
       </div>
+      ${own ? nothing : html`<h4 class="sub">תוויות וכרטיס החדר</h4>${map('labels')}<h4 class="sub">כל הקומות</h4>${map('stack')}`}
       <h4 class="sub">מראה</h4>
       ${this.choiceRow('style')}
       ${this.choiceRow('backdrop')}
       ${this.choiceRow('default_view')}
       ${own ? nothing : html`${this.choiceRow('furniture')}${this.choiceRow('textures')}${this.choiceRow('floor_finish')}`}
+      ${this.choiceRow('wall_cut')}
       ${this.flagRow('floor_reflections')}
+      ${this.flagRow('reflections_auto')}
       ${this.flagRow('section_cut')}
       ${this.flagRow('show_temps')}
       ${this.flagRow('motion')}
+      <h4 class="sub">סימוני מצב החדר</h4>
+      ${this.choiceRow('room_marks')}
+      ${this.choiceRow('light_mark')}
+      ${this.choiceRow('alarm_motion')}
       <h4 class="sub">שעה ואור</h4>
       ${this.choiceRow('time_source')}
+      ${this.choiceRow('light_mood')}
       ${own ? nothing : this.siteRow()}
+      ${own ? html`<h4 class="sub">תוכנית חדשה מתמונה</h4>${this.wizardRows()}` : nothing}
       <h4 class="sub">סיור בגובה עין</h4>
       ${this.rangeRow('eye_m')}
       ${this.choiceRow('mouse_mode')}
@@ -419,7 +549,7 @@ export class SystemPlanView extends LitElement {
         ${own
           ? html`<sw-button variant="ghost" size="sm" data-view-clear-own ?disabled=${this.busy || !Object.keys(this.prefs?.own ?? {}).length} @click=${() => void this.clearOwn()}>לפי ההתקנה בכל האפשרויות</sw-button>`
           : html`<sw-button variant="primary" size="sm" icon="check" data-view-save ?disabled=${this.instDisabled || !this.dirty} @click=${() => void this.saveInstallation()}>שמור</sw-button>
-              <sw-button variant="ghost" size="sm" data-view-reset ?disabled=${this.instDisabled || !this.dirty} @click=${() => { this.draft = {}; this.siteDraft = null; }}>בטל שינויים</sw-button>
+              <sw-button variant="ghost" size="sm" data-view-reset ?disabled=${this.instDisabled || !this.dirty} @click=${() => { this.draft = {}; this.mapDraft = {}; this.siteDraft = null; }}>בטל שינויים</sw-button>
               ${this.dirty && !this.instDisabled ? html`<span class="dirty" data-view-dirty>יש שינויים שלא נשמרו</span>` : nothing}
               ${!this.canEdit && isApi() ? html`<span class="note">שינוי ברירת המחדל דורש הרשאת מנהל מערכת.</span>` : nothing}
               ${!isApi() ? html`<span class="note">נתוני הדגמה: ההגדרות נשמרות רק מול השרת.</span>` : nothing}`}

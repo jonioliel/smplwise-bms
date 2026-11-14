@@ -10,9 +10,15 @@
  * Opacities = the style's look x the night factor x the room's lit / presence weight, eased over FADE_MS when a weight
  * changes (a lamp switched, presence faded in or out) and set at once without motion or on the first build. The walls'
  * layers are clipped by the section plane like the walls. Gradients are generated (canvas), deterministic.
+ *
+ * PLAN3D-R32-ANSWERS-2438 (owner round 32, Q-MAP-16..18): the state marks (room-glow.ts markLayers) - per room up to three more unlit
+ * meshes in the state's colour: mark-bar (a flat ribbon on the wall tops, at the section cut; never clipped, it sits on the cut),
+ * mark-line (a crisp line along the walls on the floor) and, for an alarm, alarm-band (the soft red band) or, with the floor tint
+ * setting, alarm-fill. An alarm pulses slowly (tick keeps drawing while one pulses) unless motion is off, the setting says steady or
+ * the device asks for reduced motion.
  */
 import { AddEquation, AdditiveBlending, BufferAttribute, CustomBlending, DstColorFactor, OneFactor, ZeroFactor, BufferGeometry, CanvasTexture, ClampToEdgeWrapping, Color, DoubleSide, Group, Mesh, MeshBasicMaterial, NormalBlending, ShapeUtils, Vector2, type Plane } from './three-bundle';
-import { glowLook, washSegments, type GlowLook, type GlowRoom } from './room-glow';
+import { DEFAULT_MARKS, alarmPulse, barHeight, glowLook, markLayers, markState, washSegments, type GlowLook, type GlowRoom, type MarkPrefs, type MarkState } from './room-glow';
 import { kelvinRgb } from './sun';
 import { LOOK_STYLES, type StyleId } from './look-style';
 
@@ -150,13 +156,39 @@ function bandGeometry(room: GlowRoom): BufferGeometry | null {
   return g;
 }
 
+/** PLAN3D-R32-ANSWERS-2438: a flat ribbon between an outline and its inner outline (same vertex count), at y = `y`, facing up. */
+function ribbonGeometry(outer: [number, number][], inner: [number, number][], y: number): BufferGeometry | null {
+  if (outer.length < 3 || inner.length !== outer.length) return null;
+  const pos: number[] = [];
+  for (let i = 0; i < outer.length; i++) {
+    const j = (i + 1) % outer.length;
+    const a = outer, b = inner;
+    pos.push(a[i][0], y, a[i][1], b[j][0], y, b[j][1], a[j][0], y, a[j][1], a[i][0], y, a[i][1], b[i][0], y, b[i][1], b[j][0], y, b[j][1]);
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
+  g.computeBoundingSphere();
+  return g;
+}
+
+/** The marks' colours: alarm = the style's open-door red, presence = the style's blue, a light on = amber. */
+const AMBER: Record<StyleId, number> = { light: 0xf0a030, dark: 0xffb547 };
+function markColour(state: MarkState, style: StyleId): number {
+  const st = LOOK_STYLES[style].states;
+  return state === 'alarm' ? st.open_door : state === 'presence' ? st.presence : AMBER[style];
+}
+const reducedMotion = (): boolean => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 interface Entry {
   room: GlowRoom;
   cur: { lit: number; presence: number };
   from: { lit: number; presence: number };
   to: { lit: number; presence: number };
   t0: number;
-  meshes: { litFloor?: Mesh; litWall?: Mesh; presFill?: Mesh; presEdge?: Mesh; presWall?: Mesh };
+  /** PLAN3D-R32-ANSWERS-2438: the state the marks show (decided by the target, else where it fades from) and their layers. */
+  mark: MarkState | null;
+  layers: { bar: boolean; line: boolean; floor: boolean };
+  meshes: { litFloor?: Mesh; litWall?: Mesh; presFill?: Mesh; presEdge?: Mesh; presWall?: Mesh; markBar?: Mesh; markLine?: Mesh; alarmBand?: Mesh; alarmFill?: Mesh };
 }
 
 const mat = (opts: ConstructorParameters<typeof MeshBasicMaterial>[0]) => new MeshBasicMaterial({ transparent: true, depthWrite: false, fog: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, side: DoubleSide, ...opts });
@@ -167,10 +199,15 @@ export class RoomGlow {
   private look: GlowLook;
   private style: StyleId;
   private clip: Plane[] | null = null;
+  private readonly marks: MarkPrefs;
+  private night: number;
+  private pulse = 1;
 
-  constructor(rooms: GlowRoom[], style: StyleId, night: number, prev: Map<string, { room: GlowRoom; lit: number; presence: number }> | null = null, now = 0) {
+  constructor(rooms: GlowRoom[], style: StyleId, night: number, prev: Map<string, { room: GlowRoom; lit: number; presence: number }> | null = null, now = 0, marks: MarkPrefs = DEFAULT_MARKS) {
     this.root.name = 'room-glow';
     this.style = style;
+    this.night = night;
+    this.marks = marks;
     this.look = glowLook(style, night);
     const seen = new Set<string>();
     for (const room of rooms) {
@@ -181,16 +218,19 @@ export class RoomGlow {
       this.add(room, from, { lit: room.lit, presence: room.presence }, now);
     }
     // a room that went dark / empty since the previous graph fades out from where it was
-    if (prev) for (const [zone, was] of [...prev].sort((a, b) => (a[0] < b[0] ? -1 : 1))) if (!seen.has(zone) && (was.lit > 0.001 || was.presence > 0.001)) this.add(was.room, { lit: was.lit, presence: was.presence }, { lit: 0, presence: 0 }, now);
+    if (prev) for (const [zone, was] of [...prev].sort((a, b) => (a[0] < b[0] ? -1 : 1))) if (!seen.has(zone) && (was.lit > 0.001 || was.presence > 0.001)) this.add({ ...was.room, alarm: 0 }, { lit: was.lit, presence: was.presence }, { lit: 0, presence: 0 }, now);
     this.apply();
   }
 
   private add(room: GlowRoom, from: Entry['from'], to: Entry['to'], now: number): void {
-    const e: Entry = { room, cur: { ...from }, from: { ...from }, to: { ...to }, t0: now, meshes: {} };
+    const mark = markState({ alarm: room.alarm, presence: to.presence, lit: to.lit }) ?? markState({ presence: from.presence, lit: from.lit });
+    const layers = markLayers(mark, this.marks);
+    const e: Entry = { room, cur: { ...from }, from: { ...from }, to: { ...to }, t0: now, mark, layers, meshes: {} };
     const warm = new Color(...kelvinRgb(room.color_k));
     const cool = new Color(LOOK_STYLES[this.style].states.presence);
     const needLit = from.lit > 0 || to.lit > 0;
-    const needPres = from.presence > 0 || to.presence > 0;
+    // the presence layers are the floor tint: the bar-only setting draws no colour on the floor (Q-MAP-16 c)
+    const needPres = (from.presence > 0 || to.presence > 0) && this.marks.marks !== 'bar';
     const put = (m: Mesh, name: string, order: number) => {
       m.name = `glow:${room.zone}#${name}`;
       m.renderOrder = order;
@@ -215,7 +255,41 @@ export class RoomGlow {
       e.meshes.presWall = pw;
       if (needLit) pw.userData.sharedGeometry = true; // the lit wash owns the geometry when both exist
     }
+    // PLAN3D-R32-ANSWERS-2438: the state marks, in the state's colour; drawn over the glow, exempt from tone mapping (a signal colour)
+    if (mark) {
+      const colour = markColour(mark, this.style);
+      const sig = (o: ConstructorParameters<typeof MeshBasicMaterial>[0]) => mat({ color: colour, toneMapped: false, blending: NormalBlending, ...o });
+      if (layers.bar) {
+        const g = ribbonGeometry(room.outline, room.barInner, 0);
+        if (g) {
+          const m = put(new Mesh(g, sig({})), 'mark-bar', 5);
+          m.position.y = barHeight(room, null, null) + 0.006;
+          e.meshes.markBar = m;
+        }
+      }
+      if (layers.line) {
+        const g = ribbonGeometry(room.polygon, room.lineInner, room.y + FLOOR_LIFT_M + 0.004);
+        if (g) e.meshes.markLine = put(new Mesh(g, sig({})), 'mark-line', 4);
+      }
+      if (mark === 'alarm' && layers.floor) {
+        if (this.marks.marks === 'floor') e.meshes.alarmFill = put(new Mesh(floorGeometry(room, false), sig({})), 'alarm-fill', 2);
+        const band = bandGeometry(room);
+        if (band) e.meshes.alarmBand = put(new Mesh(band, sig({ map: edgeTexture() })), 'alarm-band', 3);
+      }
+    }
     this.entries.set(room.zone, e);
+  }
+
+  /** PLAN3D-R32-ANSWERS-2438: where the section cut stands (null: nothing cut) - the wall-top bars of its level sit on it. */
+  setCut(y: number | null, level: string | null): void {
+    for (const e of this.entries.values()) if (e.meshes.markBar) e.meshes.markBar.position.y = barHeight(e.room, y, level) + 0.006;
+  }
+
+  /** True while an alarm room pulses (the view keeps drawing frames for it). */
+  private pulsing(motion: boolean): boolean {
+    if (!motion || this.marks.alarm !== 'pulse' || reducedMotion()) return false;
+    for (const e of this.entries.values()) if (e.mark === 'alarm') return true;
+    return false;
   }
 
   /** The opacities from the look and every room's current weights. */
@@ -234,16 +308,27 @@ export class RoomGlow {
       set(e.meshes.presFill, L.presFloor * e.cur.presence * (1 - e.cur.lit));
       set(e.meshes.presEdge, L.presEdge * e.cur.presence);
       set(e.meshes.presWall, L.presWall * e.cur.presence);
+      // PLAN3D-R32-ANSWERS-2438: the marks - the alarm at full strength (times the pulse), presence by its fade, a light on by its
+      // fade and weaker at night (the lit room itself shows it then); the mockup's strengths
+      const w = e.mark === 'alarm' ? this.pulse : e.mark === 'presence' ? e.cur.presence : e.mark === 'light' ? e.cur.lit * (1 - 0.5 * Math.max(0, Math.min(1, this.night))) : 0;
+      set(e.meshes.markBar, (e.mark === 'light' ? 0.85 : 0.95) * w);
+      set(e.meshes.markLine, (e.mark === 'light' ? 0.6 : 0.85) * w);
+      set(e.meshes.alarmBand, 0.5 * w);
+      set(e.meshes.alarmFill, 0.22 * w);
     }
   }
 
   /** The style or the time moved (applyTime): the look's strengths and the presence colour. */
   setLook(style: StyleId, night: number): void {
     this.look = glowLook(style, night);
+    this.night = night;
     if (style !== this.style) {
       this.style = style;
       const cool = LOOK_STYLES[style].states.presence;
-      for (const e of this.entries.values()) for (const m of [e.meshes.presFill, e.meshes.presEdge, e.meshes.presWall]) (m?.material as MeshBasicMaterial | undefined)?.color.setHex(cool);
+      for (const e of this.entries.values()) {
+        for (const m of [e.meshes.presFill, e.meshes.presEdge, e.meshes.presWall]) (m?.material as MeshBasicMaterial | undefined)?.color.setHex(cool);
+        if (e.mark) for (const m of [e.meshes.markBar, e.meshes.markLine, e.meshes.alarmBand, e.meshes.alarmFill]) (m?.material as MeshBasicMaterial | undefined)?.color.setHex(markColour(e.mark, style));
+      }
     }
     this.apply();
   }
@@ -273,7 +358,9 @@ export class RoomGlow {
 
   /** One step of the fades (ease-in-out); true while any runs. `motion` false ends them at once. */
   tick(now: number, motion = true): boolean {
-    let running = false;
+    const pulsing = this.pulsing(motion);
+    this.pulse = alarmPulse(now, pulsing);
+    let running = pulsing;
     for (const e of this.entries.values()) {
       if (e.cur.lit === e.to.lit && e.cur.presence === e.to.presence) continue;
       const t = motion ? Math.min(1, Math.max(0, (now - e.t0) / FADE_MS)) : 1;

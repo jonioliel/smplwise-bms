@@ -18,7 +18,9 @@ from smplwise.services import plan_view as pv
 
 OWNER_DEFAULTS = {"style": "auto", "default_view": "schematic", "furniture": "models", "textures": "files", "wall_display": "live", "time_source": "clock",
                   "mouse_mode": "drag", "quality": "auto", "kiosk_idle_s": 30, "eye_m": 1.65, "dpr_cap": 1.25, "section_cut": True, "show_temps": False,
-                  "motion": True, "walk_guard": True, "backdrop": "sky", "floor_finish": "marble", "floor_reflections": True}
+                  "motion": True, "walk_guard": True, "backdrop": "sky", "floor_finish": "marble", "floor_reflections": True,
+                  # PLAN3D-R32-ANSWERS-2438 (owner round 32): low cut walls, light by the hour, wall-top bar + floor line, amber bar, slow pulse
+                  "wall_cut": "low", "light_mood": "auto", "room_marks": "bar_edge", "light_mark": "bar", "alarm_motion": "pulse", "reflections_auto": True}
 
 
 def test_defaults_are_the_owner_answers():
@@ -31,7 +33,10 @@ def test_defaults_are_the_owner_answers():
                                                    ("kiosk_idle_s", "120", 120), ("kiosk_idle_s", 0, 0), ("style", "dark", "dark"), ("show_temps", True, True),
                                                    ("backdrop", "studio", "studio"), ("backdrop", "sky", "sky"),
                                                    ("floor_finish", "wood", "wood"), ("floor_finish", "ceramic", "ceramic"),
-                                                   ("floor_reflections", False, False), ("floor_reflections", True, True)])
+                                                   ("floor_reflections", False, False), ("floor_reflections", True, True),
+                                                   ("floor_finish", "travertine", "travertine"), ("wall_cut", "mid", "mid"), ("light_mood", "evening", "evening"),
+                                                   ("room_marks", "floor", "floor"), ("light_mark", "bar_floor", "bar_floor"), ("alarm_motion", "steady", "steady"),
+                                                   ("reflections_auto", False, False)])
 def test_dials_accept_and_snap(key, value, out):
     assert pv._dial(key, value) == out
 
@@ -41,7 +46,9 @@ def test_dials_accept_and_snap(key, value, out):
                                             ("section_cut", "true"), ("motion", 1), ("quality", "ultra"), ("nope", 1),
                                             ("backdrop", "Studio"), ("backdrop", "night"), ("backdrop", True),
                                             ("floor_finish", "Marble"), ("floor_finish", "tile"), ("floor_finish", None),
-                                            ("floor_reflections", "true"), ("floor_reflections", 1), ("floor_reflections", None)])
+                                            ("floor_reflections", "true"), ("floor_reflections", 1), ("floor_reflections", None),
+                                            ("wall_cut", "full"), ("light_mood", "dusk"), ("room_marks", None), ("light_mark", True), ("reflections_auto", "on"),
+                                            ("alarm_motion", "flash")])  # PLAN3D-R32-ANSWERS-2438: a fast flash is never offered (photosensitivity)
 def test_dials_refuse(key, value):
     with pytest.raises(ValueError):
         pv._dial(key, value)

@@ -11,9 +11,10 @@
 import type { SceneDescription, ScenePart, Vec3 } from './scene-builder';
 import type { RoomSummary } from './room-pills';
 
-/** Round 28 Q7 (ג1): the spread view's backdrop follows the light / dark mode and the hour like a single level (`theme`,
- * recommended), or is always dark as in the owner's reference picture (`dark`). */
-export type StackBackdrop = 'theme' | 'dark';
+/** Round 28 Q7 (ג1): the spread view's backdrop follows the light / dark mode and the hour like a single level (`theme`, the owner's
+ * answer in round 32), or - the owner's note on it (PLAN3D-R32-ANSWERS-2438) - is locked to the day look (`light`) or the night look
+ * (`dark`, the owner's reference picture): the host's backdrop and the realistic level's light both follow the lock. */
+export type StackBackdrop = 'theme' | 'light' | 'dark';
 /** Round 28 Q8 (ג2): the first tap on a level focuses it and the second enters it (`two_tap`, recommended), or one tap enters (`one_tap`). */
 export type StackPick = 'two_tap' | 'one_tap';
 export interface StackPrefs {
@@ -24,7 +25,7 @@ export const DEFAULT_STACK_PREFS: StackPrefs = { backdrop: 'theme', pick: 'two_t
 export function stackPrefsOf(s: Record<string, unknown> | null | undefined): StackPrefs {
   const b = s?.['map.stack_backdrop'];
   const p = s?.['map.stack_pick'];
-  return { backdrop: b === 'dark' ? 'dark' : 'theme', pick: p === 'one_tap' ? 'one_tap' : 'two_tap' };
+  return { backdrop: b === 'dark' || b === 'light' ? b : 'theme', pick: p === 'one_tap' ? 'one_tap' : 'two_tap' };
 }
 
 /** How the levels of "every level" stand: as built (`closed`, the building) or lifted apart (`open`). */

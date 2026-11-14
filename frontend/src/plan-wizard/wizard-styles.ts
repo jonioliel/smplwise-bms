@@ -641,6 +641,8 @@ export const wizardStyles = css`
   .presets {
     display: grid;
     gap: 10px;
+    /* PLAN3D-R32-ANSWERS-2438: six kits - two columns where the panel holds them, so the step does not scroll */
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr));
   }
   .preset {
     display: grid;
@@ -671,7 +673,7 @@ export const wizardStyles = css`
     grid-template-rows: 1fr 1fr;
     grid-template-columns: 1fr 1fr;
     direction: ltr;
-    min-block-size: 64px;
+    min-block-size: 56px;
   }
   .preset .tx {
     padding: 10px 12px;
