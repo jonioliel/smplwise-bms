@@ -8,6 +8,7 @@
  */
 import { inAndroidApp } from '../arx/android-app';
 import { inNativeApp } from '../arx/native-app';
+import { quietScreenLoads } from '../shell/lazy-screens';
 
 /** Chromium's install prompt event (not in the DOM typings). */
 export interface InstallPromptEvent extends Event {
@@ -107,17 +108,23 @@ export async function promptInstall(): Promise<'accepted' | 'dismissed' | 'unava
 
 /** How long "רענון" waits for the new worker to start activating before it reloads the page anyway (applyUpdate). */
 export const UPDATE_STALL_MS = 3000;
+/** How long a reload of applyUpdate may stay pending (this document still here) before it is asked again. */
+export const UPDATE_RELOAD_RETRY_MS = 8000;
 
 /**
  * Let the waiting worker take over and reload once it controls the page.
  *
- * PWA-UPDATE-STALL-2435: Chromium activates a skip-waiting worker by first stopping the old one. A fetch that reaches the old
- * worker in that moment (the start-up warm-up loads the screens' chunks right after load - exactly when a new release's notice
- * shows) starts the old worker again, and the activation is dropped: the new worker stays `installed`, no controllerchange comes,
- * and asking it to skip waiting again does nothing (Chromium acts on the first call only). The runner measured it: 7 of 10 presses
- * on main 0a8fb55e1 stalled. A reload does finish the update (the old worker has no page left and is replaced at once), so when the
- * new worker has not even started activating after UPDATE_STALL_MS, the page reloads anyway. A worker that is already activating
- * is left to finish: its controllerchange reloads the page.
+ * PWA-UPDATE-STALL-2435: Chromium hands over to a skip-waiting worker by stopping the old one first, and a request that reaches the
+ * old worker in that moment is not handled well. Measured on the runner (CDP service-worker events, an instrumented worker script):
+ * a fetch arriving while the old worker stops starts it again and the activation is dropped - the new worker stays `installed`, no
+ * controllerchange comes, and asking it to skip waiting again does nothing (7 of 10 presses on main 0a8fb55e1). And a navigation
+ * that reached the old worker just before it was stopped never finished. The start-up warm-up (shell/lazy-screens.ts) fetches the
+ * screens' chunks right after load, which is exactly when a new release's notice shows. So:
+ *  1. the warm-up stops and the chunk fetches in flight settle first (quietScreenLoads, at most 2 s);
+ *  2. then the new worker is asked to skip waiting; its controllerchange reloads the page;
+ *  3. when the new worker has not even started activating after UPDATE_STALL_MS, the page reloads anyway (a reload does make
+ *     Chromium hand over: the old worker turns redundant at once);
+ *  4. a reload still pending after UPDATE_RELOAD_RETRY_MS (this document is still here) is asked again, at most twice.
  */
 export function applyUpdate(): void {
   const waiting = pwa.registration?.waiting;
@@ -130,12 +137,19 @@ export function applyUpdate(): void {
     if (reloaded) return;
     reloaded = true;
     window.location.reload();
+    let again = 0;
+    const retry = window.setInterval(() => {
+      if (++again > 2) window.clearInterval(retry);
+      else window.location.reload();
+    }, UPDATE_RELOAD_RETRY_MS);
   };
   navigator.serviceWorker.addEventListener('controllerchange', reload);
-  waiting.postMessage({ type: 'arx-skip-waiting' });
-  window.setTimeout(() => {
-    if (waiting.state === 'installed') reload();
-  }, UPDATE_STALL_MS);
+  void quietScreenLoads().then(() => {
+    waiting.postMessage({ type: 'arx-skip-waiting' });
+    window.setTimeout(() => {
+      if (waiting.state === 'installed') reload();
+    }, UPDATE_STALL_MS);
+  });
 }
 
 function watchUpdates(reg: ServiceWorkerRegistration) {

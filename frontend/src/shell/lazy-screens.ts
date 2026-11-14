@@ -307,6 +307,19 @@ export function warmCommonScreens(first: readonly string[] = []): void {
   whenIdle(next);
 }
 
+/**
+ * PWA-UPDATE-STALL-2435: stop the warm-up for the rest of this page and settle once no screen chunk is being fetched (at most `maxMs`).
+ * The update notice (pwa/register.ts applyUpdate) calls it before the new service worker takes over: a chunk fetch that reaches the old
+ * worker while Chromium stops it drops the activation or the reload's own request.
+ */
+export function quietScreenLoads(maxMs = 2000): Promise<void> {
+  warmupOn = false;
+  if (warmQueue) warmQueue = [];
+  const inFlight = [...loads.values()];
+  if (!inFlight.length) return Promise.resolve();
+  return Promise.race([Promise.allSettled(inFlight).then(() => undefined), new Promise<void>((done) => setTimeout(done, maxMs))]);
+}
+
 /** Put a parked element back where its comment is, upgraded first when its chunk defined it (see the header). */
 function unpark(el: Element, mark: Comment): void {
   if (!mark.isConnected) return; // the render moved on (another route, another floor): the element went with its place
