@@ -122,7 +122,7 @@ components:
     height: "34px"
   dialog:
     backgroundColor: "{colors.surface-solid}"
-    rounded: "{rounded.xl}"
+    rounded: "{rounded.lg}"
     width: "440px"
 ---
 
@@ -138,7 +138,7 @@ How to read it:
   and is quoted with its file. Where the owner has decided a rule that the code does not follow yet, the rule is stated and the
   gap is listed in Appendix A with file and line. **When this file and the code disagree on a value, the code is right and this
   file has a bug**; when they disagree on a rule, Appendix A says which side moves.
-- Three questions are **OPEN** (§13). Nothing here decides them; both current behaviours are documented as they are.
+- Two questions are **OPEN** (§13). Nothing here decides them; both current behaviours are documented as they are.
 - Precedence: approved change request → `MASTER_SPEC_HE.md` and `docs/security/` → `AGENTS.md` → this document → the older
   design documents (§15).
 - The frontmatter carries the **Domus light** values (Domus is the primary rulebook); the dark column and the glass family are
@@ -257,7 +257,7 @@ The installation may replace the accent and the switch colour (`ui.accent`, `ui.
 **The Dot-and-Word Rule.** A state is a dot or a shape **and** a word. Colour is never the only carrier.
 **The Opaque Floating Rule.** A menu, popover, picker, dropdown list, search-result list or HUD panel over the plan paints
 `--sw-menu-surface`, fully opaque, with no blur, in every skin, palette and scheme. The registry is
-`frontend/src/styles/menu-surface.ts`; modal layers (dialog, drawer, sheet) are a separate case (§13.1).
+`frontend/src/styles/menu-surface.ts`; the dialog and the drawer are painted with the same pair (§7.10).
 **The Green-Is-Status Rule.** Green means on, live, confirmed. It is never an action colour and never decoration.
 **The Fixed Status Rule** (Q-DES-18). Red, amber and green do not follow a palette swap, and they are written once (today
 three components each keep a private copy: Appendix A.8).
@@ -352,7 +352,8 @@ Domus is a hybrid: the three glass levels carry the structure, and a real ladder
 | `--sw-shadow-primary` | `0 1px 2px rgba(27,72,204,.4), 0 8px 20px -4px rgba(36,88,230,.5)` | `0 1px 2px rgba(0,0,0,.5), 0 8px 20px -4px rgba(110,162,255,.35)` | primary button, selected chip |
 
 Glass material (`domus.ts:139-143`): panel `--sw-glass-blur` `blur(28px) saturate(1.7)`; rail, bottom bar and corner pill
-`--sw-glass-blur-nav` `blur(22px) saturate(1.6)`; dialog and drawer `--sw-glass-blur-sheet` `blur(36px) saturate(1.7)`; the sheen
+`--sw-glass-blur-nav` `blur(22px) saturate(1.6)`; `--sw-glass-blur-sheet` `blur(36px) saturate(1.7)` (the Bubble-style sheet only: the
+dialog and the drawer carry no blur, §7.10); the sheen
 `--sw-glass-sheen` `linear-gradient(180deg, rgba(255,255,255,.8), rgba(255,255,255,.2) 38%, rgba(255,255,255,0) 72%)` (dark
 `.12` / `.03` at 40 % / `0`). A panel paints `var(--sw-glass-sheen), var(--sw-surface)` with
 `box-shadow: var(--sw-shadow-1), inset 0 1px 0 var(--sw-highlight)` (`domus.ts:167`).
@@ -371,8 +372,8 @@ Glass material (`domus.ts:139-143`): panel `--sw-glass-blur` `blur(28px) saturat
 | `--sw-r-xs` | 9px | small buttons, KPI icon tile |
 | `--sw-r-sm` | 12px | buttons, fields, pager keys |
 | `--sw-r-md` | 20px | cards, KPI tiles, tables, popovers, rail items |
-| `--sw-r-lg` | 26px | the building tree, dropdown lists, sheet tops on the phone |
-| `--sw-r-xl` | 30px | dialogs, the rail, the sign-in card |
+| `--sw-r-lg` | 26px | dialogs, the building tree, dropdown lists, sheet tops on the phone |
+| `--sw-r-xl` | 30px | the rail, the sign-in card |
 | `--sw-r-2xl` | 34px | hero media, sheets |
 | `--sw-r-pill` | 999px | chips, badges, tree rows, segmented tracks, settings links |
 | `--sw-ctl-h-sm` / `-md` / `-lg` | 28 / 34 / 40 px | control heights (44 px on a coarse-pointer phone) |
@@ -465,18 +466,46 @@ the Domus skin rules (`domus.ts:155-212`) are named where they change the pictur
 - Row: hover `--sw-surface-3` (Domus), pressed `--sw-surface-3`, selected `--sw-accent-soft`, focus ring inset.
 - Under 768 px each row is a card (see L5 and Appendix A.7); `hideBelow: 'phone' | 'tablet'` drops a column.
 
-### 7.10 Dialog and drawer: OPEN (§13.1)
-What the shared components draw today:
-- **`sw-dialog`**: centred, `min(440px, 100%)`; `wide` 720 px; `xl` 1120 px; `fit`; `max-block-size: calc(100dvh - 32px)`;
-  Domus: `var(--sw-glass-sheen), var(--sw-surface-solid)` (opaque fill), radius `--sw-r-xl` (30 px), `--sw-shadow-3`
-  (`domus.ts:196-197`). Scrim `--sw-overlay`. Header `14px 16px 10px`, body `0 16px 14px`, footer `10px 16px 14px` with the
-  actions at the end. Opens from `scale(.96) translateY(6px)` on `--sw-spring-dialog` (300 ms); no close animation. Escape
-  closes the top dialog, Tab is trapped, focus returns to the opener, a click on the scrim closes it. On the phone it stays a
-  centred box.
-- **`sw-drawer`**: opens from the inline start. Non-modal: `min(360px, 100%)`, no scrim, no focus trap; on the phone a bottom
-  sheet (`max-block-size: 62dvh`). `modal`: a top-layer `<dialog>`, `min(480px, 100vw)`, full height, opaque, scrim
-  `--sw-overlay`, Escape, focus trap, scroll lock; on the phone a bottom sheet (`max-block-size: 88dvh`). Header `12px 14px`,
-  body `14px`, footer `10px 14px`.
+### 7.10 Dialog and drawer: one of each (Q-DES-8A, Q-DES-8B, decided 2026-11-14)
+The owner approved both proposals of round 33 as shown. There is **one dialog** (`sw-dialog`) and **one drawer** (`sw-drawer`)
+for the whole system; `tests/evidence-dialog-drawer-one-2439.spec.ts` measures the rules below and `tests/unit-menu-lint.spec.ts`
+keeps both surfaces opaque.
+
+**The dialog (`components/sw-dialog.ts`)**
+- **Opaque, no blur.** Fill `--sw-menu-surface`, edge `1px solid --sw-menu-border` (the floating-layer pair: opaque in every
+  skin, and the solid twin inside a glass host), `--sw-shadow-3`. The page behind is dimmed by `--sw-overlay` and never shows
+  through the box. No `backdrop-filter` on the box in any skin (Bubble's own sheet rule is the recorded exception, Appendix A.2).
+- **Always centred. Three fixed widths:** 440 px, `wide` 720 px, `xl` 1120 px (`fit` stays for a table whose width is not known
+  ahead). Radius `--sw-r-lg` (26 px in Domus). `max-block-size: calc(100dvh - 32px)`; only the body scrolls.
+- **Top:** the title (`--sw-fs-xl`, bold, `--sw-heading`), one explanation line (`--sw-fs-sm`, `--sw-text-2`) and a round close
+  button (`sw-button round iconOnly`). Padding `16px 18px 10px`. **Bottom:** the actions behind a hairline, padding
+  `12px 18px 16px`, always in the same order: "ביטול" (ghost), then the main action (primary, or danger for a destructive one),
+  packed at the end of the row. Body `2px 18px 14px`, gap 10 px, labels above the fields.
+- **Phone (under 768 px):** a full-width sheet attached to the bottom edge, rising from it (`translateY(100%)` on
+  `--sw-ease-drawer`, `--sw-t-sheet`); the top corners keep `--sw-r-lg`.
+- **Behaviour:** top layer (a manual popover), focus moves in and is trapped, Escape closes the top dialog, a press on the scrim
+  closes it, focus returns to the opener. `locked` blocks every close while a physical action is on its way. `beforeclose`
+  (cancelable) lets a form with unsaved work refuse the close request and ask first. Opens from `scale(.96) translateY(6px)` on
+  `--sw-spring-dialog`; no close animation.
+- A confirmation is `confirmDialog()` (`components/confirm-dialog.ts`), which opens this same dialog.
+
+**The drawer (`components/sw-drawer.ts`)**
+- **Always from the same side: the inline start** (the right edge in Hebrew, the left in a left-to-right language), at a fixed
+  width: `modal` 480 px (`--sw-drawer-modal-w` for a screen that needs a wider one), the context panel beside a map 360 px
+  (`--sw-drawer-w`).
+- **Opaque, no blur**, the same pair of tokens as the dialog; the page behind a modal drawer is dimmed by `--sw-overlay` and
+  stays in place.
+- **The title and the round close button stay on top, the actions stay on the bottom** behind a hairline; only the middle
+  scrolls. The same paddings as the dialog; labels above the fields. In the footer the main action comes first, "ביטול" beside
+  it; slot `footer-end` holds a destructive action at the far end.
+- **Phone:** the modal drawer rises from the bottom to the full screen (`--sw-drawer-sheet-h` / `--sw-drawer-sheet-max-h` let one
+  screen ask for a shorter sheet). The non-modal context panel stays a partial sheet (62dvh) so the map stays visible.
+- **Behaviour (`modal`):** a top-layer `<dialog>`, the page inert, focus trap, Escape, scroll lock, focus return. A dialog opened
+  from a modal drawer must be rendered (or slotted) inside it. It travels in from its edge on `--sw-ease-drawer`
+  (`--sw-t-med`); the resting panel has no transform.
+
+**Do not** hand-build a dialog or a drawer, give one a translucent fill or a blur, pin a dialog to a side, or open a drawer from
+the inline end. What is not yet on the shared components is listed in Appendix A.2.
 - **`sw-sheet`**: 560 px (wide 760, narrow 440), radius `--sw-r-xl`; a bottom sheet with a grab handle and swipe-to-close on the
   phone.
 
@@ -641,7 +670,7 @@ own accent and toggle colour (sand `#b3572a`, forest `#2e7d4f`, graphite `#4f5bd
 | Menu `.pop` (`media-glass.ts:557-603`) | **opaque** `--sw-menu-surface`, radius 18 px, `--dv-shadow-3`, rows 44 px | checked row = accent-soft with accent-text |
 | Page header (`media-page.ts:25-91`) | sticky; page `padding: 0 36px 44px` (phone `0 14px 26px`); a compact glass bar fades in on scroll | |
 | Toast (`media-page.ts:357-389`) | pill, `--sw-toast-bg`, `blur(20px)`, `--sw-shadow-3` | |
-| Modal layers | OPEN (§13.1): today `sw-dialog` inside multimedia hosts takes the 84 % sheet with the 40 px blur (`media-page.ts:320-326`); the automation builder is its own native `<dialog>`; the schedule-create dialog is its own element | |
+| Modal layers | the one dialog and the one drawer (§7.10): opaque inside a glass host too (they read `--sw-menu-surface`, which the glass bridge points at the solid twin). The `--sw-surface` / `--sw-glass-blur` overrides on `sw-dialog` in `media-page.ts:320-326` no longer reach the box | |
 
 Reduced motion in the glass layer: the skeleton and pending ring slow to 3 s and the shake is removed
 (`media-glass.ts:763-771`); the automations layer sets `transition-duration: 0.01ms` (`automations-glass.ts:204-206`); the remote
@@ -745,7 +774,7 @@ option is the default and the alternative must be reachable from the settings sc
 | Q-DES-5 | "New" at the end of the header row; one floating button on the phone | **yes** | none yet | A.5 |
 | Q-DES-6 | Pill buttons everywhere | **yes** | none yet | A.3 |
 | Q-DES-7 | Compact phone card for tables | **yes** | none yet | A.7 |
-| Q-DES-8 | One opaque dialog and one drawer; show him each before changing | n/a | n/a | **OPEN** (§13.1) |
+| Q-DES-8 | One opaque dialog and one drawer; round 33 (2026-11-14) Q-DES-8A a and Q-DES-8B a: both approved as shown | n/a | done in `sw-dialog` / `sw-drawer` | §7.10, A.2 |
 | Q-DES-9 | Translate every operator term except "NVR" | no | n/a | A.21 |
 | Q-DES-10 | "Home Assistant" stays in the settings screens (it becomes one data source among several) | no | n/a | in force |
 | Q-DES-11 | One settings structure, but unsure: the glass structure of service management and notifications is excellent. Hold; discuss | n/a | n/a | **OPEN** (§13.3) |
@@ -784,7 +813,7 @@ rule is the conservative reading below; it changes nothing that is drawn today.
 | A new screen inside a module that is glass today (schedules, automations, multimedia, tickets, notifications) | **Glass**, with that module's existing classes and knobs, so the module stays one language |
 | The device screens (building, area) | whatever `devices.style` says; both must keep working |
 | A menu, popover, picker, dropdown list, HUD panel over a plan | opaque `--sw-menu-surface`, in both |
-| A dialog or a drawer | the shared `sw-dialog` / `sw-drawer`; do not add another hand-built one while §13.1 is open |
+| A dialog or a drawer | the shared `sw-dialog` / `sw-drawer` (§7.10), in both; never a hand-built one |
 | A rich management screen with many rows, rules and recipients | not decided: see §13.3 |
 
 Never: both vocabularies on one screen; a new glass module without the owner's approval; a glass value copied into a Domus
@@ -795,17 +824,8 @@ ring, the touch targets, the motion setting, the opaque menus, the page backgrou
 
 ## 13. OPEN questions (held by the owner; not decided here)
 
-### 13.1 One dialog and one drawer (Q-DES-8; round 33 Q-DES-8A, Q-DES-8B)
-The owner chose "one opaque dialog and one drawer for the whole system" and asked to **see each before anything changes**.
-Today: the shared `sw-dialog` and `sw-drawer` (§7.10), plus hand-built ones: the automation builder (native `<dialog>`,
-92 % sheet with `blur(40px) saturate(1.8)`), the schedule-create dialog (own element), the calendar and temperature drawers
-(local `<aside>`), and the 84 % translucent sheet that `sw-dialog` takes inside multimedia hosts (Appendix A.2).
-
-| Option | Dialog (8A) | Drawer (8B) |
-|---|---|---|
-| א | approve the shared opaque dialog as shown; "new schedule" and "new automation" lose the glass look | approve the shared drawer as shown; the temperature drawer changes side and loses its coloured ground; calendar labels move above the fields |
-| ב | approve with changes (the owner writes them) | approve with changes |
-| ג | do not change now; the current forms stay | do not change now; drawers keep opening from two sides |
+### 13.1 One dialog and one drawer: decided
+Answered in round 33 (2026-11-14, Q-DES-8A a, Q-DES-8B a) and moved to §7.10. What is left is the migration list in Appendix A.2.
 
 ### 13.2 The selected chip (Q-DES-3)
 The owner chose "light-blue chip, blue text", feared blue on blue would not read, and asked for the design skills' opinion
@@ -871,14 +891,32 @@ screen say so. This list feeds the cleanup branches; `pilot/AUDIT30-COMBINED-243
 for every glass host; `components/media-remote-css.ts:57` does the same with `--mr-font` (only the bubble block at line 138
 resets it). Literal stacks: `electricity/elec-chart.ts:53`, `electricity/elec-bill-paper.ts:53`.
 
-**A.2 Hand-built dialogs and drawers (Q-DES-8, OPEN: list only).** `screens/automation-editor-base.ts:1629` (native
-`<dialog class="sheet">`; `:178` `backdrop-filter: blur(40px) saturate(1.8)`; `:202` scrim literal `rgba(15, 23, 42, 0.38)`);
-`screens/schedule-create-dialog.ts:630-631` (own backdrop + `role="dialog"` box; `:68` `background: var(--sw-surface)`, which the
-glass bridge makes translucent with no blur behind it: inferred, not seen); `calendars/event-drawer.ts:394-395`,
-`calendars/maint-drawer.ts:202-203`, `temperature/detail.ts:507` (local `<aside role="dialog">`); four more `<aside>` drawers in
-`screens/home-edit-drawer.ts`, `calendars/resident.ts`, `calendars/view-manage.ts`, `calendars/view-approvals.ts`. In all, 39
-files carry a hand-made `role="dialog"`, against 160 files using `<sw-dialog>` and 38 using `<sw-drawer>`.
-`styles/media-page.ts:320-326` gives `sw-dialog` the 84 % translucent sheet inside multimedia hosts.
+**A.2 Dialogs and drawers not yet on the shared components (Q-DES-8, decided: §7.10).** Moved onto `sw-dialog` /
+`sw-drawer` by DIALOG-DRAWER-ONE-2439: the temperature unit drawer and its four dialogs (service call, report, WhatsApp, wizard),
+the calendars' "reject" and "archive" dialogs, the access-control person editor, the enlarged camera picture, the door confirmation
+of the notification centre; the calendars' event and maintenance drawers and "תזמון חדש" were moved by AUDIT30. Still their own
+element, each with the reason:
+- `screens/automation-editor-base.ts` (native `<dialog class="sheet">`): now centred, at the dialog's wide width, on the dialog's
+  surface and radius. It has its own header, pop-overs and pickers; `sw-dialog` has the cancelable `beforeclose` it was waiting
+  for, so hosting it is the next step.
+- `screens/mapping-assistant.ts` (`.sheet`, 1360 x 860): a work surface larger than the widest dialog; it is on the dialog's
+  surface, hairline, radius and close button.
+- `components/notify-center.ts` (`.panel`): the notification centre keeps its own panel (list / detail, filters, the page layout
+  option, the phone sheet); it is opaque, with no blur, and opens from the inline start.
+- `screens/area-quick-sheet.ts` (`.panel`): the area's quick panel has three forms (a drawer on the inline start, a pop-up that
+  grows from the pressed tile, a phone sheet with detents and a drag); already opaque and on the same side.
+- `screens/home-edit-drawer.ts` (`.he-drawer`) and the layout editor's `.lay-panel` (`screens/devices-layout-css.ts`): the docked
+  inspector of the layout editor, at the inline END, not modal (the page beside it stays draggable). **Open for the owner:** move
+  the inspector to the inline start with every drawer, or keep it as an editor panel that is not a drawer.
+- `calendars/view-approvals.ts`, `calendars/view-manage.ts` (`aside.overlay`): the inline detail / side panel of the two screens
+  shown as an overlay on a narrow window; `calendars/resident.ts` and `home/*` are the residents' interface (out of scope of
+  Q-DES-8).
+- `design/skins/bubble.ts:159`: the Bubble skin still paints the dialog and the drawer with its translucent sheet and blur (its
+  transparency dial is an installation setting). **Open for the owner:** make Bubble opaque too, or keep the dial.
+- The dialog's footer order: the approved picture shows the main action first at the start of the row; the 161 files that use the
+  dialog place "ביטול" first and the main action at the end, and the proposal's text says existing dialogs do not change. The
+  existing order was kept. **Open for the owner:** flip every dialog to the drawer's order.
+
 
 **A.3 Button shape (Q-DES-6: pill).** `components/sw-button.ts:41` `border-radius: var(--sw-r-sm)` (sm: `:93` `--sw-r-xs`);
 `design/skins/domus.ts:179` keeps `--sw-r-sm` (12 px); classic has no override (10 px). Local buttons:
@@ -948,9 +986,8 @@ no `:user-invalid` rule (`:74-77`).
 `components/device-activity-logic.ts:149`.
 
 **A.18 Motion.** `design/tokens.ts:386` `--sw-ease-out` is `cubic-bezier(0.4, 0, 1, 1)`, an ease-in shape under an ease-out
-name; `sw-sheet` closes on it and `sw-state-panel` enters on it. `components/sw-drawer.ts`: the modal panel has
-`transition: none`, and the non-modal panel is `display: none` while closed, so its slide probably never plays (inferred from
-the CSS); `--sw-ease-drawer` is read by nothing there. `sw-dialog` has no close animation. `components/sw-sheet.ts` writes raw
+name; `sw-sheet` closes on it and `sw-state-panel` enters on it. `components/sw-drawer.ts` now travels in from its edge on `--sw-ease-drawer`
+(DIALOG-DRAWER-ONE-2439); neither it nor `sw-dialog` has a close animation. `components/sw-sheet.ts` writes raw
 `200ms` / `180ms` / `250ms`. `docs/design/MOTION_RULES.md` still gives the classic / domus press scale as 0.96 (it is 0.97).
 
 **A.19 Glass layer, internal.** Press scale: `.btn:active` is `scale(0.97)` (`styles/media-glass.ts:225-227`) but
