@@ -33,6 +33,7 @@ import {
   groupSectionShown, groupVolumeOffered, hasNow, isGroupedView, joinPlan, leaderOf, nowStatusWord, panelMode, pendId, pickTab, playerExpectation, playerPowerOffer, playerUnavailableLine, positionOf,
   repeatLabel, roomRows, seekState, transferOffered, transferSources, transportButtons, upNextView, viewOnly, zoneView, zoneViews, type ExpectContext, type JoinPlan,
 } from './media-player-logic';
+import { tr } from '../i18n/msg/components';
 
 const POLL_MS = 4000;
 const CONFIRM_POLL_MS = 600;
@@ -574,7 +575,7 @@ export class MediaPlayerPanel extends LitElement {
   private onBrowseItem(e: PlayItemEvent) {
     const cmd: PlayerCommand = e.enqueue === 'play' ? { command: 'play_item', item_ref: e.item.item_ref } : { command: 'play_item', item_ref: e.item.item_ref, enqueue: e.enqueue };
     void this.exec(cmd, this.detail, e.enqueue === 'play' ? { itemName: e.item.name } : {}, `item:${e.item.item_ref}`).then((ok) => {
-      if (ok && e.enqueue !== 'play') this.say(e.enqueue === 'next' ? 'יתנגן אחרי הנוכחי' : 'נוסף לתור', 2000);
+      if (ok && e.enqueue !== 'play') this.say(e.enqueue === 'next' ? tr('יתנגן אחרי הנוכחי') : tr('נוסף לתור'), 2000);
     });
   }
 
@@ -801,7 +802,7 @@ export class MediaPlayerPanel extends LitElement {
     if (p.action === 'none') return nothing;
     const lit = p.action === 'off';
     const pend = this.pend.has('power');
-    return html`<button type="button" slot="action" class=${classMap({ hpw: true, on: lit })} data-pn-power=${p.action} aria-pressed=${String(lit)} aria-label=${lit ? 'כבה' : 'הפעל'} title=${p.enabled ? (lit ? 'כבה' : 'הפעל') : 'אין הפעלה מרחוק'}
+    return html`<button type="button" slot="action" class=${classMap({ hpw: true, on: lit })} data-pn-power=${p.action} aria-pressed=${String(lit)} aria-label=${lit ? tr('כבה') : tr('הפעל')} title=${p.enabled ? (lit ? tr('כבה') : tr('הפעל')) : tr('אין הפעלה מרחוק')}
       ?disabled=${!p.enabled || pend} @click=${() => void this.exec({ command: lit ? 'power_off' : 'power_on' })}>${ic('power')}${pend ? html`<span class="pendring"></span>` : nothing}</button>`;
   }
 
@@ -809,7 +810,7 @@ export class MediaPlayerPanel extends LitElement {
     const d = this.detail;
     if (!d) {
       return this.phase === 'error'
-        ? html`<div class="r" data-pn-state="error"><div class="errbox">${ic('warning')}<b>לא ניתן לטעון את הנגן</b><button type="button" class="btn" @click=${() => void this.load(true)}>נסו שוב</button></div></div>`
+        ? html`<div class="r" data-pn-state="error"><div class="errbox">${ic('warning')}<b>${tr('לא ניתן לטעון את הנגן')}</b><button type="button" class="btn" @click=${() => void this.load(true)}>${tr('נסו שוב')}</button></div></div>`
         : html`<div class="r" data-pn-state="loading" aria-busy="true"><span class="skl" style="block-size:132px;border-radius:var(--sw-r-2xl)"></span><span class="skl" style="block-size:66px;border-radius:var(--sw-r-pill)"></span><span class="skl" style="block-size:44px"></span><span class="skl" style="block-size:160px;border-radius:var(--sw-r-xl)"></span></div>`;
     }
     const mode = panelMode(d);
@@ -832,20 +833,20 @@ export class MediaPlayerPanel extends LitElement {
 
   private unavailableBody(d: PlayerDeviceDetail): TemplateResult {
     const u = playerUnavailableLine(d);
-    return html`<div class="roff" data-pn-unavailable>${ic('wifiOff')}<b>${u.title}</b>${u.since ? html`<small>מאז <span class="n">${u.since}</span></small>` : nothing}</div>`;
+    return html`<div class="roff" data-pn-unavailable>${ic('wifiOff')}<b>${u.title}</b>${u.since ? html`<small>${tr('מאז')} <span class="n">${u.since}</span></small>` : nothing}</div>`;
   }
 
   private bigPower(d: PlayerDeviceDetail, vo: boolean, zone?: string): TemplateResult {
     const p = playerPowerOffer(d, zone);
     const pend = this.pend.has(zone ? `power:${zone}` : 'power');
     const on = p.action === 'on';
-    const tip = vo || p.action === 'none' ? 'כבוי' : !p.enabled ? 'אין הפעלה מרחוק' : 'הפעל';
+    const tip = vo || p.action === 'none' ? tr('כבוי') : !p.enabled ? tr('אין הפעלה מרחוק') : tr('הפעל');
     // no power control at all (a Cast-only speaker asleep): a state, never a button
-    if (!zone && !powerControlled(d)) return html`<div class="roff" data-pn-off data-pn-no-power>${ic(d.kind === 'player' ? 'playRect' : 'speaker')}<b>כבוי</b></div>`;
+    if (!zone && !powerControlled(d)) return html`<div class="roff" data-pn-off data-pn-no-power>${ic(d.kind === 'player' ? 'playRect' : 'speaker')}<b>${tr('כבוי')}</b></div>`;
     return html`<div class="roff" data-pn-off>
-      <button type="button" class=${classMap({ bigpw: true, pend })} data-pn-power=${on ? 'on' : 'none'} aria-label=${on ? 'הפעל' : 'כבוי'} title=${tip} ?disabled=${vo || !on || !p.enabled || pend}
+      <button type="button" class=${classMap({ bigpw: true, pend })} data-pn-power=${on ? 'on' : 'none'} aria-label=${on ? tr('הפעל') : tr('כבוי')} title=${tip} ?disabled=${vo || !on || !p.enabled || pend}
         @click=${() => void this.exec({ command: 'power_on', ...(zone ? { zone } : {}) })}>${ic('power')}${pend ? html`<span class="pendring"></span>` : nothing}</button>
-      <b>${on && p.enabled && !vo ? 'הפעל' : 'כבוי'}</b></div>`;
+      <b>${on && p.enabled && !vo ? tr('הפעל') : tr('כבוי')}</b></div>`;
   }
 
   private offBody(d: PlayerDeviceDetail, vo: boolean): TemplateResult {
@@ -873,7 +874,7 @@ export class MediaPlayerPanel extends LitElement {
   private nowPlaying(d: PlayerDeviceDetail, src: PlayerDevice, lead: PlayerDevice, vo: boolean): TemplateResult {
     const l = src.live;
     if (!hasNow(l)) {
-      return html`<div class="idle" data-pn-idle>${ic(d.kind === 'player' ? 'playRect' : d.kind === 'group' ? 'group' : 'speaker')}<b>לא מנגן</b></div>`;
+      return html`<div class="idle" data-pn-idle>${ic(d.kind === 'player' ? 'playRect' : d.kind === 'group' ? 'group' : 'speaker')}<b>${tr('לא מנגן')}</b></div>`;
     }
     const n = l.now;
     const word = nowStatusWord(d, d.live.group.role === 'member' ? lead : null);
@@ -882,12 +883,12 @@ export class MediaPlayerPanel extends LitElement {
     const dur = n.duration_s;
     const f = fraction(pos, dur);
     const bar = seek === 'live'
-      ? html`<div class="pprog" data-pn-live><span class="live"><i></i>שידור חי</span></div>`
+      ? html`<div class="pprog" data-pn-live><span class="live"><i></i>${tr('שידור חי')}</span></div>`
       : seek === 'none'
       ? nothing
       : html`<div class="pprog" data-pn-progress><span class="tm n" data-pn-pos>${mmss(pos)}</span>
           ${seek === 'seek' && !vo
-            ? html`<input class="rng seek" type="range" min="0" max="1000" step="1" .value=${String(Math.round(f * 1000))} style="--v:${Math.round(f * 100)}%" aria-label="מיקום בשיר" data-pn-seek @input=${this.onSeekInput} @change=${this.onSeekChange} />`
+            ? html`<input class="rng seek" type="range" min="0" max="1000" step="1" .value=${String(Math.round(f * 1000))} style="--v:${Math.round(f * 100)}%" aria-label=${tr('מיקום בשיר')} data-pn-seek @input=${this.onSeekInput} @change=${this.onSeekChange} />`
             : html`<span class="bar" style="--p:${Math.round(f * 100)}%"><i></i></span>`}
           <span class="tm n" data-pn-dur>${mmss(dur)}</span></div>`;
     return html`<div class="npb" data-pn-now data-pn-now-kind=${n.kind}><div class="top">${this.art(n)}<div class="t"><small data-pn-word>${word}</small><b data-pn-title>${bidi(n.title)}</b>${n.artist ? html`<span data-pn-artist>${bidi(n.artist)}</span>` : nothing}${n.album ? html`<span class="al">${bidi(n.album)}</span>` : nothing}</div></div>${bar}</div>`;
@@ -904,12 +905,12 @@ export class MediaPlayerPanel extends LitElement {
       return html`<button type="button" class=${classMap({ kb: true, [cls]: true, pend: pend(id === 'play_pause' ? 'toggle' : id) })} data-pn-tp=${id} aria-label=${label} title=${label}
         aria-pressed=${extra.pressed === undefined ? nothing : String(extra.pressed)} ?disabled=${!on} @click=${act}><span class="kc">${ic(glyph)}${extra.one ? html`<span class="one">1</span>` : nothing}${pend(id === 'play_pause' ? 'toggle' : id) ? html`<span class="pendring"></span>` : nothing}</span></button>`;
     };
-    return html`<div class=${classMap({ tport: true, shake: this.shaking })} role="group" aria-label="ניגון" data-pn-transport>${buttons.map((b) => {
+    return html`<div class=${classMap({ tport: true, shake: this.shaking })} role="group" aria-label=${tr('ניגון')} data-pn-transport>${buttons.map((b) => {
       switch (b.id) {
-        case 'shuffle': return k('shuffle', 'shuffle', d.live.shuffle ? 'ביטול ערבוב' : 'ערבוב', 'side', () => this.onShuffle(), { pressed: d.live.shuffle === true });
-        case 'previous': return k('previous', 'prev', 'הקודם', '', () => this.transport('previous'));
-        case 'play_pause': return k('play_pause', playing ? 'pause' : 'play', playing ? 'השהה' : 'נגן', 'main', () => this.transport('play_pause'));
-        case 'next': return k('next', 'next', 'הבא', '', () => this.transport('next'));
+        case 'shuffle': return k('shuffle', 'shuffle', d.live.shuffle ? tr('ביטול ערבוב') : tr('ערבוב'), 'side', () => this.onShuffle(), { pressed: d.live.shuffle === true });
+        case 'previous': return k('previous', 'prev', tr('הקודם'), '', () => this.transport('previous'));
+        case 'play_pause': return k('play_pause', playing ? 'pause' : 'play', playing ? tr('השהה') : tr('נגן'), 'main', () => this.transport('play_pause'));
+        case 'next': return k('next', 'next', tr('הבא'), '', () => this.transport('next'));
         case 'repeat': return k('repeat', 'repeat', repeatLabel(d.live.repeat), 'side', () => this.onRepeat(), { pressed: d.live.repeat !== null && d.live.repeat !== 'off', one: d.live.repeat === 'one' });
       }
     })}</div>`;
@@ -940,7 +941,7 @@ export class MediaPlayerPanel extends LitElement {
     const one = from.length === 1;
     const pend = this.pend.has('transfer');
     return html`<div class="ctas" data-pn-transfer><button type="button" class=${classMap({ btn: true, quiet: true, pend })} aria-haspopup=${one ? 'false' : 'menu'} aria-expanded=${one ? nothing : String(this.trMenu)} ?disabled=${pend}
-        @click=${() => (one ? this.onTransfer(from[0]) : (this.trMenu = !this.trMenu))}>${ic('transfer')}העבר את המוזיקה לכאן${one ? html`<small>· מ${bidi(leaderLabel(from[0]))}</small>` : nothing}${pend ? html`<span class="pendring" style="inset:-4px;border-radius:var(--sw-r-pill)"></span>` : nothing}</button>
+        @click=${() => (one ? this.onTransfer(from[0]) : (this.trMenu = !this.trMenu))}>${ic('transfer')}${tr('העבר את המוזיקה לכאן')}${one ? html`<small>· ${tr('מ{name}', { name: bidi(leaderLabel(from[0])) })}</small>` : nothing}${pend ? html`<span class="pendring" style="inset:-4px;border-radius:var(--sw-r-pill)"></span>` : nothing}</button>
       ${!one && this.trMenu ? html`<div class="pop" role="menu">${from.map((x) => html`<button type="button" role="menuitem" data-pn-transfer-from=${x.key} @click=${() => this.onTransfer(x)}><span class="gi" style=${`--a1:${tint(x.live.now.hue).a1};--a2:${tint(x.live.now.hue).a2}`}>${gl(x.live.now.kind === 'station' ? 'radio' : x.live.now.glyph)}</span>${bidi(leaderLabel(x))}<span class="cnt">${bidi(x.live.now.title)}</span></button>`)}</div>` : nothing}</div>`;
   }
 
@@ -951,13 +952,13 @@ export class MediaPlayerPanel extends LitElement {
     }
     const v = upNextView(d, this.upNext, this.libAbsent);
     if (v.kind === 'none') return nothing;
-    const head = html`<div class="psh"><h4>הבא בתור</h4>${v.kind === 'rows' && v.count ? html`<small class="n">${v.count}</small>` : nothing}</div>`;
+    const head = html`<div class="psh"><h4>${tr('הבא בתור')}</h4>${v.kind === 'rows' && v.count ? html`<small class="n">${v.count}</small>` : nothing}</div>`;
     if (v.kind === 'loading') return html`${head}<div class="uq" aria-busy="true" data-pn-upnext="loading"><span class="skl skl-row"></span><span class="skl skl-row"></span></div>`;
-    if (v.kind === 'unavailable') return html`${head}<div class="uq" data-pn-upnext="unavailable"><div class="unav">${ic('wifiOff')}לא זמין</div></div>`;
+    if (v.kind === 'unavailable') return html`${head}<div class="uq" data-pn-upnext="unavailable"><div class="unav">${ic('wifiOff')}${tr('לא זמין')}</div></div>`;
     return html`${head}<div class="uq" data-pn-upnext="rows">
       <div class="row cur"><span class="ix">${ic(v.current.playing ? 'play' : 'pause')}</span><div class="t"><b>${bidi(v.current.name)}</b>${v.current.artist ? html`<small>${bidi(v.current.artist)}</small>` : nothing}</div><span class="dur n">${v.current.duration_s ? mmss(v.current.duration_s) : ''}</span></div>
       ${v.next ? html`<div class="row" data-pn-next><span class="ix n">${v.next.index !== null ? v.next.index + 1 : ''}</span><div class="t"><b>${bidi(v.next.name)}</b>${v.next.artist ? html`<small>${bidi(v.next.artist)}</small>` : nothing}</div><span class="dur n">${v.next.duration_s ? mmss(v.next.duration_s) : ''}</span></div>` : nothing}
-      ${v.more > 0 ? html`<div class="umore" data-pn-more>${ic('chevronDown')}עוד <span class="n">${v.more}</span></div>` : nothing}</div>`;
+      ${v.more > 0 ? html`<div class="umore" data-pn-more>${ic('chevronDown')}${tr('עוד')} <span class="n">${v.more}</span></div>` : nothing}</div>`;
   }
 
   private libraryBlock(d: PlayerDeviceDetail): TemplateResult | typeof nothing {
@@ -968,7 +969,7 @@ export class MediaPlayerPanel extends LitElement {
     const cur = d.live.now.title;
     const inLibrary = browse && (this.libTab === LIBRARY_TAB || !tabs.length);
     const tab = inLibrary ? null : (pickTab(tabs, this.libTab === LIBRARY_TAB ? null : this.libTab) as LibraryKind);
-    const tabRow = html`<div class="seg full sm" role="tablist" aria-label="ספרייה" data-pn-libtabs>${tabs.map((k) => html`<button type="button" role="tab" aria-selected=${String(tab === k)} data-pn-libtab=${k}
+    const tabRow = html`<div class="seg full sm" role="tablist" aria-label=${tr('ספרייה')} data-pn-libtabs>${tabs.map((k) => html`<button type="button" role="tab" aria-selected=${String(tab === k)} data-pn-libtab=${k}
         @click=${() => { this.libTab = k; if (!this.lib[k]) void this.loadLib(d.key, k); }}>${LIBRARY_TAB_LABEL[k]}</button>`)}
       ${browse ? html`<button type="button" role="tab" aria-selected=${String(inLibrary)} data-pn-libtab=${LIBRARY_TAB} @click=${() => (this.libTab = LIBRARY_TAB)}>${LIBRARY_TAB_TEXT}</button>` : nothing}</div>`;
     if (inLibrary || tab === null) {
@@ -980,11 +981,11 @@ export class MediaPlayerPanel extends LitElement {
     return html`${tabRow}
       ${items === null
         ? page === 'error'
-          ? html`<div class="libempty" data-pn-lib="error">לא זמין</div>`
+          ? html`<div class="libempty" data-pn-lib="error">${tr('לא זמין')}</div>`
           : html`<div class="libg" aria-busy="true" data-pn-lib="loading"><span class="skl skl-row"></span><span class="skl skl-row"></span><span class="skl skl-row"></span><span class="skl skl-row"></span></div>`
         : items.length
         ? html`<div class="libg" role="list" data-pn-lib=${tab}>${repeat(items, (i) => i.item_ref, (i) => this.libItem(d, i, cur))}</div>`
-        : html`<div class="libempty" data-pn-lib="empty">אין פריטים</div>`}`;
+        : html`<div class="libempty" data-pn-lib="empty">${tr('אין פריטים')}</div>`}`;
   }
 
   private libItem(d: PlayerDeviceDetail, i: LibraryItem, current: string | null): TemplateResult {
@@ -992,7 +993,7 @@ export class MediaPlayerPanel extends LitElement {
     const pend = this.pend.has(`item:${i.item_ref}`);
     const can = d.can.control && !greyed(d);
     return html`<button type="button" role="listitem" class=${classMap({ libi: true, pend })} data-pn-item=${i.item_ref} aria-current=${String(current !== null && i.name === current)} ?disabled=${!can || pend}
-      title=${enqueueOffered(d) ? 'נגן עכשיו · לחיצה ארוכה: אחרי הנוכחי' : 'נגן עכשיו'} @pointerdown=${() => this.onItemDown(i)} @pointerup=${this.onItemUp} @pointerleave=${this.onItemUp} @pointercancel=${this.onItemUp} @click=${() => this.onItem(i)}>
+      title=${enqueueOffered(d) ? tr('נגן עכשיו · לחיצה ארוכה: אחרי הנוכחי') : tr('נגן עכשיו')} @pointerdown=${() => this.onItemDown(i)} @pointerup=${this.onItemUp} @pointerleave=${this.onItemUp} @pointercancel=${this.onItemUp} @click=${() => this.onItem(i)}>
       <span class="gi" style="--a1:${t.a1};--a2:${t.a2};--art:${t.rgb}">${gl(i.kind === 'radio' ? 'radio' : i.glyph, 'ic')}</span>
       <span class="t"><b>${bidi(i.name)}</b>${i.artist ? html`<small>${bidi(i.artist)}</small>` : nothing}</span></button>`;
   }
@@ -1000,20 +1001,20 @@ export class MediaPlayerPanel extends LitElement {
   private groupBlock(d: PlayerDeviceDetail, lead: PlayerDevice, devices: PlayerDevice[]): TemplateResult | typeof nothing {
     if (!this.devices) return nothing;
     if (lead.live.group.conflict || d.live.group.conflict) {
-      return html`<div class="psh"><h4>קבוצה</h4></div><div class="ckrow warn" role="status" data-pn-conflict>${ic('warning')}<div class="nm"><b>קיבוץ לא תואם</b><small>מנהל יפרק אחת מהשכבות בהגדרות</small></div></div>`;
+      return html`<div class="psh"><h4>${tr('קבוצה')}</h4></div><div class="ckrow warn" role="status" data-pn-conflict>${ic('warning')}<div class="nm"><b>${tr('קיבוץ לא תואם')}</b><small>${tr('מנהל יפרק אחת מהשכבות בהגדרות')}</small></div></div>`;
     }
     const rows = groupSectionRows(lead, devices);
     if (!groupSectionShown(lead, rows)) return nothing;
     void this.tick;
     const members = rows.filter((r) => r.member).length;
-    return html`<div class="psh"><h4>קבוצה</h4>${members > 1 ? html`<small data-pn-gcount>${members} חדרים</small>` : nothing}${members > 1 ? html`<button type="button" class="lnk" data-pn-ungroup ?disabled=${this.joining.size > 0} @click=${() => void this.onUngroup()}>פרק</button>` : nothing}</div>
-      <div class="gsec" role="group" aria-label="חדרים בקבוצה" data-pn-group>${rows.map((r) => {
+    return html`<div class="psh"><h4>${tr('קבוצה')}</h4>${members > 1 ? html`<small data-pn-gcount>${tr('{n} חדרים', { n: members })}</small>` : nothing}${members > 1 ? html`<button type="button" class="lnk" data-pn-ungroup ?disabled=${this.joining.size > 0} @click=${() => void this.onUngroup()}>${tr('פרק')}</button>` : nothing}</div>
+      <div class="gsec" role="group" aria-label=${tr('חדרים בקבוצה')} data-pn-group>${rows.map((r) => {
         const drafted = this.draft.has(r.key);
         const checked = r.leader ? true : drafted ? !r.member : r.member;
         const o = this.outcomes[r.key]?.outcome;
         const bad = o === 'not_joined' || o === 'unknown' || o === 'not_allowed';
         const dev = r.leader ? lead : devices.find((x) => x.key === r.key);
-        const sub = o && o !== 'joined' && o !== 'left' ? html`<small class=${bad ? 'bad' : 'ok'} data-pn-gout=${o}>${o === 'not_joined' ? 'לא הצטרף' : o === 'unknown' ? 'לא ידוע' : o === 'not_allowed' ? 'אין הרשאה' : ''}</small>` : html`<small>${bidi(r.sub)}</small>`;
+        const sub = o && o !== 'joined' && o !== 'left' ? html`<small class=${bad ? 'bad' : 'ok'} data-pn-gout=${o}>${o === 'not_joined' ? tr('לא הצטרף') : o === 'unknown' ? tr('לא ידוע') : o === 'not_allowed' ? tr('אין הרשאה') : ''}</small>` : html`<small>${bidi(r.sub)}</small>`;
         const spin = drafted || this.joining.has(r.key);
         const t = r.playing ? tint(r.playing.hue) : null;
         return html`<button type="button" class=${classMap({ ckrow: true, lead: r.leader })} role="checkbox" aria-checked=${String(checked)} data-pn-room=${r.key} ?disabled=${r.leader || !dev || this.joining.size > 0}
@@ -1027,11 +1028,11 @@ export class MediaPlayerPanel extends LitElement {
   private dialog(): TemplateResult | typeof nothing {
     const a = this.partyAsk;
     if (a) {
-      return html`<sw-dialog open heading=${`לשלוט ב־${a.preview.devices} חדרים יחד?`} data-pn-dialog="party" @close=${(e: Event) => { e.stopPropagation(); a.answer(false); }}>
-        <div class="cd">${a.preview.floors > 1 ? html`<p class="cd-line">הקבוצה משמיעה ב־${a.preview.floors} קומות.</p>` : nothing}
-          <details data-pn-details><summary>פרטים</summary><ul>${previewNames(a.preview).map((n) => html`<li>${bidi(n)}</li>`)}</ul></details></div>
-        <sw-button slot="footer" data-pn-cancel @click=${() => a.answer(false)}>ביטול</sw-button>
-        <sw-button slot="footer" variant="primary" data-pn-confirm @click=${() => a.answer(true)}>בצע</sw-button></sw-dialog>`;
+      return html`<sw-dialog open heading=${tr('לשלוט ב־{n} חדרים יחד?', { n: a.preview.devices })} data-pn-dialog="party" @close=${(e: Event) => { e.stopPropagation(); a.answer(false); }}>
+        <div class="cd">${a.preview.floors > 1 ? html`<p class="cd-line">${tr('הקבוצה משמיעה ב־{n} קומות.', { n: a.preview.floors })}</p>` : nothing}
+          <details data-pn-details><summary>${tr('פרטים')}</summary><ul>${previewNames(a.preview).map((n) => html`<li>${bidi(n)}</li>`)}</ul></details></div>
+        <sw-button slot="footer" data-pn-cancel @click=${() => a.answer(false)}>${tr('ביטול')}</sw-button>
+        <sw-button slot="footer" variant="primary" data-pn-confirm @click=${() => a.answer(true)}>${tr('בצע')}</sw-button></sw-dialog>`;
     }
     const c = this.confirm;
     if (!c) return nothing;
@@ -1039,9 +1040,9 @@ export class MediaPlayerPanel extends LitElement {
     const names = c.preview ? previewNames(c.preview) : c.plan.after.map((x) => x.name);
     return html`<sw-dialog open heading=${copy.question} data-pn-dialog="confirm" @close=${(e: Event) => { e.stopPropagation(); this.onCancelConfirm(); }}>
       <div class="cd">${copy.line ? html`<p class="cd-line">${copy.line}</p>` : nothing}
-        <details data-pn-details><summary>פרטים</summary><ul>${names.map((n) => html`<li>${bidi(n)}</li>`)}</ul></details></div>
-      <sw-button slot="footer" data-pn-cancel @click=${() => this.onCancelConfirm()}>ביטול</sw-button>
-      <sw-button slot="footer" variant="primary" data-pn-confirm @click=${() => void this.onConfirm()}>צרף</sw-button></sw-dialog>`;
+        <details data-pn-details><summary>${tr('פרטים')}</summary><ul>${names.map((n) => html`<li>${bidi(n)}</li>`)}</ul></details></div>
+      <sw-button slot="footer" data-pn-cancel @click=${() => this.onCancelConfirm()}>${tr('ביטול')}</sw-button>
+      <sw-button slot="footer" variant="primary" data-pn-confirm @click=${() => void this.onConfirm()}>${tr('צרף')}</sw-button></sw-dialog>`;
   }
 
   // --- a receiver: zones, power, volume, sources, sound modes (no keys)
@@ -1057,9 +1058,9 @@ export class MediaPlayerPanel extends LitElement {
     const z = zones.length ? zoneView(d, zid) : null;
     const second = !!z && !z.main;
     const zoneTabs = zones.length > 1
-      ? html`<div class="seg full" role="tablist" aria-label="אזור" data-pn-zones>${zones.map((x) => html`<button type="button" role="tab" aria-selected=${String(x.id === zid)} data-pn-zone=${x.id} @click=${() => (this.zone = x.id)}>${x.name}${!x.main ? html` <small>${x.power === 'on' ? 'פועל' : 'כבוי'}</small>` : nothing}</button>`)}</div>`
+      ? html`<div class="seg full" role="tablist" aria-label=${tr('אזור')} data-pn-zones>${zones.map((x) => html`<button type="button" role="tab" aria-selected=${String(x.id === zid)} data-pn-zone=${x.id} @click=${() => (this.zone = x.id)}>${x.name}${!x.main ? html` <small>${x.power === 'on' ? tr('פועל') : tr('כבוי')}</small>` : nothing}</button>`)}</div>`
       : nothing;
-    if (vo) return html`${zoneTabs}<div class="roff" data-pn-viewonly>${ic('receiver')}<b>${second ? (z?.power === 'on' ? 'פועל' : 'כבוי') : mode === 'on' ? d.live.now.label || 'דולק' : 'כבוי'}</b></div>`;
+    if (vo) return html`${zoneTabs}<div class="roff" data-pn-viewonly>${ic('receiver')}<b>${second ? (z?.power === 'on' ? tr('פועל') : tr('כבוי')) : mode === 'on' ? d.live.now.label || tr('דולק') : tr('כבוי')}</b></div>`;
     if (!second && mode === 'off') return html`${zoneTabs}${this.bigPower(d, vo)}<div class="dimmed" aria-hidden="true" inert>${this.receiverControls(d, null)}</div>`;
     if (second && z && z.power !== 'on') {
       return html`${zoneTabs}${this.bigPower(d, vo, zid)}<div class="dimmed" aria-hidden="true" inert>${this.receiverControls(d, zid)}</div>`;
@@ -1073,7 +1074,7 @@ export class MediaPlayerPanel extends LitElement {
     if (p.action === 'none') return nothing;
     const lit = p.action === 'off';
     const pend = this.pend.has(`power:${z.id}`);
-    return html`<div class="rzone"><button type="button" class=${classMap({ hpw: true, on: lit, 'zone-pw': true })} data-pn-zone-power=${p.action} aria-pressed=${String(lit)} aria-label=${`${lit ? 'כבה' : 'הפעל'} · ${z.name}`} ?disabled=${!p.enabled || pend}
+    return html`<div class="rzone"><button type="button" class=${classMap({ hpw: true, on: lit, 'zone-pw': true })} data-pn-zone-power=${p.action} aria-pressed=${String(lit)} aria-label=${`${lit ? tr('כבה') : tr('הפעל')} · ${z.name}`} ?disabled=${!p.enabled || pend}
       @click=${() => void this.exec({ command: lit ? 'power_off' : 'power_on', zone: z.id })}>${ic('power')}${pend ? html`<span class="pendring"></span>` : nothing}</button></div>`;
   }
 
@@ -1084,7 +1085,7 @@ export class MediaPlayerPanel extends LitElement {
     const interactive = d.can.control && !greyed(d);
     const canSrc = d.can.power && d.caps.sources && !greyed(d);
     const srcs = d.sources.length && d.caps.sources
-      ? html`<div class="psh"><h4>${z && !z.main ? `מקור · ${z.name}` : 'מקורות'}</h4></div><div class="srcg" role="radiogroup" aria-label="מקורות" data-pn-sources>${d.sources.map((s) => {
+      ? html`<div class="psh"><h4>${z && !z.main ? tr('מקור · {zone}', { zone: z.name }) : tr('מקורות')}</h4></div><div class="srcg" role="radiogroup" aria-label=${tr('מקורות')} data-pn-sources>${d.sources.map((s) => {
           const [a, b] = s.label.split(' · ');
           const cur = s.id === curSrc;
           const pend = this.pend.has(`src:${s.id}`);
@@ -1094,7 +1095,7 @@ export class MediaPlayerPanel extends LitElement {
         })}</div>`
       : nothing;
     const modes = !(z && !z.main) && d.caps.sound_outputs.length && d.can.power
-      ? html`<div class="psh"><h4>מצב שמע</h4>${d.caps.sound_outputs.length > 4 ? html`<small class="n">${d.caps.sound_outputs.length}</small>` : nothing}</div><div class="modes" role="radiogroup" aria-label="מצב שמע" data-pn-modes>${d.caps.sound_outputs.map((m) => {
+      ? html`<div class="psh"><h4>${tr('מצב שמע')}</h4>${d.caps.sound_outputs.length > 4 ? html`<small class="n">${d.caps.sound_outputs.length}</small>` : nothing}</div><div class="modes" role="radiogroup" aria-label=${tr('מצב שמע')} data-pn-modes>${d.caps.sound_outputs.map((m) => {
           const cur = m === curMode;
           const pend = this.pend.has(`mode:${m}`);
           return html`<button type="button" class="srci" role="radio" aria-checked=${String(cur)} data-pn-mode=${m} ?disabled=${greyed(d) || pend} @click=${() => void this.exec({ command: 'sound_output', output: m })}>${bidi(m)}${cur ? html`<span class="ck">${ic('check')}</span>` : nothing}</button>`;

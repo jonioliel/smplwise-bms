@@ -18,6 +18,7 @@ import {
 } from '../api/recorders';
 import { can, isApi, onRemote, LOCAL_ONLY_TEXT } from '../api/session';
 import { announceRestartPending } from './nvr-restart-banner';
+import { tr } from '../i18n/msg/components';
 
 /** Fields the server keeps as columns; any other field of a vendor's catalogue entry travels in `extra`. */
 const CORE = new Set(['host', 'http_port', 'rtsp_port', 'username', 'password']);
@@ -36,25 +37,25 @@ const EMPTY: Draft = { vendor: '', host: '', http_port: '', rtsp_port: '', usern
 
 /** The one-line answers of the connection test (CR-022 section 11). */
 const TEST_TEXT: Record<string, string> = {
-  source_forbidden: 'שם משתמש או סיסמה שגויים',
-  source_unavailable: 'לא ניתן להתחבר',
-  timeout: 'לא ניתן להתחבר',
-  source_error: 'לא ניתן להתחבר',
-  host_refused: 'כתובת לא מותרת',
-  port_refused: 'פורט לא מותר',
-  username_invalid: 'שם משתמש לא תקין',
-  password_required: 'יש להזין את הסיסמה מחדש',
-  tls_pin_mismatch: 'תעודת ה־NVR אינה התעודה שננעצה',
-  tls_pin_required: 'יש לנעוץ את תעודת ה־NVR לפני השמירה',
-  auth_scheme_unsupported: 'שיטת האימות של ה־NVR אינה נתמכת',
-  auth_downgrade_refused: 'ה־NVR ביקש שיטת אימות חלשה מבעבר. בחרו את שיטת האימות במפורש',
+  source_forbidden: tr('שם משתמש או סיסמה שגויים'),
+  source_unavailable: tr('לא ניתן להתחבר'),
+  timeout: tr('לא ניתן להתחבר'),
+  source_error: tr('לא ניתן להתחבר'),
+  host_refused: tr('כתובת לא מותרת'),
+  port_refused: tr('פורט לא מותר'),
+  username_invalid: tr('שם משתמש לא תקין'),
+  password_required: tr('יש להזין את הסיסמה מחדש'),
+  tls_pin_mismatch: tr('תעודת ה־NVR אינה התעודה שננעצה'),
+  tls_pin_required: tr('יש לנעוץ את תעודת ה־NVR לפני השמירה'),
+  auth_scheme_unsupported: tr('שיטת האימות של ה־NVR אינה נתמכת'),
+  auth_downgrade_refused: tr('ה־NVR ביקש שיטת אימות חלשה מבעבר. בחרו את שיטת האימות במפורש'),
 };
 /** CR-025: the warnings a connection test can return; each can be closed for this session (suppressing it for good is a
  * checkbox under "הגדרות מתקדמות"). */
 const WARNING_TEXT: Record<string, string> = {
-  basic_over_http: 'הסיסמה נשלחת בלי הצפנה (Basic על HTTP). מומלץ לבחור HTTPS.',
-  tls_trust_any: 'תעודת ה־HTTPS אינה נבדקת. מומלץ לנעוץ את תעודת המכשיר.',
-  vendor_auth_version: 'המכשיר מבקש גרסת אימות של היצרן שאינה נתמכת. אם הכניסה נכשלת, החליפו בשרת ה־API של המכשיר את סוג ההצפנה.',
+  basic_over_http: tr('הסיסמה נשלחת בלי הצפנה (Basic על HTTP). מומלץ לבחור HTTPS.'),
+  tls_trust_any: tr('תעודת ה־HTTPS אינה נבדקת. מומלץ לנעוץ את תעודת המכשיר.'),
+  vendor_auth_version: tr('המכשיר מבקש גרסת אימות של היצרן שאינה נתמכת. אם הכניסה נכשלת, החליפו בשרת ה־API של המכשיר את סוג ההצפנה.'),
 };
 /** 422 answers that name one field (`details.field`): the line is short and the field is marked invalid. */
 const FIELD_CODES = new Set(['host_refused', 'host_invalid', 'port_refused', 'port_invalid', 'username_invalid', 'username_required', 'password_required']);
@@ -266,9 +267,9 @@ export class NvrConnectionForm extends LitElement {
   }
 
   private testText(r: TestResult): string {
-    if (r.ok) return ['מחובר', r.model, r.channels != null ? `${r.channels} ערוצים` : null].filter(Boolean).join(' · ');
-    if (r.code === 'nvr_not_supported') return `גרסת Frigate ${r.firmware ?? ''} אינה נתמכת${r.min_version ? ` (נדרשת ${r.min_version} ומעלה)` : ''}`.replace('  ', ' ');
-    return TEST_TEXT[r.code] ?? 'לא ניתן להתחבר';
+    if (r.ok) return [tr('מחובר'), r.model, r.channels != null ? tr('{n} ערוצים', { n: r.channels }) : null].filter(Boolean).join(' · ');
+    if (r.code === 'nvr_not_supported') return `${tr('גרסת Frigate {version} אינה נתמכת', { version: r.firmware ?? '' })}${r.min_version ? ` ${tr('(נדרשת {version} ומעלה)', { version: r.min_version })}` : ''}`.replace('  ', ' ');
+    return TEST_TEXT[r.code] ?? tr('לא ניתן להתחבר');
   }
 
   private async runTest() {
@@ -305,7 +306,7 @@ export class NvrConnectionForm extends LitElement {
         this.word = '';
         this.draft = { ...EMPTY, extra: {} };
         this.addName = '';
-        this.msg = { tone: 'ok', text: added.untested ? 'נוסף בלי בדיקת חיבור' : ['נוסף', added.device?.model].filter(Boolean).join(' · ') };
+        this.msg = { tone: 'ok', text: added.untested ? tr('נוסף בלי בדיקת חיבור') : [tr('נוסף'), added.device?.model].filter(Boolean).join(' · ') };
         announceRestartPending(true);
         this.dispatchEvent(new CustomEvent('nvr-recorder-added', { bubbles: true, composed: true, detail: added }));
         return;
@@ -317,7 +318,7 @@ export class NvrConnectionForm extends LitElement {
         this.untestedOpen = false;
         this.word = '';
         await this.load();
-        this.msg = { tone: 'ok', text: 'נשמר כ־NVR חדש' };
+        this.msg = { tone: 'ok', text: tr('נשמר כ־NVR חדש') };
         announceRestartPending(true);
         this.dispatchEvent(new CustomEvent('nvr-connection-saved', { bubbles: true, composed: true, detail: r }));
         return;
@@ -329,7 +330,7 @@ export class NvrConnectionForm extends LitElement {
       this.seed(); // the typed password is gone: the form never keeps it
       this.msg = {
         tone: 'ok',
-        text: r.vendor === 'none' ? 'נשמר: ללא NVR' : r.untested ? 'נשמר בלי בדיקת חיבור' : ['החיבור נבדק ונשמר', r.device?.model, r.device?.channels != null ? `${r.device.channels} ערוצים` : null].filter(Boolean).join(' · '),
+        text: r.vendor === 'none' ? tr('נשמר: ללא NVR') : r.untested ? tr('נשמר בלי בדיקת חיבור') : [tr('החיבור נבדק ונשמר'), r.device?.model, r.device?.channels != null ? tr('{n} ערוצים', { n: r.device.channels }) : null].filter(Boolean).join(' · '),
       };
       announceRestartPending(true);
       this.dispatchEvent(new CustomEvent('nvr-connection-saved', { bubbles: true, composed: true, detail: r }));
@@ -363,7 +364,7 @@ export class NvrConnectionForm extends LitElement {
       this.word = '';
       announceRestartPending(true);
       await this.load();
-      this.msg = { tone: 'ok', text: 'ה־NVR הוסר' };
+      this.msg = { tone: 'ok', text: tr('ה־NVR הוסר') };
       this.dispatchEvent(new CustomEvent('nvr-connection-removed', { bubbles: true, composed: true }));
     } catch (err) {
       this.removeOpen = false;
@@ -384,10 +385,10 @@ export class NvrConnectionForm extends LitElement {
 
   private summary(v: NvrConnection) {
     const none = v.vendor === 'none';
-    const rows: [string, unknown, string?][] = [['סוג', none ? 'ללא NVR' : this.label(v.vendor)]];
+    const rows: [string, unknown, string?][] = [[tr('סוג'), none ? tr('ללא NVR') : this.label(v.vendor)]];
     if (!none) {
-      rows.push(['כתובת · פורט HTTP · RTSP', html`<span class="ltr">${v.host ?? '—'} · ${v.http_port ?? '—'} · ${v.rtsp_port ?? '—'}</span>`]);
-      rows.push(['משתמש', v.state === 'unreadable' ? 'יש להזין סיסמה מחדש' : html`<span class="ltr">${v.username ?? '—'}</span> · ${v.has_password ? 'הוגדרה סיסמה' : 'חסרה סיסמה'}`, v.has_password ? 'ok' : 'warn']);
+      rows.push([tr('כתובת · פורט HTTP · RTSP'), html`<span class="ltr">${v.host ?? '—'} · ${v.http_port ?? '—'} · ${v.rtsp_port ?? '—'}</span>`]);
+      rows.push([tr('משתמש'), v.state === 'unreadable' ? tr('יש להזין סיסמה מחדש') : html`<span class="ltr">${v.username ?? '—'}</span> · ${v.has_password ? tr('הוגדרה סיסמה') : tr('חסרה סיסמה')}`, v.has_password ? 'ok' : 'warn']);
     }
     return html`<div data-conn-summary>${rows.map(([k, val, tone]) => html`<div class="row"><span>${k}</span><span class=${`val ${tone ?? ''}`}>${val}</span></div>`)}</div>`;
   }
@@ -414,7 +415,7 @@ export class NvrConnectionForm extends LitElement {
   /** Write-only: a stored password is "הוגדרה סיסמה" with "שנה"; the input only ever holds what is being typed now. */
   private passwordField(f: Vendor['fields'][number]) {
     if (this.keepsStoredPassword) {
-      return html`<div class="pwset" data-conn-password-set><span>${f.label}: הוגדרה סיסמה</span><button type="button" class="linkbtn" data-conn-password-change @click=${() => (this.changePassword = true)}>שנה</button></div>`;
+      return html`<div class="pwset" data-conn-password-set><span>${f.label}: ${tr('הוגדרה סיסמה')}</span><button type="button" class="linkbtn" data-conn-password-change @click=${() => (this.changePassword = true)}>${tr('שנה')}</button></div>`;
     }
     return html`<sw-field label=${f.label}><input type="password" data-ltr data-conn-field="password" data-conn-password aria-invalid=${this.invalidField === 'password' ? 'true' : 'false'} autocomplete="new-password" .value=${this.draft.password} @input=${(e: Event) => this.setDraft({ password: (e.target as HTMLInputElement).value })} /></sw-field>`;
   }
@@ -433,10 +434,10 @@ export class NvrConnectionForm extends LitElement {
     const cert = r.certificate;
     const pinned = this.draft.extra.tls_pin && cert && this.draft.extra.tls_pin === cert.sha256;
     return html`${this.draft.vendor === 'frigate' && r.ok ? html`<frigate-summary .caps=${r.capabilities ?? capabilitiesOfTest(r)}></frigate-summary>` : nothing}${warnings.map((w) => html`<div class="note warn warnrow" role="note" data-conn-warning=${w}><span>${WARNING_TEXT[w]}</span>
-        <button type="button" class="linkbtn" aria-label="סגור" data-conn-warning-dismiss=${w} @click=${() => (this.dismissed = [...this.dismissed, w])}>×</button></div>`)}
+        <button type="button" class="linkbtn" aria-label=${tr('סגור')} data-conn-warning-dismiss=${w} @click=${() => (this.dismissed = [...this.dismissed, w])}>×</button></div>`)}
       ${cert ? html`<div class="note cert" data-conn-certificate>
-          <span>תעודת המכשיר${cert.self_signed ? ' (חתומה עצמית)' : ''}: <span class="ltr mono">${cert.sha256.slice(0, 16)}…</span>${cert.matches_pin === false ? html` · <b>שונה מהתעודה שננעצה</b>` : nothing}</span>
-          ${pinned ? html`<span class="ok">ננעצה</span>` : html`<button type="button" class="linkbtn" data-conn-pin @click=${() => this.setDraft({ extra: { ...this.draft.extra, tls_mode: 'pin', tls_pin: cert.sha256 } })}>נעץ תעודה זו</button>`}
+          <span>${tr('תעודת המכשיר')}${cert.self_signed ? ` ${tr('(חתומה עצמית)')}` : ''}: <span class="ltr mono">${cert.sha256.slice(0, 16)}…</span>${cert.matches_pin === false ? html` · <b>${tr('שונה מהתעודה שננעצה')}</b>` : nothing}</span>
+          ${pinned ? html`<span class="ok">${tr('ננעצה')}</span>` : html`<button type="button" class="linkbtn" data-conn-pin @click=${() => this.setDraft({ extra: { ...this.draft.extra, tls_mode: 'pin', tls_pin: cert.sha256 } })}>${tr('נעץ תעודה זו')}</button>`}
         </div>` : nothing}`;
   }
 
@@ -446,28 +447,28 @@ export class NvrConnectionForm extends LitElement {
     const locked = v.vendor_locked || this.lockedByServer;
     return html`<div class="form" data-nvr-connection-form>
       ${this.context === 'add'
-        ? html`<sw-field label="שם"><input data-conn-name maxlength="60" autocomplete="off" .value=${this.addName} @input=${(e: Event) => { this.addName = (e.target as HTMLInputElement).value; this.msg = null; }} /></sw-field>`
+        ? html`<sw-field label=${tr('שם')}><input data-conn-name maxlength="60" autocomplete="off" .value=${this.addName} @input=${(e: Event) => { this.addName = (e.target as HTMLInputElement).value; this.msg = null; }} /></sw-field>`
         : nothing}
-      <sw-field label="סוג NVR">
+      <sw-field label=${tr('סוג NVR')}>
         <select data-conn-vendor ?disabled=${v.vendor_locked || this.busy !== ''} @change=${(e: Event) => this.chooseVendor((e.target as HTMLSelectElement).value)}>
-          <option value="" disabled ?selected=${!d.vendor}>בחרו סוג NVR</option>
-          ${this.vendors.filter((x) => this.primary || x.id !== 'none').map((x) => html`<option value=${x.id} ?disabled=${x.status !== 'available'} ?selected=${x.id === d.vendor}>${x.label}${x.status !== 'available' ? ' · בקרוב' : ''}</option>`)}
+          <option value="" disabled ?selected=${!d.vendor}>${tr('בחרו סוג NVR')}</option>
+          ${this.vendors.filter((x) => this.primary || x.id !== 'none').map((x) => html`<option value=${x.id} ?disabled=${x.status !== 'available'} ?selected=${x.id === d.vendor}>${x.label}${x.status !== 'available' ? ` · ${tr('בקרוב')}` : ''}</option>`)}
         </select>
       </sw-field>
-      ${locked ? html`<div class="note" data-conn-vendor-locked>יש להסיר את ה־NVR לפני החלפת סוג</div>` : nothing}
-      ${v.state === 'unreadable' ? html`<div class="note warn" data-conn-unreadable>יש להזין סיסמה מחדש</div>` : nothing}
-      ${v.state === 'refused' ? html`<div class="note warn" data-conn-refused>הכתובת השמורה אינה מותרת - יש להזין כתובת מחדש</div>` : nothing}
+      ${locked ? html`<div class="note" data-conn-vendor-locked>${tr('יש להסיר את ה־NVR לפני החלפת סוג')}</div>` : nothing}
+      ${v.state === 'unreadable' ? html`<div class="note warn" data-conn-unreadable>${tr('יש להזין סיסמה מחדש')}</div>` : nothing}
+      ${v.state === 'refused' ? html`<div class="note warn" data-conn-refused>${tr('הכתובת השמורה אינה מותרת - יש להזין כתובת מחדש')}</div>` : nothing}
       ${spec && spec.fields.length ? html`<div class="grid">${this.visibleFields(spec).filter((f) => !f.advanced).map((f) => this.field(f))}</div>` : nothing}
       ${spec && spec.fields.some((f) => f.advanced) ? html`<details class="adv" data-conn-advanced ?open=${this.advancedOpen} @toggle=${(e: Event) => (this.advancedOpen = (e.target as HTMLDetailsElement).open)}>
-          <summary>הגדרות מתקדמות</summary><div class="grid">${this.visibleFields(spec).filter((f) => f.advanced).map((f) => this.field(f))}</div></details>` : nothing}
+          <summary>${tr('הגדרות מתקדמות')}</summary><div class="grid">${this.visibleFields(spec).filter((f) => f.advanced).map((f) => this.field(f))}</div></details>` : nothing}
       ${this.testLine ? html`<div class=${`line ${this.testLine.ok ? 'ok' : 'err'}`} role="status" data-conn-test-result data-ok=${String(this.testLine.ok)}>${this.testLine.text}</div>` : nothing}
       ${this.testExtras()}
       ${d.vendor === 'frigate' ? html`<div class="note" data-conn-frigate-hint>${he.frigate.summary.viewerHint} ${he.frigate.summary.linkHint}</div>` : nothing}
       <div class="actions">
-        ${d.vendor && d.vendor !== 'none' ? html`<sw-button size=${this.btn} icon="activity" ?disabled=${!this.complete || this.busy !== ''} data-conn-test @click=${() => this.runTest()}>${this.busy === 'test' ? 'בודק…' : 'בדוק חיבור'}</sw-button>` : nothing}
-        <sw-button size=${this.btn} variant="primary" icon="check" ?disabled=${!this.complete || this.busy !== '' || this.stale} data-conn-save @click=${() => this.save()}>${this.busy === 'save' ? 'שומר…' : this.context === 'add' ? 'הוסף' : 'שמור'}</sw-button>
-        ${this.offerUntested ? html`<sw-button size=${this.btn} variant="ghost" data-conn-save-anyway ?disabled=${this.busy !== ''} @click=${() => { this.word = ''; this.untestedOpen = true; }}>שמור בכל זאת</sw-button>` : nothing}
-        ${this.context === 'settings' && !(this.view?.state === 'not_chosen' || !this.view?.vendor) ? html`<sw-button size=${this.btn} variant="ghost" ?disabled=${this.busy !== ''} data-conn-cancel @click=${() => this.cancelEdit()}>ביטול</sw-button>` : nothing}
+        ${d.vendor && d.vendor !== 'none' ? html`<sw-button size=${this.btn} icon="activity" ?disabled=${!this.complete || this.busy !== ''} data-conn-test @click=${() => this.runTest()}>${this.busy === 'test' ? tr('בודק…') : tr('בדוק חיבור')}</sw-button>` : nothing}
+        <sw-button size=${this.btn} variant="primary" icon="check" ?disabled=${!this.complete || this.busy !== '' || this.stale} data-conn-save @click=${() => this.save()}>${this.busy === 'save' ? tr('שומר…') : this.context === 'add' ? tr('הוסף') : tr('שמור')}</sw-button>
+        ${this.offerUntested ? html`<sw-button size=${this.btn} variant="ghost" data-conn-save-anyway ?disabled=${this.busy !== ''} @click=${() => { this.word = ''; this.untestedOpen = true; }}>${tr('שמור בכל זאת')}</sw-button>` : nothing}
+        ${this.context === 'settings' && !(this.view?.state === 'not_chosen' || !this.view?.vendor) ? html`<sw-button size=${this.btn} variant="ghost" ?disabled=${this.busy !== ''} data-conn-cancel @click=${() => this.cancelEdit()}>${tr('ביטול')}</sw-button>` : nothing}
       </div>
     </div>`;
   }
@@ -475,31 +476,31 @@ export class NvrConnectionForm extends LitElement {
   render() {
     if (!isApi() || !can('system.configure')) return nothing;
     if (onRemote()) return html`<p class="note" data-nvr-local-only role="status">${LOCAL_ONLY_TEXT}</p>`;
-    if (this.loadState === 'loading') return html`<sw-state-panel state="loading" compact heading="קורא את פרטי החיבור…"></sw-state-panel>`;
-    if (this.loadState === 'error' || !this.view) return html`<sw-state-panel state="error" compact heading="פרטי החיבור לא נטענו" hint=${this.loadError} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>`;
+    if (this.loadState === 'loading') return html`<sw-state-panel state="loading" compact heading=${tr('קורא את פרטי החיבור…')}></sw-state-panel>`;
+    if (this.loadState === 'error' || !this.view) return html`<sw-state-panel state="error" compact heading=${tr('פרטי החיבור לא נטענו')} hint=${this.loadError} actionLabel=${tr('נסה שוב')} @action=${() => this.load()}></sw-state-panel>`;
     const v = this.view;
     const hasConnection = !!v.vendor && v.state !== 'not_chosen';
     return html`<div class="wrap" data-conn-form-root data-conn-state=${v.state}>
       ${!this.editing && hasConnection ? this.summary(v) : nothing}
       ${!this.editing && hasConnection && this.context === 'settings' && (v.vendor === 'hikvision' || v.vendor === 'provision_isr') ? html`<nvr-writes-switch recorder-id=${this.recorderId}></nvr-writes-switch>` : nothing}
-      ${v.legacy_options_differ && !this.editing ? html`<div class="note" data-conn-legacy>פרטי חיבור ישנים בתשתית המערכת אינם בשימוש</div>` : nothing}
+      ${v.legacy_options_differ && !this.editing ? html`<div class="note" data-conn-legacy>${tr('פרטי חיבור ישנים בתשתית המערכת אינם בשימוש')}</div>` : nothing}
       ${this.editing ? this.form(v) : html`<div class="actions">
-          <sw-button size=${this.btn} icon="edit" data-conn-edit @click=${() => { this.seed(); this.editing = true; this.msg = null; }}>עריכה</sw-button>
-          ${v.vendor && v.vendor !== 'none' ? html`<sw-button size=${this.btn} variant="danger" icon="trash" data-conn-remove @click=${() => { this.word = ''; this.removeOpen = true; }}>הסר NVR</sw-button>` : nothing}
+          <sw-button size=${this.btn} icon="edit" data-conn-edit @click=${() => { this.seed(); this.editing = true; this.msg = null; }}>${tr('עריכה')}</sw-button>
+          ${v.vendor && v.vendor !== 'none' ? html`<sw-button size=${this.btn} variant="danger" icon="trash" data-conn-remove @click=${() => { this.word = ''; this.removeOpen = true; }}>${tr('הסר NVR')}</sw-button>` : nothing}
         </div>`}
-      ${this.editing && hasConnection && v.vendor !== 'none' && this.context === 'settings' ? html`<div class="actions"><sw-button size=${this.btn} variant="danger" icon="trash" data-conn-remove ?disabled=${this.busy !== ''} @click=${() => { this.word = ''; this.removeOpen = true; }}>הסר NVR</sw-button></div>` : nothing}
+      ${this.editing && hasConnection && v.vendor !== 'none' && this.context === 'settings' ? html`<div class="actions"><sw-button size=${this.btn} variant="danger" icon="trash" data-conn-remove ?disabled=${this.busy !== ''} @click=${() => { this.word = ''; this.removeOpen = true; }}>${tr('הסר NVR')}</sw-button></div>` : nothing}
       ${this.msg ? html`<div class=${`line ${this.msg.tone}`} role=${this.msg.tone === 'err' ? 'alert' : 'status'} data-conn-msg>${this.msg.text}</div>` : nothing}
-      ${this.stale ? html`<div class="actions"><sw-button size=${this.btn} icon="refresh" data-conn-reload @click=${() => void this.load()}>טען מחדש</sw-button></div>` : nothing}
+      ${this.stale ? html`<div class="actions"><sw-button size=${this.btn} icon="refresh" data-conn-reload @click=${() => void this.load()}>${tr('טען מחדש')}</sw-button></div>` : nothing}
       ${this.untestedOpen
-        ? html`<sw-dialog open heading="שמירה בלי בדיקת חיבור" subheading="לא ניתן להתחבר ל־NVR כרגע" data-conn-untested-dialog @close=${() => (this.untestedOpen = false)}>
-            <sw-field label=${`לאישור הקלידו „${SAVE_WORD}”`}><input data-ltr data-conn-untested-word autocomplete="off" .value=${this.word} @input=${(e: Event) => (this.word = (e.target as HTMLInputElement).value)} /></sw-field>
-            <div slot="footer"><sw-button variant="primary" ?disabled=${this.busy !== '' || this.word.trim() !== SAVE_WORD} data-conn-untested-confirm @click=${() => this.save(true)}>${this.busy === 'save' ? 'שומר…' : 'שמור'}</sw-button><sw-button variant="ghost" @click=${() => (this.untestedOpen = false)}>ביטול</sw-button></div>
+        ? html`<sw-dialog open heading=${tr('שמירה בלי בדיקת חיבור')} subheading=${tr('לא ניתן להתחבר ל־NVR כרגע')} data-conn-untested-dialog @close=${() => (this.untestedOpen = false)}>
+            <sw-field label=${tr('לאישור הקלידו „{word}”', { word: SAVE_WORD })}><input data-ltr data-conn-untested-word autocomplete="off" .value=${this.word} @input=${(e: Event) => (this.word = (e.target as HTMLInputElement).value)} /></sw-field>
+            <div slot="footer"><sw-button variant="primary" ?disabled=${this.busy !== '' || this.word.trim() !== SAVE_WORD} data-conn-untested-confirm @click=${() => this.save(true)}>${this.busy === 'save' ? tr('שומר…') : tr('שמור')}</sw-button><sw-button variant="ghost" @click=${() => (this.untestedOpen = false)}>${tr('ביטול')}</sw-button></div>
           </sw-dialog>`
         : nothing}
       ${this.removeOpen
-        ? html`<sw-dialog open heading="הסרת NVR" subheading="המצלמות יישארו במערכת ויושבתו" data-conn-remove-dialog @close=${() => (this.removeOpen = false)}>
-            <sw-field label=${`להסרה הקלידו „${REMOVE_WORD}”`}><input data-ltr data-conn-remove-word autocomplete="off" .value=${this.word} @input=${(e: Event) => (this.word = (e.target as HTMLInputElement).value)} /></sw-field>
-            <div slot="footer"><sw-button variant="danger" ?disabled=${this.busy !== '' || this.word.trim() !== REMOVE_WORD} data-conn-remove-confirm @click=${() => this.removeNvr()}>${this.busy === 'remove' ? 'מסיר…' : 'הסר NVR'}</sw-button><sw-button variant="ghost" @click=${() => (this.removeOpen = false)}>ביטול</sw-button></div>
+        ? html`<sw-dialog open heading=${tr('הסרת NVR')} subheading=${tr('המצלמות יישארו במערכת ויושבתו')} data-conn-remove-dialog @close=${() => (this.removeOpen = false)}>
+            <sw-field label=${tr('להסרה הקלידו „{word}”', { word: REMOVE_WORD })}><input data-ltr data-conn-remove-word autocomplete="off" .value=${this.word} @input=${(e: Event) => (this.word = (e.target as HTMLInputElement).value)} /></sw-field>
+            <div slot="footer"><sw-button variant="danger" ?disabled=${this.busy !== '' || this.word.trim() !== REMOVE_WORD} data-conn-remove-confirm @click=${() => this.removeNvr()}>${this.busy === 'remove' ? tr('מסיר…') : tr('הסר NVR')}</sw-button><sw-button variant="ghost" @click=${() => (this.removeOpen = false)}>${tr('ביטול')}</sw-button></div>
           </sw-dialog>`
         : nothing}
     </div>`;

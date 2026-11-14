@@ -2,6 +2,7 @@ import { LitElement, html, css, svg, nothing, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { TrendPoint } from '../api/intercom-ops';
 import { T, barPath, compact, dayLabel, linePath, nearest, niceMax, stackBars, ticks, trendPoints } from '../screens/intercom-ops-logic';
+import { tr } from '../i18n/msg/components';
 
 /**
  * WISKEY-OPS-VIEWS-2400: the two charts of Settings › תפעול האינטרקום (the data-viz method; the reasoning and the validated palette are in
@@ -275,7 +276,7 @@ export class WkOpsDayChart extends Sized {
       <button type="button" class="tgl" data-chart-table-toggle aria-expanded=${this.table} @click=${() => (this.table = !this.table)}>${this.table ? T.hideTable : T.showTable}</button>
       <div class=${this.table ? 'tw' : 'sr'}>
         <table data-chart-table>
-          <thead><tr><th scope="col">יום</th><th scope="col">${T.granted}</th><th scope="col">${T.denied}</th></tr></thead>
+          <thead><tr><th scope="col">${tr('יום')}</th><th scope="col">${T.granted}</th><th scope="col">${T.denied}</th></tr></thead>
           <tbody>${days.map((d) => html`<tr><td>${dayLabel(d.day)}</td><td class="n">${d.granted}</td><td class="n">${d.denied}</td></tr>`)}</tbody>
         </table>
       </div>
@@ -370,7 +371,7 @@ export class WkOpsTrendChart extends Sized {
           const y = top + plotH - (t / max) * plotH;
           return svg`<line class="grid" x1="0" x2=${plotW} y1=${y} y2=${y} opacity=${t === 0 ? 1 : 0.6}></line><text x=${W - 4} y=${y + 4} text-anchor="end">${compact(t)}</text>`;
         })}
-        ${limitY !== null ? svg`<line class="limit" x1="0" x2=${plotW} y1=${limitY} y2=${limitY} data-trend-limit></line><text x=${plotW - 4} y=${limitY - 5} text-anchor="end" data-trend-limit-label>מגבלה ${this.limit}</text>` : nothing}
+        ${limitY !== null ? svg`<line class="limit" x1="0" x2=${plotW} y1=${limitY} y2=${limitY} data-trend-limit></line><text x=${plotW - 4} y=${limitY - 5} text-anchor="end" data-trend-limit-label>${tr('מגבלה {n}', { n: String(this.limit) })}</text>` : nothing}
         <path class="area" d=${area}></path>
         <path class="line" d=${linePath(pts.map((p) => ({ x: p.x, y: p.y + top })))}></path>
         <circle class="dot" cx=${last.x} cy=${last.y + top} r="4"></circle>

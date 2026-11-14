@@ -4,6 +4,7 @@ import { unsafeSVG } from 'lit/directives/unsafe-svg.js';
 import type { KeyId } from '../api/media-screens';
 import { ICON, KEY_LABEL } from './media-remote-keys';
 import { KeyPress } from './media-remote-press';
+import { tr } from '../i18n/msg/components';
 
 /**
  * The remote's d-pad (concentric: four arrows round a round OK) and its alternative, the touchpad (swipe = an arrow, tap =
@@ -289,11 +290,11 @@ export class MediaRemotePad extends LitElement {
 
   render() {
     if (this.mode === 'touch') {
-      return html`<div class="tpad" tabindex="0" role="application" aria-label="משטח מגע: החלקה לכיוון, הקשה לאישור"
+      return html`<div class="tpad" tabindex="0" role="application" aria-label=${tr('משטח מגע: החלקה לכיוון, הקשה לאישור')}
         @pointerdown=${this.onTouchDown} @pointerup=${this.onTouchUp} @pointercancel=${() => (this.touchStart = null)} @keydown=${this.onTouchKey}>
-        <span class="hint"><svg viewBox="0 0 24 24" aria-hidden="true">${unsafeSVG(ICON.touch)}</svg><span>החלקה · הקשה</span></span><span class="fx" aria-hidden="true"></span></div>`;
+        <span class="hint"><svg viewBox="0 0 24 24" aria-hidden="true">${unsafeSVG(ICON.touch)}</svg><span>${tr('החלקה · הקשה')}</span></span><span class="fx" aria-hidden="true"></span></div>`;
     }
-    return html`<div class="dpad" role="group" aria-label="חצים">
+    return html`<div class="dpad" role="group" aria-label=${tr('חצים')}>
       ${this.arrow('up')}${this.arrow('left')}
       ${this.has('ok')
         ? html`<button type="button" class="ok" data-k="ok" aria-label=${KEY_LABEL.ok}

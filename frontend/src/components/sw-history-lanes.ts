@@ -1,6 +1,7 @@
 import { LitElement, html, css, svg, nothing } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import type { Lane, MsGap } from '../map/history-replay';
+import { tr } from '../i18n/msg/components';
 
 /**
  * CR-TIMESCRUB101: the per-layer lanes of the historical map's time scrub, drawn above the recording track (sw-timeline) for
@@ -94,7 +95,7 @@ export class SwHistoryLanes extends LitElement {
       <div class="labels">
         ${this.lanes.map((l) => html`<div class="ln ${l.off ? 'off' : ''}" style=${`--c:${l.color}`} data-lane=${l.id} data-off=${l.off ? 'true' : 'false'} data-locked=${l.locked ? 'true' : 'false'}><i></i>${l.label}</div>`)}
       </div>
-      <div class="trk"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="שינויים לפי שכבה" @click=${this.onClick}>
+      <div class="trk"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label=${tr('שינויים לפי שכבה')} @click=${this.onClick}>
         <defs>
           <pattern id="gap" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="6" stroke="var(--sw-warning)" stroke-width="2.5" opacity="0.6" /></pattern>
           <pattern id="chg" patternUnits="userSpaceOnUse" width="4" height="4" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="var(--sw-text-3)" stroke-width="1.5" opacity="0.55" /></pattern>

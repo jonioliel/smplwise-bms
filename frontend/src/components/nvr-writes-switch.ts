@@ -12,6 +12,7 @@ import {
   WRITES_LABEL,
   writesStatusLine,
 } from '../screens/nvr-h264-preset';
+import { tr } from '../i18n/msg/components';
 
 const fmt = (iso: string): string => {
   const d = new Date(iso);
@@ -86,7 +87,7 @@ export class NvrWritesSwitch extends LitElement {
         <div class="txt">
           <span class="label">${WRITES_LABEL}</span>
           <span class="status" data-nvr-writes-status>${writesStatusLine(v, fmt)}</span>
-          ${v.can_change ? nothing : html`<span class="status" data-nvr-writes-readonly>נדרשת הרשאת שינוי הגדרות NVR</span>`}
+          ${v.can_change ? nothing : html`<span class="status" data-nvr-writes-readonly>${tr('נדרשת הרשאת שינוי הגדרות NVR')}</span>`}
         </div>
         <sw-toggle label=${WRITES_LABEL} .labelHidden=${true} data-nvr-writes-toggle .checked=${v.enabled} ?disabled=${!v.can_change || this.busy} @change=${(e: CustomEvent<{ checked: boolean }>) => this.onToggle(e)}></sw-toggle>
       </div>
@@ -95,8 +96,8 @@ export class NvrWritesSwitch extends LitElement {
         ? html`<sw-dialog open heading=${WRITES_CONFIRM_HEADING} data-nvr-writes-dialog ?locked=${this.busy} @close=${() => (this.confirmOpen = false)}>
             <ul class="points">${WRITES_CONFIRM_POINTS.map((p) => html`<li>${p}</li>`)}</ul>
             <div slot="footer">
-              <sw-button variant="primary" data-nvr-writes-confirm ?disabled=${this.busy} @click=${() => void this.apply(true)}>${this.busy ? 'מפעיל…' : WRITES_CONFIRM_ACTION}</sw-button>
-              <sw-button variant="ghost" data-nvr-writes-cancel ?disabled=${this.busy} @click=${() => (this.confirmOpen = false)}>ביטול</sw-button>
+              <sw-button variant="primary" data-nvr-writes-confirm ?disabled=${this.busy} @click=${() => void this.apply(true)}>${this.busy ? tr('מפעיל…') : WRITES_CONFIRM_ACTION}</sw-button>
+              <sw-button variant="ghost" data-nvr-writes-cancel ?disabled=${this.busy} @click=${() => (this.confirmOpen = false)}>${tr('ביטול')}</sw-button>
             </div>
           </sw-dialog>`
         : nothing}`;

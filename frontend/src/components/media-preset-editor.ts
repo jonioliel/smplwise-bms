@@ -10,6 +10,7 @@ import {
   NEW_PRESET, PRESET_NAME_MAX, parseCeiling, presetCandidates, presetDraftError, presetVolumes,
   type PresetDraft,
 } from '../screens/multimedia-players-layout';
+import { tr } from '../i18n/msg/components';
 
 /** A saved group as the editor starts from it (`NEW_PRESET` for a new one). */
 export const draftOf = (p: GroupPreset | null): PresetDraft =>
@@ -182,23 +183,23 @@ export class MediaPresetEditor extends LitElement {
     const d = this.draft;
     const cands = presetCandidates(this.devices, d.member_keys);
     const problem = presetDraftError(d);
-    return html`<sw-dialog open ?locked=${this.busy} heading=${d.id ? 'עריכת קבוצה שמורה' : 'קבוצה שמורה חדשה'} data-preset-editor="open" @close=${() => (this.open = false)}>
+    return html`<sw-dialog open ?locked=${this.busy} heading=${d.id ? tr('עריכת קבוצה שמורה') : tr('קבוצה שמורה חדשה')} data-preset-editor="open" @close=${() => (this.open = false)}>
       <div class="ed">
-        <input type="text" data-pe-name maxlength=${PRESET_NAME_MAX} placeholder="שם הקבוצה" aria-label="שם הקבוצה" .value=${d.name} @input=${(e: Event) => this.set({ name: (e.target as HTMLInputElement).value })} />
-        <div class="list" role="group" aria-label="חדרים">
+        <input type="text" data-pe-name maxlength=${PRESET_NAME_MAX} placeholder=${tr('שם הקבוצה')} aria-label=${tr('שם הקבוצה')} .value=${d.name} @input=${(e: Event) => this.set({ name: (e.target as HTMLInputElement).value })} />
+        <div class="list" role="group" aria-label=${tr('חדרים')}>
           ${repeat(cands, (c) => c.device.key, ({ device: x, disabled }) => {
             const on = d.member_keys.includes(x.key);
-            const place = [x.area_name, x.floor_name].filter(Boolean).join(' · ') || 'ללא חדר';
+            const place = [x.area_name, x.floor_name].filter(Boolean).join(' · ') || tr('ללא חדר');
             return html`<div class=${disabled ? 'row off' : 'row'} data-pe-row=${x.key}>
               <input type="checkbox" .checked=${on} ?disabled=${disabled} aria-label=${x.name} @change=${(e: Event) => this.toggle(x.key, (e.target as HTMLInputElement).checked)} />
-              <span class="nm"><b>${bidi(x.name)}</b><small>${bidi(place)}${x.live.power === 'unavailable' ? ' · לא זמין' : ''}</small></span>
-              ${on ? html`<label class="lead"><input type="radio" name="lead" .checked=${d.leader_key === x.key} @change=${() => this.set({ leader_key: x.key })} />מוביל</label>
-                <input type="number" min="0" max="100" data-pe-vol=${x.key} placeholder="עוצמה" aria-label=${`עוצמה · ${x.name}`} .value=${d.volumes?.[x.key] === undefined ? '' : String(d.volumes[x.key])} @change=${(e: Event) => this.setVolume(x.key, (e.target as HTMLInputElement).value)} />` : nothing}
+              <span class="nm"><b>${bidi(x.name)}</b><small>${bidi(place)}${x.live.power === 'unavailable' ? ` · ${tr('לא זמין')}` : ''}</small></span>
+              ${on ? html`<label class="lead"><input type="radio" name="lead" .checked=${d.leader_key === x.key} @change=${() => this.set({ leader_key: x.key })} />${tr('מוביל')}</label>
+                <input type="number" min="0" max="100" data-pe-vol=${x.key} placeholder=${tr('עוצמה')} aria-label=${`${tr('עוצמה')} · ${x.name}`} .value=${d.volumes?.[x.key] === undefined ? '' : String(d.volumes[x.key])} @change=${(e: Event) => this.setVolume(x.key, (e.target as HTMLInputElement).value)} />` : nothing}
             </div>`;
           })}
         </div>
         ${this.error ? html`<div class="err" role="alert" data-pe-error>${this.error}</div>` : problem && d.name ? html`<div class="why" data-pe-why>${problem}</div>` : nothing}
-        <div class="actions"><sw-button data-pe-cancel ?disabled=${this.busy} @click=${() => (this.open = false)}>ביטול</sw-button><sw-button variant="primary" data-pe-save ?disabled=${this.busy || !!problem} @click=${() => void this.save()}>שמור</sw-button></div>
+        <div class="actions"><sw-button data-pe-cancel ?disabled=${this.busy} @click=${() => (this.open = false)}>${tr('ביטול')}</sw-button><sw-button variant="primary" data-pe-save ?disabled=${this.busy || !!problem} @click=${() => void this.save()}>${tr('שמור')}</sw-button></div>
       </div>
     </sw-dialog>`;
   }

@@ -10,8 +10,9 @@ import { players, playerErrorText, type GroupRecord, type PausePreview } from '.
 import type { BulkScope } from '../api/media-screens';
 import { bidi } from '../i18n/bidi';
 import { summarizeRecord } from '../screens/multimedia-players-layout';
+import { tr } from '../i18n/msg/components';
 
-const PAUSE_REASON: Record<string, string> = { not_playing: 'לא מנגן', unavailable: 'לא זמין', not_allowed: 'אין הרשאה' };
+const PAUSE_REASON: Record<string, string> = { not_playing: tr('לא מנגן'), unavailable: tr('לא זמין'), not_allowed: tr('אין הרשאה') };
 
 /** A generic confirmation: the question, one sentence, the rooms under a closed "פרטים", and what the confirm button does. */
 export interface GroupConfirmRequest {
@@ -140,7 +141,7 @@ export class MediaGroupDialog extends LitElement {
       this.phase = p.counts.send ? 'confirm' : 'nothing';
     } catch (err) {
       if (this.pauseReq !== req) return;
-      this.error = err instanceof ApiError && err.status === 403 ? 'אין לך הרשאה לעצירה מרוכזת כאן.' : playerErrorText(err);
+      this.error = err instanceof ApiError && err.status === 403 ? tr('אין לך הרשאה לעצירה מרוכזת כאן.') : playerErrorText(err);
       this.phase = 'error';
     }
   }
@@ -177,7 +178,7 @@ export class MediaGroupDialog extends LitElement {
       this.phase = 'result';
       this.dispatchEvent(new CustomEvent('group-done', { detail: this.record, bubbles: true, composed: true }));
     } catch (err) {
-      this.error = err instanceof ApiError && err.code === 'target_changed' ? 'רשימת הנגנים השתנתה; לא נשלח דבר. פתחו מחדש.' : describeError(err);
+      this.error = err instanceof ApiError && err.code === 'target_changed' ? tr('רשימת הנגנים השתנתה; לא נשלח דבר. פתחו מחדש.') : describeError(err);
       this.phase = 'error';
       this.dispatchEvent(new CustomEvent('group-done', { detail: null, bubbles: true, composed: true }));
     }
@@ -219,46 +220,46 @@ export class MediaGroupDialog extends LitElement {
     const pr = this.pauseReq;
     const heading = this.req
       ? this.req.heading
-      : this.phase === 'confirm' && p && pr ? `לעצור ${p.counts.send === 1 ? 'נגן אחד' : `${p.counts.send} נגנים`} ב${bidi(pr.name)}?` : `עצירת מוזיקה · ${bidi(pr?.name ?? '')}`;
+      : this.phase === 'confirm' && p && pr ? (p.counts.send === 1 ? tr('לעצור נגן אחד ב{place}?', { place: bidi(pr.name) }) : tr('לעצור {n} נגנים ב{place}?', { n: p.counts.send, place: bidi(pr.name) })) : `${tr('עצירת מוזיקה')} · ${bidi(pr?.name ?? '')}`;
     return html`<sw-dialog open ?locked=${this.phase === 'sending'} data-group-dialog=${this.phase} heading=${heading} @close=${this.close}>${this.body()}</sw-dialog>`;
   }
 
-  private cancel(label = 'ביטול') {
+  private cancel(label = tr('ביטול')) {
     return html`<sw-button data-gd-cancel autofocus @click=${this.close}>${label}</sw-button>`;
   }
 
   private body() {
     const p = this.preview;
-    if (this.phase === 'loading') return html`<div class="muted">בודק…</div><div class="actions">${this.cancel()}</div>`;
-    if (this.phase === 'error') return html`<div class="err" data-gd-error>${this.error}</div><div class="actions">${this.cancel('סגור')}</div>`;
+    if (this.phase === 'loading') return html`<div class="muted">${tr('בודק…')}</div><div class="actions">${this.cancel()}</div>`;
+    if (this.phase === 'error') return html`<div class="err" data-gd-error>${this.error}</div><div class="actions">${this.cancel(tr('סגור'))}</div>`;
     if (this.req) {
       const r = this.req;
       return html`<div class="what" data-gd-what>${r.sub ? html`<div>${r.sub}</div>` : nothing}
-        ${r.names?.length ? html`<details data-gd-details><summary>פרטים</summary><ul>${r.names.map((n) => html`<li>${bidi(n)}</li>`)}</ul></details>` : nothing}</div>
+        ${r.names?.length ? html`<details data-gd-details><summary>${tr('פרטים')}</summary><ul>${r.names.map((n) => html`<li>${bidi(n)}</li>`)}</ul></details>` : nothing}</div>
         <div class="actions">${this.cancel()}<sw-button data-gd-confirm variant=${r.danger ? 'danger' : 'primary'} @click=${() => void this.runConfirm()}>${r.ok}</sw-button></div>`;
     }
-    if (this.phase === 'nothing' && p) return html`<div class="what" data-gd-nothing><div>אין נגן מנגן שאושר לעצירה.</div>${this.details(p)}</div><div class="actions">${this.cancel('סגור')}</div>`;
+    if (this.phase === 'nothing' && p) return html`<div class="what" data-gd-nothing><div>${tr('אין נגן מנגן שאושר לעצירה.')}</div>${this.details(p)}</div><div class="actions">${this.cancel(tr('סגור'))}</div>`;
     if (this.phase === 'confirm' && p) {
       return html`<div class="what" data-gd-what>${this.details(p)}</div>
-        <div class="actions">${this.cancel()}<sw-button data-gd-confirm variant="primary" @click=${() => void this.runPause()}>עצור (${p.counts.send})</sw-button></div>`;
+        <div class="actions">${this.cancel()}<sw-button data-gd-confirm variant="primary" @click=${() => void this.runPause()}>${tr('עצור')} (${p.counts.send})</sw-button></div>`;
     }
-    if (this.phase === 'sending' || (!this.record && this.phase === 'running')) return html`<div class="muted" data-gd-progress>שולח…</div>`;
+    if (this.phase === 'sending' || (!this.record && this.phase === 'running')) return html`<div class="muted" data-gd-progress>${tr('שולח…')}</div>`;
     // a room that was skipped (it was not playing, it is unavailable ...) is in the record as `will: skip` - not a room that failed to pause
     const s = summarizeRecord(this.record && { ...this.record, members: this.record.members.filter((m) => m.will !== 'skip') });
     const partial = !!this.record && s.failed.length > 0;
     return html`<div class="what" data-gd-result=${partial ? 'partial' : 'ok'}>
-        <div class=${classMap({ headline: true, ok: !partial, partial })}><sw-icon .name=${partial ? 'warning' : 'check'} size="16"></sw-icon>${partial ? `בוצע חלקית: ${s.failed.length} לא נעצרו` : 'בוצע'}</div>
-        ${partial ? html`<ul>${s.failed.map((f) => html`<li>${bidi(f.room)}<span class="tag">לא נעצר</span></li>`)}</ul>` : nothing}
-      </div><div class="actions">${this.cancel('סגור')}</div>`;
+        <div class=${classMap({ headline: true, ok: !partial, partial })}><sw-icon .name=${partial ? 'warning' : 'check'} size="16"></sw-icon>${partial ? tr('בוצע חלקית: {n} לא נעצרו', { n: s.failed.length }) : tr('בוצע')}</div>
+        ${partial ? html`<ul>${s.failed.map((f) => html`<li>${bidi(f.room)}<span class="tag">${tr('לא נעצר')}</span></li>`)}</ul>` : nothing}
+      </div><div class="actions">${this.cancel(tr('סגור'))}</div>`;
   }
 
   /** The folded "פרטים": who is paused, who is skipped and why. */
   private details(p: PausePreview) {
     const send = p.devices.filter((d) => d.will === 'pause');
     const skip = p.devices.filter((d) => d.will === 'skip');
-    return html`<details data-gd-details><summary>פרטים</summary>
+    return html`<details data-gd-details><summary>${tr('פרטים')}</summary>
       ${send.length ? html`<ul>${send.map((d) => html`<li>${bidi(d.name)}</li>`)}</ul>` : nothing}
-      ${skip.length ? html`<div class="muted">לא נכללו:</div><ul>${skip.map((d) => html`<li>${bidi(d.name)}<span class="tag">${d.reason ? PAUSE_REASON[d.reason] ?? d.reason : ''}</span></li>`)}</ul>` : nothing}
+      ${skip.length ? html`<div class="muted">${tr('לא נכללו:')}</div><ul>${skip.map((d) => html`<li>${bidi(d.name)}<span class="tag">${d.reason ? PAUSE_REASON[d.reason] ?? d.reason : ''}</span></li>`)}</ul>` : nothing}
     </details>`;
   }
 }

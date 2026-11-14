@@ -4,9 +4,10 @@
  * already answered in that zone, so nothing here converts time.
  */
 
-export const WEEKDAYS_HE = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'] as const;
-export const WEEKDAY_NAMES_HE = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'] as const;
-export const MONTHS_HE = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'] as const;
+import { tr } from '../i18n/msg/components';
+export const WEEKDAYS_HE = [tr('א׳'), tr('ב׳'), tr('ג׳'), tr('ד׳'), tr('ה׳'), tr('ו׳'), tr('ש׳')] as const;
+export const WEEKDAY_NAMES_HE = [tr('ראשון'), tr('שני'), tr('שלישי'), tr('רביעי'), tr('חמישי'), tr('שישי'), tr('שבת')] as const;
+export const MONTHS_HE = [tr('ינואר'), tr('פברואר'), tr('מרץ'), tr('אפריל'), tr('מאי'), tr('יוני'), tr('יולי'), tr('אוגוסט'), tr('ספטמבר'), tr('אוקטובר'), tr('נובמבר'), tr('דצמבר')] as const;
 
 export type DayState = 'recorded' | 'empty' | 'future' | 'unknown';
 
@@ -78,13 +79,13 @@ export function canGoNext(month: string, today: string): boolean {
 /** The accessible name of a day button (Hebrew, read by screen readers). */
 export function dayLabel(cell: MonthCell): string {
   const [y, m] = cell.date.split('-').map(Number);
-  const base = `יום ${WEEKDAY_NAMES_HE[cell.weekday]}, ${cell.day} ב${MONTHS_HE[m - 1]} ${y}`;
-  const what = { recorded: 'יש הקלטות', empty: 'אין הקלטות', future: 'עתידי', unknown: 'בבדיקה' }[cell.state];
-  return `${base} · ${what}${cell.today ? ' · היום' : ''}`;
+  const base = tr('יום {weekday}, {day} ב{month} {year}', { weekday: WEEKDAY_NAMES_HE[cell.weekday], day: cell.day, month: MONTHS_HE[m - 1], year: y });
+  const what = { recorded: tr('יש הקלטות'), empty: tr('אין הקלטות'), future: tr('עתידי'), unknown: tr('בבדיקה') }[cell.state];
+  return `${base} · ${what}${cell.today ? ` · ${tr('היום')}` : ''}`;
 }
 
 /** The line under the grid: how many days have recordings, and an honest word when the answer is partial. */
 export function summaryText(count: number, coverage: 'complete' | 'partial' | null): string {
-  const days = count === 0 ? 'אין ימים עם הקלטות בחודש זה' : count === 1 ? 'יום אחד עם הקלטות' : `${count} ימים עם הקלטות`;
-  return coverage === 'partial' ? `${days} · ייתכן שחסרים ימים (החיפוש הוגבל)` : days;
+  const days = count === 0 ? tr('אין ימים עם הקלטות בחודש זה') : count === 1 ? tr('יום אחד עם הקלטות') : tr('{n} ימים עם הקלטות', { n: count });
+  return coverage === 'partial' ? `${days} · ${tr('ייתכן שחסרים ימים (החיפוש הוגבל)')}` : days;
 }

@@ -5,6 +5,7 @@ import './sw-button';
 import { describeError } from '../api/client';
 import { can, loadSession, onSession, type Session } from '../api/session';
 import { demoLeft, extendDemo, stopDemo } from '../api/readiness';
+import { tr } from '../i18n/msg/components';
 
 /** CR-READY96: the demo-mode strip. Shown to EVERY signed-in user while a demo runs (anyone looking at the box must know the data is made up);
  * the extend and exit buttons only for whoever holds demo.run. Presentation only: the server refuses physical actions in demo mode itself. */
@@ -58,15 +59,16 @@ export class SwDemoBanner extends LitElement {
     const d = this.session?.me?.demo;
     if (!d?.active) return nothing;
     const left = demoLeft(d.expires_at, this.now);
+    const leftText = tr('מסתיים אוטומטית בעוד {left} ש׳').split('{left}');
     return html`<div class="bar" role="status" aria-live="polite" data-demo-banner>
-      <span class="tag"><sw-icon name="play" size=${12}></sw-icon>הדגמה</span>
-      <span class="txt">הנתונים מדומים · פעולות למצלמות, לדלתות ולמכשירים חסומות · ההתקנה האמיתית לא נגעה</span>
-      <span class="who" data-demo-left>${left ? html`מסתיים אוטומטית בעוד <b>${left}</b> ש׳` : 'ההדגמה מסתיימת'}${d.started_by_name ? ` · הופעל על ידי ${d.started_by_name}` : ''}</span>
+      <span class="tag"><sw-icon name="play" size=${12}></sw-icon>${tr('הדגמה')}</span>
+      <span class="txt">${tr('הנתונים מדומים · פעולות למצלמות, לדלתות ולמכשירים חסומות · ההתקנה האמיתית לא נגעה')}</span>
+      <span class="who" data-demo-left>${left ? html`${leftText[0]}<b>${left}</b>${leftText[1] ?? ''}` : tr('ההדגמה מסתיימת')}${d.started_by_name ? ` · ${tr('הופעל על ידי {name}', { name: d.started_by_name })}` : ''}</span>
       <span class="sp"></span>
       ${this.error ? html`<span class="err" role="alert">${this.error}</span>` : nothing}
       ${can('demo.run')
-        ? html`<sw-button size="sm" variant="ghost" ?disabled=${this.busy} data-demo-extend @click=${() => void this.extend()}>הארכה</sw-button>
-            <sw-button size="sm" icon="close" ?disabled=${this.busy} data-demo-exit @click=${() => void this.leave()}>יציאה מההדגמה</sw-button>`
+        ? html`<sw-button size="sm" variant="ghost" ?disabled=${this.busy} data-demo-extend @click=${() => void this.extend()}>${tr('הארכה')}</sw-button>
+            <sw-button size="sm" icon="close" ?disabled=${this.busy} data-demo-exit @click=${() => void this.leave()}>${tr('יציאה מההדגמה')}</sw-button>`
         : nothing}
     </div>`;
   }

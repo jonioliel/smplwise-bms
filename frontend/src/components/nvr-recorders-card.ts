@@ -14,14 +14,15 @@ import { listRecorders, updateRecorder, STATE_TEXT, type Recorder, type Recorder
 import { can, isApi, onRemote, LOCAL_ONLY_TEXT } from '../api/session';
 import { announceRestartPending } from './nvr-restart-banner';
 import type { StateKind } from './sw-badge';
+import { tr } from '../i18n/msg/components';
 
 /**
  * CR-024 section 7.2: what disabling really does. The cameras leave the live wall, the kiosk, the overview and every camera
  * picker (playback, sync, saved views, case snapshots); on a floor map they stay placed, without a picture. The camera table in
  * Settings keeps them, and events, cases and the change log keep their history.
  */
-export const DISABLE_TEXT = 'מיד: בלי שידור חי, ניגון ואירועים מה־NVR הזה. המצלמות שלו יורדות מהקיר ומבחירת המצלמות; בטבלת המצלמות ובמפה הן נשארות, בלי תמונה. ההיסטוריה נשמרת.';
-export const ENABLE_TEXT = 'ה־NVR חוזר לפעול מיד, והמצלמות שלו חוזרות לקיר.';
+export const DISABLE_TEXT = tr('מיד: בלי שידור חי, ניגון ואירועים מה־NVR הזה. המצלמות שלו יורדות מהקיר ומבחירת המצלמות; בטבלת המצלמות ובמפה הן נשארות, בלי תמונה. ההיסטוריה נשמרת.');
+export const ENABLE_TEXT = tr('ה־NVR חוזר לפעול מיד, והמצלמות שלו חוזרות לקיר.');
 
 const BADGE: Record<string, StateKind> = { online: 'live', error: 'error', unknown: 'unknown', pending_restart: 'stale', disabled: 'neutral', not_configured: 'neutral', unreadable: 'error', refused: 'error', removed: 'neutral' };
 
@@ -91,7 +92,7 @@ export class NvrRecordersCard extends LitElement {
     try {
       await updateRecorder(r.id, { name });
       this.renaming = '';
-      this.msg = { tone: 'ok', text: 'השם נשמר' };
+      this.msg = { tone: 'ok', text: tr('השם נשמר') };
       await this.load();
     } catch (err) {
       this.msg = { tone: 'err', text: describeError(err) };
@@ -106,7 +107,7 @@ export class NvrRecordersCard extends LitElement {
     try {
       const out = await updateRecorder(r.id, { enabled: !r.enabled });
       this.toggling = null;
-      this.msg = { tone: 'ok', text: r.enabled ? 'ה־NVR הושבת' : 'ה־NVR הופעל' };
+      this.msg = { tone: 'ok', text: r.enabled ? tr('ה־NVR הושבת') : tr('ה־NVR הופעל') };
       if (out.restart_required) announceRestartPending(true);
       await this.load();
     } catch (err) {
@@ -138,21 +139,21 @@ export class NvrRecordersCard extends LitElement {
         </div>
         <div class="facts">
           <sw-badge kind=${BADGE[st] ?? 'neutral'} label=${STATE_TEXT[st] ?? st} data-recorder-status></sw-badge>
-          <span class="cams" data-recorder-cameras>${r.cameras} מצלמות</span>
+          <span class="cams" data-recorder-cameras>${tr('{n} מצלמות', { n: r.cameras })}</span>
         </div>
       </div>
       <div class="actions">
         ${this.renaming === r.id
-          ? html`<sw-button size=${this.btn} variant="primary" icon="check" ?disabled=${this.busy || !this.nameDraft.trim()} data-recorder-name-save @click=${() => this.rename(r)}>שמור</sw-button>
-              <sw-button size=${this.btn} variant="ghost" @click=${() => (this.renaming = '')}>ביטול</sw-button>`
-          : html`<sw-button size=${this.btn} icon="link" data-recorder-connection aria-expanded=${String(isOpen)} @click=${() => (this.open = isOpen ? '' : r.id)}>חיבור</sw-button>
-              <sw-button size=${this.btn} variant="ghost" icon="edit" data-recorder-rename @click=${() => { this.renaming = r.id; this.nameDraft = r.name; this.msg = null; }}>שם</sw-button>
-              <sw-button size=${this.btn} variant="ghost" icon="power" data-recorder-toggle @click=${() => (this.toggling = r)}>${r.enabled ? 'השבת' : 'הפעל'}</sw-button>`}
+          ? html`<sw-button size=${this.btn} variant="primary" icon="check" ?disabled=${this.busy || !this.nameDraft.trim()} data-recorder-name-save @click=${() => this.rename(r)}>${tr('שמור')}</sw-button>
+              <sw-button size=${this.btn} variant="ghost" @click=${() => (this.renaming = '')}>${tr('ביטול')}</sw-button>`
+          : html`<sw-button size=${this.btn} icon="link" data-recorder-connection aria-expanded=${String(isOpen)} @click=${() => (this.open = isOpen ? '' : r.id)}>${tr('חיבור')}</sw-button>
+              <sw-button size=${this.btn} variant="ghost" icon="edit" data-recorder-rename @click=${() => { this.renaming = r.id; this.nameDraft = r.name; this.msg = null; }}>${tr('שם')}</sw-button>
+              <sw-button size=${this.btn} variant="ghost" icon="power" data-recorder-toggle @click=${() => (this.toggling = r)}>${r.enabled ? tr('השבת') : tr('הפעל')}</sw-button>`}
       </div>
       ${isOpen
         ? html`<div class="conn" data-recorder-connection-form>
             <nvr-connection-form context="settings" recorder-id=${r.id}
-              @nvr-connection-saved=${() => this.changed('נשמר')} @nvr-connection-removed=${() => { this.open = ''; this.changed('ה־NVR הוסר'); }}></nvr-connection-form>
+              @nvr-connection-saved=${() => this.changed(tr('נשמר'))} @nvr-connection-removed=${() => { this.open = ''; this.changed(tr('ה־NVR הוסר')); }}></nvr-connection-form>
             ${r.vendor === 'frigate' && st === 'online' ? html`<frigate-summary recorder-id=${r.id} data-recorder-frigate-summary></frigate-summary><frigate-control-settings recorder-id=${r.id} data-recorder-frigate-control></frigate-control-settings>` : nothing}
           </div>`
         : nothing}
@@ -160,26 +161,26 @@ export class NvrRecordersCard extends LitElement {
   }
 
   private addDialog() {
-    return html`<sw-dialog open wide heading="הוספת NVR" data-recorder-add-dialog @close=${() => (this.adding = false)}>
-      <nvr-connection-form context="add" @nvr-recorder-added=${() => this.changed('ה־NVR נוסף')}></nvr-connection-form>
+    return html`<sw-dialog open wide heading=${tr('הוספת NVR')} data-recorder-add-dialog @close=${() => (this.adding = false)}>
+      <nvr-connection-form context="add" @nvr-recorder-added=${() => this.changed(tr('ה־NVR נוסף'))}></nvr-connection-form>
     </sw-dialog>`;
   }
 
   render() {
     if (!isApi() || !can('system.configure')) return nothing;
-    if (onRemote()) return html`<sw-card heading="חיבור ל־NVR" data-nvr-connection><p class="local-only" data-nvr-local-only role="status">${LOCAL_ONLY_TEXT}</p></sw-card>`;
-    if (this.loadState === 'loading') return html`<sw-card heading="מקליטים (NVR)"><sw-state-panel state="loading" compact heading="קורא…"></sw-state-panel></sw-card>`;
+    if (onRemote()) return html`<sw-card heading=${tr('חיבור ל־NVR')} data-nvr-connection><p class="local-only" data-nvr-local-only role="status">${LOCAL_ONLY_TEXT}</p></sw-card>`;
+    if (this.loadState === 'loading') return html`<sw-card heading=${tr('מקליטים (NVR)')}><sw-state-panel state="loading" compact heading=${tr('קורא…')}></sw-state-panel></sw-card>`;
     if (this.fallback) {
-      return html`<sw-card heading="חיבור ל־NVR" data-nvr-connection><nvr-connection-form context="settings"></nvr-connection-form></sw-card>`;
+      return html`<sw-card heading=${tr('חיבור ל־NVR')} data-nvr-connection><nvr-connection-form context="settings"></nvr-connection-form></sw-card>`;
     }
     if (this.loadState === 'error' || !this.data) {
-      return html`<sw-card heading="מקליטים (NVR)"><sw-state-panel state="error" compact heading="רשימת המקליטים לא נטענה" hint=${this.loadError} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel></sw-card>`;
+      return html`<sw-card heading=${tr('מקליטים (NVR)')}><sw-state-panel state="error" compact heading=${tr('רשימת המקליטים לא נטענה')} hint=${this.loadError} actionLabel=${tr('נסה שוב')} @action=${() => this.load()}></sw-state-panel></sw-card>`;
     }
     const recs = this.data.recorders.filter((r) => !r.removed);
     if (!recs.length && this.data.primary_has_history) {
       // CR-024 (owner 2026-10-04): the removed first recorder keeps its history - a new NVR gets a new id (the add form), never nvr-1
-      return html`<sw-card heading="חיבור ל־NVR" data-nvr-connection data-recorder-add-new>
-        <nvr-connection-form context="add" @nvr-recorder-added=${() => this.changed('ה־NVR נוסף')}></nvr-connection-form>
+      return html`<sw-card heading=${tr('חיבור ל־NVR')} data-nvr-connection data-recorder-add-new>
+        <nvr-connection-form context="add" @nvr-recorder-added=${() => this.changed(tr('ה־NVR נוסף'))}></nvr-connection-form>
         ${this.msg ? html`<div class=${`line ${this.msg.tone}`} role=${this.msg.tone === 'err' ? 'alert' : 'status'} data-recorder-msg>${this.msg.text}</div>` : nothing}
       </sw-card>`;
     }
@@ -187,28 +188,28 @@ export class NvrRecordersCard extends LitElement {
       // no NVR yet, or one: the connection form itself (choose a type, or "ללא NVR"), as before multi-NVR; "הוסף NVR" once one is connected
       const only = recs[0];
       const connected = !!only && only.connection?.vendor && only.connection.vendor !== 'none' && only.connection.state !== 'not_chosen';
-      return html`<sw-card heading="חיבור ל־NVR" data-nvr-connection>
+      return html`<sw-card heading=${tr('חיבור ל־NVR')} data-nvr-connection>
         <nvr-connection-form context="settings" recorder-id=${only?.id ?? 'nvr-1'} @nvr-connection-saved=${() => void this.load()} @nvr-connection-removed=${() => void this.load()}></nvr-connection-form>
         ${only?.vendor === 'frigate' && only.status.state === 'online' ? html`<frigate-summary recorder-id=${only.id} data-recorder-frigate-summary></frigate-summary><frigate-control-settings recorder-id=${only.id} data-recorder-frigate-control></frigate-control-settings>` : nothing}
-        ${connected ? html`<div class="actions add-one"><sw-button size=${this.btn} icon="plus" data-recorder-add @click=${() => { this.adding = true; this.msg = null; }}>הוסף NVR</sw-button></div>` : nothing}
+        ${connected ? html`<div class="actions add-one"><sw-button size=${this.btn} icon="plus" data-recorder-add @click=${() => { this.adding = true; this.msg = null; }}>${tr('הוסף NVR')}</sw-button></div>` : nothing}
         ${this.msg ? html`<div class=${`line ${this.msg.tone}`} role=${this.msg.tone === 'err' ? 'alert' : 'status'} data-recorder-msg>${this.msg.text}</div>` : nothing}
         ${this.adding ? this.addDialog() : nothing}
       </sw-card>`;
     }
     const t = this.toggling;
-    return html`<sw-card heading="מקליטים (NVR)" data-nvr-recorders data-nvr-connection>
+    return html`<sw-card heading=${tr('מקליטים (NVR)')} data-nvr-recorders data-nvr-connection>
       <ul class="list" data-recorder-list>${recs.map((r) => this.row(r))}</ul>
       <div class="actions">
-        <sw-button size=${this.btn} variant="primary" icon="plus" data-recorder-add @click=${() => { this.adding = true; this.msg = null; }}>הוסף NVR</sw-button>
+        <sw-button size=${this.btn} variant="primary" icon="plus" data-recorder-add @click=${() => { this.adding = true; this.msg = null; }}>${tr('הוסף NVR')}</sw-button>
       </div>
       ${this.msg ? html`<div class=${`line ${this.msg.tone}`} role=${this.msg.tone === 'err' ? 'alert' : 'status'} data-recorder-msg>${this.msg.text}</div>` : nothing}
       ${this.adding ? this.addDialog() : nothing}
       ${t
-        ? html`<sw-dialog open heading=${t.enabled ? 'השבתת NVR' : 'הפעלת NVR'} subheading=${t.name} data-recorder-toggle-dialog @close=${() => (this.toggling = null)}>
+        ? html`<sw-dialog open heading=${t.enabled ? tr('השבתת NVR') : tr('הפעלת NVR')} subheading=${t.name} data-recorder-toggle-dialog @close=${() => (this.toggling = null)}>
             <div class="dlg" data-recorder-toggle-text>${t.enabled ? DISABLE_TEXT : ENABLE_TEXT}</div>
             <div slot="footer">
-              <sw-button variant=${t.enabled ? 'danger' : 'primary'} ?disabled=${this.busy} data-recorder-toggle-confirm @click=${() => this.toggle(t)}>${t.enabled ? 'השבת' : 'הפעל'}</sw-button>
-              <sw-button variant="ghost" @click=${() => (this.toggling = null)}>ביטול</sw-button>
+              <sw-button variant=${t.enabled ? 'danger' : 'primary'} ?disabled=${this.busy} data-recorder-toggle-confirm @click=${() => this.toggle(t)}>${t.enabled ? tr('השבת') : tr('הפעל')}</sw-button>
+              <sw-button variant="ghost" @click=${() => (this.toggling = null)}>${tr('ביטול')}</sw-button>
             </div>
           </sw-dialog>`
         : nothing}

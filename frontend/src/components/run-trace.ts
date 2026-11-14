@@ -6,8 +6,9 @@ import { applyAutomationsGlass } from '../api/automations-demo';
 import { whenText } from '../screens/automations-logic';
 import { bidi } from '../i18n/bidi';
 import { traceView, type Mode, type RunTrace, type TraceRow } from '../api/automations';
+import { tr } from '../i18n/msg/components';
 
-const MODE_LABEL: Record<Mode, string> = { single: 'ריצה אחת בכל פעם', restart: 'התחלה מחדש', queued: 'בתור', parallel: 'במקביל' };
+const MODE_LABEL: Record<Mode, string> = { single: tr('ריצה אחת בכל פעם'), restart: tr('התחלה מחדש'), queued: tr('בתור'), parallel: tr('במקביל') };
 
 /**
  * CR-017 `<run-trace .trace .mode .now .timeZone>`: "למה זה רץ" (owner decision 9ג): the full trace of one run as the platform shows it, with the
@@ -225,23 +226,23 @@ export class RunTraceView extends LitElement {
     return html`
       <div class="sentence" data-trace-sentence>${aIcon('help')}<div>${v.sentence}</div></div>
       <dl class="sum" data-trace-summary>
-        <dt>תוצאה</dt><dd>${this.resultChip(v.result.id, v.result.label)}</dd>
-        <dt>התחלה</dt><dd>${day} ${v.trigger.time ?? v.at}</dd>
-        ${v.duration ? html`<dt>משך</dt><dd>${v.duration}</dd>` : nothing}
-        <dt>הופעלה על ידי</dt><dd>${v.who}</dd>
-        ${this.mode ? html`<dt>מצב</dt><dd>${MODE_LABEL[this.mode] ?? this.mode}</dd>` : nothing}
+        <dt>${tr('תוצאה')}</dt><dd>${this.resultChip(v.result.id, v.result.label)}</dd>
+        <dt>${tr('התחלה')}</dt><dd>${day} ${v.trigger.time ?? v.at}</dd>
+        ${v.duration ? html`<dt>${tr('משך')}</dt><dd>${v.duration}</dd>` : nothing}
+        <dt>${tr('הופעלה על ידי')}</dt><dd>${v.who}</dd>
+        ${this.mode ? html`<dt>${tr('מצב')}</dt><dd>${MODE_LABEL[this.mode] ?? this.mode}</dd>` : nothing}
       </dl>
       <div class="sec" data-trace-trigger>
-        <h5>${aIcon('bolt')}טריגר</h5>
+        <h5>${aIcon('bolt')}${tr('טריגר')}</h5>
         ${this.row({ ...v.trigger, status: 'info' }, '', variablesOf(t))}
       </div>
       <div class="sec" data-trace-conditions>
-        <h5>${aIcon('help')}תנאים${v.counts.conditions ? html`<span class="cnt">עברו ${v.counts.conditions_passed}/${v.counts.conditions}</span>` : nothing}</h5>
-        ${v.conditions.length ? v.conditions.map((c) => this.row(c)) : html`<div class="skip-note">אין תנאים</div>`}
+        <h5>${aIcon('help')}${tr('תנאים')}${v.counts.conditions ? html`<span class="cnt">${tr('עברו {done}/{total}', { done: v.counts.conditions_passed, total: v.counts.conditions })}</span>` : nothing}</h5>
+        ${v.conditions.length ? v.conditions.map((c) => this.row(c)) : html`<div class="skip-note">${tr('אין תנאים')}</div>`}
       </div>
       <div class="sec" data-trace-steps>
-        <h5>${aIcon('play')}פעולות${v.counts.steps ? html`<span class="cnt">בוצעו ${v.counts.steps_done}/${v.counts.steps}</span>` : nothing}</h5>
-        ${v.steps.length ? v.steps.map((s) => this.row(s)) : html`<div class="skip-note">לא בוצעו פעולות</div>`}
+        <h5>${aIcon('play')}${tr('פעולות')}${v.counts.steps ? html`<span class="cnt">${tr('בוצעו {done}/{total}', { done: v.counts.steps_done, total: v.counts.steps })}</span>` : nothing}</h5>
+        ${v.steps.length ? v.steps.map((s) => this.row(s)) : html`<div class="skip-note">${tr('לא בוצעו פעולות')}</div>`}
       </div>`;
   }
 }

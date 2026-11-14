@@ -10,13 +10,14 @@ import { isApi } from '../api/session';
 import { CONFIRM_TIMEOUT_MS } from '../api/media-screens';
 import { PLAYER_ERROR_LABEL, confirmPreview, playerErrorText, sendPlayerCommand, type GroupPreview, type PlayerCommand } from '../api/media-players';
 import type { CommandOutcome } from './media-command';
+import { tr } from '../i18n/msg/components';
 
 const POLL_MS = 600;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export function playerErrorOutcome(err: unknown): { code: string | null; message: string } {
-  if (err instanceof ApiError) return { code: err.code, message: playerErrorText(err) || (PLAYER_ERROR_LABEL[err.code] ?? err.body.user_message ?? 'הפעולה נכשלה') };
-  return { code: null, message: 'אין חיבור לשרת' };
+  if (err instanceof ApiError) return { code: err.code, message: playerErrorText(err) || (PLAYER_ERROR_LABEL[err.code] ?? err.body.user_message ?? tr('הפעולה נכשלה')) };
+  return { code: null, message: tr('אין חיבור לשרת') };
 }
 
 /** Shows the server's preview of a party (a static group, four rooms or more, more than one floor) and answers whether the user confirmed. */
@@ -38,7 +39,7 @@ export async function runPlayerCommand(key: string, cmd: PlayerCommand, onSent?:
     return { outcome: code === 'rate_limited' ? 'rate_limited' : 'refused', message, code };
   }
   onSent?.();
-  if (result.status === 'refused') return { outcome: 'refused', message: (result.error && PLAYER_ERROR_LABEL[result.error]) || 'הנגן דחה את הפקודה', code: result.error };
+  if (result.status === 'refused') return { outcome: 'refused', message: (result.error && PLAYER_ERROR_LABEL[result.error]) || tr('הנגן דחה את הפקודה'), code: result.error };
   if (result.status === 'sent' || result.confirm === 'none') return { outcome: 'sent', message: '', code: null };
   if (!result.action_id || !isApi()) return { outcome: 'confirmed', message: '', code: null };
   const deadline = Date.now() + CONFIRM_TIMEOUT_MS;
@@ -47,11 +48,11 @@ export async function runPlayerCommand(key: string, cmd: PlayerCommand, onSent?:
     try {
       const a = await getAction(result.action_id);
       if (a.status === 'confirmed') return { outcome: 'confirmed', message: '', code: null };
-      if (a.status === 'failed' || a.status === 'denied') return { outcome: 'refused', message: a.status === 'denied' ? PLAYER_ERROR_LABEL.forbidden : 'הנגן דחה את הפקודה', code: a.error };
+      if (a.status === 'failed' || a.status === 'denied') return { outcome: 'refused', message: a.status === 'denied' ? PLAYER_ERROR_LABEL.forbidden : tr('הנגן דחה את הפקודה'), code: a.error };
       if (a.status === 'unknown') break;
     } catch {
       /* the poll itself failed: keep waiting until the deadline, then say "not confirmed" */
     }
   }
-  return { outcome: 'not_confirmed', message: 'הנגן לא אישר את הפקודה', code: 'not_confirmed' };
+  return { outcome: 'not_confirmed', message: tr('הנגן לא אישר את הפקודה'), code: 'not_confirmed' };
 }

@@ -14,6 +14,7 @@ import './notify-row';
 import './notify-detail';
 import type { RowAction } from './notify-row';
 import type { DetailAction } from './notify-detail';
+import { tr } from '../i18n/msg/components';
 
 const SETTINGS_HREF = '#/system/notifications';
 
@@ -547,7 +548,7 @@ export class NotifyCenter extends LitElement {
     if (this.open && this.focusId && !this.deepDone && this.st.phase === 'ready') {
       this.deepDone = true;
       const row = this.st.rows.find((n) => n.id === this.focusId);
-      if (!row) this.say('ההתראה כבר לא זמינה', true);
+      if (!row) this.say(tr('ההתראה כבר לא זמינה'), true);
       else {
         this.detailId = row.id;
         if (this.confirmDoor) this.door = reduceDoorOpen(DOOR_OPEN_IDLE, { type: 'press', notification: row });
@@ -619,7 +620,7 @@ export class NotifyCenter extends LitElement {
     }
     const err = action === 'ack' ? await notifyStore.ack(id) : await notifyStore.snooze(id, action === 'snooze' ? 60 : 'until_morning');
     if (err) this.say(err, true);
-    else this.say(action === 'ack' ? 'ההתראה אושרה' : action === 'snooze' ? 'הושתק לשעה' : 'הושתק עד הבוקר');
+    else this.say(action === 'ack' ? tr('ההתראה אושרה') : action === 'snooze' ? tr('הושתק לשעה') : tr('הושתק עד הבוקר'));
   }
 
   private async doorConfirm() {
@@ -648,22 +649,22 @@ export class NotifyCenter extends LitElement {
     let ring = 'doorOpen';
     let ringCls = '';
     let head = doorOpenQuestion(name);
-    let body: unknown = html`<div class="who">${nIcon('check')}מחובר כ־${this.doorWho || '—'} · הפתיחה נרשמת ביומן</div>`;
-    let acts: unknown = html`<button type="button" class="btn quiet" data-door-cancel @click=${() => (this.door = reduceDoorOpen(d, { type: 'cancel' }))}>ביטול</button>
-      <button type="button" class="btn door" data-door-confirm ?disabled=${sending} @click=${() => void this.doorConfirm()}>${nIcon(sending ? 'refresh' : 'doorOpen')}${sending ? 'פותח…' : 'פתח דלת'}</button>`;
+    let body: unknown = html`<div class="who">${nIcon('check')}${tr('מחובר כ־{name} · הפתיחה נרשמת ביומן', { name: this.doorWho || '—' })}</div>`;
+    let acts: unknown = html`<button type="button" class="btn quiet" data-door-cancel @click=${() => (this.door = reduceDoorOpen(d, { type: 'cancel' }))}>${tr('ביטול')}</button>
+      <button type="button" class="btn door" data-door-confirm ?disabled=${sending} @click=${() => void this.doorConfirm()}>${nIcon(sending ? 'refresh' : 'doorOpen')}${sending ? tr('פותח…') : tr('פתח דלת')}</button>`;
     if (d.phase === 'step_up') {
-      head = 'נדרש אימות נוסף';
+      head = tr('נדרש אימות נוסף');
       ring = 'lock';
       body = nothing;
-      acts = html`<button type="button" class="btn quiet" data-door-cancel @click=${() => (this.door = reduceDoorOpen(d, { type: 'cancel' }))}>ביטול</button>
-        <button type="button" class="btn door" data-door-stepup @click=${() => void this.doorStepUp()}>${nIcon('shield')}אימות</button>`;
+      acts = html`<button type="button" class="btn quiet" data-door-cancel @click=${() => (this.door = reduceDoorOpen(d, { type: 'cancel' }))}>${tr('ביטול')}</button>
+        <button type="button" class="btn door" data-door-stepup @click=${() => void this.doorStepUp()}>${nIcon('shield')}${tr('אימות')}</button>`;
     } else if (d.phase === 'done' || d.phase === 'failed') {
       const ok = d.phase === 'done';
       head = d.text ?? '';
       ring = ok ? 'check' : 'warning';
       ringCls = ok ? 'ok' : 'bad';
       body = nothing;
-      acts = html`<button type="button" class="btn" data-door-close @click=${() => (this.door = reduceDoorOpen(d, { type: 'dismiss' }))}>סגור</button>`;
+      acts = html`<button type="button" class="btn" data-door-close @click=${() => (this.door = reduceDoorOpen(d, { type: 'dismiss' }))}>${tr('סגור')}</button>`;
     }
     return html`<div class="dlgwrap" data-door-dialog=${d.phase} @click=${(e: Event) => { if (e.target === e.currentTarget && (d.phase === 'confirm' || d.phase === 'step_up')) this.door = reduceDoorOpen(d, { type: 'cancel' }); }}>
       <div class="dlg" role="alertdialog" aria-modal="true" aria-labelledby="door-h">
@@ -675,7 +676,7 @@ export class NotifyCenter extends LitElement {
   /** "המסירה לטלפון נכשלה · התראה אחת / 3 התראות" (the contract helper's text reads "1 התראות"). */
   private failedText(): string {
     const n = this.st.rows.filter(hasDeliveryProblem).length;
-    return `המסירה לטלפון נכשלה · ${n === 1 ? 'התראה אחת' : `${n} התראות`}`;
+    return `${tr('המסירה לטלפון נכשלה')} · ${n === 1 ? tr('התראה אחת') : tr('{n} התראות', { n })}`;
   }
 
   private renderBanners() {
@@ -683,8 +684,8 @@ export class NotifyCenter extends LitElement {
     const list = centerBanners({ settings: s.settings, now: s.now, tz: s.tz, support: s.support, registeredHere: s.registeredHere, rows: s.rows });
     if (!list.length) return nothing;
     return html`<div class="nbars" data-center-banners>${list.map((b) => html`<div class="bnr ${b.kind}" data-banner=${b.kind}>${nIcon(b.kind === 'quiet' ? 'moon' : b.kind === 'push' ? 'bellOff' : 'warning')}<span>${b.kind === 'failed' ? this.failedText() : b.text}</span>
-      ${b.kind === 'push' ? html`<button type="button" class="btn sm" data-banner-act @click=${() => this.go(SETTINGS_HREF)}>איך מפעילים</button>` : nothing}
-      ${b.kind === 'failed' ? html`<button type="button" class="btn sm" data-banner-act @click=${() => this.go(`${SETTINGS_HREF}?section=log`)}>פרטים</button>` : nothing}</div>`)}</div>`;
+      ${b.kind === 'push' ? html`<button type="button" class="btn sm" data-banner-act @click=${() => this.go(SETTINGS_HREF)}>${tr('איך מפעילים')}</button>` : nothing}
+      ${b.kind === 'failed' ? html`<button type="button" class="btn sm" data-banner-act @click=${() => this.go(`${SETTINGS_HREF}?section=log`)}>${tr('פרטים')}</button>` : nothing}</div>`)}</div>`;
   }
 
   private renderFilters() {
@@ -693,10 +694,10 @@ export class NotifyCenter extends LitElement {
     const opts = sourceOptions(s.rows);
     const seg = (f: InboxFilter, label: string, n?: number) => html`<button type="button" data-filter=${f} aria-pressed=${String(this.filter === f)} @click=${() => (this.filter = f)}>${label}${n !== undefined && n > 0 ? html`<small class="n">${n}</small>` : nothing}</button>`;
     return html`<div class="nfilt" data-center-filters>
-      <div class="seg" role="group" aria-label="סינון">${seg('all', 'הכל')}${seg('unread', 'לא נקראו', c.unread)}${seg('critical', 'קריטי', c.critical)}</div>
-      <div class="srcbtn"><button type="button" class=${classMap({ rc: true, on: this.category !== null })} data-source-filter aria-haspopup="menu" aria-expanded=${String(this.srcMenu)} @click=${() => this.toggleSourceMenu()}>${nIcon('filter')}${this.category ? CATEGORY_LABEL[this.category] : 'מקור'}${nIcon('chevronDown')}</button>
+      <div class="seg" role="group" aria-label=${tr('סינון')}>${seg('all', tr('הכל'))}${seg('unread', tr('לא נקראו'), c.unread)}${seg('critical', tr('קריטי'), c.critical)}</div>
+      <div class="srcbtn"><button type="button" class=${classMap({ rc: true, on: this.category !== null })} data-source-filter aria-haspopup="menu" aria-expanded=${String(this.srcMenu)} @click=${() => this.toggleSourceMenu()}>${nIcon('filter')}${this.category ? CATEGORY_LABEL[this.category] : tr('מקור')}${nIcon('chevronDown')}</button>
         ${this.srcMenu ? html`<div class="pop" role="menu" data-source-menu>
-          <button type="button" role="menuitemradio" aria-checked=${String(this.category === null)} data-source-opt="all" @click=${() => { this.category = null; this.srcMenu = false; }}>${nIcon('list')}כל המקורות<span class="cnt n">${s.rows.length}</span></button>
+          <button type="button" role="menuitemradio" aria-checked=${String(this.category === null)} data-source-opt="all" @click=${() => { this.category = null; this.srcMenu = false; }}>${nIcon('list')}${tr('כל המקורות')}<span class="cnt n">${s.rows.length}</span></button>
           ${opts.map((o) => html`<button type="button" role="menuitemradio" aria-checked=${String(this.category === o.category)} data-source-opt=${o.category} @click=${() => { this.category = o.category; this.srcMenu = false; }}>${nIcon(o.icon)}${o.label}<span class="cnt n">${o.count}</span></button>`)}
         </div>` : nothing}</div>
     </div>`;
@@ -708,19 +709,19 @@ export class NotifyCenter extends LitElement {
       return html`<div class="nbody" data-center-state="loading" aria-busy="true">${[0, 1, 2, 3, 4].map(() => html`<div class="skrow"><span class="skl"></span><span class="skl"></span><span class="ln"><span class="skl" style="inline-size:55%"></span><span class="skl" style="inline-size:35%"></span></span></div>`)}</div>`;
     }
     if (s.phase === 'error') {
-      return html`<div class="nbars" data-center-state="error"><div class="errbar" role="alert">${nIcon('warning')}<span>${s.error || 'לא ניתן לטעון התראות'}</span><button type="button" class="btn sm" data-center-retry @click=${() => void notifyStore.load()}>${nIcon('refresh')}נסה שוב</button></div></div>`;
+      return html`<div class="nbars" data-center-state="error"><div class="errbar" role="alert">${nIcon('warning')}<span>${s.error || tr('לא ניתן לטעון התראות')}</span><button type="button" class="btn sm" data-center-retry @click=${() => void notifyStore.load()}>${nIcon('refresh')}${tr('נסה שוב')}</button></div></div>`;
     }
     const rows = visibleRows(s.rows, this.filter, this.category, s.now);
     if (!rows.length) {
       const empty = s.rows.length === 0;
-      return html`<div class="nbody" data-center-state="empty"><div class="statebox"><span class="ring">${nIcon(empty ? 'bell' : 'filter', 32)}</span><b>אין התראות</b>${empty ? html`<p>${s.settings ? `${s.settings.retention_days} הימים האחרונים` : 'הכול רגוע'}</p>` : nothing}</div></div>`;
+      return html`<div class="nbody" data-center-state="empty"><div class="statebox"><span class="ring">${nIcon(empty ? 'bell' : 'filter', 32)}</span><b>${tr('אין התראות')}</b>${empty ? html`<p>${s.settings ? tr('{n} הימים האחרונים', { n: s.settings.retention_days }) : tr('הכול רגוע')}</p>` : nothing}</div></div>`;
     }
     const lay = layoutInbox(rows, s.now, s.tz);
     const row = (n: Notification) => html`<notify-row .n=${n} .now=${s.now} .tz=${s.tz} .areas=${s.areas} ?selected=${this.detailId === n.id} @row-open=${(e: CustomEvent<{ id: string }>) => this.openRow(e.detail.id)} @row-action=${(e: CustomEvent<{ id: string; action: RowAction }>) => void this.doAction(e.detail.id, e.detail.action)}></notify-row>`;
     return html`<div class="nbody" data-center-state="ready" data-center-list>
-      ${lay.pinned.length ? html`<div class="gh pin" data-group="pinned">${nIcon('siren')}דורש אישור<i></i></div>${lay.pinned.map(row)}` : nothing}
+      ${lay.pinned.length ? html`<div class="gh pin" data-group="pinned">${nIcon('siren')}${tr('דורש אישור')}<i></i></div>${lay.pinned.map(row)}` : nothing}
       ${lay.days.map((g) => html`<div class="gh" data-group=${g.key}><span>${g.label}</span><i></i></div>${g.rows.map(row)}`)}
-      ${s.nextBefore ? html`<button type="button" class="btn sm more-btn" data-center-more @click=${() => void notifyStore.loadMore()}>טען עוד</button>` : nothing}
+      ${s.nextBefore ? html`<button type="button" class="btn sm more-btn" data-center-more @click=${() => void notifyStore.loadMore()}>${tr('טען עוד')}</button>` : nothing}
     </div>`;
   }
 
@@ -729,21 +730,21 @@ export class NotifyCenter extends LitElement {
     const c = filterCounts(s.rows, s.now);
     const err = s.phase === 'error';
     return html`
-      <div class="nh"><div class="tx"><h3>התראות${s.phase === 'ready' && c.unread > 0 ? html`<span class="cnt n" data-center-unread>${c.unread}</span>` : nothing}</h3>${s.phase === 'ready' ? html`<small data-center-sub>${subtitleText(s.rows.length, s.settings?.retention_days ?? null)}</small>` : nothing}</div>
-        <button type="button" class="btn quiet sm" data-center-readall ?disabled=${err || c.unread === 0} @click=${() => void notifyStore.readAll()}>${nIcon('checkAll')}הכל נקרא</button>
-        <button type="button" class="x" data-center-close aria-label="סגור" title="סגור" @click=${() => this.close()}>${nIcon('close')}</button></div>
+      <div class="nh"><div class="tx"><h3>${tr('התראות')}${s.phase === 'ready' && c.unread > 0 ? html`<span class="cnt n" data-center-unread>${c.unread}</span>` : nothing}</h3>${s.phase === 'ready' ? html`<small data-center-sub>${subtitleText(s.rows.length, s.settings?.retention_days ?? null)}</small>` : nothing}</div>
+        <button type="button" class="btn quiet sm" data-center-readall ?disabled=${err || c.unread === 0} @click=${() => void notifyStore.readAll()}>${nIcon('checkAll')}${tr('הכל נקרא')}</button>
+        <button type="button" class="x" data-center-close aria-label=${tr('סגור')} title=${tr('סגור')} @click=${() => this.close()}>${nIcon('close')}</button></div>
       ${this.renderBanners()}
       ${this.renderFilters()}
       ${this.renderList()}
-      <div class="nfoot"><button type="button" class="btn full" data-center-settings @click=${() => this.go(SETTINGS_HREF)}>${nIcon('settings')}הגדרות התראות</button></div>`;
+      <div class="nfoot"><button type="button" class="btn full" data-center-settings @click=${() => this.go(SETTINGS_HREF)}>${nIcon('settings')}${tr('הגדרות התראות')}</button></div>`;
   }
 
   private renderDetailView(n: Notification) {
     const s = this.st;
     return html`
-      <div class="nh"><button type="button" class="back" data-detail-back aria-label="חזרה לרשימה" title="חזרה" @click=${() => (this.detailId = null)}>${nIcon('chevronBack')}</button>
+      <div class="nh"><button type="button" class="back" data-detail-back aria-label=${tr('חזרה לרשימה')} title=${tr('חזרה')} @click=${() => (this.detailId = null)}>${nIcon('chevronBack')}</button>
         <span class="crumb tx" data-detail-crumb>${CATEGORY_LABEL[n.category]}</span>
-        <button type="button" class="x" data-center-close aria-label="סגור" title="סגור" @click=${() => this.close()}>${nIcon('close')}</button></div>
+        <button type="button" class="x" data-center-close aria-label=${tr('סגור')} title=${tr('סגור')} @click=${() => this.close()}>${nIcon('close')}</button></div>
       <notify-detail .n=${n} .now=${s.now} .tz=${s.tz} .areas=${s.areas} .esc=${s.settings?.escalation ?? null} .snapshot=${n.has_snapshot ? notify().snapshotUrl(n.id) : null}
         @detail-action=${(e: CustomEvent<{ id: string; action: DetailAction }>) => void this.doAction(e.detail.id, e.detail.action)}></notify-detail>`;
   }
@@ -751,7 +752,7 @@ export class NotifyCenter extends LitElement {
   render() {
     const n = this.row(this.detailId);
     return html`<div class="scrim" data-center-scrim @click=${() => this.close()}></div>
-      <div class="panel" role="dialog" aria-modal="true" aria-label="מרכז התראות" tabindex="-1" data-notify-center ?inert=${!this.open}>
+      <div class="panel" role="dialog" aria-modal="true" aria-label=${tr('מרכז התראות')} tabindex="-1" data-notify-center ?inert=${!this.open}>
         <span class="grab" aria-hidden="true"></span>
         <div class="inner">${n ? this.renderDetailView(n) : this.renderListView()}</div>
         ${this.toast ? html`<div class="toast ${this.toast.bad ? 'bad' : ''}" role="status" data-center-toast>${nIcon(this.toast.bad ? 'warning' : 'check')}${this.toast.text}</div>` : nothing}

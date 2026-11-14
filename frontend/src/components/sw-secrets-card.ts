@@ -6,12 +6,13 @@ import './sw-badge';
 import { LOCAL_ONLY_GENERIC, onRemote } from '../api/session';
 import { describeError } from '../api/client';
 import { SECRET_TEST_LABEL, clearSecret, listSecrets, saveSecret, testSecret, type SecretStatus, type SecretTest } from '../api/secrets';
+import { tr } from '../i18n/msg/components';
 
 const STATE_BADGE: Record<string, [string, string]> = {
-  set: ['live', 'מוגדר'],
-  not_set: ['neutral', 'לא מוגדר'],
-  unreadable: ['error', 'לא ניתן לפענוח'],
-  legacy: ['partial', 'מהגדרה ישנה'],
+  set: ['live', tr('מוגדר')],
+  not_set: ['neutral', tr('לא מוגדר')],
+  unreadable: ['error', tr('לא ניתן לפענוח')],
+  legacy: ['partial', tr('מהגדרה ישנה')],
 };
 
 function when(iso: string | null): string {
@@ -162,11 +163,11 @@ export class SwSecretsCard extends LitElement {
   }
 
   private status(s: SecretStatus): string {
-    if (s.state === 'unreadable') return 'הערך השמור אינו ניתן לפענוח (מפתח ההתקנה השתנה) - יש להזין אותו מחדש';
-    if (s.state === 'legacy') return s.source === 'environment' ? 'בשימוש ממשתנה סביבה של הרצת פיתוח' : 'בשימוש מהגדרת התוסף הישנה - יועבר בהפעלה הבאה';
-    if (!s.configured) return s.updated_at ? `נמחק ${when(s.updated_at)}${s.updated_by_name ? ` · ${s.updated_by_name}` : ''}` : 'לא הוגדר';
-    const by = s.source === 'addon_import' ? 'הועבר מהגדרות התוסף' : s.updated_by_name ?? '';
-    return `הוגדר ${when(s.updated_at)}${by ? ` · ${by}` : ''}`;
+    if (s.state === 'unreadable') return tr('הערך השמור אינו ניתן לפענוח (מפתח ההתקנה השתנה) - יש להזין אותו מחדש');
+    if (s.state === 'legacy') return s.source === 'environment' ? tr('בשימוש ממשתנה סביבה של הרצת פיתוח') : tr('בשימוש מהגדרת התוסף הישנה - יועבר בהפעלה הבאה');
+    if (!s.configured) return s.updated_at ? `${tr('נמחק {when}', { when: when(s.updated_at) })}${s.updated_by_name ? ` · ${s.updated_by_name}` : ''}` : tr('לא הוגדר');
+    const by = s.source === 'addon_import' ? tr('הועבר מהגדרות התוסף') : s.updated_by_name ?? '';
+    return `${tr('הוגדר {when}', { when: when(s.updated_at) })}${by ? ` · ${by}` : ''}`;
   }
 
   private renderRow(s: SecretStatus): TemplateResult {
@@ -181,15 +182,15 @@ export class SwSecretsCard extends LitElement {
           ? html`<input type="password" autocomplete="new-password" spellcheck="false" .value=${this.editing === s.name ? this.draft : ''} aria-label=${s.label_he} data-secret-input
                 @focus=${() => { if (this.editing !== s.name) { this.editing = s.name; this.draft = ''; } }}
                 @input=${(e: Event) => { this.editing = s.name; this.draft = (e.target as HTMLInputElement).value; }} />
-              <sw-button size="sm" variant="primary" ?disabled=${this.busy || this.editing !== s.name || !this.draft.trim()} data-secret-save @click=${() => void this.save(s.name)}>שמור</sw-button>
-              ${s.testable ? html`<sw-button size="sm" ?disabled=${this.busy || this.editing !== s.name || !this.draft.trim()} data-secret-test @click=${() => void this.test(s.name, this.draft)}>בדוק</sw-button>` : nothing}
-              ${s.configured || this.editing === s.name ? html`<sw-button size="sm" variant="ghost" ?disabled=${this.busy} @click=${() => { this.editing = null; this.draft = ''; }}>ביטול</sw-button>` : nothing}`
+              <sw-button size="sm" variant="primary" ?disabled=${this.busy || this.editing !== s.name || !this.draft.trim()} data-secret-save @click=${() => void this.save(s.name)}>${tr('שמור')}</sw-button>
+              ${s.testable ? html`<sw-button size="sm" ?disabled=${this.busy || this.editing !== s.name || !this.draft.trim()} data-secret-test @click=${() => void this.test(s.name, this.draft)}>${tr('בדוק')}</sw-button>` : nothing}
+              ${s.configured || this.editing === s.name ? html`<sw-button size="sm" variant="ghost" ?disabled=${this.busy} @click=${() => { this.editing = null; this.draft = ''; }}>${tr('ביטול')}</sw-button>` : nothing}`
           : this.confirmClear === s.name
-            ? html`<sw-button size="sm" variant="danger" ?disabled=${this.busy} data-secret-clear-confirm @click=${() => void this.clear(s.name)}>מחק סופית</sw-button>
-                <sw-button size="sm" variant="ghost" ?disabled=${this.busy} @click=${() => (this.confirmClear = null)}>ביטול</sw-button>`
-            : html`<sw-button size="sm" ?disabled=${this.busy} data-secret-replace @click=${() => { this.editing = s.name; this.draft = ''; }}>החלף</sw-button>
-                ${s.testable ? html`<sw-button size="sm" ?disabled=${this.busy} data-secret-test-stored @click=${() => void this.test(s.name)}>בדוק חיבור</sw-button>` : nothing}
-                ${s.state === 'set' ? html`<sw-button size="sm" variant="danger" ?disabled=${this.busy} data-secret-clear @click=${() => (this.confirmClear = s.name)}>מחק</sw-button>` : nothing}`}
+            ? html`<sw-button size="sm" variant="danger" ?disabled=${this.busy} data-secret-clear-confirm @click=${() => void this.clear(s.name)}>${tr('מחק סופית')}</sw-button>
+                <sw-button size="sm" variant="ghost" ?disabled=${this.busy} @click=${() => (this.confirmClear = null)}>${tr('ביטול')}</sw-button>`
+            : html`<sw-button size="sm" ?disabled=${this.busy} data-secret-replace @click=${() => { this.editing = s.name; this.draft = ''; }}>${tr('החלף')}</sw-button>
+                ${s.testable ? html`<sw-button size="sm" ?disabled=${this.busy} data-secret-test-stored @click=${() => void this.test(s.name)}>${tr('בדוק חיבור')}</sw-button>` : nothing}
+                ${s.state === 'set' ? html`<sw-button size="sm" variant="danger" ?disabled=${this.busy} data-secret-clear @click=${() => (this.confirmClear = s.name)}>${tr('מחק')}</sw-button>` : nothing}`}
       </span>
     </div>`;
   }
@@ -198,10 +199,10 @@ export class SwSecretsCard extends LitElement {
     const body = onRemote()
       ? html`<div class="hint" data-secrets-local-only>${LOCAL_ONLY_GENERIC}</div>`
       : !this.items
-        ? this.error ? nothing : html`<div class="hint">טוען…</div>`
+        ? this.error ? nothing : html`<div class="hint">${tr('טוען…')}</div>`
         : html`${this.items.map((s) => this.renderRow(s))}
-            ${this.restartNote ? html`<div class="hint" data-secrets-restart>השינוי חל מיד על המסכים; שירותי הרקע (סנכרון זרמי go2rtc, ערוצי WisKey) יקבלו אותו בהפעלה הבאה של המערכת.</div>` : nothing}`;
-    return html`<sw-card heading="סודות" subheading="Secrets · סיסמאות ומפתחות של שירותים חיצוניים, שמורים מוצפנים · הערכים עצמם אינם מוצגים שוב" data-secrets>
+            ${this.restartNote ? html`<div class="hint" data-secrets-restart>${tr('השינוי חל מיד על המסכים; שירותי הרקע (סנכרון זרמי go2rtc, ערוצי WisKey) יקבלו אותו בהפעלה הבאה של המערכת.')}</div>` : nothing}`;
+    return html`<sw-card heading=${tr('סודות')} subheading=${tr('Secrets · סיסמאות ומפתחות של שירותים חיצוניים, שמורים מוצפנים · הערכים עצמם אינם מוצגים שוב')} data-secrets>
       ${body}
       ${this.error ? html`<div class="err" role="alert" data-secrets-error>${this.error}</div>` : nothing}
     </sw-card>`;

@@ -4,8 +4,9 @@ import './sw-button';
 import { describeError } from '../api/client';
 import { addShareMember, listShareMembers, removeShareMember, type ShareMember, type ShareMembers } from '../api/zones';
 import { bidi } from '../i18n/bidi';
+import { tr } from '../i18n/msg/components';
 
-const KIND: Record<ShareMember['kind'], string> = { camera: 'מצלמה', door: 'עמדת דלת', device: 'התקן', station: 'עמדת WisKey' };
+const KIND: Record<ShareMember['kind'], string> = { camera: tr('מצלמה'), door: tr('עמדת דלת'), device: tr('התקן'), station: tr('עמדת WisKey') };
 
 /** One small glyph per kind (16px, currentColor): the same line style as the map's symbols. */
 const ICON: Record<ShareMember['kind'], ReturnType<typeof svg>> = {
@@ -156,39 +157,39 @@ export class SwShareMembers extends LitElement {
   }
 
   private where(m: ShareMember): string {
-    if (m.kind === 'station') return 'מוצג בכל קומות החלל'; // a WisKey station is not placed on a map
-    return m.floors.length ? m.floors.map((f) => bidi(f.name)).join(', ') : 'לא מוצב';
+    if (m.kind === 'station') return tr('מוצג בכל קומות החלל'); // a WisKey station is not placed on a map
+    return m.floors.length ? m.floors.map((f) => bidi(f.name)).join(', ') : tr('לא מוצב');
   }
 
   render() {
     const d = this.data;
-    if (!d) return html`${this.error ? html`<div class="err" data-members-error>${this.error}</div>` : html`<div class="note">טוען חברים…</div>`}`;
+    if (!d) return html`${this.error ? html`<div class="err" data-members-error>${this.error}</div>` : html`<div class="note">${tr('טוען חברים…')}</div>`}`;
     const all = d.candidates ?? [];
     const needle = this.q.trim().toLowerCase();
     const cands = needle ? all.filter((c) => `${KIND[c.kind]} ${c.name} ${c.resource_id}`.toLowerCase().includes(needle)) : all;
     const chosen = cands.find((c) => `${c.resource_type}|${c.resource_id}` === this.pick);
-    return html`<h4>חברים בחלל המשותף</h4>
+    return html`<h4>${tr('חברים בחלל המשותף')}</h4>
       <div data-members-list>
         ${d.members.length
           ? d.members.map((m) => html`<div class="row" data-member=${`${m.resource_type}:${m.resource_id}`}>
               <svg class="ic" viewBox="0 0 24 24" aria-hidden="true" data-member-icon=${m.kind}>${ICON[m.kind]}</svg>
               <span class="kind">${KIND[m.kind]}</span>
               <div class="main">${m.name}<span>${this.where(m)}</span></div>
-              ${d.can_manage ? html`<sw-button size="sm" variant="ghost" data-member-remove ?disabled=${this.busy} @click=${() => this.change(m, false)}>הסר</sw-button>` : nothing}
+              ${d.can_manage ? html`<sw-button size="sm" variant="ghost" data-member-remove ?disabled=${this.busy} @click=${() => this.change(m, false)}>${tr('הסר')}</sw-button>` : nothing}
             </div>`)
-          : html`<div class="note">אין חברים שמוצגים לך.</div>`}
+          : html`<div class="note">${tr('אין חברים שמוצגים לך.')}</div>`}
       </div>
       ${d.can_manage
         ? html`<div class="add">
-            <input class="search" type="search" data-member-search aria-label="חיפוש מצלמה, עמדה או התקן להוספה" placeholder="חיפוש מצלמה, עמדה או התקן" .value=${this.q} @input=${(e: Event) => { this.q = (e.target as HTMLInputElement).value; this.pick = ''; }} />
-            <select data-member-pick aria-label="בחר מצלמה, עמדה או התקן להוספה" .value=${this.pick} @change=${(e: Event) => (this.pick = (e.target as HTMLSelectElement).value)}>
-              <option value="">בחר מצלמה, התקן או עמדת WisKey…</option>
+            <input class="search" type="search" data-member-search aria-label=${tr('חיפוש מצלמה, עמדה או התקן להוספה')} placeholder=${tr('חיפוש מצלמה, עמדה או התקן')} .value=${this.q} @input=${(e: Event) => { this.q = (e.target as HTMLInputElement).value; this.pick = ''; }} />
+            <select data-member-pick aria-label=${tr('בחר מצלמה, עמדה או התקן להוספה')} .value=${this.pick} @change=${(e: Event) => (this.pick = (e.target as HTMLSelectElement).value)}>
+              <option value="">${tr('בחר מצלמה, התקן או עמדת WisKey…')}</option>
               ${cands.map((c) => html`<option value=${`${c.resource_type}|${c.resource_id}`}>${KIND[c.kind]} · ${c.name} · ${this.where(c)}</option>`)}
             </select>
-            <sw-button size="sm" icon="plus" data-member-add ?disabled=${this.busy || !chosen} @click=${() => chosen && this.change(chosen, true)}>הוסף</sw-button>
+            <sw-button size="sm" icon="plus" data-member-add ?disabled=${this.busy || !chosen} @click=${() => chosen && this.change(chosen, true)}>${tr('הוסף')}</sw-button>
           </div>
-          <div class="note">חבר מוצג בכל הקומות של החלל, לכל מי שמורשה לראות אותו. הוספה והסרה דורשות הרשאת עריכה והצבה בשתי הקומות.</div>`
-        : html`<div class="note" data-members-readonly>לקריאה בלבד: הוספה והסרה דורשות הרשאת עריכה והצבה בכל הקומות של החלל.</div>`}
+          <div class="note">${tr('חבר מוצג בכל הקומות של החלל, לכל מי שמורשה לראות אותו. הוספה והסרה דורשות הרשאת עריכה והצבה בשתי הקומות.')}</div>`
+        : html`<div class="note" data-members-readonly>${tr('לקריאה בלבד: הוספה והסרה דורשות הרשאת עריכה והצבה בכל הקומות של החלל.')}</div>`}
       ${this.error ? html`<div class="err" data-members-error>${this.error}</div>` : nothing}`;
   }
 }

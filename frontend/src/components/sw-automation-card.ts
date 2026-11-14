@@ -8,6 +8,7 @@ import { areaLine, cardChips, floorLine, runLine } from '../screens/automations-
 import type { Item } from '../api/automations';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { tr } from '../i18n/msg/components';
 
 export type CardAction = 'edit' | 'run' | 'dryrun' | 'trace' | 'versions' | 'copy' | 'delete';
 
@@ -278,15 +279,15 @@ export class AutomationCard extends LitElement {
     const i = this.item;
     const row = (action: CardAction, icon: Parameters<typeof aIcon>[0], label: string, cls = '', show = true) =>
       show ? html`<button type="button" role="menuitem" class=${cls} data-card-action=${action} @click=${() => this.act(action)}>${aIcon(icon)}${label}</button>` : nothing;
-    return html`<div class="pop" role="menu" aria-label=${`פעולות · ${i.name}`}>
-      ${row('edit', 'edit', 'עריכה', '', i.can.edit)}
-      ${row('run', 'play', 'הרץ עכשיו', '', i.can.run)}
-      ${row('dryrun', 'flask', 'בדיקה')}
-      ${row('trace', 'help', 'למה זה רץ', '', !!i.last_run)}
-      ${row('versions', 'history', 'גרסאות', '', i.source === 'ui')}
-      ${row('copy', 'copy', 'שכפול', '', i.can.copy)}
+    return html`<div class="pop" role="menu" aria-label=${`${tr('פעולות')} · ${i.name}`}>
+      ${row('edit', 'edit', tr('עריכה'), '', i.can.edit)}
+      ${row('run', 'play', tr('הרץ עכשיו'), '', i.can.run)}
+      ${row('dryrun', 'flask', tr('בדיקה'))}
+      ${row('trace', 'help', tr('למה זה רץ'), '', !!i.last_run)}
+      ${row('versions', 'history', tr('גרסאות'), '', i.source === 'ui')}
+      ${row('copy', 'copy', tr('שכפול'), '', i.can.copy)}
       ${i.can.delete ? html`<hr />` : nothing}
-      ${row('delete', 'trash', 'מחיקה', 'dz', i.can.delete)}
+      ${row('delete', 'trash', tr('מחיקה'), 'dz', i.can.delete)}
     </div>`;
   }
 
@@ -307,17 +308,17 @@ export class AutomationCard extends LitElement {
         </div>
         <div class="ctl">
           ${canToggle
-            ? html`<button type="button" class="tog" role="switch" aria-checked=${String(on)} aria-label=${`${on ? 'כיבוי' : 'הפעלה'} · ${i.name}`} data-card-toggle ?disabled=${this.busy} @click=${() => this.fire('toggle', { item: i, enabled: !on })}></button>`
+            ? html`<button type="button" class="tog" role="switch" aria-checked=${String(on)} aria-label=${`${on ? tr('כיבוי') : tr('הפעלה')} · ${i.name}`} data-card-toggle ?disabled=${this.busy} @click=${() => this.fire('toggle', { item: i, enabled: !on })}></button>`
             : i.state === 'invalid' || i.state === 'unavailable' ? nothing
-            : html`<span class=${`chip ${on ? 'ok' : ''}`} data-card-state>${on ? 'פעילה' : 'כבויה'}</span>`}
-          ${hasMenu ? html`<button type="button" class="more" aria-haspopup="menu" aria-expanded=${String(this.menu)} aria-label=${`עוד · ${i.name}`} data-card-menu @click=${() => this.setMenu(!this.menu)}>${aIcon('dots')}</button>` : nothing}
+            : html`<span class=${`chip ${on ? 'ok' : ''}`} data-card-state>${on ? tr('פעילה') : tr('כבויה')}</span>`}
+          ${hasMenu ? html`<button type="button" class="more" aria-haspopup="menu" aria-expanded=${String(this.menu)} aria-label=${`${tr('עוד')} · ${i.name}`} data-card-menu @click=${() => this.setMenu(!this.menu)}>${aIcon('dots')}</button>` : nothing}
         </div>
         ${this.menu ? this.menuItems() : nothing}
       </header>
       ${i.sentence ? html`<p class="sentence-line" data-card-sentence>${i.sentence}</p>` : nothing}
       <footer>
         <span class="run" data-card-run title=${run.title}><i class=${`dot ${run.tone === 'none' ? '' : run.tone}`}></i>${run.text}</span>
-        ${i.last_run && this.traceHref ? html`<a class="why" href=${this.traceHref} data-card-why>${aIcon('help')}למה זה רץ</a>` : nothing}
+        ${i.last_run && this.traceHref ? html`<a class="why" href=${this.traceHref} data-card-why>${aIcon('help')}${tr('למה זה רץ')}</a>` : nothing}
       </footer>
       ${chips.length ? html`<div class="chips" data-card-chips>${chips.map((c) => html`<span class=${`chip ${c.id === 'sensitive' ? 'sens' : c.tone === 'bad' ? 'bad' : c.tone === 'warn' ? 'warn' : c.tone === 'info' ? 'info' : ''}`} data-chip=${c.id}>${aIcon(c.id === 'sensitive' ? 'shield' : c.id === 'locked' ? 'lock' : c.id === 'read_only' ? 'eye' : c.id === 'changed_outside' ? 'history' : 'warning')}${c.label}</span>`)}</div>` : nothing}
     </article>`;

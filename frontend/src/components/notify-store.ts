@@ -19,6 +19,7 @@ import { currentSubscription, endpointHash, listSubscriptions, pushSupport, type
 import { applyMediaGlass } from '../styles/media-glass';
 import { applyDevicesScheme } from '../screens/devices-style';
 import { applyLiveEvent, replaceRow } from './notify-logic';
+import { tr } from '../i18n/msg/components';
 
 export type StorePhase = 'idle' | 'loading' | 'ready' | 'error';
 export interface NotifyState {
@@ -189,7 +190,7 @@ class NotifyStore {
       this.set({ phase: 'ready', error: '', rows: page.notifications, nextBefore: page.next_before, summary: summary ?? this.state.summary, summaryFailed: summary === null && !this.state.summary, ...env });
     } catch (err) {
       if (seq !== this.loadSeq) return;
-      this.set({ phase: 'error', error: err instanceof Error && err.message === 'mock error' ? 'לא ניתן לטעון התראות' : notifyErrorText(err) });
+      this.set({ phase: 'error', error: err instanceof Error && err.message === 'mock error' ? tr('לא ניתן לטעון התראות') : notifyErrorText(err) });
     }
   }
   private async reloadQuiet(): Promise<void> {
@@ -288,7 +289,7 @@ class NotifyStore {
   }
   async snooze(id: string, choice: SnoozeChoice): Promise<string | null> {
     const row = this.state.rows.find((n) => n.id === id);
-    if (!row) return 'ההתראה כבר לא זמינה';
+    if (!row) return tr('ההתראה כבר לא זמינה');
     const until = snoozeUntil(choice, this.state.now, this.state.settings?.quiet, this.state.tz);
     this.patch(id, (n) => applySnooze(n, until));
     try {
@@ -303,7 +304,7 @@ class NotifyStore {
   }
   async ack(id: string): Promise<string | null> {
     const row = this.state.rows.find((n) => n.id === id);
-    if (!row || !row.can_ack) return 'אין הרשאה לאשר את ההתראה הזו';
+    if (!row || !row.can_ack) return tr('אין הרשאה לאשר את ההתראה הזו');
     const who = await this.me();
     const now = this.state.now;
     this.patch(id, (n) => applyAck(n, who, now));

@@ -4,6 +4,7 @@ import { classMap } from 'lit/directives/class-map.js';
 import './sw-icon';
 import type { IconName } from './sw-icon';
 import { LookController } from '../design/look';
+import { tr } from '../i18n/msg/components';
 
 export type PillVariant = 'plain' | 'toggle' | 'slider';
 
@@ -518,7 +519,7 @@ export class SwPill extends LitElement {
     const ringCls = classMap({ ring: true, hue: this.hue >= 1 && this.hue <= 8 });
     return html`${this.ringStatic
         ? html`<span class=${ringCls} aria-hidden="true" data-pill-ring-static><sw-icon .name=${this.icon} size=${20}></sw-icon></span>`
-        : html`<button type="button" class=${ringCls} aria-label=${`פרטים: ${this.label}`} ?disabled=${this.unavailable} data-pill-ring
+        : html`<button type="button" class=${ringCls} aria-label=${tr('פרטים: {name}', { name: this.label })} ?disabled=${this.unavailable} data-pill-ring
             @click=${(e: Event) => { e.stopPropagation(); this.emit('icon-click'); }} @pointerdown=${(e: Event) => e.stopPropagation()}>
             <sw-icon .name=${this.icon} size=${20}></sw-icon>
           </button>`}

@@ -18,6 +18,7 @@ import {
   type AudioTarget, type KeyId, type MediaCommand, type MediaDevice, type MediaDeviceDetail, type MediaLive, type RemoteSection, type SourceItem,
 } from '../api/media-screens';
 import { timeText } from '../api/day-format';
+import { tr } from '../i18n/msg/components';
 
 // ------------------------------------------------------------------------------------------------ mode of the remote
 
@@ -320,7 +321,7 @@ export function positionNow(live: Pick<MediaLive, 'play' | 'now'>, nowMs: number
 
 /** The unavailable state's only lines: "המסך לא זמין" and "מאז 14:20" (`since` is the time alone, in the browser's zone; '' = unknown). */
 export function unavailableLine(live: Pick<MediaLive, 'power' | 'since'>): { title: string; since: string } {
-  const title = live.power === 'unknown' ? 'מצב לא ידוע' : 'המסך לא זמין';
+  const title = live.power === 'unknown' ? tr('מצב לא ידוע') : tr('המסך לא זמין');
   if (!live.since) return { title, since: '' };
   const t = new Date(live.since);
   if (Number.isNaN(t.getTime())) return { title, since: '' };

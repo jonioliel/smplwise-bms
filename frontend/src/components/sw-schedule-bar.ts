@@ -3,6 +3,7 @@ import { customElement, property } from 'lit/decorators.js';
 import './sw-icon';
 import type { ScheduleConditions, ScheduleSlot, Schedule, SunTimes } from '../api/schedules';
 import { dayChips, daysWord, slotSegments, type Tone } from '../screens/schedules-logic';
+import { tr } from '../i18n/msg/components';
 
 /**
  * CR-014 schedules, the small shared pieces of the list, the drawer and (by tag) S4's editor header:
@@ -123,7 +124,7 @@ export class SwScheduleBar extends LitElement {
     const segs = slotSegments(this.slots, this.sun);
     const now = this.minutesNow();
     return html`
-      <div class="track" role="img" aria-label=${segs.map((s) => s.title).join('; ') || 'ללא משבצות'}>
+      <div class="track" role="img" aria-label=${segs.map((s) => s.title).join('; ') || tr('ללא משבצות')}>
         ${segs.map(
           (s) => html`<i class=${s.point ? 'seg point' : 'seg'} style=${`left:${s.from}%;width:${Math.max(s.to - s.from, 0)}%;--c:${TONE_VAR[s.tone]}`} title=${s.title} data-slot=${s.index}></i>`,
         )}
@@ -181,7 +182,7 @@ export class SwDayChips extends LitElement {
   render() {
     const word = daysWord(this.days);
     if (word) return html`<span class="w" data-days-word>${word}</span>`;
-    return html`${dayChips(this.days).map((d) => html`<span class=${d.on ? 'd on' : 'd'} data-day=${d.id} aria-label=${d.on ? `${d.short} פעיל` : `${d.short} לא פעיל`}>${d.short}</span>`)}`;
+    return html`${dayChips(this.days).map((d) => html`<span class=${d.on ? 'd on' : 'd'} data-day=${d.id} aria-label=${d.on ? tr('{day} פעיל', { day: d.short }) : tr('{day} לא פעיל', { day: d.short })}>${d.short}</span>`)}`;
   }
 }
 
@@ -229,7 +230,7 @@ export class ScheduleConditionChip extends LitElement {
   render() {
     const c = this.conditions;
     if (!c || !c.items.length) return nothing;
-    const text = c.summary ?? 'בתנאי';
+    const text = c.summary ?? tr('בתנאי');
     return html`<span class=${c.preset ? 'chip preset' : 'chip'} data-condition-chip=${c.preset ?? 'custom'} title=${text}><sw-icon name=${c.preset ? 'calendar' : 'sensor'} size=${12}></sw-icon><span class="txt">${text}</span></span>`;
   }
 }
@@ -264,8 +265,8 @@ export class SwScheduleMarkers extends LitElement {
   `;
 
   render() {
-    return html`${this.sensitive ? html`<span class="m sens" data-marker="sensitive"><sw-icon name="shield" size=${12}></sw-icon>רגיש</span>` : nothing}${this.lowering
-      ? html`<span class="m" data-marker="lowering"><sw-icon name="unlock" size=${12}></sw-icon>פותח / מנטרל</span>`
+    return html`${this.sensitive ? html`<span class="m sens" data-marker="sensitive"><sw-icon name="shield" size=${12}></sw-icon>${tr('רגיש')}</span>` : nothing}${this.lowering
+      ? html`<span class="m" data-marker="lowering"><sw-icon name="unlock" size=${12}></sw-icon>${tr('פותח / מנטרל')}</span>`
       : nothing}`;
   }
 }

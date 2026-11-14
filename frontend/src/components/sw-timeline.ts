@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import type { DemoSegment } from '../fixtures/catalog';
 import { timelineVar } from '../api/timeline-colors';
 import { onPlaybackDisplay, showPlaybackItem } from '../api/playback-display';
+import { tr } from '../i18n/msg/components';
 
 export interface TimelineEvent {
   minute: number;
@@ -23,11 +24,11 @@ const BOOKMARK_COLOR: Record<TimelineBookmark['preservation'], string> = { prese
 
 /** Zoom windows from a whole day down to one minute (chapter 23: zoom must not re-query per pixel). */
 export const WINDOWS: { label: string; minutes: number }[] = [
-  { label: 'יום', minutes: 1440 },
-  { label: '6 שע׳', minutes: 360 },
-  { label: 'שעה', minutes: 60 },
-  { label: '10 דק׳', minutes: 10 },
-  { label: 'דקה', minutes: 1 },
+  { label: tr('יום'), minutes: 1440 },
+  { label: tr('6 שע׳'), minutes: 360 },
+  { label: tr('שעה'), minutes: 60 },
+  { label: tr('10 דק׳'), minutes: 10 },
+  { label: tr('דקה'), minutes: 1 },
 ];
 
 function pad(n: number) {
@@ -312,14 +313,14 @@ export class SwTimeline extends LitElement {
     const ticks: number[] = [];
     for (let m = Math.ceil(this.start / tickEvery - 1e-9) * tickEvery; m <= this.start + this.windowMinutes + 1e-9; m += tickEvery) ticks.push(m);
     const heights = [0, 12, 26, 36];
-    const precisionText = { verified: 'זמן מאומת', keyframe_limited: 'דיוק לפי פריים מפתח', estimated: 'זמן משוער', unknown: 'דיוק לא ידוע' }[this.precision];
+    const precisionText = { verified: tr('זמן מאומת'), keyframe_limited: tr('דיוק לפי פריים מפתח'), estimated: tr('זמן משוער'), unknown: tr('דיוק לא ידוע') }[this.precision];
     const cx = this.x(this.cursor, W);
     const label = this.label(this.cursor);
     const bubble = label.length > 5 ? 62 : 48;
     const limitX = this.limit < this.start + this.windowMinutes ? Math.max(0, this.x(this.limit, W)) : null;
     return html`
       <div class="bar">
-        ${showPlaybackItem('helper_line') ? html`<span class="precision" data-timeline-helper>${precisionText} · לחיצה או גרירה = חיפוש · גלגלת = זום</span>` : html`<span></span>`}
+        ${showPlaybackItem('helper_line') ? html`<span class="precision" data-timeline-helper>${precisionText} · ${tr('לחיצה או גרירה = חיפוש · גלגלת = זום')}</span>` : html`<span></span>`}
         <div class="windows">
           ${WINDOWS.map((w) => html`<button class=${w.minutes === this.windowMinutes ? 'on' : ''} @click=${() => this.setWindow(w.minutes)}>${w.label}</button>`)}
         </div>
@@ -335,7 +336,7 @@ export class SwTimeline extends LitElement {
         @pointercancel=${() => (this.dragging = false)}
         @wheel=${this.onWheel}
         role="img"
-        aria-label="ציר זמן הקלטות">
+        aria-label=${tr('ציר זמן הקלטות')}>
         <line x1="0" x2=${W} y1=${baseY + 0.5} y2=${baseY + 0.5} stroke="var(--sw-border)" />
         ${limitX !== null ? svg`<rect x=${limitX} y="14" width=${Math.max(0, W - limitX)} height=${baseY - 14} fill="var(--sw-surface-3)" opacity="0.7" />` : nothing}
         ${this.buckets(count).map((lvl, i) => {
@@ -382,13 +383,13 @@ export class SwTimeline extends LitElement {
           : nothing}
       </svg>
       <div class="legend">
-        <span style="--lg: var(--sw-tl-recording)">הקלטה (גובה = פעילות)</span>
-        <span style="--lg: var(--sw-tl-motion)">תנועה</span>
-        <span style="--lg: var(--sw-tl-person)">אדם</span>
-        <span style="--lg: var(--sw-tl-vehicle)">רכב</span>
-        <span style="--lg: var(--sw-tl-door)">דלת</span>
-        <span style="--lg: var(--sw-border-strong)">ריק = אין הקלטה / לא נבדק</span>
-        ${this.limit < 1440 ? html`<span style="--lg: var(--sw-surface-3)">אפור = עתיד</span>` : nothing}
+        <span style="--lg: var(--sw-tl-recording)">${tr('הקלטה (גובה = פעילות)')}</span>
+        <span style="--lg: var(--sw-tl-motion)">${tr('תנועה')}</span>
+        <span style="--lg: var(--sw-tl-person)">${tr('אדם')}</span>
+        <span style="--lg: var(--sw-tl-vehicle)">${tr('רכב')}</span>
+        <span style="--lg: var(--sw-tl-door)">${tr('דלת')}</span>
+        <span style="--lg: var(--sw-border-strong)">${tr('ריק = אין הקלטה / לא נבדק')}</span>
+        ${this.limit < 1440 ? html`<span style="--lg: var(--sw-surface-3)">${tr('אפור = עתיד')}</span>` : nothing}
       </div>
     `;
   }

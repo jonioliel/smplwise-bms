@@ -10,6 +10,7 @@ import { leaderName, playerView, type PlayerView } from './media-player-now';
 import type { CommandOutcome } from './media-command';
 import { SkinController } from '../design/skin';
 import './sw-pill';
+import { tr } from '../i18n/msg/components';
 
 /**
  * CR-016: ONE card per physical speaker, player or receiver (MEDIA_PLAYERS_API.md §2, mockup `players-index.html` "PLAYER CARD"):
@@ -817,15 +818,15 @@ export class MediaPlayerCard extends LitElement {
   }
 
   private cover(d: PlayerDevice, v: PlayerView): TemplateResult {
-    const label = `פתח נגן · ${d.name}`;
+    const label = `${tr('פתח נגן')} · ${d.name}`;
     const spin = this.pending.has('power') ? html`<span class="pend"><i></i></span>` : nothing;
     const dis = this.editing;
     if (v.kind === 'un') return html`<button class="cov un" type="button" ?disabled=${dis} @click=${() => this.openPlayer()} aria-label=${label}><span class="ctr">${mIcon('wifiOff')}</span></button>`;
     if (v.kind === 'off') return html`<button class="cov off" type="button" ?disabled=${dis} @click=${() => this.openPlayer()} aria-label=${label}><span class="ctr">${mIcon(powerControlled(d) ? 'power' : d.kind === 'player' ? 'media' : 'speaker')}</span>${spin}</button>`;
     if (v.kind === 'rcv') return html`<button class="cov rcv" type="button" ?disabled=${dis} @click=${() => this.openPlayer()} aria-label=${label}><span class="ctr">${glyphIcon(v.glyph)}<span>${nameText(v.tile)}</span></span>${spin}</button>`;
     if (v.kind === 'idle') return html`<button class="cov idle" type="button" ?disabled=${dis} @click=${() => this.openPlayer()} aria-label=${label}><span class="ctr">${mIcon(d.kind === 'player' ? 'media' : 'speaker')}</span>${spin}</button>`;
-    const badge = v.playing ? html`<span class="pilld"><i></i>מנגן</span>` : html`<span class="pilld">${mIcon('pause')}מושהה</span>`;
-    const prog = v.kind === 'station' ? html`<span class="live"><i></i>חי</span>` : v.prog !== null ? html`<span class="pb" style=${`--p:${Math.round(v.prog * 100)}%`}><i></i></span>` : nothing;
+    const badge = v.playing ? html`<span class="pilld"><i></i>${tr('מנגן')}</span>` : html`<span class="pilld">${mIcon('pause')}${tr('מושהה')}</span>`;
+    const prog = v.kind === 'station' ? html`<span class="live"><i></i>${tr('חי')}</span>` : v.prog !== null ? html`<span class="pb" style=${`--p:${Math.round(v.prog * 100)}%`}><i></i></span>` : nothing;
     return html`<button class="cov" type="button" ?disabled=${dis} @click=${() => this.openPlayer()} aria-label=${label}>${this.art(v)}${badge}${prog}${spin}</button>`;
   }
 
@@ -838,12 +839,12 @@ export class MediaPlayerCard extends LitElement {
       const off = { command: 'power_off' } as const;
       const on = { command: 'power_on' } as const;
       const disabled = !playerCommandOffered(d, lit ? off : on) || this.pending.has('power');
-      const tip = !d.live.caps_known ? 'לא זמין' : !lit && !d.caps.power_on ? 'אין הפעלה מרחוק' : lit ? 'כבה' : 'הפעל';
+      const tip = !d.live.caps_known ? tr('לא זמין') : !lit && !d.caps.power_on ? tr('אין הפעלה מרחוק') : lit ? tr('כבה') : tr('הפעל');
       return html`<div class="main"><button type="button" class=${classMap({ pw: true, on: lit, pend: this.pending.has('power'), nack: this.nack === 'power', shake: this.shaking === 'power' })} aria-pressed=${String(lit)} aria-label=${`${tip} · ${d.name}`} title=${tip} ?disabled=${disabled} @click=${() => this.power()}>${mIcon('power')}</button></div>`;
     }
     const playing = v.playing;
     const idle = v.kind === 'idle';
-    const lbl = playing ? 'השהה' : idle ? 'נגן' : 'המשך';
+    const lbl = playing ? tr('השהה') : idle ? tr('נגן') : tr('המשך');
     const disabled = !playerCommandOffered(d, { command: 'transport', action: 'play_pause' }) || this.pending.has('pb');
     return html`<div class="main"><button type="button" class=${classMap({ pk: true, idle, pend: this.pending.has('pb'), nack: this.nack === 'pb', shake: this.shaking === 'pb' })} aria-label=${`${lbl} · ${d.name}`} title=${lbl} ?disabled=${disabled} @click=${() => this.toggle()}>${mIcon(playing ? 'pause' : 'play')}</button></div>`;
   }
@@ -854,40 +855,40 @@ export class MediaPlayerCard extends LitElement {
     const ceiling = effectiveCeiling(d);
     const up = playerCommandOffered(d, d.caps.volume_set ? { command: 'volume_set', level: (lv ?? 0) + 2 } : { command: 'volume_step', direction: 'up' }) && (ceiling === null || (lv ?? 0) < ceiling);
     const down = playerCommandOffered(d, d.caps.volume_set ? { command: 'volume_set', level: (lv ?? 0) - 2 } : { command: 'volume_step', direction: 'down' }) && (lv ?? 0) > 0;
-    return html`<span class=${classMap({ vrock: true, muted: !!d.live.volume.muted, shake: this.shaking === 'volume' })} role="group" aria-label=${`עוצמה · ${d.name}`}>
-      <button type="button" aria-label="הנמך" ?disabled=${!down} @click=${() => this.volume(-1)}>${mIcon('minus')}</button>
+    return html`<span class=${classMap({ vrock: true, muted: !!d.live.volume.muted, shake: this.shaking === 'volume' })} role="group" aria-label=${`${tr('עוצמה')} · ${d.name}`}>
+      <button type="button" aria-label=${tr('הנמך')} ?disabled=${!down} @click=${() => this.volume(-1)}>${mIcon('minus')}</button>
       <span class="vv"><span class="n">${lv ?? '—'}</span></span>
-      <button type="button" aria-label="הגבר" ?disabled=${!up} @click=${() => this.volume(1)}>${mIcon('plus')}</button>
+      <button type="button" aria-label=${tr('הגבר')} ?disabled=${!up} @click=${() => this.volume(1)}>${mIcon('plus')}</button>
     </span>`;
   }
 
   private muteButton(d: PlayerDevice) {
     if (!d.can.control || !d.caps.mute) return nothing;
     const m = !!d.live.volume.muted;
-    const label = m ? 'בטל השתקה' : 'השתק';
+    const label = m ? tr('בטל השתקה') : tr('השתק');
     return html`<button type="button" class=${classMap({ rb: true, muted: m, shake: this.shaking === 'mute' })} aria-pressed=${String(m)} aria-label=${label} title=${label} @click=${() => this.mute()}>${mIcon(m ? 'volOff' : 'vol')}</button>`;
   }
 
   private sourceMenu(d: PlayerDevice) {
     if (!this.menu) return nothing;
     const det = this.detail;
-    if (!det) return html`<div class="pop" role="menu" aria-label="בחירת מקור"><div class="wait">טוען…</div></div>`;
+    if (!det) return html`<div class="pop" role="menu" aria-label=${tr('בחירת מקור')}><div class="wait">${tr('טוען…')}</div></div>`;
     const cur = d.live.now.source_id;
-    return html`<div class="pop" role="menu" aria-label="בחירת מקור">
+    return html`<div class="pop" role="menu" aria-label=${tr('בחירת מקור')}>
       ${det.sources.map((s) => html`<button type="button" role="menuitemradio" aria-checked=${String(cur === s.id)} @click=${() => this.pick(s.id)}>${glyphIcon(s.glyph)}${nameText(s.label)}${cur === s.id ? html`<span class="ck">${mIcon('check')}</span>` : nothing}</button>`)}
     </div>`;
   }
 
   private controls(d: PlayerDevice, v: PlayerView) {
     const open = d.kind === 'receiver'
-      ? html`<button type="button" class="rbtn" aria-label=${`שלט · ${d.name}`} @click=${() => this.openPlayer()}>${mIcon('remote')}שלט</button>`
-      : html`<button type="button" class="rbtn" aria-label=${`נגן · ${d.name}`} @click=${() => this.openPlayer()}>נגן${mIcon('music')}</button>`;
+      ? html`<button type="button" class="rbtn" aria-label=${`${tr('שלט')} · ${d.name}`} @click=${() => this.openPlayer()}>${mIcon('remote')}${tr('שלט')}</button>`
+      : html`<button type="button" class="rbtn" aria-label=${`${tr('נגן')} · ${d.name}`} @click=${() => this.openPlayer()}>${tr('נגן')}${mIcon('music')}</button>`;
     if (v.kind === 'un') return html`<span class="unl">${mIcon('wifiOff')}${v.line}</span><span class="grow"></span>${open}`;
     const ro = !d.can.control && !d.can.power;
     if (ro) return nothing;
     if (v.kind === 'off') return html`<span class="grow"></span>${open}`;
     const src = d.can.power && d.caps.sources
-      ? html`<button type="button" class=${classMap({ rb: true, shake: this.shaking === 'source' })} aria-haspopup="menu" aria-expanded=${String(this.menu)} aria-label=${`מקור: ${d.live.now.label || d.name}`} title="מקור" @click=${() => void this.toggleMenu()}>${mIcon('input')}</button>`
+      ? html`<button type="button" class=${classMap({ rb: true, shake: this.shaking === 'source' })} aria-haspopup="menu" aria-expanded=${String(this.menu)} aria-label=${tr('מקור: {name}', { name: d.live.now.label || d.name })} title=${tr('מקור')} @click=${() => void this.toggleMenu()}>${mIcon('input')}</button>`
       : nothing;
     return html`${this.volumeControls(d)}${this.muteButton(d)}${src}<span class="grow"></span>${open}`;
   }
@@ -896,14 +897,14 @@ export class MediaPlayerCard extends LitElement {
   private bubbleKeys(d: PlayerDevice, v: PlayerView) {
     const main = this.mainKey(d, v);
     const ro = !d.can.control && !d.can.power;
-    const open = html`<button type="button" class="rbtn" aria-label=${`${d.kind === 'receiver' ? 'שלט' : 'נגן'} · ${d.name}`} @click=${() => this.openPlayer()}>${mIcon(d.kind === 'receiver' ? 'remote' : 'music')}</button>`;
+    const open = html`<button type="button" class="rbtn" aria-label=${`${d.kind === 'receiver' ? tr('שלט') : tr('נגן')} · ${d.name}`} @click=${() => this.openPlayer()}>${mIcon(d.kind === 'receiver' ? 'remote' : 'music')}</button>`;
     if (v.kind === 'un') return html`<div class="main">${open}</div>`;
     if (ro) return html`<div class="main">${main === nothing ? nothing : main}</div>`;
     const canVol = d.can.control && d.caps.volume_set && v.kind !== 'off';
     const vol = canVol
-      ? html`<button type="button" class="vb" aria-label=${`עוצמה · ${d.name}`} aria-expanded=${String(this.volOpen)} aria-controls="vol" @click=${() => (this.volOpen = !this.volOpen)}>${mIcon(d.live.volume.muted ? 'volOff' : 'vol')}</button>`
+      ? html`<button type="button" class="vb" aria-label=${`${tr('עוצמה')} · ${d.name}`} aria-expanded=${String(this.volOpen)} aria-controls="vol" @click=${() => (this.volOpen = !this.volOpen)}>${mIcon(d.live.volume.muted ? 'volOff' : 'vol')}</button>`
       : v.kind === 'off' ? nothing : this.volumeControls(d);
-    const src = d.can.power && d.caps.sources && v.kind !== 'off' ? html`<button type="button" class=${classMap({ rb: true, shake: this.shaking === 'source' })} aria-haspopup="menu" aria-expanded=${String(this.menu)} aria-label=${`מקור: ${d.live.now.label || d.name}`} title="מקור" @click=${() => void this.toggleMenu()}>${mIcon('input')}</button>` : nothing;
+    const src = d.can.power && d.caps.sources && v.kind !== 'off' ? html`<button type="button" class=${classMap({ rb: true, shake: this.shaking === 'source' })} aria-haspopup="menu" aria-expanded=${String(this.menu)} aria-label=${tr('מקור: {name}', { name: d.live.now.label || d.name })} title=${tr('מקור')} @click=${() => void this.toggleMenu()}>${mIcon('input')}</button>` : nothing;
     return html`<div class="main">${vol}${src}${open}${main === nothing ? nothing : main}</div>`;
   }
 
@@ -914,9 +915,9 @@ export class MediaPlayerCard extends LitElement {
     const main = this.mainKey(d, v);
     // the slider pill's tap is mute / unmute (its ring too), so no mute key is needed beside it: the row stays wide enough at 300 px
     return html`<div class="vmorph" id="vol" data-volume-morph>
-      <sw-pill variant="slider" density="compact" .icon=${d.live.volume.muted ? 'volume' : 'volume'} label=${d.live.volume.muted ? 'מושתק' : 'עוצמה'} .state=${`${lv}%${ceiling !== null ? ` · עד ${ceiling}%` : ''}`} .value=${lv / 100} on keep-text fill-color="var(--sw-accent-soft)" ?unavailable=${this.pending.has('volume')} ?accent=${!!d.live.volume.muted}
+      <sw-pill variant="slider" density="compact" .icon=${d.live.volume.muted ? 'volume' : 'volume'} label=${d.live.volume.muted ? tr('מושתק') : tr('עוצמה')} .state=${`${lv}%${ceiling !== null ? ` · ${tr('עד {n}%', { n: ceiling })}` : ''}`} .value=${lv / 100} on keep-text fill-color="var(--sw-accent-soft)" ?unavailable=${this.pending.has('volume')} ?accent=${!!d.live.volume.muted}
         @toggle=${() => void this.mute()} @icon-click=${() => void this.mute()} @change=${(e: CustomEvent<{ value: number }>) => this.setVolume(e.detail.value * 100)}></sw-pill>
-      <button type="button" class="rb" aria-label="סגור את העוצמה" data-volume-close @click=${() => (this.volOpen = false)}>${mIcon('close')}</button>
+      <button type="button" class="rb" aria-label=${tr('סגור את העוצמה')} data-volume-close @click=${() => (this.volOpen = false)}>${mIcon('close')}</button>
       ${main === nothing ? nothing : (main as TemplateResult)}
     </div>`;
   }
@@ -929,7 +930,7 @@ export class MediaPlayerCard extends LitElement {
     const lit = !!v.rgb && (v.playing || v.paused);
     if (this.skin.bubble) {
       const chip = isMember(d) ? null : groupChip(d);
-      const line = [d.live.group.role === 'member' || v.kind === 'un' ? '' : d.area_name ?? '', v.kind === 'un' ? 'לא זמין' : v.line].filter(Boolean).join(' · ');
+      const line = [d.live.group.role === 'member' || v.kind === 'un' ? '' : d.area_name ?? '', v.kind === 'un' ? tr('לא זמין') : v.line].filter(Boolean).join(' · ');
       const sub = this.note ? html`<small class="bad" role="status">${this.note}</small>` : html`<small>${line}${!this.note && v.title ? html` · ${nameText(v.title)}` : nothing}</small>`;
       const chipEl = chip ? html`<span class=${classMap({ gchip: true, warn: chip.kind === 'conflict' })}>${mIcon(chip.kind === 'conflict' ? 'warning' : 'group')}${chip.text}</span>` : nothing;
       const morph = this.volOpen && d.can.control && d.caps.volume_set && v.kind !== 'off';
@@ -941,7 +942,7 @@ export class MediaPlayerCard extends LitElement {
     }
     const ctl = this.controls(d, v);
     const chip = isMember(d) ? null : groupChip(d);
-    const line = [d.live.group.role === 'member' || v.kind === 'un' ? '' : d.area_name ?? '', v.kind === 'un' ? 'לא זמין' : v.line].filter(Boolean).join(' · ');
+    const line = [d.live.group.role === 'member' || v.kind === 'un' ? '' : d.area_name ?? '', v.kind === 'un' ? tr('לא זמין') : v.line].filter(Boolean).join(' · ');
     const sub = this.note ? html`<small class="bad" role="status">${this.note}</small>` : html`<small>${line}</small>`;
     const chipEl = chip ? html`<span class=${classMap({ gchip: true, warn: chip.kind === 'conflict' })}>${mIcon(chip.kind === 'conflict' ? 'warning' : 'group')}${chip.text}</span>` : nothing;
     const now = !this.note && v.title ? html`<small class="now">${nameText(v.title)}${v.sub ? html` · ${nameText(v.sub)}` : nothing}</small>` : nothing;

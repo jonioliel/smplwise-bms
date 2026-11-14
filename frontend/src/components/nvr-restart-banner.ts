@@ -7,6 +7,7 @@ import { ApiError, describeError, get } from '../api/client';
 import { nvrConnection, restartSystem } from '../api/nvr-connection';
 import { can, isApi, onRemote, onSession, session } from '../api/session';
 import type { Me } from '../api/types';
+import { tr } from '../i18n/msg/components';
 
 /** The connection form tells the banner that a save / removal just made a restart necessary (it does not wait for the next /me). */
 export function announceRestartPending(pending = true) {
@@ -128,18 +129,18 @@ export class NvrRestartBanner extends LitElement {
     if (onRemote()) return nothing; // the restart route is local-only; the banner says nothing a remote operator can act on
     if (!this.pending && this.phase === 'idle') return nothing;
     if (this.phase === 'waiting') {
-      return html`<div class="bar" role="status" data-restart-banner data-restart-phase="waiting"><sw-icon name="refresh" size=${16}></sw-icon><span>המערכת מופעלת מחדש…</span></div>`;
+      return html`<div class="bar" role="status" data-restart-banner data-restart-phase="waiting"><sw-icon name="refresh" size=${16}></sw-icon><span>${tr('המערכת מופעלת מחדש…')}</span></div>`;
     }
     if (this.phase === 'manual') {
-      return html`<div class="bar" role="alert" data-restart-banner data-restart-phase="manual"><sw-icon name="warning" size=${16}></sw-icon><span data-restart-manual>המערכת לא חזרה. הפעילו ידנית.</span>
-        <sw-button size=${this.btn} data-restart-again @click=${() => this.again()}>בדקו שוב</sw-button></div>`;
+      return html`<div class="bar" role="alert" data-restart-banner data-restart-phase="manual"><sw-icon name="warning" size=${16}></sw-icon><span data-restart-manual>${tr('המערכת לא חזרה. הפעילו ידנית.')}</span>
+        <sw-button size=${this.btn} data-restart-again @click=${() => this.again()}>${tr('בדקו שוב')}</sw-button></div>`;
     }
     return html`<div class="bar" role="status" data-restart-banner data-restart-phase="idle"><sw-icon name="warning" size=${16}></sw-icon>
-        <span data-restart-text>${this.manualOnly ? 'יש להפעיל מחדש את השירות כדי להחיל את השינוי' : 'נדרשת הפעלה מחדש כדי להחיל את השינוי'}</span>
-        ${this.manualOnly ? nothing : html`<sw-button size=${this.btn} variant="primary" data-restart-open @click=${() => (this.phase = 'confirm')}>הפעל מחדש</sw-button>`}
+        <span data-restart-text>${this.manualOnly ? tr('יש להפעיל מחדש את השירות כדי להחיל את השינוי') : tr('נדרשת הפעלה מחדש כדי להחיל את השינוי')}</span>
+        ${this.manualOnly ? nothing : html`<sw-button size=${this.btn} variant="primary" data-restart-open @click=${() => (this.phase = 'confirm')}>${tr('הפעל מחדש')}</sw-button>`}
         ${this.error ? html`<span class="err" data-restart-error>${this.error}</span>` : nothing}</div>
-      <sw-dialog ?open=${this.phase === 'confirm'} heading="הפעלה מחדש" subheading="המערכת לא תהיה זמינה לרגעים אחדים" data-restart-dialog @close=${() => (this.phase = 'idle')}>
-        <div slot="footer"><sw-button variant="primary" data-restart-confirm @click=${() => { this.phase = 'idle'; void this.run(); }}>הפעל מחדש</sw-button><sw-button variant="ghost" @click=${() => (this.phase = 'idle')}>ביטול</sw-button></div>
+      <sw-dialog ?open=${this.phase === 'confirm'} heading=${tr('הפעלה מחדש')} subheading=${tr('המערכת לא תהיה זמינה לרגעים אחדים')} data-restart-dialog @close=${() => (this.phase = 'idle')}>
+        <div slot="footer"><sw-button variant="primary" data-restart-confirm @click=${() => { this.phase = 'idle'; void this.run(); }}>${tr('הפעל מחדש')}</sw-button><sw-button variant="ghost" @click=${() => (this.phase = 'idle')}>${tr('ביטול')}</sw-button></div>
       </sw-dialog>`;
   }
 

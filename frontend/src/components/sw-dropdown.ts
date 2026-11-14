@@ -11,6 +11,7 @@ import type { IconName } from './sw-icon';
  */
 import { DD_PANEL_IDS, DD_RING_IDS, DD_SIZE_IDS, DD_STYLE_IDS, ddPanelFloor, ddSearchMin, type DdPanel, type DdRing, type DdSize, type DdStyle } from './dd-style';
 import { limitNotice, pickedCount, pickedSummary, toggleCapped } from './multi-select';
+import { tr } from '../i18n/msg/components';
 export { DD_PANEL_IDS, DD_RING_IDS, DD_SIZE_IDS, DD_STYLE_IDS, type DdPanel, type DdRing, type DdSize, type DdStyle };
 /** A single-choice list of this many options or more gets a search field (the mockups' long lists: the settings tabs, 13 items).
  * 2.0.2: a `multiple` list follows the installation's / the user's dial instead (`data-dd-search` on <html>: always | 4 (default) | 8 | never). */
@@ -1709,7 +1710,7 @@ export class SwDropdown extends LitElement {
     const out: unknown[] = [];
     let lastGroup: string | undefined;
     const shown = new Set(this.shownIdx());
-    if (!shown.size) return [html`<div class="none" role="status" data-dd-none>לא נמצאו תוצאות</div>`];
+    if (!shown.size) return [html`<div class="none" role="status" data-dd-none>${tr('לא נמצאו תוצאות')}</div>`];
     const anyIcon = this.items.some((x) => !!x.icon);
     const filtering = this.query.trim() !== '';
     this.items.forEach((it, i) => {
@@ -1761,7 +1762,7 @@ export class SwDropdown extends LitElement {
     const sel = this.selected;
     const alert = this.hiddenAlert;
     const name = sel ? `${sel.label}${sel.count !== undefined ? ` (${sel.count})` : ''}` : this.placeholder;
-    const aria = `${[this.label, name].filter(Boolean).join(': ')}${alert ? ', יש התראות באפשרויות אחרות' : ''}`;
+    const aria = `${[this.label, name].filter(Boolean).join(': ')}${alert ? `, ${tr('יש התראות באפשרויות אחרות')}` : ''}`;
     const listId = `l-${this.seq}`;
     if (this.iconOnly) {
       const ico = this.ddStyle === 'capsule' ? this.iconPx : 20;
@@ -1779,8 +1780,8 @@ export class SwDropdown extends LitElement {
     const listId = `l-${this.seq}`;
     const foot = html`<div class="ft" data-dd-foot>
       <span class="st" role="status" aria-live="polite" data-dd-count=${count} ?data-dd-notice=${!!this.notice}>${this.notice || count}</span>
-      <button type="button" class="act" data-dd-clear ?disabled=${!this.values.length} @click=${() => this.clearAll()}>נקה</button>
-      <button type="button" class="act done" data-dd-done @click=${() => this.close(true)}>סיום</button>
+      <button type="button" class="act" data-dd-clear ?disabled=${!this.values.length} @click=${() => this.clearAll()}>${tr('נקה')}</button>
+      <button type="button" class="act done" data-dd-done @click=${() => this.close(true)}>${tr('סיום')}</button>
     </div>`;
     return this.renderControl(listId, aria, html`<span class="txt">${names}</span>${picked.length ? html`<span class="n" data-dd-chip-count>${count}</span>` : nothing}`, foot, true);
   }
@@ -1804,7 +1805,7 @@ export class SwDropdown extends LitElement {
           ? html`<div class="hd" data-dd-head @pointerdown=${(e: PointerEvent) => this.onHeadDown(e)} @pointermove=${(e: PointerEvent) => this.onHeadMove(e)} @pointerup=${(e: PointerEvent) => this.onHeadUp(e)} @pointercancel=${(e: PointerEvent) => this.onHeadUp(e)}><div class="grab" aria-hidden="true"></div>${this.label ? html`<div class="ttl" aria-hidden="true">${this.label}</div>` : nothing}</div>`
           : nothing}
         ${(this.open || this.closing) && this.hasSearch
-          ? html`<label class="search"><sw-icon name="search" size=${14}></sw-icon><input class="q" type="search" data-dd-search placeholder="חיפוש" aria-label=${`חיפוש ב${this.label || 'רשימה'}`} autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"
+          ? html`<label class="search"><sw-icon name="search" size=${14}></sw-icon><input class="q" type="search" data-dd-search placeholder=${tr('חיפוש')} aria-label=${tr('חיפוש ב{name}', { name: this.label || tr('רשימה') })} autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go"
               role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls=${listId} aria-activedescendant=${this.cursor >= 0 ? this.optionId(this.cursor) : nothing} .value=${this.query} @input=${(e: Event) => this.onQuery(e)} /></label>`
           : nothing}
         <div class="lb" id=${listId} role="listbox" tabindex="-1" aria-label=${this.label || nothing} aria-multiselectable=${multi ? 'true' : nothing} aria-activedescendant=${this.cursor >= 0 ? this.optionId(this.cursor) : nothing}>${this.open || this.closing ? this.renderItems() : nothing}</div>

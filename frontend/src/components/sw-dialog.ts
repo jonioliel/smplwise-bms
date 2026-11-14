@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import './sw-button';
 import { deepFocusables } from './sw-drawer';
 import { raiseLifted, setTopLayer } from './top-layer';
+import { tr } from '../i18n/msg/components';
 
 /** A11Y-POLISHED-2342: the open dialogs, oldest first. Every dialog listens for Escape on the window, so a confirmation opened over
  * another dialog closed BOTH on one press; now only the top one answers the key. */
@@ -258,7 +259,7 @@ export class SwDialog extends LitElement {
   render() {
     return html`<div class="backdrop" popover="manual" @click=${(e: Event) => e.target === e.currentTarget && this.close()}>
       <div class="box" role="dialog" aria-modal="true" aria-label=${this.heading}>
-        <header><div><h3>${this.heading}</h3>${this.subheading ? html`<div class="sub">${this.subheading}</div>` : ''}</div><sw-button variant="ghost" size="sm" iconOnly icon="close" label="סגור" @click=${this.close}></sw-button></header>
+        <header><div><h3>${this.heading}</h3>${this.subheading ? html`<div class="sub">${this.subheading}</div>` : ''}</div><sw-button variant="ghost" size="sm" iconOnly icon="close" label=${tr('סגור')} @click=${this.close}></sw-button></header>
         <div class="body"><slot></slot></div>
         <footer ?hidden=${!this.hasFooter}><slot name="footer" @slotchange=${(e: Event) => (this.hasFooter = (e.target as HTMLSlotElement).assignedNodes({ flatten: true }).some((n) => n.nodeType === Node.ELEMENT_NODE))}></slot></footer>
       </div>

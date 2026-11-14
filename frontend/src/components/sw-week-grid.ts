@@ -1,5 +1,6 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { tr } from '../i18n/msg/components';
 
 /** One range of a day's schedule; `mode` is used by the recording schedule (CMR / MOTION / EDR…), absent for arming. */
 export interface WeekRange {
@@ -16,7 +17,7 @@ export interface WeekMode {
 
 /** Hebrew week: Sunday first on screen; the data keeps the ISAPI order (0 = Monday … 6 = Sunday). */
 const ORDER = [6, 0, 1, 2, 3, 4, 5];
-const NAMES = ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'];
+const NAMES = [tr('א׳'), tr('ב׳'), tr('ג׳'), tr('ד׳'), tr('ה׳'), tr('ו׳'), tr('ש׳')];
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const hourOf = (t: string) => Number(t.slice(0, 2)) + Number(t.slice(3, 5)) / 60;
@@ -62,7 +63,7 @@ export function rangesOf(cells: string[][], withMode: boolean): WeekDays {
 export class SwWeekGrid extends LitElement {
   @property({ attribute: false }) days: WeekDays = Array.from({ length: 7 }, () => []);
   /** Modes to paint with; a single mode means on / off. */
-  @property({ attribute: false }) modes: WeekMode[] = [{ id: 'on', label: 'פעיל', color: 'var(--sw-accent)' }];
+  @property({ attribute: false }) modes: WeekMode[] = [{ id: 'on', label: tr('פעיל'), color: 'var(--sw-accent)' }];
   @property() mode = 'on';
   @property({ type: Boolean }) editable = false;
   @state() private painting: string | null = null;
@@ -224,21 +225,21 @@ export class SwWeekGrid extends LitElement {
   private renderLegend() {
     const pickable = this.editable && this.modes.length > 1;
     return html`<div class="legend" data-week-legend>
-      <span class="lbl">מקרא:</span>
+      <span class="lbl">${tr('מקרא:')}</span>
       ${this.modes.map((m) =>
         pickable
           ? html`<button class=${m.id === this.mode ? 'on' : ''} data-week-mode=${m.id} @click=${() => (this.mode = m.id)}><span class="sw" style="background:${m.color}"></span>${m.label}</button>`
           : html`<span class="chip"><span class="sw" style="background:${m.color}"></span>${m.label}</span>`,
       )}
-      <span class="chip muted"><span class="sw empty"></span>${this.modes.length > 1 ? 'ללא' : 'לא פעיל'}</span>
-      ${pickable ? html`<span class="hint">לחיצה על תא צבוע באותו צבע מנקה אותו</span>` : nothing}
+      <span class="chip muted"><span class="sw empty"></span>${this.modes.length > 1 ? tr('ללא') : tr('לא פעיל')}</span>
+      ${pickable ? html`<span class="hint">${tr('לחיצה על תא צבוע באותו צבע מנקה אותו')}</span>` : nothing}
     </div>`;
   }
 
   render() {
     this.sync();
     return html`
-      <div class="grid" role="grid" aria-label="לוח שבועי" @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.end} @pointercancel=${this.end}>
+      <div class="grid" role="grid" aria-label=${tr('לוח שבועי')} @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.end} @pointercancel=${this.end}>
         <span></span>
         ${Array.from({ length: 24 }, (_, h) => html`<span class="h">${h % 3 === 0 ? h : ''}</span>`)}
         ${ORDER.map((d, i) => html`

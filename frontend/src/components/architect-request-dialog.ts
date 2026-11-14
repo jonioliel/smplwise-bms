@@ -5,6 +5,7 @@ import './sw-button';
 import './sw-icon';
 import REQUEST_RAW from '../content/architect-request.he.txt?raw';
 import { REQUEST_FILE_NAME, REQUEST_TITLE, copyText, mailtoHref, normalizeRequest, requestBlob, requestSubject } from './architect-request';
+import { tr } from '../i18n/msg/components';
 
 /** The request text, as the dialog shows, copies, shares and downloads it. */
 export const ARCHITECT_REQUEST_TEXT = normalizeRequest(REQUEST_RAW);
@@ -112,7 +113,7 @@ export class ArchitectRequestDialog extends LitElement {
 
   private async copy(): Promise<boolean> {
     const ok = await copyText(this.text);
-    this.say(ok ? 'הועתק' : 'ההעתקה לא הצליחה: סמנו את הטקסט והעתיקו ידנית');
+    this.say(ok ? tr('הועתק') : tr('ההעתקה לא הצליחה: סמנו את הטקסט והעתיקו ידנית'));
     return ok;
   }
 
@@ -140,7 +141,7 @@ export class ArchitectRequestDialog extends LitElement {
   private async mail() {
     if (mailtoHref(this.text).full) return;
     const ok = await copyText(this.text);
-    this.say(ok ? 'הועתק: הדביקו את הבקשה בגוף המייל' : 'סמנו והעתיקו את הטקסט, ואז הדביקו בגוף המייל');
+    this.say(ok ? tr('הועתק: הדביקו את הבקשה בגוף המייל') : tr('סמנו והעתיקו את הטקסט, ואז הדביקו בגוף המייל'));
   }
 
   private close() {
@@ -154,10 +155,10 @@ export class ArchitectRequestDialog extends LitElement {
     return html`<sw-dialog wide ?open=${this.open} heading=${REQUEST_TITLE} @close=${(e: Event) => { e.stopPropagation(); this.close(); }}>
       <pre class="txt" dir="rtl" lang="he" tabindex="0" data-architect-text aria-label=${REQUEST_TITLE}>${this.text}</pre>
       <div slot="footer" class="actions">
-        <sw-button size="lg" variant="primary" icon="copy" data-architect-copy @click=${() => void this.copy()}>העתק</sw-button>
-        ${canShare ? html`<sw-button size="lg" icon="share" data-architect-share @click=${() => void this.share()}>שתף</sw-button>` : nothing}
-        <sw-button size="lg" icon="download" data-architect-download @click=${() => this.download()}>הורד כקובץ</sw-button>
-        <a class="btn" href=${mailtoHref(this.text).href} data-architect-mail @click=${() => void this.mail()}><sw-icon name="mail" size=${18}></sw-icon>שלח במייל</a>
+        <sw-button size="lg" variant="primary" icon="copy" data-architect-copy @click=${() => void this.copy()}>${tr('העתק')}</sw-button>
+        ${canShare ? html`<sw-button size="lg" icon="share" data-architect-share @click=${() => void this.share()}>${tr('שתף')}</sw-button>` : nothing}
+        <sw-button size="lg" icon="download" data-architect-download @click=${() => this.download()}>${tr('הורד כקובץ')}</sw-button>
+        <a class="btn" href=${mailtoHref(this.text).href} data-architect-mail @click=${() => void this.mail()}><sw-icon name="mail" size=${18}></sw-icon>${tr('שלח במייל')}</a>
         <div class="notice" role="status" aria-live="polite" data-architect-notice>${this.notice}</div>
       </div>
     </sw-dialog>`;

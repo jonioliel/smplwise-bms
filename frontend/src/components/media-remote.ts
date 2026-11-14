@@ -26,6 +26,7 @@ import {
 } from './media-remote-logic';
 import { KeyPress } from './media-remote-press';
 import { remoteStyles, remoteTokens } from './media-remote-css';
+import { tr } from '../i18n/msg/components';
 
 const ic = (name: string): TemplateResult => html`<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${unsafeSVG(ICON[name] ?? '')}</svg>`;
 const POLL_MS = 4000;
@@ -202,7 +203,7 @@ export class MediaRemote extends LitElement {
     this.offEdit?.();
     this.offEdit = registerScreenEdit({
       id: 'multimedia-remote',
-      label: 'עריכת השלט',
+      label: tr('עריכת השלט'),
       icon: 'edit',
       can: () => !!this.deviceKey && this.status?.can.layout === true && !this.editing,
       run: () => {
@@ -547,7 +548,7 @@ export class MediaRemote extends LitElement {
     const d = this.detail;
     if (!d) {
       return this.phase === 'error'
-        ? html`<div class="r" data-mr-state="error"><div class="errbox">${ic('warning')}<b>לא ניתן לטעון את המסך</b><button type="button" class="btn" @click=${() => void this.load(true)}>נסו שוב</button></div></div>`
+        ? html`<div class="r" data-mr-state="error"><div class="errbox">${ic('warning')}<b>${tr('לא ניתן לטעון את המסך')}</b><button type="button" class="btn" @click=${() => void this.load(true)}>${tr('נסו שוב')}</button></div></div>`
         : html`<div class="r" data-mr-state="loading" aria-busy="true"><span class="skl" style="block-size:92px;border-radius:var(--sw-r-2xl)"></span><span class="skl" style="block-size:48px"></span><span class="skl" style="block-size:340px;border-radius:var(--sw-r-pill)"></span></div>`;
     }
     if (this.editing) {
@@ -602,14 +603,14 @@ export class MediaRemote extends LitElement {
     let top = '';
     let line: string;
     if (n.kind === 'saver') {
-      top = 'שומר מסך';
+      top = tr('שומר מסך');
       line = d.name;
     } else if (n.kind === 'home') {
-      top = 'מסך הבית';
+      top = tr('מסך הבית');
       line = d.name;
     } else if (n.glyph === 'antenna' && n.channel) {
-      top = n.label || 'טלוויזיה';
-      line = `ערוץ ${n.channel}`;
+      top = n.label || tr('טלוויזיה');
+      line = tr('ערוץ {ch}', { ch: n.channel });
     } else {
       top = n.title ? n.label : '';
       line = n.title || n.label || d.name;
@@ -624,16 +625,16 @@ export class MediaRemote extends LitElement {
 
   private unavailableBody(d: MediaDeviceDetail): TemplateResult {
     const u = unavailableLine(d.live);
-    return html`<div class="roff" data-mr-unavailable>${ic('wifiOff')}<b>${u.title}</b>${u.since ? html`<small>מאז <span class="n">${u.since}</span></small>` : nothing}</div>`;
+    return html`<div class="roff" data-mr-unavailable>${ic('wifiOff')}<b>${u.title}</b>${u.since ? html`<small>${tr('מאז')} <span class="n">${u.since}</span></small>` : nothing}</div>`;
   }
 
   private viewOnlyBody(mode: string): TemplateResult {
-    return html`<div class="roff" data-mr-viewonly>${ic(mode === 'art' ? 'frame' : 'power')}<b>${mode === 'art' ? 'מצב אמנות' : 'כבוי'}</b></div>`;
+    return html`<div class="roff" data-mr-viewonly>${ic(mode === 'art' ? 'frame' : 'power')}<b>${mode === 'art' ? tr('מצב אמנות') : tr('כבוי')}</b></div>`;
   }
 
   private bigPower(action: 'on' | 'off', label: string, enabled: boolean, reason: string | null): TemplateResult {
     const pend = this.pend.has('power');
-    const tip = !enabled && reason === 'no_remote_wake' ? 'אין הפעלה מרחוק' : !enabled && reason === 'unavailable' ? 'המסך לא זמין' : label;
+    const tip = !enabled && reason === 'no_remote_wake' ? tr('אין הפעלה מרחוק') : !enabled && reason === 'unavailable' ? tr('המסך לא זמין') : label;
     return html`<button type="button" class=${classMap({ bigpw: true, pend })} data-mr-power=${action} aria-label=${label} title=${tip} ?disabled=${!enabled || pend} aria-busy=${String(pend)}
       @click=${() => void this.exec({ command: action === 'on' ? 'power_on' : 'power_off' })}>${ic('power')}${pend ? html`<span class="pendring"></span>` : nothing}</button>`;
   }
@@ -643,8 +644,8 @@ export class MediaRemote extends LitElement {
     const L = layoutOf(d);
     const hasPad = L.main.length + L.more.length > 0 && d.caps.keys.length > 0;
     return html`<div class="roff" data-mr-off>
-        ${p.action === 'on' ? this.bigPower('on', 'הפעל', p.enabled, p.reason) : html`${ic('power')}`}
-        <b>${p.action === 'on' && p.enabled ? 'הפעל' : 'כבוי'}</b>
+        ${p.action === 'on' ? this.bigPower('on', tr('הפעל'), p.enabled, p.reason) : html`${ic('power')}`}
+        <b>${p.action === 'on' && p.enabled ? tr('הפעל') : tr('כבוי')}</b>
       </div>
       ${hasPad ? html`<div class="rpad dim" aria-hidden="true" inert>${this.padContent(d, L, true)}</div>` : nothing}`;
   }
@@ -652,8 +653,8 @@ export class MediaRemote extends LitElement {
   private artBody(d: MediaDeviceDetail): TemplateResult {
     const off = powerOffer(d);
     return html`<div class="roff" data-mr-art>
-      ${this.bigPower('off', 'כבה', off.enabled, off.reason)}<b>מצב אמנות</b>
-      ${artSwitchOffered(d) ? html`<button type="button" class="btn" data-mr-art-watch ?disabled=${this.pend.has('power')} @click=${() => void this.exec({ command: 'power_on' })}>${ic('tv')}מעבר לצפייה</button>` : nothing}
+      ${this.bigPower('off', tr('כבה'), off.enabled, off.reason)}<b>${tr('מצב אמנות')}</b>
+      ${artSwitchOffered(d) ? html`<button type="button" class="btn" data-mr-art-watch ?disabled=${this.pend.has('power')} @click=${() => void this.exec({ command: 'power_on' })}>${ic('tv')}${tr('מעבר לצפייה')}</button>` : nothing}
     </div>`;
   }
 
@@ -665,7 +666,7 @@ export class MediaRemote extends LitElement {
     const tab = tabs.includes(this.tab) ? this.tab : 'pad';
     return html`${this.audioSwitch(d, L.main)}${this.volumeRow(d, L.main)}${L.main.includes('recent') ? this.recent(d) : nothing}
       ${tabs.length > 1
-        ? html`<div class="seg" role="tablist" aria-label="שלט">${tabs.map((t) => html`<button type="button" role="tab" aria-selected=${String(tab === t)} data-mr-tab=${t} @click=${() => (this.tab = t)}>${t === 'pad' ? 'שלט' : t === 'sources' ? 'מקורות' : 'אפליקציות'}</button>`)}</div>`
+        ? html`<div class="seg" role="tablist" aria-label=${tr('שלט')}>${tabs.map((t) => html`<button type="button" role="tab" aria-selected=${String(tab === t)} data-mr-tab=${t} @click=${() => (this.tab = t)}>${t === 'pad' ? tr('שלט') : t === 'sources' ? tr('מקורות') : tr('אפליקציות')}</button>`)}</div>`
         : nothing}
       ${tab === 'sources' ? this.sources(d) : tab === 'apps' ? this.apps(d) : html`<div class=${classMap({ rpad: true, shake: this.shaking })} data-mr-pad>${this.padContent(d, L, false)}</div>`}`;
   }
@@ -673,8 +674,8 @@ export class MediaRemote extends LitElement {
   private audioSwitch(d: MediaDeviceDetail, main: RemoteSection[]): TemplateResult | typeof nothing {
     if (!d.audio_link || !d.can.control || !main.includes('vol')) return nothing;
     const cur = volumeTarget(d, this.audio);
-    return html`<div class="seg sm" role="radiogroup" aria-label="יציאת שמע" data-mr-audio>
-      <button type="button" role="radio" aria-checked=${String(cur === 'screen')} @click=${() => (this.audio = 'screen')}>${ic('tv')}רמקולי המסך</button>
+    return html`<div class="seg sm" role="radiogroup" aria-label=${tr('יציאת שמע')} data-mr-audio>
+      <button type="button" role="radio" aria-checked=${String(cur === 'screen')} @click=${() => (this.audio = 'screen')}>${ic('tv')}${tr('רמקולי המסך')}</button>
       <button type="button" role="radio" aria-checked=${String(cur === 'linked')} @click=${() => (this.audio = 'linked')}>${ic('speaker')}${bidi(d.audio_link.name)}</button>
     </div>`;
   }
@@ -686,8 +687,8 @@ export class MediaRemote extends LitElement {
     const v = this.volDraft ?? level ?? 0;
     const muted = d.live.volume.muted === true;
     return html`<div class="vrow" data-mr-vrow>
-      ${d.caps.mute ? html`<button type="button" class=${classMap({ rb: true, on: muted })} data-key="mute" aria-pressed=${String(muted)} aria-label=${muted ? 'בטל השתקה' : 'השתק'}>${ic(muted ? 'volOff' : 'vol')}</button>` : nothing}
-      <input class="rng" type="range" min="0" max="100" step="1" .value=${String(v)} style="--v:${v}%" aria-label=${d.audio_link ? `עוצמה · ${d.audio_link.name}` : 'עוצמה'} @input=${this.onVolume} />
+      ${d.caps.mute ? html`<button type="button" class=${classMap({ rb: true, on: muted })} data-key="mute" aria-pressed=${String(muted)} aria-label=${muted ? tr('בטל השתקה') : tr('השתק')}>${ic(muted ? 'volOff' : 'vol')}</button>` : nothing}
+      <input class="rng" type="range" min="0" max="100" step="1" .value=${String(v)} style="--v:${v}%" aria-label=${d.audio_link ? `${tr('עוצמה')} · ${d.audio_link.name}` : tr('עוצמה')} @input=${this.onVolume} />
       <span class="vv n" data-mr-volval>${this.volDraft !== null || level !== null ? v : '–'}</span>
     </div>`;
   }
@@ -702,7 +703,7 @@ export class MediaRemote extends LitElement {
     const chips = recentChips(d);
     if (!chips.length) return nothing;
     const all = [...d.sources, ...d.apps];
-    return html`<div class="recent" role="group" aria-label="אחרונים" data-mr-recent><span class="lbl">אחרונים</span>${chips.map((c) => {
+    return html`<div class="recent" role="group" aria-label=${tr('אחרונים')} data-mr-recent><span class="lbl">${tr('אחרונים')}</span>${chips.map((c) => {
       const item = all.find((x) => x.id === c.id && x.kind === (c.kind === 'app' ? 'app' : 'source'));
       const current = c.kind === 'app' ? d.live.now.app_id === c.id : d.live.now.source_id === c.id;
       const src = c.kind === 'source';
@@ -711,20 +712,20 @@ export class MediaRemote extends LitElement {
   }
 
   private sources(d: MediaDeviceDetail): TemplateResult {
-    if (!d.sources.length) return html`<div class="empty">${ic('input')}אין מקורות</div>`;
-    return html`<div class="srcg" role="radiogroup" aria-label="מקורות" data-mr-sources>${repeat(d.sources, (s) => s.id, (s) => this.sourceTile(d, s))}</div>`;
+    if (!d.sources.length) return html`<div class="empty">${ic('input')}${tr('אין מקורות')}</div>`;
+    return html`<div class="srcg" role="radiogroup" aria-label=${tr('מקורות')} data-mr-sources>${repeat(d.sources, (s) => s.id, (s) => this.sourceTile(d, s))}</div>`;
   }
 
   private sourceTile(d: MediaDeviceDetail, s: SourceItem): TemplateResult {
     const cur = isCurrent(d.live, s);
     const pend = this.pend.has(`src:${s.id}`);
-    const ch = cur && d.live.now.channel && s.glyph === 'antenna' ? `ערוץ ${d.live.now.channel}` : '';
+    const ch = cur && d.live.now.channel && s.glyph === 'antenna' ? tr('ערוץ {ch}', { ch: d.live.now.channel }) : '';
     return html`<button type="button" class="srci" role="radio" aria-checked=${String(cur)} data-mr-source=${s.id} ?disabled=${pend} @click=${() => void this.exec({ command: 'source', source_id: s.id })}>
       <span class="gi src">${ic(s.glyph)}</span><span><bdi>${s.label}</bdi>${ch ? html`<small>${ch}</small>` : nothing}</span>${cur && !pend ? html`<span class="ck">${ic('check')}</span>` : nothing}${pend ? html`<span class="pendring"></span>` : nothing}</button>`;
   }
 
   private apps(d: MediaDeviceDetail): TemplateResult {
-    if (!d.apps.length) return html`<div class="empty">${ic('apps')}אין אפליקציות</div>`;
+    if (!d.apps.length) return html`<div class="empty">${ic('apps')}${tr('אין אפליקציות')}</div>`;
     return html`<div class="appg" data-mr-apps>${repeat(d.apps, (a) => a.id, (a) => {
       const cur = isCurrent(d.live, a);
       const pend = this.pend.has(`app:${a.id}`);
@@ -751,13 +752,13 @@ export class MediaRemote extends LitElement {
     const off = dim && d.can.power;
     return html`<div class="tcl">
       ${powerOn
-        ? html`<button type="button" class=${classMap({ kb: true, pwk: true, pend })} data-mr-power="off" aria-label="כבה" ?disabled=${pend} @click=${() => void this.exec({ command: 'power_off' })}><span class="kc">${ic('power')}${pend ? html`<span class="pendring"></span>` : nothing}</span><span>כבה</span></button>`
+        ? html`<button type="button" class=${classMap({ kb: true, pwk: true, pend })} data-mr-power="off" aria-label=${tr('כבה')} ?disabled=${pend} @click=${() => void this.exec({ command: 'power_off' })}><span class="kc">${ic('power')}${pend ? html`<span class="pendring"></span>` : nothing}</span><span>${tr('כבה')}</span></button>`
         : off
-        ? html`<button type="button" class="kb pwk off" aria-label="הפעל" disabled><span class="kc">${ic('power')}</span><span>הפעל</span></button>`
+        ? html`<button type="button" class="kb pwk off" aria-label=${tr('הפעל')} disabled><span class="kc">${ic('power')}</span><span>${tr('הפעל')}</span></button>`
         : nothing}
       <span class="grow"></span>${guide}
-      ${tabs.includes('sources') ? html`<button type="button" class="kb" data-mr-goto="sources" aria-label="מקורות" @click=${() => (this.tab = 'sources')}><span class="kc">${ic('input')}</span><span>מקור</span></button>` : nothing}
-      ${tabs.includes('apps') ? html`<button type="button" class="kb" data-mr-goto="apps" aria-label="אפליקציות" @click=${() => (this.tab = 'apps')}><span class="kc">${ic('apps')}</span><span>אפליקציות</span></button>` : nothing}
+      ${tabs.includes('sources') ? html`<button type="button" class="kb" data-mr-goto="sources" aria-label=${tr('מקורות')} @click=${() => (this.tab = 'sources')}><span class="kc">${ic('input')}</span><span>${tr('מקור')}</span></button>` : nothing}
+      ${tabs.includes('apps') ? html`<button type="button" class="kb" data-mr-goto="apps" aria-label=${tr('אפליקציות')} @click=${() => (this.tab = 'apps')}><span class="kc">${ic('apps')}</span><span>${tr('אפליקציות')}</span></button>` : nothing}
     </div>`;
   }
 
@@ -772,12 +773,12 @@ export class MediaRemote extends LitElement {
       : d.live.now.channel ?? '–';
     const muted = d.live.volume.muted === true;
     return html`<div class="col" data-mr-rocker=${kind}>
-      <div class="rock" role="group" aria-label=${vol ? 'עוצמה' : 'ערוצים'}>
+      <div class="rock" role="group" aria-label=${vol ? tr('עוצמה') : tr('ערוצים')}>
         <button type="button" data-key=${up} aria-label=${KEY_LABEL[up]} ?disabled=${!upOk}>${ic(vol ? 'plus' : 'up')}</button>
-        <span class="rv"><small>${vol ? 'עוצמה' : 'ערוץ'}</small><b class="n" data-mr-value=${kind}>${value}</b></span>
+        <span class="rv"><small>${vol ? tr('עוצמה') : tr('ערוץ')}</small><b class="n" data-mr-value=${kind}>${value}</b></span>
         <button type="button" data-key=${dn} aria-label=${KEY_LABEL[dn]} ?disabled=${!dnOk}>${ic(vol ? 'minus' : 'down')}</button>
       </div>
-      ${vol && d.caps.mute ? html`<button type="button" class=${classMap({ rb: true, on: muted })} data-key="mute" aria-pressed=${String(muted)} aria-label=${muted ? 'בטל השתקה' : 'השתק'}>${ic(muted ? 'volOff' : 'vol')}</button>` : nothing}
+      ${vol && d.caps.mute ? html`<button type="button" class=${classMap({ rb: true, on: muted })} data-key="mute" aria-pressed=${String(muted)} aria-label=${muted ? tr('בטל השתקה') : tr('השתק')}>${ic(muted ? 'volOff' : 'vol')}</button>` : nothing}
       ${!vol && d.caps.keys.includes('chlist') ? html`<button type="button" class="rb" data-key="chlist" aria-label=${KEY_LABEL.chlist}>${ic('list')}</button>` : nothing}
     </div>`;
   }
@@ -798,7 +799,7 @@ export class MediaRemote extends LitElement {
       }
     }
     if (L.more.length) {
-      parts.push(html`<button type="button" class="morebtn" data-mr-more aria-expanded=${String(this.more)} @click=${() => (this.more = !this.more)}>${this.more ? 'פחות מקשים' : 'עוד מקשים'}${ic('chevronDown')}</button>`);
+      parts.push(html`<button type="button" class="morebtn" data-mr-more aria-expanded=${String(this.more)} @click=${() => (this.more = !this.more)}>${this.more ? tr('פחות מקשים') : tr('עוד מקשים')}${ic('chevronDown')}</button>`);
       if (this.more) parts.push(html`<div class="more" data-mr-morebody>${L.more.map((id) => (id === 'vol' || id === 'ch' || id === 'dpad' || id === 'touch' ? this.grid(d, [id], modes, true) : this.section(d, id)))}</div>`);
     }
     return html`${parts}`;
@@ -814,7 +815,7 @@ export class MediaRemote extends LitElement {
     if (!center && !hasVol && !hasCh) return html``; // nothing to draw (a slider-only volume has no rocker)
     const cls = center ? 'pgrid' : hasVol && hasCh ? 'pgrid duo' : 'pgrid solo';
     return html`${showMode
-        ? html`<div class="seg sm" role="radiogroup" aria-label="סוג משטח" style="inline-size:auto"><button type="button" role="radio" aria-checked=${String(this.pad === 'dpad')} @click=${() => (this.pad = 'dpad')}>חצים</button><button type="button" role="radio" aria-checked=${String(this.pad === 'touch')} @click=${() => (this.pad = 'touch')}>${ic('touch')}משטח</button></div>`
+        ? html`<div class="seg sm" role="radiogroup" aria-label=${tr('סוג משטח')} style="inline-size:auto"><button type="button" role="radio" aria-checked=${String(this.pad === 'dpad')} @click=${() => (this.pad = 'dpad')}>${tr('חצים')}</button><button type="button" role="radio" aria-checked=${String(this.pad === 'touch')} @click=${() => (this.pad = 'touch')}>${ic('touch')}${tr('משטח')}</button></div>`
         : nothing}
       <div class=${cls}>
         ${center ? (hasVol ? this.rocker(d, 'vol') : html`<div class="col"></div>`) : hasVol ? this.rocker(d, 'vol') : nothing}
@@ -835,30 +836,30 @@ export class MediaRemote extends LitElement {
         if (l.play === null && l.now.kind !== 'app') return null;
         const playing = l.play === 'playing';
         const tk = (action: TransportAction, glyph: string, label: string, cls = '') => html`<button type="button" class="kb ${cls}" aria-label=${label} data-mr-transport=${action} @click=${() => this.transport(action)}><span class="kc">${ic(glyph)}</span></button>`;
-        return html`<div class="pbk" role="group" aria-label="ניגון" data-mr-pbk>
-          ${t.previous ? tk('previous', 'prev', 'הקודם') : nothing}${d.caps.keys.includes('rew') ? this.kb(d, 'rew', { label: '', glyph: 'rew' }) : nothing}
-          ${tk('play_pause', playing ? 'pause' : 'play', playing ? 'השהה' : 'נגן', 'main')}
-          ${d.caps.keys.includes('ff') ? this.kb(d, 'ff', { label: '', glyph: 'ff' }) : nothing}${t.next ? tk('next', 'next', 'הבא') : nothing}</div>`;
+        return html`<div class="pbk" role="group" aria-label=${tr('ניגון')} data-mr-pbk>
+          ${t.previous ? tk('previous', 'prev', tr('הקודם')) : nothing}${d.caps.keys.includes('rew') ? this.kb(d, 'rew', { label: '', glyph: 'rew' }) : nothing}
+          ${tk('play_pause', playing ? 'pause' : 'play', playing ? tr('השהה') : tr('נגן'), 'main')}
+          ${d.caps.keys.includes('ff') ? this.kb(d, 'ff', { label: '', glyph: 'ff' }) : nothing}${t.next ? tk('next', 'next', tr('הבא')) : nothing}</div>`;
       }
       case 'nums': {
         if (!NUM_KEYS.some((k) => d.caps.keys.includes(k))) return null;
-        return html`<div data-mr-nums><h4>מספרים</h4><div class="chentry" aria-live="polite">${this.chbuf ? html`ערוץ <b>${this.chbuf}</b>` : nothing}</div>
+        return html`<div data-mr-nums><h4>${tr('מספרים')}</h4><div class="chentry" aria-live="polite">${this.chbuf ? html`${tr('ערוץ')} <b>${this.chbuf}</b>` : nothing}</div>
           <div class="npad">${NUM_KEYS.map((k) => (d.caps.keys.includes(k) ? html`<button type="button" data-key=${k} aria-label=${KEY_LABEL[k]}>${digitOf(k) || ic(k === 'prech' ? 'history' : 'info')}</button>` : html`<span></span>`))}</div></div>`;
       }
       case 'colors': {
         const keys = COLOR_KEYS.filter((k) => d.caps.keys.includes(k));
-        return keys.length ? html`<div data-mr-colors><h4>מקשי צבע</h4><div class="ckeys">${keys.map((k) => html`<button type="button" class=${k} data-key=${k} aria-label=${KEY_LABEL[k]}></button>`)}</div></div>` : null;
+        return keys.length ? html`<div data-mr-colors><h4>${tr('מקשי צבע')}</h4><div class="ckeys">${keys.map((k) => html`<button type="button" class=${k} data-key=${k} aria-label=${KEY_LABEL[k]}></button>`)}</div></div>` : null;
       }
       case 'text': {
         if (!d.caps.text) return null;
-        return html`<div data-mr-text><h4>הקלדה במסך</h4><div class="kbd"><label class="fld">${ic('keyboard')}<span style="position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip:rect(0 0 0 0)">טקסט לשליחה</span>
-          <input type="text" maxlength="200" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="הקלדה" .value=${this.typed} @input=${this.onText} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); this.sendText(); } }} /></label>
-          <button type="button" class="btn primary" data-mr-send ?disabled=${!this.typed.trim()} @click=${() => this.sendText()}>${ic('send')}שלח</button></div></div>`;
+        return html`<div data-mr-text><h4>${tr('הקלדה במסך')}</h4><div class="kbd"><label class="fld">${ic('keyboard')}<span style="position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip:rect(0 0 0 0)">${tr('טקסט לשליחה')}</span>
+          <input type="text" maxlength="200" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder=${tr('הקלדה')} .value=${this.typed} @input=${this.onText} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); this.sendText(); } }} /></label>
+          <button type="button" class="btn primary" data-mr-send ?disabled=${!this.typed.trim()} @click=${() => this.sendText()}>${ic('send')}${tr('שלח')}</button></div></div>`;
       }
       case 'xtra': {
         const nums = this.detail ? this.detail.remote.sections.some((s) => s.id === 'nums' && s.on) : false;
         const keys = XTRA_KEYS.filter((k) => d.caps.keys.includes(k) && !XTRA_SPOKEN_ELSEWHERE.includes(k) && !(nums && (k === 'prech' || k === 'info')));
-        return keys.length ? html`<div data-mr-xtra><h4>מקשים נוספים</h4><div class="xkeys">${keys.map((k) => html`<button type="button" class="btn quiet" data-key=${k}>${ic(KEY_GLYPH[k] ?? 'app')}${KEY_LABEL[k]}</button>`)}</div></div>` : null;
+        return keys.length ? html`<div data-mr-xtra><h4>${tr('מקשים נוספים')}</h4><div class="xkeys">${keys.map((k) => html`<button type="button" class="btn quiet" data-key=${k}>${ic(KEY_GLYPH[k] ?? 'app')}${KEY_LABEL[k]}</button>`)}</div></div>` : null;
       }
       default:
         return null;

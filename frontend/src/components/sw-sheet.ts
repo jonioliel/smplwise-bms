@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import './sw-icon';
 import { deepFocusables } from './sw-drawer';
 import { LookController, type Popup } from '../design/look';
+import { tr } from '../i18n/msg/components';
 
 /** The element that really holds focus (through shadow roots). */
 function deepActive(): HTMLElement | null {
@@ -480,11 +481,11 @@ export class SwSheet extends LitElement {
     return html`<div class="backdrop" data-sheet-backdrop @click=${(e: Event) => e.target === e.currentTarget && this.close()}></div>
       <section class="sheet" role=${inline ? 'region' : 'dialog'} aria-modal=${inline ? nothing : 'true'} aria-label=${this.heading || nothing} data-sheet
         @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp}>
-        <button type="button" class="grab" tabindex="-1" aria-label="גרירה לסגירה" data-sheet-grab></button>
+        <button type="button" class="grab" tabindex="-1" aria-label=${tr('גרירה לסגירה')} data-sheet-grab></button>
         <header ?hidden=${!showHeader}>
           ${this.hasHead ? nothing : html`<div class="titles"><h3>${this.heading}</h3></div>`}
           <slot name="head" @slotchange=${(e: Event) => (this.hasHead = (e.target as HTMLSlotElement).assignedElements({ flatten: true }).length > 0)}></slot>
-          <button type="button" class="x" aria-label="סגור" data-sheet-close @click=${() => this.close()}><sw-icon name="close" size=${18}></sw-icon></button>
+          <button type="button" class="x" aria-label=${tr('סגור')} data-sheet-close @click=${() => this.close()}><sw-icon name="close" size=${18}></sw-icon></button>
         </header>
         <div class="body"><slot></slot></div>
         <footer ?hidden=${!this.hasFooter}><slot name="footer" @slotchange=${(e: Event) => (this.hasFooter = (e.target as HTMLSlotElement).assignedElements({ flatten: true }).length > 0)}></slot></footer>

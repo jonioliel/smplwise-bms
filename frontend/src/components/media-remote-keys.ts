@@ -7,14 +7,15 @@
  * a brand logo or a brand colour (CR-015 §7.4).
  */
 import type { Glyph, KeyId, RemoteSection } from '../api/media-screens';
+import { tr } from '../i18n/msg/components';
 
 /** The label a key has for a screen reader and, where it is drawn with text, for the eye. */
 export const KEY_LABEL: Record<KeyId, string> = {
-  up: 'למעלה', down: 'למטה', left: 'שמאלה', right: 'ימינה', ok: 'אישור', back: 'חזרה', home: 'בית', menu: 'תפריט', exit: 'יציאה', info: 'מידע',
-  guide: 'מדריך', source: 'מקור', tools: 'כלים', settings: 'הגדרות', chlist: 'רשימת ערוצים', prech: 'ערוץ קודם',
-  volup: 'הגבר', voldown: 'הנמך', mute: 'השתק', chup: 'ערוץ הבא', chdown: 'ערוץ קודם',
+  up: tr('למעלה'), down: tr('למטה'), left: tr('שמאלה'), right: tr('ימינה'), ok: tr('אישור'), back: tr('חזרה'), home: tr('בית'), menu: tr('תפריט'), exit: tr('יציאה'), info: tr('מידע'),
+  guide: tr('מדריך'), source: tr('מקור'), tools: tr('כלים'), settings: tr('הגדרות'), chlist: tr('רשימת ערוצים'), prech: tr('ערוץ קודם'),
+  volup: tr('הגבר'), voldown: tr('הנמך'), mute: tr('השתק'), chup: tr('ערוץ הבא'), chdown: tr('ערוץ קודם'),
   n0: '0', n1: '1', n2: '2', n3: '3', n4: '4', n5: '5', n6: '6', n7: '7', n8: '8', n9: '9',
-  red: 'אדום', green: 'ירוק', yellow: 'צהוב', blue: 'כחול', play: 'נגן', pause: 'השהה', stop: 'עצור', rew: 'אחורה', ff: 'קדימה',
+  red: tr('אדום'), green: tr('ירוק'), yellow: tr('צהוב'), blue: tr('כחול'), play: tr('נגן'), pause: tr('השהה'), stop: tr('עצור'), rew: tr('אחורה'), ff: tr('קדימה'),
 };
 
 /** Which glyph draws a key (a name of ICON below); digits and colours are drawn by their own controls. */
@@ -34,8 +35,8 @@ export const COLOR_KEYS: KeyId[] = ['red', 'green', 'yellow', 'blue'];
 
 /** The remote's sections, in the words of the editor (SECTION_LABEL of the client has the same; these are the short forms). */
 export const SECTION_SHORT: Record<RemoteSection, string> = {
-  recent: 'אחרונים', nav: 'חזרה · בית · תפריט', dpad: 'חצים ואישור', touch: 'משטח מגע', vol: 'עוצמה', ch: 'ערוצים', pbk: 'ניגון',
-  nums: 'מספרים', colors: 'מקשי צבע', text: 'הקלדה', xtra: 'מקשים נוספים',
+  recent: tr('אחרונים'), nav: tr('חזרה · בית · תפריט'), dpad: tr('חצים ואישור'), touch: tr('משטח מגע'), vol: tr('עוצמה'), ch: tr('ערוצים'), pbk: tr('ניגון'),
+  nums: tr('מספרים'), colors: tr('מקשי צבע'), text: tr('הקלדה'), xtra: tr('מקשים נוספים'),
 };
 
 /**

@@ -9,6 +9,7 @@ import { playerView } from './media-player-now';
 import { mmss } from './media-remote-logic';
 import { applyMediaGlass, mediaGlassStyles } from '../styles/media-glass';
 import './sw-pill';
+import { tr } from '../i18n/msg/components';
 
 /**
  * The Bubble skin's "now playing" hero (phase C, 2026-10-02; the media board's top panel): ONE glass panel over the blurred cover
@@ -327,7 +328,7 @@ export class MediaNowHero extends LitElement {
     const tp = (action: 'previous' | 'play_pause' | 'next') => () => void this.send(action, { command: 'transport', action });
     const members = d.live.group.role === 'leader' ? d.live.group.member_keys.length + 1 : 0;
     const art = v.artwork ? artworkUrl(v.artwork) : '';
-    return html`<section class="hero" style=${`--a1:${v.a1};--a2:${v.a2}`} aria-label=${`מתנגן עכשיו · ${d.name}`} data-now-hero=${d.key} data-playing=${String(playing)}>
+    return html`<section class="hero" style=${`--a1:${v.a1};--a2:${v.a2}`} aria-label=${`${tr('מתנגן עכשיו')} · ${d.name}`} data-now-hero=${d.key} data-playing=${String(playing)}>
       <div class="bg" style=${art ? `background-image:url("${art}")` : nothing}></div>
       <div class="veil"></div>
       <div class="in">
@@ -335,7 +336,7 @@ export class MediaNowHero extends LitElement {
         <div class="meta">
           <div class="chips">
             <span class="chip">${mIcon(d.kind === 'player' ? 'media' : 'speaker')}${nameText(d.area_name || d.name)}</span>
-            ${members ? html`<span class="chip">${mIcon('group')}${members} חדרים</span>` : nothing}
+            ${members ? html`<span class="chip">${mIcon('group')}${tr('{n} חדרים', { n: members })}</span>` : nothing}
           </div>
           <div class="ttl" data-now-title>${nameText(n.title || v.line || d.name)}</div>
           ${n.artist || n.album ? html`<div class="sub">${nameText([n.artist, n.album].filter(Boolean).join(' · '))}</div>` : nothing}
@@ -343,19 +344,19 @@ export class MediaNowHero extends LitElement {
         </div>
         <div class="bar">
           ${v.kind === 'station'
-            ? html`<span class="live"><i></i>שידור חי</span><span class="tr"></span><span></span>`
+            ? html`<span class="live"><i></i>${tr('שידור חי')}</span><span class="tr"></span><span></span>`
             : html`<span>${pos !== null ? mmss(pos) : '–:––'}</span><span class="tr" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${Math.round(pct)} style=${`--p:${pct}%`}><i></i></span><span>${dur ? mmss(dur) : '–:––'}</span>`}
         </div>
         <div class="keys">
           ${can
-            ? html`<span class="tp" role="group" aria-label="ניגון">
-                <button type="button" class="k" aria-label="הקודם" ?disabled=${!playerCommandOffered(d, { command: 'transport', action: 'previous' })} @click=${tp('previous')}>${mIcon('prev')}</button>
-                <button type="button" class=${classMap({ k: true, main: true })} aria-label=${playing ? 'השהה' : 'נגן'} ?disabled=${!playerCommandOffered(d, { command: 'transport', action: 'play_pause' }) || this.pending.has('play_pause')} @click=${tp('play_pause')}>${mIcon(playing ? 'pause' : 'play')}</button>
-                <button type="button" class="k" aria-label="הבא" ?disabled=${!playerCommandOffered(d, { command: 'transport', action: 'next' })} @click=${tp('next')}>${mIcon('next')}</button>
+            ? html`<span class="tp" role="group" aria-label=${tr('ניגון')}>
+                <button type="button" class="k" aria-label=${tr('הקודם')} ?disabled=${!playerCommandOffered(d, { command: 'transport', action: 'previous' })} @click=${tp('previous')}>${mIcon('prev')}</button>
+                <button type="button" class=${classMap({ k: true, main: true })} aria-label=${playing ? tr('השהה') : tr('נגן')} ?disabled=${!playerCommandOffered(d, { command: 'transport', action: 'play_pause' }) || this.pending.has('play_pause')} @click=${tp('play_pause')}>${mIcon(playing ? 'pause' : 'play')}</button>
+                <button type="button" class="k" aria-label=${tr('הבא')} ?disabled=${!playerCommandOffered(d, { command: 'transport', action: 'next' })} @click=${tp('next')}>${mIcon('next')}</button>
               </span>`
             : nothing}
           ${can && d.caps.volume_set
-            ? html`<sw-pill class="vol" variant="slider" icon="volume" label="עוצמה" .state=${`${lv}%${d.live.volume.muted ? ' · מושתק' : ''}`} .value=${lv / 100} on keep-text fill-color="var(--sw-accent-soft)" ?unavailable=${this.pending.has('volume')}
+            ? html`<sw-pill class="vol" variant="slider" icon="volume" label=${tr('עוצמה')} .state=${`${lv}%${d.live.volume.muted ? ` · ${tr('מושתק')}` : ''}`} .value=${lv / 100} on keep-text fill-color="var(--sw-accent-soft)" ?unavailable=${this.pending.has('volume')}
                 @toggle=${() => void this.send('mute', { command: 'mute', muted: !d.live.volume.muted })} @change=${(e: CustomEvent<{ value: number }>) => void this.send('volume', { command: 'volume_set', level: Math.max(0, Math.min(ceiling ?? 100, Math.round(e.detail.value * 100))) })}></sw-pill>`
             : nothing}
         </div>
