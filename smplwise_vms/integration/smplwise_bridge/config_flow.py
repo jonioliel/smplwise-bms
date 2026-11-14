@@ -7,13 +7,14 @@ import logging
 from typing import Any
 
 import voluptuous as vol
+from aiohttp import ClientTimeout
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service_info.hassio import HassioServiceInfo
 
-from .const import CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_LOCAL_IDENTITY_EXTENDED, CONF_LOCAL_IDENTITY_RUNNABLE, CONF_PAIRING_CODE, CONF_SERVICE_USER_ID, CONF_WISKEY_AUTO_INSTALL, CONF_WISKEY_EXECUTE_POLICY, DEFAULT_ADDON_URL, DOMAIN, VERSION
+from .const import CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_LOCAL_IDENTITY_EXTENDED, CONF_LOCAL_IDENTITY_RUNNABLE, CONF_PAIRING_CODE, CONF_SERVICE_USER_ID, CONF_WISKEY_AUTO_INSTALL, CONF_WISKEY_EXECUTE_POLICY, ADDON_POST_TIMEOUT_S, DEFAULT_ADDON_URL, DOMAIN, VERSION
 from .runnable import RUNNABLE_DOMAINS, parse_runnable, selector_value
 from .service_identity import options_error
 from .signing import sign
@@ -39,7 +40,7 @@ class SmplwiseBridgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         """Ping the add-on with a signed message; returns an error key or None when paired."""
         session = async_get_clientsession(self.hass)
         try:
-            async with session.post(f"{url}/api/v1/ha/bridge/ping", json=sign(code, {"version": VERSION}), timeout=10) as resp:
+            async with session.post(f"{url}/api/v1/ha/bridge/ping", json=sign(code, {"version": VERSION}), timeout=ClientTimeout(total=ADDON_POST_TIMEOUT_S)) as resp:
                 if resp.status == 200:
                     return None
                 return "invalid_auth" if resp.status == 401 else "unknown"

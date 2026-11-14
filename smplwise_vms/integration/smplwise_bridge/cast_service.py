@@ -26,6 +26,11 @@ CALL_TIMEOUT_S = 20.0
 
 STATE: dict[str, Any] = {"origin": None, "origin_at": None}
 _calls: deque[float] = deque()
+# CR-BRIDGE-GAPS-2436 (review 05 P2-21): the announced origin is only as good as the add-on's last signed word. The add-on re-announces it
+# with every directory push (const.DIRECTORY_INTERVAL_S, 60 s); one that has not been heard of for ORIGIN_MAX_AGE_S (ten pushes) counts
+# as stale - unknown - and a `play` is refused as for a missing one (`cast_origin_unknown`), as this module's docstring always said.
+ORIGIN_MAX_AGE_S = 600.0
+_origin_mono: list[float | None] = [None]  # time.monotonic() of the last accepted block (a wall-clock step cannot revive or age it)
 
 
 def note_origin(verifier: Any, block: Any) -> None:
@@ -37,6 +42,16 @@ def note_origin(verifier: Any, block: Any) -> None:
     origin = block.get("cast_origin")
     STATE["origin"] = origin if cast_policy.origin_netloc(origin) else None
     STATE["origin_at"] = time.time()
+    _origin_mono[0] = time.monotonic()
+
+
+def current_origin(now: float | None = None) -> str | None:
+    """The announced origin while it is fresh (heard of within ORIGIN_MAX_AGE_S), else None (unknown)."""
+    origin, at = STATE.get("origin"), _origin_mono[0]
+    if origin is None or at is None:
+        return None
+    now = time.monotonic() if now is None else now
+    return origin if now - at <= ORIGIN_MAX_AGE_S else None
 
 
 def _rate_limited(now: float) -> bool:
@@ -83,7 +98,7 @@ async def async_handle_cast_stream(hass: Any, verifier: Any, msg: dict[str, Any]
         _LOGGER.warning("smplwise_bridge.cast_stream refused: rate_limited")
         return _refuse(msg, "rate_limited")
     local = await _local_addresses(hass) if msg.get("op") == "play" else []
-    blocked = cast_policy.refusal(msg, platform_of, STATE["origin"], local)
+    blocked = cast_policy.refusal(msg, platform_of, current_origin(), local)
     if blocked:
         _LOGGER.warning("smplwise_bridge.cast_stream refused: %s", blocked)
         return _refuse(msg, blocked)

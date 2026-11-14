@@ -51,6 +51,14 @@ SAVE_DELAY_S = 2.0
 FP_LABEL = "smplwise-retired-pairing-code|"
 FP_RE = re.compile(r"^[0-9a-f]{64}$")
 _DUMMY = secrets.token_urlsafe(32)  # never a real key: keeps the compare's cost the same when no key can be used
+# CR-BRIDGE-GAPS-2436 (review 05 P3-07, verify): a control message never carries these - only an ANSWER does (`_answer`). Both peers sign
+# with the same key, so without this check a bridge answer handed back to the `rotate` service would verify as a control message.
+ANSWER_ONLY = ("reply_to", "ok")
+
+
+class NoSigningKey(ValueError):
+    """`KeySet.sign` with no key to sign with (CR-BRIDGE-GAPS-2436, review 05 P2-21): a ValueError as before, now told apart from a
+    transport failure by the directory push (`push_health.NO_SIGNING_KEY`)."""
 
 
 def canonical(body: dict[str, Any]) -> str:
@@ -206,7 +214,7 @@ class KeySet:
         self._cap()
         material = self._material(self.signing)
         if material is None:
-            raise ValueError("no signing key")
+            raise NoSigningKey("no signing key")
         ts = int(ts) if ts else int(self._now())
         if self.signing == LEGACY_KID:
             nonce = nonce or secrets.token_hex(8)
@@ -275,6 +283,8 @@ class KeySet:
         missing id is refused unsigned as `bad_format` and never reaches the MAC, the replay cache or the high-water mark."""
         rid = msg.get("rotation_id") if isinstance(msg, dict) else None
         if not isinstance(rid, str) or not 1 <= len(rid) <= ROTATION_ID_MAX:
+            return {"ok": False, "code": "bad_format"}
+        if any(k in msg for k in ANSWER_ONLY):  # a reflected answer (see ANSWER_ONLY): refused unsigned, before the MAC like any bad shape
             return {"ok": False, "code": "bad_format"}
         kid, code = self._check(msg, now)
         if kid is None:
