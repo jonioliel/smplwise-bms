@@ -81,6 +81,15 @@ Overlaps checked by reading (no textual conflict, both intents present):
 - `wiskey_lineage.py` keeps AUTH-REVOKE-GATE's local `_gate`; adopting `rbac.require_system_admin` (CR-ADMIN-GATE note) is a
   one-line follow-up, not done here.
 
+## Follow-ups (lead decision 14.11.2026, answer b)
+
+Both are behaviour changes, not merge resolutions. They go into ONE separate branch stacked on this one, started only AFTER
+`CR-WAVE2-COMBINED-2439` has a GREEN entry check:
+1. `routers/wiskey_lineage.py`: replace AUTH-REVOKE-GATE-2435's local `_gate` with `rbac.require_system_admin` (CR-ADMIN-GATE-2438),
+   keeping the audit action, texts and status codes the lineage tests pin.
+2. `services/notify_recipients.active_user_ids`: delegate to the shared active-user definition (`services/active_users.active_user_ids`,
+   owner O16 a: disabled on either side is not active), as CR-RBAC-EVAL-2438 and CR-ACTIVE-USER-REST-2438 recorded.
+
 ## Re-checks
 
 - Migrations: 216 files, contiguous, last `0216_review_indexes.sql`; no duplicate number, no new migration in wave 2.
