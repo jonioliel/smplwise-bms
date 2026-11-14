@@ -129,6 +129,20 @@ Proof run @ `21abe3c5b`, no `-u`, one worker: every `pixel-*` spec, the visual m
 specs (audit30-f-calendars, evidence-audit30b-shared, evidence-audit30b2-page-action, evidence-audit30c-tickets,
 layout-audit30-e-infra, layout-audit30h-wiskey, layout-audit30h2-wiskey), `-g "pixel|vm "`: 527 passed, 391 skipped, 0 failed.
 
-### Round 2
+### Round 2 - `3c29dec28`: RED (queued 517 min, ran 99 min; 1 failure outside the quarantine)
 
-Queued the same way at the head that carries this section.
+Counts: preview 12767 passed / 1 failed / 5 flaky, dev 785 / 0, fixture 28 / 0, visual 72 / 0, pixel 349 / 0, backend 2818 / 0;
+tsc, build, release check, add-on build and spec lint passed. Every round-1 failure is gone.
+
+- `evidence-pwa-push.spec.ts:139` [desktop] "a new release: update notice, new worker, old cache deleted" - test timeout 180 s,
+  failed again alone. **Classified real for this branch, cause not found:** the main nightly on the runner (`gate_main_0a8fb55e1`)
+  passes it in 12 s, so the round-1 reading "pre-existing on main" (3 of 3 failures on a local main build) does not hold on the
+  runner; the wait for the waiting worker added in `7b3a90ee8` did not change the runner result. Locally on the combined build the
+  click on "רענון" lands on the toast's sw-button (hit test checked) but no navigation follows; with Playwright's API trace on it
+  passes. Next step: a runner `preview` job of this one test with `--trace on`, and a bisect over the merged heads on the runner
+  (the home screen behind the notice, `#/devices/building`, is the first suspect: A's glass bridge and B2's page action touch it).
+- Flaky (passed alone): evidence-tickets-costs:106 [mobile], evidence-calendars-settings-2310:363 [mobile],
+  evidence-frigate-f2b-skins-2405:75 [mobile], home-v3-followup-a:79 [desktop], pixel-notice-tv-portrait-chips:121 [desktop].
+
+Stopped after two RED rounds, as instructed. Note: `origin/main` moved to 2.43.5 (`0a8fb55e1`) while round 2 ran; this branch is
+cut from `665ec8f24` and needs a merge of main before it boards the next train.
