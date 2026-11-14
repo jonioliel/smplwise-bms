@@ -58,3 +58,12 @@ NOT_RUN locally: the full backend and Playwright suites, pixel specs - that is t
 
 Queued on the runner: `ENTRY_TOTAL_SECS=10800 ~/gate2/branch_check.sh pilot/CR-WAVE1-COMBINED-2436 --max-wait 0`. The verdict is recorded
 in a follow-up commit on this branch.
+
+### Entry check round 1 (2026-11-13/14): NOT RUN - infrastructure
+
+`entry_pilot-CR-WAVE1-COMBINED-2436_94ba976b8.md`: NOT RUN after 359 min in the queue, run 0 min - `git worktree add failed`. The entry log
+shows `No space left on device` while checking out the engine worktree: the runner root volume was 100 % full (234 MB free; `~/work` 179 GB,
+of which 43 `gate-*` worktrees 82 GB at about 2 GB each). Classified **infra**, not a test failure; no test ran. `~/gate_clean.sh` (the
+owner's conservative cleanup) freed only about 2 GB (one worktree; it never touches `gate-*` or anything newer than 6 h), which is not
+enough for another gate worktree, so the check was **not re-queued**. Next step for the lead: free space (for example `gate-*` worktrees of
+branches already merged or abandoned), then re-queue the same command.
