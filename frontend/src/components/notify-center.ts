@@ -10,6 +10,7 @@ import { nIcon } from './notify-icons';
 import { notifyControls, notifyKnobs } from './notify-css';
 import { filterCounts, menuArrow, sourceOptions, subtitleText, visibleRows } from './notify-logic';
 import { applyNotifyGlass, notifyStore, type NotifyState } from './notify-store';
+import './sw-dialog';
 import './notify-row';
 import './notify-detail';
 import type { RowAction } from './notify-row';
@@ -88,10 +89,10 @@ export class NotifyCenter extends LitElement {
         inset-block: 12px;
         inset-inline-start: calc(var(--sw-rail-w) + 12px);
         inline-size: var(--nt-sheet-w);
-        background: var(--mm-sheen), var(--mm-sheet-surface);
-        -webkit-backdrop-filter: var(--mm-sheet-blur);
-        backdrop-filter: var(--mm-sheet-blur);
-        border: 1px solid var(--dv-border);
+        /* DIALOG-DRAWER-ONE-2439 (owner round 33, Q-DES-8B): an opaque surface with no blur, like every drawer; it opens from the same
+           side (the inline start, beside the rail). The panel keeps its own structure (list / detail, filters, the phone sheet). */
+        background: var(--sw-menu-surface);
+        border: 1px solid var(--sw-menu-border);
         border-radius: var(--dv-radius-lg);
         box-shadow: var(--dv-shadow-3);
         display: flex;
@@ -354,28 +355,10 @@ export class NotifyCenter extends LitElement {
         padding-block: 56px;
       }
       /* the door confirmation (CR §9) is a sibling of the sheet: a fixed element inside a backdrop-filtered parent would be clipped by it */
-      .dlgwrap {
-        position: absolute;
-        inset: 0;
-        z-index: 5;
-        display: grid;
-        place-items: center;
-        background: var(--dv-overlay);
-        padding: 16px;
-      }
       .dlg {
-        inline-size: min(400px, 100%);
-        background: var(--mm-sheet-surface);
-        -webkit-backdrop-filter: var(--mm-sheet-blur);
-        backdrop-filter: var(--mm-sheet-blur);
-        border: 1px solid var(--dv-border);
-        border-radius: var(--dv-radius-lg);
-        box-shadow: var(--dv-shadow-3);
-        padding: 22px 22px 18px;
         display: flex;
         flex-direction: column;
         gap: 16px;
-        animation: mm-pop var(--mm-motion) var(--mm-ease);
       }
       .dlg .dh3 {
         display: flex;
@@ -419,11 +402,12 @@ export class NotifyCenter extends LitElement {
         font-size: var(--sw-fs-md);
         color: var(--dv-success);
       }
-      .dlg .acts {
+      .acts {
         display: flex;
         gap: 8px;
+        flex: 1;
       }
-      .dlg .acts .btn {
+      .acts .btn {
         flex: 1;
         min-block-size: 46px;
       }
@@ -638,6 +622,13 @@ export class NotifyCenter extends LitElement {
     await this.doorRun();
   }
 
+  /** ✕ / Escape / the scrim on the door dialog: cancel a question, dismiss a result; a command on its way is never closed. */
+  private doorCloseRequest() {
+    const p = this.door.phase;
+    if (p === 'confirm' || p === 'step_up') this.door = reduceDoorOpen(this.door, { type: 'cancel' });
+    else if (p === 'done' || p === 'failed') this.door = reduceDoorOpen(this.door, { type: 'dismiss' });
+  }
+
   // ---------------------------------------------------------------------------------------------- render
 
   private renderDoorDialog() {
@@ -665,11 +656,15 @@ export class NotifyCenter extends LitElement {
       body = nothing;
       acts = html`<button type="button" class="btn" data-door-close @click=${() => (this.door = reduceDoorOpen(d, { type: 'dismiss' }))}>סגור</button>`;
     }
-    return html`<div class="dlgwrap" data-door-dialog=${d.phase} @click=${(e: Event) => { if (e.target === e.currentTarget && (d.phase === 'confirm' || d.phase === 'step_up')) this.door = reduceDoorOpen(d, { type: 'cancel' }); }}>
-      <div class="dlg" role="alertdialog" aria-modal="true" aria-labelledby="door-h">
-        <div class="dh3"><span class=${classMap({ ring: true, [ringCls]: !!ringCls })}>${nIcon(ring)}</span><h3 id="door-h" data-door-text>${head}</h3></div>
-        ${body}<div class="acts">${acts}</div>
-      </div></div>`;
+    // DIALOG-DRAWER-ONE-2439 (owner round 33, Q-DES-8A): the door confirmation is the system's one dialog (sw-dialog: the scrim, the opaque
+    // box, the door's name and the close button on top, the actions on the bottom, focus trap, focus return). A close request (✕, Escape,
+    // the scrim) is cancelled and answered by the door flow itself: it cancels a question, dismisses a result, and does nothing while the
+    // command is on its way.
+    return html`<sw-dialog open heading=${name} data-door-dialog=${d.phase} ?locked=${sending} @beforeclose=${(e: Event) => { e.preventDefault(); this.doorCloseRequest(); }}>
+        <div class="dlg"><div class="dh3"><span class=${classMap({ ring: true, [ringCls]: !!ringCls })}>${nIcon(ring)}</span><h3 id="door-h" data-door-text>${head}</h3></div>
+        ${body}</div>
+        <div slot="footer" class="acts">${acts}</div>
+      </sw-dialog>`;
   }
 
   /** "המסירה לטלפון נכשלה · התראה אחת / 3 התראות" (the contract helper's text reads "1 התראות"). */
