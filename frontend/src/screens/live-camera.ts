@@ -44,7 +44,8 @@ import { castTargets, type CastSession } from '../api/cast';
 import { CastWatch, castStore } from '../components/cast-store';
 import { castButtonVisible, isLow, leftText } from './cast-logic';
 import { isPhoneWidth } from '../shell/tabs-mode';
-import { t as tr } from '../i18n/he';
+import { t as heT } from '../i18n/he';
+import { tr } from '../i18n/msg/live';
 import { fx } from '../i18n/frigate-text';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { timeText } from '../api/day-format';
@@ -204,7 +205,7 @@ export class LiveCamera extends LitElement {
       // asking anyway cost every other user two refused requests per camera (0.1.81)
       this.sched = null;
       this.smart = null;
-      this.schedError = 'לוחות הזמנים וחוקי ה־smart של המקליט נקראים עם הרשאת ניהול מקליט.';
+      this.schedError = tr('לוחות הזמנים וחוקי ה־smart של המקליט נקראים עם הרשאת ניהול מקליט.');
       return;
     }
     const gen = this.camGen;
@@ -262,7 +263,7 @@ export class LiveCamera extends LitElement {
         ? await setRecordSchedule(cam.id, { days: e.days, ...(e.schedule_enabled !== null && e.schedule_enabled !== this.sched?.record?.schedule_enabled ? { schedule_enabled: e.schedule_enabled ?? undefined } : {}) })
         : await setArming(cam.id, e.kind, e.days);
       if (gen !== this.camGen) return;
-      this.schedMsg = rec.status === 'unchanged' ? 'המקליט כבר היה במצב הזה — לא נכתב דבר.' : 'הלוח נכתב למקליט ונרשם (ניתן להחזרה מרשימת השינויים בהגדרות ‹ חיבורים).';
+      this.schedMsg = rec.status === 'unchanged' ? tr('המקליט כבר היה במצב הזה — לא נכתב דבר.') : tr('הלוח נכתב למקליט ונרשם (ניתן להחזרה מרשימת השינויים בהגדרות ‹ חיבורים).');
       this.schedEdit = null;
       await this.loadSchedules();
     } catch (err) {
@@ -275,7 +276,7 @@ export class LiveCamera extends LitElement {
   /** LIVECAM-DRAFT-RESET-2435: a draft that does not belong to the camera on screen is dropped, never written (defensive: a camera
    * change already closes every draft). */
   private refuseStaleDraft(kind: 'motion' | 'sched' | 'smart') {
-    const msg = 'העריכה נפתחה למצלמה אחרת ולכן לא נכתבה למקליט. פתח את העריכה מחדש במצלמה הזו.';
+    const msg = tr('העריכה נפתחה למצלמה אחרת ולכן לא נכתבה למקליט. פתח את העריכה מחדש במצלמה הזו.');
     if (kind === 'motion') {
       this.motionEdit = null;
       this.motionConfirm = false;
@@ -293,12 +294,12 @@ export class LiveCamera extends LitElement {
   private renderSchedules() {
     const s = this.sched;
     if (this.schedError && !s) return html`<div class="note">${this.schedError}</div>`;
-    if (!s) return html`<div class="note">קורא לוחות מהמקליט…</div>`;
+    if (!s) return html`<div class="note">${tr('קורא לוחות מהמקליט…')}</div>`;
     const kinds: { id: ArmingKind | 'record'; label: string; ok: boolean }[] = [
-      { id: 'motion', label: 'זיהוי תנועה', ok: !!s.arming.motion },
-      { id: 'line', label: 'חציית קו', ok: !!s.arming.line },
-      { id: 'field', label: 'פריצה לאזור', ok: !!s.arming.field },
-      { id: 'record', label: 'לוח הקלטה', ok: !!s.record },
+      { id: 'motion', label: tr('זיהוי תנועה'), ok: !!s.arming.motion },
+      { id: 'line', label: tr('חציית קו'), ok: !!s.arming.line },
+      { id: 'field', label: tr('פריצה לאזור'), ok: !!s.arming.field },
+      { id: 'record', label: tr('לוח הקלטה'), ok: !!s.record },
     ];
     const tab = this.schedTab;
     const e = this.schedEdit?.kind === tab ? this.schedEdit : null;
@@ -306,42 +307,42 @@ export class LiveCamera extends LitElement {
     // POLISH4-WP2 (D8): the record-mode legend takes skin tokens (dark-aware, skinned). A record mode is a category, never a status, so
     // "תנועה" is no longer green (green is for status only); it takes the purple tier, distinct from the alarm red and the event amber.
     const recordModes = [
-      { id: 'CMR', label: 'רציף', color: 'var(--sw-recorded)' },
-      { id: 'MOTION', label: 'תנועה', color: 'var(--sw-purple)' },
-      { id: 'EDR', label: 'אירוע', color: 'var(--sw-warning)' },
-      { id: 'ALARM', label: 'אזעקה', color: 'var(--sw-danger)' },
+      { id: 'CMR', label: tr('רציף'), color: 'var(--sw-recorded)' },
+      { id: 'MOTION', label: tr('תנועה'), color: 'var(--sw-purple)' },
+      { id: 'EDR', label: tr('אירוע'), color: 'var(--sw-warning)' },
+      { id: 'ALARM', label: tr('אזעקה'), color: 'var(--sw-danger)' },
     ];
     const canEdit = tab === 'record' ? s.can.schedule : s.can.events;
     const label = kinds.find((k) => k.id === tab)?.label ?? '';
-    return html`<div class="note">${kinds.length} לוחות בכרטיס הזה, כולל <strong>לוח הקלטה</strong> (מתי הערוץ מקליט בפועל) — לא רק לוחות הזיהוי.</div>
+    return html`<div class="note">${tr('{n} לוחות בכרטיס הזה, כולל', { n: kinds.length })} <strong>${tr('לוח הקלטה')}</strong> ${tr('(מתי הערוץ מקליט בפועל) — לא רק לוחות הזיהוי.')}</div>
       <div class="legend" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-block-end:8px" data-schedules-tabs>
-        ${kinds.map((k) => html`<sw-chip ?selected=${tab === k.id} ?disabled=${!k.ok} data-sched-tab=${k.id} title=${k.ok ? '' : (s.unsupported[k.id] ?? 'לא נתמך בערוץ זה')} @click=${() => { if (k.ok) { this.schedTab = k.id; this.schedEdit = null; } }}>${k.label}${k.ok ? '' : ' · לא זמין'}</sw-chip>`)}
+        ${kinds.map((k) => html`<sw-chip ?selected=${tab === k.id} ?disabled=${!k.ok} data-sched-tab=${k.id} title=${k.ok ? '' : (s.unsupported[k.id] ?? tr('לא נתמך בערוץ זה'))} @click=${() => { if (k.ok) { this.schedTab = k.id; this.schedEdit = null; } }}>${k.label}${k.ok ? '' : ` · ${tr('לא זמין')}`}</sw-chip>`)}
         <span class="grow"></span>
-        ${canEdit && !e ? html`<sw-button size="sm" icon="edit" data-sched-edit @click=${() => this.startSchedEdit()}>עריכה</sw-button>` : nothing}
+        ${canEdit && !e ? html`<sw-button size="sm" icon="edit" data-sched-edit @click=${() => this.startSchedEdit()}>${tr('עריכה')}</sw-button>` : nothing}
       </div>
       ${days
-        ? html`<sw-week-grid data-week-grid .days=${days} .modes=${tab === 'record' ? recordModes : [{ id: 'on', label: 'פעיל', color: 'var(--sw-accent)' }]} ?editable=${!!e}
+        ? html`<sw-week-grid data-week-grid .days=${days} .modes=${tab === 'record' ? recordModes : [{ id: 'on', label: tr('פעיל'), color: 'var(--sw-accent)' }]} ?editable=${!!e}
             @change=${(ev: CustomEvent<{ days: WeekRange[][] }>) => { if (this.schedEdit) this.schedEdit = { ...this.schedEdit, days: ev.detail.days }; }}></sw-week-grid>`
-        : html`<div class="note">הלוח הזה לא נקרא מהמקליט${s.unsupported[tab] ? ` (${s.unsupported[tab]})` : ''}.</div>`}
+        : html`<div class="note">${tr('הלוח הזה לא נקרא מהמקליט')}${s.unsupported[tab] ? ` (${s.unsupported[tab]})` : ''}.</div>`}
       ${tab === 'record' && s.record
-        ? html`<div class="note" style="margin-block-start:6px">ברירת מחדל: ${s.record.default_mode ?? '—'} · לפני אירוע ${s.record.pre_record_s ?? '—'} שנ׳ · אחרי ${s.record.post_record_s ?? '—'} שנ׳ · הקלטה ${s.record.enabled ? 'פעילה' : 'כבויה'} · לוח ${s.record.schedule_enabled === false ? 'כבוי (מקליט לפי ברירת המחדל)' : 'פעיל'}
-            ${e ? html`<label style="display:inline-flex;gap:4px;align-items:center;margin-inline-start:8px"><input type="checkbox" data-sched-enabled .checked=${e.schedule_enabled !== false} @change=${(ev: Event) => (this.schedEdit = { ...e, schedule_enabled: (ev.target as HTMLInputElement).checked })} /> לוח פעיל</label>` : nothing}</div>`
+        ? html`<div class="note" style="margin-block-start:6px">${tr('ברירת מחדל: {mode}', { mode: s.record.default_mode ?? '—' })} · ${tr('לפני אירוע {n} שנ׳', { n: s.record.pre_record_s ?? '—' })} · ${tr('אחרי {n} שנ׳', { n: s.record.post_record_s ?? '—' })} · ${tr('הקלטה {state}', { state: s.record.enabled ? tr('פעילה') : tr('כבויה') })} · ${tr('לוח {state}', { state: s.record.schedule_enabled === false ? tr('כבוי (מקליט לפי ברירת המחדל)') : tr('פעיל') })}
+            ${e ? html`<label style="display:inline-flex;gap:4px;align-items:center;margin-inline-start:8px"><input type="checkbox" data-sched-enabled .checked=${e.schedule_enabled !== false} @change=${(ev: Event) => (this.schedEdit = { ...e, schedule_enabled: (ev.target as HTMLInputElement).checked })} /> ${tr('לוח פעיל')}</label>` : nothing}</div>`
         : nothing}
       ${e
         ? html`<div class="legend" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-block-start:8px" data-sched-editor>
-            <span class="note">${tab === 'record' ? 'צבע = מצב הקלטה לשעה זו; תא ריק = אין הקלטה בשעה זו. טעות כאן = שעות בלי הקלטה, לכן יש אישור והחזר.' : 'תא צבוע = הזיהוי פעיל בשעה זו; כיבוי כל היום = בלי התראות מהערוץ בזמן הזה.'}</span>
+            <span class="note">${tab === 'record' ? tr('צבע = מצב הקלטה לשעה זו; תא ריק = אין הקלטה בשעה זו. טעות כאן = שעות בלי הקלטה, לכן יש אישור והחזר.') : tr('תא צבוע = הזיהוי פעיל בשעה זו; כיבוי כל היום = בלי התראות מהערוץ בזמן הזה.')}</span>
             <span class="grow"></span>
-            <sw-button variant="primary" size="sm" icon="check" ?disabled=${this.schedBusy || (!this.schedDiff() && (tab !== 'record' || e.schedule_enabled === (s.record?.schedule_enabled ?? null)))} data-sched-save @click=${() => (this.schedConfirm = true)}>שמור למקליט</sw-button>
-            <sw-button size="sm" variant="ghost" icon="close" ?disabled=${this.schedBusy} data-sched-cancel @click=${() => (this.schedEdit = null)}>ביטול</sw-button>
+            <sw-button variant="primary" size="sm" icon="check" ?disabled=${this.schedBusy || (!this.schedDiff() && (tab !== 'record' || e.schedule_enabled === (s.record?.schedule_enabled ?? null)))} data-sched-save @click=${() => (this.schedConfirm = true)}>${tr('שמור למקליט')}</sw-button>
+            <sw-button size="sm" variant="ghost" icon="close" ?disabled=${this.schedBusy} data-sched-cancel @click=${() => (this.schedEdit = null)}>${tr('ביטול')}</sw-button>
           </div>`
         : nothing}
       ${this.schedConfirm && e
-        ? html`<sw-dialog open heading=${`כתיבה למקליט: ${label}`} subheading=${`${this.cam?.name ?? ''} · ערוץ ${s.channel}`} data-sched-confirm @close=${() => (this.schedConfirm = false)}>
+        ? html`<sw-dialog open heading=${tr('כתיבה למקליט: {label}', { label })} subheading=${`${this.cam?.name ?? ''} · ${tr('ערוץ {n}', { n: s.channel })}`} data-sched-confirm @close=${() => (this.schedConfirm = false)}>
             <div style="font-size:var(--sw-fs-sm);line-height:1.6">
-              <div>${e.days.map((d) => d.length).reduce((a, b) => a + b, 0)} טווחים בשבוע${tab === 'record' ? ` · ${e.days.flat().filter((r) => r.mode === 'CMR').length} רציף, ${e.days.flat().filter((r) => r.mode === 'MOTION').length} תנועה, ${e.days.flat().filter((r) => r.mode === 'EDR').length} אירוע` : ''}.</div>
-              <div style="margin-block-start:6px;color:var(--sw-text-3)">המסמך לפני ואחרי נשמר, השינוי נרשם באודיט וניתן להחזרה בלחיצה.</div>
+              <div>${tr('{n} טווחים בשבוע', { n: e.days.map((d) => d.length).reduce((a, b) => a + b, 0) })}${tab === 'record' ? ` · ${tr('{cmr} רציף, {motion} תנועה, {edr} אירוע', { cmr: e.days.flat().filter((r) => r.mode === 'CMR').length, motion: e.days.flat().filter((r) => r.mode === 'MOTION').length, edr: e.days.flat().filter((r) => r.mode === 'EDR').length })}` : ''}.</div>
+              <div style="margin-block-start:6px;color:var(--sw-text-3)">${tr('המסמך לפני ואחרי נשמר, השינוי נרשם באודיט וניתן להחזרה בלחיצה.')}</div>
             </div>
-            <div slot="footer"><sw-button variant="primary" ?disabled=${this.schedBusy} data-sched-confirm-run @click=${() => this.saveSched()}>${this.schedBusy ? 'כותב…' : 'כתוב למקליט'}</sw-button><sw-button variant="ghost" @click=${() => (this.schedConfirm = false)}>ביטול</sw-button></div>
+            <div slot="footer"><sw-button variant="primary" ?disabled=${this.schedBusy} data-sched-confirm-run @click=${() => this.saveSched()}>${this.schedBusy ? tr('כותב…') : tr('כתוב למקליט')}</sw-button><sw-button variant="ghost" @click=${() => (this.schedConfirm = false)}>${tr('ביטול')}</sw-button></div>
           </sw-dialog>`
         : nothing}
       ${this.schedMsg ? html`<div class="note" data-sched-msg>${this.schedMsg}</div>` : nothing}`;
@@ -399,10 +400,10 @@ export class LiveCamera extends LitElement {
       const st = Object.values(res).map((r) => r.status);
       const refused = Object.values(res).some((r) => r.enable_refused);
       this.smartMsg = st.every((s) => s === 'unchanged')
-        ? 'המקליט כבר היה במצב הזה — לא נכתב דבר.'
+        ? tr('המקליט כבר היה במצב הזה — לא נכתב דבר.')
         : refused
-          ? 'הצורות והפרמטרים נכתבו למקליט ונרשמו, אבל המקליט סירב להפעיל את הכלל דרך ה־ISAPI (invalidOperation). בקושחה הזו ההפעלה נעשית בממשק המקליט / המצלמה (משאב VCA של המצלמה); אחרי ההפעלה שם התצוגה כאן תתעדכן.'
-          : 'הכללים נכתבו למקליט ונרשמו (ניתנים להחזרה). התראות "אדם" / "רכב" מגיעות רק כשהערוץ מודיע ל־Arx (הגדרות ‹ חיבורים ‹ התראות מהמקליט).';
+          ? tr('הצורות והפרמטרים נכתבו למקליט ונרשמו, אבל המקליט סירב להפעיל את הכלל דרך ה־ISAPI (invalidOperation). בקושחה הזו ההפעלה נעשית בממשק המקליט / המצלמה (משאב VCA של המצלמה); אחרי ההפעלה שם התצוגה כאן תתעדכן.')
+          : tr('הכללים נכתבו למקליט ונרשמו (ניתנים להחזרה). התראות "אדם" / "רכב" מגיעות רק כשהערוץ מודיע ל־Arx (הגדרות ‹ חיבורים ‹ התראות מהמקליט).');
       this.smartEdit = null;
       await Promise.all([this.loadSchedules(), this.loadZones(true)]);
     } catch (err) {
@@ -424,34 +425,34 @@ export class LiveCamera extends LitElement {
 
   private renderSmartEditor() {
     const ed = this.smartEdit!;
-    const dir = (d: string) => ({ any: 'שני הכיוונים', 'left-right': 'שמאל → ימין', 'right-left': 'ימין → שמאל' })[d] ?? d;
+    const dir = (d: string) => ({ any: tr('שני הכיוונים'), 'left-right': tr('שמאל → ימין'), 'right-left': tr('ימין → שמאל') })[d] ?? d;
     return html`<div class="legend" data-smart-editor style="display:grid;gap:8px;margin-block-start:8px">
-      <div class="note">בחר כלל ולחץ על התמונה כדי לצייר: קו = <strong>שתי</strong> לחיצות (התחלה וסוף — לחיצה נוספת מזיזה את הסוף); אזור פריצה = <strong>4 עד 10</strong> לחיצות (נקודה לכל פינה), ואז ישר "שמור למקליט" למטה — אין צורך לסגור את הצורה. "אדם" / "רכב" = סינון אזעקות שווא (רק מטרה מסוג זה מפעילה).</div>
+      <div class="note">${tr('בחר כלל ולחץ על התמונה כדי לצייר: קו =')} <strong>${tr('שתי')}</strong> ${tr('לחיצות (התחלה וסוף — לחיצה נוספת מזיזה את הסוף); אזור פריצה =')} <strong>${tr('4 עד 10')}</strong> ${tr('לחיצות (נקודה לכל פינה), ואז ישר "שמור למקליט" למטה — אין צורך לסגור את הצורה. "אדם" / "רכב" = סינון אזעקות שווא (רק מטרה מסוג זה מפעילה).')}</div>
       ${ed.line ? html`<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-smart-lines>
-          <label class="note" style="display:inline-flex;align-items:center;gap:4px"><input type="checkbox" data-smart-line-enabled .checked=${ed.line.enabled} @change=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, enabled: (e.target as HTMLInputElement).checked } })} /> חציית קו פעילה</label>
+          <label class="note" style="display:inline-flex;align-items:center;gap:4px"><input type="checkbox" data-smart-line-enabled .checked=${ed.line.enabled} @change=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, enabled: (e.target as HTMLInputElement).checked } })} /> ${tr('חציית קו פעילה')}</label>
           ${ed.line.lines.map((l) => html`<span style="display:inline-flex;gap:6px;align-items:center;border:1px solid var(--sw-border);border-radius:var(--sw-r-sm);padding:4px 8px" data-smart-line=${l.id}>
-            <sw-chip ?selected=${ed.tool.type === 'line' && ed.tool.id === l.id} data-smart-pick-line=${l.id} @click=${() => (this.smartEdit = { ...ed, tool: { type: 'line', id: l.id } })}>קו ${l.id}${l.points.length === 2 && !(l.points[0][0] === 0 && l.points[0][1] === 1000) ? '' : ' · לא מצויר'}</sw-chip>
-            <label class="note"><input type="checkbox" .checked=${l.enabled} @change=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, lines: ed.line!.lines.map((x) => (x.id === l.id ? { ...x, enabled: (e.target as HTMLInputElement).checked } : x)) } })} /> פעיל</label>
-            <select class="note" aria-label="כיוון" .value=${l.direction} @change=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, lines: ed.line!.lines.map((x) => (x.id === l.id ? { ...x, direction: (e.target as HTMLSelectElement).value } : x)) } })}>${['any', 'left-right', 'right-left'].map((d) => html`<option value=${d} ?selected=${d === l.direction}>${dir(d)}</option>`)}</select>
-            <label class="note">רגישות <input type="range" min="1" max="100" .value=${String(l.sensitivity)} @input=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, lines: ed.line!.lines.map((x) => (x.id === l.id ? { ...x, sensitivity: Number((e.target as HTMLInputElement).value) } : x)) } })} /> ${l.sensitivity}</label>
-            <label class="note"><input type="checkbox" .checked=${l.human} @change=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, lines: ed.line!.lines.map((x) => (x.id === l.id ? { ...x, human: (e.target as HTMLInputElement).checked } : x)) } })} /> אדם</label>
-            <label class="note"><input type="checkbox" .checked=${l.vehicle} @change=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, lines: ed.line!.lines.map((x) => (x.id === l.id ? { ...x, vehicle: (e.target as HTMLInputElement).checked } : x)) } })} /> רכב</label>
+            <sw-chip ?selected=${ed.tool.type === 'line' && ed.tool.id === l.id} data-smart-pick-line=${l.id} @click=${() => (this.smartEdit = { ...ed, tool: { type: 'line', id: l.id } })}>${tr('קו {id}', { id: l.id })}${l.points.length === 2 && !(l.points[0][0] === 0 && l.points[0][1] === 1000) ? '' : ` · ${tr('לא מצויר')}`}</sw-chip>
+            <label class="note"><input type="checkbox" .checked=${l.enabled} @change=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, lines: ed.line!.lines.map((x) => (x.id === l.id ? { ...x, enabled: (e.target as HTMLInputElement).checked } : x)) } })} /> ${tr('פעיל')}</label>
+            <select class="note" aria-label=${tr('כיוון')} .value=${l.direction} @change=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, lines: ed.line!.lines.map((x) => (x.id === l.id ? { ...x, direction: (e.target as HTMLSelectElement).value } : x)) } })}>${['any', 'left-right', 'right-left'].map((d) => html`<option value=${d} ?selected=${d === l.direction}>${dir(d)}</option>`)}</select>
+            <label class="note">${tr('רגישות')} <input type="range" min="1" max="100" .value=${String(l.sensitivity)} @input=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, lines: ed.line!.lines.map((x) => (x.id === l.id ? { ...x, sensitivity: Number((e.target as HTMLInputElement).value) } : x)) } })} /> ${l.sensitivity}</label>
+            <label class="note"><input type="checkbox" .checked=${l.human} @change=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, lines: ed.line!.lines.map((x) => (x.id === l.id ? { ...x, human: (e.target as HTMLInputElement).checked } : x)) } })} /> ${tr('אדם')}</label>
+            <label class="note"><input type="checkbox" .checked=${l.vehicle} @change=${(e: Event) => (this.smartEdit = { ...ed, line: { ...ed.line!, lines: ed.line!.lines.map((x) => (x.id === l.id ? { ...x, vehicle: (e.target as HTMLInputElement).checked } : x)) } })} /> ${tr('רכב')}</label>
           </span>`)}
         </div>` : nothing}
       ${ed.field ? html`<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-smart-regions>
-          <label class="note" style="display:inline-flex;align-items:center;gap:4px"><input type="checkbox" data-smart-field-enabled .checked=${ed.field.enabled} @change=${(e: Event) => (this.smartEdit = { ...ed, field: { ...ed.field!, enabled: (e.target as HTMLInputElement).checked } })} /> פריצה לאזור פעילה</label>
+          <label class="note" style="display:inline-flex;align-items:center;gap:4px"><input type="checkbox" data-smart-field-enabled .checked=${ed.field.enabled} @change=${(e: Event) => (this.smartEdit = { ...ed, field: { ...ed.field!, enabled: (e.target as HTMLInputElement).checked } })} /> ${tr('פריצה לאזור פעילה')}</label>
           ${ed.field.regions.map((r) => html`<span style="display:inline-flex;gap:6px;align-items:center;border:1px solid var(--sw-border);border-radius:var(--sw-r-sm);padding:4px 8px" data-smart-region=${r.id}>
-            <sw-chip ?selected=${ed.tool.type === 'field' && ed.tool.id === r.id} data-smart-pick-region=${r.id} @click=${() => (this.smartEdit = { ...ed, tool: { type: 'field', id: r.id } })}>אזור ${r.id} · ${r.points.length} נק׳</sw-chip>
-            <sw-button size="sm" variant="ghost" data-smart-region-clear=${r.id} @click=${() => (this.smartEdit = { ...ed, field: { ...ed.field!, regions: ed.field!.regions.map((x) => (x.id === r.id ? { ...x, points: [] } : x)) } })}>נקה</sw-button>
-            <label class="note">רגישות <input type="range" min="1" max="100" .value=${String(r.sensitivity)} @input=${(e: Event) => (this.smartEdit = { ...ed, field: { ...ed.field!, regions: ed.field!.regions.map((x) => (x.id === r.id ? { ...x, sensitivity: Number((e.target as HTMLInputElement).value) } : x)) } })} /> ${r.sensitivity}</label>
-            <label class="note"><input type="checkbox" .checked=${r.human} @change=${(e: Event) => (this.smartEdit = { ...ed, field: { ...ed.field!, regions: ed.field!.regions.map((x) => (x.id === r.id ? { ...x, human: (e.target as HTMLInputElement).checked } : x)) } })} /> אדם</label>
-            <label class="note"><input type="checkbox" .checked=${r.vehicle} @change=${(e: Event) => (this.smartEdit = { ...ed, field: { ...ed.field!, regions: ed.field!.regions.map((x) => (x.id === r.id ? { ...x, vehicle: (e.target as HTMLInputElement).checked } : x)) } })} /> רכב</label>
+            <sw-chip ?selected=${ed.tool.type === 'field' && ed.tool.id === r.id} data-smart-pick-region=${r.id} @click=${() => (this.smartEdit = { ...ed, tool: { type: 'field', id: r.id } })}>${tr('אזור {id}', { id: r.id })} · ${tr('{n} נק׳', { n: r.points.length })}</sw-chip>
+            <sw-button size="sm" variant="ghost" data-smart-region-clear=${r.id} @click=${() => (this.smartEdit = { ...ed, field: { ...ed.field!, regions: ed.field!.regions.map((x) => (x.id === r.id ? { ...x, points: [] } : x)) } })}>${tr('נקה')}</sw-button>
+            <label class="note">${tr('רגישות')} <input type="range" min="1" max="100" .value=${String(r.sensitivity)} @input=${(e: Event) => (this.smartEdit = { ...ed, field: { ...ed.field!, regions: ed.field!.regions.map((x) => (x.id === r.id ? { ...x, sensitivity: Number((e.target as HTMLInputElement).value) } : x)) } })} /> ${r.sensitivity}</label>
+            <label class="note"><input type="checkbox" .checked=${r.human} @change=${(e: Event) => (this.smartEdit = { ...ed, field: { ...ed.field!, regions: ed.field!.regions.map((x) => (x.id === r.id ? { ...x, human: (e.target as HTMLInputElement).checked } : x)) } })} /> ${tr('אדם')}</label>
+            <label class="note"><input type="checkbox" .checked=${r.vehicle} @change=${(e: Event) => (this.smartEdit = { ...ed, field: { ...ed.field!, regions: ed.field!.regions.map((x) => (x.id === r.id ? { ...x, vehicle: (e.target as HTMLInputElement).checked } : x)) } })} /> ${tr('רכב')}</label>
           </span>`)}
         </div>` : nothing}
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
         <span class="grow"></span>
-        <sw-button variant="primary" size="sm" icon="check" ?disabled=${this.smartBusy} data-smart-save @click=${() => this.saveSmart()}>${this.smartBusy ? 'כותב…' : 'שמור למקליט'}</sw-button>
-        <sw-button size="sm" variant="ghost" icon="close" ?disabled=${this.smartBusy} data-smart-cancel @click=${() => (this.smartEdit = null)}>ביטול</sw-button>
+        <sw-button variant="primary" size="sm" icon="check" ?disabled=${this.smartBusy} data-smart-save @click=${() => this.saveSmart()}>${this.smartBusy ? tr('כותב…') : tr('שמור למקליט')}</sw-button>
+        <sw-button size="sm" variant="ghost" icon="close" ?disabled=${this.smartBusy} data-smart-cancel @click=${() => (this.smartEdit = null)}>${tr('ביטול')}</sw-button>
       </div>
     </div>`;
   }
@@ -477,11 +478,11 @@ export class LiveCamera extends LitElement {
 
   private renderRename() {
     if (this.renameTo === null) return nothing;
-    return html`<sw-dialog open heading="שינוי שם המצלמה" subheading="השם במערכת (בקיר, במפה, באירועים). השם במקליט לא משתנה, אלא אם כותבים אותו מסעיף ה־OSD למטה." data-rename-dialog @close=${() => (this.renameTo = null)}>
-      <sw-field label="שם"><input data-rename-input maxlength="80" .value=${this.renameTo} placeholder=${this.cam?.name_source ?? ''} @input=${(e: Event) => (this.renameTo = (e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') void this.saveRename(); }} /></sw-field>
-      <div class="note">ריק = השם מהמקליט${this.cam?.name_source ? ` („${this.cam.name_source}“)` : ''}.</div>
+    return html`<sw-dialog open heading=${tr('שינוי שם המצלמה')} subheading=${tr('השם במערכת (בקיר, במפה, באירועים). השם במקליט לא משתנה, אלא אם כותבים אותו מסעיף ה־OSD למטה.')} data-rename-dialog @close=${() => (this.renameTo = null)}>
+      <sw-field label=${tr('שם')}><input data-rename-input maxlength="80" .value=${this.renameTo} placeholder=${this.cam?.name_source ?? ''} @input=${(e: Event) => (this.renameTo = (e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') void this.saveRename(); }} /></sw-field>
+      <div class="note">${tr('ריק = השם מהמקליט')}${this.cam?.name_source ? ` („${this.cam.name_source}“)` : ''}.</div>
       ${this.renameMsg ? html`<div class="note" style="color:var(--sw-danger)">${this.renameMsg}</div>` : nothing}
-      <div slot="footer"><sw-button variant="primary" icon="check" ?disabled=${this.renameBusy} data-rename-save @click=${() => this.saveRename()}>שמור</sw-button><sw-button variant="ghost" @click=${() => (this.renameTo = null)}>ביטול</sw-button></div>
+      <div slot="footer"><sw-button variant="primary" icon="check" ?disabled=${this.renameBusy} data-rename-save @click=${() => this.saveRename()}>${tr('שמור')}</sw-button><sw-button variant="ghost" @click=${() => (this.renameTo = null)}>${tr('ביטול')}</sw-button></div>
     </sw-dialog>`;
   }
 
@@ -509,7 +510,7 @@ export class LiveCamera extends LitElement {
     try {
       await run();
       if (gen !== this.camGen) return;
-      this.osdMsg = `${label}: נכתב למקליט ונרשם.`;
+      this.osdMsg = `${label}: ${tr('נכתב למקליט ונרשם.')}`;
       await this.loadOsd();
     } catch (err) {
       if (gen === this.camGen) this.osdMsg = `${label}: ${describeError(err)}`;
@@ -523,11 +524,11 @@ export class LiveCamera extends LitElement {
     if (!o || !o.can_write) return nothing;
     const same = (o.nvr_name ?? '') === o.vms_name;
     return html`<div class="note" style="margin-block-start:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-osd>
-      <span>שם במקליט: <b data-osd-nvr-name>${o.nvr_name ?? '—'}</b>${same ? ' (זהה לשם ב־Arx)' : ` · ב־Arx: ${o.vms_name}`}</span>
-      <sw-button size="sm" icon="edit" ?disabled=${this.osdBusy || same} data-osd-write-name @click=${() => this.osdAction('שם הערוץ', () => writeChannelName(this.cam!.id))}>כתוב את השם מ־Arx למקליט</sw-button>
-      ${o.channel_name ? html`<label style="display:inline-flex;gap:4px;align-items:center"><input type="checkbox" data-osd-name-enabled .checked=${o.channel_name.enabled} ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction('שם על התמונה', () => setOsd(this.cam!.id, { name_enabled: (e.target as HTMLInputElement).checked }))} /> שם על התמונה</label>` : nothing}
-      ${o.datetime ? html`<label style="display:inline-flex;gap:4px;align-items:center"><input type="checkbox" data-osd-datetime-enabled .checked=${o.datetime.enabled} ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction('חותמת זמן', () => setOsd(this.cam!.id, { datetime_enabled: (e.target as HTMLInputElement).checked }))} /> חותמת זמן</label>
-        <sw-field><select aria-label="פורמט תאריך" data-osd-date-style ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction('פורמט תאריך', () => setOsd(this.cam!.id, { date_style: (e.target as HTMLSelectElement).value }))}>${o.date_styles.map((d) => html`<option value=${d} ?selected=${d === o.datetime!.date_style}>${d}</option>`)}</select></sw-field>` : nothing}
+      <span>${tr('שם במקליט:')} <b data-osd-nvr-name>${o.nvr_name ?? '—'}</b>${same ? ` ${tr('(זהה לשם ב־Arx)')}` : ` · ${tr('ב־Arx: {name}', { name: o.vms_name })}`}</span>
+      <sw-button size="sm" icon="edit" ?disabled=${this.osdBusy || same} data-osd-write-name @click=${() => this.osdAction(tr('שם הערוץ'), () => writeChannelName(this.cam!.id))}>${tr('כתוב את השם מ־Arx למקליט')}</sw-button>
+      ${o.channel_name ? html`<label style="display:inline-flex;gap:4px;align-items:center"><input type="checkbox" data-osd-name-enabled .checked=${o.channel_name.enabled} ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction(tr('שם על התמונה'), () => setOsd(this.cam!.id, { name_enabled: (e.target as HTMLInputElement).checked }))} /> ${tr('שם על התמונה')}</label>` : nothing}
+      ${o.datetime ? html`<label style="display:inline-flex;gap:4px;align-items:center"><input type="checkbox" data-osd-datetime-enabled .checked=${o.datetime.enabled} ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction(tr('חותמת זמן'), () => setOsd(this.cam!.id, { datetime_enabled: (e.target as HTMLInputElement).checked }))} /> ${tr('חותמת זמן')}</label>
+        <sw-field><select aria-label=${tr('פורמט תאריך')} data-osd-date-style ?disabled=${this.osdBusy} @change=${(e: Event) => this.osdAction(tr('פורמט תאריך'), () => setOsd(this.cam!.id, { date_style: (e.target as HTMLSelectElement).value }))}>${o.date_styles.map((d) => html`<option value=${d} ?selected=${d === o.datetime!.date_style}>${d}</option>`)}</select></sw-field>` : nothing}
       ${this.osdMsg ? html`<span data-osd-msg>${this.osdMsg}</span>` : nothing}
     </div>`;
   }
@@ -610,10 +611,10 @@ export class LiveCamera extends LitElement {
     try {
       if (this.rec?.active) {
         await recordStop(this.cam.id);
-        if (gen === this.camGen) this.recMsg = 'ההקלטה הידנית נעצרה.';
+        if (gen === this.camGen) this.recMsg = tr('ההקלטה הידנית נעצרה.');
       } else {
         const r = await recordStart(this.cam.id, this.recMinutes);
-        if (gen === this.camGen) this.recMsg = `הקלטה ידנית החלה · תיעצר אוטומטית ב־${timeText(new Date(r.stop_at))}.`;
+        if (gen === this.camGen) this.recMsg = tr('הקלטה ידנית החלה · תיעצר אוטומטית ב־{time}.', { time: timeText(new Date(r.stop_at)) });
       }
       if (gen === this.camGen) await this.loadRecord();
     } catch (err) {
@@ -630,11 +631,11 @@ export class LiveCamera extends LitElement {
     const mm = a ? `${Math.floor(a.remaining_s / 60)}:${String(a.remaining_s % 60).padStart(2, '0')}` : '';
     return html`<div class="note" style="margin-block-start:8px;display:flex;flex-wrap:wrap;gap:8px;align-items:center" data-manual-record data-active=${a ? 'yes' : 'no'}>
       ${a
-        ? html`<sw-badge kind="live" label=${`הקלטה ידנית פעילה · נותרו ${mm}`}></sw-badge>
-          <sw-button size="sm" variant="danger" icon="close" ?disabled=${this.recBusy} data-record-stop @click=${() => this.toggleRecord()}>עצור הקלטה</sw-button>`
-        : html`<sw-field><select aria-label="משך הקלטה ידנית" data-record-minutes @change=${(e: Event) => (this.recMinutes = Number((e.target as HTMLSelectElement).value))}>${[5, 10, 30, 60, 120].map((m) => html`<option value=${m} ?selected=${m === this.recMinutes}>${m} דק׳</option>`)}</select></sw-field>
-          <sw-button size="sm" variant="primary" icon="live" ?disabled=${this.recBusy || !r.track_id} data-record-start @click=${() => this.toggleRecord()}>הקלט עכשיו</sw-button>
-          ${!r.track_id ? html`<span class="warn" data-record-unavailable>אין זרם ראשי זמין למצלמה זו כרגע, אי אפשר להקליט ידנית.</span>` : html`<span>הקלטה ידנית במקליט על הזרם הראשי; נעצרת אוטומטית בתום הזמן גם אם המסך נסגר. ההקלטה עצמה מצטרפת להקלטות הרגילות של הערוץ — היא נמצאת לפי הזמן במסך "הקלטות", לא בתגית נפרדת.</span>`}`}
+        ? html`<sw-badge kind="live" label=${tr('הקלטה ידנית פעילה · נותרו {time}', { time: mm })}></sw-badge>
+          <sw-button size="sm" variant="danger" icon="close" ?disabled=${this.recBusy} data-record-stop @click=${() => this.toggleRecord()}>${tr('עצור הקלטה')}</sw-button>`
+        : html`<sw-field><select aria-label=${tr('משך הקלטה ידנית')} data-record-minutes @change=${(e: Event) => (this.recMinutes = Number((e.target as HTMLSelectElement).value))}>${[5, 10, 30, 60, 120].map((m) => html`<option value=${m} ?selected=${m === this.recMinutes}>${tr('{n} דק׳', { n: m })}</option>`)}</select></sw-field>
+          <sw-button size="sm" variant="primary" icon="live" ?disabled=${this.recBusy || !r.track_id} data-record-start @click=${() => this.toggleRecord()}>${tr('הקלט עכשיו')}</sw-button>
+          ${!r.track_id ? html`<span class="warn" data-record-unavailable>${tr('אין זרם ראשי זמין למצלמה זו כרגע, אי אפשר להקליט ידנית.')}</span>` : html`<span>${tr('הקלטה ידנית במקליט על הזרם הראשי; נעצרת אוטומטית בתום הזמן גם אם המסך נסגר. ההקלטה עצמה מצטרפת להקלטות הרגילות של הערוץ — היא נמצאת לפי הזמן במסך "הקלטות", לא בתגית נפרדת.')}</span>`}`}
       ${this.recMsg ? html`<span data-record-msg>${this.recMsg}</span>` : nothing}
     </div>`;
   }
@@ -1412,19 +1413,19 @@ export class LiveCamera extends LitElement {
 
   private renderCaps() {
     const c = this.caps;
-    if (this.capsError && !c) return html`<div class="note" data-caps>יכולות המצלמה לא נקראו מהמקליט: ${this.capsError}</div>`;
-    if (!c) return html`<div class="note" data-caps>קורא יכולות מהמקליט…</div>`;
+    if (this.capsError && !c) return html`<div class="note" data-caps>${tr('יכולות המצלמה לא נקראו מהמקליט: {error}', { error: this.capsError })}</div>`;
+    if (!c) return html`<div class="note" data-caps>${tr('קורא יכולות מהמקליט…')}</div>`;
     const ptzKind = c.ptz.state === 'supported' ? 'live' : c.ptz.state === 'unsupported' ? 'neutral' : 'unknown';
-    const ptzLabel = c.ptz.state === 'supported' ? `PTZ: נתמך${c.ptz.preset_count !== null ? ` · ${c.ptz.preset_count} presets` : ''}` : c.ptz.state === 'unsupported' ? 'PTZ: לא נתמך במצלמה זו' : 'PTZ: לא ידוע';
+    const ptzLabel = c.ptz.state === 'supported' ? `${tr('PTZ: נתמך')}${c.ptz.preset_count !== null ? ` · ${c.ptz.preset_count} presets` : ''}` : c.ptz.state === 'unsupported' ? tr('PTZ: לא נתמך במצלמה זו') : tr('PTZ: לא ידוע');
     const audioKind = c.audio.state === 'available' ? 'live' : c.audio.state === 'disabled' ? 'stale' : c.audio.state === 'unsupported' ? 'neutral' : 'unknown';
-    const audioLabel = c.audio.state === 'available' ? `שמע דו־כיווני: ערוץ פעיל${c.audio.codec ? ` (${c.audio.codec})` : ''}` : c.audio.state === 'disabled' ? 'שמע דו־כיווני: ערוץ קיים אך כבוי במכשיר' : c.audio.state === 'unsupported' ? 'שמע דו־כיווני: אין ערוץ למצלמה זו' : 'שמע דו־כיווני: לא ידוע';
+    const audioLabel = c.audio.state === 'available' ? `${tr('שמע דו־כיווני: ערוץ פעיל')}${c.audio.codec ? ` (${c.audio.codec})` : ''}` : c.audio.state === 'disabled' ? tr('שמע דו־כיווני: ערוץ קיים אך כבוי במכשיר') : c.audio.state === 'unsupported' ? tr('שמע דו־כיווני: אין ערוץ למצלמה זו') : tr('שמע דו־כיווני: לא ידוע');
     return html`<div class="note" style="margin-block-start:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center" data-caps data-ptz=${c.ptz.state} data-audio=${c.audio.state}>
       <sw-badge kind=${ptzKind} label=${ptzLabel} title=${c.ptz.reason ?? ''}></sw-badge>
       <sw-badge kind=${audioKind} label=${audioLabel} title=${c.audio.reason ?? ''}></sw-badge>
-      <sw-badge kind="neutral" label="זום דיגיטלי: הגדלה בדפדפן בלבד, לא הנעת מצלמה"></sw-badge>
-      ${c.video?.main ? html`<sw-badge data-caps-webrtc kind=${c.video.main.webrtc === 'ok' ? 'live' : c.video.main.webrtc === 'no' ? 'stale' : 'unknown'} label=${`זרם ראשי ${c.video.main.codec ?? '?'}: ${c.video.main.webrtc === 'ok' ? 'מתנגן ב־WebRTC' : c.video.main.webrtc === 'no' ? 'לא יתנגן ב־WebRTC' : 'WebRTC לא ידוע'}`}></sw-badge>` : nothing}
+      <sw-badge kind="neutral" label=${tr('זום דיגיטלי: הגדלה בדפדפן בלבד, לא הנעת מצלמה')}></sw-badge>
+      ${c.video?.main ? html`<sw-badge data-caps-webrtc kind=${c.video.main.webrtc === 'ok' ? 'live' : c.video.main.webrtc === 'no' ? 'stale' : 'unknown'} label=${`${tr('זרם ראשי {codec}', { codec: c.video.main.codec ?? '?' })}: ${c.video.main.webrtc === 'ok' ? tr('מתנגן ב־WebRTC') : c.video.main.webrtc === 'no' ? tr('לא יתנגן ב־WebRTC') : tr('WebRTC לא ידוע')}`}></sw-badge>` : nothing}
       ${c.video?.hint ? html`<span data-caps-webrtc-hint>${c.video.hint}.</span>` : nothing}
-      <span>${c.ptz.reason ? `PTZ לפי המכשיר: ${c.ptz.reason}. ` : ''}הנעת PTZ, קריאת preset ודיבור הם כתיבה למכשיר ואינם מוצעים בפיילוט ללא אישור מפורש — אין פקד מדומה. נקרא מהמקליט ${c.fetched_at.replace('T', ' ').replace('Z', ' UTC')}${c.cached ? ' (מהמטמון)' : ''}.</span>
+      <span>${c.ptz.reason ? `${tr('PTZ לפי המכשיר: {reason}.', { reason: c.ptz.reason })} ` : ''}${tr('הנעת PTZ, קריאת preset ודיבור הם כתיבה למכשיר ואינם מוצעים בפיילוט ללא אישור מפורש — אין פקד מדומה.')} ${tr('נקרא מהמקליט {time}', { time: c.fetched_at.replace('T', ' ').replace('Z', ' UTC') })}${c.cached ? ` ${tr('(מהמטמון)')}` : ''}.</span>
     </div>`;
   }
 
@@ -1477,7 +1478,7 @@ export class LiveCamera extends LitElement {
     try {
       const rec = await setMotion(e.camId, { ...(d.added || d.removed ? { cells: e.cells } : {}), ...(d.sensitivity ? { sensitivity: e.sensitivity } : {}), ...(d.enabled ? { enabled: e.enabled } : {}) });
       if (gen !== this.camGen) return;
-      this.motionMsg = rec.status === 'unchanged' ? 'המקליט כבר היה במצב הזה, לא נכתב דבר.' : `נכתב למקליט (שינוי ${rec.id.slice(0, 8)}). ניתן להחזיר מהגדרות ‹ חיבורים ‹ שינויים אחרונים.`;
+      this.motionMsg = rec.status === 'unchanged' ? tr('המקליט כבר היה במצב הזה, לא נכתב דבר.') : tr('נכתב למקליט (שינוי {id}). ניתן להחזיר מהגדרות ‹ חיבורים ‹ שינויים אחרונים.', { id: rec.id.slice(0, 8) });
       this.motionEdit = null;
       this.motionConfirm = false;
       await this.loadZones(true);
@@ -1496,22 +1497,22 @@ export class LiveCamera extends LitElement {
     const changed = d.added || d.removed || d.sensitivity || d.enabled;
     const active = e.cells.flat().filter(Boolean).length;
     return html`<div class="legend" data-motion-editor>
-      <span class="note">לחץ או גרור על התמונה כדי לסמן תאים שמזהים תנועה · ${active} מתוך ${m.rows * m.cols} תאים</span>
-      <sw-button size="sm" variant="ghost" @click=${() => this.fillMotion(true)}>בחר הכל</sw-button>
-      <sw-button size="sm" variant="ghost" @click=${() => this.fillMotion(false)}>נקה</sw-button>
-      <label class="note" style="display:inline-flex;align-items:center;gap:6px">רגישות <input type="range" min=${this.zones?.sensitivity_caps?.min ?? 0} max=${this.zones?.sensitivity_caps?.max ?? 100} step=${this.zones?.sensitivity_caps?.step ?? 20} .value=${String(e.sensitivity)} data-motion-sensitivity @input=${(ev: Event) => (this.motionEdit = { ...e, sensitivity: Number((ev.target as HTMLInputElement).value) })} /> <b class="ltr">${e.sensitivity}</b></label>
-      <label class="note" style="display:inline-flex;align-items:center;gap:6px"><input type="checkbox" .checked=${e.enabled} data-motion-enabled @change=${(ev: Event) => (this.motionEdit = { ...e, enabled: (ev.target as HTMLInputElement).checked })} /> זיהוי תנועה פעיל</label>
+      <span class="note">${tr('לחץ או גרור על התמונה כדי לסמן תאים שמזהים תנועה')} · ${tr('{n} מתוך {total} תאים', { n: active, total: m.rows * m.cols })}</span>
+      <sw-button size="sm" variant="ghost" @click=${() => this.fillMotion(true)}>${tr('בחר הכל')}</sw-button>
+      <sw-button size="sm" variant="ghost" @click=${() => this.fillMotion(false)}>${tr('נקה')}</sw-button>
+      <label class="note" style="display:inline-flex;align-items:center;gap:6px">${tr('רגישות')} <input type="range" min=${this.zones?.sensitivity_caps?.min ?? 0} max=${this.zones?.sensitivity_caps?.max ?? 100} step=${this.zones?.sensitivity_caps?.step ?? 20} .value=${String(e.sensitivity)} data-motion-sensitivity @input=${(ev: Event) => (this.motionEdit = { ...e, sensitivity: Number((ev.target as HTMLInputElement).value) })} /> <b class="ltr">${e.sensitivity}</b></label>
+      <label class="note" style="display:inline-flex;align-items:center;gap:6px"><input type="checkbox" .checked=${e.enabled} data-motion-enabled @change=${(ev: Event) => (this.motionEdit = { ...e, enabled: (ev.target as HTMLInputElement).checked })} /> ${tr('זיהוי תנועה פעיל')}</label>
       <span class="grow"></span>
-      <sw-button variant="primary" size="sm" icon="check" ?disabled=${!changed || this.motionBusy} data-motion-save @click=${() => (this.motionConfirm = true)}>שמור למקליט</sw-button>
-      <sw-button size="sm" variant="ghost" icon="close" ?disabled=${this.motionBusy} data-motion-cancel @click=${() => (this.motionEdit = null)}>ביטול</sw-button>
+      <sw-button variant="primary" size="sm" icon="check" ?disabled=${!changed || this.motionBusy} data-motion-save @click=${() => (this.motionConfirm = true)}>${tr('שמור למקליט')}</sw-button>
+      <sw-button size="sm" variant="ghost" icon="close" ?disabled=${this.motionBusy} data-motion-cancel @click=${() => (this.motionEdit = null)}>${tr('ביטול')}</sw-button>
       ${this.motionConfirm
-        ? html`<sw-dialog open heading="כתיבה למקליט: זיהוי תנועה" subheading=${`${this.cam?.name ?? ''} · ערוץ ${this.zones?.channel ?? ''}`} data-motion-confirm @close=${() => (this.motionConfirm = false)}>
+        ? html`<sw-dialog open heading=${tr('כתיבה למקליט: זיהוי תנועה')} subheading=${`${this.cam?.name ?? ''} · ${tr('ערוץ {n}', { n: this.zones?.channel ?? '' })}`} data-motion-confirm @close=${() => (this.motionConfirm = false)}>
             <div style="font-size:var(--sw-fs-sm);line-height:1.6">
-              <div>${d.added ? `+${d.added} תאים נוספים לזיהוי` : ''}${d.added && d.removed ? ' · ' : ''}${d.removed ? `−${d.removed} תאים מוסרים` : ''}${!d.added && !d.removed ? 'הרשת ללא שינוי' : ''}</div>
-              <div>רגישות: ${d.sensitivity ? `${m.sensitivity ?? '—'} → ${e.sensitivity}` : 'ללא שינוי'} · זיהוי: ${d.enabled ? (e.enabled ? 'כבוי → פעיל' : 'פעיל → כבוי') : 'ללא שינוי'}</div>
-              <div style="margin-block-start:6px;color:var(--sw-text-3)">המסמך לפני ואחרי נשמר, השינוי נרשם באודיט וניתן להחזרה. ההקלטות אינן מושפעות; אזור שלא מסומן לא יפעיל הקלטת תנועה.</div>
+              <div>${d.added ? tr('+{n} תאים נוספים לזיהוי', { n: d.added }) : ''}${d.added && d.removed ? ' · ' : ''}${d.removed ? tr('−{n} תאים מוסרים', { n: d.removed }) : ''}${!d.added && !d.removed ? tr('הרשת ללא שינוי') : ''}</div>
+              <div>${tr('רגישות:')} ${d.sensitivity ? `${m.sensitivity ?? '—'} → ${e.sensitivity}` : tr('ללא שינוי')} · ${tr('זיהוי:')} ${d.enabled ? (e.enabled ? tr('כבוי → פעיל') : tr('פעיל → כבוי')) : tr('ללא שינוי')}</div>
+              <div style="margin-block-start:6px;color:var(--sw-text-3)">${tr('המסמך לפני ואחרי נשמר, השינוי נרשם באודיט וניתן להחזרה. ההקלטות אינן מושפעות; אזור שלא מסומן לא יפעיל הקלטת תנועה.')}</div>
             </div>
-            <div slot="footer"><sw-button variant="primary" ?disabled=${this.motionBusy} data-motion-confirm-run @click=${() => this.saveMotion()}>${this.motionBusy ? 'כותב…' : 'כתוב למקליט'}</sw-button><sw-button variant="ghost" @click=${() => (this.motionConfirm = false)}>ביטול</sw-button></div>
+            <div slot="footer"><sw-button variant="primary" ?disabled=${this.motionBusy} data-motion-confirm-run @click=${() => this.saveMotion()}>${this.motionBusy ? tr('כותב…') : tr('כתוב למקליט')}</sw-button><sw-button variant="ghost" @click=${() => (this.motionConfirm = false)}>${tr('ביטול')}</sw-button></div>
           </sw-dialog>`
         : nothing}
     </div>`;
@@ -1519,18 +1520,18 @@ export class LiveCamera extends LitElement {
 
   private renderZones(cam: Camera) {
     const z = this.zones;
-    if (this.zonesBusy && !z) return html`<div class="note">קורא את הגדרות הזיהוי מהמקליט…</div>`;
-    if (this.zonesError && !z) return html`<div class="note">${this.zonesError} <sw-button size="sm" @click=${() => this.loadZones(true)}>נסה שוב</sw-button></div>`;
+    if (this.zonesBusy && !z) return html`<div class="note">${tr('קורא את הגדרות הזיהוי מהמקליט…')}</div>`;
+    if (this.zonesError && !z) return html`<div class="note">${this.zonesError} <sw-button size="sm" @click=${() => this.loadZones(true)}>${tr('נסה שוב')}</sw-button></div>`;
     if (!z) return html`<div class="note">—</div>`;
     const L = this.zoneLayers;
     const m = z.motion;
     const scale = (pts: number[][], n: { width: number; height: number }) => pts.map(([x, y]) => `${(x / n.width) * 1000},${(y / n.height) * 1000}`).join(' ');
-    const target = (t: string) => (t === 'human' ? 'אדם' : t === 'vehicle' ? 'רכב' : t);
+    const target = (t: string) => (t === 'human' ? tr('אדם') : t === 'vehicle' ? tr('רכב') : t);
     return html`
       <div class="zones" data-zones-loaded>
         <div class="frame">
           <img src=${snapshotUrl(cam.id)} alt="" />
-          <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-label="אזורי זיהוי מעל תמונת המצלמה" style=${this.smartEdit ? 'cursor:crosshair' : ''} data-zones-svg @click=${(e: MouseEvent) => this.smartClick(e)}>
+          <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-label=${tr('אזורי זיהוי מעל תמונת המצלמה')} style=${this.smartEdit ? 'cursor:crosshair' : ''} data-zones-svg @click=${(e: MouseEvent) => this.smartClick(e)}>
             ${this.motionEdit && m && m.rows && m.cols
               ? this.motionEdit.cells.flatMap((row, r) => row.map((on, c) => svg`<rect class=${on ? 'cell' : 'cell off'} data-motion-cell=${`${r}-${c}`} x=${(c * 1000) / m.cols} y=${(r * 1000) / m.rows} width=${1000 / m.cols} height=${1000 / m.rows} style="cursor:crosshair;${on ? '' : 'fill:color-mix(in srgb, var(--sw-on-video) 3%, transparent);stroke:var(--sw-video-line)'}" @pointerdown=${(ev: PointerEvent) => { ev.preventDefault(); this.paintCell(r, c, true); }} @pointerenter=${(ev: PointerEvent) => { if (ev.buttons & 1) this.paintCell(r, c); }} @pointerup=${() => (this.paintValue = null)}></rect>`))
               : nothing}
@@ -1542,20 +1543,20 @@ export class LiveCamera extends LitElement {
           </svg>
         </div>
         <div class="legend">
-          <sw-chip data-zone-layer="motion" ?selected=${L.motion} @click=${() => (this.zoneLayers = { ...L, motion: !L.motion })}>תנועה${m ? ` · ${m.enabled ? 'פעיל' : 'כבוי'} · ${m.coverage_pct}% מהתמונה · רגישות ${m.sensitivity ?? '?'}${m.target_types.length ? ` · ${m.target_types.map(target).join('/')}` : ''}` : ' · לא נקרא'}</sw-chip>
-          <sw-chip data-zone-layer="privacy" ?selected=${L.privacy} @click=${() => (this.zoneLayers = { ...L, privacy: !L.privacy })}>מסכת פרטיות${z.privacy_mask ? ` · ${z.privacy_mask.enabled ? 'פעילה' : 'כבויה'} · ${z.privacy_mask.regions.length} אזורים` : ' · לא נקרא'}</sw-chip>
-          <sw-chip data-zone-layer="intrusion" ?selected=${L.intrusion} @click=${() => (this.zoneLayers = { ...L, intrusion: !L.intrusion })}>חדירה לאזור${z.intrusion ? ` · ${z.intrusion.enabled ? 'פעיל' : 'כבוי'} · ${z.intrusion.regions.length} אזורים` : ' · לא נקרא'}</sw-chip>
-          <sw-chip data-zone-layer="lines" ?selected=${L.lines} @click=${() => (this.zoneLayers = { ...L, lines: !L.lines })}>חציית קו${z.line_crossing ? ` · ${z.line_crossing.enabled ? 'פעיל' : 'כבוי'} · ${z.line_crossing.lines.length} קווים` : ' · לא נקרא'}</sw-chip>
-          <sw-button size="sm" variant="ghost" icon="refresh" ?disabled=${this.zonesBusy} @click=${() => this.loadZones(true)}>רענון מהמקליט</sw-button>
-          ${z.can_edit_motion && m && m.rows && m.cols && !this.motionEdit ? html`<sw-button size="sm" icon="edit" data-motion-edit @click=${() => this.startMotionEdit()}>עריכת אזורי תנועה</sw-button>` : nothing}
-          ${this.smart?.can_write && (this.smart.line || this.smart.field) && !this.smartEdit && !this.motionEdit ? html`<sw-button size="sm" icon="edit" data-smart-edit @click=${() => this.startSmartEdit()}>עריכת כללים חכמים</sw-button>` : nothing}
+          <sw-chip data-zone-layer="motion" ?selected=${L.motion} @click=${() => (this.zoneLayers = { ...L, motion: !L.motion })}>${tr('תנועה')}${m ? ` · ${m.enabled ? tr('פעיל') : tr('כבוי')} · ${tr('{pct}% מהתמונה', { pct: m.coverage_pct })} · ${tr('רגישות {n}', { n: m.sensitivity ?? '?' })}${m.target_types.length ? ` · ${m.target_types.map(target).join('/')}` : ''}` : ` · ${tr('לא נקרא')}`}</sw-chip>
+          <sw-chip data-zone-layer="privacy" ?selected=${L.privacy} @click=${() => (this.zoneLayers = { ...L, privacy: !L.privacy })}>${tr('מסכת פרטיות')}${z.privacy_mask ? ` · ${z.privacy_mask.enabled ? tr('פעילה') : tr('כבויה')} · ${tr('{n} אזורים', { n: z.privacy_mask.regions.length })}` : ` · ${tr('לא נקרא')}`}</sw-chip>
+          <sw-chip data-zone-layer="intrusion" ?selected=${L.intrusion} @click=${() => (this.zoneLayers = { ...L, intrusion: !L.intrusion })}>${tr('חדירה לאזור')}${z.intrusion ? ` · ${z.intrusion.enabled ? tr('פעיל') : tr('כבוי')} · ${tr('{n} אזורים', { n: z.intrusion.regions.length })}` : ` · ${tr('לא נקרא')}`}</sw-chip>
+          <sw-chip data-zone-layer="lines" ?selected=${L.lines} @click=${() => (this.zoneLayers = { ...L, lines: !L.lines })}>${tr('חציית קו')}${z.line_crossing ? ` · ${z.line_crossing.enabled ? tr('פעיל') : tr('כבוי')} · ${tr('{n} קווים', { n: z.line_crossing.lines.length })}` : ` · ${tr('לא נקרא')}`}</sw-chip>
+          <sw-button size="sm" variant="ghost" icon="refresh" ?disabled=${this.zonesBusy} @click=${() => this.loadZones(true)}>${tr('רענון מהמקליט')}</sw-button>
+          ${z.can_edit_motion && m && m.rows && m.cols && !this.motionEdit ? html`<sw-button size="sm" icon="edit" data-motion-edit @click=${() => this.startMotionEdit()}>${tr('עריכת אזורי תנועה')}</sw-button>` : nothing}
+          ${this.smart?.can_write && (this.smart.line || this.smart.field) && !this.smartEdit && !this.motionEdit ? html`<sw-button size="sm" icon="edit" data-smart-edit @click=${() => this.startSmartEdit()}>${tr('עריכת כללים חכמים')}</sw-button>` : nothing}
         </div>
         ${this.motionEdit && m ? this.renderMotionEditor(m) : nothing}
         ${this.smartEdit ? this.renderSmartEditor() : nothing}
         ${this.smartMsg ? html`<div class="note" data-smart-msg>${this.smartMsg}</div>` : nothing}
         ${this.motionMsg ? html`<div class="note" data-motion-msg>${this.motionMsg}</div>` : nothing}
-        ${Object.keys(z.unsupported).length ? html`<div class="note">לא נקרא מהמכשיר: ${Object.entries(z.unsupported).map(([k, v]) => `${k} (${v})`).join(', ')}</div>` : nothing}
-        <div class="note" data-zones-note>קריאה בלבד מהמקליט (נקרא ${z.fetched_at.replace('T', ' ').replace('Z', ' UTC')}${z.cached ? ', מהמטמון' : ''}). אלו פוליגונים בתמונת המצלמה — לא חדרים במפה. שכבת־על בדפדפן אינה מסכת מקליט ואינה מגינה על הקלטות; עריכה או מסכה אמיתית דורשות אישור מפורש, כתיבה מאומתת ובדיקת התוצאה בזרם.</div>
+        ${Object.keys(z.unsupported).length ? html`<div class="note">${tr('לא נקרא מהמכשיר:')} ${Object.entries(z.unsupported).map(([k, v]) => `${k} (${v})`).join(', ')}</div>` : nothing}
+        <div class="note" data-zones-note>${tr('קריאה בלבד מהמקליט (נקרא {time}{cached}).', { time: z.fetched_at.replace('T', ' ').replace('Z', ' UTC'), cached: z.cached ? tr(', מהמטמון') : '' })} ${tr('אלו פוליגונים בתמונת המצלמה — לא חדרים במפה. שכבת־על בדפדפן אינה מסכת מקליט ואינה מגינה על הקלטות; עריכה או מסכה אמיתית דורשות אישור מפורש, כתיבה מאומתת ובדיקת התוצאה בזרם.')}</div>
       </div>`;
   }
 
@@ -1604,8 +1605,8 @@ export class LiveCamera extends LitElement {
   private renderApi() {
     const cam = this.cam;
     if (this.loading) return html`<sw-state-panel state="loading"></sw-state-panel>`;
-    if (this.error) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>`;
-    if (!cam) return html`<sw-state-panel state="forbidden" heading="המצלמה לא זמינה" hint="המצלמה לא נמצאה או שאין לך הרשאת צפייה בה."></sw-state-panel>`;
+    if (this.error) return html`<sw-state-panel state="error" hint=${this.error} actionLabel=${tr('נסה שוב')} @action=${() => this.load()}></sw-state-panel>`;
+    if (!cam) return html`<sw-state-panel state="forbidden" heading=${tr('המצלמה לא זמינה')} hint=${tr('המצלמה לא נמצאה או שאין לך הרשאת צפייה בה.')}></sw-state-panel>`;
     const canView = cam.can_view_live !== false && cam.status !== 'offline';
     const pane = cameraPane(cam, webrtcServer()); // EVIDENCE-CAMERAS-2412: no video server - the notice also over a stale offline status
     const poster = snapshotUrl(cam.id, this.posterBust);
@@ -1620,26 +1621,26 @@ export class LiveCamera extends LitElement {
           ? html`<div class="center" data-webrtc-required><div><sw-icon name="camera" size=${32}></sw-icon><span>${WEBRTC_REQUIRED_TEXT}</span> <a href=${WEBRTC_SETTINGS_HREF}>${WEBRTC_SETTINGS_LABEL}</a></div></div>`
           : pane === 'player'
           ? html`<sw-live-player .cameraId=${cam.id} .profile=${this.profile} .mode=${this.transport} .plan=${plan.plan} .preferred=${plan.preferred} .gop=${plan.gop} .encoding=${cam.encoding ?? null} .poster=${poster} @player-status=${this.onPlayer}></sw-live-player>`
-          : html`<div class="center"><div><sw-icon name="offline" size=${32}></sw-icon><span data-camera-off-reason>${cam.recorder_enabled === false ? 'המקליט של המצלמה מושבת' : cam.status === 'offline' && cam.video_source === 'manual' ? cst('offline') : cam.status === 'offline' ? 'המצלמה מנותקת מהמקליט (לפי הסנכרון האחרון)' : 'אין הרשאת צפייה חיה במצלמה זו'}</span></div></div>`}
+          : html`<div class="center"><div><sw-icon name="offline" size=${32}></sw-icon><span data-camera-off-reason>${cam.recorder_enabled === false ? tr('המקליט של המצלמה מושבת') : cam.status === 'offline' && cam.video_source === 'manual' ? cst('offline') : cam.status === 'offline' ? tr('המצלמה מנותקת מהמקליט (לפי הסנכרון האחרון)') : tr('אין הרשאת צפייה חיה במצלמה זו')}</span></div></div>`}
       </div></div>
       ${canView && cam.live_kind === 'still' ? html`<div class="note" data-live-still-note>${fx().live.stillExplain.replace('{n}', String(cam.still_refresh_s ?? 10))}</div>` : nothing}
       <div class="controls" data-player=${this.playerStatus === 'playing' ? 'playing' : this.playerStatus === 'error' ? 'error' : 'connecting'}>
-        <div class="round" role="group" aria-label="פקדי מצלמה">
-          <button title="רענון תמונה" aria-label="רענון תמונה" @click=${() => (this.posterBust = Date.now())}><sw-icon name="aperture" size=${16}></sw-icon></button>
-          <button title="מסך מלא" aria-label="מסך מלא" ?disabled=${this.playerStatus !== 'playing'} @click=${() => this.player?.fullscreen()}><sw-icon name="expand" size=${16}></sw-icon></button>
-          ${this.castShown ? html`<button type="button" data-cast-button title=${tr('cast.button')} aria-label=${tr('cast.button')} aria-haspopup="dialog" aria-expanded=${this.castOpen ? 'true' : 'false'} @click=${() => (this.castOpen = !this.castOpen)}><sw-icon name="cast" size=${16}></sw-icon></button>` : nothing}
-          <button title="התחבר מחדש" aria-label="התחבר מחדש" @click=${() => this.player?.reconnect()}><sw-icon name="refresh" size=${16}></sw-icon></button>
-          <button class="q ${this.profile === 'main' ? 'on' : ''}" @click=${() => (this.profile = 'main')}>ראשי</button>
-          <button class="q ${this.profile === 'sub' ? 'on' : ''}" @click=${() => (this.profile = 'sub')}>משני</button>
-          <div class="transport" role="group" aria-label="תעבורה" data-transport-choice=${this.transport}>
-            ${(['auto', 'webrtc', 'mse'] as Transport[]).map((t) => html`<button class=${this.transport === t ? 'on' : ''} aria-pressed=${String(this.transport === t)} @click=${() => this.setTransport(t)}>${t === 'auto' ? 'אוטומטי' : t === 'webrtc' ? 'WebRTC' : 'MSE'}</button>`)}
+        <div class="round" role="group" aria-label=${tr('פקדי מצלמה')}>
+          <button title=${tr('רענון תמונה')} aria-label=${tr('רענון תמונה')} @click=${() => (this.posterBust = Date.now())}><sw-icon name="aperture" size=${16}></sw-icon></button>
+          <button title=${tr('מסך מלא')} aria-label=${tr('מסך מלא')} ?disabled=${this.playerStatus !== 'playing'} @click=${() => this.player?.fullscreen()}><sw-icon name="expand" size=${16}></sw-icon></button>
+          ${this.castShown ? html`<button type="button" data-cast-button title=${heT('cast.button')} aria-label=${heT('cast.button')} aria-haspopup="dialog" aria-expanded=${this.castOpen ? 'true' : 'false'} @click=${() => (this.castOpen = !this.castOpen)}><sw-icon name="cast" size=${16}></sw-icon></button>` : nothing}
+          <button title=${tr('התחבר מחדש')} aria-label=${tr('התחבר מחדש')} @click=${() => this.player?.reconnect()}><sw-icon name="refresh" size=${16}></sw-icon></button>
+          <button class="q ${this.profile === 'main' ? 'on' : ''}" @click=${() => (this.profile = 'main')}>${tr('ראשי')}</button>
+          <button class="q ${this.profile === 'sub' ? 'on' : ''}" @click=${() => (this.profile = 'sub')}>${tr('משני')}</button>
+          <div class="transport" role="group" aria-label=${tr('תעבורה')} data-transport-choice=${this.transport}>
+            ${(['auto', 'webrtc', 'mse'] as Transport[]).map((t) => html`<button class=${this.transport === t ? 'on' : ''} aria-pressed=${String(this.transport === t)} @click=${() => this.setTransport(t)}>${t === 'auto' ? tr('אוטומטי') : t === 'webrtc' ? 'WebRTC' : 'MSE'}</button>`)}
           </div>
-          ${cachedVideoPolicy()?.source === 'personal' ? html`<span class="note" data-transport-own>ברירת המחדל של המערכת: ${transportLabel(cachedVideoPolicy()?.installation ?? this.settings?.['media.transport_default'] ?? TRANSPORT_DEFAULT)}</span>` : nothing}
+          ${cachedVideoPolicy()?.source === 'personal' ? html`<span class="note" data-transport-own>${tr('ברירת המחדל של המערכת:')} ${transportLabel(cachedVideoPolicy()?.installation ?? this.settings?.['media.transport_default'] ?? TRANSPORT_DEFAULT)}</span>` : nothing}
           ${remote && this.settings?.['media.video_notices'] === 'true'
-            ? html`<span class="note" data-remote-video-policy>גישה מרחוק: ${this.transport === 'mse' ? 'MSE בלבד' : this.transport === 'webrtc' ? 'WebRTC בלבד · בלי MSE' : `WebRTC תחילה${remote.mseFallback ? ' · MSE רק כמוצא אחרון' : ' · בלי MSE'}`}</span>`
+            ? html`<span class="note" data-remote-video-policy>${tr('גישה מרחוק:')} ${this.transport === 'mse' ? tr('MSE בלבד') : this.transport === 'webrtc' ? tr('WebRTC בלבד · בלי MSE') : `${tr('WebRTC תחילה')} · ${remote.mseFallback ? tr('MSE רק כמוצא אחרון') : tr('בלי MSE')}`}</span>`
             : nothing}
         </div>
-        ${this.playerStatus === 'playing' && this.settings?.['media.video_notices'] !== 'true' ? nothing : html`<div class="note">${this.playerStatus === 'playing' ? `מנגן דרך ${this.playerTransport === 'webrtc' ? 'WebRTC' : 'MSE'}` : this.playerStatus === 'error' ? 'הזרם לא זמין' : this.playerStatus === 'ended' ? 'הסתיים' : 'מתחבר…'}</div>`}
+        ${this.playerStatus === 'playing' && this.settings?.['media.video_notices'] !== 'true' ? nothing : html`<div class="note">${this.playerStatus === 'playing' ? tr('מנגן דרך {transport}', { transport: this.playerTransport === 'webrtc' ? 'WebRTC' : 'MSE' }) : this.playerStatus === 'error' ? tr('הזרם לא זמין') : this.playerStatus === 'ended' ? tr('הסתיים') : tr('מתחבר…')}</div>`}
       </div>
       ${this.renderCast(cam)}
       </div><div class="stage-side">
@@ -1657,14 +1658,14 @@ export class LiveCamera extends LitElement {
     return html`
       ${mine.map((x: CastSession) => html`<div class="cast-status" data-cast-status data-cast-status-state=${x.state} role="status">
         <sw-icon name="cast" size=${15}></sw-icon>
-        <span class="who">${x.state === 'not_confirmed' ? tr('cast.notConfirmed') : x.state === 'starting' ? `${tr('cast.starting2')} · ${x.screen_name}` : `${tr('cast.playing')}: ${x.screen_name}`}</span>
+        <span class="who">${x.state === 'not_confirmed' ? heT('cast.notConfirmed') : x.state === 'starting' ? `${heT('cast.starting2')} · ${x.screen_name}` : `${heT('cast.playing')}: ${x.screen_name}`}</span>
         ${x.state === 'playing' ? html`<span class=${isLow(x, now) ? 'low' : ''} data-cast-status-left>${leftText(x, now)}</span>` : nothing}
-        <sw-cast-stop .session=${x} @cast-stopped=${() => this.flashCast(tr('cast.stopped'))}></sw-cast-stop>
+        <sw-cast-stop .session=${x} @cast-stopped=${() => this.flashCast(heT('cast.stopped'))}></sw-cast-stop>
       </div>`)}
       ${this.castNote ? html`<div class="note" data-cast-note role="status">${this.castNote}</div>` : nothing}
       <sw-cast-picker .open=${this.castOpen} .cameraId=${cam.id} .cameraName=${cam.alias || cam.name} .anchor=${this.castBtn ?? null} .profile=${this.profile}
         .phone=${isPhoneWidth()} .ddPhone=${document.documentElement.getAttribute('data-dd-phone') ?? ''} ?remote=${onRemote()}
-        @close=${() => (this.castOpen = false)} @cast-started=${() => this.flashCast(tr('cast.started'))}></sw-cast-picker>`;
+        @close=${() => (this.castOpen = false)} @cast-started=${() => this.flashCast(heT('cast.started'))}></sw-cast-picker>`;
   }
 
   private flashCast(msg: string) {
@@ -1699,7 +1700,7 @@ export class LiveCamera extends LitElement {
     const source = this.renderSource(cam);
     const rec = recorderActions(cam);
     return html`<details class="acc-root" data-camera-settings>
-      <summary><sw-icon class="chev" name="chevron" size=${16}></sw-icon>הגדרות מצלמה</summary>
+      <summary><sw-icon class="chev" name="chevron" size=${16}></sw-icon>${tr('הגדרות מצלמה')}</summary>
       <div class="acc-body">
         ${source !== nothing
           ? html`<details class="acc" data-acc-source ?open=${this.sourceOpen || !!this.sourceMsg || this.source?.health?.state === 'failing'}>
@@ -1710,41 +1711,41 @@ export class LiveCamera extends LitElement {
         ${!rec.recording ? html`<div class="note" data-camera-standalone-note>${cst('standaloneNote')} ${rec.reason}</div>` : nothing}
         ${record !== nothing
           ? html`<details class="acc" data-acc-record ?open=${!!this.rec?.active}>
-              <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>הקלטה ידנית</span>${this.rec?.active ? html`<sw-badge kind="live" label="פעילה"></sw-badge>` : nothing}</summary>
+              <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>${tr('הקלטה ידנית')}</span>${this.rec?.active ? html`<sw-badge kind="live" label=${tr('פעילה')}></sw-badge>` : nothing}</summary>
               <div class="acc-content">${record}</div>
             </details>`
           : nothing}
         <details class="acc" data-acc-details>
-          <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>פרטים</span></summary>
+          <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>${tr('פרטים')}</span></summary>
           <div class="acc-content">
             <dl>
-              <dt>מצב</dt><dd><sw-badge kind=${cam.status === 'online' ? 'live' : cam.status === 'offline' ? 'offline' : 'unknown'}></sw-badge></dd>
+              <dt>${tr('מצב')}</dt><dd><sw-badge kind=${cam.status === 'online' ? 'live' : cam.status === 'offline' ? 'offline' : 'unknown'}></sw-badge></dd>
               ${cam.standalone
                 ? html`<dt>${cst('section')}</dt><dd>${cst('manual')} · ${cst('noRecorder')}</dd>`
-                : html`<dt>ערוץ</dt><dd>${cam.channel} · <span class="ltr">track ${cam.main_track ?? '?'}</span></dd>
-              <dt>שם במקליט</dt><dd>${cam.name_source || '—'}</dd>`}
-              <dt>זרם ראשי</dt><dd>${stream ? `${stream.resolution ?? ''} · ${stream.fps ?? '?'} fps · ${stream.bitrate_kbps ?? '?'} kbps` : 'לא נבדק'}</dd>
-              ${cam.standalone ? nothing : html`<dt>זמן מקור</dt><dd>${tr('videoCopy.sourceTime')}</dd>`}
-              <dt>נראתה לאחרונה</dt><dd>${cam.last_seen_at ? cam.last_seen_at.replace('T', ' ').replace('Z', ' UTC') : '—'}</dd>
+                : html`<dt>${tr('ערוץ')}</dt><dd>${cam.channel} · <span class="ltr">track ${cam.main_track ?? '?'}</span></dd>
+              <dt>${tr('שם במקליט')}</dt><dd>${cam.name_source || '—'}</dd>`}
+              <dt>${tr('זרם ראשי')}</dt><dd>${stream ? `${stream.resolution ?? ''} · ${stream.fps ?? '?'} fps · ${stream.bitrate_kbps ?? '?'} kbps` : tr('לא נבדק')}</dd>
+              ${cam.standalone ? nothing : html`<dt>${tr('זמן מקור')}</dt><dd>${heT('videoCopy.sourceTime')}</dd>`}
+              <dt>${tr('נראתה לאחרונה')}</dt><dd>${cam.last_seen_at ? cam.last_seen_at.replace('T', ' ').replace('Z', ' UTC') : '—'}</dd>
             </dl>
             ${caps}
           </div>
         </details>
         ${osd !== nothing
           ? html`<details class="acc" data-acc-osd>
-              <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>OSD — כיתוב על התמונה</span></summary>
+              <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>${tr('OSD — כיתוב על התמונה')}</span></summary>
               <div class="acc-content">${osd}</div>
             </details>`
           : nothing}
         ${!rec.recording ? nothing : html`<details class="acc" data-acc-schedules>
-          <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>לוחות זימון והקלטה — כפי שמוגדר במקליט</span></summary>
+          <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>${tr('לוחות זימון והקלטה — כפי שמוגדר במקליט')}</span></summary>
           <div class="acc-content">
-            <div class="note">מתי כל זיהוי פעיל ומתי הערוץ מקליט (רציף / תנועה / אירוע) · עריכה דורשת הרשאה רגישה ונרשמת עם החזר</div>
+            <div class="note">${tr('מתי כל זיהוי פעיל ומתי הערוץ מקליט (רציף / תנועה / אירוע) · עריכה דורשת הרשאה רגישה ונרשמת עם החזר')}</div>
             ${this.renderSchedules()}
           </div>
         </details>
         <details class="acc" data-acc-zones>
-          <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>אזורי זיהוי ומסכות — כפי שמוגדר במקליט</span></summary>
+          <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>${tr('אזורי זיהוי ומסכות — כפי שמוגדר במקליט')}</span></summary>
           <div class="acc-content">${this.renderZones(cam)}</div>
         </details>`}
         ${reboot !== nothing
@@ -1754,7 +1755,7 @@ export class LiveCamera extends LitElement {
             </details>`
           : nothing}
         <details class="acc" data-acc-more>
-          <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>מצלמות נוספות</span></summary>
+          <summary><span class="lbl"><sw-icon class="chev" name="chevron" size=${14}></sw-icon>${tr('מצלמות נוספות')}</span></summary>
           <div class="acc-content tiles">
             ${this.cams.filter((c) => c.id !== cam.id).slice(0, 4).map((c) => html`<sw-camera-tile compact name=${c.name} state=${c.status === 'online' ? 'live' : c.status === 'offline' ? 'offline' : 'unknown'} poster=${c.status === 'offline' ? '' : snapshotUrl(c.id)} @click=${() => navigate(`/live/cameras/${c.id}`)}></sw-camera-tile>`)}
           </div>
@@ -1770,54 +1771,54 @@ export class LiveCamera extends LitElement {
     return html`<div class="stage"><div class="stage-main"><div class="vbox">
       <div class="video ${canView ? scene : 'off'}">
         ${canView
-          ? html`<sw-scene kind=${scene}></sw-scene><div class="shade"></div><span class="demo">דמו · אין שרת מחובר</span>
+          ? html`<sw-scene kind=${scene}></sw-scene><div class="shade"></div><span class="demo">${tr('דמו · אין שרת מחובר')}</span>
               <span class="stamp">2026-09-14 10:24:36</span>
               <span class="quality">${this.profile === 'main' ? '1440p · H.265' : '360p · H.264'}</span>`
           : html`<div class="center"><div>
               <sw-icon name=${cam.state === 'offline' ? 'offline' : 'lock'} size=${32}></sw-icon>
-              <span>${cam.state === 'offline' ? 'המצלמה אינה מחוברת למקליט' : 'אין הרשאת צפייה במצלמה זו'}</span>
+              <span>${cam.state === 'offline' ? tr('המצלמה אינה מחוברת למקליט') : tr('אין הרשאת צפייה במצלמה זו')}</span>
             </div></div>`}
       </div></div>
       <div class="controls" data-player=${canView ? 'playing' : 'error'}>
-        <div class="round" role="group" aria-label="פקדי מצלמה">
-          ${cam.audio ? html`<button title="מיקרופון" aria-label="מיקרופון" ?disabled=${!canView}><sw-icon name="mic" size=${16}></sw-icon></button><button title="שמע" aria-label="שמע" ?disabled=${!canView}><sw-icon name="volume" size=${16}></sw-icon></button>` : nothing}
-          <button title="צילום מסך" aria-label="צילום מסך" ?disabled=${!canView}><sw-icon name="aperture" size=${16}></sw-icon></button>
-          <button title="מסך מלא" aria-label="מסך מלא" ?disabled=${!canView}><sw-icon name="expand" size=${16}></sw-icon></button>
+        <div class="round" role="group" aria-label=${tr('פקדי מצלמה')}>
+          ${cam.audio ? html`<button title=${tr('מיקרופון')} aria-label=${tr('מיקרופון')} ?disabled=${!canView}><sw-icon name="mic" size=${16}></sw-icon></button><button title=${tr('שמע')} aria-label=${tr('שמע')} ?disabled=${!canView}><sw-icon name="volume" size=${16}></sw-icon></button>` : nothing}
+          <button title=${tr('צילום מסך')} aria-label=${tr('צילום מסך')} ?disabled=${!canView}><sw-icon name="aperture" size=${16}></sw-icon></button>
+          <button title=${tr('מסך מלא')} aria-label=${tr('מסך מלא')} ?disabled=${!canView}><sw-icon name="expand" size=${16}></sw-icon></button>
           <button class="q ${this.profile === 'main' ? 'on' : ''}" @click=${() => (this.profile = 'main')}>1440p</button>
           <button class="q ${this.profile === 'sub' ? 'on' : ''}" @click=${() => (this.profile = 'sub')}>360p</button>
         </div>
         ${cam.ptz
-          ? html`<div class="ptz" role="group" aria-label="בקרת PTZ">
+          ? html`<div class="ptz" role="group" aria-label=${tr('בקרת PTZ')}>
               <div class="joy">
-                <button class="u" aria-label="למעלה"><sw-icon name="chevronDown" size=${14} style="transform:rotate(180deg)"></sw-icon></button>
-                <button class="d" aria-label="למטה"><sw-icon name="chevronDown" size=${14}></sw-icon></button>
-                <button class="l" aria-label="שמאלה"><sw-icon name="chevron" size=${14} flip></sw-icon></button>
-                <button class="r" aria-label="ימינה"><sw-icon name="chevron" size=${14}></sw-icon></button>
+                <button class="u" aria-label=${tr('למעלה')}><sw-icon name="chevronDown" size=${14} style="transform:rotate(180deg)"></sw-icon></button>
+                <button class="d" aria-label=${tr('למטה')}><sw-icon name="chevronDown" size=${14}></sw-icon></button>
+                <button class="l" aria-label=${tr('שמאלה')}><sw-icon name="chevron" size=${14} flip></sw-icon></button>
+                <button class="r" aria-label=${tr('ימינה')}><sw-icon name="chevron" size=${14}></sw-icon></button>
                 <span class="c" aria-hidden="true"></span>
               </div>
-              <div class="zoom"><button aria-label="זום פנימה"><sw-icon name="plus" size=${14}></sw-icon></button><button aria-label="זום החוצה"><sw-icon name="minus" size=${14}></sw-icon></button></div>
+              <div class="zoom"><button aria-label=${tr('זום פנימה')}><sw-icon name="plus" size=${14}></sw-icon></button><button aria-label=${tr('זום החוצה')}><sw-icon name="minus" size=${14}></sw-icon></button></div>
             </div>`
           : nothing}
       </div>
       ${cam.ptz
         ? html`<div class="modes">
-            <sw-chip icon="bookmark" ?selected=${this.ptzMode === 'presets'} @click=${() => (this.ptzMode = 'presets')}>${tr('videoCopy.presets')}</sw-chip>
-            <sw-chip icon="target" ?selected=${this.ptzMode === 'track'} @click=${() => (this.ptzMode = 'track')}>מעקב אוטומטי</sw-chip>
-            <sw-chip icon="route" ?selected=${this.ptzMode === 'patrol'} @click=${() => (this.ptzMode = 'patrol')}>סיור</sw-chip>
+            <sw-chip icon="bookmark" ?selected=${this.ptzMode === 'presets'} @click=${() => (this.ptzMode = 'presets')}>${heT('videoCopy.presets')}</sw-chip>
+            <sw-chip icon="target" ?selected=${this.ptzMode === 'track'} @click=${() => (this.ptzMode = 'track')}>${tr('מעקב אוטומטי')}</sw-chip>
+            <sw-chip icon="route" ?selected=${this.ptzMode === 'patrol'} @click=${() => (this.ptzMode = 'patrol')}>${tr('סיור')}</sw-chip>
           </div>`
-        : html`<div class="note" style="margin-block-start:8px">PTZ ושמע אינם מוצגים במצלמה זו: היכולת לא אומתה. פקד שלא נתמך מוסתר או מוסבר, לא מדומה.</div>`}
+        : html`<div class="note" style="margin-block-start:8px">${tr('PTZ ושמע אינם מוצגים במצלמה זו: היכולת לא אומתה. פקד שלא נתמך מוסתר או מוסבר, לא מדומה.')}</div>`}
       </div><div class="stage-side">
       <div class="grid">
-        <sw-card heading="פרטים">
+        <sw-card heading=${tr('פרטים')}>
           <dl>
-            <dt>מצב</dt><dd><sw-badge kind=${cam.state}></sw-badge></dd>
-            <dt>הקלטה</dt><dd>${{ continuous: 'רציפה', motion: 'לפי תנועה', off: 'כבויה', unknown: 'לא ידוע' }[cam.recording]}</dd>
-            <dt>זרם</dt><dd>${cam.fps ? `${cam.fps} fps · ${cam.bitrateKbps} kbps` : '—'}</dd>
-            <dt>קושחה</dt><dd><span class="ltr">${cam.firmware}</span></dd>
-            <dt>אירוע אחרון</dt><dd>${cam.lastEvent}</dd>
+            <dt>${tr('מצב')}</dt><dd><sw-badge kind=${cam.state}></sw-badge></dd>
+            <dt>${tr('הקלטה')}</dt><dd>${{ continuous: tr('רציפה'), motion: tr('לפי תנועה'), off: tr('כבויה'), unknown: tr('לא ידוע') }[cam.recording]}</dd>
+            <dt>${tr('זרם')}</dt><dd>${cam.fps ? `${cam.fps} fps · ${cam.bitrateKbps} kbps` : '—'}</dd>
+            <dt>${tr('קושחה')}</dt><dd><span class="ltr">${cam.firmware}</span></dd>
+            <dt>${tr('אירוע אחרון')}</dt><dd>${cam.lastEvent}</dd>
           </dl>
         </sw-card>
-        <sw-card heading="מצלמות באותה קומה">
+        <sw-card heading=${tr('מצלמות באותה קומה')}>
           <div class="tiles">
             ${demoWall.filter((c) => c.floor === cam.floor && c.id !== cam.id).slice(0, 4).map((c) => html`<sw-camera-tile compact name=${c.name} state=${c.state} scene=${demoScene[c.id] ?? 'lobby'} @click=${() => navigate(`/live/cameras/${c.id}`)}></sw-camera-tile>`)}
           </div>
@@ -1828,15 +1829,15 @@ export class LiveCamera extends LitElement {
 
   render() {
     const api = isApi();
-    const title = api ? this.cam?.name ?? 'מצלמה' : (demoWall.find((c) => c.id === this.cameraId) ?? demoWall[0]).name;
-    const sub = api ? (this.cam ? (this.cam.standalone ? cst('noRecorder') : `ערוץ ${this.cam.channel} · ${this.cam.name_source || ''}`) : '') : `${(demoWall.find((c) => c.id === this.cameraId) ?? demoWall[0]).floor} · נתוני הדגמה`;
+    const title = api ? this.cam?.name ?? tr('מצלמה') : (demoWall.find((c) => c.id === this.cameraId) ?? demoWall[0]).name;
+    const sub = api ? (this.cam ? (this.cam.standalone ? cst('noRecorder') : `${tr('ערוץ {n}', { n: this.cam.channel })} · ${this.cam.name_source || ''}`) : '') : `${(demoWall.find((c) => c.id === this.cameraId) ?? demoWall[0]).floor} · ${tr('נתוני הדגמה')}`;
     return html`
-      <sw-page heading=${title} subheading=${sub} crumbs="מצלמות | שידור חי" backHref="/live/wall">
+      <sw-page heading=${title} subheading=${sub} crumbs=${`${tr('מצלמות')} | ${tr('שידור חי')}`} backHref="/live/wall">
         ${this.cam ? html`<sw-badge slot="actions" kind=${this.cam.status === 'online' ? 'live' : this.cam.status === 'offline' ? 'offline' : 'unknown'}></sw-badge>` : nothing}
-        ${api && this.cam && this.canConfigure ? html`<sw-button slot="actions" variant="ghost" icon="edit" data-camera-rename @click=${() => { this.renameMsg = ''; this.renameTo = this.cam?.alias ?? this.cam?.name ?? ''; }}>שנה שם</sw-button>` : nothing}
+        ${api && this.cam && this.canConfigure ? html`<sw-button slot="actions" variant="ghost" icon="edit" data-camera-rename @click=${() => { this.renameMsg = ''; this.renameTo = this.cam?.alias ?? this.cam?.name ?? ''; }}>${tr('שנה שם')}</sw-button>` : nothing}
         ${this.renderRename()}
-        ${api && this.cam?.standalone ? nothing : html`<a slot="actions" href=${api && this.cam ? `#/investigate/playback?camera=${this.cam.id}` : '#/investigate/playback'}><sw-button icon="history">הקלטות</sw-button></a>`}
-        <a slot="actions" href="#/explore/floors/f0"><sw-button variant="ghost" iconOnly icon="map" label="במפה"></sw-button></a>
+        ${api && this.cam?.standalone ? nothing : html`<a slot="actions" href=${api && this.cam ? `#/investigate/playback?camera=${this.cam.id}` : '#/investigate/playback'}><sw-button icon="history">${tr('הקלטות')}</sw-button></a>`}
+        <a slot="actions" href="#/explore/floors/f0"><sw-button variant="ghost" iconOnly icon="map" label=${tr('במפה')}></sw-button></a>
         ${api && this.cam && mapTicketsOn() ? html`<sw-button slot="actions" variant="ghost" icon="plus" data-camera-ticket @click=${() => (this.mapTicket = true)}>${mapCreateLabel()}</sw-button>` : nothing}
         ${this.mapTicket && this.cam ? html`<ticket-map-create open .element=${{ pick: { resource: { type: 'camera', id: this.cam.id } }, name: this.cam.alias || this.cam.name, floorName: '' }} @close=${() => (this.mapTicket = false)}></ticket-map-create>` : nothing}
         ${api ? this.renderApi() : this.renderDemo()}

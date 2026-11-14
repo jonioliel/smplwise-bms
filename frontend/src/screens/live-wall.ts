@@ -32,6 +32,7 @@ import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { KEY_HINT_MOVE_PX, KEY_HINT_PRESS_MS, KEY_HINT_SHOW_MS, colsBadge, countBadge, keyHint, wallPhoneBarMode, type WallPhoneBarMode } from './wall-phone-bar';
 import { t as vt } from '../i18n/he';
+import { tr } from '../i18n/msg/live';
 
 /** The wall's quality choice of THIS device (`sub` = רגילה, `main` = גבוהה); unset = follow the installation setting. */
 export const WALL_QUALITY_KEY = 'sw.wall.quality';
@@ -831,7 +832,7 @@ export class LiveWall extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    this.offScreenEdit = registerScreenEdit({ id: 'wall-arrange', label: 'סידור הקיר', icon: 'grid', can: () => isApi() && this.canManage && !!this.cams?.length && !phoneRestricted('wall_arrange'), run: () => this.openSettings() }); // hidden on a phone with the option "הסתרת סידור קיר המצלמות בנייד" (UX guard, not security)
+    this.offScreenEdit = registerScreenEdit({ id: 'wall-arrange', label: tr('סידור הקיר'), icon: 'grid', can: () => isApi() && this.canManage && !!this.cams?.length && !phoneRestricted('wall_arrange'), run: () => this.openSettings() }); // hidden on a phone with the option "הסתרת סידור קיר המצלמות בנייד" (UX guard, not security)
     void this.load();
     this.posterTimer = window.setInterval(() => {
       if (!document.hidden) this.posterBust = Date.now();
@@ -969,31 +970,31 @@ export class LiveWall extends LitElement {
     const rows = this.editingRows;
     if (!rows) return nothing;
     const spanOptions = [
-      { v: 1, label: '1 עמודה' },
-      { v: 2, label: '2 עמודות' },
-      { v: 3, label: '3 עמודות' },
-      { v: 4, label: '4 עמודות' },
+      { v: 1, label: tr('1 עמודה') },
+      { v: 2, label: tr('2 עמודות') },
+      { v: 3, label: tr('3 עמודות') },
+      { v: 4, label: tr('4 עמודות') },
     ];
-    return html`<sw-dialog open heading="סידור הקיר" subheading="סדר הופעה של המצלמות ורוחב אריח בעמודות (למצלמות פנורמיות)" data-wall-settings-dialog @close=${(ev: Event) => this.closeSettings(ev)}>
+    return html`<sw-dialog open heading=${tr('סידור הקיר')} subheading=${tr('סדר הופעה של המצלמות ורוחב אריח בעמודות (למצלמות פנורמיות)')} data-wall-settings-dialog @close=${(ev: Event) => this.closeSettings(ev)}>
       <div class="settings-rows" data-wall-settings-rows>
         ${repeat(
           rows,
           (row) => row.id, // keyed: a row that moves takes its own checkbox and width select with it
           (row, i) => html`<div class="settings-row ${row.hidden ? 'is-hidden' : ''}" data-wall-settings-row=${row.id} ?data-wall-row-hidden=${row.hidden}>
-            <label class="settings-show"><input type="checkbox" data-wall-show=${row.id} .checked=${!row.hidden} @change=${(ev: Event) => this.setHidden(i, !(ev.target as HTMLInputElement).checked)} />מוצגת</label>
+            <label class="settings-show"><input type="checkbox" data-wall-show=${row.id} .checked=${!row.hidden} @change=${(ev: Event) => this.setHidden(i, !(ev.target as HTMLInputElement).checked)} />${tr('מוצגת')}</label>
             <div class="settings-move">
-              <button data-wall-move-up=${row.id} ?disabled=${!canMove(rows, i, -1)} @click=${() => this.moveRow(i, -1)} aria-label="הזז למעלה">↑</button>
-              <button data-wall-move-down=${row.id} ?disabled=${!canMove(rows, i, 1)} @click=${() => this.moveRow(i, 1)} aria-label="הזז למטה">↓</button>
+              <button data-wall-move-up=${row.id} ?disabled=${!canMove(rows, i, -1)} @click=${() => this.moveRow(i, -1)} aria-label=${tr('הזז למעלה')}>↑</button>
+              <button data-wall-move-down=${row.id} ?disabled=${!canMove(rows, i, 1)} @click=${() => this.moveRow(i, 1)} aria-label=${tr('הזז למטה')}>↓</button>
             </div>
             <div class="settings-name">${row.name}</div>
-            <sw-field label="רוחב"><select data-wall-span=${row.id} .value=${String(row.span)} @change=${(ev: Event) => this.setSpan(i, Number((ev.target as HTMLSelectElement).value))}>${spanOptions.map((o) => html`<option value=${o.v} ?selected=${o.v === row.span}>${o.label}</option>`)}</select></sw-field>
+            <sw-field label=${tr('רוחב')}><select data-wall-span=${row.id} .value=${String(row.span)} @change=${(ev: Event) => this.setSpan(i, Number((ev.target as HTMLSelectElement).value))}>${spanOptions.map((o) => html`<option value=${o.v} ?selected=${o.v === row.span}>${o.label}</option>`)}</select></sw-field>
           </div>`,
         )}
       </div>
       ${this.dialogError ? html`<div class="err" data-wall-settings-error>${this.dialogError}</div>` : nothing}
       <div slot="footer">
-        <sw-button variant="primary" icon="check" data-wall-settings-save ?disabled=${this.dialogBusy} @click=${() => this.saveSettings()}>${this.dialogBusy ? 'שומר…' : 'שמור'}</sw-button>
-        <sw-button variant="ghost" ?disabled=${this.dialogBusy} @click=${() => this.closeSettings()}>ביטול</sw-button>
+        <sw-button variant="primary" icon="check" data-wall-settings-save ?disabled=${this.dialogBusy} @click=${() => this.saveSettings()}>${this.dialogBusy ? tr('שומר…') : tr('שמור')}</sw-button>
+        <sw-button variant="ghost" ?disabled=${this.dialogBusy} @click=${() => this.closeSettings()}>${tr('ביטול')}</sw-button>
       </div>
     </sw-dialog>`;
   }
@@ -1015,7 +1016,7 @@ export class LiveWall extends LitElement {
 
   private recorderControl(phone: boolean, title = '') {
     return html`<select aria-label=${vt('videoCopy.recorder')} data-wall-recorder title=${title || nothing} @change=${(e: Event) => this.setRecorder((e.target as HTMLSelectElement).value)}>
-      <option value="" ?selected=${!this.recorderFilter}>${phone ? 'כל המקליטים' : 'מקליט: הכול'}</option>
+      <option value="" ?selected=${!this.recorderFilter}>${phone ? tr('כל המקליטים') : tr('מקליט: הכול')}</option>
       ${this.recorders.map((r) => html`<option value=${r.id} ?selected=${r.id === this.recorderFilter}>${r.name}</option>`)}
     </select>`;
   }
@@ -1024,10 +1025,10 @@ export class LiveWall extends LitElement {
     const enabled = this.cams && this.recorderFilter ? this.cams.filter((c) => c.recorder_id === this.recorderFilter) : this.cams;
     const cams = enabled ? wallCameras(enabled) : enabled; // "לא להציג" cameras are out of the wall grid, its stream budget and its footer count
     const hiddenCount = enabled && cams ? enabled.length - cams.length : 0;
-    if (this.error) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>`;
+    if (this.error) return html`<sw-state-panel state="error" hint=${this.error} actionLabel=${tr('נסה שוב')} @action=${() => this.load()}></sw-state-panel>`;
     if (!cams || !enabled) return html`<sw-state-panel state="loading"></sw-state-panel>`;
-    if (!cams.length && hiddenCount) return html`<sw-state-panel icon="camera" state="empty" heading="כל המצלמות מוסתרות בקיר" data-wall-all-hidden></sw-state-panel>`; // the arrangement dialog (user menu) brings them back
-    if (!cams.length) return html`<sw-state-panel icon="camera" state="empty" heading="אין מצלמות זמינות" hint="המצלמות מתגלות אוטומטית מהמקליט בהפעלה ובכל 10 דקות. אם הרשימה ריקה: בדקו את פרטי המקליט בהגדרות ‹ חיבורים, או הריצו סנכרון ידני; ייתכן גם שאין לך הרשאה למצלמות."><div style="margin-block-start:10px"><sw-button @click=${() => navigate('/system/devices')}>למצלמות</sw-button></div></sw-state-panel>`;
+    if (!cams.length && hiddenCount) return html`<sw-state-panel icon="camera" state="empty" heading=${tr('כל המצלמות מוסתרות בקיר')} data-wall-all-hidden></sw-state-panel>`; // the arrangement dialog (user menu) brings them back
+    if (!cams.length) return html`<sw-state-panel icon="camera" state="empty" heading=${tr('אין מצלמות זמינות')} hint=${tr('המצלמות מתגלות אוטומטית מהמקליט בהפעלה ובכל 10 דקות. אם הרשימה ריקה: בדקו את פרטי המקליט בהגדרות ‹ חיבורים, או הריצו סנכרון ידני; ייתכן גם שאין לך הרשאה למצלמות.')}><div style="margin-block-start:10px"><sw-button @click=${() => navigate('/system/devices')}>${tr('למצלמות')}</sw-button></div></sw-state-panel>`;
     // NVRLESS-CAMERAS-2411 (owner, 08.11): no video server - a clear notice instead of a wall of broken players
     if (!webrtcServer()) return html`<sw-state-panel icon="camera" state="empty" heading=${WEBRTC_REQUIRED_SHORT} hint=${WEBRTC_REQUIRED_TEXT} actionLabel=${WEBRTC_SETTINGS_LABEL} data-webrtc-required @action=${() => (window.location.hash = WEBRTC_SETTINGS_HREF)}></sw-state-panel>`;
     const wanted = this.cameras ? this.cameras.split(',').filter(Boolean) : [];
@@ -1077,7 +1078,7 @@ export class LiveWall extends LitElement {
     // the toolbar note when the BUDGET (not the window) turns tiles into snapshots, naming the setting that binds
     const mediaCap = Number(this.settings?.['media.max_live_sessions'] ?? 16);
     this.capNote = this.liveOrder.length > cap
-      ? { live: cap, of: this.liveOrder.length, where: remoteCap != null && remoteCap <= mediaCap ? 'גישה מרחוק' : 'מדיה' }
+      ? { live: cap, of: this.liveOrder.length, where: remoteCap != null && remoteCap <= mediaCap ? tr('גישה מרחוק') : tr('מדיה') }
       : null;
     return html`
       <div class="grid ${fit ? 'fit' : ''}" style="--cols:${cols};--tile:${fit ? `${fit.tile}px` : 'auto'}" data-wall-cols=${cols} ?data-wall-cols-manual=${!!this.colsOverride}>
@@ -1113,8 +1114,8 @@ export class LiveWall extends LitElement {
             @click=${() => navigate(`/live/cameras/${c.id}`)}></sw-camera-tile>`;
         })}
       </div>
-      ${wanted.length ? html`<div class="note" data-wall-picked>מפה: ${shown.length} מצלמות שנבחרו${shown.length < wanted.length ? ` (${wanted.length - shown.length} לא זמינות)` : ''} · <a href="#/live/wall">כל המצלמות</a>${this.fromMap ? html` · <a href="#" data-back-to-map @click=${(e: Event) => { e.preventDefault(); history.back(); }}>חזרה למפה</a>` : nothing}</div>` : nothing}
-      <div class="note">${wallFooterCount(shown.length, cams.length)} · פרופיל ${profile === 'sub' ? 'משני' : 'ראשי'} · תעבורה ${transport} · מכסת זרמים ${cap}${shown.length > cap ? ` — מעבר למכסה מוצג צילום בלבד` : ''} · צילומים מתרעננים כל דקה${this.phone.matches && this.capNote ? html`<br /><span data-wall-cap-note>מוצגות ${this.capNote.live} מצלמות חיות מתוך ${this.capNote.of} · המכסה: הגדרות ‹ ${this.capNote.where}</span>` : nothing}</div>
+      ${wanted.length ? html`<div class="note" data-wall-picked>${tr('מפה: {n} מצלמות שנבחרו', { n: shown.length })}${shown.length < wanted.length ? ` ${tr('({n} לא זמינות)', { n: wanted.length - shown.length })}` : ''} ·<a href="#/live/wall">${tr('כל המצלמות')}</a>${this.fromMap ? html` · <a href="#" data-back-to-map @click=${(e: Event) => { e.preventDefault(); history.back(); }}>${tr('חזרה למפה')}</a>` : nothing}</div>` : nothing}
+      <div class="note">${wallFooterCount(shown.length, cams.length)} · ${tr('פרופיל {profile}', { profile: profile === 'sub' ? tr('משני') : tr('ראשי') })} · ${tr('תעבורה {transport}', { transport })} · ${tr('מכסת זרמים {n}', { n: cap })}${shown.length > cap ? ` — ${tr('מעבר למכסה מוצג צילום בלבד')}` : ''} · ${tr('צילומים מתרעננים כל דקה')}${this.phone.matches && this.capNote ? html`<br /><span data-wall-cap-note>${tr('מוצגות {live} מצלמות חיות מתוך {of}', { live: this.capNote.live, of: this.capNote.of })} · ${tr('המכסה: הגדרות ‹ {where}', { where: this.capNote.where })}</span>` : nothing}</div>
     `;
   }
 
@@ -1126,9 +1127,9 @@ export class LiveWall extends LitElement {
     const cols = fit ? fit.cols : count === 1 ? 1 : count === 2 ? 2 : count <= 4 ? 2 : count <= 9 ? 3 : 4;
     return html`
       <div class="grid ${fit ? 'fit' : ''}" style="--cols:${cols};--tile:${fit ? `${fit.tile}px` : 'auto'}">
-        ${cams.map((c) => html`<sw-camera-tile name=${c.name} meta=${`${c.floor} · ${this.stream === 'auto' ? (count > 4 ? 'משני' : 'ראשי') : this.stream === 'main' ? 'ראשי' : 'משני'}`} state=${c.state} scene=${demoScene[c.id] ?? 'lobby'} ?compact=${count >= 9} @click=${() => navigate(`/live/cameras/${c.id}`)}></sw-camera-tile>`)}
+        ${cams.map((c) => html`<sw-camera-tile name=${c.name} meta=${`${c.floor} · ${this.stream === 'auto' ? (count > 4 ? tr('משני') : tr('ראשי')) : this.stream === 'main' ? tr('ראשי') : tr('משני')}`} state=${c.state} scene=${demoScene[c.id] ?? 'lobby'} ?compact=${count >= 9} @click=${() => navigate(`/live/cameras/${c.id}`)}></sw-camera-tile>`)}
       </div>
-      <div class="note">נתוני הדגמה: קיר של ${count} אריחים אינו פותח ${count} זרמים ראשיים במקביל; במצב אוטומטי מוצג הזרם המשני במטריצה והראשי במיקוד.</div>
+      <div class="note">${tr('נתוני הדגמה: קיר של {n} אריחים אינו פותח {n} זרמים ראשיים במקביל; במצב אוטומטי מוצג הזרם המשני במטריצה והראשי במיקוד.', { n: count })}</div>
     `;
   }
 
@@ -1143,10 +1144,10 @@ export class LiveWall extends LitElement {
 
   /** LV1: the column count as the shared compact dropdown (0 = automatic best fit). */
   private columnsDropdown(phone: boolean, key = false) {
-    const items: DropdownItem[] = COLUMN_CHOICES.map((n) => ({ id: String(n), label: n === 0 ? 'עמודות אוטו' : n === 1 ? 'עמודה אחת' : `${n} עמודות` }));
-    const hint = key ? keyHint('עמודות בקיר', items.find((it) => it.id === String(this.colsOverride))?.label) : '';
+    const items: DropdownItem[] = COLUMN_CHOICES.map((n) => ({ id: String(n), label: n === 0 ? tr('עמודות אוטו') : n === 1 ? tr('עמודה אחת') : tr('{n} עמודות', { n }) }));
+    const hint = key ? keyHint(tr('עמודות בקיר'), items.find((it) => it.id === String(this.colsOverride))?.label) : '';
     return html`<sw-dropdown slot=${phone ? '' : 'actions'} data-wall-cols-dd tall ?block=${phone && !key} ?icon-only=${key} badge=${key ? colsBadge(this.colsOverride) : ''} ?data-wall-key=${key} data-hint=${hint || nothing}
-      label="עמודות בקיר" icon="grid" dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel}
+      label=${tr('עמודות בקיר')} icon="grid" dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel}
       .items=${items} .value=${String(this.colsOverride)} @change=${(e: CustomEvent<DropdownChange>) => this.setCols(Number(e.detail.id) || 0)}></sw-dropdown>`;
   }
 
@@ -1156,22 +1157,22 @@ export class LiveWall extends LitElement {
   }
 
   private qualityControl(title: string) {
-    return html`<select aria-label="איכות" data-wall-quality title=${title} @change=${(e: Event) => this.setQuality((e.target as HTMLSelectElement).value)}>
-        <option value="auto" ?selected=${this.stream === 'auto'}>איכות: אוטו</option>
-        ${(['sub', 'main'] as const).map((p) => html`<option value=${p} ?selected=${this.stream === p}>איכות: ${p === 'sub' ? 'רגילה' : 'גבוהה'}</option>`)}
+    return html`<select aria-label=${tr('איכות')} data-wall-quality title=${title} @change=${(e: Event) => this.setQuality((e.target as HTMLSelectElement).value)}>
+        <option value="auto" ?selected=${this.stream === 'auto'}>${tr('איכות: אוטו')}</option>
+        ${(['sub', 'main'] as const).map((p) => html`<option value=${p} ?selected=${this.stream === p}>${tr('איכות: {q}', { q: p === 'sub' ? tr('רגילה') : tr('גבוהה') })}</option>`)}
       </select>`;
   }
 
   private countControl(total: number, title = '') {
-    return html`<select aria-label="מספר מצלמות" data-wall-count-select title=${title || nothing} @change=${(e: Event) => { this.setCount(parseCountId((e.target as HTMLSelectElement).value)); if (this.cameras) navigate('/live/wall'); }}>
-        ${this.cameras ? html`<option value="" selected disabled>נבחרו במפה</option>` : nothing}
-        ${countLadder(total).map((n) => html`<option value=${n} ?selected=${String(n) === countChoiceId(this.count, total) && !this.cameras}>${n} מצלמות</option>`)}
-        <option value=${COUNT_ALL_ID} ?selected=${countChoiceId(this.count, total) === COUNT_ALL_ID && !this.cameras}>כל המצלמות (${total})</option>
+    return html`<select aria-label=${tr('מספר מצלמות')} data-wall-count-select title=${title || nothing} @change=${(e: Event) => { this.setCount(parseCountId((e.target as HTMLSelectElement).value)); if (this.cameras) navigate('/live/wall'); }}>
+        ${this.cameras ? html`<option value="" selected disabled>${tr('נבחרו במפה')}</option>` : nothing}
+        ${countLadder(total).map((n) => html`<option value=${n} ?selected=${String(n) === countChoiceId(this.count, total) && !this.cameras}>${tr('{n} מצלמות', { n })}</option>`)}
+        <option value=${COUNT_ALL_ID} ?selected=${countChoiceId(this.count, total) === COUNT_ALL_ID && !this.cameras}>${tr('כל המצלמות ({n})', { n: total })}</option>
       </select>`;
   }
 
   private kioskKey(hint: string) {
-    return html`<button type="button" class="kiosk" data-open-kiosk aria-label="קיוסק" title="פותח את הקיוסק בלשונית חדשה" ?data-wall-key=${!!hint} data-hint=${hint || nothing} @click=${() => this.openKiosk()}><sw-icon name="expand" size=${hint ? 20 : 18}></sw-icon></button>`;
+    return html`<button type="button" class="kiosk" data-open-kiosk aria-label=${tr('קיוסק')} title=${tr('פותח את הקיוסק בלשונית חדשה')} ?data-wall-key=${!!hint} data-hint=${hint || nothing} @click=${() => this.openKiosk()}><sw-icon name="expand" size=${hint ? 20 : 18}></sw-icon></button>`;
   }
 
   /** The phone's toolbar in the installation's mode (WALL-PHONE-TOOLBAR-2401, ui.wall_phone_bar): one row of icon keys (default) or the
@@ -1184,7 +1185,7 @@ export class LiveWall extends LitElement {
    * fits, never an ellipsis), the recorder filter and the kiosk button - the toolbar as it was before 2.40.1. */
   private renderPhoneBarLabels(api: boolean, total: number) {
     return html`<div slot="actions" class="pbar" data-wall-phone-bar data-mode="labels">
-      <sw-field ?capsule=${this.capsuleField} dd-size=${this.tabsMode.ddSize} icon="camera">${this.qualityControl('איכות הקיר במכשיר הזה (נשמרת בדפדפן)')}</sw-field>
+      <sw-field ?capsule=${this.capsuleField} dd-size=${this.tabsMode.ddSize} icon="camera">${this.qualityControl(tr('איכות הקיר במכשיר הזה (נשמרת בדפדפן)'))}</sw-field>
       <sw-field ?capsule=${this.capsuleField} dd-size=${this.tabsMode.ddSize} icon="grid">${this.countControl(total)}</sw-field>
       ${api ? this.columnsDropdown(true) : nothing}
       ${api ? this.recorderSelect(true) : nothing}
@@ -1201,9 +1202,9 @@ export class LiveWall extends LitElement {
   /** "שורה אחת עם אייקונים" (the default): quality, camera count, columns, the recorder filter (two or more recorders) and the kiosk as one row
    * of 44 px keys; each key's full name on a long press, as its tooltip and as its accessible name. */
   private renderPhoneBarIcons(api: boolean, total: number) {
-    const quality = keyHint('איכות', this.stream === 'auto' ? 'אוטו' : this.stream === 'sub' ? 'רגילה' : 'גבוהה');
+    const quality = keyHint(tr('איכות'), this.stream === 'auto' ? tr('אוטו') : this.stream === 'sub' ? tr('רגילה') : tr('גבוהה'));
     const choice = countChoiceId(this.count, total);
-    const count = keyHint('מספר מצלמות', this.cameras ? 'נבחרו במפה' : choice === COUNT_ALL_ID ? `כל המצלמות (${total})` : `${choice} מצלמות`);
+    const count = keyHint(tr('מספר מצלמות'), this.cameras ? tr('נבחרו במפה') : choice === COUNT_ALL_ID ? tr('כל המצלמות ({n})', { n: total }) : tr('{n} מצלמות', { n: choice }));
     const recorder = keyHint(vt('videoCopy.recorder'), this.recorders.find((r) => r.id === this.recorderFilter)?.name ?? vt('videoCopy.recorderAll'));
     return html`<div slot="actions" class="pbar" data-wall-phone-bar data-mode="icons"
       @pointerdown=${this.onKeyPress} @pointermove=${this.onKeyMove} @pointerup=${this.onKeyRelease} @pointercancel=${this.onKeyRelease} @click=${this.onKeyClick} @contextmenu=${this.onKeyMenu}>
@@ -1211,7 +1212,7 @@ export class LiveWall extends LitElement {
       ${this.iconKey('camera', count, countBadge(this.count, total, !!this.cameras), this.countControl(total, count))}
       ${api ? this.columnsDropdown(true, true) : nothing}
       ${api && this.recorders.length >= 2 ? this.iconKey('layers', recorder, '', this.recorderControl(true, recorder)) : nothing}
-      ${this.kioskKey('קיוסק: פותח את הקיוסק בלשונית חדשה')}
+      ${this.kioskKey(tr('קיוסק: פותח את הקיוסק בלשונית חדשה'))}
       ${this.keyHintText ? html`<div class="khint" role="status" data-wall-key-hint>${this.keyHintText}</div>` : nothing}
     </div>`;
   }
@@ -1223,18 +1224,18 @@ export class LiveWall extends LitElement {
     const choice = countChoiceId(this.count, total);
     const body = api ? this.renderApi() : this.renderDemo(); // first: it works out the budget note the toolbar shows
     return html`
-      <sw-page heading="כל המצלמות" subheading="${total} מצלמות${api ? '' : ` · תצוגה: ${VIEWS.find((v) => v.id === this.view)?.label} · נתוני הדגמה`}" wide>
+      <sw-page heading=${tr('כל המצלמות')} subheading=${`${tr('{n} מצלמות', { n: total })}${api ? '' : ` · ${tr('תצוגה: {view}', { view: VIEWS.find((v) => v.id === this.view)?.label ?? '' })} · ${tr('נתוני הדגמה')}`}`} wide>
         ${this.phone.matches ? this.renderPhoneBar(api, total) : nothing}
-        ${api || this.phone.matches ? nothing : html`<sw-field slot="actions" ?capsule=${this.capsuleField} dd-size=${this.tabsMode.ddSize} icon="grid"><select aria-label="תצוגה" @change=${(e: Event) => (this.view = (e.target as HTMLSelectElement).value)}>${VIEWS.map((v) => html`<option value=${v.id} ?selected=${v.id === this.view}>${v.label}</option>`)}</select></sw-field>`}
-        ${this.phone.matches ? nothing : html`<sw-field slot="actions" ?capsule=${this.capsuleField} dd-size=${this.tabsMode.ddSize} icon="camera"><select aria-label="איכות" data-wall-quality title="איכות הקיר במכשיר הזה (נשמרת בדפדפן)" @change=${(e: Event) => this.setQuality((e.target as HTMLSelectElement).value)}><option value="auto" ?selected=${this.stream === 'auto'}>איכות: ברירת מחדל (${this.stream === 'auto' ? (this.wallProfile() === 'sub' ? 'רגילה' : 'גבוהה') : this.defaultProfile() === 'sub' ? 'רגילה' : 'גבוהה'})</option>${(['sub', 'main'] as const).map((p) => html`<option value=${p} ?selected=${this.stream === p}>איכות: ${p === 'sub' ? 'רגילה' : 'גבוהה'}</option>`)}</select></sw-field>`}
+        ${api || this.phone.matches ? nothing : html`<sw-field slot="actions" ?capsule=${this.capsuleField} dd-size=${this.tabsMode.ddSize} icon="grid"><select aria-label=${tr('תצוגה')} @change=${(e: Event) => (this.view = (e.target as HTMLSelectElement).value)}>${VIEWS.map((v) => html`<option value=${v.id} ?selected=${v.id === this.view}>${v.label}</option>`)}</select></sw-field>`}
+        ${this.phone.matches ? nothing : html`<sw-field slot="actions" ?capsule=${this.capsuleField} dd-size=${this.tabsMode.ddSize} icon="camera"><select aria-label=${tr('איכות')} data-wall-quality title=${tr('איכות הקיר במכשיר הזה (נשמרת בדפדפן)')} @change=${(e: Event) => this.setQuality((e.target as HTMLSelectElement).value)}><option value="auto" ?selected=${this.stream === 'auto'}>${tr('איכות: ברירת מחדל ({q})', { q: this.stream === 'auto' ? (this.wallProfile() === 'sub' ? tr('רגילה') : tr('גבוהה')) : this.defaultProfile() === 'sub' ? tr('רגילה') : tr('גבוהה') })}</option>${(['sub', 'main'] as const).map((p) => html`<option value=${p} ?selected=${this.stream === p}>${tr('איכות: {q}', { q: p === 'sub' ? tr('רגילה') : tr('גבוהה') })}</option>`)}</select></sw-field>`}
         ${api && !this.phone.matches ? this.recorderSelect(false) : nothing}
-        ${api && this.capNote && !this.phone.matches ? html`<span slot="actions" class="note" data-wall-cap-note>מוצגות ${this.capNote.live} מצלמות חיות מתוך ${this.capNote.of} · המכסה: הגדרות ‹ ${this.capNote.where}</span>` : nothing}
-        ${this.phone.matches ? nothing : html`<div slot="actions" class="layouts" role="group" aria-label="פריסה" data-wall-count>
+        ${api && this.capNote && !this.phone.matches ? html`<span slot="actions" class="note" data-wall-cap-note>${tr('מוצגות {live} מצלמות חיות מתוך {of}', { live: this.capNote.live, of: this.capNote.of })} · ${tr('המכסה: הגדרות ‹ {where}', { where: this.capNote.where })}</span>` : nothing}
+        ${this.phone.matches ? nothing : html`<div slot="actions" class="layouts" role="group" aria-label=${tr('פריסה')} data-wall-count>
           ${countLadder(total).map((n) => html`<button class=${String(n) === choice && !this.cameras ? 'on' : ''} data-count=${n} @click=${() => { this.setCount(n); if (this.cameras) navigate('/live/wall'); }} aria-pressed=${String(n) === choice && !this.cameras}>${n}</button>`)}
-          <button class=${choice === COUNT_ALL_ID && !this.cameras ? 'on' : ''} data-count=${COUNT_ALL_ID} @click=${() => { this.setCount(COUNT_ALL); if (this.cameras) navigate('/live/wall'); }} aria-pressed=${choice === COUNT_ALL_ID && !this.cameras}>הכול</button>
+          <button class=${choice === COUNT_ALL_ID && !this.cameras ? 'on' : ''} data-count=${COUNT_ALL_ID} @click=${() => { this.setCount(COUNT_ALL); if (this.cameras) navigate('/live/wall'); }} aria-pressed=${choice === COUNT_ALL_ID && !this.cameras}>${tr('הכול')}</button>
         </div>
         ${api ? this.columnsDropdown(false) : nothing}
-        <sw-button slot="actions" variant="ghost" icon="expand" data-open-kiosk title="פותח את הקיוסק בלשונית חדשה" @click=${() => this.openKiosk()}>קיוסק</sw-button>`}
+        <sw-button slot="actions" variant="ghost" icon="expand" data-open-kiosk title=${tr('פותח את הקיוסק בלשונית חדשה')} @click=${() => this.openKiosk()}>${tr('קיוסק')}</sw-button>`}
         ${body}
         ${this.renderSettingsDialog()}
       </sw-page>

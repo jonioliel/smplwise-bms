@@ -29,6 +29,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { dateInputLang, dayTimeText } from '../api/day-format';
 import { t as vt } from '../i18n/he';
+import { tr } from '../i18n/msg/investigate';
 
 /** POLISH4-WP2 (D7): the icon tile takes skin tokens, so it follows the scheme (the hex pairs of before were pastel tiles in dark).
     A rule's kind is a category, never a status, so none of them is green (green is for status only); "move" takes the neutral well. */
@@ -43,9 +44,9 @@ const RULE_ICON: Record<string, { icon: IconName; bg: string; fg: string }> = {
 
 /** S5 (0.1.73): starting points for common rules - every field stays editable. */
 const RULE_TEMPLATES: { id: string; label: string; body: Partial<RuleBody> }[] = [
-  { id: 'person-night', label: 'אדם בלילה', body: { name: 'אדם בלילה', description: 'זיהוי אדם בשעות הסגירה', trigger: { types: ['person'], sources: [], severity_min: 'info' }, window: { days: [], from: '22:00', to: '06:00' }, cooldown_s: 300, actions: [{ kind: 'notify', message: 'זוהה אדם בשעות הסגירה' }] } },
-  { id: 'camera-offline', label: 'מצלמה מנותקת', body: { name: 'מצלמה מנותקת', description: 'התראה כשמצלמה יורדת מהרשת', trigger: { types: ['offline'], sources: [], severity_min: 'info' }, window: { days: [], from: null, to: null }, cooldown_s: 1800, actions: [{ kind: 'notify', message: 'מצלמה מנותקת' }] } },
-  { id: 'door-after-hours', label: 'דלת נפתחה אחרי שעות', body: { name: 'דלת נפתחה אחרי שעות', description: 'פתיחת דלת מחוץ לשעות הפעילות', trigger: { types: ['door'], sources: ['ha'], severity_min: 'info' }, window: { days: [], from: '20:00', to: '07:00' }, cooldown_s: 600, actions: [{ kind: 'notify', message: 'דלת נפתחה מחוץ לשעות הפעילות' }] } },
+  { id: 'person-night', label: tr('אדם בלילה'), body: { name: tr('אדם בלילה'), description: tr('זיהוי אדם בשעות הסגירה'), trigger: { types: ['person'], sources: [], severity_min: 'info' }, window: { days: [], from: '22:00', to: '06:00' }, cooldown_s: 300, actions: [{ kind: 'notify', message: tr('זוהה אדם בשעות הסגירה') }] } },
+  { id: 'camera-offline', label: tr('מצלמה מנותקת'), body: { name: tr('מצלמה מנותקת'), description: tr('התראה כשמצלמה יורדת מהרשת'), trigger: { types: ['offline'], sources: [], severity_min: 'info' }, window: { days: [], from: null, to: null }, cooldown_s: 1800, actions: [{ kind: 'notify', message: tr('מצלמה מנותקת') }] } },
+  { id: 'door-after-hours', label: tr('דלת נפתחה אחרי שעות'), body: { name: tr('דלת נפתחה אחרי שעות'), description: tr('פתיחת דלת מחוץ לשעות הפעילות'), trigger: { types: ['door'], sources: ['ha'], severity_min: 'info' }, window: { days: [], from: '20:00', to: '07:00' }, cooldown_s: 600, actions: [{ kind: 'notify', message: tr('דלת נפתחה מחוץ לשעות הפעילות') }] } },
 ];
 
 @customElement('investigate-rules')
@@ -198,12 +199,12 @@ export class InvestigateRules extends LitElement {
   }
 
   private summary(r: Rule) {
-    const t = r.trigger.types.length ? r.trigger.types.map((x) => EVENT_LABEL[x as EventKind] ?? x).join(', ') : 'כל הסוגים';
+    const t = r.trigger.types.length ? r.trigger.types.map((x) => EVENT_LABEL[x as EventKind] ?? x).join(', ') : tr('כל הסוגים');
     const scope = r.scope.floor_ids.length || r.scope.zone_ids.length || r.scope.camera_ids.length || r.scope.building_ids.length || r.scope.site_ids.length
-      ? [r.scope.floor_ids.length ? `${r.scope.floor_ids.length} קומות` : '', r.scope.zone_ids.length ? `${r.scope.zone_ids.length} אזורים` : '', r.scope.camera_ids.length ? `${r.scope.camera_ids.length} מצלמות` : ''].filter(Boolean).join(' · ')
-      : 'כל המתקן';
-    const win = r.window.from || r.window.to || r.window.days.length ? `${r.window.days.map((d) => DAY_LABEL[d] ?? d).join('') || 'כל יום'} ${r.window.from ?? '00:00'}–${r.window.to ?? '24:00'}` : 'תמיד';
-    return `${t} · ${scope} · ${win} · השהיה ${r.cooldown_s} שנ׳ · ${r.owner === 'ha' ? `בבעלות תשתית המערכת (${r.ha_automation_id})` : 'התראה במערכת'}`;
+      ? [r.scope.floor_ids.length ? tr('{n} קומות', { n: r.scope.floor_ids.length }) : '', r.scope.zone_ids.length ? tr('{n} אזורים', { n: r.scope.zone_ids.length }) : '', r.scope.camera_ids.length ? tr('{n} מצלמות', { n: r.scope.camera_ids.length }) : ''].filter(Boolean).join(' · ')
+      : tr('כל המתקן');
+    const win = r.window.from || r.window.to || r.window.days.length ? `${r.window.days.map((d) => DAY_LABEL[d] ?? d).join('') || tr('כל יום')} ${r.window.from ?? '00:00'}–${r.window.to ?? '24:00'}` : tr('תמיד');
+    return `${t} · ${scope} · ${win} · ${tr('השהיה {n} שנ׳', { n: r.cooldown_s })} · ${r.owner === 'ha' ? tr('בבעלות תשתית המערכת ({id})', { id: r.ha_automation_id ?? '' }) : tr('התראה במערכת')}`;
   }
 
   private renderEditor() {
@@ -211,59 +212,59 @@ export class InvestigateRules extends LitElement {
     if (!e) return nothing;
     const b = e.body;
     const dry = this.dry;
-    return html`<sw-dialog open heading=${e.id ? 'עריכת חוק' : 'חוק חדש'} subheading="מפעיל → היקף → חלון זמן → השהיה → התראה במערכת · הרצה יבשה לפני שמירה" data-rule-dialog @close=${() => (this.editing = null)}>
+    return html`<sw-dialog open heading=${e.id ? tr('עריכת חוק') : tr('חוק חדש')} subheading=${tr('מפעיל → היקף → חלון זמן → השהיה → התראה במערכת · הרצה יבשה לפני שמירה')} data-rule-dialog @close=${() => (this.editing = null)}>
       ${this.error ? html`<div class="err">${this.error}</div>` : nothing}
-      ${!e.id ? html`<sw-field label="תבניות (ממלאות את הטופס; אפשר לשנות אחר כך)"><div class="chips">${RULE_TEMPLATES.map((t) => html`<sw-chip data-rule-template=${t.id} @click=${() => this.edit((x) => Object.assign(x, JSON.parse(JSON.stringify(t.body))))}>${t.label}</sw-chip>`)}</div></sw-field>` : nothing}
-      <sw-field label="שם"><input data-rule-name .value=${b.name} @input=${(ev: Event) => this.edit((x) => (x.name = (ev.target as HTMLInputElement).value))} /></sw-field>
-      <sw-field label="סוגי אירועים (ריק = הכל)"><div class="chips">${this.meta.types.map((t) => html`<sw-chip data-rule-type=${t} ?selected=${b.trigger.types.includes(t)} @click=${() => this.edit((x) => this.toggleIn(x.trigger.types, t))}>${EVENT_LABEL[t as EventKind] ?? t}</sw-chip>`)}</div></sw-field>
-      <sw-field label="מקורות (ריק = הכל)"><div class="chips">${this.meta.sources.map((s) => html`<sw-chip ?selected=${b.trigger.sources.includes(s)} @click=${() => this.edit((x) => this.toggleIn(x.trigger.sources, s))}>${SOURCE_LABEL_RULE[s] ?? s}</sw-chip>`)}</div></sw-field>
+      ${!e.id ? html`<sw-field label=${tr('תבניות (ממלאות את הטופס; אפשר לשנות אחר כך)')}><div class="chips">${RULE_TEMPLATES.map((t) => html`<sw-chip data-rule-template=${t.id} @click=${() => this.edit((x) => Object.assign(x, JSON.parse(JSON.stringify(t.body))))}>${t.label}</sw-chip>`)}</div></sw-field>` : nothing}
+      <sw-field label=${tr('שם')}><input data-rule-name .value=${b.name} @input=${(ev: Event) => this.edit((x) => (x.name = (ev.target as HTMLInputElement).value))} /></sw-field>
+      <sw-field label=${tr('סוגי אירועים (ריק = הכל)')}><div class="chips">${this.meta.types.map((t) => html`<sw-chip data-rule-type=${t} ?selected=${b.trigger.types.includes(t)} @click=${() => this.edit((x) => this.toggleIn(x.trigger.types, t))}>${EVENT_LABEL[t as EventKind] ?? t}</sw-chip>`)}</div></sw-field>
+      <sw-field label=${tr('מקורות (ריק = הכל)')}><div class="chips">${this.meta.sources.map((s) => html`<sw-chip ?selected=${b.trigger.sources.includes(s)} @click=${() => this.edit((x) => this.toggleIn(x.trigger.sources, s))}>${SOURCE_LABEL_RULE[s] ?? s}</sw-chip>`)}</div></sw-field>
       <div class="two">
-        <sw-field label="חומרה מינימלית"><select @change=${(ev: Event) => this.edit((x) => (x.trigger.severity_min = (ev.target as HTMLSelectElement).value as RuleTrigger['severity_min']))}>${(['info', 'alert', 'critical'] as const).map((s) => html`<option value=${s} ?selected=${b.trigger.severity_min === s}>${s === 'info' ? 'מידע' : s === 'alert' ? 'התראה' : 'קריטי'}</option>`)}</select></sw-field>
-        <sw-field label="השהיה בין התראות (שניות)"><input type="number" min="0" max="86400" data-rule-cooldown .value=${String(b.cooldown_s)} @input=${(ev: Event) => this.edit((x) => (x.cooldown_s = Math.max(0, Number((ev.target as HTMLInputElement).value) || 0)))} /></sw-field>
+        <sw-field label=${tr('חומרה מינימלית')}><select @change=${(ev: Event) => this.edit((x) => (x.trigger.severity_min = (ev.target as HTMLSelectElement).value as RuleTrigger['severity_min']))}>${(['info', 'alert', 'critical'] as const).map((s) => html`<option value=${s} ?selected=${b.trigger.severity_min === s}>${s === 'info' ? tr('מידע') : s === 'alert' ? tr('התראה') : tr('קריטי')}</option>`)}</select></sw-field>
+        <sw-field label=${tr('השהיה בין התראות (שניות)')}><input type="number" min="0" max="86400" data-rule-cooldown .value=${String(b.cooldown_s)} @input=${(ev: Event) => this.edit((x) => (x.cooldown_s = Math.max(0, Number((ev.target as HTMLInputElement).value) || 0)))} /></sw-field>
       </div>
-      <sw-field label="היקף: קומות (ריק = כל המתקן)"><div class="chips">${this.floors.map((f) => html`<sw-chip data-rule-floor=${f.id} ?selected=${b.scope.floor_ids.includes(f.id)} @click=${() => { this.edit((x) => this.toggleIn(x.scope.floor_ids, f.id)); const sel = this.editing?.body.scope.floor_ids ?? []; if (sel.length === 1) void this.loadZones(sel[0]); else this.zones = []; }}>${f.name}</sw-chip>`)}</div></sw-field>
-      ${this.zones.length ? html`<sw-field label="חדרים / אזורים בקומה שנבחרה"><div class="chips">${this.zones.map((z) => html`<sw-chip ?selected=${b.scope.zone_ids.includes(z.id)} @click=${() => this.edit((x) => this.toggleIn(x.scope.zone_ids, z.id))}>${z.name}</sw-chip>`)}</div></sw-field>` : nothing}
-      <sw-field label="מצלמות ספציפיות (לא חובה)"><div class="chips">${this.cams.map((c) => html`<sw-chip ?selected=${b.scope.camera_ids.includes(c.id)} @click=${() => this.edit((x) => this.toggleIn(x.scope.camera_ids, c.id))}>${c.name}</sw-chip>`)}</div></sw-field>
-      <sw-field label="ימים (ריק = כל יום)"><div class="chips">${this.meta.days.map((d) => html`<sw-chip ?selected=${b.window.days.includes(d)} @click=${() => this.edit((x) => this.toggleIn(x.window.days, d))}>${DAY_LABEL[d] ?? d}</sw-chip>`)}</div></sw-field>
+      <sw-field label=${tr('היקף: קומות (ריק = כל המתקן)')}><div class="chips">${this.floors.map((f) => html`<sw-chip data-rule-floor=${f.id} ?selected=${b.scope.floor_ids.includes(f.id)} @click=${() => { this.edit((x) => this.toggleIn(x.scope.floor_ids, f.id)); const sel = this.editing?.body.scope.floor_ids ?? []; if (sel.length === 1) void this.loadZones(sel[0]); else this.zones = []; }}>${f.name}</sw-chip>`)}</div></sw-field>
+      ${this.zones.length ? html`<sw-field label=${tr('חדרים / אזורים בקומה שנבחרה')}><div class="chips">${this.zones.map((z) => html`<sw-chip ?selected=${b.scope.zone_ids.includes(z.id)} @click=${() => this.edit((x) => this.toggleIn(x.scope.zone_ids, z.id))}>${z.name}</sw-chip>`)}</div></sw-field>` : nothing}
+      <sw-field label=${tr('מצלמות ספציפיות (לא חובה)')}><div class="chips">${this.cams.map((c) => html`<sw-chip ?selected=${b.scope.camera_ids.includes(c.id)} @click=${() => this.edit((x) => this.toggleIn(x.scope.camera_ids, c.id))}>${c.name}</sw-chip>`)}</div></sw-field>
+      <sw-field label=${tr('ימים (ריק = כל יום)')}><div class="chips">${this.meta.days.map((d) => html`<sw-chip ?selected=${b.window.days.includes(d)} @click=${() => this.edit((x) => this.toggleIn(x.window.days, d))}>${DAY_LABEL[d] ?? d}</sw-chip>`)}</div></sw-field>
       <div class="two">
-        <sw-field label="משעה (זמן האתר)"><input type="time" lang=${dateInputLang()} data-ltr .value=${b.window.from ?? ''} @change=${(ev: Event) => this.edit((x) => (x.window.from = (ev.target as HTMLInputElement).value || null))} /></sw-field>
-        <sw-field label="עד שעה"><input type="time" lang=${dateInputLang()} data-ltr .value=${b.window.to ?? ''} @change=${(ev: Event) => this.edit((x) => (x.window.to = (ev.target as HTMLInputElement).value || null))} /></sw-field>
+        <sw-field label=${tr('משעה (זמן האתר)')}><input type="time" lang=${dateInputLang()} data-ltr .value=${b.window.from ?? ''} @change=${(ev: Event) => this.edit((x) => (x.window.from = (ev.target as HTMLInputElement).value || null))} /></sw-field>
+        <sw-field label=${tr('עד שעה')}><input type="time" lang=${dateInputLang()} data-ltr .value=${b.window.to ?? ''} @change=${(ev: Event) => this.edit((x) => (x.window.to = (ev.target as HTMLInputElement).value || null))} /></sw-field>
       </div>
       <div class="two">
-        <sw-field label="פעולה"><select data-rule-action-kind @change=${(ev: Event) => this.edit((x) => (x.actions = [{ ...(x.actions[0] ?? { message: '' }), kind: (ev.target as HTMLSelectElement).value as RuleAction['kind'] }]))}>
-          <option value="notify" ?selected=${(b.actions[0]?.kind ?? 'notify') === 'notify'}>התראה במערכת</option><option value="ha_notify" ?selected=${b.actions[0]?.kind === 'ha_notify'}>התראה דרך תשתית המערכת (notify)</option>
-          ${can('media.announce') || b.actions[0]?.kind === 'announce' ? html`<option value="announce" ?selected=${b.actions[0]?.kind === 'announce'}>הכרזה קולית</option>` : nothing}
+        <sw-field label=${tr('פעולה')}><select data-rule-action-kind @change=${(ev: Event) => this.edit((x) => (x.actions = [{ ...(x.actions[0] ?? { message: '' }), kind: (ev.target as HTMLSelectElement).value as RuleAction['kind'] }]))}>
+          <option value="notify" ?selected=${(b.actions[0]?.kind ?? 'notify') === 'notify'}>${tr('התראה במערכת')}</option><option value="ha_notify" ?selected=${b.actions[0]?.kind === 'ha_notify'}>${tr('התראה דרך תשתית המערכת (notify)')}</option>
+          ${can('media.announce') || b.actions[0]?.kind === 'announce' ? html`<option value="announce" ?selected=${b.actions[0]?.kind === 'announce'}>${tr('הכרזה קולית')}</option>` : nothing}
         </select></sw-field>
         ${b.actions[0]?.kind === 'announce'
-          ? html`<sw-field label="חדר להכרזה"><select data-rule-announce-room @change=${(ev: Event) => this.edit((x) => (x.actions = [{ ...x.actions[0], scope: 'area', ref: (ev.target as HTMLSelectElement).value }]))}>
+          ? html`<sw-field label=${tr('חדר להכרזה')}><select data-rule-announce-room @change=${(ev: Event) => this.edit((x) => (x.actions = [{ ...x.actions[0], scope: 'area', ref: (ev.target as HTMLSelectElement).value }]))}>
               <option value="" ?selected=${!b.actions[0]?.ref}>—</option>${this.speakAreas.map((a) => html`<option value=${a.area_id} ?selected=${b.actions[0]?.ref === a.area_id}>${[a.floor_name, a.name].filter(Boolean).join(' · ')}</option>`)}</select></sw-field>`
           : nothing}
         ${b.actions[0]?.kind === 'ha_notify'
-          ? html`<sw-field label="שירות notify בתשתית המערכת (למשל mobile_app_phone)"><input data-ltr data-rule-service placeholder="mobile_app_phone" .value=${b.actions[0]?.service ?? ''} @input=${(ev: Event) => this.edit((x) => (x.actions = [{ ...x.actions[0], service: (ev.target as HTMLInputElement).value.trim() }]))} /></sw-field>`
+          ? html`<sw-field label=${tr('שירות notify בתשתית המערכת (למשל mobile_app_phone)')}><input data-ltr data-rule-service placeholder="mobile_app_phone" .value=${b.actions[0]?.service ?? ''} @input=${(ev: Event) => this.edit((x) => (x.actions = [{ ...x.actions[0], service: (ev.target as HTMLInputElement).value.trim() }]))} /></sw-field>`
           : nothing}
       </div>
-      <sw-field label="הודעת ההתראה"><input data-rule-message .value=${b.actions[0]?.message ?? ''} @input=${(ev: Event) => this.edit((x) => (x.actions = [{ ...(x.actions[0] ?? { kind: 'notify' }), message: (ev.target as HTMLInputElement).value }]))} /></sw-field>
-      ${b.actions[0]?.kind === 'ha_notify' ? html`<div class="hint">התראה דרך תשתית המערכת דורשת את ההרשאה הרגישה "חוקים: התראה דרך תשתית המערכת" (תפקיד מותאם). ההודעה נשלחת ל־notify.&lt;שירות&gt; עם הכותרת Arx.</div>` : nothing}
+      <sw-field label=${tr('הודעת ההתראה')}><input data-rule-message .value=${b.actions[0]?.message ?? ''} @input=${(ev: Event) => this.edit((x) => (x.actions = [{ ...(x.actions[0] ?? { kind: 'notify' }), message: (ev.target as HTMLInputElement).value }]))} /></sw-field>
+      ${b.actions[0]?.kind === 'ha_notify' ? html`<div class="hint">${tr('התראה דרך תשתית המערכת דורשת את ההרשאה הרגישה "חוקים: התראה דרך תשתית המערכת" (תפקיד מותאם). ההודעה נשלחת ל־notify.<שירות> עם הכותרת Arx.')}</div>` : nothing}
       <div class="two">
-        <sw-field label="בעלות"><select @change=${(ev: Event) => this.edit((x) => (x.owner = (ev.target as HTMLSelectElement).value as RuleBody['owner']))}><option value="local" ?selected=${b.owner === 'local'}>מקומי (המערכת מפעילה)</option><option value="ha" ?selected=${b.owner === 'ha'}>תשתית המערכת (הפניה בלבד)</option></select></sw-field>
-        ${b.owner === 'ha' ? html`<sw-field label="מזהה אוטומציה בתשתית המערכת"><input .value=${b.ha_automation_id ?? ''} @input=${(ev: Event) => this.edit((x) => (x.ha_automation_id = (ev.target as HTMLInputElement).value || null))} /></sw-field>` : html`<label class="chk"><input type="checkbox" .checked=${b.enabled} @change=${(ev: Event) => this.edit((x) => (x.enabled = (ev.target as HTMLInputElement).checked))} /> פעיל</label>`}
+        <sw-field label=${tr('בעלות')}><select @change=${(ev: Event) => this.edit((x) => (x.owner = (ev.target as HTMLSelectElement).value as RuleBody['owner']))}><option value="local" ?selected=${b.owner === 'local'}>${tr('מקומי (המערכת מפעילה)')}</option><option value="ha" ?selected=${b.owner === 'ha'}>${tr('תשתית המערכת (הפניה בלבד)')}</option></select></sw-field>
+        ${b.owner === 'ha' ? html`<sw-field label=${tr('מזהה אוטומציה בתשתית המערכת')}><input .value=${b.ha_automation_id ?? ''} @input=${(ev: Event) => this.edit((x) => (x.ha_automation_id = (ev.target as HTMLInputElement).value || null))} /></sw-field>` : html`<label class="chk"><input type="checkbox" .checked=${b.enabled} @change=${(ev: Event) => this.edit((x) => (x.enabled = (ev.target as HTMLInputElement).checked))} /> ${tr('פעיל')}</label>`}
       </div>
-      <div class="hint">הפעולה היחידה בפיילוט: התראה במערכת. אין פקודות למכשירים ואין webhooks; התראה אינה אירוע ולכן חוק לא יכול להזין את עצמו. חוק בבעלות תשתית המערכת אינו מופעל כאן (בעלים אחד לכל אוטומציה).</div>
-      <div class="dryhead"><sw-button size="sm" icon="refresh" data-rule-dryrun ?disabled=${this.dryBusy} @click=${() => this.dryRun()}>${this.dryBusy ? 'מריץ…' : 'הרצה יבשה על 24 שעות'}</sw-button>${dry ? html`<span class="hint" data-dryrun-result>${dry.evaluated} אירועים נבדקו · <strong>${dry.would_fire.length}</strong> התראות היו נוצרות · ${dry.suppressed.length} נחסמו בהשהיה · ${dry.not_matched} לא תאמו</span>` : nothing}</div>
+      <div class="hint">${tr('הפעולה היחידה בפיילוט: התראה במערכת. אין פקודות למכשירים ואין webhooks; התראה אינה אירוע ולכן חוק לא יכול להזין את עצמו. חוק בבעלות תשתית המערכת אינו מופעל כאן (בעלים אחד לכל אוטומציה).')}</div>
+      <div class="dryhead"><sw-button size="sm" icon="refresh" data-rule-dryrun ?disabled=${this.dryBusy} @click=${() => this.dryRun()}>${this.dryBusy ? tr('מריץ…') : tr('הרצה יבשה על 24 שעות')}</sw-button>${dry ? html`<span class="hint" data-dryrun-result>${tr('{n} אירועים נבדקו', { n: dry.evaluated })} · <strong>${dry.would_fire.length}</strong> ${tr('התראות היו נוצרות')} · ${tr('{n} נחסמו בהשהיה', { n: dry.suppressed.length })} · ${tr('{n} לא תאמו', { n: dry.not_matched })}</span>` : nothing}</div>
       ${dry
-        ? html`<div class="dry">${[...dry.would_fire.map((r) => ({ ...r, fire: true })), ...dry.suppressed.map((r) => ({ ...r, fire: false }))].sort((a, b2) => a.occurred_at.localeCompare(b2.occurred_at)).slice(0, 40).map((r) => html`<div class="dryrow" data-dryrun-row data-fire=${r.fire ? 'true' : 'false'}><span class="ltr">${this.fmt(r.occurred_at)}</span><span>${EVENT_LABEL[r.type as EventKind] ?? r.type} · ${r.camera_name ?? '—'}</span><span class="hint">${r.fire ? r.reasons.join(' · ') : `נחסם: ${r.suppressed}`}</span></div>`)}${dry.would_fire.length + dry.suppressed.length > 40 ? html`<div class="hint">מוצגות 40 הראשונות</div>` : nothing}<div class="hint">${dry.note}</div></div>`
+        ? html`<div class="dry">${[...dry.would_fire.map((r) => ({ ...r, fire: true })), ...dry.suppressed.map((r) => ({ ...r, fire: false }))].sort((a, b2) => a.occurred_at.localeCompare(b2.occurred_at)).slice(0, 40).map((r) => html`<div class="dryrow" data-dryrun-row data-fire=${r.fire ? 'true' : 'false'}><span class="ltr">${this.fmt(r.occurred_at)}</span><span>${EVENT_LABEL[r.type as EventKind] ?? r.type} · ${r.camera_name ?? '—'}</span><span class="hint">${r.fire ? r.reasons.join(' · ') : tr('נחסם: {reason}', { reason: r.suppressed ?? '' })}</span></div>`)}${dry.would_fire.length + dry.suppressed.length > 40 ? html`<div class="hint">${tr('מוצגות 40 הראשונות')}</div>` : nothing}<div class="hint">${dry.note}</div></div>`
         : nothing}
-      <sw-button slot="footer" variant="ghost" @click=${() => (this.editing = null)}>ביטול</sw-button>
-      <sw-button slot="footer" variant="primary" icon="check" data-rule-save ?disabled=${this.busy || !b.name.trim()} @click=${() => this.save()}>${e.id ? 'שמירה' : 'צור חוק'}</sw-button>
+      <sw-button slot="footer" variant="ghost" @click=${() => (this.editing = null)}>${tr('ביטול')}</sw-button>
+      <sw-button slot="footer" variant="primary" icon="check" data-rule-save ?disabled=${this.busy || !b.name.trim()} @click=${() => this.save()}>${e.id ? tr('שמירה') : tr('צור חוק')}</sw-button>
     </sw-dialog>`;
   }
 
   private renderApi() {
-    if (this.error && !this.rules.length && !this.editing) return html`<sw-page heading="התראות וחוקי אוטומציה"><sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel></sw-page>`;
+    if (this.error && !this.rules.length && !this.editing) return html`<sw-page heading=${tr('התראות וחוקי אוטומציה')}><sw-state-panel state="error" hint=${this.error} actionLabel=${tr('נסה שוב')} @action=${() => this.load()}></sw-state-panel></sw-page>`;
     return html`
-      <sw-page heading="התראות וחוקי אוטומציה" subheading="מפעיל → היקף → חלון זמן → השהיה → התראה במערכת · הרצה יבשה לפני הפעלה · אין פקודות למכשירים">
-        ${this.rulesForbidden ? nothing : html`<sw-button slot="actions" variant="primary" icon="plus" data-rule-new @click=${() => this.openEditor()}>חוק חדש</sw-button>`}
-        <sw-tabs .items=${this.rulesForbidden ? [{ id: 'alerts', label: 'התראות', count: this.unacked }] : [{ id: 'rules', label: 'חוקים', count: this.rules.length }, { id: 'alerts', label: 'התראות', count: this.unacked }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
+      <sw-page heading=${tr('התראות וחוקי אוטומציה')} subheading=${tr('מפעיל → היקף → חלון זמן → השהיה → התראה במערכת · הרצה יבשה לפני הפעלה · אין פקודות למכשירים')}>
+        ${this.rulesForbidden ? nothing : html`<sw-button slot="actions" variant="primary" icon="plus" data-rule-new @click=${() => this.openEditor()}>${tr('חוק חדש')}</sw-button>`}
+        <sw-tabs .items=${this.rulesForbidden ? [{ id: 'alerts', label: tr('התראות'), count: this.unacked }] : [{ id: 'rules', label: tr('חוקים'), count: this.rules.length }, { id: 'alerts', label: tr('התראות'), count: this.unacked }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
         ${this.error && !this.editing ? html`<div class="err">${this.error}</div>` : nothing}
         ${this.tab === 'rules'
           ? this.loading && !this.rules.length
@@ -271,27 +272,27 @@ export class InvestigateRules extends LitElement {
             : this.rules.length
               ? html`<sw-card class="rulecard list"><div class="list">${this.rules.map((r) => html`<div class="rule" data-rule-row data-rule-id=${r.id} style="--bg:var(--sw-accent-soft);--fg:var(--sw-accent-text)">
                     <div class="ic"><sw-icon name=${r.owner === 'ha' ? 'home' : 'bell'} size=${16}></sw-icon></div>
-                    <div class="txt"><b>${r.name}</b><small>${this.summary(r)}</small><small>התראות: ${r.alerts.open} פתוחות מתוך ${r.alerts.total} · שונה על ידי ${r.updated_by_username ?? r.created_by_username ?? '—'} ${this.fmt(r.updated_at)}</small></div>
-                    <span class="last">הופעל: ${r.last_fired_at ? this.fmt(r.last_fired_at) : '—'}</span>
-                    <sw-toggle ?checked=${r.enabled} ?disabled=${this.busy || r.owner === 'ha'} labelHidden label="פעיל" data-rule-toggle @change=${(ev: CustomEvent<{ checked: boolean }>) => void this.run(async () => { const { id, revision, alerts, created_by_username, updated_by_username, created_at, updated_at, last_fired_at, ...body } = r; void alerts; void created_by_username; void updated_by_username; void created_at; void updated_at; void last_fired_at; await updateRule(id, { ...body, enabled: ev.detail.checked, revision }); })}></sw-toggle>
-                    <sw-button size="sm" data-rule-edit @click=${() => this.openEditor(r)}>עריכה</sw-button>
-                    <sw-button variant="ghost" size="sm" iconOnly icon="trash" label="מחיקה" data-rule-delete @click=${() => (this.confirmDelete = r)}></sw-button>
+                    <div class="txt"><b>${r.name}</b><small>${this.summary(r)}</small><small>${tr('התראות: {open} פתוחות מתוך {total}', { open: r.alerts.open, total: r.alerts.total })} · ${tr('שונה על ידי {user}', { user: r.updated_by_username ?? r.created_by_username ?? '—' })} ${this.fmt(r.updated_at)}</small></div>
+                    <span class="last">${tr('הופעל:')} ${r.last_fired_at ? this.fmt(r.last_fired_at) : '—'}</span>
+                    <sw-toggle ?checked=${r.enabled} ?disabled=${this.busy || r.owner === 'ha'} labelHidden label=${tr('פעיל')} data-rule-toggle @change=${(ev: CustomEvent<{ checked: boolean }>) => void this.run(async () => { const { id, revision, alerts, created_by_username, updated_by_username, created_at, updated_at, last_fired_at, ...body } = r; void alerts; void created_by_username; void updated_by_username; void created_at; void updated_at; void last_fired_at; await updateRule(id, { ...body, enabled: ev.detail.checked, revision }); })}></sw-toggle>
+                    <sw-button size="sm" data-rule-edit @click=${() => this.openEditor(r)}>${tr('עריכה')}</sw-button>
+                    <sw-button variant="ghost" size="sm" iconOnly icon="trash" label=${tr('מחיקה')} data-rule-delete @click=${() => (this.confirmDelete = r)}></sw-button>
                   </div>`)}</div></sw-card>`
-              : html`<sw-state-panel icon="rule" state="empty" heading="אין חוקים עדיין" hint="חוק בודק אירועים שכבר נשמרו ומייצר התראה במערכת; הרץ הרצה יבשה לפני שמירה."></sw-state-panel>`
+              : html`<sw-state-panel icon="rule" state="empty" heading=${tr('אין חוקים עדיין')} hint=${tr('חוק בודק אירועים שכבר נשמרו ומייצר התראה במערכת; הרץ הרצה יבשה לפני שמירה.')}></sw-state-panel>`
           : this.alerts.length
             ? html`<sw-card class="rulecard list"><div class="list">${this.alerts.map((a) => html`<div class="rule" data-alert-row data-acked=${a.acked_at ? 'true' : 'false'} style="--bg:${a.acked_at ? 'var(--sw-offline-soft)' : 'var(--sw-warning-soft)'};--fg:${a.acked_at ? 'var(--sw-offline-text)' : 'var(--sw-warning-text)'}">
                   <div class="ic"><sw-icon name="bell" size=${16}></sw-icon></div>
-                  <div class="txt"><b>${a.message || a.rule_name}</b><small>${a.rule_name} · ${a.camera_id ? `מצלמה ${a.camera_id}` : a.entity_id ?? ''} · <span class="ltr">${this.fmt(a.fired_at)}</span></small><small>${a.reasons.join(' · ')}</small></div>
-                  <a href=${`#/investigate/events/${a.event_id}`}><sw-button size="sm" variant="ghost" icon="bell">לאירוע</sw-button></a>
-                  ${a.acked_at ? html`<span class="last">טופל · ${a.acked_by_username ?? ''}</span>` : !can('events.ack') ? nothing : html`<sw-button size="sm" icon="check" data-alert-ack ?disabled=${this.busy} @click=${() => void this.run(async () => { await ackAlert(a.id); })}>סמן כטופל</sw-button>`}
+                  <div class="txt"><b>${a.message || a.rule_name}</b><small>${a.rule_name} · ${a.camera_id ? tr('מצלמה {id}', { id: a.camera_id }) : a.entity_id ?? ''} · <span class="ltr">${this.fmt(a.fired_at)}</span></small><small>${a.reasons.join(' · ')}</small></div>
+                  <a href=${`#/investigate/events/${a.event_id}`}><sw-button size="sm" variant="ghost" icon="bell">${tr('לאירוע')}</sw-button></a>
+                  ${a.acked_at ? html`<span class="last">${tr('טופל')} · ${a.acked_by_username ?? ''}</span>` : !can('events.ack') ? nothing : html`<sw-button size="sm" icon="check" data-alert-ack ?disabled=${this.busy} @click=${() => void this.run(async () => { await ackAlert(a.id); })}>${tr('סמן כטופל')}</sw-button>`}
                 </div>`)}</div></sw-card>`
-            : html`<sw-state-panel icon="rule" state="empty" heading="אין התראות" hint="התראות נוצרות כשאירוע חדש תואם חוק פעיל."></sw-state-panel>`}
+            : html`<sw-state-panel icon="rule" state="empty" heading=${tr('אין התראות')} hint=${tr('התראות נוצרות כשאירוע חדש תואם חוק פעיל.')}></sw-state-panel>`}
         ${this.renderEditor()}
         ${this.confirmDelete
-          ? html`<sw-dialog open heading="מחיקת חוק" subheading=${this.confirmDelete.name} @close=${() => (this.confirmDelete = null)}>
-              <div class="hint">ההתראות של החוק יימחקו יחד איתו; האירועים עצמם נשארים.</div>
-              <sw-button slot="footer" variant="ghost" @click=${() => (this.confirmDelete = null)}>ביטול</sw-button>
-              <sw-button slot="footer" variant="danger" icon="trash" data-rule-delete-confirm @click=${() => { const r = this.confirmDelete!; this.confirmDelete = null; void this.run(async () => { await deleteRule(r.id); }); }}>מחק</sw-button>
+          ? html`<sw-dialog open heading=${tr('מחיקת חוק')} subheading=${this.confirmDelete.name} @close=${() => (this.confirmDelete = null)}>
+              <div class="hint">${tr('ההתראות של החוק יימחקו יחד איתו; האירועים עצמם נשארים.')}</div>
+              <sw-button slot="footer" variant="ghost" @click=${() => (this.confirmDelete = null)}>${tr('ביטול')}</sw-button>
+              <sw-button slot="footer" variant="danger" icon="trash" data-rule-delete-confirm @click=${() => { const r = this.confirmDelete!; this.confirmDelete = null; void this.run(async () => { await deleteRule(r.id); }); }}>${tr('מחק')}</sw-button>
             </sw-dialog>`
           : nothing}
       </sw-page>
@@ -468,9 +469,9 @@ export class InvestigateRules extends LitElement {
   render() {
     if (isApi()) return this.renderApi();
     return html`
-      <sw-page heading="התראות וחוקי אוטומציה" subheading="מפעיל → היקף → תנאים → פעולה · בדיקה יבשה לפני הפעלה · נתוני הדגמה">
-        <sw-button slot="actions" variant="primary" icon="plus" @click=${() => navigate('/investigate/rules/new')}>חוק חדש</sw-button>
-        <sw-tabs .items=${[{ id: 'rules', label: 'חוקים', count: demoRules.length }, { id: 'notif', label: 'התראות' }, { id: 'sched', label: 'לוחות זמנים' }, { id: 'trig', label: vt('videoCopy.triggers') }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
+      <sw-page heading=${tr('התראות וחוקי אוטומציה')} subheading=${tr('מפעיל → היקף → תנאים → פעולה · בדיקה יבשה לפני הפעלה · נתוני הדגמה')}>
+        <sw-button slot="actions" variant="primary" icon="plus" @click=${() => navigate('/investigate/rules/new')}>${tr('חוק חדש')}</sw-button>
+        <sw-tabs .items=${[{ id: 'rules', label: tr('חוקים'), count: demoRules.length }, { id: 'notif', label: tr('התראות') }, { id: 'sched', label: tr('לוחות זמנים') }, { id: 'trig', label: vt('videoCopy.triggers') }]} .active=${this.tab} @change=${(e: CustomEvent<{ id: string }>) => (this.tab = e.detail.id)}></sw-tabs>
         ${this.tab === 'rules'
           ? html`<sw-card class="rulecard list"><div class="list">
               ${demoRules.map((r) => {
@@ -478,14 +479,14 @@ export class InvestigateRules extends LitElement {
                 return html`<div class="rule" ?data-off=${!r.enabled} style="--bg:${ic.bg};--fg:${ic.fg}">
                   <div class="ic"><sw-icon .name=${ic.icon} size=${18}></sw-icon></div>
                   <div class="txt"><b>${r.name}</b><small>${r.trigger} · ${r.scope} · ${r.action}</small></div>
-                  <span class="last">הופעל: ${r.last}</span>
+                  <span class="last">${tr('הופעל:')} ${r.last}</span>
                   <sw-toggle ?checked=${r.enabled} label=""></sw-toggle>
-                  <sw-button size="sm" @click=${() => navigate(`/investigate/rules/${r.id}`)}>עריכה</sw-button>
-                  <sw-button variant="ghost" size="sm" iconOnly icon="more" label="עוד"></sw-button>
+                  <sw-button size="sm" @click=${() => navigate(`/investigate/rules/${r.id}`)}>${tr('עריכה')}</sw-button>
+                  <sw-button variant="ghost" size="sm" iconOnly icon="more" label=${tr('עוד')}></sw-button>
                 </div>`;
               })}
             </div></sw-card>`
-          : html`<sw-card><div class="empty">${this.tab === 'notif' ? 'ערוצי התראה: Push דרך תשתית המערכת, מייל (Beta). ההגדרה מגיעה עם T063.' : this.tab === 'sched' ? vt('videoCopy.schedEmpty') : vt('videoCopy.triggersEmpty')}</div></sw-card>`}
+          : html`<sw-card><div class="empty">${this.tab === 'notif' ? tr('ערוצי התראה: Push דרך תשתית המערכת, מייל (Beta). ההגדרה מגיעה עם T063.') : this.tab === 'sched' ? vt('videoCopy.schedEmpty') : vt('videoCopy.triggersEmpty')}</div></sw-card>`}
       </sw-page>
     `;
   }
@@ -546,44 +547,44 @@ export class InvestigateRuleEditor extends LitElement {
   `, bubbleChrome, INVESTIGATE_R5];
 
   render() {
-    const r = demoRules.find((x) => x.id === this.ruleId) ?? { name: 'חוק חדש', trigger: 'זיהוי אדם', scope: 'חוץ', action: 'התראה' };
+    const r = demoRules.find((x) => x.id === this.ruleId) ?? { name: tr('חוק חדש'), trigger: tr('זיהוי אדם'), scope: tr('חוץ'), action: tr('התראה') };
     return html`
-      <sw-page heading=${r.name} subheading="עורך חוק · גרסה 2 · נתוני הדגמה" crumbs="אירועים | חוקים והתראות">
-        <sw-button slot="actions" icon="play">בדיקה יבשה</sw-button>
-        <sw-button slot="actions" variant="primary" icon="check">שמירה</sw-button>
-        <sw-steps .steps=${['מפעיל', 'היקף', 'תנאים', 'פעולה']} .current=${1}></sw-steps>
+      <sw-page heading=${r.name} subheading=${tr('עורך חוק · גרסה 2 · נתוני הדגמה')} crumbs=${`${tr('אירועים')} | ${tr('חוקים והתראות')}`}>
+        <sw-button slot="actions" icon="play">${tr('בדיקה יבשה')}</sw-button>
+        <sw-button slot="actions" variant="primary" icon="check">${tr('שמירה')}</sw-button>
+        <sw-steps .steps=${[tr('מפעיל'), tr('היקף'), tr('תנאים'), tr('פעולה')]} .current=${1}></sw-steps>
         <div class="layout">
           <div class="stack">
-            <sw-card heading="מפעיל">
+            <sw-card heading=${tr('מפעיל')}>
               <div class="two">
-                <sw-field label="מקור"><select><option>אירוע מקליט</option><option>שינוי התקן</option></select></sw-field>
-                <sw-field label="סוג"><select><option>${r.trigger}</option><option>זיהוי רכב</option><option>תנועה</option></select></sw-field>
+                <sw-field label=${tr('מקור')}><select><option>${tr('אירוע מקליט')}</option><option>${tr('שינוי התקן')}</option></select></sw-field>
+                <sw-field label=${tr('סוג')}><select><option>${r.trigger}</option><option>${tr('זיהוי רכב')}</option><option>${tr('תנועה')}</option></select></sw-field>
               </div>
             </sw-card>
-            <sw-card heading="היקף">
+            <sw-card heading=${tr('היקף')}>
               <div class="two">
-                <sw-field label="היקף"><select><option>${r.scope}</option><option>כל האתר</option></select></sw-field>
-                <sw-field label="לוח זמנים (זמן האתר)"><input value="22:00–06:00" data-ltr /></sw-field>
+                <sw-field label=${tr('היקף')}><select><option>${r.scope}</option><option>${tr('כל האתר')}</option></select></sw-field>
+                <sw-field label=${tr('לוח זמנים (זמן האתר)')}><input value="22:00–06:00" data-ltr /></sw-field>
               </div>
             </sw-card>
-            <sw-card heading="תנאים">
-              <sw-field label="חלון סמיכות"><input value="90 שניות" /></sw-field>
-              <div class="hint">״אירועים סמוכים בזמן ובאזור״, לא הוכחה סיבתית. החלון מתחשב באיחור שעון ובזמן קליטה.</div>
+            <sw-card heading=${tr('תנאים')}>
+              <sw-field label=${tr('חלון סמיכות')}><input value="90 שניות" /></sw-field>
+              <div class="hint">${tr('״אירועים סמוכים בזמן ובאזור״, לא הוכחה סיבתית. החלון מתחשב באיחור שעון ובזמן קליטה.')}</div>
             </sw-card>
-            <sw-card heading="פעולה">
+            <sw-card heading=${tr('פעולה')}>
               <div class="two">
-                <sw-field label="פעולה"><select><option>${r.action}</option><option>Push דרך תשתית המערכת</option><option>פתיחת תצוגת מצלמות</option></select></sw-field>
+                <sw-field label=${tr('פעולה')}><select><option>${r.action}</option><option>${tr('Push דרך תשתית המערכת')}</option><option>${tr('פתיחת תצוגת מצלמות')}</option></select></sw-field>
                 <sw-field label="Cooldown"><input value="5 דקות" /></sw-field>
               </div>
-              <div class="hint">פתיחת נעילה וניטרול אזעקה אינם מופעלים על סמך תוצאת זיהוי. שליטה אוטומטית מופעלת רק בבחירה מפורשת, לפי רשימת התקנים מאושרים.</div>
+              <div class="hint">${tr('פתיחת נעילה וניטרול אזעקה אינם מופעלים על סמך תוצאת זיהוי. שליטה אוטומטית מופעלת רק בבחירה מפורשת, לפי רשימת התקנים מאושרים.')}</div>
             </sw-card>
           </div>
           <div class="stack">
-            <sw-card heading="בדיקה יבשה על 24 שעות">
-              <div class="dry" data-fire><span>10:14 · כניסה ראשית</span><sw-badge filled kind="live" label="היה מפעיל"></sw-badge></div>
-              <div class="dry"><span>09:42 · חצר</span><sw-badge filled kind="unknown" label="מחוץ ללוח הזמנים"></sw-badge></div>
-              <div class="dry" data-fire><span>אתמול 23:10 · לובי</span><sw-badge filled kind="live" label="היה מפעיל"></sw-badge></div>
-              <div class="hint" style="margin-block-start:8px">2 הפעלות · 0 כפילויות · מזהה קישור לכל אירוע · מניעת לולאה: פעולה שיצרה אירוע לא מפעילה את אותו חוק.</div>
+            <sw-card heading=${tr('בדיקה יבשה על 24 שעות')}>
+              <div class="dry" data-fire><span>${tr('10:14 · כניסה ראשית')}</span><sw-badge filled kind="live" label=${tr('היה מפעיל')}></sw-badge></div>
+              <div class="dry"><span>${tr('09:42 · חצר')}</span><sw-badge filled kind="unknown" label=${tr('מחוץ ללוח הזמנים')}></sw-badge></div>
+              <div class="dry" data-fire><span>${tr('אתמול 23:10 · לובי')}</span><sw-badge filled kind="live" label=${tr('היה מפעיל')}></sw-badge></div>
+              <div class="hint" style="margin-block-start:8px">${tr('2 הפעלות · 0 כפילויות · מזהה קישור לכל אירוע · מניעת לולאה: פעולה שיצרה אירוע לא מפעילה את אותו חוק.')}</div>
             </sw-card>
           </div>
         </div>

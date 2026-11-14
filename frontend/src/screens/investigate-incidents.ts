@@ -35,6 +35,7 @@ import { it } from '../i18n/incidents';
 import { navigate } from '../router';
 import { refreshIncidents } from '../incidents/store';
 import { SkinController } from '../design/skin';
+import { tr } from '../i18n/msg/investigate';
 
 type Part = 'cams' | 'map' | 'doors' | 'chain';
 type Look = 'ok' | 'warn' | 'alarm' | 'off' | 'unk' | 'acc';
@@ -395,7 +396,7 @@ export class InvestigateIncidents extends LitElement {
       try {
         const r = await getAccessEvents({ station_id: x.station_id, door: x.door as 1 | 2, start: d.window.from, end: d.window.to }, null, 5);
         const ev = r.events?.records.find((e) => e.result === 'granted');
-        if (ev) out[x.entity_id] = [ev.person_name || '—', ev.authentication === 'card' ? 'כרטיס' : ev.authentication === 'pin' ? 'קוד' : ''].filter(Boolean).join(' · ');
+        if (ev) out[x.entity_id] = [ev.person_name || '—', ev.authentication === 'card' ? tr('כרטיס') : ev.authentication === 'pin' ? tr('קוד') : ''].filter(Boolean).join(' · ');
       } catch {
         /* no access.events.read on that station, or the log is down: the column stays empty */
       }

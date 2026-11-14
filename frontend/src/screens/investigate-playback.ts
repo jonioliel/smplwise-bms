@@ -44,6 +44,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { INVESTIGATE_R5 } from './investigate-r5-css';
 import { dateInputLang, timeText } from '../api/day-format';
 import { t as vt } from '../i18n/he';
+import { tr } from '../i18n/msg/investigate';
 
 type Filter = 'all' | 'motion' | 'person' | 'vehicle' | 'door';
 const FINISHED = ['closed', 'expired', 'failed'];
@@ -780,7 +781,7 @@ export class InvestigatePlayback extends LitElement {
     return this.dayEvents.map((e) => ({
       minute: minuteInZone(new Date(e.occurred_at), this.tz),
       kind: markerKind(e.type),
-      label: `${EVENT_LABEL[e.type] ?? e.type}${e.confidence === 'inferred' ? ' (מהקלטה)' : ''}${e.count > 1 ? ` ×${e.count}` : ''}`,
+      label: `${EVENT_LABEL[e.type] ?? e.type}${e.confidence === 'inferred' ? ` ${tr('(מהקלטה)')}` : ''}${e.count > 1 ? ` ×${e.count}` : ''}`,
     }));
   }
 
@@ -790,7 +791,7 @@ export class InvestigatePlayback extends LitElement {
       id: b.id,
       minute: minuteInZone(new Date(b.from_at), this.tz),
       endMinute: minuteInZone(new Date(b.to_at), this.tz),
-      label: `תיק „${b.case_title}”${b.note ? ` · ${b.note}` : ''} · ${BOOKMARK_LABEL[b.preservation]}`,
+      label: `${tr('תיק „{title}”', { title: b.case_title })}${b.note ? ` · ${b.note}` : ''} · ${BOOKMARK_LABEL[b.preservation]}`,
       preservation: b.preservation,
     }));
   }
@@ -856,13 +857,13 @@ export class InvestigatePlayback extends LitElement {
         this.session = null;
         this.position = new Date(g.requested_at);
         const missing = Object.keys(g.missing);
-        if (missing.length) this.notice = `ללא הקלטה בזמן הזה: ${missing.map((id) => this.cameraName(id)).join(', ')}`;
+        if (missing.length) this.notice = tr('ללא הקלטה בזמן הזה: {cameras}', { cameras: missing.map((id) => this.cameraName(id)).join(', ') });
       } else {
         const session = this.session && !FINISHED.includes(this.session.state) ? await seekPlayback(this.session.id, iso) : await createPlayback(this.cameraId, iso);
         this.session = session;
         this.group = null;
         this.position = new Date(session.requested_at);
-        if (session.moved_to_next_segment) this.notice = `אין הקלטה בזמן שנבחר; הניגון התחיל בקטע הבא (${this.fmt(new Date(session.requested_at))}).`;
+        if (session.moved_to_next_segment) this.notice = tr('אין הקלטה בזמן שנבחר; הניגון התחיל בקטע הבא ({time}).', { time: this.fmt(new Date(session.requested_at)) });
       }
       this.cursor = minuteInZone(this.position!, this.tz);
       this.paused = false;
@@ -877,12 +878,12 @@ export class InvestigatePlayback extends LitElement {
       return 'ok';
     } catch (err) {
       if (err instanceof ApiError && err.body.code === 'no_recording') {
-        this.notice = 'אין הקלטה בזמן הזה ובשש השעות שאחריו: פער בכיסוי, לא מדלגים ל־Live.';
+        this.notice = tr('אין הקלטה בזמן הזה ובשש השעות שאחריו: פער בכיסוי, לא מדלגים ל־Live.');
         this.position = at;
         return 'no_recording';
       } else if (err instanceof ApiError && (err.body.code === 'seek_rate' || err.body.code === 'seek_busy')) {
         // PLAYBACK-SCRUB-2341: the server's per-session seek cap - the current picture keeps playing, the notice says when to retry
-        this.notice = err.body.user_message || 'יותר מדי קפיצות בזמן; המתן מעט ונסה שוב.';
+        this.notice = err.body.user_message || tr('יותר מדי קפיצות בזמן; המתן מעט ונסה שוב.');
         const cur = this.currentInstant();
         if (cur) this.cursor = minuteInZone(cur, this.tz); // the cursor goes back to what is actually playing
         return 'error';
@@ -1012,14 +1013,14 @@ export class InvestigatePlayback extends LitElement {
     const lead = this.cameraId ? [this.cameraId] : [];
     return (this.cams ?? []).filter((c) => c.id !== this.cameraId).map((c) => {
       const other = !this.extra.includes(c.id) && !sameRecorder(lead, this.cams ?? [], c.id, this.crossSync);
-      return { id: c.id, label: cameraLabel(c), icon: 'camera' as const, disabled: other, note: other ? 'מקליט אחר' : undefined };
+      return { id: c.id, label: cameraLabel(c), icon: 'camera' as const, disabled: other, note: other ? tr('מקליט אחר') : undefined };
     });
   }
 
   /** 2.0.2 (`ui.dd_picker` = chips): the 2.0.0 look, a button per camera; the limit disables the rest (the dropdown refuses the pick the same way). */
   private renderCompareChips() {
     const full = this.extra.length >= 3;
-    return html`<span>השוואה (עד 4):</span>${this.compareItems().map((it) => {
+    return html`<span>${tr('השוואה (עד 4):')}</span>${this.compareItems().map((it) => {
       const on = this.extra.includes(it.id);
       const why = it.note ?? (!on && full ? limitNotice(3, 1) : '');
       return html`<sw-chip data-compare-chip=${it.id} ?selected=${on} ?disabled=${!on && (it.disabled || full)} title=${why || nothing} @click=${() => void this.applyExtra(toggleCapped(this.extra, it.id, 3).ids)}>${it.label}</sw-chip>`;
@@ -1197,17 +1198,17 @@ export class InvestigatePlayback extends LitElement {
 
   private syncLabel(): string {
     const st = this.syncStats;
-    if (this.barrier === 'waiting' || !st || st.quality === 'waiting') return 'סנכרון: ממתין לחסם הפתיחה';
-    const p95 = st.p95 === null ? '—' : `${st.p95.toFixed(2)} ש׳`;
-    const q = { synced: 'מסונכרן', slight: 'סטייה קלה', out_of_sync: 'לא מסונכרן', waiting: '' }[st.quality];
-    return `סנכרון: ${q} · p95 ${p95}${st.partial ? ' · חלקי' : ''}`;
+    if (this.barrier === 'waiting' || !st || st.quality === 'waiting') return tr('סנכרון: ממתין לחסם הפתיחה');
+    const p95 = st.p95 === null ? '—' : tr('{n} ש׳', { n: st.p95.toFixed(2) });
+    const q = { synced: tr('מסונכרן'), slight: tr('סטייה קלה'), out_of_sync: tr('לא מסונכרן'), waiting: '' }[st.quality];
+    return `${tr('סנכרון: {quality}', { quality: q })} · p95 ${p95}${st.partial ? ` · ${tr('חלקי')}` : ''}`;
   }
 
   private async onSeek(e: CustomEvent<{ minute: number; alt?: boolean }>) {
     const minute = e.detail.minute;
     const at = instantInZone(this.date, minute, this.tz);
     if (at.getTime() > Date.now()) {
-      this.notice = 'לא ניתן לנגן זמן עתידי.';
+      this.notice = tr('לא ניתן לנגן זמן עתידי.');
       this.scrubbing = false;
       return;
     }
@@ -1244,7 +1245,7 @@ export class InvestigatePlayback extends LitElement {
     const fps = cam?.stream?.fps && cam.stream.fps > 0 ? cam.stream.fps : 25;
     if (!p) return;
     if (!p.stepFrame(frames, fps)) {
-      this.notice = 'הפריים המבוקש מחוץ למאגר שכבר הגיע מהמקליט — השתמש בקפיצה של 10 שניות או בציר הזמן.';
+      this.notice = tr('הפריים המבוקש מחוץ למאגר שכבר הגיע מהמקליט — השתמש בקפיצה של 10 שניות או בציר הזמן.');
       return;
     }
     this.notice = '';
@@ -1321,7 +1322,7 @@ export class InvestigatePlayback extends LitElement {
     const a = instantInZone(this.date, parseHms(this.exportFrom), this.tz);
     const b = instantInZone(this.date, parseHms(this.exportTo), this.tz);
     if (b.getTime() <= a.getTime()) {
-      this.exportError = 'זמן הסיום חייב להיות אחרי ההתחלה.';
+      this.exportError = tr('זמן הסיום חייב להיות אחרי ההתחלה.');
       return null;
     }
     return [a.toISOString().replace(/\.\d{3}Z$/, 'Z'), b.toISOString().replace(/\.\d{3}Z$/, 'Z')];
@@ -1353,7 +1354,7 @@ export class InvestigatePlayback extends LitElement {
       const est = this.estimate ?? (await estimateExport(this.cameraId, r[0], r[1]));
       this.estimate = est;
       if (!est.files) {
-        this.exportError = 'אין קבצים מוקלטים בטווח שנבחר.';
+        this.exportError = tr('אין קבצים מוקלטים בטווח שנבחר.');
         return;
       }
       this.exportJob = await createExport(this.cameraId, r[0], r[1]);
@@ -1367,32 +1368,32 @@ export class InvestigatePlayback extends LitElement {
   private renderExportDialog() {
     const est = this.estimate;
     const job = this.exportJob;
-    return html`<sw-dialog ?open=${this.exportOpen} heading="ייצוא קטע" subheading=${`${this.cameraName(this.cameraId)} · ${this.date} · ${this.tz}`} @close=${() => (this.exportOpen = false)}>
+    return html`<sw-dialog ?open=${this.exportOpen} heading=${tr('ייצוא קטע')} subheading=${`${this.cameraName(this.cameraId)} · ${this.date} · ${this.tz}`} @close=${() => (this.exportOpen = false)}>
       <div class="dlg">
         ${job
-          ? html`<div class="est"><strong>עבודת הייצוא נוצרה</strong><span>${job.files.length} קבצים · משוער ${formatBytes(job.estimate_bytes)} · מצב: ${job.state}</span><span>המקליט עדיין מכין את הקובץ; "מעקב והורדה" למטה עובר למסך שבו כפתור ההורדה יופיע ברגע שהוא מוכן.</span></div>`
+          ? html`<div class="est"><strong>${tr('עבודת הייצוא נוצרה')}</strong><span>${tr('{n} קבצים', { n: job.files.length })} · ${tr('משוער {size}', { size: formatBytes(job.estimate_bytes) })} · ${tr('מצב: {state}', { state: job.state })}</span><span>${tr('המקליט עדיין מכין את הקובץ; "מעקב והורדה" למטה עובר למסך שבו כפתור ההורדה יופיע ברגע שהוא מוכן.')}</span></div>`
           : html`
               <div class="row">
-                <sw-field label="מ־"><input type="time" lang=${dateInputLang()} step="1" data-ltr .value=${this.exportFrom} @change=${(e: Event) => { this.exportFrom = (e.target as HTMLInputElement).value; this.estimate = null; }} /></sw-field>
-                <sw-field label="עד"><input type="time" lang=${dateInputLang()} step="1" data-ltr .value=${this.exportTo} @change=${(e: Event) => { this.exportTo = (e.target as HTMLInputElement).value; this.estimate = null; }} /></sw-field>
+                <sw-field label=${tr('מ־')}><input type="time" lang=${dateInputLang()} step="1" data-ltr .value=${this.exportFrom} @change=${(e: Event) => { this.exportFrom = (e.target as HTMLInputElement).value; this.estimate = null; }} /></sw-field>
+                <sw-field label=${tr('עד')}><input type="time" lang=${dateInputLang()} step="1" data-ltr .value=${this.exportTo} @change=${(e: Event) => { this.exportTo = (e.target as HTMLInputElement).value; this.estimate = null; }} /></sw-field>
               </div>
               ${est
                 ? html`<div class="est">
-                    <span>${est.files} קבצי מקליט בטווח · נפח משוער ${formatBytes(est.estimate_bytes)} (מקסימום ${formatBytes(est.max_bytes)}) · כיסוי ${est.coverage === 'complete' ? 'מלא' : 'חלקי'}</span>
+                    <span>${tr('{n} קבצי מקליט בטווח', { n: est.files })} · ${tr('נפח משוער {size} (מקסימום {max})', { size: formatBytes(est.estimate_bytes), max: formatBytes(est.max_bytes) })} · ${tr('כיסוי {coverage}', { coverage: est.coverage === 'complete' ? tr('מלא') : tr('חלקי') })}</span>
                     ${est.first_file_at ? html`<span class="ltr">${this.fmt(new Date(est.first_file_at))} → ${this.fmt(new Date(est.last_file_end_at ?? est.first_file_at))}</span>` : nothing}
                     <span>${est.note}</span>
-                    ${est.ffmpeg ? nothing : html`<span class="warn">ffmpeg לא זמין בשרת: הקובץ יימסר במיכל המקורי (Hikvision PS) ללא חיתוך.</span>`}
+                    ${est.ffmpeg ? nothing : html`<span class="warn">${tr('ffmpeg לא זמין בשרת: הקובץ יימסר במיכל המקורי (Hikvision PS) ללא חיתוך.')}</span>`}
                   </div>`
-                : html`<div class="session">הייצוא מוריד את הקבצים המקוריים מהמקליט (לפי קובץ, כך המכשיר תומך) ואז חותך לטווח ב־keyframe. חשב נפח לפני היצירה.</div>`}
+                : html`<div class="session">${tr('הייצוא מוריד את הקבצים המקוריים מהמקליט (לפי קובץ, כך המכשיר תומך) ואז חותך לטווח ב־keyframe. חשב נפח לפני היצירה.')}</div>`}
             `}
         ${this.exportError ? html`<div class="err">${this.exportError}</div>` : nothing}
       </div>
       <div slot="footer" style="display:flex;gap:8px;justify-content:flex-end">
         ${job
-          ? html`<sw-button variant="primary" icon="download" @click=${() => navigate('/investigate/exports')}>מעקב והורדה</sw-button><sw-button @click=${() => (this.exportOpen = false)}>סגור</sw-button>`
-          : html`<sw-button ?disabled=${this.exportBusy} @click=${() => this.runEstimate()}>חשב נפח</sw-button>
-              <sw-button variant="primary" icon="download" ?disabled=${this.exportBusy} @click=${() => this.runExport()}>צור ייצוא</sw-button>
-              <sw-button variant="ghost" @click=${() => (this.exportOpen = false)}>ביטול</sw-button>`}
+          ? html`<sw-button variant="primary" icon="download" @click=${() => navigate('/investigate/exports')}>${tr('מעקב והורדה')}</sw-button><sw-button @click=${() => (this.exportOpen = false)}>${tr('סגור')}</sw-button>`
+          : html`<sw-button ?disabled=${this.exportBusy} @click=${() => this.runEstimate()}>${tr('חשב נפח')}</sw-button>
+              <sw-button variant="primary" icon="download" ?disabled=${this.exportBusy} @click=${() => this.runExport()}>${tr('צור ייצוא')}</sw-button>
+              <sw-button variant="ghost" @click=${() => (this.exportOpen = false)}>${tr('ביטול')}</sw-button>`}
       </div>
     </sw-dialog>`;
   }
@@ -1415,8 +1416,8 @@ export class InvestigatePlayback extends LitElement {
               ? html`<sw-live-player data-camera=${cid} .wsUrl=${playbackWsUrl(sess)} mode="mse" .retry=${false} recorded compact @player-status=${(e: CustomEvent<{ status: string }>) => this.onTilePlayer(cid, e)}></sw-live-player>`
               : this.stallPhase === 'gave_up'
                 ? nothing
-                : html`<div class="center"><div><sw-icon name="offline" size=${20}></sw-icon><span>${missing === 'gap' || missing === 'no_recording' ? 'אין הקלטה בזמן הזה' : missing === 'playback_quota' ? 'מכסת הניגון מלאה' : this.busy ? 'מכין…' : this.group ? 'לא זמין' : 'לחץ על ציר הזמן'}</span></div></div>`}
-            <span class="name" data-tile=${cid} data-tile-state=${this.syncStats?.members[cid]?.state ?? ''}>${this.cameraName(cid)}${cid === this.cameraId ? html` · מוביל` : nothing}${sess && st === 'playing' && Number.isFinite(drift) ? html`<span class="drift ${Math.abs(drift) > 2 ? 'bad' : ''}" title="סטייה מהשעון־אב, נמדדת מהפריים המוצג">${drift >= 0 ? '+' : ''}${drift.toFixed(1)}s</span>` : nothing}${this.syncStats?.members[cid]?.state === 'late' ? html`<span class="drift bad">מאחרת</span>` : nothing}${(this.syncStats?.members[cid]?.resyncs ?? 0) > 0 ? html`<span class="drift">סונכרן מחדש ×${this.syncStats!.members[cid].resyncs}</span>` : nothing}</span>
+                : html`<div class="center"><div><sw-icon name="offline" size=${20}></sw-icon><span>${missing === 'gap' || missing === 'no_recording' ? tr('אין הקלטה בזמן הזה') : missing === 'playback_quota' ? tr('מכסת הניגון מלאה') : this.busy ? tr('מכין…') : this.group ? tr('לא זמין') : tr('לחץ על ציר הזמן')}</span></div></div>`}
+            <span class="name" data-tile=${cid} data-tile-state=${this.syncStats?.members[cid]?.state ?? ''}>${this.cameraName(cid)}${cid === this.cameraId ? html` · ${tr('מוביל')}` : nothing}${sess && st === 'playing' && Number.isFinite(drift) ? html`<span class="drift ${Math.abs(drift) > 2 ? 'bad' : ''}" title=${tr('סטייה מהשעון־אב, נמדדת מהפריים המוצג')}>${drift >= 0 ? '+' : ''}${drift.toFixed(1)}s</span>` : nothing}${this.syncStats?.members[cid]?.state === 'late' ? html`<span class="drift bad">${tr('מאחרת')}</span>` : nothing}${(this.syncStats?.members[cid]?.resyncs ?? 0) > 0 ? html`<span class="drift">${tr('סונכרן מחדש ×{n}', { n: this.syncStats!.members[cid].resyncs })}</span>` : nothing}</span>
           </div>`;
         })}
       </div>`;
@@ -1428,8 +1429,8 @@ export class InvestigatePlayback extends LitElement {
         : this.stallPhase === 'gave_up'
           ? nothing // "הניגון נעצר" + retry is the only thing on the picture
           : inGap
-          ? html`<div class="center"><div><sw-icon name="offline" size=${32}></sw-icon><span>${this.notice || 'אין הקלטה בזמן הזה: פער בכיסוי, לא מדלגים ל־Live'}</span></div></div>`
-          : html`<div class="center"><div><sw-icon name="play" size=${32}></sw-icon><span>${this.busy ? 'מכין ניגון…' : 'לחץ על ציר הזמן (או על נגן) כדי להתחיל מהזמן שנבחר'}</span>${this.busy ? nothing : html`<sw-button variant="primary" size="sm" icon="play" @click=${() => this.startAt(instantInZone(this.date, this.cursor, this.tz))}>נגן מ־${hms(this.cursor)}</sw-button>`}</div></div>`}
+          ? html`<div class="center"><div><sw-icon name="offline" size=${32}></sw-icon><span>${this.notice || tr('אין הקלטה בזמן הזה: פער בכיסוי, לא מדלגים ל־Live')}</span></div></div>`
+          : html`<div class="center"><div><sw-icon name="play" size=${32}></sw-icon><span>${this.busy ? tr('מכין ניגון…') : tr('לחץ על ציר הזמן (או על נגן) כדי להתחיל מהזמן שנבחר')}</span>${this.busy ? nothing : html`<sw-button variant="primary" size="sm" icon="play" @click=${() => this.startAt(instantInZone(this.date, this.cursor, this.tz))}>${tr('נגן מ־{time}', { time: hms(this.cursor) })}</sw-button>`}</div></div>`}
       <div class="tag"><sw-badge kind=${live ? 'recorded' : 'unknown'} ?onImage=${!!live}></sw-badge><span class="nm">${cam.name}</span></div>
     </div>`;
   }
@@ -1438,15 +1439,15 @@ export class InvestigatePlayback extends LitElement {
   private renderStall() {
     if (this.stallPhase === 'ok') return nothing;
     if (this.stallPhase === 'gave_up') {
-      return html`<div class="stall" data-stall="gave_up" role="status"><div class="box"><span>הניגון נעצר</span><sw-button variant="primary" size="sm" icon="refresh" data-stall-retry ?disabled=${this.busy} @click=${() => this.retryStalled()}>נסה שוב</sw-button></div></div>`;
+      return html`<div class="stall" data-stall="gave_up" role="status"><div class="box"><span>${tr('הניגון נעצר')}</span><sw-button variant="primary" size="sm" icon="refresh" data-stall-retry ?disabled=${this.busy} @click=${() => this.retryStalled()}>${tr('נסה שוב')}</sw-button></div></div>`;
     }
-    return html`<div class="stall" data-stall=${this.stallPhase} role="status"><div class="box"><span class="spin" aria-hidden="true"></span><span>מתחבר מחדש</span></div></div>`;
+    return html`<div class="stall" data-stall=${this.stallPhase} role="status"><div class="box"><span class="spin" aria-hidden="true"></span><span>${tr('מתחבר מחדש')}</span></div></div>`;
   }
 
   private renderApi() {
-    if (this.error && !this.cams) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.init()}></sw-state-panel>`;
+    if (this.error && !this.cams) return html`<sw-state-panel state="error" hint=${this.error} actionLabel=${tr('נסה שוב')} @action=${() => this.init()}></sw-state-panel>`;
     if (!this.cams) return html`<sw-state-panel state="loading"></sw-state-panel>`;
-    if (!this.cams.length) return html`<sw-state-panel icon="history" state="empty" heading="אין מצלמות" hint="סנכרן מצלמות מהמקליט או בקש הרשאת ניגון."></sw-state-panel>`;
+    if (!this.cams.length) return html`<sw-state-panel icon="history" state="empty" heading=${tr('אין מצלמות')} hint=${tr('סנכרן מצלמות מהמקליט או בקש הרשאת ניגון.')}></sw-state-panel>`;
     const cam = this.cams.find((c) => c.id === this.cameraId) ?? this.cams[0];
     const master = this.masterSession;
     const live = this.live;
@@ -1455,48 +1456,48 @@ export class InvestigatePlayback extends LitElement {
     const masterStatus = this.tileStatus[this.cameraId] ?? '';
     return html`
       <div class="filters">
-        ${this.rec ? html`<sw-chip icon="history">${this.rec.segments.length} מקטעים · ${this.rec.matches} קבצים</sw-chip>` : nothing}
-        ${this.dayEvents.length ? html`<sw-chip icon="bell" @click=${() => navigate('/investigate/events', { camera: this.cameraId, date: this.date })}>${this.dayEvents.length} אירועים${this.dayEvents.every((e) => e.confidence === 'inferred') ? ' (מהקלטות)' : ''}</sw-chip>` : nothing}
+        ${this.rec ? html`<sw-chip icon="history">${tr('{n} מקטעים', { n: this.rec.segments.length })} · ${tr('{n} קבצים', { n: this.rec.matches })}</sw-chip>` : nothing}
+        ${this.dayEvents.length ? html`<sw-chip icon="bell" @click=${() => navigate('/investigate/events', { camera: this.cameraId, date: this.date })}>${tr('{n} אירועים', { n: this.dayEvents.length })}${this.dayEvents.every((e) => e.confidence === 'inferred') ? ` ${tr('(מהקלטות)')}` : ''}</sw-chip>` : nothing}
         ${this.bookmarks.length
-          ? html`<sw-chip icon="case" data-bookmarks-count title="סימניות מתיקי חקירה על ציר הזמן · Alt+לחיצה על הציר מוסיפה סימנייה">${this.bookmarks.length} סימניות</sw-chip>`
-          : html`<span class="session" data-bookmarks-hint>אין עדיין סימניות · "הוסף לתיק" מסמן את הרגע הנוכחי, או Alt+לחיצה על הציר מסמנת נקודה אחרת</span>`}
-        ${this.activeBookmark ? html`<sw-chip selected icon="case" data-bookmark-active @click=${() => navigate(`/investigate/cases/${this.activeBookmark!.case_id}`)}>תיק „${this.activeBookmark.case_title}”${this.activeBookmark.note ? ` · ${this.activeBookmark.note}` : ''} · ${BOOKMARK_LABEL[this.activeBookmark.preservation]} · פתח</sw-chip>` : nothing}
-        ${this.rec?.coverage === 'partial' ? html`<span class="warn">כיסוי חלקי: ${this.rec.note}</span>` : nothing}
-        ${this.loadingRec ? html`<span class="session">מחפש הקלטות…</span>` : nothing}
+          ? html`<sw-chip icon="case" data-bookmarks-count title=${tr('סימניות מתיקי חקירה על ציר הזמן · Alt+לחיצה על הציר מוסיפה סימנייה')}>${tr('{n} סימניות', { n: this.bookmarks.length })}</sw-chip>`
+          : html`<span class="session" data-bookmarks-hint>${tr('אין עדיין סימניות · "הוסף לתיק" מסמן את הרגע הנוכחי, או Alt+לחיצה על הציר מסמנת נקודה אחרת')}</span>`}
+        ${this.activeBookmark ? html`<sw-chip selected icon="case" data-bookmark-active @click=${() => navigate(`/investigate/cases/${this.activeBookmark!.case_id}`)}>${tr('תיק „{title}”', { title: this.activeBookmark.case_title })}${this.activeBookmark.note ? ` · ${this.activeBookmark.note}` : ''} · ${BOOKMARK_LABEL[this.activeBookmark.preservation]} · ${tr('פתח')}</sw-chip>` : nothing}
+        ${this.rec?.coverage === 'partial' ? html`<span class="warn">${tr('כיסוי חלקי:')} ${this.rec.note}</span>` : nothing}
+        ${this.loadingRec ? html`<span class="session">${tr('מחפש הקלטות…')}</span>` : nothing}
         ${this.notice ? html`<span class="warn">${this.notice}</span>` : nothing}
         ${this.error ? html`<span class="err">${this.error}</span>` : nothing}
         <span class="grow"></span>
-        <sw-button size="sm" icon="case" data-add-to-case title="סימנייה בנקודה הנוכחית · Alt+לחיצה על הציר מסמנת נקודה אחרת" ?disabled=${!this.cameraId} @click=${() => (this.casePick = { kind: 'clip', camera_id: this.cameraId, ...clipAround(instantInZone(this.date, this.cursor, this.tz)) })}>הוסף לתיק</sw-button>
-        <sw-button size="sm" icon="download" ?disabled=${!this.rec?.segments.length} @click=${() => this.openExport()}>ייצוא</sw-button>
-        <a href="#/explore/floors/f0"><sw-button size="sm" icon="map">במפה</sw-button></a>
+        <sw-button size="sm" icon="case" data-add-to-case title=${tr('סימנייה בנקודה הנוכחית · Alt+לחיצה על הציר מסמנת נקודה אחרת')} ?disabled=${!this.cameraId} @click=${() => (this.casePick = { kind: 'clip', camera_id: this.cameraId, ...clipAround(instantInZone(this.date, this.cursor, this.tz)) })}>${tr('הוסף לתיק')}</sw-button>
+        <sw-button size="sm" icon="download" ?disabled=${!this.rec?.segments.length} @click=${() => this.openExport()}>${tr('ייצוא')}</sw-button>
+        <a href="#/explore/floors/f0"><sw-button size="sm" icon="map">${tr('במפה')}</sw-button></a>
       </div>
       <div class="compare" data-compare data-picker=${this.tabsMode.ddPicker}>
         ${this.tabsMode.ddPicker === 'chips'
           ? this.renderCompareChips()
-          : html`<sw-dropdown multiple camera-picker data-compare-pick label="השוואה" icon="grid" placeholder="השוואה (עד 4)" max="3" count-base="1" dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel}
+          : html`<sw-dropdown multiple camera-picker data-compare-pick label=${tr('השוואה')} icon="grid" placeholder=${tr('השוואה (עד 4)')} max="3" count-base="1" dd-style=${this.tabsMode.ddStyle} dd-size=${this.tabsMode.ddSize} dd-ring=${this.tabsMode.ddRing} dd-panel=${this.tabsMode.ddPanel}
               .items=${this.compareItems()} .values=${this.extra} @change=${(e: CustomEvent<DropdownChange>) => void this.applyExtra(e.detail.ids ?? [])}></sw-dropdown>`}
       </div>
       <div class="stage" data-stall-phase=${this.stallPhase} data-stall-attempts=${this.stall.attempts} data-stall-resumes=${this.stall.resumes}>
         ${this.renderStage(cam)}
         ${this.renderStall()}
-        <span class="stamp">${this.date} ${this.fmt(pos)} · ${{ verified: 'מאומת', keyframe_limited: 'דיוק לפי keyframe', estimated: 'משוער', unknown: '—' }[precision]}${!this.groupMode && this.speed !== 1 ? html` · <span data-speed-active=${this.speed}>${this.speed}× הילוך איטי</span>` : nothing}${this.paused && !this.groupMode ? html` · <span data-paused>מושהה · צעד־פריים</span>` : nothing}${this.groupMode ? html` · <span data-sync-quality=${this.syncStats?.quality ?? 'waiting'} data-sync-p95=${this.syncStats?.p95 ?? ''} data-sync-samples=${this.syncStats?.samples ?? 0}>${this.syncLabel()}</span>` : ''}</span>
+        <span class="stamp">${this.date} ${this.fmt(pos)} · ${{ verified: tr('מאומת'), keyframe_limited: tr('דיוק לפי keyframe'), estimated: tr('משוער'), unknown: '—' }[precision]}${!this.groupMode && this.speed !== 1 ? html` · <span data-speed-active=${this.speed}>${tr('{n}× הילוך איטי', { n: this.speed })}</span>` : nothing}${this.paused && !this.groupMode ? html` · <span data-paused>${tr('מושהה · צעד־פריים')}</span>` : nothing}${this.groupMode ? html` · <span data-sync-quality=${this.syncStats?.quality ?? 'waiting'} data-sync-p95=${this.syncStats?.p95 ?? ''} data-sync-samples=${this.syncStats?.samples ?? 0}>${this.syncLabel()}</span>` : ''}</span>
         <div class="bar"><div class="inner">
-          <sw-button variant="ghost" size="sm" iconOnly icon=${this.paused ? 'play' : 'pause'} label=${this.paused ? 'המשך' : 'השהה'} data-pause ?disabled=${!live || masterStatus !== 'playing'} @click=${() => this.togglePause()}></sw-button>
-          <sw-button variant="ghost" size="sm" iconOnly icon="back10" label="10 שניות אחורה" ?disabled=${!live || this.busy} @click=${() => this.nudge(-10)}></sw-button>
-          <sw-button variant="ghost" size="sm" iconOnly icon="forward10" label="10 שניות קדימה" ?disabled=${!live || this.busy} @click=${() => this.nudge(10)}></sw-button>
+          <sw-button variant="ghost" size="sm" iconOnly icon=${this.paused ? 'play' : 'pause'} label=${this.paused ? tr('המשך') : tr('השהה')} data-pause ?disabled=${!live || masterStatus !== 'playing'} @click=${() => this.togglePause()}></sw-button>
+          <sw-button variant="ghost" size="sm" iconOnly icon="back10" label=${tr('10 שניות אחורה')} ?disabled=${!live || this.busy} @click=${() => this.nudge(-10)}></sw-button>
+          <sw-button variant="ghost" size="sm" iconOnly icon="forward10" label=${tr('10 שניות קדימה')} ?disabled=${!live || this.busy} @click=${() => this.nudge(10)}></sw-button>
           <span class="sep"></span>
           ${[0.25, 0.5, 1, 2, 4].map((s) => {
             const supported = (master?.capabilities.supported_speeds ?? [1]).includes(s);
             const mse = this.masterPlayer()?.transport === 'mse';
             const ok = s === 1 || (!this.groupMode && supported && (s > 1 || mse));
-            const why = ok ? (s < 1 ? 'הילוך איטי: המאגר מתמלא בזמן אמת ונצרך לאט יותר — זמן המקור נשאר מדויק' : '') : this.groupMode ? 'בסנכרון רב־מצלמות נתמך רק 1×' : s > 1 ? 'לא נתמך במסלול הזה: הזרם מגיע מהמקליט בזמן אמת; מהירות מוגברת דורשת מקור ששולח מהר מזמן אמת' : 'הילוך איטי זמין רק בנתיב MSE';
+            const why = ok ? (s < 1 ? tr('הילוך איטי: המאגר מתמלא בזמן אמת ונצרך לאט יותר — זמן המקור נשאר מדויק') : '') : this.groupMode ? tr('בסנכרון רב־מצלמות נתמך רק 1×') : s > 1 ? tr('לא נתמך במסלול הזה: הזרם מגיע מהמקליט בזמן אמת; מהירות מוגברת דורשת מקור ששולח מהר מזמן אמת') : tr('הילוך איטי זמין רק בנתיב MSE');
             return html`<button class="q ${this.speed === s ? 'on' : ''}" data-speed=${s} ?disabled=${!ok} title=${why} @click=${() => this.setSpeed(s)}>${s}×</button>`;
           })}
           <span class="sep"></span>
-          <button class="q" data-frame-step="-1" ?disabled=${!live || this.groupMode || !this.paused} title=${this.groupMode ? 'צעד־פריים זמין במצלמה בודדת' : this.paused ? 'פריים אחד אחורה (בתוך המאגר)' : 'צעד־פריים זמין בהשהיה'} @click=${() => this.stepFrame(-1)}>‹ פריים</button>
-          <button class="q" data-frame-step="1" ?disabled=${!live || this.groupMode || !this.paused} title=${this.groupMode ? 'צעד־פריים זמין במצלמה בודדת' : this.paused ? 'פריים אחד קדימה (בתוך המאגר)' : 'צעד־פריים זמין בהשהיה'} @click=${() => this.stepFrame(1)}>פריים ‹</button>
+          <button class="q" data-frame-step="-1" ?disabled=${!live || this.groupMode || !this.paused} title=${this.groupMode ? tr('צעד־פריים זמין במצלמה בודדת') : this.paused ? tr('פריים אחד אחורה (בתוך המאגר)') : tr('צעד־פריים זמין בהשהיה')} @click=${() => this.stepFrame(-1)}>${tr('‹ פריים')}</button>
+          <button class="q" data-frame-step="1" ?disabled=${!live || this.groupMode || !this.paused} title=${this.groupMode ? tr('צעד־פריים זמין במצלמה בודדת') : this.paused ? tr('פריים אחד קדימה (בתוך המאגר)') : tr('צעד־פריים זמין בהשהיה')} @click=${() => this.stepFrame(1)}>${tr('פריים ‹')}</button>
           <span class="sep"></span>
-          <sw-button variant="ghost" size="sm" iconOnly icon="expand" label="מסך מלא" ?disabled=${!live} @click=${() => this.masterPlayer()?.fullscreen()}></sw-button>
+          <sw-button variant="ghost" size="sm" iconOnly icon="expand" label=${tr('מסך מלא')} ?disabled=${!live} @click=${() => this.masterPlayer()?.fullscreen()}></sw-button>
         </div></div>
       </div>
       <div class="tlwrap">
@@ -1504,23 +1505,23 @@ export class InvestigatePlayback extends LitElement {
         ${this.preview
           ? html`<div class="tlpreview" data-tl-preview style="left:${Math.max(104, Math.min(this.preview.width - 104, this.preview.x))}px">
               ${this.preview.frame.none
-                ? html`<div class="none">אין הקלטה בזמן זה</div>`
+                ? html`<div class="none">${tr('אין הקלטה בזמן זה')}</div>`
                 : this.preview.frame.url
                   ? html`<img src=${this.preview.frame.url} alt="" class=${this.preview.frame.loading ? 'stale' : ''} />`
-                  : html`<div class="none">${this.preview.frame.loading ? 'טוען תמונה…' : 'אין פריים בזמן זה'}</div>`}
+                  : html`<div class="none">${this.preview.frame.loading ? tr('טוען תמונה…') : tr('אין פריים בזמן זה')}</div>`}
               <span>${secondLabel(this.preview.minute)}</span>
             </div>`
           : nothing}
       </div>
       <sw-case-picker .item=${this.casePick} subheading=${`${this.cams?.find((c) => c.id === this.cameraId)?.name ?? ''} · ${this.date} ${secondLabel(this.cursor)}`} @added=${() => void this.loadBookmarks()} @close=${() => (this.casePick = null)}></sw-case-picker>
       ${showPlaybackItem('diagnostics') ? html`<div class="session" data-playback-diagnostics>
-        <span>Session: ${master ? `${master.id} · דור ${this.groupMode ? this.group?.generation ?? master.generation : master.generation} · ${master.state}` : 'אין'}</span>
-        <span>נגן: ${masterStatus || '—'}${this.paused ? ' (מושהה)' : ''}</span>
-        <span data-stall-diag>חיבור מחדש: ${this.stall.attempts}/${this.stall.options.maxAttempts} · הצליחו ${this.stall.resumes}</span>
-        <span>אזור זמן: <span class="ltr">${this.tz}</span></span>
-        <span>כיסוי: ${this.rec ? (this.rec.coverage === 'complete' ? 'מלא' : this.rec.coverage === 'partial' ? 'חלקי' : 'לא ידוע') : '—'}</span>
-        ${master ? html`<span>סוף הטווח: ${this.fmt(new Date(master.playback_end_at))}</span>` : nothing}
-        ${this.groupMode ? html`<span data-sync-method>סנכרון: שעון־אב אחד לכל האריחים (חסם פתיחה, ואז חציון זמני הפריימים המוצגים; מתחת לשלושה אריחים — המוביל); הסטייה של כל אריח נמדדת מול השעון, p95 על החלון האחרון; אריח מאחר מסונכרן לבד ואינו מזיז את האחרים (best effort, ללא עוגן זמן מאומת); מהירויות שונות מ־1× כבויות; מקור בלי הקלטה בזמן הזה מוצג כ"אין הקלטה", לא כמסונכרן</span>` : nothing}
+        <span>Session: ${master ? `${master.id} · ${tr('דור {n}', { n: this.groupMode ? this.group?.generation ?? master.generation : master.generation })} · ${master.state}` : tr('אין')}</span>
+        <span>${tr('נגן:')} ${masterStatus || '—'}${this.paused ? ` ${tr('(מושהה)')}` : ''}</span>
+        <span data-stall-diag>${tr('חיבור מחדש:')} ${this.stall.attempts}/${this.stall.options.maxAttempts} · ${tr('הצליחו {n}', { n: this.stall.resumes })}</span>
+        <span>${tr('אזור זמן:')} <span class="ltr">${this.tz}</span></span>
+        <span>${tr('כיסוי:')} ${this.rec ? (this.rec.coverage === 'complete' ? tr('מלא') : this.rec.coverage === 'partial' ? tr('חלקי') : tr('לא ידוע')) : '—'}</span>
+        ${master ? html`<span>${tr('סוף הטווח:')} ${this.fmt(new Date(master.playback_end_at))}</span>` : nothing}
+        ${this.groupMode ? html`<span data-sync-method>${tr('סנכרון: שעון־אב אחד לכל האריחים (חסם פתיחה, ואז חציון זמני הפריימים המוצגים; מתחת לשלושה אריחים — המוביל); הסטייה של כל אריח נמדדת מול השעון, p95 על החלון האחרון; אריח מאחר מסונכרן לבד ואינו מזיז את האחרים (best effort, ללא עוגן זמן מאומת); מהירויות שונות מ־1× כבויות; מקור בלי הקלטה בזמן הזה מוצג כ"אין הקלטה", לא כמסונכרן')}</span>` : nothing}
       </div>` : nothing}
       ${this.renderExportDialog()}
     `;
@@ -1540,40 +1541,40 @@ export class InvestigatePlayback extends LitElement {
     return html`
       <div class="video ${inGap ? 'gap' : ''}">
         ${inGap
-          ? html`<div class="center"><div><sw-icon name="offline" size=${32}></sw-icon><span>אין הקלטה בזמן הזה: פער בכיסוי, לא מדלגים ל־Live</span></div></div>`
-          : html`<sw-scene kind=${demoScene[cam.id] ?? 'lobby'}></sw-scene><div class="shade"></div><span class="demo">דמו · אין שרת מחובר</span>`}
+          ? html`<div class="center"><div><sw-icon name="offline" size=${32}></sw-icon><span>${tr('אין הקלטה בזמן הזה: פער בכיסוי, לא מדלגים ל־Live')}</span></div></div>`
+          : html`<sw-scene kind=${demoScene[cam.id] ?? 'lobby'}></sw-scene><div class="shade"></div><span class="demo">${tr('דמו · אין שרת מחובר')}</span>`}
         <div class="tag"><sw-badge kind=${inGap ? 'unknown' : 'recorded'} ?onImage=${!inGap}></sw-badge><span class="nm">${cam.name}</span></div>
         <span class="stamp">2026-09-14 ${minuteLabel(this.cursor)}:00 · actual: ${inGap ? '—' : minuteLabel(this.cursor)}</span>
         <div class="bar"><div class="inner">
-          <sw-button variant="ghost" size="sm" iconOnly icon=${this.playing ? 'pause' : 'play'} label=${this.playing ? 'השהה' : 'נגן'} @click=${() => (this.playing = !this.playing)}></sw-button>
-          <sw-button variant="ghost" size="sm" iconOnly icon="back10" label="10 שניות אחורה"></sw-button>
-          <sw-button variant="ghost" size="sm" iconOnly icon="forward10" label="10 שניות קדימה"></sw-button>
+          <sw-button variant="ghost" size="sm" iconOnly icon=${this.playing ? 'pause' : 'play'} label=${this.playing ? tr('השהה') : tr('נגן')} @click=${() => (this.playing = !this.playing)}></sw-button>
+          <sw-button variant="ghost" size="sm" iconOnly icon="back10" label=${tr('10 שניות אחורה')}></sw-button>
+          <sw-button variant="ghost" size="sm" iconOnly icon="forward10" label=${tr('10 שניות קדימה')}></sw-button>
           <span class="sep"></span>
           ${[1, 2, 4].map((s) => html`<button class="q ${this.speed === s ? 'on' : ''}" @click=${() => (this.speed = s)}>${s}×</button>`)}
           <span class="sep"></span>
-          <sw-button variant="ghost" size="sm" iconOnly icon="aperture" label="צילום מהקלטה"></sw-button>
+          <sw-button variant="ghost" size="sm" iconOnly icon="aperture" label=${tr('צילום מהקלטה')}></sw-button>
           <button class="q on">1080p</button>
-          <sw-button variant="ghost" size="sm" iconOnly icon="expand" label="מסך מלא"></sw-button>
+          <sw-button variant="ghost" size="sm" iconOnly icon="expand" label=${tr('מסך מלא')}></sw-button>
         </div></div>
       </div>
       <sw-timeline .segments=${demoSegments} .events=${events} .cursor=${this.cursor} precision="estimated" @seek=${this.seekDemo}></sw-timeline>
       <div class="filters">
-        <sw-chip ?selected=${this.filter === 'all'} @click=${() => (this.filter = 'all')}>הכל</sw-chip>
-        <sw-chip dot="var(--sw-tl-motion)" ?selected=${this.filter === 'motion'} @click=${() => (this.filter = 'motion')}>תנועה</sw-chip>
-        <sw-chip dot="var(--sw-tl-person)" ?selected=${this.filter === 'person'} @click=${() => (this.filter = 'person')}>אדם</sw-chip>
-        <sw-chip dot="var(--sw-tl-vehicle)" ?selected=${this.filter === 'vehicle'} @click=${() => (this.filter = 'vehicle')}>רכב</sw-chip>
-        <sw-chip dot="var(--sw-tl-door)" ?selected=${this.filter === 'door'} @click=${() => (this.filter = 'door')}>דלת</sw-chip>
+        <sw-chip ?selected=${this.filter === 'all'} @click=${() => (this.filter = 'all')}>${tr('הכל')}</sw-chip>
+        <sw-chip dot="var(--sw-tl-motion)" ?selected=${this.filter === 'motion'} @click=${() => (this.filter = 'motion')}>${tr('תנועה')}</sw-chip>
+        <sw-chip dot="var(--sw-tl-person)" ?selected=${this.filter === 'person'} @click=${() => (this.filter = 'person')}>${tr('אדם')}</sw-chip>
+        <sw-chip dot="var(--sw-tl-vehicle)" ?selected=${this.filter === 'vehicle'} @click=${() => (this.filter = 'vehicle')}>${tr('רכב')}</sw-chip>
+        <sw-chip dot="var(--sw-tl-door)" ?selected=${this.filter === 'door'} @click=${() => (this.filter = 'door')}>${tr('דלת')}</sw-chip>
         <span class="grow"></span>
-        <sw-button size="sm" icon="case">הוסף לתיק</sw-button>
-        <a href="#/investigate/floors/f0/history"><sw-button size="sm" icon="map">במפה בזמן הזה</sw-button></a>
+        <sw-button size="sm" icon="case">${tr('הוסף לתיק')}</sw-button>
+        <a href="#/investigate/floors/f0/history"><sw-button size="sm" icon="map">${tr('במפה בזמן הזה')}</sw-button></a>
       </div>
       ${showPlaybackItem('diagnostics') ? html`<div class="session" data-playback-diagnostics>
         <span>Session: ${this.playing ? 'playing' : 'paused'} · ${this.speed}×</span>
-        <span>דור ${this.generation}</span>
-        <span>דיוק זמן: משוער</span>
-        <span>כיסוי: ${inGap ? 'פער' : 'מלא'} · 6 מקטעים ביום</span>
+        <span>${tr('דור {n}', { n: this.generation })}</span>
+        <span>${tr('דיוק זמן: משוער')}</span>
+        <span>${tr('כיסוי:')} ${inGap ? tr('פער') : tr('מלא')} · ${tr('6 מקטעים ביום')}</span>
         <span>WebRTC → MSE</span>
-        ${inGap ? nothing : html`<span>מצלמה: ${cam.name}</span>`}
+        ${inGap ? nothing : html`<span>${tr('מצלמה:')} ${cam.name}</span>`}
       </div>` : nothing}
     `;
   }
@@ -1581,23 +1582,23 @@ export class InvestigatePlayback extends LitElement {
   render() {
     const api = isApi();
     const cam = api ? this.cams?.find((c) => c.id === this.cameraId) : demoWall.find((c) => c.id === this.demoCamera) ?? demoWall[0];
-    const heading = cam?.name ?? 'הקלטות';
+    const heading = cam?.name ?? tr('הקלטות');
     // AUDIT30-G-VIDEO (finding 15): the clock is the site's own time; the zone id is not operator copy
     const sub = api ? `${this.date} ${hms(this.cursor)}` : `14.09.2026 ${minuteLabel(this.cursor)} · ${vt('videoCopy.playbackDemoSub')}`;
-    const crumbs = api ? 'הקלטות' : `הקלטות | ${(cam as { floor?: string })?.floor ?? ''}`;
+    const crumbs = api ? tr('הקלטות') : `${tr('הקלטות')} | ${(cam as { floor?: string })?.floor ?? ''}`;
     const today = api ? dateInZone(new Date(), this.tz) : '2026-09-14';
     return html`
       <sw-page heading=${heading} subheading=${sub} crumbs=${crumbs} wide>
-        ${this.fromMap ? html`<sw-button slot="actions" size="sm" variant="ghost" icon="map" data-back-to-map @click=${() => history.back()}>חזרה למפה</sw-button>` : nothing}
+        ${this.fromMap ? html`<sw-button slot="actions" size="sm" variant="ghost" icon="map" data-back-to-map @click=${() => history.back()}>${tr('חזרה למפה')}</sw-button>` : nothing}
         <div slot="actions" class="pick">
           ${api
-            ? html`<sw-field><select aria-label="מצלמה" @change=${(e: Event) => this.selectCamera((e.target as HTMLSelectElement).value)}>${(this.cams ?? []).map((c) => html`<option value=${c.id} ?selected=${c.id === this.cameraId}>${cameraLabel(c)}</option>`)}</select></sw-field>`
-            : html`<sw-field><select aria-label="מצלמה" @change=${(e: Event) => (this.demoCamera = (e.target as HTMLSelectElement).value)}>${demoWall.map((c) => html`<option value=${c.id} ?selected=${c.id === this.demoCamera}>${c.name}</option>`)}</select></sw-field>`}
-          <sw-field><input type="date" lang=${dateInputLang()} .value=${api ? this.date : '2026-09-14'} max=${today} data-ltr aria-label="תאריך" @change=${(e: Event) => api && this.setDate((e.target as HTMLInputElement).value)} /></sw-field>
+            ? html`<sw-field><select aria-label=${tr('מצלמה')} @change=${(e: Event) => this.selectCamera((e.target as HTMLSelectElement).value)}>${(this.cams ?? []).map((c) => html`<option value=${c.id} ?selected=${c.id === this.cameraId}>${cameraLabel(c)}</option>`)}</select></sw-field>`
+            : html`<sw-field><select aria-label=${tr('מצלמה')} @change=${(e: Event) => (this.demoCamera = (e.target as HTMLSelectElement).value)}>${demoWall.map((c) => html`<option value=${c.id} ?selected=${c.id === this.demoCamera}>${c.name}</option>`)}</select></sw-field>`}
+          <sw-field><input type="date" lang=${dateInputLang()} .value=${api ? this.date : '2026-09-14'} max=${today} data-ltr aria-label=${tr('תאריך')} @change=${(e: Event) => api && this.setDate((e.target as HTMLInputElement).value)} /></sw-field>
           <sw-recorded-month data-recorded-month .value=${api ? this.date : '2026-09-14'} .today=${today} .loader=${api ? this.monthLoader : DEMO_MONTH} ?disabled=${api && !this.cameraId} @pick=${(e: CustomEvent<{ date: string }>) => api && void this.setDate(e.detail.date)}></sw-recorded-month>
-          <sw-field style="inline-size:132px"><input type="time" lang=${dateInputLang()} step="1" .value=${api ? hms(this.cursor) : minuteLabel(this.cursor)} data-ltr aria-label="שעה" @change=${(e: Event) => { const v = (e.target as HTMLInputElement).value; if (api) void this.onSeek(new CustomEvent('seek', { detail: { minute: parseHms(v) } })); else { const [h, m] = v.split(':').map(Number); this.cursor = h * 60 + m; this.generation += 1; } }} /></sw-field>
+          <sw-field style="inline-size:132px"><input type="time" lang=${dateInputLang()} step="1" .value=${api ? hms(this.cursor) : minuteLabel(this.cursor)} data-ltr aria-label=${tr('שעה')} @change=${(e: Event) => { const v = (e.target as HTMLInputElement).value; if (api) void this.onSeek(new CustomEvent('seek', { detail: { minute: parseHms(v) } })); else { const [h, m] = v.split(':').map(Number); this.cursor = h * 60 + m; this.generation += 1; } }} /></sw-field>
         </div>
-        ${api ? nothing : html`<sw-button slot="actions" variant="ghost" iconOnly icon="download" label="ייצוא קטע"></sw-button><sw-button slot="actions" variant="ghost" iconOnly icon="link" label="שיתוף"></sw-button><sw-button slot="actions" variant="ghost" iconOnly icon="more" label="עוד"></sw-button>`}
+        ${api ? nothing : html`<sw-button slot="actions" variant="ghost" iconOnly icon="download" label=${tr('ייצוא קטע')}></sw-button><sw-button slot="actions" variant="ghost" iconOnly icon="link" label=${tr('שיתוף')}></sw-button><sw-button slot="actions" variant="ghost" iconOnly icon="more" label=${tr('עוד')}></sw-button>`}
         ${api ? this.renderApi() : this.renderDemo()}
       </sw-page>
     `;

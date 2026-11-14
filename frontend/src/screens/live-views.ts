@@ -20,6 +20,7 @@ import { createView, deleteView, kioskHref, listViews, updateView, wallHref, typ
 import type { Camera } from '../api/types';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { tr } from '../i18n/msg/live';
 
 const EMPTY: ViewBody = { name: '', cameras: [], cols: 2, rows: 2, shared: false, kiosk: false };
 
@@ -84,11 +85,11 @@ export class LiveViews extends LitElement {
     const e = this.editing;
     if (!e) return;
     if (!e.name.trim()) {
-      this.formError = 'לתצוגה צריך שם.';
+      this.formError = tr('לתצוגה צריך שם.');
       return;
     }
     if (!e.cameras.length) {
-      this.formError = 'בחר לפחות מצלמה אחת.';
+      this.formError = tr('בחר לפחות מצלמה אחת.');
       return;
     }
     this.busy = true;
@@ -122,27 +123,27 @@ export class LiveViews extends LitElement {
 
   private renderEditor() {
     const e = this.editing!;
-    return html`<sw-dialog open heading=${e.id ? 'עריכת תצוגה' : 'תצוגה חדשה'} subheading="שם, מצלמות ופריסה · תצוגה משותפת נראית לכל המשתמשים" data-view-dialog @close=${() => (this.editing = null)}>
+    return html`<sw-dialog open heading=${e.id ? tr('עריכת תצוגה') : tr('תצוגה חדשה')} subheading=${tr('שם, מצלמות ופריסה · תצוגה משותפת נראית לכל המשתמשים')} data-view-dialog @close=${() => (this.editing = null)}>
       <div class="form">
-        <sw-field label="שם"><input data-view-name .value=${e.name} maxlength="60" @input=${(ev: Event) => (this.editing = { ...e, name: (ev.target as HTMLInputElement).value })} /></sw-field>
-        <div class="lbl">מצלמות (${e.cameras.length} מתוך ${this.cams.length})</div>
+        <sw-field label=${tr('שם')}><input data-view-name .value=${e.name} maxlength="60" @input=${(ev: Event) => (this.editing = { ...e, name: (ev.target as HTMLInputElement).value })} /></sw-field>
+        <div class="lbl">${tr('מצלמות ({n} מתוך {total})', { n: e.cameras.length, total: this.cams.length })}</div>
         <div class="chips" data-view-cameras>
           ${this.cams.map((c) => html`<sw-chip ?selected=${e.cameras.includes(c.id)} data-view-camera=${c.id} dot=${c.status === 'online' ? 'var(--sw-live)' : 'var(--sw-danger)'} @click=${() => this.toggleCamera(c.id)}>${c.name}</sw-chip>`)}
         </div>
         <div class="two">
-          <sw-field label="עמודות"><select data-view-cols .value=${String(e.cols)} @change=${(ev: Event) => (this.editing = { ...e, cols: Number((ev.target as HTMLSelectElement).value) })}>${[1, 2, 3, 4].map((n) => html`<option value=${n} ?selected=${n === e.cols}>${n}</option>`)}</select></sw-field>
-          <sw-field label="שורות"><select data-view-rows .value=${String(e.rows)} @change=${(ev: Event) => (this.editing = { ...e, rows: Number((ev.target as HTMLSelectElement).value) })}>${[1, 2, 3, 4].map((n) => html`<option value=${n} ?selected=${n === e.rows}>${n}</option>`)}</select></sw-field>
+          <sw-field label=${tr('עמודות')}><select data-view-cols .value=${String(e.cols)} @change=${(ev: Event) => (this.editing = { ...e, cols: Number((ev.target as HTMLSelectElement).value) })}>${[1, 2, 3, 4].map((n) => html`<option value=${n} ?selected=${n === e.cols}>${n}</option>`)}</select></sw-field>
+          <sw-field label=${tr('שורות')}><select data-view-rows .value=${String(e.rows)} @change=${(ev: Event) => (this.editing = { ...e, rows: Number((ev.target as HTMLSelectElement).value) })}>${[1, 2, 3, 4].map((n) => html`<option value=${n} ?selected=${n === e.rows}>${n}</option>`)}</select></sw-field>
         </div>
         <div class="toggles">
-          <sw-toggle ?checked=${e.shared} ?disabled=${!this.canShare} label=${this.canShare ? 'משותפת לכל המשתמשים' : 'משותפת (דורש הרשאת ניהול משתמשים)'} data-view-shared @change=${(ev: CustomEvent<{ checked: boolean }>) => (this.editing = { ...e, shared: ev.detail.checked })}></sw-toggle>
-          <sw-toggle ?checked=${e.kiosk} label="מיועדת לקיוסק (מסך קיר)" data-view-kiosk @change=${(ev: CustomEvent<{ checked: boolean }>) => (this.editing = { ...e, kiosk: ev.detail.checked })}></sw-toggle>
+          <sw-toggle ?checked=${e.shared} ?disabled=${!this.canShare} label=${this.canShare ? tr('משותפת לכל המשתמשים') : tr('משותפת (דורש הרשאת ניהול משתמשים)')} data-view-shared @change=${(ev: CustomEvent<{ checked: boolean }>) => (this.editing = { ...e, shared: ev.detail.checked })}></sw-toggle>
+          <sw-toggle ?checked=${e.kiosk} label=${tr('מיועדת לקיוסק (מסך קיר)')} data-view-kiosk @change=${(ev: CustomEvent<{ checked: boolean }>) => (this.editing = { ...e, kiosk: ev.detail.checked })}></sw-toggle>
         </div>
-        <div class="note">הקיר פותח את המצלמות בפריסה אוטומטית; הקיוסק מציג ${e.cols}×${e.rows} מצלמות בעמוד ומדפדף בין העמודים.</div>
+        <div class="note">${tr('הקיר פותח את המצלמות בפריסה אוטומטית; הקיוסק מציג {cols}×{rows} מצלמות בעמוד ומדפדף בין העמודים.', { cols: e.cols, rows: e.rows })}</div>
         ${this.formError ? html`<div class="err" data-view-error>${this.formError}</div>` : nothing}
       </div>
       <div slot="footer">
-        <sw-button variant="ghost" @click=${() => (this.editing = null)}>ביטול</sw-button>
-        <sw-button variant="primary" icon="check" data-view-save ?disabled=${this.busy} @click=${() => this.save()}>${e.id ? 'שמור' : 'צור תצוגה'}</sw-button>
+        <sw-button variant="ghost" @click=${() => (this.editing = null)}>${tr('ביטול')}</sw-button>
+        <sw-button variant="primary" icon="check" data-view-save ?disabled=${this.busy} @click=${() => this.save()}>${e.id ? tr('שמור') : tr('צור תצוגה')}</sw-button>
       </div>
     </sw-dialog>`;
   }
@@ -150,40 +151,40 @@ export class LiveViews extends LitElement {
   private renderApi() {
     const views = this.views;
     return html`
-      <sw-page heading="תצוגות שמורות" subheading="קבוצות מצלמות עם פריסה — אישיות או משותפות — לפתיחה בקיר החי או בקיוסק">
-        <sw-button slot="actions" variant="primary" icon="plus" data-view-new @click=${() => this.open()}>תצוגה חדשה</sw-button>
-        ${this.error ? html`<sw-state-panel state="error" heading="התצוגות לא נטענו" hint=${this.error}></sw-state-panel>` : nothing}
+      <sw-page heading=${tr('תצוגות שמורות')} subheading=${tr('קבוצות מצלמות עם פריסה — אישיות או משותפות — לפתיחה בקיר החי או בקיוסק')}>
+        <sw-button slot="actions" variant="primary" icon="plus" data-view-new @click=${() => this.open()}>${tr('תצוגה חדשה')}</sw-button>
+        ${this.error ? html`<sw-state-panel state="error" heading=${tr('התצוגות לא נטענו')} hint=${this.error}></sw-state-panel>` : nothing}
         ${views === null
-          ? html`<sw-state-panel state="loading" heading="טוען תצוגות…"></sw-state-panel>`
+          ? html`<sw-state-panel state="loading" heading=${tr('טוען תצוגות…')}></sw-state-panel>`
           : views.length
             ? html`<div class="grid" data-views>
                 ${views.map(
                   (v) => html`<sw-card data-view=${v.id}>
                     <div class="thumb" style=${`grid-template-columns:repeat(${Math.min(2, Math.max(1, v.cameras.length))}, 1fr)`}>
                       ${v.cameras.slice(0, 4).map((id) => html`<img src=${snapshotUrl(id)} alt="" loading="lazy" @error=${(ev: Event) => ((ev.target as HTMLImageElement).style.visibility = 'hidden')} />`)}
-                      ${!v.cameras.length ? html`<div class="empty">אין מצלמות שמותר לך לראות בתצוגה זו</div>` : nothing}
+                      ${!v.cameras.length ? html`<div class="empty">${tr('אין מצלמות שמותר לך לראות בתצוגה זו')}</div>` : nothing}
                     </div>
-                    <div class="head"><b>${v.name}</b><sw-badge kind=${v.shared ? 'recorded' : 'neutral'} label=${v.shared ? 'משותפת' : 'אישית'}></sw-badge>${v.kiosk ? html`<sw-badge kind="neutral" label="קיוסק"></sw-badge>` : nothing}</div>
+                    <div class="head"><b>${v.name}</b><sw-badge kind=${v.shared ? 'recorded' : 'neutral'} label=${v.shared ? tr('משותפת') : tr('אישית')}></sw-badge>${v.kiosk ? html`<sw-badge kind="neutral" label=${tr('קיוסק')}></sw-badge>` : nothing}</div>
                     <dl>
-                      <dt>מצלמות</dt><dd>${v.camera_names.join(' · ') || '—'}${v.hidden_cameras ? html` <span class="muted">(+${v.hidden_cameras} ללא הרשאה)</span>` : nothing}</dd>
-                      <dt>פריסה</dt><dd class="ltr">${v.cols}×${v.rows}</dd>
-                      <dt>בעלים</dt><dd>${v.owner_username ?? '—'}</dd>
+                      <dt>${tr('מצלמות')}</dt><dd>${v.camera_names.join(' · ') || '—'}${v.hidden_cameras ? html` <span class="muted">${tr('(+{n} ללא הרשאה)', { n: v.hidden_cameras })}</span>` : nothing}</dd>
+                      <dt>${tr('פריסה')}</dt><dd class="ltr">${v.cols}×${v.rows}</dd>
+                      <dt>${tr('בעלים')}</dt><dd>${v.owner_username ?? '—'}</dd>
                     </dl>
                     <div class="foot">
-                      <a href=${wallHref(v)}><sw-button size="sm" variant="primary" icon="play" data-view-open ?disabled=${!v.cameras.length}>פתח</sw-button></a>
-                      <a href=${kioskHref(v)} target="_blank" rel="noopener"><sw-button size="sm" icon="layers" data-view-kiosk-open ?disabled=${!v.cameras.length}>קיוסק</sw-button></a>
+                      <a href=${wallHref(v)}><sw-button size="sm" variant="primary" icon="play" data-view-open ?disabled=${!v.cameras.length}>${tr('פתח')}</sw-button></a>
+                      <a href=${kioskHref(v)} target="_blank" rel="noopener"><sw-button size="sm" icon="layers" data-view-kiosk-open ?disabled=${!v.cameras.length}>${tr('קיוסק')}</sw-button></a>
                       <span class="grow"></span>
-                      ${this.canEdit(v) ? html`<sw-button size="sm" variant="ghost" icon="edit" data-view-edit @click=${() => this.open(v)}>עריכה</sw-button><sw-button size="sm" variant="ghost" icon="trash" data-view-delete @click=${() => (this.confirmDelete = v)}>מחיקה</sw-button>` : nothing}
+                      ${this.canEdit(v) ? html`<sw-button size="sm" variant="ghost" icon="edit" data-view-edit @click=${() => this.open(v)}>${tr('עריכה')}</sw-button><sw-button size="sm" variant="ghost" icon="trash" data-view-delete @click=${() => (this.confirmDelete = v)}>${tr('מחיקה')}</sw-button>` : nothing}
                     </div>
                   </sw-card>`,
                 )}
               </div>`
-            : html`<sw-state-panel icon="grid" state="empty" heading="אין עדיין תצוגות שמורות" hint="צור תצוגה: שם, מצלמות ופריסה. תצוגה משותפת נראית לכל המשתמשים; קיוסק פותח אותה במסך קיר בלי פקדים."></sw-state-panel>`}
+            : html`<sw-state-panel icon="grid" state="empty" heading=${tr('אין עדיין תצוגות שמורות')} hint=${tr('צור תצוגה: שם, מצלמות ופריסה. תצוגה משותפת נראית לכל המשתמשים; קיוסק פותח אותה במסך קיר בלי פקדים.')}></sw-state-panel>`}
         ${this.editing ? this.renderEditor() : nothing}
         ${this.confirmDelete
-          ? html`<sw-dialog open heading="מחיקת תצוגה" subheading=${this.confirmDelete.name} @close=${() => (this.confirmDelete = null)}>
-              <p>התצוגה תוסר מהרשימה. המצלמות וההקלטות אינן מושפעות.</p>
-              <div slot="footer"><sw-button variant="ghost" @click=${() => (this.confirmDelete = null)}>ביטול</sw-button><sw-button variant="danger" icon="trash" data-view-delete-confirm ?disabled=${this.busy} @click=${() => this.removeView()}>מחק</sw-button></div>
+          ? html`<sw-dialog open heading=${tr('מחיקת תצוגה')} subheading=${this.confirmDelete.name} @close=${() => (this.confirmDelete = null)}>
+              <p>${tr('התצוגה תוסר מהרשימה. המצלמות וההקלטות אינן מושפעות.')}</p>
+              <div slot="footer"><sw-button variant="ghost" @click=${() => (this.confirmDelete = null)}>${tr('ביטול')}</sw-button><sw-button variant="danger" icon="trash" data-view-delete-confirm ?disabled=${this.busy} @click=${() => this.removeView()}>${tr('מחק')}</sw-button></div>
             </sw-dialog>`
           : nothing}
       </sw-page>
@@ -405,8 +406,8 @@ export class LiveViews extends LitElement {
   render() {
     if (isApi()) return this.renderApi();
     return html`
-      <sw-page heading="תצוגות שמורות" subheading="תבניות 1 / 2 / 4 / 6 / 9 / 12 / 16 / מותאם, אישיות או משותפות, עם התאמה למובייל · נתוני הדגמה">
-        <sw-button slot="actions" variant="primary" icon="plus">תצוגה חדשה</sw-button>
+      <sw-page heading=${tr('תצוגות שמורות')} subheading=${tr('תבניות 1 / 2 / 4 / 6 / 9 / 12 / 16 / מותאם, אישיות או משותפות, עם התאמה למובייל · נתוני הדגמה')}>
+        <sw-button slot="actions" variant="primary" icon="plus">${tr('תצוגה חדשה')}</sw-button>
         <div class="grid">
           ${VIEWS.map((v) => {
             const cols = Math.ceil(Math.sqrt(v.layout));
@@ -414,14 +415,14 @@ export class LiveViews extends LitElement {
               <sw-badge slot="actions" kind="neutral" label=${v.scope}></sw-badge>
               <div class="thumb" style="grid-template-columns:repeat(${cols},1fr)">${demoWall.filter((c) => c.state === 'live').slice(0, v.layout).map((c) => html`<sw-scene kind=${demoScene[c.id] ?? 'lobby'}></sw-scene>`)}</div>
               <dl>
-                <dt>פריסה</dt><dd>${v.layout} אריחים</dd>
-                <dt>מובייל</dt><dd>${v.mobile}</dd>
-                <dt>בעלים</dt><dd>${v.owner}</dd>
+                <dt>${tr('פריסה')}</dt><dd>${tr('{n} אריחים', { n: v.layout })}</dd>
+                <dt>${tr('מובייל')}</dt><dd>${v.mobile}</dd>
+                <dt>${tr('בעלים')}</dt><dd>${v.owner}</dd>
               </dl>
               <div class="foot">
-                <a href="#/live/wall"><sw-button size="sm" icon="play">פתח</sw-button></a>
-                <sw-button size="sm" variant="ghost">עריכה</sw-button>
-                <sw-toggle ?checked=${v.kiosk} label="קיוסק"></sw-toggle>
+                <a href="#/live/wall"><sw-button size="sm" icon="play">${tr('פתח')}</sw-button></a>
+                <sw-button size="sm" variant="ghost">${tr('עריכה')}</sw-button>
+                <sw-toggle ?checked=${v.kiosk} label=${tr('קיוסק')}></sw-toggle>
               </div>
             </sw-card>`;
           })}
