@@ -196,7 +196,7 @@ test.describe('layout guard: the person writes', () => {
         await page.locator('wiskey-person-editor [data-wiskey-editor-section="timing"]').scrollIntoViewIfNeeded();
         await layerCheck(page, results, `${ctx} editor timing`, 'wiskey-person-editor');
         await ownTargets(page, results, `${ctx} editor timing`);
-        await page.locator('wiskey-person-editor [data-wiskey-editor-cancel]').click();
+        await page.locator('wiskey-person-editor [data-wiskey-editor-cancel-footer]').click();
         await page.locator('wiskey-person-editor [data-wiskey-editor-close-discard]').click();
         await expect(page.locator('wiskey-person-editor')).toHaveCount(0);
       }

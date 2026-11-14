@@ -179,18 +179,12 @@ export class WiskeyPersonEditor extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     void this.load();
-    window.addEventListener('keydown', this.onKey);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    window.removeEventListener('keydown', this.onKey);
     this.generation++;
   }
-
-  private onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape' && !this.confirmDelete && !this.confirmClose && !this.capturing) this.requestClose();
-  };
 
   private get zone(): DisplayZone {
     return this.ctx?.default_zone ?? UTC_ZONE;
@@ -584,18 +578,13 @@ export class WiskeyPersonEditor extends LitElement {
 
   render() {
     const mode = this.isNew ? 'new' : 'edit';
-    return html`<div class="backdrop" data-wiskey-editor data-wiskey-editor-mode=${mode} @click=${(e: Event) => e.target === e.currentTarget && this.requestClose()}>
-      <div class="pane" role="dialog" aria-modal="true" aria-label=${t(this.isNew ? 'add_user' : 'edit_user')}>
-        <header>
-          <div>
-            <h3>${t(this.isNew ? 'add_user' : 'edit_user')}</h3>
-            <div class="sub" data-wiskey-editor-heading>${this.draft?.display_name || (this.isNew ? t('new_person_heading') : '')} · ${t('editor_intro')}</div>
-          </div>
-          <sw-button variant="ghost" size="sm" iconOnly icon="close" label=${t('cancel')} data-wiskey-editor-cancel @click=${() => this.requestClose()}></sw-button>
-        </header>
-        <div class="body">${this.renderBody()}</div>
+    // DIALOG-DRAWER-ONE-2439 (owner round 33, Q-DES-8A): the editor is the system's one dialog (sw-dialog xl: the scrim, the opaque box, the
+    // title and close button on top, the actions on the bottom, focus trap, focus return). A close request (✕, Escape, the scrim) is
+    // cancelled and goes through requestClose(), which asks before discarding unsaved changes.
+    return html`<sw-dialog open xl heading=${t(this.isNew ? 'add_user' : 'edit_user')} subheading=${`${this.draft?.display_name || (this.isNew ? t('new_person_heading') : '')} · ${t('editor_intro')}`}
+        @beforeclose=${(e: Event) => { e.preventDefault(); this.requestClose(); }}>
+        <div class="body" data-wiskey-editor data-wiskey-editor-mode=${mode}>${this.renderBody()}</div>
         ${this.draft ? this.renderFooter() : nothing}
-      </div>
       ${this.confirmDelete ? this.renderDeleteConfirm() : nothing}
       ${this.confirmClose ? this.renderCloseConfirm() : nothing}
       ${this.capturing && this.original && this.ctx
@@ -607,7 +596,7 @@ export class WiskeyPersonEditor extends LitElement {
             @capture-reload=${() => { this.capturing = false; void this.reload(); }}
           ></wiskey-card-capture>`
         : nothing}
-    </div>`;
+    </sw-dialog>`;
   }
 
   private renderBody() {
@@ -964,11 +953,10 @@ export class WiskeyPersonEditor extends LitElement {
   private renderFooter() {
     const busy = !!this.busy;
     const blockedSave = busy || this.ctx?.writes_listed === false || this.ctx?.users_manage === false;
-    return html`<footer>
-      <sw-button variant="ghost" data-wiskey-editor-cancel-footer ?disabled=${busy} @click=${() => this.requestClose()}>${t('cancel')}</sw-button>
-      <sw-button data-wiskey-editor-save ?disabled=${blockedSave} @click=${() => void this.save(false)}>${this.busy === 'save' ? t('wait') : t('save')}</sw-button>
-      <sw-button variant="primary" icon="check" data-wiskey-editor-save-sync ?disabled=${blockedSave} @click=${() => void this.save(true)}>${this.busy === 'sync' ? t('wait') : t('save_sync')}</sw-button>
-    </footer>`;
+    return html`
+      <sw-button slot="footer" variant="ghost" data-wiskey-editor-cancel-footer ?disabled=${busy} @click=${() => this.requestClose()}>${t('cancel')}</sw-button>
+      <sw-button slot="footer" data-wiskey-editor-save ?disabled=${blockedSave} @click=${() => void this.save(false)}>${this.busy === 'save' ? t('wait') : t('save')}</sw-button>
+      <sw-button slot="footer" variant="primary" icon="check" data-wiskey-editor-save-sync ?disabled=${blockedSave} @click=${() => void this.save(true)}>${this.busy === 'sync' ? t('wait') : t('save_sync')}</sw-button>`;
   }
 
   private renderDeleteConfirm() {
@@ -994,63 +982,14 @@ export class WiskeyPersonEditor extends LitElement {
   }
 
   static styles = css`
-    .backdrop {
-      position: fixed;
-      inset: 0;
-      background: var(--sw-overlay);
-      z-index: var(--sw-z-modal);
-      display: grid;
-      place-items: center;
-      padding: 16px;
-    }
-    .pane {
-      inline-size: min(1040px, 100%);
-      max-block-size: calc(100dvh - 32px);
-      /* opaque: the glass skins make --sw-surface translucent, and this pane sits over the people table */
-      background: var(--sw-surface-solid);
-      border-radius: var(--sw-r-lg);
-      box-shadow: var(--sw-shadow-3);
-      display: flex;
-      flex-direction: column;
-      min-block-size: 0;
-    }
-    header {
-      display: flex;
-      align-items: flex-start;
-      gap: 8px;
-      padding: 14px 16px 10px;
-      border-block-end: 1px solid var(--sw-border);
-    }
-    header div {
-      flex: 1;
-    }
-    h3 {
-      /* R5-SECURITY: the dialog's heading 20/800 in the heading ink */
-      margin: 0;
-      font-size: var(--sw-fs-2xl);
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      color: var(--sw-heading, var(--sw-text));
-    }
-    .sub {
-      color: var(--sw-text-3);
-      font-size: var(--sw-fs-xs);
-      margin-block-start: 2px;
+    :host {
+      display: contents;
     }
     .body {
-      padding: 12px 16px;
-      overflow: auto;
       display: flex;
       flex-direction: column;
       gap: 10px;
-      min-block-size: 0;
-    }
-    footer {
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-      padding: 10px 16px 14px;
-      border-block-start: 1px solid var(--sw-border);
+      min-inline-size: 0;
     }
     form {
       display: flex;
