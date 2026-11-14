@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
+import { answerConfirm } from './confirm-dialog-helper';
 
 // Hotfix 0.1.87 (owner report 2026-09-25): in the plan editor's select tool ("בחירה וגרירה") a wall is selected by a
 // click and then moves as a whole by its body (its door keeps its place along it, the arrow keys nudge it), a small
@@ -248,14 +249,9 @@ test.describe.serial('editor: select and move walls, objects and zones (0.1.87)'
     await mouseDrag(page, { x: m.x + m.width / 2, y: m.y + m.height / 2 }, 30, 30);
     await expect(page.locator(`${ED} [data-selected-wall]`)).toHaveCount(0); // the pin is the selection now
     await expect(page.locator(`${ED} sw-plan-canvas [data-wall-vertex]`)).toHaveCount(0);
-    let asked = '';
-    page.once('dialog', (d) => {
-      asked = d.message();
-      void d.accept();
-    });
     const walls = (await draft()).doc.walls.length;
     await page.keyboard.press('Delete');
-    await expect.poll(() => asked).toContain('להסיר את'); // the pin is offered for removal
+    expect(await answerConfirm(page, true)).toContain('להסיר את'); // the pin is offered for removal (the system's dialog, CR-CONFIRM-DIALOG-2438)
     await expect.poll(anchors, { timeout: 10000 }).toBe(0);
     expect((await draft()).doc.walls.length).toBe(walls);
     expect(wallOf(await draft(), 'mw1').polyline).toEqual(SEED.walls[0].polyline);
@@ -545,8 +541,8 @@ test.describe.serial('editor: select and move walls, objects and zones (0.1.87)'
       // Delete with one zone DELETE failing: the chairs and the other zone go, the failure is counted, the zone left is
       // the selection again
       await page.route(`**/api/v1/zones/${zb}`, (route) => (route.request().method() === 'DELETE' ? route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ detail: 'test failure' }) }) : route.continue()));
-      page.once('dialog', (d) => void d.accept());
       await page.keyboard.press('Delete');
+      await answerConfirm(page, true);
       await expect(page.locator(ED).getByText('1 מתוך 2 אזורים לא נמחקו')).toBeVisible();
       await expect(page.locator(`${ED} sw-plan-canvas g.zone.selected[data-zone="${zb}"]`)).toHaveCount(1);
       await expect(page.locator(`${ED} [data-zone-inspector]`)).toBeVisible(); // one zone left: the ordinary single selection

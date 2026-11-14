@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test';
+import { answerConfirm } from './confirm-dialog-helper';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -152,20 +153,15 @@ test.describe.serial('shared space: WisKey stations as members, and deleting a s
     const insp = page.locator(`${ed} [data-zone-inspector]`);
     await expect(insp.locator('[data-zone-shared="home"]')).toBeVisible({ timeout: 20000 });
     // 1. refused: nothing changes
-    const seen: string[] = [];
-    page.once('dialog', (d) => {
-      seen.push(d.message());
-      void d.dismiss();
-    });
     await insp.getByRole('button', { name: 'מחק אזור' }).click();
-    await expect.poll(() => seen.length).toBe(1);
+    const seen = [await answerConfirm(page, false)]; // the system's dialog (CR-CONFIRM-DIALOG-2438)
     expect(seen[0]).toContain('החדר משותף עם');
     expect(seen[0]).toContain('המחיקה תבטל את השיתוף, תסיר את חברי החלל ותמחק את האזור. המצלמות והישויות לא נמחקות.');
     expect((await api.get(`api/v1/zones/${ids.hall}/share/members`)).status()).toBe(200);
     // 2. confirmed: the share, the members and the room go in one call
-    page.once('dialog', (d) => void d.accept());
     const del = page.waitForResponse((r) => r.request().method() === 'DELETE' && r.url().includes(`/zones/${ids.hall}`));
     await insp.getByRole('button', { name: 'מחק אזור' }).click();
+    await answerConfirm(page, true);
     const res = await del;
     expect(res.url()).toContain('with_unshare=true');
     expect(res.status()).toBe(204);

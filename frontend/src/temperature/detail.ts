@@ -11,6 +11,7 @@ import './explain'; // TEMPEXPLAIN093-295: "why did it warm?"
 import { ticketsEnabled } from '../tickets/gate'; // owner rule 2026-10-20: no ticket action while the tickets module is off
 import { tt, type TtKey } from '../i18n/temperature';
 import { dayMonthText } from '../api/day-format';
+import { confirmDialog } from '../components/confirm-dialog';
 
 const WIDE_KEY = 'sw.temperature.detailWide';
 const MUTES = [15, 30, 60, 120];
@@ -483,7 +484,7 @@ export class TempDetail extends LitElement {
         ${this.canManage && w.status === 'learned' ? html`<span style="flex:1"></span><button type="button" class="btn sm" ?disabled=${this.busy} data-window-confirm @click=${() => this.act(() => decideWindow(u.id, w.start_min, 'confirm'), 'saved')}>${tt('confirm')}</button>
           <button type="button" class="btn sm ghost" ?disabled=${this.busy} data-window-reject @click=${() => this.act(() => decideWindow(u.id, w.start_min, 'reject'), 'saved')}>${tt('reject')}</button>` : nothing}</div>`)}</div>
       ${this.canManage && d.mode === 'learn' && d.windows.length ? html`<button type="button" class="btn sm ghost" style="margin-top:8px" ?disabled=${this.busy} data-learn-clear
-          @click=${() => { if (window.confirm(tt('clearConfirm'))) void this.act(() => clearLearned(u.id), 'saved'); }}>${tt('clearLearned')}</button>` : nothing}
+          @click=${async () => { if (await confirmDialog({ body: tt('clearConfirm'), danger: true })) void this.act(() => clearLearned(u.id), 'saved'); }}>${tt('clearLearned')}</button>` : nothing}
     </div>`;
   }
 
