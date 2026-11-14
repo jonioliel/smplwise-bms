@@ -31,6 +31,8 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..services.tickets import access, budgets, costs, store_budgets, store_costs
 from ..services.tickets.access import Viewer, text
+from ._common import rid as _rid
+from ._tickets_common import invalid
 from .tickets import ID, module_gate
 
 router = APIRouter(dependencies=[Depends(module_gate)])
@@ -39,13 +41,9 @@ MESSAGES = {"budget_exists": "כבר קיים תקציב לתחום, לתקופ�
             "budget_not_found": "התקציב לא נמצא."}
 
 
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
-
-
 def _err(conn: sqlite3.Connection, exc: budgets.BudgetRefused) -> ApiError:
     if exc.status == 422:
-        return ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": exc.field or "body", "code": exc.code}]})
+        return invalid(conn, exc.field or "body", exc.code)
     return ApiError(exc.status, exc.code, text(conn, MESSAGES.get(exc.code, "הפעולה נדחתה.")), details=dict(exc.extra))
 
 
@@ -73,7 +71,7 @@ def list_budgets(request: Request, scope_kind: str | None = Query(None, max_leng
     viewer = Viewer(conn, principal)
     _money(conn, viewer, "tickets.budget.list", _rid(request))
     if scope_kind is not None and scope_kind not in budgets.SCOPES or period_kind is not None and period_kind not in budgets.PERIODS:
-        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "scope_kind" if scope_kind not in (None, *budgets.SCOPES) else "period_kind", "code": "invalid"}]})
+        raise invalid(conn, "scope_kind" if scope_kind not in (None, *budgets.SCOPES) else "period_kind", "invalid")
     rows = [b for b in store_budgets.budgets(conn, scope_kind=scope_kind, scope_id=scope_id, period_kind=period_kind, currency=currency)
             if budgets.visible_to(viewer, b)]
     return {"budgets": [budgets.present_row(conn, b, with_consumption=True) for b in rows],
@@ -87,11 +85,11 @@ def budget_summary(request: Request, period_kind: str | None = Query(None, max_l
     viewer = Viewer(conn, principal)
     _money(conn, viewer, "tickets.budget.summary", _rid(request))
     if period_kind is not None and period_kind not in budgets.PERIODS:
-        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "period_kind", "code": "invalid"}]})
+        raise invalid(conn, "period_kind", "invalid")
     try:
         d = dt.date.fromisoformat(day) if day else _today(conn)
     except ValueError:
-        raise ApiError(422, "validation", text(conn, "ערך לא תקין."), details={"fields": [{"field": "day", "code": "format"}]}) from None
+        raise invalid(conn, "day", "format") from None
     return {"day": d.isoformat(), "rows": budgets.summary(conn, viewer, period_kind=period_kind, day=d)}
 
 

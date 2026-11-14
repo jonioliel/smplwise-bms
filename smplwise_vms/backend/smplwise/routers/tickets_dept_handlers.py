@@ -30,14 +30,11 @@ from ..auth import current_principal, current_principal_ro, get_conn, get_read_c
 from ..rbac import Principal
 from ..services.tickets import contacts, dept_handlers
 from ..services.tickets.access import Viewer
+from ._common import rid as _rid
 from .tickets import ID, module_gate
 
 router = APIRouter(dependencies=[Depends(module_gate)])
 USER = Path(..., min_length=1, max_length=200, pattern=r"^[A-Za-z0-9_.:@-]{1,200}$")
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 class _Details(BaseModel):

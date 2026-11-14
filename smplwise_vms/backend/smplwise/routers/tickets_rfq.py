@@ -60,16 +60,13 @@ from ..rbac import Principal
 from ..services.tickets import access, attachments, model, rfq, rfq_attach, rfq_award_notice, rfq_files, rfq_orders, rfq_postpone, rfq_questions, rfq_terms, rfq_vendor_files, store, store_rfq
 from ..services.tickets.image_intake import IntakeError, StorePathError
 from ..services.tickets.access import Viewer, text
+from ._common import rid as _rid
 from .tickets import ID, module_gate
 from .tickets_detail import QuoteLine, quote_payload
 
 router = APIRouter(dependencies=[Depends(module_gate)])
 
 STATE_FILTER = r"^(open|all|draft|sent|collecting|due_passed|awarded|ordered|closed|cancelled)$"
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _detail(conn: sqlite3.Connection, viewer: Viewer, rfq_id: str) -> dict[str, Any]:
