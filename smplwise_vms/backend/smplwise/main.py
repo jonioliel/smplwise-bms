@@ -444,6 +444,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 log.info("home interface: kept the 2.42.0 default of %s person(s)", frozen)
         except Exception:  # noqa: BLE001 - never block the start; such a person then gets the new default (full)
             log.exception("could not keep the 2.42.0 home interface defaults")
+    try:  # DOMUS-DEFAULT-2439 (owner Q-DES-20): a saved "classic" look moves to Domus once; a later choice of classic stays
+        from .services import skin_switch as _skin_switch
+
+        with app.state.db.connection(label="skin_switch.run_once") as conn:
+            moved = _skin_switch.run_once(conn)
+            conn.commit()
+        if moved == "moved":
+            log.info("look: the saved classic skin was moved to domus (once; classic stays selectable)")
+    except Exception:  # noqa: BLE001 - never block the start; the step has written no marker and runs again at the next start
+        log.exception("could not run the one-time move of the classic skin to domus")
     try:  # LAZYMIC-295: the remote channel's microphone policy follows this installation's settings from the first response
         from . import remote_channel as _rc
 

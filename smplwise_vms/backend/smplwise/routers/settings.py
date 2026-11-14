@@ -90,8 +90,9 @@ DEFAULTS: dict[str, str] = {
     "ui.automations_view": "rows",  # rows | cards (POLISH2-295: the cards with their sentence stay a choice; a browser may keep its own)
     # Design foundation (2026-10-01): the installation's skin (classic | domus | tesla ...; frontend/src/design/skins)
     # and light / dark / auto choice (a browser may keep its own scheme, in the browser only). Per installation.
-    # DOMUS-DEFAULT-2439 (owner round 33, Q-DES-1): the default is domus (was classic). Read-time only: a stored row - classic
-    # included - is what the installation chose and is left as it is; DEFAULT_SKIN in frontend/src/design/skins/index.ts.
+    # DOMUS-DEFAULT-2439 (owner round 33, Q-DES-1): the default is domus (was classic); DEFAULT_SKIN in
+    # frontend/src/design/skins/index.ts. A stored row wins over it. Q-DES-20: a stored "classic" is moved to domus once, at the
+    # first start of this version (services/skin_switch.py, marker `ui.skin.domus_switch`); a classic chosen afterwards stays.
     "ui.skin": "domus",
     "ui.scheme": "light",
     # MOTIONSETTING-297 (owner 2026-10-27): the motion setting, separate from the skin and the scheme - auto (follow the operating

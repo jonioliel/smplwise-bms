@@ -155,9 +155,10 @@ Two words used throughout:
 
 The default skin is **Domus** (owner round 33, Q-DES-1 option a; `DEFAULT_SKIN` in `frontend/src/design/skins/index.ts` and
 `DEFAULTS["ui.skin"]` in `smplwise_vms/backend/smplwise/routers/settings.py`, branch `pilot/DOMUS-DEFAULT-2439`). It was
-`classic` until then. The default is read at read time: a new installation and one that never stored a skin draw Domus; an
-installation that stored a skin (classic included) keeps it, and nothing is migrated. Classic, glass and the other skins stay
-selectable in the settings. Classic and Domus are the "polished pair": same component rules in structure, same motion
+`classic` until then. A new installation and one that never stored a skin draw Domus (the default is applied when the settings
+are read). An installation whose saved look says classic is moved to Domus **once**, at the first start of the version that
+carries the change (owner Q-DES-20 option a; `services/skin_switch.py`); every other saved skin stays, and so does a classic that
+an administrator chooses after that move. Classic, glass and the other skins stay selectable in the settings. Classic and Domus are the "polished pair": same component rules in structure, same motion
 (`skins/polish-motion.ts`), different token values. Domus is the column this book treats as primary; the classic values are
 given beside it where they differ (§7b).
 

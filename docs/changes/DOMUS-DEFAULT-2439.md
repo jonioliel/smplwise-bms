@@ -15,12 +15,25 @@ rulebook can be updated. This branch therefore boards a train only after, or tog
 - **How the choice is stored:** one row per installation in the settings table (`ui.skin`, written by `PATCH /settings` with
   `system.configure`). There is no per-user skin; a browser only caches the installation's last known value (`sw.ui.design`) to avoid a
   flash, and may keep its own light / dark scheme. `read_settings` overlays the stored rows on `DEFAULTS`.
-- **Migration: none needed.** The default is applied at read time. An installation with no `ui.skin` row (new, or one that never
-  saved the look card) now reads `domus`; an installation with a stored row keeps it, classic included. No row is written or changed.
-  A browser that cached `classic` follows the server on its next settings read.
-- **One thing to know:** the look card saves its five choices together. An installation whose administrator once saved that card for
-  any reason (for example only to switch to dark) has `ui.skin = classic` stored, and is treated as having chosen classic. It can be
-  switched to Domus in Settings > General > System look.
+- **No stored skin:** the default is applied at read time. An installation with no `ui.skin` row (new, or one that never saved the
+  look card) reads `domus`; no row is written. A browser that cached `classic` follows the server on its next settings read.
+- **A stored "classic" moves to Domus once (owner Q-DES-20 option a).** The look card saves its choices together, so an installation
+  whose administrator once saved it for any reason (for example only to switch to dark) has `ui.skin = classic` stored. The read-time
+  default would have left all of those on classic. `smplwise/services/skin_switch.py` `run_once`, called at start-up right after the
+  migrations (`main.py`): when the marker row `ui.skin.domus_switch` is absent, a stored skin of exactly `classic` becomes `domus`
+  and the marker is written (`moved:classic`, or `kept` when there was nothing to move) in the same transaction; when the marker
+  is there, nothing happens. So it runs once per installation, a new installation is marked at its first start, and a classic that
+  an administrator chooses afterwards stays. Every other stored skin and every other look choice (light / dark, motion, the chip
+  look, the rail, `devices.style`, the accent) is left as it is. A failure never blocks the start: no marker is written and the step
+  runs again at the next start.
+- **Why a start-up step and not a numbered migration:** the coordinator's note was to take 0217 (main ends at 0215, AUDIT-INDEX has
+  0216 in the wave-2 combined branch). A file numbered 0217 without 0216 leaves a gap in this branch, and two suite tests assert the
+  sequence is contiguous (`test_calendar_attendees_2343.py:158`, `test_calendar_feed_review_2351.py:362`), so the entry check of this
+  branch would go red until the other branch merges; a later renumbering would also collide with whoever takes the number next. The
+  done-marker gives the same "once" without a number. No migration number is used by this branch.
+- The marker is a row of the settings table but not a setting: not in `DEFAULTS`, not served by `GET /settings`, not patchable.
+  Not checked: how a restore of a project archive written before the move treats the marker row and the archived `ui.skin` (the
+  restore path was not read or run for this change). Whatever it does, the skin stays one click away in the look card.
 - Classic, tesla, crystal, infra and soft stay selectable. The glass style of the device screens (`devices.style`) is not touched.
 
 ### 2. The selected chip (Q-DES-3 b)
@@ -89,6 +102,8 @@ Local (workstation, one worker):
 | the same selection for the four extra chips | 817982583 | 84 passed |
 | backend `tests/test_ui_settings.py` + `tests/test_ui_background.py` (`-p no:xdist`) | 46c4976e4 | 25 passed (two new tests: the default and a stored choice; the chip setting) |
 | impeccable `detect` on `styles/chip-selected.ts`, `components/sw-chip.ts` | 46c4976e4 | no findings |
+| backend `tests/test_skin_switch_2439.py` (new, 13 tests: saved classic -> domus at the upgrade with every other look choice kept; eight other stored values untouched; no stored skin; second and third start do nothing and a classic chosen after the move stays; the step alone; a new installation) with `test_ui_settings.py`, `test_db_template.py`, `test_backup.py`, `test_backup_drill.py`, one process | the one-time switch commit | 61 passed |
+| `unit-chip-selected-2439` after the switch (reads the step and its call in `main.py`) | the one-time switch commit | 7 passed |
 
 Runner (`private/runner/run_smart.py preview pilot/DOMUS-DEFAULT-2439 ... --workers=1 --machine runner`; the runner was loaded, a
 release gate and the entry queue were running; nothing was stopped):
@@ -112,4 +127,5 @@ NOT_RUN:
 - No real device, no lab installation, no stored-classic installation upgraded for real (the backend test covers the read path).
 
 ## Rollback
-Revert the branch's commits. No data to undo: no row is written by the change; a stored `ui.chip_selected` row is ignored by older code.
+Revert the branch's commits. Data: an installation that was moved has `ui.skin.domus_switch = moved:classic`; set `ui.skin` back to
+`classic` in the look card to undo the move there (older code ignores the marker row and a stored `ui.chip_selected` row).

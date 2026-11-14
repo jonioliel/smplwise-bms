@@ -32,7 +32,7 @@ function resolver(id: (typeof SKIN_IDS)[number], scheme: Scheme) {
   };
 }
 
-test('Q-DES-1: Domus is the default skin on both sides; every other live skin stays selectable; nothing is migrated', () => {
+test('Q-DES-1 / Q-DES-20: Domus is the default skin on both sides; every other live skin stays selectable; a saved classic moves once', () => {
   expect(DEFAULT_SKIN).toBe('domus');
   expect(PY).toMatch(/^ {4}"ui\.skin": "domus",$/m);
   expect([...SELECTABLE_SKIN_IDS]).toEqual(['classic', 'domus', 'tesla', 'crystal', 'infra', 'soft']);
@@ -40,6 +40,11 @@ test('Q-DES-1: Domus is the default skin on both sides; every other live skin st
   // a stored row wins over the default (read_settings: stored.get(key, default)); the unknown-value fallback is the same default
   expect(PY).toContain('value = stored.get(key, default) or default');
   expect(PY).toContain('else DEFAULTS["ui.skin"]');
+  // Q-DES-20: the one-time move of a saved classic is a guarded start-up step with a done-marker (backend tests/test_skin_switch_2439.py)
+  const step = readFileSync(path.resolve(HERE, '../../smplwise_vms/backend/smplwise/services/skin_switch.py'), 'utf8');
+  expect(step).toContain('MARKER = "ui.skin.domus_switch"');
+  expect(step).toContain('if get_setting(conn, MARKER) is not None:');
+  expect(readFileSync(path.resolve(HERE, '../../smplwise_vms/backend/smplwise/main.py'), 'utf8')).toContain('_skin_switch.run_once(conn)');
   // the runtime falls back to the same constant (no second literal)
   expect(flat('design/apply.ts')).toContain("let installation: Installation = { skin: DEFAULT_SKIN, scheme: 'light', motion: 'auto', rail: 'auto', enter: 'on', chip: DEFAULT_CHIP_ON };");
 });
