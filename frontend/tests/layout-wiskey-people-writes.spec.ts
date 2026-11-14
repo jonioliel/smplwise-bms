@@ -38,13 +38,13 @@ async function layerCheck(page: Page, results: Finding[], ctx: string, host: 'wi
       }
       return null;
     };
-    // the drawer: sw-drawer's <dialog>; the actions: the sw-dialog in wiskey-person-actions; the editor: its own .pane
+    // the drawer: sw-drawer's <dialog>; the actions and the editor (DIALOG-DRAWER-ONE-2439): the sw-dialog each of them opens
     let layer: Element | null;
     if (h === 'drawer') layer = find(document, 'SW-DRAWER');
-    else if (h === 'wiskey-person-editor') layer = find(document, 'WISKEY-PERSON-EDITOR');
+    else if (h === 'wiskey-person-editor') layer = find(document, 'WISKEY-PERSON-EDITOR')?.shadowRoot?.querySelector('sw-dialog[open]') ?? null;
     else layer = find(document, 'WISKEY-PERSON-ACTIONS')?.shadowRoot?.querySelector('sw-dialog[open]') ?? null;
     if (!layer?.shadowRoot) return ['not found'];
-    const box = layer.shadowRoot.querySelector(h === 'drawer' ? 'dialog' : h === 'wiskey-person-editor' ? '.pane' : '.box') as HTMLElement | null;
+    const box = layer.shadowRoot.querySelector(h === 'drawer' ? 'dialog' : '.box') as HTMLElement | null;
     if (!box) return ['no box'];
     const r = box.getBoundingClientRect();
     if (r.left < -0.5 || r.right > innerWidth + 0.5 || r.top < -0.5 || r.bottom > innerHeight + 0.5) out.push(`box outside the viewport (${Math.round(r.left)}..${Math.round(r.right)} of ${innerWidth}, bottom ${Math.round(r.bottom)} of ${innerHeight})`);

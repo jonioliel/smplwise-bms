@@ -481,7 +481,7 @@ keeps both surfaces opaque.
   button (`sw-button round iconOnly`). Padding `16px 18px 10px`. **Bottom:** the actions behind a hairline, padding
   `12px 18px 16px`, always in the same order: "ביטול" (ghost), then the main action (primary, or danger for a destructive one),
   packed at the end of the row. Body `2px 18px 14px`, gap 10 px, labels above the fields.
-- **Phone (under 768 px):** a full-width sheet attached to the bottom edge, rising from it (`translateY(100%)` on
+- **Phone (under 768 px):** a full-width sheet attached to the bottom edge, rising from it (a `clip-path` reveal from the bottom edge on
   `--sw-ease-drawer`, `--sw-t-sheet`); the top corners keep `--sw-r-lg`.
 - **Behaviour:** top layer (a manual popover), focus moves in and is trapped, Escape closes the top dialog, a press on the scrim
   closes it, focus returns to the opener. `locked` blocks every close while a physical action is on its way. `beforeclose`
@@ -501,7 +501,7 @@ keeps both surfaces opaque.
 - **Phone:** the modal drawer rises from the bottom to the full screen (`--sw-drawer-sheet-h` / `--sw-drawer-sheet-max-h` let one
   screen ask for a shorter sheet). The non-modal context panel stays a partial sheet (62dvh) so the map stays visible.
 - **Behaviour (`modal`):** a top-layer `<dialog>`, the page inert, focus trap, Escape, scroll lock, focus return. A dialog opened
-  from a modal drawer must be rendered (or slotted) inside it. It travels in from its edge on `--sw-ease-drawer`
+  from a modal drawer must be rendered (or slotted) inside it. It is revealed from its edge (`clip-path`, no transform) on `--sw-ease-drawer`
   (`--sw-t-med`); the resting panel has no transform.
 
 **Do not** hand-build a dialog or a drawer, give one a translucent fill or a blur, pin a dialog to a side, or open a drawer from
@@ -986,7 +986,7 @@ no `:user-invalid` rule (`:74-77`).
 `components/device-activity-logic.ts:149`.
 
 **A.18 Motion.** `design/tokens.ts:386` `--sw-ease-out` is `cubic-bezier(0.4, 0, 1, 1)`, an ease-in shape under an ease-out
-name; `sw-sheet` closes on it and `sw-state-panel` enters on it. `components/sw-drawer.ts` now travels in from its edge on `--sw-ease-drawer`
+name; `sw-sheet` closes on it and `sw-state-panel` enters on it. `components/sw-drawer.ts` is now revealed from its edge on `--sw-ease-drawer`
 (DIALOG-DRAWER-ONE-2439); neither it nor `sw-dialog` has a close animation. `components/sw-sheet.ts` writes raw
 `200ms` / `180ms` / `250ms`. `docs/design/MOTION_RULES.md` still gives the classic / domus press scale as 0.96 (it is 0.97).
 

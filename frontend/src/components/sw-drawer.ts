@@ -104,24 +104,43 @@ export class SwDrawer extends LitElement {
     :host(:not([open])) aside.panel {
       display: none;
     }
-    /* the entrance: the panel travels in from its own edge on the drawer curve (apple-design: in and out along the same path;
-       emil-design-eng: a percentage is the panel's own size). Durations are tokens, so reduced motion (css.ts) shows it in place;
-       a browser without @starting-style simply shows it. The resting panel has NO transform (a transform would become the
-       containing block of a fixed element inside it). */
+    /* the entrance: the panel is revealed from its own edge on the drawer curve (apple-design: a surface enters along the edge it is
+       attached to). A clip-path reveal (emil-design-eng: clip-path as a motion tool), not a transform: the panel never leaves its
+       resting place - nothing is ever outside the viewport, a measurement taken mid-way is already the final one, and the panel never
+       carries a transform (which would become the containing block of a fixed element inside it). One-shot keyframes (an entrance is
+       never reversed; there is no exit animation), not filled forwards: the resting panel has no clip and keeps its shadow.
+       Durations are tokens, so reduced motion (css.ts) shows it in place. */
+    @keyframes drawer-in-rtl {
+      from {
+        clip-path: inset(0 0 0 100%);
+      }
+      to {
+        clip-path: inset(0 0 0 0);
+      }
+    }
+    @keyframes drawer-in-ltr {
+      from {
+        clip-path: inset(0 100% 0 0);
+      }
+      to {
+        clip-path: inset(0 0 0 0);
+      }
+    }
+    @keyframes sheet-rise {
+      from {
+        clip-path: inset(100% 0 0 0);
+      }
+      to {
+        clip-path: inset(0 0 0 0);
+      }
+    }
     aside.panel,
     dialog.panel {
-      transform: none;
-      transition: transform var(--sw-t-med) var(--sw-ease-drawer);
+      animation: drawer-in-rtl var(--sw-t-med) var(--sw-ease-drawer) backwards;
     }
-    @starting-style {
-      :host([open]) aside.panel,
-      dialog.panel[open] {
-        transform: translateX(100%);
-      }
-      :host([open]) aside.panel:dir(ltr),
-      dialog.panel[open]:dir(ltr) {
-        transform: translateX(-100%);
-      }
+    aside.panel:dir(ltr),
+    dialog.panel:dir(ltr) {
+      animation-name: drawer-in-ltr;
     }
     header {
       display: flex;
@@ -221,13 +240,11 @@ export class SwDrawer extends LitElement {
         background: var(--sw-border-strong);
         margin: var(--sw-s-2) auto 0;
       }
-      @starting-style {
-        :host([open]) aside.panel,
-        :host([open]) aside.panel:dir(ltr),
-        dialog.panel[open],
-        dialog.panel[open]:dir(ltr) {
-          transform: translateY(100%);
-        }
+      aside.panel,
+      aside.panel:dir(ltr),
+      dialog.panel,
+      dialog.panel:dir(ltr) {
+        animation-name: sheet-rise;
       }
     }
 

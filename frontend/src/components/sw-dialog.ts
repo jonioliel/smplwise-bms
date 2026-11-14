@@ -157,8 +157,19 @@ export class SwDialog extends LitElement {
       border-block-start: 1px solid var(--sw-menu-border);
     }
     /* phone: the same dialog as a sheet - full width, attached to the bottom edge, rising from it on the drawer curve (apple-design:
-       a sheet enters along the edge it is attached to; emil-design-eng: translateY(100%) is the box's own height, whatever it holds).
-       The duration is a token, so reduced motion (css.ts) shows it in place. */
+       a sheet enters along the edge it is attached to). The rise is a clip-path reveal from the bottom edge (emil-design-eng: clip-path
+       as a motion tool), not a transform: the box never leaves its resting place, so nothing is ever outside the viewport and a
+       measurement taken mid-way is already the final one. One-shot keyframes (an entrance is never reversed; there is no exit
+       animation), not filled forwards, so the resting sheet carries no clip and keeps its shadow. The duration is a token, so reduced
+       motion (css.ts) shows it in place. */
+    @keyframes sheet-rise {
+      from {
+        clip-path: inset(100% 0 0 0);
+      }
+      to {
+        clip-path: inset(0 0 0 0);
+      }
+    }
     @media (max-width: 767px) {
       .backdrop {
         place-items: end stretch;
@@ -176,7 +187,8 @@ export class SwDialog extends LitElement {
         border-block-end: 0;
         border-end-start-radius: 0;
         border-end-end-radius: 0;
-        transition: transform var(--sw-t-sheet) var(--sw-ease-drawer);
+        transition: none;
+        animation: sheet-rise var(--sw-t-sheet) var(--sw-ease-drawer) backwards;
       }
       header,
       .body,
@@ -192,7 +204,7 @@ export class SwDialog extends LitElement {
       @starting-style {
         .box {
           opacity: 1;
-          transform: translateY(100%);
+          transform: none;
         }
       }
     }
