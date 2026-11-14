@@ -20,9 +20,9 @@ from ..db import unlocked
 from ..errors import ApiError
 from ..mode import ensure_nvr  # NVR-less mode: 409 nvr_not_configured
 from ..rbac import INSTALLATION, Principal, authorize, require
-from ..recorder_scope import PRIMARY, camera_settings
+from ..recorder_scope import PRIMARY, camera_settings, settings_for
 from .recorders import recorder_settings
-from ..services import camera_reboot, nvr, nvr_schedule, nvr_settings, nvr_system, nvr_write
+from ..services import camera_reboot, nvr, nvr_schedule, nvr_settings, nvr_system, nvr_write, nvr_write_guard
 from ..services.access import require_camera
 from ..services.timeutil import zone
 from .settings import read_settings
@@ -33,6 +33,12 @@ NOTIFY_PERMISSION = "nvr.config.events"
 
 def _rid(request: Request) -> str | None:
     return getattr(request.state, "correlation_id", None)
+
+
+def _guard(settings: Any, conn: sqlite3.Connection, principal: Principal, kind: str, request: Request, target: str | None = None) -> None:
+    """CR-NVR-GUARD-2438 (owner O2 = b): a settings change is refused while the target recorder's switch is off - after the
+    permission checks, before anything (a probe included) is sent. services/nvr_write_guard.py holds the kind table."""
+    nvr_write_guard.guard(settings, conn, principal, kind, request_id=_rid(request), target=target)
 
 
 NVR_PERMISSIONS = ("nvr.config.events", "nvr.config.detection", "nvr.config.privacy", "nvr.config.smart", "nvr.config.schedule",
@@ -84,7 +90,8 @@ def notify_status(request: Request, principal: Principal = Depends(current_princ
     return {
         "channels": channels,
         "permission": NOTIFY_PERMISSION,
-        "can_write": authorize(conn, principal, NOTIFY_PERMISSION, INSTALLATION).allowed,
+        "can_write": authorize(conn, principal, NOTIFY_PERMISSION, INSTALLATION).allowed and nvr_write_guard.writes_on(settings),
+        "writes_enabled": nvr_write_guard.writes_on(settings),  # CR-NVR-GUARD-2438: the screen says why the buttons are gone
         "labels": nvr_write.TYPE_LABEL,
         "recorder_id": recorder_id,
     }
@@ -115,6 +122,7 @@ def set_notify(body: NotifyIn, request: Request, principal: Principal = Depends(
             from ..services.access import require_camera
 
             require_camera(conn, principal, c["id"], NOTIFY_PERMISSION)
+    _guard(settings, conn, principal, "notify_center", request, "notify")
     types = list(nvr_write.NOTIFY_TYPES) if body.smart else ["VMD"]
     results: list[dict[str, Any]] = []
     client = nvr_write._client(settings)
@@ -162,6 +170,7 @@ def set_motion(camera_id: str, body: MotionIn, request: Request, principal: Prin
     if not cam or cam["channel"] is None:
         raise ApiError(404, "not_found", "המצלמה לא נמצאה.")
     ch = int(cam["channel"])
+    _guard(camera_settings(settings_of(request), cam), conn, principal, "detection", request, f"motion-{ch}")
     sensitivity = body.sensitivity
     if sensitivity is not None:
         with unlocked(conn):
@@ -248,6 +257,9 @@ def system_status(request: Request, principal: Principal = Depends(current_princ
     out: dict[str, Any] = {"time": None, "disks": [], "outputs": [], "errors": {}, "can": _can(conn, principal), "recorder_id": recorder_id, "supported": True}
     out["writes_enabled"] = camera_reboot.writes_on(settings)  # owner 07.11 (2א): the NVR reboot also needs the writes switch
     out["can"]["reboot"] = out["can"]["reboot"] and out["writes_enabled"]
+    # CR-NVR-GUARD-2438 (owner O2 = b): so do the clock / NTP and OSD settings; disk test and output pulse are operational
+    out["can"]["time"] = out["can"]["time"] and out["writes_enabled"]
+    out["can"]["osd"] = out["can"]["osd"] and out["writes_enabled"]
     tz = zone(read_settings(conn)["time.zone"])
     with unlocked(conn):
         client = nvr_write._client(settings)
@@ -274,6 +286,7 @@ def set_time(body: TimeIn, request: Request, principal: Principal = Depends(curr
     settings = recorder_settings(request, conn, recorder_id)
     if not body.sync_now and not body.mode:
         raise ApiError(422, "validation", "אין מה לכתוב: סנכרון או מצב.")
+    _guard(settings, conn, principal, "time", request, "clock")
     tz = zone(read_settings(conn)["time.zone"])
     with unlocked(conn):
         if body.sync_now:
@@ -292,6 +305,7 @@ def set_ntp(body: NtpIn, request: Request, principal: Principal = Depends(curren
             recorder_id: str = Query(PRIMARY, max_length=40)) -> dict[str, Any]:
     require(conn, principal, "nvr.config.time", INSTALLATION)
     settings = recorder_settings(request, conn, recorder_id)
+    _guard(settings, conn, principal, "time", request, "ntp")
     with unlocked(conn):
         return nvr_system.set_ntp(settings, conn, principal, host=body.host, port=body.port, interval_min=body.interval_min, request_id=_rid(request))
 
@@ -422,7 +436,8 @@ def get_osd(camera_id: str, request: Request, principal: Principal = Depends(cur
     with unlocked(conn):
         st = nvr_system.osd_status(camera_settings(settings_of(request), cam), ch)
     return {**st, "camera_id": camera_id, "channel": ch, "vms_name": cam["alias"] or cam["name_source"] or f"ערוץ {ch}",
-            "can_write": authorize(conn, principal, "nvr.config.osd", INSTALLATION).allowed, "date_styles": list(nvr_system.DATE_STYLES)}
+            "can_write": authorize(conn, principal, "nvr.config.osd", INSTALLATION).allowed and nvr_write_guard.writes_on(camera_settings(settings_of(request), cam)),
+            "writes_enabled": nvr_write_guard.writes_on(camera_settings(settings_of(request), cam)), "date_styles": list(nvr_system.DATE_STYLES)}
 
 
 @router.put("/cameras/{camera_id}/osd")
@@ -432,6 +447,7 @@ def set_osd(camera_id: str, body: OsdIn, request: Request, principal: Principal 
     parts = [p for p, v in (("שם", body.name_enabled), ("תאריך ושעה", body.datetime_enabled), ("פורמט תאריך", body.date_style), ("פורמט שעה", body.time_style), ("יום בשבוע", body.display_week)) if v is not None]
     if not parts:
         raise ApiError(422, "validation", "אין מה לכתוב.")
+    _guard(camera_settings(settings_of(request), cam), conn, principal, "osd", request, f"osd-{ch}")
     with unlocked(conn):
         return nvr_write.apply_change(camera_settings(settings_of(request), cam), conn, principal, kind="osd", permission="nvr.config.osd", target=f"osd-{ch}", path=nvr_system.overlays_path(ch),
                                       mutate=lambda x: nvr_system.osd_document(x, name_enabled=body.name_enabled, datetime_enabled=body.datetime_enabled, date_style=body.date_style, time_style=body.time_style, display_week=body.display_week),
@@ -447,6 +463,7 @@ def write_channel_name(camera_id: str, body: NameIn, request: Request, principal
     require(conn, principal, "nvr.config.osd", INSTALLATION)
     cam, ch = _channel_of(conn, camera_id, principal, "nvr.config.osd")
     name = (body.name or cam["alias"] or cam["name_source"] or f"ערוץ {ch}")[:32]
+    _guard(camera_settings(settings_of(request), cam), conn, principal, "osd", request, f"name-{ch}")
     with unlocked(conn):
         rec = nvr_system.set_channel_name(camera_settings(settings_of(request), cam), conn, principal, ch, name, request_id=_rid(request))
     return {**rec, "name": name}
@@ -469,9 +486,11 @@ def get_schedules(camera_id: str, request: Request, principal: Principal = Depen
     _require_read(conn, principal)
     cam, ch, track = _track_of(conn, camera_id, principal)
     settings = camera_settings(settings_of(request), cam)
+    writes = nvr_write_guard.writes_on(settings)  # CR-NVR-GUARD-2438: both schedules are settings changes
     out: dict[str, Any] = {"camera_id": camera_id, "channel": ch, "track_id": track, "arming": {}, "record": None, "unsupported": {},
-                           "can": {"events": authorize(conn, principal, "nvr.config.events", INSTALLATION).allowed, "schedule": authorize(conn, principal, "nvr.config.schedule", INSTALLATION).allowed},
-                           "modes": list(nvr_schedule.RECORD_MODES)}
+                           "can": {"events": writes and authorize(conn, principal, "nvr.config.events", INSTALLATION).allowed,
+                                   "schedule": writes and authorize(conn, principal, "nvr.config.schedule", INSTALLATION).allowed},
+                           "writes_enabled": writes, "modes": list(nvr_schedule.RECORD_MODES)}
     with unlocked(conn):
         client = nvr_write._client(settings)
         try:
@@ -505,6 +524,7 @@ def set_arming(camera_id: str, kind: str, body: WeekIn, request: Request, princi
     active = sum(len(d) for d in days)
     settings = camera_settings(settings_of(request), cam)
     path = nvr_schedule.schedule_path(kind, ch)
+    _guard(settings, conn, principal, "schedule", request, f"{kind}-schedule-{ch}")
     with unlocked(conn):
         client = nvr_write._client(settings)
         try:
@@ -533,6 +553,7 @@ def set_record_schedule(camera_id: str, body: RecordScheduleIn, request: Request
     if days is None and body.enabled is None and body.schedule_enabled is None:
         raise ApiError(422, "validation", "אין מה לכתוב.")
     parts = [p for p, v in (("לוח שבועי", days), ("הקלטה", body.enabled), ("לוח פעיל", body.schedule_enabled)) if v is not None]
+    _guard(camera_settings(settings_of(request), cam), conn, principal, "record_schedule", request, f"track-{track}")
     with unlocked(conn):
         return nvr_write.apply_change(camera_settings(settings_of(request), cam), conn, principal, kind="record_schedule", permission="nvr.config.schedule", target=f"track-{track}", path=nvr_schedule.track_path(track),
                                       mutate=lambda x: nvr_schedule.track_document(x, days, enabled=body.enabled, schedule_enabled=body.schedule_enabled), note="לוח הקלטה: " + " + ".join(parts), request_id=_rid(request))
@@ -551,7 +572,8 @@ def get_smart(camera_id: str, request: Request, principal: Principal = Depends(c
         finally:
             client.close()
     out = nvr_schedule.smart_from_docs(line if s1 == 200 else None, field if s2 == 200 else None)
-    return {**out, "camera_id": camera_id, "channel": ch, "can_write": authorize(conn, principal, "nvr.config.smart", INSTALLATION).allowed}
+    writes = nvr_write_guard.writes_on(settings)
+    return {**out, "camera_id": camera_id, "channel": ch, "can_write": writes and authorize(conn, principal, "nvr.config.smart", INSTALLATION).allowed, "writes_enabled": writes}
 
 
 class SmartRulesIn(BaseModel):
@@ -570,6 +592,7 @@ def set_smart(camera_id: str, body: SmartRulesIn, request: Request, principal: P
     from .cameras import _ZONES_CACHE
 
     settings = camera_settings(settings_of(request), cam)
+    _guard(settings, conn, principal, "smart", request, f"smart-{ch}")
     results: dict[str, Any] = {}
 
     def write(key: str, spec: dict[str, Any], path: str, build: Any, note: str) -> None:
@@ -613,11 +636,19 @@ def _require_stream_change(conn: sqlite3.Connection, principal: Principal, r: sq
 
 
 @router.get("/nvr/changes")
-def list_changes(principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), limit: int = Query(50, ge=1, le=500),
+def list_changes(request: Request, principal: Principal = Depends(current_principal), conn: sqlite3.Connection = Depends(get_conn), limit: int = Query(50, ge=1, le=500),
                  camera_id: str | None = Query(None, max_length=64), recorder_id: str | None = Query(None, max_length=40)) -> dict[str, Any]:
-    """The change log, newest first; stream_encoding rows only for nvr.configure + camera scope (CR-020 S2 M1); ields is an object."""
+    """The change log, newest first; stream_encoding rows only for nvr.configure + camera scope (CR-020 S2 M1); fields is an object.
+    CR-NVR-GUARD-2438: each row says whether its recorder's settings switch is on now (`writes_enabled`: the undo needs it)."""
     _require_read(conn, principal)
-    return {"changes": nvr_write.list_changes(conn, limit, camera_id=camera_id, stream_visible=_stream_visible(conn, principal), recorder_id=recorder_id)}
+    rows = nvr_write.list_changes(conn, limit, camera_id=camera_id, stream_visible=_stream_visible(conn, principal), recorder_id=recorder_id)
+    on: dict[str, bool] = {}
+    for row in rows:
+        rid = row.get("recorder_id") or PRIMARY
+        if rid not in on:
+            on[rid] = nvr_write_guard.writes_on(settings_for(settings_of(request), rid))
+        row["writes_enabled"] = on[rid]
+    return {"changes": rows}
 
 
 @router.get("/nvr/changes/{change_id}")
