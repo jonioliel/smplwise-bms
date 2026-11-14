@@ -118,6 +118,13 @@ export function weekDays(now = new Date()): [string, number, string][] {
   return out;
 }
 
+/** HOME-R32-ANSWERS-2438 (owner round 32 Q-HOME-2): this week from its first day (Sunday) to Saturday, same shape as weekDays. Counted
+ * from local noon, so a daylight-saving night never repeats or skips a day. */
+export function thisWeekDays(now = new Date()): [string, number, string][] {
+  const noon = localInstant(ymd(now), 720);
+  return weekDays(new Date(noon.getTime() - weekdayIx(noon) * 86_400_000));
+}
+
 export function errText(e: unknown): string {
   return describeError(e);
 }

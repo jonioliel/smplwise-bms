@@ -240,6 +240,17 @@ def test_favourites_are_per_person(app):
     assert c.put("/api/v1/home/prefs", headers=as_user("dana"), json={"favourites": {"../x": []}}).status_code == 422
 
 
+def test_motion_and_calendar_week_are_kept_per_person(app):
+    """HOME-R32-ANSWERS-2438: owner round 32 Q-HOME-6 (screen motion) and Q-HOME-2 (calendar week strip) are personal layout keys."""
+    c = _client(app)
+    r = c.put("/api/v1/home/prefs", json={"layout": {"motion": "rise", "cal_week": "week"}})
+    assert r.status_code == 200, r.text
+    assert r.json()["layout"]["motion"] == "rise" and r.json()["layout"]["cal_week"] == "week"
+    assert c.put("/api/v1/home/prefs", json={"layout": {"motion": "fade"}}).json()["layout"] == {"motion": "fade", "cal_week": "week"}
+    assert c.put("/api/v1/home/prefs", json={"layout": {"motion": "spin"}}).status_code == 422
+    assert c.put("/api/v1/home/prefs", json={"layout": {"cal_week": 7}}).status_code == 422
+
+
 def test_admin_seed_is_offered_to_everyone(app):
     c = _client(app)
     bind(c, app[1], "dana", "operator", "installation", "*")

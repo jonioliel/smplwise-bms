@@ -91,7 +91,8 @@ export const LIVE_CAP_HINT_ADMIN = 'אפשר להגדיל בהגדרות ‹ מ�
 export const LIVE_CAP_HINT_OTHER = 'פנה למנהל המערכת';
 
 /** LIVE-H265-2341: how often the snapshot behind the "transcode cap full" notice refreshes. */
-const STILL_REFRESH_MS = 10000;
+/** How often the snapshot behind a capped / still-only stream is re-fetched (exported for the home tile's "מתעדכנת כל" line). */
+export const STILL_REFRESH_MS = 10000;
 
 /** VIDEO-SUB-FALLBACK-2402: the quiet tag of a tile that moved from its sub stream to the main one. */
 export const SUB_FALLBACK_HE = 'עבר לזרם הראשי';

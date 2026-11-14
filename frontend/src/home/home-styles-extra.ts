@@ -54,6 +54,11 @@ export const homeExtraStyles = css`
     :host { --hit: 56px; --f-body: 17px; --f-sm: 15px; --f-tile: 19px; }
     .hs-main { inline-size: 100%; max-inline-size: 760px; margin-inline: auto; }
     .hub { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); }
+    /* HOME-R32-ANSWERS-2438 (owner round 32 Q-HOME-1 a): four tiles per row (sw-home.ts sRoom packs 4 x 5); a wide tile is half a row, a
+       tile being edited the whole row */
+    .wgrid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .wdg.w2 { grid-column: span 2; }
+    .wdg.editing { grid-column: 1 / -1; }
   }
   /* 1: the phone recordings header keeps the day stepper, on its own row */
   @media (max-width: 700px), (max-width: 899px) and (orientation: portrait) {
@@ -82,6 +87,11 @@ export const homeExtraStyles = css`
   /* 5: the camera tile's state word follows the real picture */
   .cap .live.still { --c: var(--hs-offline); }
   .cap .live.wait { opacity: .8; }
+  /* HOME-R32-ANSWERS-2438 (Q-HOME-3 a): the still's interval is shown, not only on hover - where the tile has the room for it */
+  .wg-btn.pic { container-type: inline-size; }
+  .cap .lv-g { display: inline-flex; align-items: center; gap: 8px; flex: none; }
+  .cap .lv-d { display: none; font-size: 14px; font-weight: 400; opacity: .85; white-space: nowrap; }
+  @container (min-width: 340px) { .cap .lv-d { display: inline; } }
   /* 14: the call result stays on one line */
   .vr { min-inline-size: 0; }
   .vres { max-inline-size: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -99,4 +109,15 @@ export const homeExtraStyles = css`
   .chip2 .c2i { inline-size: 20px; block-size: 20px; flex: none; margin-inline-end: 6px; }
   /* motion: the copy of a closing sheet (sw-home.ts ghostOverlay) never takes a touch */
   .ovl.ghost { pointer-events: none; }
+
+  /* HOME-R32-ANSWERS-2438 (owner round 32 Q-HOME-6 a): a screen change is seen tens of times a day, so it only fades - 160 ms, no
+     movement, no stagger. The mockup's rise (home-styles.ts .hs-main.enter) stays for a screen opened from "עוד" and for the
+     "עם תנועה" setting (sw-home.ts adds .rise). Reduced motion: home-styles.ts already turns either one into the same short fade. */
+  .hs-main.enter.fade > *, .hs-main.enter.fade > :nth-child(n) { animation: hs-fade 160ms var(--hs-ease) both; animation-delay: 0ms; }
+  /* Q-HOME-2: the calendar's "השבוע" / "הימים הקרובים" switch. A day already gone is quieter; on a phone the switch shares the tabs row
+     with "היומן שלנו / חדרים משותפים" (each control takes its share, nothing wraps). */
+  .week .wd[data-past]:not([aria-pressed="true"]) { color: var(--hs-text-2); }
+  .week .wd[data-past]:not([aria-pressed="true"]) b { opacity: .7; }
+  .hs.v2 .tabsrow:has(> .seg + .seg) { flex-wrap: nowrap; gap: 6px; }
+  .hs.v2 .tabsrow > .seg + .seg, .hs.v2 .tabsrow > .seg:has(+ .seg) { inline-size: auto; flex: 1 1 auto; min-inline-size: 0; }
 `;

@@ -85,6 +85,12 @@ export interface HomeLayout {
   welcomed?: boolean;
   /** HOME-SIMPLE-2421: per room, 'g:<gallery name>' or 'img' (the person's own picture) */
   wallpapers?: Record<string, string>;
+  /** HOME-R32-ANSWERS-2438 (owner Q-HOME-6): screen-entry motion; 'fade' (default) = a short fade, the rise only when a screen opens from
+   * "עוד"; 'rise' = the rise on every screen change (the approved mockup) */
+  motion?: 'fade' | 'rise';
+  /** HOME-R32-ANSWERS-2438 (owner Q-HOME-2): the calendar week strip; 'next' (default) = seven days from today, 'week' = this week from
+   * its first day (Sunday) */
+  cal_week?: 'next' | 'week';
 }
 export interface HomePrefs { favourites: Record<string, Fav[]>; layout: HomeLayout; seed: Record<string, Fav[]> }
 

@@ -5,6 +5,7 @@
 // No control screen scrolls: every list pages (home-logic.ts paged / packPages). Themes: data-hs-theme + data-hs-scheme on the host.
 import { LitElement, html, nothing, svg, type PropertyValues, type TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import { keyed } from 'lit/directives/keyed.js';
 import { homeMockupStyles } from './home-styles';
 import { homeExtraStyles } from './home-styles-extra';
 import { hi } from './home-icons';
@@ -39,6 +40,7 @@ import './sw-home-call';
 import type { HomeCallsState, SwHomeCall } from './sw-home-call';
 import '../components/wk-talk-button';
 import '../components/sw-camera-tile';
+import { STILL_REFRESH_MS } from '../components/sw-live-player';
 // HOME-V3-P1-2430: the v3 screens register themselves (home-ext.ts); sw-home only wires the registry in
 import { homeV3Styles } from './home-styles-v3';
 import { buildScreens, type ExtOvl, type HomeScreen } from './home-ext';
@@ -78,12 +80,18 @@ const NAV: [string, string, string, string][] = [['r/home', 'הבית שלי', '
 const SCREENS = ['r', 'rooms', 'lights', 'climate', 'shades', 'doors', 'cameras', 'energy', 'alerts', 'scenes', 'active', 'settings', 'welcome', 'security'];
 const ARM_LABEL: Record<string, string> = { arm_home: 'דריכה בבית', arm_away: 'דריכה ביציאה', arm_night: 'דריכת לילה', arm_vacation: 'דריכה לחופשה', arm_custom_bypass: 'דריכה חלקית', disarm: 'ניטרול' };
 const KIOSK_UNLOCK_MS = 5 * 60_000;
+/** The cameras screen's still refresh, in seconds (sw-camera-tile stillRefresh; the tile's word says the same number). */
+const HOME_STILL_SECS = 30;
 const KIOSK_ROUTES = ['r', 'lights', 'climate', 'shades', 'doors', 'scenes', 'active', 'alerts', 'media', 'notices', 'calendar'];
 /** HOME-V3-AUDITFIX-2437 (audit item 2): the phone / wide boundary of the home interface - the same query as every phone block of the
  *  home style sheets (`(max-width: 700px), (max-width: 899px) and (orientation: portrait)`; the wide blocks are its complement). A portrait
  *  tablet 701-899 px wide takes the phone layout with the bottom bar; a landscape phone of that width keeps the wide one, as before. */
 export const HOME_PHONE_MQ = '(max-width: 700px), (max-width: 899px) and (orientation: portrait)';
 const isPhone = () => window.matchMedia(HOME_PHONE_MQ).matches;
+/** HOME-R32-ANSWERS-2438 (owner round 32 Q-HOME-1 a): the portrait tablet band of the phone layout - four tiles per row (home-styles-extra.ts
+ *  uses the same query). */
+export const HOME_TABLET_PORTRAIT_MQ = '(min-width: 701px) and (max-width: 899px) and (orientation: portrait)';
+const isTabletPortrait = () => window.matchMedia(HOME_TABLET_PORTRAIT_MQ).matches;
 /** HOME-V3-AUDITFIX-2437 (audit item 7): the theme, scheme and background this device last drew the home in (read by public/home-paint.js). */
 const PAINT_KEY = 'arx-home-paint';
 function readPaintHint(): { theme: string; scheme: 'light' | 'dark' } | null {
@@ -131,6 +139,8 @@ export class SwHome extends LitElement {
   @state() private armed: string | null = null;
   @state() private sceneRun: string | null = null;
   @state() phone = isPhone();
+  /** HOME-R32-ANSWERS-2438: a portrait tablet (phone layout, four tiles per row) */
+  @state() tab4 = isTabletPortrait();
   @state() now = new Date();
   @state() visitors: CallLogRow[] = [];
   @state() private kioskUntil = 0;
@@ -155,6 +165,10 @@ export class SwHome extends LitElement {
   private down = { x: 0, y: 0 };
   private saveT = 0;
   private lastRoute = '';
+  private lastName = ''; // HOME-R32-ANSWERS-2438: the screen shown before, for the entry motion
+  /** HOME-R32-ANSWERS-2438: the entry class of the current screen, kept until the next one (a data reload mid-entry no longer cuts it);
+   *  the screen is keyed by its address, so every screen change - another room, another tab - draws fresh and plays it once */
+  private enterCls = '';
   /** HOME-V3-P1-2430: the registered v3 screens (home-ext.ts) */
   readonly ext: HomeScreen[] = buildScreens(this);
   /** shared scratch state of the v3 modules (each keeps its own key) */
@@ -190,6 +204,8 @@ export class SwHome extends LitElement {
   private onResize = () => {
     const p = isPhone();
     if (p !== this.phone) this.phone = p;
+    const t = isTabletPortrait();
+    if (t !== this.tab4) this.tab4 = t;
   };
 
   private scheduleRefresh(ms = 600) {
@@ -287,6 +303,10 @@ export class SwHome extends LitElement {
   pol(): InterfacePolicy | null {
     return this.policy ?? this.data?.policy ?? null;
   }
+
+  /** HOME-R32-ANSWERS-2438: the person's own layout keys, for the screen modules (the calendar week strip). */
+  myLayout(): HomeLayout { return this.prefs.layout; }
+  saveMyLayout(patch: HomeLayout) { this.saveLayout(patch); }
 
   private saveLayout(patch: HomeLayout) {
     this.prefs = { ...this.prefs, layout: { ...this.prefs.layout, ...patch } };
@@ -863,6 +883,7 @@ export class SwHome extends LitElement {
   a_theme(el: HTMLElement) { this.saveLayout({ scheme: el.dataset.v === 'light' ? 'light' : 'dark' }); }
   a_hs(el: HTMLElement) { this.saveLayout({ theme: el.dataset.v ?? 'classic' }); }
   a_bigText() { this.saveLayout({ big_text: !this.prefs.layout.big_text }); }
+  a_motion(el: HTMLElement) { this.saveLayout({ motion: el.dataset.v === 'rise' ? 'rise' : 'fade' }); }
   a_start(el: HTMLElement) { const v = el.dataset.v as HomeLayout['start']; this.saveLayout({ start: v, start_room: v === 'fixed' || v === 'last' ? (this.ctx()?.id ?? this.prefs.layout.start_room ?? null) : null }); }
   a_setTab(el: HTMLElement) { this.go('settings/' + (el.dataset.v ?? 'favs')); }
   a_roomVis(el: HTMLElement) {
@@ -1013,14 +1034,20 @@ export class SwHome extends LitElement {
     this.requestUpdate();
   }
 
+  /** HOME-R32-ANSWERS-2438 (owner round 32 Q-HOME-3 a): how often a camera tile without video refreshes its still, in seconds - the
+   *  cameras screen's own stills (HOME_STILL_SECS), or the player's snapshot fallback of a favourite tile (STILL_REFRESH_MS) */
+  private stillSecs(live: boolean): number {
+    return Math.round((live ? STILL_REFRESH_MS : stillIntervalMs(HOME_STILL_SECS)) / 1000);
+  }
+
   camPic(c: HCamera, live: boolean) {
     // the state word is the true state (DESIGN.md "Dot-and-Word Rule"): a playing stream = "חי"; a refreshing still = "תמונה" with the
     // offline dot (how often in the title); a stream not yet playing = "מתחבר", no dot. The tile's own still label is off: it sat under the star.
     const mode = !c.ok ? null : live ? (this.camMode[c.id] ?? 'wait') : 'still';
     const word = mode === 'live' ? html`<span class="live" data-cam-mode="live"><i class="dot"></i>חי</span>`
-      : mode === 'still' ? html`<span class="live still" data-cam-mode="still" title=${`מתעדכנת כל ${Math.round(stillIntervalMs(30) / 1000)} שנ׳`}><i class="dot"></i>תמונה</span>`
+      : mode === 'still' ? html`<span class="lv-g"><span class="live still" data-cam-mode="still" title=${`מתעדכנת כל ${this.stillSecs(live)} שנ׳`}><i class="dot"></i>תמונה</span><small class="lv-d" data-cam-every=${this.stillSecs(live)}>מתעדכנת כל <span class="num">${this.stillSecs(live)}</span> שנ׳</small></span>`
         : mode === 'wait' ? html`<span class="live wait" data-cam-mode="wait">מתחבר</span>` : nothing;
-    return html`${c.ok ? html`<sw-camera-tile class="scene-pic" dark noDemo noLabel fit="cover" cameraId=${c.id} state="live" ?live=${live} profile="sub" autoProfile poster=${snapshotUrl(c.id)} .stillRefresh=${live ? 0 : 30} @player-status=${(e: Event) => this.onCamStatus(c.id, e)}></sw-camera-tile>` : html`<div class="cam-off">${hi('camoff')}<span>המצלמה לא זמינה כרגע</span></div>`}<div class="cap"><span class="clamp1" dir="auto" title=${c.name}>${c.name}</span>${word}</div>`;
+    return html`${c.ok ? html`<sw-camera-tile class="scene-pic" dark noDemo noLabel fit="cover" cameraId=${c.id} state="live" ?live=${live} profile="sub" autoProfile poster=${snapshotUrl(c.id)} .stillRefresh=${live ? 0 : HOME_STILL_SECS} @player-status=${(e: Event) => this.onCamStatus(c.id, e)}></sw-camera-tile>` : html`<div class="cam-off">${hi('camoff')}<span>המצלמה לא זמינה כרגע</span></div>`}<div class="cap"><span class="clamp1" dir="auto" title=${c.name}>${c.name}</span>${word}</div>`;
   }
 
   // ---------------------------------------------------------------- shell
@@ -1167,12 +1194,14 @@ export class SwHome extends LitElement {
     const r = this.ctx();
     const w = this.world();
     const all = this.favs(this.room).filter((f) => favOk(f, w));
-    const cols = this.phone ? 3 : 6;
+    // HOME-R32-ANSWERS-2438 (Q-HOME-1): a portrait tablet packs four tiles per row; a wide tile takes half the row there (a whole row on a phone)
+    const cols = this.phone ? (this.tab4 ? 4 : 3) : 6;
     const rows = this.phone ? 5 : 3;
     const area = (x: [Fav, number]) => {
       const f = x[0];
       const fw = favWidth(f, f.t === 'light' && !!this.findLight(f.id ?? '')?.sw);
-      return (this.phone && (fw === 2 || this.edit) ? 3 : fw) * favHeight(f);
+      const span = !this.phone ? fw : this.edit ? cols : fw === 2 ? (this.tab4 ? 2 : 3) : fw;
+      return span * favHeight(f);
     };
     const pages = packPages(all.map((f, i) => [f, i] as [Fav, number]), area, cols, rows);
     const key = 'fav-' + this.room;
@@ -1447,7 +1476,7 @@ export class SwHome extends LitElement {
       const l = this.prefs.layout;
       const tn = THEMES.find((x) => x[0] === (this.getAttribute('data-hs-theme') ?? 'classic'))?.[1] ?? '';
       body = html`<div class="set-view"><section class="tile pane"><h2>הממשק שלי</h2>${this.faceChoice('home')}</section>
-        <section class="tile pane"><h2>תצוגה</h2><div class="setrow flat"><span class="sname">מה נפתח ראשון</span>${this.seg('start', [['home', 'הבית שלי'], ['last', 'החדר האחרון'], ['fixed', 'חדר קבוע']], l.start ?? 'home', 'מסך פתיחה')}</div><div class="setrow flat"><span class="sname"><b>ערכת נושא</b><span class="muted">${tn}, ${this.getAttribute('data-hs-scheme') === 'light' ? 'בהיר' : 'כהה'}</span></span><a class="hbtn" href=${this.href('settings/themes')}>${hi('palette')}<span class="bt">החלפה</span></a></div><div class="setrow flat"><span class="sname"><b>כתב גדול</b><span class="muted">מגדיל גם את האריחים</span></span>${this.sw(!!l.big_text, 'bigText', 'כתב גדול')}</div></section></div>`;
+        <section class="tile pane"><h2>תצוגה</h2><div class="setrow flat"><span class="sname">מה נפתח ראשון</span>${this.seg('start', [['home', 'הבית שלי'], ['last', 'החדר האחרון'], ['fixed', 'חדר קבוע']], l.start ?? 'home', 'מסך פתיחה')}</div><div class="setrow flat"><span class="sname"><b>ערכת נושא</b><span class="muted">${tn}, ${this.getAttribute('data-hs-scheme') === 'light' ? 'בהיר' : 'כהה'}</span></span><a class="hbtn" href=${this.href('settings/themes')}>${hi('palette')}<span class="bt">החלפה</span></a></div><div class="setrow flat"><span class="sname"><b>כתב גדול</b><span class="muted">מגדיל גם את האריחים</span></span>${this.sw(!!l.big_text, 'bigText', 'כתב גדול')}</div><div class="setrow flat" data-set-motion><span class="sname"><b>מעבר בין מסכים</b><span class="muted clamp1">${l.motion === 'rise' ? 'כל מסך עולה מלמטה' : 'הופעה מהירה, בלי תזוזה'}</span></span>${this.seg('motion', [['fade', 'מהיר'], ['rise', 'עם תנועה']], l.motion === 'rise' ? 'rise' : 'fade', 'מעבר בין מסכים')}</div></section></div>`;
     }
     return html`${this.headT('הגדרות', 'המועדפים, החדרים והתצוגה שלי', this.seg('setTab', [['favs', 'מועדפים'], ['rooms', 'חדרים'], ['scenes', 'סצנות'], ['themes', this.phone ? 'צבעים' : 'ערכות נושא'], ...(wallOn ? [['wall', 'רקע'] as [string, string]] : []), ['view', 'תצוגה']], t, 'נושא'))}${body}`;
   }
@@ -1602,10 +1631,16 @@ export class SwHome extends LitElement {
     const screen = extScreen ? extScreen.render(name, r.arg) : name === 'r' ? this.sRoom() : name === 'rooms' ? this.sRooms() : name === 'lights' ? this.sLights() : name === 'climate' ? this.sClimate() : name === 'shades' ? this.sShades()
       : name === 'doors' ? this.sDoors() : name === 'cameras' ? this.sCameras() : name === 'energy' ? this.sEnergy() : name === 'alerts' ? this.sAlerts() : name === 'scenes' ? this.sScenes()
       : name === 'active' ? this.sActive() : this.sSettings(r.arg); // 'security' is the v3 alarm screen (home-alarm.ts)
-    const anim = this.path !== this.lastRoute;
-    this.lastRoute = this.path;
+    // HOME-R32-ANSWERS-2438 (owner Q-HOME-6 a): a screen change fades in place (opacity only); the rise stays where it explains
+    // something - a screen opened from "עוד" - or everywhere when the person chose it in "הגדרות › תצוגה". Reduced motion: a fade.
+    if (this.path !== this.lastRoute) {
+      const rise = this.prefs.layout.motion === 'rise' || (this.lastName === 'more' && name !== 'more' && moreChild(name));
+      this.enterCls = rise ? ' enter rise' : ' enter fade';
+      this.lastName = name;
+      this.lastRoute = this.path;
+    }
     return html`<div class="app-root" @click=${this.onClick} @pointerover=${this.titleHint} @input=${this.onInput} @pointerdown=${this.onPointerDown} @pointermove=${this.onPointerMove} @pointerup=${this.onPointerUp} @pointercancel=${() => { window.clearTimeout(this.holdT); this.swipe = null; }} @keydown=${this.onKey}>
-      <div class=${'hs v2' + (this.kioskLocked() ? ' kiosk' : '') + (name === 'r' && this.wallOf(this.room) ? ' walled' : '')} data-screen=${name} data-wall=${name === 'r' ? this.wallOf(this.room) ?? nothing : nothing} style=${name === 'r' && this.wallOf(this.room) ? `--hs-wall:${this.wallBg(this.room)}` : nothing}>${this.strip(name)}${this.nav(cur)}<main class=${'hs-main' + (anim ? ' enter' : '')} id="main">${screen}</main>${this.nowBar()}</div>
+      <div class=${'hs v2' + (this.kioskLocked() ? ' kiosk' : '') + (name === 'r' && this.wallOf(this.room) ? ' walled' : '')} data-screen=${name} data-wall=${name === 'r' ? this.wallOf(this.room) ?? nothing : nothing} style=${name === 'r' && this.wallOf(this.room) ? `--hs-wall:${this.wallBg(this.room)}` : nothing}>${this.strip(name)}${this.nav(cur)}<main class=${'hs-main' + this.enterCls} id="main">${keyed(this.lastRoute, screen)}</main>${this.nowBar()}</div>
       <div class="ovl">${this.ovlHtml()}</div>${this.toasts()}
       <sw-home-call data-hs-theme=${this.getAttribute('data-hs-theme') ?? 'classic'} data-hs-scheme=${this.getAttribute('data-hs-scheme') ?? 'dark'} ?data-hs-big=${this.hasAttribute('data-hs-big')} @home-calls=${(e: CustomEvent<HomeCallsState>) => { this.calls = e.detail; }}></sw-home-call></div>`;
   }
