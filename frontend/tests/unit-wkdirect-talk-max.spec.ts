@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TALK_MAX_DEFAULT_S, TALK_MAX_KEY, TALK_MAX_MAX_S, TALK_MAX_MIN_S, parseTalkMax, talkMaxInput } from '../src/api/station-media';
 import { PARITY_HE } from '../src/i18n/access-parity';
+import { SETTINGS_ROUTER, SETTINGS_STORE } from './backend-settings-source';
 
 // WKDIRECT-295: the "longest talk" row of the stations display card (`access.station_media_max_talk_s`). WisKey publishes
 // `station_media_max_talk_seconds` per station as a whole number 1..86400 (default 300, no 180 s clamp); Arx's setting takes the same
@@ -18,11 +19,10 @@ test.describe('WKDIRECT-295: the longest talk setting', () => {
   test('the key, the default and the range are the server\'s (1..86400, default 300)', () => {
     expect(TALK_MAX_KEY).toBe('access.station_media_max_talk_s');
     expect([TALK_MAX_MIN_S, TALK_MAX_MAX_S, TALK_MAX_DEFAULT_S]).toEqual([1, 86400, 300]);
-    const server = read('../../smplwise_vms/backend/smplwise/routers/settings.py');
-    const field = /access_station_media_max_talk_s: int \| None = Field\(default=None, ge=(\d+), le=(\d+), alias="access\.station_media_max_talk_s"\)/.exec(server);
+    const field = /access_station_media_max_talk_s: int \| None = Field\(default=None, ge=(\d+), le=(\d+), alias="access\.station_media_max_talk_s"\)/.exec(SETTINGS_ROUTER);
     expect(field, 'the server declares the setting with bounds').not.toBeNull();
     expect([Number(field![1]), Number(field![2])]).toEqual([TALK_MAX_MIN_S, TALK_MAX_MAX_S]);
-    expect(server).toMatch(/"access\.station_media_max_talk_s": "300"/);
+    expect(SETTINGS_STORE).toMatch(/"access\.station_media_max_talk_s": "300"/);
   });
 
   test('the reader keeps a value in range and shows the default for anything else', () => {

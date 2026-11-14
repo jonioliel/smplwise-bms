@@ -67,3 +67,19 @@ of which 43 `gate-*` worktrees 82 GB at about 2 GB each). Classified **infra**, 
 owner's conservative cleanup) freed only about 2 GB (one worktree; it never touches `gate-*` or anything newer than 6 h), which is not
 enough for another gate worktree, so the check was **not re-queued**. Next step for the lead: free space (for example `gate-*` worktrees of
 branches already merged or abandoned), then re-queue the same command.
+
+### Fixes from the CR-WAVE1B-COMBINED-2436 entry check (2026-11-14)
+
+`pilot/CR-WAVE1B-COMBINED-2436` (built on this branch) came back RED with 24 failures
+(`entry_pilot-CR-WAVE1B-COMBINED-2436_ffb4af2d5.md`). 22 of them come from this branch's wave-1 merges, so they are fixed here (the
+other two: see that branch's note). All are test-side: each spec pinned a definition in the file it lived in before a wave-1 move.
+
+| Failure | Cause (wave 1) | Fix |
+|---|---|---|
+| `unit-designtokens-297:169`, `unit-settings-cards-accordion-2402:57`, `unit-settings-intercom-cards-2401:70`, `unit-wall-phone-bar-2401:54`, `unit-wkdirect-talk-max:18`, `unit-wxmedset:48`, each on desktop / tablet / mobile (18) | CR-SETTINGS-STORE moved `DEFAULTS`, `stored_skin`, `FROZEN_SKINS` and the `_stored_*` normalisers from `routers/settings.py` to `services/settings_store.py`; the specs read only the router's text | new `frontend/tests/backend-settings-source.ts` exports both files' text (`SETTINGS_STORE`, `SETTINGS_ROUTER`); every assertion now reads the file that owns the fact (PATCH patterns / bounds: router; defaults, normalisers, frozen set: store). No assertion was removed or loosened |
+| `test_gate_always_run.py::test_every_package_scanner_is_listed_or_reviewed` | CR-BE-GATES / READCONN-A / UPLOAD-SYNC added four scanners (`test_async_routes_hold_no_write_conn`, `test_async_routes_no_inline_db`, `test_get_routes_read_conn`, `test_local_auth_inventory`) without listing them | the four added to `tests/gate_always_run.json` `backend` (they walk the router registry / package / `app.routes`) |
+| `test_provision_backchannel.py::test_playback_stream_source_has_backchannel_off`, `test_provision_playback.py::test_go2rtc_session_through_the_existing_engine_stays_in_the_namespace` | CR-GO2RTC-ADAPTER: a playback generation is written with `Go2rtc.create_stream` (no listing first); both tests spied only on `ensure_stream`, so the first wrote to the real (unresolvable) host and the second saw no source | both spy on `create_stream` too, with the same assertions on the written source |
+
+Tests run (workstation, `--workers=1` / `-p no:xdist`): the six specs + `unit-tts-default-2400` + `unit-tabset-registry` through
+`playwright.unit.config.ts`: 78 passed; `pytest test_provision_backchannel.py test_provision_playback.py test_gate_always_run.py`: 92 passed;
+`npx tsc --noEmit`: exit 0. Re-queued: the entry check of this branch at the new head.

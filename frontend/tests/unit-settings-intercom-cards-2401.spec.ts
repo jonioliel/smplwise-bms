@@ -32,6 +32,7 @@ import {
 import { enSettingsCardsText, heSettingsCardsText } from '../src/i18n/settings-cards';
 import { SETTINGS_GROUPS, activeEntry } from '../src/screens/system-index';
 import { parseRoute } from '../src/router';
+import { SETTINGS_ROUTER, SETTINGS_STORE } from './backend-settings-source';
 
 // SETTINGS-INTERCOM-CARDS-2401 (owner 04.11, round 19 Q6 = a): the layout setting of Settings › "מתגי מסכי כניסה" (cards / two tabs / one
 // list), which card is open, the per-user memory of the last open card, the one-line summaries, and the wiring that keeps every existing
@@ -68,10 +69,9 @@ test.describe('the layout setting', () => {
   });
 
   test('the server validates the same three values and defaults to cards', () => {
-    const py = fs.readFileSync(path.join(HERE, '..', '..', 'smplwise_vms', 'backend', 'smplwise', 'routers', 'settings.py'), 'utf8');
-    expect(py).toContain('"access.settings_layout": "cards",');
-    expect(py).toContain('pattern="^(cards|accordion|tabs|list)$", alias="access.settings_layout"');
-    expect(py).toContain('if out.get("access.settings_layout") not in ("cards", "accordion", "tabs", "list"):');
+    expect(SETTINGS_STORE).toContain('"access.settings_layout": "cards",');
+    expect(SETTINGS_ROUTER).toContain('pattern="^(cards|accordion|tabs|list)$", alias="access.settings_layout"');
+    expect(SETTINGS_STORE).toContain('if out.get("access.settings_layout") not in ("cards", "accordion", "tabs", "list"):');
   });
 
   test('the layout row: short plain Hebrew labels, one per layout, in both languages', () => {
