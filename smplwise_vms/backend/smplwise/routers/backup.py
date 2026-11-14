@@ -80,7 +80,7 @@ def _rid(request: Request) -> str | None:
 
 
 def _path(request: Request, name: str) -> Path:
-    if not svc.NAME_RE.match(name):
+    if not svc.NAME_RE.fullmatch(name):  # CR-PATH-CONFINE-2438 (05:P3-06): `$` alone accepts a trailing newline
         raise not_found("הגיבוי לא נמצא.")
     p = svc.backups_dir(settings_of(request)) / name
     if not p.is_file():

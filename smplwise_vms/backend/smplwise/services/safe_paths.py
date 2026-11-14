@@ -69,3 +69,65 @@ def restore_path_ok(data_dir: Path, table: str, column: str, value: Any) -> bool
     if table == "case_items":
         return case_file(data_dir, value) is not None
     return confine(Path(data_dir) / "catalog_images", value) is not None
+
+
+# ---------------------------------------------------------------- CR-PATH-CONFINE-2438 (code review 2026-11-13, 05:P2-13, P3-06)
+# One containment rule for the module checks that build a path themselves (floor images, bakes, skins, maintenance and ticket
+# files, wall photos, bundle import, the public shell assets, the restore writer), and one root per stored file column: a
+# restored `plan_versions.image_path` may name only its own plan folder, never a bill, a bake, a ticket photo or a key.
+
+PLAN_SHARED_FOLDERS = ("floor-images", "bakes")  # plans/<name>/ folders that belong to another module, never to a plan asset
+
+
+def inside(root: Path, candidate: Any) -> Path | None:
+    """`candidate` resolved (symlinks and junctions followed, `..` collapsed) when it lies strictly under `root` resolved
+    (the root itself is not inside); None otherwise, and when either path cannot be resolved."""
+    try:
+        base = Path(root).resolve()
+        p = Path(candidate).resolve()
+    except (OSError, RuntimeError, ValueError, TypeError):
+        return None
+    return p if base in p.parents else None
+
+
+def stored_under(data_dir: Path, root: Path, rel: Any) -> Path | None:
+    """A stored path relative to the data directory (`confine`'s plain-path rule) that resolves strictly under `root`."""
+    p = confine(data_dir, rel)
+    return inside(root, p) if p is not None else None
+
+
+def _row_value(row: Any, key: str) -> Any:
+    try:
+        return row[key]
+    except (KeyError, IndexError, TypeError):
+        return None
+
+
+def plan_asset_dir(data_dir: Path, asset_id: Any) -> Path | None:
+    """`plans/<asset id>/` (routers/plans._asset_dir) - only for a plain id that is not a shared plans folder."""
+    if not isinstance(asset_id, str) or re.fullmatch(_ID, asset_id) is None or asset_id in PLAN_SHARED_FOLDERS:
+        return None
+    return Path(data_dir) / "plans" / asset_id
+
+
+# (table, column) -> the folder that column's file lives in, from the row. The product writes every one of these shapes:
+# routers/plans.py (`plans/<asset id>/source.*`, `version-*.png`, `*.stylized.png`), services/floor_images.py, plan_bakes.py,
+# routers/energy_billing.py (`energy/bills/<year>/<id>.pdf`) and services/energy_billing.py (`energy/assets/<sha>.png`).
+COLUMN_ROOTS: dict[tuple[str, str], Any] = {
+    ("plan_assets", "storage_path"): lambda d, row: plan_asset_dir(d, _row_value(row, "id")),
+    ("plan_versions", "image_path"): lambda d, row: plan_asset_dir(d, _row_value(row, "asset_id")),
+    ("plan_versions", "stylized_path"): lambda d, row: plan_asset_dir(d, _row_value(row, "asset_id")),
+    ("floor_images", "path"): lambda d, row: Path(d) / "plans" / "floor-images",
+    ("plan_bakes", "path"): lambda d, row: Path(d) / "plans" / "bakes",
+    ("energy_bills", "pdf_path"): lambda d, row: Path(d) / "energy" / "bills",
+    ("energy_assets", "storage_path"): lambda d, row: Path(d) / "energy" / "assets",
+}
+
+
+def column_file(data_dir: Path, table: str, column: str, row: Any) -> Path | None:
+    """The file a stored `table.column` value names, confined to that column's own folder (COLUMN_ROOTS); None when the value
+    is empty, not a plain relative path, or resolves anywhere else. The serving routes and the restore use the same rule."""
+    root = COLUMN_ROOTS[(table, column)](data_dir, row)
+    if root is None:
+        return None
+    return stored_under(data_dir, root, _row_value(row, column))

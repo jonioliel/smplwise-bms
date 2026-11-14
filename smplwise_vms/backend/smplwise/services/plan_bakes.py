@@ -41,6 +41,7 @@ from typing import Any, NamedTuple
 
 from ..config import Settings
 from ..db import ID_RE, new_id, now_iso
+from . import safe_paths
 
 KINDS = ("still", "mask", "lightmap")
 PRESETS = ("iso", "top", "persp")
@@ -179,15 +180,14 @@ def check_floor_id(floor_id: str) -> str:
 
 
 def confine(settings: Settings, candidate: Path) -> Path:
-    base = root(settings).resolve()
-    resolved = Path(candidate).resolve()
-    if resolved == base or base not in resolved.parents:
+    resolved = safe_paths.inside(root(settings), candidate)  # CR-PATH-CONFINE-2438: the one rule of services/safe_paths
+    if resolved is None:
         raise BakeStoreError("path outside the bakes folder")
     return resolved
 
 
 def confine_stored(settings: Settings, rel: str) -> Path:
-    if not isinstance(rel, str) or not rel or Path(rel).is_absolute() or "\\" in rel or ".." in rel.split("/"):
+    if not safe_paths.confine(settings.data_dir, rel):  # a plain relative path: no absolute, backslash, drive, NUL, `..`
         raise BakeStoreError("stored path is not a plain relative path")
     return confine(settings, settings.data_dir / rel)
 
