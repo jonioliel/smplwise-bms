@@ -722,8 +722,14 @@ def place_of_floor(conn: sqlite3.Connection, floor_id: str) -> dict[str, Any] | 
 
 
 def active_user_ids(conn: sqlite3.Connection) -> list[str]:
-    """Every active user (the second-approver search walks them; an installation has tens, not thousands)."""
-    return [r[0] for r in conn.execute("SELECT id FROM users WHERE active = 1 ORDER BY id").fetchall()]
+    """Every active user, sorted (the second-approver search walks them; an installation has tens, not thousands).
+    CR-RBAC-EVAL-2438 (code review 01:F-05, owner decision O16 a): the system-wide definition (services/active_users) - disabled on
+    either side (`users.active = 0` or `ha_users.is_active = 0`) is not active, and a person known only to the HA directory counts.
+    It used to read `users.active = 1` alone, so a person disabled only on the HA side still counted as an available second
+    approver and held an award in `pending_second`."""
+    from ..active_users import active_user_ids as _ids
+
+    return sorted(_ids(conn))
 
 
 # ---------------------------------------------------------------- the outbox rows of a request

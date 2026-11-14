@@ -57,21 +57,17 @@ def group_name(conn: sqlite3.Connection, group_id: str) -> str:
 
 
 def user_is_active(conn: sqlite3.Connection, user_id: str) -> bool:
-    u = conn.execute("SELECT active FROM users WHERE id = ?", (user_id,)).fetchone()
-    if u is not None and not u["active"]:
-        return False
-    h = conn.execute("SELECT is_active FROM ha_users WHERE id = ?", (user_id,)).fetchone()
-    if h is not None and not h["is_active"]:
-        return False
-    return u is not None or h is not None
+    """CR-RBAC-EVAL-2438 (owner decision O16 a): the system-wide definition (services/active_users)."""
+    from ..active_users import user_is_active as _active
+
+    return _active(conn, user_id)
 
 
 def active_user_ids(conn: sqlite3.Connection) -> set[str]:
-    ids = {r[0] for r in conn.execute("SELECT id FROM users WHERE active = 1").fetchall()}
-    ids |= {r[0] for r in conn.execute("SELECT id FROM ha_users WHERE is_active = 1").fetchall()}
-    ids -= {r[0] for r in conn.execute("SELECT id FROM users WHERE active = 0").fetchall()}
-    ids -= {r[0] for r in conn.execute("SELECT id FROM ha_users WHERE is_active = 0").fetchall()}
-    return ids
+    """CR-RBAC-EVAL-2438 (owner decision O16 a): the system-wide definition (services/active_users)."""
+    from ..active_users import active_user_ids as _ids
+
+    return _ids(conn)
 
 
 def groups(conn: sqlite3.Connection) -> list[dict[str, Any]]:

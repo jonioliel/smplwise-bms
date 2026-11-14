@@ -12,7 +12,7 @@ GET /tickets/dashboard - what the manager board cannot say on its own:
                  median    the median time from that handler's assignment to `done`, over the requests of the `done` column (seconds)
     daily        the last 14 local days: opened (created) and closed per day, oldest first, and the net change
     approvals    waiting for my decision: quotes on tickets (`submitted`), payment demands (`submitted`), RFQ awards waiting for a second
-                 approval that THIS caller may give (rfq.second_approvers - the exact rule of the confirm route). Amounts only with
+                 approval that THIS caller may give (rfq.second_signer - the exact rule of the confirm route). Amounts only with
                  tickets.costs.view where the item lies; never summed (currencies are never added up)
     rfqs         open requests for quotation the caller manages (rfq.is_manager): the state in words, quotes received / invited,
                  unanswered vendor questions (counts only, never a text), the deadline; decision first, then questions, then collecting
@@ -265,7 +265,7 @@ def _approvals(conn, viewer: Viewer, managed: _Managed, department_id: str | Non
         seen = rfq.visible_by_id(viewer, a["rfq_id"])
         if seen is None or (department_id and seen.row["department_id"] != department_id):
             continue
-        if viewer.uid not in rfq.second_approvers(conn, seen.row, a["first_by"], quote_row(conn, a["quote_id"])):
+        if rfq.second_signer(conn, viewer.uid, seen.row, a, quote_row(conn, a["quote_id"])) is None:
             continue
         amounts = rfq.sees_amounts(viewer, seen)
         v = rfq_vendor(conn, a["rfq_vendor_id"]) or {}

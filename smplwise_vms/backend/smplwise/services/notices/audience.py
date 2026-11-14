@@ -22,8 +22,9 @@ def _live_bindings(conn: sqlite3.Connection, user_id: str) -> list[sqlite3.Row]:
 
 
 def _floor_chain(conn: sqlite3.Connection, floor_id: str) -> set[tuple[str, str]]:
+    # CR-RBAC-EVAL-2438 (owner decision O20 a): a floor of a deleted building is reached by no one through it
     row = conn.execute("""SELECT f.id AS fid, b.id AS bid, b.site_id AS sid FROM floors f JOIN buildings b ON b.id = f.building_id
-                          WHERE f.id = ? AND f.deleted_at IS NULL""", (floor_id,)).fetchone()
+                          WHERE f.id = ? AND f.deleted_at IS NULL AND b.deleted_at IS NULL""", (floor_id,)).fetchone()
     if row is None:
         return set()
     return {("floor", row["fid"]), ("building", row["bid"]), ("site", row["sid"]), ("installation", "*")}

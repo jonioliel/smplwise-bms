@@ -122,7 +122,7 @@ def numbers(conn, v: Viewer, now: dt.datetime, tz: dt.tzinfo) -> dict[str, Any]:
         rseen = rfq.visible_by_ids(v, [a["rfq_id"] for a in awards])
         for a in awards:
             rs = rseen.get(a["rfq_id"])
-            if rs is not None and v.uid in rfq.second_approvers(conn, rs.row, a["first_by"], quote_row(conn, a["quote_id"])):
+            if rs is not None and rfq.second_signer(conn, v.uid, rs.row, a, quote_row(conn, a["quote_id"])) is not None:
                 approvals += 1
     return {"stuck_by": stuck_by, "stuck": sum(stuck_by.values()), "arrivals": arrivals, "approvals": approvals}
 

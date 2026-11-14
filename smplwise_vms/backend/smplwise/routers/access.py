@@ -882,12 +882,10 @@ def keep_an_admin(conn: sqlite3.Connection) -> Iterator[None]:
 
 def active_user_ids(conn: sqlite3.Connection) -> set[str]:
     """The people the delegated directory lists (active in HA and in the VMS) - a delegated administrator may name no
-    one else, in a membership change or in its preview."""
-    ids = {r[0] for r in conn.execute("SELECT id FROM users WHERE active = 1").fetchall()}
-    ids |= {r[0] for r in conn.execute("SELECT id FROM ha_users WHERE is_active = 1").fetchall()}
-    ids -= {r[0] for r in conn.execute("SELECT id FROM users WHERE active = 0").fetchall()}
-    ids -= {r[0] for r in conn.execute("SELECT id FROM ha_users WHERE is_active = 0").fetchall()}
-    return ids
+    one else, in a membership change or in its preview. CR-RBAC-EVAL-2438: the system-wide definition (services/active_users)."""
+    from ..services.active_users import active_user_ids as _ids
+
+    return _ids(conn)
 
 
 def delegated_sees(conn: sqlite3.Connection, principal: Principal, b: dict[str, Any] | sqlite3.Row) -> bool:
