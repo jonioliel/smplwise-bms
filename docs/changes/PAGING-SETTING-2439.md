@@ -46,12 +46,12 @@ Nothing below the desktop edge (tablet, phone) changed.
 | Multimedia screens | `screens/multimedia-screens.ts` | pages (NOSCROLL-1366) | pages (unchanged) | cards region scrolls inside itself, header stays |
 | Multimedia groups | `screens/multimedia-groups.ts` | pages (NOSCROLL-1366) | pages (unchanged) | cards region scrolls inside itself |
 | Multimedia players | `screens/multimedia-players.ts` | pages (NOSCROLL-1366) | pages (unchanged) | cards region scrolls inside itself (its pre-1366 inner scroller) |
-| Schedules | `screens/devices-schedules.ts` | pages (POLISH-295 + fit) | pages (unchanged) | every row drawn; the screen's own scroller (as before POLISH-295) |
-| Automations / scripts | `screens/devices-automations.ts` | pages (POLISH-295 + fit) | pages (unchanged) | every row/card drawn; the screen's own scroller (as before POLISH-295) |
+| Schedules | `screens/devices-schedules.ts` | pages (POLISH-295 + fit) | pages (unchanged) | every row drawn; from 1024 px only the list panel (`.groups`) scrolls, the title, chips, toolbar and the upcoming strip stay (`data-list-panel`; not the week view, trash, review) - measured |
+| Automations / scripts | `screens/devices-automations.ts` | pages (POLISH-295 + fit) | pages (unchanged) | every row/card drawn; from 1024 px only the list panel (`.lwrap`) scrolls - measured |
 | Area (devices) | `screens/devices-area.ts` | pages (NOSCROLL-1366 bands) | pages (unchanged) | cards region (`.fitbox`) scrolls inside itself |
 | Building presence sensors (settings) | `screens/system-building-presence.ts` | pages of 6 / 5 | pages (unchanged) | every sensor in the card (a settings page, may scroll) |
 | Camera health | `screens/system-devices.ts` | table rows paged (NOSCROLL-1366) | pages (unchanged) | table scrolls inside the stage |
-| Temperatures | `screens/infra-temperature.ts` | cards paged (NOSCROLL-1366) | pages (unchanged) | every card drawn; the cards region is set to scroll inside the page box (CSS, not measured in a browser; if the heights do not resolve, the screen scrolls as before NOSCROLL-1366) |
+| Temperatures | `screens/infra-temperature.ts` | cards paged (NOSCROLL-1366) | pages (unchanged) | every card drawn; the cards region scrolls inside the page box, rows keep their content height (`grid-auto-rows: max-content`; without it the clipped cards shrank to fit) - measured with 15 units |
 | Service management, mine | `screens/tickets-list.ts` | cards paged (NOSCROLL-1366) | pages (unchanged) | the list region (`.scr`) scrolls inside itself |
 | Manager board | `screens/tickets-board.ts` | groups paged (NOSCROLL-1366) | pages (unchanged) | the board region (`.scr`) scrolls inside itself |
 | WisKey stations | `screens/wiskey-stations.ts` | cards paged (NOSCROLL-1366) | pages (unchanged) | the stations box scrolls inside itself |
@@ -68,9 +68,14 @@ Nothing below the desktop edge (tablet, phone) changed.
 this branch only makes those pages honour the setting. Appendix A.12's other screens (single camera, generator live, alarm, live
 overview) hold no long list: unchanged.
 
-Not wired to the setting (own paging pattern, out of scope, follow-up): the calendars views (`calendars/view-*.ts`, `pageOf` /
-`rowsThatFit`) and `screens/tickets-overview.ts` (KPI packing). Wiring them blind risks clipped content in `scroll`; they need a
-browser pass.
+Also wired (lead's follow-up, same branch):
+
+| Screen | File(s) | Paged (default) | `scroll` |
+|---|---|---|---|
+| Calendars: approvals, maintenance windows, manage (calendars and members), rooms timeline, resident (rooms, slots, mine) | `calendars/view-approvals.ts`, `view-maint.ts`, `view-manage.ts`, `view-rooms.ts`, `resident.ts` | unchanged (`pageOf` + `rowsThatFit`) | every `pageOf()` takes `perPageFor(...)`; the list box (`.list`, `.tablewrap`, `.rows`, `.slots`) scrolls inside itself; the always-drawn pagers of approvals / manage / maintenance are hidden (this last change was made after the browser run: tsc only) |
+| Calendars settings, sync flags | `screens/system-calendars.ts`, `screens/system-calendar-sync.ts` | unchanged | the same (`.fitbox`, `.flags` up to 40vh) |
+| Calendar day view columns | `calendars/view-calendar.ts` | unchanged | unchanged: columns of a time grid, not a list |
+| Tickets overview | `screens/tickets-overview.ts` | unchanged (side-by-side pages of two widget rows) | the desktop keeps its box; every widget on one page, rows of `minmax(300px, 38vh)`, the track scrolls vertically; header and numbers stay - measured |
 
 ## 4. Tests
 
@@ -78,10 +83,11 @@ browser pass.
 |---|---|---|
 | `npx tsc --noEmit` | workstation | exit 0 |
 | new `tests/unit-long-lists-2439.spec.ts` (7 tests: defaults, `perPageFor` with the page helpers, subscriptions, the address pin, `ensureLongLists` in Node, the controller on a fake host, he/en labels), `--workers=1` | workstation | 7 passed |
-| `tests/layout-noscroll-1366.spec.ts` new describe "the long lists set to scroll: the page still never scrolls" (13 screens x 2 viewports, classic light, `&long_lists=scroll`; `open()` takes an extra query) | - | **NOT_RUN** (workstation saturated; for the lead's combined runner check) |
+| `tests/layout-noscroll-1366.spec.ts` new describe "the long lists set to scroll: the page still never scrolls" - the 13 screens plus temperatures with 15 units (`temperature-many`, also asserts the list panel really scrolls), schedules, automations, tickets overview (`installOverviewMock` worst case), calendars approvals / manage / rooms; x 1366x768 and 1440x900, classic light | workstation, Vite dev server, `--project=desktop --workers=1` | first run 38 passed (4.0 min); after the temperature row fix: temperature cases 6 passed (incl. the original block's 10 skin runs), schedules / automations / overview 6 passed. Page overflow 0 everywhere; inner panels scrolled e.g. temperatures 728 / 750 px, overview track 1417 / 1285 px, schedules `.groups` 143 px (1440x900), automations `.lwrap` 79 px (1366x768), manage `.list` 351 / 219 px |
+| one-off headless check (`long_lists=paged` vs `scroll`, demo, 1366x620) | workstation | schedules: paged = pager, no scroller; scroll = only `div.groups` scrolls (+471 px). Automations: only `div.lwrap` (+227 px). Page, main, screen 0 in both modes |
 | evidence / layout / pixel suites | - | **NOT_RUN** (no runner entry check queued, by instruction) |
 
-Nothing was measured in a browser on this branch. Expected baseline impact: none of the compared pixel baselines covers the changed
+Expected baseline impact: none of the compared pixel baselines covers the changed
 surfaces in paged mode (visual-matrix: schedules, multimedia screens and the diagnostics health tab are unchanged in paged mode).
 Surfaces that do change and have no compared baseline: the General settings tab with a backend (new row), the Devices settings tab
 (row removed), the playback grid in compare mode, the maintenance ledger toolbar (pager place) and the emergency checklist (foot band).

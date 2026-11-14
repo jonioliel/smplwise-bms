@@ -6,6 +6,7 @@ import { installTemperature, units } from './temperature-mocks';
 import { installBubbleMock, AREA_PERMS } from './bubble-mocks';
 import { installTicketsMock } from './tickets-mocks';
 import { installBoardMock } from './tickets-board-mocks';
+import { installOverviewMock } from './tickets-overview-mocks';
 
 // NOSCROLL-1366-2437 (owner rule 2026-10-24: a control screen never scrolls; design audit round 30, 2026-11-12, finding #5). The audit
 // measured at 1366x768 seven control screens whose page (the shell's <main>) scrolled, two multimedia screens whose screen element
@@ -27,13 +28,15 @@ const VIEWPORTS = [
 ] as const;
 const SHOTS = process.env.NOSCROLL_SHOTS ?? '';
 
-type Mock = 'demo' | 'bubble' | 'generator' | 'temperature' | 'tickets' | 'board';
+type Mock = 'demo' | 'bubble' | 'generator' | 'temperature' | 'temperature-many' | 'tickets' | 'overview' | 'board';
 interface Case {
   id: string;
   hash: string;
   mock: Mock;
   /** the screen element to wait for (inside sw-app) */
   ready: string;
+  /** PAGING-SETTING-2439: with the lists scrolling, a page-sized list panel must really scroll (the data has more than fits) */
+  panelScrolls?: boolean;
 }
 export const CASES: Case[] = [
   // the seven page scrollers of the audit
@@ -60,7 +63,10 @@ async function open(page: Page, c: Case, skin: string, scheme: string, query = '
   else if (c.mock === 'bubble') await installBubbleMock(page, { perms: [...AREA_PERMS, 'system.configure'] });
   else if (c.mock === 'generator') await installGeneratorMock(page);
   else if (c.mock === 'temperature') await installTemperature(page, units());
+  // PAGING-SETTING-2439: three times the units, so the cards region really has more than fits
+  else if (c.mock === 'temperature-many') await installTemperature(page, [0, 1, 2].flatMap((k) => units().map((u) => ({ ...u, id: `${u.id}-${k}`, name: `${u.name} ${k + 1}` }))));
   else if (c.mock === 'tickets') await installTicketsMock(page);
+  else if (c.mock === 'overview') await installOverviewMock(page, { worst: true });
   else await installBoardMock(page, { board: { closed_strip: 'all', board_floors: 'chips_tree' } });
   await page.addInitScript(() => {
     try {
@@ -148,10 +154,22 @@ test.describe('control screens fit 1366x768 and 1440x900 (NOSCROLL-1366-2437)', 
 // PAGING-SETTING-2439 (owner round 32: Q-SYS-4 a - the page itself never moves; Q-SYS-5 a - long lists page, and a system setting switches
 // them back to scrolling): with the long lists set to scroll (`?long_lists=scroll` pins the mode for the page load, api/long-lists.ts) a
 // list scrolls inside its own panel - the document, the shell's <main>, the screen's wrapper and the screen element still never scroll.
-// A page-sized panel MAY scroll here (it is the list the administrator chose to scroll). Classic light only.
+// A page-sized panel MAY scroll here (it is the list the administrator chose to scroll). Classic light only. Beside the 13 screens above:
+// the other lists that honour the setting - schedules and automations (only the list panel scrolls), the tickets overview (one page of
+// widgets whose track scrolls) and the calendars (approvals, manage, rooms; the list box scrolls).
+const SCROLL_CASES: Case[] = [
+  ...CASES,
+  { id: 'temperature-many', hash: '/infra/temperature', mock: 'temperature-many', ready: 'infra-temperature', panelScrolls: true },
+  { id: 'schedules', hash: '/devices/schedules', mock: 'demo', ready: 'devices-schedules [data-schedule]' },
+  { id: 'automations', hash: '/devices/automations', mock: 'demo', ready: 'devices-automations automation-row' },
+  { id: 'tickets-overview', hash: '/tickets/overview', mock: 'overview', ready: 'tickets-overview [data-widget="payments"]' },
+  { id: 'cal-approvals', hash: '/calendars/approvals', mock: 'demo', ready: 'calendars-page [data-cal-body]' },
+  { id: 'cal-manage', hash: '/calendars/manage', mock: 'demo', ready: 'calendars-page [data-cal-body]' },
+  { id: 'cal-rooms', hash: '/calendars/rooms?date=2026-10-29', mock: 'demo', ready: 'calendars-page [data-cal-body]' },
+];
 test.describe('the long lists set to scroll: the page still never scrolls (PAGING-SETTING-2439)', () => {
   for (const vp of VIEWPORTS) {
-    for (const c of CASES) {
+    for (const c of SCROLL_CASES) {
       test(`${c.id} at ${vp.name}, long lists scroll: no page scroll`, async ({ page }, info) => {
         test.skip(info.project.name !== 'desktop', 'the viewports are set by the test itself');
         test.setTimeout(120_000);
@@ -165,6 +183,7 @@ test.describe('the long lists set to scroll: the page still never scrolls (PAGIN
         if (process.env.NOSCROLL_LOG) console.log(`${c.id} ${vp.name} scroll: doc ${o.doc} main ${o.main} wrap ${o.wrap} screen ${o.screen} panel ${o.panel} ${o.panelTag} (${o.tag})`);
         if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `${c.id}-long-lists-scroll-${vp.name}.png`) });
         expect(pageOver(o), `page overflow of ${c.id} at ${vp.name} with the long lists scrolling (doc ${o.doc}, main ${o.main}, wrap ${o.wrap}, ${o.tag} ${o.screen})`).toBeLessThanOrEqual(1);
+        if (c.panelScrolls) expect(o.panel, `${c.id} at ${vp.name}: the list panel scrolls inside the screen`).toBeGreaterThan(8);
       });
     }
   }
