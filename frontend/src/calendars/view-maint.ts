@@ -7,6 +7,7 @@ import type { Occurrence, OverlapMode } from '../api/calendars';
 import { CAL_EVENTS, emit, type CalCtx } from './ctx';
 import { calCss } from './styles';
 import { addDays, colorVar, OVERLAP_SHORT, pageOf, rowsThatFit, startOfDay, whenText } from './model';
+import { LongListsController, perPageFor } from '../api/long-lists';
 
 /** One maintenance window (its occurrences on the maintenance calendar and on every room it holds, merged). */
 interface Win { o: Occurrence; rooms: string[] }
@@ -23,6 +24,8 @@ const WIN_STATE: Record<string, [string, string]> = {
 @customElement('cal-view-maint')
 export class CalViewMaint extends LitElement {
   static styles = [calCss, css`
+    /* PAGING-SETTING-2439: the long lists scroll - the list box scrolls inside itself (the page never does) */
+    :host([data-long-lists='scroll']) .list { overflow-y: auto !important; overscroll-behavior: contain; }
     :host { display: flex; min-block-size: 0; }
     .panel { flex: 1; }
     .list { flex: 1; min-block-size: 0; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
@@ -44,6 +47,9 @@ export class CalViewMaint extends LitElement {
   @state() private error = '';
   @state() private seg: 'next' | 'past' = 'next';
   @state() private page = 1;
+  /** PAGING-SETTING-2439 (owner round 32, Q-SYS-5): the long lists scroll (הגדרות › כללי) -> every item on one page, the list box scrolls
+   * inside itself (api/long-lists.ts). */
+  private lists = new LongListsController(this, () => (this.page = 1));
   @state() private listH = 0;
   @state() private overlap: OverlapMode = 'first_holds';
   private ro: ResizeObserver | null = null;
@@ -103,7 +109,7 @@ export class CalViewMaint extends LitElement {
     const now = this.ctx.now.toISOString();
     const list = this.seg === 'next' ? this.wins.filter((w) => w.o.end >= now) : this.wins.filter((w) => w.o.end < now).reverse();
     const rowH = this.ctx.device === 'phone' ? 104 : 64;
-    const pg = pageOf(list, this.page, this.listH ? rowsThatFit(this.listH + 6, rowH) : 5);
+    const pg = pageOf(list, this.page, perPageFor(this.lists.paged, this.listH ? rowsThatFit(this.listH + 6, rowH) : 5, list.length));
     const can = this.ctx.access.can.maintenance;
     return html`<section class="panel" data-maint-list>
       <div class="ph">

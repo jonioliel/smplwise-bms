@@ -11,6 +11,7 @@ import {
 } from './model';
 import { calCss } from './styles';
 import './view-calendar';
+import { LongListsController, perPageFor } from '../api/long-lists';
 
 const EQUIP: Record<Equipment, string> = { screen: 'מסך', projector: 'מקרן', video_call: 'שיחת וידאו', whiteboard: 'לוח', kitchen: 'מטבח', accessible: 'נגישות' };
 const DURATIONS: [number, string][] = [[30, '30 דק׳'], [60, 'שעה'], [120, 'שעתיים'], [180, '3 שעות']];
@@ -30,6 +31,9 @@ interface Alt { calendar_id: string; start: Date; end: Date; note: string }
 @customElement('cal-resident')
 export class CalResident extends LitElement {
   static styles = [calCss, css`
+    /* PAGING-SETTING-2439: the long lists scroll - the list box scrolls inside itself (the page never does) */
+    :host([data-long-lists='scroll']) .list { overflow-y: auto !important; overscroll-behavior: contain; }
+    :host([data-long-lists='scroll']) .slots { overflow-y: auto !important; overscroll-behavior: contain; }
     :host { display: flex; flex-direction: column; min-block-size: 0; gap: 10px; overflow: hidden; }
     h1 { margin: 0; font-size: var(--sw-fs-3xl); font-weight: var(--sw-fw-bold); color: var(--sw-heading); line-height: 1.15; }
     .tabs { display: flex; gap: 2px; padding: 4px; border-radius: var(--sw-r-pill); background: var(--sw-surface-3); }
@@ -161,6 +165,9 @@ export class CalResident extends LitElement {
   @state() private alts: Alt[] | null = null;
   @state() private altPick = 0;
   @state() private page = 1;
+  /** PAGING-SETTING-2439 (owner round 32, Q-SYS-5): the long lists scroll (הגדרות › כללי) -> every item on one page, the list box scrolls
+   * inside itself (api/long-lists.ts). */
+  private lists = new LongListsController(this, () => (this.page = 1));
   @state() private per = 4;
   @state() private tlFrom = 8;
   private ro: ResizeObserver | null = null;
@@ -292,7 +299,7 @@ export class CalResident extends LitElement {
     const room = this.roomId ? this.roomList().find((x) => x.r.calendar_id === this.roomId) : undefined;
     if (room) return this.slotView(room.r, room.cal);
     const list = this.roomList();
-    const p = pageOf(list, this.page, this.per);
+    const p = pageOf(list, this.page, perPageFor(this.lists.paged, this.per, list.length));
     return html`<section class="panel" data-res-view="rooms">
       ${this.dayStrip()}
       <div class="tools"><span class="hc"><sw-icon name="users" size="16"></sw-icon>
@@ -358,7 +365,7 @@ export class CalResident extends LitElement {
   private gridView(r: RoomDay) {
     const display = this.ui.resident_pending_display;
     const all = this.slots(r);
-    const p = pageOf(all, this.page, this.per);
+    const p = pageOf(all, this.page, perPageFor(this.lists.paged, this.per, all.length));
     const sel = this.start;
     const end = sel ? sel.getTime() + this.duration * 60000 : 0;
     if (!all.length) return html`<div class="center"><sw-state-panel icon="clock" state="empty" compact data-res-state="noslots" heading="אין שעות פנויות ביום הזה" hint="אפשר לבחור יום אחר או משך קצר יותר."></sw-state-panel></div>`;
@@ -423,7 +430,7 @@ export class CalResident extends LitElement {
   private mineView() {
     if (!this.mine) return this.stateView();
     const list = this.mine;
-    const p = pageOf(list, this.page, this.per);
+    const p = pageOf(list, this.page, perPageFor(this.lists.paged, this.per, list.length));
     return html`<section class="panel" data-res-view="mine">
       ${this.done ? html`<div class="done" role="status" data-res-done><sw-icon name="check" size="18"></sw-icon><div><b>${this.done}</b><span class="muted">תקבל הודעה כשיוחלט</span></div></div>` : nothing}
       <div class="seg" style="align-self:center;flex:none" role="radiogroup" aria-label="הזמנות"><button type="button" role="radio" aria-pressed=${String(!this.past)} aria-checked=${String(!this.past)} data-res-upcoming
