@@ -121,7 +121,9 @@ Fix (`6bab829cc`):
 - Design ratchet: main 2.43.6 itself counts colour literals 2512 and px literals 25911 (PLAN3D-R28-UI, released before the ratchet
   reached main); this branch before the merge counted 2510 / 25763. The merged tree has exactly main's counts, so the wave-2
   branches add nothing. The baseline was raised to 2512 / 25911 with `--update --allow-raise` (only those two lines; native-dialog
-  stays 3). The lead / owner should confirm this raise; it adds no debt beyond what 2.43.6 already shipped.
+  stays 3). Lead decision 14.11.2026 (answer a): kept. Reason: this is a sync of the baseline to the state of main at the moment the
+  guard lands (PLAN3D-R28-UI shipped in 2.43.6 before the ratchet existed on main), not new debt. From the moment the guard is on
+  main, any raise of the baseline needs the owner's approval.
 
 ## Follow-ups (lead decision 14.11.2026, answer b)
 
