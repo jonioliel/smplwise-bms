@@ -30,7 +30,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
 from ..config import Settings
-from . import signing
+from . import secret_files, signing
 
 ALG = signing.ALG
 CONTEXT = b"smplwise-fleet-report/1\n"
@@ -58,14 +58,9 @@ def _ensure_dir(settings: Settings) -> Path:
 
 
 def _write_atomic(path: Path, text: str) -> None:
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    try:
-        os.write(fd, text.encode("utf-8"))
-        os.fsync(fd)
-    finally:
-        os.close(fd)
-    os.replace(tmp, path)
+    """CR-SECRET-FILES-2438 (04:F09): services/secret_files.write_private - a fresh temporary name opened with O_EXCL (it was a
+    fixed `.tmp` opened with O_TRUNC, reused by a second writer and left behind by a failed one), flushed, renamed into place."""
+    secret_files.write_private(path, text.encode("utf-8"))
 
 
 def _read_state(settings: Settings) -> dict[str, Any]:
@@ -109,7 +104,7 @@ def _new_key(settings: Settings, st: dict[str, Any]) -> ed25519.Ed25519PrivateKe
     priv = ed25519.Ed25519PrivateKey.generate()
     pub_raw = priv.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
     kid = signing.kid_of(pub_raw)
-    signing._write_private(d / f"{kid}.key", priv.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
+    secret_files.write_private(d / f"{kid}.key", priv.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
     st["kid"], st["public_key"] = kid, _b64(pub_raw)
     return priv
 

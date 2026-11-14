@@ -21,8 +21,6 @@ from __future__ import annotations
 import datetime as dt
 import json
 import logging
-import os
-import secrets
 import sqlite3
 import threading
 from dataclasses import replace
@@ -30,6 +28,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable
 
 from . import messaging_accounts as ma
+from . import secret_files
 from .tickets.channel import CONNECTED, AccountRef, keyed_hash
 
 log = logging.getLogger("smplwise.messaging")
@@ -217,30 +216,9 @@ def key_path(data_dir: Path) -> Path:
 def messaging_key(data_dir: Path, *, create: bool = True) -> bytes | None:
     """`k_messaging` (7.3A): 32 random bytes in <data>/secrets/messaging_key (mode 600, never in the database, never in a project
     backup, never in an answer) - keys the ledger's recipients so another module can use the ledger without the tickets key."""
-    p = key_path(data_dir)
-    with _key_lock:
-        if p.exists():
-            raw = p.read_bytes()
-            if len(raw) != 32:
-                raise RuntimeError("messaging key file is damaged")
-            return raw
-        if not create:
-            return None
-        p.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            os.chmod(p.parent, 0o700)
-        except OSError:
-            pass
-        key = secrets.token_bytes(32)
-        tmp = p.with_name(f".{KEY_NAME}.{secrets.token_hex(4)}.tmp")
-        fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
-        try:
-            os.write(fd, key)
-            os.fsync(fd)
-        finally:
-            os.close(fd)
-        os.replace(tmp, p)
-        return key
+    # CR-SECRET-FILES-2438: written by services/secret_files (temporary file, flushed, linked into place)
+    return secret_files.load_or_create_key(key_path(data_dir), _key_lock, 32, create=create,
+                                           damaged=lambda: RuntimeError("messaging key file is damaged"))
 
 
 def recipient_key(key: bytes, digits: str) -> str:

@@ -44,10 +44,8 @@ import ipaddress
 import itertools
 import json
 import logging
-import os
 import queue
 import re
-import secrets as _secrets
 import smtplib
 import socket
 import ssl
@@ -61,6 +59,7 @@ from typing import Any, Callable
 
 from . import brand_assets, notify
 from . import notify_settings as nsettings
+from . import secret_files
 from . import white_label
 from .notify_channels import Channel, Dispatch, Target, record_outcome, register
 from .notify_policy import BY_KEY, SEVERITY_LABEL_HE
@@ -278,21 +277,9 @@ def _valid_link_base(v: Any) -> str:
 
 
 def write_password(data_dir: Path, password: str) -> None:
-    """Write the password (file 0600 in a 0700 directory) through a temporary file renamed into place."""
-    p = nsettings.secret_path(data_dir)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        os.chmod(p.parent, 0o700)
-    except OSError:
-        pass
-    tmp = p.with_name(f".{nsettings.SECRET_NAME}.{_secrets.token_hex(4)}.tmp")
-    fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
-    try:
-        os.write(fd, password.encode("utf-8"))
-        os.fsync(fd)
-    finally:
-        os.close(fd)
-    os.replace(tmp, p)
+    """Write the password (file 0600 in a 0700 directory) through a temporary file renamed into place
+    (CR-SECRET-FILES-2438: services/secret_files.write_private)."""
+    secret_files.write_private(nsettings.secret_path(data_dir), password.encode("utf-8"))
 
 
 def clear_password(data_dir: Path) -> None:
