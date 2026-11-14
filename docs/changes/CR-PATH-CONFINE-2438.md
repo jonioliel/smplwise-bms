@@ -59,7 +59,7 @@ case item), the restored camera id, the trailing newline in a bundle file name. 
 After the fix: **8 passed, 1 skipped** (`test_the_backup_routes_refuse_a_name_with_a_trailing_newline` needs a POSIX file name with
 a newline; it runs on the runner).
 
-Local focused run of the existing suites (workstation, `-p no:xdist`, venv Python 3.12): see below.
+Local focused run of the existing suites: see the last section.
 
 ## NOT_RUN
 
@@ -68,3 +68,19 @@ Local focused run of the existing suites (workstation, `-p no:xdist`, venv Pytho
   `plan_assets.storage_path`; they are outside this plan row's file list and are covered by the restore-time column rule. Moving them
   onto `column_file` is a one-line follow-up each.
 - No UI change, no pixels.
+
+## Local focused run (actually run)
+
+Workstation venv Python 3.12, `-p no:xdist -o addopts=""`, CPU shared with other agents:
+
+- `test_backend_safety_2435.py test_backup.py test_restore_safety.py test_backup_offbox.py test_bundle_import.py test_plans.py
+  test_plan_versions.py test_stylize.py test_floor_images.py test_plan_bakes.py test_plan_skins.py test_skincam.py`:
+  **136 passed, 1 failed** (20 min). The failure is BACKEND-SAFETY's own timing test
+  `test_the_notification_monitor_shuts_down_at_once` ("shutdown took 0.23 s", limit 0.2 s) under the saturated CPU; this branch
+  does not touch `notify_sources`. Rerun of `test_backend_safety_2435.py` alone: **10 passed**.
+- `test_tickets_public_app.py test_tickets_public_server.py test_tickets_s4_wiring.py test_tickets_rfq_files.py
+  test_security_review_246_poc.py test_energy_billing_api.py test_energy_integration.py`: **317 passed, 1 skipped** (25 min).
+- `test_maintenance_215b.py test_tickets_attachments.py test_tickets_image_intake.py`: ran first in a combined run that later died
+  with a Windows "access violation" inside the interpreter (tempfile thread, workstation under load); every test of these three
+  files had passed before the crash (no failure marks). The rest of that run is the 317 above.
+- `test_path_confine_2438.py`: 8 passed, 1 skipped.
