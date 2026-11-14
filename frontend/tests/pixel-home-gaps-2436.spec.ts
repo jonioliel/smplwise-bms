@@ -9,6 +9,13 @@ import { mockGaps, type GapOpts } from './home-v3-gaps-mocks';
 // the Linux ones are generated on the runner with `--update-snapshots`; on an OS without a baseline the check is skipped, not failed.
 //   private/runner/run_smart.py preview <branch> tests/pixel-home-gaps-2436.spec.ts --project=desktop --project=mobile -u --workers=1
 
+// HOME-V3-AUDITFIX-2437: grayscale text antialiasing, always. The "bold Hebrew raster flip" (49-352 px) is Chromium switching between
+// grayscale and subpixel (LCD, coloured fringes) text antialiasing from run to run: the gate's failing dark shot was LCD against a
+// grayscale baseline, and the committed baselines held both kinds. Chromium uses LCD text only in an opaque, non-animating layer, so
+// the choice follows the compositing state at the moment of the shot (likely the screen-entry animation `.hs-main.enter > *`, kept
+// until the next render). With LCD text off every run draws the same glyph pixels.
+test.use({ launchOptions: { args: ['--disable-lcd-text'] } });
+
 const NOW = new Date('2026-11-03T10:00:00+02:00');
 const home = (page: Page) => page.locator('sw-home');
 

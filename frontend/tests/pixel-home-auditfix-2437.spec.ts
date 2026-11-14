@@ -9,6 +9,10 @@ import { mockGaps, type GapOpts } from './home-v3-gaps-mocks';
 // it. Linux baselines are generated on the runner with --update-snapshots; on an OS without a baseline the check is skipped, not failed.
 //   private/runner/run_smart.py preview <branch> tests/pixel-home-auditfix-2437.spec.ts --project=desktop --project=mobile -u --workers=1
 
+// grayscale text antialiasing on every run (LCD text flipped on and off with the screen-entry animation's layers; see
+// pixel-home-gaps-2436.spec.ts)
+test.use({ launchOptions: { args: ['--disable-lcd-text'] } });
+
 const NOW = new Date('2026-11-03T10:00:00+02:00');
 const home = (page: Page) => page.locator('sw-home');
 
