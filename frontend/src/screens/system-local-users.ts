@@ -13,6 +13,7 @@ import { fmtWhen, type RoleInfo, type ScopeRef } from '../api/access';
 import { lit, type LocalIdentityKey } from '../i18n/local-identity';
 import { adminRemovePasskey, adminSetPasskeyOnly, userPasskeys, type PasskeyView } from '../api/passkeys';
 import { po } from '../i18n/passkey-only';
+import { confirmDialog } from '../components/confirm-dialog';
 
 /** USR2: one Arx-only identity as GET /identity/local-users lists it (never a hash, never a link). */
 export interface LocalUser {
@@ -404,8 +405,8 @@ export class SystemLocalUsers extends LitElement {
     });
   }
 
-  private removeUser(u: LocalUser) {
-    if (!window.confirm(lit('removeConfirm', { name: u.display_name }))) return;
+  private async removeUser(u: LocalUser) {
+    if (!(await confirmDialog({ body: lit('removeConfirm', { name: u.display_name }), danger: true }))) return;
     void this.run(async () => {
       await del(`/identity/local-users/${encodeURIComponent(u.id)}`);
       this.selected = null;
@@ -430,8 +431,8 @@ export class SystemLocalUsers extends LitElement {
     }
   }
 
-  private removePasskey(u: LocalUser, id: string) {
-    if (!window.confirm(lit('passkeyAdminRemoveConfirm'))) return;
+  private async removePasskey(u: LocalUser, id: string) {
+    if (!(await confirmDialog({ body: lit('passkeyAdminRemoveConfirm'), danger: true }))) return;
     void this.run(async () => {
       try {
         await adminRemovePasskey(u.id, id, this.pkStepUp ? this.pkCode.trim() : undefined);
@@ -453,8 +454,8 @@ export class SystemLocalUsers extends LitElement {
     });
   }
 
-  private passkeyOnly(u: LocalUser, on: boolean) {
-    if (!window.confirm(po(on ? 'onlyConfirmOn' : 'onlyConfirmOff'))) return;
+  private async passkeyOnly(u: LocalUser, on: boolean) {
+    if (!(await confirmDialog({ body: po(on ? 'onlyConfirmOn' : 'onlyConfirmOff'), danger: on }))) return;
     void this.run(async () => {
       await adminSetPasskeyOnly(u.id, on);
       await this.load();

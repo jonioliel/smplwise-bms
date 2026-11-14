@@ -60,6 +60,7 @@ import { ARRAY_MAX, BIND_DISTANCE_M, CIRCUIT_COLORS, addArray, addCircuit, addCi
 import { ANCHOR_3D_DEFAULTS, anchor3dKind } from '../map/anchor-3d';
 import { COLL_LABEL, CONNECTOR_LABEL, circuitPlacingHint, connectorDerived, countLabel, fmtMetres, fmtScale, renderArrayDialog, renderCalibPanel, renderCircuitPanel, renderConnectorPanel, renderCustomItemDialog, renderGroupDeleteDialog, renderGroupInspector, renderLevelChips, renderLevelDialog, renderDetectPanel, renderLibraryPanel, renderMeasurePanel, renderObjectInspector, renderConnectorSelection, renderMultiSelection, renderGridOptions, renderShortcutsDialog, renderStudioPanel, renderTwinDeleteDialog, renderLinkConfirmDialog, connectorTargetName, renderTagPicker, renderTagsField, MULTI_HINT, SAVE_LABEL, studioPanelStyles, lighterStrength, type ArrayDialogView, type CustomItemView, type DetectAcceptError, type DetectOpts, type DetectReplaceAsk, type DetectRunState, type GeomKind, type GeomSel, type LevelDialogView, type StudioMode } from './plan-studio-panel';
 import { dayTimeText } from '../api/day-format';
+import { confirmDialog } from '../components/confirm-dialog';
 
 type Strength = 'light' | 'medium' | 'strong';
 /** A zone save or delete that has not answered by then counts as failed (review of T085, R4): the bulk actions it holds
@@ -1329,8 +1330,8 @@ export class ExplorePlanEditor extends LitElement {
     // ends every share and its members and deletes the room (all or nothing)
     const home = z.shared?.role === 'home';
     const names = (z.shared?.floors ?? []).map((f) => bidi(f.name)).join(', ');
-    if (!window.confirm(home ? `למחוק את "${z.name}"?
-החדר משותף עם ${names}. המחיקה תבטל את השיתוף, תסיר את חברי החלל ותמחק את האזור. המצלמות והישויות לא נמחקות.` : `למחוק את "${z.name}"? המצלמות והישויות בקומה לא מושפעות.`)) return;
+    if (!(await confirmDialog({ body: home ? `למחוק את "${z.name}"?
+החדר משותף עם ${names}. המחיקה תבטל את השיתוף, תסיר את חברי החלל ותמחק את האזור. המצלמות והישויות לא נמחקות.` : `למחוק את "${z.name}"? המצלמות והישויות בקומה לא מושפעות.`, danger: true }))) return;
     this.zoneBusy = true;
     this.error = '';
     try {
@@ -1361,7 +1362,7 @@ export class ExplorePlanEditor extends LitElement {
   private async unshare(z: SpatialZone, floorId: string) {
     const name = z.shared?.role === 'mirror' ? z.shared.home_floor_name : z.shared?.floors?.find((f) => f.floor_id === floorId)?.name ?? '';
     // review L7: an un-share restores nothing the conversion removed (the duplicate content of the other floor)
-    if (!window.confirm(`לבטל את השיתוף של "${z.name}"? התוכן של החדר יישאר רק ב${z.shared?.role === 'mirror' ? name : 'קומה הזו'}${z.shared?.role === 'mirror' ? ' ולא יוצג כאן' : ` ולא יוצג ב${name}`}, והמצלמות וההתקנים שלו יפסיקו להיות משותפים. מה שהוסר בזמן השיתוף (התוכן הכפול) לא יחזור.`)) return;
+    if (!(await confirmDialog({ body: `לבטל את השיתוף של "${z.name}"? התוכן של החדר יישאר רק ב${z.shared?.role === 'mirror' ? name : 'קומה הזו'}${z.shared?.role === 'mirror' ? ' ולא יוצג כאן' : ` ולא יוצג ב${name}`}, והמצלמות וההתקנים שלו יפסיקו להיות משותפים. מה שהוסר בזמן השיתוף (התוכן הכפול) לא יחזור.`, danger: true }))) return;
     this.zoneBusy = true;
     this.error = '';
     try {
@@ -1857,7 +1858,7 @@ export class ExplorePlanEditor extends LitElement {
       this.info = 'נתוני הדגמה: הסרה עובדת מול השרת.';
       return;
     }
-    if (!window.confirm(`להסיר את "${this.anchorName(a)}" מהמפה? המקור עצמו לא נמחק.`)) return;
+    if (!(await confirmDialog({ body: `להסיר את "${this.anchorName(a)}" מהמפה? המקור עצמו לא נמחק.`, danger: true }))) return;
     this.busy = true;
     this.error = '';
     try {
@@ -3611,7 +3612,7 @@ export class ExplorePlanEditor extends LitElement {
     const others = items.length - zs.length;
     const zonesText = zs.length === 1 ? `את "${zs[0].name}"` : `${zs.length} אזורים`;
     const ask = others ? `למחוק ${zonesText} יחד עם ${countLabel(others, 'הפריט האחר שנבחר', 'הפריטים האחרים שנבחרו')}?` : `למחוק ${zonesText}?`;
-    if (zs.length && !demo && !window.confirm(`${ask} מחיקת אזור אינה ניתנת לביטול; המצלמות והישויות בקומה לא מושפעות.`)) return;
+    if (zs.length && !demo && !(await confirmDialog({ body: `${ask} מחיקת אזור אינה ניתנת לביטול; המצלמות והישויות בקומה לא מושפעות.`, danger: true }))) return;
     const ids = items.filter((i) => i.kind !== 'zone').map((i) => i.id);
     if (ids.length) this.edit((d) => removeItems(d, ids));
     this.setSelection([]);
@@ -5105,7 +5106,7 @@ export class ExplorePlanEditor extends LitElement {
   private async rollbackStructure(row: GeometryVersionRow) {
     const b = this.bundle;
     if (!b?.planVersionId || !row.id) return;
-    if (!window.confirm(`לשחזר את המבנה שפורסם ב-${fmtWhen(row.published_at)}? המבנה הנוכחי נשמר בהיסטוריה.`)) return;
+    if (!(await confirmDialog({ body: `לשחזר את המבנה שפורסם ב-${fmtWhen(row.published_at)}? המבנה הנוכחי נשמר בהיסטוריה.` }))) return;
     this.busy = true;
     this.error = '';
     try {
@@ -5161,7 +5162,7 @@ export class ExplorePlanEditor extends LitElement {
 
   private async removeImage(variant: FloorImageVariant) {
     const b = this.bundle;
-    if (!b || !window.confirm(variant === 'off' ? 'להסיר את תמונת הקומה?' : 'להסיר את תמונת התאורה?')) return;
+    if (!b || !(await confirmDialog({ body: variant === 'off' ? 'להסיר את תמונת הקומה?' : 'להסיר את תמונת התאורה?', danger: true }))) return;
     this.imageBusy = true;
     try {
       await deleteFloorImage(b.floorId, variant);

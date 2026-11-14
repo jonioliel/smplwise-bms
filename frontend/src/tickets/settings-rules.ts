@@ -17,6 +17,7 @@ import {
   type DryRunAnswer, type RuleDraft, type RuleField, type RuleProblem, type RulesDoc, type TicketRule, type TicketRuleView,
 } from './rules-model';
 import { rlt, type RulesTextKey } from './rules-text';
+import { confirmDialog } from '../components/confirm-dialog';
 
 const PROBLEM_TEXT: Record<RuleProblem, RulesTextKey> = {
   required: 'err_required', too_long: 'err_too_long', placeholder: 'err_placeholder', range: 'err_range', integer: 'err_integer',
@@ -264,7 +265,7 @@ export class TicketsRulesSettings extends LitElement {
   }
 
   private async removeRule(r: TicketRuleView): Promise<void> {
-    if (!window.confirm(rlt('confirmRemove', { name: r.name }))) return;
+    if (!(await confirmDialog({ body: rlt('confirmRemove', { name: r.name }), danger: true }))) return;
     if (await this.saveDoc(this.current().filter((x) => x.id !== r.id), { ok: 'removed' }) && this.editing === r.id) this.close();
   }
 
