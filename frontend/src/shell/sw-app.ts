@@ -2770,6 +2770,7 @@ export class SwApp extends LitElement {
   /** Full-screen gate for identity problems; `null` (not lit's `nothing`, which is truthy) when the app may render. */
   private renderGate() {
     const s = this.session;
+    if (s.retrying) return html`<div class="gate">${this.renderRetry()}</div>`;
     if (s.mode === 'unauthenticated') {
       return html`<div class="gate"><sw-state-panel state="forbidden" heading="נדרשת כניסה למערכת" hint=${s.error ?? ''}></sw-state-panel></div>`;
     }
@@ -2784,6 +2785,13 @@ export class SwApp extends LitElement {
       return html`<div class="gate" data-presence-gate><sw-state-panel state="forbidden" heading="נדרש להפעיל שיתוף נתונים" hint="כדי להשתמש במערכת ${gate.channel === 'app' ? 'מהאפליקציה' : ''} יש להפעיל באפליקציה: ${missing}. לאחר ההפעלה טענו את המסך מחדש."></sw-state-panel></div>${this.renderPermToast()}`;
     }
     return null;
+  }
+
+  /** SESSION-DEMO-WS-2435: /me failed while a backend is there (a 502 while the add-on restarts) - the existing offline state, no demo
+   * data and nothing granted; session.ts asks again with back-off, the button asks now. */
+  private renderRetry() {
+    return html`<sw-state-panel state="stale" data-session-retry heading="אין חיבור לשרת" hint=${`${this.session.error ? `${this.session.error} · ` : ''}מנסה להתחבר שוב…`}
+      actionLabel="נסה עכשיו" @action=${() => void loadSession()}></sw-state-panel>`;
   }
 
   private renderPermToast() {
@@ -3531,9 +3539,9 @@ export class SwApp extends LitElement {
     // 2.29.0: the red fire-alarm bar sits over every screen (the wall display, the kiosk and the embed included); it draws nothing unless the option `fire_ui` is on and an alarm is reported
     const bar = html`<sw-fire-bar .home=${this.route?.mode === 'devices'}></sw-fire-bar>`;
     if (this.wallMode()) return html`${bar}<sw-wall></sw-wall>`;
-    if (this.route?.segments[0] === 'kiosk') return html`${bar}<main style="block-size:100dvh">${this.renderScreen()}</main>`;
+    if (this.route?.segments[0] === 'kiosk') return html`${bar}<main style="block-size:100dvh">${this.session.retrying ? this.renderRetry() : this.renderScreen()}</main>`;
     if (this.route?.segments[0] === 'home' && this.session.mode !== 'loading') return this.renderHome(bar);
-    if (this.embedded()) return html`${bar}<main class="embed" style="block-size:100dvh;overflow:auto">${this.renderScreen()}</main>`;
+    if (this.embedded()) return html`${bar}<main class="embed" style="block-size:100dvh;overflow:auto">${this.session.retrying ? this.renderRetry() : this.renderScreen()}</main>`;
     return html`${bar}<sw-incoming-call></sw-incoming-call>${this.renderA()}`;
   }
 }
