@@ -1,6 +1,7 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
+import '../components/sw-dialog';
 import { describeError } from '../api/client';
 import { getTicketDraft, openTicket, type TicketDraft } from '../api/temperature';
 import { tempCss } from './styles';
@@ -26,39 +27,26 @@ export class TempTicket extends LitElement {
   @state() private busy = false;
 
   static styles = [tempCss, css`
-    :host { position: fixed; inset: 0; z-index: calc(var(--sw-z-modal) + 1); display: grid; place-items: center; padding: 16px; box-sizing: border-box; }
-    .ovl { position: absolute; inset: 0; background: var(--sw-overlay); }
-    .dlg {
-      position: relative; inline-size: min(560px, 100%); max-block-size: calc(100dvh - 32px); overflow: auto; background: var(--sw-bg); border-radius: var(--sw-r-2xl);
-      box-shadow: var(--sw-shadow-3); padding: 18px 20px; display: grid; gap: 12px; align-content: start; box-sizing: border-box;
-    }
-    h2 { margin: 0; font-size: var(--sw-fs-xl); }
+    /* DIALOG-DRAWER-ONE-2439 (owner round 33, Q-DES-8A): the system's one dialog (sw-dialog: the scrim, the opaque centred box, the title
+       and the close button on top, the actions on the bottom, focus trap, Escape, focus return, the phone's bottom sheet). */
+    :host { display: contents; }
+    .form { display: grid; gap: 12px; align-content: start; }
     .field { display: grid; gap: 6px; }
     label.l { font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); }
     .in { min-block-size: var(--sw-ctl-h-md); border-radius: var(--sw-r-md); border: 1px solid var(--sw-border); background: var(--sw-surface); color: var(--sw-text); padding: 0 12px; font: inherit; box-sizing: border-box; inline-size: 100%; }
     textarea.in { padding: 10px 12px; min-block-size: 150px; resize: vertical; line-height: 1.5; }
     .sw { display: inline-flex; gap: 8px; align-items: center; font-size: var(--sw-fs-sm); }
     .sw input { inline-size: 18px; block-size: 18px; accent-color: var(--sw-accent); }
-    .bar { display: flex; gap: 8px; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
+    .bar { display: flex; gap: 8px; justify-content: flex-end; align-items: center; flex-wrap: wrap; flex: 1; min-inline-size: 0; }
     .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
-    @media (max-width: 600px) {
-      :host { padding: 0; }
-      .dlg { inline-size: 100%; max-block-size: 100dvh; block-size: 100dvh; border-radius: 0; }
-    }
   `];
-
-  private onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') this.close();
-  };
 
   connectedCallback() {
     super.connectedCallback();
-    window.addEventListener('keydown', this.onKey);
     void this.load();
   }
 
   disconnectedCallback() {
-    window.removeEventListener('keydown', this.onKey);
     super.disconnectedCallback();
   }
 
@@ -96,9 +84,8 @@ export class TempTicket extends LitElement {
 
   render() {
     const d = this.draft;
-    return html`<div class="ovl" @click=${() => this.close()}></div>
-      <div class="dlg" role="dialog" aria-modal="true" aria-labelledby="tk-title" data-temp-ticket>
-        <h2 id="tk-title">${tt('ticketTitle')}</h2>
+    return html`<sw-dialog open wide heading=${tt('ticketTitle')} @close=${(e: Event) => { e.stopPropagation(); this.close(); }}>
+      <div class="form" data-temp-ticket>
         ${!d ? (this.err ? html`<p class="err" role="alert">${this.err}</p>` : html`<div class="skl" style="block-size:200px"></div>`)
           : !d.departments.length ? html`<p class="hint" data-ticket-nodept>${tt('ticketNoDept')}</p>`
           : html`<div class="field"><label class="l" for="tk-dept">${tt('ticketDept')}</label>
@@ -110,11 +97,12 @@ export class TempTicket extends LitElement {
             <div class="field"><label class="l" for="tk-desc">${tt('ticketDesc')}</label><textarea id="tk-desc" class="in" maxlength="4000" .value=${this.desc}
               @input=${(e: Event) => { this.desc = (e.target as HTMLTextAreaElement).value; }} data-ticket-desc></textarea></div>
             <label class="sw"><input type="checkbox" .checked=${this.chart} @change=${(e: Event) => { this.chart = (e.target as HTMLInputElement).checked; }} data-ticket-chart />${tt('ticketChart')}</label>`}
-        <div class="bar">${this.err && d ? html`<span class="err" role="alert">${this.err}</span>` : nothing}
+      </div>
+        <div slot="footer" class="bar">${this.err && d ? html`<span class="err" role="alert">${this.err}</span>` : nothing}
           <button type="button" class="btn ghost" @click=${() => this.close()}>${tt('cancel')}</button>
           ${d?.departments.length ? html`<button type="button" class="btn pri" ?disabled=${this.busy || !this.dept || !this.subject.trim()} data-ticket-open @click=${() => this.submit()}>
             <sw-icon name="ticket" size="16"></sw-icon>${tt('ticketOpen')}</button>` : nothing}</div>
-      </div>`;
+      </sw-dialog>`;
   }
 }
 

@@ -537,18 +537,20 @@ export class InfraTemperature extends LitElement {
         ${aff.doneButton ? html`<sw-button icon="check" data-temp-edit-done @click=${() => { this.editing = false; }}>${tt('editDone')}</sw-button>` : nothing}
       </div>`;
     const page = (body: unknown) => html`<sw-page heading=${tt('title')} subheading=${sub} data-infra-page="temperature">${actions}${body}</sw-page>`;
-    const overlays = html`
-      ${this.openId && list.some((u) => u.id === this.openId)
-        ? html`<temp-detail .unit=${list.find((u) => u.id === this.openId)!} .units=${list} .canAck=${this.data.can_ack} .canManage=${this.access.manage} .explain=${this.data.explain !== false} .stale=${stale}
-            @close=${() => this.closeDetail()} @open-unit=${(e: CustomEvent<string>) => { this.openId = e.detail; }}
-            @edit=${() => { this.wizard = this.openId; }} @report=${(e: CustomEvent<string>) => { this.report = [e.detail]; }} @changed=${(e: CustomEvent<string>) => { this.flash(e.detail); void this.load(); }}></temp-detail>`
-        : nothing}
-      ${this.wizard !== null
+    // DIALOG-DRAWER-ONE-2439: the detail is a modal drawer (everything outside it is inert), so the dialogs opened while it is open - the edit
+    // wizard, the report, the WhatsApp sheet - are its children (slotted into the drawer); with no detail open they sit on the page.
+    const dialogs = html`${this.wizard !== null
         ? html`<temp-wizard .unitId=${this.wizard || null} @close=${() => { this.wizard = null; }}
             @saved=${(e: CustomEvent<string>) => { this.wizard = null; this.flash(e.detail); void this.load(); }}
             @removed=${(e: CustomEvent<string>) => { this.wizard = null; this.openId = null; this.flash(e.detail); void this.load(); }}></temp-wizard>`
         : nothing}
-      ${this.reportOverlays()}
+      ${this.reportOverlays()}`;
+    const overlays = html`
+      ${this.openId && list.some((u) => u.id === this.openId)
+        ? html`<temp-detail .unit=${list.find((u) => u.id === this.openId)!} .units=${list} .canAck=${this.data.can_ack} .canManage=${this.access.manage} .explain=${this.data.explain !== false} .stale=${stale}
+            @close=${() => this.closeDetail()} @open-unit=${(e: CustomEvent<string>) => { this.openId = e.detail; }}
+            @edit=${() => { this.wizard = this.openId; }} @report=${(e: CustomEvent<string>) => { this.report = [e.detail]; }} @changed=${(e: CustomEvent<string>) => { this.flash(e.detail); void this.load(); }}>${dialogs}</temp-detail>`
+        : dialogs}
       ${this.toast ? html`<div class="toast" role="status" aria-live="polite">${this.toast}</div>` : nothing}`;
     if (!list.length) {
       return page(html`
