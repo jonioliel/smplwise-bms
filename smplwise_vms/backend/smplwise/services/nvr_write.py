@@ -22,6 +22,7 @@ from ..db import is_busy, new_id, now_iso, unlocked
 from ..errors import ApiError
 from ..recorder_scope import PRIMARY, camera_settings, settings_for
 from .nvr import _client, _get
+from . import device_http
 
 CENTER_BLOCK = "<EventTriggerNotification><id>center</id><notificationMethod>center</notificationMethod></EventTriggerNotification>"
 SMART_TYPES = ("linedetection", "fielddetection", "regionEntrance", "regionExiting")
@@ -58,28 +59,23 @@ def _normalize(xml: str) -> str:
 
 
 def response_status(xml: str) -> tuple[int | None, str | None]:
-    code = re.search(r"<statusCode>(\d+)</statusCode>", xml)
-    sub = re.search(r"<subStatusCode>(.*?)</subStatusCode>", xml)
-    return (int(code.group(1)) if code else None), (sub.group(1) if sub else None)
+    """`(statusCode, subStatusCode)` of an ISAPI answer body (None when absent): the write path's view of the shared reader
+    (services/device_http.py)."""
+    rs = device_http.read_response_status(xml)
+    return rs.code, rs.sub
 
 
 # ---------------------------------------------------------------- transport
 
 def _probe(client: httpx.Client, path: str) -> tuple[int, str]:
-    try:
-        r = client.get(path)
-        if r.status_code == 401:  # a stale digest nonce under parallel requests: one retry answers the fresh challenge
-            r = client.get(path)
-    except httpx.HTTPError as exc:
-        raise ApiError(503, "source_unavailable", "ה־NVR אינו זמין כרגע.", retryable=True, details={"path": path, "error": type(exc).__name__}) from exc
+    r = device_http.request(client, "GET", path)
+    if r.status_code == 401:  # a stale digest nonce under parallel requests: one retry answers the fresh challenge
+        r = device_http.request(client, "GET", path)
     return r.status_code, r.text
 
 
 def _put(client: httpx.Client, path: str, xml: str) -> str:
-    try:
-        r = client.put(path, content=xml.encode("utf-8"), headers={"Content-Type": "application/xml"})
-    except httpx.HTTPError as exc:
-        raise ApiError(503, "source_unavailable", "ה־NVR אינו זמין כרגע.", retryable=True, details={"path": path, "error": type(exc).__name__}) from exc
+    r = device_http.request(client, "PUT", path, content=xml.encode("utf-8"), headers={"Content-Type": "application/xml"})
     code, sub = response_status(r.text)
     if r.status_code in (401, 403):
         if sub == "notSupport":
