@@ -7,6 +7,7 @@
  */
 import { tn, type TicketLang } from './naming';
 import { ticketsLang } from './text';
+import { registerCatalogue } from '../i18n/core';
 
 const he = {
   tab: '{tickets}',
@@ -123,3 +124,5 @@ export function dt(key: DeviceTextKey, vars?: Record<string, string | number>): 
 
 export const DEVICE_TEXT_KEYS = Object.keys(he) as DeviceTextKey[];
 export const DEVICE_TEXT_EN_KEYS = Object.keys(en) as DeviceTextKey[];
+
+registerCatalogue('tickets/device-text', { he, en });

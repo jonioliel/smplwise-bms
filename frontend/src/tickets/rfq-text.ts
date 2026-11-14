@@ -10,6 +10,7 @@
  */
 import { tn, type TicketLang } from './naming';
 import { ticketsLang } from './text';
+import { registerCatalogue } from '../i18n/core';
 
 const he = {
   // the page and the navigation
@@ -1335,3 +1336,5 @@ export function hasRfqText(key: string): key is RfqTextKey {
 export const RFQ_TEXT_KEYS = Object.keys(he) as RfqTextKey[];
 export const RFQ_TEXT_EN_KEYS = Object.keys(en) as RfqTextKey[];
 export const RFQ_TEXT_HE: Readonly<Record<RfqTextKey, string>> = he;
+
+registerCatalogue('tickets/rfq-text', { he, en });

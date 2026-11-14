@@ -9,6 +9,7 @@
  */
 import { tn, type TicketLang } from './naming';
 import { ticketsLang } from './text';
+import { registerCatalogue } from '../i18n/core';
 
 const he = {
   // ---- the two sub-tabs (IA §4.2): the toggle group, its captions, the badges
@@ -186,3 +187,5 @@ export function cvt(key: ConvTextKey, vars?: Record<string, string | number>): s
 
 export const CONV_TEXT_KEYS = Object.keys(he) as ConvTextKey[];
 export const CONV_TEXT_EN_KEYS = Object.keys(en) as ConvTextKey[];
+
+registerCatalogue('tickets/conversation-text', { he, en });

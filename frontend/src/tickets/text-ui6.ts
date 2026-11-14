@@ -3,6 +3,8 @@
  * tickets/text.ts (`...UI6_HE`, `...UI6_EN`) and read through `tt()` like every text of the module. Never the words of a "call" in Hebrew
  * (the unit spec reads this file), and no product name of the infrastructure in the UI.
  */
+import { registerCatalogue } from '../i18n/core';
+
 export const UI6_HE = {
   u6SearchPh: 'חיפוש לפי שם, טלפון או תחום',
   u6AddHandler: 'מטפל',
@@ -130,3 +132,5 @@ export const UI6_EN: Partial<Record<keyof typeof UI6_HE, string>> = {
   u6Dr_full: 'Full screen',
   u6Dr_half: 'Half sheet',
 };
+
+registerCatalogue('tickets/text-ui6', { he: UI6_HE, en: UI6_EN });

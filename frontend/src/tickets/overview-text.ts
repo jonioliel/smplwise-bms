@@ -6,6 +6,7 @@
  */
 import { tn, type TicketLang } from './naming';
 import { ticketsLang } from './text';
+import { registerCatalogue } from '../i18n/core';
 
 const he = {
   tab: 'סקירה',
@@ -444,3 +445,5 @@ export function ot(key: OverviewTextKey, vars?: Record<string, string | number>)
 
 export const OVERVIEW_TEXT_KEYS = Object.keys(he) as OverviewTextKey[];
 export const OVERVIEW_TEXT_EN_KEYS = Object.keys(en) as OverviewTextKey[];
+
+registerCatalogue('tickets/overview-text', { he, en });

@@ -4,6 +4,7 @@
  * review (the settings screens are he / en only today, so they fall back to English).
  */
 import { ticketsLang } from './text';
+import { registerCatalogue } from '../i18n/core';
 
 const he = {
   qReminder: 'תזכורת על שאלת ספק שלא נענתה',
@@ -37,3 +38,5 @@ const en: Record<keyof typeof he, string> = {
 export function qst(key: keyof typeof he): string {
   return ticketsLang() === 'en' ? en[key] : he[key];
 }
+
+registerCatalogue('tickets/rfq-settings-text', { he, en });

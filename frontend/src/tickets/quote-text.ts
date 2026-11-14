@@ -8,6 +8,7 @@
  */
 import { tn, type TicketLang } from './naming';
 import { ticketsLang } from './text';
+import { registerCatalogue } from '../i18n/core';
 
 const he = {
   // the tab's header: the stage chip (contract 4.3 flow.stage) and the read-only stepper
@@ -345,3 +346,5 @@ export function qt(key: QuoteTextKey, vars?: Record<string, string | number>): s
 
 export const QUOTE_TEXT_KEYS = Object.keys(he) as QuoteTextKey[];
 export const QUOTE_TEXT_EN_KEYS = Object.keys(en) as QuoteTextKey[];
+
+registerCatalogue('tickets/quote-text', { he, en });

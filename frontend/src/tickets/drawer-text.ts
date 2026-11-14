@@ -10,6 +10,7 @@
  */
 import { tn, type TicketLang } from './naming';
 import { ticketsLang } from './text';
+import { registerCatalogue } from '../i18n/core';
 
 const he = {
   // ---- the status block (IA §3.2): the sentence per state, manager view; {name} = the handler, {when} = a relative time
@@ -248,6 +249,7 @@ const en: Partial<Record<DrawerTextKey, string>> = {
   eta_today: 'today {time}',
   eta_tomorrow: 'tomorrow {time}',
   handlerWord: 'The handler',
+  you: 'you',
   w_send_failed: 'The message was not sent · send again',
   w_link_expired: 'The link expired · send a new link',
   w_code_locked: 'Code locked · send a new link',
@@ -393,3 +395,5 @@ export function dwt(key: DrawerTextKey, vars?: Record<string, string | number>):
 
 export const DRAWER_TEXT_KEYS = Object.keys(he) as DrawerTextKey[];
 export const DRAWER_TEXT_EN_KEYS = Object.keys(en) as DrawerTextKey[];
+
+registerCatalogue('tickets/drawer-text', { he, en });

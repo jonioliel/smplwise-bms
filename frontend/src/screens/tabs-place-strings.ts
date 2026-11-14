@@ -1,4 +1,5 @@
 import type { DdPlace } from '../shell/tabs-mode';
+import { registerCatalogue } from '../i18n/core';
 
 /**
  * 2026-10-17: the strings of the header dropdown placement card (הגדרות › כללי › לשוניות). Screen-local on purpose: the settings screen
@@ -38,3 +39,5 @@ export function placeStrings(): (typeof STR)['he'] {
   }
   return lang.toLowerCase().startsWith('en') ? STR.en : STR.he;
 }
+
+registerCatalogue('screens/tabs-place-strings', { he: STR.he, en: STR.en });

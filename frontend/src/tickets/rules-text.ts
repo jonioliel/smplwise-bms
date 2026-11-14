@@ -4,6 +4,7 @@
  */
 import { hasNameTokens, tn } from './naming';
 import { ticketsLang } from './text';
+import { registerCatalogue } from '../i18n/core';
 
 const he = {
   tab: 'פתיחה אוטומטית',
@@ -167,3 +168,5 @@ export function rlt(key: RulesTextKey, vars?: Record<string, string | number>): 
   const out = vars ? s.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : s;
   return hasNameTokens(out) ? tn(out) : out;
 }
+
+registerCatalogue('tickets/rules-text', { he: RULES_TEXT_HE, en: RULES_TEXT_EN });

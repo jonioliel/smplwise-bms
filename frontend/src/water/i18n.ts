@@ -3,6 +3,8 @@
  * Hebrew first and complete; English complete; a missing key falls back to the Hebrew. `{x}` placeholders are filled by `wt(key, { x })`.
  * Operator screens never name the home platform (section 3 copy rules) and carry no hint paragraphs.
  */
+import { registerCatalogue } from '../i18n/core';
+
 const he = {
   // the shell
   tab: 'מים',
@@ -847,3 +849,5 @@ export function wt(key: Key, vars?: Record<string, string | number>, lang: WtLan
 
 export const WT_KEYS = Object.keys(he) as Key[];
 export const WT_TABLES = TABLES;
+
+registerCatalogue('water/i18n', { he, en });

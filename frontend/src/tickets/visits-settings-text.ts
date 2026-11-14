@@ -3,6 +3,7 @@
  * missed-arrival detector). Hebrew first, English second (the settings screens are he / en today). Only the settings screen imports this.
  */
 import { ticketsLang } from './text';
+import { registerCatalogue } from '../i18n/core';
 
 const he = {
   card: 'ביקורי ספקים והגעה לאתר',
@@ -51,3 +52,5 @@ export type VsKey = keyof typeof he;
 export function vst(key: VsKey): string {
   return ticketsLang() === 'en' ? en[key] : he[key];
 }
+
+registerCatalogue('tickets/visits-settings-text', { he, en });

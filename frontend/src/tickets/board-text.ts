@@ -7,6 +7,7 @@
  */
 import { tn, type TicketLang } from './naming';
 import { ticketsLang } from './text';
+import { registerCatalogue } from '../i18n/core';
 
 const he = {
   tabBoard: 'לוח מנהל',
@@ -218,3 +219,5 @@ export function bt(key: BoardTextKey, vars?: Record<string, string | number>): s
 
 export const BOARD_TEXT_KEYS = Object.keys(he) as BoardTextKey[];
 export const BOARD_TEXT_EN_KEYS = Object.keys(en) as BoardTextKey[];
+
+registerCatalogue('tickets/board-text', { he, en });

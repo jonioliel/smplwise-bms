@@ -7,6 +7,8 @@
  * now "בקשת שירות"): no text here writes a noun with the definite prefix before the token (it would read "ה" + a two-word name) -
  * the sentences are built so the name stands alone or is not needed.
  */
+import { registerCatalogue } from '../i18n/core';
+
 export const S4_HE = {
   // settings tab
   setTabContacts: 'ספקים ואנשי קשר',
@@ -557,3 +559,5 @@ export const S4_EN: Partial<Record<keyof typeof S4_HE, string>> = {
   permLoadFailed: 'The permissions cannot be shown',
   permRetry: 'Try again',
 };
+
+registerCatalogue('tickets/text-s4', { he: S4_HE, en: S4_EN });

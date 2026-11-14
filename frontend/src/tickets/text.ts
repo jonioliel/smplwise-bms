@@ -14,6 +14,7 @@ import { UI6_EN, UI6_HE } from './text-ui6';
 import { OTP_EN, OTP_HE } from './text-otp';
 import { DM_EN, DM_HE } from './text-deptmgr';
 import { NR_EN, NR_HE } from './text-needsreview';
+import { registerCatalogue } from '../i18n/core';
 
 const he = {
   // the area, the navigation, the settings index
@@ -640,7 +641,7 @@ const en: Partial<Record<TicketTextKey, string>> = {
   depAdd: 'New department',
   depName: 'Name',
   depKey: 'Key',
-  depKeySub: 'Lower-case latin letters, digits and hyphens',
+  depKeySub: 'Lower-case Latin letters, digits and hyphens',
   depActive: 'Active',
   depInactive: 'Inactive',
   depOpenToAll: 'Open to everyone',
@@ -825,3 +826,5 @@ export function ticketsSectionLabel(section: 'requests' | 'maintenance' | 'vendo
 /** Every key of the Hebrew catalogue (the completeness test compares the English column with it). */
 export const TICKET_TEXT_KEYS = Object.keys(he) as TicketTextKey[];
 export const TICKET_TEXT_EN_KEYS = Object.keys(en) as TicketTextKey[];
+
+registerCatalogue('tickets/text', { he, en });

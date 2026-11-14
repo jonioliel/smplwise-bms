@@ -4,6 +4,7 @@
  */
 import { hasNameTokens, tn } from './naming';
 import { ticketsLang } from './text';
+import { registerCatalogue } from '../i18n/core';
 
 const he = {
   tab: 'מיקומים',
@@ -138,3 +139,5 @@ export function lt(key: LocTextKey, vars?: Record<string, string | number>): str
   const out = vars ? s.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : s;
   return hasNameTokens(out) ? tn(out) : out; // D33: the module's name through the naming tokens (integ/264)
 }
+
+registerCatalogue('tickets/org-locations-text', { he: LOC_TEXT_HE, en: LOC_TEXT_EN });

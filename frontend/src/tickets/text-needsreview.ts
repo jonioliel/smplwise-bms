@@ -3,6 +3,8 @@
  * delete" / "delete now" confirmations and its two threshold settings. Merged into tickets/text.ts (`...NR_HE`, `...NR_EN`) and read
  * through `tt()`. Short (clean operator screens), no internal codes, the infrastructure never named, the door system called "מערכת הכניסה".
  */
+import { registerCatalogue } from '../i18n/core';
+
 export const NR_HE = {
   hdSeg_review: 'דורש בחינה',
   nrPendingTitle: 'ממתינים לאישור מעל {n} ימים',
@@ -131,3 +133,5 @@ export const NR_RU_DEV: Record<keyof typeof NR_HE, string> = {
   nrSave: 'Сохранить',
   nrSaved: 'Сохранено',
 };
+
+registerCatalogue('tickets/text-needsreview', { he: NR_HE, en: NR_EN });

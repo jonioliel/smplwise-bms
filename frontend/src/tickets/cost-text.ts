@@ -8,6 +8,7 @@
  */
 import { tn, type TicketLang } from './naming';
 import { ticketsLang } from './text';
+import { registerCatalogue } from '../i18n/core';
 
 const he = {
   // the card
@@ -470,3 +471,5 @@ export function ct(key: CostTextKey, vars?: Record<string, string | number>): st
 
 export const COST_TEXT_KEYS = Object.keys(he) as CostTextKey[];
 export const COST_TEXT_EN_KEYS = Object.keys(en) as CostTextKey[];
+
+registerCatalogue('tickets/cost-text', { he, en });

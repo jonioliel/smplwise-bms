@@ -10,6 +10,7 @@
  */
 import { tn, type TicketLang } from './naming';
 import { ticketsLang } from './text';
+import { registerCatalogue } from '../i18n/core';
 
 const he = {
   // ---- the page frame
@@ -180,3 +181,5 @@ export function lt(key: ListTextKey, vars?: Record<string, string | number>): st
 
 export const LIST_TEXT_KEYS = Object.keys(he) as ListTextKey[];
 export const LIST_TEXT_EN_KEYS = Object.keys(en) as ListTextKey[];
+
+registerCatalogue('tickets/list-text', { he, en });

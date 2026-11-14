@@ -7,6 +7,7 @@
  */
 import { tn, type TicketLang } from './naming';
 import { ticketsLang } from './text';
+import { registerCatalogue } from '../i18n/core';
 
 const he = {
   // the view switch (D24: cards / table / kanban, remembered per user)
@@ -310,3 +311,5 @@ export function tbt(key: TableTextKey, vars?: Record<string, string | number>): 
 
 export const TABLE_TEXT_KEYS = Object.keys(he) as TableTextKey[];
 export const TABLE_TEXT_EN_KEYS = Object.keys(en) as TableTextKey[];
+
+registerCatalogue('tickets/table-text', { he, en });

@@ -7,6 +7,7 @@
  */
 import { tn, type TicketLang } from './naming';
 import { ticketsLang } from './text';
+import { registerCatalogue } from '../i18n/core';
 
 const he = {
   // the ticket's delivery block (D14) and its actions (D29)
@@ -305,3 +306,5 @@ export function mtt(key: MessageTextKey, vars?: Record<string, string | number>)
   const named = tn(raw, lang as TicketLang);
   return vars ? named.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m)) : named;
 }
+
+registerCatalogue('tickets/messages-text', { he, en });
