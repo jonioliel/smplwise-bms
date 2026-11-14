@@ -21,8 +21,8 @@ Rules (CR sections 2-5):
   malformed read refuses the write. The decision is committed first; the WisKey call runs with no write lock held; its outcome is
   recorded afterwards (`pending` / `applied` / `unverified` / `failed`). `applied` needs a fresh read-back that proves the effect;
   a block also needs the central sync status to show no pending revocation.
-- OFF: the switch `access.station_permissions` (default `off`) cannot be turned on in this build - the owner's separate go-live permit
-  is `access_grants.GO_LIVE_PERMITTED` (False), which the live engine also checks. Tests drive everything with fakes only.
+- OFF by default: the switch `access.station_permissions` (default `off`); the owner's separate go-live permit is
+  `access_grants.GO_LIVE_PERMITTED`, which the live engine also checks (True since 2026-10-21, kept as the owner's kill switch, owner decision O9 a of 14.11.2026). Tests drive everything with fakes only.
 
 Audit (ids only): `access.station_permission.{allow,block,inherit,request,approve,refuse,push}` on the station, details
 {person, effect, state, code}. Never a relay map, a name, a phone, a PIN or a card.

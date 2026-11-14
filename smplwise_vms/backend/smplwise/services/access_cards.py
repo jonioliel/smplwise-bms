@@ -15,7 +15,7 @@ is a code constant (False) and the capture route answers 409 `access_grant_card_
 
 Who may hold a card grant: a technician of a vendor (a directory person with `vendor_id`) - the "regular vendor" of the backlog item;
 a lone visitor gets a PIN or nothing. The cards switch (`access.external.cards`, default off) is on only with the feature switch, and
-neither can be turned on without the owner's go-live permit (`access_grants.GO_LIVE_PERMITTED`, False in this build).
+neither can be turned on without the owner's go-live permit (`access_grants.GO_LIVE_PERMITTED`: True since 2026-10-21, kept as the owner's kill switch, owner decision O9 a of 14.11.2026).
 
 At the end (R1-R10) the worker removes every card of the person Arx created (`Worker._remove_cards`) and counts the revocation done
 only on a fresh readback that shows no card (`card_unverified` otherwise) - WisKey's revoke-all keeps cards.

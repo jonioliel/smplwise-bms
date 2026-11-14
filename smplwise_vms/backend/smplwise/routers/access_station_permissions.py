@@ -1,8 +1,8 @@
 """STATIONPERM-295 (docs/changes/CR-STATION-PERMISSIONS-295.md): the API of a person's access per access-control station.
 
 Authority is decided in services/access_station_permissions.py (rbac.authorize over the station chain, deny-overrides); refusals are
-audited there. Every route answers 404 `station_permissions_off` while the switch is off, and the switch cannot be turned on in this
-build (access_grants.GO_LIVE_PERMITTED is False).
+audited there. Every route answers 404 `station_permissions_off` while the switch is off (the default). Turning it on is refused only
+while the owner's go-live permit access_grants.GO_LIVE_PERMITTED is False - True since 2026-10-21 (ECCACT-295), kept as the owner's kill switch, owner decision O9 a of 14.11.2026.
 
 - GET  /access-station-permissions/settings                                   system administrator
 - PUT  /access-station-permissions/settings                                   system administrator; `on` refused without the go-live permit
@@ -73,7 +73,7 @@ def put_settings(body: SettingsIn, request: Request, principal: Principal = Depe
         if body.station_permissions == "on" and not sp.ag.go_live_permitted():
             audit(conn, actor=principal, action="settings.changed", decision="denied", resource_type="installation", resource_id="*", request_id=_rid(request),
                   reason="station_permissions_not_permitted", details={"key": sp.FLAG_KEY, "requested": "on"})
-            raise ApiError(409, "station_permissions_not_permitted", "הפעלת הרשאות לפי עמדה דורשת אישור הפעלה נפרד מבעל המערכת, וגרסה זו אינה כוללת אותו.")
+            raise ApiError(409, "station_permissions_not_permitted", "הפעלת הרשאות לפי עמדה דורשת אישור הפעלה נפרד מבעל המערכת, והאישור הזה אינו פעיל כעת.")
         before = sp.settings_view(conn)["station_permissions"]
         set_setting(conn, sp.FLAG_KEY, body.station_permissions)
         audit(conn, actor=principal, action="settings.changed", decision="allowed", resource_type="installation", resource_id="*", request_id=_rid(request),

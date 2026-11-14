@@ -29,6 +29,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+# O9 a (owner decision 14.11.2026): True, and kept as the owner's kill switch - setting it to False stops the feature in code.
 GO_LIVE_PERMITTED = True  # ECCACT-295: owner decision 2026-10-21 (option A); the switch door_windows.enabled stays OFF and no rule exists until an administrator acts
 # DWFIX-295: False keeps the window factory on the tier-D PreparedEngine and the emergency switch off. WISKEY-OWNER26-297: the program engine
 # is now wired to the Native hold-open programs (WiskeyProgramEngine below), but turning this True is an activation decision of the owner.

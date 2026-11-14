@@ -42,10 +42,11 @@ from . import bridge_rotation_peer as peers
 
 log = logging.getLogger("smplwise.bridge_rotation")
 
-# The owner's SEPARATE go-live permit, enforced in code (the capture-lease pattern): while False the switch cannot be set to `on`
+# The owner's SEPARATE go-live permit, enforced in code (the capture-lease pattern): when False the switch cannot be set to `on`
 # and no rotation starts. Flipped by the activation slice (HMACACT-295): the owner's explicit decision 2026-10-21 (option A, "complete the
 # rotation end to end and activate it"), after the Fable security review (docs/security/FABLE_REVIEW_REPORT_2026-10-21.md section 4), in
 # the SAME commit that wired the key set into ha_bridge.sign/verify - never in a release of its own.
+# O9 a (owner decision 14.11.2026): True, and kept as the owner's kill switch - setting it to False stops the feature in code.
 GO_LIVE_PERMITTED = True
 
 FLAG_KEY = "bridge.key_rotation"

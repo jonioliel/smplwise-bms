@@ -7,7 +7,8 @@ Rules
 - A closed list: exactly the four `wiskey_acr5.FLAGS` settings, values `off | on`. Any other key is refused (`unknown_switch`), a key
   that names a go-live permit (`go_live`, `permit`) is refused by name (`permit_not_writable`): a go-live permit is a build constant
   that only the owner's reviewed commit changes, never a setting, so no request can flip one here.
-- `on` is refused while the build carries no go-live permit for the consumer (`wiskey_acr5.GO_LIVE_PERMITTED`): 409 `wiskey_not_permitted`.
+- `on` is refused while the consumer's go-live permit (`wiskey_acr5.GO_LIVE_PERMITTED`: True since 2026-10-21, the owner's kill switch,
+  O9 a) is False: 409 `wiskey_not_permitted`.
 - All or nothing: every key and value is checked before the first write.
 - Every switch still defaults OFF (a key never written reads `off`); this module never writes on its own.
 - Out of scope on purpose: `wiskey.peer_receipt` and `wiskey.peer_pin` (the peer seam is not wired - test-enforced - and the pin is

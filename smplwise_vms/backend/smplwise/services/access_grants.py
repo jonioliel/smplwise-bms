@@ -15,9 +15,9 @@ Owner answers of 2026-10-17 (binding, numbered as the CR's section 11):
 11 the code message names the doors, the dates and the hours;
 12 one live grant per person; a widening needs a new approval, a narrowing (or the same scope) merges at once.
 
-Everything is OFF: the switch `access.external_grants` (default `off`) cannot be turned on in this build - the owner's separate
-go-live permit is the code constant GO_LIVE_PERMITTED (False), checked by the settings route, by the live WisKey engine
-(services/access_grant_engine.py) and by the live WhatsApp transport. Tests drive the whole flow with fakes only.
+OFF by default: the switch `access.external_grants` (default `off`). The owner's separate go-live permit is the code constant
+GO_LIVE_PERMITTED, checked by the settings route, by the live WisKey engine (services/access_grant_engine.py) and by the live WhatsApp
+transport. It has been True since 2026-10-21 (ECCACT-295) and is kept as the owner's kill switch, owner decision O9 a of 14.11.2026. Tests drive the whole flow with fakes only.
 
 How it is built:
 - Every state change of a grant is a database transition written in ONE transaction; nothing here talks to WisKey or WhatsApp
@@ -73,9 +73,10 @@ log = logging.getLogger("smplwise.access_grants")
 
 # ---------------------------------------------------------------- constants and settings
 
-# The owner's SEPARATE go-live permit, enforced in code (the capture-lease pattern): while False the switch cannot be turned on,
+# The owner's SEPARATE go-live permit, enforced in code (the capture-lease pattern): when False the switch cannot be turned on,
 # the live WisKey engine refuses every call and the live WhatsApp transport sends nothing. Flipped only by the commit that carries
 # the owner's written go-live permit - never by a setting, an environment variable or a version.
+# O9 a (owner decision 14.11.2026): True, and kept as the owner's kill switch - setting it to False stops the feature in code.
 GO_LIVE_PERMITTED = True  # ECCACT-295: owner decision 2026-10-21 (option A) removed the historical block; the switch access.external_grants stays OFF until an administrator turns it on
 
 PERMISSION = "access.external.grant"

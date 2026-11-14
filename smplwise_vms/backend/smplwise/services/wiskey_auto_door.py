@@ -19,8 +19,8 @@ incomplete policy, a pre-flight refusal), `refused` for a closed host refusal, `
 `acknowledged`, `unknown` for everything else (no answer, a running operation at the deadline, an off-contract receipt). One request id is
 admitted once (`wiskey_feature_intents`): never retried, never replayed.
 
-Nothing here turns the feature on: `door_automation.GO_LIVE_PERMITTED` stays False, so `_switch_reason` refuses (`feature_off`) before
-any sender is called in this build. Tests reach this sender with the permit patched on and a fake direct port only."""
+Nothing here turns the feature on: `_switch_reason` refuses (`feature_off`) before any sender is called while the administrator
+switch `doors.automation_open` is off (the default) or `door_automation.GO_LIVE_PERMITTED` (True; the owner's kill switch, O9 a) is False. Tests reach this sender with the permit patched on and a fake direct port only."""
 from __future__ import annotations
 
 import hashlib

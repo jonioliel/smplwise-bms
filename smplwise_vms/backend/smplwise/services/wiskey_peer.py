@@ -41,6 +41,7 @@ from typing import Any
 
 from ..db import get_setting
 
+# O9 a (owner decision 14.11.2026): True, and kept as the owner's kill switch - setting it to False stops the feature in code.
 GO_LIVE_PERMITTED = True  # ECCACT-295: owner decision 2026-10-21 (option A); wiskey.peer_receipt still defaults OFF and signed_capture_covered() stays False
 SIGNED_CAPTURE_COVERED = False  # stays False until both halves exist and are reviewed
 WISKEY_HALF_REVIEWED = False  # WisKey's verifier/transport seam + shared receipt: not delivered / not reviewed by Arx

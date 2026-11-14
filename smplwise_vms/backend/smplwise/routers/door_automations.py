@@ -13,7 +13,8 @@
 - GET    /door-automations/{id}/fires         the block's recent decisions
 - PUT    /door-automations/kill               {on, confirmed}: ON for any holder, OFF for a system administrator
 - PUT    /door-automations/settings           {feature?, limits?, excluded_roles?, confirmed}: system administrator; feature `on`
-                                              refused while GO_LIVE_PERMITTED is False; every limit is an administrator setting
+                                              refused only while GO_LIVE_PERMITTED is False (True since DOORLIVE-2310, kept as the owner's
+                                              kill switch, O9 a); every limit is an administrator setting
 - PUT    /door-automations/users/{user_id}    {removed, confirmed}: take the right to arm away from one person (or give it back)
 
 Nothing here sends anything to a door: the fire path runs from the automations mirror's `automation_triggered` hook."""

@@ -6,7 +6,7 @@ The bulk service (services/bulk_people.py) talks to WisKey ONLY through this por
 `WiskeyBulkEngine` is the live implementation over the existing S11 seam (services/intercom_client `users/query`, `users/get`,
 `users/create`, `users/update`, `profiles/settings_get` through `intercom_sync.SYNC`; people writes on the config lane: sent once,
 never queued, never retried). WisKey has no bulk command: Arx writes row by row. Every WRITE is refused (`not_permitted`) while the
-owner's separate go-live permit is not in the build (`bulk_people.GO_LIVE_PERMITTED`, a code constant that is False). The reads are
+owner's separate go-live permit (`bulk_people.GO_LIVE_PERMITTED`, a code constant) is False - True since 2026-10-21, kept as the owner's kill switch, owner decision O9 a of 14.11.2026. The reads are
 the same reads the people screens already make. NOT_RUN against any WisKey.
 
 Errors are `access_grant_engine.EngineError` (one closed set of kinds for every engine port): `not_found`, `revision_conflict`,

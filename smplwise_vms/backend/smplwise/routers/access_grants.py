@@ -2,8 +2,9 @@
 
 Every route reads on the request's READ connection (`current_principal_ro`) and the service writes in its own short transactions,
 so no WisKey call ever runs while the write lock is held. Authority is decided in services/access_grants.py (rbac.authorize over the
-access-control station chain, deny-overrides); refusals are audited there. Nothing here can turn the feature on in this build:
-`access.external_grants` = `on` is refused while the owner's go-live permit (access_grants.GO_LIVE_PERMITTED) is not in the code.
+access-control station chain, deny-overrides); refusals are audited there. `access.external_grants` = `on` is refused only while the
+owner's go-live permit (access_grants.GO_LIVE_PERMITTED) is False. It has been True since the owner's decision of 2026-10-21 (ECCACT-295)
+and is kept as the owner's kill switch, owner decision O9 a of 14.11.2026: the switch itself stays off until a system administrator turns it on.
 
 - GET    /access-grants                         live grants the caller may see (names level; delivery state at the sensitive level)
 - GET    /access-grants/{id}
@@ -325,7 +326,7 @@ def put_settings(body: SettingsIn, request: Request, principal: Principal = Depe
             if changes.get(name) == "on" and not ag.go_live_permitted():
                 audit(conn, actor=principal, action="settings.changed", decision="denied", resource_type="installation", resource_id="*", request_id=_rid(request),
                       reason="access_grants_not_permitted", details={"key": key, "requested": "on"})
-                raise ApiError(409, "access_grants_not_permitted", "הפעלת גישה זמנית לאנשים חיצוניים דורשת אישור הפעלה נפרד מבעל המערכת, וגרסה זו אינה כוללת אותו.")
+                raise ApiError(409, "access_grants_not_permitted", "הפעלת גישה זמנית לאנשים חיצוניים דורשת אישור הפעלה נפרד מבעל המערכת, והאישור הזה אינו פעיל כעת.")
         keys = {"external_grants": ag.FLAG_KEY, "max_days": ag.MAX_DAYS_KEY, "max_doors": ag.MAX_DOORS_KEY, "phone_fresh_days": ag.FRESH_KEY,
                 "code_hour": ag.CODE_HOUR_KEY, "local_approvers": ag.LOCAL_KEY, "cards": ag.CARDS_KEY, "denied_alert": "access.external.denied_alert",
                 "pending_retention_days": ag.PENDING_RETENTION_KEY, "pending_max_per_vendor": ag.PENDING_CAP_KEY}
