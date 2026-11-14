@@ -1,5 +1,20 @@
 # Changelog — SmplWise Arx add-on
 
+## 2.43.6 (pilot) - 3D map: one pill per room and the room card; no demo when the server is briefly unavailable
+
+### חדש - New
+- מפת התלת־ממד: תווית אחת לכל חדר (מה פתוח, נוכחות, אורות דולקים, טמפרטורה) במקום תווית לכל מכשיר; המכשירים מוצגים אחד־אחד כשמתקרבים לחדר. לחיצה על התווית פותחת חלון פרטים קטן, וממנו את כרטיס החדר. - 3D map: one pill per room (what is open, presence, lights on, temperature) instead of one per device; devices are shown one by one when you come close to a room. A tap on the pill opens a small detail popover, and from it the room card.
+- מפת התלת־ממד: כרטיס חדר - מצלמה (תמונה מתעדכנת כל 5 שניות, וידאו חי בלחיצה), אורות עם "כבה הכול", אקלים, דלתות, חלונות ותריסים. בשולחן העבודה ובטאבלט הכרטיס נפתח בפאנל צד והחדר עובר למרכז; בטלפון כגיליון תחתון. דלתות, שערים והאזעקה מבקשים אישור לפני פעולה; בלי הרשאה מוצג "אין הרשאה". - 3D map: the room card - camera (a still refreshed every 5 seconds, live video on a tap), lights with "turn all off", climate, doors, windows and shutters. On desktop and tablet it opens in a side panel and the room moves to the centre; on a phone as a bottom sheet. Doors, gates and the alarm ask for confirmation first; without a permission it shows "no permission".
+- מפת התלת־ממד: מתג "בניין / פרוס" ליד בחירת הקומות - "פרוס" מרחיק את הקומות זו מזו עם תווית וסיכום לכל קומה; לחיצה ראשונה מגדילה קומה, לחיצה שנייה נכנסת אליה. - 3D map: a "building / spread" switch beside the level chips - "spread" moves the levels apart with a tag and a summary per level; a first tap enlarges a level, a second tap enters it.
+- הגדרות › מפה › "המפה בתלת־ממד": שמונה הגדרות חדשות לכל הבחירות האלה (תווית לחדר או למכשיר, מה קורה בלחיצה, חדר שקט, מיקום הכרטיס, מה מבקש אישור, המצלמה בכרטיס, רקע התצוגה הפרוסה, בחירת קומה). ברירות המחדל הן המתוארות למעלה. - Settings › Map › "3D map": eight new settings for all of these choices (pill per room or per device, what a tap does, a quiet room, where the card opens, what asks for confirmation, the camera in the card, the spread view backdrop, picking a level). The defaults are the ones described above.
+
+### שופר - Improved
+- כשהשרת לא זמין לרגע (למשל בזמן הפעלה מחדש של התוסף) המסך לא עובר יותר למצב הדגמה עם נתונים מדומים: מוצג "אין חיבור לשרת", "מנסה להתחבר שוב…" וכפתור "נסה עכשיו", וכל הפעולות כבויות עד שהשרת עונה. - When the server is briefly unavailable (for example while the add-on restarts) the screen no longer switches to the demo with made-up data: it shows "no connection to the server", "trying to reconnect…" and a "try now" button, and every action stays off until the server answers.
+- חיבור ההרשאות וההתראות החיות מתחדש לבד אחרי שינה של טלפון או ניתוק שקט, וגם כשחוזרים ללשונית. - The live permissions and notifications connection reconnects by itself after a phone sleep or a silent disconnect, and when you return to the tab.
+
+### התקנה - Install
+- אין מיגרציה חדשה, אין עדכון לגשר ואין צורך בהפעלה מחדש של מערכת הבית. - No new migration, no bridge update and no home-system restart.
+
 ## 2.43.5 (pilot) - Control screens that fit without scrolling; a camera change that never writes to the wrong camera; choosing the video service
 
 ### חדש - New
