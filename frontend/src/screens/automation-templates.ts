@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { automations, automationErrorText, type AutomationTemplate } from '../api/automations';
 import { icon } from './automation-builder-icons';
 import { editorShared } from './automation-editor-css';
+import { tr } from '../i18n/msg/automation';
 
 const TEMPLATE_ICON: Record<string, string> = { motion: 'motion', door: 'door', users: 'users', sunset: 'sunset', drop: 'drop', sun: 'sun', clock: 'clock' };
 
@@ -128,15 +129,15 @@ export class AutomationTemplates extends LitElement {
   }
 
   render() {
-    if (this.phase === 'loading') return html`<div class="state" data-templates-state="loading">טוען…</div>`;
+    if (this.phase === 'loading') return html`<div class="state" data-templates-state="loading">${tr('טוען…')}</div>`;
     if (this.phase === 'error') return html`<div class="state err" data-templates-state="error">${this.error}</div>`;
     return html`<div class="grid" data-templates>
       <button class="tpl blank" type="button" data-template="blank" @click=${() => this.pick(null)}>
-        <span class="tile">${icon('plus')}</span><b>מאפס</b><small>כאשר · אם · אז</small>
+        <span class="tile">${icon('plus')}</span><b>${tr('מאפס')}</b><small>${tr('כאשר · אם · אז')}</small>
       </button>
       ${this.rows.map((t) => html`<button class="tpl" type="button" data-template=${t.id} @click=${() => this.pick(t)}>
         <span class="tile">${icon(TEMPLATE_ICON[t.icon] ?? 'template')}</span><b>${t.name}</b><small>${t.description}</small>
-        ${t.sensitive || t.suggest_schedule ? html`<span class="tags">${t.sensitive ? html`<span class="tag sens">${icon('alarm')}רגיש כברירת מחדל</span>` : nothing}${t.suggest_schedule ? html`<span class="tag acc">${icon('calendar')}גם כתזמון</span>` : nothing}</span>` : nothing}
+        ${t.sensitive || t.suggest_schedule ? html`<span class="tags">${t.sensitive ? html`<span class="tag sens">${icon('alarm')}${tr('רגיש כברירת מחדל')}</span>` : nothing}${t.suggest_schedule ? html`<span class="tag acc">${icon('calendar')}${tr('גם כתזמון')}</span>` : nothing}</span>` : nothing}
       </button>`)}
     </div>`;
   }

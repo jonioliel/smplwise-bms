@@ -6,6 +6,7 @@
 import { DAY_LONG, DAY_ORDER, PRESET_LABEL, emptyDraft, presetConditions, type ConditionPreset, type DayId, type DayToken, type ScheduleDraft } from '../api/schedules';
 import { actionForIntent, motzashDraft, type EntityMeta, type Intent, type IntentSlot } from './schedule-edit-logic';
 import { tokensOf } from './schedule-grid-logic';
+import { tr } from '../i18n/msg/automation';
 
 export type TemplateId = 'weekly' | 'sunset' | 'season' | 'ac' | 'once' | 'shabbat_climate' | 'motzash' | 'blank';
 
@@ -43,26 +44,26 @@ function addDays(d: Date, n: number): Date {
 export const TEMPLATES: ScheduleTemplate[] = [
   {
     id: 'weekly',
-    name: 'שגרה שבועית',
-    description: 'הדלקה בבוקר וכיבוי בערב, ראשון עד חמישי',
+    name: tr('שגרה שבועית'),
+    description: tr('הדלקה בבוקר וכיבוי בערב, ראשון עד חמישי'),
     icon: 'calendar',
-    build: (c) => ({ ...emptyDraft(c.defaultRepeat), name: 'שגרה שבועית', weekdays: SUN_THU, slots: [slot('07:30:00', '19:00:00', { kind: 'on' }), slot('19:00:00', '00:00:00', { kind: 'off' })] }),
+    build: (c) => ({ ...emptyDraft(c.defaultRepeat), name: tr('שגרה שבועית'), weekdays: SUN_THU, slots: [slot('07:30:00', '19:00:00', { kind: 'on' }), slot('19:00:00', '00:00:00', { kind: 'off' })] }),
   },
   {
     id: 'sunset',
-    name: 'תאורה בשקיעה',
-    description: 'נדלקת בשקיעה ונכבית בזריחה, כל יום',
+    name: tr('תאורה בשקיעה'),
+    description: tr('נדלקת בשקיעה ונכבית בזריחה, כל יום'),
     icon: 'light',
-    build: (c) => ({ ...emptyDraft(c.defaultRepeat), name: 'תאורה בשקיעה', slots: [slot('sunrise+00:00:00', 'sunset+00:00:00', { kind: 'off' }), slot('sunset+00:00:00', '00:00:00', { kind: 'on' })] }),
+    build: (c) => ({ ...emptyDraft(c.defaultRepeat), name: tr('תאורה בשקיעה'), slots: [slot('sunrise+00:00:00', 'sunset+00:00:00', { kind: 'off' }), slot('sunset+00:00:00', '00:00:00', { kind: 'on' })] }),
   },
   {
     id: 'season',
-    name: 'תריסים לפי עונה',
-    description: 'סגירה חלקית ביום, פתיחה בערב. עם תקופת תוקף',
+    name: tr('תריסים לפי עונה'),
+    description: tr('סגירה חלקית ביום, פתיחה בערב. עם תקופת תוקף'),
     icon: 'coverOpen',
     build: (c) => ({
       ...emptyDraft(c.defaultRepeat),
-      name: 'תריסים לפי עונה',
+      name: tr('תריסים לפי עונה'),
       weekdays: SUN_THU,
       start_date: isoDate(c.now),
       end_date: isoDate(addDays(c.now, 120)),
@@ -71,49 +72,49 @@ export const TEMPLATES: ScheduleTemplate[] = [
   },
   {
     id: 'ac',
-    name: 'מזגן בשעות משרד',
-    description: 'קירור 23° בבוקר, כיבוי בסוף היום',
+    name: tr('מזגן בשעות משרד'),
+    description: tr('קירור 23° בבוקר, כיבוי בסוף היום'),
     icon: 'activity',
-    build: (c) => ({ ...emptyDraft(c.defaultRepeat), name: 'מזגן בשעות משרד', weekdays: SUN_THU, slots: [slot('07:00:00', '18:00:00', { kind: 'climate', mode: 'cool', temp: 23 }), slot('18:00:00', '00:00:00', { kind: 'off' })] }),
+    build: (c) => ({ ...emptyDraft(c.defaultRepeat), name: tr('מזגן בשעות משרד'), weekdays: SUN_THU, slots: [slot('07:00:00', '18:00:00', { kind: 'climate', mode: 'cool', temp: 23 }), slot('18:00:00', '00:00:00', { kind: 'off' })] }),
   },
   {
     id: 'once',
-    name: 'פעם אחת – מחר',
-    description: 'הפעלה חד־פעמית מחר בבוקר; נמחק בסיום',
+    name: tr('פעם אחת – מחר'),
+    description: tr('הפעלה חד־פעמית מחר בבוקר; נמחק בסיום'),
     icon: 'clock',
     build: (c) => {
       const tomorrow = addDays(c.now, 1);
-      return { ...emptyDraft('single'), name: 'פעם אחת – מחר', weekdays: [DAY_ORDER[tomorrow.getDay()]], start_date: isoDate(tomorrow), end_date: isoDate(tomorrow), slots: [slot('08:00:00', '09:00:00', { kind: 'on' }), slot('09:00:00', null, { kind: 'off' })] };
+      return { ...emptyDraft('single'), name: tr('פעם אחת – מחר'), weekdays: [DAY_ORDER[tomorrow.getDay()]], start_date: isoDate(tomorrow), end_date: isoDate(tomorrow), slots: [slot('08:00:00', '09:00:00', { kind: 'on' }), slot('09:00:00', null, { kind: 'off' })] };
     },
   },
   {
     id: 'shabbat_climate',
-    name: 'שבת: קירור / חימום',
-    description: 'מזגן בשבת ובחג בלבד: קירור בלילה, כיבוי ביום',
+    name: tr('שבת: קירור / חימום'),
+    description: tr('מזגן בשבת ובחג בלבד: קירור בלילה, כיבוי ביום'),
     icon: 'activity',
     needsSensor: true,
     build: (c) => ({
       ...emptyDraft(c.defaultRepeat),
-      name: 'שבת – מזגן',
+      name: tr('שבת – מזגן'),
       conditions: c.sensor ? presetConditions('only_holy_days', c.sensor) : emptyDraft().conditions,
       slots: [slot('00:00:00', '07:00:00', { kind: 'climate', mode: 'cool', temp: 25 }), slot('07:00:00', '21:00:00', { kind: 'off' }), slot('21:00:00', '00:00:00', { kind: 'climate', mode: 'cool', temp: 25 })],
     }),
   },
   {
     id: 'motzash',
-    name: 'מוצאי שבת',
-    description: 'כיבוי או הדלקה בצאת השבת (שקיעה + 40 דקות), רק כשהחג הסתיים',
+    name: tr('מוצאי שבת'),
+    description: tr('כיבוי או הדלקה בצאת השבת (שקיעה + 40 דקות), רק כשהחג הסתיים'),
     icon: 'history',
     needsSensor: true,
     build: (c) => {
       const m = motzashDraft(c.sensor ?? '', 40);
-      return { ...emptyDraft(c.defaultRepeat), name: 'מוצאי שבת', weekdays: m.weekdays, conditions: c.sensor ? m.conditions : emptyDraft().conditions, slots: [slot(m.start, null, { kind: 'off' })] };
+      return { ...emptyDraft(c.defaultRepeat), name: tr('מוצאי שבת'), weekdays: m.weekdays, conditions: c.sensor ? m.conditions : emptyDraft().conditions, slots: [slot(m.start, null, { kind: 'off' })] };
     },
   },
   {
     id: 'blank',
-    name: 'ריק',
-    description: 'להתחיל מדף חלק',
+    name: tr('ריק'),
+    description: tr('להתחיל מדף חלק'),
     icon: 'plus',
     build: (c) => ({ ...emptyDraft(c.defaultRepeat), name: '', weekdays: SUN_THU, slots: [] }),
   },
@@ -130,7 +131,7 @@ export function withPreset(draft: TemplateDraft, preset: ConditionPreset | null,
 }
 
 export const PRESET_CHOICES: { id: ConditionPreset | null; label: string }[] = [
-  { id: null, label: 'ללא תנאי' },
+  { id: null, label: tr('ללא תנאי') },
   { id: 'only_holy_days', label: PRESET_LABEL.only_holy_days },
   { id: 'not_holy_days', label: PRESET_LABEL.not_holy_days },
 ];
@@ -169,18 +170,18 @@ export interface QuickDays {
 }
 
 export const QUICK_TIMES: QuickTime[] = [
-  { id: 'sunset', label: 'שקיעה', raw: 'sunset+00:00:00', sun: true },
-  { id: 'sunrise', label: 'זריחה', raw: 'sunrise+00:00:00', sun: true },
+  { id: 'sunset', label: tr('שקיעה'), raw: 'sunset+00:00:00', sun: true },
+  { id: 'sunrise', label: tr('זריחה'), raw: 'sunrise+00:00:00', sun: true },
   { id: '0700', label: '07:00', raw: '07:00:00', sun: false },
   { id: '1800', label: '18:00', raw: '18:00:00', sun: false },
   { id: '2200', label: '22:00', raw: '22:00:00', sun: false },
 ];
 
 export const QUICK_DAYS: QuickDays[] = [
-  { id: 'daily', label: 'כל יום', days: ['daily'] },
-  { id: 'work', label: 'א׳–ה׳', days: SUN_THU },
-  { id: 'weekend', label: 'סוף שבוע', days: ['fri', 'sat'] },
-  { id: 'once', label: 'פעם אחת – מחר', days: 'tomorrow', once: true },
+  { id: 'daily', label: tr('כל יום'), days: ['daily'] },
+  { id: 'work', label: tr('א׳–ה׳'), days: SUN_THU },
+  { id: 'weekend', label: tr('סוף שבוע'), days: ['fri', 'sat'] },
+  { id: 'once', label: tr('פעם אחת – מחר'), days: 'tomorrow', once: true },
 ];
 
 /** What a device of this kind can be told in three taps (sensitive classes are not offered here). */
@@ -189,31 +190,31 @@ export function quickActions(e: EntityMeta | undefined): QuickAction[] {
   switch (e.domain) {
     case 'light':
       return [
-        { id: 'on', label: 'הדלקה', intent: { kind: 'on' } },
-        { id: 'off', label: 'כיבוי', intent: { kind: 'off' } },
-        { id: 'level50', label: 'בהירות 50%', intent: { kind: 'level', pct: 50 } },
+        { id: 'on', label: tr('הדלקה'), intent: { kind: 'on' } },
+        { id: 'off', label: tr('כיבוי'), intent: { kind: 'off' } },
+        { id: 'level50', label: tr('בהירות 50%'), intent: { kind: 'level', pct: 50 } },
       ];
     case 'switch':
       return [
-        { id: 'on', label: 'הדלקה', intent: { kind: 'on' } },
-        { id: 'off', label: 'כיבוי', intent: { kind: 'off' } },
+        { id: 'on', label: tr('הדלקה'), intent: { kind: 'on' } },
+        { id: 'off', label: tr('כיבוי'), intent: { kind: 'off' } },
       ];
     case 'fan':
       return [
-        { id: 'on', label: 'הפעלה', intent: { kind: 'on' } },
-        { id: 'off', label: 'כיבוי', intent: { kind: 'off' } },
+        { id: 'on', label: tr('הפעלה'), intent: { kind: 'on' } },
+        { id: 'off', label: tr('כיבוי'), intent: { kind: 'off' } },
       ];
     case 'cover':
       return [
-        { id: 'open', label: 'פתיחה', intent: { kind: 'open' } },
-        { id: 'close', label: 'סגירה', intent: { kind: 'close' } },
-        { id: 'pos30', label: 'הנמכה ל־30%', intent: { kind: 'cover_pos', pos: 30 } },
+        { id: 'open', label: tr('פתיחה'), intent: { kind: 'open' } },
+        { id: 'close', label: tr('סגירה'), intent: { kind: 'close' } },
+        { id: 'pos30', label: tr('הנמכה ל־30%'), intent: { kind: 'cover_pos', pos: 30 } },
       ];
     case 'climate':
       return [
-        { id: 'cool23', label: 'קירור 23°', intent: { kind: 'climate', mode: 'cool', temp: 23 } },
-        { id: 'heat22', label: 'חימום 22°', intent: { kind: 'climate', mode: 'heat', temp: 22 } },
-        { id: 'off', label: 'כיבוי', intent: { kind: 'off' } },
+        { id: 'cool23', label: tr('קירור 23°'), intent: { kind: 'climate', mode: 'cool', temp: 23 } },
+        { id: 'heat22', label: tr('חימום 22°'), intent: { kind: 'climate', mode: 'heat', temp: 22 } },
+        { id: 'off', label: tr('כיבוי'), intent: { kind: 'off' } },
       ];
     default:
       return [];
@@ -231,8 +232,8 @@ export const quickReady = (q: QuickChoice) => q.entities.length > 0 && !!q.actio
 
 /** "תאורת חצר: הדלקה · שקיעה · כל יום" while choosing, so the person always reads what will be created. */
 export function quickSentence(q: QuickChoice): string {
-  if (!q.entities.length) return 'בחרו התקנים כדי להתחיל.';
-  const names = q.entities.length > 3 ? `${q.entities.slice(0, 3).map((e) => e.name).join(', ')} ועוד ${q.entities.length - 3}` : q.entities.map((e) => e.name).join(' ו');
+  if (!q.entities.length) return tr('בחרו התקנים כדי להתחיל.');
+  const names = q.entities.length > 3 ? tr('{names} ועוד {n}', { names: q.entities.slice(0, 3).map((e) => e.name).join(', '), n: q.entities.length - 3 }) : q.entities.map((e) => e.name).join(` ${tr('ו')}`);
   return `${names}: ${q.action?.label ?? '…'} · ${q.time?.label ?? '…'} · ${q.days?.label ?? '…'}`;
 }
 
@@ -246,7 +247,7 @@ export function quickDraft(q: QuickChoice, defaultRepeat: ScheduleDraft['repeat'
   const weekdays: DayToken[] = dayChoice.days === 'tomorrow' ? [DAY_ORDER[tomorrow.getDay()]] : dayChoice.days;
   const actions = q.entities.map((e) => actionForIntent(action.intent, e)).filter((a): a is NonNullable<typeof a> => !!a);
   if (!actions.length) return null;
-  const name = `${q.entities.length === 1 ? q.entities[0].name : `${q.entities[0].name} ועוד ${q.entities.length - 1}`}: ${action.label} · ${time.label}`.slice(0, 80);
+  const name = `${q.entities.length === 1 ? q.entities[0].name : tr('{names} ועוד {n}', { names: q.entities[0].name, n: q.entities.length - 1 })}: ${action.label} · ${time.label}`.slice(0, 80);
   const base = emptyDraft(dayChoice.once ? 'single' : defaultRepeat);
   return {
     ...base,

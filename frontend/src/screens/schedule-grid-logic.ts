@@ -23,6 +23,7 @@ import {
   type SunTimes,
 } from '../api/schedules';
 import { DAY_ORDER, resolveDays } from '../api/schedules';
+import { tr } from '../i18n/msg/automation';
 
 export const DAY_MIN = 1440;
 export const SNAP_CHOICES = [5, 15, 30] as const;
@@ -416,10 +417,10 @@ export function parseTimeInput(text: string, opts: { end?: boolean; allowNegativ
 }
 
 export const TIME_INPUT_ERROR: Record<'empty' | 'format' | 'range' | 'negative_sun', string> = {
-  empty: 'נא למלא שעה.',
-  format: 'שעה כמו 07:30, או "שקיעה+30".',
-  range: 'שעה מחוץ לטווח.',
-  negative_sun: 'הקדמה לפני זריחה או שקיעה עדיין אינה נתמכת.',
+  empty: tr('נא למלא שעה.'),
+  format: tr('שעה כמו 07:30, או "שקיעה+30".'),
+  range: tr('שעה מחוץ לטווח.'),
+  negative_sun: tr('הקדמה לפני זריחה או שקיעה עדיין אינה נתמכת.'),
 };
 
 /** The text a time cell shows for editing: "07:30", "שקיעה+00:30", "שקיעה" (offset 0), empty for none. */
@@ -428,7 +429,7 @@ export function timeInputText(raw: string | null, end = false): string {
   const spec = parseTime(raw);
   if (!spec) return raw;
   if (spec.kind === 'fixed') return end && spec.time === '00:00' ? '24:00' : spec.time;
-  const word = spec.event === 'sunrise' ? 'זריחה' : 'שקיעה';
+  const word = spec.event === 'sunrise' ? tr('זריחה') : tr('שקיעה');
   if (!spec.offset_min) return word;
   const a = Math.abs(spec.offset_min);
   return `${word}${spec.offset_min < 0 ? '-' : '+'}${String(Math.floor(a / 60)).padStart(2, '0')}:${String(a % 60).padStart(2, '0')}`;
@@ -478,7 +479,7 @@ export type TableField = 'from' | 'to';
  */
 export function applyTableEdit<S extends DraftSlot>(slots: S[], index: number, field: TableField, text: string, o: OpOptions): { slots: S[]; index: number } | { error: string } {
   const s = slots[index];
-  if (!s) return { error: 'המשבצת לא נמצאה.' };
+  if (!s) return { error: tr('המשבצת לא נמצאה.') };
   let nextSlot: S;
   if (field === 'to' && !text.trim()) {
     nextSlot = { ...s, stop: null };
@@ -494,17 +495,17 @@ export function applyTableEdit<S extends DraftSlot>(slots: S[], index: number, f
     const stopSpec = parseTime(nextSlot.stop)!;
     const stopM = timeMinutes(stopSpec, o.sun);
     const isEnd = nextSlot.stop === '00:00:00';
-    if (!isEnd && stopM <= startM) return { error: 'שעת הסיום חייבת להיות אחרי שעת ההתחלה.' };
+    if (!isEnd && stopM <= startM) return { error: tr('שעת הסיום חייבת להיות אחרי שעת ההתחלה.') };
   }
   if (nextSlot.stop && field === 'from') {
     const startM = timeMinutes(parseTime(nextSlot.start)!, o.sun);
     const stopM = timeMinutes(parseTime(nextSlot.stop)!, o.sun);
-    if (nextSlot.stop !== '00:00:00' && stopM <= startM) return { error: 'שעת ההתחלה חייבת להיות לפני שעת הסיום.' };
+    if (nextSlot.stop !== '00:00:00' && stopM <= startM) return { error: tr('שעת ההתחלה חייבת להיות לפני שעת הסיום.') };
   }
   const spans = spansOf(slots, o.sun);
   for (let k = 0; k < spans.length; k++) {
     const os = spans[k];
-    if (k !== index && os && overlaps(span, os)) return { error: 'המשבצת חופפת למשבצת אחרת.' };
+    if (k !== index && os && overlaps(span, os)) return { error: tr('המשבצת חופפת למשבצת אחרת.') };
   }
   const next = slots.slice();
   next[index] = nextSlot;
@@ -569,14 +570,14 @@ export function slotCategory(slot: DraftSlot, classOf: (entityId: string | null)
 }
 
 export const CATEGORY_LABEL: Record<SlotCategory, string> = {
-  on: 'הדלקה',
-  off: 'כיבוי',
-  level: 'עוצמה',
-  climate: 'מזגן',
-  cover: 'תריס',
-  secure: 'אבטחה',
-  custom: 'אחר',
-  empty: 'ללא פעולה',
+  on: tr('הדלקה'),
+  off: tr('כיבוי'),
+  level: tr('עוצמה'),
+  climate: tr('מזגן'),
+  cover: tr('תריס'),
+  secure: tr('אבטחה'),
+  custom: tr('אחר'),
+  empty: tr('ללא פעולה'),
 };
 
 /** Only the sun's markers a grid draws: null when both are the fallback (still drawn, as an estimate). */

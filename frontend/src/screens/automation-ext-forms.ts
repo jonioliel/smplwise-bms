@@ -6,6 +6,7 @@ import { icon } from './automation-builder-icons';
 import { FORMS, formFor, type FormCtx } from './automation-block-forms';
 import { CONDITION_TYPES, TRIGGER_TYPES, wallDeviceNames, type BlockTypeDef } from './automation-editor-logic';
 import { newUid } from '../api/automations';
+import { tr } from '../i18n/msg/automation';
 
 /**
  * KAV079-295 (mockup r079 states 2 and 6): the new forms of the automation builder, registered the way automation-block-forms.ts documents it - ONE
@@ -26,11 +27,11 @@ import { newUid } from '../api/automations';
 const typed = <T extends object>(b: T): Block => ({ uid: newUid(), kind: 'typed', raw: null, sentence: '', ...b }) as unknown as Block;
 
 export const BUTTON_TYPE: BlockTypeDef = {
-  id: 'button', label: 'כפתור קיר', hint: 'לחיצה על מפסק', icon: 'button', available: (e) => !!e.catalog.extension?.wall_buttons,
+  id: 'button', label: tr('כפתור קיר'), hint: tr('לחיצה על מפסק'), icon: 'button', available: (e) => !!e.catalog.extension?.wall_buttons,
   make: () => typed({ type: 'button', device_id: '', domain: '', ha_type: 'remote_button_short_press', ha_subtype: 'button_1', button: 1, press: 'short', extra: {} }),
 };
 export const PRESENCE_TYPE: BlockTypeDef = {
-  id: 'presence_in', label: 'מי במבנה', hint: 'יש מישהו · אין אף אחד', icon: 'users', available: (e) => !!e.catalog.extension?.presence,
+  id: 'presence_in', label: tr('מי במבנה'), hint: tr('יש מישהו · אין אף אחד'), icon: 'users', available: (e) => !!e.catalog.extension?.presence,
   make: () => typed({ type: 'presence', mode: 'nobody', where: 'building' }),
 };
 if (!TRIGGER_TYPES.some((t) => t.id === BUTTON_TYPE.id)) TRIGGER_TYPES.splice(1, 0, BUTTON_TYPE);
@@ -98,8 +99,8 @@ export class KavButtonForm extends LitElement {
     try {
       const r = await detectPress(b.device_id);
       if (r.detected && r.button && r.press) applyChoice(this.fc!, this.buttons, r.button, r.press);
-      else this.note = 'לא זוהתה לחיצה';
-    } catch { this.note = 'לא זוהתה לחיצה'; }
+      else this.note = tr('לא זוהתה לחיצה');
+    } catch { this.note = tr('לא זוהתה לחיצה'); }
     this.listening = false;
   }
 
@@ -126,22 +127,22 @@ export class KavButtonForm extends LitElement {
     const rows = info?.buttons.length ? info.buttons : Array.from({ length: Math.max(b.button || 1, 1) }, (_v, i) => ({ button: i + 1, presses: [], used: false }));
     const offered = (n: number, p: PressKind) => !info?.buttons.length || !!wordsFor(info, n, p);
     return html`<div class="kav-tools"><span class="sp"></span>
-        <button class="btn sm" type="button" data-kav-detect ?disabled=${!b.device_id || this.listening} @click=${() => void this.detect()}>${icon('flask')}${this.listening ? 'מאזינים ללחיצה…' : 'זיהוי בלחיצה על הכפתור'}</button></div>
+        <button class="btn sm" type="button" data-kav-detect ?disabled=${!b.device_id || this.listening} @click=${() => void this.detect()}>${icon('flask')}${this.listening ? tr('מאזינים ללחיצה…') : tr('זיהוי בלחיצה על הכפתור')}</button></div>
       ${this.note ? html`<div class="err" role="status" data-kav-detect-note>${icon('info')}${this.note}</div>` : nothing}
-      <div class="fld"><label>מפסק או כפתור קיר</label>
-        <select class="selx" data-kav-device aria-label="מפסק" @change=${(e: Event) => void this.pickDevice((e.target as HTMLSelectElement).value)}>
-          ${!b.device_id ? html`<option value="" selected>בחרו מפסק</option>` : nothing}
+      <div class="fld"><label>${tr('מפסק או כפתור קיר')}</label>
+        <select class="selx" data-kav-device aria-label=${tr('מפסק')} @change=${(e: Event) => void this.pickDevice((e.target as HTMLSelectElement).value)}>
+          ${!b.device_id ? html`<option value="" selected>${tr('בחרו מפסק')}</option>` : nothing}
           ${(this.devices ?? []).map((d) => html`<option value=${d.device_id} ?selected=${d.device_id === b.device_id}>${d.name}${d.area ? ` · ${d.area}` : ''}</option>`)}
-          ${b.device_id && !dev ? html`<option value=${b.device_id} selected>${wallDeviceNames.get(b.device_id) ?? 'מפסק'}</option>` : nothing}
+          ${b.device_id && !dev ? html`<option value=${b.device_id} selected>${wallDeviceNames.get(b.device_id) ?? tr('מפסק')}</option>` : nothing}
         </select></div>
-      <div class="fld"><label>כפתור</label>
-        <div class="kav-btns" role="group" aria-label="כפתור" data-kav-buttons>${rows.map((r) => html`<button type="button" aria-pressed=${String(r.button === b.button)} data-kav-button=${r.button}
-          @click=${() => applyChoice(fc, info, r.button, offered(r.button, b.press) ? b.press : (info?.buttons.find((x) => x.button === r.button)?.presses[0]?.press ?? b.press))}>${r.button}${r.used ? html`<small>בשימוש</small>` : nothing}</button>`)}</div></div>
-      <div class="fld"><label>סוג לחיצה</label>
-        <div class="kav-press" role="group" aria-label="סוג לחיצה" data-kav-press>${PRESSES.map((p) => html`<button type="button" aria-pressed=${String(p === b.press)} ?disabled=${!offered(b.button, p)} data-kav-press-kind=${p}
+      <div class="fld"><label>${tr('כפתור')}</label>
+        <div class="kav-btns" role="group" aria-label=${tr('כפתור')} data-kav-buttons>${rows.map((r) => html`<button type="button" aria-pressed=${String(r.button === b.button)} data-kav-button=${r.button}
+          @click=${() => applyChoice(fc, info, r.button, offered(r.button, b.press) ? b.press : (info?.buttons.find((x) => x.button === r.button)?.presses[0]?.press ?? b.press))}>${r.button}${r.used ? html`<small>${tr('בשימוש')}</small>` : nothing}</button>`)}</div></div>
+      <div class="fld"><label>${tr('סוג לחיצה')}</label>
+        <div class="kav-press" role="group" aria-label=${tr('סוג לחיצה')} data-kav-press>${PRESSES.map((p) => html`<button type="button" aria-pressed=${String(p === b.press)} ?disabled=${!offered(b.button, p)} data-kav-press-kind=${p}
           @click=${() => applyChoice(fc, info, b.button, p)}><span class="pi ${p}"><i></i>${p === 'double' ? html`<i></i>` : nothing}</span>${PRESS_WORD[p].replace('לחיצה ', '')}
-          <small>${p === 'short' ? 'לחיצה אחת' : p === 'double' ? html`עד <bdi>${timing?.double_ms ?? 400}</bdi> מ״ש בין לחיצות` : html`מעל <bdi>${timing?.long_ms ?? 800}</bdi> מ״ש`}</small></button>`)}</div>
-        <span class="kav-note">הזמנים נקבעים בהגדרות ‹ אוטומציות · <a href="#/system/automations">שינוי</a></span></div>`;
+          <small>${p === 'short' ? tr('לחיצה אחת') : p === 'double' ? html`${tr('עד')} <bdi>${timing?.double_ms ?? 400}</bdi> ${tr('מ״ש בין לחיצות')}` : html`${tr('מעל')} <bdi>${timing?.long_ms ?? 800}</bdi> ${tr('מ״ש')}`}</small></button>`)}</div>
+        <span class="kav-note">${tr('הזמנים נקבעים בהגדרות ‹ אוטומציות')} · <a href="#/system/automations">${tr('שינוי')}</a></span></div>`;
   }
 }
 
@@ -161,20 +162,20 @@ function presenceForm(fc: FormCtx): TemplateResult {
   const chip = (on: boolean, ic: string, label: string, extra: TemplateResult | typeof nothing = nothing, off = false) =>
     html`<span class="kav-src" aria-pressed=${String(on && !off)} aria-disabled=${String(off)} data-kav-source=${label}>${icon(ic)}${label}${extra}</span>`;
   return html`<div class="frow">
-      <div class="fld"><label>מצב</label><select class="selx" data-kav-presence-mode aria-label="מצב" @change=${(e: Event) => fc.patch((x) => { x.mode = (e.target as HTMLSelectElement).value; })}>
-        <option value="nobody" ?selected=${b.mode === 'nobody'}>אין אף אחד</option><option value="someone" ?selected=${b.mode === 'someone'}>יש מישהו</option></select></div>
-      <div class="fld"><label>איפה</label><select class="selx" aria-label="איפה" data-kav-presence-where><option value="building" selected>כל המבנה</option></select></div></div>
-    <div class="fld"><label>לפי</label><div class="kav-srcs">
-      ${chip(!!src?.geofence, 'home', 'גיאו־גדר')}${chip(!!src?.beacon, 'sensor', 'משואה')}
-      ${chip(!!src?.wifi, 'sensor', 'Wi‑Fi', src?.wifi_mode === 'server' ? nothing : html`<small>רק כשהאתר במצב שרת</small>`, src?.wifi_mode !== 'server')}</div></div>`;
+      <div class="fld"><label>${tr('מצב')}</label><select class="selx" data-kav-presence-mode aria-label=${tr('מצב')} @change=${(e: Event) => fc.patch((x) => { x.mode = (e.target as HTMLSelectElement).value; })}>
+        <option value="nobody" ?selected=${b.mode === 'nobody'}>${tr('אין אף אחד')}</option><option value="someone" ?selected=${b.mode === 'someone'}>${tr('יש מישהו')}</option></select></div>
+      <div class="fld"><label>${tr('איפה')}</label><select class="selx" aria-label=${tr('איפה')} data-kav-presence-where><option value="building" selected>${tr('כל המבנה')}</option></select></div></div>
+    <div class="fld"><label>${tr('לפי')}</label><div class="kav-srcs">
+      ${chip(!!src?.geofence, 'home', tr('גיאו־גדר'))}${chip(!!src?.beacon, 'sensor', tr('משואה'))}
+      ${chip(!!src?.wifi, 'sensor', 'Wi‑Fi', src?.wifi_mode === 'server' ? nothing : html`<small>${tr('רק כשהאתר במצב שרת')}</small>`, src?.wifi_mode !== 'server')}</div></div>`;
 }
 
 // ------------------------------------------------------------------------------------------------ critical sound on a notify step (state 6)
 
-const SOURCE_WORD: Record<string, string> = { 'sensor.leak': 'הצפה', 'sensor.smoke': 'עשן', 'sensor.gas': 'גז', 'sensor.co': 'פחמן חד־חמצני', 'alarm.triggered': 'אזעקה' };
+const SOURCE_WORD: Record<string, string> = { 'sensor.leak': tr('הצפה'), 'sensor.smoke': tr('עשן'), 'sensor.gas': tr('גז'), 'sensor.co': tr('פחמן חד־חמצני'), 'alarm.triggered': tr('אזעקה') };
 export function criticalReason(sources: readonly string[]): string {
   const words = sources.map((s) => SOURCE_WORD[s] ?? s);
-  return words.length ? `מותר כי ״${words.join('״, ״')}״ ${words.length === 1 ? 'מסומנת' : 'מסומנות'} כאירוע בטיחות בהגדרות ‹ התראות.` : 'רק לאירועי בטיחות שהופעלו בהגדרות ‹ התראות.';
+  return words.length ? (words.length === 1 ? tr('מותר כי ״{words}״ מסומנת כאירוע בטיחות בהגדרות ‹ התראות.', { words: words.join(tr('״, ״')) }) : tr('מותר כי ״{words}״ מסומנות כאירוע בטיחות בהגדרות ‹ התראות.', { words: words.join(tr('״, ״')) })) : tr('רק לאירועי בטיחות שהופעלו בהגדרות ‹ התראות.');
 }
 
 function criticalRow(fc: FormCtx): TemplateResult {
@@ -182,8 +183,8 @@ function criticalRow(fc: FormCtx): TemplateResult {
   const allow = fc.ext?.critical;
   const on = !!b.critical;
   const can = !!allow?.allowed || on;
-  return html`<div class="kav-swrow" data-kav-critical>${icon('bell')}<div class="t">צליל קריטי שעוקף ״נא לא להפריע״<small>${criticalReason(allow?.allowed ? allow.sources : [])}</small></div>
-    <sw-toggle label="צליל קריטי" labelHidden .checked=${on} ?disabled=${!can} @change=${(e: CustomEvent<{ checked: boolean }>) => fc.patch((x) => { if (e.detail.checked) x.critical = true; else delete x.critical; })}></sw-toggle></div>`;
+  return html`<div class="kav-swrow" data-kav-critical>${icon('bell')}<div class="t">${tr('צליל קריטי שעוקף ״נא לא להפריע״')}<small>${criticalReason(allow?.allowed ? allow.sources : [])}</small></div>
+    <sw-toggle label=${tr('צליל קריטי')} labelHidden .checked=${on} ?disabled=${!can} @change=${(e: CustomEvent<{ checked: boolean }>) => fc.patch((x) => { if (e.detail.checked) x.critical = true; else delete x.critical; })}></sw-toggle></div>`;
 }
 
 // ------------------------------------------------------------------------------------------------ registration

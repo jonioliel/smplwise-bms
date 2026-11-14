@@ -22,10 +22,12 @@ import {
   type ScheduleStatus,
   type SunTimes,
 } from '../api/schedules';
+import { tr } from '../i18n/msg/automation';
 
 // ------------------------------------------------------------------------------------------------ filters (§3.2, §10.2)
 
-/** POLISH-295: ows (one 54 px row per schedule, the installation default ui.schedules_view) joins the cards, the table and the week. */
+/** POLISH-295: 
+ows (one 54 px row per schedule, the installation default ui.schedules_view) joins the cards, the table and the week. */
 export type ListView = 'rows' | 'cards' | 'table' | 'week';
 export type ListGroup = '' | 'area' | 'floor' | 'tag' | 'state';
 export type ListSort = 'next_run' | 'name' | 'order' | 'updated';
@@ -101,11 +103,11 @@ export function filtersToParams(f: ListFilters, view: ListView | null = null, de
 /** The state filter of the header, a segmented control with counts (the automations screen's "הכל · פעילות · כבויות ...", same
  * place, same control): '' = all. `unavailable` stays a valid address value (old links) but is not offered as a segment. */
 export const STATE_SEGMENTS: ReadonlyArray<{ id: StateFilter; label: string }> = [
-  { id: '', label: 'הכל' },
-  { id: 'enabled', label: 'פעילים' },
-  { id: 'disabled', label: 'מושבתים' },
-  { id: 'triggered', label: 'מתבצעים' },
-  { id: 'completed', label: 'הסתיימו' },
+  { id: '', label: tr('הכל') },
+  { id: 'enabled', label: tr('פעילים') },
+  { id: 'disabled', label: tr('מושבתים') },
+  { id: 'triggered', label: tr('מתבצעים') },
+  { id: 'completed', label: tr('הסתיימו') },
 ];
 
 /** How many of `items` each state segment holds (the counts beside the labels). */
@@ -177,18 +179,18 @@ export interface ScheduleGroup {
   items: Schedule[];
 }
 
-const MANY = 'כמה אזורים';
-const NONE = 'ללא אזור';
+const MANY = tr('כמה אזורים');
+const NONE = tr('ללא אזור');
 
 function groupLabel(s: Schedule, group: ListGroup): string {
   if (group === 'area' || group === 'floor') {
     const names = [...new Set(s.entities.map((e) => (group === 'area' ? e.area_name : e.floor_name)).filter((x): x is string => !!x))];
     if (names.length === 1) return names[0];
-    if (names.length > 1) return group === 'area' ? MANY : 'כמה קומות';
-    return group === 'area' ? NONE : 'ללא קומה';
+    if (names.length > 1) return group === 'area' ? MANY : tr('כמה קומות');
+    return group === 'area' ? NONE : tr('ללא קומה');
   }
-  if (group === 'tag') return s.tags[0] ?? 'ללא תג';
-  return s.enabled ? 'פעילים' : 'מושבתים';
+  if (group === 'tag') return s.tags[0] ?? tr('ללא תג');
+  return s.enabled ? tr('פעילים') : tr('מושבתים');
 }
 
 /** Group headings keep the order the items came in (a sorted list stays sorted inside a group); the catch-all groups
@@ -200,9 +202,9 @@ export function groupSchedules(items: Schedule[], group: ListGroup): ScheduleGro
     const label = groupLabel(s, group);
     map.set(label, [...(map.get(label) ?? []), s]);
   }
-  const catchAll = new Set([MANY, NONE, 'כמה קומות', 'ללא קומה', 'ללא תג']);
+  const catchAll = new Set([MANY, NONE, tr('כמה קומות'), tr('ללא קומה'), tr('ללא תג')]);
   const labels = [...map.keys()];
-  const named = labels.filter((l) => !catchAll.has(l)).sort((a, b) => (group === 'state' ? (a === 'פעילים' ? -1 : 1) : a.localeCompare(b, 'he')));
+  const named = labels.filter((l) => !catchAll.has(l)).sort((a, b) => (group === 'state' ? (a === tr('פעילים') ? -1 : 1) : a.localeCompare(b, 'he')));
   return [...named, ...labels.filter((l) => catchAll.has(l))].map((label) => ({ key: label, label, items: map.get(label) ?? [] }));
 }
 
@@ -293,7 +295,7 @@ export function slotSegments(slots: ScheduleSlot[], sun: SunTimes | null = null)
 
 /** The name a schedule's action shows: the entity's name from the schedule's own list, the id as a last resort. */
 export function entityNameOf(s: Pick<Schedule, 'entities'>, id: string | null): string {
-  if (!id) return 'ללא התקן';
+  if (!id) return tr('ללא התקן');
   return s.entities.find((e) => e.entity_id === id)?.name ?? id;
 }
 
@@ -324,7 +326,7 @@ export function slotActionText(slot: ScheduleSlot, nameOf: (id: string | null) =
   if (!slot.actions.length) return '';
   const first = slot.actions[0];
   const more = slot.actions.length - 1;
-  return `${actionLabel(first)} · ${nameOf(first.entity_id)}${more > 0 ? ` ועוד ${more}` : ''}`;
+  return `${actionLabel(first)} · ${nameOf(first.entity_id)}${more > 0 ? ` ${tr('ועוד {n}', { n: more })}` : ''}`;
 }
 
 // ------------------------------------------------------------------------------------------------ days
@@ -343,17 +345,17 @@ export function dayChips(days: Schedule['days']): DayChipState[] {
 
 export function daysWord(days: Schedule['days']): string | null {
   if (days.days) return null;
-  if (days.kind === 'workday') return 'ימי עבודה';
-  if (days.kind === 'weekend') return 'סוף שבוע';
-  return 'ימים מותאמים';
+  if (days.kind === 'workday') return tr('ימי עבודה');
+  if (days.kind === 'weekend') return tr('סוף שבוע');
+  return tr('ימים מותאמים');
 }
 
 /** "30/09–01/06" for a period; null when the schedule has none. */
 export function periodLabel(s: Pick<Schedule, 'start_date' | 'end_date'>): string | null {
   const f = (d: string | null) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : '');
   if (s.start_date && s.end_date) return `${f(s.start_date)}–${f(s.end_date)}`;
-  if (s.start_date) return `מ־${f(s.start_date)}`;
-  if (s.end_date) return `עד ${f(s.end_date)}`;
+  if (s.start_date) return tr('מ־{date}', { date: f(s.start_date) });
+  if (s.end_date) return tr('עד {date}', { date: f(s.end_date) });
   return null;
 }
 
@@ -416,12 +418,12 @@ export interface ScreenState {
 }
 
 const WRITE_BLOCK_TEXT: Record<string, string> = {
-  feature_disabled: 'התזמונים כבויים בהגדרות המערכת.',
-  component_missing: 'שמירת שינויים אינה זמינה כרגע.',
-  ha_unavailable: 'שמירת שינויים אינה זמינה: אין חיבור לתשתית המערכת.',
-  bridge_missing: 'שמירת שינויים אינה זמינה כרגע.',
-  bridge_unpaired: 'שמירת שינויים אינה זמינה כרגע.',
-  bridge_too_old: 'נדרש עדכון של רכיב החיבור כדי לשמור תזמונים.',
+  feature_disabled: tr('התזמונים כבויים בהגדרות המערכת.'),
+  component_missing: tr('שמירת שינויים אינה זמינה כרגע.'),
+  ha_unavailable: tr('שמירת שינויים אינה זמינה: אין חיבור לתשתית המערכת.'),
+  bridge_missing: tr('שמירת שינויים אינה זמינה כרגע.'),
+  bridge_unpaired: tr('שמירת שינויים אינה זמינה כרגע.'),
+  bridge_too_old: tr('נדרש עדכון של רכיב החיבור כדי לשמור תזמונים.'),
 };
 
 /** What the screen shows for the server's status (§3.1). `listFailed` = the list request itself failed and nothing is cached. */
@@ -434,12 +436,12 @@ export function screenState(status: ScheduleStatus | null, listFailed = false): 
   if (listFailed) return { ...base, kind: 'error' };
   const stale = status.stale || status.available === 'ha_unavailable' || status.available === 'error';
   let readOnlyText = '';
-  if (!status.can.manage) readOnlyText = 'מצב צפייה. אפשר לראות תזמונים ומועדי הרצה; יצירה, עריכה והרצה דורשות הרשאה מתאימה.';
-  else if (!status.writable) readOnlyText = WRITE_BLOCK_TEXT[status.write_block ?? ''] ?? 'שמירת שינויים אינה זמינה כרגע.';
+  if (!status.can.manage) readOnlyText = tr('מצב צפייה. אפשר לראות תזמונים ומועדי הרצה; יצירה, עריכה והרצה דורשות הרשאה מתאימה.');
+  else if (!status.writable) readOnlyText = WRITE_BLOCK_TEXT[status.write_block ?? ''] ?? tr('שמירת שינויים אינה זמינה כרגע.');
   return { ...base, stale, readOnly: !!readOnlyText, readOnlyText };
 }
 
-export const STALE_TEXT = 'המידע אינו מעודכן — אין כרגע חיבור לתשתית המערכת.';
+export const STALE_TEXT = tr('המידע אינו מעודכן — אין כרגע חיבור לתשתית המערכת.');
 
 // ------------------------------------------------------------------------------------------------ markers, words
 
@@ -452,8 +454,8 @@ export interface Marker {
  * or disarms something. */
 export function markersOf(s: Pick<Schedule, 'sensitive' | 'lowering'>): Marker[] {
   const out: Marker[] = [];
-  if (s.sensitive) out.push({ kind: 'sensitive', label: 'רגיש' });
-  if (s.lowering) out.push({ kind: 'lowering', label: 'פותח / מנטרל' });
+  if (s.sensitive) out.push({ kind: 'sensitive', label: tr('רגיש') });
+  if (s.lowering) out.push({ kind: 'lowering', label: tr('פותח / מנטרל') });
   return out;
 }
 
@@ -479,11 +481,11 @@ export function loweringSummary(s: Schedule): LoweringSummary {
       times.add(formatTime(slot.start));
     }
   const parts: string[] = [];
-  if (open.size) parts.push(`יפתח ${[...open].join(', ')}`);
-  if (disarm.size) parts.push(`ינטרל ${[...disarm].join(', ')}`);
+  if (open.size) parts.push(tr('יפתח {names}', { names: [...open].join(', ') }));
+  if (disarm.size) parts.push(tr('ינטרל {names}', { names: [...disarm].join(', ') }));
   const entities = [...open, ...disarm];
   const when = [...times].join(', ');
-  return { entities, times: [...times], text: `התזמון ${parts.join(' ו')}${when ? ` ב־${when}` : ''} גם כשאיש אינו נמצא במקום.` };
+  return { entities, times: [...times], text: tr('התזמון {what}{when} גם כשאיש אינו נמצא במקום.', { what: parts.join(` ${tr('ו')}`), when: when ? ` ${tr('ב־{times}', { times: when })}` : '' }) };
 }
 
 /** Does running this slot move something physical? Then the server wants an explicit confirmation (`confirm`, §3.9). */
@@ -498,16 +500,16 @@ export function runIsLowering(slot: ScheduleSlot | undefined): boolean {
 
 /** The next-run line of a card: "היום 18:00", "היום 18:00 · בתנאי", "מושבת", "הסתיים". */
 export function nextRunText(s: Pick<Schedule, 'enabled' | 'state' | 'next_run'>, now: Date = new Date()): string {
-  if (!s.enabled) return s.state === 'completed' ? 'הסתיים' : 'מושבת';
-  if (!s.next_run) return 'אין הרצה קרובה';
-  return s.next_run.conditional ? `${whenLabel(s.next_run.at, now)} · בתנאי` : whenLabel(s.next_run.at, now);
+  if (!s.enabled) return s.state === 'completed' ? tr('הסתיים') : tr('מושבת');
+  if (!s.next_run) return tr('אין הרצה קרובה');
+  return s.next_run.conditional ? `${whenLabel(s.next_run.at, now)} · ${tr('בתנאי')}` : whenLabel(s.next_run.at, now);
 }
 
 /** "מזגן סלון · סלון", "3 התקנים · כמה אזורים": the devices line under a card's title. */
 export function devicesLine(s: Pick<Schedule, 'entities'>): string {
   const names = s.entities.map((e) => e.name);
   const areas = [...new Set(s.entities.map((e) => e.area_name).filter((x): x is string => !!x))];
-  const head = names.length <= 2 ? names.join(' · ') : `${names[0]} ועוד ${names.length - 1}`;
+  const head = names.length <= 2 ? names.join(' · ') : tr('{names} ועוד {n}', { names: names[0], n: names.length - 1 });
   const tail = areas.length === 1 ? areas[0] : '';
   return [head, tail].filter(Boolean).join(' · ');
 }
@@ -539,8 +541,8 @@ export function windowText(slot: ScheduleSlot): string {
 
 /** Codes whose wording the screens fix themselves (the server's text may be an internal phrase, or absent). */
 const ERROR_TEXT: Record<string, string> = {
-  entity_unknown: 'אחד ההתקנים בתזמון אינו מוכר או מחוץ להרשאתך.',
-  idempotency_conflict: 'הבקשה כבר נשלחה בתוכן אחר. רעננו את המסך ונסו שוב.',
+  entity_unknown: tr('אחד ההתקנים בתזמון אינו מוכר או מחוץ להרשאתך.'),
+  idempotency_conflict: tr('הבקשה כבר נשלחה בתוכן אחר. רעננו את המסך ונסו שוב.'),
 };
 
 /** The Hebrew message of a failed schedules call: the fixed wording for the codes above, else the server's own user_message. */
@@ -565,11 +567,11 @@ export function conditionHolds(c: Pick<ConditionView, 'attribute' | 'match_type'
 /** How long a trashed schedule is still kept: "נשמר עוד 27 ימים". */
 export function keptText(iso: string, now: Date = new Date()): string {
   const n = daysUntil(iso, now);
-  return n <= 0 ? 'יימחק היום' : n === 1 ? 'נשמר עוד יום' : `נשמר עוד ${n} ימים`;
+  return n <= 0 ? tr('יימחק היום') : n === 1 ? tr('נשמר עוד יום') : tr('נשמר עוד {n} ימים', { n });
 }
 
 /** "נמחק היום", "נמחק אתמול", "נמחק לפני 3 ימים". */
 export function deletedText(iso: string, now: Date = new Date()): string {
   const n = daysSince(iso, now);
-  return n <= 0 ? 'נמחק היום' : n === 1 ? 'נמחק אתמול' : `נמחק לפני ${n} ימים`;
+  return n <= 0 ? tr('נמחק היום') : n === 1 ? tr('נמחק אתמול') : tr('נמחק לפני {n} ימים', { n });
 }

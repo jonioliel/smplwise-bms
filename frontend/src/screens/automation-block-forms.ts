@@ -9,6 +9,7 @@ import {
   PRESENCE_ZONE, WEEKDAY_LABEL, entityIcon, lockedWhy, personIds, presenceOf, stateChoices, type Choice, type EditorEnv, type Presence, type Section,
 } from './automation-editor-logic';
 import { dateInputLang } from '../api/day-format';
+import { tr } from '../i18n/msg/automation';
 
 /**
  * CR-017 S4: one form per typed block, in a registry keyed by `section:type` (`trigger:state`, `condition:time`, `action:service` ...). A typed
@@ -59,9 +60,9 @@ export type FormFn = (fc: FormCtx) => TemplateResult;
 const fld = (label: string, inner: unknown, cls = ''): TemplateResult => html`<div class="fld ${cls}"><label>${label}</label>${inner}</div>`;
 /** The accessible name of a control: the Hebrew label of its field (the data-fld token is only a test hook). */
 const FLD_LABEL: Record<string, string> = {
-  to: 'עובר ל־', from: 'מ־', event: 'אירוע', when: 'מתי', offset: 'דקות', at: 'שעה', every: 'כל', unit: 'יחידה', who: 'מי', above: 'מעל', below: 'מתחת', after: 'אחרי', before: 'לפני', state: 'במצב', mode: 'מצב',
-  sun: 'שמש', action: 'פעולה', scene: 'סצנה', script: 'סקריפט', target: 'אל', message: 'הודעה', count: 'פעמים', id: 'מזהה', hours: 'שעות', minutes: 'דקות', seconds: 'שניות', brightness_pct: 'בהירות', temperature: 'טמפרטורה',
-  position: 'מיקום', volume_level: 'עוצמה', percentage: 'מהירות',
+  to: tr('עובר ל־'), from: tr('מ־'), event: tr('אירוע'), when: tr('מתי'), offset: tr('דקות'), at: tr('שעה'), every: tr('כל'), unit: tr('יחידה'), who: tr('מי'), above: tr('מעל'), below: tr('מתחת'), after: tr('אחרי'), before: tr('לפני'), state: tr('במצב'), mode: tr('מצב'),
+  sun: tr('שמש'), action: tr('פעולה'), scene: tr('סצנה'), script: tr('סקריפט'), target: tr('אל'), message: tr('הודעה'), count: tr('פעמים'), id: tr('מזהה'), hours: tr('שעות'), minutes: tr('דקות'), seconds: tr('שניות'), brightness_pct: tr('בהירות'), temperature: tr('טמפרטורה'),
+  position: tr('מיקום'), volume_level: tr('עוצמה'), percentage: tr('מהירות'),
 };
 const aria = (attr: string | undefined, label?: string): string => label ?? FLD_LABEL[attr ?? ''] ?? FLD_LABEL[(attr ?? '').split('.').pop() ?? ''] ?? '';
 function sel(value: string, opts: readonly Choice[], on: (v: string) => void, attr = '', cls = '', label?: string): TemplateResult {
@@ -83,22 +84,22 @@ function durationFields(d: Duration | null | undefined, on: (d: Duration | undef
     on(next.hours || next.minutes || next.seconds ? next : undefined);
   };
   return html`<div class="frow">
-    <div class="fld sm"><label>שעות</label>${numIn(d?.hours ?? 0, (n) => set('hours', n), { min: 0, max: 999, attr: `${tag}.hours` })}</div>
-    <div class="fld sm"><label>דקות</label>${numIn(d?.minutes ?? 0, (n) => set('minutes', n), { min: 0, max: 59, attr: `${tag}.minutes` })}</div>
-    <div class="fld sm"><label>שניות</label>${numIn(d?.seconds ?? 0, (n) => set('seconds', n), { min: 0, max: 59, attr: `${tag}.seconds` })}</div>
+    <div class="fld sm"><label>${tr('שעות')}</label>${numIn(d?.hours ?? 0, (n) => set('hours', n), { min: 0, max: 999, attr: `${tag}.hours` })}</div>
+    <div class="fld sm"><label>${tr('דקות')}</label>${numIn(d?.minutes ?? 0, (n) => set('minutes', n), { min: 0, max: 59, attr: `${tag}.minutes` })}</div>
+    <div class="fld sm"><label>${tr('שניות')}</label>${numIn(d?.seconds ?? 0, (n) => set('seconds', n), { min: 0, max: 59, attr: `${tag}.seconds` })}</div>
   </div>`;
 }
-const durText = (d: Duration | null | undefined): string => (d ? [d.hours ? `${d.hours} שע׳` : '', d.minutes ? `${d.minutes} דק׳` : '', d.seconds ? `${d.seconds} שנ׳` : ''].filter(Boolean).join(' ') : '');
+const durText = (d: Duration | null | undefined): string => (d ? [d.hours ? tr('{n} שע׳', { n: d.hours }) : '', d.minutes ? tr('{n} דק׳', { n: d.minutes }) : '', d.seconds ? tr('{n} שנ׳', { n: d.seconds }) : ''].filter(Boolean).join(' ') : '');
 
 function entityChips(fc: FormCtx, ids: string[], o: { filter: PickerFilter; where?: (e: CatalogEntity) => boolean; apply: (ids: string[]) => void; multi?: boolean; add?: string }): TemplateResult {
   const names = fc.env.ctx.names!;
   return html`<div class="entpick" data-entity-chips>
     ${ids.map((id) => {
       const e = fc.env.byId.get(id);
-      return html`<span class="ent ${e?.class ? 'sens' : ''}" title=${names(id)} data-entity=${id}>${icon(entityIcon(id))}<span>${names(id)}</span>${e?.area ? html`<small>${e.area.name}</small>` : nothing}${e?.missing ? html`<small class="bad">לא נמצא</small>` : nothing}
-        <button class="rm" type="button" aria-label=${`הסרת ${names(id)}`} data-entity-remove=${id} @click=${() => o.apply(ids.filter((x) => x !== id))}>${icon('close')}</button></span>`;
+      return html`<span class="ent ${e?.class ? 'sens' : ''}" title=${names(id)} data-entity=${id}>${icon(entityIcon(id))}<span>${names(id)}</span>${e?.area ? html`<small>${e.area.name}</small>` : nothing}${e?.missing ? html`<small class="bad">${tr('לא נמצא')}</small>` : nothing}
+        <button class="rm" type="button" aria-label=${tr('הסרת {name}', { name: names(id) })} data-entity-remove=${id} @click=${() => o.apply(ids.filter((x) => x !== id))}>${icon('close')}</button></span>`;
     })}
-    <button class="ent add" type="button" data-entity-add @click=${() => fc.pick({ uid: fc.block.uid, filter: o.filter, where: o.where, selected: ids, multi: o.multi ?? true, apply: o.apply })}>${icon('plus')}${ids.length ? 'עוד' : o.add ?? 'בחרו מכשיר'}</button>
+    <button class="ent add" type="button" data-entity-add @click=${() => fc.pick({ uid: fc.block.uid, filter: o.filter, where: o.where, selected: ids, multi: o.multi ?? true, apply: o.apply })}>${icon('plus')}${ids.length ? tr('עוד') : o.add ?? tr('בחרו מכשיר')}</button>
   </div>`;
 }
 
@@ -111,11 +112,11 @@ const domainOf = (id: string | undefined): string => (id ?? '').split('.')[0];
 const clean = <T extends Record<string, unknown>>(o: T, ...keys: string[]): T => { for (const k of keys) if (o[k] === undefined || o[k] === null) delete o[k]; return o; };
 const idField = (fc: FormCtx): TemplateResult => {
   const b = fc.block as TriggerBlock;
-  return html`<details class="opts" ?open=${!!b.id}><summary>${icon('chevronDown')}מזהה לטריגר${b.id ? ` · ${b.id}` : ''}</summary>
-    ${fld('מזהה (לתנאי "מה הפעיל")', textIn(b.id ?? '', (v) => fc.patch((x) => { if (v.trim()) x.id = v.trim(); else delete x.id; }), { ph: 'למשל night', attr: 'id', ltr: true }))}</details>`;
+  return html`<details class="opts" ?open=${!!b.id}><summary>${icon('chevronDown')}${tr('מזהה לטריגר')}${b.id ? ` · ${b.id}` : ''}</summary>
+    ${fld(tr('מזהה (לתנאי "מה הפעיל")'), textIn(b.id ?? '', (v) => fc.patch((x) => { if (v.trim()) x.id = v.trim(); else delete x.id; }), { ph: tr('למשל night'), attr: 'id', ltr: true }))}</details>`;
 };
 const forDuration = (fc: FormCtx, b: { for?: Duration | null }): TemplateResult =>
-  html`<details class="opts" ?open=${!!b.for}><summary>${icon('chevronDown')}רק אם נשאר כך זמן מסוים${b.for ? ` · ${durText(b.for)}` : ''}</summary>
+  html`<details class="opts" ?open=${!!b.for}><summary>${icon('chevronDown')}${tr('רק אם נשאר כך זמן מסוים')}${b.for ? ` · ${durText(b.for)}` : ''}</summary>
     ${durationFields(b.for, (d) => fc.patch((x) => { if (d) x.for = d; else delete x.for; }), 'for')}</details>`;
 
 // ------------------------------------------------------------------------------------------------ triggers
@@ -132,8 +133,8 @@ function presenceForm(fc: FormCtx, who: Presence): TemplateResult {
     clean(x, 'id');
   });
   const ids = 'entity_ids' in b ? b.entity_ids : [];
-  return html`${errLine(fc)}<div class="frow"><div class="fld">${fld('מי', sel(who, [{ value: 'all_left', label: 'כולם יצאו מהבית' }, { value: 'someone_home', label: 'מישהו חזר הביתה' }], (v) => set(v as Presence), 'who'))}</div></div>
-    ${who === 'someone_home' ? html`${fld('אנשים', entityChips(fc, ids, { filter: { purpose: 'watch', domains: ['person'] }, apply: (n) => fc.patch((x) => { x.entity_ids = n; }), add: 'בחרו אדם' }), 'full')}` : nothing}
+  return html`${errLine(fc)}<div class="frow"><div class="fld">${fld(tr('מי'), sel(who, [{ value: 'all_left', label: tr('כולם יצאו מהבית') }, { value: 'someone_home', label: tr('מישהו חזר הביתה') }], (v) => set(v as Presence), 'who'))}</div></div>
+    ${who === 'someone_home' ? html`${fld(tr('אנשים'), entityChips(fc, ids, { filter: { purpose: 'watch', domains: ['person'] }, apply: (n) => fc.patch((x) => { x.entity_ids = n; }), add: tr('בחרו אדם') }), 'full')}` : nothing}
     ${idField(fc)}`;
 }
 
@@ -144,8 +145,8 @@ const triggerState: FormFn = (fc) => {
   const choices = stateChoices(b.entity_ids[0]);
   return html`${errLine(fc)}${entityChips(fc, b.entity_ids, { filter: stateEntityFilter(), apply: (ids) => fc.patch((x) => { x.entity_ids = ids; }) })}
     <div class="frow">
-      <div class="fld">${fld('עובר ל־', sel(b.to ?? '', [{ value: '', label: 'כל שינוי' }, ...choices], (v) => fc.patch((x) => { if (v) x.to = v; else delete x.to; }), 'to'))}</div>
-      <div class="fld">${fld('מ־ (לא חובה)', sel(b.from ?? '', [{ value: '', label: '—' }, ...choices], (v) => fc.patch((x) => { if (v) x.from = v; else delete x.from; }), 'from'))}</div>
+      <div class="fld">${fld(tr('עובר ל־'), sel(b.to ?? '', [{ value: '', label: tr('כל שינוי') }, ...choices], (v) => fc.patch((x) => { if (v) x.to = v; else delete x.to; }), 'to'))}</div>
+      <div class="fld">${fld(tr('מ־ (לא חובה)'), sel(b.from ?? '', [{ value: '', label: '—' }, ...choices], (v) => fc.patch((x) => { if (v) x.from = v; else delete x.from; }), 'from'))}</div>
     </div>${forDuration(fc, b)}${idField(fc)}`;
 };
 
@@ -158,14 +159,14 @@ const triggerNumeric: FormFn = (fc) => {
   const f = numericWatchFilter();
   return html`${errLine(fc)}${entityChips(fc, b.entity_ids, { ...f, apply: (ids) => fc.patch((x) => { x.entity_ids = ids; }) })}
     <div class="frow">
-      <div class="fld sm"><label>מעל</label>${numIn(b.above, (n) => fc.patch((x) => { if (n === null) delete x.above; else x.above = n; }), { attr: 'above' })}</div>
-      <div class="fld sm"><label>מתחת</label>${numIn(b.below, (n) => fc.patch((x) => { if (n === null) delete x.below; else x.below = n; }), { attr: 'below' })}</div>
+      <div class="fld sm"><label>${tr('מעל')}</label>${numIn(b.above, (n) => fc.patch((x) => { if (n === null) delete x.above; else x.above = n; }), { attr: 'above' })}</div>
+      <div class="fld sm"><label>${tr('מתחת')}</label>${numIn(b.below, (n) => fc.patch((x) => { if (n === null) delete x.below; else x.below = n; }), { attr: 'below' })}</div>
     </div>${forDuration(fc, b)}${idField(fc)}`;
 };
 
 const triggerTime: FormFn = (fc) => {
   const b = fc.block as TriggerBlock & { type: 'time' };
-  return html`${errLine(fc)}<div class="frow"><div class="fld sm"><label>שעה</label>${timeIn(b.at, (v) => fc.patch((x) => { x.at = v; }), 'at')}</div></div>${idField(fc)}`;
+  return html`${errLine(fc)}<div class="frow"><div class="fld sm"><label>${tr('שעה')}</label>${timeIn(b.at, (v) => fc.patch((x) => { x.at = v; }), 'at')}</div></div>${idField(fc)}`;
 };
 
 function simplePattern(b: TriggerBlock & { type: 'time_pattern' }): { unit: 'minutes' | 'hours' | 'seconds'; n: number } | null {
@@ -179,12 +180,12 @@ const triggerPattern: FormFn = (fc) => {
   const sp = simplePattern(b);
   if (!sp) {
     const raw = (k: 'hours' | 'minutes' | 'seconds', label: string) => fld(label, textIn(String(b[k] ?? ''), (v) => fc.patch((x) => { x[k] = v.trim() ? v.trim() : null; }), { attr: k, ltr: true, ph: '*' }), 'sm');
-    return html`${errLine(fc)}<div class="frow">${raw('hours', 'שעות')}${raw('minutes', 'דקות')}${raw('seconds', 'שניות')}</div>${idField(fc)}`;
+    return html`${errLine(fc)}<div class="frow">${raw('hours', tr('שעות'))}${raw('minutes', tr('דקות'))}${raw('seconds', tr('שניות'))}</div>${idField(fc)}`;
   }
   const set = (unit: string, n: number | null) => fc.patch((x) => { x.hours = null; x.minutes = null; x.seconds = null; x[unit] = `/${Math.max(1, n ?? 1)}`; });
   return html`${errLine(fc)}<div class="frow">
-    <div class="fld sm"><label>כל</label>${numIn(sp.n, (n) => set(sp.unit, n), { min: 1, max: 59, attr: 'every' })}</div>
-    <div class="fld sm"><label>יחידה</label>${sel(sp.unit, [{ value: 'minutes', label: 'דקות' }, { value: 'hours', label: 'שעות' }, { value: 'seconds', label: 'שניות' }], (u) => set(u, sp.n), 'unit')}</div>
+    <div class="fld sm"><label>${tr('כל')}</label>${numIn(sp.n, (n) => set(sp.unit, n), { min: 1, max: 59, attr: 'every' })}</div>
+    <div class="fld sm"><label>${tr('יחידה')}</label>${sel(sp.unit, [{ value: 'minutes', label: tr('דקות') }, { value: 'hours', label: tr('שעות') }, { value: 'seconds', label: tr('שניות') }], (u) => set(u, sp.n), 'unit')}</div>
   </div>${idField(fc)}`;
 };
 
@@ -194,13 +195,13 @@ const triggerSun: FormFn = (fc) => {
   const mins = Math.abs(b.offset_min);
   const set = (d: string, m: number) => fc.patch((x) => { x.offset_min = d === 'before' ? -m : d === 'after' ? m : 0; });
   return html`${errLine(fc)}<div class="frow">
-    <div class="fld">${fld('אירוע', sel(b.event, [{ value: 'sunset', label: 'שקיעה' }, { value: 'sunrise', label: 'זריחה' }], (v) => fc.patch((x) => { x.event = v; }), 'event'))}</div>
-    <div class="fld">${fld('מתי', sel(dir, [{ value: 'exact', label: 'בדיוק' }, { value: 'before', label: 'לפני' }, { value: 'after', label: 'אחרי' }], (v) => set(v, mins || 20), 'when'))}</div>
-    ${dir === 'exact' ? nothing : html`<div class="fld sm"><label>דקות</label>${numIn(mins, (n) => set(dir, Math.max(1, n ?? 1)), { min: 1, max: 600, attr: 'offset' })}</div>`}
+    <div class="fld">${fld(tr('אירוע'), sel(b.event, [{ value: 'sunset', label: tr('שקיעה') }, { value: 'sunrise', label: tr('זריחה') }], (v) => fc.patch((x) => { x.event = v; }), 'event'))}</div>
+    <div class="fld">${fld(tr('מתי'), sel(dir, [{ value: 'exact', label: tr('בדיוק') }, { value: 'before', label: tr('לפני') }, { value: 'after', label: tr('אחרי') }], (v) => set(v, mins || 20), 'when'))}</div>
+    ${dir === 'exact' ? nothing : html`<div class="fld sm"><label>${tr('דקות')}</label>${numIn(mins, (n) => set(dir, Math.max(1, n ?? 1)), { min: 1, max: 600, attr: 'offset' })}</div>`}
   </div>${idField(fc)}`;
 };
 
-const triggerStart: FormFn = (fc) => html`${errLine(fc)}<div class="codenote">${icon('power')}מופעל פעם אחת אחרי שהמערכת עולה.</div>${idField(fc)}`;
+const triggerStart: FormFn = (fc) => html`${errLine(fc)}<div class="codenote">${icon('power')}${tr('מופעל פעם אחת אחרי שהמערכת עולה.')}</div>${idField(fc)}`;
 
 // ------------------------------------------------------------------------------------------------ conditions
 
@@ -211,9 +212,9 @@ const conditionState: FormFn = (fc) => {
   const f = { purpose: 'watch' as const, onlyTriggerable: true };
   return html`${errLine(fc)}${entityChips(fc, b.entity_ids, { filter: f, apply: (ids) => fc.patch((x) => { x.entity_ids = ids; }) })}
     ${multi
-      ? fld('במצב', html`<div class="rolechips">${choices.map((c) => html`<button type="button" aria-pressed=${(b.state as string[]).includes(c.value)} @click=${() => fc.patch((x) => { const cur = x.state as string[]; x.state = cur.includes(c.value) ? cur.filter((s) => s !== c.value) : [...cur, c.value]; })}>${c.label}</button>`)}</div>`)
-      : html`<div class="frow"><div class="fld">${fld('במצב', sel(String(b.state), choices, (v) => fc.patch((x) => { x.state = v; }), 'state'))}</div></div>`}
-    <details class="opts" ?open=${!!b.for}><summary>${icon('chevronDown')}רק אם נשאר כך זמן מסוים${b.for ? ` · ${durText(b.for)}` : ''}</summary>${durationFields(b.for, (d) => fc.patch((x) => { if (d) x.for = d; else delete x.for; }), 'for')}</details>`;
+      ? fld(tr('במצב'), html`<div class="rolechips">${choices.map((c) => html`<button type="button" aria-pressed=${(b.state as string[]).includes(c.value)} @click=${() => fc.patch((x) => { const cur = x.state as string[]; x.state = cur.includes(c.value) ? cur.filter((s) => s !== c.value) : [...cur, c.value]; })}>${c.label}</button>`)}</div>`)
+      : html`<div class="frow"><div class="fld">${fld(tr('במצב'), sel(String(b.state), choices, (v) => fc.patch((x) => { x.state = v; }), 'state'))}</div></div>`}
+    <details class="opts" ?open=${!!b.for}><summary>${icon('chevronDown')}${tr('רק אם נשאר כך זמן מסוים')}${b.for ? ` · ${durText(b.for)}` : ''}</summary>${durationFields(b.for, (d) => fc.patch((x) => { if (d) x.for = d; else delete x.for; }), 'for')}</details>`;
 };
 
 const conditionNumeric: FormFn = (fc) => {
@@ -221,8 +222,8 @@ const conditionNumeric: FormFn = (fc) => {
   const f = numericWatchFilter();
   return html`${errLine(fc)}${entityChips(fc, b.entity_ids, { ...f, apply: (ids) => fc.patch((x) => { x.entity_ids = ids; }) })}
     <div class="frow">
-      <div class="fld sm"><label>מעל</label>${numIn(b.above, (n) => fc.patch((x) => { if (n === null) delete x.above; else x.above = n; }), { attr: 'above' })}</div>
-      <div class="fld sm"><label>מתחת</label>${numIn(b.below, (n) => fc.patch((x) => { if (n === null) delete x.below; else x.below = n; }), { attr: 'below' })}</div>
+      <div class="fld sm"><label>${tr('מעל')}</label>${numIn(b.above, (n) => fc.patch((x) => { if (n === null) delete x.above; else x.above = n; }), { attr: 'above' })}</div>
+      <div class="fld sm"><label>${tr('מתחת')}</label>${numIn(b.below, (n) => fc.patch((x) => { if (n === null) delete x.below; else x.below = n; }), { attr: 'below' })}</div>
     </div>`;
 };
 
@@ -230,15 +231,15 @@ const conditionTime: FormFn = (fc) => {
   const b = fc.block as ConditionBlock & { type: 'time' };
   const wd = b.weekday ?? [];
   return html`${errLine(fc)}<div class="frow">
-      <div class="fld sm"><label>אחרי</label>${timeIn(b.after, (v) => fc.patch((x) => { if (v) x.after = v; else delete x.after; }), 'after')}</div>
-      <div class="fld sm"><label>לפני</label>${timeIn(b.before, (v) => fc.patch((x) => { if (v) x.before = v; else delete x.before; }), 'before')}</div>
+      <div class="fld sm"><label>${tr('אחרי')}</label>${timeIn(b.after, (v) => fc.patch((x) => { if (v) x.after = v; else delete x.after; }), 'after')}</div>
+      <div class="fld sm"><label>${tr('לפני')}</label>${timeIn(b.before, (v) => fc.patch((x) => { if (v) x.before = v; else delete x.before; }), 'before')}</div>
     </div>
-    ${fld('ימים', html`<div class="rolechips">${WEEKDAYS.map((d: Weekday) => html`<button type="button" data-weekday=${d} aria-pressed=${wd.includes(d)} @click=${() => fc.patch((x) => { const cur = (x.weekday ?? []) as Weekday[]; const next = cur.includes(d) ? cur.filter((y) => y !== d) : [...cur, d]; if (next.length) x.weekday = WEEKDAYS.filter((y) => next.includes(y)); else delete x.weekday; })}>${WEEKDAY_LABEL[d]}</button>`)}</div>`)}`;
+    ${fld(tr('ימים'), html`<div class="rolechips">${WEEKDAYS.map((d: Weekday) => html`<button type="button" data-weekday=${d} aria-pressed=${wd.includes(d)} @click=${() => fc.patch((x) => { const cur = (x.weekday ?? []) as Weekday[]; const next = cur.includes(d) ? cur.filter((y) => y !== d) : [...cur, d]; if (next.length) x.weekday = WEEKDAYS.filter((y) => next.includes(y)); else delete x.weekday; })}>${WEEKDAY_LABEL[d]}</button>`)}</div>`)}`;
 };
 
 const SUN_COMBOS: Array<{ value: string; label: string; after?: string; before?: string }> = [
-  { value: 'after:sunset', label: 'אחרי השקיעה', after: 'sunset' }, { value: 'before:sunrise', label: 'לפני הזריחה', before: 'sunrise' }, { value: 'after:sunrise', label: 'אחרי הזריחה', after: 'sunrise' },
-  { value: 'before:sunset', label: 'לפני השקיעה', before: 'sunset' }, { value: 'night', label: 'בין השקיעה לזריחה (לילה)', after: 'sunset', before: 'sunrise' }, { value: 'day', label: 'בין הזריחה לשקיעה (יום)', after: 'sunrise', before: 'sunset' },
+  { value: 'after:sunset', label: tr('אחרי השקיעה'), after: 'sunset' }, { value: 'before:sunrise', label: tr('לפני הזריחה'), before: 'sunrise' }, { value: 'after:sunrise', label: tr('אחרי הזריחה'), after: 'sunrise' },
+  { value: 'before:sunset', label: tr('לפני השקיעה'), before: 'sunset' }, { value: 'night', label: tr('בין השקיעה לזריחה (לילה)'), after: 'sunset', before: 'sunrise' }, { value: 'day', label: tr('בין הזריחה לשקיעה (יום)'), after: 'sunrise', before: 'sunset' },
 ];
 const conditionSun: FormFn = (fc) => {
   const b = fc.block as ConditionBlock & { type: 'sun' };
@@ -248,14 +249,14 @@ const conditionSun: FormFn = (fc) => {
 
 const conditionTrigger: FormFn = (fc) => {
   const b = fc.block as ConditionBlock & { type: 'trigger' };
-  return html`${errLine(fc)}${fld('הטריגרים', fc.triggerIds.length
+  return html`${errLine(fc)}${fld(tr('הטריגרים'), fc.triggerIds.length
     ? html`<div class="rolechips">${fc.triggerIds.map((id) => html`<button type="button" aria-pressed=${b.ids.includes(id)} @click=${() => fc.patch((x) => { const cur = x.ids as string[]; x.ids = cur.includes(id) ? cur.filter((y) => y !== id) : [...cur, id]; })}>${id}</button>`)}</div>`
-    : html`<small>תנו מזהה לטריגר קודם</small>`)}`;
+    : html`<small>${tr('תנו מזהה לטריגר קודם')}</small>`)}`;
 };
 
 const conditionShabbat: FormFn = (fc) => {
   const b = fc.block as ConditionBlock & { type: 'shabbat' };
-  return html`${errLine(fc)}<div class="frow"><div class="fld">${sel(b.mode, [{ value: 'only_holy_days', label: 'רק בשבת וחג' }, { value: 'not_holy_days', label: 'לא בשבת וחג' }], (v) => fc.patch((x) => { x.mode = v; }), 'mode')}</div></div>`;
+  return html`${errLine(fc)}<div class="frow"><div class="fld">${sel(b.mode, [{ value: 'only_holy_days', label: tr('רק בשבת וחג') }, { value: 'not_holy_days', label: tr('לא בשבת וחג') }], (v) => fc.patch((x) => { x.mode = v; }), 'mode')}</div></div>`;
 };
 
 const conditionGroup: FormFn = (fc) => html`${errLine(fc)}${fc.nested(fc.block.uid, 'conditions', 'condition')}`;
@@ -270,7 +271,7 @@ function argInputs(fc: FormCtx, b: Service, specArgs: ReadonlyArray<{ key: strin
     const v = b.data[a.key];
     if (a.kind === 'number') return html`<div class="fld sm"><label>${a.label}</label>${numIn(typeof v === 'number' ? v : null, (n) => setData(a.key, n), { unit: a.unit, min: a.min, max: a.max, attr: `data.${a.key}`, label: a.label })}</div>`;
     if (a.kind === 'select') return html`<div class="fld">${fld(a.label, sel(String(v ?? ''), [{ value: '', label: '—' }, ...(a.options ?? [])], (s) => setData(a.key, s), `data.${a.key}`, '', a.label))}</div>`;
-    if (a.kind === 'boolean') return html`<div class="fld sm"><label>${a.label}</label><div class="rolechips"><button type="button" aria-pressed=${v === true} @click=${() => setData(a.key, v === true ? null : true)}>כן</button></div></div>`;
+    if (a.kind === 'boolean') return html`<div class="fld sm"><label>${a.label}</label><div class="rolechips"><button type="button" aria-pressed=${v === true} @click=${() => setData(a.key, v === true ? null : true)}>${tr('כן')}</button></div></div>`;
     return html`<div class="fld">${fld(a.label, textIn(String(v ?? ''), (s) => setData(a.key, s), { attr: `data.${a.key}`, label: a.label }))}</div>`;
   })}</div>` : nothing}`;
 }
@@ -278,7 +279,7 @@ function argInputs(fc: FormCtx, b: Service, specArgs: ReadonlyArray<{ key: strin
 const sensitiveRow = (fc: FormCtx, b: Service): TemplateResult | typeof nothing => {
   const cls = b.role === 'device' && (b.entity_ids.length ? b.entity_ids : ['']).map((id) => sensitiveClassOf(b.action, id ? fc.env.byId.get(id)?.class ?? null : null)).find(Boolean);
   if (!cls) return nothing;
-  return html`<div class="sensrow" data-sensitive-row>${icon('alarm')}<span>פעולה רגישה. מותרת לך כמו בשליטה ידנית; קוד לא נשמר.</span></div>`;
+  return html`<div class="sensrow" data-sensitive-row>${icon('alarm')}<span>${tr('פעולה רגישה. מותרת לך כמו בשליטה ידנית; קוד לא נשמר.')}</span></div>`;
 };
 
 function deviceService(fc: FormCtx, b: Service): TemplateResult {
@@ -295,7 +296,7 @@ function deviceService(fc: FormCtx, b: Service): TemplateResult {
   });
   const opts: Choice[] = specs.length ? specs.map((s) => ({ value: s.action, label: s.label || s.action })) : [{ value: b.action, label: b.action }];
   return html`${errLine(fc)}${entityChips(fc, b.entity_ids, { filter, apply })}
-    <div class="frow"><div class="fld">${fld('פעולה', sel(b.action, opts, (v) => fc.patch((x) => { x.action = v; x.data = {}; }), 'action'))}</div></div>
+    <div class="frow"><div class="fld">${fld(tr('פעולה'), sel(b.action, opts, (v) => fc.patch((x) => { x.action = v; x.data = {}; }), 'action'))}</div></div>
     ${argInputs(fc, b, spec?.args ?? [])}${sensitiveRow(fc, b)}`;
 }
 
@@ -309,7 +310,7 @@ function scriptFieldsInputs(fc: FormCtx, b: Service): TemplateResult | typeof no
     const sk = f.selector;
     if (sk.kind === 'number') return html`<div class="fld sm"><label>${f.name}</label>${numIn(typeof v === 'number' ? v : (f.default as number | null) ?? null, (n) => setData(f.key, n), { min: sk.min, max: sk.max, unit: sk.unit, attr: `data.${f.key}`, label: f.name })}</div>`;
     if (sk.kind === 'select') return html`<div class="fld">${fld(f.name, sel(String(v ?? f.default ?? ''), [{ value: '', label: '—' }, ...sk.options.map((o) => ({ value: o, label: o }))], (o) => setData(f.key, o), `data.${f.key}`, '', f.name))}</div>`;
-    if (sk.kind === 'boolean') return html`<div class="fld sm"><label>${f.name}</label><div class="rolechips"><button type="button" aria-pressed=${(v ?? f.default) === true} @click=${() => setData(f.key, (v ?? f.default) === true ? false : true)}>כן</button></div></div>`;
+    if (sk.kind === 'boolean') return html`<div class="fld sm"><label>${f.name}</label><div class="rolechips"><button type="button" aria-pressed=${(v ?? f.default) === true} @click=${() => setData(f.key, (v ?? f.default) === true ? false : true)}>${tr('כן')}</button></div></div>`;
     return html`<div class="fld">${fld(f.name, textIn(String(v ?? f.default ?? ''), (o) => setData(f.key, o), { attr: `data.${f.key}`, label: f.name }))}</div>`;
   })}</div>`;
 }
@@ -318,14 +319,14 @@ const actionService: FormFn = (fc) => {
   const b = fc.block as Service;
   switch (b.role) {
     case 'scene':
-      return html`${errLine(fc)}<div class="frow"><div class="fld">${fld('סצנה', sel(b.entity_ids[0] ?? '', [{ value: '', label: 'בחרו סצנה' }, ...fc.env.catalog.scenes.map((s) => ({ value: s.entity_id, label: s.area ? `${s.name} · ${s.area}` : s.name }))], (v) => fc.patch((x) => { x.entity_ids = v ? [v] : []; }), 'scene'))}</div></div>`;
+      return html`${errLine(fc)}<div class="frow"><div class="fld">${fld(tr('סצנה'), sel(b.entity_ids[0] ?? '', [{ value: '', label: tr('בחרו סצנה') }, ...fc.env.catalog.scenes.map((s) => ({ value: s.entity_id, label: s.area ? `${s.name} · ${s.area}` : s.name }))], (v) => fc.patch((x) => { x.entity_ids = v ? [v] : []; }), 'scene'))}</div></div>`;
     case 'script':
-      return html`${errLine(fc)}<div class="frow"><div class="fld">${fld('סקריפט', sel(b.entity_ids[0] ?? '', [{ value: '', label: 'בחרו סקריפט' }, ...fc.env.catalog.scripts.map((s) => ({ value: s.entity_id, label: s.name }))], (v) => fc.patch((x) => { x.action = v || 'script.turn_on'; x.entity_ids = v ? [v] : []; x.data = {}; }), 'script'))}</div></div>${scriptFieldsInputs(fc, b)}`;
+      return html`${errLine(fc)}<div class="frow"><div class="fld">${fld(tr('סקריפט'), sel(b.entity_ids[0] ?? '', [{ value: '', label: tr('בחרו סקריפט') }, ...fc.env.catalog.scripts.map((s) => ({ value: s.entity_id, label: s.name }))], (v) => fc.patch((x) => { x.action = v || 'script.turn_on'; x.entity_ids = v ? [v] : []; x.data = {}; }), 'script'))}</div></div>${scriptFieldsInputs(fc, b)}`;
     case 'notify':
-      return html`${errLine(fc)}<div class="frow"><div class="fld">${fld('אל', sel(b.action, fc.env.catalog.notify_targets.length ? fc.env.catalog.notify_targets.map((n) => ({ value: n.action, label: n.name })) : [{ value: b.action, label: fc.env.ctx.notifyName?.(b.action) ?? b.action }], (v) => fc.patch((x) => { x.action = v; }), 'target'))}</div></div>
-        ${fld('הודעה', html`<label class="inp"><input type="text" data-fld="message" aria-label="הודעה" dir="auto" placeholder="מה לכתוב" .value=${typeof b.data.message === 'string' ? b.data.message : ''} @input=${(e: Event) => fc.patch((x) => { x.data.message = (e.target as HTMLInputElement).value; })} /></label>`)}`;
+      return html`${errLine(fc)}<div class="frow"><div class="fld">${fld(tr('אל'), sel(b.action, fc.env.catalog.notify_targets.length ? fc.env.catalog.notify_targets.map((n) => ({ value: n.action, label: n.name })) : [{ value: b.action, label: fc.env.ctx.notifyName?.(b.action) ?? b.action }], (v) => fc.patch((x) => { x.action = v; }), 'target'))}</div></div>
+        ${fld(tr('הודעה'), html`<label class="inp"><input type="text" data-fld="message" aria-label=${tr('הודעה')} dir="auto" placeholder=${tr('מה לכתוב')} .value=${typeof b.data.message === 'string' ? b.data.message : ''} @input=${(e: Event) => fc.patch((x) => { x.data.message = (e.target as HTMLInputElement).value; })} /></label>`)}`;
     case 'automation':
-      return html`${errLine(fc)}<div class="codenote">${icon('bolt')}שולט באוטומציה אחרת. אפשר להזיז או למחוק.</div>`;
+      return html`${errLine(fc)}<div class="codenote">${icon('bolt')}${tr('שולט באוטומציה אחרת. אפשר להזיז או למחוק.')}</div>`;
     default:
       return deviceService(fc, b);
   }
@@ -338,7 +339,7 @@ const actionDelay: FormFn = (fc) => {
 
 const sectionTitle = (kind: 'if' | 'then' | 'else' | 'opt', n?: number): TemplateResult => {
   const ic = kind === 'then' ? 'play' : kind === 'else' ? 'shuffle' : 'question';
-  const text = kind === 'if' ? 'אם' : kind === 'then' ? 'אז' : kind === 'else' ? 'אחרת' : `ענף ${n} · אם`;
+  const text = kind === 'if' ? tr('אם') : kind === 'then' ? tr('אז') : kind === 'else' ? tr('אחרת') : `${tr('ענף {n}', { n: String(n) })} · ${tr('אם')}`;
   return html`<h4 class="sub-h"><span class="k ${kind === 'then' ? 'then' : 'if'}">${icon(ic, 12)}</span>${text}</h4>`;
 };
 
@@ -349,17 +350,17 @@ const actionIf: FormFn = (fc) => html`${errLine(fc)}<div class="bsec">${sectionT
 const actionChoose: FormFn = (fc) => {
   const b = fc.block as ActionBlock & { type: 'choose' };
   return html`${errLine(fc)}${b.options.map((_o, i) => html`<div class="bsec" data-choose-option=${i}>
-      <div class="opt-h">${sectionTitle('opt', i + 1)}${b.options.length > 1 ? html`<button class="btn quiet sm" type="button" data-option-remove=${i} @click=${() => fc.patch((x) => { x.options.splice(i, 1); })}>${icon('trash')}הסר ענף</button>` : nothing}</div>
+      <div class="opt-h">${sectionTitle('opt', i + 1)}${b.options.length > 1 ? html`<button class="btn quiet sm" type="button" data-option-remove=${i} @click=${() => fc.patch((x) => { x.options.splice(i, 1); })}>${icon('trash')}${tr('הסר ענף')}</button>` : nothing}</div>
       ${fc.nested(fc.block.uid, `choose.${i}.conditions`, 'condition')}
       ${sectionTitle('then')}${fc.nested(fc.block.uid, `choose.${i}.sequence`, 'action')}</div>`)}
-    ${b.options.length < CAPS.choose_options_max ? html`<button class="btn quiet sm" type="button" data-option-add @click=${() => fc.patch((x) => { x.options.push({ conditions: [], sequence: [] }); })}>${icon('plus')}ענף נוסף</button>` : nothing}
+    ${b.options.length < CAPS.choose_options_max ? html`<button class="btn quiet sm" type="button" data-option-add @click=${() => fc.patch((x) => { x.options.push({ conditions: [], sequence: [] }); })}>${icon('plus')}${tr('ענף נוסף')}</button>` : nothing}
     ${b.default ? html`<div class="bsec">${sectionTitle('else')}${fc.nested(fc.block.uid, 'default', 'action')}</div>`
-      : html`<button class="btn quiet sm" type="button" data-default-add @click=${() => fc.patch((x) => { x.default = []; })}>${icon('plus')}ענף "אחרת"</button>`}`;
+      : html`<button class="btn quiet sm" type="button" data-default-add @click=${() => fc.patch((x) => { x.default = []; })}>${icon('plus')}${tr('ענף "אחרת"')}</button>`}`;
 };
 
 const actionRepeat: FormFn = (fc) => {
   const b = fc.block as ActionBlock & { type: 'repeat_count' };
-  return html`${errLine(fc)}<div class="frow"><div class="fld sm"><label>פעמים</label>${numIn(b.count, (n) => fc.patch((x) => { x.count = Math.round(n ?? 1); }), { min: 1, max: 1000, attr: 'count' })}</div></div>
+  return html`${errLine(fc)}<div class="frow"><div class="fld sm"><label>${tr('פעמים')}</label>${numIn(b.count, (n) => fc.patch((x) => { x.count = Math.round(n ?? 1); }), { min: 1, max: 1000, attr: 'count' })}</div></div>
     <div class="bsec">${fc.nested(fc.block.uid, 'repeat.sequence', 'action')}</div>`;
 };
 
@@ -371,7 +372,7 @@ const actionCondition: FormFn = (fc) => {
 
 const actionStop: FormFn = (fc) => {
   const b = fc.block as ActionBlock & { type: 'stop' };
-  return html`${errLine(fc)}${fld('הודעה (לא חובה)', textIn(b.message, (v) => fc.patch((x) => { x.message = v; }), { attr: 'message', ph: 'למה עוצרים' }))}`;
+  return html`${errLine(fc)}${fld(tr('הודעה (לא חובה)'), textIn(b.message, (v) => fc.patch((x) => { x.message = v; }), { attr: 'message', ph: tr('למה עוצרים') }))}`;
 };
 
 // ------------------------------------------------------------------------------------------------ the registry
@@ -395,18 +396,18 @@ export function formFor(fc: FormCtx): TemplateResult {
   const b = fc.block;
   if (b.kind === 'locked') return lockedForm(fc, b);
   const f = FORMS[`${fc.section}:${(b as Block & { type: string }).type}`];
-  return f ? f(fc) : html`<div class="codenote">${icon('info')}אין טופס לחלק הזה.</div>`;
+  return f ? f(fc) : html`<div class="codenote">${icon('info')}${tr('אין טופס לחלק הזה.')}</div>`;
 }
 
 function lockedForm(fc: FormCtx, b: LockedBlock): TemplateResult {
   const lines = JSON.stringify(b.raw, null, 2).split('\n');
   const editable = fc.canCode && !b.masked && b.reason === 'template' && typeof b.template_text === 'string';
-  return html`<div class="codenote" data-locked-note>${icon('lock')}<span>${lockedWhy(b)}. אפשר להזיז, לשכפל או למחוק${fc.canCode ? '; לעריכה – תצוגת הקוד' : ''}.</span></div>
-    ${controlsSchedules(b) ? html`<div class="codenote">${icon('calendar')}שולט בתזמונים של המערכת.</div>` : nothing}
-    ${editable ? html`<div class="fld full"><label><span class="tag lock">{{ }}</span> טקסט התבנית</label>
-      <label class="inp area"><textarea rows="3" dir="ltr" data-template-text aria-label="טקסט התבנית" .value=${b.template_text ?? ''} @change=${(e: Event) => fc.editTemplate(b.uid, (e.target as HTMLTextAreaElement).value)}></textarea></label></div>` : nothing}
+  return html`<div class="codenote" data-locked-note>${icon('lock')}<span>${lockedWhy(b)}. ${tr('אפשר להזיז, לשכפל או למחוק')}${fc.canCode ? `; ${tr('לעריכה – תצוגת הקוד')}` : ''}.</span></div>
+    ${controlsSchedules(b) ? html`<div class="codenote">${icon('calendar')}${tr('שולט בתזמונים של המערכת.')}</div>` : nothing}
+    ${editable ? html`<div class="fld full"><label><span class="tag lock">{{ }}</span> ${tr('טקסט התבנית')}</label>
+      <label class="inp area"><textarea rows="3" dir="ltr" data-template-text aria-label=${tr('טקסט התבנית')} .value=${b.template_text ?? ''} @change=${(e: Event) => fc.editTemplate(b.uid, (e.target as HTMLTextAreaElement).value)}></textarea></label></div>` : nothing}
     <div class="lockcode" data-locked-code dir="ltr">${lines.map((l) => html`<span class="ln">${l}</span>`)}</div>
-    ${fc.canCode ? html`<div class="frow"><button class="btn sm" type="button" data-goto-code @click=${fc.gotoCode}>${icon('code')}ערוך בקוד</button></div>` : nothing}`;
+    ${fc.canCode ? html`<div class="frow"><button class="btn sm" type="button" data-goto-code @click=${fc.gotoCode}>${icon('code')}${tr('ערוך בקוד')}</button></div>` : nothing}`;
 }
 
 

@@ -16,6 +16,7 @@ import type { DrawerResult } from './automation-drawer';
 import type { SceneCapture } from '../components/scene-capture';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { tr } from '../i18n/msg/automation';
 
 /**
  * CR-017 `<scenes-panel .items .status .now .sceneId>`: the scenes of the installation (CR §4.3, owner decision 7א). The grid is grouped by area with
@@ -304,16 +305,16 @@ export class ScenesPanel extends LitElement {
     return html`<article class=${`scard${hidden ? ' hid' : ''}`} data-scene=${i.id} data-scene-kind=${native ? 'native' : 'device'}>
       <div class="top">
         <span class=${`ico${native ? ' mine' : ''}`}>${aIcon(native ? 'camera' : 'sparkle')}</span>
-        ${native ? html`<span class="badge mine" data-scene-badge>${aIcon('edit')}ניתנת לעריכה</span>` : html`<span class="badge" data-scene-badge>הפעלה בלבד</span>`}
+        ${native ? html`<span class="badge mine" data-scene-badge>${aIcon('edit')}${tr('ניתנת לעריכה')}</span>` : html`<span class="badge" data-scene-badge>${tr('הפעלה בלבד')}</span>`}
         <span style="flex:1"></span>
-        ${admin && !native ? html`<button type="button" class="eyeb" aria-label=${`${hidden ? 'הצגה' : 'הסתרה'} · ${i.name}`} title=${hidden ? 'הצגה' : 'הסתרה'} data-scene-hide @click=${() => void this.meta(i, { hidden: !hidden })}>${aIcon(hidden ? 'eye' : 'eyeOff')}</button>` : nothing}
-        <button type="button" class="star" aria-pressed=${String(i.favourite)} aria-label=${`מועדף · ${i.name}`} title="מועדף" data-scene-fav @click=${() => void this.meta(i, { favourite: !i.favourite })}>${aIcon('star')}</button>
+        ${admin && !native ? html`<button type="button" class="eyeb" aria-label=${`${hidden ? tr('הצגה') : tr('הסתרה')} · ${i.name}`} title=${hidden ? tr('הצגה') : tr('הסתרה')} data-scene-hide @click=${() => void this.meta(i, { hidden: !hidden })}>${aIcon(hidden ? 'eye' : 'eyeOff')}</button>` : nothing}
+        <button type="button" class="star" aria-pressed=${String(i.favourite)} aria-label=${`${tr('מועדף')} · ${i.name}`} title=${tr('מועדף')} data-scene-fav @click=${() => void this.meta(i, { favourite: !i.favourite })}>${aIcon('star')}</button>
       </div>
       <h3>${bidi(i.name)}</h3>
       <div class="sub" data-scene-sub>${sceneLine(i, this.now, undefined, native ? i.targets.length || undefined : undefined)}</div>
       <div class="acts">
-        <button type="button" class=${`btn primary${done ? ' ok' : ''}`} data-scene-activate ?disabled=${this.busy.has(i.id) || hidden} @click=${() => void this.activate(i)}>${done ? aIcon('check') : aIcon('play')}${done ? 'הופעלה' : 'הפעל'}</button>
-        ${native && i.can.edit ? html`<button type="button" class="btn" data-scene-edit @click=${() => this.fire('open-scene', { id: i.id })}>${aIcon('edit')}עריכה</button>` : nothing}
+        <button type="button" class=${`btn primary${done ? ' ok' : ''}`} data-scene-activate ?disabled=${this.busy.has(i.id) || hidden} @click=${() => void this.activate(i)}>${done ? aIcon('check') : aIcon('play')}${done ? tr('הופעלה') : tr('הפעל')}</button>
+        ${native && i.can.edit ? html`<button type="button" class="btn" data-scene-edit @click=${() => this.fire('open-scene', { id: i.id })}>${aIcon('edit')}${tr('עריכה')}</button>` : nothing}
       </div>
     </article>`;
   }
@@ -367,7 +368,7 @@ export class ScenesPanel extends LitElement {
     try {
       if (this.detail) await replaceItem('scene', this.detail.id, draft, this.detail.revision);
       else await createItem('scene', draft, { enabled: true });
-      this.say('נשמר');
+      this.say(tr('נשמר'));
       this.fire('changed', {});
       this.fire('close-scene');
     } catch (err) {
@@ -387,7 +388,7 @@ export class ScenesPanel extends LitElement {
       this.confirmDelete = false;
       this.fire('changed', {});
       this.fire('close-scene');
-      this.say(`"${d.name}" נמחקה`, 'ok', { label: 'שחזור', run: () => void autoApi().restoreTrash(r.trash_id, { client_request_id: `undo-${r.trash_id}` }).then(() => this.fire('changed', {})).catch((er) => this.say(mapAutomationError(er).message, 'error')) });
+      this.say(tr('"{name}" נמחקה', { name: d.name }), 'ok', { label: tr('שחזור'), run: () => void autoApi().restoreTrash(r.trash_id, { client_request_id: `undo-${r.trash_id}` }).then(() => this.fire('changed', {})).catch((er) => this.say(mapAutomationError(er).message, 'error')) });
     } catch (err) {
       this.confirmDelete = false;
       this.editorError = mapAutomationError(err).message;
@@ -396,15 +397,15 @@ export class ScenesPanel extends LitElement {
 
   private editor(): TemplateResult {
     const open = !!this.sceneId;
-    const heading = this.detail ? bidi(this.detail.name) : 'סצנה חדשה';
-    return html`<sw-drawer modal .open=${open} heading=${heading} subheading=${this.detail ? 'ניתנת לעריכה' : 'סצנה חדשה'} @close=${() => this.fire('close-scene')}>
+    const heading = this.detail ? bidi(this.detail.name) : tr('סצנה חדשה');
+    return html`<sw-drawer modal .open=${open} heading=${heading} subheading=${this.detail ? tr('ניתנת לעריכה') : tr('סצנה חדשה')} @close=${() => this.fire('close-scene')}>
       ${open ? html`<div class="sheetbody">
-        ${this.conflict ? html`<div class="banner warn" role="alert">${aIcon('warning')}<div><b>הסצנה שונתה במקום אחר</b></div><button type="button" class="btn sm" @click=${() => { this.conflict = false; void this.openEditor(); }}>טען מחדש</button></div>` : nothing}
+        ${this.conflict ? html`<div class="banner warn" role="alert">${aIcon('warning')}<div><b>${tr('הסצנה שונתה במקום אחר')}</b></div><button type="button" class="btn sm" @click=${() => { this.conflict = false; void this.openEditor(); }}>${tr('טען מחדש')}</button></div>` : nothing}
         ${this.editorError && !this.conflict ? html`<div class="banner bad" role="alert">${aIcon('warning')}${this.editorError}</div>` : nothing}
         <scene-capture .name=${this.editorName} .members=${this.members} .entities=${this.entities} .phase=${this.phase} .error=${this.capError} .saving=${this.saving} .deletable=${!!this.detail && !!this.detail.can.delete} .readOnly=${!!this.detail && !this.detail.can.edit}
           @capture=${(e: CustomEvent<{ entity_ids: string[]; merge: boolean }>) => void this.onCapture(e)} @save=${(e: CustomEvent<{ name: string; members: SceneMember[] }>) => void this.onSave(e)} @cancel=${() => this.fire('close-scene')} @delete=${() => (this.confirmDelete = true)}></scene-capture>
       </div>` : nothing}
-      ${this.confirmDelete && this.detail ? html`<sw-dialog open heading=${`למחוק את "${this.detail.name}"?`} data-dialog="delete-scene" @close=${() => (this.confirmDelete = false)}><div class="dlgform"><p>הסצנה תישמר בסל המחזור וניתן לשחזר אותה.</p><div class="dlgrow"><button type="button" class="btn" @click=${() => (this.confirmDelete = false)}>ביטול</button><button type="button" class="btn danger" data-dialog-ok @click=${() => void this.doDelete()}>מחיקה</button></div></div></sw-dialog>` : nothing}
+      ${this.confirmDelete && this.detail ? html`<sw-dialog open heading=${tr('למחוק את "{name}"?', { name: this.detail.name })} data-dialog="delete-scene" @close=${() => (this.confirmDelete = false)}><div class="dlgform"><p>${tr('הסצנה תישמר בסל המחזור וניתן לשחזר אותה.')}</p><div class="dlgrow"><button type="button" class="btn" @click=${() => (this.confirmDelete = false)}>${tr('ביטול')}</button><button type="button" class="btn danger" data-dialog-ok @click=${() => void this.doDelete()}>${tr('מחיקה')}</button></div></div></sw-dialog>` : nothing}
     </sw-drawer>`;
   }
 
@@ -417,7 +418,7 @@ export class ScenesPanel extends LitElement {
         <div class="grid">${g.items.map((i) => this.card(i))}</div>
       </section>`)}
       ${hid.length && this.status?.counts.hidden !== null ? html`<section data-scene-group="hidden">
-        <div class="hid-row"><button type="button" class="btn sm quiet" data-scene-hidden-toggle aria-expanded=${String(this.showHidden)} @click=${() => (this.showHidden = !this.showHidden)}>${aIcon('eyeOff')}מוסתרות <span>${hid.length}</span></button></div>
+        <div class="hid-row"><button type="button" class="btn sm quiet" data-scene-hidden-toggle aria-expanded=${String(this.showHidden)} @click=${() => (this.showHidden = !this.showHidden)}>${aIcon('eyeOff')}${tr('מוסתרות')} <span>${hid.length}</span></button></div>
         ${this.showHidden ? html`<div class="grid" style="margin-block-start:12px">${hid.map((i) => this.card(i, true))}</div>` : nothing}
       </section>` : nothing}
     </div>

@@ -14,6 +14,7 @@ import {
 import { applyTableEdit, tableRows, timeInputText, type TableField } from './schedule-grid-logic';
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
+import { tr } from '../i18n/msg/automation';
 
 /**
  * CR-014 S4: the table view of the same scheme (mockup 07 / 23): one row per slot, "from" and "to" typed inline (07:30,
@@ -26,7 +27,7 @@ import { bubbleChrome } from '../styles/bubble-chrome';
  *   slot-select {uid}   slot-delete {uid}   slot-duplicate {uid}   slot-add
  */
 
-const HVAC_WORDS: Record<string, string> = { cool: 'קירור', heat: 'חימום', heat_cool: 'אוטומטי', auto: 'אוטומטי', dry: 'ייבוש', fan_only: 'מאוורר' };
+const HVAC_WORDS: Record<string, string> = { cool: tr('קירור'), heat: tr('חימום'), heat_cool: tr('אוטומטי'), auto: tr('אוטומטי'), dry: tr('ייבוש'), fan_only: tr('מאוורר') };
 const ADVANCED = new Set(['cover.stop_cover', 'cover.set_cover_tilt_position', 'climate.set_fan_mode', 'climate.set_preset_mode', 'fan.set_percentage']);
 
 @customElement('schedule-table-view')
@@ -316,23 +317,23 @@ export class ScheduleTableView extends LitElement {
     for (const sp of specs) {
       const v = d[sp.name];
       if (sp.name === 'hvac_mode' && sp.choices?.length) {
-        parts.push(html`<select ?disabled=${ro} aria-label="מצב פעולה" @change=${(e: Event) => this.setArg(slot, 'hvac_mode', (e.target as HTMLSelectElement).value)}>
-          ${sp.required ? nothing : html`<option value="" ?selected=${v === undefined}>ללא שינוי</option>`}
+        parts.push(html`<select ?disabled=${ro} aria-label=${tr('מצב פעולה')} @change=${(e: Event) => this.setArg(slot, 'hvac_mode', (e.target as HTMLSelectElement).value)}>
+          ${sp.required ? nothing : html`<option value="" ?selected=${v === undefined}>${tr('ללא שינוי')}</option>`}
           ${sp.choices.map((c) => html`<option value=${c} ?selected=${v === c}>${HVAC_WORDS[c] ?? c}</option>`)}
         </select>`);
       } else if (sp.name === 'temperature') {
-        parts.push(html`<input class="num" type="number" step="0.5" min=${sp.min ?? nothing} max=${sp.max ?? nothing} ?disabled=${ro} aria-label="טמפרטורה" .value=${v === undefined ? '' : String(v)} @change=${(e: Event) => this.setArg(slot, 'temperature', (e.target as HTMLInputElement).value === '' ? undefined : Number((e.target as HTMLInputElement).value))} /><span class="unit">°</span>`);
+        parts.push(html`<input class="num" type="number" step="0.5" min=${sp.min ?? nothing} max=${sp.max ?? nothing} ?disabled=${ro} aria-label=${tr('טמפרטורה')} .value=${v === undefined ? '' : String(v)} @change=${(e: Event) => this.setArg(slot, 'temperature', (e.target as HTMLInputElement).value === '' ? undefined : Number((e.target as HTMLInputElement).value))} /><span class="unit">°</span>`);
       } else if (sp.name === 'brightness' || sp.name === 'brightness_pct') {
         if (sp.name === 'brightness_pct' && d.brightness_pct === undefined) continue; // the server lists both; the card writes "brightness"
         if (sp.name === 'brightness' && d.brightness_pct !== undefined) continue;
         const raw = sp.name === 'brightness';
         const pct = typeof v === 'number' ? (raw ? Math.round((v / 255) * 100) : v) : '';
-        parts.push(html`<input class="num" type="number" min="1" max="100" placeholder="בהירות" ?disabled=${ro} aria-label="בהירות באחוזים" .value=${String(pct)} @change=${(e: Event) => {
+        parts.push(html`<input class="num" type="number" min="1" max="100" placeholder=${tr('בהירות')} ?disabled=${ro} aria-label=${tr('בהירות באחוזים')} .value=${String(pct)} @change=${(e: Event) => {
           const t = (e.target as HTMLInputElement).value;
           this.setArg(slot, sp.name, t === '' ? undefined : raw ? Math.round((Math.min(100, Math.max(1, Number(t))) / 100) * 255) : Math.min(100, Math.max(1, Number(t))));
         }} /><span class="unit">%</span>`);
       } else if ((sp.name === 'position' || sp.name === 'tilt_position' || sp.name === 'percentage') && sp.type === 'int') {
-        parts.push(html`<input class="num" type="number" min=${sp.min ?? 0} max=${sp.max ?? 100} ?disabled=${ro} aria-label=${sp.name === 'position' ? 'מיקום' : sp.name === 'percentage' ? 'עוצמה' : 'הטיה'} .value=${v === undefined ? '' : String(v)} @change=${(e: Event) => this.setArg(slot, sp.name, (e.target as HTMLInputElement).value === '' ? undefined : Number((e.target as HTMLInputElement).value))} /><span class="unit">%</span>`);
+        parts.push(html`<input class="num" type="number" min=${sp.min ?? 0} max=${sp.max ?? 100} ?disabled=${ro} aria-label=${sp.name === 'position' ? tr('מיקום') : sp.name === 'percentage' ? tr('עוצמה') : tr('הטיה')} .value=${v === undefined ? '' : String(v)} @change=${(e: Event) => this.setArg(slot, sp.name, (e.target as HTMLInputElement).value === '' ? undefined : Number((e.target as HTMLInputElement).value))} /><span class="unit">%</span>`);
       }
     }
     return parts.length ? html`<div class="val">${parts}</div>` : html`<span class="unit">—</span>`;
@@ -347,32 +348,32 @@ export class ScheduleTableView extends LitElement {
     const g = groups[0];
     const first = g?.entities.find((e): e is string => !!e);
     const catalog = (first ? this.meta.get(first) : undefined)?.actions ?? [];
-    const names = [...new Set(slot.actions.map((a) => (a.entity_id ? this.meta.get(a.entity_id)?.name ?? a.entity_id : 'ללא התקן')))];
+    const names = [...new Set(slot.actions.map((a) => (a.entity_id ? this.meta.get(a.entity_id)?.name ?? a.entity_id : tr('ללא התקן'))))];
     const pair = this.pairOf(r.index);
     const ce = this.cellError?.uid === slot.uid ? this.cellError : null;
     return html`<tr class="${slot.uid === this.selected ? 'sel' : ''} ${errs.length ? 'bad' : ''}" data-row=${slot.uid} @click=${() => this.fire('slot-select', { uid: slot.uid })}>
-      <td class="n" title=${errs.map((e) => e.message).join(' · ')}>${errs.length ? html`<sw-icon name="warning" size="14" role="img" aria-label=${`משבצת ${display}: ${errs.map((e) => e.message).join(' · ')}`}></sw-icon>` : display}</td>
+      <td class="n" title=${errs.map((e) => e.message).join(' · ')}>${errs.length ? html`<sw-icon name="warning" size="14" role="img" aria-label=${`${tr('משבצת {n}', { n: display })}: ${errs.map((e) => e.message).join(' · ')}`}></sw-icon>` : display}</td>
       <td data-label="משעה">
-        <input class="t ${ce?.field === 'from' ? 'err' : ''}" data-cell="from" ?disabled=${ro} .value=${r.from} aria-label="משעה, משבצת ${display}" @change=${(e: Event) => this.commit(slot, 'from', (e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} @click=${(e: Event) => e.stopPropagation()} />
+        <input class="t ${ce?.field === 'from' ? 'err' : ''}" data-cell="from" ?disabled=${ro} .value=${r.from} aria-label=${tr('משעה, משבצת {n}', { n: display })} @change=${(e: Event) => this.commit(slot, 'from', (e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} @click=${(e: Event) => e.stopPropagation()} />
         ${ce?.field === 'from' ? html`<div class="msg" role="alert">${ce.message}</div>` : nothing}
       </td>
       <td data-label="עד שעה (סוף חלון)">
-        <input class="t ${ce?.field === 'to' ? 'err' : ''}" data-cell="to" ?disabled=${ro} placeholder="ללא" .value=${r.to} aria-label="עד שעה, משבצת ${display}" @change=${(e: Event) => this.commit(slot, 'to', (e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} @click=${(e: Event) => e.stopPropagation()} />
+        <input class="t ${ce?.field === 'to' ? 'err' : ''}" data-cell="to" ?disabled=${ro} placeholder=${tr('ללא')} .value=${r.to} aria-label=${tr('עד שעה, משבצת {n}', { n: display })} @change=${(e: Event) => this.commit(slot, 'to', (e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()} @click=${(e: Event) => e.stopPropagation()} />
         ${ce?.field === 'to' ? html`<div class="msg" role="alert">${ce.message}</div>` : nothing}
       </td>
       <td class="act-cell" data-label="פעולה">
         ${locked
-          ? html`<span class="chip lock"><sw-icon name="lock" size="12"></sw-icon>${g ? actionLabel({ service: g.service, data: g.data }) : 'לא נתמך'}</span>`
+          ? html`<span class="chip lock"><sw-icon name="lock" size="12"></sw-icon>${g ? actionLabel({ service: g.service, data: g.data }) : tr('לא נתמך')}</span>`
           : !g
-            ? html`<span class="unit">בחרו פעולה</span>`
+            ? html`<span class="unit">${tr('בחרו פעולה')}</span>`
             : groups.length > 1
-              ? html`<span class="chip">${groups.length} פעולות</span>`
-              : html`<select ?disabled=${ro || !catalog.length} data-cell="service" aria-label="פעולה, משבצת ${display}" @click=${(e: Event) => e.stopPropagation()} @change=${(e: Event) => this.setService(slot, (e.target as HTMLSelectElement).value)}>
+              ? html`<span class="chip">${tr('{n} פעולות', { n: groups.length })}</span>`
+              : html`<select ?disabled=${ro || !catalog.length} data-cell="service" aria-label=${tr('פעולה, משבצת {n}', { n: display })} @click=${(e: Event) => e.stopPropagation()} @change=${(e: Event) => this.setService(slot, (e.target as HTMLSelectElement).value)}>
                   ${catalog.length ? nothing : html`<option selected>${actionLabel({ service: g.service, data: g.data })}</option>`}
                   ${catalog.filter((a) => !ADVANCED.has(a.service)).map((a) => html`<option value=${a.service} ?selected=${a.service === g.service}>${serviceWord(a.service, a.label)}</option>`)}
-                  ${catalog.some((a) => ADVANCED.has(a.service)) ? html`<optgroup label="מתקדם">${catalog.filter((a) => ADVANCED.has(a.service)).map((a) => html`<option value=${a.service} ?selected=${a.service === g.service}>${serviceWord(a.service, a.label)}</option>`)}</optgroup>` : nothing}
+                  ${catalog.some((a) => ADVANCED.has(a.service)) ? html`<optgroup label=${tr('מתקדם')}>${catalog.filter((a) => ADVANCED.has(a.service)).map((a) => html`<option value=${a.service} ?selected=${a.service === g.service}>${serviceWord(a.service, a.label)}</option>`)}</optgroup>` : nothing}
                 </select>`}
-        ${pair !== null ? html`<span class="chip" title="משבצת כיבוי בסיום">כיבוי בסיום</span>` : nothing}
+        ${pair !== null ? html`<span class="chip" title=${tr('משבצת כיבוי בסיום')}>${tr('כיבוי בסיום')}</span>` : nothing}
       </td>
       <td class="val-cell" data-label="ערך" @click=${(e: Event) => e.stopPropagation()}>${groups.length === 1 && !locked ? this.renderValue(slot, ro) : html`<span class="unit">—</span>`}</td>
       <td class="who ents" data-label="התקנים">${names.join(', ') || '—'}</td>
@@ -380,8 +381,8 @@ export class ScheduleTableView extends LitElement {
       <td class="acts">
         ${this.readOnly
           ? nothing
-          : html`<div class="btns"><sw-button size="sm" variant="ghost" iconOnly icon="layers" label="שכפול משבצת ${display}" @click=${(e: Event) => (e.stopPropagation(), this.fire('slot-duplicate', { uid: slot.uid }))}></sw-button>
-              <sw-button size="sm" variant="ghost" iconOnly icon="trash" label="מחיקת משבצת ${display}" @click=${(e: Event) => (e.stopPropagation(), this.fire('slot-delete', { uid: slot.uid }))}></sw-button></div>`}
+          : html`<div class="btns"><sw-button size="sm" variant="ghost" iconOnly icon="layers" label=${tr('שכפול משבצת {n}', { n: display })} @click=${(e: Event) => (e.stopPropagation(), this.fire('slot-duplicate', { uid: slot.uid }))}></sw-button>
+              <sw-button size="sm" variant="ghost" iconOnly icon="trash" label=${tr('מחיקת משבצת {n}', { n: display })} @click=${(e: Event) => (e.stopPropagation(), this.fire('slot-delete', { uid: slot.uid }))}></sw-button></div>`}
       </td>
     </tr>`;
   }
@@ -392,20 +393,20 @@ export class ScheduleTableView extends LitElement {
         <thead>
           <tr>
             <th>#</th>
-            <th>משעה</th>
-            <th>עד שעה (סוף חלון)</th>
-            <th>פעולה</th>
-            <th>ערך</th>
-            <th>התקנים</th>
-            <th>הרצה הבאה</th>
+            <th>${tr('משעה')}</th>
+            <th>${tr('עד שעה (סוף חלון)')}</th>
+            <th>${tr('פעולה')}</th>
+            <th>${tr('ערך')}</th>
+            <th>${tr('התקנים')}</th>
+            <th>${tr('הרצה הבאה')}</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
-          ${rows.length ? rows.map((r, i) => this.renderRow(r, i + 1)) : html`<tr><td colspan="8" class="empty" data-table-empty>אין משבצות עדיין.${this.readOnly ? '' : ' "משבצת חדשה" מוסיפה את הראשונה.'}</td></tr>`}
+          ${rows.length ? rows.map((r, i) => this.renderRow(r, i + 1)) : html`<tr><td colspan="8" class="empty" data-table-empty>${tr('אין משבצות עדיין.')}${this.readOnly ? '' : ` ${tr('"משבצת חדשה" מוסיפה את הראשונה.')}`}</td></tr>`}
         </tbody>
       </table></div>
-      ${this.readOnly ? nothing : html`<div class="foot"><sw-button size="sm" icon="plus" data-table-add @click=${() => this.fire('slot-add')}>משבצת חדשה</sw-button></div>`}`;
+      ${this.readOnly ? nothing : html`<div class="foot"><sw-button size="sm" icon="plus" data-table-add @click=${() => this.fire('slot-add')}>${tr('משבצת חדשה')}</sw-button></div>`}`;
   }
 }
 

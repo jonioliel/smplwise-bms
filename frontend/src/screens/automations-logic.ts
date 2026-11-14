@@ -2,6 +2,7 @@ import {
   filterItems, itemChips, manageRight, saveBlocker, sortItems, visibleKinds,
   type AutomationsStatus, type Item, type ItemChip, type ItemKind, type RunSummary, type SceneMember, type ScriptField,
 } from '../api/automations';
+import { tr } from '../i18n/msg/automation';
 
 /**
  * CR-017 S3: the pure logic of the automations screens (no DOM, no network): the route of `#/devices/automations/...`, the list filters,
@@ -14,9 +15,9 @@ import {
 export type Segment = 'automations' | 'scenes' | 'scripts';
 export interface SegmentDef { id: Segment; kind: ItemKind; label: string; newLabel: string; searchLabel: string }
 export const SEGMENTS: readonly SegmentDef[] = [
-  { id: 'automations', kind: 'automation', label: 'אוטומציות', newLabel: 'חדש', searchLabel: 'חיפוש אוטומציה או מכשיר' },
-  { id: 'scenes', kind: 'scene', label: 'סצנות', newLabel: 'סצנה חדשה', searchLabel: 'חיפוש סצנה' },
-  { id: 'scripts', kind: 'script', label: 'סקריפטים', newLabel: 'סקריפט חדש', searchLabel: 'חיפוש סקריפט' },
+  { id: 'automations', kind: 'automation', label: tr('אוטומציות'), newLabel: tr('חדש'), searchLabel: tr('חיפוש אוטומציה או מכשיר') },
+  { id: 'scenes', kind: 'scene', label: tr('סצנות'), newLabel: tr('סצנה חדשה'), searchLabel: tr('חיפוש סצנה') },
+  { id: 'scripts', kind: 'script', label: tr('סקריפטים'), newLabel: tr('סקריפט חדש'), searchLabel: tr('חיפוש סקריפט') },
 ];
 export const segmentOf = (id: Segment): SegmentDef => SEGMENTS.find((s) => s.id === id) ?? SEGMENTS[0];
 export const segmentOfKind = (kind: ItemKind): SegmentDef => SEGMENTS.find((s) => s.kind === kind) ?? SEGMENTS[0];
@@ -82,10 +83,10 @@ export function editTarget(r: AutomationsRoute, params: URLSearchParams): { kind
 
 export type StateFilter = 'all' | 'on' | 'off' | 'sensitive' | 'conflict' | 'attention';
 export const STATE_FILTERS: ReadonlyArray<{ id: StateFilter; label: string }> = [
-  { id: 'all', label: 'הכל' }, { id: 'on', label: 'פעילות' }, { id: 'off', label: 'כבויות' }, { id: 'sensitive', label: 'רגישות' }, { id: 'attention', label: 'דורשות תשומת לב' },
+  { id: 'all', label: tr('הכל') }, { id: 'on', label: tr('פעילות') }, { id: 'off', label: tr('כבויות') }, { id: 'sensitive', label: tr('רגישות') }, { id: 'attention', label: tr('דורשות תשומת לב') },
 ];
 /** KAV079-295: `conflict` ("התנגשות אפשרית", before "דורשות תשומת לב" as drawn) is offered only while the pre-save checks are on. */
-const CONFLICT_FILTER = { id: 'conflict' as StateFilter, label: 'התנגשות אפשרית' };
+const CONFLICT_FILTER = { id: 'conflict' as StateFilter, label: tr('התנגשות אפשרית') };
 export const STATE_FILTERS_OF = (precheck: boolean): ReadonlyArray<{ id: StateFilter; label: string }> =>
   (precheck ? [...STATE_FILTERS.slice(0, 4), CONFLICT_FILTER, ...STATE_FILTERS.slice(4)] : STATE_FILTERS);
 /** KAV079-295: the per-item conflict counts of GET /automations-ext/conflicts put on the list's items. */
@@ -141,7 +142,7 @@ export const countsOf = (items: readonly Item[]): Record<ItemKind, number> => ({
 
 // ------------------------------------------------------------------------------------------------ the card
 
-export const ALL_HOUSE = 'כל הבית';
+export const ALL_HOUSE = tr('כל הבית');
 /** "קומה 1" / "קומת קרקע · קומה 1" / "קומת קרקע · קומה 1 +1"; an item with no floor is "כל הבית". */
 export function floorLine(i: Pick<Item, 'floors'>): string {
   const n = i.floors.map((f) => f.name);
@@ -163,8 +164,8 @@ export function whenText(iso: string, now: Date, timeZone?: string): string {
   const today = dayKey(now, timeZone);
   const yesterday = dayKey(new Date(now.getTime() - 86400000), timeZone);
   const key = dayKey(d, timeZone);
-  if (key === today) return `היום ${hhmm(d, timeZone)}`;
-  if (key === yesterday) return `אתמול ${hhmm(d, timeZone)}`;
+  if (key === today) return tr('היום {time}', { time: hhmm(d, timeZone) });
+  if (key === yesterday) return tr('אתמול {time}', { time: hhmm(d, timeZone) });
   const parts = new Intl.DateTimeFormat('he-IL', { day: '2-digit', month: '2-digit', timeZone }).formatToParts(d);
   const day = parts.find((x) => x.type === 'day')?.value ?? '';
   const month = parts.find((x) => x.type === 'month')?.value ?? '';
@@ -175,21 +176,21 @@ export type RunTone = 'ok' | 'bad' | 'run' | 'none';
 /** The footer line of a card: "רצה לפני 12 דק׳ · 38 ריצות", "נכשלה היום 05:30 · 19 ריצות", "עוד לא רצה". */
 export function runLine(i: Pick<Item, 'last_run' | 'runs_7d' | 'kind'>, now: Date, timeZone?: string): { text: string; tone: RunTone; title: string } {
   const last = i.last_run;
-  const verb = i.kind === 'script' ? 'הורץ' : i.kind === 'scene' ? 'הופעלה' : 'רצה';
-  if (!last) return { text: i.kind === 'script' ? 'עוד לא הורץ' : i.kind === 'scene' ? 'עוד לא הופעלה' : 'עוד לא רצה', tone: 'none', title: '' };
+  const verb = i.kind === 'script' ? tr('הורץ') : i.kind === 'scene' ? tr('הופעלה') : tr('רצה');
+  if (!last) return { text: i.kind === 'script' ? tr('עוד לא הורץ') : i.kind === 'scene' ? tr('עוד לא הופעלה') : tr('עוד לא רצה'), tone: 'none', title: '' };
   const mins = Math.floor((now.getTime() - Date.parse(last.at)) / 60000);
   const failed = last.result === 'error';
-  const head = failed ? (i.kind === 'script' ? 'נכשל' : 'נכשלה') : verb;
+  const head = failed ? (i.kind === 'script' ? tr('נכשל') : tr('נכשלה')) : verb;
   let when: string;
-  if (last.result === 'running') when = 'עכשיו';
+  if (last.result === 'running') when = tr('עכשיו');
   else if (!Number.isFinite(mins)) when = '';
-  else if (mins < 1) when = 'עכשיו';
-  else if (mins < 60) when = `לפני ${mins} דק׳`;
-  else if (mins < 60 * 6) when = `לפני ${Math.floor(mins / 60)} שע׳`;
+  else if (mins < 1) when = tr('עכשיו');
+  else if (mins < 60) when = tr('לפני {n} דק׳', { n: mins });
+  else if (mins < 60 * 6) when = tr('לפני {n} שע׳', { n: Math.floor(mins / 60) });
   else when = whenText(last.at, now, timeZone);
   const n = i.runs_7d;
-  const count = n && n > 0 ? ` · ${n} ${i.kind === 'script' ? 'הרצות' : 'ריצות'}` : '';
-  return { text: `${head} ${when}${count}`.replace(/\s+/g, ' ').trim(), tone: last.result === 'running' ? 'run' : failed ? 'bad' : last.result === 'ok' ? 'ok' : 'none', title: n ? 'ב־7 הימים האחרונים' : '' };
+  const count = n && n > 0 ? ` · ${i.kind === 'script' ? tr('{n} הרצות', { n }) : tr('{n} ריצות', { n })}` : '';
+  return { text: `${head} ${when}${count}`.replace(/\s+/g, ' ').trim(), tone: last.result === 'running' ? 'run' : failed ? 'bad' : last.result === 'ok' ? 'ok' : 'none', title: n ? tr('ב־7 הימים האחרונים') : '' };
 }
 
 export interface CardChip extends ItemChip { count?: number }
@@ -197,23 +198,23 @@ export interface CardChip extends ItemChip { count?: number }
 export function cardChips(i: Item, opts: { sensitiveWarning?: boolean } = {}): CardChip[] {
   return itemChips(i, opts)
     .filter((c) => c.id !== 'off' && c.id !== 'running')
-    .map((c) => (c.id === 'locked' ? { ...c, count: i.locked_count, label: i.locked_count > 1 ? `${i.locked_count} חלקים נעולים` : 'חלק נעול' } : c))
+    .map((c) => (c.id === 'locked' ? { ...c, count: i.locked_count, label: i.locked_count > 1 ? tr('{n} חלקים נעולים', { n: i.locked_count }) : tr('חלק נעול') } : c))
     // KAV079-295 (state 1): "כפתור קיר · ניתן לעריכה" and "התנגשות אפשרית · N"
-    .concat(i.wall_button ? [{ id: 'wall_button', label: 'כפתור קיר · ניתן לעריכה', tone: 'ok' as const }] : [])
-    .concat((i.conflicts ?? 0) > 0 ? [{ id: 'conflict', label: `התנגשות אפשרית · ${i.conflicts}`, tone: 'warn' as const, count: i.conflicts }] : []);
+    .concat(i.wall_button ? [{ id: 'wall_button', label: tr('כפתור קיר · ניתן לעריכה'), tone: 'ok' as const }] : [])
+    .concat((i.conflicts ?? 0) > 0 ? [{ id: 'conflict', label: `${tr('התנגשות אפשרית')} · ${i.conflicts}`, tone: 'warn' as const, count: i.conflicts }] : []);
 }
 
 // ------------------------------------------------------------------------------------------------ scenes and scripts
 
 export interface SceneGroup { id: string; title: string; sub: string; items: Item[] }
-const NO_AREA = 'ללא חדר';
+const NO_AREA = tr('ללא חדר');
 /** The scenes panel: "מועדפות" first (a favourite is listed there only), then one section per area; hidden scenes never. */
 export function groupScenes(items: readonly Item[]): SceneGroup[] {
   const visible = items.filter((i) => i.kind === 'scene' && !i.hidden);
   const favs = visible.filter((i) => i.favourite);
   const groups: SceneGroup[] = [];
-  const count = (n: number) => `${n} ${n === 1 ? 'סצנה' : 'סצנות'}`;
-  if (favs.length) groups.push({ id: 'favourites', title: 'מועדפות', sub: '', items: favs });
+  const count = (n: number) => (n === 1 ? tr('{n} סצנה', { n }) : tr('{n} סצנות', { n }));
+  if (favs.length) groups.push({ id: 'favourites', title: tr('מועדפות'), sub: '', items: favs });
   const byArea = new Map<string, Item[]>();
   for (const i of visible.filter((x) => !x.favourite)) {
     const key = i.areas[0]?.name ?? NO_AREA;
@@ -228,8 +229,8 @@ export const hiddenScenes = (items: readonly Item[]): Item[] => items.filter((i)
 
 /** The subtitle of a scene card: "הופעלה אתמול 19:40 · 5 מכשירים", "עוד לא הופעלה". */
 export function sceneLine(i: Item, now: Date, timeZone?: string, members?: number): string {
-  const when = i.last_run ? `הופעלה ${whenText(i.last_run.at, now, timeZone)}` : 'עוד לא הופעלה';
-  return members ? `${when} · ${members} מכשירים` : when;
+  const when = i.last_run ? tr('הופעלה {when}', { when: whenText(i.last_run.at, now, timeZone) }) : tr('עוד לא הופעלה');
+  return members ? `${when} · ${tr('{n} מכשירים', { n: members })}` : when;
 }
 export const isIntegrationScene = (i: Pick<Item, 'source'>): boolean => i.source === 'integration';
 export const sortScripts = (items: readonly Item[]): Item[] => sortItems(items, 'name');
@@ -239,9 +240,9 @@ export const sortScripts = (items: readonly Item[]): Item[] => sortItems(items, 
 /** The one line of the "להריץ עכשיו?" confirmation: the sensitive targets by name, or the unknown effect. */
 export function confirmLine(i: Pick<Item, 'sensitive' | 'unknown_effects' | 'targets'>): string {
   const names = i.targets.filter((t) => t.sensitive).map((t) => t.name);
-  if (i.sensitive && names.length) return `כולל ${names.join(', ')} – כמו בשליטה ידנית.`;
-  if (i.sensitive) return 'כולל פעולה רגישה – כמו בשליטה ידנית.';
-  if (i.unknown_effects) return 'כולל פעולה מתקדמת שהשפעתה אינה ידועה.';
+  if (i.sensitive && names.length) return tr('כולל {names} – כמו בשליטה ידנית.', { names: names.join(', ') });
+  if (i.sensitive) return tr('כולל פעולה רגישה – כמו בשליטה ידנית.');
+  if (i.unknown_effects) return tr('כולל פעולה מתקדמת שהשפעתה אינה ידועה.');
   return '';
 }
 
@@ -265,13 +266,13 @@ export function screenKind(status: AutomationsStatus | null, o: { failed: boolea
 export function banners(status: AutomationsStatus | null, kind: ItemKind): Banner[] {
   if (!status) return [];
   const out: Banner[] = [];
-  if (status.available === 'ha_unavailable') out.push({ id: 'offline', tone: 'bad', title: '', text: 'תשתית המערכת אינה זמינה כרגע. מוצג המידע האחרון שנטען.', retry: true });
-  else if (status.stale || status.available === 'error') out.push({ id: 'stale', tone: 'warn', title: '', text: 'המידע אינו עדכני. הרענון האחרון נכשל.', retry: true });
+  if (status.available === 'ha_unavailable') out.push({ id: 'offline', tone: 'bad', title: '', text: tr('תשתית המערכת אינה זמינה כרגע. מוצג המידע האחרון שנטען.'), retry: true });
+  else if (status.stale || status.available === 'error') out.push({ id: 'stale', tone: 'warn', title: '', text: tr('המידע אינו עדכני. הרענון האחרון נכשל.'), retry: true });
   if (manageRight(kind, status) && status.available === 'ok') {
     const b = saveBlocker(kind, status);
-    if (b?.code === 'delegation_off') out.push({ id: 'delegation_off', tone: 'warn', title: 'שמירה דורשת מנהל', text: '', retry: false });
+    if (b?.code === 'delegation_off') out.push({ id: 'delegation_off', tone: 'warn', title: tr('שמירה דורשת מנהל'), text: '', retry: false });
     else if (b) out.push({ id: 'read_only', tone: 'info', title: '', text: b.text, retry: false });
-  } else if (status.available === 'config_api_unavailable') out.push({ id: 'read_only', tone: 'info', title: '', text: 'עריכה אינה זמינה כרגע', retry: false });
+  } else if (status.available === 'config_api_unavailable') out.push({ id: 'read_only', tone: 'info', title: '', text: tr('עריכה אינה זמינה כרגע'), retry: false });
   return out;
 }
 
@@ -297,16 +298,16 @@ export interface RoleRow { id: string; label: string; scope: string; run: boolea
  * automations are seen only by whoever may create and edit them. The code column follows `automations.code_view_roles` for the roles that can hold it.
  * Read-only here (the roles themselves are assigned in הגדרות › משתמשים והרשאות). */
 export const ROLE_ROWS: readonly RoleRow[] = [
-  { id: 'viewer', label: 'צופה', scope: '', run: false, edit: false, codeFixed: false },
-  { id: 'operator', label: 'מפעיל', scope: '', run: true, edit: false, codeFixed: false },
-  { id: 'household', label: 'מפעיל סקריפטים', scope: 'בקומות שלהם', run: true, edit: false, codeFixed: false },
-  { id: 'aut_editor', label: 'עורך אוטומציות', scope: 'בקומות שלהם · שמירה דרך האצלה', run: true, edit: true, codeFixed: null },
-  { id: 'site_admin', label: 'מנהל אתר / קומה', scope: '', run: true, edit: true, codeFixed: null },
-  { id: 'system_admin', label: 'מנהל מערכת', scope: '', run: true, edit: true, codeFixed: true },
+  { id: 'viewer', label: tr('צופה'), scope: '', run: false, edit: false, codeFixed: false },
+  { id: 'operator', label: tr('מפעיל'), scope: '', run: true, edit: false, codeFixed: false },
+  { id: 'household', label: tr('מפעיל סקריפטים'), scope: tr('בקומות שלהם'), run: true, edit: false, codeFixed: false },
+  { id: 'aut_editor', label: tr('עורך אוטומציות'), scope: tr('בקומות שלהם · שמירה דרך האצלה'), run: true, edit: true, codeFixed: null },
+  { id: 'site_admin', label: tr('מנהל אתר / קומה'), scope: '', run: true, edit: true, codeFixed: null },
+  { id: 'system_admin', label: tr('מנהל מערכת'), scope: '', run: true, edit: true, codeFixed: true },
 ];
 /** Roles whose code-view switch is configurable (the system administrator always has it). */
 export const CODE_VIEW_ROLES: ReadonlyArray<{ id: string; label: string; locked: boolean }> = [
-  { id: 'aut_editor', label: 'עורך אוטומציות', locked: false }, { id: 'site_admin', label: 'מנהל אתר / קומה', locked: false }, { id: 'system_admin', label: 'מנהל מערכת', locked: true },
+  { id: 'aut_editor', label: tr('עורך אוטומציות'), locked: false }, { id: 'site_admin', label: tr('מנהל אתר / קומה'), locked: false }, { id: 'system_admin', label: tr('מנהל מערכת'), locked: true },
 ];
 export function toggleCodeRole(current: readonly string[], id: string): string[] {
   const def = CODE_VIEW_ROLES.find((r) => r.id === id);
@@ -316,8 +317,8 @@ export function toggleCodeRole(current: readonly string[], id: string): string[]
 
 /** The label of the delegation state of the status (settings tab; read-only there). */
 export function delegationLabel(s: Pick<AutomationsStatus, 'delegation'>): { state: 'on' | 'off' | 'not_needed'; label: string } {
-  if (!s.delegation.needed && !s.delegation.on) return { state: 'off', label: 'כבוי' };
-  return s.delegation.on ? { state: 'on', label: 'מופעל' } : { state: 'off', label: 'כבוי' };
+  if (!s.delegation.needed && !s.delegation.on) return { state: 'off', label: tr('כבוי') };
+  return s.delegation.on ? { state: 'on', label: tr('מופעל') } : { state: 'off', label: tr('כבוי') };
 }
 
 /** Moves a template id one place in the order (the full list is the current visible order). */
@@ -338,13 +339,13 @@ export function toggleHidden(hidden: readonly string[], id: string): string[] {
 export function keepText(expiresAt: string, now: Date): { text: string; urgent: boolean } {
   const days = Math.ceil((Date.parse(expiresAt) - now.getTime()) / 86400000);
   if (!Number.isFinite(days)) return { text: '', urgent: false };
-  if (days <= 0) return { text: 'פג תוקפו', urgent: true };
-  return { text: days === 1 ? 'נותר יום אחד לשחזור' : `נותרו ${days} ימים לשחזור`, urgent: days <= 3 };
+  if (days <= 0) return { text: tr('פג תוקפו'), urgent: true };
+  return { text: days === 1 ? tr('נותר יום אחד לשחזור') : tr('נותרו {n} ימים לשחזור', { n: days }), urgent: days <= 3 };
 }
 export function deletedText(at: string, now: Date): string {
   const days = Math.floor((now.getTime() - Date.parse(at)) / 86400000);
   if (!Number.isFinite(days)) return '';
-  return days <= 0 ? 'נמחק היום' : days === 1 ? 'נמחק אתמול' : `נמחק לפני ${days} ימים`;
+  return days <= 0 ? tr('נמחק היום') : days === 1 ? tr('נמחק אתמול') : tr('נמחק לפני {n} ימים', { n: days });
 }
 
 // ------------------------------------------------------------------------------------------------ script fields
@@ -375,14 +376,14 @@ export function missingFields(fields: readonly ScriptField[], values: Record<str
 type Attr = SceneMember['attributes'][string];
 export interface AttrDef { key: string; unit: string; min: number; max: number; step: number; toUi?: (v: number) => number; fromUi?: (v: number) => number }
 
-export const ON_OFF = [{ value: 'on', label: 'דלוק' }, { value: 'off', label: 'כבוי' }];
+export const ON_OFF = [{ value: 'on', label: tr('דלוק') }, { value: 'off', label: tr('כבוי') }];
 /** The states a captured member may hold, per domain (Hebrew). */
 export const STATE_OPTIONS: Record<string, Array<{ value: string; label: string }>> = {
   light: ON_OFF, switch: ON_OFF, fan: ON_OFF,
-  cover: [{ value: 'open', label: 'פתוח' }, { value: 'closed', label: 'סגור' }],
-  climate: [{ value: 'off', label: 'כבוי' }, { value: 'cool', label: 'קירור' }, { value: 'heat', label: 'חימום' }, { value: 'heat_cool', label: 'חימום/קירור' }, { value: 'auto', label: 'אוטומטי' }, { value: 'dry', label: 'ייבוש' }, { value: 'fan_only', label: 'מאוורר' }],
-  media_player: [{ value: 'on', label: 'דלוק' }, { value: 'off', label: 'כבוי' }, { value: 'playing', label: 'מנגן' }, { value: 'paused', label: 'מושהה' }],
-  lock: [{ value: 'locked', label: 'נעול' }, { value: 'unlocked', label: 'פתוח' }],
+  cover: [{ value: 'open', label: tr('פתוח') }, { value: 'closed', label: tr('סגור') }],
+  climate: [{ value: 'off', label: tr('כבוי') }, { value: 'cool', label: tr('קירור') }, { value: 'heat', label: tr('חימום') }, { value: 'heat_cool', label: tr('חימום/קירור') }, { value: 'auto', label: tr('אוטומטי') }, { value: 'dry', label: tr('ייבוש') }, { value: 'fan_only', label: tr('מאוורר') }],
+  media_player: [{ value: 'on', label: tr('דלוק') }, { value: 'off', label: tr('כבוי') }, { value: 'playing', label: tr('מנגן') }, { value: 'paused', label: tr('מושהה') }],
+  lock: [{ value: 'locked', label: tr('נעול') }, { value: 'unlocked', label: tr('פתוח') }],
 };
 /** The numeric attributes a member of each domain may carry, in UI units (a brightness is shown as a percentage, stored 0-255). */
 export const ATTR_DEFS: Record<string, AttrDef[]> = {
@@ -424,7 +425,7 @@ export function templateRows(seen: readonly TplRef[], known: readonly TplRef[], 
   const merged = new Map<string, TplRef>(known.map((t) => [t.id, t]));
   for (const t of seen) merged.set(t.id, t);
   const out = [...seen];
-  for (const id of hidden) if (!seen.some((t) => t.id === id)) out.push(merged.get(id) ?? { id, name: `תבנית ${id}`, suggest_schedule: false });
+  for (const id of hidden) if (!seen.some((t) => t.id === id)) out.push(merged.get(id) ?? { id, name: tr('תבנית {id}', { id }), suggest_schedule: false });
   return out;
 }
 

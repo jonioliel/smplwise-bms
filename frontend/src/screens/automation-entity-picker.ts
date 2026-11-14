@@ -4,6 +4,7 @@ import { groupPicker, pickerEntities, type CatalogEntity, type PickerFilter } fr
 import { icon } from './automation-builder-icons';
 import { editorShared } from './automation-editor-css';
 import { entityIcon, sensitiveLabel, type EditorEnv } from './automation-editor-logic';
+import { tr } from '../i18n/msg/automation';
 
 /**
  * CR-017 S4: "בחירת מכשירים" - the picker of the builder (floor -> area -> device, search), scoped to what the caller may use. The list is the
@@ -196,7 +197,7 @@ export class AutomationEntityPicker extends LitElement {
       <span class="rg">${icon(entityIcon(e.entity_id))}</span>
       <span class="nm">${e.name}${e.state ? html`<small>${e.state}</small>` : nothing}</span>
       ${e.class ? html`<span class="tag sens">${icon('alarm')}${sensitiveLabel(e.class)}</span>` : nothing}
-      ${e.missing ? html`<span class="tag bad">${icon('warning')}חסר</span>` : nothing}
+      ${e.missing ? html`<span class="tag bad">${icon('warning')}${tr('חסר')}</span>` : nothing}
       <span class="ck">${on ? icon('check') : nothing}</span>
     </button>`;
   }
@@ -209,15 +210,15 @@ export class AutomationEntityPicker extends LitElement {
     const groups = groupPicker(list);
     const manyFloors = groups.filter((g) => g.floor).length > 1;
     return html`<div class="ph">
-        <label class="search">${icon('search')}<input type="search" data-picker-search placeholder="חיפוש מכשיר" aria-label="חיפוש מכשיר" .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /></label>
+        <label class="search">${icon('search')}<input type="search" data-picker-search placeholder=${tr('חיפוש מכשיר')} aria-label=${tr('חיפוש מכשיר')} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} /></label>
         ${env.scoped ? html`<span class="tag acc">${icon('layers')}${env.catalog.floors[0]?.name ?? ''}</span>` : nothing}
       </div>
-      <div class="pb" role="menu" aria-label="בחירת מכשירים">
+      <div class="pb" role="menu" aria-label=${tr('בחירת מכשירים')}>
         ${groups.map((g) => html`${manyFloors && g.floor ? html`<h5 class="floor">${icon('layers')}${g.floor.name}</h5>` : nothing}
-          ${g.areas.map((a) => html`<div><h5>${a.area ? a.area.name : html`${icon('home')}כל הבית`}</h5>${a.entities.map((e) => this.row(e))}</div>`)}`)}
-        ${list.length ? nothing : html`<div class="none">לא נמצאו מכשירים</div>`}
+          ${g.areas.map((a) => html`<div><h5>${a.area ? a.area.name : html`${icon('home')}${tr('כל הבית')}`}</h5>${a.entities.map((e) => this.row(e))}</div>`)}`)}
+        ${list.length ? nothing : html`<div class="none">${tr('לא נמצאו מכשירים')}</div>`}
       </div>
-      <div class="pf"><span class="cnt"><em>${this.selected.length}</em> נבחרו</span><button class="btn primary sm" type="button" data-picker-done @click=${this.done}>${icon('check')}סיום</button></div>`;
+      <div class="pf"><span class="cnt"><em>${this.selected.length}</em> ${tr('נבחרו')}</span><button class="btn primary sm" type="button" data-picker-done @click=${this.done}>${icon('check')}${tr('סיום')}</button></div>`;
   }
 }
 

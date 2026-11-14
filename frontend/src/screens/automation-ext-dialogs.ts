@@ -8,6 +8,7 @@ import {
 import { runAction } from '../api/ha';
 import { describeError } from '../api/client';
 import { icon } from './automation-builder-icons';
+import { tr } from '../i18n/msg/automation';
 
 /**
  * KAV079-295 (mockup r079 states 3 and 5): the two dialog bodies the automation builder opens inside its existing `<sw-dialog>`s. Light DOM (the editor's
@@ -63,12 +64,12 @@ export class KavDeviceTest extends LitElement {
   private async listen() {
     const t = this.plan?.triggers[0];
     if (!t) return;
-    this.heard = { st: 'busy', text: 'מאזינים… לחצו על הכפתור' };
+    this.heard = { st: 'busy', text: tr('מאזינים… לחצו על הכפתור') };
     try {
       const r = await detectPress(t.device_id);
-      if (!r.detected) { this.heard = { st: 'error', text: 'לא זוהתה לחיצה' }; return; }
+      if (!r.detected) { this.heard = { st: 'error', text: tr('לא זוהתה לחיצה') }; return; }
       const match = r.button === t.button && r.press === t.press;
-      this.heard = { st: match ? 'done' : 'error', text: `נקלטה ${r.press ? PRESS_WORD[r.press] : 'לחיצה'} על כפתור ${r.button ?? '?'}${match ? ' – תואם לטריגר' : ' – לא תואם לטריגר'}` };
+      this.heard = { st: match ? 'done' : 'error', text: `${tr('נקלטה {press} על כפתור {button}', { press: r.press ? PRESS_WORD[r.press] : tr('לחיצה'), button: r.button ?? '?' })}${match ? ` – ${tr('תואם לטריגר')}` : ` – ${tr('לא תואם לטריגר')}`}` };
     } catch (e) { this.heard = { st: 'error', text: describeError(e) }; }
   }
 
@@ -79,7 +80,7 @@ export class KavDeviceTest extends LitElement {
     this.steps = { ...this.steps, [path]: { st: 'busy', note: '' } };
     try {
       for (const e of s.entity_ids) await runAction(e, s.action, s.data, s.sensitive);
-      this.steps = { ...this.steps, [path]: { st: 'done', note: 'הופעל' } };
+      this.steps = { ...this.steps, [path]: { st: 'done', note: tr('הופעל') } };
       this.ran = true; this.restored = false;
     } catch (e) { this.steps = { ...this.steps, [path]: { st: 'error', note: describeError(e) } }; }
   }
@@ -106,52 +107,52 @@ export class KavDeviceTest extends LitElement {
 
   private renderDry() {
     const d = this.dry;
-    if (!d) return html`<div class="kvrow"><span>טוען…</span></div>`;
-    return html`${d.conditions.length ? html`<h5>תנאים עכשיו</h5>${d.conditions.map((c) => html`<div class="kvrow"><span>${c.sentence}</span>${c.passed === null ? html`<span>לא ניתן לבדוק</span>` : c.passed ? html`<span class="ok">מתקיים</span>` : html`<span class="bad">לא מתקיים</span>`}</div>`)}` : nothing}
-      <h5>מה יקרה</h5>
-      ${d.effects.entities.length ? d.effects.entities.map((e) => html`<div class="kvrow"><span>${e.name}</span><span>${e.from ? `${e.from} → ` : ''}${e.to ?? ''}</span></div>`) : html`<div class="kvrow"><span>לא ידוע אילו מכשירים ישתנו</span></div>`}`;
+    if (!d) return html`<div class="kvrow"><span>${tr('טוען…')}</span></div>`;
+    return html`${d.conditions.length ? html`<h5>${tr('תנאים עכשיו')}</h5>${d.conditions.map((c) => html`<div class="kvrow"><span>${c.sentence}</span>${c.passed === null ? html`<span>${tr('לא ניתן לבדוק')}</span>` : c.passed ? html`<span class="ok">${tr('מתקיים')}</span>` : html`<span class="bad">${tr('לא מתקיים')}</span>`}</div>`)}` : nothing}
+      <h5>${tr('מה יקרה')}</h5>
+      ${d.effects.entities.length ? d.effects.entities.map((e) => html`<div class="kvrow"><span>${e.name}</span><span>${e.from ? `${e.from} → ` : ''}${e.to ?? ''}</span></div>`) : html`<div class="kvrow"><span>${tr('לא ידוע אילו מכשירים ישתנו')}</span></div>`}`;
   }
 
   private renderDev() {
     const p = this.plan;
     if (this.error) return html`<div class="banner bad" role="alert" data-kav-test-error>${icon('info')}<div class="t"><b>${this.error}</b></div></div>`;
-    if (!p) return html`<div class="kvrow"><span>טוען…</span></div>`;
+    if (!p) return html`<div class="kvrow"><span>${tr('טוען…')}</span></div>`;
     let n = 0;
     const t = p.triggers[0];
-    return html`<div class="banner info" data-kav-test-banner>${icon('info')}<div class="t"><b>הבדיקה מפעילה את ההתקנים באמת</b><small>כל צעד מופעל רק אחרי לחיצה שלך. פעולה רגישה דורשת הרשאת הפעלה ידנית, כמו היום.</small></div></div>
+    return html`<div class="banner info" data-kav-test-banner>${icon('info')}<div class="t"><b>${tr('הבדיקה מפעילה את ההתקנים באמת')}</b><small>${tr('כל צעד מופעל רק אחרי לחיצה שלך. פעולה רגישה דורשת הרשאת הפעלה ידנית, כמו היום.')}</small></div></div>
       ${t ? html`<div class="kav-step ${this.heard.st}" data-kav-listen><span class="sn">${this.heard.st === 'done' ? icon('check') : String(++n)}</span>
-        <div><b>${this.heard.st === 'done' ? 'מאזינים לכפתור · זוהה' : 'מאזינים לכפתור'}</b><span class="s">${this.heard.text || t.sentence}</span></div>
-        <button class="btn sm" type="button" ?disabled=${this.heard.st === 'busy'} @click=${() => void this.listen()}>${icon(this.heard.st === 'idle' ? 'button' : 'refresh')}${this.heard.st === 'idle' ? 'האזנה' : 'שוב'}</button></div>` : nothing}
-      ${this.source === 'schedule' && !this.armed ? html`<div class="banner bad" role="alert" data-kav-arm>${icon('info')}<div class="t"><b>לפני שמתחילים: הבדיקה תפעיל את ההתקנים האלה באמת</b>
+        <div><b>${this.heard.st === 'done' ? tr('מאזינים לכפתור · זוהה') : tr('מאזינים לכפתור')}</b><span class="s">${this.heard.text || t.sentence}</span></div>
+        <button class="btn sm" type="button" ?disabled=${this.heard.st === 'busy'} @click=${() => void this.listen()}>${icon(this.heard.st === 'idle' ? 'button' : 'refresh')}${this.heard.st === 'idle' ? tr('האזנה') : tr('שוב')}</button></div>` : nothing}
+      ${this.source === 'schedule' && !this.armed ? html`<div class="banner bad" role="alert" data-kav-arm>${icon('info')}<div class="t"><b>${tr('לפני שמתחילים: הבדיקה תפעיל את ההתקנים האלה באמת')}</b>
         <ul>${p.steps.filter((s) => s.entity_ids.length).map((s) => html`<li>${s.sentence}</li>`)}</ul>
-        ${p.steps.some((s) => !s.entity_ids.length) ? html`<small>צעדים שלא ניתן לבדוק כאן מוצגים אך לא יופעלו.</small>` : nothing}
-        <div class="acts"><button class="btn sm primary" type="button" data-kav-arm-yes ?disabled=${!p.steps.some((s) => s.entity_ids.length)} @click=${() => { this.armed = true; }}>הבנתי, אפשר להתחיל</button></div></div></div>` : nothing}
+        ${p.steps.some((s) => !s.entity_ids.length) ? html`<small>${tr('צעדים שלא ניתן לבדוק כאן מוצגים אך לא יופעלו.')}</small>` : nothing}
+        <div class="acts"><button class="btn sm primary" type="button" data-kav-arm-yes ?disabled=${!p.steps.some((s) => s.entity_ids.length)} @click=${() => { this.armed = true; }}>${tr('הבנתי, אפשר להתחיל')}</button></div></div></div>` : nothing}
       ${p.steps.length ? p.steps.map((s) => {
         const st = this.steps[s.path] ?? { st: 'idle' as StepState, note: '' };
         const now = s.now.map((x) => x.state ?? '?').join(', ');
         return html`<div class="kav-step ${st.st}" data-kav-step=${s.path}><span class="sn">${st.st === 'done' ? icon('check') : String(++n)}</span>
-          <div><b>${s.sentence}</b><span class="s">${st.note || (now ? `עכשיו: ${now}` : '')}</span></div>
-          <button class="btn sm primary" type="button" ?disabled=${Object.values(this.steps).some((x) => x.st === 'busy') || !s.entity_ids.length || (this.source === 'schedule' && !this.armed)} @click=${() => void this.runStep(s.path)}>${icon('play')}${st.st === 'done' ? 'שוב' : 'הפעלה'}</button></div>`;
-      }) : html`<div class="kvrow"><span>אין צעדים שמפעילים התקנים</span></div>`}
-      ${this.asking ? html`<div class="banner" role="alert" data-kav-test-ask>${icon('info')}<div class="t"><b>להחזיר את ההתקנים למצב הקודם?</b>
-        <div class="acts"><button class="btn sm primary" type="button" ?disabled=${this.busy} data-kav-restore-yes @click=${async () => { if (await this.restore()) void this.close(); }}>החזרה למצב הקודם</button>
-        <button class="btn sm" type="button" data-kav-restore-no @click=${() => { this.restored = true; void this.close(); }}>להשאיר</button></div></div></div>` : nothing}`;
+          <div><b>${s.sentence}</b><span class="s">${st.note || (now ? tr('עכשיו: {now}', { now }) : '')}</span></div>
+          <button class="btn sm primary" type="button" ?disabled=${Object.values(this.steps).some((x) => x.st === 'busy') || !s.entity_ids.length || (this.source === 'schedule' && !this.armed)} @click=${() => void this.runStep(s.path)}>${icon('play')}${st.st === 'done' ? tr('שוב') : tr('הפעלה')}</button></div>`;
+      }) : html`<div class="kvrow"><span>${tr('אין צעדים שמפעילים התקנים')}</span></div>`}
+      ${this.asking ? html`<div class="banner" role="alert" data-kav-test-ask>${icon('info')}<div class="t"><b>${tr('להחזיר את ההתקנים למצב הקודם?')}</b>
+        <div class="acts"><button class="btn sm primary" type="button" ?disabled=${this.busy} data-kav-restore-yes @click=${async () => { if (await this.restore()) void this.close(); }}>${tr('החזרה למצב הקודם')}</button>
+        <button class="btn sm" type="button" data-kav-restore-no @click=${() => { this.restored = true; void this.close(); }}>${tr('להשאיר')}</button></div></div></div>` : nothing}`;
   }
 
   render() {
     const end = this.flags?.device_test_end ?? 'ask';
-    const endText = end === 'ask' ? 'לשאול' : end === 'restore' ? 'החזרה למצב הקודם' : 'להשאיר כמו שהוא';
+    const endText = end === 'ask' ? tr('לשאול') : end === 'restore' ? tr('החזרה למצב הקודם') : tr('להשאיר כמו שהוא');
     return html`<div class="dlg-body" data-kav-device-test>
-        ${this.source === 'schedule' ? nothing : html`<div class="seg" role="tablist" aria-label="סוג הבדיקה" data-kav-test-mode>
-          <button type="button" role="tab" aria-selected=${String(this.mode === 'dry')} data-m="dry" @click=${() => this.setMode('dry')}>בלי להפעיל כלום</button>
-          <button type="button" role="tab" aria-selected=${String(this.mode === 'dev')} data-m="dev" @click=${() => this.setMode('dev')}>על ההתקן</button></div>`}
+        ${this.source === 'schedule' ? nothing : html`<div class="seg" role="tablist" aria-label=${tr('סוג הבדיקה')} data-kav-test-mode>
+          <button type="button" role="tab" aria-selected=${String(this.mode === 'dry')} data-m="dry" @click=${() => this.setMode('dry')}>${tr('בלי להפעיל כלום')}</button>
+          <button type="button" role="tab" aria-selected=${String(this.mode === 'dev')} data-m="dev" @click=${() => this.setMode('dev')}>${tr('על ההתקן')}</button></div>`}
         ${this.mode === 'dry' ? this.renderDry() : this.renderDev()}
       </div>
       <div class="kav-foot">
-        ${this.mode === 'dev' ? html`<span class="kav-note">בסיום: <b>${endText}</b> · <a href="#/system/automations">הגדרות</a></span>` : nothing}
+        ${this.mode === 'dev' ? html`<span class="kav-note">${tr('בסיום')}: <b>${endText}</b> · <a href="#/system/automations">${tr('הגדרות')}</a></span>` : nothing}
         <span class="sp"></span>
-        ${this.mode === 'dev' && this.ran && !this.restored ? html`<button class="btn" type="button" ?disabled=${this.busy} data-kav-restore @click=${() => void this.restore()}>החזרה למצב הקודם</button>` : nothing}
-        <button class="btn primary" type="button" data-kav-test-close @click=${() => void this.close()}>סגירה</button></div>`;
+        ${this.mode === 'dev' && this.ran && !this.restored ? html`<button class="btn" type="button" ?disabled=${this.busy} data-kav-restore @click=${() => void this.restore()}>${tr('החזרה למצב הקודם')}</button>` : nothing}
+        <button class="btn primary" type="button" data-kav-test-close @click=${() => void this.close()}>${tr('סגירה')}</button></div>`;
   }
 }
 
@@ -162,7 +163,7 @@ export class KavMerge extends LitElement {
   @property({ attribute: false }) theirs: AutomationDraft | null = null;
   @property({ attribute: false }) ctx: ModelContext = {};
   /** "של דנה · 21:12" - who saved the other version and when (empty = "החדש"). */
-  @property() theirsLabel = 'החדש';
+  @property() theirsLabel = tr('החדש');
   @state() private parts: MergePart[] = [];
   @state() private approved = new Set<string>();
 
@@ -194,17 +195,17 @@ export class KavMerge extends LitElement {
       data-kav-merge-pick=${`${p.key}:${side}`} @change=${() => this.pick(p.key, side)} />${text}</label>`;
     return html`<div class="dlg-body" data-kav-merge>
         ${rows.length ? html`<div class="kav-mt">
-          <div class="h">חלק</div><div class="h">שלי (לא נשמר)</div><div class="h">${this.theirsLabel}</div>
+          <div class="h">${tr('חלק')}</div><div class="h">${tr('שלי (לא נשמר)')}</div><div class="h">${this.theirsLabel}</div>
           ${rows.map((p) => {
             const cf = p.changed === 'both' ? ' cf' : '';
-            const mineCell = p.changed === 'theirs' ? html`<div class=${`same${cf}`}>${p.sub || p.mine} (כמו קודם)</div>` : html`<div class=${cf}>${opt(p, 'mine', p.mine)}</div>`;
-            const theirsCell = p.changed === 'mine' ? html`<div class=${`same${cf}`}>${p.sub || p.theirs} (כמו קודם)</div>` : html`<div class=${cf}>${opt(p, 'theirs', p.theirs)}</div>`;
-            return html`<div class=${`f${cf}`} data-kav-merge-row=${p.key}>${p.label}${p.changed === 'both' ? html`<small>שונה בשני הצדדים</small>` : nothing}</div>${mineCell}${theirsCell}`;
-          })}</div>` : html`<div class="kvrow"><span>אין הבדלים בתוכן.</span></div>`}
+            const mineCell = p.changed === 'theirs' ? html`<div class=${`same${cf}`}>${p.sub || p.mine} (${tr('כמו קודם')})</div>` : html`<div class=${cf}>${opt(p, 'mine', p.mine)}</div>`;
+            const theirsCell = p.changed === 'mine' ? html`<div class=${`same${cf}`}>${p.sub || p.theirs} (${tr('כמו קודם')})</div>` : html`<div class=${cf}>${opt(p, 'theirs', p.theirs)}</div>`;
+            return html`<div class=${`f${cf}`} data-kav-merge-row=${p.key}>${p.label}${p.changed === 'both' ? html`<small>${tr('שונה בשני הצדדים')}</small>` : nothing}</div>${mineCell}${theirsCell}`;
+          })}</div>` : html`<div class="kvrow"><span>${tr('אין הבדלים בתוכן.')}</span></div>`}
       </div>
-      <div class="kav-foot"><span class="kav-note" data-kav-merge-counts>${c.mine} חלקים משלי · ${c.theirs} ${this.theirsLabel === 'החדש' ? 'מהחדש' : this.theirsLabel.split(' · ')[0]}</span><span class="sp"></span>
-        <button class="btn quiet" type="button" @click=${() => this.dispatchEvent(new CustomEvent('merge-cancel', { bubbles: true, composed: true }))}>ביטול</button>
-        <button class="btn primary" type="button" data-kav-merge-save ?disabled=${pending > 0 || !rows.length} title=${pending ? 'בחרו בכל חלק שהשתנה בשני הצדדים' : ''} @click=${() => this.save()}>${icon('branch')}שמירת המיזוג</button></div>`;
+      <div class="kav-foot"><span class="kav-note" data-kav-merge-counts>${tr('{n} חלקים משלי', { n: c.mine })} · ${c.theirs} ${this.theirsLabel === tr('החדש') ? tr('מהחדש') : this.theirsLabel.split(' · ')[0]}</span><span class="sp"></span>
+        <button class="btn quiet" type="button" @click=${() => this.dispatchEvent(new CustomEvent('merge-cancel', { bubbles: true, composed: true }))}>${tr('ביטול')}</button>
+        <button class="btn primary" type="button" data-kav-merge-save ?disabled=${pending > 0 || !rows.length} title=${pending ? tr('בחרו בכל חלק שהשתנה בשני הצדדים') : ''} @click=${() => this.save()}>${icon('branch')}${tr('שמירת המיזוג')}</button></div>`;
   }
 }
 

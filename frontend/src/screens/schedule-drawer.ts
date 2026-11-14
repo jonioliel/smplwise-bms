@@ -39,6 +39,7 @@ import {
   scheduleErrorText,
 } from './schedules-logic';
 import { toneColor } from '../components/sw-schedule-bar';
+import { tr } from '../i18n/msg/automation';
 
 /** How an action ended, for the screen's note or the drawer's status line. */
 export interface ActionResult {
@@ -165,7 +166,7 @@ export class ScheduleActions extends LitElement {
   }
 
   copy(s: Schedule): void {
-    this.dialog = { kind: 'copy', s, name: `העתק של ${s.display_name}`, error: '', busy: false };
+    this.dialog = { kind: 'copy', s, name: tr('העתק של {name}', { name: s.display_name }), error: '', busy: false };
   }
 
   // ---------------------------------------------------------------------------- calls
@@ -182,11 +183,11 @@ export class ScheduleActions extends LitElement {
     try {
       const r = await setScheduleEnabled(s.id, on, opts);
       this.emit('changed', { schedule: r.schedule });
-      this.result(on ? `"${s.display_name}" הופעל` : `"${s.display_name}" הושבת`);
+      this.result(on ? tr('"{name}" הופעל', { name: s.display_name }) : tr('"{name}" הושבת', { name: s.display_name }));
       return true;
     } catch (err) {
       this.emit('changed', { schedule: null });
-      if (err instanceof ApiError && err.code === 'schedule_changed') this.result('התזמון שונה במקום אחר. הרשימה עודכנה.', 'error');
+      if (err instanceof ApiError && err.code === 'schedule_changed') this.result(tr('התזמון שונה במקום אחר. הרשימה עודכנה.'), 'error');
       else this.result(scheduleErrorText(err), 'error');
       return false;
     }
@@ -207,16 +208,16 @@ export class ScheduleActions extends LitElement {
         this.dialog = null;
         this.emit('deleted', { trashId: r.trash_id, name: d.s.display_name, scheduleId: d.s.id });
       } else if (d.kind === 'copy') {
-        const r = await copySchedule(d.s.id, d.name.trim() || `העתק של ${d.s.display_name}`);
+        const r = await copySchedule(d.s.id, d.name.trim() || tr('העתק של {name}', { name: d.s.display_name }));
         this.dialog = null;
         this.emit('copied', { schedule: r.schedule });
-        this.result('שוכפל');
+        this.result(tr('שוכפל'));
       }
     } catch (err) {
       const stale = err instanceof ApiError && err.code === 'schedule_changed';
       if (stale) this.emit('changed', { schedule: null });
       const cur = this.dialog;
-      if (cur) this.dialog = { ...cur, busy: false, error: stale ? 'התזמון שונה במקום אחר. הגרסה העדכנית נטענה; בדקו ונסו שוב.' : scheduleErrorText(err) } as Dialog;
+      if (cur) this.dialog = { ...cur, busy: false, error: stale ? tr('התזמון שונה במקום אחר. הגרסה העדכנית נטענה; בדקו ונסו שוב.') : scheduleErrorText(err) } as Dialog;
     }
   }
 
@@ -231,7 +232,7 @@ export class ScheduleActions extends LitElement {
         const r = await setScheduleEnabled(d.s.id, true, { confirm_lowering: true, alarm_code: code });
         this.dialog = null;
         this.emit('changed', { schedule: r.schedule });
-        this.result(`"${d.s.display_name}" הופעל`);
+        this.result(tr('"{name}" הופעל', { name: d.s.display_name }));
       } else {
         const r = await runSchedule(d.s.id, d.slot, { confirm: true, alarm_code: code });
         this.dialog = null;
@@ -261,23 +262,23 @@ export class ScheduleActions extends LitElement {
   // ---------------------------------------------------------------------------- render (the automations screen's dialog form: a line, the buttons)
 
   private buttons(okAttr: string, okLabel: string, busyLabel: string, d: { busy: boolean }, onOk: () => void, opts: { danger?: boolean; disabled?: boolean } = {}) {
-    return html`<div class="dlgrow"><button type="button" class="btn" data-dialog-cancel @click=${this.close}>ביטול</button><button type="button" class=${`btn ${opts.danger ? 'danger' : 'primary'}`} data-dialog-ok data-run-confirm=${okAttr === 'run' ? '' : nothing} data-delete-confirm=${okAttr === 'delete' ? '' : nothing} data-copy-confirm=${okAttr === 'copy' ? '' : nothing} ?disabled=${!!opts.disabled || d.busy} @click=${onOk}>${d.busy ? busyLabel : okLabel}</button></div>`;
+    return html`<div class="dlgrow"><button type="button" class="btn" data-dialog-cancel @click=${this.close}>${tr('ביטול')}</button><button type="button" class=${`btn ${opts.danger ? 'danger' : 'primary'}`} data-dialog-ok data-run-confirm=${okAttr === 'run' ? '' : nothing} data-delete-confirm=${okAttr === 'delete' ? '' : nothing} data-copy-confirm=${okAttr === 'copy' ? '' : nothing} ?disabled=${!!opts.disabled || d.busy} @click=${onOk}>${d.busy ? busyLabel : okLabel}</button></div>`;
   }
 
   private renderRun(d: Extract<Dialog, { kind: 'run' }>) {
     const s = d.s;
     const lowering = runIsLowering(d.slot === null ? undefined : s.slots[d.slot]);
     const can = d.slot !== null;
-    return html`<sw-dialog open heading=${`להריץ עכשיו את "${s.display_name}"?`} data-dialog="run" @close=${this.close}><div class="dlgform">
+    return html`<sw-dialog open heading=${tr('להריץ עכשיו את "{name}"?', { name: s.display_name })} data-dialog="run" @close=${this.close}><div class="dlgform">
       ${s.slots.length > 1
-        ? html`<div class="slots" role="radiogroup" aria-label="משבצת להרצה">${s.slots.map(
+        ? html`<div class="slots" role="radiogroup" aria-label=${tr('משבצת להרצה')}>${s.slots.map(
             (sl) => html`<label class="opt"><input type="radio" name="slot" .checked=${d.slot === sl.index} @change=${() => (this.dialog = { ...d, slot: sl.index })} data-run-slot=${sl.index} /><span><span class="n">${windowText(sl)}</span><small>${slotChips(sl, s).map((c) => `${c.label} · ${c.devices.join(', ')}`).join(' | ')}</small></span></label>`,
           )}</div>`
         : html`<p>${s.slots[0] ? `${windowText(s.slots[0])} · ${slotChips(s.slots[0], s).map((c) => `${c.label} · ${c.devices.join(', ')}`).join(' | ')}` : ''}</p>`}
-      ${runNeedsConfirm(d.slot === null ? undefined : s.slots[d.slot]) ? html`<p>הפעולה תפעיל התקנים פיזיים מיד.</p>` : nothing}
-      ${s.conditions.items.length ? html`<label class="check"><input type="checkbox" .checked=${d.skip} @change=${(e: Event) => (this.dialog = { ...d, skip: (e.target as HTMLInputElement).checked })} data-run-skip />להריץ גם אם התנאים אינם מתקיימים</label>` : nothing}
+      ${runNeedsConfirm(d.slot === null ? undefined : s.slots[d.slot]) ? html`<p>${tr('הפעולה תפעיל התקנים פיזיים מיד.')}</p>` : nothing}
+      ${s.conditions.items.length ? html`<label class="check"><input type="checkbox" .checked=${d.skip} @change=${(e: Event) => (this.dialog = { ...d, skip: (e.target as HTMLInputElement).checked })} data-run-skip />${tr('להריץ גם אם התנאים אינם מתקיימים')}</label>` : nothing}
       ${d.error ? html`<div class="err" role="alert" data-actions-error>${d.error}</div>` : nothing}
-      ${this.buttons('run', 'הרץ', 'מריץ…', d, () => (lowering ? this.askLoweringForRun(d) : void this.submit()), { disabled: !can })}
+      ${this.buttons('run', tr('הרץ'), tr('מריץ…'), d, () => (lowering ? this.askLoweringForRun(d) : void this.submit()), { disabled: !can })}
     </div></sw-dialog>`;
   }
 
@@ -291,16 +292,16 @@ export class ScheduleActions extends LitElement {
     if (!d) return nothing;
     if (d.kind === 'run') return this.renderRun(d);
     if (d.kind === 'delete')
-      return html`<sw-dialog open heading=${`למחוק את "${d.s.display_name}"?`} data-dialog="delete" @close=${this.close}><div class="dlgform">
-        <p>התזמון יישמר בסל המחזור 30 יום וניתן לשחזר אותו.</p>
+      return html`<sw-dialog open heading=${tr('למחוק את "{name}"?', { name: d.s.display_name })} data-dialog="delete" @close=${this.close}><div class="dlgform">
+        <p>${tr('התזמון יישמר בסל המחזור 30 יום וניתן לשחזר אותו.')}</p>
         ${d.error ? html`<div class="err" role="alert" data-actions-error>${d.error}</div>` : nothing}
-        ${this.buttons('delete', 'מחיקה', 'מוחק…', d, () => void this.submit(), { danger: true })}
+        ${this.buttons('delete', tr('מחיקה'), tr('מוחק…'), d, () => void this.submit(), { danger: true })}
       </div></sw-dialog>`;
     if (d.kind === 'copy')
-      return html`<sw-dialog open heading="שכפול" data-dialog="copy" @close=${this.close}><div class="dlgform">
-        <label class="fld">שם העותק<input class="inp" type="text" maxlength="80" .value=${live(d.name)} data-copy-name @input=${(e: Event) => (this.dialog = { ...d, name: (e.target as HTMLInputElement).value })} /></label>
+      return html`<sw-dialog open heading=${tr('שכפול')} data-dialog="copy" @close=${this.close}><div class="dlgform">
+        <label class="fld">${tr('שם העותק')}<input class="inp" type="text" maxlength="80" .value=${live(d.name)} data-copy-name @input=${(e: Event) => (this.dialog = { ...d, name: (e.target as HTMLInputElement).value })} /></label>
         ${d.error ? html`<div class="err" role="alert" data-actions-error>${d.error}</div>` : nothing}
-        ${this.buttons('copy', 'שכפול', 'משכפל…', d, () => void this.submit(), { disabled: !d.name.trim() })}
+        ${this.buttons('copy', tr('שכפול'), tr('משכפל…'), d, () => void this.submit(), { disabled: !d.name.trim() })}
       </div></sw-dialog>`;
     // lowering: S4's dialog, by tag (the summary sentence, the checkbox and - when the panel needs it - the code field)
     return html`<schedule-lowering-dialog .open=${true} .summary=${d.summary} .needsCode=${d.needsCode} @confirm=${(e: CustomEvent<{ alarm_code: string | null }>) => void this.confirmLowering(e)} @close=${this.close}></schedule-lowering-dialog>`;
@@ -309,10 +310,10 @@ export class ScheduleActions extends LitElement {
 
 /** A condition line of the drawer: the name, what it must be, and how it stands now (or that it is out of the caller's reach). */
 function conditionLine(c: ConditionView) {
-  const want = c.attribute === 'state' && (c.value === 'on' || c.value === 'off') ? `${c.match_type === 'is' ? '' : 'לא '}${c.value === 'on' ? 'פעיל' : 'כבוי'}` : `${MATCH_LABEL[c.match_type]} ${c.value}`;
-  if (!c.readable) return html`<div class="blk locked cond" data-condition-locked><span class="bi">${aIcon('lock')}</span><span class="bt">${c.name}<small>${want}</small></span><span class="chip">${aIcon('lock')}מחוץ להרשאתך</span></div>`;
+  const want = c.attribute === 'state' && (c.value === 'on' || c.value === 'off') ? (c.match_type === 'is' ? (c.value === 'on' ? tr('פעיל') : tr('כבוי')) : (c.value === 'on' ? tr('לא פעיל') : tr('לא כבוי'))) : `${MATCH_LABEL[c.match_type]} ${c.value}`;
+  if (!c.readable) return html`<div class="blk locked cond" data-condition-locked><span class="bi">${aIcon('lock')}</span><span class="bt">${c.name}<small>${want}</small></span><span class="chip">${aIcon('lock')}${tr('מחוץ להרשאתך')}</span></div>`;
   const holds = conditionHolds(c);
-  const now = holds === null ? 'לא זמין כרגע' : holds ? 'כרגע: מתקיים' : 'כרגע: לא מתקיים';
+  const now = holds === null ? tr('לא זמין כרגע') : holds ? tr('כרגע: מתקיים') : tr('כרגע: לא מתקיים');
   return html`<div class="blk cond"><span class="bi">${aIcon('help')}</span><span class="bt">${c.name}<small>${want}</small></span><span class=${holds === true ? 'chip ok' : 'chip'}>${now}</span></div>`;
 }
 
@@ -524,7 +525,7 @@ export class ScheduleDrawer extends LitElement {
 
   private disabledWhy(s: Schedule, flag: 'edit' | 'run' | 'copy' | 'delete' | 'toggle'): string {
     if (s.can[flag]) return '';
-    return s.read_only?.reasons[0]?.message ?? 'אין הרשאה לפעולה זו.';
+    return s.read_only?.reasons[0]?.message ?? tr('אין הרשאה לפעולה זו.');
   }
 
 
@@ -534,14 +535,14 @@ export class ScheduleDrawer extends LitElement {
     const period = periodLabel(s);
     return html`<div class="stack" data-drawer-detail>
       ${readOnly.length ? html`<div class="banner info" data-drawer-readonly>${aIcon(s.sensitive ? 'lock' : 'eye')}<div>${readOnly[0].message}</div></div>` : nothing}
-      ${this.conflict ? html`<div class="banner bad" role="alert" data-drawer-conflict>${aIcon('warning')}<div><b>התזמון שונה במקום אחר</b><small>מוצגת הגרסה העדכנית</small></div></div>` : nothing}
+      ${this.conflict ? html`<div class="banner bad" role="alert" data-drawer-conflict>${aIcon('warning')}<div><b>${tr('התזמון שונה במקום אחר')}</b><small>${tr('מוצגת הגרסה העדכנית')}</small></div></div>` : nothing}
       ${s.warnings.map((w) => html`<div class="banner warn" data-drawer-warning>${aIcon('warning')}<div>${w.message}</div></div>`)}
       ${this.note ? html`<div class=${`banner ${this.note.tone === 'error' ? 'bad' : 'info'}`} role="status" data-drawer-status>${aIcon(this.note.tone === 'error' ? 'warning' : 'check')}<div>${this.note.text}</div></div>` : nothing}
-      <div class="swrow"><span>פעיל</span>${s.can.toggle
-        ? html`<button type="button" class="tog" role="switch" aria-checked=${String(s.enabled)} aria-label="פעיל" data-drawer-toggle @click=${() => void this.actions?.enable(s, !s.enabled)}></button>`
-        : html`<span class=${`chip ${s.enabled ? 'ok' : ''}`} data-drawer-toggle-state title=${this.disabledWhy(s, 'toggle')}>${s.enabled ? 'פעיל' : 'מושבת'}</span>`}</div>
+      <div class="swrow"><span>${tr('פעיל')}</span>${s.can.toggle
+        ? html`<button type="button" class="tog" role="switch" aria-checked=${String(s.enabled)} aria-label=${tr('פעיל')} data-drawer-toggle @click=${() => void this.actions?.enable(s, !s.enabled)}></button>`
+        : html`<span class=${`chip ${s.enabled ? 'ok' : ''}`} data-drawer-toggle-state title=${this.disabledWhy(s, 'toggle')}>${s.enabled ? tr('פעיל') : tr('מושבת')}</span>`}</div>
       <section class="sect" data-section="when">
-        <h4>${aIcon('clock')}מתי</h4>
+        <h4>${aIcon('clock')}${tr('מתי')}</h4>
         <sw-schedule-bar .slots=${s.slots} .sun=${isApi() ? null : DEMO_SUN}></sw-schedule-bar>
         <div class="chips">
           <sw-day-chips .days=${s.days}></sw-day-chips>
@@ -551,7 +552,7 @@ export class ScheduleDrawer extends LitElement {
         </div>
       </section>
       <section class="sect" data-section="slots">
-        <h4>${aIcon('play')}משבצות <span class="num">${s.slots.length}</span></h4>
+        <h4>${aIcon('play')}${tr('משבצות')} <span class="num">${s.slots.length}</span></h4>
         <div class="stack" style="gap:8px" data-drawer-slots>
           ${s.slots.map(
             (sl) => html`<div class=${sl.supported ? 'blk slot' : 'blk slot bad'} data-slot-row=${sl.index}>
@@ -564,45 +565,45 @@ export class ScheduleDrawer extends LitElement {
         </div>
       </section>
       ${s.conditions.items.length
-        ? html`<section class="sect" data-section="conditions"><h4>${aIcon('help')}תנאים${s.conditions.items.length > 1 ? (s.conditions.type === 'and' ? ' · כולם' : ' · אחד מהם') : ''}</h4>
-            <div class="stack" style="gap:8px" data-drawer-conditions>${s.conditions.items.map((c) => conditionLine(c))}${s.conditions.track ? html`<small class="muted">ממשיך לבדוק עד סוף החלון</small>` : nothing}</div></section>`
+        ? html`<section class="sect" data-section="conditions"><h4>${aIcon('help')}${tr('תנאים')}${s.conditions.items.length > 1 ? (s.conditions.type === 'and' ? ` · ${tr('כולם')}` : ` · ${tr('אחד מהם')}`) : ''}</h4>
+            <div class="stack" style="gap:8px" data-drawer-conditions>${s.conditions.items.map((c) => conditionLine(c))}${s.conditions.track ? html`<small class="muted">${tr('ממשיך לבדוק עד סוף החלון')}</small>` : nothing}</div></section>`
         : nothing}
       <section class="sect" data-section="upcoming">
-        <h4>${aIcon('calendar')}ההרצות הבאות</h4>
+        <h4>${aIcon('calendar')}${tr('ההרצות הבאות')}</h4>
         <div class="stack" style="gap:6px" data-drawer-upcoming>
           ${upcoming.length
-            ? upcoming.map((u) => html`<div class="li"><span>${s.slots[u.slot_index] ? slotChips(s.slots[u.slot_index], s).map((c) => `${c.label} · ${c.devices.join(', ')}`).join(' | ') : ''}</span><span>${whenLabel(u.at)}${s.conditions.items.length ? ' · בתנאי' : ''}</span></div>`)
+            ? upcoming.map((u) => html`<div class="li"><span>${s.slots[u.slot_index] ? slotChips(s.slots[u.slot_index], s).map((c) => `${c.label} · ${c.devices.join(', ')}`).join(' | ') : ''}</span><span>${whenLabel(u.at)}${s.conditions.items.length ? ` · ${tr('בתנאי')}` : ''}</span></div>`)
             : html`<div class="li"><span class="muted">${nextRunText(s)}</span></div>`}
         </div>
       </section>
       <section class="sect" data-section="runs">
-        <h4>${aIcon('history')}הרצות אחרונות</h4>
+        <h4>${aIcon('history')}${tr('הרצות אחרונות')}</h4>
         <div class="stack" style="gap:6px" data-drawer-runs>
           ${this.runs === null
-            ? html`<div class="li"><span class="muted">טוען…</span></div>`
+            ? html`<div class="li"><span class="muted">${tr('טוען…')}</span></div>`
             : this.runs.length
-              ? this.runs.map((r) => html`<div class="li"><span>${whenLabel(r.started_at)}${r.via === 'run_now' ? ' · הרצה ידנית' : ''}</span><span>${RESULT_LABEL[r.result]}</span></div>`)
-              : html`<div class="li"><span class="muted">אין הרצות</span></div>`}
+              ? this.runs.map((r) => html`<div class="li"><span>${whenLabel(r.started_at)}${r.via === 'run_now' ? ` · ${tr('הרצה ידנית')}` : ''}</span><span>${RESULT_LABEL[r.result]}</span></div>`)
+              : html`<div class="li"><span class="muted">${tr('אין הרצות')}</span></div>`}
         </div>
       </section>
       ${s.tags.length ? html`<div class="chips">${s.tags.map((t) => html`<span class="chip">${aIcon('list')}${t}</span>`)}</div>` : nothing}
-      ${s.owner || s.updated_at ? html`<div class="by">${s.owner ? `עודכן על ידי ${s.owner.display_name}` : 'נוצר מחוץ למערכת'}${s.updated_at ? ` · ${whenLabel(s.updated_at)}` : ''}</div>` : nothing}
+      ${s.owner || s.updated_at ? html`<div class="by">${s.owner ? tr('עודכן על ידי {name}', { name: s.owner.display_name }) : tr('נוצר מחוץ למערכת')}${s.updated_at ? ` · ${whenLabel(s.updated_at)}` : ''}</div>` : nothing}
     </div>`;
   }
 
   /** The footer: the automation drawer's buttons (עריכה first, primary); a control the caller may not use stays, disabled with the reason. */
   private footer(s: Schedule) {
     return html`<div class="foot2" slot="footer">
-      <button type="button" class="btn primary" data-drawer-edit ?disabled=${!s.can.edit} title=${this.disabledWhy(s, 'edit')} @click=${() => this.emit('edit', { id: s.id })}>${aIcon('edit')}עריכה</button>
-      <button type="button" class="btn" data-drawer-run ?disabled=${!s.can.run} title=${this.disabledWhy(s, 'run')} @click=${() => this.actions?.run(s)}>${aIcon('play')}הרץ עכשיו</button>
-      <button type="button" class="btn quiet" data-drawer-copy ?disabled=${!s.can.copy} title=${this.disabledWhy(s, 'copy')} @click=${() => this.actions?.copy(s)}>${aIcon('copy')}שכפול</button>
-      <button type="button" class="btn quiet dz" data-drawer-delete ?disabled=${!s.can.delete} title=${this.disabledWhy(s, 'delete')} @click=${() => this.actions?.askDelete(s)}>${aIcon('trash')}מחיקה</button>
+      <button type="button" class="btn primary" data-drawer-edit ?disabled=${!s.can.edit} title=${this.disabledWhy(s, 'edit')} @click=${() => this.emit('edit', { id: s.id })}>${aIcon('edit')}${tr('עריכה')}</button>
+      <button type="button" class="btn" data-drawer-run ?disabled=${!s.can.run} title=${this.disabledWhy(s, 'run')} @click=${() => this.actions?.run(s)}>${aIcon('play')}${tr('הרץ עכשיו')}</button>
+      <button type="button" class="btn quiet" data-drawer-copy ?disabled=${!s.can.copy} title=${this.disabledWhy(s, 'copy')} @click=${() => this.actions?.copy(s)}>${aIcon('copy')}${tr('שכפול')}</button>
+      <button type="button" class="btn quiet dz" data-drawer-delete ?disabled=${!s.can.delete} title=${this.disabledWhy(s, 'delete')} @click=${() => this.actions?.askDelete(s)}>${aIcon('trash')}${tr('מחיקה')}</button>
     </div>`;
   }
 
   render() {
     const s = this.schedule;
-    return html`<sw-drawer modal ?open=${this.open} heading=${s?.display_name ?? 'תזמון'} subheading=${s ? devicesLine(s) : ''} @close=${(e: Event) => {
+    return html`<sw-drawer modal ?open=${this.open} heading=${s?.display_name ?? tr('תזמון')} subheading=${s ? devicesLine(s) : ''} @close=${(e: Event) => {
       // the drawer's own close only: a nested confirmation's `close` stops at its dialog
       if (e.target !== e.currentTarget) return;
       e.stopPropagation();
@@ -613,7 +614,7 @@ export class ScheduleDrawer extends LitElement {
             <schedule-actions .status=${this.status} @result=${this.onResult} @changed=${this.onChanged} @deleted=${this.onDeleted} @copied=${this.onCopied}></schedule-actions>
             ${this.footer(s)}`
         : this.missing
-          ? html`<div class="statebox" data-drawer-missing>${aIcon('search', 30)}<b>התזמון לא נמצא</b></div>`
+          ? html`<div class="statebox" data-drawer-missing>${aIcon('search', 30)}<b>${tr('התזמון לא נמצא')}</b></div>`
           : html`<div class="stack" data-drawer-state="loading" aria-busy="true"><span class="skl" style="block-size:52px"></span><span class="skl" style="block-size:96px"></span><span class="skl" style="block-size:52px"></span></div>`}
     </sw-drawer>`;
   }

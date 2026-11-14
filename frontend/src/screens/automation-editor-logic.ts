@@ -17,6 +17,7 @@ import {
   type ItemKind, type LockedBlock, type ModelContext, type SceneDraft, type SceneMember, type ScriptDraft, type SensitiveChip, type TriggerBlock, type UserScope, type Weekday,
 } from '../api/automations';
 import { entityLabel } from '../i18n/entity-label';
+import { tr } from '../i18n/msg/automation';
 
 export type Section = 'trigger' | 'condition' | 'action';
 type Raw = Record<string, unknown>;
@@ -81,18 +82,18 @@ export function buildEnv(status: AutomationsStatus, catalog: AutomationCatalog):
 
 /** The Hebrew noun of a sensitive call, for "אין לך הרשאה ל{noun} ב־{name}" (the contract's §3.3 message). */
 export function grantNoun(action: string): string {
-  if (action === 'alarm_control_panel.alarm_disarm') return 'נטרול';
-  if (action.startsWith('alarm_control_panel.')) return 'דריכה';
-  if (action === 'lock.unlock') return 'פתיחת מנעול';
-  if (action === 'lock.lock') return 'נעילה';
-  if (action.startsWith('siren.')) return 'הפעלת צופר';
-  if (action.startsWith('cover.')) return /open/.test(action) ? 'פתיחת שער' : 'סגירת שער';
-  return 'שליטה';
+  if (action === 'alarm_control_panel.alarm_disarm') return tr('נטרול');
+  if (action.startsWith('alarm_control_panel.')) return tr('דריכה');
+  if (action === 'lock.unlock') return tr('פתיחת מנעול');
+  if (action === 'lock.lock') return tr('נעילה');
+  if (action.startsWith('siren.')) return tr('הפעלת צופר');
+  if (action.startsWith('cover.')) return /open/.test(action) ? tr('פתיחת שער') : tr('סגירת שער');
+  return tr('שליטה');
 }
-export const grantText = (action: string, name: string): string => `אין לך הרשאה ל${grantNoun(action)} ב־${name}`;
+export const grantText = (action: string, name: string): string => tr('אין לך הרשאה ל{what} ב־{name}', { what: grantNoun(action).toLowerCase(), name });
 
 export function sensitiveLabel(cls: string | null): string {
-  return cls && cls in SENSITIVE_CLASS_LABEL ? SENSITIVE_CLASS_LABEL[cls as keyof typeof SENSITIVE_CLASS_LABEL] : 'רגיש';
+  return cls && cls in SENSITIVE_CLASS_LABEL ? SENSITIVE_CLASS_LABEL[cls as keyof typeof SENSITIVE_CLASS_LABEL] : tr('רגיש');
 }
 
 // ------------------------------------------------------------------------------------------------ tree operations
@@ -219,42 +220,42 @@ const hasTriggerIds = (d: AnyDraft) => 'triggers' in d && d.triggers.some((t) =>
 
 export const PRESENCE_ZONE = 'zone.home';
 export const TRIGGER_TYPES: BlockTypeDef[] = [
-  { id: 'state', label: 'מצב מכשיר', hint: 'כשמכשיר נדלק, נכבה, נפתח…', icon: 'sensor', make: () => typed({ type: 'state', entity_ids: [], to: 'on' }) },
-  { id: 'time', label: 'שעה קבועה', hint: 'בשעה מסוימת', icon: 'clock', make: () => typed({ type: 'time', at: '07:00' }) },
-  { id: 'time_pattern', label: 'כל X זמן', hint: 'מחזורי', icon: 'timer', make: () => typed({ type: 'time_pattern', minutes: '/5', hours: null, seconds: null }) },
-  { id: 'sun', label: 'זריחה / שקיעה', hint: 'עם היסט לפני/אחרי', icon: 'sunset', make: () => typed({ type: 'sun', event: 'sunset', offset_min: 0 }) },
-  { id: 'numeric', label: 'ערך מעל / מתחת', hint: 'טמפרטורה, לחות…', icon: 'thermo', make: () => typed({ type: 'numeric_state', entity_ids: [], above: null, below: null }) },
-  { id: 'presence', label: 'נוכחות', hint: 'כולם יצאו · מישהו חזר', icon: 'users', make: () => typed({ type: 'numeric_state', entity_ids: [PRESENCE_ZONE], below: 1, above: null }) },
-  { id: 'start', label: 'הפעלת המערכת', hint: 'אחרי עלייה מחדש', icon: 'power', make: () => typed({ type: 'homeassistant', event: 'start' }) },
+  { id: 'state', label: tr('מצב מכשיר'), hint: tr('כשמכשיר נדלק, נכבה, נפתח…'), icon: 'sensor', make: () => typed({ type: 'state', entity_ids: [], to: 'on' }) },
+  { id: 'time', label: tr('שעה קבועה'), hint: tr('בשעה מסוימת'), icon: 'clock', make: () => typed({ type: 'time', at: '07:00' }) },
+  { id: 'time_pattern', label: tr('כל X זמן'), hint: tr('מחזורי'), icon: 'timer', make: () => typed({ type: 'time_pattern', minutes: '/5', hours: null, seconds: null }) },
+  { id: 'sun', label: tr('זריחה / שקיעה'), hint: tr('עם היסט לפני/אחרי'), icon: 'sunset', make: () => typed({ type: 'sun', event: 'sunset', offset_min: 0 }) },
+  { id: 'numeric', label: tr('ערך מעל / מתחת'), hint: tr('טמפרטורה, לחות…'), icon: 'thermo', make: () => typed({ type: 'numeric_state', entity_ids: [], above: null, below: null }) },
+  { id: 'presence', label: tr('נוכחות'), hint: tr('כולם יצאו · מישהו חזר'), icon: 'users', make: () => typed({ type: 'numeric_state', entity_ids: [PRESENCE_ZONE], below: 1, above: null }) },
+  { id: 'start', label: tr('הפעלת המערכת'), hint: tr('אחרי עלייה מחדש'), icon: 'power', make: () => typed({ type: 'homeassistant', event: 'start' }) },
 ];
 export const CONDITION_TYPES: BlockTypeDef[] = [
-  { id: 'state', label: 'מצב מכשיר', hint: 'מכשיר במצב מסוים', icon: 'sensor', make: () => typed({ type: 'state', entity_ids: [], state: 'on' }) },
-  { id: 'numeric', label: 'ערך מעל / מתחת', hint: 'טמפרטורה, לחות…', icon: 'thermo', make: () => typed({ type: 'numeric_state', entity_ids: [], above: null, below: null }) },
-  { id: 'time', label: 'שעות וימים', hint: 'אחרי / לפני, ימי השבוע', icon: 'clock', make: () => typed({ type: 'time', after: '17:00' }) },
-  { id: 'sun', label: 'שקיעה / זריחה', hint: 'אחרי השקיעה, לפני הזריחה', icon: 'sunset', make: () => typed({ type: 'sun', after: 'sunset' }) },
-  { id: 'trigger', label: 'מה הפעיל', hint: 'לפי מזהה הטריגר', icon: 'bolt', available: (_e, d) => hasTriggerIds(d), make: () => typed({ type: 'trigger', ids: [] }) },
-  { id: 'shabbat', label: 'שבת וחג', hint: 'רק בשבת, או לא בשבת', icon: 'calendar', available: (e) => !!e.catalog.shabbat_sensor, make: () => typed({ type: 'shabbat', mode: 'not_holy_days' }) },
-  { id: 'or', label: 'אחד מאלה', hint: 'מספיק תנאי אחד', icon: 'branch', make: () => typed({ type: 'or', conditions: [] }) },
-  { id: 'and', label: 'כל אלה', hint: 'כל התנאים יחד', icon: 'branch', make: () => typed({ type: 'and', conditions: [] }) },
-  { id: 'not', label: 'לא אלה', hint: 'כשהתנאים לא מתקיימים', icon: 'slash', make: () => typed({ type: 'not', conditions: [] }) },
+  { id: 'state', label: tr('מצב מכשיר'), hint: tr('מכשיר במצב מסוים'), icon: 'sensor', make: () => typed({ type: 'state', entity_ids: [], state: 'on' }) },
+  { id: 'numeric', label: tr('ערך מעל / מתחת'), hint: tr('טמפרטורה, לחות…'), icon: 'thermo', make: () => typed({ type: 'numeric_state', entity_ids: [], above: null, below: null }) },
+  { id: 'time', label: tr('שעות וימים'), hint: tr('אחרי / לפני, ימי השבוע'), icon: 'clock', make: () => typed({ type: 'time', after: '17:00' }) },
+  { id: 'sun', label: tr('שקיעה / זריחה'), hint: tr('אחרי השקיעה, לפני הזריחה'), icon: 'sunset', make: () => typed({ type: 'sun', after: 'sunset' }) },
+  { id: 'trigger', label: tr('מה הפעיל'), hint: tr('לפי מזהה הטריגר'), icon: 'bolt', available: (_e, d) => hasTriggerIds(d), make: () => typed({ type: 'trigger', ids: [] }) },
+  { id: 'shabbat', label: tr('שבת וחג'), hint: tr('רק בשבת, או לא בשבת'), icon: 'calendar', available: (e) => !!e.catalog.shabbat_sensor, make: () => typed({ type: 'shabbat', mode: 'not_holy_days' }) },
+  { id: 'or', label: tr('אחד מאלה'), hint: tr('מספיק תנאי אחד'), icon: 'branch', make: () => typed({ type: 'or', conditions: [] }) },
+  { id: 'and', label: tr('כל אלה'), hint: tr('כל התנאים יחד'), icon: 'branch', make: () => typed({ type: 'and', conditions: [] }) },
+  { id: 'not', label: tr('לא אלה'), hint: tr('כשהתנאים לא מתקיימים'), icon: 'slash', make: () => typed({ type: 'not', conditions: [] }) },
 ];
 export const SENSITIVE_START = 'alarm_control_panel.alarm_arm_away';
 export const ACTION_TYPES: BlockTypeDef[] = [
-  { id: 'device', label: 'שליטה במכשיר', hint: 'הדלקה, כיבוי, טמפרטורה…', icon: 'light', make: () => typed({ type: 'service', action: 'light.turn_on', entity_ids: [], data: {}, role: 'device' }) },
-  { id: 'scene', label: 'הפעלת סצנה', hint: 'סצנה קיימת', icon: 'scene', available: (e) => e.catalog.scenes.length > 0, make: (e) => { const s = firstOf(e.catalog.scenes)?.entity_id; return typed({ type: 'service', action: 'scene.turn_on', entity_ids: s ? [s] : [], data: {}, role: 'scene' }); } },
-  { id: 'script', label: 'הרצת סקריפט', hint: 'סקריפט קיים', icon: 'script', available: (e) => e.catalog.scripts.length > 0, make: (e) => { const s = firstOf(e.catalog.scripts)?.entity_id; return typed({ type: 'service', action: s ?? 'script.turn_on', entity_ids: s ? [s] : [], data: {}, role: 'script' }); } },
-  { id: 'notify', label: 'שליחת התראה', hint: 'לטלפון', icon: 'bell', available: (e) => e.catalog.notify_targets.length > 0, make: (e) => typed({ type: 'service', action: firstOf(e.catalog.notify_targets)?.action ?? 'notify.notify', entity_ids: [], data: { message: '' }, role: 'notify' }) },
-  { id: 'delay', label: 'השהיה', hint: 'להמתין לפני הצעד הבא', icon: 'timer', make: () => typed({ type: 'delay', delay: { minutes: 3 } }) },
-  { id: 'if', label: 'אם / אחרת', hint: 'צעדים לפי תנאי', icon: 'question', make: () => typed({ type: 'if', conditions: [], then: [], else: null }) },
-  { id: 'choose', label: 'בחירה לפי תנאים', hint: 'כמה ענפים', icon: 'branch', make: () => typed({ type: 'choose', options: [{ conditions: [], sequence: [] }], default: null }) },
-  { id: 'repeat', label: 'חזרה', hint: 'כמה פעמים', icon: 'repeat', make: () => typed({ type: 'repeat_count', count: 3, sequence: [] }) },
-  { id: 'condition', label: 'המשך רק אם', hint: 'עוצר אם התנאי לא מתקיים', icon: 'question', make: () => typed({ type: 'condition', condition: typed({ type: 'state', entity_ids: [], state: 'on' }) }) },
-  { id: 'stop', label: 'עצירה', hint: 'מפסיק את הריצה', icon: 'stop', make: () => typed({ type: 'stop', message: '' }) },
-  { id: 'sensitive', label: 'פעולה רגישה', hint: 'אזעקה, מנעול, שער, צופר', icon: 'alarm', sensitive: true, make: () => typed({ type: 'service', action: SENSITIVE_START, entity_ids: [], data: {}, role: 'device' }) },
+  { id: 'device', label: tr('שליטה במכשיר'), hint: tr('הדלקה, כיבוי, טמפרטורה…'), icon: 'light', make: () => typed({ type: 'service', action: 'light.turn_on', entity_ids: [], data: {}, role: 'device' }) },
+  { id: 'scene', label: tr('הפעלת סצנה'), hint: tr('סצנה קיימת'), icon: 'scene', available: (e) => e.catalog.scenes.length > 0, make: (e) => { const s = firstOf(e.catalog.scenes)?.entity_id; return typed({ type: 'service', action: 'scene.turn_on', entity_ids: s ? [s] : [], data: {}, role: 'scene' }); } },
+  { id: 'script', label: tr('הרצת סקריפט'), hint: tr('סקריפט קיים'), icon: 'script', available: (e) => e.catalog.scripts.length > 0, make: (e) => { const s = firstOf(e.catalog.scripts)?.entity_id; return typed({ type: 'service', action: s ?? 'script.turn_on', entity_ids: s ? [s] : [], data: {}, role: 'script' }); } },
+  { id: 'notify', label: tr('שליחת התראה'), hint: tr('לטלפון'), icon: 'bell', available: (e) => e.catalog.notify_targets.length > 0, make: (e) => typed({ type: 'service', action: firstOf(e.catalog.notify_targets)?.action ?? 'notify.notify', entity_ids: [], data: { message: '' }, role: 'notify' }) },
+  { id: 'delay', label: tr('השהיה'), hint: tr('להמתין לפני הצעד הבא'), icon: 'timer', make: () => typed({ type: 'delay', delay: { minutes: 3 } }) },
+  { id: 'if', label: tr('אם / אחרת'), hint: tr('צעדים לפי תנאי'), icon: 'question', make: () => typed({ type: 'if', conditions: [], then: [], else: null }) },
+  { id: 'choose', label: tr('בחירה לפי תנאים'), hint: tr('כמה ענפים'), icon: 'branch', make: () => typed({ type: 'choose', options: [{ conditions: [], sequence: [] }], default: null }) },
+  { id: 'repeat', label: tr('חזרה'), hint: tr('כמה פעמים'), icon: 'repeat', make: () => typed({ type: 'repeat_count', count: 3, sequence: [] }) },
+  { id: 'condition', label: tr('המשך רק אם'), hint: tr('עוצר אם התנאי לא מתקיים'), icon: 'question', make: () => typed({ type: 'condition', condition: typed({ type: 'state', entity_ids: [], state: 'on' }) }) },
+  { id: 'stop', label: tr('עצירה'), hint: tr('מפסיק את הריצה'), icon: 'stop', make: () => typed({ type: 'stop', message: '' }) },
+  { id: 'sensitive', label: tr('פעולה רגישה'), hint: tr('אזעקה, מנעול, שער, צופר'), icon: 'alarm', sensitive: true, make: () => typed({ type: 'service', action: SENSITIVE_START, entity_ids: [], data: {}, role: 'device' }) },
 ];
 export const TYPES_OF: Record<Section, BlockTypeDef[]> = { trigger: TRIGGER_TYPES, condition: CONDITION_TYPES, action: ACTION_TYPES };
-export const TYPE_POP_TITLE: Record<Section, string> = { trigger: 'מתי להפעיל?', condition: 'רק אם…', action: 'מה לעשות?' };
-export const SECTION_LABEL: Record<Section, string> = { trigger: 'כאשר', condition: 'אם', action: 'אז' };
+export const TYPE_POP_TITLE: Record<Section, string> = { trigger: tr('מתי להפעיל?'), condition: tr('רק אם…'), action: tr('מה לעשות?') };
+export const SECTION_LABEL: Record<Section, string> = { trigger: tr('כאשר'), condition: tr('אם'), action: tr('אז') };
 
 /** A new block of the chosen type (an id of `TYPES_OF[section]`), sentence filled. */
 export function makeBlock(section: Section, id: string, env: EditorEnv): Block | null {
@@ -281,30 +282,30 @@ export function presenceOf(b: Block): Presence | null {
 export const personIds = (env: EditorEnv): string[] => env.catalog.entities.filter((e) => e.domain === 'person').map((e) => e.entity_id);
 
 export interface Choice { value: string; label: string }
-const ONOFF: Choice[] = [{ value: 'on', label: 'דלוק / פעיל' }, { value: 'off', label: 'כבוי' }];
+const ONOFF: Choice[] = [{ value: 'on', label: tr('דלוק / פעיל') }, { value: 'off', label: tr('כבוי') }];
 /** The states one can pick for an entity of this id, by its domain (and the device class a sensor id suggests). */
 export function stateChoices(entityId: string | undefined): Choice[] {
   const id = entityId ?? '';
   const dom = id.split('.')[0];
   if (dom === 'binary_sensor') {
-    if (/motion|occupancy|presence/.test(id)) return [{ value: 'on', label: 'זוהתה תנועה' }, { value: 'off', label: 'אין תנועה' }];
-    if (/door|window|gate/.test(id)) return [{ value: 'on', label: 'פתוח' }, { value: 'off', label: 'סגור' }];
-    if (/leak|water|flood/.test(id)) return [{ value: 'on', label: 'יש מים' }, { value: 'off', label: 'יבש' }];
-    return [{ value: 'on', label: 'מופעל' }, { value: 'off', label: 'כבוי' }];
+    if (/motion|occupancy|presence/.test(id)) return [{ value: 'on', label: tr('זוהתה תנועה') }, { value: 'off', label: tr('אין תנועה') }];
+    if (/door|window|gate/.test(id)) return [{ value: 'on', label: tr('פתוח') }, { value: 'off', label: tr('סגור') }];
+    if (/leak|water|flood/.test(id)) return [{ value: 'on', label: tr('יש מים') }, { value: 'off', label: tr('יבש') }];
+    return [{ value: 'on', label: tr('מופעל') }, { value: 'off', label: tr('כבוי') }];
   }
-  if (dom === 'person' || dom === 'device_tracker') return [{ value: 'home', label: 'בבית' }, { value: 'not_home', label: 'לא בבית' }];
-  if (dom === 'climate') return [{ value: 'off', label: 'כבוי' }, { value: 'cool', label: 'קירור' }, { value: 'heat', label: 'חימום' }, { value: 'auto', label: 'אוטומטי' }, { value: 'fan_only', label: 'מאוורר' }, { value: 'dry', label: 'ייבוש' }, { value: 'heat_cool', label: 'חימום/קירור' }];
-  if (dom === 'cover') return [{ value: 'open', label: 'פתוח' }, { value: 'closed', label: 'סגור' }, { value: 'opening', label: 'נפתח' }, { value: 'closing', label: 'נסגר' }];
-  if (dom === 'lock') return [{ value: 'locked', label: 'נעול' }, { value: 'unlocked', label: 'פתוח' }];
-  if (dom === 'alarm_control_panel') return [{ value: 'disarmed', label: 'מנוטרלת' }, { value: 'armed_home', label: 'דרוכה (בית)' }, { value: 'armed_away', label: 'דרוכה (מלא)' }, { value: 'armed_night', label: 'דרוכה (לילה)' }, { value: 'triggered', label: 'מופעלת' }];
-  if (dom === 'media_player') return [{ value: 'off', label: 'כבוי' }, { value: 'on', label: 'דלוק' }, { value: 'playing', label: 'מנגן' }, { value: 'paused', label: 'מושהה' }, { value: 'idle', label: 'לא מנגן' }];
+  if (dom === 'person' || dom === 'device_tracker') return [{ value: 'home', label: tr('בבית') }, { value: 'not_home', label: tr('לא בבית') }];
+  if (dom === 'climate') return [{ value: 'off', label: tr('כבוי') }, { value: 'cool', label: tr('קירור') }, { value: 'heat', label: tr('חימום') }, { value: 'auto', label: tr('אוטומטי') }, { value: 'fan_only', label: tr('מאוורר') }, { value: 'dry', label: tr('ייבוש') }, { value: 'heat_cool', label: tr('חימום/קירור') }];
+  if (dom === 'cover') return [{ value: 'open', label: tr('פתוח') }, { value: 'closed', label: tr('סגור') }, { value: 'opening', label: tr('נפתח') }, { value: 'closing', label: tr('נסגר') }];
+  if (dom === 'lock') return [{ value: 'locked', label: tr('נעול') }, { value: 'unlocked', label: tr('פתוח') }];
+  if (dom === 'alarm_control_panel') return [{ value: 'disarmed', label: tr('מנוטרלת') }, { value: 'armed_home', label: tr('דרוכה (בית)') }, { value: 'armed_away', label: tr('דרוכה (מלא)') }, { value: 'armed_night', label: tr('דרוכה (לילה)') }, { value: 'triggered', label: tr('מופעלת') }];
+  if (dom === 'media_player') return [{ value: 'off', label: tr('כבוי') }, { value: 'on', label: tr('דלוק') }, { value: 'playing', label: tr('מנגן') }, { value: 'paused', label: tr('מושהה') }, { value: 'idle', label: tr('לא מנגן') }];
   return ONOFF;
 }
 export const hasStateChoices = (entityId: string | undefined): boolean => !!entityId && /^(binary_sensor|person|device_tracker|climate|cover|lock|alarm_control_panel|media_player|light|switch|fan|input_boolean|siren|automation)\./.test(entityId);
 
-export const WEEKDAY_LABEL: Record<Weekday, string> = { sun: 'א׳', mon: 'ב׳', tue: 'ג׳', wed: 'ד׳', thu: 'ה׳', fri: 'ו׳', sat: 'ש׳' };
-export const MODE_LABEL: Record<string, string> = { single: 'התעלם', restart: 'התחל מחדש', queued: 'המתן בתור', parallel: 'הרץ במקביל' };
-export const MODE_SUMMARY: Record<string, string> = { single: 'אם מופעלת שוב בזמן ריצה – התעלם', restart: 'אם מופעלת שוב – התחל מחדש', queued: 'אם מופעלת שוב – המתן בתור', parallel: 'ריצות במקביל' };
+export const WEEKDAY_LABEL: Record<Weekday, string> = { sun: tr('א׳'), mon: tr('ב׳'), tue: tr('ג׳'), wed: tr('ד׳'), thu: tr('ה׳'), fri: tr('ו׳'), sat: tr('ש׳') };
+export const MODE_LABEL: Record<string, string> = { single: tr('התעלם'), restart: tr('התחל מחדש'), queued: tr('המתן בתור'), parallel: tr('הרץ במקביל') };
+export const MODE_SUMMARY: Record<string, string> = { single: tr('אם מופעלת שוב בזמן ריצה – התעלם'), restart: tr('אם מופעלת שוב – התחל מחדש'), queued: tr('אם מופעלת שוב – המתן בתור'), parallel: tr('ריצות במקביל') };
 
 // ------------------------------------------------------------------------------------------------ icons, locked reasons
 
@@ -342,8 +343,8 @@ export function blockIcon(b: Block, section: Section): string {
 
 /** Why a block is locked, in one short line (the "why locked" chip's text); a typed schema for the reason may arrive later (CR §6.2). */
 export const LOCKED_WHY: Record<string, string> = {
-  template: 'תבנית – נשמרת כמו שהיא', device: 'כפתור או מכשיר – נשמר כמו שהוא', purpose_trigger: 'טריגר ייעודי – נשמר כמו שהוא', custom_service: 'שירות מיוחד – נשמר כמו שהוא',
-  service_not_allowed: 'שירות שאינו מותר בבונה – נשמר כמו שהוא', unsupported_step: 'צעד מתקדם – נשמר כמו שהוא', disabled_step: 'צעד מושבת – נשמר כמו שהוא', secret: 'ערך חסוי – לא מוצג', code: 'קוד חסוי – לא מוצג', unknown: 'חלק לא מוכר – נשמר כמו שהוא',
+  template: tr('תבנית – נשמרת כמו שהיא'), device: tr('כפתור או מכשיר – נשמר כמו שהוא'), purpose_trigger: tr('טריגר ייעודי – נשמר כמו שהוא'), custom_service: tr('שירות מיוחד – נשמר כמו שהוא'),
+  service_not_allowed: tr('שירות שאינו מותר בבונה – נשמר כמו שהוא'), unsupported_step: tr('צעד מתקדם – נשמר כמו שהוא'), disabled_step: tr('צעד מושבת – נשמר כמו שהוא'), secret: tr('ערך חסוי – לא מוצג'), code: tr('קוד חסוי – לא מוצג'), unknown: tr('חלק לא מוכר – נשמר כמו שהוא'),
 };
 export const lockedWhy = (b: LockedBlock): string => LOCKED_WHY[b.reason] ?? LOCKED_WHY.unknown;
 
@@ -406,7 +407,7 @@ export function scanJson(text: string): JsonScan {
   class Fail extends Error { constructor(public pos: number, m: string) { super(m); } }
   const ws = () => { while (i < text.length && /\s/.test(text[i])) i++; };
   const fail = (m: string, at = i): never => { throw new Fail(at, m); };
-  const show = (c: string | undefined) => (c === undefined ? 'סוף הקוד' : `"${c}"`);
+  const show = (c: string | undefined) => (c === undefined ? tr('סוף הקוד') : `"${c}"`);
   const str = (): string => {
     const start = i;
     i++;
@@ -414,17 +415,17 @@ export function scanJson(text: string): JsonScan {
     while (i < text.length) {
       const c = text[i];
       if (c === '"') { i++; return out; }
-      if (c === '\n') fail('מחרוזת לא נסגרת', start);
+      if (c === '\n') fail(tr('מחרוזת לא נסגרת'), start);
       if (c === '\\') {
         const n = text[i + 1];
         const map: Record<string, string> = { n: '\n', t: '\t', r: '\r', b: '\b', f: '\f', '"': '"', '\\': '\\', '/': '/' };
-        if (n === 'u') { const h = text.slice(i + 2, i + 6); if (!/^[0-9a-fA-F]{4}$/.test(h)) fail('רצף \\u לא תקין'); out += String.fromCharCode(parseInt(h, 16)); i += 6; continue; }
-        if (!(n in map)) fail('רצף בריחה לא תקין');
+        if (n === 'u') { const h = text.slice(i + 2, i + 6); if (!/^[0-9a-fA-F]{4}$/.test(h)) fail(tr('רצף \\u לא תקין')); out += String.fromCharCode(parseInt(h, 16)); i += 6; continue; }
+        if (!(n in map)) fail(tr('רצף בריחה לא תקין'));
         out += map[n]; i += 2; continue;
       }
       out += c; i++;
     }
-    return fail('מחרוזת לא נסגרת', start);
+    return fail(tr('מחרוזת לא נסגרת'), start);
   };
   const value = (inArray: boolean): unknown => {
     ws();
@@ -437,14 +438,14 @@ export function scanJson(text: string): JsonScan {
       if (text[i] === '}') i++;
       else for (;;) {
         ws();
-        if (text[i] !== '"') fail(`צפוי שם שדה במירכאות, נמצא ${show(text[i])}`);
+        if (text[i] !== '"') fail(tr('צפוי שם שדה במירכאות, נמצא {found}', { found: show(text[i]) }));
         const k = str(); ws();
-        if (text[i] !== ':') fail(`חסר ":" אחרי "${k}"`);
+        if (text[i] !== ':') fail(tr('חסר ":" אחרי "{key}"', { key: k }));
         i++;
         o[k] = value(false); ws();
         if (text[i] === ',') { i++; continue; }
         if (text[i] === '}') { i++; break; }
-        fail(`צפוי "," או "}", נמצא ${show(text[i])}`);
+        fail(tr('צפוי "," או "}", נמצא {found}', { found: show(text[i]) }));
       }
       v = o;
     } else if (c === '[') {
@@ -455,7 +456,7 @@ export function scanJson(text: string): JsonScan {
         a.push(value(true)); ws();
         if (text[i] === ',') { i++; continue; }
         if (text[i] === ']') { i++; break; }
-        fail(`צפוי "," או "]", נמצא ${show(text[i])}`);
+        fail(tr('צפוי "," או "]", נמצא {found}', { found: show(text[i]) }));
       }
       v = a;
     } else if (c === '"') v = str();
@@ -464,7 +465,7 @@ export function scanJson(text: string): JsonScan {
     else if (text.startsWith('null', i)) { i += 4; v = null; }
     else {
       const m = /^-?\d+(\.\d+)?([eE][+-]?\d+)?/.exec(text.slice(i));
-      if (!m) fail(`תו לא צפוי ${show(c)}`);
+      if (!m) fail(tr('תו לא צפוי {found}', { found: show(c) }));
       i += m![0].length; v = Number(m![0]);
     }
     if (inArray && (isObj(v) || typeof v === 'string')) ranges.push({ from, to: i, value: v });
@@ -473,7 +474,7 @@ export function scanJson(text: string): JsonScan {
   try {
     const v = value(false);
     ws();
-    if (i < text.length) fail(`תו לא צפוי ${show(text[i])} אחרי סוף האובייקט`);
+    if (i < text.length) fail(tr('תו לא צפוי {found} אחרי סוף האובייקט', { found: show(text[i]) }));
     return { ok: true, value: v, ranges };
   } catch (e) {
     if (!(e instanceof Fail)) throw e;
@@ -506,7 +507,7 @@ export const lockedFingerprints = (draft: AnyDraft): Set<string> => {
 };
 
 /** `scanJson`'s failure as one line for the code view ("שורה 7 · חסר ":"…"). */
-export const scanErrorText = (s: Extract<JsonScan, { ok: false }>): string => `שורה ${s.line}, עמודה ${s.column} · ${s.message}`;
+export const scanErrorText = (s: Extract<JsonScan, { ok: false }>): string => `${tr('שורה {line}, עמודה {column}', { line: s.line, column: s.column })} · ${s.message}`;
 
 /** The stored JSON of an item for the code view: `detail.config` when the server sends it (forward compatible), else null. */
 export function storedConfigOf(item: ItemDetail | null): unknown | null {
@@ -532,8 +533,8 @@ export function saveRoute(isNew: boolean, draft: AnyDraft, stored: AnyDraft | nu
   return changedLockedBlocks(draft, stored).length ? 'code' : 'replace';
 }
 
-const ROOT_LABEL: Record<string, string> = { triggers: 'כאשר', conditions: 'אם', actions: 'אז', sequence: 'אז', alias: 'שם', name: 'שם', description: 'תיאור', fields: 'שדות', members: 'מכשירים', mode: 'אפשרויות', max: 'אפשרויות', config: 'קוד' };
-export const issueSection = (path: string): string => ROOT_LABEL[path.split(/[./[\]]+/).filter(Boolean)[0] ?? ''] ?? 'שגיאה';
+const ROOT_LABEL: Record<string, string> = { triggers: tr('כאשר'), conditions: tr('אם'), actions: tr('אז'), sequence: tr('אז'), alias: tr('שם'), name: tr('שם'), description: tr('תיאור'), fields: tr('שדות'), members: tr('מכשירים'), mode: tr('אפשרויות'), max: tr('אפשרויות'), config: tr('קוד') };
+export const issueSection = (path: string): string => ROOT_LABEL[path.split(/[./[\]]+/).filter(Boolean)[0] ?? ''] ?? tr('שגיאה');
 export function issueLine(i: Issue): { where: string; what: string } { return { where: issueSection(i.path), what: i.message }; }
 /** Local issues + the server's, one per path and code. */
 export function mergeIssues(...lists: ReadonlyArray<readonly Issue[]>): Issue[] {
@@ -581,26 +582,26 @@ export function diffDrafts(kind: ItemKind, mine: AnyDraft, theirs: AnyDraft, ctx
   };
   if (kind === 'automation') {
     const x = mine as AutomationDraft; const y = theirs as AutomationDraft;
-    field('שם', x.alias, y.alias); field('תיאור', x.description, y.description);
-    field('אפשרויות', `${MODE_LABEL[x.mode]}${x.max ? ` · ${x.max}` : ''}`, `${MODE_LABEL[y.mode]}${y.max ? ` · ${y.max}` : ''}`);
-    blocks('כאשר', x.triggers, y.triggers, 'trigger'); blocks('אם', x.conditions, y.conditions, 'condition'); blocks('אז', x.actions, y.actions, 'action');
+    field(tr('שם'), x.alias, y.alias); field(tr('תיאור'), x.description, y.description);
+    field(tr('אפשרויות'), `${MODE_LABEL[x.mode]}${x.max ? ` · ${x.max}` : ''}`, `${MODE_LABEL[y.mode]}${y.max ? ` · ${y.max}` : ''}`);
+    blocks(tr('כאשר'), x.triggers, y.triggers, 'trigger'); blocks(tr('אם'), x.conditions, y.conditions, 'condition'); blocks(tr('אז'), x.actions, y.actions, 'action');
   } else if (kind === 'script') {
     const x = mine as ScriptDraft; const y = theirs as ScriptDraft;
-    field('שם', x.alias, y.alias); field('תיאור', x.description, y.description);
-    field('אפשרויות', MODE_LABEL[x.mode], MODE_LABEL[y.mode]);
-    field('שדות', x.fields.map((f) => f.name).join(', '), y.fields.map((f) => f.name).join(', '));
-    blocks('אז', x.sequence, y.sequence, 'action');
+    field(tr('שם'), x.alias, y.alias); field(tr('תיאור'), x.description, y.description);
+    field(tr('אפשרויות'), MODE_LABEL[x.mode], MODE_LABEL[y.mode]);
+    field(tr('שדות'), x.fields.map((f) => f.name).join(', '), y.fields.map((f) => f.name).join(', '));
+    blocks(tr('אז'), x.sequence, y.sequence, 'action');
   } else {
     const x = mine as SceneDraft; const y = theirs as SceneDraft;
-    field('שם', x.name, y.name);
+    field(tr('שם'), x.name, y.name);
     const label = (m: SceneMember) => `${ctx.names?.(m.entity_id) ?? entityLabel(m)} · ${m.state}${Object.keys(m.attributes).length ? ` ${JSON.stringify(m.attributes)}` : ''}`;
     const ya = new Map(y.members.map((m) => [m.entity_id, m]));
     for (const m of x.members) {
       const o = ya.get(m.entity_id);
-      if (!o) rows.push({ group: 'מכשירים', change: 'added', mine: label(m), theirs: '—' });
-      else if (canonicalJson(o) !== canonicalJson(m)) rows.push({ group: 'מכשירים', change: 'changed', mine: label(m), theirs: label(o) });
+      if (!o) rows.push({ group: tr('מכשירים'), change: 'added', mine: label(m), theirs: '—' });
+      else if (canonicalJson(o) !== canonicalJson(m)) rows.push({ group: tr('מכשירים'), change: 'changed', mine: label(m), theirs: label(o) });
     }
-    for (const o of y.members) if (!x.members.some((m) => m.entity_id === o.entity_id)) rows.push({ group: 'מכשירים', change: 'removed', mine: '—', theirs: label(o) });
+    for (const o of y.members) if (!x.members.some((m) => m.entity_id === o.entity_id)) rows.push({ group: tr('מכשירים'), change: 'removed', mine: '—', theirs: label(o) });
   }
   return rows;
 }
@@ -608,19 +609,19 @@ export function diffDrafts(kind: ItemKind, mine: AnyDraft, theirs: AnyDraft, ctx
 // ------------------------------------------------------------------------------------------------ scenes: the member fields of a table row
 
 export interface MemberField { key: string; label: string; kind: 'select' | 'number'; options?: Choice[]; min?: number; max?: number; step?: number; unit?: string; only?: 'on' }
-const LIGHT_STATES: Choice[] = [{ value: 'on', label: 'דלוק' }, { value: 'off', label: 'כבוי' }];
+const LIGHT_STATES: Choice[] = [{ value: 'on', label: tr('דלוק') }, { value: 'off', label: tr('כבוי') }];
 /** The editable fields of a scene member by its domain: the state, then the domain's attributes. Values are stored as HA stores them (`brightness` 0-255 ...). */
 export function memberFields(entityId: string): MemberField[] {
   const dom = entityId.split('.')[0];
   switch (dom) {
-    case 'light': return [{ key: 'state', label: 'מצב', kind: 'select', options: LIGHT_STATES }, { key: 'brightness', label: 'בהירות', kind: 'number', min: 1, max: 100, step: 1, unit: '%', only: 'on' }, { key: 'color_temp_kelvin', label: 'טמפרטורת צבע', kind: 'number', min: 2000, max: 6500, step: 100, unit: 'K', only: 'on' }];
-    case 'switch': return [{ key: 'state', label: 'מצב', kind: 'select', options: LIGHT_STATES }];
-    case 'fan': return [{ key: 'state', label: 'מצב', kind: 'select', options: LIGHT_STATES }, { key: 'percentage', label: 'מהירות', kind: 'number', min: 0, max: 100, step: 10, unit: '%', only: 'on' }];
-    case 'cover': return [{ key: 'state', label: 'מצב', kind: 'select', options: [{ value: 'open', label: 'פתוח' }, { value: 'closed', label: 'סגור' }] }, { key: 'current_position', label: 'מיקום', kind: 'number', min: 0, max: 100, step: 5, unit: '%' }];
-    case 'climate': return [{ key: 'state', label: 'מצב', kind: 'select', options: stateChoices(entityId) }, { key: 'temperature', label: 'טמפרטורה', kind: 'number', min: 16, max: 30, step: 0.5, unit: '°' }];
-    case 'media_player': return [{ key: 'state', label: 'מצב', kind: 'select', options: [{ value: 'on', label: 'דלוק' }, { value: 'off', label: 'כבוי' }, { value: 'playing', label: 'מנגן' }, { value: 'paused', label: 'מושהה' }] }, { key: 'volume_level', label: 'עוצמה', kind: 'number', min: 0, max: 100, step: 5, unit: '%' }];
-    case 'lock': return [{ key: 'state', label: 'מצב', kind: 'select', options: [{ value: 'locked', label: 'נעול' }, { value: 'unlocked', label: 'פתוח' }] }];
-    default: return [{ key: 'state', label: 'מצב', kind: 'select', options: ONOFF }];
+    case 'light': return [{ key: 'state', label: tr('מצב'), kind: 'select', options: LIGHT_STATES }, { key: 'brightness', label: tr('בהירות'), kind: 'number', min: 1, max: 100, step: 1, unit: '%', only: 'on' }, { key: 'color_temp_kelvin', label: tr('טמפרטורת צבע'), kind: 'number', min: 2000, max: 6500, step: 100, unit: 'K', only: 'on' }];
+    case 'switch': return [{ key: 'state', label: tr('מצב'), kind: 'select', options: LIGHT_STATES }];
+    case 'fan': return [{ key: 'state', label: tr('מצב'), kind: 'select', options: LIGHT_STATES }, { key: 'percentage', label: tr('מהירות'), kind: 'number', min: 0, max: 100, step: 10, unit: '%', only: 'on' }];
+    case 'cover': return [{ key: 'state', label: tr('מצב'), kind: 'select', options: [{ value: 'open', label: tr('פתוח') }, { value: 'closed', label: tr('סגור') }] }, { key: 'current_position', label: tr('מיקום'), kind: 'number', min: 0, max: 100, step: 5, unit: '%' }];
+    case 'climate': return [{ key: 'state', label: tr('מצב'), kind: 'select', options: stateChoices(entityId) }, { key: 'temperature', label: tr('טמפרטורה'), kind: 'number', min: 16, max: 30, step: 0.5, unit: '°' }];
+    case 'media_player': return [{ key: 'state', label: tr('מצב'), kind: 'select', options: [{ value: 'on', label: tr('דלוק') }, { value: 'off', label: tr('כבוי') }, { value: 'playing', label: tr('מנגן') }, { value: 'paused', label: tr('מושהה') }] }, { key: 'volume_level', label: tr('עוצמה'), kind: 'number', min: 0, max: 100, step: 5, unit: '%' }];
+    case 'lock': return [{ key: 'state', label: tr('מצב'), kind: 'select', options: [{ value: 'locked', label: tr('נעול') }, { value: 'unlocked', label: tr('פתוח') }] }];
+    default: return [{ key: 'state', label: tr('מצב'), kind: 'select', options: ONOFF }];
   }
 }
 /** HA's stored value <-> the number a field shows: a 0-255 brightness and a 0-1 volume are shown as percent. */
@@ -643,30 +644,30 @@ export function setMemberField(m: SceneMember, f: MemberField, ui: string | numb
   out.attributes[f.key] = toStore(f, Number(ui));
   return out;
 }
-export const CAPTURE_DOMAIN_LABEL: Record<string, string> = { light: 'תאורה', switch: 'מתג', fan: 'מאוורר', cover: 'תריס', climate: 'מזגן', media_player: 'מדיה', lock: 'מנעול' };
+export const CAPTURE_DOMAIN_LABEL: Record<string, string> = { light: tr('תאורה'), switch: tr('מתג'), fan: tr('מאוורר'), cover: tr('תריס'), climate: tr('מזגן'), media_player: tr('מדיה'), lock: tr('מנעול') };
 
 // ------------------------------------------------------------------------------------------------ script fields
 
 export type FieldKind = 'number' | 'boolean' | 'select' | 'text' | 'entity';
 /** The Hebrew word of a device domain, for the one-line summary of an entity field. */
-const DOMAIN_WORD: Record<string, string> = { light: 'תאורה', switch: 'מתג', cover: 'תריס', climate: 'מזגן', fan: 'מאוורר', media_player: 'מדיה', lock: 'מנעול', sensor: 'חיישן', binary_sensor: 'חיישן', person: 'אדם', scene: 'סצנה', script: 'סקריפט' };
-export const FIELD_KIND_LABEL: Record<FieldKind, string> = { number: 'מספר', boolean: 'כן / לא', select: 'בחירה', text: 'טקסט', entity: 'מכשיר' };
+const DOMAIN_WORD: Record<string, string> = { light: tr('תאורה'), switch: tr('מתג'), cover: tr('תריס'), climate: tr('מזגן'), fan: tr('מאוורר'), media_player: tr('מדיה'), lock: tr('מנעול'), sensor: tr('חיישן'), binary_sensor: tr('חיישן'), person: tr('אדם'), scene: tr('סצנה'), script: tr('סקריפט') };
+export const FIELD_KIND_LABEL: Record<FieldKind, string> = { number: tr('מספר'), boolean: tr('כן / לא'), select: tr('בחירה'), text: tr('טקסט'), entity: tr('מכשיר') };
 export function newField(kind: FieldKind, existing: readonly string[]): ScriptDraft['fields'][number] {
   let n = existing.length + 1;
   while (existing.includes(`field_${n}`)) n++;
-  const selector = kind === 'number' ? { kind: 'number' as const, min: 0, max: 100, step: 1 } : kind === 'boolean' ? { kind: 'boolean' as const } : kind === 'select' ? { kind: 'select' as const, options: ['אפשרות 1', 'אפשרות 2'] }
+  const selector = kind === 'number' ? { kind: 'number' as const, min: 0, max: 100, step: 1 } : kind === 'boolean' ? { kind: 'boolean' as const } : kind === 'select' ? { kind: 'select' as const, options: [tr('אפשרות 1'), tr('אפשרות 2')] }
     : kind === 'text' ? { kind: 'text' as const } : { kind: 'entity' as const, domains: [] as string[] };
   return { key: `field_${n}`, name: '', required: false, default: undefined, selector };
 }
 export function fieldSummary(f: ScriptDraft['fields'][number]): string {
   const s = f.selector;
   switch (s.kind) {
-    case 'number': return `מספר ${s.min}–${s.max}${s.unit ?? ''}`;
-    case 'boolean': return 'כן / לא';
-    case 'select': return `בחירה: ${s.options.join(' · ')}`;
-    case 'text': return 'טקסט';
-    case 'entity': return s.domains.length ? `מכשיר (${s.domains.map((d) => DOMAIN_WORD[d] ?? d).join(', ')})` : 'מכשיר';
-    default: return 'שדה מתקדם · נעול';
+    case 'number': return tr('מספר {min}–{max}{unit}', { min: s.min, max: s.max, unit: s.unit ?? '' });
+    case 'boolean': return tr('כן / לא');
+    case 'select': return tr('בחירה: {options}', { options: s.options.join(' · ') });
+    case 'text': return tr('טקסט');
+    case 'entity': return s.domains.length ? tr('מכשיר ({domains})', { domains: s.domains.map((d) => DOMAIN_WORD[d] ?? d).join(', ') }) : tr('מכשיר');
+    default: return tr('שדה מתקדם · נעול');
   }
 }
 

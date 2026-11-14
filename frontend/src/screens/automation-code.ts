@@ -3,6 +3,7 @@ import { customElement, property, query, state } from 'lit/decorators.js';
 import { icon } from './automation-builder-icons';
 import { editorShared } from './automation-editor-css';
 import { lockedLineRanges, scanErrorText, scanJson } from './automation-editor-logic';
+import { tr } from '../i18n/msg/automation';
 
 /**
  * CR-017 S4: the code view - the second side of the editor's "בונה · קוד" toggle (CR §4.5). In v1 the text is the item's JSON (the wire form;
@@ -172,16 +173,16 @@ export class AutomationCode extends LitElement {
     const errLine = !scan.ok ? scan.line - 1 : -1;
     const notObject = scan.ok && (scan.value === null || typeof scan.value !== 'object' || Array.isArray(scan.value));
     return html`<div class="card">
-        <div class="caph"><span class="tag">JSON</span>${this.locked.size ? html`<span class="tag lock">${icon('lock')}${this.locked.size === 1 ? 'חלק נעול' : `${this.locked.size} חלקים נעולים`} · מסומנים</span>` : nothing}<span class="sp"></span><slot name="chips"></slot></div>
+        <div class="caph"><span class="tag">JSON</span>${this.locked.size ? html`<span class="tag lock">${icon('lock')}${this.locked.size === 1 ? tr('חלק נעול') : tr('{n} חלקים נעולים', { n: this.locked.size })} · ${tr('מסומנים')}</span>` : nothing}<span class="sp"></span><slot name="chips"></slot></div>
         <div class="wrap" data-code-wrap>
           <div class="layer"><div class="in" style=${`transform:translateY(${-this.scrollY}px)`}>
             ${bands.map((b) => html`<div class="band" data-locked-band style=${`inset-block-start:${b.from * 20}px;block-size:${(b.to - b.from + 1) * 20}px`}></div>`)}
             ${errLine >= 0 ? html`<div class="band err" data-error-band style=${`inset-block-start:${errLine * 20}px;block-size:20px`}></div>` : nothing}
           </div></div>
           <div class="nums" aria-hidden="true"><div class="in" style=${`transform:translateY(${-this.scrollY}px)`}>${lines.map((_l, i) => html`<div>${i + 1}</div>`)}</div></div>
-          <textarea data-code-text spellcheck="false" aria-label="קוד האוטומציה" ?readonly=${this.readonly} .value=${this.value} @input=${this.onInput} @scroll=${(e: Event) => (this.scrollY = (e.target as HTMLTextAreaElement).scrollTop)}></textarea>
+          <textarea data-code-text spellcheck="false" aria-label=${tr('קוד האוטומציה')} ?readonly=${this.readonly} .value=${this.value} @input=${this.onInput} @scroll=${(e: Event) => (this.scrollY = (e.target as HTMLTextAreaElement).scrollTop)}></textarea>
         </div>
-        ${!scan.ok ? html`<div class="errline" role="alert" data-code-error>${icon('warning')}<span>${scanErrorText(scan)}</span></div>` : notObject ? html`<div class="errline" role="alert" data-code-error>${icon('warning')}<span>התוכן צריך להיות אובייקט</span></div>` : nothing}
+        ${!scan.ok ? html`<div class="errline" role="alert" data-code-error>${icon('warning')}<span>${scanErrorText(scan)}</span></div>` : notObject ? html`<div class="errline" role="alert" data-code-error>${icon('warning')}<span>${tr('התוכן צריך להיות אובייקט')}</span></div>` : nothing}
       </div>
       <div class="note"><slot name="note"></slot></div>`;
   }

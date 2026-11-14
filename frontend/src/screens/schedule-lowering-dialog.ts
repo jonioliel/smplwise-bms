@@ -4,6 +4,7 @@ import '../components/sw-dialog';
 import '../components/sw-button';
 import '../components/sw-icon';
 import type { LoweringSummary } from './schedule-edit-logic';
+import { tr } from '../i18n/msg/automation';
 
 /**
  * CR-014 S4: the explicit confirmation of a sensitive schedule (SCHEDULER_API §5.3, decision 3/4): a schedule that opens a
@@ -37,7 +38,7 @@ export class ScheduleLoweringDialog extends LitElement {
   @property({ type: Boolean }) busy = false;
   @property() error = '';
   /** The button's words: "שמירה" (default), "הפעלה", "הרצה". */
-  @property() confirmLabel = 'שמירה';
+  @property() confirmLabel = tr('שמירה');
   @state() private ack = false;
   @state() private code = '';
 
@@ -135,24 +136,24 @@ export class ScheduleLoweringDialog extends LitElement {
     const times = Array.isArray(s.times) ? s.times.join(', ') : s.times ?? '';
     const kinds = s.kinds ?? [];
     if (s.lowering !== false) {
-      const verb = kinds.length === 1 ? (kinds[0] === 'מנטרל' ? 'ינטרל' : kinds[0] === 'פותח נעילה' ? 'יפתח את נעילת' : 'יפתח') : 'יפתח / ינטרל';
-      return `התזמון ${verb} ${who}${times ? ` ב־${times}` : ''} גם כשאיש אינו נמצא במקום.`;
+      const verb = kinds.length === 1 ? (kinds[0] === 'מנטרל' ? tr('ינטרל') : kinds[0] === 'פותח נעילה' ? tr('יפתח את נעילת') : tr('יפתח')) : tr('יפתח / ינטרל');
+      return tr('התזמון {verb} {who}{when} גם כשאיש אינו נמצא במקום.', { verb, who, when: times ? ` ${tr('ב־{times}', { times })}` : '' });
     }
-    return `התזמון כולל פעולה רגישה (אזעקה, מנעול, דלת או שער)${times ? ` ב־${times}` : ''} והוא יפעל גם כשאיש אינו נמצא במקום.`;
+    return tr('התזמון כולל פעולה רגישה (אזעקה, מנעול, דלת או שער){when} והוא יפעל גם כשאיש אינו נמצא במקום.', { when: times ? ` ${tr('ב־{times}', { times })}` : '' });
   }
 
   render() {
     const lowering = this.summary.lowering !== false;
-    return html`<sw-dialog ?open=${this.open} heading=${lowering ? 'תזמון שפותח או מנטרל' : 'תזמון של פעולה רגישה'} data-lowering-dialog @close=${this.close}>
+    return html`<sw-dialog ?open=${this.open} heading=${lowering ? tr('תזמון שפותח או מנטרל') : tr('תזמון של פעולה רגישה')} data-lowering-dialog @close=${this.close}>
       <div class="warn ${lowering ? '' : 'soft'}" role="alert" data-lowering-warning><sw-icon name="warning" size="20"></sw-icon><div>${this.sentence()}</div></div>
-      <label class="ack"><input type="checkbox" data-lowering-ack .checked=${this.ack} @change=${(e: Event) => (this.ack = (e.target as HTMLInputElement).checked)} /><span>${lowering ? 'אני מבין שהפעולה תתבצע אוטומטית, ומאשר.' : 'אני מאשר את הפעולה הרגישה.'}</span></label>
+      <label class="ack"><input type="checkbox" data-lowering-ack .checked=${this.ack} @change=${(e: Event) => (this.ack = (e.target as HTMLInputElement).checked)} /><span>${lowering ? tr('אני מבין שהפעולה תתבצע אוטומטית, ומאשר.') : tr('אני מאשר את הפעולה הרגישה.')}</span></label>
       ${this.needsCode
-        ? html`<div class="code"><label for="alarm-code">קוד האזעקה</label><input id="alarm-code" type="password" inputmode="numeric" autocomplete="off" data-lowering-code .value=${this.code} @input=${(e: Event) => (this.code = (e.target as HTMLInputElement).value)} /><small>הקוד נבדק פעם אחת ואינו נשמר בתזמון.</small></div>`
+        ? html`<div class="code"><label for="alarm-code">${tr('קוד האזעקה')}</label><input id="alarm-code" type="password" inputmode="numeric" autocomplete="off" data-lowering-code .value=${this.code} @input=${(e: Event) => (this.code = (e.target as HTMLInputElement).value)} /><small>${tr('הקוד נבדק פעם אחת ואינו נשמר בתזמון.')}</small></div>`
         : nothing}
       ${this.error ? html`<div class="err" role="alert" data-lowering-error>${this.error}</div>` : nothing}
       <div slot="footer" style="display:contents">
-        <sw-button data-lowering-cancel ?disabled=${this.busy} @click=${this.close}>ביטול</sw-button>
-        <sw-button variant="primary" data-lowering-ok ?disabled=${!this.ack || this.busy || (this.needsCode && !this.code.trim())} @click=${this.confirm}>${this.busy ? 'שולח…' : this.confirmLabel}</sw-button>
+        <sw-button data-lowering-cancel ?disabled=${this.busy} @click=${this.close}>${tr('ביטול')}</sw-button>
+        <sw-button variant="primary" data-lowering-ok ?disabled=${!this.ack || this.busy || (this.needsCode && !this.code.trim())} @click=${this.confirm}>${this.busy ? tr('שולח…') : this.confirmLabel}</sw-button>
       </div>
     </sw-dialog>`;
   }
