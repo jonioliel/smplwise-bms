@@ -23,6 +23,7 @@ import { CODE_VIEW_ROLES, ROLE_ROWS, delegationLabel, moveTemplate, templateRows
 import { SkinController } from '../design/skin';
 import { bubbleChrome } from '../styles/bubble-chrome';
 import { settingsStyles } from '../styles/settings';
+import { tr } from '../i18n/msg/system-a';
 
 const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
@@ -406,7 +407,7 @@ export class SystemAutomations extends LitElement {
       this.draft = clone(to);
       if (isApi()) invalidateSettings();
       applyAutomationsHidden({ 'automations.enabled': String(to.enabled) });
-      this.say('נשמר');
+      this.say(tr('נשמר'));
     } catch (err) {
       this.error = automationErrorText(err);
     } finally {
@@ -418,9 +419,9 @@ export class SystemAutomations extends LitElement {
 
   private stepper(key: NumKey | LimKey, value: number, unit: string, min: number, max: number, set: (v: number) => void, label: string, step = 1): TemplateResult {
     return html`<div class="stepper" role="group" aria-label=${label}>
-      <button type="button" aria-label="פחות" data-step-minus=${key} ?disabled=${value <= min} @click=${() => set(Math.max(min, value - step))}><sw-icon name="minus" size=${16}></sw-icon></button>
+      <button type="button" aria-label=${tr('פחות')} data-step-minus=${key} ?disabled=${value <= min} @click=${() => set(Math.max(min, value - step))}><sw-icon name="minus" size=${16}></sw-icon></button>
       <span class="v" data-setting=${key}><bdi>${value}</bdi>${unit ? html`<small>${unit}</small>` : nothing}</span>
-      <button type="button" aria-label="יותר" data-step-plus=${key} ?disabled=${value >= max} @click=${() => set(Math.min(max, value + step))}><sw-icon name="plus" size=${16}></sw-icon></button>
+      <button type="button" aria-label=${tr('יותר')} data-step-plus=${key} ?disabled=${value >= max} @click=${() => set(Math.min(max, value + step))}><sw-icon name="plus" size=${16}></sw-icon></button>
     </div>`;
   }
 
@@ -433,14 +434,14 @@ export class SystemAutomations extends LitElement {
   }
 
   private who(): TemplateResult {
-    const tick = (on: boolean) => (on ? html`<sw-icon class="yes" name="check" size=${16} role="img" aria-label="כן"></sw-icon>` : html`<span class="no" aria-label="לא">—</span>`);
+    const tick = (on: boolean) => (on ? html`<sw-icon class="yes" name="check" size=${16} role="img" aria-label=${tr('כן')}></sw-icon>` : html`<span class="no" aria-label=${tr('לא')}>—</span>`);
     const codeOn = (id: string, fixed: boolean | null) => (fixed !== null ? fixed : this.draft.code_view_roles.includes(id));
-    return html`<sw-card heading="מי רשאי" data-card="who">
+    return html`<sw-card heading=${tr('מי רשאי')} data-card="who">
       <table class="mtx set-matrix" data-roles-matrix>
-        <thead><tr><th scope="col">תפקיד</th><th scope="col" class="c">הפעלה</th><th scope="col" class="c">יצירה ועריכה</th><th scope="col" class="c">קוד</th>${this.draft.device_test_enabled ? html`<th scope="col" class="c" data-col-device-test>בדיקה על ההתקן</th>` : nothing}</tr></thead>
+        <thead><tr><th scope="col">${tr('תפקיד')}</th><th scope="col" class="c">${tr('הפעלה')}</th><th scope="col" class="c">${tr('יצירה ועריכה')}</th><th scope="col" class="c">${tr('קוד')}</th>${this.draft.device_test_enabled ? html`<th scope="col" class="c" data-col-device-test>${tr('בדיקה על ההתקן')}</th>` : nothing}</tr></thead>
         <tbody>${ROLE_ROWS.map((r) => html`<tr data-role=${r.id}><td>${r.label}${r.scope ? html`<small>${r.scope}</small>` : nothing}</td><td class="c">${tick(r.run)}</td><td class="c">${tick(r.edit)}</td><td class="c">${tick(codeOn(r.id, r.codeFixed))}</td>${this.draft.device_test_enabled ? html`<td class="c">${tick(r.run && r.edit)}</td>` : nothing}</tr>`)}</tbody>
       </table>
-      ${this.row('הרשאות ותפקידים', 'ההקצאה למשתמשים ולקומות במסך "משתמשים והרשאות".', html`<a class="link" href="#/system/access" data-link-access>למסך המשתמשים</a>`)}
+      ${this.row(tr('הרשאות ותפקידים'), tr('ההקצאה למשתמשים ולקומות במסך "משתמשים והרשאות".'), html`<a class="link" href="#/system/access" data-link-access>${tr('למסך המשתמשים')}</a>`)}
     </sw-card>`;
   }
 
@@ -453,15 +454,15 @@ export class SystemAutomations extends LitElement {
       const [lo, hi] = R[k];
       return this.stepper(k, d[k], unit, lo, hi, (v) => this.set({ [k]: v } as Partial<AutomationSettings>), label, step);
     };
-    return html`<sw-card heading="כפתורי קיר ומתגים" data-card="wall-buttons">
-      ${this.row('פתוח לעריכה בבונה', 'כפתורי קיר ומתגים בלבד בגרסה הראשונה', this.tog('פתוח לעריכה בבונה', d.wall_buttons_editable, (v) => this.set({ wall_buttons_editable: v }), 'wall_buttons_editable'))}
+    return html`<sw-card heading=${tr('כפתורי קיר ומתגים')} data-card="wall-buttons">
+      ${this.row(tr('פתוח לעריכה בבונה'), tr('כפתורי קיר ומתגים בלבד בגרסה הראשונה'), this.tog(tr('פתוח לעריכה בבונה'), d.wall_buttons_editable, (v) => this.set({ wall_buttons_editable: v }), 'wall_buttons_editable'))}
       ${d.wall_buttons_editable ? html`
-        ${this.row('חלון לחיצה כפולה', 'הזמן המרבי בין שתי לחיצות', st('wall_double_ms', 'מ״ש', 'חלון לחיצה כפולה', 50))}
-        ${this.row('לחיצה ארוכה מתחילה אחרי', '', st('wall_long_ms', 'מ״ש', 'לחיצה ארוכה', 50))}
-        ${this.row('התעלמות מרעידות מגע', '', st('wall_debounce_ms', 'מ״ש', 'רעידות מגע', 10))}
-        ${this.row('זמן האזנה בזיהוי לחיצה', '', st('wall_listen_s', 'שנ׳', 'זמן האזנה', 5))}
-        ${this.row('טריגרים ייעודיים (מתג נדלק וכד׳)', 'לא בגרסה הראשונה', html`<span class="tag" data-wall-purpose>כבוי</span>`)}
-        ${this.row('תבניות מתקדמות', 'נשארות נעולות, נשמרות כמו שהן', html`<span class="tag" data-wall-templates><sw-icon name="lock" size=${12}></sw-icon>נעול</span>`)}` : nothing}
+        ${this.row(tr('חלון לחיצה כפולה'), tr('הזמן המרבי בין שתי לחיצות'), st('wall_double_ms', tr('מ״ש'), tr('חלון לחיצה כפולה'), 50))}
+        ${this.row(tr('לחיצה ארוכה מתחילה אחרי'), '', st('wall_long_ms', tr('מ״ש'), tr('לחיצה ארוכה'), 50))}
+        ${this.row(tr('התעלמות מרעידות מגע'), '', st('wall_debounce_ms', tr('מ״ש'), tr('רעידות מגע'), 10))}
+        ${this.row(tr('זמן האזנה בזיהוי לחיצה'), '', st('wall_listen_s', tr('שנ׳'), tr('זמן האזנה'), 5))}
+        ${this.row(tr('טריגרים ייעודיים (מתג נדלק וכד׳)'), tr('לא בגרסה הראשונה'), html`<span class="tag" data-wall-purpose>${tr('כבוי')}</span>`)}
+        ${this.row(tr('תבניות מתקדמות'), tr('נשארות נעולות, נשמרות כמו שהן'), html`<span class="tag" data-wall-templates><sw-icon name="lock" size=${12}></sw-icon>${tr('נעול')}</span>`)}` : nothing}
     </sw-card>`;
   }
 
@@ -469,18 +470,18 @@ export class SystemAutomations extends LitElement {
     const d = this.draft;
     const [wlo, whi] = AUTOMATION_SETTING_RANGES.conflict_window_min;
     const seg = <T extends string>(attr: string, value: T, opts: Array<[T, string]>, set: (v: T) => void) => html`<div class="seg" role="group" aria-label=${attr}>${opts.map(([v, l]) => html`<button type="button" aria-pressed=${String(value === v)} data-seg=${`${attr}:${v}`} @click=${() => set(v)}>${l}</button>`)}</div>`;
-    return html`<sw-card heading="בדיקות לפני שמירה" data-card="prechecks">
-      ${this.row('בדיקות לפני שמירה', 'התנגשויות, התקן לא זמין, כפתור שכבר בשימוש', this.tog('בדיקות לפני שמירה', d.precheck_enabled, (v) => this.set({ precheck_enabled: v }), 'precheck_enabled'))}
+    return html`<sw-card heading=${tr('בדיקות לפני שמירה')} data-card="prechecks">
+      ${this.row(tr('בדיקות לפני שמירה'), tr('התנגשויות, התקן לא זמין, כפתור שכבר בשימוש'), this.tog(tr('בדיקות לפני שמירה'), d.precheck_enabled, (v) => this.set({ precheck_enabled: v }), 'precheck_enabled'))}
       ${d.precheck_enabled ? html`
-        ${this.row('חלון זיהוי התנגשות', 'פעולות הפוכות על אותו התקן, בין תזמונים ואוטומציות', this.stepper('conflict_window_min', d.conflict_window_min, 'דק׳', wlo, whi, (v) => this.set({ conflict_window_min: v }), 'חלון זיהוי התנגשות'))}
-        ${this.row('לאפשר "שמירה עם אזהרות"', 'שגיאה חוסמת תמיד', this.tog('שמירה עם אזהרות', d.save_with_warnings, (v) => this.set({ save_with_warnings: v }), 'save_with_warnings'))}
-        ${this.row('כפתור שכבר משמש פריט אחר', 'אותה לחיצה מפעילה שני פריטים', seg('button_reuse', d.button_reuse, [['warn', 'אזהרה'], ['error', 'שגיאה']], (v) => this.set({ button_reuse: v })))}` : nothing}
-      ${this.row('בדיקה על ההתקן', 'למי שמורשה לערוך וגם להפעיל ידנית', this.tog('בדיקה על ההתקן', d.device_test_enabled, (v) => this.set({ device_test_enabled: v }), 'device_test_enabled'))}
+        ${this.row(tr('חלון זיהוי התנגשות'), tr('פעולות הפוכות על אותו התקן, בין תזמונים ואוטומציות'), this.stepper('conflict_window_min', d.conflict_window_min, tr('דק׳'), wlo, whi, (v) => this.set({ conflict_window_min: v }), tr('חלון זיהוי התנגשות')))}
+        ${this.row(tr('לאפשר "שמירה עם אזהרות"'), tr('שגיאה חוסמת תמיד'), this.tog(tr('שמירה עם אזהרות'), d.save_with_warnings, (v) => this.set({ save_with_warnings: v }), 'save_with_warnings'))}
+        ${this.row(tr('כפתור שכבר משמש פריט אחר'), tr('אותה לחיצה מפעילה שני פריטים'), seg('button_reuse', d.button_reuse, [['warn', tr('אזהרה')], ['error', tr('שגיאה')]], (v) => this.set({ button_reuse: v })))}` : nothing}
+      ${this.row(tr('בדיקה על ההתקן'), tr('למי שמורשה לערוך וגם להפעיל ידנית'), this.tog(tr('בדיקה על ההתקן'), d.device_test_enabled, (v) => this.set({ device_test_enabled: v }), 'device_test_enabled'))}
       ${d.device_test_enabled ? html`
-        ${this.row('בדיקה על ההתקן: בסיום', 'מה קורה להתקנים שהופעלו בבדיקה', seg('device_test_end', d.device_test_end, [['ask', 'לשאול'], ['restore', 'להחזיר'], ['keep', 'להשאיר']], (v) => this.set({ device_test_end: v })))}
-        ${this.row('בדיקה על ההתקן לפעולה רגישה', 'כמו היום: לפי הרשאת הפעלה ידנית', html`<span class="tag" data-device-test-sensitive><sw-icon name="lock" size=${12}></sw-icon>לפי הרשאה</span>`)}` : nothing}
-      ${this.row('"מי במבנה" באוטומציות', 'החיישן שמדווח אם יש מישהו במבנה', html`<select class="sel" aria-label="מי במבנה" data-presence-entity @change=${(e: Event) => this.set({ presence_entity: (e.target as HTMLSelectElement).value })}>
-        <option value="" ?selected=${!d.presence_entity}>כבוי</option>
+        ${this.row(tr('בדיקה על ההתקן: בסיום'), tr('מה קורה להתקנים שהופעלו בבדיקה'), seg('device_test_end', d.device_test_end, [['ask', tr('לשאול')], ['restore', tr('להחזיר')], ['keep', tr('להשאיר')]], (v) => this.set({ device_test_end: v })))}
+        ${this.row(tr('בדיקה על ההתקן לפעולה רגישה'), tr('כמו היום: לפי הרשאת הפעלה ידנית'), html`<span class="tag" data-device-test-sensitive><sw-icon name="lock" size=${12}></sw-icon>${tr('לפי הרשאה')}</span>`)}` : nothing}
+      ${this.row(tr('"מי במבנה" באוטומציות'), tr('החיישן שמדווח אם יש מישהו במבנה'), html`<select class="sel" aria-label=${tr('מי במבנה')} data-presence-entity @change=${(e: Event) => this.set({ presence_entity: (e.target as HTMLSelectElement).value })}>
+        <option value="" ?selected=${!d.presence_entity}>${tr('כבוי')}</option>
         ${this.presenceCandidates().map((id) => html`<option value=${id} ?selected=${id === d.presence_entity}>${id}</option>`)}</select>`)}
     </sw-card>`;
   }
@@ -497,16 +498,16 @@ export class SystemAutomations extends LitElement {
     const d = delegationLabel(s);
     const changed = s.admin?.delegation_changed_at ? whenText(s.admin.delegation_changed_at, this.now) : '';
     const delegated = this.review.filter((r) => r.issue === 'delegated_write').length;
-    return html`<sw-card heading="האצלה לבני בית שאינם מנהלי Home Assistant" data-card="delegation">
-      ${this.row('מתג ההאצלה ברכיב החיבור', `${d.label}${changed ? ` · שונה ${changed}` : ''} · מאפשר שמירה של תוכן העורך הפשוט בלבד`, html`<span class=${`tag ${d.state === 'on' ? 'ok' : ''}`} data-delegation-state=${d.state}>${d.label}</span>`)}
-      ${this.row('איפה משנים', 'Home Assistant ‹ הגדרות ‹ התקנים ושירותים ‹ Arx Bridge ‹ אפשרויות. לא ניתן לשינוי מכאן.', html`<span class="tag" data-delegation-readonly><sw-icon name="lock" size=${12}></sw-icon>לקריאה בלבד</span>`)}
-      ${this.row('כתיבות מואצלות', `${delegated} ברשימת הסקירה`, delegated ? html`<a class="link" href="#review" data-link-review @click=${(e: Event) => { e.preventDefault(); this.renderRoot.querySelector('[data-card="review"]')?.scrollIntoView({ block: 'center' }); }}>לסקירה</a>` : nothing)}
+    return html`<sw-card heading=${tr('האצלה לבני בית שאינם מנהלי Home Assistant')} data-card="delegation">
+      ${this.row(tr('מתג ההאצלה ברכיב החיבור'), `${d.label}${changed ? ` · ${tr('שונה {time}', { time: changed })}` : ''} · ${tr('מאפשר שמירה של תוכן העורך הפשוט בלבד')}`, html`<span class=${`tag ${d.state === 'on' ? 'ok' : ''}`} data-delegation-state=${d.state}>${d.label}</span>`)}
+      ${this.row(tr('איפה משנים'), tr('Home Assistant ‹ הגדרות ‹ התקנים ושירותים ‹ Arx Bridge ‹ אפשרויות. לא ניתן לשינוי מכאן.'), html`<span class="tag" data-delegation-readonly><sw-icon name="lock" size=${12}></sw-icon>${tr('לקריאה בלבד')}</span>`)}
+      ${this.row(tr('כתיבות מואצלות'), tr('{n} ברשימת הסקירה', { n: delegated }), delegated ? html`<a class="link" href="#review" data-link-review @click=${(e: Event) => { e.preventDefault(); this.renderRoot.querySelector('[data-card="review"]')?.scrollIntoView({ block: 'center' }); }}>${tr('לסקירה')}</a>` : nothing)}
     </sw-card>`;
   }
 
   private codeView(): TemplateResult {
-    return html`<sw-card heading="תצוגת קוד" data-card="code">
-      ${this.row('מי רואה את המתג "בונה · קוד"', 'הצד השני של אותו עורך. שמירת תוכן שאינו מהבונה דורשת מנהל Home Assistant בכל מקרה.', html`<div class="chipsrow" role="group" aria-label="תפקידים">${CODE_VIEW_ROLES.map((r) => {
+    return html`<sw-card heading=${tr('תצוגת קוד')} data-card="code">
+      ${this.row(tr('מי רואה את המתג "בונה · קוד"'), tr('הצד השני של אותו עורך. שמירת תוכן שאינו מהבונה דורשת מנהל Home Assistant בכל מקרה.'), html`<div class="chipsrow" role="group" aria-label=${tr('תפקידים')}>${CODE_VIEW_ROLES.map((r) => {
         const on = this.draft.code_view_roles.includes(r.id) || r.locked;
         return html`<button type="button" class="rc" aria-pressed=${String(on)} ?disabled=${r.locked} data-code-role=${r.id} @click=${() => this.set({ code_view_roles: toggleCodeRole(this.draft.code_view_roles, r.id) })}><sw-icon name=${on ? 'check' : 'plus'} size=${14}></sw-icon>${r.label}</button>`;
       })}</div>`)}
@@ -517,34 +518,34 @@ export class SystemAutomations extends LitElement {
     const d = this.draft;
     const [tlo, thi] = AUTOMATION_SETTING_RANGES.trash_days;
     const [vlo, vhi] = AUTOMATION_SETTING_RANGES.versions_keep;
-    return html`<sw-card heading="סל מחזור והיסטוריה" data-card="retention">
-      ${this.row('שמירה בסל המחזור', 'פריט שנמחק ניתן לשחזור עם אותו מזהה', this.stepper('trash_days', d.trash_days, 'ימים', tlo, thi, (v) => this.set({ trash_days: v }), 'ימי שמירה בסל המחזור'))}
-      ${this.row('גרסאות לכל פריט', 'כולל שינויים שנעשו מחוץ למערכת', this.stepper('versions_keep', d.versions_keep, 'גרסאות', vlo, vhi, (v) => this.set({ versions_keep: v }), 'גרסאות לכל פריט'))}
-      ${this.row('סל המחזור', `${this.trash.length} פריטים`, html`<sw-button size="sm" icon="trash" data-open-trash @click=${() => (this.trashOpen = true)}>פתח</sw-button>`)}
+    return html`<sw-card heading=${tr('סל מחזור והיסטוריה')} data-card="retention">
+      ${this.row(tr('שמירה בסל המחזור'), tr('פריט שנמחק ניתן לשחזור עם אותו מזהה'), this.stepper('trash_days', d.trash_days, tr('ימים'), tlo, thi, (v) => this.set({ trash_days: v }), tr('ימי שמירה בסל המחזור')))}
+      ${this.row(tr('גרסאות לכל פריט'), tr('כולל שינויים שנעשו מחוץ למערכת'), this.stepper('versions_keep', d.versions_keep, tr('גרסאות'), vlo, vhi, (v) => this.set({ versions_keep: v }), tr('גרסאות לכל פריט')))}
+      ${this.row(tr('סל המחזור'), tr('{n} פריטים', { n: this.trash.length }), html`<sw-button size="sm" icon="trash" data-open-trash @click=${() => (this.trashOpen = true)}>${tr('פתח')}</sw-button>`)}
     </sw-card>`;
   }
 
   private limits(): TemplateResult {
     const l = this.draft.limits;
     const st = (k: LimKey, unit: string, min: number, max: number, label: string) => this.stepper(k, l[k], unit, min, max, (v) => this.setLimit(k, v), label);
-    return html`<sw-card heading="מגבלות" data-card="limits">
-      ${this.row('שמירות לדקה למשתמש', '', st('writes_per_min', '', 5, 120, 'שמירות לדקה'))}
-      ${this.row('תצוגות מקדימות לדקה', '', st('preview_per_min', '', 10, 240, 'תצוגות מקדימות לדקה'))}
-      ${this.row('הרצה חוזרת של אותו פריט', 'מרווח מינימלי', st('run_interval_s', 'שנ׳', 3, 60, 'מרווח הרצה'))}
-      ${this.row('הפעלת סצנה חוזרת', '', st('scene_apply_interval_s', 'שנ׳', 1, 30, 'מרווח הפעלת סצנה'))}
-      ${this.row('סערת הרצות · פריט', `התראה מעל ${l.storm_item_per_min} ריצות לדקה לפריט או ${l.storm_total_per_min} בסך הכל`, st('storm_item_per_min', '/דק׳', 5, 100, 'סף לפריט'))}
-      ${this.row('סערת הרצות · סך הכל', '', st('storm_total_per_min', '/דק׳', 50, 1000, 'סף כולל'))}
-      ${this.row('כיבוי אוטומטי בסערה', 'ברירת המחדל: התראה למנהל עם כיבוי בלחיצה', this.tog('כיבוי אוטומטי בסערה', this.draft.storm_auto_disable, (v) => this.set({ storm_auto_disable: v }), 'storm_auto_disable'))}
+    return html`<sw-card heading=${tr('מגבלות')} data-card="limits">
+      ${this.row(tr('שמירות לדקה למשתמש'), '', st('writes_per_min', '', 5, 120, tr('שמירות לדקה')))}
+      ${this.row(tr('תצוגות מקדימות לדקה'), '', st('preview_per_min', '', 10, 240, tr('תצוגות מקדימות לדקה')))}
+      ${this.row(tr('הרצה חוזרת של אותו פריט'), tr('מרווח מינימלי'), st('run_interval_s', tr('שנ׳'), 3, 60, tr('מרווח הרצה')))}
+      ${this.row(tr('הפעלת סצנה חוזרת'), '', st('scene_apply_interval_s', tr('שנ׳'), 1, 30, tr('מרווח הפעלת סצנה')))}
+      ${this.row(tr('סערת הרצות · פריט'), tr('התראה מעל {item} ריצות לדקה לפריט או {total} בסך הכל', { item: l.storm_item_per_min, total: l.storm_total_per_min }), st('storm_item_per_min', tr('/דק׳'), 5, 100, tr('סף לפריט')))}
+      ${this.row(tr('סערת הרצות · סך הכל'), '', st('storm_total_per_min', tr('/דק׳'), 50, 1000, tr('סף כולל')))}
+      ${this.row(tr('כיבוי אוטומטי בסערה'), tr('ברירת המחדל: התראה למנהל עם כיבוי בלחיצה'), this.tog(tr('כיבוי אוטומטי בסערה'), this.draft.storm_auto_disable, (v) => this.set({ storm_auto_disable: v }), 'storm_auto_disable'))}
     </sw-card>`;
   }
 
   private sensitive(): TemplateResult {
     const approved = new Set(this.draft.notify_targets);
-    return html`<sw-card heading="פעולות רגישות" data-card="sensitive">
-      ${this.row('הכלל', 'אזעקה, מנעולים, דלתות, שערים וצופרים מותרים באוטומציות כמו כל פעולה, ועוברים את אותן בדיקות הרשאה כמו שליטה ידנית. קודים לעולם לא נשמרים.', html`<span class="tag ok"><sw-icon name="check" size=${12}></sw-icon>החלטת הבעלים</span>`)}
-      ${this.row('צ׳יפ אזהרה על צעד רגיש', 'מוצג בעורך וברשימה', this.tog('צ׳יפ אזהרה על צעד רגיש', this.draft.sensitive_warning, (v) => this.set({ sensitive_warning: v }), 'sensitive_warning'))}
-      ${this.row('צבע הצ׳יפ', 'צהוב או אדום', html`<div class="seg" role="group" aria-label="צבע הצ׳יפ"><button type="button" aria-pressed=${String(this.draft.sensitive_chip === 'amber')} data-sensitive-chip="amber" @click=${() => this.set({ sensitive_chip: 'amber' })}>צהוב</button><button type="button" aria-pressed=${String(this.draft.sensitive_chip === 'red')} data-sensitive-chip="red" @click=${() => this.set({ sensitive_chip: 'red' })}>אדום</button></div>`)}
-      ${this.notify.length ? html`<div class="row"><div class="lbl"><span>יעדי התראה מאושרים</span><span class="muted">רק אליהם אפשר לשלוח התראה מאוטומציה</span></div><div class="chipsrow" role="group" aria-label="יעדי התראה">${this.notify.map((n) => {
+    return html`<sw-card heading=${tr('פעולות רגישות')} data-card="sensitive">
+      ${this.row(tr('הכלל'), tr('אזעקה, מנעולים, דלתות, שערים וצופרים מותרים באוטומציות כמו כל פעולה, ועוברים את אותן בדיקות הרשאה כמו שליטה ידנית. קודים לעולם לא נשמרים.'), html`<span class="tag ok"><sw-icon name="check" size=${12}></sw-icon>${tr('החלטת הבעלים')}</span>`)}
+      ${this.row(tr('צ׳יפ אזהרה על צעד רגיש'), tr('מוצג בעורך וברשימה'), this.tog(tr('צ׳יפ אזהרה על צעד רגיש'), this.draft.sensitive_warning, (v) => this.set({ sensitive_warning: v }), 'sensitive_warning'))}
+      ${this.row(tr('צבע הצ׳יפ'), tr('צהוב או אדום'), html`<div class="seg" role="group" aria-label=${tr('צבע הצ׳יפ')}><button type="button" aria-pressed=${String(this.draft.sensitive_chip === 'amber')} data-sensitive-chip="amber" @click=${() => this.set({ sensitive_chip: 'amber' })}>${tr('צהוב')}</button><button type="button" aria-pressed=${String(this.draft.sensitive_chip === 'red')} data-sensitive-chip="red" @click=${() => this.set({ sensitive_chip: 'red' })}>${tr('אדום')}</button></div>`)}
+      ${this.notify.length ? html`<div class="row"><div class="lbl"><span>${tr('יעדי התראה מאושרים')}</span><span class="muted">${tr('רק אליהם אפשר לשלוח התראה מאוטומציה')}</span></div><div class="chipsrow" role="group" aria-label=${tr('יעדי התראה')}>${this.notify.map((n) => {
         const on = approved.has(n.name);
         return html`<button type="button" class="rc" aria-pressed=${String(on)} data-notify=${n.action} @click=${() => this.set({ notify_targets: on ? this.draft.notify_targets.filter((x) => x !== n.name) : [...this.draft.notify_targets, n.name] })}>${on ? html`<sw-icon name="check" size=${14}></sw-icon>` : nothing}${n.name}</button>`;
       })}</div></div>` : nothing}
@@ -554,13 +555,13 @@ export class SystemAutomations extends LitElement {
   private gallery(): TemplateResult {
     const hidden = new Set(this.draft.templates_hidden);
     const order = this.orderedTemplates();
-    return html`<sw-card heading="גלריית תבניות" data-card="templates">
-      ${this.row('גלריה פעילה', 'מוצגת בלחיצה על "חדש"', this.tog('גלריה פעילה', this.draft.templates_enabled, (v) => this.set({ templates_enabled: v }), 'templates_enabled'))}
+    return html`<sw-card heading=${tr('גלריית תבניות')} data-card="templates">
+      ${this.row(tr('גלריה פעילה'), tr('מוצגת בלחיצה על "חדש"'), this.tog(tr('גלריה פעילה'), this.draft.templates_enabled, (v) => this.set({ templates_enabled: v }), 'templates_enabled'))}
       ${order.map((t, i) => html`<div class=${`tpl${hidden.has(t.id) ? ' off' : ''}`} data-template=${t.id}>
-        <span class="nm">${t.name}${t.suggest_schedule ? html` <span class="tag"><sw-icon name="calendar" size=${12}></sw-icon>גם כתזמון</span>` : nothing}</span>
-        <button type="button" class="ib" aria-label=${`הקדם · ${t.name}`} data-template-up=${t.id} ?disabled=${i === 0} @click=${() => this.set({ templates_order: moveTemplate(order.map((x) => x.id), t.id, -1) })}><sw-icon name="arrowUp" size=${16}></sw-icon></button>
-        <button type="button" class="ib" aria-label=${`אחר · ${t.name}`} data-template-down=${t.id} ?disabled=${i === order.length - 1} @click=${() => this.set({ templates_order: moveTemplate(order.map((x) => x.id), t.id, 1) })}><sw-icon name="arrowDown" size=${16}></sw-icon></button>
-        ${this.tog(`הצגה · ${t.name}`, !hidden.has(t.id), () => this.set({ templates_hidden: toggleHidden(this.draft.templates_hidden, t.id) }), `tpl-${t.id}`)}
+        <span class="nm">${t.name}${t.suggest_schedule ? html` <span class="tag"><sw-icon name="calendar" size=${12}></sw-icon>${tr('גם כתזמון')}</span>` : nothing}</span>
+        <button type="button" class="ib" aria-label=${`${tr('הקדם')} · ${t.name}`} data-template-up=${t.id} ?disabled=${i === 0} @click=${() => this.set({ templates_order: moveTemplate(order.map((x) => x.id), t.id, -1) })}><sw-icon name="arrowUp" size=${16}></sw-icon></button>
+        <button type="button" class="ib" aria-label=${`${tr('אחר')} · ${t.name}`} data-template-down=${t.id} ?disabled=${i === order.length - 1} @click=${() => this.set({ templates_order: moveTemplate(order.map((x) => x.id), t.id, 1) })}><sw-icon name="arrowDown" size=${16}></sw-icon></button>
+        ${this.tog(`${tr('הצגה')} · ${t.name}`, !hidden.has(t.id), () => this.set({ templates_hidden: toggleHidden(this.draft.templates_hidden, t.id) }), `tpl-${t.id}`)}
       </div>`)}
     </sw-card>`;
   }
@@ -572,9 +573,9 @@ export class SystemAutomations extends LitElement {
   }
 
   private display(): TemplateResult {
-    return html`<sw-card heading="הצגה" data-card="display">
-      ${this.row('מסנן בטלפון', 'מקופל: "סינון" אחד · שורות: כל הבקרים מוצגים', html`<div class="seg" role="group" aria-label="מסנן בטלפון"><button type="button" aria-pressed=${String(this.draft.phone_filter === 'fold')} data-phone-filter="fold" @click=${() => this.set({ phone_filter: 'fold' })}>מקופל</button><button type="button" aria-pressed=${String(this.draft.phone_filter === 'rows')} data-phone-filter="rows" @click=${() => this.set({ phone_filter: 'rows' })}>שורות</button></div>`)}
-      ${this.row('"+ חדש" אחד ששואל "מתי?"', '"בשעות קבועות" פותח תזמון חדש; "כשמשהו קורה" פותח את הבונה. כבוי = לכל לשונית הכפתור שלה.', this.tog('חדש ששואל מתי', this.draft.ask_when_on_new, (v) => this.set({ ask_when_on_new: v }), 'ask_when_on_new'))}
+    return html`<sw-card heading=${tr('הצגה')} data-card="display">
+      ${this.row(tr('מסנן בטלפון'), tr('מקופל: "סינון" אחד · שורות: כל הבקרים מוצגים'), html`<div class="seg" role="group" aria-label=${tr('מסנן בטלפון')}><button type="button" aria-pressed=${String(this.draft.phone_filter === 'fold')} data-phone-filter="fold" @click=${() => this.set({ phone_filter: 'fold' })}>${tr('מקופל')}</button><button type="button" aria-pressed=${String(this.draft.phone_filter === 'rows')} data-phone-filter="rows" @click=${() => this.set({ phone_filter: 'rows' })}>${tr('שורות')}</button></div>`)}
+      ${this.row(tr('"+ חדש" אחד ששואל "מתי?"'), tr('"בשעות קבועות" פותח תזמון חדש; "כשמשהו קורה" פותח את הבונה. כבוי = לכל לשונית הכפתור שלה.'), this.tog(tr('חדש ששואל מתי'), this.draft.ask_when_on_new, (v) => this.set({ ask_when_on_new: v }), 'ask_when_on_new'))}
     </sw-card>`;
   }
 
@@ -582,19 +583,19 @@ export class SystemAutomations extends LitElement {
     const a = this.status?.admin;
     if (!a) return nothing;
     const bridgeOk = !!a.bridge_version && a.bridge_version >= a.bridge_required;
-    return html`<sw-card heading="מצב" data-card="status">
-      ${this.row('Home Assistant', `${a.ha_version} · ממשק התצורה ${a.config_api === 'ok' ? 'זמין' : 'לא זמין'}`, html`<span class=${`tag ${a.config_api === 'ok' ? 'ok' : 'warn'}`}>${a.config_api === 'ok' ? 'תקין' : 'לא זמין'}</span>`)}
-      ${this.row('Arx Bridge', a.bridge_version ? `${a.bridge_version} (נדרש ${a.bridge_required}+)` : 'לא מותקן', html`<span class=${`tag ${bridgeOk ? 'ok' : 'warn'}`}>${bridgeOk ? 'תקין' : 'דורש עדכון'}</span>`)}
-      ${this.status?.last_sync_at ? this.row('סנכרון אחרון', whenText(this.status.last_sync_at, this.now), nothing) : nothing}
-      ${this.row('האוטומציות במוצר', 'כיבוי מסתיר את הלשונית לכולם', this.tog('האוטומציות במוצר', this.draft.enabled, (v) => this.set({ enabled: v }), 'enabled'))}
+    return html`<sw-card heading=${tr('מצב')} data-card="status">
+      ${this.row('Home Assistant', `${a.ha_version} · ${tr('ממשק התצורה {state}', { state: a.config_api === 'ok' ? tr('זמין') : tr('לא זמין') })}`, html`<span class=${`tag ${a.config_api === 'ok' ? 'ok' : 'warn'}`}>${a.config_api === 'ok' ? tr('תקין') : tr('לא זמין')}</span>`)}
+      ${this.row('Arx Bridge', a.bridge_version ? `${a.bridge_version} (${tr('נדרש {version}+', { version: a.bridge_required })})` : tr('לא מותקן'), html`<span class=${`tag ${bridgeOk ? 'ok' : 'warn'}`}>${bridgeOk ? tr('תקין') : tr('דורש עדכון')}</span>`)}
+      ${this.status?.last_sync_at ? this.row(tr('סנכרון אחרון'), whenText(this.status.last_sync_at, this.now), nothing) : nothing}
+      ${this.row(tr('האוטומציות במוצר'), tr('כיבוי מסתיר את הלשונית לכולם'), this.tog(tr('האוטומציות במוצר'), this.draft.enabled, (v) => this.set({ enabled: v }), 'enabled'))}
     </sw-card>`;
   }
 
   private reviewCard(): TemplateResult {
-    return html`<sw-card heading="סקירה" data-card="review">
+    return html`<sw-card heading=${tr('סקירה')} data-card="review">
       ${this.review.length
         ? this.review.map((r) => html`<div class="rev" data-review=${`${r.kind}:${r.id}:${r.issue}`}><span class="tag warn">${REVIEW_LABEL[r.issue]}</span><a href=${`#/devices/automations/${r.kind === 'automation' ? '' : `${r.kind === 'script' ? 'scripts' : 'scenes'}/`}${encodeURIComponent(r.id)}`}>${r.name}</a><span class="muted">${r.detail}</span></div>`)
-        : html`<div class="muted" data-review-empty>אין פריטים לסקירה</div>`}
+        : html`<div class="muted" data-review-empty>${tr('אין פריטים לסקירה')}</div>`}
     </sw-card>`;
   }
 
@@ -603,33 +604,33 @@ export class SystemAutomations extends LitElement {
     const scan = this.compat;
     if (!scan || !scan.items.length) return nothing;
     const href = (kind: string, id: string) => `#/devices/automations/${kind === 'automation' ? '' : `${kind === 'script' ? 'scripts' : 'scenes'}/`}${encodeURIComponent(id)}`;
-    return html`<sw-card heading="תאימות לתשתית המערכת 2026.10" data-card="compat">
-      <div class="muted" data-compat-summary>${scan.items.length === 1 ? 'פריט אחד דורש תיקון לפני השדרוג.' : `${scan.items.length} פריטים דורשים תיקון לפני השדרוג.`} הבדיקה קוראת בלבד.</div>
+    return html`<sw-card heading=${tr('תאימות לתשתית המערכת 2026.10')} data-card="compat">
+      <div class="muted" data-compat-summary>${scan.items.length === 1 ? tr('פריט אחד דורש תיקון לפני השדרוג.') : tr('{n} פריטים דורשים תיקון לפני השדרוג.', { n: scan.items.length })} ${tr('הבדיקה קוראת בלבד.')}</div>
       ${scan.items.map((i) => html`<div class="rev cmp" data-compat=${`${i.kind}:${i.id}`}>
         ${[...new Set(i.issues.map((x) => x.code))].map((code) => html`<span class="tag warn" data-compat-code=${code}>${COMPAT_LABEL[code]}</span>`)}
         <a href=${href(i.kind, i.id)}>${i.name}</a>
         <span class="muted">${i.issues.some((x) => x.code === 'admin_only_service')
-          ? html`הפעלה ידנית תיכשל למי שאינו מנהל (<bdi>${i.issues.find((x) => x.service)?.service ?? ''}</bdi>)`
-          : 'ייכשל בבדיקת התצורה ולא יפעל'}</span>
+          ? html`${tr('הפעלה ידנית תיכשל למי שאינו מנהל')} (<bdi>${i.issues.find((x) => x.service)?.service ?? ''}</bdi>)`
+          : tr('ייכשל בבדיקת התצורה ולא יפעל')}</span>
       </div>`)}
-      ${scan.truncated ? html`<div class="muted">מוצגים הפריטים הראשונים בלבד.</div>` : nothing}
+      ${scan.truncated ? html`<div class="muted">${tr('מוצגים הפריטים הראשונים בלבד.')}</div>` : nothing}
     </sw-card>`;
   }
 
   render() {
-    if (this.phase === 'loading') return html`<sw-page crumbs="הגדרות" heading="אוטומציות"><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
-    if (this.phase === 'error') return html`<sw-page crumbs="הגדרות" heading="אוטומציות"><sw-state-panel state="error" hint=${this.error} actionLabel="נסו שוב" @action=${() => void this.load()}></sw-state-panel></sw-page>`;
-    if (this.phase === 'forbidden') return html`<sw-page crumbs="הגדרות" heading="אוטומציות"><sw-state-panel state="forbidden" heading="אין הרשאה" data-automations-settings-forbidden></sw-state-panel></sw-page>`;
-    return html`<sw-page crumbs="הגדרות" heading="אוטומציות" subheading="כל אפשרות של האוטומציות, הסצנות והסקריפטים נמצאת כאן בלבד." wide data-automations-settings>
+    if (this.phase === 'loading') return html`<sw-page crumbs=${tr('הגדרות')} heading=${tr('אוטומציות')}><sw-state-panel state="loading"></sw-state-panel></sw-page>`;
+    if (this.phase === 'error') return html`<sw-page crumbs=${tr('הגדרות')} heading=${tr('אוטומציות')}><sw-state-panel state="error" hint=${this.error} actionLabel=${tr('נסו שוב')} @action=${() => void this.load()}></sw-state-panel></sw-page>`;
+    if (this.phase === 'forbidden') return html`<sw-page crumbs=${tr('הגדרות')} heading=${tr('אוטומציות')}><sw-state-panel state="forbidden" heading=${tr('אין הרשאה')} data-automations-settings-forbidden></sw-state-panel></sw-page>`;
+    return html`<sw-page crumbs=${tr('הגדרות')} heading=${tr('אוטומציות')} subheading=${tr('כל אפשרות של האוטומציות, הסצנות והסקריפטים נמצאת כאן בלבד.')} wide data-automations-settings>
       <div class="cols">
         <div class="col set-col">${this.platform()}${this.wallButtons()}${this.codeView()}${this.who()}${this.retention()}${this.display()}<sw-list-display-settings list="automations"></sw-list-display-settings></div>
         <div class="col set-col">${this.prechecks()}${this.compatCard()}${this.delegation()}${this.limits()}${this.sensitive()}${this.gallery()}${this.reviewCard()}${isApi() ? html`<scenario-settings></scenario-settings>` : nothing}</div>
       </div>
       ${this.dirty || this.note || this.error
         ? html`<div class="savebar" data-settings-bar>
-            ${this.error ? html`<span class="msg err" role="alert" data-settings-error><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : this.note ? html`<span class="msg ok" role="status" data-settings-saved><sw-icon name="check" size=${13}></sw-icon>${this.note}</span>` : html`<span class="dirty">יש שינויים שלא נשמרו.</span>`}
+            ${this.error ? html`<span class="msg err" role="alert" data-settings-error><sw-icon name="warning" size=${13}></sw-icon>${this.error}</span>` : this.note ? html`<span class="msg ok" role="status" data-settings-saved><sw-icon name="check" size=${13}></sw-icon>${this.note}</span>` : html`<span class="dirty">${tr('יש שינויים שלא נשמרו.')}</span>`}
             <span class="grow"></span>
-            ${this.dirty ? html`<sw-button variant="ghost" data-settings-cancel @click=${() => { this.draft = clone(this.saved); this.error = ''; }}>ביטול</sw-button><sw-button variant="primary" icon="check" data-settings-save ?disabled=${this.busy} @click=${() => void this.save()}>${this.busy ? 'שומר…' : 'שמירה'}</sw-button>` : nothing}
+            ${this.dirty ? html`<sw-button variant="ghost" data-settings-cancel @click=${() => { this.draft = clone(this.saved); this.error = ''; }}>${tr('ביטול')}</sw-button><sw-button variant="primary" icon="check" data-settings-save ?disabled=${this.busy} @click=${() => void this.save()}>${this.busy ? tr('שומר…') : tr('שמירה')}</sw-button>` : nothing}
           </div>`
         : nothing}
       <automation-drawer .trash=${true} .open=${this.trashOpen} .status=${this.status} .now=${this.now} @drawer-close=${() => { this.trashOpen = false; void this.load(); }}></automation-drawer>

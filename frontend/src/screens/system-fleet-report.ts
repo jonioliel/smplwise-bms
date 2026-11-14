@@ -16,6 +16,7 @@ import { ft } from '../i18n/fleet-report';
 import {
   FIELD_COUNT, FIELD_GROUPS, FIELD_TYPE_KEY, NEVER_SENT, answerOf, logLines, readyTitle, shortCode, shortId, silentProblem, viewOf,
 } from '../fleet/fleet-model';
+import { tr } from '../i18n/msg/system-a';
 
 /**
  * CR-FLEET215: Settings › דיווח בריאות (`#/system/fleet-report`) - the installation side of the daily health report to SmplWise.
@@ -686,19 +687,19 @@ export class SystemFleetReport extends LitElement {
   render(): TemplateResult {
     const heading = ft('title');
     if (this.loadState === 'loading') {
-      return html`<sw-page crumbs="הגדרות" heading=${heading} subheading=${ft('sub')} data-fleet-report data-state="loading">
+      return html`<sw-page crumbs=${tr('הגדרות')} heading=${heading} subheading=${ft('sub')} data-fleet-report data-state="loading">
         <div class="sections" aria-busy="true"><sw-card><div class="sk-answer"><span class="skl"></span><div class="sk-lines"><span class="skl" style="inline-size:40%;block-size:16px"></span><span class="skl" style="inline-size:70%"></span><span class="skl" style="inline-size:55%"></span></div></div></sw-card>
         ${[0, 1, 2].map(() => html`<span class="skl sk-fold"></span>`)}
         <div class="hint">${ft('loading')}</div></div></sw-page>`;
     }
     if (this.loadState !== 'ready' || !this.status) {
       const forbidden = this.loadState === 'forbidden';
-      return html`<sw-page crumbs="הגדרות" heading=${heading} data-fleet-report data-state=${this.loadState}>
+      return html`<sw-page crumbs=${tr('הגדרות')} heading=${heading} data-fleet-report data-state=${this.loadState}>
         <sw-state-panel icon="share" state=${forbidden ? 'forbidden' : 'error'} heading=${forbidden ? ft('forbiddenTitle') : ft('errorTitle')} hint=${forbidden ? '' : ft('errorHint')} actionLabel=${forbidden ? '' : ft('retry')}
           @action=${() => void this.load()}></sw-state-panel></sw-page>`;
     }
     const st = this.status;
-    return html`<sw-page crumbs="הגדרות" heading=${heading} subheading=${ft('sub')} data-fleet-report data-state="ready" data-view=${viewOf(st)}>
+    return html`<sw-page crumbs=${tr('הגדרות')} heading=${heading} subheading=${ft('sub')} data-fleet-report data-state="ready" data-view=${viewOf(st)}>
       <div class="sections">
         ${this.flash ? html`<div class="msg ${this.flash.tone} flash" role=${this.flash.tone === 'err' ? 'alert' : 'status'} data-flash>${this.flash.text}</div>` : nothing}
         ${this.answerCard(st)}${this.readyCard()}${this.sentCard()}${this.lastCard(st)}${this.techCard(st)}

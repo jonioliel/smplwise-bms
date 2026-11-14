@@ -21,6 +21,7 @@ import {
 import { editorBlockHint, editorBlockLabel, editorBlockQuestion, lockJobLine } from './door-path-logic';
 import { unmappedDoorsNotice } from './lock-reason';
 import { can } from '../api/session';
+import { tr } from '../i18n/msg/system-a';
 
 const cardCss = css`
   :host {
@@ -200,7 +201,7 @@ export class SwDoorGrants extends LitElement {
     const other = otherGrants(r);
     return html`<div class="row" data-door-grant=${`${r.kind}:${r.id}`}>
       <div class="who"><span class="name">${r.name}</span>${other ? html`<span class="sub">${other}</span>` : nothing}</div>
-      <sw-toggle label=${`רשאי לפתוח דלתות: ${r.name}`} labelHidden .checked=${live(r.granted)} ?disabled=${this.busy || !this.data?.can_manage_subjects || (!r.active && !r.granted)}
+      <sw-toggle label=${`${tr('רשאי לפתוח דלתות')}: ${r.name}`} labelHidden .checked=${live(r.granted)} ?disabled=${this.busy || !this.data?.can_manage_subjects || (!r.active && !r.granted)}
         @change=${(e: CustomEvent<{ checked: boolean }>) => { this.pending = { kind: 'subject', row: r, enabled: e.detail.checked }; this.requestUpdate(); }}></sw-toggle>
     </div>`;
   }
@@ -215,39 +216,39 @@ export class SwDoorGrants extends LitElement {
 
   private roleRow(r: DoorGrantRole) {
     if (!r.custom) {
-      return html`<div class="row" data-door-role=${r.id}><div class="who"><span class="name">${r.name}</span><span class="sub">תפקיד מובנה</span></div><span class="sub" data-door-role-answer>${builtinAnswer(r)}</span></div>`;
+      return html`<div class="row" data-door-role=${r.id}><div class="who"><span class="name">${r.name}</span><span class="sub">${tr('תפקיד מובנה')}</span></div><span class="sub" data-door-role-answer>${builtinAnswer(r)}</span></div>`;
     }
     return html`<div class="row" data-door-role=${r.id}>
-      <div class="who"><span class="name">${r.name}</span><span class="sub">תפקיד מותאם</span></div>
-      <sw-toggle label=${`כולל פתיחת דלתות: ${r.name}`} labelHidden .checked=${live(r.includes)} ?disabled=${this.busy || !r.editable}
+      <div class="who"><span class="name">${r.name}</span><span class="sub">${tr('תפקיד מותאם')}</span></div>
+      <sw-toggle label=${`${tr('כולל פתיחת דלתות')}: ${r.name}`} labelHidden .checked=${live(r.includes)} ?disabled=${this.busy || !r.editable}
         @change=${(e: CustomEvent<{ checked: boolean }>) => { this.pending = { kind: 'role', role: r, enabled: e.detail.checked }; this.requestUpdate(); }}></sw-toggle>
     </div>`;
   }
 
   render() {
-    if (this.error && !this.data) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>`;
+    if (this.error && !this.data) return html`<sw-state-panel state="error" hint=${this.error} actionLabel=${tr('נסה שוב')} @action=${() => this.load()}></sw-state-panel>`;
     if (!this.data) return html`<sw-state-panel state="loading"></sw-state-panel>`;
     const d = this.data;
     const subjects = filterSubjects([...d.users, ...d.groups], this.q);
     const p = this.pending;
     const pname = p ? (p.kind === 'subject' ? p.row.name : p.role.name) : '';
-    return html`<sw-card heading="פתיחת דלתות" subheading="מי רשאי לפתוח דלתות אינטרקום מ-Arx · ברירת המחדל: כל הדלתות בהתקנה" data-door-grants-card>
+    return html`<sw-card heading=${tr('פתיחת דלתות')} subheading=${tr('מי רשאי לפתוח דלתות אינטרקום מ-Arx · ברירת המחדל: כל הדלתות בהתקנה')} data-door-grants-card>
       ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
       ${this.unmappedNotice(d)}
-      <h3>משתמשים וקבוצות</h3>
+      <h3>${tr('משתמשים וקבוצות')}</h3>
       <div class="tools">
-        <input type="search" placeholder="חיפוש לפי שם" aria-label="חיפוש לפי שם" .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} />
-        <span class="sub">רק דלתות מסוימות: שיוך התפקיד "פותח דלתות" לעמדה, בלשונית המשתמשים או הקבוצות</span>
+        <input type="search" placeholder=${tr('חיפוש לפי שם')} aria-label=${tr('חיפוש לפי שם')} .value=${this.q} @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)} />
+        <span class="sub">${tr('רק דלתות מסוימות: שיוך התפקיד "פותח דלתות" לעמדה, בלשונית המשתמשים או הקבוצות')}</span>
       </div>
       ${subjects.length
-        ? html`<div class="colhead" aria-hidden="true"><span>שם</span><span>רשאי לפתוח דלתות</span></div>${subjects.map((r) => this.subjectRow(r))}`
-        : html`<sw-state-panel icon="door" state="empty" heading="אין משתמשים או קבוצות"></sw-state-panel>`}
-      ${d.can_manage_roles ? html`<h3>תפקידים</h3><div class="colhead" aria-hidden="true"><span>תפקיד</span><span>כולל פתיחת דלתות</span></div>${d.roles.map((r) => this.roleRow(r))}` : nothing}
+        ? html`<div class="colhead" aria-hidden="true"><span>${tr('שם')}</span><span>${tr('רשאי לפתוח דלתות')}</span></div>${subjects.map((r) => this.subjectRow(r))}`
+        : html`<sw-state-panel icon="door" state="empty" heading=${tr('אין משתמשים או קבוצות')}></sw-state-panel>`}
+      ${d.can_manage_roles ? html`<h3>${tr('תפקידים')}</h3><div class="colhead" aria-hidden="true"><span>${tr('תפקיד')}</span><span>${tr('כולל פתיחת דלתות')}</span></div>${d.roles.map((r) => this.roleRow(r))}` : nothing}
       ${p
-        ? html`<sw-dialog open heading="פתיחת דלתות" data-door-grant-confirm @close=${() => { this.pending = null; }}>
+        ? html`<sw-dialog open heading=${tr('פתיחת דלתות')} data-door-grant-confirm @close=${() => { this.pending = null; }}>
             <p>${p.kind === 'subject' ? grantQuestion(pname, p.enabled) : roleQuestion(pname, p.enabled)}</p>
-            <sw-button slot="footer" variant="ghost" @click=${() => { this.pending = null; }}>ביטול</sw-button>
-            <sw-button slot="footer" variant=${p.enabled ? 'primary' : 'danger'} data-door-grant-ok ?disabled=${this.busy} @click=${() => this.confirm()}>אישור</sw-button>
+            <sw-button slot="footer" variant="ghost" @click=${() => { this.pending = null; }}>${tr('ביטול')}</sw-button>
+            <sw-button slot="footer" variant=${p.enabled ? 'primary' : 'danger'} data-door-grant-ok ?disabled=${this.busy} @click=${() => this.confirm()}>${tr('אישור')}</sw-button>
           </sw-dialog>`
         : nothing}
     </sw-card>`;
@@ -306,13 +307,13 @@ export class SwDoorSetup extends LitElement {
     return html`<div class="row" data-door-map=${lock.entity_id}>
       <div class="who"><span class="name">${lock.name}</span><sw-badge kind=${st.tone} label=${st.text}></sw-badge></div>
       <div class="ctl">
-        <select aria-label=${`ממסר עבור ${lock.name}`} @change=${(e: Event) => (this.picks = { ...this.picks, [lock.entity_id]: (e.target as HTMLSelectElement).value })}>
-          <option value="" ?selected=${!pick}>בחירת ממסר</option>
+        <select aria-label=${tr('ממסר עבור {name}', { name: lock.name })} @change=${(e: Event) => (this.picks = { ...this.picks, [lock.entity_id]: (e.target as HTMLSelectElement).value })}>
+          <option value="" ?selected=${!pick}>${tr('בחירת ממסר')}</option>
           ${options.map((o) => html`<option value=${o.value} ?selected=${o.value === pick}>${o.label}</option>`)}
         </select>
         <sw-button size="sm" variant="primary" data-door-map-save ?disabled=${this.busy || !target || (lock.mapping?.valid && pick === current)}
-          @click=${() => target && this.run(() => setDoorMapping(lock.entity_id, target.station_id, target.relay))}>שמירה</sw-button>
-        ${lock.mapping ? html`<sw-button size="sm" variant="ghost" data-door-map-clear ?disabled=${this.busy} @click=${() => this.run(() => clearDoorMapping(lock.entity_id))}>ביטול שיוך</sw-button>` : nothing}
+          @click=${() => target && this.run(() => setDoorMapping(lock.entity_id, target.station_id, target.relay))}>${tr('שמירה')}</sw-button>
+        ${lock.mapping ? html`<sw-button size="sm" variant="ghost" data-door-map-clear ?disabled=${this.busy} @click=${() => this.run(() => clearDoorMapping(lock.entity_id))}>${tr('ביטול שיוך')}</sw-button>` : nothing}
       </div>
     </div>`;
   }
@@ -320,46 +321,46 @@ export class SwDoorSetup extends LitElement {
   /** CR-033 D8 + D6: the editor block (default blocked) and the scheduled lock jobs that will never work. */
   private editorCard(st: DoorSettings) {
     const next: DoorSettings['editor_block'] = st.editor_block === 'blocked' ? 'allowed' : 'blocked';
-    return html`<sw-card heading="פריטים שפותחים דלתות" subheading="עורכי האוטומציות, הסקריפטים, הסצנות והתזמונים · הבדיקה נעשית בשרת בעת שמירה" data-door-editor-card>
+    return html`<sw-card heading=${tr('פריטים שפותחים דלתות')} subheading=${tr('עורכי האוטומציות, הסקריפטים, הסצנות והתזמונים · הבדיקה נעשית בשרת בעת שמירה')} data-door-editor-card>
       <div class="row" data-door-editor-block>
         <div class="who"><span class="name">${editorBlockLabel(st.editor_block)}</span><span class="sub">${editorBlockHint(st)}</span></div>
-        <sw-button size="sm" data-door-editor-switch ?disabled=${this.busy || (next === 'allowed' && !st.editor_allowed_available)} @click=${() => { this.confirmEditor = next; }}>${next === 'allowed' ? 'לאפשר' : 'לחסום'}</sw-button>
+        <sw-button size="sm" data-door-editor-switch ?disabled=${this.busy || (next === 'allowed' && !st.editor_allowed_available)} @click=${() => { this.confirmEditor = next; }}>${next === 'allowed' ? tr('לאפשר') : tr('לחסום')}</sw-button>
       </div>
-      <h3>תזמוני נעילה שלא יעבדו</h3>
+      <h3>${tr('תזמוני נעילה שלא יעבדו')}</h3>
       ${st.lock_jobs.length
         ? st.lock_jobs.map((j) => html`<div class="row" data-door-lock-job=${j.schedule_id}><span class="name">${lockJobLine(j)}</span></div>`)
-        : html`<sw-state-panel icon="door" state="empty" heading="אין תזמוני נעילה על דלתות אינטרקום"></sw-state-panel>`}
+        : html`<sw-state-panel icon="door" state="empty" heading=${tr('אין תזמוני נעילה על דלתות אינטרקום')}></sw-state-panel>`}
       ${this.confirmEditor
-        ? html`<sw-dialog open heading="פריטים שפותחים דלתות" data-door-editor-confirm @close=${() => { this.confirmEditor = null; }}>
+        ? html`<sw-dialog open heading=${tr('פריטים שפותחים דלתות')} data-door-editor-confirm @close=${() => { this.confirmEditor = null; }}>
             <p>${editorBlockQuestion(this.confirmEditor)}</p>
-            <sw-button slot="footer" variant="ghost" @click=${() => { this.confirmEditor = null; }}>ביטול</sw-button>
-            <sw-button slot="footer" variant="primary" data-door-editor-ok ?disabled=${this.busy} @click=${() => { const v = this.confirmEditor; this.confirmEditor = null; if (v) void this.run(() => setEditorBlock(v)); }}>אישור</sw-button>
+            <sw-button slot="footer" variant="ghost" @click=${() => { this.confirmEditor = null; }}>${tr('ביטול')}</sw-button>
+            <sw-button slot="footer" variant="primary" data-door-editor-ok ?disabled=${this.busy} @click=${() => { const v = this.confirmEditor; this.confirmEditor = null; if (v) void this.run(() => setEditorBlock(v)); }}>${tr('אישור')}</sw-button>
           </sw-dialog>`
         : nothing}
     </sw-card>`;
   }
 
   render() {
-    if (this.error && !this.map) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>`;
+    if (this.error && !this.map) return html`<sw-state-panel state="error" hint=${this.error} actionLabel=${tr('נסה שוב')} @action=${() => this.load()}></sw-state-panel>`;
     if (!this.map) return html`<sw-state-panel state="loading"></sw-state-panel>`;
     const m = this.map;
     const places = placementOptions(m);
     const suggested = m.locks.filter((l) => l.suggestion).length;
     return html`<div class="stack">
       ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
-      <sw-card heading="מיקום תחנות" subheading="שיוך תחנה לאתר או למבנה: הרשאת פתיחה באתר או במבנה חלה גם על התחנות שבו" data-door-placement-card>
+      <sw-card heading=${tr('מיקום תחנות')} subheading=${tr('שיוך תחנה לאתר או למבנה: הרשאת פתיחה באתר או במבנה חלה גם על התחנות שבו')} data-door-placement-card>
         ${m.stations.length
           ? m.stations.map((s) => html`<div class="row" data-door-placement=${s.name}>
-              <div class="who"><span class="name">${s.name}</span>${s.online ? nothing : html`<span class="sub">התחנה לא זמינה</span>`}</div>
-              <select aria-label=${`מיקום ${s.name}`} ?disabled=${this.busy} @change=${(e: Event) => this.run(() => placeStation(s.id, parsePlacement((e.target as HTMLSelectElement).value)))}>
+              <div class="who"><span class="name">${s.name}</span>${s.online ? nothing : html`<span class="sub">${tr('התחנה לא זמינה')}</span>`}</div>
+              <select aria-label=${tr('מיקום {name}', { name: s.name })} ?disabled=${this.busy} @change=${(e: Event) => this.run(() => placeStation(s.id, parsePlacement((e.target as HTMLSelectElement).value)))}>
                 ${places.map((o) => html`<option value=${o.value} ?selected=${o.value === placementValue(s.placement)}>${o.label}</option>`)}
               </select>
             </div>`)
-          : html`<sw-state-panel icon="door" state="empty" heading="אין תחנות" hint=${m.has_copy ? 'WisKey לא מסר תחנות.' : 'נתוני WisKey אינם זמינים כרגע.'}></sw-state-panel>`}
+          : html`<sw-state-panel icon="door" state="empty" heading=${tr('אין תחנות')} hint=${m.has_copy ? tr('WisKey לא מסר תחנות.') : tr('נתוני WisKey אינם זמינים כרגע.')}></sw-state-panel>`}
       </sw-card>
-      <sw-card heading="שיוך דלתות" subheading="לכל מנעול אינטרקום: התחנה והממסר שהוא פותח · שיוך מפורש בלבד, לא לפי שם" data-door-map-card>
-        ${suggested ? html`<div class="tools"><sw-button size="sm" data-door-map-apply ?disabled=${this.busy} @click=${() => this.run(() => applyDoorSuggestions())}>אישור ${suggested} הצעות חד-משמעיות</sw-button></div>` : nothing}
-        ${m.locks.length ? m.locks.map((l) => this.lockRow(m, l)) : html`<sw-state-panel icon="door" state="empty" heading="אין מנעולי אינטרקום"></sw-state-panel>`}
+      <sw-card heading=${tr('שיוך דלתות')} subheading=${tr('לכל מנעול אינטרקום: התחנה והממסר שהוא פותח · שיוך מפורש בלבד, לא לפי שם')} data-door-map-card>
+        ${suggested ? html`<div class="tools"><sw-button size="sm" data-door-map-apply ?disabled=${this.busy} @click=${() => this.run(() => applyDoorSuggestions())}>${tr('אישור {n} הצעות חד-משמעיות', { n: suggested })}</sw-button></div>` : nothing}
+        ${m.locks.length ? m.locks.map((l) => this.lockRow(m, l)) : html`<sw-state-panel icon="door" state="empty" heading=${tr('אין מנעולי אינטרקום')}></sw-state-panel>`}
       </sw-card>
       ${this.settings ? this.editorCard(this.settings) : nothing}
     </div>`;
@@ -431,30 +432,30 @@ export class SwDoorInventory extends LitElement {
       </div>
       <div class="facts">
         <sw-badge kind=${guardTone(i)} label=${i.run_guard_text}></sw-badge>
-        <span class="sub">דלתות: ${doorsText(i)}</span>
-        <span class="sub">הצעה: ${i.suggestion_text}</span>
+        <span class="sub">${tr('דלתות:')} ${doorsText(i)}</span>
+        <span class="sub">${tr('הצעה:')} ${i.suggestion_text}</span>
         ${i.unresolved.length ? html`<span class="warn">${i.unresolved.join(' · ')}</span>` : nothing}
-        ${i.disable_required ? html`<span class="warn" data-door-item-disable>דורש השבתה - פועל לבד ואין לו מאשר תקף</span>` : nothing}
+        ${i.disable_required ? html`<span class="warn" data-door-item-disable>${tr('דורש השבתה - פועל לבד ואין לו מאשר תקף')}</span>` : nothing}
       </div>
     </div>`;
   }
 
   render() {
-    if (this.error && !this.inv) return html`<sw-state-panel state="error" hint=${this.error} actionLabel="נסה שוב" @action=${() => this.load()}></sw-state-panel>`;
+    if (this.error && !this.inv) return html`<sw-state-panel state="error" hint=${this.error} actionLabel=${tr('נסה שוב')} @action=${() => this.load()}></sw-state-panel>`;
     if (!this.inv) return html`<sw-state-panel state="loading"></sw-state-panel>`;
     const inv = this.inv;
     const shown = filterInventory(inv.items, this.filter);
-    return html`<sw-card heading="פריטים שפותחים דלתות" subheading=${`דוח לקריאה בלבד · ${inventorySummary(inv)}`} data-door-inventory-card style="margin-block-start: var(--sw-s-3)">
+    return html`<sw-card heading=${tr('פריטים שפותחים דלתות')} subheading=${`${tr('דוח לקריאה בלבד')} · ${inventorySummary(inv)}`} data-door-inventory-card style="margin-block-start: var(--sw-s-3)">
       ${this.error ? html`<div class="err" role="alert">${this.error}</div>` : nothing}
       <div class="tools">
-        <div class="chips" role="group" aria-label="סינון">
+        <div class="chips" role="group" aria-label=${tr('סינון')}>
           ${INVENTORY_FILTERS.map((f) => html`<sw-chip data-door-inventory-filter=${f.id} ?selected=${this.filter === f.id} @click=${() => (this.filter = f.id)}>${f.label}</sw-chip>`)}
         </div>
-        <sw-button size="sm" variant="ghost" data-door-inventory-refresh ?disabled=${this.busy} @click=${() => this.load()}>רענון</sw-button>
+        <sw-button size="sm" variant="ghost" data-door-inventory-refresh ?disabled=${this.busy} @click=${() => this.load()}>${tr('רענון')}</sw-button>
       </div>
       ${shown.length
         ? shown.map((i) => this.itemRow(i))
-        : html`<sw-state-panel icon=${inv.items.length ? 'filter' : 'door'} state="empty" heading=${inv.items.length ? 'אין פריטים בסינון הזה' : inventorySummary(inv)}></sw-state-panel>`}
+        : html`<sw-state-panel icon=${inv.items.length ? 'filter' : 'door'} state="empty" heading=${inv.items.length ? tr('אין פריטים בסינון הזה') : inventorySummary(inv)}></sw-state-panel>`}
     </sw-card>`;
   }
 }

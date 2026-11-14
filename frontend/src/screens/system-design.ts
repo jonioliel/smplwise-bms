@@ -15,11 +15,12 @@ import { bubbleChrome } from '../styles/bubble-chrome';
 import { t } from '../i18n/he';
 import { BACKGROUND_MODES, BACKGROUND_SLOTS, customBackgroundUrl, installationBackground, onBackground, ownBackgroundChoice, saveDemoBackground, saveOwnBackground, setInstallationBackground, type BackgroundMode, type BackgroundSlot } from '../design/background';
 import { deleteBackground, uploadBackground } from '../api/background';
+import { tr } from '../i18n/msg/system-a';
 
-const SCHEME_LABEL: Record<Scheme, string> = { light: 'בהיר', dark: 'כהה', auto: 'אוטומטי' };
-const MOTION_LABEL: Record<MotionMode, string> = { auto: 'אוטומטי', full: 'מלא', reduced: 'מופחת' };
+const SCHEME_LABEL: Record<Scheme, string> = { light: tr('בהיר'), dark: tr('כהה'), auto: tr('אוטומטי') };
+const MOTION_LABEL: Record<MotionMode, string> = { auto: tr('אוטומטי'), full: tr('מלא'), reduced: tr('מופחת') };
 /** SKINCOMP-297: `ui.rail_tone` - the skin's own rail or its dark (navy) rail. */
-const RAIL_LABEL: Record<RailTone, string> = { auto: 'כמו הסגנון', dark: 'כהה' };
+const RAIL_LABEL: Record<RailTone, string> = { auto: tr('כמו הסגנון'), dark: tr('כהה') };
 const BG_LABEL: Record<BackgroundMode, () => string> = { builtin: () => t('background.builtin'), none: () => t('background.none'), custom: () => t('background.custom') };
 
 function systemDark(): boolean {
@@ -417,7 +418,7 @@ export class SystemDesign extends LitElement {
         saveDemoDesign(this.draftSkin, this.draftScheme, this.draftMotion, this.draftRail, this.draftEnter);
         saveDemoBackground(this.draftBackground);
       }
-      this.message = 'המראה נשמר';
+      this.message = tr('המראה נשמר');
       setTimeout(() => (this.message = ''), 2500);
     } catch (err) {
       this.error = describeError(err);
@@ -525,21 +526,21 @@ export class SystemDesign extends LitElement {
   render() {
     const preview = themeOf(this.draftScheme);
     const cur = installationDesign();
-    return html`<sw-card heading="מראה המערכת" subheading="סגנון וצבעוניות - בהיר, כהה או לפי המכשיר" data-design-card>
+    return html`<sw-card heading=${tr('מראה המערכת')} subheading=${tr('סגנון וצבעוניות - בהיר, כהה או לפי המכשיר')} data-design-card>
       <div class="row col skinrow">
-        <span class="lbl">סגנון<span class="muted">אותו מבנה בכל הסגנונות; ההבדל הוא בחומרים, בצורות ובצבעים</span></span>
-        <div class="skins" role="group" aria-label="סגנון" style=${styleMap({ '--skins-n': String(SELECTABLE_SKIN_IDS.length), '--skins-half': String(Math.ceil(SELECTABLE_SKIN_IDS.length / 2)) })}>
+        <span class="lbl">${tr('סגנון')}<span class="muted">${tr('אותו מבנה בכל הסגנונות; ההבדל הוא בחומרים, בצורות ובצבעים')}</span></span>
+        <div class="skins" role="group" aria-label=${tr('סגנון')} style=${styleMap({ '--skins-n': String(SELECTABLE_SKIN_IDS.length), '--skins-half': String(Math.ceil(SELECTABLE_SKIN_IDS.length / 2)) })}>
           ${SELECTABLE_SKIN_IDS.map(
             (id) => html`<button type="button" class="skin" data-skin-option=${id} aria-pressed=${this.draftSkin === id ? 'true' : 'false'} ?disabled=${!this.canEdit} @click=${() => (this.draftSkin = id)}>
               ${this.swatch(id, preview)}
-              <span class="nm">${SKINS[id].nameHe}${cur.skin === id ? html`<span class="cur" data-skin-current>נוכחי</span>` : nothing}</span>
+              <span class="nm">${SKINS[id].nameHe}${cur.skin === id ? html`<span class="cur" data-skin-current>${tr('נוכחי')}</span>` : nothing}</span>
               <span class="note">${SKINS[id].noteHe}</span>
             </button>`,
           )}
         </div>
       </div>
-      <div class="row"><span class="lbl">תנועה<span class="muted">אוטומטי עוקב אחרי הגדרת המכשיר; מלא מתעלם ממנה; מופחת מבטל תנועה</span></span>
-        <span class="seg" role="group" aria-label="תנועה">
+      <div class="row"><span class="lbl">${tr('תנועה')}<span class="muted">${tr('אוטומטי עוקב אחרי הגדרת המכשיר; מלא מתעלם ממנה; מופחת מבטל תנועה')}</span></span>
+        <span class="seg" role="group" aria-label=${tr('תנועה')}>
           ${MOTION_MODES.map((m) => html`<button type="button" data-motion-option=${m} aria-pressed=${this.draftMotion === m ? 'true' : 'false'} ?disabled=${!this.canEdit} @click=${() => (this.draftMotion = m)}>${MOTION_LABEL[m]}</button>`)}
         </span></div>
       <div class="row" data-enter-row><span class="lbl">${t('entryAnim.label')}<span class="muted">${t('entryAnim.note')}</span></span>
@@ -547,18 +548,18 @@ export class SystemDesign extends LitElement {
           ${ENTER_MODES.map((m) => html`<button type="button" data-enter-option=${m} aria-pressed=${this.draftEnter === m ? 'true' : 'false'} ?disabled=${!this.canEdit} @click=${() => (this.draftEnter = m)}>${t(m === 'on' ? 'entryAnim.on' : 'entryAnim.off')}</button>`)}
         </span></div>
       ${SKINS[this.draftSkin].darkRail
-        ? html`<div class="row" data-rail-row><span class="lbl">סרגל הניווט<span class="muted">כהה = סרגל כחול-כהה גם במראה הבהיר</span></span>
-            <span class="seg" role="group" aria-label="סרגל הניווט">
+        ? html`<div class="row" data-rail-row><span class="lbl">${tr('סרגל הניווט')}<span class="muted">${tr('כהה = סרגל כחול-כהה גם במראה הבהיר')}</span></span>
+            <span class="seg" role="group" aria-label=${tr('סרגל הניווט')}>
               ${RAIL_TONES.map((r) => html`<button type="button" data-rail-option=${r} aria-pressed=${this.draftRail === r ? 'true' : 'false'} ?disabled=${!this.canEdit} @click=${() => (this.draftRail = r)}>${RAIL_LABEL[r]}</button>`)}
             </span></div>`
         : nothing}
-      <div class="row"><span class="lbl">צבעוניות של המערכת<span class="muted">ברירת המחדל לכל המשתמשים; אוטומטי עוקב אחרי המכשיר</span></span>
-        <span class="seg" role="group" aria-label="צבעוניות של המערכת">
+      <div class="row"><span class="lbl">${tr('צבעוניות של המערכת')}<span class="muted">${tr('ברירת המחדל לכל המשתמשים; אוטומטי עוקב אחרי המכשיר')}</span></span>
+        <span class="seg" role="group" aria-label=${tr('צבעוניות של המערכת')}>
           ${SCHEMES.map((s) => html`<button type="button" data-scheme-option=${s} aria-pressed=${this.draftScheme === s ? 'true' : 'false'} ?disabled=${!this.canEdit} @click=${() => (this.draftScheme = s)}>${SCHEME_LABEL[s]}</button>`)}
         </span></div>
-      <div class="row"><span class="lbl">הצבעוניות אצלי<span class="muted">רק בדפדפן הזה; "כמו המערכת" מבטל</span></span>
-        <span class="seg" role="group" aria-label="הצבעוניות אצלי">
-          <button type="button" data-own-scheme="system" aria-pressed=${this.own === null ? 'true' : 'false'} @click=${() => this.setOwn(null)}>כמו המערכת</button>
+      <div class="row"><span class="lbl">${tr('הצבעוניות אצלי')}<span class="muted">${tr('רק בדפדפן הזה; "כמו המערכת" מבטל')}</span></span>
+        <span class="seg" role="group" aria-label=${tr('הצבעוניות אצלי')}>
+          <button type="button" data-own-scheme="system" aria-pressed=${this.own === null ? 'true' : 'false'} @click=${() => this.setOwn(null)}>${tr('כמו המערכת')}</button>
           ${SCHEMES.map((s) => html`<button type="button" data-own-scheme=${s} aria-pressed=${this.own === s ? 'true' : 'false'} @click=${() => this.setOwn(s)}>${SCHEME_LABEL[s]}</button>`)}
         </span></div>
       <div class="row ${this.draftBackground === 'custom' ? 'col' : ''}"><span class="lbl">${t('background.label')}<span class="muted">${t('background.note')}</span></span>
@@ -578,7 +579,7 @@ export class SystemDesign extends LitElement {
           ${BACKGROUND_MODES.map((m) => html`<button type="button" data-own-bg=${m} aria-pressed=${this.ownBackground === m ? 'true' : 'false'} @click=${() => void this.setOwnBackground(m)}>${BG_LABEL[m]()}</button>`)}
         </span></div>
       <div class="foot">
-        <sw-button variant="primary" size="sm" icon="check" data-design-save ?disabled=${!this.canEdit || !this.dirty || this.busy} @click=${() => void this.save()}>שמור</sw-button>
+        <sw-button variant="primary" size="sm" icon="check" data-design-save ?disabled=${!this.canEdit || !this.dirty || this.busy} @click=${() => void this.save()}>${tr('שמור')}</sw-button>
         ${this.message ? html`<span class="ok" role="status" data-design-message>${this.message}</span>` : nothing}
         ${this.error ? html`<span class="err" role="alert">${this.error}</span>` : nothing}
       </div>

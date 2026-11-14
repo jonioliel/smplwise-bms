@@ -5,12 +5,13 @@
 import type {
   DoorConversionAction, DoorConversionItem, DoorConversionList, DoorConversionRecord, DoorGrantRole, DoorGrantSubject, DoorMap, DoorMapLock, DoorPathInventory, DoorPathItem,
 } from '../api/doors';
+import { tr } from '../i18n/msg/system-a';
 
 /** The built-in roles' read-only answer in the "תפקידים" section (owner default: no built-in role changes by a switch). */
 export function builtinAnswer(role: DoorGrantRole): string {
-  if (role.answer === 'never') return 'לעולם לא';
-  if (role.answer === 'yes' || role.includes) return 'כן';
-  return 'לא - אפשר לתת למשתמשים בנפרד';
+  if (role.answer === 'never') return tr('לעולם לא');
+  if (role.answer === 'yes' || role.includes) return tr('כן');
+  return tr('לא - אפשר לתת למשתמשים בנפרד');
 }
 
 /**
@@ -20,21 +21,21 @@ export function builtinAnswer(role: DoorGrantRole): string {
  * longer carries them. WXPERM (owner decision 2026-10-13): the door permission itself is the door-only `access.doors.open`
  * (legacy name `access.release`); a custom role holding it alone opens doors and sees nothing else.
  */
-export const GRANT_ALSO = 'ההרשאה כוללת גם צפייה ביומן הכניסות ובאנשי הקשר של האינטרקום.';
+export const GRANT_ALSO = tr('ההרשאה כוללת גם צפייה ביומן הכניסות ובאנשי הקשר של האינטרקום.');
 
 /** The question each sensitive switch asks before it is sent (one short confirmation). */
 export function grantQuestion(name: string, enabled: boolean): string {
-  return enabled ? `לתת ל${name} הרשאה לפתוח דלתות? ${GRANT_ALSO}` : `להסיר מ${name} את ההרשאה לפתוח דלתות?`;
+  return enabled ? `${tr('לתת ל{name} הרשאה לפתוח דלתות?', { name })} ${GRANT_ALSO}` : tr('להסיר מ{name} את ההרשאה לפתוח דלתות?', { name });
 }
 
 export function roleQuestion(name: string, enabled: boolean): string {
-  return enabled ? `לכלול פתיחת דלתות בתפקיד ${name}? ${GRANT_ALSO}` : `להסיר פתיחת דלתות מהתפקיד ${name}?`;
+  return enabled ? `${tr('לכלול פתיחת דלתות בתפקיד {name}?', { name })} ${GRANT_ALSO}` : tr('להסיר פתיחת דלתות מהתפקיד {name}?', { name });
 }
 
 /** The line under a subject: what else lets them open ("שיוך אחר"), by role and scope name - never ids. */
 export function otherGrants(s: DoorGrantSubject): string {
   if (!s.other.length) return '';
-  return `שיוך אחר: ${s.other.map((o) => `${o.role_name} · ${o.scope_name}`).join(', ')}`;
+  return `${tr('שיוך אחר:')} ${s.other.map((o) => `${o.role_name} · ${o.scope_name}`).join(', ')}`;
 }
 
 /** Subjects filtered by a free-text search over their names (the card lists every user and group). */
@@ -58,9 +59,9 @@ export function parsePlacement(value: string): { site_id: string | null; buildin
 
 /** The placement options: the whole installation, every site, every building under its site. */
 export function placementOptions(map: DoorMap): { value: string; label: string }[] {
-  const out = [{ value: '', label: 'כל ההתקנה (ללא שיוך)' }];
+  const out = [{ value: '', label: tr('כל ההתקנה (ללא שיוך)') }];
   for (const s of map.sites) {
-    out.push({ value: `site:${s.id}`, label: `אתר · ${s.name}` });
+    out.push({ value: `site:${s.id}`, label: `${tr('אתר')} · ${s.name}` });
     for (const b of map.buildings.filter((x) => x.site_id === s.id)) out.push({ value: `building:${b.id}`, label: `${s.name} · ${b.name}` });
   }
   return out;
@@ -71,7 +72,7 @@ export function relayOptions(map: DoorMap, lock: DoorMapLock): { value: string; 
   const stations = lock.station_id ? map.stations.filter((s) => s.id === lock.station_id) : map.stations;
   const out: { value: string; label: string }[] = [];
   for (const s of stations) {
-    for (const r of s.relays) out.push({ value: `${s.id}#${r.physical_index}`, label: `${s.name} · ${r.name || `ממסר ${r.physical_index}`}` });
+    for (const r of s.relays) out.push({ value: `${s.id}#${r.physical_index}`, label: `${s.name} · ${r.name || tr('ממסר {n}', { n: r.physical_index })}` });
   }
   return out;
 }
@@ -85,10 +86,10 @@ export function parseRelay(value: string): { station_id: string; relay: number }
 
 /** A lock's mapping state as the "שיוך דלתות" card says it. */
 export function mappingState(lock: DoorMapLock): { tone: 'live' | 'stale' | 'unknown'; text: string } {
-  if (lock.mapping && lock.mapping.valid) return { tone: 'live', text: lock.mapping.source === 'manual' ? 'משויך ידנית' : 'משויך' };
-  if (lock.mapping) return { tone: 'stale', text: 'השיוך אינו תקף כרגע - יש לשייך מחדש' };
-  if (lock.suggestion) return { tone: 'unknown', text: 'הצעה לשיוך מוכנה' };
-  return { tone: 'unknown', text: 'לא משויך - הדלת לא תיפתח מ-Arx' };
+  if (lock.mapping && lock.mapping.valid) return { tone: 'live', text: lock.mapping.source === 'manual' ? tr('משויך ידנית') : tr('משויך') };
+  if (lock.mapping) return { tone: 'stale', text: tr('השיוך אינו תקף כרגע - יש לשייך מחדש') };
+  if (lock.suggestion) return { tone: 'unknown', text: tr('הצעה לשיוך מוכנה') };
+  return { tone: 'unknown', text: tr('לא משויך - הדלת לא תיפתח מ-Arx') };
 }
 
 // ---------------------------------------------------------------- the read-only door-path inventory (CR-033 D7)
@@ -96,10 +97,10 @@ export function mappingState(lock: DoorMapLock): { tone: 'live' | 'stale' | 'unk
 export type InventoryFilter = 'all' | 'blocked' | 'disable' | 'review';
 
 export const INVENTORY_FILTERS: { id: InventoryFilter; label: string }[] = [
-  { id: 'all', label: 'הכול' },
-  { id: 'blocked', label: 'הרצה נחסמת' },
-  { id: 'disable', label: 'דורש השבתה' },
-  { id: 'review', label: 'לבדיקה ידנית' },
+  { id: 'all', label: tr('הכול') },
+  { id: 'blocked', label: tr('הרצה נחסמת') },
+  { id: 'disable', label: tr('דורש השבתה') },
+  { id: 'review', label: tr('לבדיקה ידנית') },
 ];
 
 /** The items a filter chip shows. */
@@ -112,16 +113,16 @@ export function filterInventory(items: DoorPathItem[], filter: InventoryFilter):
 
 /** The card's one-line summary. */
 export function inventorySummary(inv: DoorPathInventory): string {
-  if (!inv.wiskey_present) return 'אין דלתות אינטרקום בהתקנה';
+  if (!inv.wiskey_present) return tr('אין דלתות אינטרקום בהתקנה');
   const c = inv.counts;
-  if (!c.items) return 'אין פריטים שפותחים דלתות';
-  const parts = [`${c.items} פריטים`, `${c.door_steps} שלבי פתיחה`];
-  if (c.unresolvable) parts.push(`${c.unresolvable} לבדיקה ידנית`);
-  if (c.disable_required) parts.push(`${c.disable_required} דורשים השבתה`);
+  if (!c.items) return tr('אין פריטים שפותחים דלתות');
+  const parts = [tr('{n} פריטים', { n: c.items }), tr('{n} שלבי פתיחה', { n: c.door_steps })];
+  if (c.unresolvable) parts.push(tr('{n} לבדיקה ידנית', { n: c.unresolvable }));
+  if (c.disable_required) parts.push(tr('{n} דורשים השבתה', { n: c.disable_required }));
   return parts.join(' · ');
 }
 
-const STATE_TEXT: Record<DoorPathItem['state'], string> = { enabled: 'פעיל', disabled: 'מושבת', ready: 'זמין', gone: 'נמחק', unknown: 'מצב לא ידוע' };
+const STATE_TEXT: Record<DoorPathItem['state'], string> = { enabled: tr('פעיל'), disabled: tr('מושבת'), ready: tr('זמין'), gone: tr('נמחק'), unknown: tr('מצב לא ידוע') };
 
 /** The line under an item's name: its kind, where it came from and its state. */
 export function itemMeta(item: DoorPathItem): string {
@@ -130,22 +131,22 @@ export function itemMeta(item: DoorPathItem): string {
 
 /** Who wrote it and who approved the live version. */
 export function peopleLine(item: DoorPathItem): string {
-  const author = item.author ? `נכתב בידי ${item.author}` : 'כותב לא ידוע';
-  const approver = item.approver ? `אושר בידי ${item.approver}${item.approver_status === 'approved' ? '' : ` (${item.approver_text})`}` : item.approver_text;
+  const author = item.author ? tr('נכתב בידי {name}', { name: item.author }) : tr('כותב לא ידוע');
+  const approver = item.approver ? `${tr('אושר בידי {name}', { name: item.approver })}${item.approver_status === 'approved' ? '' : ` (${item.approver_text})`}` : item.approver_text;
   return `${author} · ${approver}`;
 }
 
 /** The last run, given a formatter for the instant (the screen passes its locale formatter). */
 export function lastRunText(item: DoorPathItem, fmt: (iso: string) => string): string {
-  return item.last_run ? `הרצה אחרונה: ${fmt(item.last_run.at)}` : 'לא הורץ';
+  return item.last_run ? tr('הרצה אחרונה: {time}', { time: fmt(item.last_run.at) }) : tr('לא הורץ');
 }
 
 /** The doors an item opens, by name (or how many steps when no door is known). */
 export function doorsText(item: DoorPathItem): string {
   if (item.doors.length) return item.doors.join(', ');
-  if (item.door_steps) return `${item.door_steps} שלבי פתיחה`;
-  if (item.lock_steps) return `${item.lock_steps} שלבי נעילה`;
-  return 'לא ניתן לזהות';
+  if (item.door_steps) return tr('{n} שלבי פתיחה', { n: item.door_steps });
+  if (item.lock_steps) return tr('{n} שלבי נעילה', { n: item.lock_steps });
+  return tr('לא ניתן לזהות');
 }
 
 /** The badge tone of an item's run guard. */
@@ -158,40 +159,40 @@ export function guardTone(item: DoorPathItem): 'stale' | 'unknown' | 'neutral' {
 // ---------------------------------------------------------------- disable and list (WXD10A / WXD10B, CR-033 6.4)
 
 export const CONVERSION_ACTION_TEXT: Record<DoorConversionAction, string> = {
-  disable: 'השבתה ורישום',
-  convert_event_job: 'הסבה למשימת דלת של Arx',
-  hand_over_program: 'העברה לחלון פתיחה קבוע',
+  disable: tr('השבתה ורישום'),
+  convert_event_job: tr('הסבה למשימת דלת של Arx'),
+  hand_over_program: tr('העברה לחלון פתיחה קבוע'),
 };
 
-const RECORD_TEXT: Record<DoorConversionRecord['action'], string> = { disabled: 'הושבת', converted: 'הוסב למשימת דלת', handed_over: 'הועבר לחלון פתיחה' };
+const RECORD_TEXT: Record<DoorConversionRecord['action'], string> = { disabled: tr('הושבת'), converted: tr('הוסב למשימת דלת'), handed_over: tr('הועבר לחלון פתיחה') };
 
 /** The line above the list: the empty cases first (an installation where nothing opens a door is the normal case). */
 export function conversionSummary(list: DoorConversionList): string {
-  if (list.state !== 'items') return list.state_text || (list.state === 'no_wiskey' ? 'אין דלתות אינטרקום בהתקנה' : 'לא נמצאו פריטים שפותחים דלת');
+  if (list.state !== 'items') return list.state_text || (list.state === 'no_wiskey' ? tr('אין דלתות אינטרקום בהתקנה') : tr('לא נמצאו פריטים שפותחים דלת'));
   const c = list.counts;
-  const parts = [`${c.items} פריטים`];
-  if (c.disable) parts.push(`${c.disable} ניתנים להשבתה`);
-  if (c.convert_event_job) parts.push(`${c.convert_event_job} ניתנים להסבה`);
-  if (c.hand_over_program) parts.push(`${c.hand_over_program} ניתנים להעברה`);
-  if (c.handled) parts.push(`${c.handled} טופלו`);
-  if (list.switch === 'off') parts.push('הפעולות כבויות בהגדרות');
+  const parts = [tr('{n} פריטים', { n: c.items })];
+  if (c.disable) parts.push(tr('{n} ניתנים להשבתה', { n: c.disable }));
+  if (c.convert_event_job) parts.push(tr('{n} ניתנים להסבה', { n: c.convert_event_job }));
+  if (c.hand_over_program) parts.push(tr('{n} ניתנים להעברה', { n: c.hand_over_program }));
+  if (c.handled) parts.push(tr('{n} טופלו', { n: c.handled }));
+  if (list.switch === 'off') parts.push(tr('הפעולות כבויות בהגדרות'));
   return parts.join(' · ');
 }
 
 /** The one confirmation each action asks before it is sent (the server refuses without `confirmed: true`). */
 export function conversionQuestion(item: DoorConversionItem, action: DoorConversionAction): string {
-  if (action === 'disable') return `להשבית את "${item.name}"? הפריט יישאר ברשימה ואפשר לבטל את ההשבתה.`;
+  if (action === 'disable') return tr('להשבית את "{name}"? הפריט יישאר ברשימה ואפשר לבטל את ההשבתה.', { name: item.name });
   if (action === 'convert_event_job') {
     const n = item.actions.convert_event_job.removed_steps ?? 0;
-    return `להסיר מ"${item.name}" ${n === 1 ? 'שלב פתיחה אחד' : `${n} שלבי פתיחה`} וליצור משימת דלת של Arx? המשימה נוצרת כטיוטה ולא תפתח דלת עד שמישהו יפעיל אותה.`;
+    return tr('להסיר מ"{name}" {steps} וליצור משימת דלת של Arx? המשימה נוצרת כטיוטה ולא תפתח דלת עד שמישהו יפעיל אותה.', { name: item.name, steps: n === 1 ? tr('שלב פתיחה אחד') : tr('{n} שלבי פתיחה', { n }) });
   }
   const p = item.actions.hand_over_program.program;
   const when = p ? `${p.days_text} ${p.periods.map((x) => `${x.start}-${x.end}`).join(', ')}` : '';
-  return `להשבית את התזמון "${item.name}" וליצור חלון פתיחה קבוע${when ? ` (${when})` : ''}? החלון נוצר כטיוטה ולא נשלח למערכת האינטרקום עד שיופעל.`;
+  return tr('להשבית את התזמון "{name}" וליצור חלון פתיחה קבוע{when}? החלון נוצר כטיוטה ולא נשלח למערכת האינטרקום עד שיופעל.', { name: item.name, when: when ? ` (${when})` : '' });
 }
 
 /** A register row in one line. */
 export function recordLine(r: DoorConversionRecord): string {
-  const state = r.state === 'undone' ? ' · בוטל' : '';
+  const state = r.state === 'undone' ? ' · ' + tr('בוטל') : '';
   return `${r.name} · ${RECORD_TEXT[r.action]} · ${r.done_by}${state}`;
 }
