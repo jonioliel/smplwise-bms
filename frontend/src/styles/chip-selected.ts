@@ -44,7 +44,7 @@ export const chipSelectedCheck = css`
   inline-size: 0.36em;
   block-size: 0.68em;
   margin-block: 0 0.16em;
-  margin-inline: 0.18em 0.5em;
+  margin-inline: 0.2em 0.34em;
   border: solid currentColor;
   border-width: 0 0.14em 0.14em 0;
   transform: rotate(45deg);
