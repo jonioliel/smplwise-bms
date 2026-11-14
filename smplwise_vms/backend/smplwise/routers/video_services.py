@@ -23,6 +23,7 @@ from ..errors import ApiError
 from ..rbac import INSTALLATION, Principal, require
 from ..services import media_reach
 from ..services import video_services as vs
+from ._common import rid as _rid  # CR-ROUTER-COMMON (review D5): the shared request helper
 
 router = APIRouter()
 
@@ -33,10 +34,6 @@ _admin_ro = read_gate(lambda conn, principal: require(conn, principal, PERMISSIO
 class SelectIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     slug: str = Field(min_length=1, max_length=64, pattern=r"^[a-z0-9_]{1,64}$")
-
-
-def _rid(request: Request) -> str | None:
-    return getattr(request.state, "correlation_id", None)
 
 
 def _view(request: Request, conn: sqlite3.Connection, fresh: bool = False) -> dict[str, Any]:

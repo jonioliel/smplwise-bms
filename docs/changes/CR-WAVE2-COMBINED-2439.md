@@ -48,7 +48,8 @@ Every listed branch existed on origin; none was skipped.
 
 ## Conflicts
 
-Only the first merge (`origin/main`, 2.43.5, into the 2.43.4-based wave-1 branch) conflicted; the 30 branch merges were clean.
+Only the first merge (`origin/main`, 2.43.5, into the 2.43.4-based wave-1 branch) conflicted textually; the 30 branch merges were
+clean as text (two semantic conflicts, items 3 and 4).
 
 1. `smplwise_vms/backend/smplwise/routers/settings.py` - wave 1 (CR-SETTINGS-STORE-2436) moved `DEFAULTS`, `INT_KEYS` and the
    readers into `services/settings_store.py`; main (HEALTH-GO2RTC-FOLLOWUP-2431) added `media.video_notice_after_min` to `DEFAULTS`
@@ -57,6 +58,16 @@ Only the first merge (`origin/main`, 2.43.5, into the 2.43.4-based wave-1 branch
    Checked: the only 2.43.4 -> 2.43.5 changes to the file were these three hunks.
 2. `frontend/src/screens/system-diagnostics.ts` - imports: wave 1 imports `healthSummary` / `HealthSummary`, main imports the video
    service picker (`api/video-services`, `components/sw-video-service-picker`). Both kept.
+
+Two semantic conflicts (clean text merge, a focused test failed; fixed in commit "fix: merge interactions"):
+3. `routers/video_services.py` (new in 2.43.5, HEALTH-GO2RTC-FOLLOWUP-2431) carried its own `_rid` copy; CR-ROUTER-COMMON-2438 (cut
+   from 2.43.4) never saw the file, and its guard `test_router_common_helpers::test_no_router_outside_the_waiting_list_copies_a_request_helper`
+   failed. Fix: `from ._common import rid as _rid`, the local copy removed (same body).
+4. `services/notify_recipients.expand`: OWNER-R32-BACKEND-2438 (owner O1 a) removed the generator-only switches `role_via_groups`,
+   `role_expiry` AND `active_only`; CR-TK-ROUTER-COMMON-2438 started calling `expand(..., active_only=False)` from
+   `tickets/notify_matrix.role_members` (the digest applies visibility itself) -> `TypeError` in
+   `test_tickets_router_common_2438::test_the_matrix_role_expansion_is_the_shared_one`. Fix: keep O1 (the two generator switches stay
+   removed) and restore only the keyword-only `active_only: bool = True` (default unchanged for every alert module).
 
 Overlaps checked by reading (no textual conflict, both intents present):
 - `main.py`: BACKEND-SAFETY rewrote the head of `janitor_tick`, JANITOR-REGISTRY (which merged BACKEND-SAFETY itself) turned it into
@@ -81,7 +92,18 @@ Overlaps checked by reading (no textual conflict, both intents present):
 
 ## Tests actually run (Windows workstation, loaded)
 
-RESULTS_PLACEHOLDER
+- `npx tsc --noEmit` (frontend): exit 0.
+- `node --test scripts/sourcemaps-archive.test.mjs`: 5 passed.
+- pytest (`.venv`, `-p no:xdist`, one file at a time) - every backend test file the merged branches added, plus `test_janitor.py`:
+  32 files; first round 30 green, 2 red (items 3 and 4 above). After the fix:
+  `test_router_common_helpers` 12 passed, `test_tickets_router_common_2438` 12 passed, `test_video_services_2431` 15 passed,
+  `test_notify_recipients` 36 passed, `test_generator` 49 passed, `test_raw_body_order` 16 passed.
+  The 30 green of the first round: active_user_rest 13, admin_gate 17, authorize_active 6, authrevoke 11, backend_safety 10,
+  bill_ledger_lifecycle_b 25, bridge_gaps 8, build_guards 10, commit_release_limiter 2, core_helpers 14, device_http 17,
+  device_http_pins 20, error_envelope_unexpected 6, go2rtc_owned_streams 21, ha_client 70, nvr_write_guard 10, path_confine 8
+  (+1 skipped), rbac_eval 16, secret_files 15 (+1 skipped), session_cache 23, shutdown_safely 3, sync_gate_wait 3,
+  tickets_erase_no_swallow 7, tickets_list_statement_guard 12, tickets_outbox_queue_index 6, tickets_timeutil 49, timeutil_formats 52,
+  wiskey_limits_pins 39, wiskey_write_limits 13, janitor 12 (all passed).
 
 NOT_RUN locally (the runner entry check runs them): the full backend suite, the Playwright specs added by the branches
 (`unit-no-native-dialogs`, `unit-reconnecting-socket-2435`, `unit-session-me-failure-2435`, `unit-update-run-outage-2438`,
@@ -89,4 +111,7 @@ NOT_RUN locally (the runner entry check runs them): the full backend suite, the 
 
 ## Entry check
 
-ENTRY_PLACEHOLDER
+Queued on the runner 14.11.2026 (`ENTRY_TOTAL_SECS=14400`, log `~/pre/entry_crw2comb.log`), position 10 of 10 behind a running
+release gate. The 26 waiting individual entry checks of the merged branches were cancelled (SIGTERM to the waiting
+`branch_check.sh` pid only; its EXIT trap removed the ticket). BACKEND-SAFETY, AUTH-REVOKE-GATE, TICKETS-PERF-ERASE and
+SESSION-DEMO-WS had no waiting ticket (already GREEN on their own).

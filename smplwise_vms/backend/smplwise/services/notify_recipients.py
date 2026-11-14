@@ -8,8 +8,9 @@ generator) used to carry their own copies; they now call these two functions and
         2. the members of the named groups     (`groups`)
         3. the holders of a routable role through a user binding
         4. the holders of a routable role through a group binding (the group's members)
-       A binding counts while it is not revoked, its effect is `allow` and it has not expired. Only active users are returned. The caller
-       intersects the result with who may see the subject (services/notify.recipients_for).
+       A binding counts while it is not revoked, its effect is `allow` and it has not expired. Only active users are returned
+       [active_only, default on; the tickets digest's role_members turns it off]. The caller intersects the result with who may see the
+       subject (services/notify.recipients_for).
 
     validate(conn, rec, field, routable_roles, error=..., role_message=..., users_max=..., groups_max=...)
         -> the canonical form {"roles": in routable order, "users": sorted unique, "groups": sorted unique}, or `error(code, he, en, details)`.
@@ -36,7 +37,7 @@ def group_ids(conn: sqlite3.Connection) -> set[str]:
     return {r[0] for r in conn.execute("SELECT id FROM groups").fetchall()}
 
 
-def expand(conn: sqlite3.Connection, rec: dict[str, Any], routable_roles: Iterable[str]) -> list[str]:
+def expand(conn: sqlite3.Connection, rec: dict[str, Any], routable_roles: Iterable[str], *, active_only: bool = True) -> list[str]:
     """The user ids a recipients choice reaches (see the module docstring for the order and the rules)."""
     out: list[str] = list(rec.get("users") or [])
     grps = rec.get("groups") or []
@@ -54,6 +55,8 @@ def expand(conn: sqlite3.Connection, rec: dict[str, Any], routable_roles: Iterab
         out += [r[0] for r in conn.execute(
             f"""SELECT DISTINCT m.user_id FROM bindings b JOIN group_members m ON m.group_id = b.subject_id WHERE b.subject_kind = 'group' AND b.role_id IN ({marks})
                 AND b.revoked_at IS NULL AND b.effect = 'allow' {expiry}""", args).fetchall()]
+    if not active_only:  # services/tickets/notify_matrix.role_members (CR-TK-ROUTER-COMMON-2438): the digest applies visibility itself
+        return list(dict.fromkeys(out))
     active = active_user_ids(conn)
     return [u for u in dict.fromkeys(out) if u in active]
 
