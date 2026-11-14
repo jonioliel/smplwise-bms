@@ -795,7 +795,10 @@ class HaSync:
                 await asyncio.sleep(1)
             stop_evt.set()
 
-        asyncio.create_task(watch_stop())
+        # code review 2026-11-13 04:F07: the watcher is kept in this frame - the event loop holds tasks only weakly, so an unreferenced
+        # one could be collected and stop_evt would then never be set - and cancelled when the loop ends (asyncio.run cancels it too if
+        # the loop itself is cancelled)
+        watcher = asyncio.create_task(watch_stop(), name="ha-sync-watch-stop")
         while not self.stop.is_set():
             try:
                 await self._session(stop_evt)
@@ -835,6 +838,7 @@ class HaSync:
                 backoff, down_since = BACKOFF_START_S, time.monotonic()
                 continue
             backoff = next_backoff(STATE.last_error or "", backoff, down_since, time.monotonic())
+        watcher.cancel()
         STATE.connected = False
 
     async def _session(self, stop_evt: asyncio.Event) -> None:

@@ -896,13 +896,17 @@ async def worker_loop(db: Database, settings: Any, first_delay_s: float = 45.0) 
 
     from starlette.concurrency import run_in_threadpool
 
+    def pass_then_busy() -> bool:
+        # code review 2026-11-13 04:F08: the "busy" read runs on the worker thread with the pass, never on the event loop
+        worker_pass(db, settings)
+        with db.connection(mode="read") as conn:
+            return active_row(conn) is not None
+
     await asyncio.sleep(first_delay_s)
     while True:
         busy = False
         try:
-            await run_in_threadpool(worker_pass, db, settings)
-            with db.connection(mode="read") as conn:
-                busy = active_row(conn) is not None
+            busy = await run_in_threadpool(pass_then_busy)
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001

@@ -335,23 +335,26 @@ def test_the_artwork_fetch_accepts_only_ha_media_proxy_paths_and_image_bytes(set
         def __exit__(self, *a):
             return False
 
-        def stream(self, method, url, headers=None):
+        def close(self):
+            pass
+
+        def stream(self, method, url, headers=None, **kw):
             assert url == "http://ha.local:8123/api/media_player_proxy/media_player.tv?token=x"
             return self.resp
 
     path = "/api/media_player_proxy/media_player.tv?token=x"
     jpeg = bytes([0xFF, 0xD8, 0xFF, 0xE0]) + b"0" * 10
-    monkeypatch.setattr(httpx, "Client", lambda timeout=10: Client(Resp(200, [jpeg])))
+    monkeypatch.setattr(httpx, "Client", lambda **kw: Client(Resp(200, [jpeg])))
     assert ha_client.media_artwork(s, path) == (jpeg, "image/jpeg")
-    monkeypatch.setattr(httpx, "Client", lambda timeout=10: Client(Resp(200, [b"RIFF\x00\x00\x00\x00WEBPxxxx"])))
+    monkeypatch.setattr(httpx, "Client", lambda **kw: Client(Resp(200, [b"RIFF\x00\x00\x00\x00WEBPxxxx"])))
     assert ha_client.media_artwork(s, path)[1] == "image/webp"
-    monkeypatch.setattr(httpx, "Client", lambda timeout=10: Client(Resp(200, [b"<html>not an image</html>"])))
+    monkeypatch.setattr(httpx, "Client", lambda **kw: Client(Resp(200, [b"<html>not an image</html>"])))
     with pytest.raises(ApiError):
         ha_client.media_artwork(s, path)
-    monkeypatch.setattr(httpx, "Client", lambda timeout=10: Client(Resp(200, [jpeg[:4] + b"0" * (512 * 1024)])))
+    monkeypatch.setattr(httpx, "Client", lambda **kw: Client(Resp(200, [jpeg[:4] + b"0" * (512 * 1024)])))
     with pytest.raises(ApiError):
         ha_client.media_artwork(s, path)  # over 512 KB
-    monkeypatch.setattr(httpx, "Client", lambda timeout=10: Client(Resp(404, [])))
+    monkeypatch.setattr(httpx, "Client", lambda **kw: Client(Resp(404, [])))
     with pytest.raises(ApiError):
         ha_client.media_artwork(s, path)
 

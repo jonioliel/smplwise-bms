@@ -48,8 +48,7 @@ def get_states(settings: Settings) -> list[dict[str, Any]]:
     if not configured(settings):
         raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת (SUPERVISOR_TOKEN חסר).")
     try:
-        with httpx.Client(timeout=20) as c:
-            r = c.get(_rest_base(settings) + "/states", headers=_headers(settings))
+        r = _rest_client(settings).get(_rest_base(settings) + "/states", headers=_headers(settings), timeout=20)
     except httpx.HTTPError as exc:
         raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
     if r.status_code in (401, 403):
@@ -61,8 +60,7 @@ def get_states(settings: Settings) -> list[dict[str, Any]]:
 
 def get_state(settings: Settings, entity_id: str) -> dict[str, Any] | None:
     try:
-        with httpx.Client(timeout=10) as c:
-            r = c.get(_rest_base(settings) + f"/states/{entity_id}", headers=_headers(settings))
+        r = _rest_client(settings).get(_rest_base(settings) + f"/states/{entity_id}", headers=_headers(settings), timeout=10)
     except httpx.HTTPError:
         return None
     return r.json() if r.status_code == 200 else None
@@ -84,14 +82,13 @@ def camera_image(settings: Settings, entity_id: str) -> tuple[bytes, str]:
         raise ValueError("not a camera entity id")
     body = bytearray()
     try:
-        with httpx.Client(timeout=15) as c:
-            with c.stream("GET", _rest_base(settings) + f"/camera_proxy/{entity_id}", headers=_headers(settings)) as r:
-                status = r.status_code
-                if status == 200:
-                    for chunk in r.iter_bytes():
-                        body += chunk
-                        if len(body) > CAMERA_IMAGE_MAX:
-                            raise ApiError(503, "snapshot_unavailable", "המצלמה לא סיפקה תמונה תקינה.", retryable=True, details={"reason": "too_large"})
+        with _rest_client(settings).stream("GET", _rest_base(settings) + f"/camera_proxy/{entity_id}", headers=_headers(settings), timeout=15) as r:
+            status = r.status_code
+            if status == 200:
+                for chunk in r.iter_bytes():
+                    body += chunk
+                    if len(body) > CAMERA_IMAGE_MAX:
+                        raise ApiError(503, "snapshot_unavailable", "המצלמה לא סיפקה תמונה תקינה.", retryable=True, details={"reason": "too_large"})
     except httpx.HTTPError as exc:
         raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
     if status in (401, 403):
@@ -120,14 +117,13 @@ def media_artwork(settings: Settings, path: str) -> tuple[bytes, str]:
     base = (settings.ha_url or "").rstrip("/")
     body = bytearray()
     try:
-        with httpx.Client(timeout=10) as c:
-            with c.stream("GET", base + path, headers=_headers(settings)) as r:
-                status = r.status_code
-                if status == 200:
-                    for chunk in r.iter_bytes():
-                        body += chunk
-                        if len(body) > MEDIA_ART_MAX:
-                            raise ApiError(404, "not_found", "אין תמונה.", details={"reason": "too_large"})
+        with _rest_client(settings).stream("GET", base + path, headers=_headers(settings), timeout=10) as r:
+            status = r.status_code
+            if status == 200:
+                for chunk in r.iter_bytes():
+                    body += chunk
+                    if len(body) > MEDIA_ART_MAX:
+                        raise ApiError(404, "not_found", "אין תמונה.", details={"reason": "too_large"})
     except httpx.HTTPError as exc:
         raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
     data = bytes(body)
@@ -148,8 +144,7 @@ def get_config(settings: Settings) -> tuple[dict[str, Any], str | None]:
     if not configured(settings):
         raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת (SUPERVISOR_TOKEN חסר).")
     try:
-        with httpx.Client(timeout=8) as c:
-            r = c.get(_rest_base(settings) + "/config", headers=_headers(settings))
+        r = _rest_client(settings).get(_rest_base(settings) + "/config", headers=_headers(settings), timeout=8)
     except httpx.HTTPError as exc:
         raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
     if r.status_code in (401, 403):
@@ -164,34 +159,75 @@ def get_config(settings: Settings) -> tuple[dict[str, Any], str | None]:
 
 
 _BRIDGE_KEEPALIVE_S = 30.0  # below aiohttp's own keep-alive (75 s) behind the Supervisor proxy: we close an idle socket first
-_bridge_lock = threading.Lock()
-_bridge_session: tuple[str, httpx.Client] | None = None
+
+
+class _Pool:
+    """One kept-alive httpx.Client per Home Assistant base URL (LAT1 for the execute calls; code review 2026-11-13 04:F12 for every other
+    REST call - before it each one opened a new TCP connection and HTTP session). Thread-safe (httpx.Client pools connections behind a
+    thread-safe transport). The token is sent per request, never stored on the client; the timeout is given per request. The key also
+    holds the client factory (`httpx.Client` at the time of the call), so a client built by another factory - a test's transport - is
+    never reused by a later caller."""
+
+    def __init__(self, limits: httpx.Limits) -> None:
+        self._limits = limits
+        self._lock = threading.Lock()
+        self._session: tuple[tuple[str, Any], httpx.Client] | None = None
+
+    def client(self, settings: Settings) -> httpx.Client:
+        factory = httpx.Client
+        key = (_rest_base(settings), factory)
+        with self._lock:
+            if self._session is None or self._session[0] != key:
+                if self._session is not None:
+                    _close_quietly(self._session[1])
+                # TCP_NODELAY: on a kept-alive connection a small request split into header and body segments must not wait
+                # for the peer's delayed ACK (the 40 ms Nagle stall a fresh connection hides behind TCP quick-ack)
+                transport = httpx.HTTPTransport(socket_options=[(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)])
+                self._session = (key, factory(transport=transport, limits=self._limits))
+            return self._session[1]
+
+    def reset(self) -> None:
+        with self._lock:
+            if self._session is not None:
+                _close_quietly(self._session[1])
+            self._session = None
+
+
+def _close_quietly(client: Any) -> None:
+    try:
+        client.close()
+    except Exception:  # noqa: BLE001 - a replaced client that will not close is simply dropped
+        pass
+
+
+# the device commands (call_bridge_execute) keep a pool of their own, so a slow read (a camera still) never holds one of their slots
+_BRIDGE_POOL = _Pool(httpx.Limits(max_connections=8, max_keepalive_connections=4, keepalive_expiry=_BRIDGE_KEEPALIVE_S))
+# every other REST call: no cap on concurrent connections (as many at once as before the pool), up to 8 idle ones kept
+_REST_POOL = _Pool(httpx.Limits(max_connections=None, max_keepalive_connections=8, keepalive_expiry=_BRIDGE_KEEPALIVE_S))
 
 
 def _bridge_client(settings: Settings) -> httpx.Client:
     """LAT1: one keep-alive HTTP client for the execute calls (a device command is the hot path - before this every toggle
     opened a new TCP connection and HTTP session to Home Assistant). Keyed by HA's base URL; thread-safe (httpx.Client
     pools connections per thread-safe transport). The token is sent per request, never stored on the client."""
-    global _bridge_session
-    base = _rest_base(settings)
-    with _bridge_lock:
-        if _bridge_session is None or _bridge_session[0] != base:
-            if _bridge_session is not None:
-                _bridge_session[1].close()
-            # TCP_NODELAY: on a kept-alive connection a small request split into header and body segments must not wait
-            # for the peer's delayed ACK (the 40 ms Nagle stall a fresh connection hides behind TCP quick-ack)
-            transport = httpx.HTTPTransport(socket_options=[(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)])
-            _bridge_session = (base, httpx.Client(transport=transport, limits=httpx.Limits(max_connections=8, max_keepalive_connections=4, keepalive_expiry=_BRIDGE_KEEPALIVE_S)))
-        return _bridge_session[1]
+    return _BRIDGE_POOL.client(settings)
+
+
+def _rest_client(settings: Settings) -> httpx.Client:
+    """The kept-alive client of every REST call except the execute calls (code review 2026-11-13 04:F12). A transport error is reported
+    to the caller and leaves the pool alone: a broken connection is discarded by the pool itself, and closing the client would cut the
+    other calls in flight on it."""
+    return _REST_POOL.client(settings)
 
 
 def reset_bridge_session() -> None:
     """Drop the kept connections (after a transport error, and in tests): the next call connects afresh. Never a retry."""
-    global _bridge_session
-    with _bridge_lock:
-        if _bridge_session is not None:
-            _bridge_session[1].close()
-        _bridge_session = None
+    _BRIDGE_POOL.reset()
+
+
+def reset_rest_session() -> None:
+    """Drop the kept connections of the other REST calls (tests; a changed base URL replaces the client by itself)."""
+    _REST_POOL.reset()
 
 
 def _guard_subject(payload: dict[str, Any]) -> None:
@@ -201,28 +237,52 @@ def _guard_subject(payload: dict[str, Any]) -> None:
     service_identity.guard_payload(payload)
 
 
+def _bridge_ready(settings: Settings, payload: dict[str, Any]) -> None:
+    """The two checks every bridge service call makes before anything is sent."""
+    if not configured(settings):
+        raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת.")
+    _guard_subject(payload)  # USR2 P3: never a local id as user_id; on_behalf_of well formed
+
+
+def _bridge_post(settings: Settings, service: str, payload: dict[str, Any], timeout: float, *, missing: tuple[str, str, dict[str, Any]],
+                 missing_statuses: tuple[int, ...] = (400, 404), timeout_error: tuple[str, str] | None = None,
+                 client: httpx.Client | None = None, on_transport_error: Callable[[], None] | None = None) -> httpx.Response:
+    """POST /api/services/smplwise_bridge/<service>?return_response, sent ONCE (never retried), and the one status mapping of the bridge
+    calls (code review 2026-11-13 04:F12). The caller has run `_bridge_ready` and reads the answer itself. Returns the response of a status
+    below 400. Errors carry a status or a class name, never the body (lead decision L8: a refusal text could echo a URL or an address):
+    - transport error -> 503 `ha_unavailable` (a time-out -> 504 `timeout_error` when given: the call may have been applied);
+    - a status in `missing_statuses` whose text says "not found" -> 503 `missing` (code, text, extra details): the service is absent;
+    - 401 / 403 -> 503 `ha_forbidden`; any other status from 400 -> 503 `bridge_error`."""
+    try:
+        r = (client if client is not None else _rest_client(settings)).post(_rest_base(settings) + f"/services/smplwise_bridge/{service}?return_response",
+                                                     headers=_headers(settings), content=json.dumps(payload), timeout=timeout)
+    except httpx.HTTPError as exc:
+        if on_transport_error is not None:
+            on_transport_error()
+        if timeout_error is not None and isinstance(exc, httpx.TimeoutException):
+            raise ApiError(504, timeout_error[0], timeout_error[1], details={"error": type(exc).__name__}) from exc
+        raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
+    if r.status_code in missing_statuses and "not found" in r.text.lower():
+        code, text, extra = missing
+        raise ApiError(503, code, text, details={"status": r.status_code, **extra})
+    if r.status_code in (401, 403):
+        raise ApiError(503, "ha_forbidden", "תשתית המערכת דחתה את הקריאה.", details={"status": r.status_code})
+    if r.status_code >= 400:
+        raise ApiError(503, "bridge_error", "הגשר החזיר שגיאה.", retryable=False, details={"status": r.status_code})
+    return r
+
+
 def call_bridge_execute(settings: Settings, payload: dict[str, Any], timeout: float = 15.0) -> dict[str, Any]:
     """POST /api/services/smplwise_bridge/execute?return_response — the only write path to HA. Sent ONCE over the kept
     connection (LAT1); a transport error drops the pool and is reported, never retried (a command that may have left is not
     sent twice - AGENTS.md: never blindly retry physical commands). A WisKey door is never sent here (CR-033 T3,
     services/door_execute_guard.py: refused before the request, `wiskey_door_execute_blocked`, nothing sent)."""
-    if not configured(settings):
-        raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת.")
-    _guard_subject(payload)  # USR2 P3: never a local id as user_id; on_behalf_of well formed
+    _bridge_ready(settings, payload)
     from . import door_execute_guard  # local import: ha_client stays free of the door modules at load time
 
     door_execute_guard.check_payload(settings, payload)
-    try:
-        r = _bridge_client(settings).post(_rest_base(settings) + "/services/smplwise_bridge/execute?return_response", headers=_headers(settings), content=json.dumps(payload), timeout=timeout)
-    except httpx.HTTPError as exc:
-        reset_bridge_session()
-        raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
-    if r.status_code == 400 and "not found" in r.text.lower():
-        raise ApiError(503, "bridge_not_installed", "הגשר אינו מותקן.", details={"status": r.status_code})
-    if r.status_code in (401, 403):
-        raise ApiError(503, "ha_forbidden", "תשתית המערכת דחתה את הקריאה.", details={"status": r.status_code})
-    if r.status_code >= 400:
-        raise ApiError(503, "bridge_error", "הגשר החזיר שגיאה.", retryable=False, details={"status": r.status_code, "body": r.text[:200]})
+    r = _bridge_post(settings, "execute", payload, timeout, missing=("bridge_not_installed", "הגשר אינו מותקן.", {}), missing_statuses=(400,),
+                     client=_bridge_client(settings), on_transport_error=reset_bridge_session)
     try:
         body = r.json()
     except ValueError:
@@ -234,13 +294,13 @@ def call_bridge_set_area(settings: Settings, payload: dict[str, Any], timeout: f
     """POST /api/services/smplwise_bridge/set_entity_area?return_response (CR-007 slice 4) - the one Home Assistant
     CONFIG write this product makes: move an entity to an area through the bridge's registry-write path, never a
     domain service call. Same envelope and error handling as call_bridge_execute; a distinct function (not a shared
-    helper) so each write path stays a single, easily audited block of code."""
+    helper) so each write path stays a single, easily audited block of code. Errors never carry the body (lead decision L8)."""
     if not configured(settings):
         raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת.")
     _guard_subject(payload)  # USR2 P3: never a local id as user_id; on_behalf_of well formed
     try:
-        with httpx.Client(timeout=timeout) as c:
-            r = c.post(_rest_base(settings) + "/services/smplwise_bridge/set_entity_area?return_response", headers=_headers(settings), content=json.dumps(payload))
+        r = _rest_client(settings).post(_rest_base(settings) + "/services/smplwise_bridge/set_entity_area?return_response", headers=_headers(settings),
+                                        content=json.dumps(payload), timeout=timeout)
     except httpx.HTTPError as exc:
         raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
     if r.status_code == 400 and "not found" in r.text.lower():
@@ -248,7 +308,7 @@ def call_bridge_set_area(settings: Settings, payload: dict[str, Any], timeout: f
     if r.status_code in (401, 403):
         raise ApiError(503, "ha_forbidden", "תשתית המערכת דחתה את הקריאה.", details={"status": r.status_code})
     if r.status_code >= 400:
-        raise ApiError(503, "bridge_error", "הגשר החזיר שגיאה.", retryable=False, details={"status": r.status_code, "body": r.text[:200]})
+        raise ApiError(503, "bridge_error", "הגשר החזיר שגיאה.", retryable=False, details={"status": r.status_code})
     try:
         body = r.json()
     except ValueError:
@@ -261,22 +321,9 @@ def call_bridge_schedule(settings: Settings, payload: dict[str, Any], timeout: f
     scheduler component: the bridge verifies and re-validates the signed payload and calls the component with the
     caller's own Context. Never retried: a call that timed out may have been applied (504 `scheduler_timeout`, the
     operation is then recorded as unknown). Same envelope as call_bridge_execute; the answer is the service response."""
-    if not configured(settings):
-        raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת.")
-    _guard_subject(payload)  # USR2 P3: never a local id as user_id; on_behalf_of well formed
-    try:
-        with httpx.Client(timeout=timeout) as c:
-            r = c.post(_rest_base(settings) + "/services/smplwise_bridge/schedule?return_response", headers=_headers(settings), content=json.dumps(payload))
-    except httpx.TimeoutException as exc:
-        raise ApiError(504, "scheduler_timeout", "רכיב התזמונים לא ענה בזמן; ייתכן שהשינוי נשמר. רעננו לפני ניסיון נוסף.", details={"error": type(exc).__name__}) from exc
-    except httpx.HTTPError as exc:
-        raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
-    if r.status_code in (400, 404) and "not found" in r.text.lower():
-        raise ApiError(503, "bridge_too_old", "נדרש עדכון של רכיב החיבור כדי לשמור תזמונים.", details={"status": r.status_code})
-    if r.status_code in (401, 403):
-        raise ApiError(503, "ha_forbidden", "תשתית המערכת דחתה את הקריאה.", details={"status": r.status_code})
-    if r.status_code >= 400:
-        raise ApiError(503, "bridge_error", "הגשר החזיר שגיאה.", retryable=False, details={"status": r.status_code, "body": r.text[:200]})
+    _bridge_ready(settings, payload)
+    r = _bridge_post(settings, "schedule", payload, timeout, missing=("bridge_too_old", "נדרש עדכון של רכיב החיבור כדי לשמור תזמונים.", {}),
+                     timeout_error=("scheduler_timeout", "רכיב התזמונים לא ענה בזמן; ייתכן שהשינוי נשמר. רעננו לפני ניסיון נוסף."))
     try:
         body = r.json()
     except ValueError:
@@ -298,8 +345,7 @@ def get_config_item(settings: Settings, kind: str, config_id: str) -> tuple[int,
     from urllib.parse import quote
 
     try:
-        with httpx.Client(timeout=10) as c:
-            r = c.get(_rest_base(settings) + f"/config/{kind}/config/{quote(config_id, safe='')}", headers=_headers(settings))
+        r = _rest_client(settings).get(_rest_base(settings) + f"/config/{kind}/config/{quote(config_id, safe='')}", headers=_headers(settings), timeout=10)
     except httpx.HTTPError as exc:
         raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
     try:
@@ -313,22 +359,9 @@ def call_bridge_config_item(settings: Settings, payload: dict[str, Any], timeout
     """POST /api/services/smplwise_bridge/config_item?return_response (CR-017, bridge >= 0.6.0) - the only write path to automations, scripts and scenes:
     the bridge verifies and re-judges the signed payload and, for a runtime op, calls the service with the caller's own Context. Never retried: a call
     that timed out may have been applied (504 `config_timeout`, the operation is then recorded as unknown). Same envelope as call_bridge_execute."""
-    if not configured(settings):
-        raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת.")
-    _guard_subject(payload)  # USR2 P3: never a local id as user_id; on_behalf_of well formed
-    try:
-        with httpx.Client(timeout=timeout) as c:
-            r = c.post(_rest_base(settings) + "/services/smplwise_bridge/config_item?return_response", headers=_headers(settings), content=json.dumps(payload))
-    except httpx.TimeoutException as exc:
-        raise ApiError(504, "config_timeout", "תשתית המערכת לא ענתה בזמן; ייתכן שהשינוי נשמר. רעננו לפני ניסיון נוסף.", details={"error": type(exc).__name__}) from exc
-    except httpx.HTTPError as exc:
-        raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
-    if r.status_code in (400, 404) and "not found" in r.text.lower():
-        raise ApiError(503, "bridge_too_old", "נדרש עדכון של רכיב החיבור כדי לשמור אוטומציות.", details={"status": r.status_code})
-    if r.status_code in (401, 403):
-        raise ApiError(503, "ha_forbidden", "תשתית המערכת דחתה את הקריאה.", details={"status": r.status_code})
-    if r.status_code >= 400:
-        raise ApiError(503, "bridge_error", "הגשר החזיר שגיאה.", retryable=False, details={"status": r.status_code})
+    _bridge_ready(settings, payload)
+    r = _bridge_post(settings, "config_item", payload, timeout, missing=("bridge_too_old", "נדרש עדכון של רכיב החיבור כדי לשמור אוטומציות.", {}),
+                     timeout_error=("config_timeout", "תשתית המערכת לא ענתה בזמן; ייתכן שהשינוי נשמר. רעננו לפני ניסיון נוסף."))
     try:
         body = r.json()
     except ValueError:
@@ -341,20 +374,9 @@ def call_bridge_cast_stream(settings: Settings, payload: dict[str, Any], timeout
     reaches a screen: `play` (a relay URL of this add-on's own cast origin, re-checked by the bridge's cast_policy.py), `stop`
     and `off` on ONE Cast media_player, as the caller's own HA user. Never retried (a play that timed out may have started).
     The error never carries the body: a refusal could echo the URL, whose path is the token."""
-    if not configured(settings):
-        raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת.")
-    _guard_subject(payload)  # USR2 P3: never a local id as user_id; on_behalf_of well formed
-    try:
-        with httpx.Client(timeout=timeout) as c:
-            r = c.post(_rest_base(settings) + "/services/smplwise_bridge/cast_stream?return_response", headers=_headers(settings), content=json.dumps(payload))
-    except httpx.HTTPError as exc:
-        raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
-    if r.status_code in (400, 404) and "not found" in r.text.lower():
-        raise ApiError(503, "bridge_outdated", "השידור לא זמין: נדרש עדכון של רכיב החיבור.", details={"status": r.status_code, "required": "0.7.0"})
-    if r.status_code in (401, 403):
-        raise ApiError(503, "ha_forbidden", "תשתית המערכת דחתה את הקריאה.", details={"status": r.status_code})
-    if r.status_code >= 400:
-        raise ApiError(503, "bridge_error", "הגשר החזיר שגיאה.", retryable=False, details={"status": r.status_code})
+    _bridge_ready(settings, payload)
+    r = _bridge_post(settings, "cast_stream", payload, timeout,
+                     missing=("bridge_outdated", "השידור לא זמין: נדרש עדכון של רכיב החיבור.", {"required": "0.7.0"}))
     try:
         body = r.json()
     except ValueError:
@@ -371,20 +393,9 @@ def call_bridge_stream_source(settings: Settings, payload: dict[str, Any], timeo
     reports for ONE camera entity - READ-ONLY. The answer's `stream_source` is a credential-bearing URL: it is returned
     to the caller and to nobody else (never logged, never put in an error), and only the four keys of the bridge's
     answer are kept. Errors carry a status or a class name, never the body (a refusal text could echo an address)."""
-    if not configured(settings):
-        raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת.")
-    _guard_subject(payload)  # USR2 P3: never a local id as user_id; on_behalf_of well formed
-    try:
-        with httpx.Client(timeout=timeout) as c:
-            r = c.post(_rest_base(settings) + "/services/smplwise_bridge/stream_source?return_response", headers=_headers(settings), content=json.dumps(payload))
-    except httpx.HTTPError as exc:
-        raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
-    if r.status_code in (400, 404) and "not found" in r.text.lower():
-        raise ApiError(503, "bridge_too_old", "נדרש עדכון של רכיב החיבור כדי להציג מצלמה בזרם חי.", details={"status": r.status_code})
-    if r.status_code in (401, 403):
-        raise ApiError(503, "ha_forbidden", "תשתית המערכת דחתה את הקריאה.", details={"status": r.status_code})
-    if r.status_code >= 400:
-        raise ApiError(503, "bridge_error", "הגשר החזיר שגיאה.", retryable=False, details={"status": r.status_code})
+    _bridge_ready(settings, payload)
+    r = _bridge_post(settings, "stream_source", payload, timeout,
+                     missing=("bridge_too_old", "נדרש עדכון של רכיב החיבור כדי להציג מצלמה בזרם חי.", {}))
     if len(r.content) > STREAM_SOURCE_ANSWER_MAX:
         raise ApiError(503, "bridge_error", "הגשר החזיר תשובה גדולה מדי.", details={"reason": "too_large"})
     try:
@@ -709,8 +720,7 @@ def call_service(settings: Settings, domain: str, service: str, data: dict[str, 
         raise ApiError(503, "ha_not_configured", "אין גישה לתשתית המערכת (SUPERVISOR_TOKEN חסר).")
     url = _rest_base(settings) + f"/services/{domain}/{service}" + ("?return_response" if return_response else "")
     try:
-        with httpx.Client(timeout=timeout) as c:
-            r = c.post(url, headers=_headers(settings), json=data)
+        r = _rest_client(settings).post(url, headers=_headers(settings), json=data, timeout=timeout)
     except httpx.HTTPError as exc:
         raise ApiError(503, "ha_unavailable", "תשתית המערכת אינה זמינה כרגע.", retryable=True, details={"error": type(exc).__name__}) from exc
     if r.status_code in (400, 404):
