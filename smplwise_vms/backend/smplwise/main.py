@@ -18,7 +18,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import __version__, correlation_id
 from .config import DEV_NVR_PLACEHOLDER, Settings, load_settings
-from .db import Database, is_storage_full
+from .db import Database, is_busy, is_storage_full
 from .errors import ApiError, validation_payload
 from .mode import is_ha_only
 from . import recorder_scope
@@ -551,13 +551,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if settings.dev_user:
         log.warning("developer identity mode is ON (SW_DEV_USER); never run like this inside Home Assistant")
 
-    @app.middleware("http")
-    async def correlation(request: Request, call_next):
-        # SX-17: a client id is used only when it is one well-formed value (8-64 of [A-Za-z0-9_-]); never reflected otherwise
-        request.state.correlation_id = correlation_id.resolve(request.headers.getlist(correlation_id.HEADER))
-        response = await call_next(request)
-        response.headers["X-Correlation-Id"] = request.state.correlation_id
-        return response
+    app.add_middleware(CorrelationId)  # the same place in the stack as the former @app.middleware("http") (innermost of ours)
 
     @app.exception_handler(ApiError)
     async def api_error(request: Request, exc: ApiError):
@@ -567,6 +561,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def storage_full(request: Request, exc: sqlite3.OperationalError):
         # T035 (outage run): a full data disk reaches the operator as a clear, enveloped answer instead of a bare 500. Every
         # other database error keeps its old path (re-raised: the server error and its trace, exactly as before).
+        if is_busy(exc):
+            # CR-MAIN-RUNTIME-2438 (review 05:P1-07): "database is locked" after the write-lock wait answers the error envelope,
+            # marked retryable. Status stays 500 (lead decision L1: the screens give 503 a meaning of its own - "the NVR / the
+            # intercom / the source is unavailable", the upload retry, "not sent" in messaging - so a busy database must not
+            # borrow it); Retry-After is a hint only. The database layer has already logged who held the lock.
+            cid = getattr(request.state, "correlation_id", "") or correlation_id.new()
+            log.warning("database busy: %s %s (correlation id %s)", request.method, request.url.path, cid, exc_info=True)
+            return JSONResponse(status_code=500, headers={"Retry-After": str(BUSY_RETRY_AFTER_S), correlation_id.HEADER: cid},
+                                content={"code": "database_busy", "user_message": "המערכת עמוסה כרגע והפעולה לא הושלמה. יש לנסות שוב בעוד רגע.",
+                                         "retryable": True, "correlation_id": cid, "details": {"retry_after_s": BUSY_RETRY_AFTER_S}})
         if not is_storage_full(exc):
             raise exc
         log.error("the data disk is full: %s %s could not be saved", request.method, request.url.path)
@@ -583,6 +587,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def validation_error(request: Request, exc: RequestValidationError):
         # the same envelope as every other error, so a screen can show why a save was refused
         return JSONResponse(status_code=422, content=validation_payload(list(exc.errors()), getattr(request.state, "correlation_id", "")))
+
+    @app.exception_handler(Exception)
+    async def internal_error(request: Request, exc: Exception):
+        # CR-MAIN-RUNTIME-2438 (review 05:P1-07): any unexpected error (a bug, a database error other than "full" or "busy")
+        # answers the same envelope as every other error instead of Starlette's bare "Internal Server Error" text - same
+        # status 500, a code, the correlation id in the body and the header (this answer leaves outside the correlation
+        # middleware). Starlette re-raises the exception after this answer, so the server still logs the full traceback.
+        cid = getattr(request.state, "correlation_id", "") or correlation_id.resolve(request.headers.getlist(correlation_id.HEADER))
+        log.error("unexpected error: %s %s -> %s (correlation id %s)", request.method, request.url.path, type(exc).__name__, cid)
+        return JSONResponse(status_code=500, headers={correlation_id.HEADER: cid},
+                            content={"code": "internal_error", "user_message": "אירעה שגיאה בלתי צפויה. יש לנסות שוב; אם השגיאה חוזרת, יש לפנות לתמיכה עם מזהה הבקשה.",
+                                     "retryable": False, "correlation_id": cid, "details": {}})
 
     api = "/api/v1"
     app.include_router(me.router, prefix=api, tags=["identity"])
@@ -1291,127 +1307,142 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.on_event("shutdown")
     async def _stop_janitor() -> None:
-        from .services import nvr_batch
-
-        nvr_batch.signal_shutdown()  # CR-020 S2C: first, so no batch starts another camera while the rest shuts down
-        from .services import cast_relay
-
-        cast_relay.SERVER.stop()  # CR-028: the cast relay's listener (a running cast's token survives in the database, not the socket)
-        from .services.notices import listener as notice_listener
-
-        notice_listener.SERVER.stop()  # CR-NOTICE106: the TV boards' LAN listener
+        # CR-MAIN-RUNTIME-2438 (review 05:P2-01): every stop runs through _shutdown_step / _in_thread_step, so one stop that
+        # raises is logged and the later ones still run - above all the capture-lease revocation and close_pool (last).
         from starlette.concurrency import run_in_threadpool as _stop_in_thread
 
-        await _stop_in_thread(tickets_public.stop, app.state.db)  # CR-038 S4: the handler page's listener (joins 5 s), then its counters
-        await _stop_in_thread(tickets_messaging.stop)  # CR-038 S5b: the outbox worker (joins 5 s; a row in flight ends `unknown` at the next start)
-        # ASGI-295 F2: the daily backup loop is cancelled too, and every cancelled task is awaited (bounded; their own errors are not raised)
+        async def _in_thread_step(name: str, fn, *args) -> None:
+            try:
+                await _stop_in_thread(fn, *args)
+            except Exception:  # noqa: BLE001 - one failing stop never skips the later ones
+                log.warning("shutdown step %s failed", name, exc_info=True)
+
+        from .services import nvr_batch
+
+        _shutdown_step("nvr batch signal", nvr_batch.signal_shutdown)  # CR-020 S2C: first, so no batch starts another camera while the rest shuts down
+        from .services import cast_relay
+
+        _shutdown_step("cast relay", cast_relay.SERVER.stop)  # CR-028: the cast relay's listener (a running cast's token survives in the database, not the socket)
+        from .services.notices import listener as notice_listener
+
+        _shutdown_step("notice listener", notice_listener.SERVER.stop)  # CR-NOTICE106: the TV boards' LAN listener
+
+        await _in_thread_step("tickets public", tickets_public.stop, app.state.db)  # CR-038 S4: the handler page's listener (joins 5 s), then its counters
+        await _in_thread_step("tickets outbox", tickets_messaging.stop)  # CR-038 S5b: the outbox worker (joins 5 s; a row in flight ends `unknown` at the next start)
+        # ASGI-295 F2: the daily backup loop is cancelled too, and every cancelled task is awaited (bounded; their own errors are not raised).
+        # CR-MAIN-RUNTIME-2438: the start-up NVR discovery task is cancelled with them (a shutdown during start-up no longer leaves it running)
         stopping = []
         for name in ("janitor", "remote_revalidation", "backup_drill_task", "bridge_rotation_task", "fleet_report_task", "partner_webhooks_task",
-                     "backup_task"):
+                     "backup_task", "discovery"):
             task = getattr(app.state, name, None)
             if task and not task.done():
                 task.cancel()
                 stopping.append(task)
         if stopping:
             await asyncio.wait(stopping, timeout=5)
-        try:  # SEC3 (review L4): the last sign-in counters reach the database before the process ends
-            from .services import ha_user_auth as hua_svc
+        from .services import ha_user_auth as hua_svc
 
-            hua_svc.flush_limiter(app.state.db)
-        except Exception:  # noqa: BLE001
-            log.warning("rate limiter final flush failed", exc_info=True)
+        # SEC3 (review L4): the last sign-in counters reach the database before the process ends
+        _shutdown_step("rate limiter final flush", hua_svc.flush_limiter, app.state.db)
         from .services import events_ingest
         from .services import exports as ex
 
-        ex.WORKER.shutdown()
-        events_ingest.LISTENER.shutdown()
-        events_ingest.shutdown_extra()  # CR-024: the further recorders' alert streams
+        _shutdown_step("exports worker", ex.WORKER.shutdown)
+        _shutdown_step("alert listener", events_ingest.LISTENER.shutdown)
+        _shutdown_step("further alert listeners", events_ingest.shutdown_extra)  # CR-024: the further recorders' alert streams
         from .services import thumbnails as th
 
-        th.WORKER.stop_evt.set()
+        _shutdown_step("thumbnails worker", th.WORKER.stop_evt.set)
         from .services import ha_sync
 
-        ha_sync.SYNC.shutdown()
+        _shutdown_step("ha sync", ha_sync.SYNC.shutdown)
         from .services import lease_events
 
         # CR-WISKEY-LEASE-REVOCATION-EVENT T11: before the WisKey feed stops, any live capture lease is revoked (scope all) within 2 s
-        await _stop_in_thread(lease_events.WORKER.on_shutdown)
+        await _in_thread_step("capture lease revocation", lease_events.WORKER.on_shutdown)
         from .services import access_grants as access_grants_svc
 
-        access_grants_svc.WORKER.stop()
+        _shutdown_step("access grants worker", access_grants_svc.WORKER.stop)
         from .services import door_windows as door_windows_svc
 
-        door_windows_svc.WORKER.stop()
+        _shutdown_step("door windows worker", door_windows_svc.WORKER.stop)
         from .services import intercom_consent, intercom_sync
 
-        intercom_consent.RELEASER.stop()  # WA-CONSENT-LINK: no new release starts; due rows stay due for the next start
+        _shutdown_step("intercom consent releaser", intercom_consent.RELEASER.stop)  # WA-CONSENT-LINK: no new release starts; due rows stay due for the next start
         from .services import wiskey_direct_join as _wkj
 
         from .services import door_engine_live as _del
 
-        _del.uninstall()
+        _shutdown_step("door engine", _del.uninstall)
         from .services import wiskey_join_live as _wjl
 
-        _wjl.MANAGER.shutdown()  # WISKEY-JOIN-LIVE-2382: the manager's thread ends first, then the join stops cleanly (drained)
-        _wkj.shutdown()  # WKINT-295: the existing transports come back; the lineage closes (a no-op when nothing was installed)
-        intercom_sync.SYNC.shutdown()
-        intercom_sync.SYNC.journal = None  # R5-A6: nothing is sent after shutdown; unresolved rows stay for the next process
+        _shutdown_step("wiskey join manager", _wjl.MANAGER.shutdown)  # WISKEY-JOIN-LIVE-2382: the manager's thread ends first, then the join stops cleanly (drained)
+        _shutdown_step("wiskey direct join", _wkj.shutdown)  # WKINT-295: the existing transports come back; the lineage closes (a no-op when nothing was installed)
+        _shutdown_step("intercom sync", intercom_sync.SYNC.shutdown)
+
+        def _detach_journal() -> None:
+            intercom_sync.SYNC.journal = None  # R5-A6: nothing is sent after shutdown; unresolved rows stay for the next process
+
+        _shutdown_step("intercom sync journal", _detach_journal)
         from .services import energy_sampler
 
-        energy_sampler.SAMPLER.shutdown()
+        _shutdown_step("energy sampler", energy_sampler.SAMPLER.shutdown)
         from .services import water_sampler as _wsm
 
-        _wsm.SAMPLER.shutdown()
+        _shutdown_step("water sampler", _wsm.SAMPLER.shutdown)
         from .services import generator_runtime
 
-        generator_runtime.RUNNER.shutdown()
+        _shutdown_step("generator runtime", generator_runtime.RUNNER.shutdown)
         from .services import elevators_runtime as _elr
 
-        _elr.RUNNER.shutdown()
+        _shutdown_step("elevators runtime", _elr.RUNNER.shutdown)
         from .services import temperature_runtime as _tmr
 
-        _tmr.RUNNER.shutdown()
+        _shutdown_step("temperature runtime", _tmr.RUNNER.shutdown)
         from .services import scenarios as _scn
 
-        _scn.RUNNER.shutdown()
+        _shutdown_step("scenarios runtime", _scn.RUNNER.shutdown)
         from .services import wiskey_background_feed as _wbf
 
-        _wbf.FEED.shutdown()
+        _shutdown_step("wiskey background feed", _wbf.FEED.shutdown)
         from .services import push as push_svc
 
-        from starlette.concurrency import run_in_threadpool as _in_thread
-
-        await _in_thread(push_svc.NOTIFIER.shutdown)  # queued alerts get a few seconds to go out
+        await _in_thread_step("push notifier", push_svc.NOTIFIER.shutdown)  # queued alerts get a few seconds to go out
         from .services import notify_sources
 
-        await _in_thread(notify_sources.shutdown)
+        await _in_thread_step("notify sources", notify_sources.shutdown)
         from .services import intercom_calls as _intercom_calls
 
-        await _in_thread(_intercom_calls.WRITER.shutdown)
+        await _in_thread_step("intercom call writer", _intercom_calls.WRITER.shutdown)
         from .services import wiskey_triage as _wiskey_triage
 
-        await _in_thread(_wiskey_triage.FEED.shutdown)
+        await _in_thread_step("wiskey triage feed", _wiskey_triage.FEED.shutdown)
         from .services import intercom_media as _station_media
 
         # WKF01F02-295 (F01): the signed station-media provider's leased streams leave go2rtc and their timers are joined; never raises
-        await _in_thread(_station_media.shutdown_bridge)
+        await _in_thread_step("station media bridge", _station_media.shutdown_bridge)
         from .services import recorder_health
 
-        await _in_thread(recorder_health.POLLER.shutdown)
+        await _in_thread_step("recorder health poller", recorder_health.POLLER.shutdown)
         from .services import camera_image_health
 
-        await _in_thread(camera_image_health.POLLER.shutdown)
+        await _in_thread_step("camera image health poller", camera_image_health.POLLER.shutdown)
         from .services import camera_sources
 
-        await _in_thread(camera_sources.POLLER.shutdown)
+        await _in_thread_step("camera sources poller", camera_sources.POLLER.shutdown)
         from .services.transit import poller as transit_poller
 
-        await _in_thread(transit_poller.POLLER.shutdown)
-        await _in_thread(nvr_batch.shutdown)  # CR-020 S2C: each runner ends after its current camera; the rest is not attempted
+        await _in_thread_step("transit poller", transit_poller.POLLER.shutdown)
+        await _in_thread_step("nvr batch runners", nvr_batch.shutdown)  # CR-020 S2C: each runner ends after its current camera; the rest is not attempted
         from .routers import plan_geometry as plan_geometry_router
 
-        plan_geometry_router.shutdown_detect_pool()
-        app.state.db.close_pool()  # DB-CONN-POOL-2343: last, after every worker stopped - no idle connection keeps the files open
+        _shutdown_step("plan detect pool", plan_geometry_router.shutdown_detect_pool)
+        warmup = getattr(app.state, "startup_warmup", None)
+        if warmup is not None and warmup.is_alive():
+            # CR-MAIN-RUNTIME-2438: the read-only warm-up thread (a daemon, it cannot be cancelled) gets a bounded moment to end
+            # before the pool closes, so it never opens a connection behind close_pool
+            await _in_thread_step("startup warm-up", warmup.join, WARMUP_JOIN_S)
+        _shutdown_step("database pool", app.state.db.close_pool)  # DB-CONN-POOL-2343: last, after every worker stopped - no idle connection keeps the files open
 
     @app.get("/healthz", include_in_schema=False)
     async def healthz():
@@ -1449,13 +1480,27 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     return app
 
 
-class CommitBeforeSend:
-    """ASGI middleware: when a response starts, the request's SQLite connections (auth.get_conn / get_read_conn, kept in
-    the request state) are committed first (auth.release_request), so the body is sent without the transaction. FastAPI
-    closes a dependency with yield only after the whole response went out, so a download (an export, a bundle, a backup)
-    or a slow client over Ingress otherwise held SQLite's single write lock for the whole transfer - one of the holders
-    behind the round-10 "database is locked" storm. A handler that raised is unchanged: its dependency has already
-    committed (expected API errors, with their audit rows) or rolled back before the error response starts."""
+WARMUP_JOIN_S = 2.0  # shutdown: the longest wait for a still-running start-up warm-up thread before the pool closes
+BUSY_RETRY_AFTER_S = 2  # a "database is locked" answer: the Retry-After a client may honour (status stays 500, lead decision L1)
+
+
+def _shutdown_step(name: str, fn, *args) -> None:
+    """CR-MAIN-RUNTIME-2438 (review 05:P2-01): one stop of the shutdown sequence; a stop that raises is logged and the
+    sequence goes on, so the later stops (the capture-lease revocation, close_pool) always run."""
+    try:
+        fn(*args)
+    except Exception:  # noqa: BLE001 - one failing stop never skips the later ones
+        log.warning("shutdown step %s failed", name, exc_info=True)
+
+
+COMMIT_THREADS = 4  # CommitBeforeSend: worker threads of its own for the early commit (never the shared 40-thread pool)
+
+
+class CorrelationId:
+    """ASGI middleware (CR-MAIN-RUNTIME-2438, review 05:P3-02; was an @app.middleware("http") BaseHTTPMiddleware): the
+    request's correlation id into the request state, and the X-Correlation-Id header onto the response. Pure ASGI like the
+    other middlewares - no extra task per request, and a streamed body passes straight through.
+    SX-17: a client id is used only when it is one well-formed value (8-64 of [A-Za-z0-9_-]); never reflected otherwise."""
 
     def __init__(self, app) -> None:
         self.app = app
@@ -1464,7 +1509,49 @@ class CommitBeforeSend:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
-        from starlette.concurrency import run_in_threadpool
+        from starlette.datastructures import Headers, MutableHeaders
+
+        cid = correlation_id.resolve(Headers(scope=scope).getlist(correlation_id.HEADER))
+        scope.setdefault("state", {})["correlation_id"] = cid  # request.state.correlation_id
+
+        async def send_with_id(message) -> None:
+            if message["type"] == "http.response.start":
+                MutableHeaders(scope=message)["X-Correlation-Id"] = cid
+            await send(message)
+
+        await self.app(scope, receive, send_with_id)
+
+
+class CommitBeforeSend:
+    """ASGI middleware: when a response starts, the request's SQLite connections (auth.get_conn / get_read_conn, kept in
+    the request state) are committed first (auth.release_request), so the body is sent without the transaction. FastAPI
+    closes a dependency with yield only after the whole response went out, so a download (an export, a bundle, a backup)
+    or a slow client over Ingress otherwise held SQLite's single write lock for the whole transfer - one of the holders
+    behind the round-10 "database is locked" storm. A handler that raised is unchanged: its dependency has already
+    committed (expected API errors, with their audit rows) or rolled back before the error response starts.
+
+    CR-MAIN-RUNTIME-2438 (review 05:P1-01): the commit runs on a thread limiter of its own (COMMIT_THREADS). On the shared
+    default pool (40 threads, handed out in arrival order) it queued behind the requests parked in pool threads waiting for
+    the very gate this commit frees, so with 40 waiting writers it waited until one of them timed out - a burst of
+    "database is locked" with no slow holder. Same function, same thread kind, same order; only the queue it waits in."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+        self._limiter: tuple[object, object] | None = None  # (event loop, its CapacityLimiter)
+
+    def _commit_limiter(self):
+        import anyio
+
+        loop = asyncio.get_running_loop()
+        if self._limiter is None or self._limiter[0] is not loop:  # one per event loop (a test client runs its own loop)
+            self._limiter = (loop, anyio.CapacityLimiter(COMMIT_THREADS))
+        return self._limiter[1]
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        import anyio.to_thread
 
         from .auth import release_conns
 
@@ -1474,7 +1561,7 @@ class CommitBeforeSend:
             if message["type"] == "http.response.start":
                 conns = (scope.get("state") or {}).get("sw_conns")
                 if conns:
-                    await run_in_threadpool(release_conns, conns)
+                    await anyio.to_thread.run_sync(release_conns, conns, limiter=self._commit_limiter())
             await send(message)
 
         await self.app(scope, receive, send_after_commit)
