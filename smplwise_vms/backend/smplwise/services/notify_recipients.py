@@ -7,15 +7,15 @@ generator) used to carry their own copies; they now call these two functions and
         1. the named users                     (`users`)
         2. the members of the named groups     (`groups`)
         3. the holders of a routable role through a user binding
-        4. the holders of a routable role through a group binding (the group's members)   [role_via_groups]
-       A binding counts while it is not revoked, its effect is `allow` and it has not expired [role_expiry]. Only active users are returned
-       [active_only]. The caller intersects the result with who may see the subject (services/notify.recipients_for).
+        4. the holders of a routable role through a group binding (the group's members)
+       A binding counts while it is not revoked, its effect is `allow` and it has not expired. Only active users are returned. The caller
+       intersects the result with who may see the subject (services/notify.recipients_for).
 
     validate(conn, rec, field, routable_roles, error=..., role_message=..., users_max=..., groups_max=...)
         -> the canonical form {"roles": in routable order, "users": sorted unique, "groups": sorted unique}, or `error(code, he, en, details)`.
 
-The bracketed switches exist for the generator alone: its rule today resolves roles through user bindings only and does not look at
-`expires_at` (services/generator_alerts.ROLE_EXPANSION). Owner decision O1 decides whether it joins the defaults; that is a one-line change there.
+All four alert modules use the same rules. The generator held its old rule (user bindings only, `expires_at` ignored) behind switches until owner
+decision O1; O1 (a) was taken (OWNER-R32-BACKEND-2438) and the switches were removed with it.
 """
 from __future__ import annotations
 
@@ -36,8 +36,7 @@ def group_ids(conn: sqlite3.Connection) -> set[str]:
     return {r[0] for r in conn.execute("SELECT id FROM groups").fetchall()}
 
 
-def expand(conn: sqlite3.Connection, rec: dict[str, Any], routable_roles: Iterable[str], *, role_via_groups: bool = True, role_expiry: bool = True,
-           active_only: bool = True) -> list[str]:
+def expand(conn: sqlite3.Connection, rec: dict[str, Any], routable_roles: Iterable[str]) -> list[str]:
     """The user ids a recipients choice reaches (see the module docstring for the order and the rules)."""
     out: list[str] = list(rec.get("users") or [])
     grps = rec.get("groups") or []
@@ -48,16 +47,13 @@ def expand(conn: sqlite3.Connection, rec: dict[str, Any], routable_roles: Iterab
     roles = [r for r in (rec.get("roles") or []) if r in allowed]
     if roles:
         marks = ",".join("?" * len(roles))
-        expiry, args = ("AND (b.expires_at IS NULL OR b.expires_at > ?)", (*roles, now_iso())) if role_expiry else ("", tuple(roles))
+        expiry, args = "AND (b.expires_at IS NULL OR b.expires_at > ?)", (*roles, now_iso())
         out += [r[0] for r in conn.execute(
             f"""SELECT DISTINCT b.subject_id FROM bindings b WHERE b.subject_kind = 'user' AND b.role_id IN ({marks})
                 AND b.revoked_at IS NULL AND b.effect = 'allow' {expiry}""", args).fetchall()]
-        if role_via_groups:
-            out += [r[0] for r in conn.execute(
-                f"""SELECT DISTINCT m.user_id FROM bindings b JOIN group_members m ON m.group_id = b.subject_id WHERE b.subject_kind = 'group' AND b.role_id IN ({marks})
-                    AND b.revoked_at IS NULL AND b.effect = 'allow' {expiry}""", args).fetchall()]
-    if not active_only:
-        return list(dict.fromkeys(out))
+        out += [r[0] for r in conn.execute(
+            f"""SELECT DISTINCT m.user_id FROM bindings b JOIN group_members m ON m.group_id = b.subject_id WHERE b.subject_kind = 'group' AND b.role_id IN ({marks})
+                AND b.revoked_at IS NULL AND b.effect = 'allow' {expiry}""", args).fetchall()]
     active = active_user_ids(conn)
     return [u for u in dict.fromkeys(out) if u in active]
 

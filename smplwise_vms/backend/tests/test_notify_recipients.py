@@ -1,9 +1,9 @@
-"""CR-RECIPIENTS-2436 (review 04:F03, F18, F05 managers part, F02 behind a flag): the ONE recipient expansion and validation of the alert modules.
+"""CR-RECIPIENTS-2436 (review 04:F03, F18, F05 managers part) and OWNER-R32-BACKEND-2438 (04:F02, owner decision O1 (a)): the ONE recipient expansion and validation of the alert modules.
 
 `services/notify_recipients.expand` turns a saved `{roles, users, groups}` choice into user ids: the named users, the members of the named groups,
 the holders of a routable role directly and (by default) through a group, live bindings only (not revoked, `allow`, not expired), active users only.
-The temperature, water and elevator modules call it with the defaults; the generator calls it with its explicit parameters (no group-held roles, no
-expiry check, its own generator.view filter afterwards) until owner decision O1. The table below is the contract, case by case."""
+All four alert modules (temperature, water, elevator, generator) call it the same way; the generator keeps its own generator.view filter afterwards.
+The table below is the contract, case by case."""
 from __future__ import annotations
 
 import datetime as dt
@@ -91,22 +91,21 @@ def test_expand_order_and_duplicates():
     assert set(got) == {"u_named", "u_direct", "u_member", "u_future", "u_bygroup"} and len(got) == len(set(got))
 
 
-def test_expand_with_the_generator_parameters_keeps_todays_generator_rule():
-    """Today's generator rule (O1 pending): direct role holders only, expired bindings still count, no active filter here (principal_of drops
-    inactive users afterwards, together with the generator.view check)."""
-    conn = _db()
-    got = nr.expand(conn, {"users": ["u_named", "u_inactive"], "roles": ["operator"]}, generator_alerts.ROUTABLE_ROLES, **generator_alerts.ROLE_EXPANSION)
-    assert got[:2] == ["u_named", "u_inactive"]
-    assert {"u_direct", "u_expired", "u_future", "u_inactive_role"} <= set(got)
-    assert "u_bygroup" not in got and "u_revoked" not in got and "u_deny" not in got
-    assert generator_alerts.ROLE_EXPANSION == {"role_via_groups": False, "role_expiry": False, "active_only": False}
+def test_generator_has_no_held_role_rule_any_more():
+    """O1 (a): the generator joined the shared rules - the hold flag and the expansion switches are gone."""
+    assert not hasattr(generator_alerts, "ROLE_EXPANSION")
+    with pytest.raises(TypeError):
+        nr.expand(_db(), {"roles": ["operator"]}, generator_alerts.ROUTABLE_ROLES, role_via_groups=False)  # type: ignore[call-arg]
 
 
-def test_the_corrected_parameters_would_add_group_roles_and_drop_expired():
-    """What O1 (a) would change, shown on the shared function: the generator would then call it with the defaults."""
+def test_generator_roles_reach_group_holders_and_drop_expired():
+    """O1 (a) on the shared function with the generator's roles: a role held through a group counts, an expired, revoked or denied binding does
+    not, an inactive role holder is dropped."""
     conn = _db()
-    got = nr.expand(conn, {"roles": ["operator"]}, generator_alerts.ROUTABLE_ROLES)
-    assert "u_bygroup" in got and "u_expired" not in got and "u_inactive_role" not in got
+    got = nr.expand(conn, {"users": ["u_named", "u_inactive"], "roles": ["operator"]}, generator_alerts.ROUTABLE_ROLES)
+    assert got[0] == "u_named" and "u_inactive" not in got
+    assert {"u_direct", "u_future", "u_bygroup"} <= set(got)
+    assert not {"u_expired", "u_revoked", "u_deny", "u_inactive_role"} & set(got)
 
 
 def test_alert_modules_use_the_shared_expansion():
