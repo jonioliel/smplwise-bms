@@ -112,6 +112,8 @@ def test_playback_stream_source_has_backchannel_off(settings, monkeypatch):
     created: list[tuple[str, str]] = []
     monkeypatch.setattr(pb, "playback_rtsp_url", lambda rs, *a, **k: f"{BASE}/chID=8&date=2026-10-04&time=12:50:30&timelen=300&streamType=main&action=playback")
     monkeypatch.setattr(g2.Go2rtc, "ensure_stream", lambda self, name, src, check=None: created.append((name, src)) or "created")
+    # CR-GO2RTC-ADAPTER-2436: a playback generation is written with create_stream (no listing first); the source is the same
+    monkeypatch.setattr(g2.Go2rtc, "create_stream", lambda self, name, src: created.append((name, src)) or "created")
     monkeypatch.setattr("smplwise.recorder_scope.settings_for", lambda s, rid: s)
     import datetime as dt
 

@@ -10,7 +10,10 @@ import { describeError } from '../api/client';
 import type { DeviceTree } from '../api/devices';
 import type { Floor } from '../api/types';
 import { matchFloors, treeAreas, treeFloors, type AreaSource, type MatchLinks } from './xs-model';
-import { HOW_KEY, matchLine } from './sw-xsection';
+import type * as XsView from './sw-xsection'; // CR-SHELL-LAZY-2436: HOW_KEY and matchLine arrive with the section's chunk (see view)
+
+/** CR-SHELL-LAZY-2436: the cross-section module once its chunk landed (shared by every dialog of the page). */
+let loadedView: typeof XsView | null = null;
 
 const SRC_KEY: Record<AreaSource, XtKey> = { manual: 'homeLinkSrcManual', link: 'homeLinkSrcLink', map: 'homeLinkSrcMap', level: 'homeLinkSrcLevel', name: 'homeLinkSrcName' };
 
@@ -38,6 +41,8 @@ export class SwFloorHomeLink extends LitElement {
   @state() private modes: Record<string, AreaLinkMode> = {};
   @state() private busy = false;
   @state() private error = '';
+  /** CR-SHELL-LAZY-2436: the cross-section module (HOW_KEY, matchLine), a chunk of its own; null until it landed. */
+  @state() private view: typeof XsView | null = loadedView;
   private seeded = '';
 
   static styles = css`
@@ -118,7 +123,23 @@ export class SwFloorHomeLink extends LitElement {
     }
   }
 
+  connectedCallback() {
+    super.connectedCallback();
+    if (this.view) return;
+    void import('./sw-xsection').then(
+      (m) => {
+        loadedView = m;
+        this.view = m;
+      },
+      (err: unknown) => console.warn('cross-section chunk failed to load', err),
+    );
+  }
+
   render() {
+    // CR-SHELL-LAZY-2436 (review 08:F02): the dialog is drawn once the cross-section's chunk (its match words) landed - the first opening
+    // waits one chunk fetch, every later one draws at once
+    const view = this.view;
+    if (!view) return nothing;
     const f = this.floor;
     const t = this.tree;
     const cancel = () => this.dispatchEvent(new CustomEvent('close', { bubbles: true, composed: true }));
@@ -144,7 +165,7 @@ export class SwFloorHomeLink extends LitElement {
       const g = x.haFloorId ? haName.get(x.haFloorId) ?? x.haFloorId : xt('homeLinkNoFloor');
       groups.set(g, [...(groups.get(g) ?? []), x]);
     }
-    const ml = matchLine(mine);
+    const ml = view.matchLine(mine);
     const dirty = Object.keys(this.modes).length > 0 || JSON.stringify([...this.haFloors].sort()) !== JSON.stringify(this.savedHaFloors().sort());
     const anyHand = this.haFloors.length > 0 || draft.areas.some((r) => r.floor_id === f.id) || mine.excluded.length > 0;
     return html`<sw-dialog open heading=${xt('homeLinkTitle')} subheading=${xt('homeLinkSub', { name: f.name })} data-home-link>
@@ -153,14 +174,14 @@ export class SwFloorHomeLink extends LitElement {
         ${mine.haFloors.length
           ? html`<ul data-home-floors>${mine.haFloors.map((h) => html`<li data-home-floor=${h.id}>
               <span class="n" dir="auto">${bidi(h.name)}</span>
-              <span class="tag" data-src=${mine.how ?? ''}>${mine.how === 'link' ? xt('matchLink') : `${xt('homeLinkSrcAuto')} · ${xt(HOW_KEY[mine.how ?? 'level'])}`}</span>
+              <span class="tag" data-src=${mine.how ?? ''}>${mine.how === 'link' ? xt('matchLink') : `${xt('homeLinkSrcAuto')} · ${xt(view.HOW_KEY[mine.how ?? 'level'])}`}</span>
               ${mine.how === 'link'
                 ? html`<sw-button size="sm" variant="ghost" icon="close" data-home-floor-remove=${h.id} @click=${() => (this.haFloors = this.haFloors.filter((x) => x !== h.id))}>${xt('homeLinkRemove')}</sw-button>`
                 : html`<span></span>`}
             </li>`)}</ul>`
           : html`<div class="none">${xt('homeLinkFloorsNone')}</div>`}
         ${mine.suggestion
-          ? html`<div class="sug" data-home-suggest><span>${xt('homeLinkSuggest', { floor: mine.suggestion.haFloorName, how: xt(HOW_KEY[mine.suggestion.why]) })}</span>
+          ? html`<div class="sug" data-home-suggest><span>${xt('homeLinkSuggest', { floor: mine.suggestion.haFloorName, how: xt(view.HOW_KEY[mine.suggestion.why]) })}</span>
               <sw-button size="sm" variant="primary" data-home-confirm @click=${() => (this.haFloors = [...this.haFloors, mine.suggestion!.haFloorId])}>${xt('homeLinkConfirm')}</sw-button></div>`
           : nothing}
         <sw-field label=${xt('homeLinkAddFloor')} hint=${xt('homeLinkAutoHint')}>

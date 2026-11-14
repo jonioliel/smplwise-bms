@@ -1267,7 +1267,9 @@ export class DevicesBuilding extends LitElement {
   @state() private planFloors: PlanFloor[] = [];
   @state() private planFloorId: string | null = null;
   @state() private planPop: { area: DeviceArea; x: number; y: number } | null = null;
-  private planFloorsLoaded = false;
+  /** CR-HOME-RELOAD-2436 (06:DB-1): the plan floors' catalogue read - idle until the plan view first shows, then loading / ready, or error
+   * (the panel says so, with a retry; it no longer spins forever). */
+  @state() private planState: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
   /** Release 0.1.149: the user's own choice of what shows next to an area's name (a holder of screen.personalize), over prefs.areaRow. */
   @state() private personalRow: AreaRowPersonal | null = null;
   private prefsReady: Promise<void> = Promise.resolve();
@@ -2234,6 +2236,8 @@ export class DevicesBuilding extends LitElement {
   protected willUpdate(changed: PropertyValues) {
     // never hide what is selected: a floor that gets selected (the tree, a floor card, the filter) opens in the tree
     if (changed.has('selected') && this.collapsed.has(this.selected)) this.setCollapsed(this.selected, false);
+    // CR-HOME-RELOAD-2436 (06:DB-1): the plan view's catalogue is read the first time that view shows (was: started inside renderPlan)
+    if (this.layout === 'plan' && this.planState === 'idle' && this.tree) void this.loadPlanFloors();
     // HOME-EDIT-DRAWER-2351: a card picked on the page (or its device tiles opened) shows its panel - the drawer opens on the card
     // tab; when the pick is cleared the drawer goes back to the screen tab. Focus stays where it is (a card moved by the arrows keeps it).
     const sel = this.lay.editing ? this.lay.tileCard ?? this.lay.selected : null;
@@ -3727,11 +3731,20 @@ export class DevicesBuilding extends LitElement {
 
   /** K88: the plan view - the floors tree stays at the side, the selected floor's live plan fills the rest; a room tap
    * opens the area's summary (the same popover as a tree row), "פתח אזור" and "הצג על המפה" inside it. */
-  private renderPlan(t: DeviceTree, noTree = false) {
-    if (!this.planFloorsLoaded) {
-      this.planFloorsLoaded = true;
-      void loadCatalogTree().then((c) => { this.planFloors = c.sites.flatMap((s) => (s.buildings ?? []).flatMap((b) => b.floors ?? [])); }).catch(() => {});
+  /** CR-HOME-RELOAD-2436 (06:DB-1): the plan floors of the catalogue - one loader, its failure shown with a retry (the retry button calls it). */
+  private async loadPlanFloors() {
+    if (this.planState === 'loading') return;
+    this.planState = 'loading';
+    try {
+      const c = await loadCatalogTree();
+      this.planFloors = c.sites.flatMap((s) => (s.buildings ?? []).flatMap((b) => b.floors ?? []));
+      this.planState = 'ready';
+    } catch {
+      this.planState = 'error';
     }
+  }
+
+  private renderPlan(t: DeviceTree, noTree = false) {
     const floors = this.planFloors.filter((f) => f.has_plan);
     const floorId = this.planFloorFor(t, floors);
     const pop = this.planPop;
@@ -3745,9 +3758,11 @@ export class DevicesBuilding extends LitElement {
           : nothing}
         ${floorId
           ? html`<explore-floor-map embedded data-plan-map .floorId=${floorId} @area-open=${(e: CustomEvent<{ zone_id: string; zone_name: string; area_id: string | null; x: number; y: number }>) => this.onAreaOpen(t, e)}></explore-floor-map>`
-          : this.planFloorsLoaded && this.planFloors.length
+          : this.planState === 'ready' && this.planFloors.length
             ? html`<sw-state-panel icon="building" state="empty" heading="אין תוכנית קומה" hint="העלו תוכנית לקומה במפה כדי לראות אותה כאן."></sw-state-panel>`
-            : html`<sw-state-panel state="loading"></sw-state-panel>`}
+            : this.planState === 'error'
+              ? html`<sw-state-panel data-plan-state="error" state="error" heading="לא ניתן לטעון את תוכניות הקומות" actionLabel="נסה שוב" @action=${() => void this.loadPlanFloors()}></sw-state-panel>`
+              : html`<sw-state-panel state="loading"></sw-state-panel>`}
         ${pop
           ? html`<div class="planpop" data-plan-pop style=${`left:${Math.round(pop.x)}px;top:${Math.round(pop.y)}px`}>
               <devices-bulk-menu data-plan-pop-menu scope="area" .targetId=${pop.area.area_id} .targetName=${pop.area.name} .counts=${pop.area.counts} variant="popover" align="start"

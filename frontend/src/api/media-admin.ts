@@ -11,7 +11,7 @@ import { isApi } from './session';
 import { getDevicesTree } from './devices';
 import type { KeyId, MediaKind, ProfileId } from './media-screens';
 import type { MusicProvider, PlayerKind, VolumeNight } from './media-players';
-import { playersMock } from './media-players-mock';
+import type { PlayersMockStore } from './media-players-mock';
 
 export type Control = 'power' | 'volume' | 'mute' | 'sources' | 'apps' | 'keys' | 'now_playing';
 /** CR-016: `music` (the device's music layer, CR §5.2) and `mirror` (a poorer cloud twin, hidden, never primary) join the CR-015 roles. */
@@ -183,13 +183,17 @@ function demoDevices(): AdminDevice[] {
   ];
 }
 
+/** CR-MOCKS-LAZY-2436 (review 07:F2): the players mock is fetched on the demo's first call - with a backend it is never loaded. */
+const playersMock = (): Promise<PlayersMockStore> => import('./media-players-mock').then((m) => m.playersMock());
+
 class DemoAdmin implements AdminAdapter {
   devices = demoDevices();
   suggestions: AdminSuggestion[] = [{ endpoint_id: 'ha:media_player.demo_new', device_key: 'md-kitchen', rule: 'weak', reason: 'אותו חדר ושם דומה' }];
 
   /** The screens of this demo, then every player of the players mock (CR-016: speakers, players, receivers, groups, approved or not). */
-  private snapshot(): AdminList {
-    return clone({ devices: [...this.devices, ...playersMock().adminList()], suggestions: this.suggestions });
+  private async snapshot(): Promise<AdminList> {
+    const pm = await playersMock();
+    return clone({ devices: [...this.devices, ...pm.adminList()], suggestions: this.suggestions });
   }
 
   async list() {
@@ -198,13 +202,14 @@ class DemoAdmin implements AdminAdapter {
 
   async update(key: string, patch: AdminDevicePatch) {
     if (key.startsWith('mp-')) {
+      const pm = await playersMock();
       const area = patch.area_id ? DEMO_AREAS.find((a) => a.id === patch.area_id) : patch.area_id === null ? null : undefined;
-      playersMock().adminPatch(key, {
+      pm.adminPatch(key, {
         ...(area !== undefined ? { area: area ? { id: area.id, name: area.name, floor: area.floor_name ? [DEMO_FLOOR_IDS[area.floor_name] ?? area.floor_name, area.floor_name] : null } : null } : {}),
         ...(patch.volume_max !== undefined ? { volume_max: patch.volume_max } : {}), ...(patch.volume_night !== undefined ? { volume_night: patch.volume_night } : {}),
         ...(patch.approved !== undefined ? { approved: patch.approved } : {}), ...(patch.display_name ? { name: patch.display_name.trim() } : {}),
       });
-      return clone(playersMock().adminList().find((x) => x.key === key) ?? ({ key, name: key, kind: 'virtual_group', approved: patch.approved !== false } as AdminDevice)); // a helper group has no card of its own: the settings only read `approved`
+      return clone(pm.adminList().find((x) => x.key === key) ?? ({ key, name: key, kind: 'virtual_group', approved: patch.approved !== false } as AdminDevice)); // a helper group has no card of its own: the settings only read `approved`
     }
     const d = this.devices.find((x) => x.key === key);
     if (!d) throw new Error('not found');
@@ -226,6 +231,7 @@ class DemoAdmin implements AdminAdapter {
   }
 
   async link(op: LinkOp) {
+    const pm = await playersMock();
     for (const d of this.devices) {
       const e = d.endpoints.find((x) => x.endpoint_id === op.endpoint_id);
       if (!e) continue;
@@ -234,14 +240,15 @@ class DemoAdmin implements AdminAdapter {
       if (op.op === 'unlink') e.link_source = 'manual';
     }
     if (op.op === 'link') this.suggestions = this.suggestions.filter((s) => s.endpoint_id !== op.endpoint_id);
-    if (op.op === 'link' || op.op === 'ignore') playersMock().answerSuggestion(op.op, op.endpoint_id, op.device_key); // the merge wizard's row leaves its list
+    if (op.op === 'link' || op.op === 'ignore') pm.answerSuggestion(op.op, op.endpoint_id, op.device_key); // the merge wizard's row leaves its list
     return this.snapshot();
   }
 
   async approve(keys: string[] | null, approved: boolean, kinds?: PlayerKind[]): Promise<ApproveResult> {
+    const pm = await playersMock();
     const own = keys?.filter((k) => !k.startsWith('mp-')) ?? [];
     for (const d of this.devices) if (keys ? own.includes(d.key) : !kinds?.length && d.kind === 'screen') d.approved = approved;
-    const players = keys === null && !kinds?.length ? null : playersMock().approve(keys ? keys.filter((k) => k.startsWith('mp-')) : null, approved, kinds);
+    const players = keys === null && !kinds?.length ? null : pm.approve(keys ? keys.filter((k) => k.startsWith('mp-')) : null, approved, kinds);
     const screens = this.devices.filter((d) => d.kind === 'screen');
     return {
       requested: keys ? keys.length : (players?.requested ?? screens.length), changed: players?.changed ?? own.length,

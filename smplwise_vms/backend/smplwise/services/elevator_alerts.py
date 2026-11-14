@@ -29,6 +29,7 @@ from ..audit import audit
 from ..db import now_iso
 from . import elevators as el
 from . import notify, notify_policy
+from . import notify_recipients
 
 SOURCE_PREFIX = "elevator."
 # the roles that may receive elevator alerts: the holders of devices.read (a kiosk is a screen, not a person)
@@ -102,8 +103,7 @@ def _validate(conn: sqlite3.Connection, body: dict[str, Any], cur: dict[str, Any
     unknown = [k for k in states if k not in el.ALERT_ROLES]
     if unknown:
         raise AlertsInvalid("validation", "מצב לא מוכר.", "Unknown state.", {"fields": [f"states.{k}" for k in unknown]})
-    active_users = {r[0] for r in conn.execute("SELECT id FROM users WHERE active = 1").fetchall()}
-    groups = {r[0] for r in conn.execute("SELECT id FROM groups").fetchall()}
+    known = notify_recipients.Known.read(conn)  # read once for every state of the save
     for role, s in states.items():
         if not isinstance(s, dict) or set(s) - {"enabled", "recipients", "channels"}:
             raise AlertsInvalid("validation", "מבנה לא תקין.", "Invalid structure.", {"fields": [f"states.{role}"]})
@@ -113,19 +113,9 @@ def _validate(conn: sqlite3.Connection, body: dict[str, Any], cur: dict[str, Any
                 raise AlertsInvalid("validation", "הערך חייב להיות כן או לא.", "The value must be true or false.", {"fields": [f"states.{role}.enabled"]})
             st["enabled"] = s["enabled"]
         if "recipients" in s:
-            rec = s["recipients"]
-            if not isinstance(rec, dict) or set(rec) - {"roles", "users", "groups"}:
-                raise AlertsInvalid("validation", "נמענים לא תקינים.", "Invalid recipients.", {"fields": [f"states.{role}.recipients"]})
-            roles, users, grps = rec.get("roles") or [], rec.get("users") or [], rec.get("groups") or []
-            if not all(isinstance(x, list) for x in (roles, users, grps)) or len(users) > USERS_MAX or len(grps) > GROUPS_MAX or len(roles) > len(ROUTABLE_ROLES):
-                raise AlertsInvalid("validation", "נמענים לא תקינים.", "Invalid recipients.", {"fields": [f"states.{role}.recipients"]})
-            if any(r not in ROUTABLE_ROLES for r in roles):
-                raise AlertsInvalid("recipient_role", "תפקיד שלא יכול לקבל התראות מעליות.", "This role cannot receive elevator alerts.", {"fields": [f"states.{role}.recipients.roles"]})
-            if any(u not in active_users for u in users):
-                raise AlertsInvalid("recipient_user", "משתמש לא מוכר.", "Unknown user.", {"fields": [f"states.{role}.recipients.users"]})
-            if any(g not in groups for g in grps):
-                raise AlertsInvalid("recipient_group", "קבוצה לא מוכרת.", "Unknown group.", {"fields": [f"states.{role}.recipients.groups"]})
-            st["recipients"] = {"roles": [r for r in ROUTABLE_ROLES if r in roles], "users": sorted(set(users)), "groups": sorted(set(grps))}
+            st["recipients"] = notify_recipients.validate(conn, s["recipients"], f"states.{role}.recipients", ROUTABLE_ROLES, error=AlertsInvalid,
+                                                          role_message=("תפקיד שלא יכול לקבל התראות מעליות.", "This role cannot receive elevator alerts."),
+                                                          users_max=USERS_MAX, groups_max=GROUPS_MAX, known=known)
         if "channels" in s:
             ch = s["channels"]
             if not isinstance(ch, list) or any(c not in CHANNELS for c in ch):
@@ -220,20 +210,4 @@ def recipient_users(conn: sqlite3.Connection, n: dict[str, Any]) -> list[str]:
     s = load(conn)
     if role not in el.ALERT_ROLES or not is_on(s, role):
         return []
-    rec = s["states"][role]["recipients"]
-    out: list[str] = list(rec["users"])
-    if rec["groups"]:
-        marks = ",".join("?" * len(rec["groups"]))
-        out += [r[0] for r in conn.execute(f"SELECT user_id FROM group_members WHERE group_id IN ({marks})", rec["groups"]).fetchall()]
-    roles = [r for r in rec["roles"] if r in ROUTABLE_ROLES]
-    if roles:
-        marks = ",".join("?" * len(roles))
-        now = now_iso()
-        out += [r[0] for r in conn.execute(
-            f"""SELECT DISTINCT b.subject_id FROM bindings b WHERE b.subject_kind = 'user' AND b.role_id IN ({marks})
-                AND b.revoked_at IS NULL AND b.effect = 'allow' AND (b.expires_at IS NULL OR b.expires_at > ?)""", (*roles, now)).fetchall()]
-        out += [r[0] for r in conn.execute(
-            f"""SELECT DISTINCT m.user_id FROM bindings b JOIN group_members m ON m.group_id = b.subject_id WHERE b.subject_kind = 'group' AND b.role_id IN ({marks})
-                AND b.revoked_at IS NULL AND b.effect = 'allow' AND (b.expires_at IS NULL OR b.expires_at > ?)""", (*roles, now)).fetchall()]
-    active = {r[0] for r in conn.execute("SELECT id FROM users WHERE active = 1").fetchall()}
-    return [u for u in dict.fromkeys(out) if u in active]
+    return notify_recipients.expand(conn, s["states"][role]["recipients"], ROUTABLE_ROLES)  # CR-RECIPIENTS-2436: the shared expansion

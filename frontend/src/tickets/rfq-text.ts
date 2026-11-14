@@ -10,10 +10,11 @@
  */
 import { tn, type TicketLang } from './naming';
 import { ticketsLang } from './text';
+import { NAV_RFQ_EN, NAV_RFQ_HE } from './nav-text';
 
 const he = {
   // the page and the navigation
-  navTitle: 'בקשות הצעת מחיר',
+  navTitle: NAV_RFQ_HE.navTitle, // CR-SHELL-LAZY-2436: the two shell words live in tickets/nav-text.ts
   oneTitle: 'בקשת הצעת מחיר',
   newTitle: 'בקשת הצעת מחיר חדשה',
   newShort: 'בקשה חדשה',
@@ -627,7 +628,7 @@ const he = {
   qToAll: 'נשלחה לכל הספקים',
   qVendorNote: 'הערת ספק',
   qNoteTitle: 'הספק כתב הערה בהצעה',
-  navQuestionsAria: '{n} שאלות של ספקים ממתינות',
+  navQuestionsAria: NAV_RFQ_HE.navQuestionsAria,
   ev_vendor_message: 'שאלה מ{vendor}',
   ev_question_answered: 'נשלחה תשובה לשאלה של {vendor} · {actor}',
   ev_question_resolved: 'שאלה של {vendor} סומנה כמטופלת · {actor}',
@@ -679,7 +680,7 @@ const he = {
 export type RfqTextKey = keyof typeof he;
 
 const en: Partial<Record<RfqTextKey, string>> = {
-  navTitle: 'Requests for quotation',
+  navTitle: NAV_RFQ_EN.navTitle,
   oneTitle: 'Request for quotation',
   newTitle: 'New request for quotation',
   newShort: 'New request',
@@ -1268,7 +1269,7 @@ const en: Partial<Record<RfqTextKey, string>> = {
   qToAll: 'sent to every vendor',
   qVendorNote: 'Vendor note',
   qNoteTitle: 'The vendor wrote a note on the quote',
-  navQuestionsAria: '{n} vendor questions waiting',
+  navQuestionsAria: NAV_RFQ_EN.navQuestionsAria,
   ev_vendor_message: 'Question from {vendor}',
   ev_question_answered: 'Answer sent to {vendor}\'s question · {actor}',
   ev_question_resolved: '{vendor}\'s question marked handled · {actor}',

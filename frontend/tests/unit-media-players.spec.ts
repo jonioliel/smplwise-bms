@@ -654,9 +654,12 @@ test.describe('media-players client: the house without a music library (mock)', 
 });
 
 test.describe('media-players client: selection, HTTP adapter and error mapping', () => {
-  test('without a backend the adapter in force is the mock (the same selector as CR-015)', () => {
-    expect(players()).toBe(playersMock());
+  test('without a backend the adapter in force is the mock (the same selector as CR-015)', async () => {
+    // CR-MOCKS-LAZY-2436: the mock is loaded on the first demo call, so the adapter is a forwarder to the store in force, not the store
     expect(players()).not.toBe(httpPlayers);
+    const m = resetPlayersMock('ma');
+    expect((await players().list()).devices).toEqual((await m.list()).devices);
+    expect(playersMock()).toBe(m);
   });
 
   test('error labels: the new codes have Hebrew lines, none names the infrastructure', () => {

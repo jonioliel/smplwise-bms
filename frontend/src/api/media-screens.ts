@@ -14,7 +14,7 @@
 import { del, get, post, put, resourceUrl } from './client';
 import { commandId } from './request-id';
 import { isApi } from './session';
-import { mediaMock } from './media-screens-mock';
+import { lazyAdapter } from './demo-load';
 
 // ------------------------------------------------------------------------------------------------ vocabulary (§2)
 
@@ -344,8 +344,12 @@ export const httpAdapter: MediaAdapter = {
   bulkRun: (scope, id, client_request_id, expires_at) => post('multimedia/actions', { scope, id, kind: 'screens_off', confirmed: true, client_request_id, expires_at }),
 };
 
+/** CR-MOCKS-LAZY-2436 (review 07:F2): the mock (./media-screens-mock.ts) is fetched on the first demo call - with a backend it is never
+ * loaded. Each call reads the mock's current store (`mediaMock()`), as before. */
+const demoAdapter = lazyAdapter<MediaAdapter>(() => import('./media-screens-mock').then((m) => m.mediaMock()), {});
+
 /** The adapter in force: HTTP with a backend, the mock otherwise. */
-export const media = (): MediaAdapter => (isApi() ? httpAdapter : mediaMock());
+export const media = (): MediaAdapter => (isApi() ? httpAdapter : demoAdapter);
 
 /** The URL of `live.now.artwork`: the server sends a path relative to the page (`api/v1/multimedia/devices/<key>/artwork?v=`),
  * resolved like every other server resource so it also works under HA Ingress; an absolute URL is left alone. */
