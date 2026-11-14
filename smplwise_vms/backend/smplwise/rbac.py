@@ -195,10 +195,16 @@ def scope_chain(conn: sqlite3.Connection, target_type: str, target_id: str) -> l
         chain.append(("floor", row["id"]))
         target_type, target_id = "building", row["building_id"]
     if target_type == "building":
-        row = conn.execute("SELECT id, site_id FROM buildings WHERE id = ?", (target_id,)).fetchone()
+        row = conn.execute("SELECT id, site_id, deleted_at FROM buildings WHERE id = ?", (target_id,)).fetchone()
         if not row:
             return chain + [INSTALLATION]
         chain.append(("building", row["id"]))
+        if row["deleted_at"] is not None:
+            # CR-RBAC-EVAL-2438 (code review 02:P3-4, owner decision O20 a): a deleted building no longer sits under its site -
+            # the same rule as station_chain. The building node stays in the chain so a DENY bound on it still bites; an ALLOW
+            # bound on it grants nothing (_active_bindings drops allows on dead places).
+            chain.append(INSTALLATION)
+            return chain
         target_type, target_id = "site", row["site_id"]
     if target_type == "site":
         chain.append(("site", target_id))
@@ -233,7 +239,50 @@ def station_chain(conn: sqlite3.Connection, station_id: str) -> list[tuple[str, 
     return chain
 
 
+_PLACE_SCOPES = ("site", "building", "floor")
+
+
+def dead_places(conn: sqlite3.Connection, nodes: set[tuple[str, str]] | list[tuple[str, str]]) -> set[tuple[str, str]]:
+    """CR-RBAC-EVAL-2438 (code review 02:P3-4, owner decision Q-SEC-4 / O20 a): of the given (scope_type, scope_id) nodes, the
+    places that no longer exist - a site, building or floor that is soft-deleted, whose row is gone (an orphaned scope row: a
+    binding that outlived its place), or that hangs under a deleted or missing building / site. Installation, camera and station
+    nodes are never reported here (a camera hangs on floors, which are judged here; a station has station_chain).
+    At most three statements, only for the place types present."""
+    out: set[tuple[str, str]] = set()
+    for kind in _PLACE_SCOPES:
+        ids = sorted({sid for st, sid in nodes if st == kind})
+        if not ids:
+            continue
+        marks = ",".join("?" * len(ids))
+        if kind == "site":
+            sql = f"SELECT s.id FROM sites s WHERE s.id IN ({marks}) AND s.deleted_at IS NULL"
+        elif kind == "building":
+            sql = (f"SELECT b.id FROM buildings b JOIN sites s ON s.id = b.site_id "
+                   f"WHERE b.id IN ({marks}) AND b.deleted_at IS NULL AND s.deleted_at IS NULL")
+        else:
+            sql = (f"SELECT f.id FROM floors f JOIN buildings b ON b.id = f.building_id JOIN sites s ON s.id = b.site_id "
+                   f"WHERE f.id IN ({marks}) AND f.deleted_at IS NULL AND b.deleted_at IS NULL AND s.deleted_at IS NULL")
+        live = {r[0] for r in conn.execute(sql, ids).fetchall()}
+        out.update((kind, i) for i in ids if i not in live)
+    return out
+
+
+def _drop_dead_allows(conn: sqlite3.Connection, rows: list[sqlite3.Row]) -> list[sqlite3.Row]:
+    """An ALLOW bound on a dead place (dead_places) grants nothing - not there, not on its floors, areas or cameras, and not in
+    permissions_anywhere. A DENY bound there is kept: it can only take access away (fail closed)."""
+    nodes = {(b["scope_type"], b["scope_id"]) for b in rows if b["effect"] != "deny" and b["scope_type"] in _PLACE_SCOPES}
+    if not nodes:
+        return rows
+    dead = dead_places(conn, nodes)
+    if not dead:
+        return rows
+    return [b for b in rows if b["effect"] == "deny" or (b["scope_type"], b["scope_id"]) not in dead]
+
+
 def _active_bindings(conn: sqlite3.Connection, principal: Principal) -> list[sqlite3.Row]:
+    """The principal's bindings in force (direct and through a group). An allow bound on a deleted / orphaned place is left out
+    (`_drop_dead_allows`): every reader of this list - authorize, effective_permissions, permissions_anywhere, the camera scope,
+    bindings_of (/me and the role checks built on it), has_any_binding - then agrees that it grants nothing."""
     now = now_iso()
     rows = conn.execute(
         """SELECT b.* FROM bindings b
@@ -246,7 +295,7 @@ def _active_bindings(conn: sqlite3.Connection, principal: Principal) -> list[sql
         # USR2 defence in depth: a local identity never holds system_admin, and never anything through a group (the routes refuse
         # both; a row written behind their back - a restored archive, a hand edit - still grants nothing)
         rows = [b for b in rows if b["role_id"] != "system_admin" and b["subject_kind"] == "user"]
-    return rows
+    return _drop_dead_allows(conn, rows)
 
 
 def _demo_refuses(conn: sqlite3.Connection, permission: str) -> bool:

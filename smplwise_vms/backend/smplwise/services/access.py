@@ -45,7 +45,9 @@ class CameraScope:
 
 def _chains(conn: sqlite3.Connection) -> dict[str, set[tuple[str, str]]]:
     """Every registered camera's scope chain in three queries (the batched form of rbac.scope_chain('camera', …))."""
-    buildings = {r["id"]: r["site_id"] for r in conn.execute("SELECT id, site_id FROM buildings").fetchall()}
+    # CR-RBAC-EVAL-2438 (02:P3-4, owner decision O20 a): a deleted building no longer sits under its site (rbac.scope_chain); its own
+    # node stays in the chain so a deny bound on it still bites - an allow bound on it is already gone (rbac._active_bindings)
+    buildings = {r["id"]: r["site_id"] for r in conn.execute("SELECT id, site_id FROM buildings WHERE deleted_at IS NULL").fetchall()}
     floors = {r["id"]: r["building_id"] for r in conn.execute("SELECT id, building_id FROM floors WHERE deleted_at IS NULL").fetchall()}
     chains: dict[str, set[tuple[str, str]]] = {r["id"]: {("camera", r["id"]), INSTALLATION} for r in conn.execute("SELECT id FROM cameras").fetchall()}
     anchored = [(a["resource_id"], a["floor_id"]) for a in conn.execute("SELECT resource_id, floor_id FROM map_anchors WHERE resource_type = 'camera' AND effective_to IS NULL").fetchall()]

@@ -104,8 +104,10 @@ class Viewer:
     @property
     def anywhere(self) -> frozenset[str]:
         if self._anywhere is None:
-            row = self.conn.execute("SELECT active FROM users WHERE id = ?", (self.uid,)).fetchone()
-            active = row is None or bool(row["active"])
+            # CR-RBAC-EVAL-2438 (owner decision O16 a): disabled on either side holds nothing (services/active_users); no row = not disabled
+            from ..active_users import is_disabled
+
+            active = not is_disabled(self.conn, self.uid)
             self._anywhere = frozenset(permissions_anywhere(self.conn, self.principal)) if active else frozenset()
         return self._anywhere
 
