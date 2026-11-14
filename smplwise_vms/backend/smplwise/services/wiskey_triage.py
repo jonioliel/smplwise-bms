@@ -43,8 +43,6 @@ import logging
 import secrets
 import sqlite3
 import threading
-import time
-from collections import deque
 from typing import Any, Callable
 
 from ..config import Settings
@@ -52,7 +50,7 @@ from ..db import Database, get_setting
 from . import intercom_adapter as ad
 from . import intercom_authority as ia
 from . import intercom_client
-from .intercom_client import IntercomError, UnclearAnswer
+from . import wiskey_write_limits as wl
 
 log = logging.getLogger("smplwise.intercom")
 
@@ -194,16 +192,9 @@ def project_alert_page(raw: Any) -> dict[str, Any]:
 def result_of(frame: dict[str, Any], command: str) -> Any:
     """`success: true` -> the result; `success: false` with a code -> a definite refusal (IntercomError: the feed's outcome `refused`,
     WisKey's code is the reason) - every one of these commands checks before it writes; an unclear code or a frame that is neither ->
-    UnclearAnswer (outcome unknown: "sent, no clear answer")."""
-    if frame.get("success") is True:
-        return frame.get("result")
-    if frame.get("success") is False:
-        error = frame.get("error") if isinstance(frame.get("error"), dict) else {}
-        code = str(error.get("code") or "")
-        if code not in UNCLEAR_CODES and ad.CODE.fullmatch(code):
-            raise IntercomError(code, command)
-        raise UnclearAnswer(command, code or "action_failed")
-    raise UnclearAnswer(command, "invalid_response")
+    UnclearAnswer (outcome unknown: "sent, no clear answer"). The reading is the shared one (services/wiskey_write_limits.py) with this
+    module's UNCLEAR_CODES."""
+    return wl.result_of(frame, command, UNCLEAR_CODES)
 
 
 def _ct(command: str) -> str:
@@ -244,54 +235,24 @@ COOLDOWN_S = {"review": 3.0, "write": 10.0}  # per target (station + person, or 
 COOLDOWN_SCALE = 1.0  # tests shrink it
 
 
-class Limits:
-    """In-process limits on top of the feed's buckets. A refusal is `(code, retry_after_s)`; an admitted command holds one in-flight slot
-    of its class until `done`. The cool-down starts only when the command was handed to WisKey (`sent`)."""
+class Limits(wl.WriteLimits):
+    """In-process limits on top of the feed's buckets (services/wiskey_write_limits.py with this module's constants, one class per
+    `review` / `write`: the window, the in-flight cap and the cool-down are each per class). A refusal is `(code, retry_after_s)`; an
+    admitted command holds one in-flight slot of its class until `done`. The cool-down starts only when the command was handed to WisKey
+    (`sent`)."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._last: dict[tuple[str, str], float] = {}
-        self._users: dict[tuple[str, str], deque[float]] = {}
-        self._inflight = {"review": 0, "write": 0}
+        super().__init__("triage", busy_retry_s=2.0)
 
     def cooldown_left(self, cls: str, target: str, now: float | None = None) -> float:
-        with self._lock:
-            at = self._last.get((cls, target))
-        if at is None:
-            return 0.0
-        left = COOLDOWN_S[cls] * COOLDOWN_SCALE - ((time.monotonic() if now is None else now) - at)
-        return max(0.0, round(left, 1))
+        return self.key_cooldown_left((cls, target), COOLDOWN_S[cls] * COOLDOWN_SCALE, now)
 
     def admit(self, user: str, cls: str, target: str) -> tuple[str, float] | None:
-        now = time.monotonic()
-        left = self.cooldown_left(cls, target, now)
-        if left > 0:
-            return "triage_cooldown", left
-        with self._lock:
-            window = self._users.setdefault((cls, user), deque())
-            while window and now - window[0] >= USER_WINDOW_S:
-                window.popleft()
-            if len(window) >= USER_MAX[cls]:
-                return "triage_rate_limited", round(USER_WINDOW_S - (now - window[0]), 1)
-            if self._inflight[cls] >= MAX_INFLIGHT[cls]:
-                return "triage_busy", 2.0
-            window.append(now)
-            self._inflight[cls] += 1
-        return None
+        return self.admit_key((cls, user), (cls, target), cooldown_s=COOLDOWN_S[cls] * COOLDOWN_SCALE, window_s=USER_WINDOW_S, user_max=USER_MAX[cls],
+                              max_inflight=MAX_INFLIGHT[cls], cls=cls)
 
     def sent(self, cls: str, target: str) -> None:
-        with self._lock:
-            self._last[(cls, target)] = time.monotonic()
-
-    def done(self, cls: str) -> None:
-        with self._lock:
-            self._inflight[cls] = max(0, self._inflight[cls] - 1)
-
-    def reset(self) -> None:
-        with self._lock:
-            self._last.clear()
-            self._users.clear()
-            self._inflight = {"review": 0, "write": 0}
+        self.mark_sent((cls, target))
 
 
 LIMITS = Limits()
