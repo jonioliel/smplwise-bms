@@ -86,7 +86,19 @@ Run locally (workstation, `.venv` Python, `pytest -p no:xdist`):
 - Existing: `tests/test_correlation.py`, `tests/test_correlation_id_sx17.py`, `tests/test_db_gate.py`,
   `tests/test_outage_run_t035.py`, `tests/test_asgi_wiskey_295.py`.
 
-RESULTS: filled in below after the runs.
+- Frontend: `tests/unit-update-run-outage-2438.spec.ts` (new, 2 tests, `playwright.unit.config.ts`, `--workers=1`).
+
+RESULTS (actually run, 2026-11-14, workstation):
+
+- P1-01 test against the ORIGINAL `main.py` (fix stashed): **FAILED** as expected (gate time-outs, holder kept the lock
+  4.2 s) - the finding is reproduced. With the fix: passed.
+- All eight backend files above in one run: **116 passed, 0 failed** (`pytest -p no:xdist`).
+- The three new backend files again after the last text-only edit (two Hebrew user messages), on the committed code:
+  this line: **11 passed, 0 failed**.
+- Frontend unit spec: **2 passed**. `npx tsc --noEmit`: clean (no output).
+- `git merge-tree` of this branch with each of `BACKEND-SAFETY-2435`, `AUTH-REVOKE-GATE-2435`, `TICKETS-PERF-ERASE-2435`,
+  `SESSION-DEMO-WS-2435`: no conflict. (`AUDIT30-COMBINED-2435` conflicts only in `frontend/src/screens/live-camera.ts`,
+  which is the same conflict it already has with `origin/main`; not a file of this branch.)
 
 NOT_RUN locally (runner entry check): the full backend suite, `tests/test_db_lock_storm.py` (SW_PERF), pixel suites (no UI
 change).
