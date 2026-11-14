@@ -64,4 +64,3 @@ import{E as d,F as c,a as u,A as v,fZ as s,e as b,H as g}from"./index-Cx0qJkOE.j
       }
     }
   `;p([c({type:Number})],r.prototype,"page",2);p([c({type:Number})],r.prototype,"pages",2);r=p([g("sw-pager")],r);
-//# sourceMappingURL=sw-pager-BafkMmYy.js.map

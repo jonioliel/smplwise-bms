@@ -49,4 +49,3 @@ import{a as c,e as o,s5 as m,E as p,H as l}from"./index-Cx0qJkOE.js";import"./sw
       color: var(--sw-text-2);
     }
   `];t=u([l("screens-index")],t);export{t as ScreensIndex};
-//# sourceMappingURL=screens-index-CXTSv1DU.js.map

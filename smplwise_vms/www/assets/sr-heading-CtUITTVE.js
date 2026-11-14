@@ -26,4 +26,3 @@ import{e as s,E as i}from"./index-Cx0qJkOE.js";const n=i`
     }
   }
 `;function h(a,e=!1){return e?s`<h1 class="pg-h1 lead-head" data-page-heading>${a}</h1>`:s`<h1 class="sr-h1" data-page-heading>${a}</h1>`}export{n as a,h as s};
-//# sourceMappingURL=sr-heading-CtUITTVE.js.map

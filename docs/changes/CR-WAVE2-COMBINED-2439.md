@@ -46,6 +46,9 @@ HOME-R32-ANSWERS, PLAN3D-R28-UI, PLAN3D-R32-ANSWERS, DOMUS-DEFAULT, DIALOG-DRAWE
 
 Every listed branch existed on origin; none was skipped.
 
+Later on 14.11 (lead request): `origin/main` v2.43.6 (`4a345f8af`) merged at the top as `2703e074d` (SESSION-DEMO-WS-2435, already
+here, PLAN3D-R28-UI-2433, a test-only fix, the rebuilt UI). See "2.43.6 merge" and "Shutdown fix" below.
+
 ## Conflicts
 
 Only the first merge (`origin/main`, 2.43.5, into the 2.43.4-based wave-1 branch) conflicted textually; the 30 branch merges were
@@ -80,6 +83,45 @@ Overlaps checked by reading (no textual conflict, both intents present):
   (a behaviour change, not a merge resolution) - not done here.
 - `wiskey_lineage.py` keeps AUTH-REVOKE-GATE's local `_gate`; adopting `rbac.require_system_admin` (CR-ADMIN-GATE note) is a
   one-line follow-up, not done here.
+
+## Shutdown fix: the feed threads' sockets after shutdown (release gate 2.43.6 finding)
+
+The 2.43.6 release gate showed that BACKEND-SAFETY-2435 on top of 2.43.5 makes
+`test_asgi_wiskey_295::test_full_app_lifecycle_media_and_talk_with_downlink_leaves_no_task_socket_thread_or_timer` fail
+(`assert 4 <= 2`: OS sockets after shutdown; main alone 8/0, main + BACKEND-SAFETY 3 pass / 7 fail on the runner).
+
+Cause (reproduced on the workstation; the runner was held by another entry check, so not re-run there):
+- `ha_sync`, `intercom_sync` and `wiskey_background_feed` each run `asyncio.run` in a daemon thread. Their `shutdown()` only set a
+  `threading.Event` that a `watch_stop` task polls once a second, and nobody joined the thread. So the application's shutdown could
+  return while those loops (each with a self-pipe socket pair) were still alive for up to a second.
+- In 2.43.5 the notification monitor's shutdown (a few steps later) waited out its own 1 s queue timeout, which happened to cover
+  that second. BACKEND-SAFETY-2435 (review 05 P1-08) correctly wakes the monitor at once - and the gap became visible. The bug is
+  in the feed threads, not in BACKEND-SAFETY.
+- Proof: a check right after `await a.shutdown()` saw `ha-sync` and `intercom-sync` still alive and 6 sockets against 2; the
+  shutdown itself took 0.06 s.
+
+Fix (`6bab829cc`):
+- new `services/loop_thread_stop.py`: `remember(owner, stop_evt)` inside the loop, `stop_and_join(owner)` sets the loop's stop
+  event through `call_soon_threadsafe` (the loop wakes at once, not at the next poll) and joins the thread (2 s bound, never raises).
+  The 1 s poll stays as the fallback.
+- `ha_sync.SYNC.shutdown`, `intercom_sync.SYNC.shutdown`, `wiskey_background_feed.FEED.shutdown` use it; `main.py` runs these
+  three stops off the event loop (`_in_thread_step`), so a join never blocks it.
+- `test_asgi_wiskey_295` lifecycle test: right after `a.shutdown()` no feed thread is alive and no socket is open beyond the start.
+  Without the fix this fails 2 of 2; with it, the lifecycle test passes 3 of 3 (single test, workstation).
+- For BACKEND-SAFETY-2435's own note: the branch is correct; on its own it needs this fix (or this branch) to pass
+  `test_asgi_wiskey_295` reliably.
+
+## 2.43.6 merge (`2703e074d`)
+
+- `routers/settings.py`: main added the eight `map.room_*` / `map.stack_*` defaults (PLAN3D-R28-UI) in the old `DEFAULTS` place;
+  carried into `services/settings_store.DEFAULTS` after `map.default_view` (the `SettingsPatch` fields merged on their own).
+- `smplwise_vms/www`, `www-public`: main's 2.43.6 build taken as is, minus its 248 debug source maps, and the 248
+  `sourceMappingURL` comments stripped with `frontend/scripts/sourcemaps-archive.mjs` (CR-BUILD-GUARDS-2438; `release_check`
+  enforces both). The file list equals main's minus the maps.
+- Design ratchet: main 2.43.6 itself counts colour literals 2512 and px literals 25911 (PLAN3D-R28-UI, released before the ratchet
+  reached main); this branch before the merge counted 2510 / 25763. The merged tree has exactly main's counts, so the wave-2
+  branches add nothing. The baseline was raised to 2512 / 25911 with `--update --allow-raise` (only those two lines; native-dialog
+  stays 3). The lead / owner should confirm this raise; it adds no debt beyond what 2.43.6 already shipped.
 
 ## Follow-ups (lead decision 14.11.2026, answer b)
 

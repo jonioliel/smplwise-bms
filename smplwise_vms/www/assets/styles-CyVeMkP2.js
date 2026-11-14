@@ -1315,4 +1315,3 @@ import{E as e}from"./index-Cx0qJkOE.js";const a=e`
     border-block-end-color: color-mix(in srgb, var(--sw-border-strong) 45%, transparent);
   }
 `;export{a as e};
-//# sourceMappingURL=styles-CyVeMkP2.js.map
