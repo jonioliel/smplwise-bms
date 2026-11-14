@@ -9,6 +9,7 @@
  *    REQUIRED steps were failing at that moment: a required step that fails afterwards and was not in that set shows the hint again.
  */
 import type { SetupState, SetupStep, StepId } from '../api/setup';
+import { tr } from '../i18n/msg/shell';
 
 /** The same ids the backend marks optional - the fallback for a backend that does not send the `optional` field yet. */
 export const OPTIONAL_STEP_IDS: readonly StepId[] = ['floor', 'camera'];
@@ -67,10 +68,10 @@ export function parseDismissal(v: unknown): SetupDismissal | null {
 }
 
 export const SETUP_HINT_TEXT = {
-  title: 'השלם את ההתקנה',
-  progress: (done: number, total: number) => `${done} מתוך ${total} שלבים הושלמו`,
-  toWizard: 'לאשף ההתקנה',
-  dismiss: 'הסתר את ההתראה',
-  show: 'הצג שוב את ההתראה',
-  optional: 'אופציונלי',
+  title: tr('השלם את ההתקנה'),
+  progress: (done: number, total: number) => tr('{done} מתוך {total} שלבים הושלמו', { done, total }),
+  toWizard: tr('לאשף ההתקנה'),
+  dismiss: tr('הסתר את ההתראה'),
+  show: tr('הצג שוב את ההתראה'),
+  optional: tr('אופציונלי'),
 } as const;

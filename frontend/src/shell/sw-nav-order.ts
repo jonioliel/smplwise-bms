@@ -6,6 +6,7 @@ import '../components/sw-button';
 import '../components/sw-icon';
 import type { AreaEntry } from './nav';
 import { describeError } from '../api/client';
+import { tr } from '../i18n/msg/shell';
 
 /**
  * CR-013 "סדר הלשוניות": the user's visible navigation tabs as a vertical list - drag a row by its handle (mouse and
@@ -207,7 +208,7 @@ export class SwNavOrder extends LitElement {
     next.splice(from, 1);
     next.splice(target, 0, id);
     this.draft = next;
-    this.announce = `${this.label(id)} הועבר למקום ${target + 1} מתוך ${next.length}`;
+    this.announce = tr('{name} הועבר למקום {n} מתוך {total}', { name: this.label(id), n: target + 1, total: next.length });
     if (focus) {
       void this.updateComplete.then(() => {
         const row = this.renderRoot.querySelector<HTMLElement>(`li[data-tab="${id}"]`);
@@ -296,7 +297,7 @@ export class SwNavOrder extends LitElement {
       await this.onSave(this.fullOrder());
       this.close();
     } catch (err) {
-      this.failure = `השמירה נכשלה: ${describeError(err)}`;
+      this.failure = tr('השמירה נכשלה: {error}', { error: describeError(err) });
     } finally {
       this.saving = false;
     }
@@ -310,7 +311,7 @@ export class SwNavOrder extends LitElement {
       await this.onReset();
       this.close();
     } catch (err) {
-      this.failure = `האיפוס נכשל: ${describeError(err)}`;
+      this.failure = tr('האיפוס נכשל: {error}', { error: describeError(err) });
     } finally {
       this.saving = false;
     }
@@ -323,34 +324,34 @@ export class SwNavOrder extends LitElement {
 
   render() {
     const n = this.draft.length;
-    return html`<sw-dialog ?open=${this.open} heading="סדר הלשוניות" data-nav-order-dialog @close=${(e: Event) => {
+    return html`<sw-dialog ?open=${this.open} heading=${tr('סדר הלשוניות')} data-nav-order-dialog @close=${(e: Event) => {
       e.stopPropagation();
       if (this.open) this.close();
     }}>
-      <ol aria-label="הלשוניות לפי הסדר">
+      <ol aria-label=${tr('הלשוניות לפי הסדר')}>
         ${repeat(
           this.draft,
           (id) => id,
           (id, i) => {
             const label = this.tabs.find((t) => t.id === id)?.label ?? id;
             return html`<li data-tab=${id} class=${this.dragging === id ? 'dragging' : ''}>
-              <button type="button" class="handle" data-drag=${id} aria-label=${`גרור את ${label}`} aria-roledescription="ידית גרירה"
+              <button type="button" class="handle" data-drag=${id} aria-label=${tr('גרור את {name}', { name: label })} aria-roledescription=${tr('ידית גרירה')}
                 @pointerdown=${(e: PointerEvent) => this.onPointerDown(e, id)}
                 @keydown=${(e: KeyboardEvent) => this.onHandleKey(e, id)}><sw-icon name="grip" size=${20}></sw-icon></button>
               <span class="name">${label}</span>
-              <button type="button" class="mv" data-move="up" aria-label=${`הזז למעלה: ${label}`} aria-disabled=${i === 0 ? 'true' : 'false'} @click=${() => i > 0 && this.move(id, i - 1, 'up')}><sw-icon name="arrowUp" size=${18}></sw-icon></button>
-              <button type="button" class="mv" data-move="down" aria-label=${`הזז למטה: ${label}`} aria-disabled=${i === n - 1 ? 'true' : 'false'} @click=${() => i < n - 1 && this.move(id, i + 1, 'down')}><sw-icon name="arrowDown" size=${18}></sw-icon></button>
+              <button type="button" class="mv" data-move="up" aria-label=${tr('הזז למעלה: {name}', { name: label })} aria-disabled=${i === 0 ? 'true' : 'false'} @click=${() => i > 0 && this.move(id, i - 1, 'up')}><sw-icon name="arrowUp" size=${18}></sw-icon></button>
+              <button type="button" class="mv" data-move="down" aria-label=${tr('הזז למטה: {name}', { name: label })} aria-disabled=${i === n - 1 ? 'true' : 'false'} @click=${() => i < n - 1 && this.move(id, i + 1, 'down')}><sw-icon name="arrowDown" size=${18}></sw-icon></button>
             </li>`;
           },
         )}
-        <li class="fixed" aria-label="המשתמש, תמיד אחרון"><span class="handle" aria-hidden="true"><sw-icon name="lock" size=${16}></sw-icon></span><span class="name">המשתמש</span></li>
+        <li class="fixed" aria-label=${tr('המשתמש, תמיד אחרון')}><span class="handle" aria-hidden="true"><sw-icon name="lock" size=${16}></sw-icon></span><span class="name">${tr('המשתמש')}</span></li>
       </ol>
       <span class="sr" role="status" aria-live="polite" data-nav-order-announce>${this.announce}</span>
       ${this.failure ? html`<div class="err" role="alert" data-nav-order-error>${this.failure}</div>` : nothing}
       <div class="foot" slot="footer">
-        <button type="button" class="link" data-nav-order-reset ?disabled=${this.saving} @click=${() => void this.reset()}>אפס לברירת המחדל</button>
+        <button type="button" class="link" data-nav-order-reset ?disabled=${this.saving} @click=${() => void this.reset()}>${tr('אפס לברירת המחדל')}</button>
         <span class="grow"></span>
-        <sw-button variant="primary" size="sm" data-nav-order-save ?disabled=${this.saving} @click=${() => void this.save()}>שמור</sw-button>
+        <sw-button variant="primary" size="sm" data-nav-order-save ?disabled=${this.saving} @click=${() => void this.save()}>${tr('שמור')}</sw-button>
       </div>
     </sw-dialog>`;
   }

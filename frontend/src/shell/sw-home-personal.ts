@@ -28,6 +28,7 @@ import { devicesPrefsOf } from '../screens/devices-style';
 import '../screens/area-row-editor';
 import { HOME_SCREEN_DEFAULT, homeScreenOf, SUMMARY_KINDS, type HomeScreenOptions, type PersonalScreen, type SummaryKind } from '../api/home-screen';
 import { hs } from '../i18n/home-screen';
+import { tr } from '../i18n/msg/shell';
 import type { AreaRowChange } from '../screens/area-row-editor';
 
 
@@ -253,7 +254,7 @@ export class SwHomePersonal extends LitElement {
     return html`<div class="row" data-home-personal-phone-area>
         <span class="lbl" id="hp-parea">${hs('phoneArea')}</span>
         <span class="seg" role="group" aria-labelledby="hp-parea">
-          <button type="button" data-home-personal-phone-area="" aria-pressed=${String(!own.phone_area)} ?disabled=${this.busy} @click=${() => this.setScreen({ phone_area: undefined })}>ברירת מחדל</button>
+          <button type="button" data-home-personal-phone-area="" aria-pressed=${String(!own.phone_area)} ?disabled=${this.busy} @click=${() => this.setScreen({ phone_area: undefined })}>${tr('ברירת מחדל')}</button>
           ${(['sheet', 'full'] as const).map((v) => html`<button type="button" data-home-personal-phone-area=${v} aria-pressed=${String(own.phone_area === v)} ?disabled=${this.busy} @click=${() => this.setScreen({ phone_area: v })}>${hs(`area_${v}`)}</button>`)}
         </span>
       </div>
@@ -277,7 +278,7 @@ export class SwHomePersonal extends LitElement {
     return html`<div class="row" data-home-personal-site-entry>
         <span class="lbl" id="hp-sentry">${hs('personalEntry')}</span>
         <span class="seg" role="group" aria-labelledby="hp-sentry">
-          <button type="button" data-home-personal-site-entry="" aria-pressed=${String(!own.site_entry)} ?disabled=${this.busy} @click=${() => this.setScreen({ site_entry: undefined, site_entry_building: undefined })}>ברירת מחדל</button>
+          <button type="button" data-home-personal-site-entry="" aria-pressed=${String(!own.site_entry)} ?disabled=${this.busy} @click=${() => this.setScreen({ site_entry: undefined, site_entry_building: undefined })}>${tr('ברירת מחדל')}</button>
           ${(['site', 'last', 'fixed'] as const).map((v) => html`<button type="button" data-home-personal-site-entry=${v} aria-pressed=${String(own.site_entry === v)} ?disabled=${this.busy} @click=${() => this.setScreen({ site_entry: v, site_entry_building: v === 'fixed' ? own.site_entry_building ?? this.buildings[0].id : undefined })}>${hs(`se_${v}`)}</button>`)}
         </span>
         ${own.site_entry === 'fixed'
@@ -390,17 +391,17 @@ export class SwHomePersonal extends LitElement {
     const order = this.offered;
     return html`
       <div class="row" data-home-personal-direction>
-        <span class="lbl" id="hp-dir">כיוון</span>
+        <span class="lbl" id="hp-dir">${tr('כיוון')}</span>
         <span class="seg" role="group" aria-labelledby="hp-dir">
-          <button type="button" data-home-personal-dir="" aria-pressed=${String(this.personal.direction === null)} ?disabled=${this.busy} @click=${() => this.setDirection(null)}>ברירת מחדל</button>
+          <button type="button" data-home-personal-dir="" aria-pressed=${String(this.personal.direction === null)} ?disabled=${this.busy} @click=${() => this.setDirection(null)}>${tr('ברירת מחדל')}</button>
           ${DIRECTIONS.map((x) => html`<button type="button" data-home-personal-dir=${x} aria-pressed=${String(this.personal.direction === x)} ?disabled=${this.busy} title=${DIRECTION_LABEL[x]} @click=${() => this.setDirection(x)}>${DIRECTION_LETTER[x]} · ${DIRECTION_LABEL[x]}</button>`)}
         </span>
       </div>
       ${this.screenChoices()}
       <div class="row" data-home-personal-phone>
-        <span class="lbl" id="hp-phone">בנייד</span>
+        <span class="lbl" id="hp-phone">${tr('בנייד')}</span>
         <span class="seg" role="group" aria-labelledby="hp-phone">
-          <button type="button" data-home-personal-phone-layout="" aria-pressed=${String(this.personal.phone_layout === null)} ?disabled=${this.busy} @click=${() => this.setPhoneLayout(null)}>ברירת מחדל</button>
+          <button type="button" data-home-personal-phone-layout="" aria-pressed=${String(this.personal.phone_layout === null)} ?disabled=${this.busy} @click=${() => this.setPhoneLayout(null)}>${tr('ברירת מחדל')}</button>
           ${PHONE_LAYOUTS.map((p) => html`<button type="button" data-home-personal-phone-layout=${p} aria-pressed=${String(this.personal.phone_layout === p)} ?disabled=${this.busy} @click=${() => this.setPhoneLayout(p)}>${PHONE_LAYOUT_LABEL[p]}</button>`)}
         </span>
       </div>
@@ -413,12 +414,12 @@ export class SwHomePersonal extends LitElement {
           <div class="row">
             <label class="check"><input type="checkbox" data-home-personal-on=${id} .checked=${on} ?disabled=${this.busy} @change=${(e: Event) => this.setOn(id, (e.target as HTMLInputElement).checked)} /><span class="lbl">${WIDGET_NAME[id]}</span></label>
             <span class="grow"></span>
-            <button type="button" class="ib" data-home-personal-earlier=${id} aria-label=${`הקדם את ${WIDGET_NAME[id]}`} ?disabled=${this.busy || i === 0} @click=${() => this.move(id, i - 1)}>↑</button>
-            <button type="button" class="ib" data-home-personal-later=${id} aria-label=${`אחר את ${WIDGET_NAME[id]}`} ?disabled=${this.busy || i === order.length - 1} @click=${() => this.move(id, i + 1)}>↓</button>
+            <button type="button" class="ib" data-home-personal-earlier=${id} aria-label=${tr('הקדם את {name}', { name: WIDGET_NAME[id] })} ?disabled=${this.busy || i === 0} @click=${() => this.move(id, i - 1)}>↑</button>
+            <button type="button" class="ib" data-home-personal-later=${id} aria-label=${tr('אחר את {name}', { name: WIDGET_NAME[id] })} ?disabled=${this.busy || i === order.length - 1} @click=${() => this.move(id, i + 1)}>↓</button>
           </div>
           <div class="row">
-            <span class="seg" role="group" aria-label=${`גודל: ${WIDGET_NAME[id]}`}>
-              <button type="button" data-home-personal-size=${`${id}:`} aria-pressed=${String(size === null)} ?disabled=${this.busy || !on} @click=${() => this.setSize(id, null)}>ברירת מחדל</button>
+            <span class="seg" role="group" aria-label=${tr('גודל: {name}', { name: WIDGET_NAME[id] })}>
+              <button type="button" data-home-personal-size=${`${id}:`} aria-pressed=${String(size === null)} ?disabled=${this.busy || !on} @click=${() => this.setSize(id, null)}>${tr('ברירת מחדל')}</button>
               ${SIZES.map((s) => html`<button type="button" data-home-personal-size=${`${id}:${s}`} aria-pressed=${String(size === s)} ?disabled=${this.busy || !on} @click=${() => this.setSize(id, s)}>${SIZE_LABEL[s]}</button>`)}
             </span>
           </div>
@@ -427,11 +428,11 @@ export class SwHomePersonal extends LitElement {
       })}
       ${this.rowBase
         ? html`<div class="w" data-home-personal-area-row>
-            <div class="row"><span class="lbl">ליד שם האזור</span></div>
+            <div class="row"><span class="lbl">${tr('ליד שם האזור')}</span></div>
             <area-row-editor .area=${effectiveRows(this.rowBase.areaRow, this.rowBase.floorRow, this.row).area} .floor=${effectiveRows(this.rowBase.areaRow, this.rowBase.floorRow, this.row).floor} ?disabled=${this.busy} @area-row-change=${(e: CustomEvent<AreaRowChange>) => void this.commitRow(e.detail)}></area-row-editor>
           </div>`
         : nothing}
-      <button type="button" class="reset" data-home-personal-reset ?disabled=${this.busy || (personalIsEmpty(this.personal) && !Object.keys(this.row).length)} @click=${async () => { await this.commit({ ...PERSONAL_EMPTY, widgets: {} }); if (Object.keys(this.row).length) await this.commitRow(null); }}>ברירת מחדל של המערכת</button>
+      <button type="button" class="reset" data-home-personal-reset ?disabled=${this.busy || (personalIsEmpty(this.personal) && !Object.keys(this.row).length)} @click=${async () => { await this.commit({ ...PERSONAL_EMPTY, widgets: {} }); if (Object.keys(this.row).length) await this.commitRow(null); }}>${tr('ברירת מחדל של המערכת')}</button>
       ${this.failed ? html`<p class="err" role="alert" data-home-personal-error>${this.failed}</p>` : nothing}
       <span hidden data-home-personal-direction-now=${d}></span>
     `;

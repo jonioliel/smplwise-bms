@@ -11,12 +11,13 @@
  * "m" is the size the shell had before this setting existed.
  */
 import { getMyPrefs, putMyPrefs } from '../api/me-prefs';
+import { tr } from '../i18n/msg/shell';
 
 export type NavPreset = 's' | 'm' | 'l' | 'xl';
 export type NavSize = { mode: 'rel'; preset: NavPreset } | { mode: 'free'; icon: number; label: number; item: number };
 
 export const NAV_PRESETS: readonly NavPreset[] = ['s', 'm', 'l', 'xl'];
-export const NAV_PRESET_LABEL: Record<NavPreset, string> = { s: 'קטן', m: 'בינוני', l: 'גדול', xl: 'גדול מאוד' };
+export const NAV_PRESET_LABEL: Record<NavPreset, string> = { s: tr('קטן'), m: tr('בינוני'), l: tr('גדול'), xl: tr('גדול מאוד') };
 /** Owner decision 2026-09-30 (home redesign): the large preset is the default (the installation's own `ui.nav_size` and a user's own value still win). */
 export const NAV_DEFAULT: NavSize = { mode: 'rel', preset: 'l' };
 

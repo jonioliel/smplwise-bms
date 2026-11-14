@@ -87,7 +87,7 @@ test('finding 8: the settings sub-pages are not named like the settings strip, a
   expect(d).not.toContain("{ id: 'general', label: 'כללי' }");
   // release 2.10.0: the phone-only dropdown was reverted (owner rule 0.1.157, no phone-only gate; owner decision pending)
   expect(d).not.toContain("this.phone ? 'dropdown'");
-  expect(read('screens/system-index.ts')).toContain("tab: 'general', label: 'מראה ותצוגה'");
+  expect(read('screens/system-index.ts')).toContain("tab: 'general', label: tr('מראה ותצוגה')");
 });
 
 test('finding 15: the card title is a two-line clamp with the full width on a phone; the bottom bar label wraps', () => {

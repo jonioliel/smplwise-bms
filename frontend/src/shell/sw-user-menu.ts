@@ -27,7 +27,7 @@ export function alertCountText(n: number): string {
 
 /** "התראה פתוחה אחת" / "N התראות פתוחות" (the avatar's accessible name, the chip's label). */
 export function openAlertsText(n: number): string {
-  return n === 1 ? 'התראה פתוחה אחת' : `${alertCountText(n)} התראות פתוחות`;
+  return n === 1 ? tr('התראה פתוחה אחת') : tr('{n} התראות פתוחות', { n: alertCountText(n) });
 }
 
 /**
@@ -498,14 +498,14 @@ export class SwUserMenu extends LitElement {
       <header data-user-menu-header>
         <sw-avatar name=${this.name} size=${40}></sw-avatar>
         <div class="id"><b data-user-name>${this.name}</b>${this.role ? html`<span data-user-role>${this.role}</span>` : nothing}</div>
-        <button type="button" class="x" aria-label="סגור" title="סגור" @click=${() => this.close()}><sw-icon name="close" size=${18}></sw-icon></button>
+        <button type="button" class="x" aria-label=${tr('סגור')} title=${tr('סגור')} @click=${() => this.close()}><sw-icon name="close" size=${18}></sw-icon></button>
       </header>
       <div class="pills" data-user-menu-pills><slot name="pills"></slot></div>
       <ul data-menu-level="main">
         ${alerts !== null
           ? html`<li class="alerts ${(this.notifyCenter ? this.alertsHot : !!alerts) ? 'hot' : ''}"><button type="button" data-menu-alerts aria-haspopup="dialog" @click=${() => this.dispatchEvent(new CustomEvent('open-notifications', { bubbles: true, composed: true }))}>
-              <span class="ic"><sw-icon name="bell" size=${18}></sw-icon></span><span class="txt">התראות</span>
-              ${alerts ? html`<span class="count" data-alert-count aria-label=${this.notifyCenter ? `${alertCountText(alerts)} התראות שלא נקראו` : openAlertsText(alerts)}>${alertCountText(alerts)}</span>` : nothing}</button></li>`
+              <span class="ic"><sw-icon name="bell" size=${18}></sw-icon></span><span class="txt">${tr('התראות')}</span>
+              ${alerts ? html`<span class="count" data-alert-count aria-label=${this.notifyCenter ? tr('{n} התראות שלא נקראו', { n: alertCountText(alerts) }) : openAlertsText(alerts)}>${alertCountText(alerts)}</span>` : nothing}</button></li>`
           : nothing}
         ${this.screenEdits.map(
           (a) => html`<li><button type="button" data-menu-screen-edit=${a.id} @click=${() => this.dispatchEvent(new CustomEvent('screen-edit', { detail: { id: a.id }, bubbles: true, composed: true }))}>
@@ -519,31 +519,31 @@ export class SwUserMenu extends LitElement {
         )}
         ${this.homeHref
           ? html`<li><a href=${this.homeHref} data-menu-home-interface @click=${(e: MouseEvent) => this.go(e)}>
-              <span class="ic"><sw-icon name="home" size=${18}></sw-icon></span><span class="txt">לממשק הביתי</span></a></li>`
+              <span class="ic"><sw-icon name="home" size=${18}></sw-icon></span><span class="txt">${tr('לממשק הביתי')}</span></a></li>`
           : nothing}
         ${this.editHomeHref
           ? html`<li><a href=${this.editHomeHref} data-menu-edit-home @click=${(e: MouseEvent) => this.go(e)}>
-              <span class="ic"><sw-icon name="edit" size=${18}></sw-icon></span><span class="txt">עריכת המסך הראשי</span></a></li>`
+              <span class="ic"><sw-icon name="edit" size=${18}></sw-icon></span><span class="txt">${tr('עריכת המסך הראשי')}</span></a></li>`
           : nothing}
         ${this.settingsHref
           ? html`<li><a href=${this.settingsHref} data-menu-settings @click=${(e: MouseEvent) => this.go(e)}>
-              <span class="ic"><sw-icon name="system" size=${18}></sw-icon></span><span class="txt">מערכת</span></a></li>`
+              <span class="ic"><sw-icon name="system" size=${18}></sw-icon></span><span class="txt">${tr('מערכת')}</span></a></li>`
           : nothing}
         ${this.updateHref
           ? html`<li class="update"><a href=${this.updateHref} data-menu-update @click=${(e: MouseEvent) => this.go(e)}>
-              <span class="ic"><sw-icon name="refresh" size=${18}></sw-icon></span><span class="txt">עדכון זמין</span><span class="dot" aria-hidden="true"></span></a></li>`
+              <span class="ic"><sw-icon name="refresh" size=${18}></sw-icon></span><span class="txt">${tr('עדכון זמין')}</span><span class="dot" aria-hidden="true"></span></a></li>`
           : this.restartHref
             ? html`<li class="update"><a href=${this.restartHref} data-menu-restart @click=${(e: MouseEvent) => this.go(e)}>
-                <span class="ic"><sw-icon name="power" size=${18}></sw-icon></span><span class="txt">נדרשת הפעלה מחדש</span><span class="dot" aria-hidden="true"></span></a></li>`
+                <span class="ic"><sw-icon name="power" size=${18}></sw-icon></span><span class="txt">${tr('נדרשת הפעלה מחדש')}</span><span class="dot" aria-hidden="true"></span></a></li>`
             : nothing}
         ${hasAccount
           ? html`<li><button type="button" data-menu-account aria-haspopup="true" @click=${() => this.goLevel('account')}>
-              <span class="ic"><sw-icon name="user" size=${18}></sw-icon></span><span class="txt">החשבון שלי</span><sw-icon class="chev" name="chevron" size=${16}></sw-icon></button></li>`
+              <span class="ic"><sw-icon name="user" size=${18}></sw-icon></span><span class="txt">${tr('החשבון שלי')}</span><sw-icon class="chev" name="chevron" size=${16}></sw-icon></button></li>`
           : nothing}
       </ul>
       ${REMOTE
         ? html`<footer><button type="button" data-profile-signout data-arx-signout @click=${() => void arxLogout('logout')}>
-            <span class="ic"><sw-icon name="logout" size=${18}></sw-icon></span><span class="txt">יציאה</span></button></footer>`
+            <span class="ic"><sw-icon name="logout" size=${18}></sw-icon></span><span class="txt">${tr('יציאה')}</span></button></footer>`
         : nothing}
     `;
   }
@@ -552,22 +552,22 @@ export class SwUserMenu extends LitElement {
     const acc = this.accountItems();
     return html`
       <header>
-        <button type="button" class="x" data-menu-back aria-label="חזרה" title="חזרה" @click=${() => this.goLevel('main')}><sw-icon name="chevronBack" size=${18}></sw-icon></button>
-        <h2>החשבון שלי</h2>
-        <button type="button" class="x" aria-label="סגור" title="סגור" @click=${() => this.close()}><sw-icon name="close" size=${18}></sw-icon></button>
+        <button type="button" class="x" data-menu-back aria-label=${tr('חזרה')} title=${tr('חזרה')} @click=${() => this.goLevel('main')}><sw-icon name="chevronBack" size=${18}></sw-icon></button>
+        <h2>${tr('החשבון שלי')}</h2>
+        <button type="button" class="x" aria-label=${tr('סגור')} title=${tr('סגור')} @click=${() => this.close()}><sw-icon name="close" size=${18}></sw-icon></button>
       </header>
       <ul data-menu-level="account">
         ${acc.order
           ? html`<li><button type="button" data-menu-nav-order @click=${() => this.dispatchEvent(new CustomEvent('nav-order', { bubbles: true, composed: true }))}>
-              <span class="ic"><sw-icon name="grip" size=${18}></sw-icon></span><span class="txt">סדר הלשוניות</span></button></li>`
+              <span class="ic"><sw-icon name="grip" size=${18}></sw-icon></span><span class="txt">${tr('סדר הלשוניות')}</span></button></li>`
           : nothing}
         ${acc.prefs
           ? html`<li><a href="#/system/notifications" data-menu-notify-prefs @click=${(e: MouseEvent) => this.go(e)}>
-              <span class="ic"><sw-icon name="bellSettings" size=${18}></sw-icon></span><span class="txt">הגדרות התראות</span></a></li>`
+              <span class="ic"><sw-icon name="bellSettings" size=${18}></sw-icon></span><span class="txt">${tr('הגדרות התראות')}</span></a></li>`
           : nothing}
         ${acc.home
           ? html`<li><details data-my-home @toggle=${(e: Event) => (this.homeOpen = (e.currentTarget as HTMLDetailsElement).open)}>
-              <summary><span class="ic"><sw-icon name="dashboard" size=${18}></sw-icon></span><span class="txt">המסך שלי</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
+              <summary><span class="ic"><sw-icon name="dashboard" size=${18}></sw-icon></span><span class="txt">${tr('המסך שלי')}</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
               <div class="sessions">${this.open && this.homeOpen ? html`<sw-home-personal></sw-home-personal>` : nothing}</div>
             </details></li>`
           : nothing}
@@ -579,7 +579,7 @@ export class SwUserMenu extends LitElement {
           : nothing}
         ${acc.video
           ? html`<li><details data-my-video @toggle=${(e: Event) => (this.videoOpen = (e.currentTarget as HTMLDetailsElement).open)}>
-              <summary><span class="ic"><sw-icon name="live" size=${18}></sw-icon></span><span class="txt">וידאו</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
+              <summary><span class="ic"><sw-icon name="live" size=${18}></sw-icon></span><span class="txt">${tr('וידאו')}</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
               <div class="sessions">${this.open && this.videoOpen ? html`<sw-video-prefs></sw-video-prefs>` : nothing}</div>
             </details></li>`
           : nothing}
@@ -591,7 +591,7 @@ export class SwUserMenu extends LitElement {
           : nothing}
         ${acc.sessions
           ? html`<li><details data-my-sessions @toggle=${(e: Event) => (this.sessionsOpen = (e.currentTarget as HTMLDetailsElement).open)}>
-              <summary><span class="ic"><sw-icon name="users" size=${18}></sw-icon></span><span class="txt">הכניסות שלי</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
+              <summary><span class="ic"><sw-icon name="users" size=${18}></sw-icon></span><span class="txt">${tr('הכניסות שלי')}</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
               <div class="sessions">${this.open && this.sessionsOpen ? html`<sw-remote-sessions compact scope="own" @remote-signed-out=${(e: CustomEvent<{ everywhere?: boolean }>) => void arxLogout(e.detail?.everywhere ? 'everywhere' : 'logout')}></sw-remote-sessions>` : nothing}</div>
             </details></li>`
           : nothing}
@@ -600,7 +600,7 @@ export class SwUserMenu extends LitElement {
               this.staffOpen = (e.currentTarget as HTMLDetailsElement).open;
               if (this.staffOpen) void import('../tickets/staff-mine'); // loaded only when opened (the tickets texts stay out of the shell)
             }}>
-              <summary><span class="ic"><sw-icon name="link" size=${18}></sw-icon></span><span class="txt">נייד לקישורי עבודה</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
+              <summary><span class="ic"><sw-icon name="link" size=${18}></sw-icon></span><span class="txt">${tr('נייד לקישורי עבודה')}</span><sw-icon class="chev" name="chevron" size=${14}></sw-icon></summary>
               <div class="sessions">${this.open && this.staffOpen ? html`<tickets-staff-mine></tickets-staff-mine>` : nothing}</div>
             </details></li>`
           : nothing}
@@ -620,7 +620,7 @@ export class SwUserMenu extends LitElement {
           ? html`<li><button type="button" data-arx-switch-server @click=${() => {
               this.close();
               switchServer();
-            }}><span class="ic"><sw-icon name="list" size=${18}></sw-icon></span><span class="txt">החלף שרת</span></button></li>`
+            }}><span class="ic"><sw-icon name="list" size=${18}></sw-icon></span><span class="txt">${tr('החלף שרת')}</span></button></li>`
           : nothing}
       </ul>
     `;
@@ -629,7 +629,7 @@ export class SwUserMenu extends LitElement {
   render() {
     return html`
       <div class="scrim" @click=${() => this.close()}></div>
-      <div class="panel" role="dialog" aria-modal="true" aria-label="תפריט המשתמש" data-profile-menu-panel data-user-menu data-level=${this.level} ?inert=${!this.open}>
+      <div class="panel" role="dialog" aria-modal="true" aria-label=${tr('תפריט המשתמש')} data-profile-menu-panel data-user-menu data-level=${this.level} ?inert=${!this.open}>
         <span class="grab" aria-hidden="true"></span>
         ${this.level === 'account' ? this.renderAccount() : this.renderMain()}
       </div>

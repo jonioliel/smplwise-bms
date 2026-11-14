@@ -42,6 +42,7 @@ import { setXsOptions, xsOptions } from '../xsection/xs-model';
 import { classifyDevice, classifyOptionsFor, readDeviceEnv, wallModeFor, watchDeviceClass } from '../wall/device-class';
 import { incidentState, onIncidentState, startIncidents } from '../incidents/store';
 import { it as incText } from '../i18n/incidents';
+import { tr } from '../i18n/msg/shell';
 import '../screens/system-nav'; // SET-polish: the settings' own navigation column and search
 import { setReadinessChip } from '../api/readiness';
 import '../components/sw-demo-banner';
@@ -2407,8 +2408,8 @@ export class SwApp extends LitElement {
   /** The status in words (the pill's text, the dot's accessible name) and the per-component detail (its tooltip). */
   private sysWords(s: HealthSummary): { text: string; title: string } {
     const first = s.items.find((i) => i.status === 'error') ?? s.items[0];
-    const text = s.status === 'ok' ? 'מערכת תקינה' : s.status === 'warn' ? 'יש מה לבדוק' : `תקלה: ${first?.label.split(' — ')[0] ?? ''}`;
-    const title = s.items.length ? s.items.map((i) => `• ${i.label}`).join('\n') : 'כל הרכיבים שהמערכת רואה עובדים';
+    const text = s.status === 'ok' ? tr('מערכת תקינה') : s.status === 'warn' ? tr('יש מה לבדוק') : tr('תקלה: {name}', { name: first?.label.split(' — ')[0] ?? '' });
+    const title = s.items.length ? s.items.map((i) => `• ${i.label}`).join('\n') : tr('כל הרכיבים שהמערכת רואה עובדים');
     return { text, title };
   }
 
@@ -2416,18 +2417,18 @@ export class SwApp extends LitElement {
    * and tooltip; a click opens הגדרות › בריאות. The demo data have no status, only a grey dot that says so. */
   private renderSysDot() {
     const mode = this.session.mode;
-    if (mode === 'demo') return html`<span class="demodot" data-demo-dot role="img" title="נתוני הדגמה" aria-label="נתוני הדגמה"><i></i></span>`;
+    if (mode === 'demo') return html`<span class="demodot" data-demo-dot role="img" title=${tr('נתוני הדגמה')} aria-label=${tr('נתוני הדגמה')}><i></i></span>`;
     if (mode !== 'api' && mode !== 'no_access') return nothing;
     const s = this.sys;
     const status = s?.status ?? 'unknown';
-    const { text, title } = s ? this.sysWords(s) : { text: 'מערכת מקומית', title: 'מערכת מקומית' };
+    const { text, title } = s ? this.sysWords(s) : { text: tr('מערכת מקומית'), title: tr('מערכת מקומית') };
     // only for users who may open הגדרות › בריאות (system.configure); everyone else sees the state without a link that
     // would end on a refusal
     // POLISH4-WP1 D1: for them the dot is a key that opens a read-only note (the state in words + the components), not a bare dot
     if (!this.canOpenHealth())
-      return html`<button type="button" class="sysdot ${status}" data-sys-pill data-sys-static data-status=${status} title=${`${text}\n${title}`.trim()} aria-label=${`מצב המערכת: ${text}`}
+      return html`<button type="button" class="sysdot ${status}" data-sys-pill data-sys-static data-status=${status} title=${`${text}\n${title}`.trim()} aria-label=${tr('מצב המערכת: {status}', { status: text })}
         aria-haspopup="dialog" aria-expanded=${this.sysPop ? 'true' : 'false'} aria-controls=${this.sysPop ? 'sys-pop' : nothing} @click=${this.onSysDotClick}><i></i></button>`;
-    return html`<button type="button" class="sysdot ${status}" data-sys-pill data-status=${status} title=${`${text}\n${title}`.trim()} aria-label=${`מצב המערכת: ${text}`} @click=${() => (window.location.hash = '#/system/diagnostics?tab=health')}><i></i></button>`;
+    return html`<button type="button" class="sysdot ${status}" data-sys-pill data-status=${status} title=${`${text}\n${title}`.trim()} aria-label=${tr('מצב המערכת: {status}', { status: text })} @click=${() => (window.location.hash = '#/system/diagnostics?tab=health')}><i></i></button>`;
   }
 
   /** The status dot, the legacy pill and the alert banner lead to הגדרות › בריאות: allowed only with system.configure. */
@@ -2435,11 +2436,11 @@ export class SwApp extends LitElement {
    * behind it (the dot's tooltip, which a touch screen never shows). Read-only: no link, nothing to press. */
   private renderSysPop() {
     const s = this.sys;
-    const { text } = s ? this.sysWords(s) : { text: 'מערכת מקומית' };
+    const { text } = s ? this.sysWords(s) : { text: tr('מערכת מקומית') };
     const items = s?.items ?? [];
-    return html`<div class="syspop" id="sys-pop" data-sys-pop role="dialog" aria-label="מצב המערכת" tabindex="-1" @focusout=${this.onSysPopFocusOut}>
-      <b>${`מצב המערכת: ${text}`}</b>
-      <ul>${items.length ? items.map((i) => html`<li>${i.label}</li>`) : html`<li>כל הרכיבים שהמערכת רואה עובדים</li>`}</ul>
+    return html`<div class="syspop" id="sys-pop" data-sys-pop role="dialog" aria-label=${tr('מצב המערכת')} tabindex="-1" @focusout=${this.onSysPopFocusOut}>
+      <b>${tr('מצב המערכת: {status}', { status: text })}</b>
+      <ul>${items.length ? items.map((i) => html`<li>${i.label}</li>`) : html`<li>${tr('כל הרכיבים שהמערכת רואה עובדים')}</li>`}</ul>
     </div>`;
   }
 
@@ -2489,7 +2490,7 @@ export class SwApp extends LitElement {
     const s = this.sys;
     if (!s || s.status !== 'error') return nothing;
     const errors = s.items.filter((i) => i.status === 'error');
-    return html`<div class="sysbanner" role="alert" data-sys-banner><sw-icon name="warning" size=${16}></sw-icon><span>${errors.map((i) => i.label).join(' · ')}</span>${this.canOpenHealth() ? html`<a href="#/system/diagnostics?tab=health">לבריאות המערכת</a>` : nothing}</div>`;
+    return html`<div class="sysbanner" role="alert" data-sys-banner><sw-icon name="warning" size=${16}></sw-icon><span>${errors.map((i) => i.label).join(' · ')}</span>${this.canOpenHealth() ? html`<a href="#/system/diagnostics?tab=health">${tr('לבריאות המערכת')}</a>` : nothing}</div>`;
   }
 
   // ---- setup hint (T071) ----
@@ -2720,14 +2721,14 @@ export class SwApp extends LitElement {
 
   /** The result list of the search popover. */
   private renderResults() {
-    return html`<div class="results" id="search-results" role="listbox" aria-label="תוצאות חיפוש">
+    return html`<div class="results" id="search-results" role="listbox" aria-label=${tr('תוצאות חיפוש')}>
       ${!isApi() && !this.searchResults.length
-        ? html`<div class="empty">החיפוש עובד מול השרת (במצב הדגמה אין נתונים).</div>`
+        ? html`<div class="empty">${tr('החיפוש עובד מול השרת (במצב הדגמה אין נתונים).')}</div>`
         : this.searchBusy && !this.searchResults.length
-          ? html`<div class="empty">מחפש…</div>`
+          ? html`<div class="empty">${tr('מחפש…')}</div>`
           : this.searchResults.length
             ? this.searchResults.map((r, i) => html`<div class="row ${i === this.searchIndex ? 'on' : ''}" role="option" aria-selected=${i === this.searchIndex} @mousedown=${(e: Event) => e.preventDefault()} @click=${() => this.openResult(r)}><sw-icon .name=${KIND_ICON[r.kind]} size=${16}></sw-icon><span class="txt"><span class="t">${r.title}</span><span class="s">${r.subtitle}</span></span><span class="kind">${KIND_LABEL[r.kind]}</span></div>`)
-            : html`<div class="empty">לא נמצא דבר עבור "${this.searchQ}". חדרים מופיעים רק אם סומנו "הכללה בחיפוש מרחבי"; אירועים מסוננים במרכז האירועים.</div>`}
+            : html`<div class="empty">${tr('לא נמצא דבר עבור "{q}". חדרים מופיעים רק אם סומנו "הכללה בחיפוש מרחבי"; אירועים מסוננים במרכז האירועים.', { q: this.searchQ })}</div>`}
     </div>`;
   }
 
@@ -2759,8 +2760,8 @@ export class SwApp extends LitElement {
         </div>
         ${this.sysPop && !this.searchPanel ? this.renderSysPop() : nothing}
         ${this.searchPanel
-          ? html`<div class="searchpanel" data-search-panel role="dialog" aria-label="חיפוש">
-              <label class="search a"><sw-icon name="search" size=${16}></sw-icon><input type="search" placeholder="חיפוש חדרים, מצלמות, קומות וישויות…" aria-label=${t('app.search')} autocomplete="off" role="combobox" aria-expanded=${open} aria-controls="search-results" .value=${this.searchQ} @input=${this.onSearchInput} @keydown=${this.onSearchKey} @focus=${() => { if (this.searchResults.length) this.searchOpen = true; }} /></label>
+          ? html`<div class="searchpanel" data-search-panel role="dialog" aria-label=${tr('חיפוש')}>
+              <label class="search a"><sw-icon name="search" size=${16}></sw-icon><input type="search" placeholder=${tr('חיפוש חדרים, מצלמות, קומות וישויות…')} aria-label=${t('app.search')} autocomplete="off" role="combobox" aria-expanded=${open} aria-controls="search-results" .value=${this.searchQ} @input=${this.onSearchInput} @keydown=${this.onSearchKey} @focus=${() => { if (this.searchResults.length) this.searchOpen = true; }} /></label>
               ${open ? this.renderResults() : nothing}
             </div>`
           : nothing}
@@ -2771,17 +2772,17 @@ export class SwApp extends LitElement {
   private renderGate() {
     const s = this.session;
     if (s.mode === 'unauthenticated') {
-      return html`<div class="gate"><sw-state-panel state="forbidden" heading="נדרשת כניסה למערכת" hint=${s.error ?? ''}></sw-state-panel></div>`;
+      return html`<div class="gate"><sw-state-panel state="forbidden" heading=${tr('נדרשת כניסה למערכת')} hint=${s.error ?? ''}></sw-state-panel></div>`;
     }
     if (s.mode === 'no_access') {
-      return html`<div class="gate"><sw-state-panel state="forbidden" heading="אין לך עדיין תפקיד במערכת" hint="המשתמש ${s.me?.user.display_name || s.me?.user.username || ''} מזוהה במערכת, אך מנהל המערכת טרם שייך לו תפקיד והיקף. פנה למנהל המערכת."></sw-state-panel></div>${this.renderPermToast()}`;
+      return html`<div class="gate"><sw-state-panel state="forbidden" heading=${tr('אין לך עדיין תפקיד במערכת')} hint=${tr('המשתמש {name} מזוהה במערכת, אך מנהל המערכת טרם שייך לו תפקיד והיקף. פנה למנהל המערכת.', { name: s.me?.user.display_name || s.me?.user.username || '' })}></sw-state-panel></div>${this.renderPermToast()}`;
     }
     const gate = s.me?.presence_gate;
     if (gate?.blocked) {
       // CR-027: the required-sensors policy - the server refuses everything but /me and the app's own routes until a registered
       // phone of this user reports the required sensors on; the app's native sensor screen is where that happens
       const missing = gate.missing.map((k) => SENSOR_LABEL[k] ?? k).join(', ');
-      return html`<div class="gate" data-presence-gate><sw-state-panel state="forbidden" heading="נדרש להפעיל שיתוף נתונים" hint="כדי להשתמש במערכת ${gate.channel === 'app' ? 'מהאפליקציה' : ''} יש להפעיל באפליקציה: ${missing}. לאחר ההפעלה טענו את המסך מחדש."></sw-state-panel></div>${this.renderPermToast()}`;
+      return html`<div class="gate" data-presence-gate><sw-state-panel state="forbidden" heading=${tr('נדרש להפעיל שיתוף נתונים')} hint=${tr('כדי להשתמש במערכת {from} יש להפעיל באפליקציה: {missing}. לאחר ההפעלה טענו את המסך מחדש.', { from: gate.channel === 'app' ? tr('מהאפליקציה') : '', missing })}></sw-state-panel></div>${this.renderPermToast()}`;
     }
     return null;
   }
@@ -2796,7 +2797,7 @@ export class SwApp extends LitElement {
     await loadSession();
     resetAlarmPresence(); // the alarm pages follow the new permissions (the session listener asks again)
     this.permEpoch += 1;
-    this.permToast = 'ההרשאות שלך עודכנו';
+    this.permToast = tr('ההרשאות שלך עודכנו');
     window.clearTimeout(this.permToastTimer);
     this.permToastTimer = window.setTimeout(() => (this.permToast = ''), 5000);
     window.dispatchEvent(new CustomEvent('sw-permissions-changed'));
@@ -2900,7 +2901,7 @@ export class SwApp extends LitElement {
         // available" panel a missing access.read permission shows (wiskey-*.ts `data-wiskey-state="no_permission"`),
         // not the embed or either SMPLWISE screen; the per-screen choice does not apply while the area is hidden.
         if (this.session.mode === 'api' && WISKEY_HIDDEN) {
-          return html`<sw-page heading="WisKey"><sw-state-panel data-wiskey-state="hidden" state="forbidden" heading="אזור WisKey מוסתר" hint="מנהל המערכת הסתיר את אזור WisKey עבור כל המשתמשים, בהגדרות ‹ מתגי מסכי כניסה. אפשר להציג אותו מחדש שם."></sw-state-panel></sw-page>`;
+          return html`<sw-page heading="WisKey"><sw-state-panel data-wiskey-state="hidden" state="forbidden" heading=${tr('אזור WisKey מוסתר')} hint=${tr('מנהל המערכת הסתיר את אזור WisKey עבור כל המשתמשים, בהגדרות ‹ מתגי מסכי כניסה. אפשר להציג אותו מחדש שם.')}></sw-state-panel></sw-page>`;
         }
         // SHAREDID-293: "גישת חוץ" - an Arx-only screen under the access-control area (owner decision 6: or under service management)
         if (s[1] === 'external') return html`<access-external-screen .route=${r}></access-external-screen>`;
@@ -3023,7 +3024,7 @@ export class SwApp extends LitElement {
   private desktopOnly(kind: MobileKind, s: readonly string[]) {
     const floorId = kind === 'structure' ? s[2] : undefined;
     const back = floorId ? `#/explore/floors/${encodeURIComponent(floorId)}` : kind === 'structure' ? '#/explore/sites' : '#/system/diagnostics';
-    const label = floorId ? 'חזרה למפת הקומה' : kind === 'structure' ? 'חזרה לאתרים' : 'חזרה להגדרות';
+    const label = floorId ? tr('חזרה למפת הקומה') : kind === 'structure' ? tr('חזרה לאתרים') : tr('חזרה להגדרות');
     return html`<div data-desktop-only=${kind}>
       <sw-state-panel state="empty" heading=${kind === 'structure' ? STRUCTURE_DESKTOP_ONLY : DESKTOP_ONLY} hint="">
         <div style="margin-block-start:10px"><sw-button variant="primary" size="lg" icon="chevron" data-desktop-only-back @click=${() => { window.location.hash = back; }}>${label}</sw-button></div>
@@ -3047,11 +3048,11 @@ export class SwApp extends LitElement {
   private renderNvrLess(kind: BlockKind = 'no_nvr') {
     if (this.embedded()) return html`<explore-floor-map .floorId=${'f0'} .screenState=${'ready'}></explore-floor-map>`;
     // NN1: a recorder installation without its media server is not a supported installation (owner decision D2): say so, in operator words
-    if (kind === 'no_media') return html`<sw-page heading="וידאו אינו זמין"><sw-state-panel icon="camera" data-capability-panel="no_media" state="empty" heading="האזור הזה דורש שרת מדיה" hint=${UNSUPPORTED_NVR_WITHOUT_GO2RTC} actionLabel="לחיבורים" @action=${() => (window.location.hash = '#/system/setup')}></sw-state-panel></sw-page>`;
+    if (kind === 'no_media') return html`<sw-page heading=${tr('וידאו אינו זמין')}><sw-state-panel icon="camera" data-capability-panel="no_media" state="empty" heading=${tr('האזור הזה דורש שרת מדיה')} hint=${UNSUPPORTED_NVR_WITHOUT_GO2RTC} actionLabel=${tr('לחיבורים')} @action=${() => (window.location.hash = '#/system/setup')}></sw-state-panel></sw-page>`;
     // CR-022: the NVR connection lives in Arx settings now (מערכת › חיבורים); only a holder of system.configure is offered the way there
-    return html`<sw-page heading="מצב ללא NVR"><sw-state-panel icon="camera" data-nvr-less data-capability-panel="no_nvr" state="empty" heading="האזור הזה דורש NVR"
+    return html`<sw-page heading=${tr('מצב ללא NVR')}><sw-state-panel icon="camera" data-nvr-less data-capability-panel="no_nvr" state="empty" heading=${tr('האזור הזה דורש NVR')}
       hint=${nvrLessHint(this.session.capabilities.cameras_available)}
-      actionLabel=${can('system.configure') ? 'לחיבורים' : ''} @action=${() => (window.location.hash = '#/system/setup')}></sw-state-panel></sw-page>`;
+      actionLabel=${can('system.configure') ? tr('לחיבורים') : ''} @action=${() => (window.location.hash = '#/system/setup')}></sw-state-panel></sw-page>`;
   }
 
   // ---- CR-013: the user (avatar) as the navigation's last item, its menu and the tab order ----
@@ -3063,7 +3064,7 @@ export class SwApp extends LitElement {
 
   private get userRole(): string {
     const me = this.session.me;
-    return me?.bindings[0]?.role_name ?? (this.session.mode === 'demo' ? 'מנהל מערכת' : this.session.mode === 'loading' ? '' : 'ללא שיוך');
+    return me?.bindings[0]?.role_name ?? (this.session.mode === 'demo' ? 'מנהל מערכת' : this.session.mode === 'loading' ? '' : tr('ללא שיוך'));
   }
 
   /** The avatar's accessible name: who, and the open alerts (the red dot says it visually). */
@@ -3072,10 +3073,10 @@ export class SwApp extends LitElement {
     // CR-018: the center's numbers (unread, open critical) when `/notifications/summary` answers, the open rule alerts of today's poll otherwise
     if (s) {
       const t = badgeLabel(this.badge(), s.open_critical);
-      return `תפריט המשתמש${this.userName ? ` · ${this.userName}` : ''}${t ? ` · ${t}` : ''}`;
+      return `${tr('תפריט המשתמש')}${this.userName ? ` · ${this.userName}` : ''}${t ? ` · ${t}` : ''}`;
     }
     const n = this.alertCount ?? 0;
-    return `תפריט המשתמש${this.userName ? ` · ${this.userName}` : ''}${n ? ` · ${openAlertsText(n)}` : ''}`;
+    return `${tr('תפריט המשתמש')}${this.userName ? ` · ${this.userName}` : ''}${n ? ` · ${openAlertsText(n)}` : ''}`;
   }
 
   /** The avatar's dot and the menu chip (CR-018): see `badgeOf`. */
@@ -3224,7 +3225,7 @@ export class SwApp extends LitElement {
 
   private renderMe(where: 'rail' | 'bottom') {
     const n = this.badge().dot ? 1 : 0;
-    const first = this.userName.split(/\s+/)[0] || 'חשבון';
+    const first = this.userName.split(/\s+/)[0] || tr('חשבון');
     // review M6: the settings (#/system/...) are reached from here, so the avatar is the active item there
     const here = areaOf(this.route) === 'system';
     return html`<button type="button" class=${classMap({ me: true, [where]: true, open: this.menuOpen, active: here })} ?data-profile-menu=${where === 'rail'} ?data-nav-me=${where === 'bottom'} data-has-alerts=${n ? 'true' : 'false'}
@@ -3241,7 +3242,7 @@ export class SwApp extends LitElement {
     if (!this.menuOpen || !this.phone) return nothing;
     const h = this.setupHint;
     return html`<span slot="pills" class="menu-pills">
-      ${this.session.mode === 'demo' ? html`<sw-badge kind="neutral" label="נתוני הדגמה" data-demo-pill></sw-badge>` : nothing}
+      ${this.session.mode === 'demo' ? html`<sw-badge kind="neutral" label=${tr('נתוני הדגמה')} data-demo-pill></sw-badge>` : nothing}
       ${h ? html`<a class="setup-pill" href="#/system/wizard" data-setup-pill @click=${(e: Event) => { e.preventDefault(); this.navigateFromOverlay('#/system/wizard'); }}><sw-icon name="info" size=${14}></sw-icon>${SETUP_HINT_TEXT.title} · ${h.done}/${h.total}</a>` : nothing}
     </span>`;
   }
@@ -3302,7 +3303,7 @@ export class SwApp extends LitElement {
     // 0.1.153: tabs (default) / hybrid / dropdown for this area's group (הגדרות › כללי › לשוניות; every width since 0.1.157, tabModeOf)
     const rowMode = this.rowModeProps(area, rowStyle);
     return html`
-      <nav class="rail" aria-label="ניווט ראשי">
+      <nav class="rail" aria-label=${tr('ניווט ראשי')}>
         <span class="brand-tile" aria-hidden="true" data-brand-tile ?data-demo=${this.session.me?.demo?.active === true}><sw-brand kind="product" mark decorative .h=${15} .maxw=${38} .previewSize=${'m'} .scheme=${this.skin === 'domus' || this.skin === 'crystal' ? 'dark' : 'auto'}></sw-brand></span>
         ${areas.map(
           (n) => html`<a class=${classMap({ item: true, a: true, active: area === n.id })} href=${n.href} title=${n.label} aria-label=${n.label} aria-current=${area === n.id ? 'page' : 'false'} data-nav=${n.id}>
@@ -3325,15 +3326,15 @@ export class SwApp extends LitElement {
           <div class="screen" ?data-settings=${this.settingsNav(area, editor)}>${this.settingsNav(area, editor) ? html`<system-nav ?compact=${this.phone}></system-nav>` : nothing}${this.session.mode === 'loading' ? nothing : this.renderScreen()}</div>`}
       </main>
       ${this.skin === 'bubble'
-        ? html`<nav class=${classMap({ bottom: true, dock: true, crowded: areas.length >= 6 })} aria-label="ניווט ראשי" data-dock>
+        ? html`<nav class=${classMap({ bottom: true, dock: true, crowded: areas.length >= 6 })} aria-label=${tr('ניווט ראשי')} data-dock>
             <div class="stack">
               ${areas.map((n) => html`<a class=${classMap({ active: area === n.id })} href=${n.href} aria-label=${n.label} aria-current=${area === n.id ? 'page' : 'false'} data-nav=${n.id}><span class="ic"><sw-icon .name=${n.icon} size=${this.nav.pIcon}></sw-icon></span><span class="lbl">${n.label}</span>${this.areaCount(n.id)}</a>`)}
               ${this.renderMe('bottom')}
             </div>
-            <button type="button" class="fab" aria-label="בחירת אזור" aria-haspopup="dialog" aria-expanded=${this.pickerOpen ? 'true' : 'false'} data-area-picker @click=${() => void this.openPicker()}><sw-icon name="home" size=${24}></sw-icon></button>
+            <button type="button" class="fab" aria-label=${tr('בחירת אזור')} aria-haspopup="dialog" aria-expanded=${this.pickerOpen ? 'true' : 'false'} data-area-picker @click=${() => void this.openPicker()}><sw-icon name="home" size=${24}></sw-icon></button>
           </nav>
           ${this.renderPicker()}`
-        : html`<nav class=${classMap({ bottom: true, crowded: areas.length >= 6 })} aria-label="ניווט ראשי">
+        : html`<nav class=${classMap({ bottom: true, crowded: areas.length >= 6 })} aria-label=${tr('ניווט ראשי')}>
             ${areas.map((n) => html`<a class=${classMap({ active: area === n.id })} href=${n.href} aria-label=${n.label} aria-current=${area === n.id ? 'page' : 'false'} data-nav=${n.id}><span class="ic"><sw-icon .name=${n.icon} size=${this.nav.pIcon}></sw-icon></span><span class="lbl">${n.label}</span>${this.areaCount(n.id)}</a>`)}
             ${this.renderMe('bottom')}
           </nav>`}
@@ -3387,18 +3388,18 @@ export class SwApp extends LitElement {
     const t = this.pickerTree;
     const seg = this.route?.segments ?? [];
     const here = seg[0] === 'devices' && seg[1] === 'areas' ? seg[2] ?? '' : '';
-    return html`<sw-sheet heading="בחירת אזור" ?open=${this.pickerOpen} data-area-picker-sheet @close=${() => (this.pickerOpen = false)}>
+    return html`<sw-sheet heading=${tr('בחירת אזור')} ?open=${this.pickerOpen} data-area-picker-sheet @close=${() => (this.pickerOpen = false)}>
       ${!t
         ? html`<sw-state-panel state="loading"></sw-state-panel>`
         : !t.floors.length
-          ? html`<sw-state-panel icon="home" state="empty" heading="אין אזורים"></sw-state-panel>`
+          ? html`<sw-state-panel icon="home" state="empty" heading=${tr('אין אזורים')}></sw-state-panel>`
           : t.floors.map((f) => {
               const col = this.pickerCollapsed.has(f.floor_id);
               return html`<div class="pk-floor" data-picker-floor=${f.floor_id}>
                 <button type="button" class="pk-head" aria-expanded=${col ? 'false' : 'true'} @click=${() => { const n = new Set(this.pickerCollapsed); n.has(f.floor_id) ? n.delete(f.floor_id) : n.add(f.floor_id); this.pickerCollapsed = n; }}>
-                  <sw-icon name=${col ? 'chevronBack' : 'chevronDown'} size=${16}></sw-icon><span class="t">${f.name}</span>${f.counts.lights_on ? html`<span class="n">${f.counts.lights_on} דולקים</span>` : nothing}
+                  <sw-icon name=${col ? 'chevronBack' : 'chevronDown'} size=${16}></sw-icon><span class="t">${f.name}</span>${f.counts.lights_on ? html`<span class="n">${tr('{n} דולקים', { n: f.counts.lights_on })}</span>` : nothing}
                 </button>
-                ${col ? nothing : html`<div class="pk-areas">${f.areas.map((a) => html`<sw-pill variant="plain" icon="home" .label=${a.name} .state=${a.counts.lights_on ? `${a.counts.lights_on} דולקים` : `${a.counts.entities} התקנים`} ?accent=${a.area_id === here} data-picker-area=${a.area_id}
+                ${col ? nothing : html`<div class="pk-areas">${f.areas.map((a) => html`<sw-pill variant="plain" icon="home" .label=${a.name} .state=${a.counts.lights_on ? tr('{n} דולקים', { n: a.counts.lights_on }) : tr('{n} התקנים', { n: a.counts.entities })} ?accent=${a.area_id === here} data-picker-area=${a.area_id}
                   @activate=${() => { this.pickerOpen = false; navigate(`/devices/areas/${encodeURIComponent(a.area_id)}`); }}></sw-pill>`)}</div>`}
               </div>`;
             })}
@@ -3418,9 +3419,9 @@ export class SwApp extends LitElement {
     if (showSections && tabModeOf('security') === 'dropdown') {
       const sections = visibleSections(this.session.mode === 'api', canNav);
       const alarm = sections.find((s) => s.id === 'alarm');
-      const first = sections.length > 1 ? html`<sw-tabs block variant="dropdown" dd-style=${ddStyleOf('security')} dd-size=${ddSizeOf('security')} dd-ring=${ddRingOf('security')} dd-panel=${ddPanelOf('security')} .items=${sections.map((s) => ({ id: s.id, label: s.label, href: s.href }))} .active=${section ?? ''} group-label="אבטחה" data-section-tabs></sw-tabs>` : nothing;
+      const first = sections.length > 1 ? html`<sw-tabs block variant="dropdown" dd-style=${ddStyleOf('security')} dd-size=${ddSizeOf('security')} dd-ring=${ddRingOf('security')} dd-panel=${ddPanelOf('security')} .items=${sections.map((s) => ({ id: s.id, label: s.label, href: s.href }))} .active=${section ?? ''} group-label=${tr('אבטחה')} data-section-tabs></sw-tabs>` : nothing;
       const pin = sections.length > 1 && alarm && section !== 'alarm' ? html`<a class="alarmpin" href=${alarm.href} data-section-alarm aria-label=${alarm.label} title=${alarm.label}><sw-icon name="bell" size=${16}></sw-icon></a>` : nothing;
-      return html`<div class="tabpair" data-tab-pair data-tabs-mode="dropdown" data-security-row>${first}${tabs.length > 1 && !editor ? pageChip('עמודים') : nothing}${pin}</div>`;
+      return html`<div class="tabpair" data-tab-pair data-tabs-mode="dropdown" data-security-row>${first}${tabs.length > 1 && !editor ? pageChip(tr('עמודים')) : nothing}${pin}</div>`;
     }
     const own = html`<div class="subnav" data-tabstyle=${rowMode.variant === 'dropdown' ? 'dropdown' : rowStyle}>${showSections && !this.phone ? this.renderSections(section) : nothing}${tabs.length > 1 && !editor ? html`<sw-tabs .items=${tabs} .active=${activeAreaTab(this.route)} .variant=${rowMode.variant} ?adaptive=${rowMode.adaptive} dd-style=${rowMode.ddStyle} dd-size=${rowMode.ddSize} dd-ring=${rowMode.ddRing} dd-panel=${rowMode.ddPanel} group-label=${rowMode.variant === 'dropdown' || rowMode.adaptive ? rowMode.label : nothing} data-area-tabs></sw-tabs>` : nothing}</div>`;
     const sections = showSections && this.phone ? this.renderSections(section, true) : nothing;
@@ -3452,7 +3453,7 @@ export class SwApp extends LitElement {
     if (rowMode.variant === 'dropdown') {
       const chip = (items: TabItem[], active: string, label: string, attr: 'sections' | 'pages') => html`<sw-tabs block variant="dropdown" dd-style=${rowMode.ddStyle} dd-size=${rowMode.ddSize} dd-ring=${rowMode.ddRing} dd-panel=${rowMode.ddPanel} .items=${items} .active=${active} group-label=${label} ?data-area-tabs=${attr === 'sections'} ?data-tickets-sections=${attr === 'sections'} ?data-tickets-pages=${attr === 'pages'}></sw-tabs>`;
       const l1 = showL1 ? chip(sections, sec, areaLabel, 'sections') : nothing;
-      const l2 = showL2 ? chip(pages, page, 'עמודים', 'pages') : nothing;
+      const l2 = showL2 ? chip(pages, page, tr('עמודים'), 'pages') : nothing;
       if (showL1 && showL2) return html`<div class="tabpair" data-tab-pair data-tabs-mode="dropdown" data-tickets-row>${l1}${l2}</div>`;
       return html`<div class="subnav" data-tabstyle="dropdown" data-tickets-row>${l1}${l2}</div>`;
     }
@@ -3460,7 +3461,7 @@ export class SwApp extends LitElement {
       ? html`<sw-tabs .items=${sections} .active=${sec} .variant=${rowMode.variant} ?adaptive=${rowMode.adaptive} ?short-labels=${this.phone} dd-style=${rowMode.ddStyle} dd-size=${rowMode.ddSize} dd-ring=${rowMode.ddRing} dd-panel=${rowMode.ddPanel} group-label=${rowMode.adaptive ? areaLabel : nothing} data-area-tabs data-tickets-sections></sw-tabs>`
       : nothing;
     const l2 = showL2
-      ? html`<sw-tabs .items=${pages} .active=${page} .variant=${pageStyle} ?adaptive=${rowMode.adaptive} dd-style=${rowMode.ddStyle} dd-size=${rowMode.ddSize} dd-ring=${rowMode.ddRing} dd-panel=${rowMode.ddPanel} group-label=${rowMode.adaptive ? 'עמודים' : nothing} data-tickets-pages></sw-tabs>`
+      ? html`<sw-tabs .items=${pages} .active=${page} .variant=${pageStyle} ?adaptive=${rowMode.adaptive} dd-style=${rowMode.ddStyle} dd-size=${rowMode.ddSize} dd-ring=${rowMode.ddRing} dd-panel=${rowMode.ddPanel} group-label=${rowMode.adaptive ? tr('עמודים') : nothing} data-tickets-pages></sw-tabs>`
       : nothing;
     return html`<div class="subnav" data-tabstyle=${rowStyle} data-tickets-row>${l1}${l2}</div>`;
   }
@@ -3479,7 +3480,7 @@ export class SwApp extends LitElement {
   private rowModeProps(area: ReturnType<typeof areaOf>, style: ReturnType<typeof tabStyleOf>): { variant: ReturnType<typeof tabStyleOf> | 'dropdown'; adaptive: boolean; label: string; ddStyle: DdStyle; ddSize: DdSize; ddRing: DdRing; ddPanel: DdPanel } {
     const group = tabGroupOf(area);
     const mode = group ? tabModeOf(group) : 'tabs';
-    return { variant: mode === 'dropdown' ? 'dropdown' : style, adaptive: mode === 'hybrid', ddStyle: group ? ddStyleOf(group) : 'auto', ddSize: group ? ddSizeOf(group) : 'md', ddRing: group ? ddRingOf(group) : '2', ddPanel: group ? ddPanelOf(group) : '240', label: area === 'system' ? 'הגדרות' : area === 'multimedia' ? 'מולטימדיה' : 'לשוניות' };
+    return { variant: mode === 'dropdown' ? 'dropdown' : style, adaptive: mode === 'hybrid', ddStyle: group ? ddStyleOf(group) : 'auto', ddSize: group ? ddSizeOf(group) : 'md', ddRing: group ? ddRingOf(group) : '2', ddPanel: group ? ddPanelOf(group) : '240', label: area === 'system' ? tr('הגדרות') : area === 'multimedia' ? tr('מולטימדיה') : tr('לשוניות') };
   }
 
   /** CR-010: the security area's sections (לייב | חקירה | אזעקה) as a segmented control - at the head of the page on a
@@ -3491,9 +3492,9 @@ export class SwApp extends LitElement {
     const style = tabStyleOf('security');
     if (style !== 'pill') {
       // the installation chose an underline look for the sections: the same items as a tab row (sw-tabs draws it)
-      return html`<nav class=${row ? 'sectabs phone' : 'sectabs'} aria-label="אבטחה" ?data-security-sections=${!row} ?data-security-row=${row}><sw-tabs .items=${sections.map((s) => ({ id: s.id, label: s.label, href: s.href }))} .active=${active ?? ''} .variant=${style} data-section-tabs></sw-tabs></nav>`;
+      return html`<nav class=${row ? 'sectabs phone' : 'sectabs'} aria-label=${tr('אבטחה')} ?data-security-sections=${!row} ?data-security-row=${row}><sw-tabs .items=${sections.map((s) => ({ id: s.id, label: s.label, href: s.href }))} .active=${active ?? ''} .variant=${style} data-section-tabs></sw-tabs></nav>`;
     }
-    return html`<nav class=${row ? 'sections secrow' : 'sections'} aria-label="אבטחה" ?data-security-sections=${!row} ?data-security-row=${row}>${sections.map(
+    return html`<nav class=${row ? 'sections secrow' : 'sections'} aria-label=${tr('אבטחה')} ?data-security-sections=${!row} ?data-security-row=${row}>${sections.map(
       (s) => html`<a href=${s.href} class=${classMap({ on: s.id === active })} aria-current=${s.id === active ? 'page' : 'false'} data-section=${s.id}><span class="pill">${row ? nothing : html`<sw-icon .name=${s.icon} size=${15}></sw-icon>`}<span>${s.label}</span></span></a>`,
     )}</nav>`;
   }

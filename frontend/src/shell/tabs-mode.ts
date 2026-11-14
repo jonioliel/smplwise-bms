@@ -18,20 +18,21 @@
  */
 import { getMyPrefs, putMyPrefs } from '../api/me-prefs';
 import { DD_PANEL_DEFAULT, DD_PANEL_IDS, DD_PICKER_DEFAULT, DD_PICKER_IDS, DD_RING_DEFAULT, DD_RING_IDS, DD_SEARCH_DEFAULT, DD_SEARCH_IDS, DD_SIZE_DEFAULT, DD_SIZE_IDS, DD_STYLE_IDS, type DdPanel, type DdPicker, type DdRing, type DdSearch, type DdSize, type DdStyle } from '../components/dd-style';
+import { tr } from '../i18n/msg/shell';
 
 export type TabMode = 'tabs' | 'hybrid' | 'dropdown';
 export type TabGroup = 'home' | 'area' | 'multimedia' | 'security' | 'settings';
 
 export const TAB_MODES: readonly TabMode[] = ['tabs', 'hybrid', 'dropdown'];
 export const TAB_MODE_DEFAULT: TabMode = 'tabs';
-export const TAB_MODE_LABEL: Record<TabMode, string> = { tabs: 'כמוסות ופסים', hybrid: 'משולב', dropdown: 'תפריטים נפתחים' };
+export const TAB_MODE_LABEL: Record<TabMode, string> = { tabs: tr('כמוסות ופסים'), hybrid: tr('משולב'), dropdown: tr('תפריטים נפתחים') };
 export const TAB_MODE_HINT: Record<TabMode, string> = {
-  tabs: 'כמו היום: כל הלשוניות גלויות',
-  hybrid: 'עד שלוש אפשרויות כפס, יותר מזה כתפריט',
-  dropdown: 'כל קבוצה כתפריט אחד, חוסך מקום',
+  tabs: tr('כמו היום: כל הלשוניות גלויות'),
+  hybrid: tr('עד שלוש אפשרויות כפס, יותר מזה כתפריט'),
+  dropdown: tr('כל קבוצה כתפריט אחד, חוסך מקום'),
 };
 export const TAB_GROUPS: readonly TabGroup[] = ['home', 'area', 'multimedia', 'security', 'settings'];
-export const TAB_GROUP_LABEL: Record<TabGroup, string> = { home: 'אזורים בקומה (מסך האזור)', area: 'לשוניות האזור', multimedia: 'מולטימדיה', security: 'אבטחה', settings: 'הגדרות' };
+export const TAB_GROUP_LABEL: Record<TabGroup, string> = { home: tr('אזורים בקומה (מסך האזור)'), area: tr('לשוניות האזור'), multimedia: tr('מולטימדיה'), security: tr('אבטחה'), settings: tr('הגדרות') };
 /** The phone's width (the shell's phone layout, the pair row); the mode itself no longer depends on it (0.1.157). */
 export const TAB_MODE_MAX_WIDTH = 767;
 /** `hybrid`: up to this many items stay a segmented control. */
@@ -42,14 +43,14 @@ export type TabModeGroups = Partial<Record<TabGroup, TabMode>>;
 export type { DdStyle };
 export const DD_STYLES: readonly DdStyle[] = DD_STYLE_IDS;
 export const DD_STYLE_DEFAULT: DdStyle = 'auto';
-export const DD_STYLE_LABEL: Record<DdStyle, string> = { auto: 'כמו היום', pill: 'כדור מלא', field: 'שדה מעוגל', underline: 'קו תחתון', text: 'טקסט', prefix: 'קידומת קבוצה', tonal: 'גוון הדגשה', capsule: 'קפסולה' };
+export const DD_STYLE_LABEL: Record<DdStyle, string> = { auto: tr('כמו היום'), pill: tr('כדור מלא'), field: tr('שדה מעוגל'), underline: tr('קו תחתון'), text: tr('טקסט'), prefix: tr('קידומת קבוצה'), tonal: tr('גוון הדגשה'), capsule: tr('קפסולה') };
 export type DdStyleGroups = Partial<Record<TabGroup, DdStyle>>;
 
 /** Unreleased (owner request 2026-10-04): the SIZE of a dropdown, `md` = the reference size. Same shape as the style: global + per tab group,
  * installation (`ui.dd_size`, `ui.dd_size_groups`) and personal (/me/prefs). Backend twin: services/dd_style.py. */
 export type { DdSize };
 export const DD_SIZES: readonly DdSize[] = DD_SIZE_IDS;
-export const DD_SIZE_LABEL: Record<DdSize, string> = { sm: 'קטן', md: 'רגיל', lg: 'גדול' };
+export const DD_SIZE_LABEL: Record<DdSize, string> = { sm: tr('קטן'), md: tr('רגיל'), lg: tr('גדול') };
 export type DdSizeGroups = Partial<Record<TabGroup, DdSize>>;
 export function asDdSize(v: unknown): DdSize | null {
   return typeof v === 'string' && (DD_SIZES as readonly string[]).includes(v) ? (v as DdSize) : null;
@@ -59,9 +60,9 @@ export function asDdSize(v: unknown): DdSize | null {
  * group, installation `ui.dd_<key>` / `ui.dd_<key>_groups` and personal /me/prefs, null = follow the installation), kept by one small generic store. Backend twin: services/dd_style.py. */
 export type { DdRing, DdPanel };
 export const DD_RINGS: readonly DdRing[] = DD_RING_IDS;
-export const DD_RING_LABEL: Record<DdRing, string> = { '1': '1 פיקסל', '1.5': '1.5 פיקסל', '2': '2 פיקסלים', '3': '3 פיקסלים' };
+export const DD_RING_LABEL: Record<DdRing, string> = { '1': tr('1 פיקסל'), '1.5': tr('1.5 פיקסל'), '2': tr('2 פיקסלים'), '3': tr('3 פיקסלים') };
 export const DD_PANELS: readonly DdPanel[] = DD_PANEL_IDS;
-export const DD_PANEL_LABEL: Record<DdPanel, string> = { button: 'ברוחב הכפתור', '240': '240 פיקסלים', '300': '300 פיקסלים' };
+export const DD_PANEL_LABEL: Record<DdPanel, string> = { button: tr('ברוחב הכפתור'), '240': tr('240 פיקסלים'), '300': tr('300 פיקסלים') };
 export type DdRingGroups = Partial<Record<TabGroup, DdRing>>;
 export type DdPanelGroups = Partial<Record<TabGroup, DdPanel>>;
 export function asDdRing(v: unknown): DdRing | null {
@@ -76,7 +77,7 @@ export function asDdPanel(v: unknown): DdPanel | null {
 export type DdPhone = 'sheet' | 'list';
 export const DD_PHONES: readonly DdPhone[] = ['sheet', 'list'];
 export const DD_PHONE_DEFAULT: DdPhone = 'list';
-export const DD_PHONE_LABEL: Record<DdPhone, string> = { sheet: 'גיליון שעולה מלמטה', list: 'רשימה קטנה מתחת לשדה' };
+export const DD_PHONE_LABEL: Record<DdPhone, string> = { sheet: tr('גיליון שעולה מלמטה'), list: tr('רשימה קטנה מתחת לשדה') };
 export function asDdPhone(v: unknown): DdPhone | null {
   return typeof v === 'string' && (DD_PHONES as readonly string[]).includes(v) ? (v as DdPhone) : null;
 }
@@ -86,7 +87,7 @@ export function asDdPhone(v: unknown): DdPhone | null {
  * installation), the same shape as the phone choice. Backend twin: services/dd_style.py. */
 export type { DdSearch, DdPicker };
 export const DD_SEARCHES: readonly DdSearch[] = DD_SEARCH_IDS;
-export const DD_SEARCH_LABEL: Record<DdSearch, string> = { always: 'תמיד', '4': 'מ־4 מצלמות', '8': 'מ־8 מצלמות', never: 'אף פעם' };
+export const DD_SEARCH_LABEL: Record<DdSearch, string> = { always: tr('תמיד'), '4': tr('מ־4 מצלמות'), '8': tr('מ־8 מצלמות'), never: tr('אף פעם') };
 /** 2026-10-17: where a tab group's dropdown chip sits on a wide screen (>= 1100 px; narrower always uses its own row): 1 its own row above
  * the page title, 2 the far end of the title row, 3 right after the title, 4 the start edge before the title; the default is 1 (2-4 are experimental, 2.7.2). One global value,
  * installation `ui.dd_place` and personal (/me/prefs; null = follow the installation). Backend twin: services/dd_style.py. */
@@ -105,7 +106,7 @@ export function asSettingsNav(v: unknown): SettingsNav | null {
   return typeof v === 'string' && (SETTINGS_NAVS as readonly string[]).includes(v) ? (v as SettingsNav) : null;
 }
 export const DD_PICKERS: readonly DdPicker[] = DD_PICKER_IDS;
-export const DD_PICKER_LABEL: Record<DdPicker, string> = { dropdown: 'תפריט נפתח', chips: 'כפתורים' };
+export const DD_PICKER_LABEL: Record<DdPicker, string> = { dropdown: tr('תפריט נפתח'), chips: tr('כפתורים') };
 export function asDdSearch(v: unknown): DdSearch | null {
   return typeof v === 'string' && (DD_SEARCHES as readonly string[]).includes(v) ? (v as DdSearch) : null;
 }
