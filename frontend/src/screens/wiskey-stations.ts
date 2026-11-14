@@ -70,6 +70,7 @@ import {
 } from './wiskey-stations-logic';
 import { drawerBody, grid, rows, tableColumns, type Fetch, type StationDetail, type ViewCtx } from './wiskey-stations-views';
 import { timeText } from '../api/day-format';
+import { LongListsController } from '../api/long-lists';
 
 type ViewMode = 'cards' | 'list' | 'table';
 const VIEW_KEY = 'sw.wiskey.stations.view';
@@ -161,6 +162,10 @@ export class WiskeyStations extends LitElement {
   private fitObserver: ResizeObserver | null = null;
   private fitGrid: Element | null = null;
   private mqd = typeof matchMedia === 'function' ? matchMedia('(min-width: 1101px)') : null;
+  /** PAGING-SETTING-2439 (owner round 32, Q-SYS-5): the long lists scroll -> no pages; the cards scroll inside their own box. */
+  private lists = new LongListsController(this, () => {
+    this.cardPage = 1;
+  });
 
   private clock = new CallClock();
   private actions = new StationActions({
@@ -689,7 +694,7 @@ export class WiskeyStations extends LitElement {
     const online = all.some((s) => s.online);
     const state = !all.length ? 'empty' : 'ready';
     const placeName = rowsOf.find((r) => r.id === place)?.name ?? t.places.all;
-    const per = view === 'cards' && this.perPage > 0 ? this.perPage : 0;
+    const per = view === 'cards' && this.perPage > 0 && this.lists.paged ? this.perPage : 0;
     const pages = per ? Math.max(1, Math.ceil(shown.length / per)) : 1;
     const page = Math.min(Math.max(1, this.cardPage), pages);
     const onPage = per ? shown.slice((page - 1) * per, page * per) : shown;
