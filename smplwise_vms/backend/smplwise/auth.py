@@ -88,13 +88,57 @@ def _pre_resolved(request: Request) -> Principal | None:
     return principal
 
 
-def get_conn(request: Request):
+GATE_WAIT_THREADS = 64  # get_conn: threads of their own for the wait in the write-gate queue (more than the shared pool's 40)
+_gate_wait_limiters: dict[int, tuple[object, object]] = {}  # id(event loop) -> (loop, its CapacityLimiter)
+
+
+def _gate_wait_limiter():
+    """The limiter of the write-gate wait for the running event loop (one per loop: a test client runs its own)."""
+    import asyncio
+
+    import anyio
+
+    loop = asyncio.get_running_loop()
+    held = _gate_wait_limiters.get(id(loop))
+    if held is None or held[0] is not loop:
+        for key in [k for k, (lp, _) in _gate_wait_limiters.items() if lp.is_closed()]:  # loops of finished test clients
+            _gate_wait_limiters.pop(key, None)
+        held = _gate_wait_limiters[id(loop)] = (loop, anyio.CapacityLimiter(GATE_WAIT_THREADS))
+    return held[1]
+
+
+async def get_conn(request: Request):
+    """The request's write connection (BEGIN IMMEDIATE: the write gate, then SQLite's write lock).
+
+    CR-SYNC-GATE-2438: the wait for the write gate runs on threads of its own (GATE_WAIT_THREADS), never in AnyIO's shared
+    40-thread pool. As a sync dependency it waited in that pool, where the gate holder's own sync body and sync
+    dependencies (current_principal, ...) also run: with 40 or more writers parked in the gate, the holder waited for a
+    thread that only a gate time-out freed - a burst of "database is locked" with no slow holder. Same transaction, same
+    gate (FIFO order, BUSY_TIMEOUT_S), same commit / rollback rules (Database.connection); a writer beyond
+    GATE_WAIT_THREADS waits for a thread in arrival order, as the 41st did in the shared pool before. The exit runs like
+    FastAPI's own for a sync dependency (its own thread, never behind a full pool)."""
+    import anyio
+    import anyio.to_thread
+    from starlette.concurrency import run_in_threadpool
+
     db: Database = request.app.state.db
     if is_remote(request) and getattr(request.state, PRE_RESOLVED, None) is None:
-        resolve_remote_first(request)  # 401 here never touches the write gate
-    with db.connection(label=f"{request.method} {request.url.path}") as conn:
+        await run_in_threadpool(resolve_remote_first, request)  # 401 here never touches the write gate
+    cm = db.connection(label=f"{request.method} {request.url.path}")
+    conn = await anyio.to_thread.run_sync(cm.__enter__, limiter=_gate_wait_limiter())
+    exit_limiter = anyio.CapacityLimiter(1)
+    try:
         _track(request, conn)
         yield conn
+    except Exception as exc:  # the handler's error: Database.connection decides commit (ApiError) or rollback
+        if not await anyio.to_thread.run_sync(cm.__exit__, type(exc), exc, exc.__traceback__, limiter=exit_limiter):
+            raise
+    except BaseException as exc:  # cancelled: roll back and hand the gate on, even while the task is being cancelled
+        with anyio.CancelScope(shield=True):
+            await anyio.to_thread.run_sync(cm.__exit__, type(exc), exc, exc.__traceback__, limiter=exit_limiter)
+        raise
+    else:
+        await anyio.to_thread.run_sync(cm.__exit__, None, None, None, limiter=exit_limiter)
 
 
 def get_read_conn(request: Request):

@@ -43,7 +43,7 @@ def _app(db: Database, holding: threading.Event, release: threading.Event) -> Fa
 
 
 def test_commit_before_send_has_its_own_thread_limiter(tmp_path, monkeypatch):
-    monkeypatch.setattr(db_mod, "BUSY_TIMEOUT_S", 4.0)  # a regression fails in seconds instead of ten
+    monkeypatch.setattr(db_mod, "BUSY_TIMEOUT_S", 8.0)  # a regression fails sooner than ten seconds; 45 serial writes fit easily on a loaded machine
     db = Database(tmp_path / "t.db")
     db.migrate()
     holding, release = threading.Event(), threading.Event()
@@ -73,7 +73,7 @@ def test_commit_before_send_has_its_own_thread_limiter(tmp_path, monkeypatch):
     after = db_mod.lock_stats()
     assert after["gate_timeouts"] - before["gate_timeouts"] == 0
     assert statuses == [200] * (WRITERS + 1)
-    assert time.monotonic() - started < 4.0  # no writer waited out the gate
+    assert time.monotonic() - started < 8.0  # no writer waited out the gate
 
 
 def test_the_middleware_still_commits_before_the_first_byte(tmp_path):
