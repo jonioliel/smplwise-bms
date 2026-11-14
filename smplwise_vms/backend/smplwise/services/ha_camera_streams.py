@@ -42,11 +42,9 @@ import re
 import sqlite3
 import threading
 import time
-import posixpath
 import uuid
 from collections import deque
 from typing import Any, Callable, Protocol
-from urllib.parse import unquote, urlsplit
 
 from ..audit import audit
 from ..config import Settings
@@ -235,30 +233,27 @@ def _fetch_source(settings: Settings, payload: dict[str, Any]) -> str:
 # Every write and delete of one of our streams goes through this lock (enable, disable, a viewer's re-read, reconcile), and
 # `_WRITTEN` says when. It is never taken while the caller holds the database write lock (they all run inside `unlocked` or
 # outside a connection), so it cannot deadlock with it; reconcile only reads the database while it holds it.
-_STREAM_LOCK = threading.Lock()
-_WRITTEN: dict[str, float] = {}
+# CR-GO2RTC-OWNED-2436 (review 03 F09): the shared owned-streams helper (go2rtc.OwnedStreams) holds that lock and those notes;
+# `_STREAM_LOCK` and `_WRITTEN` are the same objects under their old names.
+_OWNED = g2.OwnedStreams(g2.HA_STREAM_PREFIX, STREAM_SHAPE_RE)
+_STREAM_LOCK = _OWNED.lock
+_WRITTEN: dict[str, float] = _OWNED.written
 
 
 def names_foreign_stream(src: str, stream_names: Any) -> bool:
     """True when the first path segment of `src` (raw and percent-decoded, dot segments resolved, case-insensitive) is the name of a
-    go2rtc stream that is not one of this feature's (`smplwise_ha_*`): `rtsp://<go2rtc, by any name>:8554/<that stream>`."""
-    try:
-        path = urlsplit(src).path
-    except ValueError:
-        return True
-    decoded = unquote(unquote(path))
-    normal = posixpath.normpath("/" + decoded.lstrip("/"))
-    first = {seg.lower() for seg in (path.lstrip("/").split("/", 1)[0], decoded.lstrip("/").split("/", 1)[0], normal.lstrip("/").split("/", 1)[0]) if seg}
-    return bool(first & {n.lower() for n in stream_names if not n.startswith(g2.HA_STREAM_PREFIX)})
+    go2rtc stream that is not one of this feature's (`smplwise_ha_*`): `rtsp://<go2rtc, by any name>:8554/<that stream>`.
+    CR-GO2RTC-OWNED-2436: the shared rule, go2rtc.names_foreign_stream, with this feature's prefix."""
+    return g2.names_foreign_stream(src, stream_names, g2.HA_STREAM_PREFIX)
+
+
+def _foreign_refusal() -> ApiError:
+    status, code, message = _BRIDGE_REFUSALS["source_not_allowed"]
+    return ApiError(status, code, message)
 
 
 def _refuse_foreign(src: str) -> Callable[[dict[str, g2.StreamInfo]], None]:
-    def check(streams: dict[str, g2.StreamInfo]) -> None:
-        if names_foreign_stream(src, streams):
-            status, code, message = _BRIDGE_REFUSALS["source_not_allowed"]
-            raise ApiError(status, code, message)
-
-    return check
+    return g2.refuse_foreign(src, g2.HA_STREAM_PREFIX, _foreign_refusal)
 
 
 def _write_stream(settings: Settings, entity_id: str, src: str, still_wanted: Callable[[], bool] | None = None) -> str:
@@ -267,20 +262,18 @@ def _write_stream(settings: Settings, entity_id: str, src: str, still_wanted: Ca
     name = stream_name(entity_id)
     if not name.startswith(g2.HA_STREAM_PREFIX):  # the narrower namespace of this feature, on top of go2rtc's own guard
         raise ValueError("refusing to write a stream outside the smplwise_ha_ namespace")
-    with _STREAM_LOCK:
+
+    def before() -> None:
         if still_wanted is not None and not still_wanted():
             raise ApiError(404, "not_found", "המצלמה לא מופעלת לשידור חי.")
-        out = g2.Go2rtc(settings).ensure_stream(name, src, check=_refuse_foreign(src))
-        _WRITTEN[name] = time.monotonic()
-    return out
+
+    return _OWNED.write(g2.Go2rtc(settings), name, src, check=_refuse_foreign(src), before=before)
 
 
 def _delete_stream(settings: Settings, name: str) -> None:
     if not name.startswith(g2.HA_STREAM_PREFIX):
         raise ValueError("refusing to delete a stream outside the smplwise_ha_ namespace")
-    with _STREAM_LOCK:
-        g2.Go2rtc(settings).delete_stream(name)
-        _WRITTEN.pop(name, None)
+    _OWNED.delete(g2.Go2rtc(settings), name)
 
 
 # ---------------------------------------------------------------- enable / disable
@@ -551,38 +544,34 @@ def reconcile(db: Database, settings: Settings, *, force: bool = False) -> dict[
             _forget(entity_id)
             slug_ok = bool(g2.HA_SLUG_RE.fullmatch(entity_id.partition(".")[2]))
             if slug_ok:
-                _WRITTEN.pop(stream_name(entity_id), None)
+                _OWNED.forget(stream_name(entity_id))
             audit(conn, actor=None, action="camera_card.ha_live.disable", decision="allowed", resource_type="ha_entity", resource_id=entity_id, reason="extended_off",
                   details={"stream": stream_name(entity_id) if slug_ok else None})
         for entity_id in gone:
             cams.pop(entity_id, None)
             _forget(entity_id)
             if g2.HA_SLUG_RE.fullmatch(entity_id.partition(".")[2]):
-                _WRITTEN.pop(stream_name(entity_id), None)  # the opt-in is removed: nothing to protect any more
+                _OWNED.forget(stream_name(entity_id))  # the opt-in is removed: nothing to protect any more
             audit(conn, actor=None, action="camera_card.ha_live.disable", decision="allowed", resource_type="ha_entity", resource_id=entity_id, reason="camera_gone",
                   details={"stream": stream_name(entity_id) if g2.HA_SLUG_RE.fullmatch(entity_id.partition(".")[2]) else None})
         if gone or local_off:
             _save(conn, cams)
         out["dropped"] = len(gone) + len(local_off)
-    try:
-        client = g2.Go2rtc(settings)
+    def wanted() -> set[str]:
         with db.connection(mode="read", label="ha live reconcile") as conn:
-            wanted = _wanted_names(conn)
+            return _wanted_names(conn)
+
+    def removed(name: str) -> None:
+        out["deleted"] += 1
+        with db.connection() as conn:
+            audit(conn, actor=None, action="camera_card.ha_live.stream_removed", decision="allowed", resource_type="go2rtc_stream", resource_id=name, reason="not_enabled")
+
+    try:
         # ours only, and only the exact shape ha_stream_name builds (the prefix alone would also match an NVR stream of a recorder
-        # whose id starts with `ha_` - go2rtc.stream_name refuses such an id, this is the second guard)
-        stray = sorted(n for n in client.list_streams() if STREAM_SHAPE_RE.fullmatch(n) and n not in wanted)
-        for name in stray:
-            with _STREAM_LOCK:  # enable / disable / a viewer's re-read write under the same lock
-                if time.monotonic() - _WRITTEN.get(name, -1e9) < WRITE_GRACE_S:
-                    continue  # written a moment ago: its opt-in may not be committed yet
-                with db.connection(mode="read", label="ha live reconcile") as conn:
-                    if name in _wanted_names(conn):  # asked again right before the delete: an opt-in that appeared meanwhile keeps it
-                        continue
-                client.delete_stream(name)
-                _WRITTEN.pop(name, None)
-            out["deleted"] += 1
-            with db.connection() as conn:
-                audit(conn, actor=None, action="camera_card.ha_live.stream_removed", decision="allowed", resource_type="go2rtc_stream", resource_id=name, reason="not_enabled")
+        # whose id starts with `ha_` - go2rtc.stream_name refuses such an id, this is the second guard). Per stray, under the lock enable /
+        # disable / a viewer's re-read write under: skipped when written a moment ago (its opt-in may not be committed yet) or wanted when
+        # asked again right before the delete (an opt-in that appeared meanwhile keeps it) - go2rtc.OwnedStreams.reconcile
+        _OWNED.reconcile(g2.Go2rtc(settings), wanted, grace_s=WRITE_GRACE_S, on_deleted=removed)
     except ApiError as exc:
         log.warning("ha live reconcile: go2rtc unavailable: %s", exc.code)
     return out

@@ -15,11 +15,13 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import posixpath
 import re
 import threading
+import time
 from dataclasses import dataclass
 from typing import Any, Callable
-from urllib.parse import quote, urlsplit, urlunsplit
+from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
 import httpx
 
@@ -96,8 +98,6 @@ _REGISTERED_LOCK = threading.Lock()
 def wiskey_stream_name(station_id: str) -> str:
     """smplwise_wiskey_<station id>: in our namespace, so only ever one of OUR streams; a station id that is not a
     plain name is replaced by a digest of it."""
-    import hashlib
-
     safe = station_id if re.fullmatch(r"[A-Za-z0-9_.-]{1,64}", station_id) else "h" + hashlib.sha256(station_id.encode()).hexdigest()[:16]
     name = f"{STREAM_PREFIX}wiskey_{safe}"
     if not NAME_RE.match(name):
@@ -211,13 +211,14 @@ def producer_connected(p: Any) -> bool:
 # re-created each of our streams (lab 12.11: 32/32 differed in the credentials only). Sources are now compared by their parts:
 # scheme, host, port (the scheme's default port filled in), path (percent-decoded), query and `#` options as multisets (order free).
 # A user / password / query value go2rtc hid (absent, empty or a mask) cannot be compared; such a match is only "unchanged" when
-# this process itself last wrote exactly this source to the stream (`_WRITTEN`, a digest - never the source). After a restart the
+# this process itself last wrote exactly this source to the stream (`_SOURCE_DIGEST`, a digest - never the source). After a restart the
 # first sync therefore writes each stream once more; a changed password (an add-on option, so always a restart) is still applied.
 _DEFAULT_PORTS = {"rtsp": 554, "rtsps": 322, "rtspx": 322, "http": 80, "https": 443, "ws": 80, "wss": 443, "rtmp": 1935, "rtmps": 443}
 _MASK_RE = re.compile(r"^(?:\*+|x+|X+|•+|\.\.\.|<?redacted>?|<?hidden>?|%2A+)$", re.IGNORECASE)
 _USERINFO_RE = re.compile(r"(://)[^/@\s?#]*@")
-_WRITTEN: dict[str, str] = {}
-_WRITTEN_LOCK = threading.Lock()
+# CR-GO2RTC-OWNED-2436 (review 03 F09 / F26): was `_WRITTEN`, the name the feature modules use for their write timestamps
+_SOURCE_DIGEST: dict[str, str] = {}
+_SOURCE_DIGEST_LOCK = threading.Lock()
 
 SAME, SAME_IF_HIDDEN, DIFFERENT = "same", "same_if_hidden", "different"
 
@@ -255,8 +256,6 @@ def _compare_params(reported: str, wanted: str, sep: str) -> str:
 def compare_source(reported: str, wanted: str) -> str:
     """How the source go2rtc reports for a stream relates to the one we would write: SAME (nothing to do), SAME_IF_HIDDEN (equal in
     everything go2rtc shows; the credentials or a query value were hidden) or DIFFERENT."""
-    from urllib.parse import unquote
-
     if reported == wanted:
         return SAME
     try:
@@ -312,11 +311,11 @@ def _source_digest(name: str, src: str) -> str:
 
 
 def _note_written(name: str, src: str | None) -> None:
-    with _WRITTEN_LOCK:
+    with _SOURCE_DIGEST_LOCK:
         if src is None:
-            _WRITTEN.pop(name, None)
+            _SOURCE_DIGEST.pop(name, None)
         else:
-            _WRITTEN[name] = _source_digest(name, src)
+            _SOURCE_DIGEST[name] = _source_digest(name, src)
 
 
 def stream_up_to_date(name: str, existing: StreamInfo | None, src: str) -> bool:
@@ -328,8 +327,8 @@ def stream_up_to_date(name: str, existing: StreamInfo | None, src: str) -> bool:
         _note_written(name, src)  # a go2rtc that shows the whole source: remembered too, so an upgrade to 1.9.15 writes nothing
         return True
     if verdict == SAME_IF_HIDDEN:
-        with _WRITTEN_LOCK:
-            return _WRITTEN.get(name) == _source_digest(name, src)
+        with _SOURCE_DIGEST_LOCK:
+            return _SOURCE_DIGEST.get(name) == _source_digest(name, src)
     return False
 
 
@@ -671,3 +670,136 @@ class Go2rtc:
 
         token = base64.b64encode(f"{self.auth[0]}:{self.auth[1]}".encode()).decode()
         return {"Authorization": f"Basic {token}"}
+
+
+# ------------------------------------------------------------------------------------------- owned streams (CR-GO2RTC-OWNED-2436)
+# Review 03 F09: "the streams one feature owns" existed four times (manual camera sources, Home Assistant cameras, the playback orphan
+# sweep, the disabled-recorder cleanup) and the copies had drifted. The rule they share lives here once. It never widens what a
+# feature may touch: a name is only written or deleted when it is in the `smplwise_` namespace AND in the feature's own prefix AND
+# (when the feature gives one) of its exact shape - the intercom project's streams and every other foreign name stay untouchable.
+
+
+def names_foreign_stream(src: str, stream_names: Any, own_prefix: str) -> bool:
+    """True when the first path segment of `src` (raw, percent-decoded twice, dot segments resolved, case-insensitive) is the name of a
+    go2rtc stream outside `own_prefix`: an alias of go2rtc's RTSP restream (`rtsp://<go2rtc, by any name>:8554/<another stream>`) that
+    would re-publish someone else's stream under one of our names. An address that does not parse counts as foreign (refused)."""
+    try:
+        path = urlsplit(src).path
+    except ValueError:
+        return True
+    decoded = unquote(unquote(path))
+    normal = posixpath.normpath("/" + decoded.lstrip("/"))
+    first = {seg.lower() for seg in (path.lstrip("/").split("/", 1)[0], decoded.lstrip("/").split("/", 1)[0], normal.lstrip("/").split("/", 1)[0]) if seg}
+    return bool(first & {str(n).lower() for n in stream_names if not str(n).startswith(own_prefix)})
+
+
+def refuse_foreign(src: str, own_prefix: str, refusal: Callable[[], ApiError]) -> Callable[[dict[str, StreamInfo]], None]:
+    """A `check=` for `Go2rtc.ensure_stream`: raises `refusal()` (each feature keeps its own code and text) when `src` names a stream
+    outside `own_prefix` (names_foreign_stream). Runs on the listing `ensure_stream` holds, before anything is written."""
+
+    def check(streams: dict[str, StreamInfo]) -> None:
+        if names_foreign_stream(src, streams, own_prefix):
+            raise refusal()
+
+    return check
+
+
+class OwnedStreams:
+    """The go2rtc streams one feature owns: its prefix (inside `smplwise_`; a zero-argument callable when it is only known at run time,
+    as the playback prefix carrying the instance id) and, optionally, the exact shape of the names it builds. Every write and delete of
+    the feature goes through `lock`, and `written` says when this process last wrote each name, so `reconcile` never deletes a stream
+    written a moment ago (its database row may not be committed yet).
+
+    Locking (the stricter rule the Home Assistant reconcile already had): the grace check, the second "is it wanted?" question and the
+    delete happen under ONE hold of `lock`. Callers never take `lock` while holding the database write lock (`wanted` may read the
+    database); `forget` takes no lock for that reason."""
+
+    def __init__(self, prefix: str | Callable[[], str], shape_re: re.Pattern[str] | None = None):
+        self._prefix = prefix
+        self.shape_re = shape_re
+        self.lock = threading.Lock()
+        self.written: dict[str, float] = {}
+
+    @property
+    def prefix(self) -> str:
+        return self._prefix() if callable(self._prefix) else self._prefix
+
+    def owns(self, name: Any) -> bool:
+        """True only for a name this feature may write or delete: `smplwise_`, the feature's prefix, and its shape when it has one."""
+        if not isinstance(name, str) or not name.startswith(STREAM_PREFIX) or not name.startswith(self.prefix):
+            return False
+        return self.shape_re is None or self.shape_re.fullmatch(name) is not None
+
+    def _guard(self, name: Any, what: str) -> None:
+        if not self.owns(name):
+            raise ValueError(f"refusing to {what} a stream outside the {self.prefix} namespace")
+
+    def note_written(self, name: str) -> None:
+        """Remember a write the caller makes itself, without the lock (playback: a generation's name is new by construction; noted
+        BEFORE the write, a sweep that already lists the stream also sees the note)."""
+        self._guard(name, "write")
+        self.written[name] = time.monotonic()
+
+    def forget(self, name: str) -> None:
+        """The stream needs no protection any more (its owner row is gone). Lock-free (see the class note)."""
+        self.written.pop(name, None)
+
+    def written_within(self, name: str, grace_s: float) -> bool:
+        return time.monotonic() - self.written.get(name, -1e9) < grace_s
+
+    def write(self, client: Any, name: str, src: str, *, check: Callable[[dict[str, StreamInfo]], None] | None = None,
+              before: Callable[[], None] | None = None) -> str:
+        """`client.ensure_stream(name, src, check=check)` under the lock, noted on success. `before` (optional) runs inside the lock right
+        before the write and raises to refuse it (a camera disabled while its source was being read)."""
+        self._guard(name, "write")
+        with self.lock:
+            if before is not None:
+                before()
+            outcome = client.ensure_stream(name, src, check=check)
+            self.written[name] = time.monotonic()
+        return outcome
+
+    def delete(self, client: Any, name: str) -> None:
+        self._guard(name, "delete")
+        with self.lock:
+            client.delete_stream(name)
+            self.written.pop(name, None)
+
+    def reconcile(self, client: Any, wanted: Callable[[], set[str]], *, grace_s: float, key: Callable[[str], str] | None = None,
+                  on_deleted: Callable[[str], None] | None = None) -> list[str]:
+        """Delete every stream go2rtc lists that this feature owns (`owns`) and `wanted()` no longer wants (`key` maps a name to the
+        name `wanted` holds - a transcoded variant to its base). Per candidate, under one hold of the lock: skipped when written within
+        `grace_s`, skipped when `wanted()` - asked again - wants it now, else deleted. `on_deleted` (the audit row) runs after the lock
+        is released. Returns the deleted names (sorted); a go2rtc failure raises `ApiError` after the deletes already made were
+        reported to `on_deleted`."""
+        key = key or (lambda n: n)
+        want = wanted()
+        stray = sorted(n for n in client.list_streams() if self.owns(n) and key(n) not in want)
+        deleted: list[str] = []
+        for name in stray:
+            with self.lock:
+                if self.written_within(name, grace_s):
+                    continue  # written a moment ago: its owner row may not be committed yet
+                if key(name) in wanted():
+                    continue  # wanted again meanwhile
+                client.delete_stream(name)
+                self.written.pop(name, None)
+            deleted.append(name)
+            if on_deleted is not None:
+                on_deleted(name)
+        return deleted
+
+
+def delete_listed(client: Any, names: list[str], owns: Callable[[str], bool]) -> int:
+    """Delete exactly `names` - each only when it is in the `smplwise_` namespace, `owns(name)` and go2rtc lists it (one listing).
+    Returns how many were deleted. For a caller that deletes by exact name and keeps no write notes (a disabled recorder's live
+    streams)."""
+    if not names:
+        return 0
+    listed = client.list_streams()
+    n = 0
+    for name in names:
+        if isinstance(name, str) and name.startswith(STREAM_PREFIX) and owns(name) and name in listed:
+            client.delete_stream(name)
+            n += 1
+    return n
