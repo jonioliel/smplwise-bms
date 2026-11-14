@@ -207,6 +207,25 @@ export class DevicesSchedules extends LitElement {
   private noteTimer = 0;
 
   static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, css`
+    /* PAGING-SETTING-2439 (owner round 32, Q-SYS-4 a: the page itself never moves): with the long lists set to scroll (הגדרות › כללי) the
+       screen keeps its box on a desktop - the title, the chips, the toolbar and the upcoming strip stay - and only the list panel (.groups) scrolls */
+    @media (min-width: 1024px) {
+      :host([data-list-panel]) {
+        overflow: hidden;
+      }
+      :host([data-list-panel]) sw-page.page {
+        block-size: 100%;
+        min-block-size: 0;
+      }
+      :host([data-list-panel]) .groups {
+        flex: 1 1 auto;
+        min-block-size: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+      }
+    }
     /* AUDIT30-I3 (owner Q9 option a): dialogs are opaque (was the media sheet surface and its blur) */
     sw-dialog {
       --sw-surface: var(--sw-surface-solid);
@@ -1243,6 +1262,11 @@ export class DevicesSchedules extends LitElement {
     this.stopWs?.();
     window.clearTimeout(this.urlTimer);
     window.clearTimeout(this.noteTimer);
+  }
+
+  /** PAGING-SETTING-2439: the list panel scrolls, not the screen (the lists scroll; the rows, table or cards views of the main list). */
+  protected willUpdate() {
+    this.toggleAttribute('data-list-panel', !this.lists.paged && this.view !== 'week' && this.sub !== 'trash' && this.sub !== 'review' && !!this.items?.length);
   }
 
   protected updated(_c: PropertyValues) {

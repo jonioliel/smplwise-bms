@@ -152,6 +152,25 @@ export class DevicesAutomations extends LitElement {
   private fieldsFor = '';
 
   static styles = [bubbleChrome, ...automationsStyles, mediaPageStyles, css`
+    /* PAGING-SETTING-2439 (owner round 32, Q-SYS-4 a: the page itself never moves): with the long lists set to scroll (הגדרות › כללי) the
+       screen keeps its box on a desktop - the title, the chips, the toolbar and the banner stay - and only the list panel (.lwrap) scrolls */
+    @media (min-width: 1024px) {
+      :host([data-list-panel]) {
+        overflow: hidden;
+      }
+      :host([data-list-panel]) sw-page.page {
+        block-size: 100%;
+        min-block-size: 0;
+      }
+      :host([data-list-panel]) .lwrap {
+        flex: 1 1 auto;
+        min-block-size: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+      }
+    }
     /* FIX2200: the pager's keys meet the touch dial in the bubble skin (30x30 in the 2.20.0 bubble guard) */
     :host([data-skin='bubble']) sw-pager {
       --sw-ctl-h-md: var(--sw-touch-desktop);
@@ -466,6 +485,12 @@ export class DevicesAutomations extends LitElement {
     window.clearTimeout(this.noteTimer);
     window.clearTimeout(this.urlTimer);
     window.clearTimeout(this.pushTimer);
+  }
+
+  /** PAGING-SETTING-2439: the list panel scrolls, not the screen (the lists scroll; the automations and scripts lists). */
+  protected willUpdate() {
+    const seg = this.scenView ? '' : this.segment();
+    this.toggleAttribute('data-list-panel', !this.lists.paged && (seg === 'automations' || seg === 'scripts') && !!this.items?.length);
   }
 
   protected updated(c: PropertyValues) {
