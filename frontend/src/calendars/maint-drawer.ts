@@ -29,7 +29,7 @@ export class CalMaintDrawer extends LitElement {
   static styles = [calCss, css`
     /* AUDIT30-F3 (#11, owner Q9 option A assumed): the shared modal drawer (scrim, focus trap, Escape, focus return, one header and action row) */
     :host { display: contents; }
-    sw-drawer { --sw-drawer-sheet-h: 88dvh; }
+    /* DIALOG-DRAWER-ONE-2439 (Q-DES-8B): on a phone the drawer rises to the full screen, like every drawer (was an 88 % sheet) */
     .content { display: flex; flex-direction: column; gap: 12px; min-inline-size: 0; }
     .ctls { display: flex; gap: 8px; min-inline-size: 0; }
     .ctls > .inp { inline-size: auto; flex: 1 1 0; padding-inline: 10px; }

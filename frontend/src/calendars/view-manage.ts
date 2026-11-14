@@ -1,5 +1,6 @@
 import { LitElement, html, nothing, css, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import '../components/sw-dialog';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { ApiError, describeError } from '../api/client';
@@ -284,14 +285,13 @@ export class CalViewManage extends LitElement {
   }
 
   private archiveDialog(c: Calendar) {
-    return html`<div class="scrim" @click=${() => (this.confirmArchive = null)}></div>
-      <aside class="panel overlay" style="inset-block:auto 12px" role="dialog" aria-label="העברה לארכיון" data-archive-dialog>
-        <div class="ph"><h2 class="ell">להעביר את "${c.name}" לארכיון?</h2></div>
-        <div class="muted">היומן יוסתר מכל המסכים. ההזמנות שכבר היו נשמרות; אפשר להחזיר אותו מהארכיון.</div>
+    // DIALOG-DRAWER-ONE-2439 (owner round 33, Q-DES-8A): the system's one dialog instead of a local panel pinned to a corner
+    return html`<sw-dialog open heading=${`להעביר את "${c.name}" לארכיון?`} @close=${(e: Event) => { e.stopPropagation(); this.confirmArchive = null; }}>
+        <div class="muted" data-archive-dialog>היומן יוסתר מכל המסכים. ההזמנות שכבר היו נשמרות; אפשר להחזיר אותו מהארכיון.</div>
         ${this.formErr ? html`<div class="err" role="alert">${this.formErr}</div>` : nothing}
-        <div class="formfoot"><button type="button" class="btn bad fill" ?disabled=${this.busy} data-archive-confirm @click=${() => void this.archive(c)}>העברה לארכיון</button>
-          <button type="button" class="btn" @click=${() => (this.confirmArchive = null)}>ביטול</button></div>
-      </aside>`;
+        <button slot="footer" type="button" class="btn" @click=${() => (this.confirmArchive = null)}>ביטול</button>
+        <button slot="footer" type="button" class="btn bad fill" ?disabled=${this.busy} data-archive-confirm @click=${() => void this.archive(c)}>העברה לארכיון</button>
+      </sw-dialog>`;
   }
 
   private async archive(c: Calendar): Promise<void> {

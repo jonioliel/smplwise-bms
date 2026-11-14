@@ -35,7 +35,7 @@ export class CalEventDrawer extends LitElement {
     /* AUDIT30-F3 (#11, owner Q9 option A assumed): the shared modal drawer (sw-drawer modal: scrim, focus trap, Escape, focus return, the
        same header and action row as every drawer). CAL-GRID-EDIT-2343: a tall form scrolls inside the drawer's body, never the page. */
     :host { display: contents; }
-    sw-drawer { --sw-drawer-sheet-h: 88dvh; }
+    /* DIALOG-DRAWER-ONE-2439 (Q-DES-8B): on a phone the drawer rises to the full screen, like every drawer (was an 88 % sheet) */
     .content { display: flex; flex-direction: column; gap: 10px; min-inline-size: 0; }
     .lockline { display: flex; align-items: center; gap: 8px; color: var(--sw-text-2); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); padding: 8px 12px; border-radius: var(--sw-r-md);
       background: var(--sw-surface-3); }

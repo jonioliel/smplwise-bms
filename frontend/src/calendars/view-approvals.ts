@@ -1,5 +1,6 @@
 import { LitElement, html, nothing, css, type PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
+import '../components/sw-dialog';
 import '../components/sw-icon';
 import '../components/sw-state-panel';
 import { ApiError, describeError } from '../api/client';
@@ -72,7 +73,7 @@ export class CalViewApprovals extends LitElement {
     .err { color: var(--sw-danger-text); font-size: var(--sw-fs-sm); }
     .scrim { position: fixed; inset: 0; background: var(--sw-overlay); z-index: var(--sw-z-modal); }
     aside.overlay { position: fixed; inset-block: 12px; inset-inline-start: 12px; z-index: calc(var(--sw-z-modal) + 1); inline-size: min(440px, calc(100vw - 24px)); box-shadow: var(--sw-shadow-3); }
-    aside.overlay.short { inset-block: auto 12px; }
+    .rj { display: grid; gap: 8px; }
     :host([shrink]) aside.panel:not(.overlay) { inline-size: 320px; }
     :host([shrink]) .lane { grid-template-columns: 96px minmax(0, 1fr); }
     :host([shrink]) .axis { padding-inline-end: 106px; }
@@ -445,18 +446,17 @@ export class CalViewApprovals extends LitElement {
   }
 
   private rejectDialog(r: CalRequest) {
-    return html`<div class="scrim" @click=${() => (this.rejecting = null)}></div>
-      <aside class="panel overlay short" role="dialog" aria-label="דחיית בקשה" data-reject-dialog>
-        <div class="ph"><h2 class="ell">לדחות את "${r.title ?? 'הבקשה'}"?</h2></div>
-        <div class="muted">${r.calendar.name} · ${whenText(r.start, r.end, this.ctx?.now ?? new Date())}</div>
-        <label class="lbl" for="note">הערה למבקש (לא חובה, עד 300 תווים)</label>
-        <textarea id="note" class="inp" maxlength="300" .value=${this.note} @input=${(e: Event) => (this.note = (e.target as HTMLTextAreaElement).value)} data-reject-note></textarea>
-        ${this.actErr ? html`<div class="err" role="alert">${this.actErr}</div>` : nothing}
-        <div class="foot">
-          <button type="button" class="btn bad fill" ?disabled=${this.busy} data-reject-confirm @click=${async () => { if (await this.decide(r, 'reject', { note: this.note })) this.rejecting = null; }}>דחייה</button>
-          <button type="button" class="btn" @click=${() => (this.rejecting = null)}>ביטול</button>
+    // DIALOG-DRAWER-ONE-2439 (owner round 33, Q-DES-8A): the system's one dialog instead of a local panel pinned to a corner
+    return html`<sw-dialog open heading=${`לדחות את "${r.title ?? 'הבקשה'}"?`} subheading=${`${r.calendar.name} · ${whenText(r.start, r.end, this.ctx?.now ?? new Date())}`}
+        @close=${(e: Event) => { e.stopPropagation(); this.rejecting = null; }}>
+        <div class="rj" data-reject-dialog>
+          <label class="lbl" for="note">הערה למבקש (לא חובה, עד 300 תווים)</label>
+          <textarea id="note" class="inp" maxlength="300" .value=${this.note} @input=${(e: Event) => (this.note = (e.target as HTMLTextAreaElement).value)} data-reject-note></textarea>
+          ${this.actErr ? html`<div class="err" role="alert">${this.actErr}</div>` : nothing}
         </div>
-      </aside>`;
+        <button slot="footer" type="button" class="btn" @click=${() => (this.rejecting = null)}>ביטול</button>
+        <button slot="footer" type="button" class="btn bad fill" ?disabled=${this.busy} data-reject-confirm @click=${async () => { if (await this.decide(r, 'reject', { note: this.note })) this.rejecting = null; }}>דחייה</button>
+      </sw-dialog>`;
   }
 }
 
