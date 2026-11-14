@@ -131,7 +131,15 @@ def _entries(registry: Any) -> list[Any]:
 
 
 def entity_of(registry: Any, domain: str, platform: str, unique_id: str) -> str | None:
-    """The entity id of an item (registry platform + unique_id == the config id; a script's unique_id is its object id)."""
+    """The entity id of an item (registry platform + unique_id == the config id; a script's unique_id is its object id).
+
+    CR-BRIDGE-GAPS-2436 (review 05 P2-21): Home Assistant's registry answers this from its (domain, platform, unique_id) index
+    (`async_get_entity_id`) - `_wait_entity` asks it every RELOAD_POLL_S, and a walk over every entity of the installation per poll is
+    what the review found. A registry without that method (a duck-typed one) is walked as before."""
+    lookup = getattr(registry, "async_get_entity_id", None)
+    if callable(lookup):
+        eid = lookup(domain, platform, unique_id)
+        return eid if isinstance(eid, str) and eid.startswith(domain + ".") else None
     for e in _entries(registry):
         if getattr(e, "platform", None) == platform and str(getattr(e, "unique_id", "")) == unique_id and str(getattr(e, "entity_id", "")).startswith(domain + "."):
             return e.entity_id

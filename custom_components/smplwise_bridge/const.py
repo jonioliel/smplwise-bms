@@ -99,4 +99,6 @@ CONF_LOCAL_IDENTITY_RUNNABLE = "local_identity_runnable"
 # rule lives in wiskey_door_block.py
 CONF_WISKEY_EXECUTE_POLICY = "wiskey_execute_policy"
 DIRECTORY_INTERVAL_S = 60
-SIGNATURE_WINDOW_S = 60
+# CR-BRIDGE-GAPS-2436 (review 05 P3-07): the timeout of the bridge's POSTs to the add-on (directory push, pairing ping), named instead of a
+# bare `timeout=10`. (The unused SIGNATURE_WINDOW_S that stood here is gone: signing.py holds the window it uses.)
+ADDON_POST_TIMEOUT_S = 10

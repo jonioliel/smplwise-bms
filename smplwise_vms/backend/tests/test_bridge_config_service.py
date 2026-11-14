@@ -434,3 +434,35 @@ def test_a_document_too_deep_to_serialise_is_refused_not_a_crash(fake):
     out = fake.bridge_config_item({"user_id": "u1", "op": "upsert", "request_id": "r", "kind": "automation", "item_id": NEWID, "base_revision": None, "profile": "builder",
                                    "config": {"id": NEWID, "variables": deep}, "preserved": [], "sensitive": False, "ts": int(__import__("time").time()), "nonce": "n", "sig": "s"}, SECRET)
     assert out["ok"] is False and out["error"] == "bad_signature" and fake.file_item("automation", NEWID) is None
+
+
+def test_entity_of_asks_the_registry_index_instead_of_walking_every_entity():
+    """CR-BRIDGE-GAPS-2436 (review 05 P2-21): `_wait_entity` polls entity_of; Home Assistant answers it from its (domain, platform, unique_id)
+    index. A duck-typed registry without that method is walked as before."""
+    from types import SimpleNamespace
+
+    class Indexed:
+        @property
+        def entities(self):
+            raise AssertionError("the whole registry was walked")
+
+        def async_get_entity_id(self, domain, platform, unique_id):
+            return {("automation", "automation", "a1"): "automation.hall", ("script", "script", "s1"): "light.not_a_script"}.get((domain, platform, unique_id))
+
+    assert service.entity_of(Indexed(), "automation", "automation", "a1") == "automation.hall"
+    assert service.entity_of(Indexed(), "automation", "automation", "nope") is None
+    assert service.entity_of(Indexed(), "script", "script", "s1") is None  # an answer outside the domain is never taken
+
+    class Walked:
+        entities = {"automation.x": SimpleNamespace(entity_id="automation.x", platform="automation", unique_id=5)}
+
+    assert service.entity_of(Walked(), "automation", "automation", "5") == "automation.x"
+
+
+def test_an_edit_waits_for_its_entity_through_the_index(fake):
+    """The fake Home Assistant's registry has the index too: an edit's wait for its entity asks it (and the result is the same)."""
+    import fake_ha_config
+
+    before = fake_ha_config._FakeRegistry.indexed_lookups
+    out = upsert(fake, new_auto())
+    assert out["ok"] is True and fake_ha_config._FakeRegistry.indexed_lookups > before

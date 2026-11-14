@@ -232,6 +232,18 @@ def _vol_module() -> types.ModuleType:
     return vol
 
 
+def _aiohttp_module() -> types.ModuleType:
+    """CR-BRIDGE-GAPS-2436: the one name the bridge imports from aiohttp (`ClientTimeout(total=...)`); the fake sessions ignore it."""
+    m = types.ModuleType("aiohttp")
+
+    class ClientTimeout:
+        def __init__(self, total: Any = None, **kw: Any) -> None:
+            self.total = total
+
+    m.ClientTimeout = ClientTimeout  # type: ignore[attr-defined]
+    return m
+
+
 def _ha_modules() -> dict[str, types.ModuleType]:
     mods: dict[str, types.ModuleType] = {}
 
@@ -301,6 +313,10 @@ def load_bridge() -> types.ModuleType:
         import voluptuous  # noqa: F401  # a real voluptuous wins if it is installed
     except ImportError:
         mods["voluptuous"] = _vol_module()
+    try:
+        import aiohttp  # noqa: F401  # a real aiohttp wins if it is installed (Home Assistant always has it)
+    except ImportError:
+        mods["aiohttp"] = _aiohttp_module()
     finder = _StubFinder(mods)
     before = set(sys.modules)
     sys.meta_path.insert(0, finder)
@@ -320,7 +336,7 @@ def load_bridge() -> types.ModuleType:
     finally:
         sys.meta_path.remove(finder)
         for name in set(sys.modules) - before:
-            if name == "voluptuous" or name == "homeassistant" or name.startswith("homeassistant."):
+            if name in ("voluptuous", "aiohttp") or name == "homeassistant" or name.startswith("homeassistant."):
                 sys.modules.pop(name, None)
     return module
 

@@ -79,6 +79,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import voluptuous as vol
+from aiohttp import ClientTimeout
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Context, HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError, Unauthorized
@@ -91,7 +92,7 @@ from homeassistant.helpers.storage import Store
 
 from .cast_service import async_handle_cast_stream, note_origin
 from .config_service import async_handle_config_item
-from .const import (CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_LOCAL_IDENTITY_EXTENDED, CONF_LOCAL_IDENTITY_RUNNABLE, CONF_PAIRING_CODE, CONF_SERVICE_USER_ID, CONF_WISKEY_AUTO_INSTALL, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_CAST_STREAM,
+from .const import (CONF_ADDON_URL, CONF_DELEGATED_AUTHORING, CONF_DELEGATED_CHANGED_AT, CONF_LOCAL_IDENTITY_EXTENDED, CONF_LOCAL_IDENTITY_RUNNABLE, CONF_PAIRING_CODE, CONF_SERVICE_USER_ID, CONF_WISKEY_AUTO_INSTALL, ADDON_POST_TIMEOUT_S, DIRECTORY_INTERVAL_S, DOMAIN, SERVICE_CAST_STREAM,
                     SERVICE_CONFIG_ITEM, SERVICE_EXECUTE, SERVICE_LEASE_EVENT, SERVICE_LEASE_REQUEST, SERVICE_MEDIA_QUERY, SERVICE_ROTATE, SERVICE_SCHEDULE, SERVICE_SET_AREA, SERVICE_STREAM_SOURCE, SERVICE_SYNC, VERSION)
 
 from . import lease_service
@@ -104,8 +105,8 @@ from .lease_service import (LeaseCapability, LeaseConsumer, LeaseRegistration, L
 from . import media_policy, runnable, service_identity, wiskey_door_block
 from .media_query_service import async_handle_media_query
 from .schedule_service import async_handle_schedule, execute_refusal
-from .keyset import CAPABILITY as ROTATION_CAPABILITY, KeySet, Persister as KeyPersister
-from .push_health import PushHealth
+from .keyset import CAPABILITY as ROTATION_CAPABILITY, KeySet, NoSigningKey, Persister as KeyPersister
+from .push_health import NO_SIGNING_KEY, Coalescer, PushHealth
 from .stream_source_service import async_handle_stream_source
 
 # WKA-295: the names above that make up the capture lease's public port (the root re-export). Nothing else of this module is part of it.
@@ -618,15 +619,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # 0.9.6 (EXTID-295, CR-USR2 13.6): whether the configured service user is restricted - a boolean or null, never the policy itself
         sid = service_identity.configured_id(service_user_id())
         policy_restricted = service_identity.service_policy_restricted(await hass.auth.async_get_user(sid)) if sid else None
-        try:
-            async with session.post(f"{url}/api/v1/ha/bridge/directory", json=keyset.sign({"users": users, "rotation": ROTATION_CAPABILITY, "version": VERSION, "delegated_authoring": delegated(), "delegated_changed_at": entry.options.get(CONF_DELEGATED_CHANGED_AT) or None, "config_item": True,
+        try:  # CR-BRIDGE-GAPS-2436 (review 05 P2-21): no key to sign with is its own reason, not "add-on unreachable"
+            signed = keyset.sign({"users": users, "rotation": ROTATION_CAPABILITY, "version": VERSION, "delegated_authoring": delegated(), "delegated_changed_at": entry.options.get(CONF_DELEGATED_CHANGED_AT) or None, "config_item": True,
                                                                                 "schedule_fences": True,  # SCHEDIMPACT-295: this bridge judges a local person's schedules
                                                                                 "service_identity": True, "service_user_id": service_identity.configured_id(service_user_id()),
                                                                                 "local_identity_extended": local_extended(),
                                                                                 "local_identity_runnable": sorted(runnable_ids()),
                                                                                 "service_policy_restricted": policy_restricted,
                                                                                 # 0.10.5 (DOOR-BRIDGE-BLOCK-2404): the WisKey door block's setting - state for the add-on, never a request
-                                                                                "wiskey_execute_policy": door_policy()}), timeout=10) as resp:
+                                                                                "wiskey_execute_policy": door_policy()})
+        except NoSigningKey:
+            push_health.note(None, NO_SIGNING_KEY)
+            return 0
+        except Exception as exc:  # noqa: BLE001 - as before: any other failure to build the push is noted, never raised
+            push_health.note(None, type(exc).__name__)
+            return 0
+        try:
+            async with session.post(f"{url}/api/v1/ha/bridge/directory", json=signed, timeout=ClientTimeout(total=ADDON_POST_TIMEOUT_S)) as resp:
                 push_health.note(resp.status)
                 if resp.status != 200:
                     return 0
@@ -640,9 +649,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             return 0
         return len(users)
 
+    # CR-BRIDGE-GAPS-2436 (review 05 P2-21): the button's pushes are coalesced - at most one per push_health.COALESCE_S; presses during a
+    # push or right after it share one later push (never an answer older than the press)
+    sync_push = Coalescer(push_directory)
+
     async def sync_directory(call: ServiceCall) -> ServiceResponse:
         """Push the user directory now (the add-on's 'sync users' button)."""
-        return {"users": await push_directory()}
+        return {"users": await sync_push()}
 
     hass.services.async_register(DOMAIN, SERVICE_SYNC, sync_directory, supports_response=SupportsResponse.OPTIONAL)
 

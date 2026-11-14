@@ -161,6 +161,23 @@ def test_a_forged_or_replayed_or_misdirected_origin_block_is_ignored(bridge):
     assert service.STATE["origin"] is None
 
 
+def test_an_origin_not_heard_of_for_too_long_counts_as_unknown(bridge, monkeypatch):
+    """CR-BRIDGE-GAPS-2436 (review 05 P2-21): the add-on re-announces its origin with every directory push (60 s); one not heard of for
+    ORIGIN_MAX_AGE_S is stale - unknown - and a play is refused exactly as before any announcement. A fresh announcement restores it."""
+    verifier, calls, call = bridge
+    announce(verifier)
+    at = service._origin_mono[0]
+    assert service.current_origin(at + service.ORIGIN_MAX_AGE_S) == ORIGIN and service.current_origin(at + service.ORIGIN_MAX_AGE_S + 1) is None
+    assert service.ORIGIN_MAX_AGE_S >= 5 * 60, "several missed pushes are tolerated"
+    monkeypatch.setattr(service, "ORIGIN_MAX_AGE_S", -1.0)  # the last announcement is now too old
+    out = run(service.async_handle_cast_stream(Hass(), verifier, msg(), platform_of, call))
+    assert out == {"ok": False, "request_id": "r1", "error": "cast_origin_unknown"} and calls == []
+    assert run(service.async_handle_cast_stream(Hass(), verifier, msg("stop"), platform_of, call))["ok"] is True, "stop never needed the origin"
+    monkeypatch.setattr(service, "ORIGIN_MAX_AGE_S", 600.0)
+    announce(verifier)
+    assert run(service.async_handle_cast_stream(Hass(), verifier, msg(), platform_of, call))["ok"] is True
+
+
 def test_the_handler_refuses_a_bad_signature_an_unknown_user_and_a_storm(bridge):
     verifier, calls, call = bridge
     announce(verifier)

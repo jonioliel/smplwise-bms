@@ -131,6 +131,10 @@ def _load(name: str) -> types.ModuleType:
     helpers.service_info = mod("homeassistant.helpers.service_info")
     helpers.service_info.hassio = mod("homeassistant.helpers.service_info.hassio", HassioServiceInfo=HassioServiceInfo)
     mods["voluptuous"] = _vol_module()
+    try:
+        import aiohttp  # noqa: F401  # a real aiohttp wins if it is installed
+    except ImportError:
+        mods["aiohttp"] = mod("aiohttp", ClientTimeout=lambda total=None, **kw: types.SimpleNamespace(total=total))  # CR-BRIDGE-GAPS-2436
     if PKG not in sys.modules:
         pkg = types.ModuleType(PKG)
         pkg.__path__ = [str(BRIDGE_DIR)]  # type: ignore[attr-defined]
@@ -754,6 +758,34 @@ def test_bridge_diagnostics_and_wiring_carry_no_secret():
     push = src.split("async def push_directory", 1)[1].split("async def sync_directory", 1)[0]
     assert "push_health.note(resp.status)" in push and "push_health.note(None, type(exc).__name__)" in push
 
+
+
+def test_a_bridge_without_a_signing_key_says_so_instead_of_add_on_unreachable():
+    """CR-BRIDGE-GAPS-2436 (review 05 P2-21): `KeySet.sign` with no key raises `NoSigningKey` (still a ValueError); the directory push
+    notes it as `no_signing_key` - one warning with the fix, repeated at most once an hour - and a real transport failure stays
+    `addon_unreachable`."""
+    ph_mod = _load("push_health")
+    ks_mod = _load("keyset")
+    with pytest.raises(ks_mod.NoSigningKey):
+        ks_mod.KeySet("", None).sign({"users": []})
+    assert issubclass(ks_mod.NoSigningKey, ValueError)
+    clock = {"t": 1_000_000.0}
+    log = _Log()
+    ph = ph_mod.PushHealth(log, now=lambda: clock["t"])
+    for _ in range(3):
+        clock["t"] += 60
+        ph.note(None, ph_mod.NO_SIGNING_KEY)
+    warnings = [m for lvl, m in log.lines if lvl == "warning"]
+    assert ph.state()["reason"] == "no_signing_key" and ph.state()["count"] == 3 and len(warnings) == 1 and "Reconfigure" in warnings[0]
+    clock["t"] += ph_mod.REMIND_S
+    ph.note(None, ph_mod.NO_SIGNING_KEY)
+    assert len([1 for lvl, _ in log.lines if lvl == "warning"]) == 2
+    ph.note(None, "ClientConnectorError")
+    assert ph.state()["reason"] == "addon_unreachable"
+    src = (BRIDGE_DIR / "__init__.py").read_text(encoding="utf-8")
+    push = src.split("async def push_directory", 1)[1].split("async def sync_directory", 1)[0]
+    assert "except NoSigningKey:" in push and "push_health.note(None, NO_SIGNING_KEY)" in push
+    assert push.index("except NoSigningKey:") < push.index("session.post(")
 
 # ====================================================================== rotation vs WisKey: the safe default
 

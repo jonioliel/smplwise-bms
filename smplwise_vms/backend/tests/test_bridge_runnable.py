@@ -546,3 +546,20 @@ def test_the_step_list_never_contains_a_never_local_pair_and_matches_the_addon()
     assert not rn.IMPACT_NEVER & rn.IMPACT_STEP_PAIRS
     assert not {("script", "turn_on"), ("scene", "turn_on"), ("lock", "unlock"), ("lock", "open")} & rn.IMPACT_STEP_PAIRS
     assert addon.RUNNABLE_RE.pattern == rn.RUNNABLE_RE.pattern and addon.MAX_RUNNABLE == rn.MAX_RUNNABLE
+
+
+def test_one_judgement_builds_the_config_store_once():
+    """CR-BRIDGE-GAPS-2436 (review 05 P3-07): an `execute` of two runnable scripts, one of which calls a third, reads the items through ONE
+    config store (before: one store per item). The verdicts are unchanged."""
+    items = {"script.a": ("a", _script(_svc("light.turn_on", "light.a"), {"action": "script.c"})), "script.b": ("b", _script(_svc("light.turn_on", "light.b"))),
+             "script.c": ("c", _script(_svc("light.turn_on", "light.c")))}
+    deps = _deps(items)
+    built = []
+    make = deps.store
+    deps.store = lambda hass: built.append(1) or make(hass)
+    out = asyncio.run(rn.execute_refusal(None, _user(), "script", "turn_on", {"entity_id": ["script.a", "script.b"]}, frozenset(items), deps=deps))
+    assert out is None and len(built) == 1
+    built.clear()
+    assert asyncio.run(rn.impact_refusal(None, deps, _user(), "script.a", runnable=frozenset(items))) is None and len(built) == 1
+    items["script.c"] = ("c", _script(_svc("lock.unlock", "lock.front")))
+    assert _impact("script.a", items) == "impact_never_local"  # a nested door is still found through the shared store
