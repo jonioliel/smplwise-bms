@@ -170,23 +170,26 @@ export abstract class AutomationEditorBase extends LitElement {
       /* AUDIT30-I3 (#11, owner Q9 option a): the builder's sheet is opaque and on the product's dialog tokens - the solid surface, no
          backdrop blur (was blur(40px) saturate(1.8) over a translucent sheen), the dialog radius (was 28 px), the shared scrim and the
          floating shadow. The sheet stays a native modal <dialog> because its close request is guarded (unsaved changes ask first:
-         onSheetCancel); sw-dialog closes itself on Escape / X / scrim without a cancelable hook (see docs/changes/AUDIT30-I-DEVICES.md). */
+         onSheetCancel); sw-dialog closes itself on Escape / X / scrim without a cancelable hook (see docs/changes/AUDIT30-I-DEVICES.md).
+         DIALOG-DRAWER-ONE-2439 (owner round 33, Q-DES-8A: "אוטומציה חדשה" gets the same dialog, at the wide width): the builder no longer
+         hangs on the side - it is centred like every dialog, at the one dialog's wide width (720 px), on its surface (the floating-layer
+         pair, opaque), with its radius, and it lands like it. sw-dialog now has the cancelable beforeclose event; hosting the builder's
+         own header, pop-overs and pickers inside it is the remaining step (docs/changes/DIALOG-DRAWER-ONE-2439.md). */
       dialog.sheet {
         position: fixed;
-        margin: 0;
+        box-sizing: border-box;
+        margin: auto;
         padding: 0;
-        border: 1px solid var(--sw-border);
+        border: 1px solid var(--sw-menu-border);
         color: var(--dv-text);
-        background: var(--sw-surface-solid);
+        background: var(--sw-menu-surface);
         -webkit-backdrop-filter: none;
         backdrop-filter: none;
-        border-radius: var(--sw-r-xl);
+        border-radius: var(--sw-r-lg);
         box-shadow: var(--sw-shadow-3);
-        inset-block: 12px;
-        inset-inline-start: 12px;
-        inset-inline-end: auto;
-        inline-size: min(620px, calc(100vw - 24px));
-        block-size: calc(100dvh - 24px);
+        inset: 0;
+        inline-size: min(720px, calc(100vw - 32px));
+        block-size: min(860px, calc(100dvh - 32px));
         max-block-size: none;
         max-inline-size: none;
         overflow: hidden;
@@ -200,7 +203,7 @@ export abstract class AutomationEditorBase extends LitElement {
       }
       dialog.sheet[open] {
         display: flex;
-        animation: rin 300ms var(--ab-ease);
+        animation: rin var(--sw-spring-dialog-ms) var(--sw-spring-dialog);
       }
       dialog.sheet::backdrop {
         background: var(--sw-overlay);
@@ -208,7 +211,7 @@ export abstract class AutomationEditorBase extends LitElement {
       @keyframes rin {
         from {
           opacity: 0;
-          transform: translateX(24px);
+          transform: scale(0.96) translateY(6px);
         }
       }
       @keyframes rup {
@@ -710,13 +713,15 @@ export abstract class AutomationEditorBase extends LitElement {
       @media (max-width: 767px) {
         dialog.sheet {
           inset: auto 0 0 0;
+          margin: 0;
           inline-size: auto;
           block-size: calc(100dvh - 20px);
-          border-radius: var(--sw-r-2xl) var(--sw-r-2xl) 0 0;
+          border-radius: var(--sw-r-lg) var(--sw-r-lg) 0 0;
+          border-inline: 0;
           border-block-end: 0;
         }
         dialog.sheet[open] {
-          animation-name: rup;
+          animation: rup var(--sw-t-sheet) var(--sw-ease-drawer);
         }
         .grab {
           display: block;

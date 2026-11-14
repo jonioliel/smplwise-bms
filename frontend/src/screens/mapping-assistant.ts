@@ -88,8 +88,12 @@ export class MappingAssistant extends LitElement {
     .sheet {
       inline-size: min(1360px, 100%);
       block-size: min(860px, 100%);
-      background: var(--sw-bg, var(--sw-surface));
-      border-radius: var(--sw-r-xl);
+      /* DIALOG-DRAWER-ONE-2439 (owner round 33, Q-DES-8A): the assistant is a work surface larger than the widest dialog, so it keeps its
+         own box - on the one dialog's surface: opaque, the floating-layer hairline, the dialog radius, the round close button */
+      box-sizing: border-box;
+      background: var(--sw-menu-surface);
+      border: 1px solid var(--sw-menu-border);
+      border-radius: var(--sw-r-lg);
       box-shadow: var(--sw-shadow-3);
       display: grid;
       grid-template-rows: auto minmax(0, 1fr) auto;
@@ -109,8 +113,7 @@ export class MappingAssistant extends LitElement {
       align-items: flex-start;
       gap: 14px;
       padding: 18px 22px 12px;
-      border-block-end: 1px solid var(--sw-border);
-      background: var(--sw-surface);
+      border-block-end: 1px solid var(--sw-menu-border);
     }
     .num {
       flex: none;
@@ -1380,7 +1383,7 @@ export class MappingAssistant extends LitElement {
         ${this.step !== 'done'
           ? html`<div class="dots" aria-label=${`שלב ${idx + 1} מתוך ${steps.length}`}>${steps.map((_s, i) => html`<i class=${i < idx ? 'past' : i === idx ? 'on' : ''}></i>`)}<span>${steps[idx]?.label}</span></div>`
           : nothing}
-        <sw-button class="x" variant="ghost" icon="close" iconOnly label="סגור" data-ma-close @click=${() => this.close()}></sw-button>
+        <sw-button class="x" round icon="close" iconOnly label="סגור" data-ma-close @click=${() => this.close()}></sw-button>
       </header>
       <main>
         ${this.notice ? html`<div class="notice" role="status" data-ma-manual-impact><sw-icon name="info" size=${15}></sw-icon>${this.notice}</div>` : nothing}
