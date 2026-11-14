@@ -210,7 +210,7 @@ export class SwDrawer extends LitElement {
     /* the far end of the footer row (slot footer-end); it wraps under the actions as a whole on a narrow panel */
     footer .fend {
       display: flex;
-      gap: 8px;
+      gap: var(--sw-s-2);
       flex-wrap: wrap;
       margin-inline-start: auto;
     }
