@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import '../components/sw-icon';
 import type { DirectoryHit } from '../api/calendar-attendees';
 import { calCss } from './styles';
+import { tr } from '../i18n/msg/calendars';
 import {
   CONTACT_NOTE, KIND_LABEL, ROLE_LABEL, STATUS_LABEL, chipLabel, draftOfGuest, freshHits, hasErrors, toggleRole, validateGuest,
   type AttendeeDraft, type GuestErrors,
@@ -146,11 +147,11 @@ export class CalAttendeePicker extends LitElement {
 
   private pick(h: DirectoryHit): void {
     if (this.full()) {
-      this.said = `אפשר להזמין עד ${this.max} משתתפים.`;
+      this.said = tr('אפשר להזמין עד {n} משתתפים.', { n: this.max });
       return;
     }
     this.fire<PickerAdd>('attendee-add', { draft: { key: `${h.kind}:${h.ref_id}`, kind: h.kind, ref_id: h.ref_id, name: h.name, role: 'required' } });
-    this.said = `${h.name} נוסף/ה`;
+    this.said = tr('{name} נוסף/ה', { name: h.name });
     this.q = '';
     this.hits = [];
     this.open = false;
@@ -167,19 +168,19 @@ export class CalAttendeePicker extends LitElement {
       return;
     }
     if (this.full()) {
-      this.said = `אפשר להזמין עד ${this.max} משתתפים.`;
+      this.said = tr('אפשר להזמין עד {n} משתתפים.', { n: this.max });
       return;
     }
     const d = draftOfGuest(this.gName, this.gPhone, this.gEmail);
     this.fire<PickerAdd>('attendee-add', { draft: d });
-    this.said = `האורח ${d.name} נוסף`;
+    this.said = tr('האורח {name} נוסף', { name: d.name });
     this.gName = this.gPhone = this.gEmail = '';
     this.gErr = {};
   }
 
   private removeChip(d: AttendeeDraft): void {
     this.fire<PickerRemove>('attendee-remove', { draft: d });
-    this.said = `${d.name} הוסר/ה`;
+    this.said = tr('{name} הוסר/ה', { name: d.name });
   }
 
   private toggleChipRole(d: AttendeeDraft): void {
@@ -197,17 +198,17 @@ export class CalAttendeePicker extends LitElement {
     const lb = `${this.uidp}-lb`;
     const opt = (i: number) => `${this.uidp}-o${i}`;
     return html`<div class="wrap" data-att-picker>
-      ${this.value.length ? html`<ul class="chips" aria-label="מוזמנים" data-att-chips>${this.value.map((d) => this.chip(d))}</ul>` : nothing}
+      ${this.value.length ? html`<ul class="chips" aria-label=${tr('מוזמנים')} data-att-chips>${this.value.map((d) => this.chip(d))}</ul>` : nothing}
       ${this.allowPeople && !this.disabled ? html`<div class="combo">
           <sw-icon name="search" size="16"></sw-icon>
           <input class="inp" role="combobox" aria-autocomplete="list" aria-expanded=${this.open ? 'true' : 'false'} aria-controls=${lb}
-            aria-activedescendant=${this.open && this.active >= 0 ? opt(this.active) : nothing} aria-label="חיפוש משתמש או דייר להזמנה"
-            placeholder="חיפוש משתמש או דייר" autocomplete="off" maxlength="60" data-att-search .value=${this.q} ?disabled=${this.full()}
+            aria-activedescendant=${this.open && this.active >= 0 ? opt(this.active) : nothing} aria-label=${tr('חיפוש משתמש או דייר להזמנה')}
+            placeholder=${tr('חיפוש משתמש או דייר')} autocomplete="off" maxlength="60" data-att-search .value=${this.q} ?disabled=${this.full()}
             @input=${(e: Event) => this.onInput(e)} @keydown=${(e: KeyboardEvent) => this.onKey(e)} @blur=${() => window.setTimeout(() => (this.open = false), 150)}>
-          ${this.open ? html`<ul role="listbox" id=${lb} aria-label="תוצאות">
+          ${this.open ? html`<ul role="listbox" id=${lb} aria-label=${tr('תוצאות')}>
             ${this.hits.length ? this.hits.map((h, i) => html`<li role="option" id=${opt(i)} aria-selected=${i === this.active ? 'true' : 'false'} data-att-hit=${h.ref_id}
                 @mousedown=${(e: Event) => e.preventDefault()} @click=${() => this.pick(h)}><span class="ell">${h.name}</span><span class="k">${KIND_LABEL[h.kind]}</span></li>`)
-              : html`<li class="empty" role="presentation">לא נמצאו תוצאות</li>`}
+              : html`<li class="empty" role="presentation">${tr('לא נמצאו תוצאות')}</li>`}
           </ul>` : nothing}
         </div>` : nothing}
       ${this.allowGuests && !this.disabled ? this.guestForm() : nothing}
@@ -223,35 +224,35 @@ export class CalAttendeePicker extends LitElement {
       <span class="sub">${KIND_LABEL[d.kind]}${this.showStatus && d.status ? ` · ${STATUS_LABEL[d.status]}` : ''}</span>
       ${contact ? html`<span class="ct">${contact}</span>` : nothing}
       <button type="button" class="mini" aria-pressed=${d.role === 'required' ? 'true' : 'false'} ?disabled=${this.disabled} data-att-role
-        aria-label=${`${d.name}: נוכחות ${ROLE_LABEL[d.role]}. לחיצה מחליפה ל${ROLE_LABEL[toggleRole(d.role)]}`} @click=${() => this.toggleChipRole(d)}>${ROLE_LABEL[d.role]}</button>
-      ${this.canRemove(d) ? html`<button type="button" class="mini" aria-label=${`הסרת ${d.name}`} data-att-remove @click=${() => this.removeChip(d)}><sw-icon name="close" size="12"></sw-icon></button>` : nothing}
+        aria-label=${tr('{name}: נוכחות {role}. לחיצה מחליפה ל{next}', { name: d.name, role: ROLE_LABEL[d.role], next: ROLE_LABEL[toggleRole(d.role)] })} @click=${() => this.toggleChipRole(d)}>${ROLE_LABEL[d.role]}</button>
+      ${this.canRemove(d) ? html`<button type="button" class="mini" aria-label=${tr('הסרת {name}', { name: d.name })} data-att-remove @click=${() => this.removeChip(d)}><sw-icon name="close" size="12"></sw-icon></button>` : nothing}
     </li>`;
   }
 
   private guestForm() {
     if (!this.guestOpen) {
       return html`<div><button type="button" class="btn sm" data-att-guest-open aria-expanded="false" ?disabled=${this.full()} @click=${() => (this.guestOpen = true)}>
-        <sw-icon name="plus" size="14"></sw-icon>הוספת אורח</button></div>`;
+        <sw-icon name="plus" size="14"></sw-icon>${tr('הוספת אורח')}</button></div>`;
     }
     const e = this.gErr;
     const f = (k: 'name' | 'phone' | 'email') => `${this.uidp}-g${k}`;
     return html`<fieldset data-att-guest-form>
-      <legend>אורח (ללא גישה למערכת)</legend>
+      <legend>${tr('אורח (ללא גישה למערכת)')}</legend>
       <div class="row">
-        <input class="inp" id=${f('name')} maxlength="80" placeholder="שם" aria-label="שם האורח" data-att-guest="name" .value=${this.gName} aria-invalid=${e.name ? 'true' : 'false'}
+        <input class="inp" id=${f('name')} maxlength="80" placeholder=${tr('שם')} aria-label=${tr('שם האורח')} data-att-guest="name" .value=${this.gName} aria-invalid=${e.name ? 'true' : 'false'}
           aria-describedby=${e.name ? `${f('name')}-e` : nothing} @input=${(ev: Event) => (this.gName = (ev.target as HTMLInputElement).value)}>
-        <input class="inp num ltr" id=${f('phone')} type="tel" inputmode="tel" maxlength="30" placeholder="050-000-0000" aria-label="טלפון האורח" data-att-guest="phone" .value=${this.gPhone}
+        <input class="inp num ltr" id=${f('phone')} type="tel" inputmode="tel" maxlength="30" placeholder="050-000-0000" aria-label=${tr('טלפון האורח')} data-att-guest="phone" .value=${this.gPhone}
           aria-invalid=${e.phone ? 'true' : 'false'} aria-describedby=${e.phone ? `${f('phone')}-e` : nothing} @input=${(ev: Event) => (this.gPhone = (ev.target as HTMLInputElement).value)}>
-        <input class="inp ltr" id=${f('email')} type="email" inputmode="email" maxlength="254" placeholder="name@example.com" aria-label="דוא״ל האורח" data-att-guest="email" .value=${this.gEmail}
+        <input class="inp ltr" id=${f('email')} type="email" inputmode="email" maxlength="254" placeholder="name@example.com" aria-label=${tr('דוא״ל האורח')} data-att-guest="email" .value=${this.gEmail}
           aria-invalid=${e.email ? 'true' : 'false'} aria-describedby=${e.email ? `${f('email')}-e` : nothing} @input=${(ev: Event) => (this.gEmail = (ev.target as HTMLInputElement).value)}
           @keydown=${(ev: KeyboardEvent) => ev.key === 'Enter' && this.addGuest()}>
       </div>
       ${e.name ? html`<div class="ferr" id=${`${f('name')}-e`}>${e.name}</div>` : nothing}
       ${e.phone ? html`<div class="ferr" id=${`${f('phone')}-e`}>${e.phone}</div>` : nothing}
       ${e.email ? html`<div class="ferr" id=${`${f('email')}-e`}>${e.email}</div>` : nothing}
-      <div class="note">טלפון או דוא״ל. ההזמנה נשלחת בערוץ ההודעות שהוגדר במערכת.</div>
-      <div class="row"><button type="button" class="btn sm pri" data-att-guest-add @click=${() => this.addGuest()}><sw-icon name="check" size="14"></sw-icon>הוספה</button>
-        <button type="button" class="btn sm" @click=${() => { this.guestOpen = false; this.gErr = {}; }}>סגירה</button></div>
+      <div class="note">${tr('טלפון או דוא״ל. ההזמנה נשלחת בערוץ ההודעות שהוגדר במערכת.')}</div>
+      <div class="row"><button type="button" class="btn sm pri" data-att-guest-add @click=${() => this.addGuest()}><sw-icon name="check" size="14"></sw-icon>${tr('הוספה')}</button>
+        <button type="button" class="btn sm" @click=${() => { this.guestOpen = false; this.gErr = {}; }}>${tr('סגירה')}</button></div>
     </fieldset>`;
   }
 }

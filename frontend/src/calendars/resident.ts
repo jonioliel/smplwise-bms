@@ -10,10 +10,11 @@ import {
   type Slot,
 } from './model';
 import { calCss } from './styles';
+import { tr } from '../i18n/msg/calendars';
 import './view-calendar';
 
-const EQUIP: Record<Equipment, string> = { screen: 'מסך', projector: 'מקרן', video_call: 'שיחת וידאו', whiteboard: 'לוח', kitchen: 'מטבח', accessible: 'נגישות' };
-const DURATIONS: [number, string][] = [[30, '30 דק׳'], [60, 'שעה'], [120, 'שעתיים'], [180, '3 שעות']];
+const EQUIP: Record<Equipment, string> = { screen: tr('מסך'), projector: tr('מקרן'), video_call: tr('שיחת וידאו'), whiteboard: tr('לוח'), kitchen: tr('מטבח'), accessible: tr('נגישות') };
+const DURATIONS: [number, string][] = [[30, tr('30 דק׳')], [60, tr('שעה')], [120, tr('שעתיים')], [180, tr('3 שעות')]];
 const BOOKABLE = new Set(['book', 'edit', 'manage']);
 
 type Sheet = { kind: 'confirm' } | { kind: 'cancel'; o: Occurrence } | { kind: 'displaced'; o: Occurrence } | { kind: 'equip' } | null;
@@ -268,21 +269,21 @@ export class CalResident extends LitElement {
     if (!this.ctx) return nothing;
     const mineN = (this.mine ?? []).length;
     return html`
-      <h1>יומנים</h1>
-      <div class="tabs" role="tablist" aria-label="יומנים">
-        <button type="button" role="tab" aria-pressed=${String(this.tab === 'grid')} aria-selected=${String(this.tab === 'grid')} data-res-tab="grid" @click=${() => (this.tab = 'grid')}>יומן</button>
-        <button type="button" role="tab" aria-pressed=${String(this.tab === 'book')} aria-selected=${String(this.tab === 'book')} data-res-tab="book" @click=${() => (this.tab = 'book')}>הזמנת חדר</button>
-        <button type="button" role="tab" aria-pressed=${String(this.tab === 'mine')} aria-selected=${String(this.tab === 'mine')} data-res-tab="mine" @click=${() => { this.tab = 'mine'; this.done = ''; }}>ההזמנות שלי${!this.past && mineN ? html` <b class="num">${mineN}</b>` : nothing}</button>
+      <h1>${tr('יומנים')}</h1>
+      <div class="tabs" role="tablist" aria-label=${tr('יומנים')}>
+        <button type="button" role="tab" aria-pressed=${String(this.tab === 'grid')} aria-selected=${String(this.tab === 'grid')} data-res-tab="grid" @click=${() => (this.tab = 'grid')}>${tr('יומן')}</button>
+        <button type="button" role="tab" aria-pressed=${String(this.tab === 'book')} aria-selected=${String(this.tab === 'book')} data-res-tab="book" @click=${() => (this.tab = 'book')}>${tr('הזמנת חדר')}</button>
+        <button type="button" role="tab" aria-pressed=${String(this.tab === 'mine')} aria-selected=${String(this.tab === 'mine')} data-res-tab="mine" @click=${() => { this.tab = 'mine'; this.done = ''; }}>${tr('ההזמנות שלי')}${!this.past && mineN ? html` <b class="num">${mineN}</b>` : nothing}</button>
       </div>
       ${this.tab === 'grid' ? html`<cal-view-calendar resident .ctx=${this.ctx} data-res-view="grid"></cal-view-calendar>` : this.tab === 'book' ? this.bookView() : this.mineView()}
       ${this.sheetView()}`;
   }
 
   private stateView() {
-    if (this.error) return html`<div class="center"><sw-state-panel state="error" data-res-state="error" heading="לא הצלחנו לטעון את החדרים" hint=${this.error} actionLabel="לנסות שוב" @action=${() => void this.loadDay()}></sw-state-panel></div>`;
+    if (this.error) return html`<div class="center"><sw-state-panel state="error" data-res-state="error" heading=${tr('לא הצלחנו לטעון את החדרים')} hint=${this.error} actionLabel=${tr('לנסות שוב')} @action=${() => void this.loadDay()}></sw-state-panel></div>`;
     if (!this.slow) return html`<section class="panel" aria-busy="true"></section>`;
-    if (this.ui.loading_style === 'spinner') return html`<div class="center" data-res-state="loading"><div class="spin" role="status" aria-label="טוען"></div></div>`;
-    return html`<section class="panel" data-res-state="loading" role="status" aria-label="טוען"><div class="skel" style="block-size:52px"></div>${[0, 1, 2, 3].map(() => html`<div class="skel" style="block-size:84px"></div>`)}</section>`;
+    if (this.ui.loading_style === 'spinner') return html`<div class="center" data-res-state="loading"><div class="spin" role="status" aria-label=${tr('טוען')}></div></div>`;
+    return html`<section class="panel" data-res-state="loading" role="status" aria-label=${tr('טוען')}><div class="skel" style="block-size:52px"></div>${[0, 1, 2, 3].map(() => html`<div class="skel" style="block-size:84px"></div>`)}</section>`;
   }
 
   // ---------------------------------------------------------------- הזמנת חדר
@@ -296,20 +297,20 @@ export class CalResident extends LitElement {
     return html`<section class="panel" data-res-view="rooms">
       ${this.dayStrip()}
       <div class="tools"><span class="hc"><sw-icon name="users" size="16"></sw-icon>
-        <button type="button" aria-label="פחות אנשים" @click=${() => (this.headcount = Math.max(0, this.headcount - 1))}>−</button><b class="num" data-res-headcount>${this.headcount || 'כל'}</b>
-        <button type="button" aria-label="יותר אנשים" @click=${() => (this.headcount += 1)}>+</button> אנשים</span><span class="sp"></span>
-        <button type="button" class="btn sm" data-res-equip @click=${() => (this.sheet = { kind: 'equip' })}><sw-icon name="filter" size="14"></sw-icon>ציוד${this.equip.size ? html` <b class="num">${this.equip.size}</b>` : nothing}</button></div>
+        <button type="button" aria-label=${tr('פחות אנשים')} @click=${() => (this.headcount = Math.max(0, this.headcount - 1))}>−</button><b class="num" data-res-headcount>${this.headcount || tr('כל')}</b>
+        <button type="button" aria-label=${tr('יותר אנשים')} @click=${() => (this.headcount += 1)}>+</button> ${tr('אנשים')}</span><span class="sp"></span>
+        <button type="button" class="btn sm" data-res-equip @click=${() => (this.sheet = { kind: 'equip' })}><sw-icon name="filter" size="14"></sw-icon>${tr('ציוד')}${this.equip.size ? html` <b class="num">${this.equip.size}</b>` : nothing}</button></div>
       ${list.length ? html`<div class="list" style="display:grid;grid-template-columns:minmax(0,1fr);align-content:start" data-fit="92">${p.items.map((x) => this.roomCard(x.r, x.cal, x.bookable))}</div>${this.pager(p.page, p.pages)}`
-        : html`<div class="center"><sw-state-panel icon="calendar" state="empty" data-res-state="empty" heading=${(this.rooms ?? []).length ? 'אין חדר שמתאים לסינון' : 'אין חדרים פתוחים להזמנה בשבילך'}
-          hint=${(this.rooms ?? []).length ? 'אפשר לשנות את מספר האנשים או את הציוד.' : 'ההנהלה קובעת אילו חדרים דיירים יכולים להזמין.'}></sw-state-panel></div>`}
+        : html`<div class="center"><sw-state-panel icon="calendar" state="empty" data-res-state="empty" heading=${(this.rooms ?? []).length ? tr('אין חדר שמתאים לסינון') : tr('אין חדרים פתוחים להזמנה בשבילך')}
+          hint=${(this.rooms ?? []).length ? tr('אפשר לשנות את מספר האנשים או את הציוד.') : tr('ההנהלה קובעת אילו חדרים דיירים יכולים להזמין.')}></sw-state-panel></div>`}
     </section>`;
   }
 
   private dayStrip() {
-    return html`<div class="days" role="group" aria-label="יום">${Array.from({ length: 7 }, (_, i) => {
+    return html`<div class="days" role="group" aria-label=${tr('יום')}>${Array.from({ length: 7 }, (_, i) => {
       const d = addDays(startOfDay(this.now), i);
       return html`<button type="button" aria-pressed=${String(this.dayIdx === i)} data-res-day=${i} aria-label=${`${DAY_LONG[d.getDay()]} ${ddmm(d)}`}
-        @click=${() => { if (this.dayIdx !== i) { this.dayIdx = i; this.start = null; this.rooms = null; void this.loadDay(); } }}><small>${i === 0 ? 'היום' : DAY_SHORT[d.getDay()]}</small><b>${d.getDate()}</b></button>`;
+        @click=${() => { if (this.dayIdx !== i) { this.dayIdx = i; this.start = null; this.rooms = null; void this.loadDay(); } }}><small>${i === 0 ? tr('היום') : DAY_SHORT[d.getDay()]}</small><b>${d.getDate()}</b></button>`;
     })}</div>`;
   }
 
@@ -320,16 +321,16 @@ export class CalResident extends LitElement {
     return html`<button type="button" class="rcard" data-res-room=${r.calendar_id} aria-disabled=${String(!bookable)}
       @click=${() => { if (bookable) { this.roomId = r.calendar_id; this.start = null; } }}>
       <span class="sq" style=${`--h:${colorVar(cal.color)}`}></span>
-      <div class="grow"><div class="name ell" title=${r.name}>${r.name}</div><div class="sub ell">${r.capacity ? html`<span class="num">${r.capacity}</span> מקומות` : 'ללא הגבלת מקום'}${eq ? ` · ${eq}` : ''}</div>
+      <div class="grow"><div class="name ell" title=${r.name}>${r.name}</div><div class="sub ell">${r.capacity ? html`<span class="num">${r.capacity}</span> ${tr('מקומות')}` : tr('ללא הגבלת מקום')}${eq ? ` · ${eq}` : ''}</div>
         <div class="mini" aria-hidden="true">${r.entries.map((o) => { const s = span(o, this.day, 7, 23); return s ? html`<i class=${o.state === 'pending' ? 'p' : ''} style=${`left:${s.start}%;width:${s.width}%`}></i>` : nothing; })}</div></div>
-      <div class="rnext">${bookable ? (nf ? html`<small>פנוי מ־</small><b>${hm(nf)}</b>` : html`<b class="none">תפוס ${this.dayIdx ? 'ביום הזה' : 'היום'}</b>`) : html`<b class="none">תפוס</b><small>צפייה בלבד</small>`}
-        ${approval && bookable ? html`<span class="chip acc">באישור</span>` : nothing}</div></button>`;
+      <div class="rnext">${bookable ? (nf ? html`<small>${tr('פנוי מ־')}</small><b>${hm(nf)}</b>` : html`<b class="none">${this.dayIdx ? tr('תפוס ביום הזה') : tr('תפוס היום')}</b>`) : html`<b class="none">${tr('תפוס')}</b><small>${tr('צפייה בלבד')}</small>`}
+        ${approval && bookable ? html`<span class="chip acc">${tr('באישור')}</span>` : nothing}</div></button>`;
   }
 
   private pager(page: number, pages: number) {
     if (pages <= 1) return nothing;
-    return html`<div class="pager" data-res-pager><button type="button" class="btn icon" aria-label="הקודם" ?disabled=${page <= 1} @click=${() => (this.page = page - 1)}><sw-icon name="chevronBack" size="16"></sw-icon></button>
-      <span class="num">${page} / ${pages}</span><button type="button" class="btn icon" aria-label="הבא" ?disabled=${page >= pages} data-res-next @click=${() => (this.page = page + 1)}><sw-icon name="chevron" size="16"></sw-icon></button></div>`;
+    return html`<div class="pager" data-res-pager><button type="button" class="btn icon" aria-label=${tr('הקודם')} ?disabled=${page <= 1} @click=${() => (this.page = page - 1)}><sw-icon name="chevronBack" size="16"></sw-icon></button>
+      <span class="num">${page} / ${pages}</span><button type="button" class="btn icon" aria-label=${tr('הבא')} ?disabled=${page >= pages} data-res-next @click=${() => (this.page = page + 1)}><sw-icon name="chevron" size="16"></sw-icon></button></div>`;
   }
 
   // ---------------------------------------------------------------- choosing a time (owner answer 16 as a setting)
@@ -345,13 +346,13 @@ export class CalResident extends LitElement {
     const timeline = this.ui.phone_time_picker === 'timeline';
     return html`<section class="panel" data-res-view="slot" data-picker=${timeline ? 'timeline' : 'grid'}>
       <div class="shead"><span class="sq" style=${`--h:${colorVar(cal.color)}`}></span><div class="grow"><b class="ell" title=${r.name}>${r.name}</b>
-        <span class="sub">${this.dayIdx === 0 ? 'היום' : this.dayIdx === 1 ? 'מחר' : DAY_SHORT[this.day.getDay()]} · ${DAY_LONG[this.day.getDay()]} ${ddmm(this.day)}${approval ? ' · כל בקשה באישור' : ''}</span></div>
-        <button type="button" class="btn icon" aria-label="חזרה לחדרים" data-res-back @click=${() => { this.roomId = ''; this.start = null; }}><sw-icon name="chevron" size="16"></sw-icon></button></div>
-      <div class="seg dur" role="radiogroup" aria-label="משך">${DURATIONS.map(([m, l]) => html`<button type="button" role="radio" aria-pressed=${String(this.duration === m)} aria-checked=${String(this.duration === m)} data-res-dur=${m}
+        <span class="sub">${this.dayIdx === 0 ? tr('היום') : this.dayIdx === 1 ? tr('מחר') : DAY_SHORT[this.day.getDay()]} · ${DAY_LONG[this.day.getDay()]} ${ddmm(this.day)}${approval ? ` · ${tr('כל בקשה באישור')}` : ''}</span></div>
+        <button type="button" class="btn icon" aria-label=${tr('חזרה לחדרים')} data-res-back @click=${() => { this.roomId = ''; this.start = null; }}><sw-icon name="chevron" size="16"></sw-icon></button></div>
+      <div class="seg dur" role="radiogroup" aria-label=${tr('משך')}>${DURATIONS.map(([m, l]) => html`<button type="button" role="radio" aria-pressed=${String(this.duration === m)} aria-checked=${String(this.duration === m)} data-res-dur=${m}
         @click=${() => { this.duration = m; this.start = null; }}>${l}</button>`)}</div>
       ${timeline ? this.timelineView(r) : this.gridView(r)}
       <button type="button" class="btn pri go" data-res-continue ?disabled=${!sel} @click=${() => { this.evTitle = ''; this.people = Math.max(1, this.headcount || 1); this.actionError = ''; this.sheet = { kind: 'confirm' }; }}>
-        <sw-icon name="check" size="16"></sw-icon>${sel && end ? html`המשך · <span class="num ltr">${hm(sel)}–${hm(end)}</span>` : 'בחירת שעת התחלה'}</button>
+        <sw-icon name="check" size="16"></sw-icon>${sel && end ? html`${tr('המשך')} · <span class="num ltr">${hm(sel)}–${hm(end)}</span>` : tr('בחירת שעת התחלה')}</button>
     </section>`;
   }
 
@@ -361,16 +362,16 @@ export class CalResident extends LitElement {
     const p = pageOf(all, this.page, this.per);
     const sel = this.start;
     const end = sel ? sel.getTime() + this.duration * 60000 : 0;
-    if (!all.length) return html`<div class="center"><sw-state-panel icon="clock" state="empty" compact data-res-state="noslots" heading="אין שעות פנויות ביום הזה" hint="אפשר לבחור יום אחר או משך קצר יותר."></sw-state-panel></div>`;
+    if (!all.length) return html`<div class="center"><sw-state-panel icon="clock" state="empty" compact data-res-state="noslots" heading=${tr('אין שעות פנויות ביום הזה')} hint=${tr('אפשר לבחור יום אחר או משך קצר יותר.')}></sw-state-panel></div>`;
     return html`<div class="slots" data-fit="56" data-res-slots>${p.items.map((s) => {
       const look = slotLook(s, display);
       const inSel = !!sel && s.start.getTime() >= sel.getTime() && s.start.getTime() < end;
       return html`<button type="button" class="slot" data-look=${look} ?data-sel=${inSel} data-res-slot=${hm(s.start)} ?disabled=${look === 'busy' || look === 'blocked'}
-        aria-label=${`${hm(s.start)} ${look === 'busy' ? 'תפוס' : look === 'blocked' ? 'יש בקשות ממתינות' : look === 'contest' ? `${s.pending} מבקשים` : 'פנוי'}`}
-        @click=${() => (this.start = s.start)}><b>${hm(s.start)}</b>${look === 'busy' ? html`<small>תפוס</small>` : look === 'blocked' ? html`<small>ממתין</small>` : look === 'contest' ? html`<small>${s.pending} מבקשים</small>` : nothing}</button>`;
+        aria-label=${`${hm(s.start)} ${look === 'busy' ? tr('תפוס') : look === 'blocked' ? tr('יש בקשות ממתינות') : look === 'contest' ? tr('{n} מבקשים', { n: s.pending }) : tr('פנוי')}`}
+        @click=${() => (this.start = s.start)}><b>${hm(s.start)}</b>${look === 'busy' ? html`<small>${tr('תפוס')}</small>` : look === 'blocked' ? html`<small>${tr('ממתין')}</small>` : look === 'contest' ? html`<small>${tr('{n} מבקשים', { n: s.pending })}</small>` : nothing}</button>`;
     })}</div>
     ${this.pager(p.page, p.pages)}
-    <div class="legend"><span><i class="lf"></i>פנוי</span>${display === 'count' ? html`<span><i class="lc"></i>יש בקשות ממתינות, אפשר לבקש</span>` : display === 'blocked' ? html`<span><i class="lb"></i>יש בקשות ממתינות</span>` : nothing}<span><i class="lb"></i>תפוס</span></div>`;
+    <div class="legend"><span><i class="lf"></i>${tr('פנוי')}</span>${display === 'count' ? html`<span><i class="lc"></i>${tr('יש בקשות ממתינות, אפשר לבקש')}</span>` : display === 'blocked' ? html`<span><i class="lb"></i>${tr('יש בקשות ממתינות')}</span>` : nothing}<span><i class="lb"></i>${tr('תפוס')}</span></div>`;
   }
 
   /** The time bar: tap or drag places the chosen duration; the window moves by three hours. LTR geometry inside the RTL page. */
@@ -389,10 +390,10 @@ export class CalResident extends LitElement {
       if (st >= this.now) this.start = st;
     };
     return html`<div class="tl" data-res-timeline>
-      <div class="tlnav"><button type="button" class="btn icon" aria-label="מוקדם יותר" ?disabled=${win.from <= 0} @click=${() => (this.tlFrom = Math.max(0, this.tlFrom - 3))}><sw-icon name="chevron" size="16"></sw-icon></button>
-        <div class="tlsel num" data-res-tlsel>${sel ? html`<span class="ltr">${hm(sel)}–${hm(new Date(sel.getTime() + this.duration * 60000))}</span>${free ? '' : ' · תפוס'}` : 'נגיעה בפס בוחרת שעה'}</div>
-        <button type="button" class="btn icon" aria-label="מאוחר יותר" ?disabled=${win.to >= 24} @click=${() => (this.tlFrom = Math.min(18, this.tlFrom + 3))}><sw-icon name="chevronBack" size="16"></sw-icon></button></div>
-      <div class="bar" role="slider" aria-label="שעת התחלה" aria-valuetext=${sel ? hm(sel) : ''} tabindex="0" data-res-bar
+      <div class="tlnav"><button type="button" class="btn icon" aria-label=${tr('מוקדם יותר')} ?disabled=${win.from <= 0} @click=${() => (this.tlFrom = Math.max(0, this.tlFrom - 3))}><sw-icon name="chevron" size="16"></sw-icon></button>
+        <div class="tlsel num" data-res-tlsel>${sel ? html`<span class="ltr">${hm(sel)}–${hm(new Date(sel.getTime() + this.duration * 60000))}</span>${free ? '' : ` · ${tr('תפוס')}`}` : tr('נגיעה בפס בוחרת שעה')}</div>
+        <button type="button" class="btn icon" aria-label=${tr('מאוחר יותר')} ?disabled=${win.to >= 24} @click=${() => (this.tlFrom = Math.min(18, this.tlFrom + 3))}><sw-icon name="chevronBack" size="16"></sw-icon></button></div>
+      <div class="bar" role="slider" aria-label=${tr('שעת התחלה')} aria-valuetext=${sel ? hm(sel) : ''} tabindex="0" data-res-bar
         @pointerdown=${(e: PointerEvent) => { this.drag = true; (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); place(e); }}
         @pointermove=${(e: PointerEvent) => { if (this.drag) place(e); }} @pointerup=${() => (this.drag = false)} @pointercancel=${() => (this.drag = false)}
         @keydown=${(e: KeyboardEvent) => this.tlKey(e)}>
@@ -425,32 +426,32 @@ export class CalResident extends LitElement {
     const list = this.mine;
     const p = pageOf(list, this.page, this.per);
     return html`<section class="panel" data-res-view="mine">
-      ${this.done ? html`<div class="done" role="status" data-res-done><sw-icon name="check" size="18"></sw-icon><div><b>${this.done}</b><span class="muted">תקבל הודעה כשיוחלט</span></div></div>` : nothing}
-      <div class="seg" style="align-self:center;flex:none" role="radiogroup" aria-label="הזמנות"><button type="button" role="radio" aria-pressed=${String(!this.past)} aria-checked=${String(!this.past)} data-res-upcoming
-        @click=${() => { this.past = false; this.mine = null; void this.loadMine(); }}>קרובות</button>
-        <button type="button" role="radio" aria-pressed=${String(this.past)} aria-checked=${String(this.past)} data-res-past @click=${() => { this.past = true; this.mine = null; void this.loadMine(); }}>הסתיימו</button></div>
+      ${this.done ? html`<div class="done" role="status" data-res-done><sw-icon name="check" size="18"></sw-icon><div><b>${this.done}</b><span class="muted">${tr('תקבל הודעה כשיוחלט')}</span></div></div>` : nothing}
+      <div class="seg" style="align-self:center;flex:none" role="radiogroup" aria-label=${tr('הזמנות')}><button type="button" role="radio" aria-pressed=${String(!this.past)} aria-checked=${String(!this.past)} data-res-upcoming
+        @click=${() => { this.past = false; this.mine = null; void this.loadMine(); }}>${tr('קרובות')}</button>
+        <button type="button" role="radio" aria-pressed=${String(this.past)} aria-checked=${String(this.past)} data-res-past @click=${() => { this.past = true; this.mine = null; void this.loadMine(); }}>${tr('הסתיימו')}</button></div>
       ${list.length ? html`<div class="list" style="display:grid;grid-template-columns:minmax(0,1fr);align-content:start" data-fit="148">${p.items.map((o) => this.booking(o))}</div>${this.pager(p.page, p.pages)}`
-        : html`<div class="center"><sw-state-panel icon="calendar" state="empty" data-res-state="mine-empty" heading=${this.past ? 'אין הזמנות שהסתיימו' : 'אין לך הזמנות קרובות'}
-          hint=${this.past ? 'הזמנות שהסתיימו נשמרות כאן 30 יום.' : 'חדר פנוי אפשר להזמין בלשונית "הזמנת חדר".'} actionLabel=${this.past ? '' : 'הזמנת חדר'} @action=${() => (this.tab = 'book')}></sw-state-panel></div>`}
+        : html`<div class="center"><sw-state-panel icon="calendar" state="empty" data-res-state="mine-empty" heading=${this.past ? tr('אין הזמנות שהסתיימו') : tr('אין לך הזמנות קרובות')}
+          hint=${this.past ? tr('הזמנות שהסתיימו נשמרות כאן 30 יום.') : tr('חדר פנוי אפשר להזמין בלשונית "הזמנת חדר".')} actionLabel=${this.past ? '' : tr('הזמנת חדר')} @action=${() => (this.tab = 'book')}></sw-state-panel></div>`}
     </section>`;
   }
 
   private booking(o: Occurrence) {
     const cal = this.cal(o.calendar_id);
-    const K: Record<string, [string, string]> = { confirmed: ['ok', 'מאושר'], pending: ['dash', 'ממתין'], displaced: ['warn', 'נדחק'], rejected: ['bad', 'נדחה'], expired: ['', 'פג'], done: ['', 'הסתיים'] };
+    const K: Record<string, [string, string]> = { confirmed: ['ok', tr('מאושר')], pending: ['dash', tr('ממתין')], displaced: ['warn', tr('נדחק')], rejected: ['bad', tr('נדחה')], expired: ['', tr('פג')], done: ['', tr('הסתיים')] };
     const [look, label] = K[o.state] ?? ['', o.state];
     const until = this.ui.resident_cancel_until;
     const closed = o.state === 'confirmed' && cancelClosed(o.start, until, this.now);
-    const note = o.state === 'pending' ? `ממתין לאישור${o.contested ? ' · יש עוד בקשה לחלון' : ''}` : o.state === 'displaced' ? 'נדחק בגלל תחזוקה. אפשר לבחור זמן אחר' : o.state === 'confirmed' ? 'מאושר' : '';
+    const note = o.state === 'pending' ? `${tr('ממתין לאישור')}${o.contested ? ` · ${tr('יש עוד בקשה לחלון')}` : ''}` : o.state === 'displaced' ? tr('נדחק בגלל תחזוקה. אפשר לבחור זמן אחר') : o.state === 'confirmed' ? tr('מאושר') : '';
     return html`<div class="bk" data-state=${o.state} data-res-booking=${o.event_id}>
-      <div class="bkt"><span class="dot" style=${`--h:${colorVar(cal?.color)}`}></span><b title=${o.title ?? ''}>${o.title ?? 'הזמנה'}</b><span class=${`chip ${look}`}>${label}</span></div>
-      <div class="bkw"><b>${whenText(o.start, o.end, this.now)}</b><span class="sub ell">${cal?.name ?? ''}${o.recurring ? ' · סדרה' : ''}</span></div>
+      <div class="bkt"><span class="dot" style=${`--h:${colorVar(cal?.color)}`}></span><b title=${o.title ?? ''}>${o.title ?? tr('הזמנה')}</b><span class=${`chip ${look}`}>${label}</span></div>
+      <div class="bkw"><b>${whenText(o.start, o.end, this.now)}</b><span class="sub ell">${cal?.name ?? ''}${o.recurring ? ` · ${tr('סדרה')}` : ''}</span></div>
       ${note ? html`<div class="sub ell">${note}</div>` : nothing}
-      ${this.past ? nothing : o.state === 'displaced' ? html`<div class="bka"><button type="button" class="btn sm pri" data-res-alts @click=${() => void this.openDisplaced(o)}>בחירת זמן חלופי</button>
-          <button type="button" class="btn sm badtxt" data-res-cancel @click=${() => this.openCancel(o)}>ביטול</button></div>`
-        : o.state === 'pending' ? html`<div class="bka"><button type="button" class="btn sm badtxt" data-res-withdraw ?disabled=${this.busy} @click=${() => void this.withdraw(o)}>משיכת הבקשה</button></div>`
-        : o.state === 'confirmed' ? html`<div class="bka">${closed ? html`<span class="why" data-res-closed>${until === 'start' ? 'המועד התחיל' : `אפשר לבטל עד ${until === '1h' ? 'שעה' : '24 שעות'} לפני; מנהל היומן יכול לבטל`}</span>` : nothing}
-          <button type="button" class="btn sm badtxt" data-res-cancel ?disabled=${closed} @click=${() => this.openCancel(o)}>ביטול</button></div>` : nothing}
+      ${this.past ? nothing : o.state === 'displaced' ? html`<div class="bka"><button type="button" class="btn sm pri" data-res-alts @click=${() => void this.openDisplaced(o)}>${tr('בחירת זמן חלופי')}</button>
+          <button type="button" class="btn sm badtxt" data-res-cancel @click=${() => this.openCancel(o)}>${tr('ביטול')}</button></div>`
+        : o.state === 'pending' ? html`<div class="bka"><button type="button" class="btn sm badtxt" data-res-withdraw ?disabled=${this.busy} @click=${() => void this.withdraw(o)}>${tr('משיכת הבקשה')}</button></div>`
+        : o.state === 'confirmed' ? html`<div class="bka">${closed ? html`<span class="why" data-res-closed>${until === 'start' ? tr('המועד התחיל') : tr('אפשר לבטל עד {time} לפני; מנהל היומן יכול לבטל', { time: until === '1h' ? tr('שעה') : tr('24 שעות') })}</span>` : nothing}
+          <button type="button" class="btn sm badtxt" data-res-cancel ?disabled=${closed} @click=${() => this.openCancel(o)}>${tr('ביטול')}</button></div>` : nothing}
     </div>`;
   }
 
@@ -466,7 +467,7 @@ export class CalResident extends LitElement {
     try {
       const ev = await this.ctx.api.event(o.event_id);
       await this.ctx.api.withdrawEvent(o.event_id, ev.event.revision);
-      emit(this, CAL_EVENTS.toast, 'הבקשה נמשכה');
+      emit(this, CAL_EVENTS.toast, tr('הבקשה נמשכה'));
       await this.loadMine();
     } catch (e) {
       emit(this, CAL_EVENTS.toast, describeError(e));
@@ -493,15 +494,15 @@ export class CalResident extends LitElement {
       const room = (list: RoomDay[], id: string) => list.find((r) => r.calendar_id === id);
       const same = room(today.rooms, o.calendar_id);
       const later = same && slotGrid(same.entries.filter((e) => e.event_id !== o.event_id), d0, same.open, dmin, 30, this.now).find((x) => x.free && x.start.getTime() >= new Date(o.end).getTime());
-      if (later) out.push({ calendar_id: o.calendar_id, start: later.start, end: new Date(later.start.getTime() + dur), note: 'אותו חדר, אותו אורך' });
+      if (later) out.push({ calendar_id: o.calendar_id, start: later.start, end: new Date(later.start.getTime() + dur), note: tr('אותו חדר, אותו אורך') });
       const nd = room(next.rooms, o.calendar_id);
       const ns = new Date(s0.getTime() + 86_400_000);
       if (nd && slotGrid(nd.entries, addDays(d0, 1), nd.open, dmin, 15, this.now).some((x) => x.free && x.start.getTime() === ns.getTime())) {
-        out.push({ calendar_id: o.calendar_id, start: ns, end: new Date(ns.getTime() + dur), note: 'אותה שעה, יום אחר' });
+        out.push({ calendar_id: o.calendar_id, start: ns, end: new Date(ns.getTime() + dur), note: tr('אותה שעה, יום אחר') });
       }
       const other = today.rooms.find((r) => r.calendar_id !== o.calendar_id && BOOKABLE.has(this.cal(r.calendar_id)?.my_role ?? '')
         && !r.entries.some((e) => e.state === 'confirmed' && new Date(e.start) < new Date(o.end) && new Date(e.end) > s0));
-      if (other) out.push({ calendar_id: other.calendar_id, start: s0, end: new Date(o.end), note: `אותה שעה, חדר אחר${this.cal(other.calendar_id)?.approval_mode !== 'none' ? ' · באישור' : ''}` });
+      if (other) out.push({ calendar_id: other.calendar_id, start: s0, end: new Date(o.end), note: `${tr('אותה שעה, חדר אחר')}${this.cal(other.calendar_id)?.approval_mode !== 'none' ? ` · ${tr('באישור')}` : ''}` });
     } catch (e) {
       this.actionError = describeError(e);
     }
@@ -519,11 +520,11 @@ export class CalResident extends LitElement {
     if (!s) return nothing;
     const scrim = html`<div class="scrim" @click=${() => this.close()}></div>`;
     if (s.kind === 'equip') {
-      return html`${scrim}<aside class="sheet" role="dialog" aria-label="ציוד" data-res-sheet="equip"><div class="grab" aria-hidden="true"></div>
-        <header><div class="grow"><h2>ציוד בחדר</h2><div class="muted">רק חדרים שיש בהם הכול</div></div><button type="button" class="x" aria-label="סגירה" @click=${() => this.close()}><sw-icon name="close" size="16"></sw-icon></button></header>
+      return html`${scrim}<aside class="sheet" role="dialog" aria-label=${tr('ציוד')} data-res-sheet="equip"><div class="grab" aria-hidden="true"></div>
+        <header><div class="grow"><h2>${tr('ציוד בחדר')}</h2><div class="muted">${tr('רק חדרים שיש בהם הכול')}</div></div><button type="button" class="x" aria-label=${tr('סגירה')} @click=${() => this.close()}><sw-icon name="close" size="16"></sw-icon></button></header>
         <div class="body"><div class="eq">${(Object.keys(EQUIP) as Equipment[]).map((e) => html`<button type="button" aria-pressed=${String(this.equip.has(e))} data-res-eq=${e}
           @click=${() => { const n = new Set(this.equip); if (n.has(e)) n.delete(e); else n.add(e); this.equip = n; }}>${EQUIP[e]}</button>`)}</div></div>
-        <footer><button type="button" class="btn pri" style="flex:1" @click=${() => this.close()}>הצגת חדרים</button><button type="button" class="btn" @click=${() => (this.equip = new Set())}>ניקוי</button></footer></aside>`;
+        <footer><button type="button" class="btn pri" style="flex:1" @click=${() => this.close()}>${tr('הצגת חדרים')}</button><button type="button" class="btn" @click=${() => (this.equip = new Set())}>${tr('ניקוי')}</button></footer></aside>`;
     }
     if (s.kind === 'confirm') return html`${scrim}${this.confirmSheet()}`;
     if (s.kind === 'cancel') return html`${scrim}${this.cancelSheet(s.o)}`;
@@ -537,23 +538,23 @@ export class CalResident extends LitElement {
     const end = new Date(this.start.getTime() + this.duration * 60000);
     const pending = r.entries.filter((o) => o.state === 'pending' && new Date(o.start) < end && new Date(o.end) > (this.start as Date)).length;
     const approval = cal.approval_mode !== 'none' || pending > 0 || !this.slotFree(r, this.start);
-    const owner = cal.owner.name || 'מנהל החדר';
+    const owner = cal.owner.name || tr('מנהל החדר');
     const timeout = cal.approval_timeout_h ?? 2;
-    return html`<aside class="sheet" role="dialog" aria-label="אישור הזמנה" data-res-sheet="confirm"><div class="grab" aria-hidden="true"></div>
-      <header><div class="grow"><h2>${approval ? `בקשה להזמנת ${cal.name}` : `הזמנת ${cal.name}`}</h2><div class="muted ell">${cal.name} · ${whenText(this.start.toISOString(), end.toISOString(), this.now)}</div></div>
-        <button type="button" class="x" aria-label="סגירה" @click=${() => this.close()}><sw-icon name="close" size="16"></sw-icon></button></header>
+    return html`<aside class="sheet" role="dialog" aria-label=${tr('אישור הזמנה')} data-res-sheet="confirm"><div class="grab" aria-hidden="true"></div>
+      <header><div class="grow"><h2>${approval ? tr('בקשה להזמנת {name}', { name: cal.name }) : tr('הזמנת {name}', { name: cal.name })}</h2><div class="muted ell">${cal.name} · ${whenText(this.start.toISOString(), end.toISOString(), this.now)}</div></div>
+        <button type="button" class="x" aria-label=${tr('סגירה')} @click=${() => this.close()}><sw-icon name="close" size="16"></sw-icon></button></header>
       <div class="body">
-        <div class="fld"><label for="rt">כותרת</label><input id="rt" class="inp" data-res-title maxlength="120" placeholder="למשל: יום הולדת" .value=${this.evTitle} @input=${(e: Event) => (this.evTitle = (e.target as HTMLInputElement).value)}></div>
-        <div class="fld"><span class="lbl">משתתפים</span><span class="hc"><button type="button" aria-label="פחות" @click=${() => (this.people = Math.max(1, this.people - 1))}>−</button>
-          <b class="num" data-res-people>${this.people}</b><button type="button" aria-label="יותר" @click=${() => (this.people = Math.min(r.capacity ?? 2000, this.people + 1))}>+</button>${r.capacity ? html`מתוך <span class="num">${r.capacity}</span>` : nothing}</span></div>
-        <div class="lockline"><sw-icon name="lock" size="14"></sw-icon><span>הזמנה בשמך. הזמנה בשם חוג או לקוח רק לצוות.</span></div>
-        ${approval ? html`<div class="note" data-res-approval><sw-icon name="info" size="18"></sw-icon><div><b>הבקשה תישלח ל${owner}</b>
-          <span>בקשה לא שומרת את המועד.${pending ? ` יש עוד ${pending === 1 ? 'בקשה אחת' : `${pending} בקשות`} לחלון הזה; מי שיאושר ראשון יקבל אותו.` : ''} אם לא תאושר, תקבל הצעות לזמן אחר.</span></div></div>
-          <div class="hint"><sw-icon name="clock" size="14"></sw-icon>${timeout ? `אם לא תהיה החלטה עד ${timeout === 1 ? 'שעה' : timeout === 2 ? 'שעתיים' : `${timeout} שעות`} לפני, הבקשה תפוג ותקבל הודעה.` : 'אם לא תהיה החלטה עד תחילת המועד, הבקשה תפוג.'}</div>` : nothing}
+        <div class="fld"><label for="rt">${tr('כותרת')}</label><input id="rt" class="inp" data-res-title maxlength="120" placeholder=${tr('למשל: יום הולדת')} .value=${this.evTitle} @input=${(e: Event) => (this.evTitle = (e.target as HTMLInputElement).value)}></div>
+        <div class="fld"><span class="lbl">${tr('משתתפים')}</span><span class="hc"><button type="button" aria-label=${tr('פחות')} @click=${() => (this.people = Math.max(1, this.people - 1))}>−</button>
+          <b class="num" data-res-people>${this.people}</b><button type="button" aria-label=${tr('יותר')} @click=${() => (this.people = Math.min(r.capacity ?? 2000, this.people + 1))}>+</button>${r.capacity ? html`${tr('מתוך')} <span class="num">${r.capacity}</span>` : nothing}</span></div>
+        <div class="lockline"><sw-icon name="lock" size="14"></sw-icon><span>${tr('הזמנה בשמך. הזמנה בשם חוג או לקוח רק לצוות.')}</span></div>
+        ${approval ? html`<div class="note" data-res-approval><sw-icon name="info" size="18"></sw-icon><div><b>${tr('הבקשה תישלח ל{name}', { name: owner })}</b>
+          <span>${tr('בקשה לא שומרת את המועד.')}${pending ? ` ${pending === 1 ? tr('יש עוד בקשה אחת לחלון הזה; מי שיאושר ראשון יקבל אותו.') : tr('יש עוד {n} בקשות לחלון הזה; מי שיאושר ראשון יקבל אותו.', { n: pending })}` : ''} ${tr('אם לא תאושר, תקבל הצעות לזמן אחר.')}</span></div></div>
+          <div class="hint"><sw-icon name="clock" size="14"></sw-icon>${timeout ? tr('אם לא תהיה החלטה עד {time} לפני, הבקשה תפוג ותקבל הודעה.', { time: timeout === 1 ? tr('שעה') : timeout === 2 ? tr('שעתיים') : tr('{n} שעות', { n: timeout }) }) : tr('אם לא תהיה החלטה עד תחילת המועד, הבקשה תפוג.')}</div>` : nothing}
         ${this.actionError ? html`<div class="note bad" role="alert" data-res-error>${this.actionError}</div>` : nothing}
       </div>
-      <footer><button type="button" class="btn pri" style="flex:1" data-res-submit ?disabled=${this.busy} @click=${() => void this.submit(cal, approval)}><sw-icon name="check" size="16"></sw-icon>${approval ? 'שליחה לאישור' : 'הזמנה'}</button>
-        <button type="button" class="btn" @click=${() => this.close()}>חזרה</button></footer></aside>`;
+      <footer><button type="button" class="btn pri" style="flex:1" data-res-submit ?disabled=${this.busy} @click=${() => void this.submit(cal, approval)}><sw-icon name="check" size="16"></sw-icon>${approval ? tr('שליחה לאישור') : tr('הזמנה')}</button>
+        <button type="button" class="btn" @click=${() => this.close()}>${tr('חזרה')}</button></footer></aside>`;
   }
 
   private async submit(cal: Calendar, approval: boolean): Promise<void> {
@@ -566,7 +567,7 @@ export class CalResident extends LitElement {
       this.sheet = null;
       this.start = null;
       this.roomId = '';
-      this.done = r.state === 'pending' || approval ? `הבקשה נשלחה ל${cal.owner.name || 'מנהל החדר'}` : 'ההזמנה נקבעה';
+      this.done = r.state === 'pending' || approval ? tr('הבקשה נשלחה ל{name}', { name: cal.owner.name || tr('מנהל החדר') }) : tr('ההזמנה נקבעה');
       this.tab = 'mine';
       this.past = false;
       this.rooms = null;
@@ -581,17 +582,17 @@ export class CalResident extends LitElement {
 
   private cancelSheet(o: Occurrence) {
     const cal = this.cal(o.calendar_id);
-    return html`<aside class="sheet" role="alertdialog" aria-label="ביטול הזמנה" data-res-sheet="cancel"><div class="grab" aria-hidden="true"></div>
-      <header><div class="grow"><h2>לבטל את "${o.title ?? 'ההזמנה'}"?</h2><div class="muted ell">${cal?.name ?? ''} · ${whenText(o.start, o.end, this.now)}</div></div></header>
+    return html`<aside class="sheet" role="alertdialog" aria-label=${tr('ביטול הזמנה')} data-res-sheet="cancel"><div class="grab" aria-hidden="true"></div>
+      <header><div class="grow"><h2>${tr('לבטל את "{title}"?', { title: o.title ?? tr('ההזמנה') })}</h2><div class="muted ell">${cal?.name ?? ''} · ${whenText(o.start, o.end, this.now)}</div></div></header>
       <div class="body">
-        ${o.recurring ? html`<div role="radiogroup" aria-label="מה לבטל" style="display:grid;gap:8px">
-          <button type="button" class="opt" role="radio" aria-checked=${String(this.cancelScope === 'occurrence')} data-res-scope="occurrence" @click=${() => (this.cancelScope = 'occurrence')}><span class="rad"></span><div><b>רק ${DAY_SHORT[new Date(o.start).getDay()]} ${ddmm(new Date(o.start))}</b><small>שאר המועדים נשארים</small></div></button>
-          <button type="button" class="opt" role="radio" aria-checked=${String(this.cancelScope === 'series')} data-res-scope="series" @click=${() => (this.cancelScope = 'series')}><span class="rad"></span><div><b>כל הסדרה</b><small>מועדים שעברו נשארים בהיסטוריה</small></div></button></div>` : nothing}
-        <div class="hint"><sw-icon name="info" size="14"></sw-icon>החדר יתפנה מיד ומי שביקש אותו יקבל הודעה.</div>
+        ${o.recurring ? html`<div role="radiogroup" aria-label=${tr('מה לבטל')} style="display:grid;gap:8px">
+          <button type="button" class="opt" role="radio" aria-checked=${String(this.cancelScope === 'occurrence')} data-res-scope="occurrence" @click=${() => (this.cancelScope = 'occurrence')}><span class="rad"></span><div><b>${tr('רק {date}', { date: `${DAY_SHORT[new Date(o.start).getDay()]} ${ddmm(new Date(o.start))}` })}</b><small>${tr('שאר המועדים נשארים')}</small></div></button>
+          <button type="button" class="opt" role="radio" aria-checked=${String(this.cancelScope === 'series')} data-res-scope="series" @click=${() => (this.cancelScope = 'series')}><span class="rad"></span><div><b>${tr('כל הסדרה')}</b><small>${tr('מועדים שעברו נשארים בהיסטוריה')}</small></div></button></div>` : nothing}
+        <div class="hint"><sw-icon name="info" size="14"></sw-icon>${tr('החדר יתפנה מיד ומי שביקש אותו יקבל הודעה.')}</div>
         ${this.actionError ? html`<div class="note bad" role="alert" data-res-error>${this.actionError}</div>` : nothing}
       </div>
-      <footer><button type="button" class="btn bad fill" style="flex:1" data-res-cancel-ok ?disabled=${this.busy} @click=${() => void this.cancel(o)}><sw-icon name="trash" size="16"></sw-icon>${o.recurring && this.cancelScope === 'series' ? 'ביטול הסדרה' : 'ביטול המועד'}</button>
-        <button type="button" class="btn" @click=${() => this.close()}>השארה</button></footer></aside>`;
+      <footer><button type="button" class="btn bad fill" style="flex:1" data-res-cancel-ok ?disabled=${this.busy} @click=${() => void this.cancel(o)}><sw-icon name="trash" size="16"></sw-icon>${o.recurring && this.cancelScope === 'series' ? tr('ביטול הסדרה') : tr('ביטול המועד')}</button>
+        <button type="button" class="btn" @click=${() => this.close()}>${tr('השארה')}</button></footer></aside>`;
   }
 
   private async cancel(o: Occurrence): Promise<void> {
@@ -602,7 +603,7 @@ export class CalResident extends LitElement {
       const ev = await this.ctx.api.event(o.event_id);
       await this.ctx.api.cancelEvent(o.event_id, ev.event.revision, o.recurring && this.cancelScope === 'occurrence' ? o.start : undefined);
       this.sheet = null;
-      emit(this, CAL_EVENTS.toast, 'ההזמנה בוטלה');
+      emit(this, CAL_EVENTS.toast, tr('ההזמנה בוטלה'));
       await this.loadMine();
     } catch (e) {
       this.actionError = describeError(e);
@@ -613,19 +614,19 @@ export class CalResident extends LitElement {
 
   private displacedSheet(o: Occurrence) {
     const alts = this.alts;
-    return html`<aside class="sheet" role="dialog" aria-label="בחירת זמן חלופי" data-res-sheet="displaced"><div class="grab" aria-hidden="true"></div>
-      <header><div class="grow"><h2>בחירת זמן חלופי</h2><div class="muted">"${o.title ?? 'ההזמנה'}" נדחקה בגלל תחזוקה ב${this.cal(o.calendar_id)?.name ?? 'חדר'}</div></div>
-        <button type="button" class="x" aria-label="סגירה" @click=${() => this.close()}><sw-icon name="close" size="16"></sw-icon></button></header>
+    return html`<aside class="sheet" role="dialog" aria-label=${tr('בחירת זמן חלופי')} data-res-sheet="displaced"><div class="grab" aria-hidden="true"></div>
+      <header><div class="grow"><h2>${tr('בחירת זמן חלופי')}</h2><div class="muted">${tr('"{title}" נדחקה בגלל תחזוקה ב{room}', { title: o.title ?? tr('ההזמנה'), room: this.cal(o.calendar_id)?.name ?? tr('חדר') })}</div></div>
+        <button type="button" class="x" aria-label=${tr('סגירה')} @click=${() => this.close()}><sw-icon name="close" size="16"></sw-icon></button></header>
       <div class="body">
         ${alts === null ? html`${[0, 1, 2].map(() => html`<div class="skel" style="block-size:56px"></div>`)}`
-          : alts.length ? html`<div role="radiogroup" aria-label="זמן חלופי" style="display:grid;gap:8px">${alts.map((a, i) => html`<button type="button" class="opt" role="radio" aria-checked=${String(this.altPick === i)} data-res-alt=${i}
+          : alts.length ? html`<div role="radiogroup" aria-label=${tr('זמן חלופי')} style="display:grid;gap:8px">${alts.map((a, i) => html`<button type="button" class="opt" role="radio" aria-checked=${String(this.altPick === i)} data-res-alt=${i}
             @click=${() => (this.altPick = i)}><span class="rad"></span><div><b class="num">${whenText(a.start.toISOString(), a.end.toISOString(), this.now)} · ${this.cal(a.calendar_id)?.name ?? ''}</b><small>${a.note}</small></div></button>`)}</div>`
-          : html`<div class="note warn">אין כרגע זמן חלופי קרוב. אפשר לבחור זמן בלשונית "הזמנת חדר".</div>`}
-        <div class="hint"><sw-icon name="info" size="14"></sw-icon>Arx לא מזיז הזמנות לבד. אם לא תבחר, ההזמנה נשארת "נדחק" עד שתבטל.</div>
+          : html`<div class="note warn">${tr('אין כרגע זמן חלופי קרוב. אפשר לבחור זמן בלשונית "הזמנת חדר".')}</div>`}
+        <div class="hint"><sw-icon name="info" size="14"></sw-icon>${tr('Arx לא מזיז הזמנות לבד. אם לא תבחר, ההזמנה נשארת "נדחק" עד שתבטל.')}</div>
         ${this.actionError ? html`<div class="note bad" role="alert" data-res-error>${this.actionError}</div>` : nothing}
       </div>
-      <footer><button type="button" class="btn pri" style="flex:1" data-res-alt-ok ?disabled=${!alts?.length || this.busy} @click=${() => void this.rebook(o)}><sw-icon name="check" size="16"></sw-icon>קביעה בזמן הזה</button>
-        <button type="button" class="btn" @click=${() => this.openCancel(o)}>ביטול ההזמנה</button></footer></aside>`;
+      <footer><button type="button" class="btn pri" style="flex:1" data-res-alt-ok ?disabled=${!alts?.length || this.busy} @click=${() => void this.rebook(o)}><sw-icon name="check" size="16"></sw-icon>${tr('קביעה בזמן הזה')}</button>
+        <button type="button" class="btn" @click=${() => this.openCancel(o)}>${tr('ביטול ההזמנה')}</button></footer></aside>`;
   }
 
   /** Contract section 7: the organizer's pick follows the normal create path; the displaced entry becomes cancelled. */
@@ -639,7 +640,7 @@ export class CalResident extends LitElement {
       const ev = await this.ctx.api.event(o.event_id);
       await this.ctx.api.cancelEvent(o.event_id, ev.event.revision);
       this.sheet = null;
-      this.done = r.state === 'pending' ? 'הבקשה לזמן החדש נשלחה לאישור' : 'ההזמנה נקבעה בזמן החדש';
+      this.done = r.state === 'pending' ? tr('הבקשה לזמן החדש נשלחה לאישור') : tr('ההזמנה נקבעה בזמן החדש');
       await this.loadMine();
     } catch (e) {
       this.actionError = describeError(e);

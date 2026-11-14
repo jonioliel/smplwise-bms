@@ -9,6 +9,7 @@ import { DAY_LONG, MONTHS, addDays, colorVar, hm, isoDate, markOf, pad, pageOf, 
 import { calCss } from './styles';
 import { EQUIPMENT_LABEL, firstFree, parseDateParam, readHashParam, trackLanes, writeHashParams } from './booking-logic';
 import { axisFit } from './rooms-axis';
+import { tr } from '../i18n/msg/calendars';
 
 const CAPACITY_STEPS = [0, 6, 10, 20, 50];
 
@@ -210,27 +211,27 @@ export class CalViewRooms extends LitElement {
     const title = phone ? `${DAY_LONG[this.day.getDay()]}, ${this.day.getDate()}.${pad(this.day.getMonth() + 1)}` : `${DAY_LONG[this.day.getDay()]}, `;
     return html`<section class="panel main" data-cal-rooms>
       <div class="ph">
-        <span class="big" data-cal-title>${phone ? title : html`${title}<b>${this.day.getDate()}</b> ב${MONTHS[this.day.getMonth()]}`}</span>
-        <button type="button" class="btn icon sm" aria-label="יום קודם" data-cal-prev @click=${() => this.go(-1)}><sw-icon name="chevronBack" size="16"></sw-icon></button>
-        <button type="button" class="btn icon sm" aria-label="יום הבא" data-cal-next @click=${() => this.go(1)}><sw-icon name="chevron" size="16"></sw-icon></button>
+        <span class="big" data-cal-title>${phone ? title : html`${title}<b>${this.day.getDate()}</b> ${tr('ב{month}', { month: MONTHS[this.day.getMonth()] })}`}</span>
+        <button type="button" class="btn icon sm" aria-label=${tr('יום קודם')} data-cal-prev @click=${() => this.go(-1)}><sw-icon name="chevronBack" size="16"></sw-icon></button>
+        <button type="button" class="btn icon sm" aria-label=${tr('יום הבא')} data-cal-next @click=${() => this.go(1)}><sw-icon name="chevron" size="16"></sw-icon></button>
         ${phone
-          ? html`<button type="button" class="btn sm num ltr" data-cal-window aria-label="חלון השעות" @click=${() => (this.shift = this.shift >= 6 ? -6 : this.shift + 3)}>${pad(win.from)}:00–${pad(win.to % 24)}:00</button>`
-          : today ? nothing : html`<button type="button" class="btn sm" data-cal-today @click=${() => { this.day = startOfDay(ctx.now); writeHashParams({ date: isoDate(this.day) }); }}>היום</button>`}
+          ? html`<button type="button" class="btn sm num ltr" data-cal-window aria-label=${tr('חלון השעות')} @click=${() => (this.shift = this.shift >= 6 ? -6 : this.shift + 3)}>${pad(win.from)}:00–${pad(win.to % 24)}:00</button>`
+          : today ? nothing : html`<button type="button" class="btn sm" data-cal-today @click=${() => { this.day = startOfDay(ctx.now); writeHashParams({ date: isoDate(this.day) }); }}>${tr('היום')}</button>`}
         <span class="sp"></span>
         ${phone ? nothing : html`
-          <button type="button" class="btn sm" data-cal-capacity aria-pressed=${String(this.capacity > 0)} @click=${() => this.nextCapacity()}><sw-icon name="users" size="16"></sw-icon>${this.capacity ? html`<span class="num">${this.capacity}+</span> מקומות` : 'כל הקיבולות'}</button>
-          <button type="button" class="btn sm" data-cal-equipment aria-pressed=${String(this.equipment.size > 0)} aria-expanded=${String(this.eqOpen)} @click=${() => (this.eqOpen = !this.eqOpen)}><sw-icon name="filter" size="16"></sw-icon>ציוד${this.equipment.size ? html` <span class="num">${this.equipment.size}</span>` : nothing}</button>`}
-        <button type="button" class="btn sm" data-cal-find @click=${() => this.findFree()}><sw-icon name="search" size="16"></sw-icon>${phone ? 'חדר פנוי' : 'מצא חדר פנוי'}</button>
+          <button type="button" class="btn sm" data-cal-capacity aria-pressed=${String(this.capacity > 0)} @click=${() => this.nextCapacity()}><sw-icon name="users" size="16"></sw-icon>${this.capacity ? html`<span class="num">${this.capacity}+</span> ${tr('מקומות')}` : tr('כל הקיבולות')}</button>
+          <button type="button" class="btn sm" data-cal-equipment aria-pressed=${String(this.equipment.size > 0)} aria-expanded=${String(this.eqOpen)} @click=${() => (this.eqOpen = !this.eqOpen)}><sw-icon name="filter" size="16"></sw-icon>${tr('ציוד')}${this.equipment.size ? html` <span class="num">${this.equipment.size}</span>` : nothing}</button>`}
+        <button type="button" class="btn sm" data-cal-find @click=${() => this.findFree()}><sw-icon name="search" size="16"></sw-icon>${phone ? tr('חדר פנוי') : tr('מצא חדר פנוי')}</button>
       </div>
       ${this.eqOpen ? this.equipmentPop() : nothing}
       ${this.error ? html`<div class="fail" role="alert">${this.error}</div>` : nothing}
-      ${this.free === null ? html`<div class="found" role="status" data-cal-free-none>אין היום חדר פנוי לשעה אחת שמתאים לסינון.</div>` : nothing}
+      ${this.free === null ? html`<div class="found" role="status" data-cal-free-none>${tr('אין היום חדר פנוי לשעה אחת שמתאים לסינון.')}</div>` : nothing}
       ${this.rooms && !rooms.length
-        ? html`<sw-state-panel icon="calendar" state="empty" data-cal-rooms-empty heading=${this.rooms.length ? 'אין חדר שמתאים לסינון' : 'אין חדרים להזמנה'}
-            hint=${this.rooms.length ? 'אפשר לשנות את הקיבולת או את הציוד.' : 'חדר הוא יומן מסוג "חדר": קיבולת, ציוד, שעות פתיחה ואישור.'}></sw-state-panel>`
+        ? html`<sw-state-panel icon="calendar" state="empty" data-cal-rooms-empty heading=${this.rooms.length ? tr('אין חדר שמתאים לסינון') : tr('אין חדרים להזמנה')}
+            hint=${this.rooms.length ? tr('אפשר לשנות את הקיבולת או את הציוד.') : tr('חדר הוא יומן מסוג "חדר": קיבולת, ציוד, שעות פתיחה ואישור.')}></sw-state-panel>`
         : this.timeline(pg.items, win, today)}
-      ${pg.pages > 1 ? html`<div class="pager" data-cal-pager><button type="button" class="btn sm" aria-label="חדרים קודמים" ?disabled=${pg.page <= 1} @click=${() => (this.page = pg.page - 1)}><sw-icon name="chevronBack" size="16"></sw-icon></button>
-        <span class="num">${pg.page} / ${pg.pages}</span><button type="button" class="btn sm" aria-label="חדרים הבאים" ?disabled=${pg.page >= pg.pages} @click=${() => (this.page = pg.page + 1)}><sw-icon name="chevron" size="16"></sw-icon></button></div>` : nothing}
+      ${pg.pages > 1 ? html`<div class="pager" data-cal-pager><button type="button" class="btn sm" aria-label=${tr('חדרים קודמים')} ?disabled=${pg.page <= 1} @click=${() => (this.page = pg.page - 1)}><sw-icon name="chevronBack" size="16"></sw-icon></button>
+        <span class="num">${pg.page} / ${pg.pages}</span><button type="button" class="btn sm" aria-label=${tr('חדרים הבאים')} ?disabled=${pg.page >= pg.pages} @click=${() => (this.page = pg.page + 1)}><sw-icon name="chevron" size="16"></sw-icon></button></div>` : nothing}
       ${phone ? nothing : this.legend()}
     </section>`;
   }
@@ -242,7 +243,7 @@ export class CalViewRooms extends LitElement {
   }
 
   private equipmentPop() {
-    return html`<div class="pop" role="group" aria-label="ציוד" data-cal-equipment-pop>
+    return html`<div class="pop" role="group" aria-label=${tr('ציוד')} data-cal-equipment-pop>
       ${(Object.keys(EQUIPMENT_LABEL) as Equipment[]).map((e) => html`<label><input type="checkbox" .checked=${this.equipment.has(e)} @change=${() => {
         const s = new Set(this.equipment);
         if (s.has(e)) s.delete(e);
@@ -250,7 +251,7 @@ export class CalViewRooms extends LitElement {
         this.equipment = s;
         this.page = 1;
       }}>${EQUIPMENT_LABEL[e]}</label>`)}
-      <button type="button" class="btn sm" @click=${() => (this.eqOpen = false)}>סגירה</button></div>`;
+      <button type="button" class="btn sm" @click=${() => (this.eqOpen = false)}>${tr('סגירה')}</button></div>`;
   }
 
   private timeline(rooms: RoomDay[], win: { from: number; to: number }, today: boolean) {
@@ -296,11 +297,11 @@ export class CalViewRooms extends LitElement {
     const lanes = trackLanes(entries);
     const nLanes = Math.max(1, ...lanes.map((l) => l + 1));
     const free = this.free && this.free.room === r.calendar_id ? span({ start: this.free.start.toISOString(), end: this.free.end.toISOString() }, this.day, win.from, win.to) : null;
-    const sub = [`${r.capacity ?? '-'} מקומות`, phone ? '' : c?.floor_name ?? '', !phone && c && c.approval_mode !== 'none' ? 'באישור' : ''].filter(Boolean).join(' · ');
+    const sub = [tr('{n} מקומות', { n: r.capacity ?? '-' }), phone ? '' : c?.floor_name ?? '', !phone && c && c.approval_mode !== 'none' ? tr('באישור') : ''].filter(Boolean).join(' · ');
     return html`<div class="tl-row" data-cal-room=${r.calendar_id}>
       <div class="tl-room"><span class="dot" style=${`--h:${colorVar(c?.color)}`}></span>
         <div class="grow"><div class="name ell" title=${r.name}>${r.name}</div><div class="sub ell">${sub}</div></div>
-        ${c?.my_role === 'view' ? html`<span class="lock" title="צפייה בלבד"><sw-icon name="lock" size="14"></sw-icon></span>` : nothing}</div>
+        ${c?.my_role === 'view' ? html`<span class="lock" title=${tr('צפייה בלבד')}><sw-icon name="lock" size="14"></sw-icon></span>` : nothing}</div>
       <div class="tl-track" @click=${(e: MouseEvent) => this.trackClick(e, r, win)}>
         ${closed.filter(([a, b]) => b > a).map(([a, b]) => html`<div class="closed" style=${`left:${a}%;width:${b - a}%`}></div>`)}
         ${lines}
@@ -311,14 +312,14 @@ export class CalViewRooms extends LitElement {
           const top = `calc(${lanes[i] * band}% + ${nLanes > 1 ? 3 : 7}px)`;
           const h = `calc(${band}% - ${nLanes > 1 ? 6 : 14}px)`;
           const mark = markOf(o);
-          const who = o.state === 'pending' ? 'ממתין לאישור' : mark === 'displaced' ? 'נדחק בגלל תחזוקה' : o.on_behalf_label ? `בשם: ${o.on_behalf_label}` : o.organizer?.name ?? '';
+          const who = o.state === 'pending' ? tr('ממתין לאישור') : mark === 'displaced' ? tr('נדחק בגלל תחזוקה') : o.on_behalf_label ? tr('בשם: {name}', { name: o.on_behalf_label }) : o.organizer?.name ?? '';
           const wide = sp.width > (phone ? 30 : 8) && nLanes === 1;
           return html`<button type="button" class="ev" data-mark=${mark} data-cal-entry=${o.event_id} style=${`--h:${colorVar(mark === 'maint' ? 'orange' : c?.color)};left:${sp.start}%;width:${sp.width}%;top:${top};height:${h}`}
-            title=${`${o.title ?? 'תפוס'} · ${hm(o.start)}–${hm(o.end)}`} @click=${(e: Event) => { e.stopPropagation(); emit(this, CAL_EVENTS.newEvent, { eventId: o.event_id }); }}>
-            <b>${o.title ?? 'תפוס'}</b>${wide && who ? html`<small>${who}</small>` : nothing}</button>`;
+            title=${`${o.title ?? tr('תפוס')} · ${hm(o.start)}–${hm(o.end)}`} @click=${(e: Event) => { e.stopPropagation(); emit(this, CAL_EVENTS.newEvent, { eventId: o.event_id }); }}>
+            <b>${o.title ?? tr('תפוס')}</b>${wide && who ? html`<small>${who}</small>` : nothing}</button>`;
         })}
         ${free ? html`<button type="button" class="tl-free" data-cal-free style=${`left:${free.start}%;width:${free.width}%`} @click=${(e: Event) => { e.stopPropagation(); this.book(r.calendar_id, (this.free as { start: Date }).start, (this.free as { end: Date }).end); }}>
-          פנוי · <span class="num">${hm((this.free as { start: Date }).start)}</span></button>` : nothing}
+          ${tr('פנוי')} · <span class="num">${hm((this.free as { start: Date }).start)}</span></button>` : nothing}
         ${nowL > 0 ? html`<div class="tl-now" style=${`left:${nowL}%`}></div>` : nothing}
       </div></div>`;
   }
@@ -337,11 +338,11 @@ export class CalViewRooms extends LitElement {
 
   private legend() {
     return html`<div class="legend" data-cal-legend>
-      <span><i class="ev" style="--h:var(--cal-blue)"></i>מאושר</span>
-      <span><i class="ev" data-mark="pending" style="--h:var(--cal-blue)"></i>ממתין לאישור</span>
-      <span><i class="ev" data-mark="maint"></i>תחזוקה</span>
-      <span><i class="ev" data-mark="displaced"></i>נדחק בגלל תחזוקה</span>
-      <span><i class="closed" data-k="closed"></i>סגור</span>
+      <span><i class="ev" style="--h:var(--cal-blue)"></i>${tr('מאושר')}</span>
+      <span><i class="ev" data-mark="pending" style="--h:var(--cal-blue)"></i>${tr('ממתין לאישור')}</span>
+      <span><i class="ev" data-mark="maint"></i>${tr('תחזוקה')}</span>
+      <span><i class="ev" data-mark="displaced"></i>${tr('נדחק בגלל תחזוקה')}</span>
+      <span><i class="closed" data-k="closed"></i>${tr('סגור')}</span>
     </div>`;
   }
 }
