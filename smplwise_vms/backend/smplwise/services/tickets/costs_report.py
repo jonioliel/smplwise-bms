@@ -31,6 +31,7 @@ from . import access, money, store_costs
 from .access import Viewer
 from .costs import COSTS_VIEW
 from .text_hygiene import csv_cell
+from .timeutil import zone_of
 
 GROUPS: tuple[str, ...] = ("vendor", "department", "device", "room", "month")
 STATUSES: tuple[str, ...] = ("submitted", "approved", "paid")
@@ -326,6 +327,6 @@ def reset_rate() -> None:
 
 
 def filename(conn) -> str:
-    stamp = dt.datetime.now(zone(get_setting(conn, "time.zone", "Asia/Jerusalem") or "Asia/Jerusalem")).strftime("%Y%m%d-%H%M")
+    stamp = dt.datetime.now(zone_of(conn)).strftime("%Y%m%d-%H%M")
     return f"ticket-costs-{stamp}.csv"
 

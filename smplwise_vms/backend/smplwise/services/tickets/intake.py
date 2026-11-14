@@ -33,6 +33,7 @@ from . import access, create, intake_rules as rules, model, settings_doc, store
 from .access import Viewer, text
 from .channel import keyed_hash, phone_digits
 from .text_hygiene import clean_text
+from .timeutil import iso_s, parse_naive_local
 
 log = logging.getLogger("smplwise.tickets.intake")
 UTC = dt.timezone.utc
@@ -51,15 +52,10 @@ LEXICON_KINDS = ("category", "place", "urgency", "stop", "domain_map")
 ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
 
 
-def _iso(at: dt.datetime) -> str:
-    return at.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+_iso = iso_s  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
-def _parse(value: Any) -> dt.datetime | None:
-    try:
-        return dt.datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(UTC)
-    except ValueError:
-        return None
+_parse = parse_naive_local  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
 def cfg(conn: sqlite3.Connection) -> dict[str, Any]:

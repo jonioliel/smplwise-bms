@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 from typing import Any, Iterable
 
 from . import work_calendar
+from .timeutil import iso_s_or_none, zone_named
 
 KINDS: tuple[str, ...] = ("unassigned", "overdue", "unopened", "ack", "stuck", "waiting")
 OPEN_STATUSES = frozenset({"new", "assigned", "acknowledged", "in_progress", "waiting_part", "done", "returned"})
@@ -48,10 +49,7 @@ def parse(at: str | None) -> dt.datetime | None:
     return v if v.tzinfo else v.replace(tzinfo=dt.timezone.utc)
 
 
-def iso(v: dt.datetime | None) -> str | None:
-    if v is None:
-        return None
-    return v.astimezone(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+iso = iso_s_or_none  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
 def _mins(rule: dict[str, Any] | None, key: str) -> dt.timedelta | None:
@@ -303,15 +301,7 @@ def send_window(installation: Any, department_json: str | None) -> tuple[str, st
     return DEFAULT_WINDOW
 
 
-def _zone(name: str | None) -> dt.tzinfo:
-    try:
-        from zoneinfo import ZoneInfo
-
-        return ZoneInfo(name or "Asia/Jerusalem")
-    except Exception:  # noqa: BLE001 - an unknown zone name falls back to the product default
-        from zoneinfo import ZoneInfo
-
-        return ZoneInfo("Asia/Jerusalem")
+_zone = zone_named  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
 def window_state(now: dt.datetime, window: tuple[str, str], zone: str | None) -> tuple[bool, dt.datetime]:

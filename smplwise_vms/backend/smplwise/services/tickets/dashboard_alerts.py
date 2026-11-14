@@ -27,6 +27,7 @@ from typing import Any
 from ...services import notify_policy
 from . import access, board, dashboard_pay, notify_bridge, rfq, rfq_notify, settings_doc, store, store_dash, store_dash_extra, stuck
 from .access import Viewer
+from .timeutil import zone_of
 
 log = logging.getLogger("smplwise.tickets.dashboard_alerts")
 
@@ -36,10 +37,7 @@ def source_on(conn, source: str) -> bool:
     return bool(policy and policy.get("enabled"))
 
 
-def _tz(conn):
-    from .messaging import time_zone
-
-    return time_zone(conn)
+_tz = zone_of  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
 def payments_tick(conn, now: dt.datetime) -> dict[str, int]:

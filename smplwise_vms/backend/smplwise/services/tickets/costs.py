@@ -29,6 +29,7 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 from ...audit import audit
 from . import model, money, notify_bridge, settings_doc, store, store_costs, store_links
 from .text_hygiene import clean_text
+from .timeutil import iso_s, parse_naive_local
 
 log = logging.getLogger("smplwise.tickets.costs")
 UTC = dt.timezone.utc
@@ -61,17 +62,10 @@ class CostRefused(Exception):
 
 # ---------------------------------------------------------------- time
 
-def iso(at: dt.datetime) -> str:
-    return at.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+iso = iso_s  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
-def parse(value: str | None) -> dt.datetime | None:
-    if not value:
-        return None
-    try:
-        return dt.datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC)
-    except ValueError:
-        return None
+parse = parse_naive_local  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
 def now_utc() -> dt.datetime:

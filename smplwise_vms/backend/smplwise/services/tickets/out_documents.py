@@ -28,6 +28,7 @@ from typing import Any, Mapping
 
 from ...audit import audit
 from . import handler_links, links, settings_doc
+from .timeutil import iso_ms, parse_naive_local
 
 log = logging.getLogger("smplwise.tickets.out_documents")
 UTC = dt.timezone.utc
@@ -97,17 +98,10 @@ class DocumentRefused(ValueError):
         self.code = code
 
 
-def iso(at: dt.datetime) -> str:
-    return at.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+iso = iso_ms  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
-def _parse(value: Any) -> dt.datetime | None:
-    if not isinstance(value, str) or not value:
-        return None
-    try:
-        return dt.datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(UTC)
-    except ValueError:
-        return None
+_parse = parse_naive_local  # CR-TK-TIMEUTIL-2436 (01:F-06/F-07): the shared helper under this module's name
 
 
 def config(conn: sqlite3.Connection) -> dict[str, Any]:
