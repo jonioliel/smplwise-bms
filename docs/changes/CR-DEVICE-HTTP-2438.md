@@ -57,7 +57,7 @@ the whole-operation deadline, `bounded_timeout`, `read_capped`) lived inside the
   no longer defines them, the sentence is written once, `request`'s mapping for every `where` shape, its pass-through of arguments
   and answers, a verb-only test double, a non-transport error is not mapped, one reader with two views, both former parsers are
   views of it. **Fails before** (run with the services reverted: `ImportError: cannot import name 'device_http'`), passes after.
-- Focused run after the move: see the commit message (`test_nvr_write.py`, `test_provision_*.py`, `test_frigate_*.py`,
+- Focused run after the move, **808 passed, 0 failed** (exit 0): (`test_nvr_write.py`, `test_provision_*.py`, `test_frigate_*.py`,
   `test_nvr_parse.py`, `test_nvr_connection.py`, `test_camera_reboot_2407.py`, `test_nvr_privacy_mask.py` and the two new files).
 
 ## NOT_RUN
