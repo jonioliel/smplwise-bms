@@ -1,9 +1,9 @@
 /**
  * WISKEY-PEOPLE-COMPLETE-2390: the words of the "people on stations only" view, its actions, the people screen's duplicate warning
- * and the editor's PIN check. Hebrew; one flat dictionary with a lookup (the pattern of i18n/access-people.ts): an unknown key answers
+ * and the editor's PIN check. Hebrew and English (the English when `<html lang>` is English; I18N-EN-SWITCH-2438); one flat dictionary per language with a lookup (the pattern of i18n/access-people.ts): an unknown key answers
  * the key itself. No platform name and no internal code reaches a string a person reads. `{name}` placeholders: `st(key, { name })`.
  */
-import { fill, registerCatalogue } from './core';
+import { docLang, fill, registerCatalogue } from './core';
 const he = {
   open: 'בעמדות בלבד',
   title: 'משתמשים שנמצאים רק בעמדות',
@@ -116,16 +116,128 @@ const he = {
 
 export type StationPeopleKey = keyof typeof he;
 
+const en: Partial<Record<StationPeopleKey, string>> = {
+  open: 'On stations only',
+  title: 'Users found only on stations',
+  intro: 'Users registered on one or more stations but not in the people list. You can adopt, hide or delete each of them.',
+  refresh: 'Read the stations again',
+  reading: 'Reading the stations…',
+  reading_station: 'Reading {name}…',
+  search: 'Search by name or number',
+  show_ignored: 'Show hidden',
+  empty: 'No users were found on the stations who are missing from the people list.',
+  empty_filtered: 'No results for the search.',
+  no_stations: 'There are no stations where you may manage people.',
+  feed_down: 'Access control is not available right now, so the stations cannot be read. Try again in a moment.',
+  count: '{n} users',
+  count_one: 'One user',
+  read_at: 'Read {when}',
+  cached: 'From the last read',
+  col_name: 'Name on the station',
+  col_number: 'Number on the station',
+  col_stations: 'Stations',
+  col_credentials: 'Credentials',
+  col_first_seen: 'First seen',
+  no_name: 'No name',
+  two_names: 'Different names on the stations',
+  pin: 'Code',
+  card: 'Card',
+  cards: '{n} cards',
+  face: 'Face or fingerprint',
+  none: 'None',
+  hidden: 'Hidden',
+  hidden_hint: 'Credentials are shown only with the sensitive-details permission on the station.',
+  ignored_badge: 'Hidden',
+  station_off: '{name}: not read ({reason})',
+  station_numbers_hidden: '{name}: user numbers on this station are set as a sensitive detail',
+  reason_offline: 'The station is offline',
+  reason_busy: 'The system is busy, try again in a moment',
+  reason_forbidden: 'No permission to read the station',
+  reason_unsupported: 'The installed version does not support this read',
+  reason_generic: 'The read failed',
+  // ---- actions
+  act_adopt: 'Adopt',
+  act_ignore: 'Hide',
+  act_unignore: 'Unhide',
+  act_delete: 'Delete from the station',
+  actions_for: 'Actions for {name}',
+  adopt_title: 'Adopt a user from the station',
+  adopt_text: 'A person is created in the people list from the user as registered on the station, including their code and cards. Nothing is created on the station itself.',
+  adopt_link: 'A person with this number is already in the people list: {name}. Adopting links the station user to them, without creating another person.',
+  adopt_link_hidden: 'A person with this number is already in the people list. Adopting links the station user to them, without creating another person.',
+  adopt_checking: 'Checking whether the person already exists…',
+  adopt_maybe: 'The person may already exist under another name or phone:',
+  adopt_maybe_hidden: 'The person may already exist ({n} matches) in records outside your permissions.',
+  adopt_maybe_accept: 'I checked - this is a different person, adopt anyway',
+  adopt_check_failed: 'Duplicates could not be checked right now. The server checks the adoption again.',
+  adopt_blocked: 'The user cannot be adopted as is',
+  adopt_go: 'Adopt',
+  ignore_title: 'Hide a user',
+  ignore_text: 'The user is hidden from this list. They stay on the station and can still enter. You can unhide them at any time.',
+  unignore_title: 'Unhide',
+  unignore_text: 'The user appears in the list again.',
+  delete_title: 'Delete a user from the station',
+  delete_text: 'The user is deleted from the stations below and can no longer enter there with a code, card or face. Deletion happens through sync and is not immediate.',
+  delete_type: "To confirm, type the user's number on the station: {n}",
+  delete_go: 'Delete from the station',
+  stations_list: 'Stations:',
+  confirm: 'Confirm',
+  cancel: 'Cancel',
+  close: 'Close',
+  working: 'Sending…',
+  // ---- results
+  res_title: 'Result',
+  res_ok: 'Done',
+  res_refused: 'Refused - not done',
+  res_unknown: 'Not known whether it was done',
+  res_not_sent: 'Not sent',
+  res_all_ok: 'The action was done on every station.',
+  res_partial: 'The action was done on some of the stations only. The details for each station are below.',
+  res_failed: 'The action was not done.',
+  res_unknown_all: 'Some stations have no clear result. Refresh the list and check before trying again.',
+  res_pending: 'Sent - removal from the station happens through sync. Refresh the list in a few minutes.',
+  res_stored_only: 'Hidden here, but the mark in access control was not updated.',
+  res_open_person: 'Open the person',
+  // ---- import errors (why a station user cannot be adopted as is)
+  imp_unsupported_credentials: 'Has a face or fingerprint on the station',
+  imp_unmanaged_lock: 'Allowed at a door that is not managed',
+  imp_schedule_unverified: 'Has a schedule that cannot be verified',
+  imp_pin_device_managed: 'The code is managed on the station itself',
+  imp_local_validity_needs_conversion: 'The validity is recorded in local time',
+  imp_device_user_missing: 'No longer on the station',
+  imp_ignored: 'Hidden on every station',
+  imp_review_stale: 'Changed since the read - refresh',
+  imp_unknown: 'Unknown reason',
+  // ---- the people screen's duplicate warning
+  dup_strip: 'Some people may be registered twice ({n} groups)',
+  dup_show: 'Show',
+  dup_hide: 'Hide',
+  dup_name: 'Same name',
+  dup_phone: 'Same phone',
+  dup_profile: 'Same value in {label}',
+  dup_more: 'and {n} more',
+  dup_partial: 'The list is partial.',
+  dup_resolve: 'Open each person, check whether it is the same person, and fix or delete the duplicate record.',
+  // ---- the editor's PIN check
+  pin_checking: 'Checking whether the code is free…',
+  pin_free: 'The code is free right now (checked again on save).',
+  pin_taken: 'This code is already used by another person. Choose another code or create a free one.',
+  pin_check_failed: 'The code could not be checked right now. It is checked on save.',
+  pin_check_limited: 'Too many code checks in a short time. The code is checked on save.',
+};
+
+/** A text in the interface language (English when `<html lang>` is English, else the Hebrew), `{name}` slots filled. */
 export function st(key: StationPeopleKey, vars?: Record<string, string | number>): string {
-  const text: string = he[key] ?? key;
+  const text: string = (docLang(['en']) === 'en' ? en[key] : undefined) ?? he[key] ?? key;
   return fill(text, vars);
 }
 
-/** A run-time key (`imp_<code>`) or the fallback. */
+/** A run-time key (`imp_<code>`) or the fallback, in the interface language. */
 export function stDynamic(key: string, fallback: StationPeopleKey): string {
-  return key in he ? he[key as StationPeopleKey] : he[fallback];
+  return st(key in he ? (key as StationPeopleKey) : fallback);
 }
 
+/** The Hebrew table (the source; the words spec reads it). The screens go through `st` / `stDynamic`. */
 export const STATION_PEOPLE_STRINGS: Readonly<Record<string, string>> = he;
 
-registerCatalogue('i18n/station-people', { he });
+registerCatalogue('i18n/station-people', { he, en });
