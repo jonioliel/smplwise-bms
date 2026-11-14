@@ -96,6 +96,26 @@ All runs on the runner (`private/runner/run_smart.py ... --machine runner`; the 
 | pixel re-run without `-u`, twice | 991b65e77 | 16 passed, 4 skipped (tablet project) - both runs |
 | final functional re-run: audit spec, home-v3-p1, home-v3-p2, unit-home-v3-p1, unit-home-simple-logic (all projects) | 991b65e77 | 100 passed, 107 skipped (per-project skips), 0 failed |
 
+### Entry check @ ecee791a1: red on one pixel shot - grayscale vs LCD text (14.11)
+
+The runner entry check failed one test: `pixel-home-gaps-2436.spec.ts:50 [desktop]` "my notifications with the alarm code dark",
+352 px (tolerance 250), also red on the gate's alone-retry. Not a design change of this branch: the diff image covers only text edges,
+and a 6x zoom shows the same glyphs drawn with grayscale antialiasing in the baseline and with subpixel (LCD, coloured fringes)
+antialiasing in the actual. The committed home baselines held both kinds (e.g. notif dark 1440 grayscale, notif dark 390 LCD), so this
+is the "bold Hebrew raster flip" noted above: Chromium uses LCD text only in an opaque, non-animating layer, and which one it picks
+follows the compositing state at the moment of the shot (likely the screen-entry animation `.hs-main.enter > *`, which stays until the
+next render). Fix: both home pixel specs (`pixel-home-gaps-2436`, `pixel-home-auditfix-2437`) launch Chromium with
+`--disable-lcd-text` (`test.use({ launchOptions })`), so every run draws grayscale text; their baselines were re-taken on the runner.
+
+| Run (runner, `run_smart.py preview ... --machine runner`) | Commit | Result |
+|---|---|---|
+| notif light + dark, desktop, `--repeat-each=3 --workers=1`, no `-u` (before the fix) | ecee791a1 | 6 passed - the flip did not reproduce alone |
+| both home pixel specs, desktop + mobile, `--update-snapshots=all --workers=1` (with the flag) | 19fbb8c71 | 16 passed, 4 skipped (per-project); 14 baselines rewritten - only text antialiasing differs (LCD fringes gone, layout identical), the other 6 byte-identical; committed 38a9ffb3a |
+| both home pixel specs, desktop + mobile, `--repeat-each=3 --workers=1`, no `-u` | 38a9ffb3a | 48 passed, 12 skipped (per-project) |
+
+The flip did not reproduce alone before the fix either, so the 3x pass shows no regression, not the cure; the cure is that LCD text is
+off, which the rewritten baselines confirm (no colour fringes). The 250 px tolerance stays. Not run: the full entry check (queued).
+
 Not run / not verified: a physical phone, portrait tablet or wall panel; real video (the "חי" path is covered only as "מתחבר" - no stream
 plays under mocks); the other five colour themes on the new rules; keyboard order; contrast measurement; the sheet exit was checked for
 "no second sheet in queries", not filmed frame by frame.
