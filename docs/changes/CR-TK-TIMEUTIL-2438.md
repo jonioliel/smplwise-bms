@@ -48,7 +48,14 @@ ending in `Z` or carrying an offset, so the switch is one alias per module once 
 - `zone_of` answers the default zone for a stored name that is a tzdata directory (`"Asia"`), where the old `rule_engine` /
   `costs_report` reader raised `PermissionError` / `IsADirectoryError`; the other four readers already answered the default.
   The product-wide `services/timeutil.zone` has the same gap (catches only `ZoneInfoNotFoundError` / `ValueError`); it is
-  left unchanged here and reported as a follow-up.
+  left unchanged here.
+
+## Follow-ups
+
+- **Lead decision (14.11):** fix `services/timeutil.zone` (`OSError` for a directory-like zone name -> `DEFAULT_ZONE`) in a
+  small follow-up branch after `CR-TIMEUTIL-2438` and this branch merge; not opened now (runner queue 27 deep).
+- The switch of the six "zone-less = local" parsers to `parse_utc` stays BLOCKED until the read-only `SELECT` on a lab
+  database copy; no copy is available now.
 
 ## Tests actually run (workstation, Windows, Python 3.12 venv, `-p no:xdist`)
 
