@@ -10,7 +10,7 @@ import '../components/media-screen-card';
 import '../components/media-bulk-dialog';
 import '../components/sw-pager';
 import '../components/sw-page';
-import { PageFit } from './multimedia-page-fit';
+import { PageFit } from '../components/page-fit';
 import './multimedia-edit-panel';
 import type { MediaBulkDialog } from '../components/media-bulk-dialog';
 import { ApiError, describeError } from '../api/client';
@@ -98,7 +98,7 @@ export class MultimediaScreens extends LitElement {
   private pushedRemote = false;
   private loading = false;
   private homeFloorsLoaded = false;
-  /** NOSCROLL-1366-2437: the cards region pages instead of scrolling on a desktop (multimedia-page-fit.ts) */
+  /** NOSCROLL-1366-2437: the cards region pages instead of scrolling on a desktop (components/page-fit.ts) */
   private fit = new PageFit(this, () => this.renderRoot.querySelector<HTMLElement>('.scr'), () => !this.editing);
 
   static styles = [mediaGlassStyles, leadReserveStyles, liftedReset, css`
@@ -569,6 +569,13 @@ export class MultimediaScreens extends LitElement {
         /* the region spans the page's side padding, so a card's shadow and focus ring are never cut at the sides */
         margin-inline: calc(-1 * var(--mm-pad));
         padding: var(--sw-s-1) var(--mm-pad) var(--sw-s-5);
+      }
+      /* PAGING-SETTING-2439: the long lists scroll (הגדרות › כללי): every card is drawn and the region scrolls inside itself */
+      :host([data-fit][data-long-lists='scroll']) .scr {
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
       }
       :host([data-fit]) .groups {
         gap: var(--sw-s-5);
@@ -1080,7 +1087,7 @@ export class MultimediaScreens extends LitElement {
   }
 
   protected willUpdate() {
-    this.toggleAttribute('data-fit', this.fit.on);
+    this.toggleAttribute('data-fit', this.fit.fits); // PAGING-SETTING-2439: the region pages, or scrolls inside itself when the long lists scroll
   }
 
   render() {
