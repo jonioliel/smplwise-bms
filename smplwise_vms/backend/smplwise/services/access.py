@@ -68,8 +68,9 @@ def _chains(conn: sqlite3.Connection) -> dict[str, set[tuple[str, str]]]:
 
 
 def camera_scope(conn: sqlite3.Connection, principal: Principal, permission: str) -> CameraScope:
-    user = conn.execute("SELECT active FROM users WHERE id = ?", (principal.user_id,)).fetchone()
-    if user is not None and not user["active"]:
+    from .active_users import is_disabled
+
+    if is_disabled(conn, principal.user_id):  # CR-ADMIN-GATE-2438: authorize()'s rule - disabled on either side holds nothing
         return CameraScope(permission, False)
     bindings = [b for b in _active_bindings(conn, principal) if permission in role_permissions(conn, b["role_id"])]
     allow = {(b["scope_type"], b["scope_id"]) for b in bindings if b["effect"] != "deny"}

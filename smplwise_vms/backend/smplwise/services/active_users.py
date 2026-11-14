@@ -11,7 +11,9 @@ archive can leave them apart. The rule, everywhere:
 at all yet (a first request, a test principal): those keep treating "no row" as "not disabled", as they always did.
 
 Callers: services/tickets/store (user_is_active, active_user_ids), services/tickets/store_rfq.active_user_ids (the second-approver
-search of a supplier award), services/tickets/access.Viewer.anywhere, routers/access.active_user_ids (the delegated directory).
+search of a supplier award), services/tickets/access.Viewer.anywhere, routers/access.active_user_ids (the delegated directory), and since CR-ADMIN-GATE-2438
+(lead decision on question 1 of CR-RBAC-EVAL-2438) rbac itself: authorize() / Evaluator, admin_count, permissions_fingerprint, and
+services/access.camera_scope.
 """
 from __future__ import annotations
 
@@ -28,12 +30,11 @@ def active_user_ids(conn: sqlite3.Connection) -> set[str]:
 
 
 def is_disabled(conn: sqlite3.Connection, user_id: str) -> bool:
-    """True when the user is disabled on either side. A user with no row on a side is not disabled there."""
-    u = conn.execute("SELECT active FROM users WHERE id = ?", (user_id,)).fetchone()
-    if u is not None and not u["active"]:
-        return True
-    h = conn.execute("SELECT is_active FROM ha_users WHERE id = ?", (user_id,)).fetchone()
-    return h is not None and not h["is_active"]
+    """True when the user is disabled on either side. A user with no row on a side is not disabled there (a local Arx-only identity
+    has no `ha_users` row; a principal on its first request may have no row at all). One statement: rbac.authorize asks it on every
+    decision (CR-ADMIN-GATE-2438)."""
+    row = conn.execute("SELECT (SELECT active FROM users WHERE id = ?), (SELECT is_active FROM ha_users WHERE id = ?)", (user_id, user_id)).fetchone()
+    return (row[0] is not None and not row[0]) or (row[1] is not None and not row[1])
 
 
 def user_is_active(conn: sqlite3.Connection, user_id: str) -> bool:

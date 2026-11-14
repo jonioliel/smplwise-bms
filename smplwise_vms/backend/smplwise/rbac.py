@@ -331,9 +331,13 @@ class Evaluator:
         return perms
 
     def _user_inactive(self) -> bool:
+        """The system-wide rule (services/active_users, owner decision O16 a): disabled on EITHER side - `users.active = 0` or
+        `ha_users.is_active = 0` - refuses (`user_inactive`). No row on a side is not disabled there, so a local (Arx-only) identity,
+        which has no `ha_users` row, and a principal on its first request are judged by their bindings as before."""
         if self._inactive is None:
-            user = self.conn.execute("SELECT active FROM users WHERE id = ?", (self.principal.user_id,)).fetchone()
-            self._inactive = user is not None and not user["active"]
+            from .services.active_users import is_disabled
+
+            self._inactive = is_disabled(self.conn, self.principal.user_id)
         return self._inactive
 
     def authorize(self, permission: str, target: tuple[str, str]) -> Decision:
@@ -488,8 +492,9 @@ def permissions_fingerprint(conn: sqlite3.Connection, principal: Principal) -> s
     /me and the navigation when /me/ws or /me?known= says it moved)."""
     import hashlib
 
-    user = conn.execute("SELECT active FROM users WHERE id = ?", (principal.user_id,)).fetchone()
-    parts = [f"active={1 if user is None or user['active'] else 0}"]
+    from .services.active_users import is_disabled
+
+    parts = [f"active={0 if is_disabled(conn, principal.user_id) else 1}"]  # moves when either side disables the user
     for b in sorted(_active_bindings(conn, principal), key=lambda r: r["id"]):
         parts.append("|".join((b["id"], b["role_id"], ",".join(sorted(role_permissions(conn, b["role_id"]))), b["scope_type"], b["scope_id"], b["effect"], b["expires_at"] or "")))
     return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()[:16]
@@ -568,9 +573,12 @@ def admin_count(conn: sqlite3.Connection) -> int:
     members: dict[str, set[str]] = {}
     for m in conn.execute("SELECT group_id, user_id FROM group_members").fetchall():
         members.setdefault(m["user_id"], set()).add(m["group_id"])
+    ha_off = {r[0] for r in conn.execute("SELECT id FROM ha_users WHERE is_active = 0").fetchall()}  # authorize's rule (services/active_users)
     n = 0
     for u in conn.execute("SELECT id, source FROM users WHERE active = 1").fetchall():
         uid = u["id"]
+        if uid in ha_off:
+            continue
         if u["source"] == "local":  # USR2: never without the second factor, and a count has no session (local_factor_gate)
             continue
         local = str(uid or "").startswith(LOCAL_ID_PREFIX)
