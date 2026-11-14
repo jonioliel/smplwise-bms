@@ -1938,7 +1938,8 @@ def _lease_hook(reason: str, station_ids: list[str] | None = None) -> None:
         elif station_ids:
             capture_lease.on_authority_change(reason, station_ids=station_ids)
     except Exception:  # noqa: BLE001
-        pass
+        # code review 2026-11-13 P2-8: the revocation trigger failed - say so (the reason only, never an id), as local_identity.lease_hook does
+        log.warning("capture lease hook %s could not run", reason)
 
 
 LEASE_RECEIVER_KEYS = ("lock_enabled", "locks")

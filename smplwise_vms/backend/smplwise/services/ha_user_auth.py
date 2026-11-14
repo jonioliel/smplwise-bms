@@ -48,6 +48,7 @@ from urllib.parse import urlparse
 from ..config import Settings
 from ..errors import ApiError, unauthenticated
 from ..rbac import Principal
+from .session_cache import attach_if_live, take_queued
 from .tickets import ratelimit as _ratelimit
 
 log = logging.getLogger("smplwise.remote")
@@ -535,17 +536,11 @@ class SessionStore:
 
     def attach_socket(self, sid: str, websocket: Any) -> bool:
         """False when the session is gone (revoked or expired between the check and the attach, review M2): the caller
-        refuses the socket rather than serve one nothing would ever close."""
-        with self._lock:
-            if sid not in self._sessions:
-                return False
-            self._sockets.setdefault(sid, weakref.WeakSet()).add(websocket)
-            return True
+        refuses the socket rather than serve one nothing would ever close. The shared rule of services/session_cache.py."""
+        return attach_if_live(self._lock, self._sockets, sid, websocket, live=lambda: sid in self._sessions)
 
     def take_sockets_to_close(self) -> list[Any]:
-        with self._lock:
-            out, self._to_close = self._to_close, []
-        return out
+        return take_queued(self)
 
     def due_for_revalidation(self) -> list[RemoteSession]:
         now = time.time()
@@ -1262,7 +1257,8 @@ def _lease_session_ended(user_id: str) -> None:
 
         capture_lease.on_authority_change("session_ended", user_ids=[user_id])
     except Exception:  # noqa: BLE001 - never breaks a session store operation
-        pass
+        # code review 2026-11-13 P2-8: the revocation trigger failed - say so (the reason only, never an id), as local_identity.lease_hook does
+        log.warning("capture lease hook %s could not run", "session_ended")
 
 
 def logout(app_state: Any, settings: Settings, conn_like: Any) -> bool:
