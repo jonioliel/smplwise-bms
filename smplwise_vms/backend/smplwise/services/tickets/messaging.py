@@ -15,8 +15,6 @@ it the real ports and connects it to the rest of the module:
 - `OutboxDispatch` = services/tickets/external.DISPATCH: the channel an assignment takes (the contact's preferred channel, the
   master WhatsApp switch, the fallbacks of D13), the queued assignment message (in the assignment's own transaction), the D6
   readiness check and the assign preview's extra lines (the exact text, the account, the send-hours line, "send now");
-- `OutboxCodeSender` = the public page's CodeSender (purpose `code`, the code ROW id only - the six digits are derived at render
-  time, W9);
 - the inbound side: `submit_inbound` (from the ha_sync websocket thread: a bounded queue, never a write, never a log of the event),
   the matcher's ports (nonce, candidates, dedupe, the account filter) and `apply_decision` (advisory status, notes, late notes,
   the claim-before-reveal queue of ambiguous replies);
@@ -581,7 +579,7 @@ class MessagingRuntime:
         handler_links.NOTICE = self.notice
         handler_links.CHANNEL_OK = self.channel_ok
         # The public page's CodeSender is slice 7's code_flow.SqlCodeSender (wired in public_runtime): it reaches the outbox through
-        # `external.DISPATCH.queue_code` (OutboxDispatch), so no CODE_SENDER hook is registered (OutboxCodeSender stays unused).
+        # `external.DISPATCH.queue_code` (OutboxDispatch), so no CODE_SENDER hook is registered (the unused OutboxCodeSender was removed, CR-DEAD-CODE-BE-2438).
 
     def channel_ok(self, conn, link_row: dict[str, Any]) -> bool:
         contact = store_links.contact(conn, link_row.get("contact_id"))
@@ -1173,50 +1171,6 @@ def code_channels(conn, contact: Mapping[str, Any], rt: MessagingRuntime) -> tup
     whatsapp_ok = whatsapp_code_ready(conn, contact, rt) and _verified_for_whatsapp(conn, contact)
     email_ok = bool(contact.get("email")) and cs["email_fallback"] and email_configured(conn, rt.data_dir)
     return whatsapp_ok, email_ok
-
-
-# ---------------------------------------------------------------- the public page's CodeSender (public_ports.CodeSender)
-
-class OutboxCodeSender:
-    """`channel_for` = the D6 rule over the live state; `send` queues ONE `code` row with the code ROW id (W9: the six digits are
-    derived from it at render time - never in the row, never in a log). Called from the public listener's threads, which hold no
-    database connection: the row is written in a short transaction of its own (gate first, then the outbox lock)."""
-
-    def __init__(self, rt: MessagingRuntime) -> None:
-        self.rt = rt
-
-    def channel_for(self, link: Any) -> str | None:
-        db = self.rt.db
-        if db is None:
-            return None
-        with db.connection(mode="read", label="tickets.code.channel") as conn:
-            row = store_links.link(conn, link.link_id)
-            contact = store_links.contact(conn, row["contact_id"]) if row else None
-            if row is None or contact is None or contact.get("erased_at"):
-                return None
-            whatsapp_ok, email_ok = code_channels(conn, contact, self.rt)
-            return codes_mod.code_channel(link_sent_via=row.get("sent_via"), whatsapp_ready=whatsapp_ok,
-                                          has_phone=phone_digits(contact.get("phone_e164") or "") is not None,
-                                          email_ready=email_ok, has_email=bool(contact.get("email")))
-
-    def send(self, link: Any, code_id: str, channel: str) -> bool:
-        db = self.rt.db
-        if db is None or self.rt.outbox is None or channel not in ("whatsapp", "email"):
-            return False
-        try:
-            with db.connection(label="tickets.code.queue") as conn:
-                row = store_links.link(conn, link.link_id)
-                contact = store_links.contact(conn, row["contact_id"]) if row else None
-                ticket = obs.ticket_for_worker(conn, row["ticket_id"]) if row else None
-                if row is None or contact is None or ticket is None:
-                    return False
-                digits = codes_mod.derive_code(KEYS.get(row.get("key_id")), code_id)
-                result = OutboxDispatch(self.rt).queue_code(conn, ticket=ticket, link=row, contact=contact, code=digits, code_id=code_id,
-                                                            channel=channel, requested_by=f"link:{row['id'][:6]}")
-            return bool(result.get("queued"))
-        except Exception:  # noqa: BLE001 - the code route answers 503 code_unavailable; nothing about the code is logged
-            log.warning("verification code not queued")
-            return False
 
 
 # ---------------------------------------------------------------- the inbound matcher's ports (inbound.MatchDirectory / DedupeStore)

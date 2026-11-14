@@ -131,15 +131,6 @@ class Engine(Protocol):
 
 # ---------------------------------------------------------------- the live engine (refused in this build)
 
-def _doors_of(raw: Any) -> dict[str, list[int]]:
-    out: dict[str, list[int]] = {}
-    if isinstance(raw, dict):
-        for sid, relays in raw.items():
-            if isinstance(sid, str) and isinstance(relays, list):
-                out[sid] = sorted({r for r in relays if isinstance(r, int) and not isinstance(r, bool)})
-    return out
-
-
 _EMPLOYEE_NO = re.compile(r"[A-Za-z0-9_-]{1,32}")
 _VALID_MIN = datetime(1970, 1, 1, tzinfo=timezone.utc)
 _VALID_MAX = datetime(2037, 12, 31, 23, 59, 59, tzinfo=timezone.utc)

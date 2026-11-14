@@ -579,12 +579,6 @@ _rejected: dict[str, float] = {}  # token hash -> until (negative cache)
 _cache_lock = threading.Lock()
 
 
-def forget_bearer_user(user_id: str) -> None:
-    """The MVP's bearer cache is gone: bearer principals are bearer sessions in STORE (CR-008 P2), so drop_user covers
-    them. Kept for callers."""
-    STORE.drop_user(user_id)
-
-
 def _remember_rejected(token: str) -> None:
     until = min(jwt_exp(token) or 0.0, time.time() + 3600.0) or time.time() + 300.0
     with _cache_lock:
@@ -1391,10 +1385,6 @@ def _bearer_session(request: Any, settings: Settings, token: str, offline: bool 
         _record_sign_in(db, principal, meta)
         _audit(db, actor=principal, action="auth.remote_session.created", decision="allowed", reason=None, meta={**meta, "basis": basis, **factor_meta})
     return s
-
-
-def _bearer_principal(request: Any, settings: Settings, token: str) -> Principal:
-    return _bearer_session(request, settings, token).principal
 
 
 def _note_use(conn: Any, s: RemoteSession) -> None:

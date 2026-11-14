@@ -416,11 +416,6 @@ def access_devices(conn: sqlite3.Connection, link_id: str, *, since: str | None 
     return int(conn.execute("SELECT COUNT(DISTINCT client_key) FROM ticket_link_access WHERE link_id = ?", (link_id,)).fetchone()[0])
 
 
-def access_counts(conn: sqlite3.Connection, link_id: str) -> dict[str, int]:
-    return {r[0]: int(r[1]) for r in conn.execute(
-        "SELECT kind, COUNT(*) FROM ticket_link_access WHERE link_id = ? GROUP BY kind", (link_id,)).fetchall()}
-
-
 # ---------------------------------------------------------------- verification codes, code sessions, wrong-code windows
 
 

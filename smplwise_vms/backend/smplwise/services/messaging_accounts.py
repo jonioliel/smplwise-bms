@@ -77,13 +77,6 @@ class Account:
     pacing: Pacing = Pacing()
     removed: bool = False
 
-    @property
-    def account_value(self) -> str | None:
-        """What goes into the service call's `account` field: the entry id (stable, never ambiguous) or the typed value."""
-        if self.kind == "discovered":
-            return self.key.split(":", 1)[1]
-        return self.value
-
 
 @dataclass(frozen=True)
 class MappingDoc:

@@ -435,7 +435,8 @@ _ID_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
 
 def ssid_hash(salt: str, ssid: str) -> str:
     """WHOIN034-295: how a Wi-Fi site's network names are kept - `sha256_hex(salt + ssid)` over UTF-8 (the app hashes the SSID it
-    sees the same way with the site's `ssid_hash_salt` and reports `ssid_hash` in its `network` value). The name itself is never stored."""
+    sees the same way with the site's `ssid_hash_salt` and reports `ssid_hash` in its `network` value). The name itself is never stored.
+    The contract's hash: lowercase hex SHA-256 of the UTF-8 bytes of `salt + ssid` (docs/api/mobile-presence-contract.md section 2.1)."""
     return hashlib.sha256((salt + ssid).encode("utf-8")).hexdigest()
 
 
@@ -936,11 +937,6 @@ def _site_of(st: dict[str, Any], lat: float, lon: float) -> str | None:
         if d <= float(s["radius_m"]) and (best is None or d < best[0]):
             best = (d, s["id"])
     return best[1] if best else None
-
-
-def ssid_hash(salt: str, ssid: str) -> str:
-    """The contract's hash: lowercase hex SHA-256 of the UTF-8 bytes of `salt + ssid` (docs/api/mobile-presence-contract.md section 2.1)."""
-    return hashlib.sha256((salt + ssid).encode("utf-8")).hexdigest()
 
 
 def _resolve_wifi(value: dict[str, Any], st: dict[str, Any]) -> dict[str, Any]:

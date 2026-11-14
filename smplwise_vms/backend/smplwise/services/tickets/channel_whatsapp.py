@@ -40,7 +40,7 @@ from typing import Any, Callable, Protocol
 
 import httpx
 
-from .channel import (CONNECTED, NOT_SENT, REACH_CHANNEL_DOWN, REACH_NO_ADDRESS, REACH_OK, REACH_OPTED_OUT, REFUSED, SENT,
+from .channel import (NOT_SENT, REACH_CHANNEL_DOWN, REACH_NO_ADDRESS, REACH_OK, REACH_OPTED_OUT, REFUSED, SENT,
                       UNKNOWN, AccountRef, ChannelStatus, InboundMessage, OutboundMessage, Recipient, SendResult, phone_digits)
 
 log = logging.getLogger("smplwise.tickets.channel")
@@ -251,6 +251,3 @@ class WhatsAppChannel:
         log.info("whatsapp send outbox=%s service=%s account=%s outcome=%s code=%s", msg.outbox_id, service,
                  msg.account.key if msg.account else None, result.outcome, result.outcome_code)
         return result
-
-    def account_connected(self, account: AccountRef | None) -> bool:
-        return account is not None and self._accounts.status(account.key).state == CONNECTED

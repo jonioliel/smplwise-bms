@@ -160,10 +160,6 @@ def update_vendor(conn: sqlite3.Connection, rfq_vendor_id: str, fields: Mapping[
     return _update(conn, "ticket_rfq_vendors", VENDOR_COLUMNS, rfq_vendor_id, fields, expect_revision=expect_revision)
 
 
-def vendors_of_contact(conn: sqlite3.Connection, contact_id: str) -> list[dict[str, Any]]:
-    return [dict(r) for r in conn.execute("SELECT * FROM ticket_rfq_vendors WHERE contact_id = ?", (contact_id,)).fetchall()]
-
-
 # ---------------------------------------------------------------- vendor links (the handler-link token model, 0089)
 
 def insert_link(conn: sqlite3.Connection, row: Mapping[str, Any]) -> None:
@@ -381,12 +377,6 @@ def raise_code(conn: sqlite3.Connection, contact_ids: list[str]) -> int:
 
 def quotes_of_vendor(conn: sqlite3.Connection, rfq_vendor_id: str) -> list[dict[str, Any]]:
     return [dict(r) for r in conn.execute("SELECT * FROM ticket_quotes WHERE rfq_vendor_id = ? ORDER BY version, rowid", (rfq_vendor_id,)).fetchall()]
-
-
-def quotes_of_rfq(conn: sqlite3.Connection, rfq_id: str) -> list[dict[str, Any]]:
-    return [dict(r) for r in conn.execute(
-        "SELECT q.* FROM ticket_quotes q JOIN ticket_rfq_vendors v ON v.id = q.rfq_vendor_id WHERE v.rfq_id = ? ORDER BY q.created_at, q.version, q.rowid",
-        (rfq_id,)).fetchall()]
 
 
 def rfq_quote_of_ticket(conn: sqlite3.Connection, ticket_id: str) -> dict[str, Any] | None:
@@ -756,10 +746,6 @@ def outbox_states(conn: sqlite3.Connection, rfq_id: str) -> dict[str, dict[str, 
                           "WHERE rfq_id = ? AND link_id IS NOT NULL ORDER BY created_at, id", (rfq_id,)).fetchall():
         out[r["link_id"]] = {"purpose": r["purpose"], "state": r["state"], "channel": r["channel"], "at": r["at"]}
     return out
-
-
-def outbox_count_of_rfq(conn: sqlite3.Connection, rfq_id: str) -> int:
-    return int(conn.execute("SELECT COUNT(*) FROM ticket_outbox WHERE rfq_id = ?", (rfq_id,)).fetchone()[0])
 
 
 # ---------------------------------------------------------------- retention and full deletion

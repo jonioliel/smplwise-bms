@@ -128,10 +128,6 @@ def request_ids(client_request_id: str) -> tuple[str, str]:
     return client_request_id, "tplv2-" + client_request_id
 
 
-def conn_registry(conn: sqlite3.Connection) -> list[wts.TemplateRef]:
-    return wts.load_registry(conn)
-
-
 def status_of(conn: sqlite3.Connection) -> dict[str, Any]:
     """The Settings screen's read: switch, permit, registry (with the WisKey pair shown as bound / unbound), contract status."""
     refs = wts.load_registry(conn)

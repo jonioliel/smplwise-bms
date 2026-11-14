@@ -40,10 +40,6 @@ def _safe(fn, *args: Any) -> dict[str, Any]:
         return _unknown("לא ניתן לאמת את המקור", code="source_error")
 
 
-def _days_text(d: float | None) -> str:
-    return "לא ידוע" if d is None else f"לפני {int(d)} ימים"
-
-
 def _iso_to_dt(value: Any) -> dt.datetime | None:
     if not isinstance(value, str) or not value:
         return None

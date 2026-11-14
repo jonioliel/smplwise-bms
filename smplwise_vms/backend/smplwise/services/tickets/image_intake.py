@@ -174,12 +174,6 @@ class Layout:
     scans: int = 1
 
 
-def png_scan(data: bytes) -> tuple[int, int]:
-    """(width, height) from IHDR after a walk of the chunk layout; IntakeError otherwise (see png_layout)."""
-    layout = png_layout(data)
-    return layout.width, layout.height
-
-
 def png_layout(data: bytes) -> Layout:
     """Walk the chunk layout (IntakeError on anything outside the rules of the module docstring) and keep IHDR / PLTE / tRNS /
     IDAT / IEND verbatim (their CRCs included). Bytes after IEND are dropped."""

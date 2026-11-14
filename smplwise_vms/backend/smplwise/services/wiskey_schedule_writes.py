@@ -191,24 +191,6 @@ def digest(value: Any) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
 
 
-def bindings_ok(data: Any, holidays: int) -> dict[str, Any]:
-    """WisKey's `schedule_compiler.bindings_for`: `{template, weekly, holiday_group, holidays}` device slot ids 1..65535; one holiday
-    slot per holiday (distinct), a holiday group only when there are holidays. Raises DraftError(`schedule_binding_invalid`)."""
-    if not isinstance(data, dict) or set(data) != {"template", "weekly", "holiday_group", "holidays"}:
-        raise DraftError("schedule_binding_invalid", "bindings")
-    slots = data["holidays"]
-    if not isinstance(slots, list) or len(slots) != holidays:
-        raise DraftError("schedule_binding_invalid", "bindings.holidays")
-    ids = [data["template"], data["weekly"], *slots]
-    if holidays:
-        ids.append(data["holiday_group"])
-    elif data["holiday_group"] is not None:
-        raise DraftError("schedule_binding_invalid", "bindings.holiday_group")
-    if any(type(i) is not int or not 1 <= i <= 65535 for i in ids) or len(set(slots)) != len(slots):
-        raise DraftError("schedule_binding_invalid", "bindings")
-    return {"template": data["template"], "weekly": data["weekly"], "holiday_group": data["holiday_group"], "holidays": list(slots)}
-
-
 # ---------------------------------------------------------------- projections (closed construction, like the adapter's)
 
 def _pair(v: Any) -> list[int] | None:

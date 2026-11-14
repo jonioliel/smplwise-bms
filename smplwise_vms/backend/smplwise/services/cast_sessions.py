@@ -653,12 +653,6 @@ def _url(origin: str, token: str) -> str:
     return f"{origin}/cast/{token}/index.m3u8"
 
 
-def _index_put(conn: sqlite3.Connection, session_id: str, gen: int, stream: str, expires_at: str | None) -> str:
-    token = token_for(_secret(conn), session_id, gen)
-    cast_relay.INDEX.put(token, session_id, stream, _epoch(expires_at))
-    return token
-
-
 def start(conn: sqlite3.Connection, settings: Settings, principal: Principal, request_id: str | None, body: dict[str, Any], *, channel: str = "local",
           kind: str = "camera") -> tuple[int, dict[str, Any]]:
     """POST sessions (and the administrator's test, kind "test"). Every refusal before the bridge call is audited

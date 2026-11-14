@@ -283,15 +283,6 @@ def parse_talk_open(raw: Any) -> TalkOpened:
     return TalkOpened(talk_ref=ref, codec=codec, frame_ms=FRAME_MS)
 
 
-def project_object(raw: Any) -> dict[str, Any]:
-    """The feed's projection of `stream_lease` / `talk_open` (intercom_sync `command(..., project=)`): the answer object as it came.
-    The contract readers (`parse_lease`, `parse_talk_open`) run in the provider, so a refusal keeps its rule code - and a talk
-    WisKey opened but Arx cannot use is still closed by its `talk_ref`."""
-    if not isinstance(raw, dict):
-        raise ContractError("reply_not_an_object")
-    return dict(raw)
-
-
 def talk_ref_of(raw: Any) -> str | None:
     """The `talk_ref` of a `talk_open` answer when it is a well-formed handle (to close a talk Arx refuses to use), else None."""
     ref = raw.get(R_TALK_REF) if isinstance(raw, dict) else None

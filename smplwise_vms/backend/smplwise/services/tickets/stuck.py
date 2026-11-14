@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import datetime as dt
 from dataclasses import dataclass, field
-from typing import Any, Iterable
+from typing import Any
 
 from . import work_calendar
 from .timeutil import iso_s_or_none, zone_named
@@ -341,7 +341,3 @@ def nearest_due(ev: Evaluation, now: dt.datetime) -> dict[str, Any] | None:
     if ev.crossed is not None:
         return {"kind": ev.crossed.kind, "at": iso(ev.crossed.due), "over": True}
     return nxt
-
-
-def kinds_in(values: Iterable[str]) -> list[str]:
-    return [k for k in KINDS if k in set(values)]

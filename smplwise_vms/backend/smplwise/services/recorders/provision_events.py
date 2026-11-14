@@ -223,11 +223,6 @@ def stop_push() -> None:
         _SINKS.clear()
 
 
-def push_states() -> dict[str, dict[str, Any]]:
-    with _PUSH_LOCK:
-        return {rid: {**r.state(), "stale": r.stale()} for rid, r in _RECEIVERS.items()}
-
-
 def run_loop(listener: "AlertStreamListener", *, adapter: ProvisionIsrAdapter | None = None, sleep=None) -> None:
     """The reader of a Provision recorder's AlertStreamListener (see module doc). Never raises."""
     from ..events_ingest import close_gap

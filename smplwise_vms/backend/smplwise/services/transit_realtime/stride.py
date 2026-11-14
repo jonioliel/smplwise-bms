@@ -8,9 +8,6 @@ skips snapshots), so most upcoming buses come out `stale` or `scheduled`. See do
 No network access happens here: every call goes through the injected `transport(path, params) -> parsed JSON`."""
 from __future__ import annotations
 
-import json
-import urllib.parse
-import urllib.request
 from collections import OrderedDict
 from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta, timezone
@@ -31,16 +28,6 @@ def _dt(s: str) -> datetime:
 
 def _z(d: datetime) -> str:
     return d.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def urllib_transport(base_url: str = BASE_URL, user_agent: str = "smplwise-arx-transit/1", timeout: float = 10.0) -> Transport:
-    """The only code that touches the network. Used in production wiring, never in tests."""
-    def call(path: str, params: dict[str, Any]) -> Any:
-        url = base_url + path + "?" + urllib.parse.urlencode(params)
-        req = urllib.request.Request(url, headers={"User-Agent": user_agent, "Accept": "application/json"})
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            return json.load(r)
-    return call
 
 
 def destination_from_route_name(long_name: str) -> str:

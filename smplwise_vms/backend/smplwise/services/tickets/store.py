@@ -878,10 +878,6 @@ def current_link(conn: sqlite3.Connection, assignment_id: str | None) -> dict[st
     return _dict(conn.execute("SELECT * FROM ticket_links WHERE assignment_id = ? ORDER BY generation DESC, created_at DESC LIMIT 1", (assignment_id,)).fetchone())
 
 
-def has_event_since(conn: sqlite3.Connection, ticket_id: str, kind: str, since: str) -> bool:
-    return conn.execute("SELECT 1 FROM ticket_events WHERE ticket_id = ? AND kind = ? AND at >= ? LIMIT 1", (ticket_id, kind, since)).fetchone() is not None
-
-
 def place_names(conn: sqlite3.Connection, ids: dict[str, set[str]]) -> dict[str, dict[str, Any]]:
     """Names (and the parent, the sort keys) of the places tickets point at: {'site:<id>': {...}, 'building:<id>': ..., 'floor:<id>': ...,
     'zone:<id>': ..., 'area:<id>': ...}. Deleted places keep their name (a ticket keeps naming where it was filed)."""

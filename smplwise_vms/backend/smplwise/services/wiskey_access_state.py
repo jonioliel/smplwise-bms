@@ -373,13 +373,6 @@ def v1_acr5_consistent(state: AccessState) -> None:
         raise AccessStateError("inconsistent", "delete_pending")
 
 
-def try_parse(raw: Any, **kw: Any) -> AccessState | AccessStateError:
-    try:
-        return parse_result(raw, **kw)
-    except AccessStateError as exc:
-        return exc
-
-
 # ---------------------------------------------------------------- the revocation evidence (WKV2B-295)
 
 EVIDENCE_PENDING = "pending"                # tracked revocation work is still owed (v1 or v2)

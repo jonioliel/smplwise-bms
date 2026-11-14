@@ -24,8 +24,9 @@ Rules of the road (CR-008 §3d):
 
 CR-018: the same worker thread also drains the notification outbox (services/notify_channels.py): notifications of EVERY source
 are planned there against the ADMINISTRATOR's policy and settings (no per-user preferences), pushed with payload v2 and sent
-by e-mail; each attempt is a row of the delivery log. The functions below that take a legacy "notice" dict (plan, notice_from_fired,
-payload_for, get_prefs ...) stay readable for one release, as the migration plan says; nothing in the product calls them but the tests.
+by e-mail; each attempt is a row of the delivery log. The functions below that take a legacy "notice" dict (plan, payload_for,
+get_prefs ...) stay readable for one release, as the migration plan says; nothing in the product calls them but the tests
+(CR-DEAD-CODE-BE-2438 removed `notice_from_fired` / `enqueue_fired`, which nothing called at all).
 """
 from __future__ import annotations
 
@@ -340,16 +341,6 @@ def category_of(event_type: str | None, source: str | None, availability: str | 
     if event_type == "system" or source == "system":
         return "system"
     return "alerts"
-
-
-def notice_from_fired(item: dict[str, Any]) -> dict[str, Any]:
-    """The part of a fired rule alert (services/rules.evaluate_event) the push path needs; nothing else crosses over."""
-    p = item.get("_push") or {}
-    return {
-        "alert_id": item.get("id"), "event_id": item.get("event_id"), "rule_name": item.get("rule_name") or "", "message": item.get("message") or "",
-        "camera_id": p.get("camera_id"), "entity_id": p.get("entity_id"), "event_type": p.get("event_type"), "source": p.get("source"),
-        "severity": p.get("severity") or "info", "availability": p.get("availability"), "occurred_at": p.get("occurred_at"), "place": p.get("place"),
-    }
 
 
 def _clip(text: str, n: int) -> str:
@@ -843,16 +834,3 @@ def wake_all() -> None:
 
 
 NOTIFIER = PushNotifier()
-
-
-def enqueue_fired(fired: list[dict[str, Any]]) -> int:
-    """Called by services/rules.deliver_pending after the caller's commit: one notice per fired alert."""
-    if not fired or not NOTIFIER.running:
-        for item in fired:
-            item.pop("_push", None)
-        return 0
-    notices = [notice_from_fired(item) for item in fired]
-    for item in fired:
-        item.pop("_push", None)
-    return NOTIFIER.enqueue(notices)
-

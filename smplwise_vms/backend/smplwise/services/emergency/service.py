@@ -146,7 +146,7 @@ def put_config(conn: sqlite3.Connection, settings: Settings | None, viewer: View
             for k in resets:
                 cur.pop(k, None)
             cur.update(clean)
-            model.check_order(model.merged_thresholds({**cur}) if False else {**model.default_thresholds(), **{k: v for k, v in cur.items() if k in model.THRESHOLDS}})
+            model.check_order({**model.default_thresholds(), **{k: v for k, v in cur.items() if k in model.THRESHOLDS}})
             _jsave(conn, access.THRESHOLDS_KEY, cur)
             changed.append("thresholds")
         if body.get("cameras") is not None:

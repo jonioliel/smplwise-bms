@@ -510,11 +510,6 @@ def get_policy(conn: sqlite3.Connection, source: str) -> dict[str, Any] | None:
     return row_to_policy(r)
 
 
-def source_info(source: str) -> dict[str, Any]:
-    s = BY_KEY[source]
-    return {"source": s.key, "label": s.label, "subject_kind": s.subject, "category": s.category}
-
-
 # owner 2026-10-01: who is told that a schedule was not executed / an automation failed is ONE installation setting
 # (`failures_audience`: admins | visible), not a per-source choice - these two sources follow it unless the administrator named users
 FAILURE_SOURCES = ("schedule.not_confirmed", "automation.failed")

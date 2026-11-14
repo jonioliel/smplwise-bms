@@ -360,12 +360,6 @@ def pause_for_unit_change(conn: sqlite3.Connection, meter_id: str) -> None:
                  (now_iso(), meter_id))
 
 
-def iso_to_epoch(text: str) -> int:
-    from .timeutil import parse_utc
-
-    return int(parse_utc(text).timestamp())
-
-
 def epoch_to_iso(ts: int | None) -> str | None:
     if ts is None:
         return None

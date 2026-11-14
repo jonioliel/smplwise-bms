@@ -746,10 +746,6 @@ class Computed:
     end_caps: dict[str, str]
 
 
-class ComputeError(ApiError):
-    pass
-
-
 def _prev_bill(conn: sqlite3.Connection, aid: str, start: dt.date) -> sqlite3.Row | None:
     return bl.prev_bill(KIND, conn, aid, start)
 
